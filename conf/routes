@@ -1,0 +1,102 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+# ~~~~
+
+# Swagger
+GET    /api-docs                                                               controllers.ApiHelpController.getResources
+#GET         /api-docs/query                                             controllers.ApiHelpController.getResource(path = "/query")
+GET    /api-docs/graphs/queries                                                controllers.ApiHelpController.getResource(path="/graphs/queries")
+GET    /api-docs/graphs/vertices                                               controllers.ApiHelpController.getResource(path="/graphs/vertices")
+GET    /api-docs/graphs/edges                                                  controllers.ApiHelpController.getResource(path="/graphs/edges")
+GET    /api-docs/graphs/admin                                                  controllers.ApiHelpController.getResource(path="/graphs/admin")
+
+
+
+#OPTIONS /*wholepath             @controllers.VertexController.getOptions(wholepath)
+#### Legacy
+# publish
+#POST   /publish/:topic                                                         controllers.PublishController.publish(topic)
+POST   /publish/:topic                                                         controllers.PublishController.mutateBulk(topic)
+POST   /publishOnly/:topic                                                     controllers.PublishController.publishOnly(topic)
+
+#### Health Check
+#GET    /health_check.html                                                      controllers.Assets.at(path="/public", file="health_check.html")
+GET    /health_check.html                                                      controllers.ApplicationController.healthCheck()
+PUT    /health_check/:isHealthy                                                controllers.ApplicationController.updateHealthCheck(isHealthy: Boolean)
+PUT    /actors/updateHealth/:actorName/:isHealthy                              controllers.ApplicationController.updateActorHealth(actorName, isHealthy: Boolean)
+
+## Edge
+POST   /graphs/edges/insert                                                    controllers.EdgeController.inserts()
+POST   /graphs/edges/insertBulk                                                controllers.EdgeController.insertsBulk()
+POST   /graphs/edges/delete                                                    controllers.EdgeController.deletes()
+POST   /graphs/edges/update                                                    controllers.EdgeController.updates()
+POST   /graphs/edges/increment                                                 controllers.EdgeController.increments()
+POST   /graphs/edges/bulk                                                      controllers.EdgeController.mutateBulk()
+
+## Vertex
+POST   /graphs/vertices/insert                                                 controllers.VertexController.inserts()
+POST   /graphs/vertices/insert/:serviceName/:columnName                        controllers.VertexController.insertsSimple(serviceName, columnName)
+POST   /graphs/vertices/delete                                                 controllers.VertexController.deletes()
+POST   /graphs/vertices/delete/:serviceName/:columnName                        controllers.VertexController.deletesSimple(serviceName, columnName)
+POST   /graphs/vertices/deleteAll                                              controllers.VertexController.deletesAll()
+POST   /graphs/vertices/deleteAll/:serviceName/:columnName                     controllers.VertexController.deletesAllSimple(serviceName, columnName)
+
+
+### SELECT Edges
+POST   /graphs/getEdges                                                        controllers.QueryController.getEdges()
+POST   /graphs/getEdges/grouped                                                controllers.QueryController.getEdgesWithGrouping()
+POST   /graphs/getEdgesExcluded                                                controllers.QueryController.getEdgesExcluded()
+POST   /graphs/getEdgesExcluded/grouped                                        controllers.QueryController.getEdgesExcludedWithGrouping()
+
+### this will be deprecated
+POST   /graphs/getEdgesGrouped                                                 controllers.QueryController.getEdgesGrouped()
+POST   /graphs/getEdgesGroupedExcluded                                         controllers.QueryController.getEdgesGroupedExcluded()
+POST   /graphs/getEdgesGroupedExcludedFormatted                                controllers.QueryController.getEdgesGroupedExcludedFormatted()
+GET    /graphs/getEdge/:srcId/:tgtId/:labelName/:direction                     controllers.QueryController.getEdge(srcId, tgtId, labelName, direction)
+
+
+### SELECT Vertices
+#POST   /graphs/getVertex                                                       controllers.QueryController.getVertex()
+POST   /graphs/getVertices                                                     controllers.QueryController.getVertices()
+
+
+#### ADMIN
+POST   /graphs/createService                                                   controllers.AdminController.createService()
+GET    /graphs/getService/:serviceName                                         controllers.AdminController.getService(serviceName)
+GET    /graphs/getLabels/:serviceName                                          controllers.AdminController.getLabels(serviceName)
+POST   /graphs/createLabel                                                     controllers.AdminController.createLabel()
+POST   /graphs/addIndex                                                        controllers.AdminController.addIndex()
+GET    /graphs/getLabel/:labelName                                             controllers.AdminController.getLabel(labelName)
+PUT    /graphs/deleteLabel/:labelName                                          controllers.AdminController.deleteLabel(labelName)
+POST   /graphs/addProp/:labelName                                              controllers.AdminController.addProp(labelName)
+		  
+#### TEST
+GET    /graphs/testGetEdges/:label/:limit/:friendCntStep                       controllers.QueryController.testGetEdges(label, limit: Int, friendCntStep: Int)
+GET    /graphs/testGetEdges2/:label1/:limit1/:label2/:limit2                   controllers.QueryController.testGetEdges2(label1, limit1: Int, label2, limit2: Int)
+GET    /graphs/testGetEdges3/:label1/:limit1/:label2/:limit2/:label3/:limit3   controllers.QueryController.testGetEdges3(label1, limit1: Int, label2, limit2: Int, label3, limit3: Int)
+GET    /graphs/ping                                                            controllers.QueryController.ping()
+GET    /graphs/testId                                                          controllers.TestController.getRandomId()
+
+# Map static resources from the /public folder to the /assets URL path
+GET    /images/*file                                                           controllers.Assets.at(path="/public/images", file)
+GET    /javascripts/*file                                                      controllers.Assets.at(path="/public/javascripts", file)
+GET    /stylesheets/*file                                                      controllers.Assets.at(path="/public/stylesheets", file)
+GET    /font-awesome-4.1.0/*file                                               controllers.Assets.at(path="/public/font-awesome-4.1.0", file)
+GET    /swagger/*file                                                          controllers.Assets.at(path="/public/swagger-ui", file)
+
+
+
+
+
+# AdminController API
+GET    /admin/services                                                         controllers.AdminController.allServices
+GET    /admin/labels/:serviceName                                              controllers.AdminController.getLabels(serviceName)
+#POST   /admin/labels/delete/:zkAddr/:tableName/:labelIds/:minTs/:maxTs         controllers.AdminController.deleteEdges(zkAddr, tableName, labelIds, minTs: Long, maxTs: Long)
+#POST   /admin/labels/deleteAll/:zkAddr/:tableName/:minTs/:maxTs                controllers.AdminController.deleteAllEdges(zkAddr, tableName, minTs: Long, maxTs: Long)
+#POST   /admin/swapLabel/:oldLabelName/:newLabelName                            controllers.AdminController.swapLabel(oldLabelName, newLabelName)
+#GET    /admin/reloadLabel/:labelName                                           controllers.AdminController.reloadLabel(labelName)
+#POST        /admin/getEdges                                                              controllers.AdminController.getEdges()
+
+# AdminController Page
+#GET    /admin                                                                  controllers.AdminController.page
+#GET    /manager                                                                controllers.AdminController.manager
