@@ -62,6 +62,14 @@ Table of content
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
+Requirements
+-------------
+
+ - [mysql](https://www.mysql.com/): store metas and schemas.
+ - [Apache Kafka](http://kafka.apache.org/): store incomming events. also use kafka as primary real time event source.
+ - [Apache HBase](http://hbase.apache.org/): primary datastorage.
+ - (optional)[Apache Spark](https://spark.apache.org/): use this as streaming processing engine consume events from Kafka to s2graph. also use this for bulk load process.
+
 
 Getting Started
 -------------
@@ -89,11 +97,15 @@ install dependencies on local.
 ```
 cd asynchbase; mvn install 
 ```
-
+create database schema
+```
+checkout mysql/mysql/schema.sql and run schema.sql on mysql
+```
 compile(optional)
 ```
 sbt compile
 ```
+
 
 run rest server
 ```
