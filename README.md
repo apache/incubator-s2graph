@@ -12,12 +12,12 @@ Table of content
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](http://doctoc.herokuapp.com/)*
 
-- [Trying It Out](#trying-it-out)
+- [Requirements](#requirements)
+- [Getting Started](#getting-started)
 - [The Data Model](#the-data-model)
 - [REST API Glossary](#rest-api-glossary)
 - [0. Create a Service - `POST /graphs/createService`](#0-create-a-service---post-graphscreateservice)
   - [0.1 service definition](#01-service-definition)
-  - [0.2 optional service definition](#02-optional-service-definition)
 - [1. Create a Label - `POST /graphs/createLabel`](#1-create-a-label---post-graphscreatelabel)
   - [1.1 label definition](#11-label-definition)
   - [1.2 label example](#12-label-example)
@@ -52,13 +52,19 @@ Table of content
 - [6. Bulk Loading](#6-bulk-loading)
     - [Edge Format](#edge-format)
     - [Vertex Format](#vertex-format)
+  - [Build](#build)
   - [Source Data Storage Options](#source-data-storage-options)
     - [1. When the source data is in HDFS.](#1-when-the-source-data-is-in-hdfs)
-    - [2. When the source data is in the local file system.](#2-when-the-source-data-is-in-the-local-file-system)
+    - [2. When the source data is in Kafka.](#2-when-the-source-data-is-in-kafka)
+    - [3. online migration](#3-online-migration)
 - [7. Benchmark](#7-benchmark)
   - [Test data](#test-data)
     - [1. friend of friend](#1-friend-of-friend)
     - [2. friends](#2-friends)
+- [new benchmark (asynchbase)](#new-benchmark-asynchbase)
+    - [1. one step query](#1-one-step-query)
+    - [2. two step query](#2-two-step-query)
+    - [3. three step query](#3-three-step-query)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
