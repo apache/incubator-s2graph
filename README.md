@@ -105,7 +105,7 @@ cd asynchbase; make pom.xml; mvn install
 ```
 create database schema
 ```
-checkout mysql/mysql/schema.sql and run schema.sql on mysql
+checkout migrate/mysql/schema.sql and run schema.sql on mysql
 ```
 compile(optional)
 ```
