@@ -28,7 +28,6 @@ dist
 conf/application.conf
 metrics
 _site
-asynchbase/third_party
 migrate/s2graph
 *.classpath
 *.project

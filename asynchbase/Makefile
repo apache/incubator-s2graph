@@ -39,7 +39,7 @@ proto_builddir := $(top_builddir)/protobuf
 spec_title := Asynchronous HBase Client
 spec_vendor := The Async HBase Authors
 # Semantic Versioning (see http://semver.org/).
-spec_version := 1.6.0
+spec_version := 1.7.0-SNAPSHOT
 jar := $(top_builddir)/asynchbase-$(spec_version).jar
 
 asynchbase_PROTOS := \
@@ -233,7 +233,7 @@ check: $(top_builddir)/.javac-test-stamp $(UNITTESTS)
 
 pkg_version = \
   `git rev-list --pretty=format:%h HEAD --max-count=1 | sed 1d || echo unknown`
-$(top_builddir)/manifest: $(top_builddir)/.javac-stamp .git/HEAD
+$(top_builddir)/manifest: $(top_builddir)/.javac-stamp ../.git/HEAD
 	{ echo "Specification-Title: $(spec_title)"; \
           echo "Specification-Version: $(spec_version)"; \
           echo "Specification-Vendor: $(spec_vendor)"; \

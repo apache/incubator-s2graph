@@ -125,7 +125,7 @@
         </configuration>
       </plugin>
 
-      <plugin>
+      <!--plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-gpg-plugin</artifactId>
         <version>1.4</version>
@@ -141,7 +141,7 @@
         <configuration>
           <keyname>tsunanet@gmail.com</keyname>
         </configuration>
-      </plugin>
+      </plugin-->
 
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

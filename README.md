@@ -101,7 +101,7 @@ to build projects
 
 install dependencies on local.
 ```
-cd asynchbase; make; mvn install 
+cd asynchbase; make pom.xml; mvn install 
 ```
 create database schema
 ```
