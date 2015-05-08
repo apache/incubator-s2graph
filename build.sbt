@@ -39,4 +39,3 @@ libraryDependencies ++= Seq(
    )
 
    
-unmanagedResourceDirectories in Compile += baseDirectory.value / "res"

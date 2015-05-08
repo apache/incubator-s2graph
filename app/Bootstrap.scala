@@ -19,7 +19,7 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
       KafkaAggregatorActor.init()
     }
     val ex = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
-    Graph(Config.conf)(ex)
+    Graph(Config.conf.underlying)(ex)
   }
 
   override def onStop(app: Application) {
