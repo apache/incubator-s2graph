@@ -49,8 +49,7 @@ object Management extends JSONParser {
     props: Seq[(String, JsValue)],
     consistencyLevel: String,
     hTableName: Option[String],
-    hTableTTL: Option[Int],
-    isAsync: Boolean): Label = {
+    hTableTTL: Option[Int]): Label = {
 
     val idxProps = for ((k, v) <- indexProps; (innerVal, dataType) = toInnerVal(v)) yield (k, innerVal, dataType, true)
     val metaProps = for ((k, v) <- props; (innerVal, dataType) = toInnerVal(v)) yield (k, innerVal, dataType, false)
@@ -81,7 +80,7 @@ object Management extends JSONParser {
         Label.insertAll(label,
           srcService.id.get, srcColumnName, srcColumnType,
           tgtService.id.get, tgtColumnName, tgtColumType,
-          isDirected, serviceName, service.id.get, idxProps ++ metaProps, consistencyLevel, hTableName, hTableTTL, isAsync)
+          isDirected, serviceName, service.id.get, idxProps ++ metaProps, consistencyLevel, hTableName, hTableTTL)
         Label.expireCache(cacheKey)
         Label.findByName(label).get
     }
@@ -271,28 +270,34 @@ object Management extends JSONParser {
 //    //    regionStats.map(kv => Bytes.toString(kv._1) -> kv._2) ++ Map("total" -> regionStats.values().sum)
 //  }
   def createTable(zkAddr: String, tableName: String, cfs: List[String], regionCnt: Int, ttl: Option[Int]) = {
-    val admin = getAdmin(zkAddr)
-    if (!admin.tableExists(tableName)) {
-      val desc = new HTableDescriptor(TableName.valueOf(tableName))
-      desc.setDurability(Durability.ASYNC_WAL)
-      for (cf <- cfs) {
-        val columnDesc = new HColumnDescriptor(cf)
-          .setCompressionType(Compression.Algorithm.LZ4)
-          .setBloomFilterType(BloomType.ROW)
-          .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
-          .setMaxVersions(1)
-          .setTimeToLive(2147483647)
-          .setMinVersions(0)
-          .setBlocksize(32768)
-          .setBlockCacheEnabled(true)
-        if (ttl.isDefined) columnDesc.setTimeToLive(ttl.get)
-        desc.addFamily(columnDesc)
-      }
+    try {
+      val admin = getAdmin(zkAddr)
+      println(admin)
+      if (!admin.tableExists(tableName)) {
+        println("createTable")
+        val desc = new HTableDescriptor(TableName.valueOf(tableName))
+        desc.setDurability(Durability.ASYNC_WAL)
+        for (cf <- cfs) {
+          val columnDesc = new HColumnDescriptor(cf)
+            .setCompressionType(Compression.Algorithm.GZ)
+            .setBloomFilterType(BloomType.ROW)
+            .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
+            .setMaxVersions(1)
+            .setTimeToLive(2147483647)
+            .setMinVersions(0)
+            .setBlocksize(32768)
+            .setBlockCacheEnabled(true)
+          if (ttl.isDefined) columnDesc.setTimeToLive(ttl.get)
+          desc.addFamily(columnDesc)
+        }
 
-      if (regionCnt <= 1) admin.createTable(desc)
-      else admin.createTable(desc, getStartKey(regionCnt), getEndKey(regionCnt), regionCnt)
-    } else {
-      // already exist
+        if (regionCnt <= 1) admin.createTable(desc)
+        else admin.createTable(desc, getStartKey(regionCnt), getEndKey(regionCnt), regionCnt)
+      } else {
+        // already exist
+      }
+    } catch {
+      case e: Throwable => println(e)
     }
   }
   // we only use murmur hash to distribute row key.

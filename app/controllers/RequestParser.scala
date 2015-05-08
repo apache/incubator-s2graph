@@ -302,10 +302,9 @@ trait RequestParser extends JSONParser {
     // expect new label don`t provide hTableName
     val hTableName = (jsValue \ "hTableName").asOpt[String]
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
-    val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
     val t = (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
-      idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, isAsync)
+      idxProps, metaProps, consistencyLevel, hTableName, hTableTTL)
     t
   }
   def toIndexElements(jsValue: JsValue) = {

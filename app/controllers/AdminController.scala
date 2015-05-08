@@ -42,10 +42,10 @@ object AdminController extends Controller with RequestParser {
     try {
       val (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected,
-      serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, isAsync) = toLabelElements(jsValue)
+      serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL) = toLabelElements(jsValue)
 
       Management.createLabel(labelName, srcServiceName, srcColumnName, srcColumnType,
-        tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, isAsync)
+        tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL)
       Ok("Created\n")
     } catch {
       case e: Throwable =>

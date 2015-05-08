@@ -48,17 +48,16 @@ object Label extends LocalCache[Label] {
     serviceId: Int,
     consistencyLevel: String,
     hTableName: String,
-    hTableTTL: Option[Int],
-    isAsync: Boolean) = {
+    hTableTTL: Option[Int]) = {
     sql"""
     	insert into labels(label, 
     src_service_id, src_column_name, src_column_type, 
     tgt_service_id, tgt_column_name, tgt_column_type, 
-    is_directed, service_name, service_id, consistency_level, hbase_table_name, hbase_table_ttl, is_async)
+    is_directed, service_name, service_id, consistency_level, hbase_table_name, hbase_table_ttl)
     	values (${label},
     ${srcServiceId}, ${srcColumnName}, ${srcColumnType},
     ${tgtServiceId}, ${tgtColumnName}, ${tgtColumnType},
-    ${isDirected}, ${serviceName}, ${serviceId}, ${consistencyLevel}, ${hTableName}, ${hTableTTL}, ${isAsync}) 
+    ${isDirected}, ${serviceName}, ${serviceId}, ${consistencyLevel}, ${hTableName}, ${hTableTTL})
     """
       .updateAndReturnGeneratedKey.apply()
   }
@@ -105,8 +104,7 @@ object Label extends LocalCache[Label] {
     props: Seq[(String, Any, String, Boolean)] = Seq.empty[(String, Any, String, Boolean)],
     consistencyLevel: String,
     hTableName: Option[String],
-    hTableTTL: Option[Int],
-    isAsync: Boolean) = {
+    hTableTTL: Option[Int]) = {
 
     //    val ls = List(label, srcServiceId, srcColumnName, srcColumnType, tgtServiceId, tgtColumnName, tgtColumnType, isDirected
     //        , serviceName, serviceId, props.toString, consistencyLevel, hTableName)
@@ -118,7 +116,7 @@ object Label extends LocalCache[Label] {
 
     val createdId = insert(label, srcServiceId, srcColumnName, srcColumnType,
       tgtServiceId, tgtColumnName, tgtColumnType, isDirected, serviceName, serviceId, consistencyLevel,
-      hTableName.getOrElse(service.hTableName), hTableTTL.orElse(service.hTableTTL), isAsync)
+      hTableName.getOrElse(service.hTableName), hTableTTL.orElse(service.hTableTTL))
 
     val labelMetas =
       if (props.isEmpty) List(LabelMeta.timestamp)
@@ -164,14 +162,13 @@ object Label extends LocalCache[Label] {
     props: Seq[(String, Any, String, Boolean)] = Seq.empty[(String, Any, String, Boolean)],
     consistencyLevel: String,
     hTableName: Option[String],
-    hTableTTL: Option[Int],
-    isAsync: Boolean): Label = {
+    hTableTTL: Option[Int]): Label = {
 
     findByName(label, false) match {
       case Some(l) => l
       case None =>
         insertAll(label, srcServiceId, srcColumnName, srcColumnType, tgtServiceId, tgtColumnName,
-          tgtColumnType, isDirected, serviceName, serviceId, props, consistencyLevel, hTableName, hTableTTL, isAsync)
+          tgtColumnType, isDirected, serviceName, serviceId, props, consistencyLevel, hTableName, hTableTTL)
         val cacheKey = s"label=$label"
         expireCache(cacheKey)
         findByName(label).get
