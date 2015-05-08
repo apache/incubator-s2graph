@@ -3,12 +3,15 @@ import HBaseElement._
 import org.apache.hadoop.hbase.Cell
 import org.apache.hadoop.hbase.client.{ Delete, Mutation, Put, Result }
 import org.hbase.async.{HBaseRpc, DeleteRequest, PutRequest}
+import org.slf4j.LoggerFactory
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import play.api.libs.json.Json
 
 case class EdgeWithIndexInverted(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDirection, op: Byte, version: Long, props: Map[Byte, InnerValWithTs]) {
   import GraphConstant._
+  import Edge._
+
   //  Logger.error(s"EdgeWithIndexInverted${this.toString}")
   lazy val lastModifiedAt = props.map(_._2.ts).max
 
@@ -32,7 +35,7 @@ case class EdgeWithIndexInverted(srcVertex: Vertex, tgtVertex: Vertex, labelWith
 
   def isSame(other: Any): Boolean = {
     val ret = this.toString == other.toString
-    Logger.debug(s"EdgeWithIndexInverted\n$this\n$other\n$ret")
+    logger.debug(s"EdgeWithIndexInverted\n$this\n$other\n$ret")
     ret
   }
 
@@ -51,8 +54,8 @@ case class EdgeWithIndex(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: Lab
   lazy val ts = props(LabelMeta.timeStampSeq).longV.get
 
   import GraphConstant._
+  import Edge._
 
-  //  Logger.error(s"EdgeWithIndex${this.toString}")
   lazy val rowKey = EdgeRowKey(srcVertex.id, labelWithDir, labelIndexSeq, isInverted = false)
   lazy val labelIndex = LabelIndex.findByLabelIdAndSeq(labelWithDir.labelId, labelIndexSeq).get
   lazy val defaultIndexMetas = labelIndex.sortKeyTypes.map(meta => meta.seq -> meta.defaultInnerVal).toMap
@@ -90,7 +93,7 @@ case class EdgeWithIndex(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: Lab
 
   def buildPuts(): List[Put] = {
     if (!hasAllPropsForIndex) {
-      Logger.error(s"$this dont have all props for index")
+      logger.error(s"$this dont have all props for index")
       List.empty[Put]
     } else {
       val put = new Put(rowKey.bytes)
@@ -102,7 +105,7 @@ case class EdgeWithIndex(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: Lab
   }
   def buildPutsAsync(): List[PutRequest] = {
     if (!hasAllPropsForIndex) {
-      Logger.error(s"$this dont have all props for index")
+      logger.error(s"$this dont have all props for index")
       List.empty[PutRequest]
     } else {
       List(new PutRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, value.bytes, version))
@@ -131,7 +134,7 @@ case class EdgeWithIndex(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: Lab
   }
   def isSame(other: Any): Boolean = {
     val ret = this.toString == other.toString
-    Logger.debug(s"EdgeWithIndex\n$this\n$other\n$ret")
+    logger.debug(s"EdgeWithIndex\n$this\n$other\n$ret")
     ret
   }
 }
@@ -141,11 +144,8 @@ case class EdgeWithIndex(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: Lab
 case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDirection, op: Byte,
   ts: Long, version: Long, propsWithTs: Map[Byte, InnerValWithTs]) extends GraphElement with JSONParser {
 
-  import Graph._
-  import GraphConstant._
+  val logger = Edge.logger
   implicit val ex = Graph.executionContext
-  //  assert(!propsWithTs.isEmpty)
-  //  lazy val lastModifiedAt = propsWithTs.map(_._2.ts).toList.sorted.reverse.head
 
   lazy val props =
     if (op == GraphUtil.operations("delete")) Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts))
@@ -172,7 +172,6 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
   lazy val label = Label.findById(labelWithDir.labelId)
   lazy val labelOrders = LabelIndex.findByLabelIdAll(labelWithDir.labelId)
   override lazy val serviceName = label.serviceName
-  override lazy val isAsync = label.isAsync
   override lazy val queueKey = Seq(ts.toString, tgtVertex.serviceName).mkString("|")
   override lazy val queuePartitionKey = Seq(srcVertex.innerId, tgtVertex.innerId).mkString("|")
 
@@ -310,7 +309,7 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
 //      client.flush()
     } catch {
       case e: Throwable =>
-        Logger.error(s"mutate failed. $e", e)
+        logger.error(s"mutate failed. $e", e)
     }
   }
 
@@ -390,7 +389,7 @@ case class EdgeUpdate(mutations: List[HBaseRpc] = List.empty[HBaseRpc],
 }
 
 object Edge {
-
+  val logger = LoggerFactory.getLogger(classOf[Edge])
   //  val initialVersion = 2L
   val incrementVersion = 1L
   val minOperationTs = 1L
@@ -423,13 +422,13 @@ object Edge {
     val oldTs = invertedEdge.map(e => e.ts).getOrElse(minTsVal)
 
     if (oldTs == requestEdge.ts) {
-      Logger.error(s"duplicate timestamp on same edge. $requestEdge")
+      logger.error(s"duplicate timestamp on same edge. $requestEdge")
       EdgeUpdate()
     } else {
       val (newPropsWithTs, shouldReplace) = f(oldPropsWithTs, requestEdge.propsWithTs, requestEdge.ts)
 
       if (!shouldReplace) {
-        Logger.error(s"drop request $requestEdge becaseu shouldReplace is $shouldReplace")
+        logger.error(s"drop request $requestEdge becaseu shouldReplace is $shouldReplace")
         EdgeUpdate()
       } else {
 

@@ -1,6 +1,5 @@
 package com.daumkakao.s2graph.core
 
-import org.apache.hadoop.hbase.util.Bytes
 import scala.util.hashing.MurmurHash3
 import java.util.regex.Pattern
 import play.api.libs.json.Json
@@ -111,16 +110,10 @@ object GraphUtil {
   def split(line: String) = TOKEN_DELIMITER.split(line)
 
   def parseString(s: String): List[String] = {
-    try {
-      if (!s.startsWith("[")) {
-        s.split("\n").toList
-      } else {
-        Json.parse(s).asOpt[List[String]].getOrElse(List.empty[String])
-      }
-    } catch {
-      case e: Throwable =>
-        Logger.error(s"GraphUtil.parseString: $e", e)
-        List.empty[String]
+    if (!s.startsWith("[")) {
+      s.split("\n").toList
+    } else {
+      Json.parse(s).asOpt[List[String]].getOrElse(List.empty[String])
     }
   }
   

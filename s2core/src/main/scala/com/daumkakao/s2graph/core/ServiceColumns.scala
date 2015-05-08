@@ -2,7 +2,7 @@ package com.daumkakao.s2graph.core
 
 import scalikejdbc._
 import play.api.libs.json.Json
-object ServiceColumn extends Model[ServiceColumn] {
+object ServiceColumn extends LocalCache[ServiceColumn] {
 
   def apply(rs: WrappedResultSet): ServiceColumn = {
     ServiceColumn(rs.intOpt("id"), rs.int("service_id"), rs.string("column_name"), rs.string("column_type"))

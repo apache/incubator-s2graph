@@ -2,6 +2,7 @@ package controllers
 
 import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
+import play.api.Logger
 import play.api.libs.json._
 import com.daumkakao.s2graph.rest.config.Config
 import scala.util.parsing.combinator.JavaTokenParsers
@@ -10,9 +11,6 @@ trait RequestParser extends JSONParser {
 
   val hardLimit = 10000
   val defaultLimit = 100
-  private val queryLogger = Logger.queryLogger
-  private val logger = Logger.logger
-  private val adminLogger = Logger.adminLogger
 
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {
@@ -221,7 +219,7 @@ trait RequestParser extends JSONParser {
       ret
     } catch {
       case e: Throwable =>
-        queryLogger.error(s"$e", e)
+        Logger.error(s"$e", e)
         throw new KGraphExceptions.BadQueryException(s"$jsValue")
     }
   }
@@ -304,10 +302,9 @@ trait RequestParser extends JSONParser {
     // expect new label don`t provide hTableName
     val hTableName = (jsValue \ "hTableName").asOpt[String]
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
-    val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
     val t = (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
-      idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, isAsync)
+      idxProps, metaProps, consistencyLevel, hTableName, hTableTTL)
     t
   }
   def toIndexElements(jsValue: JsValue) = {
@@ -319,12 +316,9 @@ trait RequestParser extends JSONParser {
   }
   def toServiceElements(jsValue: JsValue) = {
     val serviceName = parse[String](jsValue, "serviceName")
-    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(Config.HBASE_ZOOKEEPER_QUORUM)
-    val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${Config.phase}")
-    val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(Config.phase match {
-      case "real" | "production" | "real_gasan" | "production_gasan" => 20
-      case _ => 0 // no pre-split
-    })
+    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(GraphConnection.defaultConfigs("hbase.zookeeper.quorum"))
+    val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${Config.PHASE}")
+    val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(0)
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     (serviceName, cluster, hTableName, preSplitSize, hTableTTL)
   }

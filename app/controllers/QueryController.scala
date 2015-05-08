@@ -2,10 +2,10 @@ package controllers
 
 
 import com.codahale.metrics.Meter
-import com.wordnik.swagger.annotations._
 import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
+import play.api.Logger
 
 //import models.response.param.{ VertexQueryResponse, EdgeQueryResponse }
 import play.api.libs.json.{ JsValue, Json }

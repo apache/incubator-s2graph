@@ -15,17 +15,15 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
 
   override def onStart(app: Application) {
 
-    if (Config.IS_WRITE_SERVER) {
-//      GraphAggregatorActor.init()
+    if (Config.IS_WRITE_SERVER && Config.KAFKA_PRODUCER_POOL_SIZE > 0) {
       KafkaAggregatorActor.init()
     }
     val ex = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
-    Graph(Config.conf)(ex)
+    Graph(Config.conf.underlying)(ex)
   }
 
   override def onStop(app: Application) {
-    if (Config.IS_WRITE_SERVER) {
-//      GraphAggregatorActor.shutdown()
+    if (Config.IS_WRITE_SERVER && Config.KAFKA_PRODUCER_POOL_SIZE > 0) {
       KafkaAggregatorActor.shutdown()
     }
 

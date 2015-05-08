@@ -3,18 +3,16 @@ package com.daumkakao.s2graph.core
 import play.api.libs.json.{ JsValue, Json }
 import scalikejdbc._
 
-object Label extends Model[Label] {
+object Label extends LocalCache[Label] {
 
   val maxHBaseTableNames = 2
-
-  val adminLogger = Logger.adminLogger
 
   def apply(rs: WrappedResultSet): Label = {
     Label(Some(rs.int("id")), rs.string("label"),
       rs.int("src_service_id"), rs.string("src_column_name"), rs.string("src_column_type"),
       rs.int("tgt_service_id"), rs.string("tgt_column_name"), rs.string("tgt_column_type"),
       rs.boolean("is_directed"), rs.string("service_name"), rs.int("service_id"), rs.string("consistency_level"),
-      rs.string("hbase_table_name"), rs.intOpt("hbase_table_ttl"), rs.boolean("is_async"))
+      rs.string("hbase_table_name"), rs.intOpt("hbase_table_ttl"))
   }
   def findByName(labelUseCache: (String, Boolean)): Option[Label] = {
     val (label, useCache) = labelUseCache
@@ -50,17 +48,16 @@ object Label extends Model[Label] {
     serviceId: Int,
     consistencyLevel: String,
     hTableName: String,
-    hTableTTL: Option[Int],
-    isAsync: Boolean) = {
+    hTableTTL: Option[Int]) = {
     sql"""
     	insert into labels(label, 
     src_service_id, src_column_name, src_column_type, 
     tgt_service_id, tgt_column_name, tgt_column_type, 
-    is_directed, service_name, service_id, consistency_level, hbase_table_name, hbase_table_ttl, is_async)
+    is_directed, service_name, service_id, consistency_level, hbase_table_name, hbase_table_ttl)
     	values (${label},
     ${srcServiceId}, ${srcColumnName}, ${srcColumnType},
     ${tgtServiceId}, ${tgtColumnName}, ${tgtColumnType},
-    ${isDirected}, ${serviceName}, ${serviceId}, ${consistencyLevel}, ${hTableName}, ${hTableTTL}, ${isAsync}) 
+    ${isDirected}, ${serviceName}, ${serviceId}, ${consistencyLevel}, ${hTableName}, ${hTableTTL})
     """
       .updateAndReturnGeneratedKey.apply()
   }
@@ -107,8 +104,7 @@ object Label extends Model[Label] {
     props: Seq[(String, Any, String, Boolean)] = Seq.empty[(String, Any, String, Boolean)],
     consistencyLevel: String,
     hTableName: Option[String],
-    hTableTTL: Option[Int],
-    isAsync: Boolean) = {
+    hTableTTL: Option[Int]) = {
 
     //    val ls = List(label, srcServiceId, srcColumnName, srcColumnType, tgtServiceId, tgtColumnName, tgtColumnType, isDirected
     //        , serviceName, serviceId, props.toString, consistencyLevel, hTableName)
@@ -120,7 +116,7 @@ object Label extends Model[Label] {
 
     val createdId = insert(label, srcServiceId, srcColumnName, srcColumnType,
       tgtServiceId, tgtColumnName, tgtColumnType, isDirected, serviceName, serviceId, consistencyLevel,
-      hTableName.getOrElse(service.hTableName), hTableTTL.orElse(service.hTableTTL), isAsync)
+      hTableName.getOrElse(service.hTableName), hTableTTL.orElse(service.hTableTTL))
 
     val labelMetas =
       if (props.isEmpty) List(LabelMeta.timestamp)
@@ -166,14 +162,13 @@ object Label extends Model[Label] {
     props: Seq[(String, Any, String, Boolean)] = Seq.empty[(String, Any, String, Boolean)],
     consistencyLevel: String,
     hTableName: Option[String],
-    hTableTTL: Option[Int],
-    isAsync: Boolean): Label = {
+    hTableTTL: Option[Int]): Label = {
 
     findByName(label, false) match {
       case Some(l) => l
       case None =>
         insertAll(label, srcServiceId, srcColumnName, srcColumnType, tgtServiceId, tgtColumnName,
-          tgtColumnType, isDirected, serviceName, serviceId, props, consistencyLevel, hTableName, hTableTTL, isAsync)
+          tgtColumnType, isDirected, serviceName, serviceId, props, consistencyLevel, hTableName, hTableTTL)
         val cacheKey = s"label=$label"
         expireCache(cacheKey)
         findByName(label).get
@@ -218,34 +213,18 @@ object Label extends Model[Label] {
 
   def delete(id: Int) = {
     val label = findById(id)
-    adminLogger.info(s"delete label: $label")
     sql"""delete from labels where id = ${label.id.get}""".execute.apply()
     val cacheKeys = List(s"id=$id", s"label=${label.label}")
     cacheKeys.foreach(expireCache(_))
   }
 
-  //  def prependHBaseTableName(labelName: String, tableName: String) = {
-  //    for (label <- findByName(labelName); service = Service.findById(label.serviceId)) yield {
-  //      val tables = label.hbaseTableName.split(",").toList.groupBy(s => s).keys.toList
-  //      val newHBaseTableNames = tableName :: tables.sortBy(s => s).reverse.take(maxHBaseTableNames - 1)
-  //      for (table <- tables if !newHBaseTableNames.contains(table)) {
-  //        // delete table 
-  //        //        try {
-  //        //          Management.dropTable(Config.HBASE_ZOOKEEPER_QUORUM, table)
-  //        //        } catch {
-  //        //          case e: Throwable =>
-  //        //            play.api.Logger.error(s"dropTable: $table failed $e")
-  //        //        }
-  //      }
-  //      sql"""update labels set hbase_table_name = ${newHBaseTableNames.mkString(",")} where id = ${label.id.get}""".executeUpdate().apply
-  //    }
-  //    findByName(labelName)
-  //  }
 }
 case class Label(id: Option[Int], label: String,
   srcServiceId: Int, srcColumnName: String, srcColumnType: String,
   tgtServiceId: Int, tgtColumnName: String, tgtColumnType: String,
-  isDirected: Boolean = true, serviceName: String, serviceId: Int, consistencyLevel: String = "strong", hTableName: String, hTableTTL: Option[Int], isAsync: Boolean = false) extends JSONParser {
+  isDirected: Boolean = true, serviceName: String, serviceId: Int,
+                 consistencyLevel: String = "strong", hTableName: String,
+                 hTableTTL: Option[Int]) extends JSONParser {
 
   def metas = LabelMeta.findAllByLabelId(id.get)
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
