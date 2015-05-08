@@ -12,7 +12,6 @@ Table of content
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](http://doctoc.herokuapp.com/)*
 
-- [Requirements](#requirements)
 - [Getting Started](#getting-started)
 - [The Data Model](#the-data-model)
 - [REST API Glossary](#rest-api-glossary)
@@ -68,13 +67,6 @@ Table of content
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-Requirements
--------------
-
- - [mysql](https://www.mysql.com/): store metas and schemas.
- - [Apache Kafka](http://kafka.apache.org/): store incomming events. also use kafka as primary real time event source.
- - [Apache HBase](http://hbase.apache.org/): primary datastorage.
- - (optional)[Apache Spark](https://spark.apache.org/): use this as streaming processing engine consume events from Kafka to s2graph. also use this for bulk load process.
 
 
 Getting Started
@@ -96,33 +88,40 @@ S2Graph consists of multiple projects.
 
 ----------
 
+to getup and running following is required.
 
-to build projects 
+1. [Apache HBase](http://hbase.apache.org/) setup. 
+	2.  `brew install hadoop` and `brew install hbase` if you use on mac.
+	3. otherwise checkout [reference](http://hbase.apache.org/book.html#quickstart) for how to setup hbase.
+	4. note that currently we support latest stable version of apache **hbase 1.0.1 with apache hadoop version 2.7.0**. if you are using cdh, then you can checkout our **feature/cdh5.3.0**. we are working on providing profile on hbase/hadoop version soon.
+2. [mysql](https://www.mysql.com/) setup.
+	3. first create new user graph on your mysql. 
+	4. create database and grant all privileges to this user on created database.
+	5. run s2core/migrate/mysql/schema.sql on created database.
+	6. because of [license issue](https://github.com/daumkakao/s2graph/issues/4), we are working on change this to [Derby](https://db.apache.org/derby)
 
-install dependencies on local.
+once all requirements are setup correctly, you have to install asynchbase on your local first.
+
 ```
 cd asynchbase; make pom.xml; mvn install 
 ```
-create database schema
-```
-checkout migrate/mysql/schema.sql and run schema.sql on mysql
-```
-compile(optional)
+
+then compile rest project
 ```
 sbt compile
 ```
 
+now you are run s2graph.
 
-run rest server
 ```
-sbt -Dphase={dev/alpha/real/sandbox} run
+sbt run
 ```
->note that you need to create directory named "res" and create phase/conf/application.conf for configuration specific per phase. 
->
->ex) mkdir -p res/dev/conf; cp conf/reference.conf dev/conf/application.conf; sbt "run -Dphase=dev" will load application.conf under phase/conf/application.conf
 
+we provide simple script under script/test.sh only for checking if everything setup property.
 
-
+```
+sh script/test.sh
+```
 
 
 The Data Model
