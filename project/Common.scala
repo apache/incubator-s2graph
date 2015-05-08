@@ -10,4 +10,6 @@ object Common {
   )
   lazy val scalaVersion = "2.10.4"
   lazy val version = "0.0.4-SNAPSHOT"
+  lazy val hbaseVersion = "1.0.1"
+  lazy val hadoopVersion = "2.7.0"
 }

@@ -1,10 +1,9 @@
 package controllers
 
-import javax.ws.rs.PathParam
 
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
-import com.daumkakao.s2graph.core.{ Vertex, Logger, KGraphExceptions }
-import com.wordnik.swagger.annotations._
+import com.daumkakao.s2graph.core.{ Vertex, KGraphExceptions }
+import play.api.Logger
 import play.api.libs.json.JsValue
 import play.api.mvc.{ Controller, Result }
 import scala.collection.mutable.ListBuffer

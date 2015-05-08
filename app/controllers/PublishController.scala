@@ -11,28 +11,17 @@ object PublishController extends Controller {
   import play.api.libs.concurrent.Execution.Implicits._
   import ApplicationController._
 
-  val kafkaTopic = Config.KAFAK_PUBONLY_TOPIC
 
   /**
    * never check validation on string. just redirect strings to kafka.
    */
-  //  def publishOnly(service: String) = Action.async(parse.text) { request =>
-  //    Future {
-  //      val strs = request.body.split("\n")
-  //      strs.foreach(str => {
-  //        KafkaAggregatorActor.enqueue(Protocol.Message(kafkaTopic, s"$service\t$str"))
-  //      })
-  //      
-  //      Ok("publish success.\n").withHeaders(CONNECTION -> "Keep-Alive", "Keep-Alive" -> "timeout=10, max=10")
-  //    }
-  //  }
   def publishOnly(service: String) = withHeaderAsync(parse.text) { request =>
     Future {
       if (!Config.IS_WRITE_SERVER) Unauthorized
       
       val strs = request.body.split("\n")
       strs.foreach(str => {
-        val keyedMessage = new ProducerRecord[Key, Val](kafkaTopic, s"$service\t$str")
+        val keyedMessage = new ProducerRecord[Key, Val](Config.KAFKA_LOG_TOPIC, s"$service\t$str")
         KafkaAggregatorActor.enqueue(Protocol.KafkaMessage(keyedMessage))
       })
 

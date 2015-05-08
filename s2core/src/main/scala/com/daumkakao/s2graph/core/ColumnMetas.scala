@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 import scalikejdbc._
 
-object ColumnMeta extends Model[ColumnMeta] {
+object ColumnMeta extends LocalCache[ColumnMeta] {
 
   val timeStampSeq = 0.toByte
   val countSeq = -1.toByte

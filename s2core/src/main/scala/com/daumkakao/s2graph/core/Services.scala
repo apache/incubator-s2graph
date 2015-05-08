@@ -3,9 +3,7 @@ package com.daumkakao.s2graph.core
 import play.api.libs.json.Json
 import scalikejdbc._
 
-object Service extends Model[Service] {
-
-  private val adminLogger = Logger.adminLogger
+object Service extends LocalCache[Service] {
 
   def apply(rs: WrappedResultSet): Service = {
     Service(rs.intOpt("id"), rs.string("service_name"), rs.string("cluster"), rs.string("hbase_table_name"), rs.int("pre_split_size"), rs.intOpt("hbase_table_ttl"))
@@ -22,8 +20,7 @@ object Service extends Model[Service] {
     """.map { rs => Service(rs) }.single.apply())
   }
   def insert(serviceName: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]) = {
-    adminLogger.info(s"$serviceName, $cluster, $hTableName, $preSplitSize, $hTableTTL")
-    sql"""insert into services(service_name, cluster, hbase_table_name, pre_split_size, hbase_table_ttl) 
+    sql"""insert into services(service_name, cluster, hbase_table_name, pre_split_size, hbase_table_ttl)
     values(${serviceName}, ${cluster}, ${hTableName}, ${preSplitSize}, ${hTableTTL})""".execute.apply()
     Management.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL)
   }

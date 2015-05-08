@@ -60,12 +60,10 @@ trait JSONParser {
             case _ => None
           }
         case _ =>
-          Logger.error(s"JSONParser.jsValueToInnerVal: type doesn`t match $jsValue, $dataType")
           None
       }
     } catch {
       case e: Throwable =>
-        Logger.error(s"JSONParser.jsValueToInnerVal: $e", e)
         None
     }
 

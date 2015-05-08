@@ -58,150 +58,36 @@ trait WithProducer {
   }
   val kafkaProducer = new KafkaProducer[Key, Val](kafkaConf)
 }
-//
-//object GraphAggregatorActor extends WithProducer {
-//  var routees: ActorRef = _
-//  var shutdownTime = 1000 millis
-//  def init() = {
-//    Logger.info(s"init GraphAggregatorActor.")
-//    //    routees = Akka.system().actorOf(RoundRobinPool(Config.CLIENT_AGGREGATE_POOL_SIZE).props(GraphAggregatorActor.props()))
-//    routees = Akka.system().actorOf(ConsistentHashingPool(Config.CLIENT_AGGREGATE_POOL_SIZE, hashMapping = hashMapping).props(GraphAggregatorActor.props()))
-//  }
-//  def init(poolSize: Int) = {
-//    Logger.info(s"init GraphAggregatorActor.")
-//    routees = Akka.system().actorOf(RoundRobinPool(poolSize).props(GraphAggregatorActor.props()))
-//  }
-//  def shutdown() = {
-//    Logger.info(s"shutdown GraphAggregatorActor.")
-//    routees ! Broadcast(PoisonPill)
-//    Thread.sleep(shutdownTime.length)
-//  }
-//  def enqueue(element: GraphElement) = {
-//    routees ! element
-//  }
-//  def updateHealth(isHealthy: Boolean) = {
-//    routees ! Broadcast(Protocol.UpdateHealth(isHealthy))
-//  }
-//  def props() = Props(new GraphAggregatorActor)
-//
-//  def hashMapping: ConsistentHashMapping = {
-//    case element: GraphElement => element match {
-//      case v: Vertex => v.id
-//      case e: Edge => (e.srcVertex.innerId, e.labelWithDir.labelId, e.tgtVertex.innerId)
-//    }
-//  }
-//}
 object KafkaAggregatorActor extends WithProducer {
   var routees: ActorRef = _
-  var shutdownTime = Config.KAFKA_AGGREGATE_FLUSH_TIMEOUT millis
+  var shutdownTime = 1000 millis
+  var isKafkaAvailable = false
   def init() = {
     Logger.info(s"init KafkaAggregatorActor.")
-    routees = Akka.system.actorOf(RoundRobinPool(Config.KAFKA_PRODUCER_POOL_SIZE).props(KafkaAggregatorActor.props()))
+    if (Config.KAFKA_PRODUCER_POOL_SIZE > 0) {
+      isKafkaAvailable = true
+      routees = Akka.system.actorOf(RoundRobinPool(Config.KAFKA_PRODUCER_POOL_SIZE).props(KafkaAggregatorActor.props()))
+    }
   }
   def shutdown() = {
     Logger.info(s"shutdown KafkaAggregatorActor.")
-    routees ! Broadcast(PoisonPill)
+    if (isKafkaAvailable) routees ! Broadcast(PoisonPill)
     Thread.sleep(shutdownTime.length)
   }
   def enqueues(msgs: Seq[Protocol.KafkaMessage]) = {
     msgs.foreach(enqueue)
   }
   def enqueue(msg: Protocol.KafkaMessage) = {
-    routees ! msg
-  }
-  def updateHealth(isHealthy: Boolean) = {
-    routees ! Broadcast(Protocol.UpdateHealth(isHealthy))
+    if (isKafkaAvailable) routees ! msg
   }
   def props() = Props(new KafkaAggregatorActor)
 }
-//abstract class AggregatorActor[T] extends Actor with ActorLogging {
-//
-//  import Protocol._
-//  private val cName = this.getClass().getName()
-//  private val flushSize = Config.CLIENT_AGGREGATE_BUFFER_SIZE
-//  private val flushTimeInMillis = Config.CLIENT_AGGREGATE_BUFFER_FLUSH_TIME
-//  private var isHealthy = true
-//
-//  protected val schedulerEx: ExecutionContext = Akka.system.dispatchers.lookup("contexts.scheduler")
-//  protected implicit val blockingEx: ExecutionContext = Akka.system.dispatchers.lookup("contexts.blocking")
-//  protected val logger = Logger("actor")
-//
-//  val buffer = new SynchronizedQueue[T]
-//  var bufferSize = 0L
-//  var startTs = System.currentTimeMillis()
-//
-//  context.system.scheduler.schedule(0 millis, flushTimeInMillis millis, self, Protocol.FlushBuffer)(executor = schedulerEx)
-//
-//  def shouldFlush() = bufferSize >= flushSize || (System.currentTimeMillis() - startTs) >= flushTimeInMillis
-//  def buildBufferedMsgs(): Seq[T] = buffer.dequeueAll(_ => true)
-//  def sendBufferedMsgs(msgs: Seq[T]): Unit
-//
-//  def receive = {
-//    case bufferedMsgs: Seq[T] => sendBufferedMsgs(bufferedMsgs)
-//
-//    case Protocol.FlushBuffer => self ! buildBufferedMsgs
-//
-//    case Protocol.UpdateHealth(newHealth) => isHealthy = newHealth
-//
-//    case msg: T =>
-//      //      Logger.debug(s"$self : $msg")
-//      if (bufferSize == 0) startTs = System.currentTimeMillis()
-//      buffer += msg
-//      bufferSize += 1
-//      if (shouldFlush) self ! buildBufferedMsgs
-//  }
-//
-//  def withTimeout[T](op: => Future[T], fallback: => T)(implicit timeout: Duration): Future[T] = {
-//    val timeoutFuture = akka.pattern.after(timeout.toMillis millis, using = context.system.scheduler) { Future { fallback } }
-//    //    val timeoutFuture = play.api.libs.concurrent.Promise.timeout(fallback, timeout)
-//    Future.firstCompletedOf(Seq(op, timeoutFuture))
-//
-//  }
-//
-//  def withFallbackAndTimeout[T](startAt: Long = System.currentTimeMillis(), seqs: Seq[T])(future: => Future[Unit])(timeout: FiniteDuration) = {
-//    val f = if (isHealthy) future else Future { throw new TimeoutException(s"$this isHealty[$isHealthy]") }
-//    val newFuture = withTimeout[Unit](f, {})(timeout)
-//    newFuture.onComplete {
-//      case Failure(ex) =>
-//        val duration = System.currentTimeMillis() - startAt
-//        logger.error(s"[Failed] $this flush: ${seqs.size} took $duration $ex", ex)
-//
-//        seqs.foreach { e =>
-//          val newVal = e match {
-//            case graphElement: GraphElement => Some(e.toString)
-//            case kafkaMessage: KafkaMessage => Some(kafkaMessage.msg.value)
-//            case _ =>
-//              logger.error(s"wrong type of message in actor. only GraphElement/KafkaMessage type is allowed. $e")
-//              None
-//          }
-//          newVal.foreach { v =>
-//            KafkaAggregatorActor.enqueue(Protocol.KafkaMessage(new ProducerRecord[Key, Val](Config.KAFKA_FAIL_TOPIC, v)))
-//          }
-//        }
-//
-//        logger.error(s"[Failed] $this publish to ${Config.KAFKA_FAIL_TOPIC}")
-//      case Success(s) =>
-//        val duration = System.currentTimeMillis() - startAt
-//        logger.info(s"[Success] $this flush: ${seqs.size} took $duration")
-//    }
-//    newFuture
-//  }
-//}
-//
-//class GraphAggregatorActor extends AggregatorActor[GraphElement] {
-//  private val timeout = Config.CLIENT_AGGREGATE_FLUSH_TIMEOUT millis
-//
-//  override def sendBufferedMsgs(msgs: Seq[GraphElement]) = {
-//    withFallbackAndTimeout[GraphElement](seqs = msgs) {
-//      Future { Graph.bulkMutates(msgs, mutateInPlace = false) }(blockingEx)
-//    }(timeout)
-//  }
-//}
 
+/**
+ * TODO: change this to wal log handler.
+ */
 class KafkaAggregatorActor extends WithProducer with Stash {
   import Protocol._
-
-  val timeout = Config.KAFKA_AGGREGATE_FLUSH_TIMEOUT millis
 
   val failedCount = new AtomicLong(0L)
   val successCount = new AtomicLong(0L)

@@ -1,39 +1,22 @@
 package com.daumkakao.s2graph.core
 
-import java.util.concurrent.ConcurrentHashMap
 import HBaseElement._
 import play.api.libs.json._
 import org.apache.hadoop.hbase.client.HBaseAdmin
 import org.apache.hadoop.hbase.HTableDescriptor
-import org.apache.hadoop.hbase.client.HConnectionManager
 import org.apache.hadoop.hbase.HBaseConfiguration
-//import coprocessor.generated.GraphStatsProtos.DeleteLabelsArgument
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.protobuf.generated.ClientProtos.Scan
-import org.apache.hadoop.hbase.protobuf.ProtobufUtil
-//import coprocessor.generated.GraphStatsProtos.GraphStatService
-import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.TimeRange
 import org.apache.hadoop.hbase.TableName
 import org.apache.hadoop.hbase.HColumnDescriptor
 import org.apache.hadoop.hbase.client.Durability
-import org.apache.hadoop.hbase.client.coprocessor.Batch
-import org.apache.hadoop.hbase.filter.FirstKeyOnlyFilter
-import org.apache.hadoop.hbase.ipc.ServerRpcController
 import org.apache.hadoop.hbase.io.compress.Compression
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
-import org.apache.hadoop.hbase.ipc.BlockingRpcCallback
-//import coprocessor.generated.GraphStatsProtos.CountResponse
-import scala.util.parsing.combinator.JavaTokenParsers
 
 /**
  * orchestrate kafka queue, db meta.
  */
 object Management extends JSONParser {
-
-  private val adminLogger = Logger.adminLogger
-  private val queryLogger = Logger.queryLogger
-  private val logger = Logger.logger
 
   val hardLimit = 10000
   val defaultLimit = 100
@@ -69,9 +52,6 @@ object Management extends JSONParser {
     hTableTTL: Option[Int],
     isAsync: Boolean): Label = {
 
-    //        val ls = List(label, srcServiceName, srcColumnName, srcColumnType, tgtServiceName, tgtColumnName, tgtColumType, isDirected,
-    //          serviceName, indexProps.toString, props.toString, consistencyLevel, hTableName)
-    //        Logger.debug(s"$ls")
     val idxProps = for ((k, v) <- indexProps; (innerVal, dataType) = toInnerVal(v)) yield (k, innerVal, dataType, true)
     val metaProps = for ((k, v) <- props; (innerVal, dataType) = toInnerVal(v)) yield (k, innerVal, dataType, false)
 
@@ -90,18 +70,13 @@ object Management extends JSONParser {
     Service.expireCache(cacheKey)
     val service = tryOption(serviceName, Service.findByName)
 
-    //    if (service.id.get != srcService.id.get && service.id.get != tgtService.id.get) {
-    //      throw new RuntimeException(s"label`s serviceName should be either: ${srcService.serviceName} or ${tgtService.serviceName}")
-    //    }
     cacheKey = s"label=$label"
     Label.expireCache(cacheKey)
     val labelOpt = Label.findByName(label, useCache = false)
 
     labelOpt match {
       case Some(l) =>
-        val e = new KGraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
-        adminLogger.error(s"$e", e)
-        throw e
+        throw new KGraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
       case None =>
         Label.insertAll(label,
           srcService.id.get, srcColumnName, srcColumnType,
@@ -237,7 +212,6 @@ object Management extends JSONParser {
     getAdmin(zkAddr).disableTable(tableName)
   }
   def dropTable(zkAddr: String, tableName: String) = {
-    adminLogger.error(s"dropping table: $tableName on $zkAddr")
     getAdmin(zkAddr).disableTable(tableName)
     getAdmin(zkAddr).deleteTable(tableName)
   }
@@ -297,44 +271,37 @@ object Management extends JSONParser {
 //    //    regionStats.map(kv => Bytes.toString(kv._1) -> kv._2) ++ Map("total" -> regionStats.values().sum)
 //  }
   def createTable(zkAddr: String, tableName: String, cfs: List[String], regionCnt: Int, ttl: Option[Int]) = {
-    adminLogger.info(s"create table: $tableName on $zkAddr, $cfs, $regionCnt")
     val admin = getAdmin(zkAddr)
     if (!admin.tableExists(tableName)) {
-      try {
-        val desc = new HTableDescriptor(TableName.valueOf(tableName))
-        desc.setDurability(Durability.ASYNC_WAL)
-        for (cf <- cfs) {
-          val columnDesc = new HColumnDescriptor(cf)
-            .setCompressionType(Compression.Algorithm.LZ4)
-            .setBloomFilterType(BloomType.ROW)
-            .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
-            .setMaxVersions(1)
-            .setTimeToLive(2147483647)
-            .setMinVersions(0)
-            .setBlocksize(32768)
-            .setBlockCacheEnabled(true)
-          if (ttl.isDefined) columnDesc.setTimeToLive(ttl.get)
-          desc.addFamily(columnDesc)
-        }
-
-        if (regionCnt <= 1) admin.createTable(desc)
-        else admin.createTable(desc, getStartKey(regionCnt), getEndKey(regionCnt), regionCnt)
-      } catch {
-        case e: Throwable =>
-          adminLogger.error(s"$zkAddr, $tableName failed with $e", e)
-          throw e
+      val desc = new HTableDescriptor(TableName.valueOf(tableName))
+      desc.setDurability(Durability.ASYNC_WAL)
+      for (cf <- cfs) {
+        val columnDesc = new HColumnDescriptor(cf)
+          .setCompressionType(Compression.Algorithm.LZ4)
+          .setBloomFilterType(BloomType.ROW)
+          .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
+          .setMaxVersions(1)
+          .setTimeToLive(2147483647)
+          .setMinVersions(0)
+          .setBlocksize(32768)
+          .setBlockCacheEnabled(true)
+        if (ttl.isDefined) columnDesc.setTimeToLive(ttl.get)
+        desc.addFamily(columnDesc)
       }
+
+      if (regionCnt <= 1) admin.createTable(desc)
+      else admin.createTable(desc, getStartKey(regionCnt), getEndKey(regionCnt), regionCnt)
     } else {
-      adminLogger.error(s"$zkAddr, $tableName, $cf already exist.")
+      // already exist
     }
   }
   // we only use murmur hash to distribute row key.
   private def getStartKey(regionCount: Int) = {
-    Bytes.toBytes((Int.MaxValue / regionCount).toInt)
+    Bytes.toBytes((Int.MaxValue / regionCount))
   }
 
   private def getEndKey(regionCount: Int) = {
-    Bytes.toBytes((Int.MaxValue / regionCount * (regionCount - 1)).toInt)
+    Bytes.toBytes((Int.MaxValue / regionCount * (regionCount - 1)))
   }
 
 

@@ -1,15 +1,10 @@
 package com.daumkakao.s2graph.core
 
 import HBaseElement._
-import models._
-import org.apache.hadoop.hbase.client.Get
 import scala.collection.mutable.ListBuffer
-import org.joda.time.DateTime
 import org.apache.hadoop.hbase.util.Bytes
-import scala.util.parsing.combinator.JavaTokenParsers
 import GraphConstant._
-import org.hbase.async.{GetRequest, HBaseClient, FilterList, ScanFilter, ColumnRangeFilter, ColumnPaginationFilter}
-import scala.collection.JavaConversions._
+import org.hbase.async.{ScanFilter, ColumnRangeFilter}
 
 object Query {
   val initialScore = 1.0
@@ -148,7 +143,6 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   import Query.DuplicatePolicy._
   import Query.DuplicatePolicy
 
-  private val queryLogger = Logger.queryLogger
   val label = Label.findById(labelWithDir.labelId)
   val defaultKey = LabelIndex.defaultSeq
   val fullKey = defaultKey
@@ -287,27 +281,13 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
       duration, isInverted, exclude, include, hasFilters, outputField).mkString("\t")
   }
 
-  //  def buildGet(srcVertex: Vertex) = {
-  //    val rowKey = EdgeRowKey(srcVertex.id.updateUseHash(true), labelWithDir, labelOrderSeq, isInverted)
-  //    queryLogger.debug(s"buildGet: $rowKey, $labelOrderSeq, $isInverted, $this")
-  //    val get = new Get(rowKey.bytes)
-  ////    get.setFilter(filters)
-  //    duration match {
-  //      case Some((minTs, maxTs)) => get.setTimeRange(minTs, maxTs)
-  //      case _ =>
-  //    }
-  //    get.addFamily(edgeCf)
-  //  }
+
   def buildGetRequest(srcVertex: Vertex) = {
     val rowKey = EdgeRowKey(srcVertex.id.updateUseHash(true), labelWithDir, labelOrderSeq, isInverted)
-//    queryLogger.info(s"buildGet: $rowKey, $labelOrderSeq, $isInverted, $this")
     val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
     val client = Graph.getClient(label.hbaseZkAddr)
-//    val scanner = client.newScanner(label.hbaseTableName.getBytes)
     val filters = ListBuffer.empty[ScanFilter]
-//    Logger.info(s"GetRequest: $label, $rowKey, $offset, $limit, $minTs, $maxTs, $columnRangeFilter")
     Graph.singleGet(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, offset, limit, minTs, maxTs, maxAttempt, rpcTimeoutInMillis, columnRangeFilter)
-//    Graph.singleScanner(scanner, rowKey.bytes, null, limit, minTs, maxTs, this.columnRangeFilter, this.columnPaginationFilter)
   }
 }
 case class Step(queryParams: List[QueryParam]) {

@@ -4,7 +4,7 @@ import HBaseElement.InnerVal
 import play.api.libs.json.{ JsObject, JsValue, Json }
 import scalikejdbc._
 
-object LabelMeta extends Model[LabelMeta] with JSONParser {
+object LabelMeta extends LocalCache[LabelMeta] with JSONParser {
 
   /** dummy sequences */
 

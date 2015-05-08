@@ -2,18 +2,7 @@
 # This file defines all application routes (Higher priority routes first)
 # ~~~~
 
-# Swagger
-GET    /api-docs                                                               controllers.ApiHelpController.getResources
-#GET         /api-docs/query                                             controllers.ApiHelpController.getResource(path = "/query")
-GET    /api-docs/graphs/queries                                                controllers.ApiHelpController.getResource(path="/graphs/queries")
-GET    /api-docs/graphs/vertices                                               controllers.ApiHelpController.getResource(path="/graphs/vertices")
-GET    /api-docs/graphs/edges                                                  controllers.ApiHelpController.getResource(path="/graphs/edges")
-GET    /api-docs/graphs/admin                                                  controllers.ApiHelpController.getResource(path="/graphs/admin")
 
-
-
-#OPTIONS /*wholepath             @controllers.VertexController.getOptions(wholepath)
-#### Legacy
 # publish
 #POST   /publish/:topic                                                         controllers.PublishController.publish(topic)
 POST   /publish/:topic                                                         controllers.PublishController.mutateBulk(topic)
@@ -23,7 +12,6 @@ POST   /publishOnly/:topic                                                     c
 #GET    /health_check.html                                                      controllers.Assets.at(path="/public", file="health_check.html")
 GET    /health_check.html                                                      controllers.ApplicationController.healthCheck()
 PUT    /health_check/:isHealthy                                                controllers.ApplicationController.updateHealthCheck(isHealthy: Boolean)
-PUT    /actors/updateHealth/:actorName/:isHealthy                              controllers.ApplicationController.updateActorHealth(actorName, isHealthy: Boolean)
 
 ## Edge
 POST   /graphs/edges/insert                                                    controllers.EdgeController.inserts()
@@ -97,6 +85,3 @@ GET    /admin/labels/:serviceName                                              c
 #GET    /admin/reloadLabel/:labelName                                           controllers.AdminController.reloadLabel(labelName)
 #POST        /admin/getEdges                                                              controllers.AdminController.getEdges()
 
-# AdminController Page
-#GET    /admin                                                                  controllers.AdminController.page
-#GET    /manager                                                                controllers.AdminController.manager

@@ -6,6 +6,8 @@ import org.apache.hadoop.hbase.client.HConnectionManager
 import org.apache.hadoop.hbase.client.HTableInterface
 import java.util.concurrent.Executors
 import java.util.concurrent.ConcurrentHashMap
+import org.slf4j.LoggerFactory
+
 import scala.collection.mutable.SynchronizedQueue
 import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.filter.FilterList
@@ -58,6 +60,7 @@ object GraphConstant {
   val queryLogger = play.api.Logger("query")
 }
 object GraphConnection {
+  val logger = Graph.logger
   lazy val tablePool = Executors.newFixedThreadPool(1)
   lazy val connectionPool = Executors.newFixedThreadPool(1)
   val defaultConfigs = Map(
@@ -81,15 +84,14 @@ object GraphConnection {
    * optional: all hbase. prefix configurations.
    */
   def toHBaseConfig(config: com.typesafe.config.Config) = {
-	val configVals = for ((k, v) <- defaultConfigs) yield {
-	  val currentVal = getOrElse(config)(k, v)
-	  Logger.info(s"GraphConnection: $k -> $currentVal")
-	  k -> currentVal
-	}
+    val configVals = for ((k, v) <- defaultConfigs) yield {
+      val currentVal = getOrElse(config)(k, v)
+      logger.debug(s"$k -> $currentVal")
+      k -> currentVal
+    }
     val conf = HBaseConfiguration.create()
-    conf.set("hbase.zookeeper.quorum", config.getString("hbase.zookeeper.quorum"))
+    conf.set("hbase.zookeeper.quorum", configVals("hbase.zookeeper.quorum"))
     for (entry <- config.entrySet() if entry.getKey().startsWith("hbase.")) {
-      Logger.info(s"toHBaseConfig: $entry")
       val value = entry.getValue().unwrapped().toString
       conf.set(entry.getKey(), value)
     }
@@ -106,7 +108,7 @@ object Graph {
   import GraphConstant._
   import GraphConnection._
 
-  val queryLogger = play.api.Logger("query")
+  val logger = Edge.logger
   val conns = scala.collection.mutable.Map[String, HConnection]()
   val clients = scala.collection.mutable.Map[String, HBaseClient]()
   val emptyKVs = new ArrayList[KeyValue]()
@@ -777,7 +779,7 @@ object Graph {
       element
     } catch {
       case e: Throwable =>
-        Logger.error(s"toGraphElement: $s => $e", e)
+        logger.error(s"toGraphElement: $s => $e", e)
         None
     }
   }
@@ -814,7 +816,7 @@ object Graph {
       Some(edge)
     } catch {
       case e: Throwable =>
-        Logger.error(s"toEdge: $e", e)
+        logger.error(s"toEdge: $e", e)
         throw e
     }
   }
@@ -826,7 +828,7 @@ object Graph {
       Some(Management.toVertex(ts.toLong, operation, srcId, serviceName, colName, props))
     } catch {
       case e: Throwable =>
-        Logger.error(s"toVertex: $e", e)
+        logger.error(s"toVertex: $e", e)
         throw e
     }
   }

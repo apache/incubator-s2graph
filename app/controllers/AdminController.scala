@@ -1,8 +1,7 @@
 package controllers
 
-import javax.ws.rs.PathParam
 import com.daumkakao.s2graph.core._
-import com.wordnik.swagger.annotations._
+import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, Controller}
 

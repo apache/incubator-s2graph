@@ -104,65 +104,16 @@ object Config {
     ret
   }
 
-  lazy val DB_DEFAULT_DRIVER = getOrElse("db.default.driver", "com.mysql.jdbc.Driver")
-  lazy val DB_DEFAULT_URL = getOrElse("db.default.url", "")
-  lazy val DB_DEFAULT_USER = getOrElse("db.default.user", "graph")
-  lazy val DB_DEFAULT_PASSWORD = getOrElse("db.default.password", "graph")
-
-  lazy val HBASE_ZOOKEEPER_QUORUM = getOrElse("hbase.zookeeper.quorum", "")
-  lazy val HBASE_TABLE_NAME = getOrElse("hbase.table.name", "titan")
-  lazy val HBASE_TABLE_POOL_SIZE = getOrElse("hbase.table.pool.size", 100)
-  lazy val HBASE_CONNECTION_POOL_SIZE = getOrElse("hbase.connection.pool.size", 10)
-  lazy val ZOOKEEPER_SESSION_TIMEOUT = getOrElse("zookeeper.session.timemout", 1000)
-  lazy val ZOOKEEPER_RECOVERY_RETRY = getOrElse("zookeeper.recovery.retry", 1)
-
-  lazy val HBASE_CLIENT_IPC_POOL_SIZE = getOrElse("hbase.client.ipc.pool.size", 5)
-  lazy val HBASE_CLIENT_MAX_TOTAL_TASKS = getOrElse("hbase.client.max.total.tasks", 100)
-  lazy val HBASE_CLIENT_MAX_PERSERVER_TASKS = getOrElse("hbase.client.max.perserver.tasks", 5)
-  lazy val HBASE_CLIENT_MAX_PERREGION_TASKS = getOrElse("hbase.client.max.perregion.tasks", 1)
-  lazy val HBASE_CLIENT_SCANNER_TIMEOUT_PERIOD = getOrElse("hbase.client.scanner.timeout.period", 300)
-  lazy val HBASE_RPC_TIMEOUT = getOrElse("hbase.rpc.timeout", 100)
-  // read
-  lazy val HBASE_CLIENT_OPERATION_TIMEOUT = getOrElse("hbase.client.operation.timeout", 100)
-  lazy val HBASE_CLIENT_RETRIES_NUMBER = getOrElse("hbase.client.retries.number", 1)
-  // write
-  lazy val HBASE_CLIENT_WRITE_OPERATION_TIMEOUT = getOrElse("hbase.client.write.operation.timeout", 1000)
-  lazy val HBASE_CLIENT_WRITE_RETRIES_NUMBER = getOrElse("hbase.client.write.retries.number", 10)
 
   // CACHE
   lazy val CACHE_TTL_SECONDS = getOrElse("cache.ttl.seconds", 600)
-
   lazy val CACHE_MAX_SIZE = getOrElse("cache.max.size", 10000)
-
-  //  lazy val IS_QUERY_SERVER = getOrElse("is.query.server", false)
-  lazy val IS_ANALYZER = getOrElse("is.analyzer", true)
-  lazy val IS_TEST_QUERY_SERVER = getOrElse("is.test.query.server", false)
-  lazy val TEST_SAMPLE_PROB = getOrElse("test.sample.prob", 1.0)
-
-  //  val QUERY_USE_MULTIGET = conf.getBoolean("query.use.multiget").getOrElse(false)
 
   //KAFKA
   lazy val KAFKA_METADATA_BROKER_LIST = getOrElse("kafka.metadata.broker.list", "localhost")
-  lazy val KAFKA_ZOOKEEPER = getOrElse("kafka.zookeeper", "localhost")
-  lazy val KAFKA_REQUEST_REQUIRED_ACKS = getOrElse("kafka.request.required.acks", 1)
-  lazy val KAFKA_PRODUCER_TYPE = getOrElse("kafka.producer.type", "sync")
-  lazy val KAFKA_PRODUCER_BUFFER_SIZE = getOrElse("kafka.producer.buffer.size", 1000)
-  lazy val KAFKA_PRODUCER_BUFFER_FLUSH_TIME = getOrElse("kafka.producer.buffer.flush.time", 1000)
-  lazy val KAFKA_PRODUCER_POOL_SIZE = getOrElse("kafka.producer.pool.size", 5)
-  lazy val KAFKA_AGGREGATE_FLUSH_TIMEOUT = getOrElse("kafka.aggregate.flush.timeout", 10000)
-
+  lazy val KAFKA_PRODUCER_POOL_SIZE = getOrElse("kafka.producer.pool.size", 0)
   lazy val KAFKA_LOG_TOPIC = s"s2graphIn${phase}"
   lazy val KAFKA_FAIL_TOPIC = s"s2graphIn${phase}Failed"
-  lazy val KAFAK_PUBONLY_TOPIC = s"s2graphPubOnly$phase"
-
-  // Redis
-  lazy val REDIS_HOSTS = getOrElse("redis.host", "localhost")
-
-  // Client
-  lazy val CLIENT_AGGREGATE_BUFFER_SIZE = getOrElse("client.aggregate.buffer.size", 100)
-  lazy val CLIENT_AGGREGATE_BUFFER_FLUSH_TIME = getOrElse("client.aggregate.buffer.flush.time", 10000)
-  lazy val CLIENT_AGGREGATE_POOL_SIZE = getOrElse("client.aggregate.pool.size", 1)
-  lazy val CLIENT_AGGREGATE_FLUSH_TIMEOUT = getOrElse("client.aggregate.flush.timeout", 10000)
 
   // use Keep-Alive
   lazy val USE_KEEP_ALIVE = getOrElse("use.keep.alive", false)

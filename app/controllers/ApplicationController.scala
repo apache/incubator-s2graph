@@ -25,24 +25,10 @@ object ApplicationController extends Controller with Instrumented {
   }
 
   def healthCheck() = withHeader { request =>
-    //  def healthCheck() = Action { request =>
     if (isHealthy) Ok.withHeaders(CONNECTION -> "close")
     else NotFound.withHeaders(CONNECTION -> "close")
   }
 
-  def updateActorHealth(actorName: String, isHealthy: Boolean) = withHeader { request =>
-    actorName match {
-      case "graph" =>
-        //        GraphAggregatorActor.updateHealth(isHealthy)
-        Ok(s"$isHealthy")
-      case "kafka" =>
-        KafkaAggregatorActor.updateHealth(isHealthy)
-        Ok(s"$isHealthy")
-      case _ =>
-        BadRequest("only graph/kafka is supported for actor name")
-    }
-
-  }
 
   def toLogMessage[A](request: Request[A], result: Result)(startedAt: Long): String = {
     val duration = System.currentTimeMillis() - startedAt

@@ -4,7 +4,7 @@ import scalikejdbc._
 import HBaseElement._
 import play.api.libs.json.Json
 
-object LabelIndex extends Model[LabelIndex] {
+object LabelIndex extends LocalCache[LabelIndex] {
 
   val timestamp = LabelIndex(None, 0, 0.toByte, List(0), "")
   //  val withTsSeq = 0.toByte
