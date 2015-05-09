@@ -128,6 +128,8 @@ we provide simple script under script/test.sh only for checking if everything se
 sh script/test.sh
 ```
 
+finally join the [mailing list](https://groups.google.com/forum/#!forum/s2graph)
+
 
 The Data Model
 --------------
