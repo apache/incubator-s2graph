@@ -95,10 +95,11 @@ to getup and running following is required.
 	3. otherwise checkout [reference](http://hbase.apache.org/book.html#quickstart) for how to setup hbase.
 	4. note that currently we support latest stable version of apache **hbase 1.0.1 with apache hadoop version 2.7.0**. if you are using cdh, then you can checkout our **feature/cdh5.3.0**. we are working on providing profile on hbase/hadoop version soon.
 2. [mysql](https://www.mysql.com/) setup.
-	3. first create new user graph on your mysql. 
+	3. first create new user for s2graph on your mysql. 
 	4. create database and grant all privileges to this user on created database.
 	5. run s2core/migrate/mysql/schema.sql on created database.
-	6. because of [license issue](https://github.com/daumkakao/s2graph/issues/4), we are working on change this to [Derby](https://db.apache.org/derby)
+	6. set mysql connection info in `conf/reference.conf` - db.defaut.[url, user, password]
+	7. because of [license issue](https://github.com/daumkakao/s2graph/issues/4), we are working on change this to [Derby](https://db.apache.org/derby)
 3. install [protobuf](https://github.com/google/protobuf).
 	4. asynchbase require protoc, so you should install protobuf.
 	5. `brew install protobuf` if you are on mac.
