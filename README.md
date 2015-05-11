@@ -215,7 +215,7 @@ To create a Label, the following fields needs to be specified in the request.
 | **serviceName** | which service this label is belongs to. | either srcServiceName or tgtServiceName |s2graph |default tgtServiceName
 | hTableName | if this label need special usecase(such as batch upload), own hbase table name can be used. | string | s2graph-batch | default use service`s hTableName. <br> note that this is optional. |
 | hTableTTL | time to data keep alive. | integer |   86000 | default use service`s hTableTTL. <br> note that this is optional. |
-| consistencyLevel | if this is strong, only one edge between same from/to can be made. otherwise(week) multiple edges with same from/to can be exist. | string | strong/week | default week |
+| consistencyLevel | if this is strong, only one edge between same from/to can be made. otherwise(weak) multiple edges with same from/to can be exist. | string | strong/weak | default weak |
 
 >Note. following property names are reserved for system. user can not create property same with these reserved property names. user can use this properties for indexProps/props/where clause on query.
 >>1. **_timestamp** is reserved for system wise timestamp. this can be interpreted as last_modified_at
@@ -296,7 +296,7 @@ One last important constraint on label is **consistency level**.
 
 To explain consistency, s2graph defined edge uniquely with their (from, label, to) triple. s2graph call this triple as unique edge key.
 
-following example is used to explain differences between strong/week consistency level.
+following example is used to explain differences between strong/weak consistency level.
 > ```
 > 1418950524721	insert	e	1 	101	graph_test	{"weight": 10} = (1, graph_test, 101)
 > 1418950524723	insert	e	1	101	graph_test	{"weight": 20} = (1, graph_test, 101)
@@ -309,7 +309,7 @@ currently there are two consistency level
 >make sure there is **only one edge stored in storage** between same edge key(**(1, graph_test, 101)** above).
 >with strong consistency level, last command overwrite previous command. 
 
-**2. week**
+**2. weak**
 >no consistency check on unique edge key. above example yield **two different edge stored in storage** with different timestamp and weight value.
 
 for example, with each configuration, following edges will be stored.
@@ -328,14 +328,14 @@ u1 -> (t4, v1), (t3, v2)
 ```
 note that u1 -> (t1, v1), (t2, v2) are not exist.
 
-with week consistencyLevel.
+with weak consistencyLevel.
 ```
 u1 -> (t4, v1), (t3, v2), (t2, v2), (t1, v1)
 ```
 
-Reason week consistency is default.
+Reason weak consistency is default.
 
-> most case edges related to user`s activity should use **week** consistencyLevel since there will be **no concurrent update on same edges**. strong consistencyLevel is only for edges expecting many concurrent updates.
+> most case edges related to user`s activity should use **weak** consistencyLevel since there will be **no concurrent update on same edges**. strong consistencyLevel is only for edges expecting many concurrent updates.
 
 
 Consistency level also determine how edges will be stored in storage when command is delivered reversely by their timestamp.
@@ -445,7 +445,7 @@ insert have different behavior according to label`s consistency level.
 1. strong consistency level(default): **1 READ + (1 DELETE+ 1 PUT, optional)**
 insert is equal to upsert. s2graph check if unique edge key exist, then if there is edge with same unique edge key, run validation then decide apply current request or drop it. 
 
-2. week consistency level: **2 PUT**
+2. weak consistency level: **2 PUT**
 no consistency check on unique edge key, insert same edge key multiple times can possibly yield multiple edges.
 
 
