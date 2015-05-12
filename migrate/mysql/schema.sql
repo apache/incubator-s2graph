@@ -65,7 +65,7 @@ CREATE TABLE `labels` (
   `is_directed` tinyint	NOT NULL DEFAULT 1,
   `service_name` varchar(64),
   `service_id` integer NOT NULL,
-  `consistency_level` varchar(8) NOT NULL DEFAULT 'week',
+  `consistency_level` varchar(8) NOT NULL DEFAULT 'weak',
   `hbase_table_name` varchar(255) NOT NULL DEFAULT 's2graph',
   `hbase_table_ttl` integer,
   `is_async` tinyint	NOT NULL DEFAULT 0,
