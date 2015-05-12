@@ -298,7 +298,7 @@ trait RequestParser extends JSONParser {
     jsObjDuplicateKeyCheck(metaJs)
     val idxProps = for ((k, v) <- idxJs.fields) yield (k, v)
     val metaProps = for ((k, v) <- metaJs.fields) yield (k, v)
-    val consistencyLevel = (jsValue \ "consistencyLevel").asOpt[String].getOrElse("week")
+    val consistencyLevel = (jsValue \ "consistencyLevel").asOpt[String].getOrElse("weak")
     // expect new label don`t provide hTableName
     val hTableName = (jsValue \ "hTableName").asOpt[String]
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
