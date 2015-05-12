@@ -10,50 +10,67 @@ import collection.JavaConversions._
 
 object HBaseModel {
   val DELIMITER = ":"
+  val KEY_VAL_DELIMITER = ","
   val INNER_DELIMITER_WITH_ESCAPE = "\\|"
   val INNER_DELIMITER = "|"
-}
-
-/**
- */
-abstract class HBaseModel {
-  import HBaseModel._
 
   val modelTableName = "models"
   val modelCf = "m"
   val idQualifier = "i"
   val qualifier = "q"
-  protected var logicalTableName = "HBaseModel"
-  protected def parse(rowKey: String, qualifier: String, value: String): HBaseModel = ???
-  def toRowKey(idxKeyVals: KeyVals) = s"${idxKeyVals}$DELIMITER$logicalTableName"
-  def valueOfRowKey(bytes: Array[Byte]) = {
-    Bytes.toString(bytes)
-  }
 
-  def fromResult[R <: HBaseModel](r: Result): Option[HBaseModel] = {
+  def fromResult(r: Result): Option[HBaseModel] = {
     if (r == null | r.isEmpty) None
     r.listCells().headOption.map { cell =>
-      val rowKey = valueOfRowKey(cell.getRow)
+      val rowKey = Bytes.toString(cell.getRow)
       val qualifier = Bytes.toString(cell.getQualifier)
       val value = Bytes.toString(cell.getValue)
-      parse(rowKey, qualifier, value)
+      val elements = rowKey.split(DELIMITER)
+      val (tName, idxKeyVals) = (elements(0), elements(1))
+      val kvs = for {
+        kv <- idxKeyVals.split(KEY_VAL_DELIMITER)
+        t = kv.split(INNER_DELIMITER_WITH_ESCAPE) if t.length == 2
+      } yield (t.head, t.last)
+
+      HBaseModel(tName, kvs.toMap)
     }
   }
   def fromResultLs(r: Result): List[HBaseModel] = {
     if (r == null | r.isEmpty) List.empty[HBaseModel]
     r.listCells().map { cell =>
-      val rowKey = valueOfRowKey(cell.getRow)
+      val rowKey = Bytes.toString(cell.getRow)
       val qualifier = Bytes.toString(cell.getQualifier)
       val value = Bytes.toString(cell.getValue)
-      println(rowKey, qualifier, value)
-      parse(rowKey, qualifier, value)
+      val elements = rowKey.split(DELIMITER)
+      val (tName, idxKeyVals) = (elements(0), elements(1))
+      val kvs = for {
+        kv <- idxKeyVals.split(KEY_VAL_DELIMITER)
+        t = kv.split(INNER_DELIMITER_WITH_ESCAPE) if t.length == 2
+      } yield (t.head, t.last)
+
+      HBaseModel(tName, kvs.toMap)
     } toList
   }
-
-  def find(zkQuorum: String)(idxKeyVals: KeyVals): Option[HBaseModel] = {
+  def toKVs(kvs: Seq[(String, String)]) =  {
+    val idxKVs = for {
+      (k, v) <- kvs
+    } yield s"$k$INNER_DELIMITER$v"
+    idxKVs.mkString(KEY_VAL_DELIMITER)
+  }
+  def toKVsWithFilter(kvs: Map[String, String],filterKeys: Seq[(String, String)]) = {
+    val tgt = filterKeys.map(_._1).toSet
+    for {
+      (k, v) <- kvs if !tgt.contains(k)
+    } yield (k, v)
+  }
+  def toRowKey(tableName: String, idxKeyVals: Seq[(String, String)]) = {
+    List(tableName, toKVs(idxKeyVals)).mkString(DELIMITER)
+  }
+  def find(zkQuorum: String)(tableName: String, idxKeyVals: Seq[(String, String)]): Option[HBaseModel] = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
-      val get = new Get(toRowKey(idxKeyVals).getBytes)
+      val rowKey = toRowKey(tableName, idxKeyVals)
+      val get = new Get(rowKey.getBytes)
       get.addColumn(modelCf.getBytes, qualifier.getBytes)
       get.setMaxVersions(1)
       val res = table.get(get)
@@ -62,19 +79,24 @@ abstract class HBaseModel {
       table.close()
     }
   }
-  def finds(zkQuorum: String)(idxKeyVals: KeyVals): List[HBaseModel] = {
+  def finds(zkQuorum: String)(tableName: String,
+                              idxKeyVals: Seq[(String, String)],
+                              endIdxKeyVals: Seq[(String, String)]): List[HBaseModel] = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
-      val get = new Get(toRowKey(idxKeyVals).getBytes)
-      get.addColumn(modelCf.getBytes, qualifier.getBytes)
-      get.setMaxVersions(1)
-      val res = table.get(get)
-      fromResultLs(res)
+      val scan = new Scan()
+      scan.setStartRow(toRowKey(tableName, idxKeyVals).getBytes)
+      scan.setStopRow(toRowKey(tableName, idxKeyVals).getBytes)
+      scan.addColumn(modelCf.getBytes, qualifier.getBytes)
+      val resScanner = table.getScanner(scan)
+      val models = for {r <- resScanner; m <- fromResult(r)} yield m
+      models.toList
     } finally {
       table.close()
     }
   }
-  def getAndIncrSeq(zkQuorum: String, tableName: String = logicalTableName): Long = {
+
+  def getAndIncrSeq(zkQuorum: String)(tableName: String): Long = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       table.incrementColumnValue(tableName.getBytes, modelCf.getBytes, idQualifier.getBytes, 1L)
@@ -83,35 +105,38 @@ abstract class HBaseModel {
     }
   }
 
-  def insert(zkQuorum: String)(id: Long, idxKeyVals: KeyVals, value: KeyVals) = {
+  def insert(zkQuorum: String)(tableName: String, idxKVs: Seq[(String, String)], valKVs: Seq[(String, String)]) = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       /** assumes using same hbase cluster **/
-      val newSeq = getAndIncrSeq(zkQuorum)
-      val put = new Put(toRowKey(idxKeyVals).getBytes)
-      put.addColumn(modelCf.getBytes, qualifier.getBytes, value.append("id", s"$id").toString.getBytes)
+      val newSeq = getAndIncrSeq(zkQuorum)(tableName)
+      val rowKey = toRowKey(tableName, idxKVs).getBytes
+      val put = new Put(rowKey)
+      put.addColumn(modelCf.getBytes, qualifier.getBytes, toKVs(valKVs).getBytes)
       /** expecte null **/
-      table.checkAndPut(toRowKey(idxKeyVals).getBytes, modelCf.getBytes, qualifier.getBytes, null, put)
+      table.checkAndPut(rowKey, modelCf.getBytes, qualifier.getBytes, null, put)
     } finally {
       table.close()
     }
   }
+}
 
-}
-object KeyVals {
+/**
+ */
+case class HBaseModel(tableName: String, kvs: Map[String, String]) {
   import HBaseModel._
-  def apply(s: String): KeyVals = {
-    val t = s.split(DELIMITER)
-    if (t.length != 2) throw new RuntimeException("ColumnKeyValue parsing failed.")
-    val (vals, keys) = (t.head.split(INNER_DELIMITER_WITH_ESCAPE).toList, t.last.split(INNER_DELIMITER_WITH_ESCAPE).toList)
-    KeyVals(keys, vals)
-  }
 }
-case class KeyVals(keys: Seq[Any], values: Seq[Any]) {
+object HColumnMeta {
+}
+case class HColumnMeta(kvsParam: Map[String, String]) extends HBaseModel("HColumnMeta", kvsParam) {
   import HBaseModel._
-  override def toString(): String = s"${values.mkString(INNER_DELIMITER)}$DELIMITER${keys.mkString(INNER_DELIMITER)}"
-  def toKVMap() = keys.zip(values).map { kv => kv._1.toString -> kv._2.toString } toMap
-  def append(key: String, value: String) = {
-    KeyVals(key +: keys, value +: values)
-  }
+  val columns = Seq("id", "columnId", "name", "seq")
+  val pk = Seq(("id", kvs("id"))))
+  val pkVal = toKVsWithFilter(kvsParam, pk)
+  val columnIdName = Seq(("columnId", kvs("columnId")), ("name", kvs("name")))
+  val columnIdNameVal = toKVsWithFilter(kvsParam, columnIdName)
+  val columnIdSeq = Seq(("columnId", kvs("columnId")), ("seq", kvs("seq")))
+  val columnIdSeqVal = toKVsWithFilter(kvsParam, columnIdSeq)
 }
+
+
