@@ -1093,3 +1093,6 @@ total vuser = 2,072
 | 1 | 30 | 10 | 10 | 20 | 90.4TPS | 329.46ms | 
 | 1 | 20 | 10 | 10 | 20 | 83.2TPS | 238.42ms | 
 | 1 | 10 | 10 | 10 | 20 | 82.6TPS | 120.16ms | 
+
+
+[![Analytics](https://ga-beacon.appspot.com/UA-62888350-1/s2graph/readme.md)](https://github.com/daumkakao/s2graph)
