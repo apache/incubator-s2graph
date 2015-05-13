@@ -11,7 +11,8 @@ import scala.collection.mutable.ArrayBuffer
 
 object HBaseModel {
   val DELIMITER = ":"
-  val KEY_VAL_DELIMITER = ","
+  val KEY_VAL_DELIMITER = "^"
+  val KEY_VAL_DELIMITER_WITH_ESCAPE = "\\^"
   val INNER_DELIMITER_WITH_ESCAPE = "\\|"
   val INNER_DELIMITER = "|"
 
@@ -22,7 +23,7 @@ object HBaseModel {
 
   def toKVTuplesMap(s: String) = {
     val tupleLs = for {
-      kv <- s.split(KEY_VAL_DELIMITER)
+      kv <- s.split(KEY_VAL_DELIMITER_WITH_ESCAPE)
       t = kv.split(INNER_DELIMITER_WITH_ESCAPE) if t.length == 2
     } yield (t.head, t.last)
     tupleLs.toMap
@@ -122,13 +123,24 @@ object HBaseModel {
       table.close()
     }
   }
+  def delete(zkQuorum: String)(tableName: String)(idxKVs: Seq[(String, String)], valKVs: Seq[(String, String)]) = {
+    val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
+    try {
+      val rowKey = toRowKey(tableName, idxKVs).getBytes
+      val delete = new Delete(rowKey)
+      table.checkAndDelete(rowKey, modelCf.getBytes, qualifier.getBytes, toKVs(valKVs).getBytes, delete)
+    } finally {
+      table.close()
+    }
+  }
 }
 
 /**
  */
 class HBaseModel(protected val tableName: String, protected val kvs: Map[String, String]) {
+  import HBaseModel._
   protected val columns = Seq.empty[String]
-  protected val idxKeyValPairLs = List.empty[(Seq[(String, String)], Seq[(String, String)])]
+  protected val idxKVsList = List.empty[Seq[(String, String)]]
   override def toString(): String = (kvs ++ Map("tableName" -> tableName)).toString
 
   def validate(columns: Seq[String]): Unit = {
@@ -139,42 +151,57 @@ class HBaseModel(protected val tableName: String, protected val kvs: Map[String,
   def create(zkQuorum: String) = {
     val f = HBaseModel.insert(zkQuorum)(tableName)_
     val rets = for {
-      (idxKVs, valKVs) <- idxKeyValPairLs
+      idxKVs <- idxKVsList
     } yield {
-      f(idxKVs, valKVs)
+      f(idxKVs, toKVsWithFilter(kvs, idxKVs))
+    }
+    rets.forall(r => r)
+  }
+  def destroy(zkQuorum: String) = {
+    val f = HBaseModel.delete(zkQuorum)(tableName)_
+    val rets = for (idxKVs <- idxKVsList) yield {
+      f(idxKVs, toKVsWithFilter(kvs, idxKVs))
     }
     rets.forall(r => r)
   }
 }
 case class HColumnMeta(kvsParam: Map[String, String]) extends HBaseModel("HColumnMeta", kvsParam) {
-  import HBaseModel._
   override val columns = Seq("id", "columnId", "name", "seq")
 
   val pk = Seq(("id", kvs("id")))
-  val pkVal = toKVsWithFilter(kvs, pk)
   val columnIdName = Seq(("columnId", kvs("columnId")), ("name", kvs("name")))
-  val columnIdNameVal = toKVsWithFilter(kvs, columnIdName)
   val columnIdSeq = Seq(("columnId", kvs("columnId")), ("seq", kvs("seq")))
-  val columnIdSeqVal = toKVsWithFilter(kvs, columnIdSeq)
 
-  override val idxKeyValPairLs: List[(Seq[(String, String)], Seq[(String, String)])] = List((pk, pkVal), (columnIdName, columnIdNameVal), (columnIdSeq, columnIdSeqVal))
+  override val idxKVsList = List(pk, columnIdName, columnIdSeq)
   validate(columns)
 }
 
 
 case class HService(kvsParam: Map[String, String]) extends HBaseModel("HService", kvsParam) {
-  import HBaseModel._
   override val columns = Seq("id", "serviceName", "cluster", "hbaseTableName", "preSplitSize", "hbaseTableTTL")
 
   val pk = Seq(("id", kvs("id")))
-  val pkVal = toKVsWithFilter(kvs, pk)
   val serviceName = Seq(("serviceName", kvs("serviceName")))
-  val serviceNameVal = toKVsWithFilter(kvs, serviceName)
   val cluster = Seq(("cluster", kvs("cluster")))
-  val clusterVal = toKVsWithFilter(kvs, cluster)
 
-  override val idxKeyValPairLs = List((pk, pkVal), (serviceName, serviceNameVal), (cluster, clusterVal))
+  override val idxKVsList = List(pk, serviceName, cluster)
   validate(columns)
 }
 
 
+case class HServiceColumn(kvsParam: Map[String, String]) extends HBaseModel("HServiceColumn", kvsParam) {
+  override val columns = Seq("id", "serviceId", "columnName", "columnType")
+  val pk = Seq(("id", kvs("id")))
+  val serviceIdColumnName = Seq(("serviceId", kvs("serviceId")), ("columnName", kvs("columnName")))
+  override val idxKVsList = List(pk, serviceIdColumnName)
+  validate(columns)
+}
+
+case class HLabelIndex(kvsParam: Map[String, String]) extends HBaseModel("HLabelIndex", kvsParam) {
+  override val columns = Seq("id", "labelId", "seq", "metaSeqs", "formular")
+  val pk = Seq(("id", kvs("id")))
+  val labelIdSeq = Seq(("labelId", kvs("labelId")), ("metaSeqs", kvs("metaSeqs")))
+  override val idxKVsList = List(pk, labelIdSeq)
+  validate(columns)
+  assert(!kvs("metaSeqs").isEmpty)
+}

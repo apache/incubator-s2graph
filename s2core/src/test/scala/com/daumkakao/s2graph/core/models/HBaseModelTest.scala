@@ -25,6 +25,12 @@ class HBaseModelTest extends FunSuite with Matchers {
     find(Seq(("id", "1"))) ==
     find(Seq(("columnId", "10"), ("name", "testMeta"))) ==
     find(Seq(("columnId", "10"), ("seq", "4")))
+
+    model.destroy(zkQuorum)
+    find(Seq(("id", "1"))) == None
+    find(Seq(("columnId", "10"), ("name", "testMeta"))) == None
+    find(Seq(("columnId", "10"), ("seq", "4"))) == None
+
   }
   test("test HService") {
     val find = HBaseModel.find(zkQuorum)("HService")_
@@ -40,12 +46,29 @@ class HBaseModelTest extends FunSuite with Matchers {
     val finds = HBaseModel.finds(zkQuorum)("HService")_
     println(finds(Seq(("serviceName", "s2")), Seq(("serviceName", "s3"))))
   }
-//  test("test HServiceColumn") {
-//    val model = HServiceColumn(1, 10, "testColumn", "string")
-//    println(model.insert(zkQuorum))
-//    println(model.find(zkQuorum)(model.pk))
-//    println(model.find(zkQuorum)(model.idxByServiceIdColumnName))
-//  }
+  test("test HServiceColumn") {
+    val kvs = Map("id" -> "1", "serviceId" -> "10", "columnName" -> "testColumnName", "columnType" -> "long")
+    val model = HServiceColumn(kvs)
+    println(model.create(zkQuorum))
+    val find = HBaseModel.find(zkQuorum)("HServiceColumn")_
+    find(Seq(("id", "1"))) ==
+      find(Seq(("serviceId", "10"), ("columnName", "testColumnName")))
+  }
+  test("test HLabelIndex") {
+    val find = HBaseModel.find(zkQuorum)("HLabelIndex")_
+    val finds = HBaseModel.finds(zkQuorum)("HLabelIndex")_
+
+    val models = for (seq <- (1 until 4)) yield {
+      val kvs = Map("id" -> s"${10 + seq}", "labelId" -> "1", "seq" -> s"$seq",
+        "metaSeqs" -> (0 until seq).toList.map (x => "a").mkString(","),
+        "formular" -> "")
+
+      val model = HLabelIndex(kvs)
+      println(model.create(zkQuorum))
+      println(find(Seq(("id", s"${10 + seq}"))))
+    }
+    println(finds(Seq(("labelId", "1")), Seq(("labelId", "2"))))
+  }
 //  test("test HLabelMeta") {
 //    val model = HLabelMeta(1, 23, "testName", 1.toByte, "null", "string", true)
 //    println(model.insert(zkQuorum))
@@ -53,13 +76,5 @@ class HBaseModelTest extends FunSuite with Matchers {
 //    println(model.find(zkQuorum)(model.idxByLabelIdName))
 //    println(model.find(zkQuorum)(model.idxByLabelIdSeq))
 //  }
-//  test("test HLabelIndex") {
-//    val models = for (seq <- (0 until 4)) yield {
-//      HLabelIndex(10 + seq, 32, seq.toByte, s"a,b,c")
-//    }
-//    models.foreach { model => model.insert(zkQuorum) }
-//    val head = models.head
-//    println(head.find(zkQuorum)(head.pk))
-//    println(head.finds(zkQuorum)(head.pk))
-//  }
+
 }
