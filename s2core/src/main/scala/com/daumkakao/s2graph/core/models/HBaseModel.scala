@@ -1,5 +1,6 @@
 package com.daumkakao.s2graph.core.models
 
+import com.daumkakao.s2graph.core.models.HBaseModel.{KEY, VAL}
 import com.daumkakao.s2graph.core.{Graph, GraphConnection}
 import com.typesafe.config.Config
 import org.apache.hadoop.conf.Configuration
@@ -8,7 +9,6 @@ import org.apache.hadoop.hbase.{Cell, KeyValue, TableName, HBaseConfiguration}
 import org.apache.hadoop.hbase.client._
 import collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
-
 object HBaseModel {
   val DELIMITER = ":"
   val KEY_VAL_DELIMITER = "^"
@@ -21,15 +21,51 @@ object HBaseModel {
   val idQualifier = "i"
   val qualifier = "q"
   var zkQuorum: String = "localhost"
-  def apply(zk: String) = {
-    this.zkQuorum = zk
+
+  type KEY = String
+  type VAL = Any
+  def apply(zkQuorum: String) = {
+    this.zkQuorum = zkQuorum
   }
+  def padZeros(v: VAL): String = {
+    v match {
+      case b: Byte => "%03d".format(b)
+      case s: Short => "%05d".format(s)
+      case i: Int => "%08d".format(i)
+      case l: Long => "%08d".format(l)
+      case _ => v.toString
+    }
+  }
+
   def toKVTuplesMap(s: String) = {
     val tupleLs = for {
       kv <- s.split(KEY_VAL_DELIMITER_WITH_ESCAPE)
       t = kv.split(INNER_DELIMITER_WITH_ESCAPE) if t.length == 2
     } yield (t.head, t.last)
     tupleLs.toMap
+  }
+  def toKVs(kvs: Seq[(KEY, VAL)]) =  {
+    val idxKVs = for {
+      (k, v) <- kvs
+    } yield s"$k$INNER_DELIMITER${padZeros(v)}"
+    idxKVs.mkString(KEY_VAL_DELIMITER)
+  }
+  def toKVsWithFilter(kvs: Map[KEY, VAL],filterKeys: Seq[(KEY, VAL)]) = {
+    val tgt = filterKeys.map(_._1).toSet
+    val filtered = for {
+      (k, v) <- kvs if !tgt.contains(k)
+    } yield (k, padZeros(v))
+    filtered.toSeq
+  }
+  def toRowKey(tableName: String, idxKeyVals: Seq[(KEY, VAL)]) = {
+    List(tableName, toKVs(idxKeyVals)).mkString(DELIMITER)
+  }
+  def newInstance(tableName: String)(kvs: Map[KEY, VAL]) = {
+    tableName match {
+      case "HService" => HService(kvs)
+      case "HServiceColumn" => HServiceColumn(kvs)
+      case _ => new HBaseModel(tableName, kvs)
+    }
   }
   def fromResult(r: Result): Option[HBaseModel] = {
     if (r == null | r.isEmpty) None
@@ -41,7 +77,7 @@ object HBaseModel {
         val elements = rowKey.split(DELIMITER)
         val (tName, idxKeyVals) = (elements(0), elements(1))
         val merged = toKVTuplesMap(idxKeyVals) ++ toKVTuplesMap(value)
-        new HBaseModel(tName, merged)
+        newInstance(tName)(merged)
       }
     }
   }
@@ -55,27 +91,12 @@ object HBaseModel {
         val elements = rowKey.split(DELIMITER)
         val (tName, idxKeyVals) = (elements(0), elements(1))
         val merged = toKVTuplesMap(idxKeyVals) ++ toKVTuplesMap(value)
-        new HBaseModel(tName, merged)
+        newInstance(tName)(merged)
       } toList
     }
   }
-  def toKVs(kvs: Seq[(String, String)]) =  {
-    val idxKVs = for {
-      (k, v) <- kvs
-    } yield s"$k$INNER_DELIMITER$v"
-    idxKVs.mkString(KEY_VAL_DELIMITER)
-  }
-  def toKVsWithFilter(kvs: Map[String, String],filterKeys: Seq[(String, String)]) = {
-    val tgt = filterKeys.map(_._1).toSet
-    val filtered = for {
-      (k, v) <- kvs if !tgt.contains(k)
-    } yield (k, v)
-    filtered.toSeq
-  }
-  def toRowKey(tableName: String, idxKeyVals: Seq[(String, String)]) = {
-    List(tableName, toKVs(idxKeyVals)).mkString(DELIMITER)
-  }
-  def find(tableName: String)(idxKeyVals: Seq[(String, String)]): Option[HBaseModel] = {
+
+  def find(tableName: String)(idxKeyVals: Seq[(KEY, VAL)]): Option[HBaseModel] = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       val rowKey = toRowKey(tableName, idxKeyVals)
@@ -88,7 +109,7 @@ object HBaseModel {
       table.close()
     }
   }
-  def findsRange(tableName: String)(idxKeyVals: Seq[(String, String)], endIdxKeyVals: Seq[(String, String)]): List[HBaseModel] = {
+  def findsRange(tableName: String)(idxKeyVals: Seq[(KEY, VAL)], endIdxKeyVals: Seq[(KEY, VAL)]): List[HBaseModel] = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       val scan = new Scan()
@@ -102,7 +123,7 @@ object HBaseModel {
       table.close()
     }
   }
-  def findsMatch(tableName: String)(idxKeyVals: Seq[(String, String)]): List[HBaseModel] = {
+  def findsMatch(tableName: String)(idxKeyVals: Seq[(KEY, VAL)]): List[HBaseModel] = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       val scan = new Scan()
@@ -126,7 +147,7 @@ object HBaseModel {
     }
   }
 
-  def insert(tableName: String)(idxKVs: Seq[(String, String)], valKVs: Seq[(String, String)]) = {
+  def insert(tableName: String)(idxKVs: Seq[(KEY, VAL)], valKVs: Seq[(KEY, VAL)]) = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       /** assumes using same hbase cluster **/
@@ -140,7 +161,7 @@ object HBaseModel {
       table.close()
     }
   }
-  def delete(tableName: String)(idxKVs: Seq[(String, String)], valKVs: Seq[(String, String)]) = {
+  def delete(tableName: String)(idxKVs: Seq[(KEY, VAL)], valKVs: Seq[(KEY, VAL)]) = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       val rowKey = toRowKey(tableName, idxKVs).getBytes
@@ -154,10 +175,10 @@ object HBaseModel {
 
 /**
  */
-class HBaseModel(protected val tableName: String, protected val kvs: Map[String, String]) {
+class HBaseModel(protected val tableName: String, protected val kvs: Map[KEY, VAL]) {
   import HBaseModel._
   protected val columns = Seq.empty[String]
-  protected val idxKVsList = List.empty[Seq[(String, String)]]
+  protected val idxKVsList = List.empty[Seq[(KEY, VAL)]]
   override def toString(): String = (kvs ++ Map("tableName" -> tableName)).toString
 
   def validate(columns: Seq[String]): Unit = {
@@ -182,7 +203,7 @@ class HBaseModel(protected val tableName: String, protected val kvs: Map[String,
     rets.forall(r => r)
   }
 }
-case class HColumnMeta(kvsParam: Map[String, String]) extends HBaseModel("HColumnMeta", kvsParam) {
+case class HColumnMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel("HColumnMeta", kvsParam) {
   override val columns = Seq("id", "columnId", "name", "seq")
 
   val pk = Seq(("id", kvs("id")))
@@ -192,21 +213,21 @@ case class HColumnMeta(kvsParam: Map[String, String]) extends HBaseModel("HColum
   override val idxKVsList = List(pk, columnIdName, columnIdSeq)
   validate(columns)
 
-  val id = Some(kvs("id").toInt)
-  val columnId = kvs("columnId").toInt
-  val name = kvs("name")
-  val seq = kvs("seq").toByte
-  def findById(id: Int) = HBaseModel.find(tableName)(Seq(("id", s"$id")))
-  def findsByColumn(columnId: Int) = HBaseModel.findsMatch(tableName)(Seq(("columnId", s"$columnId")))
-  def findByColumnIdName(columnId: Int, name: String) = {
-    HBaseModel.find(tableName)(Seq(("columnId", s"$columnId"), ("name", s"$name")))
-  }
-  def findOrInsert(columnId: Int, name: String) = {
-    findByColumnIdName(columnId, name)}.getOrElse {
-      val filtered = kvs.filter(kv => kv._1 != "columnId" && kv._1 != "name")
-      val given = Map("columnId" -> s"$columnId", )
-    }
-  }
+  val id = Some(kvs("id").asInstanceOf[Int])
+  val columnId = kvs("columnId").asInstanceOf[Int]
+  val name = kvs("name").asInstanceOf[String]
+  val seq = kvs("seq").asInstanceOf[Byte]
+//  def findById(id: Int) = HBaseModel.find(tableName)(Seq(("id", s"$id")))
+//  def findsByColumn(columnId: Int) = HBaseModel.findsMatch(tableName)(Seq(("columnId", s"$columnId")))
+//  def findByColumnIdName(columnId: Int, name: String) = {
+//    HBaseModel.find(tableName)(Seq(("columnId", s"$columnId"), ("name", s"$name")))
+//  }
+//  def findOrInsert(columnId: Int, name: String) = {
+//    findByColumnIdName(columnId, name)}.getOrElse {
+//      val filtered = kvs.filter(kv => kv._1 != "columnId" && kv._1 != "name")
+//      val given = Map("columnId" -> s"$columnId", )
+//    }
+//  }
   // 1. findById
   // 2. findAllByColumn(columnId)
   // 3. findByName(columnId, name)
@@ -217,8 +238,12 @@ case class HColumnMeta(kvsParam: Map[String, String]) extends HBaseModel("HColum
 
 }
 
-
-case class HService(kvsParam: Map[String, String]) extends HBaseModel("HService", kvsParam) {
+object HService {
+  def findById(id: Int) = {
+    HBaseModel.find("HService")(Seq(("id" -> id))).get
+  }
+}
+case class HService(kvsParam: Map[KEY, VAL]) extends HBaseModel("HService", kvsParam) {
   override val columns = Seq("id", "serviceName", "cluster", "hbaseTableName", "preSplitSize", "hbaseTableTTL")
 
   val pk = Seq(("id", kvs("id")))
@@ -230,7 +255,7 @@ case class HService(kvsParam: Map[String, String]) extends HBaseModel("HService"
 }
 
 
-case class HServiceColumn(kvsParam: Map[String, String]) extends HBaseModel("HServiceColumn", kvsParam) {
+case class HServiceColumn(kvsParam: Map[KEY, VAL]) extends HBaseModel("HServiceColumn", kvsParam) {
   override val columns = Seq("id", "serviceId", "columnName", "columnType")
   val pk = Seq(("id", kvs("id")))
   val serviceIdColumnName = Seq(("serviceId", kvs("serviceId")), ("columnName", kvs("columnName")))
@@ -238,11 +263,11 @@ case class HServiceColumn(kvsParam: Map[String, String]) extends HBaseModel("HSe
   validate(columns)
 }
 
-case class HLabelIndex(kvsParam: Map[String, String]) extends HBaseModel("HLabelIndex", kvsParam) {
+case class HLabelIndex(kvsParam: Map[KEY, VAL]) extends HBaseModel("HLabelIndex", kvsParam) {
   override val columns = Seq("id", "labelId", "seq", "metaSeqs", "formular")
   val pk = Seq(("id", kvs("id")))
   val labelIdSeq = Seq(("labelId", kvs("labelId")), ("metaSeqs", kvs("metaSeqs")))
   override val idxKVsList = List(pk, labelIdSeq)
   validate(columns)
-  assert(!kvs("metaSeqs").isEmpty)
+  assert(!kvs("metaSeqs").toString().isEmpty)
 }
