@@ -16,6 +16,7 @@ class HBaseModelTest extends FunSuite with Matchers {
   val zkQuorum = "localhost"
   val config = ConfigFactory.parseString(s"hbase.zookeeper.quorum=$zkQuorum")
   Graph(config)(ExecutionContext.Implicits.global)
+  HBaseModel(zkQuorum)
 
   test("test HColumnMeta") {
     val kvs = Map("id" -> "1", "columnId" -> "10", "name" -> "testMeta", "seq" -> "4")

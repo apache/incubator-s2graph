@@ -20,7 +20,10 @@ object HBaseModel {
   val modelCf = "m"
   val idQualifier = "i"
   val qualifier = "q"
-
+  var zkQuorum: String = "localhost"
+  def apply(zk: String) = {
+    this.zkQuorum = zk
+  }
   def toKVTuplesMap(s: String) = {
     val tupleLs = for {
       kv <- s.split(KEY_VAL_DELIMITER_WITH_ESCAPE)
@@ -72,7 +75,7 @@ object HBaseModel {
   def toRowKey(tableName: String, idxKeyVals: Seq[(String, String)]) = {
     List(tableName, toKVs(idxKeyVals)).mkString(DELIMITER)
   }
-  def find(zkQuorum: String)(tableName: String)(idxKeyVals: Seq[(String, String)]): Option[HBaseModel] = {
+  def find(tableName: String)(idxKeyVals: Seq[(String, String)]): Option[HBaseModel] = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       val rowKey = toRowKey(tableName, idxKeyVals)
@@ -85,7 +88,7 @@ object HBaseModel {
       table.close()
     }
   }
-  def finds(zkQuorum: String)(tableName: String)(idxKeyVals: Seq[(String, String)], endIdxKeyVals: Seq[(String, String)]): List[HBaseModel] = {
+  def findsRange(tableName: String)(idxKeyVals: Seq[(String, String)], endIdxKeyVals: Seq[(String, String)]): List[HBaseModel] = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       val scan = new Scan()
@@ -99,8 +102,22 @@ object HBaseModel {
       table.close()
     }
   }
-
-  def getAndIncrSeq(zkQuorum: String)(tableName: String): Long = {
+  def findsMatch(tableName: String)(idxKeyVals: Seq[(String, String)]): List[HBaseModel] = {
+    val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
+    try {
+      val scan = new Scan()
+      scan.setStartRow(toRowKey(tableName, idxKeyVals).getBytes)
+      val endBytes = Bytes.add(toRowKey(tableName, idxKeyVals).getBytes, Array.fill(1)(Byte.MinValue.toByte))
+      scan.setStopRow(endBytes)
+      scan.addColumn(modelCf.getBytes, qualifier.getBytes)
+      val resScanner = table.getScanner(scan)
+      val models = for {r <- resScanner; m <- fromResult(r)} yield m
+      models.toList
+    } finally {
+      table.close()
+    }
+  }
+  def getAndIncrSeq(tableName: String): Long = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       table.incrementColumnValue(tableName.getBytes, modelCf.getBytes, idQualifier.getBytes, 1L)
@@ -109,11 +126,11 @@ object HBaseModel {
     }
   }
 
-  def insert(zkQuorum: String)(tableName: String)(idxKVs: Seq[(String, String)], valKVs: Seq[(String, String)]) = {
+  def insert(tableName: String)(idxKVs: Seq[(String, String)], valKVs: Seq[(String, String)]) = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       /** assumes using same hbase cluster **/
-      val newSeq = getAndIncrSeq(zkQuorum)(tableName)
+      val newSeq = getAndIncrSeq(tableName)
       val rowKey = toRowKey(tableName, idxKVs).getBytes
       val put = new Put(rowKey)
       put.addColumn(modelCf.getBytes, qualifier.getBytes, toKVs(valKVs).getBytes)
@@ -123,7 +140,7 @@ object HBaseModel {
       table.close()
     }
   }
-  def delete(zkQuorum: String)(tableName: String)(idxKVs: Seq[(String, String)], valKVs: Seq[(String, String)]) = {
+  def delete(tableName: String)(idxKVs: Seq[(String, String)], valKVs: Seq[(String, String)]) = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       val rowKey = toRowKey(tableName, idxKVs).getBytes
@@ -148,8 +165,8 @@ class HBaseModel(protected val tableName: String, protected val kvs: Map[String,
       if (!kvs.contains(c)) throw new RuntimeException(s"tableName expect $columns, found $kvs")
     }
   }
-  def create(zkQuorum: String) = {
-    val f = HBaseModel.insert(zkQuorum)(tableName)_
+  def create() = {
+    val f = HBaseModel.insert(tableName)_
     val rets = for {
       idxKVs <- idxKVsList
     } yield {
@@ -157,8 +174,8 @@ class HBaseModel(protected val tableName: String, protected val kvs: Map[String,
     }
     rets.forall(r => r)
   }
-  def destroy(zkQuorum: String) = {
-    val f = HBaseModel.delete(zkQuorum)(tableName)_
+  def destroy() = {
+    val f = HBaseModel.delete(tableName)_
     val rets = for (idxKVs <- idxKVsList) yield {
       f(idxKVs, toKVsWithFilter(kvs, idxKVs))
     }
@@ -174,6 +191,30 @@ case class HColumnMeta(kvsParam: Map[String, String]) extends HBaseModel("HColum
 
   override val idxKVsList = List(pk, columnIdName, columnIdSeq)
   validate(columns)
+
+  val id = Some(kvs("id").toInt)
+  val columnId = kvs("columnId").toInt
+  val name = kvs("name")
+  val seq = kvs("seq").toByte
+  def findById(id: Int) = HBaseModel.find(tableName)(Seq(("id", s"$id")))
+  def findsByColumn(columnId: Int) = HBaseModel.findsMatch(tableName)(Seq(("columnId", s"$columnId")))
+  def findByColumnIdName(columnId: Int, name: String) = {
+    HBaseModel.find(tableName)(Seq(("columnId", s"$columnId"), ("name", s"$name")))
+  }
+  def findOrInsert(columnId: Int, name: String) = {
+    findByColumnIdName(columnId, name)}.getOrElse {
+      val filtered = kvs.filter(kv => kv._1 != "columnId" && kv._1 != "name")
+      val given = Map("columnId" -> s"$columnId", )
+    }
+  }
+  // 1. findById
+  // 2. findAllByColumn(columnId)
+  // 3. findByName(columnId, name)
+  // 4. insert
+  // 5. findOrInsert(columnId, name)
+  // 6. findByIdAndSeq(columnId, seq)
+  // 7. delete
+
 }
 
 
