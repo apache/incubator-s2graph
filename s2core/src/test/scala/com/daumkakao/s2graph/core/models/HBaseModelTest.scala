@@ -18,38 +18,48 @@ class HBaseModelTest extends FunSuite with Matchers {
   Graph(config)(ExecutionContext.Implicits.global)
 
   test("test HColumnMeta") {
-    val model = HColumnMeta(1, 10, "testModel", 0.toByte)
-    println(model.insert(zkQuorum = zkQuorum))
-    println(model.find(zkQuorum)(model.pk))
-    println(model.find(zkQuorum)(model.idxByColumnIdSeq))
+    val kvs = Map("id" -> "1", "columnId" -> "10", "name" -> "testMeta", "seq" -> "4")
+    val model = HColumnMeta(kvs)
+    println(model.create(zkQuorum))
+    val find = HBaseModel.find(zkQuorum)("HColumnMeta")_
+    find(Seq(("id", "1"))) ==
+    find(Seq(("columnId", "10"), ("name", "testMeta"))) ==
+    find(Seq(("columnId", "10"), ("seq", "4")))
   }
   test("test HService") {
-    val model = HService(1, "testServiceName", "testCluster", "testTable", 10, 86000)
-    println(model.insert(zkQuorum))
-    println(model.find(zkQuorum)(model.pk))
-    println(model.find(zkQuorum)(model.idxByServiceName))
-    println(model.find(zkQuorum)(model.idxByCluster))
-  }
-  test("test HServiceColumn") {
-    val model = HServiceColumn(1, 10, "testColumn", "string")
-    println(model.insert(zkQuorum))
-    println(model.find(zkQuorum)(model.pk))
-    println(model.find(zkQuorum)(model.idxByServiceIdColumnName))
-  }
-  test("test HLabelMeta") {
-    val model = HLabelMeta(1, 23, "testName", 1.toByte, "null", "string", true)
-    println(model.insert(zkQuorum))
-    println(model.find(zkQuorum)(model.pk))
-    println(model.find(zkQuorum)(model.idxByLabelIdName))
-    println(model.find(zkQuorum)(model.idxByLabelIdSeq))
-  }
-  test("test HLabelIndex") {
-    val models = for (seq <- (0 until 4)) yield {
-      HLabelIndex(10 + seq, 32, seq.toByte, s"a,b,c")
+    val find = HBaseModel.find(zkQuorum)("HService")_
+    for ((serviceName, id) <- List("s2a", "s2graph", "s2zz", "s3a", "s3z").zipWithIndex) {
+      val kvs = Map("id" -> s"$id", "serviceName" -> serviceName, "cluster" -> "localhost",
+      "hbaseTableName" -> "s2graph-dev", "preSplitSize" -> "0", "hbaseTableTTL" -> s"${Int.MaxValue}")
+      val model = HService(kvs)
+      println(model.create(zkQuorum))
+      find(Seq(("id", s"$id"))) ==
+      find(Seq(("serviceName", serviceName))) ==
+      find(Seq(("cluster", "localhost")))
     }
-    models.foreach { model => model.insert(zkQuorum) }
-    val head = models.head
-    println(head.find(zkQuorum)(head.pk))
-    println(head.finds(zkQuorum)(head.pk))
+    val finds = HBaseModel.finds(zkQuorum)("HService")_
+    println(finds(Seq(("serviceName", "s2")), Seq(("serviceName", "s3"))))
   }
+//  test("test HServiceColumn") {
+//    val model = HServiceColumn(1, 10, "testColumn", "string")
+//    println(model.insert(zkQuorum))
+//    println(model.find(zkQuorum)(model.pk))
+//    println(model.find(zkQuorum)(model.idxByServiceIdColumnName))
+//  }
+//  test("test HLabelMeta") {
+//    val model = HLabelMeta(1, 23, "testName", 1.toByte, "null", "string", true)
+//    println(model.insert(zkQuorum))
+//    println(model.find(zkQuorum)(model.pk))
+//    println(model.find(zkQuorum)(model.idxByLabelIdName))
+//    println(model.find(zkQuorum)(model.idxByLabelIdSeq))
+//  }
+//  test("test HLabelIndex") {
+//    val models = for (seq <- (0 until 4)) yield {
+//      HLabelIndex(10 + seq, 32, seq.toByte, s"a,b,c")
+//    }
+//    models.foreach { model => model.insert(zkQuorum) }
+//    val head = models.head
+//    println(head.find(zkQuorum)(head.pk))
+//    println(head.finds(zkQuorum)(head.pk))
+//  }
 }
