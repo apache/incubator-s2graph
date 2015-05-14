@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import HBaseElement._
-import com.daumkakao.s2graph.core.models.HLabelMeta
+import com.daumkakao.s2graph.core.models.{HLabel, HLabelIndex, HLabelMeta}
 import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.util.Bytes
 import GraphConstant._
@@ -144,8 +144,8 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   import Query.DuplicatePolicy._
   import Query.DuplicatePolicy
 
-  val label = Label.findById(labelWithDir.labelId)
-  val defaultKey = LabelIndex.defaultSeq
+  val label = HLabel.findById(labelWithDir.labelId)
+  val defaultKey = HLabelIndex.defaultSeq
   val fullKey = defaultKey
 
   var labelOrderSeq = fullKey

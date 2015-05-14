@@ -1,5 +1,6 @@
 package com.daumkakao.s2graph.core
 
+import com.daumkakao.s2graph.core.models.HLabel
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client.HConnection
 import org.apache.hadoop.hbase.client.HConnectionManager
@@ -398,7 +399,7 @@ object Graph {
 //    }
 //  }
 
-  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: Label, dir: Int): Future[Iterable[Edge]] = {
+  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: HLabel, dir: Int): Future[Iterable[Edge]] = {
     implicit val ex = this.executionContext
     val rowKey = EdgeRowKey(srcVertex.id, LabelWithDirection(label.id.get, dir), label.defaultIndex.get.seq, isInverted = true)
 
@@ -707,14 +708,14 @@ object Graph {
   def deleteVertexAll(vertices: Seq[Vertex]): Unit = {
     for {
       vertex <- vertices
-      label <- (Label.findBySrcColumnId(vertex.id.colId) ++ Label.findByTgtColumnId(vertex.id.colId)).groupBy(_.id.get).map { _._2.head }
+      label <- (HLabel.findBySrcColumnId(vertex.id.colId) ++ HLabel.findByTgtColumnId(vertex.id.colId)).groupBy(_.id.get).map { _._2.head }
     } {
       deleteVertexAllAsync(vertex.toEdgeVertex, label)
     }
     deleteVertices(vertices)
   }
 
-  private def deleteVertexAllAsync(srcVertex: Vertex, label: Label): Future[Boolean] = {
+  private def deleteVertexAllAsync(srcVertex: Vertex, label: HLabel): Future[Boolean] = {
     implicit val ex = Graph.executionContext
     val qParams = for (dir <- List(0, 1)) yield {
       val labelWithDir = LabelWithDirection(label.id.get, dir)

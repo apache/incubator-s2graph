@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core
 import HBaseElement._
-import com.daumkakao.s2graph.core.models.HLabelMeta
+import com.daumkakao.s2graph.core.models.{HLabel, HLabelIndex, HLabelMeta}
 import org.apache.hadoop.hbase.client.{ Delete, Mutation, Put, Result }
 import org.hbase.async.{HBaseRpc, DeleteRequest, PutRequest}
 import org.slf4j.LoggerFactory
@@ -15,12 +15,12 @@ case class EdgeWithIndexInverted(srcVertex: Vertex, tgtVertex: Vertex, labelWith
   //  Logger.error(s"EdgeWithIndexInverted${this.toString}")
   lazy val lastModifiedAt = props.map(_._2.ts).max
 
-  lazy val rowKey = EdgeRowKey(srcVertex.id, labelWithDir, LabelIndex.defaultSeq, isInverted = true)
+  lazy val rowKey = EdgeRowKey(srcVertex.id, labelWithDir, HLabelIndex.defaultSeq, isInverted = true)
 
   lazy val qualifier = EdgeQualifierInverted(tgtVertex.id)
 
   // only for toString.
-  lazy val label = Label.findById(labelWithDir.labelId)
+  lazy val label = HLabel.findById(labelWithDir.labelId)
   lazy val propsWithoutTs = props.map(kv => (kv._1 -> kv._2.innerVal))
 
   lazy val value = EdgeValueInverted(op, props.toList)
@@ -57,7 +57,7 @@ case class EdgeWithIndex(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: Lab
   import Edge._
 
   lazy val rowKey = EdgeRowKey(srcVertex.id, labelWithDir, labelIndexSeq, isInverted = false)
-  lazy val labelIndex = LabelIndex.findByLabelIdAndSeq(labelWithDir.labelId, labelIndexSeq).get
+  lazy val labelIndex = HLabelIndex.findByLabelIdAndSeq(labelWithDir.labelId, labelIndexSeq).get
   lazy val defaultIndexMetas = labelIndex.sortKeyTypes.map(meta => meta.seq -> meta.defaultInnerVal).toMap
   lazy val labelIndexMetaSeqs = labelIndex.metaSeqs
 
@@ -89,7 +89,7 @@ case class EdgeWithIndex(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: Lab
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
 
   // only for toString.
-  lazy val label = Label.findById(labelWithDir.labelId)
+  lazy val label = HLabel.findById(labelWithDir.labelId)
 
   def buildPuts(): List[Put] = {
     if (!hasAllPropsForIndex) {
@@ -169,8 +169,8 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
   lazy val reverseDirEdge = Edge(srcVertex, tgtVertex, labelWithDir.dirToggled, op, ts, version, propsWithTs)
   lazy val reverseSrcTgtEdge = Edge(tgtVertex, srcVertex, labelWithDir, op, ts, version, propsWithTs)
 
-  lazy val label = Label.findById(labelWithDir.labelId)
-  lazy val labelOrders = LabelIndex.findByLabelIdAll(labelWithDir.labelId)
+  lazy val label = HLabel.findById(labelWithDir.labelId)
+  lazy val labelOrders = HLabelIndex.findByLabelIdAll(labelWithDir.labelId)
   override lazy val serviceName = label.serviceName
   override lazy val queueKey = Seq(ts.toString, tgtVertex.serviceName).mkString("|")
   override lazy val queuePartitionKey = Seq(srcVertex.innerId, tgtVertex.innerId).mkString("|")

@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 import GraphUtil._
 import KGraphExceptions._
-import com.daumkakao.s2graph.core.models.HLabelMeta
+import com.daumkakao.s2graph.core.models.{HLabelIndex, HLabelMeta}
 import org.apache.hadoop.hbase.util.Bytes
 import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.Cell
@@ -446,7 +446,7 @@ object HBaseElement {
     def propsKVs(labelId: Int, labelOrderSeq: Byte): List[(Byte, InnerVal)] = {
       val filtered = props.filter(kv => kv._1 != HLabelMeta.emptyValue)
       if (filtered.isEmpty) {
-        val opt = for (index <- LabelIndex.findByLabelIdAndSeq(labelId, labelOrderSeq)) yield {
+        val opt = for (index <- HLabelIndex.findByLabelIdAndSeq(labelId, labelOrderSeq)) yield {
           val v = index.metaSeqs.zip(props.map(_._2))
           v
         }

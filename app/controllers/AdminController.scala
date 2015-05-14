@@ -1,7 +1,7 @@
 package controllers
 
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models.{HLabelMeta, HService}
+import com.daumkakao.s2graph.core.models.{HLabel, HLabelMeta, HService}
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, Controller}
@@ -68,7 +68,7 @@ object AdminController extends Controller with RequestParser {
   }
 
   def getLabel(labelName: String) = Action { request =>
-    Label.findByName(labelName, false) match {
+    HLabel.findByName(labelName) match {
       case None => NotFound("NotFound\n")
       case Some(label) =>
         Ok(s"${label.toJson}\n")
@@ -79,8 +79,8 @@ object AdminController extends Controller with RequestParser {
     HService.findByName(serviceName) match {
       case None => BadRequest(s"create service first.")
       case Some(service) =>
-        val srcs = Label.findBySrcServiceId(service.id.get)
-        val tgts = Label.findByTgtServiceId(service.id.get)
+        val srcs = HLabel.findBySrcServiceId(service.id.get)
+        val tgts = HLabel.findByTgtServiceId(service.id.get)
         val json = Json.obj("from" -> srcs.map(src => src.toJson), "to" -> tgts.map(tgt => tgt.toJson))
         Ok(s"$json\n")
     }
@@ -91,7 +91,7 @@ object AdminController extends Controller with RequestParser {
   }
 
   def deleteLabelInner(labelName: String) = {
-    Label.findByName(labelName) match {
+    HLabel.findByName(labelName) match {
       case None => NotFound
       case Some(label) =>
         val json = label.toJson
@@ -104,7 +104,7 @@ object AdminController extends Controller with RequestParser {
   def addProp(labelName: String) = Action(parse.json) { request =>
     val (propName, defaultValue, dataType, usedInIndex) = toPropElements(request.body)
     try {
-      val metaOpt = for (label <- Label.findByName(labelName)) yield {
+      val metaOpt = for (label <- HLabel.findByName(labelName)) yield {
         HLabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType, usedInIndex)
       }
       val meta = metaOpt.getOrElse(throw new KGraphExceptions.LabelNotExistException(s"$labelName label does not exist."))

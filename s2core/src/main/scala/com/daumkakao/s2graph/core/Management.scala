@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import HBaseElement._
-import com.daumkakao.s2graph.core.models.{HLabelMeta, HColumnMeta, HServiceColumn, HService}
+import com.daumkakao.s2graph.core.models._
 import play.api.libs.json._
 import org.apache.hadoop.hbase.client.HBaseAdmin
 import org.apache.hadoop.hbase.HTableDescriptor
@@ -50,7 +50,7 @@ object Management extends JSONParser {
     props: Seq[(String, JsValue)],
     consistencyLevel: String,
     hTableName: Option[String],
-    hTableTTL: Option[Int]): Label = {
+    hTableTTL: Option[Int]): HLabel = {
 
     val idxProps = for ((k, v) <- indexProps; (innerVal, dataType) = toInnerVal(v)) yield (k, innerVal, dataType, true)
     val metaProps = for ((k, v) <- props; (innerVal, dataType) = toInnerVal(v)) yield (k, innerVal, dataType, false)
@@ -73,25 +73,25 @@ object Management extends JSONParser {
     val tgtService = HService.findByName(tgtServiceName).get
     val service = HService.findByName(serviceName).get
     var cacheKey = s"label=$label"
-    Label.expireCache(cacheKey)
-    val labelOpt = Label.findByName(label, useCache = false)
+//    HLabel.expireCache(cacheKey)
+    val labelOpt = HLabel.findByName(label)
 
     labelOpt match {
       case Some(l) =>
         throw new KGraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
       case None =>
-        Label.insertAll(label,
+        HLabel.insertAll(label,
           srcService.id.get, srcColumnName, srcColumnType,
           tgtService.id.get, tgtColumnName, tgtColumType,
           isDirected, serviceName, service.id.get, idxProps ++ metaProps, consistencyLevel, hTableName, hTableTTL)
-        Label.expireCache(cacheKey)
-        Label.findByName(label).get
+//        HLabel.expireCache(cacheKey)
+        HLabel.findByName(label).get
     }
   }
 
   def addIndex(labelStr: String, orderByKeys: Seq[(String, JsValue)]) = {
     val label = try {
-      Label.findByName(labelStr).get
+      HLabel.findByName(labelStr).get
     } catch {
       case e: Throwable =>
         throw new KGraphExceptions.LabelNotExistException(labelStr)
@@ -103,18 +103,18 @@ object Management extends JSONParser {
         if (lblMeta.usedInIndex) lblMeta.seq
         else throw new KGraphExceptions.LabelMetaExistException(s"")
       }
-    LabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
+    HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
   }
 
-  def getServiceLable(label: String): Option[Label] = {
-    Label.findByName(label)
+  def getServiceLable(label: String): Option[HLabel] = {
+    HLabel.findByName(label)
   }
 
   /**
    *
    */
 
-  def toLabelWithDirectionAndOp(label: Label, direction: String): Option[LabelWithDirection] = {
+  def toLabelWithDirectionAndOp(label: HLabel, direction: String): Option[LabelWithDirection] = {
     for {
       labelId <- label.id
       dir = GraphUtil.toDirection(direction)
@@ -179,7 +179,7 @@ object Management extends JSONParser {
 
   }
 
-  def toProps(label: Label, js: JsObject): Seq[(Byte, InnerVal)] = {
+  def toProps(label: HLabel, js: JsObject): Seq[(Byte, InnerVal)] = {
 
     val props = for {
       (k, v) <- js.fields
