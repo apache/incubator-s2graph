@@ -7,7 +7,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{Cell, KeyValue, TableName, HBaseConfiguration}
 import org.apache.hadoop.hbase.client._
-import play.libs.Json
+import play.api.libs.json.Json
 import collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
 object HBaseModel {
@@ -204,38 +204,55 @@ class HBaseModel(protected val tableName: String, protected val kvs: Map[KEY, VA
     rets.forall(r => r)
   }
 }
+
+object HColumnMeta {
+  val timeStampSeq = 0.toByte
+  val countSeq = -1.toByte
+  val lastModifiedAtColumnSeq = 0.toByte
+  val lastModifiedAtColumn = HColumnMeta(Map("id" -> 0, "columnId" -> 0,
+    "name" -> "lastModifiedAt", "seq" -> lastModifiedAtColumnSeq))
+  val maxValue = Byte.MaxValue
+
+
+  def findById(id: Int): HColumnMeta = {
+    HBaseModel.find("HColumnMeta")(Seq(("id" -> id))).get.asInstanceOf[HColumnMeta]
+  }
+  def findAllByColumn(columnId: Int) = {
+    HBaseModel.findsMatch("HColumnMeta")(Seq(("columnId" -> columnId))).map(x => x.asInstanceOf[HColumnMeta])
+  }
+  def findByName(columnId: Int, name: String) = {
+    HBaseModel.find("HColumnMeta")(Seq(("columnId" -> columnId), ("name" -> name))).map(x => x.asInstanceOf[HColumnMeta])
+  }
+  def findByIdAndSeq(columnId: Int, seq: Byte) = {
+    HBaseModel.find("HColumnMeta")(Seq(("columnId" -> columnId), ("seq" -> seq))).map(x => x.asInstanceOf[HColumnMeta])
+  }
+  def findOrInsert(columnId: Int, name: String): HColumnMeta = {
+    findByName(columnId, name) match {
+      case Some(s) => s
+      case None =>
+        val id = HBaseModel.getAndIncrSeq("HColumnMeta")
+        val seq = HBaseModel.findsMatch("HColumnMeta")(Seq(("columnId" -> columnId)))
+        val model = HColumnMeta(Map("id" -> id, "columnId" -> columnId, "name" -> name, "seq" -> seq))
+        model.create
+        model
+    }
+  }
+}
+
 case class HColumnMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel("HColumnMeta", kvsParam) {
   override val columns = Seq("id", "columnId", "name", "seq")
 
   val pk = Seq(("id", kvs("id")))
-  val columnIdName = Seq(("columnId", kvs("columnId")), ("name", kvs("name")))
-  val columnIdSeq = Seq(("columnId", kvs("columnId")), ("seq", kvs("seq")))
+  val idxColumnIdName = Seq(("columnId", kvs("columnId")), ("name", kvs("name")))
+  val idxColumnIdSeq = Seq(("columnId", kvs("columnId")), ("seq", kvs("seq")))
 
-  override val idxKVsList = List(pk, columnIdName, columnIdSeq)
+  override val idxKVsList = List(pk, idxColumnIdName, idxColumnIdSeq)
   validate(columns)
 
-  val id = Some(kvs("id").asInstanceOf[Int])
-  val columnId = kvs("columnId").asInstanceOf[Int]
-  val name = kvs("name").asInstanceOf[String]
-  val seq = kvs("seq").asInstanceOf[Byte]
-//  def findById(id: Int) = HBaseModel.find(tableName)(Seq(("id", s"$id")))
-//  def findsByColumn(columnId: Int) = HBaseModel.findsMatch(tableName)(Seq(("columnId", s"$columnId")))
-//  def findByColumnIdName(columnId: Int, name: String) = {
-//    HBaseModel.find(tableName)(Seq(("columnId", s"$columnId"), ("name", s"$name")))
-//  }
-//  def findOrInsert(columnId: Int, name: String) = {
-//    findByColumnIdName(columnId, name)}.getOrElse {
-//      val filtered = kvs.filter(kv => kv._1 != "columnId" && kv._1 != "name")
-//      val given = Map("columnId" -> s"$columnId", )
-//    }
-//  }
-  // 1. findById
-  // 2. findAllByColumn(columnId)
-  // 3. findByName(columnId, name)
-  // 4. insert
-  // 5. findOrInsert(columnId, name)
-  // 6. findByIdAndSeq(columnId, seq)
-  // 7. delete
+  val id = Some(kvs("id").toString.toInt)
+  val columnId = kvs("columnId").toString.toInt
+  val name = kvs("name").toString
+  val seq = kvs("seq").toString.toByte
 
 }
 
@@ -285,14 +302,45 @@ case class HService(kvsParam: Map[KEY, VAL]) extends HBaseModel("HService", kvsP
   lazy val toJson = kvs.toString
 }
 
-
+object HServiceColumn {
+  def findById(id: Int): HServiceColumn = {
+    HBaseModel.find("HServiceColumn")(Seq(("id" -> id))).get.asInstanceOf[HServiceColumn]
+  }
+  def find(serviceId: Int, columnName: String): Option[HServiceColumn] = {
+    HBaseModel.find("HServiceColumn")(Seq("serviceId" -> serviceId, "columnName" -> columnName))
+      .map { x => x.asInstanceOf[HServiceColumn]}
+  }
+  def findOrInsert(serviceId: Int, columnName: String, columnType: Option[String]): HServiceColumn = {
+    find(serviceId, columnName) match {
+      case Some(s) => s
+      case None =>
+        val id = HBaseModel.getAndIncrSeq("HServiceColumn")
+        val model = new HServiceColumn(Map("id" -> id, "serviceId" -> serviceId, "columnName" -> columnName,
+        "columnType" -> columnType.getOrElse("string")))
+        model.create
+        model
+    }
+  }
+}
 case class HServiceColumn(kvsParam: Map[KEY, VAL]) extends HBaseModel("HServiceColumn", kvsParam) {
   override val columns = Seq("id", "serviceId", "columnName", "columnType")
   val pk = Seq(("id", kvs("id")))
-  val serviceIdColumnName = Seq(("serviceId", kvs("serviceId")), ("columnName", kvs("columnName")))
-  override val idxKVsList = List(pk, serviceIdColumnName)
+  val idxServiceIdColumnName = Seq(("serviceId", kvs("serviceId")), ("columnName", kvs("columnName")))
+  override val idxKVsList = List(pk, idxServiceIdColumnName)
   validate(columns)
+
+  val id = Some(kvs("id").toString.toInt)
+  val serviceId = kvs("serviceId").toString.toInt
+  val columnName = kvs("columnName").toString
+  val columnType = kvs("columnType").toString
+
+
+  val service = HService.findById(serviceId)
+  val metas = HColumnMeta.findAllByColumn(id.get)
+  val metaNamesMap = (HColumnMeta.lastModifiedAtColumn :: metas).map(x => (x.seq, x.name)) toMap
+  lazy val toJson = Json.obj("serviceName" -> service.serviceName, "columnName" -> columnName, "columnType" -> columnType)
 }
+
 
 case class HLabelIndex(kvsParam: Map[KEY, VAL]) extends HBaseModel("HLabelIndex", kvsParam) {
   override val columns = Seq("id", "labelId", "seq", "metaSeqs", "formular")

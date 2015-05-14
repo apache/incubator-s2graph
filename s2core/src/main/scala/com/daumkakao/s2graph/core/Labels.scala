@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.models.HService
+import com.daumkakao.s2graph.core.models.{HServiceColumn, HService}
 import play.api.libs.json.{ JsValue, Json }
 import scalikejdbc._
 
@@ -71,7 +71,7 @@ object Label extends LocalCache[Label] {
       .map { rs => Label(rs) }.single.apply()).get
   }
   def findByTgtColumnId(columnId: Int): List[Label] = {
-    val col = ServiceColumn.findById(columnId)
+    val col = HServiceColumn.findById(columnId)
     sql"""
           select	*
           from	labels
@@ -79,7 +79,7 @@ object Label extends LocalCache[Label] {
         """.map { rs => Label(rs) }.list().apply()
   }
   def findBySrcColumnId(columnId: Int): List[Label] = {
-    val col = ServiceColumn.findById(columnId)
+    val col = HServiceColumn.findById(columnId)
     sql"""
           select 	*
           from	labels
@@ -110,8 +110,8 @@ object Label extends LocalCache[Label] {
     //    val ls = List(label, srcServiceId, srcColumnName, srcColumnType, tgtServiceId, tgtColumnName, tgtColumnType, isDirected
     //        , serviceName, serviceId, props.toString, consistencyLevel, hTableName)
     //    Logger.error(s"insertAll: $ls")
-    val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType))
-    val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType))
+    val srcCol = HServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType))
+    val tgtCol = HServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType))
     val service = HService.findById(serviceId)
     //    require(service.id.get == srcServiceId || service.id.get == tgtServiceId)
 
@@ -242,7 +242,7 @@ case class Label(id: Option[Int], label: String,
 //  lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, hTableName.split(",").headOption.getOrElse(GraphConnection.getConfVal("hbase.table.name")))
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, hTableName.split(",").head)
 
-  lazy val (srcColumn, tgtColumn) = (ServiceColumn.find(srcServiceId, srcColumnName).get, ServiceColumn.find(tgtServiceId, tgtColumnName).get)
+  lazy val (srcColumn, tgtColumn) = (HServiceColumn.find(srcServiceId, srcColumnName).get, HServiceColumn.find(tgtServiceId, tgtColumnName).get)
 
   lazy val direction = if (isDirected) "out" else "undirected"
   lazy val defaultIndex = LabelIndex.findByLabelIdAndSeq(id.get, LabelIndex.defaultSeq)

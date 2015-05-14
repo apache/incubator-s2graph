@@ -2,7 +2,7 @@ package controllers
 
 import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models.HService
+import com.daumkakao.s2graph.core.models.{HServiceColumn, HService}
 import play.api.Logger
 import play.api.libs.json._
 import com.daumkakao.s2graph.rest.config.Config
@@ -147,7 +147,7 @@ trait RequestParser extends JSONParser {
           serviceName = parse[String](value, "serviceName")
           service <- HService.findByName(serviceName)
           column <- parse[Option[String]](value, "columnName")
-          col <- ServiceColumn.find(service.id.get, column)
+          col <- HServiceColumn.find(service.id.get, column)
         } yield {
           val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
           val idVals = (idOpt, idsOpt) match {

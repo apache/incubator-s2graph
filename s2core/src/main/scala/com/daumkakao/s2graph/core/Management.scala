@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import HBaseElement._
-import com.daumkakao.s2graph.core.models.HService
+import com.daumkakao.s2graph.core.models.{HColumnMeta, HServiceColumn, HService}
 import play.api.libs.json._
 import org.apache.hadoop.hbase.client.HBaseAdmin
 import org.apache.hadoop.hbase.HTableDescriptor
@@ -153,7 +153,7 @@ object Management extends JSONParser {
     HService.findByName(serviceName) match {
       case None => throw new RuntimeException(s"$serviceName does not exist. create service first.")
       case Some(service) =>
-        ServiceColumn.find(service.id.get, columnName) match {
+        HServiceColumn.find(service.id.get, columnName) match {
           case None => throw new RuntimeException(s"$columnName is not exist. create service column first.")
           case Some(col) =>
             val idVal = toInnerVal(id, col.columnType)
@@ -165,12 +165,12 @@ object Management extends JSONParser {
     }
   }
 
-  def toProps(column: ServiceColumn, js: JsObject): Seq[(Byte, InnerVal)] = {
+  def toProps(column: HServiceColumn, js: JsObject): Seq[(Byte, InnerVal)] = {
 
     val props = for {
       (k, v) <- js.fields
     } yield {
-      val colMeta = ColumnMeta.findOrInsert(column.id.get, k)
+      val colMeta = HColumnMeta.findOrInsert(column.id.get, k)
       val (innerVal, dataType) = toInnerVal(v)
       (colMeta.seq, innerVal)
     }

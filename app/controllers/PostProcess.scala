@@ -2,6 +2,7 @@ package controllers
 
 import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
+import com.daumkakao.s2graph.core.models.HServiceColumn
 import play.api.Logger
 import play.api.libs.json.{JsObject, Json}
 
@@ -149,7 +150,7 @@ object PostProcess extends JSONParser {
     Json.toJson(vertices.map { v => vertexToJson(v) })
   }
   def vertexToJson(vertex: Vertex) = {
-    val serviceColumn = ServiceColumn.findById(vertex.id.colId)
+    val serviceColumn = HServiceColumn.findById(vertex.id.colId)
     Json.obj("columnName" -> serviceColumn.columnName, "id" -> vertex.id.innerId.toString,
       "props" -> propsToJson(serviceColumn.metaNamesMap, vertex.props))
   }
