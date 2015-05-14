@@ -1,5 +1,6 @@
 package com.daumkakao.s2graph.core
 
+import com.daumkakao.s2graph.core.models.HService
 import scalikejdbc._
 import play.api.libs.json.Json
 object ServiceColumn extends LocalCache[ServiceColumn] {
@@ -41,7 +42,7 @@ object ServiceColumn extends LocalCache[ServiceColumn] {
 }
 case class ServiceColumn(id: Option[Int], serviceId: Int, columnName: String, columnType: String) extends JSONParser {
 
-  lazy val service = Service.findById(serviceId)
+  lazy val service = HService.findById(serviceId)
   lazy val toJson = Json.obj("serviceName" -> service.serviceName, "columnName" -> columnName, "columnType" -> columnType)
   lazy val metas = ColumnMeta.findAllByColumn(id.get)
   lazy val metaNamesMap = (ColumnMeta.lastModifiedAtColumn :: metas).map(x => (x.seq, x.name)) toMap

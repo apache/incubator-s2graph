@@ -1,6 +1,7 @@
 package controllers
 
 import com.daumkakao.s2graph.core._
+import com.daumkakao.s2graph.core.models.HService
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, Controller}
@@ -12,9 +13,9 @@ object AdminController extends Controller with RequestParser {
    * Management
    */
   def getService(serviceName: String) = Action { request =>
-    Service.findByName(serviceName) match {
+    HService.findByName(serviceName) match {
       case None => NotFound
-      case Some(service) => Ok(s"${service.serviceName} exist.")
+      case Some(service) => Ok(s"${service.toJson} exist.")
     }
   }
 
@@ -25,7 +26,7 @@ object AdminController extends Controller with RequestParser {
   def createServiceInner(jsValue: JsValue) = {
     try {
       val (serviceName, cluster, tableName, preSplitSize, ttl) = toServiceElements(jsValue)
-      val service = Service.findOrInsert(serviceName, cluster, tableName, preSplitSize, ttl)
+      val service = HService.findOrInsert(serviceName, cluster, tableName, preSplitSize, ttl)
       Ok(s"$serviceName service created.\n")
     } catch {
       case e: Throwable =>
@@ -75,7 +76,7 @@ object AdminController extends Controller with RequestParser {
   }
 
   def getLabels(serviceName: String) = Action { request =>
-    Service.findByName(serviceName) match {
+    HService.findByName(serviceName) match {
       case None => BadRequest(s"create service first.")
       case Some(service) =>
         val srcs = Label.findBySrcServiceId(service.id.get)
@@ -144,7 +145,7 @@ object AdminController extends Controller with RequestParser {
   //  }
 
   def allServices = Action {
-    val svcs = Service.findAllServices
+    val svcs = HService.findAllServices
     Ok(Json.toJson(svcs.map(svc => svc.toJson))).as("application/json")
   }
 

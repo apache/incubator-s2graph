@@ -2,6 +2,7 @@ package com.daumkakao.s2graph.core
 
 
 import HBaseElement._
+import com.daumkakao.s2graph.core.models.HService
 import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.client.Delete
 import org.apache.hadoop.hbase.client.Mutation
@@ -18,7 +19,7 @@ case class Vertex(id: CompositeId,
   import GraphConstant._
   //  import Vertex.{ lastModifiedAtColumn, deletedAtColumn }
   lazy val serviceColumn = ServiceColumn.findById(id.colId)
-  lazy val service = Service.findById(serviceColumn.serviceId)
+  lazy val service = HService.findById(serviceColumn.serviceId)
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, service.hTableName)
 
   lazy val rowKey = VertexRowKey(id)

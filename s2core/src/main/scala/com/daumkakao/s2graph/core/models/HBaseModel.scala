@@ -7,6 +7,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{Cell, KeyValue, TableName, HBaseConfiguration}
 import org.apache.hadoop.hbase.client._
+import play.libs.Json
 import collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
 object HBaseModel {
@@ -239,19 +240,49 @@ case class HColumnMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel("HColumnMeta"
 }
 
 object HService {
-  def findById(id: Int) = {
-    HBaseModel.find("HService")(Seq(("id" -> id))).get
+  def findById(id: Int): HService = {
+    HBaseModel.find("HService")(Seq(("id" -> id))).get.asInstanceOf[HService]
+  }
+  def findByName(serviceName: String): Option[HService] = {
+    HBaseModel.find("HService")(Seq(("serviceName" -> serviceName))).map { x => x.asInstanceOf[HService] }
+  }
+  def findOrInsert(serviceName: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]): HService = {
+    findByName(serviceName) match {
+      case Some(s) => s
+      case None =>
+        val id = HBaseModel.getAndIncrSeq("HService")
+        val kvs = Map("id" -> id, "serviceName" -> serviceName, "cluster" -> cluster, "hbaseTableName" -> hTableName,
+          "preSplitSize" -> preSplitSize, "hbaseTableTTL" -> hTableTTL.getOrElse(-1))
+        val service = HService(kvs)
+        service.create()
+        service
+    }
+  }
+  def findAllServices(): List[HService] = {
+    HBaseModel.findsRange("HService")(Seq(("id"-> 0)), Seq(("id" -> Int.MaxValue))).map{x => x.asInstanceOf[HService]}
   }
 }
 case class HService(kvsParam: Map[KEY, VAL]) extends HBaseModel("HService", kvsParam) {
   override val columns = Seq("id", "serviceName", "cluster", "hbaseTableName", "preSplitSize", "hbaseTableTTL")
 
   val pk = Seq(("id", kvs("id")))
-  val serviceName = Seq(("serviceName", kvs("serviceName")))
-  val cluster = Seq(("cluster", kvs("cluster")))
+  val idxServiceName = Seq(("serviceName", kvs("serviceName")))
+  val idxCluster = Seq(("cluster", kvs("cluster")))
 
-  override val idxKVsList = List(pk, serviceName, cluster)
+  override val idxKVsList = List(pk, idxServiceName, idxCluster)
   validate(columns)
+
+  val id = Some(kvs("id").toString.toInt)
+  val serviceName = kvs("serviceName").toString
+  val cluster = kvs("cluster").toString
+  val hTableName = kvs("hbaseTableName").toString
+  val preSplitSize = kvs("preSplitSize").toString.toInt
+  val hTableTTL = {
+    val ttl = kvs("hbaseTableTTL").toString.toInt
+    if (ttl < 0) None
+    else Some(ttl)
+  }
+  lazy val toJson = kvs.toString
 }
 
 

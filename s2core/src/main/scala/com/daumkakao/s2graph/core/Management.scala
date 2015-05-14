@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import HBaseElement._
+import com.daumkakao.s2graph.core.models.HService
 import play.api.libs.json._
 import org.apache.hadoop.hbase.client.HBaseAdmin
 import org.apache.hadoop.hbase.HTableDescriptor
@@ -59,17 +60,19 @@ object Management extends JSONParser {
         val (innerVal, dataType) = toInnerVal(v)
         (k, innerVal, dataType)
       }
-    var cacheKey = s"serviceName=$srcServiceName"
-    Service.expireCache(cacheKey)
-    val srcService = tryOption(srcServiceName, Service.findByName)
-    cacheKey = s"serviceName=$tgtServiceName"
-    Service.expireCache(cacheKey)
-    val tgtService = tryOption(tgtServiceName, Service.findByName)
-    cacheKey = s"serviceName=$serviceName"
-    Service.expireCache(cacheKey)
-    val service = tryOption(serviceName, Service.findByName)
-
-    cacheKey = s"label=$label"
+//    var cacheKey = s"serviceName=$srcServiceName"
+//    Service.expireCache(cacheKey)
+//    val srcService = tryOption(srcServiceName, Service.findByName)
+//    cacheKey = s"serviceName=$tgtServiceName"
+//    Service.expireCache(cacheKey)
+//    val tgtService = tryOption(tgtServiceName, Service.findByName)
+//    cacheKey = s"serviceName=$serviceName"
+//    Service.expireCache(cacheKey)
+//    val service = tryOption(serviceName, Service.findByName)
+    val srcService = HService.findByName(srcServiceName).get
+    val tgtService = HService.findByName(tgtServiceName).get
+    val service = HService.findByName(serviceName).get
+    var cacheKey = s"label=$label"
     Label.expireCache(cacheKey)
     val labelOpt = Label.findByName(label, useCache = false)
 
@@ -147,7 +150,7 @@ object Management extends JSONParser {
   }
 
   def toVertex(ts: Long, operation: String, id: String, serviceName: String, columnName: String, props: String): Vertex = {
-    Service.findByName(serviceName) match {
+    HService.findByName(serviceName) match {
       case None => throw new RuntimeException(s"$serviceName does not exist. create service first.")
       case Some(service) =>
         ServiceColumn.find(service.id.get, columnName) match {

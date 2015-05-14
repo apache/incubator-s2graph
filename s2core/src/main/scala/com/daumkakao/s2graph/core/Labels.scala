@@ -1,5 +1,6 @@
 package com.daumkakao.s2graph.core
 
+import com.daumkakao.s2graph.core.models.HService
 import play.api.libs.json.{ JsValue, Json }
 import scalikejdbc._
 
@@ -24,13 +25,13 @@ object Label extends LocalCache[Label] {
       withCache(cacheKey)(
         sql"""
         select *
-        from labels 
+        from labels
         where label = ${label}"""
           .map { rs => Label(rs) }.single.apply())
     } else {
       sql"""
         select *
-        from labels 
+        from labels
         where label = ${label}"""
         .map { rs => Label(rs) }.single.apply()
     }
@@ -50,9 +51,9 @@ object Label extends LocalCache[Label] {
     hTableName: String,
     hTableTTL: Option[Int]) = {
     sql"""
-    	insert into labels(label, 
-    src_service_id, src_column_name, src_column_type, 
-    tgt_service_id, tgt_column_name, tgt_column_type, 
+    	insert into labels(label,
+    src_service_id, src_column_name, src_column_type,
+    tgt_service_id, tgt_column_name, tgt_column_type,
     is_directed, service_name, service_id, consistency_level, hbase_table_name, hbase_table_ttl)
     	values (${label},
     ${srcServiceId}, ${srcColumnName}, ${srcColumnType},
@@ -65,7 +66,7 @@ object Label extends LocalCache[Label] {
     val cacheKey = s"id=$id"
     withCache(cacheKey)(sql"""
         select 	*
-        from 	labels 
+        from 	labels
         where 	id = ${id}"""
       .map { rs => Label(rs) }.single.apply()).get
   }
@@ -111,7 +112,7 @@ object Label extends LocalCache[Label] {
     //    Logger.error(s"insertAll: $ls")
     val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType))
     val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType))
-    val service = Service.findById(serviceId)
+    val service = HService.findById(serviceId)
     //    require(service.id.get == srcServiceId || service.id.get == tgtServiceId)
 
     val createdId = insert(label, srcServiceId, srcColumnName, srcColumnType,
@@ -230,7 +231,7 @@ case class Label(id: Option[Int], label: String,
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
 
   //  lazy val firstHBaseTableName = hbaseTableName.split(",").headOption.getOrElse(Config.HBASE_TABLE_NAME)
-  lazy val service = Service.findById(serviceId)
+  lazy val service = HService.findById(serviceId)
 
   /**
    * TODO
