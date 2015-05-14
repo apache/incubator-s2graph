@@ -700,7 +700,7 @@ object Graph {
     }
   }
   /**
-   * O(E), maynot feasable
+   * O(E), maynot feasible
    */
   def deleteVertexAll(vertices: Seq[Vertex]): Unit = {
     for {

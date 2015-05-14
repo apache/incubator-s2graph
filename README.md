@@ -892,7 +892,7 @@ For bulk loading, source data can be either in HDFS or Kafka queue.
 
 #### 2. When the source data is in Kafka. ####
  
-assumes that data is bulk loading format and constantly comming into Kafka MQ.
+assumes that data is bulk loading format and constantly coming into Kafka MQ.
 
  - run subscriber.GraphSubscriberStreaming to extract and load into s2graph from kafka topic.
  - make sure how many edges are parsed/stored by looking at Spark UI.

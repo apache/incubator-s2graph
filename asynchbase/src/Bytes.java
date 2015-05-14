@@ -55,7 +55,7 @@ public final class Bytes {
   // ------------------------------ //
 
   /**
-   * Reads a big-endian 2-byte short from the begining of the given array.
+   * Reads a big-endian 2-byte short from the beginning of the given array.
    * @param b The array to read from.
    * @return A short integer.
    * @throws IndexOutOfBoundsException if the byte array is too small.
@@ -76,7 +76,7 @@ public final class Bytes {
   }
 
   /**
-   * Reads a big-endian 2-byte unsigned short from the begining of the
+   * Reads a big-endian 2-byte unsigned short from the beginning of the
    * given array.
    * @param b The array to read from.
    * @return A positive short integer.
@@ -99,7 +99,7 @@ public final class Bytes {
   }
 
   /**
-   * Writes a big-endian 2-byte short at the begining of the given array.
+   * Writes a big-endian 2-byte short at the beginning of the given array.
    * @param b The array to write to.
    * @param n A short integer.
    * @throws IndexOutOfBoundsException if the byte array is too small.
@@ -132,7 +132,7 @@ public final class Bytes {
   }
 
   /**
-   * Reads a big-endian 4-byte integer from the begining of the given array.
+   * Reads a big-endian 4-byte integer from the beginning of the given array.
    * @param b The array to read from.
    * @return An integer.
    * @throws IndexOutOfBoundsException if the byte array is too small.
@@ -156,7 +156,7 @@ public final class Bytes {
   }
 
   /**
-   * Reads a big-endian 4-byte unsigned integer from the begining of the
+   * Reads a big-endian 4-byte unsigned integer from the beginning of the
    * given array.
    * @param b The array to read from.
    * @return A positive integer.
@@ -179,7 +179,7 @@ public final class Bytes {
   }
 
   /**
-   * Writes a big-endian 4-byte int at the begining of the given array.
+   * Writes a big-endian 4-byte int at the beginning of the given array.
    * @param b The array to write to.
    * @param n An integer.
    * @throws IndexOutOfBoundsException if the byte array is too small.
@@ -213,7 +213,7 @@ public final class Bytes {
   }
 
   /**
-   * Reads a big-endian 8-byte long from the begining of the given array.
+   * Reads a big-endian 8-byte long from the beginning of the given array.
    * @param b The array to read from.
    * @return A long integer.
    * @throws IndexOutOfBoundsException if the byte array is too small.
@@ -241,7 +241,7 @@ public final class Bytes {
   }
 
   /**
-   * Writes a big-endian 8-byte long at the begining of the given array.
+   * Writes a big-endian 8-byte long at the beginning of the given array.
    * @param b The array to write to.
    * @param n A long integer.
    * @throws IndexOutOfBoundsException if the byte array is too small.

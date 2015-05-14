@@ -724,7 +724,7 @@ public final class HBaseClient {
   /**
    * Returns the maximum time (in milliseconds) for which edits can be buffered.
    * <p>
-   * The default value is an unspecified and implementation dependant, but is
+   * The default value is an unspecified and implementation dependent, but is
    * guaranteed to be non-zero.
    * <p>
    * A return value of 0 indicates that edits are sent directly to HBase without

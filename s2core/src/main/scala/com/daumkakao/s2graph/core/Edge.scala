@@ -708,7 +708,7 @@ object Edge {
     }).toMap
     //    play.api.Logger.debug(s"$rowKey, $tgtVertexId, $props, $op, $ts => ${param.hasFilters}")
     /**
-     * TODO: backward compatability only. deprecate has field
+     * TODO: backward compatibility only. deprecate has field
      */
     val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
     //    if (param.propsFilters.filter(edge)) Some(edge) else None
@@ -767,7 +767,7 @@ object Edge {
     }).toMap
     //    play.api.Logger.debug(s"$rowKey, $tgtVertexId, $props, $op, $ts => ${param.hasFilters}")
     /**
-     * TODO: backward compatability only. deprecate has field
+     * TODO: backward compatibility only. deprecate has field
      */
     Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
   }
