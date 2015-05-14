@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core
 import GraphUtil._
 import KGraphExceptions._
+import com.daumkakao.s2graph.core.models.HLabelMeta
 import org.apache.hadoop.hbase.util.Bytes
 import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.Cell
@@ -357,7 +358,7 @@ object HBaseElement {
     pos += 1
     val kvs = new ArrayBuffer[(Byte, InnerVal)]
     for (i <- (0 until len)) {
-      val k = LabelMeta.emptyValue
+      val k = HLabelMeta.emptyValue
       val v = InnerVal(bytes, pos)
       pos += v.bytes.length
       kvs += (k -> v)
@@ -443,7 +444,7 @@ object HBaseElement {
     lazy val bytes = Bytes.add(propsBytes, innerTgtVertexId.bytes, opBytes)
     //TODO:
     def propsKVs(labelId: Int, labelOrderSeq: Byte): List[(Byte, InnerVal)] = {
-      val filtered = props.filter(kv => kv._1 != LabelMeta.emptyValue)
+      val filtered = props.filter(kv => kv._1 != HLabelMeta.emptyValue)
       if (filtered.isEmpty) {
         val opt = for (index <- LabelIndex.findByLabelIdAndSeq(labelId, labelOrderSeq)) yield {
           val v = index.metaSeqs.zip(props.map(_._2))

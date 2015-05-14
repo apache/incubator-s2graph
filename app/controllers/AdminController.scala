@@ -1,7 +1,7 @@
 package controllers
 
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models.HService
+import com.daumkakao.s2graph.core.models.{HLabelMeta, HService}
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, Controller}
@@ -105,7 +105,7 @@ object AdminController extends Controller with RequestParser {
     val (propName, defaultValue, dataType, usedInIndex) = toPropElements(request.body)
     try {
       val metaOpt = for (label <- Label.findByName(labelName)) yield {
-        LabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType, usedInIndex)
+        HLabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType, usedInIndex)
       }
       val meta = metaOpt.getOrElse(throw new KGraphExceptions.LabelNotExistException(s"$labelName label does not exist."))
       val json = meta.toJson

@@ -2,7 +2,7 @@ package controllers
 
 import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models.{HServiceColumn, HService}
+import com.daumkakao.s2graph.core.models.{HLabelMeta, HServiceColumn, HService}
 import play.api.Logger
 import play.api.libs.json._
 import com.daumkakao.s2graph.rest.config.Config
@@ -19,7 +19,7 @@ trait RequestParser extends JSONParser {
     } yield {
       for {
         (k, v) <- js.fields
-        labelOrderType <- LabelMeta.findByName(labelId, k)
+        labelOrderType <- HLabelMeta.findByName(labelId, k)
       } yield {
         val value = v match {
           case n: JsNumber => n.as[Double]
@@ -58,7 +58,7 @@ trait RequestParser extends JSONParser {
     } yield {
       for {
         (k, v) <- js.fields
-        labelMeta = Management.tryOption((label.id.get, k), LabelMeta.findByName)
+        labelMeta <- HLabelMeta.findByName(label.id.get, k)
         value <- jsValueToInnerVal(v, labelMeta.dataType)
       } yield {
         (labelMeta.seq -> value)
@@ -87,7 +87,7 @@ trait RequestParser extends JSONParser {
   }
   case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
 
-    val metaProps = label.metaPropsInvMap ++ Map(LabelMeta.from.name -> LabelMeta.from, LabelMeta.to.name -> LabelMeta.to)
+    val metaProps = label.metaPropsInvMap ++ Map(HLabelMeta.from.name -> HLabelMeta.from, HLabelMeta.to.name -> HLabelMeta.to)
 
     def where: Parser[Where] = rep(clause) ^^ (Where(_))
 
@@ -193,7 +193,7 @@ trait RequestParser extends JSONParser {
               val exclude = parse[Option[Boolean]](labelGroup, "exclude").getOrElse(false)
               val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
               val hasFilter = extractHas(label, labelGroup)
-              val outputField = for (of <- (labelGroup \ "outputField").asOpt[String]; labelMeta <- LabelMeta.findByName(label.id.get, of)) yield labelMeta.seq
+              val outputField = for (of <- (labelGroup \ "outputField").asOpt[String]; labelMeta <- HLabelMeta.findByName(label.id.get, of)) yield labelMeta.seq
               val labelWithDir = LabelWithDirection(label.id.get, direction)
               val indexSeq = label.indexSeqsMap.get(scorings.map(kv => kv._1).toList).map(x => x.seq).getOrElse(LabelIndex.defaultSeq)
               val where = extractWhere(label, labelGroup)

@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.models.{HServiceColumn, HService}
+import com.daumkakao.s2graph.core.models.{HLabelMeta, HServiceColumn, HService}
 import play.api.libs.json.{ JsValue, Json }
 import scalikejdbc._
 
@@ -120,15 +120,15 @@ object Label extends LocalCache[Label] {
       hTableName.getOrElse(service.hTableName), hTableTTL.orElse(service.hTableTTL))
 
     val labelMetas =
-      if (props.isEmpty) List(LabelMeta.timestamp)
+      if (props.isEmpty) List(HLabelMeta.timestamp)
       else props.toList.map {
         case (name, defaultVal, dataType, usedInIndex) =>
-          LabelMeta.findOrInsert(createdId.toInt, name, defaultVal.toString, dataType, usedInIndex)
+          HLabelMeta.findOrInsert(createdId.toInt, name, defaultVal.toString, dataType, usedInIndex)
       }
 
     //    Logger.error(s"$labelMetas")
     val defaultIndexMetaSeqs = labelMetas.filter(_.usedInIndex).map(_.seq) match {
-      case metaSeqs => if (metaSeqs.isEmpty) List(LabelMeta.timestamp.seq) else metaSeqs
+      case metaSeqs => if (metaSeqs.isEmpty) List(HLabelMeta.timestamp.seq) else metaSeqs
     }
     //    Logger.error(s"$defaultIndexMetaSeqs")
     //    kgraph.Logger.debug(s"Label: $defaultIndexMetaSeqs")
@@ -227,7 +227,7 @@ case class Label(id: Option[Int], label: String,
                  consistencyLevel: String = "strong", hTableName: String,
                  hTableTTL: Option[Int]) extends JSONParser {
 
-  def metas = LabelMeta.findAllByLabelId(id.get)
+  def metas = HLabelMeta.findAllByLabelId(id.get)
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
 
   //  lazy val firstHBaseTableName = hbaseTableName.split(",").headOption.getOrElse(Config.HBASE_TABLE_NAME)
@@ -255,7 +255,7 @@ case class Label(id: Option[Int], label: String,
   //      indices filterNot (_.id.get == defaultIndex.get.id.get)
   lazy val extraIndicesMap = extraIndices.map(idx => (idx.seq, idx)) toMap
 
-  lazy val metaProps = LabelMeta.reservedMetas ::: LabelMeta.findAllByLabelId(id.get, useCache = true)
+  lazy val metaProps = HLabelMeta.reservedMetas ::: HLabelMeta.findAllByLabelId(id.get)
   lazy val metaPropsMap = metaProps.map(x => (x.seq, x)).toMap
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
   lazy val metaPropNames = metaProps.map(x => x.name)
@@ -279,7 +279,7 @@ case class Label(id: Option[Int], label: String,
   }
 
   override def toString(): String = {
-    val orderByKeys = LabelMeta.findAllByLabelId(id.get)
+    val orderByKeys = HLabelMeta.findAllByLabelId(id.get)
     super.toString() + orderByKeys.toString()
   }
   def findLabelIndexSeq(scoring: List[(Byte, Double)]): Byte = {
@@ -298,9 +298,9 @@ case class Label(id: Option[Int], label: String,
     )
 
   def deleteAll() = {
-    LabelMeta.findAllByLabelId(id.get, false).foreach { x => LabelMeta.delete(x.id.get) }
+    HLabelMeta.findAllByLabelId(id.get).foreach { x => HLabelMeta.findById(x.id.get).destroy() }
     //    LabelIndexProp.findAllByLabel(id.get, false).foreach { x => LabelIndexProp.delete(x.id.get) }
-    LabelIndex.findByLabelIdAll(id.get, false).foreach { x => LabelIndex.delete(x.id.get) }
+    LabelIndex.findByLabelIdAll(id.get).foreach { x => LabelIndex.delete(x.id.get) }
     Label.delete(id.get)
   }
 }

@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core
 import HBaseElement._
-import org.apache.hadoop.hbase.Cell
+import com.daumkakao.s2graph.core.models.HLabelMeta
 import org.apache.hadoop.hbase.client.{ Delete, Mutation, Put, Result }
 import org.hbase.async.{HBaseRpc, DeleteRequest, PutRequest}
 import org.slf4j.LoggerFactory
@@ -49,9 +49,9 @@ case class EdgeWithIndexInverted(srcVertex: Vertex, tgtVertex: Vertex, labelWith
 }
 case class EdgeWithIndex(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDirection, op: Byte, version: Long, labelIndexSeq: Byte, props: Map[Byte, InnerVal]) {
 
-  assert(props.get(LabelMeta.timeStampSeq).isDefined)
+  assert(props.get(HLabelMeta.timeStampSeq).isDefined)
 
-  lazy val ts = props(LabelMeta.timeStampSeq).longV.get
+  lazy val ts = props(HLabelMeta.timeStampSeq).longV.get
 
   import GraphConstant._
   import Edge._
@@ -69,9 +69,9 @@ case class EdgeWithIndex(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: Lab
          * 	now we double store target vertex.innerId/srcVertex.innerId for easy development. later fix this to only store id once
          */
         val v = k match {
-          case LabelMeta.timeStampSeq => InnerVal.withLong(ts)
-          case LabelMeta.toSeq => tgtVertex.innerId
-          case LabelMeta.fromSeq => //srcVertex.innerId
+          case HLabelMeta.timeStampSeq => InnerVal.withLong(ts)
+          case HLabelMeta.toSeq => tgtVertex.innerId
+          case HLabelMeta.fromSeq => //srcVertex.innerId
             // for now, it does not make sense to build index on srcVertex.innerId since all edges have same data.
             throw new RuntimeException("_from on indexProps is not supported")
           case _ => defaultIndexMetas(k)
@@ -148,7 +148,7 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
   implicit val ex = Graph.executionContext
 
   lazy val props =
-    if (op == GraphUtil.operations("delete")) Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts))
+    if (op == GraphUtil.operations("delete")) Map(HLabelMeta.timeStampSeq -> InnerVal.withLong(ts))
     else for ((k, v) <- propsWithTs) yield (k -> v.innerVal)
 
   lazy val relatedEdges = {
@@ -175,9 +175,9 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
   override lazy val queueKey = Seq(ts.toString, tgtVertex.serviceName).mkString("|")
   override lazy val queuePartitionKey = Seq(srcVertex.innerId, tgtVertex.innerId).mkString("|")
 
-  lazy val propsPlusTs = propsWithTs.get(LabelMeta.timeStampSeq) match {
+  lazy val propsPlusTs = propsWithTs.get(HLabelMeta.timeStampSeq) match {
     case Some(_) => props
-    case None => props ++ Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts))
+    case None => props ++ Map(HLabelMeta.timeStampSeq -> InnerVal.withLong(ts))
   }
 
   lazy val propsPlusTsValid = propsPlusTs.filter(kv => kv._1 >= 0)
@@ -205,11 +205,11 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
 
   lazy val edgesWithInvertedIndex = {
     EdgeWithIndexInverted(srcVertex, tgtVertex, labelWithDir, op, version, propsWithTs ++
-      Map(LabelMeta.timeStampSeq -> InnerValWithTs(InnerVal.withLong(ts), ts)))
+      Map(HLabelMeta.timeStampSeq -> InnerValWithTs(InnerVal.withLong(ts), ts)))
   }
   def edgesWithInvertedIndex(newOp: Byte) = {
     EdgeWithIndexInverted(srcVertex, tgtVertex, labelWithDir, newOp, version, propsWithTs ++
-      Map(LabelMeta.timeStampSeq -> InnerValWithTs(InnerVal.withLong(ts), ts)))
+      Map(HLabelMeta.timeStampSeq -> InnerValWithTs(InnerVal.withLong(ts), ts)))
   }
   lazy val propsWithName = for {
     (seq, v) <- props
@@ -455,7 +455,7 @@ object Edge {
   def buildUpsert(propsPairWithTs: PropsPairWithTs) = {
     var shouldReplace = false
     val (oldPropsWithTs, propsWithTs, requestTs) = propsPairWithTs
-    val lastDeletedAt = oldPropsWithTs.get(LabelMeta.lastDeletedAt).map(v => v.ts).getOrElse(minTsVal)
+    val lastDeletedAt = oldPropsWithTs.get(HLabelMeta.lastDeletedAt).map(v => v.ts).getOrElse(minTsVal)
     val existInOld = for ((k, oldValWithTs) <- oldPropsWithTs) yield {
       propsWithTs.get(k) match {
         case Some(newValWithTs) =>
@@ -493,7 +493,7 @@ object Edge {
   def buildUpdate(propsPairWithTs: PropsPairWithTs) = {
     var shouldReplace = false
     val (oldPropsWithTs, propsWithTs, requestTs) = propsPairWithTs
-    val lastDeletedAt = oldPropsWithTs.get(LabelMeta.lastDeletedAt).map(v => v.ts).getOrElse(minTsVal)
+    val lastDeletedAt = oldPropsWithTs.get(HLabelMeta.lastDeletedAt).map(v => v.ts).getOrElse(minTsVal)
     val existInOld = for ((k, oldValWithTs) <- oldPropsWithTs) yield {
       propsWithTs.get(k) match {
         case Some(newValWithTs) =>
@@ -525,11 +525,11 @@ object Edge {
   def buildIncrement(propsPairWithTs: PropsPairWithTs) = {
     var shouldReplace = false
     val (oldPropsWithTs, propsWithTs, requestTs) = propsPairWithTs
-    val lastDeletedAt = oldPropsWithTs.get(LabelMeta.lastDeletedAt).map(v => v.ts).getOrElse(minTsVal)
+    val lastDeletedAt = oldPropsWithTs.get(HLabelMeta.lastDeletedAt).map(v => v.ts).getOrElse(minTsVal)
     val existInOld = for ((k, oldValWithTs) <- oldPropsWithTs) yield {
       propsWithTs.get(k) match {
         case Some(newValWithTs) =>
-          if (k == LabelMeta.timeStampSeq) {
+          if (k == HLabelMeta.timeStampSeq) {
             val v = if (oldValWithTs.ts >= newValWithTs.ts) oldValWithTs else {
               shouldReplace = true
               newValWithTs
@@ -590,7 +590,7 @@ object Edge {
   def buildDelete(propsPairWithTs: PropsPairWithTs) = {
     var shouldReplace = false
     val (oldPropsWithTs, propsWithTs, requestTs) = propsPairWithTs
-    val lastDeletedAt = oldPropsWithTs.get(LabelMeta.lastDeletedAt) match {
+    val lastDeletedAt = oldPropsWithTs.get(HLabelMeta.lastDeletedAt) match {
       case Some(prevDeletedAt) =>
         if (prevDeletedAt.ts >= requestTs) prevDeletedAt.ts
         else {
@@ -603,7 +603,7 @@ object Edge {
       }
     }
     val existInOld = for ((k, oldValWithTs) <- oldPropsWithTs) yield {
-      if (k == LabelMeta.timeStampSeq) {
+      if (k == HLabelMeta.timeStampSeq) {
         if (oldValWithTs.ts >= requestTs) Some(k -> oldValWithTs)
         else {
           shouldReplace = true
@@ -617,13 +617,13 @@ object Edge {
         }
       }
     }
-    val mustExistInNew = Map(LabelMeta.lastDeletedAt -> InnerValWithTs.withLong(lastDeletedAt, lastDeletedAt))
+    val mustExistInNew = Map(HLabelMeta.lastDeletedAt -> InnerValWithTs.withLong(lastDeletedAt, lastDeletedAt))
     ((existInOld.flatten ++ mustExistInNew).toMap, shouldReplace)
   }
 
   private def allPropsDeleted(props: Map[Byte, InnerValWithTs]) = {
     val maxTsProp = props.toList.sortBy(kv => (kv._2.ts, -1 * kv._1)).reverse.head
-    maxTsProp._1 == LabelMeta.lastDeletedAt
+    maxTsProp._1 == HLabelMeta.lastDeletedAt
   }
   /**
    * delete invertedEdge.edgesWithIndex
@@ -678,7 +678,7 @@ object Edge {
         val qualifier = EdgeQualifierInverted(kv.qualifier(), 0)
         val value = EdgeValueInverted(kv.value(), 0)
         val kvsMap = value.props.toMap
-        val ts = kvsMap.get(LabelMeta.timeStampSeq) match {
+        val ts = kvsMap.get(HLabelMeta.timeStampSeq) match {
           case None => version
           case Some(v) => v.innerVal.longV.get
         }
@@ -690,7 +690,7 @@ object Edge {
         val kvs = qualifier.propsKVs(rowKey.labelWithDir.labelId, rowKey.labelOrderSeq) ::: value.props.toList
         val kvsMap = kvs.toMap
 
-        val ts = kvsMap.get(LabelMeta.timeStampSeq) match {
+        val ts = kvsMap.get(HLabelMeta.timeStampSeq) match {
           case None => version
           case Some(v) => v.longV.get
         }
@@ -698,7 +698,7 @@ object Edge {
         (qualifier.tgtVertexId, kvsMapWithoutTs, qualifier.op, ts)
     }
     //    Logger.error(s"toEdge: $rowKey, $tgtVertexId")
-    val labelMetas = LabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId, useCache = true)
+    val labelMetas = HLabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
     val propsWithDefault = (for (meta <- labelMetas) yield {
       props.get(meta.seq) match {
         case Some(v) => (meta.seq -> v)
@@ -737,7 +737,7 @@ object Edge {
         val qualifier = EdgeQualifierInverted(kv.qualifier(), 0)
         val value = EdgeValueInverted(kv.value(), 0)
         val kvsMap = value.props.toMap
-        val ts = kvsMap.get(LabelMeta.timeStampSeq) match {
+        val ts = kvsMap.get(HLabelMeta.timeStampSeq) match {
           case None => version
           case Some(v) => v.innerVal.longV.get
         }
@@ -749,7 +749,7 @@ object Edge {
         val kvs = qualifier.propsKVs(rowKey.labelWithDir.labelId, rowKey.labelOrderSeq) ::: value.props.toList
         val kvsMap = kvs.toMap
 
-        val ts = kvsMap.get(LabelMeta.timeStampSeq) match {
+        val ts = kvsMap.get(HLabelMeta.timeStampSeq) match {
           case None => version
           case Some(v) => v.longV.get
         }
@@ -757,7 +757,7 @@ object Edge {
         (qualifier.tgtVertexId, kvsMapWithoutTs, qualifier.op, ts)
     }
     //    Logger.error(s"toEdge: $rowKey, $tgtVertexId")
-    val labelMetas = LabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId, useCache = true)
+    val labelMetas = HLabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
     val propsWithDefault = (for (meta <- labelMetas) yield {
       props.get(meta.seq) match {
         case Some(v) => (meta.seq -> v)

@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import HBaseElement._
-import com.daumkakao.s2graph.core.models.{HColumnMeta, HServiceColumn, HService}
+import com.daumkakao.s2graph.core.models.{HLabelMeta, HColumnMeta, HServiceColumn, HService}
 import play.api.libs.json._
 import org.apache.hadoop.hbase.client.HBaseAdmin
 import org.apache.hadoop.hbase.HTableDescriptor
@@ -99,7 +99,7 @@ object Management extends JSONParser {
     val labelOrderTypes =
       for ((k, v) <- orderByKeys; (innerVal, dataType) = toInnerVal(v)) yield {
 
-        val lblMeta = LabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType, true)
+        val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType, true)
         if (lblMeta.usedInIndex) lblMeta.seq
         else throw new KGraphExceptions.LabelMetaExistException(s"")
       }
@@ -144,7 +144,7 @@ object Management extends JSONParser {
 
     val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
     val parsedProps = toProps(label, jsObject).toMap
-    val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValWithTs(kv._2, ts))) ++ Map(LabelMeta.timeStampSeq -> InnerValWithTs(InnerVal.withLong(ts), ts))
+    val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValWithTs(kv._2, ts))) ++ Map(HLabelMeta.timeStampSeq -> InnerValWithTs(InnerVal.withLong(ts), ts))
     Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version = ts, propsWithTs)
 
   }

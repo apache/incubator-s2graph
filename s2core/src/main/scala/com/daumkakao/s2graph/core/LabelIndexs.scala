@@ -102,7 +102,7 @@ object LabelIndex extends LocalCache[LabelIndex] {
 /**
  * formular
  * ex1): w1, w2, w3
- * ex2): 1.5 * w1^2 + 3.4 * (w1 * w2), w2, w1
+ * ex2): 1.5 * w12 + 3.4 * (w1 * w2), w2, w1
  */
 
 case class LabelIndex(id: Option[Int], labelId: Int, seq: Byte, metaSeqs: List[Byte], formulars: String) {
