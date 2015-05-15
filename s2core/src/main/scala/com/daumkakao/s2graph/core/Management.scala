@@ -69,10 +69,6 @@ object Management extends JSONParser {
 //    cacheKey = s"serviceName=$serviceName"
 //    Service.expireCache(cacheKey)
 //    val service = tryOption(serviceName, Service.findByName)
-    val srcService = HService.findByName(srcServiceName).get
-    val tgtService = HService.findByName(tgtServiceName).get
-    val service = HService.findByName(serviceName).get
-    var cacheKey = s"label=$label"
 //    HLabel.expireCache(cacheKey)
     val labelOpt = HLabel.findByName(label)
 
@@ -81,9 +77,9 @@ object Management extends JSONParser {
         throw new KGraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
       case None =>
         HLabel.insertAll(label,
-          srcService.id.get, srcColumnName, srcColumnType,
-          tgtService.id.get, tgtColumnName, tgtColumType,
-          isDirected, serviceName, service.id.get, idxProps ++ metaProps, consistencyLevel, hTableName, hTableTTL)
+          srcServiceName, srcColumnName, srcColumnType,
+          tgtServiceName, tgtColumnName, tgtColumType,
+          isDirected, serviceName, idxProps ++ metaProps, consistencyLevel, hTableName, hTableTTL)
 //        HLabel.expireCache(cacheKey)
         HLabel.findByName(label).get
     }

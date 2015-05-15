@@ -1,5 +1,6 @@
 package com.daumkakao.s2graph.core
 
+import play.api.Logger
 import scalikejdbc.ConnectionPool
 import scalikejdbc._
 import com.twitter.util.SynchronizedLruMap
@@ -19,7 +20,7 @@ object Model {
 
   var settings: ConnectionPoolSettings = null
   var maxSize = 10000
-  var ttl = 60
+  var ttl = 5
   val logger = Graph.logger
   def apply(config: Config) = {
     val configVals = for ((k, v) <- defaultConfigs) yield {
@@ -53,21 +54,29 @@ trait LocalCache[V] {
   .expireAfterWrite(ttl, TimeUnit.SECONDS)
   .maximumSize(maxSize / 10).build[String, List[V]]()
 
-  def withCache(key: String)(op: => Option[V]): Option[V] = {
+  def withCache(key: String, useCache: Boolean = true)(op: => Option[V]): Option[V] = {
     val newKey = s"$cName:$key"
     val view = cache.asMap()
-    if (view.containsKey(newKey)) view.get(newKey)
+    if (useCache && view.containsKey(newKey)) {
+      Logger.debug(s"withCache: $newKey => Hit")
+      view.get(newKey)
+    }
     else {
+      Logger.debug(s"withCache: $newKey => Miss")
       val newVal = op
       cache.put(newKey, newVal)
       newVal
     }
   }
-  def withCaches(key: String)(op: => List[V]): List[V] = {
-    val newKey = s"$cName:$key"
+  def withCaches(key: String, useCache: Boolean = true)(op: => List[V]): List[V] = {
+    val newKey = s"$cName:$key:list"
     val view = caches.asMap()
-    if (view.containsKey(newKey)) view.get(newKey)
+    if (useCache && view.containsKey(newKey)) {
+      Logger.debug(s"withCaches: $newKey => Hit")
+      view.get(newKey)
+    }
     else {
+      Logger.debug(s"withCaches: $newKey => Miss")
       val newVal = op
       caches.put(newKey, newVal)
       newVal
