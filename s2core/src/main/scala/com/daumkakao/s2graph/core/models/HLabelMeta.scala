@@ -1,42 +1,90 @@
-//package com.daumkakao.s2graph.core.models
-//
-///**
-// * Created by shon on 5/12/15.
-// */
-//
-////ALTER TABLE label_metas ADD FOREIGN KEY(label_id) REFERENCES labels(id) ON DELETE CASCADE;
-//case class HLabelMeta(id: Long, labelId: Int, name: String, seq: Byte, defaultVal: String,
-//                 dataType: String, usedInIndex: Boolean) extends HBaseModel {
-//  import HBaseModel._
-//  logicalTableName = "HLabelMeta"
-//  val pk = KeyVals(Seq("id"), Seq(id))
-//  val pkVal = KeyVals(Seq("labelId", "name", "seq", "defaultVal", "dataType", "usedInIndex"),
-//  Seq(labelId, name, seq, defaultVal, dataType, usedInIndex))
-//
-//  val idxByLabelIdName = KeyVals(Seq("labelId", "name"), Seq(labelId, name))
-//  val idxValByLabelIdName = KeyVals(Seq("seq", "defaultVal", "dataType", "usedInIndex"),
-//  Seq(seq, defaultVal, dataType, usedInIndex))
-//
-//  val idxByLabelIdSeq = KeyVals(Seq("labelId", "seq"), Seq(labelId, seq))
-//  val idxValByLabelIdSeq = KeyVals(Seq("name", "defaultVal", "dataType", "usedInIndex"),
-//  Seq(name, defaultVal, dataType, usedInIndex))
-//
-//  def insert(zkQuorum: String): Boolean =
-//    super.insert(zkQuorum)(id, pk, pkVal) &&
-//    super.insert(zkQuorum)(id, idxByLabelIdName, idxValByLabelIdName) &&
-//    super.insert(zkQuorum)(id, idxByLabelIdSeq, idxValByLabelIdSeq)
-//
-//  override def parse(rowKey: String, qualifier: String, value: String): HLabelMeta = {
-//
-//    val components = rowKey.split(DELIMITER)
-//    try {
-//
-//      val idxKVs = KeyVals(components.dropRight(1).mkString(DELIMITER)).toKVMap()
-//      val metaKVs = KeyVals(value).toKVMap()
-//      val kvs = idxKVs ++ metaKVs
-//      HLabelMeta(kvs("id").toLong, kvs("labelId").toInt, kvs("name"), kvs("seq").toByte, kvs("defaultVal"),
-//      kvs("dataType"), kvs("usedInIndex").toBoolean)
-//    }
-//  }
-//
-//}
+package com.daumkakao.s2graph.core.models
+
+import com.daumkakao.s2graph.core.HBaseElement.InnerVal
+import com.daumkakao.s2graph.core.JSONParser
+import com.daumkakao.s2graph.core.models.HBaseModel.{VAL, KEY}
+import play.api.libs.json.{Json, JsObject, JsValue}
+
+/**
+ * Created by shon on 5/15/15.
+ */
+
+object HLabelMeta extends JSONParser {
+
+  /** dummy sequences */
+  val fromSeq = -4.toByte
+  val toSeq = -5.toByte
+  val lastOpSeq = -3.toByte
+  val lastDeletedAt = -2.toByte
+  val timeStampSeq = 0.toByte
+  val countSeq = -1.toByte
+  val maxValue = Byte.MaxValue
+  val emptyValue = Byte.MaxValue
+
+  /** reserved sequences */
+  val from = HLabelMeta(Map("id" -> fromSeq, "labelId" -> fromSeq, "name" -> "_from", "seq" -> fromSeq,
+    "defaultValue" -> fromSeq.toString,
+    "dataType" -> "long", "usedInIndex" -> true))
+  val to = HLabelMeta(Map("id" -> toSeq, "labelId" -> toSeq, "name" -> "_to", "seq" -> toSeq,
+    "defaultValue" -> toSeq.toString, "dataType" -> "long", "usedInIndex" -> true))
+  val timestamp = HLabelMeta(Map("id" -> -1, "labelId" -> -1, "name" -> "_timestamp", "seq" -> timeStampSeq,
+    "defaultValue" -> "0", "dataType" -> "long", "usedInIndex" -> true))
+
+  val reservedMetas = List(from, to, timestamp)
+  val notExistSeqInDB = List(lastOpSeq, lastDeletedAt, countSeq, timeStampSeq, from.seq, to.seq)
+
+  def findById(id: Int, useCache: Boolean = true): HLabelMeta = {
+    HBaseModel.find("HLabelMeta", useCache)(Seq(("id" -> id))).get.asInstanceOf[HLabelMeta]
+  }
+  def findAllByLabelId(labelId: Int, useCache: Boolean = true): List[HLabelMeta] = {
+    HBaseModel.findsMatch("HLabelMeta", useCache)(Seq(("labelId" -> labelId))).map { x => x.asInstanceOf[HLabelMeta] }
+  }
+  def findByName(labelId: Int, name: String, useCache: Boolean = true): Option[HLabelMeta] = {
+    name match {
+      case timestamp.name => Some(timestamp)
+      case to.name => Some(to)
+      case _ =>
+        HBaseModel.find("HLabelMeta", useCache)(Seq(("labelId" -> labelId), ("name" -> name))).map(x => x.asInstanceOf[HLabelMeta])
+    }
+  }
+  def findOrInsert(labelId: Int, name: String, defaultValue: String, dataType: String, usedInIndex: Boolean): HLabelMeta = {
+    findByName(labelId, name, useCache = false) match {
+      case Some(s) => s
+      case None =>
+        val id = HBaseModel.getAndIncrSeq("HLabelModel")
+        val allMetas = findAllByLabelId(labelId, useCache = false)
+        val seq = (allMetas.length + 1).toByte
+        val model = HLabelMeta(Map("id" -> id, "labelId" -> labelId, "name" -> name, "seq" -> seq,
+          "defaultValue" -> defaultValue, "dataType" -> dataType, "usedInIndex" -> usedInIndex))
+        model.create
+        model
+    }
+  }
+  def convert(labelId: Int, jsValue: JsValue): Map[Byte, InnerVal] = {
+    val ret = for {
+      (k, v) <- jsValue.as[JsObject].fields
+      meta <- HLabelMeta.findByName(labelId, k)
+      innerVal <- jsValueToInnerVal(v, meta.dataType)
+    } yield (meta.seq, innerVal)
+    ret.toMap
+  }
+}
+case class HLabelMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel("HLabelMeta", kvsParam) with JSONParser {
+  override val columns = Seq("id", "labelId", "name", "seq", "defaultValue", "dataType", "usedInIndex")
+  val pk = Seq(("id", kvs("id")))
+  val idxLabelIdName = Seq(("labelId", kvs("labelId")), ("name", kvs("name")))
+  val idxLabelIdSeq = Seq(("labelId", kvs("labelId")), ("seq", kvs("seq")))
+  override val idxKVsList = List(pk, idxLabelIdName, idxLabelIdSeq)
+  validate(columns)
+
+  val id = Some(kvs("id").toString.toInt)
+  val labelId = kvs("labelId").toString.toInt
+  val name = kvs("name").toString
+  val seq = kvs("seq").toString.toByte
+  val defaultValue = kvs("defaultValue").toString
+  val dataType = kvs("dataType").toString
+  val usedInIndex = kvs("usedInIndex").toString.toBoolean
+
+  lazy val defaultInnerVal = if (defaultValue.isEmpty) InnerVal.withStr("") else toInnerVal(defaultValue, dataType)
+  lazy val toJson = Json.obj("name" -> name, "defaultValue" -> defaultValue, "dataType" -> dataType, "usedInIndex" -> usedInIndex)
+}

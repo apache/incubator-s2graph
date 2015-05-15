@@ -22,7 +22,9 @@ object Management extends JSONParser {
 
   val hardLimit = 10000
   val defaultLimit = 100
-
+  def getSequence(tableName: String) = {
+    HBaseModel.getSequence(tableName)
+  }
   def createService(serviceName: String,
                     cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]): HService = {
     val service = HService.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
@@ -33,7 +35,7 @@ object Management extends JSONParser {
   }
   def deleteService(serviceName: String) = {
     HService.findByName(serviceName).foreach { service =>
-      service.destroy()
+      service.deleteAll()
     }
   }
   def updateService(serviceName: String,
@@ -42,8 +44,8 @@ object Management extends JSONParser {
       case None =>
         createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
       case Some(service) =>
-        service.destroy()
-
+        service.deleteAll()
+        createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
     }
   }
   def createLabel(label: String,
@@ -70,7 +72,7 @@ object Management extends JSONParser {
         (k, innerVal, dataType)
       }
 
-    val labelOpt = HLabel.findByName(label)
+    val labelOpt = HLabel.findByName(label, useCache = false)
 
     labelOpt match {
       case Some(l) =>
@@ -80,7 +82,6 @@ object Management extends JSONParser {
           srcServiceName, srcColumnName, srcColumnType,
           tgtServiceName, tgtColumnName, tgtColumnType,
           isDirected, serviceName, idxProps ++ metaProps, consistencyLevel, hTableName, hTableTTL)
-//        HLabel.expireCache(cacheKey)
         HLabel.findByName(label, useCache = false).get
     }
   }

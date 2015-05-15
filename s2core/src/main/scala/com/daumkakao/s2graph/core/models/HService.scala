@@ -1,44 +1,57 @@
-//package com.daumkakao.s2graph.core.models
-//
-///**
-// * Created by shon on 5/12/15.
-// */
-//
-//
-//case class HService(id: Long,
-//                    serviceName: String,
-//                    cluster: String,
-//                    hbaseTableName: String,
-//                    preSplitSize: Int = 0,
-//                    hbaseTableTTL: Int = Int.MaxValue) extends HBaseModel {
-//  import HBaseModel._
-//  logicalTableName = "HService"
-//  val pk = KeyVals(Seq("id"), Seq(s"$id"))
-//  val pkVal = KeyVals(Seq("serviceName", "cluster", "hbaseTableName", "preSplitSize", "hbaseTableTTL"),
-//  Seq(serviceName, cluster, hbaseTableName, s"$preSplitSize", s"$hbaseTableTTL"))
-//
-//  val idxByServiceName = KeyVals(Seq("serviceName"), Seq(s"$serviceName"))
-//  val idxValByServiceName = KeyVals(
-//      Seq("cluster", "hbaseTableName", "preSplitSize", "hbaseTableTTL"),
-//      Seq(s"$cluster", s"$hbaseTableName", s"$preSplitSize", s"$hbaseTableTTL"))
-//  val idxByCluster = KeyVals(Seq("cluster"), Seq(s"$cluster"))
-//  val idxValByCluster = KeyVals(
-//      Seq("serviceName","hbaseTableName", "preSplitSize", "hbaseTableTTL"),
-//      Seq(s"$serviceName", s"$hbaseTableName", s"$preSplitSize", s"$hbaseTableTTL"))
-//
-//  def insert(zkQuorum: String) =
-//    super.insert(zkQuorum)(id, pk, pkVal) &&
-//    super.insert(zkQuorum)(id, idxByServiceName, idxValByServiceName) &&
-//    super.insert(zkQuorum)(id, idxByCluster, idxValByCluster)
-//
-//  override def parse(rowKey: String, qualifier: String, value: String): HService = {
-//
-//    val components = rowKey.split(DELIMITER)
-//    try {
-//      val idxKVs = KeyVals(components.dropRight(1).mkString(DELIMITER)).toKVMap()
-//      val metaKVs = KeyVals(value).toKVMap()
-//      val kvs = idxKVs ++ metaKVs
-//      HService(kvs("id").toLong, kvs("serviceName"), kvs("cluster"), kvs("hbaseTableName"), kvs("preSplitSize").toInt, kvs("hbaseTableTTL").toInt)
-//    }
-//  }
-//}
+package com.daumkakao.s2graph.core.models
+
+import HBaseModel._
+/**
+ * Created by shon on 5/15/15.
+ */
+
+object HService {
+  def findById(id: Int, useCache: Boolean = true): HService = {
+    HBaseModel.find("HService", useCache)(Seq(("id" -> id))).get.asInstanceOf[HService]
+  }
+  def findByName(serviceName: String, useCache: Boolean = true): Option[HService] = {
+    HBaseModel.find("HService", useCache)(Seq(("serviceName" -> serviceName))).map { x => x.asInstanceOf[HService] }
+  }
+  def findOrInsert(serviceName: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int],
+                   useCache: Boolean = true): HService = {
+    findByName(serviceName, useCache) match {
+      case Some(s) => s
+      case None =>
+        val id = HBaseModel.getAndIncrSeq("HService")
+        val kvs = Map("id" -> id, "serviceName" -> serviceName, "cluster" -> cluster, "hbaseTableName" -> hTableName,
+          "preSplitSize" -> preSplitSize, "hbaseTableTTL" -> hTableTTL.getOrElse(-1))
+        val service = HService(kvs)
+        service.create()
+        service
+    }
+  }
+  def findAllServices(): List[HService] = {
+    HBaseModel.findsRange("HService")(Seq(("id"-> 0)), Seq(("id" -> Int.MaxValue))).map{x => x.asInstanceOf[HService]}
+  }
+}
+case class HService(kvsParam: Map[KEY, VAL]) extends HBaseModel("HService", kvsParam) {
+  override val columns = Seq("id", "serviceName", "cluster", "hbaseTableName", "preSplitSize", "hbaseTableTTL")
+
+  val pk = Seq(("id", kvs("id")))
+  val idxServiceName = Seq(("serviceName", kvs("serviceName")))
+  val idxCluster = Seq(("cluster", kvs("cluster")))
+
+  override val idxKVsList = List(pk, idxServiceName, idxCluster)
+  override val referencedBysList = List(Seq(("HServiceColumn", "serviceId", "id"), ("HLabel", "srcServiceId", "id"),
+    ("HLabel", "tgtServiceId", "id"), ("HLabel", "serviceId", "id")))
+  validate(columns)
+
+  val id = Some(kvs("id").toString.toInt)
+  val serviceName = kvs("serviceName").toString
+  val cluster = kvs("cluster").toString
+  val hTableName = kvs("hbaseTableName").toString
+  val preSplitSize = kvs("preSplitSize").toString.toInt
+  val hTableTTL = {
+    val ttl = kvs("hbaseTableTTL").toString.toInt
+    if (ttl < 0) None
+    else Some(ttl)
+  }
+  lazy val toJson = kvs.toString
+
+}
+
