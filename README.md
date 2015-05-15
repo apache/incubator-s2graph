@@ -898,7 +898,7 @@ For bulk loading, source data can be either in HDFS or Kafka queue.
 
 #### 2. When the source data is in Kafka. ####
  
-assumes that data is bulk loading format and constantly comming into Kafka MQ.
+assumes that data is bulk loading format and constantly coming into Kafka MQ.
 
  - run subscriber.GraphSubscriberStreaming to extract and load into s2graph from kafka topic.
  - make sure how many edges are parsed/stored by looking at Spark UI.
@@ -1093,6 +1093,5 @@ total vuser = 2,072
 | 1 | 30 | 10 | 10 | 20 | 90.4TPS | 329.46ms | 
 | 1 | 20 | 10 | 10 | 20 | 83.2TPS | 238.42ms | 
 | 1 | 10 | 10 | 10 | 20 | 82.6TPS | 120.16ms | 
-
 
 [![Analytics](https://ga-beacon.appspot.com/UA-62888350-1/s2graph/readme.md)](https://github.com/daumkakao/s2graph)
