@@ -13,7 +13,7 @@ object AdminController extends Controller with RequestParser {
    * Management
    */
   def getService(serviceName: String) = Action { request =>
-    HService.findByName(serviceName) match {
+    Management.findService(serviceName) match {
       case None => NotFound
       case Some(service) => Ok(s"${service.toJson} exist.")
     }
@@ -26,8 +26,8 @@ object AdminController extends Controller with RequestParser {
   def createServiceInner(jsValue: JsValue) = {
     try {
       val (serviceName, cluster, tableName, preSplitSize, ttl) = toServiceElements(jsValue)
-      val service = HService.findOrInsert(serviceName, cluster, tableName, preSplitSize, ttl)
-      Ok(s"$serviceName service created.\n")
+      val service = Management.createService(serviceName, cluster, tableName, preSplitSize, ttl)
+      Ok(s"$service service created.\n")
     } catch {
       case e: Throwable =>
         Logger.error(s"$e", e)
@@ -68,7 +68,7 @@ object AdminController extends Controller with RequestParser {
   }
 
   def getLabel(labelName: String) = Action { request =>
-    HLabel.findByName(labelName) match {
+    Management.findLabel(labelName) match {
       case None => NotFound("NotFound\n")
       case Some(label) =>
         Ok(s"${label.toJson}\n")

@@ -55,7 +55,7 @@ trait LocalCache[V] {
   .maximumSize(maxSize / 10).build[String, List[V]]()
 
   def withCache(key: String, useCache: Boolean = true)(op: => Option[V]): Option[V] = {
-    val newKey = s"$cName:$key"
+    val newKey = s"$cName:withCache:$key"
     val view = cache.asMap()
     if (useCache && view.containsKey(newKey)) {
       Logger.debug(s"withCache: $newKey => Hit")
@@ -69,7 +69,7 @@ trait LocalCache[V] {
     }
   }
   def withCaches(key: String, useCache: Boolean = true)(op: => List[V]): List[V] = {
-    val newKey = s"$cName:$key:list"
+    val newKey = s"$cName:withCaches:$key"
     val view = caches.asMap()
     if (useCache && view.containsKey(newKey)) {
       Logger.debug(s"withCaches: $newKey => Hit")

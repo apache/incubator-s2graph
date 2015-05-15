@@ -229,59 +229,9 @@ class HBaseModel(protected val tableName: String, protected val kvs: Map[KEY, VA
     }
     rets.forall(r => r)
   }
+  def deleteAll() = destroy()
 }
 
-object HColumnMeta {
-  val timeStampSeq = 0.toByte
-  val countSeq = -1.toByte
-  val lastModifiedAtColumnSeq = 0.toByte
-  val lastModifiedAtColumn = HColumnMeta(Map("id" -> 0, "columnId" -> 0,
-    "name" -> "lastModifiedAt", "seq" -> lastModifiedAtColumnSeq))
-  val maxValue = Byte.MaxValue
-
-
-  def findById(id: Int): HColumnMeta = {
-    HBaseModel.find("HColumnMeta")(Seq(("id" -> id))).get.asInstanceOf[HColumnMeta]
-  }
-  def findAllByColumn(columnId: Int) = {
-    HBaseModel.findsMatch("HColumnMeta")(Seq(("columnId" -> columnId))).map(x => x.asInstanceOf[HColumnMeta])
-  }
-  def findByName(columnId: Int, name: String) = {
-    HBaseModel.find("HColumnMeta")(Seq(("columnId" -> columnId), ("name" -> name))).map(x => x.asInstanceOf[HColumnMeta])
-  }
-  def findByIdAndSeq(columnId: Int, seq: Byte) = {
-    HBaseModel.find("HColumnMeta")(Seq(("columnId" -> columnId), ("seq" -> seq))).map(x => x.asInstanceOf[HColumnMeta])
-  }
-  def findOrInsert(columnId: Int, name: String): HColumnMeta = {
-    findByName(columnId, name) match {
-      case Some(s) => s
-      case None =>
-        val id = HBaseModel.getAndIncrSeq("HColumnMeta")
-        val allMetas = findAllByColumn(columnId)
-        val seq = (allMetas.length + 1).toByte
-        val model = HColumnMeta(Map("id" -> id, "columnId" -> columnId, "name" -> name, "seq" -> seq))
-        model.create
-        model
-    }
-  }
-}
-
-case class HColumnMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel("HColumnMeta", kvsParam) {
-  override val columns = Seq("id", "columnId", "name", "seq")
-
-  val pk = Seq(("id", kvs("id")))
-  val idxColumnIdName = Seq(("columnId", kvs("columnId")), ("name", kvs("name")))
-  val idxColumnIdSeq = Seq(("columnId", kvs("columnId")), ("seq", kvs("seq")))
-
-  override val idxKVsList = List(pk, idxColumnIdName, idxColumnIdSeq)
-  validate(columns)
-
-  val id = Some(kvs("id").toString.toInt)
-  val columnId = kvs("columnId").toString.toInt
-  val name = kvs("name").toString
-  val seq = kvs("seq").toString.toByte
-
-}
 
 object HService {
   def findById(id: Int, useCache: Boolean = true): HService = {
@@ -328,7 +278,71 @@ case class HService(kvsParam: Map[KEY, VAL]) extends HBaseModel("HService", kvsP
     else Some(ttl)
   }
   lazy val toJson = kvs.toString
+
+  override def deleteAll() = {
+    val rets = for {
+      column <- HServiceColumn.findsByServiceId(id.get, useCache = false)
+      meta <- HColumnMeta.findAllByColumn(column.id.get, useCache = false)
+      label <- HLabel.findBySrcServiceId(id.get, useCache = false) ++ HLabel.findByTgtServiceId(id.get, useCache = false)
+    } yield {
+      List(column.deleteAll(), meta.deleteAll(), label.deleteAll()).forall(x => x)
+    }
+    rets.forall(x => x)
+  }
 }
+
+object HColumnMeta {
+  val timeStampSeq = 0.toByte
+  val countSeq = -1.toByte
+  val lastModifiedAtColumnSeq = 0.toByte
+  val lastModifiedAtColumn = HColumnMeta(Map("id" -> 0, "columnId" -> 0,
+    "name" -> "lastModifiedAt", "seq" -> lastModifiedAtColumnSeq))
+  val maxValue = Byte.MaxValue
+
+
+  def findById(id: Int, useCache: Boolean = true): HColumnMeta = {
+    HBaseModel.find("HColumnMeta", useCache)(Seq(("id" -> id))).get.asInstanceOf[HColumnMeta]
+  }
+  def findAllByColumn(columnId: Int, useCache: Boolean = true) = {
+    HBaseModel.findsMatch("HColumnMeta", useCache)(Seq(("columnId" -> columnId))).map(x => x.asInstanceOf[HColumnMeta])
+  }
+  def findByName(columnId: Int, name: String, useCache: Boolean = true) = {
+    HBaseModel.find("HColumnMeta", useCache)(Seq(("columnId" -> columnId), ("name" -> name))).map(x => x.asInstanceOf[HColumnMeta])
+  }
+  def findByIdAndSeq(columnId: Int, seq: Byte, useCache: Boolean = true) = {
+    HBaseModel.find("HColumnMeta", useCache)(Seq(("columnId" -> columnId), ("seq" -> seq))).map(x => x.asInstanceOf[HColumnMeta])
+  }
+  def findOrInsert(columnId: Int, name: String): HColumnMeta = {
+    findByName(columnId, name) match {
+      case Some(s) => s
+      case None =>
+        val id = HBaseModel.getAndIncrSeq("HColumnMeta")
+        val allMetas = findAllByColumn(columnId)
+        val seq = (allMetas.length + 1).toByte
+        val model = HColumnMeta(Map("id" -> id, "columnId" -> columnId, "name" -> name, "seq" -> seq))
+        model.create
+        model
+    }
+  }
+}
+
+case class HColumnMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel("HColumnMeta", kvsParam) {
+  override val columns = Seq("id", "columnId", "name", "seq")
+
+  val pk = Seq(("id", kvs("id")))
+  val idxColumnIdName = Seq(("columnId", kvs("columnId")), ("name", kvs("name")))
+  val idxColumnIdSeq = Seq(("columnId", kvs("columnId")), ("seq", kvs("seq")))
+
+  override val idxKVsList = List(pk, idxColumnIdName, idxColumnIdSeq)
+  validate(columns)
+
+  val id = Some(kvs("id").toString.toInt)
+  val columnId = kvs("columnId").toString.toInt
+  val name = kvs("name").toString
+  val seq = kvs("seq").toString.toByte
+
+}
+
 
 object HServiceColumn {
   def findById(id: Int, useCache: Boolean = true): HServiceColumn = {
@@ -337,6 +351,9 @@ object HServiceColumn {
   def find(serviceId: Int, columnName: String, useCache: Boolean = true): Option[HServiceColumn] = {
     HBaseModel.find("HServiceColumn", useCache)(Seq("serviceId" -> serviceId, "columnName" -> columnName))
       .map { x => x.asInstanceOf[HServiceColumn]}
+  }
+  def findsByServiceId(serviceId: Int, useCache: Boolean = true): List[HServiceColumn] = {
+    HBaseModel.findsMatch("HServiceColumn", useCache)(Seq("serviceId" -> serviceId)).map(x => x.asInstanceOf[HServiceColumn])
   }
   def findOrInsert(serviceId: Int, columnName: String, columnType: Option[String], useCache: Boolean = true): HServiceColumn = {
     find(serviceId, columnName, useCache) match {
@@ -478,12 +495,12 @@ object HLabelIndex {
         model
     }
   }
-  def findOrInsert(labelId: Int, metaSeqs: List[Byte], formular: String, useCache: Boolean = true): HLabelIndex = {
-    findByLabelIdAndSeqs(labelId, metaSeqs, useCache) match {
+  def findOrInsert(labelId: Int, metaSeqs: List[Byte], formular: String): HLabelIndex = {
+    findByLabelIdAndSeqs(labelId, metaSeqs) match {
       case Some(s) => s
       case None =>
         val id = HBaseModel.getAndIncrSeq("HLabelIndex")
-        val indices = HLabelIndex.findByLabelIdAll(labelId, useCache)
+        val indices = HLabelIndex.findByLabelIdAll(labelId)
         val seq = (indices.length + 1).toByte
         val model = HLabelIndex(Map("id" -> id, "labelId" -> labelId,
           "seq" -> seq, "metaSeqs" -> metaSeqs.mkString(":"), "formular" -> formular))
@@ -552,6 +569,8 @@ object HLabel {
       tgtService <- HService.findByName(tgtServiceName, useCache = false)
       service <- HService.findByName(serviceName, useCache = false)
     } yield {
+
+      println(srcService, tgtService, service)
       val srcServiceId = srcService.id.get
       val tgtServiceId = tgtService.id.get
       val serviceId = service.id.get
@@ -696,11 +715,14 @@ case class HLabel(kvsParam: Map[KEY, VAL]) extends HBaseModel("HLabel", kvsParam
     "metaProps" -> metaProps.map(_.toJson) //    , "indices" -> indices.map(idx => idx.toJson)
   )
 
-  def deleteAll() = {
-    HLabelMeta.findAllByLabelId(id.get).foreach { x => HLabelMeta.findById(x.id.get).destroy() }
-    //    LabelIndexProp.findAllByLabel(id.get, false).foreach { x => LabelIndexProp.delete(x.id.get) }
-    HLabelIndex.findByLabelIdAll(id.get).foreach { x => HLabelIndex.findById(x.id.get).destroy() }
-    HLabel.findById(id.get).destroy()
+  override def deleteAll() = {
+    HLabelMeta.findAllByLabelId(id.get, useCache = false).foreach { x =>
+      HLabelMeta.findById(x.id.get, useCache = false).destroy()
+    }
+    HLabelIndex.findByLabelIdAll(id.get, useCache = false).foreach { x =>
+      HLabelIndex.findById(x.id.get, useCache = false).destroy()
+    }
+    HLabel.findById(id.get, useCache = false).destroy()
   }
 
 }

@@ -15,35 +15,44 @@ import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 
 /**
- * orchestrate kafka queue, db meta.
+ * This is designed to be bridge between rest to s2core.
+ * s2core never use this for finding models.
  */
 object Management extends JSONParser {
 
   val hardLimit = 10000
   val defaultLimit = 100
 
-  //  val labels = new ConcurrentHashMap[String, Label]
-  /**
-   * source, target, label, orderBy, extra properties
-   * e	src	tgt	label	key:value,key:value...	key:value,key:value...
-   * v src, key:value,key:value
-   *
-   * talk_friend 10 -> story:friend 10 ->
-   */
+  def createService(serviceName: String,
+                    cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]): HService = {
+    val service = HService.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
+    service
+  }
+  def findService(serviceName: String) = {
+    HService.findByName(serviceName, useCache = false)
+  }
+  def deleteService(serviceName: String) = {
+    HService.findByName(serviceName).foreach { service =>
+      service.destroy()
+    }
+  }
+  def updateService(serviceName: String,
+                    cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]) = {
+    findService(serviceName) match {
+      case None =>
+        createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
+      case Some(service) =>
+        service.destroy()
 
-  /**
-   * label
-   */
-  /**
-   * create {labelName, labelName_delete, labelName_update} labels
-   */
+    }
+  }
   def createLabel(label: String,
     srcServiceName: String,
     srcColumnName: String,
     srcColumnType: String,
     tgtServiceName: String,
     tgtColumnName: String,
-    tgtColumType: String,
+    tgtColumnType: String,
     isDirected: Boolean = true,
     serviceName: String,
     indexProps: Seq[(String, JsValue)],
@@ -60,16 +69,7 @@ object Management extends JSONParser {
         val (innerVal, dataType) = toInnerVal(v)
         (k, innerVal, dataType)
       }
-//    var cacheKey = s"serviceName=$srcServiceName"
-//    Service.expireCache(cacheKey)
-//    val srcService = tryOption(srcServiceName, Service.findByName)
-//    cacheKey = s"serviceName=$tgtServiceName"
-//    Service.expireCache(cacheKey)
-//    val tgtService = tryOption(tgtServiceName, Service.findByName)
-//    cacheKey = s"serviceName=$serviceName"
-//    Service.expireCache(cacheKey)
-//    val service = tryOption(serviceName, Service.findByName)
-//    HLabel.expireCache(cacheKey)
+
     val labelOpt = HLabel.findByName(label)
 
     labelOpt match {
@@ -78,13 +78,48 @@ object Management extends JSONParser {
       case None =>
         HLabel.insertAll(label,
           srcServiceName, srcColumnName, srcColumnType,
-          tgtServiceName, tgtColumnName, tgtColumType,
+          tgtServiceName, tgtColumnName, tgtColumnType,
           isDirected, serviceName, idxProps ++ metaProps, consistencyLevel, hTableName, hTableTTL)
 //        HLabel.expireCache(cacheKey)
-        HLabel.findByName(label).get
+        HLabel.findByName(label, useCache = false).get
     }
   }
-
+  def findLabel(labelName: String): Option[HLabel] = {
+    HLabel.findByName(labelName, useCache = false)
+  }
+  def deleteLabel(labelName: String) = {
+    HLabel.findByName(labelName, useCache = false).foreach { label =>
+      label.deleteAll()
+    }
+  }
+  def updateLabel(label: String,
+                  srcServiceName: String,
+                  srcColumnName: String,
+                  srcColumnType: String,
+                  tgtServiceName: String,
+                  tgtColumnName: String,
+                  tgtColumnType: String,
+                  isDirected: Boolean = true,
+                  serviceName: String,
+                  indexProps: Seq[(String, JsValue)],
+                  props: Seq[(String, JsValue)],
+                  consistencyLevel: String,
+                  hTableName: Option[String],
+                  hTableTTL: Option[Int]): HLabel = {
+    findLabel(label) match {
+      case None =>
+        createLabel(label, srcServiceName, srcColumnName, srcColumnType,
+          tgtServiceName, tgtColumnName, tgtColumnType,
+          isDirected, serviceName, indexProps, props, consistencyLevel,
+          hTableName, hTableTTL)
+      case Some(s) =>
+        s.deleteAll()
+        createLabel(label, srcServiceName, srcColumnName, srcColumnType,
+          tgtServiceName, tgtColumnName, tgtColumnType,
+          isDirected, serviceName, indexProps, props, consistencyLevel,
+          hTableName, hTableTTL)
+    }
+  }
   def addIndex(labelStr: String, orderByKeys: Seq[(String, JsValue)]) = {
     val label = try {
       HLabel.findByName(labelStr).get
@@ -101,7 +136,22 @@ object Management extends JSONParser {
       }
     HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
   }
+  def dropIndex(labelStr: String, orderByKeys: Seq[(String, JsValue)]) = {
+    val label = try {
+      HLabel.findByName(labelStr).get
+    } catch {
+      case e: Throwable =>
+        throw new KGraphExceptions.LabelNotExistException(labelStr)
+    }
+    val labelOrderTypes =
+      for ((k, v) <- orderByKeys; (innerVal, dataType) = toInnerVal(v)) yield {
 
+        val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType, true)
+        if (lblMeta.usedInIndex) lblMeta.seq
+        else throw new KGraphExceptions.LabelMetaExistException(s"")
+      }
+    HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
+  }
   def getServiceLable(label: String): Option[HLabel] = {
     HLabel.findByName(label)
   }
