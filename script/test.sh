@@ -2,6 +2,8 @@
 curl -XPOST localhost:9000/graphs/createService -H 'Content-Type: Application/json' -d '
 {"serviceName": "s2graph"}
 '
+# check service.
+curl -XGET localhost:9000/graphs/getService/s2graph
 
 # create label.
 curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json' -d '
@@ -23,6 +25,10 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
     }
 }
 '
+
+# check label
+curl -XGET localhost:9000/graphs/getLabel/graph_test
+
 # add edges
 curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/json' -d '
 [

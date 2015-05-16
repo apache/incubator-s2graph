@@ -24,7 +24,7 @@ object HLabelIndex {
     HBaseModel.find("HLabelIndex", useCache)(Seq(("labelId" -> labelId), ("seq" -> seq))).map(x => x.asInstanceOf[HLabelIndex])
   }
   def findByLabelIdAndSeqs(labelId: Int, seqs: List[Byte], useCache: Boolean = true): Option[HLabelIndex] = {
-    HBaseModel.find("HLabelIndex", useCache)(Seq(("labelId" -> labelId), ("metaSeqs" -> seqs.mkString(":"))))
+    HBaseModel.find("HLabelIndex", useCache)(Seq(("labelId" -> labelId), ("metaSeqs" -> seqs.mkString(HBaseModel.META_SEQ_DELIMITER))))
       .map(x => x.asInstanceOf[HLabelIndex])
   }
   def findOrInsert(labelId: Int, seq: Byte, metaSeqs: List[Byte], formular: String): HLabelIndex = {
@@ -55,8 +55,9 @@ object HLabelIndex {
 case class HLabelIndex(kvsParam: Map[KEY, VAL]) extends HBaseModel("HLabelIndex", kvsParam) {
   override val columns = Seq("id", "labelId", "seq", "metaSeqs", "formular")
   val pk = Seq(("id", kvs("id")))
-  val labelIdSeq = Seq(("labelId", kvs("labelId")), ("metaSeqs", kvs("metaSeqs")))
-  override val idxKVsList = List(pk, labelIdSeq)
+  val labelIdSeq = Seq(("labelId", kvs("labelId")), ("seq", kvs("seq")))
+  val labelIdMetaSeqs = Seq(("labelId", kvs("labelId")), ("metaSeqs", kvs("metaSeqs")))
+  override val idxKVsList = List(pk, labelIdSeq, labelIdMetaSeqs)
   validate(columns)
 
   import HBaseModel._
