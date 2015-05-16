@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.models.HLabel
+import com.daumkakao.s2graph.core.models.{HBaseModel, HLabel}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client.HConnection
 import org.apache.hadoop.hbase.client.HConnectionManager
@@ -127,7 +127,7 @@ object Graph {
     this.config = config
     val (hbaseConfig, conn) = GraphConnection.apply(config)
     this.hbaseConfig = hbaseConfig
-    Model.apply(config)
+    HBaseModel.apply(config)
     this.executionContext = ex
     this.singleGetTimeout = getOrElse(config)("hbase.client.operation.timeout", 1000 millis)
     val zkQuorum = hbaseConfig.get("hbase.zookeeper.quorum")

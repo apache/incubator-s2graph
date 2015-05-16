@@ -2,7 +2,7 @@ package com.daumkakao.s2graph.core.models
 
 import com.daumkakao.s2graph.core.models.HBaseModel.{KEY, VAL}
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.LocalCache
+import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{TableName}
 import org.apache.hadoop.hbase.client._
@@ -22,10 +22,16 @@ object HBaseModel extends LocalCache[HBaseModel] {
   val idQualifier = "i"
   val qualifier = "q"
   var zkQuorum: String = "localhost"
-
+  var cacheTTL: Int = 10
+  var maxCacheSize: Int = 1000
   type KEY = String
   type VAL = Any
 
+  def apply(config: Config) = {
+    zkQuorum = GraphConnection.getOrElse(config)("hbase.zookeeper.quorum", zkQuorum)
+    cacheTTL = GraphConnection.getOrElse(config)("cache.ttl.seconds", cacheTTL)
+    maxCacheSize = GraphConnection.getOrElse(config)("cache.max.size", maxCacheSize)
+  }
 //  def getTypeTag[T: ru.TypeTag](obj: T) = ru.typeTag[T]
 //  def newInstance[T](clazz: Class)(implicit tag: ru.TypeTag[T]) = {
 //    val m = ru.runtimeMirror(getClass.getClassLoader)
