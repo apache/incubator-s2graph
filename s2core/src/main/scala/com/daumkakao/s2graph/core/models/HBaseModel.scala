@@ -86,9 +86,13 @@ object HBaseModel extends LocalCache[HBaseModel] {
   def toRowKey(tableName: String, idxKeyVals: Seq[(KEY, VAL)]) = {
     List(tableName, toKVs(idxKeyVals)).mkString(DELIMITER)
   }
-
+  def fromResultOnlyVal(r: Result): Array[Byte] = {
+    if (r == null || r.isEmpty) None
+    val cell = r.getColumnLatestCell(modelCf.getBytes, qualifier.getBytes)
+    cell.getValue
+  }
   def fromResult(r: Result): Option[HBaseModel] = {
-    if (r == null | r.isEmpty) None
+    if (r == null || r.isEmpty) None
     else {
        r.listCells().headOption.map { cell =>
         val rowKey = Bytes.toString(cell.getRow)
@@ -102,7 +106,7 @@ object HBaseModel extends LocalCache[HBaseModel] {
     }
   }
   def fromResultLs(r: Result): List[HBaseModel] = {
-    if (r == null | r.isEmpty) List.empty[HBaseModel]
+    if (r == null || r.isEmpty) List.empty[HBaseModel]
     else {
       r.listCells().map { cell =>
         val rowKey = Bytes.toString(cell.getRow)
@@ -192,8 +196,6 @@ object HBaseModel extends LocalCache[HBaseModel] {
   def insert(tableName: String)(idxKVs: Seq[(KEY, VAL)], valKVs: Seq[(KEY, VAL)]) = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
-      /** assumes using same hbase cluster **/
-      val newSeq = getAndIncrSeq(tableName)
       val rowKey = toRowKey(tableName, idxKVs).getBytes
       val put = new Put(rowKey)
       put.addColumn(modelCf.getBytes, qualifier.getBytes, toKVs(valKVs).getBytes)
@@ -210,6 +212,29 @@ object HBaseModel extends LocalCache[HBaseModel] {
       val delete = new Delete(rowKey)
       delete.addColumn(modelCf.getBytes, qualifier.getBytes)
       table.checkAndDelete(rowKey, modelCf.getBytes, qualifier.getBytes, toKVs(valKVs).getBytes, delete)
+    } finally {
+      table.close()
+    }
+  }
+  /** make sure valKVs contains only columns that are not used in index */
+  def update(tableName: String)(idxKVs: Seq[(KEY, VAL)], valsToUpdate: Seq[(KEY, VAL)]) = {
+    val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
+    try {
+      /** read previous value */
+      val rowKey = toRowKey(tableName, idxKVs).getBytes
+      val get = new Get(rowKey)
+      get.addColumn(modelCf.getBytes, qualifier.getBytes)
+      val result = table.get(get)
+      val prev = fromResult(result)
+      val prevValue = fromResultOnlyVal(result)
+      /** build updates based on previous value */
+      val prevKVs = prev.map(m => m.kvs).getOrElse(Map.empty[KEY, VAL])
+      val newKVs = valsToUpdate.toMap
+      val merged = prevKVs.filter(kv => !newKVs.containsKey(kv._1)) ++ newKVs
+      /** execute check and put */
+      val put = new Put(rowKey)
+      put.addColumn(modelCf.getBytes, qualifier.getBytes, toKVs(merged.toSeq).getBytes)
+      table.checkAndPut(rowKey, modelCf.getBytes, qualifier.getBytes, prevValue, put)
     } finally {
       table.close()
     }
@@ -249,6 +274,12 @@ class HBaseModel(protected val tableName: String, protected val kvs: Map[KEY, VA
     }
     rets.forall(r => r)
   }
+//  def update(key: KEY, value: VAL) = {
+//    val idxKeys = idxKVsList.flatMap(seq => seq.map(_._1))
+//    if (idxKeys.contains(key)) {
+//
+//    }
+//  }
   def deleteAll(): Boolean = {
     val rets = for {
       tableNameForiegnKeyColumns <- referencedBysList

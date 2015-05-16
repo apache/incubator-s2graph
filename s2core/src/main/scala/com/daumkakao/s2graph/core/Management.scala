@@ -38,16 +38,16 @@ object Management extends JSONParser {
       service.deleteAll()
     }
   }
-  def updateService(serviceName: String,
-                    cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]) = {
-    findService(serviceName) match {
-      case None =>
-        createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
-      case Some(service) =>
-        service.deleteAll()
-        createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
-    }
-  }
+//  def updateService(serviceName: String,
+//                    cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]) = {
+//    findService(serviceName) match {
+//      case None =>
+//        createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
+//      case Some(service) =>
+//        service.deleteAll()
+//        createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
+//    }
+//  }
   def createLabel(label: String,
     srcServiceName: String,
     srcColumnName: String,
@@ -93,34 +93,34 @@ object Management extends JSONParser {
       label.deleteAll()
     }
   }
-  def updateLabel(label: String,
-                  srcServiceName: String,
-                  srcColumnName: String,
-                  srcColumnType: String,
-                  tgtServiceName: String,
-                  tgtColumnName: String,
-                  tgtColumnType: String,
-                  isDirected: Boolean = true,
-                  serviceName: String,
-                  indexProps: Seq[(String, JsValue)],
-                  props: Seq[(String, JsValue)],
-                  consistencyLevel: String,
-                  hTableName: Option[String],
-                  hTableTTL: Option[Int]): HLabel = {
-    findLabel(label) match {
-      case None =>
-        createLabel(label, srcServiceName, srcColumnName, srcColumnType,
-          tgtServiceName, tgtColumnName, tgtColumnType,
-          isDirected, serviceName, indexProps, props, consistencyLevel,
-          hTableName, hTableTTL)
-      case Some(s) =>
-        s.deleteAll()
-        createLabel(label, srcServiceName, srcColumnName, srcColumnType,
-          tgtServiceName, tgtColumnName, tgtColumnType,
-          isDirected, serviceName, indexProps, props, consistencyLevel,
-          hTableName, hTableTTL)
-    }
-  }
+//  def updateLabel(label: String,
+//                  srcServiceName: String,
+//                  srcColumnName: String,
+//                  srcColumnType: String,
+//                  tgtServiceName: String,
+//                  tgtColumnName: String,
+//                  tgtColumnType: String,
+//                  isDirected: Boolean = true,
+//                  serviceName: String,
+//                  indexProps: Seq[(String, JsValue)],
+//                  props: Seq[(String, JsValue)],
+//                  consistencyLevel: String,
+//                  hTableName: Option[String],
+//                  hTableTTL: Option[Int]): HLabel = {
+//    findLabel(label) match {
+//      case None =>
+//        createLabel(label, srcServiceName, srcColumnName, srcColumnType,
+//          tgtServiceName, tgtColumnName, tgtColumnType,
+//          isDirected, serviceName, indexProps, props, consistencyLevel,
+//          hTableName, hTableTTL)
+//      case Some(s) =>
+//        s.deleteAll()
+//        createLabel(label, srcServiceName, srcColumnName, srcColumnType,
+//          tgtServiceName, tgtColumnName, tgtColumnType,
+//          isDirected, serviceName, indexProps, props, consistencyLevel,
+//          hTableName, hTableTTL)
+//    }
+//  }
   def addIndex(labelStr: String, orderByKeys: Seq[(String, JsValue)]) = {
     val label = try {
       HLabel.findByName(labelStr).get
