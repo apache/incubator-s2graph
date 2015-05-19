@@ -111,8 +111,12 @@ case class HLabel(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabel]("HLabel", 
 
   override val idxKVsList = List(pk, idxLabel, idxSrcColumnName, idxTgtColumnName,
     idxSrcServiceId, idxtgtServiceId, idxServiceName, idxServiceId)
-
-  override val referencedBysList = List(Seq(("HLabelIndex", "labelId", "id"), ("HLabelMeta", "labelId", "id")))
+  override def getReferencedModels() = {
+    List(
+      HBaseModel.findsMatch[HLabelIndex](useCache = false)(Seq("labelId" -> kvs("id"))),
+      HBaseModel.findsMatch[HLabelMeta](useCache = false)(Seq("labelId" -> kvs("id")))
+    )
+  }
   validate(columns)
 
   val id = Some(kvs("id").toString.toInt)

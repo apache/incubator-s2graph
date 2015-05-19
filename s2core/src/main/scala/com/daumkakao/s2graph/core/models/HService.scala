@@ -40,8 +40,14 @@ case class HService(kvsParam: Map[KEY, VAL]) extends HBaseModel[HService]("HServ
   val idxCluster = Seq(("cluster", kvs("cluster")))
 
   override val idxKVsList = List(pk, idxServiceName, idxCluster)
-  override val referencedBysList = List(Seq(("HServiceColumn", "serviceId", "id"), ("HLabel", "srcServiceId", "id"),
-    ("HLabel", "tgtServiceId", "id"), ("HLabel", "serviceId", "id")))
+  override def getReferencedModels() = {
+    List(
+      HBaseModel.findsMatch[HServiceColumn](useCache = false)(Seq("serviceId" -> kvs("id"))),
+      //HBaseModel.findsMatch[HLabel](useCache = false)(Seq("srcServiceId" -> kvs("id"))),
+      //HBaseModel.findsMatch[HLabel](useCache = false)(Seq("tgtServiceId" -> kvs("id"))),
+      HBaseModel.findsMatch[HLabel](useCache = false)(Seq("serviceId" -> kvs("id")))
+    )
+  }
   validate(columns)
 
   val id = Some(kvs("id").toString.toInt)

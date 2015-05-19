@@ -1,6 +1,5 @@
 package com.daumkakao.s2graph.core.models
 
-import com.daumkakao.s2graph.core.models.HBaseModel.{KEY, VAL}
 import com.daumkakao.s2graph.core._
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes
@@ -9,7 +8,7 @@ import org.apache.hadoop.hbase.client._
 import collection.JavaConversions._
 import scala.reflect.ClassTag
 import scala.reflect.runtime.{universe => ru}
-
+import HBaseModel._
 
 object HBaseModel {
   val DELIMITER = ":"
@@ -43,6 +42,7 @@ object HBaseModel {
     val clazz = implicitly[ClassTag[T]].runtimeClass
     clazz.getName()
   }
+
   def newInstance[T: ClassTag](kvs: Map[KEY, VAL]) = {
     val clazz = implicitly[ClassTag[T]].runtimeClass
     val ctr = clazz.getConstructors()(0)
@@ -181,6 +181,7 @@ object HBaseModel {
       }
 //    }
   }
+
   def getSequence[T : ClassTag]: Long = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
@@ -228,16 +229,15 @@ object HBaseModel {
       table.close()
     }
   }
-  /** make sure valKVs contains only columns that are not used in index */
-//  def update(tableName: String)(idxKVs: Seq[(KEY, VAL)], valsToUpdate: Seq[(KEY, VAL)]) = {
+//  def update[T: ClassTag](idxKVs: Seq[(KEY, VAL)], valsToUpdate: Seq[(KEY, VAL)]) = {
 //    val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
 //    try {
 //      /** read previous value */
-//      val rowKey = toRowKey(tableName, idxKVs).getBytes
+//      val rowKey = toRowKey(getClassName[T], idxKVs).getBytes
 //      val get = new Get(rowKey)
 //      get.addColumn(modelCf.getBytes, qualifier.getBytes)
 //      val result = table.get(get)
-//      val prev = fromResult(result)
+//      val prev = fromResult[T](result)
 //      val prevValue = fromResultOnlyVal(result)
 //      /** build updates based on previous value */
 //      val prevKVs = prev.map(m => m.kvs).getOrElse(Map.empty[KEY, VAL])
@@ -255,12 +255,18 @@ object HBaseModel {
 
 class HBaseModel[T : ClassTag](protected val tableName: String, protected val kvs: Map[KEY, VAL]) extends LocalCache[T] {
   import HBaseModel._
+  import scala.reflect.runtime._
+  import scala.reflect.runtime.universe._
+
   /** act like columns in table */
   protected val columns = Seq.empty[String]
   /** act like index */
   protected val idxKVsList = List.empty[Seq[(KEY, VAL)]]
   /** act like foreign key */
-  protected val referencedBysList = List.empty[Seq[(ClassTag, KEY, KEY)]]
+//  protected val referencedBysList = List.empty[List[HBaseModel[_]]]
+  protected def getReferencedModels() = {
+    List.empty[List[HBaseModel[_]]]
+  }
 
   override def toString(): String = (kvs ++ Map("tableName" -> tableName)).toString
 
@@ -270,6 +276,7 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
         throw new RuntimeException(s"$tableName expect ${columns.toList.sorted}, found ${kvs.toList.sortBy{kv => kv._1}}")
     }
   }
+
   def create() = {
     val rets = for {
       idxKVs <- idxKVsList
@@ -284,24 +291,35 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
     }
     rets.forall(r => r)
   }
-//  def update(key: KEY, value: VAL) = {
-//    val idxKeys = idxKVsList.flatMap(seq => seq.map(_._1))
-//    if (idxKeys.contains(key)) {
-//
-//    }
-//  }
-  def deleteAll(): Boolean = destroy()
-//  def deleteAll(): Boolean = {
-//    val rets = for {
-//      tableNameForiegnKeyColumns <- referencedBysList
-//      (referenceTableName: ClassTag, referenceColumn, column) <- tableNameForiegnKeyColumns
-//      referenced <- HBaseModel.findsMatch[referenceTableName](useCache = false)(Seq(referenceColumn -> kvs(column)))
-//      reference = HBaseModel.newInstance(referenceTableName)(referenced.kvs)
-//    } yield {
-//      reference.deleteAll()
-//    }
-//    destroy()
-//  }
+  def update(key: KEY, value: VAL) = {
+    for {
+      idxKVs <- idxKVsList
+    } {
+      for {
+        oldRaw <- HBaseModel.find[T] (useCache = false) (idxKVs)
+        old = oldRaw.asInstanceOf[HBaseModel]
+      } {
+        val oldMetaKVs = old.kvs.filter(kv => !idxKVs.contains(kv._1))
+        val (newIdxKVs, newMetaKVs) = if (idxKVs.contains(key)) {
+          (idxKVs.filter(kv => kv._1 != key) ++ Seq(key -> value), oldMetaKVs)
+        } else {
+          (idxKVs, oldMetaKVs.filter(kv => kv._1 != key) ++ Seq(key -> value))
+        }
+        HBaseModel.delete[T](idxKVs, oldMetaKVs.toSeq)
+        HBaseModel.insert[T](newIdxKVs, newMetaKVs.toSeq)
+      }
+    }
+  }
+//  def deleteAll(): Boolean = destroy()
+  def deleteAll(): Boolean = {
+    val rets = for {
+      models <- getReferencedModels()
+      model <- models
+    } yield {
+      model.deleteAll()
+    }
+    destroy()
+  }
 }
 
 

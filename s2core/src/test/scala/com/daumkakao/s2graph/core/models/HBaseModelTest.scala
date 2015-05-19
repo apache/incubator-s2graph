@@ -18,19 +18,21 @@ class HBaseModelTest extends FunSuite with Matchers {
   Graph(config)(ExecutionContext.Implicits.global)
   HBaseModel(zkQuorum)
 
-  test("test HColumnMeta") {
-    val kvs = Map("id" -> 1, "columnId" -> 10, "name" -> "testMeta", "seq" -> 4.toByte)
-    val model = HColumnMeta(kvs)
-    println(model.create())
-    println(HColumnMeta.findById(1, useCache = false))
-
-  }
+//  test("test HColumnMeta") {
+//    val kvs = Map("id" -> 1, "columnId" -> 10, "name" -> "testMeta", "seq" -> 4.toByte)
+//    val model = HColumnMeta(kvs)
+//    println(model.create())
+//    println(HColumnMeta.findById(1, useCache = false))
+//
+//  }
   test("test HService") {
     for ((serviceName, id) <- List("s2a", "s2graph", "s2zz", "s3a", "s3z").zipWithIndex) {
       val kvs = Map("id" -> id, "serviceName" -> serviceName, "cluster" -> "localhost",
       "hbaseTableName" -> "s2graph-dev", "preSplitSize" -> 0, "hbaseTableTTL" -> -1)
       val model = HService(kvs)
       println(model.create())
+      println(HService.findById(id))
+      model.update("serviceName", s"new_$serviceName")
       println(HService.findById(id))
     }
     val finds = HBaseModel.findsMatch[HService](useCache = false)_
