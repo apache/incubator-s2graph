@@ -15,16 +15,16 @@ object HLabel {
     findByName(labelUseCache._1, labelUseCache._2)
   }
   def findByName(label: String, useCache: Boolean = true): Option[HLabel] = {
-    HBaseModel.find("HLabel", useCache)(Seq(("label" -> label))).map(x => x.asInstanceOf[HLabel])
+    HBaseModel.find[HLabel](useCache)(Seq(("label" -> label)))
   }
   def findById(id: Int, useCache: Boolean = true): HLabel = {
-    HBaseModel.find("HLabel", useCache)(Seq(("id" -> id))).get.asInstanceOf[HLabel]
+    HBaseModel.find[HLabel](useCache)(Seq(("id" -> id))).get
   }
   def findAll(useCache: Boolean = true): List[HLabel] = {
-    HBaseModel.findsRange("HLabel", useCache)(Seq(("id" -> 0)), Seq(("id" -> Int.MaxValue))).map(x => x.asInstanceOf[HLabel])
+    HBaseModel.findsRange[HLabel](useCache)(Seq(("id" -> 0)), Seq(("id" -> Int.MaxValue)))
   }
   def findByList(key: String, id: Int, useCache: Boolean = true): List[HLabel] = {
-    HBaseModel.findsMatch("HLabel", useCache)(Seq((key -> id))).map(x => x.asInstanceOf[HLabel])
+    HBaseModel.findsMatch[HLabel](useCache)(Seq((key -> id)))
   }
   def findByTgtColumnId(columnId: Int, useCache: Boolean = true): List[HLabel] = {
     findByList("tgtColumnId", columnId, useCache)
@@ -38,6 +38,7 @@ object HLabel {
   def findByTgtServiceId(serviceId: Int, useCache: Boolean = true): List[HLabel] = {
     findByList("tgtServiceId", serviceId, useCache)
   }
+
   def insertAll(labelName: String, srcServiceName: String, srcColumnName: String, srcColumnType: String,
                 tgtServiceName: String, tgtColumnName: String, tgtColumnType: String,
                 isDirected: Boolean = true, serviceName: String,
@@ -56,7 +57,7 @@ object HLabel {
         val srcCol = HServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType))
         val tgtCol = HServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType))
         HLabel.findByName(labelName, useCache = false).getOrElse {
-          val createdId = HBaseModel.getAndIncrSeq("HLabel")
+          val createdId = HBaseModel.getAndIncrSeq[HLabel]
           val label = HLabel(Map("id" -> createdId,
             "label" -> labelName, "srcServiceId" -> srcServiceId,
             "srcColumnName" -> srcColumnName, "srcColumnType" -> srcColumnType,
@@ -95,7 +96,7 @@ object HLabel {
     newLabel.getOrElse(throw new RuntimeException("failed to create label"))
   }
 }
-case class HLabel(kvsParam: Map[KEY, VAL]) extends HBaseModel("HLabel", kvsParam) with JSONParser {
+case class HLabel(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabel]("HLabel", kvsParam) with JSONParser {
   override val columns = Seq("id", "label", "srcServiceId", "srcColumnName", "srcColumnType",
     "tgtServiceId", "tgtColumnName", "tgtColumnType", "isDirected", "serviceName", "serviceId",
     "consistencyLevel", "hTableName", "hTableTTL")
@@ -141,6 +142,8 @@ case class HLabel(kvsParam: Map[KEY, VAL]) extends HBaseModel("HLabel", kvsParam
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
 
   //  lazy val firstHBaseTableName = hbaseTableName.split(",").headOption.getOrElse(Config.HBASE_TABLE_NAME)
+  lazy val srcService = HService.findById(srcServiceId)
+  lazy val tgtService = HService.findById(tgtServiceId)
   lazy val service = HService.findById(serviceId)
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, hTableName.split(",").head)
   lazy val (srcColumn, tgtColumn) = (HServiceColumn.find(srcServiceId, srcColumnName).get, HServiceColumn.find(tgtServiceId, tgtColumnName).get)

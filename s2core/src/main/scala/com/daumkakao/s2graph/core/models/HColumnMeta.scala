@@ -16,22 +16,22 @@ object HColumnMeta {
 
 
   def findById(id: Int, useCache: Boolean = true): HColumnMeta = {
-    HBaseModel.find("HColumnMeta", useCache)(Seq(("id" -> id))).get.asInstanceOf[HColumnMeta]
+    HBaseModel.find[HColumnMeta](useCache)(Seq(("id" -> id))).get
   }
   def findAllByColumn(columnId: Int, useCache: Boolean = true) = {
-    HBaseModel.findsMatch("HColumnMeta", useCache)(Seq(("columnId" -> columnId))).map(x => x.asInstanceOf[HColumnMeta])
+    HBaseModel.findsMatch[HColumnMeta](useCache)(Seq(("columnId" -> columnId)))
   }
   def findByName(columnId: Int, name: String, useCache: Boolean = true) = {
-    HBaseModel.find("HColumnMeta", useCache)(Seq(("columnId" -> columnId), ("name" -> name))).map(x => x.asInstanceOf[HColumnMeta])
+    HBaseModel.find[HColumnMeta](useCache)(Seq(("columnId" -> columnId), ("name" -> name)))
   }
   def findByIdAndSeq(columnId: Int, seq: Byte, useCache: Boolean = true) = {
-    HBaseModel.find("HColumnMeta", useCache)(Seq(("columnId" -> columnId), ("seq" -> seq))).map(x => x.asInstanceOf[HColumnMeta])
+    HBaseModel.find[HColumnMeta](useCache)(Seq(("columnId" -> columnId), ("seq" -> seq)))
   }
   def findOrInsert(columnId: Int, name: String): HColumnMeta = {
     findByName(columnId, name, useCache = false) match {
       case Some(s) => s
       case None =>
-        val id = HBaseModel.getAndIncrSeq("HColumnMeta")
+        val id = HBaseModel.getAndIncrSeq[HColumnMeta]
         val allMetas = findAllByColumn(columnId, useCache = false)
         val seq = (allMetas.length + 1).toByte
         val model = HColumnMeta(Map("id" -> id, "columnId" -> columnId, "name" -> name, "seq" -> seq))
@@ -41,7 +41,7 @@ object HColumnMeta {
   }
 }
 
-case class HColumnMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel("HColumnMeta", kvsParam) {
+case class HColumnMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel[HColumnMeta]("HColumnMeta", kvsParam) {
   override val columns = Seq("id", "columnId", "name", "seq")
 
   val pk = Seq(("id", kvs("id")))

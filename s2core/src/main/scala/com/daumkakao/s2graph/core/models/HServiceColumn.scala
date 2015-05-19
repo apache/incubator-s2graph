@@ -9,20 +9,19 @@ import play.api.libs.json.Json
 
 object HServiceColumn {
   def findById(id: Int, useCache: Boolean = true): HServiceColumn = {
-    HBaseModel.find("HServiceColumn", useCache)(Seq(("id" -> id))).get.asInstanceOf[HServiceColumn]
+    HBaseModel.find[HServiceColumn](useCache)(Seq(("id" -> id))).get
   }
   def find(serviceId: Int, columnName: String, useCache: Boolean = true): Option[HServiceColumn] = {
-    HBaseModel.find("HServiceColumn", useCache)(Seq("serviceId" -> serviceId, "columnName" -> columnName))
-      .map { x => x.asInstanceOf[HServiceColumn]}
+    HBaseModel.find[HServiceColumn](useCache)(Seq("serviceId" -> serviceId, "columnName" -> columnName))
   }
   def findsByServiceId(serviceId: Int, useCache: Boolean = true): List[HServiceColumn] = {
-    HBaseModel.findsMatch("HServiceColumn", useCache)(Seq("serviceId" -> serviceId)).map(x => x.asInstanceOf[HServiceColumn])
+    HBaseModel.findsMatch[HServiceColumn](useCache)(Seq("serviceId" -> serviceId))
   }
   def findOrInsert(serviceId: Int, columnName: String, columnType: Option[String]): HServiceColumn = {
     find(serviceId, columnName, useCache = false) match {
       case Some(s) => s
       case None =>
-        val id = HBaseModel.getAndIncrSeq("HServiceColumn")
+        val id = HBaseModel.getAndIncrSeq[HServiceColumn]
         val model = new HServiceColumn(Map("id" -> id, "serviceId" -> serviceId, "columnName" -> columnName,
           "columnType" -> columnType.getOrElse("string")))
         model.create
@@ -30,7 +29,7 @@ object HServiceColumn {
     }
   }
 }
-case class HServiceColumn(kvsParam: Map[KEY, VAL]) extends HBaseModel("HServiceColumn", kvsParam) {
+case class HServiceColumn(kvsParam: Map[KEY, VAL]) extends HBaseModel[HServiceColumn]("HServiceColumn", kvsParam) {
   override val columns = Seq("id", "serviceId", "columnName", "columnType")
   val pk = Seq(("id", kvs("id")))
   val idxServiceIdColumnName = Seq(("serviceId", kvs("serviceId")), ("columnName", kvs("columnName")))

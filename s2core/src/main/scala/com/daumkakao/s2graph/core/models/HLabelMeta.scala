@@ -34,24 +34,24 @@ object HLabelMeta extends JSONParser {
   val notExistSeqInDB = List(lastOpSeq, lastDeletedAt, countSeq, timeStampSeq, from.seq, to.seq)
 
   def findById(id: Int, useCache: Boolean = true): HLabelMeta = {
-    HBaseModel.find("HLabelMeta", useCache)(Seq(("id" -> id))).get.asInstanceOf[HLabelMeta]
+    HBaseModel.find[HLabelMeta](useCache)(Seq(("id" -> id))).get
   }
   def findAllByLabelId(labelId: Int, useCache: Boolean = true): List[HLabelMeta] = {
-    HBaseModel.findsMatch("HLabelMeta", useCache)(Seq(("labelId" -> labelId))).map { x => x.asInstanceOf[HLabelMeta] }
+    HBaseModel.findsMatch[HLabelMeta](useCache)(Seq(("labelId" -> labelId)))
   }
   def findByName(labelId: Int, name: String, useCache: Boolean = true): Option[HLabelMeta] = {
     name match {
       case timestamp.name => Some(timestamp)
       case to.name => Some(to)
       case _ =>
-        HBaseModel.find("HLabelMeta", useCache)(Seq(("labelId" -> labelId), ("name" -> name))).map(x => x.asInstanceOf[HLabelMeta])
+        HBaseModel.find[HLabelMeta](useCache)(Seq(("labelId" -> labelId), ("name" -> name)))
     }
   }
   def findOrInsert(labelId: Int, name: String, defaultValue: String, dataType: String, usedInIndex: Boolean): HLabelMeta = {
     findByName(labelId, name, useCache = false) match {
       case Some(s) => s
       case None =>
-        val id = HBaseModel.getAndIncrSeq("HLabelModel")
+        val id = HBaseModel.getAndIncrSeq[HLabelMeta]
         val allMetas = findAllByLabelId(labelId, useCache = false)
         val seq = (allMetas.length + 1).toByte
         val model = HLabelMeta(Map("id" -> id, "labelId" -> labelId, "name" -> name, "seq" -> seq,
@@ -69,7 +69,7 @@ object HLabelMeta extends JSONParser {
     ret.toMap
   }
 }
-case class HLabelMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel("HLabelMeta", kvsParam) with JSONParser {
+case class HLabelMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabelMeta]("HLabelMeta", kvsParam) with JSONParser {
   override val columns = Seq("id", "labelId", "name", "seq", "defaultValue", "dataType", "usedInIndex")
   val pk = Seq(("id", kvs("id")))
   val idxLabelIdName = Seq(("labelId", kvs("labelId")), ("name", kvs("name")))

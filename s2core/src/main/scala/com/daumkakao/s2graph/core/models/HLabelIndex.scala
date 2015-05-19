@@ -15,23 +15,22 @@ object HLabelIndex {
   import HBaseModel._
 
   def findById(id: Int, useCache: Boolean = true): HLabelIndex = {
-    HBaseModel.find("HLabelIndex", useCache)(Seq(("id" -> id))).get.asInstanceOf[HLabelIndex]
+    HBaseModel.find[HLabelIndex](useCache)(Seq(("id" -> id))).get
   }
   def findByLabelIdAll(labelId: Int, useCache: Boolean = true): List[HLabelIndex] = {
-    HBaseModel.findsMatch("HLabelIndex", useCache)(Seq(("labelId" -> labelId))).map(x => x.asInstanceOf[HLabelIndex])
+    HBaseModel.findsMatch[HLabelIndex](useCache)(Seq(("labelId" -> labelId)))
   }
   def findByLabelIdAndSeq(labelId: Int, seq: Byte, useCache: Boolean = true): Option[HLabelIndex] = {
-    HBaseModel.find("HLabelIndex", useCache)(Seq(("labelId" -> labelId), ("seq" -> seq))).map(x => x.asInstanceOf[HLabelIndex])
+    HBaseModel.find[HLabelIndex](useCache)(Seq(("labelId" -> labelId), ("seq" -> seq)))
   }
   def findByLabelIdAndSeqs(labelId: Int, seqs: List[Byte], useCache: Boolean = true): Option[HLabelIndex] = {
-    HBaseModel.find("HLabelIndex", useCache)(Seq(("labelId" -> labelId), ("metaSeqs" -> seqs.mkString(HBaseModel.META_SEQ_DELIMITER))))
-      .map(x => x.asInstanceOf[HLabelIndex])
+    HBaseModel.find[HLabelIndex](useCache)(Seq(("labelId" -> labelId), ("metaSeqs" -> seqs.mkString(HBaseModel.META_SEQ_DELIMITER))))
   }
   def findOrInsert(labelId: Int, seq: Byte, metaSeqs: List[Byte], formular: String): HLabelIndex = {
     findByLabelIdAndSeq(labelId, seq, useCache = false) match {
       case Some(s) => s
       case None =>
-        val id = HBaseModel.getAndIncrSeq("HLabelIndex")
+        val id = HBaseModel.getAndIncrSeq[HLabelIndex]
         val model = HLabelIndex(Map("id" -> id, "labelId" -> labelId,
           "seq" -> seq, "metaSeqs" -> metaSeqs.mkString(META_SEQ_DELIMITER), "formular" -> formular))
         model.create
@@ -42,7 +41,7 @@ object HLabelIndex {
     findByLabelIdAndSeqs(labelId, metaSeqs, useCache = false) match {
       case Some(s) => s
       case None =>
-        val id = HBaseModel.getAndIncrSeq("HLabelIndex")
+        val id = HBaseModel.getAndIncrSeq[HLabelIndex]
         val indices = HLabelIndex.findByLabelIdAll(labelId, useCache = false)
         val seq = (indices.length + 1).toByte
         val model = HLabelIndex(Map("id" -> id, "labelId" -> labelId,
@@ -52,7 +51,7 @@ object HLabelIndex {
     }
   }
 }
-case class HLabelIndex(kvsParam: Map[KEY, VAL]) extends HBaseModel("HLabelIndex", kvsParam) {
+case class HLabelIndex(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabelIndex]("HLabelIndex", kvsParam) {
   override val columns = Seq("id", "labelId", "seq", "metaSeqs", "formular")
   val pk = Seq(("id", kvs("id")))
   val labelIdSeq = Seq(("labelId", kvs("labelId")), ("seq", kvs("seq")))

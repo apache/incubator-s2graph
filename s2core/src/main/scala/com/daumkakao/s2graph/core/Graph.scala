@@ -550,10 +550,10 @@ object Graph {
 
         queryParam.duplicatePolicy match {
           case Query.DuplicatePolicy.First =>
-            // use first occurrence`s score 
+            // use first occurrence`s score
             false
           case Query.DuplicatePolicy.Raw =>
-            // TODO: assumes all duplicate vertices will have same score 
+            // TODO: assumes all duplicate vertices will have same score
             seen += (key -> newScore)
             true
           case _ =>

@@ -136,7 +136,7 @@ object HBaseElement {
     }
     def apply(bytes: Array[Byte], offset: Int): InnerVal = {
       var pos = offset
-      //      
+      //
       val len = bytes(pos)
       //      play.api.Logger.debug(s"${bytes(offset)}: ${bytes.toList.slice(pos, bytes.length)}")
       pos += 1
@@ -278,7 +278,7 @@ object HBaseElement {
     def <=(other: InnerVal) = this.compare(other) <= 0
     def >(other: InnerVal) = this.compare(other) > 0
     def >=(other: InnerVal) = this.compare(other) >= 0
-    
+
   }
   object InnerValWithTs {
     def apply(bytes: Array[Byte], offset: Int): InnerValWithTs = {

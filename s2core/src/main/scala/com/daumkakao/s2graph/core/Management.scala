@@ -22,9 +22,9 @@ object Management extends JSONParser {
 
   val hardLimit = 10000
   val defaultLimit = 100
-  def getSequence(tableName: String) = {
-    HBaseModel.getSequence(tableName)
-  }
+//  def getSequence(tableName: String) = {
+//    HBaseModel.getSequence(tableName)
+//  }
   def createService(serviceName: String,
                     cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]): HService = {
     val service = HService.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL)

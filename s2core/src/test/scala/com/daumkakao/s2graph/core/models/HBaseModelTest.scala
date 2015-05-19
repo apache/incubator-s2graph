@@ -18,32 +18,23 @@ class HBaseModelTest extends FunSuite with Matchers {
   Graph(config)(ExecutionContext.Implicits.global)
   HBaseModel(zkQuorum)
 
-//  test("test HColumnMeta") {
-//    val kvs = Map("id" -> "1", "columnId" -> "10", "name" -> "testMeta", "seq" -> "4")
-//    val model = HColumnMeta(kvs)
-//    println(model.create(zkQuorum))
-//    val find = HBaseModel.find(zkQuorum)("HColumnMeta")_
-//    find(Seq(("id", "1"))) ==
-//    find(Seq(("columnId", "10"), ("name", "testMeta"))) ==
-//    find(Seq(("columnId", "10"), ("seq", "4")))
-//
-//    model.destroy(zkQuorum)
-//    find(Seq(("id", "1"))) == None
-//    find(Seq(("columnId", "10"), ("name", "testMeta"))) == None
-//    find(Seq(("columnId", "10"), ("seq", "4"))) == None
-//
-//  }
+  test("test HColumnMeta") {
+    val kvs = Map("id" -> 1, "columnId" -> 10, "name" -> "testMeta", "seq" -> 4.toByte)
+    val model = HColumnMeta(kvs)
+    println(model.create())
+    println(HColumnMeta.findById(1, useCache = false))
+
+  }
   test("test HService") {
-    val find = HBaseModel.find("HService")_
     for ((serviceName, id) <- List("s2a", "s2graph", "s2zz", "s3a", "s3z").zipWithIndex) {
       val kvs = Map("id" -> id, "serviceName" -> serviceName, "cluster" -> "localhost",
       "hbaseTableName" -> "s2graph-dev", "preSplitSize" -> 0, "hbaseTableTTL" -> -1)
       val model = HService(kvs)
-      println(model.create)
+      println(model.create())
       println(HService.findById(id))
     }
-    val finds = HBaseModel.findsMatch("HService")_
-    println(finds(Seq(("serviceName", "s2"))))
+    val finds = HBaseModel.findsMatch[HService](useCache = false)_
+    println(finds(Seq(("serviceName", "s2graph"))))
   }
 //  test("test HServiceColumn") {
 //    val kvs = Map("id" -> "1", "serviceId" -> "10", "columnName" -> "testColumnName", "columnType" -> "long")

@@ -564,7 +564,7 @@ object Edge {
               Some(k -> InnerValWithTs(oldValWithTs.innerVal + newValWithTs.innerVal, oldValWithTs.ts))
 
               //              if (oldValWithTs.ts > lastDeletedAt) {
-              //                
+              //
               //                Some(k -> InnerValWithTs(oldValWithTs.innerVal + newValWithTs.innerVal, newValWithTs.ts))
               //              } else if (oldValWithTs.ts <= lastDeletedAt && lastDeletedAt < newValWithTs.ts) {
               //                Some(k -> newValWithTs)

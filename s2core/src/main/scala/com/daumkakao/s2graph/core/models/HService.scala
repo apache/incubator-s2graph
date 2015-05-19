@@ -1,23 +1,26 @@
 package com.daumkakao.s2graph.core.models
 
 import HBaseModel._
+
+import scala.reflect.ClassTag
+
 /**
  * Created by shon on 5/15/15.
  */
 
 object HService {
   def findById(id: Int, useCache: Boolean = true): HService = {
-    HBaseModel.find("HService", useCache)(Seq(("id" -> id))).get.asInstanceOf[HService]
+    HBaseModel.find[HService](useCache)(Seq(("id" -> id))).get
   }
   def findByName(serviceName: String, useCache: Boolean = true): Option[HService] = {
-    HBaseModel.find("HService", useCache)(Seq(("serviceName" -> serviceName))).map { x => x.asInstanceOf[HService] }
+    HBaseModel.find[HService](useCache)(Seq(("serviceName" -> serviceName)))
   }
   def findOrInsert(serviceName: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int],
                    useCache: Boolean = true): HService = {
     findByName(serviceName, useCache) match {
       case Some(s) => s
       case None =>
-        val id = HBaseModel.getAndIncrSeq("HService")
+        val id = HBaseModel.getAndIncrSeq[HService]
         val kvs = Map("id" -> id, "serviceName" -> serviceName, "cluster" -> cluster, "hbaseTableName" -> hTableName,
           "preSplitSize" -> preSplitSize, "hbaseTableTTL" -> hTableTTL.getOrElse(-1))
         val service = HService(kvs)
@@ -26,10 +29,10 @@ object HService {
     }
   }
   def findAllServices(): List[HService] = {
-    HBaseModel.findsRange("HService")(Seq(("id"-> 0)), Seq(("id" -> Int.MaxValue))).map{x => x.asInstanceOf[HService]}
+    HBaseModel.findsRange[HService](useCache = false)(Seq(("id"-> 0)), Seq(("id" -> Int.MaxValue)))
   }
 }
-case class HService(kvsParam: Map[KEY, VAL]) extends HBaseModel("HService", kvsParam) {
+case class HService(kvsParam: Map[KEY, VAL]) extends HBaseModel[HService]("HService", kvsParam) {
   override val columns = Seq("id", "serviceName", "cluster", "hbaseTableName", "preSplitSize", "hbaseTableTTL")
 
   val pk = Seq(("id", kvs("id")))
@@ -52,6 +55,5 @@ case class HService(kvsParam: Map[KEY, VAL]) extends HBaseModel("HService", kvsP
     else Some(ttl)
   }
   lazy val toJson = kvs.toString
-
 }
 

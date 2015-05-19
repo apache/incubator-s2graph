@@ -6,7 +6,7 @@ import com.daumkakao.s2graph.core.{GraphConnection, Graph}
 import com.google.common.cache.CacheBuilder
 import com.typesafe.config.Config
 import play.api.Logger
-import scalikejdbc.{AutoSession, DBSession, ConnectionPool, ConnectionPoolSettings}
+//import scalikejdbc.{AutoSession, DBSession, ConnectionPool, ConnectionPoolSettings}
 
 /**
  * Created by shon on 5/16/15.
@@ -41,8 +41,8 @@ import scalikejdbc.{AutoSession, DBSession, ConnectionPool, ConnectionPoolSettin
 //  }
 //}
 trait LocalCache[V] {
-  val ttl = HBaseModel.cacheTTL
-  val maxSize = HBaseModel.maxCacheSize
+  protected val ttl = HBaseModel.cacheTTL
+  protected val maxSize = HBaseModel.maxCacheSize
   private lazy val cName = this.getClass.getSimpleName()
 
   val cache = CacheBuilder.newBuilder()

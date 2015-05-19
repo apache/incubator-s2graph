@@ -55,7 +55,7 @@ case class Vertex(id: CompositeId,
          * now user need to update one by one(can`t update multiple key values).
          * if user issue update on vertex with multiple key values then they all have same timestamp version.
          */
-        // all props have same timestamp version in hbase. 
+        // all props have same timestamp version in hbase.
         // This
         //        play.api.Logger.debug(s"VertexBuildPuts: $rowKey, $q")
         put.add(vertexCf, q.bytes, ts, v.bytes)

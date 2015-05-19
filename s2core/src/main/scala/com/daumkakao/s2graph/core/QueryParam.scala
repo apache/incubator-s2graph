@@ -176,7 +176,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   var duplicatePolicy = DuplicatePolicy.First
   var rpcTimeoutInMillis = 100
   var maxAttempt = 2
-  
+
   def isRowKeyOnly(isRowKeyOnly: Boolean): QueryParam = {
     this.isRowKeyOnly = isRowKeyOnly
     this
@@ -266,12 +266,12 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     this.duplicatePolicy = policy.getOrElse(DuplicatePolicy.First)
     this
   }
-  
+
   def rpcTimeout(millis: Int): QueryParam = {
     this.rpcTimeoutInMillis = millis
     this
   }
-  
+
   def maxAttempt(attempt: Int): QueryParam = {
     this.maxAttempt = attempt;
     this
