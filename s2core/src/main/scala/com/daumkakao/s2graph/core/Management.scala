@@ -29,7 +29,24 @@ object Management extends JSONParser {
    *
    * talk_friend 10 -> story:friend 10 ->
    */
+  def copyLabel(oldLabelName: String, newLabelName: String, hTableName: Option[String]) = {
+    for {
+      old <- Label.findByName(oldLabelName)
+    } {
+      Label.findByName(newLabelName) match {
+        case None =>
+          val (indexProps, metaProps) = old.metaPropsInvMap.partition(nameMeta => nameMeta._2.usedInIndex)
 
+          createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
+            old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
+            old.isDirected, old.serviceName,
+            indexProps.map(t => t._1 -> innerValToJsValue(t._2.defaultInnerVal)).toSeq,
+            metaProps.map(t => t._1 -> innerValToJsValue(t._2.defaultInnerVal)).toSeq,
+            old.consistencyLevel, hTableName, old.hTableTTL)
+        case Some(_) =>
+      }
+    }
+  }
   /**
    * label
    */

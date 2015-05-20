@@ -27,6 +27,7 @@ libraryDependencies ++= Seq(
   "commons-pool" % "commons-pool" % "1.6",
   "org.scalikejdbc" %% "scalikejdbc"        % "2.1.+",
   "com.twitter" %% "util-collection" % "6.12.1",
-  "org.hbase" % "asynchbase" % "1.7.0-SNAPSHOT"
+  "org.hbase" % "asynchbase" % "1.7.0-SNAPSHOT",
+  "org.scalatest" %% "scalatest" % "2.2.1" % "test"
    )
    
