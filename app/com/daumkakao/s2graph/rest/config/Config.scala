@@ -1,7 +1,8 @@
 package com.daumkakao.s2graph.rest.config
 
 import java.util.concurrent.TimeUnit
-import com.codahale.metrics.{Metric, ConsoleReporter, MetricRegistry}
+import com.codahale.metrics.{Slf4jReporter, Metric, ConsoleReporter, MetricRegistry}
+import org.slf4j.LoggerFactory
 import play.api.{Play, Logger}
 
 object Config {
@@ -32,10 +33,15 @@ object Config {
 
 trait Instrumented extends nl.grons.metrics.scala.InstrumentedBuilder  {
   val metricRegistry: MetricRegistry = Config.metricRegistry
-  val consoleReporter = ConsoleReporter.forRegistry(metricRegistry)
+  val reporter = Slf4jReporter.forRegistry(metricRegistry)
+    .outputTo(LoggerFactory.getLogger(classOf[Instrumented]))
     .convertRatesTo(TimeUnit.SECONDS)
     .convertDurationsTo(TimeUnit.MILLISECONDS)
     .build()
+//  val consoleReporter = ConsoleReporter.forRegistry(metricRegistry)
+//    .convertRatesTo(TimeUnit.SECONDS)
+//    .convertDurationsTo(TimeUnit.MILLISECONDS)
+//    .build()
 
   val stats = new collection.mutable.HashMap[String, Metric]
 
