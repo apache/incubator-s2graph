@@ -74,7 +74,7 @@ case class HLabelMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabelMeta]("H
   val pk = Seq(("id", kvs("id")))
   val idxLabelIdName = Seq(("labelId", kvs("labelId")), ("name", kvs("name")))
   val idxLabelIdSeq = Seq(("labelId", kvs("labelId")), ("seq", kvs("seq")))
-  override val idxKVsList = List(pk, idxLabelIdName, idxLabelIdSeq)
+  override val idxs = List(pk, idxLabelIdName, idxLabelIdSeq)
   validate(columns)
 
   val id = Some(kvs("id").toString.toInt)

@@ -8,9 +8,8 @@ import org.apache.hadoop.hbase.client._
 import collection.JavaConversions._
 import scala.reflect.ClassTag
 import scala.reflect.runtime.{universe => ru}
-import HBaseModel._
 
-object HBaseModel {
+object HBaseModel extends LocalCache[Result] {
   val DELIMITER = ":"
   val KEY_VAL_DELIMITER = "^"
   val KEY_VAL_DELIMITER_WITH_ESCAPE = "\\^"
@@ -40,7 +39,7 @@ object HBaseModel {
 //  }
   def getClassName[T: ClassTag] = {
     val clazz = implicitly[ClassTag[T]].runtimeClass
-    clazz.getName()
+    clazz.getName().split("\\.").last
   }
 
   def newInstance[T: ClassTag](kvs: Map[KEY, VAL]) = {
@@ -132,7 +131,7 @@ object HBaseModel {
   }
   def toCacheKey(kvs: Seq[(KEY, VAL)]) = kvs.map { kv => s"${kv._1}$INNER_DELIMITER${kv._2}" }.mkString(KEY_VAL_DELIMITER)
   def find[T : ClassTag](useCache: Boolean = true)(idxKeyVals: Seq[(KEY, VAL)]): Option[T] = {
-//    withCache(toCacheKey(idxKeyVals), useCache) {
+    val result = withCache(toCacheKey(idxKeyVals), useCache) {
       val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
       try {
 
@@ -140,16 +139,18 @@ object HBaseModel {
         val get = new Get(rowKey.getBytes)
         get.addColumn(modelCf.getBytes, qualifier.getBytes)
         get.setMaxVersions(1)
-        val res = table.get(get)
-        fromResult[T](res)
+//        val res = table.get(get)
+        table.get(get)
+//        fromResult[T](res)
       } finally {
         table.close()
       }
-//    }
+    }
+    fromResult[T](result)
   }
   def findsRange[T : ClassTag](useCache: Boolean = true)(idxKeyVals: Seq[(KEY, VAL)],
                                                               endIdxKeyVals: Seq[(KEY, VAL)]): List[T] = {
-//    withCaches(toCacheKey(idxKeyVals ++ endIdxKeyVals), useCache) {
+    val results = withCaches(toCacheKey(idxKeyVals ++ endIdxKeyVals), useCache) {
       val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
       try {
         val scan = new Scan()
@@ -157,15 +158,17 @@ object HBaseModel {
         scan.setStopRow(toRowKey(getClassName[T], endIdxKeyVals).getBytes)
         scan.addColumn(modelCf.getBytes, qualifier.getBytes)
         val resScanner = table.getScanner(scan)
-        val models = for {r <- resScanner; m <- fromResult[T](r)} yield m
-        models.toList
+        resScanner.toList
+//        val models = for {r <- resScanner; m <- fromResult[T](r)} yield m
+//        models.toList
       } finally {
         table.close()
       }
-//    }
+    }
+    results.flatMap { r => fromResult[T](r) }
   }
   def findsMatch[T : ClassTag](useCache: Boolean = true)(idxKeyVals: Seq[(KEY, VAL)]): List[T] = {
-//    withCaches(toCacheKey(idxKeyVals), useCache) {
+    val results = withCaches(toCacheKey(idxKeyVals), useCache) {
       val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
       try {
         val scan = new Scan()
@@ -174,12 +177,14 @@ object HBaseModel {
         scan.setStopRow(endBytes)
         scan.addColumn(modelCf.getBytes, qualifier.getBytes)
         val resScanner = table.getScanner(scan)
-        val models = for {r <- resScanner; m <- fromResult[T](r)} yield m
-        models.toList
+        resScanner.toList
+//        val models = for {r <- resScanner; m <- fromResult[T](r)} yield m
+//        models.toList
       } finally {
         table.close()
       }
-//    }
+    }
+    results.flatMap { r => fromResult[T](r) }
   }
 
   def getSequence[T : ClassTag]: Long = {
@@ -205,7 +210,17 @@ object HBaseModel {
       table.close()
     }
   }
-
+  def insertForce[T: ClassTag](idxKVs: Seq[(KEY, VAL)], valKVs: Seq[(KEY, VAL)]) = {
+    val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
+    try {
+      val rowKey = toRowKey(getClassName[T], idxKVs).getBytes
+      val put = new Put(rowKey)
+      put.addColumn(modelCf.getBytes, qualifier.getBytes, toKVs(valKVs).getBytes)
+      table.put(put)
+    } finally {
+      table.close()
+    }
+  }
   def insert[T : ClassTag](idxKVs: Seq[(KEY, VAL)], valKVs: Seq[(KEY, VAL)]) = {
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
@@ -214,6 +229,17 @@ object HBaseModel {
       put.addColumn(modelCf.getBytes, qualifier.getBytes, toKVs(valKVs).getBytes)
       /** expecte null **/
       table.checkAndPut(rowKey, modelCf.getBytes, qualifier.getBytes, null, put)
+    } finally {
+      table.close()
+    }
+  }
+  def deleteForce[T: ClassTag](idxKVs: Seq[(KEY, VAL)]) = {
+    val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
+    try {
+      val rowKey = toRowKey(getClassName[T], idxKVs).getBytes
+      val delete = new Delete(rowKey)
+      delete.addColumn(modelCf.getBytes, qualifier.getBytes)
+      table.delete(delete)
     } finally {
       table.close()
     }
@@ -229,31 +255,10 @@ object HBaseModel {
       table.close()
     }
   }
-//  def update[T: ClassTag](idxKVs: Seq[(KEY, VAL)], valsToUpdate: Seq[(KEY, VAL)]) = {
-//    val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
-//    try {
-//      /** read previous value */
-//      val rowKey = toRowKey(getClassName[T], idxKVs).getBytes
-//      val get = new Get(rowKey)
-//      get.addColumn(modelCf.getBytes, qualifier.getBytes)
-//      val result = table.get(get)
-//      val prev = fromResult[T](result)
-//      val prevValue = fromResultOnlyVal(result)
-//      /** build updates based on previous value */
-//      val prevKVs = prev.map(m => m.kvs).getOrElse(Map.empty[KEY, VAL])
-//      val newKVs = valsToUpdate.toMap
-//      val merged = prevKVs.filter(kv => !newKVs.containsKey(kv._1)) ++ newKVs
-//      /** execute check and put */
-//      val put = new Put(rowKey)
-//      put.addColumn(modelCf.getBytes, qualifier.getBytes, toKVs(merged.toSeq).getBytes)
-//      table.checkAndPut(rowKey, modelCf.getBytes, qualifier.getBytes, prevValue, put)
-//    } finally {
-//      table.close()
-//    }
-//  }
+
 }
 
-class HBaseModel[T : ClassTag](protected val tableName: String, protected val kvs: Map[KEY, VAL]) extends LocalCache[T] {
+class HBaseModel[T : ClassTag](protected val tableName: String, protected val kvs: Map[HBaseModel.KEY, HBaseModel.VAL])  {
   import HBaseModel._
   import scala.reflect.runtime._
   import scala.reflect.runtime.universe._
@@ -261,10 +266,9 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
   /** act like columns in table */
   protected val columns = Seq.empty[String]
   /** act like index */
-  protected val idxKVsList = List.empty[Seq[(KEY, VAL)]]
+  protected val idxs = List.empty[Seq[(KEY, VAL)]]
   /** act like foreign key */
-//  protected val referencedBysList = List.empty[List[HBaseModel[_]]]
-  protected def getReferencedModels() = {
+  protected def foreignKeys() = {
     List.empty[List[HBaseModel[_]]]
   }
 
@@ -279,41 +283,42 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
 
   def create() = {
     val rets = for {
-      idxKVs <- idxKVsList
+      idxKVs <- idxs
     } yield {
       HBaseModel.insert[T](idxKVs, toKVsWithFilter(kvs, idxKVs))
     }
     rets.forall(r => r)
   }
   def destroy() = {
-    val rets = for (idxKVs <- idxKVsList) yield {
+    val rets = for (idxKVs <- idxs) yield {
       HBaseModel.delete[T](idxKVs, toKVsWithFilter(kvs, idxKVs))
     }
     rets.forall(r => r)
   }
   def update(key: KEY, value: VAL) = {
     for {
-      idxKVs <- idxKVsList
+      idxKVs <- idxs
     } {
+      val idxKVsMap = idxKVs.toMap
       for {
         oldRaw <- HBaseModel.find[T] (useCache = false) (idxKVs)
-        old = oldRaw.asInstanceOf[HBaseModel]
+        old = oldRaw.asInstanceOf[HBaseModel[T]]
       } {
-        val oldMetaKVs = old.kvs.filter(kv => !idxKVs.contains(kv._1))
-        val (newIdxKVs, newMetaKVs) = if (idxKVs.contains(key)) {
+        val oldMetaKVs = old.kvs.filter(kv => !idxKVsMap.containsKey(kv._1))
+        val (newIdxKVs, newMetaKVs) = if (idxKVsMap.containsKey(key)) {
           (idxKVs.filter(kv => kv._1 != key) ++ Seq(key -> value), oldMetaKVs)
         } else {
           (idxKVs, oldMetaKVs.filter(kv => kv._1 != key) ++ Seq(key -> value))
         }
-        HBaseModel.delete[T](idxKVs, oldMetaKVs.toSeq)
-        HBaseModel.insert[T](newIdxKVs, newMetaKVs.toSeq)
+        HBaseModel.deleteForce[T](idxKVs)
+        HBaseModel.insertForce[T](newIdxKVs, newMetaKVs.toSeq)
       }
     }
   }
 //  def deleteAll(): Boolean = destroy()
   def deleteAll(): Boolean = {
     val rets = for {
-      models <- getReferencedModels()
+      models <- foreignKeys()
       model <- models
     } yield {
       model.deleteAll()

@@ -100,6 +100,7 @@ case class HLabel(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabel]("HLabel", 
   override val columns = Seq("id", "label", "srcServiceId", "srcColumnName", "srcColumnType",
     "tgtServiceId", "tgtColumnName", "tgtColumnType", "isDirected", "serviceName", "serviceId",
     "consistencyLevel", "hTableName", "hTableTTL")
+
   val pk = Seq(("id", kvs("id")))
   val idxLabel = Seq(("label", kvs("label")))
   val idxSrcColumnName = Seq(("srcColumnName", kvs("srcColumnName")))
@@ -109,9 +110,9 @@ case class HLabel(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabel]("HLabel", 
   val idxServiceName = Seq(("serviceName", kvs("serviceName")))
   val idxServiceId = Seq(("serviceId", kvs("serviceId")))
 
-  override val idxKVsList = List(pk, idxLabel, idxSrcColumnName, idxTgtColumnName,
+  override val idxs = List(pk, idxLabel, idxSrcColumnName, idxTgtColumnName,
     idxSrcServiceId, idxtgtServiceId, idxServiceName, idxServiceId)
-  override def getReferencedModels() = {
+  override def foreignKeys() = {
     List(
       HBaseModel.findsMatch[HLabelIndex](useCache = false)(Seq("labelId" -> kvs("id"))),
       HBaseModel.findsMatch[HLabelMeta](useCache = false)(Seq("labelId" -> kvs("id")))

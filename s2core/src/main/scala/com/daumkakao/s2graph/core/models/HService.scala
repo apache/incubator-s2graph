@@ -39,8 +39,8 @@ case class HService(kvsParam: Map[KEY, VAL]) extends HBaseModel[HService]("HServ
   val idxServiceName = Seq(("serviceName", kvs("serviceName")))
   val idxCluster = Seq(("cluster", kvs("cluster")))
 
-  override val idxKVsList = List(pk, idxServiceName, idxCluster)
-  override def getReferencedModels() = {
+  override val idxs = List(pk, idxServiceName, idxCluster)
+  override def foreignKeys() = {
     List(
       HBaseModel.findsMatch[HServiceColumn](useCache = false)(Seq("serviceId" -> kvs("id"))),
       //HBaseModel.findsMatch[HLabel](useCache = false)(Seq("srcServiceId" -> kvs("id"))),

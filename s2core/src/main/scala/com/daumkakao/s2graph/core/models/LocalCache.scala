@@ -40,7 +40,7 @@ import play.api.Logger
 //    ConnectionPool.singleton(configVals("db.default.url"), configVals("db.default.user"), configVals("db.default.password"), settings)
 //  }
 //}
-trait LocalCache[V] {
+trait LocalCache[V <: Object] {
   protected val ttl = HBaseModel.cacheTTL
   protected val maxSize = HBaseModel.maxCacheSize
   private lazy val cName = this.getClass.getSimpleName()
@@ -48,13 +48,13 @@ trait LocalCache[V] {
   val cache = CacheBuilder.newBuilder()
     .expireAfterWrite(ttl, TimeUnit.SECONDS)
     .maximumSize(maxSize)
-    .build[String, Option[V]]()
+    .build[String, V]()
 
   val caches = CacheBuilder.newBuilder()
     .expireAfterWrite(ttl, TimeUnit.SECONDS)
     .maximumSize(maxSize / 10).build[String, List[V]]()
 
-  def withCache(key: String, useCache: Boolean = true)(op: => Option[V]): Option[V] = {
+  def withCache(key: String, useCache: Boolean = true)(op: => V): V = {
     val newKey = s"$cName:withCache:$key"
     val view = cache.asMap()
     if (useCache && view.containsKey(newKey)) {
@@ -94,7 +94,7 @@ trait LocalCache[V] {
     kvs.foreach {
       case (key, value) =>
         val newKey = s"$cName:$key"
-        cache.put(newKey, Some(value))
+        cache.put(newKey, value)
     }
   }
 }

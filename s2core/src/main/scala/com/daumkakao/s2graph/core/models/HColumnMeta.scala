@@ -16,6 +16,7 @@ object HColumnMeta {
 
 
   def findById(id: Int, useCache: Boolean = true): HColumnMeta = {
+
     HBaseModel.find[HColumnMeta](useCache)(Seq(("id" -> id))).get
   }
   def findAllByColumn(columnId: Int, useCache: Boolean = true) = {
@@ -48,7 +49,7 @@ case class HColumnMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel[HColumnMeta](
   val idxColumnIdName = Seq(("columnId", kvs("columnId")), ("name", kvs("name")))
   val idxColumnIdSeq = Seq(("columnId", kvs("columnId")), ("seq", kvs("seq")))
 
-  override val idxKVsList = List(pk, idxColumnIdName, idxColumnIdSeq)
+  override val idxs = List(pk, idxColumnIdName, idxColumnIdSeq)
   validate(columns)
 
   val id = Some(kvs("id").toString.toInt)

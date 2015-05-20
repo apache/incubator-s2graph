@@ -56,7 +56,7 @@ case class HLabelIndex(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabelIndex](
   val pk = Seq(("id", kvs("id")))
   val labelIdSeq = Seq(("labelId", kvs("labelId")), ("seq", kvs("seq")))
   val labelIdMetaSeqs = Seq(("labelId", kvs("labelId")), ("metaSeqs", kvs("metaSeqs")))
-  override val idxKVsList = List(pk, labelIdSeq, labelIdMetaSeqs)
+  override val idxs = List(pk, labelIdSeq, labelIdMetaSeqs)
   validate(columns)
 
   import HBaseModel._
