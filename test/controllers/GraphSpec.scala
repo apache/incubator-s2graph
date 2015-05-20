@@ -1,14 +1,15 @@
-package controllers
+package test.controllers
 
 import com.daumkakao.s2graph.core.Management._
 import com.daumkakao.s2graph.core._
+import controllers.{AdminController, RequestParser}
 import org.specs2.mutable.Specification
 import play.api.libs.json.Json
 import scala.Option.option2Iterable
 /**
  * test-only kgraph.GraphSpec
  */
-class GraphSpec extends Specification {
+class GraphSpec extends Specification with RequestParser {
   sequential
 
   private val phase = "alpha"

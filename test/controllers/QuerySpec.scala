@@ -1,15 +1,14 @@
-package controllers
+package test.controllers
 
-import com.daumkakao.s2graph.core.Management._
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.rest.actors._
 import com.daumkakao.s2graph.rest.config.Config
+import controllers.{AdminController, RequestParser}
 import org.specs2.matcher.Matchers
 import org.specs2.mutable.Specification
 import play.api.libs.json.{ JsArray, JsObject, Json }
 import play.api.test.Helpers._
 import play.api.test._
-import com.wordnik.swagger.annotations.Api
 import scala.Array.canBuildFrom
 import scala.concurrent.ExecutionContext
 
@@ -161,7 +160,7 @@ class QuerySpec extends QuerySpecificationBase with Matchers {
 
 }
 
-abstract class QuerySpecificationBase extends Specification {
+abstract class QuerySpecificationBase extends Specification with RequestParser {
   protected val testServiceName = "s2graph_test"
   protected val testLabelName = "s2graph_label_test"
   protected val testColumnName = "user_id"
@@ -248,9 +247,8 @@ abstract class QuerySpecificationBase extends Specification {
 
   def initialize = {
     running(FakeApplication()) {
-      GraphAggregatorActor.init()
       KafkaAggregatorActor.init()
-      Graph(Config.conf)(ExecutionContext.Implicits.global)
+      Graph(Config.conf.underlying)(ExecutionContext.Implicits.global)
 
       // 1. createService
       var result = AdminController.createServiceInner(Json.parse(createService))
@@ -277,7 +275,7 @@ abstract class QuerySpecificationBase extends Specification {
   def cleanup = {
     running(FakeApplication()) {
 
-      Graph(Config.conf)(ExecutionContext.Implicits.global)
+      Graph(Config.conf.underlying)(ExecutionContext.Implicits.global)
 
       // 1. delete edges
       val jsArrStr = s"[${edgesInsertInitial.mkString(",")}]"
@@ -295,7 +293,6 @@ abstract class QuerySpecificationBase extends Specification {
 //      var result = AdminController.deleteLabelInner(testLabelName)
 //      println(s">> Label deleted : $testLabelName, $result")
       // 3. delete service ( currently NOT supported )
-      GraphAggregatorActor.shutdown()
       KafkaAggregatorActor.shutdown()
     }
 

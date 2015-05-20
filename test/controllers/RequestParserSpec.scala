@@ -1,4 +1,4 @@
-package controllers
+package test.controllers
 
 import models._
 import com.daumkakao.s2graph.core._
@@ -30,10 +30,9 @@ class RequestParserSpec extends Specification {
     val checkedOpt = for (label <- Label.findByName(labelName)) yield {
       val labelMetas = LabelMeta.findAllByLabelId(label.id.get, useCache = false)
       val metaMap = labelMetas.map { m => m.name -> m.seq } toMap
-
       val whereOpt = WhereParser(label).parse(sql)
       whereOpt must beSome
-      play.api.Logger.error(whereOpt.toString)
+      play.api.Logger.debug(whereOpt.toString)
 
       //      val props = Json.obj("is_hidden" -> true, "is_blocked" -> false)
       //      val propsInner = Management.toProps(label, props).map { case (k, v) => k -> InnerValWithTs.withInnerVal(v, ts) }.toMap
@@ -53,6 +52,7 @@ class RequestParserSpec extends Specification {
         labelOpt must beSome[Label]
         val label = labelOpt.get
         val labelWithDir = LabelWithDirection(label.id.get, 0)
+
         val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
         val propsInner = Management.toProps(label, js).map { case (k, v) => k -> InnerValWithTs.withInnerVal(v, ts) }.toMap
         val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, 0, propsInner)
@@ -61,6 +61,7 @@ class RequestParserSpec extends Specification {
         val f = validate("graph_test")(edge)_
 
         f("is_hidden = false")(false)
+        f("is_hidden != false")(true)
         f("is_hidden = true and is_blocked = true")(false)
         f("is_hidden = true and is_blocked = false")(true)
         f("time in (1, 2, 3) and is_blocked = true")(false)
@@ -68,10 +69,11 @@ class RequestParserSpec extends Specification {
         f("time in (1, 2, 3) and is_blocked = false")(true)
         f("time in (1, 2, 4) and is_blocked = false")(false)
         f("time in (1, 2, 4) or is_blocked = false")(true)
+        f("time not in (1, 2, 4)")(true)
         f("time in (1, 2, 3) and weight between 10 and 20 and is_blocked = false")(true)
         f("time in (1, 2, 4) or weight between 10 and 20 or is_blocked = true")(true)
-        f("name = abc")(true)
-        f("name = xxx")(false)
+//        f("name = abc")(true)
+//        f("name = xxx")(false)
       }
     }
     "check where clause nested" in {
@@ -96,9 +98,9 @@ class RequestParserSpec extends Specification {
         f("(time in (1, 2, 4) or weight between 1 and 9) or is_hidden = true")(true)
         f("(time in (1, 2, 3) or weight between 1 and 10) and is_hidden = false")(false)
 
-        f("(name in (a, abc, c) and weight between 1 and 10) or is_hidden = false")(true)
-        f("name between a and b or is_hidden = false")(true)
-        f("name = abc and is_hidden = true")(true)
+//        f("(name in (a, abc, c) and weight between 1 and 10) or is_hidden = false")(true)
+//        f("name between a and b or is_hidden = false")(true)
+//        f("name = abc and is_hidden = true")(true)
 
       }
     }
