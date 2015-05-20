@@ -52,7 +52,7 @@ class QuerySpec extends QuerySpecificationBase with Matchers {
 
           //    logger.debug(s">> Social Controller test Acts result : ${contentAsJson(acts)}")
           status(acts) must equalTo(OK)
-          contentType(acts) must beSome.which(_ == "text/plain")
+          contentType(acts) must beSome.which(_ == "application/json")
           val jsRslt = contentAsJson(acts)
           println("======")
           println(jsRslt)
@@ -100,7 +100,7 @@ class QuerySpec extends QuerySpecificationBase with Matchers {
 
           //    logger.debug(s">> Social Controller test Acts result : ${contentAsJson(acts)}")
           status(acts) must equalTo(OK)
-          contentType(acts) must beSome.which(_ == "text/plain")
+          contentType(acts) must beSome.which(_ == "application/json")
           val jsRslt = contentAsJson(acts)
           println("======")
           println(jsRslt)
@@ -142,7 +142,7 @@ class QuerySpec extends QuerySpecificationBase with Matchers {
 
           //    logger.debug(s">> Social Controller test Acts result : ${contentAsJson(acts)}")
           status(acts) must equalTo(OK)
-          contentType(acts) must beSome.which(_ == "text/plain")
+          contentType(acts) must beSome.which(_ == "application/json")
           val jsRslt = contentAsJson(acts)
           println("======")
           println(jsRslt)
@@ -161,9 +161,10 @@ class QuerySpec extends QuerySpecificationBase with Matchers {
 }
 
 abstract class QuerySpecificationBase extends Specification with RequestParser {
-  protected val testServiceName = "s2graph_test"
+  protected val testServiceName = "s2graph"
   protected val testLabelName = "s2graph_label_test"
   protected val testColumnName = "user_id"
+  val asyncFlushInterval = 1500 // in mill
 
   val createService =
     s"""
@@ -247,27 +248,33 @@ abstract class QuerySpecificationBase extends Specification with RequestParser {
 
   def initialize = {
     running(FakeApplication()) {
-      KafkaAggregatorActor.init()
       Graph(Config.conf.underlying)(ExecutionContext.Implicits.global)
 
       // 1. createService
       var result = AdminController.createServiceInner(Json.parse(createService))
       println(s">> Service created : $createService, $result")
       // 2. createLabel
-      result = AdminController.createLabelInner(Json.parse(createLabel))
-      println(s">> Label created : $createLabel, $result")
-      
+      try {
+        AdminController.createLabelInner(Json.parse(createLabel))
+        println(s">> Label created : $createLabel, $result")
+      } catch {
+        case e: Throwable =>
+      }
+
       // 3. insert edges
       val jsArrStr = s"[${edgesInsertInitial.mkString(",")}]"
       println(s">> 1st step Inserts : $jsArrStr")
       val inserts = toEdges(Json.parse(jsArrStr), "insert")
       Graph.mutateEdges(inserts)
+      Thread.sleep(asyncFlushInterval)
+
       println(s"<< 1st step Inserted : $jsArrStr")
 
       val jsArrStr2nd = s"[${edgesInsert2ndDepth.mkString(",")}]"
       println(s">> 2nd step Inserts : $jsArrStr2nd")
       val inserts2nd = toEdges(Json.parse(jsArrStr2nd), "insert")
       Graph.mutateEdges(inserts2nd)
+      Thread.sleep(asyncFlushInterval)
       println(s"<< 2nd step Inserted : $inserts2nd")
     }
   }
@@ -282,18 +289,19 @@ abstract class QuerySpecificationBase extends Specification with RequestParser {
       println(s"Deletes : $jsArrStr")
       val deletes = toEdges(Json.parse(jsArrStr), "delete")
       Graph.mutateEdges(deletes)
+      Thread.sleep(asyncFlushInterval)
 
       val jsArrStr2nd = s"[${edgesInsert2ndDepth.mkString(",")}]"
       println(s">> 2nd step Deletes : $jsArrStr2nd")
       val deletes2nd = toEdges(Json.parse(jsArrStr2nd), "delete")
       Graph.mutateEdges(deletes2nd)
+      Thread.sleep(asyncFlushInterval)
       println(s"<< 2nd step Deleted : $deletes2nd")
 
       // 2. delete label ( currently NOT supported )
 //      var result = AdminController.deleteLabelInner(testLabelName)
 //      println(s">> Label deleted : $testLabelName, $result")
       // 3. delete service ( currently NOT supported )
-      KafkaAggregatorActor.shutdown()
     }
 
   }

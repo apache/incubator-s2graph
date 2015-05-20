@@ -14,6 +14,7 @@ import play.api.libs.json.JsObject
 class RequestParserSpec extends Specification {
 
   // dummy data for dummy edge
+  val testLabelName = "s2graph_label_test"
   val ts = System.currentTimeMillis()
   val srcId = CompositeId(0, InnerVal.withLong(1), isEdge = true, useHash = true)
   val tgtId = CompositeId(0, InnerVal.withLong(2), isEdge = true, useHash = true)
@@ -48,7 +49,7 @@ class RequestParserSpec extends Specification {
   "RequestParser WhereParser" should {
     "check where clause not nested" in {
       running(FakeApplication()) {
-        val labelOpt = Label.findByName("graph_test")
+        val labelOpt = Label.findByName(testLabelName)
         labelOpt must beSome[Label]
         val label = labelOpt.get
         val labelWithDir = LabelWithDirection(label.id.get, 0)
@@ -58,7 +59,7 @@ class RequestParserSpec extends Specification {
         val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, 0, propsInner)
         play.api.Logger.debug(s"$edge")
         
-        val f = validate("graph_test")(edge)_
+        val f = validate(testLabelName)(edge)_
 
         f("is_hidden = false")(false)
         f("is_hidden != false")(true)
@@ -76,7 +77,7 @@ class RequestParserSpec extends Specification {
     }
     "check where clause nested" in {
       running(FakeApplication()) {
-        val labelOpt = Label.findByName("graph_test")
+        val labelOpt = Label.findByName(testLabelName)
         labelOpt must beSome[Label]
         val label = labelOpt.get
         val labelWithDir = LabelWithDirection(label.id.get, 0)
@@ -84,7 +85,7 @@ class RequestParserSpec extends Specification {
         val propsInner = Management.toProps(label, js).map { case (k, v) => k -> InnerValWithTs.withInnerVal(v, ts) }.toMap
         val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, 0, propsInner)
 
-        val f = validate("graph_test")(edge)_
+        val f = validate(testLabelName)(edge)_
 
         f("(time in (1, 2, 3) and is_blocked = true) or is_hidden = false")(false)
         f("(time in (1, 2, 3) or is_blocked = true) or is_hidden = false")(true)
@@ -104,7 +105,7 @@ class RequestParserSpec extends Specification {
     }
     "check where clause with from/to long" in {
       running(FakeApplication()) {
-        val labelOpt = Label.findByName("graph_test")
+        val labelOpt = Label.findByName(testLabelName)
         labelOpt must beSome[Label]
         val label = labelOpt.get
         val labelWithDir = LabelWithDirection(label.id.get, 0)
@@ -112,7 +113,7 @@ class RequestParserSpec extends Specification {
         val propsInner = Management.toProps(label, js).map { case (k, v) => k -> InnerValWithTs.withInnerVal(v, ts) }.toMap
         val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, 0, propsInner)
 
-        val f = validate("graph_test")(edge)_
+        val f = validate(testLabelName)(edge)_
 
 //        f("from = abc")(false)
         f("_from = 2 or _to = 2")(true)

@@ -1,13 +1,9 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.Not
 import play.api.libs.json._
 import HBaseElement.InnerVal
 
 import scala.util.parsing.combinator.JavaTokenParsers
-import scala.util.parsing.combinator.Parsers.Parser
-import scala.util.parsing.combinator.Parsers.Success
-import scala.util.parsing.combinator.Parsers.~
 
 trait JSONParser {
 

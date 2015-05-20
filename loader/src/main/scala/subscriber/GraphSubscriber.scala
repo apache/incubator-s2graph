@@ -26,63 +26,39 @@ object GraphConfig {
     zkQuorum = zkAddr.getOrElse("localhost")
     kafkaBrokers = kafkaBrokerList.getOrElse("localhost:9092")
     val s = s"""
-db.default.driver=com.mysql.jdbc.Driver
-db.default.url="$database"
-db.default.user=graph
-db.default.password=graph
+               |logger.root=ERROR
+               |
+               |# Logger used by the framework:
+               |logger.play=INFO
+               |
+               |# Logger provided to your application:
+               |logger.application=DEBUG
+               |
+               |# APP PHASE
+               |phase=dev
+               |
+               |# DB
+               |db.default.driver=com.mysql.jdbc.Driver
+               |db.default.url="$database"
+               |db.default.user=graph
+               |db.default.password=graph
+               |
+               |# Query server
+               |is.query.server=true
+               |is.write.server=true
+               |
+               |# Local Cache
+               |cache.ttl.seconds=60
+               |cache.max.size=100000
+               |
+               |# HBASE
+               |hbase.client.operation.timeout=60000
+               |
+               |# Kafka
+               |kafka.metadata.broker.list="$kafkaBrokers"
+               |kafka.producer.pool.size=0
+               |    """.stripMargin
 
-cache.ttl.seconds=60000
-cache.max.size=100000
-
-hbase.connection.pool.size=1
-hbase.table.pool.size=10
-hbase.client.ipc.pool.size=1
-zookeeper.recovery.retry=10
-zookeeper.session.timeout=180000
-hbase.zookeeper.quorum="$zkQuorum"
-hbase.table.name="s2graph-alpha"
-hbase.client.operation.timeout=10000
-hbase.client.retries.number=10
-hbase.client.write.operation.timeout=10000
-hbase.client.write.retries.number=10
-    
-kafka.metadata.broker.list="$kafkaBrokers"
-kafka.zookeeper="tokyo043.kr2.iwilab.com"
-kafka.request.required.acks=1
-kafka.producer.type="sync"
-kafka.producer.buffer.flush.time=1000
-kafka.producer.buffer.size=1000
-kafka.producer.pool.size=1
-kafka.aggregate.flush.timeout=1000
-    
-# Aggregator
-client.aggregate.buffer.size=100
-client.aggregate.buffer.flush.time=10000
-client.aggregate.pool.size=1
-
-
-# blocking execution context
-contexts {
-	query {
-		fork-join-executor {
-  		parallelism-min = 1
-    	parallelism-max = 1
-		}
-	}
-	blocking {
-		fork-join-executor {
-  		parallelism-min = 1
-    	parallelism-max = 1
-		}
-	}
-	scheduler {
-	 	fork-join-executor {
-  		parallelism-min = 1
-    	parallelism-max = 1
-		}
-	}
-}
-  """
     println(s)
     ConfigFactory.parseString(s)
   }

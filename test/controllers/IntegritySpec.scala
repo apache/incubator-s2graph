@@ -452,8 +452,8 @@ abstract class IntegritySpecificationBase extends Specification {
   def initialize = {
     running(FakeApplication()) {
 
-      KafkaAggregatorActor.init()
-      Graph(Config.conf)(ExecutionContext.Implicits.global)
+//      KafkaAggregatorActor.init()
+      Graph(Config.conf.underlying)(ExecutionContext.Implicits.global)
 
       // 1. createService
       var result = AdminController.createServiceInner(Json.parse(createService))
@@ -480,7 +480,7 @@ abstract class IntegritySpecificationBase extends Specification {
       //      println(s">> Label deleted : $testLabelName, $result")
       // 2. delete service ( currently NOT supported )
 
-      KafkaAggregatorActor.shutdown()
+//      KafkaAggregatorActor.shutdown()
     }
 
   }

@@ -6,22 +6,22 @@ import play.api.libs.json.{JsBoolean, JsNumber}
 import s2.spark.WithKafka
 
 class GraphSubscriberTest extends FunSuite with Matchers with WithKafka {
-  val phase = "alpha"
-  val dbUrl = "jdbc:mysql://nuk151.kr2.iwilab.com:13306/graph_alpha"
-  val zkQuorum = "tokyo062.kr2.iwilab.com"
-  val kafkaBrokerList = "rabat176.kr2.iwilab.com:9099"
+  val phase = "dev"
+  val dbUrl = "jdbc:mysql://localhost:3306/graph_dev"
+  val zkQuorum = "localhost"
+  val kafkaBrokerList = "localhost:9099"
   val currentTs = System.currentTimeMillis()
   val op = "insertBulk"
-  val testLabelName = "talk_friend_long_term_agg"
-  val labelToReplace = "talk_friend_long_term_agg_2015-10-10"
+  val testLabelName = "s2graph_label_test"
+  val labelToReplace = "s2graph_label_test_new"
   val serviceName = "s2graph"
-  val columnName = "account_id"
+  val columnName = "user_id"
   val columnType = "long"
   val indexProps = Seq("time" -> JsNumber(0), "weight" -> JsNumber(0))
   val props = Seq("is_hidden" -> JsBoolean(false), "is_blocked" -> JsBoolean(false))
-  val hTableName = "graph_test_tc"
+  val hTableName = "s2graph-dev_new"
   val ttl = 86000
-  val testStrings = List("1431788400000\tinsertBulk\te\t147229417\t99240432\ttalk_friend_long_term_agg\t{\"interests\":{},\"age_band\":67,\"account_id\":10099240432,\"gift_score\":0,\"service_user_id\":0,\"profile_id\":0,\"is_favorite\":\"false\",\"is_story_friend\":\"false\",\"talk_score\":1000,\"gender\":\"F\",\"interest_score\":0,\"score\":1096,\"birth_date\":\"\",\"birth_year\":1948,\"agedist_score\":966}")
+  val testStrings = List("1431788400000\tinsertBulk\te\t147229417\t99240432\ts2graph_label_test\t{\"is_hidden\": true}")
 
   GraphSubscriberHelper.apply(phase, dbUrl, zkQuorum, kafkaBrokerList)
 
