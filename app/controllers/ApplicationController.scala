@@ -17,7 +17,7 @@ object ApplicationController extends Controller with Instrumented {
   var connectionOption = CONNECTION -> "Keep-Alive"
   var keepAliveOption = "Keep-Alive" -> "timeout=5, max=100"
 
-  consoleReporter.start(10, TimeUnit.SECONDS)
+  reporter.start(10, TimeUnit.SECONDS)
 
   def updateHealthCheck(isHealthy: Boolean) = Action { request =>
     this.isHealthy = isHealthy

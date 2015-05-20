@@ -230,6 +230,8 @@ case class Label(id: Option[Int], label: String,
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
 
   //  lazy val firstHBaseTableName = hbaseTableName.split(",").headOption.getOrElse(Config.HBASE_TABLE_NAME)
+  lazy val srcService = Service.findById(srcServiceId)
+  lazy val tgtService = Service.findById(tgtServiceId)
   lazy val service = Service.findById(serviceId)
 
   /**
