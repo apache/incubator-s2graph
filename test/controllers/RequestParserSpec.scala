@@ -72,8 +72,6 @@ class RequestParserSpec extends Specification {
         f("time not in (1, 2, 4)")(true)
         f("time in (1, 2, 3) and weight between 10 and 20 and is_blocked = false")(true)
         f("time in (1, 2, 4) or weight between 10 and 20 or is_blocked = true")(true)
-//        f("name = abc")(true)
-//        f("name = xxx")(false)
       }
     }
     "check where clause nested" in {
