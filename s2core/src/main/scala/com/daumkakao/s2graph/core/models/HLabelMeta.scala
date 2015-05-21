@@ -18,7 +18,7 @@ object HLabelMeta extends JSONParser {
   val lastDeletedAt = -2.toByte
   val timeStampSeq = 0.toByte
   val countSeq = -1.toByte
-  val degreeSeq = -6.toByte
+  val degreeSeq = (Byte.MaxValue - 1).toByte
   val maxValue = Byte.MaxValue
   val emptyValue = Byte.MaxValue
 
@@ -30,15 +30,18 @@ object HLabelMeta extends JSONParser {
     "defaultValue" -> toSeq.toString, "dataType" -> "long", "usedInIndex" -> true))
   val timestamp = HLabelMeta(Map("id" -> -1, "labelId" -> -1, "name" -> "_timestamp", "seq" -> timeStampSeq,
     "defaultValue" -> "0", "dataType" -> "long", "usedInIndex" -> true))
+  val degree = HLabelMeta(Map("id" -> -1, "labelId" -> -1, "name" -> "_degree", "seq" -> degreeSeq,
+  "defaultValue" -> 0, "dataType" -> "long", "usedInIndex" -> false))
 
   val reservedMetas = List(from, to, timestamp)
-  val notExistSeqInDB = List(lastOpSeq, lastDeletedAt, countSeq, timeStampSeq, from.seq, to.seq)
+  val notExistSeqInDB = List(lastOpSeq, lastDeletedAt, countSeq, timeStampSeq, degreeSeq, from.seq, to.seq)
 
   def findById(id: Int, useCache: Boolean = true): HLabelMeta = {
     HBaseModel.find[HLabelMeta](useCache)(Seq(("id" -> id))).get
   }
   def findAllByLabelId(labelId: Int, useCache: Boolean = true): List[HLabelMeta] = {
-    HBaseModel.findsMatch[HLabelMeta](useCache)(Seq(("labelId" -> labelId)))
+    HBaseModel.findsMatch[HLabelMeta](useCache)(Seq(("labelId" -> labelId))) ++
+    List(degree)
   }
   def findByName(labelId: Int, name: String, useCache: Boolean = true): Option[HLabelMeta] = {
     name match {

@@ -58,11 +58,11 @@ trait LocalCache[V <: Object] {
     val newKey = s"$cName:withCache:$key"
     val view = cache.asMap()
     if (useCache && view.containsKey(newKey)) {
-      Logger.debug(s"withCache: $newKey => Hit")
+//      Logger.debug(s"withCache: $newKey => Hit")
       view.get(newKey)
     }
     else {
-      Logger.debug(s"withCache: $newKey => Miss")
+//      Logger.debug(s"withCache: $newKey => Miss")
       val newVal = op
       cache.put(newKey, newVal)
       newVal
@@ -72,11 +72,11 @@ trait LocalCache[V <: Object] {
     val newKey = s"$cName:withCaches:$key"
     val view = caches.asMap()
     if (useCache && view.containsKey(newKey)) {
-      Logger.debug(s"withCaches: $newKey => Hit")
+//      Logger.debug(s"withCaches: $newKey => Hit")
       view.get(newKey)
     }
     else {
-      Logger.debug(s"withCaches: $newKey => Miss")
+//      Logger.debug(s"withCaches: $newKey => Miss")
       val newVal = op
       caches.put(newKey, newVal)
       newVal

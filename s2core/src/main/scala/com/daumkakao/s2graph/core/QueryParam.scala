@@ -229,7 +229,6 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   }
   def duration(minTs: Long, maxTs: Long): QueryParam = {
     this.duration = Some((minTs, maxTs))
-    queryLogger.debug(s"Duration: $minTs ~ $maxTs")
     this
   }
 

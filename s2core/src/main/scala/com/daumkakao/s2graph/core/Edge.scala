@@ -5,6 +5,7 @@ import org.apache.hadoop.hbase.client.{ Delete, Mutation, Put, Result }
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{AtomicIncrementRequest, HBaseRpc, DeleteRequest, PutRequest}
 import org.slf4j.LoggerFactory
+import play.api.Logger
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import play.api.libs.json.Json
@@ -117,7 +118,8 @@ case class EdgeWithIndex(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: Lab
       logger.error(s"$this dont have all props for index")
       List.empty[AtomicIncrementRequest]
     } else {
-      List(new AtomicIncrementRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, null, 1L))
+      val incr = new AtomicIncrementRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, Array.empty[Byte], 1L)
+      List(incr)
     }
   }
   def buildDeletes(): List[Delete] = {
@@ -180,6 +182,7 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
 
   lazy val label = HLabel.findById(labelWithDir.labelId)
   lazy val labelOrders = HLabelIndex.findByLabelIdAll(labelWithDir.labelId)
+
   override lazy val serviceName = label.serviceName
   override lazy val queueKey = Seq(ts.toString, tgtVertex.serviceName).mkString("|")
   override lazy val queuePartitionKey = Seq(srcVertex.innerId, tgtVertex.innerId).mkString("|")
@@ -268,7 +271,7 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
         }
 
       }
-    edgePuts
+    edgePuts ++ buildVertexPutsAsync
   }
   def insert() = {
     val puts = edgesWithInvertedIndex.buildPutAsync :: edgesWithIndex.flatMap(e => e.buildPutsAsync)
@@ -705,16 +708,15 @@ object Edge {
         (qualifier.tgtVertexId, kvsMap, value.op, ts)
       case false =>
         val kvQual = kv.qualifier()
-        if (kvQual == null) {
+        if (kvQual.length == 0) {
           /** degree */
           val degree = Bytes.toLong(kv.value())
           // dirty hack
           val ts = kv.timestamp()
-          (null, Map(HLabelMeta.degreeSeq -> InnerValWithTs.withLong(degree, ts)), GraphUtil.operations("insert"), ts)
+          (rowKey.srcVertexId, Map(HLabelMeta.degreeSeq -> InnerValWithTs.withLong(degree, ts)), GraphUtil.operations("insert"), ts)
         } else {
           /** edge */
-          val kvQualLen = if (kvQual == null) 0 else kvQual.length
-          val qualifier = EdgeQualifier(kvQual, 0, kvQualLen)
+          val qualifier = EdgeQualifier(kvQual, 0, kvQual.length)
           val value = EdgeValue(kv.value(), 0)
           val kvs = qualifier.propsKVs(rowKey.labelWithDir.labelId, rowKey.labelOrderSeq) ::: value.props.toList
           val kvsMap = kvs.toMap
@@ -749,7 +751,7 @@ object Edge {
 
     val ret = if (matches.size == param.hasFilters.size && param.where.map(_.filter(edge)).getOrElse(true)) {
       //      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-      //      Logger.debug(s"fetchedEdge: $edge")
+      Logger.debug(s"fetchedEdge: $edge")
       Some(edge)
     } else {
       None
@@ -774,13 +776,14 @@ object Edge {
         (qualifier.tgtVertexId, kvsMap, value.op, ts)
       case false =>
         val kvQual = kv.qualifier()
-        if (kvQual == null) {
+        if (kvQual.length == 0) {
           /** degree */
           val degree = Bytes.toLong(kv.value())
           // dirty hack
           val ts = kv.timestamp()
-          (null, Map(HLabelMeta.degreeSeq -> InnerValWithTs.withLong(degree, ts)), GraphUtil.operations("insert"), ts)
+          (rowKey.srcVertexId, Map(HLabelMeta.degreeSeq -> InnerValWithTs.withLong(degree, ts)), GraphUtil.operations("insert"), ts)
         } else {
+          /** edge */
           val qualifier = EdgeQualifier(kvQual, 0, kvQual.length)
           val value = EdgeValue(kv.value(), 0)
           val kvs = qualifier.propsKVs(rowKey.labelWithDir.labelId, rowKey.labelOrderSeq) ::: value.props.toList
@@ -806,7 +809,9 @@ object Edge {
     /**
      * TODO: backward compatability only. deprecate has field
      */
-    Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
+    val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
+    Logger.debug(s"fetchedEdge: $edge")
+    edge
   }
 
 }

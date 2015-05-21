@@ -5,7 +5,9 @@ import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{TableName}
 import org.apache.hadoop.hbase.client._
+import play.api.Logger
 import collection.JavaConversions._
+import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.reflect.runtime.{universe => ru}
 
@@ -130,6 +132,17 @@ object HBaseModel extends LocalCache[Result] {
     }
   }
   def toCacheKey(kvs: Seq[(KEY, VAL)]) = kvs.map { kv => s"${kv._1}$INNER_DELIMITER${kv._2}" }.mkString(KEY_VAL_DELIMITER)
+  def distincts[T: ClassTag](ls: List[T]): List[T] = {
+    val uniq = new mutable.HashSet[String]
+    for {
+      r <- ls
+      m = r.asInstanceOf[HBaseModel[_]]
+      if m.kvs.containsKey("id") && !uniq.contains(m.kvs("id").toString)
+    } yield {
+      uniq += m.kvs("id").toString
+      r
+    }
+  }
   def find[T : ClassTag](useCache: Boolean = true)(idxKeyVals: Seq[(KEY, VAL)]): Option[T] = {
     val result = withCache(toCacheKey(idxKeyVals), useCache) {
       val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
@@ -159,13 +172,14 @@ object HBaseModel extends LocalCache[Result] {
         scan.addColumn(modelCf.getBytes, qualifier.getBytes)
         val resScanner = table.getScanner(scan)
         resScanner.toList
-//        val models = for {r <- resScanner; m <- fromResult[T](r)} yield m
-//        models.toList
+        //        val models = for {r <- resScanner; m <- fromResult[T](r)} yield m
+        //        models.toList
       } finally {
         table.close()
       }
     }
-    results.flatMap { r => fromResult[T](r) }
+    val rs = results.flatMap { r => fromResult[T](r) }
+    distincts[T](rs)
   }
   def findsMatch[T : ClassTag](useCache: Boolean = true)(idxKeyVals: Seq[(KEY, VAL)]): List[T] = {
     val results = withCaches(toCacheKey(idxKeyVals), useCache) {
@@ -178,13 +192,14 @@ object HBaseModel extends LocalCache[Result] {
         scan.addColumn(modelCf.getBytes, qualifier.getBytes)
         val resScanner = table.getScanner(scan)
         resScanner.toList
-//        val models = for {r <- resScanner; m <- fromResult[T](r)} yield m
-//        models.toList
+        //        val models = for {r <- resScanner; m <- fromResult[T](r)} yield m
+        //        models.toList
       } finally {
         table.close()
       }
     }
-    results.flatMap { r => fromResult[T](r) }
+    val rs = results.flatMap { r => fromResult[T](r) }
+    distincts[T](rs)
   }
 
   def getSequence[T : ClassTag]: Long = {
