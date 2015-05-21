@@ -2,19 +2,14 @@ package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.models.{HBaseModel, HLabel}
 import org.apache.hadoop.hbase.HBaseConfiguration
-import org.apache.hadoop.hbase.client.HConnection
-import org.apache.hadoop.hbase.client.HConnectionManager
-import org.apache.hadoop.hbase.client.HTableInterface
+import org.apache.hadoop.hbase.client._
 import java.util.concurrent.Executors
 import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.LoggerFactory
 
 import scala.collection.mutable.SynchronizedQueue
-import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.filter.FilterList
 import HBaseElement._
-import org.apache.hadoop.hbase.client.Get
-import org.apache.hadoop.hbase.client.Result
 import scala.collection.JavaConversions._
 import org.apache.hadoop.hbase.util.Bytes
 import scala.collection.mutable.HashSet
@@ -22,18 +17,14 @@ import GraphUtil._
 import org.apache.hadoop.hbase.filter.ColumnPaginationFilter
 import scala.concurrent._
 import scala.concurrent.duration._
-import org.apache.hadoop.hbase.client.HTable
 import scala.collection.mutable.ListBuffer
 import scala.annotation.tailrec
 import scala.collection.mutable.HashMap
 import org.apache.hadoop.hbase.filter.ColumnPrefixFilter
 import org.apache.hadoop.hbase.Cell
-import org.apache.hadoop.hbase.client.Delete
 import Management._
-import org.apache.hadoop.hbase.client.Row
 import play.api.libs.json.Json
 import KGraphExceptions._
-import org.apache.hadoop.hbase.client.Mutation
 import play.libs.Akka
 import com.typesafe.config.Config
 import scala.reflect.ClassTag
@@ -100,7 +91,7 @@ object GraphConnection {
   def apply(config: Config) = {
     this.config = config
     val hbaseConfig = toHBaseConfig(config)
-    (hbaseConfig -> HConnectionManager.createConnection(hbaseConfig))
+    (hbaseConfig -> ConnectionFactory.createConnection(hbaseConfig))
   }
 }
 
@@ -109,7 +100,7 @@ object Graph {
   import GraphConnection._
 
   val logger = Edge.logger
-  val conns = scala.collection.mutable.Map[String, HConnection]()
+  val conns = scala.collection.mutable.Map[String, Connection]()
   val clients = scala.collection.mutable.Map[String, HBaseClient]()
   val emptyKVs = new ArrayList[KeyValue]()
   val emptyKVlist = new ArrayList[ArrayList[KeyValue]]();
@@ -130,7 +121,7 @@ object Graph {
     this.executionContext = ex
     this.singleGetTimeout = getOrElse(config)("hbase.client.operation.timeout", 1000 millis)
     val zkQuorum = hbaseConfig.get("hbase.zookeeper.quorum")
-    conns += (zkQuorum -> conn)
+//    conns += (zkQuorum -> conn)
     //    clients += (zkQuorum -> new HBaseClient(zkQuorum, "/hbase", Executors.newCachedThreadPool(), 8))
     clients += (zkQuorum -> new HBaseClient(zkQuorum))
 
@@ -148,7 +139,7 @@ object Graph {
   def getConn(zkQuorum: String) = {
     conns.get(zkQuorum) match {
       case None =>
-        val conn = HConnectionManager.createConnection(this.hbaseConfig)
+        val conn = ConnectionFactory.createConnection(this.hbaseConfig)
         conns += (zkQuorum -> conn)
         conn
       //        throw new RuntimeException(s"connection to $zkQuorum is not established.")

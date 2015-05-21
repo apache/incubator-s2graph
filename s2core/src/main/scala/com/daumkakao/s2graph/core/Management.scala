@@ -3,13 +3,12 @@ package com.daumkakao.s2graph.core
 import HBaseElement._
 import com.daumkakao.s2graph.core.models._
 import play.api.libs.json._
-import org.apache.hadoop.hbase.client.HBaseAdmin
+import org.apache.hadoop.hbase.client.{ConnectionFactory, HBaseAdmin, Durability}
 import org.apache.hadoop.hbase.HTableDescriptor
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.TableName
 import org.apache.hadoop.hbase.HColumnDescriptor
-import org.apache.hadoop.hbase.client.Durability
 import org.apache.hadoop.hbase.io.compress.Compression
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
@@ -250,19 +249,18 @@ object Management extends JSONParser {
   def getAdmin(zkAddr: String) = {
     val conf = HBaseConfiguration.create()
     conf.set("hbase.zookeeper.quorum", zkAddr)
-
-    val adm = new HBaseAdmin(conf)
-    adm
+    val conn = ConnectionFactory.createConnection(conf)
+    conn.getAdmin
   }
   def enableTable(zkAddr: String, tableName: String) = {
-    getAdmin(zkAddr).enableTable(tableName)
+    getAdmin(zkAddr).enableTable(TableName.valueOf(tableName))
   }
   def disableTable(zkAddr: String, tableName: String) = {
-    getAdmin(zkAddr).disableTable(tableName)
+    getAdmin(zkAddr).disableTable(TableName.valueOf(tableName))
   }
   def dropTable(zkAddr: String, tableName: String) = {
-    getAdmin(zkAddr).disableTable(tableName)
-    getAdmin(zkAddr).deleteTable(tableName)
+    getAdmin(zkAddr).disableTable(TableName.valueOf(tableName))
+    getAdmin(zkAddr).deleteTable(TableName.valueOf(tableName))
   }
 //  def deleteEdgesByLabelIds(zkAddr: String,
 //    tableName: String,
@@ -323,7 +321,7 @@ object Management extends JSONParser {
     try {
       val admin = getAdmin(zkAddr)
       println(admin)
-      if (!admin.tableExists(tableName)) {
+      if (!admin.tableExists(TableName.valueOf(tableName))) {
         println("createTable")
         val desc = new HTableDescriptor(TableName.valueOf(tableName))
         desc.setDurability(Durability.ASYNC_WAL)

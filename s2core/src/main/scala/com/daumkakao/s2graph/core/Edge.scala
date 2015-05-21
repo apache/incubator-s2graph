@@ -29,7 +29,7 @@ case class EdgeWithIndexInverted(srcVertex: Vertex, tgtVertex: Vertex, labelWith
 
   def buildPut() = {
     val put = new Put(rowKey.bytes)
-    put.add(edgeCf, qualifier.bytes, version, value.bytes)
+    put.addColumn(edgeCf, qualifier.bytes, version, value.bytes)
   }
   def buildPutAsync() = {
     new PutRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, value.bytes, version)
@@ -101,7 +101,7 @@ case class EdgeWithIndex(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: Lab
       val put = new Put(rowKey.bytes)
       //    Logger.debug(s"$this")
       //      Logger.debug(s"EdgeWithIndex.buildPut: $rowKey, $qualifier, $value")
-      put.add(edgeCf, qualifier.bytes, version, value.bytes)
+      put.addColumn(edgeCf, qualifier.bytes, version, value.bytes)
       List(put)
     }
   }
@@ -126,7 +126,7 @@ case class EdgeWithIndex(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: Lab
     if (!hasAllPropsForIndex) List.empty[Delete]
     else {
       val delete = new Delete(rowKey.bytes)
-      delete.deleteColumns(edgeCf, qualifier.bytes, version)
+      delete.addColumns(edgeCf, qualifier.bytes, version)
       List(delete)
     }
   }

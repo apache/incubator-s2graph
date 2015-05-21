@@ -58,7 +58,7 @@ case class Vertex(id: CompositeId,
         // all props have same timestamp version in hbase.
         // This
         //        play.api.Logger.debug(s"VertexBuildPuts: $rowKey, $q")
-        put.add(vertexCf, q.bytes, ts, v.bytes)
+        put.addColumn(vertexCf, q.bytes, ts, v.bytes)
       }
     puts.toList
   }

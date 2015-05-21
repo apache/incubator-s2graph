@@ -3,7 +3,7 @@ package com.daumkakao.s2graph.core.models
 import com.daumkakao.s2graph.core._
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.{TableName}
+import org.apache.hadoop.hbase.{CellUtil, TableName}
 import org.apache.hadoop.hbase.client._
 import play.api.Logger
 import collection.JavaConversions._
@@ -99,17 +99,16 @@ object HBaseModel extends LocalCache[Result] {
     List(tableName, toKVs(idxKeyVals)).mkString(DELIMITER)
   }
   def fromResultOnlyVal(r: Result): Array[Byte] = {
-    if (r == null || r.isEmpty) None
+    if (r == null || r.isEmpty) Array.empty[Byte]
     val cell = r.getColumnLatestCell(modelCf.getBytes, qualifier.getBytes)
-    cell.getValue
+    CellUtil.cloneValue(cell)
   }
   def fromResult[T : ClassTag](r: Result): Option[T] = {
     if (r == null || r.isEmpty) None
     else {
        r.listCells().headOption.map { cell =>
-        val rowKey = Bytes.toString(cell.getRow)
-        val qualifier = Bytes.toString(cell.getQualifier)
-        val value = Bytes.toString(cell.getValue)
+        val rowKey = Bytes.toString(CellUtil.cloneRow(cell))
+        val value = Bytes.toString(CellUtil.cloneValue(cell))
         val elements = rowKey.split(DELIMITER)
         val (tName, idxKeyVals) = (elements(0), elements(1))
         val merged = toKVTuplesMap(idxKeyVals) ++ toKVTuplesMap(value)
@@ -121,9 +120,8 @@ object HBaseModel extends LocalCache[Result] {
     if (r == null || r.isEmpty) List.empty[T]
     else {
       r.listCells().map { cell =>
-        val rowKey = Bytes.toString(cell.getRow)
-        val qualifier = Bytes.toString(cell.getQualifier)
-        val value = Bytes.toString(cell.getValue)
+        val rowKey = Bytes.toString(CellUtil.cloneRow(cell))
+        val value = Bytes.toString(CellUtil.cloneValue(cell))
         val elements = rowKey.split(DELIMITER)
         val (tName, idxKeyVals) = (elements(0), elements(1))
         val merged = toKVTuplesMap(idxKeyVals) ++ toKVTuplesMap(value)
@@ -211,7 +209,7 @@ object HBaseModel extends LocalCache[Result] {
       if (result == null || result.isEmpty) 0L
       else {
         val cell = result.getColumnLatestCell(modelCf.getBytes, idQualifier.getBytes)
-        Bytes.toLong(cell.getValue())
+        Bytes.toLong(CellUtil.cloneValue(cell))
       }
     } finally {
       table.close()
