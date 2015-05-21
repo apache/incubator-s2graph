@@ -751,7 +751,7 @@ object Edge {
 
     val ret = if (matches.size == param.hasFilters.size && param.where.map(_.filter(edge)).getOrElse(true)) {
       //      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-      Logger.debug(s"fetchedEdge: $edge")
+//      Logger.debug(s"fetchedEdge: $edge")
       Some(edge)
     } else {
       None
@@ -810,7 +810,7 @@ object Edge {
      * TODO: backward compatability only. deprecate has field
      */
     val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-    Logger.debug(s"fetchedEdge: $edge")
+//    Logger.debug(s"fetchedEdge: $edge")
     edge
   }
 
