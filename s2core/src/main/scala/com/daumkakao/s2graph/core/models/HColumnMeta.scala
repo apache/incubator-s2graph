@@ -10,6 +10,7 @@ object HColumnMeta {
   val timeStampSeq = 0.toByte
   val countSeq = -1.toByte
   val lastModifiedAtColumnSeq = 0.toByte
+
   val lastModifiedAtColumn = HColumnMeta(Map("id" -> 0, "columnId" -> 0,
     "name" -> "lastModifiedAt", "seq" -> lastModifiedAtColumnSeq))
   val maxValue = Byte.MaxValue

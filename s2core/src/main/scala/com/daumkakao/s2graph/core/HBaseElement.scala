@@ -424,6 +424,8 @@ object HBaseElement {
 
   object EdgeQualifier {
     val isEdge = true
+    val degreeTgtId = Byte.MinValue
+    val degreeOp = 0.toByte
     def apply(bytes: Array[Byte], offset: Int, len: Int): EdgeQualifier = {
       var pos = offset
       val op = bytes(offset + len - 1)
@@ -456,6 +458,7 @@ object HBaseElement {
       }
     }
   }
+
   object EdgeQualifierInverted {
     def apply(bytes: Array[Byte], offset: Int): EdgeQualifierInverted = {
       val tgtVertexId = CompositeId(bytes, offset, true, false)

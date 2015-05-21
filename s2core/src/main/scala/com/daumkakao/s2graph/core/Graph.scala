@@ -58,7 +58,6 @@ object GraphConstant {
   val maxValidEdgeListSize = 10000
 
   //  implicit val ex = play.api.libs.concurrent.Execution.Implicits.defaultContext
-  val queryLogger = play.api.Logger("query")
 }
 object GraphConnection {
   val logger = Graph.logger
@@ -235,7 +234,7 @@ object Graph {
       op
     } catch {
       case e: Throwable =>
-        queryLogger.error(s"withTimeout: $e", e)
+        logger.error(s"withTimeout: $e", e)
         Future { fallback }(this.executionContext)
     }
   }
@@ -262,7 +261,7 @@ object Graph {
     d.addBoth(new Callback[Unit, A] {
       def call(arg: A) = arg match {
         case e: Throwable =>
-          queryLogger.error(s"deferred return throwable: $e", e)
+          logger.error(s"deferred return throwable: $e", e)
           promise.success(fallback)
         case _ => promise.success(arg)
       }
@@ -275,7 +274,7 @@ object Graph {
     d.addBoth(new Callback[Unit, T]{
       def call(arg: T) = arg match {
         case e: Throwable =>
-          queryLogger.error(s"deferred return throwable: $e", e)
+          logger.error(s"deferred return throwable: $e", e)
           promise.failure(e)
         case _ => promise.success(arg)
       }
@@ -289,7 +288,7 @@ object Graph {
       }
     }).addErrback(new Callback[R, Exception] {
       def call(e: Exception): R = {
-        queryLogger.error(s"Exception on deferred: $e", e)
+        logger.error(s"Exception on deferred: $e", e)
         fallback
       }
     })
@@ -303,14 +302,14 @@ object Graph {
           val deferred = rpc match {
             case d: DeleteRequest => client.delete(d)
             case p: PutRequest => client.put(p)
-//            case i: AtomicIncrementRequest => client.atomicIncrement(i)
+            case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i)
           }
           deferredToFutureWithoutFallback(deferred)
         }
 //        Future.sequence(futures)
       } catch {
         case e: Throwable =>
-          queryLogger.error(s"writeAsync failed. $e", e)
+          logger.error(s"writeAsync failed. $e", e)
       }
     }
   }
@@ -376,7 +375,7 @@ object Graph {
       }
     } catch {
       case e: Throwable =>
-        queryLogger.error(s"getEdgesAsync: $e", e)
+        logger.error(s"getEdgesAsync: $e", e)
         Future { q.vertices.map(v => List.empty[(Edge, Double)]) }
     }
   }
@@ -601,7 +600,7 @@ object Graph {
               }, emptyEdges)
             } catch {
               case e @ (_: Throwable | _: Exception) =>
-                queryLogger.error(s"Exception: $e", e)
+                logger.error(s"Exception: $e", e)
                 Deferred.fromResult(emptyEdges)
             }
         }
@@ -631,7 +630,7 @@ object Graph {
               }, emptyEdges)
             } catch {
               case e @ (_: Throwable | _: Exception) =>
-                queryLogger.error(s"Exception: $e", e)
+                logger.error(s"Exception: $e", e)
                 Deferred.fromResult(emptyEdges)
 
             }

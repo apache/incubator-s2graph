@@ -18,6 +18,7 @@ object HLabelMeta extends JSONParser {
   val lastDeletedAt = -2.toByte
   val timeStampSeq = 0.toByte
   val countSeq = -1.toByte
+  val degreeSeq = -6.toByte
   val maxValue = Byte.MaxValue
   val emptyValue = Byte.MaxValue
 
