@@ -190,7 +190,8 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     this
   }
   def limit(offset: Int, limit: Int): QueryParam = {
-    this.limit = limit
+    /** since degree info is located on first always */
+    this.limit = if (offset == 0) limit + 1 else limit
     this.offset = offset
 //    this.columnPaginationFilter = new ColumnPaginationFilter(this.limit, this.offset)
     this
