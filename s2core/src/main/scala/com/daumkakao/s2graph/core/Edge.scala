@@ -273,6 +273,10 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
       }
     edgePuts ++ buildVertexPutsAsync
   }
+  def insertBulk() = {
+    edgesWithInvertedIndex.buildPut() :: edgesWithIndex.flatMap(e => e.buildPuts())
+  }
+
   def insert() = {
     val puts = edgesWithInvertedIndex.buildPutAsync :: edgesWithIndex.flatMap(e => e.buildPutsAsync)
     val incrs = edgesWithIndex.flatMap(e => e.buildIncrementsAsync())

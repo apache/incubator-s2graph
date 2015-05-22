@@ -85,59 +85,6 @@ trait RequestParser extends JSONParser {
       WhereParser(label).parse(where)
     }
   }
-  case class WhereParser(label: HLabel) extends JavaTokenParsers with JSONParser {
-
-    val metaProps = label.metaPropsInvMap ++ Map(HLabelMeta.from.name -> HLabelMeta.from, HLabelMeta.to.name -> HLabelMeta.to)
-
-    def where: Parser[Where] = rep(clause) ^^ (Where(_))
-
-    def clause: Parser[Clause] = (predicate | parens) * (
-      "and" ^^^ { (a: Clause, b: Clause) => And(a, b) } |
-      "or" ^^^ { (a: Clause, b: Clause) => Or(a, b) })
-
-    def parens: Parser[Clause] = "(" ~> clause <~ ")"
-
-    def boolean = ("true" ^^^ (true) | "false" ^^^ (false))
-
-    /** floating point is not supported yet **/
-    def predicate = (
-      (ident ~ "=" ~ ident | ident ~ "=" ~ decimalNumber | ident ~ "=" ~ stringLiteral) ^^ {
-        case f ~ "=" ~ s =>
-          metaProps.get(f) match {
-            case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
-            case Some(metaProp) =>
-              Equal(metaProp.seq, toInnerVal(s, metaProp.dataType))
-          }
-
-      }
-      | (ident ~ "between" ~ ident ~ "and" ~ ident | ident ~ "between" ~ decimalNumber ~ "and" ~ decimalNumber
-        | ident ~ "between" ~ stringLiteral ~ "and" ~ stringLiteral) ^^ {
-          case f ~ "between" ~ minV ~ "and" ~ maxV =>
-            metaProps.get(f) match {
-              case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
-              case Some(metaProp) =>
-                Between(metaProp.seq, toInnerVal(minV, metaProp.dataType), toInnerVal(maxV, metaProp.dataType))
-            }
-        }
-        | (ident ~ "in" ~ "(" ~ rep(ident | decimalNumber | stringLiteral | "true" | "false" | ",") ~ ")") ^^ {
-          case f ~ "in" ~ "(" ~ vals ~ ")" =>
-            metaProps.get(f) match {
-              case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
-              case Some(metaProp) =>
-                val values = vals.filter(v => v != ",").map { v =>
-                  toInnerVal(v, metaProp.dataType)
-                }
-                IN(metaProp.seq, values.toSet)
-            }
-        })
-
-    def parse(sql: String): Option[Where] = {
-      parseAll(where, sql) match {
-        case Success(r, q) => Some(r)
-        case x => println(x); None
-      }
-    }
-  }
 
   def toQuery(jsValue: JsValue, isEdgeQuery: Boolean = true): Query = {
     try {
