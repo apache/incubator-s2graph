@@ -2,6 +2,7 @@ package controllers
 
 import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
+import com.daumkakao.s2graph.core.models._
 import play.api.Logger
 import play.api.libs.json._
 import com.daumkakao.s2graph.rest.config.Config
@@ -18,7 +19,7 @@ trait RequestParser extends JSONParser {
     } yield {
       for {
         (k, v) <- js.fields
-        labelOrderType <- LabelMeta.findByName(labelId, k)
+        labelOrderType <- HLabelMeta.findByName(labelId, k)
       } yield {
         val value = v match {
           case n: JsNumber => n.as[Double]
@@ -29,7 +30,7 @@ trait RequestParser extends JSONParser {
     }
     ret
   }
-  def extractInterval(label: Label, jsValue: JsValue) = {
+  def extractInterval(label: HLabel, jsValue: JsValue) = {
     val ret = for {
       js <- parse[Option[JsObject]](jsValue, "interval")
       fromJs <- parse[Option[JsObject]](js, "from")
@@ -42,7 +43,7 @@ trait RequestParser extends JSONParser {
     //    Logger.debug(s"extractInterval: $ret")
     ret
   }
-  def extractDuration(label: Label, jsValue: JsValue) = {
+  def extractDuration(label: HLabel, jsValue: JsValue) = {
     for {
       js <- parse[Option[JsObject]](jsValue, "duration")
     } yield {
@@ -51,13 +52,13 @@ trait RequestParser extends JSONParser {
       (minTs, maxTs)
     }
   }
-  def extractHas(label: Label, jsValue: JsValue) = {
+  def extractHas(label: HLabel, jsValue: JsValue) = {
     val ret = for {
       js <- parse[Option[JsObject]](jsValue, "has")
     } yield {
       for {
         (k, v) <- js.fields
-        labelMeta = Management.tryOption((label.id.get, k), LabelMeta.findByName)
+        labelMeta <- HLabelMeta.findByName(label.id.get, k)
         value <- jsValueToInnerVal(v, labelMeta.dataType)
       } yield {
         (labelMeta.seq -> value)
@@ -79,7 +80,7 @@ trait RequestParser extends JSONParser {
       })
     }
   }
-  def extractWhere(label: Label, jsValue: JsValue) = {
+  def extractWhere(label: HLabel, jsValue: JsValue) = {
     (jsValue \ "where").asOpt[String].flatMap { where =>
       WhereParser(label).parse(where)
     }
@@ -91,9 +92,9 @@ trait RequestParser extends JSONParser {
         (for {
           value <- parse[List[JsValue]](jsValue, "srcVertices")
           serviceName = parse[String](value, "serviceName")
-          service <- Service.findByName(serviceName)
+          service <- HService.findByName(serviceName)
           column <- parse[Option[String]](value, "columnName")
-          col <- ServiceColumn.find(service.id.get, column)
+          col <- HServiceColumn.find(service.id.get, column)
         } yield {
           val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
           val idVals = (idOpt, idsOpt) match {
@@ -120,7 +121,7 @@ trait RequestParser extends JSONParser {
             for {
               labelGroup <- step.as[List[JsValue]]
               label <- parse[Option[String]](labelGroup, "label")
-              label <- Label.findByName(label)
+              label <- HLabel.findByName(label)
             } yield {
               val direction = parse[Option[String]](labelGroup, "direction").map(GraphUtil.toDirection(_)).getOrElse(0)
               val limit = {
@@ -139,9 +140,9 @@ trait RequestParser extends JSONParser {
               val exclude = parse[Option[Boolean]](labelGroup, "exclude").getOrElse(false)
               val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
               val hasFilter = extractHas(label, labelGroup)
-              val outputField = for (of <- (labelGroup \ "outputField").asOpt[String]; labelMeta <- LabelMeta.findByName(label.id.get, of)) yield labelMeta.seq
+              val outputField = for (of <- (labelGroup \ "outputField").asOpt[String]; labelMeta <- HLabelMeta.findByName(label.id.get, of)) yield labelMeta.seq
               val labelWithDir = LabelWithDirection(label.id.get, direction)
-              val indexSeq = label.indexSeqsMap.get(scorings.map(kv => kv._1).toList).map(x => x.seq).getOrElse(LabelIndex.defaultSeq)
+              val indexSeq = label.indexSeqsMap.get(scorings.map(kv => kv._1).toList).map(x => x.seq).getOrElse(HLabelIndex.defaultSeq)
               val where = extractWhere(label, labelGroup)
               // TODO: refactor this. dirty
               val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
@@ -245,7 +246,7 @@ trait RequestParser extends JSONParser {
     jsObjDuplicateKeyCheck(metaJs)
     val idxProps = for ((k, v) <- idxJs.fields) yield (k, v)
     val metaProps = for ((k, v) <- metaJs.fields) yield (k, v)
-    val consistencyLevel = (jsValue \ "consistencyLevel").asOpt[String].getOrElse("weak")
+    val consistencyLevel = (jsValue \ "consistencyLevel").asOpt[String].getOrElse("week")
     // expect new label don`t provide hTableName
     val hTableName = (jsValue \ "hTableName").asOpt[String]
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
@@ -273,7 +274,6 @@ trait RequestParser extends JSONParser {
     val propName = parse[String](jsValue, "name")
     val defaultValue = parse[JsValue](jsValue, "defaultValue")
     val dataType = parse[String](jsValue, "dataType")
-    val usedInIndex = parse[Option[Boolean]](jsValue, "usedInIndex").getOrElse(false)
-    (propName, defaultValue, dataType, usedInIndex)
+    (propName, defaultValue, dataType)
   }
 }

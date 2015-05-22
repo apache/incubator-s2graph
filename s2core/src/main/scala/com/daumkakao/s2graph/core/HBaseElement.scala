@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core
 import GraphUtil._
 import KGraphExceptions._
+import com.daumkakao.s2graph.core.models.{HLabelIndex, HLabelMeta}
 import org.apache.hadoop.hbase.util.Bytes
 import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.Cell
@@ -135,7 +136,7 @@ object HBaseElement {
     }
     def apply(bytes: Array[Byte], offset: Int): InnerVal = {
       var pos = offset
-      //      
+      //
       val len = bytes(pos)
       //      play.api.Logger.debug(s"${bytes(offset)}: ${bytes.toList.slice(pos, bytes.length)}")
       pos += 1
@@ -277,7 +278,7 @@ object HBaseElement {
     def <=(other: InnerVal) = this.compare(other) <= 0
     def >(other: InnerVal) = this.compare(other) > 0
     def >=(other: InnerVal) = this.compare(other) >= 0
-    
+
   }
   object InnerValWithTs {
     def apply(bytes: Array[Byte], offset: Int): InnerValWithTs = {
@@ -357,7 +358,7 @@ object HBaseElement {
     pos += 1
     val kvs = new ArrayBuffer[(Byte, InnerVal)]
     for (i <- (0 until len)) {
-      val k = LabelMeta.emptyValue
+      val k = HLabelMeta.emptyValue
       val v = InnerVal(bytes, pos)
       pos += v.bytes.length
       kvs += (k -> v)
@@ -423,6 +424,8 @@ object HBaseElement {
 
   object EdgeQualifier {
     val isEdge = true
+    val degreeTgtId = Byte.MinValue
+    val degreeOp = 0.toByte
     def apply(bytes: Array[Byte], offset: Int, len: Int): EdgeQualifier = {
       var pos = offset
       val op = bytes(offset + len - 1)
@@ -443,9 +446,9 @@ object HBaseElement {
     lazy val bytes = Bytes.add(propsBytes, innerTgtVertexId.bytes, opBytes)
     //TODO:
     def propsKVs(labelId: Int, labelOrderSeq: Byte): List[(Byte, InnerVal)] = {
-      val filtered = props.filter(kv => kv._1 != LabelMeta.emptyValue)
+      val filtered = props.filter(kv => kv._1 != HLabelMeta.emptyValue)
       if (filtered.isEmpty) {
-        val opt = for (index <- LabelIndex.findByLabelIdAndSeq(labelId, labelOrderSeq)) yield {
+        val opt = for (index <- HLabelIndex.findByLabelIdAndSeq(labelId, labelOrderSeq)) yield {
           val v = index.metaSeqs.zip(props.map(_._2))
           v
         }
@@ -455,6 +458,7 @@ object HBaseElement {
       }
     }
   }
+
   object EdgeQualifierInverted {
     def apply(bytes: Array[Byte], offset: Int): EdgeQualifierInverted = {
       val tgtVertexId = CompositeId(bytes, offset, true, false)

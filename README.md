@@ -3,7 +3,7 @@
 **s2graph**
 ===================
 
-**s2graph** is a **GraphDB** that stores big data using **edges** and **vertices**, and also serves REST APIs for querying information on its edges and vertices. It provide fully  **asynchronous, non-blocking API**. This document defines terms and concepts used in s2graph and describes its REST API. 
+**s2graph** is a **GraphDB** that stores big data using **edges** and **vertices**, and also serves REST APIs for querying information on its edges and vertices. It provide fully  **asynchronous, non-blocking API to manupulate and traverse(breadth first search) large graph**. This document defines terms and concepts used in s2graph and describes its REST API. 
 
 
 Table of content
@@ -20,7 +20,8 @@ Table of content
 - [1. Create a Label - `POST /graphs/createLabel`](#1-create-a-label---post-graphscreatelabel)
   - [1.1 label definition](#11-label-definition)
   - [1.2 label example](#12-label-example)
-  - [1.3 Consistency level.](#13-consistency-level)
+  - [1.3 Add extra props on label.](#13-add-extra-props-on-label)
+  - [1.4 Consistency level.](#14-consistency-level)
 - [2. (Optionally) Add Extra Indexes - `POST /graphs/addIndex`](#2-optionally-add-extra-indexes---post-graphsaddindex)
 - [3. Insert and Manipulate Edges](#3-insert-and-manipulate-edges)
   - [Edge Operations](#edge-operations)
@@ -60,10 +61,11 @@ Table of content
   - [Test data](#test-data)
     - [1. friend of friend](#1-friend-of-friend)
     - [2. friends](#2-friends)
-- [new benchmark (asynchbase)](#new-benchmark-asynchbase)
+- [new benchmark (with asynchbase)](#new-benchmark-asynchbase)
     - [1. one step query](#1-one-step-query)
     - [2. two step query](#2-two-step-query)
     - [3. three step query](#3-three-step-query)
+- [8. Resources](#8-resources)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -94,12 +96,10 @@ to getup and running following is required.
 	2.  `brew install hadoop` and `brew install hbase` if you are on mac.
 	3. otherwise checkout [reference](http://hbase.apache.org/book.html#quickstart) for how to setup hbase.
 	4. note that currently we support latest stable version of apache **hbase 1.0.1 with apache hadoop version 2.7.0**. if you are using cdh, then you can checkout our **feature/cdh5.3.0**. we are working on providing profile on hbase/hadoop version soon.
-2. [mysql](https://www.mysql.com/) setup.
-	3. first create new user for s2graph on your mysql. 
-	4. create database and grant all privileges to this user on created database.
-	5. run s2core/migrate/mysql/schema.sql on created database.
-	6. set mysql connection info in `conf/reference.conf` - db.defaut.[url, user, password]
-	7. because of [license issue](https://github.com/daumkakao/s2graph/issues/4), we are working on change this to [Derby](https://db.apache.org/derby)
+2. s2graph store metadata in hbase so you need to create hbase table first.
+	3. run ```hbase shell``` then run migration/create_models.hql. default tablename is 'models-dev'
+	4. you can configure hbase table name by setting 's2graph.models.table.name' on config/reference.conf
+		
 3. install [protobuf](https://github.com/google/protobuf).
 	4. asynchbase require protoc, so you should install protobuf.
 	5. `brew install protobuf` if you are on mac.
@@ -281,15 +281,19 @@ You can delete a label using the following API:
 curl -XPUT localhost:9000/graphs/deleteLabel/graph_test
 ```
 
-To add a new non-indexed property, use the following API:
+
+
+### 1.3 Add extra props on label.
+
+To add a new property, use the following API:
 
 ```
 curl -XPOST localhost:9000/graphs/addProp/graph_test -H 'Content-Type: Application/json' -d '
-{"name": "is_blocked", "defaultValue": false, "dataType": "boolean", "usedInIndex": false}
+{"name": "is_blocked", "defaultValue": false, "dataType": "boolean"}
 '
 ```
 
-### 1.3 Consistency level.
+### 1.4 Consistency level.
 One last important constraint on label is **consistency level**.
 
 >**This define how to store edges on storage level. note that query is completely independent with this.**
@@ -898,7 +902,7 @@ For bulk loading, source data can be either in HDFS or Kafka queue.
 
 #### 2. When the source data is in Kafka. ####
  
-assumes that data is bulk loading format and constantly coming into Kafka MQ.
+assumes that data is bulk loading format and constantly comming into Kafka MQ.
 
  - run subscriber.GraphSubscriberStreaming to extract and load into s2graph from kafka topic.
  - make sure how many edges are parsed/stored by looking at Spark UI.
@@ -961,7 +965,7 @@ total vuser = 2,072
 
 
 
-## new benchmark (asynchbase)
+### new benchmark (asynchbase) ###
 
 
 #### 1. one step query
@@ -1093,5 +1097,14 @@ total vuser = 2,072
 | 1 | 30 | 10 | 10 | 20 | 90.4TPS | 329.46ms | 
 | 1 | 20 | 10 | 10 | 20 | 83.2TPS | 238.42ms | 
 | 1 | 10 | 10 | 10 | 20 | 82.6TPS | 120.16ms | 
+
+
+## 8. Resources ##
+* [hbaseconf](http://hbasecon.com/agenda): presentation is not published yet, but you can find our [keynote](https://www.dropbox.com/home?preview=hbasecon_s2graph_final.key)
+* mailing list: use [google group](https://groups.google.com/forum/#!forum/s2graph) or fire issues on this repo.
+* contact: shom83@gmail.com
+
+
+
 
 [![Analytics](https://ga-beacon.appspot.com/UA-62888350-1/s2graph/readme.md)](https://github.com/daumkakao/s2graph)

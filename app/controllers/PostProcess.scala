@@ -2,8 +2,9 @@ package controllers
 
 import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
+import com.daumkakao.s2graph.core.models.HServiceColumn
 import play.api.Logger
-import play.api.libs.json.{JsObject, Json}
+import play.api.libs.json.{JsString, JsObject, Json}
 
 import scala.collection.TraversableOnce
 import scala.collection.mutable.HashSet
@@ -149,7 +150,7 @@ object PostProcess extends JSONParser {
     Json.toJson(vertices.map { v => vertexToJson(v) })
   }
   def vertexToJson(vertex: Vertex) = {
-    val serviceColumn = ServiceColumn.findById(vertex.id.colId)
+    val serviceColumn = HServiceColumn.findById(vertex.id.colId)
     Json.obj("columnName" -> serviceColumn.columnName, "id" -> vertex.id.innerId.toString,
       "props" -> propsToJson(serviceColumn.metaNamesMap, vertex.props))
   }
@@ -162,7 +163,7 @@ object PostProcess extends JSONParser {
     //    
     //    Logger.debug(s"edgeProps: ${edge.props} => ${props}")
     Json.obj("from" -> innerValToJsValue(edge.srcVertex.id.innerId),
-      "to" -> innerValToJsValue(edge.tgtVertex.id.innerId),
+      "to" -> (if (edge.tgtVertex == null) JsString("degree") else innerValToJsValue(edge.tgtVertex.id.innerId)),
       "label" -> edge.label.label,
       "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
       "_timestamp" -> edge.ts,

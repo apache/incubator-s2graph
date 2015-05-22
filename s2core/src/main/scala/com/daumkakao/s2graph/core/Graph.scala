@@ -1,19 +1,15 @@
 package com.daumkakao.s2graph.core
 
+import com.daumkakao.s2graph.core.models.{HBaseModel, HLabel}
 import org.apache.hadoop.hbase.HBaseConfiguration
-import org.apache.hadoop.hbase.client.HConnection
-import org.apache.hadoop.hbase.client.HConnectionManager
-import org.apache.hadoop.hbase.client.HTableInterface
+import org.apache.hadoop.hbase.client._
 import java.util.concurrent.Executors
 import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.LoggerFactory
 
 import scala.collection.mutable.SynchronizedQueue
-import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.filter.FilterList
 import HBaseElement._
-import org.apache.hadoop.hbase.client.Get
-import org.apache.hadoop.hbase.client.Result
 import scala.collection.JavaConversions._
 import org.apache.hadoop.hbase.util.Bytes
 import scala.collection.mutable.HashSet
@@ -21,18 +17,14 @@ import GraphUtil._
 import org.apache.hadoop.hbase.filter.ColumnPaginationFilter
 import scala.concurrent._
 import scala.concurrent.duration._
-import org.apache.hadoop.hbase.client.HTable
 import scala.collection.mutable.ListBuffer
 import scala.annotation.tailrec
 import scala.collection.mutable.HashMap
 import org.apache.hadoop.hbase.filter.ColumnPrefixFilter
 import org.apache.hadoop.hbase.Cell
-import org.apache.hadoop.hbase.client.Delete
 import Management._
-import org.apache.hadoop.hbase.client.Row
 import play.api.libs.json.Json
 import KGraphExceptions._
-import org.apache.hadoop.hbase.client.Mutation
 import play.libs.Akka
 import com.typesafe.config.Config
 import scala.reflect.ClassTag
@@ -57,7 +49,6 @@ object GraphConstant {
   val maxValidEdgeListSize = 10000
 
   //  implicit val ex = play.api.libs.concurrent.Execution.Implicits.defaultContext
-  val queryLogger = play.api.Logger("query")
 }
 object GraphConnection {
   val logger = Graph.logger
@@ -100,7 +91,7 @@ object GraphConnection {
   def apply(config: Config) = {
     this.config = config
     val hbaseConfig = toHBaseConfig(config)
-    (hbaseConfig -> HConnectionManager.createConnection(hbaseConfig))
+    (hbaseConfig -> ConnectionFactory.createConnection(hbaseConfig))
   }
 }
 
@@ -109,7 +100,7 @@ object Graph {
   import GraphConnection._
 
   val logger = Edge.logger
-  val conns = scala.collection.mutable.Map[String, HConnection]()
+  val conns = scala.collection.mutable.Map[String, Connection]()
   val clients = scala.collection.mutable.Map[String, HBaseClient]()
   val emptyKVs = new ArrayList[KeyValue]()
   val emptyKVlist = new ArrayList[ArrayList[KeyValue]]();
@@ -126,11 +117,11 @@ object Graph {
     this.config = config
     val (hbaseConfig, conn) = GraphConnection.apply(config)
     this.hbaseConfig = hbaseConfig
-    Model.apply(config)
+    HBaseModel.apply(config)
     this.executionContext = ex
     this.singleGetTimeout = getOrElse(config)("hbase.client.operation.timeout", 1000 millis)
     val zkQuorum = hbaseConfig.get("hbase.zookeeper.quorum")
-    conns += (zkQuorum -> conn)
+//    conns += (zkQuorum -> conn)
     //    clients += (zkQuorum -> new HBaseClient(zkQuorum, "/hbase", Executors.newCachedThreadPool(), 8))
     clients += (zkQuorum -> new HBaseClient(zkQuorum))
 
@@ -148,7 +139,7 @@ object Graph {
   def getConn(zkQuorum: String) = {
     conns.get(zkQuorum) match {
       case None =>
-        val conn = HConnectionManager.createConnection(this.hbaseConfig)
+        val conn = ConnectionFactory.createConnection(this.hbaseConfig)
         conns += (zkQuorum -> conn)
         conn
       //        throw new RuntimeException(s"connection to $zkQuorum is not established.")
@@ -234,7 +225,7 @@ object Graph {
       op
     } catch {
       case e: Throwable =>
-        queryLogger.error(s"withTimeout: $e", e)
+        logger.error(s"withTimeout: $e", e)
         Future { fallback }(this.executionContext)
     }
   }
@@ -261,7 +252,7 @@ object Graph {
     d.addBoth(new Callback[Unit, A] {
       def call(arg: A) = arg match {
         case e: Throwable =>
-          queryLogger.error(s"deferred return throwable: $e", e)
+          logger.error(s"deferred return throwable: $e", e)
           promise.success(fallback)
         case _ => promise.success(arg)
       }
@@ -274,7 +265,7 @@ object Graph {
     d.addBoth(new Callback[Unit, T]{
       def call(arg: T) = arg match {
         case e: Throwable =>
-          queryLogger.error(s"deferred return throwable: $e", e)
+          logger.error(s"deferred return throwable: $e", e)
           promise.failure(e)
         case _ => promise.success(arg)
       }
@@ -288,7 +279,7 @@ object Graph {
       }
     }).addErrback(new Callback[R, Exception] {
       def call(e: Exception): R = {
-        queryLogger.error(s"Exception on deferred: $e", e)
+        logger.error(s"Exception on deferred: $e", e)
         fallback
       }
     })
@@ -302,14 +293,14 @@ object Graph {
           val deferred = rpc match {
             case d: DeleteRequest => client.delete(d)
             case p: PutRequest => client.put(p)
-//            case i: AtomicIncrementRequest => client.atomicIncrement(i)
+            case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i)
           }
           deferredToFutureWithoutFallback(deferred)
         }
 //        Future.sequence(futures)
       } catch {
         case e: Throwable =>
-          queryLogger.error(s"writeAsync failed. $e", e)
+          logger.error(s"writeAsync failed. $e", e)
       }
     }
   }
@@ -375,7 +366,7 @@ object Graph {
       }
     } catch {
       case e: Throwable =>
-        queryLogger.error(s"getEdgesAsync: $e", e)
+        logger.error(s"getEdgesAsync: $e", e)
         Future { q.vertices.map(v => List.empty[(Edge, Double)]) }
     }
   }
@@ -398,7 +389,7 @@ object Graph {
 //    }
 //  }
 
-  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: Label, dir: Int): Future[Iterable[Edge]] = {
+  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: HLabel, dir: Int): Future[Iterable[Edge]] = {
     implicit val ex = this.executionContext
     val rowKey = EdgeRowKey(srcVertex.id, LabelWithDirection(label.id.get, dir), label.defaultIndex.get.seq, isInverted = true)
 
@@ -549,10 +540,10 @@ object Graph {
 
         queryParam.duplicatePolicy match {
           case Query.DuplicatePolicy.First =>
-            // use first occurrence`s score 
+            // use first occurrence`s score
             false
           case Query.DuplicatePolicy.Raw =>
-            // TODO: assumes all duplicate vertices will have same score 
+            // TODO: assumes all duplicate vertices will have same score
             seen += (key -> newScore)
             true
           case _ =>
@@ -600,7 +591,7 @@ object Graph {
               }, emptyEdges)
             } catch {
               case e @ (_: Throwable | _: Exception) =>
-                queryLogger.error(s"Exception: $e", e)
+                logger.error(s"Exception: $e", e)
                 Deferred.fromResult(emptyEdges)
             }
         }
@@ -630,7 +621,7 @@ object Graph {
               }, emptyEdges)
             } catch {
               case e @ (_: Throwable | _: Exception) =>
-                queryLogger.error(s"Exception: $e", e)
+                logger.error(s"Exception: $e", e)
                 Deferred.fromResult(emptyEdges)
 
             }
@@ -707,14 +698,14 @@ object Graph {
   def deleteVertexAll(vertices: Seq[Vertex]): Unit = {
     for {
       vertex <- vertices
-      label <- (Label.findBySrcColumnId(vertex.id.colId) ++ Label.findByTgtColumnId(vertex.id.colId)).groupBy(_.id.get).map { _._2.head }
+      label <- (HLabel.findBySrcColumnId(vertex.id.colId) ++ HLabel.findByTgtColumnId(vertex.id.colId)).groupBy(_.id.get).map { _._2.head }
     } {
       deleteVertexAllAsync(vertex.toEdgeVertex, label)
     }
     deleteVertices(vertices)
   }
 
-  private def deleteVertexAllAsync(srcVertex: Vertex, label: Label): Future[Boolean] = {
+  private def deleteVertexAllAsync(srcVertex: Vertex, label: HLabel): Future[Boolean] = {
     implicit val ex = Graph.executionContext
     val qParams = for (dir <- List(0, 1)) yield {
       val labelWithDir = LabelWithDirection(label.id.get, dir)
