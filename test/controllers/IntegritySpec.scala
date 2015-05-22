@@ -1,8 +1,10 @@
-package controllers
+package test.controllers
+
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.rest.config.Config
 import com.daumkakao.s2graph.rest.actors._
 import com.twitter.io.exp.VarSource.Ok
+import controllers.AdminController
 import org.omg.CosNaming.NamingContextPackage.NotFound
 import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration._
@@ -450,9 +452,8 @@ abstract class IntegritySpecificationBase extends Specification {
   def initialize = {
     running(FakeApplication()) {
 
-      GraphAggregatorActor.init()
-      KafkaAggregatorActor.init()
-      Graph(Config.conf)(ExecutionContext.Implicits.global)
+//      KafkaAggregatorActor.init()
+      Graph(Config.conf.underlying)(ExecutionContext.Implicits.global)
 
       // 1. createService
       var result = AdminController.createServiceInner(Json.parse(createService))
@@ -479,8 +480,7 @@ abstract class IntegritySpecificationBase extends Specification {
       //      println(s">> Label deleted : $testLabelName, $result")
       // 2. delete service ( currently NOT supported )
 
-      GraphAggregatorActor.shutdown()
-      KafkaAggregatorActor.shutdown()
+//      KafkaAggregatorActor.shutdown()
     }
 
   }

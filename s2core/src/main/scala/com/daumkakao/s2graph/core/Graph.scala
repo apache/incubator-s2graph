@@ -756,11 +756,17 @@ object Graph {
    *
    */
 
-  def toGraphElement(s: String): Option[GraphElement] = {
+  def toGraphElement(s: String, labelNameToReplace: Option[String] = None): Option[GraphElement] = {
     val parts = GraphUtil.split(s)
     try {
       val logType = parts(2)
       val element = if (logType == "edge" | logType == "e") {
+        /** current only edge is considered to be bulk loaded */
+        labelNameToReplace match {
+          case None =>
+          case Some(toReplace) =>
+            parts(5) = toReplace
+        }
         toEdge(parts)
       } else if (logType == "vertex" | logType == "v") {
         toVertex(parts)
@@ -770,7 +776,6 @@ object Graph {
       element
     } catch {
       case e: Throwable =>
-        logger.error(s"toGraphElement: $s => $e", e)
         None
     }
   }

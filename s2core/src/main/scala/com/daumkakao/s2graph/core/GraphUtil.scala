@@ -8,14 +8,14 @@ object GraphUtil {
   private val seperator = HBaseElement.seperator
   private val TOKEN_DELIMITER = Pattern.compile("[\t]")
   val operations = Map("i" -> 0, "insert" -> 0, "u" -> 1, "update" -> 1,
-    "increment" -> 2,  "d" -> 3, "delete" -> 3,
+    "increment" -> 2,  "d" -> 3, "delete" -> 3, 
     "deleteAll" -> 4, "insertBulk" -> 5).map {
       case (k, v) =>
         (k -> v.toByte)
     }
   val directions = Map("out" -> 0, "in" -> 1, "undirected" -> 2, "u" -> 2, "directed" -> 0, "d" -> 0)
-  val consistencyLevel = Map("week" -> 0, "strong" -> 1)
-
+  val consistencyLevel = Map("weak" -> 0, "strong" -> 1)
+  
   def toType(t: String) = {
     t.trim().toLowerCase() match {
       case "e" | "edge" => "edge"
@@ -97,7 +97,7 @@ object GraphUtil {
     val positiveHash = transformHash(hash) >> 16
     positiveHash.toShort
   }
-
+  
   def smartSplit(s: String, delemiter: String) = {
     val trimed_string = s.trim()
     if (trimed_string.equals("")) {
@@ -116,5 +116,5 @@ object GraphUtil {
       Json.parse(s).asOpt[List[String]].getOrElse(List.empty[String])
     }
   }
-
+  
 }

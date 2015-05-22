@@ -68,7 +68,6 @@ CREATE TABLE `labels` (
   `consistency_level` varchar(8) NOT NULL DEFAULT 'weak',
   `hbase_table_name` varchar(255) NOT NULL DEFAULT 's2graph',
   `hbase_table_ttl` integer,
-  `is_async` tinyint	NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_label` (`label`),
   INDEX `idx_src_column_name` (`src_column_name`),

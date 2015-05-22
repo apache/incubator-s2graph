@@ -128,6 +128,11 @@ case class Between(val propKey: Byte, val minValue: InnerVal, val maxValue: Inne
 
   }
 }
+case class Not(val self: Clause) extends Clause {
+  override def filter(edge: Edge): Boolean = {
+    !self.filter(edge)
+  }
+}
 case class And(val left: Clause, val right: Clause) extends Clause {
   override def filter(edge: Edge): Boolean = {
     left.filter(edge) && right.filter(edge)
