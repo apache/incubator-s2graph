@@ -1,20 +1,20 @@
 package controllers
 
 import com.daumkakao.s2graph.core._
+import com.daumkakao.s2graph.core.models.{HLabel, HLabelMeta, HService}
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, Controller}
 
 
 object AdminController extends Controller with RequestParser {
-
   /**
    * Management
    */
   def getService(serviceName: String) = Action { request =>
-    Service.findByName(serviceName) match {
+    Management.findService(serviceName) match {
       case None => NotFound
-      case Some(service) => Ok(s"${service.serviceName} exist.")
+      case Some(service) => Ok(s"${service.toJson} exist.").as(QueryController.applicationJsonHeader)
     }
   }
 
@@ -25,8 +25,8 @@ object AdminController extends Controller with RequestParser {
   def createServiceInner(jsValue: JsValue) = {
     try {
       val (serviceName, cluster, tableName, preSplitSize, ttl) = toServiceElements(jsValue)
-      val service = Service.findOrInsert(serviceName, cluster, tableName, preSplitSize, ttl)
-      Ok(s"$serviceName service created.\n")
+      val service = Management.createService(serviceName, cluster, tableName, preSplitSize, ttl)
+      Ok(s"$service service created.\n").as(QueryController.applicationJsonHeader)
     } catch {
       case e: Throwable =>
         Logger.error(s"$e", e)
@@ -46,7 +46,7 @@ object AdminController extends Controller with RequestParser {
 
       Management.createLabel(labelName, srcServiceName, srcColumnName, srcColumnType,
         tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL)
-      Ok("Created\n")
+      Ok("Created\n").as(QueryController.applicationJsonHeader)
     } catch {
       case e: Throwable =>
         Logger.error(s"$e", e)
@@ -58,7 +58,7 @@ object AdminController extends Controller with RequestParser {
     try {
       val (labelName, props) = toIndexElements(request.body)
       Management.addIndex(labelName, props)
-      Ok("Created\n")
+      Ok("Created\n").as(QueryController.applicationJsonHeader)
     } catch {
       case e: Throwable =>
         Logger.error(s"$e", e)
@@ -67,21 +67,21 @@ object AdminController extends Controller with RequestParser {
   }
 
   def getLabel(labelName: String) = Action { request =>
-    Label.findByName(labelName, false) match {
-      case None => NotFound("NotFound\n")
+    Management.findLabel(labelName) match {
+      case None => NotFound("NotFound\n").as(QueryController.applicationJsonHeader)
       case Some(label) =>
-        Ok(s"${label.toJson}\n")
+        Ok(s"${label.toJson}\n").as(QueryController.applicationJsonHeader)
     }
   }
 
   def getLabels(serviceName: String) = Action { request =>
-    Service.findByName(serviceName) match {
-      case None => BadRequest(s"create service first.")
+    HService.findByName(serviceName) match {
+      case None => BadRequest(s"create service first.").as(QueryController.applicationJsonHeader)
       case Some(service) =>
-        val srcs = Label.findBySrcServiceId(service.id.get)
-        val tgts = Label.findByTgtServiceId(service.id.get)
+        val srcs = HLabel.findBySrcServiceId(service.id.get)
+        val tgts = HLabel.findByTgtServiceId(service.id.get)
         val json = Json.obj("from" -> srcs.map(src => src.toJson), "to" -> tgts.map(tgt => tgt.toJson))
-        Ok(s"$json\n")
+        Ok(s"$json\n").as(QueryController.applicationJsonHeader)
     }
   }
 
@@ -90,29 +90,26 @@ object AdminController extends Controller with RequestParser {
   }
 
   def deleteLabelInner(labelName: String) = {
-    Label.findByName(labelName) match {
+    HLabel.findByName(labelName) match {
       case None => NotFound
       case Some(label) =>
         val json = label.toJson
         label.deleteAll
-        Ok(s"${json} is deleted.\n")
+        Ok(s"${json} is deleted.\n").as(QueryController.applicationJsonHeader)
     }
   }
 
 
   def addProp(labelName: String) = Action(parse.json) { request =>
-    val (propName, defaultValue, dataType, usedInIndex) = toPropElements(request.body)
+    val (propName, defaultValue, dataType) = toPropElements(request.body)
     try {
-      val metaOpt = for (label <- Label.findByName(labelName)) yield {
-        LabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType, usedInIndex)
-      }
-      val meta = metaOpt.getOrElse(throw new KGraphExceptions.LabelNotExistException(s"$labelName label does not exist."))
+      val meta = Management.addProp(labelName, propName, defaultValue, dataType)
       val json = meta.toJson
-      Created(s"$json\n")
+      Created(s"$json\n").as(QueryController.applicationJsonHeader)
     } catch {
       case e: Throwable =>
         Logger.error(s"$e", e)
-        BadRequest(s"$e")
+        BadRequest(s"$e").as(QueryController.applicationJsonHeader)
     }
   }
 
@@ -144,8 +141,8 @@ object AdminController extends Controller with RequestParser {
   //  }
 
   def allServices = Action {
-    val svcs = Service.findAllServices
-    Ok(Json.toJson(svcs.map(svc => svc.toJson))).as("application/json")
+    val svcs = HService.findAllServices
+    Ok(Json.toJson(svcs.map(svc => svc.toJson))).as(QueryController.applicationJsonHeader)
   }
 
   /**

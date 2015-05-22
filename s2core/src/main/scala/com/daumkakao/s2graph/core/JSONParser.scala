@@ -1,5 +1,6 @@
 package com.daumkakao.s2graph.core
 
+import com.daumkakao.s2graph.core.models.{HLabelMeta, HLabel}
 import play.api.libs.json._
 import HBaseElement.InnerVal
 
@@ -78,9 +79,9 @@ trait JSONParser {
       case _ => value.toString
     }
   }
-  case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
+  case class WhereParser(label: HLabel) extends JavaTokenParsers with JSONParser {
 
-    val metaProps = label.metaPropsInvMap ++ Map(LabelMeta.from.name -> LabelMeta.from, LabelMeta.to.name -> LabelMeta.to)
+    val metaProps = label.metaPropsInvMap ++ Map(HLabelMeta.from.name -> HLabelMeta.from, HLabelMeta.to.name -> HLabelMeta.to)
 
     def where: Parser[Where] = rep(clause) ^^ (Where(_))
 

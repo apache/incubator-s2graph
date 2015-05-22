@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import HBaseElement._
+import com.daumkakao.s2graph.core.models.{HLabel, HLabelIndex, HLabelMeta}
 import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.util.Bytes
 import GraphConstant._
@@ -57,12 +58,12 @@ object RankParam {
 }
 class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Seq.empty[(Byte, Double)]) { // empty => Count
   def defaultKey() = {
-    this.keySeqAndWeights = List((LabelMeta.countSeq, 1.0))
+    this.keySeqAndWeights = List((HLabelMeta.countSeq, 1.0))
     this
   }
   def singleKey(key: String) = {
     this.keySeqAndWeights =
-      LabelMeta.findByName(labelId, key) match {
+      HLabelMeta.findByName(labelId, key) match {
         case None => List.empty[(Byte, Double)]
         case Some(ktype) => List((ktype.seq, 1.0))
       }
@@ -71,7 +72,7 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
 
   def multipleKey(keyAndWeights: Seq[(String, Double)]) = {
     this.keySeqAndWeights =
-      for ((key, weight) <- keyAndWeights; row <- LabelMeta.findByName(labelId, key)) yield (row.seq, weight)
+      for ((key, weight) <- keyAndWeights; row <- HLabelMeta.findByName(labelId, key)) yield (row.seq, weight)
     this
   }
 }
@@ -89,8 +90,8 @@ abstract class Clause {
 case class Equal(val propKey: Byte, val value: InnerVal) extends Clause {
   override def filter(edge: Edge): Boolean = {
     propKey match {
-      case LabelMeta.from.seq => edge.srcVertex.innerId == value
-      case LabelMeta.to.seq => edge.tgtVertex.innerId == value
+      case HLabelMeta.from.seq => edge.srcVertex.innerId == value
+      case HLabelMeta.to.seq => edge.tgtVertex.innerId == value
       case _ =>
         edge.props.get(propKey) match {
           case None => true
@@ -103,8 +104,8 @@ case class Equal(val propKey: Byte, val value: InnerVal) extends Clause {
 case class IN(val propKey: Byte, val values: Set[InnerVal]) extends Clause {
   override def filter(edge: Edge): Boolean = {
     propKey match {
-      case LabelMeta.from.seq => values.contains(edge.srcVertex.innerId)
-      case LabelMeta.to.seq => values.contains(edge.tgtVertex.innerId)
+      case HLabelMeta.from.seq => values.contains(edge.srcVertex.innerId)
+      case HLabelMeta.to.seq => values.contains(edge.tgtVertex.innerId)
       case _ =>
         edge.props.get(propKey) match {
           case None => true
@@ -116,8 +117,8 @@ case class IN(val propKey: Byte, val values: Set[InnerVal]) extends Clause {
 case class Between(val propKey: Byte, val minValue: InnerVal, val maxValue: InnerVal) extends Clause {
   override def filter(edge: Edge): Boolean = {
     propKey match {
-      case LabelMeta.from.seq => minValue <= edge.srcVertex.innerId && edge.srcVertex.innerId <= maxValue
-      case LabelMeta.to.seq => minValue <= edge.tgtVertex.innerId && edge.tgtVertex.innerId <= maxValue
+      case HLabelMeta.from.seq => minValue <= edge.srcVertex.innerId && edge.srcVertex.innerId <= maxValue
+      case HLabelMeta.to.seq => minValue <= edge.tgtVertex.innerId && edge.tgtVertex.innerId <= maxValue
       case _ =>
         edge.props.get(propKey) match {
           case None => true
@@ -148,8 +149,8 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   import Query.DuplicatePolicy._
   import Query.DuplicatePolicy
 
-  val label = Label.findById(labelWithDir.labelId)
-  val defaultKey = LabelIndex.defaultSeq
+  val label = HLabel.findById(labelWithDir.labelId)
+  val defaultKey = HLabelIndex.defaultSeq
   val fullKey = defaultKey
 
   var labelOrderSeq = fullKey
@@ -158,7 +159,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   //  var end = OrderProps.empty
   var limit = 10
   var offset = 0
-  var rank = new RankParam(labelWithDir.labelId, List(LabelMeta.countSeq -> 1))
+  var rank = new RankParam(labelWithDir.labelId, List(HLabelMeta.countSeq -> 1))
   var isRowKeyOnly = false
   var duration: Option[(Long, Long)] = None
 
@@ -180,7 +181,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   var duplicatePolicy = DuplicatePolicy.First
   var rpcTimeoutInMillis = 100
   var maxAttempt = 2
-  
+
   def isRowKeyOnly(isRowKeyOnly: Boolean): QueryParam = {
     this.isRowKeyOnly = isRowKeyOnly
     this
@@ -194,7 +195,8 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     this
   }
   def limit(offset: Int, limit: Int): QueryParam = {
-    this.limit = limit
+    /** since degree info is located on first always */
+    this.limit = if (offset == 0) limit + 1 else limit
     this.offset = offset
 //    this.columnPaginationFilter = new ColumnPaginationFilter(this.limit, this.offset)
     this
@@ -233,7 +235,6 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   }
   def duration(minTs: Long, maxTs: Long): QueryParam = {
     this.duration = Some((minTs, maxTs))
-    queryLogger.debug(s"Duration: $minTs ~ $maxTs")
     this
   }
 
@@ -270,12 +271,12 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     this.duplicatePolicy = policy.getOrElse(DuplicatePolicy.First)
     this
   }
-  
+
   def rpcTimeout(millis: Int): QueryParam = {
     this.rpcTimeoutInMillis = millis
     this
   }
-  
+
   def maxAttempt(attempt: Int): QueryParam = {
     this.maxAttempt = attempt;
     this

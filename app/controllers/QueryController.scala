@@ -4,6 +4,7 @@ package controllers
 import com.codahale.metrics.Meter
 import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
+import com.daumkakao.s2graph.core.models.{HLabel, HService}
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
 import play.api.Logger
 
@@ -80,7 +81,7 @@ object QueryController extends Controller  with RequestParser with Instrumented 
       getOrElseUpdateMetric[Meter](queryTemplateId)(metricRegistry.meter(queryTemplateId)).mark()
 
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
-      
+
       Logger.info(s"$jsonQuery")
       val q = toQuery(jsonQuery)
       val mineQ = Query(q.vertices, List(q.steps.last))
@@ -90,7 +91,7 @@ object QueryController extends Controller  with RequestParser with Instrumented 
         Ok(s"$json\n").as(applicationJsonHeader)
       }
     } catch {
-      case e: KGraphExceptions.BadQueryException => 
+      case e: KGraphExceptions.BadQueryException =>
         Logger.error(s"$e", e)
         Future { BadRequest.as(applicationJsonHeader) }
       case e: Throwable => Future {
@@ -124,7 +125,7 @@ object QueryController extends Controller  with RequestParser with Instrumented 
   def getEdgesGroupedExcluded() = withHeaderAsync(parse.json) { request =>
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
-      
+
       Logger.info(request.body.toString)
       val q = toQuery(request.body)
       val mineQ = Query(q.vertices, List(q.steps.last))
@@ -145,7 +146,7 @@ object QueryController extends Controller  with RequestParser with Instrumented 
   def getEdgesGroupedExcludedFormatted() = withHeaderAsync(parse.json) { request =>
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
-      
+
       Logger.info(request.body.toString)
       val q = toQuery(request.body)
       val mineQ = Query(q.vertices, List(q.steps.last))
@@ -167,7 +168,7 @@ object QueryController extends Controller  with RequestParser with Instrumented 
   def getEdge(srcId: String, tgtId: String, labelName: String, direction: String) = Action.async {
     if (!Config.IS_QUERY_SERVER) Future { Unauthorized }
     try {
-      val label = Management.tryOption((labelName, true), Label.findByName)
+      val label = HLabel.findByName(labelName).get
       val dir = Management.tryOption(direction, GraphUtil.toDir)
       val srcVertexId = toInnerVal(srcId, label.srcColumnType)
       val tgtVertexId = toInnerVal(tgtId, label.tgtColumnType)
@@ -191,7 +192,7 @@ object QueryController extends Controller  with RequestParser with Instrumented 
 
   def getVertices() = withHeaderAsync(parse.json) { request =>
     if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
-    
+
     val ts = System.currentTimeMillis()
     val props = "{}"
     try {
@@ -224,9 +225,9 @@ object QueryController extends Controller  with RequestParser with Instrumented 
     if (rId.isEmpty) Future { NotFound.as(applicationJsonHeader) }
     else {
       val id = rId.get
-      val l = Label.findByName(label).get
+      val l = HLabel.findByName(label).get
       val srcColumnName = l.srcColumn.columnName
-      val srcServiceName = Service.findById(l.srcServiceId).serviceName
+      val srcServiceName = HService.findById(l.srcServiceId).serviceName
       val queryJson = s"""
     {
     "srcVertices": [{"serviceName": "$srcServiceName", "columnName": "$srcColumnName", "id":$id}],
@@ -241,9 +242,9 @@ object QueryController extends Controller  with RequestParser with Instrumented 
   }
   def testGetEdges2(label1: String, limit1: Int, label2: String, limit2: Int) = withHeaderAsync { request =>
     val id = TestDataLoader.randomId.toString
-    val l = Label.findByName(label1).get
+    val l = HLabel.findByName(label1).get
     val srcColumnName = l.srcColumn.columnName
-    val srcServiceName = Service.findById(l.srcServiceId).serviceName
+    val srcServiceName = HService.findById(l.srcServiceId).serviceName
     val queryJson = s"""
     {
     "srcVertices": [{"serviceName": "$srcServiceName", "columnName": "$srcColumnName", "id":$id}],
@@ -258,9 +259,9 @@ object QueryController extends Controller  with RequestParser with Instrumented 
   }
   def testGetEdges3(label1: String, limit1: Int, label2: String, limit2: Int, label3: String, limit3: Int) = withHeaderAsync { request =>
     val id = TestDataLoader.randomId.toString
-    val l = Label.findByName(label1).get
+    val l = HLabel.findByName(label1).get
     val srcColumnName = l.srcColumn.columnName
-    val srcServiceName = Service.findById(l.srcServiceId).serviceName
+    val srcServiceName = HService.findById(l.srcServiceId).serviceName
     val queryJson = s"""
     {
     "srcVertices": [{"serviceName": "$srcServiceName", "columnName": "$srcColumnName", "id":$id}],
