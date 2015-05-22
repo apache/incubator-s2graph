@@ -102,12 +102,9 @@ object AdminController extends Controller with RequestParser {
 
 
   def addProp(labelName: String) = Action(parse.json) { request =>
-    val (propName, defaultValue, dataType, usedInIndex) = toPropElements(request.body)
+    val (propName, defaultValue, dataType) = toPropElements(request.body)
     try {
-      val metaOpt = for (label <- HLabel.findByName(labelName)) yield {
-        HLabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType, usedInIndex)
-      }
-      val meta = metaOpt.getOrElse(throw new KGraphExceptions.LabelNotExistException(s"$labelName label does not exist."))
+      val meta = Management.addProp(labelName, propName, defaultValue, dataType)
       val json = meta.toJson
       Created(s"$json\n")
     } catch {

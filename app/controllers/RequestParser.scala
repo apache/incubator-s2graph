@@ -327,7 +327,6 @@ trait RequestParser extends JSONParser {
     val propName = parse[String](jsValue, "name")
     val defaultValue = parse[JsValue](jsValue, "defaultValue")
     val dataType = parse[String](jsValue, "dataType")
-    val usedInIndex = parse[Option[Boolean]](jsValue, "usedInIndex").getOrElse(false)
-    (propName, defaultValue, dataType, usedInIndex)
+    (propName, defaultValue, dataType)
   }
 }

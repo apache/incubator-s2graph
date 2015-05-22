@@ -37,16 +37,7 @@ object Management extends JSONParser {
       service.deleteAll()
     }
   }
-//  def updateService(serviceName: String,
-//                    cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]) = {
-//    findService(serviceName) match {
-//      case None =>
-//        createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
-//      case Some(service) =>
-//        service.deleteAll()
-//        createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
-//    }
-//  }
+
   def createLabel(label: String,
     srcServiceName: String,
     srcColumnName: String,
@@ -92,34 +83,7 @@ object Management extends JSONParser {
       label.deleteAll()
     }
   }
-//  def updateLabel(label: String,
-//                  srcServiceName: String,
-//                  srcColumnName: String,
-//                  srcColumnType: String,
-//                  tgtServiceName: String,
-//                  tgtColumnName: String,
-//                  tgtColumnType: String,
-//                  isDirected: Boolean = true,
-//                  serviceName: String,
-//                  indexProps: Seq[(String, JsValue)],
-//                  props: Seq[(String, JsValue)],
-//                  consistencyLevel: String,
-//                  hTableName: Option[String],
-//                  hTableTTL: Option[Int]): HLabel = {
-//    findLabel(label) match {
-//      case None =>
-//        createLabel(label, srcServiceName, srcColumnName, srcColumnType,
-//          tgtServiceName, tgtColumnName, tgtColumnType,
-//          isDirected, serviceName, indexProps, props, consistencyLevel,
-//          hTableName, hTableTTL)
-//      case Some(s) =>
-//        s.deleteAll()
-//        createLabel(label, srcServiceName, srcColumnName, srcColumnType,
-//          tgtServiceName, tgtColumnName, tgtColumnType,
-//          isDirected, serviceName, indexProps, props, consistencyLevel,
-//          hTableName, hTableTTL)
-//    }
-//  }
+
   def addIndex(labelStr: String, orderByKeys: Seq[(String, JsValue)]) = {
     val label = try {
       HLabel.findByName(labelStr).get
@@ -130,11 +94,10 @@ object Management extends JSONParser {
     val labelOrderTypes =
       for ((k, v) <- orderByKeys; (innerVal, dataType) = toInnerVal(v)) yield {
 
-        val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType, true)
-        if (lblMeta.usedInIndex) lblMeta.seq
-        else throw new KGraphExceptions.LabelMetaExistException(s"")
+        val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
+        lblMeta.seq
       }
-    HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
+    HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "none")
   }
   def dropIndex(labelStr: String, orderByKeys: Seq[(String, JsValue)]) = {
     val label = try {
@@ -146,12 +109,20 @@ object Management extends JSONParser {
     val labelOrderTypes =
       for ((k, v) <- orderByKeys; (innerVal, dataType) = toInnerVal(v)) yield {
 
-        val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType, true)
-        if (lblMeta.usedInIndex) lblMeta.seq
-        else throw new KGraphExceptions.LabelMetaExistException(s"")
+        val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
+        lblMeta.seq
       }
     HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
   }
+  def addProp(labelStr: String, propName: String, defaultValue: JsValue, dataType: String) = {
+    val metaOpt = for {
+      label <- HLabel.findByName(labelStr)
+    } yield {
+      HLabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType)
+    }
+    metaOpt.getOrElse(throw new KGraphExceptions.LabelNotExistException(s"$labelStr label does not exist."))
+  }
+
   def getServiceLable(label: String): Option[HLabel] = {
     HLabel.findByName(label)
   }

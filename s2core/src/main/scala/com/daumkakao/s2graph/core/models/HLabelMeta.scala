@@ -25,13 +25,13 @@ object HLabelMeta extends JSONParser {
   /** reserved sequences */
   val from = HLabelMeta(Map("id" -> fromSeq, "labelId" -> fromSeq, "name" -> "_from", "seq" -> fromSeq,
     "defaultValue" -> fromSeq.toString,
-    "dataType" -> "long", "usedInIndex" -> true))
+    "dataType" -> "long"))
   val to = HLabelMeta(Map("id" -> toSeq, "labelId" -> toSeq, "name" -> "_to", "seq" -> toSeq,
-    "defaultValue" -> toSeq.toString, "dataType" -> "long", "usedInIndex" -> true))
+    "defaultValue" -> toSeq.toString, "dataType" -> "long"))
   val timestamp = HLabelMeta(Map("id" -> -1, "labelId" -> -1, "name" -> "_timestamp", "seq" -> timeStampSeq,
-    "defaultValue" -> "0", "dataType" -> "long", "usedInIndex" -> true))
+    "defaultValue" -> "0", "dataType" -> "long"))
   val degree = HLabelMeta(Map("id" -> -1, "labelId" -> -1, "name" -> "_degree", "seq" -> degreeSeq,
-  "defaultValue" -> 0, "dataType" -> "long", "usedInIndex" -> false))
+  "defaultValue" -> 0, "dataType" -> "long"))
 
   val reservedMetas = List(from, to, timestamp)
   val notExistSeqInDB = List(lastOpSeq, lastDeletedAt, countSeq, timeStampSeq, degreeSeq, from.seq, to.seq)
@@ -51,7 +51,7 @@ object HLabelMeta extends JSONParser {
         HBaseModel.find[HLabelMeta](useCache)(Seq(("labelId" -> labelId), ("name" -> name)))
     }
   }
-  def findOrInsert(labelId: Int, name: String, defaultValue: String, dataType: String, usedInIndex: Boolean): HLabelMeta = {
+  def findOrInsert(labelId: Int, name: String, defaultValue: String, dataType: String): HLabelMeta = {
     findByName(labelId, name, useCache = false) match {
       case Some(s) => s
       case None =>
@@ -59,7 +59,7 @@ object HLabelMeta extends JSONParser {
         val allMetas = findAllByLabelId(labelId, useCache = false)
         val seq = (allMetas.length + 1).toByte
         val model = HLabelMeta(Map("id" -> id, "labelId" -> labelId, "name" -> name, "seq" -> seq,
-          "defaultValue" -> defaultValue, "dataType" -> dataType, "usedInIndex" -> usedInIndex))
+          "defaultValue" -> defaultValue, "dataType" -> dataType))
         model.create
         model
     }
@@ -74,7 +74,7 @@ object HLabelMeta extends JSONParser {
   }
 }
 case class HLabelMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabelMeta]("HLabelMeta", kvsParam) with JSONParser {
-  override val columns = Seq("id", "labelId", "name", "seq", "defaultValue", "dataType", "usedInIndex")
+  override val columns = Seq("id", "labelId", "name", "seq", "defaultValue", "dataType")
   val pk = Seq(("id", kvs("id")))
   val idxLabelIdName = Seq(("labelId", kvs("labelId")), ("name", kvs("name")))
   val idxLabelIdSeq = Seq(("labelId", kvs("labelId")), ("seq", kvs("seq")))
@@ -87,8 +87,8 @@ case class HLabelMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabelMeta]("H
   val seq = kvs("seq").toString.toByte
   val defaultValue = kvs("defaultValue").toString
   val dataType = kvs("dataType").toString
-  val usedInIndex = kvs("usedInIndex").toString.toBoolean
+//  val usedInIndex = kvs("usedInIndex").toString.toBoolean
 
   lazy val defaultInnerVal = if (defaultValue.isEmpty) InnerVal.withStr("") else toInnerVal(defaultValue, dataType)
-  lazy val toJson = Json.obj("name" -> name, "defaultValue" -> defaultValue, "dataType" -> dataType, "usedInIndex" -> usedInIndex)
+  lazy val toJson = Json.obj("name" -> name, "defaultValue" -> defaultValue, "dataType" -> dataType)
 }

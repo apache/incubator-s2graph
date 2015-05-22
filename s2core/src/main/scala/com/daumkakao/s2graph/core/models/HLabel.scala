@@ -67,18 +67,19 @@ object HLabel {
             "hTableTTL" -> hTableTTL.getOrElse(-1)))
           label.create
 
-          val labelMetas =
-            if (props.isEmpty) List(HLabelMeta.timestamp)
+          val (indexPropsMetas, propsMetas)  = {
+            val metasWithIsIndex = if (props.isEmpty) List((HLabelMeta.timestamp, true))
             else props.toList.map {
               case (name, defaultVal, dataType, usedInIndex) =>
-                HLabelMeta.findOrInsert(createdId.toInt, name, defaultVal.toString, dataType, usedInIndex)
+                (HLabelMeta.findOrInsert(createdId.toInt, name, defaultVal.toString, dataType), usedInIndex)
             }
-
-          val defaultIndexMetaSeqs = labelMetas.filter(_.usedInIndex).map(_.seq) match {
-            case metaSeqs => if (metaSeqs.isEmpty) List(HLabelMeta.timestamp.seq) else metaSeqs
+            val (indexPropsMetas, propsMetas) = metasWithIsIndex.partition{ case (m, usedInIndex) => usedInIndex }
+            (indexPropsMetas.map (t => t._1), propsMetas.map(t => t._1))
           }
-          /** deprecated */
-          HLabelIndex.findOrInsert(createdId.toInt, HLabelIndex.defaultSeq, defaultIndexMetaSeqs, "none")
+
+          val indexMetaSeqs = indexPropsMetas.map { m => m.seq }
+          /** insert default index(PK) of this label */
+          HLabelIndex.findOrInsert(createdId.toInt, HLabelIndex.defaultSeq, indexMetaSeqs, "none")
 
           /** TODO: */
           (hTableName, hTableTTL) match {
