@@ -18,11 +18,12 @@ object HBaseModel extends LocalCache[Result] {
   val INNER_DELIMITER_WITH_ESCAPE = "\\|"
   val INNER_DELIMITER = "|"
   val META_SEQ_DELIMITER = "~"
-  val modelTableName = s"models-${GraphConnection.defaultConfigs("phase")}"
+
   val modelCf = "m"
   val idQualifier = "i"
   val qualifier = "q"
   var zkQuorum: String = "localhost"
+  var modelTableName = s"models-${GraphConnection.defaultConfigs("phase")}"
   var cacheTTL: Int = 10
   var maxCacheSize: Int = 1000
   type KEY = String
@@ -30,6 +31,7 @@ object HBaseModel extends LocalCache[Result] {
 
   def apply(config: Config) = {
     zkQuorum = GraphConnection.getOrElse(config)("hbase.zookeeper.quorum", zkQuorum)
+    modelTableName = GraphConnection.getOrElse(config)("s2graph.models.table.name", modelTableName)
     cacheTTL = GraphConnection.getOrElse(config)("cache.ttl.seconds", cacheTTL)
     maxCacheSize = GraphConnection.getOrElse(config)("cache.max.size", maxCacheSize)
   }
