@@ -3,7 +3,7 @@
 **s2graph**
 ===================
 
-**s2graph** is a **GraphDB** that stores big data using **edges** and **vertices**, and also serves REST APIs for querying information on its edges and vertices. It provide fully  **asynchronous, non-blocking API**. This document defines terms and concepts used in s2graph and describes its REST API. 
+**s2graph** is a **GraphDB** that stores big data using **edges** and **vertices**, and also serves REST APIs for querying information on its edges and vertices. It provide fully  **asynchronous, non-blocking API to manupulate and traverse(breadth first search) large graph**. This document defines terms and concepts used in s2graph and describes its REST API. 
 
 
 Table of content
@@ -20,7 +20,8 @@ Table of content
 - [1. Create a Label - `POST /graphs/createLabel`](#1-create-a-label---post-graphscreatelabel)
   - [1.1 label definition](#11-label-definition)
   - [1.2 label example](#12-label-example)
-  - [1.3 Consistency level.](#13-consistency-level)
+  - [1.3 Add extra props on label.](#13-add-extra-props-on-label)
+  - [1.4 Consistency level.](#14-consistency-level)
 - [2. (Optionally) Add Extra Indexes - `POST /graphs/addIndex`](#2-optionally-add-extra-indexes---post-graphsaddindex)
 - [3. Insert and Manipulate Edges](#3-insert-and-manipulate-edges)
   - [Edge Operations](#edge-operations)
@@ -60,10 +61,11 @@ Table of content
   - [Test data](#test-data)
     - [1. friend of friend](#1-friend-of-friend)
     - [2. friends](#2-friends)
-- [new benchmark (asynchbase)](#new-benchmark-asynchbase)
+- [new benchmark (with asynchbase)](#new-benchmark-asynchbase)
     - [1. one step query](#1-one-step-query)
     - [2. two step query](#2-two-step-query)
     - [3. three step query](#3-three-step-query)
+- [8. Resources](#8-resources)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -215,7 +217,7 @@ To create a Label, the following fields needs to be specified in the request.
 | **serviceName** | which service this label is belongs to. | either srcServiceName or tgtServiceName |s2graph |default tgtServiceName
 | hTableName | if this label need special usecase(such as batch upload), own hbase table name can be used. | string | s2graph-batch | default use service`s hTableName. <br> note that this is optional. |
 | hTableTTL | time to data keep alive. | integer |   86000 | default use service`s hTableTTL. <br> note that this is optional. |
-| consistencyLevel | if this is strong, only one edge between same from/to can be made. otherwise(week) multiple edges with same from/to can be exist. | string | strong/week | default week |
+| consistencyLevel | if this is strong, only one edge between same from/to can be made. otherwise(weak) multiple edges with same from/to can be exist. | string | strong/weak | default weak |
 
 >Note. following property names are reserved for system. user can not create property same with these reserved property names. user can use this properties for indexProps/props/where clause on query.
 >>1. **_timestamp** is reserved for system wise timestamp. this can be interpreted as last_modified_at
@@ -281,22 +283,26 @@ You can delete a label using the following API:
 curl -XPUT localhost:9000/graphs/deleteLabel/graph_test
 ```
 
-To add a new non-indexed property, use the following API:
+
+
+### 1.3 Add extra props on label.
+
+To add a new property, use the following API:
 
 ```
 curl -XPOST localhost:9000/graphs/addProp/graph_test -H 'Content-Type: Application/json' -d '
-{"name": "is_blocked", "defaultValue": false, "dataType": "boolean", "usedInIndex": false}
+{"name": "is_blocked", "defaultValue": false, "dataType": "boolean"}
 '
 ```
 
-### 1.3 Consistency level.
+### 1.4 Consistency level.
 One last important constraint on label is **consistency level**.
 
 >**This define how to store edges on storage level. note that query is completely independent with this.**
 
 To explain consistency, s2graph defined edge uniquely with their (from, label, to) triple. s2graph call this triple as unique edge key.
 
-following example is used to explain differences between strong/week consistency level.
+following example is used to explain differences between strong/weak consistency level.
 > ```
 > 1418950524721	insert	e	1 	101	graph_test	{"weight": 10} = (1, graph_test, 101)
 > 1418950524723	insert	e	1	101	graph_test	{"weight": 20} = (1, graph_test, 101)
@@ -309,7 +315,7 @@ currently there are two consistency level
 >make sure there is **only one edge stored in storage** between same edge key(**(1, graph_test, 101)** above).
 >with strong consistency level, last command overwrite previous command. 
 
-**2. week**
+**2. weak**
 >no consistency check on unique edge key. above example yield **two different edge stored in storage** with different timestamp and weight value.
 
 for example, with each configuration, following edges will be stored.
@@ -328,14 +334,14 @@ u1 -> (t4, v1), (t3, v2)
 ```
 note that u1 -> (t1, v1), (t2, v2) are not exist.
 
-with week consistencyLevel.
+with weak consistencyLevel.
 ```
 u1 -> (t4, v1), (t3, v2), (t2, v2), (t1, v1)
 ```
 
-Reason week consistency is default.
+Reason weak consistency is default.
 
-> most case edges related to user`s activity should use **week** consistencyLevel since there will be **no concurrent update on same edges**. strong consistencyLevel is only for edges expecting many concurrent updates.
+> most case edges related to user`s activity should use **weak** consistencyLevel since there will be **no concurrent update on same edges**. strong consistencyLevel is only for edges expecting many concurrent updates.
 
 
 Consistency level also determine how edges will be stored in storage when command is delivered reversely by their timestamp.
@@ -445,7 +451,7 @@ insert have different behavior according to label`s consistency level.
 1. strong consistency level(default): **1 READ + (1 DELETE+ 1 PUT, optional)**
 insert is equal to upsert. s2graph check if unique edge key exist, then if there is edge with same unique edge key, run validation then decide apply current request or drop it. 
 
-2. week consistency level: **2 PUT**
+2. weak consistency level: **2 PUT**
 no consistency check on unique edge key, insert same edge key multiple times can possibly yield multiple edges.
 
 
@@ -961,7 +967,7 @@ total vuser = 2,072
 
 
 
-## new benchmark (asynchbase)
+### new benchmark (asynchbase) ###
 
 
 #### 1. one step query
@@ -1093,6 +1099,14 @@ total vuser = 2,072
 | 1 | 30 | 10 | 10 | 20 | 90.4TPS | 329.46ms | 
 | 1 | 20 | 10 | 10 | 20 | 83.2TPS | 238.42ms | 
 | 1 | 10 | 10 | 10 | 20 | 82.6TPS | 120.16ms | 
+
+
+## 8. Resources ##
+* [hbaseconf](http://hbasecon.com/agenda): presentation is not published yet, but you can find our [keynote](https://www.dropbox.com/home?preview=hbasecon_s2graph_final.key)
+* mailing list: use [google group](https://groups.google.com/forum/#!forum/s2graph) or fire issues on this repo.
+* contact: shom83@gmail.com
+
+
 
 
 [![Analytics](https://ga-beacon.appspot.com/UA-62888350-1/s2graph/readme.md)](https://github.com/daumkakao/s2graph)

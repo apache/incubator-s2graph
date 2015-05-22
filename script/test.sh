@@ -31,7 +31,7 @@ curl -XGET localhost:9000/graphs/getLabel/graph_test
 
 # app props
 curl -XPOST localhost:9000/graphs/addProp/graph_test -H 'Content-Type: Application/json' -d '
-{"name": "rel_type", "defaultValue": 0, "dataType": "integer", "usedInIndex": false}
+{"name": "rel_type", "defaultValue": 0, "dataType": "integer"}
 '
 
 # check props is added correctly

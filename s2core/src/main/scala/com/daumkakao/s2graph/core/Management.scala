@@ -84,43 +84,49 @@ object Management extends JSONParser {
     }
   }
 
-  def addIndex(labelStr: String, orderByKeys: Seq[(String, JsValue)]) = {
-    val label = try {
-      HLabel.findByName(labelStr).get
-    } catch {
-      case e: Throwable =>
-        throw new KGraphExceptions.LabelNotExistException(labelStr)
-    }
-    val labelOrderTypes =
+  def addIndex(labelStr: String, orderByKeys: Seq[(String, JsValue)]): HLabelIndex = {
+    val result = for {
+      label <- HLabel.findByName(labelStr)
+    } yield {
+      val labelOrderTypes =
       for ((k, v) <- orderByKeys; (innerVal, dataType) = toInnerVal(v)) yield {
 
         val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
         lblMeta.seq
       }
-    HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "none")
-  }
-  def dropIndex(labelStr: String, orderByKeys: Seq[(String, JsValue)]) = {
-    val label = try {
-      HLabel.findByName(labelStr).get
-    } catch {
-      case e: Throwable =>
-        throw new KGraphExceptions.LabelNotExistException(labelStr)
+      HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "none")
     }
-    val labelOrderTypes =
-      for ((k, v) <- orderByKeys; (innerVal, dataType) = toInnerVal(v)) yield {
-
-        val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
-        lblMeta.seq
-      }
-    HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
+    result.getOrElse(throw new RuntimeException(s"add index failed"))
   }
-  def addProp(labelStr: String, propName: String, defaultValue: JsValue, dataType: String) = {
-    val metaOpt = for {
+  def dropIndex(labelStr: String, orderByKeys: Seq[(String, JsValue)]): HLabelIndex = {
+    val result = for {
+      label <- HLabel.findByName(labelStr)
+    } yield {
+      val labelOrderTypes =
+        for ((k, v) <- orderByKeys; (innerVal, dataType) = toInnerVal(v)) yield {
+
+          val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
+          lblMeta.seq
+        }
+      HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
+    }
+    result.getOrElse(throw new RuntimeException(s"drop index failed"))
+  }
+  def addProp(labelStr: String, propName: String, defaultValue: JsValue, dataType: String): HLabelMeta = {
+    val result = for {
       label <- HLabel.findByName(labelStr)
     } yield {
       HLabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType)
     }
-    metaOpt.getOrElse(throw new KGraphExceptions.LabelNotExistException(s"$labelStr label does not exist."))
+    result.getOrElse(throw new RuntimeException(s"add property on label failed"))
+  }
+  def addVertexProp(serviceName: String, columnName: String, columnType: String): HServiceColumn  = {
+    val result = for {
+      service <- HService.findByName(serviceName, useCache = false)
+    } yield {
+      HServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
+    }
+    result.getOrElse(throw new RuntimeException(s"add property on vertex failed"))
   }
 
   def getServiceLable(label: String): Option[HLabel] = {
