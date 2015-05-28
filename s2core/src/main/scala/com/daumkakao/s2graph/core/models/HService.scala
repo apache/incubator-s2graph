@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core.models
 
 import HBaseModel._
+import com.daumkakao.s2graph.core.Management
 
 import scala.reflect.ClassTag
 
@@ -25,6 +26,7 @@ object HService {
           "preSplitSize" -> preSplitSize, "hbaseTableTTL" -> hTableTTL.getOrElse(-1))
         val service = HService(kvs)
         service.create()
+        Management.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL)
         service
     }
   }
