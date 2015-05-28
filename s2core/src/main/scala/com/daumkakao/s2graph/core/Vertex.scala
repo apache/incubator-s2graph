@@ -3,6 +3,8 @@ package com.daumkakao.s2graph.core
 
 import HBaseElement._
 import com.daumkakao.s2graph.core.models.{HColumnMeta, HServiceColumn, HService}
+import com.daumkakao.s2graph.core.types.VertexType.{VertexQualifier, VertexRowKey}
+import com.daumkakao.s2graph.core.types.{InnerVal, CompositeId}
 import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.client.Delete
 import org.apache.hadoop.hbase.client.Mutation

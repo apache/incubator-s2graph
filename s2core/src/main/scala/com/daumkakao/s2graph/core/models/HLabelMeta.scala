@@ -1,8 +1,8 @@
 package com.daumkakao.s2graph.core.models
 
-import com.daumkakao.s2graph.core.HBaseElement.InnerVal
 import com.daumkakao.s2graph.core.JSONParser
 import com.daumkakao.s2graph.core.models.HBaseModel.{VAL, KEY}
+import com.daumkakao.s2graph.core.types.InnerVal
 import play.api.libs.json.{Json, JsObject, JsValue}
 
 /**
@@ -31,7 +31,7 @@ object HLabelMeta extends JSONParser {
   val timestamp = HLabelMeta(Map("id" -> -1, "labelId" -> -1, "name" -> "_timestamp", "seq" -> timeStampSeq,
     "defaultValue" -> "0", "dataType" -> "long"))
   val degree = HLabelMeta(Map("id" -> -1, "labelId" -> -1, "name" -> "_degree", "seq" -> degreeSeq,
-  "defaultValue" -> 0, "dataType" -> "long"))
+    "defaultValue" -> 0, "dataType" -> "long"))
 
   val reservedMetas = List(from, to, timestamp)
   val notExistSeqInDB = List(lastOpSeq, lastDeletedAt, countSeq, timeStampSeq, degreeSeq, from.seq, to.seq)
@@ -39,10 +39,12 @@ object HLabelMeta extends JSONParser {
   def findById(id: Int, useCache: Boolean = true): HLabelMeta = {
     HBaseModel.find[HLabelMeta](useCache)(Seq(("id" -> id))).get
   }
+
   def findAllByLabelId(labelId: Int, useCache: Boolean = true): List[HLabelMeta] = {
     HBaseModel.findsMatch[HLabelMeta](useCache)(Seq(("labelId" -> labelId))) ++
-    List(degree)
+      List(degree)
   }
+
   def findByName(labelId: Int, name: String, useCache: Boolean = true): Option[HLabelMeta] = {
     name match {
       case timestamp.name => Some(timestamp)
@@ -51,6 +53,7 @@ object HLabelMeta extends JSONParser {
         HBaseModel.find[HLabelMeta](useCache)(Seq(("labelId" -> labelId), ("name" -> name)))
     }
   }
+
   def findOrInsert(labelId: Int, name: String, defaultValue: String, dataType: String): HLabelMeta = {
     findByName(labelId, name, useCache = false) match {
       case Some(s) => s
@@ -64,6 +67,7 @@ object HLabelMeta extends JSONParser {
         model
     }
   }
+
   def convert(labelId: Int, jsValue: JsValue): Map[Byte, InnerVal] = {
     val ret = for {
       (k, v) <- jsValue.as[JsObject].fields
@@ -73,7 +77,10 @@ object HLabelMeta extends JSONParser {
     ret.toMap
   }
 }
-case class HLabelMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabelMeta]("HLabelMeta", kvsParam) with JSONParser {
+
+case class HLabelMeta(kvsParam: Map[KEY, VAL])
+  extends HBaseModel[HLabelMeta]("HLabelMeta", kvsParam) with JSONParser {
+
   override val columns = Seq("id", "labelId", "name", "seq", "defaultValue", "dataType")
   val pk = Seq(("id", kvs("id")))
   val idxLabelIdName = Seq(("labelId", kvs("labelId")), ("name", kvs("name")))
@@ -87,7 +94,7 @@ case class HLabelMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabelMeta]("H
   val seq = kvs("seq").toString.toByte
   val defaultValue = kvs("defaultValue").toString
   val dataType = kvs("dataType").toString
-//  val usedInIndex = kvs("usedInIndex").toString.toBoolean
+  //  val usedInIndex = kvs("usedInIndex").toString.toBoolean
 
   lazy val defaultInnerVal = if (defaultValue.isEmpty) InnerVal.withStr("") else toInnerVal(defaultValue, dataType)
   lazy val toJson = Json.obj("name" -> name, "defaultValue" -> defaultValue, "dataType" -> dataType)

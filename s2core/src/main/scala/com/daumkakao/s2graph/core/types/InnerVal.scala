@@ -1,11 +1,14 @@
 package com.daumkakao.s2graph.core.types
 
 import org.apache.hadoop.hbase.util._
+import play.api.libs.json.{JsString, JsNumber, JsValue}
+
 /**
  * Created by shon on 5/28/15.
  */
 object InnerVal {
   val order = Order.DESCENDING
+
   def apply(bytes: Array[Byte], offset: Int): InnerVal = {
     val pbr = new SimplePositionedByteRange(bytes)
     pbr.setOffset(offset)
@@ -16,12 +19,13 @@ object InnerVal {
       val str = OrderedBytes.decodeString(pbr)
       InnerVal(str)
     } else if (OrderedBytes.isBlobVar(pbr)) {
-      val blobVar= OrderedBytes.decodeBlobVar(pbr)
+      val blobVar = OrderedBytes.decodeBlobVar(pbr)
       InnerVal(blobVar)
     } else {
       throw new RuntimeException("!!")
     }
   }
+
   def numByteRange(num: BigDecimal) = {
     val byteLen =
       if (num.isValidByte | num.isValidChar) 1
@@ -30,9 +34,13 @@ object InnerVal {
       else if (num.isValidLong) 8
       else if (num.isValidFloat) 4
       else 11
-//      else throw new RuntimeException(s"wrong data $num")
+    //      else throw new RuntimeException(s"wrong data $num")
     new SimplePositionedMutableByteRange(byteLen + 3)
   }
+
+  def withLong(l: Long): InnerVal = InnerVal(BigDecimal(l))
+
+  def withStr(s: String): InnerVal = InnerVal(s)
 }
 
 /**
@@ -40,7 +48,9 @@ object InnerVal {
  * @param value
  */
 case class InnerVal(value: Any) {
+
   import InnerVal._
+
   lazy val bytes = {
     val ret = value match {
       case b: BigDecimal =>
@@ -61,6 +71,25 @@ case class InnerVal(value: Any) {
     ret
   }
 
+  def toVal[T] = value.asInstanceOf[T]
+
+  def compare(other: InnerVal) = Bytes.compareTo(bytes, other.bytes)
+
+  def +(other: InnerVal) = {
+    (value, other.value) match {
+      case (v1: BigDecimal, v2: BigDecimal) => InnerVal(BigDecimal(v1.bigDecimal.add(v2.bigDecimal)))
+      case _ => throw new RuntimeException("+ operation on inner val is for big decimal pair")
+    }
+  }
+
+  def <(other: InnerVal) = this.compare(other) < 0
+
+  def <=(other: InnerVal) = this.compare(other) <= 0
+
+  def >(other: InnerVal) = this.compare(other) > 0
+
+  def >=(other: InnerVal) = this.compare(other) >= 0
+
   override def equals(obj: Any) = {
     obj match {
       case other: InnerVal =>
@@ -68,4 +97,29 @@ case class InnerVal(value: Any) {
       case _ => false
     }
   }
+
+  def toJsValue(): JsValue = {
+    value match {
+      case b: BigDecimal => JsNumber(b)
+      case s: String => JsString(s)
+      case _ => throw new RuntimeException(s"$this -> toJsValue failed.")
+    }
+  }
+}
+
+object InnerValWithTs {
+  def apply(bytes: Array[Byte], offset: Int): InnerValWithTs = {
+    val innerVal = InnerVal(bytes, offset)
+    var pos = offset + innerVal.bytes.length
+    val ts = Bytes.toLong(bytes, pos, 8)
+    InnerValWithTs(innerVal, ts)
+  }
+
+  def withLong(value: Long, ts: Long) = InnerValWithTs(InnerVal.withLong(value), ts)
+
+  def withStr(value: String, ts: Long) = InnerValWithTs(InnerVal.withStr(value), ts)
+}
+
+case class InnerValWithTs(innerVal: InnerVal, ts: Long) {
+  lazy val bytes = Bytes.add(innerVal.bytes, Bytes.toBytes(ts))
 }
