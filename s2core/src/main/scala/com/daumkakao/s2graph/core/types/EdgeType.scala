@@ -106,7 +106,12 @@ object EdgeType {
 
       val (props, tgtVertexId) = {
         val (props, endAt) = bytesToProps(bytes, pos)
-        val tgtVertexId = CompositeId(bytes, endAt, true, false)
+        val propsMap = props.toMap
+
+        val tgtVertexId = propsMap.get(HLabelMeta.toSeq) match {
+          case None => CompositeId(bytes, endAt, true, false)
+          case Some(vId) => CompositeId(CompositeId.defaultColId, vId, true, false)
+        }
         (props, tgtVertexId)
       }
       EdgeQualifier(props, tgtVertexId, op)
@@ -116,8 +121,15 @@ object EdgeType {
 
     val opBytes = Array.fill(1)(op)
     val innerTgtVertexId = tgtVertexId.updateUseHash(false)
+    lazy val propsMap = props.toMap
     lazy val propsBytes = propsToBytes(props)
-    lazy val bytes = Bytes.add(propsBytes, innerTgtVertexId.bytes, opBytes)
+    lazy val bytes = {
+      propsMap.get(HLabelMeta.toSeq) match {
+        case None => Bytes.add(propsBytes, innerTgtVertexId.bytes, opBytes)
+        case Some(vId) => Bytes.add(propsBytes, opBytes)
+      }
+
+    }
     //TODO:
     def propsKVs(labelId: Int, labelOrderSeq: Byte): List[(Byte, InnerVal)] = {
       val filtered = props.filter(kv => kv._1 != HLabelMeta.emptyValue)
