@@ -1,6 +1,8 @@
 package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.models.{HBaseModel, HLabel}
+import com.daumkakao.s2graph.core.types.EdgeType.{EdgeQualifierInverted, EdgeRowKey}
+import com.daumkakao.s2graph.core.types.{CompositeId, LabelWithDirection}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._
 import java.util.concurrent.Executors
@@ -9,7 +11,7 @@ import org.slf4j.LoggerFactory
 
 import scala.collection.mutable.SynchronizedQueue
 import org.apache.hadoop.hbase.filter.FilterList
-import HBaseElement._
+//import HBaseElement._
 import scala.collection.JavaConversions._
 import org.apache.hadoop.hbase.util.Bytes
 import scala.collection.mutable.HashSet

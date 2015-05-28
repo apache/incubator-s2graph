@@ -1,6 +1,5 @@
 package com.daumkakao.s2graph.core.types
 
-import com.daumkakao.s2graph.core.HBaseElement.CompositeId
 import com.daumkakao.s2graph.core.models.{HLabelIndex, HLabelMeta}
 import org.apache.hadoop.hbase.util.Bytes
 import LabelWithDirection._

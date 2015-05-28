@@ -7,6 +7,8 @@ import play.api.libs.json.{JsString, JsNumber, JsValue}
  * Created by shon on 5/28/15.
  */
 object InnerVal {
+  val maxMetaByte = Byte.MaxValue
+  val minMetaByte = 0.toByte
   val order = Order.DESCENDING
 
   def apply(bytes: Array[Byte], offset: Int): InnerVal = {

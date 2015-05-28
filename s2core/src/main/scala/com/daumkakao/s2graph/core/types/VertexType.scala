@@ -1,6 +1,5 @@
 package com.daumkakao.s2graph.core.types
 
-import com.daumkakao.s2graph.core.HBaseElement.CompositeId
 
 /**
  * Created by shon on 5/29/15.

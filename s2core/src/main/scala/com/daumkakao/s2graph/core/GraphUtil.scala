@@ -5,7 +5,7 @@ import java.util.regex.Pattern
 import play.api.libs.json.Json
 
 object GraphUtil {
-  private val seperator = HBaseElement.seperator
+  private val seperator = ":"
   private val TOKEN_DELIMITER = Pattern.compile("[\t]")
   val operations = Map("i" -> 0, "insert" -> 0, "u" -> 1, "update" -> 1,
     "increment" -> 2,  "d" -> 3, "delete" -> 3, 

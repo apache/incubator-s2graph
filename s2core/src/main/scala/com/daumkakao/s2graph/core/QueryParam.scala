@@ -1,11 +1,13 @@
 package com.daumkakao.s2graph.core
 
-import HBaseElement._
+//import HBaseElement._
 import com.daumkakao.s2graph.core.models.{HLabel, HLabelIndex, HLabelMeta}
+import com.daumkakao.s2graph.core.types.{LabelWithDirection, InnerValWithTs, InnerVal, CompositeId}
 import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.util.Bytes
 import GraphConstant._
 import org.hbase.async.{ScanFilter, ColumnRangeFilter}
+import types.EdgeType._
 
 object Query {
   val initialScore = 1.0
@@ -32,7 +34,9 @@ case class Query(vertices: Seq[Vertex], steps: List[Step],
     for (v <- vertices; qParam <- firstStep.queryParams) yield {
       val ts = System.currentTimeMillis()
       val srcVertex = Vertex(CompositeId(v.id.colId, v.innerId, isEdge = true, useHash = true), ts)
-      (Edge(srcVertex, Vertex.emptyVertex, qParam.labelWithDir, GraphUtil.operations("insert"), ts, ts, Map.empty[Byte, InnerValWithTs]), Query.initialScore)
+      (Edge(srcVertex, Vertex.emptyVertex,
+        qParam.labelWithDir, GraphUtil.operations("insert"), ts, ts,
+        Map.empty[Byte, InnerValWithTs]), Query.initialScore)
     }
   }).getOrElse(List.empty[(Edge, Double)])
 }
