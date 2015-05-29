@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core.types
 
 import org.apache.hadoop.hbase.util._
+import play.api.Logger
 import play.api.libs.json.{JsString, JsNumber, JsValue}
 
 /**
@@ -69,11 +70,19 @@ case class InnerVal(value: Any) {
         OrderedBytes.encodeBlobVar(pbr, blob, order)
         pbr.getBytes()
     }
-//    println(s"$value => ${ret.toList}")
+    //    println(s"$value => ${ret.toList}")
     ret
   }
 
-  def toVal[T] = value.asInstanceOf[T]
+  def toVal[T] = {
+    try {
+      value.asInstanceOf[T]
+    } catch {
+      case e: Throwable =>
+        Logger.error(s"$e", e)
+        throw e
+    }
+  }
 
   def compare(other: InnerVal) = Bytes.compareTo(bytes, other.bytes)
 
@@ -91,6 +100,8 @@ case class InnerVal(value: Any) {
   def >(other: InnerVal) = this.compare(other) > 0
 
   def >=(other: InnerVal) = this.compare(other) >= 0
+
+  override def toString(): String = value.toString
 
   override def equals(obj: Any) = {
     obj match {

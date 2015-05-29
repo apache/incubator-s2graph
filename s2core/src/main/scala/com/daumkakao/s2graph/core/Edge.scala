@@ -712,6 +712,7 @@ object Edge {
   def fromString(s: String): Option[Edge] = Graph.toEdge(s)
 
   def toEdge(kv: org.hbase.async.KeyValue, param: QueryParam): Option[Edge] = {
+    Logger.debug(s"$kv")
     val version = kv.timestamp()
 
     val rowKey = EdgeRowKey(kv.key(), 0)
@@ -740,16 +741,18 @@ object Edge {
           val value = EdgeValue(kv.value(), 0)
           val kvs = qualifier.propsKVs(rowKey.labelWithDir.labelId, rowKey.labelOrderSeq) ::: value.props.toList
           val kvsMap = kvs.toMap
-
-          val ts = kvsMap.get(HLabelMeta.timeStampSeq) match {
-            case None => version
-            case Some(v) => v.toVal[Long]
-          }
-          val kvsMapWithoutTs = kvsMap.map(kv => (kv._1 -> InnerValWithTs(kv._2, ts)))
-          (qualifier.tgtVertexId, kvsMapWithoutTs, qualifier.op, ts)
+          val ts = kvsMap.get(HLabelMeta.timeStampSeq).map { v => v.toVal[BigDecimal].toLong }.getOrElse(version)
+//          val kvsMap = kvs.toMap
+          val mergedProps = kvsMap.map { case (k, innerVal) => k -> InnerValWithTs(innerVal, ts) }
+//          val kvsMapWithoutTs = kvsMap.map(kv => (kv._1 -> InnerValWithTs(kv._2, ts)))
+//          (qualifier.tgtVertexId, kvsMapWithoutTs, qualifier.op, ts)
+          (qualifier.tgtVertexId, mergedProps, qualifier.op, ts)
         }
     }
-    //    Logger.error(s"toEdge: $rowKey, $tgtVertexId")
+
+    val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
+
+    Logger.error(s"toEdge: $edge")
     val labelMetas = HLabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
     val propsWithDefault = (for (meta <- labelMetas) yield {
       props.get(meta.seq) match {
@@ -757,12 +760,9 @@ object Edge {
         case None => (meta.seq -> InnerValWithTs(meta.defaultInnerVal, minTsVal))
       }
     }).toMap
-    //    play.api.Logger.debug(s"$rowKey, $tgtVertexId, $props, $op, $ts => ${param.hasFilters}")
     /**
      * TODO: backward compatability only. deprecate has field
      */
-    val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-    //    if (param.propsFilters.filter(edge)) Some(edge) else None
     val matches =
       for {
         (k, v) <- param.hasFilters
