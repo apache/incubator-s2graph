@@ -66,7 +66,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
 
   assert(props.get(HLabelMeta.timeStampSeq).isDefined)
 
-  lazy val ts = props(HLabelMeta.timeStampSeq).toVal[Long]
+  lazy val ts = props(HLabelMeta.timeStampSeq).toVal[BigDecimal].toLong
 
   import GraphConstant._
   import Edge._
@@ -392,7 +392,7 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
               case None =>
               //                Logger.error(s"Not Found SortKeyType : ${seq} for rank in Label(${labelWithDir.labelId}})'s OrderByKeys(${orderByKey.typeIds}})")
               case Some(innerVal) => {
-                val cost = if (innerVal.value.isInstanceOf[BigDecimal]) innerVal.toVal[Long].toDouble else 1.0
+                val cost = if (innerVal.value.isInstanceOf[BigDecimal]) innerVal.toVal[BigDecimal].toDouble else 1.0
                 sum += w * cost
               }
             }
@@ -724,7 +724,7 @@ object Edge {
         val kvsMap = value.props.toMap
         val ts = kvsMap.get(HLabelMeta.timeStampSeq) match {
           case None => version
-          case Some(v) => v.innerVal.toVal[Long]
+          case Some(v) => v.innerVal.toVal[BigDecimal].toLong
         }
         (qualifier.tgtVertexId, kvsMap, value.op, ts)
       case false =>

@@ -20,8 +20,8 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
         "weight": 0
     },
     "props": {
-        "is_hidden": 0,
-        "is_blocked": 0
+        "is_hidden": false,
+        "is_blocked": false
     }
 }
 '

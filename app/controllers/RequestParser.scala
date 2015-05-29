@@ -3,6 +3,7 @@ package controllers
 //import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.parsers.WhereParser
 import com.daumkakao.s2graph.core.types.{CompositeId, LabelWithDirection, InnerVal}
 import play.api.Logger
 import play.api.libs.json._

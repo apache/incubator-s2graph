@@ -156,8 +156,8 @@ object PostProcess extends JSONParser {
       "props" -> propsToJson(serviceColumn.metaNamesMap, vertex.props))
   }
   def propsToJson(edge: Edge) = {
-    for ((seq, v) <- edge.props; name <- edge.label.metaPropNamesMap.get(seq) if seq > 0) yield {
-      (name, innerValToJsValue(v))
+    for ((seq, v) <- edge.props; metaProp <- edge.label.metaPropsMap.get(seq) if seq > 0) yield {
+      (metaProp.name, innerValToJsValue(v))
     }
   }
   def edgeToJson(edge: Edge, score: Double) = {

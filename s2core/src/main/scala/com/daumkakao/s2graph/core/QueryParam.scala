@@ -2,6 +2,7 @@ package com.daumkakao.s2graph.core
 
 //import HBaseElement._
 import com.daumkakao.s2graph.core.models.{HLabel, HLabelIndex, HLabelMeta}
+import com.daumkakao.s2graph.core.parsers.Where
 import com.daumkakao.s2graph.core.types.{LabelWithDirection, InnerValWithTs, InnerVal, CompositeId}
 import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.util.Bytes
@@ -80,73 +81,7 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
     this
   }
 }
-case class Where(val clauses: Seq[Clause] = Seq.empty[Clause]) {
-  def filter(edge: Edge): Boolean = {
-    clauses.map(_.filter(edge)).forall(r => r)
-  }
-}
 
-abstract class Clause {
-  def and(otherField: Clause): Clause = And(this, otherField)
-  def or(otherField: Clause): Clause = Or(this, otherField)
-  def filter(edge: Edge): Boolean = ???
-}
-case class Equal(val propKey: Byte, val value: InnerVal) extends Clause {
-  override def filter(edge: Edge): Boolean = {
-    propKey match {
-      case HLabelMeta.from.seq => edge.srcVertex.innerId == value
-      case HLabelMeta.to.seq => edge.tgtVertex.innerId == value
-      case _ =>
-        edge.props.get(propKey) match {
-          case None => true
-          case Some(edgeVal) => edgeVal == value
-        }
-    }
-
-  }
-}
-case class IN(val propKey: Byte, val values: Set[InnerVal]) extends Clause {
-  override def filter(edge: Edge): Boolean = {
-    propKey match {
-      case HLabelMeta.from.seq => values.contains(edge.srcVertex.innerId)
-      case HLabelMeta.to.seq => values.contains(edge.tgtVertex.innerId)
-      case _ =>
-        edge.props.get(propKey) match {
-          case None => true
-          case Some(edgeVal) => values.contains(edgeVal)
-        }
-    }
-  }
-}
-case class Between(val propKey: Byte, val minValue: InnerVal, val maxValue: InnerVal) extends Clause {
-  override def filter(edge: Edge): Boolean = {
-    propKey match {
-      case HLabelMeta.from.seq => minValue <= edge.srcVertex.innerId && edge.srcVertex.innerId <= maxValue
-      case HLabelMeta.to.seq => minValue <= edge.tgtVertex.innerId && edge.tgtVertex.innerId <= maxValue
-      case _ =>
-        edge.props.get(propKey) match {
-          case None => true
-          case Some(edgeVal) => minValue <= edgeVal && edgeVal <= maxValue
-        }
-    }
-
-  }
-}
-case class Not(val self: Clause) extends Clause {
-  override def filter(edge: Edge): Boolean = {
-    !self.filter(edge)
-  }
-}
-case class And(val left: Clause, val right: Clause) extends Clause {
-  override def filter(edge: Edge): Boolean = {
-    left.filter(edge) && right.filter(edge)
-  }
-}
-case class Or(val left: Clause, val right: Clause) extends Clause {
-  override def filter(edge: Edge): Boolean = {
-    left.filter(edge) || right.filter(edge)
-  }
-}
 
 case class QueryParam(labelWithDir: LabelWithDirection) {
 

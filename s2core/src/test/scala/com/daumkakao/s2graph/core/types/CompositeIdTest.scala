@@ -9,10 +9,20 @@ import org.scalatest.{Matchers, FunSuite}
 class CompositeIdTest extends FunSuite with Matchers {
 
   val columnId = 0
-  val intVals = {
-    val vals = (Int.MinValue until Int.MinValue + 10) ++
-      (-128 to 128) ++ (Int.MaxValue - 10 until Int.MaxValue)
-    vals.map { v => InnerVal(BigDecimal(v)) }
+  /** these constants need to be sorted asc order for test to run */
+  val strings = List(
+    "abc", "abd", "ac", "aca", "b"
+  ).map(InnerVal(_))
+
+  val nums = {
+    val decimals = (Long.MinValue until Long.MinValue + 10).map(BigDecimal(_)) ++
+      (Int.MinValue until Int.MinValue + 10).map(BigDecimal(_)) ++
+      (-9999.9f until -9999.1f by 0.1f).map(BigDecimal(_)) ++
+      (-128 to 128).map(BigDecimal(_)) ++
+      (129.0 until 130.0 by 0.1).map(BigDecimal(_)) ++
+      (Int.MaxValue - 10 until Int.MaxValue).map(BigDecimal(_)) ++
+      (Long.MaxValue - 10 until Long.MaxValue).map(BigDecimal(_))
+    decimals.map(InnerVal(_))
   }
 
   def equalsTo(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) == 0
@@ -47,7 +57,10 @@ class CompositeIdTest extends FunSuite with Matchers {
     rets.forall(x => x)
   }
 
-  test("order of compositeId int") {
-    testOrder(intVals)
+  test("order of compositeId numeric") {
+    testOrder(nums)
+  }
+  test("order of compositeId strings") {
+    testOrder(strings)
   }
 }

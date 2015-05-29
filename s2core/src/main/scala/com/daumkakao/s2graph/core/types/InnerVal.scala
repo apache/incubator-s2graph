@@ -12,20 +12,38 @@ object InnerVal {
   val minMetaByte = 0.toByte
   val order = Order.DESCENDING
 
+  /** supported data type */
+  val BLOB = "blob"
+  val STRING = "string"
+  val DOUBLE = "double"
+  val FLOAT = "float"
+  val LONG = "long"
+  val INT = "integer"
+  val SHORT = "short"
+  val BYTE = "byte"
+  val NUMERICS = List(DOUBLE, FLOAT, LONG, INT, SHORT, BYTE)
+  val BOOLEAN = "boolean"
+
+
   def apply(bytes: Array[Byte], offset: Int): InnerVal = {
     val pbr = new SimplePositionedByteRange(bytes)
     pbr.setOffset(offset)
-    if (OrderedBytes.isNumeric(pbr)) {
-      val numeric = OrderedBytes.decodeNumericAsBigDecimal(pbr)
-      InnerVal(BigDecimal(numeric))
-    } else if (OrderedBytes.isText(pbr)) {
-      val str = OrderedBytes.decodeString(pbr)
-      InnerVal(str)
-    } else if (OrderedBytes.isBlobVar(pbr)) {
-      val blobVar = OrderedBytes.decodeBlobVar(pbr)
-      InnerVal(blobVar)
+    if (OrderedBytes.isEncodedValue(pbr)) {
+      if (OrderedBytes.isNumeric(pbr)) {
+        val numeric = OrderedBytes.decodeNumericAsBigDecimal(pbr)
+        InnerVal(BigDecimal(numeric))
+      } else if (OrderedBytes.isText(pbr)) {
+        val str = OrderedBytes.decodeString(pbr)
+        InnerVal(str)
+      } else if (OrderedBytes.isBlobVar(pbr)) {
+        val blobVar = OrderedBytes.decodeBlobVar(pbr)
+        InnerVal(blobVar)
+      } else {
+        throw new RuntimeException("!!")
+      }
     } else {
-      throw new RuntimeException("!!")
+      /** simple boolean */
+      InnerVal(Bytes.toBoolean(bytes))
     }
   }
 
@@ -41,13 +59,29 @@ object InnerVal {
     new SimplePositionedMutableByteRange(byteLen + 3)
   }
 
+  def dataTypeOfNumber(num: BigDecimal) = {
+    if (num.isValidByte | num.isValidChar) BYTE
+    else if (num.isValidShort) SHORT
+    else if (num.isValidInt) INT
+    else if (num.isValidLong) LONG
+    else if (num.isValidFloat) FLOAT
+    else if (num.isValidDouble) DOUBLE
+    else throw new RuntimeException("innerVal data type is numeric but can`t find type")
+  }
+
   def withLong(l: Long): InnerVal = InnerVal(BigDecimal(l))
 
   def withStr(s: String): InnerVal = InnerVal(s)
+
+  def withNumber(num: BigDecimal): InnerVal = InnerVal(num)
+
+  def withBoolean(b: Boolean): InnerVal = InnerVal(b)
+
+  def withBlob(blob: Array[Byte]): InnerVal = InnerVal(blob)
 }
 
 /**
- * expect BigDecimal, String, Array[Byte] as parameter
+ * expect Boolean,BigDecimal, String, Array[Byte] as parameter
  * @param value
  */
 case class InnerVal(value: Any) {
@@ -56,21 +90,24 @@ case class InnerVal(value: Any) {
 
   lazy val bytes = {
     val ret = value match {
+      case b: Boolean =>
+        /** since OrderedBytes header start from 0x05, it is safe to use -1, 0 */
+        Bytes.toBytes(b)
       case b: BigDecimal =>
         val pbr = numByteRange(b)
-        OrderedBytes.encodeNumeric(pbr, b.bigDecimal, order)
-        pbr.getBytes()
+        val len = OrderedBytes.encodeNumeric(pbr, b.bigDecimal, order)
+        pbr.getBytes().take(len)
       case s: String =>
         val pbr = new SimplePositionedMutableByteRange(s.getBytes.length + 3)
-        OrderedBytes.encodeString(pbr, s, order)
-        pbr.getBytes()
+        val len = OrderedBytes.encodeString(pbr, s, order)
+        pbr.getBytes().take(len)
       case blob: Array[Byte] =>
         val len = OrderedBytes.blobVarEncodedLength(blob.length)
         val pbr = new SimplePositionedMutableByteRange(len)
-        OrderedBytes.encodeBlobVar(pbr, blob, order)
-        pbr.getBytes()
+        val totalLen = OrderedBytes.encodeBlobVar(pbr, blob, order)
+        pbr.getBytes().take(totalLen)
     }
-    //    println(s"$value => ${ret.toList}")
+    println(s"$value => ${ret.toList}, ${ret.length}")
     ret
   }
 

@@ -25,15 +25,21 @@ class InnerValTest extends FunSuite with Matchers {
     BigDecimal(Short.MaxValue),
     BigDecimal(Byte.MaxValue)
   )
+  val booleans = List(
+    false, true
+  )
+  val strings = List(
+    "abc", "abd", "ac", "aca"
+  )
   val texts = List(
     (0 until 1000).map(x => "a").mkString
   )
   val blobs = List(
     (0 until 1000).map(x => Byte.MaxValue).toArray
   )
-  test("big decimal") {
+  def testEncodeDecode[T](ranges: List[T]) = {
     val rets = for {
-      id <- decimals
+      id <- ranges
     } yield {
         val innerVal = InnerVal(id)
         val bytes = innerVal.bytes
@@ -41,27 +47,20 @@ class InnerValTest extends FunSuite with Matchers {
         innerVal == decoded
       }
     rets.forall(x => x)
+  }
+  test("big decimal") {
+    testEncodeDecode(decimals)
   }
   test("text") {
-    val rets = for {
-      id <- texts
-    } yield {
-        val innerVal = InnerVal(id)
-        val bytes = innerVal.bytes
-        val decoded = InnerVal(bytes, 0)
-        innerVal == decoded
-      }
-    rets.forall(x => x)
+    testEncodeDecode(texts)
+  }
+  test("string") {
+    testEncodeDecode(strings)
   }
   test("blob") {
-    val rets = for {
-      id <- blobs
-    } yield {
-        val innerVal = InnerVal(id)
-        val bytes = innerVal.bytes
-        val decoded = InnerVal(bytes, 0)
-        innerVal == decoded
-      }
-    rets.forall(x => x)
+    testEncodeDecode(blobs)
+  }
+  test("boolean") {
+    testEncodeDecode(booleans)
   }
 }

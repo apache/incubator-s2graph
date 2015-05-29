@@ -24,7 +24,7 @@ object VertexType {
     }
   }
 
-  case class VertexRowKey(id: CompositeId) {
+  case class VertexRowKey(id: CompositeId) extends HBaseType {
     lazy val bytes = id.bytes
   }
 
@@ -33,7 +33,7 @@ object VertexType {
       VertexQualifier(bytes(offset))
     }
   }
-  case class VertexQualifier(propKey: Byte) {
+  case class VertexQualifier(propKey: Byte) extends HBaseType {
     /** assumes that propeKey is only positive byte */
     lazy val bytes = Array.fill(1)(propKey)
   }
