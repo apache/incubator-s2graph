@@ -69,7 +69,7 @@ case class InnerVal(value: Any) {
         OrderedBytes.encodeBlobVar(pbr, blob, order)
         pbr.getBytes()
     }
-    println(s"$value => ${ret.toList}")
+//    println(s"$value => ${ret.toList}")
     ret
   }
 

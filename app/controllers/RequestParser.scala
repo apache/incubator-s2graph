@@ -1,12 +1,12 @@
 package controllers
 
-import com.daumkakao.s2graph.core.HBaseElement._
+//import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.types.{CompositeId, LabelWithDirection, InnerVal}
 import play.api.Logger
 import play.api.libs.json._
 import com.daumkakao.s2graph.rest.config.Config
-import scala.util.parsing.combinator.JavaTokenParsers
 
 trait RequestParser extends JSONParser {
 

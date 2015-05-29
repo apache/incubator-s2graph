@@ -1,8 +1,9 @@
 package controllers
 
-import com.daumkakao.s2graph.core.HBaseElement._
+//import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.models.HServiceColumn
+import com.daumkakao.s2graph.core.types.InnerVal
 import play.api.Logger
 import play.api.libs.json.{JsString, JsObject, Json}
 

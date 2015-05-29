@@ -90,7 +90,10 @@ object EdgeType {
     }
   }
   //TODO: split inverted table? cf?
-  case class EdgeRowKey(srcVertexId: CompositeId, labelWithDir: LabelWithDirection, labelOrderSeq: Byte, isInverted: Boolean) {
+  case class EdgeRowKey(srcVertexId: CompositeId,
+                        labelWithDir: LabelWithDirection,
+                        labelOrderSeq: Byte,
+                        isInverted: Boolean) extends HBaseType {
     //    play.api.Logger.debug(s"$this")
     lazy val innerSrcVertexId = srcVertexId.updateUseHash(true)
     lazy val bytes = Bytes.add(innerSrcVertexId.bytes, labelWithDir.bytes, labelOrderSeqWithIsInverted(labelOrderSeq, isInverted))
@@ -117,7 +120,7 @@ object EdgeType {
       EdgeQualifier(props, tgtVertexId, op)
     }
   }
-  case class EdgeQualifier(props: Seq[(Byte, InnerVal)], tgtVertexId: CompositeId, op: Byte) {
+  case class EdgeQualifier(props: Seq[(Byte, InnerVal)], tgtVertexId: CompositeId, op: Byte) extends HBaseType {
 
     val opBytes = Array.fill(1)(op)
     val innerTgtVertexId = tgtVertexId.updateUseHash(false)
@@ -151,7 +154,7 @@ object EdgeType {
       EdgeQualifierInverted(tgtVertexId)
     }
   }
-  case class EdgeQualifierInverted(tgtVertexId: CompositeId) {
+  case class EdgeQualifierInverted(tgtVertexId: CompositeId) extends HBaseType {
     //    play.api.Logger.debug(s"$this")
     val innerTgtVertexId = tgtVertexId.updateUseHash(false)
     lazy val bytes = innerTgtVertexId.bytes
@@ -162,7 +165,7 @@ object EdgeType {
       EdgeValue(props)
     }
   }
-  case class EdgeValue(props: Seq[(Byte, InnerVal)]) {
+  case class EdgeValue(props: Seq[(Byte, InnerVal)]) extends HBaseType {
     lazy val bytes = propsToKeyValues(props)
   }
   object EdgeValueInverted {
@@ -174,7 +177,7 @@ object EdgeType {
       EdgeValueInverted(op, props)
     }
   }
-  case class EdgeValueInverted(op: Byte, props: Seq[(Byte, InnerValWithTs)]) {
+  case class EdgeValueInverted(op: Byte, props: Seq[(Byte, InnerValWithTs)]) extends HBaseType {
     lazy val bytes = Bytes.add(Array.fill(1)(op), propsToKeyValuesWithTs(props))
   }
 }

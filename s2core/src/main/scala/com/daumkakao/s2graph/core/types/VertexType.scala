@@ -17,10 +17,10 @@ object VertexType {
 
   val bitForPropMode = 1
   val bitForByte = 7
+
   object VertexRowKey {
-    val isEdge = false
     def apply(bytes: Array[Byte], offset: Int): VertexRowKey = {
-      VertexRowKey(CompositeId(bytes, offset, isEdge, true))
+      VertexRowKey(CompositeId(bytes, offset, isEdge = false, useHash = true))
     }
   }
 
@@ -34,6 +34,7 @@ object VertexType {
     }
   }
   case class VertexQualifier(propKey: Byte) {
+    /** assumes that propeKey is only positive byte */
     lazy val bytes = Array.fill(1)(propKey)
   }
 

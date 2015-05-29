@@ -2,7 +2,9 @@ package controllers
 
 
 import com.codahale.metrics.Meter
-import com.daumkakao.s2graph.core.HBaseElement._
+import com.daumkakao.s2graph.core.types.CompositeId
+
+//import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.models.{HLabel, HService}
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
