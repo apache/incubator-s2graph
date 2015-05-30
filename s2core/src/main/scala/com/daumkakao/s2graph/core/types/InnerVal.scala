@@ -97,6 +97,11 @@ object InnerVal {
     InnerVal(innerVal)
   }
 
+  /** this part could be unnecessary but can not figure out how to JsNumber not to
+    * print out scientific string
+    * @param num
+    * @return
+    */
   def scaleNumber(num: BigDecimal) = {
     if (num.isValidByte | num.isValidChar) BigDecimal(num.toByte)
     else if (num.isValidShort) BigDecimal(num.toShort)
@@ -104,7 +109,7 @@ object InnerVal {
     else if (num.isValidLong) BigDecimal(num.toLong)
     else if (num.isValidFloat) BigDecimal(num.toFloat)
     else if (num.isValidDouble) BigDecimal(num.toDouble)
-    else throw new RuntimeException(s"$num is out of range")
+    else num
   }
 
   def withLong(l: Long): InnerVal = InnerVal(BigDecimal(l))
