@@ -13,8 +13,8 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
     "srcColumnName": "account_id",
     "srcColumnType": "long",
     "tgtServiceName": "s2graph",
-    "tgtColumnName": "account_id",
-    "tgtColumnType": "long",
+    "tgtColumnName": "item_id",
+    "tgtColumnType": "string",
     "indexProps": [
 	{"name": "time", "dataType": "integer", "defaultValue": 0},
 	{"name": "weight","dataType": "int","defaultValue": 0}
@@ -22,7 +22,8 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
     "props": [
 	{"name": "is_hidden","dataType": "boolean","defaultValue": false},
 	{"name": "is_blocked","dataType": "boolean","defaultValue": false}
-    ]
+    ],
+    "consistencyLevel": "strong"
 }
 '
 
@@ -49,10 +50,10 @@ curl -XGET localhost:9000/graphs/getLabel/graph_test
 # add edges
 curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/json' -d '
 [
-  {"from":1,"to":1000001,"label":"graph_test","props":{"time":-1, "weight":10},"timestamp":193829192},
-  {"from":1,"to":1000002,"label":"graph_test","props":{"time":0, "weight":10},"timestamp":193829192},
-  {"from":1,"to":1000003,"label":"graph_test","props":{"time":1, "weight":10},"timestamp":193829192},
-  {"from":1,"to":1000004,"label":"graph_test","props":{"time":-2, "weight":10},"timestamp":193829192}
+  {"from":1,"to":"ab","label":"graph_test","props":{"time":-1, "weight":10},"timestamp":193829192},
+  {"from":1,"to":"123456","label":"graph_test","props":{"time":0, "weight":10},"timestamp":193829192},
+  {"from":1,"to":"zdfdk2384","label":"graph_test","props":{"time":1, "weight":10},"timestamp":193829192},
+  {"from":1,"to":"dfjkdjfdk1234","label":"graph_test","props":{"time":-2, "weight":10},"timestamp":193829192}
 ]
 '
 
