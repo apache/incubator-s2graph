@@ -229,7 +229,16 @@ trait RequestParser extends JSONParser {
     if (jsObj.fields.map(_._1).groupBy(_.toString).map(r => r match { case (k, v) => v }).filter(_.length > 1).isEmpty == false)
       throw new KGraphExceptions.JsonParseException(Json.obj("error" -> s"$jsObj --> some key is duplicated").toString)
   }
-
+  def parsePropsElements(jsValue: JsValue) = {
+    for {
+      jsObj <- jsValue.as[List[JsObject]]
+    } yield {
+      val propName = (jsObj \ "name").as[String]
+      val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
+      val defaultValue = (jsObj \ "defaultValue")
+      (propName, defaultValue, dataType)
+    }
+  }
   def toLabelElements(jsValue: JsValue) = {
     val labelName = parse[String](jsValue, "label")
     val srcServiceName = parse[String](jsValue, "srcServiceName")
@@ -241,19 +250,16 @@ trait RequestParser extends JSONParser {
     val serviceName = (jsValue \ "serviceName").asOpt[String].getOrElse(tgtServiceName)
     //    parse[String](jsValue, "serviceName")
     val isDirected = (jsValue \ "isDirected").asOpt[Boolean].getOrElse(true)
-    val idxJs = (jsValue \ "indexProps").asOpt[JsObject].getOrElse(Json.parse("{}").as[JsObject])
-    jsObjDuplicateKeyCheck(idxJs)
-    val metaJs = (jsValue \ "props").asOpt[JsObject].getOrElse(Json.parse("{}").as[JsObject])
-    jsObjDuplicateKeyCheck(metaJs)
-    val idxProps = for ((k, v) <- idxJs.fields) yield (k, v)
-    val metaProps = for ((k, v) <- metaJs.fields) yield (k, v)
-    val consistencyLevel = (jsValue \ "consistencyLevel").asOpt[String].getOrElse("week")
+    val idxProps = parsePropsElements((jsValue \ "indexProps"))
+    val metaProps = parsePropsElements((jsValue \ "props"))
+    val consistencyLevel = (jsValue \ "consistencyLevel").asOpt[String].getOrElse("weak")
     // expect new label don`t provide hTableName
     val hTableName = (jsValue \ "hTableName").asOpt[String]
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     val t = (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
       idxProps, metaProps, consistencyLevel, hTableName, hTableTTL)
+    Logger.info(s"createLabel $t")
     t
   }
   def toIndexElements(jsValue: JsValue) = {

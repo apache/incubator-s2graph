@@ -15,14 +15,14 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
     "tgtServiceName": "s2graph",
     "tgtColumnName": "account_id",
     "tgtColumnType": "long",
-    "indexProps": {
-        "time": 0,
-        "weight": 0
-    },
-    "props": {
-        "is_hidden": false,
-        "is_blocked": false
-    }
+    "indexProps": [
+	{"name": "time", "dataType": "integer", "defaultValue": 0},
+	{"name": "weight","dataType": "int","defaultValue": 0}
+    ],
+    "props": [
+	{"name": "is_hidden","dataType": "boolean","defaultValue": false},
+	{"name": "is_blocked","dataType": "boolean","defaultValue": false}
+    ]
 }
 '
 

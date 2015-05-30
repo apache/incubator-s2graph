@@ -24,6 +24,20 @@ object InnerVal {
   val NUMERICS = List(DOUBLE, FLOAT, LONG, INT, SHORT, BYTE)
   val BOOLEAN = "boolean"
 
+  def toInnerDataType(dataType: String): String = {
+    dataType.toLowerCase() match {
+      case "blob" => BLOB
+      case "string" | "str" | "s" => STRING
+      case "double" | "d" | "float64" => DOUBLE
+      case "float" | "f" | "float32" => FLOAT
+      case "long" | "l" | "int64" | "integer64" => LONG
+      case "int" | "integer" | "i" | "int32" | "integer32" => INT
+      case "short" | "int16" | "integer16" => SHORT
+      case "byte" | "b" | "tinyint" | "int8" | "integer8" => BYTE
+      case "boolean" | "bool" => BOOLEAN
+      case _ => throw new RuntimeException(s"can`t convert $dataType into InnerDataType")
+    }
+  }
 
   def apply(bytes: Array[Byte], offset: Int): InnerVal = {
     val pbr = new SimplePositionedByteRange(bytes)
@@ -67,6 +81,20 @@ object InnerVal {
     else if (num.isValidFloat) FLOAT
     else if (num.isValidDouble) DOUBLE
     else throw new RuntimeException("innerVal data type is numeric but can`t find type")
+  }
+
+  def defaultInnerVal(dataType: String): InnerVal = {
+    val innerVal = dataType match {
+      case STRING => ""
+      case BYTE => 0.toByte
+      case SHORT => 0.toShort
+      case INT => 0
+      case LONG => 0L
+      case FLOAT => 0.0f
+      case DOUBLE => 0.0
+      case BOOLEAN => false
+    }
+    InnerVal(innerVal)
   }
 
   def withLong(l: Long): InnerVal = InnerVal(BigDecimal(l))

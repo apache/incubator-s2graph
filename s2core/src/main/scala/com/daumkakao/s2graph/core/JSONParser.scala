@@ -10,6 +10,14 @@ trait JSONParser {
   def innerValToJsValue(innerVal: InnerVal): JsValue = {
     innerVal.toJsValue()
   }
+  def innerValToString(innerVal: InnerVal, dataType: String): String = {
+    dataType match {
+      case InnerVal.STRING => innerVal.value.toString
+      case InnerVal.BOOLEAN => innerVal.value.toString
+      case t if InnerVal.NUMERICS.contains(t) => innerVal.toVal[BigDecimal].bigDecimal.toPlainString
+      case _ => throw new RuntimeException("innerVal to jsValue failed.")
+    }
+  }
 
   def toInnerVal(s: String, dataType: String) = {
     dataType match {
@@ -65,12 +73,12 @@ trait JSONParser {
 
     ret
   }
-  def innerValToString(innerVal: InnerVal, dataType: String): String = {
-    val value = innerVal.value
-    dataType.toLowerCase() match {
-      case InnerVal.STRING => JsString(value.toString).toString
-      case _ => value.toString
-    }
-  }
+//  def innerValToString(innerVal: InnerVal, dataType: String): String = {
+//    val value = innerVal.value
+//    dataType.toLowerCase() match {
+//      case InnerVal.STRING => JsString(value.toString).toString
+//      case _ => value.toString
+//    }
+//  }
 
 }

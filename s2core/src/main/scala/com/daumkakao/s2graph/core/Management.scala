@@ -48,20 +48,20 @@ object Management extends JSONParser {
     tgtColumnType: String,
     isDirected: Boolean = true,
     serviceName: String,
-    indexProps: Seq[(String, JsValue)],
-    props: Seq[(String, JsValue)],
+    indexProps: Seq[(String, JsValue, String)],
+    props: Seq[(String, JsValue, String)],
     consistencyLevel: String,
     hTableName: Option[String],
     hTableTTL: Option[Int]): HLabel = {
 
-    val idxProps = for ((k, v) <- indexProps; (innerVal, dataType) = toInnerVal(v)) yield (k, innerVal, dataType, true)
-    val metaProps = for ((k, v) <- props; (innerVal, dataType) = toInnerVal(v)) yield (k, innerVal, dataType, false)
+//    val idxProps = for ((k, v, t) <- indexProps; innerVal <- jsValueToInnerVal(v, t)) yield (k, innerVal, t, true)
+//    val metaProps = for ((k, v, t) <- props; innerVal <- jsValueToInnerVal(v, t)) yield (k, innerVal, t, false)
 
-    val indexPropsWithType =
-      for ((k, v) <- indexProps) yield {
-        val (innerVal, dataType) = toInnerVal(v)
-        (k, innerVal, dataType)
-      }
+//    val indexPropsWithType =
+//      for ((k, v) <- indexProps) yield {
+//        val (innerVal, dataType) = toInnerVal(v)
+//        (k, innerVal, dataType)
+//      }
 
     val labelOpt = HLabel.findByName(label, useCache = false)
 
@@ -72,7 +72,7 @@ object Management extends JSONParser {
         HLabel.insertAll(label,
           srcServiceName, srcColumnName, srcColumnType,
           tgtServiceName, tgtColumnName, tgtColumnType,
-          isDirected, serviceName, idxProps ++ metaProps, consistencyLevel, hTableName, hTableTTL)
+          isDirected, serviceName, indexProps, props, consistencyLevel, hTableName, hTableTTL)
         HLabel.findByName(label, useCache = false).get
     }
   }
