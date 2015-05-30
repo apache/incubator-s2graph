@@ -346,6 +346,7 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
           case (true, true) => // not possible
             List.empty[AtomicIncrementRequest]
         }
+//        Logger.debug(s"Increment: $incrs")
         Graph.writeAsync(label.hbaseZkAddr, incrs)
       }
       //      client.flush()
@@ -712,7 +713,7 @@ object Edge {
   def fromString(s: String): Option[Edge] = Graph.toEdge(s)
 
   def toEdge(kv: org.hbase.async.KeyValue, param: QueryParam): Option[Edge] = {
-    Logger.debug(s"$kv")
+//    Logger.debug(s"$kv")
     val version = kv.timestamp()
 
     val rowKey = EdgeRowKey(kv.key(), 0)
@@ -752,7 +753,7 @@ object Edge {
 
     val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
 
-    Logger.error(s"toEdge: $edge")
+//    Logger.error(s"toEdge: $edge")
     val labelMetas = HLabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
     val propsWithDefault = (for (meta <- labelMetas) yield {
       props.get(meta.seq) match {

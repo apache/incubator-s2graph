@@ -274,6 +274,7 @@ object Graph {
     })
     promise.future
   }
+
   def deferredCallbackWithFallback[T, R](d: Deferred[T])(f: T => R, fallback: => R) = {
     d.addCallback(new Callback[R, T] {
       def call(args: T): R = {
@@ -286,12 +287,14 @@ object Graph {
       }
     })
   }
+
   def writeAsync(zkQuorum: String, rpcs: Seq[HBaseRpc]) = {
     if (rpcs.isEmpty) {}
     else {
       try {
         val client = getClient(zkQuorum)
         val futures = rpcs.map { rpc =>
+          //TODO: register errorBacks on this operations to log error
           val deferred = rpc match {
             case d: DeleteRequest => client.delete(d)
             case p: PutRequest => client.put(p)

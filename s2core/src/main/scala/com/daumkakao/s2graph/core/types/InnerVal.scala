@@ -145,7 +145,7 @@ case class InnerVal(value: Any) {
         val totalLen = OrderedBytes.encodeBlobVar(pbr, blob, order)
         pbr.getBytes().take(totalLen)
     }
-    println(s"$value => ${ret.toList}, ${ret.length}")
+//    println(s"$value => ${ret.toList}, ${ret.length}")
     ret
   }
 

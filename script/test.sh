@@ -57,6 +57,8 @@ curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/jso
 ]
 '
 
+sleep 2
+
 # select edges
 curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
 {
