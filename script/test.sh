@@ -49,10 +49,10 @@ curl -XGET localhost:9000/graphs/getLabel/graph_test
 # add edges
 curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/json' -d '
 [
-  {"from":1,"to":101,"label":"graph_test","props":{"time":-1, "weight":10},"timestamp":193829192},
-  {"from":1,"to":102,"label":"graph_test","props":{"time":0, "weight":10},"timestamp":193829192},
-  {"from":1,"to":103,"label":"graph_test","props":{"time":1, "weight":10},"timestamp":193829192},
-  {"from":1,"to":104,"label":"graph_test","props":{"time":-2, "weight":10},"timestamp":193829192}
+  {"from":1,"to":1000001,"label":"graph_test","props":{"time":-1, "weight":10},"timestamp":193829192},
+  {"from":1,"to":1000002,"label":"graph_test","props":{"time":0, "weight":10},"timestamp":193829192},
+  {"from":1,"to":1000003,"label":"graph_test","props":{"time":1, "weight":10},"timestamp":193829192},
+  {"from":1,"to":1000004,"label":"graph_test","props":{"time":-2, "weight":10},"timestamp":193829192}
 ]
 '
 

@@ -97,6 +97,16 @@ object InnerVal {
     InnerVal(innerVal)
   }
 
+  def scaleNumber(num: BigDecimal) = {
+    if (num.isValidByte | num.isValidChar) BigDecimal(num.toByte)
+    else if (num.isValidShort) BigDecimal(num.toShort)
+    else if (num.isValidInt) BigDecimal(num.toInt)
+    else if (num.isValidLong) BigDecimal(num.toLong)
+    else if (num.isValidFloat) BigDecimal(num.toFloat)
+    else if (num.isValidDouble) BigDecimal(num.toDouble)
+    else throw new RuntimeException(s"$num is out of range")
+  }
+
   def withLong(l: Long): InnerVal = InnerVal(BigDecimal(l))
 
   def withStr(s: String): InnerVal = InnerVal(s)
@@ -178,7 +188,7 @@ case class InnerVal(value: Any) {
 
   def toJsValue(): JsValue = {
     value match {
-      case b: BigDecimal => JsNumber(b)
+      case b: BigDecimal => JsNumber(scaleNumber(b))
       case s: String => JsString(s)
       case _ => throw new RuntimeException(s"$this -> toJsValue failed.")
     }
