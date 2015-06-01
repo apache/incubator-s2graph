@@ -55,7 +55,8 @@ case class Between(val propKey: Byte, val minValue: InnerVal, val maxValue: Inne
       case _ =>
         edge.props.get(propKey) match {
           case None => true
-          case Some(edgeVal) => minValue <= edgeVal && edgeVal <= maxValue
+          case Some(edgeVal) =>
+            minValue <= edgeVal && edgeVal <= maxValue
         }
     }
 

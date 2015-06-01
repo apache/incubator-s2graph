@@ -75,12 +75,12 @@ trait TestCommonWithModels {
   /** */
   initTests()
 
-  val service = HService.findByName(serviceName, useCache = false).get
-  val column = HServiceColumn.find(service.id.get, columnName, useCache = false).get
-  val label = HLabel.findByName(labelName, useCache = false).get
-  val dir = GraphUtil.directions("out")
-  val op = GraphUtil.operations("insert")
-  val labelOrderSeq = HLabelIndex.defaultSeq
-  val labelWithDir = LabelWithDirection(label.id.get, dir)
-  val queryParam = QueryParam(labelWithDir)
+  lazy val service = HService.findByName(serviceName, useCache = false).get
+  lazy val column = HServiceColumn.find(service.id.get, columnName, useCache = false).get
+  lazy val label = HLabel.findByName(labelName, useCache = false).get
+  lazy val dir = GraphUtil.directions("out")
+  lazy val op = GraphUtil.operations("insert")
+  lazy val labelOrderSeq = HLabelIndex.defaultSeq
+  lazy val labelWithDir = LabelWithDirection(label.id.get, dir)
+  lazy val queryParam = QueryParam(labelWithDir)
 }

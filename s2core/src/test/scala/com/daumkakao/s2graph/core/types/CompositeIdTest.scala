@@ -16,44 +16,22 @@ class CompositeIdTest extends FunSuite with Matchers with TestCommon {
   val nums = {
     val decimals = (Long.MinValue until Long.MinValue + 10).map(BigDecimal(_)) ++
       (Int.MinValue until Int.MinValue + 10).map(BigDecimal(_)) ++
-      (-9999.9f until -9999.1f by 0.1f).map(BigDecimal(_)) ++
-      (-128 to 128).map(BigDecimal(_)) ++
-      (129.0 until 130.0 by 0.1).map(BigDecimal(_)) ++
       (Int.MaxValue - 10 until Int.MaxValue).map(BigDecimal(_)) ++
       (Long.MaxValue - 10 until Long.MaxValue).map(BigDecimal(_))
     decimals.map(InnerVal(_))
   }
-
-
-  def testOrder(innerVals: Iterable[InnerVal]) = {
-    val rets = for {
-      isEdge <- List(true, false)
-      useHash <- List(true, false)
-    } yield {
-        val head = CompositeId(testColumnId, innerVals.head, isEdge = isEdge, useHash = useHash)
-        val start = head
-        var prev = head
-
-        val rets = for {
-          innerVal <- innerVals.tail
-        } yield {
-            val current = CompositeId(testColumnId, innerVal, isEdge = isEdge, useHash = useHash)
-            val decoded = CompositeId(current.bytes, 0, isEdge = isEdge, useHash = useHash)
-
-            val comp = largerThan(current.bytes, prev.bytes) &&
-              largerThan(current.bytes, start.bytes) &&
-              current == decoded
-            comp
-          }
-        rets.forall(x => x)
-      }
-
-    rets.forall(x => x)
+  val doubleNums = {
+    val ls = (Double.MinValue until Double.MinValue + 2.0 by 0.2).map(BigDecimal(_)) ++
+      (-9994.9 until -9999.1 by 1.1).map(BigDecimal(_)) ++
+      (-128.0 until 128.0 by 1.2).map(BigDecimal(_)) ++
+      (129.0 until 142.0 by 1.1).map(BigDecimal(_)) ++
+      (Double.MaxValue - 10.0 until Double.MaxValue by 0.2).map(BigDecimal(_))
+    ls.map(InnerVal(_))
   }
 
   val compositeIdFuncs = for {
     isEdge <- List(true, false)
-    useHash <- List(true, false)
+    useHash <- List(false)
   } yield {
       val compositeIdCreateFunc = (idxProps: Seq[(Byte, InnerVal)], innerVal: InnerVal) =>
         CompositeId(testColumnId, innerVal, isEdge, useHash)
@@ -63,13 +41,18 @@ class CompositeIdTest extends FunSuite with Matchers with TestCommon {
 
 
   test("order of compositeId numeric") {
-    compositeIdFuncs.forall { case (createFunc, fromBytesFunc) =>
-        testOrder(idxPropsLs, nums)(createFunc, fromBytesFunc)
+    val rets = compositeIdFuncs.map { case (createFunc, fromBytesFunc) =>
+      testOrder(idxPropsLs, nums)(createFunc, fromBytesFunc) &&
+        testOrder(idxPropsLs, doubleNums)(createFunc, fromBytesFunc)
     }
+    println(rets)
+    rets.forall(x => x) shouldBe true
   }
   test("order of compositeId strings") {
-    compositeIdFuncs.forall { case (createFunc, fromBytesFunc) =>
+    val rets = compositeIdFuncs.map { case (createFunc, fromBytesFunc) =>
       testOrder(idxPropsLs, strings)(createFunc, fromBytesFunc)
     }
+    println(rets)
+    rets.forall(x => x) shouldBe true
   }
 }

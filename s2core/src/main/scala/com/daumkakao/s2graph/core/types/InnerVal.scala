@@ -130,7 +130,7 @@ object InnerVal {
 case class InnerVal(value: Any) {
 
   import InnerVal._
-  println(s"$this, $value")
+//  println(s"$this, $value")
   lazy val bytes = {
     val ret = value match {
       case b: Boolean =>
@@ -164,7 +164,20 @@ case class InnerVal(value: Any) {
     }
   }
 
-  def compare(other: InnerVal) = Bytes.compareTo(bytes, other.bytes)
+  def compare(other: InnerVal) = {
+    (value, other.value) match {
+      case (v1: BigDecimal, v2: BigDecimal) =>
+        v1.compare(v2)
+      case (v1: String, v2: String) =>
+        v1.compareTo(v2)
+      case (v1: Boolean, v2: Boolean) =>
+        v1.compareTo(v2)
+      case (v1: Array[Byte], v2: Array[Byte]) =>
+        Bytes.compareTo(v1, v2)
+      case _ =>
+        throw new RuntimeException(s"compare between $this and $other failed.")
+    }
+  }
 
   def +(other: InnerVal) = {
     (value, other.value) match {

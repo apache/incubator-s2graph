@@ -12,7 +12,7 @@ object HColumnMeta {
   val lastModifiedAtColumnSeq = 0.toByte
 
   val lastModifiedAtColumn = HColumnMeta(Map("id" -> 0, "columnId" -> 0,
-    "name" -> "lastModifiedAt", "seq" -> lastModifiedAtColumnSeq))
+    "name" -> "lastModifiedAt", "seq" -> lastModifiedAtColumnSeq, "dataType" -> "long"))
   val maxValue = Byte.MaxValue
 
 

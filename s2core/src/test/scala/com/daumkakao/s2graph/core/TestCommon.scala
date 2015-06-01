@@ -49,7 +49,7 @@ trait TestCommon {
   val idxPropsWithTsLs = idxPropsLs.map { idxProps =>
     idxProps.map { case (k, v) => k -> InnerValWithTs(v, ts) }
   }
-  def testOrder(idxPropsLs: Seq[Seq[(Byte, InnerVal)]], innerVals: Iterable[InnerVal])
+  def testOrder(idxPropsLs: Seq[Seq[(Byte, InnerVal)]], innerVals: Iterable[InnerVal], useHash: Boolean = false)
                (createFunc: (Seq[(Byte, InnerVal)], InnerVal) => HBaseType,
                 fromBytesFunc: Array[Byte] => HBaseType) = {
     /** check if increasing target vertex id is ordered properly with same indexProps */
@@ -65,21 +65,23 @@ trait TestCommon {
             val current = createFunc(idxProps, innerVal)
             val bytes = current.bytes
             val decoded = fromBytesFunc(bytes)
-            println(s"$current vs $prev")
-            val comp = largerThan(bytes, prev.bytes) &&
-              largerThan(bytes, start.bytes) &&
-              current == decoded
+            println(s"current: $current")
+            println(s"decoded: $decoded")
+            val prevBytes = if (useHash) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
+            val currentBytes = if (useHash) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
+            val comp = lessThan(currentBytes, prevBytes) && current == decoded
 
+            println(s"$current ${bytes.toList}")
+            println(s"$prev ${prev.bytes.toList}")
+            println(s"$comp")
             prev = current
             comp
           }
-
         rets.forall(x => x)
       }
-
     rets.forall(x => x)
   }
-  def testOrderReverse(idxPropsLs: Seq[Seq[(Byte, InnerVal)]], innerVals: Iterable[InnerVal])
+  def testOrderReverse(idxPropsLs: Seq[Seq[(Byte, InnerVal)]], innerVals: Iterable[InnerVal], useHash: Boolean = false)
                       (createFunc: (Seq[(Byte, InnerVal)], InnerVal) => HBaseType,
                        fromBytesFunc: Array[Byte] => HBaseType) = {
     /** check if increasing target vertex id is ordered properly with same indexProps */
@@ -95,11 +97,15 @@ trait TestCommon {
             val current = createFunc(idxProps, innerVal)
             val bytes = current.bytes
             val decoded = fromBytesFunc(bytes)
-            println(s"$current vs $prev")
-            val comp = largerThan(bytes, prev.bytes) &&
-              largerThan(bytes, start.bytes) &&
-              current == decoded
+            println(s"current: $current")
+            println(s"decoded: $decoded")
+            val prevBytes = if (useHash) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
+            val currentBytes = if (useHash) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
+            val comp = lessThan(currentBytes, prevBytes) && current == decoded
 
+            println(s"$current ${bytes.toList}")
+            println(s"$prev ${prev.bytes.toList}")
+            println(s"$comp")
             prev = current
             comp
           }

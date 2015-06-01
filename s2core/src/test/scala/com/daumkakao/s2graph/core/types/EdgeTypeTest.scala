@@ -30,18 +30,16 @@ class EdgeTypeTest extends FunSuite with Matchers with TestCommon {
 
 
   test("test edge row key order with int source vertex id") {
-    testOrder(idxPropsLs, intVals)(edgeRowKeyCreateFunc, edgeRowKeyFromBytesFunc) &&
-    testOrderReverse(idxPropsLs, intVals)(edgeRowKeyCreateFunc, edgeRowKeyFromBytesFunc)
+    testOrder(idxPropsLs, intVals, useHash = true)(edgeRowKeyCreateFunc, edgeRowKeyFromBytesFunc) shouldBe true
   }
 
   test("test edge row qualifier with int target vertex id") {
-    testOrder(idxPropsLs, intVals)(edgeQualifierCreateFunc, edgeQualifierFromBytesFunc) &&
-    testOrderReverse(idxPropsLs, intVals)(edgeQualifierCreateFunc, edgeQualifierFromBytesFunc)
+    testOrder(idxPropsLs, intVals)(edgeQualifierCreateFunc, edgeQualifierFromBytesFunc) shouldBe true
+    testOrderReverse(idxPropsLs, intVals)(edgeQualifierCreateFunc, edgeQualifierFromBytesFunc) shouldBe true
   }
 
   test("test edge row qualifier inverted with int target vertex id") {
-    testOrder(idxPropsLs, intVals)(edgeQualifierInvertedCreateFunc, edgeQualifierInvertedFromBytesFunc) &&
-      testOrderReverse(idxPropsLs, intVals)(edgeQualifierInvertedCreateFunc, edgeQualifierInvertedFromBytesFunc)
+    testOrder(idxPropsLs, intVals)(edgeQualifierInvertedCreateFunc, edgeQualifierInvertedFromBytesFunc) shouldBe true
   }
 
 }

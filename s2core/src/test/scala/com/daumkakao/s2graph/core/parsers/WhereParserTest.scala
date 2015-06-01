@@ -27,19 +27,12 @@ class WhereParserTest extends FunSuite with Matchers with TestCommon with TestCo
       val labelMetas = HLabelMeta.findAllByLabelId(label.id.get, useCache = false)
       val metaMap = labelMetas.map { m => m.name -> m.seq } toMap
       val whereOpt = WhereParser(label).parse(sql)
-      //      val props = Json.obj("is_hidden" -> true, "is_blocked" -> false)
-      //      val propsInner = Management.toProps(label, props).map { case (k, v) => k -> InnerValWithTs.withInnerVal(v, ts) }.toMap
-      //      val edge = Edge(srcVertex, srcVertex, labelWithDir, 0.toByte, System.currentTimeMillis(), 0, propsInner)
       whereOpt.isDefined && whereOpt.get.filter(edge)
     }
     checkedOpt.isDefined && checkedOpt.get == expected
   }
 
   test("check where clause not nested") {
-    //    val labelOpt = HLabel.findByName(labelName)
-    //    val label = labelOpt.get
-    //    val labelWithDir = LabelWithDirection(label.id.get, 0)
-
     val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
     val propsInner = Management.toProps(label, js).map { case (k, v) => k -> InnerValWithTs(v, ts) }.toMap
     val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, 0, propsInner)
@@ -58,17 +51,17 @@ class WhereParserTest extends FunSuite with Matchers with TestCommon with TestCo
       f("time in (1, 2, 4) and is_blocked = false")(false),
       f("time in (1, 2, 4) or is_blocked = false")(true),
       f("time not in (1, 2, 4)")(true),
+      f("time in (1, 2, 3)")(true),
+      f("weight between 10 and 20")(true),
+      f("time in (1, 2, 3) and weight between 10 and 20")(true),
       f("time in (1, 2, 3) and weight between 10 and 20 and is_blocked = false")(true),
       f("time in (1, 2, 4) or weight between 10 and 20 or is_blocked = true")(true)
     )
     println(rets)
-    rets.forall(x => x)
+    rets.forall(x => x) shouldBe true
+//    InnerVal(BigDecimal(10)) <= InnerVal(BigDecimal(20)) shouldBe true
   }
   test("check where clause nested") {
-    //    val labelOpt = Label.findByName(testLabelName)
-    //            labelOpt must beSome[Label]
-    //            val label = labelOpt.get
-    //            val labelWithDir = LabelWithDirection(label.id.get, 0)
     val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
     val propsInner = Management.toProps(label, js).map { case (k, v) => k -> InnerValWithTs(v, ts) }.toMap
     val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, 0, propsInner)
@@ -86,6 +79,8 @@ class WhereParserTest extends FunSuite with Matchers with TestCommon with TestCo
       f("(time in (1, 2, 4) or weight between 1 and 9) or is_hidden = true")(true),
       f("(time in (1, 2, 3) or weight between 1 and 10) and is_hidden = false")(false)
     )
+    println(rets)
+    rets.forall(x => x) shouldBe true
   }
   test("check where clause with from/to long") {
     val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
@@ -95,10 +90,14 @@ class WhereParserTest extends FunSuite with Matchers with TestCommon with TestCo
     val f = validate(labelName)(edge) _
 
     //        f("from = abc")(false)
-    f("_from = 2 or _to = 2")(true)
-    f("_from = 1 and _to = 2")(true)
-    f("_from = 3 and _to = 4")(false)
-    f("_from = 0")(false)
+    val rets = List(
+      f(s"_from = -1 or _to = ${tgtVertex.innerId.value}")(true),
+      f(s"_from = ${srcVertex.innerId.value} and _to = ${tgtVertex.innerId.value}")(true),
+      f(s"_from = ${tgtVertex.innerId.value} and _to = 102934")(false),
+      f(s"_from = -1")(false)
+    )
+    println(rets)
+    rets.forall(x => x) shouldBe true
   }
 
 }

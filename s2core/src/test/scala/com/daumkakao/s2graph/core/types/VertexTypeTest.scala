@@ -25,8 +25,7 @@ class VertexTypeTest extends FunSuite with Matchers with TestCommon {
 
 
   test("test vertex row key order with int id type") {
-    testOrder(idxPropsLs, intVals)(vertexRowKeyCreateFunc, vertexRowKeyFromBytesFunc) &&
-    testOrderReverse(idxPropsLs, intVals)(vertexRowKeyCreateFunc, vertexRowKeyFromBytesFunc)
+    testOrder(idxPropsLs, intVals, useHash = true)(vertexRowKeyCreateFunc, vertexRowKeyFromBytesFunc) shouldBe true
   }
 
 }

@@ -34,9 +34,9 @@ case class CompositeId(colId: Int, innerId: InnerVal, isEdge: Boolean, useHash: 
   lazy val bytes = {
     var ret = if (useHash) Bytes.toBytes(hash) else Array.empty[Byte]
     isEdge match {
+      case true => Bytes.add(ret, innerId.bytes)
       case false =>
         Bytes.add(ret, innerId.bytes, Bytes.toBytes(colId))
-      case true => Bytes.add(ret, innerId.bytes)
     }
   }
   lazy val bytesInUse = bytes.length
@@ -44,7 +44,16 @@ case class CompositeId(colId: Int, innerId: InnerVal, isEdge: Boolean, useHash: 
   def updateUseHash(otherUseHash: Boolean) = CompositeId(colId, innerId, isEdge, otherUseHash)
   override def equals(obj: Any) = {
     obj match {
-      case other: CompositeId => colId == other.colId && innerId == other.innerId
+      case other: CompositeId =>
+        if (isEdge == other.isEdge && useHash == other.useHash) {
+          if (isEdge) {
+            innerId == other.innerId
+          } else {
+            colId == other.colId && innerId == other.innerId
+          }
+        } else {
+          false
+        }
       case _ => false
     }
   }

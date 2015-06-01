@@ -49,18 +49,18 @@ class InnerValTest extends FunSuite with Matchers {
     rets.forall(x => x)
   }
   test("big decimal") {
-    testEncodeDecode(decimals)
+    testEncodeDecode(decimals) shouldBe true
   }
   test("text") {
-    testEncodeDecode(texts)
+    testEncodeDecode(texts) shouldBe true
   }
   test("string") {
-    testEncodeDecode(strings)
+    testEncodeDecode(strings) shouldBe true
   }
   test("blob") {
-    testEncodeDecode(blobs)
+    testEncodeDecode(blobs) shouldBe true
   }
   test("boolean") {
-    testEncodeDecode(booleans)
+    testEncodeDecode(booleans) shouldBe true
   }
 }

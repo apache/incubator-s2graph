@@ -146,6 +146,15 @@ object EdgeType {
         filtered.toList
       }
     }
+    override def equals(obj: Any) = {
+      obj match {
+        case other: EdgeQualifier =>
+          props.map(_._2) == other.props.map(_._2) &&
+          tgtVertexId == other.tgtVertexId &&
+          op == other.op
+        case _ => false
+      }
+    }
   }
 
   object EdgeQualifierInverted {
