@@ -67,20 +67,28 @@ trait RequestParser extends JSONParser {
     }
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerVal])
   }
-  def hasOrWhere(jsValue: JsValue) = {
-    for ((k, v) <- jsValue.as[JsObject].fields) yield {
-      k -> (v match {
-        case arr: JsArray => // set
-          Set(arr.as[List[JsValue]].map { toInnerVal(_) })
-        case value: JsValue => // exact
-          Set(toInnerVal(value))
-        case obj: JsObject => // from, to
-          val (fromJsVal, toJsVal) = ((obj \ "from").as[JsValue], (obj \ "to").as[JsValue])
-          val (from, to) = (toInnerVal(fromJsVal), toInnerVal(toJsVal))
-          (from, to)
-      })
-    }
-  }
+//  def hasOrWhere(label: HLabel, jsValue: JsValue): Set[InnerVal] = {
+//    for {
+//      (propName, v) <- jsValue.as[JsObject].fields
+//      propMeta <- HLabelMeta.findByName(label.id.get, propName)
+////      innerVal <- jsValueToInnerVal(v, propMeta.dataType)
+//    }  yield {
+//      propName -> (v match {
+//        case arr: JsArray => // set
+//          Set(arr.as[List[JsValue]].flatMap { e =>
+//            jsValueToInnerVal(e, propMeta.dataType)
+//          })
+//        case value: JsValue => // exact
+//          Set(List(v).flatMap { jsValue =>
+//            jsValueToInnerVal(jsValue, propMeta.dataType)
+//          })
+//        case obj: JsObject => // from, to
+//          val (fromJsVal, toJsVal) = ((obj \ "from").as[JsValue], (obj \ "to").as[JsValue])
+//          val (from, to) = (toInnerVal(fromJsVal), toInnerVal(toJsVal))
+//          (from, to)
+//      })
+//    }
+//  }
   def extractWhere(label: HLabel, jsValue: JsValue) = {
     (jsValue \ "where").asOpt[String].flatMap { where =>
       WhereParser(label).parse(where)
@@ -264,9 +272,10 @@ trait RequestParser extends JSONParser {
   }
   def toIndexElements(jsValue: JsValue) = {
     val labelName = parse[String](jsValue, "label")
-    val js = (jsValue \ "indexProps").asOpt[JsObject].getOrElse(Json.parse("{}").as[JsObject])
-    val props = for ((k, v) <- js.fields) yield (k, v)
-    val t = (labelName, props)
+    val idxProps = parsePropsElements((jsValue \ "indexProps"))
+//    val js = (jsValue \ "indexProps").asOpt[JsObject].getOrElse(Json.parse("{}").as[JsObject])
+//    val props = for ((k, v) <- js.fields) yield (k, v)
+    val t = (labelName, idxProps)
     t
   }
   def toServiceElements(jsValue: JsValue) = {

@@ -56,8 +56,8 @@ object AdminController extends Controller with RequestParser {
 
   def addIndex() = Action(parse.json) { request =>
     try {
-      val (labelName, props) = toIndexElements(request.body)
-      Management.addIndex(labelName, props)
+      val (labelName, idxProps) = toIndexElements(request.body)
+      Management.addIndex(labelName, idxProps)
       Ok("Created\n").as(QueryController.applicationJsonHeader)
     } catch {
       case e: Throwable =>

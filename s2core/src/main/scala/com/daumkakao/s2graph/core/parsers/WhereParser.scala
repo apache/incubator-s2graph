@@ -100,8 +100,9 @@ case class WhereParser(label: HLabel) extends JavaTokenParsers with JSONParser {
             Equal(metaProp.seq, toInnerVal(s, metaProp.dataType))
         }
     }
-      | (ident ~ "between" ~ ident ~ "and" ~ ident | ident ~ "between" ~ decimalNumber ~ "and" ~ decimalNumber
-      | ident ~ "between" ~ stringLiteral ~ "and" ~ stringLiteral) ^^ {
+      | (ident ~ "between" ~ ident ~ "and" ~ ident |
+         ident ~ "between" ~ decimalNumber ~ "and" ~ decimalNumber |
+         ident ~ "between" ~ stringLiteral ~ "and" ~ stringLiteral) ^^ {
       case f ~ "between" ~ minV ~ "and" ~ maxV =>
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")

@@ -13,11 +13,11 @@ class EdgeTypeTest extends FunSuite with Matchers with TestCommon {
   /** define functions for each HBaseType constructor and apply function */
   val edgeRowKeyCreateFunc = (idxProps: Seq[(Byte, InnerVal)], innerVal: InnerVal) =>
       EdgeRowKey(CompositeId(testColumnId, innerVal, isEdge = true, useHash = true),
-        labelWithDir, labelOrderSeq, isInverted = false)
+        testLabelWithDir, testLabelOrderSeq, isInverted = false)
   val edgeRowKeyFromBytesFunc = (bytes: Array[Byte]) => EdgeRowKey(bytes, 0)
 
   val edgeQualifierCreateFunc = (idxProps: Seq[(Byte, InnerVal)], innerVal: InnerVal) =>
-      EdgeQualifier(idxProps, CompositeId(testColumnId, innerVal, isEdge = true, useHash = false), op)
+      EdgeQualifier(idxProps, CompositeId(testColumnId, innerVal, isEdge = true, useHash = false), testOp)
   val edgeQualifierFromBytesFunc = (bytes: Array[Byte]) => EdgeQualifier(bytes, 0, bytes.length)
 
   val edgeQualifierInvertedCreateFunc = (idxProps: Seq[(Byte, InnerVal)], innerVal: InnerVal) =>

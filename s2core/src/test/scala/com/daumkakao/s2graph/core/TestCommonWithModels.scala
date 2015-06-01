@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.models.{HLabel, HServiceColumn, HService, HBaseModel}
-import com.daumkakao.s2graph.core.types.{HBaseType, InnerVal}
+import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.types.{LabelWithDirection, HBaseType, InnerVal}
 import com.typesafe.config.ConfigFactory
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{KeyValue, PutRequest}
@@ -14,11 +14,6 @@ import scala.concurrent.ExecutionContext
  */
 trait TestCommonWithModels {
   val zkQuorum = "localhost"
-  val config = ConfigFactory.parseString(s"hbase.zookeeper.quorum=$zkQuorum")
-  Graph(config)(ExecutionContext.Implicits.global)
-  HBaseModel(zkQuorum)
-
-
   val serviceName = "_test_service"
   val columnName = "user_id"
   val columnType = "long"
@@ -27,10 +22,13 @@ trait TestCommonWithModels {
   val preSplitSize = 0
   val labelName = "_test_label"
   val testProps = Seq(
-    ("is_hidden", JsBoolean(true), "boolean"),
-    ("phone_number", JsString("xxx-xxx-xxxx"), "string"),
-    ("score", JsNumber(0.1), "float"),
-    ("age", JsNumber(10), "int")
+    ("is_blocked", JsBoolean(false), InnerVal.BOOLEAN),
+    ("time", JsNumber(0), InnerVal.INT),
+    ("weight", JsNumber(0), InnerVal.INT),
+    ("is_hidden", JsBoolean(true), InnerVal.BOOLEAN),
+    ("phone_number", JsString("xxx-xxx-xxxx"), InnerVal.STRING),
+    ("score", JsNumber(0.1), InnerVal.FLOAT),
+    ("age", JsNumber(10), InnerVal.INT)
   )
   val testIdxProps = Seq(
     ("_timestamp", JsNumber(0L), "long"),
@@ -38,6 +36,16 @@ trait TestCommonWithModels {
   )
   val consistencyLevel = "strong"
   val hTableTTL = None
+
+
+  val config = ConfigFactory.parseString(
+    s"""hbase.zookeeper.quorum=$zkQuorum
+     """.stripMargin)
+  Graph(config)(ExecutionContext.Implicits.global)
+  HBaseModel(zkQuorum)
+
+
+
 
   def initTests() = {
     deleteTestLabel()
@@ -70,4 +78,9 @@ trait TestCommonWithModels {
   val service = HService.findByName(serviceName, useCache = false).get
   val column = HServiceColumn.find(service.id.get, columnName, useCache = false).get
   val label = HLabel.findByName(labelName, useCache = false).get
+  val dir = GraphUtil.directions("out")
+  val op = GraphUtil.operations("insert")
+  val labelOrderSeq = HLabelIndex.defaultSeq
+  val labelWithDir = LabelWithDirection(label.id.get, dir)
+  val queryParam = QueryParam(labelWithDir)
 }

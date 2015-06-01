@@ -238,8 +238,9 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
   }
   lazy val propsWithName = for {
     (seq, v) <- props
-    name <- label.metaPropNamesMap.get(seq) if seq > 0
-  } yield (name -> innerValToJsValue(v))
+    meta <- label.metaPropsMap.get(seq) if seq > 0
+    jsValue <- innerValToJsValue(v, meta.dataType)
+  } yield (meta.name -> jsValue)
 
   lazy val canBeBatched =
     op == GraphUtil.operations("insertBulk") ||

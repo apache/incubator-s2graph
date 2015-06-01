@@ -20,14 +20,14 @@ class VertexTest extends FunSuite with Matchers with TestCommonWithModels with T
     val rets = for {
       props <- propsLs
     } yield {
-      val head = Vertex(CompositeId(testColumnId, innerVals.head, isEdge = false, useHash = true),
+      val head = Vertex(CompositeId(column.id.get, innerVals.head, isEdge = false, useHash = true),
       ts, props.toMap, op)
       val start = head
       var prev = head
       val rets = for {
         innerVal <- innerVals.tail
       } yield {
-          var current = Vertex(CompositeId(testColumnId, innerVal, false, true), ts, props.toMap, op)
+          var current = Vertex(CompositeId(column.id.get, innerVal, false, true), ts, props.toMap, op)
           val puts = current.buildPutsAsync()
           val kvs = for { put <- puts } yield {
             putToKeyValue(put)
@@ -35,8 +35,8 @@ class VertexTest extends FunSuite with Matchers with TestCommonWithModels with T
           val decodedOpt = Vertex(kvs)
           val comp = decodedOpt.isDefined &&
           equalsExact(decodedOpt.get, current)
-//          largerThan(current.rowKey.bytes, prev.rowKey.bytes) &&
-//          largerThan(current.rowKey.bytes, start.rowKey.bytes)
+          largerThan(current.rowKey.bytes, prev.rowKey.bytes) &&
+          largerThan(current.rowKey.bytes, start.rowKey.bytes)
 
           prev = current
           comp

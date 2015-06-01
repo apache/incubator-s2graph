@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.models._
-import com.daumkakao.s2graph.core.types.{HBaseType, InnerVal, LabelWithDirection}
+import com.daumkakao.s2graph.core.types.{InnerValWithTs, HBaseType, InnerVal, LabelWithDirection}
 import com.typesafe.config.ConfigFactory
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{PutRequest, KeyValue}
@@ -16,14 +16,14 @@ trait TestCommon {
 
 
 
-
+  val ts = System.currentTimeMillis()
   val testServiceId = 1
   val testColumnId = 1
   val testLabelId = 1
-  val dir = GraphUtil.directions("out")
-  val op = GraphUtil.operations("insert")
-  val labelOrderSeq = HLabelIndex.defaultSeq
-  val labelWithDir = LabelWithDirection(testLabelId, dir)
+  val testDir = GraphUtil.directions("out")
+  val testOp = GraphUtil.operations("insert")
+  val testLabelOrderSeq = HLabelIndex.defaultSeq
+  val testLabelWithDir = LabelWithDirection(testLabelId, testDir)
 
 
 
@@ -34,7 +34,6 @@ trait TestCommon {
   def lessThan(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) < 0
 
   /** */
-  val ts = System.currentTimeMillis()
   val intVals = {
     val vals = (Int.MinValue until Int.MinValue + 10) ++
       (-128 to 128) ++ (Int.MaxValue - 10 until Int.MaxValue)
@@ -47,7 +46,9 @@ trait TestCommon {
     Seq((0.toByte -> InnerVal.withLong(ts)), (1.toByte -> InnerVal.withLong(11)), (2.toByte -> InnerVal.withStr("a"))),
     Seq((0.toByte -> InnerVal.withLong(ts + 1)), (1.toByte -> InnerVal.withLong(10)), (2.toByte -> InnerVal.withStr("a")))
   )
-
+  val idxPropsWithTsLs = idxPropsLs.map { idxProps =>
+    idxProps.map { case (k, v) => k -> InnerValWithTs(v, ts) }
+  }
   def testOrder(idxPropsLs: Seq[Seq[(Byte, InnerVal)]], innerVals: Iterable[InnerVal])
                (createFunc: (Seq[(Byte, InnerVal)], InnerVal) => HBaseType,
                 fromBytesFunc: Array[Byte] => HBaseType) = {

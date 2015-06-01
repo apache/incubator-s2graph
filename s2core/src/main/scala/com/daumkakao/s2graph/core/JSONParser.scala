@@ -7,8 +7,33 @@ import play.api.libs.json._
 import scala.util.parsing.combinator.JavaTokenParsers
 
 trait JSONParser {
-  def innerValToJsValue(innerVal: InnerVal): JsValue = {
-    innerVal.toJsValue()
+  /** */
+//  def toInnerVal(jsValue: JsValue) = {
+//    jsValue match {
+//      case n: JsNumber => (InnerVal.withNumber(n.value), InnerVal.dataTypeOfNumber(n.value))
+//      case s: JsString => (InnerVal.withStr(s.value), InnerVal.STRING)
+//      case b: JsBoolean => (InnerVal.withBoolean(b.value), InnerVal.BOOLEAN)
+//      // ?? blob??
+//      case _ => throw new Exception("JsonValue should be in [long/string/boolean].")
+//    }
+//  }
+//  def innerValToJsValue(innerVal: InnerVal): JsValue = {
+//    innerVal.toJsValue()
+//  }
+  def innerValToJsValue(innerVal: InnerVal, dataType: String): Option[JsValue] = {
+    try {
+      val jsValue = dataType match {
+        case InnerVal.STRING => JsString(innerVal.value.toString)
+        case InnerVal.BOOLEAN => JsBoolean(innerVal.toVal[Boolean])
+        case t if InnerVal.NUMERICS.contains(t) => JsNumber(innerVal.toVal[BigDecimal])
+        case _ =>
+          throw new RuntimeException(s"innerVal $innerVal to JsValue with type $dataType")
+      }
+      Some(jsValue)
+    } catch {
+      case e: Throwable =>
+        None
+    }
   }
   def innerValToString(innerVal: InnerVal, dataType: String): String = {
     dataType match {
@@ -31,15 +56,7 @@ trait JSONParser {
     }
   }
 
-  def toInnerVal(jsValue: JsValue) = {
-    jsValue match {
-      case n: JsNumber => (InnerVal.withNumber(n.value), InnerVal.dataTypeOfNumber(n.value))
-      case s: JsString => (InnerVal.withStr(s.value), InnerVal.STRING)
-      case b: JsBoolean => (InnerVal.withBoolean(b.value), InnerVal.BOOLEAN)
-        // ?? blob??
-      case _ => throw new Exception("JsonValue should be in [long/string/boolean].")
-    }
-  }
+
   def jsValueToInnerVal(jsValue: JsValue, dataType: String): Option[InnerVal] = {
     val ret = try {
       val dType = dataType.toLowerCase()
