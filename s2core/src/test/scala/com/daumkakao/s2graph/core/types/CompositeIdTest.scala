@@ -1,14 +1,13 @@
 package com.daumkakao.s2graph.core.types
 
+import com.daumkakao.s2graph.core.TestCommon
 import org.apache.hadoop.hbase.util.Bytes
 import org.scalatest.{Matchers, FunSuite}
 
 /**
  * Created by shon on 5/29/15.
  */
-class CompositeIdTest extends FunSuite with Matchers {
-
-  val columnId = 0
+class CompositeIdTest extends FunSuite with Matchers with TestCommon {
   /** these constants need to be sorted asc order for test to run */
   val strings = List(
     "abc", "abd", "ac", "aca", "b"
@@ -25,30 +24,25 @@ class CompositeIdTest extends FunSuite with Matchers {
     decimals.map(InnerVal(_))
   }
 
-  def equalsTo(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) == 0
-
-  def largerThan(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) > 0
-
-  def lessThan(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) < 0
 
   def testOrder(innerVals: Iterable[InnerVal]) = {
     val rets = for {
       isEdge <- List(true, false)
       useHash <- List(true, false)
     } yield {
-        val head = CompositeId(columnId, innerVals.head, isEdge = isEdge, useHash = useHash)
+        val head = CompositeId(testColumnId, innerVals.head, isEdge = isEdge, useHash = useHash)
         val start = head
         var prev = head
 
         val rets = for {
           innerVal <- innerVals.tail
         } yield {
-            val current = CompositeId(columnId, innerVal, isEdge = isEdge, useHash = useHash)
+            val current = CompositeId(testColumnId, innerVal, isEdge = isEdge, useHash = useHash)
             val decoded = CompositeId(current.bytes, 0, isEdge = isEdge, useHash = useHash)
 
             val comp = largerThan(current.bytes, prev.bytes) &&
-            largerThan(current.bytes, start.bytes) &&
-            current == decoded
+              largerThan(current.bytes, start.bytes) &&
+              current == decoded
             comp
           }
         rets.forall(x => x)
@@ -57,10 +51,25 @@ class CompositeIdTest extends FunSuite with Matchers {
     rets.forall(x => x)
   }
 
+  val compositeIdFuncs = for {
+    isEdge <- List(true, false)
+    useHash <- List(true, false)
+  } yield {
+      val compositeIdCreateFunc = (idxProps: Seq[(Byte, InnerVal)], innerVal: InnerVal) =>
+        CompositeId(testColumnId, innerVal, isEdge, useHash)
+      val compositeIdFromBytesFunc = (bytes: Array[Byte]) => CompositeId(bytes, 0, isEdge, useHash)
+      (compositeIdCreateFunc, compositeIdFromBytesFunc)
+    }
+
+
   test("order of compositeId numeric") {
-    testOrder(nums)
+    compositeIdFuncs.forall { case (createFunc, fromBytesFunc) =>
+        testOrder(idxPropsLs, nums)(createFunc, fromBytesFunc)
+    }
   }
   test("order of compositeId strings") {
-    testOrder(strings)
+    compositeIdFuncs.forall { case (createFunc, fromBytesFunc) =>
+      testOrder(idxPropsLs, strings)(createFunc, fromBytesFunc)
+    }
   }
 }

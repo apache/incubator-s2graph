@@ -28,7 +28,7 @@ object CompositeId {
   }
 }
 // TODO: colId range < (1<<15??) id length??
-case class CompositeId(colId: Int, innerId: InnerVal, isEdge: Boolean, useHash: Boolean) {
+case class CompositeId(colId: Int, innerId: InnerVal, isEdge: Boolean, useHash: Boolean) extends HBaseType {
   //    play.api.Logger.debug(s"$this")
   lazy val hash = GraphUtil.murmur3(innerId.value.toString)
   lazy val bytes = {

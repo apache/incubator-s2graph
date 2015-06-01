@@ -68,9 +68,9 @@ object InnerVal {
       else if (num.isValidInt) 4
       else if (num.isValidLong) 8
       else if (num.isValidFloat) 4
-      else 11
+      else 12
     //      else throw new RuntimeException(s"wrong data $num")
-    new SimplePositionedMutableByteRange(byteLen + 3)
+    new SimplePositionedMutableByteRange(byteLen + 4)
   }
 
   def dataTypeOfNumber(num: BigDecimal) = {
@@ -130,7 +130,7 @@ object InnerVal {
 case class InnerVal(value: Any) {
 
   import InnerVal._
-
+  println(s"$this, $value")
   lazy val bytes = {
     val ret = value match {
       case b: Boolean =>
