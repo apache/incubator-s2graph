@@ -91,9 +91,13 @@ case class WhereParser(label: HLabel) extends JavaTokenParsers with JSONParser {
 
   def boolean = ("true" ^^^ (true) | "false" ^^^ (false))
 
+  def stringLiteralWithMinus = (stringLiteral | ("-" ~ decimalNumber) ^^ {
+    case _ ~ v => "-" + v
+  })
+
   /** floating point is not supported yet **/
   def predicate = (
-    (ident ~ "=" ~ ident | ident ~ "=" ~ decimalNumber | ident ~ "=" ~ stringLiteral) ^^ {
+    (ident ~ "=" ~ ident | ident ~ "=" ~ decimalNumber | ident ~ "=" ~ stringLiteralWithMinus) ^^ {
       case f ~ "=" ~ s =>
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
@@ -103,7 +107,7 @@ case class WhereParser(label: HLabel) extends JavaTokenParsers with JSONParser {
     }
       | (ident ~ "between" ~ ident ~ "and" ~ ident |
          ident ~ "between" ~ decimalNumber ~ "and" ~ decimalNumber |
-         ident ~ "between" ~ stringLiteral ~ "and" ~ stringLiteral) ^^ {
+         ident ~ "between" ~ stringLiteralWithMinus ~ "and" ~ stringLiteralWithMinus) ^^ {
       case f ~ "between" ~ minV ~ "and" ~ maxV =>
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
@@ -111,7 +115,7 @@ case class WhereParser(label: HLabel) extends JavaTokenParsers with JSONParser {
             Between(metaProp.seq, toInnerVal(minV, metaProp.dataType), toInnerVal(maxV, metaProp.dataType))
         }
     }
-      | (ident ~ "in" ~ "(" ~ rep(ident | decimalNumber | stringLiteral | "true" | "false" | ",") ~ ")") ^^ {
+      | (ident ~ "in" ~ "(" ~ rep(ident | decimalNumber | stringLiteralWithMinus | "true" | "false" | ",") ~ ")") ^^ {
       case f ~ "in" ~ "(" ~ vals ~ ")" =>
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
@@ -122,7 +126,7 @@ case class WhereParser(label: HLabel) extends JavaTokenParsers with JSONParser {
             IN(metaProp.seq, values.toSet)
         }
     }
-      | (ident ~ "!=" ~ ident | ident ~ "!=" ~ decimalNumber | ident ~ "!=" ~ stringLiteral) ^^ {
+      | (ident ~ "!=" ~ ident | ident ~ "!=" ~ decimalNumber | ident ~ "!=" ~ stringLiteralWithMinus) ^^ {
       case f ~ "!=" ~ s =>
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
@@ -130,7 +134,7 @@ case class WhereParser(label: HLabel) extends JavaTokenParsers with JSONParser {
             Not(Equal(metaProp.seq, toInnerVal(s, metaProp.dataType)))
         }
     }
-      | (ident ~ "not in" ~ "(" ~ rep(ident | decimalNumber | stringLiteral | "true" | "false" | ",") ~ ")") ^^ {
+      | (ident ~ "not in" ~ "(" ~ rep(ident | decimalNumber | stringLiteralWithMinus | "true" | "false" | ",") ~ ")") ^^ {
       case f ~ "not in" ~ "(" ~ vals ~ ")" =>
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")

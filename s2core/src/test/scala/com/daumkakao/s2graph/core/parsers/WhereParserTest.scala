@@ -94,7 +94,8 @@ class WhereParserTest extends FunSuite with Matchers with TestCommon with TestCo
       f(s"_from = -1 or _to = ${tgtVertex.innerId.value}")(true),
       f(s"_from = ${srcVertex.innerId.value} and _to = ${tgtVertex.innerId.value}")(true),
       f(s"_from = ${tgtVertex.innerId.value} and _to = 102934")(false),
-      f(s"_from = -1")(false)
+      f(s"_from = -1")(false),
+      f(s"_from in (-1)")(false)
     )
     println(rets)
     rets.forall(x => x) shouldBe true
