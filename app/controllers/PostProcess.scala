@@ -167,11 +167,10 @@ object PostProcess extends JSONParser {
   def edgeToJson(edge: Edge, score: Double): Option[JsObject] = {
     //    
     //    Logger.debug(s"edgeProps: ${edge.props} => ${props}")
-    for {
-      from <- innerValToJsValue(edge.srcVertex.innerId, edge.label.srcColumnType)
-      to <- innerValToJsValue(edge.tgtVertex.innerId, edge.label.tgtColumnType)
+    val json = for {
+      from <- innerValToJsValue(edge.srcVertex.id.innerId, edge.label.srcColumnType)
+      to <- innerValToJsValue(edge.tgtVertex.id.innerId, edge.label.tgtColumnType)
     } yield {
-      val props = propsToJson(edge)
       Json.obj(
         "from" -> from,
         "to" -> to,
@@ -182,6 +181,8 @@ object PostProcess extends JSONParser {
         "score" -> score
       )
     }
+//    Logger.debug(s"$edge => $json")
+    json
 //    Json.obj(
 //      "from" -> innerValToJsValue(edge.srcVertex.id.innerId),
 //      "to" -> (if (edge.tgtVertex == null) JsString("degree") else innerValToJsValue(edge.tgtVertex.id.innerId)),

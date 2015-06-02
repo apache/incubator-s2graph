@@ -25,7 +25,8 @@ trait JSONParser {
       val jsValue = dataType match {
         case InnerVal.STRING => JsString(innerVal.value.toString)
         case InnerVal.BOOLEAN => JsBoolean(innerVal.toVal[Boolean])
-        case t if InnerVal.NUMERICS.contains(t) => JsNumber(InnerVal.scaleNumber(innerVal.toVal[BigDecimal]))
+        case t if InnerVal.NUMERICS.contains(t) =>
+          JsNumber(InnerVal.scaleNumber(innerVal.toVal[BigDecimal], dataType))
         case _ =>
           throw new RuntimeException(s"innerVal $innerVal to JsValue with type $dataType")
       }

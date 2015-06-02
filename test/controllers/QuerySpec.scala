@@ -151,7 +151,7 @@
 //          jsRslt.as[JsObject].keys.contains("size") must equalTo(true)
 //          jsRslt.as[JsObject].keys.contains("results") must equalTo(true)
 //          (jsRslt \ "size").as[Int] must greaterThan(0)
-//          (jsRslt \ "size").as[Int] must equalTo(toVertexIds.length)
+//          (jsRslt \ "size").as[Int] must equalTo(toVertexIds.length + 1)
 //          ((jsRslt \ "results") \\ "from").seq(0).toString must equalTo(s"${fromVertexIds(0)}")
 //        }
 //      }
@@ -185,7 +185,9 @@
 //      | "tgtColumnType": "long",
 //      | "indexProps": [
 //      |   {"name": "time", "dataType": "long", "defaultValue": 0},
-//      |   {"name": "weight", "dataType": "long", "defaultValue": 0}
+//      |   {"name": "weight", "dataType": "long", "defaultValue": 0},
+//      |   {"name": "is_hidden", "dataType": "boolean", "defaultValue": false},
+//      |   {"name": "is_blocked", "dataType": "boolean", "defaultValue": false}
 //      | ]
 //      |}
 //    """.stripMargin

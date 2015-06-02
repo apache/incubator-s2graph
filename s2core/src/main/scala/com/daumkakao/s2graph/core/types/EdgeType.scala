@@ -3,6 +3,8 @@ package com.daumkakao.s2graph.core.types
 import com.daumkakao.s2graph.core.models.{HLabelIndex, HLabelMeta}
 import org.apache.hadoop.hbase.util.Bytes
 import LabelWithDirection._
+import play.api.Logger
+
 /**
  * Created by shon on 5/29/15.
  */
@@ -13,7 +15,7 @@ object EdgeType {
     var bytes = Array.fill(1)(len.toByte)
     for ((k, v) <- props) bytes = Bytes.add(bytes, v.bytes)
 
-    //    Logger.debug(s"propsToBytes: $props => ${bytes.toList}")
+//        Logger.debug(s"propsToBytes: $props => ${bytes.toList}")
     bytes
   }
   def propsToKeyValues(props: Seq[(Byte, InnerVal)]): Array[Byte] = {
@@ -21,7 +23,7 @@ object EdgeType {
     assert(len < Byte.MaxValue)
     var bytes = Array.fill(1)(len.toByte)
     for ((k, v) <- props) bytes = Bytes.add(bytes, Array.fill(1)(k), v.bytes)
-    //    Logger.debug(s"propsToBytes: $props => ${bytes.toList}")
+//        Logger.error(s"propsToBytes: $props => ${bytes.toList}")
     bytes
   }
   def propsToKeyValuesWithTs(props: Seq[(Byte, InnerValWithTs)]): Array[Byte] = {
@@ -29,7 +31,7 @@ object EdgeType {
     assert(len < Byte.MaxValue)
     var bytes = Array.fill(1)(len.toByte)
     for ((k, v) <- props) bytes = Bytes.add(bytes, Array.fill(1)(k), v.bytes)
-    //    Logger.debug(s"propsToBytes: $props => ${bytes.toList}")
+//        Logger.error(s"propsToBytes: $props => ${bytes.toList}")
     bytes
   }
   def bytesToKeyValues(bytes: Array[Byte], offset: Int): (Seq[(Byte, InnerVal)], Int) = {
@@ -69,11 +71,13 @@ object EdgeType {
     val kvs = for (i <- (0 until len)) yield {
       val k = HLabelMeta.emptyValue
       val v = InnerVal(bytes, pos)
+
       pos += v.bytes.length
       (k -> v)
     }
+//    Logger.error(s"bytesToProps: $kvs")
     val ret = (kvs.toList, pos)
-    //    Logger.debug(s"bytesToProps: $ret")
+
     ret
   }
   object EdgeRowKey {
@@ -106,15 +110,13 @@ object EdgeType {
     def apply(bytes: Array[Byte], offset: Int, len: Int): EdgeQualifier = {
       var pos = offset
       val op = bytes(offset + len - 1)
-
       val (props, tgtVertexId) = {
         val (props, endAt) = bytesToProps(bytes, pos)
-        val propsMap = props.toMap
-
-        val tgtVertexId = propsMap.get(HLabelMeta.toSeq) match {
-          case None => CompositeId(bytes, endAt, true, false)
-          case Some(vId) => CompositeId(CompositeId.defaultColId, vId, true, false)
-        }
+        val tgtVertexId = CompositeId(bytes, endAt, true, false)
+//        val tgtVertexId = propsMap.get(HLabelMeta.toSeq) match {
+//          case None => CompositeId(bytes, endAt, true, false)
+//          case Some(vId) => CompositeId(CompositeId.defaultColId, vId, true, false)
+//        }
         (props, tgtVertexId)
       }
       EdgeQualifier(props, tgtVertexId, op)
@@ -127,10 +129,11 @@ object EdgeType {
     lazy val propsMap = props.toMap
     lazy val propsBytes = propsToBytes(props)
     lazy val bytes = {
-      propsMap.get(HLabelMeta.toSeq) match {
-        case None => Bytes.add(propsBytes, innerTgtVertexId.bytes, opBytes)
-        case Some(vId) => Bytes.add(propsBytes, opBytes)
-      }
+      Bytes.add(propsBytes, innerTgtVertexId.bytes, opBytes)
+//      propsMap.get(HLabelMeta.toSeq) match {
+//        case None => Bytes.add(propsBytes, innerTgtVertexId.bytes, opBytes)
+//        case Some(vId) => Bytes.add(propsBytes, opBytes)
+//      }
 
     }
     //TODO:

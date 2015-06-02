@@ -11,10 +11,9 @@ import scala.concurrent.duration._
 import org.specs2.execute.{ AsResult, Result }
 import org.specs2.matcher.Matchers
 import org.specs2.mutable.Specification
-import play.api.libs.json.{ JsObject, JsValue, Json }
+import play.api.libs.json._
 import play.api.test.Helpers._
 import play.api.test.{ FakeApplication, FakeRequest, Helpers, WithApplication }
-import play.api.libs.json.JsArray
 import scala.concurrent.ExecutionContext
 
 
@@ -62,7 +61,7 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
         jsRslt.as[JsObject].keys.contains("results") must equalTo(true)
 
         val jsRsltsObj = jsRslt \ "results"
-
+        println(s"$jsRsltsObj")
         jsRsltsObj.as[JsArray].value(0).as[JsObject].keys.contains("from") must equalTo(true)
         jsRsltsObj.as[JsArray].value(0).as[JsObject].keys.contains("to") must equalTo(true)
         jsRsltsObj.as[JsArray].value(0).as[JsObject].keys.contains("_timestamp") must equalTo(true)
@@ -79,7 +78,7 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
       }
       def runTC(tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]) = {
         val srcId = tcNum.toString
-        val tgtId = (srcId + 1000).toString
+        val tgtId = (tcNum + 1000).toString
         val maxTs = opWithProps.map(t => t._1).max
 
         def init = {
@@ -139,12 +138,12 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
 
           val jsRsltsObj = commonCheck(rslt)
 
-          (jsRsltsObj \\ "from").seq(0).toString must equalTo(srcId)
-          (jsRsltsObj \\ "to").seq(0).toString must equalTo(tgtId)
-          (jsRsltsObj \\ "_timestamp").seq(0).as[Long] must equalTo(maxTs)
+          (jsRsltsObj \\ "from").seq.last.toString must equalTo(srcId)
+          (jsRsltsObj \\ "to").seq.last.toString must equalTo(tgtId)
+          (jsRsltsObj \\ "_timestamp").seq.last.as[Long] must equalTo(maxTs)
           for ((key, expectedVal) <- expected) {
-            (jsRsltsObj \\ "props").seq(0).as[JsObject].keys.contains(key) must equalTo(true)
-            ((jsRsltsObj \\ "props").seq(0) \ key).toString must equalTo(expectedVal)
+            (jsRsltsObj \\ "props").seq.last.as[JsObject].keys.contains(key) must equalTo(true)
+            ((jsRsltsObj \\ "props").seq.last \ key).toString must equalTo(expectedVal)
           }
           Await.result(rslt, HTTP_REQ_WAITING_TIME)
         }
@@ -177,209 +176,209 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
 
           runTC(tcNum, tcString, bulkQueries, expected)
         }
-//
-//        "[TC3]" in {
-//          val tcNum = 3
-//          val tcString = "[t2 -> t1 -> t3 test case] delete(t2) incr(t1) incr(t3) test "
-//          val bulkQueries = List(
-//            (t2, "delete", ""),
-//            (t1, "increment", "{\"weight\": 10}"),
-//            (t3, "increment", "{\"time\": 10, \"weight\": 20}"))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//
-//        "[TC4]" in {
-//          val tcNum = 4
-//          val tcString = "[t2 -> t3 -> t1 test case] delete(t2) incr(t3) incr(t1) test "
-//          val bulkQueries = List(
-//            (t2, "delete", ""),
-//            (t3, "increment", "{\"weight\": 10}"),
-//            (t1, "increment", "{\"time\": 10, \"weight\": 20}"))
-//          val expected = Map("time" -> "0", "weight" -> "10")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//
-//        "[TC5]" in {
-//          val tcNum = 5
-//          val tcString = "[t3 -> t1 -> t2 test case] incr(t3) incr(t1) delete(t2) test "
-//          val bulkQueries = List(
-//            (t3, "increment", "{\"time\": 10, \"weight\": 20}"),
-//            (t1, "increment", "{\"time\": 10}"),
-//            (t2, "delete", ""))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//        "[TC6]" in {
-//          val tcNum = 6
-//          val tcString = "[t3 -> t2 -> t1 test case] incr(t3) delete(t2) incr(t1) test "
-//          val bulkQueries = List(
-//            (t3, "increment", "{\"time\": 10, \"weight\": 20}"),
-//            (t2, "delete", ""),
-//            (t1, "increment", "{\"time\": 10}"))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
+
+        "[TC3]" in {
+          val tcNum = 3
+          val tcString = "[t2 -> t1 -> t3 test case] delete(t2) incr(t1) incr(t3) test "
+          val bulkQueries = List(
+            (t2, "delete", ""),
+            (t1, "increment", "{\"weight\": 10}"),
+            (t3, "increment", "{\"time\": 10, \"weight\": 20}"))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+
+        "[TC4]" in {
+          val tcNum = 4
+          val tcString = "[t2 -> t3 -> t1 test case] delete(t2) incr(t3) incr(t1) test "
+          val bulkQueries = List(
+            (t2, "delete", ""),
+            (t3, "increment", "{\"weight\": 10}"),
+            (t1, "increment", "{\"time\": 10, \"weight\": 20}"))
+          val expected = Map("time" -> "0", "weight" -> "10")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+
+        "[TC5]" in {
+          val tcNum = 5
+          val tcString = "[t3 -> t1 -> t2 test case] incr(t3) incr(t1) delete(t2) test "
+          val bulkQueries = List(
+            (t3, "increment", "{\"time\": 10, \"weight\": 20}"),
+            (t1, "increment", "{\"time\": 10}"),
+            (t2, "delete", ""))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+        "[TC6]" in {
+          val tcNum = 6
+          val tcString = "[t3 -> t2 -> t1 test case] incr(t3) delete(t2) incr(t1) test "
+          val bulkQueries = List(
+            (t3, "increment", "{\"time\": 10, \"weight\": 20}"),
+            (t2, "delete", ""),
+            (t1, "increment", "{\"time\": 10}"))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
 
       }
-//      // -- Increment / Delete Application
-//      "Insert/Delete Application" should {
-//        "[TC7]" in {
-//          val tcNum = 7
-//          val tcString = "[t1 -> t2 -> t3 test case] insert(t1) delete(t2) insert(t3) test "
-//          val bulkQueries = List(
-//            (t1, "insert", "{\"time\": 10}"),
-//            (t2, "delete", ""),
-//            (t3, "insert", "{\"time\": 10, \"weight\": 20}"))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//        "[TC8]" in {
-//          val tcNum = 8
-//          val tcString = "[t1 -> t2 -> t3 test case] insert(t1) delete(t2) insert(t3) test "
-//          val bulkQueries = List(
-//            (t1, "insert", "{\"time\": 10}"),
-//            (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
-//            (t2, "delete", ""))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//        "[TC9]" in {
-//          val tcNum = 9
-//          val tcString = "[t3 -> t2 -> t1 test case] insert(t3) delete(t2) insert(t1) test "
-//          val bulkQueries = List(
-//            (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
-//            (t2, "delete", ""),
-//            (t1, "insert", "{\"time\": 10}"))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//        "[TC10]" in {
-//          val tcNum = 10
-//          val tcString = "[t3 -> t1 -> t2 test case] insert(t3) insert(t1) delete(t2) test "
-//          val bulkQueries = List(
-//            (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
-//            (t1, "insert", "{\"time\": 10}"),
-//            (t2, "delete", ""))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//        "[TC11]" in {
-//          val tcNum = 11
-//          val tcString = "[t2 -> t1 -> t3 test case] delete(t2) insert(t1) insert(t3) test"
-//          val bulkQueries = List(
-//            (t2, "delete", ""),
-//            (t1, "insert", "{\"time\": 10}"),
-//            (t3, "insert", "{\"time\": 10, \"weight\": 20}"))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//        "[TC12]" in {
-//          val tcNum = 12
-//          val tcString = "[t2 -> t3 -> t1 test case] delete(t2) insert(t3) insert(t1) test "
-//          val bulkQueries = List(
-//            (t2, "delete", ""),
-//            (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
-//            (t1, "insert", "{\"time\": 10}"))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//      } // -- Insert / Delete Application
-//
-//      "Update / Delete Application" should {
-//        "[TC13]" in {
-//          val tcNum = 13
-//          val tcString = "[t1 -> t2 -> t3 test case] update(t1) delete(t2) update(t3) test "
-//          val bulkQueries = List(
-//            (t1, "update", "{\"time\": 10}"),
-//            (t2, "delete", ""),
-//            (t3, "update", "{\"time\": 10, \"weight\": 20}"))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//        "[TC14]" in {
-//          val tcNum = 14
-//          val tcString = "[t1 -> t3 -> t2 test case] update(t1) update(t3) delete(t2) test "
-//          val bulkQueries = List(
-//            (t1, "update", "{\"time\": 10}"),
-//            (t3, "update", "{\"time\": 10, \"weight\": 20}"),
-//            (t2, "delete", ""))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//        "[TC15]" in {
-//          val tcNum = 15
-//          val tcString = "[t2 -> t1 -> t3 test case] delete(t2) update(t1) update(t3) test "
-//          val bulkQueries = List(
-//            (t2, "delete", ""),
-//            (t1, "update", "{\"time\": 10}"),
-//            (t3, "update", "{\"time\": 10, \"weight\": 20}"))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//        "[TC16]" in {
-//          val tcNum = 16
-//          val tcString = "[t2 -> t3 -> t1 test case] delete(t2) update(t3) update(t1) test"
-//          val bulkQueries = List(
-//            (t2, "delete", ""),
-//            (t3, "update", "{\"time\": 10, \"weight\": 20}"),
-//            (t1, "update", "{\"time\": 10}"))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//        "[TC17]" in {
-//          val tcNum = 17
-//          val tcString = "[t3 -> t2 -> t1 test case] update(t3) delete(t2) update(t1) test "
-//          val bulkQueries = List(
-//            (t3, "update", "{\"time\": 10, \"weight\": 20}"),
-//            (t2, "delete", ""),
-//            (t1, "update", "{\"time\": 10}"))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//        "[TC18]" in {
-//          val tcNum = 18
-//          val tcString = "[t3 -> t1 -> t2 test case] update(t3) update(t1) delete(t2) test "
-//          val bulkQueries = List(
-//            (t3, "update", "{\"time\": 10, \"weight\": 20}"),
-//            (t1, "update", "{\"time\": 10}"),
-//            (t2, "delete", ""))
-//          val expected = Map("time" -> "10", "weight" -> "20")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//      } // -- Update / Delete Application
+      // -- Increment / Delete Application
+      "Insert/Delete Application" should {
+        "[TC7]" in {
+          val tcNum = 7
+          val tcString = "[t1 -> t2 -> t3 test case] insert(t1) delete(t2) insert(t3) test "
+          val bulkQueries = List(
+            (t1, "insert", "{\"time\": 10}"),
+            (t2, "delete", ""),
+            (t3, "insert", "{\"time\": 10, \"weight\": 20}"))
+          val expected = Map("time" -> "10", "weight" -> "20")
 
-//      "Composite Application" should {
-//        "[TC19]" in {
-//          val tcNum = 19
-//          val tcString = "[t5 -> t1 -> t3 -> t2 -> t4 test case] update(t5) insert(t1) insert(t3) delete(t2) update(t4) test "
-//          val bulkQueries = List(
-//            (t5, "update", "{\"is_blocked\": true}"),
-//            (t1, "insert", "{\"is_hidden\": false}"),
-//            (t3, "insert", "{\"is_hidden\": false, \"weight\": 10}"),
-//            (t2, "delete", ""),
-//            (t4, "update", "{\"time\": 1, \"weight\": -10}"))
-//          val expected = Map("time" -> "1", "weight" -> "-10", "is_hidden" -> "false", "is_blocked" -> "true")
-//
-//          runTC(tcNum, tcString, bulkQueries, expected)
-//        }
-//      } // -- Composite Application
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+        "[TC8]" in {
+          val tcNum = 8
+          val tcString = "[t1 -> t2 -> t3 test case] insert(t1) delete(t2) insert(t3) test "
+          val bulkQueries = List(
+            (t1, "insert", "{\"time\": 10}"),
+            (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
+            (t2, "delete", ""))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+        "[TC9]" in {
+          val tcNum = 9
+          val tcString = "[t3 -> t2 -> t1 test case] insert(t3) delete(t2) insert(t1) test "
+          val bulkQueries = List(
+            (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
+            (t2, "delete", ""),
+            (t1, "insert", "{\"time\": 10}"))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+        "[TC10]" in {
+          val tcNum = 10
+          val tcString = "[t3 -> t1 -> t2 test case] insert(t3) insert(t1) delete(t2) test "
+          val bulkQueries = List(
+            (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
+            (t1, "insert", "{\"time\": 10}"),
+            (t2, "delete", ""))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+        "[TC11]" in {
+          val tcNum = 11
+          val tcString = "[t2 -> t1 -> t3 test case] delete(t2) insert(t1) insert(t3) test"
+          val bulkQueries = List(
+            (t2, "delete", ""),
+            (t1, "insert", "{\"time\": 10}"),
+            (t3, "insert", "{\"time\": 10, \"weight\": 20}"))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+        "[TC12]" in {
+          val tcNum = 12
+          val tcString = "[t2 -> t3 -> t1 test case] delete(t2) insert(t3) insert(t1) test "
+          val bulkQueries = List(
+            (t2, "delete", ""),
+            (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
+            (t1, "insert", "{\"time\": 10}"))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+      } // -- Insert / Delete Application
+
+      "Update / Delete Application" should {
+        "[TC13]" in {
+          val tcNum = 13
+          val tcString = "[t1 -> t2 -> t3 test case] update(t1) delete(t2) update(t3) test "
+          val bulkQueries = List(
+            (t1, "update", "{\"time\": 10}"),
+            (t2, "delete", ""),
+            (t3, "update", "{\"time\": 10, \"weight\": 20}"))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+        "[TC14]" in {
+          val tcNum = 14
+          val tcString = "[t1 -> t3 -> t2 test case] update(t1) update(t3) delete(t2) test "
+          val bulkQueries = List(
+            (t1, "update", "{\"time\": 10}"),
+            (t3, "update", "{\"time\": 10, \"weight\": 20}"),
+            (t2, "delete", ""))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+        "[TC15]" in {
+          val tcNum = 15
+          val tcString = "[t2 -> t1 -> t3 test case] delete(t2) update(t1) update(t3) test "
+          val bulkQueries = List(
+            (t2, "delete", ""),
+            (t1, "update", "{\"time\": 10}"),
+            (t3, "update", "{\"time\": 10, \"weight\": 20}"))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+        "[TC16]" in {
+          val tcNum = 16
+          val tcString = "[t2 -> t3 -> t1 test case] delete(t2) update(t3) update(t1) test"
+          val bulkQueries = List(
+            (t2, "delete", ""),
+            (t3, "update", "{\"time\": 10, \"weight\": 20}"),
+            (t1, "update", "{\"time\": 10}"))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+        "[TC17]" in {
+          val tcNum = 17
+          val tcString = "[t3 -> t2 -> t1 test case] update(t3) delete(t2) update(t1) test "
+          val bulkQueries = List(
+            (t3, "update", "{\"time\": 10, \"weight\": 20}"),
+            (t2, "delete", ""),
+            (t1, "update", "{\"time\": 10}"))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+        "[TC18]" in {
+          val tcNum = 18
+          val tcString = "[t3 -> t1 -> t2 test case] update(t3) update(t1) delete(t2) test "
+          val bulkQueries = List(
+            (t3, "update", "{\"time\": 10, \"weight\": 20}"),
+            (t1, "update", "{\"time\": 10}"),
+            (t2, "delete", ""))
+          val expected = Map("time" -> "10", "weight" -> "20")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+      } // -- Update / Delete Application
+
+      "Composite Application" should {
+        "[TC19]" in {
+          val tcNum = 19
+          val tcString = "[t5 -> t1 -> t3 -> t2 -> t4 test case] update(t5) insert(t1) insert(t3) delete(t2) update(t4) test "
+          val bulkQueries = List(
+            (t5, "update", "{\"is_blocked\": true}"),
+            (t1, "insert", "{\"is_hidden\": false}"),
+            (t3, "insert", "{\"is_hidden\": false, \"weight\": 10}"),
+            (t2, "delete", ""),
+            (t4, "update", "{\"time\": 1, \"weight\": -10}"))
+          val expected = Map("time" -> "1", "weight" -> "-10", "is_hidden" -> "false", "is_blocked" -> "true")
+
+          runTC(tcNum, tcString, bulkQueries, expected)
+        }
+      } // -- Composite Application
 
     }
 }

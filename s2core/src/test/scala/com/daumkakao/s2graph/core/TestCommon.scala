@@ -40,12 +40,14 @@ trait TestCommon {
     vals.map { v => InnerVal(BigDecimal(v)) }
   }
   val idxPropsLs = Seq(
-    Seq((0.toByte -> InnerVal.withLong(ts)), (1.toByte -> InnerVal.withLong(10)), (2.toByte -> InnerVal.withStr("a"))),
-    Seq((0.toByte -> InnerVal.withLong(ts)), (1.toByte -> InnerVal.withLong(10)), (2.toByte -> InnerVal.withStr("ab"))),
-    Seq((0.toByte -> InnerVal.withLong(ts)), (1.toByte -> InnerVal.withLong(10)), (2.toByte -> InnerVal.withStr("b"))),
-    Seq((0.toByte -> InnerVal.withLong(ts)), (1.toByte -> InnerVal.withLong(11)), (2.toByte -> InnerVal.withStr("a"))),
-    Seq((0.toByte -> InnerVal.withLong(ts + 1)), (1.toByte -> InnerVal.withLong(10)), (2.toByte -> InnerVal.withStr("a")))
-  )
+    Seq((0 -> InnerVal.withLong(ts)), (1 -> InnerVal.withBoolean(false)), (2 -> InnerVal.withStr("a")), (3 -> InnerVal.withDouble(-0.1))),
+    Seq((0 -> InnerVal.withLong(ts)), (1 -> InnerVal.withBoolean(false)), (2 -> InnerVal.withStr("a")), (3 -> InnerVal.withDouble(0.1))),
+    Seq((0 -> InnerVal.withLong(ts)), (1 -> InnerVal.withBoolean(false)), (2 -> InnerVal.withStr("ab")), (3 -> InnerVal.withDouble(0.1))),
+    Seq((0 -> InnerVal.withLong(ts)), (1 -> InnerVal.withBoolean(false)), (2-> InnerVal.withStr("b")), (3 -> InnerVal.withDouble(0.1))),
+    Seq((0 -> InnerVal.withLong(ts)), (1 -> InnerVal.withBoolean(true)), (2 -> InnerVal.withStr("a")), (3 -> InnerVal.withDouble(0.1))),
+    Seq((0 -> InnerVal.withLong(ts + 1)), (1 -> InnerVal.withBoolean(false)), (2 -> InnerVal.withStr("a")), (3 -> InnerVal.withDouble(0.1)))
+  ).map(seq => seq.map(t => t._1.toByte -> t._2 ) )
+
   val idxPropsWithTsLs = idxPropsLs.map { idxProps =>
     idxProps.map { case (k, v) => k -> InnerValWithTs(v, ts) }
   }

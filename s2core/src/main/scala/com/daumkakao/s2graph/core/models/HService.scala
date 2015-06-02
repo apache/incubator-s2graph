@@ -2,6 +2,7 @@ package com.daumkakao.s2graph.core.models
 
 import HBaseModel._
 import com.daumkakao.s2graph.core.Management
+import play.api.Logger
 
 import scala.reflect.ClassTag
 
@@ -11,7 +12,13 @@ import scala.reflect.ClassTag
 
 object HService {
   def findById(id: Int, useCache: Boolean = true): HService = {
+    try {
     HBaseModel.find[HService](useCache)(Seq(("id" -> id))).get
+    } catch {
+      case e: Throwable =>
+        Logger.error(s"$id, $e", e)
+        throw e
+    }
   }
   def findByName(serviceName: String, useCache: Boolean = true): Option[HService] = {
     HBaseModel.find[HService](useCache)(Seq(("serviceName" -> serviceName)))

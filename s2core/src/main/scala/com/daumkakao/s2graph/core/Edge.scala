@@ -102,13 +102,12 @@ case class EdgeWithIndex(srcVertex: Vertex,
   lazy val value = EdgeValue(metas.toList)
 
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
-
   // only for toString.
   lazy val label = HLabel.findById(labelWithDir.labelId)
 
   def buildPuts(): List[Put] = {
     if (!hasAllPropsForIndex) {
-      logger.error(s"$this dont have all props for index")
+      Logger.error(s"$this dont have all props for index")
       List.empty[Put]
     } else {
       val put = new Put(rowKey.bytes)
@@ -120,15 +119,17 @@ case class EdgeWithIndex(srcVertex: Vertex,
   }
   def buildPutsAsync(): List[HBaseRpc] = {
     if (!hasAllPropsForIndex) {
-      logger.error(s"$this dont have all props for index")
+      Logger.error(s"$this dont have all props for index")
       List.empty[PutRequest]
     } else {
-      List(new PutRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, value.bytes, version))
+      val put = new PutRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, value.bytes, version)
+//      Logger.debug(s"$put")
+      List(put)
     }
   }
   def buildIncrementsAsync(amount: Long = 1L): List[HBaseRpc] = {
     if (!hasAllPropsForIndex) {
-      logger.error(s"$this dont have all props for index")
+      Logger.error(s"$this dont have all props for index")
       List.empty[AtomicIncrementRequest]
     } else {
       val incr = new AtomicIncrementRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, Array.empty[Byte], amount)
@@ -331,6 +332,7 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
         invertedEdgeOpt = edges.headOption
         edgeUpdate = f(invertedEdgeOpt, this)
       } yield {
+//        Logger.debug(s"$edgeUpdate")
         /**
          * we can use CAS operation on inverted Edge checkAndSet() and if it return false
          * then re-read and build update and write recursively.
@@ -754,7 +756,7 @@ object Edge {
 
     val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
 
-//    Logger.error(s"toEdge: $edge")
+//    Logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
     val labelMetas = HLabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
     val propsWithDefault = (for (meta <- labelMetas) yield {
       props.get(meta.seq) match {
@@ -778,6 +780,7 @@ object Edge {
     } else {
       None
     }
+//    Logger.debug(s"$edge")
     //    Logger.debug(s"${cell.getQualifier().toList}, ${ret.map(x => x.toStringRaw)}")
     ret
   }

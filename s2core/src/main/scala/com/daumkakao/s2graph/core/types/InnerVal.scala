@@ -42,7 +42,15 @@ object InnerVal {
   def apply(bytes: Array[Byte], offset: Int): InnerVal = {
     val pbr = new SimplePositionedByteRange(bytes)
     pbr.setOffset(offset)
-    if (OrderedBytes.isEncodedValue(pbr)) {
+    if (bytes(offset) == -1 | bytes(offset) == 0) {
+      /** simple boolean */
+      val boolean = order match {
+        case Order.DESCENDING => bytes(offset) == 0
+        case _ => bytes(offset) == -1
+      }
+      InnerVal(boolean)
+    }
+    else {
       if (OrderedBytes.isNumeric(pbr)) {
         val numeric = OrderedBytes.decodeNumericAsBigDecimal(pbr)
         InnerVal(BigDecimal(numeric))
@@ -55,9 +63,6 @@ object InnerVal {
       } else {
         throw new RuntimeException("!!")
       }
-    } else {
-      /** simple boolean */
-      InnerVal(Bytes.toBoolean(bytes))
     }
   }
 
@@ -102,17 +107,25 @@ object InnerVal {
     * @param num
     * @return
     */
-  def scaleNumber(num: BigDecimal) = {
-    if (num.isValidByte | num.isValidChar) BigDecimal(num.toByte)
-    else if (num.isValidShort) BigDecimal(num.toShort)
-    else if (num.isValidInt) BigDecimal(num.toInt)
-    else if (num.isValidLong) BigDecimal(num.toLong)
-    else if (num.isValidFloat) BigDecimal(num.toFloat)
-    else if (num.isValidDouble) BigDecimal(num.toDouble)
-    else num
+  def scaleNumber(num: BigDecimal, dataType: String) = {
+    dataType match {
+      case BYTE => BigDecimal(num.toByte)
+      case SHORT => BigDecimal(num.toShort)
+      case INT => BigDecimal(num.toInt)
+      case LONG => BigDecimal(num.toLong)
+      case FLOAT => BigDecimal(num.toFloat)
+      case DOUBLE => BigDecimal(num.toDouble)
+      case _ => throw new RuntimeException(s"InnerVal.scaleNumber failed. $num, $dataType")
+    }
   }
 
+  def withInt(i: Int): InnerVal = InnerVal(BigDecimal(i))
+
   def withLong(l: Long): InnerVal = InnerVal(BigDecimal(l))
+
+  def withFloat(f: Float): InnerVal = InnerVal(BigDecimal(f))
+
+  def withDouble(d: Double): InnerVal = InnerVal(BigDecimal(d))
 
   def withStr(s: String): InnerVal = InnerVal(s)
 
@@ -134,8 +147,13 @@ case class InnerVal(value: Any) {
   lazy val bytes = {
     val ret = value match {
       case b: Boolean =>
-        /** since OrderedBytes header start from 0x05, it is safe to use -1, 0 */
-        Bytes.toBytes(b)
+        /** since OrderedBytes header start from 0x05, it is safe to use -1, 0
+          * for decreasing order (true, false) */
+//        Bytes.toBytes(b)
+        order match {
+          case Order.DESCENDING => if (b) Array(0.toByte) else Array(-1.toByte)
+          case _ => if (!b) Array(0.toByte) else Array(-1.toByte)
+        }
       case b: BigDecimal =>
         val pbr = numByteRange(b)
         val len = OrderedBytes.encodeNumeric(pbr, b.bigDecimal, order)
@@ -204,13 +222,13 @@ case class InnerVal(value: Any) {
     }
   }
 
-  def toJsValue(): JsValue = {
-    value match {
-      case b: BigDecimal => JsNumber(scaleNumber(b))
-      case s: String => JsString(s)
-      case _ => throw new RuntimeException(s"$this -> toJsValue failed.")
-    }
-  }
+//  def toJsValue(): JsValue = {
+//    value match {
+//      case b: BigDecimal => JsNumber(scaleNumber(b))
+//      case s: String => JsString(s)
+//      case _ => throw new RuntimeException(s"$this -> toJsValue failed.")
+//    }
+//  }
 }
 
 object InnerValWithTs {
