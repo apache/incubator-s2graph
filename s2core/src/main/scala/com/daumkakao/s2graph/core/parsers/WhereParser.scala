@@ -91,7 +91,7 @@ case class WhereParser(label: HLabel) extends JavaTokenParsers with JSONParser {
 
   def boolean = ("true" ^^^ (true) | "false" ^^^ (false))
 
-  def stringLiteralWithMinus = (stringLiteral | ("-" ~ ident) ^^ {
+  def stringLiteralWithMinus = (stringLiteral | wholeNumber | ("-" ~ stringLiteral | floatingPointNumber) ^^ {
     case _ ~ v => "-" + v
   })
 
