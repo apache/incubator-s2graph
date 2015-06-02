@@ -286,10 +286,19 @@ trait RequestParser extends JSONParser {
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     (serviceName, cluster, hTableName, preSplitSize, hTableTTL)
   }
+  def toVertexElements(jsValue: JsValue) = {
+    val serviceName = parse[String](jsValue, "serviceName")
+    val columnName = parse[String](jsValue, "columnName")
+    val columnType = parse[String](jsValue, "columnType")
+    val props = parsePropsElements(jsValue \ "props")
+    (serviceName, columnName, columnType, props)
+  }
+
   def toPropElements(jsValue: JsValue) = {
     val propName = parse[String](jsValue, "name")
     val defaultValue = parse[JsValue](jsValue, "defaultValue")
     val dataType = parse[String](jsValue, "dataType")
-    (propName, defaultValue, dataType)
+    val usedInIndex = parse[Option[Boolean]](jsValue, "usedInIndex").getOrElse(false)
+    (propName, defaultValue, dataType, usedInIndex)
   }
 }

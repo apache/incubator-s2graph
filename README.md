@@ -444,7 +444,7 @@ else:
 >Since we write our data to HBase asynchronously, there is no consistency guarantee on same edge within our flushInterval(1 seconds).
 
 
-## 2. (Optionally) Add Extra Indexes - `POST /graphs/addIndex` ##
+### 1.4 (Optionally) Add Extra Indexes - `POST /graphs/addIndex` ###
 
 
 ----------
@@ -471,6 +471,67 @@ curl -XPOST localhost:9000/graphs/addIndex -H 'Content-Type: Application/json' -
 '
 ```
 
+## 2. Create Vertex(Optional) - `POST /graphs/createVertex` ##
+----------
+A vertex represents object and plays a role like a single table in RDBMS. 
+
+>**Note: if you only need vertex id, then you don`t need to create vertex explicitly. when you create label, s2graph create vertex with empty properties according to label schema.**
+
+### 2.1 Vertex definition
+
+| field name |  definition | data type |  note | example |
+|:------- | --- |:----: | --- | :-----|
+| serviceName | which service this vertex belongs to | string | required. think this as database in RDBMS | kakaotalk |
+| columnName | what this vertex`s id is | string | required. think this as primary key in RDBMS table | talk_user_id |
+| props | optional properties on vertex | json array of json dictionary | optional. think this as columns in RDBMS table | see examples |
+
+### 2.2 examples
+This is simple example to show how to define vertex schema and insert/select vertices.
+```
+curl -XPOST localhost:9000/graphs/createVertex -H 'Content-Type: Application/json' -d ' 
+{
+    "serviceName": "s2graph",
+    "columnName": "user_id",
+    "columnType": "long",
+    "props": [
+        {"name": "is_active", "dataType": "boolean", "defaultValue": true}, 
+        {"name": "phone_number", "dataType": "string", "defaultValue": "-"},
+        {"name": "nickname", "dataType": "string", "defaultValue": ".."},
+        {"name": "activity_score", "dataType": "float", "defaultValue": 0.0},
+        {"name": "age", "dataType": "integer", "defaultValue": 0}
+    ]
+}
+' 
+```
+
+you can also add more properties on vertex as following.
+
+```
+curl -XPOST localhost:9000/graphs/addVertexProps/s2graph/user_id -H 'Content-Type: Application/json' -d '
+[
+	{"name": "home_address", "defaultValue": "korea", "dataType": "string"}
+]
+'
+```
+
+you can insert vertex data as following.
+```
+curl -XPOST localhost:9000/graphs/vertices/insert/s2graph/user_id -H 'Content-Type: Application/json' -d '
+[
+  {"id":1,"props":{"is_active":true}, "timestamp":1417616431},
+  {"id":2,"props":{},"timestamp":1417616431}
+]
+'
+```
+ 
+finally you can query your vertex as following.
+```
+curl -XPOST localhost:9000/graphs/getVertices -H 'Content-Type: Application/json' -d '
+[
+	{"serviceName": "s2graph", "columnName": "user_id", "ids": [1, 2, 3]}
+]
+'
+```
 
 ##3. Insert and Manipulate Edges ##
 

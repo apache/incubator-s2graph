@@ -80,7 +80,21 @@ object Management extends JSONParser {
         HLabel.findByName(label, useCache = false).get
     }
   }
-
+  def createVertex(serviceName: String,
+                   columnName: String,
+                   columnType: String,
+                   props: Seq[(String, JsValue, String)]) = {
+    for {
+      service <- HService.findByName(serviceName)
+    } yield {
+      val serviceColumn = HServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
+      for {
+        (propName, defaultValue, dataType) <- props
+      } yield {
+        HColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType)
+      }
+    }
+  }
   def findLabel(labelName: String): Option[HLabel] = {
     HLabel.findByName(labelName, useCache = false)
   }
