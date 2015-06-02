@@ -209,77 +209,129 @@ To create a Label, the following fields needs to be specified in the request.
 | tgtServiceName | target column's service | string | "kakaotalk"/"kakaoagit" | same as srcServiceName when not specified
 | tgtColumnName | target column's name |string|"item_id"|required.|
 | tgtColumnType | target column's data type | long/integer/string | "long" | required. |
-| **indexProps** | mapping from indexed properties' names to their default values. <br> indexed properties will be primary index for this label (like `PRIMARY INDEX idx_xxx` (`p1, p2`)`, in RDBMS.<br> **note that _timestamp, _from, _to** is reserved property | json dictionary | {"timestamp":0, "affinity_score":10, "play_count":0}| A default value must be provided for each property. The default value is usually the minimum value permitted for the property. When this filed is empty, the default property named `timestamp` will be automatically added and indexed. The value's type can be one of **long/int/bool/byte** and cannot be **float**. If your property is **float** type, you need to convert them to **long/int** first. |
-| props | mapping from non-indexed properties' names to their default values. <br> these properties are indexed and therefore cannot be used efficiently for querying, like non-indexed columns in RDBMS|json dictionary|{"is_hidden": false, "country_iso": "kr", "country_code": 82}| non-indexed properties can be added later, like `alter table add column` in RDBMS|
 | isDirected | if this label is directed or undirected | true/false | true/false | default true |
 | **serviceName** | which service this label is belongs to. | either srcServiceName or tgtServiceName |s2graph |default tgtServiceName
 | hTableName | if this label need special usecase(such as batch upload), own hbase table name can be used. | string | s2graph-batch | default use service`s hTableName. <br> note that this is optional. |
 | hTableTTL | time to data keep alive. | integer |   86000 | default use service`s hTableTTL. <br> note that this is optional. |
 | consistencyLevel | if this is strong, only one edge between same from/to can be made. otherwise(weak) multiple edges with same from/to can be exist. | string | strong/weak | default weak |
 
->Note. following property names are reserved for system. user can not create property same with these reserved property names. user can use this properties for indexProps/props/where clause on query.
->>1. **_timestamp** is reserved for system wise timestamp. this can be interpreted as last_modified_at
->>2. **_from** is reserved for label`s start vertex.
->>3. **_to** is reserved for 
+Most important elements for label is their **indexProps** and **props**
+
+All of graph element including Vertex and Edge has their properties. single property is defined as following. property is simple key, value map on Edge and Vertex.
+```
+{
+    "name": "name of property",
+    "dataType": "data type of property value",
+    "defaultValue": "default value in string"
+}
+```
+
+a simple example for props would look like this
+```
+[
+    {"name": "play_count", "defaultValue": 0, "dataType": "integer"},
+    {"name": "is_hidden","defaultValue": false,"dataType": "boolean"},
+    {"name": "category","defaultValue": "jazz","dataType": "string"},
+    {"name": "score","defaultValue": 0,"dataType": "float"}
+]
+```
+
+note that property value type should be numeric(byte, short, integer, float, double) or boolean or string.
+
+**indexProps** define primary index for this label(like `PRIMARY INDEX idx_xxx`(`p1, p2`) in RDBMS).
+
+s2graph will automatically keep edges sorted according to this indexProps. 
+
+extra indexProps can be defined later when need multiple ordering on edges.
+
+**props** define meta datas that will not be affect the order of edges. 
+
+ 
+One last thing to note here is that s2graph reserved following property names. user can`t create following property name but they can use as it is provided by default.
+
+>1. **_timestamp** is reserved for system wise timestamp. this can be interpreted as last_modified_at
+>2. **_from** is reserved for label`s start vertex.
+>3. **_to** is reserved for 
 
 ### 1.2 label example
-The following is an example that creates a label named `graph_test`, which represents the relation between `account_id` in service named `s2graph` and `account_id` in the same service, with indexed properties `timestamp` and `affinity_score` which both have the zero default value.
+
+Here is example that creates a label named `user_article_liked` label between column `user_id` of service `s2graph` and column `article_id` of service `s2graph_news`. Note that the default indexed property `_timestamp` will be created since the `indexedProps` field is empty.
 
 ```
 curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json' -d '
 {
-    "label": "graph_test",
+    "label": "user_article_liked",
     "srcServiceName": "s2graph",
-    "srcColumnName": "account_id",
+    "srcColumnName": "user_id",
+    "srcColumnType": "long",
+    "tgtServiceName": "s2graph_news",
+    "tgtColumnName": "article_id",
+    "tgtColumnType": "string",
+    "indexProps": {}, // _timestamp will be used as default
+    "props": {},
+    "serviceName": "s2graph_news"
+}
+'
+```
+
+this label will keep edges ordered according to edge`s indexProps values in this case, latest like first. default ordering is latest first which many application naturally want.
+
+
+Here is another example that creates a label named `friends`, which represents the friend relation between users in `s2graph` service. In this case with higher affinity_score comes first and if affinity_score is ties, then latest friend comes first. `friends` label will belongs to `s2graph` service.
+
+```
+curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json' -d '
+{
+    "label": "friends",
+    "srcServiceName": "s2graph",
+    "srcColumnName": "user_id",
     "srcColumnType": "long",
     "tgtServiceName": "s2graph",
-    "tgtColumnName": "item_id",
+    "tgtColumnName": "user_id",
     "tgtColumnType": "long",
-    "indexProps": {
-        "time": 0,
-        "weight": 0
-    },
-    "props": {
-        "is_hidden": true,
-        "is_blocked": true,
-        "error_code": 500
-    }, 
+    "indexProps": [
+        {"name": "affinity_score", "dataType": "float", "defaultValue": 0.0}
+        {"name": "_timestamp", "dataType": "long", "defaultValue": 0}
+    ],
+    "props": [
+        {"name": "is_hidden", "dataType": "boolean", "defaultValue": false},
+        {"name": "is_blocked", "dataType": "boolean", "defaultValue": true},
+        {"name": "error_code", "dataType": "integer", "defaultValue": 500}
+    ], 
     "serviceName": "s2graph",
     "consistencyLevel": "strong"
 }
 '
 ```
 
-Here is another example that creates a label named `kakao_group_join` label between column `account_id` of service `kakao` and column `group_id` of service `kakaogroup`. Note that the default indexed property `timestamp` will be created since the `indexedProps` field is empty.
+s2graph support **multiple index** on label which means we can add other ordering option for edges with this label.
 
 ```
-curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json' -d '
+curl -XPOST localhost:9000/graphs/addIndex -H 'Content-Type: Application/json' -d '
 {
-    "label": "kakao_group_join",
-    "srcServiceName": "kakao",
-    "srcColumnName": "account_id",
-    "srcColumnType": "long",
-    "tgtServiceName": "kakaogroup",
-    "tgtColumnName": "group_id",
-    "tgtColumnType": "string",
-    "indexProps": {},
-    "serviceName": "kakaogroup",
-    "props": {}
+    "label": "friends",
+    "indexProps": [
+        {"name": "is_blocked","dataType": "boolean", "defaultValue": "false"},
+        {"name": "_timestamp","dataType": "long","defaultValue": 0}
+    ]
 }
 '
 ```
 
-The following query will return the information regarding a label, `graph_test` in this case.
+
+To get information on label, just use following.
 
 ```
-curl -XGET localhost:9000/graphs/getLabel/graph_test
+curl -XGET localhost:9000/graphs/getLabel/friends
 ```
 
-You can delete a label using the following API:
+You can also delete a label using the following API.
 
 ```
-curl -XPUT localhost:9000/graphs/deleteLabel/graph_test
+curl -XPUT localhost:9000/graphs/deleteLabel/friends
 ```
+
+Update is not supported, so just delete label and re-create it.
 
 
 
