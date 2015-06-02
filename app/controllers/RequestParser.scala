@@ -1,12 +1,13 @@
 package controllers
 
-import com.daumkakao.s2graph.core.HBaseElement._
+//import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.parsers.WhereParser
+import com.daumkakao.s2graph.core.types.{CompositeId, LabelWithDirection, InnerVal}
 import play.api.Logger
 import play.api.libs.json._
 import com.daumkakao.s2graph.rest.config.Config
-import scala.util.parsing.combinator.JavaTokenParsers
 
 trait RequestParser extends JSONParser {
 
@@ -66,20 +67,28 @@ trait RequestParser extends JSONParser {
     }
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerVal])
   }
-  def hasOrWhere(jsValue: JsValue) = {
-    for ((k, v) <- jsValue.as[JsObject].fields) yield {
-      k -> (v match {
-        case arr: JsArray => // set
-          Set(arr.as[List[JsValue]].map { toInnerVal(_) })
-        case value: JsValue => // exact
-          Set(toInnerVal(value))
-        case obj: JsObject => // from, to
-          val (fromJsVal, toJsVal) = ((obj \ "from").as[JsValue], (obj \ "to").as[JsValue])
-          val (from, to) = (toInnerVal(fromJsVal), toInnerVal(toJsVal))
-          (from, to)
-      })
-    }
-  }
+//  def hasOrWhere(label: HLabel, jsValue: JsValue): Set[InnerVal] = {
+//    for {
+//      (propName, v) <- jsValue.as[JsObject].fields
+//      propMeta <- HLabelMeta.findByName(label.id.get, propName)
+////      innerVal <- jsValueToInnerVal(v, propMeta.dataType)
+//    }  yield {
+//      propName -> (v match {
+//        case arr: JsArray => // set
+//          Set(arr.as[List[JsValue]].flatMap { e =>
+//            jsValueToInnerVal(e, propMeta.dataType)
+//          })
+//        case value: JsValue => // exact
+//          Set(List(v).flatMap { jsValue =>
+//            jsValueToInnerVal(jsValue, propMeta.dataType)
+//          })
+//        case obj: JsObject => // from, to
+//          val (fromJsVal, toJsVal) = ((obj \ "from").as[JsValue], (obj \ "to").as[JsValue])
+//          val (from, to) = (toInnerVal(fromJsVal), toInnerVal(toJsVal))
+//          (from, to)
+//      })
+//    }
+//  }
   def extractWhere(label: HLabel, jsValue: JsValue) = {
     (jsValue \ "where").asOpt[String].flatMap { where =>
       WhereParser(label).parse(where)
@@ -228,7 +237,16 @@ trait RequestParser extends JSONParser {
     if (jsObj.fields.map(_._1).groupBy(_.toString).map(r => r match { case (k, v) => v }).filter(_.length > 1).isEmpty == false)
       throw new KGraphExceptions.JsonParseException(Json.obj("error" -> s"$jsObj --> some key is duplicated").toString)
   }
-
+  def parsePropsElements(jsValue: JsValue) = {
+    for {
+      jsObj <- jsValue.as[List[JsValue]]
+    } yield {
+      val propName = (jsObj \ "name").as[String]
+      val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
+      val defaultValue = (jsObj \ "defaultValue")
+      (propName, defaultValue, dataType)
+    }
+  }
   def toLabelElements(jsValue: JsValue) = {
     val labelName = parse[String](jsValue, "label")
     val srcServiceName = parse[String](jsValue, "srcServiceName")
@@ -240,26 +258,24 @@ trait RequestParser extends JSONParser {
     val serviceName = (jsValue \ "serviceName").asOpt[String].getOrElse(tgtServiceName)
     //    parse[String](jsValue, "serviceName")
     val isDirected = (jsValue \ "isDirected").asOpt[Boolean].getOrElse(true)
-    val idxJs = (jsValue \ "indexProps").asOpt[JsObject].getOrElse(Json.parse("{}").as[JsObject])
-    jsObjDuplicateKeyCheck(idxJs)
-    val metaJs = (jsValue \ "props").asOpt[JsObject].getOrElse(Json.parse("{}").as[JsObject])
-    jsObjDuplicateKeyCheck(metaJs)
-    val idxProps = for ((k, v) <- idxJs.fields) yield (k, v)
-    val metaProps = for ((k, v) <- metaJs.fields) yield (k, v)
-    val consistencyLevel = (jsValue \ "consistencyLevel").asOpt[String].getOrElse("week")
+    val idxProps = parsePropsElements((jsValue \ "indexProps"))
+    val metaProps = parsePropsElements((jsValue \ "props"))
+    val consistencyLevel = (jsValue \ "consistencyLevel").asOpt[String].getOrElse("weak")
     // expect new label don`t provide hTableName
     val hTableName = (jsValue \ "hTableName").asOpt[String]
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     val t = (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
       idxProps, metaProps, consistencyLevel, hTableName, hTableTTL)
+    Logger.info(s"createLabel $t")
     t
   }
   def toIndexElements(jsValue: JsValue) = {
     val labelName = parse[String](jsValue, "label")
-    val js = (jsValue \ "indexProps").asOpt[JsObject].getOrElse(Json.parse("{}").as[JsObject])
-    val props = for ((k, v) <- js.fields) yield (k, v)
-    val t = (labelName, props)
+    val idxProps = parsePropsElements((jsValue \ "indexProps"))
+//    val js = (jsValue \ "indexProps").asOpt[JsObject].getOrElse(Json.parse("{}").as[JsObject])
+//    val props = for ((k, v) <- js.fields) yield (k, v)
+    val t = (labelName, idxProps)
     t
   }
   def toServiceElements(jsValue: JsValue) = {
@@ -270,10 +286,19 @@ trait RequestParser extends JSONParser {
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     (serviceName, cluster, hTableName, preSplitSize, hTableTTL)
   }
+  def toVertexElements(jsValue: JsValue) = {
+    val serviceName = parse[String](jsValue, "serviceName")
+    val columnName = parse[String](jsValue, "columnName")
+    val columnType = parse[String](jsValue, "columnType")
+    val props = parsePropsElements(jsValue \ "props")
+    (serviceName, columnName, columnType, props)
+  }
+
   def toPropElements(jsValue: JsValue) = {
     val propName = parse[String](jsValue, "name")
     val defaultValue = parse[JsValue](jsValue, "defaultValue")
     val dataType = parse[String](jsValue, "dataType")
-    (propName, defaultValue, dataType)
+    val usedInIndex = parse[Option[Boolean]](jsValue, "usedInIndex").getOrElse(false)
+    (propName, defaultValue, dataType, usedInIndex)
   }
 }

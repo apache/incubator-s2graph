@@ -12,7 +12,7 @@ object HColumnMeta {
   val lastModifiedAtColumnSeq = 0.toByte
 
   val lastModifiedAtColumn = HColumnMeta(Map("id" -> 0, "columnId" -> 0,
-    "name" -> "lastModifiedAt", "seq" -> lastModifiedAtColumnSeq))
+    "name" -> "lastModifiedAt", "seq" -> lastModifiedAtColumnSeq, "dataType" -> "long"))
   val maxValue = Byte.MaxValue
 
 
@@ -29,22 +29,24 @@ object HColumnMeta {
   def findByIdAndSeq(columnId: Int, seq: Byte, useCache: Boolean = true) = {
     HBaseModel.find[HColumnMeta](useCache)(Seq(("columnId" -> columnId), ("seq" -> seq)))
   }
-  def findOrInsert(columnId: Int, name: String): HColumnMeta = {
+  def findOrInsert(columnId: Int, name: String, dataType: String): HColumnMeta = {
     findByName(columnId, name, useCache = false) match {
       case Some(s) => s
       case None =>
         val id = HBaseModel.getAndIncrSeq[HColumnMeta]
         val allMetas = findAllByColumn(columnId, useCache = false)
         val seq = (allMetas.length + 1).toByte
-        val model = HColumnMeta(Map("id" -> id, "columnId" -> columnId, "name" -> name, "seq" -> seq))
+        val model = HColumnMeta(Map("id" -> id, "columnId" -> columnId, "name" -> name,
+          "seq" -> seq, "dataType" -> dataType))
         model.create
         model
     }
   }
 }
+/** add dataType on HColumnMeta */
 
 case class HColumnMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel[HColumnMeta]("HColumnMeta", kvsParam) {
-  override val columns = Seq("id", "columnId", "name", "seq")
+  override val columns = Seq("id", "columnId", "name", "seq", "dataType")
 
   val pk = Seq(("id", kvs("id")))
   val idxColumnIdName = Seq(("columnId", kvs("columnId")), ("name", kvs("name")))
@@ -57,7 +59,7 @@ case class HColumnMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel[HColumnMeta](
   val columnId = kvs("columnId").toString.toInt
   val name = kvs("name").toString
   val seq = kvs("seq").toString.toByte
-
+  val dataType = kvs("dataType").toString
 }
 
 
