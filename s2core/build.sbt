@@ -27,4 +27,5 @@ libraryDependencies ++= Seq(
   "org.hbase" % "asynchbase" % "1.7.0-SNAPSHOT",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test"
    )
-   
+
+parallelExecution in Test := false
