@@ -48,10 +48,17 @@ object HLabel {
                 consistencyLevel: String,
                 hTableName: Option[String],
                 hTableTTL: Option[Int]) = {
+    val srcServiceOpt = HService.findByName(srcServiceName, useCache = false)
+    val tgtServiceOpt = HService.findByName(tgtServiceName, useCache = false)
+    val serviceOpt = HService.findByName(serviceName, useCache = false)
+    if (srcServiceOpt.isEmpty) throw new RuntimeException(s"source service $srcServiceName is not created.")
+    if (tgtServiceOpt.isEmpty) throw new RuntimeException(s"target service $tgtServiceName is not created.")
+    if (serviceOpt.isEmpty) throw new RuntimeException(s"service $serviceName is not created.")
+
     val newLabel = for {
-      srcService <- HService.findByName(srcServiceName, useCache = false)
-      tgtService <- HService.findByName(tgtServiceName, useCache = false)
-      service <- HService.findByName(serviceName, useCache = false)
+      srcService <-srcServiceOpt
+      tgtService <- tgtServiceOpt
+      service <- serviceOpt
     } yield {
         val srcServiceId = srcService.id.get
         val tgtServiceId = tgtService.id.get

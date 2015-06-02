@@ -8,6 +8,7 @@ import org.apache.hadoop.hbase.client._
 import java.util.concurrent.Executors
 import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.LoggerFactory
+import play.api.Logger
 
 import scala.collection.mutable.SynchronizedQueue
 import org.apache.hadoop.hbase.filter.FilterList
@@ -781,6 +782,7 @@ object Graph {
       element
     } catch {
       case e: Throwable =>
+        Logger.error(s"$e", e)
         None
     }
   }

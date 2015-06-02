@@ -177,10 +177,13 @@ object QueryController extends Controller  with RequestParser with Instrumented 
       val src = Vertex(CompositeId(label.srcColumn.id.get, srcVertexId, true, true), System.currentTimeMillis())
       val tgt = Vertex(CompositeId(label.tgtColumn.id.get, tgtVertexId, true, false), System.currentTimeMillis())
       Graph.getEdge(src, tgt, label, dir).map { edges =>
-        val ret = edges.headOption.map { edge =>
-          val json = PostProcess.edgeToJson(edge, 1.0)
-          Ok(s"$json\n").as(applicationJsonHeader)
-        }
+        val ret = for {
+          edge <- edges.headOption
+          json <- PostProcess.edgeToJson(edge, 1.0)
+        } yield {
+            Ok(s"$json\n").as(applicationJsonHeader)
+          }
+
         ret.getOrElse(NotFound(s"NotFound\n").as(applicationJsonHeader))
       }
     } catch {
