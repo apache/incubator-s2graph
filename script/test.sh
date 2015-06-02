@@ -40,7 +40,13 @@ curl -XGET localhost:9000/graphs/getLabel/graph_test
 
 # add extra index
 curl -XPOST localhost:9000/graphs/addIndex -H 'Content-Type: Application/json' -d '
-{"label": "graph_test", "indexProps": {"play_count":0, "pay_amount":0}}
+{
+    "label": "graph_test",
+    "indexProps": [
+        {"name": "play_count","defaultValue": 0, "dataType": "integer"},
+        {"name": "pay_amount","defaultValue": 0,"dataType": "integer"}
+    ]
+}
 '
 
 # check new index is added correcly
@@ -64,7 +70,7 @@ curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -
 {
     "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
     "steps": [
-      [{"label": "graph_test", "direction": "out", "offset": 0, "limit": 100}]
+      [{"label": "graph_test", "direction": "out", "offset": 0, "limit": 10, "scoring": {"time": 1, "weight": 1}}]
     ]
 }
 '

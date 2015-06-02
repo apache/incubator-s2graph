@@ -15,7 +15,7 @@ object CompositeId {
     var pos = offset
     if (useHash) {
       // skip over murmur hash
-      pos += 2
+      pos += GraphUtil.bytesForMurMurHash
     }
     val innerId = InnerVal(bytes, pos)
     pos += innerId.bytes.length

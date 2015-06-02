@@ -239,7 +239,7 @@ trait RequestParser extends JSONParser {
   }
   def parsePropsElements(jsValue: JsValue) = {
     for {
-      jsObj <- jsValue.as[List[JsObject]]
+      jsObj <- jsValue.as[List[JsValue]]
     } yield {
       val propName = (jsObj \ "name").as[String]
       val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
