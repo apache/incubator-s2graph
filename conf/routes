@@ -57,6 +57,11 @@ POST   /graphs/addIndex                                                        c
 GET    /graphs/getLabel/:labelName                                             controllers.AdminController.getLabel(labelName)
 PUT    /graphs/deleteLabel/:labelName                                          controllers.AdminController.deleteLabel(labelName)
 POST   /graphs/addProp/:labelName                                              controllers.AdminController.addProp(labelName)
+POST   /graphs/addProps/:labelName                                             controllers.AdminController.addProps(labelName)
+POST   /graphs/createVertex                                                    controllers.AdminController.createVertex()
+POST   /graphs/addVertexProp/:serviceName/:columnName                          controllers.AdminController.addVertexProp(serviceName, columnName)
+POST   /graphs/addVertexProps/:serviceName/:columnName                         controllers.AdminController.addVertexProps(serviceName, columnName)
+GET    /graphs/getVertex/:serviceName/:columnName                              controllers.AdminController.getVertex(serviceName, columnName)
 		  
 #### TEST
 GET    /graphs/testGetEdges/:label/:limit/:friendCntStep                       controllers.QueryController.testGetEdges(label, limit: Int, friendCntStep: Int)

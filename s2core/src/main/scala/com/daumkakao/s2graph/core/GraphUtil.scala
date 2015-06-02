@@ -5,7 +5,9 @@ import java.util.regex.Pattern
 import play.api.libs.json.Json
 
 object GraphUtil {
-  private val seperator = HBaseElement.seperator
+  val BitsForMurMurHash = 16
+  val bytesForMurMurHash = 2
+  private val seperator = ":"
   private val TOKEN_DELIMITER = Pattern.compile("[\t]")
   val operations = Map("i" -> 0, "insert" -> 0, "u" -> 1, "update" -> 1,
     "increment" -> 2,  "d" -> 3, "delete" -> 3, 
@@ -94,7 +96,7 @@ object GraphUtil {
   }
   def murmur3(s: String): Short = {
     val hash = MurmurHash3.stringHash(s)
-    val positiveHash = transformHash(hash) >> 16
+    val positiveHash = transformHash(hash) >> BitsForMurMurHash
     positiveHash.toShort
   }
   

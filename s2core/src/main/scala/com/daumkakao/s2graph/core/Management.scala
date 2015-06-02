@@ -1,7 +1,9 @@
 package com.daumkakao.s2graph.core
 
-import HBaseElement._
+//import HBaseElement._
+
 import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.types.{InnerVal, InnerValWithTs, CompositeId, LabelWithDirection}
 import play.api.libs.json._
 import org.apache.hadoop.hbase.client.{ConnectionFactory, HBaseAdmin, Durability}
 import org.apache.hadoop.hbase.HTableDescriptor
@@ -21,17 +23,20 @@ object Management extends JSONParser {
 
   val hardLimit = 10000
   val defaultLimit = 100
-//  def getSequence(tableName: String) = {
-//    HBaseModel.getSequence(tableName)
-//  }
+
+  //  def getSequence(tableName: String) = {
+  //    HBaseModel.getSequence(tableName)
+  //  }
   def createService(serviceName: String,
                     cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]): HService = {
     val service = HService.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
     service
   }
+
   def findService(serviceName: String) = {
     HService.findByName(serviceName, useCache = false)
   }
+
   def deleteService(serviceName: String) = {
     HService.findByName(serviceName).foreach { service =>
       service.deleteAll()
@@ -39,28 +44,28 @@ object Management extends JSONParser {
   }
 
   def createLabel(label: String,
-    srcServiceName: String,
-    srcColumnName: String,
-    srcColumnType: String,
-    tgtServiceName: String,
-    tgtColumnName: String,
-    tgtColumnType: String,
-    isDirected: Boolean = true,
-    serviceName: String,
-    indexProps: Seq[(String, JsValue)],
-    props: Seq[(String, JsValue)],
-    consistencyLevel: String,
-    hTableName: Option[String],
-    hTableTTL: Option[Int]): HLabel = {
+                  srcServiceName: String,
+                  srcColumnName: String,
+                  srcColumnType: String,
+                  tgtServiceName: String,
+                  tgtColumnName: String,
+                  tgtColumnType: String,
+                  isDirected: Boolean = true,
+                  serviceName: String,
+                  indexProps: Seq[(String, JsValue, String)],
+                  props: Seq[(String, JsValue, String)],
+                  consistencyLevel: String,
+                  hTableName: Option[String],
+                  hTableTTL: Option[Int]): HLabel = {
 
-    val idxProps = for ((k, v) <- indexProps; (innerVal, dataType) = toInnerVal(v)) yield (k, innerVal, dataType, true)
-    val metaProps = for ((k, v) <- props; (innerVal, dataType) = toInnerVal(v)) yield (k, innerVal, dataType, false)
+    //    val idxProps = for ((k, v, t) <- indexProps; innerVal <- jsValueToInnerVal(v, t)) yield (k, innerVal, t, true)
+    //    val metaProps = for ((k, v, t) <- props; innerVal <- jsValueToInnerVal(v, t)) yield (k, innerVal, t, false)
 
-    val indexPropsWithType =
-      for ((k, v) <- indexProps) yield {
-        val (innerVal, dataType) = toInnerVal(v)
-        (k, innerVal, dataType)
-      }
+    //    val indexPropsWithType =
+    //      for ((k, v) <- indexProps) yield {
+    //        val (innerVal, dataType) = toInnerVal(v)
+    //        (k, innerVal, dataType)
+    //      }
 
     val labelOpt = HLabel.findByName(label, useCache = false)
 
@@ -71,61 +76,80 @@ object Management extends JSONParser {
         HLabel.insertAll(label,
           srcServiceName, srcColumnName, srcColumnType,
           tgtServiceName, tgtColumnName, tgtColumnType,
-          isDirected, serviceName, idxProps ++ metaProps, consistencyLevel, hTableName, hTableTTL)
+          isDirected, serviceName, indexProps, props, consistencyLevel, hTableName, hTableTTL)
         HLabel.findByName(label, useCache = false).get
+    }
+  }
+  def createVertex(serviceName: String,
+                   columnName: String,
+                   columnType: String,
+                   props: Seq[(String, JsValue, String)]) = {
+    val serviceOpt = HService.findByName(serviceName)
+    serviceOpt match {
+      case None => throw new RuntimeException(s"create service $serviceName has not been created.")
+      case Some(service) =>
+        val serviceColumn = HServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
+        for {
+          (propName, defaultValue, dataType) <- props
+        } yield {
+          HColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType)
+        }
     }
   }
   def findLabel(labelName: String): Option[HLabel] = {
     HLabel.findByName(labelName, useCache = false)
   }
+
   def deleteLabel(labelName: String) = {
     HLabel.findByName(labelName, useCache = false).foreach { label =>
       label.deleteAll()
     }
   }
 
-  def addIndex(labelStr: String, orderByKeys: Seq[(String, JsValue)]): HLabelIndex = {
+  def addIndex(labelStr: String, idxProps: Seq[(String, JsValue, String)]): HLabelIndex = {
     val result = for {
       label <- HLabel.findByName(labelStr)
     } yield {
-      val labelOrderTypes =
-      for ((k, v) <- orderByKeys; (innerVal, dataType) = toInnerVal(v)) yield {
-
-        val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
-        lblMeta.seq
+        val labelOrderTypes =
+          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType)) yield {
+            val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
+            lblMeta.seq
+          }
+        HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "none")
       }
-      HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "none")
-    }
     result.getOrElse(throw new RuntimeException(s"add index failed"))
   }
-  def dropIndex(labelStr: String, orderByKeys: Seq[(String, JsValue)]): HLabelIndex = {
+
+  def dropIndex(labelStr: String, idxProps: Seq[(String, JsValue, String)]): HLabelIndex = {
     val result = for {
       label <- HLabel.findByName(labelStr)
     } yield {
-      val labelOrderTypes =
-        for ((k, v) <- orderByKeys; (innerVal, dataType) = toInnerVal(v)) yield {
+        val labelOrderTypes =
+          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType)) yield {
 
-          val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
-          lblMeta.seq
-        }
-      HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
-    }
+            val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
+            lblMeta.seq
+          }
+        HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
+      }
     result.getOrElse(throw new RuntimeException(s"drop index failed"))
   }
+
   def addProp(labelStr: String, propName: String, defaultValue: JsValue, dataType: String): HLabelMeta = {
     val result = for {
       label <- HLabel.findByName(labelStr)
     } yield {
-      HLabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType)
-    }
+        HLabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType)
+      }
     result.getOrElse(throw new RuntimeException(s"add property on label failed"))
   }
-  def addVertexProp(serviceName: String, columnName: String, columnType: String): HServiceColumn  = {
+
+  def addVertexProp(serviceName: String, columnName: String, columnType: String): HServiceColumn = {
     val result = for {
       service <- HService.findByName(serviceName, useCache = false)
     } yield {
-      HServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
-    }
+        HServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
+      }
     result.getOrElse(throw new RuntimeException(s"add property on vertex failed"))
   }
 
@@ -152,7 +176,7 @@ object Management extends JSONParser {
   }
 
   def toEdge(ts: Long, operation: String, srcId: String, tgtId: String,
-    labelStr: String, direction: String = "", props: String): Edge = {
+             labelStr: String, direction: String = "", props: String): Edge = {
 
     val label = tryOption(labelStr, getServiceLable)
 
@@ -192,12 +216,11 @@ object Management extends JSONParser {
 
     val props = for {
       (k, v) <- js.fields
+      meta <- column.metasInvMap.get(k)
+      innerVal <- jsValueToInnerVal(v, meta.dataType)
     } yield {
-      val colMeta = HColumnMeta.findOrInsert(column.id.get, k)
-      val (innerVal, dataType) = toInnerVal(v)
-      (colMeta.seq, innerVal)
-    }
-    //    Logger.debug(s"vertex.ToProps: $column, $js => $props")
+        (meta.seq, innerVal)
+      }
     props
 
   }
@@ -211,8 +234,8 @@ object Management extends JSONParser {
       //      meta = tryOption((label.id.get, k), LabelMeta.findByName)
       innerVal <- jsValueToInnerVal(v, meta.dataType)
     } yield {
-      (meta.seq, innerVal)
-    }
+        (meta.seq, innerVal)
+      }
     //    Logger.error(s"toProps: $js => $props")
     props
 
@@ -229,71 +252,75 @@ object Management extends JSONParser {
     val conn = ConnectionFactory.createConnection(conf)
     conn.getAdmin
   }
+
   def enableTable(zkAddr: String, tableName: String) = {
     getAdmin(zkAddr).enableTable(TableName.valueOf(tableName))
   }
+
   def disableTable(zkAddr: String, tableName: String) = {
     getAdmin(zkAddr).disableTable(TableName.valueOf(tableName))
   }
+
   def dropTable(zkAddr: String, tableName: String) = {
     getAdmin(zkAddr).disableTable(TableName.valueOf(tableName))
     getAdmin(zkAddr).deleteTable(TableName.valueOf(tableName))
   }
-//  def deleteEdgesByLabelIds(zkAddr: String,
-//    tableName: String,
-//    labelIds: String = "",
-//    minTs: Long = 0L,
-//    maxTs: Long = Long.MaxValue,
-//    include: Boolean = true) = {
-//    val conf = HBaseConfiguration.create()
-//    val longTimeout = "1200000"
-//    conf.set("hbase.rpc.timeout", longTimeout)
-//    conf.set("hbase.client.operation.timeout", longTimeout)
-//    conf.set("hbase.client.scanner.timeout.period", longTimeout)
-//    conf.set("hbase.zookeeper.quorum", zkAddr)
-//    val conn = HConnectionManager.createConnection(conf)
-//    val table = conn.getTable(tableName.getBytes)
-//    var builder = DeleteLabelsArgument.newBuilder()
-//    val scanner = Scan.newBuilder()
-//
-//    scanner.setTimeRange(TimeRange.newBuilder().setFrom(minTs).setTo(maxTs))
-//    /**
-//     *  when we clean up all data does not match current database ids
-//     *  we will delete row completely
-//     */
-//    if (!include) scanner.setFilter(ProtobufUtil.toFilter(new FirstKeyOnlyFilter))
-//
-//    builder.setScan(scanner)
-//    for (id <- labelIds.split(",")) {
-//      builder.addId(id.toInt)
-//    }
-//
-//    val argument = builder.build()
-//
-//    val regionStats = table.coprocessorService(classOf[GraphStatService], null, null,
-//      new Batch.Call[GraphStatService, Long]() {
-//        override def call(counter: GraphStatService): Long = {
-//          val controller: ServerRpcController = new ServerRpcController()
-//          val rpcCallback: BlockingRpcCallback[CountResponse] = new BlockingRpcCallback[CountResponse]()
-//
-//          if (include) {
-//            counter.cleanUpDeleteLabelsRows(controller, argument, rpcCallback)
-//          } else {
-//            counter.cleanUpDeleteLabelsRowsExclude(controller, argument, rpcCallback)
-//          }
-//
-//          val response: CountResponse = rpcCallback.get()
-//          if (controller.failedOnException()) throw controller.getFailedOn()
-//          if (response != null && response.hasCount()) {
-//            response.getCount()
-//          } else {
-//            0L
-//          }
-//        }
-//      })
-//
-//    //    regionStats.map(kv => Bytes.toString(kv._1) -> kv._2) ++ Map("total" -> regionStats.values().sum)
-//  }
+
+  //  def deleteEdgesByLabelIds(zkAddr: String,
+  //    tableName: String,
+  //    labelIds: String = "",
+  //    minTs: Long = 0L,
+  //    maxTs: Long = Long.MaxValue,
+  //    include: Boolean = true) = {
+  //    val conf = HBaseConfiguration.create()
+  //    val longTimeout = "1200000"
+  //    conf.set("hbase.rpc.timeout", longTimeout)
+  //    conf.set("hbase.client.operation.timeout", longTimeout)
+  //    conf.set("hbase.client.scanner.timeout.period", longTimeout)
+  //    conf.set("hbase.zookeeper.quorum", zkAddr)
+  //    val conn = HConnectionManager.createConnection(conf)
+  //    val table = conn.getTable(tableName.getBytes)
+  //    var builder = DeleteLabelsArgument.newBuilder()
+  //    val scanner = Scan.newBuilder()
+  //
+  //    scanner.setTimeRange(TimeRange.newBuilder().setFrom(minTs).setTo(maxTs))
+  //    /**
+  //     *  when we clean up all data does not match current database ids
+  //     *  we will delete row completely
+  //     */
+  //    if (!include) scanner.setFilter(ProtobufUtil.toFilter(new FirstKeyOnlyFilter))
+  //
+  //    builder.setScan(scanner)
+  //    for (id <- labelIds.split(",")) {
+  //      builder.addId(id.toInt)
+  //    }
+  //
+  //    val argument = builder.build()
+  //
+  //    val regionStats = table.coprocessorService(classOf[GraphStatService], null, null,
+  //      new Batch.Call[GraphStatService, Long]() {
+  //        override def call(counter: GraphStatService): Long = {
+  //          val controller: ServerRpcController = new ServerRpcController()
+  //          val rpcCallback: BlockingRpcCallback[CountResponse] = new BlockingRpcCallback[CountResponse]()
+  //
+  //          if (include) {
+  //            counter.cleanUpDeleteLabelsRows(controller, argument, rpcCallback)
+  //          } else {
+  //            counter.cleanUpDeleteLabelsRowsExclude(controller, argument, rpcCallback)
+  //          }
+  //
+  //          val response: CountResponse = rpcCallback.get()
+  //          if (controller.failedOnException()) throw controller.getFailedOn()
+  //          if (response != null && response.hasCount()) {
+  //            response.getCount()
+  //          } else {
+  //            0L
+  //          }
+  //        }
+  //      })
+  //
+  //    //    regionStats.map(kv => Bytes.toString(kv._1) -> kv._2) ++ Map("total" -> regionStats.values().sum)
+  //  }
   def createTable(zkAddr: String, tableName: String, cfs: List[String], regionCnt: Int, ttl: Option[Int]) = {
     try {
       val admin = getAdmin(zkAddr)
@@ -325,6 +352,7 @@ object Management extends JSONParser {
       case e: Throwable => println(e)
     }
   }
+
   // we only use murmur hash to distribute row key.
   private def getStartKey(regionCount: Int) = {
     Bytes.toBytes((Int.MaxValue / regionCount))

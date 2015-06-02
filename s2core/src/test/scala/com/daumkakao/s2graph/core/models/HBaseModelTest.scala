@@ -13,38 +13,38 @@ import scala.concurrent.ExecutionContext
  */
 class HBaseModelTest extends FunSuite with Matchers {
 
-  val zkQuorum = "localhost"
-  val config = ConfigFactory.parseString(s"hbase.zookeeper.quorum=$zkQuorum")
-  Graph(config)(ExecutionContext.Implicits.global)
-  HBaseModel(zkQuorum)
-  val serviceName = "testService"
-  val newServiceName = "newTestService"
-  val cluster = "localhost"
-  val hbaseTableName = "s2graph-dev"
-  val columnName = "user_id"
-  val columnType = "long"
-  val labelName = "model_test_label"
-  val newLabelName = "new_model_test_label"
-  val columnMetaName = "is_valid_user"
-  val labelMetaName = "is_hidden"
-  val hbaseTableTTL = -1
-  val id = 1
-
-  val service = HService(Map("id" -> id, "serviceName" -> serviceName, "cluster" -> cluster,
-    "hbaseTableName" -> hbaseTableName, "preSplitSize" -> 0, "hbaseTableTTL" -> -1))
-  val serviceColumn = HServiceColumn(Map("id" -> id, "serviceId" -> service.id.get,
-    "columnName" -> columnName, "columnType" -> columnType))
-  val columnMeta = HColumnMeta(Map("id" -> id, "columnId" -> serviceColumn.id.get, "name" -> columnMetaName,  "seq" -> 1.toByte))
-  val label = HLabel(Map("id" -> id, "label" -> labelName,
-    "srcServiceId" -> service.id.get, "srcColumnName" -> columnName, "srcColumnType" -> columnType,
-    "tgtServiceId" -> service.id.get, "tgtColumnName" -> columnName, "tgtColumnType" -> columnType,
-    "isDirected" -> true, "serviceName" -> service.serviceName, "serviceId" -> service.id.get,
-    "consistencyLevel" -> "weak", "hTableName" -> hbaseTableName, "hTableTTL" -> -1
-  ))
-  val labelMeta = HLabelMeta(Map("id" -> id, "labelId" -> label.id.get, "name" -> labelMetaName, "seq" -> 1.toByte,
-    "defaultValue" -> false, "dataType" -> "boolean", "usedInIndex" -> false))
-  val labelIndex = HLabelIndex(Map("id" -> id, "labelId" -> label.id.get, "seq" -> 1.toByte,
-    "metaSeqs" -> "0", "formular" -> "none"))
+//  val zkQuorum = "localhost"
+//  val config = ConfigFactory.parseString(s"hbase.zookeeper.quorum=$zkQuorum")
+//  Graph(config)(ExecutionContext.Implicits.global)
+//  HBaseModel(zkQuorum)
+//  val serviceName = "testService"
+//  val newServiceName = "newTestService"
+//  val cluster = "localhost"
+//  val hbaseTableName = "s2graph-dev"
+//  val columnName = "user_id"
+//  val columnType = "long"
+//  val labelName = "model_test_label"
+//  val newLabelName = "new_model_test_label"
+//  val columnMetaName = "is_valid_user"
+//  val labelMetaName = "is_hidden"
+//  val hbaseTableTTL = -1
+//  val id = 1
+//
+//  val service = HService(Map("id" -> id, "serviceName" -> serviceName, "cluster" -> cluster,
+//    "hbaseTableName" -> hbaseTableName, "preSplitSize" -> 0, "hbaseTableTTL" -> -1))
+//  val serviceColumn = HServiceColumn(Map("id" -> id, "serviceId" -> service.id.get,
+//    "columnName" -> columnName, "columnType" -> columnType))
+//  val columnMeta = HColumnMeta(Map("id" -> id, "columnId" -> serviceColumn.id.get, "name" -> columnMetaName,  "seq" -> 1.toByte))
+//  val label = HLabel(Map("id" -> id, "label" -> labelName,
+//    "srcServiceId" -> service.id.get, "srcColumnName" -> columnName, "srcColumnType" -> columnType,
+//    "tgtServiceId" -> service.id.get, "tgtColumnName" -> columnName, "tgtColumnType" -> columnType,
+//    "isDirected" -> true, "serviceName" -> service.serviceName, "serviceId" -> service.id.get,
+//    "consistencyLevel" -> "weak", "hTableName" -> hbaseTableName, "hTableTTL" -> -1
+//  ))
+//  val labelMeta = HLabelMeta(Map("id" -> id, "labelId" -> label.id.get, "name" -> labelMetaName, "seq" -> 1.toByte,
+//    "defaultValue" -> false, "dataType" -> "boolean", "usedInIndex" -> false))
+//  val labelIndex = HLabelIndex(Map("id" -> id, "labelId" -> label.id.get, "seq" -> 1.toByte,
+//    "metaSeqs" -> "0", "formular" -> "none"))
 
 //  test("test create") {
 //    service.create()
@@ -104,8 +104,8 @@ class HBaseModelTest extends FunSuite with Matchers {
 //    service.deleteAll()
 //  }
 
-  test("test labelIndex") {
-    println(HLabelIndex.findByLabelIdAll(1))
-  }
+//  test("test labelIndex") {
+//    println(HLabelIndex.findByLabelIdAll(1))
+//  }
 
 }

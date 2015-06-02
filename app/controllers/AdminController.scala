@@ -1,9 +1,9 @@
 package controllers
 
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models.{HLabel, HLabelMeta, HService}
+import com.daumkakao.s2graph.core.models._
 import play.api.Logger
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.{JsObject, JsValue, Json}
 import play.api.mvc.{Action, Controller}
 
 
@@ -56,8 +56,8 @@ object AdminController extends Controller with RequestParser {
 
   def addIndex() = Action(parse.json) { request =>
     try {
-      val (labelName, props) = toIndexElements(request.body)
-      Management.addIndex(labelName, props)
+      val (labelName, idxProps) = toIndexElements(request.body)
+      Management.addIndex(labelName, idxProps)
       Ok("Created\n").as(QueryController.applicationJsonHeader)
     } catch {
       case e: Throwable =>
@@ -99,20 +99,78 @@ object AdminController extends Controller with RequestParser {
     }
   }
 
-
+  private def addPropInner(labelName: String)(js: JsValue) = {
+    val (propName, defaultValue, dataType, usedInIndex) = toPropElements(js)
+    for (label <- HLabel.findByName(labelName)) yield {
+      HLabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType)
+    }
+  }
   def addProp(labelName: String) = Action(parse.json) { request =>
-    val (propName, defaultValue, dataType) = toPropElements(request.body)
+    addPropInner(labelName)(request.body) match {
+      case None =>
+        BadRequest(s"failed to add property on $labelName")
+      case Some(p) =>
+        Ok(s"${p.toJson}")
+    }
+  }
+  def addProps(labelName: String) = Action(parse.json) { request =>
+    val jsObjs = request.body.asOpt[List[JsObject]].getOrElse(List.empty[JsObject])
+    val newProps = for {
+      js <- jsObjs
+      newProp <- addPropInner(labelName)(js)
+    } yield newProp
+    Ok(s"${newProps.size} is added.")
+  }
+  def createVertex() = Action(parse.json) { request =>
+    createVertexInner(request.body)
+  }
+  def createVertexInner(jsValue: JsValue) = {
     try {
-      val meta = Management.addProp(labelName, propName, defaultValue, dataType)
-      val json = meta.toJson
-      Created(s"$json\n").as(QueryController.applicationJsonHeader)
+      val (serviceName, columnName, columnType, props) = toVertexElements(jsValue)
+      Management.createVertex(serviceName, columnName, columnType, props)
+      Ok("Created\n")
     } catch {
       case e: Throwable =>
         Logger.error(s"$e", e)
-        BadRequest(s"$e").as(QueryController.applicationJsonHeader)
+        BadRequest(s"$e")
     }
   }
 
+  def getVertex(serviceName: String, columnName: String) = Action { request =>
+    val rets = for {
+      service <- HService.findByName(serviceName)
+      serviceColumn <- HServiceColumn.find(service.id.get, columnName, useCache = false)
+    } yield {
+      serviceColumn
+    }
+    rets match {
+      case None => NotFound
+      case Some(serviceColumn) => Ok(s"$serviceColumn")
+    }
+  }
+  private def addVertexPropInner(serviceName: String, columnName: String)(js: JsValue) = {
+    val (propName, defaultValue, dataType, usedInIndex) = toPropElements(js)
+    for {
+      service <- HService.findByName(serviceName)
+      serviceColumn <- HServiceColumn.find(service.id.get, columnName)
+    } yield {
+      HColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType)
+    }
+  }
+  def addVertexProp(serviceName: String, columnName: String) = Action(parse.json) { request =>
+    addVertexPropInner(serviceName, columnName)(request.body) match {
+      case None => BadRequest(s"can`t find service with $serviceName or can`t find serviceColumn with $columnName")
+      case Some(m) => Ok(s"$m")
+    }
+  }
+  def addVertexProps(serviecName: String, columnName: String) = Action(parse.json) { request =>
+    val jsObjs = request.body.asOpt[List[JsObject]].getOrElse(List.empty[JsObject])
+    val newProps = for {
+      js <- jsObjs
+      newProp <- addVertexPropInner(serviecName, columnName)(js)
+    } yield newProp
+    Ok(s"${newProps.size} is added.")
+  }
   /**
    * end of management
    */

@@ -2,6 +2,7 @@ package com.daumkakao.s2graph.core.models
 
 import com.daumkakao.s2graph.core.models.HBaseModel.{KEY, VAL}
 import com.daumkakao.s2graph.core.{JSONParser, Management}
+import play.api.Logger
 import play.api.libs.json.{Json, JsValue}
 
 /**
@@ -42,7 +43,8 @@ object HLabel {
   def insertAll(labelName: String, srcServiceName: String, srcColumnName: String, srcColumnType: String,
                 tgtServiceName: String, tgtColumnName: String, tgtColumnType: String,
                 isDirected: Boolean = true, serviceName: String,
-                props: Seq[PROPS] = Seq.empty[PROPS],
+                idxProps: Seq[(String, JsValue, String)],
+                props: Seq[(String, JsValue, String)],
                 consistencyLevel: String,
                 hTableName: Option[String],
                 hTableTTL: Option[Int]) = {
@@ -57,6 +59,7 @@ object HLabel {
         val srcCol = HServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType))
         val tgtCol = HServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType))
         HLabel.findByName(labelName, useCache = false).getOrElse {
+          /** create label */
           val createdId = HBaseModel.getAndIncrSeq[HLabel]
           val label = HLabel(Map("id" -> createdId,
             "label" -> labelName, "srcServiceId" -> srcServiceId,
@@ -67,19 +70,18 @@ object HLabel {
             "hTableTTL" -> hTableTTL.getOrElse(-1)))
           label.create
 
-          val (indexPropsMetas, propsMetas)  = {
-            val metasWithIsIndex = if (props.isEmpty) List((HLabelMeta.timestamp, true))
-            else props.toList.map {
-              case (name, defaultVal, dataType, usedInIndex) =>
-                (HLabelMeta.findOrInsert(createdId.toInt, name, defaultVal.toString, dataType), usedInIndex)
+          /** create label metas */
+          val idxPropsMetas =
+            if (idxProps.isEmpty) List(HLabelMeta.timestamp)
+            else idxProps.map { case (propName, defaultValue, dataType) =>
+              HLabelMeta.findOrInsert(createdId.toInt, propName, defaultValue.toString, dataType)
             }
-            val (indexPropsMetas, propsMetas) = metasWithIsIndex.partition{ case (m, usedInIndex) => usedInIndex }
-            (indexPropsMetas.map (t => t._1), propsMetas.map(t => t._1))
+          val propsMetas = props.map { case (propName, defaultValue, dataType) =>
+            HLabelMeta.findOrInsert(createdId.toInt, propName, defaultValue.toString, dataType)
           }
-
-          val indexMetaSeqs = indexPropsMetas.map { m => m.seq }
           /** insert default index(PK) of this label */
-          HLabelIndex.findOrInsert(createdId.toInt, HLabelIndex.defaultSeq, indexMetaSeqs, "none")
+          HLabelIndex.findOrInsert(createdId.toInt, HLabelIndex.defaultSeq,
+            idxPropsMetas.map(m => m.seq).toList, "none")
 
           /** TODO: */
           (hTableName, hTableTTL) match {

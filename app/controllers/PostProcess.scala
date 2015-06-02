@@ -1,8 +1,9 @@
 package controllers
 
-import com.daumkakao.s2graph.core.HBaseElement._
+//import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.models.HServiceColumn
+import com.daumkakao.s2graph.core.types.InnerVal
 import play.api.Logger
 import play.api.libs.json.{JsString, JsObject, Json}
 
@@ -114,9 +115,9 @@ object PostProcess extends JSONParser {
     val jsons = for {
       edges <- edgesPerVertex
       (edge, score) <- edges
-    } yield {
-        edgeToJson(edge, score)
-      }
+      edgeJson <- edgeToJson(edge, score)
+    } yield edgeJson
+
     val results =
       if (withScore) {
         jsons.sortBy(js => ((js \ "score").as[Double], (js \ "_timestamp").as[Long])).reverse
@@ -134,9 +135,9 @@ object PostProcess extends JSONParser {
     val jsons = for {
       edges <- edgesPerVertexWithRanks
       (edge, score) <- edges if !excludeIds.contains(edge.tgtVertex.innerId)
-    } yield {
-        edgeToJson(edge, score)
-      }
+      edgeJson <- edgeToJson(edge, score)
+    } yield edgeJson
+
     val results =
       if (withScore) {
         jsons.sortBy(js => ((js \ "score").as[Double], (js \ "_timestamp").as[Long])).reverse
@@ -155,23 +156,43 @@ object PostProcess extends JSONParser {
       "props" -> propsToJson(serviceColumn.metaNamesMap, vertex.props))
   }
   def propsToJson(edge: Edge) = {
-    for ((seq, v) <- edge.props; name <- edge.label.metaPropNamesMap.get(seq) if seq > 0) yield {
-      (name, innerValToJsValue(v))
+    for {
+      (seq, v) <- edge.props
+      metaProp <- edge.label.metaPropsMap.get(seq) if seq > 0
+      jsValue <- innerValToJsValue(v, metaProp.dataType)
+    } yield {
+      (metaProp.name, jsValue)
     }
   }
-  def edgeToJson(edge: Edge, score: Double) = {
+  def edgeToJson(edge: Edge, score: Double): Option[JsObject] = {
     //    
     //    Logger.debug(s"edgeProps: ${edge.props} => ${props}")
-    Json.obj("from" -> innerValToJsValue(edge.srcVertex.id.innerId),
-      "to" -> (if (edge.tgtVertex == null) JsString("degree") else innerValToJsValue(edge.tgtVertex.id.innerId)),
-      "label" -> edge.label.label,
-      "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
-      "_timestamp" -> edge.ts,
-      //      "props" -> propsToJson(propNames, edge.props),
-      "props" -> propsToJson(edge),
-      //      "prev_step_props" -> edge.srcVertex.propsWithName,
-      //      "metas" -> propsToJson(label.metaSeqsToNames, edge.metas),
-      "score" -> score)
+    for {
+      from <- innerValToJsValue(edge.srcVertex.innerId, edge.label.srcColumnType)
+      to <- innerValToJsValue(edge.tgtVertex.innerId, edge.label.tgtColumnType)
+    } yield {
+      val props = propsToJson(edge)
+      Json.obj(
+        "from" -> from,
+        "to" -> to,
+        "label" -> edge.label.label,
+        "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
+        "_timestamp" -> edge.ts,
+        "props" -> propsToJson(edge),
+        "score" -> score
+      )
+    }
+//    Json.obj(
+//      "from" -> innerValToJsValue(edge.srcVertex.id.innerId),
+//      "to" -> (if (edge.tgtVertex == null) JsString("degree") else innerValToJsValue(edge.tgtVertex.id.innerId)),
+//      "label" -> edge.label.label,
+//      "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
+//      "_timestamp" -> edge.ts,
+//      //      "props" -> propsToJson(propNames, edge.props),
+//      "props" -> propsToJson(edge),
+//      //      "prev_step_props" -> edge.srcVertex.propsWithName,
+//      //      "metas" -> propsToJson(label.metaSeqsToNames, edge.metas),
+//      "score" -> score)
   }
 
   private def keysToName(seqsToNames: Map[Byte, String], props: Map[Byte, InnerVal]) = {
