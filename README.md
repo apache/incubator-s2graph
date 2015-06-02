@@ -22,7 +22,10 @@ Table of content
   - [1.2 label example](#12-label-example)
   - [1.3 Add extra props on label.](#13-add-extra-props-on-label)
   - [1.4 Consistency level.](#14-consistency-level)
-- [2. (Optionally) Add Extra Indexes - `POST /graphs/addIndex`](#2-optionally-add-extra-indexes---post-graphsaddindex)
+  - [1.4 (Optionally) Add Extra Indexes - `POST /graphs/addIndex`](#14-optionally-add-extra-indexes---post-graphsaddindex)
+- [2. Create Vertex(Optional) - `POST /graphs/createVertex`](#2-create-vertexoptional---post-graphscreatevertex)
+  - [2.1 Vertex definition](#21-vertex-definition)
+  - [2.2 examples](#22-examples)
 - [3. Insert and Manipulate Edges](#3-insert-and-manipulate-edges)
   - [Edge Operations](#edge-operations)
     - [1. Insert - `POST /graphs/edges/insert`](#1-insert---post-graphsedgesinsert)
@@ -61,7 +64,7 @@ Table of content
   - [Test data](#test-data)
     - [1. friend of friend](#1-friend-of-friend)
     - [2. friends](#2-friends)
-- [new benchmark (with asynchbase)](#new-benchmark-asynchbase)
+  - [new benchmark (asynchbase)](#new-benchmark-asynchbase)
     - [1. one step query](#1-one-step-query)
     - [2. two step query](#2-two-step-query)
     - [3. three step query](#3-three-step-query)
@@ -214,6 +217,8 @@ To create a Label, the following fields needs to be specified in the request.
 | hTableName | if this label need special usecase(such as batch upload), own hbase table name can be used. | string | s2graph-batch | default use service`s hTableName. <br> note that this is optional. |
 | hTableTTL | time to data keep alive. | integer |   86000 | default use service`s hTableTTL. <br> note that this is optional. |
 | consistencyLevel | if this is strong, only one edge between same from/to can be made. otherwise(weak) multiple edges with same from/to can be exist. | string | strong/weak | default weak |
+|**indexProps** | see below |
+|**props** | see below |
 
 Most important elements for label is their **indexProps** and **props**
 
@@ -236,7 +241,7 @@ a simple example for props would look like this
 ]
 ```
 
-note that property value type should be numeric(byte, short, integer, float, double) or boolean or string.
+note that property value type should be **numeric**(byte, short, integer, float, double) or **boolean** or **string**.
 
 **indexProps** define primary index for this label(like `PRIMARY INDEX idx_xxx`(`p1, p2`) in RDBMS).
 
