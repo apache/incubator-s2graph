@@ -504,7 +504,14 @@ curl -XPOST localhost:9000/graphs/createVertex -H 'Content-Type: Application/jso
 ' 
 ```
 
-you can also add more properties on vertex as following.
+user can get information on vertex schema as following.
+
+```
+curl -XGET localhost:9000/graphs/getVertex/s2graph/user_id 
+```
+This will give all properties on serviceName `s2graph` and columnName `user_id` vertex.
+
+user can also add more properties on vertex as following.
 
 ```
 curl -XPOST localhost:9000/graphs/addVertexProps/s2graph/user_id -H 'Content-Type: Application/json' -d '

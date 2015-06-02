@@ -61,7 +61,7 @@ POST   /graphs/addProps/:labelName                                             c
 POST   /graphs/createVertex                                                    controllers.AdminController.createVertex()
 POST   /graphs/addVertexProp/:serviceName/:columnName                          controllers.AdminController.addVertexProp(serviceName, columnName)
 POST   /graphs/addVertexProps/:serviceName/:columnName                         controllers.AdminController.addVertexProps(serviceName, columnName)
-
+GET    /graphs/getVertex/:serviceName/:columnName                              controllers.AdminController.getVertex(serviceName, columnName)
 		  
 #### TEST
 GET    /graphs/testGetEdges/:label/:limit/:friendCntStep                       controllers.QueryController.testGetEdges(label, limit: Int, friendCntStep: Int)

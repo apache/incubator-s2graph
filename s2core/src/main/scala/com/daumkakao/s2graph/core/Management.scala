@@ -84,15 +84,16 @@ object Management extends JSONParser {
                    columnName: String,
                    columnType: String,
                    props: Seq[(String, JsValue, String)]) = {
-    for {
-      service <- HService.findByName(serviceName)
-    } yield {
-      val serviceColumn = HServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
-      for {
-        (propName, defaultValue, dataType) <- props
-      } yield {
-        HColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType)
-      }
+    val serviceOpt = HService.findByName(serviceName)
+    serviceOpt match {
+      case None => throw new RuntimeException(s"create service $serviceName has not been created.")
+      case Some(service) =>
+        val serviceColumn = HServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
+        for {
+          (propName, defaultValue, dataType) <- props
+        } yield {
+          HColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType)
+        }
     }
   }
   def findLabel(labelName: String): Option[HLabel] = {

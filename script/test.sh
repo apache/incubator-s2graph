@@ -74,3 +74,41 @@ curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -
     ]
 }
 '
+
+## Vertex
+curl -XPOST localhost:9000/graphs/createVertex -H 'Content-Type: Application/json' -d ' 
+{
+    "serviceName": "s2graph",
+    "columnName": "user_id",
+    "columnType": "long",
+    "props": [
+        {"name": "is_active", "dataType": "boolean", "defaultValue": true}, 
+        {"name": "phone_number", "dataType": "string", "defaultValue": "-"},
+        {"name": "nickname", "dataType": "string", "defaultValue": ".."},
+        {"name": "activity_score", "dataType": "float", "defaultValue": 0.0},
+        {"name": "age", "dataType": "integer", "defaultValue": 0}
+    ]
+}
+' 
+# add props on Vertex
+curl -XPOST localhost:9000/graphs/addVertexProps/s2graph/user_id -H 'Content-Type: Application/json' -d '
+[
+	{"name": "home_address", "defaultValue": "korea", "dataType": "string"}
+]
+'
+
+# insert vertex data
+curl -XPOST localhost:9000/graphs/vertices/insert/s2graph/user_id -H 'Content-Type: Application/json' -d '
+[
+  {"id":1,"props":{"is_active":true}, "timestamp":1417616431},
+  {"id":2,"props":{},"timestamp":1417616431}
+]
+'
+
+
+# select vertices
+curl -XPOST localhost:9000/graphs/getVertices -H 'Content-Type: Application/json' -d '
+[
+    {"serviceName": "s2graph", "columnName": "user_id", "ids": [1, 2, 3]}
+]
+'
