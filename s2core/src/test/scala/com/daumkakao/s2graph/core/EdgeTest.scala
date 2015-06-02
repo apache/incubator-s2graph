@@ -125,7 +125,20 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     testPropsUpdate(oldProps, newProps, expected, shouldUpdate)(Edge.buildUpsert) shouldBe true
   }
   test("Edge.buildUpdate") {
-
+    val shouldUpdate = true
+    val expected = Map(
+      HLabelMeta.lastDeletedAt -> "left",
+      1.toByte -> "left",
+      2.toByte -> "right",
+      3.toByte -> "right",
+      4.toByte -> "left"
+    )
+    testPropsUpdate(oldProps, newProps, expected, shouldUpdate)(Edge.buildUpdate) shouldBe true
   }
+  test("Edge.buildDelete") {
+    val shouldUpdate = true
+    val expected = Map(
 
+    )
+  }
 }
