@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.Edge.PropsPairWithTs
-import com.daumkakao.s2graph.core.models.HLabelMeta
+import com.daumkakao.s2graph.core.models.LabelMeta
 import com.daumkakao.s2graph.core.types.{InnerVal, InnerValWithTs, CompositeId}
 import org.hbase.async.{AtomicIncrementRequest, PutRequest}
 import org.scalatest.{BeforeAndAfter, Matchers, FunSuite}
@@ -105,7 +105,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
   }
   /** test cases for each operation */
   val oldProps = Map(
-    HLabelMeta.lastDeletedAt -> InnerValWithTs.withLong(ts -2, ts -2),
+    LabelMeta.lastDeletedAt -> InnerValWithTs.withLong(ts -2, ts -2),
     1.toByte -> InnerValWithTs.withLong(0L, ts),
     2.toByte -> InnerValWithTs.withLong(1L, ts - 1),
     4.toByte -> InnerValWithTs.withStr("old", ts - 1)
@@ -117,7 +117,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
   test("Edge.buildUpsert") {
     val shouldUpdate = true
     val expected =  Map(
-      HLabelMeta.lastDeletedAt -> "left",
+      LabelMeta.lastDeletedAt -> "left",
       1.toByte -> "none",
       2.toByte -> "right",
       3.toByte -> "right",
@@ -127,7 +127,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
   test("Edge.buildUpdate") {
     val shouldUpdate = true
     val expected = Map(
-      HLabelMeta.lastDeletedAt -> "left",
+      LabelMeta.lastDeletedAt -> "left",
       1.toByte -> "left",
       2.toByte -> "right",
       3.toByte -> "right",

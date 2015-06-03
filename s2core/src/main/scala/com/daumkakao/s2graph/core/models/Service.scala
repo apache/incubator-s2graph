@@ -10,38 +10,38 @@ import scala.reflect.ClassTag
  * Created by shon on 5/15/15.
  */
 
-object HService {
-  def findById(id: Int, useCache: Boolean = true): HService = {
+object Service {
+  def findById(id: Int, useCache: Boolean = true): Service = {
     try {
-    HBaseModel.find[HService](useCache)(Seq(("id" -> id))).get
+    HBaseModel.find[Service](useCache)(Seq(("id" -> id))).get
     } catch {
       case e: Throwable =>
         Logger.error(s"$id, $e", e)
         throw e
     }
   }
-  def findByName(serviceName: String, useCache: Boolean = true): Option[HService] = {
-    HBaseModel.find[HService](useCache)(Seq(("serviceName" -> serviceName)))
+  def findByName(serviceName: String, useCache: Boolean = true): Option[Service] = {
+    HBaseModel.find[Service](useCache)(Seq(("serviceName" -> serviceName)))
   }
   def findOrInsert(serviceName: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int],
-                   useCache: Boolean = true): HService = {
+                   useCache: Boolean = true): Service = {
     findByName(serviceName, useCache) match {
       case Some(s) => s
       case None =>
-        val id = HBaseModel.getAndIncrSeq[HService]
+        val id = HBaseModel.getAndIncrSeq[Service]
         val kvs = Map("id" -> id, "serviceName" -> serviceName, "cluster" -> cluster, "hbaseTableName" -> hTableName,
           "preSplitSize" -> preSplitSize, "hbaseTableTTL" -> hTableTTL.getOrElse(-1))
-        val service = HService(kvs)
+        val service = Service(kvs)
         service.create()
         Management.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL)
         service
     }
   }
-  def findAllServices(): List[HService] = {
-    HBaseModel.findsRange[HService](useCache = false)(Seq(("id"-> 0)), Seq(("id" -> Int.MaxValue)))
+  def findAllServices(): List[Service] = {
+    HBaseModel.findsRange[Service](useCache = false)(Seq(("id"-> 0)), Seq(("id" -> Int.MaxValue)))
   }
 }
-case class HService(kvsParam: Map[KEY, VAL]) extends HBaseModel[HService]("HService", kvsParam) {
+case class Service(kvsParam: Map[KEY, VAL]) extends HBaseModel[Service]("HService", kvsParam) {
   override val columns = Seq("id", "serviceName", "cluster", "hbaseTableName", "preSplitSize", "hbaseTableTTL")
 
   val pk = Seq(("id", kvs("id")))
@@ -51,10 +51,10 @@ case class HService(kvsParam: Map[KEY, VAL]) extends HBaseModel[HService]("HServ
   override val idxs = List(pk, idxServiceName, idxCluster)
   override def foreignKeys() = {
     List(
-      HBaseModel.findsMatch[HServiceColumn](useCache = false)(Seq("serviceId" -> kvs("id"))),
+      HBaseModel.findsMatch[ServiceColumn](useCache = false)(Seq("serviceId" -> kvs("id"))),
       //HBaseModel.findsMatch[HLabel](useCache = false)(Seq("srcServiceId" -> kvs("id"))),
       //HBaseModel.findsMatch[HLabel](useCache = false)(Seq("tgtServiceId" -> kvs("id"))),
-      HBaseModel.findsMatch[HLabel](useCache = false)(Seq("serviceId" -> kvs("id")))
+      HBaseModel.findsMatch[Label](useCache = false)(Seq("serviceId" -> kvs("id")))
     )
   }
   validate(columns)

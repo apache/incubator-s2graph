@@ -2,13 +2,14 @@ package controllers
 
 //import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models.HServiceColumn
+//import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.types.InnerVal
 import play.api.Logger
-import play.api.libs.json.{JsString, JsObject, Json}
+import play.api.libs.json.{JsObject, Json}
 
 import scala.collection.TraversableOnce
-import scala.collection.mutable.HashSet
+import scala.collection.mutable.{ListBuffer, HashSet}
 
 /**
  * Created by jay on 14. 9. 1..
@@ -111,21 +112,26 @@ object PostProcess extends JSONParser {
   def toSimpleVertexArrJson(edgesPerVertex: Seq[Iterable[(Edge, Double)]]) = {
     val withScore = true
     import play.api.libs.json.Json
-
-    val jsons = for {
+    val degreeJsons = ListBuffer[JsObject]()
+    val edgeJsons = ListBuffer[JsObject]()
+    for {
       edges <- edgesPerVertex
-      (edge, score) <- edges
+      (edge, score) <-  edges
       edgeJson <- edgeToJson(edge, score)
-    } yield edgeJson
+    } yield {
+        if (edge.propsWithTs.contains(LabelMeta.degreeSeq)) degreeJsons += edgeJson
+        else edgeJsons += edgeJson
+      }
 
     val results =
       if (withScore) {
-        jsons.sortBy(js => ((js \ "score").as[Double], (js \ "_timestamp").as[Long])).reverse
+        degreeJsons ++ edgeJsons.sortBy(js => ((js \ "score").as[Double], (js \ "_timestamp").as[Long])).reverse
       } else {
-        jsons.toList
+        degreeJsons ++ edgeJsons.toList
       }
+
     queryLogger.info(s"Result: ${results.size}")
-    Json.obj("size" -> jsons.size, "results" -> results)
+    Json.obj("size" -> results.size, "results" -> results)
   }
   def toSiimpleVertexArrJson(exclude: Seq[Iterable[(Edge, Double)]],
                              edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]]) = {
@@ -151,7 +157,7 @@ object PostProcess extends JSONParser {
     Json.toJson(vertices.map { v => vertexToJson(v) })
   }
   def vertexToJson(vertex: Vertex) = {
-    val serviceColumn = HServiceColumn.findById(vertex.id.colId)
+    val serviceColumn = ServiceColumn.findById(vertex.id.colId)
     Json.obj("columnName" -> serviceColumn.columnName, "id" -> vertex.id.innerId.toString,
       "props" -> propsToJson(serviceColumn.metaNamesMap, vertex.props))
   }

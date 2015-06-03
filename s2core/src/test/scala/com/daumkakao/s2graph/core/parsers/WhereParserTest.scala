@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core.parsers
 
-import com.daumkakao.s2graph.core.models.{HLabelMeta, HLabel}
+import com.daumkakao.s2graph.core.models.{LabelMeta, Label$}
 import com.daumkakao.s2graph.core.types.{InnerValWithTs, LabelWithDirection, InnerVal, CompositeId}
 import com.daumkakao.s2graph.core._
 import org.scalatest.{Matchers, FunSuite}
@@ -23,8 +23,8 @@ class WhereParserTest extends FunSuite with Matchers with TestCommon with TestCo
 
   def validate(labelName: String)(edge: Edge)(sql: String)(expected: Boolean) = {
 
-    val checkedOpt = for (label <- HLabel.findByName(labelName)) yield {
-      val labelMetas = HLabelMeta.findAllByLabelId(label.id.get, useCache = false)
+    val checkedOpt = for (label <- Label.findByName(labelName)) yield {
+      val labelMetas = LabelMeta.findAllByLabelId(label.id.get, useCache = false)
       val metaMap = labelMetas.map { m => m.name -> m.seq } toMap
       val whereOpt = WhereParser(label).parse(sql)
       whereOpt.isDefined && whereOpt.get.filter(edge)

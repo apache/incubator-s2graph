@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.models.{HLabelMeta, HLabel}
+//import com.daumkakao.s2graph.core.HBaseElement.InnerVal
 import com.daumkakao.s2graph.core.types.InnerVal
 import play.api.libs.json._
 
