@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core
 
-//import HBaseElement._
+//import com.daumkakao.s2graph.core.HBaseElement.{LabelWithDirection, InnerValWithTs, InnerVal, CompositeId}
+//import com.daumkakao.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import com.daumkakao.s2graph.core.models.{HLabel, HLabelIndex, HLabelMeta}
 import com.daumkakao.s2graph.core.parsers.Where
 import com.daumkakao.s2graph.core.types.{LabelWithDirection, InnerValWithTs, InnerVal, CompositeId}

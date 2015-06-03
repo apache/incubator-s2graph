@@ -1,42 +1,26 @@
 package com.daumkakao.s2graph.core
 
+//import com.daumkakao.s2graph.core.mysqls.{Label}
+//import com.daumkakao.s2graph.core.HBaseElement.{ EdgeQualifierInverted, EdgeRowKey, CompositeId, LabelWithDirection}
 import com.daumkakao.s2graph.core.models.{HBaseModel, HLabel}
 import com.daumkakao.s2graph.core.types.EdgeType.{EdgeQualifierInverted, EdgeRowKey}
 import com.daumkakao.s2graph.core.types.{CompositeId, LabelWithDirection}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._
 import java.util.concurrent.Executors
-import java.util.concurrent.ConcurrentHashMap
-import org.slf4j.LoggerFactory
 import play.api.Logger
-
-import scala.collection.mutable.SynchronizedQueue
-import org.apache.hadoop.hbase.filter.FilterList
-//import HBaseElement._
 import scala.collection.JavaConversions._
-import org.apache.hadoop.hbase.util.Bytes
 import scala.collection.mutable.HashSet
-import GraphUtil._
-import org.apache.hadoop.hbase.filter.ColumnPaginationFilter
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.collection.mutable.ListBuffer
-import scala.annotation.tailrec
 import scala.collection.mutable.HashMap
-import org.apache.hadoop.hbase.filter.ColumnPrefixFilter
-import org.apache.hadoop.hbase.Cell
-import Management._
-import play.api.libs.json.Json
-import KGraphExceptions._
-import play.libs.Akka
 import com.typesafe.config.Config
 import scala.reflect.ClassTag
 import org.hbase.async._
 import com.stumbleupon.async.Deferred
 import com.stumbleupon.async.Callback
 import java.util.ArrayList
-
-import scala.util.{Try, Success, Failure}
 
 object GraphConstant {
 

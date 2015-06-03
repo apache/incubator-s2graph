@@ -1,9 +1,9 @@
 package com.daumkakao.s2graph.core
 
-//import HBaseElement._
 
 import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.types.{InnerVal, InnerValWithTs, CompositeId, LabelWithDirection}
+//import com.daumkakao.s2graph.core.HBaseElement.{InnerVal, InnerValWithTs, CompositeId, LabelWithDirection}
 import play.api.libs.json._
 import org.apache.hadoop.hbase.client.{ConnectionFactory, HBaseAdmin, Durability}
 import org.apache.hadoop.hbase.HTableDescriptor
