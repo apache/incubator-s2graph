@@ -36,8 +36,8 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
       /**
        * Each http request waiting time to complete
        */
-      lazy val HTTP_REQ_WAITING_TIME = Duration(1000, MILLISECONDS)
-      val asyncFlushInterval = 1500 // in millis
+      lazy val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
+      val asyncFlushInterval = 5000 // in millis
       val curTime = System.currentTimeMillis
       val t1 = curTime + 0
       val t2 = curTime + 1
@@ -105,6 +105,7 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
           println(s"Cleanup Query : $bulkQuery")
           println(s"---- TC${tcNum}_cleanup ----")
           val rslt = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkQuery)).get
+          Thread.sleep(asyncFlushInterval)
 
           justHttpCheck(rslt)
           Thread.sleep(1000)
@@ -457,8 +458,6 @@ abstract class IntegritySpecificationBase extends Specification {
       // delete before start TC
       Management.deleteService(testServiceName)
       Management.deleteLabel(testLabelName)
-
-      Thread.sleep(10000)
 
       // 1. createService
       var result = AdminController.createServiceInner(Json.parse(createService))

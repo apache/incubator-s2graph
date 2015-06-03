@@ -28,7 +28,6 @@ object HBaseModel extends LocalCache[Result] {
   var maxCacheSize: Int = 1000
   type KEY = String
   type VAL = Any
-
   def apply(config: Config) = {
     zkQuorum = GraphConnection.getOrElse(config)("hbase.zookeeper.quorum", zkQuorum)
     modelTableName = GraphConnection.getOrElse(config)("s2graph.models.table.name", modelTableName)
@@ -249,6 +248,7 @@ object HBaseModel extends LocalCache[Result] {
     }
   }
   def deleteForce[T: ClassTag](idxKVs: Seq[(KEY, VAL)]) = {
+    expireCache(toCacheKey(idxKVs))
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       val rowKey = toRowKey(getClassName[T], idxKVs).getBytes
@@ -260,6 +260,7 @@ object HBaseModel extends LocalCache[Result] {
     }
   }
   def delete[T : ClassTag](idxKVs: Seq[(KEY, VAL)], valKVs: Seq[(KEY, VAL)]) = {
+    expireCache(toCacheKey(idxKVs))
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       val rowKey = toRowKey(getClassName[T], idxKVs).getBytes
@@ -291,8 +292,10 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
 
   def validate(columns: Seq[String]): Unit = {
     for (c <- columns) {
-      if (!kvs.contains(c))
-        throw new RuntimeException(s"$tableName expect ${columns.toList.sorted}, found ${kvs.toList.sortBy{kv => kv._1}}")
+      if (!kvs.contains(c)) {
+        Logger.error(s"$columns, $kvs")
+        throw new RuntimeException(s"$tableName expect ${columns.toList.sorted}, found ${kvs.toList.sortBy { kv => kv._1 }}")
+      }
     }
   }
 
