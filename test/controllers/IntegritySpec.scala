@@ -138,13 +138,16 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
           val rslt = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(Json.parse(simpleQuery))).get
 
           val jsRsltsObj = commonCheck(rslt)
+          val propsLs = (jsRsltsObj \\ "props").seq
 
+          propsLs.head.as[JsObject].keys.contains(LabelMeta.degree.name) must equalTo(true)
+          (propsLs.head.as[JsObject] \ LabelMeta.degree.name).as[Int] must equalTo(1)
           (jsRsltsObj \\ "from").seq.last.toString must equalTo(srcId)
           (jsRsltsObj \\ "to").seq.last.toString must equalTo(tgtId)
           (jsRsltsObj \\ "_timestamp").seq.last.as[Long] must equalTo(maxTs)
           for ((key, expectedVal) <- expected) {
-            (jsRsltsObj \\ "props").seq.last.as[JsObject].keys.contains(key) must equalTo(true)
-            ((jsRsltsObj \\ "props").seq.last \ key).toString must equalTo(expectedVal)
+            propsLs.last.as[JsObject].keys.contains(key) must equalTo(true)
+            (propsLs.last \ key).toString must equalTo(expectedVal)
           }
           Await.result(rslt, HTTP_REQ_WAITING_TIME)
         }

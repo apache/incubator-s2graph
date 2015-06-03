@@ -281,7 +281,7 @@ trait RequestParser extends JSONParser {
   }
   def toServiceElements(jsValue: JsValue) = {
     val serviceName = parse[String](jsValue, "serviceName")
-    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(GraphConnection.defaultConfigs("hbase.zookeeper.quorum"))
+    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(GraphConnection.defaultConfigs("hbase.zookeeper.quorum").toString)
     val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${Config.PHASE}")
     val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(0)
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]

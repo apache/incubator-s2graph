@@ -342,13 +342,23 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
         Graph.writeAsync(label.hbaseZkAddr, edgeUpdate.mutations)
         /** degree */
         val incrs =
-          if (edgeUpdate.mutations.isEmpty) List.empty[AtomicIncrementRequest]
-          else {
-            if (this.op == GraphUtil.operations("delete")) {
-              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
-            } else {
-              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(1L))
-            }
+          (edgeUpdate.edgesToDelete.isEmpty, edgeUpdate.edgesToInsert.isEmpty) match {
+            case (true, true) =>
+              /** when there is no need to update. shouldUpdate == false */
+              List.empty[AtomicIncrementRequest]
+            case (true, false) =>
+              /** no edges to delete but there is new edges to insert so increase degree by 1*/
+                this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
+            case (false, true) =>
+              /** no edges to insert but there is old edges to delete so decrease degree by 1*/
+                this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
+            case (false, false) =>
+              /** update on existing edges so no change on degree */
+//              if (edgeUpdate.edgesToDelete.find(e => e.op == GraphUtil.operations("delete")).isDefined) {
+//                this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
+//              } else {
+                List.empty[AtomicIncrementRequest]
+//              }
           }
 //        Logger.debug(s"Increment: $incrs")
         Graph.writeAsync(label.hbaseZkAddr, incrs)
@@ -681,8 +691,8 @@ object Edge {
   def buildReplace(invertedEdge: Option[Edge], requestEdge: Edge, newPropsWithTs: Map[Byte, InnerValWithTs]): EdgeUpdate = {
 
     val edgesToDelete = invertedEdge match {
-      //      case Some(e) if e.op != GraphUtil.operations("delete") => e.edgesWithIndexValid
-      case Some(e) => e.edgesWithIndexValid
+            case Some(e) if e.op != GraphUtil.operations("delete") => e.edgesWithIndexValid
+//      case Some(e) => e.edgesWithIndexValid
       case _ =>
         // nothing to remove on indexed.
         List.empty[EdgeWithIndex]
@@ -712,7 +722,7 @@ object Edge {
 
     //        Logger.debug(s"UpdatedProps: ${newPropsWithTs}\n")
     //        Logger.debug(s"EdgeUpdate: $update\n")
-    Logger.debug(s"$update")
+//    Logger.debug(s"$update")
     update
   }
   def fromString(s: String): Option[Edge] = Graph.toEdge(s)

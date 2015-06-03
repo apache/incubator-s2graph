@@ -43,7 +43,8 @@ object GraphConnection {
   val defaultConfigs = Map(
     "hbase.zookeeper.quorum" -> "localhost",
     "hbase.table.name" -> "s2graph",
-    "phase" -> "dev")
+    "phase" -> "dev",
+    "async.hbase.client.flush.interval" -> 1000.toShort)
   var config: Config = null
 
   def getOrElse[T: ClassTag](conf: com.typesafe.config.Config)(key: String, default: T): T = {
@@ -67,7 +68,7 @@ object GraphConnection {
       k -> currentVal
     }
     val conf = HBaseConfiguration.create()
-    conf.set("hbase.zookeeper.quorum", configVals("hbase.zookeeper.quorum"))
+    conf.set("hbase.zookeeper.quorum", configVals("hbase.zookeeper.quorum").toString)
     for (entry <- config.entrySet() if entry.getKey().startsWith("hbase.")) {
       val value = entry.getValue().unwrapped().toString
       conf.set(entry.getKey(), value)
@@ -98,6 +99,8 @@ object Graph {
   var hbaseConfig: org.apache.hadoop.conf.Configuration = null
   var storageExceptionCount = 0L
   var singleGetTimeout = 10000 millis
+  var clientFlushInterval = 1000.toShort
+
   //  implicit val ex = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(16))
   def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
     this.config = config
@@ -110,10 +113,9 @@ object Graph {
 //    conns += (zkQuorum -> conn)
     //    clients += (zkQuorum -> new HBaseClient(zkQuorum, "/hbase", Executors.newCachedThreadPool(), 8))
     clients += (zkQuorum -> new HBaseClient(zkQuorum))
-
   }
-  def getClient(zkQuorum: String) = {
-    clients.get(zkQuorum) match {
+  def getClient(zkQuorum: String, flushInterval: Short = clientFlushInterval) = {
+    val client = clients.get(zkQuorum) match {
       case None =>
         val client = new HBaseClient(zkQuorum)
         clients += (zkQuorum -> client)
@@ -121,6 +123,8 @@ object Graph {
       //        throw new RuntimeException(s"connection to $zkQuorum is not established.")
       case Some(c) => c
     }
+    client.setFlushInterval(flushInterval)
+    client
   }
   def getConn(zkQuorum: String) = {
     conns.get(zkQuorum) match {
@@ -293,7 +297,6 @@ object Graph {
             case p: PutRequest => client.put(p)
             case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i)
           }
-          client.flush()
           deferredToFutureWithoutFallback(deferred)
         }
 //        Future.sequence(futures)
