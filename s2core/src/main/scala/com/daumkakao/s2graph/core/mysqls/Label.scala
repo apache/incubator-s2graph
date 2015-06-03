@@ -3,7 +3,7 @@ package com.daumkakao.s2graph.core.mysqls
 /**
  * Created by shon on 6/3/15.
  */
-import com.daumkakao.s2graph.core.Management
+import com.daumkakao.s2graph.core.{JSONParser, Management}
 import play.api.Logger
 import play.api.libs.json.{ JsValue, Json }
 import scalikejdbc._

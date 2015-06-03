@@ -37,7 +37,7 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
        * Each http request waiting time to complete
        */
       lazy val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
-      val asyncFlushInterval = 5000 // in millis
+      val asyncFlushInterval = 1500 // in millis
       val curTime = System.currentTimeMillis
       val t1 = curTime + 0
       val t2 = curTime + 1
@@ -465,7 +465,7 @@ abstract class IntegritySpecificationBase extends Specification {
 
 
       // 2. createLabel
-      HLabel.findByName(testLabelName) match {
+      Label.findByName(testLabelName) match {
         case None =>
           result = AdminController.createLabelInner(Json.parse(createLabel))
           println(s">> Label created : $createLabel, $result")

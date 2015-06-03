@@ -6,37 +6,37 @@ import com.daumkakao.s2graph.core.models.HBaseModel.{VAL, KEY}
  * Created by shon on 5/15/15.
  */
 
-object HColumnMeta {
+object ColumnMeta {
   val timeStampSeq = 0.toByte
   val countSeq = -1.toByte
   val lastModifiedAtColumnSeq = 0.toByte
 
-  val lastModifiedAtColumn = HColumnMeta(Map("id" -> 0, "columnId" -> 0,
+  val lastModifiedAtColumn = ColumnMeta(Map("id" -> 0, "columnId" -> 0,
     "name" -> "lastModifiedAt", "seq" -> lastModifiedAtColumnSeq, "dataType" -> "long"))
   val maxValue = Byte.MaxValue
 
 
-  def findById(id: Int, useCache: Boolean = true): HColumnMeta = {
+  def findById(id: Int, useCache: Boolean = true): ColumnMeta = {
 
-    HBaseModel.find[HColumnMeta](useCache)(Seq(("id" -> id))).get
+    HBaseModel.find[ColumnMeta](useCache)(Seq(("id" -> id))).get
   }
   def findAllByColumn(columnId: Int, useCache: Boolean = true) = {
-    HBaseModel.findsMatch[HColumnMeta](useCache)(Seq(("columnId" -> columnId)))
+    HBaseModel.findsMatch[ColumnMeta](useCache)(Seq(("columnId" -> columnId)))
   }
   def findByName(columnId: Int, name: String, useCache: Boolean = true) = {
-    HBaseModel.find[HColumnMeta](useCache)(Seq(("columnId" -> columnId), ("name" -> name)))
+    HBaseModel.find[ColumnMeta](useCache)(Seq(("columnId" -> columnId), ("name" -> name)))
   }
   def findByIdAndSeq(columnId: Int, seq: Byte, useCache: Boolean = true) = {
-    HBaseModel.find[HColumnMeta](useCache)(Seq(("columnId" -> columnId), ("seq" -> seq)))
+    HBaseModel.find[ColumnMeta](useCache)(Seq(("columnId" -> columnId), ("seq" -> seq)))
   }
-  def findOrInsert(columnId: Int, name: String, dataType: String): HColumnMeta = {
+  def findOrInsert(columnId: Int, name: String, dataType: String): ColumnMeta = {
     findByName(columnId, name, useCache = false) match {
       case Some(s) => s
       case None =>
-        val id = HBaseModel.getAndIncrSeq[HColumnMeta]
+        val id = HBaseModel.getAndIncrSeq[ColumnMeta]
         val allMetas = findAllByColumn(columnId, useCache = false)
         val seq = (allMetas.length + 1).toByte
-        val model = HColumnMeta(Map("id" -> id, "columnId" -> columnId, "name" -> name,
+        val model = ColumnMeta(Map("id" -> id, "columnId" -> columnId, "name" -> name,
           "seq" -> seq, "dataType" -> dataType))
         model.create
         model
@@ -45,7 +45,7 @@ object HColumnMeta {
 }
 /** add dataType on HColumnMeta */
 
-case class HColumnMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel[HColumnMeta]("HColumnMeta", kvsParam) {
+case class ColumnMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel[ColumnMeta]("HColumnMeta", kvsParam) {
   override val columns = Seq("id", "columnId", "name", "seq", "dataType")
 
   val pk = Seq(("id", kvs("id")))

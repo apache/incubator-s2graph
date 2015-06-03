@@ -2,9 +2,9 @@ package com.daumkakao.s2graph.core
 
 //import com.daumkakao.s2graph.core.HBaseElement.{LabelWithDirection, InnerValWithTs, InnerVal, CompositeId}
 //import com.daumkakao.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
-import com.daumkakao.s2graph.core.models.{HLabel, HLabelIndex, HLabelMeta}
+import com.daumkakao.s2graph.core.models.{Label, LabelIndex, LabelMeta}
 import com.daumkakao.s2graph.core.parsers.Where
-import com.daumkakao.s2graph.core.types.{LabelWithDirection, InnerValWithTs, InnerVal, CompositeId}
+import com.daumkakao.s2graph.core.types.{LabelWithDirection, InnerVal, InnerValWithTs, CompositeId}
 import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.util.Bytes
 import GraphConstant._
@@ -64,12 +64,12 @@ object RankParam {
 }
 class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Seq.empty[(Byte, Double)]) { // empty => Count
   def defaultKey() = {
-    this.keySeqAndWeights = List((HLabelMeta.countSeq, 1.0))
+    this.keySeqAndWeights = List((LabelMeta.countSeq, 1.0))
     this
   }
   def singleKey(key: String) = {
     this.keySeqAndWeights =
-      HLabelMeta.findByName(labelId, key) match {
+      LabelMeta.findByName(labelId, key) match {
         case None => List.empty[(Byte, Double)]
         case Some(ktype) => List((ktype.seq, 1.0))
       }
@@ -78,7 +78,7 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
 
   def multipleKey(keyAndWeights: Seq[(String, Double)]) = {
     this.keySeqAndWeights =
-      for ((key, weight) <- keyAndWeights; row <- HLabelMeta.findByName(labelId, key)) yield (row.seq, weight)
+      for ((key, weight) <- keyAndWeights; row <- LabelMeta.findByName(labelId, key)) yield (row.seq, weight)
     this
   }
 }
@@ -89,8 +89,8 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   import Query.DuplicatePolicy._
   import Query.DuplicatePolicy
 
-  val label = HLabel.findById(labelWithDir.labelId)
-  val defaultKey = HLabelIndex.defaultSeq
+  val label = Label.findById(labelWithDir.labelId)
+  val defaultKey = LabelIndex.defaultSeq
   val fullKey = defaultKey
 
   var labelOrderSeq = fullKey
@@ -99,7 +99,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   //  var end = OrderProps.empty
   var limit = 10
   var offset = 0
-  var rank = new RankParam(labelWithDir.labelId, List(HLabelMeta.countSeq -> 1))
+  var rank = new RankParam(labelWithDir.labelId, List(LabelMeta.countSeq -> 1))
   var isRowKeyOnly = false
   var duration: Option[(Long, Long)] = None
 
@@ -148,14 +148,16 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     }
   }
   def interval(from: Seq[(Byte, InnerVal)], to: Seq[(Byte, InnerVal)]): QueryParam = {
-    import HBaseElement._
+//    import HBaseElement._
     //    val len = label.orderTypes.size.toByte
     //    val len = label.extraIndicesMap(labelOrderSeq).sortKeyTypes.size.toByte
     //    Logger.error(s"indicesMap: ${label.indicesMap(labelOrderSeq)}")
     val len = label.indicesMap(labelOrderSeq).sortKeyTypes.size.toByte
     //    Logger.error(s"index length: $len")
-    val toVal = Bytes.add(propsToBytes(to), Array.fill(1)(InnerVal.minMetaByte))
-    val fromVal = Bytes.add(propsToBytes(from), Array.fill(1)(InnerVal.maxMetaByte))
+    val minMetaByte = com.daumkakao.s2graph.core.types.InnerVal.minMetaByte
+    val maxMetaByte = com.daumkakao.s2graph.core.types.InnerVal.maxMetaByte
+    val toVal = Bytes.add(propsToBytes(to), Array.fill(1)(minMetaByte))
+    val fromVal = Bytes.add(propsToBytes(from), Array.fill(1)(maxMetaByte))
     toVal(0) = len
     fromVal(0) = len
     val maxBytes = fromVal

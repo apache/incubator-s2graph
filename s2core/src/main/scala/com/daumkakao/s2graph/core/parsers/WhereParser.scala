@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core.parsers
 
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models.{HLabelMeta, HLabel}
+import com.daumkakao.s2graph.core.models.{LabelMeta, Label}
 import com.daumkakao.s2graph.core.types.InnerVal
 
 import scala.util.parsing.combinator.JavaTokenParsers
@@ -23,8 +23,8 @@ abstract class Clause {
 case class Equal(val propKey: Byte, val value: InnerVal) extends Clause {
   override def filter(edge: Edge): Boolean = {
     propKey match {
-      case HLabelMeta.from.seq => edge.srcVertex.innerId == value
-      case HLabelMeta.to.seq => edge.tgtVertex.innerId == value
+      case LabelMeta.from.seq => edge.srcVertex.innerId == value
+      case LabelMeta.to.seq => edge.tgtVertex.innerId == value
       case _ =>
         edge.props.get(propKey) match {
           case None => true
@@ -37,8 +37,8 @@ case class Equal(val propKey: Byte, val value: InnerVal) extends Clause {
 case class IN(val propKey: Byte, val values: Set[InnerVal]) extends Clause {
   override def filter(edge: Edge): Boolean = {
     propKey match {
-      case HLabelMeta.from.seq => values.contains(edge.srcVertex.innerId)
-      case HLabelMeta.to.seq => values.contains(edge.tgtVertex.innerId)
+      case LabelMeta.from.seq => values.contains(edge.srcVertex.innerId)
+      case LabelMeta.to.seq => values.contains(edge.tgtVertex.innerId)
       case _ =>
         edge.props.get(propKey) match {
           case None => true
@@ -50,8 +50,8 @@ case class IN(val propKey: Byte, val values: Set[InnerVal]) extends Clause {
 case class Between(val propKey: Byte, val minValue: InnerVal, val maxValue: InnerVal) extends Clause {
   override def filter(edge: Edge): Boolean = {
     propKey match {
-      case HLabelMeta.from.seq => minValue <= edge.srcVertex.innerId && edge.srcVertex.innerId <= maxValue
-      case HLabelMeta.to.seq => minValue <= edge.tgtVertex.innerId && edge.tgtVertex.innerId <= maxValue
+      case LabelMeta.from.seq => minValue <= edge.srcVertex.innerId && edge.srcVertex.innerId <= maxValue
+      case LabelMeta.to.seq => minValue <= edge.tgtVertex.innerId && edge.tgtVertex.innerId <= maxValue
       case _ =>
         edge.props.get(propKey) match {
           case None => true
@@ -77,9 +77,9 @@ case class Or(val left: Clause, val right: Clause) extends Clause {
     left.filter(edge) || right.filter(edge)
   }
 }
-case class WhereParser(label: HLabel) extends JavaTokenParsers with JSONParser {
+case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
 
-  val metaProps = label.metaPropsInvMap ++ Map(HLabelMeta.from.name -> HLabelMeta.from, HLabelMeta.to.name -> HLabelMeta.to)
+  val metaProps = label.metaPropsInvMap ++ Map(LabelMeta.from.name -> LabelMeta.from, LabelMeta.to.name -> LabelMeta.to)
 
   def where: Parser[Where] = rep(clause) ^^ (Where(_))
 

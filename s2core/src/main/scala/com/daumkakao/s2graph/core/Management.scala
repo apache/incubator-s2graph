@@ -28,17 +28,17 @@ object Management extends JSONParser {
   //    HBaseModel.getSequence(tableName)
   //  }
   def createService(serviceName: String,
-                    cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]): HService = {
-    val service = HService.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
+                    cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]): Service = {
+    val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
     service
   }
 
   def findService(serviceName: String) = {
-    HService.findByName(serviceName, useCache = false)
+    Service.findByName(serviceName, useCache = false)
   }
 
   def deleteService(serviceName: String) = {
-    HService.findByName(serviceName).foreach { service =>
+    Service.findByName(serviceName).foreach { service =>
       service.deleteAll()
     }
   }
@@ -56,7 +56,7 @@ object Management extends JSONParser {
                   props: Seq[(String, JsValue, String)],
                   consistencyLevel: String,
                   hTableName: Option[String],
-                  hTableTTL: Option[Int]): HLabel = {
+                  hTableTTL: Option[Int]): Label = {
 
     //    val idxProps = for ((k, v, t) <- indexProps; innerVal <- jsValueToInnerVal(v, t)) yield (k, innerVal, t, true)
     //    val metaProps = for ((k, v, t) <- props; innerVal <- jsValueToInnerVal(v, t)) yield (k, innerVal, t, false)
@@ -67,101 +67,101 @@ object Management extends JSONParser {
     //        (k, innerVal, dataType)
     //      }
 
-    val labelOpt = HLabel.findByName(label, useCache = false)
+    val labelOpt = Label.findByName(label, useCache = false)
 
     labelOpt match {
       case Some(l) =>
         throw new KGraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
       case None =>
-        HLabel.insertAll(label,
+        Label.insertAll(label,
           srcServiceName, srcColumnName, srcColumnType,
           tgtServiceName, tgtColumnName, tgtColumnType,
           isDirected, serviceName, indexProps, props, consistencyLevel, hTableName, hTableTTL)
-        HLabel.findByName(label, useCache = false).get
+        Label.findByName(label, useCache = false).get
     }
   }
   def createVertex(serviceName: String,
                    columnName: String,
                    columnType: String,
                    props: Seq[(String, JsValue, String)]) = {
-    val serviceOpt = HService.findByName(serviceName)
+    val serviceOpt = Service.findByName(serviceName)
     serviceOpt match {
       case None => throw new RuntimeException(s"create service $serviceName has not been created.")
       case Some(service) =>
-        val serviceColumn = HServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
+        val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
         for {
           (propName, defaultValue, dataType) <- props
         } yield {
-          HColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType)
+          ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType)
         }
     }
   }
-  def findLabel(labelName: String): Option[HLabel] = {
-    HLabel.findByName(labelName, useCache = false)
+  def findLabel(labelName: String): Option[Label] = {
+    Label.findByName(labelName, useCache = false)
   }
 
   def deleteLabel(labelName: String) = {
-    HLabel.findByName(labelName, useCache = false).foreach { label =>
+    Label.findByName(labelName, useCache = false).foreach { label =>
       label.deleteAll()
     }
   }
 
-  def addIndex(labelStr: String, idxProps: Seq[(String, JsValue, String)]): HLabelIndex = {
+  def addIndex(labelStr: String, idxProps: Seq[(String, JsValue, String)]): LabelIndex = {
     val result = for {
-      label <- HLabel.findByName(labelStr)
+      label <- Label.findByName(labelStr)
     } yield {
         val labelOrderTypes =
           for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType)) yield {
-            val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
+            val lblMeta = LabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
             lblMeta.seq
           }
-        HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "none")
+        LabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "none")
       }
     result.getOrElse(throw new RuntimeException(s"add index failed"))
   }
 
-  def dropIndex(labelStr: String, idxProps: Seq[(String, JsValue, String)]): HLabelIndex = {
+  def dropIndex(labelStr: String, idxProps: Seq[(String, JsValue, String)]): LabelIndex = {
     val result = for {
-      label <- HLabel.findByName(labelStr)
+      label <- Label.findByName(labelStr)
     } yield {
         val labelOrderTypes =
           for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType)) yield {
 
-            val lblMeta = HLabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
+            val lblMeta = LabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
             lblMeta.seq
           }
-        HLabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
+        LabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
       }
     result.getOrElse(throw new RuntimeException(s"drop index failed"))
   }
 
-  def addProp(labelStr: String, propName: String, defaultValue: JsValue, dataType: String): HLabelMeta = {
+  def addProp(labelStr: String, propName: String, defaultValue: JsValue, dataType: String): LabelMeta = {
     val result = for {
-      label <- HLabel.findByName(labelStr)
+      label <- Label.findByName(labelStr)
     } yield {
-        HLabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType)
+        LabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType)
       }
     result.getOrElse(throw new RuntimeException(s"add property on label failed"))
   }
 
-  def addVertexProp(serviceName: String, columnName: String, columnType: String): HServiceColumn = {
+  def addVertexProp(serviceName: String, columnName: String, columnType: String): ServiceColumn = {
     val result = for {
-      service <- HService.findByName(serviceName, useCache = false)
+      service <- Service.findByName(serviceName, useCache = false)
     } yield {
-        HServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
+        ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
       }
     result.getOrElse(throw new RuntimeException(s"add property on vertex failed"))
   }
 
-  def getServiceLable(label: String): Option[HLabel] = {
-    HLabel.findByName(label)
+  def getServiceLable(label: String): Option[Label] = {
+    Label.findByName(label)
   }
 
   /**
    *
    */
 
-  def toLabelWithDirectionAndOp(label: HLabel, direction: String): Option[LabelWithDirection] = {
+  def toLabelWithDirectionAndOp(label: Label, direction: String): Option[LabelWithDirection] = {
     for {
       labelId <- label.id
       dir = GraphUtil.toDirection(direction)
@@ -191,16 +191,16 @@ object Management extends JSONParser {
 
     val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
     val parsedProps = toProps(label, jsObject).toMap
-    val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValWithTs(kv._2, ts))) ++ Map(HLabelMeta.timeStampSeq -> InnerValWithTs(InnerVal.withLong(ts), ts))
+    val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValWithTs(kv._2, ts))) ++ Map(LabelMeta.timeStampSeq -> InnerValWithTs(InnerVal.withLong(ts), ts))
     Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version = ts, propsWithTs)
 
   }
 
   def toVertex(ts: Long, operation: String, id: String, serviceName: String, columnName: String, props: String): Vertex = {
-    HService.findByName(serviceName) match {
+    Service.findByName(serviceName) match {
       case None => throw new RuntimeException(s"$serviceName does not exist. create service first.")
       case Some(service) =>
-        HServiceColumn.find(service.id.get, columnName) match {
+        ServiceColumn.find(service.id.get, columnName) match {
           case None => throw new RuntimeException(s"$columnName is not exist. create service column first.")
           case Some(col) =>
             val idVal = toInnerVal(id, col.columnType)
@@ -212,7 +212,7 @@ object Management extends JSONParser {
     }
   }
 
-  def toProps(column: HServiceColumn, js: JsObject): Seq[(Byte, InnerVal)] = {
+  def toProps(column: ServiceColumn, js: JsObject): Seq[(Byte, InnerVal)] = {
 
     val props = for {
       (k, v) <- js.fields
@@ -225,7 +225,7 @@ object Management extends JSONParser {
 
   }
 
-  def toProps(label: HLabel, js: JsObject): Seq[(Byte, InnerVal)] = {
+  def toProps(label: Label, js: JsObject): Seq[(Byte, InnerVal)] = {
 
     val props = for {
       (k, v) <- js.fields

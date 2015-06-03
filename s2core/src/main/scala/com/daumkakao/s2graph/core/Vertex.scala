@@ -2,7 +2,7 @@ package com.daumkakao.s2graph.core
 
 //import com.daumkakao.s2graph.core.HBaseElement.{InnerVal, CompositeId}
 //import com.daumkakao.s2graph.core.mysqls.{ColumnMeta, ServiceColumn, Service}
-import com.daumkakao.s2graph.core.models.{HColumnMeta, HServiceColumn, HService}
+import com.daumkakao.s2graph.core.models.{ColumnMeta, ServiceColumn, Service}
 import com.daumkakao.s2graph.core.types.VertexType.{VertexQualifier, VertexRowKey}
 import com.daumkakao.s2graph.core.types.{InnerVal, CompositeId}
 
@@ -20,13 +20,13 @@ case class Vertex(id: CompositeId,
 
   import GraphConstant._
   //  import Vertex.{ lastModifiedAtColumn, deletedAtColumn }
-  lazy val serviceColumn = HServiceColumn.findById(id.colId)
-  lazy val service = HService.findById(serviceColumn.serviceId)
+  lazy val serviceColumn = ServiceColumn.findById(id.colId)
+  lazy val service = Service.findById(serviceColumn.serviceId)
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, service.hTableName)
 
   lazy val rowKey = VertexRowKey(id)
   //  lazy val defaultProps = Map(defaultColumn -> (DateTime.now().getMillis / 1000).toInt)
-  lazy val defaultProps = Map(HColumnMeta.lastModifiedAtColumnSeq -> InnerVal.withLong(ts))
+  lazy val defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq -> InnerVal.withLong(ts))
   lazy val qualifiersWithValues = for ((k, v) <- props ++ defaultProps) yield (VertexQualifier(k), v)
   lazy val innerId = id.innerId
 
@@ -38,7 +38,7 @@ case class Vertex(id: CompositeId,
 
   lazy val propsWithName = for {
     (seq, v) <- props
-    meta <- HColumnMeta.findByIdAndSeq(id.colId, seq)
+    meta <- ColumnMeta.findByIdAndSeq(id.colId, seq)
   } yield (meta.name -> v.toString)
 
   //  lazy val propsWithName = for {
@@ -104,7 +104,7 @@ case class Vertex(id: CompositeId,
   override def toString(): String = {
 
     val (serviceName, columnName) = if (id.isEdge) ("", "") else {
-      val serviceColumn = HServiceColumn.findById(id.colId)
+      val serviceColumn = ServiceColumn.findById(id.colId)
       (serviceColumn.service.serviceName, serviceColumn.columnName)
     }
     val ls = ListBuffer(ts, GraphUtil.fromOp(op), "v", innerId, serviceName, columnName)

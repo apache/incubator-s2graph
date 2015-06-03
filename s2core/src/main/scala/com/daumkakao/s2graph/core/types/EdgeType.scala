@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core.types
 
-import com.daumkakao.s2graph.core.models.{HLabelIndex, HLabelMeta}
+import com.daumkakao.s2graph.core.models.{LabelIndex, LabelMeta}
 import org.apache.hadoop.hbase.util.Bytes
 import LabelWithDirection._
 import play.api.Logger
@@ -69,7 +69,7 @@ object EdgeType {
     val len = bytes(pos)
     pos += 1
     val kvs = for (i <- (0 until len)) yield {
-      val k = HLabelMeta.emptyValue
+      val k = LabelMeta.emptyValue
       val v = InnerVal(bytes, pos)
 
       pos += v.bytes.length
@@ -138,9 +138,9 @@ object EdgeType {
     }
     //TODO:
     def propsKVs(labelId: Int, labelOrderSeq: Byte): List[(Byte, InnerVal)] = {
-      val filtered = props.filter(kv => kv._1 != HLabelMeta.emptyValue)
+      val filtered = props.filter(kv => kv._1 != LabelMeta.emptyValue)
       if (filtered.isEmpty) {
-        val opt = for (index <- HLabelIndex.findByLabelIdAndSeq(labelId, labelOrderSeq)) yield {
+        val opt = for (index <- LabelIndex.findByLabelIdAndSeq(labelId, labelOrderSeq)) yield {
           val v = index.metaSeqs.zip(props.map(_._2))
           v
         }

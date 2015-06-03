@@ -4,8 +4,9 @@ package com.daumkakao.s2graph.core.mysqls
  * Created by shon on 6/3/15.
  */
 
-import com.daumkakao.s2graph.core.HBaseElement.InnerVal
+//import com.daumkakao.s2graph.core.HBaseElement.InnerVal
 import com.daumkakao.s2graph.core.JSONParser
+import com.daumkakao.s2graph.core.types.InnerVal
 import play.api.libs.json.{ JsObject, JsValue, Json }
 import scalikejdbc._
 
