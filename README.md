@@ -1225,7 +1225,7 @@ total vuser = 2,072
 
 
 ## 8. Resources ##
-* [hbaseconf](http://hbasecon.com/agenda): presentation is not published yet, but you can find our [keynote](https://www.dropbox.com/home?preview=hbasecon_s2graph_final.key)
+* [hbaseconf](http://hbasecon.com/agenda): presentation is not published yet, but you can find our [keynote](https://www.dropbox.com/s/scn2dtpflj931mw/hbasecon_s2graph_final.key?dl=0)
 * mailing list: use [google group](https://groups.google.com/forum/#!forum/s2graph) or fire issues on this repo.
 * contact: shom83@gmail.com
 
