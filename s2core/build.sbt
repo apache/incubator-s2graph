@@ -25,8 +25,7 @@ libraryDependencies ++= Seq(
   "org.apache.hadoop" % "hadoop-common" % Common.hadoopVersion excludeAll ExclusionRule(organization = "org.slf4j"),
   "commons-pool" % "commons-pool" % "1.6",
   "org.hbase" % "asynchbase" % "1.7.0-SNAPSHOT",
-  "org.scalatest" %% "scalatest" % "2.2.1" % "test",
-  "org.scalikejdbc" %% "scalikejdbc"        % "2.2.+"
+  "org.scalatest" %% "scalatest" % "2.2.1" % "test"
    )
 
 parallelExecution in Test := false

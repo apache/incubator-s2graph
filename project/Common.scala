@@ -9,7 +9,7 @@ object Common {
     "sonatype-snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
   )
   lazy val scalaVersion = "2.10.4"
-  lazy val version = "0.0.5-SNAPSHOT"
+  lazy val version = "0.0.6-SNAPSHOT"
   lazy val hbaseVersion = "1.0.1"
   lazy val hadoopVersion = "2.7.0"
 }
