@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core.parsers
 
-import com.daumkakao.s2graph.core.models.{LabelMeta, Label$}
+import com.daumkakao.s2graph.core.models.{LabelMeta, Label}
 import com.daumkakao.s2graph.core.types.{InnerValWithTs, LabelWithDirection, InnerVal, CompositeId}
 import com.daumkakao.s2graph.core._
 import org.scalatest.{Matchers, FunSuite}
