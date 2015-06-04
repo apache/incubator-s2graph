@@ -154,6 +154,7 @@ trait RequestParser extends JSONParser {
               val labelWithDir = LabelWithDirection(label.id.get, direction)
               val indexSeq = label.indexSeqsMap.get(scorings.map(kv => kv._1).toList).map(x => x.seq).getOrElse(LabelIndex.defaultSeq)
               val where = extractWhere(label, labelGroup)
+              val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(false)
               // TODO: refactor this. dirty
               val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
               QueryParam(labelWithDir).labelOrderSeq(labelOrderSeq)
@@ -168,6 +169,7 @@ trait RequestParser extends JSONParser {
                 .outputField(outputField)
                 .where(where)
                 .duplicatePolicy(duplicate)
+                .includeDegree(includeDegree)
             }
           Step(queryParams.toList)
         }

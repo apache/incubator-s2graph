@@ -121,6 +121,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   var duplicatePolicy = DuplicatePolicy.First
   var rpcTimeoutInMillis = 100
   var maxAttempt = 2
+  var includeDegree = false
 
   def isRowKeyOnly(isRowKeyOnly: Boolean): QueryParam = {
     this.isRowKeyOnly = isRowKeyOnly
@@ -221,6 +222,11 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
 
   def maxAttempt(attempt: Int): QueryParam = {
     this.maxAttempt = attempt;
+    this
+  }
+
+  def includeDegree(includeDegree: Boolean): QueryParam = {
+    this.includeDegree = includeDegree
     this
   }
 

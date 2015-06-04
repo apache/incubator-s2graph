@@ -732,6 +732,7 @@ object Edge {
 
     val rowKey = EdgeRowKey(kv.key(), 0)
     val srcVertexId = rowKey.srcVertexId
+    var isDegree = false
     val (tgtVertexId, props, op, ts) = rowKey.isInverted match {
       case true =>
         val qualifier = EdgeQualifierInverted(kv.qualifier(), 0)
@@ -746,6 +747,7 @@ object Edge {
         val kvQual = kv.qualifier()
         if (kvQual.length == 0) {
           /** degree */
+          isDegree = true
           val degree = Bytes.toLong(kv.value())
           // dirty hack
           val ts = kv.timestamp()
@@ -767,36 +769,39 @@ object Edge {
           (tgtVertexId, mergedProps, qualifier.op, ts)
         }
     }
-
-    val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-
-//    Logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
-    val labelMetas = LabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
-    val propsWithDefault = (for (meta <- labelMetas) yield {
-      props.get(meta.seq) match {
-        case Some(v) => (meta.seq -> v)
-        case None => (meta.seq -> InnerValWithTs(meta.defaultInnerVal, minTsVal))
-      }
-    }).toMap
-    /**
-     * TODO: backward compatability only. deprecate has field
-     */
-    val matches =
-      for {
-        (k, v) <- param.hasFilters
-        edgeVal <- propsWithDefault.get(k) if edgeVal.innerVal == v
-      } yield (k -> v)
-
-    val ret = if (matches.size == param.hasFilters.size && param.where.map(_.filter(edge)).getOrElse(true)) {
-      //      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-//      Logger.debug(s"fetchedEdge: $edge")
-      Some(edge)
-    } else {
+    if (!param.includeDegree && isDegree) {
       None
-    }
-//    Logger.debug(s"$edge")
+    } else {
+      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
+
+      //    Logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
+      val labelMetas = LabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
+      val propsWithDefault = (for (meta <- labelMetas) yield {
+        props.get(meta.seq) match {
+          case Some(v) => (meta.seq -> v)
+          case None => (meta.seq -> InnerValWithTs(meta.defaultInnerVal, minTsVal))
+        }
+      }).toMap
+      /**
+       * TODO: backward compatability only. deprecate has field
+       */
+      val matches =
+        for {
+          (k, v) <- param.hasFilters
+          edgeVal <- propsWithDefault.get(k) if edgeVal.innerVal == v
+        } yield (k -> v)
+
+      val ret = if (matches.size == param.hasFilters.size && param.where.map(_.filter(edge)).getOrElse(true)) {
+        //      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
+        //      Logger.debug(s"fetchedEdge: $edge")
+        Some(edge)
+      } else {
+        None
+      }
+      //    Logger.debug(s"$edge")
     //    Logger.debug(s"${cell.getQualifier().toList}, ${ret.map(x => x.toStringRaw)}")
-    ret
+      ret
+    }
   }
 
 }
