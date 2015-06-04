@@ -1,13 +1,11 @@
 package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.types.EdgeType.EdgeQualifier
 import com.daumkakao.s2graph.core.types.{InnerValWithTs, HBaseType, InnerVal, LabelWithDirection}
-import com.typesafe.config.ConfigFactory
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{PutRequest, KeyValue}
-import play.api.libs.json.{JsNumber, JsString, JsBoolean}
 
-import scala.concurrent.ExecutionContext
 
 /**
  * Created by shon on 6/1/15.
@@ -33,19 +31,30 @@ trait TestCommon {
 
   def lessThan(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) < 0
 
+  def lessThanEqual(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) <= 0
+
   /** */
+  private val tsVal1 = InnerVal.withLong(ts)
+  private val tsVal2 = InnerVal.withLong(ts + 1)
+  private val boolVal1 = InnerVal.withBoolean(false)
+  private val boolVal2 = InnerVal.withBoolean(true)
+  private val doubleVal1 = InnerVal.withDouble(-0.1)
+  private val doubleVal2 = InnerVal.withDouble(0.1)
+  private val toSeq = LabelMeta.toSeq.toInt
+  private val toVal = InnerVal.withLong(Long.MinValue)
+
   val intVals = {
     val vals = (Int.MinValue until Int.MinValue + 10) ++
       (-128 to 128) ++ (Int.MaxValue - 10 until Int.MaxValue)
     vals.map { v => InnerVal(BigDecimal(v)) }
   }
   val idxPropsLs = Seq(
-    Seq((0 -> InnerVal.withLong(ts)), (1 -> InnerVal.withBoolean(false)), (2 -> InnerVal.withStr("a")), (3 -> InnerVal.withDouble(-0.1))),
-    Seq((0 -> InnerVal.withLong(ts)), (1 -> InnerVal.withBoolean(false)), (2 -> InnerVal.withStr("a")), (3 -> InnerVal.withDouble(0.1))),
-    Seq((0 -> InnerVal.withLong(ts)), (1 -> InnerVal.withBoolean(false)), (2 -> InnerVal.withStr("ab")), (3 -> InnerVal.withDouble(0.1))),
-    Seq((0 -> InnerVal.withLong(ts)), (1 -> InnerVal.withBoolean(false)), (2-> InnerVal.withStr("b")), (3 -> InnerVal.withDouble(0.1))),
-    Seq((0 -> InnerVal.withLong(ts)), (1 -> InnerVal.withBoolean(true)), (2 -> InnerVal.withStr("a")), (3 -> InnerVal.withDouble(0.1))),
-    Seq((0 -> InnerVal.withLong(ts + 1)), (1 -> InnerVal.withBoolean(false)), (2 -> InnerVal.withStr("a")), (3 -> InnerVal.withDouble(0.1)))
+    Seq((0 -> tsVal1), (1 -> boolVal1), (2 -> InnerVal.withStr("a")), (3 -> doubleVal1), (toSeq -> toVal)),
+    Seq((0 -> tsVal1), (1 -> boolVal1), (2 -> InnerVal.withStr("a")), (3 -> doubleVal2), (toSeq -> toVal)),
+    Seq((0 -> tsVal1), (1 -> boolVal1), (2 -> InnerVal.withStr("ab")), (3 -> doubleVal2), (toSeq -> toVal)),
+    Seq((0 -> tsVal1), (1 -> boolVal1), (2-> InnerVal.withStr("b")), (3 ->doubleVal2), (toSeq -> toVal)),
+    Seq((0 -> tsVal1), (1 -> boolVal2), (2 -> InnerVal.withStr("a")), (3 ->doubleVal2), (toSeq -> toVal)),
+    Seq((0 -> tsVal2), (1 -> boolVal1), (2 -> InnerVal.withStr("a")), (3 ->doubleVal2), (toSeq -> toVal))
   ).map(seq => seq.map(t => t._1.toByte -> t._2 ) )
 
   val idxPropsWithTsLs = idxPropsLs.map { idxProps =>
@@ -69,15 +78,21 @@ trait TestCommon {
             val decoded = fromBytesFunc(bytes)
             println(s"current: $current")
             println(s"decoded: $decoded")
+
             val prevBytes = if (useHash) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
             val currentBytes = if (useHash) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
-            val comp = lessThan(currentBytes, prevBytes) && current == decoded
+            val (isSame, orderPreserved) = (current, decoded) match {
+              case (c: EdgeQualifier, d: EdgeQualifier) if (c.tgtVertexId == null | d.tgtVertexId == null) =>
+                (c.props.map(_._2) == d.props.map(_._2) && c.op == d.op, Bytes.compareTo(currentBytes, prevBytes) <= 0)
+              case _ =>
+                (current == decoded, lessThan(currentBytes, prevBytes))
+            }
 
             println(s"$current ${bytes.toList}")
             println(s"$prev ${prev.bytes.toList}")
-            println(s"$comp")
+            println(s"SerDe[$isSame], Order[$orderPreserved]")
             prev = current
-            comp
+            isSame && orderPreserved
           }
         rets.forall(x => x)
       }
@@ -101,15 +116,21 @@ trait TestCommon {
             val decoded = fromBytesFunc(bytes)
             println(s"current: $current")
             println(s"decoded: $decoded")
+
             val prevBytes = if (useHash) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
             val currentBytes = if (useHash) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
-            val comp = lessThan(currentBytes, prevBytes) && current == decoded
+            val (isSame, orderPreserved) = (current, decoded) match {
+              case (c: EdgeQualifier, d: EdgeQualifier) if (c.tgtVertexId == null | d.tgtVertexId == null) =>
+                (c.props.map(_._2) == d.props.map(_._2) && c.op == d.op, Bytes.compareTo(currentBytes, prevBytes) <= 0)
+              case _ =>
+                (current == decoded, lessThan(currentBytes, prevBytes))
+            }
 
             println(s"$current ${bytes.toList}")
             println(s"$prev ${prev.bytes.toList}")
-            println(s"$comp")
+            println(s"SerDe[$isSame], Order[$orderPreserved]")
             prev = current
-            comp
+            isSame && orderPreserved
           }
 
         rets.forall(x => x)
