@@ -29,17 +29,17 @@ class EdgeTypeTest extends FunSuite with Matchers with TestCommon {
   val edgeValueFromBytesFunc = (bytes: Array[Byte]) => EdgeValue(bytes, 0)
 
 
-  test("test edge row key order with int source vertex id") {
-    testOrder(idxPropsLs, intVals, useHash = true)(edgeRowKeyCreateFunc, edgeRowKeyFromBytesFunc) shouldBe true
-  }
+//  test("test edge row key order with int source vertex id") {
+//    testOrder(idxPropsLs, intVals, useHash = true)(edgeRowKeyCreateFunc, edgeRowKeyFromBytesFunc) shouldBe true
+//  }
 
   test("test edge row qualifier with int target vertex id") {
     testOrder(idxPropsLs, intVals)(edgeQualifierCreateFunc, edgeQualifierFromBytesFunc) shouldBe true
     testOrderReverse(idxPropsLs, intVals)(edgeQualifierCreateFunc, edgeQualifierFromBytesFunc) shouldBe true
   }
 
-  test("test edge row qualifier inverted with int target vertex id") {
-    testOrder(idxPropsLs, intVals)(edgeQualifierInvertedCreateFunc, edgeQualifierInvertedFromBytesFunc) shouldBe true
-  }
+//  test("test edge row qualifier inverted with int target vertex id") {
+//    testOrder(idxPropsLs, intVals)(edgeQualifierInvertedCreateFunc, edgeQualifierInvertedFromBytesFunc) shouldBe true
+//  }
 
 }

@@ -215,14 +215,14 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
       EdgeWithIndex(srcVertex, tgtVertex, labelWithDir, op, version, labelOrder.seq, propsPlusTs)
     }
   }
-  lazy val edgesWithIndexValid = {
-    for (labelOrder <- labelOrders) yield {
-      EdgeWithIndex(srcVertex, tgtVertex, labelWithDir, op, version, labelOrder.seq, propsPlusTsValid)
-    }
-  }
   def edgesWithIndex(newOp: Byte) = {
     for (labelOrder <- labelOrders) yield {
       EdgeWithIndex(srcVertex, tgtVertex, labelWithDir, newOp, version, labelOrder.seq, propsPlusTs)
+    }
+  }
+  lazy val edgesWithIndexValid = {
+    for (labelOrder <- labelOrders) yield {
+      EdgeWithIndex(srcVertex, tgtVertex, labelWithDir, op, version, labelOrder.seq, propsPlusTsValid)
     }
   }
   def edgesWithIndexValid(newOp: Byte) = {
@@ -701,13 +701,12 @@ object Edge {
     val edgesToInsert = {
       if (newPropsWithTs.isEmpty) List.empty[EdgeWithIndex]
       else {
-        //        val maxTsProp = newPropsWithTs.toList.sortBy(kv => (kv._2.ts, -1 * kv._1)).reverse.head
-        //        if (maxTsProp._1 == LabelMeta.lastDeletedAt) {
         if (allPropsDeleted(newPropsWithTs)) {
           // all props is older than lastDeletedAt so nothing to insert on indexed.
           List.empty[EdgeWithIndex]
         } else {
-          requestEdge.edgesWithIndexValid
+          /** force operation on edge as insert */
+          requestEdge.edgesWithIndexValid(GraphUtil.defaultOpByte)
         }
       }
     }
@@ -758,12 +757,14 @@ object Edge {
           val value = EdgeValue(kv.value(), 0)
           val kvs = qualifier.propsKVs(rowKey.labelWithDir.labelId, rowKey.labelOrderSeq) ::: value.props.toList
           val kvsMap = kvs.toMap
+          val tgtVertexId = kvsMap.get(LabelMeta.toSeq) match {
+            case None => qualifier.tgtVertexId
+            case Some(vId) => CompositeId(CompositeId.defaultColId, vId, true, false)
+          }
+
           val ts = kvsMap.get(LabelMeta.timeStampSeq).map { v => v.toVal[BigDecimal].toLong }.getOrElse(version)
-//          val kvsMap = kvs.toMap
           val mergedProps = kvsMap.map { case (k, innerVal) => k -> InnerValWithTs(innerVal, ts) }
-//          val kvsMapWithoutTs = kvsMap.map(kv => (kv._1 -> InnerValWithTs(kv._2, ts)))
-//          (qualifier.tgtVertexId, kvsMapWithoutTs, qualifier.op, ts)
-          (qualifier.tgtVertexId, mergedProps, qualifier.op, ts)
+          (tgtVertexId, mergedProps, qualifier.op, ts)
         }
     }
 
@@ -797,59 +798,5 @@ object Edge {
     //    Logger.debug(s"${cell.getQualifier().toList}, ${ret.map(x => x.toStringRaw)}")
     ret
   }
-//  def toEdge(kv: org.hbase.async.KeyValue): Edge = {
-//    val version = kv.timestamp()
-//
-//    val rowKey = EdgeRowKey(kv.key(), 0)
-//    val srcVertexId = rowKey.srcVertexId
-//    val (tgtVertexId, props, op, ts) = rowKey.isInverted match {
-//      case true =>
-//        val qualifier = EdgeQualifierInverted(kv.qualifier(), 0)
-//        val value = EdgeValueInverted(kv.value(), 0)
-//        val kvsMap = value.props.toMap
-//        val ts = kvsMap.get(HLabelMeta.timeStampSeq) match {
-//          case None => version
-//          case Some(v) => v.innerVal.longV.get
-//        }
-//        (qualifier.tgtVertexId, kvsMap, value.op, ts)
-//      case false =>
-//        val kvQual = kv.qualifier()
-//        if (kvQual.length == 0) {
-//          /** degree */
-//          val degree = Bytes.toLong(kv.value())
-//          // dirty hack
-//          val ts = kv.timestamp()
-//          (rowKey.srcVertexId, Map(HLabelMeta.degreeSeq -> InnerValWithTs.withLong(degree, ts)), GraphUtil.operations("insert"), ts)
-//        } else {
-//          /** edge */
-//          val qualifier = EdgeQualifier(kvQual, 0, kvQual.length)
-//          val value = EdgeValue(kv.value(), 0)
-//          val kvs = qualifier.propsKVs(rowKey.labelWithDir.labelId, rowKey.labelOrderSeq) ::: value.props.toList
-//          val kvsMap = kvs.toMap
-//
-//          val ts = kvsMap.get(HLabelMeta.timeStampSeq) match {
-//            case None => version
-//            case Some(v) => v.longV.get
-//          }
-//          val kvsMapWithoutTs = kvsMap.map(kv => (kv._1 -> InnerValWithTs(kv._2, ts)))
-//          (qualifier.tgtVertexId, kvsMapWithoutTs, qualifier.op, ts)
-//        }
-//    }
-//    //    Logger.error(s"toEdge: $rowKey, $tgtVertexId")
-//    val labelMetas = HLabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
-//    val propsWithDefault = (for (meta <- labelMetas) yield {
-//      props.get(meta.seq) match {
-//        case Some(v) => (meta.seq -> v)
-//        case None => (meta.seq -> InnerValWithTs(meta.defaultInnerVal, minTsVal))
-//      }
-//    }).toMap
-//    //    play.api.Logger.debug(s"$rowKey, $tgtVertexId, $props, $op, $ts => ${param.hasFilters}")
-//    /**
-//     * TODO: backward compatability only. deprecate has field
-//     */
-//    val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-////    Logger.debug(s"fetchedEdge: $edge")
-//    edge
-//  }
 
 }

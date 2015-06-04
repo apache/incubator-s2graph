@@ -1,5 +1,6 @@
 package com.daumkakao.s2graph.core.types
 
+import com.daumkakao.s2graph.core.GraphUtil
 import com.daumkakao.s2graph.core.models.{LabelIndex, LabelMeta}
 import org.apache.hadoop.hbase.util.Bytes
 import LabelWithDirection._
@@ -15,25 +16,28 @@ object EdgeType {
     var bytes = Array.fill(1)(len.toByte)
     for ((k, v) <- props) bytes = Bytes.add(bytes, v.bytes)
 
-//        Logger.debug(s"propsToBytes: $props => ${bytes.toList}")
+    //        Logger.debug(s"propsToBytes: $props => ${bytes.toList}")
     bytes
   }
+
   def propsToKeyValues(props: Seq[(Byte, InnerVal)]): Array[Byte] = {
     val len = props.length
     assert(len < Byte.MaxValue)
     var bytes = Array.fill(1)(len.toByte)
     for ((k, v) <- props) bytes = Bytes.add(bytes, Array.fill(1)(k), v.bytes)
-//        Logger.error(s"propsToBytes: $props => ${bytes.toList}")
+    //        Logger.error(s"propsToBytes: $props => ${bytes.toList}")
     bytes
   }
+
   def propsToKeyValuesWithTs(props: Seq[(Byte, InnerValWithTs)]): Array[Byte] = {
     val len = props.length
     assert(len < Byte.MaxValue)
     var bytes = Array.fill(1)(len.toByte)
     for ((k, v) <- props) bytes = Bytes.add(bytes, Array.fill(1)(k), v.bytes)
-//        Logger.error(s"propsToBytes: $props => ${bytes.toList}")
+    //        Logger.error(s"propsToBytes: $props => ${bytes.toList}")
     bytes
   }
+
   def bytesToKeyValues(bytes: Array[Byte], offset: Int): (Seq[(Byte, InnerVal)], Int) = {
     var pos = offset
     val len = bytes(pos)
@@ -49,6 +53,7 @@ object EdgeType {
     //    Logger.debug(s"bytesToProps: $ret")
     ret
   }
+
   def bytesToKeyValuesWithTs(bytes: Array[Byte], offset: Int): (Seq[(Byte, InnerValWithTs)], Int) = {
     var pos = offset
     val len = bytes(pos)
@@ -64,6 +69,7 @@ object EdgeType {
     //    Logger.debug(s"bytesToProps: $ret")
     ret
   }
+
   def bytesToProps(bytes: Array[Byte], offset: Int): (Seq[(Byte, InnerVal)], Int) = {
     var pos = offset
     val len = bytes(pos)
@@ -75,14 +81,16 @@ object EdgeType {
       pos += v.bytes.length
       (k -> v)
     }
-//    Logger.error(s"bytesToProps: $kvs")
+    //    Logger.error(s"bytesToProps: $kvs")
     val ret = (kvs.toList, pos)
 
     ret
   }
+
   object EdgeRowKey {
     val propMode = 0
     val isEdge = true
+
     def apply(bytes: Array[Byte], offset: Int): EdgeRowKey = {
       var pos = offset
       val copmositeId = CompositeId(bytes, pos, isEdge, true)
@@ -93,6 +101,7 @@ object EdgeType {
       EdgeRowKey(copmositeId, labelWithDir, labelOrderSeq, isInverted)
     }
   }
+
   //TODO: split inverted table? cf?
   case class EdgeRowKey(srcVertexId: CompositeId,
                         labelWithDir: LabelWithDirection,
@@ -107,35 +116,42 @@ object EdgeType {
     val isEdge = true
     val degreeTgtId = Byte.MinValue
     val degreeOp = 0.toByte
+    val defaultTgtId = null
+
     def apply(bytes: Array[Byte], offset: Int, len: Int): EdgeQualifier = {
       var pos = offset
-      val op = bytes(offset + len - 1)
+      //      val op = bytes(offset + len - 1)
+      val op = GraphUtil.defaultOpByte
       val (props, tgtVertexId) = {
         val (props, endAt) = bytesToProps(bytes, pos)
-        val tgtVertexId = CompositeId(bytes, endAt, true, false)
-//        val tgtVertexId = propsMap.get(HLabelMeta.toSeq) match {
-//          case None => CompositeId(bytes, endAt, true, false)
-//          case Some(vId) => CompositeId(CompositeId.defaultColId, vId, true, false)
-//        }
+        //        val tgtVertexId = CompositeId(bytes, endAt, true, false)
+        /** check if target vertex Id is included indexProps or seperate field */
+        val tgtVertexId = if (endAt == offset + len) {
+          defaultTgtId
+        } else {
+          CompositeId(bytes, endAt, true, false)
+        }
         (props, tgtVertexId)
       }
       EdgeQualifier(props, tgtVertexId, op)
     }
   }
+
   case class EdgeQualifier(props: Seq[(Byte, InnerVal)], tgtVertexId: CompositeId, op: Byte) extends HBaseType {
 
-    val opBytes = Array.fill(1)(op)
-    val innerTgtVertexId = tgtVertexId.updateUseHash(false)
+    lazy val opBytes = Array.fill(1)(op)
+    lazy val innerTgtVertexId = tgtVertexId.updateUseHash(false)
     lazy val propsMap = props.toMap
     lazy val propsBytes = propsToBytes(props)
     lazy val bytes = {
-      Bytes.add(propsBytes, innerTgtVertexId.bytes, opBytes)
-//      propsMap.get(HLabelMeta.toSeq) match {
-//        case None => Bytes.add(propsBytes, innerTgtVertexId.bytes, opBytes)
-//        case Some(vId) => Bytes.add(propsBytes, opBytes)
-//      }
-
+      /** check if target vertex id is already included in indexProps. */
+      propsMap.get(LabelMeta.toSeq) match {
+        case None => Bytes.add(propsBytes, innerTgtVertexId.bytes)
+        case Some(vId) => propsBytes
+      }
+      //      Bytes.add(propsBytes, innerTgtVertexId.bytes, opBytes)
     }
+
     //TODO:
     def propsKVs(labelId: Int, labelOrderSeq: Byte): List[(Byte, InnerVal)] = {
       val filtered = props.filter(kv => kv._1 != LabelMeta.emptyValue)
@@ -149,12 +165,13 @@ object EdgeType {
         filtered.toList
       }
     }
+
     override def equals(obj: Any) = {
       obj match {
         case other: EdgeQualifier =>
           props.map(_._2) == other.props.map(_._2) &&
-          tgtVertexId == other.tgtVertexId &&
-          op == other.op
+            tgtVertexId == other.tgtVertexId &&
+            op == other.op
         case _ => false
       }
     }
@@ -166,20 +183,24 @@ object EdgeType {
       EdgeQualifierInverted(tgtVertexId)
     }
   }
+
   case class EdgeQualifierInverted(tgtVertexId: CompositeId) extends HBaseType {
     //    play.api.Logger.debug(s"$this")
     val innerTgtVertexId = tgtVertexId.updateUseHash(false)
     lazy val bytes = innerTgtVertexId.bytes
   }
+
   object EdgeValue {
     def apply(bytes: Array[Byte], offset: Int): EdgeValue = {
       val (props, endAt) = bytesToKeyValues(bytes, offset)
       EdgeValue(props)
     }
   }
+
   case class EdgeValue(props: Seq[(Byte, InnerVal)]) extends HBaseType {
     lazy val bytes = propsToKeyValues(props)
   }
+
   object EdgeValueInverted {
     def apply(bytes: Array[Byte], offset: Int): EdgeValueInverted = {
       var pos = offset
@@ -189,7 +210,9 @@ object EdgeType {
       EdgeValueInverted(op, props)
     }
   }
+
   case class EdgeValueInverted(op: Byte, props: Seq[(Byte, InnerValWithTs)]) extends HBaseType {
     lazy val bytes = Bytes.add(Array.fill(1)(op), propsToKeyValuesWithTs(props))
   }
+
 }
