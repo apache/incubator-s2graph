@@ -100,6 +100,7 @@ object EdgeType {
       val (labelOrderSeq, isInverted) = bytesToLabelIndexSeqWithIsInverted(bytes, pos)
       EdgeRowKey(copmositeId, labelWithDir, labelOrderSeq, isInverted)
     }
+
   }
 
   //TODO: split inverted table? cf?

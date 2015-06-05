@@ -250,7 +250,7 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
       (op == GraphUtil.operations("insert") && label.consistencyLevel != "strong")
 
   def updateTgtVertex(id: InnerVal) = {
-    val newCompositeId = CompositeId(tgtVertex.id.colId, id, isEdge = tgtVertex.id.isEdge, useHash = tgtVertex.id.useHash)
+    val newCompositeId = new CompositeId(tgtVertex.id.colId, id, isEdge = tgtVertex.id.isEdge, useHash = tgtVertex.id.useHash)
     val newTgtVertex = Vertex(newCompositeId, tgtVertex.ts, tgtVertex.props)
     Edge(srcVertex, newTgtVertex, labelWithDir, op, ts, version, propsWithTs)
   }
@@ -761,7 +761,7 @@ object Edge {
           val kvsMap = kvs.toMap
           val tgtVertexId = kvsMap.get(LabelMeta.toSeq) match {
             case None => qualifier.tgtVertexId
-            case Some(vId) => CompositeId(CompositeId.defaultColId, vId, true, false)
+            case Some(vId) => new CompositeId(CompositeId.defaultColId, vId, true, false)
           }
 
           val ts = kvsMap.get(LabelMeta.timeStampSeq).map { v => v.toVal[BigDecimal].toLong }.getOrElse(version)

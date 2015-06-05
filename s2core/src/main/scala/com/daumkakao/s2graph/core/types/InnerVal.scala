@@ -1,5 +1,6 @@
 package com.daumkakao.s2graph.core.types
 
+import com.daumkakao.s2graph.core.KGraphExceptions.IllegalDataTypeException
 import org.apache.hadoop.hbase.util._
 import play.api.Logger
 import play.api.libs.json.{JsString, JsNumber, JsValue}
@@ -48,18 +49,18 @@ object InnerVal {
         case Order.DESCENDING => bytes(offset) == 0
         case _ => bytes(offset) == -1
       }
-      InnerVal(boolean)
+      new InnerVal(boolean)
     }
     else {
       if (OrderedBytes.isNumeric(pbr)) {
         val numeric = OrderedBytes.decodeNumericAsBigDecimal(pbr)
-        InnerVal(BigDecimal(numeric))
+        new InnerVal(BigDecimal(numeric))
       } else if (OrderedBytes.isText(pbr)) {
         val str = OrderedBytes.decodeString(pbr)
-        InnerVal(str)
+        new InnerVal(str)
       } else if (OrderedBytes.isBlobVar(pbr)) {
         val blobVar = OrderedBytes.decodeBlobVar(pbr)
-        InnerVal(blobVar)
+        new InnerVal(blobVar)
       } else {
         throw new RuntimeException("!!")
       }
@@ -99,7 +100,7 @@ object InnerVal {
       case DOUBLE => 0.0
       case BOOLEAN => false
     }
-    InnerVal(innerVal)
+    new InnerVal(innerVal)
   }
 
   /** this part could be unnecessary but can not figure out how to JsNumber not to
@@ -119,28 +120,28 @@ object InnerVal {
     }
   }
 
-  def withInt(i: Int): InnerVal = InnerVal(BigDecimal(i))
+  def withInt(i: Int): InnerVal = new InnerVal(BigDecimal(i))
 
-  def withLong(l: Long): InnerVal = InnerVal(BigDecimal(l))
+  def withLong(l: Long): InnerVal = new InnerVal(BigDecimal(l))
 
-  def withFloat(f: Float): InnerVal = InnerVal(BigDecimal(f))
+  def withFloat(f: Float): InnerVal = new InnerVal(BigDecimal(f))
 
-  def withDouble(d: Double): InnerVal = InnerVal(BigDecimal(d))
+  def withDouble(d: Double): InnerVal = new InnerVal(BigDecimal(d))
 
-  def withStr(s: String): InnerVal = InnerVal(s)
+  def withStr(s: String): InnerVal = new InnerVal(s)
 
-  def withNumber(num: BigDecimal): InnerVal = InnerVal(num)
+  def withNumber(num: BigDecimal): InnerVal = new InnerVal(num)
 
-  def withBoolean(b: Boolean): InnerVal = InnerVal(b)
+  def withBoolean(b: Boolean): InnerVal = new InnerVal(b)
 
-  def withBlob(blob: Array[Byte]): InnerVal = InnerVal(blob)
+  def withBlob(blob: Array[Byte]): InnerVal = new InnerVal(blob)
 }
 
 /**
  * expect Boolean,BigDecimal, String, Array[Byte] as parameter
  * @param value
  */
-case class InnerVal(value: Any) {
+class InnerVal(val value: Any) {
 
   import InnerVal._
 //  println(s"$this, $value")
@@ -199,7 +200,7 @@ case class InnerVal(value: Any) {
 
   def +(other: InnerVal) = {
     (value, other.value) match {
-      case (v1: BigDecimal, v2: BigDecimal) => InnerVal(BigDecimal(v1.bigDecimal.add(v2.bigDecimal)))
+      case (v1: BigDecimal, v2: BigDecimal) => new InnerVal(BigDecimal(v1.bigDecimal.add(v2.bigDecimal)))
       case _ => throw new RuntimeException("+ operation on inner val is for big decimal pair")
     }
   }

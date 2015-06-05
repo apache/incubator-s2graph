@@ -183,8 +183,8 @@ object Management extends JSONParser {
     val src = toInnerVal(srcId, label.srcColumnType)
     val tgt = toInnerVal(tgtId, label.tgtColumnType)
 
-    val srcVertex = Vertex(CompositeId(label.srcColumn.id.get, src, true, true), ts)
-    val tgtVertex = Vertex(CompositeId(label.tgtColumn.id.get, tgt, true, true), ts)
+    val srcVertex = Vertex(new CompositeId(label.srcColumn.id.get, src, true, true), ts)
+    val tgtVertex = Vertex(new CompositeId(label.tgtColumn.id.get, tgt, true, true), ts)
     val dir = if (direction == "") GraphUtil.toDirection(label.direction) else GraphUtil.toDirection(direction)
     val labelWithDir = LabelWithDirection(label.id.get, dir)
     val op = tryOption(operation, GraphUtil.toOp)
@@ -207,7 +207,7 @@ object Management extends JSONParser {
             val op = tryOption(operation, GraphUtil.toOp)
             val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
             val parsedProps = toProps(col, jsObject).toMap
-            Vertex(CompositeId(col.id.get, idVal, isEdge = false, useHash = true), ts, parsedProps, op = op)
+            Vertex(new CompositeId(col.id.get, idVal, isEdge = false, useHash = true), ts, parsedProps, op = op)
         }
     }
   }

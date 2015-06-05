@@ -35,8 +35,8 @@ case class Query(vertices: Seq[Vertex], steps: List[Step],
   } yield {
     for (v <- vertices; qParam <- firstStep.queryParams) yield {
       val ts = System.currentTimeMillis()
-      val srcVertex = Vertex(CompositeId(v.id.colId, v.innerId, isEdge = true, useHash = true), ts)
-      (Edge(srcVertex, Vertex.emptyVertex,
+      val srcVertex = Vertex(new CompositeId(v.id.colId, v.innerId, isEdge = true, useHash = true), ts)
+      (Edge(srcVertex, srcVertex,
         qParam.labelWithDir, GraphUtil.operations("insert"), ts, ts,
         Map.empty[Byte, InnerValWithTs]), Query.initialScore)
     }

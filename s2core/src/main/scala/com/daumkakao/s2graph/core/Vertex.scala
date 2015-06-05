@@ -54,7 +54,7 @@ case class Vertex(id: CompositeId,
         //        play.api.Logger.debug(s"${rowKey.bytes.toList}")
         /**
          * TODO
-         * now user need to update one by one(can`t update multiple key values).
+         * now user need to update one by one(can not update multiple key values).
          * if user issue update on vertex with multiple key values then they all have same timestamp version.
          */
         // all props have same timestamp version in hbase.
@@ -126,7 +126,8 @@ case class Vertex(id: CompositeId,
 
 object Vertex {
 
-  val emptyVertex = Vertex(CompositeId.emptyCompositeId, System.currentTimeMillis())
+//  val emptyVertex = Vertex(new CompositeId(CompositeId.defaultColId, CompositeId.defaultInnerId, false, true),
+//    System.currentTimeMillis())
   def fromString(s: String): Option[Vertex] = Graph.toVertex(s)
 
   def apply(kvs: Seq[org.hbase.async.KeyValue]): Option[Vertex] = {

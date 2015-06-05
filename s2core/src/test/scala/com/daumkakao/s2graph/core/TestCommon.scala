@@ -46,7 +46,7 @@ trait TestCommon {
   val intVals = {
     val vals = (Int.MinValue until Int.MinValue + 10) ++
       (-128 to 128) ++ (Int.MaxValue - 10 until Int.MaxValue)
-    vals.map { v => InnerVal(BigDecimal(v)) }
+    vals.map { v => new InnerVal(BigDecimal(v)) }
   }
   val idxPropsLs = Seq(
     Seq((0 -> tsVal1), (1 -> boolVal1), (2 -> InnerVal.withStr("a")), (3 -> doubleVal1), (toSeq -> toVal)),
