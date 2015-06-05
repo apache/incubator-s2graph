@@ -186,3 +186,17 @@ case class InnerValV1(longV: Option[Long], strV: Option[String], boolV: Option[B
 
 }
 
+
+object InnerValWithTsV1 {
+  def apply(bytes: Array[Byte], offset: Int): InnerValWithTs = {
+    val innerVal = InnerValV1(bytes, offset)
+    var pos = offset + innerVal.bytes.length
+    val ts = Bytes.toLong(bytes, pos, 8)
+    InnerValWithTs(innerVal, ts)
+  }
+
+  def withLong(value: Long, ts: Long) = InnerValWithTs(InnerVal.withLong(value), ts)
+
+  def withStr(value: String, ts: Long) = InnerValWithTs(InnerVal.withStr(value), ts)
+}
+

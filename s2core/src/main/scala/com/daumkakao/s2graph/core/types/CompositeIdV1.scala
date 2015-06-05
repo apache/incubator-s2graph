@@ -25,7 +25,7 @@ object CompositeIdV1 {
   }
 }
 class CompositeIdV1(override val colId: Int,
-                    override val innerId: InnerValV1,
+                    override val innerId: InnerVal,
                     override val isEdge: Boolean,
                     override val useHash: Boolean)
   extends CompositeId(colId, innerId, isEdge, useHash) {

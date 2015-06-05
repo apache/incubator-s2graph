@@ -157,6 +157,7 @@ case class Label(kvsParam: Map[KEY, VAL]) extends HBaseModel[Label]("HLabel", kv
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
 
   //  lazy val firstHBaseTableName = hbaseTableName.split(",").headOption.getOrElse(Config.HBASE_TABLE_NAME)
+  lazy val version = "v1"
   lazy val srcService = Service.findById(srcServiceId)
   lazy val tgtService = Service.findById(tgtServiceId)
   lazy val service = Service.findById(serviceId)

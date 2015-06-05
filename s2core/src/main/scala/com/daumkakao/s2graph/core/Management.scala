@@ -207,6 +207,7 @@ object Management extends JSONParser {
             val op = tryOption(operation, GraphUtil.toOp)
             val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
             val parsedProps = toProps(col, jsObject).toMap
+
             Vertex(new CompositeId(col.id.get, idVal, isEdge = false, useHash = true), ts, parsedProps, op = op)
         }
     }

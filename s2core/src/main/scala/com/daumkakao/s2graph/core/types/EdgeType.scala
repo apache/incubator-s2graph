@@ -38,14 +38,16 @@ object EdgeType {
     bytes
   }
 
-  def bytesToKeyValues(bytes: Array[Byte], offset: Int): (Seq[(Byte, InnerVal)], Int) = {
+  def bytesToKeyValues(bytes: Array[Byte], offset: Int, version: String = "v2"): (Seq[(Byte, InnerVal)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
     val kvs = for (i <- (0 until len)) yield {
       val k = bytes(pos)
       pos += 1
-      val v = InnerVal(bytes, pos)
+      val v =
+        if (version == "v1") InnerValV1(bytes, pos)
+        else InnerVal(bytes, pos)
       pos += v.bytes.length
       (k -> v)
     }
@@ -54,14 +56,16 @@ object EdgeType {
     ret
   }
 
-  def bytesToKeyValuesWithTs(bytes: Array[Byte], offset: Int): (Seq[(Byte, InnerValWithTs)], Int) = {
+  def bytesToKeyValuesWithTs(bytes: Array[Byte], offset: Int, version: String = "v2"): (Seq[(Byte, InnerValWithTs)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
     val kvs = for (i <- (0 until len)) yield {
       val k = bytes(pos)
       pos += 1
-      val v = InnerValWithTs(bytes, pos)
+      val v =
+        if (version == "v1") InnerValWithTsV1(bytes, pos)
+        else InnerValWithTs(bytes, pos)
       pos += v.bytes.length
       (k -> v)
     }
@@ -70,13 +74,15 @@ object EdgeType {
     ret
   }
 
-  def bytesToProps(bytes: Array[Byte], offset: Int): (Seq[(Byte, InnerVal)], Int) = {
+  def bytesToProps(bytes: Array[Byte], offset: Int, version: String = "v2"): (Seq[(Byte, InnerVal)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
     val kvs = for (i <- (0 until len)) yield {
       val k = LabelMeta.emptyValue
-      val v = InnerVal(bytes, pos)
+      val v =
+        if (version == "v1") InnerValV1(bytes, pos)
+        else InnerVal(bytes, pos)
 
       pos += v.bytes.length
       (k -> v)
@@ -91,9 +97,12 @@ object EdgeType {
     val propMode = 0
     val isEdge = true
 
-    def apply(bytes: Array[Byte], offset: Int): EdgeRowKey = {
+    def apply(bytes: Array[Byte], offset: Int, version: String = "v2"): EdgeRowKey = {
       var pos = offset
-      val copmositeId = CompositeId(bytes, pos, isEdge, true)
+      val copmositeId =
+        if (version == "v1") CompositeIdV1(bytes, pos, isEdge, true)
+        else CompositeId(bytes, pos, isEdge, true)
+
       pos += copmositeId.bytesInUse
       val labelWithDir = LabelWithDirection(Bytes.toInt(bytes, pos, 4))
       pos += 4
@@ -119,18 +128,19 @@ object EdgeType {
     val degreeOp = 0.toByte
     val defaultTgtId = null
 
-    def apply(bytes: Array[Byte], offset: Int, len: Int): EdgeQualifier = {
+    def apply(bytes: Array[Byte], offset: Int, len: Int, version: String = "v2"): EdgeQualifier = {
       var pos = offset
       //      val op = bytes(offset + len - 1)
       val op = GraphUtil.defaultOpByte
       val (props, tgtVertexId) = {
-        val (props, endAt) = bytesToProps(bytes, pos)
+        val (props, endAt) = bytesToProps(bytes, pos, version)
         //        val tgtVertexId = CompositeId(bytes, endAt, true, false)
         /** check if target vertex Id is included indexProps or seperate field */
         val tgtVertexId = if (endAt == offset + len) {
           defaultTgtId
         } else {
-          CompositeId(bytes, endAt, true, false)
+          if (version == "v1") CompositeIdV1(bytes, endAt, true, false)
+          else CompositeId(bytes, endAt, true, false)
         }
         (props, tgtVertexId)
       }
@@ -154,9 +164,14 @@ object EdgeType {
     }
 
     //TODO:
-    def propsKVs(labelId: Int, labelOrderSeq: Byte): List[(Byte, InnerVal)] = {
+    def propsKVs(labelId: Int, labelOrderSeq: Byte, version: String = "v2"): List[(Byte, InnerVal)] = {
       val filtered = props.filter(kv => kv._1 != LabelMeta.emptyValue)
       if (filtered.isEmpty) {
+        val indexOpt = if (version == "v1") {
+          com.daumkakao.s2graph.core.mysqls.LabelIndex.findByLabeIdAndSeq(labelId, labelOrderSeq)
+        } else {
+          LabelIndex.findByLabelIdAndSeq(labelId, labelOrderSeq)
+        }
         val opt = for (index <- LabelIndex.findByLabelIdAndSeq(labelId, labelOrderSeq)) yield {
           val v = index.metaSeqs.zip(props.map(_._2))
           v
@@ -179,8 +194,10 @@ object EdgeType {
   }
 
   object EdgeQualifierInverted {
-    def apply(bytes: Array[Byte], offset: Int): EdgeQualifierInverted = {
-      val tgtVertexId = CompositeId(bytes, offset, true, false)
+    def apply(bytes: Array[Byte], offset: Int, version: String = "v2"): EdgeQualifierInverted = {
+      val tgtVertexId =
+        if (version == "v1") CompositeIdV1(bytes, offset, true, false)
+        else CompositeId(bytes, offset, true, false)
       EdgeQualifierInverted(tgtVertexId)
     }
   }
@@ -192,8 +209,8 @@ object EdgeType {
   }
 
   object EdgeValue {
-    def apply(bytes: Array[Byte], offset: Int): EdgeValue = {
-      val (props, endAt) = bytesToKeyValues(bytes, offset)
+    def apply(bytes: Array[Byte], offset: Int, version: String = "v2"): EdgeValue = {
+      val (props, endAt) = bytesToKeyValues(bytes, offset, version)
       EdgeValue(props)
     }
   }
@@ -203,11 +220,11 @@ object EdgeType {
   }
 
   object EdgeValueInverted {
-    def apply(bytes: Array[Byte], offset: Int): EdgeValueInverted = {
+    def apply(bytes: Array[Byte], offset: Int, version: String = "v2"): EdgeValueInverted = {
       var pos = offset
       val op = bytes(pos)
       pos += 1
-      val (props, endAt) = bytesToKeyValuesWithTs(bytes, pos)
+      val (props, endAt) = bytesToKeyValuesWithTs(bytes, pos, version)
       EdgeValueInverted(op, props)
     }
   }

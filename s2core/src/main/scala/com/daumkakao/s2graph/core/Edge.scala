@@ -4,7 +4,7 @@ package com.daumkakao.s2graph.core
 //import HBaseElement._
 import com.daumkakao.s2graph.core.models.{Label, LabelIndex, LabelMeta}
 import com.daumkakao.s2graph.core.types.EdgeType._
-import com.daumkakao.s2graph.core.types.{CompositeId, InnerVal, InnerValWithTs, LabelWithDirection}
+import com.daumkakao.s2graph.core.types._
 import org.apache.hadoop.hbase.client.{ Delete, Put }
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{AtomicIncrementRequest, HBaseRpc, DeleteRequest, PutRequest}
@@ -730,17 +730,17 @@ object Edge {
 //    Logger.debug(s"$kv")
     val version = kv.timestamp()
 
-    val rowKey = EdgeRowKey(kv.key(), 0)
+    val rowKey = EdgeRowKey(kv.key(), 0, param.label.version)
     val srcVertexId = rowKey.srcVertexId
     var isDegree = false
     val (tgtVertexId, props, op, ts) = rowKey.isInverted match {
       case true =>
-        val qualifier = EdgeQualifierInverted(kv.qualifier(), 0)
-        val value = EdgeValueInverted(kv.value(), 0)
+        val qualifier = EdgeQualifierInverted(kv.qualifier(), 0, param.label.version)
+        val value = EdgeValueInverted(kv.value(), 0, param.label.version)
         val kvsMap = value.props.toMap
         val ts = kvsMap.get(LabelMeta.timeStampSeq) match {
           case None => version
-          case Some(v) => v.innerVal.toVal[BigDecimal].toLong
+          case Some(v) => v.innerVal.value.asInstanceOf[BigDecimal].toLong
         }
         (qualifier.tgtVertexId, kvsMap, value.op, ts)
       case false =>
@@ -751,17 +751,19 @@ object Edge {
           val degree = Bytes.toLong(kv.value())
           // dirty hack
           val ts = kv.timestamp()
-          val dummyProps = Map(LabelMeta.degreeSeq -> InnerValWithTs.withLong(degree, ts))
+          val dummyProps = Map(LabelMeta.degreeSeq -> InnerValWithTs.withLong(degree, ts, param.label.version))
           (rowKey.srcVertexId, dummyProps , GraphUtil.operations("insert"), ts)
         } else {
           /** edge */
           val qualifier = EdgeQualifier(kvQual, 0, kvQual.length)
           val value = EdgeValue(kv.value(), 0)
-          val kvs = qualifier.propsKVs(rowKey.labelWithDir.labelId, rowKey.labelOrderSeq) ::: value.props.toList
+          val kvs = qualifier.propsKVs(rowKey.labelWithDir.labelId, rowKey.labelOrderSeq, param.label.version) ::: value.props.toList
           val kvsMap = kvs.toMap
           val tgtVertexId = kvsMap.get(LabelMeta.toSeq) match {
             case None => qualifier.tgtVertexId
-            case Some(vId) => new CompositeId(CompositeId.defaultColId, vId, true, false)
+            case Some(vId) =>
+              if (param.label.version == "v1") new CompositeIdV1(CompositeId.defaultColId, vId, true, false)
+              else new CompositeId(CompositeId.defaultColId, vId, true, false)
           }
 
           val ts = kvsMap.get(LabelMeta.timeStampSeq).map { v => v.toVal[BigDecimal].toLong }.getOrElse(version)

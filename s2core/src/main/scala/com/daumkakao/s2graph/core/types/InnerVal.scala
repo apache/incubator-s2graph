@@ -233,16 +233,30 @@ class InnerVal(val value: Any) {
 }
 
 object InnerValWithTs {
-  def apply(bytes: Array[Byte], offset: Int): InnerValWithTs = {
-    val innerVal = InnerVal(bytes, offset)
+  def apply(bytes: Array[Byte], offset: Int, version: String = "v2"): InnerValWithTs = {
+    val innerVal =
+      if (version == "v1") InnerValV1(bytes, offset)
+      else InnerVal(bytes, offset)
     var pos = offset + innerVal.bytes.length
     val ts = Bytes.toLong(bytes, pos, 8)
     InnerValWithTs(innerVal, ts)
   }
 
-  def withLong(value: Long, ts: Long) = InnerValWithTs(InnerVal.withLong(value), ts)
+  def withLong(value: Long, ts: Long, version: String = "v2") = {
+    if (version == "v1") {
+      InnerValWithTs(InnerValV1.withLong(value), ts)
+    } else {
+      InnerValWithTs(InnerVal.withLong(value), ts)
+    }
+  }
 
-  def withStr(value: String, ts: Long) = InnerValWithTs(InnerVal.withStr(value), ts)
+  def withStr(value: String, ts: Long, version: String = "v2") = {
+    if (version == "v1") {
+      InnerValWithTs(InnerValV1.withStr(value), ts)
+    } else {
+      InnerValWithTs(InnerVal.withStr(value), ts)
+    }
+  }
 }
 
 case class InnerValWithTs(innerVal: InnerVal, ts: Long) {
