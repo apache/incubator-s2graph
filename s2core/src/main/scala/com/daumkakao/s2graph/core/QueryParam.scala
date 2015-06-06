@@ -30,7 +30,6 @@ object Query {
 case class Query(vertices: Seq[Vertex], steps: List[Step],
   unique: Boolean = true, removeCycle: Boolean = false) {
 
-  import Query._
   lazy val startEdgesWithScore = (for {
     firstStep <- steps.headOption
   } yield {
@@ -44,7 +43,6 @@ case class Query(vertices: Seq[Vertex], steps: List[Step],
   }).getOrElse(List.empty[(Edge, Double)])
 }
 case class VertexParam(vertices: Seq[Vertex]) {
-  import Query._
   var filters: Option[Map[Byte, InnerValLike]] = None
   def has(what: Option[Map[Byte, InnerValLike]]): VertexParam = {
     what match {
@@ -156,8 +154,8 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     //    Logger.error(s"indicesMap: ${label.indicesMap(labelOrderSeq)}")
     val len = label.indicesMap(labelOrderSeq).sortKeyTypes.size.toByte
     //    Logger.error(s"index length: $len")
-    val minMetaByte = com.daumkakao.s2graph.core.types.InnerVal.minMetaByte
-    val maxMetaByte = com.daumkakao.s2graph.core.types.InnerVal.maxMetaByte
+    val minMetaByte = InnerVal.minMetaByte
+    val maxMetaByte = InnerVal.maxMetaByte
     val toVal = Bytes.add(propsToBytes(to), Array.fill(1)(minMetaByte))
     val fromVal = Bytes.add(propsToBytes(from), Array.fill(1)(maxMetaByte))
     toVal(0) = len

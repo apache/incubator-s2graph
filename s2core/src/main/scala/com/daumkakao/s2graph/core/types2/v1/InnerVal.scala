@@ -11,8 +11,7 @@ object InnerVal extends HBaseDeserializable {
   //  val defaultVal = new InnerVal(None, None, None)
   val stringLenOffset = 7.toByte
   val maxStringLen = Byte.MaxValue - stringLenOffset
-  val maxMetaByte = Byte.MaxValue
-  val minMetaByte = 0.toByte
+
   /**
    * first byte encoding rule.
    * 0 => default

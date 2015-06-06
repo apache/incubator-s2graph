@@ -11,6 +11,8 @@ object InnerVal extends HBaseDeserializable {
   val order = Order.DESCENDING
   val stringLenOffset = 7.toByte
   val maxStringLen = Byte.MaxValue - stringLenOffset
+  val maxMetaByte = Byte.MaxValue
+  val minMetaByte = 0.toByte
 
   /** supported data type */
   val BLOB = "blob"

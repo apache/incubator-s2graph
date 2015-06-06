@@ -6,7 +6,7 @@ package com.daumkakao.s2graph.core.mysqls
 
 //import com.daumkakao.s2graph.core.HBaseElement.InnerVal
 import com.daumkakao.s2graph.core.JSONParser
-import com.daumkakao.s2graph.core.types2.InnerVal
+//import com.daumkakao.s2graph.core.types2.InnerVal
 import play.api.libs.json.{ JsObject, JsValue, Json }
 import scalikejdbc._
 

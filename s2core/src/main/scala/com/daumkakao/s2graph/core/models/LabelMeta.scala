@@ -2,7 +2,7 @@ package com.daumkakao.s2graph.core.models
 
 import com.daumkakao.s2graph.core.JSONParser
 import com.daumkakao.s2graph.core.models.HBaseModel.{VAL, KEY}
-import com.daumkakao.s2graph.core.types2.InnerVal
+//import com.daumkakao.s2graph.core.types2.InnerVal
 
 //import com.daumkakao.s2graph.core.types.InnerVal
 import play.api.libs.json.{Json, JsObject, JsValue}
