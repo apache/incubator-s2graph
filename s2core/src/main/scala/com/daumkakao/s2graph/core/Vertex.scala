@@ -3,8 +3,10 @@ package com.daumkakao.s2graph.core
 //import com.daumkakao.s2graph.core.HBaseElement.{InnerVal, CompositeId}
 //import com.daumkakao.s2graph.core.mysqls.{ColumnMeta, ServiceColumn, Service}
 import com.daumkakao.s2graph.core.models.{ColumnMeta, ServiceColumn, Service}
-import com.daumkakao.s2graph.core.types.VertexType.{VertexQualifier, VertexRowKey}
-import com.daumkakao.s2graph.core.types.{InnerVal, CompositeId}
+import com.daumkakao.s2graph.core.types2._
+
+//import com.daumkakao.s2graph.core.types.VertexType.{VertexQualifier, VertexRowKey}
+//import com.daumkakao.s2graph.core.types.{InnerVal, CompositeId}
 
 import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.client.Delete
@@ -16,7 +18,7 @@ import org.hbase.async.{DeleteRequest, HBaseRpc, PutRequest, GetRequest}
  */
 case class Vertex(id: CompositeId,
   ts: Long,
-  props: Map[Byte, InnerVal] = Map.empty[Byte, InnerVal], op: Byte = 0) extends GraphElement {
+  props: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike], op: Byte = 0) extends GraphElement {
 
   import GraphConstant._
   //  import Vertex.{ lastModifiedAtColumn, deletedAtColumn }
@@ -26,9 +28,8 @@ case class Vertex(id: CompositeId,
 
   lazy val rowKey = VertexRowKey(id)
   //  lazy val defaultProps = Map(defaultColumn -> (DateTime.now().getMillis / 1000).toInt)
-  lazy val defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq -> InnerVal.withLong(ts))
-  lazy val qualifiersWithValues = for ((k, v) <- props ++ defaultProps) yield (VertexQualifier(k), v)
-  lazy val innerId = id.innerId
+//  lazy val defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq -> InnerVal.withLong(ts, version))
+//  lazy val qualifiersWithValues = for ((k, v) <- props ++ defaultProps) yield (VertexQualifier(k), v)
 
   /** TODO: make this as configurable */
   override lazy val serviceName = service.serviceName
@@ -46,10 +47,11 @@ case class Vertex(id: CompositeId,
   //    meta <- ColumnMeta.findByIdAndSeq(id.colId, seq)
   //  } yield (meta.name -> v.toString)
 
-  def buildPuts(): List[Put] = {
+  def buildPuts(version: String): List[Put] = {
     //    play.api.Logger.error(s"put: $this => $rowKey")
     val puts =
-      for ((q, v) <- qualifiersWithValues) yield {
+      for ((q, v) <- props ++ Map(ColumnMeta.lastModifiedAtColumnSeq -> InnerVal.withLong(ts, version))) yield {
+        val qualifier = VertexQualifier(q)
         val put = new Put(rowKey.bytes)
         //        play.api.Logger.debug(s"${rowKey.bytes.toList}")
         /**
@@ -60,14 +62,15 @@ case class Vertex(id: CompositeId,
         // all props have same timestamp version in hbase.
         // This
         //        play.api.Logger.debug(s"VertexBuildPuts: $rowKey, $q")
-        put.addColumn(vertexCf, q.bytes, ts, v.bytes)
+        put.addColumn(vertexCf, qualifier.bytes, ts, v.bytes)
       }
     puts.toList
   }
-  def buildPutsAsync(): List[PutRequest] = {
+  def buildPutsAsync(version: String): List[PutRequest] = {
     val puts =
-      for ((q, v) <- qualifiersWithValues) yield {
-        new PutRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf, q.bytes, v.bytes, ts)
+      for ((q, v) <- props ++ Map(ColumnMeta.lastModifiedAtColumnSeq -> InnerVal.withLong(ts, version))) yield {
+        val qualifier = VertexQualifier(q)
+        new PutRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf, qualifier.bytes, v.bytes, ts)
       }
     puts.toList
   }
@@ -79,10 +82,10 @@ case class Vertex(id: CompositeId,
 //        buildPuts()
 //    }
 //  }
-  def buildPutsAll(): List[HBaseRpc] = {
+  def buildPutsAll(version: String): List[HBaseRpc] = {
     op match {
       case d: Byte if d == GraphUtil.operations("delete") =>  buildDeleteAsync()
-      case _ => buildPutsAsync()
+      case _ => buildPutsAsync(version)
     }
   }
   def buildDelete(): List[Delete] = {
@@ -101,13 +104,14 @@ case class Vertex(id: CompositeId,
     new GetRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf)
   }
   def toEdgeVertex() = Vertex(id.updateIsEdge(true), ts, props)
+
   override def toString(): String = {
 
     val (serviceName, columnName) = if (id.isEdge) ("", "") else {
       val serviceColumn = ServiceColumn.findById(id.colId)
       (serviceColumn.service.serviceName, serviceColumn.columnName)
     }
-    val ls = ListBuffer(ts, GraphUtil.fromOp(op), "v", innerId, serviceName, columnName)
+    val ls = ListBuffer(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName)
     if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
     ls.mkString("\t")
   }
@@ -121,7 +125,7 @@ case class Vertex(id: CompositeId,
       case _ => false
     }
   }
-  def withProps(newProps: Map[Byte, InnerVal]) = Vertex(id, ts, newProps, op)
+  def withProps(newProps: Map[Byte, InnerValLike]) = Vertex(id, ts, newProps, op)
 }
 
 object Vertex {
@@ -130,13 +134,13 @@ object Vertex {
 //    System.currentTimeMillis())
   def fromString(s: String): Option[Vertex] = Graph.toVertex(s)
 
-  def apply(kvs: Seq[org.hbase.async.KeyValue]): Option[Vertex] = {
+  def apply(kvs: Seq[org.hbase.async.KeyValue], version: String): Option[Vertex] = {
     if (kvs.isEmpty) None
     else {
 
       val head = kvs.head
       val headBytes = head.key()
-      val rowKey = VertexRowKey(headBytes, 0)
+      val rowKey = VertexRowKey.fromBytes(headBytes, 0, headBytes.length, version)
 
       var maxTs = Long.MinValue
       /**
@@ -148,8 +152,9 @@ object Vertex {
         for {
           kv <- kvs
           kvQual = kv.qualifier()
-          qualifier = VertexQualifier(kvQual, 0, kvQual.length)
-          value = InnerVal(kv.value(), 0)
+          qualifier = VertexQualifier.fromBytes(kvQual, 0, kvQual.length, version)
+          v = kv.value()
+          value = InnerVal.fromBytes(v, 0, v.length, version)
           ts = kv.timestamp()
         } yield {
           if (ts > maxTs) maxTs = ts
