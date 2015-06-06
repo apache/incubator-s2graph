@@ -2,6 +2,7 @@ package com.daumkakao.s2graph.core
 
 //import com.daumkakao.s2graph.core.HBaseElement.{InnerVal, CompositeId}
 //import com.daumkakao.s2graph.core.mysqls.{ColumnMeta, ServiceColumn, Service}
+
 import com.daumkakao.s2graph.core.models.{ColumnMeta, ServiceColumn, Service}
 import com.daumkakao.s2graph.core.types2._
 
@@ -13,23 +14,25 @@ import org.apache.hadoop.hbase.client.Delete
 import play.api.libs.json.Json
 import scala.collection.mutable.ListBuffer
 import org.hbase.async.{DeleteRequest, HBaseRpc, PutRequest, GetRequest}
+
 /**
- *
- */
+  */
 case class Vertex(id: CompositeId,
-  ts: Long,
-  props: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike], op: Byte = 0) extends GraphElement {
+                  ts: Long,
+                  props: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike], op: Byte = 0) extends GraphElement {
+
+  require(props.contains(ColumnMeta.lastModifiedAtColumnSeq))
 
   import GraphConstant._
+  val innerId = id.innerId
   //  import Vertex.{ lastModifiedAtColumn, deletedAtColumn }
   lazy val serviceColumn = ServiceColumn.findById(id.colId)
   lazy val service = Service.findById(serviceColumn.serviceId)
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, service.hTableName)
 
   lazy val rowKey = VertexRowKey(id)
-  //  lazy val defaultProps = Map(defaultColumn -> (DateTime.now().getMillis / 1000).toInt)
-//  lazy val defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq -> InnerVal.withLong(ts, version))
-//  lazy val qualifiersWithValues = for ((k, v) <- props ++ defaultProps) yield (VertexQualifier(k), v)
+  //  lazy val defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq -> InnerVal.withLong(ts, version))
+  //  lazy val qualifiersWithValues = for ((k, v) <- props ++ defaultProps) yield (VertexQualifier(k), v)
 
   /** TODO: make this as configurable */
   override lazy val serviceName = service.serviceName
@@ -47,53 +50,52 @@ case class Vertex(id: CompositeId,
   //    meta <- ColumnMeta.findByIdAndSeq(id.colId, seq)
   //  } yield (meta.name -> v.toString)
 
-  def buildPuts(version: String): List[Put] = {
+  def buildPuts(): List[Put] = {
     //    play.api.Logger.error(s"put: $this => $rowKey")
-    val puts =
-      for ((q, v) <- props ++ Map(ColumnMeta.lastModifiedAtColumnSeq -> InnerVal.withLong(ts, version))) yield {
-        val qualifier = VertexQualifier(q)
-        val put = new Put(rowKey.bytes)
-        //        play.api.Logger.debug(s"${rowKey.bytes.toList}")
-        /**
-         * TODO
-         * now user need to update one by one(can not update multiple key values).
-         * if user issue update on vertex with multiple key values then they all have same timestamp version.
-         */
-        // all props have same timestamp version in hbase.
-        // This
-        //        play.api.Logger.debug(s"VertexBuildPuts: $rowKey, $q")
-        put.addColumn(vertexCf, qualifier.bytes, ts, v.bytes)
-      }
-    puts.toList
+    val put = new Put(rowKey.bytes)
+    for ((q, v) <- props) {
+      val qualifier = VertexQualifier(q)
+      put.addColumn(vertexCf, qualifier.bytes, ts, v.bytes)
+    }
+    List(put)
   }
-  def buildPutsAsync(version: String): List[PutRequest] = {
-    val puts =
-      for ((q, v) <- props ++ Map(ColumnMeta.lastModifiedAtColumnSeq -> InnerVal.withLong(ts, version))) yield {
-        val qualifier = VertexQualifier(q)
-        new PutRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf, qualifier.bytes, v.bytes, ts)
-      }
-    puts.toList
+
+  def buildPutsAsync(): List[PutRequest] = {
+    val qualifiers = ListBuffer[Array[Byte]]()
+    val values = ListBuffer[Array[Byte]]()
+    for ((q, v) <- props) {
+      val qualifier = VertexQualifier(q)
+      qualifiers += qualifier.bytes
+      values += v.bytes
+      //        new PutRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf, qualifier.bytes, v.bytes, ts)
+    }
+    val put = new PutRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf, qualifiers.toArray, values.toArray, ts)
+    List(put)
   }
-//  def buildPutsAll(): List[Mutation] = {
-//    op match {
-//      case d: Byte if d == GraphUtil.operations("delete") => // delete
-//        buildDelete()
-//      case _ => // insert/update/increment
-//        buildPuts()
-//    }
-//  }
-  def buildPutsAll(version: String): List[HBaseRpc] = {
+
+  //  def buildPutsAll(): List[Mutation] = {
+  //    op match {
+  //      case d: Byte if d == GraphUtil.operations("delete") => // delete
+  //        buildDelete()
+  //      case _ => // insert/update/increment
+  //        buildPuts()
+  //    }
+  //  }
+  def buildPutsAll(): List[HBaseRpc] = {
     op match {
-      case d: Byte if d == GraphUtil.operations("delete") =>  buildDeleteAsync()
-      case _ => buildPutsAsync(version)
+      case d: Byte if d == GraphUtil.operations("delete") => buildDeleteAsync()
+      case _ => buildPutsAsync()
     }
   }
+
   def buildDelete(): List[Delete] = {
     List(new Delete(rowKey.bytes, ts))
   }
+
   def buildDeleteAsync(): List[DeleteRequest] = {
     List(new DeleteRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf, ts))
   }
+
   //  def buildGet() = {
   //    val get = new Get(rowKey.bytes)
   //    //    play.api.Logger.error(s"get: $this => $rowKey")
@@ -103,11 +105,13 @@ case class Vertex(id: CompositeId,
   def buildGet() = {
     new GetRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf)
   }
+
   def toEdgeVertex() = Vertex(id.updateIsEdge(true), ts, props)
 
   override def toString(): String = {
 
-    val (serviceName, columnName) = if (id.isEdge) ("", "") else {
+    val (serviceName, columnName) = if (id.isEdge) ("", "")
+    else {
       val serviceColumn = ServiceColumn.findById(id.colId)
       (serviceColumn.service.serviceName, serviceColumn.columnName)
     }
@@ -115,9 +119,11 @@ case class Vertex(id: CompositeId,
     if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
     ls.mkString("\t")
   }
+
   override def hashCode() = {
     id.hashCode()
   }
+
   override def equals(obj: Any) = {
     obj match {
       case otherVertex: Vertex =>
@@ -125,13 +131,14 @@ case class Vertex(id: CompositeId,
       case _ => false
     }
   }
+
   def withProps(newProps: Map[Byte, InnerValLike]) = Vertex(id, ts, newProps, op)
 }
 
 object Vertex {
 
-//  val emptyVertex = Vertex(new CompositeId(CompositeId.defaultColId, CompositeId.defaultInnerId, false, true),
-//    System.currentTimeMillis())
+  //  val emptyVertex = Vertex(new CompositeId(CompositeId.defaultColId, CompositeId.defaultInnerId, false, true),
+  //    System.currentTimeMillis())
   def fromString(s: String): Option[Vertex] = Graph.toVertex(s)
 
   def apply(kvs: Seq[org.hbase.async.KeyValue], version: String): Option[Vertex] = {

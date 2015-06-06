@@ -53,4 +53,5 @@ case class ServiceColumn(kvsParam: Map[KEY, VAL]) extends HBaseModel[ServiceColu
   lazy val metaNamesMap = (ColumnMeta.lastModifiedAtColumn :: metas).map(x => (x.seq, x.name)) toMap
   lazy val toJson = Json.obj("serviceName" -> service.serviceName, "columnName" -> columnName, "columnType" -> columnType)
 
+  lazy val version = "v1"
 }

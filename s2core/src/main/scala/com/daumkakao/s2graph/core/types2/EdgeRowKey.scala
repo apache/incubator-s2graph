@@ -31,14 +31,14 @@ object EdgeRowKey extends HBaseDeserializable {
   }
 }
 case class EdgeRowKey(srcVertexId: CompositeId,
-                       labelWithDirection: LabelWithDirection,
+                       labelWithDir: LabelWithDirection,
                        labelOrderSeq: Byte,
                        isInverted: Boolean) extends HBaseSerializable {
   import EdgeRowKey._
   val id = CompositeId(srcVertexId.colId, srcVertexId.innerId,
     srcVertexId.isEdge, useHash = true)
   val bytes = {
-    Bytes.add(id.bytes, labelWithDirection.bytes,
+    Bytes.add(id.bytes, labelWithDir.bytes,
       labelOrderSeqWithIsInverted(labelOrderSeq, isInverted))
   }
 }

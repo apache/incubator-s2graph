@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core.types2.v2
 
-import com.daumkakao.s2graph.core.types2.{InnerValLike, HBaseSerializable, HBaseDeserializable, InnerValBase}
+import com.daumkakao.s2graph.core.types2.{InnerValLike, HBaseSerializable, HBaseDeserializable}
 import org.apache.hadoop.hbase.util._
 
 /**
@@ -8,94 +8,6 @@ import org.apache.hadoop.hbase.util._
  */
 object InnerVal extends HBaseDeserializable {
   val order = Order.DESCENDING
-  val stringLenOffset = 7.toByte
-  val maxStringLen = Byte.MaxValue - stringLenOffset
-
-  /** supported data type */
-  val BLOB = "blob"
-  val STRING = "string"
-  val DOUBLE = "double"
-  val FLOAT = "float"
-  val LONG = "long"
-  val INT = "integer"
-  val SHORT = "short"
-  val BYTE = "byte"
-  val NUMERICS = List(DOUBLE, FLOAT, LONG, INT, SHORT, BYTE)
-  val BOOLEAN = "boolean"
-
-
-  def toInnerDataType(dataType: String): String = {
-    dataType.toLowerCase() match {
-      case "blob" => BLOB
-      case "string" | "str" | "s" => STRING
-      case "double" | "d" | "float64" => DOUBLE
-      case "float" | "f" | "float32" => FLOAT
-      case "long" | "l" | "int64" | "integer64" => LONG
-      case "int" | "integer" | "i" | "int32" | "integer32" => INT
-      case "short" | "int16" | "integer16" => SHORT
-      case "byte" | "b" | "tinyint" | "int8" | "integer8" => BYTE
-      case "boolean" | "bool" => BOOLEAN
-      case _ => throw new RuntimeException(s"can`t convert $dataType into InnerDataType")
-    }
-  }
-
-
-
-  def numByteRange(num: BigDecimal) = {
-    val byteLen =
-      if (num.isValidByte | num.isValidChar) 1
-      else if (num.isValidShort) 2
-      else if (num.isValidInt) 4
-      else if (num.isValidLong) 8
-      else if (num.isValidFloat) 4
-      else 12
-    //      else throw new RuntimeException(s"wrong data $num")
-    new SimplePositionedMutableByteRange(byteLen + 4)
-  }
-
-  def dataTypeOfNumber(num: BigDecimal) = {
-    if (num.isValidByte | num.isValidChar) BYTE
-    else if (num.isValidShort) SHORT
-    else if (num.isValidInt) INT
-    else if (num.isValidLong) LONG
-    else if (num.isValidFloat) FLOAT
-    else if (num.isValidDouble) DOUBLE
-    else throw new RuntimeException("innerVal data type is numeric but can`t find type")
-  }
-
-
-  /** this part could be unnecessary but can not figure out how to JsNumber not to
-    * print out scientific string
-    * @param num
-    * @return
-    */
-  def scaleNumber(num: BigDecimal, dataType: String) = {
-    dataType match {
-      case BYTE => BigDecimal(num.toByte)
-      case SHORT => BigDecimal(num.toShort)
-      case INT => BigDecimal(num.toInt)
-      case LONG => BigDecimal(num.toLong)
-      case FLOAT => BigDecimal(num.toFloat)
-      case DOUBLE => BigDecimal(num.toDouble)
-      case _ => throw new RuntimeException(s"InnerVal.scaleNumber failed. $num, $dataType")
-    }
-  }
-
-  def withInt(i: Int): InnerVal = new InnerVal(BigDecimal(i))
-
-  def withLong(l: Long): InnerVal = new InnerVal(BigDecimal(l))
-
-  def withFloat(f: Float): InnerVal = new InnerVal(BigDecimal(f))
-
-  def withDouble(d: Double): InnerVal = new InnerVal(BigDecimal(d))
-
-  def withStr(s: String): InnerVal = new InnerVal(s)
-
-  def withNumber(num: BigDecimal): InnerVal = new InnerVal(num)
-
-  def withBoolean(b: Boolean): InnerVal = new InnerVal(b)
-
-  def withBlob(blob: Array[Byte]): InnerVal = new InnerVal(blob)
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -127,7 +39,7 @@ object InnerVal extends HBaseDeserializable {
   }
 }
 case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
-  import InnerVal._
+  import com.daumkakao.s2graph.core.types2.InnerVal._
 
   val bytes: Array[Byte] = {
     val ret = value match {
@@ -139,6 +51,26 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
           case Order.DESCENDING => if (b) Array(0.toByte) else Array(-1.toByte)
           case _ => if (!b) Array(0.toByte) else Array(-1.toByte)
         }
+      case l: Long =>
+        val num = BigDecimal(l)
+        val pbr = numByteRange(num)
+        val len = OrderedBytes.encodeNumeric(pbr, num.bigDecimal, order)
+        pbr.getBytes().take(len)
+      case i: Int =>
+        val num = BigDecimal(i)
+        val pbr = numByteRange(num)
+        val len = OrderedBytes.encodeNumeric(pbr, num.bigDecimal, order)
+        pbr.getBytes().take(len)
+      case sh: Short =>
+        val num = BigDecimal(sh)
+        val pbr = numByteRange(num)
+        val len = OrderedBytes.encodeNumeric(pbr, num.bigDecimal, order)
+        pbr.getBytes().take(len)
+      case b: Byte =>
+        val num = BigDecimal(b)
+        val pbr = numByteRange(num)
+        val len = OrderedBytes.encodeNumeric(pbr, num.bigDecimal, order)
+        pbr.getBytes().take(len)
       case b: BigDecimal =>
         val pbr = numByteRange(b)
         val len = OrderedBytes.encodeNumeric(pbr, b.bigDecimal, order)

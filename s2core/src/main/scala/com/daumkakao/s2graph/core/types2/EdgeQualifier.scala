@@ -49,7 +49,7 @@ case class EdgeQualifier(props: Seq[(Byte, InnerValLike)],
       case Some(vId) => propsBytes
     }
   }
-  def propsKVs(propsKeys: Seq[Byte]): Seq[(Byte, InnerValLike)] = {
+  def propsKVs(propsKeys: List[Byte]): List[(Byte, InnerValLike)] = {
     val filtered = props.filter(kv => kv._1 != EMPTY_SEQ_BYTE)
     if (filtered.isEmpty) {
       propsKeys.zip(props.map(_._2))

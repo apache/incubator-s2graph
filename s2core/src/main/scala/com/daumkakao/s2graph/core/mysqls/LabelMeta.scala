@@ -6,7 +6,7 @@ package com.daumkakao.s2graph.core.mysqls
 
 //import com.daumkakao.s2graph.core.HBaseElement.InnerVal
 import com.daumkakao.s2graph.core.JSONParser
-import com.daumkakao.s2graph.core.types.InnerVal
+import com.daumkakao.s2graph.core.types2.InnerVal
 import play.api.libs.json.{ JsObject, JsValue, Json }
 import scalikejdbc._
 
@@ -122,18 +122,9 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
     cacheKeys.foreach(expireCache(_))
   }
 
-  def convert(labelId: Int, jsValue: JsValue): Map[Byte, InnerVal] = {
-    val ret = for {
-      (k, v) <- jsValue.as[JsObject].fields
-      meta <- LabelMeta.findByName(labelId, k)
-      innerVal <- jsValueToInnerVal(v, meta.dataType)
-    } yield (meta.seq, innerVal)
-    ret.toMap
-  }
 }
 
 case class LabelMeta(id: Option[Int], labelId: Int, name: String, seq: Byte, defaultValue: String, dataType: String, usedInIndex: Boolean) extends JSONParser {
-  lazy val defaultInnerVal = if (defaultValue.isEmpty) InnerVal.withStr("") else toInnerVal(defaultValue, dataType)
   lazy val toJson = Json.obj("name" -> name, "defaultValue" -> defaultValue, "dataType" -> dataType, "usedInIndex" -> usedInIndex)
 
 }

@@ -8,6 +8,73 @@ import scala.reflect.ClassTag
  * Created by shon on 6/6/15.
  */
 object InnerVal extends HBaseDeserializable {
+  val order = Order.DESCENDING
+  val stringLenOffset = 7.toByte
+  val maxStringLen = Byte.MaxValue - stringLenOffset
+
+  /** supported data type */
+  val BLOB = "blob"
+  val STRING = "string"
+  val DOUBLE = "double"
+  val FLOAT = "float"
+  val LONG = "long"
+  val INT = "integer"
+  val SHORT = "short"
+  val BYTE = "byte"
+  val NUMERICS = List(DOUBLE, FLOAT, LONG, INT, SHORT, BYTE)
+  val BOOLEAN = "boolean"
+  def toInnerDataType(dataType: String): String = {
+    dataType.toLowerCase() match {
+      case "blob" => BLOB
+      case "string" | "str" | "s" => STRING
+      case "double" | "d" | "float64" => DOUBLE
+      case "float" | "f" | "float32" => FLOAT
+      case "long" | "l" | "int64" | "integer64" => LONG
+      case "int" | "integer" | "i" | "int32" | "integer32" => INT
+      case "short" | "int16" | "integer16" => SHORT
+      case "byte" | "b" | "tinyint" | "int8" | "integer8" => BYTE
+      case "boolean" | "bool" => BOOLEAN
+      case _ => throw new RuntimeException(s"can`t convert $dataType into InnerDataType")
+    }
+  }
+  def numByteRange(num: BigDecimal) = {
+    val byteLen =
+      if (num.isValidByte | num.isValidChar) 1
+      else if (num.isValidShort) 2
+      else if (num.isValidInt) 4
+      else if (num.isValidLong) 8
+      else if (num.isValidFloat) 4
+      else 12
+    //      else throw new RuntimeException(s"wrong data $num")
+    new SimplePositionedMutableByteRange(byteLen + 4)
+  }
+  def dataTypeOfNumber(num: BigDecimal) = {
+    if (num.isValidByte | num.isValidChar) BYTE
+    else if (num.isValidShort) SHORT
+    else if (num.isValidInt) INT
+    else if (num.isValidLong) LONG
+    else if (num.isValidFloat) FLOAT
+    else if (num.isValidDouble) DOUBLE
+    else throw new RuntimeException("innerVal data type is numeric but can`t find type")
+  }
+
+
+  /** this part could be unnecessary but can not figure out how to JsNumber not to
+    * print out scientific string
+    * @param num
+    * @return
+    */
+  def scaleNumber(num: BigDecimal, dataType: String) = {
+    dataType match {
+      case BYTE => BigDecimal(num.toByte)
+      case SHORT => BigDecimal(num.toShort)
+      case INT => BigDecimal(num.toInt)
+      case LONG => BigDecimal(num.toLong)
+      case FLOAT => BigDecimal(num.toFloat)
+      case DOUBLE => BigDecimal(num.toDouble)
+      case _ => throw new RuntimeException(s"InnerVal.scaleNumber failed. $num, $dataType")
+    }
+  }
   def fromBytes(bytes: Array[Byte],
                  offset: Int,
                  len: Int,
@@ -63,6 +130,22 @@ object InnerVal extends HBaseDeserializable {
       case _ => throw notSupportedEx
     }
   }
+  def withStr(s: String, version: String): InnerValLike = {
+    version match {
+      case VERSION2 => v2.InnerVal(s)
+      case VERSION1 => v1.InnerVal(None, Some(s), None)
+      case _ => throw notSupportedEx
+    }
+  }
+  def withInnerVal(innerVal: InnerValLike, version: String): InnerValLike = {
+    val bytes = innerVal.bytes
+    version match {
+      case VERSION2 => v2.InnerVal.fromBytes(bytes, 0, bytes.length, version)
+      case VERSION1 => v1.InnerVal.fromBytes(bytes, 0, bytes.length, version)
+      case _ => throw notSupportedEx
+    }
+  }
+
 }
 trait InnerValLike extends HBaseSerializable {
   val value: Any
@@ -109,6 +192,12 @@ object InnerValLikeWithTs extends HBaseDeserializable {
 //      InnerValWithTs(InnerVal.withStr(value), ts)
 //    }
 //  }
+  def withLong(l: Long, ts: Long, version: String): InnerValLikeWithTs = {
+    InnerValLikeWithTs(InnerVal.withLong(l, version), ts)
+  }
+  def withStr(s: String, ts: Long, version: String): InnerValLikeWithTs = {
+    InnerValLikeWithTs(InnerVal.withStr(s, version), ts)
+  }
 }
 case class InnerValLikeWithTs(innerVal: InnerValLike, ts: Long)
   extends HBaseSerializable {

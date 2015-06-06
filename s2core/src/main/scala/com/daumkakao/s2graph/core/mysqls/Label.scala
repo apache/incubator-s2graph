@@ -257,7 +257,7 @@ case class Label(id: Option[Int], label: String,
   lazy val srcService = Service.findById(srcServiceId)
   lazy val tgtService = Service.findById(tgtServiceId)
   lazy val service = Service.findById(serviceId)
-
+  lazy val version = "v1"
   /**
    * TODO
    *  change this to apply hbase table from target serviceName
