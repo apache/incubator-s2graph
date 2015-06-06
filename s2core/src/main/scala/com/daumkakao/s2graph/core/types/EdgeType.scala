@@ -168,7 +168,7 @@ object EdgeType {
       val filtered = props.filter(kv => kv._1 != LabelMeta.emptyValue)
       if (filtered.isEmpty) {
         val indexOpt = if (version == "v1") {
-          com.daumkakao.s2graph.core.mysqls.LabelIndex.findByLabeIdAndSeq(labelId, labelOrderSeq)
+          com.daumkakao.s2graph.core.mysqls.LabelIndex.findByLabelIdAndSeq(labelId, labelOrderSeq)
         } else {
           LabelIndex.findByLabelIdAndSeq(labelId, labelOrderSeq)
         }

@@ -48,18 +48,18 @@ class VertexTest extends FunSuite with Matchers with TestCommonWithModels with T
 //  test("test with different innerVals as id") {
 //    testVertexEncodeDecode(intVals, idxPropsLs)
 //  }
-  test("test vertex encoding/decoding") {
-    val innerVal1 = new InnerVal(BigDecimal(10))
-    val innerVal2 = new InnerValV1(Some(10L), None, None)
-    println(s"${innerVal1.bytes.toList}")
-    println(s"${innerVal2.bytes.toList}")
-    val id1 = new CompositeId(0, innerVal1, isEdge = false, useHash = true)
-    val id2 = new CompositeIdV1(0, innerVal2, isEdge = false, useHash = true)
-    val ts = System.currentTimeMillis()
-    val v1 = Vertex(id1, ts)
-    val v2 = Vertex(id2, ts)
-
-    println(s"${v1.rowKey.bytes.toList}")
-    println(s"${v2.rowKey.bytes.toList}")
-  }
+//  test("test vertex encoding/decoding") {
+//    val innerVal1 = new InnerVal(BigDecimal(10))
+//    val innerVal2 = new InnerValV1(Some(10L), None, None)
+//    println(s"${innerVal1.bytes.toList}")
+//    println(s"${innerVal2.bytes.toList}")
+//    val id1 = new CompositeId(0, innerVal1, isEdge = false, useHash = true)
+//    val id2 = new CompositeIdV1(0, innerVal2, isEdge = false, useHash = true)
+//    val ts = System.currentTimeMillis()
+//    val v1 = Vertex(id1, ts)
+//    val v2 = Vertex(id2, ts)
+//
+//    println(s"${v1.rowKey.bytes.toList}")
+//    println(s"${v2.rowKey.bytes.toList}")
+//  }
 }

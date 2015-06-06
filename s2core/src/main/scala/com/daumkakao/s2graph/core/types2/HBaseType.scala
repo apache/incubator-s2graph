@@ -5,8 +5,7 @@ import org.apache.hadoop.hbase.util.Bytes
 /**
  * Created by shon on 6/6/15.
  */
-trait HBaseSerializable {
-  val bytes: Array[Byte]
+object HBaseDeserializable {
   def propsToBytes(props: Seq[(Byte, InnerValLike)]): Array[Byte] = {
     val len = props.length
     assert(len < Byte.MaxValue)
@@ -28,8 +27,9 @@ trait HBaseSerializable {
     for ((k, v) <- props) bytes = Bytes.add(bytes, Array.fill(1)(k), v.bytes)
     bytes
   }
-
-
+}
+trait HBaseSerializable {
+  val bytes: Array[Byte]
 }
 trait HBaseDeserializable {
   val VERSION2 = "v2"

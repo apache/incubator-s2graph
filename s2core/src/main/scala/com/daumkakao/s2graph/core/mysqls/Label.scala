@@ -297,10 +297,10 @@ case class Label(id: Option[Int], label: String,
     metaProps
   }
   def srcColumnInnerVal(jsValue: JsValue) = {
-    jsValueToInnerVal(jsValue, srcColumnType)
+    jsValueToInnerVal(jsValue, srcColumnType, version)
   }
   def tgtColumnInnerVal(jsValue: JsValue) = {
-    jsValueToInnerVal(jsValue, tgtColumnType)
+    jsValueToInnerVal(jsValue, tgtColumnType, version)
   }
 
   override def toString(): String = {
@@ -310,7 +310,7 @@ case class Label(id: Option[Int], label: String,
   def findLabelIndexSeq(scoring: List[(Byte, Double)]): Byte = {
     if (scoring.isEmpty) LabelIndex.defaultSeq
     else {
-      LabelIndex.findByLabeIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
+      LabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
     }
   }
 

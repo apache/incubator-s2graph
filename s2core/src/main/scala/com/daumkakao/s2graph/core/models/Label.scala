@@ -191,10 +191,10 @@ case class Label(kvsParam: Map[KEY, VAL]) extends HBaseModel[Label]("HLabel", kv
     metaProps
   }
   def srcColumnInnerVal(jsValue: JsValue) = {
-    jsValueToInnerVal(jsValue, srcColumnType)
+    jsValueToInnerVal(jsValue, srcColumnType, version)
   }
   def tgtColumnInnerVal(jsValue: JsValue) = {
-    jsValueToInnerVal(jsValue, tgtColumnType)
+    jsValueToInnerVal(jsValue, tgtColumnType, version)
   }
 
   override def toString(): String = {

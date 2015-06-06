@@ -39,6 +39,7 @@ case class EdgeQualifier(props: Seq[(Byte, InnerValLike)],
                          tgtVertexId: CompositeId,
                          op: Byte) extends HBaseSerializable {
   import EdgeQualifier._
+  import HBaseDeserializable._
   val innerTgtVertexId = tgtVertexId.updateUseHash(false)
   val propsMap = props.toMap
   val propsBytes = propsToBytes(props)

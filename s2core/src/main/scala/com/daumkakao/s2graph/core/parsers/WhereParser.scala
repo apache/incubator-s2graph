@@ -2,7 +2,7 @@ package com.daumkakao.s2graph.core.parsers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.models.{LabelMeta, Label}
-import com.daumkakao.s2graph.core.types.InnerVal
+import com.daumkakao.s2graph.core.types2.InnerValLike
 
 import scala.util.parsing.combinator.JavaTokenParsers
 
@@ -20,7 +20,7 @@ abstract class Clause {
   def or(otherField: Clause): Clause = Or(this, otherField)
   def filter(edge: Edge): Boolean = ???
 }
-case class Equal(val propKey: Byte, val value: InnerVal) extends Clause {
+case class Equal(val propKey: Byte, val value: InnerValLike) extends Clause {
   override def filter(edge: Edge): Boolean = {
     propKey match {
       case LabelMeta.from.seq => edge.srcVertex.innerId == value
@@ -34,7 +34,7 @@ case class Equal(val propKey: Byte, val value: InnerVal) extends Clause {
 
   }
 }
-case class IN(val propKey: Byte, val values: Set[InnerVal]) extends Clause {
+case class IN(val propKey: Byte, val values: Set[InnerValLike]) extends Clause {
   override def filter(edge: Edge): Boolean = {
     propKey match {
       case LabelMeta.from.seq => values.contains(edge.srcVertex.innerId)
@@ -47,7 +47,7 @@ case class IN(val propKey: Byte, val values: Set[InnerVal]) extends Clause {
     }
   }
 }
-case class Between(val propKey: Byte, val minValue: InnerVal, val maxValue: InnerVal) extends Clause {
+case class Between(val propKey: Byte, val minValue: InnerValLike, val maxValue: InnerValLike) extends Clause {
   override def filter(edge: Edge): Boolean = {
     propKey match {
       case LabelMeta.from.seq => minValue <= edge.srcVertex.innerId && edge.srcVertex.innerId <= maxValue
@@ -102,7 +102,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
-            Equal(metaProp.seq, toInnerVal(s, metaProp.dataType))
+            Equal(metaProp.seq, toInnerVal(s, metaProp.dataType, label.version))
         }
     }
       | (ident ~ "between" ~ ident ~ "and" ~ ident |
@@ -112,7 +112,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
-            Between(metaProp.seq, toInnerVal(minV, metaProp.dataType), toInnerVal(maxV, metaProp.dataType))
+            Between(metaProp.seq, toInnerVal(minV, metaProp.dataType, label.version), toInnerVal(maxV, metaProp.dataType, label.version))
         }
     }
       | (ident ~ "in" ~ "(" ~ rep(ident | decimalNumber | stringLiteralWithMinus | "true" | "false" | ",") ~ ")") ^^ {
@@ -121,7 +121,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
             val values = vals.filter(v => v != ",").map { v =>
-              toInnerVal(v, metaProp.dataType)
+              toInnerVal(v, metaProp.dataType, label.version)
             }
             IN(metaProp.seq, values.toSet)
         }
@@ -131,7 +131,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
-            Not(Equal(metaProp.seq, toInnerVal(s, metaProp.dataType)))
+            Not(Equal(metaProp.seq, toInnerVal(s, metaProp.dataType, label.version)))
         }
     }
       | (ident ~ "not in" ~ "(" ~ rep(ident | decimalNumber | stringLiteralWithMinus | "true" | "false" | ",") ~ ")") ^^ {
@@ -140,7 +140,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
             val values = vals.filter(v => v != ",").map { v =>
-              toInnerVal(v, metaProp.dataType)
+              toInnerVal(v, metaProp.dataType, label.version)
             }
             Not(IN(metaProp.seq, values.toSet))
         }

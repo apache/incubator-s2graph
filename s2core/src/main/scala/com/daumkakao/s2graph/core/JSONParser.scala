@@ -26,8 +26,9 @@ trait JSONParser {
     dataType match {
       case InnerVal.STRING => innerVal.toString
       case InnerVal.BOOLEAN => innerVal.toString
-      case t if InnerVal.NUMERICS.contains(t) => innerVal.value.asInstanceOf[BigDecimal].bigDecimal.toPlainString
-      case _ => throw new RuntimeException("innerVal to jsValue failed.")
+      case t if InnerVal.NUMERICS.contains(t)  => innerVal.value.asInstanceOf[BigDecimal].bigDecimal.toPlainString
+      case _ =>  innerVal.toString
+//        throw new RuntimeException("innerVal to jsValue failed.")
     }
   }
 

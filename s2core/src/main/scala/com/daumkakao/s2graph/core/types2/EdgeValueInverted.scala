@@ -19,7 +19,7 @@ object EdgeValueInverted extends HBaseDeserializable {
 }
 case class EdgeValueInverted(op: Byte,
                              props: Seq[(Byte, InnerValLikeWithTs)]) extends HBaseSerializable {
-
+  import HBaseDeserializable._
   val bytes: Array[Byte] = {
     Bytes.add(Array.fill(1)(op), propsToKeyValuesWithTs(props))
   }

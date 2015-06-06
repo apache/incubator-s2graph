@@ -148,6 +148,7 @@ object InnerVal extends HBaseDeserializable {
 
 }
 trait InnerValLike extends HBaseSerializable {
+
   val value: Any
 
   def compare(other: InnerValLike): Int

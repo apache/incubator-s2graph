@@ -46,19 +46,7 @@ object LabelIndex extends Model[LabelIndex] {
     """
       .updateAndReturnGeneratedKey.apply()
   }
-  def findByLabelIdAndSeq(labelId: Int, seq: Byte, useCache: Boolean = true): Option[LabelIndex] = {
-    val cacheKey = s"labelId=$labelId:seq=$seq"
-    if (useCache) {
-      withCache(cacheKey)(sql"""
-          select * from label_indices where label_id = ${labelId} and seq = ${seq}
-      """.map { rs => LabelIndex(rs) }.single.apply)
 
-    } else {
-      sql"""
-          select * from label_indices where label_id = ${labelId} and seq = ${seq}
-      """.map { rs => LabelIndex(rs) }.single.apply
-    }
-  }
   def findOrInsert(labelId: Int, seq: Byte, metaSeqs: List[Byte], formulars: String): LabelIndex = {
     //    kgraph.Logger.debug(s"findOrInsert: $labelId, $seq, $metaSeqs, $formulars")
     findByLabelIdAndSeq(labelId, seq) match {
@@ -72,7 +60,7 @@ object LabelIndex extends Model[LabelIndex] {
   }
   def findOrInsert(labelId: Int, metaSeqs: List[Byte], formulars: String): LabelIndex = {
     //    Logger.debug(s"findOrInsert: $labelId, $seq, $metaSeqs, $formulars")
-    findByLabeIdAndSeqs(labelId, metaSeqs) match {
+    findByLabelIdAndSeqs(labelId, metaSeqs) match {
       case Some(s) => s
       case None =>
         val orders = findByLabelIdAll(labelId, false)
@@ -82,13 +70,25 @@ object LabelIndex extends Model[LabelIndex] {
         findByLabelIdAndSeq(labelId, seq).get
     }
   }
-  def findByLabeIdAndSeqs(labelId: Int, seqs: List[Byte]): Option[LabelIndex] = {
+
+  def findByLabelIdAndSeqs(labelId: Int, seqs: List[Byte]): Option[LabelIndex] = {
     //    val seqsStr = seqs.sortBy(x => x).mkString(",")
     val cacheKey = s"labelId=$labelId:seqs=${seqs.mkString(",")}"
     withCache(cacheKey) {
       sql"""
       select * from label_indices where label_id = ${labelId} and meta_seqs = ${seqs.mkString(",")}
       """.map { rs => LabelIndex(rs) }.single.apply
+    }
+  }
+  def findByLabelIdAndSeq(labelId: Int, seq: Byte, useCache: Boolean = true): Option[LabelIndex] = {
+    val cacheKey = s"labelId=$labelId:seq=$seq"
+    val fetch = sql"""
+      select * from label_indices where label_id = ${labelId} and seq = ${seq}
+      """.map { rs => LabelIndex(rs) }.single.apply
+    if (useCache) {
+      withCache(cacheKey)(fetch)
+    } else {
+      fetch
     }
   }
   def delete(id: Int) = {
@@ -112,6 +112,6 @@ case class LabelIndex(id: Option[Int], labelId: Int, seq: Byte, metaSeqs: List[B
   lazy val label = Label.findById(labelId)
   lazy val metas = label.metaPropsMap
   lazy val sortKeyTypes = metaSeqs.map(metaSeq => label.metaPropsMap.get(metaSeq)).flatten
-  lazy val sortKeyTypeDefaultVals = sortKeyTypes.map(x => x.defaultInnerVal)
+//  lazy val sortKeyTypeDefaultVals = sortKeyTypes.map(x => x.defaultInnerVal)
   lazy val toJson = Json.obj("indexProps" -> sortKeyTypes.map(x => x.name))
 }

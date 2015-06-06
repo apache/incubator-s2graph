@@ -13,6 +13,6 @@ object EdgeValue extends HBaseDeserializable {
   }
 }
 case class EdgeValue(props: Seq[(Byte, InnerValLike)]) extends HBaseSerializable {
-
+  import HBaseDeserializable._
   val bytes: Array[Byte] = propsToKeyValues(props)
 }

@@ -70,7 +70,7 @@ case class LabelIndex(kvsParam: Map[KEY, VAL]) extends HBaseModel[LabelIndex]("H
   lazy val label = Label.findById(labelId)
   lazy val metas = label.metaPropsMap
   lazy val sortKeyTypes = metaSeqs.map(metaSeq => label.metaPropsMap.get(metaSeq)).flatten
-  lazy val sortKeyTypeDefaultVals = sortKeyTypes.map(x => x.defaultInnerVal)
+//  lazy val sortKeyTypeDefaultVals = sortKeyTypes.map(x => x.defaultInnerVal)
   lazy val toJson = Json.obj("indexProps" -> sortKeyTypes.map(x => x.name))
 
 }

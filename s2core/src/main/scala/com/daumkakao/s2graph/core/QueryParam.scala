@@ -4,12 +4,13 @@ package com.daumkakao.s2graph.core
 //import com.daumkakao.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import com.daumkakao.s2graph.core.models.{Label, LabelIndex, LabelMeta}
 import com.daumkakao.s2graph.core.parsers.Where
-import com.daumkakao.s2graph.core.types.{LabelWithDirection, InnerVal, InnerValWithTs, CompositeId}
+import com.daumkakao.s2graph.core.types2._
+
+//import com.daumkakao.s2graph.core.types.{LabelWithDirection, InnerVal, InnerValWithTs, CompositeId}
 import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.util.Bytes
 import GraphConstant._
 import org.hbase.async.{ScanFilter, ColumnRangeFilter}
-import types.EdgeType._
 
 object Query {
   val initialScore = 1.0
@@ -38,20 +39,20 @@ case class Query(vertices: Seq[Vertex], steps: List[Step],
       val srcVertex = Vertex(new CompositeId(v.id.colId, v.innerId, isEdge = true, useHash = true), ts)
       (Edge(srcVertex, srcVertex,
         qParam.labelWithDir, GraphUtil.operations("insert"), ts, ts,
-        Map.empty[Byte, InnerValWithTs]), Query.initialScore)
+        Map.empty[Byte, InnerValLikeWithTs]), Query.initialScore)
     }
   }).getOrElse(List.empty[(Edge, Double)])
 }
 case class VertexParam(vertices: Seq[Vertex]) {
   import Query._
-  var filters: Option[Map[Byte, InnerVal]] = None
-  def has(what: Option[Map[Byte, InnerVal]]): VertexParam = {
+  var filters: Option[Map[Byte, InnerValLike]] = None
+  def has(what: Option[Map[Byte, InnerValLike]]): VertexParam = {
     what match {
       case None => this
       case Some(w) => has(w)
     }
   }
-  def has(what: Map[Byte, InnerVal]): VertexParam = {
+  def has(what: Map[Byte, InnerValLike]): VertexParam = {
     this.filters = Some(what)
     this
   }
@@ -115,7 +116,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   var exclude = false
   var include = false
 
-  var hasFilters: Map[Byte, InnerVal] = Map.empty[Byte, InnerVal]
+  var hasFilters: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike]
   //  var propsFilters: PropsFilter = PropsFilter()
   var where: Option[Where] = None
   var duplicatePolicy = DuplicatePolicy.First
@@ -142,14 +143,14 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
 //    this.columnPaginationFilter = new ColumnPaginationFilter(this.limit, this.offset)
     this
   }
-  def interval(fromTo: Option[(Seq[(Byte, InnerVal)], Seq[(Byte, InnerVal)])]): QueryParam = {
+  def interval(fromTo: Option[(Seq[(Byte, InnerValLike)], Seq[(Byte, InnerValLike)])]): QueryParam = {
     fromTo match {
       case Some((from, to)) => interval(from, to)
       case _ => this
     }
   }
-  def interval(from: Seq[(Byte, InnerVal)], to: Seq[(Byte, InnerVal)]): QueryParam = {
-//    import HBaseElement._
+  def interval(from: Seq[(Byte, InnerValLike)], to: Seq[(Byte, InnerValLike)]): QueryParam = {
+    import types2.HBaseDeserializable._
     //    val len = label.orderTypes.size.toByte
     //    val len = label.extraIndicesMap(labelOrderSeq).sortKeyTypes.size.toByte
     //    Logger.error(s"indicesMap: ${label.indicesMap(labelOrderSeq)}")
@@ -200,7 +201,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     this
   }
 
-  def has(hasFilters: Map[Byte, InnerVal]): QueryParam = {
+  def has(hasFilters: Map[Byte, InnerValLike]): QueryParam = {
     this.hasFilters = hasFilters
     this
   }

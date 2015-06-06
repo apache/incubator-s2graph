@@ -791,7 +791,7 @@ object Edge extends JSONParser {
         val kvsMap = value.props.toMap
         val ts = kvsMap.get(LabelMeta.timeStampSeq) match {
           case None => version
-          case Some(v) => v.innerVal.value.asInstanceOf[BigDecimal].toLong
+          case Some(v) => v.innerVal.value.toString.toLong
         }
         (qualifier.tgtVertexId, kvsMap, value.op, ts)
       case false =>
@@ -820,8 +820,7 @@ object Edge extends JSONParser {
             case Some(vId) => CompositeId(CompositeId.defaultColId, vId, true, false)
           }
 
-          //          val ts = kvsMap.get(LabelMeta.timeStampSeq).map { v => v.value.asInstanceOf[BigDecimal].toLong }.getOrElse(version)
-          val ts = version
+          val ts = kvsMap.get(LabelMeta.timeStampSeq).map { v => v.value.toString.toLong }.getOrElse(version)
           val mergedProps = kvsMap.map { case (k, innerVal) => k -> InnerValLikeWithTs(innerVal, ts) }
           (tgtVertexId, mergedProps, qualifier.op, ts)
         }

@@ -2,7 +2,7 @@ package com.daumkakao.s2graph.core
 
 
 import com.daumkakao.s2graph.core.models._
-import com.daumkakao.s2graph.core.types.{InnerVal, InnerValWithTs, CompositeId, LabelWithDirection}
+import com.daumkakao.s2graph.core.types2._
 //import com.daumkakao.s2graph.core.HBaseElement.{InnerVal, InnerValWithTs, CompositeId, LabelWithDirection}
 import play.api.libs.json._
 import org.apache.hadoop.hbase.client.{ConnectionFactory, HBaseAdmin, Durability}
@@ -111,7 +111,7 @@ object Management extends JSONParser {
       label <- Label.findByName(labelStr)
     } yield {
         val labelOrderTypes =
-          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType)) yield {
+          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType, label.version)) yield {
             val lblMeta = LabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
             lblMeta.seq
           }
@@ -125,7 +125,7 @@ object Management extends JSONParser {
       label <- Label.findByName(labelStr)
     } yield {
         val labelOrderTypes =
-          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType)) yield {
+          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType, label.version)) yield {
 
             val lblMeta = LabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
             lblMeta.seq
@@ -180,8 +180,8 @@ object Management extends JSONParser {
 
     val label = tryOption(labelStr, getServiceLable)
 
-    val src = toInnerVal(srcId, label.srcColumnType)
-    val tgt = toInnerVal(tgtId, label.tgtColumnType)
+    val src = toInnerVal(srcId, label.srcColumnType, label.version)
+    val tgt = toInnerVal(tgtId, label.tgtColumnType, label.version)
 
     val srcVertex = Vertex(new CompositeId(label.srcColumn.id.get, src, true, true), ts)
     val tgtVertex = Vertex(new CompositeId(label.tgtColumn.id.get, tgt, true, true), ts)
@@ -191,7 +191,8 @@ object Management extends JSONParser {
 
     val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
     val parsedProps = toProps(label, jsObject).toMap
-    val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValWithTs(kv._2, ts))) ++ Map(LabelMeta.timeStampSeq -> InnerValWithTs(InnerVal.withLong(ts), ts))
+    val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValLikeWithTs(kv._2, ts))) ++
+      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.version), ts))
     Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version = ts, propsWithTs)
 
   }
@@ -203,7 +204,7 @@ object Management extends JSONParser {
         ServiceColumn.find(service.id.get, columnName) match {
           case None => throw new RuntimeException(s"$columnName is not exist. create service column first.")
           case Some(col) =>
-            val idVal = toInnerVal(id, col.columnType)
+            val idVal = toInnerVal(id, col.columnType, col.version)
             val op = tryOption(operation, GraphUtil.toOp)
             val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
             val parsedProps = toProps(col, jsObject).toMap
@@ -213,12 +214,12 @@ object Management extends JSONParser {
     }
   }
 
-  def toProps(column: ServiceColumn, js: JsObject): Seq[(Byte, InnerVal)] = {
+  def toProps(column: ServiceColumn, js: JsObject): Seq[(Byte, InnerValLike)] = {
 
     val props = for {
       (k, v) <- js.fields
       meta <- column.metasInvMap.get(k)
-      innerVal <- jsValueToInnerVal(v, meta.dataType)
+      innerVal <- jsValueToInnerVal(v, meta.dataType, column.version)
     } yield {
         (meta.seq, innerVal)
       }
@@ -226,14 +227,14 @@ object Management extends JSONParser {
 
   }
 
-  def toProps(label: Label, js: JsObject): Seq[(Byte, InnerVal)] = {
+  def toProps(label: Label, js: JsObject): Seq[(Byte, InnerValLike)] = {
 
     val props = for {
       (k, v) <- js.fields
       meta <- label.metaPropsInvMap.get(k)
       //        meta <- LabelMeta.findByName(label.id.get, k)
       //      meta = tryOption((label.id.get, k), LabelMeta.findByName)
-      innerVal <- jsValueToInnerVal(v, meta.dataType)
+      innerVal <- jsValueToInnerVal(v, meta.dataType, label.version)
     } yield {
         (meta.seq, innerVal)
       }

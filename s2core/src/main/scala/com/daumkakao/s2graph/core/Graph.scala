@@ -3,8 +3,10 @@ package com.daumkakao.s2graph.core
 //import com.daumkakao.s2graph.core.mysqls.{Label}
 //import com.daumkakao.s2graph.core.HBaseElement.{ EdgeQualifierInverted, EdgeRowKey, CompositeId, LabelWithDirection}
 import com.daumkakao.s2graph.core.models.{HBaseModel, Label}
-import com.daumkakao.s2graph.core.types.EdgeType.{EdgeQualifierInverted, EdgeRowKey}
-import com.daumkakao.s2graph.core.types.{CompositeId, LabelWithDirection}
+import com.daumkakao.s2graph.core.types2.{CompositeId, EdgeQualifierInverted, LabelWithDirection, EdgeRowKey}
+
+//import com.daumkakao.s2graph.core.types.EdgeType.{EdgeQualifierInverted, EdgeRowKey}
+//import com.daumkakao.s2graph.core.types.{CompositeId, LabelWithDirection}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._
 import java.util.concurrent.Executors
@@ -658,7 +660,7 @@ object Graph {
         //        val get = vertex.buildGetRequest()
         val get = vertex.buildGet
         defferedToFuture(client.get(get))(emptyKVs).map { kvs =>
-          Vertex(kvs)
+          Vertex(kvs, vertex.serviceColumn.version)
         }
         //          Logger.error(s"$get")
       }, { None })(singleGetTimeout)
@@ -744,7 +746,7 @@ object Graph {
     implicit val ex = executionContext
     val client = getClient(vertex.hbaseZkAddr)
     defferedToFuture(client.get(vertex.buildGet))(emptyKVs).map { kvs =>
-      Vertex(kvs)
+      Vertex(kvs, vertex.serviceColumn.version)
     }
   }
   /**
