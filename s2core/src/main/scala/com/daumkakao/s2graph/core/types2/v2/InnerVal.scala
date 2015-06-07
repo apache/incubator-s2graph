@@ -90,8 +90,7 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
   }
   override def equals(obj: Any) = {
     obj match {
-      case other: InnerVal =>
-        Bytes.compareTo(bytes, other.bytes) == 0
+      case other: InnerVal => Bytes.compareTo(bytes, other.bytes) == 0
       case _ => false
     }
   }

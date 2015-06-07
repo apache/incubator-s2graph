@@ -24,7 +24,14 @@ case class Equal(val propKey: Byte, val value: InnerValLike) extends Clause {
   override def filter(edge: Edge): Boolean = {
     propKey match {
       case LabelMeta.from.seq => edge.srcVertex.innerId == value
-      case LabelMeta.to.seq => edge.tgtVertex.innerId == value
+      case LabelMeta.to.seq =>
+        val log = List(edge.tgtVertex.schemaVer,
+          edge.tgtVertex.innerId, " vs ", value,
+          edge.tgtVertex.innerId.bytes.toList,
+          value.bytes.toList
+        )
+        println(log.mkString("\t"), "\n")
+        edge.tgtVertex.innerId == value
       case _ =>
         edge.props.get(propKey) match {
           case None => true

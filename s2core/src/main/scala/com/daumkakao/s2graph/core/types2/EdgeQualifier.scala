@@ -19,7 +19,7 @@ object EdgeQualifier extends HBaseDeserializable {
     val op = version match {
       case VERSION2 => GraphUtil.defaultOpByte
       case VERSION1 => bytes(offset + len - 1)
-      case _ => throw notSupportedEx
+      case _ => throw notSupportedEx(version)
     }
     val (props, tgtVertexId) = {
       val (props, endAt) = bytesToProps(bytes, pos, version)

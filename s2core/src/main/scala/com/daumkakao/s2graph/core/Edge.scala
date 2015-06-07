@@ -71,7 +71,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
                          op: Byte,
                          ts: Long,
                          labelIndexSeq: Byte,
-                         props: Map[Byte, InnerValLike]) extends JSONParser {
+                         props: Map[Byte, InnerValLike],schemaVersion: Option[String] = None) extends JSONParser {
 
   //  assert(props.get(LabelMeta.timeStampSeq).isDefined)
 
@@ -81,10 +81,11 @@ case class EdgeWithIndex(srcVertex: Vertex,
   import Edge._
 
   lazy val label = Label.findById(labelWithDir.labelId)
+  lazy val schemaVer = schemaVersion.getOrElse(label.version)
   lazy val rowKey = EdgeRowKey(srcVertex.id, labelWithDir, labelIndexSeq, isInverted = false)
   lazy val labelIndex = LabelIndex.findByLabelIdAndSeq(labelWithDir.labelId, labelIndexSeq).get
   lazy val defaultIndexMetas = (labelIndex.sortKeyTypes.map { meta =>
-    val innerVal = toInnerVal(meta.defaultValue, meta.dataType, label.version)
+    val innerVal = toInnerVal(meta.defaultValue, meta.dataType, schemaVer)
     meta.seq -> innerVal
   }).toMap
   lazy val labelIndexMetaSeqs = labelIndex.metaSeqs
@@ -99,7 +100,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
          * now we double store target vertex.innerId/srcVertex.innerId for easy development. later fix this to only store id once
          */
         val v = k match {
-          case LabelMeta.timeStampSeq => InnerVal.withLong(ts, label.version)
+          case LabelMeta.timeStampSeq => InnerVal.withLong(ts, schemaVer)
           case LabelMeta.toSeq => tgtVertex.innerId
           case LabelMeta.fromSeq => //srcVertex.innerId
             // for now, it does not make sense to build index on srcVertex.innerId since all edges have same data.
@@ -187,14 +188,14 @@ case class EdgeWithIndex(srcVertex: Vertex,
  *
  */
 case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDirection, op: Byte,
-                ts: Long, version: Long, propsWithTs: Map[Byte, InnerValLikeWithTs]) extends GraphElement with JSONParser {
-
+                ts: Long, version: Long, propsWithTs: Map[Byte, InnerValLikeWithTs], schemaVersion: Option[String] = None) extends GraphElement with JSONParser {
+  println("!!!", srcVertex.schemaVer, tgtVertex.schemaVer)
   val logger = Edge.logger
   implicit val ex = Graph.executionContext
-  //  require()
-  lazy val props = for ((k, v) <- propsWithTs) yield (k -> v.innerVal)
-  //    if (op == GraphUtil.operations("delete")) Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts))
-  //    else for ((k, v) <- propsWithTs) yield (k -> v.innerVal)
+  lazy val schemaVer = schemaVersion.getOrElse(label.version)
+  lazy val props =
+      if (op == GraphUtil.operations("delete")) Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, schemaVer))
+      else for ((k, v) <- propsWithTs) yield (k -> v.innerVal)
 
   lazy val relatedEdges = {
     labelWithDir.dir match {
@@ -223,7 +224,7 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
 
   lazy val propsPlusTs = propsWithTs.get(LabelMeta.timeStampSeq) match {
     case Some(_) => props
-    case None => props ++ Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, label.version))
+    case None => props ++ Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, schemaVer))
   }
 
   lazy val propsPlusTsValid = propsPlusTs.filter(kv => kv._1 >= 0)
@@ -254,12 +255,12 @@ case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDir
 
   lazy val edgesWithInvertedIndex = {
     EdgeWithIndexInverted(srcVertex, tgtVertex, labelWithDir, op, version, propsWithTs ++
-      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.version), ts)))
+      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)))
   }
 
   def edgesWithInvertedIndex(newOp: Byte) = {
     EdgeWithIndexInverted(srcVertex, tgtVertex, labelWithDir, newOp, version, propsWithTs ++
-      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.version), ts)))
+      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)))
   }
 
   lazy val propsWithName = for {
@@ -523,7 +524,7 @@ object Edge extends JSONParser {
       EdgeUpdate()
     } else {
       val (newPropsWithTs, shouldReplace) =
-        f(oldPropsWithTs, requestEdge.propsWithTs, requestEdge.ts, requestEdge.label.version)
+        f(oldPropsWithTs, requestEdge.propsWithTs, requestEdge.ts, requestEdge.schemaVer)
 
       if (!shouldReplace) {
         logger.error(s"drop request $requestEdge becaseu shouldReplace is $shouldReplace")

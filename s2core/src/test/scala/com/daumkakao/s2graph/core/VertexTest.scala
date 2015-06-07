@@ -1,20 +1,20 @@
-package com.daumkakao.s2graph.core
-
-import com.daumkakao.s2graph.core.types.{CompositeIdV1, InnerValV1, CompositeId, InnerVal}
-import org.scalatest.{Matchers, FunSuite}
-
-
-/**
- * Created by shon on 5/29/15.
- */
-class VertexTest extends FunSuite with Matchers with TestCommonWithModels with TestCommon {
-
-  def equalsExact(left: Vertex, right: Vertex) = {
-    left.id == right.id && left.ts == right.ts &&
-    left.props == right.props && left.op == right.op
-  }
-
-  /** assumes innerVal is sorted */
+//package com.daumkakao.s2graph.core
+//
+//import com.daumkakao.s2graph.core.types.{CompositeIdV1, InnerValV1, CompositeId, InnerVal}
+//import org.scalatest.{Matchers, FunSuite}
+//
+//
+///**
+// * Created by shon on 5/29/15.
+// */
+//class VertexTest extends FunSuite with Matchers with TestCommonWithModels with TestCommon {
+//
+//  def equalsExact(left: Vertex, right: Vertex) = {
+//    left.id == right.id && left.ts == right.ts &&
+//    left.props == right.props && left.op == right.op
+//  }
+//
+//  /** assumes innerVal is sorted */
 //  def testVertexEncodeDecode(innerVals: Seq[InnerVal],
 //                propsLs: Seq[Seq[(Byte, InnerVal)]]) = {
 //    val rets = for {
@@ -48,18 +48,18 @@ class VertexTest extends FunSuite with Matchers with TestCommonWithModels with T
 //  test("test with different innerVals as id") {
 //    testVertexEncodeDecode(intVals, idxPropsLs)
 //  }
-//  test("test vertex encoding/decoding") {
-//    val innerVal1 = new InnerVal(BigDecimal(10))
-//    val innerVal2 = new InnerValV1(Some(10L), None, None)
-//    println(s"${innerVal1.bytes.toList}")
-//    println(s"${innerVal2.bytes.toList}")
-//    val id1 = new CompositeId(0, innerVal1, isEdge = false, useHash = true)
-//    val id2 = new CompositeIdV1(0, innerVal2, isEdge = false, useHash = true)
-//    val ts = System.currentTimeMillis()
-//    val v1 = Vertex(id1, ts)
-//    val v2 = Vertex(id2, ts)
-//
-//    println(s"${v1.rowKey.bytes.toList}")
-//    println(s"${v2.rowKey.bytes.toList}")
-//  }
-}
+////  test("test vertex encoding/decoding") {
+////    val innerVal1 = new InnerVal(BigDecimal(10))
+////    val innerVal2 = new InnerValV1(Some(10L), None, None)
+////    println(s"${innerVal1.bytes.toList}")
+////    println(s"${innerVal2.bytes.toList}")
+////    val id1 = new CompositeId(0, innerVal1, isEdge = false, useHash = true)
+////    val id2 = new CompositeIdV1(0, innerVal2, isEdge = false, useHash = true)
+////    val ts = System.currentTimeMillis()
+////    val v1 = Vertex(id1, ts)
+////    val v2 = Vertex(id2, ts)
+////
+////    println(s"${v1.rowKey.bytes.toList}")
+////    println(s"${v2.rowKey.bytes.toList}")
+////  }
+//}

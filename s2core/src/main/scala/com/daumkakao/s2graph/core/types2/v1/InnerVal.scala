@@ -11,7 +11,8 @@ object InnerVal extends HBaseDeserializable {
   //  val defaultVal = new InnerVal(None, None, None)
   val stringLenOffset = 7.toByte
   val maxStringLen = Byte.MaxValue - stringLenOffset
-
+  val maxMetaByte = Byte.MaxValue
+  val minMetaByte = 0.toByte
   /**
    * first byte encoding rule.
    * 0 => default
@@ -50,11 +51,11 @@ object InnerVal extends HBaseDeserializable {
   def fromBytes(bytes: Array[Byte], offset: Int, len: Int, version: String = DEFAULT_VERSION): InnerVal = {
     var pos = offset
     //
-    val len = bytes(pos)
+    val header = bytes(pos)
     //      play.api.Logger.debug(s"${bytes(offset)}: ${bytes.toList.slice(pos, bytes.length)}")
     pos += 1
 
-    val (longV, strV, boolV) = metaByteRev.get(len) match {
+    val (longV, strV, boolV) = metaByteRev.get(header) match {
       case Some(s) =>
         s match {
           case "default" => (None, None, None)
@@ -78,7 +79,7 @@ object InnerVal extends HBaseDeserializable {
             (Some(value.toLong), None, None)
         }
       case _ => // string
-        val strLen = len - stringLenOffset
+        val strLen = header - stringLenOffset
         (None, Some(Bytes.toString(bytes, pos, strLen)), None)
     }
 
@@ -107,23 +108,23 @@ object InnerVal extends HBaseDeserializable {
    *
    */
   def transform(l: Long): (Byte, Array[Byte]) = {
-    if (Byte.MinValue < l && l <= Byte.MaxValue) {
+    if (Byte.MinValue <= l && l <= Byte.MaxValue) {
       //        val value = if (l < 0) l - Byte.MinValue else l + Byte.MinValue
       val key = if (l >= 0) metaByte("byte") else -metaByte("byte")
       val value = if (l >= 0) Byte.MaxValue - l else Byte.MinValue - l - 1
       val valueBytes = Array.fill(1)(value.toByte)
       (key.toByte, valueBytes)
-    } else if (Short.MinValue < l && l <= Short.MaxValue) {
+    } else if (Short.MinValue <= l && l <= Short.MaxValue) {
       val key = if (l >= 0) metaByte("short") else -metaByte("short")
       val value = if (l >= 0) Short.MaxValue - l else Short.MinValue - l - 1
       val valueBytes = Bytes.toBytes(value.toShort)
       (key.toByte, valueBytes)
-    } else if (Int.MinValue < l && l <= Int.MaxValue) {
+    } else if (Int.MinValue <= l && l <= Int.MaxValue) {
       val key = if (l >= 0) metaByte("int") else -metaByte("int")
       val value = if (l >= 0) Int.MaxValue - l else Int.MinValue - l - 1
       val valueBytes = Bytes.toBytes(value.toInt)
       (key.toByte, valueBytes)
-    } else if (Long.MinValue < l && l <= Long.MaxValue) {
+    } else if (Long.MinValue <= l && l <= Long.MaxValue) {
       val key = if (l >= 0) metaByte("long") else -metaByte("long")
       val value = if (l >= 0) Long.MaxValue - l else Long.MinValue - l - 1
       val valueBytes = Bytes.toBytes(value.toLong)

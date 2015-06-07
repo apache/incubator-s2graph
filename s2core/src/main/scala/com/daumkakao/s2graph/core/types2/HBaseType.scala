@@ -40,7 +40,7 @@ trait HBaseDeserializable {
                 offset: Int,
                 len: Int,
                 version: String = DEFAULT_VERSION): HBaseSerializable
-  val notSupportedEx = new RuntimeException("not supported version")
+  def notSupportedEx(version: String) = new RuntimeException(s"not supported version, $version")
 
   def bytesToKeyValues(bytes: Array[Byte],
                        offset: Int,

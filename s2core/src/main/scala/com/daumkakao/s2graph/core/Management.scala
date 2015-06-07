@@ -193,7 +193,7 @@ object Management extends JSONParser {
     val parsedProps = toProps(label, jsObject).toMap
     val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValLikeWithTs(kv._2, ts))) ++
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.version), ts))
-    Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version = ts, propsWithTs)
+    Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version = ts, propsWithTs = propsWithTs)
 
   }
 

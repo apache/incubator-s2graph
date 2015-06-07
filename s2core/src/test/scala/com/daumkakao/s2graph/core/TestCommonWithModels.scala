@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.models._
-import com.daumkakao.s2graph.core.types.{LabelWithDirection, HBaseType, InnerVal}
+import com.daumkakao.s2graph.core.types2.{LabelWithDirection, InnerVal}
 import com.typesafe.config.ConfigFactory
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{KeyValue, PutRequest}
@@ -51,7 +51,7 @@ trait TestCommonWithModels {
     deleteTestLabel()
     deleteTestService()
 
-    Thread.sleep(10000)
+    Thread.sleep(1000)
 
     createTestService()
     createTestLabel()

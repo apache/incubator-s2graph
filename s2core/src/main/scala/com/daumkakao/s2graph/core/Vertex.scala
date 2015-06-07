@@ -19,20 +19,21 @@ import org.hbase.async.{DeleteRequest, HBaseRpc, PutRequest, GetRequest}
   */
 case class Vertex(id: CompositeId,
                   ts: Long,
-                  props: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike], op: Byte = 0) extends GraphElement {
-
-  require(props.contains(ColumnMeta.lastModifiedAtColumnSeq))
+                  props: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike],
+                  op: Byte = 0,
+                  schemaVersion: Option[String] = None) extends GraphElement {
 
   import GraphConstant._
-  val innerId = id.innerId
-  //  import Vertex.{ lastModifiedAtColumn, deletedAtColumn }
+
+  lazy val innerId = id.innerId
+  lazy val schemaVer = schemaVersion.getOrElse(serviceColumn.version)
   lazy val serviceColumn = ServiceColumn.findById(id.colId)
   lazy val service = Service.findById(serviceColumn.serviceId)
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, service.hTableName)
 
   lazy val rowKey = VertexRowKey(id)
-  //  lazy val defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq -> InnerVal.withLong(ts, version))
-  //  lazy val qualifiersWithValues = for ((k, v) <- props ++ defaultProps) yield (VertexQualifier(k), v)
+  lazy val defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq -> InnerVal.withLong(ts, schemaVer))
+  lazy val qualifiersWithValues = for ((k, v) <- props ++ defaultProps) yield (VertexQualifier(k), v)
 
   /** TODO: make this as configurable */
   override lazy val serviceName = service.serviceName
@@ -45,17 +46,11 @@ case class Vertex(id: CompositeId,
     meta <- ColumnMeta.findByIdAndSeq(id.colId, seq)
   } yield (meta.name -> v.toString)
 
-  //  lazy val propsWithName = for {
-  //    (seq, v) <- props
-  //    meta <- ColumnMeta.findByIdAndSeq(id.colId, seq)
-  //  } yield (meta.name -> v.toString)
-
   def buildPuts(): List[Put] = {
     //    play.api.Logger.error(s"put: $this => $rowKey")
     val put = new Put(rowKey.bytes)
-    for ((q, v) <- props) {
-      val qualifier = VertexQualifier(q)
-      put.addColumn(vertexCf, qualifier.bytes, ts, v.bytes)
+    for ((q, v) <- qualifiersWithValues) {
+      put.addColumn(vertexCf, q.bytes, ts, v.bytes)
     }
     List(put)
   }
@@ -63,9 +58,8 @@ case class Vertex(id: CompositeId,
   def buildPutsAsync(): List[PutRequest] = {
     val qualifiers = ListBuffer[Array[Byte]]()
     val values = ListBuffer[Array[Byte]]()
-    for ((q, v) <- props) {
-      val qualifier = VertexQualifier(q)
-      qualifiers += qualifier.bytes
+    for ((q, v) <- qualifiersWithValues) {
+      qualifiers += q.bytes
       values += v.bytes
       //        new PutRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf, qualifier.bytes, v.bytes, ts)
     }

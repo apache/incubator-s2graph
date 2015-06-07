@@ -14,13 +14,6 @@ object CompositeId {
 
   //  val emptyCompositeId = new CompositeId(defaultColId,
   //    InnerVal.withLong(defaultInnerId), isEdge = true, useHash = true)
-  def deserializer(version: String = DEFAULTVER): (Array[Byte], Int, Int, String) => InnerValLike = {
-    version match {
-      case VERSION2 => v2.InnerVal.fromBytes
-      case VERSION1 => v1.InnerVal.fromBytes
-      case _ => throw new RuntimeException("not supported")
-    }
-  }
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 isEdge: Boolean,
@@ -30,7 +23,7 @@ object CompositeId {
       // skip over murmur hash
       pos += GraphUtil.bytesForMurMurHash
     }
-    val innerId = deserializer(ver)(bytes, offset, 0, ver)
+    val innerId = InnerVal.fromBytes(bytes, pos, 0, ver)
     pos += innerId.bytes.length
     if (isEdge) {
       new CompositeId(defaultColId, innerId, true, useHash)
@@ -66,6 +59,7 @@ case class CompositeId(val colId: Int,
   override def equals(obj: Any) = {
     obj match {
       case other: CompositeId =>
+        println(s"$this, $other")
         if (isEdge == other.isEdge && useHash == other.useHash) {
           if (isEdge) {
             innerId == other.innerId
