@@ -11,28 +11,6 @@ import org.scalatest.{Matchers, FunSuite}
 class CompositeIdTest extends FunSuite with Matchers with TestCommon with TestCommonWithModels {
   /** these constants need to be sorted asc order for test to run */
   import InnerVal.{VERSION1, VERSION2}
-  val stringVals = List("abc", "abd", "ac", "aca", "b")
-
-  val numVals = (Long.MinValue until Long.MinValue + 10).map(BigDecimal(_)) ++
-    (Int.MinValue until Int.MinValue + 10).map(BigDecimal(_)) ++
-    (Int.MaxValue - 10 until Int.MaxValue).map(BigDecimal(_)) ++
-    (Long.MaxValue - 10 until Long.MaxValue).map(BigDecimal(_))
-
-  val doubleVals = (Double.MinValue until Double.MinValue + 2.0 by 0.2).map(BigDecimal(_)) ++
-    (-9994.9 until -9999.1 by 1.1).map(BigDecimal(_)) ++
-    (-128.0 until 128.0 by 1.2).map(BigDecimal(_)) ++
-    (129.0 until 142.0 by 1.1).map(BigDecimal(_)) ++
-    (Double.MaxValue - 10.0 until Double.MaxValue by 0.2).map(BigDecimal(_))
-
-  val stringInnerVals = stringVals.map ( x => InnerVal.withStr(x, VERSION1))
-  val stringInnerValsV2 = stringVals.map ( x => InnerVal.withStr(x, VERSION2))
-
-  val numericInnerVals = numVals.map { x => InnerVal.withNumber(x, VERSION1)}
-  val numericInnerValsV2 = numVals.map { x => InnerVal.withNumber(x, VERSION2)}
-
-
-  val doubleInnerVals = doubleVals.map { x => InnerVal.withNumber(x, VERSION1) }
-  val doubleInnerValsV2 = doubleVals.map { x => InnerVal.withNumber(x, VERSION2) }
 
 
   val functions = for {
@@ -80,7 +58,7 @@ class CompositeIdTest extends FunSuite with Matchers with TestCommon with TestCo
       isEdge <- List(true, false)
       useHash <- List(true, false)
     } {
-      testOrder(numericInnerVals, isEdge, useHash, VERSION1)
+      testOrder(numInnerVals, isEdge, useHash, VERSION1)
     }
   }
   /** string order in v1 is not actually descending. it depends on string length */
@@ -106,7 +84,7 @@ class CompositeIdTest extends FunSuite with Matchers with TestCommon with TestCo
       isEdge <- List(true, false)
       useHash <- List(true, false)
     } {
-      testOrder(numericInnerValsV2, isEdge, useHash, VERSION2)
+      testOrder(numInnerValsV2, isEdge, useHash, VERSION2)
     }
   }
   test("order of compositeId string v2") {

@@ -29,13 +29,13 @@ class VertexTypeTest extends FunSuite with Matchers with TestCommon {
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
       VertexRowKey(CompositeId(testColumnId, innerVal, isEdge = false, useHash = true))
     val deserializer = (bytes: Array[Byte]) => VertexRowKey.fromBytes(bytes, 0, bytes.length, VERSION1)
-    testOrder(idxPropsLs, intVals, useHash = true)(serializer, deserializer)
+    testOrder(idxPropsLs, intInnerVals, useHash = true)(serializer, deserializer)
   }
   test("test vertex row key order with int id type version 2") {
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
       VertexRowKey(CompositeId(testColumnId, innerVal, isEdge = false, useHash = true))
     val deserializer = (bytes: Array[Byte]) => VertexRowKey.fromBytes(bytes, 0, bytes.length, VERSION2)
-    testOrder(idxPropsLsV2, intValsV2, useHash = true)(serializer, deserializer)
+    testOrder(idxPropsLsV2, intInnerValsV2, useHash = true)(serializer, deserializer)
   }
 
 

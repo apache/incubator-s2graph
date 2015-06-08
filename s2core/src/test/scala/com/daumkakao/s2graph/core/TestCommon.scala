@@ -52,25 +52,38 @@ trait TestCommon {
   private val doubleValLargeV2 = InnerVal.withDouble(0.1, VERSION2)
   private val toValV2 = InnerVal.withLong(Long.MinValue, VERSION2)
 
+  val intVals = (Int.MinValue until Int.MinValue + 10) ++
+    (-128 to 128) ++ (Int.MaxValue - 10 until Int.MaxValue)
+  val intInnerVals = intVals.map { v => InnerVal.withNumber(BigDecimal(v), VERSION1) }
 
-  val intVals = {
-    val vals = (Int.MinValue until Int.MinValue + 10) ++
-      (-128 to 128) ++ (Int.MaxValue - 10 until Int.MaxValue)
-    vals.map { v => InnerVal.withNumber(BigDecimal(v), VERSION1) }
-  }
-  val intValsV2 = {
-    val vals = (Int.MinValue until Int.MinValue + 10) ++
-      (-128 to 128) ++ (Int.MaxValue - 10 until Int.MaxValue)
-    vals.map { v => InnerVal.withNumber(BigDecimal(v), VERSION2) }
-  }
+  val intInnerValsV2 = intVals.map { v => InnerVal.withNumber(BigDecimal(v), VERSION2) }
+
+  val stringVals = List("abc", "abd", "ac", "aca", "b")
+  val stringInnerVals = stringVals.map { s => InnerVal.withStr(s, VERSION1)}
+  val stringInnerValsV2 = stringVals.map { s => InnerVal.withStr(s, VERSION2)}
+
+  val numVals = (Long.MinValue until Long.MinValue + 10).map(BigDecimal(_)) ++
+    (Int.MinValue until Int.MinValue + 10).map(BigDecimal(_)) ++
+    (Int.MaxValue - 10 until Int.MaxValue).map(BigDecimal(_)) ++
+    (Long.MaxValue - 10 until Long.MaxValue).map(BigDecimal(_))
+  val numInnerVals = numVals.map { n => InnerVal.withLong(n.toLong, VERSION1)}
+  val numInnerValsV2 = numVals.map { n => InnerVal.withNumber(n, VERSION2)}
+
+  val doubleVals = (Double.MinValue until Double.MinValue + 2.0 by 0.2).map(BigDecimal(_)) ++
+    (-9994.9 until -9999.1 by 1.1).map(BigDecimal(_)) ++
+    (-128.0 until 128.0 by 1.2).map(BigDecimal(_)) ++
+    (129.0 until 142.0 by 1.1).map(BigDecimal(_)) ++
+    (Double.MaxValue - 10.0 until Double.MaxValue by 0.2).map(BigDecimal(_))
+  val doubleInnerVals = doubleVals.map { d => InnerVal.withDouble(d.toDouble, VERSION1)}
+  val doubleInnerValsV2 = doubleVals.map { d => InnerVal.withDouble(d.toDouble, VERSION2)}
+
   /** version 1 string order is broken */
   val idxPropsLs = Seq(
-    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("ac", VERSION1)), (3 -> doubleValSmall), (toSeq -> toVal)),
-    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("ac", VERSION1)), (3 -> doubleValLarge), (toSeq -> toVal)),
-    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("ab", VERSION1)), (3 -> doubleValLarge), (toSeq -> toVal)),
-    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2-> InnerVal.withStr("aa", VERSION1)), (3 ->doubleValLarge), (toSeq -> toVal)),
-    Seq((0 -> tsValSmall), (1 -> boolValLarge), (2 -> InnerVal.withStr("a", VERSION1)), (3 ->doubleValLarge), (toSeq -> toVal)),
-    Seq((0 -> tsValLarge), (1 -> boolValSmall), (2 -> InnerVal.withStr("a", VERSION1)), (3 ->doubleValLarge), (toSeq -> toVal))
+    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("ac", VERSION1)),(toSeq -> toVal)),
+    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("ab", VERSION1)), (toSeq -> toVal)),
+    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2-> InnerVal.withStr("b", VERSION1)), (toSeq -> toVal)),
+    Seq((0 -> tsValSmall), (1 -> boolValLarge), (2 -> InnerVal.withStr("b", VERSION1)), (toSeq -> toVal)),
+    Seq((0 -> tsValLarge), (1 -> boolValSmall), (2 -> InnerVal.withStr("a", VERSION1)), (toSeq -> toVal))
   ).map(seq => seq.map(t => t._1.toByte -> t._2 ))
 
   val idxPropsLsV2 = Seq(
