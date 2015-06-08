@@ -87,7 +87,7 @@ trait TestCommon {
   }
   def testOrder(idxPropsLs: Seq[Seq[(Byte, InnerValLike)]], innerVals: Iterable[InnerValLike], useHash: Boolean = false)
                (createFunc: (Seq[(Byte, InnerValLike)], InnerValLike) => HBaseSerializable,
-                fromBytesFunc: Array[Byte] => HBaseDeserializable) = {
+                fromBytesFunc: Array[Byte] => HBaseSerializable) = {
     /** check if increasing target vertex id is ordered properly with same indexProps */
     val rets = for {
       idxProps <- idxPropsLs

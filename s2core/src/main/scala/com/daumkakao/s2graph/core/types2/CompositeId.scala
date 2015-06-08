@@ -17,14 +17,14 @@ object CompositeId {
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 isEdge: Boolean,
-                useHash: Boolean, ver: String = DEFAULTVER): CompositeId = {
+                useHash: Boolean, version: String = DEFAULTVER): CompositeId = {
 
     var pos = offset
     if (useHash) {
       // skip over murmur hash
       pos += GraphUtil.bytesForMurMurHash
     }
-    val innerId = InnerVal.fromBytes(bytes, pos, 0, ver)
+    val innerId = InnerVal.fromBytes(bytes, pos, 0, version)
     pos += innerId.bytes.length
     if (isEdge) {
       new CompositeId(defaultColId, innerId, true, useHash)
