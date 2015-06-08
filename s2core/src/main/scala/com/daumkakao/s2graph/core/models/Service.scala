@@ -2,6 +2,7 @@ package com.daumkakao.s2graph.core.models
 
 import HBaseModel._
 import com.daumkakao.s2graph.core.Management
+import com.daumkakao.s2graph.core.types2.InnerVal
 import play.api.Logger
 
 import scala.reflect.ClassTag
@@ -42,7 +43,8 @@ object Service {
   }
 }
 case class Service(kvsParam: Map[KEY, VAL]) extends HBaseModel[Service]("HService", kvsParam) {
-  override val columns = Seq("id", "serviceName", "cluster", "hbaseTableName", "preSplitSize", "hbaseTableTTL")
+  override val columns = Seq("id", "serviceName", "cluster", "hbaseTableName",
+    "preSplitSize", "hbaseTableTTL")
 
   val pk = Seq(("id", kvs("id")))
   val idxServiceName = Seq(("serviceName", kvs("serviceName")))
@@ -58,6 +60,7 @@ case class Service(kvsParam: Map[KEY, VAL]) extends HBaseModel[Service]("HServic
     )
   }
   validate(columns)
+//  val schemaVersion = kvs.get("schemaVersion").getOrElse(InnerVal.DEFAULT_VERSION).toString
 
   val id = Some(kvs("id").toString.toInt)
   val serviceName = kvs("serviceName").toString
@@ -69,6 +72,7 @@ case class Service(kvsParam: Map[KEY, VAL]) extends HBaseModel[Service]("HServic
     if (ttl < 0) None
     else Some(ttl)
   }
+
   lazy val toJson = kvs.toString
 }
 

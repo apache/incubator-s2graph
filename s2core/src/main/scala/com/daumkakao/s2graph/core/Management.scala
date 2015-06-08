@@ -56,16 +56,9 @@ object Management extends JSONParser {
                   props: Seq[(String, JsValue, String)],
                   consistencyLevel: String,
                   hTableName: Option[String],
-                  hTableTTL: Option[Int]): Label = {
+                  hTableTTL: Option[Int],
+                  schemaVersion: String = InnerVal.DEFAULT_VERSION): Label = {
 
-    //    val idxProps = for ((k, v, t) <- indexProps; innerVal <- jsValueToInnerVal(v, t)) yield (k, innerVal, t, true)
-    //    val metaProps = for ((k, v, t) <- props; innerVal <- jsValueToInnerVal(v, t)) yield (k, innerVal, t, false)
-
-    //    val indexPropsWithType =
-    //      for ((k, v) <- indexProps) yield {
-    //        val (innerVal, dataType) = toInnerVal(v)
-    //        (k, innerVal, dataType)
-    //      }
 
     val labelOpt = Label.findByName(label, useCache = false)
 
@@ -76,19 +69,20 @@ object Management extends JSONParser {
         Label.insertAll(label,
           srcServiceName, srcColumnName, srcColumnType,
           tgtServiceName, tgtColumnName, tgtColumnType,
-          isDirected, serviceName, indexProps, props, consistencyLevel, hTableName, hTableTTL)
+          isDirected, serviceName, indexProps, props, consistencyLevel, hTableName, hTableTTL, schemaVersion)
         Label.findByName(label, useCache = false).get
     }
   }
   def createVertex(serviceName: String,
                    columnName: String,
                    columnType: String,
-                   props: Seq[(String, JsValue, String)]) = {
+                   props: Seq[(String, JsValue, String)],
+                   schemaVersion: String = InnerVal.DEFAULT_VERSION) = {
     val serviceOpt = Service.findByName(serviceName)
     serviceOpt match {
       case None => throw new RuntimeException(s"create service $serviceName has not been created.")
       case Some(service) =>
-        val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
+        val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion)
         for {
           (propName, defaultValue, dataType) <- props
         } yield {
@@ -111,7 +105,7 @@ object Management extends JSONParser {
       label <- Label.findByName(labelStr)
     } yield {
         val labelOrderTypes =
-          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType, label.version)) yield {
+          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType, label.schemaVersion)) yield {
             val lblMeta = LabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
             lblMeta.seq
           }
@@ -125,7 +119,7 @@ object Management extends JSONParser {
       label <- Label.findByName(labelStr)
     } yield {
         val labelOrderTypes =
-          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType, label.version)) yield {
+          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType, label.schemaVersion)) yield {
 
             val lblMeta = LabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
             lblMeta.seq
@@ -144,11 +138,14 @@ object Management extends JSONParser {
     result.getOrElse(throw new RuntimeException(s"add property on label failed"))
   }
 
-  def addVertexProp(serviceName: String, columnName: String, columnType: String): ServiceColumn = {
+  def addVertexProp(serviceName: String,
+                    columnName: String,
+                    columnType: String,
+                    schemaVersion: String = InnerVal.DEFAULT_VERSION): ServiceColumn = {
     val result = for {
       service <- Service.findByName(serviceName, useCache = false)
     } yield {
-        ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
+        ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion)
       }
     result.getOrElse(throw new RuntimeException(s"add property on vertex failed"))
   }
@@ -180,8 +177,8 @@ object Management extends JSONParser {
 
     val label = tryOption(labelStr, getServiceLable)
 
-    val src = toInnerVal(srcId, label.srcColumnType, label.version)
-    val tgt = toInnerVal(tgtId, label.tgtColumnType, label.version)
+    val src = toInnerVal(srcId, label.srcColumnType, label.schemaVersion)
+    val tgt = toInnerVal(tgtId, label.tgtColumnType, label.schemaVersion)
 
     val srcVertex = Vertex(new CompositeId(label.srcColumn.id.get, src, true, true), ts)
     val tgtVertex = Vertex(new CompositeId(label.tgtColumn.id.get, tgt, true, true), ts)
@@ -192,7 +189,7 @@ object Management extends JSONParser {
     val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
     val parsedProps = toProps(label, jsObject).toMap
     val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValLikeWithTs(kv._2, ts))) ++
-      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.version), ts))
+      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.schemaVersion), ts))
     Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version = ts, propsWithTs = propsWithTs)
 
   }
@@ -204,7 +201,7 @@ object Management extends JSONParser {
         ServiceColumn.find(service.id.get, columnName) match {
           case None => throw new RuntimeException(s"$columnName is not exist. create service column first.")
           case Some(col) =>
-            val idVal = toInnerVal(id, col.columnType, col.version)
+            val idVal = toInnerVal(id, col.columnType, col.schemaVersion)
             val op = tryOption(operation, GraphUtil.toOp)
             val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
             val parsedProps = toProps(col, jsObject).toMap
@@ -219,7 +216,7 @@ object Management extends JSONParser {
     val props = for {
       (k, v) <- js.fields
       meta <- column.metasInvMap.get(k)
-      innerVal <- jsValueToInnerVal(v, meta.dataType, column.version)
+      innerVal <- jsValueToInnerVal(v, meta.dataType, column.schemaVersion)
     } yield {
         (meta.seq, innerVal)
       }
@@ -234,7 +231,7 @@ object Management extends JSONParser {
       meta <- label.metaPropsInvMap.get(k)
       //        meta <- LabelMeta.findByName(label.id.get, k)
       //      meta = tryOption((label.id.get, k), LabelMeta.findByName)
-      innerVal <- jsValueToInnerVal(v, meta.dataType, label.version)
+      innerVal <- jsValueToInnerVal(v, meta.dataType, label.schemaVersion)
     } yield {
         (meta.seq, innerVal)
       }

@@ -32,22 +32,27 @@ object EdgeQualifier extends HBaseDeserializable {
       }
       (props, tgtVertexId)
     }
-    EdgeQualifier(props, tgtVertexId, op)
+    EdgeQualifier(props, tgtVertexId, op, version)
   }
 }
 case class EdgeQualifier(props: Seq[(Byte, InnerValLike)],
                          tgtVertexId: CompositeId,
-                         op: Byte) extends HBaseSerializable {
+                         op: Byte,
+                         version: String) extends HBaseSerializable {
   import EdgeQualifier._
   import HBaseDeserializable._
   val innerTgtVertexId = tgtVertexId.updateUseHash(false)
   val propsMap = props.toMap
   val propsBytes = propsToBytes(props)
   val bytes: Array[Byte] = {
-    /** check if target vertex id is already included in indexProps. */
-    propsMap.get(toSeqByte) match {
-      case None => Bytes.add(propsBytes, innerTgtVertexId.bytes)
-      case Some(vId) => propsBytes
+    if (version == InnerVal.VERSION2) {
+      /** check if target vertex id is already included in indexProps. */
+      propsMap.get(toSeqByte) match {
+        case None => Bytes.add(propsBytes, innerTgtVertexId.bytes)
+        case Some(vId) => propsBytes
+      }
+    } else {
+      Bytes.add(propsBytes, innerTgtVertexId.bytes)
     }
   }
   def propsKVs(propsKeys: List[Byte]): List[(Byte, InnerValLike)] = {

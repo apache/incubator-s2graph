@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core.models
 
 import HBaseModel._
+import com.daumkakao.s2graph.core.types2.InnerVal
 import play.api.libs.json.Json
 
 /**
@@ -17,20 +18,24 @@ object ServiceColumn {
   def findsByServiceId(serviceId: Int, useCache: Boolean = true): List[ServiceColumn] = {
     HBaseModel.findsMatch[ServiceColumn](useCache)(Seq("serviceId" -> serviceId))
   }
-  def findOrInsert(serviceId: Int, columnName: String, columnType: Option[String]): ServiceColumn = {
+  def findOrInsert(serviceId: Int,
+                   columnName: String,
+                   columnType: Option[String],
+                   schemaVersion: String): ServiceColumn = {
     find(serviceId, columnName, useCache = false) match {
       case Some(s) => s
       case None =>
         val id = HBaseModel.getAndIncrSeq[ServiceColumn]
         val model = new ServiceColumn(Map("id" -> id, "serviceId" -> serviceId, "columnName" -> columnName,
-          "columnType" -> columnType.getOrElse("string")))
+          "columnType" -> columnType.getOrElse("string"),
+          "schemaVersion" -> schemaVersion))
         model.create
         model
     }
   }
 }
 case class ServiceColumn(kvsParam: Map[KEY, VAL]) extends HBaseModel[ServiceColumn]("HServiceColumn", kvsParam) {
-  override val columns = Seq("id", "serviceId", "columnName", "columnType")
+  override val columns = Seq("id", "serviceId", "columnName", "columnType", "schemaVersion")
   val pk = Seq(("id", kvs("id")))
   val idxServiceIdColumnName = Seq(("serviceId", kvs("serviceId")), ("columnName", kvs("columnName")))
   override val idxs = List(pk, idxServiceIdColumnName)
@@ -39,8 +44,9 @@ case class ServiceColumn(kvsParam: Map[KEY, VAL]) extends HBaseModel[ServiceColu
       HBaseModel.findsMatch[ColumnMeta](useCache = false)(Seq("columnId" -> kvs("id")))
     )
   }
-  validate(columns)
+  validate(columns, Seq("schemaVersion"))
 
+  val schemaVersion = kvs.get("schemaVersion").getOrElse(InnerVal.DEFAULT_VERSION).toString
   val id = Some(kvs("id").toString.toInt)
   val serviceId = kvs("serviceId").toString.toInt
   val columnName = kvs("columnName").toString
@@ -53,5 +59,4 @@ case class ServiceColumn(kvsParam: Map[KEY, VAL]) extends HBaseModel[ServiceColu
   lazy val metaNamesMap = (ColumnMeta.lastModifiedAtColumn :: metas).map(x => (x.seq, x.name)) toMap
   lazy val toJson = Json.obj("serviceName" -> service.serviceName, "columnName" -> columnName, "columnType" -> columnType)
 
-  lazy val version = "v1"
 }

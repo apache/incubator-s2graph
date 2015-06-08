@@ -25,12 +25,12 @@ case class Equal(val propKey: Byte, val value: InnerValLike) extends Clause {
     propKey match {
       case LabelMeta.from.seq => edge.srcVertex.innerId == value
       case LabelMeta.to.seq =>
-        val log = List(edge.tgtVertex.schemaVer,
-          edge.tgtVertex.innerId, " vs ", value,
-          edge.tgtVertex.innerId.bytes.toList,
-          value.bytes.toList
-        )
-        println(log.mkString("\t"), "\n")
+//        val log = List(edge.tgtVertex.schemaVer,
+//          edge.tgtVertex.innerId, " vs ", value,
+//          edge.tgtVertex.innerId.bytes.toList,
+//          value.bytes.toList
+//        )
+//        println(log.mkString("\t"), "\n")
         edge.tgtVertex.innerId == value
       case _ =>
         edge.props.get(propKey) match {
@@ -109,7 +109,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
-            Equal(metaProp.seq, toInnerVal(s, metaProp.dataType, label.version))
+            Equal(metaProp.seq, toInnerVal(s, metaProp.dataType, label.schemaVersion))
         }
     }
       | (ident ~ "between" ~ ident ~ "and" ~ ident |
@@ -119,7 +119,8 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
-            Between(metaProp.seq, toInnerVal(minV, metaProp.dataType, label.version), toInnerVal(maxV, metaProp.dataType, label.version))
+            Between(metaProp.seq, toInnerVal(minV, metaProp.dataType, label.schemaVersion),
+              toInnerVal(maxV, metaProp.dataType, label.schemaVersion))
         }
     }
       | (ident ~ "in" ~ "(" ~ rep(ident | decimalNumber | stringLiteralWithMinus | "true" | "false" | ",") ~ ")") ^^ {
@@ -128,7 +129,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
             val values = vals.filter(v => v != ",").map { v =>
-              toInnerVal(v, metaProp.dataType, label.version)
+              toInnerVal(v, metaProp.dataType, label.schemaVersion)
             }
             IN(metaProp.seq, values.toSet)
         }
@@ -138,7 +139,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
-            Not(Equal(metaProp.seq, toInnerVal(s, metaProp.dataType, label.version)))
+            Not(Equal(metaProp.seq, toInnerVal(s, metaProp.dataType, label.schemaVersion)))
         }
     }
       | (ident ~ "not in" ~ "(" ~ rep(ident | decimalNumber | stringLiteralWithMinus | "true" | "false" | ",") ~ ")") ^^ {
@@ -147,7 +148,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
             val values = vals.filter(v => v != ",").map { v =>
-              toInnerVal(v, metaProp.dataType, label.version)
+              toInnerVal(v, metaProp.dataType, label.schemaVersion)
             }
             Not(IN(metaProp.seq, values.toSet))
         }

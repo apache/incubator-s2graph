@@ -660,7 +660,7 @@ object Graph {
         //        val get = vertex.buildGetRequest()
         val get = vertex.buildGet
         defferedToFuture(client.get(get))(emptyKVs).map { kvs =>
-          Vertex(kvs, vertex.serviceColumn.version)
+          Vertex(kvs, vertex.serviceColumn.schemaVersion)
         }
         //          Logger.error(s"$get")
       }, { None })(singleGetTimeout)
@@ -746,7 +746,7 @@ object Graph {
     implicit val ex = executionContext
     val client = getClient(vertex.hbaseZkAddr)
     defferedToFuture(client.get(vertex.buildGet))(emptyKVs).map { kvs =>
-      Vertex(kvs, vertex.serviceColumn.version)
+      Vertex(kvs, vertex.serviceColumn.schemaVersion)
     }
   }
   /**

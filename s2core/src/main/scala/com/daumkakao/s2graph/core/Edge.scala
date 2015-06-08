@@ -71,7 +71,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
                          op: Byte,
                          ts: Long,
                          labelIndexSeq: Byte,
-                         props: Map[Byte, InnerValLike],schemaVersion: Option[String] = None) extends JSONParser {
+                         props: Map[Byte, InnerValLike]) extends JSONParser {
 
   //  assert(props.get(LabelMeta.timeStampSeq).isDefined)
 
@@ -81,7 +81,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
   import Edge._
 
   lazy val label = Label.findById(labelWithDir.labelId)
-  lazy val schemaVer = schemaVersion.getOrElse(label.version)
+  lazy val schemaVer = label.schemaVersion
   lazy val rowKey = EdgeRowKey(srcVertex.id, labelWithDir, labelIndexSeq, isInverted = false)
   lazy val labelIndex = LabelIndex.findByLabelIdAndSeq(labelWithDir.labelId, labelIndexSeq).get
   lazy val defaultIndexMetas = (labelIndex.sortKeyTypes.map { meta =>
@@ -114,7 +114,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
   }
   lazy val metas = for ((k, v) <- props if !defaultIndexMetas.containsKey(k)) yield (k -> v)
 
-  lazy val qualifier = EdgeQualifier(orders, tgtVertex.id, op)
+  lazy val qualifier = EdgeQualifier(orders, tgtVertex.id, op, label.schemaVersion)
   lazy val value = EdgeValue(metas.toList)
 
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
@@ -187,12 +187,17 @@ case class EdgeWithIndex(srcVertex: Vertex,
 /**
  *
  */
-case class Edge(srcVertex: Vertex, tgtVertex: Vertex, labelWithDir: LabelWithDirection, op: Byte,
-                ts: Long, version: Long, propsWithTs: Map[Byte, InnerValLikeWithTs], schemaVersion: Option[String] = None) extends GraphElement with JSONParser {
-  println("!!!", srcVertex.schemaVer, tgtVertex.schemaVer)
+case class Edge(srcVertex: Vertex,
+                tgtVertex: Vertex,
+                labelWithDir: LabelWithDirection,
+                op: Byte,
+                ts: Long,
+                version: Long,
+                propsWithTs: Map[Byte, InnerValLikeWithTs]) extends GraphElement with JSONParser {
+
   val logger = Edge.logger
   implicit val ex = Graph.executionContext
-  lazy val schemaVer = schemaVersion.getOrElse(label.version)
+  lazy val schemaVer = label.schemaVersion
   lazy val props =
       if (op == GraphUtil.operations("delete")) Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, schemaVer))
       else for ((k, v) <- propsWithTs) yield (k -> v.innerVal)
@@ -780,15 +785,15 @@ object Edge extends JSONParser {
     //    Logger.debug(s"$kv")
     val version = kv.timestamp()
     val keyBytes = kv.key()
-    val rowKey = EdgeRowKey.fromBytes(keyBytes, 0, keyBytes.length, param.label.version)
+    val rowKey = EdgeRowKey.fromBytes(keyBytes, 0, keyBytes.length, param.label.schemaVersion)
     val srcVertexId = rowKey.srcVertexId
     var isDegree = false
     val (tgtVertexId, props, op, ts) = rowKey.isInverted match {
       case true =>
         val qBytes = kv.qualifier()
         val vBytes = kv.value()
-        val qualifier = EdgeQualifierInverted.fromBytes(qBytes, 0, qBytes.length, param.label.version)
-        val value = EdgeValueInverted.fromBytes(vBytes, 0, vBytes.length, param.label.version)
+        val qualifier = EdgeQualifierInverted.fromBytes(qBytes, 0, qBytes.length, param.label.schemaVersion)
+        val value = EdgeValueInverted.fromBytes(vBytes, 0, vBytes.length, param.label.schemaVersion)
         val kvsMap = value.props.toMap
         val ts = kvsMap.get(LabelMeta.timeStampSeq) match {
           case None => version
@@ -804,12 +809,12 @@ object Edge extends JSONParser {
           val degree = Bytes.toLong(kv.value())
           // dirty hack
           val ts = kv.timestamp()
-          val dummyProps = Map(LabelMeta.degreeSeq -> InnerValLikeWithTs.withLong(degree, ts, param.label.version))
+          val dummyProps = Map(LabelMeta.degreeSeq -> InnerValLikeWithTs.withLong(degree, ts, param.label.schemaVersion))
           (rowKey.srcVertexId, dummyProps, GraphUtil.operations("insert"), ts)
         } else {
           /** edge */
-          val qualifier = EdgeQualifier.fromBytes(kvQual, 0, kvQual.length, param.label.version)
-          val value = EdgeValue.fromBytes(vBytes, 0, vBytes.length, param.label.version)
+          val qualifier = EdgeQualifier.fromBytes(kvQual, 0, kvQual.length, param.label.schemaVersion)
+          val value = EdgeValue.fromBytes(vBytes, 0, vBytes.length, param.label.schemaVersion)
 
           val index = param.label.indicesMap.get(rowKey.labelOrderSeq).getOrElse(
             throw new RuntimeException(s"can`t find index sequence for $rowKey ${param.label}"))
@@ -837,7 +842,7 @@ object Edge extends JSONParser {
         props.get(meta.seq) match {
           case Some(v) => (meta.seq -> v)
           case None =>
-            val defaultInnerVal = toInnerVal(meta.defaultValue, meta.dataType, param.label.version)
+            val defaultInnerVal = toInnerVal(meta.defaultValue, meta.dataType, param.label.schemaVersion)
             (meta.seq -> InnerValLikeWithTs(defaultInnerVal, minTsVal))
         }
       }).toMap

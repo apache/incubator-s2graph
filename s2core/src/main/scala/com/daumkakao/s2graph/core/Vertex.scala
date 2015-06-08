@@ -20,13 +20,12 @@ import org.hbase.async.{DeleteRequest, HBaseRpc, PutRequest, GetRequest}
 case class Vertex(id: CompositeId,
                   ts: Long,
                   props: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike],
-                  op: Byte = 0,
-                  schemaVersion: Option[String] = None) extends GraphElement {
+                  op: Byte = 0) extends GraphElement {
 
   import GraphConstant._
 
   lazy val innerId = id.innerId
-  lazy val schemaVer = schemaVersion.getOrElse(serviceColumn.version)
+  lazy val schemaVer = serviceColumn.schemaVersion
   lazy val serviceColumn = ServiceColumn.findById(id.colId)
   lazy val service = Service.findById(serviceColumn.serviceId)
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, service.hTableName)

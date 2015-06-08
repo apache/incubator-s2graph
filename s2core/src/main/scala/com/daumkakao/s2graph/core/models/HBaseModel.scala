@@ -290,11 +290,11 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
 
   override def toString(): String = (kvs ++ Map("tableName" -> tableName)).toString
 
-  def validate(columns: Seq[String]): Unit = {
+  def validate(columns: Seq[String], optionalColumns: Seq[String] = Seq.empty[String]): Unit = {
     for (c <- columns) {
-      if (!kvs.contains(c)) {
-        Logger.error(s"$columns, $kvs")
-        throw new RuntimeException(s"$tableName expect ${columns.toList.sorted}, found ${kvs.toList.sortBy { kv => kv._1 }}")
+      if (!kvs.contains(c) && !optionalColumns.contains(c)) {
+//        Logger.error(s"$columns, $kvs")
+        throw new RuntimeException(s"$tableName expect ${columns.toList.sorted}, found ${kvs.toList.sortBy { kv => kv._1 }}, $c")
       }
     }
   }

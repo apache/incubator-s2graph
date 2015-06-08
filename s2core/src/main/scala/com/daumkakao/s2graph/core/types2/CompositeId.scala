@@ -18,6 +18,7 @@ object CompositeId {
                 offset: Int,
                 isEdge: Boolean,
                 useHash: Boolean, ver: String = DEFAULTVER): CompositeId = {
+
     var pos = offset
     if (useHash) {
       // skip over murmur hash
@@ -54,12 +55,11 @@ case class CompositeId(val colId: Int,
     }
   }
   lazy val bytesInUse = bytes.length
-  def updateIsEdge(otherIsEdge: Boolean) = new CompositeId(colId, innerId, otherIsEdge, useHash)
-  def updateUseHash(otherUseHash: Boolean) = new CompositeId(colId, innerId, isEdge, otherUseHash)
+  def updateIsEdge(otherIsEdge: Boolean) = CompositeId(colId, innerId, otherIsEdge, useHash)
+  def updateUseHash(otherUseHash: Boolean) = CompositeId(colId, innerId, isEdge, otherUseHash)
   override def equals(obj: Any) = {
     obj match {
       case other: CompositeId =>
-        println(s"$this, $other")
         if (isEdge == other.isEdge && useHash == other.useHash) {
           if (isEdge) {
             innerId == other.innerId

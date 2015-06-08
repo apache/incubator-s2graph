@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core.models
 
 import com.daumkakao.s2graph.core.models.HBaseModel.{KEY, VAL}
+import com.daumkakao.s2graph.core.types2.InnerVal
 import com.daumkakao.s2graph.core.{JSONParser, Management}
 import play.api.Logger
 import play.api.libs.json.{Json, JsValue}
@@ -47,7 +48,8 @@ object Label {
                 props: Seq[(String, JsValue, String)],
                 consistencyLevel: String,
                 hTableName: Option[String],
-                hTableTTL: Option[Int]) = {
+                hTableTTL: Option[Int],
+                schemaVersion: String) = {
     val srcServiceOpt = Service.findByName(srcServiceName, useCache = false)
     val tgtServiceOpt = Service.findByName(tgtServiceName, useCache = false)
     val serviceOpt = Service.findByName(serviceName, useCache = false)
@@ -63,10 +65,13 @@ object Label {
         val srcServiceId = srcService.id.get
         val tgtServiceId = tgtService.id.get
         val serviceId = service.id.get
-        val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType))
-        val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType))
+        /** insert serviceColumn */
+        val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType), schemaVersion)
+        val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType), schemaVersion)
+
+
+        /** create label */
         Label.findByName(labelName, useCache = false).getOrElse {
-          /** create label */
           val createdId = HBaseModel.getAndIncrSeq[Label]
           val label = Label(Map("id" -> createdId,
             "label" -> labelName, "srcServiceId" -> srcServiceId,
@@ -74,7 +79,8 @@ object Label {
             "tgtServiceId" -> tgtServiceId, "tgtColumnName" -> tgtColumnName, "tgtColumnType" -> tgtColumnType,
             "isDirected" -> isDirected, "serviceName" -> serviceName, "serviceId" -> serviceId,
             "consistencyLevel" -> consistencyLevel, "hTableName" -> hTableName.getOrElse("s2graph-dev"),
-            "hTableTTL" -> hTableTTL.getOrElse(-1)))
+            "hTableTTL" -> hTableTTL.getOrElse(-1),
+            "schemaVersion" -> schemaVersion))
           label.create
 
           /** create label metas */
@@ -109,7 +115,7 @@ object Label {
 case class Label(kvsParam: Map[KEY, VAL]) extends HBaseModel[Label]("HLabel", kvsParam) with JSONParser {
   override val columns = Seq("id", "label", "srcServiceId", "srcColumnName", "srcColumnType",
     "tgtServiceId", "tgtColumnName", "tgtColumnType", "isDirected", "serviceName", "serviceId",
-    "consistencyLevel", "hTableName", "hTableTTL")
+    "consistencyLevel", "hTableName", "hTableTTL", "schemaVersion")
 
   val pk = Seq(("id", kvs("id")))
   val idxLabel = Seq(("label", kvs("label")))
@@ -128,8 +134,9 @@ case class Label(kvsParam: Map[KEY, VAL]) extends HBaseModel[Label]("HLabel", kv
       HBaseModel.findsMatch[LabelMeta](useCache = false)(Seq("labelId" -> kvs("id")))
     )
   }
-  validate(columns)
+  validate(columns, Seq("schemaVersion"))
 
+  val schemaVersion = kvs.get("schemaVersion").getOrElse(InnerVal.DEFAULT_VERSION).toString
   val id = Some(kvs("id").toString.toInt)
   val label = kvs("label").toString
   val srcServiceId = kvs("srcServiceId").toString.toInt
@@ -153,11 +160,12 @@ case class Label(kvsParam: Map[KEY, VAL]) extends HBaseModel[Label]("HLabel", kv
   }
 
 
+  /** all properties belongs to this label */
   def metas = LabelMeta.findAllByLabelId(id.get)
+
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
 
   //  lazy val firstHBaseTableName = hbaseTableName.split(",").headOption.getOrElse(Config.HBASE_TABLE_NAME)
-  lazy val version = "v1"
   lazy val srcService = Service.findById(srcServiceId)
   lazy val tgtService = Service.findById(tgtServiceId)
   lazy val service = Service.findById(serviceId)
@@ -190,12 +198,12 @@ case class Label(kvsParam: Map[KEY, VAL]) extends HBaseModel[Label]("HLabel", kv
     indices
     metaProps
   }
-  def srcColumnInnerVal(jsValue: JsValue) = {
-    jsValueToInnerVal(jsValue, srcColumnType, version)
-  }
-  def tgtColumnInnerVal(jsValue: JsValue) = {
-    jsValueToInnerVal(jsValue, tgtColumnType, version)
-  }
+//  def srcColumnInnerVal(jsValue: JsValue) = {
+//    jsValueToInnerVal(jsValue, srcColumnType, schemaVersion)
+//  }
+//  def tgtColumnInnerVal(jsValue: JsValue) = {
+//    jsValueToInnerVal(jsValue, tgtColumnType, schemaVersion)
+//  }
 
   override def toString(): String = {
     val orderByKeys = LabelMeta.findAllByLabelId(id.get)
