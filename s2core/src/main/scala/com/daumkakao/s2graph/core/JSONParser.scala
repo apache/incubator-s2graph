@@ -12,7 +12,7 @@ trait JSONParser {
         case InnerVal.STRING => JsString(innerVal.value.toString)
         case InnerVal.BOOLEAN => JsBoolean(innerVal.value.asInstanceOf[Boolean])
         case t if InnerVal.NUMERICS.contains(t) =>
-          JsNumber(InnerVal.scaleNumber(innerVal.value.asInstanceOf[BigDecimal], dataType))
+          JsNumber(InnerVal.scaleNumber(BigDecimal(innerVal.toString), dataType))
         case _ =>
           throw new RuntimeException(s"innerVal $innerVal to JsValue with type $dataType")
       }
@@ -26,13 +26,18 @@ trait JSONParser {
     dataType match {
       case InnerVal.STRING => innerVal.toString
       case InnerVal.BOOLEAN => innerVal.toString
-      case t if InnerVal.NUMERICS.contains(t)  => innerVal.value.asInstanceOf[BigDecimal].bigDecimal.toPlainString
+      case t if InnerVal.NUMERICS.contains(t)  =>
+        BigDecimal(innerVal.toString).bigDecimal.toPlainString
       case _ =>  innerVal.toString
 //        throw new RuntimeException("innerVal to jsValue failed.")
     }
   }
 
-  def toInnerVal(s: String, dataType: String, version: String) = {
+  def toInnerVal(str: String, dataType: String, version: String) = {
+    //TODO:
+    val s =
+      if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
+      else str
     dataType match {
       case InnerVal.STRING => InnerVal.withStr(s, version)
       case t if InnerVal.NUMERICS.contains(t) => InnerVal.withNumber(BigDecimal(s), version)

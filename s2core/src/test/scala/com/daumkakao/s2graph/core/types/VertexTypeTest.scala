@@ -25,24 +25,18 @@ class VertexTypeTest extends FunSuite with Matchers with TestCommon {
     }
   }
 
-
-  test("test vertex row key order with int id type") {
-    for {
-      (serializer, deserializer, version) <- functions
-    } {
-      val idxProps = version match {
-        case VERSION2 => idxPropsLsV2
-        case VERSION1 => idxPropsLs
-        case _ => throw new RuntimeException("!!")
-      }
-      val innerVals = version match {
-        case VERSION2 => intValsV2
-        case VERSION1 => intVals
-        case _ => throw new RuntimeException("!!")
-      }
-      testOrder(idxProps, innerVals, useHash = true)(serializer, deserializer)
-    }
-
+  test("test vertex row key order with int id type version 1") {
+    val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
+      VertexRowKey(CompositeId(testColumnId, innerVal, isEdge = false, useHash = true))
+    val deserializer = (bytes: Array[Byte]) => VertexRowKey.fromBytes(bytes, 0, bytes.length, VERSION1)
+    testOrder(idxPropsLs, intVals, useHash = true)(serializer, deserializer)
   }
+  test("test vertex row key order with int id type version 2") {
+    val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
+      VertexRowKey(CompositeId(testColumnId, innerVal, isEdge = false, useHash = true))
+    val deserializer = (bytes: Array[Byte]) => VertexRowKey.fromBytes(bytes, 0, bytes.length, VERSION2)
+    testOrder(idxPropsLsV2, intValsV2, useHash = true)(serializer, deserializer)
+  }
+
 
 }

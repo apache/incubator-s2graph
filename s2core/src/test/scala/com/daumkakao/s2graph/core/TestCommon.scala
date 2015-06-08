@@ -63,12 +63,12 @@ trait TestCommon {
       (-128 to 128) ++ (Int.MaxValue - 10 until Int.MaxValue)
     vals.map { v => InnerVal.withNumber(BigDecimal(v), VERSION2) }
   }
-
+  /** version 1 string order is broken */
   val idxPropsLs = Seq(
-    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("a", VERSION1)), (3 -> doubleValSmall), (toSeq -> toVal)),
-    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("a", VERSION1)), (3 -> doubleValLarge), (toSeq -> toVal)),
+    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("ac", VERSION1)), (3 -> doubleValSmall), (toSeq -> toVal)),
+    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("ac", VERSION1)), (3 -> doubleValLarge), (toSeq -> toVal)),
     Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("ab", VERSION1)), (3 -> doubleValLarge), (toSeq -> toVal)),
-    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2-> InnerVal.withStr("b", VERSION1)), (3 ->doubleValLarge), (toSeq -> toVal)),
+    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2-> InnerVal.withStr("aa", VERSION1)), (3 ->doubleValLarge), (toSeq -> toVal)),
     Seq((0 -> tsValSmall), (1 -> boolValLarge), (2 -> InnerVal.withStr("a", VERSION1)), (3 ->doubleValLarge), (toSeq -> toVal)),
     Seq((0 -> tsValLarge), (1 -> boolValSmall), (2 -> InnerVal.withStr("a", VERSION1)), (3 ->doubleValLarge), (toSeq -> toVal))
   ).map(seq => seq.map(t => t._1.toByte -> t._2 ))
@@ -107,7 +107,8 @@ trait TestCommon {
             val prevBytes = if (useHash) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
             val currentBytes = if (useHash) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
             val (isSame, orderPreserved) = (current, decoded) match {
-              case (c: EdgeQualifier, d: EdgeQualifier) if (c.tgtVertexId == null | d.tgtVertexId == null) =>
+              case (c: EdgeQualifier, d: EdgeQualifier) if (idxProps.map(_._1).contains(toSeq)) =>
+                /** _to is used in indexProps */
                 (c.props.map(_._2) == d.props.map(_._2) && c.op == d.op, Bytes.compareTo(currentBytes, prevBytes) <= 0)
               case _ =>
                 (current == decoded, lessThan(currentBytes, prevBytes))
@@ -125,7 +126,7 @@ trait TestCommon {
   }
   def testOrderReverse(idxPropsLs: Seq[Seq[(Byte, InnerValLike)]], innerVals: Iterable[InnerValLike], useHash: Boolean = false)
                       (createFunc: (Seq[(Byte, InnerValLike)], InnerValLike) => HBaseSerializable,
-                       fromBytesFunc: Array[Byte] => HBaseDeserializable) = {
+                       fromBytesFunc: Array[Byte] => HBaseSerializable) = {
     /** check if increasing target vertex id is ordered properly with same indexProps */
     val rets = for {
       innerVal <- innerVals
@@ -145,7 +146,8 @@ trait TestCommon {
             val prevBytes = if (useHash) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
             val currentBytes = if (useHash) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
             val (isSame, orderPreserved) = (current, decoded) match {
-              case (c: EdgeQualifier, d: EdgeQualifier) if (c.tgtVertexId == null | d.tgtVertexId == null) =>
+              case (c: EdgeQualifier, d: EdgeQualifier) if (idxProps.map(_._1).contains(toSeq)) =>
+                /** _to is used in indexProps */
                 (c.props.map(_._2) == d.props.map(_._2) && c.op == d.op, Bytes.compareTo(currentBytes, prevBytes) <= 0)
               case _ =>
                 (current == decoded, lessThan(currentBytes, prevBytes))

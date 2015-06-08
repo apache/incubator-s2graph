@@ -41,18 +41,19 @@ case class EdgeQualifier(props: Seq[(Byte, InnerValLike)],
                          version: String) extends HBaseSerializable {
   import EdgeQualifier._
   import HBaseDeserializable._
-  val innerTgtVertexId = tgtVertexId.updateUseHash(false)
-  val propsMap = props.toMap
-  val propsBytes = propsToBytes(props)
-  val bytes: Array[Byte] = {
-    if (version == InnerVal.VERSION2) {
-      /** check if target vertex id is already included in indexProps. */
-      propsMap.get(toSeqByte) match {
-        case None => Bytes.add(propsBytes, innerTgtVertexId.bytes)
-        case Some(vId) => propsBytes
-      }
-    } else {
-      Bytes.add(propsBytes, innerTgtVertexId.bytes)
+  lazy val innerTgtVertexId = tgtVertexId.updateUseHash(false)
+  lazy val propsMap = props.toMap
+  lazy val propsBytes = propsToBytes(props)
+  lazy val bytes: Array[Byte] = {
+    version match {
+      case VERSION2 =>
+        propsMap.get(toSeqByte) match {
+          case None => Bytes.add(propsBytes, innerTgtVertexId.bytes)
+          case Some(vId) => propsBytes
+        }
+      case VERSION1 =>
+        Bytes.add(propsBytes, innerTgtVertexId.bytes, Array[Byte](op))
+      case _ => throw notSupportedEx(version)
     }
   }
   def propsKVs(propsKeys: List[Byte]): List[(Byte, InnerValLike)] = {
@@ -67,8 +68,17 @@ case class EdgeQualifier(props: Seq[(Byte, InnerValLike)],
     obj match {
       case other: EdgeQualifier =>
         props.map(_._2) == other.props.map(_._2) &&
-          tgtVertexId == other.tgtVertexId &&
-          op == other.op
+                tgtVertexId == other.tgtVertexId &&
+                op == other.op
+        /** version 2 do not store op byte. op byte always 0 */
+//        val comp = props.map(_._2) == other.props.map(_._2) &&
+//          tgtVertexId == other.tgtVertexId
+//        /** version 2 not store op bytes. op byte always 0 */
+//        version match {
+//          case VERSION2 => comp
+//          case VERSION1 => comp && op == other.op
+//          case _ => throw notSupportedEx(version)
+//        }
       case _ => false
     }
   }
