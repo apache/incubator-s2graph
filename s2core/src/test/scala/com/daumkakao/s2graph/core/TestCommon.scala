@@ -167,7 +167,10 @@ trait TestCommon {
   }
 
 
-  def putToKeyValue(put: PutRequest) = {
-    new KeyValue(put.key(), put.family(), put.qualifier(), put.timestamp(), put.value())
+  def putToKeyValues(put: PutRequest) = {
+    val ts = put.timestamp()
+    for ((q, v) <- put.qualifiers().zip(put.values)) yield {
+      new KeyValue(put.key(), put.family(), q, ts, v)
+    }
   }
 }
