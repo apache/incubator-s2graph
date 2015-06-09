@@ -572,11 +572,6 @@ object Edge extends JSONParser {
             newValWithTs
           }
           Some(k -> v)
-        //          if (v.ts > lastDeletedAt) Some(k -> v)
-        //          else {
-        //            shouldReplace = true
-        //            None
-        //          }
 
         case None =>
           assert(oldValWithTs.ts >= lastDeletedAt)

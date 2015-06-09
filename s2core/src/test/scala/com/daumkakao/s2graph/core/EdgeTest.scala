@@ -13,6 +13,9 @@ import scala.collection.mutable.ListBuffer
  */
 class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWithModels {
 
+
+  import InnerVal.{VERSION1, VERSION2}
+
   val srcVertex = Vertex(CompositeId(column.id.get, intInnerVals.head, isEdge = true, useHash = true), ts)
   val srcVertexV2 = Vertex(CompositeId(columnV2.id.get, intInnerValsV2.head, isEdge = true, useHash = true), ts)
 
@@ -30,75 +33,14 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     }
   }
 
-  //  test("insert for edgesWithIndex version 1") {
-  //    val rets = for {
-  //      edgeForSameTgtVertex <- testEdges
-  //    } yield {
-  //        val head = edgeForSameTgtVertex.head
-  //        val start = head
-  //        var prev = head
-  //        val rets = for {
-  //          edge <- edgeForSameTgtVertex.tail
-  //        } yield {
-  //            val rets = for {
-  //              edgeWithIndex <- edge.edgesWithIndex
-  //            } yield {
-  //                val prevPuts = prev.edgesWithIndex.flatMap { prevEdgeWithIndex =>
-  //                  prevEdgeWithIndex.buildPutsAsync().map { rpc => rpc.asInstanceOf[PutRequest] }
-  //                }
-  //                val puts = edgeWithIndex.buildPutsAsync().map { rpc =>
-  //                  rpc.asInstanceOf[PutRequest]
-  //                }
-  //                val comps = for {
-  //                  put <- puts
-  //                  prevPut <- prevPuts
-  //                } yield largerThan(put.qualifier(), prevPut.qualifier())
-  //
-  //                val rets = for {
-  //                  put <- puts
-  //                  decodedEdge <- Edge.toEdge(putToKeyValue(put), queryParam)
-  //                } yield edge == decodedEdge
-  //
-  //                rets.forall(x => x) && comps.forall(x => x)
-  //              }
-  //
-  //            prev = edge
-  //            rets.forall(x => x)
-  //          }
-  //        rets.forall(x => x)
-  //      }
-  //  }
-  //
-  //  test("insert for edgeWithInvertedIndex") {
-  //    val rets = for {
-  //      edgeForSameTgtVertex <- testEdges
-  //    } yield {
-  //        val head = edgeForSameTgtVertex.head
-  //        val start = head
-  //        var prev = head
-  //        val rets = for {
-  //          edge <- edgeForSameTgtVertex.tail
-  //        } yield {
-  //            val ret = {
-  //              val edgeWithInvertedIndex = edge.edgesWithInvertedIndex
-  //              val prevPut = prev.edgesWithInvertedIndex.buildPutAsync()
-  //              val put = edgeWithInvertedIndex.buildPutAsync()
-  //              val comp = largerThan(put.qualifier(), prevPut.qualifier())
-  //              val decodedEdge = Edge.toEdge(putToKeyValue(put), queryParam)
-  //              comp && decodedEdge == edge
-  //            }
-  //            ret
-  //          }
-  //        rets.forall(x => x)
-  //      }
-  //  }
-  import InnerVal.{VERSION1, VERSION2}
   def testPropsUpdate(oldProps: Map[Byte, InnerValLikeWithTs],
                       newProps: Map[Byte, InnerValLikeWithTs],
                       expected: Map[Byte, Any],
                       expectedShouldUpdate: Boolean)
                      (f: PropsPairWithTs => (Map[Byte, InnerValLikeWithTs], Boolean))(version: String) = {
-    val (updated, shouldUpdate) = f((oldProps, newProps, ts + 1, version))
+
+    val timestamp = newProps.toList.head._2.ts
+    val (updated, shouldUpdate) = f((oldProps, newProps, timestamp, version))
     val rets = for {
       (k, v) <- expected
     } yield {
@@ -113,24 +55,98 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
           case _ => throw new RuntimeException(s"not supported keyword: $v")
         }
       }
-
+    println(rets)
     rets.forall(x => x) && shouldUpdate == expectedShouldUpdate
   }
 
+  test("insert for edgesWithIndex version 2") {
+    val rets = for {
+      edgeForSameTgtVertex <- testEdgesV2
+    } yield {
+        val head = edgeForSameTgtVertex.head
+        val start = head
+        var prev = head
+        val rets = for {
+          edge <- edgeForSameTgtVertex.tail
+        } yield {
+            val rets = for {
+              edgeWithIndex <- edge.edgesWithIndex
+            } yield {
+                /** build PutRequest then deserialize from KeyValue to Edge */
+                val prevPuts = prev.edgesWithIndex.flatMap { prevEdgeWithIndex =>
+                  prevEdgeWithIndex.buildPutsAsync().map { rpc => rpc.asInstanceOf[PutRequest] }
+                }
+                val puts = edgeWithIndex.buildPutsAsync().map { rpc =>
+                  rpc.asInstanceOf[PutRequest]
+                }
+                val comps = for {
+                  put <- puts
+                  prevPut <- prevPuts
+                } yield largerThan(put.qualifier(), prevPut.qualifier())
+
+                val rets = for {
+                  put <- puts
+                  kv <- putToKeyValues(put)
+                  decodedEdge <- Edge.toEdge(kv, queryParamV2)
+                } yield edge == decodedEdge
+
+                rets.forall(x => x) && comps.forall(x => x)
+              }
+
+            prev = edge
+            rets.forall(x => x)
+          }
+        rets.forall(x => x)
+      }
+  }
+
+  test("insert for edgeWithInvertedIndex version 2") {
+    val rets = for {
+      edgeForSameTgtVertex <- testEdgesV2
+    } yield {
+        val head = edgeForSameTgtVertex.head
+        val start = head
+        var prev = head
+        val rets = for {
+          edge <- edgeForSameTgtVertex.tail
+        } yield {
+            val ret = {
+              val edgeWithInvertedIndex = edge.edgesWithInvertedIndex
+              val prevPut = prev.edgesWithInvertedIndex.buildPutAsync()
+              val put = edgeWithInvertedIndex.buildPutAsync()
+              val comp = largerThan(put.qualifier(), prevPut.qualifier())
+              val serDeComp = for {
+                kv <- putToKeyValues(put)
+                decodedEdge <- Edge.toEdge(kv, queryParamV2)
+              } yield {
+                decodedEdge == edge
+              }
+              comp && serDeComp.forall(x => x)
+            }
+            ret
+          }
+        rets.forall(x => x)
+      }
+  }
+
+
+
+
   //  /** test cases for each operation */
-  def oldProps(version: String) = {
+
+  def oldProps(timestamp: Long, version: String) = {
     Map(
-      LabelMeta.lastDeletedAt -> InnerValLikeWithTs.withLong(ts - 2, ts - 2, version),
-      1.toByte -> InnerValLikeWithTs.withLong(0L, ts, version),
-      2.toByte -> InnerValLikeWithTs.withLong(1L, ts - 1, version),
-      4.toByte -> InnerValLikeWithTs.withStr("old", ts - 1, version)
+      LabelMeta.lastDeletedAt -> InnerValLikeWithTs.withLong(timestamp - 2, timestamp - 2, version),
+      1.toByte -> InnerValLikeWithTs.withLong(0L, timestamp, version),
+      2.toByte -> InnerValLikeWithTs.withLong(1L, timestamp - 1, version),
+      4.toByte -> InnerValLikeWithTs.withStr("old", timestamp - 1, version)
     )
   }
 
-  def newProps(version: String) = {
+  def newProps(timestamp: Long, version: String) = {
     Map(
-      2.toByte -> InnerValLikeWithTs.withLong(-10L, ts + 1, version),
-      3.toByte -> InnerValLikeWithTs.withLong(20L, ts + 1, version)
+      2.toByte -> InnerValLikeWithTs.withLong(-10L, timestamp, version),
+      3.toByte -> InnerValLikeWithTs.withLong(20L, timestamp, version)
     )
   }
 
@@ -138,22 +154,37 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     LabelMeta.lastDeletedAt -> InnerValLikeWithTs.withLong(timestamp, timestamp, version)
   )
 
+  /** upsert */
   test("Edge.buildUpsert") {
     val shouldUpdate = true
-    val oldState = oldProps(VERSION2)
-    val newState = newProps(VERSION2)
+    val oldState = oldProps(ts, VERSION2)
+    val newState = newProps(ts + 1, VERSION2)
     val expected = Map(
       LabelMeta.lastDeletedAt -> "left",
       1.toByte -> "none",
       2.toByte -> "right",
       3.toByte -> "right",
       4.toByte -> "none")
-     testPropsUpdate(oldState, newState, expected, shouldUpdate)(Edge.buildUpsert)(VERSION2) shouldBe true
+    testPropsUpdate(oldState, newState, expected, shouldUpdate)(Edge.buildUpsert)(VERSION2) shouldBe true
   }
+  test("Edge.buildUpsert shouldUpdate false") {
+    val shouldUpdate = false
+    val oldState = oldProps(ts, VERSION2)
+    val newState = newProps(ts - 10, VERSION2)
+    val expected = Map(
+      LabelMeta.lastDeletedAt -> "left",
+      1.toByte -> "left",
+      2.toByte -> "left",
+      3.toByte -> "none",
+      4.toByte -> "left")
+    testPropsUpdate(oldState, newState, expected, shouldUpdate)(Edge.buildUpsert)(VERSION2) shouldBe true
+  }
+
+  /** update */
   test("Edge.buildUpdate") {
     val shouldUpdate = true
-    val oldState = oldProps(VERSION2)
-    val newState = newProps(VERSION2)
+    val oldState = oldProps(ts, VERSION2)
+    val newState = newProps(ts + 1, VERSION2)
     val expected = Map(
       LabelMeta.lastDeletedAt -> "left",
       1.toByte -> "left",
@@ -161,11 +192,26 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
       3.toByte -> "right",
       4.toByte -> "left"
     )
-     testPropsUpdate(oldState, newState, expected, shouldUpdate)(Edge.buildUpdate)(VERSION2) shouldBe true
+    testPropsUpdate(oldState, newState, expected, shouldUpdate)(Edge.buildUpdate)(VERSION2) shouldBe true
   }
+  test("Edge.buildUpdate shouldUpdate false") {
+    val shouldUpdate = false
+    val oldState = oldProps(ts, VERSION2)
+    val newState = newProps(ts - 10, VERSION2)
+    val expected = Map(
+      LabelMeta.lastDeletedAt -> "left",
+      1.toByte -> "left",
+      2.toByte -> "left",
+      3.toByte -> "none",
+      4.toByte -> "left"
+    )
+    testPropsUpdate(oldState, newState, expected, shouldUpdate)(Edge.buildUpdate)(VERSION2) shouldBe true
+  }
+
+  /** delete */
   test("Edge.buildDelete") {
     val shouldUpdate = true
-    val oldState = oldProps(VERSION2)
+    val oldState = oldProps(ts, VERSION2)
     val newState = deleteProps(ts + 1, VERSION2)
     val expected = Map(
       LabelMeta.lastDeletedAt -> "right",
@@ -175,10 +221,24 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     )
     testPropsUpdate(oldState, newState, expected, shouldUpdate)(Edge.buildDelete)(VERSION2) shouldBe true
   }
+  test("Edge.buildDelete shouldUpdate false") {
+    val shouldUpdate = false
+    val oldState = oldProps(ts, VERSION2)
+    val newState = deleteProps(ts - 10, VERSION2)
+    val expected = Map(
+      LabelMeta.lastDeletedAt -> "left",
+      1.toByte -> "left",
+      2.toByte -> "left",
+      4.toByte -> "left"
+    )
+    testPropsUpdate(oldState, newState, expected, shouldUpdate)(Edge.buildDelete)(VERSION2) shouldBe true
+  }
+
+  /** increment */
   test("Edge.buildIncrement") {
     val shouldUpdate = true
-    val oldState = oldProps(VERSION2).filterNot(kv => kv._1 == 4.toByte)
-    val newState = newProps(VERSION2)
+    val oldState = oldProps(ts, VERSION2).filterNot(kv => kv._1 == 4.toByte)
+    val newState = newProps(ts + 1, VERSION2)
     val expected = Map(
       LabelMeta.lastDeletedAt -> "left",
       1.toByte -> "left",
@@ -187,4 +247,16 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     )
     testPropsUpdate(oldState, newState, expected, shouldUpdate)(Edge.buildIncrement)(VERSION2) shouldBe true
   }
+  test("Edge.buildIncrement shouldRepalce false") {
+    val shouldUpdate = false
+    val oldState = oldProps(ts, VERSION2).filterNot(kv => kv._1 == 4.toByte)
+    val newState = newProps(ts - 10, VERSION2)
+    val expected = Map(
+      LabelMeta.lastDeletedAt -> "left",
+      1.toByte -> "left",
+      2.toByte -> "left"
+    )
+    testPropsUpdate(oldState, newState, expected, shouldUpdate)(Edge.buildIncrement)(VERSION2) shouldBe true
+  }
+
 }
