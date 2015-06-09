@@ -1,67 +1,73 @@
-//package com.daumkakao.s2graph.core
-//
-//import com.daumkakao.s2graph.core.Edge.PropsPairWithTs
-//import com.daumkakao.s2graph.core.models.LabelMeta
-//import com.daumkakao.s2graph.core.types.{InnerVal, InnerValWithTs, CompositeId}
-//import org.hbase.async.{AtomicIncrementRequest, PutRequest}
-//import org.scalatest.{BeforeAndAfter, Matchers, FunSuite}
-//
-//import scala.collection.mutable.ListBuffer
-//
-///**
-// * Created by shon on 5/29/15.
-// */
-//class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWithModels with BeforeAndAfter {
-//
-//  val srcVertex = Vertex(CompositeId(column.id.get, intVals.head, isEdge = true, useHash = true), ts)
-//
-//
-//  val testEdges = intVals.tail.map { intVal =>
-//    val tgtVertex = Vertex(CompositeId(column.id.get, intVal, isEdge = true, useHash = false), ts)
-//    idxPropsWithTsLs.map { idxProps =>
-//      Edge(srcVertex, tgtVertex, labelWithDir, op, ts, ts, idxProps.toMap)
-//    }
-//  }
-//
-//
-//  test("insert for edgesWithIndex") {
-//    val rets = for {
-//      edgeForSameTgtVertex <- testEdges
-//    } yield {
-//        val head = edgeForSameTgtVertex.head
-//        val start = head
-//        var prev = head
-//        val rets = for {
-//          edge <- edgeForSameTgtVertex.tail
-//        } yield {
-//            val rets = for {
-//              edgeWithIndex <- edge.edgesWithIndex
-//            } yield {
-//                val prevPuts = prev.edgesWithIndex.flatMap { prevEdgeWithIndex =>
-//                  prevEdgeWithIndex.buildPutsAsync().map { rpc => rpc.asInstanceOf[PutRequest] }
-//                }
-//                val puts = edgeWithIndex.buildPutsAsync().map { rpc =>
-//                  rpc.asInstanceOf[PutRequest]
-//                }
-//                val comps = for {
-//                  put <- puts
-//                  prevPut <- prevPuts
-//                } yield largerThan(put.qualifier(), prevPut.qualifier())
-//
-//                val rets = for {
-//                  put <- puts
-//                  decodedEdge <- Edge.toEdge(putToKeyValue(put), queryParam)
-//                } yield edge == decodedEdge
-//
-//                rets.forall(x => x) && comps.forall(x => x)
-//              }
-//
-//            prev = edge
-//            rets.forall(x => x)
-//          }
-//        rets.forall(x => x)
-//      }
-//  }
+package com.daumkakao.s2graph.core
+
+import com.daumkakao.s2graph.core.Edge.PropsPairWithTs
+import com.daumkakao.s2graph.core.models.LabelMeta
+import com.daumkakao.s2graph.core.types2.CompositeId
+import org.hbase.async.{AtomicIncrementRequest, PutRequest}
+import org.scalatest.{BeforeAndAfter, Matchers, FunSuite}
+
+import scala.collection.mutable.ListBuffer
+
+/**
+ * Created by shon on 5/29/15.
+ */
+class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWithModels {
+
+  val srcVertex = Vertex(CompositeId(column.id.get, intInnerVals.head, isEdge = true, useHash = true), ts)
+  val srcVertexV2 = Vertex(CompositeId(columnV2.id.get, intInnerValsV2.head, isEdge = true, useHash = true), ts)
+
+
+  val testEdges = intInnerVals.tail.map { intInnerVal =>
+    val tgtVertex = Vertex(CompositeId(column.id.get, intInnerVal, isEdge = true, useHash = false), ts)
+    idxPropsWithTsLs.map { idxProps =>
+      Edge(srcVertex, tgtVertex, labelWithDir, op, ts, ts, idxProps.toMap)
+    }
+  }
+  val testEdgesV2 = intInnerValsV2.tail.map { intInnerVal =>
+    val tgtVertex = Vertex(CompositeId(columnV2.id.get, intInnerVal, isEdge = true, useHash = false), ts)
+    idxPropsWithTsLsV2.map { idxProps =>
+      Edge(srcVertexV2, tgtVertex, labelWithDirV2, op, ts, ts, idxProps.toMap)
+    }
+  }
+
+  test("insert for edgesWithIndex version 1") {
+    val rets = for {
+      edgeForSameTgtVertex <- testEdges
+    } yield {
+        val head = edgeForSameTgtVertex.head
+        val start = head
+        var prev = head
+        val rets = for {
+          edge <- edgeForSameTgtVertex.tail
+        } yield {
+            val rets = for {
+              edgeWithIndex <- edge.edgesWithIndex
+            } yield {
+                val prevPuts = prev.edgesWithIndex.flatMap { prevEdgeWithIndex =>
+                  prevEdgeWithIndex.buildPutsAsync().map { rpc => rpc.asInstanceOf[PutRequest] }
+                }
+                val puts = edgeWithIndex.buildPutsAsync().map { rpc =>
+                  rpc.asInstanceOf[PutRequest]
+                }
+                val comps = for {
+                  put <- puts
+                  prevPut <- prevPuts
+                } yield largerThan(put.qualifier(), prevPut.qualifier())
+
+                val rets = for {
+                  put <- puts
+                  decodedEdge <- Edge.toEdge(putToKeyValue(put), queryParam)
+                } yield edge == decodedEdge
+
+                rets.forall(x => x) && comps.forall(x => x)
+              }
+
+            prev = edge
+            rets.forall(x => x)
+          }
+        rets.forall(x => x)
+      }
+  }
 //
 //  test("insert for edgeWithInvertedIndex") {
 //    val rets = for {
@@ -141,4 +147,4 @@
 //
 //    )
 //  }
-//}
+}

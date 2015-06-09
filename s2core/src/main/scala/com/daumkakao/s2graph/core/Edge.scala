@@ -32,14 +32,14 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
   lazy val lastModifiedAt = props.map(_._2.ts).max
 
   lazy val rowKey = EdgeRowKey(srcVertex.id, labelWithDir, LabelIndex.defaultSeq, isInverted = true)
-
   lazy val qualifier = EdgeQualifierInverted(tgtVertex.id)
+  lazy val value = EdgeValueInverted(op, props.toList)
 
   // only for toString.
   lazy val label = Label.findById(labelWithDir.labelId)
   lazy val propsWithoutTs = props.map(kv => (kv._1 -> kv._2.innerVal))
 
-  lazy val value = EdgeValueInverted(op, props.toList)
+
 
   def buildPut() = {
     val put = new Put(rowKey.bytes)
@@ -82,7 +82,6 @@ case class EdgeWithIndex(srcVertex: Vertex,
 
   lazy val label = Label.findById(labelWithDir.labelId)
   lazy val schemaVer = label.schemaVersion
-  lazy val rowKey = EdgeRowKey(srcVertex.id, labelWithDir, labelIndexSeq, isInverted = false)
   lazy val labelIndex = LabelIndex.findByLabelIdAndSeq(labelWithDir.labelId, labelIndexSeq).get
   lazy val defaultIndexMetas = (labelIndex.sortKeyTypes.map { meta =>
     val innerVal = toInnerVal(meta.defaultValue, meta.dataType, schemaVer)
@@ -112,8 +111,10 @@ case class EdgeWithIndex(srcVertex: Vertex,
       case Some(v) => (k -> v)
     }
   }
-  lazy val metas = for ((k, v) <- props if !defaultIndexMetas.containsKey(k)) yield (k -> v)
+  lazy val ordersKeyMap = orders.map(_._1).toSet
+  lazy val metas = for ((k, v) <- props if !ordersKeyMap.contains(k)) yield (k -> v)
 
+  lazy val rowKey = EdgeRowKey(srcVertex.id, labelWithDir, labelIndexSeq, isInverted = false)
   lazy val qualifier = EdgeQualifier(orders, tgtVertex.id, op, label.schemaVersion)
   lazy val value = EdgeValue(metas.toList)
 

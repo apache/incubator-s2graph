@@ -98,6 +98,9 @@ trait TestCommon {
   val idxPropsWithTsLs = idxPropsLs.map { idxProps =>
     idxProps.map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }
   }
+  val idxPropsWithTsLsV2 = idxPropsLsV2.map { idxProps =>
+    idxProps.map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }
+  }
   def testOrder(idxPropsLs: Seq[Seq[(Byte, InnerValLike)]], innerVals: Iterable[InnerValLike], useHash: Boolean = false)
                (createFunc: (Seq[(Byte, InnerValLike)], InnerValLike) => HBaseSerializable,
                 fromBytesFunc: Array[Byte] => HBaseSerializable) = {
