@@ -2,7 +2,8 @@ package com.daumkakao.s2graph.core
 
 //import com.daumkakao.s2graph.core.mysqls.{Label}
 //import com.daumkakao.s2graph.core.HBaseElement.{ EdgeQualifierInverted, EdgeRowKey, CompositeId, LabelWithDirection}
-import com.daumkakao.s2graph.core.models.{HBaseModel, Label}
+//import com.daumkakao.s2graph.core.models.{HBaseModel, Label}
+import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types2.{CompositeId, EdgeQualifierInverted, LabelWithDirection, EdgeRowKey}
 
 //import com.daumkakao.s2graph.core.types.EdgeType.{EdgeQualifierInverted, EdgeRowKey}
@@ -108,7 +109,8 @@ object Graph {
     this.config = config
     val (hbaseConfig, conn) = GraphConnection.apply(config)
     this.hbaseConfig = hbaseConfig
-    HBaseModel.apply(config)
+//    HBaseModel.apply(config)
+    Model.apply(config)
     this.executionContext = ex
     this.singleGetTimeout = getOrElse(config)("hbase.client.operation.timeout", 1000 millis)
     val zkQuorum = hbaseConfig.get("hbase.zookeeper.quorum")
@@ -293,7 +295,9 @@ object Graph {
       try {
         val client = getClient(zkQuorum)
         val futures = rpcs.map { rpc =>
+          Logger.debug(s"$rpc")
           //TODO: register errorBacks on this operations to log error
+          Logger.debug(s"$rpc")
           val deferred = rpc match {
             case d: DeleteRequest => client.delete(d)
             case p: PutRequest => client.put(p)
@@ -396,7 +400,7 @@ object Graph {
   def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: Label, dir: Int): Future[Iterable[Edge]] = {
     implicit val ex = this.executionContext
     val rowKey = EdgeRowKey(srcVertex.id, LabelWithDirection(label.id.get, dir), label.defaultIndex.get.seq, isInverted = true)
-
+    Logger.error(s"${rowKey.bytes.toList}")
     val qualifier = EdgeQualifierInverted(tgtVertex.id)
     val client = getClient(label.hbaseZkAddr)
     val getRequest = new GetRequest(label.hbaseTableName.getBytes(), rowKey.bytes, edgeCf, qualifier.bytes)
@@ -404,7 +408,10 @@ object Graph {
       for {
         kv <- kvs
         edge <- Edge.toEdge(kv, QueryParam(LabelWithDirection(label.id.get, dir.toByte)))
-      } yield edge
+      } yield {
+        Logger.debug(s"$edge")
+        edge
+      }
     }
   }
 
@@ -437,6 +444,7 @@ object Graph {
     get.setMaxAttempt(maxAttempt.toByte)
     get.setRpcTimeout(rpcTimeoutInMillis)
     if (columnRangeFilter != null) get.filter(columnRangeFilter)
+    Logger.debug(s"$get")
     get
   }
   def convertEdge(edge: Edge, labelOutputFields: Map[Int, Byte]): Option[Edge] = {

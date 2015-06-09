@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core.types2
 
 import org.apache.hadoop.hbase.util._
+import play.api.Logger
 
 import scala.reflect.ClassTag
 
@@ -149,6 +150,37 @@ object InnerVal extends HBaseDeserializable {
       case VERSION1 => v1.InnerVal.fromBytes(bytes, 0, bytes.length, version)
       case _ => throw notSupportedEx(version)
     }
+  }
+  /** nasty implementation for backward compatability */
+  def convertVersion(innerVal: InnerValLike, dataType: String, toVersion: String): InnerValLike = {
+    val ret = toVersion match {
+      case VERSION2 =>
+        if (innerVal.isInstanceOf[v1.InnerVal]) {
+          val obj = innerVal.asInstanceOf[v1.InnerVal]
+          obj.valueType match {
+            case "long" => InnerVal.withLong(obj.longV.get, toVersion)
+            case "string" => InnerVal.withStr(obj.strV.get, toVersion)
+            case "boolean" => InnerVal.withBoolean(obj.boolV.get, toVersion)
+            case _ => throw new Exception(s"InnerVal should be [long/integeer/short/byte/string/boolean]")
+          }
+        } else {
+          innerVal
+        }
+      case VERSION1 =>
+        if (innerVal.isInstanceOf[v2.InnerVal]) {
+          val obj = innerVal.asInstanceOf[v2.InnerVal]
+          obj.value match {
+            case str: String => InnerVal.withStr(str, toVersion)
+            case b: Boolean => InnerVal.withBoolean(b, toVersion)
+            case n: Any if NUMERICS.contains(n) => InnerVal.withNumber(BigDecimal(n.toString), toVersion)
+            case _ => throw notSupportedEx(toVersion)
+          }
+        } else {
+          innerVal
+        }
+      case _ => throw notSupportedEx(toVersion)
+    }
+    ret
   }
 
 }

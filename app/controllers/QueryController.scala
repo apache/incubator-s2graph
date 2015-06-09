@@ -2,12 +2,12 @@ package controllers
 
 
 import com.codahale.metrics.Meter
-import com.daumkakao.s2graph.core.types.CompositeId
 
-//import com.daumkakao.s2graph.core.HBaseElement._
-//import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models.{Label, Service}
+import com.daumkakao.s2graph.core.types2.CompositeId
+
+//import com.daumkakao.s2graph.core.models.{Label, Service}
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
 import play.api.Logger
 
@@ -173,10 +173,18 @@ object QueryController extends Controller  with RequestParser with Instrumented 
     try {
       val label = Label.findByName(labelName).get
       val dir = Management.tryOption(direction, GraphUtil.toDir)
-      val srcVertexId = toInnerVal(srcId, label.srcColumnType)
-      val tgtVertexId = toInnerVal(tgtId, label.tgtColumnType)
-      val src = Vertex(CompositeId(label.srcColumn.id.get, srcVertexId, true, true), System.currentTimeMillis())
-      val tgt = Vertex(CompositeId(label.tgtColumn.id.get, tgtVertexId, true, false), System.currentTimeMillis())
+
+      val srcVertexId = toInnerVal(srcId, label.srcColumnWithDir(dir).columnType, label.schemaVersion)
+      val tgtVertexId = toInnerVal(tgtId, label.tgtColumnWithDir(dir).columnType, label.schemaVersion)
+
+      val srcColId = label.srcColumnWithDir(dir).id.get
+      val tgtColId = label.tgtColumnWithDir(dir).id.get
+
+      val srcUseHash = if (dir == GraphUtil.directions("out")) true else false
+      val tgtUseHash = if (dir == GraphUtil.directions("out")) false else true
+
+      val src = Vertex(CompositeId(srcColId, srcVertexId, true, srcUseHash), System.currentTimeMillis())
+      val tgt = Vertex(CompositeId(tgtColId, tgtVertexId, true, tgtUseHash), System.currentTimeMillis())
       Graph.getEdge(src, tgt, label, dir).map { edges =>
         val ret = for {
           edge <- edges.headOption
@@ -188,7 +196,9 @@ object QueryController extends Controller  with RequestParser with Instrumented 
         ret.getOrElse(NotFound(s"NotFound\n").as(applicationJsonHeader))
       }
     } catch {
-      case e: Throwable => Future { BadRequest(e.toString()).as(applicationJsonHeader) }
+      case e: Throwable =>
+        Logger.error(s"$e", e)
+        Future.successful( BadRequest(e.toString()).as(applicationJsonHeader) )
     }
   }
   /**

@@ -3,7 +3,7 @@ package com.daumkakao.s2graph.core.mysqls
 /**
  * Created by shon on 6/3/15.
  */
-import com.daumkakao.s2graph.core.{JSONParser, Management}
+import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
 import play.api.Logger
 import play.api.libs.json.{ JsValue, Json }
 import scalikejdbc._
@@ -17,7 +17,7 @@ object Label extends Model[Label] {
       rs.int("src_service_id"), rs.string("src_column_name"), rs.string("src_column_type"),
       rs.int("tgt_service_id"), rs.string("tgt_column_name"), rs.string("tgt_column_type"),
       rs.boolean("is_directed"), rs.string("service_name"), rs.int("service_id"), rs.string("consistency_level"),
-      rs.string("hbase_table_name"), rs.intOpt("hbase_table_ttl"), rs.boolean("is_async"))
+      rs.string("hbase_table_name"), rs.intOpt("hbase_table_ttl"), rs.string("schema_version"), rs.boolean("is_async"))
   }
   def findByName(labelUseCache: (String, Boolean)): Option[Label] = {
     val (label, useCache) = labelUseCache
@@ -54,16 +54,18 @@ object Label extends Model[Label] {
              consistencyLevel: String,
              hTableName: String,
              hTableTTL: Option[Int],
+             schemaVersion: String,
              isAsync: Boolean) = {
     sql"""
     	insert into labels(label,
     src_service_id, src_column_name, src_column_type,
     tgt_service_id, tgt_column_name, tgt_column_type,
-    is_directed, service_name, service_id, consistency_level, hbase_table_name, hbase_table_ttl, is_async)
+    is_directed, service_name, service_id, consistency_level, hbase_table_name, hbase_table_ttl, schema_version, is_async)
     	values (${label},
     ${srcServiceId}, ${srcColumnName}, ${srcColumnType},
     ${tgtServiceId}, ${tgtColumnName}, ${tgtColumnType},
-    ${isDirected}, ${serviceName}, ${serviceId}, ${consistencyLevel}, ${hTableName}, ${hTableTTL}, ${isAsync})
+    ${isDirected}, ${serviceName}, ${serviceId}, ${consistencyLevel}, ${hTableName}, ${hTableTTL},
+      ${schemaVersion}, ${isAsync})
     """
       .updateAndReturnGeneratedKey.apply()
   }
@@ -97,91 +99,102 @@ object Label extends Model[Label] {
   def findByTgtServiceId(serviceId: Int): List[Label] = {
     sql"""select * from labels where tgt_service_id = ${serviceId}""".map { rs => Label(rs) }.list().apply
   }
-  def insertAll(label: String,
-                srcServiceId: Int,
-                srcColumnName: String,
-                srcColumnType: String,
-                tgtServiceId: Int,
-                tgtColumnName: String,
-                tgtColumnType: String,
-                isDirected: Boolean = true,
-                serviceName: String,
-                serviceId: Int,
-                props: Seq[(String, Any, String, Boolean)] = Seq.empty[(String, Any, String, Boolean)],
+  def insertAll(labelName: String, srcServiceName: String, srcColumnName: String, srcColumnType: String,
+                tgtServiceName: String, tgtColumnName: String, tgtColumnType: String,
+                isDirected: Boolean = true, serviceName: String,
+                idxProps: Seq[(String, JsValue, String)],
+                props: Seq[(String, JsValue, String)],
                 consistencyLevel: String,
                 hTableName: Option[String],
                 hTableTTL: Option[Int],
-                isAsync: Boolean) = {
+                schemaVersion: String) = {
 
     //    val ls = List(label, srcServiceId, srcColumnName, srcColumnType, tgtServiceId, tgtColumnName, tgtColumnType, isDirected
     //        , serviceName, serviceId, props.toString, consistencyLevel, hTableName)
     //    Logger.error(s"insertAll: $ls")
-    val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType))
-    val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType))
-    val service = Service.findById(serviceId)
+    val srcServiceOpt = Service.findByName(srcServiceName, useCache = false)
+    val tgtServiceOpt = Service.findByName(tgtServiceName, useCache = false)
+    val serviceOpt = Service.findByName(serviceName, useCache = false)
+    if (srcServiceOpt.isEmpty) throw new RuntimeException(s"source service $srcServiceName is not created.")
+    if (tgtServiceOpt.isEmpty) throw new RuntimeException(s"target service $tgtServiceName is not created.")
+    if (serviceOpt.isEmpty) throw new RuntimeException(s"service $serviceName is not created.")
     //    require(service.id.get == srcServiceId || service.id.get == tgtServiceId)
 
-    val createdId = insert(label, srcServiceId, srcColumnName, srcColumnType,
-      tgtServiceId, tgtColumnName, tgtColumnType, isDirected, serviceName, serviceId, consistencyLevel,
-      hTableName.getOrElse(service.hTableName), hTableTTL.orElse(service.hTableTTL), isAsync)
+    val newLabel = for {
+      srcService <-srcServiceOpt
+      tgtService <- tgtServiceOpt
+      service <- serviceOpt
+    } yield {
+        val srcServiceId = srcService.id.get
+        val tgtServiceId = tgtService.id.get
+        val serviceId = service.id.get
+        /** insert serviceColumn */
+        val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType), schemaVersion)
+        val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType), schemaVersion)
 
-    val labelMetas =
-      if (props.isEmpty) List(LabelMeta.timestamp)
-      else props.toList.map {
-        case (name, defaultVal, dataType, usedInIndex) =>
-          LabelMeta.findOrInsert(createdId.toInt, name, defaultVal.toString, dataType, usedInIndex)
+
+        /** create label */
+        Label.findByName(labelName, useCache = false).getOrElse {
+          val createdId = insert(labelName, srcServiceId, srcColumnName, srcColumnType,
+            tgtServiceId, tgtColumnName, tgtColumnType, isDirected, serviceName, serviceId, consistencyLevel,
+            hTableName.getOrElse(service.hTableName), hTableTTL.orElse(service.hTableTTL), schemaVersion, false)
+
+          /** create label metas */
+          val idxPropsMetas =
+            if (idxProps.isEmpty) List(LabelMeta.timestamp)
+            else idxProps.map { case (propName, defaultValue, dataType) =>
+              LabelMeta.findOrInsert(createdId.toInt, propName, defaultValue.toString, dataType)
+            }
+          val propsMetas = props.map { case (propName, defaultValue, dataType) =>
+            LabelMeta.findOrInsert(createdId.toInt, propName, defaultValue.toString, dataType)
+          }
+          /** insert default index(PK) of this label */
+          LabelIndex.findOrInsert(createdId.toInt, LabelIndex.defaultSeq,
+            idxPropsMetas.map(m => m.seq).toList, "none")
+
+          /** TODO: */
+          (hTableName, hTableTTL) match {
+            case (None, None) => // do nothing
+            case (None, Some(hbaseTableTTL)) => throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
+            case (Some(hbaseTableName), None) =>
+              // create own hbase table with default ttl on service level.
+              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, service.hTableTTL)
+            case (Some(hbaseTableName), Some(hbaseTableTTL)) =>
+              // create own hbase table with own ttl.
+              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL)
+          }
+        }
       }
-
-    //    Logger.error(s"$labelMetas")
-    val defaultIndexMetaSeqs = labelMetas.filter(_.usedInIndex).map(_.seq) match {
-      case metaSeqs => if (metaSeqs.isEmpty) List(LabelMeta.timestamp.seq) else metaSeqs
-    }
-    //    Logger.error(s"$defaultIndexMetaSeqs")
-    //    kgraph.Logger.debug(s"Label: $defaultIndexMetaSeqs")
-    /** deprecated */
-    // 0 is reserved labelOrderSeq for delete, update
-    //    LabelIndex.findOrInsert(createdId.toInt, 0, List(LabelMeta.timeStampSeq), "")
-    LabelIndex.findOrInsert(createdId.toInt, LabelIndex.defaultSeq, defaultIndexMetaSeqs, "")
-
-    /** TODO: */
-    (hTableName, hTableTTL) match {
-      case (None, None) => // do nothing
-      case (None, Some(hbaseTableTTL)) => throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
-      case (Some(hbaseTableName), None) =>
-        // create own hbase table with default ttl on service level.
-        Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, service.hTableTTL)
-      case (Some(hbaseTableName), Some(hbaseTableTTL)) =>
-        // create own hbase table with own ttl.
-        Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL)
-    }
+    newLabel.getOrElse(throw new RuntimeException("failed to create label"))
   }
 
-  def findOrInsert(label: String,
-                   srcServiceId: Int,
-                   srcColumnName: String,
-                   srcColumnType: String,
-                   tgtServiceId: Int,
-                   tgtColumnName: String,
-                   tgtColumnType: String,
-                   isDirected: Boolean = true,
-                   serviceName: String,
-                   serviceId: Int,
-                   props: Seq[(String, Any, String, Boolean)] = Seq.empty[(String, Any, String, Boolean)],
-                   consistencyLevel: String,
-                   hTableName: Option[String],
-                   hTableTTL: Option[Int],
-                   isAsync: Boolean): Label = {
-
-    findByName(label, false) match {
-      case Some(l) => l
-      case None =>
-        insertAll(label, srcServiceId, srcColumnName, srcColumnType, tgtServiceId, tgtColumnName,
-          tgtColumnType, isDirected, serviceName, serviceId, props, consistencyLevel, hTableName, hTableTTL, isAsync)
-        val cacheKey = s"label=$label"
-        expireCache(cacheKey)
-        findByName(label).get
-    }
-  }
+//
+//  def findOrInsert(label: String,
+//                   srcServiceId: Int,
+//                   srcColumnName: String,
+//                   srcColumnType: String,
+//                   tgtServiceId: Int,
+//                   tgtColumnName: String,
+//                   tgtColumnType: String,
+//                   isDirected: Boolean = true,
+//                   serviceName: String,
+//                   serviceId: Int,
+//                   props: Seq[(String, Any, String, Boolean)] = Seq.empty[(String, Any, String, Boolean)],
+//                   consistencyLevel: String,
+//                   hTableName: Option[String],
+//                   hTableTTL: Option[Int],
+//                   isAsync: Boolean): Label = {
+//
+//    findByName(label, false) match {
+//      case Some(l) => l
+//      case None =>
+//        insertAll(label, srcServiceId, srcColumnName, srcColumnType, tgtServiceId, tgtColumnName,
+//          tgtColumnType, isDirected, serviceName, serviceId, props, consistencyLevel, hTableName, hTableTTL, isAsync)
+//        val cacheKey = s"label=$label"
+//        expireCache(cacheKey)
+//        findByName(label).get
+//    }
+//  }
   def findAllLabels(): List[Label] = {
     val labels = sql"""
     	select 	*
@@ -248,7 +261,9 @@ object Label extends Model[Label] {
 case class Label(id: Option[Int], label: String,
                  srcServiceId: Int, srcColumnName: String, srcColumnType: String,
                  tgtServiceId: Int, tgtColumnName: String, tgtColumnType: String,
-                 isDirected: Boolean = true, serviceName: String, serviceId: Int, consistencyLevel: String = "strong", hTableName: String, hTableTTL: Option[Int], isAsync: Boolean = false) extends JSONParser {
+                 isDirected: Boolean = true, serviceName: String, serviceId: Int, consistencyLevel: String = "strong",
+                 hTableName: String, hTableTTL: Option[Int],
+                 schemaVersion: String, isAsync: Boolean = false) extends JSONParser {
 
   def metas = LabelMeta.findAllByLabelId(id.get)
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
@@ -257,7 +272,6 @@ case class Label(id: Option[Int], label: String,
   lazy val srcService = Service.findById(srcServiceId)
   lazy val tgtService = Service.findById(tgtServiceId)
   lazy val service = Service.findById(serviceId)
-  lazy val version = "v1"
   /**
    * TODO
    *  change this to apply hbase table from target serviceName
@@ -286,6 +300,12 @@ case class Label(id: Option[Int], label: String,
   lazy val metaPropNames = metaProps.map(x => x.name)
   lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
 
+  def srcColumnWithDir(dir: Int) = {
+    if (dir == GraphUtil.directions("out")) srcColumn else tgtColumn
+  }
+  def tgtColumnWithDir(dir: Int) = {
+    if (dir == GraphUtil.directions("out")) tgtColumn else srcColumn
+  }
   def init() = {
     metas
     metaSeqsToNames
@@ -296,12 +316,12 @@ case class Label(id: Option[Int], label: String,
     indices
     metaProps
   }
-  def srcColumnInnerVal(jsValue: JsValue) = {
-    jsValueToInnerVal(jsValue, srcColumnType, version)
-  }
-  def tgtColumnInnerVal(jsValue: JsValue) = {
-    jsValueToInnerVal(jsValue, tgtColumnType, version)
-  }
+//  def srcColumnInnerVal(jsValue: JsValue) = {
+//    jsValueToInnerVal(jsValue, srcColumnType, version)
+//  }
+//  def tgtColumnInnerVal(jsValue: JsValue) = {
+//    jsValueToInnerVal(jsValue, tgtColumnType, version)
+//  }
 
   override def toString(): String = {
     val orderByKeys = LabelMeta.findAllByLabelId(id.get)

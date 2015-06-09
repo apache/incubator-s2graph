@@ -1,8 +1,11 @@
 package com.daumkakao.s2graph.core
 
 //import com.daumkakao.s2graph.core.HBaseElement.{LabelWithDirection, InnerValWithTs, InnerVal, CompositeId}
-//import com.daumkakao.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
-import com.daumkakao.s2graph.core.models.{Label, LabelIndex, LabelMeta}
+import com.daumkakao.s2graph.core.mysqls._
+import play.api.Logger
+import play.api.libs.json.JsValue
+
+//import com.daumkakao.s2graph.core.models.{Label, LabelIndex, LabelMeta}
 import com.daumkakao.s2graph.core.parsers.Where
 import com.daumkakao.s2graph.core.types2._
 
@@ -30,17 +33,22 @@ object Query {
 case class Query(vertices: Seq[Vertex], steps: List[Step],
   unique: Boolean = true, removeCycle: Boolean = false) {
 
-  lazy val startEdgesWithScore = (for {
-    firstStep <- steps.headOption
-  } yield {
-    for (v <- vertices; qParam <- firstStep.queryParams) yield {
-      val ts = System.currentTimeMillis()
-      val srcVertex = Vertex(new CompositeId(v.id.colId, v.innerId, isEdge = true, useHash = true), ts)
-      (Edge(srcVertex, srcVertex,
-        qParam.labelWithDir, GraphUtil.operations("insert"), ts, ts,
-        Map.empty[Byte, InnerValLikeWithTs]), Query.initialScore)
-    }
-  }).getOrElse(List.empty[(Edge, Double)])
+//  lazy val startEdgesWithScore = (for {
+//    firstStep <- steps.headOption
+//  } yield {
+//    for (v <- vertices; qParam <- firstStep.queryParams) yield {
+//      val ts = System.currentTimeMillis()
+//      val srcVertex = Vertex(new CompositeId(v.id.colId, v.innerId, isEdge = true, useHash = true), ts)
+//      (Edge(srcVertex, srcVertex,
+//        qParam.labelWithDir, GraphUtil.operations("insert"), ts, ts,
+//        Map.empty[Byte, InnerValLikeWithTs]), Query.initialScore)
+//    }
+//  }).getOrElse(List.empty[(Edge, Double)])
+}
+case class Step(queryParams: List[QueryParam]) {
+  lazy val excludes = queryParams.filter(qp => qp.exclude)
+  lazy val includes = queryParams.filterNot(qp => qp.exclude)
+  lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 }
 case class VertexParam(vertices: Seq[Vertex]) {
   var filters: Option[Map[Byte, InnerValLike]] = None
@@ -236,15 +244,13 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
 
 
   def buildGetRequest(srcVertex: Vertex) = {
-    val rowKey = EdgeRowKey(srcVertex.id.updateUseHash(true), labelWithDir, labelOrderSeq, isInverted)
+    val id = InnerVal.convertVersion(srcVertex.innerId, srcVertex.serviceColumn.columnType, label.schemaVersion)
+    val compositeId =
+      CompositeId(srcVertex.id.colId, id, srcVertex.id.isEdge, true)
+    val rowKey = EdgeRowKey(compositeId, labelWithDir, labelOrderSeq, isInverted)
     val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
     val client = Graph.getClient(label.hbaseZkAddr)
     val filters = ListBuffer.empty[ScanFilter]
     Graph.singleGet(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, offset, limit, minTs, maxTs, maxAttempt, rpcTimeoutInMillis, columnRangeFilter)
   }
-}
-case class Step(queryParams: List[QueryParam]) {
-  lazy val excludes = queryParams.filter(qp => qp.exclude)
-  lazy val includes = queryParams.filterNot(qp => qp.exclude)
-  lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 }

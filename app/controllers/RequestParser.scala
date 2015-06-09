@@ -3,9 +3,11 @@ package controllers
 //import com.daumkakao.s2graph.core.HBaseElement._
 //import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models._
+//import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.parsers.WhereParser
-import com.daumkakao.s2graph.core.types.{CompositeId, LabelWithDirection, InnerVal}
+//import com.daumkakao.s2graph.core.types.{CompositeId, LabelWithDirection, InnerVal}
+import com.daumkakao.s2graph.core.types2._
 import play.api.Logger
 import play.api.libs.json._
 import com.daumkakao.s2graph.rest.config.Config
@@ -61,12 +63,12 @@ trait RequestParser extends JSONParser {
       for {
         (k, v) <- js.fields
         labelMeta <- LabelMeta.findByName(label.id.get, k)
-        value <- jsValueToInnerVal(v, labelMeta.dataType)
+        value <- jsValueToInnerVal(v, labelMeta.dataType, label.schemaVersion)
       } yield {
         (labelMeta.seq -> value)
       }
     }
-    ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerVal])
+    ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
 //  def hasOrWhere(label: HLabel, jsValue: JsValue): Set[InnerVal] = {
 //    for {
@@ -116,7 +118,8 @@ trait RequestParser extends JSONParser {
 
           for {
             idVal <- idVals
-            innerVal <- jsValueToInnerVal(idVal, col.columnType)
+            /** bug, need to use labels schemaVersion  */
+            innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
           } yield {
             Vertex(CompositeId(col.id.get, innerVal, isEdgeQuery, true), System.currentTimeMillis())
           }
@@ -130,8 +133,8 @@ trait RequestParser extends JSONParser {
           val queryParams =
             for {
               labelGroup <- step.as[List[JsValue]]
-              label <- parse[Option[String]](labelGroup, "label")
-              label <- Label.findByName(label)
+              labelName <- parse[Option[String]](labelGroup, "label")
+              label <- Label.findByName(labelName)
             } yield {
               val direction = parse[Option[String]](labelGroup, "direction").map(GraphUtil.toDirection(_)).getOrElse(0)
               val limit = {
@@ -267,9 +270,10 @@ trait RequestParser extends JSONParser {
     // expect new label don`t provide hTableName
     val hTableName = (jsValue \ "hTableName").asOpt[String]
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
+    val schemaVersion = (jsValue \ "schemaVersion").asOpt[String].getOrElse(InnerVal.DEFAULT_VERSION)
     val t = (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
-      idxProps, metaProps, consistencyLevel, hTableName, hTableTTL)
+      idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion)
     Logger.info(s"createLabel $t")
     t
   }

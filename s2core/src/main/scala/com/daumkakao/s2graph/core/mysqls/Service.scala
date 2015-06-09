@@ -20,11 +20,14 @@ object Service extends Model[Service] {
     val cacheKey = s"id=$id"
     withCache(cacheKey)(sql"""select * from services where id = ${id}""".map { rs => Service(rs) }.single.apply).get
   }
-  def findByName(serviceName: String): Option[Service] = {
+  def findByName(serviceName: String, useCache: Boolean = true): Option[Service] = {
     val cacheKey = s"serviceName=$serviceName"
-    withCache(cacheKey)(sql"""
+    val fetch = sql"""
         select * from services where service_name = ${serviceName}
-    """.map { rs => Service(rs) }.single.apply())
+    """.map { rs => Service(rs) }.single.apply()
+    if (useCache) {
+      withCache(cacheKey)(fetch)
+    } else fetch
   }
   def insert(serviceName: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]) = {
     Logger.info(s"$serviceName, $cluster, $hTableName, $preSplitSize, $hTableTTL")

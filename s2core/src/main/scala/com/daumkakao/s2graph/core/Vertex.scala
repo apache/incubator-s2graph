@@ -3,7 +3,8 @@ package com.daumkakao.s2graph.core
 //import com.daumkakao.s2graph.core.HBaseElement.{InnerVal, CompositeId}
 //import com.daumkakao.s2graph.core.mysqls.{ColumnMeta, ServiceColumn, Service}
 
-import com.daumkakao.s2graph.core.models.{ColumnMeta, ServiceColumn, Service}
+//import com.daumkakao.s2graph.core.models.{ColumnMeta, ServiceColumn, Service}
+import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types2._
 
 //import com.daumkakao.s2graph.core.types.VertexType.{VertexQualifier, VertexRowKey}

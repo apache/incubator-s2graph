@@ -26,20 +26,20 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
 
   /** reserved sequences */
   val from = LabelMeta(id = Some(fromSeq), labelId = fromSeq, name = "_from",
-    seq = fromSeq, defaultValue = fromSeq.toString, dataType = "long", usedInIndex = true)
+    seq = fromSeq, defaultValue = fromSeq.toString, dataType = "long")
   val to = LabelMeta(id = Some(toSeq), labelId = toSeq, name = "_to",
-    seq = toSeq, defaultValue = toSeq.toString, dataType = "long", usedInIndex = true)
+    seq = toSeq, defaultValue = toSeq.toString, dataType = "long")
   val timestamp = LabelMeta(id = Some(-1), labelId = -1, name = "_timestamp",
-    seq = timeStampSeq, defaultValue = "0", dataType = "long", usedInIndex = true)
+    seq = timeStampSeq, defaultValue = "0", dataType = "long")
   val degree = LabelMeta(id = Some(-1), labelId = -1, name = "_degree",
-    seq = degreeSeq, defaultValue = "0", dataType = "long", usedInIndex = true)
+    seq = degreeSeq, defaultValue = "0", dataType = "long")
 
   val reservedMetas = List(from, to, degree)
   val notExistSeqInDB = List(lastOpSeq, lastDeletedAt, countSeq, degree, timeStampSeq, from.seq, to.seq)
 
   def apply(rs: WrappedResultSet): LabelMeta = {
     LabelMeta(Some(rs.int("id")), rs.int("label_id"), rs.string("name"), rs.byte("seq"),
-      rs.string("default_value"), rs.string("data_type"), rs.boolean("used_in_index"))
+      rs.string("default_value"), rs.string("data_type"))
   }
 
   def findById(id: Int): LabelMeta = {
@@ -90,24 +90,24 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
     }
 
   }
-  def insert(labelId: Int, name: String, defaultValue: String, dataType: String, usedInIndex: Boolean) = {
+  def insert(labelId: Int, name: String, defaultValue: String, dataType: String) = {
     val ls = findAllByLabelId(labelId, false)
     //    val seq = LabelIndexProp.maxValue + ls.size + 1
     val seq = ls.size + 1
     if (seq < maxValue) {
-      sql"""insert into label_metas(label_id, name, seq, default_value, data_type, used_in_index)
-    select ${labelId}, ${name}, ${seq}, ${defaultValue}, ${dataType}, ${usedInIndex}"""
+      sql"""insert into label_metas(label_id, name, seq, default_value, data_type)
+    select ${labelId}, ${name}, ${seq}, ${defaultValue}, ${dataType}"""
         .updateAndReturnGeneratedKey.apply()
     }
   }
 
   def findOrInsert(labelId: Int, name: String,
-                   defaultValue: String, dataType: String, usedInIndex: Boolean): LabelMeta = {
+                   defaultValue: String, dataType: String): LabelMeta = {
     //    play.api.Logger.debug(s"findOrInsert: $labelId, $name")
     findByName(labelId, name) match {
       case Some(c) => c
       case None =>
-        insert(labelId, name, defaultValue, dataType, usedInIndex)
+        insert(labelId, name, defaultValue, dataType)
         val cacheKey = s"labelId=$labelId:name=$name"
         expireCache(cacheKey)
         findByName(labelId, name, false).get
@@ -124,7 +124,7 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
 
 }
 
-case class LabelMeta(id: Option[Int], labelId: Int, name: String, seq: Byte, defaultValue: String, dataType: String, usedInIndex: Boolean) extends JSONParser {
-  lazy val toJson = Json.obj("name" -> name, "defaultValue" -> defaultValue, "dataType" -> dataType, "usedInIndex" -> usedInIndex)
+case class LabelMeta(id: Option[Int], labelId: Int, name: String, seq: Byte, defaultValue: String, dataType: String) extends JSONParser {
+  lazy val toJson = Json.obj("name" -> name, "defaultValue" -> defaultValue, "dataType" -> dataType)
 
 }

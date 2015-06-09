@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.types2.{InnerValLike, InnerVal}
+import play.api.Logger
 import play.api.libs.json._
 
 
@@ -19,6 +20,7 @@ trait JSONParser {
       Some(jsValue)
     } catch {
       case e: Throwable =>
+        Logger.error(s"$e", e)
         None
     }
   }
@@ -35,6 +37,7 @@ trait JSONParser {
 
   def toInnerVal(str: String, dataType: String, version: String) = {
     //TODO:
+//    Logger.error(s"$str, $dataType, $version")
     val s =
       if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
       else str

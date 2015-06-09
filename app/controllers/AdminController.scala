@@ -1,7 +1,8 @@
 package controllers
 
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models._
+//import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.mysqls._
 import play.api.Logger
 import play.api.libs.json.{JsObject, JsValue, Json}
 import play.api.mvc.{Action, Controller}
@@ -42,10 +43,10 @@ object AdminController extends Controller with RequestParser {
     try {
       val (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected,
-      serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL) = toLabelElements(jsValue)
+      serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion) = toLabelElements(jsValue)
 
       Management.createLabel(labelName, srcServiceName, srcColumnName, srcColumnType,
-        tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL)
+        tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion)
       Ok("Created\n").as(QueryController.applicationJsonHeader)
     } catch {
       case e: Throwable =>

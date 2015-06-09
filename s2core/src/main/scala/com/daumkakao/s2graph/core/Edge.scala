@@ -3,7 +3,8 @@ package com.daumkakao.s2graph.core
 //import com.daumkakao.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 //import HBaseElement._
 
-import com.daumkakao.s2graph.core.models.{Label, LabelIndex, LabelMeta}
+//import com.daumkakao.s2graph.core.models.{Label, LabelIndex, LabelMeta}
+import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types2._
 
 //import com.daumkakao.s2graph.core.types.EdgeType._
@@ -778,7 +779,6 @@ object Edge extends JSONParser {
   def fromString(s: String): Option[Edge] = Graph.toEdge(s)
 
   def toEdge(kv: org.hbase.async.KeyValue, param: QueryParam): Option[Edge] = {
-    //    Logger.debug(s"$kv")
     val version = kv.timestamp()
     val keyBytes = kv.key()
     val rowKey = EdgeRowKey.fromBytes(keyBytes, 0, keyBytes.length, param.label.schemaVersion)
@@ -832,7 +832,7 @@ object Edge extends JSONParser {
     } else {
       val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
 
-      //    Logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
+          Logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
       val labelMetas = LabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
       val propsWithDefault = (for (meta <- labelMetas) yield {
         props.get(meta.seq) match {
@@ -850,10 +850,9 @@ object Edge extends JSONParser {
           (k, v) <- param.hasFilters
           edgeVal <- propsWithDefault.get(k) if edgeVal.innerVal == v
         } yield (k -> v)
-
       val ret = if (matches.size == param.hasFilters.size && param.where.map(_.filter(edge)).getOrElse(true)) {
         //      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-        //      Logger.debug(s"fetchedEdge: $edge")
+//              Logger.debug(s"fetchedEdge: $edge")
         Some(edge)
       } else {
         None

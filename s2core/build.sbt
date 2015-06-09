@@ -26,7 +26,8 @@ libraryDependencies ++= Seq(
   "commons-pool" % "commons-pool" % "1.6",
   "org.hbase" % "asynchbase" % "1.7.0-SNAPSHOT",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test",
-  "org.scalikejdbc" %% "scalikejdbc"        % "2.1.+"
+  "org.scalikejdbc" %% "scalikejdbc"        % "2.1.+",
+  "mysql" % "mysql-connector-java" % "5.1.28"
    )
 
 parallelExecution in Test := false
