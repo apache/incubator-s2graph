@@ -11,7 +11,7 @@ object EdgeRowKey extends HBaseDeserializable {
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = VERSION1): EdgeRowKey = {
+                version: String = VERSION2): EdgeRowKey = {
     var pos = offset
     val compositeId = SourceVertexId.fromBytes(bytes, pos, len, version)
     pos += compositeId.bytes.length

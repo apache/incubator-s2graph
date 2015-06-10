@@ -6,6 +6,7 @@ curl -XPOST localhost:9000/graphs/createService -H 'Content-Type: Application/js
 curl -XGET localhost:9000/graphs/getService/s2graph
 
 # create label.
+curl -XPUT localhost:9000/graphs/deleteLabel/graph_test
 curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json' -d '
 {
     "label": "graph_test",
