@@ -27,6 +27,17 @@ object HBaseDeserializable {
     for ((k, v) <- props) bytes = Bytes.add(bytes, Array.fill(1)(k), v.bytes)
     bytes
   }
+  def labelOrderSeqWithIsInverted(labelOrderSeq: Byte, isInverted: Boolean): Array[Byte] = {
+    assert(labelOrderSeq < (1 << 6))
+    val byte = labelOrderSeq << 1 | (if (isInverted) 1 else 0)
+    Array.fill(1)(byte.toByte)
+  }
+  def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte], offset: Int): (Byte, Boolean) = {
+    val byte = bytes(offset)
+    val isInverted = if ((byte & 1) != 0) true else false
+    val labelOrderSeq = byte >> 1
+    (labelOrderSeq.toByte, isInverted)
+  }
 }
 trait HBaseSerializable {
   val bytes: Array[Byte]

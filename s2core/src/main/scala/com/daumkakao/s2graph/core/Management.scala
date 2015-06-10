@@ -2,9 +2,12 @@ package com.daumkakao.s2graph.core
 
 
 //import com.daumkakao.s2graph.core.models._
+
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types2._
+
 //import com.daumkakao.s2graph.core.HBaseElement.{InnerVal, InnerValWithTs, CompositeId, LabelWithDirection}
+
 import play.api.libs.json._
 import org.apache.hadoop.hbase.client.{ConnectionFactory, HBaseAdmin, Durability}
 import org.apache.hadoop.hbase.HTableDescriptor
@@ -40,7 +43,7 @@ object Management extends JSONParser {
 
   def deleteService(serviceName: String) = {
     Service.findByName(serviceName).foreach { service =>
-//      service.deleteAll()
+      //      service.deleteAll()
     }
   }
 
@@ -74,6 +77,7 @@ object Management extends JSONParser {
         Label.findByName(label, useCache = false).get
     }
   }
+
   def createVertex(serviceName: String,
                    columnName: String,
                    columnType: String,
@@ -91,6 +95,7 @@ object Management extends JSONParser {
         }
     }
   }
+
   def findLabel(labelName: String): Option[Label] = {
     Label.findByName(labelName, useCache = false)
   }
@@ -177,13 +182,24 @@ object Management extends JSONParser {
              labelStr: String, direction: String = "", props: String): Edge = {
 
     val label = tryOption(labelStr, getServiceLable)
+    val dir =
+      if (direction == "") GraphUtil.toDirection(label.direction)
+      else GraphUtil.toDirection(direction)
 
-    val src = toInnerVal(srcId, label.srcColumnType, label.schemaVersion)
-    val tgt = toInnerVal(tgtId, label.tgtColumnType, label.schemaVersion)
+    val srcVertexId = toInnerVal(srcId, label.srcColumnWithDir(dir).columnType, label.schemaVersion)
+    val tgtVertexId = toInnerVal(tgtId, label.tgtColumnWithDir(dir).columnType, label.schemaVersion)
 
-    val srcVertex = Vertex(new CompositeId(label.srcColumn.id.get, src, true, true), ts)
-    val tgtVertex = Vertex(new CompositeId(label.tgtColumn.id.get, tgt, true, true), ts)
-    val dir = if (direction == "") GraphUtil.toDirection(label.direction) else GraphUtil.toDirection(direction)
+    val srcColId = label.srcColumnWithDir(dir).id.get
+    val tgtColId = label.tgtColumnWithDir(dir).id.get
+    val (srcVertex, tgtVertex) = if (dir == GraphUtil.directions("out")) {
+      (Vertex(VertexIdWithoutColId(srcColId, srcVertexId), System.currentTimeMillis()),
+        Vertex(VertexIdWithoutHashAndColId(tgtColId, tgtVertexId), System.currentTimeMillis()))
+    } else {
+      (Vertex(VertexIdWithoutColId(tgtColId, tgtVertexId), System.currentTimeMillis()),
+        Vertex(VertexIdWithoutHashAndColId(srcColId, srcVertexId), System.currentTimeMillis()))
+    }
+
+    //    val dir = if (direction == "") GraphUtil.toDirection(label.direction) else GraphUtil.toDirection(direction)
     val labelWithDir = LabelWithDirection(label.id.get, dir)
     val op = tryOption(operation, GraphUtil.toOp)
 
@@ -206,20 +222,19 @@ object Management extends JSONParser {
             val op = tryOption(operation, GraphUtil.toOp)
             val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
             val parsedProps = toProps(col, jsObject).toMap
-
-            Vertex(new CompositeId(col.id.get, idVal, isEdge = false, useHash = true), ts, parsedProps, op = op)
+            Vertex(new VertexId(col.id.get, idVal), ts, parsedProps, op = op)
         }
     }
   }
 
-  def toProps(column: ServiceColumn, js: JsObject): Seq[(Byte, InnerValLike)] = {
+  def toProps(column: ServiceColumn, js: JsObject): Seq[(Int, InnerValLike)] = {
 
     val props = for {
       (k, v) <- js.fields
       meta <- column.metasInvMap.get(k)
       innerVal <- jsValueToInnerVal(v, meta.dataType, column.schemaVersion)
     } yield {
-        (meta.seq, innerVal)
+        (meta.seq.toInt, innerVal)
       }
     props
 

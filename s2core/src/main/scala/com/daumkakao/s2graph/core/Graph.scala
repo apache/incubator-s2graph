@@ -4,7 +4,7 @@ package com.daumkakao.s2graph.core
 //import com.daumkakao.s2graph.core.HBaseElement.{ EdgeQualifierInverted, EdgeRowKey, CompositeId, LabelWithDirection}
 //import com.daumkakao.s2graph.core.models.{HBaseModel, Label}
 import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.types2.{CompositeId, EdgeQualifierInverted, LabelWithDirection, EdgeRowKey}
+import com.daumkakao.s2graph.core.types2.{VertexId, EdgeQualifierInverted, LabelWithDirection, EdgeRowKey}
 
 //import com.daumkakao.s2graph.core.types.EdgeType.{EdgeQualifierInverted, EdgeRowKey}
 //import com.daumkakao.s2graph.core.types.{CompositeId, LabelWithDirection}
@@ -399,11 +399,14 @@ object Graph {
 
   def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: Label, dir: Int): Future[Iterable[Edge]] = {
     implicit val ex = this.executionContext
-    val rowKey = EdgeRowKey(srcVertex.id, LabelWithDirection(label.id.get, dir), label.defaultIndex.get.seq, isInverted = true)
-    Logger.error(s"${rowKey.bytes.toList}")
-    val qualifier = EdgeQualifierInverted(tgtVertex.id)
+
+    val rowKey = EdgeRowKey.newInstance(srcVertex.id,
+      LabelWithDirection(label.id.get, dir), label.defaultIndex.get.seq, isInverted = true)(label.schemaVersion)
+
+    val qualifier = EdgeQualifierInverted.newInstance(tgtVertex.id)(label.schemaVersion)
     val client = getClient(label.hbaseZkAddr)
     val getRequest = new GetRequest(label.hbaseTableName.getBytes(), rowKey.bytes, edgeCf, qualifier.bytes)
+
     defferedToFuture(client.get(getRequest))(emptyKVs).map { kvs =>
       for {
         kv <- kvs
@@ -725,7 +728,7 @@ object Graph {
     }
     val step = Step(qParams)
     val q = Query(List(srcVertex), List(step), true)
-    val seen = new HashMap[(CompositeId, LabelWithDirection), Boolean]
+    val seen = new HashMap[(VertexId, LabelWithDirection), Boolean]
     for {
       edgesByVertex <- getEdgesAsync(q)
     } yield {

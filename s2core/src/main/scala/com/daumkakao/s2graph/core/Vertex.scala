@@ -18,9 +18,9 @@ import org.hbase.async.{DeleteRequest, HBaseRpc, PutRequest, GetRequest}
 
 /**
   */
-case class Vertex(id: CompositeId,
+case class Vertex(id: VertexId,
                   ts: Long,
-                  props: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike],
+                  props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
                   op: Byte = 0) extends GraphElement {
 
   import GraphConstant._
@@ -31,9 +31,10 @@ case class Vertex(id: CompositeId,
   lazy val service = Service.findById(serviceColumn.serviceId)
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, service.hTableName)
 
-  lazy val rowKey = VertexRowKey(id)
-  lazy val defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq -> InnerVal.withLong(ts, schemaVer))
-  lazy val qualifiersWithValues = for ((k, v) <- props ++ defaultProps) yield (VertexQualifier(k), v)
+  lazy val rowKey = VertexRowKey.newInstance(id)(schemaVer)
+  lazy val defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq.toInt -> InnerVal.withLong(ts, schemaVer))
+  lazy val qualifiersWithValues =
+    for ((k, v) <- props ++ defaultProps) yield (VertexQualifier.newInstance(k)(schemaVer), v)
 
   /** TODO: make this as configurable */
   override lazy val serviceName = service.serviceName
@@ -43,7 +44,7 @@ case class Vertex(id: CompositeId,
 
   lazy val propsWithName = for {
     (seq, v) <- props
-    meta <- ColumnMeta.findByIdAndSeq(id.colId, seq)
+    meta <- ColumnMeta.findByIdAndSeq(id.colId, seq.toByte)
   } yield (meta.name -> v.toString)
 
   def buildPuts(): List[Put] = {
@@ -100,11 +101,11 @@ case class Vertex(id: CompositeId,
     new GetRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf)
   }
 
-  def toEdgeVertex() = Vertex(id.updateIsEdge(true), ts, props)
+  def toEdgeVertex() = Vertex(VertexIdWithoutColId(id.colId, innerId), ts, props, op)
 
   override def toString(): String = {
 
-    val (serviceName, columnName) = if (id.isEdge) ("", "")
+    val (serviceName, columnName) = if (!id.storeColId) ("", "")
     else {
       val serviceColumn = ServiceColumn.findById(id.colId)
       (serviceColumn.service.serviceName, serviceColumn.columnName)
@@ -126,7 +127,7 @@ case class Vertex(id: CompositeId,
     }
   }
 
-  def withProps(newProps: Map[Byte, InnerValLike]) = Vertex(id, ts, newProps, op)
+  def withProps(newProps: Map[Int, InnerValLike]) = Vertex(id, ts, newProps, op)
 }
 
 object Vertex {

@@ -31,10 +31,11 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
 
   //  Logger.error(s"EdgeWithIndexInverted${this.toString}")
   lazy val lastModifiedAt = props.map(_._2.ts).max
+  lazy val schemaVer = label.schemaVersion
+  lazy val rowKey = EdgeRowKey.newInstance(srcVertex.id, labelWithDir, LabelIndex.defaultSeq, isInverted = true)(version = schemaVer)
 
-  lazy val rowKey = EdgeRowKey(srcVertex.id, labelWithDir, LabelIndex.defaultSeq, isInverted = true)
-  lazy val qualifier = EdgeQualifierInverted(tgtVertex.id)
-  lazy val value = EdgeValueInverted(op, props.toList)
+  lazy val qualifier = EdgeQualifierInverted.newInstance(tgtVertex.id)(version = schemaVer)
+  lazy val value = EdgeValueInverted.newInstance(op, props.toList)(version = schemaVer)
 
   // only for toString.
   lazy val label = Label.findById(labelWithDir.labelId)
@@ -115,9 +116,9 @@ case class EdgeWithIndex(srcVertex: Vertex,
   lazy val ordersKeyMap = orders.map(_._1).toSet
   lazy val metas = for ((k, v) <- props if !ordersKeyMap.contains(k)) yield (k -> v)
 
-  lazy val rowKey = EdgeRowKey(srcVertex.id, labelWithDir, labelIndexSeq, isInverted = false)
-  lazy val qualifier = EdgeQualifier(orders, tgtVertex.id, op, label.schemaVersion)
-  lazy val value = EdgeValue(metas.toList)
+  lazy val rowKey = EdgeRowKey.newInstance(srcVertex.id, labelWithDir, labelIndexSeq, isInverted = false)(schemaVer)
+  lazy val qualifier = EdgeQualifier.newInstance(orders, tgtVertex.id, op)(label.schemaVersion)
+  lazy val value = EdgeValue.newInstance(metas.toList)(label.schemaVersion)
 
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
 
@@ -214,9 +215,11 @@ case class Edge(srcVertex: Vertex,
         List(this, duplicateEdge)
     }
   }
+  assert(srcVertex.id.storeColId == false && srcVertex.id.storeHash)
+  assert(tgtVertex.id.storeColId == false && !tgtVertex.id.storeHash)
 
-  lazy val srcForVertex = Vertex(srcVertex.id.updateIsEdge(false), srcVertex.ts, srcVertex.props)
-  lazy val tgtForVertex = Vertex(tgtVertex.id.updateIsEdge(false), tgtVertex.ts, tgtVertex.props)
+  lazy val srcForVertex = Vertex(VertexIdWithoutColId.toVertexId(srcVertex.id), srcVertex.ts, srcVertex.props)
+  lazy val tgtForVertex = Vertex(VertexIdWithoutHashAndColId.toVertexId(tgtVertex.id), tgtVertex.ts, tgtVertex.props)
 
   lazy val duplicateEdge = Edge(tgtVertex, srcVertex, labelWithDir.dirToggled, op, ts, version, propsWithTs)
   lazy val reverseDirEdge = Edge(srcVertex, tgtVertex, labelWithDir.dirToggled, op, ts, version, propsWithTs)
@@ -281,8 +284,8 @@ case class Edge(srcVertex: Vertex,
       (op == GraphUtil.operations("insert") && label.consistencyLevel != "strong")
 
   def updateTgtVertex(id: InnerValLike) = {
-    val newCompositeId = new CompositeId(tgtVertex.id.colId, id, isEdge = tgtVertex.id.isEdge, useHash = tgtVertex.id.useHash)
-    val newTgtVertex = Vertex(newCompositeId, tgtVertex.ts, tgtVertex.props)
+    val newId = VertexIdWithoutHashAndColId(tgtVertex.id.colId, id)
+    val newTgtVertex = Vertex(newId, tgtVertex.ts, tgtVertex.props)
     Edge(srcVertex, newTgtVertex, labelWithDir, op, ts, version, propsWithTs)
   }
 
@@ -819,7 +822,7 @@ object Edge extends JSONParser {
           val kvsMap = kvs.toMap
           val tgtVertexId = kvsMap.get(LabelMeta.toSeq) match {
             case None => qualifier.tgtVertexId
-            case Some(vId) => CompositeId(CompositeId.defaultColId, vId, true, false)
+            case Some(vId) => VertexIdWithoutHashAndColId(VertexId.DEFAULT_COL_ID, vId)
           }
 
           val ts = kvsMap.get(LabelMeta.timeStampSeq).map { v => v.value.toString.toLong }.getOrElse(version)
