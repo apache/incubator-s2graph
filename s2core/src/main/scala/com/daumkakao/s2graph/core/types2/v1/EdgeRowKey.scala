@@ -13,7 +13,7 @@ object EdgeRowKey extends HBaseDeserializable {
                 len: Int,
                 version: String = VERSION1): EdgeRowKey = {
     var pos = offset
-    val compositeId = VertexIdWithoutColId.fromBytes(bytes, pos, len, version)
+    val compositeId = SourceVertexId.fromBytes(bytes, pos, len, version)
     pos += compositeId.bytes.length
     val labelWithDir = LabelWithDirection(Bytes.toInt(bytes, pos, 4))
     pos += 4
@@ -26,7 +26,7 @@ case class EdgeRowKey(srcVertexId: VertexId,
                       labelOrderSeq: Byte,
                       isInverted: Boolean) extends EdgeRowKeyLike {
   import HBaseDeserializable._
-  val id = VertexId.toVertexIdWithoutColId(srcVertexId)
+  val id = VertexId.toSourceVertexId(srcVertexId)
   val bytes = {
     Bytes.add(id.bytes, labelWithDir.bytes,
       labelOrderSeqWithIsInverted(labelOrderSeq, isInverted))

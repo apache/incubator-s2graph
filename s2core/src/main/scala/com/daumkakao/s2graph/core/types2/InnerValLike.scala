@@ -26,6 +26,7 @@ object InnerVal extends HBaseDeserializable {
   val BYTE = "byte"
   val NUMERICS = List(DOUBLE, FLOAT, LONG, INT, SHORT, BYTE)
   val BOOLEAN = "boolean"
+
   def toInnerDataType(dataType: String): String = {
     dataType.toLowerCase() match {
       case "blob" => BLOB
@@ -40,6 +41,7 @@ object InnerVal extends HBaseDeserializable {
       case _ => throw new RuntimeException(s"can`t convert $dataType into InnerDataType")
     }
   }
+
   def numByteRange(num: BigDecimal) = {
     val byteLen =
       if (num.isValidByte | num.isValidChar) 1
@@ -51,6 +53,7 @@ object InnerVal extends HBaseDeserializable {
     //      else throw new RuntimeException(s"wrong data $num")
     new SimplePositionedMutableByteRange(byteLen + 4)
   }
+
   def dataTypeOfNumber(num: BigDecimal) = {
     if (num.isValidByte | num.isValidChar) BYTE
     else if (num.isValidShort) SHORT
@@ -78,16 +81,18 @@ object InnerVal extends HBaseDeserializable {
       case _ => throw new RuntimeException(s"InnerVal.scaleNumber failed. $num, $dataType")
     }
   }
+
   def fromBytes(bytes: Array[Byte],
-                 offset: Int,
-                 len: Int,
-                 version: String = DEFAULT_VERSION): InnerValLike = {
+                offset: Int,
+                len: Int,
+                version: String = DEFAULT_VERSION): InnerValLike = {
     version match {
       case VERSION2 => v2.InnerVal.fromBytes(bytes, offset, len, version)
       case VERSION1 => v1.InnerVal.fromBytes(bytes, offset, len, version)
       case _ => throw notSupportedEx(version)
     }
   }
+
   def withLong(l: Long, version: String): InnerValLike = {
     version match {
       case VERSION2 => v2.InnerVal(BigDecimal(l))
@@ -95,6 +100,7 @@ object InnerVal extends HBaseDeserializable {
       case _ => throw notSupportedEx(version)
     }
   }
+
   def withInt(i: Int, version: String): InnerValLike = {
     version match {
       case VERSION2 => v2.InnerVal(BigDecimal(i))
@@ -102,6 +108,7 @@ object InnerVal extends HBaseDeserializable {
       case _ => throw notSupportedEx(version)
     }
   }
+
   def withFloat(f: Float, version: String): InnerValLike = {
     version match {
       case VERSION2 => v2.InnerVal(BigDecimal(f))
@@ -109,6 +116,7 @@ object InnerVal extends HBaseDeserializable {
       case _ => throw notSupportedEx(version)
     }
   }
+
   def withDouble(d: Double, version: String): InnerValLike = {
     version match {
       case VERSION2 => v2.InnerVal(BigDecimal(d))
@@ -116,13 +124,15 @@ object InnerVal extends HBaseDeserializable {
       case _ => throw notSupportedEx(version)
     }
   }
-  def withNumber(num: BigDecimal, version: String): InnerValLike =  {
+
+  def withNumber(num: BigDecimal, version: String): InnerValLike = {
     version match {
       case VERSION2 => v2.InnerVal(num)
       case VERSION1 => v1.InnerVal(Some(num.toLong), None, None)
       case _ => throw notSupportedEx(version)
     }
   }
+
   def withBoolean(b: Boolean, version: String): InnerValLike = {
     version match {
       case VERSION2 => v2.InnerVal(b)
@@ -130,12 +140,14 @@ object InnerVal extends HBaseDeserializable {
       case _ => throw notSupportedEx(version)
     }
   }
+
   def withBlob(blob: Array[Byte], version: String): InnerValLike = {
     version match {
       case VERSION2 => v2.InnerVal(blob)
       case _ => throw notSupportedEx(version)
     }
   }
+
   def withStr(s: String, version: String): InnerValLike = {
     version match {
       case VERSION2 => v2.InnerVal(s)
@@ -143,6 +155,7 @@ object InnerVal extends HBaseDeserializable {
       case _ => throw notSupportedEx(version)
     }
   }
+
   def withInnerVal(innerVal: InnerValLike, version: String): InnerValLike = {
     val bytes = innerVal.bytes
     version match {
@@ -151,6 +164,7 @@ object InnerVal extends HBaseDeserializable {
       case _ => throw notSupportedEx(version)
     }
   }
+
   /** nasty implementation for backward compatability */
   def convertVersion(innerVal: InnerValLike, dataType: String, toVersion: String): InnerValLike = {
     val ret = toVersion match {
@@ -184,6 +198,7 @@ object InnerVal extends HBaseDeserializable {
   }
 
 }
+
 trait InnerValLike extends HBaseSerializable {
 
   val value: Any
@@ -214,29 +229,15 @@ object InnerValLikeWithTs extends HBaseDeserializable {
     InnerValLikeWithTs(innerVal, ts)
   }
 
-
-//  def withLong(value: Long, ts: Long, version: String = "v2") = {
-//    if (version == "v1") {
-//      InnerValWithTs(InnerValV1.withLong(value), ts)
-//    } else {
-//      InnerValWithTs(InnerVal.withLong(value), ts)
-//    }
-//  }
-//
-//  def withStr(value: String, ts: Long, version: String = "v2") = {
-//    if (version == "v1") {
-//      InnerValWithTs(InnerValV1.withStr(value), ts)
-//    } else {
-//      InnerValWithTs(InnerVal.withStr(value), ts)
-//    }
-//  }
   def withLong(l: Long, ts: Long, version: String): InnerValLikeWithTs = {
     InnerValLikeWithTs(InnerVal.withLong(l, version), ts)
   }
+
   def withStr(s: String, ts: Long, version: String): InnerValLikeWithTs = {
     InnerValLikeWithTs(InnerVal.withStr(s, version), ts)
   }
 }
+
 case class InnerValLikeWithTs(innerVal: InnerValLike, ts: Long)
   extends HBaseSerializable {
 

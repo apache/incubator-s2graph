@@ -52,8 +52,8 @@ trait TestCommon {
   private val doubleValLargeV2 = InnerVal.withDouble(0.1, VERSION2)
   private val toValV2 = InnerVal.withLong(Long.MinValue, VERSION2)
 
-  val intVals = (Int.MinValue until Int.MinValue + 10) ++
-    (-128 to 128) ++ (Int.MaxValue - 10 until Int.MaxValue)
+  val intVals = (Int.MinValue until Int.MinValue + 10) ++ (-129 to -126) ++ (-1 to 1) ++ (126 to 129) ++
+    (Int.MaxValue - 10 until Int.MaxValue)
   val intInnerVals = intVals.map { v => InnerVal.withNumber(BigDecimal(v), VERSION1) }
 
   val intInnerValsV2 = intVals.map { v => InnerVal.withNumber(BigDecimal(v), VERSION2) }
@@ -101,7 +101,8 @@ trait TestCommon {
   val idxPropsWithTsLsV2 = idxPropsLsV2.map { idxProps =>
     idxProps.map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }
   }
-  def testOrder(idxPropsLs: Seq[Seq[(Byte, InnerValLike)]], innerVals: Iterable[InnerValLike], useHash: Boolean = false)
+  def testOrder(idxPropsLs: Seq[Seq[(Byte, InnerValLike)]],
+                innerVals: Iterable[InnerValLike], skipHashBytes: Boolean = false)
                (createFunc: (Seq[(Byte, InnerValLike)], InnerValLike) => HBaseSerializable,
                 fromBytesFunc: Array[Byte] => HBaseSerializable) = {
     /** check if increasing target vertex id is ordered properly with same indexProps */
@@ -120,10 +121,10 @@ trait TestCommon {
             println(s"current: $current")
             println(s"decoded: $decoded")
 
-            val prevBytes = if (useHash) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
-            val currentBytes = if (useHash) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
+            val prevBytes = if (skipHashBytes) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
+            val currentBytes = if (skipHashBytes) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
             val (isSame, orderPreserved) = (current, decoded) match {
-              case (c: EdgeQualifier, d: EdgeQualifier) if (idxProps.map(_._1).contains(toSeq)) =>
+              case (c: v2.EdgeQualifier, d: v2.EdgeQualifier) if (idxProps.map(_._1).contains(toSeq)) =>
                 /** _to is used in indexProps */
                 (c.props.map(_._2) == d.props.map(_._2) && c.op == d.op, Bytes.compareTo(currentBytes, prevBytes) <= 0)
               case _ =>
@@ -140,7 +141,8 @@ trait TestCommon {
       }
     rets.forall(x => x)
   }
-  def testOrderReverse(idxPropsLs: Seq[Seq[(Byte, InnerValLike)]], innerVals: Iterable[InnerValLike], useHash: Boolean = false)
+  def testOrderReverse(idxPropsLs: Seq[Seq[(Byte, InnerValLike)]], innerVals: Iterable[InnerValLike],
+                       skipHashBytes: Boolean = false)
                       (createFunc: (Seq[(Byte, InnerValLike)], InnerValLike) => HBaseSerializable,
                        fromBytesFunc: Array[Byte] => HBaseSerializable) = {
     /** check if increasing target vertex id is ordered properly with same indexProps */
@@ -159,10 +161,10 @@ trait TestCommon {
             println(s"current: $current")
             println(s"decoded: $decoded")
 
-            val prevBytes = if (useHash) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
-            val currentBytes = if (useHash) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
+            val prevBytes = if (skipHashBytes) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
+            val currentBytes = if (skipHashBytes) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
             val (isSame, orderPreserved) = (current, decoded) match {
-              case (c: EdgeQualifier, d: EdgeQualifier) if (idxProps.map(_._1).contains(toSeq)) =>
+              case (c: v2.EdgeQualifier, d: v2.EdgeQualifier) if (idxProps.map(_._1).contains(toSeq)) =>
                 /** _to is used in indexProps */
                 (c.props.map(_._2) == d.props.map(_._2) && c.op == d.op, Bytes.compareTo(currentBytes, prevBytes) <= 0)
               case _ =>

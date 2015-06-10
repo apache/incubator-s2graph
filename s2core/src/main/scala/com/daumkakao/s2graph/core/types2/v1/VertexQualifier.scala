@@ -16,5 +16,5 @@ object VertexQualifier extends HBaseDeserializable {
 }
 case class VertexQualifier(propKey: Int) extends VertexQualifierLike {
   assert(propKey <= Byte.MaxValue)
-  val bytes: Array[Byte] = Bytes.toBytes(propKey.toByte)
+  val bytes: Array[Byte] = Array[Byte](propKey.toByte)
 }

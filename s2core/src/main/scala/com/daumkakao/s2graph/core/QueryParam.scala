@@ -245,7 +245,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
 
   def buildGetRequest(srcVertex: Vertex) = {
     val id = InnerVal.convertVersion(srcVertex.innerId, srcVertex.serviceColumn.columnType, label.schemaVersion)
-    val compositeId = VertexId.toVertexIdWithoutColId(srcVertex.id)
+    val compositeId = VertexId.toSourceVertexId(srcVertex.id)
     val rowKey = EdgeRowKey.newInstance(compositeId, labelWithDir, labelOrderSeq, isInverted)(label.schemaVersion)
     val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
     val client = Graph.getClient(label.hbaseZkAddr)

@@ -20,7 +20,7 @@ trait JSONParser {
       Some(jsValue)
     } catch {
       case e: Throwable =>
-        Logger.error(s"$e", e)
+        Logger.error(s"$innerVal, $dataType", e)
         None
     }
   }

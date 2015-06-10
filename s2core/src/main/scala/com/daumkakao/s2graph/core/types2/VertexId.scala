@@ -12,6 +12,7 @@ object VertexId extends HBaseDeserializable {
                 offset: Int,
                 len: Int,
                 version: String = DEFAULT_VERSION): VertexId = {
+    /** since murmur hash is prepended, skip numOfBytes for murmur hash */
     var pos = offset + GraphUtil.bytesForMurMurHash
 
     val innerId = InnerVal.fromBytes(bytes, pos, len, version)
@@ -19,52 +20,37 @@ object VertexId extends HBaseDeserializable {
     val colId = Bytes.toInt(bytes, pos, 4)
     new VertexId(colId, innerId)
   }
-  def toVertexIdWithoutHash(vid: VertexId) = {
-    VertexIdWithoutHash(vid.colId, vid.innerId)
+  def toSourceVertexId(vid: VertexId) = {
+    SourceVertexId(vid.colId, vid.innerId)
   }
-  def toVertexIdWithoutColId(vid: VertexId) = {
-    VertexIdWithoutColId(vid.colId, vid.innerId)
-  }
-  def toVertexIdWithoutHashAndColId(vid: VertexId) = {
-    VertexIdWithoutHashAndColId(vid.colId, vid.innerId)
+  def toTargetVertexId(vid: VertexId) = {
+    TargetVertexId(vid.colId, vid.innerId)
   }
 }
-object VertexIdWithoutHash extends HBaseDeserializable {
+object SourceVertexId extends HBaseDeserializable {
   import VertexId._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
                 version: String = DEFAULT_VERSION): VertexId = {
-    var pos = offset
-    val innerId = InnerVal.fromBytes(bytes, pos, len, version)
-    pos += innerId.bytes.length
-    val colId = Bytes.toInt(bytes, pos, 4)
-    VertexIdWithoutHash(colId, innerId)
-  }
-}
-object VertexIdWithoutColId extends HBaseDeserializable {
-  import VertexId._
-  def fromBytes(bytes: Array[Byte],
-                offset: Int,
-                len: Int,
-                version: String = DEFAULT_VERSION): VertexId = {
+    /** since murmur hash is prepended, skip numOfBytes for murmur hash */
     var pos = offset + GraphUtil.bytesForMurMurHash
     val innerId = InnerVal.fromBytes(bytes, pos, len, version)
-    VertexIdWithoutColId(DEFAULT_COL_ID, innerId)
+    SourceVertexId(DEFAULT_COL_ID, innerId)
   }
   def toVertexId(vid: VertexId): VertexId = {
     new VertexId(vid.colId, vid.innerId)
   }
 }
-object VertexIdWithoutHashAndColId extends HBaseDeserializable {
+object TargetVertexId extends HBaseDeserializable {
   import VertexId._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
                 version: String = DEFAULT_VERSION): VertexId = {
-    var pos = offset + GraphUtil.bytesForMurMurHash
-    val innerId = InnerVal.fromBytes(bytes, pos, len, version)
-    VertexIdWithoutHashAndColId(DEFAULT_COL_ID, innerId)
+    /** murmur has is not prepended so start from offset */
+    val innerId = InnerVal.fromBytes(bytes, offset, len, version)
+    TargetVertexId(DEFAULT_COL_ID, innerId)
   }
   def toVertexId(vid: VertexId): VertexId = {
     new VertexId(vid.colId, vid.innerId)
@@ -80,22 +66,48 @@ class VertexId(val colId: Int, val innerId: InnerValLike) extends HBaseSerializa
   val colIdBytes: Array[Byte] =
     if (storeColId) Bytes.toBytes(colId)
     else Array.empty[Byte]
-
   val bytes: Array[Byte] = Bytes.add(hashBytes, innerId.bytes, colIdBytes)
+
+  override def toString(): String = {
+    s"VertexId($colId, $innerId)"
+  }
+  override def equals(obj: Any): Boolean = {
+    obj match {
+      case other: VertexId => colId == other.colId && innerId == other.innerId
+      case _ => false
+    }
+  }
 }
-case class VertexIdWithoutHash(override val colId: Int,
-                               override val innerId: InnerValLike)
-  extends VertexId(colId, innerId) {
-  override val storeHash: Boolean = false
-}
-case class VertexIdWithoutColId(override val colId: Int,
+//case class VertexIdWithoutHash(override val colId: Int,
+//                               override val innerId: InnerValLike)
+//  extends VertexId(colId, innerId) {
+//  override val storeHash: Boolean = false
+//}
+case class SourceVertexId(override val colId: Int,
                                 override val innerId: InnerValLike)
   extends VertexId(colId, innerId) {
   override val storeColId: Boolean = false
+
+  override def equals(obj: Any): Boolean = {
+    obj match {
+      case other: SourceVertexId =>
+        val left = innerId.bytes.drop(GraphUtil.bytesForMurMurHash)
+        val right = other.innerId.bytes.drop(GraphUtil.bytesForMurMurHash)
+        Bytes.compareTo(left, right) == 0
+      case _ => false
+    }
+  }
 }
-case class VertexIdWithoutHashAndColId(override val colId: Int,
+case class TargetVertexId(override val colId: Int,
                                        override val innerId: InnerValLike)
   extends  VertexId(colId, innerId) {
   override val storeColId: Boolean = false
   override val storeHash: Boolean = false
+
+  override def equals(obj: Any): Boolean = {
+    obj match {
+      case other: TargetVertexId =>
+        innerId == other.innerId
+    }
+  }
 }

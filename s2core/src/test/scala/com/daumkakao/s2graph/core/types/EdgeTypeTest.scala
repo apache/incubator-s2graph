@@ -10,54 +10,60 @@ import org.scalatest.{Matchers, FunSuite}
 class EdgeTypeTest extends FunSuite with Matchers with TestCommon {
 
   import InnerVal.{VERSION1, VERSION2}
+  def vertexId(innerVal: InnerValLike) = new VertexId(testColumnId, innerVal)
+  def sourceVertexId(innerVal: InnerValLike) = SourceVertexId(testColumnId, innerVal)
+  def targetVertexId(innerVal: InnerValLike) = TargetVertexId(testColumnId, innerVal)
+  val skipHashBytes = true
 
   test("test edge row key order with int source vertex id version 1") {
+    val version = VERSION1
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
-      EdgeRowKey(CompositeId(testColumnId, innerVal, isEdge = true, useHash = true),
-        testLabelWithDir, testLabelOrderSeq, isInverted = false)
-    val deserializer = (bytes: Array[Byte]) => EdgeRowKey.fromBytes(bytes, 0, bytes.length, VERSION1)
-    testOrder(idxPropsLs, intInnerVals, useHash = true)(serializer, deserializer) shouldBe true
+      EdgeRowKey.newInstance(sourceVertexId(innerVal), testLabelWithDir, testLabelOrderSeq, isInverted = false)(version)
+    val deserializer = (bytes: Array[Byte]) => EdgeRowKey.fromBytes(bytes, 0, bytes.length, version)
+    testOrder(idxPropsLs, intInnerVals, skipHashBytes)(serializer, deserializer) shouldBe true
   }
   test("test edge row key order with int source vertex id version 2") {
+    val version = VERSION2
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
-      EdgeRowKey(CompositeId(testColumnId, innerVal, isEdge = true, useHash = true),
-        testLabelWithDir, testLabelOrderSeq, isInverted = false)
-    val deserializer = (bytes: Array[Byte]) => EdgeRowKey.fromBytes(bytes, 0, bytes.length, VERSION2)
-    testOrder(idxPropsLsV2, intInnerValsV2, useHash = true)(serializer, deserializer) shouldBe true
+      EdgeRowKey.newInstance(sourceVertexId(innerVal), testLabelWithDir, testLabelOrderSeq, isInverted = false)(version)
+    val deserializer = (bytes: Array[Byte]) => EdgeRowKey.fromBytes(bytes, 0, bytes.length, version)
+    testOrder(idxPropsLsV2, intInnerValsV2, skipHashBytes)(serializer, deserializer) shouldBe true
   }
 
   test("test edge row qualifier with int target vertex id version 1") {
+    val version = VERSION1
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
-      EdgeQualifier(idxProps, CompositeId(testColumnId, innerVal, isEdge = true, useHash = false), testOp, VERSION1)
-    val deserializer = (bytes: Array[Byte]) => EdgeQualifier.fromBytes(bytes, 0, bytes.length, VERSION1)
+      EdgeQualifier.newInstance(idxProps, targetVertexId(innerVal), testOp)(version)
+    val deserializer = (bytes: Array[Byte]) => EdgeQualifier.fromBytes(bytes, 0, bytes.length, version)
 
-    testOrder(idxPropsLs, intInnerVals)(serializer, deserializer) shouldBe true
-    testOrderReverse(idxPropsLs, intInnerVals)(serializer, deserializer) shouldBe true
+    testOrder(idxPropsLs, intInnerVals, !skipHashBytes)(serializer, deserializer) shouldBe true
+    testOrderReverse(idxPropsLs, intInnerVals, !skipHashBytes)(serializer, deserializer) shouldBe true
   }
   test("test edge row qualifier with int target vertex id version 2") {
+    val version = VERSION2
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
-      EdgeQualifier(idxProps, CompositeId(testColumnId, innerVal, isEdge = true, useHash = false), testOp, VERSION2)
-    val deserializer = (bytes: Array[Byte]) => EdgeQualifier.fromBytes(bytes, 0, bytes.length, VERSION2)
+      EdgeQualifier.newInstance(idxProps, targetVertexId(innerVal), testOp)(version)
+    val deserializer = (bytes: Array[Byte]) => EdgeQualifier.fromBytes(bytes, 0, bytes.length, version)
 
-    testOrder(idxPropsLsV2, intInnerValsV2)(serializer, deserializer) shouldBe true
-    testOrderReverse(idxPropsLsV2, intInnerValsV2)(serializer, deserializer) shouldBe true
+    testOrder(idxPropsLsV2, intInnerValsV2, !skipHashBytes)(serializer, deserializer) shouldBe true
+    testOrderReverse(idxPropsLsV2, intInnerValsV2, !skipHashBytes)(serializer, deserializer) shouldBe true
   }
 
   test("test edge row qualifier inverted with int target vertex id version 1") {
+    val version = VERSION1
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
-      EdgeQualifierInverted(CompositeId(testColumnId, innerVal, isEdge = true, useHash = false))
-    val deserializer = (bytes: Array[Byte]) =>
-      EdgeQualifierInverted.fromBytes(bytes, 0, bytes.length, VERSION1)
+      EdgeQualifierInverted.newInstance(targetVertexId(innerVal))(version)
+    val deserializer = (bytes: Array[Byte]) => EdgeQualifierInverted.fromBytes(bytes, 0, bytes.length, version)
 
-    testOrder(idxPropsLs, intInnerVals)(serializer, deserializer) shouldBe true
+    testOrder(idxPropsLs, intInnerVals, !skipHashBytes)(serializer, deserializer) shouldBe true
   }
   test("test edge row qualifier inverted with int target vertex id version 2") {
+    val version = VERSION2
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
-      EdgeQualifierInverted(CompositeId(testColumnId, innerVal, isEdge = true, useHash = false))
-    val deserializer = (bytes: Array[Byte]) =>
-      EdgeQualifierInverted.fromBytes(bytes, 0, bytes.length, VERSION2)
+      EdgeQualifierInverted.newInstance(targetVertexId(innerVal))(version)
+    val deserializer = (bytes: Array[Byte]) => EdgeQualifierInverted.fromBytes(bytes, 0, bytes.length, version)
 
-    testOrder(idxPropsLsV2, intInnerValsV2)(serializer, deserializer) shouldBe true
+    testOrder(idxPropsLsV2, intInnerValsV2, !skipHashBytes)(serializer, deserializer) shouldBe true
   }
 
 }

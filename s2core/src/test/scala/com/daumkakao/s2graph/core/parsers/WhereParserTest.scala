@@ -1,8 +1,8 @@
 package com.daumkakao.s2graph.core.parsers
 
-import com.daumkakao.s2graph.core.models.{LabelMeta, Label}
-import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.types2.{InnerValLikeWithTs, InnerVal, CompositeId}
+import com.daumkakao.s2graph.core.{Management, Edge, Vertex, TestCommonWithModels}
+import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.types2._
 import org.scalatest.{Matchers, FunSuite}
 import play.api.libs.json.Json
 
@@ -11,20 +11,22 @@ import play.api.libs.json.Json
  */
 class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   // dummy data for dummy edge
+  import InnerVal.{VERSION1, VERSION2}
   val ts = System.currentTimeMillis()
-  val ids = for {
-    version <- List("v1", "v2")
-  } yield {
-      val srcId = CompositeId(column.id.get, InnerVal.withLong(1, version), isEdge = true, useHash = true)
-      val tgtId = CompositeId(column.id.get, InnerVal.withLong(2, version), isEdge = true, useHash = true)
-      val srcIdStr = CompositeId(column.id.get, InnerVal.withStr("abc", version), isEdge = true, useHash = true)
-      val tgtIdStr = CompositeId(column.id.get, InnerVal.withStr("def", version), isEdge = true, useHash = true)
-      val srcVertex = Vertex(srcId, ts)
-      val tgtVertex = Vertex(tgtId, ts)
-      val srcVertexStr = Vertex(srcIdStr, ts)
-      val tgtVertexStr = Vertex(tgtIdStr, ts)
-      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, version)
-    }
+  def ids(version: String) = {
+    val colId = if (version == VERSION2) columnV2.id.get else column.id.get
+    val srcId = SourceVertexId(colId, InnerVal.withLong(1, version))
+    val tgtId = TargetVertexId(colId, InnerVal.withLong(2, version))
+
+    val srcIdStr = SourceVertexId(colId, InnerVal.withStr("abc", version))
+    val tgtIdStr = TargetVertexId(colId, InnerVal.withStr("def", version))
+
+    val srcVertex = Vertex(srcId, ts)
+    val tgtVertex = Vertex(tgtId, ts)
+    val srcVertexStr = Vertex(srcIdStr, ts)
+    val tgtVertexStr = Vertex(tgtIdStr, ts)
+    (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, version)
+  }
 
   def validate(labelName: String)(edge: Edge)(sql: String)(expected: Boolean) = {
 
@@ -39,7 +41,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
 
   test("check where clause not nested") {
     for {
-      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- ids
+      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- List(ids(VERSION1), ids(VERSION2))
     } {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
@@ -68,7 +70,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   }
   test("check where clause nested") {
     for {
-      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- ids
+      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- List(ids(VERSION1), ids(VERSION2))
     } {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
@@ -90,7 +92,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   }
   test("check where clause with from/to long") {
     for {
-      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- ids
+      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- List(ids(VERSION1), ids(VERSION2))
     } {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")

@@ -215,11 +215,10 @@ case class Edge(srcVertex: Vertex,
         List(this, duplicateEdge)
     }
   }
-  assert(srcVertex.id.storeColId == false && srcVertex.id.storeHash)
-  assert(tgtVertex.id.storeColId == false && !tgtVertex.id.storeHash)
+//  assert(srcVertex.isInstanceOf[SourceVertexId] && tgtVertex.isInstanceOf[TargetVertexId])
 
-  lazy val srcForVertex = Vertex(VertexIdWithoutColId.toVertexId(srcVertex.id), srcVertex.ts, srcVertex.props)
-  lazy val tgtForVertex = Vertex(VertexIdWithoutHashAndColId.toVertexId(tgtVertex.id), tgtVertex.ts, tgtVertex.props)
+  lazy val srcForVertex = Vertex(SourceVertexId.toVertexId(srcVertex.id), srcVertex.ts, srcVertex.props)
+  lazy val tgtForVertex = Vertex(TargetVertexId.toVertexId(tgtVertex.id), tgtVertex.ts, tgtVertex.props)
 
   lazy val duplicateEdge = Edge(tgtVertex, srcVertex, labelWithDir.dirToggled, op, ts, version, propsWithTs)
   lazy val reverseDirEdge = Edge(srcVertex, tgtVertex, labelWithDir.dirToggled, op, ts, version, propsWithTs)
@@ -284,7 +283,7 @@ case class Edge(srcVertex: Vertex,
       (op == GraphUtil.operations("insert") && label.consistencyLevel != "strong")
 
   def updateTgtVertex(id: InnerValLike) = {
-    val newId = VertexIdWithoutHashAndColId(tgtVertex.id.colId, id)
+    val newId = TargetVertexId(tgtVertex.id.colId, id)
     val newTgtVertex = Vertex(newId, tgtVertex.ts, tgtVertex.props)
     Edge(srcVertex, newTgtVertex, labelWithDir, op, ts, version, propsWithTs)
   }
@@ -464,8 +463,8 @@ case class Edge(srcVertex: Vertex,
   override def toString(): String = {
     val ls = ListBuffer(ts, GraphUtil.fromOp(op), "e",
       srcVertex.innerId, tgtVertex.innerId, label.label)
-    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
-    //    if (!propsPlusTs.isEmpty) ls += propsPlusTs
+//    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
+        if (!propsPlusTs.isEmpty) ls += propsPlusTs
     ls.mkString("\t")
   }
 
@@ -796,7 +795,7 @@ object Edge extends JSONParser {
         val kvsMap = value.props.toMap
         val ts = kvsMap.get(LabelMeta.timeStampSeq) match {
           case None => version
-          case Some(v) => v.innerVal.value.toString.toLong
+          case Some(v) => BigDecimal(v.innerVal.toString).toLong
         }
         (qualifier.tgtVertexId, kvsMap, value.op, ts)
       case false =>
@@ -813,6 +812,7 @@ object Edge extends JSONParser {
         } else {
           /** edge */
           val qualifier = EdgeQualifier.fromBytes(kvQual, 0, kvQual.length, param.label.schemaVersion)
+          println(qualifier)
           val value = EdgeValue.fromBytes(vBytes, 0, vBytes.length, param.label.schemaVersion)
 
           val index = param.label.indicesMap.get(rowKey.labelOrderSeq).getOrElse(
@@ -820,12 +820,16 @@ object Edge extends JSONParser {
 
           val kvs = qualifier.propsKVs(index.metaSeqs) ::: value.props.toList
           val kvsMap = kvs.toMap
-          val tgtVertexId = kvsMap.get(LabelMeta.toSeq) match {
-            case None => qualifier.tgtVertexId
-            case Some(vId) => VertexIdWithoutHashAndColId(VertexId.DEFAULT_COL_ID, vId)
+          val tgtVertexId = if (qualifier.tgtVertexId == null) {
+            kvsMap.get(LabelMeta.toSeq) match {
+              case None => qualifier.tgtVertexId
+              case Some(vId) => TargetVertexId(VertexId.DEFAULT_COL_ID, vId)
+            }
+          } else {
+            qualifier.tgtVertexId
           }
 
-          val ts = kvsMap.get(LabelMeta.timeStampSeq).map { v => v.value.toString.toLong }.getOrElse(version)
+          val ts = kvsMap.get(LabelMeta.timeStampSeq).map { v => BigDecimal(v.value.toString).toLong }.getOrElse(version)
           val mergedProps = kvsMap.map { case (k, innerVal) => k -> InnerValLikeWithTs(innerVal, ts) }
           (tgtVertexId, mergedProps, qualifier.op, ts)
         }

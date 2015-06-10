@@ -2,7 +2,7 @@ package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.Edge.PropsPairWithTs
 import com.daumkakao.s2graph.core.models.LabelMeta
-import com.daumkakao.s2graph.core.types2.{InnerVal, InnerValLikeWithTs, CompositeId}
+import com.daumkakao.s2graph.core.types2._
 import org.hbase.async.{AtomicIncrementRequest, PutRequest}
 import org.scalatest.{BeforeAndAfter, Matchers, FunSuite}
 
@@ -16,20 +16,28 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
 
   import InnerVal.{VERSION1, VERSION2}
 
-  val srcVertex = Vertex(CompositeId(column.id.get, intInnerVals.head, isEdge = true, useHash = true), ts)
-  val srcVertexV2 = Vertex(CompositeId(columnV2.id.get, intInnerValsV2.head, isEdge = true, useHash = true), ts)
-
-
-  val testEdges = intInnerVals.tail.map { intInnerVal =>
-    val tgtVertex = Vertex(CompositeId(column.id.get, intInnerVal, isEdge = true, useHash = false), ts)
-    idxPropsWithTsLs.map { idxProps =>
-      Edge(srcVertex, tgtVertex, labelWithDir, op, ts, ts, idxProps.toMap)
-    }
+  def srcVertex(innerVal: InnerValLike)(version: String) = {
+    val colId = if (version == VERSION1) column.id.get else columnV2.id.get
+    Vertex(SourceVertexId(colId, innerVal), ts)
   }
-  val testEdgesV2 = intInnerValsV2.tail.map { intInnerVal =>
-    val tgtVertex = Vertex(CompositeId(columnV2.id.get, intInnerVal, isEdge = true, useHash = false), ts)
-    idxPropsWithTsLsV2.map { idxProps =>
-      Edge(srcVertexV2, tgtVertex, labelWithDirV2, op, ts, ts, idxProps.toMap)
+  def tgtVertex(innerVal: InnerValLike)(version: String) = {
+    val colId = if (version == VERSION1) column.id.get else columnV2.id.get
+    Vertex(TargetVertexId(colId, innerVal), ts)
+  }
+
+
+  def testEdges(version: String) = {
+    val innerVals = if (version == VERSION1) intInnerVals else intInnerValsV2
+    val tgtV = tgtVertex(innerVals.head)(version)
+    innerVals.tail.map { intInnerVal =>
+      val labelWithDirection = if (version == VERSION1) labelWithDir else labelWithDirV2
+      val idxPropsList = if (version == VERSION1) idxPropsLs else idxPropsLsV2
+      idxPropsList.map { idxProps =>
+        val currentTs = idxProps.toMap.get(0.toByte).get.toString.toLong
+        val idxPropsWithTs = idxProps.map { case (k, v) => k -> InnerValLikeWithTs(v, currentTs)}
+
+        Edge(srcVertex(intInnerVal)(version), tgtV, labelWithDirection, op, currentTs, currentTs, idxPropsWithTs.toMap)
+      }
     }
   }
 
@@ -58,10 +66,9 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     println(rets)
     rets.forall(x => x) && shouldUpdate == expectedShouldUpdate
   }
-
-  test("insert for edgesWithIndex version 2") {
+  def testEdgeWithIndex(edges: Seq[Seq[Edge]])(queryParam: QueryParam) = {
     val rets = for {
-      edgeForSameTgtVertex <- testEdgesV2
+      edgeForSameTgtVertex <- edges
     } yield {
         val head = edgeForSameTgtVertex.head
         val start = head
@@ -69,66 +76,98 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
         val rets = for {
           edge <- edgeForSameTgtVertex.tail
         } yield {
-            val rets = for {
+            println(s"prevEdge: $prev")
+            println(s"currentEdge: $edge")
+            val prevEdgeWithIndex = edge.edgesWithIndex
+            val edgesWithIndex = edge.edgesWithIndex
+
+            /** test encodeing decoding */
+            for {
               edgeWithIndex <- edge.edgesWithIndex
-            } yield {
-                /** build PutRequest then deserialize from KeyValue to Edge */
-                val prevPuts = prev.edgesWithIndex.flatMap { prevEdgeWithIndex =>
-                  prevEdgeWithIndex.buildPutsAsync().map { rpc => rpc.asInstanceOf[PutRequest] }
-                }
-                val puts = edgeWithIndex.buildPutsAsync().map { rpc =>
-                  rpc.asInstanceOf[PutRequest]
-                }
-                val comps = for {
-                  put <- puts
-                  prevPut <- prevPuts
-                } yield largerThan(put.qualifier(), prevPut.qualifier())
+              put <- edgeWithIndex.buildPutsAsync()
+              kv <- putToKeyValues(put.asInstanceOf[PutRequest])
+            } {
+              val decoded = Edge.toEdge(kv, queryParam)
+              val comp = decoded.isDefined && decoded.get == edge
+              println(s"${decoded.get}")
+              println(s"$edge")
+              println(s"${decoded.get == edge}")
+              comp shouldBe true
 
-                val rets = for {
-                  put <- puts
-                  kv <- putToKeyValues(put)
-                  decodedEdge <- Edge.toEdge(kv, queryParamV2)
-                } yield edge == decodedEdge
-
-                rets.forall(x => x) && comps.forall(x => x)
+              /** test order
+                * same source, target vertex. same indexProps keys.
+                * only difference is indexProps values so comparing qualifier is good enough
+                * */
+              for {
+                prevEdgeWithIndex <- prev.edgesWithIndex
+              } {
+                println(edgeWithIndex.qualifier)
+                println(prevEdgeWithIndex.qualifier)
+                println(edgeWithIndex.qualifier.bytes.toList)
+                println(prevEdgeWithIndex.qualifier.bytes.toList)
+                /** since index of this test label only use 0, 1 as indexProps
+                  * if 0, 1 is not different then qualifier bytes should be same
+                  * */
+                val comp = lessThanEqual(edgeWithIndex.qualifier.bytes, prevEdgeWithIndex.qualifier.bytes)
+                comp shouldBe true
               }
-
+            }
             prev = edge
-            rets.forall(x => x)
           }
-        rets.forall(x => x)
       }
+  }
+
+  def testInvertedEdge(edges: Seq[Seq[Edge]])(queryParam: QueryParam) = {
+    val rets = for {
+      edgeForSameTgtVertex <- edges
+    } yield {
+        val head = edgeForSameTgtVertex.head
+        val start = head
+        var prev = head
+        val rets = for {
+          edge <- edgeForSameTgtVertex.tail
+        } yield {
+            println(s"prevEdge: $prev")
+            println(s"currentEdge: $edge")
+            val prevEdgeWithIndexInverted = prev.edgesWithInvertedIndex
+            val edgeWithInvertedIndex = edge.edgesWithInvertedIndex
+            /** test encode decoding */
+
+            val put = edgeWithInvertedIndex.buildPutAsync()
+            for {
+              kv <- putToKeyValues(put)
+            } yield {
+              val decoded = Edge.toEdge(kv, queryParam)
+              val comp = decoded.isDefined && decoded.get == edge
+              println(s"${decoded.get}")
+              println(s"$edge")
+              println(s"${decoded.get == edge}")
+              comp shouldBe true
+
+              /** no need to test ordering because qualifier only use targetVertexId */
+            }
+            prev = edge
+          }
+      }
+  }
+  test("insert for edgesWithIndex version 2") {
+    val version = VERSION2
+    testEdgeWithIndex(testEdges(version))(queryParamV2)
+  }
+  test("insert for edgesWithIndex version 1") {
+    val version = VERSION1
+    testEdgeWithIndex(testEdges(version))(queryParam)
+  }
+
+  test("insert for edgeWithInvertedIndex version 1") {
+    val version = VERSION1
+    testInvertedEdge(testEdges(version))(queryParam)
   }
 
   test("insert for edgeWithInvertedIndex version 2") {
-    val rets = for {
-      edgeForSameTgtVertex <- testEdgesV2
-    } yield {
-        val head = edgeForSameTgtVertex.head
-        val start = head
-        var prev = head
-        val rets = for {
-          edge <- edgeForSameTgtVertex.tail
-        } yield {
-            val ret = {
-              val edgeWithInvertedIndex = edge.edgesWithInvertedIndex
-              val prevPut = prev.edgesWithInvertedIndex.buildPutAsync()
-              val put = edgeWithInvertedIndex.buildPutAsync()
-              val comp = largerThan(put.qualifier(), prevPut.qualifier())
-              val serDeComp = for {
-                kv <- putToKeyValues(put)
-                decodedEdge <- Edge.toEdge(kv, queryParamV2)
-              } yield {
-                decodedEdge == edge
-              }
-              comp && serDeComp.forall(x => x)
-            }
-            ret
-          }
-        rets.forall(x => x)
-      }
+    val version = VERSION2
+    testInvertedEdge(testEdges(version))(queryParamV2)
   }
-
 
 
 

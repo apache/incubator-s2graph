@@ -10,13 +10,13 @@ object EdgeQualifierInverted extends HBaseDeserializable {
                 offset: Int,
                 len: Int,
                 version: String = VERSION1): EdgeQualifierInverted = {
-    val tgtVertexId = VertexIdWithoutHashAndColId.fromBytes(bytes, offset, len, version)
+    val tgtVertexId = TargetVertexId.fromBytes(bytes, offset, len, version)
     EdgeQualifierInverted(tgtVertexId)
   }
 }
 case class EdgeQualifierInverted(tgtVertexId: VertexId) extends EdgeQualifierInvertedLike {
 
   val bytes: Array[Byte] = {
-    VertexId.toVertexIdWithoutHashAndColId(tgtVertexId).bytes
+    VertexId.toTargetVertexId(tgtVertexId).bytes
   }
 }

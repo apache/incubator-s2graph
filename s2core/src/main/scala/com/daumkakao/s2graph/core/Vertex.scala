@@ -22,7 +22,6 @@ case class Vertex(id: VertexId,
                   ts: Long,
                   props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
                   op: Byte = 0) extends GraphElement {
-
   import GraphConstant._
 
   lazy val innerId = id.innerId
@@ -101,7 +100,7 @@ case class Vertex(id: VertexId,
     new GetRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf)
   }
 
-  def toEdgeVertex() = Vertex(VertexIdWithoutColId(id.colId, innerId), ts, props, op)
+  def toEdgeVertex() = Vertex(SourceVertexId(id.colId, innerId), ts, props, op)
 
   override def toString(): String = {
 
@@ -148,7 +147,7 @@ object Vertex {
       /**
        *
        * TODO
-       * Make sure this doens`t violate any MVCC Version.
+       * Make sure this does not violate any MVCC Version.
        */
       val props =
         for {

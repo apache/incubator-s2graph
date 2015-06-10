@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.models._
+//import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types2.{LabelWithDirection, InnerVal}
 import com.typesafe.config.ConfigFactory
 import org.apache.hadoop.hbase.util.Bytes
@@ -45,9 +46,11 @@ trait TestCommonWithModels {
 
   val config = ConfigFactory.parseString(
     s"""hbase.zookeeper.quorum=$zkQuorum
+       |db.default.url="jdbc:mysql://nuk151.kr2.iwilab.com:13306/graph_alpha"
      """.stripMargin)
   Graph(config)(ExecutionContext.Implicits.global)
-  HBaseModel(zkQuorum)
+  Model(config)
+//  HBaseModel(zkQuorum)
 
 
 

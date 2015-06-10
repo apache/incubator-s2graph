@@ -25,7 +25,7 @@ object EdgeQualifier extends HBaseDeserializable {
       val tgtVertexId = if (endAt == offset + len) {
         defaultTgtVertexId
       } else {
-        VertexIdWithoutHashAndColId.fromBytes(bytes, endAt, len, version)
+        TargetVertexId.fromBytes(bytes, endAt, len, version)
       }
       (props, tgtVertexId)
     }
@@ -37,7 +37,7 @@ case class EdgeQualifier(props: Seq[(Byte, InnerValLike)],
                          op: Byte) extends EdgeQualifierLike {
   import EdgeQualifier._
   import HBaseDeserializable._
-  lazy val innerTgtVertexId = VertexId.toVertexIdWithoutHashAndColId(tgtVertexId)
+  lazy val innerTgtVertexId = VertexId.toTargetVertexId(tgtVertexId)
   lazy val propsMap = props.toMap
   lazy val propsBytes = propsToBytes(props)
   lazy val bytes: Array[Byte] = {

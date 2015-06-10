@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.types2.{InnerVal, CompositeId, InnerValLike}
+import com.daumkakao.s2graph.core.types2.{VertexId, InnerVal, InnerValLike}
 import org.scalatest.{Matchers, FunSuite}
 
 
@@ -10,31 +10,31 @@ import org.scalatest.{Matchers, FunSuite}
 class VertexTest extends FunSuite with Matchers with TestCommonWithModels with TestCommon {
 
   import InnerVal.{VERSION1, VERSION2}
-
+  val idxPropsList = idxPropsLs.map { seq => seq.map { kv => kv._1.toInt -> kv._2 }}
+  val idxPropsListV2 = idxPropsLsV2.map { seq => seq.map { kv => kv._1.toInt -> kv._2 }}
   def equalsExact(left: Vertex, right: Vertex) = {
     left.id == right.id && left.ts == right.ts &&
       left.props == right.props && left.op == right.op
   }
+  def vertexId(innerVal: InnerValLike)(version: String) = {
+    val colId = if (version == VERSION2) columnV2.id.get else column.id.get
+    new VertexId(colId, innerVal)
+  }
 
   /** assumes innerVal is sorted */
   def testVertexEncodeDecode(innerVals: Seq[InnerValLike],
-                             propsLs: Seq[Seq[(Byte, InnerValLike)]], version: String) = {
+                             propsLs: Seq[Seq[(Int, InnerValLike)]], version: String) = {
     for {
       props <- propsLs
     } {
       val currentTs = BigDecimal(props.toMap.get(0.toByte).get.toString).toLong
-      val head = Vertex(CompositeId(column.id.get, innerVals.head, isEdge = false, useHash = true),
-        currentTs, props.toMap, op)
+      val head = Vertex(vertexId(innerVals.head)(version), currentTs, props.toMap, op)
       val start = head
       var prev = head
       for {
         innerVal <- innerVals.tail
       } {
-        val colId = version match {
-          case VERSION2 => columnV2.id.get
-          case VERSION1 => column.id.get
-        }
-        var current = Vertex(CompositeId(colId, innerVal, false, true), currentTs, props.toMap, op)
+        var current = Vertex(vertexId(innerVal)(version), currentTs, props.toMap, op)
         val puts = current.buildPutsAsync()
         val kvs = for {put <- puts; kv <- putToKeyValues(put)} yield kv
         val decodedOpt = Vertex(kvs, version)
@@ -54,13 +54,13 @@ class VertexTest extends FunSuite with Matchers with TestCommonWithModels with T
   }
 
   test("test with int innerVals as id version 1") {
-    testVertexEncodeDecode(intInnerVals, idxPropsLs, VERSION1)
+    testVertexEncodeDecode(intInnerVals, idxPropsList, VERSION1)
   }
   test("test with int innerVals as id version 2") {
-    testVertexEncodeDecode(intInnerValsV2, idxPropsLsV2, VERSION2)
+    testVertexEncodeDecode(intInnerValsV2, idxPropsListV2, VERSION2)
   }
   test("test with string stringVals as id versoin 2") {
-    testVertexEncodeDecode(stringInnerValsV2, idxPropsLsV2, VERSION2)
+    testVertexEncodeDecode(stringInnerValsV2, idxPropsListV2, VERSION2)
   }
   //  test("test vertex encoding/decoding") {
   //    val innerVal1 = new InnerVal(BigDecimal(10))
