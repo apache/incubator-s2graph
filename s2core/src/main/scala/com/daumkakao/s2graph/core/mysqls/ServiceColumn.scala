@@ -55,7 +55,7 @@ case class ServiceColumn(id: Option[Int], serviceId: Int, columnName: String, co
   lazy val service = Service.findById(serviceId)
   lazy val metas = ColumnMeta.findAllByColumn(id.get)
   lazy val metasInvMap = metas.map { meta => meta.name -> meta} toMap
-  lazy val metaNamesMap = (ColumnMeta.lastModifiedAtColumn :: metas).map(x => (x.seq, x.name)) toMap
+  lazy val metaNamesMap = (ColumnMeta.lastModifiedAtColumn :: metas).map(x => (x.seq.toInt, x.name)) toMap
   lazy val toJson = Json.obj("serviceName" -> service.serviceName, "columnName" -> columnName, "columnType" -> columnType)
 
 

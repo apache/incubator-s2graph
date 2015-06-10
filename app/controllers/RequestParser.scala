@@ -121,7 +121,7 @@ trait RequestParser extends JSONParser {
             /** bug, need to use labels schemaVersion  */
             innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
           } yield {
-            Vertex(CompositeId(col.id.get, innerVal, isEdgeQuery, true), System.currentTimeMillis())
+            Vertex(SourceVertexId(col.id.get, innerVal), System.currentTimeMillis())
           }
         }).flatten
 

@@ -5,7 +5,7 @@ import com.codahale.metrics.Meter
 
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.types2.CompositeId
+import com.daumkakao.s2graph.core.types2.{TargetVertexId, SourceVertexId}
 
 //import com.daumkakao.s2graph.core.models.{Label, Service}
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
@@ -182,9 +182,16 @@ object QueryController extends Controller  with RequestParser with Instrumented 
 
       val srcUseHash = if (dir == GraphUtil.directions("out")) true else false
       val tgtUseHash = if (dir == GraphUtil.directions("out")) false else true
+      val srcVid =
+        if (dir == GraphUtil.directions("out")) SourceVertexId(srcColId, srcVertexId)
+        else TargetVertexId(srcColId, srcVertexId)
 
-      val src = Vertex(CompositeId(srcColId, srcVertexId, true, srcUseHash), System.currentTimeMillis())
-      val tgt = Vertex(CompositeId(tgtColId, tgtVertexId, true, tgtUseHash), System.currentTimeMillis())
+      val tgtVid =
+        if (dir == GraphUtil.directions("out")) TargetVertexId(tgtColId, tgtVertexId)
+        else SourceVertexId(tgtColId, tgtVertexId)
+
+      val src = Vertex(srcVid, System.currentTimeMillis())
+      val tgt = Vertex(tgtVid, System.currentTimeMillis())
       Graph.getEdge(src, tgt, label, dir).map { edges =>
         val ret = for {
           edge <- edges.headOption

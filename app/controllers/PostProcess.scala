@@ -203,13 +203,13 @@ object PostProcess extends JSONParser {
 //      "score" -> score)
   }
 
-  private def keysToName(seqsToNames: Map[Byte, String], props: Map[Byte, InnerValLike]) = {
+  private def keysToName(seqsToNames: Map[Int, String], props: Map[Int, InnerValLike]) = {
     for {
       (seq, value) <- props
       name <- seqsToNames.get(seq)
     } yield (name, value)
   }
-  private def propsToJson(seqsToNames: Map[Byte, String], props: Map[Byte, InnerValLike]) = {
+  private def propsToJson(seqsToNames: Map[Int, String], props: Map[Int, InnerValLike]) = {
     for ((keyName, innerVal) <- keysToName(seqsToNames, props)) yield (keyName -> innerVal.toString)
   }
   def toSimpleJson(edges: Iterable[(Vertex, Double)]) = {
