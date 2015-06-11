@@ -74,7 +74,7 @@ trait HBaseDeserializable {
 
   def bytesToKeyValuesWithTs(bytes: Array[Byte],
                              offset: Int,
-                             version: String = "v2"): (Seq[(Byte, InnerValLikeWithTs)], Int) = {
+                             version: String = DEFAULT_VERSION): (Seq[(Byte, InnerValLikeWithTs)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
@@ -92,7 +92,7 @@ trait HBaseDeserializable {
 
   def bytesToProps(bytes: Array[Byte],
                    offset: Int,
-                   version: String = "v2"): (Seq[(Byte, InnerValLike)], Int) = {
+                   version: String = DEFAULT_VERSION): (Seq[(Byte, InnerValLike)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
@@ -108,4 +108,3 @@ trait HBaseDeserializable {
     ret
   }
 }
-
