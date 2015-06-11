@@ -18,7 +18,7 @@ class VertexTest extends FunSuite with Matchers with TestCommonWithModels with T
   }
   def vertexId(innerVal: InnerValLike)(version: String) = {
     val colId = if (version == VERSION2) columnV2.id.get else column.id.get
-    new VertexId(colId, innerVal)
+    VertexId(colId, innerVal)
   }
 
   /** assumes innerVal is sorted */

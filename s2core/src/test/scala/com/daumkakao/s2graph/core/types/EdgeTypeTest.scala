@@ -10,7 +10,7 @@ import org.scalatest.{Matchers, FunSuite}
 class EdgeTypeTest extends FunSuite with Matchers with TestCommon {
 
   import InnerVal.{VERSION1, VERSION2}
-  def vertexId(innerVal: InnerValLike) = new VertexId(testColumnId, innerVal)
+  def vertexId(innerVal: InnerValLike) = VertexId(testColumnId, innerVal)
   def sourceVertexId(innerVal: InnerValLike) = SourceVertexId(testColumnId, innerVal)
   def targetVertexId(innerVal: InnerValLike) = TargetVertexId(testColumnId, innerVal)
   val skipHashBytes = true

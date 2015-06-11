@@ -10,7 +10,7 @@ import org.scalatest.{Matchers, FunSuite}
 class VertexIdTest extends FunSuite with Matchers with TestCommon with TestCommonWithModels {
   import InnerVal.{VERSION1, VERSION2}
 
-  val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) => new VertexId(testColumnId, innerVal)
+  val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) => VertexId(testColumnId, innerVal)
   def deserializer(version: String) = (bytes: Array[Byte]) => VertexId.fromBytes(bytes, 0, bytes.length, version)
   val skipHashBytes = true
   val emptyIndexPropsLs = Seq(Seq.empty[(Byte, InnerValLike)])
