@@ -15,7 +15,7 @@ object EdgeQualifier extends HBaseDeserializable {
       case _ => throw notSupportedEx(version)
     }
   }
-  def newInstance(idxProps: Seq[(Byte, InnerValLike)] = Seq.empty[(Byte, InnerValLike)],
+  def apply(idxProps: Seq[(Byte, InnerValLike)] = Seq.empty[(Byte, InnerValLike)],
                   tgtVertexId: VertexId = null,
                   op: Byte)(version: String = DEFAULT_VERSION): EdgeQualifierLike = {
     version match {

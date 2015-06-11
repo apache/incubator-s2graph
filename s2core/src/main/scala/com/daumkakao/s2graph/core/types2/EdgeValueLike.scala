@@ -14,7 +14,7 @@ object EdgeValue extends HBaseDeserializable {
       case _ => throw notSupportedEx(version)
     }
   }
-  def newInstance(props: Seq[(Byte, InnerValLike)])(version: String): EdgeValueLike = {
+  def apply(props: Seq[(Byte, InnerValLike)])(version: String): EdgeValueLike = {
     version match {
       case VERSION2 => v2.EdgeValue(props)
       case VERSION1 => v1.EdgeValue(props)

@@ -14,7 +14,7 @@ object VertexQualifier extends HBaseDeserializable  {
       case _ => throw notSupportedEx(version)
     }
   }
-  def newInstance(propKey: Int)(version: String): VertexQualifierLike = {
+  def apply(propKey: Int)(version: String): VertexQualifierLike = {
     version match {
       case VERSION2 => v2.VertexQualifier(propKey)
       case VERSION1 => v1.VertexQualifier(propKey)

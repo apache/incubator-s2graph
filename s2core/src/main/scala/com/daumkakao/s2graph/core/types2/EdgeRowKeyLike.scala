@@ -15,7 +15,8 @@ object EdgeRowKey extends HBaseDeserializable {
       case _ => throw notSupportedEx(version)
     }
   }
-  def newInstance(srcVertexId: VertexId,
+
+  def apply(srcVertexId: VertexId,
                   labelWithDir: LabelWithDirection,
                   labelOrderSeq: Byte,
                   isInverted: Boolean,
@@ -28,6 +29,7 @@ object EdgeRowKey extends HBaseDeserializable {
     }
   }
 }
+
 trait EdgeRowKeyLike extends HBaseSerializable {
   val srcVertexId: VertexId
   val labelWithDir: LabelWithDirection

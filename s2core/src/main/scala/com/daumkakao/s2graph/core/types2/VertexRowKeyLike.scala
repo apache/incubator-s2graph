@@ -14,7 +14,7 @@ object VertexRowKey extends HBaseDeserializable {
       case _ => throw notSupportedEx(version)
     }
   }
-  def newInstance(id: VertexId)(version: String): VertexRowKeyLike = {
+  def apply(id: VertexId)(version: String): VertexRowKeyLike = {
     version match {
       case VERSION2 => v2.VertexRowKey(id)
       case VERSION1 => v1.VertexRowKey(id)

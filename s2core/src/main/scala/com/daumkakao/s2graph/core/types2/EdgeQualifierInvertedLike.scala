@@ -14,7 +14,7 @@ object EdgeQualifierInverted extends HBaseDeserializable {
       case _ => throw notSupportedEx(version)
     }
   }
-  def newInstance(tgtVertexId: VertexId)(version: String): EdgeQualifierInvertedLike = {
+  def apply(tgtVertexId: VertexId)(version: String): EdgeQualifierInvertedLike = {
     version match {
       case VERSION2 => v2.EdgeQualifierInverted(tgtVertexId)
       case VERSION1 => v1.EdgeQualifierInverted(tgtVertexId)

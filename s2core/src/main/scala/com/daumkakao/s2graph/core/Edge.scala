@@ -32,10 +32,10 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
   //  Logger.error(s"EdgeWithIndexInverted${this.toString}")
   lazy val lastModifiedAt = props.map(_._2.ts).max
   lazy val schemaVer = label.schemaVersion
-  lazy val rowKey = EdgeRowKey.newInstance(srcVertex.id, labelWithDir, LabelIndex.defaultSeq, isInverted = true)(version = schemaVer)
+  lazy val rowKey = EdgeRowKey(srcVertex.id, labelWithDir, LabelIndex.defaultSeq, isInverted = true)(version = schemaVer)
 
-  lazy val qualifier = EdgeQualifierInverted.newInstance(tgtVertex.id)(version = schemaVer)
-  lazy val value = EdgeValueInverted.newInstance(op, props.toList)(version = schemaVer)
+  lazy val qualifier = EdgeQualifierInverted(tgtVertex.id)(version = schemaVer)
+  lazy val value = EdgeValueInverted(op, props.toList)(version = schemaVer)
 
   // only for toString.
   lazy val label = Label.findById(labelWithDir.labelId)
@@ -116,9 +116,9 @@ case class EdgeWithIndex(srcVertex: Vertex,
   lazy val ordersKeyMap = orders.map(_._1).toSet
   lazy val metas = for ((k, v) <- props if !ordersKeyMap.contains(k)) yield (k -> v)
 
-  lazy val rowKey = EdgeRowKey.newInstance(srcVertex.id, labelWithDir, labelIndexSeq, isInverted = false)(schemaVer)
-  lazy val qualifier = EdgeQualifier.newInstance(orders, tgtVertex.id, op)(label.schemaVersion)
-  lazy val value = EdgeValue.newInstance(metas.toList)(label.schemaVersion)
+  lazy val rowKey = EdgeRowKey(srcVertex.id, labelWithDir, labelIndexSeq, isInverted = false)(schemaVer)
+  lazy val qualifier = EdgeQualifier(orders, tgtVertex.id, op)(label.schemaVersion)
+  lazy val value = EdgeValue(metas.toList)(label.schemaVersion)
 
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
 

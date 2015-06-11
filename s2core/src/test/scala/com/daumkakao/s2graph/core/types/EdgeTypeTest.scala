@@ -18,14 +18,14 @@ class EdgeTypeTest extends FunSuite with Matchers with TestCommon {
   test("test edge row key order with int source vertex id version 1") {
     val version = VERSION1
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
-      EdgeRowKey.newInstance(sourceVertexId(innerVal), testLabelWithDir, testLabelOrderSeq, isInverted = false)(version)
+      EdgeRowKey(sourceVertexId(innerVal), testLabelWithDir, testLabelOrderSeq, isInverted = false)(version)
     val deserializer = (bytes: Array[Byte]) => EdgeRowKey.fromBytes(bytes, 0, bytes.length, version)
     testOrder(idxPropsLs, intInnerVals, skipHashBytes)(serializer, deserializer) shouldBe true
   }
   test("test edge row key order with int source vertex id version 2") {
     val version = VERSION2
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
-      EdgeRowKey.newInstance(sourceVertexId(innerVal), testLabelWithDir, testLabelOrderSeq, isInverted = false)(version)
+      EdgeRowKey(sourceVertexId(innerVal), testLabelWithDir, testLabelOrderSeq, isInverted = false)(version)
     val deserializer = (bytes: Array[Byte]) => EdgeRowKey.fromBytes(bytes, 0, bytes.length, version)
     testOrder(idxPropsLsV2, intInnerValsV2, skipHashBytes)(serializer, deserializer) shouldBe true
   }
@@ -33,7 +33,7 @@ class EdgeTypeTest extends FunSuite with Matchers with TestCommon {
   test("test edge row qualifier with int target vertex id version 1") {
     val version = VERSION1
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
-      EdgeQualifier.newInstance(idxProps, targetVertexId(innerVal), testOp)(version)
+      EdgeQualifier(idxProps, targetVertexId(innerVal), testOp)(version)
     val deserializer = (bytes: Array[Byte]) => EdgeQualifier.fromBytes(bytes, 0, bytes.length, version)
 
     testOrder(idxPropsLs, intInnerVals, !skipHashBytes)(serializer, deserializer) shouldBe true
@@ -42,7 +42,7 @@ class EdgeTypeTest extends FunSuite with Matchers with TestCommon {
   test("test edge row qualifier with int target vertex id version 2") {
     val version = VERSION2
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
-      EdgeQualifier.newInstance(idxProps, targetVertexId(innerVal), testOp)(version)
+      EdgeQualifier(idxProps, targetVertexId(innerVal), testOp)(version)
     val deserializer = (bytes: Array[Byte]) => EdgeQualifier.fromBytes(bytes, 0, bytes.length, version)
 
     testOrder(idxPropsLsV2, intInnerValsV2, !skipHashBytes)(serializer, deserializer) shouldBe true
@@ -52,7 +52,7 @@ class EdgeTypeTest extends FunSuite with Matchers with TestCommon {
   test("test edge row qualifier inverted with int target vertex id version 1") {
     val version = VERSION1
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
-      EdgeQualifierInverted.newInstance(targetVertexId(innerVal))(version)
+      EdgeQualifierInverted(targetVertexId(innerVal))(version)
     val deserializer = (bytes: Array[Byte]) => EdgeQualifierInverted.fromBytes(bytes, 0, bytes.length, version)
 
     testOrder(idxPropsLs, intInnerVals, !skipHashBytes)(serializer, deserializer) shouldBe true
@@ -60,7 +60,7 @@ class EdgeTypeTest extends FunSuite with Matchers with TestCommon {
   test("test edge row qualifier inverted with int target vertex id version 2") {
     val version = VERSION2
     val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
-      EdgeQualifierInverted.newInstance(targetVertexId(innerVal))(version)
+      EdgeQualifierInverted(targetVertexId(innerVal))(version)
     val deserializer = (bytes: Array[Byte]) => EdgeQualifierInverted.fromBytes(bytes, 0, bytes.length, version)
 
     testOrder(idxPropsLsV2, intInnerValsV2, !skipHashBytes)(serializer, deserializer) shouldBe true

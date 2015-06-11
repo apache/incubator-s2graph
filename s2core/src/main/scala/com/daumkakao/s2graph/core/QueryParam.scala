@@ -247,7 +247,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     val id = InnerVal.convertVersion(srcVertex.innerId, srcVertex.serviceColumn.columnType, label.schemaVersion)
     val vId = SourceVertexId(srcVertex.id.colId, id)
     val sourceVertexId = VertexId.toSourceVertexId(vId)
-    val rowKey = EdgeRowKey.newInstance(sourceVertexId, labelWithDir, labelOrderSeq, isInverted)(label.schemaVersion)
+    val rowKey = EdgeRowKey(sourceVertexId, labelWithDir, labelOrderSeq, isInverted)(label.schemaVersion)
     val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
     val client = Graph.getClient(label.hbaseZkAddr)
     val filters = ListBuffer.empty[ScanFilter]

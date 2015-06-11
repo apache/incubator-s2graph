@@ -400,10 +400,10 @@ object Graph {
   def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: Label, dir: Int): Future[Iterable[Edge]] = {
     implicit val ex = this.executionContext
 
-    val rowKey = EdgeRowKey.newInstance(srcVertex.id,
+    val rowKey = EdgeRowKey(srcVertex.id,
       LabelWithDirection(label.id.get, dir), label.defaultIndex.get.seq, isInverted = true)(label.schemaVersion)
 
-    val qualifier = EdgeQualifierInverted.newInstance(tgtVertex.id)(label.schemaVersion)
+    val qualifier = EdgeQualifierInverted(tgtVertex.id)(label.schemaVersion)
     val client = getClient(label.hbaseZkAddr)
     val getRequest = new GetRequest(label.hbaseTableName.getBytes(), rowKey.bytes, edgeCf, qualifier.bytes)
 

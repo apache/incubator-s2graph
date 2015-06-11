@@ -14,7 +14,7 @@ object EdgeValueInverted extends HBaseDeserializable {
       case _ => throw notSupportedEx(version)
     }
   }
-  def newInstance(op: Byte,
+  def apply(op: Byte,
                   props: Seq[(Byte, InnerValLikeWithTs)] = Seq.empty[(Byte, InnerValLikeWithTs)])
                  (version: String = DEFAULT_VERSION): EdgeValueInvertedLike = {
     version match {

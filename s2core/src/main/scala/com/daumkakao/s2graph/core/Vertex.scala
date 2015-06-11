@@ -30,10 +30,10 @@ case class Vertex(id: VertexId,
   lazy val service = Service.findById(serviceColumn.serviceId)
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, service.hTableName)
 
-  lazy val rowKey = VertexRowKey.newInstance(id)(schemaVer)
+  lazy val rowKey = VertexRowKey(id)(schemaVer)
   lazy val defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq.toInt -> InnerVal.withLong(ts, schemaVer))
   lazy val qualifiersWithValues =
-    for ((k, v) <- props ++ defaultProps) yield (VertexQualifier.newInstance(k)(schemaVer), v)
+    for ((k, v) <- props ++ defaultProps) yield (VertexQualifier(k)(schemaVer), v)
 
   /** TODO: make this as configurable */
   override lazy val serviceName = service.serviceName
