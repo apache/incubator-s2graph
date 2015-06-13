@@ -4,15 +4,22 @@ package com.daumkakao.s2graph.core
 //import HBaseElement._
 
 //import com.daumkakao.s2graph.core.models.{Label, LabelIndex, LabelMeta}
+
+import java.util
+
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types2._
+import com.stumbleupon.async.{Deferred, Callback}
+import com.sun.corba.se.spi.orbutil.fsm.Guard.Result
+
+import scala.concurrent.Future
 
 //import com.daumkakao.s2graph.core.types.EdgeType._
 //import com.daumkakao.s2graph.core.types._
 
 import org.apache.hadoop.hbase.client.{Delete, Put}
 import org.apache.hadoop.hbase.util.Bytes
-import org.hbase.async.{AtomicIncrementRequest, HBaseRpc, DeleteRequest, PutRequest}
+import org.hbase.async._
 import org.slf4j.LoggerFactory
 import play.api.Logger
 import scala.collection.JavaConversions._
@@ -51,6 +58,7 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
   def buildPutAsync() = {
     new PutRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, value.bytes, version)
   }
+
 
   def isSame(other: Any): Boolean = {
     val ret = this.toString == other.toString
@@ -362,52 +370,103 @@ case class Edge(srcVertex: Vertex,
   //      Logger.error(s"mutation failed.")
   //    }
   //  }
-
-  def mutate(f: (Option[Edge], Edge) => EdgeUpdate): Unit = {
-    try {
-      val client = Graph.getClient(label.hbaseZkAddr)
-      for {
-        edges <- fetchInvertedAsync()
-        invertedEdgeOpt = edges.headOption
-        edgeUpdate = f(invertedEdgeOpt, this)
-      } yield {
-        //        Logger.debug(s"$edgeUpdate")
-        /**
-         * we can use CAS operation on inverted Edge checkAndSet() and if it return false
-         * then re-read and build update and write recursively.
-         */
-        Graph.writeAsync(label.hbaseZkAddr, edgeUpdate.mutations)
-        /** degree */
-        val incrs =
-          (edgeUpdate.edgesToDelete.isEmpty, edgeUpdate.edgesToInsert.isEmpty) match {
-            case (true, true) =>
-
-              /** when there is no need to update. shouldUpdate == false */
-              List.empty[AtomicIncrementRequest]
-            case (true, false) =>
-
-              /** no edges to delete but there is new edges to insert so increase degree by 1 */
-              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
-            case (false, true) =>
-
-              /** no edges to insert but there is old edges to delete so decrease degree by 1 */
-              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
-            case (false, false) =>
-
-              /** update on existing edges so no change on degree */
-              //              if (edgeUpdate.edgesToDelete.find(e => e.op == GraphUtil.operations("delete")).isDefined) {
-              //                this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
-              //              } else {
-              List.empty[AtomicIncrementRequest]
-            //              }
-          }
-        //        Logger.debug(s"Increment: $incrs")
-        Graph.writeAsync(label.hbaseZkAddr, incrs)
+  def compareAndSet(client: HBaseClient)(invertedEdgeOpt: Option[Edge], edgeUpdate: EdgeUpdate)(tryNum: Int = 0): Future[Boolean] = {
+    if (tryNum >= 3) {
+      Logger.error(s"compare and set failed.")
+      Future.successful(false)
+    } else {
+      val expected = invertedEdgeOpt.map { e =>
+        e.edgesWithInvertedIndex.value.bytes
+      }.getOrElse(Array.empty[Byte])
+      val futures = edgeUpdate.invertedEdgeMutations.map { newPut =>
+        Graph.defferedToFuture(client.compareAndSet(newPut, expected))(false)
       }
-      //      client.flush()
-    } catch {
-      case e: Throwable =>
-        Logger.error(s"mutate failed. $e", e)
+
+      for {
+        rets <- Future.sequence(futures)
+      } yield {
+        if (rets.forall(x => x)) {
+          Graph.writeAsync(label.hbaseZkAddr, edgeUpdate.indexedEdgeMutations)
+          /** degree */
+          val incrs =
+            (edgeUpdate.edgesToDelete.isEmpty, edgeUpdate.edgesToInsert.isEmpty) match {
+              case (true, true) =>
+                /** when there is no need to update. shouldUpdate == false */
+                List.empty[AtomicIncrementRequest]
+              case (true, false) =>
+                /** no edges to delete but there is new edges to insert so increase degree by 1 */
+                this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
+              case (false, true) =>
+                /** no edges to insert but there is old edges to delete so decrease degree by 1 */
+                this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
+              case (false, false) =>
+                /** update on existing edges so no change on degree */
+                List.empty[AtomicIncrementRequest]
+            }
+          //        Logger.debug(s"Increment: $incrs")
+          Graph.writeAsync(label.hbaseZkAddr, incrs)
+          true
+        } else {
+          false
+        }
+      }
+    }
+  }
+//      val mutationResult = (for {
+//        newPut <- edgeUpdate.invertedEdgeMutations
+//      } yield .forall(x => x)
+//
+//
+//      if (mutationResult) {
+//        /** no contention */
+//        Graph.writeAsync(label.hbaseZkAddr, edgeUpdate.indexedEdgeMutations)
+//        /** degree */
+//        val incrs =
+//          (edgeUpdate.edgesToDelete.isEmpty, edgeUpdate.edgesToInsert.isEmpty) match {
+//            case (true, true) =>
+//              /** when there is no need to update. shouldUpdate == false */
+//              List.empty[AtomicIncrementRequest]
+//            case (true, false) =>
+//              /** no edges to delete but there is new edges to insert so increase degree by 1 */
+//              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
+//            case (false, true) =>
+//              /** no edges to insert but there is old edges to delete so decrease degree by 1 */
+//              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
+//            case (false, false) =>
+//              /** update on existing edges so no change on degree */
+//              List.empty[AtomicIncrementRequest]
+//          }
+//        //        Logger.debug(s"Increment: $incrs")
+//        Graph.writeAsync(label.hbaseZkAddr, incrs)
+//        true
+//      } else {
+//        compareAndSet(client)(invertedEdgeOpt, edgeUpdate)(tryNum + 1)
+//      }
+//    }
+//  }
+  def mutate(f: (Option[Edge], Edge) => EdgeUpdate, tryNum: Int = 3): Unit = {
+    if (tryNum <= 0) throw new RuntimeException(s"mutate failed")
+    else {
+      try {
+        val client = Graph.getClient(label.hbaseZkAddr)
+        for {
+          edges <- fetchInvertedAsync()
+          invertedEdgeOpt = edges.headOption
+          edgeUpdate = f(invertedEdgeOpt, this)
+          ret <- compareAndSet(client)(invertedEdgeOpt, edgeUpdate)(0)
+        } {
+          /**
+           * we can use CAS operation on inverted Edge checkAndSet() and if it return false
+           * then re-read and build update and write recursively.
+           */
+          if (!ret) mutate(f, tryNum - 1)
+
+        }
+        //      client.flush()
+      } catch {
+        case e: Throwable =>
+          Logger.error(s"mutate failed. $e", e)
+      }
     }
   }
 
@@ -476,13 +535,14 @@ case class Edge(srcVertex: Vertex,
   }
 }
 
-case class EdgeUpdate(mutations: List[HBaseRpc] = List.empty[HBaseRpc],
+case class EdgeUpdate(indexedEdgeMutations: List[HBaseRpc] = List.empty[HBaseRpc],
+                      invertedEdgeMutations: List[PutRequest] = List.empty[PutRequest],
                       edgesToDelete: List[EdgeWithIndex] = List.empty[EdgeWithIndex],
                       edgesToInsert: List[EdgeWithIndex] = List.empty[EdgeWithIndex],
                       newInvertedEdge: Option[EdgeWithIndexInverted] = None) {
 
   override def toString(): String = {
-    val size = s"mutations: ${mutations.size}"
+    val size = s"mutations: ${indexedEdgeMutations.size}, ${invertedEdgeMutations.size}"
     val deletes = s"deletes: ${edgesToDelete.map(e => e.toString).mkString("\n")}"
     val inserts = s"inserts: ${edgesToInsert.map(e => e.toString).mkString("\n")}"
     val updates = s"snapshot: $newInvertedEdge"
@@ -765,12 +825,13 @@ object Edge extends JSONParser {
     }
     val edgeInverted = if (newPropsWithTs.isEmpty) None else Some(requestEdge.edgesWithInvertedIndex)
 
-    val deleteMutations = edgesToDelete.flatMap(edge => edge.buildDeletesAsync).toList
-    val insertMutations = edgesToInsert.flatMap(edge => edge.buildPutsAsync).toList
+    val deleteMutations = edgesToDelete.flatMap(edge => edge.buildDeletesAsync)
+    val insertMutations = edgesToInsert.flatMap(edge => edge.buildPutsAsync)
     val invertMutations = edgeInverted.map(e => List(e.buildPutAsync)).getOrElse(List.empty[PutRequest])
-    val mutations = deleteMutations ++ insertMutations ++ invertMutations
+    val indexedEdgeMutations = deleteMutations ++ insertMutations
+    val invertedEdgeMutations = invertMutations
 
-    val update = EdgeUpdate(mutations, edgesToDelete, edgesToInsert, edgeInverted)
+    val update = EdgeUpdate(indexedEdgeMutations, invertedEdgeMutations, edgesToDelete, edgesToInsert, edgeInverted)
 
     //        Logger.debug(s"UpdatedProps: ${newPropsWithTs}\n")
     //        Logger.debug(s"EdgeUpdate: $update\n")
