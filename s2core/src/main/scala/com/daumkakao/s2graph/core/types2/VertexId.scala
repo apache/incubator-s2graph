@@ -122,6 +122,7 @@ case class TargetVertexId(override val colId: Int,
   override def equals(obj: Any): Boolean = {
     obj match {
       case other: TargetVertexId => innerId == other.innerId
+      case _ => false
     }
   }
 }

@@ -1,15 +1,8 @@
 package com.daumkakao.s2graph.core
 
-//import com.daumkakao.s2graph.core.HBaseElement.{InnerVal, CompositeId}
-//import com.daumkakao.s2graph.core.mysqls.{ColumnMeta, ServiceColumn, Service}
-
-//import com.daumkakao.s2graph.core.models.{ColumnMeta, ServiceColumn, Service}
-import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.types2._
-
-//import com.daumkakao.s2graph.core.types.VertexType.{VertexQualifier, VertexRowKey}
-//import com.daumkakao.s2graph.core.types.{InnerVal, CompositeId}
-
 import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.client.Delete
 import play.api.libs.json.Json

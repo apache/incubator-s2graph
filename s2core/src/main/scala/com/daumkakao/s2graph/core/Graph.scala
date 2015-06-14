@@ -1,13 +1,8 @@
 package com.daumkakao.s2graph.core
 
-//import com.daumkakao.s2graph.core.mysqls.{Label}
-//import com.daumkakao.s2graph.core.HBaseElement.{ EdgeQualifierInverted, EdgeRowKey, CompositeId, LabelWithDirection}
-//import com.daumkakao.s2graph.core.models.{HBaseModel, Label}
-import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.types2.{VertexId, EdgeQualifierInverted, LabelWithDirection, EdgeRowKey}
-
-//import com.daumkakao.s2graph.core.types.EdgeType.{EdgeQualifierInverted, EdgeRowKey}
-//import com.daumkakao.s2graph.core.types.{CompositeId, LabelWithDirection}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._
 import java.util.concurrent.Executors
@@ -109,8 +104,8 @@ object Graph {
     this.config = config
     val (hbaseConfig, conn) = GraphConnection.apply(config)
     this.hbaseConfig = hbaseConfig
-//    HBaseModel.apply(config)
-    Model.apply(config)
+    HBaseModel.apply(config)
+//    Model.apply(config)
     this.executionContext = ex
     this.singleGetTimeout = getOrElse(config)("hbase.client.operation.timeout", 1000 millis)
     val zkQuorum = hbaseConfig.get("hbase.zookeeper.quorum")
@@ -295,9 +290,8 @@ object Graph {
       try {
         val client = getClient(zkQuorum)
         val futures = rpcs.map { rpc =>
-          Logger.debug(s"$rpc")
           //TODO: register errorBacks on this operations to log error
-          Logger.debug(s"$rpc")
+//          Logger.debug(s"$rpc")
           val deferred = rpc match {
             case d: DeleteRequest => client.delete(d)
             case p: PutRequest => client.put(p)

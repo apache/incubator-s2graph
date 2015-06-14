@@ -3,15 +3,13 @@ package controllers
 
 import com.codahale.metrics.Meter
 
-import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.types2.{TargetVertexId, SourceVertexId}
-
-//import com.daumkakao.s2graph.core.models.{Label, Service}
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
 import play.api.Logger
 
-//import models.response.param.{ VertexQueryResponse, EdgeQueryResponse }
 import play.api.libs.json.{ JsValue, Json }
 import play.api.mvc.{ Action, Controller, Result }
 import util.TestDataLoader

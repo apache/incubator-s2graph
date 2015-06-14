@@ -1,30 +1,15 @@
 package com.daumkakao.s2graph.core
 
-//import com.daumkakao.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
-//import HBaseElement._
-
-//import com.daumkakao.s2graph.core.models.{Label, LabelIndex, LabelMeta}
-
-import java.util
-
-import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.types2._
-import com.stumbleupon.async.{Deferred, Callback}
-import com.sun.corba.se.spi.orbutil.fsm.Guard.Result
-
 import scala.concurrent.Future
-
-//import com.daumkakao.s2graph.core.types.EdgeType._
-//import com.daumkakao.s2graph.core.types._
-
 import org.apache.hadoop.hbase.client.{Delete, Put}
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async._
 import org.slf4j.LoggerFactory
 import play.api.Logger
-import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
-import play.api.libs.json.Json
 
 case class EdgeWithIndexInverted(srcVertex: Vertex,
                                  tgtVertex: Vertex,
@@ -370,11 +355,11 @@ case class Edge(srcVertex: Vertex,
   //      Logger.error(s"mutation failed.")
   //    }
   //  }
-  def compareAndSet(client: HBaseClient)(invertedEdgeOpt: Option[Edge], edgeUpdate: EdgeUpdate)(tryNum: Int = 0): Future[Boolean] = {
-    if (tryNum >= 3) {
-      Logger.error(s"compare and set failed.")
-      Future.successful(false)
-    } else {
+  def compareAndSet(client: HBaseClient)(invertedEdgeOpt: Option[Edge], edgeUpdate: EdgeUpdate): Future[Boolean] = {
+//    if (tryNum >= maxTryNum) {
+//      Logger.error(s"compare and set failed.")
+//      Future.successful(false)
+//    } else {
       val expected = invertedEdgeOpt.map { e =>
         e.edgesWithInvertedIndex.value.bytes
       }.getOrElse(Array.empty[Byte])
@@ -410,7 +395,7 @@ case class Edge(srcVertex: Vertex,
           false
         }
       }
-    }
+//    }
   }
 //      val mutationResult = (for {
 //        newPut <- edgeUpdate.invertedEdgeMutations
@@ -444,8 +429,9 @@ case class Edge(srcVertex: Vertex,
 //      }
 //    }
 //  }
-  def mutate(f: (Option[Edge], Edge) => EdgeUpdate, tryNum: Int = 3): Unit = {
-    if (tryNum <= 0) throw new RuntimeException(s"mutate failed")
+  val maxTryNum = 10
+  def mutate(f: (Option[Edge], Edge) => EdgeUpdate, tryNum: Int = 0): Unit = {
+    if (tryNum >= maxTryNum) throw new RuntimeException(s"mutate failed after $tryNum")
     else {
       try {
         val client = Graph.getClient(label.hbaseZkAddr)
@@ -453,13 +439,17 @@ case class Edge(srcVertex: Vertex,
           edges <- fetchInvertedAsync()
           invertedEdgeOpt = edges.headOption
           edgeUpdate = f(invertedEdgeOpt, this)
-          ret <- compareAndSet(client)(invertedEdgeOpt, edgeUpdate)(0)
+          ret <- compareAndSet(client)(invertedEdgeOpt, edgeUpdate)
         } {
           /**
            * we can use CAS operation on inverted Edge checkAndSet() and if it return false
            * then re-read and build update and write recursively.
            */
-          if (!ret) mutate(f, tryNum - 1)
+          if (ret) Logger.debug(s"mutate successed. $this")
+          else {
+            Logger.error(s"mutate failed. retry")
+            mutate(f, tryNum + 1)
+          }
 
         }
         //      client.flush()
@@ -900,7 +890,7 @@ object Edge extends JSONParser {
     } else {
       val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
 
-          Logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
+//          Logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
       val labelMetas = LabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
       val propsWithDefault = (for (meta <- labelMetas) yield {
         props.get(meta.seq) match {

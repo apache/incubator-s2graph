@@ -3,7 +3,7 @@ package controllers
 //import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.types2.InnerValLike
+import com.daumkakao.s2graph.core.types2.{InnerVal, InnerValLike}
 
 //import com.daumkakao.s2graph.core.models._
 import play.api.Logger
@@ -114,13 +114,20 @@ object PostProcess extends JSONParser {
     val withScore = true
     import play.api.libs.json.Json
     val degreeJsons = ListBuffer[JsObject]()
+    val degrees = ListBuffer[JsObject]()
     val edgeJsons = ListBuffer[JsObject]()
     for {
       edges <- edgesPerVertex
       (edge, score) <-  edges
       edgeJson <- edgeToJson(edge, score)
     } yield {
-        if (edge.propsWithTs.contains(LabelMeta.degreeSeq)) degreeJsons += edgeJson
+        if (edge.propsWithTs.contains(LabelMeta.degreeSeq)) {
+//          degreeJsons += edgeJson
+          degrees += Json.obj("label" -> edge.label.label,
+            LabelMeta.degree.name ->
+              innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
+            )
+        }
         else edgeJsons += edgeJson
       }
 
@@ -132,7 +139,7 @@ object PostProcess extends JSONParser {
       }
 
     queryLogger.info(s"Result: ${results.size}")
-    Json.obj("size" -> results.size, "results" -> results)
+    Json.obj("size" -> results.size, "degrees" -> degrees, "results" -> results)
   }
   def toSiimpleVertexArrJson(exclude: Seq[Iterable[(Edge, Double)]],
                              edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]]) = {

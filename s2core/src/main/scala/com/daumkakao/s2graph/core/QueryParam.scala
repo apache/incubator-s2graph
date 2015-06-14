@@ -1,15 +1,9 @@
 package com.daumkakao.s2graph.core
 
-//import com.daumkakao.s2graph.core.HBaseElement.{LabelWithDirection, InnerValWithTs, InnerVal, CompositeId}
-import com.daumkakao.s2graph.core.mysqls._
-import play.api.Logger
-import play.api.libs.json.JsValue
-
-//import com.daumkakao.s2graph.core.models.{Label, LabelIndex, LabelMeta}
+//import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.parsers.Where
 import com.daumkakao.s2graph.core.types2._
-
-//import com.daumkakao.s2graph.core.types.{LabelWithDirection, InnerVal, InnerValWithTs, CompositeId}
 import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.util.Bytes
 import GraphConstant._
@@ -32,18 +26,6 @@ object Query {
 }
 case class Query(vertices: Seq[Vertex], steps: List[Step],
   unique: Boolean = true, removeCycle: Boolean = false) {
-
-//  lazy val startEdgesWithScore = (for {
-//    firstStep <- steps.headOption
-//  } yield {
-//    for (v <- vertices; qParam <- firstStep.queryParams) yield {
-//      val ts = System.currentTimeMillis()
-//      val srcVertex = Vertex(new CompositeId(v.id.colId, v.innerId, isEdge = true, useHash = true), ts)
-//      (Edge(srcVertex, srcVertex,
-//        qParam.labelWithDir, GraphUtil.operations("insert"), ts, ts,
-//        Map.empty[Byte, InnerValLikeWithTs]), Query.initialScore)
-//    }
-//  }).getOrElse(List.empty[(Edge, Double)])
 }
 case class Step(queryParams: List[QueryParam]) {
   lazy val excludes = queryParams.filter(qp => qp.exclude)

@@ -83,18 +83,29 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
 
         def init = {
           println(s"---- TC${tcNum}_init ----")
-          for ((ts, op, props) <- opWithProps) {
-            val bulkEdge = List(ts, op, "e", srcId, tgtId, testLabelName, props).mkString("\t")
-            val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)
-            println(s">> $req, $bulkEdge")
-            val res = Await.result(route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)).get, HTTP_REQ_WAITING_TIME)
+          val bulkEdge = (for ((ts, op, props) <- opWithProps) yield {
+            List(ts, op, "e", srcId, tgtId, testLabelName, props).mkString("\t")
+          }).mkString("\n")
+//          for ((ts, op, props) <- opWithProps) {
+//            val bulkEdge = List(ts, op, "e", srcId, tgtId, testLabelName, props).mkString("\t")
+//            val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)
+//            println(s">> $req, $bulkEdge")
+//            val res = Await.result(route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)).get, HTTP_REQ_WAITING_TIME)
+//
+//            /**
+//             * since asynchbase hbase client flush interval is 1000 millis, we wait.
+//             */
+//            Thread.sleep(asyncFlushInterval)
+//            res.header.status must equalTo(200)
+//          }
+          val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)
+          println(s">> $req, $bulkEdge")
+          val res = Await.result(route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)).get, HTTP_REQ_WAITING_TIME)
 
-            /**
-             * since asynchbase hbase client flush interval is 1000 millis, we wait.
-             */
-            Thread.sleep(asyncFlushInterval)
-            res.header.status must equalTo(200)
-          }
+          /**
+           * since asynchbase hbase client flush interval is 1000 millis, we wait.
+           */
+          res.header.status must equalTo(200)
           println(s"---- TC${tcNum}_init ----")
         }
         def clean = {
@@ -138,10 +149,12 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
           val rslt = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(Json.parse(simpleQuery))).get
 
           val jsRsltsObj = commonCheck(rslt)
+//          val degreesLs = (jsRsltsObj \ "degrees").as[List[JsObject]]
           val propsLs = (jsRsltsObj \\ "props").seq
+//          (degreesLs.head \ LabelMeta.degree.name).as[Int] must equalTo(1)
+//          propsLs.head.as[JsObject].keys.contains(LabelMeta.degree.name) must equalTo(true)
+//          (propsLs.head.as[JsObject] \ LabelMeta.degree.name).as[Int] must equalTo(1)
 
-          propsLs.head.as[JsObject].keys.contains(LabelMeta.degree.name) must equalTo(true)
-          (propsLs.head.as[JsObject] \ LabelMeta.degree.name).as[Int] must equalTo(1)
           (jsRsltsObj \\ "from").seq.last.toString must equalTo(srcId)
           (jsRsltsObj \\ "to").seq.last.toString must equalTo(tgtId)
           (jsRsltsObj \\ "_timestamp").seq.last.as[Long] must equalTo(maxTs)
@@ -163,7 +176,7 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
             (t1, "increment", "{\"weight\": 10}"),
             (t3, "increment", "{\"time\": 10, \"weight\": 20}"),
             (t2, "delete", ""))
-          val expected = Map("time" -> "10", "weight" -> "0")
+          val expected = Map("time" -> "10", "weight" -> "20")
 
           runTC(tcNum, tcString, bulkQueries, expected)
         }

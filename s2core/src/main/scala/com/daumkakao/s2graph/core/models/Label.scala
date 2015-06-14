@@ -2,7 +2,7 @@ package com.daumkakao.s2graph.core.models
 
 import com.daumkakao.s2graph.core.models.HBaseModel.{KEY, VAL}
 import com.daumkakao.s2graph.core.types2.InnerVal
-import com.daumkakao.s2graph.core.{JSONParser, Management}
+import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
 import play.api.Logger
 import play.api.libs.json.{Json, JsValue}
 
@@ -188,6 +188,12 @@ case class Label(kvsParam: Map[KEY, VAL]) extends HBaseModel[Label]("HLabel", kv
   lazy val metaPropNames = metaProps.map(x => x.name)
   lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
 
+  def srcColumnWithDir(dir: Int) = {
+    if (dir == GraphUtil.directions("out")) srcColumn else tgtColumn
+  }
+  def tgtColumnWithDir(dir: Int) = {
+    if (dir == GraphUtil.directions("out")) tgtColumn else srcColumn
+  }
   def init() = {
     metas
     metaSeqsToNames

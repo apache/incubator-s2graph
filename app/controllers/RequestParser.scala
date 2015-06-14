@@ -1,12 +1,9 @@
 package controllers
 
-//import com.daumkakao.s2graph.core.HBaseElement._
-//import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core._
-//import com.daumkakao.s2graph.core.models._
-import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.parsers.WhereParser
-//import com.daumkakao.s2graph.core.types.{CompositeId, LabelWithDirection, InnerVal}
 import com.daumkakao.s2graph.core.types2._
 import play.api.Logger
 import play.api.libs.json._
@@ -157,7 +154,7 @@ trait RequestParser extends JSONParser {
               val labelWithDir = LabelWithDirection(label.id.get, direction)
               val indexSeq = label.indexSeqsMap.get(scorings.map(kv => kv._1).toList).map(x => x.seq).getOrElse(LabelIndex.defaultSeq)
               val where = extractWhere(label, labelGroup)
-              val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(false)
+              val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
               // TODO: refactor this. dirty
               val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
               QueryParam(labelWithDir).labelOrderSeq(labelOrderSeq)

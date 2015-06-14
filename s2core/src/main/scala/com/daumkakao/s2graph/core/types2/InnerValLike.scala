@@ -194,7 +194,7 @@ object InnerVal extends HBaseDeserializable {
         }
       case _ => throw notSupportedEx(toVersion)
     }
-    Logger.debug(s"convertVersion: $innerVal, $dataType, $toVersion, $ret, ${innerVal.bytes.toList}, ${ret.bytes.toList}")
+//    Logger.debug(s"convertVersion: $innerVal, $dataType, $toVersion, $ret, ${innerVal.bytes.toList}, ${ret.bytes.toList}")
     ret
   }
 
