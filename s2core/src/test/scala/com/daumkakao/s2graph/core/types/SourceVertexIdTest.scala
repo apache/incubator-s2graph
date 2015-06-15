@@ -1,7 +1,6 @@
 package com.daumkakao.s2graph.core.types
 
 import com.daumkakao.s2graph.core.types2._
-import com.daumkakao.s2graph.core.types2.InnerVal._
 import com.daumkakao.s2graph.core.{TestCommonWithModels, TestCommon}
 import org.scalatest.{Matchers, FunSuite}
 

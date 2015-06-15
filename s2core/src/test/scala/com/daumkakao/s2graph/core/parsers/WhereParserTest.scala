@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core.parsers
 
 import com.daumkakao.s2graph.core.{Management, Edge, Vertex, TestCommonWithModels}
-import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types2._
 import org.scalatest.{Matchers, FunSuite}
 import play.api.libs.json.Json
@@ -30,8 +30,8 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
 
   def validate(labelName: String)(edge: Edge)(sql: String)(expected: Boolean) = {
 
-    for (label <- Label.findByName(labelName)) {
-      val labelMetas = LabelMeta.findAllByLabelId(label.id.get, useCache = false)
+    for (label <- LABEL.findByName(labelName)) {
+      val labelMetas = LABEMETA.findAllByLabelId(label.id.get, useCache = false)
       val metaMap = labelMetas.map { m => m.name -> m.seq } toMap
       val whereOpt = WhereParser(label).parse(sql)
       whereOpt.isEmpty shouldBe false

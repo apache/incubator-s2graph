@@ -109,7 +109,9 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
       case None =>
         insert(labelId, name, defaultValue, dataType)
         val cacheKey = s"labelId=$labelId:name=$name"
+        val cacheKeys = s"labelId=$labelId"
         expireCache(cacheKey)
+        expireCaches(cacheKeys)
         findByName(labelId, name, false).get
     }
   }

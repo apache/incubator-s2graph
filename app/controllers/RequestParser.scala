@@ -1,8 +1,9 @@
 package controllers
 
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.mysqls._
+ import com.daumkakao.s2graph.core.mysqls._
 //import com.daumkakao.s2graph.core.models._
+
 import com.daumkakao.s2graph.core.parsers.WhereParser
 import com.daumkakao.s2graph.core.types2._
 import play.api.Logger
@@ -175,7 +176,7 @@ trait RequestParser extends JSONParser {
         }
 
       val ret = Query(vertices, querySteps, removeCycle = removeCycle)
-      //    Logger.debug(ret.toString)
+//          Logger.debug(ret.toString)
       ret
     } catch {
       case e: Throwable =>

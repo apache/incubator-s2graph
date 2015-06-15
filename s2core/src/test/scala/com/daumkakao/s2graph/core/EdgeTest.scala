@@ -1,7 +1,6 @@
 package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.Edge.PropsPairWithTs
-import com.daumkakao.s2graph.core.models.LabelMeta
 import com.daumkakao.s2graph.core.types2._
 import org.hbase.async.{AtomicIncrementRequest, PutRequest}
 import org.scalatest.{BeforeAndAfter, Matchers, FunSuite}
@@ -175,7 +174,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
 
   def oldProps(timestamp: Long, version: String) = {
     Map(
-      LabelMeta.lastDeletedAt -> InnerValLikeWithTs.withLong(timestamp - 2, timestamp - 2, version),
+      labelMeta.lastDeletedAt -> InnerValLikeWithTs.withLong(timestamp - 2, timestamp - 2, version),
       1.toByte -> InnerValLikeWithTs.withLong(0L, timestamp, version),
       2.toByte -> InnerValLikeWithTs.withLong(1L, timestamp - 1, version),
       4.toByte -> InnerValLikeWithTs.withStr("old", timestamp - 1, version)
@@ -190,7 +189,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
   }
 
   def deleteProps(timestamp: Long, version: String) = Map(
-    LabelMeta.lastDeletedAt -> InnerValLikeWithTs.withLong(timestamp, timestamp, version)
+    labelMeta.lastDeletedAt -> InnerValLikeWithTs.withLong(timestamp, timestamp, version)
   )
 
   /** upsert */
@@ -199,7 +198,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     val oldState = oldProps(ts, VERSION2)
     val newState = newProps(ts + 1, VERSION2)
     val expected = Map(
-      LabelMeta.lastDeletedAt -> "left",
+      labelMeta.lastDeletedAt -> "left",
       1.toByte -> "none",
       2.toByte -> "right",
       3.toByte -> "right",
@@ -211,7 +210,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     val oldState = oldProps(ts, VERSION2)
     val newState = newProps(ts - 10, VERSION2)
     val expected = Map(
-      LabelMeta.lastDeletedAt -> "left",
+      labelMeta.lastDeletedAt -> "left",
       1.toByte -> "left",
       2.toByte -> "left",
       3.toByte -> "none",
@@ -225,7 +224,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     val oldState = oldProps(ts, VERSION2)
     val newState = newProps(ts + 1, VERSION2)
     val expected = Map(
-      LabelMeta.lastDeletedAt -> "left",
+      labelMeta.lastDeletedAt -> "left",
       1.toByte -> "left",
       2.toByte -> "right",
       3.toByte -> "right",
@@ -238,7 +237,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     val oldState = oldProps(ts, VERSION2)
     val newState = newProps(ts - 10, VERSION2)
     val expected = Map(
-      LabelMeta.lastDeletedAt -> "left",
+      labelMeta.lastDeletedAt -> "left",
       1.toByte -> "left",
       2.toByte -> "left",
       3.toByte -> "none",
@@ -253,7 +252,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     val oldState = oldProps(ts, VERSION2)
     val newState = deleteProps(ts + 1, VERSION2)
     val expected = Map(
-      LabelMeta.lastDeletedAt -> "right",
+      labelMeta.lastDeletedAt -> "right",
       1.toByte -> "none",
       2.toByte -> "none",
       4.toByte -> "none"
@@ -265,7 +264,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     val oldState = oldProps(ts, VERSION2)
     val newState = deleteProps(ts - 10, VERSION2)
     val expected = Map(
-      LabelMeta.lastDeletedAt -> "left",
+      labelMeta.lastDeletedAt -> "left",
       1.toByte -> "left",
       2.toByte -> "left",
       4.toByte -> "left"
@@ -279,7 +278,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     val oldState = oldProps(ts, VERSION2).filterNot(kv => kv._1 == 4.toByte)
     val newState = newProps(ts + 1, VERSION2)
     val expected = Map(
-      LabelMeta.lastDeletedAt -> "left",
+      labelMeta.lastDeletedAt -> "left",
       1.toByte -> "left",
       2.toByte -> InnerValLikeWithTs.withLong(-9L, ts - 1, VERSION2),
       3.toByte -> "right"
@@ -291,7 +290,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
     val oldState = oldProps(ts, VERSION2).filterNot(kv => kv._1 == 4.toByte)
     val newState = newProps(ts - 10, VERSION2)
     val expected = Map(
-      LabelMeta.lastDeletedAt -> "left",
+      labelMeta.lastDeletedAt -> "left",
       1.toByte -> "left",
       2.toByte -> "left"
     )

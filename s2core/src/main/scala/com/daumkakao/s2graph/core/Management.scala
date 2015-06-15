@@ -2,13 +2,12 @@ package com.daumkakao.s2graph.core
 
 
 
-import com.daumkakao.s2graph.core.mysqls._
+ import com.daumkakao.s2graph.core.mysqls._
 //import com.daumkakao.s2graph.core.models._
+
 import com.daumkakao.s2graph.core.types2._
-
-
 import play.api.libs.json._
-import org.apache.hadoop.hbase.client.{ConnectionFactory, HBaseAdmin, Durability}
+import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.HTableDescriptor
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.util.Bytes
@@ -156,7 +155,7 @@ object Management extends JSONParser {
   }
 
   def getServiceLable(label: String): Option[Label] = {
-    Label.findByName(label)
+    Label.findByName(label, useCache = false)
   }
 
   /**

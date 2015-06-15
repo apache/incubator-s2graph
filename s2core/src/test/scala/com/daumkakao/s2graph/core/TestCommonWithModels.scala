@@ -1,7 +1,8 @@
 package com.daumkakao.s2graph.core
 
 //import com.daumkakao.s2graph.core.models._
-import com.daumkakao.s2graph.core.mysqls._
+ import com.daumkakao.s2graph.core.mysqls._
+
 import com.daumkakao.s2graph.core.types2.{LabelWithDirection, InnerVal}
 import com.typesafe.config.ConfigFactory
 import org.apache.hadoop.hbase.util.Bytes
@@ -26,6 +27,9 @@ trait TestCommonWithModels {
   val preSplitSize = 0
   val labelName = "_test_label"
   val labelNameV2 = "_test_label_v2"
+  //FIXME:
+  val LABEL = Label
+  val LABEMETA = LabelMeta
 
   val testProps = Seq(
     ("is_blocked", JsBoolean(false), InnerVal.BOOLEAN),

@@ -1,6 +1,8 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.models._
+//import com.daumkakao.s2graph.core.models._
+ import com.daumkakao.s2graph.core.mysqls._
+
 import com.daumkakao.s2graph.core.types2._
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{PutRequest, KeyValue}
@@ -21,8 +23,7 @@ trait TestCommon {
   val testOp = GraphUtil.operations("insert")
   val testLabelOrderSeq = LabelIndex.defaultSeq
   val testLabelWithDir = LabelWithDirection(testLabelId, testDir)
-
-
+  val labelMeta = LabelMeta
 
   def equalsTo(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) == 0
 

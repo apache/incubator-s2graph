@@ -230,7 +230,11 @@ object Model extends LocalCache[Result] {
       val rowKey = toRowKey(getClassName[T], idxKVs).getBytes
       val put = new Put(rowKey)
       put.addColumn(modelCf.getBytes, qualifier.getBytes, toKVs(valKVs).getBytes)
+      /** reset negative cache */
+      expireCache(toCacheKey(idxKVs))
+
       table.put(put)
+
     } finally {
       table.close()
     }
@@ -241,8 +245,12 @@ object Model extends LocalCache[Result] {
       val rowKey = toRowKey(getClassName[T], idxKVs).getBytes
       val put = new Put(rowKey)
       put.addColumn(modelCf.getBytes, qualifier.getBytes, toKVs(valKVs).getBytes)
+      /** reset negative cache */
+      expireCache(toCacheKey(idxKVs))
+
       /** expecte null **/
       table.checkAndPut(rowKey, modelCf.getBytes, qualifier.getBytes, null, put)
+
     } finally {
       table.close()
     }

@@ -1,7 +1,8 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.mysqls._
+ import com.daumkakao.s2graph.core.mysqls._
 //import com.daumkakao.s2graph.core.models._
+
 import com.daumkakao.s2graph.core.types2.{VertexId, EdgeQualifierInverted, LabelWithDirection, EdgeRowKey}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._

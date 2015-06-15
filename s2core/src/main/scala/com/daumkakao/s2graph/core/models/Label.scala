@@ -3,6 +3,7 @@ package com.daumkakao.s2graph.core.models
 import com.daumkakao.s2graph.core.models.Model.{KEY, VAL}
 import com.daumkakao.s2graph.core.types2.InnerVal
 import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
+import org.apache.hadoop.hbase.client.Result
 import play.api.Logger
 import play.api.libs.json.{Json, JsValue}
 

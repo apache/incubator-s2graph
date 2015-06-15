@@ -163,6 +163,10 @@ object Label extends Model[Label] {
               // create own hbase table with own ttl.
               Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL)
           }
+          val cacheKeys = List(s"id=$createdId", s"label=$labelName")
+          val ret = findByName(labelName, useCache = false).get
+          putsToCache(cacheKeys.map (k => k -> ret))
+          ret
         }
       }
     newLabel.getOrElse(throw new RuntimeException("failed to create label"))
@@ -264,7 +268,6 @@ case class Label(id: Option[Int], label: String,
                  isDirected: Boolean = true, serviceName: String, serviceId: Int, consistencyLevel: String = "strong",
                  hTableName: String, hTableTTL: Option[Int],
                  schemaVersion: String, isAsync: Boolean = false) extends JSONParser {
-
   def metas = LabelMeta.findAllByLabelId(id.get)
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
 

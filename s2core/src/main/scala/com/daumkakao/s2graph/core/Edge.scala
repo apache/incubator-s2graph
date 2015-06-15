@@ -2,6 +2,7 @@ package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.mysqls._
 //import com.daumkakao.s2graph.core.models._
+
 import com.daumkakao.s2graph.core.types2._
 import scala.concurrent.Future
 import org.apache.hadoop.hbase.client.{Delete, Put}
@@ -428,8 +429,10 @@ case class Edge(srcVertex: Vertex,
 //  }
 
   def mutate(f: (Option[Edge], Edge) => EdgeUpdate, tryNum: Int = 0): Unit = {
-    if (tryNum >= maxTryNum) throw new RuntimeException(s"mutate failed after $tryNum")
-    else {
+    if (tryNum >= maxTryNum) {
+      Logger.error(s"mutate failed after $tryNum retry")
+      throw new RuntimeException(s"mutate failed after $tryNum")
+    } else {
       try {
         val client = Graph.getClient(label.hbaseZkAddr)
         for {
@@ -444,7 +447,7 @@ case class Edge(srcVertex: Vertex,
            */
           if (ret) Logger.debug(s"mutate successed. $this")
           else {
-            Logger.error(s"mutate failed. retry")
+            Logger.info(s"mutate failed. retry")
             mutate(f, tryNum + 1)
           }
 

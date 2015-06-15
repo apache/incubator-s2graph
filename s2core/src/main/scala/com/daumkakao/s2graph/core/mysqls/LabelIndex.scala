@@ -52,9 +52,10 @@ object LabelIndex extends Model[LabelIndex] {
     findByLabelIdAndSeq(labelId, seq) match {
       case Some(s) => s
       case None =>
-        insert(labelId, seq, metaSeqs, formulars)
-        val cacheKey = s"labelId=$labelId:seq=$seq"
-        expireCache(cacheKey)
+        val createdId = insert(labelId, seq, metaSeqs, formulars)
+        val cacheKeys = List(s"labelId=$labelId:seq=$seq",
+        s"labelId=$labelId:seqs=$metaSeqs", s"labelId=$labelId:seq=$seq", s"id=$createdId")
+        cacheKeys.foreach(expireCache(_))
         findByLabelIdAndSeq(labelId, seq, false).get // forcely find label information form label_indices table, add false(don't use cache) option
     }
   }
@@ -66,7 +67,10 @@ object LabelIndex extends Model[LabelIndex] {
         val orders = findByLabelIdAll(labelId, false)
         val seq = (orders.size + 1).toByte
         assert(seq <= maxOrderSeq)
-        insert(labelId, seq, metaSeqs, formulars)
+        val createdId = insert(labelId, seq, metaSeqs, formulars)
+        val cacheKeys = List(s"labelId=$labelId:seq=$seq",
+          s"labelId=$labelId:seqs=$metaSeqs", s"labelId=$labelId:seq=$seq", s"id=$createdId")
+        cacheKeys.foreach(expireCache(_))
         findByLabelIdAndSeq(labelId, seq).get
     }
   }
