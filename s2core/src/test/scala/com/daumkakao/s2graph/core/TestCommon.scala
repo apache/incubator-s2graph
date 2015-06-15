@@ -69,11 +69,12 @@ trait TestCommon {
   val numInnerVals = numVals.map { n => InnerVal.withLong(n.toLong, VERSION1)}
   val numInnerValsV2 = numVals.map { n => InnerVal.withNumber(n, VERSION2)}
 
-  val doubleVals = (Double.MinValue until Double.MinValue + 2.0 by 0.2).map(BigDecimal(_)) ++
-    (-9994.9 until -9999.1 by 1.1).map(BigDecimal(_)) ++
+  val doubleStep = Double.MaxValue / 5
+  val doubleVals = (Double.MinValue until 0 by doubleStep).map(BigDecimal(_)) ++
+    (-9999.9 until -9994.1 by 1.1).map(BigDecimal(_)) ++
     (-128.0 until 128.0 by 1.2).map(BigDecimal(_)) ++
     (129.0 until 142.0 by 1.1).map(BigDecimal(_)) ++
-    (Double.MaxValue - 10.0 until Double.MaxValue by 0.2).map(BigDecimal(_))
+    (doubleStep until Double.MaxValue by doubleStep).map(BigDecimal(_))
   val doubleInnerVals = doubleVals.map { d => InnerVal.withDouble(d.toDouble, VERSION1)}
   val doubleInnerValsV2 = doubleVals.map { d => InnerVal.withDouble(d.toDouble, VERSION2)}
 

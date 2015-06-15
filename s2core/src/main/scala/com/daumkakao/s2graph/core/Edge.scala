@@ -191,6 +191,7 @@ case class Edge(srcVertex: Vertex,
                 version: Long,
                 propsWithTs: Map[Byte, InnerValLikeWithTs]) extends GraphElement with JSONParser {
 
+  import Edge._
   val logger = Edge.logger
   implicit val ex = Graph.executionContext
   lazy val schemaVer = label.schemaVersion
@@ -356,10 +357,6 @@ case class Edge(srcVertex: Vertex,
   //    }
   //  }
   def compareAndSet(client: HBaseClient)(invertedEdgeOpt: Option[Edge], edgeUpdate: EdgeUpdate): Future[Boolean] = {
-//    if (tryNum >= maxTryNum) {
-//      Logger.error(s"compare and set failed.")
-//      Future.successful(false)
-//    } else {
       val expected = invertedEdgeOpt.map { e =>
         e.edgesWithInvertedIndex.value.bytes
       }.getOrElse(Array.empty[Byte])
@@ -397,39 +394,39 @@ case class Edge(srcVertex: Vertex,
       }
 //    }
   }
-//      val mutationResult = (for {
-//        newPut <- edgeUpdate.invertedEdgeMutations
-//      } yield .forall(x => x)
-//
-//
-//      if (mutationResult) {
-//        /** no contention */
-//        Graph.writeAsync(label.hbaseZkAddr, edgeUpdate.indexedEdgeMutations)
+//  def mutate(f: (Option[Edge], Edge) => EdgeUpdate): Unit = {
+//    try {
+//      val client = Graph.getClient(label.hbaseZkAddr)
+//      for {
+//        edges <- fetchInvertedAsync()
+//        invertedEdgeOpt = edges.headOption
+//        edgeUpdate = f(invertedEdgeOpt, this)
+//      } yield {
+//        /**
+//         * we can use CAS operation on inverted Edge checkAndSet() and if it return false
+//         * then re-read and build update and write recursively.
+//         */
+//        Graph.writeAsync(label.hbaseZkAddr, edgeUpdate.invertedEdgeMutations ++ edgeUpdate.indexedEdgeMutations)
 //        /** degree */
-//        val incrs =
-//          (edgeUpdate.edgesToDelete.isEmpty, edgeUpdate.edgesToInsert.isEmpty) match {
-//            case (true, true) =>
-//              /** when there is no need to update. shouldUpdate == false */
-//              List.empty[AtomicIncrementRequest]
-//            case (true, false) =>
-//              /** no edges to delete but there is new edges to insert so increase degree by 1 */
-//              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
-//            case (false, true) =>
-//              /** no edges to insert but there is old edges to delete so decrease degree by 1 */
-//              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
-//            case (false, false) =>
-//              /** update on existing edges so no change on degree */
-//              List.empty[AtomicIncrementRequest]
-//          }
-//        //        Logger.debug(s"Increment: $incrs")
+//        val incrs = (edgeUpdate.edgesToDelete.isEmpty, edgeUpdate.edgesToInsert.isEmpty) match {
+//          case (false, false) => // update
+//            List.empty[AtomicIncrementRequest]
+//          case (false, true) => // only delete
+//            this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
+//          case (true, false) => // only insert
+//            this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
+//          case (true, true) => // not possible
+//            List.empty[AtomicIncrementRequest]
+//        }
 //        Graph.writeAsync(label.hbaseZkAddr, incrs)
-//        true
-//      } else {
-//        compareAndSet(client)(invertedEdgeOpt, edgeUpdate)(tryNum + 1)
 //      }
+//      //      client.flush()
+//    } catch {
+//      case e: Throwable =>
+//        Logger.error(s"mutate failed. $e", e)
 //    }
 //  }
-  val maxTryNum = 10
+
   def mutate(f: (Option[Edge], Edge) => EdgeUpdate, tryNum: Int = 0): Unit = {
     if (tryNum >= maxTryNum) throw new RuntimeException(s"mutate failed after $tryNum")
     else {
@@ -546,6 +543,8 @@ object Edge extends JSONParser {
   val incrementVersion = 1L
   val minOperationTs = 1L
   val minTsVal = 0L
+  // FIXME:
+  val maxTryNum = 10
   /** now version information is required also **/
   type PropsPairWithTs = (Map[Byte, InnerValLikeWithTs], Map[Byte, InnerValLikeWithTs], Long, String)
 

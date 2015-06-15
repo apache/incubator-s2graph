@@ -119,7 +119,7 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
           Thread.sleep(asyncFlushInterval)
 
           justHttpCheck(rslt)
-          Thread.sleep(1000)
+//          Thread.sleep(1000)
         }
 
         tcString in new WithTestApplication(init = init, after = clean, stepWaiting = TC_WAITING_TIME) {
