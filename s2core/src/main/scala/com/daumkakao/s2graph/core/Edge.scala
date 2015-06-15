@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.mysqls._
-//import com.daumkakao.s2graph.core.models._
+//import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2._
 import scala.concurrent.Future
@@ -317,7 +317,9 @@ case class Edge(srcVertex: Vertex,
         }
 
       }
-    edgePuts ++ buildVertexPutsAsync
+    val ret = edgePuts ++ buildVertexPutsAsync
+//    Logger.debug(s"$this, $ret")
+    ret
   }
 
   def insertBulk() = {

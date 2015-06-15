@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
- import com.daumkakao.s2graph.core.mysqls._
-//import com.daumkakao.s2graph.core.models._
+// import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2.{VertexId, EdgeQualifierInverted, LabelWithDirection, EdgeRowKey}
 import org.apache.hadoop.hbase.HBaseConfiguration
@@ -393,7 +393,6 @@ object Graph {
 
   def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: Label, dir: Int): Future[Iterable[Edge]] = {
     implicit val ex = this.executionContext
-
     val rowKey = EdgeRowKey(srcVertex.id,
       LabelWithDirection(label.id.get, dir), label.defaultIndex.get.seq, isInverted = true)(label.schemaVersion)
 
@@ -818,7 +817,7 @@ object Graph {
       // use db field is_directed.
       val direction = ""
       val edge = Management.toEdge(ts.toLong, operation, srcId, tgtId, label, direction, props)
-      //      Logger.debug(s"toEdge: $edge")
+//            Logger.debug(s"toEdge: $edge")
       Some(edge)
     } catch {
       case e: Throwable =>

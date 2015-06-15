@@ -2,7 +2,7 @@ package com.daumkakao.s2graph.core.models
 
 import java.util.concurrent.ExecutorService
 
-import com.daumkakao.s2graph.core.Graph
+import com.daumkakao.s2graph.core.{TestCommonWithModels, TestCommon, Graph}
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{FunSuite, Matchers}
 
@@ -11,12 +11,10 @@ import scala.concurrent.ExecutionContext
 /**
  * Created by shon on 5/12/15.
  */
-class ModelTest extends FunSuite with Matchers {
+class ModelTest extends FunSuite with Matchers with TestCommonWithModels {
 
-//  val zkQuorum = "localhost"
-//  val config = ConfigFactory.parseString(s"hbase.zookeeper.quorum=$zkQuorum")
-//  Graph(config)(ExecutionContext.Implicits.global)
-//  HBaseModel(zkQuorum)
+  Graph(config)(ExecutionContext.Implicits.global)
+  Model(zkQuorum)
 //  val serviceName = "testService"
 //  val newServiceName = "newTestService"
 //  val cluster = "localhost"
@@ -45,7 +43,30 @@ class ModelTest extends FunSuite with Matchers {
 //    "defaultValue" -> false, "dataType" -> "boolean", "usedInIndex" -> false))
 //  val labelIndex = HLabelIndex(Map("id" -> id, "labelId" -> label.id.get, "seq" -> 1.toByte,
 //    "metaSeqs" -> "0", "formular" -> "none"))
-
+  test("test Label.findByName") {
+    val labelOpt = Label.findByName(labelName, useCache = false)
+    println(labelOpt)
+    labelOpt.isDefined shouldBe true
+    val indices = labelOpt.get.indices
+    indices.size > 0 shouldBe true
+    println(indices)
+    val defaultIndexOpt = labelOpt.get.defaultIndex
+    println(defaultIndexOpt)
+    defaultIndexOpt.isDefined shouldBe true
+    val metas = labelOpt.get.metaProps
+    println(metas)
+    metas.size > 0 shouldBe true
+    val srcService = labelOpt.get.srcService
+    println(srcService)
+    val tgtService = labelOpt.get.tgtService
+    println(tgtService)
+    val service = labelOpt.get.service
+    println(service)
+    val srcColumn = labelOpt.get.srcService
+    println(srcColumn)
+    val tgtColumn = labelOpt.get.tgtService
+    println(tgtColumn)
+  }
 //  test("test create") {
 //    service.create()
 //    HService.findByName(serviceName, useCache = false) == Some(service)

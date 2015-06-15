@@ -2,8 +2,8 @@ package controllers
 
 //import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
- import com.daumkakao.s2graph.core.mysqls._
-//import com.daumkakao.s2graph.core.models._
+// import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.types2.{InnerVal, InnerValLike}
 
 import play.api.Logger

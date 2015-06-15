@@ -130,7 +130,13 @@ object Model extends LocalCache[Result] {
       } toList
     }
   }
-  def toCacheKey(kvs: Seq[(KEY, VAL)]) = kvs.map { kv => s"${kv._1}$INNER_DELIMITER${kv._2}" }.mkString(KEY_VAL_DELIMITER)
+  def toCacheKey[T: ClassTag](kvs: Seq[(KEY, VAL)]) = {
+    val postfix = kvs.map { kv =>
+      List(kv._1, kv._2).mkString(INNER_DELIMITER)
+    }.mkString(KEY_VAL_DELIMITER)
+    val prefix = getClassName[T]
+    s"$prefix$KEY_VAL_DELIMITER$postfix"
+  }
   def distincts[T: ClassTag](ls: List[T]): List[T] = {
     val uniq = new mutable.HashSet[String]
     for {
@@ -143,26 +149,32 @@ object Model extends LocalCache[Result] {
     }
   }
   def find[T : ClassTag](useCache: Boolean = true)(idxKeyVals: Seq[(KEY, VAL)]): Option[T] = {
-    val result = withCache(toCacheKey(idxKeyVals), useCache) {
+    val fetchOp = {
       val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
       try {
 
         val rowKey = toRowKey(getClassName[T], idxKeyVals)
+//        println(s"${getClassName[T]}\t$rowKey")
         val get = new Get(rowKey.getBytes)
         get.addColumn(modelCf.getBytes, qualifier.getBytes)
         get.setMaxVersions(1)
-//        val res = table.get(get)
-        table.get(get)
-//        fromResult[T](res)
+        //        val res = table.get(get)
+        val res = table.get(get)
+//        println(s"result: ${res.listCells()}")
+        res
+        //        fromResult[T](res)
       } finally {
         table.close()
       }
     }
+    val result =
+      if (useCache) withCache(toCacheKey[T](idxKeyVals))(fetchOp)
+      else fetchOp
     fromResult[T](result)
   }
   def findsRange[T : ClassTag](useCache: Boolean = true)(idxKeyVals: Seq[(KEY, VAL)],
                                                               endIdxKeyVals: Seq[(KEY, VAL)]): List[T] = {
-    val results = withCaches(toCacheKey(idxKeyVals ++ endIdxKeyVals), useCache) {
+    val fetchOp = {
       val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
       try {
         val scan = new Scan()
@@ -177,11 +189,14 @@ object Model extends LocalCache[Result] {
         table.close()
       }
     }
+    val results =
+      if (useCache) withCaches(toCacheKey[T](idxKeyVals ++ endIdxKeyVals))(fetchOp)
+      else fetchOp
     val rs = results.flatMap { r => fromResult[T](r) }
     distincts[T](rs)
   }
   def findsMatch[T : ClassTag](useCache: Boolean = true)(idxKeyVals: Seq[(KEY, VAL)]): List[T] = {
-    val results = withCaches(toCacheKey(idxKeyVals), useCache) {
+    val fetchOp = {
       val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
       try {
         val scan = new Scan()
@@ -197,6 +212,9 @@ object Model extends LocalCache[Result] {
         table.close()
       }
     }
+    val results =
+      if (useCache) withCaches(toCacheKey[T](idxKeyVals))(fetchOp)
+      else fetchOp
     val rs = results.flatMap { r => fromResult[T](r) }
     distincts[T](rs)
   }
@@ -231,7 +249,7 @@ object Model extends LocalCache[Result] {
       val put = new Put(rowKey)
       put.addColumn(modelCf.getBytes, qualifier.getBytes, toKVs(valKVs).getBytes)
       /** reset negative cache */
-      expireCache(toCacheKey(idxKVs))
+      expireCache(toCacheKey[T](idxKVs))
 
       table.put(put)
 
@@ -246,7 +264,7 @@ object Model extends LocalCache[Result] {
       val put = new Put(rowKey)
       put.addColumn(modelCf.getBytes, qualifier.getBytes, toKVs(valKVs).getBytes)
       /** reset negative cache */
-      expireCache(toCacheKey(idxKVs))
+      expireCache(toCacheKey[T](idxKVs))
 
       /** expecte null **/
       table.checkAndPut(rowKey, modelCf.getBytes, qualifier.getBytes, null, put)
@@ -256,7 +274,7 @@ object Model extends LocalCache[Result] {
     }
   }
   def deleteForce[T: ClassTag](idxKVs: Seq[(KEY, VAL)]) = {
-    expireCache(toCacheKey(idxKVs))
+    expireCache(toCacheKey[T](idxKVs))
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       val rowKey = toRowKey(getClassName[T], idxKVs).getBytes
@@ -268,7 +286,7 @@ object Model extends LocalCache[Result] {
     }
   }
   def delete[T : ClassTag](idxKVs: Seq[(KEY, VAL)], valKVs: Seq[(KEY, VAL)]) = {
-    expireCache(toCacheKey(idxKVs))
+    expireCache(toCacheKey[T](idxKVs))
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       val rowKey = toRowKey(getClassName[T], idxKVs).getBytes

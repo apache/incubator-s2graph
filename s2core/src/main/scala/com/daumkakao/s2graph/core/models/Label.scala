@@ -166,24 +166,26 @@ case class Label(kvsParam: Map[KEY, VAL]) extends Model[Label]("HLabel", kvsPara
 
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
 
+  val useCache = true
   //  lazy val firstHBaseTableName = hbaseTableName.split(",").headOption.getOrElse(Config.HBASE_TABLE_NAME)
-  lazy val srcService = Service.findById(srcServiceId)
-  lazy val tgtService = Service.findById(tgtServiceId)
-  lazy val service = Service.findById(serviceId)
+  lazy val srcService = Service.findById(srcServiceId, useCache)
+  lazy val tgtService = Service.findById(tgtServiceId, useCache)
+  lazy val service = Service.findById(serviceId, useCache)
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, hTableName.split(",").head)
   lazy val (srcColumn, tgtColumn) = (ServiceColumn.find(srcServiceId, srcColumnName).get, ServiceColumn.find(tgtServiceId, tgtColumnName).get)
   lazy val direction = if (isDirected) "out" else "undirected"
-  lazy val defaultIndex = LabelIndex.findByLabelIdAndSeq(id.get, LabelIndex.defaultSeq)
+  lazy val defaultIndex = LabelIndex.findByLabelIdAndSeq(id.get, LabelIndex.defaultSeq, useCache)
 
   //TODO: Make sure this is correct
   lazy val indices = LabelIndex.findByLabelIdAll(id.get)
+//  lazy val defaultIndex = indices.filter(idx => idx.seq == LabelIndex.defaultSeq).headOption
   lazy val indicesMap = indices.map(idx => (idx.seq, idx)) toMap
   lazy val indexSeqsMap = indices.map(idx => (idx.metaSeqs, idx)) toMap
   lazy val extraIndices = indices.filter(idx => defaultIndex.isDefined && idx.id.get != defaultIndex.get.id.get)
   //      indices filterNot (_.id.get == defaultIndex.get.id.get)
   lazy val extraIndicesMap = extraIndices.map(idx => (idx.seq, idx)) toMap
 
-  lazy val metaProps = LabelMeta.reservedMetas ::: LabelMeta.findAllByLabelId(id.get)
+  lazy val metaProps = LabelMeta.reservedMetas ::: LabelMeta.findAllByLabelId(id.get, useCache)
   lazy val metaPropsMap = metaProps.map(x => (x.seq, x)).toMap
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
   lazy val metaPropNames = metaProps.map(x => x.name)
@@ -212,10 +214,10 @@ case class Label(kvsParam: Map[KEY, VAL]) extends Model[Label]("HLabel", kvsPara
 //    jsValueToInnerVal(jsValue, tgtColumnType, schemaVersion)
 //  }
 
-  override def toString(): String = {
-    val orderByKeys = LabelMeta.findAllByLabelId(id.get)
-    super.toString() + orderByKeys.toString()
-  }
+//  override def toString(): String = {
+//    val orderByKeys = LabelMeta.findAllByLabelId(id.get)
+//    super.toString() + orderByKeys.toString()
+//  }
   def findLabelIndexSeq(scoring: List[(Byte, Double)]): Byte = {
     if (scoring.isEmpty) LabelIndex.defaultSeq
     else {

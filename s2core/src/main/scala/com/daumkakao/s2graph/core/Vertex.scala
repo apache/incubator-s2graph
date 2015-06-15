@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
- import com.daumkakao.s2graph.core.mysqls._
-//import com.daumkakao.s2graph.core.models._
+// import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2._
 import org.apache.hadoop.hbase.client.Put

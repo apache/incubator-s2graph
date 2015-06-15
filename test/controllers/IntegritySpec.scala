@@ -1,8 +1,10 @@
 package test.controllers
 
 import com.daumkakao.s2graph.core._
-//import com.daumkakao.s2graph.core.models._
- import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
+import play.api.Logger
+
+// import com.daumkakao.s2graph.core.mysqls._
 
 import com.daumkakao.s2graph.rest.config.Config
 import controllers.AdminController
@@ -79,6 +81,7 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
           val res = Await.result(route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)).get, HTTP_REQ_WAITING_TIME)
 
           res.header.status must equalTo(200)
+          Thread.sleep(asyncFlushInterval)
           println(s"---- TC${tcNum}_init ----")
         }
         def clean = {
@@ -93,6 +96,7 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
 
 //          justHttpCheck(rslt)
 //          Thread.sleep(1000)
+//          Thread.sleep(asyncFlushInterval)
         }
 
         tcString in new WithTestApplication(init = init, after = clean, stepWaiting = TC_WAITING_TIME) {
@@ -481,11 +485,11 @@ abstract class IntegritySpecificationBase extends Specification {
       Label.findByName(testLabelName, useCache = false) match {
         case None =>
           result = AdminController.createLabelInner(Json.parse(createLabel))
-          println(s">> Label created : $createLabel, $result")
+          Logger.error(s">> Label created : $createLabel, $result")
         case Some(label) =>
-          println(s">> Label already exist: $createLabel, $label")
+          Logger.error(s">> Label already exist: $createLabel, $label")
       }
-
+      Thread.sleep(1000)
     }
 
   }

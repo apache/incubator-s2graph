@@ -41,37 +41,37 @@ import play.api.Logger
 //  }
 //}
 trait LocalCache[V <: Object] {
-  protected val ttl = Model.cacheTTL
-  protected val maxSize = Model.maxCacheSize
-  private lazy val cName = this.getClass.getSimpleName()
+  protected lazy val ttl = Model.cacheTTL
+  protected lazy val maxSize = Model.maxCacheSize
+//  private lazy val cName = this.getClass.getSimpleName()
 
-  val cache = CacheBuilder.newBuilder()
+  lazy val cache = CacheBuilder.newBuilder()
     .expireAfterWrite(ttl, TimeUnit.SECONDS)
     .maximumSize(maxSize)
     .build[String, V]()
 
-  val caches = CacheBuilder.newBuilder()
+  lazy val caches = CacheBuilder.newBuilder()
     .expireAfterWrite(ttl, TimeUnit.SECONDS)
     .maximumSize(maxSize / 10).build[String, List[V]]()
 
-  def withCache(key: String, useCache: Boolean = true)(op: => V): V = {
-    val newKey = s"$cName:withCache:$key"
+  def withCache(key: String)(op: => V): V = {
+    val newKey = s"withCache:$key"
     val view = cache.asMap()
-    if (useCache && view.containsKey(newKey)) {
-//      Logger.debug(s"withCache: $newKey => Hit")
+    if (view.containsKey(newKey)) {
+//      Logger.debug(s"$newKey => Hit")
       view.get(newKey)
     }
     else {
-//      Logger.debug(s"withCache: $newKey => Miss")
       val newVal = op
       cache.put(newKey, newVal)
+//      Logger.debug(s"$newKey => Miss")
       newVal
     }
   }
-  def withCaches(key: String, useCache: Boolean = true)(op: => List[V]): List[V] = {
-    val newKey = s"$cName:withCaches:$key"
+  def withCaches(key: String)(op: => List[V]): List[V] = {
+    val newKey = s"withCaches:$key"
     val view = caches.asMap()
-    if (useCache && view.containsKey(newKey)) {
+    if (view.containsKey(newKey)) {
 //      Logger.debug(s"withCaches: $newKey => Hit")
       view.get(newKey)
     }
@@ -83,17 +83,17 @@ trait LocalCache[V <: Object] {
     }
   }
   def expireCache(key: String): Unit = {
-    val newKey = s"$cName:$key"
+    val newKey = s"$key"
     cache.invalidate(newKey)
   }
   def expireCaches(key: String): Unit = {
-    val newKey = s"$cName:$key"
+    val newKey = s"$key"
     caches.invalidate(newKey)
   }
   def putsToCache(kvs: List[(String, V)]) = {
     kvs.foreach {
       case (key, value) =>
-        val newKey = s"$cName:$key"
+        val newKey = s"$key"
         cache.put(newKey, value)
     }
   }
