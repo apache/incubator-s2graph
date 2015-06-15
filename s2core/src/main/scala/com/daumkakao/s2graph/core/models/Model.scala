@@ -11,7 +11,7 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.reflect.runtime.{universe => ru}
 
-object HBaseModel extends LocalCache[Result] {
+object Model extends LocalCache[Result] {
   val DELIMITER = ":"
   val KEY_VAL_DELIMITER = "^"
   val KEY_VAL_DELIMITER_WITH_ESCAPE = "\\^"
@@ -130,12 +130,18 @@ object HBaseModel extends LocalCache[Result] {
       } toList
     }
   }
-  def toCacheKey(kvs: Seq[(KEY, VAL)]) = kvs.map { kv => s"${kv._1}$INNER_DELIMITER${kv._2}" }.mkString(KEY_VAL_DELIMITER)
+  def toCacheKey[T: ClassTag](kvs: Seq[(KEY, VAL)]) = {
+    val postfix = kvs.map { kv =>
+      List(kv._1, kv._2).mkString(INNER_DELIMITER)
+    }.mkString(KEY_VAL_DELIMITER)
+    val prefix = getClassName[T]
+    s"$prefix$KEY_VAL_DELIMITER$postfix"
+  }
   def distincts[T: ClassTag](ls: List[T]): List[T] = {
     val uniq = new mutable.HashSet[String]
     for {
       r <- ls
-      m = r.asInstanceOf[HBaseModel[_]]
+      m = r.asInstanceOf[Model[_]]
       if m.kvs.containsKey("id") && !uniq.contains(m.kvs("id").toString)
     } yield {
       uniq += m.kvs("id").toString
@@ -143,26 +149,32 @@ object HBaseModel extends LocalCache[Result] {
     }
   }
   def find[T : ClassTag](useCache: Boolean = true)(idxKeyVals: Seq[(KEY, VAL)]): Option[T] = {
-    val result = withCache(toCacheKey(idxKeyVals), useCache) {
+    val fetchOp = {
       val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
       try {
 
         val rowKey = toRowKey(getClassName[T], idxKeyVals)
+//        println(s"${getClassName[T]}\t$rowKey")
         val get = new Get(rowKey.getBytes)
         get.addColumn(modelCf.getBytes, qualifier.getBytes)
         get.setMaxVersions(1)
-//        val res = table.get(get)
-        table.get(get)
-//        fromResult[T](res)
+        //        val res = table.get(get)
+        val res = table.get(get)
+//        println(s"result: ${res.listCells()}")
+        res
+        //        fromResult[T](res)
       } finally {
         table.close()
       }
     }
+    val result =
+      if (useCache) withCache(toCacheKey[T](idxKeyVals))(fetchOp)
+      else fetchOp
     fromResult[T](result)
   }
   def findsRange[T : ClassTag](useCache: Boolean = true)(idxKeyVals: Seq[(KEY, VAL)],
                                                               endIdxKeyVals: Seq[(KEY, VAL)]): List[T] = {
-    val results = withCaches(toCacheKey(idxKeyVals ++ endIdxKeyVals), useCache) {
+    val fetchOp = {
       val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
       try {
         val scan = new Scan()
@@ -177,11 +189,14 @@ object HBaseModel extends LocalCache[Result] {
         table.close()
       }
     }
+    val results =
+      if (useCache) withCaches(toCacheKey[T](idxKeyVals ++ endIdxKeyVals))(fetchOp)
+      else fetchOp
     val rs = results.flatMap { r => fromResult[T](r) }
     distincts[T](rs)
   }
   def findsMatch[T : ClassTag](useCache: Boolean = true)(idxKeyVals: Seq[(KEY, VAL)]): List[T] = {
-    val results = withCaches(toCacheKey(idxKeyVals), useCache) {
+    val fetchOp = {
       val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
       try {
         val scan = new Scan()
@@ -197,6 +212,9 @@ object HBaseModel extends LocalCache[Result] {
         table.close()
       }
     }
+    val results =
+      if (useCache) withCaches(toCacheKey[T](idxKeyVals))(fetchOp)
+      else fetchOp
     val rs = results.flatMap { r => fromResult[T](r) }
     distincts[T](rs)
   }
@@ -230,7 +248,11 @@ object HBaseModel extends LocalCache[Result] {
       val rowKey = toRowKey(getClassName[T], idxKVs).getBytes
       val put = new Put(rowKey)
       put.addColumn(modelCf.getBytes, qualifier.getBytes, toKVs(valKVs).getBytes)
+      /** reset negative cache */
+      expireCache(toCacheKey[T](idxKVs))
+
       table.put(put)
+
     } finally {
       table.close()
     }
@@ -241,14 +263,18 @@ object HBaseModel extends LocalCache[Result] {
       val rowKey = toRowKey(getClassName[T], idxKVs).getBytes
       val put = new Put(rowKey)
       put.addColumn(modelCf.getBytes, qualifier.getBytes, toKVs(valKVs).getBytes)
+      /** reset negative cache */
+      expireCache(toCacheKey[T](idxKVs))
+
       /** expecte null **/
       table.checkAndPut(rowKey, modelCf.getBytes, qualifier.getBytes, null, put)
+
     } finally {
       table.close()
     }
   }
   def deleteForce[T: ClassTag](idxKVs: Seq[(KEY, VAL)]) = {
-    expireCache(toCacheKey(idxKVs))
+    expireCache(toCacheKey[T](idxKVs))
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       val rowKey = toRowKey(getClassName[T], idxKVs).getBytes
@@ -260,7 +286,7 @@ object HBaseModel extends LocalCache[Result] {
     }
   }
   def delete[T : ClassTag](idxKVs: Seq[(KEY, VAL)], valKVs: Seq[(KEY, VAL)]) = {
-    expireCache(toCacheKey(idxKVs))
+    expireCache(toCacheKey[T](idxKVs))
     val table = Graph.getConn(zkQuorum).getTable(TableName.valueOf(modelTableName))
     try {
       val rowKey = toRowKey(getClassName[T], idxKVs).getBytes
@@ -274,8 +300,8 @@ object HBaseModel extends LocalCache[Result] {
 
 }
 
-class HBaseModel[T : ClassTag](protected val tableName: String, protected val kvs: Map[HBaseModel.KEY, HBaseModel.VAL])  {
-  import HBaseModel._
+class Model[T : ClassTag](protected val tableName: String, protected val kvs: Map[Model.KEY, Model.VAL])  {
+  import Model._
   import scala.reflect.runtime._
   import scala.reflect.runtime.universe._
 
@@ -285,16 +311,16 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
   protected val idxs = List.empty[Seq[(KEY, VAL)]]
   /** act like foreign key */
   protected def foreignKeys() = {
-    List.empty[List[HBaseModel[_]]]
+    List.empty[List[Model[_]]]
   }
 
   override def toString(): String = (kvs ++ Map("tableName" -> tableName)).toString
 
-  def validate(columns: Seq[String]): Unit = {
+  def validate(columns: Seq[String], optionalColumns: Seq[String] = Seq.empty[String]): Unit = {
     for (c <- columns) {
-      if (!kvs.contains(c)) {
-        Logger.error(s"$columns, $kvs")
-        throw new RuntimeException(s"$tableName expect ${columns.toList.sorted}, found ${kvs.toList.sortBy { kv => kv._1 }}")
+      if (!kvs.contains(c) && !optionalColumns.contains(c)) {
+//        Logger.error(s"$columns, $kvs")
+        throw new RuntimeException(s"$tableName expect ${columns.toList.sorted}, found ${kvs.toList.sortBy { kv => kv._1 }}, $c")
       }
     }
   }
@@ -303,13 +329,13 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
     val rets = for {
       idxKVs <- idxs
     } yield {
-      HBaseModel.insert[T](idxKVs, toKVsWithFilter(kvs, idxKVs))
+      Model.insert[T](idxKVs, toKVsWithFilter(kvs, idxKVs))
     }
     rets.forall(r => r)
   }
   def destroy() = {
     val rets = for (idxKVs <- idxs) yield {
-      HBaseModel.delete[T](idxKVs, toKVsWithFilter(kvs, idxKVs))
+      Model.delete[T](idxKVs, toKVsWithFilter(kvs, idxKVs))
     }
     rets.forall(r => r)
   }
@@ -319,8 +345,8 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
     } {
       val idxKVsMap = idxKVs.toMap
       for {
-        oldRaw <- HBaseModel.find[T] (useCache = false) (idxKVs)
-        old = oldRaw.asInstanceOf[HBaseModel[T]]
+        oldRaw <- Model.find[T] (useCache = false) (idxKVs)
+        old = oldRaw.asInstanceOf[Model[T]]
       } {
         val oldMetaKVs = old.kvs.filter(kv => !idxKVsMap.containsKey(kv._1))
         val (newIdxKVs, newMetaKVs) = if (idxKVsMap.containsKey(key)) {
@@ -328,8 +354,8 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
         } else {
           (idxKVs, oldMetaKVs.filter(kv => kv._1 != key) ++ Seq(key -> value))
         }
-        HBaseModel.deleteForce[T](idxKVs)
-        HBaseModel.insertForce[T](newIdxKVs, newMetaKVs.toSeq)
+        Model.deleteForce[T](idxKVs)
+        Model.insertForce[T](newIdxKVs, newMetaKVs.toSeq)
       }
     }
   }

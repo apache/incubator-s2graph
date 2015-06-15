@@ -1,7 +1,9 @@
 package com.daumkakao.s2graph.core.models
 
-import com.daumkakao.s2graph.core.models.HBaseModel.{KEY, VAL}
-import com.daumkakao.s2graph.core.{JSONParser, Management}
+import com.daumkakao.s2graph.core.models.Model.{KEY, VAL}
+import com.daumkakao.s2graph.core.types2.InnerVal
+import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
+import org.apache.hadoop.hbase.client.Result
 import play.api.Logger
 import play.api.libs.json.{Json, JsValue}
 
@@ -9,34 +11,34 @@ import play.api.libs.json.{Json, JsValue}
  * Created by shon on 5/15/15.
  */
 
-object HLabel {
+object Label {
   val maxHBaseTableNames = 2
   type PROPS = (String, Any, String, Boolean)
-  def findByName(labelUseCache: (String, Boolean)): Option[HLabel] = {
+  def findByName(labelUseCache: (String, Boolean)): Option[Label] = {
     findByName(labelUseCache._1, labelUseCache._2)
   }
-  def findByName(label: String, useCache: Boolean = true): Option[HLabel] = {
-    HBaseModel.find[HLabel](useCache)(Seq(("label" -> label)))
+  def findByName(label: String, useCache: Boolean = true): Option[Label] = {
+    Model.find[Label](useCache)(Seq(("label" -> label)))
   }
-  def findById(id: Int, useCache: Boolean = true): HLabel = {
-    HBaseModel.find[HLabel](useCache)(Seq(("id" -> id))).get
+  def findById(id: Int, useCache: Boolean = true): Label = {
+    Model.find[Label](useCache)(Seq(("id" -> id))).get
   }
-  def findAll(useCache: Boolean = true): List[HLabel] = {
-    HBaseModel.findsRange[HLabel](useCache)(Seq(("id" -> 0)), Seq(("id" -> Int.MaxValue)))
+  def findAll(useCache: Boolean = true): List[Label] = {
+    Model.findsRange[Label](useCache)(Seq(("id" -> 0)), Seq(("id" -> Int.MaxValue)))
   }
-  def findByList(key: String, id: Int, useCache: Boolean = true): List[HLabel] = {
-    HBaseModel.findsMatch[HLabel](useCache)(Seq((key -> id)))
+  def findByList(key: String, id: Int, useCache: Boolean = true): List[Label] = {
+    Model.findsMatch[Label](useCache)(Seq((key -> id)))
   }
-  def findByTgtColumnId(columnId: Int, useCache: Boolean = true): List[HLabel] = {
+  def findByTgtColumnId(columnId: Int, useCache: Boolean = true): List[Label] = {
     findByList("tgtColumnId", columnId, useCache)
   }
-  def findBySrcColumnId(columnId: Int, useCache: Boolean = true): List[HLabel] = {
+  def findBySrcColumnId(columnId: Int, useCache: Boolean = true): List[Label] = {
     findByList("srcColumnId", columnId, useCache)
   }
-  def findBySrcServiceId(serviceId: Int, useCache: Boolean = true): List[HLabel] = {
+  def findBySrcServiceId(serviceId: Int, useCache: Boolean = true): List[Label] = {
     findByList("srcServiceId", serviceId, useCache)
   }
-  def findByTgtServiceId(serviceId: Int, useCache: Boolean = true): List[HLabel] = {
+  def findByTgtServiceId(serviceId: Int, useCache: Boolean = true): List[Label] = {
     findByList("tgtServiceId", serviceId, useCache)
   }
 
@@ -47,10 +49,11 @@ object HLabel {
                 props: Seq[(String, JsValue, String)],
                 consistencyLevel: String,
                 hTableName: Option[String],
-                hTableTTL: Option[Int]) = {
-    val srcServiceOpt = HService.findByName(srcServiceName, useCache = false)
-    val tgtServiceOpt = HService.findByName(tgtServiceName, useCache = false)
-    val serviceOpt = HService.findByName(serviceName, useCache = false)
+                hTableTTL: Option[Int],
+                schemaVersion: String) = {
+    val srcServiceOpt = Service.findByName(srcServiceName, useCache = false)
+    val tgtServiceOpt = Service.findByName(tgtServiceName, useCache = false)
+    val serviceOpt = Service.findByName(serviceName, useCache = false)
     if (srcServiceOpt.isEmpty) throw new RuntimeException(s"source service $srcServiceName is not created.")
     if (tgtServiceOpt.isEmpty) throw new RuntimeException(s"target service $tgtServiceName is not created.")
     if (serviceOpt.isEmpty) throw new RuntimeException(s"service $serviceName is not created.")
@@ -63,31 +66,35 @@ object HLabel {
         val srcServiceId = srcService.id.get
         val tgtServiceId = tgtService.id.get
         val serviceId = service.id.get
-        val srcCol = HServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType))
-        val tgtCol = HServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType))
-        HLabel.findByName(labelName, useCache = false).getOrElse {
-          /** create label */
-          val createdId = HBaseModel.getAndIncrSeq[HLabel]
-          val label = HLabel(Map("id" -> createdId,
+        /** insert serviceColumn */
+        val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType), schemaVersion)
+        val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType), schemaVersion)
+
+
+        /** create label */
+        Label.findByName(labelName, useCache = false).getOrElse {
+          val createdId = Model.getAndIncrSeq[Label]
+          val label = Label(Map("id" -> createdId,
             "label" -> labelName, "srcServiceId" -> srcServiceId,
             "srcColumnName" -> srcColumnName, "srcColumnType" -> srcColumnType,
             "tgtServiceId" -> tgtServiceId, "tgtColumnName" -> tgtColumnName, "tgtColumnType" -> tgtColumnType,
             "isDirected" -> isDirected, "serviceName" -> serviceName, "serviceId" -> serviceId,
             "consistencyLevel" -> consistencyLevel, "hTableName" -> hTableName.getOrElse("s2graph-dev"),
-            "hTableTTL" -> hTableTTL.getOrElse(-1)))
+            "hTableTTL" -> hTableTTL.getOrElse(-1),
+            "schemaVersion" -> schemaVersion))
           label.create
 
           /** create label metas */
           val idxPropsMetas =
-            if (idxProps.isEmpty) List(HLabelMeta.timestamp)
+            if (idxProps.isEmpty) List(LabelMeta.timestamp)
             else idxProps.map { case (propName, defaultValue, dataType) =>
-              HLabelMeta.findOrInsert(createdId.toInt, propName, defaultValue.toString, dataType)
+              LabelMeta.findOrInsert(createdId.toInt, propName, defaultValue.toString, dataType)
             }
           val propsMetas = props.map { case (propName, defaultValue, dataType) =>
-            HLabelMeta.findOrInsert(createdId.toInt, propName, defaultValue.toString, dataType)
+            LabelMeta.findOrInsert(createdId.toInt, propName, defaultValue.toString, dataType)
           }
           /** insert default index(PK) of this label */
-          HLabelIndex.findOrInsert(createdId.toInt, HLabelIndex.defaultSeq,
+          LabelIndex.findOrInsert(createdId.toInt, LabelIndex.defaultSeq,
             idxPropsMetas.map(m => m.seq).toList, "none")
 
           /** TODO: */
@@ -106,10 +113,10 @@ object HLabel {
     newLabel.getOrElse(throw new RuntimeException("failed to create label"))
   }
 }
-case class HLabel(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabel]("HLabel", kvsParam) with JSONParser {
+case class Label(kvsParam: Map[KEY, VAL]) extends Model[Label]("HLabel", kvsParam) with JSONParser {
   override val columns = Seq("id", "label", "srcServiceId", "srcColumnName", "srcColumnType",
     "tgtServiceId", "tgtColumnName", "tgtColumnType", "isDirected", "serviceName", "serviceId",
-    "consistencyLevel", "hTableName", "hTableTTL")
+    "consistencyLevel", "hTableName", "hTableTTL", "schemaVersion")
 
   val pk = Seq(("id", kvs("id")))
   val idxLabel = Seq(("label", kvs("label")))
@@ -124,12 +131,13 @@ case class HLabel(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabel]("HLabel", 
     idxSrcServiceId, idxtgtServiceId, idxServiceName, idxServiceId)
   override def foreignKeys() = {
     List(
-      HBaseModel.findsMatch[HLabelIndex](useCache = false)(Seq("labelId" -> kvs("id"))),
-      HBaseModel.findsMatch[HLabelMeta](useCache = false)(Seq("labelId" -> kvs("id")))
+      Model.findsMatch[LabelIndex](useCache = false)(Seq("labelId" -> kvs("id"))),
+      Model.findsMatch[LabelMeta](useCache = false)(Seq("labelId" -> kvs("id")))
     )
   }
-  validate(columns)
+  validate(columns, Seq("schemaVersion"))
 
+  val schemaVersion = kvs.get("schemaVersion").getOrElse(InnerVal.DEFAULT_VERSION).toString
   val id = Some(kvs("id").toString.toInt)
   val label = kvs("label").toString
   val srcServiceId = kvs("srcServiceId").toString.toInt
@@ -153,32 +161,42 @@ case class HLabel(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabel]("HLabel", 
   }
 
 
-  def metas = HLabelMeta.findAllByLabelId(id.get)
+  /** all properties belongs to this label */
+  def metas = LabelMeta.findAllByLabelId(id.get)
+
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
 
+  val useCache = true
   //  lazy val firstHBaseTableName = hbaseTableName.split(",").headOption.getOrElse(Config.HBASE_TABLE_NAME)
-  lazy val srcService = HService.findById(srcServiceId)
-  lazy val tgtService = HService.findById(tgtServiceId)
-  lazy val service = HService.findById(serviceId)
+  lazy val srcService = Service.findById(srcServiceId, useCache)
+  lazy val tgtService = Service.findById(tgtServiceId, useCache)
+  lazy val service = Service.findById(serviceId, useCache)
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, hTableName.split(",").head)
-  lazy val (srcColumn, tgtColumn) = (HServiceColumn.find(srcServiceId, srcColumnName).get, HServiceColumn.find(tgtServiceId, tgtColumnName).get)
+  lazy val (srcColumn, tgtColumn) = (ServiceColumn.find(srcServiceId, srcColumnName).get, ServiceColumn.find(tgtServiceId, tgtColumnName).get)
   lazy val direction = if (isDirected) "out" else "undirected"
-  lazy val defaultIndex = HLabelIndex.findByLabelIdAndSeq(id.get, HLabelIndex.defaultSeq)
+  lazy val defaultIndex = LabelIndex.findByLabelIdAndSeq(id.get, LabelIndex.defaultSeq, useCache)
 
   //TODO: Make sure this is correct
-  lazy val indices = HLabelIndex.findByLabelIdAll(id.get)
+  lazy val indices = LabelIndex.findByLabelIdAll(id.get)
+//  lazy val defaultIndex = indices.filter(idx => idx.seq == LabelIndex.defaultSeq).headOption
   lazy val indicesMap = indices.map(idx => (idx.seq, idx)) toMap
   lazy val indexSeqsMap = indices.map(idx => (idx.metaSeqs, idx)) toMap
   lazy val extraIndices = indices.filter(idx => defaultIndex.isDefined && idx.id.get != defaultIndex.get.id.get)
   //      indices filterNot (_.id.get == defaultIndex.get.id.get)
   lazy val extraIndicesMap = extraIndices.map(idx => (idx.seq, idx)) toMap
 
-  lazy val metaProps = HLabelMeta.reservedMetas ::: HLabelMeta.findAllByLabelId(id.get)
+  lazy val metaProps = LabelMeta.reservedMetas ::: LabelMeta.findAllByLabelId(id.get, useCache)
   lazy val metaPropsMap = metaProps.map(x => (x.seq, x)).toMap
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
   lazy val metaPropNames = metaProps.map(x => x.name)
   lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
 
+  def srcColumnWithDir(dir: Int) = {
+    if (dir == GraphUtil.directions("out")) srcColumn else tgtColumn
+  }
+  def tgtColumnWithDir(dir: Int) = {
+    if (dir == GraphUtil.directions("out")) tgtColumn else srcColumn
+  }
   def init() = {
     metas
     metaSeqsToNames
@@ -189,21 +207,21 @@ case class HLabel(kvsParam: Map[KEY, VAL]) extends HBaseModel[HLabel]("HLabel", 
     indices
     metaProps
   }
-  def srcColumnInnerVal(jsValue: JsValue) = {
-    jsValueToInnerVal(jsValue, srcColumnType)
-  }
-  def tgtColumnInnerVal(jsValue: JsValue) = {
-    jsValueToInnerVal(jsValue, tgtColumnType)
-  }
+//  def srcColumnInnerVal(jsValue: JsValue) = {
+//    jsValueToInnerVal(jsValue, srcColumnType, schemaVersion)
+//  }
+//  def tgtColumnInnerVal(jsValue: JsValue) = {
+//    jsValueToInnerVal(jsValue, tgtColumnType, schemaVersion)
+//  }
 
-  override def toString(): String = {
-    val orderByKeys = HLabelMeta.findAllByLabelId(id.get)
-    super.toString() + orderByKeys.toString()
-  }
+//  override def toString(): String = {
+//    val orderByKeys = LabelMeta.findAllByLabelId(id.get)
+//    super.toString() + orderByKeys.toString()
+//  }
   def findLabelIndexSeq(scoring: List[(Byte, Double)]): Byte = {
-    if (scoring.isEmpty) HLabelIndex.defaultSeq
+    if (scoring.isEmpty) LabelIndex.defaultSeq
     else {
-      HLabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(HLabelIndex.defaultSeq)
+      LabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
     }
   }
 

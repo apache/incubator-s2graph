@@ -2,10 +2,12 @@ package test.controllers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.models._
+import play.api.Logger
+
+// import com.daumkakao.s2graph.core.mysqls._
+
 import com.daumkakao.s2graph.rest.config.Config
-import com.daumkakao.s2graph.rest.actors._
 import controllers.AdminController
-import org.omg.CosNaming.NamingContextPackage.NotFound
 import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration._
 import org.specs2.execute.{ AsResult, Result }
@@ -37,38 +39,14 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
        * Each http request waiting time to complete
        */
       lazy val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
-      val asyncFlushInterval = 5000 // in millis
+      val asyncFlushInterval = 1500 // in millis
       val curTime = System.currentTimeMillis
       val t1 = curTime + 0
       val t2 = curTime + 1
       val t3 = curTime + 2
       val t4 = curTime + 3
       val t5 = curTime + 4
-      /**
-       * Response result common check logic
-       * @param rslt
-       * @return
-       */
-      def commonCheck(rslt: Future[play.api.mvc.Result]): JsValue = {
-        status(rslt) must equalTo(OK)
-        contentType(rslt) must beSome.which(_ == "application/json")
-        val jsRslt = contentAsJson(rslt)
-        println("======")
-        println(jsRslt)
-        println("======")
-        jsRslt.as[JsObject].keys.contains("size") must equalTo(true)
-        (jsRslt \ "size").as[Int] must greaterThan(0)
-        jsRslt.as[JsObject].keys.contains("results") must equalTo(true)
 
-        val jsRsltsObj = jsRslt \ "results"
-        println(s"$jsRsltsObj")
-        jsRsltsObj.as[JsArray].value(0).as[JsObject].keys.contains("from") must equalTo(true)
-        jsRsltsObj.as[JsArray].value(0).as[JsObject].keys.contains("to") must equalTo(true)
-        jsRsltsObj.as[JsArray].value(0).as[JsObject].keys.contains("_timestamp") must equalTo(true)
-        jsRsltsObj.as[JsArray].value(0).as[JsObject].keys.contains("props") must equalTo(true)
-
-        jsRsltsObj
-      }
 
       def justHttpCheck(rslt: Future[play.api.mvc.Result]) = {
         status(rslt) must equalTo(OK)
@@ -83,32 +61,42 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
 
         def init = {
           println(s"---- TC${tcNum}_init ----")
-          for ((ts, op, props) <- opWithProps) {
-            val bulkEdge = List(ts, op, "e", srcId, tgtId, testLabelName, props).mkString("\t")
-            val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)
-            println(s">> $req, $bulkEdge")
-            val res = Await.result(route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)).get, HTTP_REQ_WAITING_TIME)
+          val bulkEdge = (for ((ts, op, props) <- opWithProps) yield {
+            List(ts, op, "e", srcId, tgtId, testLabelName, props).mkString("\t")
+          }).mkString("\n")
+//          for ((ts, op, props) <- opWithProps) {
+//            val bulkEdge = List(ts, op, "e", srcId, tgtId, testLabelName, props).mkString("\t")
+//            val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)
+//            println(s">> $req, $bulkEdge")
+//            val res = Await.result(route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)).get, HTTP_REQ_WAITING_TIME)
+//
+//            /**
+//             * since asynchbase hbase client flush interval is 1000 millis, we wait.
+//             */
+//            Thread.sleep(asyncFlushInterval)
+//            res.header.status must equalTo(200)
+//          }
+          val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)
+          println(s">> $req, $bulkEdge")
+          val res = Await.result(route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)).get, HTTP_REQ_WAITING_TIME)
 
-            /**
-             * since asynchbase hbase client flush interval is 1000 millis, we wait.
-             */
-            Thread.sleep(asyncFlushInterval)
-            res.header.status must equalTo(200)
-          }
+          res.header.status must equalTo(200)
+          Thread.sleep(asyncFlushInterval)
           println(s"---- TC${tcNum}_init ----")
         }
         def clean = {
-          val cleanTs = maxTs + 1
-          val bulkQuery = List(cleanTs, "delete", "e", srcId, tgtId, testLabelName).mkString("\t")
+//          val cleanTs = maxTs + 1
+//          val bulkQuery = List(cleanTs, "delete", "e", srcId, tgtId, testLabelName).mkString("\t")
+//
+//          println(s"---- TC${tcNum}_cleanup ----")
+//          println(s"Cleanup Query : $bulkQuery")
+//          println(s"---- TC${tcNum}_cleanup ----")
+//          val rslt = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkQuery)).get
+//          Thread.sleep(asyncFlushInterval)
 
-          println(s"---- TC${tcNum}_cleanup ----")
-          println(s"Cleanup Query : $bulkQuery")
-          println(s"---- TC${tcNum}_cleanup ----")
-          val rslt = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkQuery)).get
-          Thread.sleep(asyncFlushInterval)
-
-          justHttpCheck(rslt)
-          Thread.sleep(1000)
+//          justHttpCheck(rslt)
+//          Thread.sleep(1000)
+//          Thread.sleep(asyncFlushInterval)
         }
 
         tcString in new WithTestApplication(init = init, after = clean, stepWaiting = TC_WAITING_TIME) {
@@ -137,19 +125,48 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
 
           val rslt = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(Json.parse(simpleQuery))).get
 
-          val jsRsltsObj = commonCheck(rslt)
+          val jsResult = commonCheck(rslt)
+          val results = jsResult\ "results"
+          val deegrees = (jsResult \ "degrees").as[List[JsObject]]
+          val propsLs = (results \\ "props").seq
+          (deegrees.head \ LabelMeta.degree.name).as[Int] must equalTo(1)
+//          propsLs.head.as[JsObject].keys.contains(LabelMeta.degree.name) must equalTo(true)
+//          (propsLs.head.as[JsObject] \ LabelMeta.degree.name).as[Int] must equalTo(1)
 
-          (jsRsltsObj \\ "from").seq.last.toString must equalTo(srcId)
-          (jsRsltsObj \\ "to").seq.last.toString must equalTo(tgtId)
-          (jsRsltsObj \\ "_timestamp").seq.last.as[Long] must equalTo(maxTs)
+          (results \\ "from").seq.last.toString must equalTo(srcId)
+          (results \\ "to").seq.last.toString must equalTo(tgtId)
+          (results \\ "_timestamp").seq.last.as[Long] must equalTo(maxTs)
           for ((key, expectedVal) <- expected) {
-            (jsRsltsObj \\ "props").seq.last.as[JsObject].keys.contains(key) must equalTo(true)
-            ((jsRsltsObj \\ "props").seq.last \ key).toString must equalTo(expectedVal)
+            propsLs.last.as[JsObject].keys.contains(key) must equalTo(true)
+            (propsLs.last \ key).toString must equalTo(expectedVal)
           }
           Await.result(rslt, HTTP_REQ_WAITING_TIME)
         }
       }
+      /**
+       * Response result common check logic
+       * @param rslt
+       * @return
+       */
+      def commonCheck(rslt: Future[play.api.mvc.Result]): JsValue = {
+        status(rslt) must equalTo(OK)
+        contentType(rslt) must beSome.which(_ == "application/json")
+        val jsRslt = contentAsJson(rslt)
+        println("======")
+        println(jsRslt)
+        println("======")
+        jsRslt.as[JsObject].keys.contains("size") must equalTo(true)
+        (jsRslt \ "size").as[Int] must greaterThan(0)
+        jsRslt.as[JsObject].keys.contains("results") must equalTo(true)
+        val jsRsltsObj = jsRslt \ "results"
+        println(s"$jsRsltsObj")
+        jsRsltsObj.as[JsArray].value(0).as[JsObject].keys.contains("from") must equalTo(true)
+        jsRsltsObj.as[JsArray].value(0).as[JsObject].keys.contains("to") must equalTo(true)
+        jsRsltsObj.as[JsArray].value(0).as[JsObject].keys.contains("_timestamp") must equalTo(true)
+        jsRsltsObj.as[JsArray].value(0).as[JsObject].keys.contains("props") must equalTo(true)
 
+        jsRslt
+      }
       "Increment/Delete Application" should {
 
         "[TC1]" in {
@@ -160,7 +177,7 @@ class IntegritySpec extends IntegritySpecificationBase with Matchers {
             (t1, "increment", "{\"weight\": 10}"),
             (t3, "increment", "{\"time\": 10, \"weight\": 20}"),
             (t2, "delete", ""))
-          val expected = Map("time" -> "10", "weight" -> "0")
+          val expected = Map("time" -> "10", "weight" -> "20")
 
           runTC(tcNum, tcString, bulkQueries, expected)
         }
@@ -420,7 +437,7 @@ class WithTestApplication(override val app: FakeApplication = FakeApplication(),
 abstract class IntegritySpecificationBase extends Specification {
   protected val testServiceName = "s2graph"
   protected val testLabelName = "s2graph_label_test"
-  protected val testColumnName = "user_id"
+  protected val testColumnName = "user_id_test"
 
   val createService =
     s"""
@@ -465,14 +482,14 @@ abstract class IntegritySpecificationBase extends Specification {
 
 
       // 2. createLabel
-      HLabel.findByName(testLabelName) match {
+      Label.findByName(testLabelName, useCache = false) match {
         case None =>
           result = AdminController.createLabelInner(Json.parse(createLabel))
-          println(s">> Label created : $createLabel, $result")
+          Logger.error(s">> Label created : $createLabel, $result")
         case Some(label) =>
-          println(s">> Label already exist: $createLabel, $label")
+          Logger.error(s">> Label already exist: $createLabel, $label")
       }
-
+      Thread.sleep(1000)
     }
 
   }

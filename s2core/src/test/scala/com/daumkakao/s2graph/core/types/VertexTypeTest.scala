@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core.types
 
 import com.daumkakao.s2graph.core.TestCommon
+import com.daumkakao.s2graph.core.types2._
 import org.apache.hadoop.hbase.util.Bytes
 import org.scalatest.{Matchers, FunSuite}
 
@@ -10,22 +11,32 @@ import org.scalatest.{Matchers, FunSuite}
 class VertexTypeTest extends FunSuite with Matchers with TestCommon {
 
 
-  import VertexType._
+  import InnerVal.{VERSION2, VERSION1}
+  val skipHashBytes = true
+//
+//  def functions = {
+//    for {
+//      version <- List(VERSION1, VERSION2)
+//    } yield {
+//      val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
+//        VertexRowKey(VertexId(testColumnId, innerVal))(version)
+//      val deserializer = (bytes: Array[Byte]) => VertexRowKey.fromBytes(bytes, 0, bytes.length, version)
+//      (serializer, deserializer, version)
+//    }
+//  }
 
-  val props = Seq(
-    (1.toByte, InnerVal("abc")),
-    (2.toByte, InnerVal(BigDecimal(37))),
-    (3.toByte, InnerVal(BigDecimal(0.01f)))
-  )
-
-  val vertexRowKeyCreateFunc = (idxProps: Seq[(Byte, InnerVal)], innerVal: InnerVal) =>
-    VertexRowKey(CompositeId(testColumnId, innerVal, isEdge = false, useHash = true))
-
-  val vertexRowKeyFromBytesFunc = (bytes: Array[Byte]) => VertexRowKey(bytes, 0)
-
-
-  test("test vertex row key order with int id type") {
-    testOrder(idxPropsLs, intVals, useHash = true)(vertexRowKeyCreateFunc, vertexRowKeyFromBytesFunc) shouldBe true
+  test("test vertex row key order with int id type version 1") {
+    val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
+      VertexRowKey(VertexId(testColumnId, innerVal))(VERSION1)
+    val deserializer = (bytes: Array[Byte]) => VertexRowKey.fromBytes(bytes, 0, bytes.length, VERSION1)
+    testOrder(idxPropsLs, intInnerVals, skipHashBytes)(serializer, deserializer)
   }
+  test("test vertex row key order with int id type version 2") {
+    val serializer = (idxProps: Seq[(Byte, InnerValLike)], innerVal: InnerValLike) =>
+      VertexRowKey(VertexId(testColumnId, innerVal))(VERSION2)
+    val deserializer = (bytes: Array[Byte]) => VertexRowKey.fromBytes(bytes, 0, bytes.length, VERSION2)
+    testOrder(idxPropsLsV2, intInnerValsV2, skipHashBytes)(serializer, deserializer)
+  }
+
 
 }

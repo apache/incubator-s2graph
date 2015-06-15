@@ -1,13 +1,13 @@
-package com.daumkakao.s2graph.core.types
+package com.daumkakao.s2graph.core.types2
 
 import com.daumkakao.s2graph.core.GraphUtil
 import org.apache.hadoop.hbase.util.Bytes
 
 /**
- * Created by shon on 5/29/15.
+ * Created by shon on 6/6/15.
  */
 object LabelWithDirection {
-  import VertexType._
+  val bitsForDir = 2
   val maxBytes = Bytes.toBytes(Int.MaxValue)
   def apply(compositeInt: Int): LabelWithDirection = {
     //      play.api.Logger.debug(s"CompositeInt: $compositeInt")
@@ -28,15 +28,15 @@ object LabelWithDirection {
     (labelOrderSeq.toByte, isInverted)
   }
 }
-case class LabelWithDirection(labelId: Int, dir: Int) {
-  import VertexType._
+case class LabelWithDirection(labelId: Int, dir: Int) extends HBaseSerializable {
+  import LabelWithDirection._
   assert(dir < (1 << bitsForDir))
   assert(labelId < (Int.MaxValue >> bitsForDir))
 
   val labelBits = labelId << bitsForDir
 
   lazy val compositeInt = labelBits | dir
-  lazy val bytes = Bytes.toBytes(compositeInt)
+  val bytes = Bytes.toBytes(compositeInt)
   lazy val dirToggled = LabelWithDirection(labelId, GraphUtil.toggleDir(dir))
   def updateDir(newDir: Int) = LabelWithDirection(labelId, newDir)
 

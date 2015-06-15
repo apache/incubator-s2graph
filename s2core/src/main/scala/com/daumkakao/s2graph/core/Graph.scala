@@ -1,42 +1,25 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.models.{HBaseModel, HLabel}
-import com.daumkakao.s2graph.core.types.EdgeType.{EdgeQualifierInverted, EdgeRowKey}
-import com.daumkakao.s2graph.core.types.{CompositeId, LabelWithDirection}
+// import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
+
+import com.daumkakao.s2graph.core.types2.{VertexId, EdgeQualifierInverted, LabelWithDirection, EdgeRowKey}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._
 import java.util.concurrent.Executors
-import java.util.concurrent.ConcurrentHashMap
-import org.slf4j.LoggerFactory
 import play.api.Logger
-
-import scala.collection.mutable.SynchronizedQueue
-import org.apache.hadoop.hbase.filter.FilterList
-//import HBaseElement._
 import scala.collection.JavaConversions._
-import org.apache.hadoop.hbase.util.Bytes
 import scala.collection.mutable.HashSet
-import GraphUtil._
-import org.apache.hadoop.hbase.filter.ColumnPaginationFilter
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.collection.mutable.ListBuffer
-import scala.annotation.tailrec
 import scala.collection.mutable.HashMap
-import org.apache.hadoop.hbase.filter.ColumnPrefixFilter
-import org.apache.hadoop.hbase.Cell
-import Management._
-import play.api.libs.json.Json
-import KGraphExceptions._
-import play.libs.Akka
 import com.typesafe.config.Config
 import scala.reflect.ClassTag
 import org.hbase.async._
 import com.stumbleupon.async.Deferred
 import com.stumbleupon.async.Callback
 import java.util.ArrayList
-
-import scala.util.{Try, Success, Failure}
 
 object GraphConstant {
 
@@ -54,13 +37,13 @@ object GraphConstant {
   //  implicit val ex = play.api.libs.concurrent.Execution.Implicits.defaultContext
 }
 object GraphConnection {
-  val logger = Graph.logger
   lazy val tablePool = Executors.newFixedThreadPool(1)
   lazy val connectionPool = Executors.newFixedThreadPool(1)
   val defaultConfigs = Map(
     "hbase.zookeeper.quorum" -> "localhost",
     "hbase.table.name" -> "s2graph",
-    "phase" -> "dev")
+    "phase" -> "dev",
+    "async.hbase.client.flush.interval" -> 1000.toShort)
   var config: Config = null
 
   def getOrElse[T: ClassTag](conf: com.typesafe.config.Config)(key: String, default: T): T = {
@@ -80,11 +63,11 @@ object GraphConnection {
   def toHBaseConfig(config: com.typesafe.config.Config) = {
     val configVals = for ((k, v) <- defaultConfigs) yield {
       val currentVal = getOrElse(config)(k, v)
-      logger.debug(s"$k -> $currentVal")
+      Logger.debug(s"$k -> $currentVal")
       k -> currentVal
     }
     val conf = HBaseConfiguration.create()
-    conf.set("hbase.zookeeper.quorum", configVals("hbase.zookeeper.quorum"))
+    conf.set("hbase.zookeeper.quorum", configVals("hbase.zookeeper.quorum").toString)
     for (entry <- config.entrySet() if entry.getKey().startsWith("hbase.")) {
       val value = entry.getValue().unwrapped().toString
       conf.set(entry.getKey(), value)
@@ -102,7 +85,7 @@ object Graph {
   import GraphConstant._
   import GraphConnection._
 
-  val logger = Edge.logger
+//  val Logger = Edge.Logger
   val conns = scala.collection.mutable.Map[String, Connection]()
   val clients = scala.collection.mutable.Map[String, HBaseClient]()
   val emptyKVs = new ArrayList[KeyValue]()
@@ -114,23 +97,24 @@ object Graph {
   var config: com.typesafe.config.Config = null
   var hbaseConfig: org.apache.hadoop.conf.Configuration = null
   var storageExceptionCount = 0L
-  var singleGetTimeout = 1000 millis
+  var singleGetTimeout = 10000 millis
+  var clientFlushInterval = 1000.toShort
+
   //  implicit val ex = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(16))
   def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
     this.config = config
     val (hbaseConfig, conn) = GraphConnection.apply(config)
     this.hbaseConfig = hbaseConfig
-    HBaseModel.apply(config)
+    Model.apply(config)
     this.executionContext = ex
     this.singleGetTimeout = getOrElse(config)("hbase.client.operation.timeout", 1000 millis)
     val zkQuorum = hbaseConfig.get("hbase.zookeeper.quorum")
 //    conns += (zkQuorum -> conn)
     //    clients += (zkQuorum -> new HBaseClient(zkQuorum, "/hbase", Executors.newCachedThreadPool(), 8))
     clients += (zkQuorum -> new HBaseClient(zkQuorum))
-
   }
-  def getClient(zkQuorum: String) = {
-    clients.get(zkQuorum) match {
+  def getClient(zkQuorum: String, flushInterval: Short = clientFlushInterval) = {
+    val client = clients.get(zkQuorum) match {
       case None =>
         val client = new HBaseClient(zkQuorum)
         clients += (zkQuorum -> client)
@@ -138,6 +122,8 @@ object Graph {
       //        throw new RuntimeException(s"connection to $zkQuorum is not established.")
       case Some(c) => c
     }
+    client.setFlushInterval(flushInterval)
+    client
   }
   def getConn(zkQuorum: String) = {
     conns.get(zkQuorum) match {
@@ -228,7 +214,7 @@ object Graph {
       op
     } catch {
       case e: Throwable =>
-        logger.error(s"withTimeout: $e", e)
+        Logger.error(s"withTimeout: $e", e)
         Future { fallback }(this.executionContext)
     }
   }
@@ -255,7 +241,7 @@ object Graph {
     d.addBoth(new Callback[Unit, A] {
       def call(arg: A) = arg match {
         case e: Throwable =>
-          logger.error(s"deferred return throwable: $e", e)
+          Logger.error(s"deferred return throwable: $e", e)
           promise.success(fallback)
         case _ => promise.success(arg)
       }
@@ -268,7 +254,7 @@ object Graph {
     d.addBoth(new Callback[Unit, T]{
       def call(arg: T) = arg match {
         case e: Throwable =>
-          logger.error(s"deferred return throwable: $e", e)
+          Logger.error(s"deferred return throwable: $e", e)
           promise.failure(e)
         case _ => promise.success(arg)
       }
@@ -283,12 +269,21 @@ object Graph {
       }
     }).addErrback(new Callback[R, Exception] {
       def call(e: Exception): R = {
-        logger.error(s"Exception on deferred: $e", e)
+        Logger.error(s"Exception on deferred: $e", e)
         fallback
       }
     })
   }
-
+//  def deferredToBoolean(d: Deferred[Any]): Deferred[Boolean] = {
+//    val ret = d.addCallback(new Callback[Boolean, Any]{
+//      def call(arg: Any) = arg match {
+//        case e: Throwable => false
+//        case _ => true
+//      }
+//    }).addErrback(new Callback[Boolean, Exception]{
+//      def call(e: Exception): Boolean = false
+//    })
+//  }
   def writeAsync(zkQuorum: String, rpcs: Seq[HBaseRpc]) = {
     if (rpcs.isEmpty) {}
     else {
@@ -296,6 +291,7 @@ object Graph {
         val client = getClient(zkQuorum)
         val futures = rpcs.map { rpc =>
           //TODO: register errorBacks on this operations to log error
+//          Logger.debug(s"$rpc")
           val deferred = rpc match {
             case d: DeleteRequest => client.delete(d)
             case p: PutRequest => client.put(p)
@@ -306,7 +302,7 @@ object Graph {
 //        Future.sequence(futures)
       } catch {
         case e: Throwable =>
-          logger.error(s"writeAsync failed. $e", e)
+          Logger.error(s"writeAsync failed. $e", e)
       }
     }
   }
@@ -372,7 +368,7 @@ object Graph {
       }
     } catch {
       case e: Throwable =>
-        logger.error(s"getEdgesAsync: $e", e)
+        Logger.error(s"getEdgesAsync: $e", e)
         Future { q.vertices.map(v => List.empty[(Edge, Double)]) }
     }
   }
@@ -395,18 +391,23 @@ object Graph {
 //    }
 //  }
 
-  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: HLabel, dir: Int): Future[Iterable[Edge]] = {
+  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: Label, dir: Int): Future[Iterable[Edge]] = {
     implicit val ex = this.executionContext
-    val rowKey = EdgeRowKey(srcVertex.id, LabelWithDirection(label.id.get, dir), label.defaultIndex.get.seq, isInverted = true)
+    val rowKey = EdgeRowKey(srcVertex.id,
+      LabelWithDirection(label.id.get, dir), label.defaultIndex.get.seq, isInverted = true)(label.schemaVersion)
 
-    val qualifier = EdgeQualifierInverted(tgtVertex.id)
+    val qualifier = EdgeQualifierInverted(tgtVertex.id)(label.schemaVersion)
     val client = getClient(label.hbaseZkAddr)
     val getRequest = new GetRequest(label.hbaseTableName.getBytes(), rowKey.bytes, edgeCf, qualifier.bytes)
+
     defferedToFuture(client.get(getRequest))(emptyKVs).map { kvs =>
       for {
         kv <- kvs
         edge <- Edge.toEdge(kv, QueryParam(LabelWithDirection(label.id.get, dir.toByte)))
-      } yield edge
+      } yield {
+        Logger.debug(s"$edge")
+        edge
+      }
     }
   }
 
@@ -439,6 +440,7 @@ object Graph {
     get.setMaxAttempt(maxAttempt.toByte)
     get.setRpcTimeout(rpcTimeoutInMillis)
     if (columnRangeFilter != null) get.filter(columnRangeFilter)
+    Logger.debug(s"$get")
     get
   }
   def convertEdge(edge: Edge, labelOutputFields: Map[Int, Byte]): Option[Edge] = {
@@ -597,7 +599,7 @@ object Graph {
               }, emptyEdges)
             } catch {
               case e @ (_: Throwable | _: Exception) =>
-                logger.error(s"Exception: $e", e)
+                Logger.error(s"Exception: $e", e)
                 Deferred.fromResult(emptyEdges)
             }
         }
@@ -627,7 +629,7 @@ object Graph {
               }, emptyEdges)
             } catch {
               case e @ (_: Throwable | _: Exception) =>
-                logger.error(s"Exception: $e", e)
+                Logger.error(s"Exception: $e", e)
                 Deferred.fromResult(emptyEdges)
 
             }
@@ -662,7 +664,7 @@ object Graph {
         //        val get = vertex.buildGetRequest()
         val get = vertex.buildGet
         defferedToFuture(client.get(get))(emptyKVs).map { kvs =>
-          Vertex(kvs)
+          Vertex(kvs, vertex.serviceColumn.schemaVersion)
         }
         //          Logger.error(s"$get")
       }, { None })(singleGetTimeout)
@@ -704,14 +706,14 @@ object Graph {
   def deleteVertexAll(vertices: Seq[Vertex]): Unit = {
     for {
       vertex <- vertices
-      label <- (HLabel.findBySrcColumnId(vertex.id.colId) ++ HLabel.findByTgtColumnId(vertex.id.colId)).groupBy(_.id.get).map { _._2.head }
+      label <- (Label.findBySrcColumnId(vertex.id.colId) ++ Label.findByTgtColumnId(vertex.id.colId)).groupBy(_.id.get).map { _._2.head }
     } {
       deleteVertexAllAsync(vertex.toEdgeVertex, label)
     }
     deleteVertices(vertices)
   }
 
-  private def deleteVertexAllAsync(srcVertex: Vertex, label: HLabel): Future[Boolean] = {
+  private def deleteVertexAllAsync(srcVertex: Vertex, label: Label): Future[Boolean] = {
     implicit val ex = Graph.executionContext
     val qParams = for (dir <- List(0, 1)) yield {
       val labelWithDir = LabelWithDirection(label.id.get, dir)
@@ -719,7 +721,7 @@ object Graph {
     }
     val step = Step(qParams)
     val q = Query(List(srcVertex), List(step), true)
-    val seen = new HashMap[(CompositeId, LabelWithDirection), Boolean]
+    val seen = new HashMap[(VertexId, LabelWithDirection), Boolean]
     for {
       edgesByVertex <- getEdgesAsync(q)
     } yield {
@@ -748,7 +750,7 @@ object Graph {
     implicit val ex = executionContext
     val client = getClient(vertex.hbaseZkAddr)
     defferedToFuture(client.get(vertex.buildGet))(emptyKVs).map { kvs =>
-      Vertex(kvs)
+      Vertex(kvs, vertex.serviceColumn.schemaVersion)
     }
   }
   /**
@@ -815,11 +817,11 @@ object Graph {
       // use db field is_directed.
       val direction = ""
       val edge = Management.toEdge(ts.toLong, operation, srcId, tgtId, label, direction, props)
-      //      Logger.debug(s"toEdge: $edge")
+//            Logger.debug(s"toEdge: $edge")
       Some(edge)
     } catch {
       case e: Throwable =>
-        logger.error(s"toEdge: $e", e)
+        Logger.error(s"toEdge: $e", e)
         throw e
     }
   }
@@ -831,7 +833,7 @@ object Graph {
       Some(Management.toVertex(ts.toLong, operation, srcId, serviceName, colName, props))
     } catch {
       case e: Throwable =>
-        logger.error(s"toVertex: $e", e)
+        Logger.error(s"toVertex: $e", e)
         throw e
     }
   }

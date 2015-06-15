@@ -2,13 +2,15 @@ package controllers
 
 //import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models.HServiceColumn
-import com.daumkakao.s2graph.core.types.InnerVal
+// import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.types2.{InnerVal, InnerValLike}
+
 import play.api.Logger
-import play.api.libs.json.{JsString, JsObject, Json}
+import play.api.libs.json.{JsObject, Json}
 
 import scala.collection.TraversableOnce
-import scala.collection.mutable.HashSet
+import scala.collection.mutable.{ListBuffer, HashSet}
 
 /**
  * Created by jay on 14. 9. 1..
@@ -21,14 +23,14 @@ object PostProcess extends JSONParser {
    */
   val SCORE_FIELD_NAME = "scoreSum"
 
-  def groupEdgeResult(edgesWithRank: Seq[(Edge, Double)], excludeIds: Option[Map[InnerVal, Boolean]] = None) = {
+  def groupEdgeResult(edgesWithRank: Seq[(Edge, Double)], excludeIds: Option[Map[InnerValLike, Boolean]] = None) = {
     val groupedEdgesWithRank = edgesWithRank.groupBy {
       case (edge, rank) if edge.labelWithDir.dir == GraphUtil.directions("in") =>
         (edge.label.srcColumn.columnName, edge.label.tgtColumn.columnName, edge.tgtVertex.innerId)
       case (edge, rank) =>
         (edge.label.tgtColumn.columnName, edge.label.srcColumn.columnName, edge.tgtVertex.innerId)
     }
-    for (((tgtColumnName, srcColumnName, target), edgesAndRanks) <- groupedEdgesWithRank if !excludeIds.getOrElse(Map[InnerVal, Boolean]()).contains(target)) yield {
+    for (((tgtColumnName, srcColumnName, target), edgesAndRanks) <- groupedEdgesWithRank if !excludeIds.getOrElse(Map[InnerValLike, Boolean]()).contains(target)) yield {
       val (edges, ranks) = edgesAndRanks.groupBy(x => x._1.srcVertex).map(_._2.head).unzip
       Json.obj("name" -> tgtColumnName, "id" -> target.toString, SCORE_FIELD_NAME -> ranks.sum,
         "aggr" -> Json.obj("name" -> srcColumnName, "ids" -> edges.map(edge => edge.srcVertex.innerId.toString)))
@@ -63,7 +65,7 @@ object PostProcess extends JSONParser {
   def summarizeWithListExcludeFormatted(exclude: Seq[Iterable[(Edge, Double)]], edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]]) = {
     val excludeIds = exclude.flatMap(ex => ex.map { case (edge, score) => (edge.tgtVertex.innerId, true) }) toMap
 
-    val seen = new HashSet[InnerVal]
+    val seen = new HashSet[InnerValLike]
     val edgesWithRank = edgesPerVertexWithRanks.flatten
     val jsons = groupEdgeResult(edgesWithRank, Some(excludeIds))
     val reverseSort = sortWithFormatted(jsons) _
@@ -80,7 +82,7 @@ object PostProcess extends JSONParser {
                                edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]]) = {
     val excludeIds = exclude.flatMap(ex => ex.map { case (edge, score) => (edge.tgtVertex.innerId, true) }) toMap
 
-    val seen = new HashSet[InnerVal]
+    val seen = new HashSet[InnerValLike]
     val edgesWithRank = edgesPerVertexWithRanks.flatten
     val groupedEdgesWithRank = edgesWithRank.groupBy { case (edge, rank) => (edge.label.tgtColumn.columnName, edge.label.srcColumn.columnName, edge.tgtVertex.innerId) }
     val jsons = for (((tgtColumnName, srcColumnName, target), edgesAndRanks) <- groupedEdgesWithRank if !excludeIds.contains(target)) yield {
@@ -111,21 +113,33 @@ object PostProcess extends JSONParser {
   def toSimpleVertexArrJson(edgesPerVertex: Seq[Iterable[(Edge, Double)]]) = {
     val withScore = true
     import play.api.libs.json.Json
-
-    val jsons = for {
+    val degreeJsons = ListBuffer[JsObject]()
+    val degrees = ListBuffer[JsObject]()
+    val edgeJsons = ListBuffer[JsObject]()
+    for {
       edges <- edgesPerVertex
-      (edge, score) <- edges
+      (edge, score) <-  edges
       edgeJson <- edgeToJson(edge, score)
-    } yield edgeJson
+    } yield {
+        if (edge.propsWithTs.contains(LabelMeta.degreeSeq)) {
+//          degreeJsons += edgeJson
+          degrees += Json.obj("label" -> edge.label.label,
+            LabelMeta.degree.name ->
+              innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
+            )
+        }
+        else edgeJsons += edgeJson
+      }
 
     val results =
       if (withScore) {
-        jsons.sortBy(js => ((js \ "score").as[Double], (js \ "_timestamp").as[Long])).reverse
+        degreeJsons ++ edgeJsons.sortBy(js => ((js \ "score").as[Double], (js \ "_timestamp").as[Long])).reverse
       } else {
-        jsons.toList
+        degreeJsons ++ edgeJsons.toList
       }
+
     queryLogger.info(s"Result: ${results.size}")
-    Json.obj("size" -> jsons.size, "results" -> results)
+    Json.obj("size" -> results.size, "degrees" -> degrees, "results" -> results)
   }
   def toSiimpleVertexArrJson(exclude: Seq[Iterable[(Edge, Double)]],
                              edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]]) = {
@@ -151,7 +165,7 @@ object PostProcess extends JSONParser {
     Json.toJson(vertices.map { v => vertexToJson(v) })
   }
   def vertexToJson(vertex: Vertex) = {
-    val serviceColumn = HServiceColumn.findById(vertex.id.colId)
+    val serviceColumn = ServiceColumn.findById(vertex.id.colId)
     Json.obj("columnName" -> serviceColumn.columnName, "id" -> vertex.id.innerId.toString,
       "props" -> propsToJson(serviceColumn.metaNamesMap, vertex.props))
   }
@@ -168,8 +182,8 @@ object PostProcess extends JSONParser {
     //    
     //    Logger.debug(s"edgeProps: ${edge.props} => ${props}")
     val json = for {
-      from <- innerValToJsValue(edge.srcVertex.id.innerId, edge.label.srcColumnType)
-      to <- innerValToJsValue(edge.tgtVertex.id.innerId, edge.label.tgtColumnType)
+      from <- innerValToJsValue(edge.srcVertex.id.innerId, edge.label.srcColumnWithDir(edge.labelWithDir.dir).columnType)
+      to <- innerValToJsValue(edge.tgtVertex.id.innerId, edge.label.tgtColumnWithDir(edge.labelWithDir.dir).columnType)
     } yield {
       Json.obj(
         "from" -> from,
@@ -181,7 +195,8 @@ object PostProcess extends JSONParser {
         "score" -> score
       )
     }
-//    Logger.debug(s"$edge => $json")
+    Logger.debug(s"$edge => $json")
+    println(s"$edge => $json")
     json
 //    Json.obj(
 //      "from" -> innerValToJsValue(edge.srcVertex.id.innerId),
@@ -196,13 +211,13 @@ object PostProcess extends JSONParser {
 //      "score" -> score)
   }
 
-  private def keysToName(seqsToNames: Map[Byte, String], props: Map[Byte, InnerVal]) = {
+  private def keysToName(seqsToNames: Map[Int, String], props: Map[Int, InnerValLike]) = {
     for {
       (seq, value) <- props
       name <- seqsToNames.get(seq)
     } yield (name, value)
   }
-  private def propsToJson(seqsToNames: Map[Byte, String], props: Map[Byte, InnerVal]) = {
+  private def propsToJson(seqsToNames: Map[Int, String], props: Map[Int, InnerValLike]) = {
     for ((keyName, innerVal) <- keysToName(seqsToNames, props)) yield (keyName -> innerVal.toString)
   }
   def toSimpleJson(edges: Iterable[(Vertex, Double)]) = {

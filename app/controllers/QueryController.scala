@@ -2,15 +2,15 @@ package controllers
 
 
 import com.codahale.metrics.Meter
-import com.daumkakao.s2graph.core.types.CompositeId
 
-//import com.daumkakao.s2graph.core.HBaseElement._
+// import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
+
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models.{HLabel, HService}
+import com.daumkakao.s2graph.core.types2.{TargetVertexId, SourceVertexId}
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
 import play.api.Logger
 
-//import models.response.param.{ VertexQueryResponse, EdgeQueryResponse }
 import play.api.libs.json.{ JsValue, Json }
 import play.api.mvc.{ Action, Controller, Result }
 import util.TestDataLoader
@@ -170,12 +170,27 @@ object QueryController extends Controller  with RequestParser with Instrumented 
   def getEdge(srcId: String, tgtId: String, labelName: String, direction: String) = Action.async {
     if (!Config.IS_QUERY_SERVER) Future { Unauthorized }
     try {
-      val label = HLabel.findByName(labelName).get
+      val label = Label.findByName(labelName).get
       val dir = Management.tryOption(direction, GraphUtil.toDir)
-      val srcVertexId = toInnerVal(srcId, label.srcColumnType)
-      val tgtVertexId = toInnerVal(tgtId, label.tgtColumnType)
-      val src = Vertex(CompositeId(label.srcColumn.id.get, srcVertexId, true, true), System.currentTimeMillis())
-      val tgt = Vertex(CompositeId(label.tgtColumn.id.get, tgtVertexId, true, false), System.currentTimeMillis())
+
+      val srcVertexId = toInnerVal(srcId, label.srcColumnWithDir(dir).columnType, label.schemaVersion)
+      val tgtVertexId = toInnerVal(tgtId, label.tgtColumnWithDir(dir).columnType, label.schemaVersion)
+
+      val srcColId = label.srcColumnWithDir(dir).id.get
+      val tgtColId = label.tgtColumnWithDir(dir).id.get
+
+      val srcUseHash = if (dir == GraphUtil.directions("out")) true else false
+      val tgtUseHash = if (dir == GraphUtil.directions("out")) false else true
+      val srcVid =
+        if (dir == GraphUtil.directions("out")) SourceVertexId(srcColId, srcVertexId)
+        else TargetVertexId(srcColId, srcVertexId)
+
+      val tgtVid =
+        if (dir == GraphUtil.directions("out")) TargetVertexId(tgtColId, tgtVertexId)
+        else SourceVertexId(tgtColId, tgtVertexId)
+
+      val src = Vertex(srcVid, System.currentTimeMillis())
+      val tgt = Vertex(tgtVid, System.currentTimeMillis())
       Graph.getEdge(src, tgt, label, dir).map { edges =>
         val ret = for {
           edge <- edges.headOption
@@ -187,7 +202,9 @@ object QueryController extends Controller  with RequestParser with Instrumented 
         ret.getOrElse(NotFound(s"NotFound\n").as(applicationJsonHeader))
       }
     } catch {
-      case e: Throwable => Future { BadRequest(e.toString()).as(applicationJsonHeader) }
+      case e: Throwable =>
+        Logger.error(s"$e", e)
+        Future.successful( BadRequest(e.toString()).as(applicationJsonHeader) )
     }
   }
   /**
@@ -230,9 +247,9 @@ object QueryController extends Controller  with RequestParser with Instrumented 
     if (rId.isEmpty) Future { NotFound.as(applicationJsonHeader) }
     else {
       val id = rId.get
-      val l = HLabel.findByName(label).get
+      val l = Label.findByName(label).get
       val srcColumnName = l.srcColumn.columnName
-      val srcServiceName = HService.findById(l.srcServiceId).serviceName
+      val srcServiceName = Service.findById(l.srcServiceId).serviceName
       val queryJson = s"""
     {
     "srcVertices": [{"serviceName": "$srcServiceName", "columnName": "$srcColumnName", "id":$id}],
@@ -247,9 +264,9 @@ object QueryController extends Controller  with RequestParser with Instrumented 
   }
   def testGetEdges2(label1: String, limit1: Int, label2: String, limit2: Int) = withHeaderAsync { request =>
     val id = TestDataLoader.randomId.toString
-    val l = HLabel.findByName(label1).get
+    val l = Label.findByName(label1).get
     val srcColumnName = l.srcColumn.columnName
-    val srcServiceName = HService.findById(l.srcServiceId).serviceName
+    val srcServiceName = Service.findById(l.srcServiceId).serviceName
     val queryJson = s"""
     {
     "srcVertices": [{"serviceName": "$srcServiceName", "columnName": "$srcColumnName", "id":$id}],
@@ -264,9 +281,9 @@ object QueryController extends Controller  with RequestParser with Instrumented 
   }
   def testGetEdges3(label1: String, limit1: Int, label2: String, limit2: Int, label3: String, limit3: Int) = withHeaderAsync { request =>
     val id = TestDataLoader.randomId.toString
-    val l = HLabel.findByName(label1).get
+    val l = Label.findByName(label1).get
     val srcColumnName = l.srcColumn.columnName
-    val srcServiceName = HService.findById(l.srcServiceId).serviceName
+    val srcServiceName = Service.findById(l.srcServiceId).serviceName
     val queryJson = s"""
     {
     "srcVertices": [{"serviceName": "$srcServiceName", "columnName": "$srcColumnName", "id":$id}],

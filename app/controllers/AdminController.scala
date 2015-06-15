@@ -2,6 +2,8 @@ package controllers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.models._
+// import com.daumkakao.s2graph.core.mysqls._
+
 import play.api.Logger
 import play.api.libs.json.{JsObject, JsValue, Json}
 import play.api.mvc.{Action, Controller}
@@ -42,10 +44,10 @@ object AdminController extends Controller with RequestParser {
     try {
       val (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected,
-      serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL) = toLabelElements(jsValue)
+      serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion) = toLabelElements(jsValue)
 
       Management.createLabel(labelName, srcServiceName, srcColumnName, srcColumnType,
-        tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL)
+        tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion)
       Ok("Created\n").as(QueryController.applicationJsonHeader)
     } catch {
       case e: Throwable =>
@@ -75,11 +77,11 @@ object AdminController extends Controller with RequestParser {
   }
 
   def getLabels(serviceName: String) = Action { request =>
-    HService.findByName(serviceName) match {
+    Service.findByName(serviceName) match {
       case None => BadRequest(s"create service first.").as(QueryController.applicationJsonHeader)
       case Some(service) =>
-        val srcs = HLabel.findBySrcServiceId(service.id.get)
-        val tgts = HLabel.findByTgtServiceId(service.id.get)
+        val srcs = Label.findBySrcServiceId(service.id.get)
+        val tgts = Label.findByTgtServiceId(service.id.get)
         val json = Json.obj("from" -> srcs.map(src => src.toJson), "to" -> tgts.map(tgt => tgt.toJson))
         Ok(s"$json\n").as(QueryController.applicationJsonHeader)
     }
@@ -90,7 +92,7 @@ object AdminController extends Controller with RequestParser {
   }
 
   def deleteLabelInner(labelName: String) = {
-    HLabel.findByName(labelName) match {
+    Label.findByName(labelName) match {
       case None => NotFound
       case Some(label) =>
         val json = label.toJson
@@ -101,8 +103,8 @@ object AdminController extends Controller with RequestParser {
 
   private def addPropInner(labelName: String)(js: JsValue) = {
     val (propName, defaultValue, dataType, usedInIndex) = toPropElements(js)
-    for (label <- HLabel.findByName(labelName)) yield {
-      HLabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType)
+    for (label <- Label.findByName(labelName)) yield {
+      LabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType)
     }
   }
   def addProp(labelName: String) = Action(parse.json) { request =>
@@ -138,8 +140,8 @@ object AdminController extends Controller with RequestParser {
 
   def getVertex(serviceName: String, columnName: String) = Action { request =>
     val rets = for {
-      service <- HService.findByName(serviceName)
-      serviceColumn <- HServiceColumn.find(service.id.get, columnName, useCache = false)
+      service <- Service.findByName(serviceName)
+      serviceColumn <- ServiceColumn.find(service.id.get, columnName, useCache = false)
     } yield {
       serviceColumn
     }
@@ -151,10 +153,10 @@ object AdminController extends Controller with RequestParser {
   private def addVertexPropInner(serviceName: String, columnName: String)(js: JsValue) = {
     val (propName, defaultValue, dataType, usedInIndex) = toPropElements(js)
     for {
-      service <- HService.findByName(serviceName)
-      serviceColumn <- HServiceColumn.find(service.id.get, columnName)
+      service <- Service.findByName(serviceName)
+      serviceColumn <- ServiceColumn.find(service.id.get, columnName)
     } yield {
-      HColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType)
+      ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType)
     }
   }
   def addVertexProp(serviceName: String, columnName: String) = Action(parse.json) { request =>
@@ -199,7 +201,7 @@ object AdminController extends Controller with RequestParser {
   //  }
 
   def allServices = Action {
-    val svcs = HService.findAllServices
+    val svcs = Service.findAllServices
     Ok(Json.toJson(svcs.map(svc => svc.toJson))).as(QueryController.applicationJsonHeader)
   }
 

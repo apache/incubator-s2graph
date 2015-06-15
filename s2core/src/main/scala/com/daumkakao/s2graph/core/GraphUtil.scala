@@ -5,8 +5,6 @@ import java.util.regex.Pattern
 import play.api.libs.json.Json
 
 object GraphUtil {
-  val BitsForMurMurHash = 16
-  val bytesForMurMurHash = 2
   private val seperator = ":"
   private val TOKEN_DELIMITER = Pattern.compile("[\t]")
   val operations = Map("i" -> 0, "insert" -> 0, "u" -> 1, "update" -> 1,
@@ -15,6 +13,9 @@ object GraphUtil {
       case (k, v) =>
         (k -> v.toByte)
     }
+  val BitsForMurMurHash = 16
+  val bytesForMurMurHash = 2
+  val defaultOpByte = operations("insert")
   val directions = Map("out" -> 0, "in" -> 1, "undirected" -> 2, "u" -> 2, "directed" -> 0, "d" -> 0)
   val consistencyLevel = Map("weak" -> 0, "strong" -> 1)
   

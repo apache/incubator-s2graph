@@ -1,56 +1,51 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.models.{HLabelMeta, HLabel}
-import com.daumkakao.s2graph.core.types.InnerVal
+import com.daumkakao.s2graph.core.types2.{InnerValLike, InnerVal}
+import play.api.Logger
 import play.api.libs.json._
 
-import scala.util.parsing.combinator.JavaTokenParsers
 
 trait JSONParser {
-  /** */
-//  def toInnerVal(jsValue: JsValue) = {
-//    jsValue match {
-//      case n: JsNumber => (InnerVal.withNumber(n.value), InnerVal.dataTypeOfNumber(n.value))
-//      case s: JsString => (InnerVal.withStr(s.value), InnerVal.STRING)
-//      case b: JsBoolean => (InnerVal.withBoolean(b.value), InnerVal.BOOLEAN)
-//      // ?? blob??
-//      case _ => throw new Exception("JsonValue should be in [long/string/boolean].")
-//    }
-//  }
-//  def innerValToJsValue(innerVal: InnerVal): JsValue = {
-//    innerVal.toJsValue()
-//  }
-  def innerValToJsValue(innerVal: InnerVal, dataType: String): Option[JsValue] = {
+
+  def innerValToJsValue(innerVal: InnerValLike, dataType: String): Option[JsValue] = {
     try {
       val jsValue = dataType match {
         case InnerVal.STRING => JsString(innerVal.value.toString)
-        case InnerVal.BOOLEAN => JsBoolean(innerVal.toVal[Boolean])
+        case InnerVal.BOOLEAN => JsBoolean(innerVal.value.asInstanceOf[Boolean])
         case t if InnerVal.NUMERICS.contains(t) =>
-          JsNumber(InnerVal.scaleNumber(innerVal.toVal[BigDecimal], dataType))
+          JsNumber(InnerVal.scaleNumber(BigDecimal(innerVal.toString), dataType))
         case _ =>
           throw new RuntimeException(s"innerVal $innerVal to JsValue with type $dataType")
       }
       Some(jsValue)
     } catch {
       case e: Throwable =>
+        Logger.error(s"$innerVal, $dataType", e)
         None
     }
   }
-  def innerValToString(innerVal: InnerVal, dataType: String): String = {
+  def innerValToString(innerVal: InnerValLike, dataType: String): String = {
     dataType match {
-      case InnerVal.STRING => innerVal.value.toString
-      case InnerVal.BOOLEAN => innerVal.value.toString
-      case t if InnerVal.NUMERICS.contains(t) => innerVal.toVal[BigDecimal].bigDecimal.toPlainString
-      case _ => throw new RuntimeException("innerVal to jsValue failed.")
+      case InnerVal.STRING => innerVal.toString
+      case InnerVal.BOOLEAN => innerVal.toString
+      case t if InnerVal.NUMERICS.contains(t)  =>
+        BigDecimal(innerVal.toString).bigDecimal.toPlainString
+      case _ =>  innerVal.toString
+//        throw new RuntimeException("innerVal to jsValue failed.")
     }
   }
 
-  def toInnerVal(s: String, dataType: String) = {
+  def toInnerVal(str: String, dataType: String, version: String) = {
+    //TODO:
+//    Logger.error(s"$str, $dataType, $version")
+    val s =
+      if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
+      else str
     dataType match {
-      case InnerVal.STRING => InnerVal.withStr(s)
-      case t if InnerVal.NUMERICS.contains(t) => InnerVal.withNumber(BigDecimal(s))
-      case InnerVal.BOOLEAN => InnerVal.withBoolean(s.toBoolean)
-      case InnerVal.BLOB => InnerVal.withBlob(s.getBytes)
+      case InnerVal.STRING => InnerVal.withStr(s, version)
+      case t if InnerVal.NUMERICS.contains(t) => InnerVal.withNumber(BigDecimal(s), version)
+      case InnerVal.BOOLEAN => InnerVal.withBoolean(s.toBoolean, version)
+      case InnerVal.BLOB => InnerVal.withBlob(s.getBytes, version)
       case _ =>
         //        InnerVal.withStr("")
         throw new RuntimeException(s"illegal datatype for string: dataType is $dataType for $s")
@@ -58,27 +53,27 @@ trait JSONParser {
   }
 
 
-  def jsValueToInnerVal(jsValue: JsValue, dataType: String): Option[InnerVal] = {
+  def jsValueToInnerVal(jsValue: JsValue, dataType: String, version: String): Option[InnerValLike] = {
     val ret = try {
       val dType = dataType.toLowerCase()
       jsValue match {
         case n: JsNumber =>
           dType match {
-            case InnerVal.STRING => Some(InnerVal.withStr(jsValue.toString))
-            case t if InnerVal.NUMERICS.contains(t) => Some(InnerVal.withNumber(n.value))
+            case InnerVal.STRING => Some(InnerVal.withStr(jsValue.toString, version))
+            case t if InnerVal.NUMERICS.contains(t) => Some(InnerVal.withNumber(n.value, version))
             case _ => None
           }
         case s: JsString =>
           dType match {
-            case InnerVal.STRING => Some(InnerVal.withStr(s.value))
-            case InnerVal.BOOLEAN => Some(InnerVal.withBoolean(s.as[String].toBoolean))
-            case t if InnerVal.NUMERICS.contains(t) => Some(InnerVal.withNumber(BigDecimal(s.value)))
+            case InnerVal.STRING => Some(InnerVal.withStr(s.value, version))
+            case InnerVal.BOOLEAN => Some(InnerVal.withBoolean(s.as[String].toBoolean, version))
+            case t if InnerVal.NUMERICS.contains(t) => Some(InnerVal.withNumber(BigDecimal(s.value), version))
             case _ => None
           }
         case b: JsBoolean =>
           dType match {
-            case InnerVal.STRING => Some(InnerVal.withStr(b.toString))
-            case InnerVal.BOOLEAN => Some(InnerVal.withBoolean(b.value))
+            case InnerVal.STRING => Some(InnerVal.withStr(b.toString, version))
+            case InnerVal.BOOLEAN => Some(InnerVal.withBoolean(b.value, version))
             case _ => None
           }
         case _ =>
@@ -91,12 +86,4 @@ trait JSONParser {
 
     ret
   }
-//  def innerValToString(innerVal: InnerVal, dataType: String): String = {
-//    val value = innerVal.value
-//    dataType.toLowerCase() match {
-//      case InnerVal.STRING => JsString(value.toString).toString
-//      case _ => value.toString
-//    }
-//  }
-
 }
