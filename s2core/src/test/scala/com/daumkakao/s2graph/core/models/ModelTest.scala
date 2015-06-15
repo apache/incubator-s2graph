@@ -11,7 +11,7 @@ import scala.concurrent.ExecutionContext
 /**
  * Created by shon on 5/12/15.
  */
-class HBaseModelTest extends FunSuite with Matchers {
+class ModelTest extends FunSuite with Matchers {
 
 //  val zkQuorum = "localhost"
 //  val config = ConfigFactory.parseString(s"hbase.zookeeper.quorum=$zkQuorum")

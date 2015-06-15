@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core.models
 
-import com.daumkakao.s2graph.core.models.HBaseModel.{KEY, VAL}
+import com.daumkakao.s2graph.core.models.Model.{KEY, VAL}
 import com.daumkakao.s2graph.core.types2.InnerVal
 import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
 import play.api.Logger
@@ -17,16 +17,16 @@ object Label {
     findByName(labelUseCache._1, labelUseCache._2)
   }
   def findByName(label: String, useCache: Boolean = true): Option[Label] = {
-    HBaseModel.find[Label](useCache)(Seq(("label" -> label)))
+    Model.find[Label](useCache)(Seq(("label" -> label)))
   }
   def findById(id: Int, useCache: Boolean = true): Label = {
-    HBaseModel.find[Label](useCache)(Seq(("id" -> id))).get
+    Model.find[Label](useCache)(Seq(("id" -> id))).get
   }
   def findAll(useCache: Boolean = true): List[Label] = {
-    HBaseModel.findsRange[Label](useCache)(Seq(("id" -> 0)), Seq(("id" -> Int.MaxValue)))
+    Model.findsRange[Label](useCache)(Seq(("id" -> 0)), Seq(("id" -> Int.MaxValue)))
   }
   def findByList(key: String, id: Int, useCache: Boolean = true): List[Label] = {
-    HBaseModel.findsMatch[Label](useCache)(Seq((key -> id)))
+    Model.findsMatch[Label](useCache)(Seq((key -> id)))
   }
   def findByTgtColumnId(columnId: Int, useCache: Boolean = true): List[Label] = {
     findByList("tgtColumnId", columnId, useCache)
@@ -72,7 +72,7 @@ object Label {
 
         /** create label */
         Label.findByName(labelName, useCache = false).getOrElse {
-          val createdId = HBaseModel.getAndIncrSeq[Label]
+          val createdId = Model.getAndIncrSeq[Label]
           val label = Label(Map("id" -> createdId,
             "label" -> labelName, "srcServiceId" -> srcServiceId,
             "srcColumnName" -> srcColumnName, "srcColumnType" -> srcColumnType,
@@ -112,7 +112,7 @@ object Label {
     newLabel.getOrElse(throw new RuntimeException("failed to create label"))
   }
 }
-case class Label(kvsParam: Map[KEY, VAL]) extends HBaseModel[Label]("HLabel", kvsParam) with JSONParser {
+case class Label(kvsParam: Map[KEY, VAL]) extends Model[Label]("HLabel", kvsParam) with JSONParser {
   override val columns = Seq("id", "label", "srcServiceId", "srcColumnName", "srcColumnType",
     "tgtServiceId", "tgtColumnName", "tgtColumnType", "isDirected", "serviceName", "serviceId",
     "consistencyLevel", "hTableName", "hTableTTL", "schemaVersion")
@@ -130,8 +130,8 @@ case class Label(kvsParam: Map[KEY, VAL]) extends HBaseModel[Label]("HLabel", kv
     idxSrcServiceId, idxtgtServiceId, idxServiceName, idxServiceId)
   override def foreignKeys() = {
     List(
-      HBaseModel.findsMatch[LabelIndex](useCache = false)(Seq("labelId" -> kvs("id"))),
-      HBaseModel.findsMatch[LabelMeta](useCache = false)(Seq("labelId" -> kvs("id")))
+      Model.findsMatch[LabelIndex](useCache = false)(Seq("labelId" -> kvs("id"))),
+      Model.findsMatch[LabelMeta](useCache = false)(Seq("labelId" -> kvs("id")))
     )
   }
   validate(columns, Seq("schemaVersion"))

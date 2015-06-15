@@ -11,7 +11,7 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.reflect.runtime.{universe => ru}
 
-object HBaseModel extends LocalCache[Result] {
+object Model extends LocalCache[Result] {
   val DELIMITER = ":"
   val KEY_VAL_DELIMITER = "^"
   val KEY_VAL_DELIMITER_WITH_ESCAPE = "\\^"
@@ -135,7 +135,7 @@ object HBaseModel extends LocalCache[Result] {
     val uniq = new mutable.HashSet[String]
     for {
       r <- ls
-      m = r.asInstanceOf[HBaseModel[_]]
+      m = r.asInstanceOf[Model[_]]
       if m.kvs.containsKey("id") && !uniq.contains(m.kvs("id").toString)
     } yield {
       uniq += m.kvs("id").toString
@@ -274,8 +274,8 @@ object HBaseModel extends LocalCache[Result] {
 
 }
 
-class HBaseModel[T : ClassTag](protected val tableName: String, protected val kvs: Map[HBaseModel.KEY, HBaseModel.VAL])  {
-  import HBaseModel._
+class Model[T : ClassTag](protected val tableName: String, protected val kvs: Map[Model.KEY, Model.VAL])  {
+  import Model._
   import scala.reflect.runtime._
   import scala.reflect.runtime.universe._
 
@@ -285,7 +285,7 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
   protected val idxs = List.empty[Seq[(KEY, VAL)]]
   /** act like foreign key */
   protected def foreignKeys() = {
-    List.empty[List[HBaseModel[_]]]
+    List.empty[List[Model[_]]]
   }
 
   override def toString(): String = (kvs ++ Map("tableName" -> tableName)).toString
@@ -303,13 +303,13 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
     val rets = for {
       idxKVs <- idxs
     } yield {
-      HBaseModel.insert[T](idxKVs, toKVsWithFilter(kvs, idxKVs))
+      Model.insert[T](idxKVs, toKVsWithFilter(kvs, idxKVs))
     }
     rets.forall(r => r)
   }
   def destroy() = {
     val rets = for (idxKVs <- idxs) yield {
-      HBaseModel.delete[T](idxKVs, toKVsWithFilter(kvs, idxKVs))
+      Model.delete[T](idxKVs, toKVsWithFilter(kvs, idxKVs))
     }
     rets.forall(r => r)
   }
@@ -319,8 +319,8 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
     } {
       val idxKVsMap = idxKVs.toMap
       for {
-        oldRaw <- HBaseModel.find[T] (useCache = false) (idxKVs)
-        old = oldRaw.asInstanceOf[HBaseModel[T]]
+        oldRaw <- Model.find[T] (useCache = false) (idxKVs)
+        old = oldRaw.asInstanceOf[Model[T]]
       } {
         val oldMetaKVs = old.kvs.filter(kv => !idxKVsMap.containsKey(kv._1))
         val (newIdxKVs, newMetaKVs) = if (idxKVsMap.containsKey(key)) {
@@ -328,8 +328,8 @@ class HBaseModel[T : ClassTag](protected val tableName: String, protected val kv
         } else {
           (idxKVs, oldMetaKVs.filter(kv => kv._1 != key) ++ Seq(key -> value))
         }
-        HBaseModel.deleteForce[T](idxKVs)
-        HBaseModel.insertForce[T](newIdxKVs, newMetaKVs.toSeq)
+        Model.deleteForce[T](idxKVs)
+        Model.insertForce[T](newIdxKVs, newMetaKVs.toSeq)
       }
     }
   }

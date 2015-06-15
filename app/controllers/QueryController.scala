@@ -3,8 +3,8 @@ package controllers
 
 import com.codahale.metrics.Meter
 
-//import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.types2.{TargetVertexId, SourceVertexId}
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}

@@ -2,8 +2,8 @@ package com.daumkakao.s2graph.core.parsers
 
 import com.daumkakao.s2graph.core._
 //import com.daumkakao.s2graph.core.models.{LabelMeta, Label}
-//import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.types2.InnerValLike
 
 import scala.util.parsing.combinator.JavaTokenParsers

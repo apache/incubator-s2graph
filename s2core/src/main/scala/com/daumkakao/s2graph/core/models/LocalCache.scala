@@ -41,8 +41,8 @@ import play.api.Logger
 //  }
 //}
 trait LocalCache[V <: Object] {
-  protected val ttl = HBaseModel.cacheTTL
-  protected val maxSize = HBaseModel.maxCacheSize
+  protected val ttl = Model.cacheTTL
+  protected val maxSize = Model.maxCacheSize
   private lazy val cName = this.getClass.getSimpleName()
 
   val cache = CacheBuilder.newBuilder()

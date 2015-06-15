@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core.models
 
-import com.daumkakao.s2graph.core.models.HBaseModel.{VAL, KEY}
+import com.daumkakao.s2graph.core.models.Model.{VAL, KEY}
 
 /**
  * Created by shon on 5/15/15.
@@ -18,22 +18,22 @@ object ColumnMeta {
 
   def findById(id: Int, useCache: Boolean = true): ColumnMeta = {
 
-    HBaseModel.find[ColumnMeta](useCache)(Seq(("id" -> id))).get
+    Model.find[ColumnMeta](useCache)(Seq(("id" -> id))).get
   }
   def findAllByColumn(columnId: Int, useCache: Boolean = true) = {
-    HBaseModel.findsMatch[ColumnMeta](useCache)(Seq(("columnId" -> columnId)))
+    Model.findsMatch[ColumnMeta](useCache)(Seq(("columnId" -> columnId)))
   }
   def findByName(columnId: Int, name: String, useCache: Boolean = true) = {
-    HBaseModel.find[ColumnMeta](useCache)(Seq(("columnId" -> columnId), ("name" -> name)))
+    Model.find[ColumnMeta](useCache)(Seq(("columnId" -> columnId), ("name" -> name)))
   }
   def findByIdAndSeq(columnId: Int, seq: Byte, useCache: Boolean = true) = {
-    HBaseModel.find[ColumnMeta](useCache)(Seq(("columnId" -> columnId), ("seq" -> seq)))
+    Model.find[ColumnMeta](useCache)(Seq(("columnId" -> columnId), ("seq" -> seq)))
   }
   def findOrInsert(columnId: Int, name: String, dataType: String): ColumnMeta = {
     findByName(columnId, name, useCache = false) match {
       case Some(s) => s
       case None =>
-        val id = HBaseModel.getAndIncrSeq[ColumnMeta]
+        val id = Model.getAndIncrSeq[ColumnMeta]
         val allMetas = findAllByColumn(columnId, useCache = false)
         val seq = (allMetas.length + 1).toByte
         val model = ColumnMeta(Map("id" -> id, "columnId" -> columnId, "name" -> name,
@@ -45,7 +45,7 @@ object ColumnMeta {
 }
 /** add dataType on HColumnMeta */
 
-case class ColumnMeta(kvsParam: Map[KEY, VAL]) extends HBaseModel[ColumnMeta]("HColumnMeta", kvsParam) {
+case class ColumnMeta(kvsParam: Map[KEY, VAL]) extends Model[ColumnMeta]("HColumnMeta", kvsParam) {
   override val columns = Seq("id", "columnId", "name", "seq", "dataType")
 
   val pk = Seq(("id", kvs("id")))
