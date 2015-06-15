@@ -478,7 +478,7 @@ abstract class IntegritySpecificationBase extends Specification {
 
 
       // 2. createLabel
-      Label.findByName(testLabelName) match {
+      Label.findByName(testLabelName, useCache = false) match {
         case None =>
           result = AdminController.createLabelInner(Json.parse(createLabel))
           println(s">> Label created : $createLabel, $result")
