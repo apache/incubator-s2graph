@@ -371,7 +371,7 @@ case class Edge(srcVertex: Vertex,
         rets <- Future.sequence(futures)
       } yield {
         if (rets.forall(x => x)) {
-          Graph.writeAsync(label.hbaseZkAddr, edgeUpdate.indexedEdgeMutations)
+          Graph.writeAsync(label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations))
           /** degree */
           val incrs =
             (edgeUpdate.edgesToDelete.isEmpty, edgeUpdate.edgesToInsert.isEmpty) match {
@@ -389,7 +389,7 @@ case class Edge(srcVertex: Vertex,
                 List.empty[AtomicIncrementRequest]
             }
           //        Logger.debug(s"Increment: $incrs")
-          Graph.writeAsync(label.hbaseZkAddr, incrs)
+          Graph.writeAsync(label.hbaseZkAddr, Seq(incrs))
           true
         } else {
           false

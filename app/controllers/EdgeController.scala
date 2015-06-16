@@ -15,74 +15,57 @@ object EdgeController extends Controller with Instrumented with RequestParser {
 
   private val maxLength = 1024 * 1024 * 16
   private[controllers] def tryMutates(jsValue: JsValue, operation: String): Future[Result] = {
-    Future {
-      if (!Config.IS_WRITE_SERVER) Unauthorized
-
-      val edges = new ListBuffer[Edge]
+    if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
+    else {
       try {
-        edges ++= toEdges(jsValue, operation)
+        val edges = toEdges(jsValue, operation)
         // store valid edges came to system.
-        for (edge <- edges) {
-          try {
-            aggregateElement(edge, None)
-          } catch {
-            case e: Throwable => Logger.error(s"tryMutates: $edge, $e", e)
-          }
-        }
         getOrElseUpdateMetric("IncommingEdges")(metricRegistry.counter("IncommingEdges")).inc(edges.size)
-        Ok(s"${edges.size} $operation success\n")
+
+        Graph.mutateEdges(edges).map { rets =>
+          Ok(s"$rets\n").as(QueryController.applicationJsonHeader)
+        }
       } catch {
-        case e: KGraphExceptions.JsonParseException => BadRequest(s"e")
+        case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"e"))
         case e: Throwable =>
           play.api.Logger.error(s"mutateAndPublish: $e", e)
-          InternalServerError(s"${e.getStackTraceString}")
+          Future.successful(InternalServerError(s"${e.getStackTraceString}"))
       }
     }
   }
   
-  private[controllers] def aggregateElement(element: GraphElement, originalString: Option[String]) = {
+//  private[controllers] def aggregateElements(elements: Seq[GraphElement], originalString: Seq[Option[String]]): Future[Seq[Boolean]] = {
     //KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(Config.KAFKA_LOG_TOPIC, element, originalString))
-    element match {
-      case v: Vertex => Graph.mutateVertex(v)
-      case e: Edge => Graph.mutateEdge(e)
-      case _ => Logger.error(s"InvalidType: $element, $originalString")
-    }
-  }
-  private[controllers] def mutateAndPublish(str: String) = {
-    Future {
-      if (!Config.IS_WRITE_SERVER) Unauthorized
-      
-      val edgeStrs = str.split("\\n")
+//    Graph.mutateElements(elements)
+//  }
+  private[controllers] def mutateAndPublish(str: String): Future[Result] = {
+    if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
 
-      val elements = new ListBuffer[GraphElement]
-      var vertexCnt = 0L
-      var edgeCnt = 0L
-      try {
-        val parsedElements =
-          for (edgeStr <- edgeStrs; str <- GraphUtil.parseString(edgeStr); element <- Graph.toGraphElement(str)) yield {
-            element match {
-              case v: Vertex => vertexCnt += 1
-              case e: Edge => edgeCnt += 1
-            }
-            try {
-              aggregateElement(element, Some(str))
-            } catch {
-              case e: Throwable => Logger.error(s"mutateAndPublish: $element, $e", e)
-            }
-            element
+    val edgeStrs = str.split("\\n")
+
+    var vertexCnt = 0L
+    var edgeCnt = 0L
+    try {
+      val elements =
+        for (edgeStr <- edgeStrs; str <- GraphUtil.parseString(edgeStr); element <- Graph.toGraphElement(str)) yield {
+          element match {
+            case v: Vertex => vertexCnt += 1
+            case e: Edge => edgeCnt += 1
           }
-        elements ++= parsedElements
-
-        getOrElseUpdateMetric("IncommingVertices")(metricRegistry.counter("IncommingVertices")).inc(vertexCnt)
-        getOrElseUpdateMetric("IncommingEdges")(metricRegistry.counter("IncommingEdges")).inc(edgeCnt)
-
-        Ok(s" ${parsedElements.size} mutation success.\n")
-      } catch {
-        case e: KGraphExceptions.JsonParseException => BadRequest(s"$e")
-        case e: Throwable =>
-          play.api.Logger.error(s"mutateAndPublish: $e", e)
-          InternalServerError(s"${e.getStackTraceString}")
+          element
+        }
+//      val elements = edgesWithStrs.map(_._1)
+//      val strs = edgesWithStrs.map(_._2)
+      getOrElseUpdateMetric("IncommingVertices")(metricRegistry.counter("IncommingVertices")).inc(vertexCnt)
+      getOrElseUpdateMetric("IncommingEdges")(metricRegistry.counter("IncommingEdges")).inc(edgeCnt)
+      Graph.mutateElements(elements).map { rets =>
+        Ok(s"$rets").as(QueryController.applicationJsonHeader)
       }
+    } catch {
+      case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
+      case e: Throwable =>
+        play.api.Logger.error(s"mutateAndPublish: $e", e)
+        Future.successful(InternalServerError(s"${e.getStackTraceString}"))
     }
   }
 
