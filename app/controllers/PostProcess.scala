@@ -195,8 +195,7 @@ object PostProcess extends JSONParser {
         "score" -> score
       )
     }
-    Logger.debug(s"$edge => $json")
-    println(s"$edge => $json")
+
     json
 //    Json.obj(
 //      "from" -> innerValToJsValue(edge.srcVertex.id.innerId),

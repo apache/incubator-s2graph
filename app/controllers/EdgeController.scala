@@ -3,7 +3,7 @@ package controllers
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
 import com.daumkakao.s2graph.core.{ Edge, Graph, GraphElement, GraphUtil, Vertex, KGraphExceptions }
 import play.api.Logger
-import play.api.libs.json.JsValue
+import play.api.libs.json.{Json, JsValue}
 import play.api.mvc.{ Controller, Result }
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
@@ -23,7 +23,7 @@ object EdgeController extends Controller with Instrumented with RequestParser {
         getOrElseUpdateMetric("IncommingEdges")(metricRegistry.counter("IncommingEdges")).inc(edges.size)
 
         Graph.mutateEdges(edges).map { rets =>
-          Ok(s"$rets\n").as(QueryController.applicationJsonHeader)
+          Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
         }
       } catch {
         case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"e"))
@@ -59,7 +59,7 @@ object EdgeController extends Controller with Instrumented with RequestParser {
       getOrElseUpdateMetric("IncommingVertices")(metricRegistry.counter("IncommingVertices")).inc(vertexCnt)
       getOrElseUpdateMetric("IncommingEdges")(metricRegistry.counter("IncommingEdges")).inc(edgeCnt)
       Graph.mutateElements(elements).map { rets =>
-        Ok(s"$rets").as(QueryController.applicationJsonHeader)
+        Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
       }
     } catch {
       case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))

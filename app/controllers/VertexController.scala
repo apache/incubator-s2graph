@@ -4,7 +4,7 @@ package controllers
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
 import com.daumkakao.s2graph.core.{Graph, Vertex, KGraphExceptions}
 import play.api.Logger
-import play.api.libs.json.JsValue
+import play.api.libs.json.{Json, JsValue}
 import play.api.mvc.{ Controller, Result }
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
@@ -20,7 +20,7 @@ object VertexController extends Controller with Instrumented  with RequestParser
       val vertices = toVertices(jsValue, operation, serviceNameOpt, columnNameOpt)
       getOrElseUpdateMetric("incommingVertices")(metricRegistry.counter("incommingVertices")).inc(vertices.size)
       Graph.mutateVertices(vertices).map { rets =>
-        Ok(s"$rets").as(QueryController.applicationJsonHeader)
+        Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
       }
     } catch {
       case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"e"))
