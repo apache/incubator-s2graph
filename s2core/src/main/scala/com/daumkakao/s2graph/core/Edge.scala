@@ -187,10 +187,11 @@ case class EdgeWithIndex(srcVertex: Vertex,
 case class Edge(srcVertex: Vertex,
                 tgtVertex: Vertex,
                 labelWithDir: LabelWithDirection,
-                op: Byte,
-                ts: Long,
-                version: Long,
-                propsWithTs: Map[Byte, InnerValLikeWithTs]) extends GraphElement with JSONParser {
+                op: Byte = GraphUtil.operations("insert"),
+                ts: Long = System.currentTimeMillis(),
+                version: Long = System.currentTimeMillis(),
+                propsWithTs: Map[Byte, InnerValLikeWithTs] = Map.empty[Byte, InnerValLikeWithTs])
+    extends GraphElement with JSONParser {
 
   import Edge._
   val logger = Edge.logger
@@ -256,13 +257,23 @@ case class Edge(srcVertex: Vertex,
       EdgeWithIndex(srcVertex, tgtVertex, labelWithDir, newOp, version, labelOrder.seq, propsPlusTsValid)
     }
   }
+  def toInvertedEdge() = {
+    val (smaller, larger) =
+      if (srcVertex.innerId <= tgtVertex.innerId) (srcVertex, tgtVertex)
+      else (tgtVertex, srcVertex)
+    val newLabelWithDir = LabelWithDirection(labelWithDir.labelId, GraphUtil.directions("out"))
 
+    EdgeWithIndexInverted(smaller, larger, newLabelWithDir, op, version, propsWithTs ++
+      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)))
+  }
   lazy val edgesWithInvertedIndex = {
+//    this.toInvertedEdge()
     EdgeWithIndexInverted(srcVertex, tgtVertex, labelWithDir, op, version, propsWithTs ++
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)))
   }
 
   def edgesWithInvertedIndex(newOp: Byte) = {
+//    this.toInvertedEdge()
     EdgeWithIndexInverted(srcVertex, tgtVertex, labelWithDir, newOp, version, propsWithTs ++
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)))
   }
@@ -346,19 +357,6 @@ case class Edge(srcVertex: Vertex,
    *
    */
 
-  //  def mutate(f: (Option[Edge], Edge) => EdgeUpdate): Unit = {
-  //    val edgeUpdate = f(fetchInverted().headOption, this)
-  //    withWriteTable(label.hbaseZkAddr, label.hbaseTableName) { table =>
-  //      val size = edgeUpdate.mutations.size
-  //      val rets: Array[Object] = Array.fill(size)(null)
-  //      table.batch(edgeUpdate.mutations, rets)
-  //      for (ret <- rets if ret == null) {
-  //        Logger.error(s"mutation tryed but failed.")
-  //      }
-  //    } {
-  //      Logger.error(s"mutation failed.")
-  //    }
-  //  }
   def compareAndSet(client: HBaseClient)(invertedEdgeOpt: Option[Edge], edgeUpdate: EdgeUpdate): Future[Boolean] = {
       val expected = invertedEdgeOpt.map { e =>
         e.edgesWithInvertedIndex.value.bytes
@@ -397,38 +395,7 @@ case class Edge(srcVertex: Vertex,
       }
 //    }
   }
-//  def mutate(f: (Option[Edge], Edge) => EdgeUpdate): Unit = {
-//    try {
-//      val client = Graph.getClient(label.hbaseZkAddr)
-//      for {
-//        edges <- fetchInvertedAsync()
-//        invertedEdgeOpt = edges.headOption
-//        edgeUpdate = f(invertedEdgeOpt, this)
-//      } yield {
-//        /**
-//         * we can use CAS operation on inverted Edge checkAndSet() and if it return false
-//         * then re-read and build update and write recursively.
-//         */
-//        Graph.writeAsync(label.hbaseZkAddr, edgeUpdate.invertedEdgeMutations ++ edgeUpdate.indexedEdgeMutations)
-//        /** degree */
-//        val incrs = (edgeUpdate.edgesToDelete.isEmpty, edgeUpdate.edgesToInsert.isEmpty) match {
-//          case (false, false) => // update
-//            List.empty[AtomicIncrementRequest]
-//          case (false, true) => // only delete
-//            this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
-//          case (true, false) => // only insert
-//            this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
-//          case (true, true) => // not possible
-//            List.empty[AtomicIncrementRequest]
-//        }
-//        Graph.writeAsync(label.hbaseZkAddr, incrs)
-//      }
-//      //      client.flush()
-//    } catch {
-//      case e: Throwable =>
-//        Logger.error(s"mutate failed. $e", e)
-//    }
-//  }
+
 
   def mutate(f: (Option[Edge], Edge) => EdgeUpdate, tryNum: Int = 0): Unit = {
     if (tryNum >= maxTryNum) {

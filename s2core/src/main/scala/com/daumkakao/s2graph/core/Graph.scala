@@ -4,7 +4,7 @@ import java.util
 
 //import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.models._
-import com.daumkakao.s2graph.core.types2.{VertexId, EdgeQualifierInverted, LabelWithDirection, EdgeRowKey}
+import com.daumkakao.s2graph.core.types2._
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._
 import java.util.concurrent.Executors
@@ -303,10 +303,12 @@ object Graph {
 
   def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: Label, dir: Int): Future[Iterable[Edge]] = {
     implicit val ex = this.executionContext
-    val rowKey = EdgeRowKey(srcVertex.id,
-      LabelWithDirection(label.id.get, dir), label.defaultIndex.get.seq, isInverted = true)(label.schemaVersion)
+    val invertedEdge = Edge(srcVertex, tgtVertex, LabelWithDirection(label.id.get, dir)).edgesWithInvertedIndex
+    val rowKey = invertedEdge.rowKey
+//    val rowKey = EdgeRowKey(srcVertex.id,
+//      LabelWithDirection(label.id.get, dir), label.defaultIndex.get.seq, isInverted = true)(label.schemaVersion)
 
-    val qualifier = EdgeQualifierInverted(tgtVertex.id)(label.schemaVersion)
+    val qualifier = invertedEdge.qualifier
     val client = getClient(label.hbaseZkAddr)
     val getRequest = new GetRequest(label.hbaseTableName.getBytes(), rowKey.bytes, edgeCf, qualifier.bytes)
 
