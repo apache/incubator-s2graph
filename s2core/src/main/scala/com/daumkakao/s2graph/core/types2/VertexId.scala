@@ -56,6 +56,13 @@ class VertexId protected (val colId: Int, val innerId: InnerValLike) extends HBa
       case _ => false
     }
   }
+  def compareTo(other: VertexId): Int = {
+    Bytes.compareTo(bytes, other.bytes)
+  }
+  def <(other: VertexId): Boolean = compareTo(other) < 0
+  def <=(other: VertexId): Boolean = compareTo(other) <= 0
+  def >(other: VertexId): Boolean = compareTo(other) > 0
+  def >=(other: VertexId): Boolean = compareTo(other) >= 0
 }
 
 object SourceVertexId extends HBaseDeserializable {

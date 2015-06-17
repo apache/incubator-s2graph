@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core
 
 //import com.daumkakao.s2graph.core.mysqls._
+
 import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2._
@@ -33,7 +34,6 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
   // only for toString.
   lazy val label = Label.findById(labelWithDir.labelId)
   lazy val propsWithoutTs = props.map(kv => (kv._1 -> kv._2.innerVal))
-
 
 
   def buildPut() = {
@@ -187,18 +187,20 @@ case class EdgeWithIndex(srcVertex: Vertex,
 case class Edge(srcVertex: Vertex,
                 tgtVertex: Vertex,
                 labelWithDir: LabelWithDirection,
-                op: Byte,
-                ts: Long,
-                version: Long,
-                propsWithTs: Map[Byte, InnerValLikeWithTs]) extends GraphElement with JSONParser {
+                op: Byte = GraphUtil.operations("insert"),
+                ts: Long = System.currentTimeMillis(),
+                version: Long = System.currentTimeMillis(),
+                propsWithTs: Map[Byte, InnerValLikeWithTs] = Map.empty[Byte, InnerValLikeWithTs])
+  extends GraphElement with JSONParser {
 
   import Edge._
+
   val logger = Edge.logger
   implicit val ex = Graph.executionContext
   lazy val schemaVer = label.schemaVersion
   lazy val props =
-      if (op == GraphUtil.operations("delete")) Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, schemaVer))
-      else for ((k, v) <- propsWithTs) yield (k -> v.innerVal)
+    if (op == GraphUtil.operations("delete")) Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, schemaVer))
+    else for ((k, v) <- propsWithTs) yield (k -> v.innerVal)
 
   lazy val relatedEdges = {
     labelWithDir.dir match {
@@ -210,7 +212,7 @@ case class Edge(srcVertex: Vertex,
         List(this, duplicateEdge)
     }
   }
-//  assert(srcVertex.isInstanceOf[SourceVertexId] && tgtVertex.isInstanceOf[TargetVertexId])
+  //  assert(srcVertex.isInstanceOf[SourceVertexId] && tgtVertex.isInstanceOf[TargetVertexId])
 
   lazy val srcForVertex = Vertex(SourceVertexId.toVertexId(srcVertex.id), srcVertex.ts, srcVertex.props)
   lazy val tgtForVertex = Vertex(TargetVertexId.toVertexId(tgtVertex.id), tgtVertex.ts, tgtVertex.props)
@@ -257,12 +259,24 @@ case class Edge(srcVertex: Vertex,
     }
   }
 
+  def toInvertedEdge() = {
+    val (smaller, larger) =
+      if (srcVertex.innerId <= tgtVertex.innerId) (srcVertex, tgtVertex)
+      else (tgtVertex, srcVertex)
+    val newLabelWithDir = LabelWithDirection(labelWithDir.labelId, GraphUtil.directions("out"))
+
+    EdgeWithIndexInverted(smaller, larger, newLabelWithDir, op, version, propsWithTs ++
+      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)))
+  }
+
   lazy val edgesWithInvertedIndex = {
+    //    this.toInvertedEdge()
     EdgeWithIndexInverted(srcVertex, tgtVertex, labelWithDir, op, version, propsWithTs ++
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)))
   }
 
   def edgesWithInvertedIndex(newOp: Byte) = {
+    //    this.toInvertedEdge()
     EdgeWithIndexInverted(srcVertex, tgtVertex, labelWithDir, newOp, version, propsWithTs ++
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)))
   }
@@ -318,7 +332,7 @@ case class Edge(srcVertex: Vertex,
 
       }
     val ret = edgePuts ++ buildVertexPutsAsync
-//    Logger.debug(s"$this, $ret")
+    //    Logger.debug(s"$this, $ret")
     ret
   }
 
@@ -346,89 +360,49 @@ case class Edge(srcVertex: Vertex,
    *
    */
 
-  //  def mutate(f: (Option[Edge], Edge) => EdgeUpdate): Unit = {
-  //    val edgeUpdate = f(fetchInverted().headOption, this)
-  //    withWriteTable(label.hbaseZkAddr, label.hbaseTableName) { table =>
-  //      val size = edgeUpdate.mutations.size
-  //      val rets: Array[Object] = Array.fill(size)(null)
-  //      table.batch(edgeUpdate.mutations, rets)
-  //      for (ret <- rets if ret == null) {
-  //        Logger.error(s"mutation tryed but failed.")
-  //      }
-  //    } {
-  //      Logger.error(s"mutation failed.")
-  //    }
-  //  }
   def compareAndSet(client: HBaseClient)(invertedEdgeOpt: Option[Edge], edgeUpdate: EdgeUpdate): Future[Boolean] = {
-      val expected = invertedEdgeOpt.map { e =>
-        e.edgesWithInvertedIndex.value.bytes
-      }.getOrElse(Array.empty[Byte])
-      val futures = edgeUpdate.invertedEdgeMutations.map { newPut =>
-        Graph.defferedToFuture(client.compareAndSet(newPut, expected))(false)
-      }
+    val expected = invertedEdgeOpt.map { e =>
+      e.edgesWithInvertedIndex.value.bytes
+    }.getOrElse(Array.empty[Byte])
+    val futures = edgeUpdate.invertedEdgeMutations.map { newPut =>
+      Graph.defferedToFuture(client.compareAndSet(newPut, expected))(false)
+    }
 
-      for {
-        rets <- Future.sequence(futures)
-      } yield {
-        if (rets.forall(x => x)) {
-          Graph.writeAsync(label.hbaseZkAddr, edgeUpdate.indexedEdgeMutations)
-          /** degree */
-          val incrs =
-            (edgeUpdate.edgesToDelete.isEmpty, edgeUpdate.edgesToInsert.isEmpty) match {
-              case (true, true) =>
-                /** when there is no need to update. shouldUpdate == false */
-                List.empty[AtomicIncrementRequest]
-              case (true, false) =>
-                /** no edges to delete but there is new edges to insert so increase degree by 1 */
-                this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
-              case (false, true) =>
-                /** no edges to insert but there is old edges to delete so decrease degree by 1 */
-                this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
-              case (false, false) =>
-                /** update on existing edges so no change on degree */
-                List.empty[AtomicIncrementRequest]
-            }
-          //        Logger.debug(s"Increment: $incrs")
-          Graph.writeAsync(label.hbaseZkAddr, incrs)
-          true
-        } else {
-          false
-        }
+    for {
+      rets <- Future.sequence(futures)
+    } yield {
+      if (rets.forall(x => x)) {
+        Graph.writeAsync(label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations))
+        /** degree */
+        val incrs =
+          (edgeUpdate.edgesToDelete.isEmpty, edgeUpdate.edgesToInsert.isEmpty) match {
+            case (true, true) =>
+
+              /** when there is no need to update. shouldUpdate == false */
+              List.empty[AtomicIncrementRequest]
+            case (true, false) =>
+
+              /** no edges to delete but there is new edges to insert so increase degree by 1 */
+              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
+            case (false, true) =>
+
+              /** no edges to insert but there is old edges to delete so decrease degree by 1 */
+              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
+            case (false, false) =>
+
+              /** update on existing edges so no change on degree */
+              List.empty[AtomicIncrementRequest]
+          }
+        //        Logger.debug(s"Increment: $incrs")
+        Graph.writeAsync(label.hbaseZkAddr, Seq(incrs))
+        true
+      } else {
+        false
       }
-//    }
+    }
+    //    }
   }
-//  def mutate(f: (Option[Edge], Edge) => EdgeUpdate): Unit = {
-//    try {
-//      val client = Graph.getClient(label.hbaseZkAddr)
-//      for {
-//        edges <- fetchInvertedAsync()
-//        invertedEdgeOpt = edges.headOption
-//        edgeUpdate = f(invertedEdgeOpt, this)
-//      } yield {
-//        /**
-//         * we can use CAS operation on inverted Edge checkAndSet() and if it return false
-//         * then re-read and build update and write recursively.
-//         */
-//        Graph.writeAsync(label.hbaseZkAddr, edgeUpdate.invertedEdgeMutations ++ edgeUpdate.indexedEdgeMutations)
-//        /** degree */
-//        val incrs = (edgeUpdate.edgesToDelete.isEmpty, edgeUpdate.edgesToInsert.isEmpty) match {
-//          case (false, false) => // update
-//            List.empty[AtomicIncrementRequest]
-//          case (false, true) => // only delete
-//            this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
-//          case (true, false) => // only insert
-//            this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
-//          case (true, true) => // not possible
-//            List.empty[AtomicIncrementRequest]
-//        }
-//        Graph.writeAsync(label.hbaseZkAddr, incrs)
-//      }
-//      //      client.flush()
-//    } catch {
-//      case e: Throwable =>
-//        Logger.error(s"mutate failed. $e", e)
-//    }
-//  }
+
 
   def mutate(f: (Option[Edge], Edge) => EdgeUpdate, tryNum: Int = 0): Unit = {
     if (tryNum >= maxTryNum) {
@@ -447,8 +421,9 @@ case class Edge(srcVertex: Vertex,
            * we can use CAS operation on inverted Edge checkAndSet() and if it return false
            * then re-read and build update and write recursively.
            */
-          if (ret) Logger.debug(s"mutate successed. $this")
-          else {
+          if (ret) {
+            Logger.debug(s"mutate successed. $this")
+          } else {
             Logger.info(s"mutate failed. retry")
             mutate(f, tryNum + 1)
           }
@@ -514,8 +489,8 @@ case class Edge(srcVertex: Vertex,
   override def toString(): String = {
     val ls = ListBuffer(ts, GraphUtil.fromOp(op), "e",
       srcVertex.innerId, tgtVertex.innerId, label.label)
-//    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
-        if (!propsPlusTs.isEmpty) ls += propsPlusTs
+    //    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
+    if (!propsPlusTs.isEmpty) ls += propsPlusTs
     ls.mkString("\t")
   }
 
@@ -867,7 +842,6 @@ object Edge extends JSONParser {
         } else {
           /** edge */
           val qualifier = EdgeQualifier.fromBytes(kvQual, 0, kvQual.length, param.label.schemaVersion)
-          println(qualifier)
           val value = EdgeValue.fromBytes(vBytes, 0, vBytes.length, param.label.schemaVersion)
 
           val index = param.label.indicesMap.get(rowKey.labelOrderSeq).getOrElse(
@@ -894,7 +868,7 @@ object Edge extends JSONParser {
     } else {
       val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
 
-//          Logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
+      //          Logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
       val labelMetas = LabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
       val propsWithDefault = (for (meta <- labelMetas) yield {
         props.get(meta.seq) match {
@@ -914,7 +888,7 @@ object Edge extends JSONParser {
         } yield (k -> v)
       val ret = if (matches.size == param.hasFilters.size && param.where.map(_.filter(edge)).getOrElse(true)) {
         //      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-//              Logger.debug(s"fetchedEdge: $edge")
+        //              Logger.debug(s"fetchedEdge: $edge")
         Some(edge)
       } else {
         None

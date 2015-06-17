@@ -1,11 +1,12 @@
 package com.daumkakao.s2graph.core
 
 
-
 // import com.daumkakao.s2graph.core.mysqls._
+
 import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2._
+import play.api.Logger
 import play.api.libs.json._
 import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.HTableDescriptor
@@ -337,9 +338,7 @@ object Management extends JSONParser {
   def createTable(zkAddr: String, tableName: String, cfs: List[String], regionCnt: Int, ttl: Option[Int]) = {
     try {
       val admin = getAdmin(zkAddr)
-      println(admin)
       if (!admin.tableExists(TableName.valueOf(tableName))) {
-        println("createTable")
         val desc = new HTableDescriptor(TableName.valueOf(tableName))
         desc.setDurability(Durability.ASYNC_WAL)
         for (cf <- cfs) {
@@ -362,7 +361,8 @@ object Management extends JSONParser {
         // already exist
       }
     } catch {
-      case e: Throwable => println(e)
+      case e: Throwable => Logger.error(s"$e", e)
+        throw e
     }
   }
 

@@ -7,7 +7,7 @@ import com.daumkakao.s2graph.core.types2._
 import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.client.Delete
 import play.api.libs.json.Json
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{HashMap, ListBuffer}
 import org.hbase.async.{DeleteRequest, HBaseRpc, PutRequest, GetRequest}
 
 /**
@@ -72,6 +72,7 @@ case class Vertex(id: VertexId,
   def buildPutsAll(): List[HBaseRpc] = {
     op match {
       case d: Byte if d == GraphUtil.operations("delete") => buildDeleteAsync()
+//      case dAll: Byte if dAll == GraphUtil.operations("deleteAll") => buildDeleteAllAsync()
       case _ => buildPutsAsync()
     }
   }
@@ -83,6 +84,13 @@ case class Vertex(id: VertexId,
   def buildDeleteAsync(): List[DeleteRequest] = {
     List(new DeleteRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf, ts))
   }
+
+  def belongLabelIds(): Iterable[Label] = {
+    for {
+      label <- (Label.findBySrcColumnId(id.colId) ++ Label.findByTgtColumnId(id.colId)).groupBy(_.id.get).map { _._2.head }
+    } yield label
+  }
+
 
   //  def buildGet() = {
   //    val get = new Get(rowKey.bytes)

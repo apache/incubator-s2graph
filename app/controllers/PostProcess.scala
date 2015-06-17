@@ -2,7 +2,7 @@ package controllers
 
 //import com.daumkakao.s2graph.core.HBaseElement._
 import com.daumkakao.s2graph.core._
-// import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.types2.{InnerVal, InnerValLike}
 
@@ -195,8 +195,7 @@ object PostProcess extends JSONParser {
         "score" -> score
       )
     }
-    Logger.debug(s"$edge => $json")
-    println(s"$edge => $json")
+
     json
 //    Json.obj(
 //      "from" -> innerValToJsValue(edge.srcVertex.id.innerId),
