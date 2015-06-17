@@ -153,7 +153,7 @@ Using these abstractions, a unique vertex can be identified with its `(service, 
 REST API Glossary
 -----------------
 
-The following is a non-exhaustive list of commonly used s2graph APIs and their examples. The full list of the latest REST API can be found in [the routes file](res/conf/routes).
+The following is a non-exhaustive list of commonly used s2graph APIs and their examples. The full list of the latest REST API can be found in [the routes file](conf/routes).
 
 ## 0. Create a Service - `POST /graphs/createService`  ##
 

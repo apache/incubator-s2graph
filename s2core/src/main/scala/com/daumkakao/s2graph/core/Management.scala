@@ -1,11 +1,14 @@
 package com.daumkakao.s2graph.core
 
 
+// import com.daumkakao.s2graph.core.mysqls._
+
 import com.daumkakao.s2graph.core.models._
-import com.daumkakao.s2graph.core.types.{InnerVal, InnerValWithTs, CompositeId, LabelWithDirection}
-//import com.daumkakao.s2graph.core.HBaseElement.{InnerVal, InnerValWithTs, CompositeId, LabelWithDirection}
+
+import com.daumkakao.s2graph.core.types2._
+import play.api.Logger
 import play.api.libs.json._
-import org.apache.hadoop.hbase.client.{ConnectionFactory, HBaseAdmin, Durability}
+import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.HTableDescriptor
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.util.Bytes
@@ -39,7 +42,7 @@ object Management extends JSONParser {
 
   def deleteService(serviceName: String) = {
     Service.findByName(serviceName).foreach { service =>
-      service.deleteAll()
+      //      service.deleteAll()
     }
   }
 
@@ -56,16 +59,9 @@ object Management extends JSONParser {
                   props: Seq[(String, JsValue, String)],
                   consistencyLevel: String,
                   hTableName: Option[String],
-                  hTableTTL: Option[Int]): Label = {
+                  hTableTTL: Option[Int],
+                  schemaVersion: String = InnerVal.DEFAULT_VERSION): Label = {
 
-    //    val idxProps = for ((k, v, t) <- indexProps; innerVal <- jsValueToInnerVal(v, t)) yield (k, innerVal, t, true)
-    //    val metaProps = for ((k, v, t) <- props; innerVal <- jsValueToInnerVal(v, t)) yield (k, innerVal, t, false)
-
-    //    val indexPropsWithType =
-    //      for ((k, v) <- indexProps) yield {
-    //        val (innerVal, dataType) = toInnerVal(v)
-    //        (k, innerVal, dataType)
-    //      }
 
     val labelOpt = Label.findByName(label, useCache = false)
 
@@ -76,19 +72,21 @@ object Management extends JSONParser {
         Label.insertAll(label,
           srcServiceName, srcColumnName, srcColumnType,
           tgtServiceName, tgtColumnName, tgtColumnType,
-          isDirected, serviceName, indexProps, props, consistencyLevel, hTableName, hTableTTL)
+          isDirected, serviceName, indexProps, props, consistencyLevel, hTableName, hTableTTL, schemaVersion)
         Label.findByName(label, useCache = false).get
     }
   }
+
   def createVertex(serviceName: String,
                    columnName: String,
                    columnType: String,
-                   props: Seq[(String, JsValue, String)]) = {
+                   props: Seq[(String, JsValue, String)],
+                   schemaVersion: String = InnerVal.DEFAULT_VERSION) = {
     val serviceOpt = Service.findByName(serviceName)
     serviceOpt match {
       case None => throw new RuntimeException(s"create service $serviceName has not been created.")
       case Some(service) =>
-        val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
+        val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion)
         for {
           (propName, defaultValue, dataType) <- props
         } yield {
@@ -96,6 +94,7 @@ object Management extends JSONParser {
         }
     }
   }
+
   def findLabel(labelName: String): Option[Label] = {
     Label.findByName(labelName, useCache = false)
   }
@@ -111,7 +110,7 @@ object Management extends JSONParser {
       label <- Label.findByName(labelStr)
     } yield {
         val labelOrderTypes =
-          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType)) yield {
+          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType, label.schemaVersion)) yield {
             val lblMeta = LabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
             lblMeta.seq
           }
@@ -125,7 +124,7 @@ object Management extends JSONParser {
       label <- Label.findByName(labelStr)
     } yield {
         val labelOrderTypes =
-          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType)) yield {
+          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType, label.schemaVersion)) yield {
 
             val lblMeta = LabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
             lblMeta.seq
@@ -144,17 +143,20 @@ object Management extends JSONParser {
     result.getOrElse(throw new RuntimeException(s"add property on label failed"))
   }
 
-  def addVertexProp(serviceName: String, columnName: String, columnType: String): ServiceColumn = {
+  def addVertexProp(serviceName: String,
+                    columnName: String,
+                    columnType: String,
+                    schemaVersion: String = InnerVal.DEFAULT_VERSION): ServiceColumn = {
     val result = for {
       service <- Service.findByName(serviceName, useCache = false)
     } yield {
-        ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType))
+        ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion)
       }
     result.getOrElse(throw new RuntimeException(s"add property on vertex failed"))
   }
 
   def getServiceLable(label: String): Option[Label] = {
-    Label.findByName(label)
+    Label.findByName(label, useCache = false)
   }
 
   /**
@@ -179,20 +181,32 @@ object Management extends JSONParser {
              labelStr: String, direction: String = "", props: String): Edge = {
 
     val label = tryOption(labelStr, getServiceLable)
+    val dir =
+      if (direction == "") GraphUtil.toDirection(label.direction)
+      else GraphUtil.toDirection(direction)
 
-    val src = toInnerVal(srcId, label.srcColumnType)
-    val tgt = toInnerVal(tgtId, label.tgtColumnType)
+    val srcVertexId = toInnerVal(srcId, label.srcColumnWithDir(dir).columnType, label.schemaVersion)
+    val tgtVertexId = toInnerVal(tgtId, label.tgtColumnWithDir(dir).columnType, label.schemaVersion)
 
-    val srcVertex = Vertex(CompositeId(label.srcColumn.id.get, src, true, true), ts)
-    val tgtVertex = Vertex(CompositeId(label.tgtColumn.id.get, tgt, true, true), ts)
-    val dir = if (direction == "") GraphUtil.toDirection(label.direction) else GraphUtil.toDirection(direction)
+    val srcColId = label.srcColumnWithDir(dir).id.get
+    val tgtColId = label.tgtColumnWithDir(dir).id.get
+    val (srcVertex, tgtVertex) = if (dir == GraphUtil.directions("out")) {
+      (Vertex(SourceVertexId(srcColId, srcVertexId), System.currentTimeMillis()),
+        Vertex(TargetVertexId(tgtColId, tgtVertexId), System.currentTimeMillis()))
+    } else {
+      (Vertex(SourceVertexId(tgtColId, tgtVertexId), System.currentTimeMillis()),
+        Vertex(TargetVertexId(srcColId, srcVertexId), System.currentTimeMillis()))
+    }
+
+    //    val dir = if (direction == "") GraphUtil.toDirection(label.direction) else GraphUtil.toDirection(direction)
     val labelWithDir = LabelWithDirection(label.id.get, dir)
     val op = tryOption(operation, GraphUtil.toOp)
 
     val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
     val parsedProps = toProps(label, jsObject).toMap
-    val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValWithTs(kv._2, ts))) ++ Map(LabelMeta.timeStampSeq -> InnerValWithTs(InnerVal.withLong(ts), ts))
-    Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version = ts, propsWithTs)
+    val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValLikeWithTs(kv._2, ts))) ++
+      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.schemaVersion), ts))
+    Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version = ts, propsWithTs = propsWithTs)
 
   }
 
@@ -203,36 +217,36 @@ object Management extends JSONParser {
         ServiceColumn.find(service.id.get, columnName) match {
           case None => throw new RuntimeException(s"$columnName is not exist. create service column first.")
           case Some(col) =>
-            val idVal = toInnerVal(id, col.columnType)
+            val idVal = toInnerVal(id, col.columnType, col.schemaVersion)
             val op = tryOption(operation, GraphUtil.toOp)
             val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
             val parsedProps = toProps(col, jsObject).toMap
-            Vertex(CompositeId(col.id.get, idVal, isEdge = false, useHash = true), ts, parsedProps, op = op)
+            Vertex(VertexId(col.id.get, idVal), ts, parsedProps, op = op)
         }
     }
   }
 
-  def toProps(column: ServiceColumn, js: JsObject): Seq[(Byte, InnerVal)] = {
+  def toProps(column: ServiceColumn, js: JsObject): Seq[(Int, InnerValLike)] = {
 
     val props = for {
       (k, v) <- js.fields
       meta <- column.metasInvMap.get(k)
-      innerVal <- jsValueToInnerVal(v, meta.dataType)
+      innerVal <- jsValueToInnerVal(v, meta.dataType, column.schemaVersion)
     } yield {
-        (meta.seq, innerVal)
+        (meta.seq.toInt, innerVal)
       }
     props
 
   }
 
-  def toProps(label: Label, js: JsObject): Seq[(Byte, InnerVal)] = {
+  def toProps(label: Label, js: JsObject): Seq[(Byte, InnerValLike)] = {
 
     val props = for {
       (k, v) <- js.fields
       meta <- label.metaPropsInvMap.get(k)
       //        meta <- LabelMeta.findByName(label.id.get, k)
       //      meta = tryOption((label.id.get, k), LabelMeta.findByName)
-      innerVal <- jsValueToInnerVal(v, meta.dataType)
+      innerVal <- jsValueToInnerVal(v, meta.dataType, label.schemaVersion)
     } yield {
         (meta.seq, innerVal)
       }
@@ -324,9 +338,7 @@ object Management extends JSONParser {
   def createTable(zkAddr: String, tableName: String, cfs: List[String], regionCnt: Int, ttl: Option[Int]) = {
     try {
       val admin = getAdmin(zkAddr)
-      println(admin)
       if (!admin.tableExists(TableName.valueOf(tableName))) {
-        println("createTable")
         val desc = new HTableDescriptor(TableName.valueOf(tableName))
         desc.setDurability(Durability.ASYNC_WAL)
         for (cf <- cfs) {
@@ -349,7 +361,8 @@ object Management extends JSONParser {
         // already exist
       }
     } catch {
-      case e: Throwable => println(e)
+      case e: Throwable => Logger.error(s"$e", e)
+        throw e
     }
   }
 

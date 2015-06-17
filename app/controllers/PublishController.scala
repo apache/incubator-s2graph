@@ -16,17 +16,16 @@ object PublishController extends Controller {
    * never check validation on string. just redirect strings to kafka.
    */
   def publishOnly(service: String) = withHeaderAsync(parse.text) { request =>
-    Future {
-      if (!Config.IS_WRITE_SERVER) Unauthorized
-      
-      val strs = request.body.split("\n")
-      strs.foreach(str => {
-        val keyedMessage = new ProducerRecord[Key, Val](Config.KAFKA_LOG_TOPIC, s"$service\t$str")
-        KafkaAggregatorActor.enqueue(Protocol.KafkaMessage(keyedMessage))
-      })
+    if (!Config.IS_WRITE_SERVER) Future.successful(UNAUTHORIZED)
 
+    val strs = request.body.split("\n")
+    strs.foreach(str => {
+      val keyedMessage = new ProducerRecord[Key, Val](Config.KAFKA_LOG_TOPIC, s"$service\t$str")
+      KafkaAggregatorActor.enqueue(Protocol.KafkaMessage(keyedMessage))
+    })
+    Future.successful(
       Ok("publish success.\n").withHeaders(CONNECTION -> "Keep-Alive", "Keep-Alive" -> "timeout=10, max=10")
-    }
+    )
   }
 
   def publish(topic: String) = publishOnly(topic)

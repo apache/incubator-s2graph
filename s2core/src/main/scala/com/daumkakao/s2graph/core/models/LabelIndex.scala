@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core.models
 
-import com.daumkakao.s2graph.core.models.HBaseModel.{VAL, KEY}
+import com.daumkakao.s2graph.core.models.Model.{VAL, KEY}
 import play.api.libs.json.Json
 
 /**
@@ -12,25 +12,25 @@ object LabelIndex {
   //  val withTsSeq = 0.toByte
   val defaultSeq = 1.toByte
   val maxOrderSeq = 7
-  import HBaseModel._
+  import Model._
 
   def findById(id: Int, useCache: Boolean = true): LabelIndex = {
-    HBaseModel.find[LabelIndex](useCache)(Seq(("id" -> id))).get
+    Model.find[LabelIndex](useCache)(Seq(("id" -> id))).get
   }
   def findByLabelIdAll(labelId: Int, useCache: Boolean = true): List[LabelIndex] = {
-    HBaseModel.findsMatch[LabelIndex](useCache)(Seq(("labelId" -> labelId)))
+    Model.findsMatch[LabelIndex](useCache)(Seq(("labelId" -> labelId)))
   }
   def findByLabelIdAndSeq(labelId: Int, seq: Byte, useCache: Boolean = true): Option[LabelIndex] = {
-    HBaseModel.find[LabelIndex](useCache)(Seq(("labelId" -> labelId), ("seq" -> seq)))
+    Model.find[LabelIndex](useCache)(Seq(("labelId" -> labelId), ("seq" -> seq)))
   }
   def findByLabelIdAndSeqs(labelId: Int, seqs: List[Byte], useCache: Boolean = true): Option[LabelIndex] = {
-    HBaseModel.find[LabelIndex](useCache)(Seq(("labelId" -> labelId), ("metaSeqs" -> seqs.mkString(HBaseModel.META_SEQ_DELIMITER))))
+    Model.find[LabelIndex](useCache)(Seq(("labelId" -> labelId), ("metaSeqs" -> seqs.mkString(Model.META_SEQ_DELIMITER))))
   }
   def findOrInsert(labelId: Int, seq: Byte, metaSeqs: List[Byte], formular: String): LabelIndex = {
     findByLabelIdAndSeq(labelId, seq, useCache = false) match {
       case Some(s) => s
       case None =>
-        val id = HBaseModel.getAndIncrSeq[LabelIndex]
+        val id = Model.getAndIncrSeq[LabelIndex]
         val model = LabelIndex(Map("id" -> id, "labelId" -> labelId,
           "seq" -> seq, "metaSeqs" -> metaSeqs.mkString(META_SEQ_DELIMITER), "formular" -> formular))
         model.create
@@ -41,7 +41,7 @@ object LabelIndex {
     findByLabelIdAndSeqs(labelId, metaSeqs, useCache = false) match {
       case Some(s) => s
       case None =>
-        val id = HBaseModel.getAndIncrSeq[LabelIndex]
+        val id = Model.getAndIncrSeq[LabelIndex]
         val indices = LabelIndex.findByLabelIdAll(labelId, useCache = false)
         val seq = (indices.length + 1).toByte
         val model = LabelIndex(Map("id" -> id, "labelId" -> labelId,
@@ -51,7 +51,7 @@ object LabelIndex {
     }
   }
 }
-case class LabelIndex(kvsParam: Map[KEY, VAL]) extends HBaseModel[LabelIndex]("HLabelIndex", kvsParam) {
+case class LabelIndex(kvsParam: Map[KEY, VAL]) extends Model[LabelIndex]("HLabelIndex", kvsParam) {
   override val columns = Seq("id", "labelId", "seq", "metaSeqs", "formular")
   val pk = Seq(("id", kvs("id")))
   val labelIdSeq = Seq(("labelId", kvs("labelId")), ("seq", kvs("seq")))
@@ -59,7 +59,7 @@ case class LabelIndex(kvsParam: Map[KEY, VAL]) extends HBaseModel[LabelIndex]("H
   override val idxs = List(pk, labelIdSeq, labelIdMetaSeqs)
   validate(columns)
 
-  import HBaseModel._
+  import Model._
 
   val id = Some(kvs("id").toString.toInt)
   val labelId = kvs("labelId").toString.toInt
@@ -70,7 +70,7 @@ case class LabelIndex(kvsParam: Map[KEY, VAL]) extends HBaseModel[LabelIndex]("H
   lazy val label = Label.findById(labelId)
   lazy val metas = label.metaPropsMap
   lazy val sortKeyTypes = metaSeqs.map(metaSeq => label.metaPropsMap.get(metaSeq)).flatten
-  lazy val sortKeyTypeDefaultVals = sortKeyTypes.map(x => x.defaultInnerVal)
+//  lazy val sortKeyTypeDefaultVals = sortKeyTypes.map(x => x.defaultInnerVal)
   lazy val toJson = Json.obj("indexProps" -> sortKeyTypes.map(x => x.name))
 
 }

@@ -3,16 +3,11 @@ package com.daumkakao.s2graph.rest.actors
 import com.daumkakao.s2graph.rest.config.Config
 import com.daumkakao.s2graph.core.{ Edge, Graph, GraphElement, Vertex }
 import java.util.Properties
-import java.util.concurrent.TimeoutException
-import akka.actor.{ Actor, ActorLogging, ActorRef, PoisonPill, Props, Stash }
-import akka.routing.ConsistentHashingRouter.ConsistentHashMapping
-import akka.routing.{ Broadcast, ConsistentHashingPool, RoundRobinPool }
+import akka.actor.{ ActorRef, PoisonPill, Props, Stash }
+import akka.routing.{ Broadcast, RoundRobinPool }
 import play.api.Logger
 import play.libs.Akka
-import scala.collection.mutable.SynchronizedQueue
-import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
-import scala.util.{ Failure, Success }
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.Callback

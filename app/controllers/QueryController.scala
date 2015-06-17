@@ -2,16 +2,15 @@ package controllers
 
 
 import com.codahale.metrics.Meter
-import com.daumkakao.s2graph.core.types.CompositeId
 
-//import com.daumkakao.s2graph.core.HBaseElement._
-//import com.daumkakao.s2graph.core.mysqls._
+// import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
+
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models.{Label, Service}
+import com.daumkakao.s2graph.core.types2.{TargetVertexId, SourceVertexId}
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
 import play.api.Logger
 
-//import models.response.param.{ VertexQueryResponse, EdgeQueryResponse }
 import play.api.libs.json.{ JsValue, Json }
 import play.api.mvc.{ Action, Controller, Result }
 import util.TestDataLoader
@@ -173,10 +172,25 @@ object QueryController extends Controller  with RequestParser with Instrumented 
     try {
       val label = Label.findByName(labelName).get
       val dir = Management.tryOption(direction, GraphUtil.toDir)
-      val srcVertexId = toInnerVal(srcId, label.srcColumnType)
-      val tgtVertexId = toInnerVal(tgtId, label.tgtColumnType)
-      val src = Vertex(CompositeId(label.srcColumn.id.get, srcVertexId, true, true), System.currentTimeMillis())
-      val tgt = Vertex(CompositeId(label.tgtColumn.id.get, tgtVertexId, true, false), System.currentTimeMillis())
+
+      val srcVertexId = toInnerVal(srcId, label.srcColumnWithDir(dir).columnType, label.schemaVersion)
+      val tgtVertexId = toInnerVal(tgtId, label.tgtColumnWithDir(dir).columnType, label.schemaVersion)
+
+      val srcColId = label.srcColumnWithDir(dir).id.get
+      val tgtColId = label.tgtColumnWithDir(dir).id.get
+
+      val srcUseHash = if (dir == GraphUtil.directions("out")) true else false
+      val tgtUseHash = if (dir == GraphUtil.directions("out")) false else true
+      val srcVid =
+        if (dir == GraphUtil.directions("out")) SourceVertexId(srcColId, srcVertexId)
+        else TargetVertexId(srcColId, srcVertexId)
+
+      val tgtVid =
+        if (dir == GraphUtil.directions("out")) TargetVertexId(tgtColId, tgtVertexId)
+        else SourceVertexId(tgtColId, tgtVertexId)
+
+      val src = Vertex(srcVid, System.currentTimeMillis())
+      val tgt = Vertex(tgtVid, System.currentTimeMillis())
       Graph.getEdge(src, tgt, label, dir).map { edges =>
         val ret = for {
           edge <- edges.headOption
@@ -188,7 +202,9 @@ object QueryController extends Controller  with RequestParser with Instrumented 
         ret.getOrElse(NotFound(s"NotFound\n").as(applicationJsonHeader))
       }
     } catch {
-      case e: Throwable => Future { BadRequest(e.toString()).as(applicationJsonHeader) }
+      case e: Throwable =>
+        Logger.error(s"$e", e)
+        Future.successful( BadRequest(e.toString()).as(applicationJsonHeader) )
     }
   }
   /**

@@ -1,15 +1,14 @@
 package com.daumkakao.s2graph.core
 
-//import com.daumkakao.s2graph.core.HBaseElement.{LabelWithDirection, InnerValWithTs, InnerVal, CompositeId}
-//import com.daumkakao.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
-import com.daumkakao.s2graph.core.models.{Label, LabelIndex, LabelMeta}
+// import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.models._
+
 import com.daumkakao.s2graph.core.parsers.Where
-import com.daumkakao.s2graph.core.types.{LabelWithDirection, InnerVal, InnerValWithTs, CompositeId}
+import com.daumkakao.s2graph.core.types2._
 import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.util.Bytes
 import GraphConstant._
 import org.hbase.async.{ScanFilter, ColumnRangeFilter}
-import types.EdgeType._
 
 object Query {
   val initialScore = 1.0
@@ -28,30 +27,21 @@ object Query {
 }
 case class Query(vertices: Seq[Vertex], steps: List[Step],
   unique: Boolean = true, removeCycle: Boolean = false) {
-
-  import Query._
-  lazy val startEdgesWithScore = (for {
-    firstStep <- steps.headOption
-  } yield {
-    for (v <- vertices; qParam <- firstStep.queryParams) yield {
-      val ts = System.currentTimeMillis()
-      val srcVertex = Vertex(CompositeId(v.id.colId, v.innerId, isEdge = true, useHash = true), ts)
-      (Edge(srcVertex, Vertex.emptyVertex,
-        qParam.labelWithDir, GraphUtil.operations("insert"), ts, ts,
-        Map.empty[Byte, InnerValWithTs]), Query.initialScore)
-    }
-  }).getOrElse(List.empty[(Edge, Double)])
+}
+case class Step(queryParams: List[QueryParam]) {
+  lazy val excludes = queryParams.filter(qp => qp.exclude)
+  lazy val includes = queryParams.filterNot(qp => qp.exclude)
+  lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 }
 case class VertexParam(vertices: Seq[Vertex]) {
-  import Query._
-  var filters: Option[Map[Byte, InnerVal]] = None
-  def has(what: Option[Map[Byte, InnerVal]]): VertexParam = {
+  var filters: Option[Map[Byte, InnerValLike]] = None
+  def has(what: Option[Map[Byte, InnerValLike]]): VertexParam = {
     what match {
       case None => this
       case Some(w) => has(w)
     }
   }
-  def has(what: Map[Byte, InnerVal]): VertexParam = {
+  def has(what: Map[Byte, InnerValLike]): VertexParam = {
     this.filters = Some(what)
     this
   }
@@ -115,12 +105,13 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   var exclude = false
   var include = false
 
-  var hasFilters: Map[Byte, InnerVal] = Map.empty[Byte, InnerVal]
+  var hasFilters: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike]
   //  var propsFilters: PropsFilter = PropsFilter()
   var where: Option[Where] = None
   var duplicatePolicy = DuplicatePolicy.First
   var rpcTimeoutInMillis = 100
   var maxAttempt = 2
+  var includeDegree = false
 
   def isRowKeyOnly(isRowKeyOnly: Boolean): QueryParam = {
     this.isRowKeyOnly = isRowKeyOnly
@@ -141,21 +132,21 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
 //    this.columnPaginationFilter = new ColumnPaginationFilter(this.limit, this.offset)
     this
   }
-  def interval(fromTo: Option[(Seq[(Byte, InnerVal)], Seq[(Byte, InnerVal)])]): QueryParam = {
+  def interval(fromTo: Option[(Seq[(Byte, InnerValLike)], Seq[(Byte, InnerValLike)])]): QueryParam = {
     fromTo match {
       case Some((from, to)) => interval(from, to)
       case _ => this
     }
   }
-  def interval(from: Seq[(Byte, InnerVal)], to: Seq[(Byte, InnerVal)]): QueryParam = {
-//    import HBaseElement._
+  def interval(from: Seq[(Byte, InnerValLike)], to: Seq[(Byte, InnerValLike)]): QueryParam = {
+    import types2.HBaseDeserializable._
     //    val len = label.orderTypes.size.toByte
     //    val len = label.extraIndicesMap(labelOrderSeq).sortKeyTypes.size.toByte
     //    Logger.error(s"indicesMap: ${label.indicesMap(labelOrderSeq)}")
     val len = label.indicesMap(labelOrderSeq).sortKeyTypes.size.toByte
     //    Logger.error(s"index length: $len")
-    val minMetaByte = com.daumkakao.s2graph.core.types.InnerVal.minMetaByte
-    val maxMetaByte = com.daumkakao.s2graph.core.types.InnerVal.maxMetaByte
+    val minMetaByte = InnerVal.minMetaByte
+    val maxMetaByte = InnerVal.maxMetaByte
     val toVal = Bytes.add(propsToBytes(to), Array.fill(1)(minMetaByte))
     val fromVal = Bytes.add(propsToBytes(from), Array.fill(1)(maxMetaByte))
     toVal(0) = len
@@ -199,7 +190,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     this
   }
 
-  def has(hasFilters: Map[Byte, InnerVal]): QueryParam = {
+  def has(hasFilters: Map[Byte, InnerValLike]): QueryParam = {
     this.hasFilters = hasFilters
     this
   }
@@ -224,6 +215,11 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     this
   }
 
+  def includeDegree(includeDegree: Boolean): QueryParam = {
+    this.includeDegree = includeDegree
+    this
+  }
+
   override def toString(): String = {
     List(label.label, labelOrderSeq, offset, limit, rank, isRowKeyOnly,
       duration, isInverted, exclude, include, hasFilters, outputField).mkString("\t")
@@ -231,15 +227,13 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
 
 
   def buildGetRequest(srcVertex: Vertex) = {
-    val rowKey = EdgeRowKey(srcVertex.id.updateUseHash(true), labelWithDir, labelOrderSeq, isInverted)
+    val id = InnerVal.convertVersion(srcVertex.innerId, srcVertex.serviceColumn.columnType, label.schemaVersion)
+    val vId = SourceVertexId(srcVertex.id.colId, id)
+    val sourceVertexId = VertexId.toSourceVertexId(vId)
+    val rowKey = EdgeRowKey(sourceVertexId, labelWithDir, labelOrderSeq, isInverted)(label.schemaVersion)
     val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
     val client = Graph.getClient(label.hbaseZkAddr)
     val filters = ListBuffer.empty[ScanFilter]
     Graph.singleGet(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, offset, limit, minTs, maxTs, maxAttempt, rpcTimeoutInMillis, columnRangeFilter)
   }
-}
-case class Step(queryParams: List[QueryParam]) {
-  lazy val excludes = queryParams.filter(qp => qp.exclude)
-  lazy val includes = queryParams.filterNot(qp => qp.exclude)
-  lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 }

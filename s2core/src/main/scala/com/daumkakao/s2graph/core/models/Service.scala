@@ -1,7 +1,8 @@
 package com.daumkakao.s2graph.core.models
 
-import HBaseModel._
+import Model._
 import com.daumkakao.s2graph.core.Management
+import com.daumkakao.s2graph.core.types2.InnerVal
 import play.api.Logger
 
 import scala.reflect.ClassTag
@@ -13,7 +14,7 @@ import scala.reflect.ClassTag
 object Service {
   def findById(id: Int, useCache: Boolean = true): Service = {
     try {
-    HBaseModel.find[Service](useCache)(Seq(("id" -> id))).get
+    Model.find[Service](useCache)(Seq(("id" -> id))).get
     } catch {
       case e: Throwable =>
         Logger.error(s"$id, $e", e)
@@ -21,14 +22,14 @@ object Service {
     }
   }
   def findByName(serviceName: String, useCache: Boolean = true): Option[Service] = {
-    HBaseModel.find[Service](useCache)(Seq(("serviceName" -> serviceName)))
+    Model.find[Service](useCache)(Seq(("serviceName" -> serviceName)))
   }
   def findOrInsert(serviceName: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int],
                    useCache: Boolean = true): Service = {
     findByName(serviceName, useCache) match {
       case Some(s) => s
       case None =>
-        val id = HBaseModel.getAndIncrSeq[Service]
+        val id = Model.getAndIncrSeq[Service]
         val kvs = Map("id" -> id, "serviceName" -> serviceName, "cluster" -> cluster, "hbaseTableName" -> hTableName,
           "preSplitSize" -> preSplitSize, "hbaseTableTTL" -> hTableTTL.getOrElse(-1))
         val service = Service(kvs)
@@ -38,11 +39,12 @@ object Service {
     }
   }
   def findAllServices(): List[Service] = {
-    HBaseModel.findsRange[Service](useCache = false)(Seq(("id"-> 0)), Seq(("id" -> Int.MaxValue)))
+    Model.findsRange[Service](useCache = false)(Seq(("id"-> 0)), Seq(("id" -> Int.MaxValue)))
   }
 }
-case class Service(kvsParam: Map[KEY, VAL]) extends HBaseModel[Service]("HService", kvsParam) {
-  override val columns = Seq("id", "serviceName", "cluster", "hbaseTableName", "preSplitSize", "hbaseTableTTL")
+case class Service(kvsParam: Map[KEY, VAL]) extends Model[Service]("HService", kvsParam) {
+  override val columns = Seq("id", "serviceName", "cluster", "hbaseTableName",
+    "preSplitSize", "hbaseTableTTL")
 
   val pk = Seq(("id", kvs("id")))
   val idxServiceName = Seq(("serviceName", kvs("serviceName")))
@@ -51,13 +53,14 @@ case class Service(kvsParam: Map[KEY, VAL]) extends HBaseModel[Service]("HServic
   override val idxs = List(pk, idxServiceName, idxCluster)
   override def foreignKeys() = {
     List(
-      HBaseModel.findsMatch[ServiceColumn](useCache = false)(Seq("serviceId" -> kvs("id"))),
+      Model.findsMatch[ServiceColumn](useCache = false)(Seq("serviceId" -> kvs("id"))),
       //HBaseModel.findsMatch[HLabel](useCache = false)(Seq("srcServiceId" -> kvs("id"))),
       //HBaseModel.findsMatch[HLabel](useCache = false)(Seq("tgtServiceId" -> kvs("id"))),
-      HBaseModel.findsMatch[Label](useCache = false)(Seq("serviceId" -> kvs("id")))
+      Model.findsMatch[Label](useCache = false)(Seq("serviceId" -> kvs("id")))
     )
   }
   validate(columns)
+//  val schemaVersion = kvs.get("schemaVersion").getOrElse(InnerVal.DEFAULT_VERSION).toString
 
   val id = Some(kvs("id").toString.toInt)
   val serviceName = kvs("serviceName").toString
@@ -69,6 +72,7 @@ case class Service(kvsParam: Map[KEY, VAL]) extends HBaseModel[Service]("HServic
     if (ttl < 0) None
     else Some(ttl)
   }
+
   lazy val toJson = kvs.toString
 }
 
