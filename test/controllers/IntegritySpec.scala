@@ -41,7 +41,7 @@ class IntegritySpec extends Specification {
   lazy val TC_WAITING_TIME = 1200
 
   lazy val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
-  val asyncFlushInterval = 1000
+  val asyncFlushInterval = 2000
 
   val createService =
     s"""
@@ -85,7 +85,7 @@ class IntegritySpec extends Specification {
     "consistencyLevel": "strong"
   }"""
 
-  val NUM_OF_EACH_TEST = 5
+  val NUM_OF_EACH_TEST = 10
   val TS = System.currentTimeMillis()
   def queryJson(id: Int) = {
     Json.parse( s"""{

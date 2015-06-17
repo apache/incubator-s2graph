@@ -8,6 +8,12 @@ import play.api.{Play, Logger}
 object Config {
   val conf = Play.current.configuration
 
+  // HBASE
+  lazy val HBASE_ZOOKEEPER_QUORUM = conf.getString("hbase.zookeeper.quorum").getOrElse("localhost")
+
+  // HBASE CLIENT
+  lazy val ASYNC_HBASE_CLIENT_FLUSH_INTERVAL = conf.getInt("async.hbase.client.flush.interval").getOrElse(1000).toShort
+
   // PHASE
   lazy val PHASE = conf.getString("phase").getOrElse("dev")
 
