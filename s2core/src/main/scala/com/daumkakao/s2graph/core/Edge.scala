@@ -475,7 +475,7 @@ case class Edge(srcVertex: Vertex,
               case None =>
               //                Logger.error(s"Not Found SortKeyType : ${seq} for rank in Label(${labelWithDir.labelId}})'s OrderByKeys(${orderByKey.typeIds}})")
               case Some(innerVal) => {
-                val cost = if (innerVal.value.isInstanceOf[BigDecimal]) innerVal.value.asInstanceOf[BigDecimal].toDouble else 1.0
+                val cost = try { BigDecimal(innerVal.toString).toDouble } catch { case e: Throwable =>  1.0 }
                 sum += w * cost
               }
             }
