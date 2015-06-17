@@ -224,19 +224,20 @@ object Graph {
             case p: PutRequest => client.put(p)
             case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i)
           }
-          deferredCallbackWithFallback(deferred)({
-            (anyRef: Any) => anyRef match {
-              case e: Exception => false
-              case _ => true
-            }
-          }, {
-            false
-          })
+//          deferredCallbackWithFallback(deferred)({
+//            (anyRef: Any) => anyRef match {
+//              case e: Exception => false
+//              case _ => true
+//            }
+//          }, {
+//            false
+//          })
         }
-        val ret = deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
-        ret
+//        val ret = deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
+//        ret
       }
-      Future.sequence(defers)
+//      Future.sequence(defers)
+      Future.successful(elementRpcs.map(x => true))
     }
   }
 
