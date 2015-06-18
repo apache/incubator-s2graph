@@ -85,22 +85,57 @@ class IntegritySpec extends Specification {
     "consistencyLevel": "strong"
   }"""
 
+  val createLabel2 = s"""
+  {
+    "label": "s2graph_label_test_2",
+    "srcServiceName": "s2graph",
+    "srcColumnName": "user_id_test",
+    "srcColumnType": "long",
+    "tgtServiceName": "s2graph",
+    "tgtColumnName": "item_id_test",
+    "tgtColumnType": "string",
+    "indexProps": [
+    {
+      "name": "time",
+      "dataType": "long",
+      "defaultValue": 0
+    },
+    {
+      "name": "weight",
+      "dataType": "long",
+      "defaultValue": 0
+    },
+    {
+      "name": "is_hidden",
+      "dataType": "boolean",
+      "defaultValue": false
+    },
+    {
+      "name": "is_blocked",
+      "dataType": "boolean",
+      "defaultValue": false
+    }
+    ],
+    "props": [],
+    "consistencyLevel": "strong",
+    "isDirected": false
+  }"""
   val NUM_OF_EACH_TEST = 10
   val TS = System.currentTimeMillis()
-  def queryJson(id: Int) = {
+  def queryJson(serviceName: String, columnName: String, labelName: String, id: Int, dir: String) = {
     Json.parse( s"""{
       "srcVertices": [
       {
-        "serviceName": "$testServiceName",
-        "columnName": "$testColumnName",
+        "serviceName": "$serviceName",
+        "columnName": "$columnName",
         "id": $id
       }
       ],
       "steps": [
       [
       {
-        "label": "$testLabelName",
-        "direction": "out",
+        "label": "$labelName",
+        "direction": "$dir",
         "offset": 0,
         "limit": 10
       }
@@ -108,6 +143,7 @@ class IntegritySpec extends Specification {
       ]
     }""")
   }
+
 
   def commonCheck(rslt: Future[play.api.mvc.Result]): JsValue = {
     status(rslt) must equalTo(OK)
@@ -172,24 +208,34 @@ class IntegritySpec extends Specification {
       Thread.sleep(asyncFlushInterval)
       println(s"---- TC${tcNum}_init ----")
 
-      val query = queryJson(srcId)
-      val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(query)).get
-      val jsResult = commonCheck(ret)
+
+      for {
+        label <- Label.findByName(testLabelName)
+        direction <- List("out", "in")
+      } {
+        val (serviceName, columnName, id, otherId) = direction match {
+          case "out" => (label.srcService.serviceName, label.srcColumn.columnName, srcId, tgtId)
+          case "in" => (label.tgtService.serviceName, label.tgtColumn.columnName, tgtId, srcId)
+        }
+        val query = queryJson(serviceName, columnName, testLabelName, id, direction)
+        val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(query)).get
+        val jsResult = commonCheck(ret)
 
 
-      val results = jsResult \ "results"
-      val deegrees = (jsResult \ "degrees").as[List[JsObject]]
-      val propsLs = (results \\ "props").seq
-      (deegrees.head \ LabelMeta.degree.name).as[Int] must equalTo(1)
+        val results = jsResult \ "results"
+        val deegrees = (jsResult \ "degrees").as[List[JsObject]]
+        val propsLs = (results \\ "props").seq
+        (deegrees.head \ LabelMeta.degree.name).as[Int] must equalTo(1)
 
-      (results \\ "from").seq.last.toString must equalTo(srcId.toString)
-      (results \\ "to").seq.last.toString must equalTo(tgtId.toString)
-      (results \\ "_timestamp").seq.last.as[Long] must equalTo(maxTs)
-      for ((key, expectedVal) <- expected) {
-        propsLs.last.as[JsObject].keys.contains(key) must equalTo(true)
-        (propsLs.last \ key).toString must equalTo(expectedVal)
+        (results \\ "from").seq.last.toString must equalTo(id.toString)
+        (results \\ "to").seq.last.toString must equalTo(otherId.toString)
+        (results \\ "_timestamp").seq.last.as[Long] must equalTo(maxTs)
+        for ((key, expectedVal) <- expected) {
+          propsLs.last.as[JsObject].keys.contains(key) must equalTo(true)
+          (propsLs.last \ key).toString must equalTo(expectedVal)
+        }
+        Await.result(ret, HTTP_REQ_WAITING_TIME)
       }
-      Await.result(ret, HTTP_REQ_WAITING_TIME)
     }
   }
 

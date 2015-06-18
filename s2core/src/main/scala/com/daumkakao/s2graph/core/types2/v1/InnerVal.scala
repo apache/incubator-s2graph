@@ -158,12 +158,13 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
     if (!other.isInstanceOf[InnerVal]) {
       throw new RuntimeException(s"compare between $this vs $other is not supported")
     } else {
-      (value, other.value) match {
-        case (v1: Long, v2: Long) => v1.compare(v2)
-        case (b1: Boolean, b2: Boolean) => b1.compare(b2)
-        case (s1: String, s2: String) => s1.compare(s2)
-        case _ => throw new Exception("Please check a type of the compare operands")
-      }
+//      (value, other.value) match {
+//        case (v1: Long, v2: Long) => v1.compare(v2)
+//        case (b1: Boolean, b2: Boolean) => b1.compare(b2)
+//        case (s1: String, s2: String) => s1.compare(s2)
+//        case _ => throw new Exception("Please check a type of the compare operands")
+//      }
+      Bytes.compareTo(bytes, other.bytes)
     }
   }
 

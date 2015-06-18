@@ -3,6 +3,7 @@ package com.daumkakao.s2graph.core
 import java.util
 
 //import com.daumkakao.s2graph.core.mysqls._
+
 import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.types2._
 import org.apache.hadoop.hbase.HBaseConfiguration
@@ -224,19 +225,19 @@ object Graph {
             case p: PutRequest => client.put(p)
             case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i)
           }
-//          deferredCallbackWithFallback(deferred)({
-//            (anyRef: Any) => anyRef match {
-//              case e: Exception => false
-//              case _ => true
-//            }
-//          }, {
-//            false
-//          })
+          //          deferredCallbackWithFallback(deferred)({
+          //            (anyRef: Any) => anyRef match {
+          //              case e: Exception => false
+          //              case _ => true
+          //            }
+          //          }, {
+          //            false
+          //          })
         }
-//        val ret = deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
-//        ret
+        //        val ret = deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
+        //        ret
       }
-//      Future.sequence(defers)
+      //      Future.sequence(defers)
       Future.successful(elementRpcs.map(x => true))
     }
   }
@@ -302,27 +303,42 @@ object Graph {
   //    }
   //  }
 
-  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: Label, dir: Int): Future[Iterable[Edge]] = {
+  //ab, 1, 1
+  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: Label, dir: Int): Future[Iterable[(Edge, Double)]] = {
     implicit val ex = this.executionContext
-    val invertedEdge = Edge(srcVertex, tgtVertex, LabelWithDirection(label.id.get, dir)).edgesWithInvertedIndex
+
+
+
+    val invertedEdge  = Edge(srcVertex, tgtVertex,
+      LabelWithDirection(label.id.get, dir)).toInvertedEdgeHashLike()
+
     val rowKey = invertedEdge.rowKey
-//    val rowKey = EdgeRowKey(srcVertex.id,
-//      LabelWithDirection(label.id.get, dir), label.defaultIndex.get.seq, isInverted = true)(label.schemaVersion)
 
     val qualifier = invertedEdge.qualifier
     val client = getClient(label.hbaseZkAddr)
     val getRequest = new GetRequest(label.hbaseTableName.getBytes(), rowKey.bytes, edgeCf, qualifier.bytes)
-
+    val queryParam = QueryParam(LabelWithDirection(label.id.get, dir.toByte))
     defferedToFuture(client.get(getRequest))(emptyKVs).map { kvs =>
       for {
         kv <- kvs
-        edge <- Edge.toEdge(kv, QueryParam(LabelWithDirection(label.id.get, dir.toByte)))
+        edge <- Edge.toEdge(kv, queryParam)
       } yield {
         Logger.debug(s"$edge")
-        edge
+        (edge, edge.rank(queryParam.rank))
       }
     }
   }
+
+  def checkEdges(quads: Seq[(Vertex, Vertex, Label, Int)]): Future[Seq[Iterable[(Edge, Double)]]] = {
+    implicit val ex = this.executionContext
+    val futures = for {
+      (srcVertex, tgtVertex, label, dir) <- quads
+    } yield getEdge(srcVertex, tgtVertex, label, dir)
+
+    Future.sequence(futures)
+  }
+
+
 
   def buildGetRequests(srcVertices: Seq[Vertex], params: List[QueryParam]): Seq[Iterable[(GetRequest, QueryParam)]] = {
     srcVertices.map { vertex =>
@@ -617,9 +633,9 @@ object Graph {
     if (vertex.op == GraphUtil.operations("delete") || vertex.op == GraphUtil.operations("deleteAll")) {
       throw new RuntimeException("Not yet supported")
     } else {
-     writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(v => v.buildPutsAll())).map { rets =>
-       rets.forall(identity)
-     }
+      writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(v => v.buildPutsAll())).map { rets =>
+        rets.forall(identity)
+      }
     }
   }
 
@@ -628,12 +644,13 @@ object Graph {
     val futures = vertices.map { vertex => mutateVertex(vertex) }
     Future.sequence(futures)
   }
-//  def mutateVertices(vertices: Seq[Vertex]) = {
-//    for (((zkQuorum, op), vertices) <- vertices.groupBy(v => (v.hbaseZkAddr, v.op))) {
-//      if (op == GraphUtil.operations("delete") || op == GraphUtil.operations("deleteAll")) deleteVertexAll(vertices)
-//      else writeAsync(zkQuorum, vertices.flatMap(v => v.buildPutsAll()))
-//    }
-//  }
+
+  //  def mutateVertices(vertices: Seq[Vertex]) = {
+  //    for (((zkQuorum, op), vertices) <- vertices.groupBy(v => (v.hbaseZkAddr, v.op))) {
+  //      if (op == GraphUtil.operations("delete") || op == GraphUtil.operations("deleteAll")) deleteVertexAll(vertices)
+  //      else writeAsync(zkQuorum, vertices.flatMap(v => v.buildPutsAll()))
+  //    }
+  //  }
   def mutateElements(elemnents: Seq[GraphElement]): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
     val futures = elemnents.map { element =>
@@ -645,6 +662,7 @@ object Graph {
     }
     Future.sequence(futures)
   }
+
   // delete only vertices
   def deleteVertices(vertices: Seq[Vertex]): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
@@ -655,24 +673,24 @@ object Graph {
   /**
    * O(E), maynot feasible
    */
-//  def deleteVertexAll(vertices: Seq[Vertex]): Unit = {
-//    val distinctLabels = vertices.flatMap { v => v.belongLabelIds() }.groupBy { label => label.id.get }.mapValues(_.head).values
-//    val srcVertices = vertices.groupBy { v => v.id }.mapValues(_.head).values
-//    val queryParams = for {
-//      label <- distinctLabels
-//      dir <- List(GraphUtil.directions("out"), GraphUtil.directions("in"))
-//    } yield {
-//      QueryParam(LabelWithDirection(label.id.get, dir)).limit(0, maxValidEdgeListSize)
-//    }
-//    val q = Query(srcVertices.toList, List(Step(queryParams.toList)))
-//    getEdgesAsync(q).map { edgesByVertex =>
-//
-//    }
-//  }
+  //  def deleteVertexAll(vertices: Seq[Vertex]): Unit = {
+  //    val distinctLabels = vertices.flatMap { v => v.belongLabelIds() }.groupBy { label => label.id.get }.mapValues(_.head).values
+  //    val srcVertices = vertices.groupBy { v => v.id }.mapValues(_.head).values
+  //    val queryParams = for {
+  //      label <- distinctLabels
+  //      dir <- List(GraphUtil.directions("out"), GraphUtil.directions("in"))
+  //    } yield {
+  //      QueryParam(LabelWithDirection(label.id.get, dir)).limit(0, maxValidEdgeListSize)
+  //    }
+  //    val q = Query(srcVertices.toList, List(Step(queryParams.toList)))
+  //    getEdgesAsync(q).map { edgesByVertex =>
+  //
+  //    }
+  //  }
 
-//  def toQueryFromVertexLabel(vertex: Vertex, label: Label): Query = {
+  //  def toQueryFromVertexLabel(vertex: Vertex, label: Label): Query = {
 
-//  }
+  //  }
   private def deleteVertexAllAsync(srcVertex: Vertex, label: Label): Future[Boolean] = {
     implicit val ex = Graph.executionContext
     val qParams = for (dir <- List(0, 1)) yield {

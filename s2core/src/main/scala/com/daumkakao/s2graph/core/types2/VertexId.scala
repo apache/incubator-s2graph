@@ -24,6 +24,9 @@ object VertexId extends HBaseDeserializable {
 
   def apply(colId: Int, innerId: InnerValLike): VertexId = new VertexId(colId, innerId)
 
+//  def toVertexId(colId: Int, innerId: InnerValLike) = {
+//    VertexId(colId, innerId)
+//  }
   def toSourceVertexId(vid: VertexId) = {
     SourceVertexId(vid.colId, vid.innerId)
   }
@@ -78,9 +81,9 @@ object SourceVertexId extends HBaseDeserializable {
     SourceVertexId(DEFAULT_COL_ID, innerId)
   }
 
-  def toVertexId(vid: VertexId): VertexId = {
-    VertexId(vid.colId, vid.innerId)
-  }
+//  def toVertexId(colId: Int, innerId: InnerValLike): VertexId = {
+//    VertexId(colId, innerId)
+//  }
 }
 
 //case class VertexIdWithoutHash(override val colId: Int,
@@ -115,9 +118,9 @@ object TargetVertexId extends HBaseDeserializable {
     TargetVertexId(DEFAULT_COL_ID, innerId)
   }
 
-  def toVertexId(vid: VertexId): VertexId = {
-    VertexId(vid.colId, vid.innerId)
-  }
+//  def toVertexId(colId: Int, innerId: InnerValLike): VertexId = {
+//    VertexId(colId, innerId)
+//  }
 }
 
 case class TargetVertexId(override val colId: Int,

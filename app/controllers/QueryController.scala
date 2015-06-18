@@ -4,25 +4,30 @@ package controllers
 import com.codahale.metrics.Meter
 
 // import com.daumkakao.s2graph.core.mysqls._
+
 import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.types2.{TargetVertexId, SourceVertexId}
+import com.daumkakao.s2graph.core.types2.{VertexId, TargetVertexId, SourceVertexId}
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
 import play.api.Logger
 
-import play.api.libs.json.{ JsValue, Json }
-import play.api.mvc.{ Action, Controller, Result }
+import play.api.libs.json.{JsValue, Json}
+import play.api.mvc.{Action, Controller, Result}
 import util.TestDataLoader
 import scala.concurrent._
 
-object QueryController extends Controller  with RequestParser with Instrumented {
+object QueryController extends Controller with RequestParser with Instrumented {
 
-//  import play.api.libs.concurrent.Execution.Implicits._
-//  implicit val ex = ApplicationController.globalExecutionContext
+  //  import play.api.libs.concurrent.Execution.Implicits._
+  //  implicit val ex = ApplicationController.globalExecutionContext
+
   import ApplicationController._
-//  implicit val ex = ApplicationController.globalExecutionContext
+
+  //  implicit val ex = ApplicationController.globalExecutionContext
+
   import play.api.libs.concurrent.Execution.Implicits.defaultContext
+
   //  implicit val context = Akka.system.dispatchers.lookup("akka.actor.multiget-context")
   /**
    * only for test
@@ -37,7 +42,6 @@ object QueryController extends Controller  with RequestParser with Instrumented 
 
   val applicationJsonHeader = "application/json"
   val orderByKeys = Seq("weight")
-
 
 
   // select
@@ -68,7 +72,9 @@ object QueryController extends Controller  with RequestParser with Instrumented 
     } catch {
       case e: KGraphExceptions.BadQueryException =>
         Logger.error(s"$e", e)
-        Future { BadRequest.as(applicationJsonHeader) }
+        Future {
+          BadRequest.as(applicationJsonHeader)
+        }
       case e: Throwable => Future {
         Logger.error(s"$e", e)
         // watch tower
@@ -76,6 +82,7 @@ object QueryController extends Controller  with RequestParser with Instrumented 
       }
     }
   }
+
   private def getEdgesExcludedAsync(jsonQuery: JsValue)(post: (Seq[Iterable[(Edge, Double)]],
     Seq[Iterable[(Edge, Double)]]) => JsValue): Future[Result] = {
     try {
@@ -95,7 +102,9 @@ object QueryController extends Controller  with RequestParser with Instrumented 
     } catch {
       case e: KGraphExceptions.BadQueryException =>
         Logger.error(s"$e", e)
-        Future { BadRequest.as(applicationJsonHeader) }
+        Future {
+          BadRequest.as(applicationJsonHeader)
+        }
       case e: Throwable => Future {
         Logger.error(s"$e", e)
         // watch tower
@@ -103,9 +112,11 @@ object QueryController extends Controller  with RequestParser with Instrumented 
       }
     }
   }
+
   private def getEdgesInner(jsValue: JsValue) = {
     getEdgesAsync(jsValue)(PostProcess.toSimpleVertexArrJson)
   }
+
   private def getEdgesExcludedInner(jsValue: JsValue) = {
     getEdgesExcludedAsync(jsValue)(PostProcess.toSiimpleVertexArrJson)
   }
@@ -123,6 +134,7 @@ object QueryController extends Controller  with RequestParser with Instrumented 
   def getEdgesGrouped() = withHeaderAsync(parse.json) { request =>
     getEdgesAsync(request.body)(PostProcess.summarizeWithList)
   }
+
   @deprecated
   def getEdgesGroupedExcluded() = withHeaderAsync(parse.json) { request =>
     try {
@@ -137,13 +149,16 @@ object QueryController extends Controller  with RequestParser with Instrumented 
         Ok(s"$json\n").as(applicationJsonHeader)
       }
     } catch {
-      case e: KGraphExceptions.BadQueryException => Future { BadRequest(request.body).as(applicationJsonHeader) }
+      case e: KGraphExceptions.BadQueryException => Future {
+        BadRequest(request.body).as(applicationJsonHeader)
+      }
       case e: Throwable => Future {
         // watch tower
         Ok(s"${PostProcess.summarizeWithListExclude(emptyResult, emptyResult)}\n").as(applicationJsonHeader)
       }
     }
   }
+
   @deprecated
   def getEdgesGroupedExcludedFormatted() = withHeaderAsync(parse.json) { request =>
     try {
@@ -158,7 +173,9 @@ object QueryController extends Controller  with RequestParser with Instrumented 
         Ok(s"$json\n").as(applicationJsonHeader)
       }
     } catch {
-      case e: KGraphExceptions.BadQueryException => Future { BadRequest(request.body).as(applicationJsonHeader) }
+      case e: KGraphExceptions.BadQueryException => Future {
+        BadRequest(request.body).as(applicationJsonHeader)
+      }
       case e: Throwable => Future {
         // watch tower
         Ok(s"${PostProcess.summarizeWithListExcludeFormatted(emptyResult, emptyResult)}\n").as(applicationJsonHeader)
@@ -166,51 +183,64 @@ object QueryController extends Controller  with RequestParser with Instrumented 
     }
   }
 
-  @deprecated
-  def getEdge(srcId: String, tgtId: String, labelName: String, direction: String) = Action.async {
-    if (!Config.IS_QUERY_SERVER) Future { Unauthorized }
-    try {
-      val label = Label.findByName(labelName).get
-      val dir = Management.tryOption(direction, GraphUtil.toDir)
 
-      val srcVertexId = toInnerVal(srcId, label.srcColumnWithDir(dir).columnType, label.schemaVersion)
-      val tgtVertexId = toInnerVal(tgtId, label.tgtColumnWithDir(dir).columnType, label.schemaVersion)
-
-      val srcColId = label.srcColumnWithDir(dir).id.get
-      val tgtColId = label.tgtColumnWithDir(dir).id.get
-
-      val srcUseHash = if (dir == GraphUtil.directions("out")) true else false
-      val tgtUseHash = if (dir == GraphUtil.directions("out")) false else true
-      val srcVid =
-        if (dir == GraphUtil.directions("out")) SourceVertexId(srcColId, srcVertexId)
-        else TargetVertexId(srcColId, srcVertexId)
-
-      val tgtVid =
-        if (dir == GraphUtil.directions("out")) TargetVertexId(tgtColId, tgtVertexId)
-        else SourceVertexId(tgtColId, tgtVertexId)
-
-      val src = Vertex(srcVid, System.currentTimeMillis())
-      val tgt = Vertex(tgtVid, System.currentTimeMillis())
-      Graph.getEdge(src, tgt, label, dir).map { edges =>
-        val ret = for {
-          edge <- edges.headOption
-          json <- PostProcess.edgeToJson(edge, 1.0)
-        } yield {
-            Ok(s"$json\n").as(applicationJsonHeader)
-          }
-
-        ret.getOrElse(NotFound(s"NotFound\n").as(applicationJsonHeader))
-      }
-    } catch {
-      case e: Throwable =>
-        Logger.error(s"$e", e)
-        Future.successful( BadRequest(e.toString()).as(applicationJsonHeader) )
-    }
+  def getEdge(srcId: String, tgtId: String, labelName: String, direction: String) = Action.async { request =>
+    if (!Config.IS_QUERY_SERVER) Future.successful(Unauthorized)
+    val params = Json.arr(Json.obj("label" -> labelName, "direction" -> direction, "from" -> srcId, "to" -> tgtId))
+    checkEdgesInner(params)
   }
+
   /**
    * Vertex
    */
+  def checkEdgesInner(jsValue: JsValue) = {
+    try {
+    val params = jsValue.as[List[JsValue]]
+    var isReverted = false
+    val quads = for {
+      param <- params
+      labelName = (param \ "label").as[String]
+      direction <- GraphUtil.toDir((param \ "direction").asOpt[String].getOrElse("out"))
+      label <- Label.findByName(labelName)
+      srcId <- jsValueToInnerVal((param \ "from").as[JsValue], label.srcColumnWithDir(direction.toInt).columnType, label.schemaVersion)
+      tgtId <- jsValueToInnerVal((param \ "to").as[JsValue], label.tgtColumnWithDir(direction.toInt).columnType, label.schemaVersion)
+    } yield {
+        var srcVertex = Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId))
+        var tgtVertex = Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId))
+        val (src, tgt, dir) = if (direction == 1) {
+          isReverted = true
+            (Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)),
+              Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)), 0)
+          } else {
+            (Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)),
+              Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)), 0)
+          }
 
+
+
+        Logger.debug(s"SrcVertex: $src")
+        Logger.debug(s"TgtVertex: $tgt")
+        Logger.debug(s"direction: $dir")
+        (src, tgt, label, dir.toInt)
+      }
+
+
+    Graph.checkEdges(quads).map { case edgesWithScores =>
+      val x =
+        if (isReverted) edgesWithScores.map { edgesWithScore =>
+          edgesWithScore.map { case (edge, score) => (edge.duplicateEdge, score) }
+        } else edgesWithScores
+      Ok(PostProcess.toSimpleVertexArrJson(x)).as(applicationJsonHeader)
+    }
+    } catch {
+      case e: Throwable => Future.successful(BadRequest(e.toString()).as(applicationJsonHeader))
+    }
+  }
+
+  def checkEdges() = withHeaderAsync(parse.json) { request =>
+    if (!Config.IS_QUERY_SERVER) Future.successful(Unauthorized)
+    checkEdgesInner(request.body)
+  }
 
   def getVertices() = withHeaderAsync(parse.json) { request =>
     if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
@@ -230,8 +260,10 @@ object QueryController extends Controller  with RequestParser with Instrumented 
         Ok(s"$json\n").as(applicationJsonHeader)
       }
     } catch {
-      case e @ (_: play.api.libs.json.JsResultException | _: RuntimeException) =>
-        Future { BadRequest(e.getMessage()).as(applicationJsonHeader) }
+      case e@(_: play.api.libs.json.JsResultException | _: RuntimeException) =>
+        Future {
+          BadRequest(e.getMessage()).as(applicationJsonHeader)
+        }
       case e: Throwable => Future {
         // watch tower
         Ok(s"${PostProcess.verticesToJson(Seq.empty[Vertex])}").as(applicationJsonHeader)
@@ -244,7 +276,9 @@ object QueryController extends Controller  with RequestParser with Instrumented 
    */
   def testGetEdges(label: String, limit: Int, friendCntStep: Int) = withHeaderAsync { request =>
     val rId = if (friendCntStep < 0) Some(TestDataLoader.randomId) else TestDataLoader.randomId(friendCntStep)
-    if (rId.isEmpty) Future { NotFound.as(applicationJsonHeader) }
+    if (rId.isEmpty) Future {
+      NotFound.as(applicationJsonHeader)
+    }
     else {
       val id = rId.get
       val l = Label.findByName(label).get
@@ -262,6 +296,7 @@ object QueryController extends Controller  with RequestParser with Instrumented 
       getEdgesAsync(json)(PostProcess.simple)
     }
   }
+
   def testGetEdges2(label1: String, limit1: Int, label2: String, limit2: Int) = withHeaderAsync { request =>
     val id = TestDataLoader.randomId.toString
     val l = Label.findByName(label1).get
@@ -279,6 +314,7 @@ object QueryController extends Controller  with RequestParser with Instrumented 
     val json = Json.parse(queryJson)
     getEdgesAsync(json)(PostProcess.simple)
   }
+
   def testGetEdges3(label1: String, limit1: Int, label2: String, limit2: Int, label3: String, limit3: Int) = withHeaderAsync { request =>
     val id = TestDataLoader.randomId.toString
     val l = Label.findByName(label1).get
@@ -299,6 +335,8 @@ object QueryController extends Controller  with RequestParser with Instrumented 
   }
 
   def ping() = withHeaderAsync { requst =>
-    Future { Ok("Pong\n") }
+    Future {
+      Ok("Pong\n")
+    }
   }
 }

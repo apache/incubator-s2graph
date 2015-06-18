@@ -119,16 +119,20 @@ object PostProcess extends JSONParser {
     for {
       edges <- edgesPerVertex
       (edge, score) <-  edges
-      edgeJson <- edgeToJson(edge, score)
-    } yield {
+    } {
         if (edge.propsWithTs.contains(LabelMeta.degreeSeq)) {
 //          degreeJsons += edgeJson
           degrees += Json.obj("label" -> edge.label.label,
             LabelMeta.degree.name ->
               innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
             )
+        } else {
+          for {
+            edgeJson <- edgeToJson(edge, score)
+          } {
+            edgeJsons += edgeJson
+          }
         }
-        else edgeJsons += edgeJson
       }
 
     val results =

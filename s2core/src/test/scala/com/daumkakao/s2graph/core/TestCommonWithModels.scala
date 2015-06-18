@@ -22,11 +22,22 @@ trait TestCommonWithModels {
   val columnNameV2 = "user_id_v2"
   val columnType = "long"
   val columnTypeV2 = "long"
+
+  val tgtColumnName = "itme_id"
+  val tgtColumnNameV2 = "item_id_v2"
+  val tgtColumnType = "string"
+  val tgtColumnTypeV2 = "string"
+
   val cluster = "localhost"
   val hTableName = "_test_cases"
   val preSplitSize = 0
   val labelName = "_test_label"
   val labelNameV2 = "_test_label_v2"
+
+  val undirectedLabelName = "_test_label_undirected"
+  val undirectedLabelNameV2 = "_test_label_undirected_v2"
+
+
   //FIXME:
   val LABEL = Label
   val LABEMETA = LabelMeta
@@ -82,6 +93,8 @@ trait TestCommonWithModels {
   def deleteTestLabel() = {
     Management.deleteLabel(labelName)
     Management.deleteLabel(labelNameV2)
+    Management.deleteLabel(undirectedLabelName)
+    Management.deleteLabel(undirectedLabelNameV2)
   }
 
 
@@ -91,6 +104,13 @@ trait TestCommonWithModels {
 
     Management.createLabel(labelNameV2, serviceNameV2, columnNameV2, columnTypeV2, serviceNameV2, columnNameV2, columnTypeV2,
       isDirected = true, serviceNameV2, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, InnerVal.VERSION2)
+
+    Management.createLabel(undirectedLabelName, serviceName, columnName, columnType, serviceName, tgtColumnName, tgtColumnType,
+      isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, InnerVal.VERSION1)
+
+    Management.createLabel(undirectedLabelNameV2, serviceNameV2, columnNameV2, columnTypeV2, serviceNameV2, tgtColumnNameV2, tgtColumnTypeV2,
+      isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, InnerVal.VERSION2)
+
   }
 
   /** */
@@ -101,9 +121,20 @@ trait TestCommonWithModels {
 
   lazy val column = ServiceColumn.find(service.id.get, columnName, useCache = false).get
   lazy val columnV2 = ServiceColumn.find(serviceV2.id.get, columnNameV2, useCache = false).get
+  
+  lazy val tgtColumn = ServiceColumn.find(service.id.get, tgtColumnName, useCache = false).get
+
+  
+  lazy val tgtColumnV2 = ServiceColumn.find(service.id.get, tgtColumnNameV2, useCache = false).get
 
   lazy val label = Label.findByName(labelName, useCache = false).get
   lazy val labelV2 = Label.findByName(labelNameV2, useCache = false).get
+
+  lazy val undirectedLabel = Label.findByName(undirectedLabelName, useCache = false).get
+  lazy val undirectedLabelV2 = Label.findByName(undirectedLabelNameV2, useCache = false).get
+
+
+
 
   lazy val dir = GraphUtil.directions("out")
   lazy val op = GraphUtil.operations("insert")
