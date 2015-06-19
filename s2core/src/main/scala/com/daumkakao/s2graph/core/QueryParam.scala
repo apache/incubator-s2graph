@@ -5,10 +5,11 @@ import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.parsers.Where
 import com.daumkakao.s2graph.core.types2._
+import play.api.Logger
 import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.util.Bytes
 import GraphConstant._
-import org.hbase.async.{ScanFilter, ColumnRangeFilter}
+import org.hbase.async.{GetRequest, ScanFilter, ColumnRangeFilter}
 
 object Query {
   val initialScore = 1.0
@@ -109,7 +110,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   //  var propsFilters: PropsFilter = PropsFilter()
   var where: Option[Where] = None
   var duplicatePolicy = DuplicatePolicy.First
-  var rpcTimeoutInMillis = 100
+  var rpcTimeoutInMillis = 1000
   var maxAttempt = 2
   var includeDegree = false
 
@@ -234,6 +235,18 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
     val client = Graph.getClient(label.hbaseZkAddr)
     val filters = ListBuffer.empty[ScanFilter]
-    Graph.singleGet(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, offset, limit, minTs, maxTs, maxAttempt, rpcTimeoutInMillis, columnRangeFilter)
+
+    val get = new GetRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf)
+    get.maxVersions(1)
+    get.setFailfast(true)
+    get.setMaxResultsPerColumnFamily(limit)
+    get.setRowOffsetPerColumnFamily(offset)
+    get.setMinTimestamp(minTs)
+    get.setMaxTimestamp(maxTs)
+    get.setMaxAttempt(maxAttempt.toByte)
+    get.setRpcTimeout(rpcTimeoutInMillis)
+    if (columnRangeFilter != null) get.filter(columnRangeFilter)
+    Logger.debug(s"$get")
+    get
   }
 }

@@ -63,7 +63,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
 
       Logger.info(s"$jsonQuery")
       val q = toQuery(jsonQuery)
-
+      Logger.info(s"$q")
       val future = Graph.getEdgesAsync(q)
       future map { edges =>
         val json = post(edges)

@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import com.daumkakao.s2graph.core.{GraphConnection, Graph}
 import com.google.common.cache.CacheBuilder
 import com.typesafe.config.Config
+import org.apache.hadoop.hbase.client.Result
 import play.api.Logger
 //import scalikejdbc.{AutoSession, DBSession, ConnectionPool, ConnectionPoolSettings}
 
@@ -40,7 +41,7 @@ import play.api.Logger
 //    ConnectionPool.singleton(configVals("db.default.url"), configVals("db.default.user"), configVals("db.default.password"), settings)
 //  }
 //}
-trait LocalCache[V <: Object] {
+trait LocalCache[V <: Result] {
   protected lazy val ttl = Model.cacheTTL
   protected lazy val maxSize = Model.maxCacheSize
 //  private lazy val cName = this.getClass.getSimpleName()
@@ -63,7 +64,8 @@ trait LocalCache[V <: Object] {
     }
     else {
       val newVal = op
-      cache.put(newKey, newVal)
+      if (newVal != null && !newVal.isEmpty) cache.put(newKey, newVal)
+      //      caches.put(newKey, newVal)
 //      Logger.debug(s"$newKey => Miss")
       newVal
     }
@@ -78,7 +80,8 @@ trait LocalCache[V <: Object] {
     else {
 //      Logger.debug(s"withCaches: $newKey => Miss")
       val newVal = op
-      caches.put(newKey, newVal)
+      if (newVal != null && !newVal.isEmpty) caches.put(newKey, newVal)
+//      caches.put(newKey, newVal)
       newVal
     }
   }

@@ -46,7 +46,7 @@ object GraphConnection {
     "hbase.zookeeper.quorum" -> "localhost",
     "hbase.table.name" -> "s2graph",
     "phase" -> "dev",
-    "async.hbase.client.flush.interval" -> 1000.toShort)
+    "async.hbase.client.flush.interval" -> 100.toShort)
   var config: Config = null
 
   def getOrElse[T: ClassTag](conf: com.typesafe.config.Config)(key: String, default: T): T = {
@@ -104,7 +104,7 @@ object Graph {
   var hbaseConfig: org.apache.hadoop.conf.Configuration = null
   var storageExceptionCount = 0L
   var singleGetTimeout = 10000 millis
-  var clientFlushInterval = 1000.toShort
+  var clientFlushInterval = 100.toShort
 
   //  implicit val ex = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(16))
   def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
@@ -114,16 +114,20 @@ object Graph {
     Model.apply(config)
     this.executionContext = ex
     this.singleGetTimeout = getOrElse(config)("hbase.client.operation.timeout", 1000 millis)
+    this.clientFlushInterval = getOrElse(config)("async.hbase.client.flush.interval", 100.toShort)
     val zkQuorum = hbaseConfig.get("hbase.zookeeper.quorum")
     //    conns += (zkQuorum -> conn)
     //    clients += (zkQuorum -> new HBaseClient(zkQuorum, "/hbase", Executors.newCachedThreadPool(), 8))
-    clients += (zkQuorum -> new HBaseClient(zkQuorum))
+    val client = new HBaseClient(zkQuorum)
+    client.setFlushInterval(clientFlushInterval)
+    clients += (zkQuorum -> client )
   }
 
   def getClient(zkQuorum: String, flushInterval: Short = clientFlushInterval) = {
     val client = clients.get(zkQuorum) match {
       case None =>
         val client = new HBaseClient(zkQuorum)
+        client.setFlushInterval(clientFlushInterval)
         clients += (zkQuorum -> client)
         client
       //        throw new RuntimeException(s"connection to $zkQuorum is not established.")
@@ -356,23 +360,6 @@ object Graph {
   //    }
   //  }
 
-  def singleGet(table: Array[Byte], rowKey: Array[Byte], cf: Array[Byte], offset: Int, limit: Int,
-                minTs: Long, maxTs: Long,
-                maxAttempt: Int, rpcTimeoutInMillis: Int,
-                columnRangeFilter: ColumnRangeFilter) = {
-    val get = new GetRequest(table, rowKey, cf)
-    get.maxVersions(1)
-    get.setFailfast(true)
-    get.setMaxResultsPerColumnFamily(limit)
-    get.setRowOffsetPerColumnFamily(offset)
-    get.setMinTimestamp(minTs)
-    get.setMaxTimestamp(maxTs)
-    get.setMaxAttempt(maxAttempt.toByte)
-    get.setRpcTimeout(rpcTimeoutInMillis)
-    if (columnRangeFilter != null) get.filter(columnRangeFilter)
-    Logger.debug(s"$get")
-    get
-  }
 
   def convertEdge(edge: Edge, labelOutputFields: Map[Int, Byte]): Option[Edge] = {
     labelOutputFields.get(edge.labelWithDir.labelId) match {

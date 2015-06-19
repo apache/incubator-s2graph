@@ -194,11 +194,14 @@ object Management extends JSONParser {
       if (direction == "") GraphUtil.toDirection(label.direction)
       else GraphUtil.toDirection(direction)
 
-    val srcVertexId = toInnerVal(srcId, label.srcColumnWithDir(dir).columnType, label.schemaVersion)
-    val tgtVertexId = toInnerVal(tgtId, label.tgtColumnWithDir(dir).columnType, label.schemaVersion)
+    Logger.debug(s"$srcId, ${label.srcColumnWithDir(dir)}")
+    Logger.debug(s"$tgtId, ${label.tgtColumnWithDir(dir)}")
 
-    val srcColId = label.srcColumnWithDir(dir).id.get
-    val tgtColId = label.tgtColumnWithDir(dir).id.get
+    val srcVertexId = toInnerVal(srcId, label.srcColumn.columnType, label.schemaVersion)
+    val tgtVertexId = toInnerVal(tgtId, label.tgtColumn.columnType, label.schemaVersion)
+
+    val srcColId = label.srcColumn.id.get
+    val tgtColId = label.tgtColumn.id.get
     val (srcVertex, tgtVertex) = if (dir == GraphUtil.directions("out")) {
       (Vertex(SourceVertexId(srcColId, srcVertexId), System.currentTimeMillis()),
         Vertex(TargetVertexId(tgtColId, tgtVertexId), System.currentTimeMillis()))

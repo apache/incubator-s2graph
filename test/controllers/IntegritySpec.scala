@@ -46,7 +46,7 @@ class IntegritySpec extends Specification {
   lazy val TC_WAITING_TIME = 1200
 
   lazy val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
-  val asyncFlushInterval = 2000
+  val asyncFlushInterval = 1000
 
   val createService =
     s"""
@@ -62,7 +62,7 @@ class IntegritySpec extends Specification {
     "srcColumnName": "$testColumnName",
     "srcColumnType": "long",
     "tgtServiceName": "$testServiceName",
-    "tgtColumnName": "$testTgtColumnName",
+    "tgtColumnName": "$testColumnName",
     "tgtColumnType": "long",
     "indexProps": [
     {
@@ -123,7 +123,7 @@ class IntegritySpec extends Specification {
     ],
     "props": [],
     "consistencyLevel": "strong",
-    "isDirected": false
+    "isDirected": true
   }"""
 
   val vertexPropsKeys = List(
@@ -146,7 +146,7 @@ class IntegritySpec extends Specification {
   val NUM_OF_EACH_TEST = 10
   val TS = System.currentTimeMillis()
   def queryJson(serviceName: String, columnName: String, labelName: String, id: String, dir: String) = {
-    Json.parse( s"""{
+    val s = s"""{
       "srcVertices": [
       {
         "serviceName": "$serviceName",
@@ -164,7 +164,9 @@ class IntegritySpec extends Specification {
       }
       ]
       ]
-    }""")
+    }"""
+    println(s)
+    Json.parse(s)
   }
   def vertexQueryJson(serviceName: String, columnName: String, ids: Seq[Int]) = {
     Json.parse(
@@ -239,6 +241,8 @@ class IntegritySpec extends Specification {
       vertexPropsKeys.map { case (key, keyType) =>
         Management.addVertexProp(testServiceName, testColumnName, key, keyType)
       }
+
+      Thread.sleep(asyncFlushInterval)
     }
   }
 
@@ -264,20 +268,22 @@ class IntegritySpec extends Specification {
       val res = Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
 
       res.header.status must equalTo(200)
-      Thread.sleep(asyncFlushInterval)
+
       println(s"---- TC${tcNum}_init ----")
 
+      Thread.sleep(asyncFlushInterval)
 
       for {
         label <- Label.findByName(labelName)
         direction <- List("out", "in")
       } {
+
         val (serviceName, columnName, id, otherId) = direction match {
           case "out" => (label.srcService.serviceName, label.srcColumn.columnName, srcId, tgtId)
           case "in" => (label.tgtService.serviceName, label.tgtColumn.columnName, tgtId, srcId)
         }
-
-        val query = queryJson(serviceName, columnName, labelName, id, direction)
+        val qId = if (labelName == testLabelName2) "\"" + id + "\"" else id
+        val query = queryJson(serviceName, columnName, labelName, qId, direction)
         val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(query)).get
         val jsResult = commonCheck(ret)
 
@@ -287,8 +293,11 @@ class IntegritySpec extends Specification {
         val propsLs = (results \\ "props").seq
         (deegrees.head \ LabelMeta.degree.name).as[Int] must equalTo(1)
 
-        (results \\ "from").seq.last.toString must equalTo(id.toString)
-        (results \\ "to").seq.last.toString must equalTo(otherId.toString)
+        val from = (results \\ "from").seq.last.toString.replaceAll("\"", "")
+        val to = (results \\ "to").seq.last.toString.replaceAll("\"", "")
+
+        from must equalTo(id.toString)
+        to must equalTo(otherId.toString)
         (results \\ "_timestamp").seq.last.as[Long] must equalTo(maxTs)
         for ((key, expectedVal) <- expected) {
           propsLs.last.as[JsObject].keys.contains(key) must equalTo(true)
