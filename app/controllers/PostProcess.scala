@@ -1,8 +1,11 @@
 package controllers
 
 //import com.daumkakao.s2graph.core.HBaseElement._
+
 import com.daumkakao.s2graph.core._
+
 //import com.daumkakao.s2graph.core.mysqls._
+
 import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.types2.{InnerVal, InnerValLike}
 
@@ -110,6 +113,7 @@ object PostProcess extends JSONParser {
   def noFormat(edgesPerVertex: Seq[Iterable[(Edge, Double)]]) = {
     Json.obj("edges" -> edgesPerVertex.toString)
   }
+
   def toSimpleVertexArrJson(edgesPerVertex: Seq[Iterable[(Edge, Double)]]) = {
     val withScore = true
     import play.api.libs.json.Json
@@ -118,22 +122,22 @@ object PostProcess extends JSONParser {
     val edgeJsons = ListBuffer[JsObject]()
     for {
       edges <- edgesPerVertex
-      (edge, score) <-  edges
+      (edge, score) <- edges
     } {
-        if (edge.propsWithTs.contains(LabelMeta.degreeSeq)) {
-//          degreeJsons += edgeJson
-          degrees += Json.obj("label" -> edge.label.label,
-            LabelMeta.degree.name ->
-              innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
-            )
-        } else {
-          for {
-            edgeJson <- edgeToJson(edge, score)
-          } {
-            edgeJsons += edgeJson
-          }
+      if (edge.propsWithTs.contains(LabelMeta.degreeSeq)) {
+        //          degreeJsons += edgeJson
+        degrees += Json.obj("label" -> edge.label.label,
+          LabelMeta.degree.name ->
+            innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
+        )
+      } else {
+        for {
+          edgeJson <- edgeToJson(edge, score)
+        } {
+          edgeJsons += edgeJson
         }
       }
+    }
 
     val results =
       if (withScore) {
@@ -145,6 +149,7 @@ object PostProcess extends JSONParser {
     queryLogger.info(s"Result: ${results.size}")
     Json.obj("size" -> results.size, "degrees" -> degrees, "results" -> results)
   }
+
   def toSiimpleVertexArrJson(exclude: Seq[Iterable[(Edge, Double)]],
                              edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]]) = {
     val excludeIds = exclude.flatMap(ex => ex.map { case (edge, score) => (edge.tgtVertex.innerId, true) }) toMap
@@ -165,14 +170,11 @@ object PostProcess extends JSONParser {
     queryLogger.info(s"Result: ${results.size}")
     Json.obj("size" -> jsons.size, "results" -> results)
   }
+
   def verticesToJson(vertices: Iterable[Vertex]) = {
-    Json.toJson(vertices.map { v => vertexToJson(v) })
+    Json.toJson(vertices.flatMap { v => vertexToJson(v) })
   }
-  def vertexToJson(vertex: Vertex) = {
-    val serviceColumn = ServiceColumn.findById(vertex.id.colId)
-    Json.obj("columnName" -> serviceColumn.columnName, "id" -> vertex.id.innerId.toString,
-      "props" -> propsToJson(serviceColumn.metaNamesMap, vertex.props))
-  }
+
   def propsToJson(edge: Edge) = {
     for {
       (seq, v) <- edge.props
@@ -182,6 +184,7 @@ object PostProcess extends JSONParser {
       (metaProp.name, jsValue)
     }
   }
+
   def edgeToJson(edge: Edge, score: Double): Option[JsObject] = {
     //    
     //    Logger.debug(s"edgeProps: ${edge.props} => ${props}")
@@ -189,29 +192,30 @@ object PostProcess extends JSONParser {
       from <- innerValToJsValue(edge.srcVertex.id.innerId, edge.label.srcColumnWithDir(edge.labelWithDir.dir).columnType)
       to <- innerValToJsValue(edge.tgtVertex.id.innerId, edge.label.tgtColumnWithDir(edge.labelWithDir.dir).columnType)
     } yield {
-      Json.obj(
-        "from" -> from,
-        "to" -> to,
-        "label" -> edge.label.label,
-        "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
-        "_timestamp" -> edge.ts,
-        "props" -> propsToJson(edge),
-        "score" -> score
-      )
-    }
+        Json.obj(
+          "from" -> from,
+          "to" -> to,
+          "label" -> edge.label.label,
+          "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
+          "_timestamp" -> edge.ts,
+          "props" -> propsToJson(edge),
+          "score" -> score
+        )
+      }
 
     json
-//    Json.obj(
-//      "from" -> innerValToJsValue(edge.srcVertex.id.innerId),
-//      "to" -> (if (edge.tgtVertex == null) JsString("degree") else innerValToJsValue(edge.tgtVertex.id.innerId)),
-//      "label" -> edge.label.label,
-//      "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
-//      "_timestamp" -> edge.ts,
-//      //      "props" -> propsToJson(propNames, edge.props),
-//      "props" -> propsToJson(edge),
-//      //      "prev_step_props" -> edge.srcVertex.propsWithName,
-//      //      "metas" -> propsToJson(label.metaSeqsToNames, edge.metas),
-//      "score" -> score)
+  }
+
+  def vertexToJson(vertex: Vertex): Option[JsObject] = {
+    val serviceColumn = ServiceColumn.findById(vertex.id.colId)
+    for {
+
+      id <- innerValToJsValue(vertex.innerId, serviceColumn.columnType)
+    } yield {
+      Json.obj("serviceName" -> serviceColumn.service.serviceName,
+      "columnName" -> serviceColumn.columnName,
+      "id" -> id, "props" -> propsToJson(vertex), "timestamp" -> vertex.ts)
+    }
   }
 
   private def keysToName(seqsToNames: Map[Int, String], props: Map[Int, InnerValLike]) = {
@@ -220,9 +224,19 @@ object PostProcess extends JSONParser {
       name <- seqsToNames.get(seq)
     } yield (name, value)
   }
-  private def propsToJson(seqsToNames: Map[Int, String], props: Map[Int, InnerValLike]) = {
-    for ((keyName, innerVal) <- keysToName(seqsToNames, props)) yield (keyName -> innerVal.toString)
+
+  private def propsToJson(vertex: Vertex) = {
+    val serviceColumn = vertex.serviceColumn
+    val props = for {
+      (propKey, innerVal) <- vertex.props
+      columnMeta <- ColumnMeta.findByIdAndSeq(serviceColumn.id.get, propKey.toByte, useCache = true)
+      jsValue <- innerValToJsValue(innerVal, columnMeta.dataType)
+    } yield {
+        (columnMeta.name -> jsValue)
+      }
+    props.toMap
   }
+
   def toSimpleJson(edges: Iterable[(Vertex, Double)]) = {
     import play.api.libs.json.Json
 

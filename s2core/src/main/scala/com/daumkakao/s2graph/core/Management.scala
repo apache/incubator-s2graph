@@ -94,7 +94,14 @@ object Management extends JSONParser {
         }
     }
   }
-
+  def deleteVertex(serviceName: String, columnName: String, schemaVersion: String = InnerVal.DEFAULT_VERSION) = {
+    for {
+      service <- Service.findByName(serviceName, useCache = false)
+      serviceColumn <- ServiceColumn.find(service.id.get, columnName, useCache = false)
+    } yield {
+      serviceColumn.deleteAll()
+    }
+  }
   def findLabel(labelName: String): Option[Label] = {
     Label.findByName(labelName, useCache = false)
   }
@@ -145,12 +152,14 @@ object Management extends JSONParser {
 
   def addVertexProp(serviceName: String,
                     columnName: String,
-                    columnType: String,
-                    schemaVersion: String = InnerVal.DEFAULT_VERSION): ServiceColumn = {
+                    propsName: String,
+                    propsType: String,
+                    schemaVersion: String = InnerVal.DEFAULT_VERSION): ColumnMeta = {
     val result = for {
       service <- Service.findByName(serviceName, useCache = false)
+      serviceColumn <- ServiceColumn.find(service.id.get, columnName)
     } yield {
-        ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion)
+        ColumnMeta.findOrInsert(serviceColumn.id.get, propsName, propsType)
       }
     result.getOrElse(throw new RuntimeException(s"add property on vertex failed"))
   }
@@ -231,8 +240,10 @@ object Management extends JSONParser {
     val props = for {
       (k, v) <- js.fields
       meta <- column.metasInvMap.get(k)
-      innerVal <- jsValueToInnerVal(v, meta.dataType, column.schemaVersion)
     } yield {
+        val innerVal = jsValueToInnerVal(v, meta.dataType, column.schemaVersion).getOrElse(
+          throw new RuntimeException(s"$k is not defined. create schema for vertex."))
+
         (meta.seq.toInt, innerVal)
       }
     props

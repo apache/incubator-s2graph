@@ -9,13 +9,14 @@ trait JSONParser {
 
   def innerValToJsValue(innerVal: InnerValLike, dataType: String): Option[JsValue] = {
     try {
-      val jsValue = dataType match {
+      val dType = InnerVal.toInnerDataType(dataType)
+      val jsValue = dType match {
         case InnerVal.STRING => JsString(innerVal.value.toString)
         case InnerVal.BOOLEAN => JsBoolean(innerVal.value.asInstanceOf[Boolean])
         case t if InnerVal.NUMERICS.contains(t) =>
-          JsNumber(InnerVal.scaleNumber(BigDecimal(innerVal.toString), dataType))
+          JsNumber(InnerVal.scaleNumber(BigDecimal(innerVal.toString), dType))
         case _ =>
-          throw new RuntimeException(s"innerVal $innerVal to JsValue with type $dataType")
+          throw new RuntimeException(s"innerVal $innerVal to JsValue with type $dType")
       }
       Some(jsValue)
     } catch {
@@ -25,7 +26,8 @@ trait JSONParser {
     }
   }
   def innerValToString(innerVal: InnerValLike, dataType: String): String = {
-    dataType match {
+    val dType = InnerVal.toInnerDataType(dataType)
+    InnerVal.toInnerDataType(dType) match {
       case InnerVal.STRING => innerVal.toString
       case InnerVal.BOOLEAN => innerVal.toString
       case t if InnerVal.NUMERICS.contains(t)  =>
@@ -41,7 +43,9 @@ trait JSONParser {
     val s =
       if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
       else str
-    dataType match {
+    val dType = InnerVal.toInnerDataType(dataType)
+
+    dType match {
       case InnerVal.STRING => InnerVal.withStr(s, version)
       case t if InnerVal.NUMERICS.contains(t) => InnerVal.withNumber(BigDecimal(s), version)
       case InnerVal.BOOLEAN => InnerVal.withBoolean(s.toBoolean, version)
@@ -55,7 +59,7 @@ trait JSONParser {
 
   def jsValueToInnerVal(jsValue: JsValue, dataType: String, version: String): Option[InnerValLike] = {
     val ret = try {
-      val dType = dataType.toLowerCase()
+      val dType = InnerVal.toInnerDataType(dataType.toLowerCase())
       jsValue match {
         case n: JsNumber =>
           dType match {

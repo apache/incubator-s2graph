@@ -2,6 +2,8 @@ package test.controllers
 
 import com.daumkakao.s2graph.core._
 
+import scala.util.Random
+
 //import com.daumkakao.s2graph.core.mysqls._
 
 import com.daumkakao.s2graph.core.models._
@@ -37,7 +39,10 @@ class IntegritySpec extends Specification {
 
   protected val testServiceName = "s2graph"
   protected val testLabelName = "s2graph_label_test"
+  protected val testLabelName2 = "s2graph_label_test_2"
   protected val testColumnName = "user_id_test"
+  protected val testColumnType = "long"
+  protected val testTgtColumnName = "item_id_test"
   lazy val TC_WAITING_TIME = 1200
 
   lazy val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
@@ -47,17 +52,17 @@ class IntegritySpec extends Specification {
     s"""
        |{
        |"serviceName" : "$testServiceName"
-                                           |}
+       |}
     """.stripMargin
 
   val createLabel = s"""
   {
-    "label": "s2graph_label_test",
-    "srcServiceName": "s2graph",
-    "srcColumnName": "user_id_test",
+    "label": "$testLabelName",
+    "srcServiceName": "$testServiceName",
+    "srcColumnName": "$testColumnName",
     "srcColumnType": "long",
-    "tgtServiceName": "s2graph",
-    "tgtColumnName": "user_id_test",
+    "tgtServiceName": "$testServiceName",
+    "tgtColumnName": "$testTgtColumnName",
     "tgtColumnType": "long",
     "indexProps": [
     {
@@ -87,12 +92,12 @@ class IntegritySpec extends Specification {
 
   val createLabel2 = s"""
   {
-    "label": "s2graph_label_test_2",
-    "srcServiceName": "s2graph",
-    "srcColumnName": "user_id_test",
+    "label": "$testLabelName2",
+    "srcServiceName": "$testServiceName",
+    "srcColumnName": "$testColumnName",
     "srcColumnType": "long",
-    "tgtServiceName": "s2graph",
-    "tgtColumnName": "item_id_test",
+    "tgtServiceName": "$testServiceName",
+    "tgtColumnName": "$testTgtColumnName",
     "tgtColumnType": "string",
     "indexProps": [
     {
@@ -120,9 +125,27 @@ class IntegritySpec extends Specification {
     "consistencyLevel": "strong",
     "isDirected": false
   }"""
+
+  val vertexPropsKeys = List(
+    ("age", "int")
+  )
+
+  val createVertex =s"""{
+    "serviceName": "$testServiceName",
+    "columnName": "$testColumnName",
+    "columnType": "long",
+    "props": [
+        {"name": "is_active", "dataType": "boolean", "defaultValue": true},
+        {"name": "phone_number", "dataType": "string", "defaultValue": "-"},
+        {"name": "nickname", "dataType": "string", "defaultValue": ".."},
+        {"name": "activity_score", "dataType": "float", "defaultValue": 0.0},
+        {"name": "age", "dataType": "integer", "defaultValue": 0}
+    ]
+    }"""
+
   val NUM_OF_EACH_TEST = 10
   val TS = System.currentTimeMillis()
-  def queryJson(serviceName: String, columnName: String, labelName: String, id: Int, dir: String) = {
+  def queryJson(serviceName: String, columnName: String, labelName: String, id: String, dir: String) = {
     Json.parse( s"""{
       "srcVertices": [
       {
@@ -143,7 +166,26 @@ class IntegritySpec extends Specification {
       ]
     }""")
   }
-
+  def vertexQueryJson(serviceName: String, columnName: String, ids: Seq[Int]) = {
+    Json.parse(
+      s"""
+         |[
+         |    {"serviceName": "$serviceName", "columnName": "$columnName", "ids": [${ids.mkString(",")}]}
+         |]
+       """.stripMargin)
+  }
+  def randomProps() = {
+    (for {
+      (propKey, propType) <- vertexPropsKeys
+    } yield {
+      propKey -> Random.nextInt(100)
+    }).toMap
+  }
+  def vertexInsertsPayload(serviceName: String, columnName: String, ids: Seq[Int]): Seq[JsValue] = {
+    ids.map { id =>
+      Json.obj("id" -> id, "props" -> randomProps, "timestamp" -> System.currentTimeMillis())
+    }
+  }
 
   def commonCheck(rslt: Future[play.api.mvc.Result]): JsValue = {
     status(rslt) must equalTo(OK)
@@ -168,6 +210,8 @@ class IntegritySpec extends Specification {
       Graph(Config.conf.underlying)(ExecutionContext.Implicits.global)
       Management.deleteService(testServiceName)
       Management.deleteLabel(testLabelName)
+      Management.deleteLabel(testLabelName2)
+
 
       // 1. createService
       var result = AdminController.createServiceInner(Json.parse(createService))
@@ -182,27 +226,42 @@ class IntegritySpec extends Specification {
         case Some(label) =>
           Logger.error(s">> Label already exist: $createLabel, $label")
       }
+
+      // 3. create second label
+      Label.findByName(testLabelName2, useCache = false) match {
+        case None =>
+          result = AdminController.createLabelInner(Json.parse(createLabel2))
+          Logger.error(s">> Label created : $createLabel2, $result")
+        case Some(label) =>
+          Logger.error(s">> Label already exist: $createLabel2, $label")
+      }
+      // 4. create vertex
+      vertexPropsKeys.map { case (key, keyType) =>
+        Management.addVertexProp(testServiceName, testColumnName, key, keyType)
+      }
     }
   }
 
 
   def runTC(tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]) = {
     for {
+      labelName <- List(testLabelName, testLabelName2)
       i <- (1 to NUM_OF_EACH_TEST)
     } {
-      val srcId = (tcNum * 1000) + i
-      val tgtId = srcId + 1000
+      val srcId = ((tcNum * 1000) + i).toString
+      val tgtId = if (labelName == testLabelName) s"${srcId + 1000}" else s"${(srcId + 1000)}abc"
+
       val maxTs = opWithProps.map(t => t._1).max
 
       /** insert edges */
       println(s"---- TC${tcNum}_init ----")
       val bulkEdge = (for ((ts, op, props) <- opWithProps) yield {
-        List(ts, op, "e", srcId, tgtId, testLabelName, props).mkString("\t")
+        List(ts, op, "e", srcId, tgtId, labelName, props).mkString("\t")
       }).mkString("\n")
 
       val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)
       println(s">> $req, $bulkEdge")
-      val res = Await.result(route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)).get, HTTP_REQ_WAITING_TIME)
+      val res = Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
 
       res.header.status must equalTo(200)
       Thread.sleep(asyncFlushInterval)
@@ -210,14 +269,15 @@ class IntegritySpec extends Specification {
 
 
       for {
-        label <- Label.findByName(testLabelName)
+        label <- Label.findByName(labelName)
         direction <- List("out", "in")
       } {
         val (serviceName, columnName, id, otherId) = direction match {
           case "out" => (label.srcService.serviceName, label.srcColumn.columnName, srcId, tgtId)
           case "in" => (label.tgtService.serviceName, label.tgtColumn.columnName, tgtId, srcId)
         }
-        val query = queryJson(serviceName, columnName, testLabelName, id, direction)
+
+        val query = queryJson(serviceName, columnName, labelName, id, direction)
         val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(query)).get
         val jsResult = commonCheck(ret)
 
@@ -445,6 +505,38 @@ class IntegritySpec extends Specification {
       }
     }
   }
+  "vetex tc" should {
+    "tc1" in {
+      running(FakeApplication()) {
+        val ids = (0 until 3).toList
+        val (serviceName, columnName) = (testServiceName, testColumnName)
 
+        val data = vertexInsertsPayload(serviceName, columnName, ids)
+        val payload = Json.parse(Json.toJson(data).toString)
+
+        val req = FakeRequest(POST, s"/graphs/vertices/insert/$serviceName/$columnName").withBody(payload)
+        println(s">> $req, $payload")
+        val res = Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
+        println(res)
+        res.header.status must equalTo(200)
+        Thread.sleep(asyncFlushInterval)
+        println("---------------")
+
+        val query = vertexQueryJson(serviceName, columnName, ids)
+        val retFuture = route(FakeRequest(POST, "/graphs/getVertices").withJsonBody(query)).get
+
+        val ret = contentAsJson(retFuture)
+        println(">>>", ret)
+        val fetched = ret.as[Seq[JsValue]]
+        for {
+          (d, f) <- data.zip(fetched)
+        } yield {
+          (d \ "id") must beEqualTo((f \ "id"))
+          ((d \ "props") \ "age") must beEqualTo(((f \ "props") \ "age"))
+        }
+      }
+      true
+    }
+  }
 }
 

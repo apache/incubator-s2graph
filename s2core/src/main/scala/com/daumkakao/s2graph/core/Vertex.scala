@@ -13,7 +13,7 @@ import org.hbase.async.{DeleteRequest, HBaseRpc, PutRequest, GetRequest}
 /**
   */
 case class Vertex(id: VertexId,
-                  ts: Long,
+                  ts: Long = System.currentTimeMillis(),
                   props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
                   op: Byte = 0) extends GraphElement {
   import GraphConstant._
