@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core
 
 // import com.daumkakao.s2graph.core.mysqls._
+
 import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.parsers.Where
@@ -13,9 +14,11 @@ import org.hbase.async.{GetRequest, ScanFilter, ColumnRangeFilter}
 
 object Query {
   val initialScore = 1.0
+
   object DuplicatePolicy extends Enumeration {
     type DuplicatePolicy = Value
     val First, Sum, CountSum, Raw = Value
+
     def apply(policy: String): Value = {
       policy match {
         case "sum" => Query.DuplicatePolicy.Sum
@@ -25,39 +28,59 @@ object Query {
       }
     }
   }
+
 }
+
 case class Query(vertices: Seq[Vertex], steps: List[Step],
-  unique: Boolean = true, removeCycle: Boolean = false) {
+                 unique: Boolean = true, removeCycle: Boolean = false) {
+
+  val labelSrcTgtInvertedMap = (for {
+    step <- steps
+    param <- step.queryParams
+  } yield {
+      param.label.id.get -> {
+        param.label.srcColumn.columnName != vertices.head.serviceColumn.columnName
+      }
+
+    }).toMap
 }
+
 case class Step(queryParams: List[QueryParam]) {
   lazy val excludes = queryParams.filter(qp => qp.exclude)
   lazy val includes = queryParams.filterNot(qp => qp.exclude)
   lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 }
+
 case class VertexParam(vertices: Seq[Vertex]) {
   var filters: Option[Map[Byte, InnerValLike]] = None
+
   def has(what: Option[Map[Byte, InnerValLike]]): VertexParam = {
     what match {
       case None => this
       case Some(w) => has(w)
     }
   }
+
   def has(what: Map[Byte, InnerValLike]): VertexParam = {
     this.filters = Some(what)
     this
   }
 
 }
+
 object RankParam {
   def apply(labelId: Int, keyAndWeights: Seq[(Byte, Double)]) = {
     new RankParam(labelId, keyAndWeights)
   }
 }
-class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Seq.empty[(Byte, Double)]) { // empty => Count
+
+class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Seq.empty[(Byte, Double)]) {
+  // empty => Count
   def defaultKey() = {
     this.keySeqAndWeights = List((LabelMeta.countSeq, 1.0))
     this
   }
+
   def singleKey(key: String) = {
     this.keySeqAndWeights =
       LabelMeta.findByName(labelId, key) match {
@@ -100,9 +123,9 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
 
   //  var filters = new FilterList(FilterList.Operator.MUST_PASS_ALL)
   //  val scanFilters = ListBuffer.empty[ScanFilter]
-//  var filters = new FilterList(List.empty[ScanFilter], FilterList.Operator.MUST_PASS_ALL)
+  //  var filters = new FilterList(List.empty[ScanFilter], FilterList.Operator.MUST_PASS_ALL)
   var columnRangeFilter: ColumnRangeFilter = null
-//  var columnPaginationFilter: ColumnPaginationFilter = null
+  //  var columnPaginationFilter: ColumnPaginationFilter = null
   var exclude = false
   var include = false
 
@@ -118,27 +141,32 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     this.isRowKeyOnly = isRowKeyOnly
     this
   }
+
   def isInverted(isInverted: Boolean): QueryParam = {
     this.isInverted = isInverted
     this
   }
+
   def labelOrderSeq(labelOrderSeq: Byte): QueryParam = {
     this.labelOrderSeq = labelOrderSeq
     this
   }
+
   def limit(offset: Int, limit: Int): QueryParam = {
     /** since degree info is located on first always */
     this.limit = if (offset == 0) limit + 1 else limit
     this.offset = offset
-//    this.columnPaginationFilter = new ColumnPaginationFilter(this.limit, this.offset)
+    //    this.columnPaginationFilter = new ColumnPaginationFilter(this.limit, this.offset)
     this
   }
+
   def interval(fromTo: Option[(Seq[(Byte, InnerValLike)], Seq[(Byte, InnerValLike)])]): QueryParam = {
     fromTo match {
       case Some((from, to)) => interval(from, to)
       case _ => this
     }
   }
+
   def interval(from: Seq[(Byte, InnerValLike)], to: Seq[(Byte, InnerValLike)]): QueryParam = {
     import types2.HBaseDeserializable._
     //    val len = label.orderTypes.size.toByte
@@ -167,6 +195,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
       case _ => this
     }
   }
+
   def duration(minTs: Long, maxTs: Long): QueryParam = {
     this.duration = Some((minTs, maxTs))
     this
@@ -176,6 +205,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     this.rank = r
     this
   }
+
   def exclude(filterOut: Boolean): QueryParam = {
     this.exclude = filterOut
     this

@@ -44,7 +44,7 @@ class IntegritySpec extends Specification {
   protected val testColumnType = "long"
   protected val testTgtColumnName = "item_id_test"
   lazy val TC_WAITING_TIME = 1200
-
+  val NUM_OF_EACH_TEST = 3
   lazy val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
   val asyncFlushInterval = 1000
 
@@ -123,7 +123,7 @@ class IntegritySpec extends Specification {
     ],
     "props": [],
     "consistencyLevel": "strong",
-    "isDirected": true
+    "isDirected": false
   }"""
 
   val vertexPropsKeys = List(
@@ -143,7 +143,7 @@ class IntegritySpec extends Specification {
     ]
     }"""
 
-  val NUM_OF_EACH_TEST = 10
+
   val TS = System.currentTimeMillis()
   def queryJson(serviceName: String, columnName: String, labelName: String, id: String, dir: String) = {
     val s = s"""{
@@ -277,7 +277,6 @@ class IntegritySpec extends Specification {
         label <- Label.findByName(labelName)
         direction <- List("out", "in")
       } {
-
         val (serviceName, columnName, id, otherId) = direction match {
           case "out" => (label.srcService.serviceName, label.srcColumn.columnName, srcId, tgtId)
           case "in" => (label.tgtService.serviceName, label.tgtColumn.columnName, tgtId, srcId)
@@ -296,8 +295,8 @@ class IntegritySpec extends Specification {
         val from = (results \\ "from").seq.last.toString.replaceAll("\"", "")
         val to = (results \\ "to").seq.last.toString.replaceAll("\"", "")
 
-        from must equalTo(id.toString)
-        to must equalTo(otherId.toString)
+        (if (direction == "in") to else from) must equalTo(id.toString)
+        (if (direction == "in") from else to) must equalTo(otherId.toString)
         (results \\ "_timestamp").seq.last.as[Long] must equalTo(maxTs)
         for ((key, expectedVal) <- expected) {
           propsLs.last.as[JsObject].keys.contains(key) must equalTo(true)

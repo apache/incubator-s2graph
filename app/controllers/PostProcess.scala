@@ -57,7 +57,7 @@ object PostProcess extends JSONParser {
     Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons.asInstanceOf[List[JsObject]])
   }
 
-  def simple(edgesPerVertex: Seq[Iterable[(Edge, Double)]]) = {
+  def simple(edgesPerVertex: Seq[Iterable[(Edge, Double)]], q: Query) = {
     val ids = edgesPerVertex.flatMap(edges => edges.map(edge => edge._1.srcVertex.innerId.toString))
     val size = ids.size
     queryLogger.info(s"Result: $size")
@@ -65,7 +65,7 @@ object PostProcess extends JSONParser {
     //    sortWithFormatted(ids)(false)
   }
 
-  def summarizeWithListExcludeFormatted(exclude: Seq[Iterable[(Edge, Double)]], edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]]) = {
+  def summarizeWithListExcludeFormatted(exclude: Seq[Iterable[(Edge, Double)]], edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]], q: Query) = {
     val excludeIds = exclude.flatMap(ex => ex.map { case (edge, score) => (edge.tgtVertex.innerId, true) }) toMap
 
     val seen = new HashSet[InnerValLike]
@@ -96,14 +96,14 @@ object PostProcess extends JSONParser {
     Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
   }
 
-  def summarizeWithList(edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]]) = {
+  def summarizeWithList(edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]], q: Query) = {
     val edgesWithRank = edgesPerVertexWithRanks.flatten
     val jsons = groupEdgeResult(edgesWithRank)
     val reverseSort = sortWithFormatted(jsons) _
     reverseSort(true)
   }
 
-  def summarizeWithListFormatted(edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]]) = {
+  def summarizeWithListFormatted(edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]], q: Query) = {
     val edgesWithRank = edgesPerVertexWithRanks.flatten
     val jsons = groupEdgeResult(edgesWithRank)
     val reverseSort = sortWithFormatted(jsons) _
@@ -114,12 +114,15 @@ object PostProcess extends JSONParser {
     Json.obj("edges" -> edgesPerVertex.toString)
   }
 
-  def toSimpleVertexArrJson(edgesPerVertex: Seq[Iterable[(Edge, Double)]]) = {
+
+
+  def toSimpleVertexArrJson(edgesPerVertex: Seq[Iterable[(Edge, Double)]], q: Query) = {
     val withScore = true
     import play.api.libs.json.Json
     val degreeJsons = ListBuffer[JsObject]()
     val degrees = ListBuffer[JsObject]()
     val edgeJsons = ListBuffer[JsObject]()
+
     for {
       edges <- edgesPerVertex
       (edge, score) <- edges
@@ -132,7 +135,7 @@ object PostProcess extends JSONParser {
         )
       } else {
         for {
-          edgeJson <- edgeToJson(edge, score)
+          edgeJson <- edgeToJson(edge, score, q.labelSrcTgtInvertedMap(edge.labelWithDir.labelId))
         } {
           edgeJsons += edgeJson
         }
@@ -151,14 +154,14 @@ object PostProcess extends JSONParser {
   }
 
   def toSiimpleVertexArrJson(exclude: Seq[Iterable[(Edge, Double)]],
-                             edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]]) = {
+                             edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]], q: Query) = {
     val excludeIds = exclude.flatMap(ex => ex.map { case (edge, score) => (edge.tgtVertex.innerId, true) }) toMap
     val withScore = true
     import play.api.libs.json.Json
     val jsons = for {
       edges <- edgesPerVertexWithRanks
       (edge, score) <- edges if !excludeIds.contains(edge.tgtVertex.innerId)
-      edgeJson <- edgeToJson(edge, score)
+      edgeJson <- edgeToJson(edge, score, q.labelSrcTgtInvertedMap(edge.labelWithDir.labelId))
     } yield edgeJson
 
     val results =
@@ -185,16 +188,28 @@ object PostProcess extends JSONParser {
     }
   }
 
-  def edgeToJson(edge: Edge, score: Double): Option[JsObject] = {
-    //    
+  def edgeToJson(edge: Edge, score: Double, shouldBeReverted: Boolean): Option[JsObject] = {
+    //
     //    Logger.debug(s"edgeProps: ${edge.props} => ${props}")
     val json = for {
-      from <- innerValToJsValue(edge.srcVertex.id.innerId, edge.label.srcColumnWithDir(edge.labelWithDir.dir).columnType)
-      to <- innerValToJsValue(edge.tgtVertex.id.innerId, edge.label.tgtColumnWithDir(edge.labelWithDir.dir).columnType)
+      from <- {
+        if (shouldBeReverted) {
+          innerValToJsValue(edge.srcVertex.id.innerId, edge.label.tgtColumn.columnType)
+        } else {
+          innerValToJsValue(edge.srcVertex.id.innerId, edge.label.srcColumn.columnType)
+        }
+      }
+      to <- {
+        if (shouldBeReverted) {
+          innerValToJsValue(edge.tgtVertex.id.innerId, edge.label.srcColumn.columnType)
+        } else {
+          innerValToJsValue(edge.tgtVertex.id.innerId, edge.label.tgtColumn.columnType)
+        }
+      }
     } yield {
         Json.obj(
-          "from" -> from,
-          "to" -> to,
+          "from" -> (if (edge.labelWithDir.dir == 1) to else from),
+          "to" -> (if (edge.labelWithDir.dir == 1) from else to),
           "label" -> edge.label.label,
           "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
           "_timestamp" -> edge.ts,

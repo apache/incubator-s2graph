@@ -192,10 +192,19 @@ case class Label(kvsParam: Map[KEY, VAL]) extends Model[Label]("HLabel", kvsPara
   lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
 
   def srcColumnWithDir(dir: Int) = {
-    if (dir == GraphUtil.directions("out")) srcColumn else tgtColumn
+    if (isDirected) {
+      if (dir == GraphUtil.directions("out")) srcColumn else tgtColumn
+    } else {
+      srcColumn
+    }
   }
   def tgtColumnWithDir(dir: Int) = {
-    if (dir == GraphUtil.directions("out")) tgtColumn else srcColumn
+    if (isDirected) {
+      if (dir == GraphUtil.directions("out")) tgtColumn else srcColumn
+    } else {
+      tgtColumn
+    }
+
   }
   def init() = {
     metas

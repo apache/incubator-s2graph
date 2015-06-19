@@ -14,7 +14,6 @@ import play.api.Logger
 import scala.collection.mutable.ListBuffer
 
 
-
 case class EdgeWithIndexInverted(srcVertex: Vertex,
                                  tgtVertex: Vertex,
                                  labelWithDir: LabelWithDirection,
@@ -195,6 +194,7 @@ case class Edge(srcVertex: Vertex,
                 version: Long = System.currentTimeMillis(),
                 propsWithTs: Map[Byte, InnerValLikeWithTs] = Map.empty[Byte, InnerValLikeWithTs])
   extends GraphElement with JSONParser {
+
 
   import Edge._
 
@@ -414,14 +414,14 @@ case class Edge(srcVertex: Vertex,
               this.relatedEdges.flatMap { relEdge =>
                 relEdge.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
               }
-//              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
+            //              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
             case (false, true) =>
 
               /** no edges to insert but there is old edges to delete so decrease degree by 1 */
               this.relatedEdges.flatMap { relEdge =>
                 relEdge.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
               }
-//              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
+            //              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
             case (false, false) =>
 
               /** update on existing edges so no change on degree */
@@ -524,21 +524,21 @@ case class Edge(srcVertex: Vertex,
     }
   }
 
-
-    override def toString(): String = {
-      val ls = ListBuffer(ts, GraphUtil.fromOp(op), "e",
-        srcVertex.innerId, tgtVertex.innerId, label.label)
-      //    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
-      if (!propsPlusTs.isEmpty) ls += propsPlusTs
-      ls.mkString("\t")
-    }
-
-    def toStringRaw(): String = {
-      val ls = ListBuffer(ts, GraphUtil.fromOp(op), "e",
-        srcVertex.innerId, tgtVertex.innerId, label.label)
-      if (!propsPlusTs.isEmpty) ls += propsPlusTs
-      ls.mkString("\t")
-    }
+//
+//  override def toString(): String = {
+//    val ls = ListBuffer(ts, GraphUtil.fromOp(op), "e",
+//      srcVertex.innerId, tgtVertex.innerId, label.label)
+//    //    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
+//    if (!propsPlusTs.isEmpty) ls += propsPlusTs
+//    ls.mkString("\t")
+//  }
+//
+//  def toStringRaw(): String = {
+//    val ls = ListBuffer(ts, GraphUtil.fromOp(op), "e",
+//      srcVertex.innerId, tgtVertex.innerId, label.label)
+//    if (!propsPlusTs.isEmpty) ls += propsPlusTs
+//    ls.mkString("\t")
+//  }
 }
 
 case class EdgeUpdate(indexedEdgeMutations: List[HBaseRpc] = List.empty[HBaseRpc],

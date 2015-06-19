@@ -54,7 +54,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
     getEdgesExcludedInner(request.body)
   }
 
-  private def getEdgesAsync(jsonQuery: JsValue)(post: Seq[Iterable[(Edge, Double)]] => JsValue): Future[Result] = {
+  private def getEdgesAsync(jsonQuery: JsValue)(post: (Seq[Iterable[(Edge, Double)]], Query) => JsValue): Future[Result] = {
     try {
       val queryTemplateId = (jsonQuery \ "steps").toString()
       getOrElseUpdateMetric(queryTemplateId)(metricRegistry.meter(queryTemplateId)).mark()
@@ -66,7 +66,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
       Logger.info(s"$q")
       val future = Graph.getEdgesAsync(q)
       future map { edges =>
-        val json = post(edges)
+        val json = post(edges, q)
         Ok(s"${json}\n").as(applicationJsonHeader)
       }
     } catch {
@@ -78,13 +78,13 @@ object QueryController extends Controller with RequestParser with Instrumented {
       case e: Throwable => Future {
         Logger.error(s"$e", e)
         // watch tower
-        Ok(s"${post(emptyResult)}\n").as(applicationJsonHeader)
+        Ok(s"\n").as(applicationJsonHeader)
       }
     }
   }
 
   private def getEdgesExcludedAsync(jsonQuery: JsValue)(post: (Seq[Iterable[(Edge, Double)]],
-    Seq[Iterable[(Edge, Double)]]) => JsValue): Future[Result] = {
+    Seq[Iterable[(Edge, Double)]], Query) => JsValue): Future[Result] = {
     try {
       val queryTemplateId = (jsonQuery \ "steps").toString()
       getOrElseUpdateMetric[Meter](queryTemplateId)(metricRegistry.meter(queryTemplateId)).mark()
@@ -96,7 +96,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
       val mineQ = Query(q.vertices, List(q.steps.last))
 
       for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
-        val json = post(mine, others)
+        val json = post(mine, others, q)
         Ok(s"$json\n").as(applicationJsonHeader)
       }
     } catch {
@@ -108,13 +108,13 @@ object QueryController extends Controller with RequestParser with Instrumented {
       case e: Throwable => Future {
         Logger.error(s"$e", e)
         // watch tower
-        Ok(s"${post(emptyResult, emptyResult)}\n").as(applicationJsonHeader)
+        Ok(s"\n").as(applicationJsonHeader)
       }
     }
   }
 
-  private def getEdgesInner(jsValue: JsValue) = {
-    getEdgesAsync(jsValue)(PostProcess.toSimpleVertexArrJson)
+  private def getEdgesInner(jsonQuery: JsValue) = {
+    getEdgesAsync(jsonQuery)(PostProcess.toSimpleVertexArrJson)
   }
 
   private def getEdgesExcludedInner(jsValue: JsValue) = {
@@ -169,7 +169,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
       val mineQ = Query(q.vertices, List(q.steps.last))
 
       for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
-        val json = PostProcess.summarizeWithListExcludeFormatted(mine, others)
+        val json = PostProcess.summarizeWithListExcludeFormatted(mine, others, q)
         Ok(s"$json\n").as(applicationJsonHeader)
       }
     } catch {
@@ -178,7 +178,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
       }
       case e: Throwable => Future {
         // watch tower
-        Ok(s"${PostProcess.summarizeWithListExcludeFormatted(emptyResult, emptyResult)}\n").as(applicationJsonHeader)
+        Ok(s"\n").as(applicationJsonHeader)
       }
     }
   }
@@ -230,7 +230,8 @@ object QueryController extends Controller with RequestParser with Instrumented {
         if (isReverted) edgesWithScores.map { edgesWithScore =>
           edgesWithScore.map { case (edge, score) => (edge.duplicateEdge, score) }
         } else edgesWithScores
-      Ok(PostProcess.toSimpleVertexArrJson(x)).as(applicationJsonHeader)
+//      Ok(PostProcess.toSimpleVertexArrJson(x)).as(applicationJsonHeader)
+      Ok("\n")
     }
     } catch {
       case e: Throwable => Future.successful(BadRequest(e.toString()).as(applicationJsonHeader))

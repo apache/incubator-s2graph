@@ -319,28 +319,40 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
 
     val op = GraphUtil.operations("insert")
 
-    val hashKey = EdgeWithIndexInverted(srcVertex, tgtVertex, outDir, op, System.currentTimeMillis(), Map.empty[Byte, InnerValLikeWithTs])
+//    val hashKey = EdgeWithIndexInverted(srcVertex, tgtVertex, outDir, op, System.currentTimeMillis(), Map.empty[Byte, InnerValLikeWithTs])
 
-    val outEdge = Edge(srcVertex, tgtVertex, outDir)
-    val inEdge = Edge(srcVertex, tgtVertex, inDir)
+//    val outEdge = Edge(srcVertex, tgtVertex, outDir)
+//    outEdge.relatedEdges.foreach { edge =>
+//      println(edge)
+//    }
+//
+//    val inEdge = Edge(srcVertex, tgtVertex, inDir)
+//    inEdge.relatedEdges.foreach { edge =>
+//      println(edge)
+//    }
     val bothEdge = Edge(srcVertex, tgtVertex, bothDir)
-
-    println()
-    println(outEdge, "srcVertex", outEdge.srcForVertex)
-    println(outEdge, "tgtVertex", outEdge.tgtForVertex)
-
-    println()
-    println(inEdge, "srcVertex", inEdge.srcForVertex)
-    println(inEdge, "tgtVertex", inEdge.tgtForVertex)
-    println()
-    println(bothEdge, "srcVertex", bothEdge.srcForVertex)
-    println(bothEdge, "tgtVertex", bothEdge.tgtForVertex)¡
-    println()
-    val a = outEdge.toInvertedEdgeHashLike()
-    val b = inEdge.toInvertedEdgeHashLike()
-    val c = bothEdge.toInvertedEdgeHashLike()
-
-    a == b && b == c shouldBe true
+    println(s"edge: $bothEdge")
+    bothEdge.relatedEdges.foreach { edge =>
+      println(edge)
+    }
+//
+//
+//    println()
+//    println(outEdge, "srcVertex", outEdge.srcForVertex)
+//    println(outEdge, "tgtVertex", outEdge.tgtForVertex)
+//
+//    println()
+//    println(inEdge, "srcVertex", inEdge.srcForVertex)
+//    println(inEdge, "tgtVertex", inEdge.tgtForVertex)
+//    println()
+//    println(bothEdge, "srcVertex", bothEdge.srcForVertex)
+//    println(bothEdge, "tgtVertex", bothEdge.tgtForVertex)
+//    println()
+//    val a = outEdge.toInvertedEdgeHashLike()
+//    val b = inEdge.toInvertedEdgeHashLike()
+//    val c = bothEdge.toInvertedEdgeHashLike()
+//
+//    a == b && b == c shouldBe true
 
   }
 }

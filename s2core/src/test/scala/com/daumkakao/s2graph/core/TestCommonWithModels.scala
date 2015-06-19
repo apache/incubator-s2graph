@@ -123,9 +123,8 @@ trait TestCommonWithModels {
   lazy val columnV2 = ServiceColumn.find(serviceV2.id.get, columnNameV2, useCache = false).get
   
   lazy val tgtColumn = ServiceColumn.find(service.id.get, tgtColumnName, useCache = false).get
+  lazy val tgtColumnV2 = ServiceColumn.find(serviceV2.id.get, tgtColumnNameV2, useCache = false).get
 
-  
-  lazy val tgtColumnV2 = ServiceColumn.find(service.id.get, tgtColumnNameV2, useCache = false).get
 
   lazy val label = Label.findByName(labelName, useCache = false).get
   lazy val labelV2 = Label.findByName(labelNameV2, useCache = false).get
