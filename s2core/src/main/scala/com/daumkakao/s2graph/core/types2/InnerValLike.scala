@@ -186,8 +186,8 @@ object InnerVal extends HBaseDeserializable {
           obj.value match {
             case str: String => InnerVal.withStr(str, toVersion)
             case b: Boolean => InnerVal.withBoolean(b, toVersion)
-            case n: Any if NUMERICS.contains(n) => InnerVal.withNumber(BigDecimal(n.toString), toVersion)
-            case _ => throw notSupportedEx(toVersion)
+            case n: BigDecimal => InnerVal.withNumber(n, toVersion)
+            case _ => throw notSupportedEx(s"v2 to v1: $obj -> $toVersion")
           }
         } else {
           innerVal

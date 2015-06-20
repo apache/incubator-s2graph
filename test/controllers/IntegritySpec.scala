@@ -23,11 +23,6 @@ import play.api.test.{FakeApplication, FakeRequest, Helpers, WithApplication}
 import scala.concurrent.ExecutionContext
 
 
-/**
- * Data Integrity Test specification
- * @author June.k( Junki Kim, june.k@kakao.com )
- * @since 15. 1. 5.
- */
 
 class IntegritySpec extends Specification {
   val curTime = System.currentTimeMillis
@@ -40,11 +35,12 @@ class IntegritySpec extends Specification {
   protected val testServiceName = "s2graph"
   protected val testLabelName = "s2graph_label_test"
   protected val testLabelName2 = "s2graph_label_test_2"
+  protected val testLabelNameV1 = "s2graph_label_test_v1"
   protected val testColumnName = "user_id_test"
   protected val testColumnType = "long"
   protected val testTgtColumnName = "item_id_test"
   lazy val TC_WAITING_TIME = 1200
-  val NUM_OF_EACH_TEST = 3
+  val NUM_OF_EACH_TEST = 30
   lazy val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
   val asyncFlushInterval = 1000
 
@@ -126,6 +122,43 @@ class IntegritySpec extends Specification {
     "isDirected": false
   }"""
 
+  val createLabel3 = s"""
+  {
+    "label": "$testLabelNameV1",
+    "srcServiceName": "$testServiceName",
+    "srcColumnName": "$testColumnName",
+    "srcColumnType": "long",
+    "tgtServiceName": "$testServiceName",
+    "tgtColumnName": "$testTgtColumnName",
+    "tgtColumnType": "string",
+    "indexProps": [
+    {
+      "name": "time",
+      "dataType": "long",
+      "defaultValue": 0
+    },
+    {
+      "name": "weight",
+      "dataType": "long",
+      "defaultValue": 0
+    },
+    {
+      "name": "is_hidden",
+      "dataType": "boolean",
+      "defaultValue": false
+    },
+    {
+      "name": "is_blocked",
+      "dataType": "boolean",
+      "defaultValue": false
+    }
+    ],
+    "props": [],
+    "consistencyLevel": "strong",
+    "isDirected": true,
+    "schemaVersion": "v1"
+  }"""
+
   val vertexPropsKeys = List(
     ("age", "int")
   )
@@ -167,6 +200,17 @@ class IntegritySpec extends Specification {
     }"""
     println(s)
     Json.parse(s)
+  }
+  def checkEdgeQueryJson(params: Seq[(String, String, String, String)]) = {
+    val arr = for {
+      (label, dir, from, to) <- params
+    } yield {
+      Json.obj("label" -> label, "direction" -> dir, "from" -> from, "to" -> to)
+    }
+
+    val s = Json.toJson(arr)
+    println(s)
+    s
   }
   def vertexQueryJson(serviceName: String, columnName: String, ids: Seq[Int]) = {
     Json.parse(
@@ -237,7 +281,17 @@ class IntegritySpec extends Specification {
         case Some(label) =>
           Logger.error(s">> Label already exist: $createLabel2, $label")
       }
-      // 4. create vertex
+
+      // 4. create old version(v1) label
+      Label.findByName(testLabelNameV1, useCache = false) match {
+        case None =>
+          result = AdminController.createLabelInner(Json.parse(createLabel3))
+          Logger.error(s">> Label created : $createLabel3, $result")
+        case Some(label) =>
+          Logger.error(s">> Label already exist: $createLabel3, $label")
+      }
+
+      // 5. create vertex
       vertexPropsKeys.map { case (key, keyType) =>
         Management.addVertexProp(testServiceName, testColumnName, key, keyType)
       }
@@ -281,7 +335,7 @@ class IntegritySpec extends Specification {
           case "out" => (label.srcService.serviceName, label.srcColumn.columnName, srcId, tgtId)
           case "in" => (label.tgtService.serviceName, label.tgtColumn.columnName, tgtId, srcId)
         }
-        val qId = if (labelName == testLabelName2) "\"" + id + "\"" else id
+        val qId = if (labelName == testLabelName) id else "\"" + id + "\""
         val query = queryJson(serviceName, columnName, labelName, qId, direction)
         val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(query)).get
         val jsResult = commonCheck(ret)
