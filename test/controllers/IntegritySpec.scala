@@ -40,7 +40,7 @@ class IntegritySpec extends Specification {
   protected val testColumnType = "long"
   protected val testTgtColumnName = "item_id_test"
   lazy val TC_WAITING_TIME = 1200
-  val NUM_OF_EACH_TEST = 10
+  val NUM_OF_EACH_TEST = 3
   lazy val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
   val asyncFlushInterval = 1000
 
@@ -303,7 +303,7 @@ class IntegritySpec extends Specification {
 
   def runTC(tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]) = {
     for {
-      labelName <- List(testLabelName, testLabelName2)
+      labelName <- List(testLabelName, testLabelName2, testLabelNameV1)
       i <- (1 to NUM_OF_EACH_TEST)
     } {
       val srcId = ((tcNum * 1000) + i).toString
