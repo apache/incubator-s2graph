@@ -40,7 +40,7 @@ class IntegritySpec extends Specification {
   protected val testColumnType = "long"
   protected val testTgtColumnName = "item_id_test"
   lazy val TC_WAITING_TIME = 1200
-  val NUM_OF_EACH_TEST = 30
+  val NUM_OF_EACH_TEST = 10
   lazy val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
   val asyncFlushInterval = 1000
 
@@ -129,7 +129,7 @@ class IntegritySpec extends Specification {
     "srcColumnName": "$testColumnName",
     "srcColumnType": "long",
     "tgtServiceName": "$testServiceName",
-    "tgtColumnName": "$testTgtColumnName",
+    "tgtColumnName": "${testTgtColumnName}_v1",
     "tgtColumnType": "string",
     "indexProps": [
     {

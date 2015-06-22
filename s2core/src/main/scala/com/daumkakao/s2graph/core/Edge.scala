@@ -276,18 +276,23 @@ case class Edge(srcVertex: Vertex,
   }
 
   def toInvertedEdgeHashLike(): EdgeWithIndexInverted = {
-    val (smaller, larger) =
-      if (srcForVertex.innerId == tgtForVertex.innerId) {
-        if (srcForVertex.id.colId <= tgtForVertex.id.colId) {
-          (srcForVertex, tgtForVertex)
-        } else {
-          (tgtForVertex, srcForVertex)
-        }
-      } else if (srcForVertex.innerId < tgtForVertex.innerId) {
-        (srcForVertex, tgtForVertex)
-      } else {
-        (tgtForVertex, srcForVertex)
-      }
+//    val (smaller, larger) =
+//      if (srcForVertex.innerId == tgtForVertex.innerId) {
+//        if (srcForVertex.id.colId <= tgtForVertex.id.colId) {
+//          (srcForVertex, tgtForVertex)
+//        } else {
+//          (tgtForVertex, srcForVertex)
+//        }
+//      } else if (srcForVertex.innerId < tgtForVertex.innerId) {
+//        (srcForVertex, tgtForVertex)
+//      } else {
+//        (tgtForVertex, srcForVertex)
+//      }
+    val (smaller, larger) = if (srcVertex.id.colId == label.srcColumn.id.get) {
+      (srcVertex, tgtVertex)
+    } else {
+      (tgtVertex, srcVertex)
+    }
 
     /** force direction as out on invertedEdge */
     val newLabelWithDir = LabelWithDirection(labelWithDir.labelId, GraphUtil.directions("out"))

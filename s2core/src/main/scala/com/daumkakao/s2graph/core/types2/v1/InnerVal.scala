@@ -164,7 +164,7 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
 //        case (s1: String, s2: String) => s1.compare(s2)
 //        case _ => throw new Exception("Please check a type of the compare operands")
 //      }
-      Bytes.compareTo(bytes, other.bytes)
+      Bytes.compareTo(bytes, other.bytes) * -1
     }
   }
 

@@ -98,7 +98,7 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
   def compare(other: InnerValLike): Int = {
     if (!other.isInstanceOf[InnerVal])
       throw new RuntimeException(s"compare $this vs $other")
-    Bytes.compareTo(bytes, other.bytes)
+    Bytes.compareTo(bytes, other.bytes) * -1
 //    (value, other.value) match {
 //      case (v1: BigDecimal, v2: BigDecimal) =>
 //        v1.compare(v2)
