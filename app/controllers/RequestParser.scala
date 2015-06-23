@@ -1,7 +1,8 @@
 package controllers
 
 import com.daumkakao.s2graph.core._
-// import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.mysqls._
+
 import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.parsers.WhereParser
@@ -19,32 +20,34 @@ trait RequestParser extends JSONParser {
     val ret = for {
       js <- parse[Option[JsObject]](value, "scoring")
     } yield {
-      for {
-        (k, v) <- js.fields
-        labelOrderType <- LabelMeta.findByName(labelId, k)
-      } yield {
-        val value = v match {
-          case n: JsNumber => n.as[Double]
-          case _ => throw new Exception("scoring weight should be double.")
+        for {
+          (k, v) <- js.fields
+          labelOrderType <- LabelMeta.findByName(labelId, k)
+        } yield {
+          val value = v match {
+            case n: JsNumber => n.as[Double]
+            case _ => throw new Exception("scoring weight should be double.")
+          }
+          (labelOrderType.seq, value)
         }
-        (labelOrderType.seq, value)
       }
-    }
     ret
   }
+
   def extractInterval(label: Label, jsValue: JsValue) = {
     val ret = for {
       js <- parse[Option[JsObject]](jsValue, "interval")
       fromJs <- parse[Option[JsObject]](js, "from")
       toJs <- parse[Option[JsObject]](js, "to")
     } yield {
-      val from = Management.toProps(label, fromJs)
-      val to = Management.toProps(label, toJs)
-      (from, to)
-    }
+        val from = Management.toProps(label, fromJs)
+        val to = Management.toProps(label, toJs)
+        (from, to)
+      }
     //    Logger.debug(s"extractInterval: $ret")
     ret
   }
+
   def extractDuration(label: Label, jsValue: JsValue) = {
     for {
       js <- parse[Option[JsObject]](jsValue, "duration")
@@ -54,42 +57,44 @@ trait RequestParser extends JSONParser {
       (minTs, maxTs)
     }
   }
+
   def extractHas(label: Label, jsValue: JsValue) = {
     val ret = for {
       js <- parse[Option[JsObject]](jsValue, "has")
     } yield {
-      for {
-        (k, v) <- js.fields
-        labelMeta <- LabelMeta.findByName(label.id.get, k)
-        value <- jsValueToInnerVal(v, labelMeta.dataType, label.schemaVersion)
-      } yield {
-        (labelMeta.seq -> value)
+        for {
+          (k, v) <- js.fields
+          labelMeta <- LabelMeta.findByName(label.id.get, k)
+          value <- jsValueToInnerVal(v, labelMeta.dataType, label.schemaVersion)
+        } yield {
+          (labelMeta.seq -> value)
+        }
       }
-    }
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
-//  def hasOrWhere(label: HLabel, jsValue: JsValue): Set[InnerVal] = {
-//    for {
-//      (propName, v) <- jsValue.as[JsObject].fields
-//      propMeta <- HLabelMeta.findByName(label.id.get, propName)
-////      innerVal <- jsValueToInnerVal(v, propMeta.dataType)
-//    }  yield {
-//      propName -> (v match {
-//        case arr: JsArray => // set
-//          Set(arr.as[List[JsValue]].flatMap { e =>
-//            jsValueToInnerVal(e, propMeta.dataType)
-//          })
-//        case value: JsValue => // exact
-//          Set(List(v).flatMap { jsValue =>
-//            jsValueToInnerVal(jsValue, propMeta.dataType)
-//          })
-//        case obj: JsObject => // from, to
-//          val (fromJsVal, toJsVal) = ((obj \ "from").as[JsValue], (obj \ "to").as[JsValue])
-//          val (from, to) = (toInnerVal(fromJsVal), toInnerVal(toJsVal))
-//          (from, to)
-//      })
-//    }
-//  }
+
+  //  def hasOrWhere(label: HLabel, jsValue: JsValue): Set[InnerVal] = {
+  //    for {
+  //      (propName, v) <- jsValue.as[JsObject].fields
+  //      propMeta <- HLabelMeta.findByName(label.id.get, propName)
+  ////      innerVal <- jsValueToInnerVal(v, propMeta.dataType)
+  //    }  yield {
+  //      propName -> (v match {
+  //        case arr: JsArray => // set
+  //          Set(arr.as[List[JsValue]].flatMap { e =>
+  //            jsValueToInnerVal(e, propMeta.dataType)
+  //          })
+  //        case value: JsValue => // exact
+  //          Set(List(v).flatMap { jsValue =>
+  //            jsValueToInnerVal(jsValue, propMeta.dataType)
+  //          })
+  //        case obj: JsObject => // from, to
+  //          val (fromJsVal, toJsVal) = ((obj \ "from").as[JsValue], (obj \ "to").as[JsValue])
+  //          val (from, to) = (toInnerVal(fromJsVal), toInnerVal(toJsVal))
+  //          (from, to)
+  //      })
+  //    }
+  //  }
   def extractWhere(label: Label, jsValue: JsValue) = {
     (jsValue \ "where").asOpt[String].flatMap { where =>
       WhereParser(label).parse(where)
@@ -106,22 +111,23 @@ trait RequestParser extends JSONParser {
           column <- parse[Option[String]](value, "columnName")
           col <- ServiceColumn.find(service.id.get, column)
         } yield {
-          val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
-          val idVals = (idOpt, idsOpt) match {
-            case (Some(id), None) => List(id)
-            case (None, Some(ids)) => ids
-            case (Some(id), Some(ids)) => id :: ids
-            case (None, None) => List.empty[JsValue]
-          }
+            val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
+            val idVals = (idOpt, idsOpt) match {
+              case (Some(id), None) => List(id)
+              case (None, Some(ids)) => ids
+              case (Some(id), Some(ids)) => id :: ids
+              case (None, None) => List.empty[JsValue]
+            }
 
-          for {
-            idVal <- idVals
-            /** bug, need to use labels schemaVersion  */
-            innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
-          } yield {
-            Vertex(SourceVertexId(col.id.get, innerVal), System.currentTimeMillis())
-          }
-        }).flatten
+            for {
+              idVal <- idVals
+
+              /** bug, need to use labels schemaVersion  */
+              innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
+            } yield {
+              Vertex(SourceVertexId(col.id.get, innerVal), System.currentTimeMillis())
+            }
+          }).flatten
 
       val steps = parse[List[JsValue]](jsValue, "steps")
       val stepLength = steps.size
@@ -179,7 +185,7 @@ trait RequestParser extends JSONParser {
         }
 
       val ret = Query(vertices, querySteps, removeCycle = removeCycle)
-//          Logger.debug(ret.toString)
+      //          Logger.debug(ret.toString)
       ret
     } catch {
       case e: Throwable =>
@@ -187,6 +193,7 @@ trait RequestParser extends JSONParser {
         throw new KGraphExceptions.BadQueryException(s"$jsValue")
     }
   }
+
   private def parse[R](js: JsValue, key: String)(implicit read: Reads[R]): R = {
     (js \ key).validate[R]
       .fold(
@@ -201,29 +208,37 @@ trait RequestParser extends JSONParser {
   }
 
   def toJsValues(jsValue: JsValue): List[JsValue] = {
+
     jsValue match {
       case obj: JsObject => List(obj)
       case arr: JsArray => arr.as[List[JsValue]]
       case _ => List.empty[JsValue]
     }
+
   }
+
   def toEdges(jsValue: JsValue, operation: String): List[Edge] = {
+
     toJsValues(jsValue).map(toEdge(_, operation))
+
   }
+
   def toEdge(jsValue: JsValue, operation: String) = {
+
     val srcId = parse[JsValue](jsValue, "from") match {
       case s: JsString => s.as[String]
-      case o @ _ => s"${o}"
+      case o@_ => s"${o}"
     }
     val tgtId = parse[JsValue](jsValue, "to") match {
       case s: JsString => s.as[String]
-      case o @ _ => s"${o}"
+      case o@_ => s"${o}"
     }
     val label = parse[String](jsValue, "label")
     val timestamp = parse[Long](jsValue, "timestamp")
     val direction = parse[Option[String]](jsValue, "direction").getOrElse("")
     val props = (jsValue \ "props").asOpt[JsValue].getOrElse("{}")
     Management.toEdge(timestamp, operation, srcId, tgtId, label, direction, props.toString)
+
   }
 
   def toVertices(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None) = {
@@ -232,7 +247,7 @@ trait RequestParser extends JSONParser {
 
   def toVertex(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None): Vertex = {
     val id = parse[JsValue](jsValue, "id")
-    val ts = parse[Option[Long]](jsValue, "timestamp").getOrElse(System.currentTimeMillis() / 1000)
+    val ts = parse[Option[Long]](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
     val sName = if (serviceName.isEmpty) parse[String](jsValue, "serviceName") else serviceName.get
     val cName = if (columnName.isEmpty) parse[String](jsValue, "columnName") else columnName.get
     val props = (jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj())
@@ -241,9 +256,12 @@ trait RequestParser extends JSONParser {
 
   private[RequestParser] def jsObjDuplicateKeyCheck(jsObj: JsObject) = {
     assert(jsObj != null)
-    if (jsObj.fields.map(_._1).groupBy(_.toString).map(r => r match { case (k, v) => v }).filter(_.length > 1).isEmpty == false)
+    if (jsObj.fields.map(_._1).groupBy(_.toString).map(r => r match {
+      case (k, v) => v
+    }).filter(_.length > 1).isEmpty == false)
       throw new KGraphExceptions.JsonParseException(Json.obj("error" -> s"$jsObj --> some key is duplicated").toString)
   }
+
   def parsePropsElements(jsValue: JsValue) = {
     for {
       jsObj <- jsValue.as[List[JsValue]]
@@ -254,6 +272,7 @@ trait RequestParser extends JSONParser {
       (propName, defaultValue, dataType)
     }
   }
+
   def toLabelElements(jsValue: JsValue) = {
     val labelName = parse[String](jsValue, "label")
     val srcServiceName = parse[String](jsValue, "srcServiceName")
@@ -272,28 +291,32 @@ trait RequestParser extends JSONParser {
     val hTableName = (jsValue \ "hTableName").asOpt[String]
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     val schemaVersion = (jsValue \ "schemaVersion").asOpt[String].getOrElse(InnerVal.DEFAULT_VERSION)
+    val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
     val t = (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
-      idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion)
+      idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync)
     Logger.info(s"createLabel $t")
     t
   }
+
   def toIndexElements(jsValue: JsValue) = {
     val labelName = parse[String](jsValue, "label")
     val idxProps = parsePropsElements((jsValue \ "indexProps"))
-//    val js = (jsValue \ "indexProps").asOpt[JsObject].getOrElse(Json.parse("{}").as[JsObject])
-//    val props = for ((k, v) <- js.fields) yield (k, v)
+    //    val js = (jsValue \ "indexProps").asOpt[JsObject].getOrElse(Json.parse("{}").as[JsObject])
+    //    val props = for ((k, v) <- js.fields) yield (k, v)
     val t = (labelName, idxProps)
     t
   }
+
   def toServiceElements(jsValue: JsValue) = {
     val serviceName = parse[String](jsValue, "serviceName")
-    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(GraphConnection.defaultConfigs("hbase.zookeeper.quorum").toString)
+    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(Graph.config.getString("hbase.zookeeper.quorum"))
     val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${Config.PHASE}")
     val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(0)
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     (serviceName, cluster, hTableName, preSplitSize, hTableTTL)
   }
+
   def toVertexElements(jsValue: JsValue) = {
     val serviceName = parse[String](jsValue, "serviceName")
     val columnName = parse[String](jsValue, "columnName")

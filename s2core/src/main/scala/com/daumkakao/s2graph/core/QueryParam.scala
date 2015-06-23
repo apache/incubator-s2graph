@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core
 
-// import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.mysqls._
 
 import com.daumkakao.s2graph.core.models._
 
@@ -31,18 +31,20 @@ object Query {
 
 }
 
-case class Query(vertices: Seq[Vertex], steps: List[Step],
+case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex], steps: List[Step] = List.empty[Step],
                  unique: Boolean = true, removeCycle: Boolean = false) {
 
-  val labelSrcTgtInvertedMap = (for {
-    step <- steps
-    param <- step.queryParams
-  } yield {
-      param.label.id.get -> {
-        param.label.srcColumn.columnName != vertices.head.serviceColumn.columnName
-      }
+  val labelSrcTgtInvertedMap = if (vertices.isEmpty) {Map.empty[Int, Boolean]} else {
+    (for {
+      step <- steps
+      param <- step.queryParams
+    } yield {
+        param.label.id.get -> {
+          param.label.srcColumn.columnName != vertices.head.serviceColumn.columnName
+        }
 
-    }).toMap
+      }).toMap
+  }
 }
 
 case class Step(queryParams: List[QueryParam]) {
@@ -173,7 +175,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     //    val len = label.extraIndicesMap(labelOrderSeq).sortKeyTypes.size.toByte
     //    Logger.error(s"indicesMap: ${label.indicesMap(labelOrderSeq)}")
     val len = label.indicesMap(labelOrderSeq).sortKeyTypes.size.toByte
-    //    Logger.error(s"index length: $len")
+
     val minMetaByte = InnerVal.minMetaByte
     val maxMetaByte = InnerVal.maxMetaByte
     val toVal = Bytes.add(propsToBytes(to), Array.fill(1)(minMetaByte))
@@ -183,6 +185,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     val maxBytes = fromVal
     val minBytes = toVal
     val rangeFilter = new ColumnRangeFilter(minBytes, true, maxBytes, true)
+    Logger.debug(s"index length: $len, min: ${minBytes.toList}, max: ${maxBytes.toList}")
     //    queryLogger.info(s"Interval: ${rangeFilter.getMinColumn().toList} ~ ${rangeFilter.getMaxColumn().toList}: ${Bytes.compareTo(minBytes, maxBytes)}")
     //    this.filters.(rangeFilter)
     this.columnRangeFilter = rangeFilter
@@ -258,7 +261,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
 
 
   def buildGetRequest(srcVertex: Vertex) = {
-    val id = InnerVal.convertVersion(srcVertex.innerId, srcVertex.serviceColumn.columnType, label.schemaVersion)
+    val id = InnerVal.convertVersion(srcVertex.innerId, label.srcColumnWithDir(labelWithDir.dir).columnType, label.schemaVersion)
     val vId = SourceVertexId(srcVertex.id.colId, id)
     val sourceVertexId = VertexId.toSourceVertexId(vId)
     val rowKey = EdgeRowKey(sourceVertexId, labelWithDir, labelOrderSeq, isInverted)(label.schemaVersion)

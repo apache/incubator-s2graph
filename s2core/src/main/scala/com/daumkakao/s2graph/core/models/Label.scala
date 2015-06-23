@@ -50,7 +50,8 @@ object Label {
                 consistencyLevel: String,
                 hTableName: Option[String],
                 hTableTTL: Option[Int],
-                schemaVersion: String) = {
+                schemaVersion: String,
+                isAsync: Boolean) = {
     val srcServiceOpt = Service.findByName(srcServiceName, useCache = false)
     val tgtServiceOpt = Service.findByName(tgtServiceName, useCache = false)
     val serviceOpt = Service.findByName(serviceName, useCache = false)
@@ -81,7 +82,7 @@ object Label {
             "isDirected" -> isDirected, "serviceName" -> serviceName, "serviceId" -> serviceId,
             "consistencyLevel" -> consistencyLevel, "hTableName" -> hTableName.getOrElse("s2graph-dev"),
             "hTableTTL" -> hTableTTL.getOrElse(-1),
-            "schemaVersion" -> schemaVersion))
+            "schemaVersion" -> schemaVersion, "isAsync" -> isAsync))
           label.create
 
           /** create label metas */
@@ -116,7 +117,7 @@ object Label {
 case class Label(kvsParam: Map[KEY, VAL]) extends Model[Label]("HLabel", kvsParam) with JSONParser {
   override val columns = Seq("id", "label", "srcServiceId", "srcColumnName", "srcColumnType",
     "tgtServiceId", "tgtColumnName", "tgtColumnType", "isDirected", "serviceName", "serviceId",
-    "consistencyLevel", "hTableName", "hTableTTL", "schemaVersion")
+    "consistencyLevel", "hTableName", "hTableTTL", "schemaVersion", "isAsync")
 
   val pk = Seq(("id", kvs("id")))
   val idxLabel = Seq(("label", kvs("label")))
@@ -159,6 +160,7 @@ case class Label(kvsParam: Map[KEY, VAL]) extends Model[Label]("HLabel", kvsPara
     if (ttl < 0) None
     else Some(ttl)
   }
+  val isAsync = kvs.get("isAsync").map(_.toString.toBoolean).getOrElse(false)
 
 
   /** all properties belongs to this label */

@@ -1,7 +1,5 @@
 package controllers
 
-//import com.daumkakao.s2graph.core.HBaseElement._
-
 import com.daumkakao.s2graph.core._
 
 //import com.daumkakao.s2graph.core.mysqls._
@@ -27,16 +25,22 @@ object PostProcess extends JSONParser {
   val SCORE_FIELD_NAME = "scoreSum"
 
   def groupEdgeResult(edgesWithRank: Seq[(Edge, Double)], excludeIds: Option[Map[InnerValLike, Boolean]] = None) = {
+    //    filterNot {case (edge, score) => edge.props.contains(LabelMeta.degreeSeq)}
     val groupedEdgesWithRank = edgesWithRank.groupBy {
       case (edge, rank) if edge.labelWithDir.dir == GraphUtil.directions("in") =>
-        (edge.label.srcColumn.columnName, edge.label.tgtColumn.columnName, edge.tgtVertex.innerId)
+        (edge.label.srcColumn, edge.label.tgtColumn, edge.tgtVertex.innerId, edge.props.contains(LabelMeta.degreeSeq))
       case (edge, rank) =>
-        (edge.label.tgtColumn.columnName, edge.label.srcColumn.columnName, edge.tgtVertex.innerId)
+        (edge.label.tgtColumn, edge.label.srcColumn, edge.tgtVertex.innerId, edge.props.contains(LabelMeta.degreeSeq))
     }
-    for (((tgtColumnName, srcColumnName, target), edgesAndRanks) <- groupedEdgesWithRank if !excludeIds.getOrElse(Map[InnerValLike, Boolean]()).contains(target)) yield {
-      val (edges, ranks) = edgesAndRanks.groupBy(x => x._1.srcVertex).map(_._2.head).unzip
-      Json.obj("name" -> tgtColumnName, "id" -> target.toString, SCORE_FIELD_NAME -> ranks.sum,
-        "aggr" -> Json.obj("name" -> srcColumnName, "ids" -> edges.map(edge => edge.srcVertex.innerId.toString)))
+    for {
+      ((tgtColumn, srcColumn, target, isDegreeEdge), edgesAndRanks) <- groupedEdgesWithRank
+      if !excludeIds.getOrElse(Map[InnerValLike, Boolean]()).contains(target) && !isDegreeEdge
+      (edges, ranks) = edgesAndRanks.groupBy(x => x._1.srcVertex).map(_._2.head).unzip
+      id <- innerValToJsValue(target, tgtColumn.columnType)
+    } yield {
+      Json.obj("name" -> tgtColumn.columnName, "id" -> id, SCORE_FIELD_NAME -> ranks.sum,
+        "aggr" -> Json.obj("name" -> srcColumn.columnName,
+          "ids" -> edges.flatMap(edge => innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType))))
     }
   }
 
@@ -85,13 +89,22 @@ object PostProcess extends JSONParser {
                                edgesPerVertexWithRanks: Seq[Iterable[(Edge, Double)]]) = {
     val excludeIds = exclude.flatMap(ex => ex.map { case (edge, score) => (edge.tgtVertex.innerId, true) }) toMap
 
-    val seen = new HashSet[InnerValLike]
+
     val edgesWithRank = edgesPerVertexWithRanks.flatten
-    val groupedEdgesWithRank = edgesWithRank.groupBy { case (edge, rank) => (edge.label.tgtColumn.columnName, edge.label.srcColumn.columnName, edge.tgtVertex.innerId) }
-    val jsons = for (((tgtColumnName, srcColumnName, target), edgesAndRanks) <- groupedEdgesWithRank if !excludeIds.contains(target)) yield {
-      val (edges, ranks) = edgesAndRanks.groupBy(x => x._1.srcVertex).map(_._2.head).unzip
-      Json.obj(tgtColumnName -> target.toString, s"${srcColumnName}s" -> edges.map(edge => edge.srcVertex.innerId.toString), "scoreSum" -> ranks.sum)
+    val groupedEdgesWithRank = edgesWithRank.filterNot {case (edge, score) =>
+      edge.props.contains(LabelMeta.degreeSeq)
+    }.groupBy { case (edge, rank) =>
+      (edge.label.tgtColumn, edge.label.srcColumn, edge.tgtVertex.innerId)
     }
+    val jsons = for {
+      ((tgtColumn, srcColumn, target), edgesAndRanks) <- groupedEdgesWithRank if !excludeIds.contains(target)
+      (edges, ranks) = edgesAndRanks.groupBy(x => x._1.srcVertex).map(_._2.head).unzip
+      tgtId <- innerValToJsValue(target, tgtColumn.columnType)
+    } yield {
+        Json.obj(tgtColumn.columnName -> tgtId,
+          s"${srcColumn.columnName}s" ->
+            edges.flatMap(edge => innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType)), "scoreSum" -> ranks.sum)
+      }
     val sortedJsons = jsons.toList.sortBy { jsObj => (jsObj \ "scoreSum").as[Double] }.reverse
     Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
   }
@@ -135,7 +148,7 @@ object PostProcess extends JSONParser {
         )
       } else {
         for {
-          edgeJson <- edgeToJson(edge, score, q.labelSrcTgtInvertedMap(edge.labelWithDir.labelId))
+          edgeJson <- edgeToJson(edge, score, q)
         } {
           edgeJsons += edgeJson
         }
@@ -160,8 +173,8 @@ object PostProcess extends JSONParser {
     import play.api.libs.json.Json
     val jsons = for {
       edges <- edgesPerVertexWithRanks
-      (edge, score) <- edges if !excludeIds.contains(edge.tgtVertex.innerId)
-      edgeJson <- edgeToJson(edge, score, q.labelSrcTgtInvertedMap(edge.labelWithDir.labelId))
+      (edge, score) <- edges if !excludeIds.contains(edge.tgtVertex.innerId) && !edge.props.contains(LabelMeta.degreeSeq)
+      edgeJson <- edgeToJson(edge, score, q)
     } yield edgeJson
 
     val results =
@@ -181,16 +194,17 @@ object PostProcess extends JSONParser {
   def propsToJson(edge: Edge) = {
     for {
       (seq, v) <- edge.props
-      metaProp <- edge.label.metaPropsMap.get(seq) if seq > 0
+      metaProp <- edge.label.metaPropsMap.get(seq) if seq >= 0
       jsValue <- innerValToJsValue(v, metaProp.dataType)
     } yield {
       (metaProp.name, jsValue)
     }
   }
 
-  def edgeToJson(edge: Edge, score: Double, shouldBeReverted: Boolean): Option[JsObject] = {
+  def edgeToJson(edge: Edge, score: Double, q: Query): Option[JsObject] = {
     //
     //    Logger.debug(s"edgeProps: ${edge.props} => ${props}")
+    val shouldBeReverted = q.labelSrcTgtInvertedMap.get(edge.labelWithDir.labelId).getOrElse(false)
     val json = for {
       from <- {
         if (shouldBeReverted) {
@@ -208,8 +222,8 @@ object PostProcess extends JSONParser {
       }
     } yield {
         Json.obj(
-          "from" -> (if (edge.labelWithDir.dir == 1) to else from),
-          "to" -> (if (edge.labelWithDir.dir == 1) from else to),
+          "from" -> from,
+          "to" -> to,
           "label" -> edge.label.label,
           "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
           "_timestamp" -> edge.ts,
@@ -228,8 +242,8 @@ object PostProcess extends JSONParser {
       id <- innerValToJsValue(vertex.innerId, serviceColumn.columnType)
     } yield {
       Json.obj("serviceName" -> serviceColumn.service.serviceName,
-      "columnName" -> serviceColumn.columnName,
-      "id" -> id, "props" -> propsToJson(vertex), "timestamp" -> vertex.ts)
+        "columnName" -> serviceColumn.columnName,
+        "id" -> id, "props" -> propsToJson(vertex), "timestamp" -> vertex.ts)
     }
   }
 

@@ -5,7 +5,6 @@ import com.daumkakao.s2graph.core.{ Edge, Graph, GraphElement, GraphUtil, Vertex
 import play.api.Logger
 import play.api.libs.json.{Json, JsValue}
 import play.api.mvc.{ Controller, Result }
-import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
 
 object EdgeController extends Controller with Instrumented with RequestParser {
@@ -18,13 +17,18 @@ object EdgeController extends Controller with Instrumented with RequestParser {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
     else {
       try {
+        Logger.debug(s"$jsValue")
         val edges = toEdges(jsValue, operation)
+
         // store valid edges came to system.
         getOrElseUpdateMetric("IncommingEdges")(metricRegistry.counter("IncommingEdges")).inc(edges.size)
 
-        Graph.mutateEdges(edges).map { rets =>
+        val edgesToStore = edges.filterNot(e => e.isAsync)
+        //FIXME:
+        Graph.mutateEdges(edgesToStore).map { rets =>
           Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
         }
+
       } catch {
         case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"e"))
         case e: Throwable =>
@@ -33,14 +37,18 @@ object EdgeController extends Controller with Instrumented with RequestParser {
       }
     }
   }
-  
-//  private[controllers] def aggregateElements(elements: Seq[GraphElement], originalString: Seq[Option[String]]): Future[Seq[Boolean]] = {
-    //KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(Config.KAFKA_LOG_TOPIC, element, originalString))
-//    Graph.mutateElements(elements)
-//  }
+
+  //  private[controllers] def aggregateElements(elements: Seq[GraphElement], originalString: Seq[Option[String]]): Future[Seq[Boolean]] = {
+  //    elements.foreach {
+  //
+  //    }
+  //    KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(Config.KAFKA_LOG_TOPIC, element, originalString))
+  //    Graph.mutateElements(elements)
+  //  }
   private[controllers] def mutateAndPublish(str: String): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
 
+    Logger.debug(s"$str")
     val edgeStrs = str.split("\\n")
 
     var vertexCnt = 0L
@@ -54,11 +62,14 @@ object EdgeController extends Controller with Instrumented with RequestParser {
           }
           element
         }
-//      val elements = edgesWithStrs.map(_._1)
-//      val strs = edgesWithStrs.map(_._2)
+      //      val elements = edgesWithStrs.map(_._1)
+      //      val strs = edgesWithStrs.map(_._2)
       getOrElseUpdateMetric("IncommingVertices")(metricRegistry.counter("IncommingVertices")).inc(vertexCnt)
       getOrElseUpdateMetric("IncommingEdges")(metricRegistry.counter("IncommingEdges")).inc(edgeCnt)
-      Graph.mutateElements(elements).map { rets =>
+
+      //FIXME:
+      val elementsToStore = elements.filterNot(e => e.isAsync)
+      Graph.mutateElements(elementsToStore).map { rets =>
         Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
       }
     } catch {

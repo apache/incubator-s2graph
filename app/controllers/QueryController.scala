@@ -3,12 +3,12 @@ package controllers
 
 import com.codahale.metrics.Meter
 
-// import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.mysqls._
 
 import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.types2.{VertexId, TargetVertexId, SourceVertexId}
+import com.daumkakao.s2graph.core.types2.{LabelWithDirection, VertexId, TargetVertexId, SourceVertexId}
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
 import play.api.Logger
 
@@ -193,22 +193,27 @@ object QueryController extends Controller with RequestParser with Instrumented {
   /**
    * Vertex
    */
+
   def checkEdgesInner(jsValue: JsValue) = {
+    Logger.info(s"$jsValue")
     try {
-    val params = jsValue.as[List[JsValue]]
-    var isReverted = false
-    val quads = for {
-      param <- params
-      labelName = (param \ "label").as[String]
-      direction <- GraphUtil.toDir((param \ "direction").asOpt[String].getOrElse("out"))
-      label <- Label.findByName(labelName)
-      srcId <- jsValueToInnerVal((param \ "from").as[JsValue], label.srcColumnWithDir(direction.toInt).columnType, label.schemaVersion)
-      tgtId <- jsValueToInnerVal((param \ "to").as[JsValue], label.tgtColumnWithDir(direction.toInt).columnType, label.schemaVersion)
-    } yield {
-        var srcVertex = Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId))
-        var tgtVertex = Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId))
-        val (src, tgt, dir) = if (direction == 1) {
-          isReverted = true
+      val params = jsValue.as[List[JsValue]]
+      var isReverted = false
+      val labelWithDirs = scala.collection.mutable.HashSet[LabelWithDirection]()
+      val quads = for {
+        param <- params
+        labelName <- (param \ "label").asOpt[String]
+        direction <- GraphUtil.toDir((param \ "direction").asOpt[String].getOrElse("out"))
+        label <- Label.findByName(labelName)
+        srcId <- jsValueToInnerVal((param \ "from").as[JsValue], label.srcColumnWithDir(direction.toInt).columnType, label.schemaVersion)
+        tgtId <- jsValueToInnerVal((param \ "to").as[JsValue], label.tgtColumnWithDir(direction.toInt).columnType, label.schemaVersion)
+      } yield {
+          val labelWithDir = LabelWithDirection(label.id.get, direction)
+          labelWithDirs += labelWithDir
+          var srcVertex = Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId))
+          var tgtVertex = Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId))
+          val (src, tgt, dir) = if (direction == 1) {
+            isReverted = true
             (Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)),
               Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)), 0)
           } else {
@@ -218,21 +223,20 @@ object QueryController extends Controller with RequestParser with Instrumented {
 
 
 
-        Logger.debug(s"SrcVertex: $src")
-        Logger.debug(s"TgtVertex: $tgt")
-        Logger.debug(s"direction: $dir")
-        (src, tgt, label, dir.toInt)
+          Logger.debug(s"SrcVertex: $src")
+          Logger.debug(s"TgtVertex: $tgt")
+          Logger.debug(s"direction: $dir")
+          (src, tgt, label, dir.toInt)
+        }
+      Graph.checkEdges(quads).map { case edgesWithScores =>
+        val edgeJsons = for {
+          edgesWithScore <- edgesWithScores
+          (edge, score) <- edgesWithScore
+          edgeJson <- PostProcess.edgeToJson(if (isReverted) edge.duplicateEdge else edge, score, Query())
+        } yield edgeJson
+
+        Ok(Json.toJson(edgeJsons)).as(applicationJsonHeader)
       }
-
-
-    Graph.checkEdges(quads).map { case edgesWithScores =>
-      val x =
-        if (isReverted) edgesWithScores.map { edgesWithScore =>
-          edgesWithScore.map { case (edge, score) => (edge.duplicateEdge, score) }
-        } else edgesWithScores
-//      Ok(PostProcess.toSimpleVertexArrJson(x)).as(applicationJsonHeader)
-      Ok("\n")
-    }
     } catch {
       case e: Throwable => Future.successful(BadRequest(e.toString()).as(applicationJsonHeader))
     }

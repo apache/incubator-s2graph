@@ -35,8 +35,8 @@ object LabelMeta extends JSONParser {
   val degree = LabelMeta(Map("id" -> -1, "labelId" -> -1, "name" -> "_degree", "seq" -> degreeSeq,
     "defaultValue" -> 0, "dataType" -> "long"))
 
-  val reservedMetas = List(from, to, timestamp)
-  val notExistSeqInDB = List(lastOpSeq, lastDeletedAt, countSeq, timeStampSeq, degreeSeq, from.seq, to.seq)
+  val reservedMetas = List(from, to, degree, timestamp)
+  val notExistSeqInDB = List(lastOpSeq, lastDeletedAt, countSeq, degree, timeStampSeq, from.seq, to.seq)
 
   def findById(id: Int, useCache: Boolean = true): LabelMeta = {
     Model.find[LabelMeta](useCache)(Seq(("id" -> id))).get

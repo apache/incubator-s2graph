@@ -1,7 +1,8 @@
 package com.daumkakao.s2graph.core
 
 
-// import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.KGraphExceptions.LabelNotExistException
+//import com.daumkakao.s2graph.core.mysqls._
 
 import com.daumkakao.s2graph.core.models._
 
@@ -45,7 +46,47 @@ object Management extends JSONParser {
       //      service.deleteAll()
     }
   }
+  /**
+   * label
+   */
+  /**
+   * copy label when if oldLabel exist and newLabel do not exist.
+   * copy label: only used by bulk load job. not sure if we need to parameterize hbase cluster.
+   */
+  def copyLabel(oldLabelName: String, newLabelName: String, hTableName: Option[String]) = {
+    Label.findByName(oldLabelName) match {
+      case Some(old) =>
+        Label.findByName(newLabelName) match {
+          case None =>
+            val idxSeqs = (LabelIndex.findByLabelIdAll(old.id.get).flatMap { idx =>
+              idx.metaSeqs
+            }).toSet
+            val (indexProps, metaProps) = old.metaPropsInvMap.partition { case (name, meta) => idxSeqs.contains(meta.seq) }
 
+            val idxPropsSeq = for {
+              (name, meta) <- indexProps
+            } yield {
+                (name, JsString(meta.defaultValue), meta.dataType)
+              }
+            val metaPropsSeq = for {
+              (name, meta) <- metaProps
+            } yield {
+                (name, JsString(meta.defaultValue), meta.dataType)
+              }
+
+            createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
+              old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
+              old.isDirected, old.serviceName,
+              idxPropsSeq.toSeq,
+              metaPropsSeq.toSeq,
+              old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync)
+
+          case Some(_) =>
+          //            throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
+        }
+      case None => throw new LabelNotExistException(s"Original label $oldLabelName does not exist.")
+    }
+  }
   def createLabel(label: String,
                   srcServiceName: String,
                   srcColumnName: String,
@@ -60,7 +101,8 @@ object Management extends JSONParser {
                   consistencyLevel: String,
                   hTableName: Option[String],
                   hTableTTL: Option[Int],
-                  schemaVersion: String = InnerVal.DEFAULT_VERSION): Label = {
+                  schemaVersion: String = InnerVal.DEFAULT_VERSION,
+                  isAsync: Boolean): Label = {
 
 
     val labelOpt = Label.findByName(label, useCache = false)
@@ -72,7 +114,7 @@ object Management extends JSONParser {
         Label.insertAll(label,
           srcServiceName, srcColumnName, srcColumnType,
           tgtServiceName, tgtColumnName, tgtColumnType,
-          isDirected, serviceName, indexProps, props, consistencyLevel, hTableName, hTableTTL, schemaVersion)
+          isDirected, serviceName, indexProps, props, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync)
         Label.findByName(label, useCache = false).get
     }
   }
@@ -99,6 +141,7 @@ object Management extends JSONParser {
       service <- Service.findByName(serviceName, useCache = false)
       serviceColumn <- ServiceColumn.find(service.id.get, columnName, useCache = false)
     } yield {
+//      ServiceColumn.delete(serviceColumn.id.get)
       serviceColumn.deleteAll()
     }
   }
@@ -165,7 +208,7 @@ object Management extends JSONParser {
   }
 
   def getServiceLable(label: String): Option[Label] = {
-    Label.findByName(label, useCache = false)
+    Label.findByName(label, useCache = true)
   }
 
   /**
@@ -194,8 +237,8 @@ object Management extends JSONParser {
       if (direction == "") GraphUtil.toDirection(label.direction)
       else GraphUtil.toDirection(direction)
 
-    Logger.debug(s"$srcId, ${label.srcColumnWithDir(dir)}")
-    Logger.debug(s"$tgtId, ${label.tgtColumnWithDir(dir)}")
+    //    Logger.debug(s"$srcId, ${label.srcColumnWithDir(dir)}")
+    //    Logger.debug(s"$tgtId, ${label.tgtColumnWithDir(dir)}")
 
     val srcVertexId = toInnerVal(srcId, label.srcColumn.columnType, label.schemaVersion)
     val tgtVertexId = toInnerVal(tgtId, label.tgtColumn.columnType, label.schemaVersion)
@@ -349,15 +392,17 @@ object Management extends JSONParser {
   //
   //    //    regionStats.map(kv => Bytes.toString(kv._1) -> kv._2) ++ Map("total" -> regionStats.values().sum)
   //  }
-  def createTable(zkAddr: String, tableName: String, cfs: List[String], regionCnt: Int, ttl: Option[Int]) = {
-    try {
-      val admin = getAdmin(zkAddr)
-      if (!admin.tableExists(TableName.valueOf(tableName))) {
+  def createTable(zkAddr: String, tableName: String, cfs: List[String], regionMultiplier: Int, ttl: Option[Int]) = {
+    Logger.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier")
+    val admin = getAdmin(zkAddr)
+    val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier
+    if (!admin.tableExists(TableName.valueOf(tableName))) {
+      try {
         val desc = new HTableDescriptor(TableName.valueOf(tableName))
         desc.setDurability(Durability.ASYNC_WAL)
         for (cf <- cfs) {
           val columnDesc = new HColumnDescriptor(cf)
-            .setCompressionType(Compression.Algorithm.GZ)
+            .setCompressionType(Compression.Algorithm.LZ4)
             .setBloomFilterType(BloomType.ROW)
             .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
             .setMaxVersions(1)
@@ -369,16 +414,33 @@ object Management extends JSONParser {
           desc.addFamily(columnDesc)
         }
 
-        if (regionCnt <= 1) admin.createTable(desc)
-        else admin.createTable(desc, getStartKey(regionCnt), getEndKey(regionCnt), regionCnt)
-      } else {
-        // already exist
+        if (regionMultiplier <= 1) admin.createTable(desc)
+        else admin.createTable(desc, getStartKey(regionCount), getEndKey(regionCount), regionCount)
+      } catch {
+        case e: Throwable =>
+          Logger.error(s"$zkAddr, $tableName failed with $e", e)
+          throw e
       }
-    } catch {
-      case e: Throwable => Logger.error(s"$e", e)
-        throw e
+    } else {
+      Logger.error(s"$zkAddr, $tableName, $cf already exist.")
     }
   }
+
+  /**
+   * update label name.
+   */
+//  def updateLabelName(oldLabelName: String, newLabelName: String) = {
+//    for {
+//      old <- Label.findByName(oldLabelName)
+//    } {
+//      Label.findByName(newLabelName) match {
+//        case None =>
+//          Label.updateName(oldLabelName, newLabelName)
+//        case Some(_) =>
+//        //          throw new RuntimeException(s"$newLabelName already exist")
+//      }
+//    }
+//  }
 
   // we only use murmur hash to distribute row key.
   private def getStartKey(regionCount: Int) = {

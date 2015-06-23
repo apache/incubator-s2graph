@@ -6,7 +6,6 @@ import com.daumkakao.s2graph.core.{Graph, Vertex, KGraphExceptions}
 import play.api.Logger
 import play.api.libs.json.{Json, JsValue}
 import play.api.mvc.{ Controller, Result }
-import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
 
 object VertexController extends Controller with Instrumented  with RequestParser  {
@@ -19,7 +18,11 @@ object VertexController extends Controller with Instrumented  with RequestParser
     try {
       val vertices = toVertices(jsValue, operation, serviceNameOpt, columnNameOpt)
       getOrElseUpdateMetric("incommingVertices")(metricRegistry.counter("incommingVertices")).inc(vertices.size)
-      Graph.mutateVertices(vertices).map { rets =>
+
+
+      //FIXME:
+      val verticesToStore = vertices.filterNot(v => v.isAsync)
+      Graph.mutateVertices(verticesToStore).map { rets =>
         Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
       }
     } catch {
