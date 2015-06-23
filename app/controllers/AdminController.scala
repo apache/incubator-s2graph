@@ -44,10 +44,11 @@ object AdminController extends Controller with RequestParser {
     try {
       val (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected,
-      serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion) = toLabelElements(jsValue)
+      serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync) = toLabelElements(jsValue)
 
       Management.createLabel(labelName, srcServiceName, srcColumnName, srcColumnType,
-        tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion)
+        tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName, idxProps, metaProps,
+        consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync)
       Ok("Created\n").as(QueryController.applicationJsonHeader)
     } catch {
       case e: Throwable =>

@@ -102,7 +102,7 @@ object Management extends JSONParser {
                   hTableName: Option[String],
                   hTableTTL: Option[Int],
                   schemaVersion: String = InnerVal.DEFAULT_VERSION,
-                  isAsync: Boolean): Label = {
+                  isAsync: Boolean = false): Label = {
 
 
     val labelOpt = Label.findByName(label, useCache = false)
