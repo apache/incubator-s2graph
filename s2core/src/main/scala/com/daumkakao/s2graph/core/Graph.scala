@@ -815,8 +815,7 @@ object Graph {
     try {
       val (ts, operation, logType, srcId, tgtId, label) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
       val props = if (parts.length >= 7) parts(6) else "{}"
-      // use db field is_directed.
-      val direction = ""
+      val direction = if (parts.length >= 8) parts(7) else "out"
       val edge = Management.toEdge(ts.toLong, operation, srcId, tgtId, label, direction, props)
       //            Logger.debug(s"toEdge: $edge")
       Some(edge)
