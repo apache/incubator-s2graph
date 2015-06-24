@@ -202,4 +202,7 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
     Bytes.add(Array.fill(1)(meta.toByte), valBytes)
   }
 
+  override def toString(): String = {
+    value.toString
+  }
 }

@@ -5,11 +5,11 @@ package com.daumkakao.s2graph.core
 import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2._
+import play.api.libs.json.Json
 import scala.concurrent.Future
-import org.apache.hadoop.hbase.client.{Delete, Put}
+import org.apache.hadoop.hbase.client.{Increment, Delete, Put}
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async._
-import org.slf4j.LoggerFactory
 import play.api.Logger
 import scala.collection.mutable.ListBuffer
 
@@ -54,19 +54,6 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
     ret
   }
 
-  def isSame(other: Any): Boolean = {
-    val ret = this.toString == other.toString
-    logger.debug(s"EdgeWithIndexInverted\n$this\n$other\n$ret")
-    ret
-  }
-
-  //  override def toString(): String = {
-  //    val ls = ListBuffer(lastModifiedAt, GraphUtil.fromOp(op), "e",
-  //      srcVertex.innerId, tgtVertex.innerId, label.label)
-  //    //    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
-  //    if (!props.isEmpty) ls += props
-  //    ls.mkString("\t")
-  //  }
 }
 
 case class EdgeWithIndex(srcVertex: Vertex,
@@ -148,6 +135,18 @@ case class EdgeWithIndex(srcVertex: Vertex,
     }
   }
 
+  def buildIncrements(amount: Long = 1L): List[Increment] = {
+    //    if (!hasAllPropsForIndex) {
+    //      Logger.error(s"$this dont have all props for index")
+    //      List.empty[Increment]
+    //    } else {
+
+    val increment = new Increment(rowKey.bytes)
+    increment.addColumn(edgeCf, Array.empty[Byte], amount)
+    List(increment)
+    //    }
+  }
+
   def buildIncrementsAsync(amount: Long = 1L): List[HBaseRpc] = {
     if (!hasAllPropsForIndex) {
       Logger.error(s"$this dont have all props for index")
@@ -181,19 +180,6 @@ case class EdgeWithIndex(srcVertex: Vertex,
     }
   }
 
-  override def toString(): String = {
-    val ls = ListBuffer(ts, GraphUtil.fromOp(op), "e",
-      srcVertex.innerId, tgtVertex.innerId, label.label)
-    //    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName ++ Map("version" -> version.toString))
-    if (!props.isEmpty) ls += props
-    ls.mkString("\t")
-  }
-
-  def isSame(other: Any): Boolean = {
-    val ret = this.toString == other.toString
-    logger.debug(s"EdgeWithIndex\n$this\n$other\n$ret")
-    ret
-  }
 }
 
 /**
@@ -211,7 +197,6 @@ case class Edge(srcVertex: Vertex,
 
   import Edge._
 
-  val logger = Edge.logger
   implicit val ex = Graph.executionContext
   lazy val schemaVer = label.schemaVersion
   lazy val props =
@@ -231,14 +216,11 @@ case class Edge(srcVertex: Vertex,
   //  assert(srcVertex.isInstanceOf[SourceVertexId] && tgtVertex.isInstanceOf[TargetVertexId])
 
   lazy val srcForVertex = {
-
-    val ret = if (labelWithDir.dir == GraphUtil.directions("in")) {
+    if (labelWithDir.dir == GraphUtil.directions("in")) {
       Vertex(VertexId(label.tgtColumn.id.get, tgtVertex.innerId), tgtVertex.ts, tgtVertex.props)
     } else {
       Vertex(VertexId(label.srcColumn.id.get, srcVertex.innerId), srcVertex.ts, srcVertex.props)
     }
-    Logger.debug(s"srcForVertex: $ret, ${labelWithDir.dir}, ${srcVertex.innerId}, ${tgtVertex.innerId}, ${label.srcColumn}, ${label.tgtColumn}")
-    ret
   }
   lazy val tgtForVertex = {
     if (labelWithDir.dir == GraphUtil.directions("in")) {
@@ -391,9 +373,12 @@ case class Edge(srcVertex: Vertex,
     ret
   }
 
-  //  def insertBulk() = {
-  //    edgesWithInvertedIndex.buildPut() :: edgesWithIndex.flatMap(e => e.buildPuts())
-  //  }
+  def insertBulk() = {
+    val puts = edgesWithInvertedIndex.buildPut() :: relatedEdges.flatMap { relEdge =>
+      relEdge.edgesWithIndex.flatMap(e => e.buildPuts())
+    }
+    puts
+  }
 
   def insert() = {
     val puts = edgesWithInvertedIndex.buildPutAsync() :: relatedEdges.flatMap { relEdge =>
@@ -498,7 +483,7 @@ case class Edge(srcVertex: Vertex,
            * then re-read and build update and write recursively.
            */
           if (ret) {
-            Logger.debug(s"mutate successed. $this, $edgeUpdate")
+            Logger.debug(s"mutate successed. ${this.toLogString()}, ${edgeUpdate.toLogString()}")
           } else {
             Logger.info(s"mutate failed. retry")
             mutate(f, tryNum + 1)
@@ -566,21 +551,13 @@ case class Edge(srcVertex: Vertex,
     }
   }
 
-
-  override def toString(): String = {
+  def toLogString(): String = {
     val ls = ListBuffer(ts, GraphUtil.fromOp(op), "e",
       srcVertex.innerId, tgtVertex.innerId, label.label)
-    //    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
-    if (!propsPlusTs.isEmpty) ls += propsPlusTs
+    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
     ls.mkString("\t")
   }
 
-  def toStringRaw(): String = {
-    val ls = ListBuffer(ts, GraphUtil.fromOp(op), "e",
-      srcVertex.innerId, tgtVertex.innerId, label.label)
-    if (!propsPlusTs.isEmpty) ls += propsPlusTs
-    ls.mkString("\t")
-  }
 }
 
 case class EdgeUpdate(indexedEdgeMutations: List[HBaseRpc] = List.empty[HBaseRpc],
@@ -589,17 +566,18 @@ case class EdgeUpdate(indexedEdgeMutations: List[HBaseRpc] = List.empty[HBaseRpc
                       edgesToInsert: List[EdgeWithIndex] = List.empty[EdgeWithIndex],
                       newInvertedEdge: Option[EdgeWithIndexInverted] = None) {
 
-  override def toString(): String = {
-    val size = s"mutations: ${indexedEdgeMutations.size}, ${invertedEdgeMutations.size}"
+  def toLogString(): String = {
+    val indexedEdgeSize = s"indexedEdgeMutationSize: ${indexedEdgeMutations.size}"
+    val invertedEdgeSize = s"invertedEdgeMutationSize: ${invertedEdgeMutations.size}"
     val deletes = s"deletes: ${edgesToDelete.map(e => e.toString).mkString("\n")}"
     val inserts = s"inserts: ${edgesToInsert.map(e => e.toString).mkString("\n")}"
     val updates = s"snapshot: $newInvertedEdge"
-    List(size, deletes, inserts, updates).mkString("\n")
+    List(indexedEdgeSize, invertedEdgeSize, deletes, inserts, updates).mkString("\n")
   }
 }
 
 object Edge extends JSONParser {
-  val logger = LoggerFactory.getLogger(classOf[Edge])
+
   //  val initialVersion = 2L
   val incrementVersion = 1L
   val minOperationTs = 1L
@@ -639,14 +617,14 @@ object Edge extends JSONParser {
     val oldTs = invertedEdge.map(e => e.ts).getOrElse(minTsVal)
 
     if (oldTs == requestEdge.ts) {
-      logger.error(s"duplicate timestamp on same edge. $requestEdge")
+      Logger.info(s"duplicate timestamp on same edge. $requestEdge")
       EdgeUpdate()
     } else {
       val (newPropsWithTs, shouldReplace) =
         f(oldPropsWithTs, requestEdge.propsWithTs, requestEdge.ts, requestEdge.schemaVer)
 
       if (!shouldReplace) {
-        logger.error(s"drop request $requestEdge becaseu shouldReplace is $shouldReplace")
+        Logger.info(s"drop request $requestEdge becaseu shouldReplace is $shouldReplace")
         EdgeUpdate()
       } else {
 
@@ -867,6 +845,7 @@ object Edge extends JSONParser {
 
   def toEdge(kv: org.hbase.async.KeyValue, param: QueryParam): Option[Edge] = {
     Logger.debug(s"$kv")
+    Logger.debug(s"${kv.key().toList}")
     val version = kv.timestamp()
     val keyBytes = kv.key()
     val rowKey = EdgeRowKey.fromBytes(keyBytes, 0, keyBytes.length, param.label.schemaVersion)
@@ -953,6 +932,29 @@ object Edge extends JSONParser {
       //    Logger.debug(s"$edge")
       //    Logger.debug(s"${cell.getQualifier().toList}, ${ret.map(x => x.toStringRaw)}")
       ret
+    }
+  }
+
+  //FIXME
+  def buildIncrementDegreeBulk(srcVertexId: String, labelName: String, direction: String,
+                               degreeVal: Long) = {
+    for {
+      label <- Label.findByName(labelName)
+      dir <- GraphUtil.toDir(direction)
+      labelWithDir = LabelWithDirection(label.id.get, dir)
+      jsValue = Json.toJson(srcVertexId)
+      innerVal <- jsValueToInnerVal(jsValue, label.srcColumnWithDir(dir).columnType, label.schemaVersion)
+      vertexId = SourceVertexId(label.srcColumn.id.get, innerVal)
+      vertex = Vertex(vertexId)
+      labelWithDir = LabelWithDirection(label.id.get, GraphUtil.toDirection(direction))
+      edge = Edge(vertex, vertex, labelWithDir)
+    } yield {
+      for {
+        edgeWithIndex <- edge.edgesWithIndex
+        incr <- edgeWithIndex.buildIncrements(degreeVal)
+      } yield {
+        incr
+      }
     }
   }
 }

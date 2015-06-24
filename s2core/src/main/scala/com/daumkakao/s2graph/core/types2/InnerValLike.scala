@@ -218,6 +218,12 @@ trait InnerValLike extends HBaseSerializable {
 
   override def toString(): String = value.toString
 
+  override def equals(obj: Any): Boolean = {
+    obj match {
+      case other: InnerValLike => toString == obj.toString
+      case _ => false
+    }
+  }
 }
 
 object InnerValLikeWithTs extends HBaseDeserializable {

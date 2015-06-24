@@ -104,17 +104,6 @@ case class Vertex(id: VertexId,
 
   def toEdgeVertex() = Vertex(SourceVertexId(id.colId, innerId), ts, props, op)
 
-//  override def toString(): String = {
-//
-//    val (serviceName, columnName) = if (!id.storeColId) ("", "")
-//    else {
-//      val serviceColumn = ServiceColumn.findById(id.colId)
-//      (serviceColumn.service.serviceName, serviceColumn.columnName)
-//    }
-//    val ls = ListBuffer(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName)
-//    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
-//    ls.mkString("\t")
-//  }
 
   override def hashCode() = {
     id.hashCode()
@@ -129,6 +118,17 @@ case class Vertex(id: VertexId,
   }
 
   def withProps(newProps: Map[Int, InnerValLike]) = Vertex(id, ts, newProps, op)
+
+  def toLogString(): String = {
+    val (serviceName, columnName) =
+      if (!id.storeColId) ("", "")
+      else {
+        (serviceColumn.service.serviceName, serviceColumn.columnName)
+      }
+    val ls = ListBuffer(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName)
+    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
+    ls.mkString("\t")
+  }
 }
 
 object Vertex {

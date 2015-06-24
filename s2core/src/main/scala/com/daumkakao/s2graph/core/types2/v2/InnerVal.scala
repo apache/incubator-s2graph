@@ -131,6 +131,11 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
 
   def >=(other: InnerVal) = this.compare(other) >= 0
 
-  override def toString(): String = value.toString
+  override def toString(): String = {
+    value match {
+      case n: BigDecimal => n.bigDecimal.toPlainString
+      case _ => value.toString
+    }
+  }
 
 }

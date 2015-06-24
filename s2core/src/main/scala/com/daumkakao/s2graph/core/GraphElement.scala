@@ -8,5 +8,5 @@ trait GraphElement {
   lazy val queueKey: String = ???
   lazy val queuePartitionKey: String = ???
   def buildPutsAll(): List[HBaseRpc]
-
+  def toLogString(): String
 }
