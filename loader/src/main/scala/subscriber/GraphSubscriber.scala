@@ -150,7 +150,10 @@ object GraphSubscriberHelper extends WithKafka {
         case v: Vertex if v.op == GraphUtil.operations("insert") || v.op == GraphUtil.operations("insertBulk") =>
           v.buildPuts()
         case e: Edge if e.op == GraphUtil.operations("insert") || e.op == GraphUtil.operations("insertBulk") =>
-          e.edgesWithIndex.flatMap { edgeWithIndex =>
+          val snapshotEdgePuts =
+            if (e.labelWithDir.dir == GraphUtil.directions("out")) List(e.toInvertedEdgeHashLike().buildPut())
+            else Nil
+          snapshotEdgePuts ++ e.edgesWithIndex.flatMap { edgeWithIndex =>
             edgeWithIndex.buildPuts()
           } ++ e.buildVertexPuts()
         case _ => Nil
