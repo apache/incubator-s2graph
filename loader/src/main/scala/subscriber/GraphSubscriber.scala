@@ -26,38 +26,11 @@ object GraphConfig {
     zkQuorum = zkAddr.getOrElse("localhost")
     kafkaBrokers = kafkaBrokerList.getOrElse("localhost:9092")
     val s = s"""
-               |logger.root=ERROR
-               |
-               |# Logger used by the framework:
-               |logger.play=INFO
-               |
-               |# Logger provided to your application:
-               |logger.application=DEBUG
-               |
+               |# hbase
+               |hbase.zookeeper.quorum="$zkQuorum"
                |# APP PHASE
                |phase=dev
-               |
-               |# DB
-               |db.default.driver=com.mysql.jdbc.Driver
-               |db.default.url="$database"
-                                           |db.default.user=graph
-                                           |db.default.password=graph
-                                           |
-                                           |# Query server
-                                           |is.query.server=true
-                                           |is.write.server=true
-                                           |
-                                           |# Local Cache
-                                           |cache.ttl.seconds=60
-                                           |cache.max.size=100000
-                                           |
-                                           |# HBASE
-                                           |hbase.client.operation.timeout=60000
-                                           |
-                                           |# Kafka
-                                           |kafka.metadata.broker.list="$kafkaBrokers"
-                                                                                       |kafka.producer.pool.size=0
-                                                                                       | """.stripMargin
+               | """.stripMargin
 
     println(s)
     ConfigFactory.parseString(s)
@@ -261,11 +234,15 @@ object GraphSubscriber extends SparkApp with WithKafka {
       val msgs = sc.textFile(hdfsPath)
 
       /** change assumption here. this job only take care of one label data */
-      val degreeStart: RDD[((String, String, String), Int)] = msgs.flatMap { msg =>
+      val degreeStart: RDD[((String, String, String), Int)] = msgs.map { msg =>
         val tokens = GraphUtil.split(msg)
-        val srcWithLabel = (tokens(3), newLabelName, "out")
-        val tgtWithLabel = (tokens(4), newLabelName, "in")
-        List((srcWithLabel, 1), (tgtWithLabel, 1))
+        val direction = if (tokens.length == 7) "out" else tokens(7)
+        val vertexWithLabel = if (direction == "out") {
+          (tokens(3), newLabelName, direction)
+        } else {
+          (tokens(4), newLabelName, direction)
+        }
+        (vertexWithLabel, 1)
       }
       val vertexDegrees = degreeStart.reduceByKey(_ + _)
 
