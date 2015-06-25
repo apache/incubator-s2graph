@@ -405,9 +405,10 @@ case class Edge(srcVertex: Vertex,
   //  def fetchInverted() = {
   //    Graph.getEdgeSync(srcVertex, tgtVertex, label, labelWithDir.dir)
   //  }
-  def fetchInvertedAsync(): Future[Option[Edge]] = {
-    Graph.getEdge(srcVertex, tgtVertex, label, labelWithDir.dir).map { edgesWithScore =>
-      edgesWithScore.headOption.map { edgeWithScore => edgeWithScore._1 }
+  def fetchInvertedAsync(): Future[(QueryParam, Option[Edge])] = {
+    val queryParam = QueryParam(labelWithDir)
+    Graph.getEdge(srcVertex, tgtVertex, queryParam).map { case (queryParam, edgesWithScore) =>
+      (queryParam, edgesWithScore.headOption.map { edgeWithScore => edgeWithScore._1 })
     }
   }
 
@@ -473,7 +474,7 @@ case class Edge(srcVertex: Vertex,
       try {
         val client = Graph.getClient(label.hbaseZkAddr)
         for {
-          edges <- fetchInvertedAsync()
+          (queryParam, edges) <- fetchInvertedAsync()
           invertedEdgeOpt = edges.headOption
           edgeUpdate = f(invertedEdgeOpt, this)
           ret <- compareAndSet(client)(invertedEdgeOpt, edgeUpdate)

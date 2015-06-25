@@ -2,9 +2,9 @@ package com.daumkakao.s2graph.core
 
 
 //import com.daumkakao.s2graph.core.mysqls._
+
 import com.daumkakao.s2graph.core.models._
 import scala.util.{Success, Failure}
-
 
 
 import com.daumkakao.s2graph.core.types2._
@@ -98,8 +98,16 @@ object Graph {
   val clients = scala.collection.mutable.Map[String, HBaseClient]()
   val emptyKVs = new ArrayList[KeyValue]()
   val emptyKVlist = new ArrayList[ArrayList[KeyValue]]();
-  val emptyEdgeList = new ArrayList[ArrayList[(Edge, Double, QueryParam)]]
-  val emptyEdges = new ArrayList[(Edge, Double, QueryParam)]
+
+  def emptyEdgeList(queryParams: Seq[QueryParam]) = {
+    val empty = new ArrayList[(QueryParam, ArrayList[(Edge, Double)])]
+    queryParams.foreach(q => empty.add(emptyEdges(q)))
+    empty
+  }
+
+  def emptyEdges(queryParam: QueryParam) = (queryParam, new ArrayList[(Edge, Double)])
+
+  val emptyQueryParam = QueryParam(LabelWithDirection(0, 0))
 
   var executionContext: ExecutionContext = null
   var config: com.typesafe.config.Config = null
@@ -258,18 +266,18 @@ object Graph {
 
 
   //select
+
   /**
    *
    */
-  def getEdgesAsync(q: Query): Future[Seq[Iterable[(Edge, Double)]]] = {
+  def getEdgesAsync(q: Query): Future[Seq[(QueryParam, Iterable[(Edge, Double)])]] = {
     implicit val ex = this.executionContext
     // not sure this is right. make sure refactor this after.
     try {
+
       if (q.steps.isEmpty) {
         // TODO: this should be get vertex query.
-        Future {
-          q.vertices.map(v => List.empty[(Edge, Double)])
-        }
+        Future.successful(q.vertices.map(v => emptyQueryParam -> List.empty[(Edge, Double)]))
       } else {
         val stepLen = q.steps.length
         var step = q.steps.head
@@ -285,14 +293,12 @@ object Graph {
     } catch {
       case e: Throwable =>
         Logger.error(s"getEdgesAsync: $e", e)
-        Future {
-          q.vertices.map(v => List.empty[(Edge, Double)])
-        }
+        Future.successful(q.vertices.map(v => emptyQueryParam -> List.empty[(Edge, Double)]))
     }
   }
 
   //only for testcase.
-  def getEdgesSync(q: Query): Seq[Iterable[(Edge, Double)]] = {
+  def getEdgesSync(q: Query): Seq[(QueryParam, Iterable[(Edge, Double)])] = {
     Await.result(getEdgesAsync(q), 10 seconds)
   }
 
@@ -311,13 +317,13 @@ object Graph {
   //  }
 
   //ab, 1, 1
-  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, label: Label, dir: Int): Future[Iterable[(Edge, Double)]] = {
+  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam): Future[(QueryParam, Iterable[(Edge, Double)])] = {
     implicit val ex = this.executionContext
 
 
-
-    val invertedEdge = Edge(srcVertex, tgtVertex,
-      LabelWithDirection(label.id.get, dir)).toInvertedEdgeHashLike()
+    val label = queryParam.label
+    val dir = queryParam.labelWithDir.dir
+    val invertedEdge = Edge(srcVertex, tgtVertex, queryParam.labelWithDir).toInvertedEdgeHashLike()
 
     val rowKey = invertedEdge.rowKey
 
@@ -325,23 +331,25 @@ object Graph {
     val client = getClient(label.hbaseZkAddr)
     val getRequest = new GetRequest(label.hbaseTableName.getBytes(), rowKey.bytes, edgeCf, qualifier.bytes)
     Logger.debug(s"$getRequest")
-    val queryParam = QueryParam(LabelWithDirection(label.id.get, dir.toByte))
+    val qParam = QueryParam(LabelWithDirection(label.id.get, dir.toByte))
     defferedToFuture(client.get(getRequest))(emptyKVs).map { kvs =>
-      for {
+      val edgeWithScoreLs = for {
         kv <- kvs
-        edge <- Edge.toEdge(kv, queryParam)
+        edge <- Edge.toEdge(kv, qParam)
       } yield {
         Logger.debug(s"$edge")
-        (edge, edge.rank(queryParam.rank))
+        (edge, edge.rank(qParam.rank))
       }
+      (qParam, edgeWithScoreLs)
     }
   }
 
-  def checkEdges(quads: Seq[(Vertex, Vertex, Label, Int)]): Future[Seq[Iterable[(Edge, Double)]]] = {
+  def checkEdges(quads: Seq[(Vertex, Vertex, Label, Int)]): Future[Seq[(QueryParam, Iterable[(Edge, Double)])]] = {
     implicit val ex = this.executionContext
     val futures = for {
       (srcVertex, tgtVertex, label, dir) <- quads
-    } yield getEdge(srcVertex, tgtVertex, label, dir)
+      queryParam = QueryParam(LabelWithDirection(label.id.get, dir))
+    } yield getEdge(srcVertex, tgtVertex, queryParam)
 
     Future.sequence(futures)
   }
@@ -376,10 +384,12 @@ object Graph {
     }
   }
 
-  def filterEdges(edgesFuture: Future[ArrayList[ArrayList[(Edge, Double, QueryParam)]]],
+  //  case class QueryResult(queryParam: QueryParam, edgeWithScoreLs: Iterable[(Edge, Double)])
+
+  def filterEdges(edgesFuture: Future[ArrayList[(QueryParam, ArrayList[(Edge, Double)])]],
                   q: Query,
                   stepIdx: Int,
-                  alreadyVisited: Map[(LabelWithDirection, Vertex), Boolean] = Map.empty[(LabelWithDirection, Vertex), Boolean]): Future[Seq[Iterable[(Edge, Double)]]] = {
+                  alreadyVisited: Map[(LabelWithDirection, Vertex), Boolean] = Map.empty[(LabelWithDirection, Vertex), Boolean]): Future[Seq[(QueryParam, Iterable[(Edge, Double)])]] = {
     implicit val ex = Graph.executionContext
     edgesFuture.map { edgesByVertices =>
       val step = q.steps(stepIdx)
@@ -396,8 +406,8 @@ object Graph {
       val hasIncludeLabel = includeLabelWithDirOpt.isDefined
       //      if (hasIncludeLabel) {
       for {
-        edgesWithScore <- edgesByVertices
-        (edge, score, queryParam) <- edgesWithScore
+        (queryParam, edgesWithScore) <- edgesByVertices
+        (edge, score) <- edgesWithScore
       } {
         //        Logger.debug(s"${edge.toStringRaw}")
         if (hasIncludeLabel && edge.labelWithDir == includeLabelWithDirOpt.get) {
@@ -424,41 +434,44 @@ object Graph {
       //            Logger.debug(s"$includeFromTos")
 
       val convertedEdges = for {
-        edgesWithScore <- edgesByVertices
+        (queryParam, edgesWithScore) <- edgesByVertices
       } yield {
-          for {
+          val edgeWithScoreLs = for {
           //          (edge, score) <- edgesWithScore if !excludeFromTos.contains((edge.srcVertex.id -> edge.tgtVertex.id))
           //          if (!hasIncludeLabel || includeFromTos.contains((edge.srcVertex.id -> edge.tgtVertex.id)))
-            (edge, score, queryParam) <- edgesWithScore
+            (edge, score) <- edgesWithScore
             fromTo = (edge.srcVertex.id.toString -> edge.tgtVertex.id.toString)
             if !excludeFromTos.contains(fromTo)
             if (!hasIncludeLabel || includeFromTos.contains(fromTo))
             convertedEdge <- convertEdge(edge, labelOutputFields)
             key = (convertedEdge.labelWithDir, convertedEdge.tgtVertex)
             //          if !seen.contains(key)
-            if filterDuplicates(seen, edge, score, queryParam)
+            if filterDuplicates(seen, queryParam, edge, score)
             if !(q.removeCycle && alreadyVisited.contains(key))
           } yield {
-            //          seen += key
+              //          seen += key
 
-            (convertedEdge, score)
-          }
+              (convertedEdge, score)
+            }
+          (queryParam, edgeWithScoreLs)
         }
       for {
-        edgesWithScore <- convertedEdges
+        (queryParam, edgesWithScore) <- convertedEdges
       } yield {
-        for {
+        val edgeWithScoreLs = for {
           (edge, score) <- edgesWithScore
           key = (edge.srcVertex, edge.labelWithDir, edge.tgtVertex)
           aggregatedScore = seen.getOrElse(key, score)
         } yield {
-          (edge, aggregatedScore)
-        }
+            (edge, aggregatedScore)
+          }
+        (queryParam, edgeWithScoreLs)
       }
     }
   }
 
-  private def filterDuplicates(seen: HashMap[(Vertex, LabelWithDirection, Vertex), Double], edge: Edge, score: Double, queryParam: QueryParam) = {
+  private def filterDuplicates(seen: HashMap[(Vertex, LabelWithDirection, Vertex), Double], queryParam: QueryParam,
+                               edge: Edge, score: Double) = {
     val key = (edge.srcVertex, edge.labelWithDir, edge.tgtVertex)
     val newScore = queryParam.duplicatePolicy match {
       case Query.DuplicatePolicy.CountSum => 1.0
@@ -487,25 +500,71 @@ object Graph {
   }
 
 
-  def getEdgesAsyncWithRankForFistStep(srcVertices: Seq[Vertex], q: Query, stepIdx: Int): Future[Seq[Iterable[(Edge, Double)]]] = {
+  def getEdgesAsyncWithRankForFistStep(srcVertices: Seq[Vertex], q: Query, stepIdx: Int): Future[Seq[(QueryParam, Iterable[(Edge, Double)])]] = {
     val step = q.steps(stepIdx)
     val uniqSrcVertices = srcVertices.groupBy(v => v.id).map { kv => (kv._2.head, 1.0) }
     getEdgesAsyncWithRank(uniqSrcVertices.toSeq, q, stepIdx)
   }
 
 
-  private def getEdgesAsyncWithRank(prevEdges: Seq[(Edge, Double)], q: Query, stepIdx: Int): Future[Seq[Iterable[(Edge, Double)]]] = {
+  private def getEdgesAsyncWithRank(srcVertices: Seq[(Vertex, Double)], q: Query, stepIdx: Int): Future[Seq[(QueryParam, Iterable[(Edge, Double)])]] = {
+    implicit val ex = executionContext
     val step = q.steps(stepIdx)
-    val alreadyVisited = prevEdges.map {
-      case (edge, score) =>
+
+    val getsAll = buildGetRequests(srcVertices.map(_._1), step.queryParams).zip(srcVertices.map(_._2))
+
+    val queryParams = getsAll.flatMap { case (getsWithQueryParams, prevScore) => getsWithQueryParams.map { case (get, queryParam) => queryParam } }
+    val deffered = getsAll.flatMap {
+      //by verticies
+      case (getsWithQueryParams, prevScore) =>
+        getsWithQueryParams.map {
+          //by labels
+          case (get, queryParam) =>
+            try {
+              val client = getClient(queryParam.label.hbaseZkAddr)
+              deferredCallbackWithFallback(client.get(get))({ kvs =>
+                val edgeWithScores = for {
+                  kv <- kvs
+                  edge <- Edge.toEdge(kv, queryParam)
+                } yield {
+                    (edge, edge.rank(queryParam.rank) * prevScore)
+                  }
+                (queryParam, new ArrayList(edgeWithScores))
+              }, emptyEdges(queryParam))
+            } catch {
+              case e@(_: Throwable | _: Exception) =>
+                Logger.error(s"Exception: $e", e)
+                Deferred.fromResult(emptyEdges(queryParam))
+            }
+        }
+    }
+    val grouped = Deferred.group(deffered)
+    val fallback = emptyEdgeList(queryParams)
+    filterEdges(defferedToFuture(grouped)(fallback), q, stepIdx)
+  }
+
+  private def getEdgesAsyncWithRank(prevStep: Seq[(QueryParam, Iterable[(Edge, Double)])], q: Query, stepIdx: Int): Future[Seq[(QueryParam, Iterable[(Edge, Double)])]] = {
+    implicit val ex = executionContext
+
+    val step = q.steps(stepIdx)
+
+    val alreadyVisited = (for {
+      (queryParam, edgeWithScoreLs) <- prevStep
+      (edge, score) <- edgeWithScoreLs
+    } yield {
         (edge.labelWithDir, if (edge.labelWithDir.dir == GraphUtil.directions("out")) edge.tgtVertex else edge.srcVertex) -> true
-    }.toMap
+      }).toMap
 
-    val srcVertices = prevEdges.map { case (edge, score) => (edge.tgtVertex -> score) }
-    //    val getsAll = buildGets(srcVertices.map(_._1), step.queryParams).zip(srcVertices.map(_._2))
-    val getsAll = buildGetRequests(srcVertices.map(_._1), step.queryParams).zip(srcVertices.map(_._2))
 
-    implicit val ex = executionContext
+    val nextStepSrcVertices = for {
+      (queryParam, edgeWithScoreLs) <- prevStep
+      (edge, score) <- edgeWithScoreLs
+    } yield {
+        (edge.tgtVertex -> score)
+      }
+    val getsAll = buildGetRequests(nextStepSrcVertices.map(_._1), step.queryParams).zip(nextStepSrcVertices.map(_._2))
+
+    val queryParams = getsAll.flatMap { case (getsWithQueryParams, prevScore) => getsWithQueryParams.map { case (get, queryParam) => queryParam } }
     val deffered = getsAll.flatMap {
       //by verticies
       case (getsWithQueryParams, prevScore) =>
@@ -515,68 +574,33 @@ object Graph {
             try {
               val client = getClient(queryParam.label.hbaseZkAddr)
               deferredCallbackWithFallback(client.get(get))({ kvs =>
-                val edges = for {
+                val edgeWithScores = for {
                   kv <- kvs
                   edge <- Edge.toEdge(kv, queryParam)
                 } yield {
-                    (edge, edge.rank(queryParam.rank) * prevScore, queryParam)
+                    (edge, edge.rank(queryParam.rank) * prevScore)
                   }
-                new ArrayList(edges)
-              }, emptyEdges)
+                (queryParam, new ArrayList(edgeWithScores))
+              }, emptyEdges(queryParam))
             } catch {
               case e@(_: Throwable | _: Exception) =>
                 Logger.error(s"Exception: $e", e)
-                Deferred.fromResult(emptyEdges)
+                Deferred.fromResult(emptyEdges(queryParam))
             }
         }
     }
     val grouped = Deferred.group(deffered)
-    filterEdges(defferedToFuture(grouped)(emptyEdgeList), q, stepIdx, alreadyVisited)
+    val fallback = emptyEdgeList(queryParams)
+    filterEdges(defferedToFuture(grouped)(fallback), q, stepIdx, alreadyVisited)
   }
 
-  private def getEdgesAsyncWithRank(srcVertices: Seq[(Vertex, Double)], q: Query, stepIdx: Int): Future[Seq[Iterable[(Edge, Double)]]] = {
-    val step = q.steps(stepIdx)
-    //    val getsAll = buildGets(srcVertices.map(_._1), step.queryParams).zip(srcVertices.map(_._2))
-    val getsAll = buildGetRequests(srcVertices.map(_._1), step.queryParams).zip(srcVertices.map(_._2))
-    implicit val ex = executionContext
-    val deffered = getsAll.flatMap {
-      //by verticies
-      case (getsWithQueryParams, prevScore) =>
-        getsWithQueryParams.map {
-          //by labels
-          case (get, queryParam) =>
-            try {
-              val client = getClient(queryParam.label.hbaseZkAddr)
-              deferredCallbackWithFallback(client.get(get))({ kvs =>
-                val edges = for {
-                  kv <- kvs
-                  edge <- Edge.toEdge(kv, queryParam)
-                } yield {
-                    (edge, edge.rank(queryParam.rank) * prevScore, queryParam)
-                  }
-                new ArrayList(edges)
-              }, emptyEdges)
-            } catch {
-              case e@(_: Throwable | _: Exception) =>
-                Logger.error(s"Exception: $e", e)
-                Deferred.fromResult(emptyEdges)
-
-            }
-        }
-    }
-    val grouped = Deferred.group(deffered)
-
-    filterEdges(defferedToFuture(grouped)(emptyEdgeList), q, stepIdx)
-  }
-
-  def getEdgesAsyncWithRank(srcEdgesFuture: Future[Seq[Iterable[(Edge, Double)]]], q: Query, stepIdx: Int): Future[Seq[Iterable[(Edge, Double)]]] = {
+  def getEdgesAsyncWithRank(srcEdgesFuture: Future[Seq[(QueryParam, Iterable[(Edge, Double)])]], q: Query, stepIdx: Int): Future[Seq[(QueryParam, Iterable[(Edge, Double)])]] = {
     implicit val ex = executionContext
     for {
       srcEdges <- srcEdgesFuture
-      edgesWithScore = srcEdges.flatten
-      ret <- getEdgesAsyncWithRank(edgesWithScore, q, stepIdx)
-    //      verticeWithRanks = edgesWithScore.map(t => (t._1.tgtVertex, t._2)).toSeq
-    //      ret <- getEdgesAsyncWithRank(verticeWithRanks, step)
+      //      (queryParam, edgeWithScoreLs) <- srcEdges
+      // prevStep: (QueryParam, Seq[(Edge, Double)]), q: Query, stepIdx: Int): Future[Seq[(QueryParam, Iterable[(Edge, Double)])]] = {
+      ret <- getEdgesAsyncWithRank(srcEdges, q, stepIdx)
     } yield {
       ret
     }
@@ -663,7 +687,9 @@ object Graph {
     implicit val ex = this.executionContext
 
     val labels = (Label.findBySrcColumnId(vertex.id.colId) ++
-      Label.findByTgtColumnId(vertex.id.colId)).groupBy(_.id.get).map { _._2.head }
+      Label.findByTgtColumnId(vertex.id.colId)).groupBy(_.id.get).map {
+      _._2.head
+    }
 
     /** delete vertex only */
     for {
@@ -693,7 +719,7 @@ object Graph {
     for {
       edgesByVertexLs <- getEdgesAsync(q)
       invertedFutures = for {
-        edgesByVertex <- edgesByVertexLs
+        (queryParam, edgesByVertex) <- edgesByVertexLs
         (edge, score) <- edgesByVertex
       } yield {
           val convertedEdge = if (dir == GraphUtil.directions("out")) {
