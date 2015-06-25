@@ -24,11 +24,11 @@ object PostProcess extends JSONParser {
    */
   val SCORE_FIELD_NAME = "scoreSum"
 
-  def groupEdgeResult(edgesWithRank: Seq[(QueryParam, Iterable[(Edge, Double)])], excludeIds: Option[Map[InnerValLike, Boolean]] = None) = {
+  def groupEdgeResult(queryResultLs: Seq[QueryResult], excludeIds: Option[Map[InnerValLike, Boolean]] = None) = {
     //    filterNot {case (edge, score) => edge.props.contains(LabelMeta.degreeSeq)}
     val groupedEdgesWithRank = (for {
-      (queryParam, edgeWithScoreLs) <- edgesWithRank
-      (edge, score) <- edgeWithScoreLs
+      queryResult <- queryResultLs
+      (edge, score) <- queryResult.edgeWithScoreLs
     } yield {
         (edge, score)
       }).groupBy {
@@ -66,40 +66,46 @@ object PostProcess extends JSONParser {
     Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons.asInstanceOf[List[JsObject]])
   }
 
-  def simple(edgesPerVertex: Seq[(QueryParam, Iterable[(Edge, Double)])]) = {
-    val ids = edgesPerVertex.flatMap(edges => edges._2.map(edge => edge._1.srcVertex.innerId.toString))
+  def simple(queryResultLs: Seq[QueryResult]) = {
+    val ids = resultInnerIds(queryResultLs).map(_.toString)
     val size = ids.size
     queryLogger.info(s"Result: $size")
     Json.obj("size" -> size, "results" -> ids)
     //    sortWithFormatted(ids)(false)
   }
 
-  def summarizeWithListExcludeFormatted(exclude: Seq[(QueryParam, Iterable[(Edge, Double)])], edgesPerVertexWithRanks: Seq[(QueryParam, Iterable[(Edge, Double)])]) = {
-    val excludeIds = exclude.flatMap(ex => ex._2.map { case (edge, score) => (edge.tgtVertex.innerId, true) }) toMap
-    val jsons = groupEdgeResult(edgesPerVertexWithRanks, Some(excludeIds))
+  def resultInnerIds(queryResultLs: Seq[QueryResult], isSrcVertex: Boolean = false) = {
+    for {
+      queryResult <- queryResultLs
+      (edge, score) <- queryResult.edgeWithScoreLs
+    } yield {
+      if (isSrcVertex) edge.srcVertex.innerId
+      else edge.tgtVertex.innerId
+    }
+  }
+  def summarizeWithListExcludeFormatted(exclude: Seq[QueryResult], queryResultLs: Seq[QueryResult]) = {
+    val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true)
+    val jsons = groupEdgeResult(queryResultLs, Some(excludeIds.toMap))
     val reverseSort = sortWithFormatted(jsons) _
     reverseSort(true)
   }
 
   /**
    * This method will be deprecated(because our response format will change by summarizeWithListExcludeFormatted functions' logic)
-   * @param exclude
-   * @param edgesPerVertexWithRanks
-   * @return
    */
-  def summarizeWithListExclude(exclude: Seq[(QueryParam, Iterable[(Edge, Double)])],
-                               edgesPerVertexWithRanks: Seq[(QueryParam, Iterable[(Edge, Double)])]): JsObject = {
-    val excludeIds = exclude.flatMap(ex => ex._2.map { case (edge, score) => (edge.tgtVertex.innerId, true) }) toMap
+  def summarizeWithListExclude(exclude: Seq[QueryResult],
+                               queryResultLs: Seq[QueryResult]): JsObject = {
+    val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
 
 
     val groupedEdgesWithRank = (for {
-      (queryParam, edgesWithRank) <- edgesPerVertexWithRanks
-      (edge, score) <- edgesWithRank if edge.props.contains(LabelMeta.degreeSeq)
+      queryResult <- queryResultLs
+      (edge, score) <- queryResult.edgeWithScoreLs if edge.props.contains(LabelMeta.degreeSeq)
     } yield {
         (edge, score)
-      }).groupBy{ case (edge, score) =>
-        (edge.label.tgtColumn, edge.label.srcColumn, edge.tgtVertex.innerId)
-      }
+      }).groupBy { case (edge, score) =>
+      (edge.label.tgtColumn, edge.label.srcColumn, edge.tgtVertex.innerId)
+    }
 
     val jsons = for {
       ((tgtColumn, srcColumn, target), edgesAndRanks) <- groupedEdgesWithRank if !excludeIds.contains(target)
@@ -114,13 +120,13 @@ object PostProcess extends JSONParser {
     Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
   }
 
-  def summarizeWithList(edgesPerVertexWithRanks: Seq[(QueryParam, Iterable[(Edge, Double)])]) = {
+  def summarizeWithList(edgesPerVertexWithRanks: Seq[QueryResult]) = {
     val jsons = groupEdgeResult(edgesPerVertexWithRanks)
     val reverseSort = sortWithFormatted(jsons) _
     reverseSort(true)
   }
 
-  def summarizeWithListFormatted(edgesPerVertexWithRanks: Seq[(QueryParam, Iterable[(Edge, Double)])]) = {
+  def summarizeWithListFormatted(edgesPerVertexWithRanks: Seq[QueryResult]) = {
     val jsons = groupEdgeResult(edgesPerVertexWithRanks)
     val reverseSort = sortWithFormatted(jsons) _
     reverseSort(true)
@@ -131,8 +137,7 @@ object PostProcess extends JSONParser {
   }
 
 
-
-  def toSimpleVertexArrJson(edgesPerVertex: Seq[(QueryParam, Iterable[(Edge, Double)])]) = {
+  def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult]) = {
     val withScore = true
     import play.api.libs.json.Json
     val degreeJsons = ListBuffer[JsObject]()
@@ -140,8 +145,8 @@ object PostProcess extends JSONParser {
     val edgeJsons = ListBuffer[JsObject]()
 
     for {
-      (queryParam, edges) <- edgesPerVertex
-      (edge, score) <- edges
+      queryResult <- queryResultLs
+      (edge, score) <- queryResult.edgeWithScoreLs
     } {
       if (edge.propsWithTs.contains(LabelMeta.degreeSeq)) {
         //          degreeJsons += edgeJson
@@ -151,7 +156,7 @@ object PostProcess extends JSONParser {
         )
       } else {
         for {
-          edgeJson <- edgeToJson(edge, score, queryParam)
+          edgeJson <- edgeToJson(edge, score, queryResult.queryParam)
         } {
           edgeJsons += edgeJson
         }
@@ -169,15 +174,16 @@ object PostProcess extends JSONParser {
     Json.obj("size" -> results.size, "degrees" -> degrees, "results" -> results)
   }
 
-  def toSiimpleVertexArrJson(exclude: Seq[(QueryParam, Iterable[(Edge, Double)])],
-                             edgesPerVertexWithRanks: Seq[(QueryParam, Iterable[(Edge, Double)])]) = {
-    val excludeIds = exclude.flatMap{ case (queryParam, ex) => ex.map { case (edge, score) => (edge.tgtVertex.innerId, true) }} toMap
+  def toSiimpleVertexArrJson(exclude: Seq[QueryResult],
+                             queryResultLs: Seq[QueryResult]) = {
+    val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
     val withScore = true
     import play.api.libs.json.Json
     val jsons = for {
-      (queryParam, edgeWithScoreLs) <- edgesPerVertexWithRanks
-      (edge, score) <- edgeWithScoreLs if !excludeIds.contains(edge.tgtVertex.innerId) && !edge.props.contains(LabelMeta.degreeSeq)
-      edgeJson <- edgeToJson(edge, score, queryParam)
+      queryResult <- queryResultLs
+      (edge, score) <- queryResult.edgeWithScoreLs
+      if !excludeIds.contains(edge.tgtVertex.innerId) && !edge.props.contains(LabelMeta.degreeSeq)
+      edgeJson <- edgeToJson(edge, score, queryResult.queryParam)
     } yield edgeJson
 
     val results =
@@ -207,24 +213,12 @@ object PostProcess extends JSONParser {
   def edgeToJson(edge: Edge, score: Double, queryParam: QueryParam): Option[JsObject] = {
     //
     //    Logger.debug(s"edgeProps: ${edge.props} => ${props}")
-//    val shouldBeReverted = q.labelSrcTgtInvertedMap.get(edge.labelWithDir.labelId).getOrElse(false)
+    //    val shouldBeReverted = q.labelSrcTgtInvertedMap.get(edge.labelWithDir.labelId).getOrElse(false)
     //FIXME
-    val shouldBeReverted = false
+    val dir = edge.labelWithDir.dir
     val json = for {
-      from <- {
-        if (shouldBeReverted) {
-          innerValToJsValue(edge.srcVertex.id.innerId, edge.label.tgtColumn.columnType)
-        } else {
-          innerValToJsValue(edge.srcVertex.id.innerId, edge.label.srcColumn.columnType)
-        }
-      }
-      to <- {
-        if (shouldBeReverted) {
-          innerValToJsValue(edge.tgtVertex.id.innerId, edge.label.srcColumn.columnType)
-        } else {
-          innerValToJsValue(edge.tgtVertex.id.innerId, edge.label.tgtColumn.columnType)
-        }
-      }
+      from <- innerValToJsValue(edge.srcVertex.id.innerId, edge.label.srcColumnWithDir(dir).columnType)
+      to <- innerValToJsValue(edge.tgtVertex.id.innerId, edge.label.tgtColumnWithDir(dir).columnType)
     } yield {
         Json.obj(
           "from" -> from,

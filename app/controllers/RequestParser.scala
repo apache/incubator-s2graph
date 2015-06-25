@@ -163,7 +163,9 @@ trait RequestParser extends JSONParser {
               val where = extractWhere(label, labelGroup)
               val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
               val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(1000)
-
+              val tgtVertexInnerIdOpt = (labelGroup \ "includeDegree").asOpt[JsValue].flatMap { jsVal =>
+                jsValueToInnerVal(jsVal, label.tgtColumnWithDir(direction).columnType, label.schemaVersion)
+              }
               // TODO: refactor this. dirty
               val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
               QueryParam(labelWithDir).labelOrderSeq(labelOrderSeq)
@@ -180,6 +182,7 @@ trait RequestParser extends JSONParser {
                 .duplicatePolicy(duplicate)
                 .includeDegree(includeDegree)
                 .rpcTimeout(rpcTimeout)
+                .tgtVertexInnerIdOpt(tgtVertexInnerIdOpt)
             }
           Step(queryParams.toList)
         }

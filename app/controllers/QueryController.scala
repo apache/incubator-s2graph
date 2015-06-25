@@ -55,7 +55,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
     getEdgesExcludedInner(request.body)
   }
 
-  private def getEdgesAsync(jsonQuery: JsValue)(post: (Seq[(QueryParam, Iterable[(Edge, Double)])]) => JsValue): Future[Result] = {
+  private def getEdgesAsync(jsonQuery: JsValue)(post: (Seq[QueryResult]) => JsValue): Future[Result] = {
     try {
       val queryTemplateId = (jsonQuery \ "steps").toString()
       getOrElseUpdateMetric(queryTemplateId)(metricRegistry.meter(queryTemplateId)).mark()
@@ -84,8 +84,8 @@ object QueryController extends Controller with RequestParser with Instrumented {
     }
   }
 
-  private def getEdgesExcludedAsync(jsonQuery: JsValue)(post: (Seq[(QueryParam, Iterable[(Edge, Double)])],
-    Seq[(QueryParam, Iterable[(Edge, Double)])]) => JsValue): Future[Result] = {
+  private def getEdgesExcludedAsync(jsonQuery: JsValue)(post: (Seq[QueryResult],
+    Seq[QueryResult]) => JsValue): Future[Result] = {
     try {
       val queryTemplateId = (jsonQuery \ "steps").toString()
       getOrElseUpdateMetric[Meter](queryTemplateId)(metricRegistry.meter(queryTemplateId)).mark()
@@ -229,11 +229,11 @@ object QueryController extends Controller with RequestParser with Instrumented {
           Logger.debug(s"direction: $dir")
           (src, tgt, label, dir.toInt)
         }
-      Graph.checkEdges(quads).map { case queryParamWithEdgeWithScoreLs =>
+      Graph.checkEdges(quads).map { case queryResultLs  =>
         val edgeJsons = for {
-          (queryParam, edgeWithScoreLs) <- queryParamWithEdgeWithScoreLs
-          (edge, score) <- edgeWithScoreLs
-          edgeJson <- PostProcess.edgeToJson(if (isReverted) edge.duplicateEdge else edge, score, queryParam)
+          queryResult <- queryResultLs
+          (edge, score) <- queryResult.edgeWithScoreLs
+          edgeJson <- PostProcess.edgeToJson(if (isReverted) edge.duplicateEdge else edge, score, queryResult.queryParam)
         } yield edgeJson
 
         Ok(Json.toJson(edgeJsons)).as(applicationJsonHeader)

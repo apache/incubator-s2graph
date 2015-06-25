@@ -206,9 +206,9 @@ case class Edge(srcVertex: Vertex,
   lazy val relatedEdges = {
     labelWithDir.dir match {
       case 2 => //undirected
-        val out = LabelWithDirection(labelWithDir.labelId, 0)
+        val out = LabelWithDirection(labelWithDir.labelId, GraphUtil.directions("out"))
         val base = Edge(srcVertex, tgtVertex, out, op, ts, version, propsWithTs)
-        List(base, base.duplicateEdge, base.reverseDirEdge, base.reverseSrcTgtEdge)
+        List(base, base.reverseSrcTgtEdge)
       case 0 | 1 =>
         List(this, duplicateEdge)
     }
@@ -407,8 +407,8 @@ case class Edge(srcVertex: Vertex,
   //  }
   def fetchInvertedAsync(): Future[(QueryParam, Option[Edge])] = {
     val queryParam = QueryParam(labelWithDir)
-    Graph.getEdge(srcVertex, tgtVertex, queryParam).map { case (queryParam, edgesWithScore) =>
-      (queryParam, edgesWithScore.headOption.map { edgeWithScore => edgeWithScore._1 })
+    Graph.getEdge(srcVertex, tgtVertex, queryParam).map { case queryResult =>
+      (queryParam, queryResult.edgeWithScoreLs.headOption.map { edgeWithScore => edgeWithScore._1 })
     }
   }
 
@@ -845,8 +845,8 @@ object Edge extends JSONParser {
   def fromString(s: String): Option[Edge] = Graph.toEdge(s)
 
   def toEdge(kv: org.hbase.async.KeyValue, param: QueryParam): Option[Edge] = {
-    Logger.debug(s"$kv")
-    Logger.debug(s"${kv.key().toList}")
+    Logger.debug(s"$param -> $kv")
+
     val version = kv.timestamp()
     val keyBytes = kv.key()
     val rowKey = EdgeRowKey.fromBytes(keyBytes, 0, keyBytes.length, param.label.schemaVersion)
@@ -903,7 +903,12 @@ object Edge extends JSONParser {
     if (!param.includeDegree && isDegree) {
       None
     } else {
-      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
+      val edge =
+        if (!param.label.isDirected && param.labelWithDir.dir == GraphUtil.directions("in")) {
+          Edge(Vertex(tgtVertexId, ts), Vertex(srcVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
+        } else {
+          Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
+        }
 
       //          Logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
       val labelMetas = LabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
