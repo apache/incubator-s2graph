@@ -99,15 +99,6 @@ object Graph {
   val emptyKVs = new ArrayList[KeyValue]()
   val emptyKVlist = new ArrayList[ArrayList[KeyValue]]();
 
-  def emptyEdgeList(queryParams: Seq[QueryParam]) = {
-    val empty = new ArrayList[(QueryParam, ArrayList[(Edge, Double)])]
-    queryParams.foreach(q => empty.add(emptyEdges(q)))
-    empty
-  }
-
-  def emptyEdges(queryParam: QueryParam) = (queryParam, new ArrayList[(Edge, Double)])
-
-  val emptyQueryParam = QueryParam(LabelWithDirection(0, 0))
 
   var executionContext: ExecutionContext = null
   var config: com.typesafe.config.Config = null
@@ -133,6 +124,17 @@ object Graph {
     clients += (zkQuorum -> client)
   }
 
+  def emptyEdgeList(queryParams: Seq[QueryParam]) = {
+    val empty = new ArrayList[(QueryParam, ArrayList[(Edge, Double)])]
+    queryParams.foreach(q => empty.add(emptyEdges(q)))
+    empty
+  }
+
+  def emptyEdges(queryParam: QueryParam) = (queryParam, new ArrayList[(Edge, Double)])
+
+  lazy val emptyQueryParam = QueryParam(LabelWithDirection(0, 0))
+
+
   def getClient(zkQuorum: String, flushInterval: Short = clientFlushInterval) = {
     val client = clients.get(zkQuorum) match {
       case None =>
@@ -150,6 +152,7 @@ object Graph {
   def getConn(zkQuorum: String) = {
     conns.get(zkQuorum) match {
       case None =>
+        Logger.debug(s"${this.hbaseConfig}")
         val conn = ConnectionFactory.createConnection(this.hbaseConfig)
         conns += (zkQuorum -> conn)
         conn
