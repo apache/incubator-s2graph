@@ -14,6 +14,7 @@ object QueryResult {
 }
 
 case class QueryResult(queryParam: QueryParam,
-                       edgeWithScoreLs: Iterable[(Edge, Double)] = Seq.empty[(Edge, Double)]) {
+                       edgeWithScoreLs: Iterable[(Edge, Double)] = Seq.empty[(Edge, Double)],
+                       timestamp: Long = System.currentTimeMillis()) {
 
 }

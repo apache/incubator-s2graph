@@ -6,13 +6,15 @@ package com.daumkakao.s2graph.core
 import java.util
 
 import com.daumkakao.s2graph.core.models._
+import com.google.common.cache.CacheBuilder
+import scala.util.hashing.MurmurHash3
 import scala.util.{Success, Failure}
 
 
 import com.daumkakao.s2graph.core.types2._
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._
-import java.util.concurrent.Executors
+import java.util.concurrent.{TimeUnit, Executors}
 import play.api.Logger
 import scala.collection.JavaConversions._
 import scala.collection.mutable.HashSet
@@ -109,6 +111,11 @@ object Graph {
   var singleGetTimeout = 10000 millis
   var clientFlushInterval = 100.toShort
   val defaultScore = 1.0
+
+  lazy val cache = CacheBuilder.newBuilder()
+    .expireAfterWrite(100, TimeUnit.SECONDS)
+    .maximumSize(10000)
+    .build[java.lang.Integer, QueryResult]()
 
   //  implicit val ex = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(16))
   def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
@@ -294,11 +301,47 @@ object Graph {
   }
 
 
+
   private def fetchEdgesLs(currentStepRequestLss: Seq[(Iterable[(GetRequest, QueryParam)], Double)]): Seq[Deferred[QueryResult]] = {
     for {
       (prevStepTgtVertexResultLs, prevScore) <- currentStepRequestLss
       (getRequest, queryParam) <- prevStepTgtVertexResultLs
     } yield {
+      //      fetchEdges(getRequest, queryParam, prevScore)
+      fetchEdgesWithCache(getRequest, queryParam, prevScore)
+    }
+  }
+
+
+  private def fetchEdgesWithCache(getRequest: GetRequest, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
+    val cacheKey = MurmurHash3.stringHash(getRequest.toString)
+    def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
+      def call(arg: QueryResult): QueryResult = {
+        Logger.debug(s"queryResultCachePut, $arg")
+        cache.put(cacheKey, arg)
+        arg
+      }
+    }
+    if (queryParam.cacheTTLInMillis > 0) {
+      val cacheTTL = queryParam.cacheTTLInMillis
+      if (cache.asMap().containsKey(cacheKey)) {
+        val cachedVal = cache.asMap().get(cacheKey)
+        val elapsedTime = queryParam.timestamp - cachedVal.timestamp
+        if (elapsedTime < cacheTTL) {
+          Logger.debug(s"cacheHitAndValid: $cacheKey, $cacheTTL, $elapsedTime")
+          Deferred.fromResult(cachedVal)
+        }
+        else {
+          cache.asMap().remove(cacheKey)
+          Logger.debug(s"cacheHitInvalid: $cacheKey, $cacheTTL")
+          fetchEdges(getRequest, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+        }
+      } else {
+        Logger.debug(s"cacheMiss: $cacheKey")
+        fetchEdges(getRequest, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+      }
+    } else {
+      Logger.debug(s"cacheMiss: $cacheKey")
       fetchEdges(getRequest, queryParam, prevScore)
     }
   }
@@ -423,7 +466,6 @@ object Graph {
       (requests, score)
     }
   }
-
 
 
   def convertEdge(edge: Edge, labelOutputFields: Map[Int, Byte]): Option[Edge] = {
@@ -678,7 +720,6 @@ object Graph {
     }
     Future.sequence(futures)
   }
-
 
 
   // select

@@ -166,6 +166,7 @@ trait RequestParser extends JSONParser {
               val tgtVertexInnerIdOpt = (labelGroup \ "includeDegree").asOpt[JsValue].flatMap { jsVal =>
                 jsValueToInnerVal(jsVal, label.tgtColumnWithDir(direction).columnType, label.schemaVersion)
               }
+              val cacheTTL = (labelGroup \ "cacheTTL").asOpt[Long].getOrElse(-1L)
               // TODO: refactor this. dirty
               val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
               QueryParam(labelWithDir).labelOrderSeq(labelOrderSeq)
@@ -183,6 +184,7 @@ trait RequestParser extends JSONParser {
                 .includeDegree(includeDegree)
                 .rpcTimeout(rpcTimeout)
                 .tgtVertexInnerIdOpt(tgtVertexInnerIdOpt)
+                .cacheTTLInMillis(cacheTTL)
             }
           Step(queryParams.toList)
         }

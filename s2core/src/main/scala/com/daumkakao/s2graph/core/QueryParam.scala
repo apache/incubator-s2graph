@@ -102,9 +102,9 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
 }
 
 object QueryParam {
-  val empty = QueryParam(LabelWithDirection(0, 0))
+  lazy val empty = QueryParam(LabelWithDirection(0, 0))
 }
-case class QueryParam(labelWithDir: LabelWithDirection) {
+case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System.currentTimeMillis()) {
 
   import Query.DuplicatePolicy._
   import Query.DuplicatePolicy
@@ -144,6 +144,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   var maxAttempt = 2
   var includeDegree = false
   var tgtVertexInnerIdOpt: Option[InnerValLike] = None
+  var cacheTTLInMillis: Long = -1L
 
   def isRowKeyOnly(isRowKeyOnly: Boolean): QueryParam = {
     this.isRowKeyOnly = isRowKeyOnly
@@ -264,7 +265,10 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     this.tgtVertexInnerIdOpt = other
     this
   }
-
+  def cacheTTLInMillis(other: Long): QueryParam = {
+    this.cacheTTLInMillis = other
+    this
+  }
   override def toString(): String = {
     List(label.label, labelOrderSeq, offset, limit, rank, isRowKeyOnly,
       duration, isInverted, exclude, include, hasFilters, outputField).mkString("\t")
