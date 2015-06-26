@@ -904,11 +904,11 @@ object Edge extends JSONParser {
       None
     } else {
       val edge =
-        if (!param.label.isDirected && param.labelWithDir.dir == GraphUtil.directions("in")) {
-          Edge(Vertex(tgtVertexId, ts), Vertex(srcVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-        } else {
+//        if (!param.label.isDirected && param.labelWithDir.dir == GraphUtil.directions("in")) {
+//          Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir.updateDir(0), op, ts, version, props)
+//        } else {
           Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-        }
+//        }
 
       //          Logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
       val labelMetas = LabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
@@ -963,4 +963,5 @@ object Edge extends JSONParser {
       }
     }
   }
+
 }

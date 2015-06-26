@@ -101,7 +101,9 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
   }
 }
 
-
+object QueryParam {
+  val empty = QueryParam(LabelWithDirection(0, 0))
+}
 case class QueryParam(labelWithDir: LabelWithDirection) {
 
   import Query.DuplicatePolicy._
@@ -271,10 +273,11 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
 
   def buildGetRequest(srcVertex: Vertex) = {
     val (srcColumn, tgtColumn) =
-      if (labelWithDir.dir == GraphUtil.directions("in")) (label.tgtColumn, label.srcColumn)
+      if (labelWithDir.dir == GraphUtil.directions("in") && label.isDirected) (label.tgtColumn, label.srcColumn)
       else (label.srcColumn, label.tgtColumn)
     val (srcInnerId, tgtInnerId) =
-      if (labelWithDir.dir == GraphUtil.directions("in") && tgtVertexInnerIdOpt.isDefined) {
+      //FIXME
+      if (labelWithDir.dir == GraphUtil.directions("in") && tgtVertexInnerIdOpt.isDefined && label.isDirected) {
         // need to be swap src, tgt
         val tgtVertexInnerId = tgtVertexInnerIdOpt.get
         (InnerVal.convertVersion(tgtVertexInnerId, srcColumn.columnType, label.schemaVersion),

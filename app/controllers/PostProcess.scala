@@ -215,10 +215,19 @@ object PostProcess extends JSONParser {
     //    Logger.debug(s"edgeProps: ${edge.props} => ${props}")
     //    val shouldBeReverted = q.labelSrcTgtInvertedMap.get(edge.labelWithDir.labelId).getOrElse(false)
     //FIXME
+    val (srcColumn, tgtColumn) = if (edge.label.isDirected) {
+      (queryParam.label.srcColumnWithDir(queryParam.labelWithDir.dir), queryParam.label.tgtColumnWithDir(queryParam.labelWithDir.dir))
+    } else {
+      if (queryParam.labelWithDir.dir == GraphUtil.directions("in")) {
+        (queryParam.label.tgtColumn, queryParam.label.srcColumn)
+      } else {
+        (queryParam.label.srcColumn, queryParam.label.tgtColumn)
+      }
+    }
     val dir = edge.labelWithDir.dir
     val json = for {
-      from <- innerValToJsValue(edge.srcVertex.id.innerId, edge.label.srcColumnWithDir(dir).columnType)
-      to <- innerValToJsValue(edge.tgtVertex.id.innerId, edge.label.tgtColumnWithDir(dir).columnType)
+      from <- innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
+      to <- innerValToJsValue(edge.tgtVertex.id.innerId, tgtColumn.columnType)
     } yield {
         Json.obj(
           "from" -> from,

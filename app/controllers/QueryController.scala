@@ -36,7 +36,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
   private val buildResultJson = true
   private val maxLength = 64 * 1024 + 255 + 2 + 1
   private val emptyResultJson = Json.obj("size" -> 0, "results" -> Json.arr())
-  private val emptyResult = Seq((QueryParam, Seq.empty[(Edge, Double)]))
+//  private val emptyResult = Seq((QueryParam, Seq.empty[(Edge, Double)]))
   /**
    * end of only for test
    */

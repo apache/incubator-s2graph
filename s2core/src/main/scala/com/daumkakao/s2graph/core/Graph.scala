@@ -108,6 +108,7 @@ object Graph {
   var storageExceptionCount = 0L
   var singleGetTimeout = 10000 millis
   var clientFlushInterval = 100.toShort
+  val defaultScore = 1.0
 
   //  implicit val ex = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(16))
   def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
@@ -125,16 +126,6 @@ object Graph {
     client.setFlushInterval(clientFlushInterval)
     clients += (zkQuorum -> client)
   }
-//
-//  def emptyEdgeList(queryParams: Seq[QueryParam]) = {
-//    val empty = new ArrayList[(QueryParam, ArrayList[(Edge, Double)])]
-//    queryParams.foreach(q => empty.add(emptyEdges(q)))
-//    empty
-//  }
-//
-//  def emptyEdges(queryParam: QueryParam) = (queryParam, new ArrayList[(Edge, Double)])
-
-  lazy val emptyQueryParam = QueryParam(LabelWithDirection(0, 0))
 
 
   def getClient(zkQuorum: String, flushInterval: Short = clientFlushInterval) = {
@@ -269,6 +260,10 @@ object Graph {
   //    save(edge.label.hbaseZkAddr, edge.label.hbaseTableName, edge.buildPutsAll())
   //  }
 
+  //only for testcase.
+  def getEdgesSync(q: Query): Seq[QueryResult] = {
+    Await.result(getEdgesAsync(q), 10 seconds)
+  }
 
   //select
 
@@ -281,46 +276,103 @@ object Graph {
     try {
       if (q.steps.isEmpty) {
         // TODO: this should be get vertex query.
-        Future.successful(q.vertices.map(v => QueryResult(emptyQueryParam)))
+        Future.successful(q.vertices.map(v => QueryResult(QueryParam.empty)))
       } else {
-        val stepLen = q.steps.length
-        var step = q.steps.head
-
-        var seedEdgesFuture = getEdgesAsyncWithRankForFistStep(q.vertices, q, 0)
-
-        for (i <- (1 until stepLen)) {
-          seedEdgesFuture = getEdgesAsyncWithRank(seedEdgesFuture, q, i)
+        var seedEdgesFuture: Future[Seq[QueryResult]] = Future.successful(QueryResult.fromVertices(q.vertices, q.steps.head.queryParams))
+        for {
+          (step, idx) <- q.steps.zipWithIndex
+        } {
+          seedEdgesFuture = getEdgesAsyncWithRank(seedEdgesFuture, q, idx)
         }
-
         seedEdgesFuture
       }
     } catch {
       case e: Throwable =>
         Logger.error(s"getEdgesAsync: $e", e)
-        Future.successful(q.vertices.map(v => QueryResult(emptyQueryParam)))
+        Future.successful(q.vertices.map(v => QueryResult(QueryParam.empty)))
     }
   }
 
-  //only for testcase.
-  def getEdgesSync(q: Query): Seq[QueryResult] = {
-    Await.result(getEdgesAsync(q), 10 seconds)
+
+  private def fetchEdgesLs(currentStepRequestLss: Seq[(Iterable[(GetRequest, QueryParam)], Double)]): Seq[Deferred[QueryResult]] = {
+    for {
+      (prevStepTgtVertexResultLs, prevScore) <- currentStepRequestLss
+      (getRequest, queryParam) <- prevStepTgtVertexResultLs
+    } yield {
+      fetchEdges(getRequest, queryParam, prevScore)
+    }
   }
 
-  //only for testcase.
-  //  def getEdgeSync(srcVertex: Vertex, tgtVertex: Vertex, label: Label, dir: Int) = {
-  //    val rowKey = EdgeRowKey(srcVertex.id, LabelWithDirection(label.id.get, dir), LabelIndex.defaultSeq, isInverted = true)
-  //    val qualifier = EdgeQualifierInverted(tgtVertex.id)
-  //    val get = new Get(rowKey.bytes)
-  //    get.addColumn(edgeCf, qualifier.bytes)
-  //    withReadTable(label.hbaseZkAddr, label.hbaseTableName) { table =>
-  //      //      table.get(get)
-  //      Edge.toEdges(htableGet(table)(get))
-  //    } {
-  //      List.empty[Edge]
-  //    }
-  //  }
+  /** actual request to HBase */
+  private def fetchEdges(getRequest: GetRequest, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
+    try {
+      val client = getClient(queryParam.label.hbaseZkAddr)
+      deferredCallbackWithFallback(client.get(getRequest))({ kvs =>
+        val edgeWithScores = for {
+          kv <- kvs
+          edge <- Edge.toEdge(kv, queryParam)
+        } yield {
+            (edge, edge.rank(queryParam.rank) * prevScore)
+          }
+        QueryResult(queryParam, new ArrayList(edgeWithScores))
+      }, QueryResult(queryParam))
+    } catch {
+      case e@(_: Throwable | _: Exception) =>
+        Logger.error(s"Exception: $e", e)
+        Deferred.fromResult(QueryResult(queryParam))
+    }
+  }
 
-  //ab, 1, 1
+  private def alreadyVisitedVertices(queryResultLs: Seq[QueryResult]) = {
+    val vertices = for {
+      queryResult <- queryResultLs
+      (edge, score) <- queryResult.edgeWithScoreLs
+    } yield {
+        (edge.labelWithDir, if (edge.labelWithDir.dir == GraphUtil.directions("out")) edge.tgtVertex else edge.srcVertex) -> true
+      }
+    vertices.toMap
+  }
+
+  private def getEdgesAsyncWithRank(queryResultsLs: Seq[QueryResult],
+                                    q: Query,
+                                    stepIdx: Int): Future[Seq[QueryResult]] = {
+    implicit val ex = executionContext
+
+    val step = q.steps(stepIdx)
+    val alreadyVisited =
+      if (stepIdx == 0) Map.empty[(LabelWithDirection, Vertex), Boolean]
+      else alreadyVisitedVertices(queryResultsLs)
+
+    val nextStepSrcVertices = for {
+      queryResult <- queryResultsLs
+      (edge, score) <- queryResult.edgeWithScoreLs
+    } yield {
+        (edge.tgtVertex -> score)
+      }
+    val currentStepRequestLss = buildGetRequests(nextStepSrcVertices, step.queryParams)
+
+    val queryParams = currentStepRequestLss.flatMap { case (getsWithQueryParams, prevScore) =>
+      getsWithQueryParams.map { case (get, queryParam) => queryParam }
+    }
+    val fallback = new util.ArrayList(queryParams.map(param => QueryResult(param)))
+    val deffered = fetchEdgesLs(currentStepRequestLss)
+    val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deffered)
+
+    filterEdges(defferedToFuture(grouped)(fallback), q, stepIdx, alreadyVisited)
+  }
+
+  def getEdgesAsyncWithRank(queryResultLsFuture: Future[Seq[QueryResult]], q: Query, stepIdx: Int): Future[Seq[QueryResult]] = {
+    implicit val ex = executionContext
+    for {
+      queryResultLs <- queryResultLsFuture
+      //      (queryParam, edgeWithScoreLs) <- srcEdges
+      // prevStep: (QueryParam, Seq[(Edge, Double)]), q: Query, stepIdx: Int): Future[Seq[(QueryParam, Iterable[(Edge, Double)])]] = {
+      ret <- getEdgesAsyncWithRank(queryResultLs, q, stepIdx)
+    } yield {
+      ret
+    }
+  }
+
   def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam): Future[QueryResult] = {
     implicit val ex = this.executionContext
 
@@ -341,9 +393,9 @@ object Graph {
         kv <- kvs
         edge <- Edge.toEdge(kv, qParam)
       } yield {
-        Logger.debug(s"$edge")
-        (edge, edge.rank(qParam.rank))
-      }
+          Logger.debug(s"$edge")
+          (edge, edge.rank(qParam.rank))
+        }
       QueryResult(qParam, edgeWithScoreLs)
     }
   }
@@ -359,21 +411,19 @@ object Graph {
   }
 
 
-  def buildGetRequests(srcVertices: Seq[Vertex], params: List[QueryParam]): Seq[Iterable[(GetRequest, QueryParam)]] = {
-    srcVertices.map { vertex =>
-      params.map { param =>
-        (param.buildGetRequest(vertex), param)
-      }
+  def buildGetRequests(startVertices: Seq[(Vertex, Double)], params: List[QueryParam]): Seq[(Iterable[(GetRequest, QueryParam)], Double)] = {
+    for {
+      (vertex, score) <- startVertices
+    } yield {
+      val requests = for {
+        param <- params
+      } yield {
+          (param.buildGetRequest(vertex), param)
+        }
+      (requests, score)
     }
   }
 
-  //  def buildGets(srcVertices: Seq[Vertex], params: List[QueryParam]): Seq[Iterable[(Get, QueryParam)]] = {
-  //    srcVertices.map { vertex =>
-  //      params.map { param =>
-  //        (param.buildGet(vertex), param)
-  //      }
-  //    }
-  //  }
 
 
   def convertEdge(edge: Edge, labelOutputFields: Map[Int, Byte]): Option[Edge] = {
@@ -387,8 +437,6 @@ object Graph {
         }
     }
   }
-
-  //  case class QueryResult(queryParam: QueryParam, edgeWithScoreLs: Iterable[(Edge, Double)])
 
   def filterEdges(queryResultLsFuture: Future[ArrayList[QueryResult]],
                   q: Query,
@@ -487,116 +535,6 @@ object Graph {
   }
 
 
-  def getEdgesAsyncWithRankForFistStep(srcVertices: Seq[Vertex], q: Query, stepIdx: Int): Future[Seq[QueryResult]] = {
-    val step = q.steps(stepIdx)
-    val uniqSrcVertices = srcVertices.groupBy(v => v.id).map { kv => (kv._2.head, 1.0) }
-    getEdgesAsyncWithRank(uniqSrcVertices.toSeq, q, stepIdx)
-  }
-
-
-  private def getEdgesAsyncWithRank(srcVertices: Seq[(Vertex, Double)], q: Query, stepIdx: Int): Future[Seq[QueryResult]] = {
-    implicit val ex = executionContext
-    val step = q.steps(stepIdx)
-
-    val getsAll = buildGetRequests(srcVertices.map(_._1), step.queryParams).zip(srcVertices.map(_._2))
-
-    val queryParams = getsAll.flatMap { case (getsWithQueryParams, prevScore) =>
-      getsWithQueryParams.map { case (get, queryParam) => queryParam }
-    }
-    val deffered: Seq[Deferred[QueryResult]] = getsAll.flatMap {
-      //by verticies
-      case (getsWithQueryParams, prevScore) =>
-        getsWithQueryParams.map {
-          //by labels
-          case (get, queryParam) =>
-            try {
-              val client = getClient(queryParam.label.hbaseZkAddr)
-              deferredCallbackWithFallback(client.get(get))({ kvs =>
-                val edgeWithScores = for {
-                  kv <- kvs
-                  edge <- Edge.toEdge(kv, queryParam)
-                } yield {
-                    (edge, edge.rank(queryParam.rank) * prevScore)
-                  }
-                QueryResult(queryParam, new ArrayList(edgeWithScores))
-              }, QueryResult(queryParam))
-            } catch {
-              case e@(_: Throwable | _: Exception) =>
-                Logger.error(s"Exception: $e", e)
-                Deferred.fromResult(QueryResult(queryParam))
-            }
-        }
-    }
-    val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deffered)
-    val fallback = new util.ArrayList(queryParams.map(param => QueryResult(param)))
-    filterEdges(defferedToFuture(grouped)(fallback), q, stepIdx)
-  }
-
-  private def getEdgesAsyncWithRank(queryResultsLs: Seq[QueryResult], q: Query, stepIdx: Int): Future[Seq[QueryResult]] = {
-    implicit val ex = executionContext
-
-    val step = q.steps(stepIdx)
-
-    val alreadyVisited = (for {
-      queryResult <- queryResultsLs
-      (edge, score) <- queryResult.edgeWithScoreLs
-    } yield {
-        (edge.labelWithDir, if (edge.labelWithDir.dir == GraphUtil.directions("out")) edge.tgtVertex else edge.srcVertex) -> true
-      }).toMap
-
-
-    val nextStepSrcVertices = for {
-      queryResult <- queryResultsLs
-      (edge, score) <- queryResult.edgeWithScoreLs
-    } yield {
-        (edge.tgtVertex -> score)
-      }
-    val getsAll = buildGetRequests(nextStepSrcVertices.map(_._1), step.queryParams).zip(nextStepSrcVertices.map(_._2))
-
-    val queryParams = getsAll.flatMap { case (getsWithQueryParams, prevScore) =>
-      getsWithQueryParams.map { case (get, queryParam) => queryParam }
-    }
-    val deffered: Seq[Deferred[QueryResult]] = getsAll.flatMap {
-      //by verticies
-      case (getsWithQueryParams, prevScore) =>
-        getsWithQueryParams.map {
-          //by labels
-          case (get, queryParam) =>
-            try {
-              val client = getClient(queryParam.label.hbaseZkAddr)
-              deferredCallbackWithFallback(client.get(get))({ kvs =>
-                val edgeWithScores = for {
-                  kv <- kvs
-                  edge <- Edge.toEdge(kv, queryParam)
-                } yield {
-                    (edge, edge.rank(queryParam.rank) * prevScore)
-                  }
-                QueryResult(queryParam, new ArrayList(edgeWithScores))
-              }, QueryResult(queryParam))
-            } catch {
-              case e@(_: Throwable | _: Exception) =>
-                Logger.error(s"Exception: $e", e)
-                Deferred.fromResult(QueryResult(queryParam))
-            }
-        }
-    }
-    val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deffered)
-    val fallback = new util.ArrayList(queryParams.map(param => QueryResult(param)))
-    filterEdges(defferedToFuture(grouped)(fallback), q, stepIdx, alreadyVisited)
-  }
-
-  def getEdgesAsyncWithRank(queryResultLsFuture: Future[Seq[QueryResult]], q: Query, stepIdx: Int): Future[Seq[QueryResult]] = {
-    implicit val ex = executionContext
-    for {
-      queryResultLs <- queryResultLsFuture
-      //      (queryParam, edgeWithScoreLs) <- srcEdges
-      // prevStep: (QueryParam, Seq[(Edge, Double)]), q: Query, stepIdx: Int): Future[Seq[(QueryParam, Iterable[(Edge, Double)])]] = {
-      ret <- getEdgesAsyncWithRank(queryResultLs, q, stepIdx)
-    } yield {
-      ret
-    }
-  }
-
   def getVerticesAsync(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
     // TODO: vertex needs meta for hbase table.
     //    play.api.Logger.error(s"$vertices")
@@ -692,9 +630,6 @@ object Graph {
     }
   }
 
-  //  def toQueryFromVertexLabel(vertex: Vertex, label: Label): Query = {
-
-  //  }
   private def deleteVertexAllAsync(srcVertex: Vertex, labels: Seq[Label], dir: Int): Future[Boolean] = {
     implicit val ex = Graph.executionContext
 
@@ -731,12 +666,7 @@ object Graph {
     } yield ret
   }
 
-  //  def mutateVertices(vertices: Seq[Vertex]) = {
-  //    for (((zkQuorum, op), vertices) <- vertices.groupBy(v => (v.hbaseZkAddr, v.op))) {
-  //      if (op == GraphUtil.operations("delete") || op == GraphUtil.operations("deleteAll")) deleteVertexAll(vertices)
-  //      else writeAsync(zkQuorum, vertices.flatMap(v => v.buildPutsAll()))
-  //    }
-  //  }
+
   def mutateElements(elemnents: Seq[GraphElement]): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
     val futures = elemnents.map { element =>
@@ -749,14 +679,6 @@ object Graph {
     Future.sequence(futures)
   }
 
-  //
-  //  // delete only vertices
-  //  def deleteVertices(vertices: Seq[Vertex]): Future[Seq[Boolean]] = {
-  //    implicit val ex = this.executionContext
-  //    val futures = vertices.map { vertex => mutateVertex(vertex) }
-  //    Future.sequence(futures)
-  //  }
-  // delete only vertices
 
 
   // select
