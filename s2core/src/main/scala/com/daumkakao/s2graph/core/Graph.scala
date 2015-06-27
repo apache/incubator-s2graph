@@ -332,8 +332,8 @@ object Graph {
           Deferred.fromResult(cachedVal)
         }
         else {
-          cache.asMap().remove(cacheKey)
-          Logger.debug(s"cacheHitInvalid: $cacheKey, $cacheTTL")
+          // cache.asMap().remove(cacheKey)
+          Logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
           fetchEdges(getRequest, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
         }
       } else {
@@ -341,7 +341,7 @@ object Graph {
         fetchEdges(getRequest, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
       }
     } else {
-      Logger.debug(s"cacheMiss: $cacheKey")
+      Logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
       fetchEdges(getRequest, queryParam, prevScore)
     }
   }
@@ -741,14 +741,13 @@ object Graph {
    * ex) timestamp insert shon talk_user_id propperties
    *
    */
-
-  def toGraphElement(s: String, labelNameToReplace: Option[String] = None): Option[GraphElement] = {
+  def toGraphElement(s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] = {
     val parts = GraphUtil.split(s)
     try {
       val logType = parts(2)
       val element = if (logType == "edge" | logType == "e") {
         /** current only edge is considered to be bulk loaded */
-        labelNameToReplace match {
+        labelMapping.get(parts(5)) match {
           case None =>
           case Some(toReplace) =>
             parts(5) = toReplace

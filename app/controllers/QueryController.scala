@@ -5,16 +5,15 @@ import com.codahale.metrics.Meter
 
 //import com.daumkakao.s2graph.core.mysqls._
 
-import com.daumkakao.s2graph.core.models._
-
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.types2.{LabelWithDirection, VertexId, TargetVertexId, SourceVertexId}
-import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
+import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.types2.{LabelWithDirection, VertexId}
+import com.daumkakao.s2graph.rest.config.{Config, Instrumented}
 import play.api.Logger
-
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, Controller, Result}
 import util.TestDataLoader
+
 import scala.concurrent._
 
 object QueryController extends Controller with RequestParser with Instrumented {
@@ -233,7 +232,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
         val edgeJsons = for {
           queryResult <- queryResultLs
           (edge, score) <- queryResult.edgeWithScoreLs
-          edgeJson <- PostProcess.edgeToJson(if (isReverted) edge.duplicateEdge else edge, score, queryResult.queryParam)
+          edgeJson <- PostProcess.edgeToJson(if (isReverted) edge.duplicateEdge else edge, score, queryResult)
         } yield edgeJson
 
         Ok(Json.toJson(edgeJsons)).as(applicationJsonHeader)
@@ -296,7 +295,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
     "steps": [
       [{"label": "$label", "direction": "out", "limit": $limit}]
     ]
-	}
+  }
   """
       val json = Json.parse(queryJson)
       getEdgesAsync(json)(PostProcess.simple)
@@ -315,7 +314,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
       [{"label": "$label1", "direction": "out", "limit": $limit1}],
       [{"label": "$label2", "direction": "out", "limit": $limit2}]
     ]
-	}
+  }
   """
     val json = Json.parse(queryJson)
     getEdgesAsync(json)(PostProcess.simple)
@@ -334,7 +333,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
       [{"label": "$label2", "direction": "out", "limit": $limit2}],
       [{"label": "$label3", "direction": "out", "limit": $limit3}]
     ]
-	}
+  }
   """
     val json = Json.parse(queryJson)
     getEdgesAsync(json)(PostProcess.simple)

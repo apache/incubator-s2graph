@@ -135,15 +135,18 @@ case class EdgeWithIndex(srcVertex: Vertex,
     }
   }
 
-  def buildIncrements(amount: Long = 1L): List[Increment] = {
+  def buildIncrementsBulk(amount: Long = 1L): List[Put] = {
     //    if (!hasAllPropsForIndex) {
     //      Logger.error(s"$this dont have all props for index")
     //      List.empty[Increment]
     //    } else {
 
-    val increment = new Increment(rowKey.bytes)
-    increment.addColumn(edgeCf, Array.empty[Byte], amount)
-    List(increment)
+    //    val increment = new Increment(rowKey.bytes)
+    //    increment.addColumn(edgeCf, Array.empty[Byte], amount)
+    //    List(increment)
+    val put = new Put(rowKey.bytes)
+    put.addColumn(edgeCf, Array.empty[Byte], Bytes.toBytes(amount))
+    List(put)
     //    }
   }
 
@@ -957,7 +960,7 @@ object Edge extends JSONParser {
     } yield {
       for {
         edgeWithIndex <- edge.edgesWithIndex
-        incr <- edgeWithIndex.buildIncrements(degreeVal)
+        incr <- edgeWithIndex.buildIncrementsBulk(degreeVal)
       } yield {
         incr
       }
