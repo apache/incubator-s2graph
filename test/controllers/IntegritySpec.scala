@@ -7,20 +7,16 @@ import scala.util.Random
 //import com.daumkakao.s2graph.core.mysqls._
 
 import com.daumkakao.s2graph.core.models._
-import play.api.Logger
-
-
 import com.daumkakao.s2graph.rest.config.Config
 import controllers.AdminController
-import scala.concurrent.{Await, Future}
-import scala.concurrent.duration._
-import org.specs2.execute.{AsResult, Result}
-import org.specs2.matcher.Matchers
 import org.specs2.mutable.Specification
+import play.api.Logger
 import play.api.libs.json._
 import play.api.test.Helpers._
-import play.api.test.{FakeApplication, FakeRequest, Helpers, WithApplication}
-import scala.concurrent.ExecutionContext
+import play.api.test.{FakeApplication, FakeRequest}
+
+import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 
 
@@ -603,5 +599,83 @@ class IntegritySpec extends Specification {
       true
     }
   }
-}
 
+  "cache test" should {
+    def queryWithTTL(id: Int, cacheTTL: Long) = Json.parse(s"""
+      { "srcVertices": [
+        { "serviceName": "${testServiceName}",
+          "columnName": "${testColumnName}",
+          "id": ${id}
+         }],
+        "steps": [[ {
+          "label": "${testLabelName}",
+          "direction": "out",
+          "offset": 0,
+          "limit": 10,
+          "cacheTTL": ${cacheTTL},
+          "scoring": {"weight": 1} }]]
+        }""")
+
+    def getEdges(queryJson: JsValue): JsValue = {
+      var ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryJson)).get
+      contentAsJson(ret)
+    }
+
+    // init
+    running(FakeApplication()) {
+      // insert bulk and wait ..
+      var bulkEdges: String = Seq(
+        Seq("1", "insert", "e", "0", "2", "s2graph_label_test", "{}").mkString("\t"),
+        Seq("1", "insert", "e", "1", "2", "s2graph_label_test", "{}").mkString("\t")
+      ).mkString("\n")
+
+      val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)).get
+      val jsRslt = contentAsJson(ret)
+      Thread.sleep(asyncFlushInterval)
+    }
+
+    "tc1: query with {id: 0, ttl: 1000}" in {
+      running(FakeApplication()) {
+        var jsRslt = getEdges(queryWithTTL(0, 1000))
+        var cacheRemain = (jsRslt \\ "cacheRemain").head
+        cacheRemain.as[Int] must greaterThan(500)
+
+        // get edges from cache after wait 500ms
+        Thread.sleep(500)
+        var ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryWithTTL(0, 1000))).get
+        jsRslt = contentAsJson(ret)
+        cacheRemain = (jsRslt \\ "cacheRemain").head
+        cacheRemain.as[Int] must lessThan(500)
+      }
+    }
+
+    "tc2: query with {id: 1, ttl: 3000}" in {
+      running(FakeApplication()) {
+        var jsRslt = getEdges(queryWithTTL(1, 3000))
+        var cacheRemain = (jsRslt \\ "cacheRemain").head
+        // before update: is_blocked is false
+        (jsRslt \\ "is_blocked").head must equalTo(JsBoolean(false))
+
+        var bulkEdges = Seq(
+          Seq("2", "update", "e", "0", "2", "s2graph_label_test", "{\"is_blocked\": true}").mkString("\t"),
+          Seq("2", "update", "e", "1", "2", "s2graph_label_test", "{\"is_blocked\": true}").mkString("\t")
+        ).mkString("\n")
+
+        // update edges with {is_blocked: true}
+        var ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)).get
+        jsRslt = contentAsJson(ret)
+
+        Thread.sleep(asyncFlushInterval)
+
+        // prop 'is_blocked' still false, cause queryResult on cache
+        jsRslt = getEdges(queryWithTTL(1, 3000))
+        (jsRslt \\ "is_blocked").head must equalTo(JsBoolean(false))
+
+        // after wait 3000ms prop 'is_blocked' is updated to true, cache cleared
+        Thread.sleep(3000)
+        jsRslt = getEdges(queryWithTTL(1, 3000))
+        (jsRslt \\ "is_blocked").head must equalTo(JsBoolean(true))
+      }
+    }
+  }
+}

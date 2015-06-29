@@ -113,7 +113,7 @@ object Graph {
   val defaultScore = 1.0
 
   lazy val cache = CacheBuilder.newBuilder()
-    .expireAfterWrite(100, TimeUnit.SECONDS)
+    .expireAfterWrite(10, TimeUnit.MINUTES)
     .maximumSize(10000)
     .build[java.lang.Integer, QueryResult]()
 
@@ -332,8 +332,8 @@ object Graph {
           Deferred.fromResult(cachedVal)
         }
         else {
-          cache.asMap().remove(cacheKey)
-          Logger.debug(s"cacheHitInvalid: $cacheKey, $cacheTTL")
+          // cache.asMap().remove(cacheKey)
+          Logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
           fetchEdges(getRequest, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
         }
       } else {
@@ -341,7 +341,7 @@ object Graph {
         fetchEdges(getRequest, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
       }
     } else {
-      Logger.debug(s"cacheMiss: $cacheKey")
+      Logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
       fetchEdges(getRequest, queryParam, prevScore)
     }
   }
