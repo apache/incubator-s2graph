@@ -113,7 +113,7 @@ object Graph {
   val defaultScore = 1.0
 
   lazy val cache = CacheBuilder.newBuilder()
-    .expireAfterWrite(100, TimeUnit.SECONDS)
+    .expireAfterWrite(10, TimeUnit.MINUTES)
     .maximumSize(10000)
     .build[java.lang.Integer, QueryResult]()
 
