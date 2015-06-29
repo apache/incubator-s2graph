@@ -35,7 +35,8 @@ object QueryController extends Controller with RequestParser with Instrumented {
   private val queryUseMultithread = true
   private val buildResultJson = true
   private val maxLength = 64 * 1024 + 255 + 2 + 1
-  private val emptyResult = Seq(Seq.empty[(Edge, Double)])
+  private val emptyResultJson = Json.obj("size" -> 0, "results" -> Json.arr())
+//  private val emptyResult = Seq((QueryParam, Seq.empty[(Edge, Double)]))
   /**
    * end of only for test
    */
@@ -54,7 +55,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
     getEdgesExcludedInner(request.body)
   }
 
-  private def getEdgesAsync(jsonQuery: JsValue)(post: (Seq[Iterable[(Edge, Double)]], Query) => JsValue): Future[Result] = {
+  private def getEdgesAsync(jsonQuery: JsValue)(post: (Seq[QueryResult]) => JsValue): Future[Result] = {
     try {
       val queryTemplateId = (jsonQuery \ "steps").toString()
       getOrElseUpdateMetric(queryTemplateId)(metricRegistry.meter(queryTemplateId)).mark()
@@ -65,8 +66,8 @@ object QueryController extends Controller with RequestParser with Instrumented {
       val q = toQuery(jsonQuery)
       Logger.info(s"$q")
       val future = Graph.getEdgesAsync(q)
-      future map { edges =>
-        val json = post(edges, q)
+      future map { queryParamEdgeWithScoreLs =>
+        val json = post(queryParamEdgeWithScoreLs)
         Ok(s"${json}\n").as(applicationJsonHeader)
       }
     } catch {
@@ -83,8 +84,8 @@ object QueryController extends Controller with RequestParser with Instrumented {
     }
   }
 
-  private def getEdgesExcludedAsync(jsonQuery: JsValue)(post: (Seq[Iterable[(Edge, Double)]],
-    Seq[Iterable[(Edge, Double)]], Query) => JsValue): Future[Result] = {
+  private def getEdgesExcludedAsync(jsonQuery: JsValue)(post: (Seq[QueryResult],
+    Seq[QueryResult]) => JsValue): Future[Result] = {
     try {
       val queryTemplateId = (jsonQuery \ "steps").toString()
       getOrElseUpdateMetric[Meter](queryTemplateId)(metricRegistry.meter(queryTemplateId)).mark()
@@ -96,7 +97,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
       val mineQ = Query(q.vertices, List(q.steps.last))
 
       for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
-        val json = post(mine, others, q)
+        val json = post(mine, others)
         Ok(s"$json\n").as(applicationJsonHeader)
       }
     } catch {
@@ -154,7 +155,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
       }
       case e: Throwable => Future {
         // watch tower
-        Ok(s"${PostProcess.summarizeWithListExclude(emptyResult, emptyResult)}\n").as(applicationJsonHeader)
+        Ok(s"$emptyResultJson\n").as(applicationJsonHeader)
       }
     }
   }
@@ -169,7 +170,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
       val mineQ = Query(q.vertices, List(q.steps.last))
 
       for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
-        val json = PostProcess.summarizeWithListExcludeFormatted(mine, others, q)
+        val json = PostProcess.summarizeWithListExcludeFormatted(mine, others)
         Ok(s"$json\n").as(applicationJsonHeader)
       }
     } catch {
@@ -178,7 +179,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
       }
       case e: Throwable => Future {
         // watch tower
-        Ok(s"\n").as(applicationJsonHeader)
+        Ok(s"$emptyResultJson\n").as(applicationJsonHeader)
       }
     }
   }
@@ -228,11 +229,11 @@ object QueryController extends Controller with RequestParser with Instrumented {
           Logger.debug(s"direction: $dir")
           (src, tgt, label, dir.toInt)
         }
-      Graph.checkEdges(quads).map { case edgesWithScores =>
+      Graph.checkEdges(quads).map { case queryResultLs  =>
         val edgeJsons = for {
-          edgesWithScore <- edgesWithScores
-          (edge, score) <- edgesWithScore
-          edgeJson <- PostProcess.edgeToJson(if (isReverted) edge.duplicateEdge else edge, score, Query())
+          queryResult <- queryResultLs
+          (edge, score) <- queryResult.edgeWithScoreLs
+          edgeJson <- PostProcess.edgeToJson(if (isReverted) edge.duplicateEdge else edge, score, queryResult.queryParam)
         } yield edgeJson
 
         Ok(Json.toJson(edgeJsons)).as(applicationJsonHeader)

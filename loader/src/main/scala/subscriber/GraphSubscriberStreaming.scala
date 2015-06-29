@@ -23,7 +23,7 @@ object GraphSubscriberStreaming extends SparkApp with WithKafka {
     val batchSize = args(5).toInt
     val hbaseZkQuorum = args(6)
     val hTableName = args(7)
-    val newLabelName = args(8)
+    val labelMapping = GraphSubscriberHelper.toLabelMapping(args(8))
 
 
     val conf = sparkConf(s"$topics: GraphSubscriberStreaming")
@@ -65,7 +65,7 @@ object GraphSubscriberStreaming extends SparkApp with WithKafka {
             //            val counts =
             //              GraphSubscriberHelper.store(msgs, GraphSubscriberHelper.toOption(newLabelName))(Some(mapAcc))
             val counts =
-              GraphSubscriberHelper.storeBulk(conn, hTableName)(msgs, GraphSubscriberHelper.toOption(newLabelName))(Some(mapAcc))
+              GraphSubscriberHelper.storeBulk(conn, hTableName)(msgs, labelMapping)(Some(mapAcc))
 
             for ((k, v) <- counts) {
               mapAcc +=(k, v)

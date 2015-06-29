@@ -178,7 +178,7 @@ class IntegritySpec extends Specification {
 
 
   val TS = System.currentTimeMillis()
-  def queryJson(serviceName: String, columnName: String, labelName: String, id: String, dir: String) = {
+  def queryJson(serviceName: String, columnName: String, labelName: String, id: String, dir: String, cacheTTL: Long = -1L) = {
     val s = s"""{
       "srcVertices": [
       {
@@ -193,7 +193,8 @@ class IntegritySpec extends Specification {
         "label": "$labelName",
         "direction": "$dir",
         "offset": 0,
-        "limit": 10
+        "limit": 10,
+        "cacheTTL": $cacheTTL
       }
       ]
       ]
@@ -201,6 +202,7 @@ class IntegritySpec extends Specification {
     println(s)
     Json.parse(s)
   }
+
   def checkEdgeQueryJson(params: Seq[(String, String, String, String)]) = {
     val arr = for {
       (label, dir, from, to) <- params
@@ -330,13 +332,14 @@ class IntegritySpec extends Specification {
       for {
         label <- Label.findByName(labelName)
         direction <- List("out", "in")
+        cacheTTL <- List(1000L, 2000L)
       } {
         val (serviceName, columnName, id, otherId) = direction match {
           case "out" => (label.srcService.serviceName, label.srcColumn.columnName, srcId, tgtId)
           case "in" => (label.tgtService.serviceName, label.tgtColumn.columnName, tgtId, srcId)
         }
         val qId = if (labelName == testLabelName) id else "\"" + id + "\""
-        val query = queryJson(serviceName, columnName, labelName, qId, direction)
+        val query = queryJson(serviceName, columnName, labelName, qId, direction, cacheTTL)
         val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(query)).get
         val jsResult = commonCheck(ret)
 

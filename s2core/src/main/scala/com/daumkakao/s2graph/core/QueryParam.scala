@@ -34,7 +34,9 @@ object Query {
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex], steps: List[Step] = List.empty[Step],
                  unique: Boolean = true, removeCycle: Boolean = false) {
 
-  val labelSrcTgtInvertedMap = if (vertices.isEmpty) {Map.empty[Int, Boolean]} else {
+  val labelSrcTgtInvertedMap = if (vertices.isEmpty) {
+    Map.empty[Int, Boolean]
+  } else {
     (for {
       step <- steps
       param <- step.queryParams
@@ -99,8 +101,10 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
   }
 }
 
-
-case class QueryParam(labelWithDir: LabelWithDirection) {
+object QueryParam {
+  lazy val empty = QueryParam(LabelWithDirection(0, 0))
+}
+case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System.currentTimeMillis()) {
 
   import Query.DuplicatePolicy._
   import Query.DuplicatePolicy
@@ -110,6 +114,7 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   val fullKey = defaultKey
 
   var labelOrderSeq = fullKey
+
   var outputField: Option[Byte] = None
   //  var start = OrderProps.empty
   //  var end = OrderProps.empty
@@ -138,6 +143,8 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
   var rpcTimeoutInMillis = 1000
   var maxAttempt = 2
   var includeDegree = false
+  var tgtVertexInnerIdOpt: Option[InnerValLike] = None
+  var cacheTTLInMillis: Long = -1L
 
   def isRowKeyOnly(isRowKeyOnly: Boolean): QueryParam = {
     this.isRowKeyOnly = isRowKeyOnly
@@ -254,6 +261,14 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
     this
   }
 
+  def tgtVertexInnerIdOpt(other: Option[InnerValLike]): QueryParam = {
+    this.tgtVertexInnerIdOpt = other
+    this
+  }
+  def cacheTTLInMillis(other: Long): QueryParam = {
+    this.cacheTTLInMillis = other
+    this
+  }
   override def toString(): String = {
     List(label.label, labelOrderSeq, offset, limit, rank, isRowKeyOnly,
       duration, isInverted, exclude, include, hasFilters, outputField).mkString("\t")
@@ -261,10 +276,38 @@ case class QueryParam(labelWithDir: LabelWithDirection) {
 
 
   def buildGetRequest(srcVertex: Vertex) = {
-    val id = InnerVal.convertVersion(srcVertex.innerId, label.srcColumnWithDir(labelWithDir.dir).columnType, label.schemaVersion)
-    val vId = SourceVertexId(srcVertex.id.colId, id)
-    val sourceVertexId = VertexId.toSourceVertexId(vId)
-    val rowKey = EdgeRowKey(sourceVertexId, labelWithDir, labelOrderSeq, isInverted)(label.schemaVersion)
+    val (srcColumn, tgtColumn) =
+      if (labelWithDir.dir == GraphUtil.directions("in") && label.isDirected) (label.tgtColumn, label.srcColumn)
+      else (label.srcColumn, label.tgtColumn)
+    val (srcInnerId, tgtInnerId) =
+      //FIXME
+      if (labelWithDir.dir == GraphUtil.directions("in") && tgtVertexInnerIdOpt.isDefined && label.isDirected) {
+        // need to be swap src, tgt
+        val tgtVertexInnerId = tgtVertexInnerIdOpt.get
+        (InnerVal.convertVersion(tgtVertexInnerId, srcColumn.columnType, label.schemaVersion),
+          InnerVal.convertVersion(srcVertex.innerId, tgtColumn.columnType, label.schemaVersion))
+      } else {
+        val tgtVertexId = srcVertex.id
+        (InnerVal.convertVersion(srcVertex.innerId, tgtColumn.columnType, label.schemaVersion),
+          InnerVal.convertVersion(tgtVertexId.innerId, srcColumn.columnType, label.schemaVersion))
+      }
+    val (srcVId, tgtVId) =
+      (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
+    val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
+    val op = GraphUtil.operations("insert")
+    val ts = System.currentTimeMillis()
+    val props = Map.empty[Byte, InnerValLike]
+    val propsWithTs = Map.empty[Byte, InnerValLikeWithTs]
+    val rowKey = if (tgtVertexInnerIdOpt.isDefined) {
+      EdgeWithIndexInverted(srcV, tgtV, labelWithDir, op, ts, propsWithTs).rowKey
+    } else {
+      EdgeWithIndex(srcV, tgtV, labelWithDir, op, ts, labelOrderSeq, props).rowKey
+    }
+//    val id = InnerVal.convertVersion(srcVertex.innerId,
+//      label.srcColumnWithDir(labelWithDir.dir).columnType, label.schemaVersion)
+//    val vId = SourceVertexId(srcVertex.id.colId, id)
+//    val sourceVertexId = VertexId.toSourceVertexId(vId)
+//    val rowKey = EdgeRowKey(sourceVertexId, labelWithDir, labelOrderSeq, isInverted)(label.schemaVersion)
     val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
     val client = Graph.getClient(label.hbaseZkAddr)
     val filters = ListBuffer.empty[ScanFilter]

@@ -135,15 +135,18 @@ case class EdgeWithIndex(srcVertex: Vertex,
     }
   }
 
-  def buildIncrements(amount: Long = 1L): List[Increment] = {
+  def buildIncrementsBulk(amount: Long = 1L): List[Put] = {
     //    if (!hasAllPropsForIndex) {
     //      Logger.error(s"$this dont have all props for index")
     //      List.empty[Increment]
     //    } else {
 
-    val increment = new Increment(rowKey.bytes)
-    increment.addColumn(edgeCf, Array.empty[Byte], amount)
-    List(increment)
+    //    val increment = new Increment(rowKey.bytes)
+    //    increment.addColumn(edgeCf, Array.empty[Byte], amount)
+    //    List(increment)
+    val put = new Put(rowKey.bytes)
+    put.addColumn(edgeCf, Array.empty[Byte], Bytes.toBytes(amount))
+    List(put)
     //    }
   }
 
@@ -206,9 +209,9 @@ case class Edge(srcVertex: Vertex,
   lazy val relatedEdges = {
     labelWithDir.dir match {
       case 2 => //undirected
-        val out = LabelWithDirection(labelWithDir.labelId, 0)
+        val out = LabelWithDirection(labelWithDir.labelId, GraphUtil.directions("out"))
         val base = Edge(srcVertex, tgtVertex, out, op, ts, version, propsWithTs)
-        List(base, base.duplicateEdge, base.reverseDirEdge, base.reverseSrcTgtEdge)
+        List(base, base.reverseSrcTgtEdge)
       case 0 | 1 =>
         List(this, duplicateEdge)
     }
@@ -405,9 +408,10 @@ case class Edge(srcVertex: Vertex,
   //  def fetchInverted() = {
   //    Graph.getEdgeSync(srcVertex, tgtVertex, label, labelWithDir.dir)
   //  }
-  def fetchInvertedAsync(): Future[Option[Edge]] = {
-    Graph.getEdge(srcVertex, tgtVertex, label, labelWithDir.dir).map { edgesWithScore =>
-      edgesWithScore.headOption.map { edgeWithScore => edgeWithScore._1 }
+  def fetchInvertedAsync(): Future[(QueryParam, Option[Edge])] = {
+    val queryParam = QueryParam(labelWithDir)
+    Graph.getEdge(srcVertex, tgtVertex, queryParam).map { case queryResult =>
+      (queryParam, queryResult.edgeWithScoreLs.headOption.map { edgeWithScore => edgeWithScore._1 })
     }
   }
 
@@ -473,7 +477,7 @@ case class Edge(srcVertex: Vertex,
       try {
         val client = Graph.getClient(label.hbaseZkAddr)
         for {
-          edges <- fetchInvertedAsync()
+          (queryParam, edges) <- fetchInvertedAsync()
           invertedEdgeOpt = edges.headOption
           edgeUpdate = f(invertedEdgeOpt, this)
           ret <- compareAndSet(client)(invertedEdgeOpt, edgeUpdate)
@@ -844,8 +848,8 @@ object Edge extends JSONParser {
   def fromString(s: String): Option[Edge] = Graph.toEdge(s)
 
   def toEdge(kv: org.hbase.async.KeyValue, param: QueryParam): Option[Edge] = {
-    Logger.debug(s"$kv")
-    Logger.debug(s"${kv.key().toList}")
+    Logger.debug(s"$param -> $kv")
+
     val version = kv.timestamp()
     val keyBytes = kv.key()
     val rowKey = EdgeRowKey.fromBytes(keyBytes, 0, keyBytes.length, param.label.schemaVersion)
@@ -902,7 +906,12 @@ object Edge extends JSONParser {
     if (!param.includeDegree && isDegree) {
       None
     } else {
-      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
+      val edge =
+//        if (!param.label.isDirected && param.labelWithDir.dir == GraphUtil.directions("in")) {
+//          Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir.updateDir(0), op, ts, version, props)
+//        } else {
+          Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
+//        }
 
       //          Logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
       val labelMetas = LabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
@@ -951,10 +960,11 @@ object Edge extends JSONParser {
     } yield {
       for {
         edgeWithIndex <- edge.edgesWithIndex
-        incr <- edgeWithIndex.buildIncrements(degreeVal)
+        incr <- edgeWithIndex.buildIncrementsBulk(degreeVal)
       } yield {
         incr
       }
     }
   }
+
 }
