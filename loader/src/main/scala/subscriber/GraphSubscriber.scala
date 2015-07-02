@@ -30,6 +30,10 @@ object GraphConfig {
           hbase.zookeeper.quorum="$zkQuorum"
           hbase.client.operation.timeout=60000
           kafka.metadata.broker.list="$kafkaBrokers"
+          db.default.driver=com.mysql.jdbc.Driver
+          db.default.url="$database"
+          db.default.user=graph
+          db.default.password=graph
           kafka.producer.pool.size=0""".stripMargin
 
     println(s)
