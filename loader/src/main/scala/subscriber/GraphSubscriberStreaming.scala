@@ -9,8 +9,23 @@ import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.language.postfixOps
 
 object GraphSubscriberStreaming extends SparkApp with WithKafka {
+  val usages =
+  s"""
+     |/**
+     |this job consume edges/vertices from kafka topic then load them into s2graph.
+     |params:
+     |  1. kafkaZkQuorum: kafka zk address to consume events
+     |  2. brokerList: kafka cluster`s broker list.
+     |  3. topics: , delimited list of topics to consume
+     |  4. intervalInSec: batch  interval for this job.
+     |  5. batchSize: how many edges/vertices will be grouped for bulk mutations.
+     |  6. hbaseZkQuorum: s2graph zookeeper address.
+     |  7. hTableName: physical hbase table name.
+     |  8. labelMapping: oldLabel:newLabel delimited by ,
+     |*/
+   """.stripMargin
   override def run() = {
-    if (args.length < 4) {
+    if (args.length != 9) {
       System.err.println("Usage: GraphSubscriberStreaming <kafkaZkQuorum> <brokerList> <topics> <numOfWorkers> <interval> <batchSize> " +
         "<hbaseZkQurome> <hTableName> <newLabelName>")
       System.exit(1)
@@ -26,11 +41,13 @@ object GraphSubscriberStreaming extends SparkApp with WithKafka {
     val labelMapping = GraphSubscriberHelper.toLabelMapping(args(8))
 
 
+    if (!GraphSubscriberHelper.isValidQuorum(hbaseZkQuorum))
+      throw new RuntimeException(s"$hbaseZkQuorum is not valid.")
+
     val conf = sparkConf(s"$topics: GraphSubscriberStreaming")
     val ssc = streamingContext(conf, intervalInSec)
     val sc = ssc.sparkContext
 
-    val topicSet = topics.split(",").toSet
     val groupId = topics.replaceAll(",", "_") + "_stream"
     val fallbackTopic = topics.replaceAll(",", "_") + "_stream_failed"
 
@@ -41,8 +58,6 @@ object GraphSubscriberStreaming extends SparkApp with WithKafka {
       "metadata.broker.list" -> brokerList,
       "auto.offset.reset" -> "largest")
 
-    //    val stream = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](
-    //      ssc, kafkaParams, topicSet).flatMap(kv => kv._2.split("\n"))
     val stream = createKafkaValueStreamMulti(ssc, kafkaParams, topics, 8, None).flatMap(s => s.split("\n"))
 
     val mapAcc = sc.accumulable(new MutableHashMap[String, Long](), "Throughput")(HashMapParam[String, Long](_ + _))
@@ -55,17 +70,13 @@ object GraphSubscriberStreaming extends SparkApp with WithKafka {
         val phase = System.getProperty("phase")
         GraphSubscriberHelper.apply(phase, dbUrl, hbaseZkQuorum, brokerList)
 
-        val conf = HBaseConfiguration.create()
-        conf.set("hbase.zookeeper.quorum", hbaseZkQuorum)
-        val conn = ConnectionFactory.createConnection(conf)
-
         partition.grouped(batchSize).foreach { msgs =>
           try {
             val start = System.currentTimeMillis()
             //            val counts =
             //              GraphSubscriberHelper.store(msgs, GraphSubscriberHelper.toOption(newLabelName))(Some(mapAcc))
             val counts =
-              GraphSubscriberHelper.storeBulk(conn, hTableName)(msgs, labelMapping)(Some(mapAcc))
+              GraphSubscriberHelper.storeBulk(hbaseZkQuorum, hTableName)(msgs, labelMapping)(Some(mapAcc))
 
             for ((k, v) <- counts) {
               mapAcc +=(k, v)
@@ -81,7 +92,6 @@ object GraphSubscriberStreaming extends SparkApp with WithKafka {
               }
           }
         }
-        conn.close()
       })
     })
 
