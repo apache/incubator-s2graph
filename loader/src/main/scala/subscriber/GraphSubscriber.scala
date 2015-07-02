@@ -294,7 +294,7 @@ object GraphSubscriber extends SparkApp with WithKafka {
         val (vertexWithLabel, reverseVertexWithLabel) = if (direction == "out") {
           (
             (tokens(3), convertedLabelName, direction),
-            (tokens(4), convertedLabelName, reverseDirection),
+            (tokens(4), convertedLabelName, reverseDirection)
             )
         } else {
           (
