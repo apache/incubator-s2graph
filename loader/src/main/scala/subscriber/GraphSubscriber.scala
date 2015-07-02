@@ -112,9 +112,51 @@ object GraphSubscriberHelper extends WithKafka {
   //
   //    counts
   //  }
+  private def storeRec(conn: Connection, tableName: String, puts: List[Put], elementsSize: Int, tryNum: Int)
+                      (statFunc: (String, Int) => Unit, statPrefix: String = "edge"): Unit = {
+    if (tryNum <= 0) {
+      statFunc("errorStore", elementsSize)
+      throw new RuntimeException(s"retry failed after $maxTryNum")
+    }
 
+    val mutator = conn.getBufferedMutator(TableName.valueOf(tableName))
+    //      val table = conn.getTable(TableName.valueOf(tableName))
+    //      table.setAutoFlush(false, false)
+
+    try {
+      mutator.mutate(puts)
+      //        table.put(puts)
+      statFunc(s"$statPrefix:storeOk", elementsSize)
+    } catch {
+      case e: Throwable =>
+        e.printStackTrace()
+        Thread.sleep(sleepPeriod)
+        storeRec(conn, tableName, puts, elementsSize, tryNum - 1)(statFunc)
+    } finally {
+      mutator.close()
+      //        table.close()
+    }
+  }
+
+  def storeDegreeBulk(conn: Connection, tableName: String)
+                     (degrees: Iterator[((String, String, String), Int)], labelMapping: Map[String, String] = Map.empty, autoCreateEdge: Boolean = false)
+                     (mapAccOpt: Option[HashMapAccumulable]): Iterable[(String, Long)] = {
+    val counts = HashMap[String, Long]()
+    val statFunc = storeStat(counts)(mapAccOpt) _
+
+    for {
+      ((vertexId, labelName, direction), degreeVal) <- degrees
+      incrementRequests <- Edge.buildIncrementDegreeBulk(vertexId, labelName, direction, degreeVal)
+    } {
+      incrementRequests.take(10).foreach { incr =>
+        println(s"${vertexId}\t$labelName\t$direction\t${incr.getRow.toList}")
+      }
+      storeRec(conn, tableName, incrementRequests, degrees.size, 3)(statFunc, "degree")
+    }
+    counts
+  }
   def storeBulk(conn: Connection, tableName: String)
-               (msgs: Seq[String], labelMapping: Map[String, String] = Map.empty)
+               (msgs: Seq[String], labelMapping: Map[String, String] = Map.empty, autoCreateEdge: Boolean = false)
                (mapAccOpt: Option[HashMapAccumulable]): Iterable[(String, Long)] = {
 
     val counts = HashMap[String, Long]()
@@ -129,46 +171,26 @@ object GraphSubscriberHelper extends WithKafka {
           val snapshotEdgePuts =
             if (e.labelWithDir.dir == GraphUtil.directions("out")) List(e.toInvertedEdgeHashLike().buildPut())
             else Nil
-
-          snapshotEdgePuts ++ e.edgesWithIndex.flatMap { edgeWithIndex =>
-            edgeWithIndex.buildPuts()
-          } ++ e.buildVertexPuts()
-
+          val vertexPuts = e.buildVertexPuts()
+          val indexedEdgePuts =
+            if (autoCreateEdge) {
+              // create related edges
+              e.relatedEdges.flatMap { relEdge =>
+                relEdge.edgesWithIndexValid.flatMap { edgeWithIndex =>
+                  edgeWithIndex.buildPuts()
+                }
+              }
+            } else {
+              e.edgesWithIndex.flatMap { edgeWithIndex =>
+                edgeWithIndex.buildPuts()
+              }
+            }
+          snapshotEdgePuts ++ indexedEdgePuts ++ vertexPuts
         case _ => Nil
       }
     } toList
-    /**
-     * don't use database for connection and table.
-     */
 
-    def storeRec(puts: List[Put], tryNum: Int): Unit = {
-      if (tryNum <= 0) {
-        statFunc("errorStore", elements.size)
-        throw new RuntimeException(s"retry failed after $maxTryNum")
-      }
-
-      val mutator = conn.getBufferedMutator(TableName.valueOf(tableName))
-      //      val table = conn.getTable(TableName.valueOf(tableName))
-      //      table.setAutoFlush(false, false)
-
-      try {
-        mutator.mutate(puts)
-        //        table.put(puts)
-        statFunc("storeOk", msgs.size)
-      } catch {
-        case e: Throwable =>
-          e.printStackTrace()
-          Thread.sleep(sleepPeriod)
-          storeRec(puts, tryNum - 1)
-      } finally {
-        mutator.close()
-        //        table.close()
-      }
-    }
-
-
-
-    storeRec(puts, maxTryNum)
+    storeRec(conn, tableName, puts, msgs.size, maxTryNum)(statFunc)
     counts
   }
 
@@ -206,6 +228,7 @@ object GraphSubscriber extends SparkApp with WithKafka {
        |*  7. batchSize: how many edges will be batched for Put request to target hbase.
        |*  8. kafkaBrokerList: using kafka as fallback queue. when something goes wrong during batch, data needs to be replay will be stored in kafka.
        |*  9. kafkaTopic: fallback queue topic.
+       |* 10. edgeAutoCreate:
        |* after this job finished, s2graph will have data with sequence corresponding newLabelName.
        |* change this newLabelName to ogirinalName if you want to online replace of label.
        |*
@@ -217,7 +240,7 @@ object GraphSubscriber extends SparkApp with WithKafka {
      * Main function
      */
     println(args.toList)
-    if (args.length != 8) {
+    if (args.length != 9) {
       System.err.println(usages)
       System.exit(1)
     }
@@ -230,13 +253,14 @@ object GraphSubscriber extends SparkApp with WithKafka {
     val batchSize = args(5).toInt
     val kafkaBrokerList = args(6)
     val kafkaTopic = args(7)
+    val edgeAutoCreate = args(8).toBoolean
 
     val conf = sparkConf(s"$hdfsPath: GraphSubscriber")
     val sc = new SparkContext(conf)
     val mapAcc = sc.accumulable(HashMap.empty[String, Long], "counter")(HashMapParam[String, Long](_ + _))
 
 
-
+    /** this job expect only one hTableName. all labels in this job will be stored in same physical hbase table */
     try {
 
       import GraphSubscriberHelper._
@@ -262,16 +286,27 @@ object GraphSubscriber extends SparkApp with WithKafka {
       val degreeStart: RDD[((String, String, String), Int)] = msgs.filter { msg =>
         val tokens = GraphUtil.split(msg)
         (tokens(2) == "e" || tokens(2) == "edge")
-      } map { msg =>
+      } flatMap { msg =>
         val tokens = GraphUtil.split(msg)
         val direction = if (tokens.length == 7) "out" else tokens(7)
+        val reverseDirection = if (direction == "out") "in" else "out"
         val convertedLabelName = labelMapping.get(tokens(5)).getOrElse(tokens(5))
-        val vertexWithLabel = if (direction == "out") {
-          (tokens(3), convertedLabelName, direction)
+        val (vertexWithLabel, reverseVertexWithLabel) = if (direction == "out") {
+          (
+            (tokens(3), convertedLabelName, direction),
+            (tokens(4), convertedLabelName, reverseDirection),
+            )
         } else {
-          (tokens(4), convertedLabelName, direction)
+          (
+            (tokens(4), convertedLabelName, direction),
+            (tokens(3), convertedLabelName, reverseDirection)
+            )
         }
-        (vertexWithLabel, 1)
+        if (edgeAutoCreate) {
+          List((vertexWithLabel -> 1), (reverseVertexWithLabel -> 1))
+        } else {
+          List((vertexWithLabel -> 1))
+        }
       }
       val vertexDegrees = degreeStart.reduceByKey(_ + _)
 
@@ -283,31 +318,28 @@ object GraphSubscriber extends SparkApp with WithKafka {
         val phase = System.getProperty("phase")
         GraphSubscriberHelper.apply(phase, dbUrl, zkQuorum, kafkaBrokerList)
 
+
         val conf = HBaseConfiguration.create()
         conf.set("hbase.zookeeper.quorum", zkQuorum)
         val conn = ConnectionFactory.createConnection(conf)
-        //        val conn = HConnectionManager.createConnection(conf)
-        //        val table = conn.getTable(TableName.valueOf(hTableName))
-        val mutator = conn.getBufferedMutator(TableName.valueOf(hTableName))
-        //        table.setAutoFlush(false, false)
 
-        try {
-          for {
-            ((vertexId, labelName, direction), degreeVal) <- partition
-            incrementRequests <- Edge.buildIncrementDegreeBulk(vertexId, labelName, direction, degreeVal)
-          //            incrementRequest <- incrementRequests
-          } {
-            //            println(s"${vertexId}\t${incrementRequest.getRow.toList}")
-            incrementRequests.take(10).foreach { incr =>
-              println(s"${vertexId}\t$labelName\t$direction\t${incr.getRow.toList}")
+        partition.grouped(batchSize).foreach { msgs =>
+          try {
+            val start = System.currentTimeMillis()
+            val counts = GraphSubscriberHelper.storeDegreeBulk(conn, hTableName)(partition, labelMapping)(Some(mapAcc))
+            for ((k, v) <- counts) {
+              mapAcc +=(k, v)
             }
-            mutator.mutate(incrementRequests)
-            //            table.batch(incrementRequests)
-            //            table.increment(incrementRequest)
+            val duration = System.currentTimeMillis() - start
+            println(s"[Success]: store, $mapAcc, $duration, $zkQuorum, $hTableName")
+          } catch {
+            case e: Throwable =>
+              println(s"[Failed]: store $e")
+
+              msgs.foreach { msg =>
+                GraphSubscriberHelper.report(msg.toString(), Some(e.getMessage()), topic = kafkaTopic)
+              }
           }
-        } finally {
-          //          table.close()
-          mutator.close()
         }
       }
 
