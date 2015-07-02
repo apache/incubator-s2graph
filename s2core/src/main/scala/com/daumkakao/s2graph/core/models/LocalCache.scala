@@ -7,6 +7,7 @@ import com.google.common.cache.CacheBuilder
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.client.Result
 import play.api.Logger
+
 //import scalikejdbc.{AutoSession, DBSession, ConnectionPool, ConnectionPoolSettings}
 
 /**
@@ -44,7 +45,7 @@ import play.api.Logger
 trait LocalCache[V <: Result] {
   protected lazy val ttl = Model.cacheTTL
   protected lazy val maxSize = Model.maxCacheSize
-//  private lazy val cName = this.getClass.getSimpleName()
+  //  private lazy val cName = this.getClass.getSimpleName()
 
   lazy val cache = CacheBuilder.newBuilder()
     .expireAfterWrite(ttl, TimeUnit.SECONDS)
@@ -59,40 +60,46 @@ trait LocalCache[V <: Result] {
     val newKey = s"withCache:$key"
     val view = cache.asMap()
     if (view.containsKey(newKey)) {
-//      Logger.debug(s"$newKey => Hit")
-      view.get(newKey)
+      //      Logger.debug(s"$newKey => Hit")
+      val value = view.get(newKey)
+      if (value == null) op else value
     }
     else {
       val newVal = op
-      if (newVal != null && !newVal.isEmpty) cache.put(newKey, newVal)
+      cache.put(newKey, newVal)
       //      caches.put(newKey, newVal)
-//      Logger.debug(s"$newKey => Miss")
+      //      Logger.debug(s"$newKey => Miss")
       newVal
     }
   }
+
   def withCaches(key: String)(op: => List[V]): List[V] = {
     val newKey = s"withCaches:$key"
     val view = caches.asMap()
     if (view.containsKey(newKey)) {
-//      Logger.debug(s"withCaches: $newKey => Hit")
-      view.get(newKey)
+      //      Logger.debug(s"withCaches: $newKey => Hit")
+      val value = view.get(newKey)
+      if (value == null) op else value
     }
     else {
-//      Logger.debug(s"withCaches: $newKey => Miss")
+      //      Logger.debug(s"withCaches: $newKey => Miss")
       val newVal = op
-      if (newVal != null && !newVal.isEmpty) caches.put(newKey, newVal)
-//      caches.put(newKey, newVal)
+      caches.put(newKey, newVal)
+      //      caches.put(newKey, newVal)
       newVal
     }
   }
+
   def expireCache(key: String): Unit = {
     val newKey = s"$key"
     cache.invalidate(newKey)
   }
+
   def expireCaches(key: String): Unit = {
     val newKey = s"$key"
     caches.invalidate(newKey)
   }
+
   def putsToCache(kvs: List[(String, V)]) = {
     kvs.foreach {
       case (key, value) =>

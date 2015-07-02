@@ -111,7 +111,7 @@ object GraphSubscriberHelper extends WithKafka {
     val mutator = conn.getBufferedMutator(TableName.valueOf(tableName))
     //      val table = conn.getTable(TableName.valueOf(tableName))
     //      table.setAutoFlush(false, false)
-
+    println(puts.take(10))
     try {
       mutator.mutate(puts)
       //        table.put(puts)
@@ -140,7 +140,7 @@ object GraphSubscriberHelper extends WithKafka {
       incrementRequests.take(10).foreach { incr =>
         println(s"${vertexId}\t$labelName\t$direction\t${incr.getRow.toList}")
       }
-      storeRec(zkQuorum, tableName, incrementRequests, degrees.size, 3)(statFunc, "degree")
+      storeRec(zkQuorum, tableName, incrementRequests, degrees.size, maxTryNum)(statFunc, "degree")
     }
     counts
   }
@@ -157,24 +157,7 @@ object GraphSubscriberHelper extends WithKafka {
         case v: Vertex if v.op == GraphUtil.operations("insert") || v.op == GraphUtil.operations("insertBulk") =>
           v.buildPuts()
         case e: Edge if e.op == GraphUtil.operations("insert") || e.op == GraphUtil.operations("insertBulk") =>
-          val snapshotEdgePuts =
-            if (e.labelWithDir.dir == GraphUtil.directions("out")) List(e.toInvertedEdgeHashLike().buildPut())
-            else Nil
-          val vertexPuts = e.buildVertexPuts()
-          val indexedEdgePuts =
-            if (autoCreateEdge) {
-              // create related edges
-              e.relatedEdges.flatMap { relEdge =>
-                relEdge.edgesWithIndexValid.flatMap { edgeWithIndex =>
-                  edgeWithIndex.buildPuts()
-                }
-              }
-            } else {
-              e.edgesWithIndex.flatMap { edgeWithIndex =>
-                edgeWithIndex.buildPuts()
-              }
-            }
-          snapshotEdgePuts ++ indexedEdgePuts ++ vertexPuts
+          e.insertBulk(autoCreateEdge)
         case _ => Nil
       }
     } toList

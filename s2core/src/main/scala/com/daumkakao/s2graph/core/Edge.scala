@@ -376,11 +376,17 @@ case class Edge(srcVertex: Vertex,
     ret
   }
 
-  def insertBulk() = {
-    val puts = edgesWithInvertedIndex.buildPut() :: relatedEdges.flatMap { relEdge =>
+  def insertBulk(createRelEdges: Boolean = false) = {
+    val vertexPuts = buildVertexPuts()
+    val snapshotPuts =
+      if (createRelEdges && labelWithDir.dir != GraphUtil.directions("in")) List(toInvertedEdgeHashLike().buildPut())
+      else Nil
+
+    val relEdges = if (createRelEdges) relatedEdges else List(this)
+    val relatedEdgePuts = relEdges.flatMap { relEdge =>
       relEdge.edgesWithIndex.flatMap(e => e.buildPuts())
     }
-    puts
+    vertexPuts ++ snapshotPuts ++ relatedEdgePuts
   }
 
   def insert() = {
