@@ -26,8 +26,7 @@ object GraphSubscriberStreaming extends SparkApp with WithKafka {
    """.stripMargin
   override def run() = {
     if (args.length != 9) {
-      System.err.println("Usage: GraphSubscriberStreaming <kafkaZkQuorum> <brokerList> <topics> <numOfWorkers> <interval> <batchSize> " +
-        "<hbaseZkQurome> <hTableName> <newLabelName>")
+      System.err.println(usages)
       System.exit(1)
     }
     val kafkaZkQuorum = args(0)
