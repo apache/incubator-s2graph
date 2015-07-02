@@ -6,12 +6,11 @@ import com.daumkakao.s2graph.core._
 
 import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.types2.{InnerVal, InnerValLike}
-
 import play.api.Logger
 import play.api.libs.json.{JsObject, Json}
 
 import scala.collection.TraversableOnce
-import scala.collection.mutable.{ListBuffer, HashSet}
+import scala.collection.mutable.ListBuffer
 
 /**
  * Created by jay on 14. 9. 1..
@@ -156,7 +155,7 @@ object PostProcess extends JSONParser {
         )
       } else {
         for {
-          edgeJson <- edgeToJson(edge, score, queryResult.queryParam)
+          edgeJson <- edgeToJson(edge, score, queryResult)
         } {
           edgeJsons += edgeJson
         }
@@ -183,7 +182,7 @@ object PostProcess extends JSONParser {
       queryResult <- queryResultLs
       (edge, score) <- queryResult.edgeWithScoreLs
       if !excludeIds.contains(edge.tgtVertex.innerId) && !edge.props.contains(LabelMeta.degreeSeq)
-      edgeJson <- edgeToJson(edge, score, queryResult.queryParam)
+      edgeJson <- edgeToJson(edge, score, queryResult)
     } yield edgeJson
 
     val results =
@@ -210,7 +209,8 @@ object PostProcess extends JSONParser {
     }
   }
 
-  def edgeToJson(edge: Edge, score: Double, queryParam: QueryParam): Option[JsObject] = {
+  def edgeToJson(edge: Edge, score: Double, queryResult: QueryResult): Option[JsObject] = {
+    val queryParam = queryResult.queryParam
     //
     //    Logger.debug(s"edgeProps: ${edge.props} => ${props}")
     //    val shouldBeReverted = q.labelSrcTgtInvertedMap.get(edge.labelWithDir.labelId).getOrElse(false)
@@ -229,6 +229,18 @@ object PostProcess extends JSONParser {
       from <- innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
       to <- innerValToJsValue(edge.tgtVertex.id.innerId, tgtColumn.columnType)
     } yield {
+      if (queryParam.cacheTTLInMillis > 0) {
+        Json.obj(
+          "cacheRemain" -> (queryParam.cacheTTLInMillis - (queryResult.timestamp - queryParam.timestamp)),
+          "from" -> from,
+          "to" -> to,
+          "label" -> edge.label.label,
+          "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
+          "_timestamp" -> edge.ts,
+          "props" -> propsToJson(edge),
+          "score" -> score
+        )
+      } else {
         Json.obj(
           "from" -> from,
           "to" -> to,
@@ -239,6 +251,7 @@ object PostProcess extends JSONParser {
           "score" -> score
         )
       }
+    }
 
     json
   }
