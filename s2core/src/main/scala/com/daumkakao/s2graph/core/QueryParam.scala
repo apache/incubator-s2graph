@@ -287,9 +287,9 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
         (InnerVal.convertVersion(tgtVertexInnerId, srcColumn.columnType, label.schemaVersion),
           InnerVal.convertVersion(srcVertex.innerId, tgtColumn.columnType, label.schemaVersion))
       } else {
-        val tgtVertexId = srcVertex.id
+        val tgtVertexInnerId = tgtVertexInnerIdOpt.getOrElse(srcVertex.innerId)
         (InnerVal.convertVersion(srcVertex.innerId, tgtColumn.columnType, label.schemaVersion),
-          InnerVal.convertVersion(tgtVertexId.innerId, srcColumn.columnType, label.schemaVersion))
+          InnerVal.convertVersion(tgtVertexInnerId, srcColumn.columnType, label.schemaVersion))
       }
     val (srcVId, tgtVId) =
       (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
@@ -298,21 +298,19 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     val ts = System.currentTimeMillis()
     val props = Map.empty[Byte, InnerValLike]
     val propsWithTs = Map.empty[Byte, InnerValLikeWithTs]
-    val rowKey = if (tgtVertexInnerIdOpt.isDefined) {
-      EdgeWithIndexInverted(srcV, tgtV, labelWithDir, op, ts, propsWithTs).rowKey
+    val get =  if (tgtVertexInnerIdOpt.isDefined) {
+      val snapshotEdge = EdgeWithIndexInverted(srcV, tgtV, labelWithDir, op, ts, propsWithTs)
+      new GetRequest(label.hbaseTableName.getBytes, snapshotEdge.rowKey.bytes, edgeCf, snapshotEdge.qualifier.bytes)
     } else {
-      EdgeWithIndex(srcV, tgtV, labelWithDir, op, ts, labelOrderSeq, props).rowKey
+      val indexedEdge =  EdgeWithIndex(srcV, tgtV, labelWithDir, op, ts, labelOrderSeq, props)
+      new GetRequest(label.hbaseTableName.getBytes, indexedEdge.rowKey.bytes, edgeCf)
     }
-//    val id = InnerVal.convertVersion(srcVertex.innerId,
-//      label.srcColumnWithDir(labelWithDir.dir).columnType, label.schemaVersion)
-//    val vId = SourceVertexId(srcVertex.id.colId, id)
-//    val sourceVertexId = VertexId.toSourceVertexId(vId)
-//    val rowKey = EdgeRowKey(sourceVertexId, labelWithDir, labelOrderSeq, isInverted)(label.schemaVersion)
+
     val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
     val client = Graph.getClient(label.hbaseZkAddr)
     val filters = ListBuffer.empty[ScanFilter]
 
-    val get = new GetRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf)
+
     get.maxVersions(1)
     get.setFailfast(true)
     get.setMaxResultsPerColumnFamily(limit)
