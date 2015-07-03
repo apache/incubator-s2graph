@@ -113,9 +113,15 @@ object Graph {
   val defaultScore = 1.0
 
   lazy val cache = CacheBuilder.newBuilder()
-    .expireAfterWrite(10, TimeUnit.MINUTES)
+    .expireAfterWrite(60, TimeUnit.SECONDS)
     .maximumSize(10000)
     .build[java.lang.Integer, QueryResult]()
+
+  lazy val vertexCache = CacheBuilder.newBuilder()
+    .expireAfterWrite(60, TimeUnit.SECONDS)
+    .maximumSize(10000)
+    .build[java.lang.Integer, Vertex]()
+
 
   //  implicit val ex = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(16))
   def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
@@ -158,20 +164,6 @@ object Graph {
         conn
       //        throw new RuntimeException(s"connection to $zkQuorum is not established.")
       case Some(c) => c
-    }
-  }
-
-  def withTimeout[T](zkQuorum: String, op: => Future[T], fallback: => T)(implicit timeout: Duration): Future[T] = {
-    try {
-      val client = getClient(zkQuorum)
-      //      TimeoutFuture(op, fallback)(this.executionContext, timeout)
-      op
-    } catch {
-      case e: Throwable =>
-        Logger.error(s"withTimeout: $e", e)
-        Future {
-          fallback
-        }(this.executionContext)
     }
   }
 
@@ -301,7 +293,6 @@ object Graph {
   }
 
 
-
   private def fetchEdgesLs(currentStepRequestLss: Seq[(Iterable[(GetRequest, QueryParam)], Double)]): Seq[Deferred[QueryResult]] = {
     for {
       (prevStepTgtVertexResultLs, prevScore) <- currentStepRequestLss
@@ -326,8 +317,8 @@ object Graph {
       val cacheTTL = queryParam.cacheTTLInMillis
       if (cache.asMap().containsKey(cacheKey)) {
         val cachedVal = cache.asMap().get(cacheKey)
-        val elapsedTime = queryParam.timestamp - cachedVal.timestamp
-        if (elapsedTime < cacheTTL) {
+        if (cachedVal != null && queryParam.timestamp - cachedVal.timestamp < cacheTTL) {
+          val elapsedTime = queryParam.timestamp - cachedVal.timestamp
           Logger.debug(s"cacheHitAndValid: $cacheKey, $cacheTTL, $elapsedTime")
           Deferred.fromResult(cachedVal)
         }
@@ -420,26 +411,18 @@ object Graph {
     implicit val ex = this.executionContext
 
 
-    val label = queryParam.label
-    val dir = queryParam.labelWithDir.dir
     val invertedEdge = Edge(srcVertex, tgtVertex, queryParam.labelWithDir).toInvertedEdgeHashLike()
+    val getRequest = queryParam.tgtVertexInnerIdOpt(Option(invertedEdge.tgtVertex.innerId))
+      .buildGetRequest(invertedEdge.srcVertex)
 
-    val rowKey = invertedEdge.rowKey
-
-    val qualifier = invertedEdge.qualifier
-    val client = getClient(label.hbaseZkAddr)
-    val getRequest = new GetRequest(label.hbaseTableName.getBytes(), rowKey.bytes, edgeCf, qualifier.bytes)
-    Logger.debug(s"$getRequest")
-    val qParam = QueryParam(LabelWithDirection(label.id.get, dir.toByte))
-    defferedToFuture(client.get(getRequest))(emptyKVs).map { kvs =>
+    defferedToFuture(getClient(queryParam.label.hbaseZkAddr).get(getRequest))(emptyKVs).map { kvs =>
       val edgeWithScoreLs = for {
         kv <- kvs
-        edge <- Edge.toEdge(kv, qParam)
+        edge <- Edge.toEdge(kv, queryParam)
       } yield {
-          Logger.debug(s"$edge")
-          (edge, edge.rank(qParam.rank))
+          (edge, edge.rank(queryParam.rank))
         }
-      QueryResult(qParam, edgeWithScoreLs)
+      QueryResult(queryParam, edgeWithScoreLs)
     }
   }
 
@@ -577,31 +560,37 @@ object Graph {
   }
 
 
+  /**
+   * Vertex
+   */
+
   def getVerticesAsync(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
-    // TODO: vertex needs meta for hbase table.
-    //    play.api.Logger.error(s"$vertices")
     implicit val ex = executionContext
+
     val futures = vertices.map { vertex =>
-      withTimeout[Option[Vertex]](vertex.hbaseZkAddr, {
-        //          val get = vertex.buildGet
-        val client = getClient(vertex.hbaseZkAddr)
-        //        val get = vertex.buildGetRequest()
-        val get = vertex.buildGet
+      val client = getClient(vertex.hbaseZkAddr)
+      val get = vertex.buildGet
+      val cacheKey = MurmurHash3.stringHash(get.toString)
+      //FIXME
+      val cacheTTL = 10000
+      if (vertexCache.asMap().containsKey(cacheKey)) {
+        val cachedVal = vertexCache.asMap().get(cacheKey)
+        if (cachedVal == null) {
+          defferedToFuture(client.get(get))(emptyKVs).map { kvs =>
+            Vertex(kvs, vertex.serviceColumn.schemaVersion)
+          }
+        } else {
+          Future.successful(cachedVal)
+        }
+      } else {
         defferedToFuture(client.get(get))(emptyKVs).map { kvs =>
           Vertex(kvs, vertex.serviceColumn.schemaVersion)
         }
-        //          Logger.error(s"$get")
-      }, {
-        None
-      })(singleGetTimeout)
-
+      }
     }
     Future.sequence(futures).map { result => result.toList.flatten }
   }
 
-  /**
-   * Vertex
-   */
   def mutateEdge(edge: Edge): Future[Boolean] = {
     implicit val ex = this.executionContext
     writeAsync(edge.label.hbaseZkAddr, Seq(edge).map(e => e.buildPutsAll())).map { rets =>
@@ -661,9 +650,11 @@ object Graph {
       vertex <- vertices
       label <- (Label.findBySrcColumnId(vertex.id.colId) ++ Label.findByTgtColumnId(vertex.id.colId))
     } yield {
-      label.id.get -> label
-    }
-    val labels = labelsMap.groupBy { case (labelId, label) => labelId }.map  { _._2.head } values
+        label.id.get -> label
+      }
+    val labels = labelsMap.groupBy { case (labelId, label) => labelId }.map {
+      _._2.head
+    } values
 
     /** delete vertex only */
     for {
