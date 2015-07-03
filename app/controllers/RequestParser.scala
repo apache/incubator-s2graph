@@ -157,7 +157,21 @@ trait RequestParser extends JSONParser {
               val exclude = parse[Option[Boolean]](labelGroup, "exclude").getOrElse(false)
               val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
               val hasFilter = extractHas(label, labelGroup)
-              val outputField = for (of <- (labelGroup \ "outputField").asOpt[String]; labelMeta <- LabelMeta.findByName(label.id.get, of)) yield labelMeta.seq
+
+              val outputField = for {
+                labelMetaSeq <- (labelGroup \ "outputFields").asOpt[String]
+                labelMeta <- LabelMeta.findByName(label.id.get, labelMetaSeq)
+              } yield labelMeta.seq
+
+              val outputFields = for {
+                labelMetaSeq <- (labelGroup \ "outputFields").asOpt[List[String]].getOrElse(Nil)
+                labelMeta <- LabelMeta.findByName(label.id.get, labelMetaSeq)
+              } yield labelMeta.seq
+              // outputField and outputFields is mutual exclusive.
+              val mergedOutputFields = outputField match {
+                case None => outputFields
+                case Some(s) => Seq(s)
+              }
               val labelWithDir = LabelWithDirection(label.id.get, direction)
               val indexSeq = label.indexSeqsMap.get(scorings.map(kv => kv._1).toList).map(x => x.seq).getOrElse(LabelIndex.defaultSeq)
               val where = extractWhere(label, labelGroup)
@@ -179,7 +193,7 @@ trait RequestParser extends JSONParser {
                 .duration(duration)
                 .has(hasFilter)
                 .labelOrderSeq(indexSeq)
-                .outputField(outputField)
+                .outputFields(mergedOutputFields)
                 .where(where)
                 .duplicatePolicy(duplicate)
                 .includeDegree(includeDegree)
