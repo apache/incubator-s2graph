@@ -164,7 +164,7 @@ trait RequestParser extends JSONParser {
               val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
               val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(1000)
               val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(2)
-              val tgtVertexInnerIdOpt = (labelGroup \ "includeDegree").asOpt[JsValue].flatMap { jsVal =>
+              val tgtVertexInnerIdOpt = (labelGroup \ "_to").asOpt[JsValue].flatMap { jsVal =>
                 jsValueToInnerVal(jsVal, label.tgtColumnWithDir(direction).columnType, label.schemaVersion)
               }
               val cacheTTL = (labelGroup \ "cacheTTL").asOpt[Long].getOrElse(-1L)
