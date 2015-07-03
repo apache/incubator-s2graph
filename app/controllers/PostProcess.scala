@@ -32,19 +32,32 @@ object PostProcess extends JSONParser {
         (edge, score)
       }).groupBy {
       case (edge, rank) if edge.labelWithDir.dir == GraphUtil.directions("in") =>
-        (edge.label.srcColumn, edge.label.tgtColumn, edge.tgtVertex.innerId, edge.props.contains(LabelMeta.degreeSeq))
+        (edge.label.srcColumn, edge.label.label, edge.label.tgtColumn, edge.tgtVertex.innerId, edge.props.contains(LabelMeta.degreeSeq))
       case (edge, rank) =>
-        (edge.label.tgtColumn, edge.label.srcColumn, edge.tgtVertex.innerId, edge.props.contains(LabelMeta.degreeSeq))
+        (edge.label.tgtColumn, edge.label.label, edge.label.srcColumn, edge.tgtVertex.innerId, edge.props.contains(LabelMeta.degreeSeq))
     }
     for {
-      ((tgtColumn, srcColumn, target, isDegreeEdge), edgesAndRanks) <- groupedEdgesWithRank
+      ((tgtColumn, labelName, srcColumn, target, isDegreeEdge), edgesAndRanks) <- groupedEdgesWithRank
       if !excludeIds.getOrElse(Map[InnerValLike, Boolean]()).contains(target) && !isDegreeEdge
-      (edges, ranks) = edgesAndRanks.groupBy(x => x._1.srcVertex).map(_._2.head).unzip
+      edgesWithRanks = edgesAndRanks.groupBy(x => x._1.srcVertex).map(_._2.head)
       id <- innerValToJsValue(target, tgtColumn.columnType)
     } yield {
-      Json.obj("name" -> tgtColumn.columnName, "id" -> id, SCORE_FIELD_NAME -> ranks.sum,
-        "aggr" -> Json.obj("name" -> srcColumn.columnName,
-          "ids" -> edges.flatMap(edge => innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType))))
+      Json.obj("name" -> tgtColumn.columnName, "id" -> id,
+        SCORE_FIELD_NAME -> edgesWithRanks.map(_._2).sum,
+        "label" -> labelName,
+        "aggr" -> Json.obj(
+          "name" -> srcColumn.columnName,
+          "ids" -> edgesWithRanks.flatMap { case (edge, rank) =>
+            innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType)
+          },
+          "edges" -> edgesWithRanks.map { case (edge, rank) =>
+            Json.obj("id" -> innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType),
+              "props" -> propsToJson(edge),
+              "score" -> rank
+            )
+          }
+        )
+      )
     }
   }
 
