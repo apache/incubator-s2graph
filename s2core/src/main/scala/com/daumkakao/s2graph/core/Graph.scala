@@ -467,18 +467,23 @@ object Graph {
   }
 
 
-  def convertEdge(edge: Edge, labelOutputFields: Map[Int, Byte]): Option[Edge] = {
+  def convertEdge(edge: Edge, labelOutputFields: Map[Int, Seq[Byte]]): Seq[Edge] = {
     labelOutputFields.get(edge.labelWithDir.labelId) match {
-      case None => Some(edge)
-      case Some(outputFieldLabelMetaSeq) =>
-        outputFieldLabelMetaSeq match {
-          case LabelMeta.fromSeq => Option(edge.updateTgtVertex(edge.srcVertex.innerId))
-          case _ =>
-            edge.propsWithTs.get(outputFieldLabelMetaSeq) match {
-              case None => None
-              case Some(outputFieldVal) =>
-                Option(edge.updateTgtVertex(outputFieldVal.innerVal))
-            }
+      case None => Seq(edge)
+      case Some(seqs) if seqs.isEmpty => Seq(edge)
+      case Some(seqs) =>
+        for {
+          seq <- seqs
+        } yield {
+          seq match {
+            case LabelMeta.fromSeq => edge.updateTgtVertex(edge.srcVertex.innerId)
+            case _ =>
+              edge.propsWithTs.get(seq) match {
+                case None => edge
+                case Some(labelMetaVal) =>
+                  edge.updateTgtVertex(labelMetaVal.innerVal)
+              }
+          }
         }
     }
   }
@@ -491,7 +496,11 @@ object Graph {
     implicit val ex = Graph.executionContext
     queryResultLsFuture.map { queryResultLs =>
       val step = q.steps(stepIdx)
-      val labelOutputFields = step.queryParams.map { qParam => qParam.outputField.map(outputField => qParam.labelWithDir.labelId -> outputField) }.flatten.toMap
+
+      val labelOutputFields = step.queryParams.map { qParam =>
+        qParam.labelWithDir.labelId -> qParam.outputFields
+      }.toMap
+
       val excludeLabelWithDirs = (for (queryParam <- step.queryParams if queryParam.exclude) yield queryParam.labelWithDir).toSet
       val includeLabelWithDirOpt = (for (queryParam <- step.queryParams if queryParam.include) yield queryParam.labelWithDir).toSet.headOption
       val seen = new HashMap[(Vertex, LabelWithDirection, Vertex), Double]
@@ -525,7 +534,7 @@ object Graph {
             convertedEdge <- convertEdge(edge, labelOutputFields)
             key = (convertedEdge.labelWithDir, convertedEdge.tgtVertex)
             //          if !seen.contains(key)
-            if filterDuplicates(seen, queryResult.queryParam, edge, score)
+            if filterDuplicates(seen, queryResult.queryParam, convertedEdge, score)
             if !(q.removeCycle && alreadyVisited.contains(key))
           } yield {
               //          seen += key

@@ -115,7 +115,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   var labelOrderSeq = fullKey
 
-  var outputField: Option[Byte] = None
+  var outputFields: Seq[Byte] = Nil
   //  var start = OrderProps.empty
   //  var end = OrderProps.empty
   var limit = 10
@@ -226,8 +226,8 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this
   }
 
-  def outputField(ofOpt: Option[Byte]): QueryParam = {
-    this.outputField = ofOpt
+  def outputFields(others: Seq[Byte]): QueryParam = {
+    this.outputFields = others
     this
   }
 
@@ -271,7 +271,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   }
   override def toString(): String = {
     List(label.label, labelOrderSeq, offset, limit, rank, isRowKeyOnly,
-      duration, isInverted, exclude, include, hasFilters, outputField).mkString("\t")
+      duration, isInverted, exclude, include, hasFilters, outputFields.mkString("[," , ", ", "]" )).mkString("\t")
   }
 
 
