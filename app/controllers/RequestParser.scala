@@ -271,7 +271,7 @@ trait RequestParser extends JSONParser {
 
   def parsePropsElements(jsValue: JsValue) = {
     for {
-      jsObj <- jsValue.asOpt[List[JsValue]].getOrElse(List.empty)
+      jsObj <- jsValue.asOpt[List[JsValue]].getOrElse(Nil)
     } yield {
       val propName = (jsObj \ "name").as[String]
       val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
@@ -338,12 +338,5 @@ trait RequestParser extends JSONParser {
     val dataType = parse[String](jsValue, "dataType")
     val usedInIndex = parse[Option[Boolean]](jsValue, "usedInIndex").getOrElse(false)
     (propName, defaultValue, dataType, usedInIndex)
-  }
-
-  def toDeleteVertexInLabel(jsValue: JsValue) = {
-    val labelName = parse[String](jsValue, "label")
-    val id = parse[String](jsValue, "id")
-    val dir = parse[String](jsValue, "direction")
-    (id, labelName, dir)
   }
 }
