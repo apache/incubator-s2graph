@@ -160,9 +160,13 @@ object PostProcess extends JSONParser {
       queryResult <- queryResultLs
       (edge, score) <- queryResult.edgeWithScoreLs
     } {
-      if (edge.propsWithTs.contains(LabelMeta.degreeSeq)) {
+      val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult)
+      val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
+      if (edge.propsWithTs.contains(LabelMeta.degreeSeq) && fromOpt.isDefined) {
         //          degreeJsons += edgeJson
-        degrees += Json.obj("label" -> edge.label.label,
+        degrees += Json.obj(
+          "from" -> fromOpt.get,
+          "label" -> edge.label.label,
           LabelMeta.degree.name ->
             innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
         )
@@ -221,15 +225,11 @@ object PostProcess extends JSONParser {
       (metaProp.name, jsValue)
     }
   }
-
-  def edgeToJson(edge: Edge, score: Double, queryResult: QueryResult): Option[JsObject] = {
+  def srcTgtColumn(edge: Edge, queryResult: QueryResult) = {
     val queryParam = queryResult.queryParam
-    //
-    //    Logger.debug(s"edgeProps: ${edge.props} => ${props}")
-    //    val shouldBeReverted = q.labelSrcTgtInvertedMap.get(edge.labelWithDir.labelId).getOrElse(false)
-    //FIXME
-    val (srcColumn, tgtColumn) = if (edge.label.isDirected) {
-      (queryParam.label.srcColumnWithDir(queryParam.labelWithDir.dir), queryParam.label.tgtColumnWithDir(queryParam.labelWithDir.dir))
+    if (edge.label.isDirected) {
+      (queryParam.label.srcColumnWithDir(queryParam.labelWithDir.dir),
+        queryParam.label.tgtColumnWithDir(queryParam.labelWithDir.dir))
     } else {
       if (queryParam.labelWithDir.dir == GraphUtil.directions("in")) {
         (queryParam.label.tgtColumn, queryParam.label.srcColumn)
@@ -237,7 +237,14 @@ object PostProcess extends JSONParser {
         (queryParam.label.srcColumn, queryParam.label.tgtColumn)
       }
     }
-    val dir = edge.labelWithDir.dir
+  }
+  def edgeToJson(edge: Edge, score: Double, queryResult: QueryResult): Option[JsObject] = {
+    val queryParam = queryResult.queryParam
+    //
+    //    Logger.debug(s"edgeProps: ${edge.props} => ${props}")
+    //    val shouldBeReverted = q.labelSrcTgtInvertedMap.get(edge.labelWithDir.labelId).getOrElse(false)
+    //FIXME
+    val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult)
     val json = for {
       from <- innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
       to <- innerValToJsValue(edge.tgtVertex.id.innerId, tgtColumn.columnType)

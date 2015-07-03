@@ -108,14 +108,14 @@ object EdgeController extends Controller with Instrumented with RequestParser {
   }
 
   def deleteVertexInLabel(vertexId: String, labelName: String, dir: String) = withHeaderAsync(parse.json) { request =>
-    val jsValue = request.body
-    for {
-      jsVal <- jsValue.asOpt[List[JsValue]].getOrElse(List.empty)
-      (id, labelName, dir) <- toDeleteVertexInLabel(jsVal)
-      innerId
-    } yield {
-
-    }
+//    val jsValue = request.body
+//    for {
+//      jsVal <- jsValue.asOpt[List[JsValue]].getOrElse(List.empty)
+//      (id, labelName, dir) <- toDeleteVertexInLabel(jsVal)
+//      innerId
+//    } yield {
+//
+//    }
 
 //    for {
 //      label <- Label.findByName(labelName)
@@ -124,5 +124,6 @@ object EdgeController extends Controller with Instrumented with RequestParser {
 //      val innerId = toInnerVal(srcVertexId,.. )
 //      Graph.deleteVertexAllAsync()
 //    }
+    Future.successful(Ok("FixMe"))
   }
 }
