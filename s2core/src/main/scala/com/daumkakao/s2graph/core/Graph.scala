@@ -518,7 +518,8 @@ object Graph {
             convertedEdge <- convertEdge(edge, labelOutputFields)
             key = (convertedEdge.labelWithDir, convertedEdge.tgtVertex)
             //          if !seen.contains(key)
-            if filterDuplicates(seen, queryResult.queryParam, convertedEdge, score)
+            // skip filterDuplicates on first step.
+            if stepIdx == 0 || filterDuplicates(seen, queryResult.queryParam, convertedEdge, score)
             if !(q.removeCycle && alreadyVisited.contains(key))
           } yield {
               //          seen += key
