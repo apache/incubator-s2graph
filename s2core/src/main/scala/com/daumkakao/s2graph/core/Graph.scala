@@ -120,7 +120,7 @@ object Graph {
   lazy val vertexCache = CacheBuilder.newBuilder()
     .expireAfterWrite(60, TimeUnit.SECONDS)
     .maximumSize(10000)
-    .build[java.lang.Integer, Vertex]()
+    .build[java.lang.Integer, Option[Vertex]]()
 
 
   //  implicit val ex = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(16))
