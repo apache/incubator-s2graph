@@ -301,7 +301,6 @@ object Graph {
   }
 
 
-
   private def fetchEdgesLs(currentStepRequestLss: Seq[(Iterable[(GetRequest, QueryParam)], Double)]): Seq[Deferred[QueryResult]] = {
     for {
       (prevStepTgtVertexResultLs, prevScore) <- currentStepRequestLss
@@ -471,11 +470,15 @@ object Graph {
   def convertEdge(edge: Edge, labelOutputFields: Map[Int, Byte]): Option[Edge] = {
     labelOutputFields.get(edge.labelWithDir.labelId) match {
       case None => Some(edge)
-      case Some(outputField) =>
-        edge.propsWithTs.get(outputField) match {
-          case None => None
-          case Some(outputFieldVal) =>
-            Some(edge.updateTgtVertex(outputFieldVal.innerVal))
+      case Some(outputFieldLabelMetaSeq) =>
+        outputFieldLabelMetaSeq match {
+          case LabelMeta.fromSeq => Option(edge.updateTgtVertex(edge.srcVertex.innerId))
+          case _ =>
+            edge.propsWithTs.get(outputFieldLabelMetaSeq) match {
+              case None => None
+              case Some(outputFieldVal) =>
+                Option(edge.updateTgtVertex(outputFieldVal.innerVal))
+            }
         }
     }
   }
@@ -661,9 +664,11 @@ object Graph {
       vertex <- vertices
       label <- (Label.findBySrcColumnId(vertex.id.colId) ++ Label.findByTgtColumnId(vertex.id.colId))
     } yield {
-      label.id.get -> label
-    }
-    val labels = labelsMap.groupBy { case (labelId, label) => labelId }.map  { _._2.head } values
+        label.id.get -> label
+      }
+    val labels = labelsMap.groupBy { case (labelId, label) => labelId }.map {
+      _._2.head
+    } values
 
     /** delete vertex only */
     for {
