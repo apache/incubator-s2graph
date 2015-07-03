@@ -339,4 +339,11 @@ trait RequestParser extends JSONParser {
     val usedInIndex = parse[Option[Boolean]](jsValue, "usedInIndex").getOrElse(false)
     (propName, defaultValue, dataType, usedInIndex)
   }
+
+  def toDeleteVertexInLabel(jsValue: JsValue) = {
+    val labelName = parse[String](jsValue, "label")
+    val id = parse[String](jsValue, "id")
+    val dir = parse[String](jsValue, "direction")
+    (id, labelName, dir)
+  }
 }

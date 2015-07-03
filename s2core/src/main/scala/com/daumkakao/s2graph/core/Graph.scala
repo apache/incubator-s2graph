@@ -619,7 +619,7 @@ object Graph {
     implicit val ex = this.executionContext
     if (vertex.op == GraphUtil.operations("delete") || vertex.op == GraphUtil.operations("deleteAll")) {
       //      throw new RuntimeException("Not yet supported")
-      deleteVertexAll(vertex).onComplete {
+      deleteVerticesAll(List(vertex)).onComplete {
         case Success(s) => Logger.info(s"mutateVertex($vertex) for deleteAll successed.")
         case Failure(ex) => Logger.error(s"mutateVertex($vertex) for deleteAll failed. $ex", ex)
       }
@@ -654,25 +654,28 @@ object Graph {
    * O(E), maynot feasable
    */
 
-  private def deleteVertexAll(vertex: Vertex): Future[Boolean] = {
+  def deleteVerticesAll(vertices: List[Vertex]): Future[Boolean] = {
     implicit val ex = this.executionContext
 
-    val labels = (Label.findBySrcColumnId(vertex.id.colId) ++
-      Label.findByTgtColumnId(vertex.id.colId)).groupBy(_.id.get).map {
-      _._2.head
+    val labelsMap = for {
+      vertex <- vertices
+      label <- (Label.findBySrcColumnId(vertex.id.colId) ++ Label.findByTgtColumnId(vertex.id.colId))
+    } yield {
+      label.id.get -> label
     }
+    val labels = labelsMap.groupBy { case (labelId, label) => labelId }.map  { _._2.head } values
 
     /** delete vertex only */
     for {
-      relEdgesOutDeleted <- deleteVertexAllAsync(vertex, labels.toSeq, GraphUtil.directions("out"))
-      relEdgesInDeleted <- deleteVertexAllAsync(vertex, labels.toSeq, GraphUtil.directions("in"))
-      vertexDeleted <- deleteVertex(vertex)
+      relEdgesOutDeleted <- deleteVerticesAllAsync(vertices, labels.toSeq, GraphUtil.directions("out"))
+      relEdgesInDeleted <- deleteVerticesAllAsync(vertices, labels.toSeq, GraphUtil.directions("in"))
+      vertexDeleted <- deleteVertices(vertices)
     } yield {
-      relEdgesOutDeleted && relEdgesInDeleted && vertexDeleted
+      relEdgesOutDeleted && relEdgesInDeleted && vertexDeleted.forall(identity)
     }
   }
 
-  private def deleteVertexAllAsync(srcVertex: Vertex, labels: Seq[Label], dir: Int): Future[Boolean] = {
+  def deleteVerticesAllAsync(srcVertices: List[Vertex], labels: Seq[Label], dir: Int): Future[Boolean] = {
     implicit val ex = Graph.executionContext
 
     val queryParams = for {
@@ -683,17 +686,18 @@ object Graph {
       }
 
     val step = Step(queryParams.toList)
-    val q = Query(List(srcVertex), List(step), true)
+    val q = Query(srcVertices, List(step), true)
     for {
       queryResultLs <- getEdgesAsync(q)
       invertedFutures = for {
         queryResult <- queryResultLs
         (edge, score) <- queryResult.edgeWithScoreLs
       } yield {
+          val now = System.currentTimeMillis()
           val convertedEdge = if (dir == GraphUtil.directions("out")) {
-            Edge(edge.srcVertex, edge.tgtVertex, edge.labelWithDir, edge.op, edge.ts, srcVertex.ts, edge.propsWithTs)
+            Edge(edge.srcVertex, edge.tgtVertex, edge.labelWithDir, edge.op, edge.ts, now, edge.propsWithTs)
           } else {
-            Edge(edge.tgtVertex, edge.srcVertex, edge.labelWithDir, edge.op, edge.ts, srcVertex.ts, edge.propsWithTs)
+            Edge(edge.tgtVertex, edge.srcVertex, edge.labelWithDir, edge.op, edge.ts, now, edge.propsWithTs)
           }
           Logger.debug(s"ConvertedEdge: $convertedEdge")
           for {

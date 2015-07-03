@@ -1,9 +1,10 @@
 package controllers
 
+import com.daumkakao.s2graph.core.models.Label
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
 import com.daumkakao.s2graph.core.{ Edge, Graph, GraphElement, GraphUtil, Vertex, KGraphExceptions }
 import play.api.Logger
-import play.api.libs.json.{Json, JsValue}
+import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{ Controller, Result }
 import scala.concurrent.Future
 
@@ -106,4 +107,22 @@ object EdgeController extends Controller with Instrumented with RequestParser {
     tryMutates(request.body, "increment")
   }
 
+  def deleteVertexInLabel(vertexId: String, labelName: String, dir: String) = withHeaderAsync(parse.json) { request =>
+    val jsValue = request.body
+    for {
+      jsVal <- jsValue.asOpt[List[JsValue]].getOrElse(List.empty)
+      (id, labelName, dir) <- toDeleteVertexInLabel(jsVal)
+      innerId
+    } yield {
+
+    }
+
+//    for {
+//      label <- Label.findByName(labelName)
+//      dir <- GraphUtil.toDir(dir)
+//    } yield {
+//      val innerId = toInnerVal(srcVertexId,.. )
+//      Graph.deleteVertexAllAsync()
+//    }
+  }
 }
