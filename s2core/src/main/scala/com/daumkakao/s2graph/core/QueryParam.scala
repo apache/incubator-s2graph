@@ -294,15 +294,15 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     val (srcVId, tgtVId) =
       (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
     val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
-    val op = GraphUtil.operations("insert")
-    val ts = System.currentTimeMillis()
-    val props = Map.empty[Byte, InnerValLike]
-    val propsWithTs = Map.empty[Byte, InnerValLikeWithTs]
+    val edge = Edge(srcV, tgtV, labelWithDir)
+
     val get =  if (tgtVertexInnerIdOpt.isDefined) {
-      val snapshotEdge = EdgeWithIndexInverted(srcV, tgtV, labelWithDir, op, ts, propsWithTs)
+      val snapshotEdge = edge.toInvertedEdgeHashLike()
       new GetRequest(label.hbaseTableName.getBytes, snapshotEdge.rowKey.bytes, edgeCf, snapshotEdge.qualifier.bytes)
     } else {
-      val indexedEdge =  EdgeWithIndex(srcV, tgtV, labelWithDir, op, ts, labelOrderSeq, props)
+      val indexedEdgeOpt =  edge.edgesWithIndex.find(e => e.labelIndexSeq == labelOrderSeq)
+      assert(indexedEdgeOpt.isDefined)
+      val indexedEdge = indexedEdgeOpt.get
       new GetRequest(label.hbaseTableName.getBytes, indexedEdge.rowKey.bytes, edgeCf)
     }
 
