@@ -147,9 +147,12 @@ object PostProcess extends JSONParser {
   def noFormat(edgesPerVertex: Seq[Iterable[(Edge, Double)]]) = {
     Json.obj("edges" -> edgesPerVertex.toString)
   }
+  def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult]): JsObject = {
+    toSimpleVertexArrJson(queryResultLs, Seq.empty[QueryResult])
+  }
 
-
-  def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult]) = {
+  def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]): JsObject = {
+    val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
     val withScore = true
     import play.api.libs.json.Json
     val degreeJsons = ListBuffer[JsObject]()
@@ -158,7 +161,7 @@ object PostProcess extends JSONParser {
 
     for {
       queryResult <- queryResultLs
-      (edge, score) <- queryResult.edgeWithScoreLs
+      (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(edge.tgtVertex.innerId)
     } {
       val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult)
       val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
@@ -188,28 +191,6 @@ object PostProcess extends JSONParser {
 
     queryLogger.info(s"Result: ${results.size}")
     Json.obj("size" -> results.size, "degrees" -> degrees, "results" -> results)
-  }
-
-  def toSiimpleVertexArrJson(exclude: Seq[QueryResult],
-                             queryResultLs: Seq[QueryResult]) = {
-    val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
-    val withScore = true
-    import play.api.libs.json.Json
-    val jsons = for {
-      queryResult <- queryResultLs
-      (edge, score) <- queryResult.edgeWithScoreLs
-      if !excludeIds.contains(edge.tgtVertex.innerId) && !edge.props.contains(LabelMeta.degreeSeq)
-      edgeJson <- edgeToJson(edge, score, queryResult)
-    } yield edgeJson
-
-    val results =
-      if (withScore) {
-        jsons.sortBy(js => ((js \ "score").as[Double], (js \ "_timestamp").as[Long])).reverse
-      } else {
-        jsons.toList
-      }
-    queryLogger.info(s"Result: ${results.size}")
-    Json.obj("size" -> jsons.size, "results" -> results)
   }
 
   def verticesToJson(vertices: Iterable[Vertex]) = {

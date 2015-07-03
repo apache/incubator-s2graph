@@ -118,7 +118,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
   }
 
   private def getEdgesExcludedInner(jsValue: JsValue) = {
-    getEdgesExcludedAsync(jsValue)(PostProcess.toSiimpleVertexArrJson)
+    getEdgesExcludedAsync(jsValue)(PostProcess.toSimpleVertexArrJson)
   }
 
   def getEdgesWithGrouping() = withHeaderAsync(parse.json) { request =>
