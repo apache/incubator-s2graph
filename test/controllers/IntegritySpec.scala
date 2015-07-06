@@ -305,7 +305,7 @@ class IntegritySpec extends Specification {
       i <- (1 to NUM_OF_EACH_TEST)
     } {
       val srcId = ((tcNum * 1000) + i).toString
-      val tgtId = if (labelName == testLabelName) s"${srcId + 1000}" else s"${(srcId + 1000)}abc"
+      val tgtId = if (labelName == testLabelName) s"${srcId + 1000 + i}" else s"${(srcId + 1000 + i)}abc"
 
       val maxTs = opWithProps.map(t => t._1).max
 
@@ -433,15 +433,15 @@ class IntegritySpec extends Specification {
         //        runTC(tcNum, tcString, bulkQueries, expected)
 
 
-        tcNum = 7
-        tcString = "[t1 -> t2 -> t3 test case] insert(t1) delete(t2) insert(t3) test "
-        bulkQueries = List(
-          (t1, "insert", "{\"time\": 10}"),
-          (t2, "delete", ""),
-          (t3, "insert", "{\"time\": 10, \"weight\": 20}"))
-        expected = Map("time" -> "10", "weight" -> "20")
-
-        runTC(tcNum, tcString, bulkQueries, expected)
+//        tcNum = 7
+//        tcString = "[t1 -> t2 -> t3 test case] insert(t1) delete(t2) insert(t3) test "
+//        bulkQueries = List(
+//          (t1, "insert", "{\"time\": 10}"),
+//          (t2, "delete", ""),
+//          (t3, "insert", "{\"time\": 10, \"weight\": 20}"))
+//        expected = Map("time" -> "10", "weight" -> "20")
+//
+//        runTC(tcNum, tcString, bulkQueries, expected)
 
         tcNum = 8
         tcString = "[t1 -> t2 -> t3 test case] insert(t1) delete(t2) insert(t3) test "
@@ -452,230 +452,230 @@ class IntegritySpec extends Specification {
         expected = Map("time" -> "10", "weight" -> "20")
 
         runTC(tcNum, tcString, bulkQueries, expected)
-
-        tcNum = 9
-        tcString = "[t3 -> t2 -> t1 test case] insert(t3) delete(t2) insert(t1) test "
-        bulkQueries = List(
-          (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
-          (t2, "delete", ""),
-          (t1, "insert", "{\"time\": 10}"))
-        expected = Map("time" -> "10", "weight" -> "20")
-
-        runTC(tcNum, tcString, bulkQueries, expected)
-
-        tcNum = 10
-        tcString = "[t3 -> t1 -> t2 test case] insert(t3) insert(t1) delete(t2) test "
-        bulkQueries = List(
-          (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
-          (t1, "insert", "{\"time\": 10}"),
-          (t2, "delete", ""))
-        expected = Map("time" -> "10", "weight" -> "20")
-
-        runTC(tcNum, tcString, bulkQueries, expected)
-
-        tcNum = 11
-        tcString = "[t2 -> t1 -> t3 test case] delete(t2) insert(t1) insert(t3) test"
-        bulkQueries = List(
-          (t2, "delete", ""),
-          (t1, "insert", "{\"time\": 10}"),
-          (t3, "insert", "{\"time\": 10, \"weight\": 20}"))
-        expected = Map("time" -> "10", "weight" -> "20")
-
-        runTC(tcNum, tcString, bulkQueries, expected)
-
-        tcNum = 12
-        tcString = "[t2 -> t3 -> t1 test case] delete(t2) insert(t3) insert(t1) test "
-        bulkQueries = List(
-          (t2, "delete", ""),
-          (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
-          (t1, "insert", "{\"time\": 10}"))
-        expected = Map("time" -> "10", "weight" -> "20")
-
-        runTC(tcNum, tcString, bulkQueries, expected)
-
-        tcNum = 13
-        tcString = "[t1 -> t2 -> t3 test case] update(t1) delete(t2) update(t3) test "
-        bulkQueries = List(
-          (t1, "update", "{\"time\": 10}"),
-          (t2, "delete", ""),
-          (t3, "update", "{\"time\": 10, \"weight\": 20}"))
-        expected = Map("time" -> "10", "weight" -> "20")
-
-        runTC(tcNum, tcString, bulkQueries, expected)
-        tcNum = 14
-        tcString = "[t1 -> t3 -> t2 test case] update(t1) update(t3) delete(t2) test "
-        bulkQueries = List(
-          (t1, "update", "{\"time\": 10}"),
-          (t3, "update", "{\"time\": 10, \"weight\": 20}"),
-          (t2, "delete", ""))
-        expected = Map("time" -> "10", "weight" -> "20")
-
-        runTC(tcNum, tcString, bulkQueries, expected)
-        tcNum = 15
-        tcString = "[t2 -> t1 -> t3 test case] delete(t2) update(t1) update(t3) test "
-        bulkQueries = List(
-          (t2, "delete", ""),
-          (t1, "update", "{\"time\": 10}"),
-          (t3, "update", "{\"time\": 10, \"weight\": 20}"))
-        expected = Map("time" -> "10", "weight" -> "20")
-
-        runTC(tcNum, tcString, bulkQueries, expected)
-        tcNum = 16
-        tcString = "[t2 -> t3 -> t1 test case] delete(t2) update(t3) update(t1) test"
-        bulkQueries = List(
-          (t2, "delete", ""),
-          (t3, "update", "{\"time\": 10, \"weight\": 20}"),
-          (t1, "update", "{\"time\": 10}"))
-        expected = Map("time" -> "10", "weight" -> "20")
-
-        runTC(tcNum, tcString, bulkQueries, expected)
-        tcNum = 17
-        tcString = "[t3 -> t2 -> t1 test case] update(t3) delete(t2) update(t1) test "
-        bulkQueries = List(
-          (t3, "update", "{\"time\": 10, \"weight\": 20}"),
-          (t2, "delete", ""),
-          (t1, "update", "{\"time\": 10}"))
-        expected = Map("time" -> "10", "weight" -> "20")
-
-        runTC(tcNum, tcString, bulkQueries, expected)
-        tcNum = 18
-        tcString = "[t3 -> t1 -> t2 test case] update(t3) update(t1) delete(t2) test "
-        bulkQueries = List(
-          (t3, "update", "{\"time\": 10, \"weight\": 20}"),
-          (t1, "update", "{\"time\": 10}"),
-          (t2, "delete", ""))
-        expected = Map("time" -> "10", "weight" -> "20")
-
-        runTC(tcNum, tcString, bulkQueries, expected)
-
-        tcNum = 19
-        tcString = "[t5 -> t1 -> t3 -> t2 -> t4 test case] update(t5) insert(t1) insert(t3) delete(t2) update(t4) test "
-        bulkQueries = List(
-          (t5, "update", "{\"is_blocked\": true}"),
-          (t1, "insert", "{\"is_hidden\": false}"),
-          (t3, "insert", "{\"is_hidden\": false, \"weight\": 10}"),
-          (t2, "delete", ""),
-          (t4, "update", "{\"time\": 1, \"weight\": -10}"))
-        expected = Map("time" -> "1", "weight" -> "-10", "is_hidden" -> "false", "is_blocked" -> "true")
-
-        runTC(tcNum, tcString, bulkQueries, expected)
-
+//
+//        tcNum = 9
+//        tcString = "[t3 -> t2 -> t1 test case] insert(t3) delete(t2) insert(t1) test "
+//        bulkQueries = List(
+//          (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
+//          (t2, "delete", ""),
+//          (t1, "insert", "{\"time\": 10}"))
+//        expected = Map("time" -> "10", "weight" -> "20")
+//
+//        runTC(tcNum, tcString, bulkQueries, expected)
+//
+//        tcNum = 10
+//        tcString = "[t3 -> t1 -> t2 test case] insert(t3) insert(t1) delete(t2) test "
+//        bulkQueries = List(
+//          (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
+//          (t1, "insert", "{\"time\": 10}"),
+//          (t2, "delete", ""))
+//        expected = Map("time" -> "10", "weight" -> "20")
+//
+//        runTC(tcNum, tcString, bulkQueries, expected)
+//
+//        tcNum = 11
+//        tcString = "[t2 -> t1 -> t3 test case] delete(t2) insert(t1) insert(t3) test"
+//        bulkQueries = List(
+//          (t2, "delete", ""),
+//          (t1, "insert", "{\"time\": 10}"),
+//          (t3, "insert", "{\"time\": 10, \"weight\": 20}"))
+//        expected = Map("time" -> "10", "weight" -> "20")
+//
+//        runTC(tcNum, tcString, bulkQueries, expected)
+//
+//        tcNum = 12
+//        tcString = "[t2 -> t3 -> t1 test case] delete(t2) insert(t3) insert(t1) test "
+//        bulkQueries = List(
+//          (t2, "delete", ""),
+//          (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
+//          (t1, "insert", "{\"time\": 10}"))
+//        expected = Map("time" -> "10", "weight" -> "20")
+//
+//        runTC(tcNum, tcString, bulkQueries, expected)
+//
+//        tcNum = 13
+//        tcString = "[t1 -> t2 -> t3 test case] update(t1) delete(t2) update(t3) test "
+//        bulkQueries = List(
+//          (t1, "update", "{\"time\": 10}"),
+//          (t2, "delete", ""),
+//          (t3, "update", "{\"time\": 10, \"weight\": 20}"))
+//        expected = Map("time" -> "10", "weight" -> "20")
+//
+//        runTC(tcNum, tcString, bulkQueries, expected)
+//        tcNum = 14
+//        tcString = "[t1 -> t3 -> t2 test case] update(t1) update(t3) delete(t2) test "
+//        bulkQueries = List(
+//          (t1, "update", "{\"time\": 10}"),
+//          (t3, "update", "{\"time\": 10, \"weight\": 20}"),
+//          (t2, "delete", ""))
+//        expected = Map("time" -> "10", "weight" -> "20")
+//
+//        runTC(tcNum, tcString, bulkQueries, expected)
+//        tcNum = 15
+//        tcString = "[t2 -> t1 -> t3 test case] delete(t2) update(t1) update(t3) test "
+//        bulkQueries = List(
+//          (t2, "delete", ""),
+//          (t1, "update", "{\"time\": 10}"),
+//          (t3, "update", "{\"time\": 10, \"weight\": 20}"))
+//        expected = Map("time" -> "10", "weight" -> "20")
+//
+//        runTC(tcNum, tcString, bulkQueries, expected)
+//        tcNum = 16
+//        tcString = "[t2 -> t3 -> t1 test case] delete(t2) update(t3) update(t1) test"
+//        bulkQueries = List(
+//          (t2, "delete", ""),
+//          (t3, "update", "{\"time\": 10, \"weight\": 20}"),
+//          (t1, "update", "{\"time\": 10}"))
+//        expected = Map("time" -> "10", "weight" -> "20")
+//
+//        runTC(tcNum, tcString, bulkQueries, expected)
+//        tcNum = 17
+//        tcString = "[t3 -> t2 -> t1 test case] update(t3) delete(t2) update(t1) test "
+//        bulkQueries = List(
+//          (t3, "update", "{\"time\": 10, \"weight\": 20}"),
+//          (t2, "delete", ""),
+//          (t1, "update", "{\"time\": 10}"))
+//        expected = Map("time" -> "10", "weight" -> "20")
+//
+//        runTC(tcNum, tcString, bulkQueries, expected)
+//        tcNum = 18
+//        tcString = "[t3 -> t1 -> t2 test case] update(t3) update(t1) delete(t2) test "
+//        bulkQueries = List(
+//          (t3, "update", "{\"time\": 10, \"weight\": 20}"),
+//          (t1, "update", "{\"time\": 10}"),
+//          (t2, "delete", ""))
+//        expected = Map("time" -> "10", "weight" -> "20")
+//
+//        runTC(tcNum, tcString, bulkQueries, expected)
+//
+//        tcNum = 19
+//        tcString = "[t5 -> t1 -> t3 -> t2 -> t4 test case] update(t5) insert(t1) insert(t3) delete(t2) update(t4) test "
+//        bulkQueries = List(
+//          (t5, "update", "{\"is_blocked\": true}"),
+//          (t1, "insert", "{\"is_hidden\": false}"),
+//          (t3, "insert", "{\"is_hidden\": false, \"weight\": 10}"),
+//          (t2, "delete", ""),
+//          (t4, "update", "{\"time\": 1, \"weight\": -10}"))
+//        expected = Map("time" -> "1", "weight" -> "-10", "is_hidden" -> "false", "is_blocked" -> "true")
+//
+//        runTC(tcNum, tcString, bulkQueries, expected)
+//
 
 
         true
       }
     }
   }
-  "vetex tc" should {
-    "tc1" in {
-      running(FakeApplication()) {
-        val ids = (0 until 3).toList
-        val (serviceName, columnName) = (testServiceName, testColumnName)
-
-        val data = vertexInsertsPayload(serviceName, columnName, ids)
-        val payload = Json.parse(Json.toJson(data).toString)
-
-        val req = FakeRequest(POST, s"/graphs/vertices/insert/$serviceName/$columnName").withBody(payload)
-        println(s">> $req, $payload")
-        val res = Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
-        println(res)
-        res.header.status must equalTo(200)
-        Thread.sleep(asyncFlushInterval)
-        println("---------------")
-
-        val query = vertexQueryJson(serviceName, columnName, ids)
-        val retFuture = route(FakeRequest(POST, "/graphs/getVertices").withJsonBody(query)).get
-
-        val ret = contentAsJson(retFuture)
-        println(">>>", ret)
-        val fetched = ret.as[Seq[JsValue]]
-        for {
-          (d, f) <- data.zip(fetched)
-        } yield {
-          (d \ "id") must beEqualTo((f \ "id"))
-          ((d \ "props") \ "age") must beEqualTo(((f \ "props") \ "age"))
-        }
-      }
-      true
-    }
-  }
-
-  "cache test" should {
-    def queryWithTTL(id: Int, cacheTTL: Long) = Json.parse(s"""
-      { "srcVertices": [
-        { "serviceName": "${testServiceName}",
-          "columnName": "${testColumnName}",
-          "id": ${id}
-         }],
-        "steps": [[ {
-          "label": "${testLabelName}",
-          "direction": "out",
-          "offset": 0,
-          "limit": 10,
-          "cacheTTL": ${cacheTTL},
-          "scoring": {"weight": 1} }]]
-        }""")
-
-    def getEdges(queryJson: JsValue): JsValue = {
-      var ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryJson)).get
-      contentAsJson(ret)
-    }
-
-    // init
-    running(FakeApplication()) {
-      // insert bulk and wait ..
-      var bulkEdges: String = Seq(
-        Seq("1", "insert", "e", "0", "2", "s2graph_label_test", "{}").mkString("\t"),
-        Seq("1", "insert", "e", "1", "2", "s2graph_label_test", "{}").mkString("\t")
-      ).mkString("\n")
-
-      val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)).get
-      val jsRslt = contentAsJson(ret)
-      Thread.sleep(asyncFlushInterval)
-    }
-
-    "tc1: query with {id: 0, ttl: 1000}" in {
-      running(FakeApplication()) {
-        var jsRslt = getEdges(queryWithTTL(0, 1000))
-        var cacheRemain = (jsRslt \\ "cacheRemain").head
-        cacheRemain.as[Int] must greaterThan(500)
-
-        // get edges from cache after wait 500ms
-        Thread.sleep(500)
-        var ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryWithTTL(0, 1000))).get
-        jsRslt = contentAsJson(ret)
-        cacheRemain = (jsRslt \\ "cacheRemain").head
-        cacheRemain.as[Int] must lessThan(500)
-      }
-    }
-
-    "tc2: query with {id: 1, ttl: 3000}" in {
-      running(FakeApplication()) {
-        var jsRslt = getEdges(queryWithTTL(1, 3000))
-        var cacheRemain = (jsRslt \\ "cacheRemain").head
-        // before update: is_blocked is false
-        (jsRslt \\ "is_blocked").head must equalTo(JsBoolean(false))
-
-        var bulkEdges = Seq(
-          Seq("2", "update", "e", "0", "2", "s2graph_label_test", "{\"is_blocked\": true}").mkString("\t"),
-          Seq("2", "update", "e", "1", "2", "s2graph_label_test", "{\"is_blocked\": true}").mkString("\t")
-        ).mkString("\n")
-
-        // update edges with {is_blocked: true}
-        var ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)).get
-        jsRslt = contentAsJson(ret)
-
-        Thread.sleep(asyncFlushInterval)
-
-        // prop 'is_blocked' still false, cause queryResult on cache
-        jsRslt = getEdges(queryWithTTL(1, 3000))
-        (jsRslt \\ "is_blocked").head must equalTo(JsBoolean(false))
-
-        // after wait 3000ms prop 'is_blocked' is updated to true, cache cleared
-        Thread.sleep(3000)
-        jsRslt = getEdges(queryWithTTL(1, 3000))
-        (jsRslt \\ "is_blocked").head must equalTo(JsBoolean(true))
-      }
-    }
-  }
+//  "vetex tc" should {
+//    "tc1" in {
+//      running(FakeApplication()) {
+//        val ids = (0 until 3).toList
+//        val (serviceName, columnName) = (testServiceName, testColumnName)
+//
+//        val data = vertexInsertsPayload(serviceName, columnName, ids)
+//        val payload = Json.parse(Json.toJson(data).toString)
+//
+//        val req = FakeRequest(POST, s"/graphs/vertices/insert/$serviceName/$columnName").withBody(payload)
+//        println(s">> $req, $payload")
+//        val res = Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
+//        println(res)
+//        res.header.status must equalTo(200)
+//        Thread.sleep(asyncFlushInterval)
+//        println("---------------")
+//
+//        val query = vertexQueryJson(serviceName, columnName, ids)
+//        val retFuture = route(FakeRequest(POST, "/graphs/getVertices").withJsonBody(query)).get
+//
+//        val ret = contentAsJson(retFuture)
+//        println(">>>", ret)
+//        val fetched = ret.as[Seq[JsValue]]
+//        for {
+//          (d, f) <- data.zip(fetched)
+//        } yield {
+//          (d \ "id") must beEqualTo((f \ "id"))
+//          ((d \ "props") \ "age") must beEqualTo(((f \ "props") \ "age"))
+//        }
+//      }
+//      true
+//    }
+//  }
+//
+//  "cache test" should {
+//    def queryWithTTL(id: Int, cacheTTL: Long) = Json.parse(s"""
+//      { "srcVertices": [
+//        { "serviceName": "${testServiceName}",
+//          "columnName": "${testColumnName}",
+//          "id": ${id}
+//         }],
+//        "steps": [[ {
+//          "label": "${testLabelName}",
+//          "direction": "out",
+//          "offset": 0,
+//          "limit": 10,
+//          "cacheTTL": ${cacheTTL},
+//          "scoring": {"weight": 1} }]]
+//        }""")
+//
+//    def getEdges(queryJson: JsValue): JsValue = {
+//      var ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryJson)).get
+//      contentAsJson(ret)
+//    }
+//
+//    // init
+//    running(FakeApplication()) {
+//      // insert bulk and wait ..
+//      var bulkEdges: String = Seq(
+//        Seq("1", "insert", "e", "0", "2", "s2graph_label_test", "{}").mkString("\t"),
+//        Seq("1", "insert", "e", "1", "2", "s2graph_label_test", "{}").mkString("\t")
+//      ).mkString("\n")
+//
+//      val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)).get
+//      val jsRslt = contentAsJson(ret)
+//      Thread.sleep(asyncFlushInterval)
+//    }
+//
+//    "tc1: query with {id: 0, ttl: 1000}" in {
+//      running(FakeApplication()) {
+//        var jsRslt = getEdges(queryWithTTL(0, 1000))
+//        var cacheRemain = (jsRslt \\ "cacheRemain").head
+//        cacheRemain.as[Int] must greaterThan(500)
+//
+//        // get edges from cache after wait 500ms
+//        Thread.sleep(500)
+//        var ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryWithTTL(0, 1000))).get
+//        jsRslt = contentAsJson(ret)
+//        cacheRemain = (jsRslt \\ "cacheRemain").head
+//        cacheRemain.as[Int] must lessThan(500)
+//      }
+//    }
+//
+//    "tc2: query with {id: 1, ttl: 3000}" in {
+//      running(FakeApplication()) {
+//        var jsRslt = getEdges(queryWithTTL(1, 3000))
+//        var cacheRemain = (jsRslt \\ "cacheRemain").head
+//        // before update: is_blocked is false
+//        (jsRslt \\ "is_blocked").head must equalTo(JsBoolean(false))
+//
+//        var bulkEdges = Seq(
+//          Seq("2", "update", "e", "0", "2", "s2graph_label_test", "{\"is_blocked\": true}").mkString("\t"),
+//          Seq("2", "update", "e", "1", "2", "s2graph_label_test", "{\"is_blocked\": true}").mkString("\t")
+//        ).mkString("\n")
+//
+//        // update edges with {is_blocked: true}
+//        var ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)).get
+//        jsRslt = contentAsJson(ret)
+//
+//        Thread.sleep(asyncFlushInterval)
+//
+//        // prop 'is_blocked' still false, cause queryResult on cache
+//        jsRslt = getEdges(queryWithTTL(1, 3000))
+//        (jsRslt \\ "is_blocked").head must equalTo(JsBoolean(false))
+//
+//        // after wait 3000ms prop 'is_blocked' is updated to true, cache cleared
+//        Thread.sleep(3000)
+//        jsRslt = getEdges(queryWithTTL(1, 3000))
+//        (jsRslt \\ "is_blocked").head must equalTo(JsBoolean(true))
+//      }
+//    }
+//  }
 }
