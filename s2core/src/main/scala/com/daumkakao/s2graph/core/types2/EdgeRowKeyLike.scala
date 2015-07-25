@@ -4,11 +4,11 @@ package com.daumkakao.s2graph.core.types2
  * Created by shon on 6/10/15.
  */
 object EdgeRowKey extends HBaseDeserializable {
-
+  import HBaseType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = DEFAULT_VERSION): EdgeRowKeyLike = {
+                version: String = DEFAULT_VERSION): (EdgeRowKeyLike, Int) = {
     version match {
       case VERSION2 => v2.EdgeRowKey.fromBytes(bytes, offset, len, version)
       case VERSION1 => v1.EdgeRowKey.fromBytes(bytes, offset, len, version)
@@ -36,5 +36,5 @@ trait EdgeRowKeyLike extends HBaseSerializable {
   val labelOrderSeq: Byte
   val isInverted: Boolean
 
-  val bytes: Array[Byte]
+  def bytes: Array[Byte]
 }

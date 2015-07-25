@@ -1,11 +1,12 @@
 package controllers
 
-import com.daumkakao.s2graph.core.models.Label
+import com.daumkakao.s2graph.rest.actors.{Protocol, KafkaAggregatorActor}
 import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
 import com.daumkakao.s2graph.core.{ Edge, Graph, GraphElement, GraphUtil, Vertex, KGraphExceptions }
 import play.api.Logger
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.{Json, JsValue}
 import play.api.mvc.{ Controller, Result }
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
 
 object EdgeController extends Controller with Instrumented with RequestParser {
@@ -20,16 +21,22 @@ object EdgeController extends Controller with Instrumented with RequestParser {
       try {
         Logger.debug(s"$jsValue")
         val edges = toEdges(jsValue, operation)
-
+        for { edge <- edges } {
+          if (edge.isAsync) {
+            KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(s"${edge.serviceName}-${Config.PHASE}", edge, None))
+          } else {
+            KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(Config.KAFKA_LOG_TOPIC, edge, None))
+          }
+        }
         // store valid edges came to system.
-        getOrElseUpdateMetric("IncommingEdges")(metricRegistry.counter("IncommingEdges")).inc(edges.size)
+//        getOrElseUpdateMetric("IncommingEdges")(metricRegistry.counter("IncommingEdges")).inc(edges.size)
 
         val edgesToStore = edges.filterNot(e => e.isAsync)
         //FIXME:
         Graph.mutateEdges(edgesToStore).map { rets =>
           Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
         }
-
+        
       } catch {
         case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"e"))
         case e: Throwable =>
@@ -38,14 +45,14 @@ object EdgeController extends Controller with Instrumented with RequestParser {
       }
     }
   }
-
-  //  private[controllers] def aggregateElements(elements: Seq[GraphElement], originalString: Seq[Option[String]]): Future[Seq[Boolean]] = {
-  //    elements.foreach {
-  //
-  //    }
-  //    KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(Config.KAFKA_LOG_TOPIC, element, originalString))
-  //    Graph.mutateElements(elements)
-  //  }
+  
+//  private[controllers] def aggregateElements(elements: Seq[GraphElement], originalString: Seq[Option[String]]): Future[Seq[Boolean]] = {
+//    elements.foreach {
+//
+//    }
+//    KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(Config.KAFKA_LOG_TOPIC, element, originalString))
+//    Graph.mutateElements(elements)
+//  }
   private[controllers] def mutateAndPublish(str: String): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
 
@@ -61,12 +68,17 @@ object EdgeController extends Controller with Instrumented with RequestParser {
             case v: Vertex => vertexCnt += 1
             case e: Edge => edgeCnt += 1
           }
+          if (element.isAsync) {
+            KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(s"${element.serviceName}-${Config.PHASE}", element, Some(str)))
+          } else {
+            KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(Config.KAFKA_LOG_TOPIC, element, Some(str)))
+          }
           element
         }
-      //      val elements = edgesWithStrs.map(_._1)
-      //      val strs = edgesWithStrs.map(_._2)
-      getOrElseUpdateMetric("IncommingVertices")(metricRegistry.counter("IncommingVertices")).inc(vertexCnt)
-      getOrElseUpdateMetric("IncommingEdges")(metricRegistry.counter("IncommingEdges")).inc(edgeCnt)
+//      val elements = edgesWithStrs.map(_._1)
+//      val strs = edgesWithStrs.map(_._2)
+//      getOrElseUpdateMetric("IncommingVertices")(metricRegistry.counter("IncommingVertices")).inc(vertexCnt)
+//      getOrElseUpdateMetric("IncommingEdges")(metricRegistry.counter("IncommingEdges")).inc(edgeCnt)
 
       //FIXME:
       val elementsToStore = elements.filterNot(e => e.isAsync)
@@ -107,23 +119,4 @@ object EdgeController extends Controller with Instrumented with RequestParser {
     tryMutates(request.body, "increment")
   }
 
-  def deleteVertexInLabel(vertexId: String, labelName: String, dir: String) = withHeaderAsync(parse.json) { request =>
-//    val jsValue = request.body
-//    for {
-//      jsVal <- jsValue.asOpt[List[JsValue]].getOrElse(List.empty)
-//      (id, labelName, dir) <- toDeleteVertexInLabel(jsVal)
-//      innerId
-//    } yield {
-//
-//    }
-
-//    for {
-//      label <- Label.findByName(labelName)
-//      dir <- GraphUtil.toDir(dir)
-//    } yield {
-//      val innerId = toInnerVal(srcVertexId,.. )
-//      Graph.deleteVertexAllAsync()
-//    }
-    Future.successful(Ok("FixMe"))
-  }
 }

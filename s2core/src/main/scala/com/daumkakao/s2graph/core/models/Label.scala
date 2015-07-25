@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core.models
 
 import com.daumkakao.s2graph.core.models.Model.{KEY, VAL}
-import com.daumkakao.s2graph.core.types2.InnerVal
+import com.daumkakao.s2graph.core.types2.{HBaseType, InnerVal}
 import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
 import org.apache.hadoop.hbase.client.Result
 import play.api.Logger
@@ -138,7 +138,7 @@ case class Label(kvsParam: Map[KEY, VAL]) extends Model[Label]("HLabel", kvsPara
   }
   validate(columns, Seq("schemaVersion"))
 
-  val schemaVersion = kvs.get("schemaVersion").getOrElse(InnerVal.DEFAULT_VERSION).toString
+  val schemaVersion = kvs.get("schemaVersion").getOrElse(HBaseType.DEFAULT_VERSION).toString
   val id = Some(kvs("id").toString.toInt)
   val label = kvs("label").toString
   val srcServiceId = kvs("srcServiceId").toString.toInt

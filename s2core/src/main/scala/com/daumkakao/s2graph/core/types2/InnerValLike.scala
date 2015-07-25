@@ -9,6 +9,8 @@ import scala.reflect.ClassTag
  * Created by shon on 6/6/15.
  */
 object InnerVal extends HBaseDeserializable {
+  import HBaseType._
+
   val order = Order.DESCENDING
   val stringLenOffset = 7.toByte
   val maxStringLen = Byte.MaxValue - stringLenOffset
@@ -27,8 +29,14 @@ object InnerVal extends HBaseDeserializable {
   val NUMERICS = List(DOUBLE, FLOAT, LONG, INT, SHORT, BYTE)
   val BOOLEAN = "boolean"
 
+  def isNumericType(dataType: String): Boolean = {
+    dataType match {
+      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE => true
+      case _ => false
+    }
+  }
   def toInnerDataType(dataType: String): String = {
-    dataType.toLowerCase() match {
+    dataType match {
       case "blob" => BLOB
       case "string" | "str" | "s" => STRING
       case "double" | "d" | "float64" => DOUBLE
@@ -43,13 +51,14 @@ object InnerVal extends HBaseDeserializable {
   }
 
   def numByteRange(num: BigDecimal) = {
-    val byteLen =
-      if (num.isValidByte | num.isValidChar) 1
-      else if (num.isValidShort) 2
-      else if (num.isValidInt) 4
-      else if (num.isValidLong) 8
-      else if (num.isValidFloat) 4
-      else 12
+//    val byteLen =
+//      if (num.isValidByte | num.isValidChar) 1
+//      else if (num.isValidShort) 2
+//      else if (num.isValidInt) 4
+//      else if (num.isValidLong) 8
+//      else if (num.isValidFloat) 4
+//      else 12
+    val byteLen = 12
     //      else throw new RuntimeException(s"wrong data $num")
     new SimplePositionedMutableByteRange(byteLen + 4)
   }
@@ -72,12 +81,12 @@ object InnerVal extends HBaseDeserializable {
     */
   def scaleNumber(num: BigDecimal, dataType: String) = {
     dataType match {
-      case BYTE => BigDecimal(num.toByte)
-      case SHORT => BigDecimal(num.toShort)
-      case INT => BigDecimal(num.toInt)
-      case LONG => BigDecimal(num.toLong)
-      case FLOAT => BigDecimal(num.toFloat)
-      case DOUBLE => BigDecimal(num.toDouble)
+      case BYTE => BigDecimal(num.bigDecimal.byteValue())
+      case SHORT => BigDecimal(num.bigDecimal.shortValue())
+      case INT => BigDecimal(num.bigDecimal.intValue())
+      case LONG => BigDecimal(num.bigDecimal.longValue())
+      case FLOAT => BigDecimal(num.bigDecimal.floatValue())
+      case DOUBLE => BigDecimal(num.bigDecimal.doubleValue())
       case _ => throw new RuntimeException(s"InnerVal.scaleNumber failed. $num, $dataType")
     }
   }
@@ -85,7 +94,7 @@ object InnerVal extends HBaseDeserializable {
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = DEFAULT_VERSION): InnerValLike = {
+                version: String = DEFAULT_VERSION): (InnerValLike, Int) = {
     version match {
       case VERSION2 => v2.InnerVal.fromBytes(bytes, offset, len, version)
       case VERSION1 => v1.InnerVal.fromBytes(bytes, offset, len, version)
@@ -156,14 +165,14 @@ object InnerVal extends HBaseDeserializable {
     }
   }
 
-  def withInnerVal(innerVal: InnerValLike, version: String): InnerValLike = {
-    val bytes = innerVal.bytes
-    version match {
-      case VERSION2 => v2.InnerVal.fromBytes(bytes, 0, bytes.length, version)
-      case VERSION1 => v1.InnerVal.fromBytes(bytes, 0, bytes.length, version)
-      case _ => throw notSupportedEx(version)
-    }
-  }
+//  def withInnerVal(innerVal: InnerValLike, version: String): InnerValLike = {
+//    val bytes = innerVal.bytes
+//    version match {
+//      case VERSION2 => v2.InnerVal.fromBytes(bytes, 0, bytes.length, version)._1
+//      case VERSION1 => v1.InnerVal.fromBytes(bytes, 0, bytes.length, version)._1
+//      case _ => throw notSupportedEx(version)
+//    }
+//  }
 
   /** nasty implementation for backward compatability */
   def convertVersion(innerVal: InnerValLike, dataType: String, toVersion: String): InnerValLike = {
@@ -202,6 +211,8 @@ object InnerVal extends HBaseDeserializable {
 
 trait InnerValLike extends HBaseSerializable {
 
+  import HBaseType._
+
   val value: Any
 
   def compare(other: InnerValLike): Int
@@ -224,16 +235,40 @@ trait InnerValLike extends HBaseSerializable {
       case _ => false
     }
   }
+  def hashKey(dataType: String): Int = ???
+//  {
+//    import InnerVal._
+//    schemaVersion match {
+//      case VERSION1 => value.hashCode()
+//      case VERSION2 =>
+//        if (value.isInstanceOf[String]) {
+//          value.toString.hashCode()
+//        } else {
+//          dataType match {
+//            case BYTE => value.asInstanceOf[BigDecimal].bigDecimal.byteValue().hashCode()
+//            case FLOAT => value.asInstanceOf[BigDecimal].bigDecimal.floatValue().hashCode()
+//            case DOUBLE => value.asInstanceOf[BigDecimal].bigDecimal.doubleValue().hashCode()
+//            case LONG => value.asInstanceOf[BigDecimal].bigDecimal.longValue().hashCode()
+//            case INT => value.asInstanceOf[BigDecimal].bigDecimal.intValue().hashCode()
+//            case SHORT => value.asInstanceOf[BigDecimal].bigDecimal.shortValue().hashCode()
+//            case STRING => value.toString.hashCode
+//            case _ => throw new RuntimeException(s"NotSupportede type: $dataType")
+//          }
+//        }
+//    }
+//
+//  }
 }
 
 object InnerValLikeWithTs extends HBaseDeserializable {
+  import HBaseType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = DEFAULT_VERSION): InnerValLikeWithTs = {
-    val innerVal = InnerVal.fromBytes(bytes, offset, len, version)
-    val ts = Bytes.toLong(bytes, offset + innerVal.bytes.length)
-    InnerValLikeWithTs(innerVal, ts)
+                version: String = DEFAULT_VERSION): (InnerValLikeWithTs, Int) = {
+    val (innerVal, numOfBytesUsed) = InnerVal.fromBytes(bytes, offset, len, version)
+    val ts = Bytes.toLong(bytes, offset + numOfBytesUsed)
+    (InnerValLikeWithTs(innerVal, ts), numOfBytesUsed + 8)
   }
 
   def withLong(l: Long, ts: Long, version: String): InnerValLikeWithTs = {
@@ -248,7 +283,7 @@ object InnerValLikeWithTs extends HBaseDeserializable {
 case class InnerValLikeWithTs(innerVal: InnerValLike, ts: Long)
   extends HBaseSerializable {
 
-  val bytes: Array[Byte] = {
+  def bytes: Array[Byte] = {
     Bytes.add(innerVal.bytes, Bytes.toBytes(ts))
   }
 }

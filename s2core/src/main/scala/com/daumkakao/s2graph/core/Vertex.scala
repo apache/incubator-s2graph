@@ -1,7 +1,9 @@
 package com.daumkakao.s2graph.core
 
-// import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.mysqls._
+import play.api.Logger
+
+//import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2._
 import org.apache.hadoop.hbase.client.Put
@@ -16,26 +18,27 @@ case class Vertex(id: VertexId,
                   ts: Long = System.currentTimeMillis(),
                   props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
                   op: Byte = 0) extends GraphElement {
+
   import GraphConstant._
 
-  lazy val innerId = id.innerId
-  lazy val schemaVer = serviceColumn.schemaVersion
-  lazy val serviceColumn = ServiceColumn.findById(id.colId)
-  lazy val service = Service.findById(serviceColumn.serviceId)
+  val innerId = id.innerId
+  def schemaVer = serviceColumn.schemaVersion
+  def serviceColumn = ServiceColumn.findById(id.colId)
+  def service = Service.findById(serviceColumn.serviceId)
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, service.hTableName)
 
-  lazy val rowKey = VertexRowKey(id)(schemaVer)
-  lazy val defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq.toInt -> InnerVal.withLong(ts, schemaVer))
-  lazy val qualifiersWithValues =
+  def rowKey = VertexRowKey(id)(schemaVer)
+  def defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq.toInt -> InnerVal.withLong(ts, schemaVer))
+  def qualifiersWithValues =
     for ((k, v) <- props ++ defaultProps) yield (VertexQualifier(k)(schemaVer), v)
 
   /** TODO: make this as configurable */
-  override lazy val serviceName = service.serviceName
-  override lazy val isAsync = false
-  override lazy val queueKey = Seq(ts.toString, serviceName).mkString("|")
-  override lazy val queuePartitionKey = id.innerId.toString
+  override def serviceName = service.serviceName
+  override def isAsync = false
+  override def queueKey = Seq(ts.toString, serviceName).mkString("|")
+  override def queuePartitionKey = id.innerId.toString
 
-  lazy val propsWithName = for {
+  def propsWithName = for {
     (seq, v) <- props
     meta <- ColumnMeta.findByIdAndSeq(id.colId, seq.toByte)
   } yield (meta.name -> v.toString)
@@ -72,7 +75,7 @@ case class Vertex(id: VertexId,
   def buildPutsAll(): List[HBaseRpc] = {
     op match {
       case d: Byte if d == GraphUtil.operations("delete") => buildDeleteAsync()
-//      case dAll: Byte if dAll == GraphUtil.operations("deleteAll") => buildDeleteAllAsync()
+      //      case dAll: Byte if dAll == GraphUtil.operations("deleteAll") => buildDeleteAllAsync()
       case _ => buildPutsAsync()
     }
   }
@@ -87,17 +90,13 @@ case class Vertex(id: VertexId,
 
   def belongLabelIds(): Iterable[Label] = {
     for {
-      label <- (Label.findBySrcColumnId(id.colId) ++ Label.findByTgtColumnId(id.colId)).groupBy(_.id.get).map { _._2.head }
+      label <- (Label.findBySrcColumnId(id.colId) ++ Label.findByTgtColumnId(id.colId)).groupBy(_.id.get).map {
+        _._2.head
+      }
     } yield label
   }
 
 
-  //  def buildGet() = {
-  //    val get = new Get(rowKey.bytes)
-  //    //    play.api.Logger.error(s"get: $this => $rowKey")
-  //    get.addFamily(vertexCf)
-  //    get
-  //  }
   def buildGet() = {
     new GetRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf)
   }
@@ -106,10 +105,12 @@ case class Vertex(id: VertexId,
 
 
   override def hashCode() = {
+    Logger.debug(s"Vertex.hashCode: $this")
     id.hashCode()
   }
 
   override def equals(obj: Any) = {
+    Logger.debug(s"Vertex.equals: $this, $obj")
     obj match {
       case otherVertex: Vertex =>
         id.equals(otherVertex.id)
@@ -143,7 +144,7 @@ object Vertex {
 
       val head = kvs.head
       val headBytes = head.key()
-      val rowKey = VertexRowKey.fromBytes(headBytes, 0, headBytes.length, version)
+      val (rowKey, _) = VertexRowKey.fromBytes(headBytes, 0, headBytes.length, version)
 
       var maxTs = Long.MinValue
       /**
@@ -155,9 +156,9 @@ object Vertex {
         for {
           kv <- kvs
           kvQual = kv.qualifier()
-          qualifier = VertexQualifier.fromBytes(kvQual, 0, kvQual.length, version)
+          (qualifier, _) = VertexQualifier.fromBytes(kvQual, 0, kvQual.length, version)
           v = kv.value()
-          value = InnerVal.fromBytes(v, 0, v.length, version)
+          (value, _) = InnerVal.fromBytes(v, 0, v.length, version)
           ts = kv.timestamp()
         } yield {
           if (ts > maxTs) maxTs = ts

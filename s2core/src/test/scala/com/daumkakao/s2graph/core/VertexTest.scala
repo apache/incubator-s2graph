@@ -9,7 +9,7 @@ import org.scalatest.{Matchers, FunSuite}
  */
 class VertexTest extends FunSuite with Matchers with TestCommonWithModels with TestCommon {
 
-  import InnerVal.{VERSION1, VERSION2}
+  import types2.HBaseType.{VERSION1, VERSION2}
   val idxPropsList = idxPropsLs.map { seq => seq.map { kv => kv._1.toInt -> kv._2 }}
   val idxPropsListV2 = idxPropsLsV2.map { seq => seq.map { kv => kv._1.toInt -> kv._2 }}
   def equalsExact(left: Vertex, right: Vertex) = {

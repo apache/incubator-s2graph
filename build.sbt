@@ -1,8 +1,8 @@
-organization := "com.daumkakao.s2graph"
+organization := Common.organization
 
 name := "s2graph"
 
-version := "0.4.0-SNAPSHOT"
+version := Common.version
 
 scalaVersion := Common.scalaVersion
 
@@ -29,7 +29,6 @@ libraryDependencies ++= Seq(
   "org.apache.hbase" % "hbase-common" % Common.hbaseVersion excludeAll ExclusionRule(organization = "org.slf4j"),
   "org.apache.hbase" % "hbase-server" % Common.hbaseVersion excludeAll(ExclusionRule(organization = "org.slf4j"), ExclusionRule(organization = "com.google.protobuf")),
   "org.apache.hadoop" % "hadoop-common" % Common.hadoopVersion excludeAll ExclusionRule(organization = "org.slf4j"),
-  "org.apache.kafka" % "kafka-clients" % "0.8.2.0" excludeAll(ExclusionRule(organization = "org.slf4j"), ExclusionRule(organization = "com.sun.jdmk"), ExclusionRule(organization = "com.sun.jmx"), ExclusionRule(organization = "javax.jms")),
   "nl.grons" %% "metrics-scala" % "3.4.0"
    )
 

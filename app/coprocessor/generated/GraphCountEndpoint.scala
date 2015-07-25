@@ -35,7 +35,7 @@
 // *     val connectionPool = Executors.newFixedThreadPool(10)
 // *     val conf = HBaseConfiguration.create()
 // *     conf.set("hbase.client.retries.number", "1")
-// *     conf.set("hbase.zookeeper.quorum", "localhost")
+// *     conf.set("hbase.zookeeper.quorum", "fox450.kr2.iwilab.com,dubai095.kr2.iwilab.com,dubai096.kr2.iwilab.com")
 // *
 // *     val tableName = "s2graph-alpha".getBytes()
 // *     val conn: HConnection = HConnectionManager.createConnection(conf, connectionPool)

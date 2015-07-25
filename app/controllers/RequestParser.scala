@@ -1,9 +1,9 @@
 package controllers
 
 import com.daumkakao.s2graph.core._
-//import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.mysqls._
 
-import com.daumkakao.s2graph.core.models._
+//import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.parsers.WhereParser
 import com.daumkakao.s2graph.core.types2._
@@ -13,7 +13,7 @@ import com.daumkakao.s2graph.rest.config.Config
 
 trait RequestParser extends JSONParser {
 
-  val hardLimit = 10000
+  val hardLimit = Config.QUERY_HARD_LIMIT
   val defaultLimit = 100
 
   private def extractScoring(labelId: Int, value: JsValue) = {
@@ -101,7 +101,11 @@ trait RequestParser extends JSONParser {
     }
   }
 
+  val errorLogger = Logger("error")
+
   def toQuery(jsValue: JsValue, isEdgeQuery: Boolean = true): Query = {
+    var debugLabel: Option[Label] = None
+
     try {
       val vertices =
         (for {
@@ -132,86 +136,124 @@ trait RequestParser extends JSONParser {
       val steps = parse[List[JsValue]](jsValue, "steps")
       val stepLength = steps.size
       val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
+      val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
+      val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
       val querySteps =
         steps.map { step =>
+          val labelWeights = step match {
+            case obj: JsObject =>
+              val converted = for {
+                (k, v) <- (obj \ "weights").asOpt[JsObject].getOrElse(Json.obj()).fields
+                l <- Label.findByName(k)
+              } yield {
+                  l.id.get -> v.toString().toDouble
+                }
+              converted.toMap
+            case _ => Map.empty[Int, Double]
+          }
+          val queryParamJsVals = step match {
+            case arr: JsArray => arr.as[List[JsValue]]
+            case obj: JsObject => (obj \ "step").as[List[JsValue]]
+            case _ => List.empty[JsValue]
+          }
+//          val stepThreshold = step match {
+//            case obj: JsObject => (obj \ "stepThreshold").asOpt[Double].getOrElse(0.0)
+//            case _ => 0.0
+//          }
+          val nextStepScoreThreshold = step match {
+            case obj: JsObject => (obj \ "nextStepThreshold").asOpt[Double].getOrElse(0.0)
+            case _ => 0.0
+          }
+          val nextStepLimit = step match {
+            case obj: JsObject => (obj \ "nextStepLimit").asOpt[Int].getOrElse(-1)
+            case _ => -1
+          }
           val queryParams =
             for {
-              labelGroup <- step.as[List[JsValue]]
-              labelName <- parse[Option[String]](labelGroup, "label")
-              label <- Label.findByName(labelName)
+              labelGroup <- queryParamJsVals
+              queryParam <- parseQueryParam(labelGroup)
             } yield {
-              val direction = parse[Option[String]](labelGroup, "direction").map(GraphUtil.toDirection(_)).getOrElse(0)
-              val limit = {
-                parse[Option[Int]](labelGroup, "limit") match {
-                  case None => Math.min(defaultLimit, Math.pow(hardLimit, stepLength).toInt)
-                  case Some(l) if l < 0 => Int.MaxValue
-                  case Some(l) if l >= 0 => Math.min(l, Math.pow(hardLimit, stepLength).toInt)
-                }
-                //              Math.min(parse[Option[Int]](labelGroup, "limit").getOrElse(10), Math.pow(hardLimit, stepLength).toInt)
-              }
-              val offset = parse[Option[Int]](labelGroup, "offset").getOrElse(0)
-              val interval = extractInterval(label, labelGroup)
-              val duration = extractDuration(label, labelGroup)
-              val scorings = extractScoring(label.id.get, labelGroup).getOrElse(List.empty[(Byte, Double)]).toList
-              val labelOrderSeq = label.findLabelIndexSeq(scorings)
-              val exclude = parse[Option[Boolean]](labelGroup, "exclude").getOrElse(false)
-              val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
-              val hasFilter = extractHas(label, labelGroup)
-
-              val outputField = for {
-                labelMetaSeq <- (labelGroup \ "outputFields").asOpt[String]
-                labelMeta <- LabelMeta.findByName(label.id.get, labelMetaSeq)
-              } yield labelMeta.seq
-
-              val outputFields = for {
-                labelMetaSeq <- (labelGroup \ "outputFields").asOpt[List[String]].getOrElse(Nil)
-                labelMeta <- LabelMeta.findByName(label.id.get, labelMetaSeq)
-              } yield labelMeta.seq
-              // outputField and outputFields is mutual exclusive.
-              val mergedOutputFields = outputField match {
-                case None => outputFields
-                case Some(s) => Seq(s)
-              }
-              val labelWithDir = LabelWithDirection(label.id.get, direction)
-              val indexSeq = label.indexSeqsMap.get(scorings.map(kv => kv._1).toList).map(x => x.seq).getOrElse(LabelIndex.defaultSeq)
-              val where = extractWhere(label, labelGroup)
-              val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
-              val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(1000)
-              val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(2)
-              val tgtVertexInnerIdOpt = (labelGroup \ "_to").asOpt[JsValue].flatMap { jsVal =>
-                jsValueToInnerVal(jsVal, label.tgtColumnWithDir(direction).columnType, label.schemaVersion)
-              }
-              val cacheTTL = (labelGroup \ "cacheTTL").asOpt[Long].getOrElse(-1L)
-              // TODO: refactor this. dirty
-              val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
-              QueryParam(labelWithDir).labelOrderSeq(labelOrderSeq)
-                .limit(offset, limit)
-                .rank(RankParam(label.id.get, scorings))
-                .exclude(exclude)
-                .include(include)
-                .interval(interval)
-                .duration(duration)
-                .has(hasFilter)
-                .labelOrderSeq(indexSeq)
-                .outputFields(mergedOutputFields)
-                .where(where)
-                .duplicatePolicy(duplicate)
-                .includeDegree(includeDegree)
-                .rpcTimeout(rpcTimeout)
-                .maxAttempt(maxAttempt)
-                .tgtVertexInnerIdOpt(tgtVertexInnerIdOpt)
-                .cacheTTLInMillis(cacheTTL)
+              queryParam
             }
-          Step(queryParams.toList)
+          Step(queryParams.toList, labelWeights = labelWeights,
+//            scoreThreshold = stepThreshold,
+            nextStepScoreThreshold = nextStepScoreThreshold, nextStepLimit = nextStepLimit)
         }
 
-      val ret = Query(vertices, querySteps, removeCycle = removeCycle)
+      val ret = Query(vertices, querySteps, removeCycle = removeCycle,
+        selectColumns = selectColumns, groupByColumns = groupByColumns)
       //          Logger.debug(ret.toString)
       ret
     } catch {
       case e: Throwable =>
-        Logger.error(s"$e", e)
-        throw new KGraphExceptions.BadQueryException(s"$jsValue")
+        errorLogger.error(s"$e, $debugLabel", e)
+        throw new KGraphExceptions.BadQueryException(s"$jsValue", e)
+    }
+  }
+
+  private def parseQueryParam(labelGroup: JsValue): Option[QueryParam] = {
+    for {
+      labelName <- parse[Option[String]](labelGroup, "label")
+      label <- Label.findByName(labelName)
+    } yield {
+      val direction = parse[Option[String]](labelGroup, "direction").map(GraphUtil.toDirection(_)).getOrElse(0)
+      val limit = {
+        parse[Option[Int]](labelGroup, "limit") match {
+          case None => defaultLimit
+          case Some(l) if l < 0 => Int.MaxValue
+          case Some(l) if l >= 0 =>
+            val default = hardLimit
+            Math.min(l, default)
+        }
+      }
+      val offset = parse[Option[Int]](labelGroup, "offset").getOrElse(0)
+      val interval = extractInterval(label, labelGroup)
+      val duration = extractDuration(label, labelGroup)
+      val scorings = extractScoring(label.id.get, labelGroup).getOrElse(List.empty[(Byte, Double)]).toList
+      val labelOrderSeq = label.findLabelIndexSeq(scorings)
+      val exclude = parse[Option[Boolean]](labelGroup, "exclude").getOrElse(false)
+      val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
+      val hasFilter = extractHas(label, labelGroup)
+      val outputField = for (of <- (labelGroup \ "outputField").asOpt[String]; labelMeta <- LabelMeta.findByName(label.id.get, of)) yield labelMeta.seq
+      val labelWithDir = LabelWithDirection(label.id.get, direction)
+      val indexSeq = label.indexSeqsMap.get(scorings.map(kv => kv._1).toList).map(x => x.seq).getOrElse(LabelIndex.defaultSeq)
+      val where = extractWhere(label, labelGroup)
+      val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
+      val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(Config.RPC_TIMEOUT)
+      val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(Config.MAX_ATTEMPT)
+      val tgtVertexInnerIdOpt = (labelGroup \ "_to").asOpt[JsValue].flatMap { jsVal =>
+        jsValueToInnerVal(jsVal, label.tgtColumnWithDir(direction).columnType, label.schemaVersion)
+      }
+      val cacheTTL = (labelGroup \ "cacheTTL").asOpt[Long].getOrElse(-1L)
+      val timeDecayFactor = (labelGroup \ "timeDecay").asOpt[JsObject].map { jsVal =>
+        val initial = (jsVal \ "initial").asOpt[Double].getOrElse(1.0)
+        val decayRate = (jsVal \ "decayRate").asOpt[Double].getOrElse(0.1)
+        val timeUnit = (jsVal \ "timeUnit").asOpt[Double].getOrElse(60 * 60 * 24.0)
+        TimeDecay(initial, decayRate, timeUnit)
+      }
+      val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(0.0)
+      // TODO: refactor this. dirty
+      val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
+      QueryParam(labelWithDir).labelOrderSeq(labelOrderSeq)
+        .limit(offset, limit)
+        .rank(RankParam(label.id.get, scorings))
+        .exclude(exclude)
+        .include(include)
+        .interval(interval)
+        .duration(duration)
+        .has(hasFilter)
+        .labelOrderSeq(indexSeq)
+        .outputField(outputField)
+        .where(where)
+        .duplicatePolicy(duplicate)
+        .includeDegree(includeDegree)
+        .rpcTimeout(rpcTimeout)
+        .maxAttempt(maxAttempt)
+        .tgtVertexInnerIdOpt(tgtVertexInnerIdOpt)
+        .cacheTTLInMillis(cacheTTL)
+        .timeDecay(timeDecayFactor)
+        .threshold(threshold)
+//        .excludeBy(excludeBy)
     }
   }
 
@@ -311,7 +353,7 @@ trait RequestParser extends JSONParser {
     // expect new label don`t provide hTableName
     val hTableName = (jsValue \ "hTableName").asOpt[String]
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
-    val schemaVersion = (jsValue \ "schemaVersion").asOpt[String].getOrElse(InnerVal.DEFAULT_VERSION)
+    val schemaVersion = (jsValue \ "schemaVersion").asOpt[String].getOrElse(HBaseType.DEFAULT_VERSION)
     val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
     val t = (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,

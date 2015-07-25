@@ -7,32 +7,34 @@ import org.apache.hadoop.hbase.util.Bytes
  * Created by shon on 6/10/15.
  */
 object EdgeQualifier extends HBaseDeserializable {
-  val toSeqByte = -5.toByte
-  val defaultTgtVertexId = null
-
+  import HBaseType._
+  import HBaseDeserializable._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = VERSION1): EdgeQualifier = {
+                version: String = VERSION1): (EdgeQualifier, Int) = {
     var pos = offset
+    var numOfBytesUsedTotal = 0
     /** changed not to store op bytes on edge qualifier */
     val op = bytes(offset + len - 1)
+    numOfBytesUsedTotal += 1
     val (props, tgtVertexId) = {
       val (decodedProps, endAt) = bytesToProps(bytes, pos, version)
-      val decodedVId = TargetVertexId.fromBytes(bytes, endAt, len, version)
+      val (decodedVId, numOfBytesUsed) = TargetVertexId.fromBytes(bytes, endAt, len, version)
+      numOfBytesUsedTotal += numOfBytesUsed + (endAt - offset)
       (decodedProps, decodedVId)
     }
-    EdgeQualifier(props, tgtVertexId, op)
+    (EdgeQualifier(props, tgtVertexId, op), numOfBytesUsedTotal)
   }
 }
 case class EdgeQualifier(props: Seq[(Byte, InnerValLike)],
                          tgtVertexId: VertexId,
                          op: Byte) extends EdgeQualifierLike {
-  import HBaseDeserializable._
+  import HBaseSerializable._
   lazy val innerTgtVertexId = VertexId.toTargetVertexId(tgtVertexId)
   lazy val propsMap = props.toMap
   lazy val propsBytes = propsToBytes(props)
-  lazy val bytes: Array[Byte] = {
+  def bytes: Array[Byte] = {
         Bytes.add(propsBytes, innerTgtVertexId.bytes, Array[Byte](op))
   }
 

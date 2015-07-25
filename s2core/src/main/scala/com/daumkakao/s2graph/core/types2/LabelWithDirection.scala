@@ -7,8 +7,7 @@ import org.apache.hadoop.hbase.util.Bytes
  * Created by shon on 6/6/15.
  */
 object LabelWithDirection {
-  val bitsForDir = 2
-  val maxBytes = Bytes.toBytes(Int.MaxValue)
+  import HBaseType._
   def apply(compositeInt: Int): LabelWithDirection = {
     //      play.api.Logger.debug(s"CompositeInt: $compositeInt")
 
@@ -29,15 +28,24 @@ object LabelWithDirection {
   }
 }
 case class LabelWithDirection(labelId: Int, dir: Int) extends HBaseSerializable {
-  import LabelWithDirection._
+  import HBaseType._
   assert(dir < (1 << bitsForDir))
   assert(labelId < (Int.MaxValue >> bitsForDir))
 
-  val labelBits = labelId << bitsForDir
+  lazy val labelBits = labelId << bitsForDir
 
   lazy val compositeInt = labelBits | dir
-  val bytes = Bytes.toBytes(compositeInt)
+  def bytes = Bytes.toBytes(compositeInt)
   lazy val dirToggled = LabelWithDirection(labelId, GraphUtil.toggleDir(dir))
   def updateDir(newDir: Int) = LabelWithDirection(labelId, newDir)
 
+  override def hashCode(): Int = {
+    compositeInt
+  }
+  override def equals(other: Any): Boolean = {
+    other match {
+      case o: LabelWithDirection => hashCode == o.hashCode()
+      case _ => false
+    }
+  }
 }

@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core
-// import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.models._
+ import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.models._
 
 
 import com.daumkakao.s2graph.core.types2.{LabelWithDirection, InnerVal}
@@ -15,6 +15,9 @@ import scala.concurrent.ExecutionContext
  * Created by shon on 6/1/15.
  */
 trait TestCommonWithModels {
+  import InnerVal._
+  import types2.HBaseType._
+
   val zkQuorum = "localhost"
   val serviceName = "_test_service"
   val serviceNameV2 = "_test_service_v2"
@@ -43,17 +46,17 @@ trait TestCommonWithModels {
   val LABEMETA = LabelMeta
 
   val testProps = Seq(
-    ("is_blocked", JsBoolean(false), InnerVal.BOOLEAN),
-    ("time", JsNumber(0), InnerVal.INT),
-    ("weight", JsNumber(0), InnerVal.INT),
-    ("is_hidden", JsBoolean(true), InnerVal.BOOLEAN),
-    ("phone_number", JsString("xxx-xxx-xxxx"), InnerVal.STRING),
-    ("score", JsNumber(0.1), InnerVal.FLOAT),
-    ("age", JsNumber(10), InnerVal.INT)
+    ("is_blocked", "false", BOOLEAN),
+    ("time", "0", INT),
+    ("weight", "0", INT),
+    ("is_hidden", "true", BOOLEAN),
+    ("phone_number", "xxx-xxx-xxxx", STRING),
+    ("score", "0.1", FLOAT),
+    ("age", "10", INT)
   )
   val testIdxProps = Seq(
-    ("_timestamp", JsNumber(0L), "long"),
-    ("affinity_score", JsNumber(0.0), "double")
+    ("_timestamp", "0", "long"),
+    ("affinity_score", "0.0", "double")
   )
   val consistencyLevel = "strong"
   val hTableTTL = None
@@ -100,16 +103,16 @@ trait TestCommonWithModels {
 
   def createTestLabel() = {
     Management.createLabel(labelName, serviceName, columnName, columnType, serviceName, columnName, columnType,
-      isDirected = true, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, InnerVal.VERSION1)
+      isDirected = true, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION1, false)
 
     Management.createLabel(labelNameV2, serviceNameV2, columnNameV2, columnTypeV2, serviceNameV2, columnNameV2, columnTypeV2,
-      isDirected = true, serviceNameV2, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, InnerVal.VERSION2)
+      isDirected = true, serviceNameV2, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION2, false)
 
     Management.createLabel(undirectedLabelName, serviceName, columnName, columnType, serviceName, tgtColumnName, tgtColumnType,
-      isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, InnerVal.VERSION1)
+      isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION1, false)
 
     Management.createLabel(undirectedLabelNameV2, serviceNameV2, columnNameV2, columnTypeV2, serviceNameV2, tgtColumnNameV2, tgtColumnTypeV2,
-      isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, InnerVal.VERSION2)
+      isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION2, false)
 
   }
 

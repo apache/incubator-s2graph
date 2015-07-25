@@ -1,13 +1,14 @@
 package com.daumkakao.s2graph.core.types2.v1
 
 import com.daumkakao.s2graph.core.KGraphExceptions.IllegalDataTypeException
-import com.daumkakao.s2graph.core.types2.{InnerValLike, HBaseDeserializable, HBaseSerializable}
+import com.daumkakao.s2graph.core.types2._
 import org.apache.hadoop.hbase.util.Bytes
 
 /**
  * Created by shon on 6/6/15.
  */
 object InnerVal extends HBaseDeserializable {
+  import HBaseType._
   //  val defaultVal = new InnerVal(None, None, None)
   val stringLenOffset = 7.toByte
   val maxStringLen = Byte.MaxValue - stringLenOffset
@@ -48,42 +49,53 @@ object InnerVal extends HBaseDeserializable {
     }
   }
 
-  def fromBytes(bytes: Array[Byte], offset: Int, len: Int, version: String = DEFAULT_VERSION): InnerVal = {
+  def fromBytes(bytes: Array[Byte], offset: Int, len: Int, version: String = DEFAULT_VERSION): (InnerVal, Int) = {
     var pos = offset
     //
     val header = bytes(pos)
     //      play.api.Logger.debug(s"${bytes(offset)}: ${bytes.toList.slice(pos, bytes.length)}")
     pos += 1
 
+    var numOfBytesUsed = 0
     val (longV, strV, boolV) = metaByteRev.get(header) match {
       case Some(s) =>
         s match {
-          case "default" => (None, None, None)
-          case "true" => (None, None, Some(true))
-          case "false" => (None, None, Some(false))
+          case "default" =>
+            (None, None, None)
+          case "true" =>
+            numOfBytesUsed = 0
+            (None, None, Some(true))
+          case "false" =>
+            numOfBytesUsed = 0
+            (None, None, Some(false))
           case "byte" =>
+            numOfBytesUsed = 1
             val b = bytes(pos)
             val value = if (b >= 0) Byte.MaxValue - b else Byte.MinValue - b - 1
             (Some(value.toLong), None, None)
           case "short" =>
+            numOfBytesUsed = 2
             val b = Bytes.toShort(bytes, pos, 2)
             val value = if (b >= 0) Short.MaxValue - b else Short.MinValue - b - 1
             (Some(value.toLong), None, None)
           case "int" =>
+            numOfBytesUsed = 4
             val b = Bytes.toInt(bytes, pos, 4)
             val value = if (b >= 0) Int.MaxValue - b else Int.MinValue - b - 1
             (Some(value.toLong), None, None)
           case "long" =>
+            numOfBytesUsed = 8
             val b = Bytes.toLong(bytes, pos, 8)
             val value = if (b >= 0) Long.MaxValue - b else Long.MinValue - b - 1
             (Some(value.toLong), None, None)
         }
       case _ => // string
         val strLen = header - stringLenOffset
+        numOfBytesUsed = strLen
         (None, Some(Bytes.toString(bytes, pos, strLen)), None)
     }
 
-    InnerVal(longV, strV, boolV)
+    (InnerVal(longV, strV, boolV), numOfBytesUsed + 1)
   }
 
   def withLong(l: Long): InnerVal = {
@@ -147,7 +159,7 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
     case (None, None, Some(b)) => b
     case _ => throw new Exception(s"InnerVal should be [long/integeer/short/byte/string/boolean]")
   }
-  lazy val valueType = (longV, strV, boolV) match {
+  def valueType = (longV, strV, boolV) match {
     case (Some(l), None, None) => "long"
     case (None, Some(s), None) => "string"
     case (None, None, Some(b)) => "boolean"
@@ -180,7 +192,7 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
     }
   }
 
-  val bytes = {
+  def bytes = {
     val (meta, valBytes) = (longV, strV, boolV) match {
       case (None, None, None) =>
         (metaByte("default"), Array.empty[Byte])
@@ -204,5 +216,8 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
 
   override def toString(): String = {
     value.toString
+  }
+  override def hashKey(dataType: String): Int = {
+    value.toString.hashCode()
   }
 }

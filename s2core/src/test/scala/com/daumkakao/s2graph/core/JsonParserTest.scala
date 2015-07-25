@@ -8,6 +8,7 @@ import org.scalatest.{Matchers, FunSuite}
  */
 class JsonParserTest extends FunSuite with Matchers with TestCommon with JSONParser {
 
+  import types2.HBaseType._
   import InnerVal._
 
   val innerValsPerVersion = for {

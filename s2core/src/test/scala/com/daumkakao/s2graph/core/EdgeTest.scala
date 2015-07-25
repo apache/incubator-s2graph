@@ -13,7 +13,7 @@ import scala.collection.mutable.ListBuffer
 class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWithModels {
 
 
-  import InnerVal.{VERSION1, VERSION2}
+  import HBaseType.{VERSION1, VERSION2}
 
   //
   //  def srcVertex(innerVal: InnerValLike)(version: String) = {
@@ -298,61 +298,68 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
   //    testPropsUpdate(oldState, newState, expected, shouldUpdate)(Edge.buildIncrement)(VERSION2) shouldBe true
   //  }
 
-  test("Edge`s srcVertex") {
-
-    val version = VERSION2
-    val srcId = InnerVal.withLong(10, version)
-    val tgtId = InnerVal.withStr("abc", version)
-    val srcColumn = columnV2
-    val tgtColumn = tgtColumnV2
-    val srcVertexId = VertexId(srcColumn.id.get, srcId)
-    val tgtVertexId = VertexId(tgtColumn.id.get, tgtId)
-
-    val srcVertex = Vertex(srcVertexId)
-    val tgtVertex = Vertex(tgtVertexId)
-
-    val labelId = undirectedLabelV2.id.get
-
-    val outDir = LabelWithDirection(labelId, GraphUtil.directions("out"))
-    val inDir = LabelWithDirection(labelId, GraphUtil.directions("in"))
-    val bothDir = LabelWithDirection(labelId, GraphUtil.directions("undirected"))
-
-    val op = GraphUtil.operations("insert")
-
-//    val hashKey = EdgeWithIndexInverted(srcVertex, tgtVertex, outDir, op, System.currentTimeMillis(), Map.empty[Byte, InnerValLikeWithTs])
-
-//    val outEdge = Edge(srcVertex, tgtVertex, outDir)
-//    outEdge.relatedEdges.foreach { edge =>
+//  test("Edge`s srcVertex") {
+//
+//    val version = VERSION2
+//    val srcId = InnerVal.withLong(10, version)
+//    val tgtId = InnerVal.withStr("abc", version)
+//    val srcColumn = columnV2
+//    val tgtColumn = tgtColumnV2
+//    val srcVertexId = VertexId(srcColumn.id.get, srcId)
+//    val tgtVertexId = VertexId(tgtColumn.id.get, tgtId)
+//
+//    val srcVertex = Vertex(srcVertexId)
+//    val tgtVertex = Vertex(tgtVertexId)
+//
+//    val labelId = undirectedLabelV2.id.get
+//
+//    val outDir = LabelWithDirection(labelId, GraphUtil.directions("out"))
+//    val inDir = LabelWithDirection(labelId, GraphUtil.directions("in"))
+//    val bothDir = LabelWithDirection(labelId, GraphUtil.directions("undirected"))
+//
+//    val op = GraphUtil.operations("insert")
+//
+//
+//    val bothEdge = Edge(srcVertex, tgtVertex, bothDir)
+//    println(s"edge: $bothEdge")
+//    bothEdge.relatedEdges.foreach { edge =>
 //      println(edge)
 //    }
 //
-//    val inEdge = Edge(srcVertex, tgtVertex, inDir)
-//    inEdge.relatedEdges.foreach { edge =>
-//      println(edge)
-//    }
-    val bothEdge = Edge(srcVertex, tgtVertex, bothDir)
-    println(s"edge: $bothEdge")
-    bothEdge.relatedEdges.foreach { edge =>
-      println(edge)
-    }
+//  }
+//  test("edge buildIncrementBulk") {
+//    import scala.collection.JavaConversions._
 //
+//    /**
+//     * 172567371	List(97, 74, 2, 117, -74, -44, -76, 0, 0, 4, 8, 2)
+//169116518	List(68, -110, 2, 117, -21, 124, -103, 0, 0, 4, 9, 2)
+//11646834	List(17, 33, 2, 127, 78, 72, -115, 0, 0, 4, 9, 2)
+//148171217	List(62, 54, 2, 119, 43, 22, 46, 0, 0, 4, 9, 2)
+//116315188	List(41, 86, 2, 121, 17, 43, -53, 0, 0, 4, 9, 2)
+//180667876	List(48, -82, 2, 117, 59, 58, 27, 0, 0, 4, 8, 2)
+//4594410	List(82, 29, 2, 127, -71, -27, 21, 0, 0, 4, 8, 2)
+//151435444	List(1, 105, 2, 118, -7, 71, 75, 0, 0, 4, 8, 2)
+//168460895	List(67, -35, 2, 117, -11, 125, -96, 0, 0, 4, 9, 2)
+//7941614	List(115, 67, 2, 127, -122, -46, 17, 0, 0, 4, 8, 2)
+//171169732	List(61, -42, 2, 117, -52, 40, 59, 0, 0, 4, 9, 2)
+//174381375	List(91, 2, 2, 117, -101, 38, -64, 0, 0, 4, 9, 2)
+//12754019	List(9, -80, 2, 127, 61, 99, -100, 0, 0, 4, 9, 2)
+//175518092	List(111, 32, 2, 117, -119, -50, 115, 0, 0, 4, 8, 2)
+//174748531	List(28, -81, 2, 117, -107, -116, -116, 0, 0, 4, 8, 2)
 //
-//    println()
-//    println(outEdge, "srcVertex", outEdge.srcForVertex)
-//    println(outEdge, "tgtVertex", outEdge.tgtForVertex)
-//
-//    println()
-//    println(inEdge, "srcVertex", inEdge.srcForVertex)
-//    println(inEdge, "tgtVertex", inEdge.tgtForVertex)
-//    println()
-//    println(bothEdge, "srcVertex", bothEdge.srcForVertex)
-//    println(bothEdge, "tgtVertex", bothEdge.tgtForVertex)
-//    println()
-//    val a = outEdge.toInvertedEdgeHashLike()
-//    val b = inEdge.toInvertedEdgeHashLike()
-//    val c = bothEdge.toInvertedEdgeHashLike()
-//
-//    a == b && b == c shouldBe true
-
-  }
+//     */
+////    val incrementsOpt = Edge.buildIncrementDegreeBulk("169116518", "talk_friend_long_term_agg_test", "out", 10)
+////
+////    for {
+////      increments <- incrementsOpt
+////      increment <- increments
+////      (cf, qs) <- increment.getFamilyMapOfLongs
+////      (q, v) <- qs
+////    } {
+////      println(increment.getRow.toList)
+////      println(q.toList)
+////      println(v)
+////    }
+//    //List(68, -110, -29, -4, 116, -24, 124, -37, 0, 0, 52, -44, 2)
+//  }
 }

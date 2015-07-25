@@ -2,11 +2,12 @@ package controllers
 
 
 import com.codahale.metrics.Meter
+import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.rest.actors.KafkaAggregatorActor
 
-//import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.types2.{LabelWithDirection, VertexId}
 import com.daumkakao.s2graph.rest.config.{Config, Instrumented}
 import play.api.Logger
@@ -31,18 +32,20 @@ object QueryController extends Controller with RequestParser with Instrumented {
   /**
    * only for test
    */
+  private val queryInTopic = s"s2graphQueryIn_${Config.PHASE}"
   private val queryUseMultithread = true
   private val buildResultJson = true
   private val maxLength = 64 * 1024 + 255 + 2 + 1
-  private val emptyResultJson = Json.obj("size" -> 0, "results" -> Json.arr())
-//  private val emptyResult = Seq((QueryParam, Seq.empty[(Edge, Double)]))
+  private val emptyResult = Seq(Seq.empty[(Edge, Double)])
+  private def badQueryExceptionResults = Future.successful(BadRequest("""{"message": "Bad Request"}""").as(applicationJsonHeader))
+  private def errorResults = Future.successful(Ok(s"${PostProcess.timeoutResults}\n").as(applicationJsonHeader))
   /**
    * end of only for test
    */
 
   val applicationJsonHeader = "application/json"
   val orderByKeys = Seq("weight")
-
+//  val errorLogger = Logger("error")
 
   // select
 
@@ -57,29 +60,31 @@ object QueryController extends Controller with RequestParser with Instrumented {
   private def getEdgesAsync(jsonQuery: JsValue)(post: (Seq[QueryResult]) => JsValue): Future[Result] = {
     try {
       val queryTemplateId = (jsonQuery \ "steps").toString()
-      getOrElseUpdateMetric(queryTemplateId)(metricRegistry.meter(queryTemplateId)).mark()
-
+      //      getOrElseUpdateMetric(queryTemplateId)(metricRegistry.meter(queryTemplateId)).mark()
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
       Logger.info(s"$jsonQuery")
       val q = toQuery(jsonQuery)
-      Logger.info(s"$q")
+//      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
+      Logger.info(s"${q.templateId()}")
+
+
       val future = Graph.getEdgesAsync(q)
       future map { queryParamEdgeWithScoreLs =>
         val json = post(queryParamEdgeWithScoreLs)
-        Ok(s"${json}\n").as(applicationJsonHeader)
+        Ok(json).as(applicationJsonHeader)
       }
     } catch {
       case e: KGraphExceptions.BadQueryException =>
-        Logger.error(s"$e", e)
-        Future {
-          BadRequest.as(applicationJsonHeader)
-        }
-      case e: Throwable => Future {
-        Logger.error(s"$e", e)
+        errorLogger.error(s"$jsonQuery, $e", e)
+        badQueryExceptionResults
+      case e: Throwable =>
+        errorLogger.error(s"$jsonQuery, $e", e)
         // watch tower
-        Ok(s"\n").as(applicationJsonHeader)
-      }
+//        errorResults
+//        Future.successful(Ok(s"${PostProcess.emptyResults}\n").as(applicationJsonHeader))
+        errorResults
+      //        Ok(s"\n").as(applicationJsonHeader)
     }
   }
 
@@ -87,37 +92,36 @@ object QueryController extends Controller with RequestParser with Instrumented {
     Seq[QueryResult]) => JsValue): Future[Result] = {
     try {
       val queryTemplateId = (jsonQuery \ "steps").toString()
-      getOrElseUpdateMetric[Meter](queryTemplateId)(metricRegistry.meter(queryTemplateId)).mark()
 
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
       Logger.info(s"$jsonQuery")
       val q = toQuery(jsonQuery)
+//      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
+      Logger.debug(s"${q.templateId()}")
+
       val mineQ = Query(q.vertices, List(q.steps.last))
 
       for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
         val json = post(mine, others)
-        Ok(s"$json\n").as(applicationJsonHeader)
+        Ok(json).as(applicationJsonHeader)
       }
     } catch {
       case e: KGraphExceptions.BadQueryException =>
-        Logger.error(s"$e", e)
-        Future {
-          BadRequest.as(applicationJsonHeader)
-        }
-      case e: Throwable => Future {
-        Logger.error(s"$e", e)
+        errorLogger.error(s"$jsonQuery, $e", e)
+        badQueryExceptionResults
+      case e: Throwable =>
+        errorLogger.error(s"$jsonQuery, $e", e)
         // watch tower
-        Ok(s"\n").as(applicationJsonHeader)
-      }
+        errorResults
     }
   }
 
-  private def getEdgesInner(jsonQuery: JsValue) = {
+  def getEdgesInner(jsonQuery: JsValue) = {
     getEdgesAsync(jsonQuery)(PostProcess.toSimpleVertexArrJson)
   }
 
-  private def getEdgesExcludedInner(jsValue: JsValue) = {
+  def getEdgesExcludedInner(jsValue: JsValue) = {
     getEdgesExcludedAsync(jsValue)(PostProcess.toSimpleVertexArrJson)
   }
 
@@ -137,49 +141,54 @@ object QueryController extends Controller with RequestParser with Instrumented {
 
   @deprecated
   def getEdgesGroupedExcluded() = withHeaderAsync(parse.json) { request =>
+    val jsonQuery = request.body
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
       Logger.info(request.body.toString)
       val q = toQuery(request.body)
       val mineQ = Query(q.vertices, List(q.steps.last))
+//      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
+      Logger.debug(s"${q.templateId()}")
 
       for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
         val json = PostProcess.summarizeWithListExclude(mine, others)
-        Ok(s"$json\n").as(applicationJsonHeader)
+        Ok(json).as(applicationJsonHeader)
       }
     } catch {
-      case e: KGraphExceptions.BadQueryException => Future {
-        BadRequest(request.body).as(applicationJsonHeader)
-      }
-      case e: Throwable => Future {
-        // watch tower
-        Ok(s"$emptyResultJson\n").as(applicationJsonHeader)
-      }
+      case e: KGraphExceptions.BadQueryException =>
+        errorLogger.error(s"$jsonQuery, $e", e)
+        badQueryExceptionResults
+      //        Future.successful(BadRequest(request.body).as(applicationJsonHeader))
+      case e: Throwable =>
+        errorLogger.error(s"$jsonQuery, $e", e)
+        errorResults
     }
   }
 
   @deprecated
   def getEdgesGroupedExcludedFormatted() = withHeaderAsync(parse.json) { request =>
+    val jsonQuery = request.body
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
       Logger.info(request.body.toString)
       val q = toQuery(request.body)
       val mineQ = Query(q.vertices, List(q.steps.last))
+//      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
+      Logger.debug(s"${q.templateId()}")
 
       for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
         val json = PostProcess.summarizeWithListExcludeFormatted(mine, others)
-        Ok(s"$json\n").as(applicationJsonHeader)
+        Ok(json).as(applicationJsonHeader)
       }
     } catch {
-      case e: KGraphExceptions.BadQueryException => Future {
-        BadRequest(request.body).as(applicationJsonHeader)
-      }
-      case e: Throwable => Future {
-        // watch tower
-        Ok(s"$emptyResultJson\n").as(applicationJsonHeader)
-      }
+      case e: KGraphExceptions.BadQueryException =>
+        errorLogger.error(s"$jsonQuery, $e", e)
+        badQueryExceptionResults
+      case e: Throwable =>
+        errorLogger.error(s"$jsonQuery, $e", e)
+        errorResults
     }
   }
 
@@ -238,7 +247,9 @@ object QueryController extends Controller with RequestParser with Instrumented {
         Ok(Json.toJson(edgeJsons)).as(applicationJsonHeader)
       }
     } catch {
-      case e: Throwable => Future.successful(BadRequest(e.toString()).as(applicationJsonHeader))
+      case e: Throwable =>
+        errorLogger.error(s"$jsValue, $e", e)
+        errorResults
     }
   }
 
@@ -249,7 +260,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
 
   def getVertices() = withHeaderAsync(parse.json) { request =>
     if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
-
+    val jsonQuery = request.body
     val ts = System.currentTimeMillis()
     val props = "{}"
     try {
@@ -265,14 +276,12 @@ object QueryController extends Controller with RequestParser with Instrumented {
         Ok(s"$json\n").as(applicationJsonHeader)
       }
     } catch {
-      case e@(_: play.api.libs.json.JsResultException | _: RuntimeException) =>
-        Future {
-          BadRequest(e.getMessage()).as(applicationJsonHeader)
-        }
-      case e: Throwable => Future {
-        // watch tower
-        Ok(s"${PostProcess.verticesToJson(Seq.empty[Vertex])}").as(applicationJsonHeader)
-      }
+      case e @ (_: play.api.libs.json.JsResultException | _: RuntimeException) =>
+        errorLogger.error(s"$jsonQuery, $e", e)
+        badQueryExceptionResults
+      case e: Throwable =>
+        errorLogger.error(s"$jsonQuery, $e", e)
+        errorResults
     }
   }
 

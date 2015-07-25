@@ -25,16 +25,41 @@ object GraphConfig {
     database = dbUrl.getOrElse("jdbc:mysql://localhost:3306/graph")
     zkQuorum = zkAddr.getOrElse("localhost")
     kafkaBrokers = kafkaBrokerList.getOrElse("localhost:9092")
-    val s =
-      s"""
-          hbase.zookeeper.quorum="$zkQuorum"
-          hbase.client.operation.timeout=60000
-          kafka.metadata.broker.list="$kafkaBrokers"
-          db.default.driver=com.mysql.jdbc.Driver
-          db.default.url="$database"
-          db.default.user=graph
-          db.default.password=graph
-          kafka.producer.pool.size=0""".stripMargin
+    val s = s"""
+               |logger.root=ERROR
+               |
+               |# hbase
+               |hbase.zookeeper.quorum="$zkQuorum"
+                                                   |# Logger used by the framework:
+                                                   |logger.play=INFO
+                                                   |
+                                                   |# Logger provided to your application:
+                                                   |logger.application=DEBUG
+                                                   |
+                                                   |# APP PHASE
+                                                   |phase=dev
+                                                   |
+                                                   |# DB
+                                                   |db.default.driver=com.mysql.jdbc.Driver
+                                                   |db.default.url="$database"
+                                                                               |db.default.user=graph
+                                                                               |db.default.password=graph
+                                                                               |
+                                                                               |# Query server
+                                                                               |is.query.server=true
+                                                                               |is.write.server=true
+                                                                               |
+                                                                               |# Local Cache
+                                                                               |cache.ttl.seconds=60
+                                                                               |cache.max.size=100000
+                                                                               |
+                                                                               |# HBASE
+                                                                               |hbase.client.operation.timeout=60000
+                                                                               |
+                                                                               |# Kafka
+                                                                               |kafka.metadata.broker.list="$kafkaBrokers"
+                                                                                                                           |kafka.producer.pool.size=0
+                                                                                                                           | """.stripMargin
 
     println(s)
     ConfigFactory.parseString(s)
@@ -53,7 +78,7 @@ object GraphSubscriberHelper extends WithKafka {
   private val sleepPeriod = 10000
   private val maxTryNum = 10
 
-  private val conns = HashMap.empty[String, Connection]
+  var g: Graph.type = null
 
   def toOption(s: String) = {
     s match {
@@ -64,15 +89,15 @@ object GraphSubscriberHelper extends WithKafka {
 
   def apply(phase: String, dbUrl: String, zkQuorum: String, kafkaBrokerList: String): Unit = {
     config = GraphConfig(phase, toOption(dbUrl), toOption(zkQuorum), toOption(kafkaBrokerList))
-    val conf = HBaseConfiguration.create()
-    conf.set("hbase.zookeeper.quorum", zkQuorum)
-    val conn = ConnectionFactory.createConnection(conf)
-    conns += (zkQuorum -> conn)
-    Graph.apply(config)(ExecutionContext.Implicits.global)
+
+    if (g == null) {
+      Graph.apply(config)(ExecutionContext.Implicits.global)
+      g = Graph
+    }
   }
 
   def getConn(zkQuorum: String): Connection = {
-    conns.get(zkQuorum).getOrElse(throw new RuntimeException(s"bad zkQurom: $zkQuorum"))
+    g.getConn(zkQuorum)
   }
   //  def apply(phase: String, dbUrl: Option[String], zkQuorum: Option[String], kafkaBrokerList: Option[String]): Unit  = {
   //    Graph.apply(GraphConfig(phase, dbUrl, zkQuorum, kafkaBrokerList))(ExecutionContext.Implicits.global)
@@ -111,8 +136,9 @@ object GraphSubscriberHelper extends WithKafka {
     val mutator = conn.getBufferedMutator(TableName.valueOf(tableName))
     //      val table = conn.getTable(TableName.valueOf(tableName))
     //      table.setAutoFlush(false, false)
-    println(puts.take(10))
+
     try {
+      puts.foreach { put => put.setDurability(Durability.ASYNC_WAL) }
       mutator.mutate(puts)
       //        table.put(puts)
       statFunc(s"$statPrefix:storeOk", elementsSize)
@@ -128,18 +154,16 @@ object GraphSubscriberHelper extends WithKafka {
   }
 
   def storeDegreeBulk(zkQuorum: String, tableName: String)
-                     (degrees: Iterator[((String, String, String), Int)], labelMapping: Map[String, String] = Map.empty, autoCreateEdge: Boolean = false)
+                     (degrees: Iterable[(String, String, String, Int)], labelMapping: Map[String, String] = Map.empty)
                      (mapAccOpt: Option[HashMapAccumulable]): Iterable[(String, Long)] = {
     val counts = HashMap[String, Long]()
     val statFunc = storeStat(counts)(mapAccOpt) _
 
     for {
-      ((vertexId, labelName, direction), degreeVal) <- degrees
+      (vertexId, labelName, direction, degreeVal) <- degrees
       incrementRequests <- Edge.buildIncrementDegreeBulk(vertexId, labelName, direction, degreeVal)
     } {
-      incrementRequests.take(10).foreach { incr =>
-        println(s"${vertexId}\t$labelName\t$direction\t${incr.getRow.toList}")
-      }
+      incrementRequests.foreach { put => put.setDurability(Durability.ASYNC_WAL) }
       storeRec(zkQuorum, tableName, incrementRequests, degrees.size, maxTryNum)(statFunc, "degree")
     }
     counts
@@ -216,7 +240,7 @@ object GraphSubscriber extends SparkApp with WithKafka {
      * Main function
      */
     println(args.toList)
-    if (args.length != 9) {
+    if (args.length != 10) {
       System.err.println(usages)
       System.exit(1)
     }
@@ -230,6 +254,7 @@ object GraphSubscriber extends SparkApp with WithKafka {
     val kafkaBrokerList = args(6)
     val kafkaTopic = args(7)
     val edgeAutoCreate = args(8).toBoolean
+    val vertexDegreePath = args(9)
 
     val conf = sparkConf(s"$hdfsPath: GraphSubscriber")
     val sc = new SparkContext(conf)
@@ -259,38 +284,10 @@ object GraphSubscriber extends SparkApp with WithKafka {
       }
 
       val msgs = sc.textFile(hdfsPath)
-
-      /** change assumption here. this job only take care of one label data */
-      val degreeStart: RDD[((String, String, String), Int)] = msgs.filter { msg =>
-        val tokens = GraphUtil.split(msg)
-        (tokens(2) == "e" || tokens(2) == "edge")
-      } flatMap { msg =>
-        val tokens = GraphUtil.split(msg)
-        val direction = if (tokens.length == 7) "out" else tokens(7)
-        val reverseDirection = if (direction == "out") "in" else "out"
-        val convertedLabelName = labelMapping.get(tokens(5)).getOrElse(tokens(5))
-        val (vertexWithLabel, reverseVertexWithLabel) = if (direction == "out") {
-          (
-            (tokens(3), convertedLabelName, direction),
-            (tokens(4), convertedLabelName, reverseDirection)
-            )
-        } else {
-          (
-            (tokens(4), convertedLabelName, direction),
-            (tokens(3), convertedLabelName, reverseDirection)
-            )
-        }
-        if (edgeAutoCreate) {
-          List((vertexWithLabel -> 1), (reverseVertexWithLabel -> 1))
-        } else {
-          List((vertexWithLabel -> 1))
-        }
+      val vertexDegrees = sc.textFile(vertexDegreePath).filter(line => line.split("\t").length == 4).map { line =>
+        val tokens = line.split("\t")
+        (tokens(0), tokens(1), tokens(2), tokens(3).toInt)
       }
-      val vertexDegrees = degreeStart.reduceByKey(_ + _)
-
-      vertexDegrees.saveAsTextFile(s"/user/work/s2graph/degree")
-
-
       vertexDegrees.foreachPartition { partition =>
 
         // init Graph
@@ -300,7 +297,7 @@ object GraphSubscriber extends SparkApp with WithKafka {
         partition.grouped(batchSize).foreach { msgs =>
           try {
             val start = System.currentTimeMillis()
-            val counts = GraphSubscriberHelper.storeDegreeBulk(zkQuorum, hTableName)(partition, labelMapping)(Some(mapAcc))
+            val counts = GraphSubscriberHelper.storeDegreeBulk(zkQuorum, hTableName)(msgs, labelMapping)(Some(mapAcc))
             for ((k, v) <- counts) {
               mapAcc +=(k, v)
             }
@@ -329,7 +326,7 @@ object GraphSubscriber extends SparkApp with WithKafka {
             //            val counts =
             //              GraphSubscriberHelper.store(msgs, GraphSubscriberHelper.toOption(newLabelName))(Some(mapAcc))
             val counts =
-              GraphSubscriberHelper.storeBulk(zkQuorum, hTableName)(msgs, labelMapping)(Some(mapAcc))
+              GraphSubscriberHelper.storeBulk(zkQuorum, hTableName)(msgs, labelMapping, edgeAutoCreate)(Some(mapAcc))
 
             for ((k, v) <- counts) {
               mapAcc +=(k, v)

@@ -2,9 +2,9 @@ package com.daumkakao.s2graph.core
 
 
 import com.daumkakao.s2graph.core.KGraphExceptions.LabelNotExistException
-//import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.mysqls._
 
-import com.daumkakao.s2graph.core.models._
+//import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2._
 import play.api.Logger
@@ -25,6 +25,7 @@ import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
  */
 object Management extends JSONParser {
 
+  import HBaseType._
   val hardLimit = 10000
   val defaultLimit = 100
 
@@ -66,12 +67,12 @@ object Management extends JSONParser {
             val idxPropsSeq = for {
               (name, meta) <- indexProps
             } yield {
-                (name, JsString(meta.defaultValue), meta.dataType)
+                (name, meta.defaultValue, meta.dataType)
               }
             val metaPropsSeq = for {
               (name, meta) <- metaProps
             } yield {
-                (name, JsString(meta.defaultValue), meta.dataType)
+                (name, meta.defaultValue, meta.dataType)
               }
 
             createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
@@ -82,7 +83,7 @@ object Management extends JSONParser {
               old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync)
 
           case Some(_) =>
-          //            throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
+//            throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
         }
       case None => throw new LabelNotExistException(s"Original label $oldLabelName does not exist.")
     }
@@ -96,13 +97,13 @@ object Management extends JSONParser {
                   tgtColumnType: String,
                   isDirected: Boolean = true,
                   serviceName: String,
-                  indexProps: Seq[(String, JsValue, String)],
-                  props: Seq[(String, JsValue, String)],
+                  indexProps: Seq[(String, String, String)],
+                  props: Seq[(String, String, String)],
                   consistencyLevel: String,
                   hTableName: Option[String],
                   hTableTTL: Option[Int],
-                  schemaVersion: String = InnerVal.DEFAULT_VERSION,
-                  isAsync: Boolean = false): Label = {
+                  schemaVersion: String = DEFAULT_VERSION,
+                  isAsync: Boolean): Label = {
 
 
     val labelOpt = Label.findByName(label, useCache = false)
@@ -123,7 +124,7 @@ object Management extends JSONParser {
                    columnName: String,
                    columnType: String,
                    props: Seq[(String, JsValue, String)],
-                   schemaVersion: String = InnerVal.DEFAULT_VERSION) = {
+                   schemaVersion: String = DEFAULT_VERSION) = {
     val serviceOpt = Service.findByName(serviceName)
     serviceOpt match {
       case None => throw new RuntimeException(s"create service $serviceName has not been created.")
@@ -136,13 +137,12 @@ object Management extends JSONParser {
         }
     }
   }
-  def deleteVertex(serviceName: String, columnName: String, schemaVersion: String = InnerVal.DEFAULT_VERSION) = {
+  def deleteVertex(serviceName: String, columnName: String, schemaVersion: String = DEFAULT_VERSION) = {
     for {
       service <- Service.findByName(serviceName, useCache = false)
       serviceColumn <- ServiceColumn.find(service.id.get, columnName, useCache = false)
     } yield {
-//      ServiceColumn.delete(serviceColumn.id.get)
-      serviceColumn.deleteAll()
+      ServiceColumn.delete(serviceColumn.id.get)
     }
   }
   def findLabel(labelName: String): Option[Label] = {
@@ -197,7 +197,7 @@ object Management extends JSONParser {
                     columnName: String,
                     propsName: String,
                     propsType: String,
-                    schemaVersion: String = InnerVal.DEFAULT_VERSION): ColumnMeta = {
+                    schemaVersion: String = DEFAULT_VERSION): ColumnMeta = {
     val result = for {
       service <- Service.findByName(serviceName, useCache = false)
       serviceColumn <- ServiceColumn.find(service.id.get, columnName)
@@ -237,8 +237,8 @@ object Management extends JSONParser {
       if (direction == "") GraphUtil.toDirection(label.direction)
       else GraphUtil.toDirection(direction)
 
-    //    Logger.debug(s"$srcId, ${label.srcColumnWithDir(dir)}")
-    //    Logger.debug(s"$tgtId, ${label.tgtColumnWithDir(dir)}")
+//    Logger.debug(s"$srcId, ${label.srcColumnWithDir(dir)}")
+//    Logger.debug(s"$tgtId, ${label.tgtColumnWithDir(dir)}")
 
     val srcVertexId = toInnerVal(srcId, label.srcColumn.columnType, label.schemaVersion)
     val tgtVertexId = toInnerVal(tgtId, label.tgtColumn.columnType, label.schemaVersion)
@@ -414,7 +414,7 @@ object Management extends JSONParser {
           desc.addFamily(columnDesc)
         }
 
-        if (regionMultiplier <= 1) admin.createTable(desc)
+        if (regionCount <= 1) admin.createTable(desc)
         else admin.createTable(desc, getStartKey(regionCount), getEndKey(regionCount), regionCount)
       } catch {
         case e: Throwable =>
@@ -426,21 +426,21 @@ object Management extends JSONParser {
     }
   }
 
-  /**
+    /**
    * update label name.
    */
-//  def updateLabelName(oldLabelName: String, newLabelName: String) = {
-//    for {
-//      old <- Label.findByName(oldLabelName)
-//    } {
-//      Label.findByName(newLabelName) match {
-//        case None =>
-//          Label.updateName(oldLabelName, newLabelName)
-//        case Some(_) =>
-//        //          throw new RuntimeException(s"$newLabelName already exist")
-//      }
-//    }
-//  }
+  def updateLabelName(oldLabelName: String, newLabelName: String) = {
+    for {
+      old <- Label.findByName(oldLabelName)
+    } {
+      Label.findByName(newLabelName) match {
+        case None =>
+          Label.updateName(oldLabelName, newLabelName)
+        case Some(_) =>
+        //          throw new RuntimeException(s"$newLabelName already exist")
+      }
+    }
+  }
 
   // we only use murmur hash to distribute row key.
   private def getStartKey(regionCount: Int) = {

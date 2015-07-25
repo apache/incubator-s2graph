@@ -4,11 +4,11 @@ package com.daumkakao.s2graph.core.types2
  * Created by shon on 6/10/15.
  */
 object EdgeQualifier extends HBaseDeserializable {
-  val emptySeqByte = EMPTY_SEQ_BYTE
+  import HBaseType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = DEFAULT_VERSION): EdgeQualifierLike = {
+                version: String = DEFAULT_VERSION): (EdgeQualifierLike, Int) = {
     version match {
       case VERSION2 => v2.EdgeQualifier.fromBytes(bytes, offset, len, version)
       case VERSION1 => v1.EdgeQualifier.fromBytes(bytes, offset, len, version)
@@ -26,17 +26,17 @@ object EdgeQualifier extends HBaseDeserializable {
   }
 }
 trait EdgeQualifierLike extends HBaseSerializable {
+  import HBaseType._
   val props: Seq[(Byte, InnerValLike)]
   val tgtVertexId: VertexId
   val op: Byte
 
-  def propsKVs(propsKeys: List[Byte]): List[(Byte, InnerValLike)] = {
-    import EdgeQualifier.emptySeqByte
-    val filtered = props.filter(kv => kv._1 != emptySeqByte)
-    if (filtered.isEmpty) {
-      propsKeys.zip(props.map(_._2))
-    } else {
-      filtered.toList
+  def propsKVs(propsKeys: Seq[Byte]): Seq[(Byte, InnerValLike)] = {
+    for {
+      (propKey, (storedPropKey, storedPropVal)) <- propsKeys.zip(props)
+    } yield {
+      if (storedPropKey == EMPTY_SEQ_BYTE) (propKey -> storedPropVal)
+      else (storedPropKey -> storedPropVal)
     }
   }
 }

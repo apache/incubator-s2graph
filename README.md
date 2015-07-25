@@ -169,7 +169,7 @@ To create a Service, the following fields needs to be specified in the request.
 | cluster | zookeeper quorum address for your cluster.| string | "abc.com:2181,abd.com:2181" | optional. <br>default value is "hbase.zookeeper.quorum" on your application.conf. if there is no value for "hbase.zookeeper.quorum" is defined on application.conf, then default value is "localhost" |
 | hTableName | physical HBase table name.|string| "test"| optional. <br> default is serviceName-#{phase}. <br> phase is either dev/real/alpha/sandbox |
 | hTableTTL | global time to keep the data alive. | integer | 86000 | optional. default is infinite.
-| preSplitSize | number of pre split for HBase table.| integer|20|optional. <br> default is 0(no pre-split)|
+| preSplitSize | ratio for number of pre split for HBase table. numOfRegionServer x this number will decide exact pre-split size.| integer|1|optional. <br> default is 0(no pre-split). if you set this to 1, then s2graph will pre-split your table with 1 x **numOfRegionServers** |
 
 Service is the top level abstraction in s2graph which can be considered like a database in RDBMS. You can create a service using this API:
 
@@ -449,6 +449,7 @@ else:
 >Since we write our data to HBase asynchronously, there is no consistency guarantee on same edge within our flushInterval(1 seconds).
 
 
+
 ### 1.4 (Optionally) Add Extra Indexes - `POST /graphs/addIndex` ###
 
 
@@ -606,7 +607,7 @@ curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/jso
 
 You can also delete edges.
 
-> **Note that if the timestamp in a delete request is larger (later) than the actual timestamp of the edge, the delete request will be ignored.**
+> **Note that if the timestamp in a delete request is smaller (before) than the actual timestamp of the edge, the delete request will be ignored.**
 
 The following is an example deleting edges.
 
@@ -767,9 +768,18 @@ Once you have your graph data uploaded to s2graph, you can traverse your graph u
 | srcVertices | vertices to start traversing. |json array of json dictionary specifying each vertex, with "serviceName", "columnName", "id" fields. | required. | `[{"serviceName": "kakao", "columnName": "account_id", "id":1}]` |
 |**steps**| list of steps for traversing. | json array of steps | explained below| ```[[{"label": "graph_test", "direction": "out", "limit": 100, "scoring":{"time": 0, "weight": 1}}]] ``` |
 |removeCycle| when traverse to next step, don`t traverse already visited vertices| true/false. default is true | already visited is defined by following(label, vertex). <br> so if steps are friend -> friend, then remove second depth friends if they exist in first depth friends | |
+|select| which field on edge to include in result json | json array of string | | ["label", "to", "from"] |
 
 
 **step**: Each step define what to traverse in a single hop on the graph. The first step has to be a direct neighbor of the starting vertices, the second step is a direct neighbor of vertices from the first step and so on. A step is specified with a list of **query param**s, hence the `steps` field of a query request becoming an array of arrays of dictionaries.
+
+**step param**: 
+
+| field name |  definition | data type |  note | example |
+|:------- | --- |:----: | --- | :-----|
+| weights | weight constant to multiply for labels in this step | json dictionay | optional | {"graph_test": 0.3, "graph_test2": 0.2} | 
+| nextStepThreshold | score threshold for current step edges to pass to next step | double |  | |
+| nextStepLimit | number of edges in current step to pass to next step | double | if this parameter is given, then sort current step by score and take topK, then start traverse next step|
 
 **query param**: 
 
@@ -789,6 +799,8 @@ Once you have your graph data uploaded to s2graph, you can traverse your graph u
 | duplicate | policy on how to deal with duplicate edges. <br> duplicate edges means edges with same (from, to, label, direction). | string <br> one of "first", "sum", "countSum", "raw" | optional, default "**first**" | "**first**" means only first occurrence of edge survive. <br> "**sum**" means sums up all scores of same edges but only one edge survive. <br>"**countSum**" means counts up occurrence of same edges but only one edge survive. <br>"**raw**" means same edges will be survived as they are. |
 | rpcTimeout | timeout for this request | integer | optional, default 100ms | note: maximum value should be less than 1000ms |
 | maxAttempt | how many times client will try to fetch result from HBase | integer | optional, default 1 | note: maximum value should be less than 5|
+| _to | to vertex id | string | optional | note: use this to get a edge for certain vertex |
+| threshold | score threshold for filtering out result edges | double | optional, default 0.0 | 
 
 
 ### 2. Query API ###
@@ -976,6 +988,31 @@ curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -
 '
 ```
 
+Example 7. my friends who played music id 200
+```javascript
+curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+{
+    "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
+    "steps": [
+      [{"label": "talk_friend", "direction": "out", "limit": 100}],
+      [{"label": "play_music", "direction": "out", "_to": 200}]
+    ]
+}
+'
+```
+
+Example 8. more general way to check list of edges exist.
+
+```javascript
+curl -XPOST localhost:9000/graphs/checkEdges -H 'Content-Type: Application/json' -d '
+[
+	{"label": "talk_friend", "direction": "out", "from": 1, "to": 100}, 
+	{"label": "talk_friend", "direction": "out", "from": 1, "to": 101}
+]
+'
+```
+
+
 #### 3.2. Vertex Queries ####
 
 Example 1. Selecting all vertices from column `account_id` of a service `s2graph`.
@@ -988,6 +1025,8 @@ curl -XPOST localhost:9000/graphs/getVertices -H 'Content-Type: Application/json
 ]
 '
 ```
+
+ 
 
 ## 6. Bulk Loading ##
 

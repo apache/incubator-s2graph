@@ -33,7 +33,7 @@ object ApplicationController extends Controller with Instrumented {
   def toLogMessage[A](request: Request[A], result: Result)(startedAt: Long): String = {
     val duration = System.currentTimeMillis() - startedAt
     val key = s"${request.method} ${request.uri} ${result.header.status.toString}"
-    val ctx = getOrElseUpdateMetric[Timer](key)(metricRegistry.timer(key)).time()
+//    val ctx = getOrElseUpdateMetric[Timer](key)(metricRegistry.timer(key)).time()
     try {
       if (!Config.IS_WRITE_SERVER) {
         s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${request.body}"
@@ -41,7 +41,7 @@ object ApplicationController extends Controller with Instrumented {
         s"${request.method} ${request.uri} took ${duration} ms ${result.header.status}"
       }
     } finally {
-      ctx.stop()
+//      ctx.stop()
     }
   }
 

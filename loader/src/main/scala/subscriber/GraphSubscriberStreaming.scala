@@ -1,7 +1,7 @@
 package subscriber
 
 import org.apache.hadoop.hbase.HBaseConfiguration
-import org.apache.hadoop.hbase.client.{ConnectionFactory, HConnectionManager}
+import org.apache.hadoop.hbase.client.{ConnectionFactory}
 import org.apache.spark.streaming.Durations._
 import s2.spark.{HashMapParam, SparkApp, WithKafka}
 
@@ -10,19 +10,19 @@ import scala.language.postfixOps
 
 object GraphSubscriberStreaming extends SparkApp with WithKafka {
   val usages =
-  s"""
-     |/**
-     |this job consume edges/vertices from kafka topic then load them into s2graph.
-     |params:
-     |  1. kafkaZkQuorum: kafka zk address to consume events
-     |  2. brokerList: kafka cluster`s broker list.
-     |  3. topics: , delimited list of topics to consume
-     |  4. intervalInSec: batch  interval for this job.
-     |  5. batchSize: how many edges/vertices will be grouped for bulk mutations.
-     |  6. hbaseZkQuorum: s2graph zookeeper address.
-     |  7. hTableName: physical hbase table name.
-     |  8. labelMapping: oldLabel:newLabel delimited by ,
-     |*/
+    s"""
+       |/**
+       |this job consume edges/vertices from kafka topic then load them into s2graph.
+       |params:
+       |  1. kafkaZkQuorum: kafka zk address to consume events
+       |  2. brokerList: kafka cluster`s broker list.
+       |  3. topics: , delimited list of topics to consume
+       |  4. intervalInSec: batch  interval for this job.
+       |  5. batchSize: how many edges/vertices will be grouped for bulk mutations.
+       |  6. hbaseZkQuorum: s2graph zookeeper address.
+       |  7. hTableName: physical hbase table name.
+       |  8. labelMapping: oldLabel:newLabel delimited by ,
+       |*/
    """.stripMargin
   override def run() = {
     if (args.length != 9) {

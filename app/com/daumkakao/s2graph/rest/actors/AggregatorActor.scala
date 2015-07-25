@@ -19,7 +19,8 @@ object Protocol {
   type Val = String
 
   def elementToKafkaMessage(topic: String, element: GraphElement, originalString: Option[String]) = {
-    KafkaMessage(new ProducerRecord[Key, Val](topic, element.queuePartitionKey, originalString.getOrElse(element.toString)))
+    KafkaMessage(new ProducerRecord[Key, Val](topic, element.queuePartitionKey,
+      originalString.getOrElse(element.toLogString())))
   }
   case class KafkaMessage(msg: ProducerRecord[Key, Val])
   case class Message(topic: String, msg: String)
@@ -74,6 +75,10 @@ object KafkaAggregatorActor extends WithProducer {
   }
   def enqueue(msg: Protocol.KafkaMessage) = {
     if (isKafkaAvailable) routees ! msg
+  }
+  def enqueue(topic: String, msg: String) = {
+    val kafkaMsg = Protocol.KafkaMessage(new ProducerRecord[String, String](topic, msg))
+    routees ! kafkaMsg
   }
   def props() = Props(new KafkaAggregatorActor)
 }

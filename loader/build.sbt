@@ -1,6 +1,8 @@
 import sbtassembly.Plugin.AssemblyKeys._
 
-name := "s2graph-loader"
+name := "s2loader"
+
+organization := Common.organization
 
 version := Common.version
 
@@ -9,8 +11,8 @@ scalaVersion := Common.scalaVersion
 scalacOptions ++= Seq("-deprecation")
 
 libraryDependencies ++= Seq(
-  "edu.berkeley.cs.amplab" %% "spark-indexedrdd" % "0.1-SNAPSHOT",
-  "org.elasticsearch" % "elasticsearch" % "1.3.2",
+//  "edu.berkeley.cs.amplab" %% "spark-indexedrdd" % "0.1-SNAPSHOT",
+//  "org.elasticsearch" % "elasticsearch" % "1.3.2",
   "org.apache.spark" %% "spark-core" % "1.3.0" % "provided",
   "org.apache.spark" %% "spark-streaming" % "1.3.0" % "provided",
   "org.apache.spark" %% "spark-streaming-kafka" % "1.3.0" % "provided",
@@ -34,6 +36,13 @@ excludedJars in assembly := {
     cp filter {_.data.getName == "guava-16.0.1.jar"}
 }
 
-
-
 test in assembly := {}
+
+publishTo := {
+  val dk = "http://maven.daumcorp.com/content/repositories/"
+  if (isSnapshot.value)
+    Some("snapshots" at dk + "dk-aa-snapshots")
+  else
+    Some("releases"  at dk + "dk-aa-release")
+}
+

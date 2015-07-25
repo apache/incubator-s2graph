@@ -5,15 +5,15 @@ package com.daumkakao.s2graph.core
  */
 //case class QueryResultLs(queryResults: Seq[QueryResult] = Seq.empty[QueryResult])
 object QueryResult {
-  def fromVertices(vertices: Seq[Vertex], queryParams: Seq[QueryParam]): Seq[QueryResult] = {
+  def fromVertices(query: Query, stepIdx: Int, queryParams: Seq[QueryParam], vertices: Seq[Vertex]): Seq[QueryResult] = {
     for {
       vertex <- vertices
       queryParam <- queryParams
-    } yield QueryResult(queryParam, Seq((Edge(vertex, vertex, queryParam.labelWithDir), Graph.defaultScore)))
+    } yield QueryResult(query, stepIdx, queryParam, Seq((Edge(vertex, vertex, queryParam.labelWithDir), Graph.defaultScore)))
   }
 }
 
-case class QueryResult(queryParam: QueryParam,
+case class QueryResult(query: Query, stepIdx: Int, queryParam: QueryParam,
                        edgeWithScoreLs: Iterable[(Edge, Double)] = Seq.empty[(Edge, Double)],
                        timestamp: Long = System.currentTimeMillis()) {
 

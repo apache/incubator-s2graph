@@ -57,17 +57,22 @@ POST   /graphs/createLabel                                                     c
 POST   /graphs/addIndex                                                        controllers.AdminController.addIndex()
 GET    /graphs/getLabel/:labelName                                             controllers.AdminController.getLabel(labelName)
 PUT    /graphs/deleteLabel/:labelName                                          controllers.AdminController.deleteLabel(labelName)
+PUT    /graphs/deleteVertex/:serviceName/:columnName                                  controllers.AdminController.deleteVertex(serviceName, columnName)
 POST   /graphs/addProp/:labelName                                              controllers.AdminController.addProp(labelName)
 POST   /graphs/addProps/:labelName                                             controllers.AdminController.addProps(labelName)
 POST   /graphs/createVertex                                                    controllers.AdminController.createVertex()
 POST   /graphs/addVertexProp/:serviceName/:columnName                          controllers.AdminController.addVertexProp(serviceName, columnName)
 POST   /graphs/addVertexProps/:serviceName/:columnName                         controllers.AdminController.addVertexProps(serviceName, columnName)
 GET    /graphs/getVertex/:serviceName/:columnName                              controllers.AdminController.getVertex(serviceName, columnName)
-		  
+
+
 #### TEST
 GET    /graphs/testGetEdges/:label/:limit/:friendCntStep                       controllers.QueryController.testGetEdges(label, limit: Int, friendCntStep: Int)
 GET    /graphs/testGetEdges2/:label1/:limit1/:label2/:limit2                   controllers.QueryController.testGetEdges2(label1, limit1: Int, label2, limit2: Int)
 GET    /graphs/testGetEdges3/:label1/:limit1/:label2/:limit2/:label3/:limit3   controllers.QueryController.testGetEdges3(label1, limit1: Int, label2, limit2: Int, label3, limit3: Int)
+POST   /ping                                                                   controllers.TestController.ping()
+POST   /pingAsync                                                              controllers.TestController.pingAsync()
+GET    /graphs/testId                                                          controllers.TestController.getRandomId()
 
 # Map static resources from the /public folder to the /assets URL path
 GET    /images/*file                                                           controllers.Assets.at(path="/public/images", file)
@@ -81,11 +86,12 @@ GET    /swagger/*file                                                          c
 
 
 # AdminController API
-GET    /admin/services                                                         controllers.AdminController.allServices
+#GET    /admin/services                                                         controllers.AdminController.allServices
 GET    /admin/labels/:serviceName                                              controllers.AdminController.getLabels(serviceName)
 #POST   /admin/labels/delete/:zkAddr/:tableName/:labelIds/:minTs/:maxTs         controllers.AdminController.deleteEdges(zkAddr, tableName, labelIds, minTs: Long, maxTs: Long)
 #POST   /admin/labels/deleteAll/:zkAddr/:tableName/:minTs/:maxTs                controllers.AdminController.deleteAllEdges(zkAddr, tableName, minTs: Long, maxTs: Long)
 #POST   /admin/swapLabel/:oldLabelName/:newLabelName                            controllers.AdminController.swapLabel(oldLabelName, newLabelName)
 #GET    /admin/reloadLabel/:labelName                                           controllers.AdminController.reloadLabel(labelName)
 #POST        /admin/getEdges                                                              controllers.AdminController.getEdges()
-
+POST        /graphs/copyLabel/:oldLabelName/:newLabelName                                controllers.AdminController.copyLabel(oldLabelName, newLabelName)
+POST   /graphs/renameLabel/:oldLabelName/:newLabelName                         controllers.AdminController.renameLabel(oldLabelName, newLabelName)

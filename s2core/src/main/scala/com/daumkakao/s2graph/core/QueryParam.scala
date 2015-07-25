@@ -1,8 +1,11 @@
 package com.daumkakao.s2graph.core
 
-//import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.mysqls._
+import play.api.libs.json.{JsValue, Json}
 
-import com.daumkakao.s2graph.core.models._
+import scala.util.hashing.MurmurHash3
+
+//import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.parsers.Where
 import com.daumkakao.s2graph.core.types2._
@@ -14,6 +17,11 @@ import org.hbase.async.{GetRequest, ScanFilter, ColumnRangeFilter}
 
 object Query {
   val initialScore = 1.0
+  lazy val empty = Query()
+
+  def toQuery(srcVertices: Seq[Vertex], queryParam: QueryParam) = {
+    Query(srcVertices, List(Step(List(queryParam))))
+  }
 
   object DuplicatePolicy extends Enumeration {
     type DuplicatePolicy = Value
@@ -28,13 +36,22 @@ object Query {
       }
     }
   }
-
 }
 
-case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex], steps: List[Step] = List.empty[Step],
-                 unique: Boolean = true, removeCycle: Boolean = false) {
+case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
+                 steps: List[Step] = List.empty[Step],
+                 unique: Boolean = true,
+                 removeCycle: Boolean = false,
+                 selectColumns: Seq[String] = Seq.empty[String],
+                 groupByColumns: Seq[String] = Seq.empty[String]) {
+  lazy val selectColumnsSet = selectColumns.map{ c =>
+    if (c == "_from") "from"
+    else if (c == "_to") "to"
+    else c
+  }.toSet
+  lazy val selectColumnSetIsEmpty = selectColumnsSet.isEmpty
 
-  val labelSrcTgtInvertedMap = if (vertices.isEmpty) {
+  lazy val labelSrcTgtInvertedMap = if (vertices.isEmpty) {
     Map.empty[Int, Boolean]
   } else {
     (for {
@@ -47,12 +64,31 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex], steps: List[Step] = 
 
       }).toMap
   }
+  /** return logical query id without considering parameter values */
+  def templateId(): JsValue = {
+    Json.toJson(for {
+      step <- steps
+      queryParam <- step.queryParams.sortBy(_.labelWithDir.labelId)
+    } yield {
+      Json.obj("label" -> queryParam.label.label, "direction" -> GraphUtil.fromDirection(queryParam.labelWithDir.dir))
+    })
+  }
+  def impressionId(): Int = {
+    val hash = MurmurHash3.stringHash(templateId().toString())
+
+    hash
+  }
 }
 
-case class Step(queryParams: List[QueryParam]) {
+case class Step(queryParams: List[QueryParam],
+                labelWeights: Map[Int, Double] = Map.empty,
+//                scoreThreshold: Double = 0.0,
+                nextStepScoreThreshold: Double = 0.0,
+                nextStepLimit: Int = -1) {
   lazy val excludes = queryParams.filter(qp => qp.exclude)
   lazy val includes = queryParams.filterNot(qp => qp.exclude)
   lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
+  Logger.debug(s"Step: $queryParams, $labelWeights, $nextStepScoreThreshold, $nextStepLimit")
 }
 
 case class VertexParam(vertices: Seq[Vertex]) {
@@ -80,6 +116,7 @@ object RankParam {
 
 class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Seq.empty[(Byte, Double)]) {
   // empty => Count
+  lazy val rankKeysWeightsMap = keySeqAndWeights.toMap
   def defaultKey() = {
     this.keySeqAndWeights = List((LabelMeta.countSeq, 1.0))
     this
@@ -108,6 +145,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   import Query.DuplicatePolicy._
   import Query.DuplicatePolicy
+  import HBaseSerializable._
 
   val label = Label.findById(labelWithDir.labelId)
   val defaultKey = LabelIndex.defaultSeq
@@ -115,7 +153,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   var labelOrderSeq = fullKey
 
-  var outputFields: Seq[Byte] = Nil
+  var outputField: Option[Byte] = None
   //  var start = OrderProps.empty
   //  var end = OrderProps.empty
   var limit = 10
@@ -145,6 +183,12 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var includeDegree = false
   var tgtVertexInnerIdOpt: Option[InnerValLike] = None
   var cacheTTLInMillis: Long = -1L
+  var threshold = 0.0
+  var timeDecay: Option[TimeDecay] = None
+  var excludeBy: Option[String] = None
+
+  val srcColumnWithDir = label.srcColumnWithDir(labelWithDir.dir)
+  val tgtColumnWithDir = label.tgtColumnWithDir(labelWithDir.dir)
 
   def isRowKeyOnly(isRowKeyOnly: Boolean): QueryParam = {
     this.isRowKeyOnly = isRowKeyOnly
@@ -226,8 +270,8 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this
   }
 
-  def outputFields(others: Seq[Byte]): QueryParam = {
-    this.outputFields = others
+  def outputField(ofOpt: Option[Byte]): QueryParam = {
+    this.outputField = ofOpt
     this
   }
 
@@ -269,9 +313,21 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this.cacheTTLInMillis = other
     this
   }
+  def timeDecay(other: Option[TimeDecay]): QueryParam = {
+    this.timeDecay = other
+    this
+  }
+  def threshold(other: Double): QueryParam = {
+    this.threshold = other
+    this
+  }
+  def excludeBy(other: Option[String]): QueryParam = {
+    this.excludeBy = other
+    this
+  }
   override def toString(): String = {
     List(label.label, labelOrderSeq, offset, limit, rank, isRowKeyOnly,
-      duration, isInverted, exclude, include, hasFilters, outputFields.mkString("[," , ", ", "]" )).mkString("\t")
+      duration, isInverted, exclude, include, hasFilters, outputField).mkString("\t")
   }
 
 
@@ -322,5 +378,14 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     if (columnRangeFilter != null) get.filter(columnRangeFilter)
     Logger.debug(s"$get")
     get
+  }
+}
+
+case class TimeDecay(initial: Double = 1.0, lambda: Double = 0.1, timeUnit: Double = 60 * 60 * 24) {
+  def decay(diff: Double): Double = {
+    //FIXME
+    val ret = initial * Math.pow((1.0 - lambda), diff / timeUnit)
+//    Logger.debug(s"$initial, $lambda, $timeUnit, $diff, ${diff / timeUnit}, $ret")
+    ret
   }
 }

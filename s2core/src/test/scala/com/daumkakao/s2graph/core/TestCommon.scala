@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
-// import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.models._
+ import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.models._
 
 
 import com.daumkakao.s2graph.core.types2._
@@ -35,7 +35,7 @@ trait TestCommon {
   def lessThanEqual(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) <= 0
 
   /** */
-  import InnerVal.{VERSION2, VERSION1}
+  import HBaseType.{VERSION2, VERSION1}
   private val tsValSmall = InnerVal.withLong(ts, VERSION1)
   private val tsValLarge = InnerVal.withLong(ts + 1, VERSION1)
   private val boolValSmall = InnerVal.withBoolean(false, VERSION1)

@@ -8,39 +8,41 @@ import org.apache.hadoop.hbase.util.Bytes
  * Created by shon on 6/10/15.
  */
 object EdgeQualifier extends HBaseDeserializable {
-  val toSeqByte = -5.toByte
-  val defaultTgtVertexId = null
-
+  import HBaseType._
+  import HBaseDeserializable._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = VERSION2): EdgeQualifier = {
+                version: String = VERSION2): (EdgeQualifier, Int) = {
     var pos = offset
+    var numOfBytesUsedTotal = 0
     /** changed not to store op bytes on edge qualifier */
     val op = GraphUtil.defaultOpByte
     val (props, tgtVertexId) = {
       val (props, endAt) = bytesToProps(bytes, pos, version)
+      numOfBytesUsedTotal += endAt - offset
       //        val tgtVertexId = CompositeId(bytes, endAt, true, false)
       /** check if target vertex Id is included indexProps or seperate field */
-      val tgtVertexId = if (endAt == offset + len) {
-        defaultTgtVertexId
+      val (tgtVertexId, numOfBytesUsed) = if (endAt == offset + len) {
+        (defaultTgtVertexId, 0)
       } else {
         TargetVertexId.fromBytes(bytes, endAt, len, version)
       }
+      numOfBytesUsedTotal += numOfBytesUsed
       (props, tgtVertexId)
     }
-    EdgeQualifier(props, tgtVertexId, op)
+    (EdgeQualifier(props, tgtVertexId, op), numOfBytesUsedTotal)
   }
 }
 case class EdgeQualifier(props: Seq[(Byte, InnerValLike)],
                          tgtVertexId: VertexId,
                          op: Byte) extends EdgeQualifierLike {
-  import EdgeQualifier._
-  import HBaseDeserializable._
+  import HBaseType._
+  import HBaseSerializable._
   lazy val innerTgtVertexId = VertexId.toTargetVertexId(tgtVertexId)
   lazy val propsMap = props.toMap
   lazy val propsBytes = propsToBytes(props)
-  lazy val bytes: Array[Byte] = {
+  def bytes: Array[Byte] = {
         propsMap.get(toSeqByte) match {
           case None => Bytes.add(propsBytes, innerTgtVertexId.bytes)
           case Some(vId) => propsBytes

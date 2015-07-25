@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core.models
 
 import Model._
-import com.daumkakao.s2graph.core.types2.InnerVal
+import com.daumkakao.s2graph.core.types2.{HBaseType, InnerVal}
 import play.api.libs.json.Json
 
 /**
@@ -52,7 +52,7 @@ case class ServiceColumn(kvsParam: Map[KEY, VAL]) extends Model[ServiceColumn]("
 
   validate(columns, Seq("schemaVersion"))
 
-  val schemaVersion = kvs.get("schemaVersion").getOrElse(InnerVal.DEFAULT_VERSION).toString
+  val schemaVersion = kvs.get("schemaVersion").getOrElse(HBaseType.DEFAULT_VERSION).toString
   val id = Some(kvs("id").toString.toInt)
   val serviceId = kvs("serviceId").toString.toInt
   val columnName = kvs("columnName").toString
