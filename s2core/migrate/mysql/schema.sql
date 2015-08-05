@@ -150,6 +150,9 @@ CREATE TABLE `service_logic_buckets` (
   `request_params` varchar(255),
   `request_body` text,
   `request_header` varchar(255),
+  `impression_id` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_impression_id` (`impression_id`)
   INDEX `idx_service_experiment_id` (`service_experiment_id`),
+  INDEX `idx_impression_id` (`impression_id`),
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

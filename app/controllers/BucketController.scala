@@ -2,6 +2,7 @@ package controllers
 
 import com.daumkakao.s2graph.core.GraphUtil
 import com.daumkakao.s2graph.core.mysqls._
+import play.api.libs.json.Json
 import play.api.mvc.{Action, Controller}
 
 import scala.concurrent.Future
@@ -22,7 +23,7 @@ object BucketController extends Controller {
       bucket <- exp.bucketModMap.get(mod)
       response <- bucket.call(cookie)
     } yield {
-      Ok(response.body)
+      Ok(Json.obj("impressionId" -> bucket.impressionId, "results" -> response.body))
     }
   }
 }

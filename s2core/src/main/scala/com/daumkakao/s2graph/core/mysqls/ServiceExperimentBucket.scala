@@ -22,7 +22,8 @@ object ServiceExperimentBucket extends Model[ServiceExperimentBucket] {
     rs.string("api_path"),
     rs.stringOpt("request_params"),
     rs.stringOpt("request_body"),
-    rs.stringOpt("request_header"))
+    rs.stringOpt("request_header"),
+    rs.string("impression_id"))
   }
 
   def finds(serviceExperimentId: Int): List[ServiceExperimentBucket] = {
@@ -44,7 +45,8 @@ case class ServiceExperimentBucket(id: Option[Int],
                                     apiPath: String,
                                     requestParams: Option[String],
                                     requestBody: Option[String],
-                                    requestHeader: Option[String]) {
+                                    requestHeader: Option[String],
+                                    impressionId: String) {
 
   val cookieModLs = cookieMods.split(",").map { x => x.toInt }
   private def toSeq(sOpt: Option[String])(delimiter: String, innerDelimiter: String) = {
