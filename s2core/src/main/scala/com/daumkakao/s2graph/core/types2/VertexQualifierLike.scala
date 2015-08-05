@@ -27,4 +27,5 @@ trait VertexQualifierLike extends HBaseSerializable {
 
   val propKey: Int
   def bytes: Array[Byte]
+
 }

@@ -1,12 +1,8 @@
 package controllers
 
-import java.util.concurrent.TimeUnit
-
 import com.daumkakao.s2graph.core._
 
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
-import scala.util.Random
+import scala.concurrent.Future
 
 //import com.daumkakao.s2graph.core.models._
 
@@ -15,58 +11,23 @@ import play.api.Logger
 import play.api.libs.json.{JsObject, JsValue, Json}
 import play.api.mvc.{Action, Controller}
 
-import scala.concurrent.ExecutionContext.Implicits.global
-
 object AdminController extends Controller with RequestParser {
   /**
    * Management
    */
-  def warmUpInner(): Long = {
+  def loadCache() = Action { request =>
     val startTs = System.currentTimeMillis()
-    def timeElapsed() = System.currentTimeMillis() - startTs
 
-    Service.findAll()
-    ServiceColumn.findAll()
-    Label.findAll()
-    LabelMeta.findAll()
-    LabelIndex.findAll()
-    ColumnMeta.findAll()
-
-    Logger.info(s"query start")
-
-    val query1 = """ {"srcVertices":[{"serviceName":"talk_3rd_tab","columnName":"talk_user_id", "id":9410227}],"steps":[[{"label":"talk_friend_long_term_agg","direction":"out","offset":0,"limit":300,"scoring":{"score":1,"_timestamp":0}},{"label":"talk_3rd_tab_block","direction":"out","offset":0,"limit":100,"exclude":true}],[{"label": "talk_3rd_tab_like","direction":"out","offset":0,"limit":30}]]}  """
-    val query2 = """ {"srcVertices":[{"serviceName":"talk_3rd_tab","columnName":"talk_user_id","id":169411847}],"steps":[[{"label":"talk_friend_long_term_agg","direction":"out","offset":0,"limit":300,"scoring":{"score":1,"_timestamp":0}},{"label":"talk_3rd_tab_block","direction":"out","offset":0,"limit":100,"exclude":true}],[{"label":"talk_3rd_tab_like","direction":"out","offset":0,"limit":30}]]} """
-    val query3 = """ {"srcVertices":[{"serviceName":"kakaostory","columnName":"profile_id","ids":[65660695,52518350,53482175,68921330,71372434,52891890,42697491,24116197,54108362,66648693,22635568,68921330,60052312,72976756,33642081,45102779,62786599,46003816,57849639,26133825,4497097,60359770,24222929,71892788,70272489,59095164,25421798,22112977,13814590,32194371,21861285,67950112,65219587,32551393,54056293,54011860,7837026,30936312,65659859,31947078,53802286,72081911,55768373,21365239,47511539,54002603,28377885,16437985,59017673,1623772,60598255,71663202,6388145,53268221,54002603,68362659,43865963,72647027,71068920,25769244,16706997,36677771,39597780,26889008,68440446,21233115,62651426,51334055,42540591,68274266,47948176,65846523,38833161,73189243,63909308,31749988,46316220,6652728,45307242,51831124,66047440,51588095,16892711,48622597,33519830,48184709,59822730,71617645,49418049,71012408,58226587,59738903,73021597,14218219,54934491,46472435,12245561,55751365,14275836,69743448]}],"steps":[[{"label":"_s2graph_profile_id_talk_user_id","direction":"out","offset":0,"maxAttempt":10,"rpcTimeout":1000,"limit":1}]]}  """
-    val query4 = """ {"srcVertices":[{"serviceName":"talk_3rd_tab","columnName":"talk_user_id","id":22262097}],"steps":[[{"label":"talk_friend_long_term_agg","direction":"out","offset":0,"limit":300,"scoring":{"score":1,"_timestamp":0}},{"label":"talk_3rd_tab_block","direction":"out","offset":0,"limit":100,"exclude":true}],[{"label":"talk_3rd_tab_like","direction":"out","offset":0,"limit":30}]]} """
-    val query5 = """ {"srcVertices":[{"id":88326044371803393,"ids":null,"serviceName":"kakao","columnName":"service_user_id","props":null,"timestamp":null,"operation":null}],"steps":[[{"label":"_s2graph_service_user_id_talk_user_id","direction":"out","outputField":null,"offset":0,"limit":1,"interval":null,"duration":null,"scoring":null,"where":null}],[{"label":"talk_friend_long_term_agg","direction":"out","outputField":null,"offset":0,"limit":100,"interval":null,"duration":null,"scoring":{"_timestamp":0,"score":1},"where":"service_user_id != 0"}]]} """
-    val query6 = """ {"srcVertices":[{"id":90689769447474624,"ids":null,"serviceName":"kakao","columnName":"service_user_id","props":null,"timestamp":null,"operation":null}],"steps":[[{"label":"_s2graph_service_user_id_talk_user_id","direction":"out","outputField":null,"offset":0,"limit":1,"interval":null,"duration":null,"scoring":null,"where":null}],[{"label":"talk_friend_long_term_agg","direction":"out","outputField":null,"offset":0,"limit":100,"interval":null,"duration":null,"scoring":{"_timestamp":0,"score":1},"where":"service_user_id != 0"}]]} """
-    val query7 = """ {"srcVertices":[{"serviceName":"talk_3rd_tab","columnName":"talk_user_id","id":126113387}],"steps":[[{"label":"talk_friend_long_term_agg","direction":"out","offset":0,"limit":300,"scoring":{"score":1,"_timestamp":0}},{"label":"talk_3rd_tab_block","direction":"out","offset":0,"limit":100,"exclude":true}],[{"label":"talk_3rd_tab_like","direction":"out","offset":0,"limit":30}]]} """
-    val query8 = """ {"srcVertices":[{"serviceName":"kakaostory","columnName":"profile_id","ids":[42426758,34295179,13345730,21883859,51288751,9795440,33609145,23191680,30536138,70281916,71697556,25237698,42078481,8395515,970928,42641108,36910488,35516083,42411812,29042434,6592296,17020889,2963519,1479531,33956065,45536128,20577307,2932850,9816492,49689221,45491660,71950921,62480810,34545282,39143763,25732777,17174763,28835548,32777456,10688850,14241823,34544627,51676180]}],"steps":[[{"label":"_s2graph_profile_id_talk_user_id","direction":"out","offset":0,"maxAttempt":10,"rpcTimeout":1000,"limit":1}]]} """
-
-    val queries = Seq(query1, query2, query3, query4, query5, query6, query7, query8)
-    val rand = new Random()
-
-    while (timeElapsed() < 270000) {
-      val numOfFuture =
-        if (timeElapsed() < 60000) 4
-        else if (timeElapsed() < 120000) 3
-        else if (timeElapsed() < 180000) 2
-        else 1
-
-      val futures = (0 until numOfFuture).toList.map { _ =>
-        QueryController.getEdgesInner(Json.parse(queries(rand.nextInt(queries.size))))
-      }
-
-      Await.result(Future.sequence(futures), Duration(10000, TimeUnit.MILLISECONDS))
+    if (!ApplicationController.isHealthy) {
+      Service.findAll()
+      ServiceColumn.findAll()
+      Label.findAll()
+      LabelMeta.findAll()
+      LabelIndex.findAll()
+      ColumnMeta.findAll()
     }
 
-
-    val waitIdle = 30000
-
-    Logger.info(s"query complete, wait ${waitIdle}")
-    Thread.sleep(waitIdle)
-
-    timeElapsed()
+    Ok(s"${System.currentTimeMillis() - startTs}")
   }
 
   def getService(serviceName: String) = Action { request =>
@@ -147,19 +108,7 @@ object AdminController extends Controller with RequestParser {
     }
   }
 
-  def deleteVertexInner(serviceName: String, columnName: String) = {
-    for {
-      service <- Service.findByName(serviceName)
-      serviceColumn <- ServiceColumn.find(service.id.get, columnName)
-    } {
-      ServiceColumn.delete(serviceColumn.id.get)
-    }
-  }
 
-  def deleteVertex(serviceName: String, columnName: String) = Action { request =>
-    deleteVertexInner(serviceName, columnName)
-    Ok("deleted")
-  }
 
   def deleteLabel(labelName: String) = Action { request =>
     deleteLabelInner(labelName)
@@ -221,14 +170,14 @@ object AdminController extends Controller with RequestParser {
     Ok(s"${newProps.size} is added.")
   }
 
-  def createVertex() = Action(parse.json) { request =>
-    createVertexInner(request.body)
+  def createServiceColumn() = Action(parse.json) { request =>
+    createServiceColumnInner(request.body)
   }
 
-  def createVertexInner(jsValue: JsValue) = {
+  def createServiceColumnInner(jsValue: JsValue) = {
     try {
-      val (serviceName, columnName, columnType, props) = toVertexElements(jsValue)
-      Management.createVertex(serviceName, columnName, columnType, props)
+      val (serviceName, columnName, columnType, props) = toServiceColumnElements(jsValue)
+      Management.createServiceColumn(serviceName, columnName, columnType, props)
       Ok("Created\n")
     } catch {
       case e: Throwable =>
@@ -236,8 +185,20 @@ object AdminController extends Controller with RequestParser {
         BadRequest(s"$e")
     }
   }
+  def deleteServiceColumnInner(serviceName: String, columnName: String) = {
+    for {
+      service <- Service.findByName(serviceName)
+      serviceColumn <- ServiceColumn.find(service.id.get, columnName)
+    } {
+      ServiceColumn.delete(serviceColumn.id.get)
+    }
+  }
 
-  def getVertex(serviceName: String, columnName: String) = Action { request =>
+  def deleteServiceColumn(serviceName: String, columnName: String) = Action { request =>
+    deleteServiceColumnInner(serviceName, columnName)
+    Ok("deleted")
+  }
+  def getServiceColumn(serviceName: String, columnName: String) = Action { request =>
     val rets = for {
       service <- Service.findByName(serviceName)
       serviceColumn <- ServiceColumn.find(service.id.get, columnName, useCache = false)
@@ -250,7 +211,7 @@ object AdminController extends Controller with RequestParser {
     }
   }
 
-  private def addVertexPropInner(serviceName: String, columnName: String)(js: JsValue) = {
+  private def addServiceColumnPropInner(serviceName: String, columnName: String)(js: JsValue) = {
     val (propName, defaultValue, dataType, usedInIndex) = toPropElements(js)
     for {
       service <- Service.findByName(serviceName)
@@ -260,18 +221,18 @@ object AdminController extends Controller with RequestParser {
     }
   }
 
-  def addVertexProp(serviceName: String, columnName: String) = Action(parse.json) { request =>
-    addVertexPropInner(serviceName, columnName)(request.body) match {
+  def addServiceColumnProp(serviceName: String, columnName: String) = Action(parse.json) { request =>
+    addServiceColumnPropInner(serviceName, columnName)(request.body) match {
       case None => BadRequest(s"can`t find service with $serviceName or can`t find serviceColumn with $columnName")
       case Some(m) => Ok(s"$m")
     }
   }
 
-  def addVertexProps(serviecName: String, columnName: String) = Action(parse.json) { request =>
+  def addServiceColumnProps(serviecName: String, columnName: String) = Action(parse.json) { request =>
     val jsObjs = request.body.asOpt[List[JsObject]].getOrElse(List.empty[JsObject])
     val newProps = for {
       js <- jsObjs
-      newProp <- addVertexPropInner(serviecName, columnName)(js)
+      newProp <- addServiceColumnPropInner(serviecName, columnName)(js)
     } yield newProp
     Ok(s"${newProps.size} is added.")
   }

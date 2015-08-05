@@ -8,8 +8,6 @@ import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types2.{InnerVal, InnerValLike}
 import play.api.Logger
 import play.api.libs.json.{JsObject, JsValue, Json}
-
-import scala.collection.TraversableOnce
 import scala.collection.mutable.ListBuffer
 
 /**
@@ -24,7 +22,8 @@ object PostProcess extends JSONParser {
   val SCORE_FIELD_NAME = "scoreSum"
   val timeoutResults = Json.obj("size" -> 0, "results" -> Json.arr(), "isTimeout" -> true)
 
-  def groupEdgeResult(queryResultLs: Seq[QueryResult], excludeIds: Map[InnerValLike, Boolean] = Map.empty) = {
+  def groupEdgeResult(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]) = {
+    val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
     //    filterNot {case (edge, score) => edge.props.contains(LabelMeta.degreeSeq)}
     val groupedEdgesWithRank = (for {
       queryResult <- queryResultLs
@@ -62,30 +61,22 @@ object PostProcess extends JSONParser {
     }
   }
 
-  def sortWithFormatted[T](in: TraversableOnce[T], scoreField: Any = "scoreSum")(decrease: Boolean = true): JsObject = {
-    var sortedJsons =
-      in match {
-        case inTrav: TraversableOnce[JsObject] =>
-          in.toList.sortBy {
-            case v: JsObject if scoreField.isInstanceOf[String] => (v \ scoreField.asInstanceOf[String]).as[Double]
-          }
-        case inTrav: TraversableOnce[String] =>
-          in.toList.sortBy {
-            case v: String => v
-          }
-      }
-    if (decrease) sortedJsons = sortedJsons.reverse
+  def sortWithFormatted(jsons: Iterable[JsObject], scoreField: String = "scoreSum", queryResultLs: Seq[QueryResult], decrease: Boolean = true): JsObject = {
+    val ordering = if (decrease) -1 else 1
+    var sortedJsons = jsons.toList.sortBy { jsObject => (jsObject \ scoreField).as[Double] * ordering }
     queryLogger.debug(s"sortedJsons : $sortedJsons")
-    Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons.asInstanceOf[List[JsObject]])
+    if (queryResultLs.isEmpty) Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
+    else Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons,
+      "impressionId" -> queryResultLs.head.query.impressionId())
   }
 
-  def simple(queryResultLs: Seq[QueryResult]) = {
-    val ids = resultInnerIds(queryResultLs).map(_.toString)
-    val size = ids.size
-    queryLogger.info(s"Result: $size")
-    Json.obj("size" -> size, "results" -> ids)
-    //    sortWithFormatted(ids)(false)
-  }
+//  def simple(queryResultLs: Seq[QueryResult]) = {
+//    val ids = resultInnerIds(queryResultLs).map(_.toString)
+//    val size = ids.size
+//    queryLogger.info(s"Result: $size")
+//    Json.obj("size" -> size, "results" -> ids)
+//    //    sortWithFormatted(ids)(false)
+//  }
 
   def resultInnerIds(queryResultLs: Seq[QueryResult], isSrcVertex: Boolean = false) = {
     for {
@@ -97,58 +88,25 @@ object PostProcess extends JSONParser {
     }
   }
 
-  def summarizeWithListExcludeFormatted(exclude: Seq[QueryResult], queryResultLs: Seq[QueryResult]) = {
-    val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true)
-    val jsons = groupEdgeResult(queryResultLs, excludeIds.toMap)
-    val reverseSort = sortWithFormatted(jsons) _
-    reverseSort(true)
+  def summarizeWithListExcludeFormatted(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]) = {
+    val jsons = groupEdgeResult(queryResultLs, exclude)
+    sortWithFormatted(jsons, queryResultLs = queryResultLs, decrease = true)
   }
 
-  /**
-   * This method will be deprecated(because our response format will change by summarizeWithListExcludeFormatted functions' logic)
-   */
-  def summarizeWithListExclude(exclude: Seq[QueryResult],
-                               queryResultLs: Seq[QueryResult]): JsObject = {
-    val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
 
-
-    val groupedEdgesWithRank = (for {
-      queryResult <- queryResultLs
-      (edge, score) <- queryResult.edgeWithScoreLs if edge.propsWithTs.contains(LabelMeta.degreeSeq)
-    } yield {
-        (edge, score)
-      }).groupBy { case (edge, score) =>
-      (edge.label.tgtColumn, edge.label.srcColumn, edge.tgtVertex.innerId)
-    }
-
-    val jsons = for {
-      ((tgtColumn, srcColumn, target), edgesAndRanks) <- groupedEdgesWithRank if !excludeIds.contains(target)
-      (edges, ranks) = edgesAndRanks.groupBy(x => x._1.srcVertex).map(_._2.head).unzip
-      tgtId <- innerValToJsValue(target, tgtColumn.columnType)
-    } yield {
-        Json.obj(tgtColumn.columnName -> tgtId,
-          s"${srcColumn.columnName}s" ->
-            edges.flatMap(edge => innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType)), "scoreSum" -> ranks.sum)
-      }
-    val sortedJsons = jsons.toList.sortBy { jsObj => (jsObj \ "scoreSum").as[Double] }.reverse
-    Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
+  def summarizeWithList(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]) = {
+    val jsons = groupEdgeResult(queryResultLs, exclude)
+    sortWithFormatted(jsons, queryResultLs = queryResultLs)
   }
 
-  def summarizeWithList(edgesPerVertexWithRanks: Seq[QueryResult]) = {
-    val jsons = groupEdgeResult(edgesPerVertexWithRanks)
-    val reverseSort = sortWithFormatted(jsons) _
-    reverseSort(true)
+  def summarizeWithListFormatted(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]) = {
+    val jsons = groupEdgeResult(queryResultLs, exclude)
+    sortWithFormatted(jsons, queryResultLs = queryResultLs)
   }
 
-  def summarizeWithListFormatted(edgesPerVertexWithRanks: Seq[QueryResult]) = {
-    val jsons = groupEdgeResult(edgesPerVertexWithRanks)
-    val reverseSort = sortWithFormatted(jsons) _
-    reverseSort(true)
-  }
-
-  def noFormat(edgesPerVertex: Seq[Iterable[(Edge, Double)]]) = {
-    Json.obj("edges" -> edgesPerVertex.toString)
-  }
+//  def noFormat(edgesPerVertex: Seq[Iterable[(Edge, Double)]]) = {
+//    Json.obj("edges" -> edgesPerVertex.toString)
+//  }
 
   def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult]): JsValue = {
     toSimpleVertexArrJson(queryResultLs, Seq.empty[QueryResult])
@@ -161,6 +119,7 @@ object PostProcess extends JSONParser {
     val degreeJsons = ListBuffer[JsValue]()
     val degrees = ListBuffer[JsValue]()
     val edgeJsons = ListBuffer[JsValue]()
+
     if (queryResultLs.isEmpty) {
       Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr())
     } else {
@@ -200,7 +159,7 @@ object PostProcess extends JSONParser {
           }
 
         queryLogger.info(s"Result: ${results.size}")
-        Json.obj("size" -> results.size, "degrees" -> degrees, "results" -> results)
+        Json.obj("size" -> results.size, "degrees" -> degrees, "results" -> results, "impressionId" -> q.impressionId())
       } else {
         for {
           queryResult <- queryResultLs
@@ -244,10 +203,14 @@ object PostProcess extends JSONParser {
         val groupedJsons = for {
           (groupByKeyVals, jsVals) <- grouped
         } yield {
+            val scoreSum = jsVals.map { js => (js \ "score").asOpt[Double].getOrElse(0.0) }.sum
             Json.obj("groupBy" -> Json.toJson(groupByKeyVals.toMap),
+              "scoreSum" -> scoreSum,
               "agg" -> jsVals)
           }
-        Json.toJson(groupedJsons)
+
+        val groupedSortedJsons = groupedJsons.toList.sortBy { case jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
+        Json.obj("size" -> groupedJsons.size, "results" -> Json.toJson(groupedSortedJsons), "impressionId" -> q.impressionId())
       }
     }
   }
@@ -319,6 +282,7 @@ object PostProcess extends JSONParser {
             "label" -> queryParam.label.label,
             "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
             "_timestamp" -> edge.ts,
+            "timestamp" -> edge.ts,
             "score" -> score
           )
         } else {
@@ -329,6 +293,7 @@ object PostProcess extends JSONParser {
             "label" -> queryParam.label.label,
             "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
             "_timestamp" -> edge.ts,
+            "timestamp" -> edge.ts,
             "score" -> score,
             "props" -> propsMap
           )
@@ -343,49 +308,6 @@ object PostProcess extends JSONParser {
         }
         resultJson
 
-        //      if (queryParam.cacheTTLInMillis > 0) {
-        //        val obj = new mutable.HashMap[String, play.api.libs.json.Json.JsValueWrapper]()
-        //        obj += ("cacheRemain" -> (queryParam.cacheTTLInMillis - (queryResult.timestamp - queryParam.timestamp)))
-        //        if (q.selectColumnsSet.isEmpty || q.selectColumnsSet.contains(LabelMeta.from.name)) {
-        //          obj += ("from" -> from)
-        //        }
-        //        if (q.selectColumnsSet.isEmpty || q.selectColumnsSet.contains(LabelMeta.to.name)) {
-        //          obj += ("to" -> to)
-        //        }
-        //        if (q.selectColumnsSet.isEmpty || q.selectColumnsSet.contains("label")) {
-        //          obj += ("label" -> edge.label.label)
-        //        }
-        //        if (q.selectColumnsSet.isEmpty || q.selectColumnsSet.contains("direction")) {
-        //          obj += ("direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir))
-        //        }
-        //        if (q.selectColumnsSet.isEmpty || q.selectColumnsSet.contains("_timestamp")) {
-        //          obj += ("_timestamp" -> edge.ts)
-        //        }
-        //        if (q.selectColumnsSet.isEmpty || q.selectColumnsSet.contains("score")) {
-        //          obj += ("score" -> score)
-        //        }
-        //
-        //        Json.obj(
-        //          "cacheRemain" -> (queryParam.cacheTTLInMillis - (queryResult.timestamp - queryParam.timestamp)),
-        //          "from" -> from,
-        //          "to" -> to,
-        //          "label" -> edge.label.label,
-        //          "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
-        //          "_timestamp" -> edge.ts,
-        //          "props" -> propsToJson(edge, queryResult.query),
-        //          "score" -> score
-        //        )
-        //      } else {
-        //        Json.obj(
-        //          "from" -> from,
-        //          "to" -> to,
-        //          "label" -> edge.label.label,
-        //          "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
-        //          "_timestamp" -> edge.ts,
-        //          "props" -> propsToJson(edge, queryResult.query),
-        //          "score" -> score
-        //        )
-        //      }
       }
 
     json
@@ -421,28 +343,61 @@ object PostProcess extends JSONParser {
       }
     props.toMap
   }
+  @deprecated
+  def summarizeWithListExclude(exclude: Seq[QueryResult],
+                               queryResultLs: Seq[QueryResult]): JsObject = {
+    val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
 
-  def toSimpleJson(edges: Iterable[(Vertex, Double)]) = {
-    import play.api.libs.json.Json
 
-    val arr = Json.arr(edges.map { case (v, w) => Json.obj("vId" -> v.id.toString, "score" -> w) })
-    Json.obj("size" -> edges.size, "results" -> arr)
+    val groupedEdgesWithRank = (for {
+      queryResult <- queryResultLs
+      (edge, score) <- queryResult.edgeWithScoreLs if edge.propsWithTs.contains(LabelMeta.degreeSeq)
+    } yield {
+        (edge, score)
+      }).groupBy { case (edge, score) =>
+      (edge.label.tgtColumn, edge.label.srcColumn, edge.tgtVertex.innerId)
+    }
+
+    val jsons = for {
+      ((tgtColumn, srcColumn, target), edgesAndRanks) <- groupedEdgesWithRank if !excludeIds.contains(target)
+      (edges, ranks) = edgesAndRanks.groupBy(x => x._1.srcVertex).map(_._2.head).unzip
+      tgtId <- innerValToJsValue(target, tgtColumn.columnType)
+    } yield {
+        Json.obj(tgtColumn.columnName -> tgtId,
+          s"${srcColumn.columnName}s" ->
+            edges.flatMap(edge => innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType)), "scoreSum" -> ranks.sum)
+      }
+    val sortedJsons = jsons.toList.sortBy { jsObj => (jsObj \ "scoreSum").as[Double] }.reverse
+    if (queryResultLs.isEmpty) {
+      Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
+    } else {
+      Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons, "impressionId" -> queryResultLs.head.query.templateId())
+    }
+
   }
 
-  def sumUp(l: Iterable[(Vertex, Double)]) = {
-    l.groupBy(_._1).map { case (v, list) => (v, list.foldLeft(0.0) { case (sum, (vertex, r)) => sum + r }) }
-  }
 
-  // Assume : l,r are unique lists
-  def union(l: Iterable[(Vertex, Double)], r: Iterable[(Vertex, Double)]) = {
-    val ret = l.toList ::: r.toList
-    sumUp(ret)
-  }
-
-  // Assume : l,r are unique lists
-  def intersect(l: Iterable[(Vertex, Double)], r: Iterable[(Vertex, Double)]) = {
-    val ret = l.toList ::: r.toList
-    sumUp(ret.groupBy(_._1).filter(_._2.size > 1).map(_._2).flatten)
-  }
+  //  def toSimpleJson(edges: Iterable[(Vertex, Double)]) = {
+//    import play.api.libs.json.Json
+//
+//    val arr = Json.arr(edges.map { case (v, w) => Json.obj("vId" -> v.id.toString, "score" -> w) })
+//    Json.obj("size" -> edges.size, "results" -> arr)
+//  }
+//
+//  def sumUp(l: Iterable[(Vertex, Double)]) = {
+//    l.groupBy(_._1).map { case (v, list) => (v, list.foldLeft(0.0) { case (sum, (vertex, r)) => sum + r }) }
+//  }
+//
+//  // Assume : l,r are unique lists
+//  def union(l: Iterable[(Vertex, Double)], r: Iterable[(Vertex, Double)]) = {
+//    val ret = l.toList ::: r.toList
+//    sumUp(ret)
+//  }
+//
+//  // Assume : l,r are unique lists
+//  def intersect(l: Iterable[(Vertex, Double)], r: Iterable[(Vertex, Double)]) = {
+//    val ret = l.toList ::: r.toList
+//    sumUp(ret.groupBy(_._1).filter(_._2.size > 1).map(_._2).flatten)
+//  }
 
 }

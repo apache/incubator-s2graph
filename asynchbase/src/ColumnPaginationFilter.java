@@ -63,7 +63,7 @@ public final class ColumnPaginationFilter extends ScanFilter {
    * Initializes filter with a string/bookmark based offset and limit. The offset is arrived
    * at, by seeking to it using scanner hints. If multiple column families are involved,
    * pagination starts at the first column family which contains @columnOffset. Columns are
-   * then retrieved sequentially up to @limit number of columns which maybe spread across
+   * then retrieved sequentially upto @limit number of columns which maybe spread across
    * multiple column families, depending on how the scan is setup.
    *
    * Only supported with HBase 0.96 and greater.

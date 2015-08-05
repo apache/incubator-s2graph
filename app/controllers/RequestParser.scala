@@ -2,14 +2,13 @@ package controllers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
+import config.Config
 
 //import com.daumkakao.s2graph.core.models._
-
 import com.daumkakao.s2graph.core.parsers.WhereParser
 import com.daumkakao.s2graph.core.types2._
 import play.api.Logger
 import play.api.libs.json._
-import com.daumkakao.s2graph.rest.config.Config
 
 trait RequestParser extends JSONParser {
 
@@ -103,9 +102,19 @@ trait RequestParser extends JSONParser {
 
   val errorLogger = Logger("error")
 
-  def toQuery(jsValue: JsValue, isEdgeQuery: Boolean = true): Query = {
-    var debugLabel: Option[Label] = None
+  def toVertices(labelName: String, direction: String, ids: Seq[JsValue]): Seq[Vertex] = {
+    val vertices = for {
+      label <- Label.findByName(labelName).toSeq
+      serviceColumn = if (direction == "out") label.srcColumn else label.tgtColumn
+      id <- ids
+      innerId <- jsValueToInnerVal(id, serviceColumn.columnType, label.schemaVersion)
+    } yield {
+      Vertex(SourceVertexId(serviceColumn.id.get, innerId), System.currentTimeMillis())
+    }
+    vertices.toSeq
+  }
 
+  def toQuery(jsValue: JsValue, isEdgeQuery: Boolean = true): Query = {
     try {
       val vertices =
         (for {
@@ -116,16 +125,8 @@ trait RequestParser extends JSONParser {
           col <- ServiceColumn.find(service.id.get, column)
         } yield {
             val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
-            val idVals = (idOpt, idsOpt) match {
-              case (Some(id), None) => List(id)
-              case (None, Some(ids)) => ids
-              case (Some(id), Some(ids)) => id :: ids
-              case (None, None) => List.empty[JsValue]
-            }
-
             for {
-              idVal <- idVals
-
+              idVal <- idOpt ++ idsOpt.toSeq.flatten
               /** bug, need to use labels schemaVersion  */
               innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
             } yield {
@@ -133,8 +134,8 @@ trait RequestParser extends JSONParser {
             }
           }).flatten
 
+      val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v) }
       val steps = parse[List[JsValue]](jsValue, "steps")
-      val stepLength = steps.size
       val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
       val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
       val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
@@ -181,12 +182,12 @@ trait RequestParser extends JSONParser {
         }
 
       val ret = Query(vertices, querySteps, removeCycle = removeCycle,
-        selectColumns = selectColumns, groupByColumns = groupByColumns)
+        selectColumns = selectColumns, groupByColumns = groupByColumns, filterOutQuery = filterOutQuery)
       //          Logger.debug(ret.toString)
       ret
     } catch {
       case e: Throwable =>
-        errorLogger.error(s"$e, $debugLabel", e)
+        errorLogger.error(s"$e", e)
         throw new KGraphExceptions.BadQueryException(s"$jsValue", e)
     }
   }
@@ -214,7 +215,6 @@ trait RequestParser extends JSONParser {
       val exclude = parse[Option[Boolean]](labelGroup, "exclude").getOrElse(false)
       val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
       val hasFilter = extractHas(label, labelGroup)
-      val outputField = for (of <- (labelGroup \ "outputField").asOpt[String]; labelMeta <- LabelMeta.findByName(label.id.get, of)) yield labelMeta.seq
       val labelWithDir = LabelWithDirection(label.id.get, direction)
       val indexSeq = label.indexSeqsMap.get(scorings.map(kv => kv._1).toList).map(x => x.seq).getOrElse(LabelIndex.defaultSeq)
       val where = extractWhere(label, labelGroup)
@@ -234,6 +234,8 @@ trait RequestParser extends JSONParser {
       val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(0.0)
       // TODO: refactor this. dirty
       val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
+      val transformer = (labelGroup \ "transform").asOpt[JsValue]
+
       QueryParam(labelWithDir).labelOrderSeq(labelOrderSeq)
         .limit(offset, limit)
         .rank(RankParam(label.id.get, scorings))
@@ -243,7 +245,8 @@ trait RequestParser extends JSONParser {
         .duration(duration)
         .has(hasFilter)
         .labelOrderSeq(indexSeq)
-        .outputField(outputField)
+//        .outputField(outputField)
+//        .outputFields(outputFields)
         .where(where)
         .duplicatePolicy(duplicate)
         .includeDegree(includeDegree)
@@ -253,6 +256,7 @@ trait RequestParser extends JSONParser {
         .cacheTTLInMillis(cacheTTL)
         .timeDecay(timeDecayFactor)
         .threshold(threshold)
+        .transformer(transformer)
 //        .excludeBy(excludeBy)
     }
   }
@@ -380,7 +384,7 @@ trait RequestParser extends JSONParser {
     (serviceName, cluster, hTableName, preSplitSize, hTableTTL)
   }
 
-  def toVertexElements(jsValue: JsValue) = {
+  def toServiceColumnElements(jsValue: JsValue) = {
     val serviceName = parse[String](jsValue, "serviceName")
     val columnName = parse[String](jsValue, "columnName")
     val columnType = parse[String](jsValue, "columnType")

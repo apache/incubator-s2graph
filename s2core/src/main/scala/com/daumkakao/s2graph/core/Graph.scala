@@ -1,33 +1,28 @@
 package com.daumkakao.s2graph.core
 
 import java.util
-
 import com.daumkakao.s2graph.core.mysqls._
 import com.google.common.cache.CacheBuilder
-
+import scala.collection.JavaConverters._
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Success}
-
-//import com.daumkakao.s2graph.core.models._
-
 import java.util.ArrayList
-import java.util.concurrent.{ConcurrentHashMap, Executors, TimeUnit}
-
+import java.util.concurrent.{Executors}
 import com.daumkakao.s2graph.core.types2._
 import com.stumbleupon.async.{Callback, Deferred}
-import com.typesafe.config.Config
+import com.typesafe.config.{ConfigFactory, Config}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._
 import org.hbase.async._
 import play.api.Logger
-
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{HashMap, ListBuffer}
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.reflect.ClassTag
 
-object GraphConstant {
+
+object Graph {
 
   val vertexCf = "v".getBytes()
   val edgeCf = "e".getBytes()
@@ -39,62 +34,6 @@ object GraphConstant {
   val writeBufferSize = 1024 * 1024 * 2
 
   val maxValidEdgeListSize = 10000
-
-  //  implicit val ex = play.api.libs.concurrent.Execution.Implicits.defaultContext
-}
-
-object GraphConnection {
-  lazy val tablePool = Executors.newFixedThreadPool(1)
-  lazy val connectionPool = Executors.newFixedThreadPool(1)
-  val defaultConfigs = Map(
-    "hbase.zookeeper.quorum" -> "localhost",
-    "hbase.table.name" -> "s2graph",
-    "phase" -> "dev",
-    "async.hbase.client.flush.interval" -> 100.toShort)
-  var config: Config = null
-
-  def getOrElse[T: ClassTag](conf: com.typesafe.config.Config)(key: String, default: T): T = {
-    if (conf.hasPath(key)) (default match {
-      case _: String => conf.getString(key)
-      case _: Int | _: Integer => conf.getInt(key)
-      case _: Float | _: Double => conf.getDouble(key)
-      case _: Boolean => conf.getBoolean(key)
-      case _ => default
-    }).asInstanceOf[T]
-    else default
-  }
-
-  /**
-   * requred: hbase.zookeeper.quorum
-   * optional: all hbase. prefix configurations.
-   */
-  def toHBaseConfig(config: com.typesafe.config.Config) = {
-    val configVals = for ((k, v) <- defaultConfigs) yield {
-      val currentVal = getOrElse(config)(k, v)
-      Logger.debug(s"$k -> $currentVal")
-      k -> currentVal
-    }
-    val conf = HBaseConfiguration.create()
-    conf.set("hbase.zookeeper.quorum", configVals("hbase.zookeeper.quorum").toString)
-    for (entry <- config.entrySet() if entry.getKey().startsWith("hbase.")) {
-      val value = entry.getValue().unwrapped().toString
-      conf.set(entry.getKey(), value)
-    }
-    conf
-  }
-
-  def apply(config: Config) = {
-    this.config = config
-    val hbaseConfig = toHBaseConfig(config)
-    (hbaseConfig -> ConnectionFactory.createConnection(hbaseConfig))
-  }
-}
-
-object Graph {
-
-  import GraphConnection._
-  import GraphConstant._
-
   //  val Logger = Edge.Logger
   val conns = scala.collection.mutable.Map[String, Connection]()
   val clients = scala.collection.mutable.Map[String, HBaseClient]()
@@ -105,12 +44,25 @@ object Graph {
   //  var shouldReturnResults = true
   //  var shouldRunFetch = true
   //  var shouldRunFilter = true
+  val defaultConfigs: Map[String, AnyRef] = Map(
+    "hbase.zookeeper.quorum" -> "localhost",
+    "hbase.table.name" -> "s2graph",
+    "phase" -> "dev",
+    "async.hbase.client.flush.interval" -> java.lang.Short.valueOf(100.toShort),
+    "hbase.client.operation.timeout" -> java.lang.Integer.valueOf(1000),
+    "db.default.driver" -> "com.mysql.jdbc.Driver",
+    "db.default.url" -> "jdbc:mysql://localhost:3306/graph_dev",
+    "db.default.password" -> "graph",
+    "db.default.user" -> "graph",
+    "cache.max.size" -> java.lang.Integer.valueOf(100000),
+    "cache.ttl.seconds" -> java.lang.Integer.valueOf(60))
 
-  var executionContext: ExecutionContext = null
-  var config: com.typesafe.config.Config = null
-  var hbaseConfig: org.apache.hadoop.conf.Configuration = null
+  var config: Config = ConfigFactory.parseMap(defaultConfigs)
+  var executionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1))
+
+  var hbaseConfig: org.apache.hadoop.conf.Configuration = HBaseConfiguration.create()
   var storageExceptionCount = 0L
-  var singleGetTimeout = 10000 millis
+  var singleGetTimeout = 1000
   var clientFlushInterval = 100.toShort
   val defaultScore = 1.0
 
@@ -122,21 +74,44 @@ object Graph {
     .maximumSize(10000)
     .build[java.lang.Integer, Option[Vertex]]()
 
+  /**
+   * requred: hbase.zookeeper.quorum
+   * optional: all hbase. prefix configurations.
+   */
+  private def toHBaseConfig(config: com.typesafe.config.Config) = {
+    val conf = HBaseConfiguration.create()
+
+    for  {
+      (k, v) <- defaultConfigs if !config.hasPath(k)
+    } {
+      conf.set(k, v.toString())
+    }
+
+    for (entry <- config.entrySet() if entry.getKey().startsWith("hbase.")) {
+      conf.set(entry.getKey(), entry.getValue().unwrapped().toString)
+    }
+    conf
+  }
 
   //  implicit val ex = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(16))
   def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
-    this.config = config
-    val (hbaseConfig, conn) = GraphConnection.apply(config)
-    this.hbaseConfig = hbaseConfig
-    Model.apply(config)
+
+    this.config = config.withFallback(this.config)
+    this.hbaseConfig = toHBaseConfig(this.config)
+
+    Model.apply(this.config)
+
     this.executionContext = ex
-    this.singleGetTimeout = getOrElse(config)("hbase.client.operation.timeout", 1000 millis)
-    this.clientFlushInterval = getOrElse(config)("async.hbase.client.flush.interval", 100.toShort)
+    this.singleGetTimeout = this.config.getInt("hbase.client.operation.timeout")
+    this.clientFlushInterval = this.config.getInt("async.hbase.client.flush.interval").toShort
     val zkQuorum = hbaseConfig.get("hbase.zookeeper.quorum")
-    //    conns += (zkQuorum -> conn)
-    //    clients += (zkQuorum -> new HBaseClient(zkQuorum, "/hbase", Executors.newCachedThreadPool(), 8))
     clients += (zkQuorum -> getClient(zkQuorum, this.clientFlushInterval))
     ExceptionHandler.apply(config)
+    for {
+      (k, v) <- defaultConfigs
+    } {
+      Logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
+    }
     //
     //    this.shouldRunFromBytes = getOrElse(config)("should.run.from.bytes", true)
     //    this.shouldReturnResults = getOrElse(config)("should.return.results", true)
@@ -542,39 +517,27 @@ object Graph {
   }
 
 
-  def convertEdge(edge: Edge, labelOutputFields: Map[Int, Byte]): Option[Edge] = {
-    //    val outputField = labelOutputFields.get(edge.labelWithDir.labelId)
-    //    if (outputField == null) Option(edge)
-    //    else {
-    //      if (outputField == LabelMeta.toSeq) Option(edge)
-    //      else if (outputField == LabelMeta.fromSeq) Option(edge.updateTgtVertex(edge.srcVertex.innerId))
-    //      else {
-    //        edge.propsWithTs.get(outputField) match {
-    //          case None => None
-    //          case Some(propVal) => Option(edge.updateTgtVertex(propVal.innerVal))
-    //        }
-    //      }
-    //    }
-    labelOutputFields.get(edge.labelWithDir.labelId) match {
-      case None => Option(edge)
-      case Some(outputField) if outputField == LabelMeta.toSeq => Option(edge)
-      case Some(outputField) if outputField == LabelMeta.fromSeq => Option(edge.updateTgtVertex(edge.srcVertex.innerId))
-      case Some(outputField) =>
-        edge.propsWithTs.get(outputField) match {
-          case None => None
-          case Some(outputFieldVal) =>
-            Some(edge.updateTgtVertex(outputFieldVal.innerVal))
-        }
-    }
+  def convertEdges(queryParam: QueryParam, edge: Edge, nextStepOpt: Option[Step]): Seq[Edge] = {
+//  def convertEdges(edge: Edge, outputFields: Seq[LabelMeta]): Seq[Edge] = {
+    for {
+//      outputField <- outputFields
+//      convertedEdge <- convertEdge(edge, outputField)
+      convertedEdge <- queryParam.transformer.transform(edge, nextStepOpt)
+    } yield convertedEdge
   }
+//  def convertEdge(edge: Edge, outputField: LabelMeta): Option[Edge] = {
+//    outputField.seq match {
+//      case LabelMeta.toSeq => Option(edge)
+//      case LabelMeta.fromSeq => Option(edge.updateTgtVertex(edge.srcVertex.innerId))
+//      case _ =>
+//        edge.propsWithTs.get(outputField.seq) match {
+//          case None => None
+//          case Some(outputFieldVal) =>
+//            Some(edge.updateTgtVertex(outputFieldVal.innerVal))
+//        }
+//    }
+//  }
 
-  //  def elapsed[T](prefix: String)(op: => T): T = {
-  //    val started = System.nanoTime()
-  //    val ret = op
-  //    val duration = System.nanoTime() - started
-  //    Logger.info(s"[ELAPSED]\t$prefix\t$duration")
-  //    ret
-  //  }
   type HashKey = (Int, Int, Int, Int)
   type FilterHashKey = (Int, Int)
 
@@ -586,15 +549,6 @@ object Graph {
     (hashKey, filterHashKey)
   }
 
-  def edgeWithScoreWithDuplicatePolicy(duplicateEdges: ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]],
-                                       hashKey: HashKey, edge: Edge, score: Double) = {
-    if (duplicateEdges.containsKey(hashKey)) {
-      duplicateEdges.get(hashKey)
-    } else {
-      Seq((edge -> score))
-    }
-  }
-
   def filterEdges(queryResultLsFuture: Future[ArrayList[QueryResult]],
                   q: Query,
                   stepIdx: Int,
@@ -603,10 +557,12 @@ object Graph {
     implicit val ex = Graph.executionContext
     queryResultLsFuture.map { queryResultLs =>
       val step = q.steps(stepIdx)
-      val labelOutputFields = step.queryParams.map { qParam =>
-        qParam.outputField.map(outputField => qParam.labelWithDir.labelId -> outputField)
-          .getOrElse(qParam.labelWithDir.labelId -> LabelMeta.toSeq)
-      }.toMap
+
+      val nextStepOpt = if (stepIdx < q.steps.size - 1) Option(q.steps(stepIdx + 1)) else None
+
+//      val labelOutputFields = step.queryParams.map { qParam =>
+//        qParam.labelWithDir.labelId -> qParam.outputFields
+//      }.toMap
 
       val excludeLabelWithDirSet = step.queryParams.filter(_.exclude).map(l => l.labelWithDir.labelId -> l.labelWithDir.dir).toSet
       val includeLabelWithDirSet = step.queryParams.filter(_.include).map(l => l.labelWithDir.labelId -> l.labelWithDir.dir).toSet
@@ -621,10 +577,12 @@ object Graph {
       } yield {
           val duplicateEdges = new util.concurrent.ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]]()
           val resultEdgeWithScores = new util.concurrent.ConcurrentHashMap[HashKey, (HashKey, FilterHashKey, Edge, Double)]()
-
+          val labelWeight = step.labelWeights.get(queryResult.queryParam.labelWithDir.labelId).getOrElse(1.0)
           for {
             (edge, score) <- queryResult.edgeWithScoreLs
-            convertedEdge <- convertEdge(edge, labelOutputFields)
+//            outputFields <- labelOutputFields.get(edge.labelWithDir.labelId)
+            convertedEdge <- convertEdges(queryResult.queryParam, edge, nextStepOpt)
+//            convertedEdge <- convertEdges(edge, labelOutputFields(edge.labelWithDir.labelId))
             (hashKey, filterHashKey) = toHashKey(queryResult.queryParam, convertedEdge)
           } {
             /** check if this edge should be exlcuded. */
@@ -644,7 +602,7 @@ object Graph {
                   timeDecay.decay(timeDiff)
               }
 
-              val newScore = score * tsVal
+              val newScore = labelWeight * score * tsVal
 
               /** aggregate score into result. note that this is only aggregate in queryParam scope */
               if (resultEdgeWithScores.containsKey(hashKey)) {
@@ -680,7 +638,7 @@ object Graph {
         val edgesWithScores = for {
           (hashKey, filterHashKey, edge, score) <- resultEdgeWithScores.values
           if edgesToInclude.containsKey(filterHashKey) || !edgesToExclude.containsKey(filterHashKey)
-          (duplicateEdge, aggregatedScore) <- edgeWithScoreWithDuplicatePolicy(duplicateEdges, hashKey, edge, score)
+          (duplicateEdge, aggregatedScore) <- (edge -> score) +: (if (duplicateEdges.containsKey(hashKey)) duplicateEdges.get(hashKey) else Seq.empty)
           if aggregatedScore >= queryResult.queryParam.threshold
         } yield (duplicateEdge, aggregatedScore)
 
@@ -730,9 +688,9 @@ object Graph {
     val futures = vertices.map { vertex =>
       val client = getClient(vertex.hbaseZkAddr)
       val get = vertex.buildGet
-      get.setRpcTimeout(this.singleGetTimeout.toMillis.toShort)
+      get.setRpcTimeout(this.singleGetTimeout.toShort)
       get.setFailfast(true)
-      
+
       val cacheKey = MurmurHash3.stringHash(get.toString)
       //FIXME
       val cacheTTL = 10000
@@ -769,7 +727,9 @@ object Graph {
 
   def mutateVertex(vertex: Vertex): Future[Boolean] = {
     implicit val ex = this.executionContext
-    if (vertex.op == GraphUtil.operations("delete") || vertex.op == GraphUtil.operations("deleteAll")) {
+    if (vertex.op == GraphUtil.operations("delete")) {
+      deleteVertex(vertex)
+    } else if (vertex.op == GraphUtil.operations("deleteAll")) {
       //      throw new RuntimeException("Not yet supported")
       deleteVerticesAll(List(vertex)).onComplete {
         case Success(s) => Logger.info(s"mutateVertex($vertex) for deleteAll successed.")
@@ -829,7 +789,7 @@ object Graph {
     }
   }
 
-  def deleteVerticesAllAsync(srcVertices: List[Vertex], labels: Seq[Label], dir: Int): Future[Boolean] = {
+  def deleteVerticesAllAsync(srcVertices: List[Vertex], labels: Seq[Label], dir: Int, ts: Option[Long]=None): Future[Boolean] = {
     implicit val ex = Graph.executionContext
 
     val queryParams = for {
@@ -841,29 +801,20 @@ object Graph {
 
     val step = Step(queryParams.toList)
     val q = Query(srcVertices, List(step), true)
+
     for {
       queryResultLs <- getEdgesAsync(q)
-      invertedFutures = for {
+      edges = for {
         queryResult <- queryResultLs
         (edge, score) <- queryResult.edgeWithScoreLs
       } yield {
-          val now = System.currentTimeMillis()
-          val convertedEdge = if (dir == GraphUtil.directions("out")) {
-            Edge(edge.srcVertex, edge.tgtVertex, edge.labelWithDir, edge.op, edge.ts, now, edge.propsWithTs)
-          } else {
-            Edge(edge.tgtVertex, edge.srcVertex, edge.labelWithDir, edge.op, edge.ts, now, edge.propsWithTs)
-          }
-          Logger.debug(s"ConvertedEdge: $convertedEdge")
-          for {
-            rets <- writeAsync(edge.label.hbaseZkAddr, Seq(convertedEdge).map { e =>
-              e.buildDeleteBulk()
-            })
-          } yield {
-            rets.forall(identity)
-          }
-        }
-      ret <- Future.sequence(invertedFutures).map { rets => rets.forall(identity) }
-    } yield ret
+        val timestamp = ts.getOrElse(System.currentTimeMillis())
+        Edge(edge.srcVertex, edge.tgtVertex, edge.labelWithDir, GraphUtil.operations("delete"), timestamp, timestamp, edge.propsWithTs)
+      }
+      ret <- mutateEdges(edges)
+    } yield {
+      ret.foldLeft(true){(a,b) => a && b}
+    }
   }
 
 

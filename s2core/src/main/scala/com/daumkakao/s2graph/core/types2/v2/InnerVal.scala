@@ -176,4 +176,11 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
     }
   }
 
+  override def toIdString(): String = {
+    value match {
+      case n: BigDecimal => n.bigDecimal.longValue().toString()
+      case _ => value.toString
+    }
+  }
+
 }

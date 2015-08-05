@@ -49,14 +49,13 @@ object VertexDegreeBuilder extends SparkApp with WithKafka {
     val outputPath = args(3)
     val edgeAutoCreate = args(4).toBoolean
 
-    val conf = sparkConf(s"$hdfsPath: GraphSubscriber")
+    val conf = sparkConf(s"$hdfsPath: VertexDegreeBuilder")
     val sc = new SparkContext(conf)
     val mapAcc = sc.accumulable(mutable.HashMap.empty[String, Long], "counter")(HashMapParam[String, Long](_ + _))
 
     /** this job expect only one hTableName. all labels in this job will be stored in same physical hbase table */
     try {
 
-      import GraphSubscriberHelper._
       // set local driver setting.
       val phase = System.getProperty("phase")
       GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")

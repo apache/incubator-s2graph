@@ -12,8 +12,8 @@ import com.daumkakao.s2graph.core.types2._
 import play.api.Logger
 import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.util.Bytes
-import GraphConstant._
 import org.hbase.async.{GetRequest, ScanFilter, ColumnRangeFilter}
+import Graph.{edgeCf}
 
 object Query {
   val initialScore = 1.0
@@ -36,6 +36,7 @@ object Query {
       }
     }
   }
+
 }
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
@@ -43,8 +44,10 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  unique: Boolean = true,
                  removeCycle: Boolean = false,
                  selectColumns: Seq[String] = Seq.empty[String],
-                 groupByColumns: Seq[String] = Seq.empty[String]) {
-  lazy val selectColumnsSet = selectColumns.map{ c =>
+                 groupByColumns: Seq[String] = Seq.empty[String],
+                 filterOutQuery: Option[Query] = None) {
+
+  lazy val selectColumnsSet = selectColumns.map { c =>
     if (c == "_from") "from"
     else if (c == "_to") "to"
     else c
@@ -64,30 +67,97 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
 
       }).toMap
   }
+
   /** return logical query id without considering parameter values */
   def templateId(): JsValue = {
     Json.toJson(for {
       step <- steps
       queryParam <- step.queryParams.sortBy(_.labelWithDir.labelId)
     } yield {
-      Json.obj("label" -> queryParam.label.label, "direction" -> GraphUtil.fromDirection(queryParam.labelWithDir.dir))
-    })
+        Json.obj("label" -> queryParam.label.label, "direction" -> GraphUtil.fromDirection(queryParam.labelWithDir.dir))
+      })
   }
+
   def impressionId(): Int = {
+
     val hash = MurmurHash3.stringHash(templateId().toString())
 
     hash
   }
 }
 
+object EdgeTransformer {
+  val defaultJson = Json.arr(Json.arr("_to"))
+}
+
+/**
+ * TODO: step wise outputFields should be used with nextStepLimit, nextStepThreshold.
+ * @param jsValue
+ */
+case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
+  val delimiter = "\\$"
+
+  def replace(fmt: String,
+              values: List[InnerValLike],
+              nextStepOpt: Option[Step]): Seq[InnerValLike] = {
+    val tokens = fmt.split(delimiter)
+    val mergedStr = tokens.zip(values).map { case (prefix, innerVal) => prefix + innerVal.toString }.mkString
+//    Logger.error(s"${tokens.toList}, ${values}, $mergedStr")
+    val nextQueryParams = nextStepOpt.map(_.queryParams).getOrElse(Seq(queryParam)).filter { qParam =>
+      if (qParam.labelWithDir.dir == GraphUtil.directions("out")) qParam.label.tgtColumnType == "string"
+      else qParam.label.srcColumnType == "string"
+    }
+    for {
+      nextQueryParam <- nextQueryParams
+    } yield {
+      InnerVal.withStr(mergedStr, nextQueryParam.label.schemaVersion)
+    }
+  }
+
+  def toInnerValOpt(edge: Edge, fieldName: String): Option[InnerValLike] = {
+    fieldName match {
+      case LabelMeta.to.name => Option(edge.tgtVertex.innerId)
+      case LabelMeta.from.name => Option(edge.srcVertex.innerId)
+      case _ =>
+//        val columnType =
+//          if (queryParam.labelWithDir.dir == GraphUtil.directions("out")) queryParam.label.tgtColumnType
+//          else queryParam.label.srcColumnType
+        for {
+          labelMeta <- queryParam.label.metaPropsInvMap.get(fieldName)
+//          if labelMeta.dataType == columnType
+          value <- edge.propsWithTs.get(labelMeta.seq)
+        } yield value.innerVal
+    }
+  }
+
+  def transform(edge: Edge, nextStepOpt: Option[Step]): Seq[Edge] = {
+    val edges = for {
+      eachOutputFields <- jsValue.asOpt[List[JsValue]].getOrElse(Nil)
+      fields = eachOutputFields.as[List[String]]
+      innerVal <- {
+        if (fields.size == 1) {
+          val fieldName = fields.head
+          toInnerValOpt(edge, fieldName).toSeq
+        } else {
+          val fmt :: fieldNames = fields
+          replace(fmt, fieldNames.flatMap(fieldName => toInnerValOpt(edge, fieldName)), nextStepOpt)
+        }
+      }
+    } yield edge.updateTgtVertex(innerVal)
+//    Logger.debug(s"[Transformer]: $edge -> $edges")
+    edges
+  }
+}
+
 case class Step(queryParams: List[QueryParam],
                 labelWeights: Map[Int, Double] = Map.empty,
-//                scoreThreshold: Double = 0.0,
+                //                scoreThreshold: Double = 0.0,
                 nextStepScoreThreshold: Double = 0.0,
                 nextStepLimit: Int = -1) {
   lazy val excludes = queryParams.filter(qp => qp.exclude)
   lazy val includes = queryParams.filterNot(qp => qp.exclude)
   lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
+
   Logger.debug(s"Step: $queryParams, $labelWeights, $nextStepScoreThreshold, $nextStepLimit")
 }
 
@@ -117,6 +187,7 @@ object RankParam {
 class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Seq.empty[(Byte, Double)]) {
   // empty => Count
   lazy val rankKeysWeightsMap = keySeqAndWeights.toMap
+
   def defaultKey() = {
     this.keySeqAndWeights = List((LabelMeta.countSeq, 1.0))
     this
@@ -141,6 +212,7 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
 object QueryParam {
   lazy val empty = QueryParam(LabelWithDirection(0, 0))
 }
+
 case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System.currentTimeMillis()) {
 
   import Query.DuplicatePolicy._
@@ -153,7 +225,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   var labelOrderSeq = fullKey
 
-  var outputField: Option[Byte] = None
+//  var outputFields: Seq[LabelMeta] = Seq(LabelMeta.to)
   //  var start = OrderProps.empty
   //  var end = OrderProps.empty
   var limit = 10
@@ -183,9 +255,10 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var includeDegree = false
   var tgtVertexInnerIdOpt: Option[InnerValLike] = None
   var cacheTTLInMillis: Long = -1L
-  var threshold = 0.0
+  var threshold = -1.0
   var timeDecay: Option[TimeDecay] = None
-  var excludeBy: Option[String] = None
+  var transformer: EdgeTransformer = EdgeTransformer(this, EdgeTransformer.defaultJson)
+  //  var excludeBy: Option[String] = None
 
   val srcColumnWithDir = label.srcColumnWithDir(labelWithDir.dir)
   val tgtColumnWithDir = label.tgtColumnWithDir(labelWithDir.dir)
@@ -228,9 +301,11 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     val len = label.indicesMap(labelOrderSeq).sortKeyTypes.size.toByte
 
     val minMetaByte = InnerVal.minMetaByte
-    val maxMetaByte = InnerVal.maxMetaByte
+    //    val maxMetaByte = InnerVal.maxMetaByte
+    val maxMetaByte = -1.toByte
     val toVal = Bytes.add(propsToBytes(to), Array.fill(1)(minMetaByte))
-    val fromVal = Bytes.add(propsToBytes(from), Array.fill(1)(maxMetaByte))
+    //FIXME
+    val fromVal = Bytes.add(propsToBytes(from), Array.fill(10)(maxMetaByte))
     toVal(0) = len
     fromVal(0) = len
     val maxBytes = fromVal
@@ -270,10 +345,10 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this
   }
 
-  def outputField(ofOpt: Option[Byte]): QueryParam = {
-    this.outputField = ofOpt
-    this
-  }
+//  def outputFields(ofs: Seq[LabelMeta] = Seq(LabelMeta.to)): QueryParam = {
+//    this.outputFields = ofs
+//    this
+//  }
 
   def has(hasFilters: Map[Byte, InnerValLike]): QueryParam = {
     this.hasFilters = hasFilters
@@ -309,25 +384,37 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this.tgtVertexInnerIdOpt = other
     this
   }
+
   def cacheTTLInMillis(other: Long): QueryParam = {
     this.cacheTTLInMillis = other
     this
   }
+
   def timeDecay(other: Option[TimeDecay]): QueryParam = {
     this.timeDecay = other
     this
   }
+
   def threshold(other: Double): QueryParam = {
     this.threshold = other
     this
   }
-  def excludeBy(other: Option[String]): QueryParam = {
-    this.excludeBy = other
+
+  def transformer(other: Option[JsValue]): QueryParam = {
+    other match {
+      case Some(js) => this.transformer = EdgeTransformer(this, js)
+      case None =>
+    }
     this
   }
+  //  def excludeBy(other: Option[String]): QueryParam = {
+  //    this.excludeBy = other
+  //    this
+  //  }
   override def toString(): String = {
     List(label.label, labelOrderSeq, offset, limit, rank, isRowKeyOnly,
-      duration, isInverted, exclude, include, hasFilters, outputField).mkString("\t")
+      duration, isInverted, exclude, include, hasFilters).mkString("\t")
+//      duration, isInverted, exclude, include, hasFilters, outputFields).mkString("\t")
   }
 
 
@@ -336,7 +423,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
       if (labelWithDir.dir == GraphUtil.directions("in") && label.isDirected) (label.tgtColumn, label.srcColumn)
       else (label.srcColumn, label.tgtColumn)
     val (srcInnerId, tgtInnerId) =
-      //FIXME
+    //FIXME
       if (labelWithDir.dir == GraphUtil.directions("in") && tgtVertexInnerIdOpt.isDefined && label.isDirected) {
         // need to be swap src, tgt
         val tgtVertexInnerId = tgtVertexInnerIdOpt.get
@@ -352,11 +439,11 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
     val edge = Edge(srcV, tgtV, labelWithDir)
 
-    val get =  if (tgtVertexInnerIdOpt.isDefined) {
+    val get = if (tgtVertexInnerIdOpt.isDefined) {
       val snapshotEdge = edge.toInvertedEdgeHashLike()
       new GetRequest(label.hbaseTableName.getBytes, snapshotEdge.rowKey.bytes, edgeCf, snapshotEdge.qualifier.bytes)
     } else {
-      val indexedEdgeOpt =  edge.edgesWithIndex.find(e => e.labelIndexSeq == labelOrderSeq)
+      val indexedEdgeOpt = edge.edgesWithIndex.find(e => e.labelIndexSeq == labelOrderSeq)
       assert(indexedEdgeOpt.isDefined)
       val indexedEdge = indexedEdgeOpt.get
       new GetRequest(label.hbaseTableName.getBytes, indexedEdge.rowKey.bytes, edgeCf)
@@ -385,7 +472,7 @@ case class TimeDecay(initial: Double = 1.0, lambda: Double = 0.1, timeUnit: Doub
   def decay(diff: Double): Double = {
     //FIXME
     val ret = initial * Math.pow((1.0 - lambda), diff / timeUnit)
-//    Logger.debug(s"$initial, $lambda, $timeUnit, $diff, ${diff / timeUnit}, $ret")
+    //    Logger.debug(s"$initial, $lambda, $timeUnit, $diff, ${diff / timeUnit}, $ret")
     ret
   }
 }

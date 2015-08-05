@@ -17,6 +17,7 @@ PUT    /health_check/:isHealthy                                                c
 POST   /graphs/edges/insert                                                    controllers.EdgeController.inserts()
 POST   /graphs/edges/insertBulk                                                controllers.EdgeController.insertsBulk()
 POST   /graphs/edges/delete                                                    controllers.EdgeController.deletes()
+POST   /graphs/edges/deleteAll                                                 controllers.EdgeController.deleteAll()
 POST   /graphs/edges/update                                                    controllers.EdgeController.updates()
 POST   /graphs/edges/increment                                                 controllers.EdgeController.increments()
 POST   /graphs/edges/bulk                                                      controllers.EdgeController.mutateBulk()
@@ -57,19 +58,20 @@ POST   /graphs/createLabel                                                     c
 POST   /graphs/addIndex                                                        controllers.AdminController.addIndex()
 GET    /graphs/getLabel/:labelName                                             controllers.AdminController.getLabel(labelName)
 PUT    /graphs/deleteLabel/:labelName                                          controllers.AdminController.deleteLabel(labelName)
-PUT    /graphs/deleteVertex/:serviceName/:columnName                                  controllers.AdminController.deleteVertex(serviceName, columnName)
+
 POST   /graphs/addProp/:labelName                                              controllers.AdminController.addProp(labelName)
 POST   /graphs/addProps/:labelName                                             controllers.AdminController.addProps(labelName)
-POST   /graphs/createVertex                                                    controllers.AdminController.createVertex()
-POST   /graphs/addVertexProp/:serviceName/:columnName                          controllers.AdminController.addVertexProp(serviceName, columnName)
-POST   /graphs/addVertexProps/:serviceName/:columnName                         controllers.AdminController.addVertexProps(serviceName, columnName)
-GET    /graphs/getVertex/:serviceName/:columnName                              controllers.AdminController.getVertex(serviceName, columnName)
+POST   /graphs/createServiceColumn                                             controllers.AdminController.createServiceColumn()
+PUT    /graphs/deleteServiceColumn/:serviceName/:columnName                    controllers.AdminController.deleteServiceColumn(serviceName, columnName)
+POST   /graphs/addServiceColumnProp/:serviceName/:columnName                   controllers.AdminController.addServiceColumnProp(serviceName, columnName)
+POST   /graphs/addServiceColumnProps/:serviceName/:columnName                  controllers.AdminController.addServiceColumnProps(serviceName, columnName)
+GET    /graphs/getServiceColumn/:serviceName/:columnName                       controllers.AdminController.getServiceColumn(serviceName, columnName)
 
 
 #### TEST
-GET    /graphs/testGetEdges/:label/:limit/:friendCntStep                       controllers.QueryController.testGetEdges(label, limit: Int, friendCntStep: Int)
-GET    /graphs/testGetEdges2/:label1/:limit1/:label2/:limit2                   controllers.QueryController.testGetEdges2(label1, limit1: Int, label2, limit2: Int)
-GET    /graphs/testGetEdges3/:label1/:limit1/:label2/:limit2/:label3/:limit3   controllers.QueryController.testGetEdges3(label1, limit1: Int, label2, limit2: Int, label3, limit3: Int)
+#GET    /graphs/testGetEdges/:label/:limit/:friendCntStep                       controllers.QueryController.testGetEdges(label, limit: Int, friendCntStep: Int)
+#GET    /graphs/testGetEdges2/:label1/:limit1/:label2/:limit2                   controllers.QueryController.testGetEdges2(label1, limit1: Int, label2, limit2: Int)
+#GET    /graphs/testGetEdges3/:label1/:limit1/:label2/:limit2/:label3/:limit3   controllers.QueryController.testGetEdges3(label1, limit1: Int, label2, limit2: Int, label3, limit3: Int)
 POST   /ping                                                                   controllers.TestController.ping()
 POST   /pingAsync                                                              controllers.TestController.pingAsync()
 GET    /graphs/testId                                                          controllers.TestController.getRandomId()
@@ -82,9 +84,6 @@ GET    /font-awesome-4.1.0/*file                                               c
 GET    /swagger/*file                                                          controllers.Assets.at(path="/public/swagger-ui", file)
 
 
-
-
-
 # AdminController API
 #GET    /admin/services                                                         controllers.AdminController.allServices
 GET    /admin/labels/:serviceName                                              controllers.AdminController.getLabels(serviceName)
@@ -95,3 +94,4 @@ GET    /admin/labels/:serviceName                                              c
 #POST        /admin/getEdges                                                              controllers.AdminController.getEdges()
 POST        /graphs/copyLabel/:oldLabelName/:newLabelName                                controllers.AdminController.copyLabel(oldLabelName, newLabelName)
 POST   /graphs/renameLabel/:oldLabelName/:newLabelName                         controllers.AdminController.renameLabel(oldLabelName, newLabelName)
+PUT   /graphs/loadCache                                                        controllers.AdminController.loadCache()

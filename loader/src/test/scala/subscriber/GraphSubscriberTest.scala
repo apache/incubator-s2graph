@@ -27,6 +27,7 @@ class GraphSubscriberTest extends FunSuite with Matchers with WithKafka {
 
   test("GraphSubscriberHelper.store") {
     // actually we need to delete labelToReplace first for each test.
+    val labelMapping = Map(testLabelName -> labelToReplace)
     Management.copyLabel(testLabelName, labelToReplace, Some(hTableName))
 
 //
@@ -38,7 +39,7 @@ class GraphSubscriberTest extends FunSuite with Matchers with WithKafka {
 //      }).toSeq
     val msgs = testStrings
 
-    val stat = GraphSubscriberHelper.store(msgs, Some(labelToReplace))(None)
+    val stat = GraphSubscriberHelper.storeBulk(zkQuorum, hTableName)(msgs, labelMapping = labelMapping, autoCreateEdge = false)(None)
     println(stat)
   }
 }

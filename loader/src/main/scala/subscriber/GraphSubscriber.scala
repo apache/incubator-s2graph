@@ -1,14 +1,12 @@
 package subscriber
 
 
-import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.Graph
+import com.daumkakao.s2graph.core.{Graph, _}
 import com.typesafe.config.{Config, ConfigFactory}
 import kafka.javaapi.producer.Producer
 import kafka.producer.KeyedMessage
-import org.apache.hadoop.hbase.{TableName, HBaseConfiguration}
+import org.apache.hadoop.hbase.TableName
 import org.apache.hadoop.hbase.client._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.{Accumulable, SparkContext}
 import s2.spark.{HashMapParam, SparkApp, WithKafka}
 
@@ -21,48 +19,13 @@ object GraphConfig {
   var zkQuorum = ""
   var kafkaBrokers = ""
 
-  def apply(phase: String, dbUrl: Option[String], zkAddr: Option[String], kafkaBrokerList: Option[String]) = {
+  def apply(phase: String, dbUrl: Option[String], zkAddr: Option[String], kafkaBrokerList: Option[String]): Config = {
     database = dbUrl.getOrElse("jdbc:mysql://localhost:3306/graph")
     zkQuorum = zkAddr.getOrElse("localhost")
     kafkaBrokers = kafkaBrokerList.getOrElse("localhost:9092")
-    val s = s"""
-               |logger.root=ERROR
-               |
-               |# hbase
-               |hbase.zookeeper.quorum="$zkQuorum"
-                                                   |# Logger used by the framework:
-                                                   |logger.play=INFO
-                                                   |
-                                                   |# Logger provided to your application:
-                                                   |logger.application=DEBUG
-                                                   |
-                                                   |# APP PHASE
-                                                   |phase=dev
-                                                   |
-                                                   |# DB
-                                                   |db.default.driver=com.mysql.jdbc.Driver
-                                                   |db.default.url="$database"
-                                                                               |db.default.user=graph
-                                                                               |db.default.password=graph
-                                                                               |
-                                                                               |# Query server
-                                                                               |is.query.server=true
-                                                                               |is.write.server=true
-                                                                               |
-                                                                               |# Local Cache
-                                                                               |cache.ttl.seconds=60
-                                                                               |cache.max.size=100000
-                                                                               |
-                                                                               |# HBASE
-                                                                               |hbase.client.operation.timeout=60000
-                                                                               |
-                                                                               |# Kafka
-                                                                               |kafka.metadata.broker.list="$kafkaBrokers"
-                                                                                                                           |kafka.producer.pool.size=0
-                                                                                                                           | """.stripMargin
-
-    println(s)
-    ConfigFactory.parseString(s)
+    val newConf = Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database,
+      "kafka.metadata.broker.list" -> kafkaBrokers)
+    ConfigFactory.parseMap(newConf).withFallback(Graph.config)
   }
 }
 
@@ -163,7 +126,6 @@ object GraphSubscriberHelper extends WithKafka {
       (vertexId, labelName, direction, degreeVal) <- degrees
       incrementRequests <- Edge.buildIncrementDegreeBulk(vertexId, labelName, direction, degreeVal)
     } {
-      incrementRequests.foreach { put => put.setDurability(Durability.ASYNC_WAL) }
       storeRec(zkQuorum, tableName, incrementRequests, degrees.size, maxTryNum)(statFunc, "degree")
     }
     counts
@@ -240,10 +202,10 @@ object GraphSubscriber extends SparkApp with WithKafka {
      * Main function
      */
     println(args.toList)
-    if (args.length != 10) {
-      System.err.println(usages)
-      System.exit(1)
-    }
+//    if (args.length != 10) {
+//      System.err.println(usages)
+//      System.exit(1)
+//    }
     val hdfsPath = args(0)
     val dbUrl = args(1)
     val labelMapping = GraphSubscriberHelper.toLabelMapping(args(2))
@@ -254,7 +216,7 @@ object GraphSubscriber extends SparkApp with WithKafka {
     val kafkaBrokerList = args(6)
     val kafkaTopic = args(7)
     val edgeAutoCreate = args(8).toBoolean
-    val vertexDegreePath = args(9)
+    val vertexDegreePathOpt = if (args.length >= 10) GraphSubscriberHelper.toOption(args(9)) else None
 
     val conf = sparkConf(s"$hdfsPath: GraphSubscriber")
     val sc = new SparkContext(conf)
@@ -283,38 +245,40 @@ object GraphSubscriber extends SparkApp with WithKafka {
         }
       }
 
-      val msgs = sc.textFile(hdfsPath)
-      val vertexDegrees = sc.textFile(vertexDegreePath).filter(line => line.split("\t").length == 4).map { line =>
-        val tokens = line.split("\t")
-        (tokens(0), tokens(1), tokens(2), tokens(3).toInt)
-      }
-      vertexDegrees.foreachPartition { partition =>
+      vertexDegreePathOpt.foreach { vertexDegreePath =>
+        val vertexDegrees = sc.textFile(vertexDegreePath).filter(line => line.split("\t").length == 4).map { line =>
+          val tokens = line.split("\t")
+          (tokens(0), tokens(1), tokens(2), tokens(3).toInt)
+        }
+        vertexDegrees.foreachPartition { partition =>
 
-        // init Graph
-        val phase = System.getProperty("phase")
-        GraphSubscriberHelper.apply(phase, dbUrl, zkQuorum, kafkaBrokerList)
+          // init Graph
+          val phase = System.getProperty("phase")
+          GraphSubscriberHelper.apply(phase, dbUrl, zkQuorum, kafkaBrokerList)
 
-        partition.grouped(batchSize).foreach { msgs =>
-          try {
-            val start = System.currentTimeMillis()
-            val counts = GraphSubscriberHelper.storeDegreeBulk(zkQuorum, hTableName)(msgs, labelMapping)(Some(mapAcc))
-            for ((k, v) <- counts) {
-              mapAcc +=(k, v)
-            }
-            val duration = System.currentTimeMillis() - start
-            println(s"[Success]: store, $mapAcc, $duration, $zkQuorum, $hTableName")
-          } catch {
-            case e: Throwable =>
-              println(s"[Failed]: store $e")
-
-              msgs.foreach { msg =>
-                GraphSubscriberHelper.report(msg.toString(), Some(e.getMessage()), topic = kafkaTopic)
+          partition.grouped(batchSize).foreach { msgs =>
+            try {
+              val start = System.currentTimeMillis()
+              val counts = GraphSubscriberHelper.storeDegreeBulk(zkQuorum, hTableName)(msgs, labelMapping)(Some(mapAcc))
+              for ((k, v) <- counts) {
+                mapAcc +=(k, v)
               }
+              val duration = System.currentTimeMillis() - start
+              println(s"[Success]: store, $mapAcc, $duration, $zkQuorum, $hTableName")
+            } catch {
+              case e: Throwable =>
+                println(s"[Failed]: store $e")
+
+                msgs.foreach { msg =>
+                  GraphSubscriberHelper.report(msg.toString(), Some(e.getMessage()), topic = kafkaTopic)
+                }
+            }
           }
         }
       }
 
 
+      val msgs = sc.textFile(hdfsPath)
       msgs.foreachPartition(partition => {
         // set executor setting.
         val phase = System.getProperty("phase")

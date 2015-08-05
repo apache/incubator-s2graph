@@ -2,46 +2,13 @@ package com.daumkakao.s2graph.core.models
 
 import java.util.concurrent.TimeUnit
 
-import com.daumkakao.s2graph.core.{GraphConnection, Graph}
 import com.google.common.cache.CacheBuilder
-import com.typesafe.config.Config
 import org.apache.hadoop.hbase.client.Result
-import play.api.Logger
-
-//import scalikejdbc.{AutoSession, DBSession, ConnectionPool, ConnectionPoolSettings}
 
 /**
  * Created by shon on 5/16/15.
  */
-//object Model {
-//
-//  val defaultConfigs = Map("db.default.driver" -> "com.mysql.jdbc.Driver",
-//    "db.default.url" -> "jdbc:mysql://localhost:3306/graph_dev",
-//    "db.default.password" -> "graph",
-//    "db.default.user" -> "graph")
-//
-//  var settings: ConnectionPoolSettings = null
-//  var maxSize = 10000
-//  var ttl = 5
-//  val logger = Graph.logger
-//  def apply(config: Config) = {
-//    val configVals = for ((k, v) <- defaultConfigs) yield {
-//      logger.debug(s"initializing db connection: $k, $v")
-//      val currentVal = GraphConnection.getOrElse(config)(k, v)
-//      k -> currentVal
-//    }
-//
-//    maxSize = GraphConnection.getOrElse(config)("cache.max.size", 10000)
-//    ttl = GraphConnection.getOrElse(config)("cache.ttl.seconds", 120)
-//
-//    Class.forName(configVals("db.default.driver"))
-//
-//    settings = ConnectionPoolSettings(initialSize = 1, maxSize = 5,
-//      connectionTimeoutMillis = 60000L, validationQuery = "select 1;")
-//
-//    ConnectionPool.singleton(configVals("db.default.url"), configVals("db.default.user"), configVals("db.default.password"), settings)
-//  }
-//}
+
 trait LocalCache[V <: Result] {
   protected lazy val ttl = Model.cacheTTL
   protected lazy val maxSize = Model.maxCacheSize

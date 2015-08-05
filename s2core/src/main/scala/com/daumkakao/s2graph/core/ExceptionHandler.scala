@@ -19,7 +19,7 @@ object ExceptionHandler {
   var properties: Option[Properties] = None
   val numOfRoutees = 1
   val actorSystem = ActorSystem("ExceptionHandler")
-  var routees: ActorRef = _
+  var routees: Option[ActorRef] = None
   var shutdownTime = 1000 millis
   var phase = "dev"
   lazy val failTopic = s"mutateFailed_${phase}"
@@ -29,8 +29,9 @@ object ExceptionHandler {
     phase = if (config.hasPath("phase")) config.getString("phase") else "dev"
     producer = for {
       props <- properties
+      p <- try { Option(new KafkaProducer[Key, Val](props)) } catch { case e: Throwable => None }
     } yield {
-        new KafkaProducer[Key, Val](props)
+        p
       }
     init()
   }
@@ -43,12 +44,12 @@ object ExceptionHandler {
     for {
       p <- producer
     } {
-      routees = actorSystem.actorOf(RoundRobinPool(numOfRoutees).props(props(p)))
+      routees = Option(actorSystem.actorOf(RoundRobinPool(numOfRoutees).props(props(p))))
     }
   }
 
   def shutdown() = {
-    routees ! Broadcast(PoisonPill)
+    routees.map ( _ ! Broadcast(PoisonPill) )
     Thread.sleep(shutdownTime.length)
   }
 
@@ -57,7 +58,7 @@ object ExceptionHandler {
   }
 
   def enqueue(msg: KafkaMessage) = {
-    routees ! msg
+    routees.map ( _ ! msg )
   }
 
 

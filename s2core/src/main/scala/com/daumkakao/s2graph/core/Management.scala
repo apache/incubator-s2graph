@@ -120,7 +120,7 @@ object Management extends JSONParser {
     }
   }
 
-  def createVertex(serviceName: String,
+  def createServiceColumn(serviceName: String,
                    columnName: String,
                    columnType: String,
                    props: Seq[(String, JsValue, String)],
@@ -137,7 +137,7 @@ object Management extends JSONParser {
         }
     }
   }
-  def deleteVertex(serviceName: String, columnName: String, schemaVersion: String = DEFAULT_VERSION) = {
+  def deleteColumn(serviceName: String, columnName: String, schemaVersion: String = DEFAULT_VERSION) = {
     for {
       service <- Service.findByName(serviceName, useCache = false)
       serviceColumn <- ServiceColumn.find(service.id.get, columnName, useCache = false)
@@ -204,7 +204,9 @@ object Management extends JSONParser {
     } yield {
         ColumnMeta.findOrInsert(serviceColumn.id.get, propsName, propsType)
       }
-    result.getOrElse(throw new RuntimeException(s"add property on vertex failed"))
+    result.getOrElse({
+      throw new RuntimeException(s"add property on vertex failed")
+    })
   }
 
   def getServiceLable(label: String): Option[Label] = {

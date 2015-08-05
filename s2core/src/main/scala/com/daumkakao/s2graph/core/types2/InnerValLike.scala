@@ -63,34 +63,6 @@ object InnerVal extends HBaseDeserializable {
     new SimplePositionedMutableByteRange(byteLen + 4)
   }
 
-  def dataTypeOfNumber(num: BigDecimal) = {
-    if (num.isValidByte | num.isValidChar) BYTE
-    else if (num.isValidShort) SHORT
-    else if (num.isValidInt) INT
-    else if (num.isValidLong) LONG
-    else if (num.isValidFloat) FLOAT
-    else if (num.isValidDouble) DOUBLE
-    else throw new RuntimeException("innerVal data type is numeric but can`t find type")
-  }
-
-
-  /** this part could be unnecessary but can not figure out how to JsNumber not to
-    * print out scientific string
-    * @param num
-    * @return
-    */
-  def scaleNumber(num: BigDecimal, dataType: String) = {
-    dataType match {
-      case BYTE => BigDecimal(num.bigDecimal.byteValue())
-      case SHORT => BigDecimal(num.bigDecimal.shortValue())
-      case INT => BigDecimal(num.bigDecimal.intValue())
-      case LONG => BigDecimal(num.bigDecimal.longValue())
-      case FLOAT => BigDecimal(num.bigDecimal.floatValue())
-      case DOUBLE => BigDecimal(num.bigDecimal.doubleValue())
-      case _ => throw new RuntimeException(s"InnerVal.scaleNumber failed. $num, $dataType")
-    }
-  }
-
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -120,7 +92,7 @@ object InnerVal extends HBaseDeserializable {
 
   def withFloat(f: Float, version: String): InnerValLike = {
     version match {
-      case VERSION2 => v2.InnerVal(BigDecimal(f))
+      case VERSION2 => v2.InnerVal(BigDecimal(f.toDouble))
       case VERSION1 => v1.InnerVal(Some(f.toLong), None, None)
       case _ => throw notSupportedEx(version)
     }
@@ -236,6 +208,8 @@ trait InnerValLike extends HBaseSerializable {
     }
   }
   def hashKey(dataType: String): Int = ???
+
+  def toIdString(): String = ???
 //  {
 //    import InnerVal._
 //    schemaVersion match {

@@ -37,7 +37,8 @@ class VertexId protected (val colId: Int, val innerId: InnerValLike) extends HBa
   val storeHash: Boolean = true
   val storeColId: Boolean = true
   lazy val hashBytes =
-    if (storeHash) Bytes.toBytes(GraphUtil.murmur3(innerId.toString))
+//    if (storeHash) Bytes.toBytes(GraphUtil.murmur3(innerId.toString))
+    if (storeHash) Bytes.toBytes(GraphUtil.murmur3(innerId.toIdString()))
     else Array.empty[Byte]
 
   lazy val colIdBytes: Array[Byte] =

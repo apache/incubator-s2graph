@@ -1,15 +1,13 @@
 package controllers
 
 
-import com.codahale.metrics.Meter
 import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.rest.actors.KafkaAggregatorActor
+import config.Config
 
 //import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.types2.{LabelWithDirection, VertexId}
-import com.daumkakao.s2graph.rest.config.{Config, Instrumented}
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, Controller, Result}
@@ -17,26 +15,14 @@ import util.TestDataLoader
 
 import scala.concurrent._
 
-object QueryController extends Controller with RequestParser with Instrumented {
-
-  //  import play.api.libs.concurrent.Execution.Implicits._
-  //  implicit val ex = ApplicationController.globalExecutionContext
+object QueryController extends Controller with RequestParser {
 
   import ApplicationController._
-
-  //  implicit val ex = ApplicationController.globalExecutionContext
-
   import play.api.libs.concurrent.Execution.Implicits.defaultContext
-
-  //  implicit val context = Akka.system.dispatchers.lookup("akka.actor.multiget-context")
   /**
    * only for test
    */
-  private val queryInTopic = s"s2graphQueryIn_${Config.PHASE}"
-  private val queryUseMultithread = true
-  private val buildResultJson = true
-  private val maxLength = 64 * 1024 + 255 + 2 + 1
-  private val emptyResult = Seq(Seq.empty[(Edge, Double)])
+
   private def badQueryExceptionResults = Future.successful(BadRequest("""{"message": "Bad Request"}""").as(applicationJsonHeader))
   private def errorResults = Future.successful(Ok(s"${PostProcess.timeoutResults}\n").as(applicationJsonHeader))
   /**
@@ -57,10 +43,10 @@ object QueryController extends Controller with RequestParser with Instrumented {
     getEdgesExcludedInner(request.body)
   }
 
-  private def getEdgesAsync(jsonQuery: JsValue)(post: (Seq[QueryResult]) => JsValue): Future[Result] = {
+  private def getEdgesAsync(jsonQuery: JsValue)
+                           (post: (Seq[QueryResult], Seq[QueryResult]) => JsValue): Future[Result] = {
     try {
       val queryTemplateId = (jsonQuery \ "steps").toString()
-      //      getOrElseUpdateMetric(queryTemplateId)(metricRegistry.meter(queryTemplateId)).mark()
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
       Logger.info(s"$jsonQuery")
@@ -68,12 +54,22 @@ object QueryController extends Controller with RequestParser with Instrumented {
 //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
       Logger.info(s"${q.templateId()}")
 
-
-      val future = Graph.getEdgesAsync(q)
-      future map { queryParamEdgeWithScoreLs =>
-        val json = post(queryParamEdgeWithScoreLs)
+      val filterOutQueryResultsLs = q.filterOutQuery match {
+        case Some(filterOutQuery) => Graph.getEdgesAsync(filterOutQuery)
+        case None => Future.successful(Seq.empty)
+      }
+      for {
+        queryResultsLs <- Graph.getEdgesAsync(q)
+        filterOutResultsLs <- filterOutQueryResultsLs
+      } yield {
+        val json = post(queryResultsLs, filterOutResultsLs)
         Ok(json).as(applicationJsonHeader)
       }
+//      val future = Graph.getEdgesAsync(q)
+//      future map { queryParamEdgeWithScoreLs =>
+//        val json = post(queryParamEdgeWithScoreLs)
+//        Ok(json).as(applicationJsonHeader)
+//      }
     } catch {
       case e: KGraphExceptions.BadQueryException =>
         errorLogger.error(s"$jsonQuery, $e", e)
@@ -103,7 +99,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
       val mineQ = Query(q.vertices, List(q.steps.last))
 
       for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
-        val json = post(mine, others)
+        val json = post(others, mine)
         Ok(json).as(applicationJsonHeader)
       }
     } catch {
@@ -134,12 +130,12 @@ object QueryController extends Controller with RequestParser with Instrumented {
   }
 
 
-  @deprecated
+  @deprecated(message = "deprecated", since = "0.2")
   def getEdgesGrouped() = withHeaderAsync(parse.json) { request =>
     getEdgesAsync(request.body)(PostProcess.summarizeWithList)
   }
 
-  @deprecated
+  @deprecated(message = "deprecated", since = "0.2")
   def getEdgesGroupedExcluded() = withHeaderAsync(parse.json) { request =>
     val jsonQuery = request.body
     try {
@@ -152,7 +148,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
       Logger.debug(s"${q.templateId()}")
 
       for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
-        val json = PostProcess.summarizeWithListExclude(mine, others)
+        val json = PostProcess.summarizeWithListExclude(others, mine)
         Ok(json).as(applicationJsonHeader)
       }
     } catch {
@@ -166,7 +162,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
     }
   }
 
-  @deprecated
+  @deprecated(message = "deprecated", since = "0.2")
   def getEdgesGroupedExcludedFormatted() = withHeaderAsync(parse.json) { request =>
     val jsonQuery = request.body
     try {
@@ -179,7 +175,7 @@ object QueryController extends Controller with RequestParser with Instrumented {
       Logger.debug(s"${q.templateId()}")
 
       for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
-        val json = PostProcess.summarizeWithListExcludeFormatted(mine, others)
+        val json = PostProcess.summarizeWithListExcludeFormatted(others, mine)
         Ok(json).as(applicationJsonHeader)
       }
     } catch {
@@ -229,8 +225,6 @@ object QueryController extends Controller with RequestParser with Instrumented {
             (Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)),
               Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)), 0)
           }
-
-
 
           Logger.debug(s"SrcVertex: $src")
           Logger.debug(s"TgtVertex: $tgt")
@@ -285,72 +279,4 @@ object QueryController extends Controller with RequestParser with Instrumented {
     }
   }
 
-  /**
-   * Only for test
-   */
-  def testGetEdges(label: String, limit: Int, friendCntStep: Int) = withHeaderAsync { request =>
-    val rId = if (friendCntStep < 0) Some(TestDataLoader.randomId) else TestDataLoader.randomId(friendCntStep)
-    if (rId.isEmpty) Future {
-      NotFound.as(applicationJsonHeader)
-    }
-    else {
-      val id = rId.get
-      val l = Label.findByName(label).get
-      val srcColumnName = l.srcColumn.columnName
-      val srcServiceName = Service.findById(l.srcServiceId).serviceName
-      val queryJson = s"""
-    {
-    "srcVertices": [{"serviceName": "$srcServiceName", "columnName": "$srcColumnName", "id":$id}],
-    "steps": [
-      [{"label": "$label", "direction": "out", "limit": $limit}]
-    ]
-  }
-  """
-      val json = Json.parse(queryJson)
-      getEdgesAsync(json)(PostProcess.simple)
-    }
-  }
-
-  def testGetEdges2(label1: String, limit1: Int, label2: String, limit2: Int) = withHeaderAsync { request =>
-    val id = TestDataLoader.randomId.toString
-    val l = Label.findByName(label1).get
-    val srcColumnName = l.srcColumn.columnName
-    val srcServiceName = Service.findById(l.srcServiceId).serviceName
-    val queryJson = s"""
-    {
-    "srcVertices": [{"serviceName": "$srcServiceName", "columnName": "$srcColumnName", "id":$id}],
-    "steps": [
-      [{"label": "$label1", "direction": "out", "limit": $limit1}],
-      [{"label": "$label2", "direction": "out", "limit": $limit2}]
-    ]
-  }
-  """
-    val json = Json.parse(queryJson)
-    getEdgesAsync(json)(PostProcess.simple)
-  }
-
-  def testGetEdges3(label1: String, limit1: Int, label2: String, limit2: Int, label3: String, limit3: Int) = withHeaderAsync { request =>
-    val id = TestDataLoader.randomId.toString
-    val l = Label.findByName(label1).get
-    val srcColumnName = l.srcColumn.columnName
-    val srcServiceName = Service.findById(l.srcServiceId).serviceName
-    val queryJson = s"""
-    {
-    "srcVertices": [{"serviceName": "$srcServiceName", "columnName": "$srcColumnName", "id":$id}],
-    "steps": [
-      [{"label": "$label1", "direction": "out", "limit": $limit1}],
-      [{"label": "$label2", "direction": "out", "limit": $limit2}],
-      [{"label": "$label3", "direction": "out", "limit": $limit3}]
-    ]
-  }
-  """
-    val json = Json.parse(queryJson)
-    getEdgesAsync(json)(PostProcess.simple)
-  }
-
-  def ping() = withHeaderAsync { requst =>
-    Future {
-      Ok("Pong\n")
-    }
-  }
 }

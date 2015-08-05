@@ -1,11 +1,10 @@
 
 import java.util.concurrent.Executors
 
-import com.daumkakao.s2graph.core.{ExceptionHandler, Graph}
 import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.rest.actors._
-import com.daumkakao.s2graph.rest.config.Config
-import controllers.{AdminController, ApplicationController}
+import com.daumkakao.s2graph.core.{ExceptionHandler, Graph}
+import config.Config
+import controllers.ApplicationController
 import play.api.mvc.{WithFilters, _}
 import play.api.{Application, Logger}
 import play.filters.gzip.GzipFilter
@@ -19,7 +18,7 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
     ApplicationController.isHealthy = false
 
     if (Config.IS_WRITE_SERVER && Config.KAFKA_PRODUCER_POOL_SIZE > 0) {
-      KafkaAggregatorActor.init()
+      ExceptionHandler.init()
     }
 
     val numOfThread = Config.conf.getInt("async.thread.size").getOrElse(Runtime.getRuntime.availableProcessors())
@@ -29,11 +28,6 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
 
     Logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
 
-    if (Config.PHASE == "query") {
-      val duration = AdminController.warmUpInner()
-      Logger.info(s"warmUp took: $duration")
-    }
-
     Service.findAll()
     ServiceColumn.findAll()
     Label.findAll()
@@ -41,14 +35,15 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
     LabelIndex.findAll()
     ColumnMeta.findAll()
 
-    ApplicationController.isHealthy = true
+    val defaultHealthOn = Config.conf.getBoolean("app.health.on").getOrElse(true)
+    ApplicationController.isHealthy = defaultHealthOn
   }
 
   override def onStop(app: Application) {
     if (Config.IS_WRITE_SERVER && Config.KAFKA_PRODUCER_POOL_SIZE > 0) {
-      KafkaAggregatorActor.shutdown()
+      ExceptionHandler.shutdown()
     }
-    ExceptionHandler.shutdown()
+
 
     /**
      * shutdown hbase client for flush buffers.

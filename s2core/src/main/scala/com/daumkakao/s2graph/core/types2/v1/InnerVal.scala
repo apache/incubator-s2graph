@@ -220,4 +220,7 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
   override def hashKey(dataType: String): Int = {
     value.toString.hashCode()
   }
+  override def toIdString(): String = {
+    value.toString
+  }
 }

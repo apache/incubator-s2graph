@@ -1,23 +1,18 @@
 package controllers
 
-import java.util.concurrent.TimeUnit
 
+import config.Config
 import play.api.mvc.{Action, Controller, Result, Request, BodyParser, AnyContent}
 import play.api.Logger
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
-import com.daumkakao.s2graph.rest.actors._
-import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
-import com.codahale.metrics.Timer
 
-object ApplicationController extends Controller with Instrumented {
+object ApplicationController extends Controller {
 
   var isHealthy = true
   val useKeepAlive = Config.USE_KEEP_ALIVE
   var connectionOption = CONNECTION -> "Keep-Alive"
   var keepAliveOption = "Keep-Alive" -> "timeout=5, max=100"
-
-  reporter.start(60, TimeUnit.SECONDS)
 
   def updateHealthCheck(isHealthy: Boolean) = Action { request =>
     this.isHealthy = isHealthy
@@ -29,11 +24,10 @@ object ApplicationController extends Controller with Instrumented {
     else NotFound.withHeaders(CONNECTION -> "close")
   }
 
-
   def toLogMessage[A](request: Request[A], result: Result)(startedAt: Long): String = {
     val duration = System.currentTimeMillis() - startedAt
     val key = s"${request.method} ${request.uri} ${result.header.status.toString}"
-//    val ctx = getOrElseUpdateMetric[Timer](key)(metricRegistry.timer(key)).time()
+
     try {
       if (!Config.IS_WRITE_SERVER) {
         s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${request.body}"
@@ -41,7 +35,7 @@ object ApplicationController extends Controller with Instrumented {
         s"${request.method} ${request.uri} took ${duration} ms ${result.header.status}"
       }
     } finally {
-//      ctx.stop()
+      //      ctx.stop()
     }
   }
 

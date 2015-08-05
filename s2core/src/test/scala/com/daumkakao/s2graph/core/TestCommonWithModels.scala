@@ -62,10 +62,7 @@ trait TestCommonWithModels {
   val hTableTTL = None
 
 
-  val config = ConfigFactory.parseString(
-    s"""hbase.zookeeper.quorum=$zkQuorum
-       |db.default.url="jdbc:mysql://nuk151.kr2.iwilab.com:13306/graph_alpha"
-     """.stripMargin)
+  val config = ConfigFactory.parseString("")
   Graph(config)(ExecutionContext.Implicits.global)
   Model(config)
 //  HBaseModel(zkQuorum)

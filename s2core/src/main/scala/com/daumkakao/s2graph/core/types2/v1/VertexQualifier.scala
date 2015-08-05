@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core.types2.v1
 
 import com.daumkakao.s2graph.core.types2._
+import org.apache.hadoop.hbase.util.Bytes
 
 /**
  * Created by shon on 6/10/15.
@@ -11,10 +12,22 @@ object VertexQualifier extends HBaseDeserializable {
                 offset: Int,
                 len: Int,
                 version: String = VERSION1): (VertexQualifier, Int) = {
-    (VertexQualifier(bytes(offset).toInt), 1)
+    val (propKey, numOfBytesUsed) = if (len == 1) {
+      (bytes(offset).toInt, 1)
+    } else {
+      (Bytes.toInt(bytes, offset, 4), 4)
+    }
+    (VertexQualifier(propKey), numOfBytesUsed)
+//    (VertexQualifier(bytes(offset).toInt), 1)
   }
 }
 case class VertexQualifier(propKey: Int) extends VertexQualifierLike {
-  assert(propKey <= Byte.MaxValue)
-  def bytes: Array[Byte] = Array[Byte](propKey.toByte)
+//  assert(propKey <= Byte.MaxValue)
+  def bytes: Array[Byte] = {
+    if (propKey <= Byte.MaxValue) {
+      Array[Byte](propKey.toByte)
+    } else {
+      Bytes.toBytes(propKey)
+    }
+  }
 }
