@@ -1,9 +1,10 @@
 package com.daumkakao.s2graph.core
 
 
-// import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.KGraphExceptions.LabelNotExistException
+import com.daumkakao.s2graph.core.mysqls._
 
-import com.daumkakao.s2graph.core.models._
+//import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2._
 import play.api.Logger
@@ -24,6 +25,7 @@ import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
  */
 object Management extends JSONParser {
 
+  import HBaseType._
   val hardLimit = 10000
   val defaultLimit = 100
 
@@ -45,7 +47,47 @@ object Management extends JSONParser {
       //      service.deleteAll()
     }
   }
+  /**
+   * label
+   */
+  /**
+   * copy label when if oldLabel exist and newLabel do not exist.
+   * copy label: only used by bulk load job. not sure if we need to parameterize hbase cluster.
+   */
+  def copyLabel(oldLabelName: String, newLabelName: String, hTableName: Option[String]) = {
+    Label.findByName(oldLabelName) match {
+      case Some(old) =>
+        Label.findByName(newLabelName) match {
+          case None =>
+            val idxSeqs = (LabelIndex.findByLabelIdAll(old.id.get).flatMap { idx =>
+              idx.metaSeqs
+            }).toSet
+            val (indexProps, metaProps) = old.metaPropsInvMap.partition { case (name, meta) => idxSeqs.contains(meta.seq) }
 
+            val idxPropsSeq = for {
+              (name, meta) <- indexProps
+            } yield {
+                (name, meta.defaultValue, meta.dataType)
+              }
+            val metaPropsSeq = for {
+              (name, meta) <- metaProps
+            } yield {
+                (name, meta.defaultValue, meta.dataType)
+              }
+
+            createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
+              old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
+              old.isDirected, old.serviceName,
+              idxPropsSeq.toSeq,
+              metaPropsSeq.toSeq,
+              old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync)
+
+          case Some(_) =>
+//            throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
+        }
+      case None => throw new LabelNotExistException(s"Original label $oldLabelName does not exist.")
+    }
+  }
   def createLabel(label: String,
                   srcServiceName: String,
                   srcColumnName: String,
@@ -55,12 +97,13 @@ object Management extends JSONParser {
                   tgtColumnType: String,
                   isDirected: Boolean = true,
                   serviceName: String,
-                  indexProps: Seq[(String, JsValue, String)],
-                  props: Seq[(String, JsValue, String)],
+                  indexProps: Seq[(String, String, String)],
+                  props: Seq[(String, String, String)],
                   consistencyLevel: String,
                   hTableName: Option[String],
                   hTableTTL: Option[Int],
-                  schemaVersion: String = InnerVal.DEFAULT_VERSION): Label = {
+                  schemaVersion: String = DEFAULT_VERSION,
+                  isAsync: Boolean): Label = {
 
 
     val labelOpt = Label.findByName(label, useCache = false)
@@ -72,16 +115,16 @@ object Management extends JSONParser {
         Label.insertAll(label,
           srcServiceName, srcColumnName, srcColumnType,
           tgtServiceName, tgtColumnName, tgtColumnType,
-          isDirected, serviceName, indexProps, props, consistencyLevel, hTableName, hTableTTL, schemaVersion)
+          isDirected, serviceName, indexProps, props, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync)
         Label.findByName(label, useCache = false).get
     }
   }
 
-  def createVertex(serviceName: String,
+  def createServiceColumn(serviceName: String,
                    columnName: String,
                    columnType: String,
                    props: Seq[(String, JsValue, String)],
-                   schemaVersion: String = InnerVal.DEFAULT_VERSION) = {
+                   schemaVersion: String = DEFAULT_VERSION) = {
     val serviceOpt = Service.findByName(serviceName)
     serviceOpt match {
       case None => throw new RuntimeException(s"create service $serviceName has not been created.")
@@ -94,7 +137,14 @@ object Management extends JSONParser {
         }
     }
   }
-
+  def deleteColumn(serviceName: String, columnName: String, schemaVersion: String = DEFAULT_VERSION) = {
+    for {
+      service <- Service.findByName(serviceName, useCache = false)
+      serviceColumn <- ServiceColumn.find(service.id.get, columnName, useCache = false)
+    } yield {
+      ServiceColumn.delete(serviceColumn.id.get)
+    }
+  }
   def findLabel(labelName: String): Option[Label] = {
     Label.findByName(labelName, useCache = false)
   }
@@ -145,18 +195,22 @@ object Management extends JSONParser {
 
   def addVertexProp(serviceName: String,
                     columnName: String,
-                    columnType: String,
-                    schemaVersion: String = InnerVal.DEFAULT_VERSION): ServiceColumn = {
+                    propsName: String,
+                    propsType: String,
+                    schemaVersion: String = DEFAULT_VERSION): ColumnMeta = {
     val result = for {
       service <- Service.findByName(serviceName, useCache = false)
+      serviceColumn <- ServiceColumn.find(service.id.get, columnName)
     } yield {
-        ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion)
+        ColumnMeta.findOrInsert(serviceColumn.id.get, propsName, propsType)
       }
-    result.getOrElse(throw new RuntimeException(s"add property on vertex failed"))
+    result.getOrElse({
+      throw new RuntimeException(s"add property on vertex failed")
+    })
   }
 
   def getServiceLable(label: String): Option[Label] = {
-    Label.findByName(label, useCache = false)
+    Label.findByName(label, useCache = true)
   }
 
   /**
@@ -185,11 +239,14 @@ object Management extends JSONParser {
       if (direction == "") GraphUtil.toDirection(label.direction)
       else GraphUtil.toDirection(direction)
 
-    val srcVertexId = toInnerVal(srcId, label.srcColumnWithDir(dir).columnType, label.schemaVersion)
-    val tgtVertexId = toInnerVal(tgtId, label.tgtColumnWithDir(dir).columnType, label.schemaVersion)
+//    Logger.debug(s"$srcId, ${label.srcColumnWithDir(dir)}")
+//    Logger.debug(s"$tgtId, ${label.tgtColumnWithDir(dir)}")
 
-    val srcColId = label.srcColumnWithDir(dir).id.get
-    val tgtColId = label.tgtColumnWithDir(dir).id.get
+    val srcVertexId = toInnerVal(srcId, label.srcColumn.columnType, label.schemaVersion)
+    val tgtVertexId = toInnerVal(tgtId, label.tgtColumn.columnType, label.schemaVersion)
+
+    val srcColId = label.srcColumn.id.get
+    val tgtColId = label.tgtColumn.id.get
     val (srcVertex, tgtVertex) = if (dir == GraphUtil.directions("out")) {
       (Vertex(SourceVertexId(srcColId, srcVertexId), System.currentTimeMillis()),
         Vertex(TargetVertexId(tgtColId, tgtVertexId), System.currentTimeMillis()))
@@ -231,8 +288,10 @@ object Management extends JSONParser {
     val props = for {
       (k, v) <- js.fields
       meta <- column.metasInvMap.get(k)
-      innerVal <- jsValueToInnerVal(v, meta.dataType, column.schemaVersion)
     } yield {
+        val innerVal = jsValueToInnerVal(v, meta.dataType, column.schemaVersion).getOrElse(
+          throw new RuntimeException(s"$k is not defined. create schema for vertex."))
+
         (meta.seq.toInt, innerVal)
       }
     props
@@ -335,15 +394,17 @@ object Management extends JSONParser {
   //
   //    //    regionStats.map(kv => Bytes.toString(kv._1) -> kv._2) ++ Map("total" -> regionStats.values().sum)
   //  }
-  def createTable(zkAddr: String, tableName: String, cfs: List[String], regionCnt: Int, ttl: Option[Int]) = {
-    try {
-      val admin = getAdmin(zkAddr)
-      if (!admin.tableExists(TableName.valueOf(tableName))) {
+  def createTable(zkAddr: String, tableName: String, cfs: List[String], regionMultiplier: Int, ttl: Option[Int]) = {
+    Logger.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier")
+    val admin = getAdmin(zkAddr)
+    val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier
+    if (!admin.tableExists(TableName.valueOf(tableName))) {
+      try {
         val desc = new HTableDescriptor(TableName.valueOf(tableName))
         desc.setDurability(Durability.ASYNC_WAL)
         for (cf <- cfs) {
           val columnDesc = new HColumnDescriptor(cf)
-            .setCompressionType(Compression.Algorithm.GZ)
+            .setCompressionType(Compression.Algorithm.LZ4)
             .setBloomFilterType(BloomType.ROW)
             .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
             .setMaxVersions(1)
@@ -355,14 +416,31 @@ object Management extends JSONParser {
           desc.addFamily(columnDesc)
         }
 
-        if (regionCnt <= 1) admin.createTable(desc)
-        else admin.createTable(desc, getStartKey(regionCnt), getEndKey(regionCnt), regionCnt)
-      } else {
-        // already exist
+        if (regionCount <= 1) admin.createTable(desc)
+        else admin.createTable(desc, getStartKey(regionCount), getEndKey(regionCount), regionCount)
+      } catch {
+        case e: Throwable =>
+          Logger.error(s"$zkAddr, $tableName failed with $e", e)
+          throw e
       }
-    } catch {
-      case e: Throwable => Logger.error(s"$e", e)
-        throw e
+    } else {
+      Logger.error(s"$zkAddr, $tableName, $cf already exist.")
+    }
+  }
+
+    /**
+   * update label name.
+   */
+  def updateLabelName(oldLabelName: String, newLabelName: String) = {
+    for {
+      old <- Label.findByName(oldLabelName)
+    } {
+      Label.findByName(newLabelName) match {
+        case None =>
+          Label.updateName(oldLabelName, newLabelName)
+        case Some(_) =>
+        //          throw new RuntimeException(s"$newLabelName already exist")
+      }
     }
   }
 

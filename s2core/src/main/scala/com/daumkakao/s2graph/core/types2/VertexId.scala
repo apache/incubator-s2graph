@@ -2,24 +2,24 @@ package com.daumkakao.s2graph.core.types2
 
 import com.daumkakao.s2graph.core.GraphUtil
 import org.apache.hadoop.hbase.util.Bytes
+import play.api.Logger
 
 /**
  * Created by shon on 6/10/15.
  */
 object VertexId extends HBaseDeserializable {
-  val DEFAULT_COL_ID = 0
-
+  import HBaseType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = DEFAULT_VERSION): VertexId = {
+                version: String = DEFAULT_VERSION): (VertexId, Int) = {
     /** since murmur hash is prepended, skip numOfBytes for murmur hash */
     var pos = offset + GraphUtil.bytesForMurMurHash
 
-    val innerId = InnerVal.fromBytes(bytes, pos, len, version)
-    pos += innerId.bytes.length
+    val (innerId, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, len, version)
+    pos += numOfBytesUsed
     val colId = Bytes.toInt(bytes, pos, 4)
-    VertexId(colId, innerId)
+    (VertexId(colId, innerId), GraphUtil.bytesForMurMurHash + numOfBytesUsed + 4)
   }
 
   def apply(colId: Int, innerId: InnerValLike): VertexId = new VertexId(colId, innerId)
@@ -36,20 +36,30 @@ object VertexId extends HBaseDeserializable {
 class VertexId protected (val colId: Int, val innerId: InnerValLike) extends HBaseSerializable {
   val storeHash: Boolean = true
   val storeColId: Boolean = true
-  val hashBytes =
-    if (storeHash) Bytes.toBytes(GraphUtil.murmur3(innerId.value.toString))
+  lazy val hashBytes =
+//    if (storeHash) Bytes.toBytes(GraphUtil.murmur3(innerId.toString))
+    if (storeHash) Bytes.toBytes(GraphUtil.murmur3(innerId.toIdString()))
     else Array.empty[Byte]
 
-  val colIdBytes: Array[Byte] =
+  lazy val colIdBytes: Array[Byte] =
     if (storeColId) Bytes.toBytes(colId)
     else Array.empty[Byte]
 
-  val bytes: Array[Byte] = Bytes.add(hashBytes, innerId.bytes, colIdBytes)
+  def bytes: Array[Byte] = Bytes.add(hashBytes, innerId.bytes, colIdBytes)
 
   override def toString(): String = {
-    s"VertexId($colId, $innerId)"
+    colId.toString() + "," + innerId.toString()
+//    s"VertexId($colId, $innerId)"
   }
 
+  override def hashCode(): Int = {
+    Logger.debug(s"VertexId.hashCode")
+    if (storeColId) {
+      colId * 31 + innerId.hashCode()
+    } else {
+      innerId.hashCode()
+    }
+  }
   override def equals(obj: Any): Boolean = {
     obj match {
       case other: VertexId => colId == other.colId && innerId == other.innerId
@@ -66,21 +76,21 @@ class VertexId protected (val colId: Int, val innerId: InnerValLike) extends HBa
 }
 
 object SourceVertexId extends HBaseDeserializable {
-  import VertexId._
+  import HBaseType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = DEFAULT_VERSION): VertexId = {
+                version: String = DEFAULT_VERSION): (VertexId, Int) = {
     /** since murmur hash is prepended, skip numOfBytes for murmur hash */
-    var pos = offset + GraphUtil.bytesForMurMurHash
-    val innerId = InnerVal.fromBytes(bytes, pos, len, version)
+    val pos = offset + GraphUtil.bytesForMurMurHash
+    val (innerId, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, len, version)
 
-    SourceVertexId(DEFAULT_COL_ID, innerId)
+    (SourceVertexId(DEFAULT_COL_ID, innerId), GraphUtil.bytesForMurMurHash + numOfBytesUsed)
   }
 
-  def toVertexId(vid: VertexId): VertexId = {
-    VertexId(vid.colId, vid.innerId)
-  }
+//  def toVertexId(colId: Int, innerId: InnerValLike): VertexId = {
+//    VertexId(colId, innerId)
+//  }
 }
 
 //case class VertexIdWithoutHash(override val colId: Int,
@@ -105,19 +115,19 @@ case class SourceVertexId(override val colId: Int,
 }
 
 object TargetVertexId extends HBaseDeserializable {
-  import VertexId._
+  import HBaseType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = DEFAULT_VERSION): VertexId = {
+                version: String = DEFAULT_VERSION): (VertexId, Int) = {
     /** murmur has is not prepended so start from offset */
-    val innerId = InnerVal.fromBytes(bytes, offset, len, version)
-    TargetVertexId(DEFAULT_COL_ID, innerId)
+    val (innerId, numOfBytesUsed) = InnerVal.fromBytes(bytes, offset, len, version)
+    (TargetVertexId(DEFAULT_COL_ID, innerId), numOfBytesUsed)
   }
 
-  def toVertexId(vid: VertexId): VertexId = {
-    VertexId(vid.colId, vid.innerId)
-  }
+//  def toVertexId(colId: Int, innerId: InnerValLike): VertexId = {
+//    VertexId(colId, innerId)
+//  }
 }
 
 case class TargetVertexId(override val colId: Int,

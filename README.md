@@ -23,20 +23,27 @@ Table of content
   - [1.3 Add extra props on label.](#13-add-extra-props-on-label)
   - [1.4 Consistency level.](#14-consistency-level)
   - [1.4 (Optionally) Add Extra Indexes - `POST /graphs/addIndex`](#14-optionally-add-extra-indexes---post-graphsaddindex)
-- [2. Create Vertex(Optional) - `POST /graphs/createVertex`](#2-create-vertexoptional---post-graphscreatevertex)
-  - [2.1 Vertex definition](#21-vertex-definition)
+- [2. Create ServiceColumn(Optional) - `POST /graphs/createServiceColumn`](#2-create-servicecolumnoptional---post-graphscreateservicecolumn)
+  - [2.1 ServiceColumn definition](#21-servicecolumn-definition)
   - [2.2 examples](#22-examples)
 - [3. Insert and Manipulate Edges](#3-insert-and-manipulate-edges)
   - [Edge Operations](#edge-operations)
-    - [1. Insert - `POST /graphs/edges/insert`](#1-insert---post-graphsedgesinsert)
-    - [2. delete - `POST /graphs/edges/delete`](#2-delete---post-graphsedgesdelete)
-    - [3. update - `POST /graphs/edges/update`](#3-update---post-graphsedgesupdate)
-    - [4. increment - `POST /graphs/edges/increment`](#4-increment---post-graphsedgesincrement)
-    - [5. insertBulk - `POST /graphs/edges/insertBulk`](#5-insertbulk---post-graphsedgesinsertbulk)
+    - [strong consistency](#strong-consistency)
+      - [1. Insert - `POST /graphs/edges/insert`](#1-insert---post-graphsedgesinsert)
+      - [2. delete -`POST /graphs/edges/delete`](#2-delete--post-graphsedgesdelete)
+      - [3. update -`POST /graphs/edges/update`](#3-update--post-graphsedgesupdate)
+      - [4. increment -`POST /graphs/edges/increment`](#4-increment--post-graphsedgesincrement)
+      - [5. deleteAll - `POST /graphs/edges/deleteAll`](#5-deleteall---post-graphsedgesdeleteall)
+    - [weak consistency](#weak-consistency)
+      - [1. Insert - `POST /graphs/edges/insert`](#1-insert---post-graphsedgesinsert-1)
+      - [2. delete -`POST /graphs/edges/delete`](#2-delete--post-graphsedgesdelete-1)
+      - [3. update -`POST /graphs/edges/update`](#3-update--post-graphsedgesupdate-1)
+      - [4. increment -`POST /graphs/edges/increment`](#4-increment--post-graphsedgesincrement-1)
+      - [5. deleteAll - `POST /graphs/edges/deleteAll`](#5-deleteall---post-graphsedgesdeleteall-1)
 - [4. (Optionally) Insert and Manipulate Vertices](#4-optionally-insert-and-manipulate-vertices)
     - [1. Insert - `POST /graphs/vertices/insert/:serviceName/:columnName`](#1-insert---post-graphsverticesinsertservicenamecolumnname)
     - [2. delete - `POST /graphs/vertices/delete/:serviceName/:columnName`](#2-delete---post-graphsverticesdeleteservicenamecolumnname)
-    - [3. deleteAll - `POST /graphs/vertices/delete/:serviceName/:columnName`](#3-deleteall---post-graphsverticesdeleteservicenamecolumnname)
+    - [3. deleteAll - `POST /graphs/vertices/deleteAll/:serviceName/:columnName`](#3-deleteall---post-graphsverticesdeleteservicenamecolumnname)
     - [3. update - `POST /graphs/vertices/update/:serviceName/:columnName`](#3-update---post-graphsverticesupdateservicenamecolumnname)
     - [4. increment](#4-increment)
 - [5. Query](#5-query)
@@ -44,14 +51,20 @@ Table of content
   - [2. Query API](#2-query-api)
     - [2.1. Edge Queries](#21-edge-queries)
       - [1. POST /graphs/getEdges](#1-post-graphsgetedges)
-      - [2. POST /graphs/getEdges/grouped](#2-post-graphsgetedgesgrouped)
-      - [3. POST /graphs/getEdgesExcluded](#3-post-graphsgetedgesexcluded)
-      - [4. POST /graphs/getEdgesExcluded/grouped](#4-post-graphsgetedgesexcludedgrouped)
+      - [2. POST /graphs/checkEdges](#2-post-graphscheckedges)
+    - [2.2 getEdges Examples](#22-getedges-examples)
+      - [1. duplicate policy](#1-duplicate-policy)
+      - [2. select option example](#2-select-option-example)
+      - [3. groupBy option example](#3-groupby-option-example)
+      - [4. filterOut option example](#4-filterout-option-example)
+      - [5. nextStepLimit example](#5-nextsteplimit-example)
+      - [6. nextStepThreshold example](#6-nextstepthreshold-example)
+      - [7. transform example](#7-transform-example)
+      - [8. 2 step traverse example](#8-2-step-traverse-example)
+      - [9. 3 step traverse example](#9-3-step-traverse-example)
+      - [10. more examples](#10-more-examples)
     - [2.2. Vertex Queries](#22-vertex-queries)
       - [1. POST /graphs/getVertices](#1-post-graphsgetvertices)
-  - [3. Query Examples](#3-query-examples)
-    - [3.1. Edge Queries](#31-edge-queries)
-    - [3.2. Vertex Queries](#32-vertex-queries)
 - [6. Bulk Loading](#6-bulk-loading)
     - [Edge Format](#edge-format)
     - [Vertex Format](#vertex-format)
@@ -169,7 +182,7 @@ To create a Service, the following fields needs to be specified in the request.
 | cluster | zookeeper quorum address for your cluster.| string | "abc.com:2181,abd.com:2181" | optional. <br>default value is "hbase.zookeeper.quorum" on your application.conf. if there is no value for "hbase.zookeeper.quorum" is defined on application.conf, then default value is "localhost" |
 | hTableName | physical HBase table name.|string| "test"| optional. <br> default is serviceName-#{phase}. <br> phase is either dev/real/alpha/sandbox |
 | hTableTTL | global time to keep the data alive. | integer | 86000 | optional. default is infinite.
-| preSplitSize | number of pre split for HBase table.| integer|20|optional. <br> default is 0(no pre-split)|
+| preSplitSize | ratio for number of pre split for HBase table. numOfRegionServer x this number will decide exact pre-split size.| integer|1|optional. <br> default is 0(no pre-split). if you set this to 1, then s2graph will pre-split your table with 1 x **numOfRegionServers** |
 
 Service is the top level abstraction in s2graph which can be considered like a database in RDBMS. You can create a service using this API:
 
@@ -213,7 +226,7 @@ To create a Label, the following fields needs to be specified in the request.
 | tgtColumnName | target column's name |string|"item_id"|required.|
 | tgtColumnType | target column's data type | long/integer/string | "long" | required. |
 | isDirected | if this label is directed or undirected | true/false | true/false | default true |
-| **serviceName** | which service this label is belongs to. | either srcServiceName or tgtServiceName |s2graph |default tgtServiceName
+| **serviceName** | which service this label is belongs to. | string |s2graph |default tgtServiceName
 | hTableName | if this label need special usecase(such as batch upload), own hbase table name can be used. | string | s2graph-batch | default use service`s hTableName. <br> note that this is optional. |
 | hTableTTL | time to data keep alive. | integer |   86000 | default use service`s hTableTTL. <br> note that this is optional. |
 | consistencyLevel | if this is strong, only one edge between same from/to can be made. otherwise(weak) multiple edges with same from/to can be exist. | string | strong/weak | default weak |
@@ -449,6 +462,7 @@ else:
 >Since we write our data to HBase asynchronously, there is no consistency guarantee on same edge within our flushInterval(1 seconds).
 
 
+
 ### 1.4 (Optionally) Add Extra Indexes - `POST /graphs/addIndex` ###
 
 
@@ -476,13 +490,13 @@ curl -XPOST localhost:9000/graphs/addIndex -H 'Content-Type: Application/json' -
 '
 ```
 
-## 2. Create Vertex(Optional) - `POST /graphs/createVertex` ##
+## 2. Create ServiceColumn(Optional) - `POST /graphs/createServiceColumn` ##
 ----------
-A vertex represents object and plays a role like a single table in RDBMS. 
+A ServiceColumn represents object and plays a role like a single table in RDBMS. 
 
 >**Note: if you only need vertex id, then you don`t need to create vertex explicitly. when you create label, s2graph create vertex with empty properties according to label schema.**
 
-### 2.1 Vertex definition
+### 2.1 ServiceColumn definition
 
 | field name |  definition | data type |  note | example |
 |:------- | --- |:----: | --- | :-----|
@@ -493,7 +507,7 @@ A vertex represents object and plays a role like a single table in RDBMS.
 ### 2.2 examples
 This is simple example to show how to define vertex schema and insert/select vertices.
 ```
-curl -XPOST localhost:9000/graphs/createVertex -H 'Content-Type: Application/json' -d ' 
+curl -XPOST localhost:9000/graphs/createServiceColumn -H 'Content-Type: Application/json' -d ' 
 {
     "serviceName": "s2graph",
     "columnName": "user_id",
@@ -512,14 +526,14 @@ curl -XPOST localhost:9000/graphs/createVertex -H 'Content-Type: Application/jso
 user can get information on vertex schema as following.
 
 ```
-curl -XGET localhost:9000/graphs/getVertex/s2graph/user_id 
+curl -XGET localhost:9000/graphs/getServiceColumn/s2graph/user_id 
 ```
-This will give all properties on serviceName `s2graph` and columnName `user_id` vertex.
+This will give all properties on serviceName `s2graph` and columnName `user_id` serviceColumn.
 
 user can also add more properties on vertex as following.
 
 ```
-curl -XPOST localhost:9000/graphs/addVertexProps/s2graph/user_id -H 'Content-Type: Application/json' -d '
+curl -XPOST localhost:9000/graphs/addServiceColumnProps/s2graph/user_id -H 'Content-Type: Application/json' -d '
 [
 	{"name": "home_address", "defaultValue": "korea", "dataType": "string"}
 ]
@@ -566,112 +580,279 @@ An **edge** represents a relation between two vertices, with properties accordin
 
 ### Edge Operations ###
 
+s2graph provide 4 different operations on edge. 
 
-#### 1. Insert - `POST /graphs/edges/insert` ####
+1. insert: create new edge. 
+2. delete: delete existing edge.
+3. update: update existing edge`s state.
+4. increment: increment existing edge`s state.
+5. deleteAll: delete all adjacent edges from certain starting vertex.
 
-insert have different behavior according to label`s consistency level.
+edge operations behave differently with regard to their label`s consistencyLevel.
 
-1. strong consistency level(default): **1 READ + (1 DELETE+ 1 PUT, optional)**
-insert is equal to upsert. s2graph check if unique edge key exist, then if there is edge with same unique edge key, run validation then decide apply current request or drop it. 
+for explanation, consider following test cases.
 
-2. weak consistency level: **2 PUT**
-no consistency check on unique edge key, insert same edge key multiple times can possibly yield multiple edges.
+create 2 different label each for strong/weak consistencyLevel.
 
-
-For consistency reasons, graph databases typically go through the following three steps to insert an edge between a source vertex to a target vertex with some metadata:
-
->1. fetch the source vertex to make sure it exists
->2. fetch the target vertex to make sure it exists
->3. insert an edge with the metadata on from -> to
-
-Unlike other graph databases like **Titan** where server-generated vertex ids must be used, any user-defined vertex ids can be used in s2graph. Therefore s2graph will not fetch vertex data during the insert operation, making it one simple write to the underlying database.
-
-> **This means that you don't have to create source and target vertices prior to inserting edges, if you don't need any properties on vertices(i.e., you only need vertex id). In this case, s2graph will not fetch vertex information from the underlying db, therefore no read operation is required.**
+1. s2graph_label_test(strong)
+2. s2graph_label_test_weak(weak)
 
 
-The following is an example inserting edges:
+then insert 2 test cases.
 
+**strong consistency**
 ```
 curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/json' -d '
 [
-  {"from":1,"to":101,"label":"graph_test","props":{"time":-1, "weight":10},"timestamp":1417616431},
-  {"from":1,"to":102,"label":"graph_test","props":{"time":0, "weight":11},"timestamp":1417616431},
-  {"from":1,"to":103,"label":"graph_test","props":{"time":1, "weight":12},"timestamp":1417616431},
-  {"from":1,"to":104,"label":"graph_test","props":{"time":-2, "weight":1},"timestamp":1417616431}
+	{"timestamp": 1, "from": 101, "to": 10, "label": "s2graph_label_test", "props": {"time": 0}},
+	{"timestamp": 2, "from": 101, "to": 10, "label": "s2graph_label_test", "props": {"time": -10}},
+	{"timestamp": 3, "from": 101, "to": 10, "label": "s2graph_label_test", "props": {"time": -30}}
 ]
 '
 ```
 
-#### 2. delete - `POST /graphs/edges/delete`  ####
+note that only one edge exist between (101, 10, s2graph_label_test, out) since label s2graph_label_test is strong consistency.
+```
+{
+    "size": 1,
+    "degrees": [
+        {
+            "from": 101,
+            "label": "s2graph_label_test",
+            "direction": "out",
+            "_degree": 1
+        }
+    ],
+    "results": [
+        {
+            "cacheRemain": -20,
+            "from": 101,
+            "to": 10,
+            "label": "s2graph_label_test",
+            "direction": "out",
+            "_timestamp": 3,
+            "timestamp": 3,
+            "score": 1,
+            "props": {
+                "_timestamp": 3,
+                "time": -30,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        }
+    ],
+    "impressionId": -1650835965
+}
+```
 
-You can also delete edges.
 
-> **Note that if the timestamp in a delete request is larger (later) than the actual timestamp of the edge, the delete request will be ignored.**
+**weak consistency**
+```
+curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/json' -d '
+[
+	{"timestamp": 1, "from": 101, "to": 10, "label": "s2graph_label_test_weak", "props": {"time": 0}},
+	{"timestamp": 2, "from": 101, "to": 10, "label": "s2graph_label_test_weak", "props": {"time": -10}},
+	{"timestamp": 3, "from": 101, "to": 10, "label": "s2graph_label_test_weak", "props": {"time": -30}}
+]
+'
+```
 
-The following is an example deleting edges.
+note that there are **3 edges** between (101, 10, s2graph_label_test_weak, out).
+```
+{
+    "size": 3,
+    "degrees": [
+        {
+            "from": 101,
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_degree": 3
+        }
+    ],
+    "results": [
+        {
+            "cacheRemain": -148,
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 3,
+            "timestamp": 3,
+            "score": 1,
+            "props": {
+                "_timestamp": 3,
+                "time": -30,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        },
+        {
+            "cacheRemain": -148,
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 2,
+            "timestamp": 2,
+            "score": 1,
+            "props": {
+                "_timestamp": 2,
+                "time": -10,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        },
+        {
+            "cacheRemain": -148,
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 1,
+            "timestamp": 1,
+            "score": 1,
+            "props": {
+                "_timestamp": 1,
+                "time": 0,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        }
+    ],
+    "impressionId": 1972178414
+}
+```
+
+
+
+#### strong consistency ####
+##### 1. Insert - `POST /graphs/edges/insert` #####
+
+unique edge is defined by (from, to, label, direction). 
+for insert operation, s2graph first check if there exist edge with same (from, to, label, direction) then if there is an existing edge, then insert works as **update**. see above example.
+
+##### 2. delete -`POST /graphs/edges/delete` ##### 
+s2graph looks for unique edge with (from, to, label, direction) then delete them if deleting edge is valid. 
+note that delete request has **strictly larger timestamp** than existing edge. since s2graph check validation on delete request, if existing edge has large timestamp than current delete request, then current delete request will be ignored. also note that props on delete request is not necessary and will be ignored when label is strong consistency since it is safe to assume there is only one edge with edge`s unique id(from, to, label, direction).
 
 ```
 curl -XPOST localhost:9000/graphs/edges/delete -H 'Content-Type: Application/json' -d '
 [
- {"from":1,"to":102,"label":"graph_test","timestamp":1417616432},
- {"from":1,"to":103,"label":"graph_test","timestamp":1417616432}
+	{"timestamp": 10, "from": 101, "to": 10, "label": "s2graph_label_test"}
 ]
 '
 ```
-
-#### 3. update - `POST /graphs/edges/update` ####
-
-An update request on edges will overwrite properties of the corresponding edge.
-
-
-> This is **not an upsert operation** and a corresponding edge must exist for update operation. Update operations on nonexistent edges will be ignored. 
->
-> **Also remember that previous data stored in the edge is overwritten.**
-
-The following is an example updating properties of an edge, first setting `is_hidden` property to be true and then setting `weight` property to be 100.
-
+##### 3. update -`POST /graphs/edges/update` ##### 
+works like insert with strong consistency level. 
 ```
 curl -XPOST localhost:9000/graphs/edges/update -H 'Content-Type: Application/json' -d '
 [
- {"from":1,"to":104,"label":"graph_test","timestamp":1417616433, "props": {"is_hidden":true}},
- {"from":1,"to":104,"label":"graph_test","timestamp":1417616434, "props": {"weight":100}}
+	{"timestamp": 10, "from": 101, "to": 10, "label": "s2graph_label_test", "props": {"time": 100, "weight": -10}}
 ]
 '
 ```
-
-#### 4. increment - `POST /graphs/edges/increment`  ####
-
-You can add a certain value to **edges' indexed properties**. Negative numbers can be used to subtract some value from the properties. **Increment operations are only supported for indexed properties.**
-
-> **you don't have to insert an edge prior to its increment operation. If the edge corresponding to an increment request is not found, a new edge filled with the default property values (provided when defining the label) will be automatically created.**
-
-The following is an example incrementing edges' properties.
-
+##### 4. increment -`POST /graphs/edges/increment` ##### 
+works like update. only difference is increment call don`t return old value but incremented value.
 ```
 curl -XPOST localhost:9000/graphs/edges/increment -H 'Content-Type: Application/json' -d '
 [
-  {"from":1,"to":101,"label":"graph_test","props":{"time":-1, "weight":10},"timestamp":1417616435},
-  {"from":1,"to":102,"label":"graph_test","props":{"time":0, "weight":11},"timestamp":1417616435},
-  {"from":1,"to":103,"label":"graph_test","props":{"time":1, "weight":12},"timestamp":1417616435},
-  {"from":1,"to":104,"label":"graph_test","props":{"time":-2, "weight":1},"timestamp":1417616435}
+	{"timestamp": 10, "from": 101, "to": 10, "label": "s2graph_label_test", "props": {"time": 100, "weight": -10}}
 ]
 '
 ```
-
-#### 5. insertBulk - `POST /graphs/edges/insertBulk` ####
-
-insert edges without **`checking consistency`**. 
-
-The following is an example inserting edges:
+##### 5. deleteAll - `POST /graphs/edges/deleteAll` ##### 
+delete all adjacency edges that start from starting vertex.
+following operation will first fetch edges start from 101 then delete all edges. 
+**note that not only all out going edges from 101 and but also incoming edges to 101 will be deleted.**
 
 ```
-curl -XPOST localhost:9000/graphs/edges/insertBulk -H 'Content-Type: Application/json' -d '
+curl -XPOST localhost:9000/graphs/edges/deleteAll -H 'Content-Type: Application/json' -d '
 [
-  {"from":1,"to":101,"label":"graph_test","props":{"time":-1, "weight":10},"timestamp":1417616431},
-  {"from":1,"to":101,"label":"graph_test","props":{"time":0, "weight":11},"timestamp":1417616432}
+  {"ids" : [101], "label":"s2graph_label_test", "direction": "out", "timestamp":1417616441}
 ]
 '
 ```
+
+#### weak consistency ####
+##### 1. Insert - `POST /graphs/edges/insert` #####
+s2graph **do not look for** unique edge defined by (from, to, label, direction).
+it simply make new edge for user`s request. no read and no consistency check. note that this difference make multiple edge with same (from, to, label, direction) exist. see above example.
+
+##### 2. delete -`POST /graphs/edges/delete` ##### 
+to delete edges with weak consistency, first thing to do is fetching existing edges.
+with getEdges query result json, extract "results" part in it, then fire /graphs/edges/delete with "results" part json.
+note that request body json is copied from "**results**" part in /graphs/getEdges.
+```
+curl -XPOST localhost:9000/graphs/edges/delete -H 'Content-Type: Application/json' -d '
+[
+    {
+        "cacheRemain": -148,
+        "from": 101,
+        "to": "10",
+        "label": "s2graph_label_test_weak",
+        "direction": "out",
+        "_timestamp": 3,
+        "timestamp": 3,
+        "score": 1,
+        "props": {
+            "_timestamp": 3,
+            "time": -30,
+            "weight": 0,
+            "is_hidden": false,
+            "is_blocked": false
+        }
+    },
+    {
+        "cacheRemain": -148,
+        "from": 101,
+        "to": "10",
+        "label": "s2graph_label_test_weak",
+        "direction": "out",
+        "_timestamp": 2,
+        "timestamp": 2,
+        "score": 1,
+        "props": {
+            "_timestamp": 2,
+            "time": -10,
+            "weight": 0,
+            "is_hidden": false,
+            "is_blocked": false
+        }
+    },
+    {
+        "cacheRemain": -148,
+        "from": 101,
+        "to": "10",
+        "label": "s2graph_label_test_weak",
+        "direction": "out",
+        "_timestamp": 1,
+        "timestamp": 1,
+        "score": 1,
+        "props": {
+            "_timestamp": 1,
+            "time": 0,
+            "weight": 0,
+            "is_hidden": false,
+            "is_blocked": false
+        }
+    }
+]
+'
+```
+##### 3. update -`POST /graphs/edges/update` ##### 
+like insert, s2graph **do not look check** uniqueness. all responsibility is on users. like delete, update require fetch existing edges first. after fetching edges, update props then issue update request.
+
+##### 4. increment -`POST /graphs/edges/increment` ##### 
+like update, s2graph **do not look check** uniqueness. all responsibility is on users. like delete, update require fetch existing edges first. after fetching edges, update props then issue increment request.
+
+##### 5. deleteAll - `POST /graphs/edges/deleteAll` ##### 
+not supported with weak consistency. 
+like update, fetch all edges then issue delete individually on fetched edges. 
+
 ## 4. (Optionally) Insert and Manipulate Vertices ##
 
 
@@ -714,7 +895,7 @@ This operation will delete only the vertex data of a specified column and will *
 **Important notes**
 >**This means that edges returned by a query can contain deleted vertices. Clients need to check if those vertices are valid.**
 
-#### 3. deleteAll - `POST /graphs/vertices/delete/:serviceName/:columnName` ####
+#### 3. deleteAll - `POST /graphs/vertices/deleteAll/:serviceName/:columnName` ####
 
 This operation will delete all vertex data of a specified column and also delete all edges that are connected to those vertices. Example:
 
@@ -767,9 +948,20 @@ Once you have your graph data uploaded to s2graph, you can traverse your graph u
 | srcVertices | vertices to start traversing. |json array of json dictionary specifying each vertex, with "serviceName", "columnName", "id" fields. | required. | `[{"serviceName": "kakao", "columnName": "account_id", "id":1}]` |
 |**steps**| list of steps for traversing. | json array of steps | explained below| ```[[{"label": "graph_test", "direction": "out", "limit": 100, "scoring":{"time": 0, "weight": 1}}]] ``` |
 |removeCycle| when traverse to next step, don`t traverse already visited vertices| true/false. default is true | already visited is defined by following(label, vertex). <br> so if steps are friend -> friend, then remove second depth friends if they exist in first depth friends | |
+|select| which field on edge to include in result json | json array of string | | ["label", "to", "from"] |
+|groupBy | how to group by results | json array of string | | ["to"] |
+|filterOut | filtering out query which will be run concurrently then filter out |  | another query json |
 
 
 **step**: Each step define what to traverse in a single hop on the graph. The first step has to be a direct neighbor of the starting vertices, the second step is a direct neighbor of vertices from the first step and so on. A step is specified with a list of **query param**s, hence the `steps` field of a query request becoming an array of arrays of dictionaries.
+
+**step param**: 
+
+| field name |  definition | data type |  note | example |
+|:------- | --- |:----: | --- | :-----|
+| weights | weight constant to multiply for labels in this step | json dictionay | optional | {"graph_test": 0.3, "graph_test2": 0.2} | 
+| nextStepThreshold | score threshold for current step edges to pass to next step | double |  | |
+| nextStepLimit | number of edges in current step to pass to next step | double | if this parameter is given, then sort current step by score and take topK, then start traverse next step|
 
 **query param**: 
 
@@ -789,111 +981,878 @@ Once you have your graph data uploaded to s2graph, you can traverse your graph u
 | duplicate | policy on how to deal with duplicate edges. <br> duplicate edges means edges with same (from, to, label, direction). | string <br> one of "first", "sum", "countSum", "raw" | optional, default "**first**" | "**first**" means only first occurrence of edge survive. <br> "**sum**" means sums up all scores of same edges but only one edge survive. <br>"**countSum**" means counts up occurrence of same edges but only one edge survive. <br>"**raw**" means same edges will be survived as they are. |
 | rpcTimeout | timeout for this request | integer | optional, default 100ms | note: maximum value should be less than 1000ms |
 | maxAttempt | how many times client will try to fetch result from HBase | integer | optional, default 1 | note: maximum value should be less than 5|
+| _to | to vertex id | string | optional | note: use this to get a edge for certain vertex |
+| threshold | score threshold for filtering out result edges | double | optional, default 0.0 | 
+| transform | rules define how to transform _to field value on edge | json array of json array | optional, default [ ["_to"]] |
 
 
 ### 2. Query API ###
 
 #### 2.1. Edge Queries ####
+s2graph provide query DSL like sql. 
+s2graph use getEdges to fetch data and traverse multiple steps, just like users use select query in mysql.
 
-edge query provide following 4 APIs. s2graph itself would not provide any business logic dependent query. it would rather provide necessary data to help implementing business logic.
+users have been struggled since query DSL can be very complex, so if you can`t find any idea even after reading through example query section, then give me issue specifying what is your use case.
 
 ##### 1. POST /graphs/getEdges #####
-get all edges. flat hierarchy.
+select all edges with given query.
+
+##### 2. POST /graphs/checkEdges #####
+return edge for given vertex pair only if edge exist.
+
+#### 2.2 getEdges Examples ####
+
+##### 1. duplicate policy #####
+this is very basic query to fetch all adjacent edges from starting vertex.
+```
+curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+{
+    
+    "srcVertices": [
+        {
+            "serviceName": "s2graph",
+            "columnName": "user_id_test",
+            "id": 101
+        }
+    ],
+    "steps": [
+        {
+            "step": [
+                {
+                    "label": "s2graph_label_test_weak",
+                    "direction": "out",
+                    "offset": 0,
+                    "limit": 10, 
+	                "duplicate": "raw"
+                }
+            ]
+        }
+    ]
+}
+'
+```
+
+**note "duplicate" field**. when consistency level is **weak and multiple edges** exist with same (from, to, label, direction), then query expect duplicate policy. s2graph provide 4 duplicate policies on edge.
+>1. raw: return all edges.
+>2. **first**: return only first edge if multiple edges exist. this is default
+>3. countSum: return only one edge but return how many times same edge exist.
+>4. scoreSum: return only one edge but return sum of their score.
+
+
+you can see with "raw" duplicate policy, there are actually 3 edges with same (from, to, label, direction).
 ```
 {
-    "size": 2,
+    "size": 3,
+    "degrees": [
+        {
+            "from": 101,
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_degree": 3
+        }
+    ],
     "results": [
         {
-            "from": 1,
-            "to": 88277115755635400,
-            "label": "talk_friend_long_term_agg_by_account_id",
+            "cacheRemain": -29,
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak",
             "direction": "out",
-            "_timestamp": 1425088498,
+            "_timestamp": 6,
+            "timestamp": 6,
+            "score": 1,
             "props": {
-                "talk_user_id": 41780,
-                "score": 8,
-                "service_user_id": 88277115755635400,
-                "profile_id": 424,
-                "birth_date": 517,
-                "birth_year": 1977,
-                "gender": "F"
-            },
-            "score": 8
+                "_timestamp": 6,
+                "time": -30,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
         },
         {
-            "from": 1,
-            "to": 88300639020224930,
-            "label": "talk_friend_long_term_agg_by_account_id",
+            "cacheRemain": -29,
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak",
             "direction": "out",
-            "_timestamp": 1425088493,
+            "_timestamp": 5,
+            "timestamp": 5,
+            "score": 1,
             "props": {
-                "talk_user_id": 1545029,
-                "score": 0,
-                "service_user_id": 88300639020224930,
-                "profile_id": 9571562,
-                "birth_date": 605,
-                "birth_year": 1979,
-                "gender": "F"
-            },
-            "score": 0
+                "_timestamp": 5,
+                "time": -10,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        },
+        {
+            "cacheRemain": -29,
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 4,
+            "timestamp": 4,
+            "score": 1,
+            "props": {
+                "_timestamp": 4,
+                "time": 0,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        }
+    ],
+    "impressionId": 1972178414
+}
+```
+
+now "countSum" policy gives only one edge but with score 3.
+```
+{
+    "size": 1,
+    "degrees": [
+        {
+            "from": 101,
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_degree": 3
+        }
+    ],
+    "results": [
+        {
+            "cacheRemain": -135,
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 4,
+            "timestamp": 4,
+            "score": 3,
+            "props": {
+                "_timestamp": 4,
+                "time": 0,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        }
+    ],
+    "impressionId": 1972178414
+}
+```
+
+##### 2. select option example #####
+continue with example 1, sometimes user only want few fields on edge. this can be done with select. 
+```
+{
+    "select": ["from", "to", "label"],
+    "srcVertices": [
+        {
+            "serviceName": "s2graph",
+            "columnName": "user_id_test",
+            "id": 101
+        }
+    ],
+    "steps": [
+        {
+            "step": [
+                {
+                    "label": "s2graph_label_test_weak",
+                    "direction": "out",
+                    "offset": 0,
+                    "limit": 10, 
+	                "duplicate": "raw"
+                }
+            ]
         }
     ]
 }
 ```
 
-##### 2. POST /graphs/getEdges/grouped #####
-get all edges with group by edge`s target vertex.
+now user tell s2graph that only ["from", "to", "label"] fields are necessary so s2graph return only those fields on result json.
+
 ```
 {
-    "size": 2,
+    "size": 3,
+    "degrees": [
+        {
+            "from": 101,
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_degree": 3
+        }
+    ],
     "results": [
         {
-            "name": "account_id",
-            "id": "88277115755635393",
-            "scoreSum": 8,
-            "aggr": {
-                "name": "account_id",
-                "ids": [
-                    "1"
-                ]
-            }
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak"
         },
         {
-            "name": "account_id",
-            "id": "88300639020224928",
-            "scoreSum": 0,
-            "aggr": {
-                "name": "account_id",
-                "ids": [
-                    "1"
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak"
+        },
+        {
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak"
+        }
+    ],
+    "impressionId": 1972178414
+}
+```
+
+default behavior of select option is empty array and if select option is empty, then all edge fields will be returned.
+
+##### 3. groupBy option example #####
+
+some times use want to group by result edges by their field.
+```
+{   
+  	"select": ["from", "to", "label", "direction", "timestamp", "score", "time", "weight", "is_hidden", "is_blocked"],
+    "groupBy": ["from", "to", "label"],
+    "srcVertices": [
+        {
+            "serviceName": "s2graph",
+            "columnName": "user_id_test",
+            "id": 101
+        }
+    ],
+    "steps": [
+        {
+            "step": [
+                {
+                    "label": "s2graph_label_test_weak",
+                    "direction": "out",
+                    "offset": 0,
+                    "limit": 10, 
+	                "duplicate": "raw"
+                }
+            ]
+        }
+    ]
+
+}
+```
+
+now result json grouped all edges by their ["from", "to", "label"] fields.
+```
+{
+    "size": 1,
+    "results": [
+        {
+            "groupBy": {
+                "from": 101,
+                "to": "10",
+                "label": "s2graph_label_test_weak"
+            },
+            "agg": [
+                {
+                    "from": 101,
+                    "to": "10",
+                    "label": "s2graph_label_test_weak",
+                    "direction": "out",
+                    "timestamp": 6,
+                    "score": 1,
+                    "props": {
+                        "time": -30,
+                        "weight": 0,
+                        "is_hidden": false,
+                        "is_blocked": false
+                    }
+                },
+                {
+                    "from": 101,
+                    "to": "10",
+                    "label": "s2graph_label_test_weak",
+                    "direction": "out",
+                    "timestamp": 5,
+                    "score": 1,
+                    "props": {
+                        "time": -10,
+                        "weight": 0,
+                        "is_hidden": false,
+                        "is_blocked": false
+                    }
+                },
+                {
+                    "from": 101,
+                    "to": "10",
+                    "label": "s2graph_label_test_weak",
+                    "direction": "out",
+                    "timestamp": 4,
+                    "score": 1,
+                    "props": {
+                        "time": 0,
+                        "weight": 0,
+                        "is_hidden": false,
+                        "is_blocked": false
+                    }
+                }
+            ]
+        }
+    ],
+    "impressionId": 1972178414
+}
+```
+##### 4. filterOut option example #####
+sometimes it is necessary run 2 query concurrently, then filter out result with other query result. 
+
+```
+{
+    "filterOut": {
+        "srcVertices": [
+            {
+                "serviceName": "s2graph",
+                "columnName": "user_id_test",
+                "id": 100
+            }
+        ],
+        "steps": [
+            {
+                "step": [
+                    {
+                        "label": "s2graph_label_test_weak",
+                        "direction": "out",
+                        "offset": 0,
+                        "limit": 10,
+                        "duplicate": "raw"
+                    }
                 ]
             }
+        ]
+    },
+    "srcVertices": [
+        {
+            "serviceName": "s2graph",
+            "columnName": "user_id_test",
+            "id": 101
+        }
+    ],
+    "steps": [
+        {
+            "step": [
+                {
+                    "label": "s2graph_label_test_weak",
+                    "direction": "out",
+                    "offset": 0,
+                    "limit": 10,
+                    "duplicate": "raw"
+                }
+            ]
         }
     ]
 }
 ```
-#####  3. POST /graphs/getEdgesExcluded #####
-get all edges excluding all edges from srcVertices to last step.
+s2graph run 2 concurrent query, one for main step, and other is filter out query. 
+above example only show syntax, so here is more concrete examples.
 
-#####  4. POST /graphs/getEdgesExcluded/grouped #####
-get all edges excluding all edges from srcVertices to last step with group by edge`s target vertex.
+```
+{
+  "filterOut": {
+    "srcVertices": [
+      {
+        "columnName": "uuid",
+        "id": "alec",
+        "serviceName": "nachu"
+      }
+    ],
+    "steps": [
+      {
+        "step": [
+          {
+            "direction": "out",
+            "label": "nachu_user_view_news",
+            "limit": 100,
+            "offset": 0
+          }
+        ]
+      }
+    ]
+  },
+  "srcVertices": [
+    {
+      "columnName": "uuid",
+      "id": "alec",
+      "serviceName": "nachu"
+    }
+  ],
+  "steps": [
+    {
+      "nextStepLimit": 10,
+      "step": [
+        {
+          "direction": "out",
+          "duplicate": "scoreSum",
+          "label": "nachu_user_view_news",
+          "limit": 100,
+          "offset": 0,
+          "timeDecay": {
+            "decayRate": 0.1,
+            "initial": 1,
+            "timeUnit": 86000000
+          }
+        }
+      ]
+    },
+    {
+      "nextStepLimit": 10,
+      "step": [
+        {
+          "label": "nachu_news_belongto_category",
+          "limit": 1
+        }
+      ]
+    },
+    {
+      "step": [
+        {
+          "direction": "in",
+          "label": "nachu_news_belongto_category",
+          "limit": 10
+        }
+      ]
+    }
+  ]
+}
+```
+
+above main query will traverse news graph as following.
+1. find out news list that user alec read.
+2. find out categories for step 1`s news.
+3. find out other news that is published in same category.
+
+also concurrently, alec don`t want to get news recommendations that he already read. by using filterOut, client can add following step on result.
+
+news that alec read
+```
+{
+    "size": 5,
+    "degrees": [
+        {
+            "from": "alec",
+            "label": "nachu_user_view_news",
+            "direction": "out",
+            "_degree": 6
+        }
+    ],
+    "results": [
+        {
+            "cacheRemain": -19,
+            "from": "alec",
+            "to": 20150803143507760,
+            "label": "nachu_user_view_news",
+            "direction": "out",
+            "_timestamp": 1438591888454,
+            "timestamp": 1438591888454,
+            "score": 0.9342237306639056,
+            "props": {
+                "_timestamp": 1438591888454
+            }
+        },
+        {
+            "cacheRemain": -19,
+            "from": "alec",
+            "to": 20150803150406010,
+            "label": "nachu_user_view_news",
+            "direction": "out",
+            "_timestamp": 1438591143640,
+            "timestamp": 1438591143640,
+            "score": 0.9333716513280771,
+            "props": {
+                "_timestamp": 1438591143640
+            }
+        },
+        {
+            "cacheRemain": -19,
+            "from": "alec",
+            "to": 20150803144908340,
+            "label": "nachu_user_view_news",
+            "direction": "out",
+            "_timestamp": 1438581933262,
+            "timestamp": 1438581933262,
+            "score": 0.922898833570944,
+            "props": {
+                "_timestamp": 1438581933262
+            }
+        },
+        {
+            "cacheRemain": -19,
+            "from": "alec",
+            "to": 20150803124627492,
+            "label": "nachu_user_view_news",
+            "direction": "out",
+            "_timestamp": 1438581485765,
+            "timestamp": 1438581485765,
+            "score": 0.9223930035297659,
+            "props": {
+                "_timestamp": 1438581485765
+            }
+        },
+        {
+            "cacheRemain": -19,
+            "from": "alec",
+            "to": 20150803113311090,
+            "label": "nachu_user_view_news",
+            "direction": "out",
+            "_timestamp": 1438580536376,
+            "timestamp": 1438580536376,
+            "score": 0.9213207756669546,
+            "props": {
+                "_timestamp": 1438580536376
+            }
+        }
+    ],
+    "impressionId": 354266627
+}
+```
+
+without filterOut
+```
+{
+    "size": 2,
+    "degrees": [
+        {
+            "from": 1028,
+            "label": "nachu_news_belongto_category",
+            "direction": "in",
+            "_degree": 2
+        }
+    ],
+    "results": [
+        {
+            "cacheRemain": -33,
+            "from": 1028,
+            "to": 20150803105805092,
+            "label": "nachu_news_belongto_category",
+            "direction": "in",
+            "_timestamp": 1438590169146,
+            "timestamp": 1438590169146,
+            "score": 0.9342777143725886,
+            "props": {
+                "updateTime": 20150803172249144,
+                "_timestamp": 1438590169146
+            }
+        },
+        {
+            "cacheRemain": -33,
+            "from": 1028,
+            "to": 20150803143507760,
+            "label": "nachu_news_belongto_category",
+            "direction": "in",
+            "_timestamp": 1438581548486,
+            "timestamp": 1438581548486,
+            "score": 0.9342777143725886,
+            "props": {
+                "updateTime": 20150803145908490,
+                "_timestamp": 1438581548486
+            }
+        }
+    ],
+    "impressionId": -14034523
+}
+```
 
 
+with filterOut
+```
+{
+    "size": 1,
+    "degrees": [],
+    "results": [
+        {
+            "cacheRemain": 85957406,
+            "from": 1028,
+            "to": 20150803105805092,
+            "label": "nachu_news_belongto_category",
+            "direction": "in",
+            "_timestamp": 1438590169146,
+            "timestamp": 1438590169146,
+            "score": 0.9343106784173475,
+            "props": {
+                "updateTime": 20150803172249144,
+                "_timestamp": 1438590169146
+            }
+        }
+    ],
+    "impressionId": -14034523
+}
+```
 
-#### 2.2. Vertex Queries ####
-
-##### 1. POST /graphs/getVertices #####
-get all vertex data. 
+note that **20150803143507760** has been filtered out.
 
 
+##### 5. nextStepLimit example #####
+s2graph provide step level aggregation and users can decide topK on aggregated results.
+back to s2graph_label_test_weak label, user may want to 
 
 
-### 3. Query Examples ###
+##### 6. nextStepThreshold example #####
+
+##### 7. transform example #####
+for traversing, s2graph use current step output edge`s to id(vertex id) for start vertexId on next step.
+sometimes users want to keep traversing with current step output edge property value. 
+
+below is result from example 1. 
+
+```
+{
+    "size": 3,
+    "degrees": [
+        {
+            "from": 101,
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_degree": 3
+        }
+    ],
+    "results": [
+        {
+            "cacheRemain": -147,
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 6,
+            "timestamp": 6,
+            "score": 1,
+            "props": {
+                "_timestamp": 6,
+                "time": -30,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        },
+        {
+            "cacheRemain": -147,
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 5,
+            "timestamp": 5,
+            "score": 1,
+            "props": {
+                "_timestamp": 5,
+                "time": -10,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        },
+        {
+            "cacheRemain": -147,
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 4,
+            "timestamp": 4,
+            "score": 1,
+            "props": {
+                "_timestamp": 4,
+                "time": 0,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        }
+    ],
+    "impressionId": 1972178414
+}
+```
+
+Here is how to use transform.
+
+```
+{
+    "select": [],
+    "srcVertices": [
+        {
+            "serviceName": "s2graph",
+            "columnName": "user_id_test",
+            "id": 101
+        }
+    ],
+    "steps": [
+        {
+            "step": [
+                {
+                    "label": "s2graph_label_test_weak",
+                    "direction": "out",
+                    "offset": 0,
+                    "limit": 10,
+                    "duplicate": "raw",
+                    "transform": [
+                        ["_to"],
+                        ["time.$", "time"]
+                    ]
+                }
+            ]
+        }
+    ]
+}
+```
 
 
+note that 3 edges become 6 edges since there are two transform rules. first one simply generate original edge, and second rule will replace to value with string interpolation.
+```
+{
+    "size": 6,
+    "degrees": [
+        {
+            "from": 101,
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_degree": 3
+        },
+        {
+            "from": 101,
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_degree": 3
+        }
+    ],
+    "results": [
+        {
+            "cacheRemain": -8,
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 6,
+            "timestamp": 6,
+            "score": 1,
+            "props": {
+                "_timestamp": 6,
+                "time": -30,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        },
+        {
+            "cacheRemain": -8,
+            "from": 101,
+            "to": "time.-30",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 6,
+            "timestamp": 6,
+            "score": 1,
+            "props": {
+                "_timestamp": 6,
+                "time": -30,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        },
+        {
+            "cacheRemain": -8,
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 5,
+            "timestamp": 5,
+            "score": 1,
+            "props": {
+                "_timestamp": 5,
+                "time": -10,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        },
+        {
+            "cacheRemain": -8,
+            "from": 101,
+            "to": "time.-10",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 5,
+            "timestamp": 5,
+            "score": 1,
+            "props": {
+                "_timestamp": 5,
+                "time": -10,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        },
+        {
+            "cacheRemain": -8,
+            "from": 101,
+            "to": "10",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 4,
+            "timestamp": 4,
+            "score": 1,
+            "props": {
+                "_timestamp": 4,
+                "time": 0,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        },
+        {
+            "cacheRemain": -8,
+            "from": 101,
+            "to": "time.0",
+            "label": "s2graph_label_test_weak",
+            "direction": "out",
+            "_timestamp": 4,
+            "timestamp": 4,
+            "score": 1,
+            "props": {
+                "_timestamp": 4,
+                "time": 0,
+                "weight": 0,
+                "is_hidden": false,
+                "is_blocked": false
+            }
+        }
+    ],
+    "impressionId": 1972178414
+}
+```
 
-#### 3.1. Edge Queries ####
+##### 8. 2 step traverse example #####
 
+chaining multiple step will yield traverse query. following query will find friends of friends.
+
+```javascript
+{
+    "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
+    "steps": [
+	  {
+		  "step": [
+			{"label": "friends", "direction": "out", "limit": 100}	  
+		  ]
+	  }, 
+	  {
+		  "step": [
+			{"label": "friends", "direction": "out", "limit": 10}
+		  ]
+	  }
+    ]
+}
+'
+```
+##### 9. 3 step traverse example #####
+
+just like 2 step, add more steps. watch out limit on each step since search space is equal to multiplication of max limits on each step.
+
+
+##### 10. more examples #####
 Example 1. Selecting the first 100 edges of label `graph_test`, which start from the vertex with `account_id=1`, sorted using the default index of `graph_test`.
 
 ```javascript
@@ -976,9 +1935,35 @@ curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -
 '
 ```
 
-#### 3.2. Vertex Queries ####
+Example 7. my friends who played music id 200
+```javascript
+curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+{
+    "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
+    "steps": [
+      [{"label": "talk_friend", "direction": "out", "limit": 100}],
+      [{"label": "play_music", "direction": "out", "_to": 200}]
+    ]
+}
+'
+```
 
-Example 1. Selecting all vertices from column `account_id` of a service `s2graph`.
+Example 8. more general way to check list of edges exist.
+
+```javascript
+curl -XPOST localhost:9000/graphs/checkEdges -H 'Content-Type: Application/json' -d '
+[
+	{"label": "talk_friend", "direction": "out", "from": 1, "to": 100}, 
+	{"label": "talk_friend", "direction": "out", "from": 1, "to": 101}
+]
+'
+```
+
+
+#### 2.2. Vertex Queries ####
+
+##### 1. POST /graphs/getVertices #####
+Selecting all vertices from column `account_id` of a service `s2graph`.
 
 ```javascript
 curl -XPOST localhost:9000/graphs/getVertices -H 'Content-Type: Application/json' -d '
@@ -988,6 +1973,9 @@ curl -XPOST localhost:9000/graphs/getVertices -H 'Content-Type: Application/json
 ]
 '
 ```
+
+
+ 
 
 ## 6. Bulk Loading ##
 

@@ -4,10 +4,11 @@ package com.daumkakao.s2graph.core.types2
  * Created by shon on 6/10/15.
  */
 object EdgeValue extends HBaseDeserializable {
+  import HBaseType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = DEFAULT_VERSION): EdgeValueLike = {
+                version: String = DEFAULT_VERSION): (EdgeValueLike, Int) = {
     version match {
       case VERSION2 => v2.EdgeValue.fromBytes(bytes, offset, len, version)
       case VERSION1 => v1.EdgeValue.fromBytes(bytes, offset, len, version)
@@ -24,5 +25,5 @@ object EdgeValue extends HBaseDeserializable {
 }
 trait EdgeValueLike extends HBaseSerializable {
   val props: Seq[(Byte, InnerValLike)]
-  val bytes: Array[Byte]
+  def bytes: Array[Byte]
 }

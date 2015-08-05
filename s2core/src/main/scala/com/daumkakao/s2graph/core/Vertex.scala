@@ -1,41 +1,62 @@
 package com.daumkakao.s2graph.core
 
-// import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.models._
+import com.daumkakao.s2graph.core.mysqls._
+import play.api.Logger
+
+//import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2._
 import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.client.Delete
 import play.api.libs.json.Json
-import scala.collection.mutable.{HashMap, ListBuffer}
+import scala.collection.mutable.{ListBuffer}
 import org.hbase.async.{DeleteRequest, HBaseRpc, PutRequest, GetRequest}
 
 /**
   */
 case class Vertex(id: VertexId,
-                  ts: Long,
+                  ts: Long = System.currentTimeMillis(),
                   props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
-                  op: Byte = 0) extends GraphElement {
-  import GraphConstant._
+                  op: Byte = 0,
+                  belongLabelIds: Seq[Int] = Seq.empty) extends GraphElement {
 
-  lazy val innerId = id.innerId
-  lazy val schemaVer = serviceColumn.schemaVersion
-  lazy val serviceColumn = ServiceColumn.findById(id.colId)
-  lazy val service = Service.findById(serviceColumn.serviceId)
+  import Graph.{vertexCf}
+  import Vertex._
+
+  val innerId = id.innerId
+
+  def schemaVer = serviceColumn.schemaVersion
+
+  def serviceColumn = ServiceColumn.findById(id.colId)
+
+  def service = Service.findById(serviceColumn.serviceId)
+
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, service.hTableName)
 
-  lazy val rowKey = VertexRowKey(id)(schemaVer)
-  lazy val defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq.toInt -> InnerVal.withLong(ts, schemaVer))
-  lazy val qualifiersWithValues =
-    for ((k, v) <- props ++ defaultProps) yield (VertexQualifier(k)(schemaVer), v)
+  def rowKey = VertexRowKey(id)(schemaVer)
+
+  def defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq.toInt -> InnerVal.withLong(ts, schemaVer))
+
+
+  def qualifiersWithValues = {
+    val base = for ((k, v) <- props ++ defaultProps) yield (VertexQualifier(k)(schemaVer).bytes, v.bytes)
+    val belongsTo = belongLabelIds.map { labelId =>
+      (VertexQualifier(toPropKey(labelId))(schemaVer).bytes -> Array.empty[Byte])
+    }
+    base ++ belongsTo
+  }
+
 
   /** TODO: make this as configurable */
-  override lazy val serviceName = service.serviceName
-  override lazy val isAsync = false
-  override lazy val queueKey = Seq(ts.toString, serviceName).mkString("|")
-  override lazy val queuePartitionKey = id.innerId.toString
+  override def serviceName = service.serviceName
 
-  lazy val propsWithName = for {
+  override def isAsync = false
+
+  override def queueKey = Seq(ts.toString, serviceName).mkString("|")
+
+  override def queuePartitionKey = id.innerId.toString
+
+  def propsWithName = for {
     (seq, v) <- props
     meta <- ColumnMeta.findByIdAndSeq(id.colId, seq.toByte)
   } yield (meta.name -> v.toString)
@@ -44,7 +65,7 @@ case class Vertex(id: VertexId,
     //    play.api.Logger.error(s"put: $this => $rowKey")
     val put = new Put(rowKey.bytes)
     for ((q, v) <- qualifiersWithValues) {
-      put.addColumn(vertexCf, q.bytes, ts, v.bytes)
+      put.addColumn(vertexCf, q, ts, v)
     }
     List(put)
   }
@@ -53,8 +74,8 @@ case class Vertex(id: VertexId,
     val qualifiers = ListBuffer[Array[Byte]]()
     val values = ListBuffer[Array[Byte]]()
     for ((q, v) <- qualifiersWithValues) {
-      qualifiers += q.bytes
-      values += v.bytes
+      qualifiers += q
+      values += v
       //        new PutRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf, qualifier.bytes, v.bytes, ts)
     }
     val put = new PutRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf, qualifiers.toArray, values.toArray, ts)
@@ -72,7 +93,7 @@ case class Vertex(id: VertexId,
   def buildPutsAll(): List[HBaseRpc] = {
     op match {
       case d: Byte if d == GraphUtil.operations("delete") => buildDeleteAsync()
-//      case dAll: Byte if dAll == GraphUtil.operations("deleteAll") => buildDeleteAllAsync()
+      //      case dAll: Byte if dAll == GraphUtil.operations("deleteAll") => buildDeleteAllAsync()
       case _ => buildPutsAsync()
     }
   }
@@ -85,42 +106,30 @@ case class Vertex(id: VertexId,
     List(new DeleteRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf, ts))
   }
 
-  def belongLabelIds(): Iterable[Label] = {
-    for {
-      label <- (Label.findBySrcColumnId(id.colId) ++ Label.findByTgtColumnId(id.colId)).groupBy(_.id.get).map { _._2.head }
-    } yield label
-  }
 
-
-  //  def buildGet() = {
-  //    val get = new Get(rowKey.bytes)
-  //    //    play.api.Logger.error(s"get: $this => $rowKey")
-  //    get.addFamily(vertexCf)
-  //    get
+  //  def belongLabelIds(): Iterable[Label] = {
+  //    for {
+  //      label <- (Label.findBySrcColumnId(id.colId) ++ Label.findByTgtColumnId(id.colId)).groupBy(_.id.get).map {
+  //        _._2.head
+  //      }
+  //    } yield label
   //  }
+
+
   def buildGet() = {
     new GetRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf)
   }
 
   def toEdgeVertex() = Vertex(SourceVertexId(id.colId, innerId), ts, props, op)
 
-  override def toString(): String = {
-
-    val (serviceName, columnName) = if (!id.storeColId) ("", "")
-    else {
-      val serviceColumn = ServiceColumn.findById(id.colId)
-      (serviceColumn.service.serviceName, serviceColumn.columnName)
-    }
-    val ls = ListBuffer(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName)
-    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
-    ls.mkString("\t")
-  }
 
   override def hashCode() = {
+    Logger.debug(s"Vertex.hashCode: $this")
     id.hashCode()
   }
 
   override def equals(obj: Any) = {
+    Logger.debug(s"Vertex.equals: $this, $obj")
     obj match {
       case otherVertex: Vertex =>
         id.equals(otherVertex.id)
@@ -129,9 +138,26 @@ case class Vertex(id: VertexId,
   }
 
   def withProps(newProps: Map[Int, InnerValLike]) = Vertex(id, ts, newProps, op)
+
+  def toLogString(): String = {
+    val (serviceName, columnName) =
+      if (!id.storeColId) ("", "")
+      else {
+        (serviceColumn.service.serviceName, serviceColumn.columnName)
+      }
+    val ls = ListBuffer(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName)
+    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
+    ls.mkString("\t")
+  }
 }
 
 object Vertex {
+
+  def toPropKey(labelId: Int): Int = Byte.MaxValue + labelId
+
+  def toLabelId(propKey: Int): Int = propKey - Byte.MaxValue
+
+  def isLabelId(propKey: Int): Boolean = propKey > Byte.MaxValue
 
   //  val emptyVertex = Vertex(new CompositeId(CompositeId.defaultColId, CompositeId.defaultInnerId, false, true),
   //    System.currentTimeMillis())
@@ -143,28 +169,36 @@ object Vertex {
 
       val head = kvs.head
       val headBytes = head.key()
-      val rowKey = VertexRowKey.fromBytes(headBytes, 0, headBytes.length, version)
+      val (rowKey, _) = VertexRowKey.fromBytes(headBytes, 0, headBytes.length, version)
 
       var maxTs = Long.MinValue
+      val propsMap = new collection.mutable.HashMap[Int, InnerValLike]
+      val belongLabelIds = new ListBuffer[Int]
+
       /**
        *
        * TODO
        * Make sure this does not violate any MVCC Version.
        */
-      val props =
-        for {
-          kv <- kvs
-          kvQual = kv.qualifier()
-          qualifier = VertexQualifier.fromBytes(kvQual, 0, kvQual.length, version)
-          v = kv.value()
-          value = InnerVal.fromBytes(v, 0, v.length, version)
-          ts = kv.timestamp()
-        } yield {
-          if (ts > maxTs) maxTs = ts
-          (qualifier.propKey, value)
+
+      for {
+        kv <- kvs
+        kvQual = kv.qualifier()
+        (qualifier, _) = VertexQualifier.fromBytes(kvQual, 0, kvQual.length, version)
+      } {
+        val ts = kv.timestamp()
+        if (ts > maxTs) maxTs = ts
+
+        if (isLabelId(qualifier.propKey)) {
+          belongLabelIds += toLabelId(qualifier.propKey)
+        } else {
+          val v = kv.value()
+          val (value, _) = InnerVal.fromBytes(v, 0, v.length, version)
+          propsMap += (qualifier.propKey -> value)
         }
+      }
       assert(maxTs != Long.MinValue)
-      Some(Vertex(rowKey.id, maxTs, props.toMap))
+      Some(Vertex(rowKey.id, maxTs, propsMap.toMap, belongLabelIds = belongLabelIds))
     }
   }
 }

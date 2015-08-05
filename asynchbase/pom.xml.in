@@ -27,6 +27,7 @@
     <connection>scm:git:git@github.com:OpenTSDB/asynchbase.git</connection>
     <url>https://github.com/OpenTSDB/asynchbase</url>
   </scm>
+
   <issueManagement>
     <system>GitHub</system>
     <url>https://github.com/OpenTSDB/asynchbase/issues</url>

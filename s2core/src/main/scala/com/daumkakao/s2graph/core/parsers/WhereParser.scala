@@ -3,8 +3,8 @@ package com.daumkakao.s2graph.core.parsers
 import com.daumkakao.s2graph.core._
 //import com.daumkakao.s2graph.core.models.{LabelMeta, Label}
 
-// import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.models._
+ import com.daumkakao.s2graph.core.mysqls._
+//import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2.InnerValLike
 
@@ -37,9 +37,9 @@ case class Equal(val propKey: Byte, val value: InnerValLike) extends Clause {
 //        println(log.mkString("\t"), "\n")
         edge.tgtVertex.innerId == value
       case _ =>
-        edge.props.get(propKey) match {
+        edge.propsWithTs.get(propKey) match {
           case None => true
-          case Some(edgeVal) => edgeVal == value
+          case Some(edgeVal) => edgeVal.innerVal == value
         }
     }
 
@@ -51,9 +51,9 @@ case class IN(val propKey: Byte, val values: Set[InnerValLike]) extends Clause {
       case LabelMeta.from.seq => values.contains(edge.srcVertex.innerId)
       case LabelMeta.to.seq => values.contains(edge.tgtVertex.innerId)
       case _ =>
-        edge.props.get(propKey) match {
+        edge.propsWithTs.get(propKey) match {
           case None => true
-          case Some(edgeVal) => values.contains(edgeVal)
+          case Some(edgeVal) => values.contains(edgeVal.innerVal)
         }
     }
   }
@@ -64,10 +64,10 @@ case class Between(val propKey: Byte, val minValue: InnerValLike, val maxValue: 
       case LabelMeta.from.seq => minValue <= edge.srcVertex.innerId && edge.srcVertex.innerId <= maxValue
       case LabelMeta.to.seq => minValue <= edge.tgtVertex.innerId && edge.tgtVertex.innerId <= maxValue
       case _ =>
-        edge.props.get(propKey) match {
+        edge.propsWithTs.get(propKey) match {
           case None => true
           case Some(edgeVal) =>
-            minValue <= edgeVal && edgeVal <= maxValue
+            minValue <= edgeVal.innerVal && edgeVal.innerVal <= maxValue
         }
     }
 

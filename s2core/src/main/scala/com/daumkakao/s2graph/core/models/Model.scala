@@ -5,11 +5,9 @@ import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{CellUtil, TableName}
 import org.apache.hadoop.hbase.client._
-import play.api.Logger
 import collection.JavaConversions._
 import scala.collection.mutable
 import scala.reflect.ClassTag
-import scala.reflect.runtime.{universe => ru}
 
 object Model extends LocalCache[Result] {
   val DELIMITER = ":"
@@ -23,16 +21,16 @@ object Model extends LocalCache[Result] {
   val idQualifier = "i"
   val qualifier = "q"
   var zkQuorum: String = "localhost"
-  var modelTableName = s"models-${GraphConnection.defaultConfigs("phase")}"
+  var modelTableName = s"models-${Graph.defaultConfigs("phase")}"
   var cacheTTL: Int = 10
   var maxCacheSize: Int = 1000
   type KEY = String
   type VAL = Any
   def apply(config: Config) = {
-    zkQuorum = GraphConnection.getOrElse(config)("hbase.zookeeper.quorum", zkQuorum)
-    modelTableName = GraphConnection.getOrElse(config)("s2graph.models.table.name", modelTableName)
-    cacheTTL = GraphConnection.getOrElse(config)("cache.ttl.seconds", cacheTTL)
-    maxCacheSize = GraphConnection.getOrElse(config)("cache.max.size", maxCacheSize)
+    zkQuorum = config.getString("hbase.zookeeper.quorum")
+    modelTableName = config.getString("s2graph.models.table.name")
+    cacheTTL = config.getInt("cache.ttl.seconds")
+    maxCacheSize = config.getInt("cache.max.size")
   }
 //  def getTypeTag[T: ru.TypeTag](obj: T) = ru.typeTag[T]
 //  def newInstance[T](clazz: Class)(implicit tag: ru.TypeTag[T]) = {

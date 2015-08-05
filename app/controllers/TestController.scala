@@ -4,6 +4,8 @@ import util.TestDataLoader
 import play.api.mvc.{ Action, Controller, Result }
 import play.api.libs.json.Json
 
+import scala.concurrent.Future
+
 
 object TestController extends Controller  {
 
@@ -18,5 +20,11 @@ object TestController extends Controller  {
     val id = TestDataLoader.randomId
     Ok(s"${id}")
   }
-  
+
+  def pingAsync() = Action.async(parse.json) { request =>
+    Future.successful(Ok("Pong\n"))
+  }
+  def ping() = Action(parse.json) { request =>
+    Ok("Pong\n")
+  }
 }

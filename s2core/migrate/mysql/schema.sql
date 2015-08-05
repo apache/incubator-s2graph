@@ -25,6 +25,7 @@ CREATE TABLE `service_columns` (
   `service_id` integer NOT NULL,
   `column_name` varchar(64) NOT NULL,
   `column_type` varchar(8) NOT NULL,
+  `schema_version` varchar(8) NOT NULL default 'v2',
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_service_id_column_name` (`service_id`, `column_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -68,6 +69,8 @@ CREATE TABLE `labels` (
   `consistency_level` varchar(8) NOT NULL DEFAULT 'weak',
   `hbase_table_name` varchar(255) NOT NULL DEFAULT 's2graph',
   `hbase_table_ttl` integer,
+  `schema_version` varchar(8) NOT NULL default 'v2',
+  `is_async` tinyint(4) NOT NULL default '0',
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_label` (`label`),
   INDEX `idx_src_column_name` (`src_column_name`),

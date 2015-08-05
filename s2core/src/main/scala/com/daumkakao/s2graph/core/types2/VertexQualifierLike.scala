@@ -4,10 +4,11 @@ package com.daumkakao.s2graph.core.types2
  * Created by shon on 6/10/15.
  */
 object VertexQualifier extends HBaseDeserializable  {
+  import HBaseType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = DEFAULT_VERSION): VertexQualifierLike = {
+                version: String = DEFAULT_VERSION): (VertexQualifierLike, Int) = {
     version match {
       case VERSION2 => v2.VertexQualifier.fromBytes(bytes, offset, len, version)
       case VERSION1 => v1.VertexQualifier.fromBytes(bytes, offset, len, version)
@@ -25,5 +26,6 @@ object VertexQualifier extends HBaseDeserializable  {
 trait VertexQualifierLike extends HBaseSerializable {
 
   val propKey: Int
-  val bytes: Array[Byte]
+  def bytes: Array[Byte]
+
 }

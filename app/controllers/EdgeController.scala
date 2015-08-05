@@ -1,46 +1,60 @@
 package controllers
 
-import com.daumkakao.s2graph.rest.config.{Instrumented, Config}
-import com.daumkakao.s2graph.core.{ Edge, Graph, GraphElement, GraphUtil, Vertex, KGraphExceptions }
+import com.daumkakao.s2graph.core.mysqls.Label
+import com.daumkakao.s2graph.core._
+import config.Config
 import play.api.Logger
-import play.api.libs.json.{Json, JsValue}
-import play.api.mvc.{ Controller, Result }
-import scala.collection.mutable.ListBuffer
+import play.api.libs.json.{JsValue, Json}
+import play.api.mvc.{Controller, Result}
 import scala.concurrent.Future
 
-object EdgeController extends Controller with Instrumented with RequestParser {
+object EdgeController extends Controller with RequestParser {
 
   import controllers.ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits._
+  import ExceptionHandler._
 
   private val maxLength = 1024 * 1024 * 16
-  private[controllers] def tryMutates(jsValue: JsValue, operation: String): Future[Result] = {
+  def tryMutates(jsValue: JsValue, operation: String): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
     else {
       try {
+        Logger.debug(s"$jsValue")
         val edges = toEdges(jsValue, operation)
-        // store valid edges came to system.
-        getOrElseUpdateMetric("IncommingEdges")(metricRegistry.counter("IncommingEdges")).inc(edges.size)
+        for { edge <- edges } {
+          if (edge.isAsync) {
+            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC_ASYNC, edge, None))
+          } else {
+            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC, edge, None))
+          }
+        }
 
-        Graph.mutateEdges(edges).map { rets =>
+        val edgesToStore = edges.filterNot(e => e.isAsync)
+        //FIXME:
+        Graph.mutateEdges(edgesToStore).map { rets =>
           Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
         }
+
       } catch {
-        case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"e"))
+        case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
         case e: Throwable =>
           play.api.Logger.error(s"mutateAndPublish: $e", e)
-          Future.successful(InternalServerError(s"${e.getStackTraceString}"))
+          Future.successful(InternalServerError(s"${e.getStackTrace}"))
       }
     }
   }
-  
+
 //  private[controllers] def aggregateElements(elements: Seq[GraphElement], originalString: Seq[Option[String]]): Future[Seq[Boolean]] = {
-    //KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(Config.KAFKA_LOG_TOPIC, element, originalString))
+//    elements.foreach {
+//
+//    }
+//    KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(Config.KAFKA_LOG_TOPIC, element, originalString))
 //    Graph.mutateElements(elements)
 //  }
-  private[controllers] def mutateAndPublish(str: String): Future[Result] = {
+  def mutateAndPublish(str: String): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
 
+    Logger.debug(s"$str")
     val edgeStrs = str.split("\\n")
 
     var vertexCnt = 0L
@@ -52,20 +66,24 @@ object EdgeController extends Controller with Instrumented with RequestParser {
             case v: Vertex => vertexCnt += 1
             case e: Edge => edgeCnt += 1
           }
+          if (element.isAsync) {
+            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC_ASYNC, element, Some(str)))
+          } else {
+            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC, element, Some(str)))
+          }
           element
         }
-//      val elements = edgesWithStrs.map(_._1)
-//      val strs = edgesWithStrs.map(_._2)
-      getOrElseUpdateMetric("IncommingVertices")(metricRegistry.counter("IncommingVertices")).inc(vertexCnt)
-      getOrElseUpdateMetric("IncommingEdges")(metricRegistry.counter("IncommingEdges")).inc(edgeCnt)
-      Graph.mutateElements(elements).map { rets =>
+
+      //FIXME:
+      val elementsToStore = elements.filterNot(e => e.isAsync)
+      Graph.mutateElements(elementsToStore).map { rets =>
         Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
       }
     } catch {
       case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
       case e: Throwable =>
         play.api.Logger.error(s"mutateAndPublish: $e", e)
-        Future.successful(InternalServerError(s"${e.getStackTraceString}"))
+        Future.successful(InternalServerError(s"${e.getStackTrace}"))
     }
   }
 
@@ -95,4 +113,21 @@ object EdgeController extends Controller with Instrumented with RequestParser {
     tryMutates(request.body, "increment")
   }
 
+  def deleteAll() = withHeaderAsync(parse.json) { request =>
+    val deleteResults = Future.sequence(request.body.as[Seq[JsValue]] map { json =>
+      val labelName = (json \ "label").as[String]
+      val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil)
+      val direction = (json \ "direction").asOpt[String].getOrElse("out")
+
+      val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
+      val ts = (json \ "timestamp").asOpt[Long]
+      val vertices = toVertices(labelName, direction, ids)
+
+      Graph.deleteVerticesAllAsync(vertices.toList, labels, GraphUtil.directions(direction), ts)
+    })
+
+    deleteResults.map{ rst =>
+      Ok(s"deleted... ${rst.toString()}")
+    }
+  }
 }

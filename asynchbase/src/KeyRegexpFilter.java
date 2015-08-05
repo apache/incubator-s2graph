@@ -42,7 +42,7 @@ import org.hbase.async.generated.HBasePB;
  * key.  Rows for which the key doesn't match will not be returned to the
  * scanner, which can be useful to carefully select which rows are matched
  * when you can't just do a prefix match, and cut down the amount of data
- * transferred on the network.
+ * transfered on the network.
  * <p>
  * Don't use an expensive regular expression, because Java's implementation
  * uses backtracking and matching will happen on the server side, potentially
