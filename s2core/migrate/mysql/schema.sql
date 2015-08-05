@@ -121,3 +121,35 @@ CREATE TABLE `label_indices` (
 
 ALTER TABLE label_indices ADD FOREIGN KEY(label_id) REFERENCES labels(id) ON DELETE CASCADE;
 
+-- ----------------------------
+--  Table structure for `service_experiments`
+-- ----------------------------
+DROP TABLE IF EXISTS `service_experiments`;
+CREATE TABLE `service_experiments` (
+  `id` integer NOT NULL AUTO_INCREMENT,
+  `service_id` integer NOT NULL,
+  `experiment_key` varchar(255) NOT NULL,
+  `total_mod` int NOT NULL,
+  `description` varchar(255) NOT NULL
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_service_id_logic_key` (`service_id`, `experiment_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+-- ----------------------------
+--  Table structure for `service_experiment_buckets`
+-- ----------------------------
+DROP TABLE IF EXISTS `service_experiment_buckets`;
+CREATE TABLE `service_logic_buckets` (
+  `id` integer NOT NULL AUTO_INCREMENT,
+  `service_experiment_id` integer NOT NULL,
+  `cookie_mods` varchar(255) NOT NULL,
+  `probability` float NOT NULL DEFAULT 1.0,
+  `http_verb` varchar(8) NOT NULL,
+  `api_path` varchar(255) NOT NULL,
+  `request_params` varchar(255),
+  `request_body` text,
+  `request_header` varchar(255),
+  PRIMARY KEY (`id`),
+  INDEX `idx_service_experiment_id` (`service_experiment_id`),
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
