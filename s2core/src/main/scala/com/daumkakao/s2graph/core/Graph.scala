@@ -3,7 +3,6 @@ package com.daumkakao.s2graph.core
 import java.util
 import com.daumkakao.s2graph.core.mysqls._
 import com.google.common.cache.CacheBuilder
-import scala.collection.JavaConverters._
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Success}
 import java.util.ArrayList
@@ -19,7 +18,6 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable.{HashMap, ListBuffer}
 import scala.concurrent._
 import scala.concurrent.duration._
-import scala.reflect.ClassTag
 
 
 object Graph {

@@ -11,7 +11,6 @@ import com.daumkakao.s2graph.core.types2.{LabelWithDirection, VertexId}
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, Controller, Result}
-import util.TestDataLoader
 
 import scala.concurrent._
 
