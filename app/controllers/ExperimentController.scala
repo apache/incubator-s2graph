@@ -14,7 +14,7 @@ import play.api.Play.current
  * Created by shon on 8/5/15.
  */
 object ExperimentController extends Controller {
-  val impressionKey = "s2ImpressionId"
+  val impressionKey = "S2-Impression-Id"
 
   def experiment(serviceName: String, experimentKey: String, uuid: String) = Action.async { request =>
     Experiment.find(serviceName, experimentKey) match {

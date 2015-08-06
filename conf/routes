@@ -99,3 +99,4 @@ PUT   /graphs/loadCache                                                        c
 
 # Experiment API
 GET     /graphs/experiment/:serviceName/:experimentKey/:uuid                    controllers.ExperimentController.experiment(serviceName, experimentKey, uuid)
+POST    /graphs/experiment/:serviceName/:experimentKey/:uuid                    controllers.ExperimentController.experiment(serviceName, experimentKey, uuid)
