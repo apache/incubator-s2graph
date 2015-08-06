@@ -2,13 +2,11 @@ package controllers
 
 
 import com.daumkakao.s2graph.core.mysqls._
-import play.api.libs.iteratee.Enumerator
-import play.api.libs.json.Json
-import play.api.libs.ws.{WS, WSResponse}
-import play.api.mvc._
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
 import play.api.Play.current
+import play.api.libs.ws.WS
+import play.api.mvc._
+
+import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
  * Created by shon on 8/5/15.
@@ -22,29 +20,27 @@ object ExperimentController extends Controller {
       case Some(experiment) =>
         experiment.findBucket(uuid) match {
           case None => throw new RuntimeException("bucket is not found")
-          case Some(bucket) => buildRequest(request, uuid, bucket).map { response =>
-            val headers = response.allHeaders map { h =>
-              (h._1, h._2.head)
-            }
-            Result(ResponseHeader(response.status, headers ++ Map(impressionKey -> bucket.impressionId)),
-              Enumerator(response.body.getBytes)).as(QueryController.applicationJsonHeader)
-          }
+          case Some(bucket) => buildRequest(request, uuid, bucket)
         }
     }
   }
 
+  private def buildRequest(request: Request[AnyContent], uuid: String, bucket: Bucket) = {
+    val url = bucket.apiPath
+    val headers = request.headers.toSimpleMap.toSeq
+    val body = bucket.requestBody.replace(bucket.uuidPlaceHolder, uuid)
+    val verb = bucket.httpVerb.toUpperCase
+    val qs = Bucket.toSimpleMap(request.queryString).toSeq
 
-  private def buildRequest(request: Request[AnyContent], uuid: String, bucket: Bucket): Future[WSResponse] = {
-    var holder = WS.url(bucket.apiPath)
-    holder = holder.withHeaders(request.headers.toSimpleMap.toSeq: _*)
-    bucket.httpVerb.toLowerCase match {
-      case "get" =>
-        holder.withQueryString(Bucket.toSimpleMap(request.queryString ++ Map(bucket.uuidKey -> Seq(uuid))).toSeq: _*).get
-      case "post" =>
-        val body = bucket.requestBody.replace(bucket.uuidPlaceHolder, uuid)
-        holder.post(Json.parse(body))
+    val ws = WS.url(url)
+      .withMethod(verb)
+      .withBody(body)
+      .withHeaders(headers: _*)
+      .withQueryString(qs: _*)
+
+    ws.stream().map {
+      case (proxyResponse, proxyBody) =>
+        Result(ResponseHeader(proxyResponse.status, proxyResponse.headers.mapValues(_.toList.head)), proxyBody)
     }
   }
-
-
 }
