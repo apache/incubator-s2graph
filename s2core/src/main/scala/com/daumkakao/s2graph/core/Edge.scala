@@ -446,13 +446,14 @@ case class Edge(srcVertex: Vertex,
       e.copy(op = GraphUtil.operations("delete"), propsWithTs = mergedPropsWithTs, version = newVersion).toInvertedEdgeHashLike()
     }
 
-    val indexedEdgeMutations = if (!shouldReplace) Nil else for {
+
+    val indexedEdgeMutations = for {
       relEdge <- requestEdge.relatedEdges
       edgeWithIndex <- relEdge.edgesWithIndex
 //      edgeWithIndex <- relEdge.copy(version = relEdge.version + Edge.incrementVersion).edgesWithIndex
       rpc <- edgeWithIndex.buildDeletesAsync() ++ edgeWithIndex.buildIncrementsAsync(-1L)
     } yield {
-//        Logger.error(s"$rpc")
+//        Logger.debug(s"$rpc")
         rpc
       }
 
