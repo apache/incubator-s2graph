@@ -18,13 +18,4 @@ lazy val spark = project
 
 lazy val loader = project.dependsOn(s2core, spark)
 
-libraryDependencies ++= Seq(
-  anorm,
-  cache,
-  ws,
-  filters,
-  "org.apache.hbase" % "hbase-client" % Common.hbaseVersion excludeAll ExclusionRule(organization = "org.slf4j"),
-  "org.apache.hbase" % "hbase-common" % Common.hbaseVersion excludeAll ExclusionRule(organization = "org.slf4j"),
-  "org.apache.hbase" % "hbase-server" % Common.hbaseVersion excludeAll(ExclusionRule(organization = "org.slf4j"), ExclusionRule(organization = "com.google.protobuf")),
-  "org.apache.hadoop" % "hadoop-common" % Common.hadoopVersion excludeAll ExclusionRule(organization = "org.slf4j")
-)
+libraryDependencies ++= Seq(ws, filters)

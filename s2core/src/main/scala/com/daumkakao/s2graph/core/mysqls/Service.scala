@@ -4,6 +4,8 @@ package com.daumkakao.s2graph.core.mysqls
  * Created by shon on 6/3/15.
  */
 
+import java.util.UUID
+
 import com.daumkakao.s2graph.core.Management
 import play.api.Logger
 import play.api.libs.json.Json
@@ -13,9 +15,13 @@ object Service extends Model[Service] {
 
 
   def apply(rs: WrappedResultSet): Service = {
-    Service(rs.intOpt("id"), rs.string("service_name"), rs.string("cluster"), rs.string("hbase_table_name"), rs.int("pre_split_size"), rs.intOpt("hbase_table_ttl"))
+    Service(rs.intOpt("id"), rs.string("service_name"), rs.string("access_token"),
+      rs.string("cluster"), rs.string("hbase_table_name"), rs.int("pre_split_size"), rs.intOpt("hbase_table_ttl"))
   }
-
+  def findByAccessToken(accessToken: String): Option[Service] = {
+    val cacheKey = s"accessToken=$accessToken"
+    withCache(cacheKey)(sql"""select * from services where access_token = ${accessToken}""".map { rs => Service(rs) }.single.apply)
+  }
   def findById(id: Int): Service = {
 //    val cacheKey = s"id=$id"
     val cacheKey = "id=" + id
@@ -37,8 +43,9 @@ object Service extends Model[Service] {
   }
   def insert(serviceName: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]) = {
     Logger.info(s"$serviceName, $cluster, $hTableName, $preSplitSize, $hTableTTL")
-    sql"""insert into services(service_name, cluster, hbase_table_name, pre_split_size, hbase_table_ttl)
-    values(${serviceName}, ${cluster}, ${hTableName}, ${preSplitSize}, ${hTableTTL})""".execute.apply()
+    val accessToken = UUID.randomUUID().toString()
+    sql"""insert into services(service_name, access_token, cluster, hbase_table_name, pre_split_size, hbase_table_ttl)
+    values(${serviceName}, ${accessToken}, ${cluster}, ${hTableName}, ${preSplitSize}, ${hTableTTL})""".execute.apply()
     Management.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL)
   }
   def delete(id: Int) = {
@@ -60,13 +67,6 @@ object Service extends Model[Service] {
     }
   }
   def findAll() = {
-//    val services = sql"""select * from services""".map { rs => Service(rs) }.list.apply
-//    putsToCache(services.map { service =>
-//      val cacheKey = s"serviceName=${service.serviceName}"
-//      Logger.info(s"loading to local cache: $cacheKey")
-//      (cacheKey -> service)
-//    })
-//    services
     val ls = sql"""select * from services""".map { rs => Service(rs) }.list.apply
     putsToCache(ls.map { x =>
       var cacheKey = s"id=${x.id.get}"
@@ -76,23 +76,17 @@ object Service extends Model[Service] {
       var cacheKey = s"serviceName=${x.serviceName}"
       (cacheKey -> x)
     })
-//    for {
-//      x <- ls
-//    } {
-//      Logger.info(s"Service: $x")
-//      findById(x.id.get)
-//      findByName(x.serviceName)
-//    }
   }
   def findAllConn(): List[String] = {
     sql"""select distinct(cluster) from services""".map { rs => rs.string("cluster") }.list.apply
   }
 }
-case class Service(id: Option[Int], serviceName: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]) {
+case class Service(id: Option[Int], serviceName: String, accessToken: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]) {
   lazy val toJson =
     id match {
       case Some(_id) =>
-        Json.obj("id" -> _id, "name" -> serviceName, "hbaseTableName" -> hTableName, "preSplitSize" -> preSplitSize, "hTableTTL" -> hTableTTL)
+        Json.obj("id" -> _id, "name" -> serviceName, "accessToken" -> accessToken,
+          "hbaseTableName" -> hTableName, "preSplitSize" -> preSplitSize, "hTableTTL" -> hTableTTL)
       case None =>
         Json.parse("{}")
     }

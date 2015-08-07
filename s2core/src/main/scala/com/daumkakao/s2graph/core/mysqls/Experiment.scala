@@ -27,7 +27,13 @@ object Experiment extends Model[Experiment] {
         .map { rs => Experiment(rs) }.list().apply()
     }
   }
-
+  def findBy(serviceId: Int, name: String): Option[Experiment] = {
+    val cacheKey = "serviceId=" + serviceId + ":name=" + name
+    withCache(cacheKey) {
+      sql"""select * from experiments where service_id = ${serviceId} and name = ${name}"""
+      .map { rs => Experiment(rs) }.single.apply
+    }
+  }
   def findById(id: Int): Option[Experiment] = {
     val cacheKey = "id=" + id
     withCache(cacheKey)(
