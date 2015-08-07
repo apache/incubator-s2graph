@@ -14,7 +14,7 @@ object Experiment extends Model[Experiment] {
     Experiment(rs.intOpt("id"),
       rs.int("service_id"),
       rs.string("service_name"),
-      rs.string("title"),
+      rs.string("name"),
       rs.string("description"),
       rs.string("experiment_type"),
       rs.int("total_modular"))
@@ -47,7 +47,7 @@ object Experiment extends Model[Experiment] {
 case class Experiment(id: Option[Int],
                       serviceId: Int,
                       serviceName: String,
-                      title: String,
+                      name: String,
                       description: String,
                       experimentType: String,
                       totalModular: Int) {

@@ -144,7 +144,7 @@ CREATE TABLE `experiments` (
   UNIQUE KEY `ux_service_id_name` (`service_id`, `name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-ALTER TABLE experiments ADD FOREIGN KEY(service_id) REFERENCES service(id) ON DELETE CASCADE;
+--ALTER TABLE experiments ADD FOREIGN KEY(service_id) REFERENCES service(id) ON DELETE CASCADE;
 
 
 -- ----------------------------

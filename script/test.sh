@@ -27,6 +27,26 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
     "consistencyLevel": "strong"
 }
 '
+curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json' -d '
+{
+    "label": "graph_test_2",
+    "srcServiceName": "s2graph",
+    "srcColumnName": "account_id",
+    "srcColumnType": "long",
+    "tgtServiceName": "s2graph",
+    "tgtColumnName": "item_id",
+    "tgtColumnType": "string",
+    "indexProps": [
+	{"name": "time", "dataType": "integer", "defaultValue": 0},
+	{"name": "weight","dataType": "float","defaultValue": 0.0}
+    ],
+    "props": [
+	{"name": "is_hidden","dataType": "boolean","defaultValue": false},
+	{"name": "is_blocked","dataType": "boolean","defaultValue": false}
+    ],
+    "consistencyLevel": "strong"
+}
+'
 
 # check label
 curl -XGET localhost:9000/graphs/getLabel/graph_test
@@ -60,7 +80,11 @@ curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/jso
   {"from":1,"to":"ab","label":"graph_test","props":{"time":-1, "weight":0.98},"timestamp":193829192},
   {"from":1,"to":"123456","label":"graph_test","props":{"time":0, "weight":0.81},"timestamp":193829192},
   {"from":1,"to":"zdfdk2384","label":"graph_test","props":{"time":1, "weight":1.0},"timestamp":193829192},
-  {"from":1,"to":"dfjkdjfdk1234","label":"graph_test","props":{"time":-2, "weight":0.71},"timestamp":193829192}
+  {"from":1,"to":"dfjkdjfdk1234","label":"graph_test","props":{"time":-2, "weight":0.71},"timestamp":193829192},
+  {"from":1,"to":"ab","label":"graph_test_2","props":{"time":-1, "weight":0.98},"timestamp":193829192},
+  {"from":1,"to":"123456","label":"graph_test_2","props":{"time":0, "weight":0.81},"timestamp":193829192},
+  {"from":1,"to":"zdfdk2384","label":"graph_test_2","props":{"time":1, "weight":1.0},"timestamp":193829192},
+  {"from":1,"to":"dfjkdjfdk1234","label":"graph_test_2","props":{"time":-2, "weight":0.71},"timestamp":193829192}
 ]
 '
 
@@ -71,7 +95,7 @@ curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -
 {
     "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
     "steps": [
-      [{"label": "graph_test", "direction": "out", "offset": 0, "limit": 10, "scoring": {"time": 1, "weight": 1}}]
+      {"step": [{"label": "graph_test", "direction": "out", "offset": 0, "limit": 10, "scoring": {"time": 1, "weight": 1}}]}
     ]
 }
 '
