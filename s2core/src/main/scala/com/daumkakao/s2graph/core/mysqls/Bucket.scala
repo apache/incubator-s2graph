@@ -17,8 +17,6 @@ object Bucket extends Model[Bucket] {
     rs.string("traffic_ratios"),
     rs.string("http_verb"),
     rs.string("api_path"),
-    rs.string("uuid_key"),
-    rs.string("uuid_placeholder"),
     rs.string("request_body"),
     rs.int("timeout"),
     rs.string("impression_id"),
@@ -46,7 +44,6 @@ object Bucket extends Model[Bucket] {
       k -> headVal
     }
   }
-
 }
 
 case class Bucket(id: Option[Int],
@@ -54,7 +51,6 @@ case class Bucket(id: Option[Int],
                   uuidMods: String,
                   trafficRatios: String,
                   httpVerb: String, apiPath: String,
-                  uuidKey: String, uuidPlaceHolder: String,
                   requestBody: String, timeout: Int, impressionId: String,
                   isGraphQuery: Boolean = true) {
 

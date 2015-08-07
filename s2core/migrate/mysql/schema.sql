@@ -127,7 +127,6 @@ CREATE TABLE `label_indices` (
 ALTER TABLE label_indices ADD FOREIGN KEY(label_id) REFERENCES labels(id) ON DELETE CASCADE;
 
 
-
 -- ----------------------------
 --  Table structure for `experiments`
 -- ----------------------------
@@ -135,7 +134,6 @@ DROP TABLE IF EXISTS `experiments`;
 CREATE TABLE `experiments` (
   `id` integer NOT NULL AUTO_INCREMENT,
   `service_id` integer NOT NULL,
-  `service_name` varchar(128) NOT NULL,
   `name` varchar(64) NOT NULL,
   `description` varchar(255) NOT NULL,
   `experiment_type` varchar(8) NOT NULL DEFAULT 'u',
@@ -158,8 +156,6 @@ CREATE TABLE `buckets` (
   `traffic_ratios` varchar(64) NOT NULL,
   `http_verb` varchar(8) NOT NULL,
   `api_path` text NOT NULL,
-  `uuid_key` varchar(128) NOT NULL,
-  `uuid_placeholder` varchar(64) NOT NULL,
   `request_body` text NOT NULL,
   `timeout` int NOT NULL DEFAULT 1000,
   `impression_id` varchar(64) NOT NULL,
