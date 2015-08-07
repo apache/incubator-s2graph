@@ -31,7 +31,9 @@ object ExperimentController extends Controller with RequestParser {
           if (bucket.isGraphQuery) buildRequestInner(request, bucket, uuid)
           else buildRequest(request, bucket, uuid)
         } catch {
-          case e: Throwable => Future.successful(BadRequest("required template parameter missing"))
+          case e: Throwable =>
+            play.api.Logger.error(e.toString())
+            Future.successful(BadRequest("required template parameter missing"))
         }
     }
   }
@@ -42,8 +44,7 @@ object ExperimentController extends Controller with RequestParser {
     for {
       requestKeyJson <- requestKeyJsonOpt
       jsObj <- requestKeyJson.asOpt[JsObject]
-      key <- jsObj.keys
-      value <- (requestKeyJson \ key).asOpt[JsValue]
+      (key, value) <- jsObj.fieldSet
     } {
       body = body.replace(key, value.toString())
     }
