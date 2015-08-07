@@ -98,5 +98,4 @@ PUT   /graphs/loadCache                                                        c
 
 
 # Experiment API
-GET     /graphs/experiment/:accessToken/:experimentName/:uuid                    controllers.ExperimentController.experiment(accessToken, experimentName, uuid)
 POST     /graphs/experiment/:accessToken/:experimentName/:uuid                    controllers.ExperimentController.experiment(accessToken, experimentName, uuid)

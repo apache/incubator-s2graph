@@ -2,9 +2,10 @@ package controllers
 
 
 import java.net.URL
+
 import com.daumkakao.s2graph.core.mysqls._
 import play.api.Play.current
-import play.api.libs.json.Json
+import play.api.libs.json.{JsObject, JsValue, Json}
 import play.api.libs.ws.WS
 import play.api.mvc._
 
@@ -26,37 +27,58 @@ object ExperimentController extends Controller with RequestParser {
     bucketOpt match {
       case None => Future.successful(NotFound("bucket is not found."))
       case Some(bucket) =>
-        if (bucket.isGraphQuery) buildRequestInner(request, uuid, bucket)
-        else buildRequest(request, uuid, bucket)
+        try {
+          if (bucket.isGraphQuery) buildRequestInner(request, bucket, uuid)
+          else buildRequest(request, bucket, uuid)
+        } catch {
+          case e: Throwable => Future.successful(BadRequest("required template parameter missing"))
+        }
     }
   }
 
-  private def buildRequestInner(request: Request[AnyContent], uuid: String, bucket: Bucket): Future[Result] = {
-    val jsonBody = Json.parse(bucket.requestBody.replace(bucket.uuidPlaceHolder, uuid))
-    val url = new URL(bucket.apiPath)
+  def makeRequestJson(requestKeyJsonOpt: Option[JsValue], bucket: Bucket, uuid: String): JsValue = {
+    var body = bucket.requestBody.replace("#uuid", uuid)
 
+    for {
+      requestKeyJson <- requestKeyJsonOpt
+      jsObj <- requestKeyJson.asOpt[JsObject]
+      key <- jsObj.keys
+      value <- (requestKeyJson \ key).asOpt[JsValue]
+    } {
+      body = body.replace(key, value.toString())
+    }
+
+    Json.parse(body)
+  }
+
+  private def buildRequestInner(request: Request[AnyContent], bucket: Bucket, uuid: String): Future[Result] = {
+    val jsonBody = makeRequestJson(request.body.asJson, bucket, uuid)
+
+    val url = new URL(bucket.apiPath)
     val future = url.getPath() match {
       case "/graphs/getEdges" => controllers.QueryController.getEdgesInner(jsonBody)
       case "/graphs/getEdges/grouped" => controllers.QueryController.getEdgesWithGroupingInner(jsonBody)
       case "/graphs/getEdgesExcluded" => controllers.QueryController.getEdgesExcludedInner(jsonBody)
       case "/graphs/getEdgesExcluded/grouped" => controllers.QueryController.getEdgesExcludedWithGroupingInner(jsonBody)
-      case "/graphs/checkEdges" =>  controllers.QueryController.checkEdgesInner(jsonBody)
+      case "/graphs/checkEdges" => controllers.QueryController.checkEdgesInner(jsonBody)
       case "/graphs/getEdgesGrouped" => controllers.QueryController.getEdgesGroupedInner(jsonBody)
       case "/graphs/getEdgesGroupedExcluded" => controllers.QueryController.getEdgesGroupedExcludedInner(jsonBody)
       case "/graphs/getEdgesGroupedExcludedFormatted" => controllers.QueryController.getEdgesGroupedExcludedFormattedInner(jsonBody)
     }
     future.map { r => r.withHeaders(impressionKey -> bucket.impressionId) }
   }
-  private def buildRequest(request: Request[AnyContent], uuid: String, bucket: Bucket): Future[Result] = {
+
+  private def buildRequest(request: Request[AnyContent], bucket: Bucket, uuid: String): Future[Result] = {
+    val jsonBody = makeRequestJson(request.body.asJson, bucket, uuid)
+
     val url = bucket.apiPath
     val headers = request.headers.toSimpleMap.toSeq
-    val body = bucket.requestBody.replace(bucket.uuidPlaceHolder, uuid)
     val verb = bucket.httpVerb.toUpperCase
     val qs = Bucket.toSimpleMap(request.queryString).toSeq
 
     val ws = WS.url(url)
       .withMethod(verb)
-      .withBody(body)
+      .withBody(jsonBody)
       .withHeaders(headers: _*)
       .withQueryString(qs: _*)
 

@@ -1,7 +1,6 @@
 package com.daumkakao.s2graph.core.mysqls
 
 import com.daumkakao.s2graph.core.GraphUtil
-import play.api.Logger
 import scalikejdbc._
 
 import scala.util.Random
@@ -27,6 +26,7 @@ object Experiment extends Model[Experiment] {
         .map { rs => Experiment(rs) }.list().apply()
     }
   }
+
   def findBy(serviceId: Int, name: String): Option[Experiment] = {
     val cacheKey = "serviceId=" + serviceId + ":name=" + name
     withCache(cacheKey) {
@@ -34,6 +34,7 @@ object Experiment extends Model[Experiment] {
       .map { rs => Experiment(rs) }.single.apply
     }
   }
+
   def findById(id: Int): Option[Experiment] = {
     val cacheKey = "id=" + id
     withCache(cacheKey)(
@@ -41,7 +42,6 @@ object Experiment extends Model[Experiment] {
         .map { rs => Experiment(rs) }.single.apply
     )
   }
-
 }
 
 case class Experiment(id: Option[Int],

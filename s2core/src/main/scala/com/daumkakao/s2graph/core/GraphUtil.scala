@@ -104,7 +104,7 @@ object GraphUtil {
   def smartSplit(s: String, delemiter: String) = {
     val trimed_string = s.trim()
     if (trimed_string.equals("")) {
-      List[String]()
+      Seq[String]()
     } else {
       trimed_string.split(delemiter).toList
     }
