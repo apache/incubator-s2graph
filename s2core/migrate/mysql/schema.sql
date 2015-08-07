@@ -7,12 +7,14 @@ DROP TABLE IF EXISTS `services`;
 CREATE TABLE `services` (
   `id` integer NOT NULL AUTO_INCREMENT,
   `service_name` varchar(64) NOT NULL,
+  `access_token` varchar(255) NOT NULL,
   `cluster` varchar(255) NOT NULL,
   `hbase_table_name` varchar(255) NOT NULL,
   `pre_split_size` integer NOT NULL default 0,
   `hbase_table_ttl` integer,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_service_name` (`service_name`),
+  INDEX `idx_access_token` (`access_token`),
   INDEX `idx_cluster` (cluster(75))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -120,3 +122,47 @@ CREATE TABLE `label_indices` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE label_indices ADD FOREIGN KEY(label_id) REFERENCES labels(id) ON DELETE CASCADE;
+
+
+
+-- ----------------------------
+--  Table structure for `experiments`
+-- ----------------------------
+DROP TABLE IF EXISTS `experiments`;
+CREATE TABLE `experiments` (
+  `id` integer NOT NULL AUTO_INCREMENT,
+  `service_id` integer NOT NULL,
+  `service_name` varchar(128) NOT NULL,
+  `title` varchar(64) NOT NULL,
+  `description` varchar(255) NOT NULL,
+  `experiment_type` varchar(8) NOT NULL DEFAULT 'u',
+  `total_modular` int NOT NULL DEFAULT 100,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_service_name_experiment_key` (`service_name`, `experiment_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE experiments ADD FOREIGN KEY(service_id) REFERENCES service(id) ON DELETE CASCADE;
+
+
+-- ----------------------------
+--  Table structure for `buckets`
+-- ----------------------------
+DROP TABLE IF EXISTS `buckets`;
+CREATE TABLE `buckets` (
+  `id` integer NOT NULL AUTO_INCREMENT,
+  `experiment_id` integer NOT NULL,
+  `uuid_mods` varchar(64) NOT NULL,
+  `traffic_ratios` varchar(64) NOT NULL,
+  `http_verb` varchar(8) NOT NULL,
+  `api_path` text NOT NULL,
+  `uuid_key` varchar(128) NOT NULL,
+  `uuid_placeholder` varchar(64) NOT NULL,
+  `request_body` text NOT NULL,
+  `timeout` int NOT NULL DEFAULT 1000,
+  `impression_id` varchar(128) NOT NULL,
+  `is_graph_query` tinyint NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_impression_id` (`impression_id`),
+  INDEX `idx_experiment_id` (`experiment_id`),
+  INDEX `idx_impression_id` (`impression_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

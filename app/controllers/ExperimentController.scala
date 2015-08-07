@@ -27,7 +27,7 @@ object ExperimentController extends Controller {
               (h._1, h._2.head)
             }
             Result(ResponseHeader(response.status, headers ++ Map(impressionKey -> bucket.impressionId)),
-              Enumerator(response.body.getBytes)).as(QueryController.applicationJsonHeader)
+              Enumerator(response.body.getBytes)).as (QueryController.applicationJsonHeader)
           }
         }
     }

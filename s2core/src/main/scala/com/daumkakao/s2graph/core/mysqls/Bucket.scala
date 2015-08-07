@@ -21,11 +21,12 @@ object Bucket extends Model[Bucket] {
     rs.string("uuid_placeholder"),
     rs.string("request_body"),
     rs.int("timeout"),
-    rs.string("impression_id"))
+    rs.string("impression_id"),
+    rs.boolean("is_graph_query"))
   }
 
   def finds(experimentId: Int): List[Bucket] = {
-    val cacheKey = "serviceExperimentId=" + experimentId
+    val cacheKey = "experimentId=" + experimentId
     withCaches(cacheKey) {
       sql"""select * from buckets where experiment_id = ${experimentId}"""
       .map { rs => Bucket(rs) }.list().apply()
@@ -52,13 +53,13 @@ case class Bucket(id: Option[Int],
                   experimentId: Int,
                   uuidMods: String,
                   trafficRatios: String,
-                  httpVerb: String, apiPath: String, uuidKey: String, uuidPlaceHolder: String,
-                  requestBody: String, timeout: Int, impressionId: String) {
+                  httpVerb: String, apiPath: String,
+                  uuidKey: String, uuidPlaceHolder: String,
+                  requestBody: String, timeout: Int, impressionId: String,
+                  isGraphQuery: Boolean = true) {
 
   import Bucket._
   lazy val uuidRangeOpt = toRange(uuidMods)
   lazy val trafficRangeOpt = toRange(trafficRatios)
-
-
 
 }
