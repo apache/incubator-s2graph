@@ -458,7 +458,8 @@ case class Edge(srcVertex: Vertex,
       }
 
     val invertedEdgeMutations =
-      if (!shouldReplace) Nil else  newInvertedEdgeOpt.map(e => List(e.buildPutAsync())).getOrElse(Nil)
+//      if (!shouldReplace) Nil else
+        newInvertedEdgeOpt.map(e => List(e.buildPutAsync())).getOrElse(Nil)
 
     EdgeUpdate(indexedEdgeMutations, invertedEdgeMutations, newInvertedEdge = newInvertedEdgeOpt)
   }
