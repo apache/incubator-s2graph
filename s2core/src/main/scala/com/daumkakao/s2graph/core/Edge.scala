@@ -453,7 +453,7 @@ case class Edge(srcVertex: Vertex,
 //      edgeWithIndex <- relEdge.copy(version = relEdge.version + Edge.incrementVersion).edgesWithIndex
       rpc <- edgeWithIndex.buildDeletesAsync() ++ edgeWithIndex.buildIncrementsAsync(-1L)
     } yield {
-//        Logger.debug(s"$rpc")
+        Logger.debug(s"$rpc")
         rpc
       }
 
