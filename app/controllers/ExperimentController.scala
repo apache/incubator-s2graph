@@ -56,7 +56,7 @@ object ExperimentController extends Controller with RequestParser {
     val jsonBody = makeRequestJson(request.body.asJson, bucket, uuid)
 
     val url = new URL(bucket.apiPath)
-    val future = url.getPath() match {
+    val response = url.getPath() match {
       case "/graphs/getEdges" => controllers.QueryController.getEdgesInner(jsonBody)
       case "/graphs/getEdges/grouped" => controllers.QueryController.getEdgesWithGroupingInner(jsonBody)
       case "/graphs/getEdgesExcluded" => controllers.QueryController.getEdgesExcludedInner(jsonBody)
@@ -66,7 +66,17 @@ object ExperimentController extends Controller with RequestParser {
       case "/graphs/getEdgesGroupedExcluded" => controllers.QueryController.getEdgesGroupedExcludedInner(jsonBody)
       case "/graphs/getEdgesGroupedExcludedFormatted" => controllers.QueryController.getEdgesGroupedExcludedFormattedInner(jsonBody)
     }
-    future.map { r => r.withHeaders(impressionKey -> bucket.impressionId) }
+
+    response.map { r => r.withHeaders(impressionKey -> bucket.impressionId) }
+  }
+
+  private def toSimpleMap(map: Map[String, Seq[String]]): Map[String, String] = {
+    for {
+      (k, vs) <- map
+      headVal <- vs.headOption
+    } yield {
+      k -> headVal
+    }
   }
 
   private def buildRequest(request: Request[AnyContent], bucket: Bucket, uuid: String): Future[Result] = {
@@ -75,7 +85,7 @@ object ExperimentController extends Controller with RequestParser {
     val url = bucket.apiPath
     val headers = request.headers.toSimpleMap.toSeq
     val verb = bucket.httpVerb.toUpperCase
-    val qs = Bucket.toSimpleMap(request.queryString).toSeq
+    val qs = toSimpleMap(request.queryString).toSeq
 
     val ws = WS.url(url)
       .withMethod(verb)

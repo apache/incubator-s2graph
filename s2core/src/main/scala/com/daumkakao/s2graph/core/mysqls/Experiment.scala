@@ -12,7 +12,6 @@ object Experiment extends Model[Experiment] {
   def apply(rs: WrappedResultSet): Experiment = {
     Experiment(rs.intOpt("id"),
       rs.int("service_id"),
-      rs.string("service_name"),
       rs.string("name"),
       rs.string("description"),
       rs.string("experiment_type"),
@@ -31,7 +30,7 @@ object Experiment extends Model[Experiment] {
     val cacheKey = "serviceId=" + serviceId + ":name=" + name
     withCache(cacheKey) {
       sql"""select * from experiments where service_id = ${serviceId} and name = ${name}"""
-      .map { rs => Experiment(rs) }.single.apply
+        .map { rs => Experiment(rs) }.single.apply
     }
   }
 
@@ -46,7 +45,6 @@ object Experiment extends Model[Experiment] {
 
 case class Experiment(id: Option[Int],
                       serviceId: Int,
-                      serviceName: String,
                       name: String,
                       description: String,
                       experimentType: String,
@@ -54,12 +52,12 @@ case class Experiment(id: Option[Int],
 
   val buckets = Bucket.finds(id.get)
   val rangeBuckets = for {
-      bucket <- buckets
-      range <- experimentType match {
-        case "u" => bucket.uuidRangeOpt
-        case _ => bucket.trafficRangeOpt
-      }
-    } yield range -> bucket
+    bucket <- buckets
+    range <- experimentType match {
+      case "u" => bucket.uuidRangeOpt
+      case _ => bucket.trafficRangeOpt
+    }
+  } yield range -> bucket
 
 
   def findBucket(uuid: String): Option[Bucket] = {
@@ -67,12 +65,13 @@ case class Experiment(id: Option[Int],
       case "u" => GraphUtil.murmur3(uuid) % totalModular + 1
       case _ => Random.nextInt(totalModular) + 1
     }
+
     findBucket(seed)
   }
 
   def findBucket(uuidMod: Int): Option[Bucket] = {
     rangeBuckets.find { case ((from, to), bucket) =>
-        from <= uuidMod && uuidMod < to
+      from <= uuidMod && uuidMod < to
     }.map(_._2)
   }
 }

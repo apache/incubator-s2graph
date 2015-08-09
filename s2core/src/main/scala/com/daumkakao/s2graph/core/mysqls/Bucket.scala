@@ -10,24 +10,25 @@ object Bucket extends Model[Bucket] {
 
   val rangeDelimiter = "~"
   val INVALID_BUCKET_EXCEPTION = new RuntimeException("invalid bucket.")
+
   def apply(rs: WrappedResultSet): Bucket = {
     Bucket(rs.intOpt("id"),
-    rs.int("experiment_id"),
-    rs.string("uuid_mods"),
-    rs.string("traffic_ratios"),
-    rs.string("http_verb"),
-    rs.string("api_path"),
-    rs.string("request_body"),
-    rs.int("timeout"),
-    rs.string("impression_id"),
-    rs.boolean("is_graph_query"))
+      rs.int("experiment_id"),
+      rs.string("uuid_mods"),
+      rs.string("traffic_ratios"),
+      rs.string("http_verb"),
+      rs.string("api_path"),
+      rs.string("request_body"),
+      rs.int("timeout"),
+      rs.string("impression_id"),
+      rs.boolean("is_graph_query"))
   }
 
   def finds(experimentId: Int): List[Bucket] = {
     val cacheKey = "experimentId=" + experimentId
     withCaches(cacheKey) {
       sql"""select * from buckets where experiment_id = ${experimentId}"""
-      .map { rs => Bucket(rs) }.list().apply()
+        .map { rs => Bucket(rs) }.list().apply()
     }
   }
 
@@ -35,14 +36,6 @@ object Bucket extends Model[Bucket] {
     val range = str.split(rangeDelimiter)
     if (range.length == 2) Option(range.head.toInt, range.last.toInt)
     else None
-  }
-  def toSimpleMap(map: Map[String, Seq[String]]) = {
-    for {
-      (k, vs) <- map
-      headVal <- vs.headOption
-    } yield {
-      k -> headVal
-    }
   }
 }
 
@@ -55,6 +48,7 @@ case class Bucket(id: Option[Int],
                   isGraphQuery: Boolean = true) {
 
   import Bucket._
+
   lazy val uuidRangeOpt = toRange(uuidMods)
   lazy val trafficRangeOpt = toRange(trafficRatios)
 
