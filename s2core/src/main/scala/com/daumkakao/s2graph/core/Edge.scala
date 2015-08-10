@@ -399,6 +399,12 @@ case class Edge(srcVertex: Vertex,
         List.empty[PutRequest]
       } else if (op == GraphUtil.operations("insertBulk")) {
         insert()
+      } else if (op == GraphUtil.operations("incrementCount")) {
+        /** no duplicate edge. no snapshot edge. just increment as it is.*/
+        edgesWithIndex.flatMap { edge =>
+          val count = propsWithTs.get(LabelMeta.countSeq).map(v => v.innerVal.toString().toLong).getOrElse(1L)
+          edge.buildIncrementsCountAsync(count)
+        }
       } else {
         throw new Exception(s"operation[${op}] is not supported on edge.")
       }
@@ -1059,7 +1065,16 @@ object Edge extends JSONParser {
       } else {
         /** edge */
         val (qualifier, _) = EdgeQualifier.fromBytes(kvQual, 0, kvQual.length, param.label.schemaVersion)
-        val (value, _) = EdgeValue.fromBytes(vBytes, 0, vBytes.length, param.label.schemaVersion)
+
+        val (value, _) = if (qualifier.op == GraphUtil.operations("incrementCount")) {
+          val countVal = Bytes.toLong(vBytes)
+          val dummyProps = Seq((LabelMeta.countSeq -> InnerVal.withLong(countVal, param.label.schemaVersion)))
+          (EdgeValue(dummyProps)(param.label.schemaVersion), 8)
+        } else {
+          EdgeValue.fromBytes(vBytes, 0, vBytes.length, param.label.schemaVersion)
+        }
+
+
 
         val index = param.label.indicesMap.get(rowKey.labelOrderSeq).getOrElse(
           throw new RuntimeException(s"can`t find index sequence for $rowKey ${param.label}"))

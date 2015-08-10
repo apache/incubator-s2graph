@@ -16,8 +16,8 @@ object EdgeQualifier extends HBaseDeserializable {
                 version: String = VERSION2): (EdgeQualifier, Int) = {
     var pos = offset
     var numOfBytesUsedTotal = 0
-    /** changed not to store op bytes on edge qualifier */
-    val op = GraphUtil.defaultOpByte
+
+
     val (props, tgtVertexId) = {
       val (props, endAt) = bytesToProps(bytes, pos, version)
       numOfBytesUsedTotal += endAt - offset
@@ -31,6 +31,14 @@ object EdgeQualifier extends HBaseDeserializable {
       numOfBytesUsedTotal += numOfBytesUsed
       (props, tgtVertexId)
     }
+    /** changed not to store op bytes on edge qualifier */
+    val op =
+      if (offset + numOfBytesUsedTotal == len) GraphUtil.defaultOpByte
+      else {
+        numOfBytesUsedTotal += 1
+        bytes(offset + numOfBytesUsedTotal)
+      }
+
     (EdgeQualifier(props, tgtVertexId, op), numOfBytesUsedTotal)
   }
 }
@@ -43,10 +51,15 @@ case class EdgeQualifier(props: Seq[(Byte, InnerValLike)],
   lazy val propsMap = props.toMap
   lazy val propsBytes = propsToBytes(props)
   def bytes: Array[Byte] = {
-        propsMap.get(toSeqByte) match {
+        val mergedBytes = propsMap.get(toSeqByte) match {
           case None => Bytes.add(propsBytes, innerTgtVertexId.bytes)
           case Some(vId) => propsBytes
         }
+    if (op == GraphUtil.operations("incrementCount")) {
+      Bytes.add(mergedBytes, Array.fill(1)(op))
+    } else {
+      mergedBytes
+    }
   }
   override def equals(obj: Any) = {
     obj match {

@@ -233,6 +233,8 @@ object PostProcess extends JSONParser {
     var obj = Json.obj()
     var isEmpty = true
     for {
+      (seq, labelMeta) <- queryParam.label.metaPropsMap if seq >= 0
+      edge.propsWithTs.get(seq).getOrElse(labelMeta.defaultValue)
 //    val ret = for {
       (seq, v) <- edge.propsWithTs if seq >= 0
       metaProp <- queryParam.label.metaPropsMap.get(seq)
