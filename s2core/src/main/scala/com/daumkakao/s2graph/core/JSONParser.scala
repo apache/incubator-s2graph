@@ -63,7 +63,7 @@ trait JSONParser {
     }
   }
 
-  def toInnerVal(str: String, dataType: String, version: String) = {
+  def toInnerVal(str: String, dataType: String, version: String): InnerValLike = {
     //TODO:
     //    Logger.error(s"$str, $dataType, $version")
     val s =

@@ -7,13 +7,14 @@ import scala.util.hashing.MurmurHash3
 
 //import com.daumkakao.s2graph.core.models._
 
+import com.daumkakao.s2graph.core.Graph.edgeCf
 import com.daumkakao.s2graph.core.parsers.Where
 import com.daumkakao.s2graph.core.types2._
-import play.api.Logger
-import scala.collection.mutable.ListBuffer
 import org.apache.hadoop.hbase.util.Bytes
-import org.hbase.async.{GetRequest, ScanFilter, ColumnRangeFilter}
-import Graph.{edgeCf}
+import org.hbase.async.{ColumnRangeFilter, GetRequest, ScanFilter}
+import play.api.Logger
+
+import scala.collection.mutable.ListBuffer
 
 object Query {
   val initialScore = 1.0
@@ -87,7 +88,8 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
 }
 
 object EdgeTransformer {
-  val defaultJson = Json.arr(Json.arr("_to"))
+  val defaultTransformField = "_to"
+  val defaultJson = Json.arr(Json.arr(defaultTransformField))
 }
 
 /**
@@ -135,7 +137,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
       eachOutputFields <- jsValue.asOpt[List[JsValue]].getOrElse(Nil)
       fields = eachOutputFields.as[List[String]]
       innerVal <- {
-        if (fields.size == 1) {
+        if (fields.size == 1 && fields.head != EdgeTransformer.defaultTransformField) {
           val fieldName = fields.head
           toInnerValOpt(edge, fieldName).toSeq
         } else {
@@ -144,8 +146,8 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
         }
       }
     } yield edge.updateTgtVertex(innerVal)
-//    Logger.debug(s"[Transformer]: $edge -> $edges")
-    edges
+
+    edge :: edges
   }
 }
 
@@ -215,9 +217,9 @@ object QueryParam {
 
 case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System.currentTimeMillis()) {
 
-  import Query.DuplicatePolicy._
-  import Query.DuplicatePolicy
   import HBaseSerializable._
+  import Query.DuplicatePolicy
+  import Query.DuplicatePolicy._
 
   val label = Label.findById(labelWithDir.labelId)
   val defaultKey = LabelIndex.defaultSeq
@@ -294,7 +296,6 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   }
 
   def interval(from: Seq[(Byte, InnerValLike)], to: Seq[(Byte, InnerValLike)]): QueryParam = {
-    import types2.HBaseDeserializable._
     //    val len = label.orderTypes.size.toByte
     //    val len = label.extraIndicesMap(labelOrderSeq).sortKeyTypes.size.toByte
     //    Logger.error(s"indicesMap: ${label.indicesMap(labelOrderSeq)}")
