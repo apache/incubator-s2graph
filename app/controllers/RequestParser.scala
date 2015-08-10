@@ -216,7 +216,7 @@ trait RequestParser extends JSONParser {
       val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
       val hasFilter = extractHas(label, labelGroup)
       val labelWithDir = LabelWithDirection(label.id.get, direction)
-      val indexSeq = label.indexSeqsMap.get(scorings.map(kv => kv._1).toList).map(x => x.seq).getOrElse(LabelIndex.defaultSeq)
+      val indexSeq = label.indexSeqsMap.get(scorings.map(kv => kv._1)).map(x => x.seq).getOrElse(LabelIndex.defaultSeq)
       val where = extractWhere(label, labelGroup)
       val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
       val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(Config.RPC_TIMEOUT)
@@ -234,7 +234,9 @@ trait RequestParser extends JSONParser {
       val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(0.0)
       // TODO: refactor this. dirty
       val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
-      val transformer = (labelGroup \ "transform").asOpt[JsValue]
+
+      val outputField = (labelGroup \ "outputField").asOpt[String].map(s => Json.arr(Json.arr(s)))
+      val transformer = if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]
 
       QueryParam(labelWithDir).labelOrderSeq(labelOrderSeq)
         .limit(offset, limit)
@@ -379,7 +381,7 @@ trait RequestParser extends JSONParser {
     val serviceName = parse[String](jsValue, "serviceName")
     val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(Graph.config.getString("hbase.zookeeper.quorum"))
     val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${Config.PHASE}")
-    val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(0)
+    val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(1)
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     (serviceName, cluster, hTableName, preSplitSize, hTableTTL)
   }

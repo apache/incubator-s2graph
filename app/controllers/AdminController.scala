@@ -9,9 +9,12 @@ import scala.concurrent.Future
 import com.daumkakao.s2graph.core.mysqls._
 import play.api.Logger
 import play.api.libs.json.{JsObject, JsValue, Json}
-import play.api.mvc.{Action, Controller}
+import play.api.mvc.{Result, Action, Controller}
 
 object AdminController extends Controller with RequestParser {
+  private def ok(msg: String) = Ok(Json.obj("message" -> msg)).as(QueryController.applicationJsonHeader)
+  private def bad(msg: String) = Ok(Json.obj("message" -> msg)).as(QueryController.applicationJsonHeader)
+
   /**
    * Management
    */
@@ -27,13 +30,13 @@ object AdminController extends Controller with RequestParser {
       ColumnMeta.findAll()
     }
 
-    Ok(s"${System.currentTimeMillis() - startTs}")
+    ok(s"${System.currentTimeMillis() - startTs}")
   }
 
   def getService(serviceName: String) = Action { request =>
     Management.findService(serviceName) match {
       case None => NotFound
-      case Some(service) => Ok(s"${service.toJson} exist.").as(QueryController.applicationJsonHeader)
+      case Some(service) => ok(s"${service.toJson} exist.")
     }
   }
 
@@ -45,11 +48,11 @@ object AdminController extends Controller with RequestParser {
     try {
       val (serviceName, cluster, tableName, preSplitSize, ttl) = toServiceElements(jsValue)
       val service = Management.createService(serviceName, cluster, tableName, preSplitSize, ttl)
-      Ok(s"$service service created.\n").as(QueryController.applicationJsonHeader)
+      ok(s"$service serivce created.")
     } catch {
       case e: Throwable =>
         Logger.error(s"$e", e)
-        BadRequest(e.getMessage())
+        bad(e.getMessage())
     }
   }
 
@@ -64,12 +67,12 @@ object AdminController extends Controller with RequestParser {
       serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync) =
         toLabelElements(jsValue)
 
-      Management.createLabel(labelName, srcServiceName, srcColumnName, srcColumnType,
+      val label = Management.createLabel(labelName, srcServiceName, srcColumnName, srcColumnType,
         tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
         idxProps.map { t => (t._1, t._2.toString, t._3) },
         metaProps.map { t => (t._1, t._2.toString, t._3) },
         consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync)
-      Ok("Created\n").as(QueryController.applicationJsonHeader)
+      ok(s"${label.label} is created")
     } catch {
       case e: Throwable =>
         Logger.error(s"$e", e)
@@ -80,31 +83,32 @@ object AdminController extends Controller with RequestParser {
   def addIndex() = Action(parse.json) { request =>
     try {
       val (labelName, idxProps) = toIndexElements(request.body)
-      Management.addIndex(labelName, idxProps)
-      Ok("Created\n").as(QueryController.applicationJsonHeader)
+      val index = Management.addIndex(labelName, idxProps)
+      ok("index is added.")
     } catch {
       case e: Throwable =>
         Logger.error(s"$e", e)
-        BadRequest(s"$e")
+        bad(s"$e")
     }
   }
 
   def getLabel(labelName: String) = Action { request =>
     Management.findLabel(labelName) match {
-      case None => NotFound("NotFound\n").as(QueryController.applicationJsonHeader)
+      case None => NotFound(Json.obj("message" -> s"not found $labelName")).as(QueryController.applicationJsonHeader)
       case Some(label) =>
-        Ok(s"${label.toJson}\n").as(QueryController.applicationJsonHeader)
+        Ok(label.toJson).as(QueryController.applicationJsonHeader)
     }
   }
 
   def getLabels(serviceName: String) = Action { request =>
     Service.findByName(serviceName) match {
-      case None => BadRequest(s"create service first.").as(QueryController.applicationJsonHeader)
+      case None =>
+        bad(s"service $serviceName is not found")
       case Some(service) =>
         val srcs = Label.findBySrcServiceId(service.id.get)
         val tgts = Label.findByTgtServiceId(service.id.get)
         val json = Json.obj("from" -> srcs.map(src => src.toJson), "to" -> tgts.map(tgt => tgt.toJson))
-        Ok(s"$json\n").as(QueryController.applicationJsonHeader)
+        Ok(json).as(QueryController.applicationJsonHeader)
     }
   }
 
@@ -120,7 +124,7 @@ object AdminController extends Controller with RequestParser {
       case Some(label) =>
         val json = label.toJson
         label.deleteAll()
-        Ok(s"${json} is deleted.\n").as(QueryController.applicationJsonHeader)
+        ok(s"${json} is deleted")
     }
   }
 
@@ -134,30 +138,29 @@ object AdminController extends Controller with RequestParser {
   def copyLabel(oldLabelName: String, newLabelName: String) = Action { request =>
     try {
       Management.copyLabel(oldLabelName, newLabelName, Some(newLabelName))
-      Ok(s"Label is copied.\n")
+      ok(s"$oldLabelName is copied to $newLabelName")
     } catch {
       case e: Throwable =>
         Logger.error(s"$e", e)
-        BadRequest(s"$e")
-
+        bad(e.toString())
     }
   }
 
   def renameLabel(oldLabelName: String, newLabelName: String) = Action { request =>
     Label.findByName(oldLabelName) match {
-      case None => NotFound
+      case None => NotFound.as(QueryController.applicationJsonHeader)
       case Some(label) =>
         Management.updateLabelName(oldLabelName, newLabelName)
-        Ok(s"Label was updated.\n")
+        ok(s"Label was updated")
     }
   }
 
   def addProp(labelName: String) = Action(parse.json) { request =>
     addPropInner(labelName)(request.body) match {
       case None =>
-        BadRequest(s"failed to add property on $labelName")
+        bad(s"failed to add property on $labelName")
       case Some(p) =>
-        Ok(s"${p.toJson}")
+        Ok(p.toJson).as(QueryController.applicationJsonHeader)
     }
   }
 
@@ -167,7 +170,8 @@ object AdminController extends Controller with RequestParser {
       js <- jsObjs
       newProp <- addPropInner(labelName)(js)
     } yield newProp
-    Ok(s"${newProps.size} is added.")
+
+    ok(s"${newProps.size} is added.")
   }
 
   def createServiceColumn() = Action(parse.json) { request =>
@@ -178,11 +182,11 @@ object AdminController extends Controller with RequestParser {
     try {
       val (serviceName, columnName, columnType, props) = toServiceColumnElements(jsValue)
       Management.createServiceColumn(serviceName, columnName, columnType, props)
-      Ok("Created\n")
+      ok(s"$serviceName:$columnName is created.")
     } catch {
       case e: Throwable =>
         Logger.error(s"$e", e)
-        BadRequest(s"$e")
+        bad(e.toString)
     }
   }
   def deleteServiceColumnInner(serviceName: String, columnName: String) = {
@@ -196,7 +200,7 @@ object AdminController extends Controller with RequestParser {
 
   def deleteServiceColumn(serviceName: String, columnName: String) = Action { request =>
     deleteServiceColumnInner(serviceName, columnName)
-    Ok("deleted")
+    ok(s"$serviceName:$columnName is deleted")
   }
   def getServiceColumn(serviceName: String, columnName: String) = Action { request =>
     val rets = for {
@@ -207,7 +211,7 @@ object AdminController extends Controller with RequestParser {
       }
     rets match {
       case None => NotFound
-      case Some(serviceColumn) => Ok(s"$serviceColumn")
+      case Some(serviceColumn) => Ok(serviceColumn.toJson).as(QueryController.applicationJsonHeader)
     }
   }
 
@@ -223,8 +227,8 @@ object AdminController extends Controller with RequestParser {
 
   def addServiceColumnProp(serviceName: String, columnName: String) = Action(parse.json) { request =>
     addServiceColumnPropInner(serviceName, columnName)(request.body) match {
-      case None => BadRequest(s"can`t find service with $serviceName or can`t find serviceColumn with $columnName")
-      case Some(m) => Ok(s"$m")
+      case None => bad(s"can`t find service with $serviceName or can`t find serviceColumn with $columnName")
+      case Some(m) => Ok(m.toJson).as(QueryController.applicationJsonHeader)
     }
   }
 
@@ -234,7 +238,7 @@ object AdminController extends Controller with RequestParser {
       js <- jsObjs
       newProp <- addServiceColumnPropInner(serviecName, columnName)(js)
     } yield newProp
-    Ok(s"${newProps.size} is added.")
+    ok(s"${newProps.size} is added.")
   }
 
   /**
@@ -243,7 +247,7 @@ object AdminController extends Controller with RequestParser {
 
   // get all labels belongs to this service.
   def labels(serviceName: String) = Action {
-    Ok("not implemented yet.")
+    ok("not implemented yet.")
   }
 
   //  def page = Action {

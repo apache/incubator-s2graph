@@ -1,7 +1,6 @@
 
 import java.util.concurrent.Executors
 
-import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.{ExceptionHandler, Graph}
 import config.Config
 import controllers.ApplicationController
@@ -27,13 +26,6 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
     Graph(Config.conf.underlying)(ex)
 
     Logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
-
-    Service.findAll()
-    ServiceColumn.findAll()
-    Label.findAll()
-    LabelMeta.findAll()
-    LabelIndex.findAll()
-    ColumnMeta.findAll()
 
     val defaultHealthOn = Config.conf.getBoolean("app.health.on").getOrElse(true)
     ApplicationController.isHealthy = defaultHealthOn

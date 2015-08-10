@@ -95,3 +95,7 @@ GET    /admin/labels/:serviceName                                              c
 POST        /graphs/copyLabel/:oldLabelName/:newLabelName                                controllers.AdminController.copyLabel(oldLabelName, newLabelName)
 POST   /graphs/renameLabel/:oldLabelName/:newLabelName                         controllers.AdminController.renameLabel(oldLabelName, newLabelName)
 PUT   /graphs/loadCache                                                        controllers.AdminController.loadCache()
+
+
+# Experiment API
+POST     /graphs/experiment/:accessToken/:experimentName/:uuid                    controllers.ExperimentController.experiment(accessToken, experimentName, uuid)

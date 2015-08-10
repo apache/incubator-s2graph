@@ -25,10 +25,6 @@ dist
 *.sc
 *.swp
 /.cache
-conf/application.conf
-metrics
 _site
-migrate/s2graph
 *.classpath
 *.project
-s2core/src/main/scala/com/daumkakao/s2graph/core/mysqls

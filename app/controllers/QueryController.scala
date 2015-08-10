@@ -11,7 +11,6 @@ import com.daumkakao.s2graph.core.types2.{LabelWithDirection, VertexId}
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, Controller, Result}
-import util.TestDataLoader
 
 import scala.concurrent._
 
@@ -122,27 +121,41 @@ object QueryController extends Controller with RequestParser {
   }
 
   def getEdgesWithGrouping() = withHeaderAsync(parse.json) { request =>
-    getEdgesAsync(request.body)(PostProcess.summarizeWithListFormatted)
+    getEdgesWithGroupingInner(request.body)
+  }
+
+  def getEdgesWithGroupingInner(jsonQuery: JsValue) = {
+    getEdgesAsync(jsonQuery)(PostProcess.summarizeWithListFormatted)
   }
 
   def getEdgesExcludedWithGrouping() = withHeaderAsync(parse.json) { request =>
-    getEdgesExcludedAsync(request.body)(PostProcess.summarizeWithListExcludeFormatted)
+    getEdgesExcludedWithGroupingInner(request.body)
+  }
+  def getEdgesExcludedWithGroupingInner(jsonQuery: JsValue) = {
+    getEdgesExcludedAsync(jsonQuery)(PostProcess.summarizeWithListExcludeFormatted)
   }
 
 
+  def getEdgesGroupedInner(jsonQuery: JsValue) = {
+    getEdgesAsync(jsonQuery)(PostProcess.summarizeWithList)
+  }
   @deprecated(message = "deprecated", since = "0.2")
   def getEdgesGrouped() = withHeaderAsync(parse.json) { request =>
-    getEdgesAsync(request.body)(PostProcess.summarizeWithList)
+    getEdgesGroupedInner(request.body)
   }
+
 
   @deprecated(message = "deprecated", since = "0.2")
   def getEdgesGroupedExcluded() = withHeaderAsync(parse.json) { request =>
-    val jsonQuery = request.body
+    getEdgesGroupedExcludedInner(request.body)
+  }
+
+  def getEdgesGroupedExcludedInner(jsonQuery: JsValue): Future[Result] = {
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
-      Logger.info(request.body.toString)
-      val q = toQuery(request.body)
+      Logger.info(jsonQuery.toString())
+      val q = toQuery(jsonQuery)
       val mineQ = Query(q.vertices, List(q.steps.last))
 //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
       Logger.debug(s"${q.templateId()}")
@@ -161,15 +174,17 @@ object QueryController extends Controller with RequestParser {
         errorResults
     }
   }
-
   @deprecated(message = "deprecated", since = "0.2")
   def getEdgesGroupedExcludedFormatted() = withHeaderAsync(parse.json) { request =>
-    val jsonQuery = request.body
+    getEdgesGroupedExcludedFormattedInner(request.body)
+  }
+
+  def getEdgesGroupedExcludedFormattedInner(jsonQuery: JsValue): Future[Result] = {
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
-      Logger.info(request.body.toString)
-      val q = toQuery(request.body)
+      Logger.info(jsonQuery.toString)
+      val q = toQuery(jsonQuery)
       val mineQ = Query(q.vertices, List(q.steps.last))
 //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
       Logger.debug(s"${q.templateId()}")

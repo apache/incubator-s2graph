@@ -106,34 +106,21 @@ S2Graph consists of multiple projects.
 
 ----------
 
-to getup and running following is required.
+to getup and running following is required. 
 
 1. [Apache HBase](http://hbase.apache.org/) setup. 
 	2.  `brew install hadoop` and `brew install hbase` if you are on mac.
 	3. otherwise checkout [reference](http://hbase.apache.org/book.html#quickstart) for how to setup hbase.
 	4. note that currently we support latest stable version of apache **hbase 1.0.1 with apache hadoop version 2.7.0**. if you are using cdh, then you can checkout our **feature/cdh5.3.0**. we are working on providing profile on hbase/hadoop version soon.
-2. s2graph store metadata in hbase so you need to create hbase table first.
-	3. run ```hbase shell``` then run migration/create_models.hql. default tablename is 'models-dev'
-	4. you can configure hbase table name by setting 's2graph.models.table.name' on config/reference.conf
-		
-3. install [protobuf](https://github.com/google/protobuf).
-	4. asynchbase require protoc, so you should install protobuf.
-	5. `brew install protobuf` if you are on mac.
-	6. otherwise install 2.6.1(feature/cdh5.3.0 branch, expect protobuf 2.5.0)
-
-once all requirements are setup correctly, you have to install asynchbase on your local first.
-
-```
-cd asynchbase; make pom.xml; mvn install 
-```
+2. s2graph store metadata in mysql currently, so you need to create database in mysql. run setup script s2core/migrate/mysql/schema.sql
 
 then compile rest project
 ```
 sbt compile
 ```
 
-now you are run s2graph.
 
+now you are ready to run s2graph.
 ```
 sbt run
 ```
@@ -145,6 +132,7 @@ sh script/test.sh
 ```
 
 finally join the [mailing list](https://groups.google.com/forum/#!forum/s2graph)
+
 
 
 The Data Model
@@ -486,7 +474,12 @@ The following is an example of adding indexes `play_count` and `pay_amount` to a
 
 ```
 curl -XPOST localhost:9000/graphs/addIndex -H 'Content-Type: Application/json' -d '
-{"label": "graph_test", "indexProps": {"play_count":0, "pay_amount":0}}
+{
+    "label": "graph_test",
+    "indexProps": [
+        { "name": "play_count", "defaultValue": 0, "dataType": "integer" }
+    ]
+}
 '
 ```
 
