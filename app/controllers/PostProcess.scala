@@ -219,6 +219,7 @@ object PostProcess extends JSONParser {
     Json.toJson(vertices.flatMap { v => vertexToJson(v) })
   }
 
+  @deprecated(message = "deprecated", since = "0.2")
   def propsToJson(edge: Edge) = {
     for {
       (seq, v) <- edge.propsWithTs if seq >= 0
@@ -234,13 +235,15 @@ object PostProcess extends JSONParser {
     var isEmpty = true
     for {
 //    val ret = for {
-      (seq, v) <- edge.propsWithTs if seq >= 0
-      metaProp <- queryParam.label.metaPropsMap.get(seq)
-      jsValue <- innerValToJsValue(v.innerVal, metaProp.dataType)
-      if q.selectColumnsSet.isEmpty || q.selectColumnsSet.contains(metaProp.name)
+      (seq, labelMeta) <- queryParam.label.metaPropsMap if seq >= 0
+      innerVal = edge.propsWithTs.get(seq).map(_.innerVal).getOrElse {
+        toInnerVal(labelMeta.defaultValue, labelMeta.dataType, queryParam.label.schemaVersion)
+      }
+      jsValue <- innerValToJsValue(innerVal, labelMeta.dataType)
+      if q.selectColumnsSet.isEmpty || q.selectColumnsSet.contains(labelMeta.name)
     } yield {
       isEmpty = false
-        obj += (metaProp.name -> jsValue)
+        obj += (labelMeta.name -> jsValue)
 //        (metaProp.name, jsValue)
       }
 //    Logger.debug(s"$ret")
