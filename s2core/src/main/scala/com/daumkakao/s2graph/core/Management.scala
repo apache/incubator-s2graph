@@ -3,6 +3,7 @@ package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.KGraphExceptions.LabelNotExistException
 import com.daumkakao.s2graph.core.mysqls._
+import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 
 //import com.daumkakao.s2graph.core.models._
 
@@ -394,7 +395,9 @@ object Management extends JSONParser {
   //
   //    //    regionStats.map(kv => Bytes.toString(kv._1) -> kv._2) ++ Map("total" -> regionStats.values().sum)
   //  }
-  def createTable(zkAddr: String, tableName: String, cfs: List[String], regionMultiplier: Int, ttl: Option[Int]) = {
+
+  def createTable(zkAddr: String, tableName: String, cfs: List[String], regionMultiplier: Int, ttl: Option[Int],
+                  compressionAlgorithm: String = "lz4") = {
     Logger.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier")
     val admin = getAdmin(zkAddr)
     val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier
@@ -404,7 +407,7 @@ object Management extends JSONParser {
         desc.setDurability(Durability.ASYNC_WAL)
         for (cf <- cfs) {
           val columnDesc = new HColumnDescriptor(cf)
-            .setCompressionType(Compression.Algorithm.LZ4)
+            .setCompressionType(Algorithm.valueOf(compressionAlgorithm))
             .setBloomFilterType(BloomType.ROW)
             .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
             .setMaxVersions(1)
