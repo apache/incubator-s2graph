@@ -6,6 +6,8 @@ import play.api.libs.json._
 import play.api.test.Helpers._
 import play.api.test.{FakeApplication, FakeRequest}
 
+import scala.concurrent.Await
+
 class QuerySpec extends SpecCommon {
   init()
 
@@ -18,9 +20,11 @@ class QuerySpec extends SpecCommon {
         Seq("1", "insert", "e", "2", "0", testLabelName, "{\"weight\": 30}").mkString("\t"),
         Seq("1", "insert", "e", "2", "1", testLabelName, "{\"weight\": 40}").mkString("\t")
       ).mkString("\n")
-
+      val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)
+      Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
       Thread.sleep(asyncFlushInterval)
     }
+
 
     def query(id: Int) = Json.parse( s"""
         { "srcVertices": [
