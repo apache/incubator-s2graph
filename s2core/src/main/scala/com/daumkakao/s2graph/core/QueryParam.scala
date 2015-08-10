@@ -137,7 +137,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
       eachOutputFields <- jsValue.asOpt[List[JsValue]].getOrElse(Nil)
       fields = eachOutputFields.as[List[String]]
       innerVal <- {
-        if (fields.size == 1 && fields.head != EdgeTransformer.defaultTransformField) {
+        if (fields.size == 1) {
           val fieldName = fields.head
           toInnerValOpt(edge, fieldName).toSeq
         } else {
@@ -147,7 +147,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
       }
     } yield edge.updateTgtVertex(innerVal)
 
-    edge :: edges
+    edges
   }
 }
 
