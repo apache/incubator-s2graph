@@ -178,6 +178,16 @@ case class EdgeWithIndex(srcVertex: Vertex,
     }
   }
 
+  def buildIncrementsCountAsync(amount: Long = 1L): List[HBaseRpc] = {
+    if (!hasAllPropsForIndex) {
+      Logger.error(s"$this dont have all props for index")
+      List.empty[AtomicIncrementRequest]
+    } else {
+      val incr = new AtomicIncrementRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, amount)
+      List(incr)
+    }
+  }
+  
   def buildDeletes(): List[Delete] = {
     if (!hasAllPropsForIndex) List.empty[Delete]
     else {
