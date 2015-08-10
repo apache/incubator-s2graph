@@ -125,7 +125,7 @@ object Label extends Model[Label] {
                 hTableTTL: Option[Int],
                 schemaVersion: String,
                 isAsync: Boolean,
-                compressionAlgorithm: String = "lz4") = {
+                compressionAlgorithm: String) = {
 
     //    val ls = List(label, srcServiceId, srcColumnName, srcColumnType, tgtServiceId, tgtColumnName, tgtColumnType, isDirected
     //        , serviceName, serviceId, props.toString, consistencyLevel, hTableName)
@@ -177,10 +177,10 @@ object Label extends Model[Label] {
             case (None, Some(hbaseTableTTL)) => throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
             case (Some(hbaseTableName), None) =>
               // create own hbase table with default ttl on service level.
-              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, service.hTableTTL)
+              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, service.hTableTTL, compressionAlgorithm)
             case (Some(hbaseTableName), Some(hbaseTableTTL)) =>
               // create own hbase table with own ttl.
-              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL)
+              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL, compressionAlgorithm)
           }
           val cacheKeys = List(s"id=$createdId", s"label=$labelName")
           val ret = findByName(labelName, useCache = false).get

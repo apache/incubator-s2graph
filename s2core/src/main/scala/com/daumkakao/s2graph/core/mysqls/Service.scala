@@ -41,12 +41,14 @@ object Service extends Model[Service] {
       """.map { rs => Service(rs) }.single.apply()
     }
   }
-  def insert(serviceName: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]) = {
-    Logger.info(s"$serviceName, $cluster, $hTableName, $preSplitSize, $hTableTTL")
+  def insert(serviceName: String, cluster: String,
+             hTableName: String, preSplitSize: Int, hTableTTL: Option[Int],
+             compressionAlgorithm: String) = {
+    Logger.info(s"$serviceName, $cluster, $hTableName, $preSplitSize, $hTableTTL, $compressionAlgorithm")
     val accessToken = UUID.randomUUID().toString()
     sql"""insert into services(service_name, access_token, cluster, hbase_table_name, pre_split_size, hbase_table_ttl)
     values(${serviceName}, ${accessToken}, ${cluster}, ${hTableName}, ${preSplitSize}, ${hTableTTL})""".execute.apply()
-    Management.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL)
+    Management.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL, compressionAlgorithm)
   }
   def delete(id: Int) = {
     val service = findById(id)
@@ -55,11 +57,12 @@ object Service extends Model[Service] {
     val cacheKeys = List(s"id=$id", s"serviceName=$serviceName")
     cacheKeys.foreach(expireCache(_))
   }
-  def findOrInsert(serviceName: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]): Service = {
+  def findOrInsert(serviceName: String, cluster: String, hTableName: String,
+                   preSplitSize: Int, hTableTTL: Option[Int], compressionAlgorithm: String): Service = {
     findByName(serviceName) match {
       case Some(s) => s
       case None =>
-        insert(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
+        insert(serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
 //        val cacheKey = s"serviceName=$serviceName"
         val cacheKey = "serviceName=" + serviceName
         expireCache(cacheKey)
