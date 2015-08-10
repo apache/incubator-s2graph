@@ -16,8 +16,6 @@ scalacOptions ++= Seq("-deprecation")
 resolvers ++= Common.resolvers
 
 libraryDependencies ++= Seq(
-  anorm,
-  cache,
   ws,
   filters,
   "org.apache.hbase" % "hbase-client" % Common.hbaseVersion excludeAll ExclusionRule(organization = "org.slf4j"),
@@ -29,7 +27,7 @@ libraryDependencies ++= Seq(
   "org.scalikejdbc" %% "scalikejdbc"        % "2.1.+",
   "mysql" % "mysql-connector-java" % "5.1.28",
   "org.apache.kafka" % "kafka-clients" % "0.8.2.0" excludeAll(ExclusionRule(organization = "org.slf4j"), ExclusionRule(organization = "com.sun.jdmk"), ExclusionRule(organization = "com.sun.jmx"), ExclusionRule(organization = "javax.jms"))
-   )
+)
 
 parallelExecution in Test := false
 
