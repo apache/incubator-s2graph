@@ -62,8 +62,8 @@ case class Experiment(id: Option[Int],
 
   def findBucket(uuid: String): Option[Bucket] = {
     val seed = experimentType match {
-      case "u" => GraphUtil.murmur3(uuid) % totalModular + 1
-      case _ => Random.nextInt(totalModular) + 1
+      case "u" => (GraphUtil.murmur3(uuid) % totalModular) + 1
+      case _ => (Random.nextInt(totalModular)) + 1
     }
 
     findBucket(seed)
@@ -71,7 +71,7 @@ case class Experiment(id: Option[Int],
 
   def findBucket(uuidMod: Int): Option[Bucket] = {
     rangeBuckets.find { case ((from, to), bucket) =>
-      from <= uuidMod && uuidMod < to
+      from <= uuidMod && uuidMod <= to
     }.map(_._2)
   }
 }
