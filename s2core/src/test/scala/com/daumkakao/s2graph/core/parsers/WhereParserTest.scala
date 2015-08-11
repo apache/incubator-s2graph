@@ -29,7 +29,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   }
 
   def validate(labelName: String)(edge: Edge)(sql: String)(expected: Boolean) = {
-
+    println(sql)
     for (label <- LABEL.findByName(labelName)) {
       val labelMetas = LABEMETA.findAllByLabelId(label.id.get, useCache = false)
       val metaMap = labelMetas.map { m => m.name -> m.seq } toMap
@@ -39,35 +39,21 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     }
   }
 
-//  test("check where clause not nested") {
-//    for {
-//      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- List(ids(VERSION1), ids(VERSION2))
-//    } {
-//      /** test for each version */
-//      val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
-//      val propsInner = Management.toProps(label, js).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap
-//      val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, 0, propsInner)
-////      play.api.Logger.debug(s"$edge")
-//
-//      val f = validate(labelName)(edge) _
-//
-//      f("is_hidden = false")(false)
-//      f("is_hidden != false")(true)
-//      f("is_hidden = true and is_blocked = true")(false)
-//      f("is_hidden = true and is_blocked = false")(true)
-//      f("time in (1, 2, 3) and is_blocked = true")(false)
-//      f("time in (1, 2, 3) or is_blocked = true")(true)
-//      f("time in (1, 2, 3) and is_blocked = false")(true)
-//      f("time in (1, 2, 4) and is_blocked = false")(false)
-//      f("time in (1, 2, 4) or is_blocked = false")(true)
-//      f("time not in (1, 2, 4)")(true)
-//      f("time in (1, 2, 3)")(true)
-//      f("weight between 10 and 20")(true)
-//      f("time in (1, 2, 3) and weight between 10 and 20")(true)
-//      f("time in (1, 2, 3) and weight between 10 and 20 and is_blocked = false")(true)
-//      f("time in (1, 2, 4) or weight between 10 and 20 or is_blocked = true")(true)
-//    }
-//  }
+  test("check where clause not nested") {
+    for {
+      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- List(ids(VERSION1), ids(VERSION2))
+    } {
+      /** test for each version */
+      val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
+      val propsInner = Management.toProps(label, js).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap
+      val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, 0, propsInner)
+      val f = validate(labelName)(edge) _
+
+      f(s"_to=${tgtVertex.innerId.toString}")(true)
+      f(s"_to=dun.jeong")(false)
+    }
+  }
+
 //  test("check where clause nested") {
 //    for {
 //      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- List(ids(VERSION1), ids(VERSION2))

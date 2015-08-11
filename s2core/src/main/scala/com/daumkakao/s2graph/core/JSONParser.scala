@@ -84,7 +84,6 @@ trait JSONParser {
     }
   }
 
-
   def jsValueToInnerVal(jsValue: JsValue, dataType: String, version: String): Option[InnerValLike] = {
     val ret = try {
       val dType = InnerVal.toInnerDataType(dataType.toLowerCase())
