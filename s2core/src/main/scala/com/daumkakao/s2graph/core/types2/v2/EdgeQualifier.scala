@@ -32,14 +32,13 @@ object EdgeQualifier extends HBaseDeserializable {
       (props, tgtVertexId)
     }
     /** changed not to store op bytes on edge qualifier */
-    val op =
-      if (offset + numOfBytesUsedTotal == len) GraphUtil.defaultOpByte
+    val (op, opBytesUsed) =
+      if (offset + numOfBytesUsedTotal == len) (GraphUtil.defaultOpByte, 0)
       else {
-        numOfBytesUsedTotal += 1
-        bytes(offset + numOfBytesUsedTotal)
+        (bytes(offset + numOfBytesUsedTotal), 1)
       }
 
-    (EdgeQualifier(props, tgtVertexId, op), numOfBytesUsedTotal)
+    (EdgeQualifier(props, tgtVertexId, op), numOfBytesUsedTotal + opBytesUsed)
   }
 }
 case class EdgeQualifier(props: Seq[(Byte, InnerValLike)],
