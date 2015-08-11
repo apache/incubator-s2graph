@@ -21,7 +21,7 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
   val lastOpSeq = -3.toByte
   val lastDeletedAt = -2.toByte
   val timeStampSeq = 0.toByte
-  val countSeq = -1.toByte
+  val countSeq = (Byte.MaxValue - 2).toByte
   val degreeSeq = (Byte.MaxValue - 1).toByte
   val maxValue = Byte.MaxValue
   val emptyValue = Byte.MaxValue
