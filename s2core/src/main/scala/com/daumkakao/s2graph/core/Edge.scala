@@ -184,6 +184,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
       List.empty[AtomicIncrementRequest]
     } else {
       val incr = new AtomicIncrementRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, amount)
+      Logger.debug(s"$incr")
       List(incr)
     }
   }
@@ -1041,7 +1042,7 @@ object Edge extends JSONParser {
   }
 
   def toEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None): Option[Edge] = {
-//    Logger.debug(s"$param -> $kv")
+    Logger.debug(s"$param -> $kv")
 
     val version = kv.timestamp()
     val keyBytes = kv.key()

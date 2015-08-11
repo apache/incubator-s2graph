@@ -464,7 +464,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     get.setMaxAttempt(maxAttempt.toByte)
     get.setRpcTimeout(rpcTimeoutInMillis)
     if (columnRangeFilter != null) get.filter(columnRangeFilter)
-    Logger.debug(s"$get")
+    Logger.debug(s"Get: $get")
     get
   }
 }
