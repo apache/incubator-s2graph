@@ -623,7 +623,7 @@ case class Edge(srcVertex: Vertex,
         (seq, w) <- r.keySeqAndWeights
       } {
         seq match {
-          case -1 => {
+          case LabelMeta.countSeq => {
             //case key == "count"
             sum += 1
           }

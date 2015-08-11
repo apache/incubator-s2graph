@@ -194,21 +194,21 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
     this.keySeqAndWeights = List((LabelMeta.countSeq, 1.0))
     this
   }
-
-  def singleKey(key: String) = {
-    this.keySeqAndWeights =
-      LabelMeta.findByName(labelId, key) match {
-        case None => List.empty[(Byte, Double)]
-        case Some(ktype) => List((ktype.seq, 1.0))
-      }
-    this
-  }
-
-  def multipleKey(keyAndWeights: Seq[(String, Double)]) = {
-    this.keySeqAndWeights =
-      for ((key, weight) <- keyAndWeights; row <- LabelMeta.findByName(labelId, key)) yield (row.seq, weight)
-    this
-  }
+//
+//  def singleKey(key: String) = {
+//    this.keySeqAndWeights =
+//      LabelMeta.findByName(labelId, key) match {
+//        case None => List.empty[(Byte, Double)]
+//        case Some(ktype) => List((ktype.seq, 1.0))
+//      }
+//    this
+//  }
+//
+//  def multipleKey(keyAndWeights: Seq[(String, Double)]) = {
+//    this.keySeqAndWeights =
+//      for ((key, weight) <- keyAndWeights; row <- LabelMeta.findByName(labelId, key)) yield (row.seq, weight)
+//    this
+//  }
 }
 
 object QueryParam {
