@@ -175,7 +175,7 @@ object QueryController extends Controller with RequestParser {
     }
   }
   @deprecated(message = "deprecated", since = "0.2")
-  def getEdgesGroupedExcludedFormatted() = withHeaderAsync(parse.json) { request =>
+  def getEdgesGroupedExcludedFormatted = withHeaderAsync(parse.json) { request =>
     getEdgesGroupedExcludedFormattedInner(request.body)
   }
 
@@ -230,8 +230,6 @@ object QueryController extends Controller with RequestParser {
       } yield {
           val labelWithDir = LabelWithDirection(label.id.get, direction)
           labelWithDirs += labelWithDir
-          var srcVertex = Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId))
-          var tgtVertex = Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId))
           val (src, tgt, dir) = if (direction == 1) {
             isReverted = true
             (Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)),
@@ -246,6 +244,7 @@ object QueryController extends Controller with RequestParser {
           Logger.debug(s"direction: $dir")
           (src, tgt, label, dir.toInt)
         }
+
       Graph.checkEdges(quads).map { case queryResultLs  =>
         val edgeJsons = for {
           queryResult <- queryResultLs

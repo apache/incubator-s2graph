@@ -2,17 +2,16 @@ package controllers
 
 import com.daumkakao.s2graph.core._
 
-import scala.concurrent.Future
-
 //import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.mysqls._
 import play.api.Logger
 import play.api.libs.json.{JsObject, JsValue, Json}
-import play.api.mvc.{Result, Action, Controller}
+import play.api.mvc.{Action, Controller}
 
 object AdminController extends Controller with RequestParser {
   private def ok(msg: String) = Ok(Json.obj("message" -> msg)).as(QueryController.applicationJsonHeader)
+
   private def bad(msg: String) = Ok(Json.obj("message" -> msg)).as(QueryController.applicationJsonHeader)
 
   /**
@@ -114,7 +113,6 @@ object AdminController extends Controller with RequestParser {
   }
 
 
-
   def deleteLabel(labelName: String) = Action { request =>
     deleteLabelInner(labelName)
   }
@@ -190,6 +188,7 @@ object AdminController extends Controller with RequestParser {
         bad(e.toString)
     }
   }
+
   def deleteServiceColumnInner(serviceName: String, columnName: String) = {
     for {
       service <- Service.findByName(serviceName)
@@ -203,6 +202,7 @@ object AdminController extends Controller with RequestParser {
     deleteServiceColumnInner(serviceName, columnName)
     ok(s"$serviceName:$columnName is deleted")
   }
+
   def getServiceColumn(serviceName: String, columnName: String) = Action { request =>
     val rets = for {
       service <- Service.findByName(serviceName)
