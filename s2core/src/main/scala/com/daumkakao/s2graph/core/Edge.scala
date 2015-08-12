@@ -178,6 +178,17 @@ case class EdgeWithIndex(srcVertex: Vertex,
     }
   }
 
+  def buildIncrementsCountAsync(amount: Long = 1L): List[HBaseRpc] = {
+    if (!hasAllPropsForIndex) {
+      Logger.error(s"$this dont have all props for index")
+      List.empty[AtomicIncrementRequest]
+    } else {
+      val incr = new AtomicIncrementRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, amount)
+      Logger.debug(s"$incr")
+      List(incr)
+    }
+  }
+  
   def buildDeletes(): List[Delete] = {
     if (!hasAllPropsForIndex) List.empty[Delete]
     else {
@@ -389,6 +400,12 @@ case class Edge(srcVertex: Vertex,
         List.empty[PutRequest]
       } else if (op == GraphUtil.operations("insertBulk")) {
         insert()
+      } else if (op == GraphUtil.operations("incrementCount")) {
+        /** no duplicate edge. no snapshot edge. just increment as it is.*/
+        edgesWithIndex.flatMap { edge =>
+          val count = propsWithTs.get(LabelMeta.countSeq).map(v => v.innerVal.toString().toLong).getOrElse(1L)
+          edge.buildIncrementsCountAsync(count)
+        }
       } else {
         throw new Exception(s"operation[${op}] is not supported on edge.")
       }
@@ -606,7 +623,7 @@ case class Edge(srcVertex: Vertex,
         (seq, w) <- r.keySeqAndWeights
       } {
         seq match {
-          case -1 => {
+          case LabelMeta.countSeq => {
             //case key == "count"
             sum += 1
           }
@@ -1025,7 +1042,7 @@ object Edge extends JSONParser {
   }
 
   def toEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None): Option[Edge] = {
-//    Logger.debug(s"$param -> $kv")
+    Logger.debug(s"$param -> $kv")
 
     val version = kv.timestamp()
     val keyBytes = kv.key()
@@ -1049,7 +1066,16 @@ object Edge extends JSONParser {
       } else {
         /** edge */
         val (qualifier, _) = EdgeQualifier.fromBytes(kvQual, 0, kvQual.length, param.label.schemaVersion)
-        val (value, _) = EdgeValue.fromBytes(vBytes, 0, vBytes.length, param.label.schemaVersion)
+
+        val (value, _) = if (qualifier.op == GraphUtil.operations("incrementCount")) {
+          val countVal = Bytes.toLong(vBytes)
+          val dummyProps = Seq((LabelMeta.countSeq -> InnerVal.withLong(countVal, param.label.schemaVersion)))
+          (EdgeValue(dummyProps)(param.label.schemaVersion), 8)
+        } else {
+          EdgeValue.fromBytes(vBytes, 0, vBytes.length, param.label.schemaVersion)
+        }
+
+
 
         val index = param.label.indicesMap.get(rowKey.labelOrderSeq).getOrElse(
           throw new RuntimeException(s"can`t find index sequence for $rowKey ${param.label}"))

@@ -3,6 +3,7 @@ package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.KGraphExceptions.LabelNotExistException
 import com.daumkakao.s2graph.core.mysqls._
+import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 
 //import com.daumkakao.s2graph.core.models._
 
@@ -33,8 +34,11 @@ object Management extends JSONParser {
   //    HBaseModel.getSequence(tableName)
   //  }
   def createService(serviceName: String,
-                    cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]): Service = {
-    val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL)
+                    cluster: String, hTableName: String,
+                    preSplitSize: Int, hTableTTL: Option[Int],
+                    compressionAlgorithm: String): Service = {
+    val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize,
+      hTableTTL, compressionAlgorithm)
     service
   }
 
@@ -103,7 +107,8 @@ object Management extends JSONParser {
                   hTableName: Option[String],
                   hTableTTL: Option[Int],
                   schemaVersion: String = DEFAULT_VERSION,
-                  isAsync: Boolean): Label = {
+                  isAsync: Boolean,
+                  compressionAlgorithm: String = "lz4"): Label = {
 
 
     val labelOpt = Label.findByName(label, useCache = false)
@@ -115,7 +120,8 @@ object Management extends JSONParser {
         Label.insertAll(label,
           srcServiceName, srcColumnName, srcColumnType,
           tgtServiceName, tgtColumnName, tgtColumnType,
-          isDirected, serviceName, indexProps, props, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync)
+          isDirected, serviceName, indexProps, props, consistencyLevel,
+          hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm)
         Label.findByName(label, useCache = false).get
     }
   }
@@ -394,8 +400,10 @@ object Management extends JSONParser {
   //
   //    //    regionStats.map(kv => Bytes.toString(kv._1) -> kv._2) ++ Map("total" -> regionStats.values().sum)
   //  }
-  def createTable(zkAddr: String, tableName: String, cfs: List[String], regionMultiplier: Int, ttl: Option[Int]) = {
-    Logger.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier")
+
+  def createTable(zkAddr: String, tableName: String, cfs: List[String], regionMultiplier: Int, ttl: Option[Int],
+                  compressionAlgorithm: String = "lz4") = {
+    Logger.error(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm")
     val admin = getAdmin(zkAddr)
     val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier
     if (!admin.tableExists(TableName.valueOf(tableName))) {
@@ -404,7 +412,7 @@ object Management extends JSONParser {
         desc.setDurability(Durability.ASYNC_WAL)
         for (cf <- cfs) {
           val columnDesc = new HColumnDescriptor(cf)
-            .setCompressionType(Compression.Algorithm.LZ4)
+            .setCompressionType(Algorithm.valueOf(compressionAlgorithm.toUpperCase))
             .setBloomFilterType(BloomType.ROW)
             .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
             .setMaxVersions(1)
