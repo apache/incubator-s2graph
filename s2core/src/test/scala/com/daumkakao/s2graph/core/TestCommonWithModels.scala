@@ -3,11 +3,8 @@ package com.daumkakao.s2graph.core
 //import com.daumkakao.s2graph.core.models._
 
 
-import com.daumkakao.s2graph.core.types2.{LabelWithDirection, InnerVal}
+import com.daumkakao.s2graph.core.types2.{InnerVal, LabelWithDirection}
 import com.typesafe.config.ConfigFactory
-import org.apache.hadoop.hbase.util.Bytes
-import org.hbase.async.{KeyValue, PutRequest}
-import play.api.libs.json.{JsNumber, JsString, JsBoolean}
 
 import scala.concurrent.ExecutionContext
 
@@ -64,11 +61,6 @@ trait TestCommonWithModels {
 
   val config = ConfigFactory.parseString("")
   Graph(config)(ExecutionContext.Implicits.global)
-  Model(config)
-//  HBaseModel(zkQuorum)
-
-
-
 
   def initTests() = {
     deleteTestLabel()
@@ -81,8 +73,8 @@ trait TestCommonWithModels {
   }
 
   def createTestService() = {
-    Management.createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL = None)
-    Management.createService(serviceNameV2,  cluster, hTableName, preSplitSize, hTableTTL = None)
+    Management.createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
+    Management.createService(serviceNameV2,  cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
   }
 
   def deleteTestService() = {
@@ -110,7 +102,6 @@ trait TestCommonWithModels {
 
     Management.createLabel(undirectedLabelNameV2, serviceNameV2, columnNameV2, columnTypeV2, serviceNameV2, tgtColumnNameV2, tgtColumnTypeV2,
       isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION2, false)
-
   }
 
   /** */
@@ -125,15 +116,11 @@ trait TestCommonWithModels {
   lazy val tgtColumn = ServiceColumn.find(service.id.get, tgtColumnName, useCache = false).get
   lazy val tgtColumnV2 = ServiceColumn.find(serviceV2.id.get, tgtColumnNameV2, useCache = false).get
 
-
   lazy val label = Label.findByName(labelName, useCache = false).get
   lazy val labelV2 = Label.findByName(labelNameV2, useCache = false).get
 
   lazy val undirectedLabel = Label.findByName(undirectedLabelName, useCache = false).get
   lazy val undirectedLabelV2 = Label.findByName(undirectedLabelNameV2, useCache = false).get
-
-
-
 
   lazy val dir = GraphUtil.directions("out")
   lazy val op = GraphUtil.operations("insert")

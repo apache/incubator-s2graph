@@ -90,7 +90,7 @@ case class Or(val left: Clause, val right: Clause) extends Clause {
 }
 case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
 
-  val metaProps = label.metaPropsInvMap ++ Map(LabelMeta.from.name -> LabelMeta.from, LabelMeta.to.name -> LabelMeta.to)
+  val metaProps = label.metaPropsInvMap
 
   def where: Parser[Where] = rep(clause) ^^ (Where(_))
 
@@ -108,12 +108,35 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
 
   /** floating point is not supported yet **/
   def predicate = (
-    (ident ~ "=" ~ ident | ident ~ "=" ~ decimalNumber | ident ~ "=" ~ stringLiteralWithMinus) ^^ {
+    ident ~ "=" ~ ".*".r  ^^ {
       case f ~ "=" ~ s =>
         metaProps.get(f) match {
-          case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
+          case None =>
+            throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
-            Equal(metaProp.seq, toInnerVal(s, metaProp.dataType, label.schemaVersion))
+            if (f == LabelMeta.to.name) {
+              Equal(LabelMeta.to.seq, toInnerVal(s, label.tgtColumnType, label.schemaVersion))
+            } else if (f == LabelMeta.from.name) {
+              Equal(LabelMeta.from.seq, toInnerVal(s, label.srcColumnType, label.schemaVersion))
+            } else {
+              Equal(metaProp.seq, toInnerVal(s, metaProp.dataType, label.schemaVersion))
+            }
+        }
+    }
+      | ident ~ "!=" ~ ".*".r  ^^ {
+      case f ~ "!=" ~ s =>
+        metaProps.get(f) match {
+          case None =>
+            throw new RuntimeException(s"where clause contains not existing property name: $f")
+          case Some(metaProp) =>
+            val wh = if (f == LabelMeta.to.name) {
+              Equal(LabelMeta.to.seq, toInnerVal(s, label.tgtColumnType, label.schemaVersion))
+            } else if (f == LabelMeta.from.name) {
+              Equal(LabelMeta.from.seq, toInnerVal(s, label.srcColumnType, label.schemaVersion))
+            } else {
+              Equal(metaProp.seq, toInnerVal(s, metaProp.dataType, label.schemaVersion))
+            }
+            Not(wh)
         }
     }
       | (ident ~ "between" ~ ident ~ "and" ~ ident |
@@ -138,14 +161,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
             IN(metaProp.seq, values.toSet)
         }
     }
-      | (ident ~ "!=" ~ ident | ident ~ "!=" ~ decimalNumber | ident ~ "!=" ~ stringLiteralWithMinus) ^^ {
-      case f ~ "!=" ~ s =>
-        metaProps.get(f) match {
-          case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
-          case Some(metaProp) =>
-            Not(Equal(metaProp.seq, toInnerVal(s, metaProp.dataType, label.schemaVersion)))
-        }
-    }
+
       | (ident ~ "not in" ~ "(" ~ rep(ident | decimalNumber | stringLiteralWithMinus | "true" | "false" | ",") ~ ")") ^^ {
       case f ~ "not in" ~ "(" ~ vals ~ ")" =>
         metaProps.get(f) match {
@@ -162,7 +178,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
   def parse(sql: String): Option[Where] = {
     parseAll(where, sql) match {
       case Success(r, q) => Some(r)
-      case x => println(x); None
+      case x => play.api.Logger.error(x.toString); None
     }
   }
 }
