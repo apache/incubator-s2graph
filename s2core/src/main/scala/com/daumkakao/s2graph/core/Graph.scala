@@ -376,7 +376,7 @@ object Graph {
         //          } yield {
         //              (edge, edge.rank(queryParam.rank) * prevScore)
         //            }
-        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isSnapshotEdge = false)
+        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore)
         QueryResult(q, stepIdx, queryParam, new ArrayList(edgeWithScores))
       }, QueryResult(q, stepIdx, queryParam))
     } catch {
@@ -485,7 +485,7 @@ object Graph {
       //      } yield {
       //          (edge, edge.rank(queryParam.rank))
       //        }
-      val edgeWithScoreLs = Edge.toEdges(kvs, queryParam, prevScore = 1.0, isSnapshotEdge = true)
+      val edgeWithScoreLs = Edge.toEdges(kvs, queryParam, prevScore = 1.0)
       QueryResult(query = q, stepIdx = 0, queryParam = queryParam, edgeWithScoreLs = edgeWithScoreLs)
     }
   }

@@ -959,7 +959,7 @@ object Edge extends JSONParser {
   //    ret
   //  }
 
-  def toEdges(kvs: Seq[KeyValue], queryParam: QueryParam, prevScore: Double = 1.0, isSnapshotEdge: Boolean = false): Seq[(Edge, Double)] = {
+  def toEdges(kvs: Seq[KeyValue], queryParam: QueryParam, prevScore: Double = 1.0): Seq[(Edge, Double)] = {
     if (kvs.isEmpty) Seq.empty
     else {
       val first = kvs.head
@@ -967,7 +967,7 @@ object Edge extends JSONParser {
       val edgeRowKeyLike = Option(EdgeRowKey.fromBytes(firstKeyBytes, 0, firstKeyBytes.length, queryParam.label.schemaVersion)._1)
       for {
         kv <- kvs
-        edge <- if (isSnapshotEdge) toSnapshotEdge(kv, queryParam, edgeRowKeyLike) else toEdge(kv, queryParam, edgeRowKeyLike)
+        edge <- if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, edgeRowKeyLike) else toEdge(kv, queryParam, edgeRowKeyLike)
       } yield {
         (edge, edge.rank(queryParam.rank) * prevScore)
       }
