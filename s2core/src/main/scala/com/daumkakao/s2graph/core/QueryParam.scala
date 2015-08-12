@@ -408,6 +408,8 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     }
     this
   }
+
+  def isSnapshotEdge(): Boolean = tgtVertexInnerIdOpt.isDefined
   //  def excludeBy(other: Option[String]): QueryParam = {
   //    this.excludeBy = other
   //    this
