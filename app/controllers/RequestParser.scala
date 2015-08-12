@@ -231,7 +231,7 @@ trait RequestParser extends JSONParser {
         val timeUnit = (jsVal \ "timeUnit").asOpt[Double].getOrElse(60 * 60 * 24.0)
         TimeDecay(initial, decayRate, timeUnit)
       }
-      val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(0.0)
+      val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(QueryParam.defaultThreshold)
       // TODO: refactor this. dirty
       val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
 

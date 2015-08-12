@@ -213,6 +213,7 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
 
 object QueryParam {
   lazy val empty = QueryParam(LabelWithDirection(0, 0))
+  lazy val defaultThreshold = Double.MinValue
 }
 
 case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System.currentTimeMillis()) {
@@ -257,7 +258,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var includeDegree = false
   var tgtVertexInnerIdOpt: Option[InnerValLike] = None
   var cacheTTLInMillis: Long = -1L
-  var threshold = -1.0
+  var threshold = QueryParam.defaultThreshold
   var timeDecay: Option[TimeDecay] = None
   var transformer: EdgeTransformer = EdgeTransformer(this, EdgeTransformer.defaultJson)
   //  var excludeBy: Option[String] = None

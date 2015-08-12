@@ -1117,7 +1117,7 @@ object Edge extends JSONParser {
       }
 //      Logger.debug(s"fetchedEdge: $ret")
       //        val ret = Option(edge)
-      Logger.debug(s"$param, $kv, $ret")
+//      Logger.debug(s"$param, $kv, $ret")
       //    Logger.debug(s"${cell.getQualifier().toList}, ${ret.map(x => x.toStringRaw)}")
       ret
     }
