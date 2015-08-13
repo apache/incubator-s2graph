@@ -63,7 +63,7 @@ object Management extends JSONParser {
    */
   def copyLabel(oldLabelName: String, newLabelName: String, hTableName: Option[String]) = {
     val old = Label.findByName(oldLabelName).getOrElse(throw new LabelAlreadyExistException(s"Old label $oldLabelName already exists."))
-    if ((Label.findByName(newLabelName).isDefined) throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
+    if (Label.findByName(newLabelName).isDefined) throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
 
     val allProps = Prop.default ++ old.metas.map { labelMeta => Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType)}
     val indices = old.indices.map { index => Index(index.name, index.propNames) }
