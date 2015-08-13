@@ -21,7 +21,7 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
   val lastOpSeq = -3.toByte
   val lastDeletedAt = -2.toByte
   val timeStampSeq = 0.toByte
-  val countSeq = -1.toByte
+  val countSeq = (Byte.MaxValue - 2).toByte
   val degreeSeq = (Byte.MaxValue - 1).toByte
   val maxValue = Byte.MaxValue
   val emptyValue = Byte.MaxValue
@@ -35,8 +35,10 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
     seq = timeStampSeq, defaultValue = "0", dataType = "long")
   val degree = LabelMeta(id = Some(-1), labelId = -1, name = "_degree",
     seq = degreeSeq, defaultValue = "0", dataType = "long")
+  val count = LabelMeta(id = Some(-1), labelId = -1, name = "_count",
+  seq = countSeq, defaultValue = "-1", dataType = "long")
 
-  val reservedMetas = List(from, to, degree, timestamp)
+  val reservedMetas = List(from, to, degree, timestamp, count)
   val notExistSeqInDB = List(lastOpSeq, lastDeletedAt, countSeq, degree, timeStampSeq, from.seq, to.seq)
 
   def apply(rs: WrappedResultSet): LabelMeta = {

@@ -5,6 +5,7 @@ package com.daumkakao.s2graph.core.mysqls
  */
 
 import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
+import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import play.api.Logger
 import play.api.libs.json.Json
 import scalikejdbc._
@@ -112,6 +113,8 @@ object Label extends Model[Label] {
     sql"""select * from labels where tgt_service_id = ${serviceId}""".map { rs => Label(rs) }.list().apply
   }
 
+
+
   def insertAll(labelName: String, srcServiceName: String, srcColumnName: String, srcColumnType: String,
                 tgtServiceName: String, tgtColumnName: String, tgtColumnType: String,
                 isDirected: Boolean = true, serviceName: String,
@@ -121,7 +124,8 @@ object Label extends Model[Label] {
                 hTableName: Option[String],
                 hTableTTL: Option[Int],
                 schemaVersion: String,
-                isAsync: Boolean) = {
+                isAsync: Boolean,
+                compressionAlgorithm: String) = {
 
     //    val ls = List(label, srcServiceId, srcColumnName, srcColumnType, tgtServiceId, tgtColumnName, tgtColumnType, isDirected
     //        , serviceName, serviceId, props.toString, consistencyLevel, hTableName)
@@ -173,10 +177,10 @@ object Label extends Model[Label] {
             case (None, Some(hbaseTableTTL)) => throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
             case (Some(hbaseTableName), None) =>
               // create own hbase table with default ttl on service level.
-              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, service.hTableTTL)
+              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, service.hTableTTL, compressionAlgorithm)
             case (Some(hbaseTableName), Some(hbaseTableTTL)) =>
               // create own hbase table with own ttl.
-              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL)
+              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL, compressionAlgorithm)
           }
           val cacheKeys = List(s"id=$createdId", s"label=$labelName")
           val ret = findByName(labelName, useCache = false).get

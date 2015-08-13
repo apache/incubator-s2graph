@@ -25,7 +25,7 @@ object Service {
     Model.find[Service](useCache)(Seq(("serviceName" -> serviceName)))
   }
   def findOrInsert(serviceName: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int],
-                   useCache: Boolean = true): Service = {
+                   useCache: Boolean = true, compressionAlgorithm: String): Service = {
     findByName(serviceName, useCache) match {
       case Some(s) => s
       case None =>
@@ -34,7 +34,7 @@ object Service {
           "preSplitSize" -> preSplitSize, "hbaseTableTTL" -> hTableTTL.getOrElse(-1))
         val service = Service(kvs)
         service.create()
-        Management.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL)
+        Management.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL, compressionAlgorithm)
         service
     }
   }

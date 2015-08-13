@@ -51,7 +51,8 @@ object Label {
                 hTableName: Option[String],
                 hTableTTL: Option[Int],
                 schemaVersion: String,
-                isAsync: Boolean) = {
+                isAsync: Boolean,
+                 compressionAlgorithm: String) = {
     val srcServiceOpt = Service.findByName(srcServiceName, useCache = false)
     val tgtServiceOpt = Service.findByName(tgtServiceName, useCache = false)
     val serviceOpt = Service.findByName(serviceName, useCache = false)
@@ -104,10 +105,10 @@ object Label {
             case (None, Some(hbaseTableTTL)) => throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
             case (Some(hbaseTableName), None) =>
               // create own hbase table with default ttl on service level.
-              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, service.hTableTTL)
+              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, service.hTableTTL, compressionAlgorithm)
             case (Some(hbaseTableName), Some(hbaseTableTTL)) =>
               // create own hbase table with own ttl.
-              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL)
+              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL, compressionAlgorithm)
           }
         }
       }
