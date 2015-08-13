@@ -1,18 +1,20 @@
 package com.daumkakao.s2graph.core
 
 
+import com.daumkakao.s2graph.core.KGraphExceptions.LabelAlreadyExistException
 import com.daumkakao.s2graph.core.Management.Model.{Index, Indices, Prop}
 import com.daumkakao.s2graph.core.mysqls._
+import play.api.libs.json.Reads._
 
 //import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2._
-import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
 import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.io.compress.Compression
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
+import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
 import play.api.Logger
 import play.api.libs.json._
 
@@ -26,14 +28,8 @@ object Management extends JSONParser {
     object Prop extends ((String, String, String) => Prop) {
       val default = Seq(Prop("_timestamp", "0", "long"))
     }
-    case class Index(name: String, props: Seq[Prop])
-    implicit class IndexOps(value: Index) {
-      def propNames = value.props.map(_.name)
-    }
-    case class Indices(indices: Seq[Index])
-    implicit class IndicesOps(value: Indices) {
-      def isEmpty = value.indices.isEmpty
-    }
+    case class Index(name: String, propNames: Seq[String])
+    type Indices = Seq[Index]
   }
 
   import HBaseType._
@@ -66,39 +62,17 @@ object Management extends JSONParser {
    * copy label: only used by bulk load job. not sure if we need to parameterize hbase cluster.
    */
   def copyLabel(oldLabelName: String, newLabelName: String, hTableName: Option[String]) = {
-//    Label.findByName(oldLabelName) match {
-//      case Some(old) =>
-//        Label.findByName(newLabelName) match {
-//          case None =>
-//            val idxSeqs = (LabelIndex.findByLabelIdAll(old.id.get).flatMap { idx =>
-//              idx.metaSeqs
-//            }).toSet
-//            val (indexProps, metaProps) = old.metaPropsInvMap.partition { case (name, meta) => idxSeqs.contains(meta.seq) }
-//
-//            val idxPropsSeq = for {
-//              (name, meta) <- indexProps
-//            } yield {
-//                (name, meta.defaultValue, meta.dataType)
-//              }
-//            val metaPropsSeq = for {
-//              (name, meta) <- metaProps
-//            } yield {
-//                (name, meta.defaultValue, meta.dataType)
-//              }
-//
-//            createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
-//              old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
-//              old.isDirected, old.serviceName,
-//              idxPropsSeq.toSeq,
-//              metaPropsSeq.toSeq,
-//              old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync)
-//
-//          case Some(_) =>
-////            throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
-//        }
-//      case None => throw new LabelNotExistException(s"Original label $oldLabelName does not exist.")
-//    }
-    null
+    val old = Label.findByName(oldLabelName).getOrElse(throw new LabelAlreadyExistException(s"Old label $oldLabelName already exists."))
+    if ((Label.findByName(newLabelName).isDefined) throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
+
+    val allProps = Prop.default ++ old.metas.map { labelMeta => Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType)}
+    val indices = old.indices.map { index => Index(index.name, index.propNames) }
+
+    createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
+      old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
+      old.isDirected, old.serviceName,
+      indices, allProps,
+      old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync)
   }
 
   def createLabel(label: String,

@@ -337,22 +337,21 @@ trait RequestParser extends JSONParser {
   def parsePropsElements(jsValue: JsValue): Seq[Prop] = for {
     jsObj <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
   } yield {
-    val propName = (jsObj \ "name").as[String]
-    val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
-    val defaultValue = (jsObj \ "defaultValue").as[JsValue]
-    Prop(propName, defaultValue.toString, dataType)
-  }
+      val propName = (jsObj \ "name").as[String]
+      val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
+      val defaultValue = (jsObj \ "defaultValue").as[JsValue] match {
+        case JsString(s) => s
+        case _@js => js.toString
+      }
 
- def parseIndices(jsValue: JsValue, allProps: Seq[Prop]) = Indices(for {
+      Prop(propName, defaultValue, dataType)
+    }
+
+  def parseIndices(jsValue: JsValue, allProps: Seq[Prop]): Seq[Index] = for {
     jsObj <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
     indexName = (jsObj \ "name").as[String]
     propNames = (jsObj \ "propNames").as[Seq[String]]
-    propElements = propNames.flatMap { name =>
-      allProps.find { case Prop(nm, _, _) => nm == name}
-    }
-  } yield {
-    Index(indexName, propElements)
-  })
+  } yield Index(indexName, propNames)
 
   def toLabelElements(jsValue: JsValue) = {
     val labelName = parse[String](jsValue, "label")
@@ -364,6 +363,7 @@ trait RequestParser extends JSONParser {
     val tgtColumnType = parse[String](jsValue, "tgtColumnType")
     val serviceName = (jsValue \ "serviceName").asOpt[String].getOrElse(tgtServiceName)
     val isDirected = (jsValue \ "isDirected").asOpt[Boolean].getOrElse(true)
+
     val allProps = Prop.default ++ parsePropsElements(jsValue \ "props")
     val indices = parseIndices(jsValue \ "indices", allProps)
 

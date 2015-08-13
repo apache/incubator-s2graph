@@ -158,13 +158,9 @@ object Label extends Model[Label] {
             (propName -> labelMeta.seq)
           }.toMap
 
-          if (indices.indices.isEmpty) {
-            LabelIndex.findOrInsert(createdId, "_PK", List(LabelMeta.timeStampSeq), "none")
-          } else {
-            indices.indices.foreach { index =>
-              val metaSeq = index.propNames.map { name => labelMetaMap(name) }
-              LabelIndex.findOrInsert(createdId, index.name, metaSeq.toList, "none")
-            }
+          indices.foreach { index =>
+            val metaSeq = index.propNames.map { name => labelMetaMap(name) }
+            LabelIndex.findOrInsert(createdId, index.name, metaSeq.toList, "none")
           }
 
           /** TODO: */
