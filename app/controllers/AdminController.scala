@@ -1,5 +1,6 @@
 package controllers
 
+import com.daumkakao.s2graph.core.Management.Model.Prop
 import com.daumkakao.s2graph.core._
 
 //import com.daumkakao.s2graph.core.models._
@@ -63,13 +64,14 @@ object AdminController extends Controller with RequestParser {
     try {
       val (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected,
-      serviceName, idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync) =
+      serviceName, indices, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync) =
         toLabelElements(jsValue)
 
       val label = Management.createLabel(labelName, srcServiceName, srcColumnName, srcColumnType,
         tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
-        idxProps.map { t => (t._1, t._2.toString, t._3) },
-        metaProps.map { t => (t._1, t._2.toString, t._3) },
+        //idxProps.map { t => (t._1, t._2.toString, t._3) },
+        indices,
+        metaProps,
         consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync)
       ok(s"${label.label} is created")
     } catch {
@@ -80,15 +82,17 @@ object AdminController extends Controller with RequestParser {
   }
 
   def addIndex() = Action(parse.json) { request =>
-    try {
-      val (labelName, idxProps) = toIndexElements(request.body)
-      val index = Management.addIndex(labelName, idxProps)
-      ok("index is added.")
-    } catch {
-      case e: Throwable =>
-        Logger.error(s"$e", e)
-        bad(s"$e")
-    }
+//    try {
+//      val (labelName, idxProps) = toIndexElements(request.body)
+//      val index = Management.addIndex(labelName, idxProps)
+//      ok("index is added.")
+//    } catch {
+//      case e: Throwable =>
+//        Logger.error(s"$e", e)
+//        bad(s"$e")
+//    }
+
+    ok("")
   }
 
   def getLabel(labelName: String) = Action { request =>
@@ -179,7 +183,7 @@ object AdminController extends Controller with RequestParser {
   def createServiceColumnInner(jsValue: JsValue) = {
     try {
       val (serviceName, columnName, columnType, props) = toServiceColumnElements(jsValue)
-      Management.createServiceColumn(serviceName, columnName, columnType, props)
+      Management.createServiceColumn(serviceName, columnName, columnType, props.flatMap(p => Prop.unapply(p)))
       ok(s"$serviceName:$columnName is created.")
     } catch {
       case e: Throwable =>

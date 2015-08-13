@@ -44,27 +44,15 @@ object LabelIndex extends Model[LabelIndex] {
       """.map { rs => LabelIndex(rs) }.list.apply
     }
   }
-  def insert(labelId: Int, seq: Byte, metaSeqs: List[Byte], formulars: String): Long = {
+  def insert(labelId: Int, indexName: String, seq: Byte, metaSeqs: List[Byte], formulars: String): Long = {
     sql"""
-    	insert into label_indices(label_id, seq, meta_seqs, formulars)
-    	values (${labelId}, ${seq}, ${metaSeqs.mkString(",")}, ${formulars})
+    	insert into label_indices(label_id, name, seq, meta_seqs, formulars)
+    	values (${labelId}, ${indexName}, ${seq}, ${metaSeqs.mkString(",")}, ${formulars})
     """
       .updateAndReturnGeneratedKey.apply()
   }
 
-  def findOrInsert(labelId: Int, seq: Byte, metaSeqs: List[Byte], formulars: String): LabelIndex = {
-    //    kgraph.Logger.debug(s"findOrInsert: $labelId, $seq, $metaSeqs, $formulars")
-    findByLabelIdAndSeq(labelId, seq) match {
-      case Some(s) => s
-      case None =>
-        val createdId = insert(labelId, seq, metaSeqs, formulars)
-        val cacheKeys = List(s"labelId=$labelId:seq=$seq",
-        s"labelId=$labelId:seqs=$metaSeqs", s"labelId=$labelId:seq=$seq", s"id=$createdId")
-        cacheKeys.foreach(expireCache(_))
-        findByLabelIdAndSeq(labelId, seq, false).get // forcely find label information form label_indices table, add false(don't use cache) option
-    }
-  }
-  def findOrInsert(labelId: Int, metaSeqs: List[Byte], formulars: String): LabelIndex = {
+  def findOrInsert(labelId: Int, indexName: String, metaSeqs: List[Byte], formulars: String): LabelIndex = {
     //    Logger.debug(s"findOrInsert: $labelId, $seq, $metaSeqs, $formulars")
     findByLabelIdAndSeqs(labelId, metaSeqs) match {
       case Some(s) => s
@@ -72,7 +60,7 @@ object LabelIndex extends Model[LabelIndex] {
         val orders = findByLabelIdAll(labelId, false)
         val seq = (orders.size + 1).toByte
         assert(seq <= maxOrderSeq)
-        val createdId = insert(labelId, seq, metaSeqs, formulars)
+        val createdId = insert(labelId, indexName, seq, metaSeqs, formulars)
         val cacheKeys = List(s"labelId=$labelId:seq=$seq",
           s"labelId=$labelId:seqs=$metaSeqs", s"labelId=$labelId:seq=$seq", s"id=$createdId")
         cacheKeys.foreach(expireCache(_))

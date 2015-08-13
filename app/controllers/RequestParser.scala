@@ -10,7 +10,10 @@ import com.daumkakao.s2graph.core.types2._
 import play.api.Logger
 import play.api.libs.json._
 
+
+
 trait RequestParser extends JSONParser {
+  import Management.Model._
 
   val hardLimit = Config.QUERY_HARD_LIMIT
   val defaultLimit = 100
@@ -331,16 +334,25 @@ trait RequestParser extends JSONParser {
       throw new KGraphExceptions.JsonParseException(Json.obj("error" -> s"$jsObj --> some key is duplicated").toString)
   }
 
-  def parsePropsElements(jsValue: JsValue) = {
-    for {
-      jsObj <- jsValue.asOpt[List[JsValue]].getOrElse(Nil)
-    } yield {
-      val propName = (jsObj \ "name").as[String]
-      val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
-      val defaultValue = (jsObj \ "defaultValue")
-      (propName, defaultValue, dataType)
-    }
+  def parsePropsElements(jsValue: JsValue): Seq[Prop] = for {
+    jsObj <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
+  } yield {
+    val propName = (jsObj \ "name").as[String]
+    val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
+    val defaultValue = (jsObj \ "defaultValue").as[JsValue]
+    Prop(propName, defaultValue.toString, dataType)
   }
+
+ def parseIndices(jsValue: JsValue, allProps: Seq[Prop]) = Indices(for {
+    jsObj <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
+    indexName = (jsObj \ "name").as[String]
+    propNames = (jsObj \ "propNames").as[Seq[String]]
+    propElements = propNames.flatMap { name =>
+      allProps.find { case Prop(nm, _, _) => nm == name}
+    }
+  } yield {
+    Index(indexName, propElements)
+  })
 
   def toLabelElements(jsValue: JsValue) = {
     val labelName = parse[String](jsValue, "label")
@@ -351,11 +363,12 @@ trait RequestParser extends JSONParser {
     val srcColumnType = parse[String](jsValue, "srcColumnType")
     val tgtColumnType = parse[String](jsValue, "tgtColumnType")
     val serviceName = (jsValue \ "serviceName").asOpt[String].getOrElse(tgtServiceName)
-    //    parse[String](jsValue, "serviceName")
     val isDirected = (jsValue \ "isDirected").asOpt[Boolean].getOrElse(true)
-    val idxProps = parsePropsElements((jsValue \ "indexProps"))
-    val metaProps = parsePropsElements((jsValue \ "props"))
+    val allProps = Prop.default ++ parsePropsElements(jsValue \ "props")
+    val indices = parseIndices(jsValue \ "indices", allProps)
+
     val consistencyLevel = (jsValue \ "consistencyLevel").asOpt[String].getOrElse("weak")
+
     // expect new label don`t provide hTableName
     val hTableName = (jsValue \ "hTableName").asOpt[String]
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
@@ -363,7 +376,7 @@ trait RequestParser extends JSONParser {
     val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
     val t = (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
-      idxProps, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync)
+      indices, allProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync)
     Logger.info(s"createLabel $t")
     t
   }
@@ -371,8 +384,6 @@ trait RequestParser extends JSONParser {
   def toIndexElements(jsValue: JsValue) = {
     val labelName = parse[String](jsValue, "label")
     val idxProps = parsePropsElements((jsValue \ "indexProps"))
-    //    val js = (jsValue \ "indexProps").asOpt[JsObject].getOrElse(Json.parse("{}").as[JsObject])
-    //    val props = for ((k, v) <- js.fields) yield (k, v)
     val t = (labelName, idxProps)
     t
   }

@@ -6,10 +6,9 @@ package com.daumkakao.s2graph.core.mysqls
 
 //import com.daumkakao.s2graph.core.HBaseElement.InnerVal
 import com.daumkakao.s2graph.core.JSONParser
-import play.api.Logger
 
 //import com.daumkakao.s2graph.core.types2.InnerVal
-import play.api.libs.json.{ JsObject, JsValue, Json }
+import play.api.libs.json.Json
 import scalikejdbc._
 
 object LabelMeta extends Model[LabelMeta] with JSONParser {
