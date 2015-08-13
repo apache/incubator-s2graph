@@ -1,4 +1,8 @@
+CREATE DATABASE IF NOT EXISTS graph_dev;
+
+
 use graph_dev;
+
 
 SET FOREIGN_KEY_CHECKS = 0;
 
