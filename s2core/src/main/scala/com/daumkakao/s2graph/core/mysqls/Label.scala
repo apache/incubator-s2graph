@@ -5,7 +5,6 @@ package com.daumkakao.s2graph.core.mysqls
  */
 
 import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
-import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import play.api.Logger
 import play.api.libs.json.Json
 import scalikejdbc._
@@ -150,6 +149,8 @@ object Label extends Model[Label] {
         val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType), schemaVersion)
         val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType), schemaVersion)
 
+        if (srcCol.columnType != srcColumnType) throw new RuntimeException(s"source service column type not matched ${srcCol.columnType} != ${srcColumnType}")
+        if (tgtCol.columnType != tgtColumnType) throw new RuntimeException(s"target service column type not matched ${tgtCol.columnType} != ${tgtColumnType}")
 
         /** create label */
         Label.findByName(labelName, useCache = false).getOrElse {
