@@ -296,7 +296,7 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
     "tgtColumnName": "user_id",
     "tgtColumnType": "long",
     "indexProps": [
-        {"name": "affinity_score", "dataType": "float", "defaultValue": 0.0}
+        {"name": "affinity_score", "dataType": "float", "defaultValue": 0.0},
         {"name": "_timestamp", "dataType": "long", "defaultValue": 0}
     ],
     "props": [
