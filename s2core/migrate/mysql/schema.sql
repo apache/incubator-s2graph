@@ -125,7 +125,7 @@ CREATE TABLE `label_indices` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_label_id_seq` (`label_id`,`meta_seqs`),
   UNIQUE KEY `ux_label_id_name` (`label_id`,`name`),
-) ENGINE=InnoDB AUTO_INCREMENT=779 DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE label_indices ADD FOREIGN KEY(label_id) REFERENCES labels(id) ON DELETE CASCADE;
 
