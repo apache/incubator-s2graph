@@ -105,15 +105,15 @@ curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -
 '
 ## check for contentions
 
-curl -XPOST localhost:9000/graphs/edges/bulk -d '
+curl -XPOST localhost:9000/graphs/edges/bulk -H 'Content-Type: text/plain' -d '
 193829195000	insert	edge	2	ab	graph_test	{"time": -1, "weight": 0.98}
-193829195001	delete	edge	2	ab	graph_test	
+193829195001	delete	edge	2	ab	graph_test	{}
 193829195002	insert	edge	2	ab	graph_test	{"time": -10, "weight": -0.1}
 '
 
 
 ## Vertex
-curl -XPOST localhost:9000/graphs/createVertex -H 'Content-Type: Application/json' -d ' 
+curl -XPOST localhost:9000/graphs/createServiceColumn -H 'Content-Type: Application/json' -d '
 {
     "serviceName": "s2graph",
     "columnName": "user_id",
