@@ -3,7 +3,6 @@ package controllers
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import config.Config
-import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 
 //import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.parsers.WhereParser
@@ -378,8 +377,8 @@ trait RequestParser extends JSONParser {
     val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse("lz4")
     val t = (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
-      indices, allProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync)
-      schemaVersion, isAsync, compressionAlgorithm)
+      indices, allProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm)
+
     Logger.info(s"createLabel $t")
     t
   }
