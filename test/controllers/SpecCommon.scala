@@ -311,7 +311,6 @@ trait SpecCommon extends Specification {
           case Some(label) =>
             Logger.error(s">> Label already exist: $create, $label")
         }
-        println("3===========================================================")
       }
 
       println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
