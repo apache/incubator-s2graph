@@ -3,6 +3,7 @@ package controllers
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import config.Config
+import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 
 //import com.daumkakao.s2graph.core.models._
 import com.daumkakao.s2graph.core.parsers.WhereParser
@@ -234,7 +235,7 @@ trait RequestParser extends JSONParser {
         val timeUnit = (jsVal \ "timeUnit").asOpt[Double].getOrElse(60 * 60 * 24.0)
         TimeDecay(initial, decayRate, timeUnit)
       }
-      val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(0.0)
+      val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(QueryParam.defaultThreshold)
       // TODO: refactor this. dirty
       val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
 
@@ -374,9 +375,11 @@ trait RequestParser extends JSONParser {
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     val schemaVersion = (jsValue \ "schemaVersion").asOpt[String].getOrElse(HBaseType.DEFAULT_VERSION)
     val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
+    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse("lz4")
     val t = (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
       indices, allProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync)
+      schemaVersion, isAsync, compressionAlgorithm)
     Logger.info(s"createLabel $t")
     t
   }
@@ -393,7 +396,8 @@ trait RequestParser extends JSONParser {
     val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${Config.PHASE}")
     val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(1)
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
-    (serviceName, cluster, hTableName, preSplitSize, hTableTTL)
+    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse("lz4")
+    (serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
   }
 
   def toServiceColumnElements(jsValue: JsValue) = {

@@ -6,7 +6,7 @@ import com.google.common.cache.CacheBuilder
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Success}
 import java.util.ArrayList
-import java.util.concurrent.{Executors}
+import java.util.concurrent.{ConcurrentHashMap, Executors}
 import com.daumkakao.s2graph.core.types2._
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.{ConfigFactory, Config}
@@ -243,7 +243,7 @@ object Graph {
         //TODO: register errorBacks on this operations to log error
         //          Logger.debug(s"$rpc")
         val defer = rpcs.map { rpc =>
-          //          Logger.debug(s"$rpc")
+                    Logger.debug(s"$rpc")
           val deferred = rpc match {
             case d: DeleteRequest => client.delete(d).addErrback(new Callback[Unit, Exception] {
               def call(arg: Exception): Unit = {
@@ -583,6 +583,7 @@ object Graph {
 //            convertedEdge <- convertEdges(edge, labelOutputFields(edge.labelWithDir.labelId))
             (hashKey, filterHashKey) = toHashKey(queryResult.queryParam, convertedEdge)
           } {
+//            Logger.error(s"filterEdge: $edge")
             /** check if this edge should be exlcuded. */
             val filterKey = edge.labelWithDir.labelId -> edge.labelWithDir.dir
             if (excludeLabelWithDirSet.contains(filterKey) && !edge.propsWithTs.containsKey(LabelMeta.degreeSeq)) {
@@ -626,6 +627,8 @@ object Graph {
               }
             }
           }
+//          logMap(duplicateEdges)
+//          logMap(resultEdgeWithScores)
           (duplicateEdges, resultEdgeWithScores)
         }
 
@@ -635,10 +638,13 @@ object Graph {
       } yield {
         val edgesWithScores = for {
           (hashKey, filterHashKey, edge, score) <- resultEdgeWithScores.values
-          if edgesToInclude.containsKey(filterHashKey) || !edgesToExclude.containsKey(filterHashKey)
+//          if edgesToInclude.containsKey(filterHashKey) || !edgesToExclude.containsKey(filterHashKey)
           (duplicateEdge, aggregatedScore) <- (edge -> score) +: (if (duplicateEdges.containsKey(hashKey)) duplicateEdges.get(hashKey) else Seq.empty)
           if aggregatedScore >= queryResult.queryParam.threshold
-        } yield (duplicateEdge, aggregatedScore)
+        } yield {
+//            Logger.error(s"remainEdge: $duplicateEdge")
+            (duplicateEdge, aggregatedScore)
+          }
 
         QueryResult(queryResult.query, queryResult.stepIdx, queryResult.queryParam, edgesWithScores)
       }
@@ -646,6 +652,13 @@ object Graph {
     }
   }
 
+  private def logMap[K, V](h: ConcurrentHashMap[K, V]) = {
+    for {
+      e <- h.entrySet()
+    } {
+      Logger.error(s"${e.getKey} -> ${e.getValue}")
+    }
+  }
   private def filterDuplicates(seen: HashMap[(String, Int, Int, String), Double], queryParam: QueryParam,
                                edge: Edge, score: Double) = {
     val key = (edge.srcVertex.innerId.toString, edge.labelWithDir.labelId, edge.labelWithDir.dir, edge.tgtVertex.innerId.toString)

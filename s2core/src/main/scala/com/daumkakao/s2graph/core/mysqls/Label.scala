@@ -19,7 +19,7 @@ object Label extends Model[Label] {
       rs.int("src_service_id"), rs.string("src_column_name"), rs.string("src_column_type"),
       rs.int("tgt_service_id"), rs.string("tgt_column_name"), rs.string("tgt_column_type"),
       rs.boolean("is_directed"), rs.string("service_name"), rs.int("service_id"), rs.string("consistency_level"),
-      rs.string("hbase_table_name"), rs.intOpt("hbase_table_ttl"), rs.string("schema_version"), rs.boolean("is_async"))
+      rs.string("hbase_table_name"), rs.intOpt("hbase_table_ttl"), rs.string("schema_version"), rs.boolean("is_async"), rs.string("compressionAlgorithm"))
   }
 
   def findByName(labelUseCache: (String, Boolean)): Option[Label] = {
@@ -113,8 +113,7 @@ object Label extends Model[Label] {
     sql"""select * from labels where tgt_service_id = ${serviceId}""".map { rs => Label(rs) }.list().apply
   }
 
-  def insertAll(labelName: String,
-                srcServiceName: String, srcColumnName: String, srcColumnType: String,
+  def insertAll(labelName: String, srcServiceName: String, srcColumnName: String, srcColumnType: String,
                 tgtServiceName: String, tgtColumnName: String, tgtColumnType: String,
                 isDirected: Boolean = true,
                 serviceName: String,
@@ -124,7 +123,8 @@ object Label extends Model[Label] {
                 hTableName: Option[String],
                 hTableTTL: Option[Int],
                 schemaVersion: String,
-                isAsync: Boolean) = {
+                isAsync: Boolean,
+                compressionAlgorithm: String) = {
 
     val srcServiceOpt = Service.findByName(srcServiceName, useCache = false)
     val tgtServiceOpt = Service.findByName(tgtServiceName, useCache = false)
@@ -145,6 +145,9 @@ object Label extends Model[Label] {
         /** insert serviceColumn */
         val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType), schemaVersion)
         val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType), schemaVersion)
+
+        if (srcCol.columnType != srcColumnType) throw new RuntimeException(s"source service column type not matched ${srcCol.columnType} != ${srcColumnType}")
+        if (tgtCol.columnType != tgtColumnType) throw new RuntimeException(s"target service column type not matched ${tgtCol.columnType} != ${tgtColumnType}")
 
         /** create label */
         Label.findByName(labelName, useCache = false).getOrElse {
@@ -173,10 +176,10 @@ object Label extends Model[Label] {
             case (None, Some(hbaseTableTTL)) => throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
             case (Some(hbaseTableName), None) =>
               // create own hbase table with default ttl on service level.
-              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, service.hTableTTL)
+              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, service.hTableTTL, compressionAlgorithm)
             case (Some(hbaseTableName), Some(hbaseTableTTL)) =>
               // create own hbase table with own ttl.
-              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL)
+              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL, compressionAlgorithm)
           }
 
           val cacheKeys = List(s"id=$createdId", s"label=$labelName")
@@ -310,7 +313,8 @@ case class Label(id: Option[Int], label: String,
                  tgtServiceId: Int, tgtColumnName: String, tgtColumnType: String,
                  isDirected: Boolean = true, serviceName: String, serviceId: Int, consistencyLevel: String = "strong",
                  hTableName: String, hTableTTL: Option[Int],
-                 schemaVersion: String, isAsync: Boolean = false) extends JSONParser {
+                 schemaVersion: String, isAsync: Boolean = false,
+                 compressionAlgorithm: String) extends JSONParser {
   def metas = LabelMeta.findAllByLabelId(id.get)
 
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
@@ -344,6 +348,8 @@ case class Label(id: Option[Int], label: String,
   lazy val metaProps = LabelMeta.reservedMetas ::: LabelMeta.findAllByLabelId(id.get, useCache = true)
   lazy val metaPropsMap = metaProps.map(x => (x.seq, x)).toMap
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
+  lazy val metaPropNames = metaProps.map(x => x.name)
+  lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
 
   def srcColumnWithDir(dir: Int) = {
     if (dir == GraphUtil.directions("out")) srcColumn else tgtColumn

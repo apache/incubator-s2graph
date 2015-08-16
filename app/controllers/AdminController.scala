@@ -46,8 +46,8 @@ object AdminController extends Controller with RequestParser {
 
   def createServiceInner(jsValue: JsValue) = {
     try {
-      val (serviceName, cluster, tableName, preSplitSize, ttl) = toServiceElements(jsValue)
-      val service = Management.createService(serviceName, cluster, tableName, preSplitSize, ttl)
+      val (serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm) = toServiceElements(jsValue)
+      val service = Management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
       ok(s"$service serivce created.")
     } catch {
       case e: Throwable =>
@@ -64,13 +64,13 @@ object AdminController extends Controller with RequestParser {
     try {
       val (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected,
-      serviceName, indices, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync) = toLabelElements(jsValue)
+      serviceName, indices, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm) = toLabelElements(jsValue)
 
       val label = Management.createLabel(labelName, srcServiceName, srcColumnName, srcColumnType,
         tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
         indices,
         metaProps,
-        consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync)
+        consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm)
       ok(s"${label.label} is created")
     } catch {
       case e: Throwable =>

@@ -194,25 +194,26 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
     this.keySeqAndWeights = List((LabelMeta.countSeq, 1.0))
     this
   }
-
-  def singleKey(key: String) = {
-    this.keySeqAndWeights =
-      LabelMeta.findByName(labelId, key) match {
-        case None => List.empty[(Byte, Double)]
-        case Some(ktype) => List((ktype.seq, 1.0))
-      }
-    this
-  }
-
-  def multipleKey(keyAndWeights: Seq[(String, Double)]) = {
-    this.keySeqAndWeights =
-      for ((key, weight) <- keyAndWeights; row <- LabelMeta.findByName(labelId, key)) yield (row.seq, weight)
-    this
-  }
+//
+//  def singleKey(key: String) = {
+//    this.keySeqAndWeights =
+//      LabelMeta.findByName(labelId, key) match {
+//        case None => List.empty[(Byte, Double)]
+//        case Some(ktype) => List((ktype.seq, 1.0))
+//      }
+//    this
+//  }
+//
+//  def multipleKey(keyAndWeights: Seq[(String, Double)]) = {
+//    this.keySeqAndWeights =
+//      for ((key, weight) <- keyAndWeights; row <- LabelMeta.findByName(labelId, key)) yield (row.seq, weight)
+//    this
+//  }
 }
 
 object QueryParam {
   lazy val empty = QueryParam(LabelWithDirection(0, 0))
+  lazy val defaultThreshold = Double.MinValue
 }
 
 case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System.currentTimeMillis()) {
@@ -257,7 +258,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var includeDegree = false
   var tgtVertexInnerIdOpt: Option[InnerValLike] = None
   var cacheTTLInMillis: Long = -1L
-  var threshold = -1.0
+  var threshold = QueryParam.defaultThreshold
   var timeDecay: Option[TimeDecay] = None
   var transformer: EdgeTransformer = EdgeTransformer(this, EdgeTransformer.defaultJson)
   //  var excludeBy: Option[String] = None
@@ -466,7 +467,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     get.setMaxAttempt(maxAttempt.toByte)
     get.setRpcTimeout(rpcTimeoutInMillis)
     if (columnRangeFilter != null) get.filter(columnRangeFilter)
-    Logger.debug(s"$get")
+    Logger.debug(s"Get: $get")
     get
   }
 }

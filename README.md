@@ -297,6 +297,9 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
     "tgtColumnType": "long",
     "indices": [
         {"name": "idx_affinity_timestamp", "propNames": ["affinity_score", "_timestamp"]}
+    "indexProps": [
+        {"name": "affinity_score", "dataType": "float", "defaultValue": 0.0},
+        {"name": "_timestamp", "dataType": "long", "defaultValue": 0}
     ],
     "props": [
         {"name": "affinity_score", "dataType": "float", "defaultValue": 0.0},
