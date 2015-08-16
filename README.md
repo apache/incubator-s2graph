@@ -244,14 +244,15 @@ a simple example for props would look like this
 
 note that property value type should be **numeric**(byte, short, integer, float, double) or **boolean** or **string**.
 
-**indices** define primary index for this label(like `PRIMARY INDEX idx_xxx`(`p1, p2`) in RDBMS).
+**indices** define indices for this label
 
-s2graph will automatically keep edges sorted according to this indices. 
+first index in indices is primary (like `PRIMARY INDEX idx_xxx`(`p1, p2`) in RDBMS).
 
-extra index can be defined later when need multiple ordering on edges.
+s2graph will automatically keep edges sorted according to this index.
+
+other's for multiple ordering on edges.(like `ALTER TABLE ADD INDEX idx_xxx`(`p2, p1`) in RDBMS).
 
 **props** define meta datas that will not be affect the order of edges. 
-
  
 One last thing to note here is that s2graph reserved following property names. user can`t create following property name but they can use as it is provided by default.
 
@@ -297,7 +298,6 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
     "tgtColumnType": "long",
     "indices": [
         {"name": "idx_affinity_timestamp", "propNames": ["affinity_score", "_timestamp"]}
-    ],
     "props": [
         {"name": "affinity_score", "dataType": "float", "defaultValue": 0.0},
         {"name": "_timestamp", "dataType": "long", "defaultValue": 0},
@@ -478,7 +478,7 @@ curl -XPOST localhost:9000/graphs/addProp/graph_test -H 'Content-Type: Applicati
   { "name": "play_count", "defaultValue": 0, "dataType": "integer" }
 '
 
-// and than add index
+// and then add index
 curl -XPOST localhost:9000/graphs/addIndex -H 'Content-Type: Application/json' -d '
 {
     "label": "graph_test",
