@@ -60,17 +60,18 @@ object Label extends Model[Label] {
              hTableName: String,
              hTableTTL: Option[Int],
              schemaVersion: String,
-             isAsync: Boolean) = {
+             isAsync: Boolean,
+             compressionAlgorithm: String) = {
     sql"""
     	insert into labels(label,
     src_service_id, src_column_name, src_column_type,
     tgt_service_id, tgt_column_name, tgt_column_type,
-    is_directed, service_name, service_id, consistency_level, hbase_table_name, hbase_table_ttl, schema_version, is_async)
+    is_directed, service_name, service_id, consistency_level, hbase_table_name, hbase_table_ttl, schema_version, is_async, compressionAlgorithm)
     	values (${label},
     ${srcServiceId}, ${srcColumnName}, ${srcColumnType},
     ${tgtServiceId}, ${tgtColumnName}, ${tgtColumnType},
     ${isDirected}, ${serviceName}, ${serviceId}, ${consistencyLevel}, ${hTableName}, ${hTableTTL},
-      ${schemaVersion}, ${isAsync})
+    ${schemaVersion}, ${isAsync}, ${compressionAlgorithm})
     """
       .updateAndReturnGeneratedKey.apply()
   }
@@ -154,7 +155,7 @@ object Label extends Model[Label] {
 
           val createdId = insert(labelName, srcServiceId, srcColumnName, srcColumnType,
             tgtServiceId, tgtColumnName, tgtColumnType, isDirected, serviceName, serviceId, consistencyLevel,
-            hTableName.getOrElse(service.hTableName), hTableTTL.orElse(service.hTableTTL), schemaVersion, isAsync).toInt
+            hTableName.getOrElse(service.hTableName), hTableTTL.orElse(service.hTableTTL), schemaVersion, isAsync, compressionAlgorithm).toInt
 
           val labelMetaMap = metaProps.map { case Prop(propName, defaultValue, dataType) =>
             val labelMeta = LabelMeta.findOrInsert(createdId, propName, defaultValue, dataType)

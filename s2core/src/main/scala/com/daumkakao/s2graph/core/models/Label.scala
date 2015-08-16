@@ -1,11 +1,9 @@
 package com.daumkakao.s2graph.core.models
 
 import com.daumkakao.s2graph.core.models.Model.{KEY, VAL}
-import com.daumkakao.s2graph.core.types2.{HBaseType, InnerVal}
+import com.daumkakao.s2graph.core.types2.HBaseType
 import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
-import org.apache.hadoop.hbase.client.Result
-import play.api.Logger
-import play.api.libs.json.{Json, JsValue}
+import play.api.libs.json.{JsValue, Json}
 
 /**
  * Created by shon on 5/15/15.
@@ -52,7 +50,7 @@ object Label {
                 hTableTTL: Option[Int],
                 schemaVersion: String,
                 isAsync: Boolean,
-                 compressionAlgorithm: String) = {
+                compressionAlgorithm: String) = {
     val srcServiceOpt = Service.findByName(srcServiceName, useCache = false)
     val tgtServiceOpt = Service.findByName(tgtServiceName, useCache = false)
     val serviceOpt = Service.findByName(serviceName, useCache = false)
@@ -83,7 +81,7 @@ object Label {
             "isDirected" -> isDirected, "serviceName" -> serviceName, "serviceId" -> serviceId,
             "consistencyLevel" -> consistencyLevel, "hTableName" -> hTableName.getOrElse("s2graph-dev"),
             "hTableTTL" -> hTableTTL.getOrElse(-1),
-            "schemaVersion" -> schemaVersion, "isAsync" -> isAsync))
+            "schemaVersion" -> schemaVersion, "isAsync" -> isAsync, "compressionAlgorithm" -> compressionAlgorithm))
           label.create
 
           /** create label metas */
@@ -118,7 +116,7 @@ object Label {
 case class Label(kvsParam: Map[KEY, VAL]) extends Model[Label]("HLabel", kvsParam) with JSONParser {
   override val columns = Seq("id", "label", "srcServiceId", "srcColumnName", "srcColumnType",
     "tgtServiceId", "tgtColumnName", "tgtColumnType", "isDirected", "serviceName", "serviceId",
-    "consistencyLevel", "hTableName", "hTableTTL", "schemaVersion", "isAsync")
+    "consistencyLevel", "hTableName", "hTableTTL", "schemaVersion", "isAsync", "compressionAlgorithm")
 
   val pk = Seq(("id", kvs("id")))
   val idxLabel = Seq(("label", kvs("label")))
@@ -239,7 +237,6 @@ case class Label(kvsParam: Map[KEY, VAL]) extends Model[Label]("HLabel", kvsPara
 
   lazy val toJson = Json.obj("labelName" -> label,
     "from" -> srcColumn.toJson, "to" -> tgtColumn.toJson,
-    //    "indexProps" -> indexPropNames,
     "defaultIndex" -> defaultIndex.map(x => x.toJson),
     "extraIndex" -> extraIndices.map(exIdx => exIdx.toJson),
     "metaProps" -> metaProps.map(_.toJson) //    , "indices" -> indices.map(idx => idx.toJson)

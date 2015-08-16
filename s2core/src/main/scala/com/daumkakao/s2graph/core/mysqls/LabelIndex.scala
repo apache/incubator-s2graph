@@ -32,11 +32,11 @@ object LabelIndex extends Model[LabelIndex] {
     val cacheKey = "labelId=" + labelId
     if (useCache) {
       withCaches(cacheKey)( sql"""
-        select * from label_indices where label_id = ${labelId} and seq > 0
+        select * from label_indices where label_id = ${labelId} and seq > 0 order by seq ASC
       """.map { rs => LabelIndex(rs) }.list.apply)
     } else {
       sql"""
-        select * from label_indices where label_id = ${labelId} and seq > 0
+        select * from label_indices where label_id = ${labelId} and seq > 0 order by seq ASC
       """.map { rs => LabelIndex(rs) }.list.apply
     }
   }

@@ -76,6 +76,7 @@ CREATE TABLE `labels` (
   `hbase_table_ttl` integer,
   `schema_version` varchar(8) NOT NULL default 'v2',
   `is_async` tinyint(4) NOT NULL default '0',
+  `compressionAlgorithm` varchar(64) NOT NULL DEFAULT 'lz4',
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_label` (`label`),
   INDEX `idx_src_column_name` (`src_column_name`),

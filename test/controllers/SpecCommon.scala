@@ -71,7 +71,8 @@ trait SpecCommon extends Specification {
     }
     ],
     "consistencyLevel": "strong",
-    "schemaVersion": "v2"
+    "schemaVersion": "v2",
+    "compressionAlgorithm: "gz"
   }"""
 
   val testLabelName2Create = s"""
@@ -107,7 +108,8 @@ trait SpecCommon extends Specification {
     ],
     "consistencyLevel": "strong",
     "isDirected": false,
-    "schemaVersion": "v2"
+    "schemaVersion": "v2",
+    "compressionAlgorithm: "gz"
   }"""
 
   val testLabelNameV1Create = s"""
@@ -143,7 +145,8 @@ trait SpecCommon extends Specification {
     ],
     "consistencyLevel": "strong",
     "isDirected": true,
-    "schemaVersion": "v1"
+    "schemaVersion": "v1",
+    "compressionAlgorithm: "gz"
   }"""
   val testLabelNameWeakCreate = s"""
   {
@@ -177,7 +180,8 @@ trait SpecCommon extends Specification {
     }
     ],
     "consistencyLevel": "weak",
-    "isDirected": true
+    "isDirected": true,
+    "compressionAlgorithm: "gz"
   }"""
 
   val vertexPropsKeys = List(
