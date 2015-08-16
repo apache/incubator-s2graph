@@ -218,10 +218,10 @@ To create a Label, the following fields needs to be specified in the request.
 | hTableName | if this label need special usecase(such as batch upload), own hbase table name can be used. | string | s2graph-batch | default use service`s hTableName. <br> note that this is optional. |
 | hTableTTL | time to data keep alive. | integer |   86000 | default use service`s hTableTTL. <br> note that this is optional. |
 | consistencyLevel | if this is strong, only one edge between same from/to can be made. otherwise(weak) multiple edges with same from/to can be exist. | string | strong/weak | default weak |
-|**indexProps** | see below |
+|**indices** | see below |
 |**props** | see below |
 
-Most important elements for label is their **indexProps** and **props**
+Most important elements for label is their **indices** and **props**
 
 All of graph element including Vertex and Edge has their properties. single property is defined as following. property is simple key, value map on Edge and Vertex.
 ```
@@ -244,11 +244,11 @@ a simple example for props would look like this
 
 note that property value type should be **numeric**(byte, short, integer, float, double) or **boolean** or **string**.
 
-**indexProps** define primary index for this label(like `PRIMARY INDEX idx_xxx`(`p1, p2`) in RDBMS).
+**indices** define primary index for this label(like `PRIMARY INDEX idx_xxx`(`p1, p2`) in RDBMS).
 
-s2graph will automatically keep edges sorted according to this indexProps. 
+s2graph will automatically keep edges sorted according to this indices. 
 
-extra indexProps can be defined later when need multiple ordering on edges.
+extra index can be defined later when need multiple ordering on edges.
 
 **props** define meta datas that will not be affect the order of edges. 
 
@@ -280,7 +280,7 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
 '
 ```
 
-this label will keep edges ordered according to edge`s indexProps values in this case, latest like first. default ordering is latest first which many application naturally want.
+this label will keep edges ordered according to edge`s index values in this case, latest like first. default ordering is latest first which many application naturally want.
 
 
 Here is another example that creates a label named `friends`, which represents the friend relation between users in `s2graph` service. In this case with higher affinity_score comes first and if affinity_score is ties, then latest friend comes first. `friends` label will belongs to `s2graph` service.
@@ -295,11 +295,12 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
     "tgtServiceName": "s2graph",
     "tgtColumnName": "user_id",
     "tgtColumnType": "long",
-    "indexProps": [
-        {"name": "affinity_score", "dataType": "float", "defaultValue": 0.0}
-        {"name": "_timestamp", "dataType": "long", "defaultValue": 0}
+    "indices": [
+        {"name": "idx_affinity_timestamp", "propNames": ["affinity_score", "_timestamp"]}
     ],
     "props": [
+        {"name": "affinity_score", "dataType": "float", "defaultValue": 0.0},
+        {"name": "_timestamp", "dataType": "long", "defaultValue": 0},
         {"name": "is_hidden", "dataType": "boolean", "defaultValue": false},
         {"name": "is_blocked", "dataType": "boolean", "defaultValue": true},
         {"name": "error_code", "dataType": "integer", "defaultValue": 500}
@@ -375,7 +376,7 @@ currently there are two consistency level
 
 for example, with each configuration, following edges will be stored.
 
-assumes that only timestamp is used as indexProps and user inserts following.
+assumes that only timestamp is used as index prop and user inserts following.
 ```
 u1 -> (t1, v1)
 u1 -> (t2, v2)
@@ -469,15 +470,21 @@ Internally, s2graph stores edges sorted according to the indexes in order to lim
 
 New indexes can be dynamically added, but it will not be applied to existing data(planned in future versions). **the number of indexes on a label is currently limited to 8.**
 
-The following is an example of adding indexes `play_count` and `pay_amount` to a label named `graph_test`.
+The following is an example of adding `play_count` to a label named `graph_test`.
 
 ```
+// add prop first
+curl -XPOST localhost:9000/graphs/addProp/graph_test -H 'Content-Type: Application/json' -d '
+  { "name": "play_count", "defaultValue": 0, "dataType": "integer" }
+'
+
+// and than add index
 curl -XPOST localhost:9000/graphs/addIndex -H 'Content-Type: Application/json' -d '
 {
     "label": "graph_test",
-    "indexProps": [
-        { "name": "play_count", "defaultValue": 0, "dataType": "integer" }
-    ]
+    "indices": [ 
+        { name: "idx_play_count", propNames: ["play-count"] } 
+    ] 
 }
 '
 ```
