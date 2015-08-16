@@ -73,7 +73,7 @@ class QuerySpec extends SpecCommon {
     "get edge exclude" in {
       running(FakeApplication()) {
         val result = getEdges(query(0))
-        (result \ "results").as[List[JsValue]].size must equalTo(2)
+        (result \ "results").as[List[JsValue]].size must equalTo(1)
       }
     }
 
