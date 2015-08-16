@@ -2,7 +2,7 @@ package com.daumkakao.s2graph.core
 
 
 import com.daumkakao.s2graph.core.KGraphExceptions.LabelAlreadyExistException
-import com.daumkakao.s2graph.core.Management.Model.{Index, Indices, Prop}
+import com.daumkakao.s2graph.core.Management.Model.{Index, Prop}
 import com.daumkakao.s2graph.core.mysqls._
 import play.api.libs.json.Reads._
 
@@ -25,11 +25,8 @@ import play.api.libs.json._
 object Management extends JSONParser {
   object Model {
     case class Prop(name: String, defaultValue: String, datatType: String)
-    object Prop extends ((String, String, String) => Prop) {
-      val default = Seq(Prop("_timestamp", "0", "long"))
-    }
+    object Prop extends ((String, String, String) => Prop)
     case class Index(name: String, propNames: Seq[String])
-    type Indices = Seq[Index]
   }
 
   import HBaseType._
@@ -65,13 +62,13 @@ object Management extends JSONParser {
     val old = Label.findByName(oldLabelName).getOrElse(throw new LabelAlreadyExistException(s"Old label $oldLabelName already exists."))
     if (Label.findByName(newLabelName).isDefined) throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
 
-    val allProps = Prop.default ++ old.metas.map { labelMeta => Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType)}
-    val indices = old.indices.map { index => Index(index.name, index.propNames) }
+    val allProps = old.metas.map { labelMeta => Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType) }
+    val allIndices = old.indices.map { index => Index(index.name, index.propNames) }
 
     createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
       old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
       old.isDirected, old.serviceName,
-      indices, allProps,
+      allIndices, allProps,
       old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync)
   }
 
@@ -84,7 +81,7 @@ object Management extends JSONParser {
                   tgtColumnType: String,
                   isDirected: Boolean = true,
                   serviceName: String,
-                  indices: Indices,
+                  indices: Seq[Index],
                   props: Seq[Prop],
                   consistencyLevel: String,
                   hTableName: Option[String],
@@ -141,38 +138,19 @@ object Management extends JSONParser {
     }
   }
 
-  def addIndex(labelStr: String, index: Index): LabelIndex = {
-//    val result = for {
-//      label <- Label.findByName(labelStr)
-//    } yield {
-//        val labelOrderTypes =
-//          for {
-//            Prop(name, defaultValue, dataType) <- index.props
-//          } yield {
-//            val lblMeta = LabelMeta.findOrInsert(label.id.get, name, defaultValue, dataType)
-//            lblMeta.seq
-//          }
-//        LabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "none")
-//      }
-//
-//    result.getOrElse(throw new RuntimeException(s"add index failed"))
-    null
-  }
+  def addIndex(labelStr: String, indices: Seq[Index]): Label = {
+    val result = for {
+      label <- Label.findByName(labelStr)
+    } yield {
+        val labelMetaMap = label.metaPropsInvMap
+        indices.foreach { index =>
+          val metaSeq = index.propNames.map { name => labelMetaMap(name).seq }
+          LabelIndex.findOrInsert(label.id.get, index.name, metaSeq.toList, "none")
+        }
+        label
+      }
 
-  def dropIndex(labelStr: String, idxProps: Seq[(String, JsValue, String)]): LabelIndex = {
-//    val result = for {
-//      label <- Label.findByName(labelStr)
-//    } yield {
-//        val labelOrderTypes =
-//          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType, label.schemaVersion)) yield {
-//
-//            val lblMeta = LabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
-//            lblMeta.seq
-//          }
-//        LabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
-//      }
-//    result.getOrElse(throw new RuntimeException(s"drop index failed"))
-    null
+    result.getOrElse(throw new RuntimeException(s"add index failed"))
   }
 
   def addProp(labelStr: String, propName: String, defaultValue: JsValue, dataType: String): LabelMeta = {

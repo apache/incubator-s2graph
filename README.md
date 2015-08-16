@@ -273,7 +273,7 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
     "tgtServiceName": "s2graph_news",
     "tgtColumnName": "article_id",
     "tgtColumnType": "string",
-    "indexProps": [], // _timestamp will be used as default
+    "indices": [], // _timestamp will be used as default
     "props": [],
     "serviceName": "s2graph_news"
 }
@@ -313,17 +313,16 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
 s2graph support **multiple index** on label which means we can add other ordering option for edges with this label.
 
 ```
+# with exists props
 curl -XPOST localhost:9000/graphs/addIndex -H 'Content-Type: Application/json' -d '
 {
     "label": "friends",
-    "indexProps": [
-        {"name": "is_blocked","dataType": "boolean", "defaultValue": "false"},
-        {"name": "_timestamp","dataType": "long","defaultValue": 0}
+    "indices": [
+        {"name": "idx_3rd", "propNames": ["is_blocked", "_timestamp"]}
     ]
 }
 '
 ```
-
 
 To get information on label, just use following.
 

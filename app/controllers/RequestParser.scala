@@ -347,7 +347,7 @@ trait RequestParser extends JSONParser {
       Prop(propName, defaultValue, dataType)
     }
 
-  def parseIndices(jsValue: JsValue, allProps: Seq[Prop]): Seq[Index] = for {
+  def parseIndices(jsValue: JsValue): Seq[Index] = for {
     jsObj <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
     indexName = (jsObj \ "name").as[String]
     propNames = (jsObj \ "propNames").as[Seq[String]]
@@ -364,8 +364,8 @@ trait RequestParser extends JSONParser {
     val serviceName = (jsValue \ "serviceName").asOpt[String].getOrElse(tgtServiceName)
     val isDirected = (jsValue \ "isDirected").asOpt[Boolean].getOrElse(true)
 
-    val allProps = Prop.default ++ parsePropsElements(jsValue \ "props")
-    val indices = parseIndices(jsValue \ "indices", allProps)
+    val allProps = parsePropsElements(jsValue \ "props")
+    val indices = parseIndices(jsValue \ "indices")
 
     val consistencyLevel = (jsValue \ "consistencyLevel").asOpt[String].getOrElse("weak")
 
@@ -383,9 +383,8 @@ trait RequestParser extends JSONParser {
 
   def toIndexElements(jsValue: JsValue) = {
     val labelName = parse[String](jsValue, "label")
-    val idxProps = parsePropsElements((jsValue \ "indexProps"))
-    val t = (labelName, idxProps)
-    t
+    val indices = parseIndices(jsValue \ "indices")
+    (labelName, indices)
   }
 
   def toServiceElements(jsValue: JsValue) = {

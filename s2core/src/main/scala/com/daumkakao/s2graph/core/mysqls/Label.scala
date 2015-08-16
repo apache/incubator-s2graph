@@ -4,7 +4,7 @@ package com.daumkakao.s2graph.core.mysqls
  * Created by shon on 6/3/15.
  */
 
-import com.daumkakao.s2graph.core.Management.Model.{Indices, Prop}
+import com.daumkakao.s2graph.core.Management.Model.{Index, Prop}
 import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
 import play.api.Logger
 import play.api.libs.json.Json
@@ -118,7 +118,7 @@ object Label extends Model[Label] {
                 tgtServiceName: String, tgtColumnName: String, tgtColumnType: String,
                 isDirected: Boolean = true,
                 serviceName: String,
-                indices: Indices,
+                indices: Seq[Index],
                 metaProps: Seq[Prop],
                 consistencyLevel: String,
                 hTableName: Option[String],
@@ -156,11 +156,15 @@ object Label extends Model[Label] {
           val labelMetaMap = metaProps.map { case Prop(propName, defaultValue, dataType) =>
             val labelMeta = LabelMeta.findOrInsert(createdId, propName, defaultValue, dataType)
             (propName -> labelMeta.seq)
-          }.toMap
+          }.toMap ++ Map(LabelMeta.timestamp.name -> LabelMeta.timestamp.seq)
 
-          indices.foreach { index =>
-            val metaSeq = index.propNames.map { name => labelMetaMap(name) }
-            LabelIndex.findOrInsert(createdId, index.name, metaSeq.toList, "none")
+          if (indices.isEmpty) { // make default index with _PK, _timestamp, 0
+            LabelIndex.findOrInsert(createdId, LabelIndex.defaultName, LabelIndex.defaultMetaSeqs.toList, "none")
+          } else {
+            indices.foreach { index =>
+              val metaSeq = index.propNames.map { name => labelMetaMap(name) }
+              LabelIndex.findOrInsert(createdId, index.name, metaSeq.toList, "none")
+            }
           }
 
           /** TODO: */
@@ -340,8 +344,6 @@ case class Label(id: Option[Int], label: String,
   lazy val metaProps = LabelMeta.reservedMetas ::: LabelMeta.findAllByLabelId(id.get, useCache = true)
   lazy val metaPropsMap = metaProps.map(x => (x.seq, x)).toMap
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
-  lazy val metaPropNames = metaProps.map(x => x.name)
-  lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
 
   def srcColumnWithDir(dir: Int) = {
     if (dir == GraphUtil.directions("out")) srcColumn else tgtColumn
@@ -374,7 +376,6 @@ case class Label(id: Option[Int], label: String,
     super.toString() + orderByKeys.toString()
   }
 
-
   def findLabelIndexSeq(scoring: List[(Byte, Double)]): Byte = {
     if (scoring.isEmpty) LabelIndex.defaultSeq
     else {
@@ -384,10 +385,9 @@ case class Label(id: Option[Int], label: String,
 
   lazy val toJson = Json.obj("labelName" -> label,
     "from" -> srcColumn.toJson, "to" -> tgtColumn.toJson,
-    //    "indexProps" -> indexPropNames,
     "defaultIndex" -> defaultIndex.map(x => x.toJson),
     "extraIndex" -> extraIndices.map(exIdx => exIdx.toJson),
-    "metaProps" -> metaProps.map(_.toJson) //    , "indices" -> indices.map(idx => idx.toJson)
+    "metaProps" -> metaProps.map(_.toJson)
   )
 
   def deleteAll() = {

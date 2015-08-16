@@ -68,7 +68,6 @@ object AdminController extends Controller with RequestParser {
 
       val label = Management.createLabel(labelName, srcServiceName, srcColumnName, srcColumnType,
         tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
-        //idxProps.map { t => (t._1, t._2.toString, t._3) },
         indices,
         metaProps,
         consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync)
@@ -81,17 +80,16 @@ object AdminController extends Controller with RequestParser {
   }
 
   def addIndex() = Action(parse.json) { request =>
-//    try {
-//      val (labelName, idxProps) = toIndexElements(request.body)
-//      val index = Management.addIndex(labelName, idxProps)
-//      ok("index is added.")
-//    } catch {
-//      case e: Throwable =>
-//        Logger.error(s"$e", e)
-//        bad(s"$e")
-//    }
-
-    ok("")
+    try {
+      val (labelName, indices) = toIndexElements(request.body)
+      val label = Management.addIndex(labelName, indices)
+      val updatedLabel = Label.findByName(label.label, false).getOrElse(throw KGraphExceptions.LabelNotExistException("label not found"))
+      Ok(updatedLabel.toJson).as(QueryController.applicationJsonHeader)
+    } catch {
+      case e: Throwable =>
+        Logger.error(s"$e", e)
+        bad(s"$e")
+    }
   }
 
   def getLabel(labelName: String) = Action { request =>

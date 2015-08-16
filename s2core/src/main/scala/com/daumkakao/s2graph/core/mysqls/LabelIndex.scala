@@ -4,11 +4,12 @@ package com.daumkakao.s2graph.core.mysqls
  * Created by shon on 6/3/15.
  */
 
-import com.daumkakao.s2graph.core.Management.Model.Index
 import play.api.libs.json.Json
 import scalikejdbc._
 
 object LabelIndex extends Model[LabelIndex] {
+  val defaultName = "_PK"
+  val defaultMetaSeqs = Seq(LabelMeta.timeStampSeq)
   val defaultSeq = 1.toByte
   val maxOrderSeq = 7
 
