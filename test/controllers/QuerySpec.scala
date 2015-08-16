@@ -9,7 +9,9 @@ import play.api.test.{FakeApplication, FakeRequest}
 import scala.concurrent.Await
 
 class QuerySpec extends SpecCommon {
+  println("=+++++++++++++++++++============================================")
   init()
+  println("=============================================")
 
   "query test" should {
     running(FakeApplication()) {

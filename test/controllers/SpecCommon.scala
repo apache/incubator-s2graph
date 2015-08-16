@@ -72,7 +72,7 @@ trait SpecCommon extends Specification {
     ],
     "consistencyLevel": "strong",
     "schemaVersion": "v2",
-    "compressionAlgorithm: "gz"
+    "compressionAlgorithm": "gz"
   }"""
 
   val testLabelName2Create = s"""
@@ -109,7 +109,7 @@ trait SpecCommon extends Specification {
     "consistencyLevel": "strong",
     "isDirected": false,
     "schemaVersion": "v2",
-    "compressionAlgorithm: "gz"
+    "compressionAlgorithm": "gz"
   }"""
 
   val testLabelNameV1Create = s"""
@@ -146,7 +146,7 @@ trait SpecCommon extends Specification {
     "consistencyLevel": "strong",
     "isDirected": true,
     "schemaVersion": "v1",
-    "compressionAlgorithm: "gz"
+    "compressionAlgorithm": "gz"
   }"""
   val testLabelNameWeakCreate = s"""
   {
@@ -181,7 +181,7 @@ trait SpecCommon extends Specification {
     ],
     "consistencyLevel": "weak",
     "isDirected": true,
-    "compressionAlgorithm: "gz"
+    "compressionAlgorithm": "gz"
   }"""
 
   val vertexPropsKeys = List(
@@ -293,7 +293,7 @@ trait SpecCommon extends Specification {
 
       var result = AdminController.createServiceInner(Json.parse(createService))
       println(s">> Service created : $createService, $result")
-      //
+
       ////      val labelNames = Map(testLabelName -> testLabelNameCreate)
       val labelNames = Map(testLabelName -> testLabelNameCreate,
         testLabelName2 -> testLabelName2Create,
@@ -311,6 +311,7 @@ trait SpecCommon extends Specification {
           case Some(label) =>
             Logger.error(s">> Label already exist: $create, $label")
         }
+        println("3===========================================================")
       }
 
       println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")

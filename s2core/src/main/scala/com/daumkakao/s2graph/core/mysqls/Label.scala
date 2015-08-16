@@ -399,7 +399,6 @@ case class Label(id: Option[Int], label: String,
 
   def deleteAll() = {
     LabelMeta.findAllByLabelId(id.get, false).foreach { x => LabelMeta.delete(x.id.get) }
-    //    LabelIndexProp.findAllByLabel(id.get, false).foreach { x => LabelIndexProp.delete(x.id.get) }
     LabelIndex.findByLabelIdAll(id.get, false).foreach { x => LabelIndex.delete(x.id.get) }
     Label.delete(id.get)
   }
