@@ -48,7 +48,7 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "$testColumnName",
     "tgtColumnType": "long",
-    "indexProps": [
+    "props": [
     {
       "name": "time",
       "dataType": "long",
@@ -70,7 +70,6 @@ trait SpecCommon extends Specification {
       "defaultValue": false
     }
     ],
-    "props": [],
     "consistencyLevel": "strong",
     "schemaVersion": "v2"
   }"""
@@ -84,7 +83,7 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "$testTgtColumnName",
     "tgtColumnType": "string",
-    "indexProps": [
+    "props": [
     {
       "name": "time",
       "dataType": "long",
@@ -106,7 +105,6 @@ trait SpecCommon extends Specification {
       "defaultValue": false
     }
     ],
-    "props": [],
     "consistencyLevel": "strong",
     "isDirected": false,
     "schemaVersion": "v2"
@@ -121,7 +119,7 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "${testTgtColumnName}_v1",
     "tgtColumnType": "string",
-    "indexProps": [
+    "props": [
     {
       "name": "time",
       "dataType": "long",
@@ -143,7 +141,6 @@ trait SpecCommon extends Specification {
       "defaultValue": false
     }
     ],
-    "props": [],
     "consistencyLevel": "strong",
     "isDirected": true,
     "schemaVersion": "v1"
@@ -157,7 +154,7 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "$testTgtColumnName",
     "tgtColumnType": "string",
-    "indexProps": [
+    "props": [
     {
       "name": "time",
       "dataType": "long",
@@ -179,7 +176,6 @@ trait SpecCommon extends Specification {
       "defaultValue": false
     }
     ],
-    "props": [],
     "consistencyLevel": "weak",
     "isDirected": true
   }"""
