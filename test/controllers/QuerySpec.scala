@@ -9,9 +9,7 @@ import play.api.test.{FakeApplication, FakeRequest}
 import scala.concurrent.Await
 
 class QuerySpec extends SpecCommon {
-  println("=+++++++++++++++++++============================================")
   init()
-  println("=============================================")
 
   "query test" should {
     running(FakeApplication()) {
@@ -75,7 +73,7 @@ class QuerySpec extends SpecCommon {
     "get edge exclude" in {
       running(FakeApplication()) {
         val result = getEdges(query(0))
-        (result \ "results").as[List[JsValue]].size must equalTo(1)
+        (result \ "results").as[List[JsValue]].size must equalTo(2)
       }
     }
 
