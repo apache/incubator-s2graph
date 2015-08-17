@@ -66,7 +66,8 @@ object Management extends JSONParser {
             val idxSeqs = (LabelIndex.findByLabelIdAll(old.id.get).flatMap { idx =>
               idx.metaSeqs
             }).toSet
-            val (indexProps, metaProps) = old.metaPropsInvMap.partition { case (name, meta) => idxSeqs.contains(meta.seq) }
+            val (indexProps, metaProps) = old.metaPropsInvMap.filter(kv => LabelMeta.isValidSeq(kv._2.seq))
+              .partition { case (name, meta) => idxSeqs.contains(meta.seq) }
 
             val idxPropsSeq = for {
               (name, meta) <- indexProps
