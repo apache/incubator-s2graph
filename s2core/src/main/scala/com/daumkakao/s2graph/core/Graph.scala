@@ -595,8 +595,7 @@ object Graph {
         (duplicateEdges, resultEdgeWithScores) = queryParamResult
       } yield {
         val edgesWithScores = for {
-          (hashKey, filterHashKey, edge, score) <- resultEdgeWithScores.values
-//          if edgesToInclude.containsKey(filterHashKey) || !edgesToExclude.containsKey(filterHashKey)
+          (hashKey, filterHashKey, edge, score) <- resultEdgeWithScores.values if edgesToInclude.containsKey(filterHashKey) || !edgesToExclude.containsKey(filterHashKey)
           (duplicateEdge, aggregatedScore) <- (edge -> score) +: (if (duplicateEdges.containsKey(hashKey)) duplicateEdges.get(hashKey) else Seq.empty)
           if aggregatedScore >= queryResult.queryParam.threshold
         } yield {
