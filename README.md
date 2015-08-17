@@ -573,13 +573,13 @@ An **edge** represents a relation between two vertices, with properties accordin
 
 ### Edge Operations ###
 
-s2graph provide 4 different operations on edge. 
+s2graph provide 5 different operations on edge.
 
 1. insert: create new edge. 
 2. delete: delete existing edge.
 3. update: update existing edge`s state.
 4. increment: increment existing edge`s state.
-5. deleteAll: delete all adjacent edges from certain starting vertex.
+5. deleteAll: delete all adjacent edges from certain starting vertex.(only for strong consistency)
 
 edge operations behave differently with regard to their label`s consistencyLevel.
 
@@ -1029,7 +1029,7 @@ curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -
 >1. raw: return all edges.
 >2. **first**: return only first edge if multiple edges exist. this is default
 >3. countSum: return only one edge but return how many times same edge exist.
->4. scoreSum: return only one edge but return sum of their score.
+>4. sum: return only one edge but return sum of their score.
 
 
 you can see with "raw" duplicate policy, there are actually 3 edges with same (from, to, label, direction).
