@@ -111,11 +111,6 @@ object Graph {
     } {
       Logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
     }
-    //
-    //    this.shouldRunFromBytes = getOrElse(config)("should.run.from.bytes", true)
-    //    this.shouldReturnResults = getOrElse(config)("should.return.results", true)
-    //    this.shouldRunFetch = getOrElse(config)("should.run.fetch", true)
-    //    this.shouldRunFilter = getOrElse(config)("should.run.filter", true)
   }
 
 
@@ -304,7 +299,8 @@ object Graph {
         // TODO: this should be get vertex query.
         Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.empty)))
       } else {
-        var seedEdgesFuture: Future[Seq[QueryResult]] = Future.successful(QueryResult.fromVertices(q, stepIdx = 0, q.steps.head.queryParams, q.vertices))
+        val startQueryResultLs = QueryResult.fromVertices(q, stepIdx = 0, q.steps.head.queryParams, q.vertices)
+        var seedEdgesFuture: Future[Seq[QueryResult]] = Future.successful(startQueryResultLs)
         for {
           (step, idx) <- q.steps.zipWithIndex
         } {
@@ -371,12 +367,6 @@ object Graph {
     try {
       val client = getClient(queryParam.label.hbaseZkAddr)
       deferredCallbackWithFallback(client.get(getRequest))({ kvs =>
-        //          val edgeWithScores = for {
-        //            kv <- kvs
-        //            edge <- Edge.toEdge(kv, queryParam)
-        //          } yield {
-        //              (edge, edge.rank(queryParam.rank) * prevScore)
-        //            }
         val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore)
         QueryResult(q, stepIdx, queryParam, new ArrayList(edgeWithScores))
       }, QueryResult(q, stepIdx, queryParam))
@@ -404,7 +394,7 @@ object Graph {
     implicit val ex = executionContext
 
     val prevStepOpt = if (stepIdx > 0) Option(q.steps(stepIdx - 1)) else None
-    val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(0.0)
+    val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(QueryParam.defaultThreshold)
     val prevStepLimit = prevStepOpt.map(_.nextStepLimit).getOrElse(-1)
     val step = q.steps(stepIdx)
     val alreadyVisited =
@@ -417,35 +407,22 @@ object Graph {
         (edge.tgtVertex -> score)
       }
     }.groupBy { case (vertex, score) =>
-      vertex.id.toString
+      vertex
     }
+
+//    Logger.debug(s"groupedBy: $groupedBy")
     val groupedByFiltered = for {
-      (vertexId, edgesWithScore) <- groupedBy
+      (vertex, edgesWithScore) <- groupedBy
       aggregatedScore = edgesWithScore.map(_._2).sum if aggregatedScore >= prevStepThreshold
-    } yield {
-        (edgesWithScore.head._1 -> aggregatedScore)
-    }
+    } yield (vertex -> aggregatedScore)
+//    Logger.debug(s"groupedByFiltered: $groupedByFiltered")
+
     val nextStepSrcVertices = if (prevStepLimit >= 0) {
       groupedByFiltered.toSeq.sortBy(-1 * _._2).take(prevStepLimit)
     } else {
       groupedByFiltered.toSeq
     }
-//    val nextStepSrcVertices = (for {
-//      queryResult <- queryResultsLs
-//      (edge, score) <- queryResult.edgeWithScoreLs
-//    } yield {
-//        (edge.tgtVertex -> score)
-//      }).groupBy { case (vertex, score) =>
-//      vertex.id.toString
-//    }.map { case (vertexId, edgesWithScore) =>
-//      edgesWithScore.head._1 -> edgesWithScore.map(_._2).sum
-//    }.filter(kv => kv._2 >= step.scoreThreshold)
-//
-//    val srcVertices = if (step.stepLimit >= 0) {
-//      nextStepSrcVertices.toList.sortBy(-1 * _._2).take(step.stepLimit)
-//    } else {
-//      nextStepSrcVertices
-//    }
+//    Logger.debug(s"nextStepSrcVertices: $nextStepSrcVertices")
     val currentStepRequestLss = buildGetRequests(nextStepSrcVertices, step.queryParams)
 
     val queryParams = currentStepRequestLss.flatMap { case (getsWithQueryParams, prevScore) =>
@@ -480,12 +457,6 @@ object Graph {
     val q = Query.toQuery(Seq(srcVertex), queryParam)
 
     defferedToFuture(getClient(queryParam.label.hbaseZkAddr).get(getRequest))(emptyKVs).map { kvs =>
-      //      val edgeWithScoreLs = for {
-      //        kv <- kvs
-      //        edge <- Edge.toEdge(kv, queryParam)
-      //      } yield {
-      //          (edge, edge.rank(queryParam.rank))
-      //        }
       val edgeWithScoreLs = Edge.toEdges(kvs, queryParam, prevScore = 1.0)
       QueryResult(query = q, stepIdx = 0, queryParam = queryParam, edgeWithScoreLs = edgeWithScoreLs)
     }
@@ -517,25 +488,11 @@ object Graph {
 
 
   def convertEdges(queryParam: QueryParam, edge: Edge, nextStepOpt: Option[Step]): Seq[Edge] = {
-//  def convertEdges(edge: Edge, outputFields: Seq[LabelMeta]): Seq[Edge] = {
     for {
-//      outputField <- outputFields
-//      convertedEdge <- convertEdge(edge, outputField)
       convertedEdge <- queryParam.transformer.transform(edge, nextStepOpt)
     } yield convertedEdge
   }
-//  def convertEdge(edge: Edge, outputField: LabelMeta): Option[Edge] = {
-//    outputField.seq match {
-//      case LabelMeta.toSeq => Option(edge)
-//      case LabelMeta.fromSeq => Option(edge.updateTgtVertex(edge.srcVertex.innerId))
-//      case _ =>
-//        edge.propsWithTs.get(outputField.seq) match {
-//          case None => None
-//          case Some(outputFieldVal) =>
-//            Some(edge.updateTgtVertex(outputFieldVal.innerVal))
-//        }
-//    }
-//  }
+
 
   type HashKey = (Int, Int, Int, Int)
   type FilterHashKey = (Int, Int)

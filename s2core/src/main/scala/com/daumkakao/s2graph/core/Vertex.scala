@@ -106,16 +106,6 @@ case class Vertex(id: VertexId,
     List(new DeleteRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf, ts))
   }
 
-
-  //  def belongLabelIds(): Iterable[Label] = {
-  //    for {
-  //      label <- (Label.findBySrcColumnId(id.colId) ++ Label.findByTgtColumnId(id.colId)).groupBy(_.id.get).map {
-  //        _._2.head
-  //      }
-  //    } yield label
-  //  }
-
-
   def buildGet() = {
     new GetRequest(hbaseTableName.getBytes, rowKey.bytes, vertexCf)
   }
@@ -124,15 +114,17 @@ case class Vertex(id: VertexId,
 
 
   override def hashCode() = {
-    Logger.debug(s"Vertex.hashCode: $this")
-    id.hashCode()
+    val hash = id.hashCode()
+    Logger.debug(s"Vertex.hashCode: $this -> $hash")
+    hash
   }
 
   override def equals(obj: Any) = {
-    Logger.debug(s"Vertex.equals: $this, $obj")
     obj match {
       case otherVertex: Vertex =>
-        id.equals(otherVertex.id)
+        val ret = id == otherVertex.id
+        Logger.debug(s"Vertex.equals: $this, $obj => $ret")
+        ret
       case _ => false
     }
   }
