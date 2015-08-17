@@ -36,7 +36,7 @@ trait SpecCommon extends Specification {
   protected val testTgtColumnName = "item_id_test"
   val NUM_OF_EACH_TEST = 3
   lazy val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
-  val asyncFlushInterval = 1000
+  val asyncFlushInterval = 300
 
   val createService = s"""{"serviceName" : "$testServiceName"}"""
   val testLabelNameCreate = s"""
