@@ -85,9 +85,10 @@ object Graph {
       conf.set(k, v.toString())
     }
 
-    for (entry <- config.entrySet() if entry.getKey().startsWith("hbase.")) {
+    for (entry <- config.entrySet() if entry.getKey().contains("hbase")) {
       conf.set(entry.getKey(), entry.getValue().unwrapped().toString)
     }
+
     conf
   }
 
