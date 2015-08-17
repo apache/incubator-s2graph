@@ -342,6 +342,7 @@ case class Label(id: Option[Int], label: String,
   lazy val indices = LabelIndex.findByLabelIdAll(id.get, useCache = true)
   lazy val indicesMap = indices.map(idx => (idx.seq, idx)) toMap
   lazy val indexSeqsMap = indices.map(idx => (idx.metaSeqs, idx)) toMap
+  lazy val indexNameMap = indices.map(idx => (idx.name, idx)) toMap
   lazy val extraIndices = indices.filter(idx => defaultIndex.isDefined && idx.id.get != defaultIndex.get.id.get)
   //      indices filterNot (_.id.get == defaultIndex.get.id.get)
   lazy val extraIndicesMap = extraIndices.map(idx => (idx.seq, idx)) toMap

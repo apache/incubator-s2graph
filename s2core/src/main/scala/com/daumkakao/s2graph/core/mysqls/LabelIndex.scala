@@ -130,5 +130,8 @@ case class LabelIndex(id: Option[Int], labelId: Int, name: String, seq: Byte, me
   lazy val metas = label.metaPropsMap
   lazy val sortKeyTypes = metaSeqs.flatMap(metaSeq => label.metaPropsMap.get(metaSeq))
   lazy val propNames = sortKeyTypes.map { labelMeta => labelMeta.name }
-  lazy val toJson = Json.obj("indexProps" -> sortKeyTypes.map(x => x.name))
+  lazy val toJson = Json.obj(
+    "name" -> name,
+    "propNames" -> sortKeyTypes.map(x => x.name)
+  )
 }

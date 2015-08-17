@@ -219,7 +219,11 @@ trait RequestParser extends JSONParser {
       val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
       val hasFilter = extractHas(label, labelGroup)
       val labelWithDir = LabelWithDirection(label.id.get, direction)
-      val indexSeq = label.indexSeqsMap.get(scorings.map(kv => kv._1)).map(x => x.seq).getOrElse(LabelIndex.defaultSeq)
+      val indexNameOpt = (labelGroup \ "index").asOpt[String]
+      val indexSeq = indexNameOpt match {
+        case None => label.indexSeqsMap.get(scorings.map(kv => kv._1)).map(_.seq).getOrElse(LabelIndex.defaultSeq)
+        case Some(indexName) => label.indexNameMap.get(indexName).map(_.seq).getOrElse(throw new RuntimeException("cannot find index"))
+      }
       val where = extractWhere(label, labelGroup)
       val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
       val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(Config.RPC_TIMEOUT)

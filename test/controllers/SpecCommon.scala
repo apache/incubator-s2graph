@@ -48,6 +48,10 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "$testColumnName",
     "tgtColumnType": "long",
+    "indices": [
+      {"name": "idx_1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]},
+      {"name": "idx_2", "propNames": ["_timestamp"]}
+    ],
     "props": [
     {
       "name": "time",
@@ -84,6 +88,7 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "$testTgtColumnName",
     "tgtColumnType": "string",
+    "indices": [{"name": "idx_1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]}],
     "props": [
     {
       "name": "time",
@@ -121,6 +126,7 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "${testTgtColumnName}_v1",
     "tgtColumnType": "string",
+    "indices": [{"name": "idx_1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]}],
     "props": [
     {
       "name": "time",
@@ -157,6 +163,7 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "$testTgtColumnName",
     "tgtColumnType": "string",
+    "indices": [{"name": "idx_1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]}],
     "props": [
     {
       "name": "time",
