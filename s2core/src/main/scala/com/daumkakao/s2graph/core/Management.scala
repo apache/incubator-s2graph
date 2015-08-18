@@ -1,30 +1,33 @@
 package com.daumkakao.s2graph.core
 
 
-import com.daumkakao.s2graph.core.KGraphExceptions.LabelNotExistException
+import com.daumkakao.s2graph.core.KGraphExceptions.LabelAlreadyExistException
+import com.daumkakao.s2graph.core.Management.Model.{Index, Prop}
 import com.daumkakao.s2graph.core.mysqls._
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
+import play.api.libs.json.Reads._
 
 //import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2._
+import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
+import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
+import org.apache.hadoop.hbase.regionserver.BloomType
+import org.apache.hadoop.hbase.util.Bytes
+import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
 import play.api.Logger
 import play.api.libs.json._
-import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
-import org.apache.hadoop.hbase.HTableDescriptor
-import org.apache.hadoop.hbase.HBaseConfiguration
-import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.TableName
-import org.apache.hadoop.hbase.HColumnDescriptor
-import org.apache.hadoop.hbase.io.compress.Compression
-import org.apache.hadoop.hbase.regionserver.BloomType
-import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 
 /**
  * This is designed to be bridge between rest to s2core.
  * s2core never use this for finding models.
  */
 object Management extends JSONParser {
+  object Model {
+    case class Prop(name: String, defaultValue: String, datatType: String)
+    object Prop extends ((String, String, String) => Prop)
+    case class Index(name: String, propNames: Seq[String])
+  }
 
   import HBaseType._
   val hardLimit = 10000
@@ -59,40 +62,19 @@ object Management extends JSONParser {
    * copy label: only used by bulk load job. not sure if we need to parameterize hbase cluster.
    */
   def copyLabel(oldLabelName: String, newLabelName: String, hTableName: Option[String]) = {
-    Label.findByName(oldLabelName) match {
-      case Some(old) =>
-        Label.findByName(newLabelName) match {
-          case None =>
-            val idxSeqs = (LabelIndex.findByLabelIdAll(old.id.get).flatMap { idx =>
-              idx.metaSeqs
-            }).toSet
-            val (indexProps, metaProps) = old.metaPropsInvMap.filter(kv => LabelMeta.isValidSeq(kv._2.seq))
-              .partition { case (name, meta) => idxSeqs.contains(meta.seq) }
+    val old = Label.findByName(oldLabelName).getOrElse(throw new LabelAlreadyExistException(s"Old label $oldLabelName already exists."))
+    if (Label.findByName(newLabelName).isDefined) throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
 
-            val idxPropsSeq = for {
-              (name, meta) <- indexProps
-            } yield {
-                (name, meta.defaultValue, meta.dataType)
-              }
-            val metaPropsSeq = for {
-              (name, meta) <- metaProps
-            } yield {
-                (name, meta.defaultValue, meta.dataType)
-              }
+    val allProps = old.metas.map { labelMeta => Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType) }
+    val allIndices = old.indices.map { index => Index(index.name, index.propNames) }
 
-            createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
-              old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
-              old.isDirected, old.serviceName,
-              idxPropsSeq.toSeq,
-              metaPropsSeq.toSeq,
-              old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync)
-
-          case Some(_) =>
-//            throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
-        }
-      case None => throw new LabelNotExistException(s"Original label $oldLabelName does not exist.")
-    }
+    createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
+      old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
+      old.isDirected, old.serviceName,
+      allIndices, allProps,
+      old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync, old.compressionAlgorithm)
   }
+
   def createLabel(label: String,
                   srcServiceName: String,
                   srcColumnName: String,
@@ -102,15 +84,14 @@ object Management extends JSONParser {
                   tgtColumnType: String,
                   isDirected: Boolean = true,
                   serviceName: String,
-                  indexProps: Seq[(String, String, String)],
-                  props: Seq[(String, String, String)],
+                  indices: Seq[Index],
+                  props: Seq[Prop],
                   consistencyLevel: String,
                   hTableName: Option[String],
                   hTableTTL: Option[Int],
                   schemaVersion: String = DEFAULT_VERSION,
                   isAsync: Boolean,
                   compressionAlgorithm: String = "lz4"): Label = {
-
 
     val labelOpt = Label.findByName(label, useCache = false)
 
@@ -121,7 +102,7 @@ object Management extends JSONParser {
         Label.insertAll(label,
           srcServiceName, srcColumnName, srcColumnType,
           tgtServiceName, tgtColumnName, tgtColumnType,
-          isDirected, serviceName, indexProps, props, consistencyLevel,
+          isDirected, serviceName, indices, props, consistencyLevel,
           hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm)
         Label.findByName(label, useCache = false).get
     }
@@ -130,7 +111,7 @@ object Management extends JSONParser {
   def createServiceColumn(serviceName: String,
                    columnName: String,
                    columnType: String,
-                   props: Seq[(String, JsValue, String)],
+                   props: Seq[(String, String, String)],
                    schemaVersion: String = DEFAULT_VERSION) = {
     val serviceOpt = Service.findByName(serviceName)
     serviceOpt match {
@@ -162,33 +143,19 @@ object Management extends JSONParser {
     }
   }
 
-  def addIndex(labelStr: String, idxProps: Seq[(String, JsValue, String)]): LabelIndex = {
+  def addIndex(labelStr: String, indices: Seq[Index]): Label = {
     val result = for {
       label <- Label.findByName(labelStr)
     } yield {
-        val labelOrderTypes =
-          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType, label.schemaVersion)) yield {
-            val lblMeta = LabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
-            lblMeta.seq
-          }
-        LabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "none")
+        val labelMetaMap = label.metaPropsInvMap
+        indices.foreach { index =>
+          val metaSeq = index.propNames.map { name => labelMetaMap(name).seq }
+          LabelIndex.findOrInsert(label.id.get, index.name, metaSeq.toList, "none")
+        }
+        label
       }
+
     result.getOrElse(throw new RuntimeException(s"add index failed"))
-  }
-
-  def dropIndex(labelStr: String, idxProps: Seq[(String, JsValue, String)]): LabelIndex = {
-    val result = for {
-      label <- Label.findByName(labelStr)
-    } yield {
-        val labelOrderTypes =
-          for ((k, v, dataType) <- idxProps; innerVal <- jsValueToInnerVal(v, dataType, label.schemaVersion)) yield {
-
-            val lblMeta = LabelMeta.findOrInsert(label.id.get, k, innerVal.toString, dataType)
-            lblMeta.seq
-          }
-        LabelIndex.findOrInsert(label.id.get, labelOrderTypes.toList, "")
-      }
-    result.getOrElse(throw new RuntimeException(s"drop index failed"))
   }
 
   def addProp(labelStr: String, propName: String, defaultValue: JsValue, dataType: String): LabelMeta = {

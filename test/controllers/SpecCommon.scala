@@ -48,7 +48,11 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "$testColumnName",
     "tgtColumnType": "long",
-    "indexProps": [
+    "indices": [
+      {"name": "idx_1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]},
+      {"name": "idx_2", "propNames": ["_timestamp"]}
+    ],
+    "props": [
     {
       "name": "time",
       "dataType": "long",
@@ -70,9 +74,9 @@ trait SpecCommon extends Specification {
       "defaultValue": false
     }
     ],
-    "props": [],
     "consistencyLevel": "strong",
-    "schemaVersion": "v2"
+    "schemaVersion": "v2",
+    "compressionAlgorithm": "gz"
   }"""
 
   val testLabelName2Create = s"""
@@ -84,7 +88,8 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "$testTgtColumnName",
     "tgtColumnType": "string",
-    "indexProps": [
+    "indices": [{"name": "idx_1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]}],
+    "props": [
     {
       "name": "time",
       "dataType": "long",
@@ -106,10 +111,10 @@ trait SpecCommon extends Specification {
       "defaultValue": false
     }
     ],
-    "props": [],
     "consistencyLevel": "strong",
     "isDirected": false,
-    "schemaVersion": "v2"
+    "schemaVersion": "v2",
+    "compressionAlgorithm": "gz"
   }"""
 
   val testLabelNameV1Create = s"""
@@ -121,7 +126,8 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "${testTgtColumnName}_v1",
     "tgtColumnType": "string",
-    "indexProps": [
+    "indices": [{"name": "idx_1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]}],
+    "props": [
     {
       "name": "time",
       "dataType": "long",
@@ -143,10 +149,10 @@ trait SpecCommon extends Specification {
       "defaultValue": false
     }
     ],
-    "props": [],
     "consistencyLevel": "strong",
     "isDirected": true,
-    "schemaVersion": "v1"
+    "schemaVersion": "v1",
+    "compressionAlgorithm": "gz"
   }"""
   val testLabelNameWeakCreate = s"""
   {
@@ -157,7 +163,8 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "$testTgtColumnName",
     "tgtColumnType": "string",
-    "indexProps": [
+    "indices": [{"name": "idx_1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]}],
+    "props": [
     {
       "name": "time",
       "dataType": "long",
@@ -179,9 +186,9 @@ trait SpecCommon extends Specification {
       "defaultValue": false
     }
     ],
-    "props": [],
     "consistencyLevel": "weak",
-    "isDirected": true
+    "isDirected": true,
+    "compressionAlgorithm": "gz"
   }"""
 
   val vertexPropsKeys = List(
@@ -293,7 +300,7 @@ trait SpecCommon extends Specification {
 
       var result = AdminController.createServiceInner(Json.parse(createService))
       println(s">> Service created : $createService, $result")
-      //
+
       ////      val labelNames = Map(testLabelName -> testLabelNameCreate)
       val labelNames = Map(testLabelName -> testLabelNameCreate,
         testLabelName2 -> testLabelName2Create,
