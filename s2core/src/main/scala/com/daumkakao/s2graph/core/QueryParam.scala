@@ -56,7 +56,7 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
   lazy val selectColumnSetIsEmpty = selectColumnsSet.isEmpty
 
   lazy val labelSrcTgtInvertedMap = if (vertices.isEmpty) {
-    Map.empty[Int, Boolean]
+    Map[Int, Boolean]()
   } else {
     (for {
       step <- steps

@@ -4,6 +4,7 @@ package com.daumkakao.s2graph.core.mysqls
  * Created by shon on 6/3/15.
  */
 
+import com.daumkakao.s2graph.core.Management.Model.{Index, Prop}
 import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
 import play.api.Logger
 import play.api.libs.json.Json
@@ -18,7 +19,7 @@ object Label extends Model[Label] {
       rs.int("src_service_id"), rs.string("src_column_name"), rs.string("src_column_type"),
       rs.int("tgt_service_id"), rs.string("tgt_column_name"), rs.string("tgt_column_type"),
       rs.boolean("is_directed"), rs.string("service_name"), rs.int("service_id"), rs.string("consistency_level"),
-      rs.string("hbase_table_name"), rs.intOpt("hbase_table_ttl"), rs.string("schema_version"), rs.boolean("is_async"))
+      rs.string("hbase_table_name"), rs.intOpt("hbase_table_ttl"), rs.string("schema_version"), rs.boolean("is_async"), rs.string("compressionAlgorithm"))
   }
 
   def findByName(labelUseCache: (String, Boolean)): Option[Label] = {
@@ -59,17 +60,18 @@ object Label extends Model[Label] {
              hTableName: String,
              hTableTTL: Option[Int],
              schemaVersion: String,
-             isAsync: Boolean) = {
+             isAsync: Boolean,
+             compressionAlgorithm: String) = {
     sql"""
     	insert into labels(label,
     src_service_id, src_column_name, src_column_type,
     tgt_service_id, tgt_column_name, tgt_column_type,
-    is_directed, service_name, service_id, consistency_level, hbase_table_name, hbase_table_ttl, schema_version, is_async)
+    is_directed, service_name, service_id, consistency_level, hbase_table_name, hbase_table_ttl, schema_version, is_async, compressionAlgorithm)
     	values (${label},
     ${srcServiceId}, ${srcColumnName}, ${srcColumnType},
     ${tgtServiceId}, ${tgtColumnName}, ${tgtColumnType},
     ${isDirected}, ${serviceName}, ${serviceId}, ${consistencyLevel}, ${hTableName}, ${hTableTTL},
-      ${schemaVersion}, ${isAsync})
+    ${schemaVersion}, ${isAsync}, ${compressionAlgorithm})
     """
       .updateAndReturnGeneratedKey.apply()
   }
@@ -112,13 +114,12 @@ object Label extends Model[Label] {
     sql"""select * from labels where tgt_service_id = ${serviceId}""".map { rs => Label(rs) }.list().apply
   }
 
-
-
   def insertAll(labelName: String, srcServiceName: String, srcColumnName: String, srcColumnType: String,
                 tgtServiceName: String, tgtColumnName: String, tgtColumnType: String,
-                isDirected: Boolean = true, serviceName: String,
-                idxProps: Seq[(String, String, String)],
-                props: Seq[(String, String, String)],
+                isDirected: Boolean = true,
+                serviceName: String,
+                indices: Seq[Index],
+                metaProps: Seq[Prop],
                 consistencyLevel: String,
                 hTableName: Option[String],
                 hTableTTL: Option[Int],
@@ -126,16 +127,12 @@ object Label extends Model[Label] {
                 isAsync: Boolean,
                 compressionAlgorithm: String) = {
 
-    //    val ls = List(label, srcServiceId, srcColumnName, srcColumnType, tgtServiceId, tgtColumnName, tgtColumnType, isDirected
-    //        , serviceName, serviceId, props.toString, consistencyLevel, hTableName)
-    //    Logger.error(s"insertAll: $ls")
     val srcServiceOpt = Service.findByName(srcServiceName, useCache = false)
     val tgtServiceOpt = Service.findByName(tgtServiceName, useCache = false)
     val serviceOpt = Service.findByName(serviceName, useCache = false)
     if (srcServiceOpt.isEmpty) throw new RuntimeException(s"source service $srcServiceName is not created.")
     if (tgtServiceOpt.isEmpty) throw new RuntimeException(s"target service $tgtServiceName is not created.")
     if (serviceOpt.isEmpty) throw new RuntimeException(s"service $serviceName is not created.")
-    //    require(service.id.get == srcServiceId || service.id.get == tgtServiceId)
 
     val newLabel = for {
       srcService <- srcServiceOpt
@@ -145,6 +142,7 @@ object Label extends Model[Label] {
         val srcServiceId = srcService.id.get
         val tgtServiceId = tgtService.id.get
         val serviceId = service.id.get
+
         /** insert serviceColumn */
         val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType), schemaVersion)
         val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType), schemaVersion)
@@ -154,23 +152,24 @@ object Label extends Model[Label] {
 
         /** create label */
         Label.findByName(labelName, useCache = false).getOrElse {
+
           val createdId = insert(labelName, srcServiceId, srcColumnName, srcColumnType,
             tgtServiceId, tgtColumnName, tgtColumnType, isDirected, serviceName, serviceId, consistencyLevel,
-            hTableName.getOrElse(service.hTableName), hTableTTL.orElse(service.hTableTTL), schemaVersion, isAsync)
+            hTableName.getOrElse(service.hTableName), hTableTTL.orElse(service.hTableTTL), schemaVersion, isAsync, compressionAlgorithm).toInt
 
-          /** create label metas */
-          val idxPropsMetas =
-            if (idxProps.isEmpty) List(LabelMeta.timestamp)
-            else idxProps.map { case (propName, defaultValue, dataType) =>
-              LabelMeta.findOrInsert(createdId.toInt, propName, defaultValue, dataType)
+          val labelMetaMap = metaProps.map { case Prop(propName, defaultValue, dataType) =>
+            val labelMeta = LabelMeta.findOrInsert(createdId, propName, defaultValue, dataType)
+            (propName -> labelMeta.seq)
+          }.toMap ++ Map(LabelMeta.timestamp.name -> LabelMeta.timestamp.seq)
+
+          if (indices.isEmpty) { // make default index with _PK, _timestamp, 0
+            LabelIndex.findOrInsert(createdId, LabelIndex.defaultName, LabelIndex.defaultMetaSeqs.toList, "none")
+          } else {
+            indices.foreach { index =>
+              val metaSeq = index.propNames.map { name => labelMetaMap(name) }
+              LabelIndex.findOrInsert(createdId, index.name, metaSeq.toList, "none")
             }
-          val propsMetas = props.map { case (propName, defaultValue, dataType) =>
-            LabelMeta.findOrInsert(createdId.toInt, propName, defaultValue, dataType)
           }
-
-          /** insert default index(PK) of this label */
-          LabelIndex.findOrInsert(createdId.toInt, LabelIndex.defaultSeq,
-            idxPropsMetas.map(m => m.seq).toList, "none")
 
           /** TODO: */
           (hTableName, hTableTTL) match {
@@ -183,12 +182,14 @@ object Label extends Model[Label] {
               // create own hbase table with own ttl.
               Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL, compressionAlgorithm)
           }
+
           val cacheKeys = List(s"id=$createdId", s"label=$labelName")
           val ret = findByName(labelName, useCache = false).get
           putsToCache(cacheKeys.map(k => k -> ret))
           ret
         }
       }
+
     newLabel.getOrElse(throw new RuntimeException("failed to create label"))
   }
 
@@ -313,7 +314,8 @@ case class Label(id: Option[Int], label: String,
                  tgtServiceId: Int, tgtColumnName: String, tgtColumnType: String,
                  isDirected: Boolean = true, serviceName: String, serviceId: Int, consistencyLevel: String = "strong",
                  hTableName: String, hTableTTL: Option[Int],
-                 schemaVersion: String, isAsync: Boolean = false) extends JSONParser {
+                 schemaVersion: String, isAsync: Boolean = false,
+                 compressionAlgorithm: String) extends JSONParser {
   def metas = LabelMeta.findAllByLabelId(id.get)
 
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
@@ -340,6 +342,7 @@ case class Label(id: Option[Int], label: String,
   lazy val indices = LabelIndex.findByLabelIdAll(id.get, useCache = true)
   lazy val indicesMap = indices.map(idx => (idx.seq, idx)) toMap
   lazy val indexSeqsMap = indices.map(idx => (idx.metaSeqs, idx)) toMap
+  lazy val indexNameMap = indices.map(idx => (idx.name, idx)) toMap
   lazy val extraIndices = indices.filter(idx => defaultIndex.isDefined && idx.id.get != defaultIndex.get.id.get)
   //      indices filterNot (_.id.get == defaultIndex.get.id.get)
   lazy val extraIndicesMap = extraIndices.map(idx => (idx.seq, idx)) toMap
@@ -381,7 +384,6 @@ case class Label(id: Option[Int], label: String,
     super.toString() + orderByKeys.toString()
   }
 
-
   def findLabelIndexSeq(scoring: List[(Byte, Double)]): Byte = {
     if (scoring.isEmpty) LabelIndex.defaultSeq
     else {
@@ -391,15 +393,13 @@ case class Label(id: Option[Int], label: String,
 
   lazy val toJson = Json.obj("labelName" -> label,
     "from" -> srcColumn.toJson, "to" -> tgtColumn.toJson,
-    //    "indexProps" -> indexPropNames,
     "defaultIndex" -> defaultIndex.map(x => x.toJson),
     "extraIndex" -> extraIndices.map(exIdx => exIdx.toJson),
-    "metaProps" -> metaProps.map(_.toJson) //    , "indices" -> indices.map(idx => idx.toJson)
+    "metaProps" -> metaProps.map(_.toJson)
   )
 
   def deleteAll() = {
     LabelMeta.findAllByLabelId(id.get, false).foreach { x => LabelMeta.delete(x.id.get) }
-    //    LabelIndexProp.findAllByLabel(id.get, false).foreach { x => LabelIndexProp.delete(x.id.get) }
     LabelIndex.findByLabelIdAll(id.get, false).foreach { x => LabelIndex.delete(x.id.get) }
     Label.delete(id.get)
   }

@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # create service.
 curl -XPOST localhost:9000/graphs/createService -H 'Content-Type: Application/json' -d '
 {"serviceName": "s2graph"}
@@ -16,11 +17,10 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
     "tgtServiceName": "s2graph",
     "tgtColumnName": "item_id",
     "tgtColumnType": "string",
-    "indexProps": [
-	{"name": "time", "dataType": "integer", "defaultValue": 0},
-	{"name": "weight","dataType": "float","defaultValue": 0.0}
-    ],
+    "indices": [ { "name": "idx_time_weight", "propNames": ["time", "weight"]} ],
     "props": [
+	{"name": "time", "dataType": "integer", "defaultValue": 0},
+	{"name": "weight","dataType": "float","defaultValue": 0.0},
 	{"name": "is_hidden","dataType": "boolean","defaultValue": false},
 	{"name": "is_blocked","dataType": "boolean","defaultValue": false}
     ],
@@ -36,11 +36,10 @@ curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json
     "tgtServiceName": "s2graph",
     "tgtColumnName": "item_id",
     "tgtColumnType": "string",
-    "indexProps": [
-	{"name": "time", "dataType": "integer", "defaultValue": 0},
-	{"name": "weight","dataType": "float","defaultValue": 0.0}
-    ],
+    "indices": [ { "name": "idx_time_weight", "propNames": ["time", "weight"]} ],
     "props": [
+	{"name": "time", "dataType": "integer", "defaultValue": 0},
+	{"name": "weight","dataType": "float","defaultValue": 0.0},
 	{"name": "is_hidden","dataType": "boolean","defaultValue": false},
 	{"name": "is_blocked","dataType": "boolean","defaultValue": false}
     ],
@@ -56,6 +55,14 @@ curl -XPOST localhost:9000/graphs/addProp/graph_test -H 'Content-Type: Applicati
 {"name": "rel_type", "defaultValue": 0, "dataType": "integer"}
 '
 
+curl -XPOST localhost:9000/graphs/addProp/graph_test -H 'Content-Type: Application/json' -d '
+{"name": "play_count", "defaultValue": 0, "dataType": "integer"}
+'
+
+curl -XPOST localhost:9000/graphs/addProp/graph_test -H 'Content-Type: Application/json' -d '
+{"name": "pay_amount", "defaultValue": 0, "dataType": "integer"}
+'
+
 # check props is added correctly
 curl -XGET localhost:9000/graphs/getLabel/graph_test
 
@@ -63,10 +70,7 @@ curl -XGET localhost:9000/graphs/getLabel/graph_test
 curl -XPOST localhost:9000/graphs/addIndex -H 'Content-Type: Application/json' -d '
 {
     "label": "graph_test",
-    "indexProps": [
-        {"name": "play_count","defaultValue": 0, "dataType": "integer"},
-        {"name": "pay_amount","defaultValue": 0,"dataType": "integer"}
-    ]
+    "indices": [ {"name": "idx_play_count_pay_amount", "propNames": ["play_count", "pay_amount"]} ]
 }
 '
 
@@ -101,15 +105,15 @@ curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -
 '
 ## check for contentions
 
-curl -XPOST localhost:9000/graphs/edges/bulk -d '
+curl -XPOST localhost:9000/graphs/edges/bulk -H 'Content-Type: text/plain' -d '
 193829195000	insert	edge	2	ab	graph_test	{"time": -1, "weight": 0.98}
-193829195001	delete	edge	2	ab	graph_test	
+193829195001	delete	edge	2	ab	graph_test	{}
 193829195002	insert	edge	2	ab	graph_test	{"time": -10, "weight": -0.1}
 '
 
 
 ## Vertex
-curl -XPOST localhost:9000/graphs/createVertex -H 'Content-Type: Application/json' -d ' 
+curl -XPOST localhost:9000/graphs/createServiceColumn -H 'Content-Type: Application/json' -d '
 {
     "serviceName": "s2graph",
     "columnName": "user_id",
