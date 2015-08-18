@@ -53,19 +53,23 @@ class VertexId protected (val colId: Int, val innerId: InnerValLike) extends HBa
   }
 
   override def hashCode(): Int = {
-    Logger.debug(s"VertexId.hashCode")
-    if (storeColId) {
+    val ret = if (storeColId) {
       colId * 31 + innerId.hashCode()
     } else {
       innerId.hashCode()
     }
+    Logger.debug(s"VertexId.hashCode: $ret")
+    ret
   }
   override def equals(obj: Any): Boolean = {
-    obj match {
-      case other: VertexId => colId == other.colId && innerId == other.innerId
+    val ret = obj match {
+      case other: VertexId => colId == other.colId && innerId.toIdString() == other.innerId.toIdString()
       case _ => false
     }
+    Logger.debug(s"VertexId.equals: $this, $obj => $ret")
+    ret
   }
+
   def compareTo(other: VertexId): Int = {
     Bytes.compareTo(bytes, other.bytes)
   }
@@ -88,30 +92,12 @@ object SourceVertexId extends HBaseDeserializable {
     (SourceVertexId(DEFAULT_COL_ID, innerId), GraphUtil.bytesForMurMurHash + numOfBytesUsed)
   }
 
-//  def toVertexId(colId: Int, innerId: InnerValLike): VertexId = {
-//    VertexId(colId, innerId)
-//  }
 }
 
-//case class VertexIdWithoutHash(override val colId: Int,
-//                               override val innerId: InnerValLike)
-//  extends VertexId(colId, innerId) {
-//  override val storeHash: Boolean = false
-//}
-case class SourceVertexId(override val colId: Int,
-                          override val innerId: InnerValLike)
-  extends VertexId(colId, innerId) {
-  override val storeColId: Boolean = false
 
-  override def equals(obj: Any): Boolean = {
-    obj match {
-      case other: SourceVertexId =>
-        val left = innerId.bytes.drop(GraphUtil.bytesForMurMurHash)
-        val right = other.innerId.bytes.drop(GraphUtil.bytesForMurMurHash)
-        Bytes.compareTo(left, right) == 0
-      case _ => false
-    }
-  }
+case class SourceVertexId(override val colId: Int,
+                          override val innerId: InnerValLike) extends VertexId(colId, innerId) {
+  override val storeColId: Boolean = false
 }
 
 object TargetVertexId extends HBaseDeserializable {
@@ -124,10 +110,6 @@ object TargetVertexId extends HBaseDeserializable {
     val (innerId, numOfBytesUsed) = InnerVal.fromBytes(bytes, offset, len, version)
     (TargetVertexId(DEFAULT_COL_ID, innerId), numOfBytesUsed)
   }
-
-//  def toVertexId(colId: Int, innerId: InnerValLike): VertexId = {
-//    VertexId(colId, innerId)
-//  }
 }
 
 case class TargetVertexId(override val colId: Int,
@@ -136,10 +118,4 @@ case class TargetVertexId(override val colId: Int,
   override val storeColId: Boolean = false
   override val storeHash: Boolean = false
 
-  override def equals(obj: Any): Boolean = {
-    obj match {
-      case other: TargetVertexId => innerId == other.innerId
-      case _ => false
-    }
-  }
 }

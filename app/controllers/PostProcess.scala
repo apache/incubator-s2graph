@@ -222,7 +222,7 @@ object PostProcess extends JSONParser {
   @deprecated(message = "deprecated", since = "0.2")
   def propsToJson(edge: Edge) = {
     for {
-      (seq, v) <- edge.propsWithTs if seq >= 0
+      (seq, v) <- edge.propsWithTs if LabelMeta.isValidSeq(seq)
       metaProp <- edge.label.metaPropsMap.get(seq)
       jsValue <- innerValToJsValue(v.innerVal, metaProp.dataType)
     } yield {
@@ -235,7 +235,7 @@ object PostProcess extends JSONParser {
     var isEmpty = true
     for {
 //    val ret = for {
-      (seq, labelMeta) <- queryParam.label.metaPropsMap if seq >= 0
+      (seq, labelMeta) <- queryParam.label.metaPropsMap if LabelMeta.isValidSeq(seq)
       innerVal = edge.propsWithTs.get(seq).map(_.innerVal).getOrElse {
         toInnerVal(labelMeta.defaultValue, labelMeta.dataType, queryParam.label.schemaVersion)
       }
