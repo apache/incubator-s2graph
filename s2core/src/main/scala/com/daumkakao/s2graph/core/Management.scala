@@ -37,11 +37,8 @@ object Management extends JSONParser {
 
   val hardLimit = 10000
   val defaultLimit = 100
-
   val defaultCompressionAlgorithm = Graph.config.getString("hbase.table.compression.algorithm")
-  //  def getSequence(tableName: String) = {
-  //    HBaseModel.getSequence(tableName)
-  //  }
+
   def createService(serviceName: String,
                     cluster: String, hTableName: String,
                     preSplitSize: Int, hTableTTL: Option[Int],
@@ -101,7 +98,7 @@ object Management extends JSONParser {
                   hTableTTL: Option[Int],
                   schemaVersion: String = DEFAULT_VERSION,
                   isAsync: Boolean,
-                  compressionAlgorithm: String = "lz4"): Try[Label] = {
+                  compressionAlgorithm: String = defaultCompressionAlgorithm): Try[Label] = {
 
     val labelOpt = Label.findByName(label, useCache = false)
 
