@@ -4,16 +4,19 @@ import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import config.Config
 
+import scala.util.Try
+
 //import com.daumkakao.s2graph.core.models._
+
 import com.daumkakao.s2graph.core.parsers.WhereParser
 import com.daumkakao.s2graph.core.types2._
 import play.api.Logger
 import play.api.libs.json._
 
 
-
 trait RequestParser extends JSONParser {
-  import Management.Model._
+
+  import Management.JsonModel._
 
   val hardLimit = Config.QUERY_HARD_LIMIT
   val defaultLimit = 100
@@ -112,8 +115,8 @@ trait RequestParser extends JSONParser {
       id <- ids
       innerId <- jsValueToInnerVal(id, serviceColumn.columnType, label.schemaVersion)
     } yield {
-      Vertex(SourceVertexId(serviceColumn.id.get, innerId), System.currentTimeMillis())
-    }
+        Vertex(SourceVertexId(serviceColumn.id.get, innerId), System.currentTimeMillis())
+      }
     vertices.toSeq
   }
 
@@ -130,6 +133,7 @@ trait RequestParser extends JSONParser {
             val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
             for {
               idVal <- idOpt ++ idsOpt.toSeq.flatten
+
               /** bug, need to use labels schemaVersion  */
               innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
             } yield {
@@ -160,10 +164,10 @@ trait RequestParser extends JSONParser {
             case obj: JsObject => (obj \ "step").as[List[JsValue]]
             case _ => List.empty[JsValue]
           }
-//          val stepThreshold = step match {
-//            case obj: JsObject => (obj \ "stepThreshold").asOpt[Double].getOrElse(0.0)
-//            case _ => 0.0
-//          }
+          //          val stepThreshold = step match {
+          //            case obj: JsObject => (obj \ "stepThreshold").asOpt[Double].getOrElse(0.0)
+          //            case _ => 0.0
+          //          }
           val nextStepScoreThreshold = step match {
             case obj: JsObject => (obj \ "nextStepThreshold").asOpt[Double].getOrElse(0.0)
             case _ => 0.0
@@ -180,13 +184,13 @@ trait RequestParser extends JSONParser {
               queryParam
             }
           Step(queryParams.toList, labelWeights = labelWeights,
-//            scoreThreshold = stepThreshold,
+            //            scoreThreshold = stepThreshold,
             nextStepScoreThreshold = nextStepScoreThreshold, nextStepLimit = nextStepLimit)
         }
 
       val ret = Query(vertices, querySteps, removeCycle = removeCycle,
         selectColumns = selectColumns, groupByColumns = groupByColumns, filterOutQuery = filterOutQuery)
-                Logger.debug(ret.toString)
+      Logger.debug(ret.toString)
       ret
     } catch {
       case e: Throwable =>
@@ -254,8 +258,8 @@ trait RequestParser extends JSONParser {
         .duration(duration)
         .has(hasFilter)
         .labelOrderSeq(indexSeq)
-//        .outputField(outputField)
-//        .outputFields(outputFields)
+        //        .outputField(outputField)
+        //        .outputFields(outputFields)
         .where(where)
         .duplicatePolicy(duplicate)
         .includeDegree(includeDegree)
@@ -266,7 +270,7 @@ trait RequestParser extends JSONParser {
         .timeDecay(timeDecayFactor)
         .threshold(threshold)
         .transformer(transformer)
-//        .excludeBy(excludeBy)
+      //        .excludeBy(excludeBy)
     }
   }
 
@@ -357,7 +361,7 @@ trait RequestParser extends JSONParser {
     propNames = (jsObj \ "propNames").as[Seq[String]]
   } yield Index(indexName, propNames)
 
-  def toLabelElements(jsValue: JsValue) = {
+  def toLabelElements(jsValue: JsValue) = Try {
     val labelName = parse[String](jsValue, "label")
     val srcServiceName = parse[String](jsValue, "srcServiceName")
     val tgtServiceName = parse[String](jsValue, "tgtServiceName")
@@ -379,15 +383,13 @@ trait RequestParser extends JSONParser {
     val schemaVersion = (jsValue \ "schemaVersion").asOpt[String].getOrElse(HBaseType.DEFAULT_VERSION)
     val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
     val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse("lz4")
-    val t = (labelName, srcServiceName, srcColumnName, srcColumnType,
+
+    (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
       indices, allProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm)
-
-    Logger.info(s"createLabel $t")
-    t
   }
 
-  def toIndexElements(jsValue: JsValue) = {
+  def toIndexElements(jsValue: JsValue) = Try {
     val labelName = parse[String](jsValue, "label")
     val indices = parseIndices(jsValue \ "indices")
     (labelName, indices)

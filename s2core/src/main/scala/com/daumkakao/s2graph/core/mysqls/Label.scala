@@ -4,7 +4,7 @@ package com.daumkakao.s2graph.core.mysqls
  * Created by shon on 6/3/15.
  */
 
-import com.daumkakao.s2graph.core.Management.Model.{Index, Prop}
+import com.daumkakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
 import play.api.Logger
 import play.api.libs.json.Json
@@ -22,28 +22,15 @@ object Label extends Model[Label] {
       rs.string("hbase_table_name"), rs.intOpt("hbase_table_ttl"), rs.string("schema_version"), rs.boolean("is_async"), rs.string("compressionAlgorithm"))
   }
 
-  def findByName(labelUseCache: (String, Boolean)): Option[Label] = {
-    val (label, useCache) = labelUseCache
-    findByName(label, useCache)
-  }
-
-  def findByName(label: String, useCache: Boolean = true): Option[Label] = {
-//    val cacheKey = s"label=$label"
+  def findByName(label: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[Label] = {
     val cacheKey = "label=" + label
-    if (useCache) {
-      withCache(cacheKey)(
-        sql"""
+    lazy val labelOpt = sql"""
         select *
         from labels
-        where label = ${label}"""
-          .map { rs => Label(rs) }.single.apply())
-    } else {
-      sql"""
-        select *
-        from labels
-        where label = ${label}"""
-        .map { rs => Label(rs) }.single.apply()
-    }
+        where label = ${label}""".map { rs => Label(rs) }.single.apply()
+
+    if (useCache) withCache(cacheKey)(labelOpt)
+    else labelOpt
   }
 
   def insert(label: String,
@@ -61,7 +48,7 @@ object Label extends Model[Label] {
              hTableTTL: Option[Int],
              schemaVersion: String,
              isAsync: Boolean,
-             compressionAlgorithm: String) = {
+             compressionAlgorithm: String)(implicit session: DBSession = AutoSession) = {
     sql"""
     	insert into labels(label,
     src_service_id, src_column_name, src_column_type,
@@ -76,8 +63,7 @@ object Label extends Model[Label] {
       .updateAndReturnGeneratedKey.apply()
   }
 
-  def findById(id: Int): Label = {
-//    val cacheKey = s"id=$id"
+  def findById(id: Int)(implicit session: DBSession = AutoSession): Label = {
     val cacheKey = "id=" + id
     withCache(cacheKey)( sql"""
         select 	*
@@ -86,7 +72,7 @@ object Label extends Model[Label] {
       .map { rs => Label(rs) }.single.apply()).get
   }
 
-  def findByTgtColumnId(columnId: Int): List[Label] = {
+  def findByTgtColumnId(columnId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
     val col = ServiceColumn.findById(columnId)
     sql"""
           select	*
@@ -96,7 +82,7 @@ object Label extends Model[Label] {
         """.map { rs => Label(rs) }.list().apply()
   }
 
-  def findBySrcColumnId(columnId: Int): List[Label] = {
+  def findBySrcColumnId(columnId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
     val col = ServiceColumn.findById(columnId)
     sql"""
           select 	*
@@ -106,11 +92,11 @@ object Label extends Model[Label] {
         """.map { rs => Label(rs) }.list().apply()
   }
 
-  def findBySrcServiceId(serviceId: Int): List[Label] = {
+  def findBySrcServiceId(serviceId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
     sql"""select * from labels where src_service_id = ${serviceId}""".map { rs => Label(rs) }.list().apply
   }
 
-  def findByTgtServiceId(serviceId: Int): List[Label] = {
+  def findByTgtServiceId(serviceId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
     sql"""select * from labels where tgt_service_id = ${serviceId}""".map { rs => Label(rs) }.list().apply
   }
 
@@ -125,7 +111,7 @@ object Label extends Model[Label] {
                 hTableTTL: Option[Int],
                 schemaVersion: String,
                 isAsync: Boolean,
-                compressionAlgorithm: String) = {
+                compressionAlgorithm: String)(implicit session: DBSession = AutoSession) = {
 
     val srcServiceOpt = Service.findByName(srcServiceName, useCache = false)
     val tgtServiceOpt = Service.findByName(tgtServiceName, useCache = false)
@@ -162,7 +148,8 @@ object Label extends Model[Label] {
             (propName -> labelMeta.seq)
           }.toMap ++ Map(LabelMeta.timestamp.name -> LabelMeta.timestamp.seq)
 
-          if (indices.isEmpty) { // make default index with _PK, _timestamp, 0
+          if (indices.isEmpty) {
+            // make default index with _PK, _timestamp, 0
             LabelIndex.findOrInsert(createdId, LabelIndex.defaultName, LabelIndex.defaultMetaSeqs.toList, "none")
           } else {
             indices.foreach { index =>
@@ -193,120 +180,30 @@ object Label extends Model[Label] {
     newLabel.getOrElse(throw new RuntimeException("failed to create label"))
   }
 
-  //
-  //  def findOrInsert(label: String,
-  //                   srcServiceId: Int,
-  //                   srcColumnName: String,
-  //                   srcColumnType: String,
-  //                   tgtServiceId: Int,
-  //                   tgtColumnName: String,
-  //                   tgtColumnType: String,
-  //                   isDirected: Boolean = true,
-  //                   serviceName: String,
-  //                   serviceId: Int,
-  //                   props: Seq[(String, Any, String, Boolean)] = Seq.empty[(String, Any, String, Boolean)],
-  //                   consistencyLevel: String,
-  //                   hTableName: Option[String],
-  //                   hTableTTL: Option[Int],
-  //                   isAsync: Boolean): Label = {
-  //
-  //    findByName(label, false) match {
-  //      case Some(l) => l
-  //      case None =>
-  //        insertAll(label, srcServiceId, srcColumnName, srcColumnType, tgtServiceId, tgtColumnName,
-  //          tgtColumnType, isDirected, serviceName, serviceId, props, consistencyLevel, hTableName, hTableTTL, isAsync)
-  //        val cacheKey = s"label=$label"
-  //        expireCache(cacheKey)
-  //        findByName(label).get
-  //    }
-  //  }
-  def findAll() = {
+  def findAll()(implicit session: DBSession = AutoSession) = {
     val ls = sql"""select * from labels""".map { rs => Label(rs) }.list().apply()
     putsToCache(ls.map { x =>
-      var cacheKey = s"id=${x.id.get}"
+      val cacheKey = s"id=${x.id.get}"
       (cacheKey -> x)
     })
     putsToCache(ls.map { x =>
-      var cacheKey = s"label=${x.label}"
+      val cacheKey = s"label=${x.label}"
       (cacheKey -> x)
     })
-
-    //    for {
-    //      x <- labels
-    //    } {
-    //      Logger.info(s"Label: $x")
-    //      findById(x.id.get)
-    //      findByName(x.label)
-    //      findBySrcColumnId(x.srcColumn.id.get)
-    //      findBySrcServiceId(x.srcServiceId)
-    //      findByTgtColumnId(x.tgtColumn.id.get)
-    //      findByTgtServiceId(x.tgtServiceId)
-    //    }
-    //
-    ////    labels.foreach(_.init)
-    //
-    //    putsToCache(labels.map { label =>
-    //      val cacheKey = s"label=${label.label}"
-    //      Logger.info(s"loading to local cache: $cacheKey")
-    //      (cacheKey -> label)
-    //    })
-    //    putsToCache(labels.map { label =>
-    //      val cacheKey = s"id=${label.id.get}"
-    //      Logger.info(s"loading to local cache: $cacheKey")
-    //      (cacheKey -> label)
-    //    })
-    //    labels
   }
 
-  def findAllLabels(serviceName: Option[String] = None, offset: Int = 0, limit: Int = 10): List[Label] = {
-    val sql = serviceName match {
-      case None =>
-        sql"""
-        select 	*
-        from	labels
-        limit	${offset}, ${limit}
-        """
-      case Some(sName) =>
-        sql"""
-        select 	*
-        from	labels
-        where	service_name = ${sName}
-        limit	${offset}, ${limit}
-        """
-    }
-    sql.map { rs => Label(rs) }.list().apply()
-  }
-
-  def updateName(oldName: String, newName: String) = {
+  def updateName(oldName: String, newName: String)(implicit session: DBSession = AutoSession) = {
     Logger.info(s"rename label: $oldName -> $newName")
     sql"""update labels set label = ${newName} where label = ${oldName}""".execute.apply()
   }
 
-  def delete(id: Int) = {
+  def delete(id: Int)(implicit session: DBSession = AutoSession) = {
     val label = findById(id)
     Logger.info(s"delete label: $label")
     sql"""delete from labels where id = ${label.id.get}""".execute.apply()
     val cacheKeys = List(s"id=$id", s"label=${label.label}")
     cacheKeys.foreach(expireCache(_))
   }
-
-  //  def prependHBaseTableName(labelName: String, tableName: String) = {
-  //    for (label <- findByName(labelName); service = Service.findById(label.serviceId)) yield {
-  //      val tables = label.hbaseTableName.split(",").toList.groupBy(s => s).keys.toList
-  //      val newHBaseTableNames = tableName :: tables.sortBy(s => s).reverse.take(maxHBaseTableNames - 1)
-  //      for (table <- tables if !newHBaseTableNames.contains(table)) {
-  //        // delete table
-  //        //        try {
-  //        //          Management.dropTable(Config.HBASE_ZOOKEEPER_QUORUM, table)
-  //        //        } catch {
-  //        //          case e: Throwable =>
-  //        //            play.api.Logger.error(s"dropTable: $table failed $e")
-  //        //        }
-  //      }
-  //      sql"""update labels set hbase_table_name = ${newHBaseTableNames.mkString(",")} where id = ${label.id.get}""".executeUpdate().apply
-  //    }
-  //    findByName(labelName)
-  //  }
 }
 
 case class Label(id: Option[Int], label: String,
