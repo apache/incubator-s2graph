@@ -38,6 +38,10 @@ object Management extends JSONParser {
   val hardLimit = 10000
   val defaultLimit = 100
 
+  val defaultCompressionAlgorithm = Graph.config.getString("hbase.table.compression.algorithm")
+  //  def getSequence(tableName: String) = {
+  //    HBaseModel.getSequence(tableName)
+  //  }
   def createService(serviceName: String,
                     cluster: String, hTableName: String,
                     preSplitSize: Int, hTableTTL: Option[Int],
