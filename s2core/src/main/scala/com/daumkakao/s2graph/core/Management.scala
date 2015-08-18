@@ -32,7 +32,7 @@ object Management extends JSONParser {
   import HBaseType._
   val hardLimit = 10000
   val defaultLimit = 100
-
+  val defaultCompressionAlgorithm = Graph.config.getString("hbase.table.compression.algorithm")
   //  def getSequence(tableName: String) = {
   //    HBaseModel.getSequence(tableName)
   //  }
@@ -91,7 +91,7 @@ object Management extends JSONParser {
                   hTableTTL: Option[Int],
                   schemaVersion: String = DEFAULT_VERSION,
                   isAsync: Boolean,
-                  compressionAlgorithm: String = "lz4"): Label = {
+                  compressionAlgorithm: String = defaultCompressionAlgorithm): Label = {
 
     val labelOpt = Label.findByName(label, useCache = false)
 

@@ -64,7 +64,8 @@ object AdminController extends Controller with RequestParser {
     try {
       val (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected,
-      serviceName, indices, metaProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm) = toLabelElements(jsValue)
+      serviceName, indices, metaProps, consistencyLevel,
+      hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm) = toLabelElements(jsValue)
 
       val label = Management.createLabel(labelName, srcServiceName, srcColumnName, srcColumnType,
         tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,

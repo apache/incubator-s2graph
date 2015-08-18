@@ -45,6 +45,7 @@ object Graph {
   val defaultConfigs: Map[String, AnyRef] = Map(
     "hbase.zookeeper.quorum" -> "localhost",
     "hbase.table.name" -> "s2graph",
+    "hbase.table.compression.algorithm" -> "gz",
     "phase" -> "dev",
     "async.hbase.client.flush.interval" -> java.lang.Short.valueOf(100.toShort),
     "hbase.client.operation.timeout" -> java.lang.Integer.valueOf(1000),
