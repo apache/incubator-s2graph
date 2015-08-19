@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.mysqls._
-import play.api.libs.json.{JsNumber, JsString, JsValue, Json}
+import play.api.libs.json.{JsNumber, JsValue, Json}
 
 import scala.util.hashing.MurmurHash3
 
