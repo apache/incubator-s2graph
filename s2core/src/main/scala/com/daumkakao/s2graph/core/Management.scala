@@ -73,13 +73,11 @@ object Management extends JSONParser {
     val allProps = old.metas.map { labelMeta => Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType) }
     val allIndices = old.indices.map { index => Index(index.name, index.propNames) }
 
-    Model withTx { implicit session =>
-      createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
-        old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
-        old.isDirected, old.serviceName,
-        allIndices, allProps,
-        old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync, old.compressionAlgorithm)
-    }
+    createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
+      old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
+      old.isDirected, old.serviceName,
+      allIndices, allProps,
+      old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync, old.compressionAlgorithm)
   }
 
   def createLabel(label: String,
@@ -121,27 +119,34 @@ object Management extends JSONParser {
   def createServiceColumn(serviceName: String,
                           columnName: String,
                           columnType: String,
-                          props: Seq[(String, String, String)],
+                          props: Seq[Prop],
                           schemaVersion: String = DEFAULT_VERSION) = {
-    val serviceOpt = Service.findByName(serviceName)
-    serviceOpt match {
-      case None => throw new RuntimeException(s"create service $serviceName has not been created.")
-      case Some(service) =>
-        val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion)
-        for {
-          (propName, defaultValue, dataType) <- props
-        } yield {
-          ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType)
-        }
+
+    Model withTx { implicit session =>
+      val serviceOpt = Service.findByName(serviceName)
+      serviceOpt match {
+        case None => throw new RuntimeException(s"create service $serviceName has not been created.")
+        case Some(service) =>
+          val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion)
+          for {
+            Prop(propName, defaultValue, dataType) <- props
+          } yield {
+            ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType)
+          }
+      }
     }
   }
 
   def deleteColumn(serviceName: String, columnName: String, schemaVersion: String = DEFAULT_VERSION) = {
-    for {
-      service <- Service.findByName(serviceName, useCache = false)
-      serviceColumn <- ServiceColumn.find(service.id.get, columnName, useCache = false)
-    } yield {
-      ServiceColumn.delete(serviceColumn.id.get)
+    Model withTx { implicit session =>
+      val service = Service.findByName(serviceName, useCache = false).getOrElse(throw new RuntimeException("Service not Found"))
+      val serviceColumns = ServiceColumn.find(service.id.get, columnName, useCache = false)
+      val columnNames = serviceColumns.map { serviceColumn =>
+        ServiceColumn.delete(serviceColumn.id.get)
+        serviceColumn.columnName
+      }
+
+      columnNames.getOrElse(throw new RuntimeException("column not found"))
     }
   }
 
@@ -150,8 +155,11 @@ object Management extends JSONParser {
   }
 
   def deleteLabel(labelName: String) = {
-    Label.findByName(labelName, useCache = false).foreach { label =>
-      label.deleteAll()
+    Model withTx { implicit session =>
+      Label.findByName(labelName, useCache = false).foreach { label =>
+        Label.deleteAll(label)
+      }
+      labelName
     }
   }
 
@@ -169,13 +177,25 @@ object Management extends JSONParser {
     }
   }
 
-  def addProp(labelStr: String, propName: String, defaultValue: JsValue, dataType: String): LabelMeta = {
-    val result = for {
-      label <- Label.findByName(labelStr)
-    } yield {
-        LabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType)
+  def addProp(labelStr: String, prop: Prop) = {
+    Model withTx { implicit session =>
+      val labelOpt = Label.findByName(labelStr)
+      val label = labelOpt.getOrElse(throw LabelNotExistException(s"$labelStr not found"))
+
+      LabelMeta.findOrInsert(label.id.get, prop.name, prop.defaultValue, prop.datatType)
+    }
+  }
+
+  def addProps(labelStr: String, props: Seq[Prop]) = {
+    Model withTx { implicit session =>
+      val labelOpt = Label.findByName(labelStr)
+      val label = labelOpt.getOrElse(throw LabelNotExistException(s"$labelStr not found"))
+
+      props.map {
+        case Prop(propName, defaultValue, dataType) =>
+          LabelMeta.findOrInsert(label.id.get, propName, defaultValue, dataType)
       }
-    result.getOrElse(throw new RuntimeException(s"add property on label failed"))
+    }
   }
 
   def addVertexProp(serviceName: String,

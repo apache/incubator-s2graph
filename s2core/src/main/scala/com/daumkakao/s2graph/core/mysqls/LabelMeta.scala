@@ -91,8 +91,11 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
     }
   }
 
-  def findOrInsert(labelId: Int, name: String,
-                   defaultValue: String, dataType: String)(implicit session: DBSession = AutoSession): LabelMeta = {
+  def findOrInsert(labelId: Int,
+                   name: String,
+                   defaultValue: String,
+                   dataType: String)(implicit session: DBSession = AutoSession): LabelMeta = {
+
     findByName(labelId, name) match {
       case Some(c) => c
       case None =>

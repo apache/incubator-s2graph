@@ -288,7 +288,6 @@ trait RequestParser extends JSONParser {
   }
 
   def toJsValues(jsValue: JsValue): List[JsValue] = {
-
     jsValue match {
       case obj: JsObject => List(obj)
       case arr: JsArray => arr.as[List[JsValue]]
@@ -298,9 +297,7 @@ trait RequestParser extends JSONParser {
   }
 
   def toEdges(jsValue: JsValue, operation: String): List[Edge] = {
-
     toJsValues(jsValue).map(toEdge(_, operation))
-
   }
 
   def toEdge(jsValue: JsValue, operation: String) = {
@@ -342,7 +339,18 @@ trait RequestParser extends JSONParser {
       throw new KGraphExceptions.JsonParseException(Json.obj("error" -> s"$jsObj --> some key is duplicated").toString)
   }
 
-  def parsePropsElements(jsValue: JsValue): Seq[Prop] = for {
+  def toPropElements(jsObj: JsValue) = Try {
+    val propName = (jsObj \ "name").as[String]
+    val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
+    val defaultValue = (jsObj \ "defaultValue").as[JsValue] match {
+      case JsString(s) => s
+      case _@js => js.toString
+    }
+    Prop(propName, defaultValue, dataType)
+
+  }
+
+  def toPropsElements(jsValue: JsValue): Seq[Prop] = for {
     jsObj <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
   } yield {
       val propName = (jsObj \ "name").as[String]
@@ -351,11 +359,10 @@ trait RequestParser extends JSONParser {
         case JsString(s) => s
         case _@js => js.toString
       }
-
       Prop(propName, defaultValue, dataType)
     }
 
-  def parseIndices(jsValue: JsValue): Seq[Index] = for {
+  def toIndicesElements(jsValue: JsValue): Seq[Index] = for {
     jsObj <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
     indexName = (jsObj \ "name").as[String]
     propNames = (jsObj \ "propNames").as[Seq[String]]
@@ -372,8 +379,8 @@ trait RequestParser extends JSONParser {
     val serviceName = (jsValue \ "serviceName").asOpt[String].getOrElse(tgtServiceName)
     val isDirected = (jsValue \ "isDirected").asOpt[Boolean].getOrElse(true)
 
-    val allProps = parsePropsElements(jsValue \ "props")
-    val indices = parseIndices(jsValue \ "indices")
+    val allProps = toPropsElements(jsValue \ "props")
+    val indices = toIndicesElements(jsValue \ "indices")
 
     val consistencyLevel = (jsValue \ "consistencyLevel").asOpt[String].getOrElse("weak")
 
@@ -391,7 +398,7 @@ trait RequestParser extends JSONParser {
 
   def toIndexElements(jsValue: JsValue) = Try {
     val labelName = parse[String](jsValue, "label")
-    val indices = parseIndices(jsValue \ "indices")
+    val indices = toIndicesElements(jsValue \ "indices")
     (labelName, indices)
   }
 
@@ -405,19 +412,13 @@ trait RequestParser extends JSONParser {
     (serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
   }
 
-  def toServiceColumnElements(jsValue: JsValue) = {
+  def toServiceColumnElements(jsValue: JsValue) = Try {
     val serviceName = parse[String](jsValue, "serviceName")
     val columnName = parse[String](jsValue, "columnName")
     val columnType = parse[String](jsValue, "columnType")
-    val props = parsePropsElements(jsValue \ "props")
+    val props = toPropsElements(jsValue \ "props")
     (serviceName, columnName, columnType, props)
   }
 
-  def toPropElements(jsValue: JsValue) = {
-    val propName = parse[String](jsValue, "name")
-    val defaultValue = parse[JsValue](jsValue, "defaultValue")
-    val dataType = parse[String](jsValue, "dataType")
-    val usedInIndex = parse[Option[Boolean]](jsValue, "usedInIndex").getOrElse(false)
-    (propName, defaultValue, dataType, usedInIndex)
-  }
+
 }

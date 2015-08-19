@@ -1,6 +1,5 @@
 package controllers
 
-import com.daumkakao.s2graph.core.Management.JsonModel.Prop
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import play.api.libs.json.{JsObject, JsValue, Json}
@@ -10,19 +9,80 @@ import play.api.{Logger, mvc}
 import scala.util.{Failure, Success, Try}
 
 object AdminController extends Controller with RequestParser {
-  private def ok(msg: String) = Ok(Json.obj("message" -> msg)).as(QueryController.applicationJsonHeader)
+  val applicationJsonHeader = QueryController.applicationJsonHeader
 
-  private def bad(msg: String) = BadRequest(Json.obj("message" -> msg)).as(QueryController.applicationJsonHeader)
+  /**
+   * admin message formatter
+   * @tparam T
+   */
+  trait AdminMessageFormatter[T] {
+    def toJson(msg: T): JsValue
+  }
 
-  private def tryResponse[T](res: Try[T])(callback: T => String): mvc.Result = {
-    res match {
-      case Success(label) => ok(callback(label.asInstanceOf[T]))
-      case Failure(error) =>
-        Logger.error(error.getMessage, error)
-        bad(error.getMessage)
+  object AdminMessageFormatter {
+    implicit def jsValueToJson[T <: JsValue] = new AdminMessageFormatter[T] {
+      def toJson(js: T) = js
+    }
+
+    implicit val stringToJson = new AdminMessageFormatter[String] {
+      def toJson(js: String) = Json.obj("message" -> js)
     }
   }
 
+  def format[T: AdminMessageFormatter](f: JsValue => play.mvc.Result)(message: T) = {
+    val formatter = implicitly[AdminMessageFormatter[T]]
+    f(formatter.toJson(message))
+  }
+
+  /**
+   * ok response
+   * @param message
+   * @tparam T
+   * @return
+   */
+  def ok[T: AdminMessageFormatter](message: T) = {
+    val formatter = implicitly[AdminMessageFormatter[T]]
+    Ok(formatter.toJson(message)).as(applicationJsonHeader)
+  }
+
+  /**
+   * bad request response
+   * @param message
+   * @tparam T
+   * @return
+   */
+  def bad[T: AdminMessageFormatter](message: T) = {
+    val formatter = implicitly[AdminMessageFormatter[T]]
+    BadRequest(formatter.toJson(message)).as(applicationJsonHeader)
+  }
+
+  /**
+   * not found response
+   * @param message
+   * @tparam T
+   * @return
+   */
+  def notFound[T: AdminMessageFormatter](message: T) = {
+    val formatter = implicitly[AdminMessageFormatter[T]]
+    NotFound(formatter.toJson(message)).as(applicationJsonHeader)
+  }
+
+  def tryResponse[T, R: AdminMessageFormatter](res: Try[T])(callback: T => R): mvc.Result = res match {
+    case Success(m) => ok(callback(m))
+    case Failure(error) =>
+      Logger.error(error.getMessage, error)
+      bad(error.getMessage)
+  }
+
+  def optionResponse[T, R: AdminMessageFormatter](res: Option[T])(callback: T => R): mvc.Result = res match {
+    case Some(m) => ok(callback(m))
+    case None => notFound("not found")
+  }
+
+  /**
+   * load all model cache
+   * @return
+   */
   def loadCache() = Action { request =>
     val startTs = System.currentTimeMillis()
 
@@ -42,6 +102,15 @@ object AdminController extends Controller with RequestParser {
    * read
    */
 
+  /**
+   * get service info
+   * @param serviceName
+   * @return
+   */
+  def getService(serviceName: String) = Action { request =>
+    val serviceOpt = Management.findService(serviceName)
+    optionResponse(serviceOpt)(_.toJson)
+  }
 
   /**
    * get label info
@@ -49,22 +118,8 @@ object AdminController extends Controller with RequestParser {
    * @return
    */
   def getLabel(labelName: String) = Action { request =>
-    Management.findLabel(labelName) match {
-      case None => NotFound(Json.obj("message" -> s"not found $labelName")).as(QueryController.applicationJsonHeader)
-      case Some(label) => Ok(label.toJson).as(QueryController.applicationJsonHeader)
-    }
-  }
-
-  /**
-   * get service info
-   * @param serviceName
-   * @return
-   */
-  def getService(serviceName: String) = Action { request =>
-    Management.findService(serviceName) match {
-      case None => NotFound
-      case Some(service) => ok(s"${service.toJson} exist.")
-    }
+    val labelOpt = Management.findLabel(labelName)
+    optionResponse(labelOpt)(_.toJson)
   }
 
   /**
@@ -74,13 +129,12 @@ object AdminController extends Controller with RequestParser {
    */
   def getLabels(serviceName: String) = Action { request =>
     Service.findByName(serviceName) match {
-      case None =>
-        bad(s"service $serviceName is not found")
+      case None => notFound(s"Service $serviceName not found")
       case Some(service) =>
-        val srcs = Label.findBySrcServiceId(service.id.get)
-        val tgts = Label.findByTgtServiceId(service.id.get)
-        val json = Json.obj("from" -> srcs.map(src => src.toJson), "to" -> tgts.map(tgt => tgt.toJson))
-        Ok(json).as(QueryController.applicationJsonHeader)
+        val src = Label.findBySrcServiceId(service.id.get)
+        val tgt = Label.findByTgtServiceId(service.id.get)
+
+        ok(Json.obj("from" -> src.map(_.toJson), "to" -> tgt.map(_.toJson)))
     }
   }
 
@@ -91,16 +145,12 @@ object AdminController extends Controller with RequestParser {
    * @return
    */
   def getServiceColumn(serviceName: String, columnName: String) = Action { request =>
-    val rets = for {
+    val serviceColumnOpt = for {
       service <- Service.findByName(serviceName)
       serviceColumn <- ServiceColumn.find(service.id.get, columnName, useCache = false)
-    } yield {
-        serviceColumn
-      }
-    rets match {
-      case None => NotFound
-      case Some(serviceColumn) => Ok(serviceColumn.toJson).as(QueryController.applicationJsonHeader)
-    }
+    } yield serviceColumn
+
+    optionResponse(serviceColumnOpt)(_.toJson)
   }
 
   /**
@@ -154,20 +204,14 @@ object AdminController extends Controller with RequestParser {
    * @return
    */
   def createServiceColumn() = Action(parse.json) { request =>
-    createServiceColumnInner(request.body)
+    val serviceColumnTry = createServiceColumnInner(request.body)
+    tryResponse(serviceColumnTry) { (columns: Seq[ColumnMeta]) => Json.obj("metas" -> columns.map(_.toJson)) }
   }
 
-  def createServiceColumnInner(jsValue: JsValue) = {
-    try {
-      val (serviceName, columnName, columnType, props) = toServiceColumnElements(jsValue)
-      Management.createServiceColumn(serviceName, columnName, columnType, props.flatMap(p => Prop.unapply(p)))
-      ok(s"$serviceName:$columnName is created.")
-    } catch {
-      case e: Throwable =>
-        Logger.error(s"$e", e)
-        bad(e.toString)
-    }
-  }
+  def createServiceColumnInner(jsValue: JsValue) = for {
+    (serviceName, columnName, columnType, props) <- toServiceColumnElements(jsValue)
+    serviceColumn <- Management.createServiceColumn(serviceName, columnName, columnType, props)
+  } yield serviceColumn
 
   /**
    * delete
@@ -179,27 +223,11 @@ object AdminController extends Controller with RequestParser {
    * @return
    */
   def deleteLabel(labelName: String) = Action { request =>
-    deleteLabelInner(labelName)
+    val deleteLabelTry = deleteLabelInner(labelName)
+    tryResponse(deleteLabelTry)(labelName => labelName + "is deleted")
   }
 
-  def deleteLabelInner(labelName: String) = {
-    Label.findByName(labelName) match {
-      case None => NotFound
-      case Some(label) =>
-        val json = label.toJson
-        label.deleteAll()
-        ok(s"${json} is deleted")
-    }
-  }
-
-  def deleteServiceColumnInner(serviceName: String, columnName: String) = {
-    for {
-      service <- Service.findByName(serviceName)
-      serviceColumn <- ServiceColumn.find(service.id.get, columnName)
-    } {
-      ServiceColumn.delete(serviceColumn.id.get)
-    }
-  }
+  def deleteLabelInner(labelName: String) = Management.deleteLabel(labelName)
 
   /**
    * delete servieColumn
@@ -208,9 +236,12 @@ object AdminController extends Controller with RequestParser {
    * @return
    */
   def deleteServiceColumn(serviceName: String, columnName: String) = Action { request =>
-    deleteServiceColumnInner(serviceName, columnName)
-    ok(s"$serviceName:$columnName is deleted")
+    val serviceColumnTry = deleteServiceColumnInner(serviceName, columnName)
+    tryResponse(serviceColumnTry)(columnName => columnName + "is deleted")
   }
+
+  def deleteServiceColumnInner(serviceName: String, columnName: String) =
+    Management.deleteColumn(serviceName, columnName)
 
   /**
    * update
@@ -222,35 +253,14 @@ object AdminController extends Controller with RequestParser {
    * @return
    */
   def addProp(labelName: String) = Action(parse.json) { request =>
-    addPropInner(labelName)(request.body) match {
-      case None =>
-        bad(s"failed to add property on $labelName")
-      case Some(p) =>
-        Ok(p.toJson).as(QueryController.applicationJsonHeader)
-    }
+    val labelMetaTry = addPropInner(labelName, request.body)
+    tryResponse(labelMetaTry)(_.toJson)
   }
 
-  def addPropInner(labelName: String)(js: JsValue) = {
-    val (propName, defaultValue, dataType, usedInIndex) = toPropElements(js)
-    for (label <- Label.findByName(labelName)) yield {
-      LabelMeta.findOrInsert(label.id.get, propName, defaultValue.toString, dataType)
-    }
-  }
-
-  /**
-   * add props to label
-   * @param labelName
-   * @return
-   */
-  def addProps(labelName: String) = Action(parse.json) { request =>
-    val jsObjs = request.body.asOpt[List[JsObject]].getOrElse(List.empty[JsObject])
-    val newProps = for {
-      js <- jsObjs
-      newProp <- addPropInner(labelName)(js)
-    } yield newProp
-
-    ok(s"${newProps.size} is added.")
-  }
+  def addPropInner(labelName: String, js: JsValue) = for {
+    prop <- toPropElements(js)
+    labelMeta <- Management.addProp(labelName, prop)
+  } yield labelMeta
 
   /**
    * add prop to serviceColumn
@@ -266,12 +276,12 @@ object AdminController extends Controller with RequestParser {
   }
 
   def addServiceColumnPropInner(serviceName: String, columnName: String)(js: JsValue) = {
-    val (propName, defaultValue, dataType, usedInIndex) = toPropElements(js)
     for {
       service <- Service.findByName(serviceName)
       serviceColumn <- ServiceColumn.find(service.id.get, columnName)
+      prop <- toPropElements(js).toOption
     } yield {
-      ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType)
+      ColumnMeta.findOrInsert(serviceColumn.id.get, prop.name, prop.defaultValue)
     }
   }
 
@@ -297,14 +307,8 @@ object AdminController extends Controller with RequestParser {
    * @return
    */
   def copyLabel(oldLabelName: String, newLabelName: String) = Action { request =>
-    try {
-      Management.copyLabel(oldLabelName, newLabelName, Some(newLabelName))
-      ok(s"$oldLabelName is copied to $newLabelName")
-    } catch {
-      case e: Throwable =>
-        Logger.error(s"$e", e)
-        bad(e.toString())
-    }
+    val copyTry = Management.copyLabel(oldLabelName, newLabelName, Some(newLabelName))
+    tryResponse(copyTry)(_.label + "created")
   }
 
   /**

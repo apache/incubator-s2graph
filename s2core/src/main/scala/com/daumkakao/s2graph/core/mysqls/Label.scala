@@ -22,6 +22,13 @@ object Label extends Model[Label] {
       rs.string("hbase_table_name"), rs.intOpt("hbase_table_ttl"), rs.string("schema_version"), rs.boolean("is_async"), rs.string("compressionAlgorithm"))
   }
 
+  def deleteAll(label: Label)(implicit session: DBSession) = {
+    val id = label.id
+    LabelMeta.findAllByLabelId(id.get, false).foreach { x => LabelMeta.delete(x.id.get) }
+    LabelIndex.findByLabelIdAll(id.get, false).foreach { x => LabelIndex.delete(x.id.get) }
+    Label.delete(id.get)
+  }
+
   def findByName(label: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[Label] = {
     val cacheKey = "label=" + label
     lazy val labelOpt = sql"""
@@ -295,10 +302,6 @@ case class Label(id: Option[Int], label: String,
     "metaProps" -> metaProps.map(_.toJson)
   )
 
-  def deleteAll() = {
-    LabelMeta.findAllByLabelId(id.get, false).foreach { x => LabelMeta.delete(x.id.get) }
-    LabelIndex.findByLabelIdAll(id.get, false).foreach { x => LabelIndex.delete(x.id.get) }
-    Label.delete(id.get)
-  }
+
 }
 
