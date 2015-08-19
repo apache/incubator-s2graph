@@ -299,7 +299,7 @@ case class Label(id: Option[Int], label: String,
     "from" -> srcColumn.toJson, "to" -> tgtColumn.toJson,
     "defaultIndex" -> defaultIndex.map(x => x.toJson),
     "extraIndex" -> extraIndices.map(exIdx => exIdx.toJson),
-    "metaProps" -> metaProps.map(_.toJson)
+    "metaProps" -> metaProps.filter { labelMeta => LabelMeta.isValidSeq(labelMeta.seq) }.map(_.toJson)
   )
 
 

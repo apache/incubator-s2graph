@@ -2,7 +2,7 @@ package controllers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
-import play.api.libs.json.{JsObject, JsValue, Json}
+import play.api.libs.json._
 import play.api.mvc.{Action, Controller}
 import play.api.{Logger, mvc}
 
@@ -71,7 +71,10 @@ object AdminController extends Controller with RequestParser {
     case Success(m) => ok(callback(m))
     case Failure(error) =>
       Logger.error(error.getMessage, error)
-      bad(error.getMessage)
+      error match {
+        case JsResultException(e) => bad(JsError.toFlatJson(e))
+        case _ => bad(error.getMessage)
+      }
   }
 
   def optionResponse[T, R: AdminMessageFormatter](res: Option[T])(callback: T => R): mvc.Result = res match {
@@ -163,7 +166,7 @@ object AdminController extends Controller with RequestParser {
    */
   def createService() = Action(parse.json) { request =>
     val serviceTry = createServiceInner(request.body)
-    tryResponse(serviceTry)(_.serviceName + "is created")
+    tryResponse(serviceTry)(_.toJson)
   }
 
   def createServiceInner(jsValue: JsValue) = {
@@ -177,7 +180,7 @@ object AdminController extends Controller with RequestParser {
    */
   def createLabel() = Action(parse.json) { request =>
     val ret = createLabelInner(request.body)
-    tryResponse(ret)(_.label + "is created")
+    tryResponse(ret)(_.toJson)
   }
 
   def createLabelInner(json: JsValue) = for {

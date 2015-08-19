@@ -363,7 +363,7 @@ trait RequestParser extends JSONParser {
     }
 
   def toIndicesElements(jsValue: JsValue): Seq[Index] = for {
-    jsObj <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
+    jsObj <- jsValue.as[Seq[JsValue]]
     indexName = (jsObj \ "name").as[String]
     propNames = (jsObj \ "propNames").as[Seq[String]]
   } yield Index(indexName, propNames)
