@@ -313,19 +313,17 @@ trait SpecCommon extends Specification {
         Management.deleteLabel(labelName)
         Label.findByName(labelName, useCache = false) match {
           case None =>
-            result = AdminController.createLabelInner(Json.parse(create))
-            Logger.error(s">> Label created : $create, $result")
+            AdminController.createLabelInner(Json.parse(create))
           case Some(label) =>
             Logger.error(s">> Label already exist: $create, $label")
         }
       }
-
       println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-       //5. create vertex
+      //5. create vertex
 
-//      vertexPropsKeys.map { case (key, keyType) =>
-//        Management.addVertexProp(testServiceName, testColumnName, key, keyType)
-//      }
+      //      vertexPropsKeys.map { case (key, keyType) =>
+      //        Management.addVertexProp(testServiceName, testColumnName, key, keyType)
+      //      }
 
       Thread.sleep(asyncFlushInterval)
     }

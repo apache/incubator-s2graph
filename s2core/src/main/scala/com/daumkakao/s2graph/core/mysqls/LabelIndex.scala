@@ -21,14 +21,14 @@ object LabelIndex extends Model[LabelIndex] {
       rs.string("formulars"))
   }
 
-  def findById(id: Int) = {
+  def findById(id: Int)(implicit session: DBSession = AutoSession) = {
     val cacheKey = "id=" + id
     withCache(cacheKey) {
       sql"""select * from label_indices where id = ${id}""".map { rs => LabelIndex(rs) }.single.apply
     }.get
   }
 
-  def findByLabelIdAll(labelId: Int, useCache: Boolean = true) = {
+  def findByLabelIdAll(labelId: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession) = {
     val cacheKey = "labelId=" + labelId
     if (useCache) {
       withCaches(cacheKey)( sql"""
@@ -41,7 +41,7 @@ object LabelIndex extends Model[LabelIndex] {
     }
   }
 
-  def insert(labelId: Int, indexName: String, seq: Byte, metaSeqs: List[Byte], formulars: String): Long = {
+  def insert(labelId: Int, indexName: String, seq: Byte, metaSeqs: List[Byte], formulars: String)(implicit session: DBSession = AutoSession): Long = {
     sql"""
     	insert into label_indices(label_id, name, seq, meta_seqs, formulars)
     	values (${labelId}, ${indexName}, ${seq}, ${metaSeqs.mkString(",")}, ${formulars})
@@ -49,8 +49,7 @@ object LabelIndex extends Model[LabelIndex] {
       .updateAndReturnGeneratedKey.apply()
   }
 
-  def findOrInsert(labelId: Int, indexName: String, metaSeqs: List[Byte], formulars: String): LabelIndex = {
-    //    Logger.debug(s"findOrInsert: $labelId, $seq, $metaSeqs, $formulars")
+  def findOrInsert(labelId: Int, indexName: String, metaSeqs: List[Byte], formulars: String)(implicit session: DBSession = AutoSession): LabelIndex = {
     findByLabelIdAndSeqs(labelId, metaSeqs) match {
       case Some(s) => s
       case None =>
@@ -65,7 +64,7 @@ object LabelIndex extends Model[LabelIndex] {
     }
   }
 
-  def findByLabelIdAndSeqs(labelId: Int, seqs: List[Byte]): Option[LabelIndex] = {
+  def findByLabelIdAndSeqs(labelId: Int, seqs: List[Byte])(implicit session: DBSession = AutoSession): Option[LabelIndex] = {
     val cacheKey = "labelId=" + labelId + ":seqs=" + seqs.mkString(",")
     withCache(cacheKey) {
       sql"""
@@ -74,7 +73,7 @@ object LabelIndex extends Model[LabelIndex] {
     }
   }
 
-  def findByLabelIdAndSeq(labelId: Int, seq: Byte, useCache: Boolean = true): Option[LabelIndex] = {
+  def findByLabelIdAndSeq(labelId: Int, seq: Byte, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[LabelIndex] = {
     //    val cacheKey = s"labelId=$labelId:seq=$seq"
     val cacheKey = "labelId=" + labelId + ":seq=" + seq
     if (useCache) {
@@ -88,7 +87,7 @@ object LabelIndex extends Model[LabelIndex] {
     }
   }
 
-  def delete(id: Int) = {
+  def delete(id: Int)(implicit session: DBSession = AutoSession) = {
     val labelIndex = findById(id)
     val seqs = labelIndex.metaSeqs.mkString(",")
     val (labelId, seq) = (labelIndex.labelId, labelIndex.seq)
@@ -97,7 +96,7 @@ object LabelIndex extends Model[LabelIndex] {
     cacheKeys.foreach(expireCache(_))
   }
 
-  def findAll() = {
+  def findAll()(implicit session: DBSession = AutoSession) = {
     val ls = sql"""select * from label_indices""".map { rs => LabelIndex(rs) }.list.apply
     putsToCache(ls.map { x =>
       var cacheKey = s"id=${x.id.get}"

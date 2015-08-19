@@ -99,7 +99,7 @@ object Graph {
     this.config = config.withFallback(this.config)
     this.hbaseConfig = toHBaseConfig(this.config)
 
-    Model.apply(this.config)
+    Model(this.config)
 
     this.executionContext = ex
     this.singleGetTimeout = this.config.getInt("hbase.client.operation.timeout")

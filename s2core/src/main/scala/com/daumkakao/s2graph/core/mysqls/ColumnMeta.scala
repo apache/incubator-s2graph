@@ -1,6 +1,5 @@
 package com.daumkakao.s2graph.core.mysqls
 
-import play.api.Logger
 import play.api.libs.json.Json
 import scalikejdbc._
 
@@ -16,7 +15,7 @@ object ColumnMeta extends Model[ColumnMeta] {
     ColumnMeta(Some(rs.int("id")), rs.int("column_id"), rs.string("name"), rs.byte("seq"), rs.string("data_type").toLowerCase())
   }
 
-  def findById(id: Int) = {
+  def findById(id: Int)(implicit session: DBSession = AutoSession) = {
 //    val cacheKey = s"id=$id"
     val cacheKey = "id=" + id
     withCache(cacheKey) {
@@ -24,7 +23,7 @@ object ColumnMeta extends Model[ColumnMeta] {
     }.get
   }
 
-  def findAllByColumn(columnId: Int, useCache: Boolean = true) = {
+  def findAllByColumn(columnId: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession) = {
 //    val cacheKey = s"columnId=$columnId"
     val cacheKey = "columnId=" + columnId
     if (useCache) {
@@ -36,14 +35,14 @@ object ColumnMeta extends Model[ColumnMeta] {
     }
   }
 
-  def findByName(columnId: Int, name: String) = {
+  def findByName(columnId: Int, name: String)(implicit session: DBSession = AutoSession) = {
 //    val cacheKey = s"columnId=$columnId:name=$name"
     val cacheKey = "columnId=" + columnId + ":name=" + name
     withCache(cacheKey)( sql"""select * from column_metas where column_id = ${columnId} and name = ${name}"""
       .map { rs => ColumnMeta(rs) }.single.apply())
   }
 
-  def insert(columnId: Int, name: String, dataType: String) = {
+  def insert(columnId: Int, name: String, dataType: String)(implicit session: DBSession = AutoSession) = {
     val ls = findAllByColumn(columnId, false)
     val seq = ls.size + 1
     if (seq <= maxValue) {
@@ -53,7 +52,7 @@ object ColumnMeta extends Model[ColumnMeta] {
     }
   }
 
-  def findOrInsert(columnId: Int, name: String, dataType: String): ColumnMeta = {
+  def findOrInsert(columnId: Int, name: String, dataType: String)(implicit session: DBSession = AutoSession): ColumnMeta = {
     //    play.api.Logger.debug(s"findOrInsert: $columnId, $name")
     findByName(columnId, name) match {
       case Some(c) => c
@@ -64,7 +63,7 @@ object ColumnMeta extends Model[ColumnMeta] {
     }
   }
 
-  def findByIdAndSeq(columnId: Int, seq: Byte, useCache: Boolean = true) = {
+  def findByIdAndSeq(columnId: Int, seq: Byte, useCache: Boolean = true)(implicit session: DBSession = AutoSession) = {
 //    val cacheKey = s"columnId=$columnId:seq=$seq"
     val cacheKey = "columnId=" + columnId + ":seq=" + seq
     if (useCache) {
@@ -78,7 +77,7 @@ object ColumnMeta extends Model[ColumnMeta] {
     }
   }
 
-  def delete(id: Int) = {
+  def delete(id: Int)(implicit session: DBSession = AutoSession) = {
     val columnMeta = findById(id)
     val (columnId, name) = (columnMeta.columnId, columnMeta.name)
     sql"""delete from column_metas where id = ${id}""".execute.apply()
@@ -86,7 +85,7 @@ object ColumnMeta extends Model[ColumnMeta] {
     cacheKeys.foreach(expireCache(_))
   }
 
-  def findAll() = {
+  def findAll()(implicit session: DBSession = AutoSession) = {
     val ls = sql"""select * from column_metas""".map { rs => ColumnMeta(rs) }.list().apply()
     putsToCache(ls.map { x =>
       var cacheKey = s"id=${x.id.get}"
