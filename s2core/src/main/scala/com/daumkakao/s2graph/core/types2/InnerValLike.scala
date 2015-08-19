@@ -201,6 +201,8 @@ trait InnerValLike extends HBaseSerializable {
 
   override def toString(): String = value.toString
 
+  override def hashCode(): Int = value.hashCode()
+
   override def equals(obj: Any): Boolean = {
     obj match {
       case other: InnerValLike =>
@@ -210,9 +212,9 @@ trait InnerValLike extends HBaseSerializable {
       case _ => false
     }
   }
-  def hashKey(dataType: String): Int = ???
+  def hashKey(dataType: String): Int
 
-  def toIdString(): String = ???
+  def toIdString(): String
 
 }
 

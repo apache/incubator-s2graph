@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph.core.parsers
 
 import com.daumkakao.s2graph.core._
+import play.api.Logger
 
 //import com.daumkakao.s2graph.core.models.{LabelMeta, Label}
 
@@ -110,8 +111,8 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
 
   def where: Parser[Where] = rep(clause) ^^ (Where(_))
 
-  def clause: Parser[Clause] = (predicate | parens) * (
-    "and" ^^^ { (a: Clause, b: Clause) => And(a, b) } |
+  def clause: Parser[Clause] = (predicate | parens) *
+    ("and" ^^^ { (a: Clause, b: Clause) => And(a, b) } |
       "or" ^^^ { (a: Clause, b: Clause) => Or(a, b) })
 
   def parens: Parser[Clause] = "(" ~> clause <~ ")"
@@ -122,9 +123,9 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
     case _ ~ v => "-" + v
   })
 
-  /** floating point is not supported yet **/
+  /** TODO: exception on toInnerVal with wrong type */
   def predicate = (
-    ident ~ "=" ~ ".*".r ^^ {
+    (ident ~ "=" ~ ident | ident ~ "=" ~ decimalNumber | ident ~ "=" ~ stringLiteralWithMinus)^^ {
       case f ~ "=" ~ s =>
         metaProps.get(f) match {
           case None =>
@@ -139,7 +140,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
             }
         }
     }
-      | ident ~ "!=" ~ ".*".r ^^ {
+      | (ident ~ "=" ~ ident | ident ~ "=" ~ decimalNumber | ident ~ "=" ~ stringLiteralWithMinus) ^^ {
       case f ~ "!=" ~ s =>
         metaProps.get(f) match {
           case None =>
@@ -194,7 +195,9 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
   def parse(sql: String): Option[Where] = {
     parseAll(where, sql) match {
       case Success(r, q) => Some(r)
-      case x => play.api.Logger.error(x.toString); None
+      case x =>
+        Logger.error(x.toString)
+        None
     }
   }
 }

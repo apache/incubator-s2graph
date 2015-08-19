@@ -31,3 +31,4 @@ libraryDependencies ++= Seq(
 
 parallelExecution in Test := false
 
+testOptions in Test += Tests.Argument("-oDF")

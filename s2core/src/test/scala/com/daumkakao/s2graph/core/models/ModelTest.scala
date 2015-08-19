@@ -2,6 +2,7 @@ package com.daumkakao.s2graph.core.models
 
 import java.util.concurrent.ExecutorService
 
+import com.daumkakao.s2graph.core.mysqls.{Label, Model}
 import com.daumkakao.s2graph.core.{TestCommonWithModels, TestCommon, Graph}
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{FunSuite, Matchers}
@@ -13,8 +14,6 @@ import scala.concurrent.ExecutionContext
  */
 class ModelTest extends FunSuite with Matchers with TestCommonWithModels {
 
-  Graph(config)(ExecutionContext.Implicits.global)
-  Model(zkQuorum)
 //  val serviceName = "testService"
 //  val newServiceName = "newTestService"
 //  val cluster = "localhost"

@@ -53,6 +53,7 @@ class JsonParserTest extends FunSuite with Matchers with TestCommon with JSONPar
       (decodedOpt.isDefined && innerVal == decodedOpt.get) shouldBe true
     }
   }
+
   test("aa") {
     val innerVal = InnerVal.withStr("abc", VERSION2)
     val tmp = innerValToJsValue(innerVal, "string")

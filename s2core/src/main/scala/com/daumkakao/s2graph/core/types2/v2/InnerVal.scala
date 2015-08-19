@@ -100,13 +100,6 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
     ret
   }
 
-  override def equals(obj: Any) = {
-    //    Logger.debug(s"InnerVal.equals: $this")
-    obj match {
-      case other: InnerVal => value == other.value
-      case _ => false
-    }
-  }
 
   override def hashKey(dataType: String): Int = {
     if (value.isInstanceOf[String]) {
@@ -126,28 +119,10 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
     }
   }
 
-  override def hashCode(): Int = {
-    //    Logger.debug(s"InnerVal.hashCode: $this")
-    value.hashCode()
-  }
-
   def compare(other: InnerValLike): Int = {
-    //    Logger.debug(s"InnerVal.compare: $this")
     if (!other.isInstanceOf[InnerVal])
       throw new RuntimeException(s"compare $this vs $other")
     Bytes.compareTo(bytes, other.bytes) * -1
-    //    (value, other.value) match {
-    //      case (v1: BigDecimal, v2: BigDecimal) =>
-    //        v1.compare(v2)
-    //      case (v1: String, v2: String) =>
-    //        v1.compareTo(v2)
-    //      case (v1: Boolean, v2: Boolean) =>
-    //        v1.compareTo(v2)
-    //      case (v1: Array[Byte], v2: Array[Byte]) =>
-    //        Bytes.compareTo(v1, v2)
-    //      case _ =>
-    //        throw new RuntimeException(s"compare between $this and $other failed.")
-    //    }
   }
 
   def +(other: InnerValLike): InnerValLike = {
@@ -160,14 +135,7 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
     }
   }
 
-  def <(other: InnerVal) = this.compare(other) < 0
-
-  def <=(other: InnerVal) = this.compare(other) <= 0
-
-  def >(other: InnerVal) = this.compare(other) > 0
-
-  def >=(other: InnerVal) = this.compare(other) >= 0
-
+  //need to be removed ??
   override def toString(): String = {
 //    value.toString()
     value match {

@@ -1,5 +1,7 @@
 package com.daumkakao.s2graph.core
- import com.daumkakao.s2graph.core.mysqls._
+
+import com.daumkakao.s2graph.core.Management.JsonModel.{Index, Prop}
+import com.daumkakao.s2graph.core.mysqls._
 //import com.daumkakao.s2graph.core.models._
 
 
@@ -43,18 +45,16 @@ trait TestCommonWithModels {
   val LABEMETA = LabelMeta
 
   val testProps = Seq(
-    ("is_blocked", "false", BOOLEAN),
-    ("time", "0", INT),
-    ("weight", "0", INT),
-    ("is_hidden", "true", BOOLEAN),
-    ("phone_number", "xxx-xxx-xxxx", STRING),
-    ("score", "0.1", FLOAT),
-    ("age", "10", INT)
+    Prop("affinity_score", "0.0", DOUBLE),
+    Prop("is_blocked", "false", BOOLEAN),
+    Prop("time", "0", INT),
+    Prop("weight", "0", INT),
+    Prop("is_hidden", "true", BOOLEAN),
+    Prop("phone_number", "xxx-xxx-xxxx", STRING),
+    Prop("score", "0.1", FLOAT),
+    Prop("age", "10", INT)
   )
-  val testIdxProps = Seq(
-    ("_timestamp", "0", "long"),
-    ("affinity_score", "0.0", "double")
-  )
+  val testIdxProps = Seq(Index("_PK", Seq("_timestamp", "affinity_score")))
   val consistencyLevel = "strong"
   val hTableTTL = None
 
