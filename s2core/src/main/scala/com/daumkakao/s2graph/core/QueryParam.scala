@@ -105,18 +105,39 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
     val tokens = fmt.split(delimiter)
     val mergedStr = tokens.zip(values).map { case (prefix, innerVal) => prefix + innerVal.toString }.mkString
     //    Logger.error(s"${tokens.toList}, ${values}, $mergedStr")
-    val nextQueryParams = nextStepOpt.map(_.queryParams).getOrElse(Seq(queryParam)).filter { qParam =>
-      if (qParam.labelWithDir.dir == GraphUtil.directions("out")) qParam.label.tgtColumnType == "string"
-      else qParam.label.srcColumnType == "string"
+    //    println(s"${tokens.toList}, ${values}, $mergedStr")
+    nextStepOpt match {
+      case None =>
+        val columnType =
+          if (queryParam.labelWithDir.dir == GraphUtil.directions("out")) queryParam.label.tgtColumnType
+          else queryParam.label.srcColumnType
+
+        if (columnType == InnerVal.STRING) Seq(InnerVal.withStr(mergedStr, queryParam.label.schemaVersion))
+        else Nil
+      case Some(nextStep) =>
+        val nextQueryParamsValid = nextStep.queryParams.filter { qParam =>
+          if (qParam.labelWithDir.dir == GraphUtil.directions("out")) qParam.label.srcColumnType == "string"
+          else qParam.label.tgtColumnType == "string"
+        }
+        for {
+          nextQueryParam <- nextQueryParamsValid
+        } yield {
+          InnerVal.withStr(mergedStr, nextQueryParam.label.schemaVersion)
+        }
     }
-    for {
-      nextQueryParam <- nextQueryParams
-    } yield {
-      InnerVal.withStr(mergedStr, nextQueryParam.label.schemaVersion)
-    }
+//    val nextQueryParams = nextStepOpt.map(_.queryParams).getOrElse(Seq(queryParam)).filter { qParam =>
+//      if (qParam.labelWithDir.dir == GraphUtil.directions("out")) qParam.label.tgtColumnType == "string"
+//      else qParam.label.srcColumnType == "string"
+//    }
+//    for {
+//      nextQueryParam <- nextQueryParams
+//    } yield {
+//      InnerVal.withStr(mergedStr, nextQueryParam.label.schemaVersion)
+//    }
   }
 
   def toInnerValOpt(edge: Edge, fieldName: String): Option[InnerValLike] = {
+
     fieldName match {
       case LabelMeta.to.name => Option(edge.tgtVertex.innerId)
       case LabelMeta.from.name => Option(edge.srcVertex.innerId)
@@ -137,6 +158,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
       target <- jsValue.asOpt[List[List[String]]].toList
       fields <- target if fields != EdgeTransformer.defaultTransformField.as[List[String]]
       innerVal <- {
+
         if (fields.size == 1) {
           val fieldName = fields.head
           toInnerValOpt(edge, fieldName).toSeq
@@ -194,21 +216,22 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
     this.keySeqAndWeights = List((LabelMeta.countSeq, 1.0))
     this
   }
-//
-//  def singleKey(key: String) = {
-//    this.keySeqAndWeights =
-//      LabelMeta.findByName(labelId, key) match {
-//        case None => List.empty[(Byte, Double)]
-//        case Some(ktype) => List((ktype.seq, 1.0))
-//      }
-//    this
-//  }
-//
-//  def multipleKey(keyAndWeights: Seq[(String, Double)]) = {
-//    this.keySeqAndWeights =
-//      for ((key, weight) <- keyAndWeights; row <- LabelMeta.findByName(labelId, key)) yield (row.seq, weight)
-//    this
-//  }
+
+  //
+  //  def singleKey(key: String) = {
+  //    this.keySeqAndWeights =
+  //      LabelMeta.findByName(labelId, key) match {
+  //        case None => List.empty[(Byte, Double)]
+  //        case Some(ktype) => List((ktype.seq, 1.0))
+  //      }
+  //    this
+  //  }
+  //
+  //  def multipleKey(keyAndWeights: Seq[(String, Double)]) = {
+  //    this.keySeqAndWeights =
+  //      for ((key, weight) <- keyAndWeights; row <- LabelMeta.findByName(labelId, key)) yield (row.seq, weight)
+  //    this
+  //  }
 }
 
 object QueryParam {
@@ -228,7 +251,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   var labelOrderSeq = fullKey
 
-//  var outputFields: Seq[LabelMeta] = Seq(LabelMeta.to)
+  //  var outputFields: Seq[LabelMeta] = Seq(LabelMeta.to)
   //  var start = OrderProps.empty
   //  var end = OrderProps.empty
   var limit = 10
@@ -347,10 +370,10 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this
   }
 
-//  def outputFields(ofs: Seq[LabelMeta] = Seq(LabelMeta.to)): QueryParam = {
-//    this.outputFields = ofs
-//    this
-//  }
+  //  def outputFields(ofs: Seq[LabelMeta] = Seq(LabelMeta.to)): QueryParam = {
+  //    this.outputFields = ofs
+  //    this
+  //  }
 
   def has(hasFilters: Map[Byte, InnerValLike]): QueryParam = {
     this.hasFilters = hasFilters
@@ -411,6 +434,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   }
 
   def isSnapshotEdge(): Boolean = tgtVertexInnerIdOpt.isDefined
+
   //  def excludeBy(other: Option[String]): QueryParam = {
   //    this.excludeBy = other
   //    this
@@ -418,7 +442,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   override def toString(): String = {
     List(label.label, labelOrderSeq, offset, limit, rank, isRowKeyOnly,
       duration, isInverted, exclude, include, hasFilters).mkString("\t")
-//      duration, isInverted, exclude, include, hasFilters, outputFields).mkString("\t")
+    //      duration, isInverted, exclude, include, hasFilters, outputFields).mkString("\t")
   }
 
 

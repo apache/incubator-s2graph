@@ -1,5 +1,6 @@
 package com.daumkakao.s2graph.core.types2.v1
 
+import com.daumkakao.s2graph.core.GraphUtil
 import com.daumkakao.s2graph.core.types2._
 import org.apache.hadoop.hbase.util.Bytes
 
@@ -15,16 +16,26 @@ object EdgeQualifier extends HBaseDeserializable {
                 version: String = VERSION1): (EdgeQualifier, Int) = {
     var pos = offset
     var numOfBytesUsedTotal = 0
-    /** changed not to store op bytes on edge qualifier */
-    val op = bytes(offset + len - 1)
-    numOfBytesUsedTotal += 1
+
     val (props, tgtVertexId) = {
-      val (decodedProps, endAt) = bytesToProps(bytes, pos, version)
-      val (decodedVId, numOfBytesUsed) = TargetVertexId.fromBytes(bytes, endAt, len, version)
-      numOfBytesUsedTotal += numOfBytesUsed + (endAt - offset)
-      (decodedProps, decodedVId)
+      val (props, endAt) = bytesToProps(bytes, pos, version)
+      numOfBytesUsedTotal += endAt - offset
+
+
+      val (tgtVertexId, numOfBytesUsed) = if (endAt == offset + len) {
+        (defaultTgtVertexId, 0)
+      } else {
+        TargetVertexId.fromBytes(bytes, endAt, len, version)
+      }
+      numOfBytesUsedTotal += numOfBytesUsed
+      (props, tgtVertexId)
     }
-    (EdgeQualifier(props, tgtVertexId, op), numOfBytesUsedTotal)
+    val (op, opBytesUsed) =
+      if (offset + numOfBytesUsedTotal == len) (GraphUtil.defaultOpByte, 0)
+      else {
+        (bytes(offset + numOfBytesUsedTotal), 1)
+      }
+    (EdgeQualifier(props, tgtVertexId, op), numOfBytesUsedTotal + opBytesUsed)
   }
 }
 case class EdgeQualifier(props: Seq[(Byte, InnerValLike)],
