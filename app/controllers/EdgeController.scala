@@ -121,7 +121,7 @@ object EdgeController extends Controller with RequestParser {
       val json = results.map { case (isSuccess, resultCount) =>
         Json.obj("success" -> isSuccess, "result" -> resultCount)
       }
-      Ok(json)
+      Ok(Json.toJson(json))
     }
   }
 

@@ -1169,6 +1169,7 @@ object Edge extends JSONParser {
 
 
   def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = {
+    implicit val ex = Graph.executionContext
     val defers: Seq[Deferred[(Boolean, Long)]] = for {
       edge <- edges
     } yield {
