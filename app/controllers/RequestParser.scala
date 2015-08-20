@@ -120,7 +120,7 @@ trait RequestParser extends JSONParser {
             }
           }).flatten
 
-      if (vertices.isEmpty) throw new BadQueryException("srcVertices`s id is empty")
+//      if (vertices.isEmpty) throw new BadQueryException("srcVertices`s id is empty")
 
       val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v) }
       val steps = parse[List[JsValue]](jsValue, "steps")
@@ -165,7 +165,7 @@ trait RequestParser extends JSONParser {
                   (queryParam.label.tgtService.serviceName, queryParam.label.tgtColumnName)
                 }
               //FIXME:
-              if (!vertices.exists(v => v.service.serviceName == serviceName && v.serviceColumn.columnName == columnName)) {
+              if (vertices.nonEmpty && !vertices.exists(v => v.service.serviceName == serviceName && v.serviceColumn.columnName == columnName)) {
                 throw new BadQueryException("srcVertices contains incompatiable serviceName or columnName with first step.")
               }
 
