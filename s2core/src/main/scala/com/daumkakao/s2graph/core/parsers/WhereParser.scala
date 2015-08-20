@@ -105,9 +105,15 @@ case class Or(val left: Clause, val right: Clause) extends Clause {
   }
 }
 
+object WhereParser {
+  val anyStr = "[^\\s()]*".r
+}
 case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
 
+  import WhereParser.anyStr
+
   val metaProps = label.metaPropsInvMap
+
 
   def where: Parser[Where] = rep(clause) ^^ (Where(_))
 
@@ -123,9 +129,12 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
     case _ ~ v => "-" + v
   })
 
+
+  def anyValue = "[a-zA-Z0-9-._]"r
+
   /** TODO: exception on toInnerVal with wrong type */
   def predicate = (
-    (ident ~ "=" ~ ident | ident ~ "=" ~ decimalNumber | ident ~ "=" ~ stringLiteralWithMinus)^^ {
+    ident ~ "=" ~ anyStr ^^ {
       case f ~ "=" ~ s =>
         metaProps.get(f) match {
           case None =>
@@ -140,7 +149,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
             }
         }
     }
-      | (ident ~ "=" ~ ident | ident ~ "=" ~ decimalNumber | ident ~ "=" ~ stringLiteralWithMinus) ^^ {
+      | ident ~ "!=" ~ anyStr ^^ {
       case f ~ "!=" ~ s =>
         metaProps.get(f) match {
           case None =>
@@ -189,14 +198,22 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
             }
             Not(IN(metaProp.seq, values.toSet))
         }
+
+      case _ => throw new RuntimeException(s"failed to parse where clause. ")
     }
     )
 
   def parse(sql: String): Option[Where] = {
-    parseAll(where, sql) match {
-      case Success(r, q) => Some(r)
-      case x =>
-        Logger.error(x.toString)
+    try {
+      parseAll(where, sql) match {
+        case Success(r, q) => Some(r)
+        case x =>
+          Logger.error(x.toString)
+          None
+      }
+    } catch {
+      case ex: Exception =>
+        Logger.error(s"parsing $sql failed.", ex)
         None
     }
   }
