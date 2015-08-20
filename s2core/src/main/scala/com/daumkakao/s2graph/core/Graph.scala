@@ -182,17 +182,6 @@ object Graph {
     })
   }
 
-  //  def deferredCallback[R, T](d: Deferred[T])(f: T => R, fallback: => R) = {
-  //    d.addCallback(new Callback[R, T]{
-  //      def call(args: T): R = {
-  //        args match {
-  //          case ex: Throwable =>
-  //            Logger.error(s"$ex", ex)
-  //
-  //        }
-  //      }
-  //    })
-  //  }
 
   def writeAsyncWithWait(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]]): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
