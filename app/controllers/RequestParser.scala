@@ -120,6 +120,8 @@ trait RequestParser extends JSONParser {
             }
           }).flatten
 
+      if (vertices.isEmpty) throw new BadQueryException("srcVertices`s id is empty")
+
       val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v) }
       val steps = parse[List[JsValue]](jsValue, "steps")
       val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
@@ -143,10 +145,6 @@ trait RequestParser extends JSONParser {
             case obj: JsObject => (obj \ "step").as[List[JsValue]]
             case _ => List.empty[JsValue]
           }
-          //          val stepThreshold = step match {
-          //            case obj: JsObject => (obj \ "stepThreshold").asOpt[Double].getOrElse(0.0)
-          //            case _ => 0.0
-          //          }
           val nextStepScoreThreshold = step match {
             case obj: JsObject => (obj \ "nextStepThreshold").asOpt[Double].getOrElse(QueryParam.defaultThreshold)
             case _ => QueryParam.defaultThreshold
@@ -167,8 +165,9 @@ trait RequestParser extends JSONParser {
                   (queryParam.label.tgtService.serviceName, queryParam.label.tgtColumnName)
                 }
               //FIXME:
-              if (!vertices.exists(v => v.service.serviceName == serviceName && v.serviceColumn.columnName == columnName))
+              if (!vertices.exists(v => v.service.serviceName == serviceName && v.serviceColumn.columnName == columnName)) {
                 throw new BadQueryException("srcVertices contains incompatiable serviceName or columnName with first step.")
+              }
 
               queryParam
             }
