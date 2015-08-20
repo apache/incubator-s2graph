@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.mysqls._
-import play.api.libs.json.{JsString, JsValue, Json}
+import play.api.libs.json.{JsNumber, JsValue, Json}
 
 import scala.util.hashing.MurmurHash3
 
@@ -79,11 +79,9 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
       })
   }
 
-  def impressionId(): JsString = {
-
+  def impressionId(): JsNumber = {
     val hash = MurmurHash3.stringHash(templateId().toString())
-
-    JsString(hash.toString())
+    JsNumber(hash)
   }
 }
 
