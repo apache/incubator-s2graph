@@ -1,5 +1,6 @@
 package controllers
 
+import com.daumkakao.s2graph.core.KGraphExceptions.BadQueryException
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.parsers.WhereParser
@@ -147,8 +148,8 @@ trait RequestParser extends JSONParser {
           //            case _ => 0.0
           //          }
           val nextStepScoreThreshold = step match {
-            case obj: JsObject => (obj \ "nextStepThreshold").asOpt[Double].getOrElse(0.0)
-            case _ => 0.0
+            case obj: JsObject => (obj \ "nextStepThreshold").asOpt[Double].getOrElse(QueryParam.defaultThreshold)
+            case _ => QueryParam.defaultThreshold
           }
           val nextStepLimit = step match {
             case obj: JsObject => (obj \ "nextStepLimit").asOpt[Int].getOrElse(-1)
@@ -159,6 +160,16 @@ trait RequestParser extends JSONParser {
               labelGroup <- queryParamJsVals
               queryParam <- parseQueryParam(labelGroup)
             } yield {
+              val (serviceName, columnName) =
+                if (queryParam.labelWithDir.dir == GraphUtil.directions("out")) {
+                  (queryParam.label.srcService.serviceName, queryParam.label.srcColumnName)
+                } else {
+                  (queryParam.label.tgtService.serviceName, queryParam.label.tgtColumnName)
+                }
+              //FIXME:
+              if (!vertices.exists(v => v.service.serviceName == serviceName && v.serviceColumn.columnName == columnName))
+                throw new BadQueryException("srcVertices contains incompatiable serviceName or columnName with first step.")
+
               queryParam
             }
           Step(queryParams.toList, labelWeights = labelWeights,
@@ -171,6 +182,9 @@ trait RequestParser extends JSONParser {
       Logger.debug(ret.toString)
       ret
     } catch {
+      case e: BadQueryException =>
+        errorLogger.error(s"$e", e)
+        throw e
       case e: Throwable =>
         errorLogger.error(s"$e", e)
         throw new KGraphExceptions.BadQueryException(s"$jsValue", e)

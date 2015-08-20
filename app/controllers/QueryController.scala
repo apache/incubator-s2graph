@@ -22,7 +22,7 @@ object QueryController extends Controller with RequestParser {
    * only for test
    */
 
-  private def badQueryExceptionResults = Future.successful(BadRequest("""{"message": "Bad Request"}""").as(applicationJsonHeader))
+  private def badQueryExceptionResults(ex: Exception) = Future.successful(BadRequest(s"""{"message": "${ex.getMessage}"}""").as(applicationJsonHeader))
   private def errorResults = Future.successful(Ok(s"${PostProcess.timeoutResults}\n").as(applicationJsonHeader))
   /**
    * end of only for test
@@ -71,8 +71,8 @@ object QueryController extends Controller with RequestParser {
 //      }
     } catch {
       case e: KGraphExceptions.BadQueryException =>
-        errorLogger.error(s"$jsonQuery, $e", e)
-        badQueryExceptionResults
+        Logger.error(s"$jsonQuery, $e", e)
+        badQueryExceptionResults(e)
       case e: Throwable =>
         errorLogger.error(s"$jsonQuery, $e", e)
         // watch tower
@@ -104,7 +104,7 @@ object QueryController extends Controller with RequestParser {
     } catch {
       case e: KGraphExceptions.BadQueryException =>
         errorLogger.error(s"$jsonQuery, $e", e)
-        badQueryExceptionResults
+        badQueryExceptionResults(e)
       case e: Throwable =>
         errorLogger.error(s"$jsonQuery, $e", e)
         // watch tower
@@ -167,7 +167,7 @@ object QueryController extends Controller with RequestParser {
     } catch {
       case e: KGraphExceptions.BadQueryException =>
         errorLogger.error(s"$jsonQuery, $e", e)
-        badQueryExceptionResults
+        badQueryExceptionResults(e)
       //        Future.successful(BadRequest(request.body).as(applicationJsonHeader))
       case e: Throwable =>
         errorLogger.error(s"$jsonQuery, $e", e)
@@ -196,7 +196,7 @@ object QueryController extends Controller with RequestParser {
     } catch {
       case e: KGraphExceptions.BadQueryException =>
         errorLogger.error(s"$jsonQuery, $e", e)
-        badQueryExceptionResults
+        badQueryExceptionResults(e)
       case e: Throwable =>
         errorLogger.error(s"$jsonQuery, $e", e)
         errorResults
@@ -284,10 +284,10 @@ object QueryController extends Controller with RequestParser {
         Ok(s"$json\n").as(applicationJsonHeader)
       }
     } catch {
-      case e @ (_: play.api.libs.json.JsResultException | _: RuntimeException) =>
+      case e : play.api.libs.json.JsResultException =>
         errorLogger.error(s"$jsonQuery, $e", e)
-        badQueryExceptionResults
-      case e: Throwable =>
+        badQueryExceptionResults(e)
+      case e: Exception =>
         errorLogger.error(s"$jsonQuery, $e", e)
         errorResults
     }
