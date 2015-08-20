@@ -139,7 +139,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
             for {
               kv <- putToKeyValues(put)
             } yield {
-              val decoded = Edge.toEdge(kv, queryParam)
+              val decoded = Edge.toSnapshotEdge(kv, queryParam)
               val comp = decoded.isDefined && decoded.get == edge
               println(s"${decoded.get}")
               println(s"$edge")
