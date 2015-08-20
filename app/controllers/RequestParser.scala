@@ -127,8 +127,9 @@ trait RequestParser extends JSONParser {
       val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
       val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
       val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
+
       val querySteps =
-        steps.map { step =>
+        steps.zipWithIndex.map { case (step, stepIdx) =>
           val labelWeights = step match {
             case obj: JsObject =>
               val converted = for {
@@ -165,7 +166,7 @@ trait RequestParser extends JSONParser {
                   (queryParam.label.tgtService.serviceName, queryParam.label.tgtColumnName)
                 }
               //FIXME:
-              if (vertices.nonEmpty && !vertices.exists(v => v.service.serviceName == serviceName && v.serviceColumn.columnName == columnName)) {
+              if (stepIdx == 0 && vertices.nonEmpty && !vertices.exists(v => v.service.serviceName == serviceName && v.serviceColumn.columnName == columnName)) {
                 throw new BadQueryException("srcVertices contains incompatiable serviceName or columnName with first step.")
               }
 
