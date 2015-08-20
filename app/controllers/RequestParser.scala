@@ -231,6 +231,7 @@ trait RequestParser extends JSONParser {
       val timeDecayFactor = (labelGroup \ "timeDecay").asOpt[JsObject].map { jsVal =>
         val initial = (jsVal \ "initial").asOpt[Double].getOrElse(1.0)
         val decayRate = (jsVal \ "decayRate").asOpt[Double].getOrElse(0.1)
+        if (decayRate >= 1.0 || decayRate <= 0.0) throw new BadQueryException("decay rate should be 0.0 ~ 1.0")
         val timeUnit = (jsVal \ "timeUnit").asOpt[Double].getOrElse(60 * 60 * 24.0)
         TimeDecay(initial, decayRate, timeUnit)
       }
