@@ -2,22 +2,20 @@ package controllers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
-import config.Config
-
-import scala.util.Try
-
-//import com.daumkakao.s2graph.core.models._
-
 import com.daumkakao.s2graph.core.parsers.WhereParser
 import com.daumkakao.s2graph.core.types2._
+import config.Config
 import play.api.Logger
 import play.api.libs.json._
+
+import scala.util.{Failure, Success, Try}
 
 
 trait RequestParser extends JSONParser {
 
   import Management.JsonModel._
 
+  val errorLogger = Logger("error")
   val hardLimit = Config.QUERY_HARD_LIMIT
   val defaultLimit = 100
 
@@ -49,7 +47,6 @@ trait RequestParser extends JSONParser {
         val to = Management.toProps(label, toJs)
         (from, to)
       }
-    //    Logger.debug(s"extractInterval: $ret")
     ret
   }
 
@@ -78,35 +75,16 @@ trait RequestParser extends JSONParser {
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
 
-  //  def hasOrWhere(label: HLabel, jsValue: JsValue): Set[InnerVal] = {
-  //    for {
-  //      (propName, v) <- jsValue.as[JsObject].fields
-  //      propMeta <- HLabelMeta.findByName(label.id.get, propName)
-  ////      innerVal <- jsValueToInnerVal(v, propMeta.dataType)
-  //    }  yield {
-  //      propName -> (v match {
-  //        case arr: JsArray => // set
-  //          Set(arr.as[List[JsValue]].flatMap { e =>
-  //            jsValueToInnerVal(e, propMeta.dataType)
-  //          })
-  //        case value: JsValue => // exact
-  //          Set(List(v).flatMap { jsValue =>
-  //            jsValueToInnerVal(jsValue, propMeta.dataType)
-  //          })
-  //        case obj: JsObject => // from, to
-  //          val (fromJsVal, toJsVal) = ((obj \ "from").as[JsValue], (obj \ "to").as[JsValue])
-  //          val (from, to) = (toInnerVal(fromJsVal), toInnerVal(toJsVal))
-  //          (from, to)
-  //      })
-  //    }
-  //  }
   def extractWhere(label: Label, jsValue: JsValue) = {
     (jsValue \ "where").asOpt[String].flatMap { where =>
-      WhereParser(label).parse(where)
+      WhereParser(label).parse(where) match {
+        case sym@Success(where) => sym.toOption
+        case Failure(e) =>
+          errorLogger.error(e.getMessage, e)
+          None
+      }
     }
   }
-
-  val errorLogger = Logger("error")
 
   def toVertices(labelName: String, direction: String, ids: Seq[JsValue]): Seq[Vertex] = {
     val vertices = for {

@@ -1,36 +1,29 @@
 package com.daumkakao.s2graph.core.parsers
 
 import com.daumkakao.s2graph.core._
-import play.api.Logger
-
-//import com.daumkakao.s2graph.core.models.{LabelMeta, Label}
-
 import com.daumkakao.s2graph.core.mysqls._
-
-//import com.daumkakao.s2graph.core.models._
-
 import com.daumkakao.s2graph.core.types2.InnerValLike
 
+import scala.util.Try
 import scala.util.parsing.combinator.JavaTokenParsers
 
 /**
  * Created by shon on 5/30/15.
  */
-case class Where(val clauses: Seq[Clause] = Seq.empty[Clause]) {
-  def filter(edge: Edge): Boolean = {
-    clauses.map(_.filter(edge)).forall(r => r)
-  }
-}
 
-abstract class Clause extends JSONParser {
+trait Clause extends JSONParser {
   def and(otherField: Clause): Clause = And(this, otherField)
 
   def or(otherField: Clause): Clause = Or(this, otherField)
 
-  def filter(edge: Edge): Boolean = ???
+  def filter(edge: Edge): Boolean
 }
 
-case class Equal(val propKey: Byte, val value: InnerValLike) extends Clause {
+case class Where(clauses: Seq[Clause] = Seq.empty[Clause]) {
+  def filter(edge: Edge) = clauses.map(_.filter(edge)).forall(identity)
+}
+
+case class Equal(propKey: Byte, value: InnerValLike) extends Clause {
   override def filter(edge: Edge): Boolean = {
     propKey match {
       case LabelMeta.from.seq => edge.srcVertex.innerId == value
@@ -45,11 +38,10 @@ case class Equal(val propKey: Byte, val value: InnerValLike) extends Clause {
           case Some(edgeVal) => edgeVal.innerVal == value
         }
     }
-
   }
 }
 
-case class IN(val propKey: Byte, val values: Set[InnerValLike]) extends Clause {
+case class IN(propKey: Byte, values: Set[InnerValLike]) extends Clause {
   override def filter(edge: Edge): Boolean = {
     propKey match {
       case LabelMeta.from.seq => values.contains(edge.srcVertex.innerId)
@@ -67,7 +59,7 @@ case class IN(val propKey: Byte, val values: Set[InnerValLike]) extends Clause {
   }
 }
 
-case class Between(val propKey: Byte, val minValue: InnerValLike, val maxValue: InnerValLike) extends Clause {
+case class Between(propKey: Byte, minValue: InnerValLike, maxValue: InnerValLike) extends Clause {
   override def filter(edge: Edge): Boolean = {
     propKey match {
       case LabelMeta.from.seq => minValue <= edge.srcVertex.innerId && edge.srcVertex.innerId <= maxValue
@@ -83,138 +75,85 @@ case class Between(val propKey: Byte, val minValue: InnerValLike, val maxValue: 
             minValue <= edgeVal.innerVal && edgeVal.innerVal <= maxValue
         }
     }
-
   }
 }
 
-case class Not(val self: Clause) extends Clause {
-  override def filter(edge: Edge): Boolean = {
-    !self.filter(edge)
-  }
+case class Not(self: Clause) extends Clause {
+  override def filter(edge: Edge) = !self.filter(edge)
 }
 
-case class And(val left: Clause, val right: Clause) extends Clause {
-  override def filter(edge: Edge): Boolean = {
-    left.filter(edge) && right.filter(edge)
-  }
+case class And(left: Clause, right: Clause) extends Clause {
+  override def filter(edge: Edge) = left.filter(edge) && right.filter(edge)
 }
 
-case class Or(val left: Clause, val right: Clause) extends Clause {
-  override def filter(edge: Edge): Boolean = {
-    left.filter(edge) || right.filter(edge)
-  }
+case class Or(left: Clause, right: Clause) extends Clause {
+  override def filter(edge: Edge) = left.filter(edge) || right.filter(edge)
 }
 
-object WhereParser {
-  val anyStr = "[^\\s()]*".r
-}
 case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
-
-  import WhereParser.anyStr
 
   val metaProps = label.metaPropsInvMap
 
+  val anyStr = "[^\\s(),]+".r
 
   def where: Parser[Where] = rep(clause) ^^ (Where(_))
 
-  def clause: Parser[Clause] = (predicate | parens) *
+  def paren: Parser[Clause] = "(" ~> clause <~ ")"
+
+  def clause: Parser[Clause] = (predicate | paren) *
     ("and" ^^^ { (a: Clause, b: Clause) => And(a, b) } |
       "or" ^^^ { (a: Clause, b: Clause) => Or(a, b) })
 
-  def parens: Parser[Clause] = "(" ~> clause <~ ")"
-
-  def boolean = ("true" ^^^ (true) | "false" ^^^ (false))
-
-  def stringLiteralWithMinus = (stringLiteral | wholeNumber | ("-" ~ stringLiteral | floatingPointNumber) ^^ {
-    case _ ~ v => "-" + v
-  })
-
-
-  def anyValue = "[a-zA-Z0-9-._]"r
-
   /** TODO: exception on toInnerVal with wrong type */
-  def predicate = (
-    ident ~ "=" ~ anyStr ^^ {
-      case f ~ "=" ~ s =>
+  def predicate =
+    ident ~ ("=" | "!=") ~ anyStr ^^ {
+      case f ~ op ~ s =>
         metaProps.get(f) match {
           case None =>
             throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
-            if (f == LabelMeta.to.name) {
+            val eq = if (f == LabelMeta.to.name) {
               Equal(LabelMeta.to.seq, toInnerVal(s, label.tgtColumnType, label.schemaVersion))
             } else if (f == LabelMeta.from.name) {
               Equal(LabelMeta.from.seq, toInnerVal(s, label.srcColumnType, label.schemaVersion))
             } else {
               Equal(metaProp.seq, toInnerVal(s, metaProp.dataType, label.schemaVersion))
             }
+
+            if (op == "=") eq
+            else Not(eq)
         }
-    }
-      | ident ~ "!=" ~ anyStr ^^ {
-      case f ~ "!=" ~ s =>
-        metaProps.get(f) match {
-          case None =>
-            throw new RuntimeException(s"where clause contains not existing property name: $f")
-          case Some(metaProp) =>
-            val wh = if (f == LabelMeta.to.name) {
-              Equal(LabelMeta.to.seq, toInnerVal(s, label.tgtColumnType, label.schemaVersion))
-            } else if (f == LabelMeta.from.name) {
-              Equal(LabelMeta.from.seq, toInnerVal(s, label.srcColumnType, label.schemaVersion))
-            } else {
-              Equal(metaProp.seq, toInnerVal(s, metaProp.dataType, label.schemaVersion))
-            }
-            Not(wh)
-        }
-    }
-      | (ident ~ "between" ~ ident ~ "and" ~ ident |
-      ident ~ "between" ~ decimalNumber ~ "and" ~ decimalNumber |
-      ident ~ "between" ~ stringLiteralWithMinus ~ "and" ~ stringLiteralWithMinus) ^^ {
-      case f ~ "between" ~ minV ~ "and" ~ maxV =>
+    } | ident ~ ("between" ~> anyStr <~ "and") ~ anyStr ^^ {
+      case f ~ minV ~ maxV =>
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
             Between(metaProp.seq, toInnerVal(minV, metaProp.dataType, label.schemaVersion),
               toInnerVal(maxV, metaProp.dataType, label.schemaVersion))
         }
-    }
-      | (ident ~ "in" ~ "(" ~ rep(ident | decimalNumber | stringLiteralWithMinus | "true" | "false" | ",") ~ ")") ^^ {
-      case f ~ "in" ~ "(" ~ vals ~ ")" =>
+    } | ident ~ ("not in" | "in") ~ ("(" ~> rep(anyStr | ",") <~ ")") ^^ {
+      case f ~ op ~ vals =>
         metaProps.get(f) match {
           case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
           case Some(metaProp) =>
             val values = vals.filter(v => v != ",").map { v =>
               toInnerVal(v, metaProp.dataType, label.schemaVersion)
             }
-            IN(metaProp.seq, values.toSet)
-        }
-    }
 
-      | (ident ~ "not in" ~ "(" ~ rep(ident | decimalNumber | stringLiteralWithMinus | "true" | "false" | ",") ~ ")") ^^ {
-      case f ~ "not in" ~ "(" ~ vals ~ ")" =>
-        metaProps.get(f) match {
-          case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
-          case Some(metaProp) =>
-            val values = vals.filter(v => v != ",").map { v =>
-              toInnerVal(v, metaProp.dataType, label.schemaVersion)
-            }
-            Not(IN(metaProp.seq, values.toSet))
+            if (op == "in") IN(metaProp.seq, values.toSet)
+            else Not(IN(metaProp.seq, values.toSet))
         }
-
       case _ => throw new RuntimeException(s"failed to parse where clause. ")
     }
-    )
 
-  def parse(sql: String): Option[Where] = {
+  def parse(sql: String): Try[Where] = {
     try {
       parseAll(where, sql) match {
-        case Success(r, q) => Some(r)
-        case x =>
-          Logger.error(x.toString)
-          None
+        case Success(r, q) => scala.util.Success(r)
+        case fail => scala.util.Failure(new RuntimeException(s"sql parsing error: ${fail.toString}"))
       }
     } catch {
-      case ex: Exception =>
-        Logger.error(s"parsing $sql failed.", ex)
-        None
+      case ex: Exception => scala.util.Failure(ex)
     }
   }
 }

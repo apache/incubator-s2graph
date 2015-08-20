@@ -29,12 +29,16 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   }
 
   def validate(labelName: String)(edge: Edge)(sql: String)(expected: Boolean) = {
-    println(sql, edge)
     for (label <- LABEL.findByName(labelName)) {
       val labelMetas = LABEMETA.findAllByLabelId(label.id.get, useCache = false)
       val metaMap = labelMetas.map { m => m.name -> m.seq } toMap
       val whereOpt = WhereParser(label).parse(sql)
-      whereOpt.isEmpty shouldBe false
+      whereOpt.isSuccess shouldBe  true
+
+      println("=================================================================")
+      println(sql)
+      println(whereOpt.get)
+
       whereOpt.get.filter(edge) shouldBe expected
     }
   }
@@ -51,7 +55,6 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       /** labelName label is long-long relation */
       f(s"_to=${tgtVertex.innerId.toString}")(true)
       // currently this throw exception since label`s _to is long type.
-//      f(s"_to=dun.jeong")(false)
       f(s"_to=19230495")(false)
     }
   }
@@ -72,12 +75,13 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       f("(time in (1, 2, 3) and is_blocked = true) or is_hidden = true")(true)
       f("(time in (1, 2, 3) or is_blocked = true) and is_hidden = true")(true)
 
-      f("(time in (1, 2, 3) and weight between 1 and 10) or is_hidden = false")(true)
-      f("(time in (1, 2, 4) or weight between 1 and 9) or is_hidden = false")(false)
-      f("(time in (1, 2, 4) or weight between 1 and 9) or is_hidden = true")(true)
-      f("(time in (1, 2, 3) or weight between 1 and 10) and is_hidden = false")(false)
+      f("((time in (  1, 2, 3) and weight between 1 and 10) or is_hidden=false)")(true)
+      f("(time in (1, 2, 4 ) or weight between 1 and 9) or (is_hidden = false)")(false)
+      f("(time in ( 1,2,4 ) or weight between 1 and 9) or is_hidden= true")(true)
+      f("(time in (1,2,3) or weight between 1 and 10) and is_hidden =false")(false)
     }
   }
+
   test("check where clause with from/to long") {
     for {
       (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- List(ids(VERSION1), ids(VERSION2))
@@ -95,12 +99,10 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       f(s"_from = ${tgtVertex.innerId.value} and _to = 102934")(false)
       f(s"_from = -1")(false)
       f(s"_from in (-1, -0.1)")(false)
-
     }
   }
 
   test("time decay") {
-
     val ts = System.currentTimeMillis()
 
     for {
