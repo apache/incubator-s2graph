@@ -2213,7 +2213,10 @@ total vuser = 2,072
 
 
 ## 8. Resources ##
-* [hbaseconf](http://hbasecon.com/agenda): presentation is not published yet, but you can find our [keynote](https://www.dropbox.com/home?preview=hbasecon_s2graph_final.key)
+* [hbaseconf](http://hbasecon.com/agenda)
+  * HBaseCon2015: S2Graph - A Large-scale Graph Database with HBase
+     * [presentation](https://vimeo.com/128203919)
+     * [slide](http://www.slideshare.net/HBaseCon/use-cases-session-5)
 * mailing list: use [google group](https://groups.google.com/forum/#!forum/s2graph) or fire issues on this repo.
 * contact: shom83@gmail.com
 
