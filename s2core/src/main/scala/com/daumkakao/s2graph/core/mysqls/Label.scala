@@ -253,7 +253,11 @@ case class Label(id: Option[Int], label: String,
   //      indices filterNot (_.id.get == defaultIndex.get.id.get)
   lazy val extraIndicesMap = extraIndices.map(idx => (idx.seq, idx)) toMap
 
-  lazy val metaProps = LabelMeta.reservedMetas ::: LabelMeta.findAllByLabelId(id.get, useCache = true)
+  lazy val metaProps = LabelMeta.reservedMetas.map { m =>
+   if (m == LabelMeta.to) m.copy(dataType = tgtColumnType)
+   else if (m == LabelMeta.from) m.copy(dataType = srcColumnType)
+   else m
+  } ::: LabelMeta.findAllByLabelId(id.get, useCache = true)
   lazy val metaPropsMap = metaProps.map(x => (x.seq, x)).toMap
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
   lazy val metaPropNames = metaProps.map(x => x.name)
