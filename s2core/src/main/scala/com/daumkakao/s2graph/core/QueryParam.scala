@@ -334,7 +334,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     val maxBytes = fromVal
     val minBytes = toVal
     val rangeFilter = new ColumnRangeFilter(minBytes, true, maxBytes, true)
-    Logger.debug(s"index length: $len, min: ${minBytes.toList}, max: ${maxBytes.toList}")
+//    Logger.debug(s"index length: $len, min: ${minBytes.toList}, max: ${maxBytes.toList}")
     //    queryLogger.info(s"Interval: ${rangeFilter.getMinColumn().toList} ~ ${rangeFilter.getMaxColumn().toList}: ${Bytes.compareTo(minBytes, maxBytes)}")
     //    this.filters.(rangeFilter)
     this.columnRangeFilter = rangeFilter

@@ -1,14 +1,10 @@
 package util
 
-import scala.collection.mutable.ListBuffer
-import scala.io.Source
-import play.api.Logger
 import java.io.File
+
+import scala.collection.mutable.{ArrayBuffer, HashMap, ListBuffer}
+import scala.io.Source
 import scala.util.Random
-import java.security.SecureRandom
-import java.util.concurrent.atomic.AtomicInteger
-import scala.collection.mutable.HashMap
-import scala.collection.mutable.ArrayBuffer
 
 
 object TestDataLoader {
@@ -29,7 +25,7 @@ object TestDataLoader {
       hist <- testIdsHist.get(histStep)
       id = hist(rIdx)
     } yield {
-      Logger.debug(s"randomId: $histStep = $id[$rIdx / $maxId]")
+//      Logger.debug(s"randomId: $histStep = $id[$rIdx / $maxId]")
       id
     }
   }
@@ -44,10 +40,10 @@ object TestDataLoader {
     val ids = new ArrayBuffer[Long]
 
     var idx = 0
-    Logger.debug(s"$filePath start to load file.")
+//    Logger.debug(s"$filePath start to load file.")
     for (line <- Source.fromFile(new File(filePath)).getLines) {
       //      testAccountIds(idx) = line.toLong
-      if (idx % 10000 == 0) Logger.debug(s"$idx")
+//      if (idx % 10000 == 0) Logger.debug(s"$idx")
       idx += 1
 
       val parts = line.split("\\t")
@@ -67,8 +63,8 @@ object TestDataLoader {
       }
 
     }
-    Logger.debug(s"upload $filePath finished.")
-    Logger.debug(s"${histogram.size}")
+//    Logger.debug(s"upload $filePath finished.")
+//    Logger.debug(s"${histogram.size}")
     (ids, histogram.map(t => (t._1 -> t._2.toArray[Long])), histogramCnt)
   }
 }

@@ -86,14 +86,11 @@ object QueryController extends Controller with RequestParser {
   private def getEdgesExcludedAsync(jsonQuery: JsValue)(post: (Seq[QueryResult],
     Seq[QueryResult]) => JsValue): Future[Result] = {
     try {
-      val queryTemplateId = (jsonQuery \ "steps").toString()
-
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
       Logger.info(s"$jsonQuery")
       val q = toQuery(jsonQuery)
 //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
-      Logger.debug(s"${q.templateId()}")
 
       val filterOutQuery = Query(q.vertices, List(q.steps.last))
 
@@ -158,7 +155,6 @@ object QueryController extends Controller with RequestParser {
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, List(q.steps.last))
 //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
-      Logger.debug(s"${q.templateId()}")
 
       for (exclude <- Graph.getEdgesAsync(filterOutQuery); queryResultLs <- Graph.getEdgesAsync(q)) yield {
         val json = PostProcess.summarizeWithListExclude(queryResultLs, exclude)
@@ -187,7 +183,6 @@ object QueryController extends Controller with RequestParser {
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, List(q.steps.last))
 //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
-      Logger.debug(s"${q.templateId()}")
 
       for (exclude <- Graph.getEdgesAsync(filterOutQuery); queryResultLs <- Graph.getEdgesAsync(q)) yield {
         val json = PostProcess.summarizeWithListExcludeFormatted(queryResultLs, exclude)
@@ -239,9 +234,9 @@ object QueryController extends Controller with RequestParser {
               Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)), 0)
           }
 
-          Logger.debug(s"SrcVertex: $src")
-          Logger.debug(s"TgtVertex: $tgt")
-          Logger.debug(s"direction: $dir")
+//          Logger.debug(s"SrcVertex: $src")
+//          Logger.debug(s"TgtVertex: $tgt")
+//          Logger.debug(s"direction: $dir")
           (src, tgt, label, dir.toInt)
         }
 

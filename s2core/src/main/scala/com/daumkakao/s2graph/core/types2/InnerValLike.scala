@@ -1,9 +1,6 @@
 package com.daumkakao.s2graph.core.types2
 
 import org.apache.hadoop.hbase.util._
-import play.api.Logger
-
-import scala.reflect.ClassTag
 
 /**
  * Created by shon on 6/6/15.
@@ -183,8 +180,6 @@ object InnerVal extends HBaseDeserializable {
 
 trait InnerValLike extends HBaseSerializable {
 
-  import HBaseType._
-
   val value: Any
 
   def compare(other: InnerValLike): Int
@@ -207,7 +202,7 @@ trait InnerValLike extends HBaseSerializable {
     obj match {
       case other: InnerValLike =>
         val ret = toString == obj.toString
-        Logger.debug(s"InnerValLike.equals($this, $obj) => $ret")
+//        Logger.debug(s"InnerValLike.equals($this, $obj) => $ret")
         ret
       case _ => false
     }

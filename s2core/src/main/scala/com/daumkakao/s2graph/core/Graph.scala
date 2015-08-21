@@ -132,7 +132,7 @@ object Graph {
   def getConn(zkQuorum: String) = {
     conns.get(zkQuorum) match {
       case None =>
-        Logger.debug(s"${this.hbaseConfig}")
+        Logger.info(s"${this.hbaseConfig}")
         val conn = ConnectionFactory.createConnection(this.hbaseConfig)
         conns += (zkQuorum -> conn)
         conn
@@ -229,7 +229,7 @@ object Graph {
         //TODO: register errorBacks on this operations to log error
         //          Logger.debug(s"$rpc")
         val defer = rpcs.map { rpc =>
-                    Logger.debug(s"$rpc")
+//                    Logger.debug(s"$rpc")
           val deferred = rpc match {
             case d: DeleteRequest => client.delete(d).addErrback(new Callback[Unit, Exception] {
               def call(arg: Exception): Unit = {
@@ -321,7 +321,7 @@ object Graph {
     val cacheKey = MurmurHash3.stringHash(getRequest.toString)
     def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
       def call(arg: QueryResult): QueryResult = {
-        Logger.debug(s"queryResultCachePut, $arg")
+//        Logger.debug(s"queryResultCachePut, $arg")
         cache.put(cacheKey, arg)
         arg
       }
@@ -332,20 +332,20 @@ object Graph {
         val cachedVal = cache.asMap().get(cacheKey)
         if (cachedVal != null && queryParam.timestamp - cachedVal.timestamp < cacheTTL) {
           val elapsedTime = queryParam.timestamp - cachedVal.timestamp
-          Logger.debug(s"cacheHitAndValid: $cacheKey, $cacheTTL, $elapsedTime")
+//          Logger.debug(s"cacheHitAndValid: $cacheKey, $cacheTTL, $elapsedTime")
           Deferred.fromResult(cachedVal)
         }
         else {
           // cache.asMap().remove(cacheKey)
-          Logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
+//          Logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
           fetchEdges(getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
         }
       } else {
-        Logger.debug(s"cacheMiss: $cacheKey")
+//        Logger.debug(s"cacheMiss: $cacheKey")
         fetchEdges(getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
       }
     } else {
-      Logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
+//      Logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
       fetchEdges(getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
