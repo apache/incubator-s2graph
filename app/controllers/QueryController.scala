@@ -95,10 +95,10 @@ object QueryController extends Controller with RequestParser {
 //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
       Logger.debug(s"${q.templateId()}")
 
-      val mineQ = Query(q.vertices, List(q.steps.last))
+      val filterOutQuery = Query(q.vertices, List(q.steps.last))
 
-      for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
-        val json = post(others, mine)
+      for (exclude <- Graph.getEdgesAsync(filterOutQuery); queryResultLs <- Graph.getEdgesAsync(q)) yield {
+        val json = post(queryResultLs, exclude)
         Ok(json).as(applicationJsonHeader)
       }
     } catch {
@@ -156,12 +156,12 @@ object QueryController extends Controller with RequestParser {
 
       Logger.info(jsonQuery.toString())
       val q = toQuery(jsonQuery)
-      val mineQ = Query(q.vertices, List(q.steps.last))
+      val filterOutQuery = Query(q.vertices, List(q.steps.last))
 //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
       Logger.debug(s"${q.templateId()}")
 
-      for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
-        val json = PostProcess.summarizeWithListExclude(others, mine)
+      for (exclude <- Graph.getEdgesAsync(filterOutQuery); queryResultLs <- Graph.getEdgesAsync(q)) yield {
+        val json = PostProcess.summarizeWithListExclude(queryResultLs, exclude)
         Ok(json).as(applicationJsonHeader)
       }
     } catch {
@@ -185,12 +185,12 @@ object QueryController extends Controller with RequestParser {
 
       Logger.info(jsonQuery.toString)
       val q = toQuery(jsonQuery)
-      val mineQ = Query(q.vertices, List(q.steps.last))
+      val filterOutQuery = Query(q.vertices, List(q.steps.last))
 //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
       Logger.debug(s"${q.templateId()}")
 
-      for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
-        val json = PostProcess.summarizeWithListExcludeFormatted(others, mine)
+      for (exclude <- Graph.getEdgesAsync(filterOutQuery); queryResultLs <- Graph.getEdgesAsync(q)) yield {
+        val json = PostProcess.summarizeWithListExcludeFormatted(queryResultLs, exclude)
         Ok(json).as(applicationJsonHeader)
       }
     } catch {
