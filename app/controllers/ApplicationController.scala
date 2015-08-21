@@ -10,6 +10,7 @@ import scala.concurrent.Future
 object ApplicationController extends Controller {
 
   var isHealthy = true
+  var deployInfo = ""
   val useKeepAlive = Config.USE_KEEP_ALIVE
   var connectionOption = CONNECTION -> "Keep-Alive"
   var keepAliveOption = "Keep-Alive" -> "timeout=5, max=100"
@@ -20,8 +21,9 @@ object ApplicationController extends Controller {
   }
 
   def healthCheck() = withHeader { request =>
-    if (isHealthy) Ok.withHeaders(CONNECTION -> "close")
-    else NotFound.withHeaders(CONNECTION -> "close")
+    if (isHealthy) {
+      Ok(deployInfo).withHeaders(CONNECTION -> "close")
+    } else NotFound.withHeaders(CONNECTION -> "close")
   }
 
   def toLogMessage[A](request: Request[A], result: Result)(startedAt: Long): String = {

@@ -10,6 +10,8 @@ import play.filters.gzip.GzipFilter
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
+import scala.io.Source
+import scala.util.Try
 
 object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
 
@@ -28,6 +30,8 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
     Logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
 
     val defaultHealthOn = Config.conf.getBoolean("app.health.on").getOrElse(true)
+    ApplicationController.deployInfo = Try(Source.fromFile("./release_info").mkString("")).getOrElse("release info not found\n")
+
     ApplicationController.isHealthy = defaultHealthOn
   }
 
