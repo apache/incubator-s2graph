@@ -166,7 +166,7 @@ trait RequestParser extends JSONParser {
                   (queryParam.label.tgtService.serviceName, queryParam.label.tgtColumnName)
                 }
               //FIXME:
-              if (stepIdx == 0 && vertices.nonEmpty && !vertices.exists(v => v.service.serviceName == serviceName && v.serviceColumn.columnName == columnName)) {
+              if (stepIdx == 0 && vertices.nonEmpty && !vertices.exists(v => v.serviceColumn.columnName == columnName)) {
                 throw new BadQueryException("srcVertices contains incompatiable serviceName or columnName with first step.")
               }
 
