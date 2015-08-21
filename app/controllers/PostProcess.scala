@@ -64,7 +64,7 @@ object PostProcess extends JSONParser {
   def sortWithFormatted(jsons: Iterable[JsObject], scoreField: String = "scoreSum", queryResultLs: Seq[QueryResult], decrease: Boolean = true): JsObject = {
     val ordering = if (decrease) -1 else 1
     var sortedJsons = jsons.toList.sortBy { jsObject => (jsObject \ scoreField).as[Double] * ordering }
-    queryLogger.debug(s"sortedJsons : $sortedJsons")
+//    queryLogger.debug(s"sortedJsons : $sortedJsons")
     if (queryResultLs.isEmpty) Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
     else Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons,
       "impressionId" -> queryResultLs.head.query.impressionId())

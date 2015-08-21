@@ -179,7 +179,7 @@ trait RequestParser extends JSONParser {
 
       val ret = Query(vertices, querySteps, removeCycle = removeCycle,
         selectColumns = selectColumns, groupByColumns = groupByColumns, filterOutQuery = filterOutQuery)
-      Logger.debug(ret.toString)
+//      Logger.debug(ret.toString)
       ret
     } catch {
       case e: BadQueryException =>

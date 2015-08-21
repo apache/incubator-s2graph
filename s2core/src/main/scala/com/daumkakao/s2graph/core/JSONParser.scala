@@ -115,7 +115,8 @@ trait JSONParser {
           None
       }
     } catch {
-      case e: Throwable =>
+      case e: Exception =>
+        Logger.error(e.getMessage)
         None
     }
 

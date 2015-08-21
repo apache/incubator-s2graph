@@ -1,26 +1,25 @@
 package com.daumkakao.s2graph.core
 
 import java.util
-import java.util.concurrent.TimeUnit
 
 import com.daumkakao.s2graph.core.mysqls._
-import com.stumbleupon.async.{Callback, Deferred}
+import com.stumbleupon.async.Deferred
 
-import scala.concurrent.duration.{Duration, FiniteDuration}
-import scala.util.{Failure, Success, Try, Random}
 import scala.util.hashing.MurmurHash3
+import scala.util.{Failure, Random, Success, Try}
 
 //import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2._
-import play.api.libs.json.Json
-import scala.concurrent.Future
-import org.apache.hadoop.hbase.client.{Increment, Delete, Put}
+import org.apache.hadoop.hbase.client.{Delete, Put}
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async._
 import play.api.Logger
-import scala.collection.mutable.ListBuffer
+import play.api.libs.json.Json
+
 import scala.collection.JavaConversions._
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.Future
 
 
 case class EdgeWithIndexInverted(srcVertex: Vertex,
@@ -32,7 +31,7 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
                                  pendingEdgeOpt: Option[Edge] = None) {
 
 
-  import Graph.{edgeCf}
+  import Graph.edgeCf
   import HBaseSerializable._
 
   //  Logger.error(s"EdgeWithIndexInverted${this.toString}")
@@ -95,7 +94,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
 
   //  lazy val ts = props(LabelMeta.timeStampSeq).value.asInstanceOf[BigDecimal].toLong
 
-  import Graph.{edgeCf}
+  import Graph.edgeCf
 
   lazy val label = Label.findById(labelWithDir.labelId)
   lazy val schemaVer = label.schemaVersion
@@ -186,7 +185,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
       List.empty[AtomicIncrementRequest]
     } else {
       val incr = new AtomicIncrementRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, amount)
-      Logger.debug(s"$incr")
+//      Logger.debug(s"$incr")
       List(incr)
     }
   }
@@ -435,7 +434,7 @@ case class Edge(srcVertex: Vertex,
     }
 
     val rets = puts ++ incrs
-    Logger.debug(s"Edge.insert(): $rets")
+//    Logger.debug(s"Edge.insert(): $rets")
     rets
   }
 
@@ -468,7 +467,7 @@ case class Edge(srcVertex: Vertex,
       //      edgeWithIndex <- relEdge.copy(version = relEdge.version + Edge.incrementVersion).edgesWithIndex
       rpc <- edgeWithIndex.buildDeletesAsync() ++ edgeWithIndex.buildIncrementsAsync(-1L)
     } yield {
-        Logger.debug(s"$rpc")
+//        Logger.debug(s"$rpc")
         rpc
       }
 
@@ -673,8 +672,8 @@ case class EdgeUpdate(indexedEdgeMutations: List[HBaseRpc] = List.empty[HBaseRpc
 
 object Edge extends JSONParser {
 
-  import HBaseSerializable._
   import HBaseDeserializable._
+  import HBaseSerializable._
 
 
   //  val initialVersion = 2L
@@ -1040,7 +1039,7 @@ object Edge extends JSONParser {
   }
 
   def toEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None): Option[Edge] = {
-    Logger.debug(s"$param -> $kv")
+//    Logger.debug(s"$param -> $kv")
 
     val version = kv.timestamp()
     val keyBytes = kv.key()

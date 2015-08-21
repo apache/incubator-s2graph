@@ -2,7 +2,6 @@ package com.daumkakao.s2graph.core.types2
 
 import com.daumkakao.s2graph.core.GraphUtil
 import org.apache.hadoop.hbase.util.Bytes
-import play.api.Logger
 
 /**
  * Created by shon on 6/10/15.
@@ -58,7 +57,7 @@ class VertexId protected (val colId: Int, val innerId: InnerValLike) extends HBa
     } else {
       innerId.hashCode()
     }
-    Logger.debug(s"VertexId.hashCode: $ret")
+//    Logger.debug(s"VertexId.hashCode: $ret")
     ret
   }
   override def equals(obj: Any): Boolean = {
@@ -66,7 +65,7 @@ class VertexId protected (val colId: Int, val innerId: InnerValLike) extends HBa
       case other: VertexId => colId == other.colId && innerId.toIdString() == other.innerId.toIdString()
       case _ => false
     }
-    Logger.debug(s"VertexId.equals: $this, $obj => $ret")
+//    Logger.debug(s"VertexId.equals: $this, $obj => $ret")
     ret
   }
 

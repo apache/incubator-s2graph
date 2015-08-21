@@ -1,16 +1,15 @@
 package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.mysqls._
-import play.api.Logger
 
 //import com.daumkakao.s2graph.core.models._
 
 import com.daumkakao.s2graph.core.types2._
-import org.apache.hadoop.hbase.client.Put
-import org.apache.hadoop.hbase.client.Delete
+import org.apache.hadoop.hbase.client.{Delete, Put}
+import org.hbase.async.{DeleteRequest, GetRequest, HBaseRpc, PutRequest}
 import play.api.libs.json.Json
-import scala.collection.mutable.{ListBuffer}
-import org.hbase.async.{DeleteRequest, HBaseRpc, PutRequest, GetRequest}
+
+import scala.collection.mutable.ListBuffer
 
 /**
   */
@@ -20,7 +19,7 @@ case class Vertex(id: VertexId,
                   op: Byte = 0,
                   belongLabelIds: Seq[Int] = Seq.empty) extends GraphElement {
 
-  import Graph.{vertexCf}
+  import Graph.vertexCf
   import Vertex._
 
   val innerId = id.innerId
@@ -115,7 +114,7 @@ case class Vertex(id: VertexId,
 
   override def hashCode() = {
     val hash = id.hashCode()
-    Logger.debug(s"Vertex.hashCode: $this -> $hash")
+//    Logger.debug(s"Vertex.hashCode: $this -> $hash")
     hash
   }
 
@@ -123,7 +122,7 @@ case class Vertex(id: VertexId,
     obj match {
       case otherVertex: Vertex =>
         val ret = id == otherVertex.id
-        Logger.debug(s"Vertex.equals: $this, $obj => $ret")
+//        Logger.debug(s"Vertex.equals: $this, $obj => $ret")
         ret
       case _ => false
     }
