@@ -20,6 +20,7 @@ POST   /graphs/edges/delete                                                    c
 POST   /graphs/edges/deleteAll                                                 controllers.EdgeController.deleteAll()
 POST   /graphs/edges/update                                                    controllers.EdgeController.updates()
 POST   /graphs/edges/increment                                                 controllers.EdgeController.increments()
+POST   /graphs/edges/incrementCount                                            controllers.EdgeController.incrementCounts()
 POST   /graphs/edges/bulk                                                      controllers.EdgeController.mutateBulk()
 
 ## Vertex
@@ -60,7 +61,6 @@ GET    /graphs/getLabel/:labelName                                             c
 PUT    /graphs/deleteLabel/:labelName                                          controllers.AdminController.deleteLabel(labelName)
 
 POST   /graphs/addProp/:labelName                                              controllers.AdminController.addProp(labelName)
-POST   /graphs/addProps/:labelName                                             controllers.AdminController.addProps(labelName)
 POST   /graphs/createServiceColumn                                             controllers.AdminController.createServiceColumn()
 PUT    /graphs/deleteServiceColumn/:serviceName/:columnName                    controllers.AdminController.deleteServiceColumn(serviceName, columnName)
 POST   /graphs/addServiceColumnProp/:serviceName/:columnName                   controllers.AdminController.addServiceColumnProp(serviceName, columnName)

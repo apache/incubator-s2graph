@@ -1,4 +1,8 @@
+CREATE DATABASE IF NOT EXISTS graph_dev;
+
+
 use graph_dev;
+
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -76,6 +80,7 @@ CREATE TABLE `labels` (
   `hbase_table_ttl` integer,
   `schema_version` varchar(8) NOT NULL default 'v2',
   `is_async` tinyint(4) NOT NULL default '0',
+  `compressionAlgorithm` varchar(64) NOT NULL DEFAULT 'lz4',
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_label` (`label`),
   INDEX `idx_src_column_name` (`src_column_name`),
@@ -115,13 +120,15 @@ ALTER TABLE label_metas ADD FOREIGN KEY(label_id) REFERENCES labels(id) ON DELET
 -- ----------------------------
 DROP TABLE IF EXISTS `label_indices`;
 CREATE TABLE `label_indices` (
-  `id` integer NOT NULL AUTO_INCREMENT,
-  `label_id` integer NOT NULL,
-  `seq` tinyint	NOT NULL,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `label_id` int(11) NOT NULL,
+  `name` varchar(64) NOT NULL DEFAULT '_PK',
+  `seq` tinyint(4) NOT NULL,
   `meta_seqs` varchar(64) NOT NULL,
-  `formulars` varchar(255),
+  `formulars` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `ux_label_id_seq` (`label_id`, `meta_seqs`)
+  UNIQUE KEY `ux_label_id_seq` (`label_id`,`meta_seqs`),
+  UNIQUE KEY `ux_label_id_name` (`label_id`,`name`),
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE label_indices ADD FOREIGN KEY(label_id) REFERENCES labels(id) ON DELETE CASCADE;

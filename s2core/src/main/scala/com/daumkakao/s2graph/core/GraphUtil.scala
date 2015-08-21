@@ -9,7 +9,7 @@ object GraphUtil {
   private val TOKEN_DELIMITER = Pattern.compile("[\t]")
   val operations = Map("i" -> 0, "insert" -> 0, "u" -> 1, "update" -> 1,
     "increment" -> 2,  "d" -> 3, "delete" -> 3, 
-    "deleteAll" -> 4, "insertBulk" -> 5).map {
+    "deleteAll" -> 4, "insertBulk" -> 5, "incrementCount" -> 6).map {
       case (k, v) =>
         (k -> v.toByte)
     }
@@ -67,6 +67,7 @@ object GraphUtil {
       case "increment" => Some(2)
       case "deleteAll" => Some(4)
       case "insertBulk" => Some(5)
+      case "incrementCount" => Option(6)
       case _ => None
     }
   }
@@ -78,6 +79,7 @@ object GraphUtil {
       case 2 => "increment"
       case 4 => "deleteAll"
       case 5 => "insertBulk"
+      case 6 => "incrementCount"
       case _ =>
         throw new UnsupportedOperationException(s"op : $op (only support 0(insert),1(delete),2(updaet),3(increment))")
     }

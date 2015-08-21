@@ -18,6 +18,7 @@ object HBaseType {
 }
 object HBaseDeserializable {
   import HBaseType._
+  // 6 bits is used for index sequence so total index per label is limited to 2^6
   def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte], offset: Int): (Byte, Boolean) = {
     val byte = bytes(offset)
     val isInverted = if ((byte & 1) != 0) true else false

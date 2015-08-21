@@ -6,7 +6,7 @@ import com.google.common.cache.CacheBuilder
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Success}
 import java.util.ArrayList
-import java.util.concurrent.{Executors}
+import java.util.concurrent.{ConcurrentHashMap, Executors}
 import com.daumkakao.s2graph.core.types2._
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.{ConfigFactory, Config}
@@ -45,6 +45,7 @@ object Graph {
   val defaultConfigs: Map[String, AnyRef] = Map(
     "hbase.zookeeper.quorum" -> "localhost",
     "hbase.table.name" -> "s2graph",
+    "hbase.table.compression.algorithm" -> "gz",
     "phase" -> "dev",
     "async.hbase.client.flush.interval" -> java.lang.Short.valueOf(100.toShort),
     "hbase.client.operation.timeout" -> java.lang.Integer.valueOf(1000),
@@ -85,9 +86,10 @@ object Graph {
       conf.set(k, v.toString())
     }
 
-    for (entry <- config.entrySet() if entry.getKey().startsWith("hbase.")) {
+    for (entry <- config.entrySet() if entry.getKey().contains("hbase")) {
       conf.set(entry.getKey(), entry.getValue().unwrapped().toString)
     }
+
     conf
   }
 
@@ -97,7 +99,7 @@ object Graph {
     this.config = config.withFallback(this.config)
     this.hbaseConfig = toHBaseConfig(this.config)
 
-    Model.apply(this.config)
+    Model(this.config)
 
     this.executionContext = ex
     this.singleGetTimeout = this.config.getInt("hbase.client.operation.timeout")
@@ -110,11 +112,6 @@ object Graph {
     } {
       Logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
     }
-    //
-    //    this.shouldRunFromBytes = getOrElse(config)("should.run.from.bytes", true)
-    //    this.shouldReturnResults = getOrElse(config)("should.return.results", true)
-    //    this.shouldRunFetch = getOrElse(config)("should.run.fetch", true)
-    //    this.shouldRunFilter = getOrElse(config)("should.run.filter", true)
   }
 
 
@@ -135,7 +132,7 @@ object Graph {
   def getConn(zkQuorum: String) = {
     conns.get(zkQuorum) match {
       case None =>
-        Logger.debug(s"${this.hbaseConfig}")
+        Logger.info(s"${this.hbaseConfig}")
         val conn = ConnectionFactory.createConnection(this.hbaseConfig)
         conns += (zkQuorum -> conn)
         conn
@@ -185,17 +182,6 @@ object Graph {
     })
   }
 
-  //  def deferredCallback[R, T](d: Deferred[T])(f: T => R, fallback: => R) = {
-  //    d.addCallback(new Callback[R, T]{
-  //      def call(args: T): R = {
-  //        args match {
-  //          case ex: Throwable =>
-  //            Logger.error(s"$ex", ex)
-  //
-  //        }
-  //      }
-  //    })
-  //  }
 
   def writeAsyncWithWait(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]]): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
@@ -243,7 +229,7 @@ object Graph {
         //TODO: register errorBacks on this operations to log error
         //          Logger.debug(s"$rpc")
         val defer = rpcs.map { rpc =>
-          //          Logger.debug(s"$rpc")
+//                    Logger.debug(s"$rpc")
           val deferred = rpc match {
             case d: DeleteRequest => client.delete(d).addErrback(new Callback[Unit, Exception] {
               def call(arg: Exception): Unit = {
@@ -303,7 +289,8 @@ object Graph {
         // TODO: this should be get vertex query.
         Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.empty)))
       } else {
-        var seedEdgesFuture: Future[Seq[QueryResult]] = Future.successful(QueryResult.fromVertices(q, stepIdx = 0, q.steps.head.queryParams, q.vertices))
+        val startQueryResultLs = QueryResult.fromVertices(q, stepIdx = 0, q.steps.head.queryParams, q.vertices)
+        var seedEdgesFuture: Future[Seq[QueryResult]] = Future.successful(startQueryResultLs)
         for {
           (step, idx) <- q.steps.zipWithIndex
         } {
@@ -334,7 +321,7 @@ object Graph {
     val cacheKey = MurmurHash3.stringHash(getRequest.toString)
     def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
       def call(arg: QueryResult): QueryResult = {
-        Logger.debug(s"queryResultCachePut, $arg")
+//        Logger.debug(s"queryResultCachePut, $arg")
         cache.put(cacheKey, arg)
         arg
       }
@@ -345,20 +332,20 @@ object Graph {
         val cachedVal = cache.asMap().get(cacheKey)
         if (cachedVal != null && queryParam.timestamp - cachedVal.timestamp < cacheTTL) {
           val elapsedTime = queryParam.timestamp - cachedVal.timestamp
-          Logger.debug(s"cacheHitAndValid: $cacheKey, $cacheTTL, $elapsedTime")
+//          Logger.debug(s"cacheHitAndValid: $cacheKey, $cacheTTL, $elapsedTime")
           Deferred.fromResult(cachedVal)
         }
         else {
           // cache.asMap().remove(cacheKey)
-          Logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
+//          Logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
           fetchEdges(getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
         }
       } else {
-        Logger.debug(s"cacheMiss: $cacheKey")
+//        Logger.debug(s"cacheMiss: $cacheKey")
         fetchEdges(getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
       }
     } else {
-      Logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
+//      Logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
       fetchEdges(getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
@@ -370,13 +357,7 @@ object Graph {
     try {
       val client = getClient(queryParam.label.hbaseZkAddr)
       deferredCallbackWithFallback(client.get(getRequest))({ kvs =>
-        //          val edgeWithScores = for {
-        //            kv <- kvs
-        //            edge <- Edge.toEdge(kv, queryParam)
-        //          } yield {
-        //              (edge, edge.rank(queryParam.rank) * prevScore)
-        //            }
-        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isSnapshotEdge = false)
+        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore)
         QueryResult(q, stepIdx, queryParam, new ArrayList(edgeWithScores))
       }, QueryResult(q, stepIdx, queryParam))
     } catch {
@@ -403,7 +384,7 @@ object Graph {
     implicit val ex = executionContext
 
     val prevStepOpt = if (stepIdx > 0) Option(q.steps(stepIdx - 1)) else None
-    val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(0.0)
+    val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(QueryParam.defaultThreshold)
     val prevStepLimit = prevStepOpt.map(_.nextStepLimit).getOrElse(-1)
     val step = q.steps(stepIdx)
     val alreadyVisited =
@@ -416,35 +397,22 @@ object Graph {
         (edge.tgtVertex -> score)
       }
     }.groupBy { case (vertex, score) =>
-      vertex.id.toString
+      vertex
     }
+
+//    Logger.debug(s"groupedBy: $groupedBy")
     val groupedByFiltered = for {
-      (vertexId, edgesWithScore) <- groupedBy
+      (vertex, edgesWithScore) <- groupedBy
       aggregatedScore = edgesWithScore.map(_._2).sum if aggregatedScore >= prevStepThreshold
-    } yield {
-        (edgesWithScore.head._1 -> aggregatedScore)
-    }
+    } yield (vertex -> aggregatedScore)
+//    Logger.debug(s"groupedByFiltered: $groupedByFiltered")
+
     val nextStepSrcVertices = if (prevStepLimit >= 0) {
       groupedByFiltered.toSeq.sortBy(-1 * _._2).take(prevStepLimit)
     } else {
       groupedByFiltered.toSeq
     }
-//    val nextStepSrcVertices = (for {
-//      queryResult <- queryResultsLs
-//      (edge, score) <- queryResult.edgeWithScoreLs
-//    } yield {
-//        (edge.tgtVertex -> score)
-//      }).groupBy { case (vertex, score) =>
-//      vertex.id.toString
-//    }.map { case (vertexId, edgesWithScore) =>
-//      edgesWithScore.head._1 -> edgesWithScore.map(_._2).sum
-//    }.filter(kv => kv._2 >= step.scoreThreshold)
-//
-//    val srcVertices = if (step.stepLimit >= 0) {
-//      nextStepSrcVertices.toList.sortBy(-1 * _._2).take(step.stepLimit)
-//    } else {
-//      nextStepSrcVertices
-//    }
+//    Logger.debug(s"nextStepSrcVertices: $nextStepSrcVertices")
     val currentStepRequestLss = buildGetRequests(nextStepSrcVertices, step.queryParams)
 
     val queryParams = currentStepRequestLss.flatMap { case (getsWithQueryParams, prevScore) =>
@@ -479,13 +447,7 @@ object Graph {
     val q = Query.toQuery(Seq(srcVertex), queryParam)
 
     defferedToFuture(getClient(queryParam.label.hbaseZkAddr).get(getRequest))(emptyKVs).map { kvs =>
-      //      val edgeWithScoreLs = for {
-      //        kv <- kvs
-      //        edge <- Edge.toEdge(kv, queryParam)
-      //      } yield {
-      //          (edge, edge.rank(queryParam.rank))
-      //        }
-      val edgeWithScoreLs = Edge.toEdges(kvs, queryParam, prevScore = 1.0, isSnapshotEdge = true)
+      val edgeWithScoreLs = Edge.toEdges(kvs, queryParam, prevScore = 1.0)
       QueryResult(query = q, stepIdx = 0, queryParam = queryParam, edgeWithScoreLs = edgeWithScoreLs)
     }
   }
@@ -516,25 +478,11 @@ object Graph {
 
 
   def convertEdges(queryParam: QueryParam, edge: Edge, nextStepOpt: Option[Step]): Seq[Edge] = {
-//  def convertEdges(edge: Edge, outputFields: Seq[LabelMeta]): Seq[Edge] = {
     for {
-//      outputField <- outputFields
-//      convertedEdge <- convertEdge(edge, outputField)
       convertedEdge <- queryParam.transformer.transform(edge, nextStepOpt)
     } yield convertedEdge
   }
-//  def convertEdge(edge: Edge, outputField: LabelMeta): Option[Edge] = {
-//    outputField.seq match {
-//      case LabelMeta.toSeq => Option(edge)
-//      case LabelMeta.fromSeq => Option(edge.updateTgtVertex(edge.srcVertex.innerId))
-//      case _ =>
-//        edge.propsWithTs.get(outputField.seq) match {
-//          case None => None
-//          case Some(outputFieldVal) =>
-//            Some(edge.updateTgtVertex(outputFieldVal.innerVal))
-//        }
-//    }
-//  }
+
 
   type HashKey = (Int, Int, Int, Int)
   type FilterHashKey = (Int, Int)
@@ -583,6 +531,7 @@ object Graph {
 //            convertedEdge <- convertEdges(edge, labelOutputFields(edge.labelWithDir.labelId))
             (hashKey, filterHashKey) = toHashKey(queryResult.queryParam, convertedEdge)
           } {
+//            Logger.error(s"filterEdge: $edge")
             /** check if this edge should be exlcuded. */
             val filterKey = edge.labelWithDir.labelId -> edge.labelWithDir.dir
             if (excludeLabelWithDirSet.contains(filterKey) && !edge.propsWithTs.containsKey(LabelMeta.degreeSeq)) {
@@ -626,6 +575,8 @@ object Graph {
               }
             }
           }
+//          logMap(duplicateEdges)
+//          logMap(resultEdgeWithScores)
           (duplicateEdges, resultEdgeWithScores)
         }
 
@@ -634,11 +585,13 @@ object Graph {
         (duplicateEdges, resultEdgeWithScores) = queryParamResult
       } yield {
         val edgesWithScores = for {
-          (hashKey, filterHashKey, edge, score) <- resultEdgeWithScores.values
-          if edgesToInclude.containsKey(filterHashKey) || !edgesToExclude.containsKey(filterHashKey)
+          (hashKey, filterHashKey, edge, score) <- resultEdgeWithScores.values if edgesToInclude.containsKey(filterHashKey) || !edgesToExclude.containsKey(filterHashKey)
           (duplicateEdge, aggregatedScore) <- (edge -> score) +: (if (duplicateEdges.containsKey(hashKey)) duplicateEdges.get(hashKey) else Seq.empty)
           if aggregatedScore >= queryResult.queryParam.threshold
-        } yield (duplicateEdge, aggregatedScore)
+        } yield {
+//            Logger.error(s"remainEdge: $duplicateEdge")
+            (duplicateEdge, aggregatedScore)
+          }
 
         QueryResult(queryResult.query, queryResult.stepIdx, queryResult.queryParam, edgesWithScores)
       }
@@ -646,6 +599,13 @@ object Graph {
     }
   }
 
+  private def logMap[K, V](h: ConcurrentHashMap[K, V]) = {
+    for {
+      e <- h.entrySet()
+    } {
+      Logger.error(s"${e.getKey} -> ${e.getValue}")
+    }
+  }
   private def filterDuplicates(seen: HashMap[(String, Int, Int, String), Double], queryParam: QueryParam,
                                edge: Edge, score: Double) = {
     val key = (edge.srcVertex.innerId.toString, edge.labelWithDir.labelId, edge.labelWithDir.dir, edge.tgtVertex.innerId.toString)

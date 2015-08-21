@@ -24,7 +24,7 @@ object Bucket extends Model[Bucket] {
       rs.boolean("is_graph_query"))
   }
 
-  def finds(experimentId: Int): List[Bucket] = {
+  def finds(experimentId: Int)(implicit session: DBSession = AutoSession): List[Bucket] = {
     val cacheKey = "experimentId=" + experimentId
     withCaches(cacheKey) {
       sql"""select * from buckets where experiment_id = ${experimentId}"""

@@ -63,7 +63,7 @@ trait JSONParser {
     }
   }
 
-  def toInnerVal(str: String, dataType: String, version: String) = {
+  def toInnerVal(str: String, dataType: String, version: String): InnerValLike = {
     //TODO:
     //    Logger.error(s"$str, $dataType, $version")
     val s =
@@ -83,7 +83,6 @@ trait JSONParser {
         throw new RuntimeException(s"illegal datatype for string: dataType is $dataType for $s")
     }
   }
-
 
   def jsValueToInnerVal(jsValue: JsValue, dataType: String, version: String): Option[InnerValLike] = {
     val ret = try {
@@ -116,7 +115,8 @@ trait JSONParser {
           None
       }
     } catch {
-      case e: Throwable =>
+      case e: Exception =>
+        Logger.error(e.getMessage)
         None
     }
 

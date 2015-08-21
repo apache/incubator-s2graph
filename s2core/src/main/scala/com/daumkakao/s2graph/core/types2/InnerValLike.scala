@@ -1,9 +1,6 @@
 package com.daumkakao.s2graph.core.types2
 
 import org.apache.hadoop.hbase.util._
-import play.api.Logger
-
-import scala.reflect.ClassTag
 
 /**
  * Created by shon on 6/6/15.
@@ -183,8 +180,6 @@ object InnerVal extends HBaseDeserializable {
 
 trait InnerValLike extends HBaseSerializable {
 
-  import HBaseType._
-
   val value: Any
 
   def compare(other: InnerValLike): Int
@@ -201,37 +196,21 @@ trait InnerValLike extends HBaseSerializable {
 
   override def toString(): String = value.toString
 
+  override def hashCode(): Int = value.hashCode()
+
   override def equals(obj: Any): Boolean = {
     obj match {
-      case other: InnerValLike => toString == obj.toString
+      case other: InnerValLike =>
+        val ret = toString == obj.toString
+//        Logger.debug(s"InnerValLike.equals($this, $obj) => $ret")
+        ret
       case _ => false
     }
   }
-  def hashKey(dataType: String): Int = ???
+  def hashKey(dataType: String): Int
 
-  def toIdString(): String = ???
-//  {
-//    import InnerVal._
-//    schemaVersion match {
-//      case VERSION1 => value.hashCode()
-//      case VERSION2 =>
-//        if (value.isInstanceOf[String]) {
-//          value.toString.hashCode()
-//        } else {
-//          dataType match {
-//            case BYTE => value.asInstanceOf[BigDecimal].bigDecimal.byteValue().hashCode()
-//            case FLOAT => value.asInstanceOf[BigDecimal].bigDecimal.floatValue().hashCode()
-//            case DOUBLE => value.asInstanceOf[BigDecimal].bigDecimal.doubleValue().hashCode()
-//            case LONG => value.asInstanceOf[BigDecimal].bigDecimal.longValue().hashCode()
-//            case INT => value.asInstanceOf[BigDecimal].bigDecimal.intValue().hashCode()
-//            case SHORT => value.asInstanceOf[BigDecimal].bigDecimal.shortValue().hashCode()
-//            case STRING => value.toString.hashCode
-//            case _ => throw new RuntimeException(s"NotSupportede type: $dataType")
-//          }
-//        }
-//    }
-//
-//  }
+  def toIdString(): String
+
 }
 
 object InnerValLikeWithTs extends HBaseDeserializable {

@@ -15,13 +15,14 @@ object EdgeController extends Controller with RequestParser {
   import ExceptionHandler._
 
   private val maxLength = 1024 * 1024 * 16
+
   def tryMutates(jsValue: JsValue, operation: String): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
     else {
       try {
         Logger.debug(s"$jsValue")
         val edges = toEdges(jsValue, operation)
-        for { edge <- edges } {
+        for {edge <- edges} {
           if (edge.isAsync) {
             ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC_ASYNC, edge, None))
           } else {
@@ -44,13 +45,13 @@ object EdgeController extends Controller with RequestParser {
     }
   }
 
-//  private[controllers] def aggregateElements(elements: Seq[GraphElement], originalString: Seq[Option[String]]): Future[Seq[Boolean]] = {
-//    elements.foreach {
-//
-//    }
-//    KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(Config.KAFKA_LOG_TOPIC, element, originalString))
-//    Graph.mutateElements(elements)
-//  }
+  //  private[controllers] def aggregateElements(elements: Seq[GraphElement], originalString: Seq[Option[String]]): Future[Seq[Boolean]] = {
+  //    elements.foreach {
+  //
+  //    }
+  //    KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(Config.KAFKA_LOG_TOPIC, element, originalString))
+  //    Graph.mutateElements(elements)
+  //  }
   def mutateAndPublish(str: String): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
 
@@ -113,6 +114,17 @@ object EdgeController extends Controller with RequestParser {
     tryMutates(request.body, "increment")
   }
 
+  def incrementCounts() = withHeaderAsync(parse.json) { request =>
+    val jsValue = request.body
+    val edges = toEdges(jsValue, "incrementCount")
+    Edge.incrementCounts(edges).map { results =>
+      val json = results.map { case (isSuccess, resultCount) =>
+        Json.obj("success" -> isSuccess, "result" -> resultCount)
+      }
+      Ok(Json.toJson(json))
+    }
+  }
+
   def deleteAll() = withHeaderAsync(parse.json) { request =>
     val deleteResults = Future.sequence(request.body.as[Seq[JsValue]] map { json =>
       val labelName = (json \ "label").as[String]
@@ -126,7 +138,7 @@ object EdgeController extends Controller with RequestParser {
       Graph.deleteVerticesAllAsync(vertices.toList, labels, GraphUtil.directions(direction), ts)
     })
 
-    deleteResults.map{ rst =>
+    deleteResults.map { rst =>
       Ok(s"deleted... ${rst.toString()}")
     }
   }

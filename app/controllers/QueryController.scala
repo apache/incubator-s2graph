@@ -22,7 +22,7 @@ object QueryController extends Controller with RequestParser {
    * only for test
    */
 
-  private def badQueryExceptionResults = Future.successful(BadRequest("""{"message": "Bad Request"}""").as(applicationJsonHeader))
+  private def badQueryExceptionResults(ex: Exception) = Future.successful(BadRequest(s"""{"message": "${ex.getMessage}"}""").as(applicationJsonHeader))
   private def errorResults = Future.successful(Ok(s"${PostProcess.timeoutResults}\n").as(applicationJsonHeader))
   /**
    * end of only for test
@@ -72,7 +72,7 @@ object QueryController extends Controller with RequestParser {
     } catch {
       case e: KGraphExceptions.BadQueryException =>
         errorLogger.error(s"$jsonQuery, $e", e)
-        badQueryExceptionResults
+        badQueryExceptionResults(e)
       case e: Throwable =>
         errorLogger.error(s"$jsonQuery, $e", e)
         // watch tower
@@ -86,25 +86,22 @@ object QueryController extends Controller with RequestParser {
   private def getEdgesExcludedAsync(jsonQuery: JsValue)(post: (Seq[QueryResult],
     Seq[QueryResult]) => JsValue): Future[Result] = {
     try {
-      val queryTemplateId = (jsonQuery \ "steps").toString()
-
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
       Logger.info(s"$jsonQuery")
       val q = toQuery(jsonQuery)
 //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
-      Logger.debug(s"${q.templateId()}")
 
-      val mineQ = Query(q.vertices, List(q.steps.last))
+      val filterOutQuery = Query(q.vertices, List(q.steps.last))
 
-      for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
-        val json = post(others, mine)
+      for (exclude <- Graph.getEdgesAsync(filterOutQuery); queryResultLs <- Graph.getEdgesAsync(q)) yield {
+        val json = post(queryResultLs, exclude)
         Ok(json).as(applicationJsonHeader)
       }
     } catch {
       case e: KGraphExceptions.BadQueryException =>
         errorLogger.error(s"$jsonQuery, $e", e)
-        badQueryExceptionResults
+        badQueryExceptionResults(e)
       case e: Throwable =>
         errorLogger.error(s"$jsonQuery, $e", e)
         // watch tower
@@ -156,18 +153,17 @@ object QueryController extends Controller with RequestParser {
 
       Logger.info(jsonQuery.toString())
       val q = toQuery(jsonQuery)
-      val mineQ = Query(q.vertices, List(q.steps.last))
+      val filterOutQuery = Query(q.vertices, List(q.steps.last))
 //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
-      Logger.debug(s"${q.templateId()}")
 
-      for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
-        val json = PostProcess.summarizeWithListExclude(others, mine)
+      for (exclude <- Graph.getEdgesAsync(filterOutQuery); queryResultLs <- Graph.getEdgesAsync(q)) yield {
+        val json = PostProcess.summarizeWithListExclude(queryResultLs, exclude)
         Ok(json).as(applicationJsonHeader)
       }
     } catch {
       case e: KGraphExceptions.BadQueryException =>
         errorLogger.error(s"$jsonQuery, $e", e)
-        badQueryExceptionResults
+        badQueryExceptionResults(e)
       //        Future.successful(BadRequest(request.body).as(applicationJsonHeader))
       case e: Throwable =>
         errorLogger.error(s"$jsonQuery, $e", e)
@@ -175,7 +171,7 @@ object QueryController extends Controller with RequestParser {
     }
   }
   @deprecated(message = "deprecated", since = "0.2")
-  def getEdgesGroupedExcludedFormatted() = withHeaderAsync(parse.json) { request =>
+  def getEdgesGroupedExcludedFormatted = withHeaderAsync(parse.json) { request =>
     getEdgesGroupedExcludedFormattedInner(request.body)
   }
 
@@ -185,18 +181,17 @@ object QueryController extends Controller with RequestParser {
 
       Logger.info(jsonQuery.toString)
       val q = toQuery(jsonQuery)
-      val mineQ = Query(q.vertices, List(q.steps.last))
+      val filterOutQuery = Query(q.vertices, List(q.steps.last))
 //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
-      Logger.debug(s"${q.templateId()}")
 
-      for (mine <- Graph.getEdgesAsync(mineQ); others <- Graph.getEdgesAsync(q)) yield {
-        val json = PostProcess.summarizeWithListExcludeFormatted(others, mine)
+      for (exclude <- Graph.getEdgesAsync(filterOutQuery); queryResultLs <- Graph.getEdgesAsync(q)) yield {
+        val json = PostProcess.summarizeWithListExcludeFormatted(queryResultLs, exclude)
         Ok(json).as(applicationJsonHeader)
       }
     } catch {
       case e: KGraphExceptions.BadQueryException =>
         errorLogger.error(s"$jsonQuery, $e", e)
-        badQueryExceptionResults
+        badQueryExceptionResults(e)
       case e: Throwable =>
         errorLogger.error(s"$jsonQuery, $e", e)
         errorResults
@@ -230,8 +225,6 @@ object QueryController extends Controller with RequestParser {
       } yield {
           val labelWithDir = LabelWithDirection(label.id.get, direction)
           labelWithDirs += labelWithDir
-          var srcVertex = Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId))
-          var tgtVertex = Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId))
           val (src, tgt, dir) = if (direction == 1) {
             isReverted = true
             (Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)),
@@ -241,11 +234,12 @@ object QueryController extends Controller with RequestParser {
               Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)), 0)
           }
 
-          Logger.debug(s"SrcVertex: $src")
-          Logger.debug(s"TgtVertex: $tgt")
-          Logger.debug(s"direction: $dir")
+//          Logger.debug(s"SrcVertex: $src")
+//          Logger.debug(s"TgtVertex: $tgt")
+//          Logger.debug(s"direction: $dir")
           (src, tgt, label, dir.toInt)
         }
+
       Graph.checkEdges(quads).map { case queryResultLs  =>
         val edgeJsons = for {
           queryResult <- queryResultLs
@@ -285,10 +279,10 @@ object QueryController extends Controller with RequestParser {
         Ok(s"$json\n").as(applicationJsonHeader)
       }
     } catch {
-      case e @ (_: play.api.libs.json.JsResultException | _: RuntimeException) =>
+      case e : play.api.libs.json.JsResultException =>
         errorLogger.error(s"$jsonQuery, $e", e)
-        badQueryExceptionResults
-      case e: Throwable =>
+        badQueryExceptionResults(e)
+      case e: Exception =>
         errorLogger.error(s"$jsonQuery, $e", e)
         errorResults
     }

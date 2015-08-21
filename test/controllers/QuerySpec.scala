@@ -6,6 +6,8 @@ import play.api.libs.json._
 import play.api.test.Helpers._
 import play.api.test.{FakeApplication, FakeRequest}
 
+import scala.concurrent.Await
+
 class QuerySpec extends SpecCommon {
   init()
 
@@ -13,15 +15,16 @@ class QuerySpec extends SpecCommon {
     running(FakeApplication()) {
       // insert bulk and wait ..
       val bulkEdges: String = Seq(
-        Seq("1", "insert", "e", "0", "1", testLabelName, "{}").mkString("\t"),
-        Seq("1", "insert", "e", "0", "2", testLabelName, "{}").mkString("\t"),
-        Seq("1", "insert", "e", "2", "0", testLabelName, "{}").mkString("\t"),
-        Seq("1", "insert", "e", "2", "1", testLabelName, "{}").mkString("\t")
+        Seq("1", "insert", "e", "0", "1", testLabelName, "{\"weight\": 10}").mkString("\t"),
+        Seq("1", "insert", "e", "0", "2", testLabelName, "{\"weight\": 20}").mkString("\t"),
+        Seq("1", "insert", "e", "2", "0", testLabelName, "{\"weight\": 30}").mkString("\t"),
+        Seq("1", "insert", "e", "2", "1", testLabelName, "{\"weight\": 40}").mkString("\t")
       ).mkString("\n")
-
-      val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)).get
+      val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)
+      Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
       Thread.sleep(asyncFlushInterval)
     }
+
 
     def query(id: Int) = Json.parse( s"""
         { "srcVertices": [
@@ -46,6 +49,22 @@ class QuerySpec extends SpecCommon {
           ]]
         }""")
 
+    def queryTransform(id: Int, transforms: String) = Json.parse( s"""
+        { "srcVertices": [
+          { "serviceName": "${testServiceName}",
+            "columnName": "${testColumnName}",
+            "id": ${id}
+           }],
+          "steps": [
+          [ {
+              "label": "${testLabelName}",
+              "direction": "out",
+              "offset": 0,
+              "transform": $transforms
+            }
+          ]]
+        }""")
+
     def getEdges(queryJson: JsValue): JsValue = {
       val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryJson)).get
       contentAsJson(ret)
@@ -54,10 +73,17 @@ class QuerySpec extends SpecCommon {
     "get edge exclude" in {
       running(FakeApplication()) {
         val result = getEdges(query(0))
-        println(result)
         (result \ "results").as[List[JsValue]].size must equalTo(1)
+      }
+    }
 
-        true
+    "edge transform " in {
+      running(FakeApplication()) {
+        var result = getEdges(queryTransform(0, "[[\"_to\"]]"))
+        (result \ "results").as[List[JsValue]].size must equalTo(2)
+
+        result = getEdges(queryTransform(0, "[[\"weight\"]]"))
+        (result \ "results").as[List[JsValue]].size must equalTo(4)
       }
     }
   }

@@ -1,13 +1,12 @@
 package com.daumkakao.s2graph.core
- import com.daumkakao.s2graph.core.mysqls._
+
+import com.daumkakao.s2graph.core.Management.JsonModel.{Index, Prop}
+import com.daumkakao.s2graph.core.mysqls._
 //import com.daumkakao.s2graph.core.models._
 
 
-import com.daumkakao.s2graph.core.types2.{LabelWithDirection, InnerVal}
+import com.daumkakao.s2graph.core.types2.{InnerVal, LabelWithDirection}
 import com.typesafe.config.ConfigFactory
-import org.apache.hadoop.hbase.util.Bytes
-import org.hbase.async.{KeyValue, PutRequest}
-import play.api.libs.json.{JsNumber, JsString, JsBoolean}
 
 import scala.concurrent.ExecutionContext
 
@@ -46,29 +45,22 @@ trait TestCommonWithModels {
   val LABEMETA = LabelMeta
 
   val testProps = Seq(
-    ("is_blocked", "false", BOOLEAN),
-    ("time", "0", INT),
-    ("weight", "0", INT),
-    ("is_hidden", "true", BOOLEAN),
-    ("phone_number", "xxx-xxx-xxxx", STRING),
-    ("score", "0.1", FLOAT),
-    ("age", "10", INT)
+    Prop("affinity_score", "0.0", DOUBLE),
+    Prop("is_blocked", "false", BOOLEAN),
+    Prop("time", "0", INT),
+    Prop("weight", "0", INT),
+    Prop("is_hidden", "true", BOOLEAN),
+    Prop("phone_number", "xxx-xxx-xxxx", STRING),
+    Prop("score", "0.1", FLOAT),
+    Prop("age", "10", INT)
   )
-  val testIdxProps = Seq(
-    ("_timestamp", "0", "long"),
-    ("affinity_score", "0.0", "double")
-  )
+  val testIdxProps = Seq(Index("_PK", Seq("_timestamp", "affinity_score")))
   val consistencyLevel = "strong"
   val hTableTTL = None
 
 
   val config = ConfigFactory.parseString("")
   Graph(config)(ExecutionContext.Implicits.global)
-  Model(config)
-//  HBaseModel(zkQuorum)
-
-
-
 
   def initTests() = {
     deleteTestLabel()
@@ -81,8 +73,8 @@ trait TestCommonWithModels {
   }
 
   def createTestService() = {
-    Management.createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL = None)
-    Management.createService(serviceNameV2,  cluster, hTableName, preSplitSize, hTableTTL = None)
+    Management.createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
+    Management.createService(serviceNameV2,  cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
   }
 
   def deleteTestService() = {
@@ -102,7 +94,7 @@ trait TestCommonWithModels {
     Management.createLabel(labelName, serviceName, columnName, columnType, serviceName, columnName, columnType,
       isDirected = true, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION1, false)
 
-    Management.createLabel(labelNameV2, serviceNameV2, columnNameV2, columnTypeV2, serviceNameV2, columnNameV2, columnTypeV2,
+    Management.createLabel(labelNameV2, serviceNameV2, columnNameV2, columnTypeV2, serviceNameV2, tgtColumnNameV2, tgtColumnTypeV2,
       isDirected = true, serviceNameV2, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION2, false)
 
     Management.createLabel(undirectedLabelName, serviceName, columnName, columnType, serviceName, tgtColumnName, tgtColumnType,
@@ -110,7 +102,6 @@ trait TestCommonWithModels {
 
     Management.createLabel(undirectedLabelNameV2, serviceNameV2, columnNameV2, columnTypeV2, serviceNameV2, tgtColumnNameV2, tgtColumnTypeV2,
       isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION2, false)
-
   }
 
   /** */
@@ -125,15 +116,11 @@ trait TestCommonWithModels {
   lazy val tgtColumn = ServiceColumn.find(service.id.get, tgtColumnName, useCache = false).get
   lazy val tgtColumnV2 = ServiceColumn.find(serviceV2.id.get, tgtColumnNameV2, useCache = false).get
 
-
   lazy val label = Label.findByName(labelName, useCache = false).get
   lazy val labelV2 = Label.findByName(labelNameV2, useCache = false).get
 
   lazy val undirectedLabel = Label.findByName(undirectedLabelName, useCache = false).get
   lazy val undirectedLabelV2 = Label.findByName(undirectedLabelNameV2, useCache = false).get
-
-
-
 
   lazy val dir = GraphUtil.directions("out")
   lazy val op = GraphUtil.operations("insert")

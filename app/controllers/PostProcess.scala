@@ -64,7 +64,7 @@ object PostProcess extends JSONParser {
   def sortWithFormatted(jsons: Iterable[JsObject], scoreField: String = "scoreSum", queryResultLs: Seq[QueryResult], decrease: Boolean = true): JsObject = {
     val ordering = if (decrease) -1 else 1
     var sortedJsons = jsons.toList.sortBy { jsObject => (jsObject \ scoreField).as[Double] * ordering }
-    queryLogger.debug(s"sortedJsons : $sortedJsons")
+//    queryLogger.debug(s"sortedJsons : $sortedJsons")
     if (queryResultLs.isEmpty) Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
     else Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons,
       "impressionId" -> queryResultLs.head.query.impressionId())
@@ -219,28 +219,21 @@ object PostProcess extends JSONParser {
     Json.toJson(vertices.flatMap { v => vertexToJson(v) })
   }
 
-  def propsToJson(edge: Edge) = {
-    for {
-      (seq, v) <- edge.propsWithTs if seq >= 0
-      metaProp <- edge.label.metaPropsMap.get(seq)
-      jsValue <- innerValToJsValue(v.innerVal, metaProp.dataType)
-    } yield {
-      (metaProp.name, jsValue)
-    }
-  }
 
   def propsToJson(edge: Edge, q: Query, queryParam: QueryParam): (JsObject, Boolean) = {
     var obj = Json.obj()
     var isEmpty = true
     for {
 //    val ret = for {
-      (seq, v) <- edge.propsWithTs if seq >= 0
-      metaProp <- queryParam.label.metaPropsMap.get(seq)
-      jsValue <- innerValToJsValue(v.innerVal, metaProp.dataType)
-      if q.selectColumnsSet.isEmpty || q.selectColumnsSet.contains(metaProp.name)
+      (seq, labelMeta) <- queryParam.label.metaPropsMap if LabelMeta.isValidSeq(seq)
+      innerVal = edge.propsWithTs.get(seq).map(_.innerVal).getOrElse {
+        toInnerVal(labelMeta.defaultValue, labelMeta.dataType, queryParam.label.schemaVersion)
+      }
+      jsValue <- innerValToJsValue(innerVal, labelMeta.dataType)
+      if q.selectColumnsSet.isEmpty || q.selectColumnsSet.contains(labelMeta.name)
     } yield {
       isEmpty = false
-        obj += (metaProp.name -> jsValue)
+        obj += (labelMeta.name -> jsValue)
 //        (metaProp.name, jsValue)
       }
 //    Logger.debug(s"$ret")
@@ -343,15 +336,27 @@ object PostProcess extends JSONParser {
       }
     props.toMap
   }
-  @deprecated
-  def summarizeWithListExclude(exclude: Seq[QueryResult],
-                               queryResultLs: Seq[QueryResult]): JsObject = {
+
+  @deprecated(message = "deprecated", since = "0.2")
+  def propsToJson(edge: Edge) = {
+    for {
+      (seq, v) <- edge.propsWithTs if LabelMeta.isValidSeq(seq)
+      metaProp <- edge.label.metaPropsMap.get(seq)
+      jsValue <- innerValToJsValue(v.innerVal, metaProp.dataType)
+    } yield {
+      (metaProp.name, jsValue)
+    }
+  }
+
+  @deprecated(message = "deprecated", since = "0.2")
+  def summarizeWithListExclude(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]): JsObject = {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
 
 
     val groupedEdgesWithRank = (for {
       queryResult <- queryResultLs
-      (edge, score) <- queryResult.edgeWithScoreLs if edge.propsWithTs.contains(LabelMeta.degreeSeq)
+      (edge, score) <- queryResult.edgeWithScoreLs
+//      if edge.propsWithTs.contains(LabelMeta.degreeSeq)
     } yield {
         (edge, score)
       }).groupBy { case (edge, score) =>
@@ -371,33 +376,11 @@ object PostProcess extends JSONParser {
     if (queryResultLs.isEmpty) {
       Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
     } else {
-      Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons, "impressionId" -> queryResultLs.head.query.templateId())
+      Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons, "impressionId" -> queryResultLs.head.query.impressionId())
     }
 
   }
 
 
-  //  def toSimpleJson(edges: Iterable[(Vertex, Double)]) = {
-//    import play.api.libs.json.Json
-//
-//    val arr = Json.arr(edges.map { case (v, w) => Json.obj("vId" -> v.id.toString, "score" -> w) })
-//    Json.obj("size" -> edges.size, "results" -> arr)
-//  }
-//
-//  def sumUp(l: Iterable[(Vertex, Double)]) = {
-//    l.groupBy(_._1).map { case (v, list) => (v, list.foldLeft(0.0) { case (sum, (vertex, r)) => sum + r }) }
-//  }
-//
-//  // Assume : l,r are unique lists
-//  def union(l: Iterable[(Vertex, Double)], r: Iterable[(Vertex, Double)]) = {
-//    val ret = l.toList ::: r.toList
-//    sumUp(ret)
-//  }
-//
-//  // Assume : l,r are unique lists
-//  def intersect(l: Iterable[(Vertex, Double)], r: Iterable[(Vertex, Double)]) = {
-//    val ret = l.toList ::: r.toList
-//    sumUp(ret.groupBy(_._1).filter(_._2.size > 1).map(_._2).flatten)
-//  }
 
 }

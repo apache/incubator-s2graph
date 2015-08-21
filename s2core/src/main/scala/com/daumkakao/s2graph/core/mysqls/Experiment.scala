@@ -18,7 +18,7 @@ object Experiment extends Model[Experiment] {
       rs.int("total_modular"))
   }
 
-  def finds(serviceId: Int): List[Experiment] = {
+  def finds(serviceId: Int)(implicit session: DBSession = AutoSession): List[Experiment] = {
     val cacheKey = "serviceId=" + serviceId
     withCaches(cacheKey) {
       sql"""select * from experiments where service_id = ${serviceId}"""
@@ -26,7 +26,7 @@ object Experiment extends Model[Experiment] {
     }
   }
 
-  def findBy(serviceId: Int, name: String): Option[Experiment] = {
+  def findBy(serviceId: Int, name: String)(implicit session: DBSession = AutoSession): Option[Experiment] = {
     val cacheKey = "serviceId=" + serviceId + ":name=" + name
     withCache(cacheKey) {
       sql"""select * from experiments where service_id = ${serviceId} and name = ${name}"""
@@ -34,7 +34,7 @@ object Experiment extends Model[Experiment] {
     }
   }
 
-  def findById(id: Int): Option[Experiment] = {
+  def findById(id: Int)(implicit session: DBSession = AutoSession): Option[Experiment] = {
     val cacheKey = "id=" + id
     withCache(cacheKey)(
       sql"""select * from experiments where id = ${id}"""
@@ -62,8 +62,8 @@ case class Experiment(id: Option[Int],
 
   def findBucket(uuid: String): Option[Bucket] = {
     val seed = experimentType match {
-      case "u" => GraphUtil.murmur3(uuid) % totalModular + 1
-      case _ => Random.nextInt(totalModular) + 1
+      case "u" => (GraphUtil.murmur3(uuid) % totalModular) + 1
+      case _ => (Random.nextInt(totalModular)) + 1
     }
 
     findBucket(seed)
@@ -71,7 +71,7 @@ case class Experiment(id: Option[Int],
 
   def findBucket(uuidMod: Int): Option[Bucket] = {
     rangeBuckets.find { case ((from, to), bucket) =>
-      from <= uuidMod && uuidMod < to
+      from <= uuidMod && uuidMod <= to
     }.map(_._2)
   }
 }

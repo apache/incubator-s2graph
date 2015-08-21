@@ -16,8 +16,7 @@ object EdgeQualifier extends HBaseDeserializable {
                 version: String = VERSION2): (EdgeQualifier, Int) = {
     var pos = offset
     var numOfBytesUsedTotal = 0
-    /** changed not to store op bytes on edge qualifier */
-    val op = GraphUtil.defaultOpByte
+
     val (props, tgtVertexId) = {
       val (props, endAt) = bytesToProps(bytes, pos, version)
       numOfBytesUsedTotal += endAt - offset
@@ -31,7 +30,14 @@ object EdgeQualifier extends HBaseDeserializable {
       numOfBytesUsedTotal += numOfBytesUsed
       (props, tgtVertexId)
     }
-    (EdgeQualifier(props, tgtVertexId, op), numOfBytesUsedTotal)
+    /** changed not to store op bytes on edge qualifier */
+    val (op, opBytesUsed) =
+      if (offset + numOfBytesUsedTotal == len) (GraphUtil.defaultOpByte, 0)
+      else {
+        (bytes(offset + numOfBytesUsedTotal), 1)
+      }
+
+    (EdgeQualifier(props, tgtVertexId, op), numOfBytesUsedTotal + opBytesUsed)
   }
 }
 case class EdgeQualifier(props: Seq[(Byte, InnerValLike)],
@@ -39,21 +45,27 @@ case class EdgeQualifier(props: Seq[(Byte, InnerValLike)],
                          op: Byte) extends EdgeQualifierLike {
   import HBaseType._
   import HBaseSerializable._
+
   lazy val innerTgtVertexId = VertexId.toTargetVertexId(tgtVertexId)
   lazy val propsMap = props.toMap
   lazy val propsBytes = propsToBytes(props)
+
   def bytes: Array[Byte] = {
-        propsMap.get(toSeqByte) match {
-          case None => Bytes.add(propsBytes, innerTgtVertexId.bytes)
-          case Some(vId) => propsBytes
-        }
+    if (op == GraphUtil.operations("incrementCount")) {
+      Bytes.add(Bytes.add(propsBytes, innerTgtVertexId.bytes), Array.fill(1)(op))
+    } else {
+      val mergedBytes = propsMap.get(toSeqByte) match {
+        case None => Bytes.add(propsBytes, innerTgtVertexId.bytes)
+        case Some(vId) => propsBytes
+      }
+      mergedBytes
+    }
   }
+
   override def equals(obj: Any) = {
     obj match {
       case other: EdgeQualifier =>
-        props.map(_._2) == other.props.map(_._2) &&
-          tgtVertexId == other.tgtVertexId
-//          op == other.op
+        props.map(_._2) == other.props.map(_._2) && tgtVertexId == other.tgtVertexId
       case _ => false
     }
   }
