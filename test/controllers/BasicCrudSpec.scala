@@ -53,7 +53,6 @@ class BasicCrudSpec extends SpecCommon {
         val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(query)).get
         val jsResult = commonCheck(ret)
 
-
         val results = jsResult \ "results"
         val deegrees = (jsResult \ "degrees").as[List[JsObject]]
         val propsLs = (results \\ "props").seq
