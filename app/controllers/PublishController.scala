@@ -27,7 +27,7 @@ object PublishController extends Controller {
     //  val kafkaTopic = toService(topic)
     val strs = request.body.split("\n")
     strs.foreach(str => {
-      val keyedMessage = new ProducerRecord[Key, Val](Config.KAFKA_LOG_TOPIC, s"$str")
+      val keyedMessage = new ProducerRecord[Key, Val](Config.KAFKA_LOG_TOPIC, str)
       //    val keyedMessage = new ProducerRecord[Key, Val](kafkaTopic, s"$str")
       //        Logger.debug(s"$kafkaTopic, $str")
       ExceptionHandler.enqueue(KafkaMessage(keyedMessage))
