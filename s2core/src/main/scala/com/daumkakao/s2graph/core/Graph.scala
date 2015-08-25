@@ -752,9 +752,16 @@ object Graph {
 
     val queryParams = for {
       label <- labels
+      labelIndex <- label.indices
     } yield {
         val labelWithDir = LabelWithDirection(label.id.get, dir)
-        QueryParam(labelWithDir).limit(0, maxValidEdgeListSize * 5)
+        val queryParam = QueryParam(labelWithDir)
+          .labelOrderSeq(labelIndex.seq)
+          .limit(0, maxValidEdgeListSize * 5)
+        if (label.consistencyLevel != "strong") {
+          queryParam.duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
+        }
+        queryParam
       }
 
     val step = Step(queryParams.toList)
