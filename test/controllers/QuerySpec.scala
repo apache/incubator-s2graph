@@ -9,6 +9,28 @@ import scala.concurrent.Await
 class QuerySpec extends SpecCommon {
   init()
 
+  object QueryBuilder {
+
+    import org.json4s.native.Serialization
+
+    import scala.language.dynamics
+
+    def aa[T](args: T*) = List(a(args: _ *))
+
+    def a[T](args: T*) = args.toList
+
+    object m extends Dynamic {
+      def applyDynamicNamed(name: String)(args: (String, Any)*): Map[String, Any] = args.toMap
+    }
+
+    implicit class anyMapOps(map: Map[String, Any]) {
+      def toJson: JsValue = {
+        val js = Serialization.write(map)(org.json4s.DefaultFormats)
+        Json.parse(js)
+      }
+    }
+  }
+
   "query test" should {
     running(FakeApplication()) {
       // insert bulk and wait ..
@@ -120,26 +142,20 @@ class QuerySpec extends SpecCommon {
       }
     }
 
-    def queryDuration(ids: Seq[Int], from: Int, to: Int) = Json.parse( s"""
-        { "srcVertices": [
-          { "serviceName": "${testServiceName}",
-            "columnName": "${testColumnName}",
-            "ids": [${ids.mkString(",")}]
-           }],
-          "steps": [
-          [ {
-              "label": "${testLabelName}",
-              "direction": "out",
-              "offset": 0,
-              "limit": 100,
-              "duration": {"from": $from, "to": $to}
-            }
-          ]]
-        }""")
+    def queryDuration(ids: Seq[Int], from: Int, to: Int) = {
+      import QueryBuilder._
+      val js = m(
+        srcVertices = a(
+          m(serviceName = testServiceName, columnName = testColumnName, ids = ids)),
+        steps = a(m(step = a(
+          m(label = testLabelName, direction = "out", offset = 0, limit = 100, duration = m(from = from, to = to)))))
+      ).toJson
+      js
+    }
 
     "duration" in {
       running(FakeApplication()) {
-        // get all
+         // get all
         var result = getEdges(queryDuration(Seq(0, 2), from = 0, to = 5000))
         (result \ "results").as[List[JsValue]].size must equalTo(4)
 
@@ -156,6 +172,7 @@ class QuerySpec extends SpecCommon {
           Seq(3003, "insert", "e", "2", "0", testLabelName, "{\"weight\": 30}").mkString("\t"),
           Seq(4004, "insert", "e", "2", "1", testLabelName, "{\"weight\": 40}").mkString("\t")
         ).mkString("\n")
+
         val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)
         Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
         Thread.sleep(asyncFlushInterval)
@@ -171,6 +188,7 @@ class QuerySpec extends SpecCommon {
 
         result = getEdges(queryDuration(Seq(0, 2), from = 1000, to = 2000))
         (result \ "results").as[List[JsValue]].size must equalTo(1)
+        true
       }
     }
   }
