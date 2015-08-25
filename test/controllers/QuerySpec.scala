@@ -14,9 +14,9 @@ class QuerySpec extends SpecCommon {
       // insert bulk and wait ..
       val bulkEdges: String = Seq(
         Seq(1000, "insert", "e", "0", "1", testLabelName, "{\"weight\": 10, \"is_hidden\": true}").mkString("\t"),
-        Seq(1000, "insert", "e", "0", "2", testLabelName, "{\"weight\": 20, \"is_hidden\": false}").mkString("\t"),
-        Seq(1000, "insert", "e", "2", "0", testLabelName, "{\"weight\": 30}").mkString("\t"),
-        Seq(1000, "insert", "e", "2", "1", testLabelName, "{\"weight\": 40}").mkString("\t")
+        Seq(2000, "insert", "e", "0", "2", testLabelName, "{\"weight\": 20, \"is_hidden\": false}").mkString("\t"),
+        Seq(3000, "insert", "e", "2", "0", testLabelName, "{\"weight\": 30}").mkString("\t"),
+        Seq(4000, "insert", "e", "2", "1", testLabelName, "{\"weight\": 40}").mkString("\t")
       ).mkString("\n")
       val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)
       Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
@@ -117,6 +117,60 @@ class QuerySpec extends SpecCommon {
 
         result = getEdges(queryTransform(0, "[[\"weight\"]]"))
         (result \ "results").as[List[JsValue]].size must equalTo(4)
+      }
+    }
+
+    def queryDuration(ids: Seq[Int], from: Int, to: Int) = Json.parse( s"""
+        { "srcVertices": [
+          { "serviceName": "${testServiceName}",
+            "columnName": "${testColumnName}",
+            "ids": [${ids.mkString(",")}]
+           }],
+          "steps": [
+          [ {
+              "label": "${testLabelName}",
+              "direction": "out",
+              "offset": 0,
+              "limit": 100,
+              "duration": {"from": $from, "to": $to}
+            }
+          ]]
+        }""")
+
+    "duration" in {
+      running(FakeApplication()) {
+        // get all
+        var result = getEdges(queryDuration(Seq(0, 2), from = 0, to = 5000))
+        (result \ "results").as[List[JsValue]].size must equalTo(4)
+
+        // inclusive, exclusive
+        result = getEdges(queryDuration(Seq(0, 2), from = 1000, to = 4000))
+        (result \ "results").as[List[JsValue]].size must equalTo(3)
+
+        result = getEdges(queryDuration(Seq(0, 2), from = 1000, to = 2000))
+        (result \ "results").as[List[JsValue]].size must equalTo(1)
+
+        val bulkEdges: String = Seq(
+          Seq(1001, "insert", "e", "0", "1", testLabelName, "{\"weight\": 10, \"is_hidden\": true}").mkString("\t"),
+          Seq(2002, "insert", "e", "0", "2", testLabelName, "{\"weight\": 20, \"is_hidden\": false}").mkString("\t"),
+          Seq(3003, "insert", "e", "2", "0", testLabelName, "{\"weight\": 30}").mkString("\t"),
+          Seq(4004, "insert", "e", "2", "1", testLabelName, "{\"weight\": 40}").mkString("\t")
+        ).mkString("\n")
+        val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)
+        Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
+        Thread.sleep(asyncFlushInterval)
+
+        // duration test after udpate
+        // get all
+        result = getEdges(queryDuration(Seq(0, 2), from = 0, to = 5000))
+        (result \ "results").as[List[JsValue]].size must equalTo(4)
+
+        // inclusive, exclusive
+        result = getEdges(queryDuration(Seq(0, 2), from = 1000, to = 4000))
+        (result \ "results").as[List[JsValue]].size must equalTo(3)
+
+        result = getEdges(queryDuration(Seq(0, 2), from = 1000, to = 2000))
+        (result \ "results").as[List[JsValue]].size must equalTo(1)
       }
     }
   }
