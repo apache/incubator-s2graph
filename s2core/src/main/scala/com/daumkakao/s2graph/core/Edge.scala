@@ -64,11 +64,11 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
     ret
   }
 
-  def buildDeleteRowAsync() = {
-    val ret = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, version)
-    //    Logger.debug(s"$ret, $version")
-    ret
-  }
+//  def buildDeleteRowAsync() = {
+//    val ret = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, version)
+//    //    Logger.debug(s"$ret, $version")
+//    ret
+//  }
 
   def withNoPendingEdge() = {
     copy(pendingEdgeOpt = None)
@@ -199,7 +199,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
   def buildDeletesAsync(): List[HBaseRpc] = {
     if (!hasAllPropsForIndex) List.empty[DeleteRequest]
     else {
-      val deleteRequest = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, ts)
+      val deleteRequest = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, ts)
       //      Logger.error(s"$deleteRequest, $ts")
       List(deleteRequest)
     }
@@ -208,8 +208,8 @@ case class EdgeWithIndex(srcVertex: Vertex,
   def buildDeleteRowAsync(): List[HBaseRpc] = {
     if (!hasAllPropsForIndex) List.empty[DeleteRequest]
     else {
-      val deleteRequest = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, ts)
-      //      Logger.error(s"$deleteRequest, $ts")
+      val deleteRequest = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, ts)
+//            Logger.error(s"DeleteRow: ${rowKey}, $deleteRequest, $ts")
       List(deleteRequest)
     }
   }
@@ -1068,7 +1068,7 @@ object Edge extends JSONParser {
   }
 
   def toEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None): Option[Edge] = {
-    //    Logger.debug(s"$param -> $kv")
+        Logger.debug(s"$param -> $kv")
 
     val version = kv.timestamp()
     val keyBytes = kv.key()

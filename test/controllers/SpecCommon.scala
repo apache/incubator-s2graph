@@ -2,6 +2,7 @@ package test.controllers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
+import com.typesafe.config.ConfigFactory
 import config.Config
 
 import scala.util.Random
@@ -17,8 +18,10 @@ import play.api.test.Helpers._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.collection.JavaConversions._
 
 trait SpecCommon extends Specification {
+  var alreadyStarted = false
   val curTime = System.currentTimeMillis
   val t1 = curTime + 0
   val t2 = curTime + 1
@@ -36,7 +39,7 @@ trait SpecCommon extends Specification {
   protected val testTgtColumnName = "item_id_test"
   val NUM_OF_EACH_TEST = 3
   lazy val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
-  val asyncFlushInterval = 300
+  val asyncFlushInterval = 500
 
   val createService = s"""{"serviceName" : "$testServiceName"}"""
   val testLabelNameCreate = s"""
@@ -291,41 +294,45 @@ trait SpecCommon extends Specification {
   }
 
   def init() = {
-    running(FakeApplication()) {
-      println("[init start]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-      Graph(Config.conf.underlying)(ExecutionContext.Implicits.global)
-      Management.deleteService(testServiceName)
-      //
-      //      // 1. createService
+    if (alreadyStarted) {
+      println("[init skip]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    } else {
+      running(FakeApplication()) {
+        println("[init start]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        Management.deleteService(testServiceName)
+        //
+        //      // 1. createService
 
-      var result = AdminController.createServiceInner(Json.parse(createService))
-      println(s">> Service created : $createService, $result")
+        var result = AdminController.createServiceInner(Json.parse(createService))
+        println(s">> Service created : $createService, $result")
 
-      ////      val labelNames = Map(testLabelName -> testLabelNameCreate)
-      val labelNames = Map(testLabelName -> testLabelNameCreate,
-        testLabelName2 -> testLabelName2Create,
-        testLabelNameV1 -> testLabelNameV1Create,
-        testLabelNameWeak -> testLabelNameWeakCreate)
+        ////      val labelNames = Map(testLabelName -> testLabelNameCreate)
+        val labelNames = Map(testLabelName -> testLabelNameCreate,
+          testLabelName2 -> testLabelName2Create,
+          testLabelNameV1 -> testLabelNameV1Create,
+          testLabelNameWeak -> testLabelNameWeakCreate)
 
-      for {
-        (labelName, create) <- labelNames
-      } {
-        Management.deleteLabel(labelName)
-        Label.findByName(labelName, useCache = false) match {
-          case None =>
-            AdminController.createLabelInner(Json.parse(create))
-          case Some(label) =>
-            Logger.error(s">> Label already exist: $create, $label")
+        for {
+          (labelName, create) <- labelNames
+        } {
+          Management.deleteLabel(labelName)
+          Label.findByName(labelName, useCache = false) match {
+            case None =>
+              AdminController.createLabelInner(Json.parse(create))
+            case Some(label) =>
+              Logger.error(s">> Label already exist: $create, $label")
+          }
         }
+        println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        //5. create vertex
+
+        //      vertexPropsKeys.map { case (key, keyType) =>
+        //        Management.addVertexProp(testServiceName, testColumnName, key, keyType)
+        //      }
+
+        Thread.sleep(asyncFlushInterval)
       }
-      println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-      //5. create vertex
-
-      //      vertexPropsKeys.map { case (key, keyType) =>
-      //        Management.addVertexProp(testServiceName, testColumnName, key, keyType)
-      //      }
-
-      Thread.sleep(asyncFlushInterval)
+      alreadyStarted = true
     }
   }
 }

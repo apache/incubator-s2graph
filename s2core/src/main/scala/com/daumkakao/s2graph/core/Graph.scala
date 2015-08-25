@@ -104,9 +104,12 @@ object Graph {
     this.executionContext = ex
     this.singleGetTimeout = this.config.getInt("hbase.client.operation.timeout")
     this.clientFlushInterval = this.config.getInt("async.hbase.client.flush.interval").toShort
+
+    Logger.info(s"$clientFlushInterval")
     val zkQuorum = hbaseConfig.get("hbase.zookeeper.quorum")
     clients += (zkQuorum -> getClient(zkQuorum, this.clientFlushInterval))
     ExceptionHandler.apply(config)
+
     for {
       (k, v) <- defaultConfigs
     } {
@@ -752,65 +755,67 @@ object Graph {
   def deleteVerticesAllAsync(srcVertices: List[Vertex], labels: Seq[Label], dir: Int, ts: Option[Long] = None): Future[Boolean] = {
     implicit val ex = Graph.executionContext
 
-    // delete row entirely for given direction
-    // note that we are ignoring relatedEdges
-    for {
-      vertex <- srcVertices
-      label <- labels
-    } yield {
-      val labelWithDir = LabelWithDirection(label.id.get, dir)
-      val timestamp = ts.getOrElse(System.currentTimeMillis())
-      val indexedEdgeToDelete = Edge(vertex, vertex, labelWithDir, op = GraphUtil.defaultOpByte, ts = timestamp, version = timestamp)
-
-      val snapshotEdgeRowDeleteRequests = Seq(indexedEdgeToDelete.toInvertedEdgeHashLike().buildDeleteRowAsync())
-
-      val indexedEdgeRowDeleteRequests = indexedEdgeToDelete.edgesWithIndex.map { indexedEdge =>
-        indexedEdge.buildDeleteRowAsync()
-
-      }
-      Graph.writeAsync(label.hbaseZkAddr, snapshotEdgeRowDeleteRequests :: indexedEdgeRowDeleteRequests).map { rets =>
-        rets.forall(identity)
-      }
-    }
-    def buildIndividualDeleteRequests(queryResultLs: Seq[QueryResult]): Future[Seq[Boolean]] = {
-      val futures = for {
-        queryResult <- queryResultLs
-        (edge, score) <- queryResult.edgeWithScoreLs
-        timestamp = ts.getOrElse(System.currentTimeMillis())
-        indexedEdgeToDelete = Edge(edge.srcVertex, edge.tgtVertex, edge.labelWithDir, GraphUtil.operations("delete"), timestamp, timestamp, edge.propsWithTs)
-        snapshotEdgeToDelete = indexedEdgeToDelete.toInvertedEdgeHashLike()
-        indexedEdgeDeleteRequests = indexedEdgeToDelete.edgesWithIndex.map { indexEdge =>
-          indexEdge.buildDeletesAsync()
-        }
-        snapshotEdgeDeleteRequest = Seq(snapshotEdgeToDelete.buildDeleteAsync())
-      } yield {
-          for {
-            rets <- Graph.writeAsync(queryResult.queryParam.label.hbaseZkAddr, snapshotEdgeDeleteRequest :: indexedEdgeDeleteRequests)
-          } yield rets.forall(identity)
-        }
-      Future.sequence(futures)
-    }
-
-    // fetch reverse direction edges and fire deletes individually
     val queryParams = for {
       label <- labels
     } yield {
-        val labelWithDir = LabelWithDirection(label.id.get, dir).dirToggled
-        val queryParam = QueryParam(labelWithDir)
-          .limit(0, maxValidEdgeListSize * 5)
-          .duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
-
-        queryParam
+        val labelWithDir = LabelWithDirection(label.id.get, dir)
+        QueryParam(labelWithDir).limit(0, maxValidEdgeListSize * 5).duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
       }
 
     val step = Step(queryParams.toList)
     val q = Query(srcVertices, List(step), false)
 
 
+    def deleteDuplicateEdges(queryResultLs: Seq[QueryResult]): Future[Boolean] = {
+      val futures = for {
+        queryResult <- queryResultLs
+        (edge, score) <- queryResult.edgeWithScoreLs
+        duplicateEdge = edge.duplicateEdge
+        currentTs = ts.getOrElse(System.currentTimeMillis())
+        version = edge.version + Edge.incrementVersion
+        copiedEdge = edge.copy(ts = currentTs, version = version)
+        hbaseZkAddr = queryResult.queryParam.label.hbaseZkAddr
+      } yield {
+          Logger.debug(s"FetchedEdge: $edge")
+          Logger.debug(s"DeleteEdge: $duplicateEdge")
+          val indexedEdgesDeletes = duplicateEdge.edgesWithIndex.map { indexedEdge =>
+            val delete = indexedEdge.buildDeletesAsync()
+            Logger.debug(s"indexedEdgeDelete: $delete")
+            delete
+          }
+//          ++ edge.edgesWithIndex.map { indexedEdge =>
+//            val delete = indexedEdge.buildDeletesAsync()
+//            Logger.debug(s"indexedEdgeDelete: $delete")
+//            delete
+//          }
+          val indexedEdgesIncrements = duplicateEdge.edgesWithIndex.map { indexedEdge =>
+            val incr = indexedEdge.buildIncrementsAsync(-1L)
+            Logger.debug(s"indexedEdgeIncr: $incr")
+            incr
+          }
+//          ++ edge.edgesWithIndex.map { indexedEdge =>
+//            val incr = indexedEdge.buildIncrementsAsync(-1L)
+//            Logger.debug(s"indexedEdgeIncr: $incr")
+//            incr
+//          }
+          val snapshotEdgeDelete = duplicateEdge.toInvertedEdgeHashLike().buildDeleteAsync()
+          /** delete inverse edges first, then delete current edge entirely */
+          for {
+            inverseEdgeDeletes <- Graph.writeAsync(hbaseZkAddr, Seq(snapshotEdgeDelete) :: indexedEdgesDeletes ++ indexedEdgesIncrements)
+            if inverseEdgeDeletes.forall(identity)
+            edgeDeletes <- Graph.writeAsync(hbaseZkAddr, copiedEdge.edgesWithIndex.map { e => e.buildDeleteRowAsync() })
+          } yield {
+//            inverseEdgeDeletes.forall(identity)
+            edgeDeletes.forall(identity)
+          }
+        }
+      Future.sequence(futures).map { rets => rets.forall(identity) }
+    }
+
     for {
       queryResultLs <- getEdgesAsync(q)
-      rets <- buildIndividualDeleteRequests(queryResultLs)
-    } yield rets.forall(identity)
+      ret <- deleteDuplicateEdges(queryResultLs)
+    } yield ret
   }
 
 

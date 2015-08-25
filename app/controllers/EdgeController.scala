@@ -126,7 +126,11 @@ object EdgeController extends Controller with RequestParser {
   }
 
   def deleteAll() = withHeaderAsync(parse.json) { request =>
-    val deleteResults = Future.sequence(request.body.as[Seq[JsValue]] map { json =>
+    deleteAllInner(request.body)
+  }
+
+  def deleteAllInner(jsValue: JsValue) = {
+    val deleteResults = Future.sequence(jsValue.as[Seq[JsValue]] map { json =>
       val labelName = (json \ "label").as[String]
       val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil)
       val direction = (json \ "direction").asOpt[String].getOrElse("out")
@@ -139,6 +143,7 @@ object EdgeController extends Controller with RequestParser {
     })
 
     deleteResults.map { rst =>
+      Logger.debug(s"deleteAllInner: $rst")
       Ok(s"deleted... ${rst.toString()}")
     }
   }
