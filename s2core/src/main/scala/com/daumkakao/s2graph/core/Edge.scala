@@ -500,8 +500,9 @@ case class Edge(srcVertex: Vertex,
 
       snapshotEdgeDelete :: indexedEdgesDelete
     }
+    /** not wait for flush interval */
     for {
-      rets <- Graph.writeAsyncWithWait(label.hbaseZkAddr, deletes)
+      rets <- Graph.writeAsync(label.hbaseZkAddr, deletes)
     } yield {
       val ret = rets.forall(identity)
       if (!ret) {
