@@ -850,8 +850,14 @@ like insert, s2graph **do not look check** uniqueness. all responsibility is on 
 like update, s2graph **do not look check** uniqueness. all responsibility is on users. like delete, update require fetch existing edges first. after fetching edges, update props then issue increment request.
 
 ##### 5. deleteAll - `POST /graphs/edges/deleteAll` ##### 
-not supported with weak consistency. 
-like update, fetch all edges then issue delete individually on fetched edges. 
+same as strong consistency.
+```
+curl -XPOST localhost:9000/graphs/edges/deleteAll -H 'Content-Type: Application/json' -d '
+[
+  {"ids" : [101], "label":"s2graph_label_test", "direction": "out", "timestamp":1417616441}
+]
+'
+```
 
 ## 4. (Optionally) Insert and Manipulate Vertices ##
 
