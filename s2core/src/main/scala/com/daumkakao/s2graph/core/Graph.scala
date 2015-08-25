@@ -80,7 +80,7 @@ object Graph {
   private def toHBaseConfig(config: com.typesafe.config.Config) = {
     val conf = HBaseConfiguration.create()
 
-    for  {
+    for {
       (k, v) <- defaultConfigs if !config.hasPath(k)
     } {
       conf.set(k, v.toString())
@@ -229,7 +229,7 @@ object Graph {
         //TODO: register errorBacks on this operations to log error
         //          Logger.debug(s"$rpc")
         val defer = rpcs.map { rpc =>
-//                    Logger.debug(s"$rpc")
+          //                    Logger.debug(s"$rpc")
           val deferred = rpc match {
             case d: DeleteRequest => client.delete(d).addErrback(new Callback[Unit, Exception] {
               def call(arg: Exception): Unit = {
@@ -321,7 +321,7 @@ object Graph {
     val cacheKey = MurmurHash3.stringHash(getRequest.toString)
     def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
       def call(arg: QueryResult): QueryResult = {
-//        Logger.debug(s"queryResultCachePut, $arg")
+        //        Logger.debug(s"queryResultCachePut, $arg")
         cache.put(cacheKey, arg)
         arg
       }
@@ -332,20 +332,20 @@ object Graph {
         val cachedVal = cache.asMap().get(cacheKey)
         if (cachedVal != null && queryParam.timestamp - cachedVal.timestamp < cacheTTL) {
           val elapsedTime = queryParam.timestamp - cachedVal.timestamp
-//          Logger.debug(s"cacheHitAndValid: $cacheKey, $cacheTTL, $elapsedTime")
+          //          Logger.debug(s"cacheHitAndValid: $cacheKey, $cacheTTL, $elapsedTime")
           Deferred.fromResult(cachedVal)
         }
         else {
           // cache.asMap().remove(cacheKey)
-//          Logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
+          //          Logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
           fetchEdges(getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
         }
       } else {
-//        Logger.debug(s"cacheMiss: $cacheKey")
+        //        Logger.debug(s"cacheMiss: $cacheKey")
         fetchEdges(getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
       }
     } else {
-//      Logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
+      //      Logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
       fetchEdges(getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
@@ -400,19 +400,19 @@ object Graph {
       vertex
     }
 
-//    Logger.debug(s"groupedBy: $groupedBy")
+    //    Logger.debug(s"groupedBy: $groupedBy")
     val groupedByFiltered = for {
       (vertex, edgesWithScore) <- groupedBy
       aggregatedScore = edgesWithScore.map(_._2).sum if aggregatedScore >= prevStepThreshold
     } yield (vertex -> aggregatedScore)
-//    Logger.debug(s"groupedByFiltered: $groupedByFiltered")
+    //    Logger.debug(s"groupedByFiltered: $groupedByFiltered")
 
     val nextStepSrcVertices = if (prevStepLimit >= 0) {
       groupedByFiltered.toSeq.sortBy(-1 * _._2).take(prevStepLimit)
     } else {
       groupedByFiltered.toSeq
     }
-//    Logger.debug(s"nextStepSrcVertices: $nextStepSrcVertices")
+    //    Logger.debug(s"nextStepSrcVertices: $nextStepSrcVertices")
     val currentStepRequestLss = buildGetRequests(nextStepSrcVertices, step.queryParams)
 
     val queryParams = currentStepRequestLss.flatMap { case (getsWithQueryParams, prevScore) =>
@@ -506,9 +506,9 @@ object Graph {
 
       val nextStepOpt = if (stepIdx < q.steps.size - 1) Option(q.steps(stepIdx + 1)) else None
 
-//      val labelOutputFields = step.queryParams.map { qParam =>
-//        qParam.labelWithDir.labelId -> qParam.outputFields
-//      }.toMap
+      //      val labelOutputFields = step.queryParams.map { qParam =>
+      //        qParam.labelWithDir.labelId -> qParam.outputFields
+      //      }.toMap
 
       val excludeLabelWithDirSet = step.queryParams.filter(_.exclude).map(l => l.labelWithDir.labelId -> l.labelWithDir.dir).toSet
       val includeLabelWithDirSet = step.queryParams.filter(_.include).map(l => l.labelWithDir.labelId -> l.labelWithDir.dir).toSet
@@ -526,12 +526,12 @@ object Graph {
           val labelWeight = step.labelWeights.get(queryResult.queryParam.labelWithDir.labelId).getOrElse(1.0)
           for {
             (edge, score) <- queryResult.edgeWithScoreLs
-//            outputFields <- labelOutputFields.get(edge.labelWithDir.labelId)
+            //            outputFields <- labelOutputFields.get(edge.labelWithDir.labelId)
             convertedEdge <- convertEdges(queryResult.queryParam, edge, nextStepOpt)
-//            convertedEdge <- convertEdges(edge, labelOutputFields(edge.labelWithDir.labelId))
+            //            convertedEdge <- convertEdges(edge, labelOutputFields(edge.labelWithDir.labelId))
             (hashKey, filterHashKey) = toHashKey(queryResult.queryParam, convertedEdge)
           } {
-//            Logger.error(s"filterEdge: $edge")
+            //            Logger.error(s"filterEdge: $edge")
             /** check if this edge should be exlcuded. */
             val filterKey = edge.labelWithDir.labelId -> edge.labelWithDir.dir
             if (excludeLabelWithDirSet.contains(filterKey) && !edge.propsWithTs.containsKey(LabelMeta.degreeSeq)) {
@@ -575,8 +575,8 @@ object Graph {
               }
             }
           }
-//          logMap(duplicateEdges)
-//          logMap(resultEdgeWithScores)
+          //          logMap(duplicateEdges)
+          //          logMap(resultEdgeWithScores)
           (duplicateEdges, resultEdgeWithScores)
         }
 
@@ -584,17 +584,17 @@ object Graph {
         (queryResult, queryParamResult) <- queryResultLs.zip(queryParamResultLs)
         (duplicateEdges, resultEdgeWithScores) = queryParamResult
       } yield {
-        val edgesWithScores = for {
-          (hashKey, filterHashKey, edge, score) <- resultEdgeWithScores.values if edgesToInclude.containsKey(filterHashKey) || !edgesToExclude.containsKey(filterHashKey)
-          (duplicateEdge, aggregatedScore) <- (edge -> score) +: (if (duplicateEdges.containsKey(hashKey)) duplicateEdges.get(hashKey) else Seq.empty)
-          if aggregatedScore >= queryResult.queryParam.threshold
-        } yield {
-//            Logger.error(s"remainEdge: $duplicateEdge")
-            (duplicateEdge, aggregatedScore)
-          }
+          val edgesWithScores = for {
+            (hashKey, filterHashKey, edge, score) <- resultEdgeWithScores.values if edgesToInclude.containsKey(filterHashKey) || !edgesToExclude.containsKey(filterHashKey)
+            (duplicateEdge, aggregatedScore) <- (edge -> score) +: (if (duplicateEdges.containsKey(hashKey)) duplicateEdges.get(hashKey) else Seq.empty)
+            if aggregatedScore >= queryResult.queryParam.threshold
+          } yield {
+              //            Logger.error(s"remainEdge: $duplicateEdge")
+              (duplicateEdge, aggregatedScore)
+            }
 
-        QueryResult(queryResult.query, queryResult.stepIdx, queryResult.queryParam, edgesWithScores)
-      }
+          QueryResult(queryResult.query, queryResult.stepIdx, queryResult.queryParam, edgesWithScores)
+        }
       aggregatedResults
     }
   }
@@ -606,6 +606,7 @@ object Graph {
       Logger.error(s"${e.getKey} -> ${e.getValue}")
     }
   }
+
   private def filterDuplicates(seen: HashMap[(String, Int, Int, String), Double], queryParam: QueryParam,
                                edge: Edge, score: Double) = {
     val key = (edge.srcVertex.innerId.toString, edge.labelWithDir.labelId, edge.labelWithDir.dir, edge.tgtVertex.innerId.toString)
@@ -747,39 +748,69 @@ object Graph {
     }
   }
 
-  def deleteVerticesAllAsync(srcVertices: List[Vertex], labels: Seq[Label], dir: Int, ts: Option[Long]=None): Future[Boolean] = {
+  /** not care about partial failure for now */
+  def deleteVerticesAllAsync(srcVertices: List[Vertex], labels: Seq[Label], dir: Int, ts: Option[Long] = None): Future[Boolean] = {
     implicit val ex = Graph.executionContext
 
+    // delete row entirely for given direction
+    // note that we are ignoring relatedEdges
+    for {
+      vertex <- srcVertices
+      label <- labels
+    } yield {
+      val labelWithDir = LabelWithDirection(label.id.get, dir)
+      val timestamp = ts.getOrElse(System.currentTimeMillis())
+      val indexedEdgeToDelete = Edge(vertex, vertex, labelWithDir, op = GraphUtil.defaultOpByte, ts = timestamp, version = timestamp)
+
+      val snapshotEdgeRowDeleteRequests = Seq(indexedEdgeToDelete.toInvertedEdgeHashLike().buildDeleteRowAsync())
+
+      val indexedEdgeRowDeleteRequests = indexedEdgeToDelete.edgesWithIndex.map { indexedEdge =>
+        indexedEdge.buildDeleteRowAsync()
+
+      }
+      Graph.writeAsync(label.hbaseZkAddr, snapshotEdgeRowDeleteRequests :: indexedEdgeRowDeleteRequests).map { rets =>
+        rets.forall(identity)
+      }
+    }
+    def buildIndividualDeleteRequests(queryResultLs: Seq[QueryResult]): Future[Seq[Boolean]] = {
+      val futures = for {
+        queryResult <- queryResultLs
+        (edge, score) <- queryResult.edgeWithScoreLs
+        timestamp = ts.getOrElse(System.currentTimeMillis())
+        indexedEdgeToDelete = Edge(edge.srcVertex, edge.tgtVertex, edge.labelWithDir, GraphUtil.operations("delete"), timestamp, timestamp, edge.propsWithTs)
+        snapshotEdgeToDelete = indexedEdgeToDelete.toInvertedEdgeHashLike()
+        indexedEdgeDeleteRequests = indexedEdgeToDelete.edgesWithIndex.map { indexEdge =>
+          indexEdge.buildDeletesAsync()
+        }
+        snapshotEdgeDeleteRequest = Seq(snapshotEdgeToDelete.buildDeleteAsync())
+      } yield {
+          for {
+            rets <- Graph.writeAsync(queryResult.queryParam.label.hbaseZkAddr, snapshotEdgeDeleteRequest :: indexedEdgeDeleteRequests)
+          } yield rets.forall(identity)
+        }
+      Future.sequence(futures)
+    }
+
+    // fetch reverse direction edges and fire deletes individually
     val queryParams = for {
       label <- labels
-      labelIndex <- label.indices
     } yield {
-        val labelWithDir = LabelWithDirection(label.id.get, dir)
+        val labelWithDir = LabelWithDirection(label.id.get, dir).dirToggled
         val queryParam = QueryParam(labelWithDir)
-          .labelOrderSeq(labelIndex.seq)
           .limit(0, maxValidEdgeListSize * 5)
-        if (label.consistencyLevel != "strong") {
-          queryParam.duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
-        }
+          .duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
+
         queryParam
       }
 
     val step = Step(queryParams.toList)
-    val q = Query(srcVertices, List(step), true)
+    val q = Query(srcVertices, List(step), false)
+
 
     for {
       queryResultLs <- getEdgesAsync(q)
-      edges = for {
-        queryResult <- queryResultLs
-        (edge, score) <- queryResult.edgeWithScoreLs
-      } yield {
-        val timestamp = ts.getOrElse(System.currentTimeMillis())
-        Edge(edge.srcVertex, edge.tgtVertex, edge.labelWithDir, GraphUtil.operations("delete"), timestamp, timestamp, edge.propsWithTs)
-      }
-      ret <- mutateEdges(edges)
-    } yield {
-      ret.foldLeft(true){(a,b) => a && b}
-    }
+      rets <- buildIndividualDeleteRequests(queryResultLs)
+    } yield rets.forall(identity)
   }
 
 

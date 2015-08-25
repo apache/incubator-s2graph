@@ -64,6 +64,12 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
     ret
   }
 
+  def buildDeleteRowAsync() = {
+    val ret = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, version)
+    //    Logger.debug(s"$ret, $version")
+    ret
+  }
+
   def withNoPendingEdge() = {
     copy(pendingEdgeOpt = None)
   }
@@ -193,6 +199,15 @@ case class EdgeWithIndex(srcVertex: Vertex,
   def buildDeletesAsync(): List[HBaseRpc] = {
     if (!hasAllPropsForIndex) List.empty[DeleteRequest]
     else {
+      val deleteRequest = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, ts)
+      //      Logger.error(s"$deleteRequest, $ts")
+      List(deleteRequest)
+    }
+  }
+
+  def buildDeleteRowAsync(): List[HBaseRpc] = {
+    if (!hasAllPropsForIndex) List.empty[DeleteRequest]
+    else {
       val deleteRequest = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, ts)
       //      Logger.error(s"$deleteRequest, $ts")
       List(deleteRequest)
@@ -214,7 +229,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
 case class Edge(srcVertex: Vertex,
                 tgtVertex: Vertex,
                 labelWithDir: LabelWithDirection,
-                op: Byte = GraphUtil.operations("insert"),
+                op: Byte = GraphUtil.defaultOpByte,
                 ts: Long = System.currentTimeMillis(),
                 version: Long = System.currentTimeMillis(),
                 propsWithTs: Map[Byte, InnerValLikeWithTs] = Map.empty[Byte, InnerValLikeWithTs],
