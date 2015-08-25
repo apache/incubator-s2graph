@@ -470,11 +470,23 @@ case class Edge(srcVertex: Vertex,
   }
 
   def deleteBulk(): Unit = {
-    //    mutate(deleteBulkEdgeUpdate)
+    /** delete all edges related to this
+      * snapshot edge is not consistent with weak consistencyLevel. */
+    val deletes = relatedEdges.map { relEdge =>
+      val snapshotEdgeDelete = relEdge.edgesWithInvertedIndex.buildDeleteAsync()
+//      Logger.error(s"SnapshotEdgeDelete: $snapshotEdgeDelete")
+
+      val indexedEdgesDelete = relEdge.edgesWithIndex.flatMap { e =>
+        val indexedEdge = e.copy(op = GraphUtil.defaultOpByte)
+        val d = indexedEdge.buildDeletesAsync() ++ indexedEdge.buildIncrementsAsync(-1L)
+//        Logger.error(s"IndexedEdgesDelete: $d")
+        d
+      }
+
+      snapshotEdgeDelete :: indexedEdgesDelete
+    }
     for {
-      (queryParam, invertedEdgeOpt) <- fetchInvertedAsync()
-      edgeUpdate = deleteBulkEdgeUpdate(invertedEdgeOpt, this)
-      rets <- Graph.writeAsyncWithWait(label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations ++ edgeUpdate.invertedEdgeMutations))
+      rets <- Graph.writeAsyncWithWait(label.hbaseZkAddr, deletes)
     } yield {
       val ret = rets.forall(identity)
       if (!ret) {
@@ -482,6 +494,17 @@ case class Edge(srcVertex: Vertex,
         ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = this))
       }
     }
+//    for {
+//      (queryParam, invertedEdgeOpt) <- fetchInvertedAsync()
+//      edgeUpdate = deleteBulkEdgeUpdate(invertedEdgeOpt, this)
+//      rets <- Graph.writeAsyncWithWait(label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations ++ edgeUpdate.invertedEdgeMutations))
+//    } yield {
+//      val ret = rets.forall(identity)
+//      if (!ret) {
+//        Logger.error(s"DeleteBulk failed. $this")
+//        ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = this))
+//      }
+//    }
 
   }
 
