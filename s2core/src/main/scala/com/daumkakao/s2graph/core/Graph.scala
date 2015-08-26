@@ -119,11 +119,14 @@ object Graph {
 
 
   def getClient(zkQuorum: String, flushInterval: Short = clientFlushInterval) = {
-    val client = clients.get(zkQuorum) match {
+    val key = zkQuorum + ":" + flushInterval
+    val client = clients.get(key) match {
+//    val client = clients.get(zkQuorum) match {
       case None =>
         val client = new HBaseClient(zkQuorum)
         client.setFlushInterval(clientFlushInterval)
-        clients += (zkQuorum -> client)
+//        clients += (zkQuorum -> client)
+        clients += (key -> client)
         client
       //        throw new RuntimeException(s"connection to $zkQuorum is not established.")
       case Some(c) => c
@@ -191,7 +194,7 @@ object Graph {
     if (elementRpcs.isEmpty) {
       Future.successful(Seq.empty[Boolean])
     } else {
-      val client = getClient(zkQuorum)
+      val client = getClient(zkQuorum, flushInterval = 0.toShort)
       val defers = elementRpcs.map { rpcs =>
         //TODO: register errorBacks on this operations to log error
         //          Logger.debug(s"$rpc")
@@ -217,7 +220,7 @@ object Graph {
         val ret = deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
         ret
       }
-      client.flush()
+//      client.flush()
       Future.sequence(defers)
     }
   }
