@@ -213,9 +213,11 @@ object Graph {
             false
           })
         }
+
         val ret = deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
         ret
       }
+      client.flush()
       Future.sequence(defers)
     }
   }
