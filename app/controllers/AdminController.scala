@@ -90,15 +90,19 @@ object AdminController extends Controller with RequestParser {
     val startTs = System.currentTimeMillis()
 
     if (!ApplicationController.isHealthy) {
-      Service.findAll()
-      ServiceColumn.findAll()
-      Label.findAll()
-      LabelMeta.findAll()
-      LabelIndex.findAll()
-      ColumnMeta.findAll()
+      loadCacheInner()
     }
 
     ok(s"${System.currentTimeMillis() - startTs}")
+  }
+
+  def loadCacheInner() = {
+    Service.findAll()
+    ServiceColumn.findAll()
+    Label.findAll()
+    LabelMeta.findAll()
+    LabelIndex.findAll()
+    ColumnMeta.findAll()
   }
 
   /**

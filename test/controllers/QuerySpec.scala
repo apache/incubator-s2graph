@@ -144,12 +144,21 @@ class QuerySpec extends SpecCommon {
 
     def queryDuration(ids: Seq[Int], from: Int, to: Int) = {
       import QueryBuilder._
+
       val js = m(
         srcVertices = a(
-          m(serviceName = testServiceName, columnName = testColumnName, ids = ids)),
+          m(serviceName = testServiceName,
+            columnName = testColumnName,
+            ids = ids)),
         steps = a(m(step = a(
-          m(label = testLabelName, direction = "out", offset = 0, limit = 100, duration = m(from = from, to = to)))))
+          m(label = testLabelName,
+            direction = "out",
+            offset = 0, limit = 100,
+            duration =
+              m(from = from,
+                to = to)))))
       ).toJson
+
       js
     }
 
