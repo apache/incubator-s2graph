@@ -777,7 +777,8 @@ object Graph {
         (edge, score) <- queryResult.edgeWithScoreLs
         duplicateEdge = edge.duplicateEdge
         currentTs = ts.getOrElse(System.currentTimeMillis())
-        version = edge.version + Edge.incrementVersion
+//        version = edge.version + Edge.incrementVersion // this lead to forcing delete on fetched edges
+        version = currentTs
         copiedEdge = edge.copy(ts = currentTs, version = version)
         hbaseZkAddr = queryResult.queryParam.label.hbaseZkAddr
       } yield {

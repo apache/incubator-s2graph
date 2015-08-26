@@ -11,22 +11,21 @@ import scala.concurrent.duration.Duration
 class WeakLabelDeleteSpec extends SpecCommon {
   init()
 
+  def bulkEdges(startTs: Int = 0) = Seq(
+    Seq(startTs + 1, "insert", "e", "0", "1", testLabelNameWeak, s"""{"time": 10}""").mkString("\t"),
+    Seq(startTs + 2, "insert", "e", "0", "1", testLabelNameWeak, s"""{"time": 11}""").mkString("\t"),
+    Seq(startTs + 3, "insert", "e", "0", "1", testLabelNameWeak, s"""{"time": 12}""").mkString("\t"),
+    Seq(startTs + 4, "insert", "e", "0", "2", testLabelNameWeak, s"""{"time": 10}""").mkString("\t"),
+    Seq(startTs + 5, "insert", "e", "10", "20", testLabelNameWeak, s"""{"time": 10}""").mkString("\t"),
+    Seq(startTs + 6, "insert", "e", "10", "21", testLabelNameWeak, s"""{"time": 11}""").mkString("\t"),
+    Seq(startTs + 7, "insert", "e", "11", "20", testLabelNameWeak, s"""{"time": 12}""").mkString("\t"),
+    Seq(startTs + 8, "insert", "e", "12", "20", testLabelNameWeak, s"""{"time": 13}""").mkString("\t")
+  ).mkString("\n")
 
   "weak label delete test" should {
     running(FakeApplication()) {
       // insert bulk and wait ..
-      val bulkEdges: String = Seq(
-        Seq("1", "insert", "e", "0", "1", testLabelNameWeak, s"""{"time": 10}""").mkString("\t"),
-        Seq("2", "insert", "e", "0", "1", testLabelNameWeak, s"""{"time": 11}""").mkString("\t"),
-        Seq("3", "insert", "e", "0", "1", testLabelNameWeak, s"""{"time": 12}""").mkString("\t"),
-        Seq("4", "insert", "e", "0", "2", testLabelNameWeak, s"""{"time": 10}""").mkString("\t"),
-        Seq("5", "insert", "e", "10", "20", testLabelNameWeak, s"""{"time": 10}""").mkString("\t"),
-        Seq("6", "insert", "e", "10", "21", testLabelNameWeak, s"""{"time": 11}""").mkString("\t"),
-        Seq("7", "insert", "e", "11", "20", testLabelNameWeak, s"""{"time": 12}""").mkString("\t"),
-        Seq("8", "insert", "e", "12", "20", testLabelNameWeak, s"""{"time": 13}""").mkString("\t")
-      ).mkString("\n")
-
-      val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)).get
+      val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges())).get
       val jsRslt = contentAsJson(ret)
       Thread.sleep(asyncFlushInterval)
     }
@@ -61,7 +60,7 @@ class WeakLabelDeleteSpec extends SpecCommon {
         (result \ "results").as[List[JsValue]].size must equalTo(4)
         result = getEdges(query(10))
         println(result)
-        (result \ "results").as[List[JsValue]].size must equalTo(4)
+        (result \ "results").as[List[JsValue]].size must equalTo(2)
         true
       }
     }
@@ -98,6 +97,7 @@ class WeakLabelDeleteSpec extends SpecCommon {
 
     "test weak consistency deleteAll" in {
       running(FakeApplication()) {
+        val deletedAt = 100
         var result = getEdges(query(20, "in", testTgtColumnName))
         println(result)
         (result \ "results").as[List[JsValue]].size must equalTo(3)
@@ -105,7 +105,7 @@ class WeakLabelDeleteSpec extends SpecCommon {
 
 
         val json = Json.arr(Json.obj("label" -> testLabelNameWeak,
-          "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> 100))
+          "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
         println(json)
         EdgeController.deleteAllInner(json)
         Thread.sleep(asyncFlushInterval)
@@ -130,6 +130,15 @@ class WeakLabelDeleteSpec extends SpecCommon {
         result = getEdges(query(20, "in", testTgtColumnName))
         println(result)
         (result \ "results").as[List[JsValue]].size must equalTo(0)
+
+
+        val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges(startTs = deletedAt + 1))).get
+        val jsRslt = contentAsJson(ret)
+        Thread.sleep(asyncFlushInterval)
+
+        result = getEdges(query(20, "in", testTgtColumnName))
+        println(result)
+        (result \ "results").as[List[JsValue]].size must equalTo(3)
 
         true
 
