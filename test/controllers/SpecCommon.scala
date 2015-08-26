@@ -2,13 +2,6 @@ package test.controllers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
-import com.typesafe.config.ConfigFactory
-import config.Config
-
-import scala.util.Random
-
-//import com.daumkakao.s2graph.core.models._
-
 import controllers.AdminController
 import org.specs2.mutable.Specification
 import play.api.Logger
@@ -16,12 +9,43 @@ import play.api.libs.json._
 import play.api.test.FakeApplication
 import play.api.test.Helpers._
 
+import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
-import scala.collection.JavaConversions._
+import scala.util.Random
+
 
 trait SpecCommon extends Specification {
-  var alreadyStarted = false
+
+  object Helper {
+
+    import org.json4s.native.Serialization
+
+    import scala.language.dynamics
+
+    def $aa[T](args: T*) = List($a(args: _ *))
+
+    def $a[T](args: T*) = args.toList
+
+    object $ extends Dynamic {
+      def applyDynamicNamed(name: String)(args: (String, Any)*): Map[String, Any] = args.toMap
+    }
+
+    implicit class anyMapOps(map: Map[String, Any]) {
+      def toJson: JsValue = {
+        val js = Serialization.write(map)(org.json4s.DefaultFormats)
+        Json.parse(js)
+      }
+    }
+
+    implicit class S2Context(val sc : StringContext) {
+      def edge(args : Any*)(implicit map: Map[String, Any] = Map.empty) : String = {
+        val parts = sc.s(args: _*).split("\\s")
+        assert(parts.length == 6)
+        (parts.toList :+  map.toJson.toString).mkString("\t")
+      }
+    }
+  }
+
   val curTime = System.currentTimeMillis
   val t1 = curTime + 0
   val t2 = curTime + 1
@@ -37,9 +61,10 @@ trait SpecCommon extends Specification {
   protected val testColumnName = "user_id_test"
   protected val testColumnType = "long"
   protected val testTgtColumnName = "item_id_test"
+
   val NUM_OF_EACH_TEST = 3
-  lazy val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
-  val asyncFlushInterval = 500
+  val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
+  val asyncFlushInterval = 200
 
   val createService = s"""{"serviceName" : "$testServiceName"}"""
   val testLabelNameCreate = s"""
@@ -256,8 +281,8 @@ trait SpecCommon extends Specification {
       s"""
          |[
          |{"serviceName": "$serviceName", "columnName": "$columnName", "ids": [${ids.mkString(",")}
-]}
-  |]
+         ]}
+         |]
        """.stripMargin)
   }
 
@@ -294,45 +319,38 @@ trait SpecCommon extends Specification {
   }
 
   def init() = {
-    if (alreadyStarted) {
-      println("[init skip]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    } else {
-      running(FakeApplication()) {
-        println("[init start]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-        Management.deleteService(testServiceName)
-        //
-        //      // 1. createService
+    running(FakeApplication()) {
+      println("[init start]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+      Management.deleteService(testServiceName)
 
-        var result = AdminController.createServiceInner(Json.parse(createService))
-        println(s">> Service created : $createService, $result")
+      // 1. createService
+      val result = AdminController.createServiceInner(Json.parse(createService))
+      println(s">> Service created : $createService, $result")
 
-        ////      val labelNames = Map(testLabelName -> testLabelNameCreate)
-        val labelNames = Map(testLabelName -> testLabelNameCreate,
-          testLabelName2 -> testLabelName2Create,
-          testLabelNameV1 -> testLabelNameV1Create,
-          testLabelNameWeak -> testLabelNameWeakCreate)
+      val labelNames = Map(testLabelName -> testLabelNameCreate,
+        testLabelName2 -> testLabelName2Create,
+        testLabelNameV1 -> testLabelNameV1Create,
+        testLabelNameWeak -> testLabelNameWeakCreate)
 
-        for {
-          (labelName, create) <- labelNames
-        } {
-          Management.deleteLabel(labelName)
-          Label.findByName(labelName, useCache = false) match {
-            case None =>
-              AdminController.createLabelInner(Json.parse(create))
-            case Some(label) =>
-              Logger.error(s">> Label already exist: $create, $label")
-          }
+      for {
+        (labelName, create) <- labelNames
+      } {
+        Management.deleteLabel(labelName)
+        Label.findByName(labelName, useCache = false) match {
+          case None =>
+            AdminController.createLabelInner(Json.parse(create))
+          case Some(label) =>
+            Logger.error(s">> Label already exist: $create, $label")
         }
-        println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-        //5. create vertex
-
-        //      vertexPropsKeys.map { case (key, keyType) =>
-        //        Management.addVertexProp(testServiceName, testColumnName, key, keyType)
-        //      }
-
-        Thread.sleep(asyncFlushInterval)
       }
-      alreadyStarted = true
+      println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+
+      // 5. create vertex
+      // vertexPropsKeys.map { case (key, keyType) =>
+      //   Management.addVertexProp(testServiceName, testColumnName, key, keyType)
+      // }
+
+      Thread.sleep(asyncFlushInterval)
     }
   }
 }

@@ -9,39 +9,21 @@ import scala.concurrent.Await
 class QuerySpec extends SpecCommon {
   init()
 
-  object QueryBuilder {
-
-    import org.json4s.native.Serialization
-
-    import scala.language.dynamics
-
-    def aa[T](args: T*) = List(a(args: _ *))
-
-    def a[T](args: T*) = args.toList
-
-    object m extends Dynamic {
-      def applyDynamicNamed(name: String)(args: (String, Any)*): Map[String, Any] = args.toMap
-    }
-
-    implicit class anyMapOps(map: Map[String, Any]) {
-      def toJson: JsValue = {
-        val js = Serialization.write(map)(org.json4s.DefaultFormats)
-        Json.parse(js)
-      }
-    }
-  }
+  import Helper._
 
   "query test" should {
     running(FakeApplication()) {
       // insert bulk and wait ..
       val bulkEdges: String = Seq(
-        Seq(1000, "insert", "e", "0", "1", testLabelName, "{\"weight\": 10, \"is_hidden\": true}").mkString("\t"),
-        Seq(2000, "insert", "e", "0", "2", testLabelName, "{\"weight\": 20, \"is_hidden\": false}").mkString("\t"),
-        Seq(3000, "insert", "e", "2", "0", testLabelName, "{\"weight\": 30}").mkString("\t"),
-        Seq(4000, "insert", "e", "2", "1", testLabelName, "{\"weight\": 40}").mkString("\t")
+        edge"1000 insert e 0 1 $testLabelName"($(weight = 10, is_hidden = true)),
+        edge"2000 insert e 0 2 $testLabelName"($(weight = 20, is_hidden = false)),
+        edge"3000 insert e 2 0 $testLabelName"($(weight = 30)),
+        edge"4000 insert e 2 1 $testLabelName"($(weight = 40))
       ).mkString("\n")
+
       val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)
       Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
+
       Thread.sleep(asyncFlushInterval)
     }
 
@@ -143,28 +125,23 @@ class QuerySpec extends SpecCommon {
     }
 
     def queryDuration(ids: Seq[Int], from: Int, to: Int) = {
-      import QueryBuilder._
+      val $from = $a(
+        $(serviceName = testServiceName,
+          columnName = testColumnName,
+          ids = ids))
 
-      val js = m(
-        srcVertices = a(
-          m(serviceName = testServiceName,
-            columnName = testColumnName,
-            ids = ids)),
-        steps = a(m(step = a(
-          m(label = testLabelName,
-            direction = "out",
-            offset = 0, limit = 100,
-            duration =
-              m(from = from,
-                to = to)))))
-      ).toJson
+      val $step = $a($(
+        label = testLabelName, direction = "out", offset = 0, limit = 100,
+        duration = $(from = from, to = to)))
 
-      js
+      val $steps = $a($(step = $step))
+
+      $(srcVertices = $from, steps = $steps).toJson
     }
 
     "duration" in {
       running(FakeApplication()) {
-         // get all
+        // get all
         var result = getEdges(queryDuration(Seq(0, 2), from = 0, to = 5000))
         (result \ "results").as[List[JsValue]].size must equalTo(4)
 
@@ -176,10 +153,10 @@ class QuerySpec extends SpecCommon {
         (result \ "results").as[List[JsValue]].size must equalTo(1)
 
         val bulkEdges: String = Seq(
-          Seq(1001, "insert", "e", "0", "1", testLabelName, "{\"weight\": 10, \"is_hidden\": true}").mkString("\t"),
-          Seq(2002, "insert", "e", "0", "2", testLabelName, "{\"weight\": 20, \"is_hidden\": false}").mkString("\t"),
-          Seq(3003, "insert", "e", "2", "0", testLabelName, "{\"weight\": 30}").mkString("\t"),
-          Seq(4004, "insert", "e", "2", "1", testLabelName, "{\"weight\": 40}").mkString("\t")
+          edge"1001 insert e 0 1 $testLabelName"($(weight = 10, is_hidden = true)),
+          edge"2002 insert e 0 2 $testLabelName"($(weight = 20, is_hidden = false)),
+          edge"3003 insert e 2 0 $testLabelName"($(weight = 30)),
+          edge"4004 insert e 2 1 $testLabelName"($(weight = 40))
         ).mkString("\n")
 
         val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)
