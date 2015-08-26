@@ -80,31 +80,41 @@ object Label extends Model[Label] {
   }
 
   def findByTgtColumnId(columnId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
+    val cacheKey = "tgtColumnId=" + columnId
     val col = ServiceColumn.findById(columnId)
+    withCaches(cacheKey)(
     sql"""
           select	*
           from	labels
           where	tgt_column_name = ${col.columnName}
           and service_id = ${col.serviceId}
-        """.map { rs => Label(rs) }.list().apply()
+        """.map { rs => Label(rs) }.list().apply())
   }
 
   def findBySrcColumnId(columnId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
+    val cacheKey = "srcColumnId=" + columnId
     val col = ServiceColumn.findById(columnId)
+    withCaches(cacheKey)(
     sql"""
           select 	*
           from	labels
           where	src_column_name = ${col.columnName}
           and service_id = ${col.serviceId}
-        """.map { rs => Label(rs) }.list().apply()
+        """.map { rs => Label(rs) }.list().apply())
   }
 
   def findBySrcServiceId(serviceId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
-    sql"""select * from labels where src_service_id = ${serviceId}""".map { rs => Label(rs) }.list().apply
+    val cacheKey = "srcServiceId=" + serviceId
+    withCaches(cacheKey)(
+      sql"""select * from labels where src_service_id = ${serviceId}""".map { rs => Label(rs) }.list().apply
+    )
   }
 
   def findByTgtServiceId(serviceId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
+    val cacheKey = "tgtServiceId=" + serviceId
+    withCaches(cacheKey)(
     sql"""select * from labels where tgt_service_id = ${serviceId}""".map { rs => Label(rs) }.list().apply
+    )
   }
 
   def insertAll(labelName: String, srcServiceName: String, srcColumnName: String, srcColumnType: String,
