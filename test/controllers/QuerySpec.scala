@@ -15,10 +15,10 @@ class QuerySpec extends SpecCommon {
     running(FakeApplication()) {
       // insert bulk and wait ..
       val bulkEdges: String = Seq(
-        edge"1000 insert e 0 1 $testLabelName"($(weight = 10, is_hidden = true)),
-        edge"2000 insert e 0 2 $testLabelName"($(weight = 20, is_hidden = false)),
-        edge"3000 insert e 2 0 $testLabelName"($(weight = 30)),
-        edge"4000 insert e 2 1 $testLabelName"($(weight = 40))
+        edge"1000 insert e 0 1 $testLabelName"($(weight = 40, is_hidden = true)),
+        edge"2000 insert e 0 2 $testLabelName"($(weight = 30, is_hidden = false)),
+        edge"3000 insert e 2 0 $testLabelName"($(weight = 20)),
+        edge"4000 insert e 2 1 $testLabelName"($(weight = 10))
       ).mkString("\n")
 
       val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)
@@ -102,7 +102,7 @@ class QuerySpec extends SpecCommon {
         result = getEdges(queryWhere(2, "_from=2 or weight in (-1)"))
         (result \ "results").as[List[JsValue]].size must equalTo(2)
 
-        result = getEdges(queryWhere(2, "_from=2 and weight in (30, 40)"))
+        result = getEdges(queryWhere(2, "_from=2 and weight in (10, 20)"))
         (result \ "results").as[List[JsValue]].size must equalTo(2)
       }
     }
@@ -121,6 +121,31 @@ class QuerySpec extends SpecCommon {
 
         result = getEdges(queryTransform(0, "[[\"weight\"]]"))
         (result \ "results").as[List[JsValue]].size must equalTo(4)
+      }
+    }
+
+    def queryIndex(ids: Seq[Int], indexName: String) = {
+      val $from = $a(
+        $(serviceName = testServiceName,
+          columnName = testColumnName,
+          ids = ids))
+
+      val $step = $a($(label = testLabelName, index = indexName))
+      val $steps = $a($(step = $step))
+
+      val js = $(srcVertices = $from, steps = $steps).toJson
+      js
+    }
+
+    "index" in {
+      running(FakeApplication()) {
+        // weight order
+        var result = getEdges(queryIndex(Seq(0, 2), "idx_1"))
+        ((result \ "results").as[List[JsValue]].head \\ "weight").head must equalTo(JsNumber(40))
+
+        // timestamp order
+        result = getEdges(queryIndex(Seq(0, 2), "idx_2"))
+        ((result \ "results").as[List[JsValue]].head \\ "weight").head must equalTo(JsNumber(10))
       }
     }
 

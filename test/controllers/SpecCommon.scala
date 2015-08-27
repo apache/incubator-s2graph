@@ -19,6 +19,7 @@ trait SpecCommon extends Specification {
   object Helper {
 
     import org.json4s.native.Serialization
+    type KV = Map[String, Any]
 
     import scala.language.dynamics
 
@@ -77,7 +78,7 @@ trait SpecCommon extends Specification {
     "tgtColumnName": "$testColumnName",
     "tgtColumnType": "long",
     "indices": [
-      {"name": "idx_1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]},
+      {"name": "idx_1", "propNames": ["weight", "time", "is_hidden", "is_blocked"]},
       {"name": "idx_2", "propNames": ["_timestamp"]}
     ],
     "props": [

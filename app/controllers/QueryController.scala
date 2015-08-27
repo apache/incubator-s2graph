@@ -45,13 +45,11 @@ object QueryController extends Controller with RequestParser {
   private def getEdgesAsync(jsonQuery: JsValue)
                            (post: (Seq[QueryResult], Seq[QueryResult]) => JsValue): Future[Result] = {
     try {
-      val queryTemplateId = (jsonQuery \ "steps").toString()
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
       Logger.info(s"$jsonQuery")
       val q = toQuery(jsonQuery)
 //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
-      Logger.info(s"${q.templateId()}")
 
       val filterOutQueryResultsLs = q.filterOutQuery match {
         case Some(filterOutQuery) => Graph.getEdgesAsync(filterOutQuery)
