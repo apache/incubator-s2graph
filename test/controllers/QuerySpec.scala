@@ -133,19 +133,19 @@ class QuerySpec extends SpecCommon {
       val $step = $a($(label = testLabelName, index = indexName))
       val $steps = $a($(step = $step))
 
-      val js = $(srcVertices = $from, steps = $steps).toJson
+      val js = $(withScore = false, srcVertices = $from, steps = $steps).toJson
       js
     }
 
     "index" in {
       running(FakeApplication()) {
         // weight order
-        var result = getEdges(queryIndex(Seq(0, 2), "idx_1"))
+        var result = getEdges(queryIndex(Seq(0), "idx_1"))
         ((result \ "results").as[List[JsValue]].head \\ "weight").head must equalTo(JsNumber(40))
 
         // timestamp order
-        result = getEdges(queryIndex(Seq(0, 2), "idx_2"))
-        ((result \ "results").as[List[JsValue]].head \\ "weight").head must equalTo(JsNumber(10))
+        result = getEdges(queryIndex(Seq(0), "idx_2"))
+        ((result \ "results").as[List[JsValue]].head \\ "weight").head must equalTo(JsNumber(30))
       }
     }
 

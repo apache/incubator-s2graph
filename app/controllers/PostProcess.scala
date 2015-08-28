@@ -3,8 +3,6 @@ package controllers
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 
-//import com.daumkakao.s2graph.core.models._
-
 import com.daumkakao.s2graph.core.types2.{InnerVal, InnerValLike}
 import play.api.Logger
 import play.api.libs.json.{JsObject, JsValue, Json}
@@ -114,7 +112,7 @@ object PostProcess extends JSONParser {
 
   def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]): JsValue = {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
-    val withScore = true
+    var withScore = true
     import play.api.libs.json.Json
     val degreeJsons = ListBuffer[JsValue]()
     val degrees = ListBuffer[JsValue]()
@@ -129,6 +127,7 @@ object PostProcess extends JSONParser {
           queryResult <- queryResultLs
           (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(edge.tgtVertex.innerId)
         } {
+          withScore = queryResult.query.withScore
           val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult)
           val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
           if (edge.propsWithTs.contains(LabelMeta.degreeSeq) && fromOpt.isDefined) {
@@ -165,6 +164,7 @@ object PostProcess extends JSONParser {
           queryResult <- queryResultLs
           (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(edge.tgtVertex.innerId)
         } {
+          withScore = queryResult.query.withScore
           val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult)
           val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
           if (edge.propsWithTs.contains(LabelMeta.degreeSeq) && fromOpt.isDefined) {
