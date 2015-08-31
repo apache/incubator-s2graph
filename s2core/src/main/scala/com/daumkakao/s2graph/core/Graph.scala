@@ -521,8 +521,6 @@ object Graph {
       val excludeLabelWithDirSet = step.queryParams.filter(_.exclude).map(l => l.labelWithDir.labelId -> l.labelWithDir.dir).toSet
       val includeLabelWithDirSet = step.queryParams.filter(_.include).map(l => l.labelWithDir.labelId -> l.labelWithDir.dir).toSet
 
-
-
       val edgesToExclude = new util.concurrent.ConcurrentHashMap[FilterHashKey, Boolean]()
       val edgesToInclude = new util.concurrent.ConcurrentHashMap[FilterHashKey, Boolean]()
 
@@ -531,6 +529,8 @@ object Graph {
       } yield {
           val duplicateEdges = new util.concurrent.ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]]()
           val resultEdgeWithScores = new util.concurrent.ConcurrentHashMap[HashKey, (HashKey, FilterHashKey, Edge, Double)]()
+          val edgeWithScoreSorted = new ListBuffer[(HashKey, FilterHashKey, Edge, Double)]
+
           val labelWeight = step.labelWeights.get(queryResult.queryParam.labelWithDir.labelId).getOrElse(1.0)
           for {
             (edge, score) <- queryResult.edgeWithScoreLs
@@ -580,20 +580,23 @@ object Graph {
                 }
               } else {
                 resultEdgeWithScores.put(hashKey, (hashKey, filterHashKey, convertedEdge, newScore))
+                edgeWithScoreSorted += ((hashKey, filterHashKey, convertedEdge, newScore))
               }
             }
           }
-          //          logMap(duplicateEdges)
-          //          logMap(resultEdgeWithScores)
-          (duplicateEdges, resultEdgeWithScores)
+//                    logMap(duplicateEdges)
+//                    logMap(resultEdgeWithScores)
+
+          (duplicateEdges, resultEdgeWithScores, edgeWithScoreSorted)
         }
 
       val aggregatedResults = for {
         (queryResult, queryParamResult) <- queryResultLs.zip(queryParamResultLs)
-        (duplicateEdges, resultEdgeWithScores) = queryParamResult
+        (duplicateEdges, resultEdgeWithScores, edgeWithScoreSorted) = queryParamResult
       } yield {
           val edgesWithScores = for {
-            (hashKey, filterHashKey, edge, score) <- resultEdgeWithScores.values if edgesToInclude.containsKey(filterHashKey) || !edgesToExclude.containsKey(filterHashKey)
+            (hashKey, filterHashKey, edge, _) <- edgeWithScoreSorted if edgesToInclude.containsKey(filterHashKey) || !edgesToExclude.containsKey(filterHashKey)
+            score = resultEdgeWithScores.get(hashKey)._4
             (duplicateEdge, aggregatedScore) <- (edge -> score) +: (if (duplicateEdges.containsKey(hashKey)) duplicateEdges.get(hashKey) else Seq.empty)
             if aggregatedScore >= queryResult.queryParam.threshold
           } yield {
@@ -603,6 +606,7 @@ object Graph {
 
           QueryResult(queryResult.query, queryResult.stepIdx, queryResult.queryParam, edgesWithScores)
         }
+
       aggregatedResults
     }
   }

@@ -46,7 +46,8 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  removeCycle: Boolean = false,
                  selectColumns: Seq[String] = Seq.empty[String],
                  groupByColumns: Seq[String] = Seq.empty[String],
-                 filterOutQuery: Option[Query] = None) {
+                 filterOutQuery: Option[Query] = None,
+                 withScore: Boolean = true) {
 
   lazy val selectColumnsSet = selectColumns.map { c =>
     if (c == "_from") "from"
