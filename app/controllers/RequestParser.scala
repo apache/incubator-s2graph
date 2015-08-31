@@ -211,7 +211,7 @@ trait RequestParser extends JSONParser {
       val interval = extractInterval(label, labelGroup)
       val duration = extractDuration(label, labelGroup)
       val scorings = extractScoring(label.id.get, labelGroup).getOrElse(List.empty[(Byte, Double)]).toList
-      val labelOrderSeq = label.findLabelIndexSeq(scorings)
+//      val labelOrderSeq = label.findLabelIndexSeq(scorings)
       val exclude = parse[Option[Boolean]](labelGroup, "exclude").getOrElse(false)
       val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
       val hasFilter = extractHas(label, labelGroup)
@@ -244,7 +244,7 @@ trait RequestParser extends JSONParser {
       val transformer = if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]
 
       QueryParam(labelWithDir)
-        .labelOrderSeq(labelOrderSeq)
+//        .labelOrderSeq(labelOrderSeq)
         .limit(offset, limit)
         .rank(RankParam(label.id.get, scorings))
         .exclude(exclude)
