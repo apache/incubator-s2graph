@@ -96,6 +96,11 @@ object EdgeTransformer {
  */
 case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
   val delimiter = "\\$"
+  val targets = jsValue.asOpt[List[List[String]]].toList
+  val fieldsLs = for {
+    target <- targets
+    fields <- target if fields != EdgeTransformer.defaultTransformField.as[List[String]]
+  } yield fields
 
   def replace(fmt: String,
               values: List[InnerValLike],
@@ -153,10 +158,8 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
 
   def transform(edge: Edge, nextStepOpt: Option[Step]): Seq[Edge] = {
     val edges = for {
-      target <- jsValue.asOpt[List[List[String]]].toList
-      fields <- target if fields != EdgeTransformer.defaultTransformField.as[List[String]]
+      fields <- fieldsLs
       innerVal <- {
-
         if (fields.size == 1) {
           val fieldName = fields.head
           toInnerValOpt(edge, fieldName).toSeq
@@ -394,7 +397,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   }
 
   def maxAttempt(attempt: Int): QueryParam = {
-    this.maxAttempt = attempt;
+    this.maxAttempt = attempt
     this
   }
 

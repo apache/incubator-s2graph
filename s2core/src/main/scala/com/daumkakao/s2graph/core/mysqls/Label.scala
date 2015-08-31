@@ -304,12 +304,14 @@ case class Label(id: Option[Int], label: String,
     super.toString() + orderByKeys.toString()
   }
 
-  def findLabelIndexSeq(scoring: List[(Byte, Double)]): Byte = {
-    if (scoring.isEmpty) LabelIndex.defaultSeq
-    else {
-      LabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
-    }
-  }
+//  def findLabelIndexSeq(scoring: List[(Byte, Double)]): Byte = {
+//    if (scoring.isEmpty) LabelIndex.defaultSeq
+//    else {
+//      LabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
+//
+////      LabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
+//    }
+//  }
 
   lazy val toJson = Json.obj("labelName" -> label,
     "from" -> srcColumn.toJson, "to" -> tgtColumn.toJson,
