@@ -54,12 +54,12 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
   }
 
   override def onError(request: RequestHeader, ex: Throwable): Future[Result] = {
-    Logger.error(s"onError => request:${request}", ex)
+    Logger.error(s"onError => ip:${request.remoteAddress}, request:${request}", ex)
     Future.successful(Results.InternalServerError)
   }
 
   override def onHandlerNotFound(request: RequestHeader): Future[Result] = {
-    Logger.error(s"onHandlerNotFound => request:${request}")
+    Logger.error(s"onHandlerNotFound => ip:${request.remoteAddress}, request:${request}")
     Future.successful(Results.NotFound)
   }
 
