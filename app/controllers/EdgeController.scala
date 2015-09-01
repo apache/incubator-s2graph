@@ -1,18 +1,19 @@
 package controllers
 
-import com.daumkakao.s2graph.core.mysqls.Label
 import com.daumkakao.s2graph.core._
+import com.daumkakao.s2graph.core.mysqls.Label
 import config.Config
 import play.api.Logger
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json._
 import play.api.mvc.{Controller, Result}
+
 import scala.concurrent.Future
 
 object EdgeController extends Controller with RequestParser {
 
+  import ExceptionHandler._
   import controllers.ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits._
-  import ExceptionHandler._
 
   private val maxLength = 1024 * 1024 * 16
 
@@ -92,29 +93,28 @@ object EdgeController extends Controller with RequestParser {
     mutateAndPublish(request.body)
   }
 
-
-  def inserts() = withHeaderAsync(parse.json) { request =>
+  def inserts() = withHeaderAsync(jsonParser) { request =>
     tryMutates(request.body, "insert")
   }
 
 
-  def insertsBulk() = withHeaderAsync(parse.json) { request =>
+  def insertsBulk() = withHeaderAsync(jsonParser) { request =>
     tryMutates(request.body, "insertBulk")
   }
 
-  def deletes() = withHeaderAsync(parse.json) { request =>
+  def deletes() = withHeaderAsync(jsonParser) { request =>
     tryMutates(request.body, "delete")
   }
 
-  def updates() = withHeaderAsync(parse.json) { request =>
+  def updates() = withHeaderAsync(jsonParser) { request =>
     tryMutates(request.body, "update")
   }
 
-  def increments() = withHeaderAsync(parse.json) { request =>
+  def increments() = withHeaderAsync(jsonParser) { request =>
     tryMutates(request.body, "increment")
   }
 
-  def incrementCounts() = withHeaderAsync(parse.json) { request =>
+  def incrementCounts() = withHeaderAsync(jsonParser) { request =>
     val jsValue = request.body
     val edges = toEdges(jsValue, "incrementCount")
     Edge.incrementCounts(edges).map { results =>
@@ -125,7 +125,7 @@ object EdgeController extends Controller with RequestParser {
     }
   }
 
-  def deleteAll() = withHeaderAsync(parse.json) { request =>
+  def deleteAll() = withHeaderAsync(jsonParser) { request =>
     deleteAllInner(request.body)
   }
 

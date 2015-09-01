@@ -64,8 +64,8 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
   }
 
   override def onBadRequest(request: RequestHeader, error: String): Future[Result] = {
-    Logger.error(s"onBadRequest => request:${request}, error:${error}")
-    Future.successful(Results.BadRequest)
+    Logger.error(s"onBadRequest => ip:${request.remoteAddress}, request:$request, error:$error")
+    Future.successful(Results.BadRequest(error))
   }
 }
 
