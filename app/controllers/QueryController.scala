@@ -34,11 +34,11 @@ object QueryController extends Controller with RequestParser {
 
   // select
 
-  def getEdges() = withHeaderAsync(parse.json) { request =>
+  def getEdges() = withHeaderAsync(jsonParser) { request =>
     getEdgesInner(request.body)
   }
 
-  def getEdgesExcluded() = withHeaderAsync(parse.json) { request =>
+  def getEdgesExcluded() = withHeaderAsync(jsonParser) { request =>
     getEdgesExcludedInner(request.body)
   }
 
@@ -115,7 +115,7 @@ object QueryController extends Controller with RequestParser {
     getEdgesExcludedAsync(jsValue)(PostProcess.toSimpleVertexArrJson)
   }
 
-  def getEdgesWithGrouping() = withHeaderAsync(parse.json) { request =>
+  def getEdgesWithGrouping() = withHeaderAsync(jsonParser) { request =>
     getEdgesWithGroupingInner(request.body)
   }
 
@@ -123,7 +123,7 @@ object QueryController extends Controller with RequestParser {
     getEdgesAsync(jsonQuery)(PostProcess.summarizeWithListFormatted)
   }
 
-  def getEdgesExcludedWithGrouping() = withHeaderAsync(parse.json) { request =>
+  def getEdgesExcludedWithGrouping() = withHeaderAsync(jsonParser) { request =>
     getEdgesExcludedWithGroupingInner(request.body)
   }
   def getEdgesExcludedWithGroupingInner(jsonQuery: JsValue) = {
@@ -135,13 +135,13 @@ object QueryController extends Controller with RequestParser {
     getEdgesAsync(jsonQuery)(PostProcess.summarizeWithList)
   }
   @deprecated(message = "deprecated", since = "0.2")
-  def getEdgesGrouped() = withHeaderAsync(parse.json) { request =>
+  def getEdgesGrouped() = withHeaderAsync(jsonParser) { request =>
     getEdgesGroupedInner(request.body)
   }
 
 
   @deprecated(message = "deprecated", since = "0.2")
-  def getEdgesGroupedExcluded() = withHeaderAsync(parse.json) { request =>
+  def getEdgesGroupedExcluded() = withHeaderAsync(jsonParser) { request =>
     getEdgesGroupedExcludedInner(request.body)
   }
 
@@ -169,7 +169,7 @@ object QueryController extends Controller with RequestParser {
     }
   }
   @deprecated(message = "deprecated", since = "0.2")
-  def getEdgesGroupedExcludedFormatted = withHeaderAsync(parse.json) { request =>
+  def getEdgesGroupedExcludedFormatted = withHeaderAsync(jsonParser) { request =>
     getEdgesGroupedExcludedFormattedInner(request.body)
   }
 
@@ -254,12 +254,12 @@ object QueryController extends Controller with RequestParser {
     }
   }
 
-  def checkEdges() = withHeaderAsync(parse.json) { request =>
+  def checkEdges() = withHeaderAsync(jsonParser) { request =>
     if (!Config.IS_QUERY_SERVER) Future.successful(Unauthorized)
     checkEdgesInner(request.body)
   }
 
-  def getVertices() = withHeaderAsync(parse.json) { request =>
+  def getVertices() = withHeaderAsync(jsonParser) { request =>
     if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
     val jsonQuery = request.body
     val ts = System.currentTimeMillis()

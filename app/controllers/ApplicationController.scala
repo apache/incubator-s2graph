@@ -2,12 +2,13 @@ package controllers
 
 
 import config.Config
-import play.api.mvc.{Action, Controller, Result, Request, BodyParser, AnyContent}
 import play.api.Logger
-import scala.concurrent.ExecutionContext
-import scala.concurrent.Future
+import play.api.libs.json.JsValue
+import play.api.mvc.{Action, AnyContent, BodyParser, Controller, Request, Result}
 
-object ApplicationController extends Controller {
+import scala.concurrent.{ExecutionContext, Future}
+
+object ApplicationController extends Controller with JsonBodyParser {
 
   var isHealthy = true
   var deployInfo = ""
@@ -39,6 +40,10 @@ object ApplicationController extends Controller {
     } finally {
       //      ctx.stop()
     }
+  }
+
+  def jsonParser: BodyParser[JsValue] = {
+    s2parse.json
   }
 
   def withHeaderAsync(block: Request[AnyContent] => Future[Result])(implicit ex: ExecutionContext) = {

@@ -128,7 +128,7 @@ CREATE TABLE `label_indices` (
   `formulars` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_label_id_seq` (`label_id`,`meta_seqs`),
-  UNIQUE KEY `ux_label_id_name` (`label_id`,`name`),
+  UNIQUE KEY `ux_label_id_name` (`label_id`,`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE label_indices ADD FOREIGN KEY(label_id) REFERENCES labels(id) ON DELETE CASCADE;

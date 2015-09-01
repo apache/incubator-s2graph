@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # create service.
 curl -XPOST localhost:9000/graphs/createService -H 'Content-Type: Application/json' -d '
-{"serviceName": "s2graph"}
+{"serviceName": "s2graph", "compressionAlgorithm" : "gz"}
 '
 # check service.
 curl -XGET localhost:9000/graphs/getService/s2graph
