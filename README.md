@@ -850,8 +850,14 @@ like insert, s2graph **do not look check** uniqueness. all responsibility is on 
 like update, s2graph **do not look check** uniqueness. all responsibility is on users. like delete, update require fetch existing edges first. after fetching edges, update props then issue increment request.
 
 ##### 5. deleteAll - `POST /graphs/edges/deleteAll` ##### 
-not supported with weak consistency. 
-like update, fetch all edges then issue delete individually on fetched edges. 
+same as strong consistency.
+```
+curl -XPOST localhost:9000/graphs/edges/deleteAll -H 'Content-Type: Application/json' -d '
+[
+  {"ids" : [101], "label":"s2graph_label_test", "direction": "out", "timestamp":1417616441}
+]
+'
+```
 
 ## 4. (Optionally) Insert and Manipulate Vertices ##
 
@@ -2213,7 +2219,10 @@ total vuser = 2,072
 
 
 ## 8. Resources ##
-* [hbaseconf](http://hbasecon.com/agenda): presentation is not published yet, but you can find our [keynote](https://www.dropbox.com/s/scn2dtpflj931mw/hbasecon_s2graph_final.key?dl=0)
+* [hbaseconf](http://hbasecon.com/agenda)
+  * HBaseCon2015: S2Graph - A Large-scale Graph Database with HBase
+     * [presentation](https://vimeo.com/128203919)
+     * [slide](http://www.slideshare.net/HBaseCon/use-cases-session-5)
 * mailing list: use [google group](https://groups.google.com/forum/#!forum/s2graph) or fire issues on this repo.
 * contact: shom83@gmail.com
 

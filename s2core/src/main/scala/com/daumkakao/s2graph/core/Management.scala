@@ -67,7 +67,7 @@ object Management extends JSONParser {
    * copy label: only used by bulk load job. not sure if we need to parameterize hbase cluster.
    */
   def copyLabel(oldLabelName: String, newLabelName: String, hTableName: Option[String]) = {
-    val old = Label.findByName(oldLabelName).getOrElse(throw new LabelAlreadyExistException(s"Old label $oldLabelName already exists."))
+    val old = Label.findByName(oldLabelName).getOrElse(throw new LabelAlreadyExistException(s"Old label $oldLabelName not exists."))
     if (Label.findByName(newLabelName).isDefined) throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
 
     val allProps = old.metas.map { labelMeta => Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType) }

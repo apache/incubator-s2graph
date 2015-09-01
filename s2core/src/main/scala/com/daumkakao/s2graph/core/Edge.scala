@@ -3,14 +3,8 @@ package com.daumkakao.s2graph.core
 import java.util
 
 import com.daumkakao.s2graph.core.mysqls._
-import com.stumbleupon.async.Deferred
-
-import scala.util.hashing.MurmurHash3
-import scala.util.{Failure, Random, Success, Try}
-
-//import com.daumkakao.s2graph.core.models._
-
 import com.daumkakao.s2graph.core.types2._
+import com.stumbleupon.async.Deferred
 import org.apache.hadoop.hbase.client.{Delete, Put}
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async._
@@ -20,6 +14,8 @@ import play.api.libs.json.Json
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
+import scala.util.hashing.MurmurHash3
+import scala.util.{Failure, Random, Success, Try}
 
 
 case class EdgeWithIndexInverted(srcVertex: Vertex,
@@ -30,16 +26,12 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
                                  props: Map[Byte, InnerValLikeWithTs],
                                  pendingEdgeOpt: Option[Edge] = None) {
 
-
   import Graph.edgeCf
   import HBaseSerializable._
 
   //  Logger.error(s"EdgeWithIndexInverted${this.toString}")
-  lazy val lastModifiedAt = if (props.isEmpty) 0L else props.map(_._2.ts).max
   lazy val schemaVer = label.schemaVersion
-  lazy val rowKey = EdgeRowKey(VertexId.toSourceVertexId(srcVertex.id),
-    labelWithDir, LabelIndex.defaultSeq, isInverted = true)(version = schemaVer)
-
+  lazy val rowKey = EdgeRowKey(VertexId.toSourceVertexId(srcVertex.id), labelWithDir, LabelIndex.defaultSeq, isInverted = true)(version = schemaVer)
   lazy val qualifier = EdgeQualifierInverted(VertexId.toTargetVertexId(tgtVertex.id))(version = schemaVer)
   lazy val value = EdgeValueInverted(op, props.toList)(version = schemaVer)
   lazy val valueBytes = pendingEdgeOpt match {
@@ -52,7 +44,6 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
 
       Bytes.add(Bytes.add(EdgeValueInverted(op, props.toList)(version = schemaVer).bytes, opBytes), versionBytes, propsBytes)
   }
-  //  lazy val value = EdgeValueInverted(op, props.toList)(version = schemaVer)
 
   // only for toString.
   lazy val label = Label.findById(labelWithDir.labelId)
@@ -72,6 +63,12 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
     //    Logger.debug(s"$ret, $version")
     ret
   }
+
+//  def buildDeleteRowAsync() = {
+//    val ret = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, version)
+//    //    Logger.debug(s"$ret, $version")
+//    ret
+//  }
 
   def withNoPendingEdge() = {
     copy(pendingEdgeOpt = None)
@@ -185,7 +182,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
       List.empty[AtomicIncrementRequest]
     } else {
       val incr = new AtomicIncrementRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, amount)
-//      Logger.debug(s"$incr")
+      //      Logger.debug(s"$incr")
       List(incr)
     }
   }
@@ -208,6 +205,15 @@ case class EdgeWithIndex(srcVertex: Vertex,
     }
   }
 
+  def buildDeleteRowAsync(): List[HBaseRpc] = {
+    if (!hasAllPropsForIndex) List.empty[DeleteRequest]
+    else {
+      val deleteRequest = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, ts)
+//            Logger.error(s"DeleteRow: ${rowKey}, $deleteRequest, $ts")
+      List(deleteRequest)
+    }
+  }
+
   def buildDegreeDeletesAsync(): List[HBaseRpc] = {
     if (!hasAllPropsForIndex) List.empty[DeleteRequest]
     else {
@@ -223,7 +229,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
 case class Edge(srcVertex: Vertex,
                 tgtVertex: Vertex,
                 labelWithDir: LabelWithDirection,
-                op: Byte = GraphUtil.operations("insert"),
+                op: Byte = GraphUtil.defaultOpByte,
                 ts: Long = System.currentTimeMillis(),
                 version: Long = System.currentTimeMillis(),
                 propsWithTs: Map[Byte, InnerValLikeWithTs] = Map.empty[Byte, InnerValLikeWithTs],
@@ -434,7 +440,7 @@ case class Edge(srcVertex: Vertex,
     }
 
     val rets = puts ++ incrs
-//    Logger.debug(s"Edge.insert(): $rets")
+    //    Logger.debug(s"Edge.insert(): $rets")
     rets
   }
 
@@ -467,7 +473,7 @@ case class Edge(srcVertex: Vertex,
       //      edgeWithIndex <- relEdge.copy(version = relEdge.version + Edge.incrementVersion).edgesWithIndex
       rpc <- edgeWithIndex.buildDeletesAsync() ++ edgeWithIndex.buildIncrementsAsync(-1L)
     } yield {
-//        Logger.debug(s"$rpc")
+        //        Logger.debug(s"$rpc")
         rpc
       }
 
@@ -479,11 +485,24 @@ case class Edge(srcVertex: Vertex,
   }
 
   def deleteBulk(): Unit = {
-    //    mutate(deleteBulkEdgeUpdate)
+    /** delete all edges related to this
+      * snapshot edge is not consistent with weak consistencyLevel. */
+    val deletes = relatedEdges.map { relEdge =>
+      val snapshotEdgeDelete = relEdge.edgesWithInvertedIndex.buildDeleteAsync()
+//      Logger.error(s"SnapshotEdgeDelete: $snapshotEdgeDelete")
+
+      val indexedEdgesDelete = relEdge.edgesWithIndex.flatMap { e =>
+        val indexedEdge = e.copy(op = GraphUtil.defaultOpByte)
+        val d = indexedEdge.buildDeletesAsync() ++ indexedEdge.buildIncrementsAsync(-1L)
+//        Logger.error(s"IndexedEdgesDelete: $d")
+        d
+      }
+
+      snapshotEdgeDelete :: indexedEdgesDelete
+    }
+    /** not wait for flush interval */
     for {
-      (queryParam, invertedEdgeOpt) <- fetchInvertedAsync()
-      edgeUpdate = deleteBulkEdgeUpdate(invertedEdgeOpt, this)
-      rets <- Graph.writeAsyncWithWait(label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations ++ edgeUpdate.invertedEdgeMutations))
+      rets <- Graph.writeAsync(label.hbaseZkAddr, deletes)
     } yield {
       val ret = rets.forall(identity)
       if (!ret) {
@@ -491,6 +510,17 @@ case class Edge(srcVertex: Vertex,
         ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = this))
       }
     }
+//    for {
+//      (queryParam, invertedEdgeOpt) <- fetchInvertedAsync()
+//      edgeUpdate = deleteBulkEdgeUpdate(invertedEdgeOpt, this)
+//      rets <- Graph.writeAsyncWithWait(label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations ++ edgeUpdate.invertedEdgeMutations))
+//    } yield {
+//      val ret = rets.forall(identity)
+//      if (!ret) {
+//        Logger.error(s"DeleteBulk failed. $this")
+//        ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = this))
+//      }
+//    }
 
   }
 
@@ -1039,7 +1069,7 @@ object Edge extends JSONParser {
   }
 
   def toEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None): Option[Edge] = {
-//    Logger.debug(s"$param -> $kv")
+        Logger.debug(s"$param -> $kv")
 
     val version = kv.timestamp()
     val keyBytes = kv.key()

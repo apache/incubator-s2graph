@@ -3,7 +3,7 @@ import java.util.concurrent.Executors
 
 import com.daumkakao.s2graph.core.{ExceptionHandler, Graph}
 import config.Config
-import controllers.ApplicationController
+import controllers.{AdminController, ApplicationController}
 import play.api.mvc.{WithFilters, _}
 import play.api.{Application, Logger}
 import play.filters.gzip.GzipFilter
@@ -32,6 +32,7 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
     val defaultHealthOn = Config.conf.getBoolean("app.health.on").getOrElse(true)
     ApplicationController.deployInfo = Try(Source.fromFile("./release_info").mkString("")).getOrElse("release info not found\n")
 
+    AdminController.loadCacheInner()
     ApplicationController.isHealthy = defaultHealthOn
   }
 

@@ -127,6 +127,7 @@ trait RequestParser extends JSONParser {
       val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
       val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
       val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
+      val withScore = (jsValue \ "withScore").asOpt[Boolean].getOrElse(true)
 
       val querySteps =
         steps.zipWithIndex.map { case (step, stepIdx) =>
@@ -178,7 +179,7 @@ trait RequestParser extends JSONParser {
         }
 
       val ret = Query(vertices, querySteps, removeCycle = removeCycle,
-        selectColumns = selectColumns, groupByColumns = groupByColumns, filterOutQuery = filterOutQuery)
+        selectColumns = selectColumns, groupByColumns = groupByColumns, filterOutQuery = filterOutQuery, withScore = withScore)
 //      Logger.debug(ret.toString)
       ret
     } catch {
@@ -210,7 +211,7 @@ trait RequestParser extends JSONParser {
       val interval = extractInterval(label, labelGroup)
       val duration = extractDuration(label, labelGroup)
       val scorings = extractScoring(label.id.get, labelGroup).getOrElse(List.empty[(Byte, Double)]).toList
-      val labelOrderSeq = label.findLabelIndexSeq(scorings)
+//      val labelOrderSeq = label.findLabelIndexSeq(scorings)
       val exclude = parse[Option[Boolean]](labelGroup, "exclude").getOrElse(false)
       val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
       val hasFilter = extractHas(label, labelGroup)
@@ -242,7 +243,8 @@ trait RequestParser extends JSONParser {
       val outputField = (labelGroup \ "outputField").asOpt[String].map(s => Json.arr(Json.arr(s)))
       val transformer = if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]
 
-      QueryParam(labelWithDir).labelOrderSeq(labelOrderSeq)
+      QueryParam(labelWithDir)
+//        .labelOrderSeq(labelOrderSeq)
         .limit(offset, limit)
         .rank(RankParam(label.id.get, scorings))
         .exclude(exclude)

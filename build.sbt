@@ -13,7 +13,7 @@ javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProper
 // I - show reminder of failed and canceled tests without stack traces
 // T - show reminder of failed and canceled tests with short stack traces
 // G - show reminder of failed and canceled tests with full stack traces
-testOptions in Test += Tests.Argument("-oG") 
+testOptions in Test += Tests.Argument("-oDF")
 
 resolvers ++= Common.resolvers
 
@@ -25,4 +25,8 @@ lazy val spark = project
 
 lazy val loader = project.dependsOn(s2core, spark)
 
-libraryDependencies ++= Seq(ws, filters)
+libraryDependencies ++= Seq(
+  ws,
+  filters,
+  "org.json4s" %% "json4s-native" % "3.2.11"
+)
