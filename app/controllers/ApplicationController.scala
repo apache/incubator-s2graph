@@ -42,7 +42,7 @@ object ApplicationController extends Controller with JsonBodyParser {
     }
   }
 
-  def jsonParser(implicit ec: ExecutionContext): BodyParser[JsValue] = {
+  def jsonParser: BodyParser[JsValue] = {
     s2parse.json
   }
 
