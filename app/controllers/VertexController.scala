@@ -37,10 +37,8 @@ object VertexController extends Controller with RequestParser  {
           true
         }
 
-      Future.successful(Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader))
-//      Graph.mutateVertices(verticesToStore).map { rets =>
-//        Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
-//      }
+      Future.successful(jsonResponse(Json.toJson(rets)))
+
     } catch {
       case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"e"))
       case e: Throwable =>

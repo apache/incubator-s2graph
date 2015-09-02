@@ -90,6 +90,10 @@ case class Or(left: Clause, right: Clause) extends Clause {
   override def filter(edge: Edge) = left.filter(edge) || right.filter(edge)
 }
 
+object WhereParser {
+  val empty = Where()
+}
+
 case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
 
   val metaProps = label.metaPropsInvMap

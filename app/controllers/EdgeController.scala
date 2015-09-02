@@ -14,6 +14,7 @@ import scala.concurrent.Future
 object EdgeController extends Controller with RequestParser {
 
   import ExceptionHandler._
+
   import controllers.ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits._
 
@@ -40,13 +41,9 @@ object EdgeController extends Controller with RequestParser {
         } yield {
           QueueActor.router ! element
           true
-        }
-        Future.successful(Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader))
-        //FIXME:
-//        Graph.mutateEdges(edgesToStore).map { rets =>
-//          Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
-//        }
 
+        }
+        Future.successful(jsonResponse(Json.toJson(rets)))
       } catch {
         case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
         case e: Throwable =>
@@ -92,15 +89,12 @@ object EdgeController extends Controller with RequestParser {
         element <- elementsToStore
       } yield {
           Logger.debug(s"sending actor: $element")
-//          ActorSystem("test").actorSelection("/user/a") ! element
           QueueActor.router ! element
           true
         }
 
-      Future.successful(Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader))
-//      Graph.mutateElements(elementsToStore).map { rets =>
-//        Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
-//      }
+      Future.successful(jsonResponse(Json.toJson(rets)))
+
     } catch {
       case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
       case e: Throwable =>
@@ -116,7 +110,6 @@ object EdgeController extends Controller with RequestParser {
   def inserts() = withHeaderAsync(jsonParser) { request =>
     tryMutates(request.body, "insert")
   }
-
 
   def insertsBulk() = withHeaderAsync(jsonParser) { request =>
     tryMutates(request.body, "insertBulk")
@@ -141,7 +134,8 @@ object EdgeController extends Controller with RequestParser {
       val json = results.map { case (isSuccess, resultCount) =>
         Json.obj("success" -> isSuccess, "result" -> resultCount)
       }
-      Ok(Json.toJson(json))
+
+      jsonResponse(Json.toJson(json))
     }
   }
 
