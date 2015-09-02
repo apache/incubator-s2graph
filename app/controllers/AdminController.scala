@@ -9,7 +9,7 @@ import play.api.{Logger, mvc}
 import scala.util.{Failure, Success, Try}
 
 object AdminController extends Controller with RequestParser {
-  val applicationJsonHeader = QueryController.applicationJsonHeader
+  import ApplicationController._
 
   /**
    * admin message formatter
@@ -278,7 +278,7 @@ object AdminController extends Controller with RequestParser {
   def addServiceColumnProp(serviceName: String, columnName: String) = Action(parse.json) { request =>
     addServiceColumnPropInner(serviceName, columnName)(request.body) match {
       case None => bad(s"can`t find service with $serviceName or can`t find serviceColumn with $columnName")
-      case Some(m) => Ok(m.toJson).as(QueryController.applicationJsonHeader)
+      case Some(m) => Ok(m.toJson).as(applicationJsonHeader)
     }
   }
 
@@ -326,7 +326,7 @@ object AdminController extends Controller with RequestParser {
    */
   def renameLabel(oldLabelName: String, newLabelName: String) = Action { request =>
     Label.findByName(oldLabelName) match {
-      case None => NotFound.as(QueryController.applicationJsonHeader)
+      case None => NotFound.as(applicationJsonHeader)
       case Some(label) =>
         Management.updateLabelName(oldLabelName, newLabelName)
         ok(s"Label was updated")

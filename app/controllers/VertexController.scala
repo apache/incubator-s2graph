@@ -30,7 +30,7 @@ object VertexController extends Controller with RequestParser  {
       //FIXME:
       val verticesToStore = vertices.filterNot(v => v.isAsync)
       Graph.mutateVertices(verticesToStore).map { rets =>
-        Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
+        jsonResponse(Json.toJson(rets))
       }
     } catch {
       case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"e"))
