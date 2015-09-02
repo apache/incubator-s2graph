@@ -37,4 +37,8 @@ object Config {
 
   // query limit per step
   lazy val QUERY_HARD_LIMIT = conf.getInt("query.hard.limit").getOrElse(300)
+
+  // local queue actor
+  lazy val LOCAL_QUEUE_ACTOR_MAX_QUEUE_SIZE = conf.getInt("local.queue.actor.max.queue.size").getOrElse(10000)
+  lazy val LOCAL_QUEUE_ACTOR_RATE_LIMIT = conf.getInt("local.queue.actor.rate.limit").getOrElse(1000)
 }

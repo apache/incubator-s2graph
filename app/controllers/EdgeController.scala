@@ -1,5 +1,7 @@
 package controllers
 
+import actors.QueueActor
+import akka.actor.ActorSystem
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls.Label
 import config.Config
@@ -32,10 +34,18 @@ object EdgeController extends Controller with RequestParser {
         }
 
         val edgesToStore = edges.filterNot(e => e.isAsync)
-        //FIXME:
-        Graph.mutateEdges(edgesToStore).map { rets =>
-          Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
+
+        val rets = for {
+          element <- edgesToStore
+        } yield {
+          QueueActor.router ! element
+          true
         }
+        Future.successful(Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader))
+        //FIXME:
+//        Graph.mutateEdges(edgesToStore).map { rets =>
+//          Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
+//        }
 
       } catch {
         case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
@@ -78,9 +88,19 @@ object EdgeController extends Controller with RequestParser {
 
       //FIXME:
       val elementsToStore = elements.filterNot(e => e.isAsync)
-      Graph.mutateElements(elementsToStore).map { rets =>
-        Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
-      }
+      val rets = for {
+        element <- elementsToStore
+      } yield {
+          Logger.debug(s"sending actor: $element")
+//          ActorSystem("test").actorSelection("/user/a") ! element
+          QueueActor.router ! element
+          true
+        }
+
+      Future.successful(Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader))
+//      Graph.mutateElements(elementsToStore).map { rets =>
+//        Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
+//      }
     } catch {
       case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
       case e: Throwable =>
