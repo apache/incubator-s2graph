@@ -12,6 +12,8 @@ import scala.util.control.NonFatal
  * Created by hsleep(honeysleep@gmail.com) on 15. 9. 1..
  */
 trait JsonBodyParser extends BodyParsers {
+  private val errorLogger = Logger("error")
+
   object s2parse {
     import parse._
 
@@ -43,7 +45,7 @@ trait JsonBodyParser extends BodyParsers {
               }.left.map {
                 case NonFatal(e) =>
                   val txt = new String(bytes)
-                  Logger.error(s"$errorMessage: $txt", e)
+                  errorLogger.error(s"$errorMessage: $txt", e)
                   createBadResult(s"$errorMessage: $e")(request)
                 case t => throw t
               }
