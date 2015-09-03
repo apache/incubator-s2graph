@@ -69,7 +69,7 @@ class QueueActor extends Actor with ActorLogging {
       queue = remains
       queueSize -= elementsToFlush.length
       Graph.mutateElements(elementsToFlush)
-      if (flushSize > 0) Logger.info(s"flush: $flushSize.size, $queueSize")
+      if (flushSize > 0) Logger.info(s"flush: $flushSize, $queueSize")
 
     case FlushAll =>
       Graph.mutateElements(queue)
