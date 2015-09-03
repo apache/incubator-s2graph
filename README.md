@@ -2039,7 +2039,7 @@ following is the way we do online migration from RDBMS to s2graph. assumes that 
 ### Test data
 1. synthetic data: dense matrix(10 million row x 1000 column, total edge 10 billion)
 2. number of region server for HBase = 20
-
+3. test with single s2graph server
 
 #### 1. one step query
 ```
