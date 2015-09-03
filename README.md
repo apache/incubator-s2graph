@@ -43,7 +43,7 @@ Table of content
 - [4. (Optionally) Insert and Manipulate Vertices](#4-optionally-insert-and-manipulate-vertices)
     - [1. Insert - `POST /graphs/vertices/insert/:serviceName/:columnName`](#1-insert---post-graphsverticesinsertservicenamecolumnname)
     - [2. delete - `POST /graphs/vertices/delete/:serviceName/:columnName`](#2-delete---post-graphsverticesdeleteservicenamecolumnname)
-    - [3. deleteAll - `POST /graphs/vertices/deleteAll/:serviceName/:columnName`](#3-deleteall---post-graphsverticesdeleteservicenamecolumnname)
+    - [3. deleteAll - `POST /graphs/vertices/deleteAll/:serviceName/:columnName`](#3-deleteall---post-graphsverticesdeleteallservicenamecolumnname)
     - [3. update - `POST /graphs/vertices/update/:serviceName/:columnName`](#3-update---post-graphsverticesupdateservicenamecolumnname)
     - [4. increment](#4-increment)
 - [5. Query](#5-query)
@@ -75,9 +75,6 @@ Table of content
     - [3. online migration](#3-online-migration)
 - [7. Benchmark](#7-benchmark)
   - [Test data](#test-data)
-    - [1. friend of friend](#1-friend-of-friend)
-    - [2. friends](#2-friends)
-  - [new benchmark (asynchbase)](#new-benchmark-asynchbase)
     - [1. one step query](#1-one-step-query)
     - [2. two step query](#2-two-step-query)
     - [3. three step query](#3-three-step-query)
@@ -490,7 +487,7 @@ curl -XPOST localhost:9000/graphs/addIndex -H 'Content-Type: Application/json' -
 '
 ```
 
-## 2. Create ServiceColumn(Optional) - `POST /graphs/createServiceColumn` ##
+## 2. Create ServiceColumn(Optional) - `POST /graphs/createServiceColumn` 
 ----------
 A ServiceColumn represents object and plays a role like a single table in RDBMS. 
 
