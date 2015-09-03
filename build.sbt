@@ -28,5 +28,5 @@ lazy val loader = project.dependsOn(s2core, spark)
 libraryDependencies ++= Seq(
   ws,
   filters,
-  "org.json4s" %% "json4s-native" % "3.2.11"
+  "org.json4s" %% "json4s-native" % "3.2.11" % Test
 )
