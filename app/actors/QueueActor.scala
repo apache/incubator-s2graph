@@ -42,7 +42,7 @@ class QueueActor extends Actor with ActorLogging {
   import Protocol._
   implicit val ec = context.system.dispatcher
 //  Logger.error(s"QueueActor: $self")
-  var queue = mutable.Queue.empty[GraphElement]
+  val queue = mutable.Queue.empty[GraphElement]
   var queueSize = 0L
   val maxQueueSize = Config.LOCAL_QUEUE_ACTOR_MAX_QUEUE_SIZE
   val timeUnitInMillis = 10
