@@ -57,7 +57,7 @@ class QueueActor extends Actor with ActorLogging {
 //      Logger.error(s"Receive: $element")
       queueSize += 1L
       if (queueSize > maxQueueSize) {
-        log.error(s"local queue overflow. $queueSize")
+        Logger.error(s"local queue overflow. $queueSize")
         ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_FAIL_TOPIC, element, None))
       } else {
         queue.enqueue(element)
@@ -65,10 +65,11 @@ class QueueActor extends Actor with ActorLogging {
 
     case Flush =>
       val (elementsToFlush, remains) = queue.splitAt(rateLimit)
-//      if (!elementsToFlush.isEmpty) Logger.error(s"flush: $elementsToFlush, $remains")
+      val flushSize = elementsToFlush.size
       queue = remains
       queueSize -= elementsToFlush.length
       Graph.mutateElements(elementsToFlush)
+      if (flushSize > 0) Logger.info(s"flush: $flushSize.size, $queueSize")
 
     case FlushAll =>
       Graph.mutateElements(queue)
