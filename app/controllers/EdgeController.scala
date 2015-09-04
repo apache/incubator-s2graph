@@ -1,5 +1,7 @@
 package controllers
 
+import actors.QueueActor
+import akka.actor.ActorSystem
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls.Label
 import config.Config
@@ -12,6 +14,7 @@ import scala.concurrent.Future
 object EdgeController extends Controller with RequestParser {
 
   import ExceptionHandler._
+
   import controllers.ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits._
 
@@ -32,11 +35,15 @@ object EdgeController extends Controller with RequestParser {
         }
 
         val edgesToStore = edges.filterNot(e => e.isAsync)
-        //FIXME:
-        Graph.mutateEdges(edgesToStore).map { rets =>
-          Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
-        }
 
+        val rets = for {
+          element <- edgesToStore
+        } yield {
+          QueueActor.router ! element
+          true
+
+        }
+        Future.successful(jsonResponse(Json.toJson(rets)))
       } catch {
         case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
         case e: Throwable =>
@@ -78,9 +85,16 @@ object EdgeController extends Controller with RequestParser {
 
       //FIXME:
       val elementsToStore = elements.filterNot(e => e.isAsync)
-      Graph.mutateElements(elementsToStore).map { rets =>
-        Ok(s"${Json.toJson(rets)}").as(QueryController.applicationJsonHeader)
-      }
+      val rets = for {
+        element <- elementsToStore
+      } yield {
+          Logger.debug(s"sending actor: $element")
+          QueueActor.router ! element
+          true
+        }
+
+      Future.successful(jsonResponse(Json.toJson(rets)))
+
     } catch {
       case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
       case e: Throwable =>
@@ -96,7 +110,6 @@ object EdgeController extends Controller with RequestParser {
   def inserts() = withHeaderAsync(jsonParser) { request =>
     tryMutates(request.body, "insert")
   }
-
 
   def insertsBulk() = withHeaderAsync(jsonParser) { request =>
     tryMutates(request.body, "insertBulk")
@@ -121,7 +134,8 @@ object EdgeController extends Controller with RequestParser {
       val json = results.map { case (isSuccess, resultCount) =>
         Json.obj("success" -> isSuccess, "result" -> resultCount)
       }
-      Ok(Json.toJson(json))
+
+      jsonResponse(Json.toJson(json))
     }
   }
 

@@ -3,12 +3,11 @@ package com.daumkakao.s2graph.core
 import com.daumkakao.s2graph.core.mysqls._
 import play.api.libs.json.{JsNumber, JsValue, Json}
 
+import scala.util.{Success, Try}
 import scala.util.hashing.MurmurHash3
 
-//import com.daumkakao.s2graph.core.models._
-
 import com.daumkakao.s2graph.core.Graph.edgeCf
-import com.daumkakao.s2graph.core.parsers.Where
+import com.daumkakao.s2graph.core.parsers.{WhereParser, Where}
 import com.daumkakao.s2graph.core.types2._
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{ColumnRangeFilter, GetRequest, ScanFilter}
@@ -276,7 +275,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   var hasFilters: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike]
   //  var propsFilters: PropsFilter = PropsFilter()
-  var where: Option[Where] = None
+  var where: Try[Where] = Success(WhereParser.empty)
   var duplicatePolicy = DuplicatePolicy.First
   var rpcTimeoutInMillis = 1000
   var maxAttempt = 2
@@ -382,7 +381,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this
   }
 
-  def where(whereOpt: Option[Where]): QueryParam = {
+  def where(whereOpt: Try[Where]): QueryParam = {
     this.where = whereOpt
     this
   }

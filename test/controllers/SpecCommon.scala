@@ -65,7 +65,7 @@ trait SpecCommon extends Specification {
 
   val NUM_OF_EACH_TEST = 3
   val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
-  val asyncFlushInterval = 200
+  val asyncFlushInterval = 500
 
   val createService = s"""{"serviceName" : "$testServiceName"}"""
   val testLabelNameCreate = s"""
