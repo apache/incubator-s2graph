@@ -59,7 +59,8 @@ object WalLogToHDFS extends SparkApp with WithKafka {
       "metadata.broker.list" -> brokerList,
       "auto.offset.reset" -> "largest")
 
-    val stream = StreamHelper(kafkaParams).createStream[String, String, StringDecoder, StringDecoder](ssc, topics.split(",").toSet)
+    val streamHelper = StreamHelper(kafkaParams)
+    val stream = streamHelper.createStream[String, String, StringDecoder, StringDecoder](ssc, topics.split(",").toSet)
 //    val stream = createKafkaValueStreamMulti(ssc, kafkaParams, topics, 8, None).flatMap(s => s.split("\n"))
 
     val mapAcc = sc.accumulable(new MutableHashMap[String, Long](), "Throughput")(HashMapParam[String, Long](_ + _))
@@ -92,7 +93,7 @@ object WalLogToHDFS extends SparkApp with WithKafka {
       rdd.mapPartitionsWithIndex { case (i, part) =>
         // commit offset range
         val osr = offsets(i)
-        StreamHelper(kafkaParams).commitConsumerOffset(osr)
+        streamHelper.commitConsumerOffset(osr)
         Iterator.empty
       }.foreach {
         (_: Nothing) => ()
