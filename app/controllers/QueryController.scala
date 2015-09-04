@@ -10,6 +10,7 @@ import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, Controller, Result}
 
 import scala.concurrent._
+import scala.util.Try
 
 object QueryController extends Controller with RequestParser {
 
@@ -33,9 +34,7 @@ object QueryController extends Controller with RequestParser {
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
-      logger.info(s"$jsonQuery")
       val q = toQuery(jsonQuery)
-
       val filterOutQueryResultsLs = q.filterOutQuery match {
         case Some(filterOutQuery) => Graph.getEdgesAsync(filterOutQuery)
         case None => Future.successful(Seq.empty)
@@ -46,7 +45,9 @@ object QueryController extends Controller with RequestParser {
         filterOutResultsLs <- filterOutQueryResultsLs
       } yield {
         val json = post(queryResultsLs, filterOutResultsLs)
-        jsonResponse(json)
+        val resultSize = Try((json \ "size").toString).getOrElse("0")
+
+        jsonResponse(json, "result_size" -> resultSize)
       }
     } catch {
       case e: KGraphExceptions.BadQueryException =>
@@ -63,7 +64,6 @@ object QueryController extends Controller with RequestParser {
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
-      logger.info(s"$jsonQuery")
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, List(q.steps.last))
 
@@ -114,7 +114,6 @@ object QueryController extends Controller with RequestParser {
     getEdgesGroupedInner(request.body)
   }
 
-
   @deprecated(message = "deprecated", since = "0.2")
   def getEdgesGroupedExcluded() = withHeaderAsync(jsonParser) { request =>
     getEdgesGroupedExcludedInner(request.body)
@@ -124,7 +123,6 @@ object QueryController extends Controller with RequestParser {
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
-      logger.info(jsonQuery.toString())
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, List(q.steps.last))
 
@@ -151,7 +149,6 @@ object QueryController extends Controller with RequestParser {
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
-      logger.info(jsonQuery.toString)
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, List(q.steps.last))
       //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
@@ -170,7 +167,6 @@ object QueryController extends Controller with RequestParser {
     }
   }
 
-
   def getEdge(srcId: String, tgtId: String, labelName: String, direction: String) = Action.async { request =>
     if (!Config.IS_QUERY_SERVER) Future.successful(Unauthorized)
     val params = Json.arr(Json.obj("label" -> labelName, "direction" -> direction, "from" -> srcId, "to" -> tgtId))
@@ -182,7 +178,6 @@ object QueryController extends Controller with RequestParser {
    */
 
   def checkEdgesInner(jsValue: JsValue) = {
-    logger.info(s"$jsValue")
     try {
       val params = jsValue.as[List[JsValue]]
       var isReverted = false
@@ -230,14 +225,17 @@ object QueryController extends Controller with RequestParser {
 
   def checkEdges() = withHeaderAsync(jsonParser) { request =>
     if (!Config.IS_QUERY_SERVER) Future.successful(Unauthorized)
+
     checkEdgesInner(request.body)
   }
 
   def getVertices() = withHeaderAsync(jsonParser) { request =>
     if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
+
     val jsonQuery = request.body
     val ts = System.currentTimeMillis()
     val props = "{}"
+
     try {
       val vertices = request.body.as[List[JsValue]].flatMap { js =>
         val serviceName = (js \ "serviceName").as[String]

@@ -1,11 +1,10 @@
 package controllers
 
+import com.daumkakao.s2graph.logger
 import config.Config
-
 import play.api.libs.iteratee.Enumerator
 import play.api.libs.json.JsValue
 import play.api.mvc._
-import com.daumkakao.s2graph.logger
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -30,9 +29,9 @@ object ApplicationController extends Controller {
     else NotFound
   }
 
-  def jsonResponse(json: JsValue) =
+  def jsonResponse(json: JsValue, headers: (String, String)*) =
     if (ApplicationController.isHealthy) {
-      Ok(json).as(applicationJsonHeader)
+      Ok(json).as(applicationJsonHeader).withHeaders(headers: _*)
     } else {
       Result(
         header = ResponseHeader(OK),
@@ -48,13 +47,10 @@ object ApplicationController extends Controller {
 
   def toLogMessage[A](request: Request[A], result: Result)(startedAt: Long): String = {
     val duration = System.currentTimeMillis() - startedAt
+    val resultSize = result.header.headers.getOrElse("result_size", "0")
 
     try {
-      if (!Config.IS_WRITE_SERVER) {
-        s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${request.body}"
-      } else {
-        s"${request.method} ${request.uri} took ${duration} ms ${result.header.status}"
-      }
+      s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${request.body}"
     } finally {
       /* pass */
     }
