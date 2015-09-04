@@ -42,7 +42,7 @@ class QueueActor extends Actor with ActorLogging {
   import Protocol._
   implicit val ec = context.system.dispatcher
 //  Logger.error(s"QueueActor: $self")
-  var queue = mutable.Queue.empty[GraphElement]
+  val queue = mutable.Queue.empty[GraphElement]
   var queueSize = 0L
   val maxQueueSize = Config.LOCAL_QUEUE_ACTOR_MAX_QUEUE_SIZE
   val timeUnitInMillis = 10
@@ -54,21 +54,24 @@ class QueueActor extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case element: GraphElement =>
-//      Logger.error(s"Receive: $element")
-      queueSize += 1L
+
       if (queueSize > maxQueueSize) {
-        log.error(s"local queue overflow. $queueSize")
         ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_FAIL_TOPIC, element, None))
       } else {
+        queueSize += 1L
         queue.enqueue(element)
       }
 
     case Flush =>
-      val (elementsToFlush, remains) = queue.splitAt(rateLimit)
-//      if (!elementsToFlush.isEmpty) Logger.error(s"flush: $elementsToFlush, $remains")
-      queue = remains
+      val elementsToFlush =
+        if (queue.size < rateLimit) queue.dequeueAll(_ => true)
+        else (0 until rateLimit).map(_ => queue.dequeue())
+
+      val flushSize = elementsToFlush.size
+
       queueSize -= elementsToFlush.length
       Graph.mutateElements(elementsToFlush)
+      if (flushSize > 0) Logger.info(s"flush: $flushSize, $queueSize")
 
     case FlushAll =>
       Graph.mutateElements(queue)
