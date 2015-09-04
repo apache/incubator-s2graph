@@ -37,7 +37,7 @@ trait WithKafka {
   }
 
   /**
-   * Kafka DefaultPartitioner가 private class라서 코드만 갖고 옴.
+   * Kafka DefaultPartitioner
    * @param k
    * @param n
    * @return
