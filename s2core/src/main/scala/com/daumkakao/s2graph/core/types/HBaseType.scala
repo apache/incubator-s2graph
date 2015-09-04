@@ -1,4 +1,4 @@
-package com.daumkakao.s2graph.core.types2
+package com.daumkakao.s2graph.core.types
 
 import org.apache.hadoop.hbase.util.Bytes
 

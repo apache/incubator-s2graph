@@ -3,7 +3,7 @@ package controllers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.types2.{LabelWithDirection, VertexId}
+import com.daumkakao.s2graph.core.types.{LabelWithDirection, VertexId}
 import com.daumkakao.s2graph.logger
 import config.Config
 import play.api.libs.json.{JsValue, Json}

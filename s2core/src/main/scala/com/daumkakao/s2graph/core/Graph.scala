@@ -8,7 +8,7 @@ import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Success}
 import java.util.ArrayList
 import java.util.concurrent.{ConcurrentHashMap, Executors}
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.{ConfigFactory, Config}
 import org.apache.hadoop.hbase.HBaseConfiguration

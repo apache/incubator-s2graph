@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.mysqls.LabelMeta
-import com.daumkakao.s2graph.core.types2.{InnerValLikeWithTs, HBaseType, InnerVal, TargetVertexId}
+import com.daumkakao.s2graph.core.types.{InnerValLikeWithTs, HBaseType, InnerVal, TargetVertexId}
 import org.scalatest.{Matchers, FunSuite}
 import play.api.libs.json.Json
 

@@ -4,7 +4,7 @@ import com.daumkakao.s2graph.core.mysqls._
 
 //import com.daumkakao.s2graph.core.models._
 
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
 import org.apache.hadoop.hbase.client.{Delete, Put}
 import org.hbase.async.{DeleteRequest, GetRequest, HBaseRpc, PutRequest}
 import play.api.libs.json.Json

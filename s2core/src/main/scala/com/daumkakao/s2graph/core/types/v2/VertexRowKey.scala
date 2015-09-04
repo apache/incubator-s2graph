@@ -1,6 +1,6 @@
-package com.daumkakao.s2graph.core.types2.v2
+package com.daumkakao.s2graph.core.types.v2
 
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
 
 /**
  * Created by shon on 6/10/15.

@@ -4,7 +4,7 @@ import com.daumkakao.s2graph.core.KGraphExceptions.BadQueryException
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.parsers.WhereParser
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
 import com.daumkakao.s2graph.logger
 import config.Config
 import play.api.libs.json._

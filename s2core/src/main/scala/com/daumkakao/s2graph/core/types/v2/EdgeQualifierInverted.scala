@@ -1,11 +1,10 @@
-package com.daumkakao.s2graph.core.types2.v1
+package com.daumkakao.s2graph.core.types.v2
 
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
 
 /**
  * Created by shon on 6/10/15.
  */
-
 object EdgeQualifierInverted extends HBaseDeserializable {
   import HBaseType._
   def fromBytes(bytes: Array[Byte],

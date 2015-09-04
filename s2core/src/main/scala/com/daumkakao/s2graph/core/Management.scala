@@ -4,7 +4,7 @@ package com.daumkakao.s2graph.core
 import com.daumkakao.s2graph.core.KGraphExceptions.{LabelAlreadyExistException, LabelNotExistException}
 import com.daumkakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
 import com.daumkakao.s2graph.logger
 import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm

@@ -1,6 +1,6 @@
-package com.daumkakao.s2graph.core.types2.v2
+package com.daumkakao.s2graph.core.types.v2
 
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
 import org.apache.hadoop.hbase.util._
 
 /**
@@ -46,7 +46,7 @@ object InnerVal extends HBaseDeserializable {
 
 case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
 
-  import com.daumkakao.s2graph.core.types2.InnerVal._
+  import com.daumkakao.s2graph.core.types.InnerVal._
 
   def bytes: Array[Byte] = {
     val ret = value match {

@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.Edge.PropsPairWithTs
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
 import org.hbase.async.{AtomicIncrementRequest, PutRequest}
 import org.scalatest.{BeforeAndAfter, Matchers, FunSuite}
 

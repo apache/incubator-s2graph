@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.types2.{InnerVal, InnerValLike}
+import com.daumkakao.s2graph.core.types.{InnerVal, InnerValLike}
 import com.daumkakao.s2graph.logger
 import play.api.libs.json._
 

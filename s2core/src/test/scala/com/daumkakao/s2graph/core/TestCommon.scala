@@ -4,7 +4,7 @@ package com.daumkakao.s2graph.core
 //import com.daumkakao.s2graph.core.models._
 
 
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{PutRequest, KeyValue}
 

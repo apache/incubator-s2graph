@@ -1,7 +1,7 @@
-package com.daumkakao.s2graph.core.types2.v1
+package com.daumkakao.s2graph.core.types.v1
 
 import com.daumkakao.s2graph.core.KGraphExceptions.IllegalDataTypeException
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
 import org.apache.hadoop.hbase.util.Bytes
 
 /**

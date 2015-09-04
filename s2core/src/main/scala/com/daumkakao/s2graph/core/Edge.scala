@@ -3,7 +3,7 @@ package com.daumkakao.s2graph.core
 import java.util
 
 import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
 import com.daumkakao.s2graph.logger
 import com.stumbleupon.async.Deferred
 import org.apache.hadoop.hbase.client.{Delete, Put}

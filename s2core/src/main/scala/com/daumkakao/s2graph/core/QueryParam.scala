@@ -3,7 +3,7 @@ package com.daumkakao.s2graph.core
 import com.daumkakao.s2graph.core.Graph.edgeCf
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.parsers.{Where, WhereParser}
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
 import com.daumkakao.s2graph.logger
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{ColumnRangeFilter, GetRequest, ScanFilter}
