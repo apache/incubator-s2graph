@@ -100,10 +100,10 @@ trait RequestParser extends JSONParser {
         (for {
           value <- parse[List[JsValue]](jsValue, "srcVertices")
           serviceName = parse[String](value, "serviceName")
-          service <- Service.findByName(serviceName)
-          column <- parse[Option[String]](value, "columnName")
-          col <- ServiceColumn.find(service.id.get, column)
+          column = parse[String](value, "columnName")
         } yield {
+            val service = Service.findByName(serviceName).getOrElse(throw BadQueryException("service not found"))
+            val col = ServiceColumn.find(service.id.get, column).getOrElse(throw BadQueryException("bad column name"))
             val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
             for {
               idVal <- idOpt ++ idsOpt.toSeq.flatten
@@ -115,7 +115,7 @@ trait RequestParser extends JSONParser {
             }
           }).flatten
 
-//      if (vertices.isEmpty) throw new BadQueryException("srcVertices`s id is empty")
+      if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
 
       val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v) }
       val steps = parse[List[JsValue]](jsValue, "steps")
@@ -190,8 +190,8 @@ trait RequestParser extends JSONParser {
   private def parseQueryParam(labelGroup: JsValue): Option[QueryParam] = {
     for {
       labelName <- parse[Option[String]](labelGroup, "label")
-      label <- Label.findByName(labelName)
     } yield {
+      val label = Label.findByName(labelName).getOrElse(throw BadQueryException(s"$labelName not found"))
       val direction = parse[Option[String]](labelGroup, "direction").map(GraphUtil.toDirection(_)).getOrElse(0)
       val limit = {
         parse[Option[Int]](labelGroup, "limit") match {
