@@ -1,12 +1,10 @@
 package test.controllers
 
-import controllers.{EdgeController}
+import com.daumkakao.s2graph.logger
+import controllers.EdgeController
 import play.api.libs.json._
 import play.api.test.Helpers._
 import play.api.test.{FakeApplication, FakeRequest}
-
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
 
 class WeakLabelDeleteSpec extends SpecCommon {
   init()
@@ -139,6 +137,8 @@ class WeakLabelDeleteSpec extends SpecCommon {
         result = getEdges(query(20, "in", testTgtColumnName))
         println(result)
         (result \ "results").as[List[JsValue]].size must equalTo(3)
+
+        logger.error("ok================================")
 
         true
 

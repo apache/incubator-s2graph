@@ -21,9 +21,9 @@ package object logger {
 
   def debug[T: Loggable](msg: => T) = logger.debug(implicitly[Loggable[T]].toLogMessage(msg))
 
-  def error[T: Loggable](msg: => T, exception: => Throwable) = errorLogger.info(implicitly[Loggable[T]].toLogMessage(msg), exception)
+  def error[T: Loggable](msg: => T, exception: => Throwable) = errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg), exception)
 
-  def error[T: Loggable](msg: => T) = errorLogger.info(implicitly[Loggable[T]].toLogMessage(msg))
+  def error[T: Loggable](msg: => T) = errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg))
 
 }
 
