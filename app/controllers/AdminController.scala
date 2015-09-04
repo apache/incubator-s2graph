@@ -2,9 +2,10 @@ package controllers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.logger
 import play.api.libs.json._
+import play.api.mvc
 import play.api.mvc.{Action, Controller}
-import play.api.{Logger, mvc}
 
 import scala.util.{Failure, Success, Try}
 
@@ -70,7 +71,7 @@ object AdminController extends Controller with RequestParser {
   def tryResponse[T, R: AdminMessageFormatter](res: Try[T])(callback: T => R): mvc.Result = res match {
     case Success(m) => ok(callback(m))
     case Failure(error) =>
-      Logger.error(error.getMessage, error)
+      logger.error(error.getMessage, error)
       error match {
         case JsResultException(e) => bad(JsError.toFlatJson(e))
         case _ => bad(error.getMessage)

@@ -9,7 +9,7 @@ import org.apache.hadoop.hbase.util.Bytes
 object LabelWithDirection {
   import HBaseType._
   def apply(compositeInt: Int): LabelWithDirection = {
-    //      play.api.Logger.debug(s"CompositeInt: $compositeInt")
+    //      logger.debug(s"CompositeInt: $compositeInt")
 
     val dir = compositeInt & ((1 << bitsForDir) - 1)
     val labelId = compositeInt >> bitsForDir

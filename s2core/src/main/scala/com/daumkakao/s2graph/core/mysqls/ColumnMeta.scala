@@ -53,7 +53,6 @@ object ColumnMeta extends Model[ColumnMeta] {
   }
 
   def findOrInsert(columnId: Int, name: String, dataType: String)(implicit session: DBSession = AutoSession): ColumnMeta = {
-    //    play.api.Logger.debug(s"findOrInsert: $columnId, $name")
     findByName(columnId, name) match {
       case Some(c) => c
       case None =>
@@ -107,7 +106,7 @@ object ColumnMeta extends Model[ColumnMeta] {
 //    for {
 //      x <- ls
 //    } {
-//      Logger.info(s"ColumnMeta: $x")
+//      logger.info(s"ColumnMeta: $x")
 //      findById(x.id.get)
 //      findByName(x.columnId, x.name)
 //      findAllByColumn(x.columnId)

@@ -172,7 +172,7 @@ object InnerVal extends HBaseDeserializable {
         }
       case _ => throw notSupportedEx(toVersion)
     }
-//    Logger.debug(s"convertVersion: $innerVal, $dataType, $toVersion, $ret, ${innerVal.bytes.toList}, ${ret.bytes.toList}")
+//    logger.debug(s"convertVersion: $innerVal, $dataType, $toVersion, $ret, ${innerVal.bytes.toList}, ${ret.bytes.toList}")
     ret
   }
 
@@ -202,7 +202,7 @@ trait InnerValLike extends HBaseSerializable {
     obj match {
       case other: InnerValLike =>
         val ret = toString == obj.toString
-//        Logger.debug(s"InnerValLike.equals($this, $obj) => $ret")
+//        logger.debug(s"InnerValLike.equals($this, $obj) => $ret")
         ret
       case _ => false
     }

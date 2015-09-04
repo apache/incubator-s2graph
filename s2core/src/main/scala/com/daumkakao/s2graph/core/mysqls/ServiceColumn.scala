@@ -65,23 +65,6 @@ object ServiceColumn extends Model[ServiceColumn] {
       var cacheKey = s"serviceId=${x.serviceId}:columnName=${x.columnName}"
       (cacheKey -> x)
     })
-//    for {
-//      x <- ls
-//    } {
-//      Logger.info(s"ServiceColumn: $x")
-//
-//      findById(x.id.get)
-//      find(x.serviceId, x.columnName)
-//    }
-//    putsToCache(ls.map { x =>
-//      val cacheKey = s"serviceId=${x.serviceId}:columnName=${x.columnName}"
-//      Logger.info(s"loading to local cache: $cacheKey")
-//      (cacheKey -> x)
-//      val idCacheKey = s"id=${x.id}"
-//      Logger.info(s"loading to local cache: $idCacheKey")
-//      (idCacheKey -> x)
-//    })
-//    ls
   }
 }
 case class ServiceColumn(id: Option[Int], serviceId: Int, columnName: String, columnType: String, schemaVersion: String) extends JSONParser {

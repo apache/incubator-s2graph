@@ -61,7 +61,7 @@ case class Vertex(id: VertexId,
   } yield (meta.name -> v.toString)
 
   def buildPuts(): List[Put] = {
-    //    play.api.Logger.error(s"put: $this => $rowKey")
+    //    logger.error(s"put: $this => $rowKey")
     val put = new Put(rowKey.bytes)
     for ((q, v) <- qualifiersWithValues) {
       put.addColumn(vertexCf, q, ts, v)
@@ -114,7 +114,7 @@ case class Vertex(id: VertexId,
 
   override def hashCode() = {
     val hash = id.hashCode()
-//    Logger.debug(s"Vertex.hashCode: $this -> $hash")
+//    logger.debug(s"Vertex.hashCode: $this -> $hash")
     hash
   }
 
@@ -122,7 +122,7 @@ case class Vertex(id: VertexId,
     obj match {
       case otherVertex: Vertex =>
         val ret = id == otherVertex.id
-//        Logger.debug(s"Vertex.equals: $this, $obj => $ret")
+//        logger.debug(s"Vertex.equals: $this, $obj => $ret")
         ret
       case _ => false
     }

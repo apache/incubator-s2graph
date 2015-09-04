@@ -53,7 +53,7 @@ object InnerVal extends HBaseDeserializable {
     var pos = offset
     //
     val header = bytes(pos)
-    //      play.api.Logger.debug(s"${bytes(offset)}: ${bytes.toList.slice(pos, bytes.length)}")
+    //      logger.debug(s"${bytes(offset)}: ${bytes.toList.slice(pos, bytes.length)}")
     pos += 1
 
     var numOfBytesUsed = 0

@@ -2,27 +2,23 @@
 import java.util.concurrent.Executors
 
 import actors.QueueActor
-import akka.actor.SupervisorStrategy.Stop
-import akka.actor.{PoisonPill, Props, ActorSystem}
 import com.daumkakao.s2graph.core.{ExceptionHandler, Graph}
+import com.daumkakao.s2graph.logger
 import config.Config
 import controllers.{AdminController, ApplicationController}
+import play.api.Application
 import play.api.mvc.{WithFilters, _}
-import play.api.{Application, Logger}
 import play.filters.gzip.GzipFilter
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.Try
-import play.api.libs.concurrent.Akka
-import play.api.Play.current
+
 object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
 
   override def onStart(app: Application) {
     QueueActor.init()
-//    val system = ActorSystem("test")
-//    system.actorOf(QueueActor.props(), name = "a")
 
     ApplicationController.isHealthy = false
 
@@ -35,7 +31,7 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
     val ex = ExecutionContext.fromExecutor(threadPool)
     Graph(Config.conf.underlying)(ex)
 
-    Logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
+    logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
 
     val defaultHealthOn = Config.conf.getBoolean("app.health.on").getOrElse(true)
     ApplicationController.deployInfo = Try(Source.fromFile("./release_info").mkString("")).getOrElse("release info not found\n")
@@ -46,14 +42,10 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
 
   override def onStop(app: Application) {
     QueueActor.shutdown()
-//    val system = ActorSystem("test")
-//    system.actorSelection("/user/a") ! PoisonPill
-
 
     if (Config.IS_WRITE_SERVER && Config.KAFKA_PRODUCER_POOL_SIZE > 0) {
       ExceptionHandler.shutdown()
     }
-
 
     /**
      * shutdown hbase client for flush buffers.
@@ -67,17 +59,17 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
   }
 
   override def onError(request: RequestHeader, ex: Throwable): Future[Result] = {
-    Logger.error(s"onError => ip:${request.remoteAddress}, request:${request}", ex)
+    logger.error(s"onError => ip:${request.remoteAddress}, request:${request}", ex)
     Future.successful(Results.InternalServerError)
   }
 
   override def onHandlerNotFound(request: RequestHeader): Future[Result] = {
-    Logger.error(s"onHandlerNotFound => ip:${request.remoteAddress}, request:${request}")
+    logger.error(s"onHandlerNotFound => ip:${request.remoteAddress}, request:${request}")
     Future.successful(Results.NotFound)
   }
 
   override def onBadRequest(request: RequestHeader, error: String): Future[Result] = {
-    Logger.error(s"onBadRequest => ip:${request.remoteAddress}, request:$request, error:$error")
+    logger.error(s"onBadRequest => ip:${request.remoteAddress}, request:$request, error:$error")
     Future.successful(Results.BadRequest(error))
   }
 }
@@ -91,7 +83,7 @@ object LoggingFilter extends EssentialFilter {
         val time = System.currentTimeMillis - start
         //        val headers = for (key <- requestHeader.headers.keys; value <- requestHeader.headers.get(key)) yield s"$key:$value" 
         //        .map(kv => s"${kv._1}:${kv._2}").mkString("\t")
-        Logger.debug(s"${requestHeader.method} ${requestHeader.uri} took ${time}ms and returned ${result.header.status}")
+        logger.debug(s"${requestHeader.method} ${requestHeader.uri} took ${time}ms and returned ${result.header.status}")
         result.withHeaders("Request-Time" -> time.toString)
       }
     }

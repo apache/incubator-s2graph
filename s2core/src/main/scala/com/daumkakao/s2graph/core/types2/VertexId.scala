@@ -57,7 +57,7 @@ class VertexId protected (val colId: Int, val innerId: InnerValLike) extends HBa
     } else {
       innerId.hashCode()
     }
-//    Logger.debug(s"VertexId.hashCode: $ret")
+//    logger.debug(s"VertexId.hashCode: $ret")
     ret
   }
   override def equals(obj: Any): Boolean = {
@@ -65,7 +65,7 @@ class VertexId protected (val colId: Int, val innerId: InnerValLike) extends HBa
       case other: VertexId => colId == other.colId && innerId.toIdString() == other.innerId.toIdString()
       case _ => false
     }
-//    Logger.debug(s"VertexId.equals: $this, $obj => $ret")
+//    logger.debug(s"VertexId.equals: $this, $obj => $ret")
     ret
   }
 

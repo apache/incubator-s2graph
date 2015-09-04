@@ -5,8 +5,8 @@ import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.parsers.WhereParser
 import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.logger
 import config.Config
-import play.api.Logger
 import play.api.libs.json._
 
 import scala.util.{Success, Try}
@@ -16,7 +16,6 @@ trait RequestParser extends JSONParser {
 
   import Management.JsonModel._
 
-  val errorLogger = Logger("error")
   val hardLimit = Config.QUERY_HARD_LIMIT
   val defaultLimit = 100
 
@@ -176,14 +175,14 @@ trait RequestParser extends JSONParser {
 
       val ret = Query(vertices, querySteps, removeCycle = removeCycle,
         selectColumns = selectColumns, groupByColumns = groupByColumns, filterOutQuery = filterOutQuery, withScore = withScore)
-//      Logger.debug(ret.toString)
+//      logger.debug(ret.toString)
       ret
     } catch {
       case e: BadQueryException =>
-        errorLogger.error(s"$e", e)
+        logger.error(s"$e", e)
         throw e
       case e: Throwable =>
-        errorLogger.error(s"$e", e)
+        logger.error(s"$e", e)
         throw new KGraphExceptions.BadQueryException(s"$jsValue", e)
     }
   }

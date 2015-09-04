@@ -1,9 +1,9 @@
 package controllers
 
 import actors.QueueActor
-import akka.actor.ActorSystem
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls.Label
+import com.daumkakao.s2graph.logger
 import config.Config
 import play.api.Logger
 import play.api.libs.json._
@@ -14,7 +14,6 @@ import scala.concurrent.Future
 object EdgeController extends Controller with RequestParser {
 
   import ExceptionHandler._
-
   import controllers.ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits._
 
@@ -24,7 +23,7 @@ object EdgeController extends Controller with RequestParser {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
     else {
       try {
-        Logger.debug(s"$jsValue")
+        logger.debug(s"$jsValue")
         val edges = toEdges(jsValue, operation)
         for {edge <- edges} {
           if (edge.isAsync) {
@@ -47,7 +46,7 @@ object EdgeController extends Controller with RequestParser {
       } catch {
         case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
         case e: Throwable =>
-          play.api.Logger.error(s"mutateAndPublish: $e", e)
+          logger.error(s"mutateAndPublish: $e", e)
           Future.successful(InternalServerError(s"${e.getStackTrace}"))
       }
     }
@@ -63,7 +62,7 @@ object EdgeController extends Controller with RequestParser {
   def mutateAndPublish(str: String): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
 
-    Logger.debug(s"$str")
+    logger.debug(s"$str")
     val edgeStrs = str.split("\\n")
 
     var vertexCnt = 0L
@@ -88,7 +87,7 @@ object EdgeController extends Controller with RequestParser {
       val rets = for {
         element <- elementsToStore
       } yield {
-          Logger.debug(s"sending actor: $element")
+          logger.debug(s"sending actor: $element")
           QueueActor.router ! element
           true
         }
@@ -98,7 +97,7 @@ object EdgeController extends Controller with RequestParser {
     } catch {
       case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
       case e: Throwable =>
-        play.api.Logger.error(s"mutateAndPublish: $e", e)
+        logger.error(s"mutateAndPublish: $e", e)
         Future.successful(InternalServerError(s"${e.getStackTrace}"))
     }
   }
@@ -157,7 +156,7 @@ object EdgeController extends Controller with RequestParser {
     })
 
     deleteResults.map { rst =>
-      Logger.debug(s"deleteAllInner: $rst")
+      logger.debug(s"deleteAllInner: $rst")
       Ok(s"deleted... ${rst.toString()}")
     }
   }

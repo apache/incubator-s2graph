@@ -1,9 +1,10 @@
 package controllers
 
+import com.daumkakao.s2graph.logger
+import play.api.Play
 import play.api.libs.iteratee.Iteratee
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc._
-import play.api.{Logger, Play}
 
 import scala.concurrent.Future
 import scala.util.control.NonFatal
@@ -13,7 +14,6 @@ import scala.util.control.NonFatal
  */
 
 object s2parse extends BodyParsers {
-  private val errorLogger = Logger("error")
 
   import parse._
 
@@ -48,7 +48,7 @@ object s2parse extends BodyParsers {
             }.left.map {
               case NonFatal(e) =>
                 val txt = new String(bytes)
-                errorLogger.error(s"$errorMessage: $txt", e)
+                logger.error(s"$errorMessage: $txt", e)
                 createBadResult(s"$errorMessage: $e")(request)
               case t => throw t
             }

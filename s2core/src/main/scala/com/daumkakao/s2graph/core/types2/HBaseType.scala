@@ -44,7 +44,7 @@ object HBaseDeserializable {
       i += 1
     }
     val ret = (kvs, pos)
-    //    Logger.debug(s"bytesToProps: $ret")
+    //    logger.debug(s"bytesToProps: $ret")
     ret
   }
 
@@ -65,7 +65,7 @@ object HBaseDeserializable {
       i += 1
     }
     val ret = (kvs, pos)
-    //    Logger.debug(s"bytesToProps: $ret")
+    //    logger.debug(s"bytesToProps: $ret")
     ret
   }
 
@@ -84,7 +84,7 @@ object HBaseDeserializable {
       kvs(i) = (k -> v)
       i += 1
     }
-    //    Logger.error(s"bytesToProps: $kvs")
+    //    logger.error(s"bytesToProps: $kvs")
     val ret = (kvs, pos)
 
     ret

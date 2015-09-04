@@ -1,19 +1,17 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.mysqls._
-import play.api.libs.json.{JsNumber, JsValue, Json}
-
-import scala.util.{Success, Try}
-import scala.util.hashing.MurmurHash3
-
 import com.daumkakao.s2graph.core.Graph.edgeCf
-import com.daumkakao.s2graph.core.parsers.{WhereParser, Where}
+import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.parsers.{Where, WhereParser}
 import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.logger
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{ColumnRangeFilter, GetRequest, ScanFilter}
-import play.api.Logger
+import play.api.libs.json.{JsNumber, JsValue, Json}
 
 import scala.collection.mutable.ListBuffer
+import scala.util.hashing.MurmurHash3
+import scala.util.{Success, Try}
 
 object Query {
   val initialScore = 1.0
@@ -107,7 +105,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
               nextStepOpt: Option[Step]): Seq[InnerValLike] = {
     val tokens = fmt.split(delimiter)
     val mergedStr = tokens.zip(values).map { case (prefix, innerVal) => prefix + innerVal.toString }.mkString
-    //    Logger.error(s"${tokens.toList}, ${values}, $mergedStr")
+    //    logger.error(s"${tokens.toList}, ${values}, $mergedStr")
     //    println(s"${tokens.toList}, ${values}, $mergedStr")
     nextStepOpt match {
       case None =>
@@ -183,7 +181,7 @@ case class Step(queryParams: List[QueryParam],
   lazy val includes = queryParams.filterNot(qp => qp.exclude)
   lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 
-  Logger.debug(s"Step: $queryParams, $labelWeights, $nextStepScoreThreshold, $nextStepLimit")
+  logger.debug(s"Step: $queryParams, $labelWeights, $nextStepScoreThreshold, $nextStepLimit")
 }
 
 case class VertexParam(vertices: Seq[Vertex]) {
@@ -323,7 +321,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   def interval(from: Seq[(Byte, InnerValLike)], to: Seq[(Byte, InnerValLike)]): QueryParam = {
     //    val len = label.orderTypes.size.toByte
     //    val len = label.extraIndicesMap(labelOrderSeq).sortKeyTypes.size.toByte
-    //    Logger.error(s"indicesMap: ${label.indicesMap(labelOrderSeq)}")
+    //    logger.error(s"indicesMap: ${label.indicesMap(labelOrderSeq)}")
     val len = label.indicesMap(labelOrderSeq).sortKeyTypes.size.toByte
 
     val minMetaByte = InnerVal.minMetaByte
@@ -337,9 +335,6 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     val maxBytes = fromVal
     val minBytes = toVal
     val rangeFilter = new ColumnRangeFilter(minBytes, true, maxBytes, true)
-//    Logger.debug(s"index length: $len, min: ${minBytes.toList}, max: ${maxBytes.toList}")
-    //    queryLogger.info(s"Interval: ${rangeFilter.getMinColumn().toList} ~ ${rangeFilter.getMaxColumn().toList}: ${Bytes.compareTo(minBytes, maxBytes)}")
-    //    this.filters.(rangeFilter)
     this.columnRangeFilter = rangeFilter
     this
   }
@@ -492,7 +487,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     get.setMaxAttempt(maxAttempt.toByte)
     get.setRpcTimeout(rpcTimeoutInMillis)
     if (columnRangeFilter != null) get.filter(columnRangeFilter)
-    Logger.debug(s"Get: $get")
+    logger.debug(s"Get: $get")
     get
   }
 }
@@ -501,7 +496,7 @@ case class TimeDecay(initial: Double = 1.0, lambda: Double = 0.1, timeUnit: Doub
   def decay(diff: Double): Double = {
     //FIXME
     val ret = initial * Math.pow((1.0 - lambda), diff / timeUnit)
-    //    Logger.debug(s"$initial, $lambda, $timeUnit, $diff, ${diff / timeUnit}, $ret")
+    //    logger.debug(s"$initial, $lambda, $timeUnit, $diff, ${diff / timeUnit}, $ret")
     ret
   }
 }

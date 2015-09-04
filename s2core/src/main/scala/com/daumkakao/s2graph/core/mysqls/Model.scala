@@ -2,9 +2,9 @@ package com.daumkakao.s2graph.core.mysqls
 
 import java.util.concurrent.TimeUnit
 
+import com.daumkakao.s2graph.logger
 import com.google.common.cache.CacheBuilder
 import com.typesafe.config.Config
-import play.api.Logger
 import scalikejdbc._
 
 import scala.util.{Failure, Success, Try}
@@ -61,7 +61,7 @@ trait Model[V] extends SQLSyntaxSupport[V] {
 
   private lazy val cName = this.getClass.getSimpleName()
 
-  Logger.info(s"LocalCache[$cName]: TTL[$ttl], MaxSize[$maxSize]")
+  logger.info(s"LocalCache[$cName]: TTL[$ttl], MaxSize[$maxSize]")
   val cache = CacheBuilder.newBuilder()
     .expireAfterWrite(ttl, TimeUnit.SECONDS)
     .maximumSize(maxSize)

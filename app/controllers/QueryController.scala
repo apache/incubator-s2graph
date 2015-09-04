@@ -4,8 +4,8 @@ package controllers
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types2.{LabelWithDirection, VertexId}
+import com.daumkakao.s2graph.logger
 import config.Config
-import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, Controller, Result}
 
@@ -33,7 +33,7 @@ object QueryController extends Controller with RequestParser {
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
-      Logger.info(s"$jsonQuery")
+      logger.info(s"$jsonQuery")
       val q = toQuery(jsonQuery)
 
       val filterOutQueryResultsLs = q.filterOutQuery match {
@@ -50,10 +50,10 @@ object QueryController extends Controller with RequestParser {
       }
     } catch {
       case e: KGraphExceptions.BadQueryException =>
-        errorLogger.error(s"$jsonQuery, $e", e)
+        logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
       case e: Throwable =>
-        errorLogger.error(s"$jsonQuery, $e", e)
+        logger.error(s"$jsonQuery, $e", e)
         errorResults
     }
   }
@@ -63,7 +63,7 @@ object QueryController extends Controller with RequestParser {
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
-      Logger.info(s"$jsonQuery")
+      logger.info(s"$jsonQuery")
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, List(q.steps.last))
 
@@ -73,10 +73,10 @@ object QueryController extends Controller with RequestParser {
       }
     } catch {
       case e: KGraphExceptions.BadQueryException =>
-        errorLogger.error(s"$jsonQuery, $e", e)
+        logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
       case e: Throwable =>
-        errorLogger.error(s"$jsonQuery, $e", e)
+        logger.error(s"$jsonQuery, $e", e)
         errorResults
     }
   }
@@ -124,7 +124,7 @@ object QueryController extends Controller with RequestParser {
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
-      Logger.info(jsonQuery.toString())
+      logger.info(jsonQuery.toString())
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, List(q.steps.last))
 
@@ -134,10 +134,10 @@ object QueryController extends Controller with RequestParser {
       }
     } catch {
       case e: KGraphExceptions.BadQueryException =>
-        errorLogger.error(s"$jsonQuery, $e", e)
+        logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
       case e: Throwable =>
-        errorLogger.error(s"$jsonQuery, $e", e)
+        logger.error(s"$jsonQuery, $e", e)
         errorResults
     }
   }
@@ -151,7 +151,7 @@ object QueryController extends Controller with RequestParser {
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
-      Logger.info(jsonQuery.toString)
+      logger.info(jsonQuery.toString)
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, List(q.steps.last))
       //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
@@ -162,10 +162,10 @@ object QueryController extends Controller with RequestParser {
       }
     } catch {
       case e: KGraphExceptions.BadQueryException =>
-        errorLogger.error(s"$jsonQuery, $e", e)
+        logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
       case e: Throwable =>
-        errorLogger.error(s"$jsonQuery, $e", e)
+        logger.error(s"$jsonQuery, $e", e)
         errorResults
     }
   }
@@ -182,7 +182,7 @@ object QueryController extends Controller with RequestParser {
    */
 
   def checkEdgesInner(jsValue: JsValue) = {
-    Logger.info(s"$jsValue")
+    logger.info(s"$jsValue")
     try {
       val params = jsValue.as[List[JsValue]]
       var isReverted = false
@@ -206,9 +206,9 @@ object QueryController extends Controller with RequestParser {
               Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)), 0)
           }
 
-          //          Logger.debug(s"SrcVertex: $src")
-          //          Logger.debug(s"TgtVertex: $tgt")
-          //          Logger.debug(s"direction: $dir")
+          //          logger.debug(s"SrcVertex: $src")
+          //          logger.debug(s"TgtVertex: $tgt")
+          //          logger.debug(s"direction: $dir")
           (src, tgt, label, dir.toInt)
         }
 
@@ -223,7 +223,7 @@ object QueryController extends Controller with RequestParser {
       }
     } catch {
       case e: Throwable =>
-        errorLogger.error(s"$jsValue, $e", e)
+        logger.error(s"$jsValue, $e", e)
         errorResults
     }
   }
@@ -252,10 +252,10 @@ object QueryController extends Controller with RequestParser {
       }
     } catch {
       case e: play.api.libs.json.JsResultException =>
-        errorLogger.error(s"$jsonQuery, $e", e)
+        logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
       case e: Exception =>
-        errorLogger.error(s"$jsonQuery, $e", e)
+        logger.error(s"$jsonQuery, $e", e)
         errorResults
     }
   }

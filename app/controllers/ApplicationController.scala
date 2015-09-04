@@ -1,10 +1,11 @@
 package controllers
 
 import config.Config
-import play.api.Logger
+
 import play.api.libs.iteratee.Enumerator
 import play.api.libs.json.JsValue
 import play.api.mvc._
+import com.daumkakao.s2graph.logger
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -16,7 +17,6 @@ object ApplicationController extends Controller {
   var connectionKeepAlive = CONNECTION -> "keep-alive"
   var connectionClose = CONNECTION -> "close"
   val applicationJsonHeader = "application/json"
-  val errorLogger = Logger("logger")
 
   def jsonParser: BodyParser[JsValue] = controllers.s2parse.json
 
@@ -64,7 +64,7 @@ object ApplicationController extends Controller {
     Action.async(bodyParser) { request =>
       val startedAt = System.currentTimeMillis()
       block(request).map { r =>
-        Logger.info(toLogMessage(request, r)(startedAt))
+        logger.info(toLogMessage(request, r)(startedAt))
         responseWithConnectionHeader(r)
       }
     }
@@ -73,7 +73,7 @@ object ApplicationController extends Controller {
     Action(bodyParser) { request: Request[A] =>
       val startedAt = System.currentTimeMillis()
       val r = block(request)
-      Logger.info(toLogMessage(request, r)(startedAt))
+      logger.info(toLogMessage(request, r)(startedAt))
       responseWithConnectionHeader(r)
     }
 }

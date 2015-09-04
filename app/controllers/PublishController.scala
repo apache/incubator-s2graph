@@ -1,18 +1,17 @@
 package controllers
 
 import com.daumkakao.s2graph.core.ExceptionHandler
-import com.daumkakao.s2graph.core.mysqls.Service
 import config.Config
-import play.api.Logger
-import play.api.mvc._
-import scala.concurrent.Future
 import org.apache.kafka.clients.producer.ProducerRecord
+import play.api.mvc._
+
+import scala.concurrent.Future
 
 object PublishController extends Controller {
 
-  import play.api.libs.concurrent.Execution.Implicits._
   import ApplicationController._
   import ExceptionHandler._
+  import play.api.libs.concurrent.Execution.Implicits._
 
   /**
    * never check validation on string. just redirect strings to kafka.
@@ -29,7 +28,7 @@ object PublishController extends Controller {
     strs.foreach(str => {
       val keyedMessage = new ProducerRecord[Key, Val](Config.KAFKA_LOG_TOPIC, str)
       //    val keyedMessage = new ProducerRecord[Key, Val](kafkaTopic, s"$str")
-      //        Logger.debug(s"$kafkaTopic, $str")
+      //        logger.debug(s"$kafkaTopic, $str")
       ExceptionHandler.enqueue(KafkaMessage(keyedMessage))
     })
     Future.successful(

@@ -7,7 +7,7 @@ package com.daumkakao.s2graph.core.mysqls
 import java.util.UUID
 
 import com.daumkakao.s2graph.core.Management
-import play.api.Logger
+import com.daumkakao.s2graph.logger
 import play.api.libs.json.Json
 import scalikejdbc._
 
@@ -40,7 +40,7 @@ object Service extends Model[Service] {
   def insert(serviceName: String, cluster: String,
              hTableName: String, preSplitSize: Int, hTableTTL: Option[Int],
              compressionAlgorithm: String)(implicit session: DBSession = AutoSession) = {
-    Logger.info(s"$serviceName, $cluster, $hTableName, $preSplitSize, $hTableTTL, $compressionAlgorithm")
+    logger.info(s"$serviceName, $cluster, $hTableName, $preSplitSize, $hTableTTL, $compressionAlgorithm")
     val accessToken = UUID.randomUUID().toString()
     sql"""insert into services(service_name, access_token, cluster, hbase_table_name, pre_split_size, hbase_table_ttl)
     values(${serviceName}, ${accessToken}, ${cluster}, ${hTableName}, ${preSplitSize}, ${hTableTTL})""".execute.apply()
