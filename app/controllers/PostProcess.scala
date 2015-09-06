@@ -213,7 +213,7 @@ object PostProcess extends JSONParser {
       jsValue <- innerValToJsValue(innerVal, labelMeta.dataType) if q.selectColumnsSet.isEmpty || q.selectColumnsSet.contains(labelMeta.name)
     } yield labelMeta.name -> jsValue
 
-    kvs.toMap
+    kvs
   }
 
   def srcTgtColumn(edge: Edge, queryResult: QueryResult) = {
@@ -241,7 +241,7 @@ object PostProcess extends JSONParser {
         val propsMap = propsToJson(edge, queryResult.query, queryResult.queryParam)
         val targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
 
-        val kvMap = targetColumns.foldLeft(List.empty[(String, JsValue)]) { (ls, column) =>
+        val kvMap = targetColumns.foldLeft(Map.empty[String, JsValue]) { (ls, column) =>
           val jsValue = column match {
             case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (queryResult.timestamp - queryParam.timestamp))
             case "from" => from
@@ -253,8 +253,9 @@ object PostProcess extends JSONParser {
             case "props" if !propsMap.isEmpty => Json.toJson(propsMap)
             case _ => JsNull
           }
-          if (jsValue == JsNull) ls else (column -> jsValue) :: ls
-        }.toMap
+
+          if (jsValue == JsNull) ls else ls + (column -> jsValue)
+        }
 
         Json.toJson(kvMap)
       }
