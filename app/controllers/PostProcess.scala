@@ -240,21 +240,20 @@ object PostProcess extends JSONParser {
         val q = queryResult.query
         val propsMap = propsToJson(edge, queryResult.query, queryResult.queryParam)
         val targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
-        val unknownColumn = "__unknown__"
 
         val kvMap = targetColumns.foldLeft(List.empty[(String, JsValue)]) { (ls, column) =>
-          val kv = column match {
-            case "cacheRemain" => column -> JsNumber(queryParam.cacheTTLInMillis - (queryResult.timestamp - queryParam.timestamp))
-            case "from" => column -> from
-            case "to" => column -> to
-            case "label" => column -> JsString(queryParam.label.label)
-            case "direction" => column -> JsString(GraphUtil.fromDirection(edge.labelWithDir.dir))
-            case "_timestamp" | "timestamp" => column -> JsNumber(edge.ts)
-            case "score" => column -> JsNumber(score)
-            case "props" if !propsMap.isEmpty => column -> Json.toJson(propsMap)
-            case _ => (unknownColumn -> JsNull)
+          val jsValue = column match {
+            case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (queryResult.timestamp - queryParam.timestamp))
+            case "from" => from
+            case "to" => to
+            case "label" => JsString(queryParam.label.label)
+            case "direction" => JsString(GraphUtil.fromDirection(edge.labelWithDir.dir))
+            case "_timestamp" | "timestamp" => JsNumber(edge.ts)
+            case "score" => JsNumber(score)
+            case "props" if !propsMap.isEmpty => Json.toJson(propsMap)
+            case _ => JsNull
           }
-          if (kv._1 == unknownColumn) ls else kv :: ls
+          if (jsValue == JsNull) ls else (column -> jsValue) :: ls
         }.toMap
 
         Json.toJson(kvMap)
