@@ -15,7 +15,8 @@ import org.apache.hadoop.hbase.client._
 import org.hbase.async._
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.{HashMap, ListBuffer}
+import scala.collection._
+import scala.collection.mutable.ListBuffer
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.hashing.MurmurHash3
@@ -23,27 +24,22 @@ import scala.util.{Failure, Success}
 
 
 object Graph {
-
   val vertexCf = "v".getBytes()
   val edgeCf = "e".getBytes()
-  val updateCf = "u".getBytes()
-  val ttsForActivity = 60 * 60 * 24 * 30
-  val delimiter = "|"
-  val seperator = ":"
-
-  val writeBufferSize = 1024 * 1024 * 2
 
   val maxValidEdgeListSize = 10000
-  //  val Logger = Edge.Logger
-  val conns = scala.collection.mutable.Map[String, Connection]()
-  val clients = scala.collection.mutable.Map[String, HBaseClient]()
-  val emptyKVs = new ArrayList[KeyValue]()
-  val emptyKVlist = new ArrayList[ArrayList[KeyValue]]()
+
+  // conns, clients not thread safe, can throw exception.
+  val conns = mutable.Map[String, Connection]()
+  var clients = mutable.Map[String, HBaseClient]()
+
+  var emptyKVs = new ArrayList[KeyValue]()
 
   //  var shouldRunFromBytes = true
   //  var shouldReturnResults = true
   //  var shouldRunFetch = true
   //  var shouldRunFilter = true
+
   val defaultConfigs: Map[String, AnyRef] = Map(
     "hbase.zookeeper.quorum" -> "localhost",
     "hbase.table.name" -> "s2graph",
@@ -77,7 +73,7 @@ object Graph {
 
   /**
    * requred: hbase.zookeeper.quorum
-   * optional: all hbase. prefix configurations.
+   * optional: all `hbase` contains configurations.
    */
   private def toHBaseConfig(config: com.typesafe.config.Config) = {
     val conf = HBaseConfiguration.create()
@@ -95,8 +91,10 @@ object Graph {
     conf
   }
 
-  //  implicit val ex = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(16))
   def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
+    defaultConfigs.foreach { case (k, v) =>
+      logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
+    }
 
     this.config = config.withFallback(this.config)
     this.hbaseConfig = toHBaseConfig(this.config)
@@ -107,47 +105,23 @@ object Graph {
     this.singleGetTimeout = this.config.getInt("hbase.client.operation.timeout")
     this.clientFlushInterval = this.config.getInt("async.hbase.client.flush.interval").toShort
 
-    logger.info(s"$clientFlushInterval")
-    val zkQuorum = hbaseConfig.get("hbase.zookeeper.quorum")
-    clients += (zkQuorum -> getClient(zkQuorum, this.clientFlushInterval))
+    // make hbase client for cache
+    getClient(hbaseConfig.get("hbase.zookeeper.quorum"))
+
     ExceptionHandler.apply(config)
-
-    for {
-      (k, v) <- defaultConfigs
-    } {
-      logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
-    }
   }
-
 
   def getClient(zkQuorum: String, flushInterval: Short = clientFlushInterval) = {
     val key = zkQuorum + ":" + flushInterval
-    val client = clients.get(key) match {
-      //    val client = clients.get(zkQuorum) match {
-      case None =>
-        val client = new HBaseClient(zkQuorum)
-        client.setFlushInterval(clientFlushInterval)
-        //        clients += (zkQuorum -> client)
-        clients += (key -> client)
-        client
-      //        throw new RuntimeException(s"connection to $zkQuorum is not established.")
-      case Some(c) => c
-    }
-    client.setFlushInterval(flushInterval)
-    client
+
+    clients.getOrElseUpdate(key, {
+      val client = new HBaseClient(zkQuorum)
+      client.setFlushInterval(flushInterval)
+      client
+    })
   }
 
-  def getConn(zkQuorum: String) = {
-    conns.get(zkQuorum) match {
-      case None =>
-        logger.info(s"${this.hbaseConfig}")
-        val conn = ConnectionFactory.createConnection(this.hbaseConfig)
-        conns += (zkQuorum -> conn)
-        conn
-      //        throw new RuntimeException(s"connection to $zkQuorum is not established.")
-      case Some(c) => c
-    }
-  }
+  def getConn(zkQuorum: String) = conns.getOrElseUpdate(zkQuorum, ConnectionFactory.createConnection(this.hbaseConfig))
 
   def defferedToFuture[A](d: Deferred[A])(fallback: A): Future[A] = {
     val promise = Promise[A]
@@ -155,7 +129,7 @@ object Graph {
     d.addBoth(new Callback[Unit, A] {
       def call(arg: A) = arg match {
         case e: Throwable =>
-          logger.error(s"deferred return throwable: $e", e)
+          logger.error(s"deferred failed with return fallback): $e", e)
           promise.success(fallback)
         case _ => promise.success(arg)
       }
@@ -190,23 +164,26 @@ object Graph {
     })
   }
 
+  private def errorBack(block: => Exception => Unit) = new Callback[Unit, Exception] {
+    def call(ex: Exception): Unit = block(ex)
+  }
 
   def writeAsyncWithWait(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]]): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
+
     if (elementRpcs.isEmpty) {
       Future.successful(Seq.empty[Boolean])
     } else {
       val client = getClient(zkQuorum, flushInterval = 0.toShort)
       val defers = elementRpcs.map { rpcs =>
-        //TODO: register errorBacks on this operations to log error
-        //          logger.debug(s"$rpc")
+
         val defer = rpcs.map { rpc =>
-          //          logger.debug(s"$rpc")
           val deferred = rpc match {
-            case d: DeleteRequest => client.delete(d)
-            case p: PutRequest => client.put(p)
-            case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i)
+            case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
+            case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
+            case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i).addErrback(errorBack(ex => logger.error(s"increment request failed. $i, $ex", ex)))
           }
+
           deferredCallbackWithFallback(deferred)({
             (anyRef: Any) => anyRef match {
               case e: Exception =>
@@ -214,19 +191,15 @@ object Graph {
                 false
               case _ => true
             }
-          }, {
-            false
-          })
+          }, false)
         }
 
-        val ret = deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
-        ret
+        deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
       }
-      //      client.flush()
+
       Future.sequence(defers)
     }
   }
-
 
   def writeAsync(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]]): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
@@ -234,42 +207,27 @@ object Graph {
     if (elementRpcs.isEmpty) {
       Future.successful(Seq.empty[Boolean])
     } else {
-      val client = getClient(zkQuorum)
-      val defers = elementRpcs.map { rpcs =>
-        //TODO: register errorBacks on this operations to log error
-        //          logger.debug(s"$rpc")
-        val defer = rpcs.map { rpc =>
-          //                    logger.debug(s"$rpc")
+      val client = getClient(zkQuorum, flushInterval = 0.toShort)
+      elementRpcs.foreach { rpcs =>
+
+        rpcs.foreach { rpc =>
           val deferred = rpc match {
-            case d: DeleteRequest => client.delete(d).addErrback(new Callback[Unit, Exception] {
-              def call(arg: Exception): Unit = {
-                logger.error(s"delete request failed. $d, $arg", arg)
-              }
-            })
-            case p: PutRequest => client.put(p).addErrback(new Callback[Unit, Exception] {
-              def call(arg: Exception): Unit = {
-                logger.error(s"put request failed. $p, $arg", arg)
-              }
-            })
-            case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i).addErrback(new Callback[Unit, Exception] {
-              def call(arg: Exception): Unit = {
-                logger.error(s"increment request failed. $i, $arg", arg)
-              }
-            })
+            case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
+            case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
+            case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i).addErrback(errorBack(ex => logger.error(s"increment request failed. $i, $ex", ex)))
           }
-          //          deferredCallbackWithFallback(deferred)({
-          //            (anyRef: Any) => anyRef match {
-          //              case e: Exception => false
-          //              case _ => true
-          //            }
-          //          }, {
-          //            false
-          //          })
+
+          deferredCallbackWithFallback(deferred)({
+            (anyRef: Any) => anyRef match {
+              case e: Exception =>
+                logger.error(s"mutation failed. $e", e)
+                false
+              case _ => true
+            }
+          }, false)
         }
-        //        val ret = deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
-        //        ret
       }
-      //      Future.sequence(defers)
+
       Future.successful(elementRpcs.map(x => true))
     }
   }
@@ -277,9 +235,6 @@ object Graph {
   /**
    * Edge
    */
-  //  def mutateEdge(edge: Edge): Unit = {
-  //    save(edge.label.hbaseZkAddr, edge.label.hbaseTableName, edge.buildPutsAll())
-  //  }
 
   //only for testcase.
   def getEdgesSync(q: Query): Seq[QueryResult] = {
@@ -293,6 +248,7 @@ object Graph {
    */
   def getEdgesAsync(q: Query): Future[Seq[QueryResult]] = {
     implicit val ex = this.executionContext
+
     // not sure this is right. make sure refactor this after.
     try {
       if (q.steps.isEmpty) {
@@ -320,7 +276,6 @@ object Graph {
       (prevStepTgtVertexResultLs, prevScore) <- currentStepRequestLss
       (getRequest, queryParam) <- prevStepTgtVertexResultLs
     } yield {
-      //      fetchEdges(getRequest, queryParam, prevScore)
       fetchEdgesWithCache(getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
@@ -619,36 +574,6 @@ object Graph {
     }
   }
 
-  private def filterDuplicates(seen: HashMap[(String, Int, Int, String), Double], queryParam: QueryParam,
-                               edge: Edge, score: Double) = {
-    val key = (edge.srcVertex.innerId.toString, edge.labelWithDir.labelId, edge.labelWithDir.dir, edge.tgtVertex.innerId.toString)
-    val newScore = queryParam.duplicatePolicy match {
-      case Query.DuplicatePolicy.CountSum => 1.0
-      case _ => score
-    }
-    seen.get(key) match {
-      case None =>
-        seen += (key -> newScore)
-        true
-      case Some(oldScore) =>
-
-        queryParam.duplicatePolicy match {
-          case Query.DuplicatePolicy.First =>
-            // use first occurrence`s score
-            false
-          case Query.DuplicatePolicy.Raw =>
-            // TODO: assumes all duplicate vertices will have same score
-            seen += (key -> newScore)
-            true
-          case _ =>
-            // aggregate score
-            seen += (key -> (oldScore + newScore))
-            false
-        }
-    }
-  }
-
-
   /**
    * Vertex
    */
@@ -663,8 +588,6 @@ object Graph {
       get.setFailfast(true)
 
       val cacheKey = MurmurHash3.stringHash(get.toString)
-      //FIXME
-      val cacheTTL = 10000
       if (vertexCache.asMap().containsKey(cacheKey)) {
         val cachedVal = vertexCache.asMap().get(cacheKey)
         if (cachedVal == null) {

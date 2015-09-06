@@ -10,12 +10,11 @@ import play.api.Application
 import play.api.mvc.{WithFilters, _}
 import play.filters.gzip.GzipFilter
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.Try
 
-object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
+object Global extends WithFilters(new GzipFilter()) {
 
   override def onStart(app: Application) {
     QueueActor.init()
@@ -71,21 +70,5 @@ object Global extends WithFilters(LoggingFilter, new GzipFilter()) {
   override def onBadRequest(request: RequestHeader, error: String): Future[Result] = {
     logger.error(s"onBadRequest => ip:${request.remoteAddress}, request:$request, error:$error")
     Future.successful(Results.BadRequest(error))
-  }
-}
-
-object LoggingFilter extends EssentialFilter {
-  def apply(nextFilter: EssentialAction) = new EssentialAction {
-    def apply(requestHeader: RequestHeader) = {
-      val start = System.currentTimeMillis
-
-      nextFilter(requestHeader).map { result =>
-        val time = System.currentTimeMillis - start
-        //        val headers = for (key <- requestHeader.headers.keys; value <- requestHeader.headers.get(key)) yield s"$key:$value" 
-        //        .map(kv => s"${kv._1}:${kv._2}").mkString("\t")
-        logger.debug(s"${requestHeader.method} ${requestHeader.uri} took ${time}ms and returned ${result.header.status}")
-        result.withHeaders("Request-Time" -> time.toString)
-      }
-    }
   }
 }

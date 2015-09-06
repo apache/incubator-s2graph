@@ -7,7 +7,7 @@ import com.google.common.cache.CacheBuilder
 import com.typesafe.config.Config
 import scalikejdbc._
 
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Try}
 
 /**
  * Created by shon on 6/3/15.
@@ -35,23 +35,24 @@ object Model {
   }
 
   def withTx[T](block: DBSession => T): Try[T] = {
-    val db = DB(ConnectionPool.borrow())
+    val conn = DB(ConnectionPool.borrow())
 
-    try {
-      db.begin()
-      val session = db.withinTxSession()
+    val res = Try {
+      conn.begin()
+      val session = conn.withinTxSession()
       val result = block(session)
 
-      db.commit()
+      conn.commit()
 
-      Success(result)
-    } catch {
+      result
+    } recoverWith {
       case e: Exception =>
-        db.rollbackIfActive()
+        conn.rollbackIfActive()
         Failure(e)
-    } finally {
-      db.close()
     }
+    conn.close()
+
+    res
   }
 }
 
