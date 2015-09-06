@@ -113,8 +113,7 @@ object LabelIndex extends Model[LabelIndex] {
     putsToCaches(ls.groupBy(x => x.labelId).map { case (labelId, ls) =>
       val cacheKey = s"labelId=${labelId}"
       (cacheKey -> ls)
-    }.toList
-    )
+    }.toList)
   }
 }
 
