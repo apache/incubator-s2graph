@@ -21,7 +21,7 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Success}
-
+import collection.JavaConversions.mapAsScalaConcurrentMap
 
 object Graph {
   val vertexCf = "v".getBytes()
@@ -29,9 +29,8 @@ object Graph {
 
   val maxValidEdgeListSize = 10000
 
-  // conns, clients not thread safe, can throw exception.
-  val conns = mutable.Map[String, Connection]()
-  var clients = mutable.Map[String, HBaseClient]()
+  private val conns = new java.util.concurrent.ConcurrentHashMap[String, Connection]()
+  private val clients = new java.util.concurrent.ConcurrentHashMap[String, HBaseClient]()
 
   var emptyKVs = new ArrayList[KeyValue]()
 
@@ -119,6 +118,15 @@ object Graph {
       client.setFlushInterval(flushInterval)
       client
     })
+  }
+
+  def destroy: Unit = {
+    for ((zkQuorum, client) <- Graph.clients) {
+      client.flush()
+
+      /** to make sure all rpcs just flushed finished. */
+      Thread.sleep(client.getFlushInterval * 2)
+    }
   }
 
   def getConn(zkQuorum: String) = conns.getOrElseUpdate(zkQuorum, ConnectionFactory.createConnection(this.hbaseConfig))

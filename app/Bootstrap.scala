@@ -49,12 +49,7 @@ object Global extends WithFilters(new GzipFilter()) {
     /**
      * shutdown hbase client for flush buffers.
      */
-    for ((zkQuorum, client) <- Graph.clients) {
-      client.flush()
-
-      /** to make sure all rpcs just flushed finished. */
-      Thread.sleep(client.getFlushInterval * 2)
-    }
+    Graph.destroy
   }
 
   override def onError(request: RequestHeader, ex: Throwable): Future[Result] = {
