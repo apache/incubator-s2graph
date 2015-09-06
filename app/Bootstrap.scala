@@ -49,7 +49,7 @@ object Global extends WithFilters(new GzipFilter()) {
     /**
      * shutdown hbase client for flush buffers.
      */
-    Graph.destroy
+    Graph.flush
   }
 
   override def onError(request: RequestHeader, ex: Throwable): Future[Result] = {

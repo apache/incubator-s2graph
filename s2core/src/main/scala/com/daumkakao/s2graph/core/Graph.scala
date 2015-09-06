@@ -120,12 +120,9 @@ object Graph {
     })
   }
 
-  def destroy: Unit = {
+  def flush: Unit = {
     for ((zkQuorum, client) <- Graph.clients) {
-      client.flush()
-
-      /** to make sure all rpcs just flushed finished. */
-      Thread.sleep(client.getFlushInterval * 2)
+      Await.result(deferredToFutureWithoutFallback(client.flush), Duration(5000, duration.MILLISECONDS))
     }
   }
 
