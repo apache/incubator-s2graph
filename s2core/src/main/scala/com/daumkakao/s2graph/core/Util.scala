@@ -1,6 +1,7 @@
 package com.daumkakao.s2graph
 
 import play.api.Logger
+import play.api.libs.json.JsValue
 
 package object logger {
 
@@ -11,6 +12,9 @@ package object logger {
   object Loggable {
     implicit val stringLoggable = new Loggable[String] {
       def toLogMessage(msg: String) = msg
+    }
+    implicit val jsonLoggable = new Loggable[JsValue] {
+      def toLogMessage(msg: JsValue) = msg.toString()
     }
   }
 

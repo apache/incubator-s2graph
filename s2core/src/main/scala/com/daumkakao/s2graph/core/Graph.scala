@@ -237,21 +237,7 @@ object Graph {
     }
   }
 
-  /**
-   * Edge
-   */
-
-  //only for testcase.
-  def getEdgesSync(q: Query): Seq[QueryResult] = {
-    Await.result(getEdgesAsync(q), 10 seconds)
-  }
-
-  //select
-
-  /**
-   *
-   */
-  def getEdgesAsync(q: Query): Future[Seq[QueryResult]] = {
+ def getEdgesAsync(q: Query): Future[Seq[QueryResult]] = {
     implicit val ex = this.executionContext
 
     // not sure this is right. make sure refactor this after.
