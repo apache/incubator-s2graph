@@ -212,7 +212,7 @@ object Graph {
     if (elementRpcs.isEmpty) {
       Future.successful(Seq.empty[Boolean])
     } else {
-      val client = getClient(zkQuorum, flushInterval = 0.toShort)
+      val client = getClient(zkQuorum)
       elementRpcs.foreach { rpcs =>
 
         rpcs.foreach { rpc =>
