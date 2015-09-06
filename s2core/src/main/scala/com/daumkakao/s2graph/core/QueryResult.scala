@@ -13,8 +13,10 @@ object QueryResult {
   }
 }
 
-case class QueryResult(query: Query, stepIdx: Int, queryParam: QueryParam,
-                       edgeWithScoreLs: Iterable[(Edge, Double)] = Seq.empty[(Edge, Double)],
+case class QueryResult(query: Query,
+                       stepIdx: Int,
+                       queryParam: QueryParam,
+                       edgeWithScoreLs: Seq[(Edge, Double)] = Seq.empty[(Edge, Double)],
                        timestamp: Long = System.currentTimeMillis()) {
 
 }

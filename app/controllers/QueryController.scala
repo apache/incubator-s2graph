@@ -31,9 +31,9 @@ object QueryController extends Controller with RequestParser {
 
   private def getEdgesAsync(jsonQuery: JsValue)
                            (post: (Seq[QueryResult], Seq[QueryResult]) => JsValue): Future[Result] = {
-    try {
-      if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
+    if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
+    try {
       val q = toQuery(jsonQuery)
       val filterOutQueryResultsLs = q.filterOutQuery match {
         case Some(filterOutQuery) => Graph.getEdgesAsync(filterOutQuery)
@@ -59,8 +59,7 @@ object QueryController extends Controller with RequestParser {
     }
   }
 
-  private def getEdgesExcludedAsync(jsonQuery: JsValue)(post: (Seq[QueryResult],
-    Seq[QueryResult]) => JsValue): Future[Result] = {
+  private def getEdgesExcludedAsync(jsonQuery: JsValue)(post: (Seq[QueryResult], Seq[QueryResult]) => JsValue): Future[Result] = {
     try {
       if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
@@ -244,6 +243,7 @@ object QueryController extends Controller with RequestParser {
           Management.toVertex(ts, "insert", id.toString, serviceName, columnName, props)
         }
       }
+
       Graph.getVerticesAsync(vertices) map { vertices =>
         val json = PostProcess.verticesToJson(vertices)
         jsonResponse(json)

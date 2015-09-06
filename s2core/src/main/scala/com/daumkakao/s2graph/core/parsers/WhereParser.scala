@@ -91,7 +91,7 @@ case class Or(left: Clause, right: Clause) extends Clause {
 }
 
 object WhereParser {
-  val empty = Where()
+  val success = Where()
 }
 
 case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {

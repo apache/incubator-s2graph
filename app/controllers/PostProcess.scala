@@ -279,7 +279,7 @@ object PostProcess extends JSONParser {
         val filterColumns = q.selectColumnsSet
         var resultJson = Json.obj()
         for {
-          (k, v) <- results.fields if (k == "props" || q.selectColumnSetIsEmpty || filterColumns.contains(k))
+          (k, v) <- results.fields if (k == "props" || q.selectColumnsSet.isEmpty || filterColumns.contains(k))
         } {
           resultJson += (k -> v)
         }

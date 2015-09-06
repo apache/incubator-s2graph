@@ -77,7 +77,7 @@ trait RequestParser extends JSONParser {
 
   def extractWhere(label: Label, jsValue: JsValue) = {
     (jsValue \ "where").asOpt[String] match {
-      case None => Success(WhereParser.empty)
+      case None => Success(WhereParser.success)
       case Some(where) => WhereParser(label).parse(where)
     }
   }

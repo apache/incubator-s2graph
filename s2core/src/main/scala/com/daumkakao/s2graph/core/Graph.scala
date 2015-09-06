@@ -1,24 +1,25 @@
 package com.daumkakao.s2graph.core
 
 import java.util
-import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.logger
-import com.google.common.cache.CacheBuilder
-import scala.util.hashing.MurmurHash3
-import scala.util.{Failure, Success}
 import java.util.ArrayList
 import java.util.concurrent.{ConcurrentHashMap, Executors}
+
+import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types._
+import com.daumkakao.s2graph.logger
+import com.google.common.cache.CacheBuilder
 import com.stumbleupon.async.{Callback, Deferred}
-import com.typesafe.config.{ConfigFactory, Config}
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._
 import org.hbase.async._
-import play.api.Logger
+
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{HashMap, ListBuffer}
 import scala.concurrent._
 import scala.concurrent.duration._
+import scala.util.hashing.MurmurHash3
+import scala.util.{Failure, Success}
 
 
 object Graph {
@@ -122,11 +123,11 @@ object Graph {
   def getClient(zkQuorum: String, flushInterval: Short = clientFlushInterval) = {
     val key = zkQuorum + ":" + flushInterval
     val client = clients.get(key) match {
-//    val client = clients.get(zkQuorum) match {
+      //    val client = clients.get(zkQuorum) match {
       case None =>
         val client = new HBaseClient(zkQuorum)
         client.setFlushInterval(clientFlushInterval)
-//        clients += (zkQuorum -> client)
+        //        clients += (zkQuorum -> client)
         clients += (key -> client)
         client
       //        throw new RuntimeException(s"connection to $zkQuorum is not established.")
@@ -221,7 +222,7 @@ object Graph {
         val ret = deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
         ret
       }
-//      client.flush()
+      //      client.flush()
       Future.sequence(defers)
     }
   }
@@ -583,8 +584,8 @@ object Graph {
               }
             }
           }
-//                    logMap(duplicateEdges)
-//                    logMap(resultEdgeWithScores)
+          //                    logMap(duplicateEdges)
+          //                    logMap(resultEdgeWithScores)
 
           (duplicateEdges, resultEdgeWithScores, edgeWithScoreSorted)
         }
@@ -780,7 +781,7 @@ object Graph {
         (edge, score) <- queryResult.edgeWithScoreLs
         duplicateEdge = edge.duplicateEdge
         currentTs = ts.getOrElse(System.currentTimeMillis())
-//        version = edge.version + Edge.incrementVersion // this lead to forcing delete on fetched edges
+        //        version = edge.version + Edge.incrementVersion // this lead to forcing delete on fetched edges
         version = currentTs
         copiedEdge = edge.copy(ts = currentTs, version = version)
         hbaseZkAddr = queryResult.queryParam.label.hbaseZkAddr
@@ -792,29 +793,30 @@ object Graph {
             logger.debug(s"indexedEdgeDelete: $delete")
             delete
           }
-//          ++ edge.edgesWithIndex.map { indexedEdge =>
-//            val delete = indexedEdge.buildDeletesAsync()
-//            logger.debug(s"indexedEdgeDelete: $delete")
-//            delete
-//          }
+          //          ++ edge.edgesWithIndex.map { indexedEdge =>
+          //            val delete = indexedEdge.buildDeletesAsync()
+          //            logger.debug(s"indexedEdgeDelete: $delete")
+          //            delete
+          //          }
           val indexedEdgesIncrements = duplicateEdge.edgesWithIndex.map { indexedEdge =>
             val incr = indexedEdge.buildIncrementsAsync(-1L)
             logger.debug(s"indexedEdgeIncr: $incr")
             incr
           }
-//          ++ edge.edgesWithIndex.map { indexedEdge =>
-//            val incr = indexedEdge.buildIncrementsAsync(-1L)
-//            logger.debug(s"indexedEdgeIncr: $incr")
-//            incr
-//          }
+          //          ++ edge.edgesWithIndex.map { indexedEdge =>
+          //            val incr = indexedEdge.buildIncrementsAsync(-1L)
+          //            logger.debug(s"indexedEdgeIncr: $incr")
+          //            incr
+          //          }
           val snapshotEdgeDelete = duplicateEdge.toInvertedEdgeHashLike().buildDeleteAsync()
+
           /** delete inverse edges first, then delete current edge entirely */
           for {
             inverseEdgeDeletes <- Graph.writeAsync(hbaseZkAddr, Seq(snapshotEdgeDelete) :: indexedEdgesDeletes ++ indexedEdgesIncrements)
             if inverseEdgeDeletes.forall(identity)
             edgeDeletes <- Graph.writeAsync(hbaseZkAddr, copiedEdge.edgesWithIndex.map { e => e.buildDeleteRowAsync() })
           } yield {
-//            inverseEdgeDeletes.forall(identity)
+            //            inverseEdgeDeletes.forall(identity)
             edgeDeletes.forall(identity)
           }
         }

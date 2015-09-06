@@ -17,9 +17,7 @@ object Query {
   val initialScore = 1.0
   lazy val empty = Query()
 
-  def toQuery(srcVertices: Seq[Vertex], queryParam: QueryParam) = {
-    Query(srcVertices, List(Step(List(queryParam))))
-  }
+  def toQuery(srcVertices: Seq[Vertex], queryParam: QueryParam) = Query(srcVertices, List(Step(List(queryParam))))
 
   object DuplicatePolicy extends Enumeration {
     type DuplicatePolicy = Value
@@ -51,21 +49,6 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
     else if (c == "_to") "to"
     else c
   }.toSet
-  lazy val selectColumnSetIsEmpty = selectColumnsSet.isEmpty
-
-  lazy val labelSrcTgtInvertedMap = if (vertices.isEmpty) {
-    Map[Int, Boolean]()
-  } else {
-    (for {
-      step <- steps
-      param <- step.queryParams
-    } yield {
-        param.label.id.get -> {
-          param.label.srcColumn.columnName != vertices.head.serviceColumn.columnName
-        }
-
-      }).toMap
-  }
 
   /** return logical query id without considering parameter values */
   def templateId(): JsValue = {
@@ -103,6 +86,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
   def replace(fmt: String,
               values: List[InnerValLike],
               nextStepOpt: Option[Step]): Seq[InnerValLike] = {
+
     val tokens = fmt.split(delimiter)
     val mergedStr = tokens.zip(values).map { case (prefix, innerVal) => prefix + innerVal.toString }.mkString
     //    logger.error(s"${tokens.toList}, ${values}, $mergedStr")
@@ -126,19 +110,18 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
           InnerVal.withStr(mergedStr, nextQueryParam.label.schemaVersion)
         }
     }
-//    val nextQueryParams = nextStepOpt.map(_.queryParams).getOrElse(Seq(queryParam)).filter { qParam =>
-//      if (qParam.labelWithDir.dir == GraphUtil.directions("out")) qParam.label.tgtColumnType == "string"
-//      else qParam.label.srcColumnType == "string"
-//    }
-//    for {
-//      nextQueryParam <- nextQueryParams
-//    } yield {
-//      InnerVal.withStr(mergedStr, nextQueryParam.label.schemaVersion)
-//    }
+    //    val nextQueryParams = nextStepOpt.map(_.queryParams).getOrElse(Seq(queryParam)).filter { qParam =>
+    //      if (qParam.labelWithDir.dir == GraphUtil.directions("out")) qParam.label.tgtColumnType == "string"
+    //      else qParam.label.srcColumnType == "string"
+    //    }
+    //    for {
+    //      nextQueryParam <- nextQueryParams
+    //    } yield {
+    //      InnerVal.withStr(mergedStr, nextQueryParam.label.schemaVersion)
+    //    }
   }
 
   def toInnerValOpt(edge: Edge, fieldName: String): Option[InnerValLike] = {
-
     fieldName match {
       case LabelMeta.to.name => Option(edge.tgtVertex.innerId)
       case LabelMeta.from.name => Option(edge.srcVertex.innerId)
@@ -177,8 +160,9 @@ case class Step(queryParams: List[QueryParam],
                 //                scoreThreshold: Double = 0.0,
                 nextStepScoreThreshold: Double = 0.0,
                 nextStepLimit: Int = -1) {
-  lazy val excludes = queryParams.filter(qp => qp.exclude)
-  lazy val includes = queryParams.filterNot(qp => qp.exclude)
+
+  lazy val excludes = queryParams.filter(_.exclude)
+  lazy val includes = queryParams.filterNot(_.exclude)
   lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 
   logger.debug(s"Step: $queryParams, $labelWeights, $nextStepScoreThreshold, $nextStepLimit")
@@ -273,7 +257,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   var hasFilters: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike]
   //  var propsFilters: PropsFilter = PropsFilter()
-  var where: Try[Where] = Success(WhereParser.empty)
+  var where: Try[Where] = Success(WhereParser.success)
   var duplicatePolicy = DuplicatePolicy.First
   var rpcTimeoutInMillis = 1000
   var maxAttempt = 2
@@ -458,6 +442,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
         (InnerVal.convertVersion(srcVertex.innerId, tgtColumn.columnType, label.schemaVersion),
           InnerVal.convertVersion(tgtVertexInnerId, srcColumn.columnType, label.schemaVersion))
       }
+
     val (srcVId, tgtVId) =
       (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
     val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
