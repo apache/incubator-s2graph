@@ -1,9 +1,8 @@
 package subscriber
 
-import s2.spark.{WithKafka, SparkApp}
-import org.apache.hadoop.hbase.client.{ConnectionFactory}
 import org.apache.spark.streaming.Durations._
 import s2.spark.{HashMapParam, SparkApp, WithKafka}
+
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.language.postfixOps
 
@@ -89,7 +88,7 @@ object KafkaToHdfs extends SparkApp with WithKafka {
 //            for ((k, v) <- counts) {
 //              mapAcc +=(k, v)
 //            }
-//            val duration = System.currentTimeMillis() - start
+            val duration = System.currentTimeMillis() - start
             println(s"[Success]: store, $mapAcc, $duration, $hbaseZkQuorum, $hTableName")
           } catch {
             case e: Throwable =>
