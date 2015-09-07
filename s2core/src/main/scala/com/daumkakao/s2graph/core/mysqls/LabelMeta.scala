@@ -24,6 +24,8 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
   val emptyValue = Byte.MaxValue
 
   /** reserved sequences */
+//  val deleted = LabelMeta(id = Some(lastDeletedAt), labelId = lastDeletedAt, name = "lastDeletedAt",
+//    seq = lastDeletedAt, defaultValue = "", dataType = "long")
   val from = LabelMeta(id = Some(fromSeq), labelId = fromSeq, name = "_from",
     seq = fromSeq, defaultValue = fromSeq.toString, dataType = "long")
   val to = LabelMeta(id = Some(toSeq), labelId = toSeq, name = "_to",
@@ -42,7 +44,7 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
     LabelMeta(Some(rs.int("id")), rs.int("label_id"), rs.string("name"), rs.byte("seq"), rs.string("default_value"), rs.string("data_type").toLowerCase())
   }
 
-  def isValidSeq(seq: Byte): Boolean = seq >= 0 && seq <= countSeq
+  def isValidSeq(seq: Byte): Boolean = (seq >= 0 && seq <= countSeq) || seq == lastDeletedAt
 
   def findById(id: Int)(implicit session: DBSession = AutoSession): LabelMeta = {
     val cacheKey = "id=" + id

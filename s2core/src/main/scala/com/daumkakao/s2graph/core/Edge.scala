@@ -65,11 +65,11 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
     ret
   }
 
-//  def buildDeleteRowAsync() = {
-//    val ret = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, version)
-//    //    logger.debug(s"$ret, $version")
-//    ret
-//  }
+  //  def buildDeleteRowAsync() = {
+  //    val ret = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, version)
+  //    //    logger.debug(s"$ret, $version")
+  //    ret
+  //  }
 
   def withNoPendingEdge() = {
     copy(pendingEdgeOpt = None)
@@ -210,7 +210,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
     if (!hasAllPropsForIndex) List.empty[DeleteRequest]
     else {
       val deleteRequest = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, ts)
-//            logger.error(s"DeleteRow: ${rowKey}, $deleteRequest, $ts")
+      //            logger.error(s"DeleteRow: ${rowKey}, $deleteRequest, $ts")
       List(deleteRequest)
     }
   }
@@ -490,17 +490,18 @@ case class Edge(srcVertex: Vertex,
       * snapshot edge is not consistent with weak consistencyLevel. */
     val deletes = relatedEdges.map { relEdge =>
       val snapshotEdgeDelete = relEdge.edgesWithInvertedIndex.buildDeleteAsync()
-//      logger.error(s"SnapshotEdgeDelete: $snapshotEdgeDelete")
+      //      logger.error(s"SnapshotEdgeDelete: $snapshotEdgeDelete")
 
       val indexedEdgesDelete = relEdge.edgesWithIndex.flatMap { e =>
         val indexedEdge = e.copy(op = GraphUtil.defaultOpByte)
         val d = indexedEdge.buildDeletesAsync() ++ indexedEdge.buildIncrementsAsync(-1L)
-//        logger.error(s"IndexedEdgesDelete: $d")
+        //        logger.error(s"IndexedEdgesDelete: $d")
         d
       }
 
       snapshotEdgeDelete :: indexedEdgesDelete
     }
+
     /** not wait for flush interval */
     for {
       rets <- Graph.writeAsync(label.hbaseZkAddr, deletes)
@@ -511,17 +512,17 @@ case class Edge(srcVertex: Vertex,
         ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = this))
       }
     }
-//    for {
-//      (queryParam, invertedEdgeOpt) <- fetchInvertedAsync()
-//      edgeUpdate = deleteBulkEdgeUpdate(invertedEdgeOpt, this)
-//      rets <- Graph.writeAsyncWithWait(label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations ++ edgeUpdate.invertedEdgeMutations))
-//    } yield {
-//      val ret = rets.forall(identity)
-//      if (!ret) {
-//        logger.error(s"DeleteBulk failed. $this")
-//        ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = this))
-//      }
-//    }
+    //    for {
+    //      (queryParam, invertedEdgeOpt) <- fetchInvertedAsync()
+    //      edgeUpdate = deleteBulkEdgeUpdate(invertedEdgeOpt, this)
+    //      rets <- Graph.writeAsyncWithWait(label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations ++ edgeUpdate.invertedEdgeMutations))
+    //    } yield {
+    //      val ret = rets.forall(identity)
+    //      if (!ret) {
+    //        logger.error(s"DeleteBulk failed. $this")
+    //        ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = this))
+    //      }
+    //    }
 
   }
 
@@ -598,26 +599,27 @@ case class Edge(srcVertex: Vertex,
         invertedEdgeOpt = edges.headOption
         edgeUpdate = f(invertedEdgeOpt, this) if edgeUpdate.newInvertedEdge.isDefined
       } {
-        for {
-          pendingResult <- commitPending(invertedEdgeOpt)
-        } {
-          if (!pendingResult) {
-            Thread.sleep(waitTime)
-            mutate(f, tryNum + 1)
-          } else {
-            for {
-              updateResult <- commitUpdate(invertedEdgeOpt, edgeUpdate)
-            } {
-              if (!updateResult) {
-                Thread.sleep(waitTime)
-                logger.info(s"mutate failed. retry $this")
-                mutate(f, tryNum + 1)
-              } else {
-                logger.debug(s"mutate success: ${edgeUpdate.toLogString()}\n$this")
-              }
-            }
-          }
-        }
+        Graph.writeAsync(queryParam.label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations ++ edgeUpdate.invertedEdgeMutations))
+//        for {
+//          pendingResult <- commitPending(invertedEdgeOpt)
+//        } {
+//          if (!pendingResult) {
+//            Thread.sleep(waitTime)
+//            mutate(f, tryNum + 1)
+//          } else {
+//            for {
+//              updateResult <- commitUpdate(invertedEdgeOpt, edgeUpdate)
+//            } {
+//              if (!updateResult) {
+//                Thread.sleep(waitTime)
+//                logger.info(s"mutate failed. retry $this")
+//                mutate(f, tryNum + 1)
+//              } else {
+//                logger.debug(s"mutate success: ${edgeUpdate.toLogString()}\n$this")
+//              }
+//            }
+//          }
+//        }
       }
     }
   }
@@ -766,6 +768,7 @@ object Edge extends JSONParser {
         } else {
           requestEdge.op
         }
+
         val newEdgeVersion = invertedEdge.map(e => e.version + incrementVersion).getOrElse(requestEdge.ts)
 
         val maxTs = if (oldTs > requestEdge.ts) oldTs else requestEdge.ts
@@ -988,9 +991,17 @@ object Edge extends JSONParser {
     ((existInOld.flatten ++ mustExistInNew).toMap, shouldReplace)
   }
 
-  private def allPropsDeleted(props: Map[Byte, InnerValLikeWithTs]) = {
-    val maxTsProp = props.toList.sortBy(kv => (kv._2.ts, -1 * kv._1)).reverse.head
-    maxTsProp._1 == LabelMeta.lastDeletedAt
+  def allPropsDeleted(props: Map[Byte, InnerValLikeWithTs]): Boolean = {
+    if (!props.containsKey(LabelMeta.lastDeletedAt)) false
+    else {
+      val lastDeletedAt = props.get(LabelMeta.lastDeletedAt).get.ts
+      for {
+        (k, v) <- props if k != LabelMeta.lastDeletedAt
+      } {
+        if (v.ts > lastDeletedAt) return false
+      }
+      true
+    }
   }
 
 
@@ -1057,20 +1068,22 @@ object Edge extends JSONParser {
       (qualifier.tgtVertexId, kvsMap, value.op, ts, pendingEdgeOpt)
     }
 
-    val edge =
-      Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt)
+    if (pendingEdgeOpt.isEmpty && allPropsDeleted(props)) None
+    else {
+      val edge =
+        Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt)
 
-    val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
-      Some(edge)
-    } else {
-      None
+      val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
+        Some(edge)
+      } else {
+        None
+      }
+      ret
     }
-    ret
-
   }
 
   def toEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None): Option[Edge] = {
-        logger.debug(s"$param -> $kv")
+    logger.debug(s"$param -> $kv")
 
     val version = kv.timestamp()
     val keyBytes = kv.key()
@@ -1169,7 +1182,7 @@ object Edge extends JSONParser {
       } else {
         None
       }
-      //      logger.debug(s"fetchedEdge: $ret")
+      logger.error(s"fetchedEdge: $ret, $kv")
       //        val ret = Option(edge)
       //      logger.debug(s"$param, $kv, $ret")
       //    logger.debug(s"${cell.getQualifier().toList}, ${ret.map(x => x.toStringRaw)}")
