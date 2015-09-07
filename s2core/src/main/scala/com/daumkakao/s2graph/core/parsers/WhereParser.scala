@@ -20,7 +20,7 @@ trait Clause extends JSONParser {
 }
 
 object Clause extends JSONParser {
-  def makeBinaryCompare(binOp: (InnerValLike, InnerValLike) => Boolean)(propKey: Byte, value: InnerValLike)(edge: Edge): Boolean = {
+  def binaryOp(binOp: (InnerValLike, InnerValLike) => Boolean)(propKey: Byte, value: InnerValLike)(edge: Edge): Boolean = {
     propKey match {
       case LabelMeta.from.seq => binOp(edge.srcVertex.innerId, value)
       case LabelMeta.to.seq => binOp(edge.tgtVertex.innerId, value)
@@ -42,15 +42,15 @@ case class Where(clauses: Seq[Clause] = Seq.empty[Clause]) {
 }
 
 case class Gt(propKey: Byte, value: InnerValLike) extends Clause {
-  override def filter(edge: Edge): Boolean = Clause.makeBinaryCompare((a, b) => a > b)(propKey, value)(edge)
+  override def filter(edge: Edge): Boolean = Clause.binaryOp(_ > _)(propKey, value)(edge)
 }
 
 case class Lt(propKey: Byte, value: InnerValLike) extends Clause {
-  override def filter(edge: Edge): Boolean = Clause.makeBinaryCompare((a, b) => a < b)(propKey, value)(edge)
+  override def filter(edge: Edge): Boolean = Clause.binaryOp(_ < _)(propKey, value)(edge)
 }
 
 case class Equal(propKey: Byte, value: InnerValLike) extends Clause {
-  override def filter(edge: Edge): Boolean = Clause.makeBinaryCompare((a, b) => a == b)(propKey, value)(edge)
+  override def filter(edge: Edge): Boolean = Clause.binaryOp(_ == _)(propKey, value)(edge)
 }
 
 case class IN(propKey: Byte, values: Set[InnerValLike]) extends Clause {
