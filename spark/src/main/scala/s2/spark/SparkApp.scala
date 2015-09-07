@@ -3,28 +3,30 @@ package s2.spark
 import kafka.serializer.StringDecoder
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.streaming.dstream.DStream
-import org.apache.spark.streaming.kafka.KafkaUtils
+import org.apache.spark.streaming.kafka.{KafkaUtils, StreamHelper}
 import org.apache.spark.streaming.{Duration, StreamingContext}
 import org.apache.spark.{Accumulable, Logging, SparkConf}
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
 
+
 /**
- * Created by alec.k on 14. 12. 26..
+ * Created by hsleep(honeysleep@gmail.com) on 14. 12. 26..
  */
 trait SparkApp extends Logging {
-  type HashMapAccumulable = Accumulable[MutableHashMap[String, Int], (String, Int)]
-  
+  type HashMapAccumulable = Accumulable[MutableHashMap[String, Long], (String, Long)]
+
   protected def args: Array[String] = _args
 
   private var _args: Array[String] = _
 
-  // 상속받은 클래스에서 구현해줘야 하는 함수
+  private var streamHelper: StreamHelper = _
+
+  // should implement in child class
   def run()
 
   def getArgs(index: Int) = args(index)
 
-  // TODO: 공통 루틴을 더 만들어 보자.
   def main(args: Array[String]) {
     _args = args
     run()
@@ -43,25 +45,28 @@ trait SparkApp extends Logging {
     var groupId = s"${topic}_$ext"
 
     groupId += {
-      System.getProperty("spark.master") match {
-        case x if x.startsWith("local") => "_local"
-        case _ => ""
-      }
-    }
-
-    groupId += {
       phase match {
-        case "alpha" => "_alpha"
-        case _ => ""
+        case "real" | "production" => ""
+        case x => s"_$x"
     }}
 
     groupId
   }
 
+  def getStreamHelper(kafkaParam: Map[String, String]): StreamHelper = {
+    if (streamHelper == null) {
+      this.synchronized {
+        if (streamHelper == null) {
+          streamHelper = StreamHelper(kafkaParam)
+        }
+      }
+    }
+    streamHelper
+  }
+
   def sparkConf(jobName: String): SparkConf = {
     val conf = new SparkConf()
     conf.setAppName(jobName)
-    // TODO: 런처를 만들고 공통된 configure를 넣어주는 방시으로 변경하자.
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     conf.set("spark.streaming.unpersist", "true")
     conf
@@ -81,11 +86,6 @@ trait SparkApp extends Logging {
 
   def createKafkaPairStream(ssc: StreamingContext, kafkaParam: Map[String, String], topics: String, numPartition: Option[Int] = None): DStream[(String, String)] = {
     val topicMap = topics.split(",").map((_, 1)).toMap
-    /**
-     * stream에서 만들어지는 partition 갯수는 batchInterval / spark.streaming.blockInterval 이다.
-     * stream.map 함수를 호출한 후에 repartition을 호출하면, 전체 처리 시간이 오래 걸리는 점을 발견.
-     * worker 갯수에 맞춰 repartition 해주고, map 함수를 호출하도록 수정.
-     */
     val stream = KafkaUtils.createStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParam, topicMap, StorageLevel.MEMORY_AND_DISK_SER_2)
     numPartition.map(n =>
       stream.repartition(n)
@@ -97,7 +97,7 @@ trait SparkApp extends Logging {
   }
 
   def createKafkaPairStreamMulti(ssc: StreamingContext, kafkaParam: Map[String, String], topics: String, receiverCount: Int, numPartition: Option[Int] = None): DStream[(String, String)] = {
-    // receiver를 위한 executor가 다 뜬 후에 실제 receiver를 만들기 위한 code
+    // wait until all executor is running
     Stream.continually(ssc.sparkContext.getExecutorStorageStatus).takeWhile(_.length < receiverCount).foreach { arr =>
       Thread.sleep(100)
     }
@@ -119,6 +119,6 @@ trait SparkApp extends Logging {
   }
 
   def createKafkaValueStreamMulti(ssc: StreamingContext, kafkaParam: Map[String, String], topics: String, receiverCount: Int, numPartition: Option[Int] = None): DStream[String] = {
-    createKafkaPairStreamMulti(ssc, kafkaParam, topics , receiverCount, numPartition).map(_._2)
+    createKafkaPairStreamMulti(ssc, kafkaParam, topics, receiverCount, numPartition).map(_._2)
   }
 }

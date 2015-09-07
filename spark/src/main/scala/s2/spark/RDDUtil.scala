@@ -3,7 +3,7 @@ package s2.spark
 import org.apache.spark.rdd.RDD
 
 /**
- * Created by hsleep on 14. 12. 23..
+ * Created by hsleep(honeysleep@gmail.com) on 14. 12. 23..
  */
 object RDDUtil {
   def rddIsNonEmpty[T](rdd: RDD[T]): Boolean = {

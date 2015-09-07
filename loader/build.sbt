@@ -2,12 +2,6 @@ import sbtassembly.Plugin.AssemblyKeys._
 
 name := "s2loader"
 
-organization := Common.organization
-
-version := Common.version
-
-scalaVersion := Common.scalaVersion
-
 scalacOptions ++= Seq("-deprecation")
 
 libraryDependencies ++= Seq(
@@ -18,8 +12,6 @@ libraryDependencies ++= Seq(
   "org.specs2" %% "specs2-core" % "2.4.11" % "test",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test"
 )
-
-resolvers ++= Common.resolvers
 
 assemblySettings
 
