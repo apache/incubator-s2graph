@@ -1,18 +1,6 @@
-
-
 name := """s2core"""
 
-organization := Common.organization
-
-version := Common.version
-
-crossScalaVersions := Seq(Common.scalaVersion, Common.scalaVersion210)
-
-//scalaVersion := Common.scalaVersion
-
 scalacOptions ++= Seq("-deprecation")
-
-resolvers ++= Common.resolvers
 
 libraryDependencies ++= Seq(
   ws,

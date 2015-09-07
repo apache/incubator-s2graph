@@ -1,11 +1,4 @@
-//import AssemblyKeys._
 name := "s2spark"
-
-organization := Common.organization
-
-version := Common.version
-
-scalaVersion := Common.scalaVersion210
 
 scalacOptions ++= Seq("-deprecation", "-feature")
 
@@ -17,6 +10,3 @@ libraryDependencies ++= Seq(
   "org.specs2" %% "specs2-core" % "3.6" % "test",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test"
 )
-
-resolvers ++= Common.resolvers
-
