@@ -2,12 +2,12 @@ package com.daumkakao.s2graph.core.mysqls
 
 import java.util.concurrent.TimeUnit
 
+import com.daumkakao.s2graph.logger
 import com.google.common.cache.CacheBuilder
 import com.typesafe.config.Config
-import play.api.Logger
 import scalikejdbc._
 
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Try}
 
 /**
  * Created by shon on 6/3/15.
@@ -35,23 +35,24 @@ object Model {
   }
 
   def withTx[T](block: DBSession => T): Try[T] = {
-    val db = DB(ConnectionPool.borrow())
+    val conn = DB(ConnectionPool.borrow())
 
-    try {
-      db.begin()
-      val session = db.withinTxSession()
+    val res = Try {
+      conn.begin()
+      val session = conn.withinTxSession()
       val result = block(session)
 
-      db.commit()
+      conn.commit()
 
-      Success(result)
-    } catch {
+      result
+    } recoverWith {
       case e: Exception =>
-        db.rollbackIfActive()
+        conn.rollbackIfActive()
         Failure(e)
-    } finally {
-      db.close()
     }
+    conn.close()
+
+    res
   }
 }
 
@@ -61,7 +62,7 @@ trait Model[V] extends SQLSyntaxSupport[V] {
 
   private lazy val cName = this.getClass.getSimpleName()
 
-  Logger.info(s"LocalCache[$cName]: TTL[$ttl], MaxSize[$maxSize]")
+  logger.info(s"LocalCache[$cName]: TTL[$ttl], MaxSize[$maxSize]")
   val cache = CacheBuilder.newBuilder()
     .expireAfterWrite(ttl, TimeUnit.SECONDS)
     .maximumSize(maxSize)

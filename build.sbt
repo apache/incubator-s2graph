@@ -26,6 +26,7 @@ lazy val spark = project
 lazy val loader = project.dependsOn(s2core, spark)
 
 libraryDependencies ++= Seq(
+  "com.github.danielwegener" % "logback-kafka-appender" % "0.0.3",
   ws,
   filters,
   "org.json4s" %% "json4s-native" % "3.2.11" % Test

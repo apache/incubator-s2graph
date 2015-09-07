@@ -4,14 +4,14 @@ package com.daumkakao.s2graph.core
 import com.daumkakao.s2graph.core.KGraphExceptions.{LabelAlreadyExistException, LabelNotExistException}
 import com.daumkakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
+import com.daumkakao.s2graph.logger
 import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
-import play.api.Logger
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 
@@ -244,8 +244,8 @@ object Management extends JSONParser {
       if (direction == "") GraphUtil.toDirection(label.direction)
       else GraphUtil.toDirection(direction)
 
-    //    Logger.debug(s"$srcId, ${label.srcColumnWithDir(dir)}")
-    //    Logger.debug(s"$tgtId, ${label.tgtColumnWithDir(dir)}")
+    //    logger.debug(s"$srcId, ${label.srcColumnWithDir(dir)}")
+    //    logger.debug(s"$tgtId, ${label.tgtColumnWithDir(dir)}")
 
     val srcVertexId = toInnerVal(srcId, label.srcColumn.columnType, label.schemaVersion)
     val tgtVertexId = toInnerVal(tgtId, label.tgtColumn.columnType, label.schemaVersion)
@@ -314,7 +314,7 @@ object Management extends JSONParser {
     } yield {
         (meta.seq, innerVal)
       }
-    //    Logger.error(s"toProps: $js => $props")
+    //    logger.error(s"toProps: $js => $props")
     props
 
   }
@@ -402,7 +402,7 @@ object Management extends JSONParser {
 
   def createTable(zkAddr: String, tableName: String, cfs: List[String], regionMultiplier: Int, ttl: Option[Int],
                   compressionAlgorithm: String = "lz4") = {
-    Logger.error(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm")
+    logger.error(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm")
     val admin = getAdmin(zkAddr)
     val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier
     if (!admin.tableExists(TableName.valueOf(tableName))) {
@@ -427,11 +427,11 @@ object Management extends JSONParser {
         else admin.createTable(desc, getStartKey(regionCount), getEndKey(regionCount), regionCount)
       } catch {
         case e: Throwable =>
-          Logger.error(s"$zkAddr, $tableName failed with $e", e)
+          logger.error(s"$zkAddr, $tableName failed with $e", e)
           throw e
       }
     } else {
-      Logger.error(s"$zkAddr, $tableName, $cf already exist.")
+      logger.error(s"$zkAddr, $tableName, $cf already exist.")
     }
   }
 

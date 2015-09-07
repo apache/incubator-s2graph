@@ -2,18 +2,16 @@ package controllers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
-
-import com.daumkakao.s2graph.core.types2.{InnerVal, InnerValLike}
-import play.api.Logger
+import com.daumkakao.s2graph.core.types.{InnerVal, InnerValLike}
+import com.daumkakao.s2graph.logger
 import play.api.libs.json.{JsObject, JsValue, Json}
+
 import scala.collection.mutable.ListBuffer
 
 /**
  * Created by jay on 14. 9. 1..
  */
 object PostProcess extends JSONParser {
-
-  private val queryLogger = Logger
   /**
    * Result Entity score field name
    */
@@ -62,19 +60,10 @@ object PostProcess extends JSONParser {
   def sortWithFormatted(jsons: Iterable[JsObject], scoreField: String = "scoreSum", queryResultLs: Seq[QueryResult], decrease: Boolean = true): JsObject = {
     val ordering = if (decrease) -1 else 1
     var sortedJsons = jsons.toList.sortBy { jsObject => (jsObject \ scoreField).as[Double] * ordering }
-//    queryLogger.debug(s"sortedJsons : $sortedJsons")
     if (queryResultLs.isEmpty) Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
     else Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons,
       "impressionId" -> queryResultLs.head.query.impressionId())
   }
-
-//  def simple(queryResultLs: Seq[QueryResult]) = {
-//    val ids = resultInnerIds(queryResultLs).map(_.toString)
-//    val size = ids.size
-//    queryLogger.info(s"Result: $size")
-//    Json.obj("size" -> size, "results" -> ids)
-//    //    sortWithFormatted(ids)(false)
-//  }
 
   def resultInnerIds(queryResultLs: Seq[QueryResult], isSrcVertex: Boolean = false) = {
     for {
@@ -91,7 +80,6 @@ object PostProcess extends JSONParser {
     sortWithFormatted(jsons, queryResultLs = queryResultLs, decrease = true)
   }
 
-
   def summarizeWithList(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]) = {
     val jsons = groupEdgeResult(queryResultLs, exclude)
     sortWithFormatted(jsons, queryResultLs = queryResultLs)
@@ -101,10 +89,6 @@ object PostProcess extends JSONParser {
     val jsons = groupEdgeResult(queryResultLs, exclude)
     sortWithFormatted(jsons, queryResultLs = queryResultLs)
   }
-
-//  def noFormat(edgesPerVertex: Seq[Iterable[(Edge, Double)]]) = {
-//    Json.obj("edges" -> edgesPerVertex.toString)
-//  }
 
   def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult]): JsValue = {
     toSimpleVertexArrJson(queryResultLs, Seq.empty[QueryResult])
@@ -157,7 +141,7 @@ object PostProcess extends JSONParser {
             degreeJsons ++ edgeJsons.toList
           }
 
-        queryLogger.info(s"Result: ${results.size}")
+        logger.info(s"Result: ${results.size}")
         Json.obj("size" -> results.size, "degrees" -> degrees, "results" -> results, "impressionId" -> q.impressionId())
       } else {
         for {
@@ -236,7 +220,7 @@ object PostProcess extends JSONParser {
         obj += (labelMeta.name -> jsValue)
 //        (metaProp.name, jsValue)
       }
-//    Logger.debug(s"$ret")
+//    logger.debug(s"$ret")
 //    ret
     (obj, isEmpty)
   }
@@ -257,7 +241,7 @@ object PostProcess extends JSONParser {
   def edgeToJson(edge: Edge, score: Double, queryResult: QueryResult): Option[JsValue] = {
     val queryParam = queryResult.queryParam
     //
-    //    Logger.debug(s"edgeProps: ${edge.props} => ${props}")
+    //    logger.debug(s"edgeProps: ${edge.props} => ${props}")
     //    val shouldBeReverted = q.labelSrcTgtInvertedMap.get(edge.labelWithDir.labelId).getOrElse(false)
     //FIXME
     val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult)
@@ -295,7 +279,7 @@ object PostProcess extends JSONParser {
         val filterColumns = q.selectColumnsSet
         var resultJson = Json.obj()
         for {
-          (k, v) <- results.fields if (k == "props" || q.selectColumnSetIsEmpty || filterColumns.contains(k))
+          (k, v) <- results.fields if (k == "props" || q.selectColumnsSet.isEmpty || filterColumns.contains(k))
         } {
           resultJson += (k -> v)
         }

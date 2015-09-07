@@ -1,12 +1,10 @@
 package test.controllers
 
-import controllers.{EdgeController}
+import com.daumkakao.s2graph.logger
+import controllers.EdgeController
 import play.api.libs.json._
 import play.api.test.Helpers._
 import play.api.test.{FakeApplication, FakeRequest}
-
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
 
 class WeakLabelDeleteSpec extends SpecCommon {
   init()
@@ -88,10 +86,7 @@ class WeakLabelDeleteSpec extends SpecCommon {
         Thread.sleep(asyncFlushInterval)
 
         result = getEdges(query(0))
-        println(result)
         (result \ "results").as[List[JsValue]].size must equalTo(0)
-
-        true
       }
     }
 
@@ -102,30 +97,24 @@ class WeakLabelDeleteSpec extends SpecCommon {
         println(result)
         (result \ "results").as[List[JsValue]].size must equalTo(3)
 
-
-
         val json = Json.arr(Json.obj("label" -> testLabelNameWeak,
           "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
         println(json)
         EdgeController.deleteAllInner(json)
         Thread.sleep(asyncFlushInterval)
 
-
         result = getEdges(query(11, "out"))
-        println(result)
         (result \ "results").as[List[JsValue]].size must equalTo(0)
 
         result = getEdges(query(12, "out"))
-        println(result)
         (result \ "results").as[List[JsValue]].size must equalTo(0)
 
         result = getEdges(query(10, "out"))
-        println(result)
+
         // 10 -> out -> 20 should not be in result.
         (result \ "results").as[List[JsValue]].size must equalTo(1)
         (result \\ "to").size must equalTo(1)
         (result \\ "to").head.as[String] must equalTo("21")
-
 
         result = getEdges(query(20, "in", testTgtColumnName))
         println(result)
@@ -137,11 +126,7 @@ class WeakLabelDeleteSpec extends SpecCommon {
         Thread.sleep(asyncFlushInterval)
 
         result = getEdges(query(20, "in", testTgtColumnName))
-        println(result)
         (result \ "results").as[List[JsValue]].size must equalTo(3)
-
-        true
-
       }
     }
   }

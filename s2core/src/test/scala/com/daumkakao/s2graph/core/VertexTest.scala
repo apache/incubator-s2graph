@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.types2.{VertexId, InnerVal, InnerValLike}
+import com.daumkakao.s2graph.core.types.{VertexId, InnerVal, InnerValLike}
 import org.scalatest.{Matchers, FunSuite}
 
 
@@ -9,7 +9,7 @@ import org.scalatest.{Matchers, FunSuite}
  */
 class VertexTest extends FunSuite with Matchers with TestCommonWithModels with TestCommon {
 
-  import types2.HBaseType.{VERSION1, VERSION2}
+  import types.HBaseType.{VERSION1, VERSION2}
   val idxPropsList = idxPropsLs.map { seq => seq.map { kv => kv._1.toInt -> kv._2 }}
   val idxPropsListV2 = idxPropsLsV2.map { seq => seq.map { kv => kv._1.toInt -> kv._2 }}
   def equalsExact(left: Vertex, right: Vertex) = {

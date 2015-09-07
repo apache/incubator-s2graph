@@ -5,7 +5,7 @@ import com.daumkakao.s2graph.core.mysqls._
 //import com.daumkakao.s2graph.core.models._
 
 
-import com.daumkakao.s2graph.core.types2.{InnerVal, LabelWithDirection}
+import com.daumkakao.s2graph.core.types.{InnerVal, LabelWithDirection}
 import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.ExecutionContext
@@ -15,7 +15,7 @@ import scala.concurrent.ExecutionContext
  */
 trait TestCommonWithModels {
   import InnerVal._
-  import types2.HBaseType._
+  import types.HBaseType._
 
   val zkQuorum = "localhost"
   val serviceName = "_test_service"

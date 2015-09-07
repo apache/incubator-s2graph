@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core.types
 
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
 import org.apache.hadoop.hbase.util.{Bytes, OrderedBytes, SimplePositionedByteRange}
 import org.scalatest.{Matchers, FunSuite}
 import play.api.libs.json.Json

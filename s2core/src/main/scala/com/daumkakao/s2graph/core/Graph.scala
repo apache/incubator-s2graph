@@ -1,47 +1,44 @@
 package com.daumkakao.s2graph.core
 
 import java.util
-import com.daumkakao.s2graph.core.mysqls._
-import com.google.common.cache.CacheBuilder
-import scala.util.hashing.MurmurHash3
-import scala.util.{Failure, Success}
 import java.util.ArrayList
 import java.util.concurrent.{ConcurrentHashMap, Executors}
-import com.daumkakao.s2graph.core.types2._
+
+import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.types._
+import com.daumkakao.s2graph.logger
+import com.google.common.cache.CacheBuilder
 import com.stumbleupon.async.{Callback, Deferred}
-import com.typesafe.config.{ConfigFactory, Config}
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._
 import org.hbase.async._
-import play.api.Logger
+
 import scala.collection.JavaConversions._
-import scala.collection.mutable.{HashMap, ListBuffer}
+import scala.collection._
+import scala.collection.mutable.ListBuffer
 import scala.concurrent._
 import scala.concurrent.duration._
-
+import scala.util.hashing.MurmurHash3
+import scala.util.{Failure, Success}
+import collection.JavaConversions.mapAsScalaConcurrentMap
 
 object Graph {
-
   val vertexCf = "v".getBytes()
   val edgeCf = "e".getBytes()
-  val updateCf = "u".getBytes()
-  val ttsForActivity = 60 * 60 * 24 * 30
-  val delimiter = "|"
-  val seperator = ":"
-
-  val writeBufferSize = 1024 * 1024 * 2
 
   val maxValidEdgeListSize = 10000
-  //  val Logger = Edge.Logger
-  val conns = scala.collection.mutable.Map[String, Connection]()
-  val clients = scala.collection.mutable.Map[String, HBaseClient]()
-  val emptyKVs = new ArrayList[KeyValue]()
-  val emptyKVlist = new ArrayList[ArrayList[KeyValue]]()
+
+  private val conns = new java.util.concurrent.ConcurrentHashMap[String, Connection]()
+  private val clients = new java.util.concurrent.ConcurrentHashMap[String, HBaseClient]()
+
+  var emptyKVs = new ArrayList[KeyValue]()
 
   //  var shouldRunFromBytes = true
   //  var shouldReturnResults = true
   //  var shouldRunFetch = true
   //  var shouldRunFilter = true
+
   val defaultConfigs: Map[String, AnyRef] = Map(
     "hbase.zookeeper.quorum" -> "localhost",
     "hbase.table.name" -> "s2graph",
@@ -75,7 +72,7 @@ object Graph {
 
   /**
    * requred: hbase.zookeeper.quorum
-   * optional: all hbase. prefix configurations.
+   * optional: all `hbase` contains configurations.
    */
   private def toHBaseConfig(config: com.typesafe.config.Config) = {
     val conf = HBaseConfiguration.create()
@@ -93,8 +90,10 @@ object Graph {
     conf
   }
 
-  //  implicit val ex = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(16))
   def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
+    defaultConfigs.foreach { case (k, v) =>
+      logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
+    }
 
     this.config = config.withFallback(this.config)
     this.hbaseConfig = toHBaseConfig(this.config)
@@ -105,47 +104,29 @@ object Graph {
     this.singleGetTimeout = this.config.getInt("hbase.client.operation.timeout")
     this.clientFlushInterval = this.config.getInt("async.hbase.client.flush.interval").toShort
 
-    Logger.info(s"$clientFlushInterval")
-    val zkQuorum = hbaseConfig.get("hbase.zookeeper.quorum")
-    clients += (zkQuorum -> getClient(zkQuorum, this.clientFlushInterval))
+    // make hbase client for cache
+    getClient(hbaseConfig.get("hbase.zookeeper.quorum"))
+
     ExceptionHandler.apply(config)
-
-    for {
-      (k, v) <- defaultConfigs
-    } {
-      Logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
-    }
   }
-
 
   def getClient(zkQuorum: String, flushInterval: Short = clientFlushInterval) = {
     val key = zkQuorum + ":" + flushInterval
-    val client = clients.get(key) match {
-//    val client = clients.get(zkQuorum) match {
-      case None =>
-        val client = new HBaseClient(zkQuorum)
-        client.setFlushInterval(clientFlushInterval)
-//        clients += (zkQuorum -> client)
-        clients += (key -> client)
-        client
-      //        throw new RuntimeException(s"connection to $zkQuorum is not established.")
-      case Some(c) => c
-    }
-    client.setFlushInterval(flushInterval)
-    client
+
+    clients.getOrElseUpdate(key, {
+      val client = new HBaseClient(zkQuorum)
+      client.setFlushInterval(flushInterval)
+      client
+    })
   }
 
-  def getConn(zkQuorum: String) = {
-    conns.get(zkQuorum) match {
-      case None =>
-        Logger.info(s"${this.hbaseConfig}")
-        val conn = ConnectionFactory.createConnection(this.hbaseConfig)
-        conns += (zkQuorum -> conn)
-        conn
-      //        throw new RuntimeException(s"connection to $zkQuorum is not established.")
-      case Some(c) => c
+  def flush: Unit = {
+    for ((zkQuorum, client) <- Graph.clients) {
+      Await.result(deferredToFutureWithoutFallback(client.flush), Duration(5000, duration.MILLISECONDS))
     }
   }
+
+  def getConn(zkQuorum: String) = conns.getOrElseUpdate(zkQuorum, ConnectionFactory.createConnection(this.hbaseConfig))
 
   def defferedToFuture[A](d: Deferred[A])(fallback: A): Future[A] = {
     val promise = Promise[A]
@@ -153,7 +134,7 @@ object Graph {
     d.addBoth(new Callback[Unit, A] {
       def call(arg: A) = arg match {
         case e: Throwable =>
-          Logger.error(s"deferred return throwable: $e", e)
+          logger.error(s"deferred failed with return fallback): $e", e)
           promise.success(fallback)
         case _ => promise.success(arg)
       }
@@ -167,7 +148,7 @@ object Graph {
     d.addBoth(new Callback[Unit, T] {
       def call(arg: T) = arg match {
         case e: Throwable =>
-          Logger.error(s"deferred return throwable: $e", e)
+          logger.error(s"deferred return throwable: $e", e)
           promise.failure(e)
         case _ => promise.success(arg)
       }
@@ -182,115 +163,83 @@ object Graph {
       }
     }).addErrback(new Callback[R, Exception] {
       def call(e: Exception): R = {
-        Logger.error(s"Exception on deferred: $e", e)
+        logger.error(s"Exception on deferred: $e", e)
         fallback
       }
     })
   }
 
+  private def errorBack(block: => Exception => Unit) = new Callback[Unit, Exception] {
+    def call(ex: Exception): Unit = block(ex)
+  }
 
   def writeAsyncWithWait(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]]): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
+
     if (elementRpcs.isEmpty) {
       Future.successful(Seq.empty[Boolean])
     } else {
       val client = getClient(zkQuorum, flushInterval = 0.toShort)
       val defers = elementRpcs.map { rpcs =>
-        //TODO: register errorBacks on this operations to log error
-        //          Logger.debug(s"$rpc")
+
         val defer = rpcs.map { rpc =>
-          //          Logger.debug(s"$rpc")
           val deferred = rpc match {
-            case d: DeleteRequest => client.delete(d)
-            case p: PutRequest => client.put(p)
-            case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i)
+            case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
+            case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
+            case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i).addErrback(errorBack(ex => logger.error(s"increment request failed. $i, $ex", ex)))
           }
+
           deferredCallbackWithFallback(deferred)({
             (anyRef: Any) => anyRef match {
               case e: Exception =>
-                Logger.error(s"mutation failed. $e", e)
+                logger.error(s"mutation failed. $e", e)
                 false
               case _ => true
             }
-          }, {
-            false
-          })
+          }, false)
         }
 
-        val ret = deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
-        ret
+        deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
       }
-//      client.flush()
+
       Future.sequence(defers)
     }
   }
 
-
   def writeAsync(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]]): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
-    val errorLogger = Logger("error")
+
     if (elementRpcs.isEmpty) {
       Future.successful(Seq.empty[Boolean])
     } else {
       val client = getClient(zkQuorum)
-      val defers = elementRpcs.map { rpcs =>
-        //TODO: register errorBacks on this operations to log error
-        //          Logger.debug(s"$rpc")
-        val defer = rpcs.map { rpc =>
-          //                    Logger.debug(s"$rpc")
+      elementRpcs.foreach { rpcs =>
+
+        rpcs.foreach { rpc =>
           val deferred = rpc match {
-            case d: DeleteRequest => client.delete(d).addErrback(new Callback[Unit, Exception] {
-              def call(arg: Exception): Unit = {
-                errorLogger.error(s"delete request failed. $d, $arg", arg)
-              }
-            })
-            case p: PutRequest => client.put(p).addErrback(new Callback[Unit, Exception] {
-              def call(arg: Exception): Unit = {
-                errorLogger.error(s"put request failed. $p, $arg", arg)
-              }
-            })
-            case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i).addErrback(new Callback[Unit, Exception] {
-              def call(arg: Exception): Unit = {
-                errorLogger.error(s"increment request failed. $i, $arg", arg)
-              }
-            })
+            case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
+            case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
+            case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i).addErrback(errorBack(ex => logger.error(s"increment request failed. $i, $ex", ex)))
           }
-          //          deferredCallbackWithFallback(deferred)({
-          //            (anyRef: Any) => anyRef match {
-          //              case e: Exception => false
-          //              case _ => true
-          //            }
-          //          }, {
-          //            false
-          //          })
+
+          deferredCallbackWithFallback(deferred)({
+            (anyRef: Any) => anyRef match {
+              case e: Exception =>
+                logger.error(s"mutation failed. $e", e)
+                false
+              case _ => true
+            }
+          }, false)
         }
-        //        val ret = deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
-        //        ret
       }
-      //      Future.sequence(defers)
+
       Future.successful(elementRpcs.map(x => true))
     }
   }
 
-  /**
-   * Edge
-   */
-  //  def mutateEdge(edge: Edge): Unit = {
-  //    save(edge.label.hbaseZkAddr, edge.label.hbaseTableName, edge.buildPutsAll())
-  //  }
-
-  //only for testcase.
-  def getEdgesSync(q: Query): Seq[QueryResult] = {
-    Await.result(getEdgesAsync(q), 10 seconds)
-  }
-
-  //select
-
-  /**
-   *
-   */
-  def getEdgesAsync(q: Query): Future[Seq[QueryResult]] = {
+ def getEdgesAsync(q: Query): Future[Seq[QueryResult]] = {
     implicit val ex = this.executionContext
+
     // not sure this is right. make sure refactor this after.
     try {
       if (q.steps.isEmpty) {
@@ -307,29 +256,26 @@ object Graph {
         seedEdgesFuture
       }
     } catch {
-      case e: Throwable =>
-        Logger.error(s"getEdgesAsync: $e", e)
+      case e: Exception =>
+        logger.error(s"getEdgesAsync: $e", e)
         Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.empty)))
     }
   }
-
 
   private def fetchEdgesLs(currentStepRequestLss: Seq[(Iterable[(GetRequest, QueryParam)], Double)], q: Query, stepIdx: Int): Seq[Deferred[QueryResult]] = {
     for {
       (prevStepTgtVertexResultLs, prevScore) <- currentStepRequestLss
       (getRequest, queryParam) <- prevStepTgtVertexResultLs
     } yield {
-      //      fetchEdges(getRequest, queryParam, prevScore)
       fetchEdgesWithCache(getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
-
 
   private def fetchEdgesWithCache(getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
     val cacheKey = MurmurHash3.stringHash(getRequest.toString)
     def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
       def call(arg: QueryResult): QueryResult = {
-        //        Logger.debug(s"queryResultCachePut, $arg")
+        //        logger.debug(s"queryResultCachePut, $arg")
         cache.put(cacheKey, arg)
         arg
       }
@@ -340,20 +286,20 @@ object Graph {
         val cachedVal = cache.asMap().get(cacheKey)
         if (cachedVal != null && queryParam.timestamp - cachedVal.timestamp < cacheTTL) {
           val elapsedTime = queryParam.timestamp - cachedVal.timestamp
-          //          Logger.debug(s"cacheHitAndValid: $cacheKey, $cacheTTL, $elapsedTime")
+          //          logger.debug(s"cacheHitAndValid: $cacheKey, $cacheTTL, $elapsedTime")
           Deferred.fromResult(cachedVal)
         }
         else {
           // cache.asMap().remove(cacheKey)
-          //          Logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
+          //          logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
           fetchEdges(getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
         }
       } else {
-        //        Logger.debug(s"cacheMiss: $cacheKey")
+        //        logger.debug(s"cacheMiss: $cacheKey")
         fetchEdges(getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
       }
     } else {
-      //      Logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
+      //      logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
       fetchEdges(getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
@@ -370,7 +316,7 @@ object Graph {
       }, QueryResult(q, stepIdx, queryParam))
     } catch {
       case e@(_: Throwable | _: Exception) =>
-        Logger.error(s"Exception: $e", e)
+        logger.error(s"Exception: $e", e)
         Deferred.fromResult(QueryResult(q, stepIdx, queryParam))
     }
     //    }
@@ -408,19 +354,19 @@ object Graph {
       vertex
     }
 
-    //    Logger.debug(s"groupedBy: $groupedBy")
+    //    logger.debug(s"groupedBy: $groupedBy")
     val groupedByFiltered = for {
       (vertex, edgesWithScore) <- groupedBy
       aggregatedScore = edgesWithScore.map(_._2).sum if aggregatedScore >= prevStepThreshold
     } yield (vertex -> aggregatedScore)
-    //    Logger.debug(s"groupedByFiltered: $groupedByFiltered")
+    //    logger.debug(s"groupedByFiltered: $groupedByFiltered")
 
     val nextStepSrcVertices = if (prevStepLimit >= 0) {
       groupedByFiltered.toSeq.sortBy(-1 * _._2).take(prevStepLimit)
     } else {
       groupedByFiltered.toSeq
     }
-    //    Logger.debug(s"nextStepSrcVertices: $nextStepSrcVertices")
+    //    logger.debug(s"nextStepSrcVertices: $nextStepSrcVertices")
     val currentStepRequestLss = buildGetRequests(nextStepSrcVertices, step.queryParams)
 
     val queryParams = currentStepRequestLss.flatMap { case (getsWithQueryParams, prevScore) =>
@@ -539,7 +485,7 @@ object Graph {
             //            convertedEdge <- convertEdges(edge, labelOutputFields(edge.labelWithDir.labelId))
             (hashKey, filterHashKey) = toHashKey(queryResult.queryParam, convertedEdge)
           } {
-            //            Logger.error(s"filterEdge: $edge")
+            //            logger.error(s"filterEdge: $edge")
             /** check if this edge should be exlcuded. */
             val filterKey = edge.labelWithDir.labelId -> edge.labelWithDir.dir
             if (excludeLabelWithDirSet.contains(filterKey) && !edge.propsWithTs.containsKey(LabelMeta.degreeSeq)) {
@@ -584,8 +530,8 @@ object Graph {
               }
             }
           }
-//                    logMap(duplicateEdges)
-//                    logMap(resultEdgeWithScores)
+          //                    logMap(duplicateEdges)
+          //                    logMap(resultEdgeWithScores)
 
           (duplicateEdges, resultEdgeWithScores, edgeWithScoreSorted)
         }
@@ -600,7 +546,7 @@ object Graph {
             (duplicateEdge, aggregatedScore) <- (edge -> score) +: (if (duplicateEdges.containsKey(hashKey)) duplicateEdges.get(hashKey) else Seq.empty)
             if aggregatedScore >= queryResult.queryParam.threshold
           } yield {
-              //            Logger.error(s"remainEdge: $duplicateEdge")
+              //            logger.error(s"remainEdge: $duplicateEdge")
               (duplicateEdge, aggregatedScore)
             }
 
@@ -615,39 +561,9 @@ object Graph {
     for {
       e <- h.entrySet()
     } {
-      Logger.error(s"${e.getKey} -> ${e.getValue}")
+      logger.error(s"${e.getKey} -> ${e.getValue}")
     }
   }
-
-  private def filterDuplicates(seen: HashMap[(String, Int, Int, String), Double], queryParam: QueryParam,
-                               edge: Edge, score: Double) = {
-    val key = (edge.srcVertex.innerId.toString, edge.labelWithDir.labelId, edge.labelWithDir.dir, edge.tgtVertex.innerId.toString)
-    val newScore = queryParam.duplicatePolicy match {
-      case Query.DuplicatePolicy.CountSum => 1.0
-      case _ => score
-    }
-    seen.get(key) match {
-      case None =>
-        seen += (key -> newScore)
-        true
-      case Some(oldScore) =>
-
-        queryParam.duplicatePolicy match {
-          case Query.DuplicatePolicy.First =>
-            // use first occurrence`s score
-            false
-          case Query.DuplicatePolicy.Raw =>
-            // TODO: assumes all duplicate vertices will have same score
-            seen += (key -> newScore)
-            true
-          case _ =>
-            // aggregate score
-            seen += (key -> (oldScore + newScore))
-            false
-        }
-    }
-  }
-
 
   /**
    * Vertex
@@ -663,8 +579,6 @@ object Graph {
       get.setFailfast(true)
 
       val cacheKey = MurmurHash3.stringHash(get.toString)
-      //FIXME
-      val cacheTTL = 10000
       if (vertexCache.asMap().containsKey(cacheKey)) {
         val cachedVal = vertexCache.asMap().get(cacheKey)
         if (cachedVal == null) {
@@ -703,8 +617,8 @@ object Graph {
     } else if (vertex.op == GraphUtil.operations("deleteAll")) {
       //      throw new RuntimeException("Not yet supported")
       deleteVerticesAll(List(vertex)).onComplete {
-        case Success(s) => Logger.info(s"mutateVertex($vertex) for deleteAll successed.")
-        case Failure(ex) => Logger.error(s"mutateVertex($vertex) for deleteAll failed. $ex", ex)
+        case Success(s) => logger.info(s"mutateVertex($vertex) for deleteAll successed.")
+        case Failure(ex) => logger.error(s"mutateVertex($vertex) for deleteAll failed. $ex", ex)
       }
       Future.successful(true)
     } else {
@@ -781,41 +695,42 @@ object Graph {
         (edge, score) <- queryResult.edgeWithScoreLs
         duplicateEdge = edge.duplicateEdge
         currentTs = ts.getOrElse(System.currentTimeMillis())
-//        version = edge.version + Edge.incrementVersion // this lead to forcing delete on fetched edges
+        //        version = edge.version + Edge.incrementVersion // this lead to forcing delete on fetched edges
         version = currentTs
         copiedEdge = edge.copy(ts = currentTs, version = version)
         hbaseZkAddr = queryResult.queryParam.label.hbaseZkAddr
       } yield {
-          Logger.debug(s"FetchedEdge: $edge")
-          Logger.debug(s"DeleteEdge: $duplicateEdge")
+          logger.debug(s"FetchedEdge: $edge")
+          logger.debug(s"DeleteEdge: $duplicateEdge")
           val indexedEdgesDeletes = duplicateEdge.edgesWithIndex.map { indexedEdge =>
             val delete = indexedEdge.buildDeletesAsync()
-            Logger.debug(s"indexedEdgeDelete: $delete")
+            logger.debug(s"indexedEdgeDelete: $delete")
             delete
           }
-//          ++ edge.edgesWithIndex.map { indexedEdge =>
-//            val delete = indexedEdge.buildDeletesAsync()
-//            Logger.debug(s"indexedEdgeDelete: $delete")
-//            delete
-//          }
+          //          ++ edge.edgesWithIndex.map { indexedEdge =>
+          //            val delete = indexedEdge.buildDeletesAsync()
+          //            logger.debug(s"indexedEdgeDelete: $delete")
+          //            delete
+          //          }
           val indexedEdgesIncrements = duplicateEdge.edgesWithIndex.map { indexedEdge =>
             val incr = indexedEdge.buildIncrementsAsync(-1L)
-            Logger.debug(s"indexedEdgeIncr: $incr")
+            logger.debug(s"indexedEdgeIncr: $incr")
             incr
           }
-//          ++ edge.edgesWithIndex.map { indexedEdge =>
-//            val incr = indexedEdge.buildIncrementsAsync(-1L)
-//            Logger.debug(s"indexedEdgeIncr: $incr")
-//            incr
-//          }
+          //          ++ edge.edgesWithIndex.map { indexedEdge =>
+          //            val incr = indexedEdge.buildIncrementsAsync(-1L)
+          //            logger.debug(s"indexedEdgeIncr: $incr")
+          //            incr
+          //          }
           val snapshotEdgeDelete = duplicateEdge.toInvertedEdgeHashLike().buildDeleteAsync()
+
           /** delete inverse edges first, then delete current edge entirely */
           for {
             inverseEdgeDeletes <- Graph.writeAsync(hbaseZkAddr, Seq(snapshotEdgeDelete) :: indexedEdgesDeletes ++ indexedEdgesIncrements)
             if inverseEdgeDeletes.forall(identity)
             edgeDeletes <- Graph.writeAsync(hbaseZkAddr, copiedEdge.edgesWithIndex.map { e => e.buildDeleteRowAsync() })
           } yield {
-//            inverseEdgeDeletes.forall(identity)
+            //            inverseEdgeDeletes.forall(identity)
             edgeDeletes.forall(identity)
           }
         }
@@ -881,7 +796,7 @@ object Graph {
       element
     } catch {
       case e: Throwable =>
-        Logger.error(s"$e", e)
+        logger.error(s"$e", e)
         None
     }
   }
@@ -918,11 +833,11 @@ object Graph {
       val direction = if (tempDirection != "out" && tempDirection != "in") "out" else tempDirection
 
       val edge = Management.toEdge(ts.toLong, operation, srcId, tgtId, label, direction, props)
-      //            Logger.debug(s"toEdge: $edge")
+      //            logger.debug(s"toEdge: $edge")
       Some(edge)
     } catch {
       case e: Throwable =>
-        Logger.error(s"toEdge: $e", e)
+        logger.error(s"toEdge: $e", e)
         throw e
     }
   }
@@ -935,7 +850,7 @@ object Graph {
       Some(Management.toVertex(ts.toLong, operation, srcId, serviceName, colName, props))
     } catch {
       case e: Throwable =>
-        Logger.error(s"toVertex: $e", e)
+        logger.error(s"toVertex: $e", e)
         throw e
     }
   }

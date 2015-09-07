@@ -1,5 +1,7 @@
 package test.controllers
 
+import actors.QueueActor
+import akka.actor.ActorSystem
 import com.daumkakao.s2graph.core.mysqls._
 //import com.daumkakao.s2graph.core.models._
 
@@ -77,6 +79,7 @@ class BasicCrudSpec extends SpecCommon {
   "Basic Crud " should {
     "tc1" in {
       running(FakeApplication()) {
+
         var tcNum = 0
         var tcString = ""
         var bulkQueries = List.empty[(Long, String, String)]

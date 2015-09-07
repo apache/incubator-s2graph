@@ -1,28 +1,23 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.mysqls._
-import play.api.libs.json.{JsNumber, JsValue, Json}
-
-import scala.util.hashing.MurmurHash3
-
-//import com.daumkakao.s2graph.core.models._
-
 import com.daumkakao.s2graph.core.Graph.edgeCf
-import com.daumkakao.s2graph.core.parsers.Where
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.mysqls._
+import com.daumkakao.s2graph.core.parsers.{Where, WhereParser}
+import com.daumkakao.s2graph.core.types._
+import com.daumkakao.s2graph.logger
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{ColumnRangeFilter, GetRequest, ScanFilter}
-import play.api.Logger
+import play.api.libs.json.{JsNumber, JsValue, Json}
 
 import scala.collection.mutable.ListBuffer
+import scala.util.hashing.MurmurHash3
+import scala.util.{Success, Try}
 
 object Query {
   val initialScore = 1.0
   lazy val empty = Query()
 
-  def toQuery(srcVertices: Seq[Vertex], queryParam: QueryParam) = {
-    Query(srcVertices, List(Step(List(queryParam))))
-  }
+  def toQuery(srcVertices: Seq[Vertex], queryParam: QueryParam) = Query(srcVertices, List(Step(List(queryParam))))
 
   object DuplicatePolicy extends Enumeration {
     type DuplicatePolicy = Value
@@ -54,21 +49,6 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
     else if (c == "_to") "to"
     else c
   }.toSet
-  lazy val selectColumnSetIsEmpty = selectColumnsSet.isEmpty
-
-  lazy val labelSrcTgtInvertedMap = if (vertices.isEmpty) {
-    Map[Int, Boolean]()
-  } else {
-    (for {
-      step <- steps
-      param <- step.queryParams
-    } yield {
-        param.label.id.get -> {
-          param.label.srcColumn.columnName != vertices.head.serviceColumn.columnName
-        }
-
-      }).toMap
-  }
 
   /** return logical query id without considering parameter values */
   def templateId(): JsValue = {
@@ -106,9 +86,10 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
   def replace(fmt: String,
               values: List[InnerValLike],
               nextStepOpt: Option[Step]): Seq[InnerValLike] = {
+
     val tokens = fmt.split(delimiter)
     val mergedStr = tokens.zip(values).map { case (prefix, innerVal) => prefix + innerVal.toString }.mkString
-    //    Logger.error(s"${tokens.toList}, ${values}, $mergedStr")
+    //    logger.error(s"${tokens.toList}, ${values}, $mergedStr")
     //    println(s"${tokens.toList}, ${values}, $mergedStr")
     nextStepOpt match {
       case None =>
@@ -129,19 +110,18 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
           InnerVal.withStr(mergedStr, nextQueryParam.label.schemaVersion)
         }
     }
-//    val nextQueryParams = nextStepOpt.map(_.queryParams).getOrElse(Seq(queryParam)).filter { qParam =>
-//      if (qParam.labelWithDir.dir == GraphUtil.directions("out")) qParam.label.tgtColumnType == "string"
-//      else qParam.label.srcColumnType == "string"
-//    }
-//    for {
-//      nextQueryParam <- nextQueryParams
-//    } yield {
-//      InnerVal.withStr(mergedStr, nextQueryParam.label.schemaVersion)
-//    }
+    //    val nextQueryParams = nextStepOpt.map(_.queryParams).getOrElse(Seq(queryParam)).filter { qParam =>
+    //      if (qParam.labelWithDir.dir == GraphUtil.directions("out")) qParam.label.tgtColumnType == "string"
+    //      else qParam.label.srcColumnType == "string"
+    //    }
+    //    for {
+    //      nextQueryParam <- nextQueryParams
+    //    } yield {
+    //      InnerVal.withStr(mergedStr, nextQueryParam.label.schemaVersion)
+    //    }
   }
 
   def toInnerValOpt(edge: Edge, fieldName: String): Option[InnerValLike] = {
-
     fieldName match {
       case LabelMeta.to.name => Option(edge.tgtVertex.innerId)
       case LabelMeta.from.name => Option(edge.srcVertex.innerId)
@@ -180,11 +160,12 @@ case class Step(queryParams: List[QueryParam],
                 //                scoreThreshold: Double = 0.0,
                 nextStepScoreThreshold: Double = 0.0,
                 nextStepLimit: Int = -1) {
-  lazy val excludes = queryParams.filter(qp => qp.exclude)
-  lazy val includes = queryParams.filterNot(qp => qp.exclude)
+
+  lazy val excludes = queryParams.filter(_.exclude)
+  lazy val includes = queryParams.filterNot(_.exclude)
   lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 
-  Logger.debug(s"Step: $queryParams, $labelWeights, $nextStepScoreThreshold, $nextStepLimit")
+  logger.debug(s"Step: $queryParams, $labelWeights, $nextStepScoreThreshold, $nextStepLimit")
 }
 
 case class VertexParam(vertices: Seq[Vertex]) {
@@ -276,7 +257,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   var hasFilters: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike]
   //  var propsFilters: PropsFilter = PropsFilter()
-  var where: Option[Where] = None
+  var where: Try[Where] = Success(WhereParser.success)
   var duplicatePolicy = DuplicatePolicy.First
   var rpcTimeoutInMillis = 1000
   var maxAttempt = 2
@@ -324,7 +305,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   def interval(from: Seq[(Byte, InnerValLike)], to: Seq[(Byte, InnerValLike)]): QueryParam = {
     //    val len = label.orderTypes.size.toByte
     //    val len = label.extraIndicesMap(labelOrderSeq).sortKeyTypes.size.toByte
-    //    Logger.error(s"indicesMap: ${label.indicesMap(labelOrderSeq)}")
+    //    logger.error(s"indicesMap: ${label.indicesMap(labelOrderSeq)}")
     val len = label.indicesMap(labelOrderSeq).sortKeyTypes.size.toByte
 
     val minMetaByte = InnerVal.minMetaByte
@@ -338,9 +319,6 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     val maxBytes = fromVal
     val minBytes = toVal
     val rangeFilter = new ColumnRangeFilter(minBytes, true, maxBytes, true)
-//    Logger.debug(s"index length: $len, min: ${minBytes.toList}, max: ${maxBytes.toList}")
-    //    queryLogger.info(s"Interval: ${rangeFilter.getMinColumn().toList} ~ ${rangeFilter.getMaxColumn().toList}: ${Bytes.compareTo(minBytes, maxBytes)}")
-    //    this.filters.(rangeFilter)
     this.columnRangeFilter = rangeFilter
     this
   }
@@ -382,7 +360,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this
   }
 
-  def where(whereOpt: Option[Where]): QueryParam = {
+  def where(whereOpt: Try[Where]): QueryParam = {
     this.where = whereOpt
     this
   }
@@ -464,6 +442,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
         (InnerVal.convertVersion(srcVertex.innerId, tgtColumn.columnType, label.schemaVersion),
           InnerVal.convertVersion(tgtVertexInnerId, srcColumn.columnType, label.schemaVersion))
       }
+
     val (srcVId, tgtVId) =
       (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
     val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
@@ -493,7 +472,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     get.setMaxAttempt(maxAttempt.toByte)
     get.setRpcTimeout(rpcTimeoutInMillis)
     if (columnRangeFilter != null) get.filter(columnRangeFilter)
-    Logger.debug(s"Get: $get")
+    logger.debug(s"Get: $get")
     get
   }
 }
@@ -502,7 +481,7 @@ case class TimeDecay(initial: Double = 1.0, lambda: Double = 0.1, timeUnit: Doub
   def decay(diff: Double): Double = {
     //FIXME
     val ret = initial * Math.pow((1.0 - lambda), diff / timeUnit)
-    //    Logger.debug(s"$initial, $lambda, $timeUnit, $diff, ${diff / timeUnit}, $ret")
+    //    logger.debug(s"$initial, $lambda, $timeUnit, $diff, ${diff / timeUnit}, $ret")
     ret
   }
 }

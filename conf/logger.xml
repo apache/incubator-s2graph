@@ -56,21 +56,6 @@
         </rollingPolicy>
     </appender>
 
-    <appender name="METRICS" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>logs/metrics.log</file>
-        <append>true</append>
-        <encoder>
-            <pattern>%date [%level] [%logger] [%thread] - %message %xException%n</pattern>
-        </encoder>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>logs/metrics.log.%d.%i</fileNamePattern>
-            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                <maxFileSize>200MB</maxFileSize>
-            </timeBasedFileNamingAndTriggeringPolicy>
-            <maxHistory>7</maxHistory>
-        </rollingPolicy>
-    </appender>
-
     <logger name="play" level="INFO">
         <appender-ref ref="STDOUT"/>
         <appender-ref ref="FILE"/>
@@ -82,11 +67,8 @@
     </logger>
 
     <logger name="error" level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="ERROR"/>
-    </logger>
-
-    <logger name="metrics" level="INFO">
-        <appender-ref ref="METRICS"/>
     </logger>
 
     <logger name="actor" level="INFO">

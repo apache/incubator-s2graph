@@ -6,7 +6,7 @@ package com.daumkakao.s2graph.core.mysqls
 
 import com.daumkakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
-import play.api.Logger
+import com.daumkakao.s2graph.logger
 import play.api.libs.json.Json
 import scalikejdbc._
 
@@ -212,13 +212,13 @@ object Label extends Model[Label] {
   }
 
   def updateName(oldName: String, newName: String)(implicit session: DBSession = AutoSession) = {
-    Logger.info(s"rename label: $oldName -> $newName")
+    logger.info(s"rename label: $oldName -> $newName")
     sql"""update labels set label = ${newName} where label = ${oldName}""".execute.apply()
   }
 
   def delete(id: Int)(implicit session: DBSession = AutoSession) = {
     val label = findById(id)
-    Logger.info(s"delete label: $label")
+    logger.info(s"delete label: $label")
     sql"""delete from labels where id = ${label.id.get}""".execute.apply()
     val cacheKeys = List(s"id=$id", s"label=${label.label}")
     cacheKeys.foreach(expireCache(_))

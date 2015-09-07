@@ -25,13 +25,13 @@ object TestDataLoader {
       hist <- testIdsHist.get(histStep)
       id = hist(rIdx)
     } yield {
-//      Logger.debug(s"randomId: $histStep = $id[$rIdx / $maxId]")
+//      logger.debug(s"randomId: $histStep = $id[$rIdx / $maxId]")
       id
     }
   }
   def randomId() = {
     val id = testIds(Random.nextInt(maxId))
-    //    Logger.debug(s"$id")
+    //    logger.debug(s"$id")
     id
   }
   private def loadSeeds(filePath: String) = {
@@ -40,10 +40,10 @@ object TestDataLoader {
     val ids = new ArrayBuffer[Long]
 
     var idx = 0
-//    Logger.debug(s"$filePath start to load file.")
+//    logger.debug(s"$filePath start to load file.")
     for (line <- Source.fromFile(new File(filePath)).getLines) {
       //      testAccountIds(idx) = line.toLong
-//      if (idx % 10000 == 0) Logger.debug(s"$idx")
+//      if (idx % 10000 == 0) logger.debug(s"$idx")
       idx += 1
 
       val parts = line.split("\\t")
@@ -63,8 +63,8 @@ object TestDataLoader {
       }
 
     }
-//    Logger.debug(s"upload $filePath finished.")
-//    Logger.debug(s"${histogram.size}")
+//    logger.debug(s"upload $filePath finished.")
+//    logger.debug(s"${histogram.size}")
     (ids, histogram.map(t => (t._1 -> t._2.toArray[Long])), histogramCnt)
   }
 }

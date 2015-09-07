@@ -2,7 +2,7 @@ package com.daumkakao.s2graph.core.parsers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.types2.InnerValLike
+import com.daumkakao.s2graph.core.types.InnerValLike
 
 import scala.util.Try
 import scala.util.parsing.combinator.JavaTokenParsers
@@ -88,6 +88,10 @@ case class And(left: Clause, right: Clause) extends Clause {
 
 case class Or(left: Clause, right: Clause) extends Clause {
   override def filter(edge: Edge) = left.filter(edge) || right.filter(edge)
+}
+
+object WhereParser {
+  val success = Where()
 }
 
 case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {

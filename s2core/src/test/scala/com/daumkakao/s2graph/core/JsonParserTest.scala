@@ -1,6 +1,6 @@
 package com.daumkakao.s2graph.core
 
-import com.daumkakao.s2graph.core.types2.{InnerValLike, InnerVal}
+import com.daumkakao.s2graph.core.types.{InnerValLike, InnerVal}
 import org.scalatest.{Matchers, FunSuite}
 
 /**
@@ -8,7 +8,7 @@ import org.scalatest.{Matchers, FunSuite}
  */
 class JsonParserTest extends FunSuite with Matchers with TestCommon with JSONParser {
 
-  import types2.HBaseType._
+  import types.HBaseType._
   import InnerVal._
 
   val innerValsPerVersion = for {

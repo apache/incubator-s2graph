@@ -4,19 +4,18 @@ import com.daumkakao.s2graph.core.KGraphExceptions.BadQueryException
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.parsers.WhereParser
-import com.daumkakao.s2graph.core.types2._
+import com.daumkakao.s2graph.core.types._
+import com.daumkakao.s2graph.logger
 import config.Config
-import play.api.Logger
 import play.api.libs.json._
 
-import scala.util.{Failure, Success, Try}
+import scala.util.{Success, Try}
 
 
 trait RequestParser extends JSONParser {
 
   import Management.JsonModel._
 
-  val errorLogger = Logger("error")
   val hardLimit = Config.QUERY_HARD_LIMIT
   val defaultLimit = 100
 
@@ -77,13 +76,9 @@ trait RequestParser extends JSONParser {
   }
 
   def extractWhere(label: Label, jsValue: JsValue) = {
-    (jsValue \ "where").asOpt[String].flatMap { where =>
-      WhereParser(label).parse(where) match {
-        case sym@Success(where) => sym.toOption
-        case Failure(e) =>
-          errorLogger.error(e.getMessage, e)
-          None
-      }
+    (jsValue \ "where").asOpt[String] match {
+      case None => Success(WhereParser.success)
+      case Some(where) => WhereParser(label).parse(where)
     }
   }
 
@@ -105,10 +100,10 @@ trait RequestParser extends JSONParser {
         (for {
           value <- parse[List[JsValue]](jsValue, "srcVertices")
           serviceName = parse[String](value, "serviceName")
-          service <- Service.findByName(serviceName)
-          column <- parse[Option[String]](value, "columnName")
-          col <- ServiceColumn.find(service.id.get, column)
+          column = parse[String](value, "columnName")
         } yield {
+            val service = Service.findByName(serviceName).getOrElse(throw BadQueryException("service not found"))
+            val col = ServiceColumn.find(service.id.get, column).getOrElse(throw BadQueryException("bad column name"))
             val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
             for {
               idVal <- idOpt ++ idsOpt.toSeq.flatten
@@ -120,7 +115,7 @@ trait RequestParser extends JSONParser {
             }
           }).flatten
 
-//      if (vertices.isEmpty) throw new BadQueryException("srcVertices`s id is empty")
+      if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
 
       val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v) }
       val steps = parse[List[JsValue]](jsValue, "steps")
@@ -160,7 +155,7 @@ trait RequestParser extends JSONParser {
               labelGroup <- queryParamJsVals
               queryParam <- parseQueryParam(labelGroup)
             } yield {
-              val (serviceName, columnName) =
+              val (_, columnName) =
                 if (queryParam.labelWithDir.dir == GraphUtil.directions("out")) {
                   (queryParam.label.srcService.serviceName, queryParam.label.srcColumnName)
                 } else {
@@ -180,14 +175,14 @@ trait RequestParser extends JSONParser {
 
       val ret = Query(vertices, querySteps, removeCycle = removeCycle,
         selectColumns = selectColumns, groupByColumns = groupByColumns, filterOutQuery = filterOutQuery, withScore = withScore)
-//      Logger.debug(ret.toString)
+//      logger.debug(ret.toString)
       ret
     } catch {
       case e: BadQueryException =>
-        errorLogger.error(s"$e", e)
+        logger.error(s"$e", e)
         throw e
       case e: Throwable =>
-        errorLogger.error(s"$e", e)
+        logger.error(s"$e", e)
         throw new KGraphExceptions.BadQueryException(s"$jsValue", e)
     }
   }
@@ -195,8 +190,8 @@ trait RequestParser extends JSONParser {
   private def parseQueryParam(labelGroup: JsValue): Option[QueryParam] = {
     for {
       labelName <- parse[Option[String]](labelGroup, "label")
-      label <- Label.findByName(labelName)
     } yield {
+      val label = Label.findByName(labelName).getOrElse(throw BadQueryException(s"$labelName not found"))
       val direction = parse[Option[String]](labelGroup, "direction").map(GraphUtil.toDirection(_)).getOrElse(0)
       val limit = {
         parse[Option[Int]](labelGroup, "limit") match {
@@ -211,7 +206,6 @@ trait RequestParser extends JSONParser {
       val interval = extractInterval(label, labelGroup)
       val duration = extractDuration(label, labelGroup)
       val scorings = extractScoring(label.id.get, labelGroup).getOrElse(List.empty[(Byte, Double)]).toList
-//      val labelOrderSeq = label.findLabelIndexSeq(scorings)
       val exclude = parse[Option[Boolean]](labelGroup, "exclude").getOrElse(false)
       val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
       val hasFilter = extractHas(label, labelGroup)
@@ -244,7 +238,6 @@ trait RequestParser extends JSONParser {
       val transformer = if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]
 
       QueryParam(labelWithDir)
-//        .labelOrderSeq(labelOrderSeq)
         .limit(offset, limit)
         .rank(RankParam(label.id.get, scorings))
         .exclude(exclude)
@@ -253,8 +246,6 @@ trait RequestParser extends JSONParser {
         .duration(duration)
         .has(hasFilter)
         .labelOrderSeq(indexSeq)
-        //        .outputField(outputField)
-        //        .outputFields(outputFields)
         .where(where)
         .duplicatePolicy(duplicate)
         .includeDegree(includeDegree)
@@ -265,7 +256,6 @@ trait RequestParser extends JSONParser {
         .timeDecay(timeDecayFactor)
         .threshold(threshold)
         .transformer(transformer)
-      //        .excludeBy(excludeBy)
     }
   }
 
@@ -326,15 +316,7 @@ trait RequestParser extends JSONParser {
     Management.toVertex(ts, operation, id.toString, sName, cName, props.toString)
   }
 
-  private[RequestParser] def jsObjDuplicateKeyCheck(jsObj: JsObject) = {
-    assert(jsObj != null)
-    if (jsObj.fields.map(_._1).groupBy(_.toString).map(r => r match {
-      case (k, v) => v
-    }).filter(_.length > 1).isEmpty == false)
-      throw new KGraphExceptions.JsonParseException(Json.obj("error" -> s"$jsObj --> some key is duplicated").toString)
-  }
-
-  def toPropElements(jsObj: JsValue) = Try {
+ def toPropElements(jsObj: JsValue) = Try {
     val propName = (jsObj \ "name").as[String]
     val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
     val defaultValue = (jsObj \ "defaultValue").as[JsValue] match {
@@ -342,7 +324,6 @@ trait RequestParser extends JSONParser {
       case _@js => js.toString
     }
     Prop(propName, defaultValue, dataType)
-
   }
 
   def toPropsElements(jsValue: JsValue): Seq[Prop] = for {
