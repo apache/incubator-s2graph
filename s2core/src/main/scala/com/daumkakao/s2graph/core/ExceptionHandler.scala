@@ -25,7 +25,9 @@ object ExceptionHandler {
   lazy val failTopic = s"mutateFailed_${phase}"
 
   def apply(config: Config) = {
-    properties = Option(kafkaConfig(config))
+    properties =
+      if (config.hasPath("kafka.metadata.broker.list")) Option(kafkaConfig(config))
+      else None
     phase = if (config.hasPath("phase")) config.getString("phase") else "dev"
     producer = for {
       props <- properties

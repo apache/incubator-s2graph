@@ -24,14 +24,16 @@ object GraphConfig {
   def apply(phase: String, dbUrl: Option[String], zkAddr: Option[String], kafkaBrokerList: Option[String]): Config = {
     database = dbUrl.getOrElse("jdbc:mysql://localhost:3306/graph")
     zkQuorum = zkAddr.getOrElse("localhost")
-    kafkaBrokers = kafkaBrokerList.getOrElse("localhost:9092")
+
 
 //    val newConf = new util.HashMap[String, Object]()
 //    newConf.put("hbase.zookeeper.quorum", zkQuorum)
 //    newConf.put("db.default.url", database)
 //    newConf.put("kafka.metadata.broker.list", kafkaBrokers)
-    val newConf = Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database,
-      "kafka.metadata.broker.list" -> kafkaBrokers)
+    val newConf =
+      if (kafkaBrokerList.isEmpty) Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database)
+      else Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database, "kafka.metadata.broker.list" -> kafkaBrokers)
+
     ConfigFactory.parseMap(newConf).withFallback(Graph.config)
   }
 }
