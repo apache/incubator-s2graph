@@ -1,9 +1,8 @@
 package com.daumkakao.s2graph.core.parsers
 
 import com.daumkakao.s2graph.core._
-//import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types._
-import org.scalatest.{Matchers, FunSuite}
+import org.scalatest.{FunSuite, Matchers}
 import play.api.libs.json.Json
 
 /**
@@ -11,8 +10,11 @@ import play.api.libs.json.Json
  */
 class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   // dummy data for dummy edge
+
   import HBaseType.{VERSION1, VERSION2}
+
   val ts = System.currentTimeMillis()
+
   def ids(version: String) = {
     val colId = if (version == VERSION2) columnV2.id.get else column.id.get
     val srcId = SourceVertexId(colId, InnerVal.withLong(1, version))
@@ -33,7 +35,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       val labelMetas = LABEMETA.findAllByLabelId(label.id.get, useCache = false)
       val metaMap = labelMetas.map { m => m.name -> m.seq } toMap
       val whereOpt = WhereParser(label).parse(sql)
-      whereOpt.isSuccess shouldBe  true
+      whereOpt.isSuccess shouldBe true
 
       println("=================================================================")
       println(sql)
@@ -52,10 +54,13 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       val propsInner = Management.toProps(label, js).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap
       val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, 0, propsInner)
       val f = validate(labelName)(edge) _
+
       /** labelName label is long-long relation */
       f(s"_to=${tgtVertex.innerId.toString}")(true)
+
       // currently this throw exception since label`s _to is long type.
       f(s"_to=19230495")(false)
+      f(s"_to!=19230495")(true)
     }
   }
 
@@ -69,6 +74,12 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, 0, propsInner)
 
       val f = validate(labelName)(edge) _
+
+      // time == 3
+      f("time >= 3")(true)
+      f("time > 2")(true)
+      f("time <= 3")(true)
+      f("time < 2")(false)
 
       f("(time in (1, 2, 3) and is_blocked = true) or is_hidden = false")(false)
       f("(time in (1, 2, 3) or is_blocked = true) or is_hidden = false")(true)

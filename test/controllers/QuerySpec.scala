@@ -1,12 +1,12 @@
 package test.controllers
 
 import play.api.libs.json._
-import play.api.test.Helpers._
-import play.api.test.{FakeApplication, FakeRequest}
+import play.api.test.{FakeApplication, FakeRequest, PlaySpecification}
+import play.api.{Application => PlayApplication}
 
 import scala.concurrent.Await
 
-class QuerySpec extends SpecCommon {
+class QuerySpec extends SpecCommon with PlaySpecification {
   init()
 
   import Helper._
