@@ -53,6 +53,7 @@ object WalLogToHDFS extends SparkApp with WithKafka {
     val kafkaParams = Map(
       "zookeeper.connect" -> kafkaZkQuorum,
       "group.id" -> groupId,
+      "metadata.broker.list" -> brokerList,
       "zookeeper.connection.timeout.ms" -> "10000",
       "auto.offset.reset" -> "largest")
 
