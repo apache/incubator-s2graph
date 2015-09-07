@@ -49,7 +49,7 @@ case class Lt(propKey: Byte, value: InnerValLike) extends Clause {
   override def filter(edge: Edge): Boolean = Clause.binaryOp(_ < _)(propKey, value)(edge)
 }
 
-case class Equal(propKey: Byte, value: InnerValLike) extends Clause {
+case class Eq(propKey: Byte, value: InnerValLike) extends Clause {
   override def filter(edge: Edge): Boolean = Clause.binaryOp(_ == _)(propKey, value)(edge)
 }
 
@@ -119,16 +119,16 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
   def clause: Parser[Clause] = (predicate | paren) * ("and" ^^^ { (a: Clause, b: Clause) => And(a, b) } | "or" ^^^ { (a: Clause, b: Clause) => Or(a, b) })
 
   /** TODO: exception on toInnerVal with wrong type */
-  def extract(lv: String, rv: String) = metaProps.get(lv) match {
+  def extract(propKey: String, valToCompare: String) = metaProps.get(propKey) match {
     case None =>
-      throw new RuntimeException(s"where clause contains not existing property name: $lv")
+      throw new RuntimeException(s"where clause contains not existing property name: $propKey")
     case Some(metaProp) =>
-      if (lv == LabelMeta.to.name) {
-        (LabelMeta.to.seq, toInnerVal(rv, label.tgtColumnType, label.schemaVersion))
-      } else if (lv == LabelMeta.from.name) {
-        (LabelMeta.from.seq, toInnerVal(rv, label.srcColumnType, label.schemaVersion))
+      if (propKey == LabelMeta.to.name) {
+        (LabelMeta.to.seq, toInnerVal(valToCompare, label.tgtColumnType, label.schemaVersion))
+      } else if (propKey == LabelMeta.from.name) {
+        (LabelMeta.from.seq, toInnerVal(valToCompare, label.srcColumnType, label.schemaVersion))
       } else {
-        (metaProp.seq, toInnerVal(rv, metaProp.dataType, label.schemaVersion))
+        (metaProp.seq, toInnerVal(valToCompare, metaProp.dataType, label.schemaVersion))
       }
   }
 
@@ -136,16 +136,16 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
     ident ~ ("!=" | "=") ~ anyStr ^^ {
       case f ~ op ~ s =>
         val (byteSeq, innerVal) = extract(f, s)
-        if (op == "=") Equal(byteSeq, innerVal)
-        else Not(Equal(byteSeq, innerVal))
+        if (op == "=") Eq(byteSeq, innerVal)
+        else Not(Eq(byteSeq, innerVal))
     } | ident ~ (">=" | "<=" | ">" | "<") ~ anyStr ^^ {
       case f ~ op ~ s =>
         val (byteSeq, innerVal) = extract(f, s)
         op match {
           case ">" => Gt(byteSeq, innerVal)
-          case ">=" => Or(Gt(byteSeq, innerVal), Equal(byteSeq, innerVal))
+          case ">=" => Or(Gt(byteSeq, innerVal), Eq(byteSeq, innerVal))
           case "<" => Lt(byteSeq, innerVal)
-          case "<=" => Or(Lt(byteSeq, innerVal), Equal(byteSeq, innerVal))
+          case "<=" => Or(Lt(byteSeq, innerVal), Eq(byteSeq, innerVal))
         }
     } | ident ~ ("between" ~> anyStr <~ "and") ~ anyStr ^^ {
       case f ~ minV ~ maxV =>
@@ -174,7 +174,7 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
     try {
       parseAll(where, sql) match {
         case Success(r, q) => scala.util.Success(r)
-        case fail => scala.util.Failure(new RuntimeException(s"sql parsing error: ${fail.toString}"))
+        case fail => scala.util.Failure(new RuntimeException(s"where parsing error: ${fail.toString}"))
       }
     } catch {
       case ex: Exception => scala.util.Failure(ex)
