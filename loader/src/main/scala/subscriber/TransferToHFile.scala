@@ -72,6 +72,7 @@ object TransferToHFile extends SparkApp {
     val zkQuorum = args(2)
     val tableName = args(3)
     val dbUrl = args(4)
+    val maxHFilePerResionServer = if (args.length >= 6) args(5).toInt else 1
 
     val conf = sparkConf(s"$input: TransferToHFile")
     val sc = new SparkContext(conf)
@@ -93,7 +94,7 @@ object TransferToHFile extends SparkApp {
     try {
 
       val rdd = sc.textFile(input)
-      val cells = buildCells(rdd, dbUrl, numOfRegionServers)
+      val cells = buildCells(rdd, dbUrl, numOfRegionServers * maxHFilePerResionServer)
 
       println("buildCellsFinished")
 
