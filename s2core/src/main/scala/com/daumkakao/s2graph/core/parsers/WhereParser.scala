@@ -19,26 +19,38 @@ trait Clause extends JSONParser {
   def filter(edge: Edge): Boolean
 }
 
-case class Where(clauses: Seq[Clause] = Seq.empty[Clause]) {
-  def filter(edge: Edge) = clauses.map(_.filter(edge)).forall(identity)
-}
-
-case class Equal(propKey: Byte, value: InnerValLike) extends Clause {
-  override def filter(edge: Edge): Boolean = {
+object Clause extends JSONParser {
+  def makeBinaryCompare(binOp: (InnerValLike, InnerValLike) => Boolean)(propKey: Byte, value: InnerValLike)(edge: Edge): Boolean = {
     propKey match {
-      case LabelMeta.from.seq => edge.srcVertex.innerId == value
-      case LabelMeta.to.seq => edge.tgtVertex.innerId == value
+      case LabelMeta.from.seq => binOp(edge.srcVertex.innerId, value)
+      case LabelMeta.to.seq => binOp(edge.tgtVertex.innerId, value)
       case _ =>
         edge.propsWithTs.get(propKey) match {
           case None =>
             val label = edge.label
             val meta = label.metaPropsMap(propKey)
             val defaultValue = toInnerVal(meta.defaultValue, meta.dataType, label.schemaVersion)
-            defaultValue == value
-          case Some(edgeVal) => edgeVal.innerVal == value
+            binOp(defaultValue, value)
+          case Some(edgeVal) => binOp(edgeVal.innerVal, value)
         }
     }
   }
+}
+
+case class Where(clauses: Seq[Clause] = Seq.empty[Clause]) {
+  def filter(edge: Edge) = clauses.map(_.filter(edge)).forall(identity)
+}
+
+case class Gt(propKey: Byte, value: InnerValLike) extends Clause {
+  override def filter(edge: Edge): Boolean = Clause.makeBinaryCompare((a, b) => a > b)(propKey, value)(edge)
+}
+
+case class Lt(propKey: Byte, value: InnerValLike) extends Clause {
+  override def filter(edge: Edge): Boolean = Clause.makeBinaryCompare((a, b) => a < b)(propKey, value)(edge)
+}
+
+case class Equal(propKey: Byte, value: InnerValLike) extends Clause {
+  override def filter(edge: Edge): Boolean = Clause.makeBinaryCompare((a, b) => a == b)(propKey, value)(edge)
 }
 
 case class IN(propKey: Byte, values: Set[InnerValLike]) extends Clause {
@@ -104,28 +116,36 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
 
   def paren: Parser[Clause] = "(" ~> clause <~ ")"
 
-  def clause: Parser[Clause] = (predicate | paren) *
-    ("and" ^^^ { (a: Clause, b: Clause) => And(a, b) } |
-      "or" ^^^ { (a: Clause, b: Clause) => Or(a, b) })
+  def clause: Parser[Clause] = (predicate | paren) * ("and" ^^^ { (a: Clause, b: Clause) => And(a, b) } | "or" ^^^ { (a: Clause, b: Clause) => Or(a, b) })
 
   /** TODO: exception on toInnerVal with wrong type */
-  def predicate =
-    ident ~ ("=" | "!=") ~ anyStr ^^ {
-      case f ~ op ~ s =>
-        metaProps.get(f) match {
-          case None =>
-            throw new RuntimeException(s"where clause contains not existing property name: $f")
-          case Some(metaProp) =>
-            val eq = if (f == LabelMeta.to.name) {
-              Equal(LabelMeta.to.seq, toInnerVal(s, label.tgtColumnType, label.schemaVersion))
-            } else if (f == LabelMeta.from.name) {
-              Equal(LabelMeta.from.seq, toInnerVal(s, label.srcColumnType, label.schemaVersion))
-            } else {
-              Equal(metaProp.seq, toInnerVal(s, metaProp.dataType, label.schemaVersion))
-            }
+  def extract(lv: String, rv: String) = metaProps.get(lv) match {
+    case None =>
+      throw new RuntimeException(s"where clause contains not existing property name: $lv")
+    case Some(metaProp) =>
+      if (lv == LabelMeta.to.name) {
+        (LabelMeta.to.seq, toInnerVal(rv, label.tgtColumnType, label.schemaVersion))
+      } else if (lv == LabelMeta.from.name) {
+        (LabelMeta.from.seq, toInnerVal(rv, label.srcColumnType, label.schemaVersion))
+      } else {
+        (metaProp.seq, toInnerVal(rv, metaProp.dataType, label.schemaVersion))
+      }
+  }
 
-            if (op == "=") eq
-            else Not(eq)
+  def predicate =
+    ident ~ ("!=" | "=") ~ anyStr ^^ {
+      case f ~ op ~ s =>
+        val (byteSeq, innerVal) = extract(f, s)
+        if (op == "=") Equal(byteSeq, innerVal)
+        else Not(Equal(byteSeq, innerVal))
+    } | ident ~ (">=" | "<=" | ">" | "<") ~ anyStr ^^ {
+      case f ~ op ~ s =>
+        val (byteSeq, innerVal) = extract(f, s)
+        op match {
+          case ">" => Gt(byteSeq, innerVal)
+          case ">=" => Or(Gt(byteSeq, innerVal), Equal(byteSeq, innerVal))
+          case "<" => Lt(byteSeq, innerVal)
+          case "<=" => Or(Lt(byteSeq, innerVal), Equal(byteSeq, innerVal))
         }
     } | ident ~ ("between" ~> anyStr <~ "and") ~ anyStr ^^ {
       case f ~ minV ~ maxV =>

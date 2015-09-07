@@ -119,13 +119,13 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
   }
 
   def compare(other: InnerValLike): Int = {
-    if (!other.isInstanceOf[InnerVal])
+    if (!other.isInstanceOf[InnerValLike])
       throw new RuntimeException(s"compare $this vs $other")
     Bytes.compareTo(bytes, other.bytes) * -1
   }
 
   def +(other: InnerValLike): InnerValLike = {
-    if (!other.isInstanceOf[InnerVal])
+    if (!other.isInstanceOf[InnerValLike])
       throw new RuntimeException(s"+ $this, $other")
 
     (value, other.value) match {
