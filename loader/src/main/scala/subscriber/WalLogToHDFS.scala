@@ -14,9 +14,10 @@ import scala.language.postfixOps
 
 object WalLogToHDFS extends SparkApp with WithKafka {
   private def toOutputPath(ts: Long): String = {
-    val formatter = new SimpleDateFormat("yyyy/MM/dd/HH/mmssSSS")
-    formatter.format(new Date(ts))
+    val formatter = new SimpleDateFormat("yyyy/MM/dd")
+    Seq(formatter.format(new Date(ts)), ts.toString).mkString("/")
   }
+
   val usages =
     s"""
        |/**
