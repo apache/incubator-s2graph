@@ -54,7 +54,6 @@ object WalLogToHDFS extends SparkApp with WithKafka {
       "zookeeper.connect" -> kafkaZkQuorum,
       "group.id" -> groupId,
       "zookeeper.connection.timeout.ms" -> "10000",
-      "metadata.broker.list" -> brokerList,
       "auto.offset.reset" -> "largest")
 
     val stream = getStreamHelper(kafkaParams).createStream[String, String, StringDecoder, StringDecoder](ssc, topics.split(",").toSet)
@@ -67,7 +66,7 @@ object WalLogToHDFS extends SparkApp with WithKafka {
       val elements = rdd.mapPartitions { partition =>
         // set executor setting.
         val phase = System.getProperty("phase")
-        GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
+        GraphSubscriberHelper.apply(phase, dbUrl, "none", brokerList)
 
         for {
           (key, msg) <- partition
