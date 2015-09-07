@@ -1,7 +1,7 @@
 package subscriber
 
 import com.daumkakao.s2graph.core.Graph
-import org.apache.hadoop.hbase.client.{ConnectionFactory}
+import org.apache.hadoop.hbase.client.{HTable, ConnectionFactory}
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.mapreduce.{HFileOutputFormat2, TableOutputFormat}
 import org.apache.hadoop.hbase._
@@ -75,26 +75,36 @@ object TransferToHFile extends SparkApp {
 
     val conf = sparkConf(s"$input: TransferToHFile")
     val sc = new SparkContext(conf)
+    println(args)
 
     val mapAcc = sc.accumulable(MutableHashMap.empty[String, Long], "counter")(HashMapParam[String, Long](_ + _))
 
     /** set up hbase init */
     val hbaseConf = HBaseConfiguration.create()
     hbaseConf.set("hbase.zookeeper.quorum", zkQuorum)
+    hbaseConf.set(TableOutputFormat.OUTPUT_TABLE, tableName)
+//    hbaseConf.set("hadoop.tmp.dir", s"/tmp/$tableName")
+
     val conn = ConnectionFactory.createConnection(hbaseConf)
     val numOfRegionServers = conn.getAdmin.getClusterStatus.getServersSize
-    val table = conn.getTable(TableName.valueOf(tableName))
-    hbaseConf.set(TableOutputFormat.OUTPUT_TABLE, tableName)
+    val table = new HTable(hbaseConf, tableName)
+
 
     try {
 
       val rdd = sc.textFile(input)
       val cells = buildCells(rdd, dbUrl, numOfRegionServers)
 
+      println("buildCellsFinished")
+
       val job = Job.getInstance(hbaseConf)
+      job.getConfiguration().setClassLoader(Thread.currentThread().getContextClassLoader())
+      job.getConfiguration.set("hadoop.tmp.dir", s"/tmp/$tableName")
+
+
       job.setMapOutputKeyClass(classOf[ImmutableBytesWritable])
       job.setMapOutputValueClass(classOf[Cell])
-      HFileOutputFormat2.configureIncrementalLoad(job, table, conn.getRegionLocator(TableName.valueOf(tableName)))
+      HFileOutputFormat2.configureIncrementalLoad(job, table)
 
       cells.saveAsNewAPIHadoopFile(output, classOf[ImmutableBytesWritable], classOf[Cell], classOf[HFileOutputFormat2], hbaseConf)
     } finally {
