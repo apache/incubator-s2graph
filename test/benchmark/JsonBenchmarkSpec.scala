@@ -6,16 +6,12 @@ import play.api.test.{FakeApplication, PlaySpecification, WithApplication}
 import play.libs.Json
 
 class JsonBenchmarkSpec extends PlaySpecification {
+  val wrapStr = s"\n=================================================="
   def duration[T](prefix: String = "")(block: => T) = {
     val startTs = System.currentTimeMillis()
-    logger.info(s"==================================================")
-
     val ret = block
     val endTs = System.currentTimeMillis()
-
-    logger.info(s"$prefix: took ${endTs - startTs} ms")
-    logger.info(s"==================================================")
-
+    logger.info(s"$wrapStr\n$prefix: took ${endTs - startTs} ms$wrapStr")
     ret
   }
 
