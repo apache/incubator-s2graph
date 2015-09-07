@@ -1,6 +1,8 @@
 package subscriber
 
 
+import java.util
+
 import com.daumkakao.s2graph.core.{Graph, _}
 import com.typesafe.config.{Config, ConfigFactory}
 import kafka.javaapi.producer.Producer
@@ -23,6 +25,11 @@ object GraphConfig {
     database = dbUrl.getOrElse("jdbc:mysql://localhost:3306/graph")
     zkQuorum = zkAddr.getOrElse("localhost")
     kafkaBrokers = kafkaBrokerList.getOrElse("localhost:9092")
+
+//    val newConf = new util.HashMap[String, Object]()
+//    newConf.put("hbase.zookeeper.quorum", zkQuorum)
+//    newConf.put("db.default.url", database)
+//    newConf.put("kafka.metadata.broker.list", kafkaBrokers)
     val newConf = Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database,
       "kafka.metadata.broker.list" -> kafkaBrokers)
     ConfigFactory.parseMap(newConf).withFallback(Graph.config)

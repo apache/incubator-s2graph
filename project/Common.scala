@@ -9,7 +9,8 @@ object Common {
     "sonatype-snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
   )
 
-  lazy val scalaVersion = "2.11.7"
+//  lazy val scalaVersion = "2.11.7"
+  lazy val scalaVersion = "2.10.5"
   lazy val version = "0.1.0-SNAPSHOT"
   lazy val organization = "com.daumkakao.s2graph"
   lazy val sparkVersion = "1.4.1"
