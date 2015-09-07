@@ -549,19 +549,25 @@ case class Edge(srcVertex: Vertex,
    *
    */
   def commitPending(snapshotEdgeOpt: Option[Edge]): Future[Boolean] = {
-    val pendingEdges = if (snapshotEdgeOpt.isEmpty || snapshotEdgeOpt.get.pendingEdgeOpt.isEmpty) Nil
-    else Seq(snapshotEdgeOpt.get.pendingEdgeOpt.get)
+    val pendingEdges =
+      if (snapshotEdgeOpt.isEmpty || snapshotEdgeOpt.get.pendingEdgeOpt.isEmpty) Nil
+      else Seq(snapshotEdgeOpt.get.pendingEdgeOpt.get)
+
     if (pendingEdges == Nil) Future.successful(true)
     else {
       val snapshotEdge = snapshotEdgeOpt.get
-      val newPut = snapshotEdge.edgesWithInvertedIndex.withNoPendingEdge().buildPutAsync()
-      val expected = snapshotEdge.edgesWithInvertedIndex.valueBytes
+      // 1. commitPendingEdges
+      // after: state without pending edges
+      // before: state with pending edges
+
+      val after = snapshotEdge.edgesWithInvertedIndex.withNoPendingEdge().buildPutAsync()
+      val before = snapshotEdge.edgesWithInvertedIndex.valueBytes
+      val client = Graph.getClient(label.hbaseZkAddr)
       for {
-        rets: Seq[Boolean] <- Graph.writeAsyncWithWait(label.hbaseZkAddr, pendingEdges.map { edge =>
-          edge.buildPutsAll
-        })
-        ret <- if (rets.forall(identity)) Graph.deferredToFutureWithoutFallback(Graph.getClient(label.hbaseZkAddr).compareAndSet(newPut, expected)).map(_.booleanValue())
-        else Future.successful(false)
+        pendingEdgesLock: Seq[Boolean] <- Graph.writeAsyncWithWait(label.hbaseZkAddr, pendingEdges.map { edge => edge.buildPutsAll })
+        ret <-
+          if (pendingEdgesLock.forall(identity)) Graph.deferredToFutureWithoutFallback(client.compareAndSet(after, before)).map(_.booleanValue())
+          else Future.successful(false)
       } yield ret
     }
   }
@@ -571,16 +577,16 @@ case class Edge(srcVertex: Vertex,
     val client = Graph.getClient(label.hbaseZkAddr)
     if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
     else {
-      val newPut = edgeUpdate.newInvertedEdge.get.withPendingEdge(Option(this)).buildPutAsync()
-      val expected = snapshotEdgeOpt.map(old => old.edgesWithInvertedIndex.valueBytes).getOrElse(Array.empty[Byte])
-      val updateNewPut = edgeUpdate.newInvertedEdge.get.withNoPendingEdge().buildPutAsync()
+      val lock = edgeUpdate.newInvertedEdge.get.withPendingEdge(Option(this)).buildPutAsync()
+      val before = snapshotEdgeOpt.map(old => old.edgesWithInvertedIndex.valueBytes).getOrElse(Array.empty[Byte])
+      val after = edgeUpdate.newInvertedEdge.get.withNoPendingEdge().buildPutAsync()
 
       for {
-        locked <- Graph.deferredToFutureWithoutFallback(client.compareAndSet(newPut, expected))
+        locked <- Graph.deferredToFutureWithoutFallback(client.compareAndSet(lock, before))
         indexedRets <- if (!locked) Future.successful(Seq(false)) else Graph.writeAsyncWithWait(label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations))
-        committed <- if (indexedRets.forall(identity)) Graph.deferredToFutureWithoutFallback(client.compareAndSet(updateNewPut, newPut.value()))
+        releaseLock <- if (indexedRets.forall(identity)) Graph.deferredToFutureWithoutFallback(client.compareAndSet(after, lock.value()))
         else Future.successful[java.lang.Boolean](false)
-      } yield committed
+      } yield releaseLock
     }
   }
 
