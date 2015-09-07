@@ -1,7 +1,4 @@
-import java.text.{SimpleDateFormat, DateFormat}
-import java.util.Date
 
-import sbtassembly.Plugin.AssemblyKeys._
 
 name := """s2core"""
 
@@ -9,7 +6,9 @@ organization := Common.organization
 
 version := Common.version
 
-scalaVersion := Common.scalaVersion
+crossScalaVersions := Seq(Common.scalaVersion, Common.scalaVersion210)
+
+//scalaVersion := Common.scalaVersion
 
 scalacOptions ++= Seq("-deprecation")
 
@@ -24,11 +23,22 @@ libraryDependencies ++= Seq(
   "org.apache.hadoop" % "hadoop-common" % Common.hadoopVersion excludeAll ExclusionRule(organization = "org.slf4j"),
   "commons-pool" % "commons-pool" % "1.6",
   "org.scalatest" %% "scalatest" % "2.2.4" % "test",
-  "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.4",
-  "org.scalikejdbc" %% "scalikejdbc"        % "2.1.+",
+  "org.scalikejdbc" %% "scalikejdbc" % "2.1.+",
   "mysql" % "mysql-connector-java" % "5.1.28",
   "org.apache.kafka" % "kafka-clients" % "0.8.2.0" excludeAll(ExclusionRule(organization = "org.slf4j"), ExclusionRule(organization = "com.sun.jdmk"), ExclusionRule(organization = "com.sun.jmx"), ExclusionRule(organization = "javax.jms"))
 )
+
+libraryDependencies := {
+  CrossVersion.partialVersion(scalaVersion.value) match {
+    // if scala 2.11+ is used, add dependency on scala-xml module
+    case Some((2, scalaMajor)) if scalaMajor >= 11 =>
+      libraryDependencies.value ++ Seq(
+        "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.4"
+      )
+    case _ =>
+      libraryDependencies.value
+  }
+}
 
 parallelExecution in Test := false
 

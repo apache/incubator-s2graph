@@ -10,9 +10,11 @@ object Common {
   )
 
   lazy val scalaVersion = "2.11.7"
+  lazy val scalaVersion210 = "2.10.4"
   lazy val version = "0.0.9-SNAPSHOT"
   lazy val organization = "com.daumkakao.s2graph"
   lazy val sparkVersion = "1.4.1"
+  lazy val playVersion = "2.3.10"
 
   //  lazy val hbaseVersion = "1.0.1"
   lazy val hbaseVersion = "1.0.0-cdh5.4.2"

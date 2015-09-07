@@ -5,7 +5,7 @@ organization := Common.organization
 
 version := Common.version
 
-scalaVersion := Common.scalaVersion
+scalaVersion := Common.scalaVersion210
 
 scalacOptions ++= Seq("-deprecation", "-feature")
 
