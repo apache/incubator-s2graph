@@ -241,7 +241,7 @@ object PostProcess extends JSONParser {
         val propsMap = propsToJson(edge, queryResult.query, queryResult.queryParam)
         val targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
 
-        val kvMap = targetColumns.foldLeft(Map.empty[String, JsValue]) { (ls, column) =>
+        val kvMap = targetColumns.foldLeft(Map.empty[String, JsValue]) { (map, column) =>
           val jsValue = column match {
             case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (queryResult.timestamp - queryParam.timestamp))
             case "from" => from
@@ -254,7 +254,7 @@ object PostProcess extends JSONParser {
             case _ => JsNull
           }
 
-          if (jsValue == JsNull) ls else ls + (column -> jsValue)
+          if (jsValue == JsNull) map else map + (column -> jsValue)
         }
 
         Json.toJson(kvMap)
