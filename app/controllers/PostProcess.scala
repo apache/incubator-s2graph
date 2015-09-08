@@ -7,7 +7,7 @@ import com.daumkakao.s2graph.logger
 import play.api.libs.json._
 
 import scala.collection.mutable.ListBuffer
-
+import play.api.libs.json.Json
 /**
  * Created by jay on 14. 9. 1..
  */
@@ -98,7 +98,6 @@ object PostProcess extends JSONParser {
   def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]): JsValue = {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
     var withScore = true
-    import play.api.libs.json.Json
     val degreeJsons = ListBuffer[JsValue]()
     val degrees = ListBuffer[JsValue]()
     val edgeJsons = ListBuffer[JsValue]()
@@ -107,96 +106,65 @@ object PostProcess extends JSONParser {
       Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr())
     } else {
       val q = queryResultLs.head.query
-      if (q.groupByColumns.isEmpty) {
-        for {
-          queryResult <- queryResultLs
-          (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(edge.tgtVertex.innerId)
-        } {
-          withScore = queryResult.query.withScore
-          val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult)
-          val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
-          if (edge.propsWithTs.contains(LabelMeta.degreeSeq) && fromOpt.isDefined) {
-            //          degreeJsons += edgeJson
-            degrees += Json.obj(
-              "from" -> fromOpt.get,
-              "label" -> queryResult.queryParam.label.label,
-              "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
-              LabelMeta.degree.name ->
-                innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
-            )
-          } else {
-            for {
-              edgeJson <- edgeToJson(edge, score, queryResult)
-            } {
-              edgeJsons += edgeJson
-            }
-          }
-        }
 
-        //        val results =
-        //          degreeJsons ++ edgeJsons.toList
-        val results =
-          if (withScore) {
-            degreeJsons ++ edgeJsons.sortBy(js => ((js \ "score").asOpt[Double].getOrElse(0.0) * -1, (js \ "_timestamp").asOpt[Long].getOrElse(0L) * -1))
-          } else {
-            degreeJsons ++ edgeJsons.toList
-          }
-
-        logger.info(s"Result: ${results.size}")
-        Json.obj("size" -> results.size, "degrees" -> degrees, "results" -> results, "impressionId" -> q.impressionId())
-      } else {
-        for {
-          queryResult <- queryResultLs
-          (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(edge.tgtVertex.innerId)
-        } {
-          withScore = queryResult.query.withScore
-          val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult)
-          val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
-          if (edge.propsWithTs.contains(LabelMeta.degreeSeq) && fromOpt.isDefined) {
-            //          degreeJsons += edgeJson
-            degrees += Json.obj(
-              "from" -> fromOpt.get,
-              "label" -> queryResult.queryParam.label.label,
-              "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
-              LabelMeta.degree.name ->
-                innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
-            )
-          } else {
-            for {
-              edgeJson <- edgeToJson(edge, score, queryResult)
-            } {
-              edgeJsons += edgeJson
-            }
-          }
-        }
-
-        val results =
-          if (withScore) {
-            degreeJsons ++ edgeJsons.sortBy(js => ((js \ "score").asOpt[Double].getOrElse(0.0), (js \ "_timestamp").asOpt[Long].getOrElse(0L))).reverse
-          } else {
-            degreeJsons ++ edgeJsons.toList
-          }
-
-        val grouped = results.groupBy { jsVal =>
+      /** build result jsons */
+      for {
+        queryResult <- queryResultLs
+        (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(edge.tgtVertex.innerId)
+      } {
+        withScore = queryResult.query.withScore
+        val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult)
+        val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
+        if (edge.propsWithTs.contains(LabelMeta.degreeSeq) && fromOpt.isDefined) {
+          //          degreeJsons += edgeJson
+          degrees += Json.obj(
+            "from" -> fromOpt.get,
+            "label" -> queryResult.queryParam.label.label,
+            "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
+            LabelMeta.degree.name ->
+              innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
+          )
+        } else {
           for {
-            column <- q.groupByColumns
-            value <- (jsVal \ column).asOpt[JsValue]
-          } yield {
-            (column -> value)
+            edgeJson <- edgeToJson(edge, score, queryResult)
+          } {
+            edgeJsons += edgeJson
           }
         }
-        val groupedJsons = for {
-          (groupByKeyVals, jsVals) <- grouped
-        } yield {
-            val scoreSum = jsVals.map { js => (js \ "score").asOpt[Double].getOrElse(0.0) }.sum
-            Json.obj("groupBy" -> Json.toJson(groupByKeyVals.toMap),
-              "scoreSum" -> scoreSum,
-              "agg" -> jsVals)
-          }
-
-        val groupedSortedJsons = groupedJsons.toList.sortBy { case jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
-        Json.obj("size" -> groupedJsons.size, "results" -> Json.toJson(groupedSortedJsons), "impressionId" -> q.impressionId())
       }
+      val edges =
+        if (q.groupByColumns.isEmpty && withScore) {
+          degreeJsons ++ edgeJsons.sortBy(js => ((js \ "score").asOpt[Double].getOrElse(0.0) * -1, (js \ "_timestamp").asOpt[Long].getOrElse(0L) * -1))
+        } else {
+          degreeJsons ++ edgeJsons
+        }
+
+      logger.info(s"Result: ${edges.size}")
+      val resultJson =
+        if (q.groupByColumns.isEmpty) {
+          Json.obj("size" -> edges.size, "degrees" -> degrees, "results" -> edges, "impressionId" -> q.impressionId())
+        } else {
+          val grouped = edges.groupBy { jsVal =>
+            for {
+              column <- q.groupByColumns
+              value <- (jsVal \ column).asOpt[JsValue]
+            } yield {
+              (column -> value)
+            }
+          }
+          val groupedJsons = for {
+            (groupByKeyVals, jsVals) <- grouped
+          } yield {
+              val scoreSum = jsVals.map { js => (js \ "score").asOpt[Double].getOrElse(0.0) }.sum
+              Json.obj("groupBy" -> Json.toJson(groupByKeyVals.toMap),
+                "scoreSum" -> scoreSum,
+                "agg" -> jsVals)
+            }
+
+          val groupedSortedJsons = groupedJsons.toList.sortBy { case jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
+          Json.obj("size" -> groupedJsons.size, "results" -> Json.toJson(groupedSortedJsons), "impressionId" -> q.impressionId())
+        }
+      resultJson
     }
   }
 
