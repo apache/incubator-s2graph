@@ -729,7 +729,7 @@ object Graph {
             inverseEdgeDeletes <- Graph.writeAsync(hbaseZkAddr, Seq(snapshotEdgeDelete) :: indexedEdgesDeletes ++ indexedEdgesIncrements)
             if inverseEdgeDeletes.forall(identity)
             edgeDeletes <-
-              if (edge.ts < requestTs) Graph.writeAsync(hbaseZkAddr, copiedEdge.edgesWithIndex.map { e => e.buildDeleteRowAsync() })
+              if (edge.ts < requestTs) Graph.writeAsync(hbaseZkAddr, copiedEdge.edgesWithIndex.map { e => e.buildDeletesAsync() })
               else Future.successful(Seq(true))
           } yield {
             //            inverseEdgeDeletes.forall(identity)
