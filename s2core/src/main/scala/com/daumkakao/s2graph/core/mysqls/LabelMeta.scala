@@ -44,7 +44,7 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
     LabelMeta(Some(rs.int("id")), rs.int("label_id"), rs.string("name"), rs.byte("seq"), rs.string("default_value"), rs.string("data_type").toLowerCase())
   }
 
-  def isValidSeq(seq: Byte): Boolean = (seq >= 0 && seq <= countSeq) || seq == lastDeletedAt
+  def isValidSeq(seq: Byte): Boolean = seq >= 0 && seq <= countSeq
 
   def findById(id: Int)(implicit session: DBSession = AutoSession): LabelMeta = {
     val cacheKey = "id=" + id
