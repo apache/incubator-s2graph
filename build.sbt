@@ -2,7 +2,7 @@ name := "s2graph"
 
 lazy val commonSettings = Seq(
   organization := "com.daumkakao.s2graph",
-  version := "0.0.9-SNAPSHOT",
+  version := "0.10.0-SNAPSHOT",
   crossScalaVersions := Seq("2.11.7", "2.10.5"),
   resolvers ++= Seq(
     Resolver.mavenLocal,

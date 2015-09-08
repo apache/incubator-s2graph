@@ -93,6 +93,7 @@ object Graph {
   def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
     defaultConfigs.foreach { case (k, v) =>
       logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
+      println(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
     }
 
     this.config = config.withFallback(this.config)
