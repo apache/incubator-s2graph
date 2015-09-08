@@ -149,24 +149,16 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
         }
     } | ident ~ ("between" ~> anyStr <~ "and") ~ anyStr ^^ {
       case f ~ minV ~ maxV =>
-        metaProps.get(f) match {
-          case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
-          case Some(metaProp) =>
-            Between(metaProp.seq, toInnerVal(minV, metaProp.dataType, label.schemaVersion),
-              toInnerVal(maxV, metaProp.dataType, label.schemaVersion))
-        }
+        val metaProp = metaProps.getOrElse(f, throw new RuntimeException(s"where clause contains not existing property name: $f"))
+
+        Between(metaProp.seq, toInnerVal(minV, metaProp.dataType, label.schemaVersion), toInnerVal(maxV, metaProp.dataType, label.schemaVersion))
     } | ident ~ ("not in" | "in") ~ ("(" ~> rep(anyStr | ",") <~ ")") ^^ {
       case f ~ op ~ vals =>
-        metaProps.get(f) match {
-          case None => throw new RuntimeException(s"where clause contains not existing property name: $f")
-          case Some(metaProp) =>
-            val values = vals.filter(v => v != ",").map { v =>
-              toInnerVal(v, metaProp.dataType, label.schemaVersion)
-            }
+        val metaProp = metaProps.getOrElse(f, throw new RuntimeException(s"where clause contains not existing property name: $f"))
+        val values = vals.filter(v => v != ",").map { v => toInnerVal(v, metaProp.dataType, label.schemaVersion) }
 
-            if (op == "in") IN(metaProp.seq, values.toSet)
-            else Not(IN(metaProp.seq, values.toSet))
-        }
+        if (op == "in") IN(metaProp.seq, values.toSet)
+        else Not(IN(metaProp.seq, values.toSet))
       case _ => throw new RuntimeException(s"failed to parse where clause. ")
     }
 
