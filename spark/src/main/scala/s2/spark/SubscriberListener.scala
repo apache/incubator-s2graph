@@ -5,7 +5,7 @@ import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.scheduler.{StreamingListener, StreamingListenerReceiverError, StreamingListenerReceiverStarted, StreamingListenerReceiverStopped}
 
 /**
- * Created by alec.k on 15. 1. 8..
+ * Created by hsleep(honeysleep@gmail.com) on 15. 1. 8..
  */
 
 class SubscriberListener(ssc: StreamingContext) extends StreamingListener with Logging {

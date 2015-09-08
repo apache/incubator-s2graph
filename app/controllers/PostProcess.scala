@@ -4,7 +4,7 @@ import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types.{InnerVal, InnerValLike}
 import com.daumkakao.s2graph.logger
-import play.api.libs.json.{JsObject, JsValue, Json}
+import play.api.libs.json._
 
 import scala.collection.mutable.ListBuffer
 
@@ -17,6 +17,7 @@ object PostProcess extends JSONParser {
    */
   val SCORE_FIELD_NAME = "scoreSum"
   val timeoutResults = Json.obj("size" -> 0, "results" -> Json.arr(), "isTimeout" -> true)
+  val reservedColumns = Set("cacheRemain", "from", "to", "label", "direction", "_timestamp", "timestamp", "score", "props")
 
   def groupEdgeResult(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]) = {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
@@ -27,10 +28,10 @@ object PostProcess extends JSONParser {
     } yield {
         (queryResult.queryParam, edge, score)
       }).groupBy {
-    case (queryParam, edge, rank) if edge.labelWithDir.dir == GraphUtil.directions("in") =>
-      (queryParam.label.srcColumn, queryParam.label.label, queryParam.label.tgtColumn, edge.tgtVertex.innerId, edge.propsWithTs.contains(LabelMeta.degreeSeq))
-    case (queryParam, edge, rank) =>
-      (queryParam.label.tgtColumn, queryParam.label.label, queryParam.label.srcColumn, edge.tgtVertex.innerId, edge.propsWithTs.contains(LabelMeta.degreeSeq))
+      case (queryParam, edge, rank) if edge.labelWithDir.dir == GraphUtil.directions("in") =>
+        (queryParam.label.srcColumn, queryParam.label.label, queryParam.label.tgtColumn, edge.tgtVertex.innerId, edge.propsWithTs.contains(LabelMeta.degreeSeq))
+      case (queryParam, edge, rank) =>
+        (queryParam.label.tgtColumn, queryParam.label.label, queryParam.label.srcColumn, edge.tgtVertex.innerId, edge.propsWithTs.contains(LabelMeta.degreeSeq))
     }
     for {
       ((tgtColumn, labelName, srcColumn, target, isDegreeEdge), edgesAndRanks) <- groupedEdgesWithRank
@@ -204,26 +205,16 @@ object PostProcess extends JSONParser {
     Json.toJson(vertices.flatMap { v => vertexToJson(v) })
   }
 
-
-  def propsToJson(edge: Edge, q: Query, queryParam: QueryParam): (JsObject, Boolean) = {
-    var obj = Json.obj()
-    var isEmpty = true
-    for {
-//    val ret = for {
+  def propsToJson(edge: Edge, q: Query, queryParam: QueryParam): Map[String, JsValue] = {
+    val kvs = for {
       (seq, labelMeta) <- queryParam.label.metaPropsMap if LabelMeta.isValidSeq(seq)
       innerVal = edge.propsWithTs.get(seq).map(_.innerVal).getOrElse {
         toInnerVal(labelMeta.defaultValue, labelMeta.dataType, queryParam.label.schemaVersion)
       }
-      jsValue <- innerValToJsValue(innerVal, labelMeta.dataType)
-      if q.selectColumnsSet.isEmpty || q.selectColumnsSet.contains(labelMeta.name)
-    } yield {
-      isEmpty = false
-        obj += (labelMeta.name -> jsValue)
-//        (metaProp.name, jsValue)
-      }
-//    logger.debug(s"$ret")
-//    ret
-    (obj, isEmpty)
+      jsValue <- innerValToJsValue(innerVal, labelMeta.dataType) if q.selectColumnsSet.isEmpty || q.selectColumnsSet.contains(labelMeta.name)
+    } yield labelMeta.name -> jsValue
+
+    kvs
   }
 
   def srcTgtColumn(edge: Edge, queryResult: QueryResult) = {
@@ -241,51 +232,33 @@ object PostProcess extends JSONParser {
 
   def edgeToJson(edge: Edge, score: Double, queryResult: QueryResult): Option[JsValue] = {
     val queryParam = queryResult.queryParam
-    //
-    //    logger.debug(s"edgeProps: ${edge.props} => ${props}")
-    //    val shouldBeReverted = q.labelSrcTgtInvertedMap.get(edge.labelWithDir.labelId).getOrElse(false)
-    //FIXME
+
     val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult)
     val json = for {
       from <- innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
       to <- innerValToJsValue(edge.tgtVertex.id.innerId, tgtColumn.columnType)
     } yield {
         val q = queryResult.query
-        val (propsMap, isEmpty) = propsToJson(edge, queryResult.query, queryResult.queryParam)
-        val results = if (isEmpty) {
-          Json.obj(
-            "cacheRemain" -> (queryParam.cacheTTLInMillis - (queryResult.timestamp - queryParam.timestamp)),
-            "from" -> from,
-            "to" -> to,
-            "label" -> queryParam.label.label,
-            "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
-            "_timestamp" -> edge.ts,
-            "timestamp" -> edge.ts,
-            "score" -> score
-          )
-        } else {
-          Json.obj(
-            "cacheRemain" -> (queryParam.cacheTTLInMillis - (queryResult.timestamp - queryParam.timestamp)),
-            "from" -> from,
-            "to" -> to,
-            "label" -> queryParam.label.label,
-            "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
-            "_timestamp" -> edge.ts,
-            "timestamp" -> edge.ts,
-            "score" -> score,
-            "props" -> propsMap
-          )
+        val propsMap = propsToJson(edge, queryResult.query, queryResult.queryParam)
+        val targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
+
+        val kvMap = targetColumns.foldLeft(Map.empty[String, JsValue]) { (map, column) =>
+          val jsValue = column match {
+            case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (queryResult.timestamp - queryParam.timestamp))
+            case "from" => from
+            case "to" => to
+            case "label" => JsString(queryParam.label.label)
+            case "direction" => JsString(GraphUtil.fromDirection(edge.labelWithDir.dir))
+            case "_timestamp" | "timestamp" => JsNumber(edge.ts)
+            case "score" => JsNumber(score)
+            case "props" if !propsMap.isEmpty => Json.toJson(propsMap)
+            case _ => JsNull
+          }
+
+          if (jsValue == JsNull) map else map + (column -> jsValue)
         }
 
-        val filterColumns = q.selectColumnsSet
-        var resultJson = Json.obj()
-        for {
-          (k, v) <- results.fields if (k == "props" || q.selectColumnsSet.isEmpty || filterColumns.contains(k))
-        } {
-          resultJson += (k -> v)
-        }
-        resultJson
-
+        Json.toJson(kvMap)
       }
 
     json
@@ -293,8 +266,8 @@ object PostProcess extends JSONParser {
 
   def vertexToJson(vertex: Vertex): Option[JsObject] = {
     val serviceColumn = ServiceColumn.findById(vertex.id.colId)
-    for {
 
+    for {
       id <- innerValToJsValue(vertex.innerId, serviceColumn.columnType)
     } yield {
       Json.obj("serviceName" -> serviceColumn.service.serviceName,
@@ -341,7 +314,7 @@ object PostProcess extends JSONParser {
     val groupedEdgesWithRank = (for {
       queryResult <- queryResultLs
       (edge, score) <- queryResult.edgeWithScoreLs
-//      if edge.propsWithTs.contains(LabelMeta.degreeSeq)
+    //      if edge.propsWithTs.contains(LabelMeta.degreeSeq)
     } yield {
         (edge, score)
       }).groupBy { case (edge, score) =>
@@ -365,7 +338,6 @@ object PostProcess extends JSONParser {
     }
 
   }
-
 
 
 }
