@@ -263,16 +263,16 @@ object Graph {
     }
   }
 
-  private def fetchEdgesLs(currentStepRequestLss: Seq[(Iterable[(GetRequest, QueryParam)], Double)], q: Query, stepIdx: Int): Seq[Deferred[QueryResult]] = {
+  private def fetchEdgesLs(prevStepResultsLs: Seq[QueryResult], currentStepRequestLss: Seq[(Iterable[(GetRequest, QueryParam)], Double)], q: Query, stepIdx: Int): Seq[Deferred[QueryResult]] = {
     for {
       (prevStepTgtVertexResultLs, prevScore) <- currentStepRequestLss
       (getRequest, queryParam) <- prevStepTgtVertexResultLs
     } yield {
-      fetchEdgesWithCache(getRequest, q, stepIdx, queryParam, prevScore)
+      fetchEdgesWithCache(prevStepResultsLs, getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
 
-  private def fetchEdgesWithCache(getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
+  private def fetchEdgesWithCache(prevStepResultsLs: Seq[QueryResult], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
     val cacheKey = MurmurHash3.stringHash(getRequest.toString)
     def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
       def call(arg: QueryResult): QueryResult = {
@@ -293,26 +293,26 @@ object Graph {
         else {
           // cache.asMap().remove(cacheKey)
           //          logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
-          fetchEdges(getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+          fetchEdges(prevStepResultsLs, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
         }
       } else {
         //        logger.debug(s"cacheMiss: $cacheKey")
-        fetchEdges(getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+        fetchEdges(prevStepResultsLs, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
       }
     } else {
       //      logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
-      fetchEdges(getRequest, q, stepIdx, queryParam, prevScore)
+      fetchEdges(prevStepResultsLs, getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
 
   /** actual request to HBase */
-  private def fetchEdges(getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
+  private def fetchEdges(prevStepResultsLs: Seq[QueryResult], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
     //    if (!this.shouldRunFetch) Deferred.fromResult(QueryResult(q, stepIdx, queryParam))
     //    else {
     try {
       val client = getClient(queryParam.label.hbaseZkAddr)
       deferredCallbackWithFallback(client.get(getRequest))({ kvs =>
-        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isInnerCall = false)
+        val edgeWithScores = Edge.toEdges(prevStepResultsLs, kvs, queryParam, prevScore, isInnerCall = false)
         QueryResult(q, stepIdx, queryParam, new ArrayList(edgeWithScores))
       }, QueryResult(q, stepIdx, queryParam))
     } catch {
@@ -374,7 +374,7 @@ object Graph {
       getsWithQueryParams.map { case (get, queryParam) => queryParam }
     }
     val fallback = new util.ArrayList(queryParams.map(param => QueryResult(q, stepIdx, param)))
-    val deffered = fetchEdgesLs(currentStepRequestLss, q, stepIdx)
+    val deffered = fetchEdgesLs(queryResultsLs, currentStepRequestLss, q, stepIdx)
     val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deffered)
 
     filterEdges(defferedToFuture(grouped)(fallback), q, stepIdx, alreadyVisited)
@@ -402,7 +402,7 @@ object Graph {
     val q = Query.toQuery(Seq(srcVertex), queryParam)
 
     defferedToFuture(getClient(queryParam.label.hbaseZkAddr).get(getRequest))(emptyKVs).map { kvs =>
-      val edgeWithScoreLs = Edge.toEdges(kvs, queryParam, prevScore = 1.0, isInnerCall = isInnerCall)
+      val edgeWithScoreLs = Edge.toEdges(prevStepResultsLs = Nil, kvs, queryParam, prevScore = 1.0, isInnerCall = isInnerCall)
       QueryResult(query = q, stepIdx = 0, queryParam = queryParam, edgeWithScoreLs = edgeWithScoreLs)
     }
   }
