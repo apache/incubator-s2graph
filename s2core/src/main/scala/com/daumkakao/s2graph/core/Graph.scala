@@ -677,7 +677,7 @@ object Graph {
   /** not care about partial failure for now */
   def deleteVerticesAllAsync(srcVertices: List[Vertex], labels: Seq[Label], dir: Int, ts: Option[Long] = None): Future[Boolean] = {
     implicit val ex = Graph.executionContext
-
+    val requestTs = ts.getOrElse(System.currentTimeMillis())
     val queryParams = for {
       label <- labels
     } yield {
@@ -694,10 +694,9 @@ object Graph {
         queryResult <- queryResultLs
         (edge, score) <- queryResult.edgeWithScoreLs
         duplicateEdge = edge.duplicateEdge
-        currentTs = ts.getOrElse(System.currentTimeMillis())
         //        version = edge.version + Edge.incrementVersion // this lead to forcing delete on fetched edges
-        version = currentTs
-        copiedEdge = edge.copy(ts = currentTs, version = version)
+        version = requestTs
+        copiedEdge = edge.copy(ts = requestTs, version = version)
         hbaseZkAddr = queryResult.queryParam.label.hbaseZkAddr
       } yield {
           logger.debug(s"FetchedEdge: $edge")
@@ -728,7 +727,9 @@ object Graph {
           for {
             inverseEdgeDeletes <- Graph.writeAsync(hbaseZkAddr, Seq(snapshotEdgeDelete) :: indexedEdgesDeletes ++ indexedEdgesIncrements)
             if inverseEdgeDeletes.forall(identity)
-            edgeDeletes <- Graph.writeAsync(hbaseZkAddr, copiedEdge.edgesWithIndex.map { e => e.buildDeleteRowAsync() })
+            edgeDeletes <-
+              if (edge.ts < requestTs) Graph.writeAsync(hbaseZkAddr, copiedEdge.edgesWithIndex.map { e => e.buildDeleteRowAsync() })
+              else Future.successful(Seq(true))
           } yield {
             //            inverseEdgeDeletes.forall(identity)
             edgeDeletes.forall(identity)
