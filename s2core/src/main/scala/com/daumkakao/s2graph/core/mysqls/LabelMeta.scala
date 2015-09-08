@@ -24,6 +24,8 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
   val emptyValue = Byte.MaxValue
 
   /** reserved sequences */
+//  val deleted = LabelMeta(id = Some(lastDeletedAt), labelId = lastDeletedAt, name = "lastDeletedAt",
+//    seq = lastDeletedAt, defaultValue = "", dataType = "long")
   val from = LabelMeta(id = Some(fromSeq), labelId = fromSeq, name = "_from",
     seq = fromSeq, defaultValue = fromSeq.toString, dataType = "long")
   val to = LabelMeta(id = Some(toSeq), labelId = toSeq, name = "_to",

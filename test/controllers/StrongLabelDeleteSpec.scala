@@ -63,35 +63,29 @@ class StrongLabelDeleteSpec extends SpecCommon {
       }
     }
 
-//    "test strong consistency delete" in {
-//      running(FakeApplication()) {
-//        var result = getEdges(query(0))
-//        println(result)
-//
-//        /** expect 4 edges */
-//        (result \ "results").as[List[JsValue]].size must equalTo(2)
-//        val edges = (result \ "results").as[List[JsObject]]
-//        EdgeController.tryMutates(Json.toJson(edges), "delete")
-//
-//        Thread.sleep(asyncFlushInterval)
-//
-//        /** expect noting */
-//        result = getEdges(query(0))
-//        println(result)
-//        (result \ "results").as[List[JsValue]].size must equalTo(0)
-//
-//        /** insert should be ignored */
-//        EdgeController.tryMutates(Json.toJson(edges), "insert")
-//
-//        Thread.sleep(asyncFlushInterval)
-//
-//        result = getEdges(query(0))
-//        println(result)
-//        (result \ "results").as[List[JsValue]].size must equalTo(0)
-//
-//        true
-//      }
-//    }
+    "test strong consistency duration. insert -> delete -> insert" in {
+      running(FakeApplication()) {
+        val ts0 = 1
+        val ts1 = 2
+        val ts2 = 3
+
+        val edges = Seq(
+          Seq(5, "insert", "edge", "-10", "-20", testLabelName2).mkString("\t"),
+          Seq(10, "delete", "edge", "-10", "-20", testLabelName2).mkString("\t"),
+          Seq(20, "insert", "edge", "-10", "-20", testLabelName2).mkString("\t")
+        ).mkString("\n")
+
+        val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(edges)).get
+        val jsRslt = contentAsJson(ret)
+
+        Thread.sleep(asyncFlushInterval)
+        var result = getEdges(query(-10))
+
+        println(result)
+
+        true
+      }
+    }
 
     "test strong consistency deleteAll" in {
       running(FakeApplication()) {

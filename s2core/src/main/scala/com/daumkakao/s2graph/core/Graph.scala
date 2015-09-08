@@ -311,7 +311,7 @@ object Graph {
     try {
       val client = getClient(queryParam.label.hbaseZkAddr)
       deferredCallbackWithFallback(client.get(getRequest))({ kvs =>
-        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore)
+        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isInnerCall = false)
         QueryResult(q, stepIdx, queryParam, new ArrayList(edgeWithScores))
       }, QueryResult(q, stepIdx, queryParam))
     } catch {
@@ -391,7 +391,7 @@ object Graph {
     }
   }
 
-  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam): Future[QueryResult] = {
+  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean): Future[QueryResult] = {
     implicit val ex = this.executionContext
 
 
@@ -401,17 +401,17 @@ object Graph {
     val q = Query.toQuery(Seq(srcVertex), queryParam)
 
     defferedToFuture(getClient(queryParam.label.hbaseZkAddr).get(getRequest))(emptyKVs).map { kvs =>
-      val edgeWithScoreLs = Edge.toEdges(kvs, queryParam, prevScore = 1.0)
+      val edgeWithScoreLs = Edge.toEdges(kvs, queryParam, prevScore = 1.0, isInnerCall = isInnerCall)
       QueryResult(query = q, stepIdx = 0, queryParam = queryParam, edgeWithScoreLs = edgeWithScoreLs)
     }
   }
 
-  def checkEdges(quads: Seq[(Vertex, Vertex, Label, Int)]): Future[Seq[QueryResult]] = {
+  def checkEdges(quads: Seq[(Vertex, Vertex, Label, Int)], isInnerCall: Boolean): Future[Seq[QueryResult]] = {
     implicit val ex = this.executionContext
     val futures = for {
       (srcVertex, tgtVertex, label, dir) <- quads
       queryParam = QueryParam(LabelWithDirection(label.id.get, dir))
-    } yield getEdge(srcVertex, tgtVertex, queryParam)
+    } yield getEdge(srcVertex, tgtVertex, queryParam, isInnerCall)
 
     Future.sequence(futures)
   }
