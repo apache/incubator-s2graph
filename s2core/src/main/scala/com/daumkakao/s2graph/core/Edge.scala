@@ -534,7 +534,7 @@ case class Edge(srcVertex: Vertex,
   //  }
   def fetchInvertedAsync(): Future[(QueryParam, Option[Edge])] = {
     val queryParam = QueryParam(labelWithDir)
-    Graph.getEdge(srcVertex, tgtVertex, queryParam).map { case queryResult =>
+    Graph.getEdge(srcVertex, tgtVertex, queryParam, isInnerCall = true).map { case queryResult =>
       (queryParam, queryResult.edgeWithScoreLs.headOption.map { edgeWithScore => edgeWithScore._1 })
     }
   }
@@ -605,27 +605,28 @@ case class Edge(srcVertex: Vertex,
         invertedEdgeOpt = edges.headOption
         edgeUpdate = f(invertedEdgeOpt, this) if edgeUpdate.newInvertedEdge.isDefined
       } {
-        Graph.writeAsync(queryParam.label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations ++ edgeUpdate.invertedEdgeMutations))
-        //        for {
-        //          pendingResult <- commitPending(invertedEdgeOpt)
-        //        } {
-        //          if (!pendingResult) {
-        //            Thread.sleep(waitTime)
-        //            mutate(f, tryNum + 1)
-        //          } else {
-        //            for {
-        //              updateResult <- commitUpdate(invertedEdgeOpt, edgeUpdate)
-        //            } {
-        //              if (!updateResult) {
-        //                Thread.sleep(waitTime)
-        //                logger.info(s"mutate failed. retry $this")
-        //                mutate(f, tryNum + 1)
-        //              } else {
-        //                logger.debug(s"mutate success: ${edgeUpdate.toLogString()}\n$this")
-        //              }
-        //            }
-        //          }
-        //        }
+//        break basic crud spec
+//        Graph.writeAsync(queryParam.label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations ++ edgeUpdate.invertedEdgeMutations))
+        for {
+          pendingResult <- commitPending(invertedEdgeOpt)
+        } {
+          if (!pendingResult) {
+            Thread.sleep(waitTime)
+            mutate(f, tryNum + 1)
+          } else {
+            for {
+              updateResult <- commitUpdate(invertedEdgeOpt, edgeUpdate)
+            } {
+              if (!updateResult) {
+                Thread.sleep(waitTime)
+                logger.info(s"mutate failed. retry $this")
+                mutate(f, tryNum + 1)
+              } else {
+                logger.debug(s"mutate success: ${edgeUpdate.toLogString()}\n$this")
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -1021,7 +1022,7 @@ object Edge extends JSONParser {
   //    ret
   //  }
 
-  def toEdges(kvs: Seq[KeyValue], queryParam: QueryParam, prevScore: Double = 1.0): Seq[(Edge, Double)] = {
+  def toEdges(kvs: Seq[KeyValue], queryParam: QueryParam, prevScore: Double = 1.0, isInnerCall: Boolean): Seq[(Edge, Double)] = {
     if (kvs.isEmpty) Seq.empty
     else {
       val first = kvs.head
@@ -1029,14 +1030,14 @@ object Edge extends JSONParser {
       val edgeRowKeyLike = Option(EdgeRowKey.fromBytes(firstKeyBytes, 0, firstKeyBytes.length, queryParam.label.schemaVersion)._1)
       for {
         kv <- kvs
-        edge <- if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, edgeRowKeyLike) else toEdge(kv, queryParam, edgeRowKeyLike)
+        edge <- if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, edgeRowKeyLike, isInnerCall) else toEdge(kv, queryParam, edgeRowKeyLike)
       } yield {
         (edge, edge.rank(queryParam.rank) * prevScore)
       }
     }
   }
 
-  def toSnapshotEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None): Option[Edge] = {
+  def toSnapshotEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None, isInnerCall: Boolean): Option[Edge] = {
     val version = kv.timestamp()
     val keyBytes = kv.key()
     val rowKey = edgeRowKeyLike.getOrElse {
@@ -1074,17 +1075,30 @@ object Edge extends JSONParser {
       (qualifier.tgtVertexId, kvsMap, value.op, ts, pendingEdgeOpt)
     }
 
+    if (isInnerCall) {
+      val edge =
+        Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt)
 
-    val edge =
-      Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt)
-
-    val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
-      Some(edge)
+      val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
+        Some(edge)
+      } else {
+        None
+      }
+      ret
     } else {
-      None
-    }
-    ret
+      if (allPropsDeleted(props)) None
+      else {
+        val edge =
+          Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt)
 
+        val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
+          Some(edge)
+        } else {
+          None
+        }
+        ret
+      }
+    }
   }
 
   def toEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None): Option[Edge] = {

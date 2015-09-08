@@ -111,7 +111,6 @@ object PostProcess extends JSONParser {
         for {
           queryResult <- queryResultLs
           (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(edge.tgtVertex.innerId)
-          if !Edge.allPropsDeleted(edge.propsWithTs)
         } {
           withScore = queryResult.query.withScore
           val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult)

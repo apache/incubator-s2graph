@@ -206,7 +206,7 @@ object QueryController extends Controller with RequestParser {
           (src, tgt, label, dir.toInt)
         }
 
-      Graph.checkEdges(quads).map { case queryResultLs =>
+      Graph.checkEdges(quads, isInnerCall = false).map { case queryResultLs =>
         val edgeJsons = for {
           queryResult <- queryResultLs
           (edge, score) <- queryResult.edgeWithScoreLs
