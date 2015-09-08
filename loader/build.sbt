@@ -10,7 +10,8 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-streaming-kafka" % Common.sparkVersion,
   "org.apache.httpcomponents" % "fluent-hc" % "4.2.5",
   "org.specs2" %% "specs2-core" % "2.4.11" % "test",
-  "org.scalatest" %% "scalatest" % "2.2.1" % "test"
+  "org.scalatest" %% "scalatest" % "2.2.1" % "test",
+  "org.apache.hbase" % "hbase-hadoop-compat" % "0.98.14-hadoop2"
 )
 
 assemblySettings
