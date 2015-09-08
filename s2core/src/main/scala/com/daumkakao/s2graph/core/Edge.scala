@@ -566,8 +566,8 @@ case class Edge(srcVertex: Vertex,
       for {
         pendingEdgesLock: Seq[Boolean] <- Graph.writeAsyncWithWait(label.hbaseZkAddr, pendingEdges.map { edge => edge.buildPutsAll })
         ret <-
-          if (pendingEdgesLock.forall(identity)) Graph.deferredToFutureWithoutFallback(client.compareAndSet(after, before)).map(_.booleanValue())
-          else Future.successful(false)
+        if (pendingEdgesLock.forall(identity)) Graph.deferredToFutureWithoutFallback(client.compareAndSet(after, before)).map(_.booleanValue())
+        else Future.successful(false)
       } yield ret
     }
   }
@@ -606,26 +606,26 @@ case class Edge(srcVertex: Vertex,
         edgeUpdate = f(invertedEdgeOpt, this) if edgeUpdate.newInvertedEdge.isDefined
       } {
         Graph.writeAsync(queryParam.label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations ++ edgeUpdate.invertedEdgeMutations))
-//        for {
-//          pendingResult <- commitPending(invertedEdgeOpt)
-//        } {
-//          if (!pendingResult) {
-//            Thread.sleep(waitTime)
-//            mutate(f, tryNum + 1)
-//          } else {
-//            for {
-//              updateResult <- commitUpdate(invertedEdgeOpt, edgeUpdate)
-//            } {
-//              if (!updateResult) {
-//                Thread.sleep(waitTime)
-//                logger.info(s"mutate failed. retry $this")
-//                mutate(f, tryNum + 1)
-//              } else {
-//                logger.debug(s"mutate success: ${edgeUpdate.toLogString()}\n$this")
-//              }
-//            }
-//          }
-//        }
+        //        for {
+        //          pendingResult <- commitPending(invertedEdgeOpt)
+        //        } {
+        //          if (!pendingResult) {
+        //            Thread.sleep(waitTime)
+        //            mutate(f, tryNum + 1)
+        //          } else {
+        //            for {
+        //              updateResult <- commitUpdate(invertedEdgeOpt, edgeUpdate)
+        //            } {
+        //              if (!updateResult) {
+        //                Thread.sleep(waitTime)
+        //                logger.info(s"mutate failed. retry $this")
+        //                mutate(f, tryNum + 1)
+        //              } else {
+        //                logger.debug(s"mutate success: ${edgeUpdate.toLogString()}\n$this")
+        //              }
+        //            }
+        //          }
+        //        }
       }
     }
   }
@@ -1074,18 +1074,17 @@ object Edge extends JSONParser {
       (qualifier.tgtVertexId, kvsMap, value.op, ts, pendingEdgeOpt)
     }
 
-    if (pendingEdgeOpt.isEmpty && allPropsDeleted(props)) None
-    else {
-      val edge =
-        Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt)
 
-      val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
-        Some(edge)
-      } else {
-        None
-      }
-      ret
+    val edge =
+      Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt)
+
+    val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
+      Some(edge)
+    } else {
+      None
     }
+    ret
+
   }
 
   def toEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None): Option[Edge] = {
