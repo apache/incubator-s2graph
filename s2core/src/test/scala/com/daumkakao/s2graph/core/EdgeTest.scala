@@ -2,10 +2,8 @@ package com.daumkakao.s2graph.core
 
 import com.daumkakao.s2graph.core.Edge.PropsPairWithTs
 import com.daumkakao.s2graph.core.types._
-import org.hbase.async.{AtomicIncrementRequest, PutRequest}
-import org.scalatest.{BeforeAndAfter, Matchers, FunSuite}
-
-import scala.collection.mutable.ListBuffer
+import org.hbase.async.PutRequest
+import org.scalatest.{FunSuite, Matchers}
 
 /**
  * Created by shon on 5/29/15.
@@ -139,7 +137,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
             for {
               kv <- putToKeyValues(put)
             } yield {
-              val decoded = Edge.toSnapshotEdge(kv, queryParam)
+              val decoded = Edge.toSnapshotEdge(kv, queryParam, None, isInnerCall = false)
               val comp = decoded.isDefined && decoded.get == edge
               println(s"${decoded.get}")
               println(s"$edge")
@@ -330,7 +328,6 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
 
   }
   test("edge buildIncrementBulk") {
-    import scala.collection.JavaConversions._
 
     /**
      * 172567371	List(97, 74, 2, 117, -74, -44, -76, 0, 0, 4, 8, 2)
