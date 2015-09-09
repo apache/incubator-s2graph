@@ -238,7 +238,7 @@ object Graph {
     }
   }
 
- def getEdgesAsync(q: Query): Future[Seq[QueryResult]] = {
+  def getEdgesAsync(q: Query): Future[Seq[QueryResult]] = {
     implicit val ex = this.executionContext
 
     // not sure this is right. make sure refactor this after.
@@ -263,7 +263,7 @@ object Graph {
     }
   }
 
-  private def fetchEdgesLs(prevStepTgtVertexIdEdges: Map[VertexId, Edge],
+  private def fetchEdgesLs(prevStepTgtVertexIdEdges: Map[VertexId, Seq[Edge]],
                            currentStepRequestLss: Seq[(Iterable[(VertexId, GetRequest, QueryParam)], Double)],
                            q: Query, stepIdx: Int,
                            shouldPropagate: Boolean): Seq[Deferred[QueryResult]] = {
@@ -271,17 +271,24 @@ object Graph {
       (prevStepTgtVertexResultLs, prevScore) <- currentStepRequestLss
       (startVertexId, getRequest, queryParam) <- prevStepTgtVertexResultLs
     } yield {
-      val propagateVertexIdOpt = if (shouldPropagate) {
-        Option(startVertexId)
-      } else
-        prevStepTgtVertexIdEdges.get(startVertexId).flatMap { edge =>
-          edge.ancesterVertexId
+      val ancesterVertexIds =
+        if (shouldPropagate) {
+          Seq(startVertexId)
+        } else {
+          prevStepTgtVertexIdEdges.get(startVertexId) match {
+            case None =>
+              logger.error(s"this should never happend.")
+              Nil
+            case Some(ancestorEdges) =>
+              ancestorEdges.flatMap(_.ancesterVertexIds)
+          }
         }
-      fetchEdgesWithCache(propagateVertexIdOpt, getRequest, q, stepIdx, queryParam, prevScore)
+
+      fetchEdgesWithCache(ancesterVertexIds, getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
 
-  private def fetchEdgesWithCache(startVertexIdOpt: Option[VertexId], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
+  private def fetchEdgesWithCache(ancesterVertexIds: Seq[VertexId], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
     val cacheKey = MurmurHash3.stringHash(getRequest.toString)
     def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
       def call(arg: QueryResult): QueryResult = {
@@ -302,26 +309,26 @@ object Graph {
         else {
           // cache.asMap().remove(cacheKey)
           //          logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
-          fetchEdges(startVertexIdOpt, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+          fetchEdges(ancesterVertexIds, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
         }
       } else {
         //        logger.debug(s"cacheMiss: $cacheKey")
-        fetchEdges(startVertexIdOpt, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+        fetchEdges(ancesterVertexIds, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
       }
     } else {
       //      logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
-      fetchEdges(startVertexIdOpt, getRequest, q, stepIdx, queryParam, prevScore)
+      fetchEdges(ancesterVertexIds, getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
 
   /** actual request to HBase */
-  private def fetchEdges(propagateVertexId: Option[VertexId], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
+  private def fetchEdges(ancesterVertexIds: Seq[VertexId], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
 
     try {
       val step = q.steps(stepIdx)
       val client = getClient(queryParam.label.hbaseZkAddr)
       deferredCallbackWithFallback(client.get(getRequest))({ kvs =>
-        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isInnerCall = false, propagateVertexId)
+        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isInnerCall = false, ancesterVertexIds)
         QueryResult(q, stepIdx, queryParam, new ArrayList(edgeWithScores))
       }, QueryResult(q, stepIdx, queryParam))
     } catch {
@@ -359,7 +366,7 @@ object Graph {
     //TODO:
     val groupedBy = queryResultsLs.flatMap { queryResult =>
       queryResult.edgeWithScoreLs.map { case (edge, score) =>
-        (edge.tgtVertex -> (edge, score))
+        (edge.tgtVertex ->(edge, score))
       }
     }.groupBy { case (vertex, (edge, score)) =>
       vertex
@@ -374,7 +381,7 @@ object Graph {
 
     val prevStepTgtVertexIdEdges = for {
       (vertex, edgesWithScore) <- groupedBy
-    } yield (vertex.id -> edgesWithScore.head._2._1)
+    } yield (vertex.id -> edgesWithScore.map(_._2._1))
     //    logger.debug(s"groupedByFiltered: $groupedByFiltered")
 
     val nextStepSrcVertices = if (prevStepLimit >= 0) {
@@ -417,7 +424,7 @@ object Graph {
     val q = Query.toQuery(Seq(srcVertex), queryParam)
 
     defferedToFuture(getClient(queryParam.label.hbaseZkAddr).get(getRequest))(emptyKVs).map { kvs =>
-      val edgeWithScoreLs = Edge.toEdges(kvs, queryParam, prevScore = 1.0, isInnerCall = isInnerCall, None)
+      val edgeWithScoreLs = Edge.toEdges(kvs, queryParam, prevScore = 1.0, isInnerCall = isInnerCall, Nil)
       QueryResult(query = q, stepIdx = 0, queryParam = queryParam, edgeWithScoreLs = edgeWithScoreLs)
     }
   }
@@ -744,8 +751,8 @@ object Graph {
             inverseEdgeDeletes <- Graph.writeAsync(hbaseZkAddr, Seq(snapshotEdgeDelete) :: indexedEdgesDeletes ++ indexedEdgesIncrements)
             if inverseEdgeDeletes.forall(identity)
             edgeDeletes <-
-              if (edge.ts < requestTs) Graph.writeAsync(hbaseZkAddr, copiedEdge.edgesWithIndex.map { e => e.buildDeletesAsync() })
-              else Future.successful(Seq(true))
+            if (edge.ts < requestTs) Graph.writeAsync(hbaseZkAddr, copiedEdge.edgesWithIndex.map { e => e.buildDeletesAsync() })
+            else Future.successful(Seq(true))
           } yield {
             //            inverseEdgeDeletes.forall(identity)
             edgeDeletes.forall(identity)
