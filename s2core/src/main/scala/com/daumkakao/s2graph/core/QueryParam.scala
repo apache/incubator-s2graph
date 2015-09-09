@@ -159,7 +159,8 @@ case class Step(queryParams: List[QueryParam],
                 labelWeights: Map[Int, Double] = Map.empty,
                 //                scoreThreshold: Double = 0.0,
                 nextStepScoreThreshold: Double = 0.0,
-                nextStepLimit: Int = -1) {
+                nextStepLimit: Int = -1,
+                shouldPropagate: Boolean = false ) {
 
   lazy val excludes = queryParams.filter(_.exclude)
   lazy val includes = queryParams.filterNot(_.exclude)
