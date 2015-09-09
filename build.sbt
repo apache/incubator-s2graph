@@ -9,7 +9,8 @@ lazy val commonSettings = Seq(
     "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
     "Cloudera" at "https://repository.cloudera.com/artifactory/cloudera-repos",
     "Twitter Maven" at "http://maven.twttr.com",
-    "sonatype-snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
+    "sonatype-snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
+    "Scalaz Bintray Repo" at "http://dl.bintray.com/scalaz/releases"
   )
 )
 
