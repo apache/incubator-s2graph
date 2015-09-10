@@ -47,10 +47,15 @@ object ApplicationController extends Controller {
 
   def toLogMessage[A](request: Request[A], result: Result)(startedAt: Long): String = {
     val duration = System.currentTimeMillis() - startedAt
+    val isQueryRequest = result.header.headers.contains("result_size")
     val resultSize = result.header.headers.getOrElse("result_size", "0")
 
     try {
-      s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${request.body}"
+      if (isQueryRequest) {
+        s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${request.body}"
+      } else {
+        s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize}"
+      }
     } finally {
       /* pass */
     }
