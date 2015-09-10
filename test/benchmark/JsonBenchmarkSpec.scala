@@ -21,14 +21,14 @@ class JsonBenchmarkSpec extends PlaySpecification {
     "json benchmark" in new WithApplication(app) {
 
       duration("map to json") {
-        (0 to 100000) foreach { n =>
+        (0 to 100) foreach { n =>
           val numberMaps = (0 to 100).map { n => (n.toString -> JsNumber(n * n)) }.toMap
           Json.toJson(numberMaps)
         }
       }
 
       duration("directMakeJson") {
-        (0 to 100000) foreach { n =>
+        (0 to 100) foreach { n =>
           var jsObj = play.api.libs.json.Json.obj()
           (0 to 100).foreach { n =>
             jsObj += (n.toString -> JsNumber(n * n))
@@ -37,14 +37,14 @@ class JsonBenchmarkSpec extends PlaySpecification {
       }
 
       duration("map to json 2") {
-        (0 to 500000) foreach { n =>
+        (0 to 500) foreach { n =>
           val numberMaps = (0 to 100).map { n => (n.toString -> JsNumber(n * n)) }.toMap
           Json.toJson(numberMaps)
         }
       }
 
       duration("directMakeJson 2") {
-        (0 to 500000) foreach { n =>
+        (0 to 500) foreach { n =>
           var jsObj = play.api.libs.json.Json.obj()
           (0 to 100).foreach { n =>
             jsObj += (n.toString -> JsNumber(n * n))
