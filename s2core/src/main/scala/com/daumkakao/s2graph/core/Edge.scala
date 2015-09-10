@@ -1037,7 +1037,6 @@ object Edge extends JSONParser {
           if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, edgeRowKeyLike, isInnerCall, ancesterVertexIds)
           else toEdge(kv, queryParam, edgeRowKeyLike, ancesterVertexIds)
       } yield {
-        logger.info(s"$edge\n$ancesterVertexIds")
         (edge, edge.rank(queryParam.rank) * prevScore)
       }
     }
