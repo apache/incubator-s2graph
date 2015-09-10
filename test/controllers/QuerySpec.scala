@@ -18,7 +18,9 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         edge"1000 insert e 0 1 $testLabelName"($(weight = 40, is_hidden = true)),
         edge"2000 insert e 0 2 $testLabelName"($(weight = 30, is_hidden = false)),
         edge"3000 insert e 2 0 $testLabelName"($(weight = 20)),
-        edge"4000 insert e 2 1 $testLabelName"($(weight = 10))
+        edge"4000 insert e 2 1 $testLabelName"($(weight = 10)),
+        edge"3000 insert e 10 20 $testLabelName"($(weight = 20)),
+        edge"4000 insert e 20 20 $testLabelName"($(weight = 10))
       ).mkString("\n")
 
       val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)

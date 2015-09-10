@@ -80,7 +80,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
   val targets = jsValue.asOpt[List[List[String]]].toList
   val fieldsLs = for {
     target <- targets
-    fields <- target if fields != EdgeTransformer.defaultTransformField.as[List[String]]
+    fields <- target
   } yield fields
 
   def replace(fmt: String,
@@ -149,9 +149,12 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
           replace(fmt, fieldNames.flatMap(fieldName => toInnerValOpt(edge, fieldName)), nextStepOpt)
         }
       }
-    } yield edge.updateTgtVertex(innerVal)
+    } yield {
+        if (fields == EdgeTransformer.defaultTransformField.as[List[String]]) edge
+        else edge.updateTgtVertex(innerVal)
+      }
 
-    edge :: edges
+    edges
   }
 }
 
