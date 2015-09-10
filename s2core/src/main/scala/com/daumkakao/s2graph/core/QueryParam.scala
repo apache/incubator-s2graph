@@ -68,6 +68,7 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
 
 object EdgeTransformer {
   val defaultTransformField = Json.arr("_to")
+  val defaultTransformFieldAsList = Json.arr("_to").as[List[String]]
   val defaultJson = Json.arr(defaultTransformField)
 }
 
@@ -150,7 +151,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
         }
       }
     } yield {
-        if (fields == EdgeTransformer.defaultTransformField.as[List[String]]) edge
+        if (fields == EdgeTransformer.defaultTransformFieldAsList) edge
         else edge.updateTgtVertex(innerVal)
       }
 
