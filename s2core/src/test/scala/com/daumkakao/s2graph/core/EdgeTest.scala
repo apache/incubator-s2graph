@@ -87,7 +87,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
               put <- edgeWithIndex.buildPutsAsync()
               kv <- putToKeyValues(put.asInstanceOf[PutRequest])
             } {
-              val decoded = Edge.toEdge(kv, queryParam)
+              val decoded = Edge.toEdge(kv, queryParam, None, Seq())
               val comp = decoded.isDefined && decoded.get == edge
               println(s"${decoded.get}")
               println(s"$edge")
@@ -137,7 +137,7 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
             for {
               kv <- putToKeyValues(put)
             } yield {
-              val decoded = Edge.toSnapshotEdge(kv, queryParam, None, isInnerCall = false)
+              val decoded = Edge.toSnapshotEdge(kv, queryParam, None, isInnerCall = false, Seq())
               val comp = decoded.isDefined && decoded.get == edge
               println(s"${decoded.get}")
               println(s"$edge")
