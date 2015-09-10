@@ -67,7 +67,7 @@ object QueryController extends Controller with RequestParser {
       for (exclude <- Graph.getEdgesAsync(filterOutQuery); queryResultLs <- Graph.getEdgesAsync(q)) yield {
         val json = post(queryResultLs, exclude)
         val resultSize = (json \ "size").asOpt[Int].getOrElse(0)
-        jsonResponse(json, "result_size" -> resultSize)
+        jsonResponse(json, "result_size" -> resultSize.toString)
       }
     } catch {
       case e: KGraphExceptions.BadQueryException =>
