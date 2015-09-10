@@ -216,8 +216,7 @@ object QueryController extends Controller with RequestParser {
         } yield edgeJson
 
         val json = Json.toJson(edgeJsons)
-        val resultSize = Try((json \ "size").toString).getOrElse("0")
-        jsonResponse(json, "result_size" -> resultSize)
+        jsonResponse(json, "result_size" -> edgeJsons.size.toString)
       }
     } catch {
       case e: Throwable =>
