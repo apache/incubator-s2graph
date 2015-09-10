@@ -7,6 +7,7 @@ import play.libs.Json
 
 class JsonBenchmarkSpec extends PlaySpecification {
   val wrapStr = s"\n=================================================="
+
   def duration[T](prefix: String = "")(block: => T) = {
     val startTs = System.currentTimeMillis()
     val ret = block

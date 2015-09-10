@@ -150,6 +150,8 @@ trait RequestParser extends JSONParser {
             case obj: JsObject => (obj \ "nextStepLimit").asOpt[Int].getOrElse(-1)
             case _ => -1
           }
+          val shouldPropagate = (step \ "shouldPropagate").asOpt[Boolean].getOrElse(false)
+
           val queryParams =
             for {
               labelGroup <- queryParamJsVals
@@ -170,7 +172,9 @@ trait RequestParser extends JSONParser {
             }
           Step(queryParams.toList, labelWeights = labelWeights,
             //            scoreThreshold = stepThreshold,
-            nextStepScoreThreshold = nextStepScoreThreshold, nextStepLimit = nextStepLimit)
+            nextStepScoreThreshold = nextStepScoreThreshold,
+            nextStepLimit = nextStepLimit,
+            shouldPropagate = shouldPropagate)
         }
 
       val ret = Query(vertices, querySteps, removeCycle = removeCycle,
