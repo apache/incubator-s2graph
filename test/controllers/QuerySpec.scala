@@ -1,5 +1,7 @@
 package test.controllers
 
+import com.daumkakao.s2graph
+import com.daumkakao.s2graph.logger
 import play.api.libs.json._
 import play.api.test.{FakeApplication, FakeRequest, PlaySpecification}
 import play.api.{Application => PlayApplication}
@@ -90,7 +92,8 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       contentAsJson(ret)
     }
 
-    "get edge with where condition" in {
+
+   "get edge with where condition" in {
       running(FakeApplication()) {
         var result = getEdges(queryWhere(0, "is_hidden=false and _from in (-1, 0)"))
         (result \ "results").as[List[JsValue]].size must equalTo(1)
@@ -122,7 +125,11 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         (result \ "results").as[List[JsValue]].size must equalTo(2)
 
         result = getEdges(queryTransform(0, "[[\"weight\"]]"))
-        (result \ "results").as[List[JsValue]].size must equalTo(4)
+        (result \\ "to").map(_.toString).sorted must equalTo((result \\ "weight").map(_.toString).sorted)
+
+        // FIXME: brokwn
+        result = getEdges(queryTransform(0, "[[\"_from\"]]"))
+        (result \\ "to").map(_.toString).sorted must equalTo((result \\ "from").map(_.toString).sorted)
       }
     }
 
@@ -204,5 +211,6 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         true
       }
     }
+
   }
 }
