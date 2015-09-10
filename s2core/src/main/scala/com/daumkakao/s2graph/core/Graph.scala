@@ -91,11 +91,6 @@ object Graph {
   }
 
   def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
-    defaultConfigs.foreach { case (k, v) =>
-      logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
-      println(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
-    }
-
     this.config = config.withFallback(this.config)
     this.hbaseConfig = toHBaseConfig(this.config)
 
@@ -109,6 +104,11 @@ object Graph {
     getClient(hbaseConfig.get("hbase.zookeeper.quorum"))
 
     ExceptionHandler.apply(config)
+
+    defaultConfigs.foreach { case (k, v) =>
+      logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
+      println(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
+    }
   }
 
   def getClient(zkQuorum: String, flushInterval: Short = clientFlushInterval) = {
