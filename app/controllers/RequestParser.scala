@@ -40,11 +40,18 @@ trait RequestParser extends JSONParser {
   def extractInterval(label: Label, jsValue: JsValue) = {
     val ret = for {
       js <- parse[Option[JsObject]](jsValue, "interval")
-      fromJs <- parse[Option[JsObject]](js, "from")
-      toJs <- parse[Option[JsObject]](js, "to")
+      fromJs <- (js \ "from").asOpt[JsValue]
+      toJs <- (js \ "to").asOpt[JsValue]
     } yield {
-        val from = Management.toProps(label, fromJs)
-        val to = Management.toProps(label, toJs)
+        val from = fromJs match {
+          case JsObject(obj) => Management.toProps(label, obj)
+          case JsArray(arr) => Management.toProps(label, arr.flatMap { case JsObject(obj) => obj })
+        }
+        val to = toJs match {
+          case JsObject(obj) => Management.toProps(label, obj)
+          case JsArray(arr) => Management.toProps(label, arr.flatMap { case JsObject(obj) => obj })
+        }
+
         (from, to)
       }
     ret
