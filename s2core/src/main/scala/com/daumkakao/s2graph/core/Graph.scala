@@ -14,14 +14,13 @@ import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._
 import org.hbase.async._
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConversions.{mapAsScalaConcurrentMap, _}
 import scala.collection._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.hashing.MurmurHash3
-import scala.util.{Failure, Success}
-import collection.JavaConversions.mapAsScalaConcurrentMap
+import scala.util.{Failure, Success, Try}
 
 object Graph {
   val vertexCf = "v".getBytes()
@@ -123,7 +122,7 @@ object Graph {
 
   def flush: Unit = {
     for ((zkQuorum, client) <- Graph.clients) {
-      Await.result(deferredToFutureWithoutFallback(client.flush), Duration(5000, duration.MILLISECONDS))
+      Await.result(deferredToFutureWithoutFallback(client.flush), Duration((clientFlushInterval + 10) * 20, duration.MILLISECONDS))
     }
   }
 
@@ -134,8 +133,8 @@ object Graph {
 
     d.addBoth(new Callback[Unit, A] {
       def call(arg: A) = arg match {
-        case e: Throwable =>
-          logger.error(s"deferred failed with return fallback): $e", e)
+        case e: Exception =>
+          logger.error(s"deferred failed with return fallback: $e", e)
           promise.success(fallback)
         case _ => promise.success(arg)
       }
@@ -146,14 +145,16 @@ object Graph {
 
   def deferredToFutureWithoutFallback[T](d: Deferred[T]) = {
     val promise = Promise[T]
+
     d.addBoth(new Callback[Unit, T] {
       def call(arg: T) = arg match {
-        case e: Throwable =>
-          logger.error(s"deferred return throwable: $e", e)
+        case e: Exception =>
+          logger.error(s"deferred return Exception: $e", e)
           promise.failure(e)
         case _ => promise.success(arg)
       }
     })
+
     promise.future
   }
 
@@ -241,26 +242,21 @@ object Graph {
   def getEdgesAsync(q: Query): Future[Seq[QueryResult]] = {
     implicit val ex = this.executionContext
 
-    // not sure this is right. make sure refactor this after.
-    try {
+    Try {
       if (q.steps.isEmpty) {
         // TODO: this should be get vertex query.
         Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.empty)))
       } else {
         val startQueryResultLs = QueryResult.fromVertices(q, stepIdx = 0, q.steps.head.queryParams, q.vertices)
-        var seedEdgesFuture: Future[Seq[QueryResult]] = Future.successful(startQueryResultLs)
-        for {
-          (step, idx) <- q.steps.zipWithIndex
-        } {
-          seedEdgesFuture = getEdgesAsyncWithRank(seedEdgesFuture, q, idx)
+        q.steps.zipWithIndex.foldLeft(Future.successful(startQueryResultLs)) { case (acc, (_, idx)) =>
+          getEdgesAsyncWithRank(acc, q, idx)
         }
-        seedEdgesFuture
       }
-    } catch {
+    } recover {
       case e: Exception =>
         logger.error(s"getEdgesAsync: $e", e)
         Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.empty)))
-    }
+    } get
   }
 
   private def fetchEdgesLs(prevStepTgtVertexIdEdges: Map[VertexId, Seq[Edge]],
@@ -271,7 +267,7 @@ object Graph {
       (prevStepTgtVertexResultLs, prevScore) <- currentStepRequestLss
       (startVertexId, getRequest, queryParam) <- prevStepTgtVertexResultLs
     } yield {
-      val ancesterVertexIds =
+      val ancestorVertexIds =
         if (shouldPropagate) {
           Seq(startVertexId)
         } else {
@@ -280,15 +276,15 @@ object Graph {
               logger.error(s"this should never happend.")
               Nil
             case Some(ancestorEdges) =>
-              ancestorEdges.flatMap(_.ancesterVertexIds)
+              ancestorEdges.flatMap(_.ancestorVertexIds)
           }
         }
 
-      fetchEdgesWithCache(ancesterVertexIds, getRequest, q, stepIdx, queryParam, prevScore)
+      fetchEdgesWithCache(ancestorVertexIds, getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
 
-  private def fetchEdgesWithCache(ancesterVertexIds: Seq[VertexId], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
+  private def fetchEdgesWithCache(ancestorVertexIds: Seq[VertexId], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
     val cacheKey = MurmurHash3.stringHash(getRequest.toString)
     def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
       def call(arg: QueryResult): QueryResult = {
@@ -302,42 +298,44 @@ object Graph {
       if (cache.asMap().containsKey(cacheKey)) {
         val cachedVal = cache.asMap().get(cacheKey)
         if (cachedVal != null && queryParam.timestamp - cachedVal.timestamp < cacheTTL) {
-          val elapsedTime = queryParam.timestamp - cachedVal.timestamp
+          // val elapsedTime = queryParam.timestamp - cachedVal.timestamp
           //          logger.debug(s"cacheHitAndValid: $cacheKey, $cacheTTL, $elapsedTime")
           Deferred.fromResult(cachedVal)
         }
         else {
           // cache.asMap().remove(cacheKey)
           //          logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
-          fetchEdges(ancesterVertexIds, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+          fetchEdges(ancestorVertexIds, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
         }
       } else {
         //        logger.debug(s"cacheMiss: $cacheKey")
-        fetchEdges(ancesterVertexIds, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+        fetchEdges(ancestorVertexIds, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
       }
     } else {
       //      logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
-      fetchEdges(ancesterVertexIds, getRequest, q, stepIdx, queryParam, prevScore)
+      fetchEdges(ancestorVertexIds, getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
 
   /** actual request to HBase */
-  private def fetchEdges(ancesterVertexIds: Seq[VertexId], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
-
-    try {
-      val step = q.steps(stepIdx)
+  private def fetchEdges(ancestorVertexIds: Seq[VertexId], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] =
+    Try {
       val client = getClient(queryParam.label.hbaseZkAddr)
-      deferredCallbackWithFallback(client.get(getRequest))({ kvs =>
-        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isInnerCall = false, ancesterVertexIds)
-        QueryResult(q, stepIdx, queryParam, new ArrayList(edgeWithScores))
-      }, QueryResult(q, stepIdx, queryParam))
-    } catch {
-      case e@(_: Throwable | _: Exception) =>
+
+      val successCallback = (kvs: util.ArrayList[KeyValue]) => {
+        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isInnerCall = false, ancestorVertexIds)
+        QueryResult(q, stepIdx, queryParam, edgeWithScores)
+      }
+
+      val fallback = QueryResult(q, stepIdx, queryParam)
+
+      deferredCallbackWithFallback(client.get(getRequest))(successCallback, fallback)
+
+    } recover {
+      case e: Exception =>
         logger.error(s"Exception: $e", e)
         Deferred.fromResult(QueryResult(q, stepIdx, queryParam))
-    }
-    //    }
-  }
+    } get
 
   private def alreadyVisitedVertices(queryResultLs: Seq[QueryResult]) = {
     val vertices = for {
@@ -800,30 +798,29 @@ object Graph {
    * ex) timestamp insert shon talk_user_id propperties
    *
    */
-  def toGraphElement(s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] = {
+  def toGraphElement(s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] = Try {
     val parts = GraphUtil.split(s)
-    try {
-      val logType = parts(2)
-      val element = if (logType == "edge" | logType == "e") {
-        /** current only edge is considered to be bulk loaded */
-        labelMapping.get(parts(5)) match {
-          case None =>
-          case Some(toReplace) =>
-            parts(5) = toReplace
-        }
-        toEdge(parts)
-      } else if (logType == "vertex" | logType == "v") {
-        toVertex(parts)
-      } else {
-        throw new KGraphExceptions.JsonParseException("log type is not exist in log.")
+    val logType = parts(2)
+    val element = if (logType == "edge" | logType == "e") {
+      /** current only edge is considered to be bulk loaded */
+      labelMapping.get(parts(5)) match {
+        case None =>
+        case Some(toReplace) =>
+          parts(5) = toReplace
       }
-      element
-    } catch {
-      case e: Throwable =>
-        logger.error(s"$e", e)
-        None
+      toEdge(parts)
+    } else if (logType == "vertex" | logType == "v") {
+      toVertex(parts)
+    } else {
+      throw new KGraphExceptions.JsonParseException("log type is not exist in log.")
     }
-  }
+
+    element
+  } recover {
+    case e: Exception =>
+      logger.error(s"$e", e)
+      None
+  } get
 
   def bulkMutates(elements: Iterable[GraphElement], mutateInPlace: Boolean = false) = {
     val vertices = new ListBuffer[Vertex]
@@ -849,34 +846,29 @@ object Graph {
 
   //"1418342849000\tu\te\t3286249\t71770\ttalk_friend\t{\"is_hidden\":false}"
   //{"from":1,"to":101,"label":"graph_test","props":{"time":-1, "weight":10},"timestamp":1417616431},
-  def toEdge(parts: Array[String]): Option[Edge] = {
-    try {
-      val (ts, operation, logType, srcId, tgtId, label) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
-      val props = if (parts.length >= 7) parts(6) else "{}"
-      val tempDirection = if (parts.length >= 8) parts(7) else "out"
-      val direction = if (tempDirection != "out" && tempDirection != "in") "out" else tempDirection
+  def toEdge(parts: Array[String]): Option[Edge] = Try {
+    val (ts, operation, logType, srcId, tgtId, label) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
+    val props = if (parts.length >= 7) parts(6) else "{}"
+    val tempDirection = if (parts.length >= 8) parts(7) else "out"
+    val direction = if (tempDirection != "out" && tempDirection != "in") "out" else tempDirection
 
-      val edge = Management.toEdge(ts.toLong, operation, srcId, tgtId, label, direction, props)
-      //            logger.debug(s"toEdge: $edge")
-      Some(edge)
-    } catch {
-      case e: Throwable =>
-        logger.error(s"toEdge: $e", e)
-        throw e
-    }
-  }
+    val edge = Management.toEdge(ts.toLong, operation, srcId, tgtId, label, direction, props)
+    //            logger.debug(s"toEdge: $edge")
+    Some(edge)
+  } recover {
+    case e: Exception =>
+      logger.error(s"toEdge: $e", e)
+      throw e
+  } get
 
   //"1418342850000\ti\tv\t168756793\ttalk_user_id\t{\"country_iso\":\"KR\"}"
-  def toVertex(parts: Array[String]): Option[Vertex] = {
-    try {
-      val (ts, operation, logType, srcId, serviceName, colName) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
-      val props = if (parts.length >= 7) parts(6) else "{}"
-      Some(Management.toVertex(ts.toLong, operation, srcId, serviceName, colName, props))
-    } catch {
-      case e: Throwable =>
-        logger.error(s"toVertex: $e", e)
-        throw e
-    }
-  }
-
+  def toVertex(parts: Array[String]): Option[Vertex] = Try {
+    val (ts, operation, logType, srcId, serviceName, colName) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
+    val props = if (parts.length >= 7) parts(6) else "{}"
+    Some(Management.toVertex(ts.toLong, operation, srcId, serviceName, colName, props))
+  } recover {
+    case e: Throwable =>
+      logger.error(s"toVertex: $e", e)
+      throw e
+  } get
 }
