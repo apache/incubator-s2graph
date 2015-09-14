@@ -234,7 +234,7 @@ case class Edge(srcVertex: Vertex,
                 version: Long = System.currentTimeMillis(),
                 propsWithTs: Map[Byte, InnerValLikeWithTs] = Map.empty[Byte, InnerValLikeWithTs],
                 pendingEdgeOpt: Option[Edge] = None,
-                ancesterVertexIds: Seq[VertexId] = Nil)
+                ancestorVertexIds: Seq[VertexId] = Nil)
   extends GraphElement with JSONParser {
 
 
@@ -1025,7 +1025,7 @@ object Edge extends JSONParser {
   def toEdges(kvs: Seq[KeyValue], queryParam: QueryParam,
               prevScore: Double = 1.0,
               isInnerCall: Boolean,
-              ancesterVertexIds: Seq[VertexId]): Seq[(Edge, Double)] = {
+              ancestorVertexIds: Seq[VertexId]): Seq[(Edge, Double)] = {
     if (kvs.isEmpty) Seq.empty
     else {
       val first = kvs.head
@@ -1034,8 +1034,8 @@ object Edge extends JSONParser {
       for {
         kv <- kvs
         edge <-
-          if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, edgeRowKeyLike, isInnerCall, ancesterVertexIds)
-          else toEdge(kv, queryParam, edgeRowKeyLike, ancesterVertexIds)
+          if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, edgeRowKeyLike, isInnerCall, ancestorVertexIds)
+          else toEdge(kv, queryParam, edgeRowKeyLike, ancestorVertexIds)
       } yield {
         (edge, edge.rank(queryParam.rank) * prevScore)
       }
@@ -1044,7 +1044,7 @@ object Edge extends JSONParser {
 
   def toSnapshotEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None,
                      isInnerCall: Boolean,
-                     ancesterVertexIds: Seq[VertexId]): Option[Edge] = {
+                     ancestorVertexIds: Seq[VertexId]): Option[Edge] = {
     val version = kv.timestamp()
     val keyBytes = kv.key()
     val rowKey = edgeRowKeyLike.getOrElse {
@@ -1084,7 +1084,7 @@ object Edge extends JSONParser {
 
     if (isInnerCall) {
       val edge =
-        Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, ancesterVertexIds)
+        Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, ancestorVertexIds)
 
       val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
         Some(edge)
@@ -1096,7 +1096,7 @@ object Edge extends JSONParser {
       if (allPropsDeleted(props)) None
       else {
         val edge =
-          Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, ancesterVertexIds)
+          Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, ancestorVertexIds)
 
         val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
           Some(edge)
@@ -1108,7 +1108,7 @@ object Edge extends JSONParser {
     }
   }
 
-  def toEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None, ancesterVertexIds: Seq[VertexId]): Option[Edge] = {
+  def toEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None, ancestorVertexIds: Seq[VertexId]): Option[Edge] = {
     logger.debug(s"$param -> $kv")
 
     val version = kv.timestamp()
@@ -1179,7 +1179,7 @@ object Edge extends JSONParser {
       //        if (!param.label.isDirected && param.labelWithDir.dir == GraphUtil.directions("in")) {
       //          Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir.updateDir(0), op, ts, version, props)
       //        } else {
-        Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, ancesterVertexIds)
+        Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, ancestorVertexIds)
       //        }
 
       //          logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
