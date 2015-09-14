@@ -44,7 +44,7 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       Thread.sleep(asyncFlushInterval)
     }
 
-    def query(id: Int) = Json.parse( s"""
+    def queryExclude(id: Int) = Json.parse( s"""
         { "srcVertices": [
           { "serviceName": "${testServiceName}",
             "columnName": "${testColumnName}",
@@ -151,8 +151,6 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       $(srcVertices = $from, steps = $steps).toJson
     }
 
-
-
     "get edge with where condition" in {
       running(FakeApplication()) {
         var result = getEdges(queryWhere(0, "is_hidden=false and _from in (-1, 0)"))
@@ -174,7 +172,7 @@ class QuerySpec extends SpecCommon with PlaySpecification {
 
     "get edge exclude" in {
       running(FakeApplication()) {
-        val result = getEdges(query(0))
+        val result = getEdges(queryExclude(0))
         (result \ "results").as[List[JsValue]].size must equalTo(1)
       }
     }
@@ -187,9 +185,9 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         result = getEdges(queryTransform(0, "[[\"weight\"]]"))
         (result \\ "to").map(_.toString).sorted must equalTo((result \\ "weight").map(_.toString).sorted)
 
-        // FIXME: brokwn
         result = getEdges(queryTransform(0, "[[\"_from\"]]"))
-        (result \\ "to").map(_.toString).sorted must equalTo((result \\ "from").map(_.toString).sorted)
+        val results = (result \ "results").as[JsValue]
+        (result \\ "to").map(_.toString).sorted must equalTo((results \\ "from").map(_.toString).sorted)
       }
     }
 
