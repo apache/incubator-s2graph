@@ -459,14 +459,16 @@ object Graph {
   }
 
 
-  type HashKey = (Int, Int, Int, Int)
+  type HashKey = (Int, Int, Int, Int, Boolean)
   type FilterHashKey = (Int, Int)
 
   def toHashKey(queryParam: QueryParam, edge: Edge): (HashKey, FilterHashKey) = {
+    val isDegree = edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
     val src = edge.srcVertex.innerId.hashKey(queryParam.srcColumnWithDir.columnType)
     val tgt = edge.tgtVertex.innerId.hashKey(queryParam.tgtColumnWithDir.columnType)
-    val hashKey = (src, edge.labelWithDir.labelId, edge.labelWithDir.dir, tgt)
+    val hashKey = (src, edge.labelWithDir.labelId, edge.labelWithDir.dir, tgt, isDegree)
     val filterHashKey = (src, tgt)
+
     (hashKey, filterHashKey)
   }
 
