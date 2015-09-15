@@ -68,7 +68,7 @@ object AdminController extends Controller with RequestParser {
     NotFound(formatter.toJson(message)).as(applicationJsonHeader)
   }
 
-  def tryResponse[T, R: AdminMessageFormatter](res: Try[T])(callback: T => R): mvc.Result = res match {
+  private[AdminController] def tryResponse[T, R: AdminMessageFormatter](res: Try[T])(callback: T => R): mvc.Result = res match {
     case Success(m) => ok(callback(m))
     case Failure(error) =>
       logger.error(error.getMessage, error)
