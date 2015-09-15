@@ -75,7 +75,7 @@ object QueryController extends Controller with RequestParser {
       case e: KGraphExceptions.BadQueryException =>
         logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
-      case e: Throwable =>
+      case e: Exception =>
         logger.error(s"$jsonQuery, $e", e)
         errorResults
     } get
