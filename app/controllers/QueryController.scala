@@ -6,10 +6,12 @@ import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types.{LabelWithDirection, VertexId}
 import com.daumkakao.s2graph.logger
 import config.Config
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.{JsArray, JsObject, JsValue, Json}
 import play.api.mvc.{Action, Controller, Result}
 
 import scala.concurrent._
+import scala.language.postfixOps
+import scala.util.Try
 
 object QueryController extends Controller with RequestParser {
 
@@ -28,33 +30,55 @@ object QueryController extends Controller with RequestParser {
     getEdgesExcludedInner(request.body)
   }
 
+  private def eachQuery(post: (Seq[QueryResult], Seq[QueryResult]) => JsValue)(q: Query): Future[JsValue] = {
+    val filterOutQueryResultsLs = q.filterOutQuery match {
+      case Some(filterOutQuery) => Graph.getEdgesAsync(filterOutQuery)
+      case None => Future.successful(Seq.empty)
+    }
+
+    for {
+      queryResultsLs <- Graph.getEdgesAsync(q)
+      filterOutResultsLs <- filterOutQueryResultsLs
+    } yield {
+      val json = post(queryResultsLs, filterOutResultsLs)
+      json
+    }
+  }
+
   private def getEdgesAsync(jsonQuery: JsValue)
                            (post: (Seq[QueryResult], Seq[QueryResult]) => JsValue): Future[Result] = {
     if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
+    val query = eachQuery(post) _
 
-    try {
-      val q = toQuery(jsonQuery)
-      val filterOutQueryResultsLs = q.filterOutQuery match {
-        case Some(filterOutQuery) => Graph.getEdgesAsync(filterOutQuery)
-        case None => Future.successful(Seq.empty)
+    Try {
+      jsonQuery match {
+        case JsArray(arr) =>
+          val res = arr.map(toQuery(_)).map(query)
+          val futureJson = Future.sequence(res).map(JsArray)
+          val futureCnt = futureJson.map(jsArr => (jsArr \\ "size").flatMap(js => js.asOpt[Int]).sum)
+
+          futureJson -> futureCnt
+        case obj@JsObject(_) =>
+          val futureJson = query(toQuery(obj))
+          val futureCnt = futureJson.map(jsObj => (jsObj \ "size").asOpt[Int].getOrElse(0))
+
+          futureJson -> futureCnt
       }
+    } map { case (futureJson, futureCnt) =>
 
       for {
-        queryResultsLs <- Graph.getEdgesAsync(q)
-        filterOutResultsLs <- filterOutQueryResultsLs
-      } yield {
-        val json = post(queryResultsLs, filterOutResultsLs)
-        val resultSize = (json \ "size").asOpt[Int].getOrElse(0)
-        jsonResponse(json, "result_size" -> resultSize.toString)
-      }
-    } catch {
+        json <- futureJson
+        cnt <- futureCnt
+      } yield jsonResponse(json, "result_size" -> cnt.toString)
+
+    } recover {
       case e: KGraphExceptions.BadQueryException =>
         logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
-      case e: Throwable =>
+      case e: Exception =>
         logger.error(s"$jsonQuery, $e", e)
         errorResults
-    }
+    } get
   }
 
   private def getEdgesExcludedAsync(jsonQuery: JsValue)(post: (Seq[QueryResult], Seq[QueryResult]) => JsValue): Future[Result] = {
