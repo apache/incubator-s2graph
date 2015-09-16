@@ -68,6 +68,7 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
 
 object EdgeTransformer {
   val defaultTransformField = Json.arr("_to")
+  val defaultTransformFieldAsList = Json.arr("_to").as[List[String]]
   val defaultJson = Json.arr(defaultTransformField)
 }
 
@@ -80,7 +81,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
   val targets = jsValue.asOpt[List[List[String]]].toList
   val fieldsLs = for {
     target <- targets
-    fields <- target if fields != EdgeTransformer.defaultTransformField.as[List[String]]
+    fields <- target
   } yield fields
 
   def replace(fmt: String,
@@ -149,9 +150,12 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
           replace(fmt, fieldNames.flatMap(fieldName => toInnerValOpt(edge, fieldName)), nextStepOpt)
         }
       }
-    } yield edge.updateTgtVertex(innerVal)
+    } yield {
+        if (fields == EdgeTransformer.defaultTransformFieldAsList) edge
+        else edge.updateTgtVertex(innerVal)
+      }
 
-    edge :: edges
+    edges
   }
 }
 
@@ -159,7 +163,8 @@ case class Step(queryParams: List[QueryParam],
                 labelWeights: Map[Int, Double] = Map.empty,
                 //                scoreThreshold: Double = 0.0,
                 nextStepScoreThreshold: Double = 0.0,
-                nextStepLimit: Int = -1) {
+                nextStepLimit: Int = -1,
+                shouldPropagate: Boolean = false ) {
 
   lazy val excludes = queryParams.filter(_.exclude)
   lazy val includes = queryParams.filterNot(_.exclude)

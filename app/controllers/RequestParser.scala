@@ -38,15 +38,21 @@ trait RequestParser extends JSONParser {
   }
 
   def extractInterval(label: Label, jsValue: JsValue) = {
+    def extractKv(js: JsValue) = js match {
+      case JsObject(obj) => obj
+      case JsArray(arr) => arr.flatMap { case JsObject(obj) => obj }
+    }
+
     val ret = for {
       js <- parse[Option[JsObject]](jsValue, "interval")
-      fromJs <- parse[Option[JsObject]](js, "from")
-      toJs <- parse[Option[JsObject]](js, "to")
+      fromJs <- (js \ "from").asOpt[JsValue]
+      toJs <- (js \ "to").asOpt[JsValue]
     } yield {
-        val from = Management.toProps(label, fromJs)
-        val to = Management.toProps(label, toJs)
+        val from = Management.toProps(label, extractKv(fromJs))
+        val to = Management.toProps(label, extractKv(toJs))
         (from, to)
       }
+
     ret
   }
 
@@ -150,6 +156,8 @@ trait RequestParser extends JSONParser {
             case obj: JsObject => (obj \ "nextStepLimit").asOpt[Int].getOrElse(-1)
             case _ => -1
           }
+          val shouldPropagate = (step \ "shouldPropagate").asOpt[Boolean].getOrElse(false)
+
           val queryParams =
             for {
               labelGroup <- queryParamJsVals
@@ -170,12 +178,14 @@ trait RequestParser extends JSONParser {
             }
           Step(queryParams.toList, labelWeights = labelWeights,
             //            scoreThreshold = stepThreshold,
-            nextStepScoreThreshold = nextStepScoreThreshold, nextStepLimit = nextStepLimit)
+            nextStepScoreThreshold = nextStepScoreThreshold,
+            nextStepLimit = nextStepLimit,
+            shouldPropagate = shouldPropagate)
         }
 
       val ret = Query(vertices, querySteps, removeCycle = removeCycle,
         selectColumns = selectColumns, groupByColumns = groupByColumns, filterOutQuery = filterOutQuery, withScore = withScore)
-//      logger.debug(ret.toString)
+      //      logger.debug(ret.toString)
       ret
     } catch {
       case e: BadQueryException =>
@@ -316,7 +326,7 @@ trait RequestParser extends JSONParser {
     Management.toVertex(ts, operation, id.toString, sName, cName, props.toString)
   }
 
- def toPropElements(jsObj: JsValue) = Try {
+  def toPropElements(jsObj: JsValue) = Try {
     val propName = (jsObj \ "name").as[String]
     val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
     val defaultValue = (jsObj \ "defaultValue").as[JsValue] match {

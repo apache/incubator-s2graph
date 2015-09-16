@@ -14,8 +14,8 @@ import scala.language.postfixOps
 
 object WalLogToHDFS extends SparkApp with WithKafka {
   private def toOutputPath(ts: Long): String = {
-    val formatter = new SimpleDateFormat("yyyy/MM/dd")
-    Seq(formatter.format(new Date(ts)), ts.toString).mkString("/")
+    val dateId = new SimpleDateFormat("yyyy-MM-dd").format(new Date(ts))
+    s"date_id=$dateId/ts=$ts"
   }
 
   val usages =
@@ -70,19 +70,33 @@ object WalLogToHDFS extends SparkApp with WithKafka {
         val phase = System.getProperty("phase")
         GraphSubscriberHelper.apply(phase, dbUrl, "none", brokerList)
 
-        for {
-          (key, msg) <- partition
-          element <- Graph.toGraphElement(msg)
-        } yield {
-          Seq(msg, element.serviceName).mkString("\t")
+        partition.flatMap { case (key, msg) =>
+          val optMsg = Graph.toGraphElement(msg).map { element =>
+            val n = msg.split("\t", -1).length
+            if(n == 6) {
+              Seq(msg, "{}", element.serviceName).mkString("\t")
+            }
+            else if(n == 7) {
+              Seq(msg, element.serviceName).mkString("\t")
+            }
+            else {
+              null
+            }
+          }
+          optMsg
         }
       }
 
       val ts = time.milliseconds
       val path = s"$outputPath/${toOutputPath(ts)}"
-      elements.saveAsTextFile(path)
 
-      elements.mapPartitionsWithIndex { (i, part) =>
+      /** make sure that `elements` are not running at the same time */
+      val elementsWritten = {
+        elements.saveAsTextFile(path)
+        elements
+      }
+
+      elementsWritten.mapPartitionsWithIndex { (i, part) =>
         // commit offset range
         val osr = offsets(i)
         getStreamHelper(kafkaParams).commitConsumerOffset(osr)

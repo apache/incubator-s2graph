@@ -51,7 +51,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     } {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
-      val propsInner = Management.toProps(label, js).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap
+      val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap
       val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, 0, propsInner)
       val f = validate(labelName)(edge) _
 
@@ -70,7 +70,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     } {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
-      val propsInner = Management.toProps(label, js).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap
+      val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap
       val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, 0, propsInner)
 
       val f = validate(labelName)(edge) _
@@ -99,7 +99,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     } {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
-      val propsInner = Management.toProps(label, js).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap
+      val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap
       val labelWithDirection = if (schemaVer == VERSION2) labelWithDirV2 else labelWithDir
       val edge = Edge(srcVertex, tgtVertex, labelWithDirection, 0.toByte, ts, 0, propsInner)
       val lname = if (schemaVer == VERSION2) labelNameV2 else labelName

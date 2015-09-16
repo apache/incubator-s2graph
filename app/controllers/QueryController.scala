@@ -1,15 +1,17 @@
 package controllers
 
 
+import com.daumkakao.s2graph.core.KGraphExceptions.BadQueryException
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types.{LabelWithDirection, VertexId}
 import com.daumkakao.s2graph.logger
 import config.Config
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.{JsArray, JsObject, JsValue, Json}
 import play.api.mvc.{Action, Controller, Result}
 
 import scala.concurrent._
+import scala.language.postfixOps
 import scala.util.Try
 
 object QueryController extends Controller with RequestParser {
@@ -17,9 +19,9 @@ object QueryController extends Controller with RequestParser {
   import ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits.defaultContext
 
-  private def badQueryExceptionResults(ex: Exception) = Future.successful(BadRequest( s"""{"message": "${ex.getMessage}"}""").as(applicationJsonHeader))
+  private def badQueryExceptionResults(ex: Exception) = Future.successful(BadRequest(Json.obj("message" -> ex.getMessage)).as(applicationJsonHeader))
 
-  private def errorResults = Future.successful(Ok(s"${PostProcess.timeoutResults}\n").as(applicationJsonHeader))
+  private def errorResults = Future.successful(Ok(PostProcess.timeoutResults).as(applicationJsonHeader))
 
   def getEdges() = withHeaderAsync(jsonParser) { request =>
     getEdgesInner(request.body)
@@ -29,55 +31,76 @@ object QueryController extends Controller with RequestParser {
     getEdgesExcludedInner(request.body)
   }
 
-  private def getEdgesAsync(jsonQuery: JsValue)
-                           (post: (Seq[QueryResult], Seq[QueryResult]) => JsValue): Future[Result] = {
-    if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
+  private def eachQuery(post: (Seq[QueryResult], Seq[QueryResult]) => JsValue)(q: Query): Future[JsValue] = {
+    val filterOutQueryResultsLs = q.filterOutQuery match {
+      case Some(filterOutQuery) => Graph.getEdgesAsync(filterOutQuery)
+      case None => Future.successful(Seq.empty)
+    }
 
-    try {
-      val q = toQuery(jsonQuery)
-      val filterOutQueryResultsLs = q.filterOutQuery match {
-        case Some(filterOutQuery) => Graph.getEdgesAsync(filterOutQuery)
-        case None => Future.successful(Seq.empty)
-      }
-
-      for {
-        queryResultsLs <- Graph.getEdgesAsync(q)
-        filterOutResultsLs <- filterOutQueryResultsLs
-      } yield {
-        val json = post(queryResultsLs, filterOutResultsLs)
-        val resultSize = Try((json \ "size").toString).getOrElse("0")
-
-        jsonResponse(json, "result_size" -> resultSize)
-      }
-    } catch {
-      case e: KGraphExceptions.BadQueryException =>
-        logger.error(s"$jsonQuery, $e", e)
-        badQueryExceptionResults(e)
-      case e: Throwable =>
-        logger.error(s"$jsonQuery, $e", e)
-        errorResults
+    for {
+      queryResultsLs <- Graph.getEdgesAsync(q)
+      filterOutResultsLs <- filterOutQueryResultsLs
+    } yield {
+      val json = post(queryResultsLs, filterOutResultsLs)
+      json
     }
   }
 
-  private def getEdgesExcludedAsync(jsonQuery: JsValue)(post: (Seq[QueryResult], Seq[QueryResult]) => JsValue): Future[Result] = {
-    try {
-      if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
+  private def calcSize(js: JsValue): Int = js match {
+    case JsObject(obj) => (js \ "size").asOpt[Int].getOrElse(0)
+    case JsArray(seq) => seq.map(js => (js \ "size").asOpt[Int].getOrElse(0)).sum
+    case _ => 0
+  }
 
+  private def getEdgesAsync(jsonQuery: JsValue)
+                           (post: (Seq[QueryResult], Seq[QueryResult]) => JsValue): Future[Result] = {
+    if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
+    val fetch = eachQuery(post) _
+
+    Try {
+      val future = jsonQuery match {
+        case JsArray(arr) => Future.sequence(arr.map(toQuery(_)).map(fetch)).map(JsArray)
+        case obj@JsObject(_) => fetch(toQuery(obj))
+        case _ => throw BadQueryException("Cannot support")
+      }
+
+      future map { json => jsonResponse(json, "result_size" -> calcSize(json).toString) }
+
+    } recover {
+      case e: BadQueryException =>
+        logger.error(s"$jsonQuery, $e", e)
+        badQueryExceptionResults(e)
+      case e: Exception =>
+        logger.error(s"$jsonQuery, $e", e)
+        errorResults
+    } get
+  }
+
+  @deprecated(message = "deprecated", since = "0.2")
+  private def getEdgesExcludedAsync(jsonQuery: JsValue)
+                                   (post: (Seq[QueryResult], Seq[QueryResult]) => JsValue): Future[Result] = {
+
+    if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
+
+    Try {
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, List(q.steps.last))
 
-      for (exclude <- Graph.getEdgesAsync(filterOutQuery); queryResultLs <- Graph.getEdgesAsync(q)) yield {
+      for {
+        exclude <- Graph.getEdgesAsync(filterOutQuery)
+        queryResultLs <- Graph.getEdgesAsync(q)
+      } yield {
         val json = post(queryResultLs, exclude)
-        jsonResponse(json)
+        jsonResponse(json, "result_size" -> calcSize(json).toString)
       }
-    } catch {
+    } recover {
       case e: KGraphExceptions.BadQueryException =>
         logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
       case e: Throwable =>
         logger.error(s"$jsonQuery, $e", e)
         errorResults
-    }
+    } get
   }
 
   def getEdgesInner(jsonQuery: JsValue) = {
@@ -118,25 +141,29 @@ object QueryController extends Controller with RequestParser {
     getEdgesGroupedExcludedInner(request.body)
   }
 
+  @deprecated(message = "deprecated", since = "0.2")
   def getEdgesGroupedExcludedInner(jsonQuery: JsValue): Future[Result] = {
-    try {
-      if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
+    if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
+    Try {
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, List(q.steps.last))
 
-      for (exclude <- Graph.getEdgesAsync(filterOutQuery); queryResultLs <- Graph.getEdgesAsync(q)) yield {
+      for {
+        exclude <- Graph.getEdgesAsync(filterOutQuery)
+        queryResultLs <- Graph.getEdgesAsync(q)
+      } yield {
         val json = PostProcess.summarizeWithListExclude(queryResultLs, exclude)
-        jsonResponse(json)
+        jsonResponse(json, "result_size" -> calcSize(json).toString)
       }
-    } catch {
+    } recover {
       case e: KGraphExceptions.BadQueryException =>
         logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
       case e: Throwable =>
         logger.error(s"$jsonQuery, $e", e)
         errorResults
-    }
+    } get
   }
 
   @deprecated(message = "deprecated", since = "0.2")
@@ -144,26 +171,29 @@ object QueryController extends Controller with RequestParser {
     getEdgesGroupedExcludedFormattedInner(request.body)
   }
 
+  @deprecated(message = "deprecated", since = "0.2")
   def getEdgesGroupedExcludedFormattedInner(jsonQuery: JsValue): Future[Result] = {
-    try {
-      if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
+    if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
+    Try {
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, List(q.steps.last))
-      //      KafkaAggregatorActor.enqueue(queryInTopic, q.templateId().toString)
 
-      for (exclude <- Graph.getEdgesAsync(filterOutQuery); queryResultLs <- Graph.getEdgesAsync(q)) yield {
+      for {
+        exclude <- Graph.getEdgesAsync(filterOutQuery)
+        queryResultLs <- Graph.getEdgesAsync(q)
+      } yield {
         val json = PostProcess.summarizeWithListExcludeFormatted(queryResultLs, exclude)
-        jsonResponse(json)
+        jsonResponse(json, "result_size" -> calcSize(json).toString)
       }
-    } catch {
+    } recover {
       case e: KGraphExceptions.BadQueryException =>
         logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
       case e: Throwable =>
         logger.error(s"$jsonQuery, $e", e)
         errorResults
-    }
+    } get
   }
 
   def getEdge(srcId: String, tgtId: String, labelName: String, direction: String) = Action.async { request =>
@@ -213,7 +243,8 @@ object QueryController extends Controller with RequestParser {
           edgeJson <- PostProcess.edgeToJson(if (isReverted) edge.duplicateEdge else edge, score, queryResult)
         } yield edgeJson
 
-        jsonResponse(Json.toJson(edgeJsons))
+        val json = Json.toJson(edgeJsons)
+        jsonResponse(json, "result_size" -> edgeJsons.size.toString)
       }
     } catch {
       case e: Throwable =>
@@ -235,7 +266,7 @@ object QueryController extends Controller with RequestParser {
     val ts = System.currentTimeMillis()
     val props = "{}"
 
-    try {
+    Try {
       val vertices = request.body.as[List[JsValue]].flatMap { js =>
         val serviceName = (js \ "serviceName").as[String]
         val columnName = (js \ "columnName").as[String]
@@ -246,15 +277,15 @@ object QueryController extends Controller with RequestParser {
 
       Graph.getVerticesAsync(vertices) map { vertices =>
         val json = PostProcess.verticesToJson(vertices)
-        jsonResponse(json)
+        jsonResponse(json, "result_size" -> calcSize(json).toString)
       }
-    } catch {
+    } recover {
       case e: play.api.libs.json.JsResultException =>
         logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
       case e: Exception =>
         logger.error(s"$jsonQuery, $e", e)
         errorResults
-    }
+    } get
   }
 }

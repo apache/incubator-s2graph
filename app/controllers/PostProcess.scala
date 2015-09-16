@@ -207,8 +207,11 @@ object PostProcess extends JSONParser {
     } yield {
         val q = queryResult.query
         val propsMap = propsToJson(edge, queryResult.query, queryResult.queryParam)
-        val targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
-
+        var targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
+        targetColumns = edge.ancestorVertexIds match {
+          case Nil => targetColumns
+          case _ => targetColumns + "ancestor"
+        }
         val kvMap = targetColumns.foldLeft(Map.empty[String, JsValue]) { (map, column) =>
           val jsValue = column match {
             case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (queryResult.timestamp - queryParam.timestamp))
@@ -219,6 +222,7 @@ object PostProcess extends JSONParser {
             case "_timestamp" | "timestamp" => JsNumber(edge.ts)
             case "score" => JsNumber(score)
             case "props" if !propsMap.isEmpty => Json.toJson(propsMap)
+            case "ancestor" => Json.toJson(edge.ancestorVertexIds.map(_.innerId.toString()))
             case _ => JsNull
           }
 

@@ -152,10 +152,10 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
         val metaProp = metaProps.getOrElse(f, throw new RuntimeException(s"where clause contains not existing property name: $f"))
 
         Between(metaProp.seq, toInnerVal(minV, metaProp.dataType, label.schemaVersion), toInnerVal(maxV, metaProp.dataType, label.schemaVersion))
-    } | ident ~ ("not in" | "in") ~ ("(" ~> rep(anyStr | ",") <~ ")") ^^ {
+    } | ident ~ ("not in" | "in") ~ ("(" ~> repsep(anyStr, ",") <~ ")") ^^ {
       case f ~ op ~ vals =>
         val metaProp = metaProps.getOrElse(f, throw new RuntimeException(s"where clause contains not existing property name: $f"))
-        val values = vals.filter(v => v != ",").map { v => toInnerVal(v, metaProp.dataType, label.schemaVersion) }
+        val values = vals.map { v => toInnerVal(v, metaProp.dataType, label.schemaVersion) }
 
         if (op == "in") IN(metaProp.seq, values.toSet)
         else Not(IN(metaProp.seq, values.toSet))

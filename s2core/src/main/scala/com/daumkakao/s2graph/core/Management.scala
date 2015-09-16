@@ -265,9 +265,10 @@ object Management extends JSONParser {
     val op = tryOption(operation, GraphUtil.toOp)
 
     val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
-    val parsedProps = toProps(label, jsObject).toMap
+    val parsedProps = toProps(label, jsObject.fields).toMap
     val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValLikeWithTs(kv._2, ts))) ++
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.schemaVersion), ts))
+
     Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version = ts, propsWithTs = propsWithTs)
 
   }
@@ -303,20 +304,14 @@ object Management extends JSONParser {
 
   }
 
-  def toProps(label: Label, js: JsObject): Seq[(Byte, InnerValLike)] = {
-
+  def toProps(label: Label, js: Seq[(String, JsValue)]): Seq[(Byte, InnerValLike)] = {
     val props = for {
-      (k, v) <- js.fields
+      (k, v) <- js
       meta <- label.metaPropsInvMap.get(k)
-      //        meta <- LabelMeta.findByName(label.id.get, k)
-      //      meta = tryOption((label.id.get, k), LabelMeta.findByName)
       innerVal <- jsValueToInnerVal(v, meta.dataType, label.schemaVersion)
-    } yield {
-        (meta.seq, innerVal)
-      }
-    //    logger.error(s"toProps: $js => $props")
-    props
+    } yield (meta.seq, innerVal)
 
+    props
   }
 
   val idTableName = "id"

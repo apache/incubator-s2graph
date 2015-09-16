@@ -28,9 +28,3 @@ libraryDependencies := {
   }
 }
 
-parallelExecution in Test := false
-
-testOptions in Test += Tests.Argument("-oDF")
-
-javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map{ case (key, value) => "-D" + key + "=" + value }.toSeq
-
