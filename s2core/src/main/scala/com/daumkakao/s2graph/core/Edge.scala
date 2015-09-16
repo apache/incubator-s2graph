@@ -1037,7 +1037,13 @@ object Edge extends JSONParser {
           if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, edgeRowKeyLike, isInnerCall, ancestorEdges)
           else toEdge(kv, queryParam, edgeRowKeyLike, ancestorEdges)
       } yield {
-        (edge, edge.rank(queryParam.rank) * prevScore)
+        //TODO: Refactor this.
+        val currentScore =
+          queryParam.scorePropagateOp match {
+            case "plus" => edge.rank(queryParam.rank) + prevScore
+            case _ => edge.rank(queryParam.rank) * prevScore
+          }
+        (edge, currentScore)
       }
     }
   }
