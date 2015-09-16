@@ -5,7 +5,7 @@
 **S2Graph** is a **graph database** designed to handle transactional graph processing at scale. Its REST API allows you to store, manage and query relational information using **edge** and **vertex** representations in a **fully asynchronous** and **non-blocking** manner. This document covers some basic concepts and terms of S2Graph as well as help you get a feel for the S2Graph API.
 
 
-Table of content
+Table of Content
 -------------
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -94,9 +94,9 @@ S2Graph consists of a number of modules.
 
 There are some prerequisites for running S2Graph:
 
-1. An [SBT](http://www.scala-sbt.org/) instalation
+1. An [SBT](http://www.scala-sbt.org/) installation
   - `> brew install sbt` if you are on a Mac. (Otherwise, checkout the [SBT document](http://www.scala-sbt.org/0.13/tutorial/Manual-Installation.html).)
-2. An [Apache HBase](http://hbase.apache.org/) instalation
+2. An [Apache HBase](http://hbase.apache.org/) installation
 	- `> brew install HBase` if you are on a Mac. (Otherwise, checkout the [HBase document](http://hbase.apache.org/book.html#quickstart).)
   - Run `> start-hbase.sh`.
 	- Please note that we currently support latest stable version of **Apache HBase 1.0.1 with Apache Hadoop version 2.7.0**. If you are using CDH, checkout **feature/cdh5.3.0**. @@@We are working on providing a profile on HBase/Hadoop version soon.
@@ -164,7 +164,7 @@ Service is the top level abstraction in S2Graph which could be considered as a d
 ### 1.1 Service Fields
 In order to create a Service, the following fields should be specified in the request.
 
-|Field Name |  Definition | Data Type |  Example | note |
+|Field Name |  Definition | Data Type |  Example | Note |
 |:------- | --- |:----: | --- | :-----|
 | **serviceName** | User defined namespace. | String | "talk_friendship"| Required. |
 | cluster | Zookeeper quorum address for your cluster.| String | "abc.com:2181, abd.com:2181" | Optional. <br>By default, S2Graph looks for "hbase.zookeeper.quorum" in your application.conf. If "hbase.zookeeper.quorum" is undefined, this value is set as "localhost". |
@@ -242,7 +242,7 @@ Props can have data types of **numeric** (byte/ short/ integer/ float/ double), 
 
 In order to achieve efficient data retrieval, a Label can be indexed using the "indices" option.
 
-Default value for indices is "_timestamp", a hidden label propery. (All labels have _timestamp in their props under the hood.)
+Default value for indices is "_timestamp", a hidden label property. (All labels have _timestamp in their props under the hood.)
 
 The first index in indices array will be the primary index (Think of `PRIMARY INDEX idx_xxx`(`p1, p2`) in MySQL).
 
@@ -532,7 +532,7 @@ curl -XPOST localhost:9000/graphs/addServiceColumnProps/s2graph/user_id -H 'Cont
 '
 ```
 
-Vertices can be inserted to a Service Colunm using `/graphs/vertices/insert/{service name}/{column name}`.
+Vertices can be inserted to a Service Column using `/graphs/vertices/insert/{service name}/{column name}`.
 ```
 curl -XPOST localhost:9000/graphs/vertices/insert/s2graph/user_id -H 'Content-Type: Application/json' -d '
 [
@@ -904,7 +904,7 @@ This is a **very expensive** operation. If you're interested in what goes on und
 ```
 vertices = vertex list to delete
 for vertex in vertices
-	labals = fetch all labels that this vertex is included.
+	labels = fetch all labels that this vertex is included.
 	for label in labels
 		for index in label.indices
 			edges = G.read with limit 50K
@@ -931,7 +931,7 @@ Once you have your graph data uploaded to S2Graph, you can traverse your graph u
 
 ### 6.1. Query Fields ###
 
-A typical query contains the srouce vertex as a starting point, a list of labels to traverse, and optional filters or weights for unwanted results and sorting respectively. Query requests are structured as follows:
+A typical query contains the source vertex as a starting point, a list of labels to traverse, and optional filters or weights for unwanted results and sorting respectively. Query requests are structured as follows:
 
 | Field Name |  Definition | Data Type | Example |  Remarks |
 |:------- | --- |:----: | --- | :-----|
@@ -968,18 +968,18 @@ A typical query contains the srouce vertex as a starting point, a list of labels
 |outputField|The usual "to" field of the result edges will be replace with a property field specified by this option.| String | "outputField": "service_user_id". This will output edge's "to" field into "service_user_id" property. | Optional. |
 |exclude| For a label with exclude "true", resulting vertices of a traverse will act as a blacklist and be excluded from other labels' traverse results in the same step. | Boolean |  "true"| Optional. Default is "false". |
 |include | A Label with include "true" will ignore any exclude options in the step and the traverse results of the label guaranteed be included in the step result. | Boolean | "true" | Optional. Default is "false" |
-| duplicate | Whether or not to allow duplicate edges; duplicate edges meaning edges with identical (from, to, label, direction) combination. | String <br> One of "first", "sum", "countSum", or "raw". | "first" | Optional. "**first**" means that only first occurrence of edge survives. <br> "**sum**" means that you will sum up all scores of same edges but only one edge survive. ???random? <br>"**countSum**" means to counts the occurrences of same edges but only one edge survives. <br>"**raw**" means that you will allow duplicates edges. Default is "**first**". |
+| duplicate | Whether or not to allow duplicate edges; duplicate edges meaning edges with identical (from, to, label, direction) combination. | String <br> One of "first", "sum", "countSum", or "raw". | "first" | Optional. "**first**" means that only first occurrence of edge survives. <br> "**sum**" means that you will sum up all scores of same edges but only one edge survive. <br>"**countSum**" means to counts the occurrences of same edges but only one edge survives. <br>"**raw**" means that you will allow duplicates edges. Default is "**first**". |
 | rpcTimeout | Timeout for the request. | Integer | 100 | Optional. In milliseconds. Default is 100 and maximum is 1000. |
 | maxAttempt | Max number of HBase read attempts. | Integer |1 | Optional. Default is 1, and maximum is 5. |
 | _to | Specify desired target vertex. Step results will only show edges to given vertex. | String | some vertex id|  Optional. |
-| threshold | Score threshold for query results. Edges with lesser socres will be dropped. | Double | 1.0 | Optional. Default is 0.0. |
-| transform | "_to" values on resulting edges can be transformed. ??? | JSON (array of array) | optional, default [ ["_to"]] |
+| threshold | Score threshold for query results. Edges with lesser scores will be dropped. | Double | 1.0 | Optional. Default is 0.0. |
+| transform | "_to" values on resulting edges can be transformed to another value from their properties. | JSON (array of array) | optional, default [ ["_to"]] |
 
 
 ### 6.2. Query API ###
 
 #### 6.2.1. Edge Queries ####
-S2Graph provides a query DSL (domain-specific language)??? which has been reported to have a pretty steep learning curve.
+S2Graph provides a query DSL which has been reported to have a pretty steep learning curve.
 One tip is to try to understand each features by projecting it to that of a RDBMS such MySQL. This doesn't work all the time, but there are many similarities between S2Graph and a conventional RDBMS.
 For example, S2Graphs "getEdges" is used to fetch data and traverse multiple steps. This is very similar to the "SELECT" query in MySQL.
 Another tip is to not be shy to ask! Send us an E-mail or open an issue with the problems that you're having with S2Graph.
@@ -1025,7 +1025,7 @@ curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -
 **Notice the "duplicate" field**. If a target label's consistency level is **weak** and multiple edges exist with the same (from, to, label, direction) id, then the query is expect to have a policy for handling edge duplicates. S2Graph provides four duplicate policies on edges.
 >1. raw: Allow duplicates and return all edges.
 >2. **first**: Return only the first edge if multiple edges exist. This is default.
->3. countSum: Return only one edge ???random?, and return how many duplicates exist.
+>3. countSum: Return only one edge, and return how many duplicates exist.
 >4. sum: Return only one edge, and return sum of the scores.
 
 
@@ -1839,7 +1839,7 @@ curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -
 '
 ```
 
-Example 6. Make a two-step query to fetch the music playlist of the friends of user "account_id = 1". Limit the first step by 10 friends and the second step by 100 traks.)
+Example 6. Make a two-step query to fetch the music playlist of the friends of user "account_id = 1". Limit the first step by 10 friends and the second step by 100 tracks.)
 
 ```javascript
 curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
@@ -1853,7 +1853,7 @@ curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -
 '
 ```
 
-Example 7. Query the friends of user "account_id = 1" who played the trak "trak_id = 200".
+Example 7. Query the friends of user "account_id = 1" who played the track "track_id = 200".
 ```javascript
 curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
 {
@@ -1905,13 +1905,13 @@ Note that if you don't need additional properties on vertices(i.e., you only nee
 
 #### Edge Format
 
-|timestamp | operation | logType |  from | to | label | props |
+|Timestamp | Operation | Log Type |  From | To | Label | Props |
 |:------- | --- |:----: | --- | -----| --- | --- |
 |1416236400|insert|edge|56493|26071316|talk_friend_long_term_agg_by_account_id|{"timestamp":1416236400,"score":0}|
 
 #### Vertex Format
 
-|timestamp | operation | logType |  id | serviceName | columnName | props |
+|Timestamp | Operation | Log Type |  ID | Service Name | Column Name | Props |
 |:------- | --- |:----: | --- | -----| --- | --- |
 |1416236400|insert|vertex|56493|kakaotalk|account_id|`{"is_active":true, "country_iso": "kr"}`|
 
@@ -1978,7 +1978,7 @@ The following explains how to run an online migration from RDBMS to S2Graph. ass
     ]
 }
 ```
-| number of S2Graph servers |  vusers | offset | first step limit | tps | latency |
+| Number of S2Graph Servers |  Vusers | Offset | 1st Step Limit | TPS | Latency |
 |:------- | --- |:----: | --- | --- | --- | --- |
 | 1 | 20 | 0 | 100 | 3110.3TPS | 6.25ms |
 | 1 | 20 | 0 | 200 | 2,595.3TPS | 7.52 ms |
@@ -2017,7 +2017,7 @@ The following explains how to run an online migration from RDBMS to S2Graph. ass
     ]
 }
 ```
-| number of S2Graph servers |  vusers | first step limit | second step limit | tps | latency |
+| Number of S2Graph Servers |  Vusers | 1st Step Limit | 2nd Step Limit | TPS | Latency |
 |:------- | --- |:----: | --- | --- | --- | --- |  
 | 1 | 20 | 10 | 10 | 3,050.3TPS | 6.43ms  |
 | 1 | 20 | 10 | 20 | 2,239.3TPS | 8.8 ms |
@@ -2086,7 +2086,7 @@ The following explains how to run an online migration from RDBMS to S2Graph. ass
     ]
 }
 ```
-| number of S2Graph servers |  vusers | first step limit | second step limit | third step limit | tps | latency |
+| Number of S2Graph Servers |  Vusers | 1st Step Limit | 2nd Step Limit | 3rd Step Limit | TPS | Latency |
 |:------- | --- |:----: | --- | --- | --- | --- | --- |  
 | 1 | 20 | 10 | 10 | 10 | 325TPS | 61.14ms |
 | 1 | 20 | 10 | 10 | 20 | 189TPS | 105.31ms |
