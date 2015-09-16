@@ -468,7 +468,7 @@ else:
 
 A label can have multiple properties set as indexes. When edges are queried, the ordering will determined according to indexes, therefore, deciding which edges will be included in the **top-K** results.
 
-> Edge retrieval queries in S2Graph by default returns **top-K** edges. Clients must issue another query to fetch the next K edges, i.e., **topK ~ 2topK**.
+> Edge retrieval queries in S2Graph by default returns **top-K** edges. Clients must issue another query to fetch the next K edges, i.e., **top-K ~ 2 x top-K**.
 
 Edges sorted according to the indices in order to limit the number of edges being fetched by a query. If no ordering property is given, S2Graph will use the **timestamp** as an index, thus resulting in the most recent data.
 
@@ -664,7 +664,7 @@ curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/jso
 '
 ```
 
-This time there are **3 edges** between (101, 10, s2graph_label_test_weak, out).
+This time there are **three edges** between (101, 10, s2graph_label_test_weak, out).
 ```
 {
     "size": 3,
