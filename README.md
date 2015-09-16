@@ -953,7 +953,7 @@ A typical query contains the source vertex as a starting point, a list of labels
 |:------- | --- |:----: | --- | :-----|
 | srcVertices | Starting point(s) of the traverse. | JSON (array of vertex representations that includes "serviceName", "columnName", and "id" fields.) | `[{"serviceName": "kakao", "columnName": "account_id", "id":1}]` | Required. |
 |**steps**| A list of labels to traverse. | JSON (array of a step representation) |  ```[[{"label": "graph_test", "direction": "out", "limit": 100, "scoring":{"time": 0, "weight": 1}}]] ``` |Explained below.|
-|removeCycle| When traversing to next step, disregard vertices that are already visited.| Boolean | "true"/ "false" | "Already visited" vertices are decided by both label and vertex. If a two step query on a same label "friends" contains any source vertices, removeCycle option will decide whether or not these vertices will be included in the response. Default is "true". |
+|removeCycle| When traversing to next step, disregard vertices that are already visited.| Boolean | "true"/ "false" | "Already visited" vertices are decided by both label and vertex. If a two-step query on a same label "friends" contains any source vertices, removeCycle option will decide whether or not these vertices will be included in the response. Default is "true". |
 |select| Edge data fields to include in the query result. | JSON (array of strings) | ["label", "to", "from"] | |
 |groupBy | S2Graph will group results by this field. | JSON (array of strings) | ["to"] | |
 |filterOut | Give a nested query in this field, and it will run concurrently. The result will be a act as a blacklist and filtered out from the result of the outer query.| JSON (query format) | ||
@@ -1967,7 +1967,7 @@ The following explains how to run an online migration from RDBMS to S2Graph. ass
 ## 8. Benchmark ##
 
 
-### Test data
+### Test Data
 1. A synthetic dense matrix(10 million row x 1000 column, total edge 10 billion) data set.
 2. Number of HBase region servers: 20
 3. Number of S2Graph instances: 1
@@ -2003,7 +2003,7 @@ The following explains how to run an online migration from RDBMS to S2Graph. ass
 
 <img width="884" alt="screen shot 2015-09-03 at 11 50 59 am" src="https://cloud.githubusercontent.com/assets/1264825/9649651/ce3424f4-5232-11e5-8350-4ac0c5e5a523.png">
 
-#### 2. two step query
+#### 2. Two-Step query
 ```
 {
     "srcVertices": [
@@ -2064,7 +2064,7 @@ The following explains how to run an online migration from RDBMS to S2Graph. ass
 <img width="903" alt="screen shot 2015-09-03 at 11 51 06 am" src="https://cloud.githubusercontent.com/assets/1264825/9649652/ce34abf4-5232-11e5-94d3-51a231d508a4.png">
 <img width="892" alt="screen shot 2015-09-03 at 11 51 13 am" src="https://cloud.githubusercontent.com/assets/1264825/9649653/ce35c3a4-5232-11e5-8cdb-4bf220dc2cae.png">
 
-#### 3. three step query
+#### 3. Three-Step query
 ```
 {
     "srcVertices": [
