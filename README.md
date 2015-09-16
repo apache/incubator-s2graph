@@ -1347,7 +1347,7 @@ Here is more practical example.
       {
         "columnName": "uuid",
         "id": "Alec",
-        "serviceName": "nachu"
+        "serviceName": "daumnews"
       }
     ],
     "steps": [
@@ -1355,7 +1355,7 @@ Here is more practical example.
         "step": [
           {
             "direction": "out",
-            "label": "nachu_user_view_news",
+            "label": "daumnews_user_view_news",
             "limit": 100,
             "offset": 0
           }
@@ -1367,7 +1367,7 @@ Here is more practical example.
     {
       "columnName": "uuid",
       "id": "Alec",
-      "serviceName": "nachu"
+      "serviceName": "daumnews"
     }
   ],
   "steps": [
@@ -1377,7 +1377,7 @@ Here is more practical example.
         {
           "direction": "out",
           "duplicate": "scoreSum",
-          "label": "nachu_user_view_news",
+          "label": "daumnews_user_view_news",
           "limit": 100,
           "offset": 0,
           "timeDecay": {
@@ -1392,7 +1392,7 @@ Here is more practical example.
       "nextStepLimit": 10,
       "step": [
         {
-          "label": "nachu_news_belongto_category",
+          "label": "daumnews_news_belongto_category",
           "limit": 1
         }
       ]
@@ -1401,7 +1401,7 @@ Here is more practical example.
       "step": [
         {
           "direction": "in",
-          "label": "nachu_news_belongto_category",
+          "label": "daumnews_news_belongto_category",
           "limit": 10
         }
       ]
@@ -1424,7 +1424,7 @@ Articles that Alec has already read.
     "degrees": [
         {
             "from": "Alec",
-            "label": "nachu_user_view_news",
+            "label": "daumnews_user_view_news",
             "direction": "out",
             "_degree": 6
         }
@@ -1434,7 +1434,7 @@ Articles that Alec has already read.
             "cacheRemain": -19,
             "from": "Alec",
             "to": 20150803143507760,
-            "label": "nachu_user_view_news",
+            "label": "daumnews_user_view_news",
             "direction": "out",
             "_timestamp": 1438591888454,
             "timestamp": 1438591888454,
@@ -1447,7 +1447,7 @@ Articles that Alec has already read.
             "cacheRemain": -19,
             "from": "Alec",
             "to": 20150803150406010,
-            "label": "nachu_user_view_news",
+            "label": "daumnews_user_view_news",
             "direction": "out",
             "_timestamp": 1438591143640,
             "timestamp": 1438591143640,
@@ -1460,7 +1460,7 @@ Articles that Alec has already read.
             "cacheRemain": -19,
             "from": "Alec",
             "to": 20150803144908340,
-            "label": "nachu_user_view_news",
+            "label": "daumnews_user_view_news",
             "direction": "out",
             "_timestamp": 1438581933262,
             "timestamp": 1438581933262,
@@ -1473,7 +1473,7 @@ Articles that Alec has already read.
             "cacheRemain": -19,
             "from": "Alec",
             "to": 20150803124627492,
-            "label": "nachu_user_view_news",
+            "label": "daumnews_user_view_news",
             "direction": "out",
             "_timestamp": 1438581485765,
             "timestamp": 1438581485765,
@@ -1486,7 +1486,7 @@ Articles that Alec has already read.
             "cacheRemain": -19,
             "from": "Alec",
             "to": 20150803113311090,
-            "label": "nachu_user_view_news",
+            "label": "daumnews_user_view_news",
             "direction": "out",
             "_timestamp": 1438580536376,
             "timestamp": 1438580536376,
@@ -1507,7 +1507,7 @@ Without "filterOut"
     "degrees": [
         {
             "from": 1028,
-            "label": "nachu_news_belongto_category",
+            "label": "daumnews_news_belongto_category",
             "direction": "in",
             "_degree": 2
         }
@@ -1517,7 +1517,7 @@ Without "filterOut"
             "cacheRemain": -33,
             "from": 1028,
             "to": 20150803105805092,
-            "label": "nachu_news_belongto_category",
+            "label": "daumnews_news_belongto_category",
             "direction": "in",
             "_timestamp": 1438590169146,
             "timestamp": 1438590169146,
@@ -1531,7 +1531,7 @@ Without "filterOut"
             "cacheRemain": -33,
             "from": 1028,
             "to": 20150803143507760,
-            "label": "nachu_news_belongto_category",
+            "label": "daumnews_news_belongto_category",
             "direction": "in",
             "_timestamp": 1438581548486,
             "timestamp": 1438581548486,
@@ -1557,7 +1557,7 @@ with "filterOut"
             "cacheRemain": 85957406,
             "from": 1028,
             "to": 20150803105805092,
-            "label": "nachu_news_belongto_category",
+            "label": "daumnews_news_belongto_category",
             "direction": "in",
             "_timestamp": 1438590169146,
             "timestamp": 1438590169146,
