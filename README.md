@@ -762,7 +762,7 @@ Delete all adjacent edges to the source vertex.
 ```
 curl -XPOST localhost:9000/graphs/edges/deleteAll -H 'Content-Type: Application/json' -d '
 [
-  {"ids" : [101], "label":"s2graph_label_test", "direction": "out", "timestamp":1417616441}
+  {"ids" : [101], "label":"s2graph_label_test", "direction": "out", "timestamp":1417616441000}
 ]
 '
 ```
@@ -873,11 +873,11 @@ Unlike edges and their labels, properties of a vertex are not indexed nor requir
 ```
 curl -XPOST localhost:9000/graphs/vertices/insert/s2graph/account_id -H 'Content-Type: Application/json' -d '
 [
-  {"id":1,"props":{"is_active":true, "talk_user_id":10},"timestamp":1417616431},
-  {"id":2,"props":{"is_active":true, "talk_user_id":12},"timestamp":1417616431},
-  {"id":3,"props":{"is_active":false, "talk_user_id":13},"timestamp":1417616431},
-  {"id":4,"props":{"is_active":true, "talk_user_id":14},"timestamp":1417616431},
-  {"id":5,"props":{"is_active":true, "talk_user_id":15},"timestamp":1417616431}
+  {"id":1,"props":{"is_active":true, "talk_user_id":10},"timestamp":1417616431000},
+  {"id":2,"props":{"is_active":true, "talk_user_id":12},"timestamp":1417616431000},
+  {"id":3,"props":{"is_active":false, "talk_user_id":13},"timestamp":1417616431000},
+  {"id":4,"props":{"is_active":true, "talk_user_id":14},"timestamp":1417616431000},
+  {"id":5,"props":{"is_active":true, "talk_user_id":15},"timestamp":1417616431000}
 ]
 '
 ```
@@ -895,7 +895,7 @@ This operation will delete all vertices and connected edges in a given column.
 
 ```
 curl -XPOST localhost:9000/graphs/vertices/deleteAll/s2graph/account_id -H 'Content-Type: Application/json' -d '
-[{"id": 1, "timestamp": 193829198}]
+[{"id": 1, "timestamp": 193829198000}]
 '
 ```
 
@@ -1819,7 +1819,7 @@ curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -
 {
     "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
     "steps": [
-      [{"label": "graph_test", "direction": "in", "offset": 50, "limit": 50, "duration": {"from": 1416214118, "to": 1416214218}, "scoring": {"time": 1.5, "weight": 10}]
+      [{"label": "graph_test", "direction": "in", "offset": 50, "limit": 50, "duration": {"from": 1416214118000, "to": 1416214218000}, "scoring": {"time": 1.5, "weight": 10}]
     ]
 }
 '
@@ -1907,13 +1907,13 @@ Note that if you don't need additional properties on vertices(i.e., you only nee
 
 |Timestamp | Operation | Log Type |  From | To | Label | Props |
 |:------- | --- |:----: | --- | -----| --- | --- |
-|1416236400|insert|edge|56493|26071316|talk_friend_long_term_agg_by_account_id|{"timestamp":1416236400,"score":0}|
+|1416236400000|insert|edge|56493|26071316|talk_friend_long_term_agg_by_account_id|{"timestamp":1416236400000,"score":0}|
 
 #### Vertex Format
 
 |Timestamp | Operation | Log Type |  ID | Service Name | Column Name | Props |
 |:------- | --- |:----: | --- | -----| --- | --- |
-|1416236400|insert|vertex|56493|kakaotalk|account_id|`{"is_active":true, "country_iso": "kr"}`|
+|1416236400000|insert|vertex|56493|kakaotalk|account_id|`{"is_active":true, "country_iso": "kr"}`|
 
 ### Build ###
 In order to build the loader, run following command.
@@ -1978,7 +1978,7 @@ The following explains how to run an online migration from RDBMS to S2Graph. ass
     ]
 }
 ```
-| Number of S2Graph Servers |  Vusers | Offset | 1st Step Limit | TPS | Latency |
+| Number of S2Graph Servers |  VUsers | Offset | 1st Step Limit | TPS | Latency |
 |:------- | --- |:----: | --- | --- | --- | --- |
 | 1 | 20 | 0 | 100 | 3110.3TPS | 6.25ms |
 | 1 | 20 | 0 | 200 | 2,595.3TPS | 7.52 ms |
@@ -2017,7 +2017,7 @@ The following explains how to run an online migration from RDBMS to S2Graph. ass
     ]
 }
 ```
-| Number of S2Graph Servers |  Vusers | 1st Step Limit | 2nd Step Limit | TPS | Latency |
+| Number of S2Graph Servers |  VUsers | 1st Step Limit | 2nd Step Limit | TPS | Latency |
 |:------- | --- |:----: | --- | --- | --- | --- |  
 | 1 | 20 | 10 | 10 | 3,050.3TPS | 6.43ms  |
 | 1 | 20 | 10 | 20 | 2,239.3TPS | 8.8 ms |
@@ -2086,7 +2086,7 @@ The following explains how to run an online migration from RDBMS to S2Graph. ass
     ]
 }
 ```
-| Number of S2Graph Servers |  Vusers | 1st Step Limit | 2nd Step Limit | 3rd Step Limit | TPS | Latency |
+| Number of S2Graph Servers |  VUsers | 1st Step Limit | 2nd Step Limit | 3rd Step Limit | TPS | Latency |
 |:------- | --- |:----: | --- | --- | --- | --- | --- |  
 | 1 | 20 | 10 | 10 | 10 | 325TPS | 61.14ms |
 | 1 | 20 | 10 | 10 | 20 | 189TPS | 105.31ms |
