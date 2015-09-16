@@ -665,13 +665,13 @@ case class Edge(srcVertex: Vertex,
             sum += 1
           }
           case _ => {
-            props.get(seq) match {
+            propsWithTs.get(seq) match {
               case None =>
               //                logger.error(s"Not Found SortKeyType : ${seq} for rank in Label(${labelWithDir.labelId}})'s OrderByKeys(${orderByKey.typeIds}})")
-              case Some(innerVal) => {
+              case Some(innerValWithTs) => {
                 val cost = try {
                   //                  BigDecimal(innerVal.toString).toDouble
-                  innerVal.toString.toDouble
+                  innerValWithTs.innerVal.toString.toDouble
                 } catch {
                   case e: Throwable => 1.0
                 }
