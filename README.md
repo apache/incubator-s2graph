@@ -743,7 +743,7 @@ For insert operations, S2Graph first checks if an edge with same (from, to, labe
 
 ##### 2. Delete -`POST /graphs/edges/delete` #####
 For edge deletion, again, S2Graph looks for a unique edge with (from, to, label, direction).
-However, this time it checks the timestamp of the delete request and the existing edge. The timestamp on the delete request **mush be larger than that on the existing edge** or else the request will be ignored. If everything is well, the edge will be deleted. Also note that no props information is necessary for a delete request on a strongly consistent label since there will be only one edge with edge`s unique id(from, to, label, direction).
+However, this time it checks the timestamp of the delete request and the existing edge. The timestamp on the delete request **must be larger than that on the existing edge** or else the request will be ignored. If everything is well, the edge will be deleted. Also note that no props information is necessary for a delete request on a strongly consistent label since there will be only one edge with edge`s unique id(from, to, label, direction).
 
 ```
 curl -XPOST localhost:9000/graphs/edges/delete -H 'Content-Type: Application/json' -d '
