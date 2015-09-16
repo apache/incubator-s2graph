@@ -11,8 +11,6 @@ Table of Content
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](http://doctoc.herokuapp.com/)*
 
-**Table of Contents**  *generated with [DocToc](http://doctoc.herokuapp.com/)*
-
 - [S2Graph](#)
 	- [Table of Content](#)
 	- [Getting Started](#)
@@ -86,7 +84,7 @@ Table of Content
 			- [2. two step query](#)
 			- [3. three step query](#)
 	- [8. Resources](#)
-  
+
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 
