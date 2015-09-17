@@ -98,7 +98,6 @@ object PostProcess extends JSONParser {
   def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]): JsValue = {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
     var withScore = true
-    val degreeJsons = ListBuffer[JsValue]()
     val degrees = ListBuffer[JsValue]()
     val edgeJsons = ListBuffer[JsValue]()
 
@@ -134,7 +133,7 @@ object PostProcess extends JSONParser {
       }
       val edges =
         if (q.groupByColumns.isEmpty && withScore) {
-          degreeJsons ++ edgeJsons.sortBy(js => ((js \ "score").asOpt[Double].getOrElse(0.0) * -1, (js \ "_timestamp").asOpt[Long].getOrElse(0L) * -1))
+          edgeJsons.sortBy(js => ((js \ "score").asOpt[Double].getOrElse(0.0) * -1, (js \ "_timestamp").asOpt[Long].getOrElse(0L) * -1))
         } else {
           edgeJsons
         }
@@ -161,8 +160,8 @@ object PostProcess extends JSONParser {
                 "agg" -> jsVals)
             }
 
-          val groupedSortedJsons = degreeJsons ++ groupedJsons.toList.sortBy { case jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
-          Json.obj("size" -> groupedJsons.size, "results" -> Json.toJson(groupedSortedJsons), "impressionId" -> q.impressionId())
+          val groupedSortedJsons = groupedJsons.toList.sortBy { case jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
+          Json.obj("size" -> groupedJsons.size, "degrees" -> degrees, "results" -> Json.toJson(groupedSortedJsons), "impressionId" -> q.impressionId())
         }
       resultJson
     }
