@@ -157,7 +157,7 @@ object PostProcess extends JSONParser {
               val scoreSum = jsVals.map { js => (js \ "score").asOpt[Double].getOrElse(0.0) }.sum
               Json.obj("groupBy" -> Json.toJson(groupByKeyVals.toMap),
                 "scoreSum" -> scoreSum,
-                "agg" -> jsVals)
+                "agg" -> jsVals.sortBy(jsVal => (jsVal \ "score").asOpt[Double].getOrElse(0.0) * -1))
             }
 
           val groupedSortedJsons = groupedJsons.toList.sortBy { case jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
