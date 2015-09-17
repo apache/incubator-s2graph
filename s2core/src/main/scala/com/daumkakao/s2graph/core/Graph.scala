@@ -267,24 +267,19 @@ object Graph {
       (prevStepTgtVertexResultLs, prevScore) <- currentStepRequestLss
       (startVertexId, getRequest, queryParam) <- prevStepTgtVertexResultLs
     } yield {
-      val ancestorVertexIds =
-        if (shouldPropagate) {
-          Seq(startVertexId)
-        } else {
-          prevStepTgtVertexIdEdges.get(startVertexId) match {
-            case None =>
-              logger.error(s"this should never happend.")
-              Nil
-            case Some(ancestorEdges) =>
-              ancestorEdges.flatMap(_.ancestorVertexIds)
-          }
-        }
+      val prevStepEdgesOpt = prevStepTgtVertexIdEdges.get(startVertexId)
+      if (prevStepEdgesOpt.isEmpty) throw new RuntimeException("miss match on prevStepEdge and current GetRequest")
 
-      fetchEdgesWithCache(ancestorVertexIds, getRequest, q, stepIdx, queryParam, prevScore)
+      val ancestorEdges =
+        if (shouldPropagate) prevStepEdgesOpt.get
+        else prevStepEdgesOpt.get.flatMap(_.ancestorEdges)
+
+
+      fetchEdgesWithCache(ancestorEdges, getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
 
-  private def fetchEdgesWithCache(ancestorVertexIds: Seq[VertexId], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
+  private def fetchEdgesWithCache(ancestorEdges: Seq[Edge], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
     val cacheKey = MurmurHash3.stringHash(getRequest.toString)
     def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
       def call(arg: QueryResult): QueryResult = {
@@ -305,25 +300,25 @@ object Graph {
         else {
           // cache.asMap().remove(cacheKey)
           //          logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
-          fetchEdges(ancestorVertexIds, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+          fetchEdges(ancestorEdges, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
         }
       } else {
         //        logger.debug(s"cacheMiss: $cacheKey")
-        fetchEdges(ancestorVertexIds, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+        fetchEdges(ancestorEdges, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
       }
     } else {
       //      logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
-      fetchEdges(ancestorVertexIds, getRequest, q, stepIdx, queryParam, prevScore)
+      fetchEdges(ancestorEdges, getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
 
   /** actual request to HBase */
-  private def fetchEdges(ancestorVertexIds: Seq[VertexId], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] =
+  private def fetchEdges(ancestorEdges: Seq[Edge], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] =
     Try {
       val client = getClient(queryParam.label.hbaseZkAddr)
 
       val successCallback = (kvs: util.ArrayList[KeyValue]) => {
-        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isInnerCall = false, ancestorVertexIds)
+        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isInnerCall = false, ancestorEdges)
         QueryResult(q, stepIdx, queryParam, edgeWithScores)
       }
 

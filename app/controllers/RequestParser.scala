@@ -246,6 +246,7 @@ trait RequestParser extends JSONParser {
 
       val outputField = (labelGroup \ "outputField").asOpt[String].map(s => Json.arr(Json.arr(s)))
       val transformer = if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]
+      val scorePropagateOp = (labelGroup \ "scorePropagateOp").asOpt[String].getOrElse("multiply")
 
       QueryParam(labelWithDir)
         .limit(offset, limit)
@@ -266,6 +267,7 @@ trait RequestParser extends JSONParser {
         .timeDecay(timeDecayFactor)
         .threshold(threshold)
         .transformer(transformer)
+        .scorePropagateOp(scorePropagateOp)
     }
   }
 
