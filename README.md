@@ -987,6 +987,7 @@ Once you have your graph data uploaded to s2graph, you can traverse your graph u
 | _to | to vertex id | string | optional | note: use this to get a edge for certain vertex |
 | threshold | score threshold for filtering out result edges | double | optional, default 0.0 | 
 | transform | rules define how to transform _to field value on edge | json array of json array | optional, default [ ["_to"]] |
+| scorePropagateOp | how to propagate previous step score | string | optional, default "multiply"| note: only support "**plus**", "**multiply**" for now. 
 
 
 ### 2. Query API ###
