@@ -217,7 +217,8 @@ object PostProcess extends JSONParser {
             case "_timestamp" | "timestamp" => JsNumber(edge.ts)
             case "score" => JsNumber(score)
             case "props" if !propsMap.isEmpty => Json.toJson(propsMap)
-            case "ancestor" => Json.toJson(edge.ancestorEdges.map(_.tgtVertex.innerId.toString()))
+            case "ancestor" =>
+              Json.toJson(edge.ancestorEdges.map(e => edgeToJson(e, 1.0, q, QueryParam(e.labelWithDir))))
             case _ => JsNull
           }
 
