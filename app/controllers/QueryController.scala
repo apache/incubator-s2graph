@@ -59,7 +59,7 @@ object QueryController extends Controller with RequestParser {
 
     Try {
       val future = jsonQuery match {
-        case JsArray(arr) => Future.sequence(arr.map(toQuery(_)).map(fetch)).map(JsArray)
+        case JsArray(arr) => Future.traverse(arr.map(toQuery(_)))(fetch).map(JsArray)
         case obj@JsObject(_) => fetch(toQuery(obj))
         case _ => throw BadQueryException("Cannot support")
       }
