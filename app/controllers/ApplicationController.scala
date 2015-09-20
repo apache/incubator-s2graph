@@ -1,7 +1,6 @@
 package controllers
 
 import com.daumkakao.s2graph.logger
-import config.Config
 import play.api.libs.iteratee.Enumerator
 import play.api.libs.json.JsValue
 import play.api.mvc._
@@ -12,12 +11,9 @@ object ApplicationController extends Controller {
 
   var isHealthy = true
   var deployInfo = ""
-  val useKeepAlive = Config.USE_KEEP_ALIVE
-  var connectionKeepAlive = CONNECTION -> "keep-alive"
-  var connectionClose = CONNECTION -> "close"
   val applicationJsonHeader = "application/json"
 
-  def jsonParser: BodyParser[JsValue] = controllers.s2parse.json
+  val jsonParser: BodyParser[JsValue] = controllers.s2parse.json
 
   def updateHealthCheck(isHealthy: Boolean) = Action { request =>
     this.isHealthy = isHealthy
@@ -37,18 +33,13 @@ object ApplicationController extends Controller {
         header = ResponseHeader(OK),
         body = Enumerator(json.toString.getBytes()),
         connection = HttpConnection.Close
-      ).as(applicationJsonHeader)
+      ).as(applicationJsonHeader).withHeaders((CONNECTION -> "close") +: headers: _*)
     }
-
-  def responseWithConnectionHeader(r: Result): Result = {
-    if (useKeepAlive && isHealthy) r.withHeaders(connectionKeepAlive)
-    else r.withHeaders(connectionClose)
-  }
 
   def toLogMessage[A](request: Request[A], result: Result)(startedAt: Long): String = {
     val duration = System.currentTimeMillis() - startedAt
     val isQueryRequest = result.header.headers.contains("result_size")
-    val resultSize = result.header.headers.getOrElse("result_size", "0")
+    val resultSize = result.header.headers.getOrElse("result_size", "-1")
 
     try {
       if (isQueryRequest) {
@@ -66,7 +57,7 @@ object ApplicationController extends Controller {
       val startedAt = System.currentTimeMillis()
       block(request).map { r =>
         logger.info(toLogMessage(request, r)(startedAt))
-        responseWithConnectionHeader(r)
+        r
       }
     }
 
@@ -75,6 +66,6 @@ object ApplicationController extends Controller {
       val startedAt = System.currentTimeMillis()
       val r = block(request)
       logger.info(toLogMessage(request, r)(startedAt))
-      responseWithConnectionHeader(r)
+      r
     }
 }

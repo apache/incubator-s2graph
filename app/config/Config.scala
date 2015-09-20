@@ -27,9 +27,6 @@ object Config {
   lazy val KAFKA_LOG_TOPIC_ASYNC = s"s2graphIn${PHASE}Async"
   lazy val KAFKA_FAIL_TOPIC = s"s2graphIn${PHASE}Failed"
 
-  // use Keep-Alive
-  lazy val USE_KEEP_ALIVE = conf.getBoolean("use.keep.alive").getOrElse(false)
-
   // is query or write
   lazy val IS_QUERY_SERVER = conf.getBoolean("is.query.server").getOrElse(true)
   lazy val IS_WRITE_SERVER = conf.getBoolean("is.write.server").getOrElse(true)
