@@ -6,6 +6,7 @@ import com.daumkakao.s2graph.core.types.{InnerVal, InnerValLike}
 import com.daumkakao.s2graph.logger
 import play.api.libs.json._
 
+import scala.annotation.tailrec
 import scala.collection.mutable.ListBuffer
 import play.api.libs.json.Json
 /**
@@ -195,6 +196,49 @@ object PostProcess extends JSONParser {
     }
   }
 
+  private def edgeAncesstors(ancestorEdges: Seq[EdgeWithScore], q: Query, queryParam: QueryParam): JsValue = {
+    if (ancestorEdges.isEmpty) {
+      Json.arr()
+    } else {
+      val ancestors = for {
+        parent <- ancestorEdges
+        (parentEdge, parentScore) = (parent.edge, parent.score)
+      } yield {
+        val ancestor = edgeAncesstors(parentEdge.ancestorEdges, q, QueryParam(parentEdge.labelWithDir))
+        val edgeJson = edgeToJsonInner(parentEdge, parentScore, q, queryParam).getOrElse(Map.empty[String, JsValue]) + ("ancestor" -> ancestor)
+        Json.toJson(edgeJson)
+      }
+      Json.toJson(ancestors)
+    }
+  }
+
+  def edgeToJsonInner(edge: Edge, score: Double, q: Query, queryParam: QueryParam): Option[Map[String, JsValue]] = {
+    val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryParam)
+    val kvMapOpt = for {
+      from <- innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
+      to <- innerValToJsValue(edge.tgtVertex.id.innerId, tgtColumn.columnType)
+    } yield {
+        val propsMap = propsToJson(edge, q, queryParam)
+        var targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
+        val kvMap = targetColumns.foldLeft(Map.empty[String, JsValue]) { (map, column) =>
+          val jsValue = column match {
+            case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (System.currentTimeMillis() - queryParam.timestamp))
+            case "from" => from
+            case "to" => to
+            case "label" => JsString(queryParam.label.label)
+            case "direction" => JsString(GraphUtil.fromDirection(edge.labelWithDir.dir))
+            case "_timestamp" | "timestamp" => JsNumber(edge.ts)
+            case "score" => JsNumber(score)
+            case "props" if !propsMap.isEmpty => Json.toJson(propsMap)
+            case _ => JsNull
+          }
+
+          if (jsValue == JsNull) map else map + (column -> jsValue)
+        }
+        kvMap
+      }
+    kvMapOpt
+  }
   def edgeToJson(edge: Edge, score: Double, q: Query, queryParam: QueryParam): Option[JsValue] = {
     val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryParam)
     val json = for {
@@ -218,7 +262,8 @@ object PostProcess extends JSONParser {
             case "score" => JsNumber(score)
             case "props" if !propsMap.isEmpty => Json.toJson(propsMap)
             case "ancestor" =>
-              Json.toJson(edge.ancestorEdges.map(e => edgeToJson(e, 1.0, q, QueryParam(e.labelWithDir))))
+              Json.toJson(edgeAncesstors(edge.ancestorEdges, q, queryParam))
+//              Json.toJson(edge.ancestorEdges.map(e => edgeToJson(e, 1.0, q, QueryParam(e.labelWithDir))))
             case _ => JsNull
           }
 

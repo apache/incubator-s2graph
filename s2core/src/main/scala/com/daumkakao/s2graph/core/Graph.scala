@@ -259,7 +259,7 @@ object Graph {
     } get
   }
 
-  private def fetchEdgesLs(prevStepTgtVertexIdEdges: Map[VertexId, Seq[Edge]],
+  private def fetchEdgesLs(prevStepTgtVertexIdEdges: Map[VertexId, Seq[EdgeWithScore]],
                            currentStepRequestLss: Seq[(Iterable[(VertexId, GetRequest, QueryParam)], Double)],
                            q: Query, stepIdx: Int,
                            shouldPropagate: Boolean): Seq[Deferred[QueryResult]] = {
@@ -270,16 +270,27 @@ object Graph {
       val prevStepEdgesOpt = prevStepTgtVertexIdEdges.get(startVertexId)
       if (prevStepEdgesOpt.isEmpty) throw new RuntimeException("miss match on prevStepEdge and current GetRequest")
 
-      val ancestorEdges =
-        if (shouldPropagate) prevStepEdgesOpt.get
-        else prevStepEdgesOpt.get.flatMap(_.ancestorEdges)
+      val ancestorEdges = for {
+        parentEdge <- prevStepEdgesOpt.get
+      } yield {
+          parentEdge
+        }
+//        if (shouldPropagate) prevStepEdgesOpt.get
+//        else {
+//          for {
+//            parentEdge <- prevStepEdgesOpt.get
+//          } yield {
+//            parentEdge
+//          }
+//
+//        }
 
 
       fetchEdgesWithCache(ancestorEdges, getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
 
-  private def fetchEdgesWithCache(ancestorEdges: Seq[Edge], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
+  private def fetchEdgesWithCache(ancestorEdges: Seq[EdgeWithScore], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
     val cacheKey = MurmurHash3.stringHash(getRequest.toString)
     def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
       def call(arg: QueryResult): QueryResult = {
@@ -313,7 +324,7 @@ object Graph {
   }
 
   /** actual request to HBase */
-  private def fetchEdges(ancestorEdges: Seq[Edge], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] =
+  private def fetchEdges(ancestorEdges: Seq[EdgeWithScore], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] =
     Try {
       val client = getClient(queryParam.label.hbaseZkAddr)
 
@@ -374,7 +385,7 @@ object Graph {
 
     val prevStepTgtVertexIdEdges = for {
       (vertex, edgesWithScore) <- groupedBy
-    } yield (vertex.id -> edgesWithScore.map(_._2._1))
+    } yield (vertex.id -> edgesWithScore.map{ case (vertex, (edge, score)) => EdgeWithScore(edge, score) })
     //    logger.debug(s"groupedByFiltered: $groupedByFiltered")
 
     val nextStepSrcVertices = if (prevStepLimit >= 0) {
@@ -492,7 +503,7 @@ object Graph {
         queryResult <- queryResultLs
       } yield {
           val duplicateEdges = new util.concurrent.ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]]()
-          val resultEdgeWithScores = new util.concurrent.ConcurrentHashMap[HashKey, (HashKey, FilterHashKey, Edge, Double)]()
+          val resultEdges = new util.concurrent.ConcurrentHashMap[HashKey, (HashKey, FilterHashKey, Edge, Double)]()
           val edgeWithScoreSorted = new ListBuffer[(HashKey, FilterHashKey, Edge, Double)]
 
           val labelWeight = step.labelWeights.get(queryResult.queryParam.labelWithDir.labelId).getOrElse(1.0)
@@ -524,8 +535,8 @@ object Graph {
               val newScore = labelWeight * score * tsVal
 
               /** aggregate score into result. note that this is only aggregate in queryParam scope */
-              if (resultEdgeWithScores.containsKey(hashKey)) {
-                val (oldHashKey, oldFilterHashKey, oldEdge, oldScore) = resultEdgeWithScores.get(hashKey)
+              if (resultEdges.containsKey(hashKey)) {
+                val (oldHashKey, oldFilterHashKey, oldEdge, oldScore) = resultEdges.get(hashKey)
                 //TODO:
                 queryResult.queryParam.duplicatePolicy match {
                   case Query.DuplicatePolicy.First => // do nothing
@@ -538,29 +549,29 @@ object Graph {
                       duplicateEdges.put(hashKey, newBuffer)
                     }
                   case Query.DuplicatePolicy.CountSum =>
-                    resultEdgeWithScores.put(hashKey, (hashKey, filterHashKey, oldEdge, oldScore + 1))
+                    resultEdges.put(hashKey, (hashKey, filterHashKey, oldEdge, oldScore + 1))
                   case _ =>
-                    resultEdgeWithScores.put(hashKey, (hashKey, filterHashKey, oldEdge, oldScore + newScore))
+                    resultEdges.put(hashKey, (hashKey, filterHashKey, oldEdge, oldScore + newScore))
                 }
               } else {
-                resultEdgeWithScores.put(hashKey, (hashKey, filterHashKey, convertedEdge, newScore))
+                resultEdges.put(hashKey, (hashKey, filterHashKey, convertedEdge, newScore))
                 edgeWithScoreSorted += ((hashKey, filterHashKey, convertedEdge, newScore))
               }
             }
           }
           //                    logMap(duplicateEdges)
-          //                    logMap(resultEdgeWithScores)
+          //                    logMap(resultEdges)
 
-          (duplicateEdges, resultEdgeWithScores, edgeWithScoreSorted)
+          (duplicateEdges, resultEdges, edgeWithScoreSorted)
         }
 
       val aggregatedResults = for {
         (queryResult, queryParamResult) <- queryResultLs.zip(queryParamResultLs)
-        (duplicateEdges, resultEdgeWithScores, edgeWithScoreSorted) = queryParamResult
+        (duplicateEdges, resultEdges, edgeWithScoreSorted) = queryParamResult
       } yield {
           val edgesWithScores = for {
             (hashKey, filterHashKey, edge, _) <- edgeWithScoreSorted if edgesToInclude.containsKey(filterHashKey) || !edgesToExclude.containsKey(filterHashKey)
-            score = resultEdgeWithScores.get(hashKey)._4
+            score = resultEdges.get(hashKey)._4
             (duplicateEdge, aggregatedScore) <- (edge -> score) +: (if (duplicateEdges.containsKey(hashKey)) duplicateEdges.get(hashKey) else Seq.empty)
             if aggregatedScore >= queryResult.queryParam.threshold
           } yield {
