@@ -104,7 +104,7 @@ object TransferToHFile extends SparkApp {
 
 
       job.setMapOutputKeyClass(classOf[ImmutableBytesWritable])
-      job.setMapOutputValueClass(classOf[Cell])
+      job.setMapOutputValueClass(classOf[KeyValue])
       HFileOutputFormat2.configureIncrementalLoad(job, table)
 
       cells.saveAsNewAPIHadoopFile(output, classOf[ImmutableBytesWritable], classOf[KeyValue], classOf[HFileOutputFormat2], job.getConfiguration())
