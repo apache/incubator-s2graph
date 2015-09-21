@@ -94,10 +94,10 @@ object QueryController extends Controller with RequestParser {
         jsonResponse(json, "result_size" -> calcSize(json).toString)
       }
     } recover {
-      case e: KGraphExceptions.BadQueryException =>
+      case e: BadQueryException =>
         logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
-      case e: Throwable =>
+      case e: Exception =>
         logger.error(s"$jsonQuery, $e", e)
         errorResults
     } get
@@ -157,10 +157,10 @@ object QueryController extends Controller with RequestParser {
         jsonResponse(json, "result_size" -> calcSize(json).toString)
       }
     } recover {
-      case e: KGraphExceptions.BadQueryException =>
+      case e: BadQueryException =>
         logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
-      case e: Throwable =>
+      case e: Exception =>
         logger.error(s"$jsonQuery, $e", e)
         errorResults
     } get
@@ -187,10 +187,10 @@ object QueryController extends Controller with RequestParser {
         jsonResponse(json, "result_size" -> calcSize(json).toString)
       }
     } recover {
-      case e: KGraphExceptions.BadQueryException =>
+      case e: BadQueryException =>
         logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
-      case e: Throwable =>
+      case e: Exception =>
         logger.error(s"$jsonQuery, $e", e)
         errorResults
     } get
@@ -248,7 +248,7 @@ object QueryController extends Controller with RequestParser {
         jsonResponse(json, "result_size" -> edgeJsons.size.toString)
       }
     } catch {
-      case e: Throwable =>
+      case e: Exception =>
         logger.error(s"$jsValue, $e", e)
         errorResults
     }
