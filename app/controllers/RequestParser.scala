@@ -129,6 +129,7 @@ trait RequestParser extends JSONParser {
       val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
       val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
       val withScore = (jsValue \ "withScore").asOpt[Boolean].getOrElse(true)
+      val returnTree = (jsValue \ "returnTree").asOpt[Boolean].getOrElse(false)
 
       val querySteps =
         steps.zipWithIndex.map { case (step, stepIdx) =>
@@ -184,7 +185,8 @@ trait RequestParser extends JSONParser {
         }
 
       val ret = Query(vertices, querySteps, removeCycle = removeCycle,
-        selectColumns = selectColumns, groupByColumns = groupByColumns, filterOutQuery = filterOutQuery, withScore = withScore)
+        selectColumns = selectColumns, groupByColumns = groupByColumns, filterOutQuery = filterOutQuery, withScore = withScore,
+        returnTree = returnTree)
       //      logger.debug(ret.toString)
       ret
     } catch {

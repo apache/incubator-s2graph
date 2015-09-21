@@ -42,7 +42,8 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  selectColumns: Seq[String] = Seq.empty[String],
                  groupByColumns: Seq[String] = Seq.empty[String],
                  filterOutQuery: Option[Query] = None,
-                 withScore: Boolean = true) {
+                 withScore: Boolean = true,
+                 returnTree: Boolean = false) {
 
   lazy val selectColumnsSet = selectColumns.map { c =>
     if (c == "_from") "from"
@@ -164,7 +165,7 @@ case class Step(queryParams: List[QueryParam],
                 //                scoreThreshold: Double = 0.0,
                 nextStepScoreThreshold: Double = 0.0,
                 nextStepLimit: Int = -1,
-                shouldPropagate: Boolean = false ) {
+                shouldPropagate: Boolean = false) {
 
   lazy val excludes = queryParams.filter(_.exclude)
   lazy val includes = queryParams.filterNot(_.exclude)
@@ -423,6 +424,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this.scorePropagateOp = scorePropagateOp
     this
   }
+
   def isSnapshotEdge(): Boolean = tgtVertexInnerIdOpt.isDefined
 
 
