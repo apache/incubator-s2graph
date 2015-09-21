@@ -251,6 +251,7 @@ object PostProcess extends JSONParser {
         Json.toJson(kvMap)
       }
     }
+    
 //    val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryParam)
 //    val json = for {
 //      from <- innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
