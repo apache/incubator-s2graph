@@ -31,7 +31,7 @@ object TransferToHFile extends SparkApp {
 
   //TODO: Process AtomicIncrementRequest too.
   /** build key values */
-  private def buildCells(rdd: RDD[String], dbUrl: String, numOfRegionServers: Int): RDD[(ImmutableBytesWritable, Cell)] = {
+  private def buildCells(rdd: RDD[String], dbUrl: String, numOfRegionServers: Int): RDD[(ImmutableBytesWritable, KeyValue)] = {
     val kvs = rdd.mapPartitions { iter =>
 
       val phase = System.getProperty("phase")
@@ -39,7 +39,7 @@ object TransferToHFile extends SparkApp {
 
       iter.flatMap { s =>
         Graph.toGraphElement(s) match {
-          case None => List.empty[Cell]
+          case None => List.empty[KeyValue]
           case Some(e) =>
             for {
               rpc <- e.buildPutsAll() // what about increments?
@@ -47,7 +47,7 @@ object TransferToHFile extends SparkApp {
               put = rpc.asInstanceOf[PutRequest]
             } yield {
               val p = put
-              CellUtil.createCell(p.key(), p.family(), p.qualifier(), p.timestamp(), KeyValue.Type.Put.getCode, p.value())
+              new KeyValue(p.key(), p.family(), p.qualifier, p.timestamp, p.value)
             }
         }
       }
@@ -59,8 +59,8 @@ object TransferToHFile extends SparkApp {
     sorted
   }
 
-  implicit val myComparator = new Ordering[Cell] {
-    override def compare(left: Cell, right: Cell) = {
+  implicit val myComparator = new Ordering[KeyValue] {
+    override def compare(left: KeyValue, right: KeyValue) = {
       KeyValue.COMPARATOR.compare(left, right)
     }
   }
