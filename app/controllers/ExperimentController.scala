@@ -6,7 +6,7 @@ import java.net.URL
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.logger
 import play.api.Play.current
-import play.api.libs.json.{JsObject, JsValue, Json}
+import play.api.libs.json.{JsString, JsObject, JsValue, Json}
 import play.api.libs.ws.WS
 import play.api.mvc._
 
@@ -34,7 +34,7 @@ object ExperimentController extends Controller with RequestParser {
         } catch {
           case e: Throwable =>
             logger.error(e.toString())
-            Future.successful(BadRequest("required template parameter missing"))
+            Future.successful(BadRequest(s"wrong or missing template parameter: ${e.getMessage}"))
         }
     }
   }
@@ -47,7 +47,11 @@ object ExperimentController extends Controller with RequestParser {
       jsObj <- requestKeyJson.asOpt[JsObject]
       (key, value) <- jsObj.fieldSet
     } {
-      body = body.replace(key, value.toString())
+      val replacement = value match {
+        case JsString(s) => s
+        case _ => value.toString
+      }
+      body = body.replace(key, replacement)
     }
 
     Json.parse(body)

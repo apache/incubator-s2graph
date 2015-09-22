@@ -51,6 +51,7 @@ CREATE TABLE `column_metas` (
   `column_id` integer NOT NULL,
   `name` varchar(64) NOT NULL,
   `seq` tinyint	NOT NULL,
+	`data_type` varchar(8) NOT NULL DEFAULT 'string',
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_column_id_name` (`column_id`, `name`),
   INDEX `idx_column_id_seq` (`column_id`, `seq`)
