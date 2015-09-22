@@ -4,11 +4,9 @@ import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types.{InnerVal, InnerValLike}
 import com.daumkakao.s2graph.logger
-import play.api.libs.json._
+import play.api.libs.json.{Json, _}
 
-import scala.annotation.tailrec
 import scala.collection.mutable.ListBuffer
-import play.api.libs.json.Json
 /**
  * Created by jay on 14. 9. 1..
  */
@@ -204,10 +202,11 @@ object PostProcess extends JSONParser {
         parent <- ancestorEdges
         (parentEdge, parentScore) = (parent.edge, parent.score)
       } yield {
-        val ancestor = edgeAncesstors(parentEdge.ancestorEdges, q, QueryParam(parentEdge.labelWithDir))
-        val edgeJson = edgeToJsonInner(parentEdge, parentScore, q, queryParam).getOrElse(Map.empty[String, JsValue]) + ("ancestor" -> ancestor)
-        Json.toJson(edgeJson)
-      }
+          val parentQueryParam: QueryParam = QueryParam(parentEdge.labelWithDir)
+          val ancestor = edgeAncesstors(parentEdge.ancestorEdges, q, parentQueryParam)
+          val edgeJson = edgeToJsonInner(parentEdge, parentScore, q, parentQueryParam).getOrElse(Map.empty[String, JsValue]) + ("ancestor" -> ancestor)
+          Json.toJson(edgeJson)
+        }
       Json.toJson(ancestors)
     }
   }
@@ -219,7 +218,7 @@ object PostProcess extends JSONParser {
       to <- innerValToJsValue(edge.tgtVertex.id.innerId, tgtColumn.columnType)
     } yield {
         val propsMap = propsToJson(edge, q, queryParam)
-        var targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
+        val targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
         val kvMap = targetColumns.foldLeft(Map.empty[String, JsValue]) { (map, column) =>
           val jsValue = column match {
             case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (System.currentTimeMillis() - queryParam.timestamp))
