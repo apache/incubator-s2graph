@@ -124,7 +124,7 @@ trait RequestParser extends JSONParser {
       if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
 
       val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v) }
-      val steps = parse[List[JsValue]](jsValue, "steps")
+      val steps = parse[Vector[JsValue]](jsValue, "steps")
       val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
       val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
       val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
@@ -157,7 +157,6 @@ trait RequestParser extends JSONParser {
             case obj: JsObject => (obj \ "nextStepLimit").asOpt[Int].getOrElse(-1)
             case _ => -1
           }
-          val shouldPropagate = (step \ "shouldPropagate").asOpt[Boolean].getOrElse(false)
 
           val queryParams =
             for {
@@ -180,8 +179,8 @@ trait RequestParser extends JSONParser {
           Step(queryParams.toList, labelWeights = labelWeights,
             //            scoreThreshold = stepThreshold,
             nextStepScoreThreshold = nextStepScoreThreshold,
-            nextStepLimit = nextStepLimit,
-            shouldPropagate = shouldPropagate)
+            nextStepLimit = nextStepLimit)
+
         }
 
       val ret = Query(vertices, querySteps, removeCycle = removeCycle,

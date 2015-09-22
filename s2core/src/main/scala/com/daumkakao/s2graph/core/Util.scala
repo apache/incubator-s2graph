@@ -13,6 +13,11 @@ package object logger {
     implicit val stringLoggable = new Loggable[String] {
       def toLogMessage(msg: String) = msg
     }
+
+    implicit def numericLoggable[T: Numeric] = new Loggable[T] {
+      def toLogMessage(msg: T) = msg.toString
+    }
+
     implicit val jsonLoggable = new Loggable[JsValue] {
       def toLogMessage(msg: JsValue) = msg.toString()
     }
@@ -28,7 +33,6 @@ package object logger {
   def error[T: Loggable](msg: => T, exception: => Throwable) = errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg), exception)
 
   def error[T: Loggable](msg: => T) = errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg))
-
 }
 
 

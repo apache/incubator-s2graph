@@ -234,7 +234,7 @@ case class Edge(srcVertex: Vertex,
                 version: Long = System.currentTimeMillis(),
                 propsWithTs: Map[Byte, InnerValLikeWithTs] = Map.empty[Byte, InnerValLikeWithTs],
                 pendingEdgeOpt: Option[Edge] = None,
-                ancestorEdges: Seq[EdgeWithScore] = Nil)
+                parentEdges: Seq[EdgeWithScore] = Nil)
   extends GraphElement with JSONParser {
 
 
@@ -688,8 +688,8 @@ case class Edge(srcVertex: Vertex,
   def toLogString(): String = {
     val ls = ListBuffer(ts, GraphUtil.fromOp(op), "e",
       srcVertex.innerId, tgtVertex.innerId, label.label)
+
     if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
-//    ls += ancestorEdges.map(e => e.toLogString())
     ls.mkString("\t")
   }
 
@@ -1026,7 +1026,7 @@ object Edge extends JSONParser {
   def toEdges(kvs: Seq[KeyValue], queryParam: QueryParam,
               prevScore: Double = 1.0,
               isInnerCall: Boolean,
-              ancestorEdges: Seq[EdgeWithScore]): Seq[(Edge, Double)] = {
+              parentEdges: Seq[EdgeWithScore]): Seq[(Edge, Double)] = {
     if (kvs.isEmpty) Seq.empty
     else {
       val first = kvs.head
@@ -1035,8 +1035,8 @@ object Edge extends JSONParser {
       for {
         kv <- kvs
         edge <-
-          if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, edgeRowKeyLike, isInnerCall, ancestorEdges)
-          else toEdge(kv, queryParam, edgeRowKeyLike, ancestorEdges)
+          if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, edgeRowKeyLike, isInnerCall, parentEdges)
+          else toEdge(kv, queryParam, edgeRowKeyLike, parentEdges)
       } yield {
         //TODO: Refactor this.
         val currentScore =
@@ -1051,7 +1051,7 @@ object Edge extends JSONParser {
 
   def toSnapshotEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None,
                      isInnerCall: Boolean,
-                     ancestorEdges: Seq[EdgeWithScore]): Option[Edge] = {
+                     parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
     val version = kv.timestamp()
     val keyBytes = kv.key()
     val rowKey = edgeRowKeyLike.getOrElse {
@@ -1091,7 +1091,7 @@ object Edge extends JSONParser {
 
     if (isInnerCall) {
       val edge =
-        Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, ancestorEdges)
+        Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, parentEdges)
 
       val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
         Some(edge)
@@ -1103,7 +1103,7 @@ object Edge extends JSONParser {
       if (allPropsDeleted(props)) None
       else {
         val edge =
-          Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, ancestorEdges)
+          Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, parentEdges)
 
         val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
           logger.debug(s"fetchedEdge: $edge")
@@ -1117,7 +1117,7 @@ object Edge extends JSONParser {
   }
 
   def toEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None,
-             ancestorEdges: Seq[EdgeWithScore]): Option[Edge] = {
+             parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
     logger.debug(s"$param -> $kv")
 
     val version = kv.timestamp()
@@ -1188,7 +1188,7 @@ object Edge extends JSONParser {
       //        if (!param.label.isDirected && param.labelWithDir.dir == GraphUtil.directions("in")) {
       //          Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir.updateDir(0), op, ts, version, props)
       //        } else {
-        Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, ancestorEdges)
+        Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, parentEdges)
       //        }
 
       //          logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
@@ -1214,7 +1214,7 @@ object Edge extends JSONParser {
         //      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
                       logger.debug(s"fetchedEdge: ${edge.toLogString()}")
         for {
-          parent <- edge.ancestorEdges
+          parent <- edge.parentEdges
           (parentEdge, parentScore) = (parent.edge, parent.score)
         } {
           logger.debug(s"parent: ${parentEdge.toLogString}, ${parentScore}")

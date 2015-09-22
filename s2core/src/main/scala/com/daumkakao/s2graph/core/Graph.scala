@@ -261,8 +261,7 @@ object Graph {
 
   private def fetchEdgesLs(prevStepTgtVertexIdEdges: Map[VertexId, Seq[EdgeWithScore]],
                            currentStepRequestLss: Seq[(Iterable[(VertexId, GetRequest, QueryParam)], Double)],
-                           q: Query, stepIdx: Int,
-                           shouldPropagate: Boolean): Seq[Deferred[QueryResult]] = {
+                           q: Query, stepIdx: Int): Seq[Deferred[QueryResult]] = {
     for {
       (prevStepTgtVertexResultLs, prevScore) <- currentStepRequestLss
       (startVertexId, getRequest, queryParam) <- prevStepTgtVertexResultLs
@@ -270,27 +269,15 @@ object Graph {
       val prevStepEdgesOpt = prevStepTgtVertexIdEdges.get(startVertexId)
       if (prevStepEdgesOpt.isEmpty) throw new RuntimeException("miss match on prevStepEdge and current GetRequest")
 
-      val ancestorEdges = for {
+      val parentEdges = for {
         parentEdge <- prevStepEdgesOpt.get
-      } yield {
-          parentEdge
-        }
-//        if (shouldPropagate) prevStepEdgesOpt.get
-//        else {
-//          for {
-//            parentEdge <- prevStepEdgesOpt.get
-//          } yield {
-//            parentEdge
-//          }
-//
-//        }
+      } yield parentEdge
 
-
-      fetchEdgesWithCache(ancestorEdges, getRequest, q, stepIdx, queryParam, prevScore)
+      fetchEdgesWithCache(parentEdges, getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
 
-  private def fetchEdgesWithCache(ancestorEdges: Seq[EdgeWithScore], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
+  private def fetchEdgesWithCache(parentEdges: Seq[EdgeWithScore], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
     val cacheKey = MurmurHash3.stringHash(getRequest.toString)
     def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
       def call(arg: QueryResult): QueryResult = {
@@ -311,25 +298,25 @@ object Graph {
         else {
           // cache.asMap().remove(cacheKey)
           //          logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
-          fetchEdges(ancestorEdges, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+          fetchEdges(parentEdges, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
         }
       } else {
         //        logger.debug(s"cacheMiss: $cacheKey")
-        fetchEdges(ancestorEdges, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+        fetchEdges(parentEdges, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
       }
     } else {
       //      logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
-      fetchEdges(ancestorEdges, getRequest, q, stepIdx, queryParam, prevScore)
+      fetchEdges(parentEdges, getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
 
   /** actual request to HBase */
-  private def fetchEdges(ancestorEdges: Seq[EdgeWithScore], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] =
+  private def fetchEdges(parentEdges: Seq[EdgeWithScore], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] =
     Try {
       val client = getClient(queryParam.label.hbaseZkAddr)
 
       val successCallback = (kvs: util.ArrayList[KeyValue]) => {
-        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isInnerCall = false, ancestorEdges)
+        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isInnerCall = false, parentEdges)
         QueryResult(q, stepIdx, queryParam, edgeWithScores)
       }
 
@@ -366,16 +353,14 @@ object Graph {
       if (stepIdx == 0) Map.empty[(LabelWithDirection, Vertex), Boolean]
       else alreadyVisitedVertices(queryResultsLs)
 
-    val shouldPropagate = prevStepOpt.map { prevStep => prevStep.shouldPropagate }.getOrElse(false)
     //TODO:
     val groupedBy = queryResultsLs.flatMap { queryResult =>
       queryResult.edgeWithScoreLs.map { case (edge, score) =>
-        (edge.tgtVertex ->(edge, score))
+        edge.tgtVertex -> (edge, score)
       }
     }.groupBy { case (vertex, (edge, score)) =>
       vertex
     }
-
 
     //    logger.debug(s"groupedBy: $groupedBy")
     val groupedByFiltered = for {
@@ -400,7 +385,7 @@ object Graph {
       getsWithQueryParams.map { case (vertexId, get, queryParam) => queryParam }
     }
     val fallback = new util.ArrayList(queryParams.map(param => QueryResult(q, stepIdx, param)))
-    val deffered = fetchEdgesLs(prevStepTgtVertexIdEdges, currentStepRequestLss, q, stepIdx, shouldPropagate)
+    val deffered = fetchEdgesLs(prevStepTgtVertexIdEdges, currentStepRequestLss, q, stepIdx)
     val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deffered)
 
     filterEdges(defferedToFuture(grouped)(fallback), q, stepIdx, alreadyVisited)
@@ -715,7 +700,7 @@ object Graph {
       }
 
     val step = Step(queryParams.toList)
-    val q = Query(srcVertices, List(step), false)
+    val q = Query(srcVertices, Vector(step), false)
 
 
     def deleteDuplicateEdges(queryResultLs: Seq[QueryResult]): Future[Boolean] = {

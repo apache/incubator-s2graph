@@ -84,7 +84,7 @@ object QueryController extends Controller with RequestParser {
 
     Try {
       val q = toQuery(jsonQuery)
-      val filterOutQuery = Query(q.vertices, List(q.steps.last))
+      val filterOutQuery = Query(q.vertices, Vector(q.steps.last))
 
       for {
         exclude <- Graph.getEdgesAsync(filterOutQuery)
@@ -147,7 +147,7 @@ object QueryController extends Controller with RequestParser {
 
     Try {
       val q = toQuery(jsonQuery)
-      val filterOutQuery = Query(q.vertices, List(q.steps.last))
+      val filterOutQuery = Query(q.vertices, Vector(q.steps.last))
 
       for {
         exclude <- Graph.getEdgesAsync(filterOutQuery)
@@ -177,7 +177,7 @@ object QueryController extends Controller with RequestParser {
 
     Try {
       val q = toQuery(jsonQuery)
-      val filterOutQuery = Query(q.vertices, List(q.steps.last))
+      val filterOutQuery = Query(q.vertices, Vector(q.steps.last))
 
       for {
         exclude <- Graph.getEdgesAsync(filterOutQuery)

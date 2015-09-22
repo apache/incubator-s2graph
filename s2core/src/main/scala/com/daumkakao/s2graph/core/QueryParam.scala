@@ -6,10 +6,9 @@ import com.daumkakao.s2graph.core.parsers.{Where, WhereParser}
 import com.daumkakao.s2graph.core.types._
 import com.daumkakao.s2graph.logger
 import org.apache.hadoop.hbase.util.Bytes
-import org.hbase.async.{ColumnRangeFilter, GetRequest, ScanFilter}
+import org.hbase.async.{ColumnRangeFilter, GetRequest}
 import play.api.libs.json.{JsNumber, JsValue, Json}
 
-import scala.collection.mutable.ListBuffer
 import scala.util.hashing.MurmurHash3
 import scala.util.{Success, Try}
 
@@ -17,7 +16,7 @@ object Query {
   val initialScore = 1.0
   lazy val empty = Query()
 
-  def toQuery(srcVertices: Seq[Vertex], queryParam: QueryParam) = Query(srcVertices, List(Step(List(queryParam))))
+  def toQuery(srcVertices: Seq[Vertex], queryParam: QueryParam) = Query(srcVertices, Vector(Step(List(queryParam))))
 
   object DuplicatePolicy extends Enumeration {
     type DuplicatePolicy = Value
@@ -32,11 +31,10 @@ object Query {
       }
     }
   }
-
 }
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
-                 steps: List[Step] = List.empty[Step],
+                 steps: IndexedSeq[Step] = Vector.empty[Step],
                  unique: Boolean = true,
                  removeCycle: Boolean = false,
                  selectColumns: Seq[String] = Seq.empty[String],
@@ -164,8 +162,7 @@ case class Step(queryParams: List[QueryParam],
                 labelWeights: Map[Int, Double] = Map.empty,
                 //                scoreThreshold: Double = 0.0,
                 nextStepScoreThreshold: Double = 0.0,
-                nextStepLimit: Int = -1,
-                shouldPropagate: Boolean = false) {
+                nextStepLimit: Int = -1) {
 
   lazy val excludes = queryParams.filter(_.exclude)
   lazy val includes = queryParams.filterNot(_.exclude)
@@ -472,9 +469,6 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     }
 
     val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
-    val client = Graph.getClient(label.hbaseZkAddr)
-    val filters = ListBuffer.empty[ScanFilter]
-
 
     get.maxVersions(1)
     get.setFailfast(true)
@@ -484,8 +478,10 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     get.setMaxTimestamp(maxTs)
     get.setMaxAttempt(maxAttempt.toByte)
     get.setRpcTimeout(rpcTimeoutInMillis)
+
     if (columnRangeFilter != null) get.filter(columnRangeFilter)
     logger.debug(s"Get: $get")
+
     get
   }
 }
