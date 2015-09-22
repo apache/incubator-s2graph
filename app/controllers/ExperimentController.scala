@@ -34,7 +34,7 @@ object ExperimentController extends Controller with RequestParser {
         } catch {
           case e: Throwable =>
             logger.error(e.toString())
-            Future.successful(BadRequest("required template parameter missing"))
+            Future.successful(BadRequest(s"wrong or missing template parameter: ${e.getMessage}"))
         }
     }
   }
@@ -47,7 +47,7 @@ object ExperimentController extends Controller with RequestParser {
       jsObj <- requestKeyJson.asOpt[JsObject]
       (key, value) <- jsObj.fieldSet
     } {
-      body = body.replace(key, value.toString())
+      body = body.replace(key, value.toString().replace("\"",""))
     }
 
     Json.parse(body)
