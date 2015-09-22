@@ -199,7 +199,7 @@ object AdminController extends Controller with RequestParser {
    */
   def addIndex() = Action(parse.json) { request =>
     val ret = addIndexInner(request.body)
-    tryResponse(ret)(_.label + "is updated")
+    tryResponse(ret)(_.label + " is updated")
   }
 
   def addIndexInner(json: JsValue) = for {
@@ -232,7 +232,7 @@ object AdminController extends Controller with RequestParser {
    */
   def deleteLabel(labelName: String) = Action { request =>
     val deleteLabelTry = deleteLabelInner(labelName)
-    tryResponse(deleteLabelTry)(labelName => labelName + "is deleted")
+    tryResponse(deleteLabelTry)(labelName => labelName + " is deleted")
   }
 
   def deleteLabelInner(labelName: String) = Management.deleteLabel(labelName)
@@ -245,7 +245,7 @@ object AdminController extends Controller with RequestParser {
    */
   def deleteServiceColumn(serviceName: String, columnName: String) = Action { request =>
     val serviceColumnTry = deleteServiceColumnInner(serviceName, columnName)
-    tryResponse(serviceColumnTry)(columnName => columnName + "is deleted")
+    tryResponse(serviceColumnTry)(columnName => columnName + " is deleted")
   }
 
   def deleteServiceColumnInner(serviceName: String, columnName: String) =
