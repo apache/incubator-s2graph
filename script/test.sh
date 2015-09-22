@@ -138,11 +138,11 @@ curl -XPOST localhost:9000/graphs/createServiceColumn -H 'Content-Type: Applicat
 }
 ' 
 # add props on Vertex
-#curl -XPOST localhost:9000/graphs/addVertexProps/s2graph/user_id -H 'Content-Type: Application/json' -d '
-#[
-#	{"name": "home_address", "defaultValue": "korea", "dataType": "string"}
-#]
-#'
+curl -XPOST localhost:9000/graphs/addServiceColumnProps/s2graph/user_id -H 'Content-Type: Application/json' -d '
+[
+	{"name": "home_address", "defaultValue": "korea", "dataType": "string"}
+]
+'
 
 # insert vertex data
 curl -XPOST localhost:9000/graphs/vertices/insert/s2graph/user_id -H 'Content-Type: Application/json' -d '
