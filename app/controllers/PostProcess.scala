@@ -145,7 +145,7 @@ object PostProcess extends JSONParser {
           val grouped = edges.groupBy { jsVal =>
             for {
               column <- q.groupByColumns
-              value <- (jsVal \\ column).headOption
+              value <- (jsVal \ column).asOpt[JsValue].orElse((jsVal \ "props" \ column).asOpt[JsValue])
             } yield column -> value
           }
 
