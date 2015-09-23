@@ -256,7 +256,7 @@ object PostProcess extends JSONParser {
       kvMap <- kvMapOpt
     } yield {
       if (q.returnTree) {
-        Json.toJson(kvMap + ("parent" -> Json.toJson(edgeParent(edge.parentEdges, q, queryParam))))
+        Json.toJson(kvMap + ("parents" -> Json.toJson(edgeParent(edge.parentEdges, q, queryParam))))
       } else {
         Json.toJson(kvMap)
       }
