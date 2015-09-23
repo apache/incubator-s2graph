@@ -4,6 +4,7 @@ package com.daumkakao.s2graph.core.mysqls
  * Created by shon on 6/3/15.
  */
 
+import com.daumkakao.s2graph.core.KGraphExceptions.ModelNotFoundException
 import com.daumkakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
 import com.daumkakao.s2graph.logger
@@ -29,12 +30,12 @@ object Label extends Model[Label] {
     Label.delete(id.get)
   }
 
-  def findByName(label: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[Label] = {
-    val cacheKey = "label=" + label
+  def findByName(labelName: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[Label] = {
+    val cacheKey = "label=" + labelName
     lazy val labelOpt = sql"""
         select *
         from labels
-        where label = ${label}""".map { rs => Label(rs) }.single.apply()
+        where label = ${labelName}""".map { rs => Label(rs) }.single.apply()
 
     if (useCache) withCache(cacheKey)(labelOpt)
     else labelOpt
@@ -249,7 +250,8 @@ case class Label(id: Option[Int], label: String,
   //  lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, hTableName.split(",").headOption.getOrElse(GraphConnection.getConfVal("hbase.table.name")))
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, hTableName.split(",").head)
 
-  lazy val (srcColumn, tgtColumn) = (ServiceColumn.find(srcServiceId, srcColumnName).get, ServiceColumn.find(tgtServiceId, tgtColumnName).get)
+  lazy val srcColumn = ServiceColumn.find(srcServiceId, srcColumnName).getOrElse(throw ModelNotFoundException("Source column not found"))
+  lazy val tgtColumn = ServiceColumn.find(tgtServiceId, tgtColumnName).getOrElse(throw ModelNotFoundException("Target column not found"))
 
   lazy val direction = if (isDirected) "out" else "undirected"
   lazy val defaultIndex = LabelIndex.findByLabelIdAndSeq(id.get, LabelIndex.defaultSeq)

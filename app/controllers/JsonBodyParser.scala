@@ -17,7 +17,11 @@ object s2parse extends BodyParsers {
 
   import parse._
 
-  def json: BodyParser[JsValue] = json(DEFAULT_MAX_TEXT_LENGTH)
+  val defaultMaxTextLength = 1024 * 512
+  val defaultMaxJsonLength = 1024 * 512
+
+//  def json: BodyParser[JsValue] = json(DEFAULT_MAX_TEXT_LENGTH)
+  def json: BodyParser[JsValue] = json(defaultMaxTextLength)
 
   def json(maxLength: Int): BodyParser[JsValue] = when(
     _.contentType.exists(m => m.equalsIgnoreCase("text/json") || m.equalsIgnoreCase("application/json")),

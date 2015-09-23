@@ -7,6 +7,8 @@ object KGraphExceptions {
 
   case class LabelNotExistException(msg: String) extends Exception(msg)
 
+  case class ModelNotFoundException(msg: String) extends Exception(msg)
+
   case class MaxPropSizeReachedException(msg: String) extends Exception(msg)
 
   case class LabelAlreadyExistException(msg: String) extends Exception(msg)
@@ -15,6 +17,6 @@ object KGraphExceptions {
 
   case class IllegalDataTypeException(msg: String) extends Exception(msg)
 
-  case class BadQueryException(msg: String, ex: Throwable = null) extends Exception(msg, ex)
+  case class BadQueryException(msg: String, ex: Exception = null) extends Exception(msg, ex)
 
 }

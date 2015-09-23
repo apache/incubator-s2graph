@@ -98,7 +98,6 @@ object PostProcess extends JSONParser {
   def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]): JsValue = {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
     var withScore = true
-    val degreeJsons = ListBuffer[JsValue]()
     val degrees = ListBuffer[JsValue]()
     val edgeJsons = ListBuffer[JsValue]()
 
@@ -113,7 +112,7 @@ object PostProcess extends JSONParser {
         (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(edge.tgtVertex.innerId)
       } {
         withScore = queryResult.query.withScore
-        val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult)
+        val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult.queryParam)
         val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
         if (edge.propsWithTs.contains(LabelMeta.degreeSeq) && fromOpt.isDefined) {
           //          degreeJsons += edgeJson
@@ -126,7 +125,7 @@ object PostProcess extends JSONParser {
           )
         } else {
           for {
-            edgeJson <- edgeToJson(edge, score, queryResult)
+            edgeJson <- edgeToJson(edge, score, queryResult.query, queryResult.queryParam)
           } {
             edgeJsons += edgeJson
           }
@@ -134,9 +133,9 @@ object PostProcess extends JSONParser {
       }
       val edges =
         if (q.groupByColumns.isEmpty && withScore) {
-          degreeJsons ++ edgeJsons.sortBy(js => ((js \ "score").asOpt[Double].getOrElse(0.0) * -1, (js \ "_timestamp").asOpt[Long].getOrElse(0L) * -1))
+          edgeJsons.sortBy(js => ((js \ "score").asOpt[Double].getOrElse(0.0) * -1, (js \ "_timestamp").asOpt[Long].getOrElse(0L) * -1))
         } else {
-          degreeJsons ++ edgeJsons
+          edgeJsons
         }
 
       logger.info(s"Result: ${edges.size}")
@@ -147,7 +146,7 @@ object PostProcess extends JSONParser {
           val grouped = edges.groupBy { jsVal =>
             for {
               column <- q.groupByColumns
-              value <- (jsVal \ column).asOpt[JsValue]
+              value <- (jsVal \\ column).headOption
             } yield {
               (column -> value)
             }
@@ -158,11 +157,11 @@ object PostProcess extends JSONParser {
               val scoreSum = jsVals.map { js => (js \ "score").asOpt[Double].getOrElse(0.0) }.sum
               Json.obj("groupBy" -> Json.toJson(groupByKeyVals.toMap),
                 "scoreSum" -> scoreSum,
-                "agg" -> jsVals)
+                "agg" -> jsVals.sortBy(jsVal => (jsVal \ "score").asOpt[Double].getOrElse(0.0) * -1))
             }
 
           val groupedSortedJsons = groupedJsons.toList.sortBy { case jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
-          Json.obj("size" -> groupedJsons.size, "results" -> Json.toJson(groupedSortedJsons), "impressionId" -> q.impressionId())
+          Json.obj("size" -> groupedJsons.size, "degrees" -> degrees, "results" -> Json.toJson(groupedSortedJsons), "impressionId" -> q.impressionId())
         }
       resultJson
     }
@@ -184,8 +183,7 @@ object PostProcess extends JSONParser {
     kvs
   }
 
-  def srcTgtColumn(edge: Edge, queryResult: QueryResult) = {
-    val queryParam = queryResult.queryParam
+  def srcTgtColumn(edge: Edge, queryParam: QueryParam) = {
     if (queryParam.label.isDirected) {
       (queryParam.srcColumnWithDir, queryParam.tgtColumnWithDir)
     } else {
@@ -197,24 +195,21 @@ object PostProcess extends JSONParser {
     }
   }
 
-  def edgeToJson(edge: Edge, score: Double, queryResult: QueryResult): Option[JsValue] = {
-    val queryParam = queryResult.queryParam
-
-    val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult)
+  def edgeToJson(edge: Edge, score: Double, q: Query, queryParam: QueryParam): Option[JsValue] = {
+    val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryParam)
     val json = for {
       from <- innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
       to <- innerValToJsValue(edge.tgtVertex.id.innerId, tgtColumn.columnType)
     } yield {
-        val q = queryResult.query
-        val propsMap = propsToJson(edge, queryResult.query, queryResult.queryParam)
+        val propsMap = propsToJson(edge, q, queryParam)
         var targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
-        targetColumns = edge.ancestorVertexIds match {
+        targetColumns = edge.ancestorEdges match {
           case Nil => targetColumns
           case _ => targetColumns + "ancestor"
         }
         val kvMap = targetColumns.foldLeft(Map.empty[String, JsValue]) { (map, column) =>
           val jsValue = column match {
-            case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (queryResult.timestamp - queryParam.timestamp))
+            case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (System.currentTimeMillis() - queryParam.timestamp))
             case "from" => from
             case "to" => to
             case "label" => JsString(queryParam.label.label)
@@ -222,7 +217,8 @@ object PostProcess extends JSONParser {
             case "_timestamp" | "timestamp" => JsNumber(edge.ts)
             case "score" => JsNumber(score)
             case "props" if !propsMap.isEmpty => Json.toJson(propsMap)
-            case "ancestor" => Json.toJson(edge.ancestorVertexIds.map(_.innerId.toString()))
+            case "ancestor" =>
+              Json.toJson(edge.ancestorEdges.map(e => edgeToJson(e, 1.0, q, QueryParam(e.labelWithDir))))
             case _ => JsNull
           }
 

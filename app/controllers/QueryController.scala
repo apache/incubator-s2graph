@@ -59,7 +59,7 @@ object QueryController extends Controller with RequestParser {
 
     Try {
       val future = jsonQuery match {
-        case JsArray(arr) => Future.sequence(arr.map(toQuery(_)).map(fetch)).map(JsArray)
+        case JsArray(arr) => Future.traverse(arr.map(toQuery(_)))(fetch).map(JsArray)
         case obj@JsObject(_) => fetch(toQuery(obj))
         case _ => throw BadQueryException("Cannot support")
       }
@@ -94,10 +94,10 @@ object QueryController extends Controller with RequestParser {
         jsonResponse(json, "result_size" -> calcSize(json).toString)
       }
     } recover {
-      case e: KGraphExceptions.BadQueryException =>
+      case e: BadQueryException =>
         logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
-      case e: Throwable =>
+      case e: Exception =>
         logger.error(s"$jsonQuery, $e", e)
         errorResults
     } get
@@ -157,10 +157,10 @@ object QueryController extends Controller with RequestParser {
         jsonResponse(json, "result_size" -> calcSize(json).toString)
       }
     } recover {
-      case e: KGraphExceptions.BadQueryException =>
+      case e: BadQueryException =>
         logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
-      case e: Throwable =>
+      case e: Exception =>
         logger.error(s"$jsonQuery, $e", e)
         errorResults
     } get
@@ -187,10 +187,10 @@ object QueryController extends Controller with RequestParser {
         jsonResponse(json, "result_size" -> calcSize(json).toString)
       }
     } recover {
-      case e: KGraphExceptions.BadQueryException =>
+      case e: BadQueryException =>
         logger.error(s"$jsonQuery, $e", e)
         badQueryExceptionResults(e)
-      case e: Throwable =>
+      case e: Exception =>
         logger.error(s"$jsonQuery, $e", e)
         errorResults
     } get
@@ -240,14 +240,15 @@ object QueryController extends Controller with RequestParser {
         val edgeJsons = for {
           queryResult <- queryResultLs
           (edge, score) <- queryResult.edgeWithScoreLs
-          edgeJson <- PostProcess.edgeToJson(if (isReverted) edge.duplicateEdge else edge, score, queryResult)
+          edgeJson <- PostProcess.edgeToJson(if (isReverted) edge.duplicateEdge else edge,
+            score, queryResult.query, queryResult.queryParam)
         } yield edgeJson
 
         val json = Json.toJson(edgeJsons)
         jsonResponse(json, "result_size" -> edgeJsons.size.toString)
       }
     } catch {
-      case e: Throwable =>
+      case e: Exception =>
         logger.error(s"$jsValue, $e", e)
         errorResults
     }

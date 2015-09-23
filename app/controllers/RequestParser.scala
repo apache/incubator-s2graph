@@ -1,11 +1,10 @@
 package controllers
 
-import com.daumkakao.s2graph.core.KGraphExceptions.BadQueryException
+import com.daumkakao.s2graph.core.KGraphExceptions.{BadQueryException, ModelNotFoundException}
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.parsers.WhereParser
 import com.daumkakao.s2graph.core.types._
-import com.daumkakao.s2graph.logger
 import config.Config
 import play.api.libs.json._
 
@@ -171,7 +170,7 @@ trait RequestParser extends JSONParser {
                 }
               //FIXME:
               if (stepIdx == 0 && vertices.nonEmpty && !vertices.exists(v => v.serviceColumn.columnName == columnName)) {
-                throw new BadQueryException("srcVertices contains incompatiable serviceName or columnName with first step.")
+                throw BadQueryException("srcVertices contains incompatiable serviceName or columnName with first step.")
               }
 
               queryParam
@@ -189,11 +188,11 @@ trait RequestParser extends JSONParser {
       ret
     } catch {
       case e: BadQueryException =>
-        logger.error(s"$e", e)
         throw e
-      case e: Throwable =>
-        logger.error(s"$e", e)
-        throw new KGraphExceptions.BadQueryException(s"$jsValue", e)
+      case e: ModelNotFoundException =>
+        throw BadQueryException(e.getMessage, e)
+      case e: Exception =>
+        throw BadQueryException(s"$jsValue", e)
     }
   }
 
@@ -246,6 +245,7 @@ trait RequestParser extends JSONParser {
 
       val outputField = (labelGroup \ "outputField").asOpt[String].map(s => Json.arr(Json.arr(s)))
       val transformer = if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]
+      val scorePropagateOp = (labelGroup \ "scorePropagateOp").asOpt[String].getOrElse("multiply")
 
       QueryParam(labelWithDir)
         .limit(offset, limit)
@@ -266,6 +266,7 @@ trait RequestParser extends JSONParser {
         .timeDecay(timeDecayFactor)
         .threshold(threshold)
         .transformer(transformer)
+        .scorePropagateOp(scorePropagateOp)
     }
   }
 

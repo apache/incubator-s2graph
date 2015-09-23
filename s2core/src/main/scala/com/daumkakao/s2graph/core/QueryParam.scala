@@ -272,6 +272,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var threshold = QueryParam.defaultThreshold
   var timeDecay: Option[TimeDecay] = None
   var transformer: EdgeTransformer = EdgeTransformer(this, EdgeTransformer.defaultJson)
+  var scorePropagateOp: String = "multiply"
   //  var excludeBy: Option[String] = None
 
   val srcColumnWithDir = label.srcColumnWithDir(labelWithDir.dir)
@@ -418,7 +419,12 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this
   }
 
+  def scorePropagateOp(scorePropagateOp: String): QueryParam = {
+    this.scorePropagateOp = scorePropagateOp
+    this
+  }
   def isSnapshotEdge(): Boolean = tgtVertexInnerIdOpt.isDefined
+
 
   //  def excludeBy(other: Option[String]): QueryParam = {
   //    this.excludeBy = other
