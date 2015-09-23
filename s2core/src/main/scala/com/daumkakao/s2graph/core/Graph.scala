@@ -79,11 +79,11 @@ object Graph {
     for {
       (k, v) <- defaultConfigs if !config.hasPath(k)
     } {
-      conf.set(k, v.toString())
+      conf.set(k, v.toString)
     }
 
-    for (entry <- config.entrySet() if entry.getKey().contains("hbase")) {
-      conf.set(entry.getKey(), entry.getValue().unwrapped().toString)
+    for (entry <- config.entrySet() if entry.getKey.contains("hbase")) {
+      conf.set(entry.getKey, entry.getValue.unwrapped().toString)
     }
 
     conf
@@ -407,7 +407,7 @@ object Graph {
     implicit val ex = this.executionContext
 
 
-    val invertedEdge = Edge(srcVertex, tgtVertex, queryParam.labelWithDir).toInvertedEdgeHashLike()
+    val invertedEdge = Edge(srcVertex, tgtVertex, queryParam.labelWithDir).toInvertedEdgeHashLike
     val getRequest = queryParam.tgtVertexInnerIdOpt(Option(invertedEdge.tgtVertex.innerId))
       .buildGetRequest(invertedEdge.srcVertex)
     val q = Query.toQuery(Seq(srcVertex), queryParam)
@@ -735,7 +735,7 @@ object Graph {
           //            logger.debug(s"indexedEdgeIncr: $incr")
           //            incr
           //          }
-          val snapshotEdgeDelete = duplicateEdge.toInvertedEdgeHashLike().buildDeleteAsync()
+          val snapshotEdgeDelete = duplicateEdge.toInvertedEdgeHashLike.buildDeleteAsync()
 
           /** delete inverse edges first, then delete current edge entirely */
           for {

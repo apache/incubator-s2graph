@@ -422,14 +422,13 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this
   }
 
-  def isSnapshotEdge(): Boolean = tgtVertexInnerIdOpt.isDefined
-
+  def isSnapshotEdge = tgtVertexInnerIdOpt.isDefined
 
   //  def excludeBy(other: Option[String]): QueryParam = {
   //    this.excludeBy = other
   //    this
   //  }
-  override def toString(): String = {
+  override def toString = {
     List(label.label, labelOrderSeq, offset, limit, rank, isRowKeyOnly,
       duration, isInverted, exclude, include, hasFilters).mkString("\t")
     //      duration, isInverted, exclude, include, hasFilters, outputFields).mkString("\t")
@@ -459,7 +458,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     val edge = Edge(srcV, tgtV, labelWithDir)
 
     val get = if (tgtVertexInnerIdOpt.isDefined) {
-      val snapshotEdge = edge.toInvertedEdgeHashLike()
+      val snapshotEdge = edge.toInvertedEdgeHashLike
       new GetRequest(label.hbaseTableName.getBytes, snapshotEdge.rowKey.bytes, edgeCf, snapshotEdge.qualifier.bytes)
     } else {
       val indexedEdgeOpt = edge.edgesWithIndex.find(e => e.labelIndexSeq == labelOrderSeq)
@@ -489,7 +488,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 case class TimeDecay(initial: Double = 1.0, lambda: Double = 0.1, timeUnit: Double = 60 * 60 * 24) {
   def decay(diff: Double): Double = {
     //FIXME
-    val ret = initial * Math.pow((1.0 - lambda), diff / timeUnit)
+    val ret = initial * Math.pow(1.0 - lambda, diff / timeUnit)
     //    logger.debug(s"$initial, $lambda, $timeUnit, $diff, ${diff / timeUnit}, $ret")
     ret
   }
