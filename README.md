@@ -967,7 +967,8 @@ A typical query contains the source vertex as a starting point, a list of labels
 |:------- | --- |:----: | --- | :-----|
 | weights | Weight factors for edge scores in a step. These weights will be multiplied to scores of the corresponding edges, thereby boosting certain labels when sorting the end result. | JSON (dictionary) | {"graph_test": 0.3, "graph_test2": 0.2} | Optional. |
 | nextStepThreshold | Threshold of the steps' edge scores. Only the edges with scores above nextStepThreshold will continue to the next step | Double |  | Optional.|
-| nextStepLimit | Number of resulting edges from the current step that will continue to the next step | Double | | Optional.|
+| nextStepLimit | Number of resulting edges from the current step that will continue to the next step. | Double | | Optional.|
+| sample | You can randomly sample N edges from the corresponding step result. | Integer |5 | Optional.|
 
 **query param**:
 
@@ -1596,7 +1597,18 @@ S2Graph provides step-level aggregation so that users can take the top K items f
 
 ##### 6. nextStepThreshold Example #####
 
-##### 7. transform Example #####
+##### 7. sample Example #####
+```
+curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
+{
+    "srcVertices": [{"serviceName": "s2graph", "columnName": "account_id", "id":1}],
+    "steps": [
+      {"sample":2,"step": [{"label": "graph_test", "direction": "out", "offset": 0, "limit": 10, "scoring": {"time": 1, "weight": 1}}]}
+    ]
+}
+```
+
+##### 8. transform Example #####
 With typical two-step query, S2Graph will start the second step from the "_to" (vertex id) values of the first steps' result.
 With the "transform" option, you can actually use any single field from the result edges' properties of step one.
 
@@ -1759,7 +1771,7 @@ We have two transform rules, the first one simply fetches edges with their targe
 }
 ```
 
-##### 8. Two-Step Traversal Example #####
+##### 9. Two-Step Traversal Example #####
 
 The following query will fetch a user's (id 1) friends of friends by chaining multiple steps:
 
@@ -1781,12 +1793,12 @@ The following query will fetch a user's (id 1) friends of friends by chaining mu
 }
 '
 ```
-##### 9. Three-Step Traversal Example #####
+##### 10. Three-Step Traversal Example #####
 
 Add more steps for wider traversals. Be gentle on the limit options since the number of visited edges will increase exponentially and become very heavy on the system.
 
 
-##### 10. More examples #####
+##### 11. More examples #####
 Example 1. From label "graph_test", select the first 100 edges that start from vertex "account_id = 1", with default sorting.
 
 ```javascript
