@@ -200,17 +200,20 @@ object PostProcess extends JSONParser {
     }
   }
 
-  private def edgeParent(parentEdges: Seq[EdgeWithScore], q: Query, queryParam: QueryParam, index: Int = 0): JsValue = {
-    if (q.steps.length == index+1 || parentEdges.isEmpty) {
-      Json.arr()
+  private def edgeParent(parentEdges: Seq[EdgeWithScore], q: Query, queryParam: QueryParam): JsValue = {
+    if (parentEdges.isEmpty) {
+      JsNull
     } else {
       val parents = for {
         parent <- parentEdges
         (parentEdge, parentScore) = (parent.edge, parent.score)
       } yield {
           val parentQueryParam = QueryParam(parentEdge.labelWithDir)
-          val parents = edgeParent(parentEdge.parentEdges, q, parentQueryParam, index = index + 1)
-          val edgeJson = edgeToJsonInner(parentEdge, parentScore, q, parentQueryParam).getOrElse(Map.empty[String, JsValue]) + ("parents" -> parents)
+          val parents = edgeParent(parentEdge.parentEdges, q, parentQueryParam)
+          val edgeJson = parents match {
+            case JsNull =>  edgeToJsonInner(parentEdge, parentScore, q, parentQueryParam).getOrElse(Map.empty[String, JsValue])
+            case _ => edgeToJsonInner(parentEdge, parentScore, q, parentQueryParam).getOrElse(Map.empty[String, JsValue]) + ("parents" -> parents)
+          }
 
           Json.toJson(edgeJson)
         }
