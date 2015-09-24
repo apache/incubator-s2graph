@@ -112,24 +112,44 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
 
   val anyStr = "[^\\s(),]+".r
 
+  val and = "and|AND".r
+
+  val or = "or|OR".r
+
+  val between = "between|BETWEEN".r
+
+  val in = "in|IN".r
+
+  val notIn = "not in|NOT IN".r
+
   def where: Parser[Where] = rep(clause) ^^ (Where(_))
 
   def paren: Parser[Clause] = "(" ~> clause <~ ")"
 
-  def clause: Parser[Clause] = (predicate | paren) * ("and" ^^^ { (a: Clause, b: Clause) => And(a, b) } | "or" ^^^ { (a: Clause, b: Clause) => Or(a, b) })
+  def clause: Parser[Clause] = (predicate | paren) * (and ^^^ { (a: Clause, b: Clause) => And(a, b) } | or ^^^ { (a: Clause, b: Clause) => Or(a, b) })
 
   /** TODO: exception on toInnerVal with wrong type */
-  def extract(propKey: String, valToCompare: String) = metaProps.get(propKey) match {
-    case None =>
-      throw new RuntimeException(s"where clause contains not existing property name: $propKey")
-    case Some(metaProp) =>
-      if (propKey == LabelMeta.to.name) {
-        (LabelMeta.to.seq, toInnerVal(valToCompare, label.tgtColumnType, label.schemaVersion))
-      } else if (propKey == LabelMeta.from.name) {
-        (LabelMeta.from.seq, toInnerVal(valToCompare, label.srcColumnType, label.schemaVersion))
-      } else {
-        (metaProp.seq, toInnerVal(valToCompare, metaProp.dataType, label.schemaVersion))
-      }
+  def extract(propKeyGiven: String, valToCompare: String) = {
+    val propKey = propKeyGiven match {
+      case "to" => "_to"
+      case "from" => "_from"
+      case "timestamp" => "_timestamp"
+      case _ =>  propKeyGiven
+    }
+
+    metaProps.get(propKey) match {
+      case None =>
+        throw new RuntimeException(s"where clause contains not existing property name: $propKeyGiven")
+      case Some(metaProp) =>
+
+        if (propKey == LabelMeta.to.name) {
+          (LabelMeta.to.seq, toInnerVal(valToCompare, label.tgtColumnType, label.schemaVersion))
+        } else if (propKey == LabelMeta.from.name) {
+          (LabelMeta.from.seq, toInnerVal(valToCompare, label.srcColumnType, label.schemaVersion))
+        } else {
+          (metaProp.seq, toInnerVal(valToCompare, metaProp.dataType, label.schemaVersion))
+        }
+    }
   }
 
   def predicate =
@@ -147,26 +167,26 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
           case "<" => Lt(byteSeq, innerVal)
           case "<=" => Or(Lt(byteSeq, innerVal), Eq(byteSeq, innerVal))
         }
-    } | ident ~ ("between" ~> anyStr <~ "and") ~ anyStr ^^ {
+    } | ident ~ (between ~> anyStr <~ and) ~ anyStr ^^ {
       case f ~ minV ~ maxV =>
-        val metaProp = metaProps.getOrElse(f, throw new RuntimeException(s"where clause contains not existing property name: $f"))
+        val metaProp = metaProps.getOrElse(f, throw new RuntimeException(s"Where clause contains not existing property name: $f"))
 
         Between(metaProp.seq, toInnerVal(minV, metaProp.dataType, label.schemaVersion), toInnerVal(maxV, metaProp.dataType, label.schemaVersion))
-    } | ident ~ ("not in" | "in") ~ ("(" ~> repsep(anyStr, ",") <~ ")") ^^ {
+    } | ident ~ (notIn | in) ~ ("(" ~> repsep(anyStr, ",") <~ ")") ^^ {
       case f ~ op ~ vals =>
-        val metaProp = metaProps.getOrElse(f, throw new RuntimeException(s"where clause contains not existing property name: $f"))
+        val metaProp = metaProps.getOrElse(f, throw new RuntimeException(s"Where clause contains not existing property name: $f"))
         val values = vals.map { v => toInnerVal(v, metaProp.dataType, label.schemaVersion) }
 
-        if (op == "in") IN(metaProp.seq, values.toSet)
+        if (op.toLowerCase == "in") IN(metaProp.seq, values.toSet)
         else Not(IN(metaProp.seq, values.toSet))
-      case _ => throw new RuntimeException(s"failed to parse where clause. ")
+      case _ => throw new RuntimeException(s"Failed to parse where clause. ")
     }
 
   def parse(sql: String): Try[Where] = {
     try {
       parseAll(where, sql) match {
         case Success(r, q) => scala.util.Success(r)
-        case fail => scala.util.Failure(new RuntimeException(s"where parsing error: ${fail.toString}"))
+        case fail => scala.util.Failure(new RuntimeException(s"Where parsing error: ${fail.toString}"))
       }
     } catch {
       case ex: Exception => scala.util.Failure(ex)

@@ -8,7 +8,7 @@ import com.daumkakao.s2graph.core.types._
 import config.Config
 import play.api.libs.json._
 
-import scala.util.{Success, Try}
+import scala.util.{Failure, Success, Try}
 
 
 trait RequestParser extends JSONParser {
@@ -83,7 +83,11 @@ trait RequestParser extends JSONParser {
   def extractWhere(label: Label, jsValue: JsValue) = {
     (jsValue \ "where").asOpt[String] match {
       case None => Success(WhereParser.success)
-      case Some(where) => WhereParser(label).parse(where)
+      case Some(where) =>
+        WhereParser(label).parse(where) match {
+          case s@Success(_) => s
+          case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
+        }
     }
   }
 
