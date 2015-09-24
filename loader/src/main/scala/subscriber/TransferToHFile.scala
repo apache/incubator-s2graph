@@ -79,7 +79,7 @@ object TransferToHFile extends SparkApp {
     kvs.toIterator
   }
 
-  def buildCells(rdd: RDD[String], dbUrl: String) = {
+  def buildCells(rdd: RDD[String], dbUrl: String, numOfHFiles: Int) = {
     val kvs = rdd.mapPartitions { iter =>
 
       val phase = System.getProperty("phase")
@@ -93,7 +93,8 @@ object TransferToHFile extends SparkApp {
         KeyValue.COMPARATOR.compare(a, b)
       }
     }
-    kvs.sortBy { kv =>
+
+    kvs.repartition(numOfHFiles).sortBy { kv =>
       kv
     }.map { kv =>
       val hKey = new ImmutableBytesWritable(kv.getRow())
@@ -133,7 +134,7 @@ object TransferToHFile extends SparkApp {
     try {
 
       val rdd = sc.textFile(input)
-      val cells = buildCells(rdd, dbUrl)
+      val cells = buildCells(rdd, dbUrl, numOfRegionServers * maxHFilePerResionServer)
       //      def toKeyValue(row: Array[Byte], cf: Array[Byte], qualifier: Array[Byte], data: Array[Byte]): KeyValue = {
       //        val kv = new KeyValue(row, cf, qualifier, data)
       //        println(s"[row]: ${row.toList}")
