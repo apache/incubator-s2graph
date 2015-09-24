@@ -591,6 +591,7 @@ object Graph {
       val get = vertex.buildGet
       get.setRpcTimeout(this.singleGetTimeout.toShort)
       get.setFailfast(true)
+      get.maxVersions(1)
 
       val cacheKey = MurmurHash3.stringHash(get.toString)
       if (vertexCache.asMap().containsKey(cacheKey)) {
