@@ -79,11 +79,11 @@ object Graph {
     for {
       (k, v) <- defaultConfigs if !config.hasPath(k)
     } {
-      conf.set(k, v.toString())
+      conf.set(k, v.toString)
     }
 
-    for (entry <- config.entrySet() if entry.getKey().contains("hbase")) {
-      conf.set(entry.getKey(), entry.getValue().unwrapped().toString)
+    for (entry <- config.entrySet() if entry.getKey.contains("hbase")) {
+      conf.set(entry.getKey, entry.getValue.unwrapped().toString)
     }
 
     conf
@@ -259,10 +259,9 @@ object Graph {
     } get
   }
 
-  private def fetchEdgesLs(prevStepTgtVertexIdEdges: Map[VertexId, Seq[Edge]],
+  private def fetchEdgesLs(prevStepTgtVertexIdEdges: Map[VertexId, Seq[EdgeWithScore]],
                            currentStepRequestLss: Seq[(Iterable[(VertexId, GetRequest, QueryParam)], Double)],
-                           q: Query, stepIdx: Int,
-                           shouldPropagate: Boolean): Seq[Deferred[QueryResult]] = {
+                           q: Query, stepIdx: Int): Seq[Deferred[QueryResult]] = {
     for {
       (prevStepTgtVertexResultLs, prevScore) <- currentStepRequestLss
       (startVertexId, getRequest, queryParam) <- prevStepTgtVertexResultLs
@@ -270,16 +269,15 @@ object Graph {
       val prevStepEdgesOpt = prevStepTgtVertexIdEdges.get(startVertexId)
       if (prevStepEdgesOpt.isEmpty) throw new RuntimeException("miss match on prevStepEdge and current GetRequest")
 
-      val ancestorEdges =
-        if (shouldPropagate) prevStepEdgesOpt.get
-        else prevStepEdgesOpt.get.flatMap(_.ancestorEdges)
+      val parentEdges = for {
+        parentEdge <- prevStepEdgesOpt.get
+      } yield parentEdge
 
-
-      fetchEdgesWithCache(ancestorEdges, getRequest, q, stepIdx, queryParam, prevScore)
+      fetchEdgesWithCache(parentEdges, getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
 
-  private def fetchEdgesWithCache(ancestorEdges: Seq[Edge], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
+  private def fetchEdgesWithCache(parentEdges: Seq[EdgeWithScore], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
     val cacheKey = MurmurHash3.stringHash(getRequest.toString)
     def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
       def call(arg: QueryResult): QueryResult = {
@@ -300,25 +298,25 @@ object Graph {
         else {
           // cache.asMap().remove(cacheKey)
           //          logger.debug(s"cacheHitInvalid(invalidated): $cacheKey, $cacheTTL")
-          fetchEdges(ancestorEdges, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+          fetchEdges(parentEdges, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
         }
       } else {
         //        logger.debug(s"cacheMiss: $cacheKey")
-        fetchEdges(ancestorEdges, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
+        fetchEdges(parentEdges, getRequest, q, stepIdx, queryParam, prevScore).addBoth(queryResultCallback(cacheKey))
       }
     } else {
       //      logger.debug(s"cacheMiss(no cacheTTL in QueryParam): $cacheKey")
-      fetchEdges(ancestorEdges, getRequest, q, stepIdx, queryParam, prevScore)
+      fetchEdges(parentEdges, getRequest, q, stepIdx, queryParam, prevScore)
     }
   }
 
   /** actual request to HBase */
-  private def fetchEdges(ancestorEdges: Seq[Edge], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] =
+  private def fetchEdges(parentEdges: Seq[EdgeWithScore], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] =
     Try {
       val client = getClient(queryParam.label.hbaseZkAddr)
 
       val successCallback = (kvs: util.ArrayList[KeyValue]) => {
-        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isInnerCall = false, ancestorEdges)
+        val edgeWithScores = Edge.toEdges(kvs, queryParam, prevScore, isInnerCall = false, parentEdges)
         QueryResult(q, stepIdx, queryParam, edgeWithScores)
       }
 
@@ -355,16 +353,14 @@ object Graph {
       if (stepIdx == 0) Map.empty[(LabelWithDirection, Vertex), Boolean]
       else alreadyVisitedVertices(queryResultsLs)
 
-    val shouldPropagate = prevStepOpt.map { prevStep => prevStep.shouldPropagate }.getOrElse(false)
     //TODO:
     val groupedBy = queryResultsLs.flatMap { queryResult =>
       queryResult.edgeWithScoreLs.map { case (edge, score) =>
-        (edge.tgtVertex ->(edge, score))
+        edge.tgtVertex -> (edge, score)
       }
     }.groupBy { case (vertex, (edge, score)) =>
       vertex
     }
-
 
     //    logger.debug(s"groupedBy: $groupedBy")
     val groupedByFiltered = for {
@@ -374,7 +370,7 @@ object Graph {
 
     val prevStepTgtVertexIdEdges = for {
       (vertex, edgesWithScore) <- groupedBy
-    } yield (vertex.id -> edgesWithScore.map(_._2._1))
+    } yield (vertex.id -> edgesWithScore.map{ case (vertex, (edge, score)) => EdgeWithScore(edge, score) })
     //    logger.debug(s"groupedByFiltered: $groupedByFiltered")
 
     val nextStepSrcVertices = if (prevStepLimit >= 0) {
@@ -389,7 +385,7 @@ object Graph {
       getsWithQueryParams.map { case (vertexId, get, queryParam) => queryParam }
     }
     val fallback = new util.ArrayList(queryParams.map(param => QueryResult(q, stepIdx, param)))
-    val deffered = fetchEdgesLs(prevStepTgtVertexIdEdges, currentStepRequestLss, q, stepIdx, shouldPropagate)
+    val deffered = fetchEdgesLs(prevStepTgtVertexIdEdges, currentStepRequestLss, q, stepIdx)
     val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deffered)
 
     filterEdges(defferedToFuture(grouped)(fallback), q, stepIdx, alreadyVisited)
@@ -411,7 +407,7 @@ object Graph {
     implicit val ex = this.executionContext
 
 
-    val invertedEdge = Edge(srcVertex, tgtVertex, queryParam.labelWithDir).toInvertedEdgeHashLike()
+    val invertedEdge = Edge(srcVertex, tgtVertex, queryParam.labelWithDir).toInvertedEdgeHashLike
     val getRequest = queryParam.tgtVertexInnerIdOpt(Option(invertedEdge.tgtVertex.innerId))
       .buildGetRequest(invertedEdge.srcVertex)
     val q = Query.toQuery(Seq(srcVertex), queryParam)
@@ -492,7 +488,7 @@ object Graph {
         queryResult <- queryResultLs
       } yield {
           val duplicateEdges = new util.concurrent.ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]]()
-          val resultEdgeWithScores = new util.concurrent.ConcurrentHashMap[HashKey, (HashKey, FilterHashKey, Edge, Double)]()
+          val resultEdges = new util.concurrent.ConcurrentHashMap[HashKey, (HashKey, FilterHashKey, Edge, Double)]()
           val edgeWithScoreSorted = new ListBuffer[(HashKey, FilterHashKey, Edge, Double)]
 
           val labelWeight = step.labelWeights.get(queryResult.queryParam.labelWithDir.labelId).getOrElse(1.0)
@@ -524,8 +520,8 @@ object Graph {
               val newScore = labelWeight * score * tsVal
 
               /** aggregate score into result. note that this is only aggregate in queryParam scope */
-              if (resultEdgeWithScores.containsKey(hashKey)) {
-                val (oldHashKey, oldFilterHashKey, oldEdge, oldScore) = resultEdgeWithScores.get(hashKey)
+              if (resultEdges.containsKey(hashKey)) {
+                val (oldHashKey, oldFilterHashKey, oldEdge, oldScore) = resultEdges.get(hashKey)
                 //TODO:
                 queryResult.queryParam.duplicatePolicy match {
                   case Query.DuplicatePolicy.First => // do nothing
@@ -538,29 +534,29 @@ object Graph {
                       duplicateEdges.put(hashKey, newBuffer)
                     }
                   case Query.DuplicatePolicy.CountSum =>
-                    resultEdgeWithScores.put(hashKey, (hashKey, filterHashKey, oldEdge, oldScore + 1))
+                    resultEdges.put(hashKey, (hashKey, filterHashKey, oldEdge, oldScore + 1))
                   case _ =>
-                    resultEdgeWithScores.put(hashKey, (hashKey, filterHashKey, oldEdge, oldScore + newScore))
+                    resultEdges.put(hashKey, (hashKey, filterHashKey, oldEdge, oldScore + newScore))
                 }
               } else {
-                resultEdgeWithScores.put(hashKey, (hashKey, filterHashKey, convertedEdge, newScore))
+                resultEdges.put(hashKey, (hashKey, filterHashKey, convertedEdge, newScore))
                 edgeWithScoreSorted += ((hashKey, filterHashKey, convertedEdge, newScore))
               }
             }
           }
           //                    logMap(duplicateEdges)
-          //                    logMap(resultEdgeWithScores)
+          //                    logMap(resultEdges)
 
-          (duplicateEdges, resultEdgeWithScores, edgeWithScoreSorted)
+          (duplicateEdges, resultEdges, edgeWithScoreSorted)
         }
 
       val aggregatedResults = for {
         (queryResult, queryParamResult) <- queryResultLs.zip(queryParamResultLs)
-        (duplicateEdges, resultEdgeWithScores, edgeWithScoreSorted) = queryParamResult
+        (duplicateEdges, resultEdges, edgeWithScoreSorted) = queryParamResult
       } yield {
           val edgesWithScores = for {
             (hashKey, filterHashKey, edge, _) <- edgeWithScoreSorted if edgesToInclude.containsKey(filterHashKey) || !edgesToExclude.containsKey(filterHashKey)
-            score = resultEdgeWithScores.get(hashKey)._4
+            score = resultEdges.get(hashKey)._4
             (duplicateEdge, aggregatedScore) <- (edge -> score) +: (if (duplicateEdges.containsKey(hashKey)) duplicateEdges.get(hashKey) else Seq.empty)
             if aggregatedScore >= queryResult.queryParam.threshold
           } yield {
@@ -704,7 +700,7 @@ object Graph {
       }
 
     val step = Step(queryParams.toList)
-    val q = Query(srcVertices, List(step), false)
+    val q = Query(srcVertices, Vector(step), false)
 
 
     def deleteDuplicateEdges(queryResultLs: Seq[QueryResult]): Future[Boolean] = {
@@ -739,7 +735,7 @@ object Graph {
           //            logger.debug(s"indexedEdgeIncr: $incr")
           //            incr
           //          }
-          val snapshotEdgeDelete = duplicateEdge.toInvertedEdgeHashLike().buildDeleteAsync()
+          val snapshotEdgeDelete = duplicateEdge.toInvertedEdgeHashLike.buildDeleteAsync()
 
           /** delete inverse edges first, then delete current edge entirely */
           for {
