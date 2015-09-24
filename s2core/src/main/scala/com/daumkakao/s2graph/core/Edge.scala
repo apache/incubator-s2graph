@@ -1196,13 +1196,13 @@ object Edge extends JSONParser {
       //        val ret = if (matches.size == param.hasFilters.size && param.where.map(_.filter(edge)).getOrElse(true)) {
       val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
         //      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-        logger.debug(s"fetchedEdge: ${edge.toLogString()}")
-        for {
-          parent <- edge.parentEdges
-          (parentEdge, parentScore) = (parent.edge, parent.score)
-        } {
-          logger.debug(s"parent: ${parentEdge.toLogString}, ${parentScore}")
-        }
+//        logger.debug(s"fetchedEdge: ${edge.toLogString()}")
+//        for {
+//          parent <- edge.parentEdges
+//          (parentEdge, parentScore) = (parent.edge, parent.score)
+//        } {
+//          logger.debug(s"parent: ${parentEdge.toLogString}, ${parentScore}")
+//        }
         Some(edge)
       } else {
         None

@@ -248,6 +248,7 @@ trait RequestParser extends JSONParser {
       val transformer = if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]
       val scorePropagateOp = (labelGroup \ "scorePropagateOp").asOpt[String].getOrElse("multiply")
 
+      // FIXME: Order of command matter
       QueryParam(labelWithDir)
         .limit(offset, limit)
         .rank(RankParam(label.id.get, scorings))
