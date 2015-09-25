@@ -82,6 +82,7 @@ object TransferToHFile extends SparkApp {
   }
 
   def buildCells(rdd: RDD[String], dbUrl: String, conf: Configuration, hTable: HTable, numFilesPerRegion: Int) = {
+
     val kvs = rdd.mapPartitions { iter =>
 
       val phase = System.getProperty("phase")
@@ -94,11 +95,13 @@ object TransferToHFile extends SparkApp {
         Bytes.compareTo(a.get(), b.get())
       }
     }
+
     val grouped = kvs.groupBy { kv =>
       val hKey = new ImmutableBytesWritable(kv.getRow())
       hKey
     }
     val sorted = grouped.repartitionAndSortWithinPartitions(new HFilePartitioner(conf, hTable.getStartKeys, numFilesPerRegion))
+
     val ret = sorted.flatMap { case (hKey, kvs) =>
         val inner = new TreeSet[KeyValue](KeyValue.COMPARATOR)
         for {
@@ -142,6 +145,7 @@ object TransferToHFile extends SparkApp {
     val maxHFilePerResionServer = if (args.length >= 6) args(5).toInt else 1
 
     val conf = sparkConf(s"$input: TransferToHFile")
+
     val sc = new SparkContext(conf)
     println(args.toList)
 
@@ -159,7 +163,7 @@ object TransferToHFile extends SparkApp {
     val fs = FileSystem.get(hbaseConf)
 
     try {
-
+//      val rdd = sc.textFile(input)
       val rdd = sc.textFile(input)
       val cells = buildCells(rdd, dbUrl, hbaseConf, table, maxHFilePerResionServer)
       //      def toKeyValue(row: Array[Byte], cf: Array[Byte], qualifier: Array[Byte], data: Array[Byte]): KeyValue = {
