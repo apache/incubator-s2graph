@@ -30,11 +30,13 @@ trait ExtractValue extends JSONParser {
   }
 
   def valueToCompare(edge: Edge, key: String, value: String) = {
-    if (value.startsWith(parent)) propToInnerVal(edge, value)
+    val label = edge.label
+
+    if (value.startsWith(parent) || label.metaPropsInvMap.contains(value)) propToInnerVal(edge, value)
     else {
-      val label = edge.label
       val (propKey, _) = findParentEdge(edge, key)
       val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
+
       toInnerVal(value, labelMeta.dataType, label.schemaVersion)
     }
   }
@@ -46,7 +48,7 @@ trait ExtractValue extends JSONParser {
 
     val split = key.split(parent)
     val depth = split.length - 1
-    val propKey = LabelMeta.fixMetaName(split.last)
+    val propKey = split.last
 
     val parentEdge = find(edge, depth)
 

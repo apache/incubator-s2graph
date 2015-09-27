@@ -37,19 +37,11 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
     seq = degreeSeq, defaultValue = "0", dataType = "long")
   val count = LabelMeta(id = Some(-1), labelId = -1, name = "_count",
     seq = countSeq, defaultValue = "-1", dataType = "long")
-
-  val reservedMetas = List(from, to, degree, timestamp, count)
+  val reservedMetas = List(from, to, degree, timestamp, count).flatMap { lm => List(lm, lm.copy(name = lm.name.drop(1))) }
   val notExistSeqInDB = List(lastOpSeq, lastDeletedAt, countSeq, degree, timeStampSeq, from.seq, to.seq)
 
-  def fixMetaName(propKeyGiven: String) = propKeyGiven match {
-    case "to" => LabelMeta.to.name
-    case "from" => LabelMeta.from.name
-    case "timestamp" => LabelMeta.timestamp.name
-    case _ => propKeyGiven
-  }
-
   def apply(rs: WrappedResultSet): LabelMeta = {
-    LabelMeta(Some(rs.int("id")), rs.int("label_id"), rs.string("name"), rs.byte("seq"), rs.string("default_value"), rs.string("data_type").toLowerCase())
+    LabelMeta(Some(rs.int("id")), rs.int("label_id"), rs.string("name"), rs.byte("seq"), rs.string("default_value"), rs.string("data_type").toLowerCase)
   }
 
   def isValidSeq(seq: Byte): Boolean = seq >= 0 && seq <= countSeq
