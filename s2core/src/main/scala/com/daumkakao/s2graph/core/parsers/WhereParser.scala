@@ -11,51 +11,47 @@ import scala.util.parsing.combinator.JavaTokenParsers
 trait ExtractValue extends JSONParser {
   val parent = "_parent."
 
-  def propToInnerVal(edge: Edge, propKey: String) = makeCompareTarget(edge, propKey, None)._1
+  def propToInnerVal(edge: Edge, key: String) = {
+    val (propKey, parentEdge) = findParentEdge(edge, key)
 
-  def compToInnerVal(edge: Edge, propKey: String, value: String) =
+    val label = parentEdge.label
+    val metaPropInvMap = label.metaPropsInvMap
+    val labelMeta = metaPropInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
+    val metaSeq = labelMeta.seq
+
+    metaSeq match {
+      case LabelMeta.from.seq => parentEdge.srcVertex.innerId
+      case LabelMeta.to.seq => parentEdge.tgtVertex.innerId
+      case _ => parentEdge.propsWithTs.get(metaSeq) match {
+        case None => toInnerVal(labelMeta.defaultValue, labelMeta.dataType, label.schemaVersion)
+        case Some(edgeVal) => edgeVal.innerVal
+      }
+    }
+  }
+
+  def valueToCompare(edge: Edge, key: String, value: String) = {
     if (value.startsWith(parent)) propToInnerVal(edge, value)
-    else makeCompareTarget(edge, propKey, Option(value))._2
+    else {
+      val label = edge.label
+      val (propKey, _) = findParentEdge(edge, key)
+      val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
+      toInnerVal(value, labelMeta.dataType, label.schemaVersion)
+    }
+  }
 
-  // TODO: Get label meta info from cache
-  private def makeCompareTarget(edgeToCompare: Edge, key: String, valueToCompare: Option[String]): (InnerValLike, InnerValLike) = {
-    def findCompareEdge(edge: Edge, depth: Int): Edge =
-      if (depth > 0) findCompareEdge(edge.parentEdges.head.edge, depth - 1)
+  private def findParentEdge(edge: Edge, key: String): (String, Edge) = {
+    def find(edge: Edge, depth: Int): Edge =
+      if (depth > 0) find(edge.parentEdges.head.edge, depth - 1)
       else edge
 
     val split = key.split(parent)
     val depth = split.length - 1
     val propKey = LabelMeta.fixMetaName(split.last)
 
-    val edge = findCompareEdge(edgeToCompare, depth)
-    val label = edge.label
-    val schemaVersion = label.schemaVersion
+    val parentEdge = find(edge, depth)
 
-    val metaPropInvMap = label.metaPropsInvMap
-    val labelMeta = metaPropInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
-
-    val metaSeq = labelMeta.seq
-
-    val defaultInnerVal = toInnerVal(labelMeta.defaultValue, labelMeta.dataType, label.schemaVersion)
-
-    val innerVal = valueToCompare match {
-      case Some(value) => toInnerVal(value, labelMeta.dataType, schemaVersion)
-      case None => edge.propsWithTs.get(metaSeq) match {
-        case Some(edgeVal) => edgeVal.innerVal
-        case None => defaultInnerVal
-      }
-    }
-
-    metaSeq match {
-      case LabelMeta.from.seq => edge.srcVertex.innerId -> innerVal
-      case LabelMeta.to.seq => edge.tgtVertex.innerId -> innerVal
-      case _ => edge.propsWithTs.get(metaSeq) match {
-        case None => defaultInnerVal -> innerVal
-        case Some(edgeVal) => edgeVal.innerVal -> innerVal
-      }
-    }
+    (propKey, parentEdge)
   }
-
 }
 
 trait Clause extends ExtractValue {
@@ -67,7 +63,8 @@ trait Clause extends ExtractValue {
 
   def binaryOp(binOp: (InnerValLike, InnerValLike) => Boolean)(propKey: String, value: String)(edge: Edge): Boolean = {
     val propValue = propToInnerVal(edge, propKey)
-    val compValue = compToInnerVal(edge, propKey, value)
+    val compValue = valueToCompare(edge, propKey, value)
+
     binOp(propValue, compValue)
   }
 }
@@ -91,19 +88,19 @@ case class Eq(propKey: String, value: String) extends Clause {
 case class IN(propKey: String, values: Set[String]) extends Clause {
   override def filter(edge: Edge): Boolean = {
     val propVal = propToInnerVal(edge, propKey)
-    val compValues = values.map { value => compToInnerVal(edge, propKey, value) }
+    val valuesToCompare = values.map { value => valueToCompare(edge, propKey, value) }
 
-    compValues.contains(propVal)
+    valuesToCompare.contains(propVal)
   }
 }
 
 case class Between(propKey: String, minValue: String, maxValue: String) extends Clause {
   override def filter(edge: Edge): Boolean = {
     val propVal = propToInnerVal(edge, propKey)
-    val minCompVal = compToInnerVal(edge, propKey, minValue)
-    val maxCompVal = compToInnerVal(edge, propKey, maxValue)
+    val minVal = valueToCompare(edge, propKey, minValue)
+    val maxVal = valueToCompare(edge, propKey, maxValue)
 
-    minCompVal <= propVal && propVal <= maxCompVal
+    minVal <= propVal && propVal <= maxVal
   }
 }
 
