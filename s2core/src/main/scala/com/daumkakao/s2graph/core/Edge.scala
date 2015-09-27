@@ -1173,6 +1173,7 @@ object Edge extends JSONParser {
       //          Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir.updateDir(0), op, ts, version, props)
       //        } else {
         Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, parentEdges)
+      Option(edge)
       //        }
 
       //          logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
@@ -1195,11 +1196,6 @@ object Edge extends JSONParser {
       //          } yield (k -> v)
       //        val ret = if (matches.size == param.hasFilters.size && param.where.map(_.filter(edge)).getOrElse(true)) {
       // val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
-
-      val filter = param.where.get
-
-      if (filter.filter(edge)) Option(edge)
-      else None
 
       //        //      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
       //        //        logger.debug(s"fetchedEdge: ${edge.toLogString()}")

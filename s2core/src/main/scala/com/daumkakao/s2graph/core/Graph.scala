@@ -467,6 +467,7 @@ object Graph {
                   alreadyVisited: Map[(LabelWithDirection, Vertex), Boolean] =
                   Map.empty[(LabelWithDirection, Vertex), Boolean]): Future[Seq[QueryResult]] = {
     implicit val ex = Graph.executionContext
+
     queryResultLsFuture.map { queryResultLs =>
       val step = q.steps(stepIdx)
 
@@ -488,10 +489,11 @@ object Graph {
           val duplicateEdges = new util.concurrent.ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]]()
           val resultEdges = new util.concurrent.ConcurrentHashMap[HashKey, (HashKey, FilterHashKey, Edge, Double)]()
           val edgeWithScoreSorted = new ListBuffer[(HashKey, FilterHashKey, Edge, Double)]
+          val labelWeight = step.labelWeights.getOrElse(queryResult.queryParam.labelWithDir.labelId, 1.0)
+          val whereFilter = queryResult.queryParam.where.get
 
-          val labelWeight = step.labelWeights.get(queryResult.queryParam.labelWithDir.labelId).getOrElse(1.0)
           for {
-            (edge, score) <- queryResult.edgeWithScoreLs
+            (edge, score) <- queryResult.edgeWithScoreLs if whereFilter.filter(edge)
             //            outputFields <- labelOutputFields.get(edge.labelWithDir.labelId)
             convertedEdge <- convertEdges(queryResult.queryParam, edge, nextStepOpt)
             //            convertedEdge <- convertEdges(edge, labelOutputFields(edge.labelWithDir.labelId))

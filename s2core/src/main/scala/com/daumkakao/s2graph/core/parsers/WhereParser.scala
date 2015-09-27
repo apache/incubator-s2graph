@@ -8,24 +8,14 @@ import com.daumkakao.s2graph.core.types.InnerValLike
 import scala.util.Try
 import scala.util.parsing.combinator.JavaTokenParsers
 
-trait Clause extends JSONParser {
+trait ExtractValue extends JSONParser {
   val parent = "_parent."
-
-  def and(otherField: Clause): Clause = And(this, otherField)
-
-  def or(otherField: Clause): Clause = Or(this, otherField)
-
-  def filter(edge: Edge): Boolean
 
   def propToInnerVal(edge: Edge, propKey: String) = makeCompareTarget(edge, propKey, None)._1
 
-  def compToInnerVal(edge: Edge, propKey: String, value: String) = {
-    if (value.startsWith(parent)) {
-      propToInnerVal(edge, value)
-    } else {
-      makeCompareTarget(edge, propKey, Option(value))._2
-    }
-  }
+  def compToInnerVal(edge: Edge, propKey: String, value: String) =
+    if (value.startsWith(parent)) propToInnerVal(edge, value)
+    else makeCompareTarget(edge, propKey, Option(value))._2
 
   // TODO: Get label meta info from cache
   private def makeCompareTarget(edgeToCompare: Edge, key: String, valueToCompare: Option[String]): (InnerValLike, InnerValLike) = {
@@ -65,6 +55,15 @@ trait Clause extends JSONParser {
       }
     }
   }
+
+}
+
+trait Clause extends ExtractValue {
+  def and(otherField: Clause): Clause = And(this, otherField)
+
+  def or(otherField: Clause): Clause = Or(this, otherField)
+
+  def filter(edge: Edge): Boolean
 
   def binaryOp(binOp: (InnerValLike, InnerValLike) => Boolean)(propKey: String, value: String)(edge: Edge): Boolean = {
     val propValue = propToInnerVal(edge, propKey)
@@ -173,7 +172,5 @@ case class WhereParser(labelMap: Map[String, Label]) extends JavaTokenParsers wi
       case Success(r, q) => r
       case fail => throw WhereParserException(s"Where parsing error: ${fail.toString}")
     }
-  } recover {
-    case e: Exception => throw WhereParserException(e.getMessage, e)
   }
 }
