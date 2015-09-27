@@ -198,7 +198,7 @@ object Graph {
                 false
               case _ => true
             }
-          }, false)
+          }, false )
         }
 
         deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
@@ -231,7 +231,7 @@ object Graph {
                 false
               case _ => true
             }
-          }, false)
+          }, false )
         }
       }
 
@@ -366,11 +366,11 @@ object Graph {
     val groupedByFiltered = for {
       (vertex, edgesWithScore) <- groupedBy
       aggregatedScore = edgesWithScore.map(_._2._2).sum if aggregatedScore >= prevStepThreshold
-    } yield (vertex -> aggregatedScore)
+    } yield vertex -> aggregatedScore
 
     val prevStepTgtVertexIdEdges = for {
       (vertex, edgesWithScore) <- groupedBy
-    } yield (vertex.id -> edgesWithScore.map{ case (vertex, (edge, score)) => EdgeWithScore(edge, score) })
+    } yield vertex.id -> edgesWithScore.map { case (vertex, (edge, score)) => EdgeWithScore(edge, score) }
     //    logger.debug(s"groupedByFiltered: $groupedByFiltered")
 
     val nextStepSrcVertices = if (prevStepLimit >= 0) {
@@ -395,8 +395,6 @@ object Graph {
     implicit val ex = executionContext
     for {
       queryResultLs <- queryResultLsFuture
-      //      (queryParam, edgeWithScoreLs) <- srcEdges
-      // prevStep: (QueryParam, Seq[(Edge, Double)]), q: Query, stepIdx: Int): Future[Seq[(QueryParam, Iterable[(Edge, Double)])]] = {
       ret <- getEdgesAsyncWithRank(queryResultLs, q, stepIdx)
     } yield {
       ret
@@ -806,7 +804,7 @@ object Graph {
     } else if (logType == "vertex" | logType == "v") {
       toVertex(parts)
     } else {
-      throw new KGraphExceptions.JsonParseException("log type is not exist in log.")
+      throw new GraphExceptions.JsonParseException("log type is not exist in log.")
     }
 
     element

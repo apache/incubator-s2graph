@@ -6,7 +6,7 @@ package com.daumkakao.s2graph.core.mysqls
 
 
 import com.daumkakao.s2graph.core.JSONParser
-import com.daumkakao.s2graph.core.KGraphExceptions.MaxPropSizeReachedException
+import com.daumkakao.s2graph.core.GraphExceptions.MaxPropSizeReachedException
 import play.api.libs.json.Json
 import scalikejdbc._
 

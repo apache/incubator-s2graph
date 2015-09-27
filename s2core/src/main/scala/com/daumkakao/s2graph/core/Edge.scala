@@ -654,13 +654,14 @@ case class Edge(srcVertex: Vertex,
               case None =>
               //                logger.error(s"Not Found SortKeyType : ${seq} for rank in Label(${labelWithDir.labelId}})'s OrderByKeys(${orderByKey.typeIds}})")
               case Some(innerValWithTs) => {
-                val cost = try {
-                  //                  BigDecimal(innerVal.toString).toDouble
+                val cost = Try {
                   innerValWithTs.innerVal.toString.toDouble
-                } catch {
-                  case e: Throwable => 1.0
+                } recover {
+                  case e: Exception =>
+                    logger.error("toInnerval failed in rank", e)
+                    1.0
                 }
-                sum += w * cost
+                sum += w * cost.get
               }
             }
           }
@@ -1077,12 +1078,12 @@ object Edge extends JSONParser {
     if (isInnerCall) {
       val edge =
         Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, parentEdges)
-
       val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
         Some(edge)
       } else {
         None
       }
+
       ret
     } else {
       if (allPropsDeleted(props)) None
@@ -1136,14 +1137,13 @@ object Edge extends JSONParser {
           EdgeValue.fromBytes(vBytes, 0, vBytes.length, param.label.schemaVersion)
         }
 
-
-
         val index = param.label.indicesMap.getOrElse(rowKey.labelOrderSeq, throw new RuntimeException(s"can`t find index sequence for $rowKey ${param.label}"))
-
         var kvsMap = Map.empty[Byte, InnerValLike]
+
         qualifier.propsKVs(index.metaSeqs).foreach { case (k, v) =>
           kvsMap += (k -> v)
         }
+
         value.props.foreach { case (k, v) =>
           kvsMap += (k -> v)
         }
@@ -1194,24 +1194,31 @@ object Edge extends JSONParser {
       //            edgeVal <- propsWithDefault.get(k) if edgeVal.innerVal == v
       //          } yield (k -> v)
       //        val ret = if (matches.size == param.hasFilters.size && param.where.map(_.filter(edge)).getOrElse(true)) {
-      val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
-        //      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-//        logger.debug(s"fetchedEdge: ${edge.toLogString()}")
-//        for {
-//          parent <- edge.parentEdges
-//          (parentEdge, parentScore) = (parent.edge, parent.score)
-//        } {
-//          logger.debug(s"parent: ${parentEdge.toLogString}, ${parentScore}")
-//        }
-        Some(edge)
-      } else {
-        None
-      }
-      //      logger.error(s"fetchedEdge: $ret, $kv")
-      //        val ret = Option(edge)
-      //      logger.debug(s"$param, $kv, $ret")
-      //    logger.debug(s"${cell.getQualifier().toList}, ${ret.map(x => x.toStringRaw)}")
-      ret
+      // val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
+
+      val filter = param.where.get
+
+      if (filter.filter(edge)) Option(edge)
+      else None
+
+      //        //      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
+      //        //        logger.debug(s"fetchedEdge: ${edge.toLogString()}")
+      //        //        for {
+      //        //          parent <- edge.parentEdges
+      //        //          (parentEdge, parentScore) = (parent.edge, parent.score)
+      //        //        } {
+      //        //          logger.debug(s"parent: ${parentEdge.toLogString}, ${parentScore}")
+      //        //        }
+      //
+      //        Some(edge)
+      //      } else {
+      //        None
+      //      }
+      //      //      logger.error(s"fetchedEdge: $ret, $kv")
+      //      //        val ret = Option(edge)
+      //      //      logger.debug(s"$param, $kv, $ret")
+      //      //    logger.debug(s"${cell.getQualifier().toList}, ${ret.map(x => x.toStringRaw)}")
+      //      ret
     }
   }
 
@@ -1250,9 +1257,7 @@ object Edge extends JSONParser {
           val client = Graph.getClient(edge.label.hbaseZkAddr)
           val defered = Graph.deferredCallbackWithFallback[java.lang.Long, (Boolean, Long)](client.bufferAtomicIncrement(request))({
             (resultCount: java.lang.Long) => (true, resultCount)
-          }, {
-            (false, -1L)
-          })
+          }, (false, -1L))
           defered
         } match {
           case Success(r) => r

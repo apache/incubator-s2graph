@@ -1,6 +1,6 @@
 package controllers
 
-import com.daumkakao.s2graph.core.KGraphExceptions.{BadQueryException, ModelNotFoundException}
+import com.daumkakao.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.parsers.WhereParser
@@ -289,7 +289,7 @@ trait RequestParser extends JSONParser {
         errors => {
           val msg = (JsError.toFlatJson(errors) \ "obj").as[List[JsValue]].map(x => x \ "msg")
           val e = Json.obj("args" -> key, "error" -> msg)
-          throw new KGraphExceptions.JsonParseException(Json.obj("error" -> key).toString)
+          throw new GraphExceptions.JsonParseException(Json.obj("error" -> key).toString)
         },
         r => {
           r

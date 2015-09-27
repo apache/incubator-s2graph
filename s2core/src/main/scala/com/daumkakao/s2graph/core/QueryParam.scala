@@ -35,7 +35,6 @@ object Query {
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  steps: IndexedSeq[Step] = Vector.empty[Step],
-                 labels: Seq[Label] = Seq.empty[Label],
                  unique: Boolean = true,
                  removeCycle: Boolean = false,
                  selectColumns: Seq[String] = Seq.empty[String],
