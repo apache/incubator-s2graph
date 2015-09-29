@@ -17,6 +17,7 @@ import org.apache.spark.SparkContext._
 import org.apache.spark.rdd.RDD
 import org.hbase.async.{PutRequest}
 import s2.spark.{HashMapParam, SparkApp}
+import spark.hbase.HFileRDD
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.collection.JavaConversions.asScalaSet
@@ -62,7 +63,6 @@ object TransferToHFile extends SparkApp {
   */
   //TODO: Process AtomicIncrementRequest too.
   /** build key values */
-
 
   def toKeyValues(strs: Seq[String]): Iterator[KeyValue] = {
     val kvs = for {
@@ -138,18 +138,17 @@ object TransferToHFile extends SparkApp {
 
   override def run() = {
     val input = args(0)
-    val output = args(1)
-    val zkQuorum = args(2)
-    val tableName = args(3)
-    val dbUrl = args(4)
-    val maxHFilePerResionServer = if (args.length >= 6) args(5).toInt else 1
+    val tmpPath = args(1)
+    val outputPath = args(2)
+    val zkQuorum = args(3)
+    val tableName = args(4)
+    val dbUrl = args(5)
+    val maxHFilePerResionServer = if (args.length >= 7) args(6).toInt else 1
 
     val conf = sparkConf(s"$input: TransferToHFile")
 
     val sc = new SparkContext(conf)
-    println(args.toList)
 
-    val mapAcc = sc.accumulable(MutableHashMap.empty[String, Long], "counter")(HashMapParam[String, Long](_ + _))
 
     /** set up hbase init */
     val hbaseConf = HBaseConfiguration.create()
@@ -157,70 +156,36 @@ object TransferToHFile extends SparkApp {
     hbaseConf.set(TableOutputFormat.OUTPUT_TABLE, tableName)
     hbaseConf.set("hadoop.tmp.dir", s"/tmp/$tableName")
 
-    val conn = ConnectionFactory.createConnection(hbaseConf)
-    val numOfRegionServers = conn.getAdmin.getClusterStatus.getServersSize
-    val table = new HTable(hbaseConf, tableName)
-    val fs = FileSystem.get(hbaseConf)
+//    val table = new HTable(hbaseConf, tableName)
 
     try {
 //      val rdd = sc.textFile(input)
       val rdd = sc.textFile(input)
-      val cells = buildCells(rdd, dbUrl, hbaseConf, table, maxHFilePerResionServer)
-      //      def toKeyValue(row: Array[Byte], cf: Array[Byte], qualifier: Array[Byte], data: Array[Byte]): KeyValue = {
-      //        val kv = new KeyValue(row, cf, qualifier, data)
-      //        println(s"[row]: ${row.toList}")
-      //        println(s"[cf]: ${cf.toList}")
-      //        println(s"[qualifier]: ${qualifier.toList}")
-      //        println(s"[data]: ${data.toList}")
-      //        println(s"[keyValue]: ${kv}")
-      //        kv
-      //      }
-      //      new HFileMapRDD[Array[Byte]](cells, toKeyValue)
-      //        .toHBaseBulk(tableName, Bytes.toString(Graph.edgeCf), maxHFilePerResionServer)(HBaseConfig(hbaseConf))
+      val kvs = rdd.mapPartitions { iter =>
 
-      //      println("buildCellsFinished")
-      //
-      val job = Job.getInstance(hbaseConf)
-      job.getConfiguration().setClassLoader(Thread.currentThread().getContextClassLoader())
-      job.getConfiguration.set("hadoop.tmp.dir", s"/tmp/$tableName")
+        val phase = System.getProperty("phase")
+        GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
 
-
-      job.setMapOutputKeyClass(classOf[ImmutableBytesWritable])
-      job.setMapOutputValueClass(classOf[KeyValue])
-      HFileOutputFormat2.configureIncrementalLoad(job, table)
-
-      cells.saveAsNewAPIHadoopFile(output, classOf[ImmutableBytesWritable], classOf[KeyValue], classOf[HFileOutputFormat2], job.getConfiguration())
-
-//      val rwx = new FsPermission("777")
+        toKeyValues(iter.toSeq)
+      }
+      val newRDD = new HFileRDD(kvs)
+      newRDD.toHBaseBulk(hbaseConf, tableName, maxHFilePerResionServer, tmpPath, outputPath)
+//      val cells = buildCells(rdd, dbUrl, hbaseConf, table, maxHFilePerResionServer)
 //
-//      def setRecursivePermission(path: Path): Unit = {
-//        val listFiles = fs.listStatus(path)
-//        listFiles foreach { f =>
-//          val p = f.getPath
-//          fs.setPermission(p, rwx)
-//          if (f.isDirectory && p.getName != "_tmp") {
-//            // create a "_tmp" folder that can be used for HFile splitting, so that we can
-//            // set permissions correctly. This is a workaround for unsecured HBase. It should not
-//            // be necessary for SecureBulkLoadEndpoint (see https://issues.apache.org/jira/browse/HBASE-8495
-//            // and http://comments.gmane.org/gmane.comp.java.hadoop.hbase.user/44273)
-//            FileSystem.mkdirs(fs, new Path(p, "_tmp"), rwx)
-//            setRecursivePermission(p)
-//          }
-//        }
-//      }
-//      setRecursivePermission(new Path(output))
+//      val job = Job.getInstance(hbaseConf)
+//      job.getConfiguration().setClassLoader(Thread.currentThread().getContextClassLoader())
+//      job.getConfiguration.set("hadoop.tmp.dir", s"/tmp/$tableName")
 //
-//      val lih = new LoadIncrementalHFiles(hbaseConf)
-//      lih.doBulkLoad(new Path(output), table)
+//
+//      job.setMapOutputKeyClass(classOf[ImmutableBytesWritable])
+//      job.setMapOutputValueClass(classOf[KeyValue])
+//      HFileOutputFormat2.configureIncrementalLoad(job, table)
+//
+//      cells.saveAsNewAPIHadoopFile(output, classOf[ImmutableBytesWritable], classOf[KeyValue], classOf[HFileOutputFormat2], job.getConfiguration())
+
     } finally {
 
-//      fs.deleteOnExit(output)
-
-      // clean HFileOutputFormat2 stuff
-//      fs.deleteOnExit(new Path(TotalOrderPartitioner.getPartitionFile(job.getConfiguration)))
-
-      table.close()
-      conn.close()
+//      fs.deleteOnExit(o
     }
   }
 
