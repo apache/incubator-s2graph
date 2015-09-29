@@ -2,7 +2,7 @@ package controllers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.types.{InnerVal, InnerValLike}
+import com.daumkakao.s2graph.core.types.{HBaseType, TargetVertexId, InnerVal, InnerValLike}
 import play.api.libs.json.{Json, _}
 
 import scala.collection.mutable.ListBuffer
@@ -210,7 +210,19 @@ object PostProcess extends JSONParser {
         parentQueryParam = QueryParam(parentEdge.labelWithDir)
         parents = edgeParent(parentEdge.parentEdges, q, parentQueryParam) if parents != JsNull
       } yield {
-          val edgeJson = edgeToJsonInner(parentEdge, parentScore, q, parentQueryParam).getOrElse(Map.empty[String, JsValue]) + ("parents" -> parents)
+          val convertedEdge =
+            if (parentQueryParam.transformer.fieldsLs == EdgeTransformer.defaultTransformFieldAsList) parentEdge
+            else {
+              parentEdge.propsWithTs.get(LabelMeta.toSeq) match {
+                case None =>
+                  // need to be asserted
+                  parentEdge
+                case Some(innerValWithTs) =>
+                  val vertexId = TargetVertexId(HBaseType.DEFAULT_COL_ID, innerValWithTs.innerVal)
+                  parentEdge.copy(tgtVertex =  Vertex(vertexId))
+              }
+            }
+          val edgeJson = edgeToJsonInner(convertedEdge, parentScore, q, parentQueryParam).getOrElse(Map.empty[String, JsValue]) + ("parents" -> parents)
           Json.toJson(edgeJson)
         }
 
