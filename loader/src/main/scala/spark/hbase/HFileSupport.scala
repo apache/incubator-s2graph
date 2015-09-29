@@ -12,7 +12,7 @@ import org.apache.hadoop.hbase.mapreduce.{HFileOutputFormat2, LoadIncrementalHFi
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner
-import org.apache.hadoop.tools.{DistCp, DistCpOptions}
+import org.apache.hadoop.tools.{DistCpConstants, DistCp, DistCpOptions}
 import org.apache.hadoop.util.ToolRunner
 import org.apache.spark.Partitioner
 import org.apache.spark.rdd.RDD
@@ -44,70 +44,79 @@ class HFileRDD(rdd: RDD[KeyValue]) extends Serializable {
     }
   }
 
-  def toHBaseBulk(hbaseConf: Configuration,
-                  tableName: String,
-                  numFilesPerRegion: Int,
-                  tmpPath: String,
-                  outputPath: String) = {
-    val hTable = new HTable(hbaseConf, TableName.valueOf(tableName))
-    try {
+//  def toHBaseBulk(hbaseConf: Configuration,
+//                  tableName: String,
+//                  numFilesPerRegion: Int,
+//                  tmpPath: String,
+//                  outputPath: String,
+//                  maxMaps: Int,
+//                  maxBandWidth: Int) = {
+//    val hTable = new HTable(hbaseConf, TableName.valueOf(tableName))
+//    try {
+//
+//      val job = toHFile(hbaseConf, tableName, numFilesPerRegion, tmpPath)
+////      loadHFile(job, new Path(tmpPath), new Path(outputPath), hTable, maxMaps, maxBandWidth)
+//    } finally {
+//      hTable.close()
+//    }
+//  }
 
-      val job = toHFile(hbaseConf, tableName, numFilesPerRegion, tmpPath)
-      loadHFile(job, new Path(tmpPath), new Path(outputPath), hTable)
-    } finally {
-      hTable.close()
-    }
-  }
+//  private def distCp(conf: Configuration,
+//                     srcPath: Path, tgtPath: Path,
+//                     maxMaps: Int, mapBandWidth: Int) = {
+//    val distCpOption = new DistCpOptions(List(srcPath), tgtPath)
+//    distCpOption.setMaxMaps(maxMaps)
+//    distCpOption.setMapBandwidth(mapBandWidth)
+//    distCpOption.setOverwrite(true)
+//
+//    conf.set(DistCpConstants.CONF_LABEL_BANDWIDTH_MB, s"$mapBandWidth")
+//    conf.set(DistCpConstants.CONF_LABEL_MAX_MAPS, s"$maxMaps")
+//    println(s"DistCp: $conf")
+//    val job = new DistCp(conf, distCpOption)
+////    job.run(Array("-overwrite", "-m", maxMaps, "-bandwidth", mapBandWidth, srcPath, tgtPath).map(_.toString))
+////    job.execute()
+//    ToolRunner.run(conf, job, Array("-overwrite", "-m", maxMaps, "-bandwidth", mapBandWidth, srcPath, tgtPath).map(_.toString))
+//  }
 
-  private def distCp(conf: Configuration,
-                     srcPath: Path, tgtPath: Path,
-                     maxMaps: Int = 10, mapBandWidth: Int = 10) = {
-    val distCpOption = new DistCpOptions(List(srcPath), tgtPath)
-    distCpOption.setMaxMaps(maxMaps)
-    distCpOption.setMapBandwidth(mapBandWidth)
-    distCpOption.setOverwrite(true)
-
-    val job = new DistCp(conf, distCpOption)
-    job.execute()
-  }
-
-  def loadHFile(job: Job,
-                srcPath: Path,
-                tgtPath: Path,
-                hTable: HTable) = {
-    val conf = job.getConfiguration
-    val fs = FileSystem.get(conf)
-    val rwx = new FsPermission("777")
-
-    try {
-
-      distCp(conf, srcPath, tgtPath, maxMaps = 10, mapBandWidth = 10)
-
-
-      def setRecursivePermission(path: Path): Unit = {
-        val listFiles = fs.listStatus(path)
-        listFiles foreach { f =>
-          val p = f.getPath
-          fs.setPermission(p, rwx)
-          if (f.isDirectory && p.getName != "_tmp") {
-            // create a "_tmp" folder that can be used for HFile splitting, so that we can
-            // set permissions correctly. This is a workaround for unsecured HBase. It should not
-            // be necessary for SecureBulkLoadEndpoint (see https://issues.apache.org/jira/browse/HBASE-8495
-            // and http://comments.gmane.org/gmane.comp.java.hadoop.hbase.user/44273)
-            FileSystem.mkdirs(fs, new Path(p, "_tmp"), rwx)
-            setRecursivePermission(p)
-          }
-        }
-      }
-      setRecursivePermission(tgtPath)
-
-      val lih = new LoadIncrementalHFiles(hTable.getConfiguration)
-      lih.doBulkLoad(tgtPath, hTable)
-    } finally {
-      //      fs.deleteOnExit(tgtPath)
-      fs.deleteOnExit(new Path(TotalOrderPartitioner.getPartitionFile(job.getConfiguration)))
-    }
-  }
+//  def loadHFile(job: Job,
+//                srcPath: Path,
+//                tgtPath: Path,
+//                hTable: HTable,
+//                maxMaps: Int,
+//                maxBandWidth: Int) = {
+//    val conf = job.getConfiguration
+//    val fs = FileSystem.get(conf)
+//    val rwx = new FsPermission("777")
+//
+//    try {
+//      setRecursivePermission(srcPath)
+//      distCp(conf, srcPath, tgtPath, maxMaps, maxBandWidth)
+//
+//
+//      def setRecursivePermission(path: Path): Unit = {
+//        val listFiles = fs.listStatus(path)
+//        listFiles foreach { f =>
+//          val p = f.getPath
+//          fs.setPermission(p, rwx)
+//          if (f.isDirectory && p.getName != "_tmp") {
+//            // create a "_tmp" folder that can be used for HFile splitting, so that we can
+//            // set permissions correctly. This is a workaround for unsecured HBase. It should not
+//            // be necessary for SecureBulkLoadEndpoint (see https://issues.apache.org/jira/browse/HBASE-8495
+//            // and http://comments.gmane.org/gmane.comp.java.hadoop.hbase.user/44273)
+//            FileSystem.mkdirs(fs, new Path(p, "_tmp"), rwx)
+//            setRecursivePermission(p)
+//          }
+//        }
+//      }
+//
+//
+//      val lih = new LoadIncrementalHFiles(hTable.getConfiguration)
+//      lih.doBulkLoad(tgtPath, hTable)
+//    } finally {
+//      //      fs.deleteOnExit(tgtPath)
+//      fs.deleteOnExit(new Path(TotalOrderPartitioner.getPartitionFile(job.getConfiguration)))
+//    }
+//  }
 
   def toHFile(hbaseConf: Configuration, tableName: String, numFilesPerRegion: Int, tmpPath: String): Job = {
     val hTable = new HTable(hbaseConf, TableName.valueOf(tableName))

@@ -139,11 +139,10 @@ object TransferToHFile extends SparkApp {
   override def run() = {
     val input = args(0)
     val tmpPath = args(1)
-    val outputPath = args(2)
-    val zkQuorum = args(3)
-    val tableName = args(4)
-    val dbUrl = args(5)
-    val maxHFilePerResionServer = if (args.length >= 7) args(6).toInt else 1
+    val zkQuorum = args(2)
+    val tableName = args(3)
+    val dbUrl = args(4)
+    val maxHFilePerResionServer = args(5).toInt
 
     val conf = sparkConf(s"$input: TransferToHFile")
 
@@ -169,7 +168,8 @@ object TransferToHFile extends SparkApp {
         toKeyValues(iter.toSeq)
       }
       val newRDD = new HFileRDD(kvs)
-      newRDD.toHBaseBulk(hbaseConf, tableName, maxHFilePerResionServer, tmpPath, outputPath)
+      newRDD.toHFile(hbaseConf, tableName, maxHFilePerResionServer, tmpPath)
+//      newRDD.toHBaseBulk(hbaseConf, tableName, maxHFilePerResionServer, tmpPath, outputPath, maxMaps, mapBandWidth)
 //      val cells = buildCells(rdd, dbUrl, hbaseConf, table, maxHFilePerResionServer)
 //
 //      val job = Job.getInstance(hbaseConf)
