@@ -5,6 +5,7 @@ import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types.InnerValLike
 
+import scala.annotation.tailrec
 import scala.util.Try
 import scala.util.parsing.combinator.JavaTokenParsers
 
@@ -42,7 +43,7 @@ trait ExtractValue extends JSONParser {
   }
 
   private def findParentEdge(edge: Edge, key: String): (String, Edge) = {
-    def find(edge: Edge, depth: Int): Edge =
+    @tailrec def find(edge: Edge, depth: Int): Edge =
       if (depth > 0) find(edge.parentEdges.head.edge, depth - 1)
       else edge
 
