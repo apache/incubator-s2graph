@@ -151,7 +151,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
       }
     } yield {
         if (fields == EdgeTransformer.defaultTransformFieldAsList) edge
-        else edge.updateTgtVertex(innerVal)
+        else edge.updateTgtVertex(innerVal).copy(originalEdgeOpt = Option(edge))
       }
 
     edges

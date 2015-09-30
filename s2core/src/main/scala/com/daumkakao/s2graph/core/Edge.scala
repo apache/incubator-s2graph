@@ -232,7 +232,9 @@ case class Edge(srcVertex: Vertex,
                 version: Long = System.currentTimeMillis(),
                 propsWithTs: Map[Byte, InnerValLikeWithTs] = Map.empty[Byte, InnerValLikeWithTs],
                 pendingEdgeOpt: Option[Edge] = None,
-                parentEdges: Seq[EdgeWithScore] = Nil)
+                parentEdges: Seq[EdgeWithScore] = Nil,
+                originalEdgeOpt: Option[Edge] = None)
+
   extends GraphElement with JSONParser {
 
 
