@@ -1,8 +1,8 @@
 package controllers
 
-import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.types.{TargetVertexId, HBaseType, InnerVal, InnerValLike}
+import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls._
+import com.kakao.s2graph.core.types.{TargetVertexId, HBaseType, InnerVal, InnerValLike}
 import play.api.libs.json.{Json, _}
 
 import scala.collection.mutable.ListBuffer

@@ -128,7 +128,7 @@ There are some prerequisites for running S2Graph:
 
 With the prerequisites are setup correctly, checkout the project:
 ```
-> git clone https://github.com/daumkakao/s2graph.git
+> git clone https://github.com/kakao/s2graph.git
 > cd s2graph
 ```
 Create necessary MySQL tables by running the provided SQL file:
@@ -2135,4 +2135,4 @@ The following explains how to run an online migration from RDBMS to S2Graph. ass
 
 
 
-[![Analytics](https://ga-beacon.appspot.com/UA-62888350-1/s2graph/readme.md)](https://github.com/daumkakao/s2graph)
+[![Analytics](https://ga-beacon.appspot.com/UA-62888350-1/s2graph/readme.md)](https://github.com/kakao/s2graph)

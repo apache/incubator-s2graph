@@ -1,6 +1,6 @@
 package subscriber
 
-import com.daumkakao.s2graph.core.{Label, Service, Management}
+import com.kakao.s2graph.core.{Label, Service, Management}
 import org.scalatest.{ FunSuite, Matchers }
 import play.api.libs.json.{JsBoolean, JsNumber}
 import s2.spark.WithKafka

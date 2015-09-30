@@ -3,7 +3,7 @@ package subscriber
 import java.text.SimpleDateFormat
 import java.util.Date
 
-import com.daumkakao.s2graph.core.Graph
+import com.kakao.s2graph.core.Graph
 import kafka.serializer.StringDecoder
 import org.apache.spark.streaming.Durations._
 import org.apache.spark.streaming.kafka.HasOffsetRanges

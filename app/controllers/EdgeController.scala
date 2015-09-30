@@ -1,9 +1,9 @@
 package controllers
 
 import actors.QueueActor
-import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.mysqls.Label
-import com.daumkakao.s2graph.logger
+import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls.Label
+import com.kakao.s2graph.logger
 import config.Config
 import play.api.Logger
 import play.api.libs.json._

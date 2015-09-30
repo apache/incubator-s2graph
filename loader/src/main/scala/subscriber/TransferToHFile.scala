@@ -1,6 +1,6 @@
 package subscriber
 
-import com.daumkakao.s2graph.core.Graph
+import com.kakao.s2graph.core.Graph
 import org.apache.hadoop.hbase.client.{HTable, ConnectionFactory}
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.mapreduce.{HFileOutputFormat2, TableOutputFormat}

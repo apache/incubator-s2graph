@@ -4,9 +4,9 @@ import java.util.concurrent.TimeUnit
 
 import actors.Protocol.FlushAll
 import akka.actor._
-import com.daumkakao.s2graph.core.ExceptionHandler._
-import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.logger
+import com.kakao.s2graph.core.ExceptionHandler._
+import com.kakao.s2graph.core._
+import com.kakao.s2graph.logger
 import config.Config
 import play.api.Play.current
 import play.api.libs.concurrent.Akka

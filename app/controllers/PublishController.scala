@@ -1,6 +1,6 @@
 package controllers
 
-import com.daumkakao.s2graph.core.ExceptionHandler
+import com.kakao.s2graph.core.ExceptionHandler
 import config.Config
 import org.apache.kafka.clients.producer.ProducerRecord
 import play.api.mvc._

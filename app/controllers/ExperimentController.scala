@@ -3,8 +3,8 @@ package controllers
 
 import java.net.URL
 
-import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.logger
+import com.kakao.s2graph.core.mysqls._
+import com.kakao.s2graph.logger
 import play.api.Play.current
 import play.api.libs.json.{JsString, JsObject, JsValue, Json}
 import play.api.libs.ws.WS

@@ -1,10 +1,10 @@
 package controllers
 
-import com.daumkakao.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
-import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.parsers.WhereParser
-import com.daumkakao.s2graph.core.types._
+import com.kakao.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
+import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls._
+import com.kakao.s2graph.core.parsers.WhereParser
+import com.kakao.s2graph.core.types._
 import config.Config
 import play.api.libs.json._
 

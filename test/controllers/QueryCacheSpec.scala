@@ -1,6 +1,6 @@
 package test.controllers
 
-//import com.daumkakao.s2graph.core.models._
+//import com.kakao.s2graph.core.models._
 import play.api.libs.json._
 import play.api.test.Helpers._
 import play.api.test.{FakeApplication, FakeRequest}
