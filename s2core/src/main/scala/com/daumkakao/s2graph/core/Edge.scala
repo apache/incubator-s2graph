@@ -419,7 +419,7 @@ case class Edge(srcVertex: Vertex,
     ret
   }
 
-  def insertBulk(createRelEdges: Boolean = false) = {
+  def insertBulk(createRelEdges: Boolean = true) = {
     val vertexPuts = buildVertexPuts()
     val snapshotPuts =
       if (createRelEdges && labelWithDir.dir != GraphUtil.directions("in")) List(toInvertedEdgeHashLike().buildPut())
@@ -432,11 +432,12 @@ case class Edge(srcVertex: Vertex,
     vertexPuts ++ snapshotPuts ++ relatedEdgePuts
   }
 
-  def insert() = {
-    val puts = edgesWithInvertedIndex.buildPutAsync() :: relatedEdges.flatMap { relEdge =>
+  def insert(createRelEdges: Boolean = true) = {
+    val relEdges = if (createRelEdges) relatedEdges else List(this)
+    val puts = edgesWithInvertedIndex.buildPutAsync() :: relEdges.flatMap { relEdge =>
       relEdge.edgesWithIndex.flatMap(e => e.buildPutsAsync)
     }
-    val incrs = relatedEdges.flatMap { relEdge =>
+    val incrs = relEdges.flatMap { relEdge =>
       relEdge.edgesWithIndex.flatMap(e => e.buildIncrementsAsync())
     }
 

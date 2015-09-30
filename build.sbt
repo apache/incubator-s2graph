@@ -2,7 +2,7 @@ name := "s2graph"
 
 lazy val commonSettings = Seq(
   organization := "com.daumkakao.s2graph",
-  version := "0.10.0-SNAPSHOT",
+  version := "0.11.0-SNAPSHOT",
   crossScalaVersions := Seq("2.11.7"),
   scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xexperimental"),
   javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map{ case (key, value) => "-D" + key + "=" + value }.toSeq,

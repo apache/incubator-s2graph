@@ -2,7 +2,7 @@ package subscriber
 
 import java.util.TreeSet
 
-import com.daumkakao.s2graph.core.{Edge, Graph}
+import com.daumkakao.s2graph.core.{GraphUtil, Edge, Graph}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.fs.permission.FsPermission
@@ -18,9 +18,10 @@ import org.apache.spark.rdd.RDD
 import org.hbase.async.{PutRequest}
 import s2.spark.{HashMapParam, SparkApp}
 import spark.hbase.HFileRDD
+import subscriber.GraphSubscriber._
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
-import scala.collection.JavaConversions.asScalaSet
+import scala.collection.JavaConversions._
 import scala.util.Random
 
 object TransferToHFile extends SparkApp {
@@ -38,101 +39,61 @@ object TransferToHFile extends SparkApp {
        |4. dbUrl: db url for parsing to graph element.
      """.stripMargin
 
-  //
-  private class HFilePartitioner(conf: Configuration, splits: Array[Array[Byte]], numFilesPerRegion: Int) extends Partitioner {
-    val fraction = 1 max numFilesPerRegion min conf.getInt(LoadIncrementalHFiles.MAX_FILES_PER_REGION_PER_FAMILY, 32)
-
-    override def getPartition(key: Any): Int = {
-      def bytes(n: Any) = n match {
-        case s: String => Bytes.toBytes(s)
-        case b: ImmutableBytesWritable => b.get()
-      }
-
-      val h = (key.hashCode() & Int.MaxValue) % fraction
-      for (i <- 1 until splits.length)
-        if (Bytes.compareTo(bytes(key), splits(i)) < 0) return (i - 1) * fraction + h
-
-      (splits.length - 1) * fraction + h
-    }
-
-    override def numPartitions: Int = splits.length * fraction
-  }
-
-  /*
-      1270054885000	insertBulk	e	85418	97556	talk_friend	{"created_at": 1269799161000}
-  */
   //TODO: Process AtomicIncrementRequest too.
   /** build key values */
+  case class DegreeKey(vertexIdStr: String, labelName: String, direction: String)
 
-  def toKeyValues(strs: Seq[String]): Iterator[KeyValue] = {
+  def buildDegrees(msgs: RDD[String], labelMapping: Map[String, String], edgeAutoCreate: Boolean) = {
+    for {
+      msg <- msgs
+      tokens = GraphUtil.split(msg)
+      if tokens(2) == "e" || tokens(2) == "edge"
+      tempDirection = if (tokens.length == 7) "out" else tokens(7)
+      direction = if (tempDirection != "out" && tempDirection != "in") "out" else tempDirection
+      reverseDirection = if (direction == "out") "in" else "out"
+      convertedLabelName = labelMapping.get(tokens(5)).getOrElse(tokens(5))
+      (vertexIdStr, vertexIdStrReversed) = direction match {
+        case "out" => (tokens(3), tokens(4))
+        case _ => (tokens(4), tokens(3))
+      }
+      degreeKey = DegreeKey(vertexIdStr, convertedLabelName, direction)
+      degreeKeyReversed = DegreeKey(vertexIdStrReversed, convertedLabelName, reverseDirection)
+      extra = if (edgeAutoCreate) List(degreeKeyReversed -> 1L) else Nil
+      output <- List(degreeKey -> 1L) ++ extra
+    } yield output
+  }
+
+  def toKeyValues(degreeKeyVals: Seq[(DegreeKey, Long)]): Iterator[KeyValue] = {
     val kvs = for {
-      s <- strs
-      edge <- Graph.toEdge(s).toSeq
-      rpc <- edge.insert() if rpc.isInstanceOf[PutRequest]
-      put = rpc.asInstanceOf[PutRequest]
+      (key, value) <- degreeKeyVals
+      degreePut <- Edge.buildIncrementDegreeBulk(key.vertexIdStr, key.labelName, key.direction, value).getOrElse(Nil)
+      cfMap = degreePut.getFamilyCellMap
+      if cfMap.containsKey(Graph.edgeCf)
+      cell <- cfMap.get(Graph.edgeCf)
     } yield {
-        val p = put
-        val kv = new KeyValue(p.key(), p.family(), p.qualifier, p.timestamp, p.value)
-
-//        println(s"[Edge]: $edge\n[Put]: $p\n[KeyValue]: ${kv.getRow.toList}, ${kv.getQualifier.toList}, ${kv.getValue.toList}, ${kv.getTimestamp}")
-
+        val kv = new KeyValue(cell.getRow, cell.getFamily, cell.getQualifier, cell.getTimestamp, cell.getValue)
+        //        println(s"[Edge]: $edge\n[Put]: $p\n[KeyValue]: ${kv.getRow.toList}, ${kv.getQualifier.toList}, ${kv.getValue.toList}, ${kv.getTimestamp}")
         kv
       }
     kvs.toIterator
   }
 
-  def buildCells(rdd: RDD[String], dbUrl: String, conf: Configuration, hTable: HTable, numFilesPerRegion: Int) = {
+  def toKeyValues(strs: Seq[String], labelMapping: Map[String, String], autoEdgeCreate: Boolean): Iterator[KeyValue] = {
+    val kvs = for {
+      s <- strs
+      element <- Graph.toGraphElement(s, labelMapping).toSeq if element.isInstanceOf[Edge]
+      edge = element.asInstanceOf[Edge]
+      rpc <- edge.insert(autoEdgeCreate) if rpc.isInstanceOf[PutRequest]
+      put = rpc.asInstanceOf[PutRequest]
+    } yield {
+        val p = put
+        val kv = new KeyValue(p.key(), p.family(), p.qualifier, p.timestamp, p.value)
 
-    val kvs = rdd.mapPartitions { iter =>
+        //        println(s"[Edge]: $edge\n[Put]: $p\n[KeyValue]: ${kv.getRow.toList}, ${kv.getQualifier.toList}, ${kv.getValue.toList}, ${kv.getTimestamp}")
 
-      val phase = System.getProperty("phase")
-      GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
-
-      toKeyValues(iter.toSeq)
-    }
-    implicit val bytesOrdering = new Ordering[ImmutableBytesWritable] {
-      override def compare(a: ImmutableBytesWritable, b: ImmutableBytesWritable) = {
-        Bytes.compareTo(a.get(), b.get())
+        kv
       }
-    }
-
-    val grouped = kvs.groupBy { kv =>
-      val hKey = new ImmutableBytesWritable(kv.getRow())
-      hKey
-    }
-    val sorted = grouped.repartitionAndSortWithinPartitions(new HFilePartitioner(conf, hTable.getStartKeys, numFilesPerRegion))
-
-    val ret = sorted.flatMap { case (hKey, kvs) =>
-        val inner = new TreeSet[KeyValue](KeyValue.COMPARATOR)
-        for {
-          kv <- kvs
-        } {
-          inner.add(kv)
-        }
-        inner.toSeq map { kv =>
-//          println(s"[Key]: ${hKey.get.toList}")
-//          println(s"[KeyValue]: ${kv}")
-          (hKey -> kv)
-        }
-
-    }
-    ret
-    //
-    //    implicit val ordering = new Ordering[KeyValue] {
-    //      override def compare(a: KeyValue, b: KeyValue) = {
-    //        KeyValue.COMPARATOR.compare(a, b)
-    //      }
-    //    }
-    //
-    //    kvs.repartition(numOfHFiles).sortBy { kv =>
-    //      kv
-    //    }.map { kv =>
-    //      val hKey = new ImmutableBytesWritable(kv.getRow())
-    ////      println(s"[Key]: ${hKey.get().toList}")
-    ////      println(s"[Value]: ${kv}")
-    //      (hKey -> kv)
-    //    }
-
+    kvs.toIterator
   }
 
 
@@ -143,6 +104,8 @@ object TransferToHFile extends SparkApp {
     val tableName = args(3)
     val dbUrl = args(4)
     val maxHFilePerResionServer = args(5).toInt
+    val labelMapping = if (args.length >= 7) GraphSubscriberHelper.toLabelMapping(args(6)) else Map.empty[String, String]
+    val autoEdgeCreate = if (args.length >= 8) args(7).toBoolean else false
 
     val conf = sparkConf(s"$input: TransferToHFile")
 
@@ -155,38 +118,27 @@ object TransferToHFile extends SparkApp {
     hbaseConf.set(TableOutputFormat.OUTPUT_TABLE, tableName)
     hbaseConf.set("hadoop.tmp.dir", s"/tmp/$tableName")
 
-//    val table = new HTable(hbaseConf, tableName)
 
-    try {
-//      val rdd = sc.textFile(input)
-      val rdd = sc.textFile(input)
-      val kvs = rdd.mapPartitions { iter =>
+    val rdd = sc.textFile(input)
 
-        val phase = System.getProperty("phase")
-        GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
 
-        toKeyValues(iter.toSeq)
-      }
-      val newRDD = new HFileRDD(kvs)
-      newRDD.toHFile(hbaseConf, tableName, maxHFilePerResionServer, tmpPath)
-//      newRDD.toHBaseBulk(hbaseConf, tableName, maxHFilePerResionServer, tmpPath, outputPath, maxMaps, mapBandWidth)
-//      val cells = buildCells(rdd, dbUrl, hbaseConf, table, maxHFilePerResionServer)
-//
-//      val job = Job.getInstance(hbaseConf)
-//      job.getConfiguration().setClassLoader(Thread.currentThread().getContextClassLoader())
-//      job.getConfiguration.set("hadoop.tmp.dir", s"/tmp/$tableName")
-//
-//
-//      job.setMapOutputKeyClass(classOf[ImmutableBytesWritable])
-//      job.setMapOutputValueClass(classOf[KeyValue])
-//      HFileOutputFormat2.configureIncrementalLoad(job, table)
-//
-//      cells.saveAsNewAPIHadoopFile(output, classOf[ImmutableBytesWritable], classOf[KeyValue], classOf[HFileOutputFormat2], job.getConfiguration())
-
-    } finally {
-
-//      fs.deleteOnExit(o
+    val kvs = rdd.mapPartitions { iter =>
+      val phase = System.getProperty("phase")
+      GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
+      toKeyValues(iter.toSeq, labelMapping, autoEdgeCreate)
     }
+
+    val degreeKVs = buildDegrees(rdd, labelMapping, autoEdgeCreate).reduceByKey { (agg, current) =>
+      agg + current
+    }.mapPartitions { iter =>
+      val phase = System.getProperty("phase")
+      GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
+      toKeyValues(iter.toSeq)
+    }
+
+    val newRDD = new HFileRDD(kvs ++ degreeKVs)
+    newRDD.toHFile(hbaseConf, tableName, maxHFilePerResionServer, tmpPath)
+
   }
 
 }
