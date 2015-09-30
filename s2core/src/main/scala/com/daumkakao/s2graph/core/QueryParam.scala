@@ -151,12 +151,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
       }
     } yield {
         if (fields == EdgeTransformer.defaultTransformFieldAsList) edge
-        else {
-          val newId = TargetVertexId(edge.tgtVertex.id.colId, innerVal)
-          val newTgtVertex = Vertex(newId, edge.tgtVertex.ts, edge.tgtVertex.props)
-          edge.copy(tgtVertex = newTgtVertex, propsWithTs = edge.propsWithTs + (LabelMeta.toSeq -> InnerValLikeWithTs(edge.tgtVertex.innerId, edge.tgtVertex.ts)) )
-        }
-//        edge.updateTgtVertex(innerVal)
+        else edge.updateTgtVertex(innerVal).copy(originalEdgeOpt = Option(edge))
       }
 
     edges
@@ -369,8 +364,8 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this
   }
 
-  def where(whereOpt: Try[Where]): QueryParam = {
-    this.where = whereOpt
+  def where(whereTry: Try[Where]): QueryParam = {
+    this.where = whereTry
     this
   }
 

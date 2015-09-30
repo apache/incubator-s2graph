@@ -44,7 +44,7 @@ object EdgeController extends Controller with RequestParser {
         }
         Future.successful(jsonResponse(Json.toJson(rets)))
       } catch {
-        case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
+        case e: GraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
         case e: Throwable =>
           logger.error(s"mutateAndPublish: $e", e)
           Future.successful(InternalServerError(s"${e.getStackTrace}"))
@@ -95,7 +95,7 @@ object EdgeController extends Controller with RequestParser {
       Future.successful(jsonResponse(Json.toJson(rets)))
 
     } catch {
-      case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
+      case e: GraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
       case e: Throwable =>
         logger.error(s"mutateAndPublish: $e", e)
         Future.successful(InternalServerError(s"${e.getStackTrace}"))

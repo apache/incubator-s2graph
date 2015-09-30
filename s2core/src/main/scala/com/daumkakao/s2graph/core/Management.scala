@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
 
-import com.daumkakao.s2graph.core.KGraphExceptions.{LabelAlreadyExistException, LabelNotExistException}
+import com.daumkakao.s2graph.core.GraphExceptions.{LabelAlreadyExistException, LabelNotExistException}
 import com.daumkakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types._
@@ -103,7 +103,7 @@ object Management extends JSONParser {
     Model withTx { implicit session =>
       labelOpt match {
         case Some(l) =>
-          throw new KGraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
+          throw new GraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
         case None =>
           Label.insertAll(label,
             srcServiceName, srcColumnName, srcColumnType,
@@ -231,7 +231,7 @@ object Management extends JSONParser {
 
   def tryOption[A, R](key: A, f: A => Option[R]) = {
     f(key) match {
-      case None => throw new KGraphExceptions.InternalException(s"$key is not found in DB. create $key first.")
+      case None => throw new GraphExceptions.InternalException(s"$key is not found in DB. create $key first.")
       case Some(r) => r
     }
   }

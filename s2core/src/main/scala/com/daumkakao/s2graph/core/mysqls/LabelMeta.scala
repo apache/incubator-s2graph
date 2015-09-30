@@ -4,8 +4,9 @@ package com.daumkakao.s2graph.core.mysqls
  * Created by shon on 6/3/15.
  */
 
+
 import com.daumkakao.s2graph.core.JSONParser
-import com.daumkakao.s2graph.core.KGraphExceptions.MaxPropSizeReachedException
+import com.daumkakao.s2graph.core.GraphExceptions.MaxPropSizeReachedException
 import play.api.libs.json.Json
 import scalikejdbc._
 
@@ -24,8 +25,8 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
   val emptyValue = Byte.MaxValue
 
   /** reserved sequences */
-//  val deleted = LabelMeta(id = Some(lastDeletedAt), labelId = lastDeletedAt, name = "lastDeletedAt",
-//    seq = lastDeletedAt, defaultValue = "", dataType = "long")
+  //  val deleted = LabelMeta(id = Some(lastDeletedAt), labelId = lastDeletedAt, name = "lastDeletedAt",
+  //    seq = lastDeletedAt, defaultValue = "", dataType = "long")
   val from = LabelMeta(id = Some(fromSeq), labelId = fromSeq, name = "_from",
     seq = fromSeq, defaultValue = fromSeq.toString, dataType = "long")
   val to = LabelMeta(id = Some(toSeq), labelId = toSeq, name = "_to",
@@ -36,12 +37,11 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
     seq = degreeSeq, defaultValue = "0", dataType = "long")
   val count = LabelMeta(id = Some(-1), labelId = -1, name = "_count",
     seq = countSeq, defaultValue = "-1", dataType = "long")
-
-  val reservedMetas = List(from, to, degree, timestamp, count)
+  val reservedMetas = List(from, to, degree, timestamp, count).flatMap { lm => List(lm, lm.copy(name = lm.name.drop(1))) }
   val notExistSeqInDB = List(lastOpSeq, lastDeletedAt, countSeq, degree, timeStampSeq, from.seq, to.seq)
 
   def apply(rs: WrappedResultSet): LabelMeta = {
-    LabelMeta(Some(rs.int("id")), rs.int("label_id"), rs.string("name"), rs.byte("seq"), rs.string("default_value"), rs.string("data_type").toLowerCase())
+    LabelMeta(Some(rs.int("id")), rs.int("label_id"), rs.string("name"), rs.byte("seq"), rs.string("default_value"), rs.string("data_type").toLowerCase)
   }
 
   def isValidSeq(seq: Byte): Boolean = seq >= 0 && seq <= countSeq
@@ -82,12 +82,12 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
   }
 
   def insert(labelId: Int, name: String, defaultValue: String, dataType: String)(implicit session: DBSession = AutoSession) = {
-    val ls = findAllByLabelId(labelId, false)
+    val ls = findAllByLabelId(labelId, useCache = false)
     val seq = ls.size + 1
 
     if (seq < maxValue) {
       sql"""insert into label_metas(label_id, name, seq, default_value, data_type)
-    select ${labelId}, ${name}, ${seq}, ${defaultValue}, ${dataType}""" .updateAndReturnGeneratedKey.apply()
+    select ${labelId}, ${name}, ${seq}, ${defaultValue}, ${dataType}""".updateAndReturnGeneratedKey.apply()
     } else {
       throw MaxPropSizeReachedException("max property size reached")
     }
@@ -106,7 +106,7 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
         val cacheKeys = "labelId=" + labelId
         expireCache(cacheKey)
         expireCaches(cacheKeys)
-        findByName(labelId, name, false).get
+        findByName(labelId, name, useCache = false).get
     }
   }
 
@@ -115,27 +115,27 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
     val (labelId, name) = (labelMeta.labelId, labelMeta.name)
     sql"""delete from label_metas where id = ${id}""".execute.apply()
     val cacheKeys = List(s"id=$id", s"labelId=$labelId", s"labelId=$labelId:name=$name")
-    cacheKeys.foreach(expireCache(_))
+    cacheKeys.foreach(expireCache)
   }
 
   def findAll()(implicit session: DBSession = AutoSession) = {
     val ls = sql"""select * from label_metas""".map { rs => LabelMeta(rs) }.list.apply
     putsToCache(ls.map { x =>
       val cacheKey = s"id=${x.id.get}"
-      (cacheKey -> x)
+      cacheKey -> x
     })
     putsToCache(ls.map { x =>
       val cacheKey = s"labelId=${x.labelId}:name=${x.name}"
-      (cacheKey -> x)
+      cacheKey -> x
     })
     putsToCache(ls.map { x =>
       val cacheKey = s"labelId=${x.labelId}:seq=${x.seq}"
-      (cacheKey -> x)
+      cacheKey -> x
     })
 
     putsToCaches(ls.groupBy(x => x.labelId).map { case (labelId, ls) =>
       val cacheKey = s"labelId=${labelId}"
-      (cacheKey -> ls)
+      cacheKey -> ls
     }.toList)
   }
 }

@@ -1,7 +1,7 @@
 package com.daumkakao.s2graph.core
 
 
-object KGraphExceptions {
+object GraphExceptions {
 
   case class JsonParseException(msg: String) extends Exception(msg)
 
@@ -17,6 +17,7 @@ object KGraphExceptions {
 
   case class IllegalDataTypeException(msg: String) extends Exception(msg)
 
-  case class BadQueryException(msg: String, ex: Throwable = null) extends Exception(msg, ex)
+  case class WhereParserException(msg: String, ex: Exception = null) extends Exception(msg, ex)
 
+  case class BadQueryException(msg: String, ex: Throwable = null) extends Exception(msg, ex)
 }

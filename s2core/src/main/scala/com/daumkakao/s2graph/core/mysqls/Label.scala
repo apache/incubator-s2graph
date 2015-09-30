@@ -4,7 +4,7 @@ package com.daumkakao.s2graph.core.mysqls
  * Created by shon on 6/3/15.
  */
 
-import com.daumkakao.s2graph.core.KGraphExceptions.ModelNotFoundException
+import com.daumkakao.s2graph.core.GraphExceptions.ModelNotFoundException
 import com.daumkakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.daumkakao.s2graph.core.{GraphUtil, JSONParser, Management}
 import com.daumkakao.s2graph.logger

@@ -1,39 +1,74 @@
 package com.daumkakao.s2graph.core.parsers
 
+import com.daumkakao.s2graph.core.GraphExceptions.WhereParserException
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
 import com.daumkakao.s2graph.core.types.InnerValLike
 
+import scala.annotation.tailrec
 import scala.util.Try
 import scala.util.parsing.combinator.JavaTokenParsers
 
-/**
- * Created by shon on 5/30/15.
- */
+trait ExtractValue extends JSONParser {
+  val parent = "_parent."
 
-trait Clause extends JSONParser {
+  def propToInnerVal(edge: Edge, key: String) = {
+    val (propKey, parentEdge) = findParentEdge(edge, key)
+
+    val label = parentEdge.label
+    val metaPropInvMap = label.metaPropsInvMap
+    val labelMeta = metaPropInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
+    val metaSeq = labelMeta.seq
+
+    metaSeq match {
+      case LabelMeta.from.seq => parentEdge.srcVertex.innerId
+      case LabelMeta.to.seq => parentEdge.tgtVertex.innerId
+      case _ => parentEdge.propsWithTs.get(metaSeq) match {
+        case None => toInnerVal(labelMeta.defaultValue, labelMeta.dataType, label.schemaVersion)
+        case Some(edgeVal) => edgeVal.innerVal
+      }
+    }
+  }
+
+  def valueToCompare(edge: Edge, key: String, value: String) = {
+    val label = edge.label
+
+    if (value.startsWith(parent) || label.metaPropsInvMap.contains(value)) propToInnerVal(edge, value)
+    else {
+      val (propKey, _) = findParentEdge(edge, key)
+      val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
+
+      toInnerVal(value, labelMeta.dataType, label.schemaVersion)
+    }
+  }
+
+  private def findParentEdge(edge: Edge, key: String): (String, Edge) = {
+    @tailrec def find(edge: Edge, depth: Int): Edge =
+      if (depth > 0) find(edge.parentEdges.head.edge, depth - 1)
+      else edge
+
+    val split = key.split(parent)
+    val depth = split.length - 1
+    val propKey = split.last
+
+    val parentEdge = find(edge, depth)
+
+    (propKey, parentEdge)
+  }
+}
+
+trait Clause extends ExtractValue {
   def and(otherField: Clause): Clause = And(this, otherField)
 
   def or(otherField: Clause): Clause = Or(this, otherField)
 
   def filter(edge: Edge): Boolean
-}
 
-object Clause extends JSONParser {
-  def binaryOp(binOp: (InnerValLike, InnerValLike) => Boolean)(propKey: Byte, value: InnerValLike)(edge: Edge): Boolean = {
-    propKey match {
-      case LabelMeta.from.seq => binOp(edge.srcVertex.innerId, value)
-      case LabelMeta.to.seq => binOp(edge.tgtVertex.innerId, value)
-      case _ =>
-        edge.propsWithTs.get(propKey) match {
-          case None =>
-            val label = edge.label
-            val meta = label.metaPropsMap(propKey)
-            val defaultValue = toInnerVal(meta.defaultValue, meta.dataType, label.schemaVersion)
-            binOp(defaultValue, value)
-          case Some(edgeVal) => binOp(edgeVal.innerVal, value)
-        }
-    }
+  def binaryOp(binOp: (InnerValLike, InnerValLike) => Boolean)(propKey: String, value: String)(edge: Edge): Boolean = {
+    val propValue = propToInnerVal(edge, propKey)
+    val compValue = valueToCompare(edge, propKey, value)
+
+    binOp(propValue, compValue)
   }
 }
 
@@ -41,52 +76,34 @@ case class Where(clauses: Seq[Clause] = Seq.empty[Clause]) {
   def filter(edge: Edge) = clauses.map(_.filter(edge)).forall(identity)
 }
 
-case class Gt(propKey: Byte, value: InnerValLike) extends Clause {
-  override def filter(edge: Edge): Boolean = Clause.binaryOp(_ > _)(propKey, value)(edge)
+case class Gt(propKey: String, value: String) extends Clause {
+  override def filter(edge: Edge): Boolean = binaryOp(_ > _)(propKey, value)(edge)
 }
 
-case class Lt(propKey: Byte, value: InnerValLike) extends Clause {
-  override def filter(edge: Edge): Boolean = Clause.binaryOp(_ < _)(propKey, value)(edge)
+case class Lt(propKey: String, value: String) extends Clause {
+  override def filter(edge: Edge): Boolean = binaryOp(_ < _)(propKey, value)(edge)
 }
 
-case class Eq(propKey: Byte, value: InnerValLike) extends Clause {
-  override def filter(edge: Edge): Boolean = Clause.binaryOp(_ == _)(propKey, value)(edge)
+case class Eq(propKey: String, value: String) extends Clause {
+  override def filter(edge: Edge): Boolean = binaryOp(_ == _)(propKey, value)(edge)
 }
 
-case class IN(propKey: Byte, values: Set[InnerValLike]) extends Clause {
+case class IN(propKey: String, values: Set[String]) extends Clause {
   override def filter(edge: Edge): Boolean = {
-    propKey match {
-      case LabelMeta.from.seq => values.contains(edge.srcVertex.innerId)
-      case LabelMeta.to.seq => values.contains(edge.tgtVertex.innerId)
-      case _ =>
-        edge.propsWithTs.get(propKey) match {
-          case None =>
-            val label = edge.label
-            val meta = label.metaPropsMap(propKey)
-            val defaultValue = toInnerVal(meta.defaultValue, meta.dataType, label.schemaVersion)
-            values.contains(defaultValue)
-          case Some(edgeVal) => values.contains(edgeVal.innerVal)
-        }
-    }
+    val propVal = propToInnerVal(edge, propKey)
+    val valuesToCompare = values.map { value => valueToCompare(edge, propKey, value) }
+
+    valuesToCompare.contains(propVal)
   }
 }
 
-case class Between(propKey: Byte, minValue: InnerValLike, maxValue: InnerValLike) extends Clause {
+case class Between(propKey: String, minValue: String, maxValue: String) extends Clause {
   override def filter(edge: Edge): Boolean = {
-    propKey match {
-      case LabelMeta.from.seq => minValue <= edge.srcVertex.innerId && edge.srcVertex.innerId <= maxValue
-      case LabelMeta.to.seq => minValue <= edge.tgtVertex.innerId && edge.tgtVertex.innerId <= maxValue
-      case _ =>
-        edge.propsWithTs.get(propKey) match {
-          case None =>
-            val label = edge.label
-            val meta = label.metaPropsMap(propKey)
-            val defaultValue = toInnerVal(meta.defaultValue, meta.dataType, label.schemaVersion)
-            minValue <= defaultValue && defaultValue <= maxValue
-          case Some(edgeVal) =>
-            minValue <= edgeVal.innerVal && edgeVal.innerVal <= maxValue
-        }
-    }
+    val propVal = propToInnerVal(edge, propKey)
+    val minVal = valueToCompare(edge, propKey, minValue)
+    val maxVal = valueToCompare(edge, propKey, maxValue)
+
+    minVal <= propVal && propVal <= maxVal
   }
 }
 
@@ -106,9 +123,7 @@ object WhereParser {
   val success = Where()
 }
 
-case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
-
-  val metaProps = label.metaPropsInvMap
+case class WhereParser(labelMap: Map[String, Label]) extends JavaTokenParsers with JSONParser {
 
   val anyStr = "[^\\s(),]+".r
 
@@ -128,68 +143,34 @@ case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
 
   def clause: Parser[Clause] = (predicate | paren) * (and ^^^ { (a: Clause, b: Clause) => And(a, b) } | or ^^^ { (a: Clause, b: Clause) => Or(a, b) })
 
-  /** TODO: exception on toInnerVal with wrong type */
-  def extract(propKeyGiven: String, valToCompare: String) = {
-    val propKey = propKeyGiven match {
-      case "to" => "_to"
-      case "from" => "_from"
-      case "timestamp" => "_timestamp"
-      case _ =>  propKeyGiven
-    }
+  def identWithDot: Parser[String] = repsep(ident, ".") ^^ { case values => values.mkString(".") }
 
-    metaProps.get(propKey) match {
-      case None =>
-        throw new RuntimeException(s"where clause contains not existing property name: $propKeyGiven")
-      case Some(metaProp) =>
-
-        if (propKey == LabelMeta.to.name) {
-          (LabelMeta.to.seq, toInnerVal(valToCompare, label.tgtColumnType, label.schemaVersion))
-        } else if (propKey == LabelMeta.from.name) {
-          (LabelMeta.from.seq, toInnerVal(valToCompare, label.srcColumnType, label.schemaVersion))
-        } else {
-          (metaProp.seq, toInnerVal(valToCompare, metaProp.dataType, label.schemaVersion))
-        }
+  def predicate = {
+    identWithDot ~ ("!=" | "=") ~ anyStr ^^ {
+      case f ~ op ~ s =>
+        if (op == "=") Eq(f, s)
+        else Not(Eq(f, s))
+    } | identWithDot ~ (">=" | "<=" | ">" | "<") ~ anyStr ^^ {
+      case f ~ op ~ s => op match {
+        case ">" => Gt(f, s)
+        case ">=" => Or(Gt(f, s), Eq(f, s))
+        case "<" => Lt(f, s)
+        case "<=" => Or(Lt(f, s), Eq(f, s))
+      }
+    } | identWithDot ~ (between ~> anyStr <~ and) ~ anyStr ^^ {
+      case f ~ minV ~ maxV => Between(f, minV, maxV)
+    } | identWithDot ~ (notIn | in) ~ ("(" ~> repsep(anyStr, ",") <~ ")") ^^ {
+      case f ~ op ~ values =>
+        if (op.toLowerCase == "in") IN(f, values.toSet)
+        else Not(IN(f, values.toSet))
+      case _ => throw WhereParserException(s"Failed to parse where clause. ")
     }
   }
 
-  def predicate =
-    ident ~ ("!=" | "=") ~ anyStr ^^ {
-      case f ~ op ~ s =>
-        val (byteSeq, innerVal) = extract(f, s)
-        if (op == "=") Eq(byteSeq, innerVal)
-        else Not(Eq(byteSeq, innerVal))
-    } | ident ~ (">=" | "<=" | ">" | "<") ~ anyStr ^^ {
-      case f ~ op ~ s =>
-        val (byteSeq, innerVal) = extract(f, s)
-        op match {
-          case ">" => Gt(byteSeq, innerVal)
-          case ">=" => Or(Gt(byteSeq, innerVal), Eq(byteSeq, innerVal))
-          case "<" => Lt(byteSeq, innerVal)
-          case "<=" => Or(Lt(byteSeq, innerVal), Eq(byteSeq, innerVal))
-        }
-    } | ident ~ (between ~> anyStr <~ and) ~ anyStr ^^ {
-      case f ~ minV ~ maxV =>
-        val metaProp = metaProps.getOrElse(f, throw new RuntimeException(s"Where clause contains not existing property name: $f"))
-
-        Between(metaProp.seq, toInnerVal(minV, metaProp.dataType, label.schemaVersion), toInnerVal(maxV, metaProp.dataType, label.schemaVersion))
-    } | ident ~ (notIn | in) ~ ("(" ~> repsep(anyStr, ",") <~ ")") ^^ {
-      case f ~ op ~ vals =>
-        val metaProp = metaProps.getOrElse(f, throw new RuntimeException(s"Where clause contains not existing property name: $f"))
-        val values = vals.map { v => toInnerVal(v, metaProp.dataType, label.schemaVersion) }
-
-        if (op.toLowerCase == "in") IN(metaProp.seq, values.toSet)
-        else Not(IN(metaProp.seq, values.toSet))
-      case _ => throw new RuntimeException(s"Failed to parse where clause. ")
-    }
-
-  def parse(sql: String): Try[Where] = {
-    try {
-      parseAll(where, sql) match {
-        case Success(r, q) => scala.util.Success(r)
-        case fail => scala.util.Failure(new RuntimeException(s"Where parsing error: ${fail.toString}"))
-      }
-    } catch {
-      case ex: Exception => scala.util.Failure(ex)
+  def parse(sql: String): Try[Where] = Try {
+    parseAll(where, sql) match {
+      case Success(r, q) => r
+      case fail => throw WhereParserException(s"Where parsing error: ${fail.toString}")
     }
   }
 }

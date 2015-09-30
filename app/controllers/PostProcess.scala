@@ -2,7 +2,7 @@ package controllers
 
 import com.daumkakao.s2graph.core._
 import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.types.{HBaseType, TargetVertexId, InnerVal, InnerValLike}
+import com.daumkakao.s2graph.core.types.{TargetVertexId, HBaseType, InnerVal, InnerValLike}
 import play.api.libs.json.{Json, _}
 
 import scala.collection.mutable.ListBuffer
@@ -36,23 +36,23 @@ object PostProcess extends JSONParser {
       edgesWithRanks = edgesAndRanks.groupBy(x => x._2.srcVertex).map(_._2.head)
       id <- innerValToJsValue(target, tgtColumn.columnType)
     } yield {
-      Json.obj("name" -> tgtColumn.columnName, "id" -> id,
-        SCORE_FIELD_NAME -> edgesWithRanks.map(_._3).sum,
-        "label" -> labelName,
-        "aggr" -> Json.obj(
-          "name" -> srcColumn.columnName,
-          "ids" -> edgesWithRanks.flatMap { case (queryParam, edge, rank) =>
-            innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType)
-          },
-          "edges" -> edgesWithRanks.map { case (queryParam, edge, rank) =>
-            Json.obj("id" -> innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType),
-              "props" -> propsToJson(edge),
-              "score" -> rank
-            )
-          }
+        Json.obj("name" -> tgtColumn.columnName, "id" -> id,
+          SCORE_FIELD_NAME -> edgesWithRanks.map(_._3).sum,
+          "label" -> labelName,
+          "aggr" -> Json.obj(
+            "name" -> srcColumn.columnName,
+            "ids" -> edgesWithRanks.flatMap { case (queryParam, edge, rank) =>
+              innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType)
+            },
+            "edges" -> edgesWithRanks.map { case (queryParam, edge, rank) =>
+              Json.obj("id" -> innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType),
+                "props" -> propsToJson(edge),
+                "score" -> rank
+              )
+            }
+          )
         )
-      )
-    }
+      }
 
     ret.toList
   }
@@ -201,6 +201,7 @@ object PostProcess extends JSONParser {
   }
 
   private def edgeParent(parentEdges: Seq[EdgeWithScore], q: Query, queryParam: QueryParam): JsValue = {
+
     if (parentEdges.isEmpty) {
       JsNull
     } else {
@@ -210,19 +211,8 @@ object PostProcess extends JSONParser {
         parentQueryParam = QueryParam(parentEdge.labelWithDir)
         parents = edgeParent(parentEdge.parentEdges, q, parentQueryParam) if parents != JsNull
       } yield {
-          val convertedEdge =
-            if (parentQueryParam.transformer.fieldsLs == EdgeTransformer.defaultTransformFieldAsList) parentEdge
-            else {
-              parentEdge.propsWithTs.get(LabelMeta.toSeq) match {
-                case None =>
-                  // need to be asserted
-                  parentEdge
-                case Some(innerValWithTs) =>
-                  val vertexId = TargetVertexId(HBaseType.DEFAULT_COL_ID, innerValWithTs.innerVal)
-                  parentEdge.copy(tgtVertex =  Vertex(vertexId))
-              }
-            }
-          val edgeJson = edgeToJsonInner(convertedEdge, parentScore, q, parentQueryParam).getOrElse(Map.empty[String, JsValue]) + ("parents" -> parents)
+          val originalEdge = parentEdge.originalEdgeOpt.getOrElse(parentEdge)
+          val edgeJson = edgeToJsonInner(originalEdge, parentScore, q, parentQueryParam).getOrElse(Map.empty[String, JsValue]) + ("parents" -> parents)
           Json.toJson(edgeJson)
         }
 
