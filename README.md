@@ -6,6 +6,6 @@
 
 
 
-## [Learn More](https://steamshon.gitbooks.io/s2graph/content/)
+## [Learn More](https://steamshon.gitbooks.io/s2graph-book/content/)
 
 [![Analytics](https://ga-beacon.appspot.com/UA-62888350-1/s2graph/readme.md)](https://github.com/kakao/s2graph)
