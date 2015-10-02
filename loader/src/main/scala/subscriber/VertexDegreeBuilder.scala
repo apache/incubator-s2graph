@@ -4,7 +4,7 @@ package subscriber
  * Created by shon on 7/3/15.
  */
 
-import com.daumkakao.s2graph.core.{GraphUtil, Management}
+import com.kakao.s2graph.core.{GraphUtil, Management}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import s2.spark.{HashMapParam, WithKafka, SparkApp}

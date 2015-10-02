@@ -3,7 +3,7 @@ package subscriber
 
 import java.util
 
-import com.daumkakao.s2graph.core.{Graph, _}
+import com.kakao.s2graph.core.{Graph, _}
 import com.typesafe.config.{Config, ConfigFactory}
 import kafka.javaapi.producer.Producer
 import kafka.producer.KeyedMessage

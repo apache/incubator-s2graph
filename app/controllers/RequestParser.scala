@@ -1,10 +1,10 @@
 package controllers
 
-import com.daumkakao.s2graph.core.KGraphExceptions.{BadQueryException, ModelNotFoundException}
-import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.parsers.WhereParser
-import com.daumkakao.s2graph.core.types._
+import com.kakao.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
+import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls._
+import com.kakao.s2graph.core.parsers.WhereParser
+import com.kakao.s2graph.core.types._
 import config.Config
 import play.api.libs.json._
 
@@ -74,17 +74,17 @@ trait RequestParser extends JSONParser {
           labelMeta <- LabelMeta.findByName(label.id.get, k)
           value <- jsValueToInnerVal(v, labelMeta.dataType, label.schemaVersion)
         } yield {
-          (labelMeta.seq -> value)
+          labelMeta.seq -> value
         }
       }
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
 
-  def extractWhere(label: Label, jsValue: JsValue) = {
+  def extractWhere(labelMap: Map[String, Label], jsValue: JsValue) = {
     (jsValue \ "where").asOpt[String] match {
       case None => Success(WhereParser.success)
       case Some(where) =>
-        WhereParser(label).parse(where) match {
+        WhereParser(labelMap).parse(where) match {
           case s@Success(_) => s
           case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
         }
@@ -134,6 +134,13 @@ trait RequestParser extends JSONParser {
       val withScore = (jsValue \ "withScore").asOpt[Boolean].getOrElse(true)
       val returnTree = (jsValue \ "returnTree").asOpt[Boolean].getOrElse(false)
 
+      // TODO: throw exception, when label dosn't exist
+      val labelMap = (for {
+        js <- jsValue \\ "label"
+        labelName <- js.asOpt[String]
+        label <- Label.findByName(labelName)
+      } yield (labelName, label)).toMap
+
       val querySteps =
         steps.zipWithIndex.map { case (step, stepIdx) =>
           val labelWeights = step match {
@@ -164,7 +171,7 @@ trait RequestParser extends JSONParser {
           val queryParams =
             for {
               labelGroup <- queryParamJsVals
-              queryParam <- parseQueryParam(labelGroup)
+              queryParam <- parseQueryParam(labelMap, labelGroup)
             } yield {
               val (_, columnName) =
                 if (queryParam.labelWithDir.dir == GraphUtil.directions("out")) {
@@ -201,7 +208,7 @@ trait RequestParser extends JSONParser {
     }
   }
 
-  private def parseQueryParam(labelGroup: JsValue): Option[QueryParam] = {
+  private def parseQueryParam(labelMap: Map[String, Label], labelGroup: JsValue): Option[QueryParam] = {
     for {
       labelName <- parse[Option[String]](labelGroup, "label")
     } yield {
@@ -229,7 +236,7 @@ trait RequestParser extends JSONParser {
         case None => label.indexSeqsMap.get(scorings.map(kv => kv._1)).map(_.seq).getOrElse(LabelIndex.defaultSeq)
         case Some(indexName) => label.indexNameMap.get(indexName).map(_.seq).getOrElse(throw new RuntimeException("cannot find index"))
       }
-      val where = extractWhere(label, labelGroup)
+      val where = extractWhere(labelMap, labelGroup)
       val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
       val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(Config.RPC_TIMEOUT)
       val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(Config.MAX_ATTEMPT)
@@ -282,7 +289,7 @@ trait RequestParser extends JSONParser {
         errors => {
           val msg = (JsError.toFlatJson(errors) \ "obj").as[List[JsValue]].map(x => x \ "msg")
           val e = Json.obj("args" -> key, "error" -> msg)
-          throw new KGraphExceptions.JsonParseException(Json.obj("error" -> key).toString)
+          throw new GraphExceptions.JsonParseException(Json.obj("error" -> key).toString)
         },
         r => {
           r

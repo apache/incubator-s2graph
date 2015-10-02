@@ -1,9 +1,9 @@
 package controllers
 
 import actors.QueueActor
-import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.mysqls.Label
-import com.daumkakao.s2graph.logger
+import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls.Label
+import com.kakao.s2graph.logger
 import config.Config
 import play.api.Logger
 import play.api.libs.json._
@@ -44,7 +44,7 @@ object EdgeController extends Controller with RequestParser {
         }
         Future.successful(jsonResponse(Json.toJson(rets)))
       } catch {
-        case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
+        case e: GraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
         case e: Throwable =>
           logger.error(s"mutateAndPublish: $e", e)
           Future.successful(InternalServerError(s"${e.getStackTrace}"))
@@ -95,7 +95,7 @@ object EdgeController extends Controller with RequestParser {
       Future.successful(jsonResponse(Json.toJson(rets)))
 
     } catch {
-      case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
+      case e: GraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
       case e: Throwable =>
         logger.error(s"mutateAndPublish: $e", e)
         Future.successful(InternalServerError(s"${e.getStackTrace}"))

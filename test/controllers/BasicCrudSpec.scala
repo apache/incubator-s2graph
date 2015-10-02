@@ -2,8 +2,8 @@ package test.controllers
 
 import actors.QueueActor
 import akka.actor.ActorSystem
-import com.daumkakao.s2graph.core.mysqls._
-//import com.daumkakao.s2graph.core.models._
+import com.kakao.s2graph.core.mysqls._
+//import com.kakao.s2graph.core.models._
 
 import play.api.libs.json._
 import play.api.test.Helpers._

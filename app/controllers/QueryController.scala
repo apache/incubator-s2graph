@@ -1,11 +1,11 @@
 package controllers
 
 
-import com.daumkakao.s2graph.core.KGraphExceptions.BadQueryException
-import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.types.{LabelWithDirection, VertexId}
-import com.daumkakao.s2graph.logger
+import com.kakao.s2graph.core.GraphExceptions.BadQueryException
+import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls._
+import com.kakao.s2graph.core.types.{LabelWithDirection, VertexId}
+import com.kakao.s2graph.logger
 import config.Config
 import play.api.libs.json.{JsArray, JsObject, JsValue, Json}
 import play.api.mvc.{Action, Controller, Result}
@@ -27,7 +27,7 @@ object QueryController extends Controller with RequestParser {
     getEdgesInner(request.body)
   }
 
-  def getEdgesExcluded() = withHeaderAsync(jsonParser) { request =>
+  def getEdgesExcluded = withHeaderAsync(jsonParser) { request =>
     getEdgesExcludedInner(request.body)
   }
 

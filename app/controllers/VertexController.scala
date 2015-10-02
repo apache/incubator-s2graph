@@ -2,8 +2,8 @@ package controllers
 
 
 import actors.QueueActor
-import com.daumkakao.s2graph.core.{ExceptionHandler, KGraphExceptions}
-import com.daumkakao.s2graph.logger
+import com.kakao.s2graph.core.{ExceptionHandler, GraphExceptions}
+import com.kakao.s2graph.logger
 import config.Config
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Controller, Result}
@@ -40,7 +40,7 @@ object VertexController extends Controller with RequestParser  {
       Future.successful(jsonResponse(Json.toJson(rets)))
 
     } catch {
-      case e: KGraphExceptions.JsonParseException => Future.successful(BadRequest(s"e"))
+      case e: GraphExceptions.JsonParseException => Future.successful(BadRequest(s"e"))
       case e: Throwable =>
         logger.error(s"[Failed] tryMutates", e)
         Future.successful(InternalServerError(s"${e.getStackTrace}"))
