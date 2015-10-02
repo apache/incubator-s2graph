@@ -131,11 +131,9 @@ class HFileRDD(rdd: RDD[KeyValue]) extends Serializable {
     //    val fs = FileSystem.get(hbaseConf)
     //    val hFilePath = new Path(tmpPath)
     //    fs.makeQualified(hFilePath)
-
+    def aggKVs = (agg: Seq[KeyValue], current: Seq[KeyValue]) => agg ++ current
     val grouped = rdd.map(kv => (new ImmutableBytesWritable(kv.getRowArray, kv.getRowOffset, kv.getRowLength), Seq(kv)))
-      .reduceByKey { case (agg, current) =>
-      agg ++ current
-    }
+      .reduceByKey(new HFilePartitioner(hbaseConf, hTable.getStartKeys, numFilesPerRegion), aggKVs)
     //    val grouped = rdd.groupBy { kv =>
     //      new ImmutableBytesWritable(kv.getRow())
     //    }
