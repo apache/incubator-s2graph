@@ -1,7 +1,7 @@
 package s2.counter.core.v2
 
-import com.daumkakao.s2graph.core.mysqls.Label
-import com.daumkakao.s2graph.core.types.HBaseType
+import com.kakao.s2graph.core.mysqls.Label
+import com.kakao.s2graph.core.types.HBaseType
 import com.typesafe.config.Config
 import org.apache.http.HttpStatus
 import org.slf4j.LoggerFactory

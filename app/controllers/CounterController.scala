@@ -1,8 +1,8 @@
 package controllers
 
-import com.daumkakao.s2graph.core.ExceptionHandler
-import com.daumkakao.s2graph.core.ExceptionHandler.KafkaMessage
-import com.daumkakao.s2graph.core.mysqls.Label
+import com.kakao.s2graph.core.ExceptionHandler
+import com.kakao.s2graph.core.ExceptionHandler.KafkaMessage
+import com.kakao.s2graph.core.mysqls.Label
 import config.CounterConfig
 import models._
 import org.apache.kafka.clients.producer.ProducerRecord
