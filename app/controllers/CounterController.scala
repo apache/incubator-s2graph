@@ -90,8 +90,13 @@ object CounterController extends Controller {
           }
         }
 
+        val tablePrefix = version match {
+          case s2.counter.VERSION_1 => "s2counter"
+          case s2.counter.VERSION_2 => "s2counter_v2"
+        }
+
         val hbaseTable = {
-          Seq("s2counter_v2", service, ttl) ++ dailyTtl mkString "_"
+          Seq(tablePrefix, service, ttl) ++ dailyTtl mkString "_"
         }
 
         // find label
