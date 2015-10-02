@@ -1,0 +1,24 @@
+# TypeSafe Activator
+  
+- name: install unzip
+  apt: name=unzip state=present
+  sudo: yes 
+  
+- name: TypeSafe Activator | Download 
+  get_url: url=http://downloads.typesafe.com/typesafe-activator/{{ scala_activator_version }}/typesafe-activator-{{ scala_activator_version }}.zip dest=/root/activator.zip mode=0440
+  sudo: yes 
+  
+- name: TypeSafe Activator | Extract 
+  shell: unzip /root/activator.zip -d /root
+  sudo: yes 
+    
+- name: TypeSafe Activator | Install 
+  shell: cp /root/activator-{{ scala_activator_version }}/activator* /usr/local/bin
+  sudo: yes 
+  
+- name: TypeSafe Activator | Set Binary Permissions
+  file: path=/usr/local/bin/activator mode=0755
+  sudo: yes 
+
+- name: TypeSafe Activator | Compile S2Graph
+  shell: cd /home/vagrant/s2graph ; activator compile

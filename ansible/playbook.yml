@@ -6,5 +6,6 @@
     - hadoop2
     - hbase
     - mysql
+    - activator
 
 # vim: ft=ansible

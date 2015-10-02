@@ -1,3 +1,2 @@
 ---
 ssh_key: /home/vagrant/.ssh/id_rsa
-scala_activator_version: 1.2.12
