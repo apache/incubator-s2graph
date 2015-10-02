@@ -106,6 +106,7 @@ object TransferToHFile extends SparkApp {
     val maxHFilePerResionServer = args(5).toInt
     val labelMapping = if (args.length >= 7) GraphSubscriberHelper.toLabelMapping(args(6)) else Map.empty[String, String]
     val autoEdgeCreate = if (args.length >= 8) args(7).toBoolean else false
+    val buildDegree = if (args.length >= 9) args(8).toBoolean else true
 
     val conf = sparkConf(s"$input: TransferToHFile")
 
@@ -128,17 +129,19 @@ object TransferToHFile extends SparkApp {
       toKeyValues(iter.toSeq, labelMapping, autoEdgeCreate)
     }
 
-    val degreeKVs = buildDegrees(rdd, labelMapping, autoEdgeCreate).reduceByKey { (agg, current) =>
-      agg + current
-    }.mapPartitions { iter =>
-      val phase = System.getProperty("phase")
-      GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
-      toKeyValues(iter.toSeq)
+    val newRDD = if (!buildDegree) new HFileRDD(kvs)
+    else {
+      val degreeKVs = buildDegrees(rdd, labelMapping, autoEdgeCreate).reduceByKey { (agg, current) =>
+        agg + current
+      }.mapPartitions { iter =>
+        val phase = System.getProperty("phase")
+        GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
+        toKeyValues(iter.toSeq)
+      }
+      new HFileRDD(kvs ++ degreeKVs)
     }
 
-    val newRDD = new HFileRDD(kvs ++ degreeKVs)
     newRDD.toHFile(hbaseConf, tableName, maxHFilePerResionServer, tmpPath)
-
   }
 
 }
