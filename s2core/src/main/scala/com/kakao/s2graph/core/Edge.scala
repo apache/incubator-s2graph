@@ -390,7 +390,7 @@ case class Edge(srcVertex: Vertex,
           upsert
           List.empty[PutRequest]
         } else {
-          insert
+          insert(createRelEdges = true)
         }
       } else if (op == GraphUtil.operations("delete")) {
         if (label.consistencyLevel == "strong") delete
@@ -403,7 +403,7 @@ case class Edge(srcVertex: Vertex,
         increment
         List.empty[PutRequest]
       } else if (op == GraphUtil.operations("insertBulk")) {
-        insert
+        insert(createRelEdges = true)
       } else {
         throw new Exception(s"operation[${op}] is not supported on edge.")
       }
@@ -414,7 +414,7 @@ case class Edge(srcVertex: Vertex,
     ret
   }
 
-  def insertBulk(createRelEdges: Boolean = false) = {
+  def insertBulk(createRelEdges: Boolean = true) = {
     val vertexPuts = buildVertexPuts()
     val snapshotPuts =
       if (createRelEdges && labelWithDir.dir != GraphUtil.directions("in")) List(toInvertedEdgeHashLike.buildPut())
@@ -427,11 +427,12 @@ case class Edge(srcVertex: Vertex,
     vertexPuts ++ snapshotPuts ++ relatedEdgePuts
   }
 
-  def insert() = {
-    val puts = edgesWithInvertedIndex.buildPutAsync() :: relatedEdges.flatMap { relEdge =>
+  def insert(createRelEdges: Boolean = true) = {
+    val relEdges = if (createRelEdges) relatedEdges else List(this)
+    val puts = edgesWithInvertedIndex.buildPutAsync() :: relEdges.flatMap { relEdge =>
       relEdge.edgesWithIndex.flatMap(e => e.buildPutsAsync)
     }
-    val incrs = relatedEdges.flatMap { relEdge =>
+    val incrs = relEdges.flatMap { relEdge =>
       relEdge.edgesWithIndex.flatMap(e => e.buildIncrementsAsync())
     }
 

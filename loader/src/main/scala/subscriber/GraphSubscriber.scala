@@ -20,19 +20,18 @@ object GraphConfig {
   var database = ""
   var zkQuorum = ""
   var kafkaBrokers = ""
-
+  var cacheTTL = s"${60 * 60 * 1}"
   def apply(phase: String, dbUrl: Option[String], zkAddr: Option[String], kafkaBrokerList: Option[String]): Config = {
     database = dbUrl.getOrElse("jdbc:mysql://localhost:3306/graph")
     zkQuorum = zkAddr.getOrElse("localhost")
-
 
 //    val newConf = new util.HashMap[String, Object]()
 //    newConf.put("hbase.zookeeper.quorum", zkQuorum)
 //    newConf.put("db.default.url", database)
 //    newConf.put("kafka.metadata.broker.list", kafkaBrokers)
     val newConf =
-      if (kafkaBrokerList.isEmpty) Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database)
-      else Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database, "kafka.metadata.broker.list" -> kafkaBrokers)
+      if (kafkaBrokerList.isEmpty) Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database, "cache.ttl.seconds" -> cacheTTL)
+      else Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database, "kafka.metadata.broker.list" -> kafkaBrokers, "cache.ttl.seconds" -> cacheTTL)
 
     ConfigFactory.parseMap(newConf).withFallback(Graph.config)
   }
