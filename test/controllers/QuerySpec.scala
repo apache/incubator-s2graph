@@ -133,24 +133,6 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       $(srcVertices = $from, steps = $steps).toJson
     }
 
-    def queryAncestor(ids: Seq[Int], ancestorAt: Int) = {
-      val $from = $a(
-        $(serviceName = testServiceName,
-          columnName = testColumnName,
-          ids = ids))
-
-      val $step = $a($(label = testLabelName, direction = "out", offset = 0, limit = 100))
-
-      val $steps =
-        if (ancestorAt == 1) {
-          $a($(step = $step, shouldPropagate = true), $(step = $step), $(step = $step))
-        } else {
-          $a($(step = $step), $(step = $step, shouldPropagate = true), $(step = $step))
-        }
-
-      $(srcVertices = $from, steps = $steps).toJson
-    }
-
     "get edge with where condition" in {
       running(FakeApplication()) {
         var result = getEdges(queryWhere(0, "is_hidden=false and _from in (-1, 0)"))
@@ -238,21 +220,6 @@ class QuerySpec extends SpecCommon with PlaySpecification {
 
         result = getEdges(queryDuration(Seq(0, 2), from = 1000, to = 2000))
         (result \ "results").as[List[JsValue]].size must equalTo(1)
-        true
-      }
-    }
-
-    "ancestor" in {
-      running(FakeApplication()) {
-        var result = getEdges(queryAncestor(Seq(-1), 1))
-        var expect = Seq(Set("2000", "3000"), Set("1000", "2000"), Set("1000"))
-        var ancestors = (result \\ "ancestor").map(_.as[Seq[String]]).map(_.toSet)
-        ancestors must equalTo(expect)
-
-        result = getEdges(queryAncestor(Seq(-1), 2))
-        expect = Seq(Set("12000"), Set("11000"), Set("10000"))
-        ancestors = (result \\ "ancestor").map(_.as[Seq[String]]).map(_.toSet)
-        ancestors must equalTo(expect)
         true
       }
     }
