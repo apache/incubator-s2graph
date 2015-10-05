@@ -1,6 +1,6 @@
 package controllers
 
-import com.daumkakao.s2graph.logger
+import com.kakao.s2graph.logger
 import play.api.libs.iteratee.Enumerator
 import play.api.libs.json.JsValue
 import play.api.mvc._

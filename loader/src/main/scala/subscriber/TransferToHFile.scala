@@ -2,10 +2,10 @@ package subscriber
 
 import java.util.TreeSet
 
-import com.daumkakao.s2graph.core.{GraphUtil, Edge, Graph}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.fs.permission.FsPermission
+import com.kakao.s2graph.core.{GraphUtil, Edge, Graph}
 import org.apache.hadoop.hbase.client.{HTable, ConnectionFactory}
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.mapreduce.{LoadIncrementalHFiles, HFileOutputFormat2, TableOutputFormat}

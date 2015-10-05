@@ -1,6 +1,6 @@
 package benchmark
 
-import com.daumkakao.s2graph.logger
+import com.kakao.s2graph.logger
 import play.api.libs.json.JsNumber
 import play.api.test.{FakeApplication, PlaySpecification, WithApplication}
 import play.libs.Json

@@ -1,16 +1,12 @@
 package controllers
 
-import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.core.types.{InnerVal, InnerValLike}
-import com.daumkakao.s2graph.logger
-import play.api.libs.json._
+import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls._
+import com.kakao.s2graph.core.types.{TargetVertexId, HBaseType, InnerVal, InnerValLike}
+import play.api.libs.json.{Json, _}
 
 import scala.collection.mutable.ListBuffer
-import play.api.libs.json.Json
-/**
- * Created by jay on 14. 9. 1..
- */
+
 object PostProcess extends JSONParser {
   /**
    * Result Entity score field name
@@ -33,37 +29,44 @@ object PostProcess extends JSONParser {
       case (queryParam, edge, rank) =>
         (queryParam.label.tgtColumn, queryParam.label.label, queryParam.label.srcColumn, edge.tgtVertex.innerId, edge.propsWithTs.contains(LabelMeta.degreeSeq))
     }
-    for {
+
+    val ret = for {
       ((tgtColumn, labelName, srcColumn, target, isDegreeEdge), edgesAndRanks) <- groupedEdgesWithRank
       if !excludeIds.contains(target) && !isDegreeEdge
       edgesWithRanks = edgesAndRanks.groupBy(x => x._2.srcVertex).map(_._2.head)
       id <- innerValToJsValue(target, tgtColumn.columnType)
     } yield {
-      Json.obj("name" -> tgtColumn.columnName, "id" -> id,
-        SCORE_FIELD_NAME -> edgesWithRanks.map(_._3).sum,
-        "label" -> labelName,
-        "aggr" -> Json.obj(
-          "name" -> srcColumn.columnName,
-          "ids" -> edgesWithRanks.flatMap { case (queryParam, edge, rank) =>
-            innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType)
-          },
-          "edges" -> edgesWithRanks.map { case (queryParam, edge, rank) =>
-            Json.obj("id" -> innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType),
-              "props" -> propsToJson(edge),
-              "score" -> rank
-            )
-          }
+        Json.obj("name" -> tgtColumn.columnName, "id" -> id,
+          SCORE_FIELD_NAME -> edgesWithRanks.map(_._3).sum,
+          "label" -> labelName,
+          "aggr" -> Json.obj(
+            "name" -> srcColumn.columnName,
+            "ids" -> edgesWithRanks.flatMap { case (queryParam, edge, rank) =>
+              innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType)
+            },
+            "edges" -> edgesWithRanks.map { case (queryParam, edge, rank) =>
+              Json.obj("id" -> innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType),
+                "props" -> propsToJson(edge),
+                "score" -> rank
+              )
+            }
+          )
         )
-      )
-    }
+      }
+
+    ret.toList
   }
 
-  def sortWithFormatted(jsons: Iterable[JsObject], scoreField: String = "scoreSum", queryResultLs: Seq[QueryResult], decrease: Boolean = true): JsObject = {
+  def sortWithFormatted(jsons: Seq[JsObject], scoreField: String = "scoreSum", queryResultLs: Seq[QueryResult], decrease: Boolean = true): JsObject = {
     val ordering = if (decrease) -1 else 1
-    var sortedJsons = jsons.toList.sortBy { jsObject => (jsObject \ scoreField).as[Double] * ordering }
+    val sortedJsons = jsons.sortBy { jsObject => (jsObject \ scoreField).as[Double] * ordering }
+
     if (queryResultLs.isEmpty) Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
-    else Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons,
-      "impressionId" -> queryResultLs.head.query.impressionId())
+    else Json.obj(
+      "size" -> sortedJsons.size,
+      "results" -> sortedJsons,
+      "impressionId" -> queryResultLs.head.query.impressionId()
+    )
   }
 
   def resultInnerIds(queryResultLs: Seq[QueryResult], isSrcVertex: Boolean = false) = {
@@ -112,16 +115,14 @@ object PostProcess extends JSONParser {
         (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(edge.tgtVertex.innerId)
       } {
         withScore = queryResult.query.withScore
-        val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryResult.queryParam)
+        val (srcColumn, _) = srcTgtColumn(edge, queryResult.queryParam)
         val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
         if (edge.propsWithTs.contains(LabelMeta.degreeSeq) && fromOpt.isDefined) {
-          //          degreeJsons += edgeJson
           degrees += Json.obj(
             "from" -> fromOpt.get,
             "label" -> queryResult.queryParam.label.label,
             "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
-            LabelMeta.degree.name ->
-              innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
+            LabelMeta.degree.name -> innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
           )
         } else {
           for {
@@ -131,14 +132,12 @@ object PostProcess extends JSONParser {
           }
         }
       }
-      val edges =
-        if (q.groupByColumns.isEmpty && withScore) {
-          edgeJsons.sortBy(js => ((js \ "score").asOpt[Double].getOrElse(0.0) * -1, (js \ "_timestamp").asOpt[Long].getOrElse(0L) * -1))
-        } else {
-          edgeJsons
-        }
 
-      logger.info(s"Result: ${edges.size}")
+      val edges =
+        if (q.groupByColumns.isEmpty && withScore)
+          edgeJsons.sortBy(js => ((js \ "score").asOpt[Double].getOrElse(0.0) * -1, (js \ "_timestamp").asOpt[Long].getOrElse(0L) * -1))
+        else edgeJsons
+
       val resultJson =
         if (q.groupByColumns.isEmpty) {
           Json.obj("size" -> edges.size, "degrees" -> degrees, "results" -> edges, "impressionId" -> q.impressionId())
@@ -146,22 +145,28 @@ object PostProcess extends JSONParser {
           val grouped = edges.groupBy { jsVal =>
             for {
               column <- q.groupByColumns
-              value <- (jsVal \\ column).headOption
-            } yield {
-              (column -> value)
-            }
+              value <- (jsVal \ column).asOpt[JsValue].orElse((jsVal \ "props" \ column).asOpt[JsValue])
+            } yield column -> value
           }
+
           val groupedJsons = for {
             (groupByKeyVals, jsVals) <- grouped
           } yield {
               val scoreSum = jsVals.map { js => (js \ "score").asOpt[Double].getOrElse(0.0) }.sum
-              Json.obj("groupBy" -> Json.toJson(groupByKeyVals.toMap),
+              Json.obj(
+                "groupBy" -> Json.toJson(groupByKeyVals.toMap),
                 "scoreSum" -> scoreSum,
-                "agg" -> jsVals.sortBy(jsVal => (jsVal \ "score").asOpt[Double].getOrElse(0.0) * -1))
+                "agg" -> jsVals.sortBy(jsVal => (jsVal \ "score").asOpt[Double].getOrElse(0.0) * -1)
+              )
             }
 
-          val groupedSortedJsons = groupedJsons.toList.sortBy { case jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
-          Json.obj("size" -> groupedJsons.size, "degrees" -> degrees, "results" -> Json.toJson(groupedSortedJsons), "impressionId" -> q.impressionId())
+          val groupedSortedJsons = groupedJsons.toList.sortBy { jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
+          Json.obj(
+            "size" -> groupedJsons.size,
+            "degrees" -> degrees,
+            "results" -> Json.toJson(groupedSortedJsons),
+            "impressionId" -> q.impressionId()
+          )
         }
       resultJson
     }
@@ -195,18 +200,35 @@ object PostProcess extends JSONParser {
     }
   }
 
-  def edgeToJson(edge: Edge, score: Double, q: Query, queryParam: QueryParam): Option[JsValue] = {
+  private def edgeParent(parentEdges: Seq[EdgeWithScore], q: Query, queryParam: QueryParam): JsValue = {
+
+    if (parentEdges.isEmpty) {
+      JsNull
+    } else {
+      val parents = for {
+        parent <- parentEdges
+        (parentEdge, parentScore) = (parent.edge, parent.score)
+        parentQueryParam = QueryParam(parentEdge.labelWithDir)
+        parents = edgeParent(parentEdge.parentEdges, q, parentQueryParam) if parents != JsNull
+      } yield {
+          val originalEdge = parentEdge.originalEdgeOpt.getOrElse(parentEdge)
+          val edgeJson = edgeToJsonInner(originalEdge, parentScore, q, parentQueryParam).getOrElse(Map.empty[String, JsValue]) + ("parents" -> parents)
+          Json.toJson(edgeJson)
+        }
+
+      Json.toJson(parents)
+    }
+  }
+
+  def edgeToJsonInner(edge: Edge, score: Double, q: Query, queryParam: QueryParam): Option[Map[String, JsValue]] = {
     val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryParam)
-    val json = for {
+
+    val kvMapOpt = for {
       from <- innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
       to <- innerValToJsValue(edge.tgtVertex.id.innerId, tgtColumn.columnType)
     } yield {
         val propsMap = propsToJson(edge, q, queryParam)
-        var targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
-        targetColumns = edge.ancestorEdges match {
-          case Nil => targetColumns
-          case _ => targetColumns + "ancestor"
-        }
+        val targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
         val kvMap = targetColumns.foldLeft(Map.empty[String, JsValue]) { (map, column) =>
           val jsValue = column match {
             case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (System.currentTimeMillis() - queryParam.timestamp))
@@ -216,19 +238,30 @@ object PostProcess extends JSONParser {
             case "direction" => JsString(GraphUtil.fromDirection(edge.labelWithDir.dir))
             case "_timestamp" | "timestamp" => JsNumber(edge.ts)
             case "score" => JsNumber(score)
-            case "props" if !propsMap.isEmpty => Json.toJson(propsMap)
-            case "ancestor" =>
-              Json.toJson(edge.ancestorEdges.map(e => edgeToJson(e, 1.0, q, QueryParam(e.labelWithDir))))
+            case "props" if propsMap.nonEmpty => Json.toJson(propsMap)
             case _ => JsNull
           }
 
           if (jsValue == JsNull) map else map + (column -> jsValue)
         }
-
-        Json.toJson(kvMap)
+        kvMap
       }
 
-    json
+    kvMapOpt
+  }
+
+  def edgeToJson(edge: Edge, score: Double, q: Query, queryParam: QueryParam): Option[JsValue] = {
+    val kvMapOpt = edgeToJsonInner(edge, score, q, queryParam)
+
+    for {
+      kvMap <- kvMapOpt
+    } yield {
+      if (q.returnTree) {
+        Json.toJson(kvMap + ("parents" -> Json.toJson(edgeParent(edge.parentEdges, q, queryParam))))
+      } else {
+        Json.toJson(kvMap)
+      }
+    }
   }
 
   def vertexToJson(vertex: Vertex): Option[JsObject] = {

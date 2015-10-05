@@ -1,8 +1,8 @@
 package test.controllers
 
-import com.daumkakao.s2graph.core._
-import com.daumkakao.s2graph.core.mysqls._
-import com.daumkakao.s2graph.logger
+import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls._
+import com.kakao.s2graph.logger
 import controllers.AdminController
 import org.specs2.mutable.Specification
 import play.api.libs.json._
