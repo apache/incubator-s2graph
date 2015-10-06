@@ -28,7 +28,7 @@ object Graph {
 
   val maxValidEdgeListSize = 10000
 
-  private val conns = new java.util.concurrent.ConcurrentHashMap[String, Connection]()
+  private val connections = new java.util.concurrent.ConcurrentHashMap[String, Connection]()
   private val clients = new java.util.concurrent.ConcurrentHashMap[String, HBaseClient]()
 
   var emptyKVs = new ArrayList[KeyValue]()
@@ -37,36 +37,41 @@ object Graph {
   //  var shouldReturnResults = true
   //  var shouldRunFetch = true
   //  var shouldRunFilter = true
+  val DEFAULT_CLIENT_FLUSH_INTERVAL = 100.toShort
+  val DEFAULT_CLIENT_TIMEOUT = 1000
+  val DEFAULT_CACHE_MAX_SIZE = 10000
+  val DEFAULT_TTL_SECONDS = 60
+  
 
-  val defaultConfigs: Map[String, AnyRef] = Map(
+  val DEFAULT_CONFIGS: Map[String, AnyRef] = Map(
     "hbase.zookeeper.quorum" -> "localhost",
     "hbase.table.name" -> "s2graph",
     "hbase.table.compression.algorithm" -> "gz",
     "phase" -> "dev",
-    "async.hbase.client.flush.interval" -> java.lang.Short.valueOf(100.toShort),
-    "hbase.client.operation.timeout" -> java.lang.Integer.valueOf(1000),
+    "async.hbase.client.flush.interval" -> java.lang.Short.valueOf(DEFAULT_CLIENT_FLUSH_INTERVAL),
+    "hbase.client.operation.timeout" -> java.lang.Integer.valueOf(DEFAULT_CLIENT_TIMEOUT),
     "db.default.driver" -> "com.mysql.jdbc.Driver",
     "db.default.url" -> "jdbc:mysql://localhost:3306/graph_dev",
     "db.default.password" -> "graph",
     "db.default.user" -> "graph",
-    "cache.max.size" -> java.lang.Integer.valueOf(100000),
+    "cache.max.size" -> java.lang.Integer.valueOf(DEFAULT_CACHE_MAX_SIZE),
     "cache.ttl.seconds" -> java.lang.Integer.valueOf(60))
 
-  var config: Config = ConfigFactory.parseMap(defaultConfigs)
+  var config: Config = ConfigFactory.parseMap(DEFAULT_CONFIGS)
   var executionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1))
 
   var hbaseConfig: org.apache.hadoop.conf.Configuration = HBaseConfiguration.create()
   var storageExceptionCount = 0L
-  var singleGetTimeout = 1000
-  var clientFlushInterval = 100.toShort
-  val defaultScore = 1.0
+  var singleGetTimeout = DEFAULT_CLIENT_TIMEOUT
+  var clientFlushInterval = DEFAULT_CLIENT_FLUSH_INTERVAL
+  val DEFAULT_SCORE = 1.0
 
   lazy val cache = CacheBuilder.newBuilder()
-    .maximumSize(10000)
+    .maximumSize(DEFAULT_CACHE_MAX_SIZE)
     .build[java.lang.Integer, QueryResult]()
 
   lazy val vertexCache = CacheBuilder.newBuilder()
-    .maximumSize(10000)
+    .maximumSize(DEFAULT_CACHE_MAX_SIZE)
     .build[java.lang.Integer, Option[Vertex]]()
 
   /**
@@ -77,7 +82,7 @@ object Graph {
     val conf = HBaseConfiguration.create()
 
     for {
-      (k, v) <- defaultConfigs if !config.hasPath(k)
+      (k, v) <- DEFAULT_CONFIGS if !config.hasPath(k)
     } {
       conf.set(k, v.toString)
     }
@@ -104,7 +109,7 @@ object Graph {
 
     ExceptionHandler.apply(config)
 
-    defaultConfigs.foreach { case (k, v) =>
+    DEFAULT_CONFIGS.foreach { case (k, v) =>
       logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
       println(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
     }
@@ -126,9 +131,9 @@ object Graph {
     }
   }
 
-  def getConn(zkQuorum: String) = conns.getOrElseUpdate(zkQuorum, ConnectionFactory.createConnection(this.hbaseConfig))
+  def getConn(zkQuorum: String) = connections.getOrElseUpdate(zkQuorum, ConnectionFactory.createConnection(this.hbaseConfig))
 
-  def defferedToFuture[A](d: Deferred[A])(fallback: A): Future[A] = {
+  def deferredToFuture[A](d: Deferred[A])(fallback: A): Future[A] = {
     val promise = Promise[A]
 
     d.addBoth(new Callback[Unit, A] {
@@ -388,7 +393,7 @@ object Graph {
     val deffered = fetchEdgesLs(prevStepTgtVertexIdEdges, currentStepRequestLss, q, stepIdx)
     val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deffered)
 
-    filterEdges(defferedToFuture(grouped)(fallback), q, stepIdx, alreadyVisited)
+    filterEdges(deferredToFuture(grouped)(fallback), q, stepIdx, alreadyVisited)
   }
 
   def getEdgesAsyncWithRank(queryResultLsFuture: Future[Seq[QueryResult]], q: Query, stepIdx: Int): Future[Seq[QueryResult]] = {
@@ -410,7 +415,7 @@ object Graph {
       .buildGetRequest(invertedEdge.srcVertex)
     val q = Query.toQuery(Seq(srcVertex), queryParam)
 
-    defferedToFuture(getClient(queryParam.label.hbaseZkAddr).get(getRequest))(emptyKVs).map { kvs =>
+    deferredToFuture(getClient(queryParam.label.hbaseZkAddr).get(getRequest))(emptyKVs).map { kvs =>
       val edgeWithScoreLs = Edge.toEdges(kvs, queryParam, prevScore = 1.0, isInnerCall = isInnerCall, Nil)
       QueryResult(query = q, stepIdx = 0, queryParam = queryParam, edgeWithScoreLs = edgeWithScoreLs)
     }
@@ -597,14 +602,14 @@ object Graph {
       if (vertexCache.asMap().containsKey(cacheKey)) {
         val cachedVal = vertexCache.asMap().get(cacheKey)
         if (cachedVal == null) {
-          defferedToFuture(client.get(get))(emptyKVs).map { kvs =>
+          deferredToFuture(client.get(get))(emptyKVs).map { kvs =>
             Vertex(kvs, vertex.serviceColumn.schemaVersion)
           }
         } else {
           Future.successful(cachedVal)
         }
       } else {
-        defferedToFuture(client.get(get))(emptyKVs).map { kvs =>
+        deferredToFuture(client.get(get))(emptyKVs).map { kvs =>
           Vertex(kvs, vertex.serviceColumn.schemaVersion)
         }
       }
@@ -777,7 +782,7 @@ object Graph {
   def getVertex(vertex: Vertex): Future[Option[Vertex]] = {
     implicit val ex = executionContext
     val client = getClient(vertex.hbaseZkAddr)
-    defferedToFuture(client.get(vertex.buildGet))(emptyKVs).map { kvs =>
+    deferredToFuture(client.get(vertex.buildGet))(emptyKVs).map { kvs =>
       Vertex(kvs, vertex.serviceColumn.schemaVersion)
     }
   }
