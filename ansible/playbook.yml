@@ -1,0 +1,11 @@
+---
+- hosts: vagrant
+  remote_user: vagrant
+  roles:
+    - common
+    - hadoop2
+    - hbase
+    - mysql
+    - activator
+
+# vim: ft=ansible

@@ -28,3 +28,4 @@ dist
 _site
 *.classpath
 *.project
+.vagrant
