@@ -100,6 +100,25 @@ class QuerySpec extends SpecCommon with PlaySpecification {
           ]]
         }""")
 
+    def querySingle(id: Int) = Json.parse( s"""
+        { "srcVertices": [
+          { "serviceName": "${testServiceName}",
+            "columnName": "${testColumnName}",
+            "id": ${id}
+           }],
+          "steps": [
+          [ {
+              "label": "${testLabelName}",
+              "direction": "out",
+              "offset": 0,
+              "limit": 100
+            }
+          ]]
+        }
+        """)
+
+    def queryUnion(id: Int, size: Int) = JsArray(List.tabulate(size)(_ => querySingle(id)))
+
     def getEdges(queryJson: JsValue): JsValue = {
       val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryJson)).get
       contentAsJson(ret)
@@ -131,6 +150,29 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       val $steps = $a($(step = $step))
 
       $(srcVertices = $from, steps = $steps).toJson
+    }
+
+    "union query" in {
+      running(FakeApplication()) {
+        var result = getEdges(queryUnion(0, 2))
+        result.as[List[JsValue]].size must equalTo(2)
+
+        result = getEdges(queryUnion(0, 3))
+        result.as[List[JsValue]].size must equalTo(3)
+
+        result = getEdges(queryUnion(0, 4))
+        result.as[List[JsValue]].size must equalTo(4)
+
+        result = getEdges(queryUnion(0, 5))
+        result.as[List[JsValue]].size must equalTo(5)
+
+        val union = result.as[List[JsValue]].head
+        val single = getEdges(querySingle(0))
+
+        (union \\ "from").map(_.toString).sorted must equalTo((single \\ "from").map(_.toString).sorted)
+        (union \\ "to").map(_.toString).sorted must equalTo((single \\ "to").map(_.toString).sorted)
+        (union \\ "weight").map(_.toString).sorted must equalTo((single \\ "weight").map(_.toString).sorted)
+      }
     }
 
     "get edge with where condition" in {
