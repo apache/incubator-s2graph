@@ -1,6 +1,8 @@
 package spark.hbase
 
-import java.util.{TreeSet, UUID}
+import java.io.Serializable
+import java.util
+import java.util.{Comparator, TreeSet, UUID}
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.permission.FsPermission
@@ -20,27 +22,45 @@ import scala.collection.JavaConversions._
 
 class HFileRDD(rdd: RDD[KeyValue]) extends Serializable {
 
-  private class HFilePartitioner(conf: Configuration, splits: Array[Array[Byte]], numFilesPerRegion: Int) extends Partitioner {
-    val fraction = 1 max numFilesPerRegion min conf.getInt(LoadIncrementalHFiles.MAX_FILES_PER_REGION_PER_FAMILY, 32)
-
-    override def getPartition(key: Any): Int = {
-      def bytes(n: Any) = n match {
-        case b: ImmutableBytesWritable => b.get()
+  class KeyFamilyQualifier(val rowKey: Array[Byte], val family: Array[Byte], val qualifier: Array[Byte])
+    extends Comparable[KeyFamilyQualifier] with Serializable {
+    override def compareTo(o: KeyFamilyQualifier): Int = {
+      var result = Bytes.compareTo(rowKey, o.rowKey)
+      if (result == 0) {
+        result = Bytes.compareTo(family, o.family)
+        if (result == 0) result = Bytes.compareTo(qualifier, o.qualifier)
       }
-
-      val h = (key.hashCode() & Int.MaxValue) % fraction
-      for (i <- 1 until splits.length)
-        if (Bytes.compareTo(bytes(key), splits(i)) < 0) return (i - 1) * fraction + h
-
-      (splits.length - 1) * fraction + h
+      result
     }
 
-    override def numPartitions: Int = splits.length * fraction
+    override def toString: String = {
+      Bytes.toString(rowKey) + ":" + Bytes.toString(family) + ":" + Bytes.toString(qualifier)
+    }
   }
 
-  implicit val bytesOrdering = new Ordering[ImmutableBytesWritable] {
-    override def compare(a: ImmutableBytesWritable, b: ImmutableBytesWritable) = {
-      Bytes.compareTo(a.get(), b.get())
+
+  case class BulkLoadPartitioner(startKeys: Array[Array[Byte]]) extends Partitioner {
+
+    override def numPartitions: Int = startKeys.length
+
+    override def getPartition(key: Any): Int = {
+
+      val rowKey: Array[Byte] =
+        key match {
+          case qualifier: KeyFamilyQualifier =>
+            qualifier.rowKey
+          case _ =>
+            key.asInstanceOf[Array[Byte]]
+        }
+
+      val comparator: Comparator[Array[Byte]] = new Comparator[Array[Byte]] {
+        override def compare(o1: Array[Byte], o2: Array[Byte]): Int = {
+          Bytes.compareTo(o1, o2)
+        }
+      }
+      val partition = util.Arrays.binarySearch(startKeys, rowKey, comparator)
+      if (partition < 0) partition * -1 + -2
+      else partition
     }
   }
 
@@ -131,22 +151,10 @@ class HFileRDD(rdd: RDD[KeyValue]) extends Serializable {
     //    val fs = FileSystem.get(hbaseConf)
     //    val hFilePath = new Path(tmpPath)
     //    fs.makeQualified(hFilePath)
-    def aggKVs = (agg: Seq[KeyValue], current: Seq[KeyValue]) => agg ++ current
-    val grouped = rdd.map(kv => (new ImmutableBytesWritable(kv.getRowArray, kv.getRowOffset, kv.getRowLength), Seq(kv)))
-      .reduceByKey(new HFilePartitioner(hbaseConf, hTable.getStartKeys, numFilesPerRegion), aggKVs)
-    //    val grouped = rdd.groupBy { kv =>
-    //      new ImmutableBytesWritable(kv.getRow())
-    //    }
-    val sorted = grouped.repartitionAndSortWithinPartitions(new HFilePartitioner(hbaseConf, hTable.getStartKeys, numFilesPerRegion))
-
-    sorted.flatMap { case (hKey, kvs) =>
-      val inner = new TreeSet[KeyValue](KeyValue.COMPARATOR)
-      for {
-        kv <- kvs
-      } {
-        inner.add(kv)
-      }
-      inner.toSeq map { kv => (hKey -> kv) }
+    rdd.map { kv => new KeyFamilyQualifier(kv.getRow, kv.getFamily, kv.getQualifier) -> (kv.getValue, kv.getTimestamp)}
+      .repartitionAndSortWithinPartitions(new BulkLoadPartitioner(hTable.getStartKeys))
+      .map { case (key, (value, ts)) =>
+      new ImmutableBytesWritable(key.rowKey) -> new KeyValue(key.rowKey, key.family, key.qualifier, ts, value)
     }.saveAsNewAPIHadoopFile(tmpPath, classOf[ImmutableBytesWritable], classOf[KeyValue], classOf[HFileOutputFormat2], job.getConfiguration)
     job
 
