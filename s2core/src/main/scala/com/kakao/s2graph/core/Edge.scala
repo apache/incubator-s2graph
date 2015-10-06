@@ -237,7 +237,7 @@ case class Edge(srcVertex: Vertex,
 
   val schemaVer = label.schemaVersion
 
-  val props = propsWithTs.mapValues(_.innerVal)
+  def props = propsWithTs.mapValues(_.innerVal)
 
   //    if (op == GraphUtil.operations("delete")) Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, schemaVer))
   //    else for ((k, v) <- propsWithTs) yield (k -> v.innerVal)
@@ -408,7 +408,7 @@ case class Edge(srcVertex: Vertex,
   def insert(createRelEdges: Boolean = true) = {
     val relEdges = if (createRelEdges) relatedEdges else List(this)
     val puts = edgesWithInvertedIndex.buildPutAsync() :: relEdges.flatMap { relEdge =>
-      relEdge.edgesWithIndex.flatMap(e => e.buildPutsAsync)
+      relEdge.edgesWithIndex.flatMap(e => e.buildPutsAsync())
     }
 
     val incrs = relEdges.flatMap { relEdge =>
