@@ -420,45 +420,46 @@ case class Edge(srcVertex: Vertex,
     rets
   }
 
+// to be deleted, not used in project
 
-  def buildDeleteBulk() = {
-    toInvertedEdgeHashLike.buildDeleteAsync() :: edgesWithIndex.flatMap { e => e.buildDeletesAsync() ++
-      e.buildDegreeDeletesAsync()
-    }
-  }
-
-  def deleteBulkEdgeUpdate(invertedEdgeOpt: Option[Edge], requestEdge: Edge): EdgeUpdate = {
-    val oldPropsWithTs = invertedEdgeOpt.map(_.propsWithTs).getOrElse(Map.empty)
-    val newPropsWithTs = Map(LabelMeta.lastDeletedAt ->
-      InnerValLikeWithTs.withLong(requestEdge.ts, requestEdge.ts, requestEdge.label.schemaVersion))
-    val requestTs = requestEdge.ts
-    val schemaVersion = requestEdge.label.schemaVersion
-
-    val (mergedPropsWithTs, _) = Edge.buildDelete((oldPropsWithTs, newPropsWithTs, requestTs, schemaVersion))
-
-    val newVersion = invertedEdgeOpt.map(_.version + Edge.incrementVersion).getOrElse(requestEdge.ts)
-
-    val newInvertedEdgeOpt = invertedEdgeOpt.map { e =>
-      e.copy(op = GraphUtil.operations("delete"), propsWithTs = mergedPropsWithTs, version = newVersion).toInvertedEdgeHashLike
-    }
-
-
-    val indexedEdgeMutations = for {
-      relEdge <- requestEdge.relatedEdges
-      edgeWithIndex <- relEdge.edgesWithIndex
-      //      edgeWithIndex <- relEdge.copy(version = relEdge.version + Edge.incrementVersion).edgesWithIndex
-      rpc <- edgeWithIndex.buildDeletesAsync() ++ edgeWithIndex.buildIncrementsAsync(-1L)
-    } yield {
-        //        logger.debug(s"$rpc")
-        rpc
-      }
-
-    val invertedEdgeMutations =
-    //      if (!shouldReplace) Nil else
-      newInvertedEdgeOpt.map(e => List(e.buildPutAsync)).getOrElse(Nil)
-
-    EdgeUpdate(indexedEdgeMutations, invertedEdgeMutations, newInvertedEdge = newInvertedEdgeOpt)
-  }
+//  def buildDeleteBulk() = {
+//    toInvertedEdgeHashLike.buildDeleteAsync() :: edgesWithIndex.flatMap { e => e.buildDeletesAsync() ++
+//      e.buildDegreeDeletesAsync()
+//    }
+//  }
+//
+//  def deleteBulkEdgeUpdate(invertedEdgeOpt: Option[Edge], requestEdge: Edge): EdgeUpdate = {
+//    val oldPropsWithTs = invertedEdgeOpt.map(_.propsWithTs).getOrElse(Map.empty)
+//    val newPropsWithTs = Map(LabelMeta.lastDeletedAt ->
+//      InnerValLikeWithTs.withLong(requestEdge.ts, requestEdge.ts, requestEdge.label.schemaVersion))
+//    val requestTs = requestEdge.ts
+//    val schemaVersion = requestEdge.label.schemaVersion
+//
+//    val (mergedPropsWithTs, _) = Edge.buildDelete((oldPropsWithTs, newPropsWithTs, requestTs, schemaVersion))
+//
+//    val newVersion = invertedEdgeOpt.map(_.version + Edge.incrementVersion).getOrElse(requestEdge.ts)
+//
+//    val newInvertedEdgeOpt = invertedEdgeOpt.map { e =>
+//      e.copy(op = GraphUtil.operations("delete"), propsWithTs = mergedPropsWithTs, version = newVersion).toInvertedEdgeHashLike
+//    }
+//
+//
+//    val indexedEdgeMutations = for {
+//      relEdge <- requestEdge.relatedEdges
+//      edgeWithIndex <- relEdge.edgesWithIndex
+//      //      edgeWithIndex <- relEdge.copy(version = relEdge.version + Edge.incrementVersion).edgesWithIndex
+//      rpc <- edgeWithIndex.buildDeletesAsync() ++ edgeWithIndex.buildIncrementsAsync(-1L)
+//    } yield {
+//        //        logger.debug(s"$rpc")
+//        rpc
+//      }
+//
+//    val invertedEdgeMutations =
+//    //      if (!shouldReplace) Nil else
+//      newInvertedEdgeOpt.map(e => List(e.buildPutAsync)).getOrElse(Nil)
+//
+//    EdgeUpdate(indexedEdgeMutations, invertedEdgeMutations, newInvertedEdge = newInvertedEdgeOpt)
+//  }
 
   def deleteBulk(): Unit = {
     /** delete all edges related to this
@@ -509,11 +510,11 @@ case class Edge(srcVertex: Vertex,
   //  }
   def fetchInvertedAsync(): Future[(QueryParam, Option[Edge])] = {
     val queryParam = QueryParam(labelWithDir)
+
     Graph.getEdge(srcVertex, tgtVertex, queryParam, isInnerCall = true).map { case queryResult =>
-      (queryParam, queryResult.edgeWithScoreLs.headOption.map { edgeWithScore => edgeWithScore._1 })
+      (queryParam, queryResult.edgeWithScoreLs.headOption.map { case (edge, _) => edge })
     }
   }
-
 
   //  def commitPending(snapshotEdge: Option[Edge], edgeUpdate: EdgeUpdate): Future[Boolean] = {
   //    // extract pengindWrites
