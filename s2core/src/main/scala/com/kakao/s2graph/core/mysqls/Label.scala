@@ -84,7 +84,7 @@ object Label extends Model[Label] {
     val cacheKey = "tgtColumnId=" + columnId
     val col = ServiceColumn.findById(columnId)
     withCaches(cacheKey)(
-    sql"""
+      sql"""
           select	*
           from	labels
           where	tgt_column_name = ${col.columnName}
@@ -96,7 +96,7 @@ object Label extends Model[Label] {
     val cacheKey = "srcColumnId=" + columnId
     val col = ServiceColumn.findById(columnId)
     withCaches(cacheKey)(
-    sql"""
+      sql"""
           select 	*
           from	labels
           where	src_column_name = ${col.columnName}
@@ -114,7 +114,7 @@ object Label extends Model[Label] {
   def findByTgtServiceId(serviceId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
     val cacheKey = "tgtServiceId=" + serviceId
     withCaches(cacheKey)(
-    sql"""select * from labels where tgt_service_id = ${serviceId}""".map { rs => Label(rs) }.list().apply
+      sql"""select * from labels where tgt_service_id = ${serviceId}""".map { rs => Label(rs) }.list().apply
     )
   }
 
@@ -266,9 +266,9 @@ case class Label(id: Option[Int], label: String,
   lazy val extraIndicesMap = extraIndices.map(idx => (idx.seq, idx)) toMap
 
   lazy val metaProps = LabelMeta.reservedMetas.map { m =>
-   if (m == LabelMeta.to) m.copy(dataType = tgtColumnType)
-   else if (m == LabelMeta.from) m.copy(dataType = srcColumnType)
-   else m
+    if (m == LabelMeta.to) m.copy(dataType = tgtColumnType)
+    else if (m == LabelMeta.from) m.copy(dataType = srcColumnType)
+    else m
   } ::: LabelMeta.findAllByLabelId(id.get, useCache = true)
   lazy val metaPropsMap = metaProps.map(x => (x.seq, x)).toMap
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
@@ -306,20 +306,25 @@ case class Label(id: Option[Int], label: String,
     super.toString() + orderByKeys.toString()
   }
 
-//  def findLabelIndexSeq(scoring: List[(Byte, Double)]): Byte = {
-//    if (scoring.isEmpty) LabelIndex.defaultSeq
-//    else {
-//      LabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
-//
-////      LabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
-//    }
-//  }
-
+  //  def findLabelIndexSeq(scoring: List[(Byte, Double)]): Byte = {
+  //    if (scoring.isEmpty) LabelIndex.defaultSeq
+  //    else {
+  //      LabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
+  //
+  ////      LabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
+  //    }
+  //  }
   lazy val toJson = Json.obj("labelName" -> label,
     "from" -> srcColumn.toJson, "to" -> tgtColumn.toJson,
+    "isDirected" -> isDirected,
+    "serviceName" -> serviceName,
+    "consistencyLevel" -> consistencyLevel,
+    "schemaVersion" -> schemaVersion,
+    "isAsync" -> isAsync,
+    "compressionAlgorithm" -> compressionAlgorithm,
     "defaultIndex" -> defaultIndex.map(x => x.toJson),
     "extraIndex" -> extraIndices.map(exIdx => exIdx.toJson),
-    "metaProps" -> metaProps.filter { labelMeta => LabelMeta.isValidSeq(labelMeta.seq) }.map(_.toJson)
+    "metaProps" -> metaProps.filter { labelMeta => LabelMeta.isValidSeqForAdmin(labelMeta.seq) }.map(_.toJson)
   )
 
 

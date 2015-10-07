@@ -89,8 +89,8 @@ case class Service(id: Option[Int], serviceName: String, accessToken: String, cl
   lazy val toJson =
     id match {
       case Some(_id) =>
-        Json.obj("id" -> _id, "name" -> serviceName, "accessToken" -> accessToken,
-          "hbaseTableName" -> hTableName, "preSplitSize" -> preSplitSize, "hTableTTL" -> hTableTTL)
+        Json.obj("id" -> _id, "name" -> serviceName, "accessToken" -> accessToken, "cluster" -> cluster,
+          "hTableName" -> hTableName, "preSplitSize" -> preSplitSize, "hTableTTL" -> hTableTTL)
       case None =>
         Json.parse("{}")
     }
