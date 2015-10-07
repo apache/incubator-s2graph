@@ -2,6 +2,7 @@ package subscriber
 
 import java.util.TreeSet
 
+import _root_.spark.hbase.HFileRDD
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.fs.permission.FsPermission
@@ -109,8 +110,11 @@ object TransferToHFile extends SparkApp {
     val buildDegree = if (args.length >= 9) args(8).toBoolean else true
 
     val conf = sparkConf(s"$input: TransferToHFile")
+    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    conf.set("spark.kryoserializer.buffer.mb", "24")
 
     val sc = new SparkContext(conf)
+
 
 
     /** set up hbase init */
@@ -141,7 +145,7 @@ object TransferToHFile extends SparkApp {
       new HFileRDD(kvs ++ degreeKVs)
     }
 
-    newRDD.toHFile(hbaseConf, tableName, maxHFilePerResionServer, tmpPath)
+    newRDD.toHFile(hbaseConf, zkQuorum, tableName, maxHFilePerResionServer, tmpPath)
   }
 
 }
