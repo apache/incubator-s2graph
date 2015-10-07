@@ -49,11 +49,9 @@ case class LabelWithDirection(labelId: Int, dir: Int) extends HBaseSerializable 
 
   def updateDir(newDir: Int) = LabelWithDirection(labelId, newDir)
 
-  def isDirected = dir != 2
+  def isDirected = dir == 0 || dir == 1
 
-  override def hashCode(): Int = {
-    compositeInt
-  }
+  override def hashCode(): Int = compositeInt
 
   override def equals(other: Any): Boolean = {
     other match {
