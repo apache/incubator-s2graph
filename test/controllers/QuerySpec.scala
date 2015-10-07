@@ -100,6 +100,25 @@ class QuerySpec extends SpecCommon with PlaySpecification {
           ]]
         }""")
 
+    def querySingle(id: Int) = Json.parse( s"""
+        { "srcVertices": [
+          { "serviceName": "${testServiceName}",
+            "columnName": "${testColumnName}",
+            "id": ${id}
+           }],
+          "steps": [
+          [ {
+              "label": "${testLabelName}",
+              "direction": "out",
+              "offset": 0,
+              "limit": 100
+            }
+          ]]
+        }
+        """)
+
+    def queryUnion(id: Int, size: Int) = JsArray(List.tabulate(size)(_ => querySingle(id)))
+
     def getEdges(queryJson: JsValue): JsValue = {
       val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryJson)).get
       contentAsJson(ret)
@@ -133,22 +152,27 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       $(srcVertices = $from, steps = $steps).toJson
     }
 
-    def queryAncestor(ids: Seq[Int], ancestorAt: Int) = {
-      val $from = $a(
-        $(serviceName = testServiceName,
-          columnName = testColumnName,
-          ids = ids))
+    "union query" in {
+      running(FakeApplication()) {
+        var result = getEdges(queryUnion(0, 2))
+        result.as[List[JsValue]].size must equalTo(2)
 
-      val $step = $a($(label = testLabelName, direction = "out", offset = 0, limit = 100))
+        result = getEdges(queryUnion(0, 3))
+        result.as[List[JsValue]].size must equalTo(3)
 
-      val $steps =
-        if (ancestorAt == 1) {
-          $a($(step = $step, shouldPropagate = true), $(step = $step), $(step = $step))
-        } else {
-          $a($(step = $step), $(step = $step, shouldPropagate = true), $(step = $step))
-        }
+        result = getEdges(queryUnion(0, 4))
+        result.as[List[JsValue]].size must equalTo(4)
 
-      $(srcVertices = $from, steps = $steps).toJson
+        result = getEdges(queryUnion(0, 5))
+        result.as[List[JsValue]].size must equalTo(5)
+
+        val union = result.as[List[JsValue]].head
+        val single = getEdges(querySingle(0))
+
+        (union \\ "from").map(_.toString).sorted must equalTo((single \\ "from").map(_.toString).sorted)
+        (union \\ "to").map(_.toString).sorted must equalTo((single \\ "to").map(_.toString).sorted)
+        (union \\ "weight").map(_.toString).sorted must equalTo((single \\ "weight").map(_.toString).sorted)
+      }
     }
 
     "get edge with where condition" in {
@@ -238,21 +262,6 @@ class QuerySpec extends SpecCommon with PlaySpecification {
 
         result = getEdges(queryDuration(Seq(0, 2), from = 1000, to = 2000))
         (result \ "results").as[List[JsValue]].size must equalTo(1)
-        true
-      }
-    }
-
-    "ancestor" in {
-      running(FakeApplication()) {
-        var result = getEdges(queryAncestor(Seq(-1), 1))
-        var expect = Seq(Set("2000", "3000"), Set("1000", "2000"), Set("1000"))
-        var ancestors = (result \\ "ancestor").map(_.as[Seq[String]]).map(_.toSet)
-        ancestors must equalTo(expect)
-
-        result = getEdges(queryAncestor(Seq(-1), 2))
-        expect = Seq(Set("12000"), Set("11000"), Set("10000"))
-        ancestors = (result \\ "ancestor").map(_.as[Seq[String]]).map(_.toSet)
-        ancestors must equalTo(expect)
         true
       }
     }

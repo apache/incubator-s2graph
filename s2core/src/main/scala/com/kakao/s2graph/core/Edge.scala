@@ -12,7 +12,6 @@ import org.hbase.async._
 import play.api.libs.json.Json
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Random, Success, Try}
@@ -30,7 +29,7 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
   import HBaseSerializable._
 
   //  logger.error(s"EdgeWithIndexInverted${this.toString}")
-  lazy val schemaVer = label.schemaVersion
+  val schemaVer = label.schemaVersion
   lazy val rowKey = EdgeRowKey(VertexId.toSourceVertexId(srcVertex.id), labelWithDir, LabelIndex.defaultSeq, isInverted = true)(version = schemaVer)
   lazy val qualifier = EdgeQualifierInverted(VertexId.toTargetVertexId(tgtVertex.id))(version = schemaVer)
   lazy val value = EdgeValueInverted(op, props.toList)(version = schemaVer)
@@ -47,7 +46,7 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
 
   // only for toString.
   lazy val label = Label.findById(labelWithDir.labelId)
-  lazy val propsWithoutTs = props.map(kv => kv._1 -> kv._2.innerVal)
+  lazy val propsWithoutTs = props.mapValues(_.innerVal)
 
   def buildPut() = {
     val put = new Put(rowKey.bytes)
@@ -70,13 +69,9 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
   //    ret
   //  }
 
-  def withNoPendingEdge() = {
-    copy(pendingEdgeOpt = None)
-  }
+  def withNoPendingEdge() = copy(pendingEdgeOpt = None)
 
-  def withPendingEdge(pendingEdgeOpt: Option[Edge]) = {
-    copy(pendingEdgeOpt = pendingEdgeOpt)
-  }
+  def withPendingEdge(pendingEdgeOpt: Option[Edge]) = copy(pendingEdgeOpt = pendingEdgeOpt)
 }
 
 case class EdgeWithIndex(srcVertex: Vertex,
@@ -94,12 +89,13 @@ case class EdgeWithIndex(srcVertex: Vertex,
   import Graph.edgeCf
 
   lazy val label = Label.findById(labelWithDir.labelId)
-  lazy val schemaVer = label.schemaVersion
+  val schemaVer = label.schemaVersion
   lazy val labelIndex = LabelIndex.findByLabelIdAndSeq(labelWithDir.labelId, labelIndexSeq).get
   lazy val defaultIndexMetas = labelIndex.sortKeyTypes.map { meta =>
     val innerVal = toInnerVal(meta.defaultValue, meta.dataType, schemaVer)
     meta.seq -> innerVal
   }.toMap
+
   lazy val labelIndexMetaSeqs = labelIndex.metaSeqs
 
   /** TODO: make sure call of this class fill props as this assumes */
@@ -125,7 +121,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
     }
   }
 
-  lazy val ordersKeyMap = orders.map(_._1).toSet
+  lazy val ordersKeyMap = orders.map { case (byte, _) => byte }.toSet
   lazy val metas = for ((k, v) <- props if !ordersKeyMap.contains(k)) yield k -> v
 
   lazy val rowKey = EdgeRowKey(VertexId.toSourceVertexId(srcVertex.id), labelWithDir, labelIndexSeq, isInverted = false)(schemaVer)
@@ -233,30 +229,25 @@ case class Edge(srcVertex: Vertex,
                 propsWithTs: Map[Byte, InnerValLikeWithTs] = Map.empty[Byte, InnerValLikeWithTs],
                 pendingEdgeOpt: Option[Edge] = None,
                 parentEdges: Seq[EdgeWithScore] = Nil,
-                originalEdgeOpt: Option[Edge] = None)
-
-  extends GraphElement with JSONParser {
-
+                originalEdgeOpt: Option[Edge] = None) extends GraphElement with JSONParser {
 
   import Edge._
 
   implicit val ex = Graph.executionContext
 
-  def schemaVer = label.schemaVersion
+  val schemaVer = label.schemaVersion
 
-  def props = for ((k, v) <- propsWithTs) yield k -> v.innerVal
+  def props = propsWithTs.mapValues(_.innerVal)
 
   //    if (op == GraphUtil.operations("delete")) Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, schemaVer))
   //    else for ((k, v) <- propsWithTs) yield (k -> v.innerVal)
 
   def relatedEdges = {
-    labelWithDir.dir match {
-      case 2 => //undirected
-        val out = LabelWithDirection(labelWithDir.labelId, GraphUtil.directions("out"))
-        val base = Edge(srcVertex, tgtVertex, out, op, ts, version, propsWithTs)
-        List(base, base.reverseSrcTgtEdge)
-      case 0 | 1 =>
-        List(this, duplicateEdge)
+    if (labelWithDir.isDirected) List(this, duplicateEdge)
+    else {
+      val outDir = labelWithDir.copy(dir = GraphUtil.directions("out"))
+      val base = copy(labelWithDir = outDir)
+      List(base, base.reverseSrcTgtEdge)
     }
   }
 
@@ -265,31 +256,27 @@ case class Edge(srcVertex: Vertex,
   def srcForVertex = {
     val belongLabelIds = Seq(labelWithDir.labelId)
     if (labelWithDir.dir == GraphUtil.directions("in")) {
-      Vertex(VertexId(label.tgtColumn.id.get, tgtVertex.innerId), tgtVertex.ts, tgtVertex.props,
-        belongLabelIds = belongLabelIds)
+      Vertex(VertexId(label.tgtColumn.id.get, tgtVertex.innerId), tgtVertex.ts, tgtVertex.props, belongLabelIds = belongLabelIds)
     } else {
-      Vertex(VertexId(label.srcColumn.id.get, srcVertex.innerId), srcVertex.ts, srcVertex.props,
-        belongLabelIds = belongLabelIds)
+      Vertex(VertexId(label.srcColumn.id.get, srcVertex.innerId), srcVertex.ts, srcVertex.props, belongLabelIds = belongLabelIds)
     }
   }
 
   def tgtForVertex = {
     val belongLabelIds = Seq(labelWithDir.labelId)
     if (labelWithDir.dir == GraphUtil.directions("in")) {
-      Vertex(VertexId(label.srcColumn.id.get, srcVertex.innerId), srcVertex.ts, srcVertex.props,
-        belongLabelIds = belongLabelIds)
+      Vertex(VertexId(label.srcColumn.id.get, srcVertex.innerId), srcVertex.ts, srcVertex.props, belongLabelIds = belongLabelIds)
     } else {
-      Vertex(VertexId(label.tgtColumn.id.get, tgtVertex.innerId), tgtVertex.ts, tgtVertex.props,
-        belongLabelIds = belongLabelIds)
+      Vertex(VertexId(label.tgtColumn.id.get, tgtVertex.innerId), tgtVertex.ts, tgtVertex.props, belongLabelIds = belongLabelIds)
     }
   }
 
 
-  def duplicateEdge = Edge(tgtVertex, srcVertex, labelWithDir.dirToggled, op, ts, version, propsWithTs)
+  def duplicateEdge = reverseSrcTgtEdge.reverseDirEdge
 
-  def reverseDirEdge = Edge(srcVertex, tgtVertex, labelWithDir.dirToggled, op, ts, version, propsWithTs)
+  def reverseDirEdge = copy(labelWithDir = labelWithDir.dirToggled)
 
-  def reverseSrcTgtEdge = Edge(tgtVertex, srcVertex, labelWithDir, op, ts, version, propsWithTs)
+  def reverseSrcTgtEdge = copy(srcVertex = tgtVertex, tgtVertex = srcVertex)
 
   def label = Label.findById(labelWithDir.labelId)
 
@@ -316,12 +303,6 @@ case class Edge(srcVertex: Vertex,
     }
   }
 
-  def edgesWithIndex(newOp: Byte) = {
-    for (labelOrder <- labelOrders) yield {
-      EdgeWithIndex(srcVertex, tgtVertex, labelWithDir, newOp, version, labelOrder.seq, propsPlusTs)
-    }
-  }
-
   def edgesWithIndexValid = {
     for (labelOrder <- labelOrders) yield {
       EdgeWithIndex(srcVertex, tgtVertex, labelWithDir, op, version, labelOrder.seq, propsPlusTsValid)
@@ -333,6 +314,8 @@ case class Edge(srcVertex: Vertex,
       EdgeWithIndex(srcVertex, tgtVertex, labelWithDir, newOp, version, labelOrder.seq, propsPlusTsValid)
     }
   }
+
+  def edgesWithInvertedIndex = this.toInvertedEdgeHashLike
 
   def toInvertedEdgeHashLike: EdgeWithIndexInverted = {
     val (smaller, larger) = (srcForVertex, tgtForVertex)
@@ -351,13 +334,11 @@ case class Edge(srcVertex: Vertex,
 
   override def equals(other: Any): Boolean = {
     other match {
-      case e: Edge => srcVertex.innerId == e.srcVertex.innerId &&
-        tgtVertex.innerId == e.tgtVertex.innerId && labelWithDir == e.labelWithDir
+      case e: Edge =>
+        srcVertex.innerId == e.srcVertex.innerId &&
+          tgtVertex.innerId == e.tgtVertex.innerId && labelWithDir == e.labelWithDir
+      case _ => false
     }
-  }
-
-  def edgesWithInvertedIndex = {
-    this.toInvertedEdgeHashLike
   }
 
   def propsWithName = for {
@@ -365,10 +346,6 @@ case class Edge(srcVertex: Vertex,
     meta <- label.metaPropsMap.get(seq) if seq > 0
     jsValue <- innerValToJsValue(v, meta.dataType)
   } yield meta.name -> jsValue
-
-  def canBeBatched =
-    op == GraphUtil.operations("insertBulk") ||
-      (op == GraphUtil.operations("insert") && label.consistencyLevel != "strong")
 
   def updateTgtVertex(id: InnerValLike) = {
     val newId = TargetVertexId(tgtVertex.id.colId, id)
@@ -390,20 +367,20 @@ case class Edge(srcVertex: Vertex,
           upsert
           List.empty[PutRequest]
         } else {
-          insert
+          insert(createRelEdges = true)
         }
       } else if (op == GraphUtil.operations("delete")) {
         if (label.consistencyLevel == "strong") delete
-        else deleteBulk
+        else deleteBulk()
         List.empty[PutRequest]
       } else if (op == GraphUtil.operations("update")) {
-        update
+        update()
         List.empty[PutRequest]
       } else if (op == GraphUtil.operations("increment")) {
-        increment
+        increment()
         List.empty[PutRequest]
       } else if (op == GraphUtil.operations("insertBulk")) {
-        insert
+        insert(createRelEdges = true)
       } else {
         throw new Exception(s"operation[${op}] is not supported on edge.")
       }
@@ -414,7 +391,7 @@ case class Edge(srcVertex: Vertex,
     ret
   }
 
-  def insertBulk(createRelEdges: Boolean = false) = {
+  def insertBulk(createRelEdges: Boolean = true) = {
     val vertexPuts = buildVertexPuts()
     val snapshotPuts =
       if (createRelEdges && labelWithDir.dir != GraphUtil.directions("in")) List(toInvertedEdgeHashLike.buildPut())
@@ -424,14 +401,17 @@ case class Edge(srcVertex: Vertex,
     val relatedEdgePuts = relEdges.flatMap { relEdge =>
       relEdge.edgesWithIndex.flatMap(e => e.buildPuts())
     }
+
     vertexPuts ++ snapshotPuts ++ relatedEdgePuts
   }
 
-  def insert() = {
-    val puts = edgesWithInvertedIndex.buildPutAsync() :: relatedEdges.flatMap { relEdge =>
-      relEdge.edgesWithIndex.flatMap(e => e.buildPutsAsync)
+  def insert(createRelEdges: Boolean = true) = {
+    val relEdges = if (createRelEdges) relatedEdges else List(this)
+    val puts = edgesWithInvertedIndex.buildPutAsync() :: relEdges.flatMap { relEdge =>
+      relEdge.edgesWithIndex.flatMap(e => e.buildPutsAsync())
     }
-    val incrs = relatedEdges.flatMap { relEdge =>
+
+    val incrs = relEdges.flatMap { relEdge =>
       relEdge.edgesWithIndex.flatMap(e => e.buildIncrementsAsync())
     }
 
@@ -440,45 +420,46 @@ case class Edge(srcVertex: Vertex,
     rets
   }
 
+// to be deleted, not used in project
 
-  def buildDeleteBulk() = {
-    toInvertedEdgeHashLike.buildDeleteAsync() :: edgesWithIndex.flatMap { e => e.buildDeletesAsync() ++
-      e.buildDegreeDeletesAsync()
-    }
-  }
-
-  def deleteBulkEdgeUpdate(invertedEdgeOpt: Option[Edge], requestEdge: Edge): EdgeUpdate = {
-    val oldPropsWithTs = invertedEdgeOpt.map(_.propsWithTs).getOrElse(Map.empty)
-    val newPropsWithTs = Map(LabelMeta.lastDeletedAt ->
-      InnerValLikeWithTs.withLong(requestEdge.ts, requestEdge.ts, requestEdge.label.schemaVersion))
-    val requestTs = requestEdge.ts
-    val schemaVersion = requestEdge.label.schemaVersion
-
-    val (mergedPropsWithTs, shouldReplace) = Edge.buildDelete((oldPropsWithTs, newPropsWithTs, requestTs, schemaVersion))
-
-    val newVersion = invertedEdgeOpt.map(_.version + Edge.incrementVersion).getOrElse(requestEdge.ts)
-
-    val newInvertedEdgeOpt = invertedEdgeOpt.map { e =>
-      e.copy(op = GraphUtil.operations("delete"), propsWithTs = mergedPropsWithTs, version = newVersion).toInvertedEdgeHashLike
-    }
-
-
-    val indexedEdgeMutations = for {
-      relEdge <- requestEdge.relatedEdges
-      edgeWithIndex <- relEdge.edgesWithIndex
-      //      edgeWithIndex <- relEdge.copy(version = relEdge.version + Edge.incrementVersion).edgesWithIndex
-      rpc <- edgeWithIndex.buildDeletesAsync() ++ edgeWithIndex.buildIncrementsAsync(-1L)
-    } yield {
-        //        logger.debug(s"$rpc")
-        rpc
-      }
-
-    val invertedEdgeMutations =
-    //      if (!shouldReplace) Nil else
-      newInvertedEdgeOpt.map(e => List(e.buildPutAsync)).getOrElse(Nil)
-
-    EdgeUpdate(indexedEdgeMutations, invertedEdgeMutations, newInvertedEdge = newInvertedEdgeOpt)
-  }
+//  def buildDeleteBulk() = {
+//    toInvertedEdgeHashLike.buildDeleteAsync() :: edgesWithIndex.flatMap { e => e.buildDeletesAsync() ++
+//      e.buildDegreeDeletesAsync()
+//    }
+//  }
+//
+//  def deleteBulkEdgeUpdate(invertedEdgeOpt: Option[Edge], requestEdge: Edge): EdgeUpdate = {
+//    val oldPropsWithTs = invertedEdgeOpt.map(_.propsWithTs).getOrElse(Map.empty)
+//    val newPropsWithTs = Map(LabelMeta.lastDeletedAt ->
+//      InnerValLikeWithTs.withLong(requestEdge.ts, requestEdge.ts, requestEdge.label.schemaVersion))
+//    val requestTs = requestEdge.ts
+//    val schemaVersion = requestEdge.label.schemaVersion
+//
+//    val (mergedPropsWithTs, _) = Edge.buildDelete((oldPropsWithTs, newPropsWithTs, requestTs, schemaVersion))
+//
+//    val newVersion = invertedEdgeOpt.map(_.version + Edge.incrementVersion).getOrElse(requestEdge.ts)
+//
+//    val newInvertedEdgeOpt = invertedEdgeOpt.map { e =>
+//      e.copy(op = GraphUtil.operations("delete"), propsWithTs = mergedPropsWithTs, version = newVersion).toInvertedEdgeHashLike
+//    }
+//
+//
+//    val indexedEdgeMutations = for {
+//      relEdge <- requestEdge.relatedEdges
+//      edgeWithIndex <- relEdge.edgesWithIndex
+//      //      edgeWithIndex <- relEdge.copy(version = relEdge.version + Edge.incrementVersion).edgesWithIndex
+//      rpc <- edgeWithIndex.buildDeletesAsync() ++ edgeWithIndex.buildIncrementsAsync(-1L)
+//    } yield {
+//        //        logger.debug(s"$rpc")
+//        rpc
+//      }
+//
+//    val invertedEdgeMutations =
+//    //      if (!shouldReplace) Nil else
+//      newInvertedEdgeOpt.map(e => List(e.buildPutAsync)).getOrElse(Nil)
+//
+//    EdgeUpdate(indexedEdgeMutations, invertedEdgeMutations, newInvertedEdge = newInvertedEdgeOpt)
+//  }
 
   def deleteBulk(): Unit = {
     /** delete all edges related to this
@@ -529,11 +510,11 @@ case class Edge(srcVertex: Vertex,
   //  }
   def fetchInvertedAsync(): Future[(QueryParam, Option[Edge])] = {
     val queryParam = QueryParam(labelWithDir)
+
     Graph.getEdge(srcVertex, tgtVertex, queryParam, isInnerCall = true).map { case queryResult =>
-      (queryParam, queryResult.edgeWithScoreLs.headOption.map { edgeWithScore => edgeWithScore._1 })
+      (queryParam, queryResult.edgeWithScoreLs.headOption.map { case (edge, _) => edge })
     }
   }
-
 
   //  def commitPending(snapshotEdge: Option[Edge], edgeUpdate: EdgeUpdate): Future[Boolean] = {
   //    // extract pengindWrites
@@ -558,17 +539,16 @@ case class Edge(srcVertex: Vertex,
       val after = snapshotEdge.edgesWithInvertedIndex.withNoPendingEdge().buildPutAsync()
       val before = snapshotEdge.edgesWithInvertedIndex.valueBytes
       val client = Graph.getClient(label.hbaseZkAddr)
+
       for {
         pendingEdgesLock: Seq[Boolean] <- Graph.writeAsyncWithWait(label.hbaseZkAddr, pendingEdges.map { edge => edge.buildPutsAll })
-        ret <-
-        if (pendingEdgesLock.forall(identity)) Graph.deferredToFutureWithoutFallback(client.compareAndSet(after, before)).map(_.booleanValue())
+        ret <- if (pendingEdgesLock.forall(identity)) Graph.deferredToFutureWithoutFallback(client.compareAndSet(after, before)).map(_.booleanValue())
         else Future.successful(false)
       } yield ret
     }
   }
 
   def commitUpdate(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeUpdate): Future[Boolean] = {
-
     val client = Graph.getClient(label.hbaseZkAddr)
     if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
     else {
@@ -585,16 +565,15 @@ case class Edge(srcVertex: Vertex,
     }
   }
 
-  def mutate(f: (Option[Edge], Edge) => EdgeUpdate,
-             tryNum: Int = 0): Unit = {
+  def mutate(f: (Option[Edge], Edge) => EdgeUpdate, tryNum: Int = 0): Unit = {
     //             exponentialBackOff: ExponentialBackOff = ExponentialBackOff()): Unit = {
     if (tryNum >= maxTryNum) {
       logger.error(s"mutate failed after $tryNum retry")
       ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = this))
       //      throw new RuntimeException(s"mutate failed after $tryNum")
     } else {
-      val client = Graph.getClient(label.hbaseZkAddr)
       val waitTime = Random.nextInt(2) + 1
+
       for {
         (queryParam, edges) <- fetchInvertedAsync()
         invertedEdgeOpt = edges.headOption
@@ -602,22 +581,18 @@ case class Edge(srcVertex: Vertex,
       } {
         //        break basic crud spec
         //        Graph.writeAsync(queryParam.label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations ++ edgeUpdate.invertedEdgeMutations))
-        for {
-          pendingResult <- commitPending(invertedEdgeOpt)
-        } {
+        for (pendingResult <- commitPending(invertedEdgeOpt)) {
           if (!pendingResult) {
             Thread.sleep(waitTime)
             mutate(f, tryNum + 1)
           } else {
-            for {
-              updateResult <- commitUpdate(invertedEdgeOpt, edgeUpdate)
-            } {
+            for (updateResult <- commitUpdate(invertedEdgeOpt, edgeUpdate)) {
               if (!updateResult) {
                 Thread.sleep(waitTime)
                 logger.info(s"mutate failed. retry $this")
                 mutate(f, tryNum + 1)
               } else {
-                logger.debug(s"mutate success: ${edgeUpdate.toLogString()}\n$this")
+                logger.debug(s"mutate success: ${edgeUpdate.toLogString}\n$this")
               }
             }
           }
@@ -626,13 +601,13 @@ case class Edge(srcVertex: Vertex,
     }
   }
 
-  def upsert = mutate(Edge.buildUpsert)
+  def upsert() = mutate(Edge.buildUpsert)
 
-  def delete = mutate(Edge.buildDelete)
+  def delete() = mutate(Edge.buildDelete)
 
-  def update = mutate(Edge.buildUpdate)
+  def update() = mutate(Edge.buildUpdate)
 
-  def increment = mutate(Edge.buildIncrement)
+  def increment() = mutate(Edge.buildIncrement)
 
   def toJson = {}
 
@@ -641,29 +616,22 @@ case class Edge(srcVertex: Vertex,
     if (r.keySeqAndWeights.size <= 0) 1.0f
     else {
       //      logger.warn(s"orderMapping : ${orderByKeyValues} keyIdAndWeights : ${r.keyIdAndWeights}")
-
       var sum: Double = 0
-      for {
-        (seq, w) <- r.keySeqAndWeights
-      } {
+
+      for ((seq, w) <- r.keySeqAndWeights) {
         seq match {
-          case LabelMeta.countSeq => {
-            //case key == "count"
-            sum += 1
-          }
+          case LabelMeta.countSeq => sum += 1
           case _ => {
             propsWithTs.get(seq) match {
               case None =>
               //                logger.error(s"Not Found SortKeyType : ${seq} for rank in Label(${labelWithDir.labelId}})'s OrderByKeys(${orderByKey.typeIds}})")
               case Some(innerValWithTs) => {
-                val cost = Try {
-                  innerValWithTs.innerVal.toString.toDouble
-                } recover {
+                val cost = try innerValWithTs.innerVal.toString.toDouble catch {
                   case e: Exception =>
                     logger.error("toInnerval failed in rank", e)
                     1.0
                 }
-                sum += w * cost.get
+                sum += w * cost
               }
             }
           }
@@ -673,14 +641,15 @@ case class Edge(srcVertex: Vertex,
     }
   }
 
-  def toLogString(): String = {
-    val ls = ListBuffer(ts, GraphUtil.fromOp(op), "e",
-      srcVertex.innerId, tgtVertex.innerId, label.label)
+  def toLogString: String = {
+    val ls = List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label)
 
-    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
-    ls.mkString("\t")
+    val ret =
+      if (propsWithName.nonEmpty) Json.toJson(propsWithName) :: ls
+      else ls
+
+    ret.mkString("\t")
   }
-
 }
 
 case class EdgeUpdate(indexedEdgeMutations: List[HBaseRpc] = List.empty[HBaseRpc],
@@ -689,12 +658,13 @@ case class EdgeUpdate(indexedEdgeMutations: List[HBaseRpc] = List.empty[HBaseRpc
                       edgesToInsert: List[EdgeWithIndex] = List.empty[EdgeWithIndex],
                       newInvertedEdge: Option[EdgeWithIndexInverted] = None) {
 
-  def toLogString(): String = {
+  def toLogString: String = {
     val indexedEdgeSize = s"indexedEdgeMutationSize: ${indexedEdgeMutations.size}"
     val invertedEdgeSize = s"invertedEdgeMutationSize: ${invertedEdgeMutations.size}"
     val deletes = s"deletes: ${edgesToDelete.map(e => e.toString).mkString("\n")}"
     val inserts = s"inserts: ${edgesToInsert.map(e => e.toString).mkString("\n")}"
     val updates = s"snapshot: $newInvertedEdge"
+
     List(indexedEdgeSize, invertedEdgeSize, deletes, inserts, updates).mkString("\n")
   }
 }
@@ -707,9 +677,9 @@ object Edge extends JSONParser {
 
   //  val initialVersion = 2L
   val incrementVersion = 1L
-  val minOperationTs = 1L
   val minTsVal = 0L
   // FIXME:
+
   val maxTryNum = 10
   /** now version information is required also **/
   type PropsPairWithTs = (Map[Byte, InnerValLikeWithTs], Map[Byte, InnerValLikeWithTs], Long, String)
@@ -739,7 +709,6 @@ object Edge extends JSONParser {
     //            logger.debug(s"requestEdge: ${requestEdge.toStringRaw}")
 
     val oldPropsWithTs = if (invertedEdge.isEmpty) Map.empty[Byte, InnerValLikeWithTs] else invertedEdge.get.propsWithTs
-    val minTsInOldProps = if (invertedEdge.isEmpty) minTsVal else invertedEdge.get.propsWithTs.map(kv => kv._2.ts).min
 
     val oldTs = invertedEdge.map(e => e.ts).getOrElse(minTsVal)
 
@@ -807,38 +776,35 @@ object Edge extends JSONParser {
         }
       }
     }
+
     val edgeInverted = if (newPropsWithTs.isEmpty) None else Some(requestEdge.edgesWithInvertedIndex)
 
-    val deleteMutations = edgesToDelete.flatMap(edge => edge.buildDeletesAsync)
-    val insertMutations = edgesToInsert.flatMap(edge => edge.buildPutsAsync)
-    val invertMutations = edgeInverted.map(e => List(e.buildPutAsync)).getOrElse(List.empty[PutRequest])
+    val deleteMutations = edgesToDelete.flatMap(edge => edge.buildDeletesAsync())
+    val insertMutations = edgesToInsert.flatMap(edge => edge.buildPutsAsync())
+    val invertMutations = edgeInverted.map(e => List(e.buildPutAsync())).getOrElse(List.empty[PutRequest])
     val indexedEdgeMutations = deleteMutations ++ insertMutations
     val invertedEdgeMutations = invertMutations
+
     val incrs =
       (edgesToDelete.isEmpty, edgesToInsert.isEmpty) match {
         case (true, true) =>
-
           /** when there is no need to update. shouldUpdate == false */
           List.empty[AtomicIncrementRequest]
         case (true, false) =>
-
           /** no edges to delete but there is new edges to insert so increase degree by 1 */
           requestEdge.relatedEdges.flatMap { relEdge =>
             relEdge.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
           }
-        //              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
         case (false, true) =>
-
           /** no edges to insert but there is old edges to delete so decrease degree by 1 */
           requestEdge.relatedEdges.flatMap { relEdge =>
             relEdge.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
           }
-        //              this.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
         case (false, false) =>
-
           /** update on existing edges so no change on degree */
           List.empty[AtomicIncrementRequest]
       }
+
     val update = EdgeUpdate(indexedEdgeMutations ++ incrs, invertedEdgeMutations, edgesToDelete, edgesToInsert, edgeInverted)
 
     //        logger.debug(s"UpdatedProps: ${newPropsWithTs}\n")
@@ -1221,8 +1187,7 @@ object Edge extends JSONParser {
   }
 
   //FIXME
-  def buildIncrementDegreeBulk(srcVertexId: String, labelName: String, direction: String,
-                               degreeVal: Long) = {
+  def buildIncrementDegreeBulk(srcVertexId: String, labelName: String, direction: String, degreeVal: Long) = {
     for {
       label <- Label.findByName(labelName)
       dir <- GraphUtil.toDir(direction)
@@ -1243,6 +1208,7 @@ object Edge extends JSONParser {
 
   def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = {
     implicit val ex = Graph.executionContext
+
     val defers: Seq[Deferred[(Boolean, Long)]] = for {
       edge <- edges
     } yield {
