@@ -8,8 +8,11 @@ import org.apache.hadoop.fs.permission.FsPermission
 import com.kakao.s2graph.core.{GraphUtil, Edge, Graph}
 import org.apache.hadoop.hbase.client.{HTable, ConnectionFactory}
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
+import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
+import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.mapreduce.{LoadIncrementalHFiles, HFileOutputFormat2, TableOutputFormat}
 import org.apache.hadoop.hbase._
+import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.{Partitioner, SparkContext}
@@ -17,7 +20,8 @@ import org.apache.spark.SparkContext._
 import org.apache.spark.rdd.RDD
 import org.hbase.async.{PutRequest}
 import s2.spark.{HashMapParam, SparkApp}
-import spark.hbase.HFileRDD
+import spark.{FamilyHFileWriteOptions, KeyFamilyQualifier, HBaseContext}
+
 import subscriber.GraphSubscriber._
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
@@ -72,6 +76,7 @@ object TransferToHFile extends SparkApp {
       cell <- cfMap.get(Graph.edgeCf)
     } yield {
         val kv = new KeyValue(cell.getRow, cell.getFamily, cell.getQualifier, cell.getTimestamp, cell.getValue)
+//        val kv = new KeyValue(cell.getRowArray, cell.getFamilyArray, cell.getQualifierArray, cell.getTimestamp, cell.getValueArray)
         //        println(s"[Edge]: $edge\n[Put]: $p\n[KeyValue]: ${kv.getRow.toList}, ${kv.getQualifier.toList}, ${kv.getValue.toList}, ${kv.getTimestamp}")
         kv
       }
@@ -109,8 +114,11 @@ object TransferToHFile extends SparkApp {
     val buildDegree = if (args.length >= 9) args(8).toBoolean else true
 
     val conf = sparkConf(s"$input: TransferToHFile")
+    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    conf.set("spark.kryoserializer.buffer.mb", "24")
 
     val sc = new SparkContext(conf)
+
 
 
     /** set up hbase init */
@@ -128,20 +136,42 @@ object TransferToHFile extends SparkApp {
       GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
       toKeyValues(iter.toSeq, labelMapping, autoEdgeCreate)
     }
-
-    val newRDD = if (!buildDegree) new HFileRDD(kvs)
+    //
+    //    val newRDD = if (!buildDegree) new HFileRDD(kvs)
+    //    else {
+    //      val degreeKVs = buildDegrees(rdd, labelMapping, autoEdgeCreate).reduceByKey { (agg, current) =>
+    //        agg + current
+    //      }.mapPartitions { iter =>
+    //        val phase = System.getProperty("phase")
+    //        GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
+    //        toKeyValues(iter.toSeq)
+    //      }
+    //      new HFileRDD(kvs ++ degreeKVs)
+    //    }
+    //
+    //    newRDD.toHFile(hbaseConf, zkQuorum, tableName, maxHFilePerResionServer, tmpPath)
+    val merged = if (!buildDegree) kvs
     else {
-      val degreeKVs = buildDegrees(rdd, labelMapping, autoEdgeCreate).reduceByKey { (agg, current) =>
+      kvs ++ buildDegrees(rdd, labelMapping, autoEdgeCreate).reduceByKey { (agg, current) =>
         agg + current
       }.mapPartitions { iter =>
         val phase = System.getProperty("phase")
         GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
         toKeyValues(iter.toSeq)
       }
-      new HFileRDD(kvs ++ degreeKVs)
     }
 
-    newRDD.toHFile(hbaseConf, tableName, maxHFilePerResionServer, tmpPath)
+    val hbaseSc = new HBaseContext(sc, hbaseConf)
+    def flatMap(kv: KeyValue): Iterator[(KeyFamilyQualifier, Array[Byte])] = {
+      val k = new KeyFamilyQualifier(kv.getRow(), kv.getFamily(), kv.getQualifier())
+      val v = kv.getValue()
+      Seq((k -> v)).toIterator
+    }
+    val familyOptions = new FamilyHFileWriteOptions(Algorithm.LZ4.getName.toUpperCase,
+      BloomType.ROW.name().toUpperCase, 32768, DataBlockEncoding.FAST_DIFF.name().toUpperCase)
+    val familyOptionsMap = Map("e".getBytes() -> familyOptions, "v".getBytes() -> familyOptions)
+
+    hbaseSc.bulkLoad(merged, TableName.valueOf(tableName), flatMap, tmpPath, familyOptionsMap)
   }
 
 }
