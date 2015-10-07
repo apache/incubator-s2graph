@@ -9,7 +9,7 @@ object QueryResult {
     for {
       vertex <- vertices
       queryParam <- queryParams
-    } yield QueryResult(query, stepIdx, queryParam, Seq((Edge(vertex, vertex, queryParam.labelWithDir), Graph.DEFAULT_SCORE)))
+    } yield QueryResult(query, stepIdx, queryParam, Seq((Edge(vertex, vertex, queryParam.labelWithDir), Graph.DefaultScore)))
   }
 }
 

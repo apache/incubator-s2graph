@@ -37,41 +37,41 @@ object Graph {
   //  var shouldReturnResults = true
   //  var shouldRunFetch = true
   //  var shouldRunFilter = true
-  val DEFAULT_CLIENT_FLUSH_INTERVAL = 100.toShort
-  val DEFAULT_CLIENT_TIMEOUT = 1000
-  val DEFAULT_CACHE_MAX_SIZE = 10000
-  val DEFAULT_TTL_SECONDS = 60
-  
+  val DefaultClientFlushInterval = 100.toShort
+  val DefaultClientTimeout = 1000
+  val DefaultCacheMaxSize = 10000
+  val DefaultTtlSeconds = 60
+  val DefaultScore = 1.0
 
-  val DEFAULT_CONFIGS: Map[String, AnyRef] = Map(
+  val DefaultConfigs: Map[String, AnyRef] = Map(
     "hbase.zookeeper.quorum" -> "localhost",
     "hbase.table.name" -> "s2graph",
     "hbase.table.compression.algorithm" -> "gz",
     "phase" -> "dev",
-    "async.hbase.client.flush.interval" -> java.lang.Short.valueOf(DEFAULT_CLIENT_FLUSH_INTERVAL),
-    "hbase.client.operation.timeout" -> java.lang.Integer.valueOf(DEFAULT_CLIENT_TIMEOUT),
+    "async.hbase.client.flush.interval" -> java.lang.Short.valueOf(DefaultClientFlushInterval),
+    "hbase.client.operation.timeout" -> java.lang.Integer.valueOf(DefaultClientTimeout),
     "db.default.driver" -> "com.mysql.jdbc.Driver",
     "db.default.url" -> "jdbc:mysql://localhost:3306/graph_dev",
     "db.default.password" -> "graph",
     "db.default.user" -> "graph",
-    "cache.max.size" -> java.lang.Integer.valueOf(DEFAULT_CACHE_MAX_SIZE),
+    "cache.max.size" -> java.lang.Integer.valueOf(DefaultCacheMaxSize),
     "cache.ttl.seconds" -> java.lang.Integer.valueOf(60))
 
-  var config: Config = ConfigFactory.parseMap(DEFAULT_CONFIGS)
+  var config: Config = ConfigFactory.parseMap(DefaultConfigs)
   var executionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1))
 
   var hbaseConfig: org.apache.hadoop.conf.Configuration = HBaseConfiguration.create()
   var storageExceptionCount = 0L
-  var singleGetTimeout = DEFAULT_CLIENT_TIMEOUT
-  var clientFlushInterval = DEFAULT_CLIENT_FLUSH_INTERVAL
-  val DEFAULT_SCORE = 1.0
+  var singleGetTimeout = DefaultClientTimeout
+  var clientFlushInterval = DefaultClientFlushInterval
+  
 
   lazy val cache = CacheBuilder.newBuilder()
-    .maximumSize(DEFAULT_CACHE_MAX_SIZE)
+    .maximumSize(DefaultCacheMaxSize)
     .build[java.lang.Integer, QueryResult]()
 
   lazy val vertexCache = CacheBuilder.newBuilder()
-    .maximumSize(DEFAULT_CACHE_MAX_SIZE)
+    .maximumSize(DefaultCacheMaxSize)
     .build[java.lang.Integer, Option[Vertex]]()
 
   /**
@@ -82,7 +82,7 @@ object Graph {
     val conf = HBaseConfiguration.create()
 
     for {
-      (k, v) <- DEFAULT_CONFIGS if !config.hasPath(k)
+      (k, v) <- DefaultConfigs if !config.hasPath(k)
     } {
       conf.set(k, v.toString)
     }
@@ -109,7 +109,7 @@ object Graph {
 
     ExceptionHandler.apply(config)
 
-    DEFAULT_CONFIGS.foreach { case (k, v) =>
+    DefaultConfigs.foreach { case (k, v) =>
       logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
       println(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
     }
