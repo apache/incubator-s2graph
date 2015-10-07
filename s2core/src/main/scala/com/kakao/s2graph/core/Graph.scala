@@ -250,7 +250,7 @@ object Graph {
     Try {
       if (q.steps.isEmpty) {
         // TODO: this should be get vertex query.
-        Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.empty)))
+        Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.Empty)))
       } else {
         val startQueryResultLs = QueryResult.fromVertices(q, stepIdx = 0, q.steps.head.queryParams, q.vertices)
         q.steps.zipWithIndex.foldLeft(Future.successful(startQueryResultLs)) { case (acc, (_, idx)) =>
@@ -260,7 +260,7 @@ object Graph {
     } recover {
       case e: Exception =>
         logger.error(s"getEdgesAsync: $e", e)
-        Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.empty)))
+        Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.Empty)))
     } get
   }
 
@@ -351,7 +351,7 @@ object Graph {
     implicit val ex = executionContext
 
     val prevStepOpt = if (stepIdx > 0) Option(q.steps(stepIdx - 1)) else None
-    val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(QueryParam.defaultThreshold)
+    val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(QueryParam.DefaultThreshold)
     val prevStepLimit = prevStepOpt.map(_.nextStepLimit).getOrElse(-1)
     val step = q.steps(stepIdx)
     val alreadyVisited =
@@ -390,8 +390,8 @@ object Graph {
       getsWithQueryParams.map { case (vertexId, get, queryParam) => queryParam }
     }
     val fallback = new util.ArrayList(queryParams.map(param => QueryResult(q, stepIdx, param)))
-    val deffered = fetchEdgesLs(prevStepTgtVertexIdEdges, currentStepRequestLss, q, stepIdx)
-    val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deffered)
+    val deferred = fetchEdgesLs(prevStepTgtVertexIdEdges, currentStepRequestLss, q, stepIdx)
+    val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deferred)
 
     filterEdges(deferredToFuture(grouped)(fallback), q, stepIdx, alreadyVisited)
   }
@@ -668,7 +668,7 @@ object Graph {
   }
 
   /**
-   * O(E), maynot feasable
+   * O(E), maynot feasible
    */
 
   def deleteVerticesAll(vertices: List[Vertex]): Future[Boolean] = {
@@ -765,9 +765,9 @@ object Graph {
   }
 
 
-  def mutateElements(elemnents: Seq[GraphElement]): Future[Seq[Boolean]] = {
+  def mutateElements(elements: Seq[GraphElement]): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
-    val futures = elemnents.map { element =>
+    val futures = elements.map { element =>
       element match {
         case edge: Edge => mutateEdge(edge)
         case vertex: Vertex => mutateVertex(vertex)
@@ -793,8 +793,8 @@ object Graph {
 
   /**
    * when how from to what direction (meta info key:value)
-   * ex) timestamp insert shon sol talk_friend directed/undirected propperties
-   * ex) timestamp insert shon talk_user_id propperties
+   * ex) timestamp insert shon sol talk_friend directed/undirected properties
+   * ex) timestamp insert shon talk_user_id properties
    *
    */
   def toGraphElement(s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] = Try {

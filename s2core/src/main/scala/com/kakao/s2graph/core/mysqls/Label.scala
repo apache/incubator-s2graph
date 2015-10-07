@@ -170,7 +170,7 @@ object Label extends Model[Label] {
 
           if (indices.isEmpty) {
             // make default index with _PK, _timestamp, 0
-            LabelIndex.findOrInsert(createdId, LabelIndex.defaultName, LabelIndex.defaultMetaSeqs.toList, "none")
+            LabelIndex.findOrInsert(createdId, LabelIndex.DefaultName, LabelIndex.DefaultMetaSeqs.toList, "none")
           } else {
             indices.foreach { index =>
               val metaSeq = index.propNames.map { name => labelMetaMap(name) }
@@ -254,7 +254,7 @@ case class Label(id: Option[Int], label: String,
   lazy val tgtColumn = ServiceColumn.find(tgtServiceId, tgtColumnName).getOrElse(throw ModelNotFoundException("Target column not found"))
 
   lazy val direction = if (isDirected) "out" else "undirected"
-  lazy val defaultIndex = LabelIndex.findByLabelIdAndSeq(id.get, LabelIndex.defaultSeq)
+  lazy val defaultIndex = LabelIndex.findByLabelIdAndSeq(id.get, LabelIndex.DefaultSeq)
 
   //TODO: Make sure this is correct
   lazy val indices = LabelIndex.findByLabelIdAll(id.get, useCache = true)
