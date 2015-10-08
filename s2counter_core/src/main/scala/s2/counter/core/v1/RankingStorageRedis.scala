@@ -17,7 +17,7 @@ import scala.util.{Failure, Success}
 /**
  * Created by hsleep(honeysleep@gmail.com) on 15. 6. 22..
  */
-class RankingStorageV1(config: Config) extends RankingStorage {
+class RankingStorageRedis(config: Config) extends RankingStorage {
   private[counter] val log = LoggerFactory.getLogger(this.getClass)
   private[counter] val withRedis = new WithRedis(config)
 

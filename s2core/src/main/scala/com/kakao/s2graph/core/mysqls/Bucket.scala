@@ -27,7 +27,7 @@ object Bucket extends Model[Bucket] {
   def finds(experimentId: Int)(implicit session: DBSession = AutoSession): List[Bucket] = {
     val cacheKey = "experimentId=" + experimentId
     withCaches(cacheKey) {
-      sql"""select * from buckets where experiment_id = ${experimentId}"""
+      sql"""select * from buckets where experiment_id = $experimentId"""
         .map { rs => Bucket(rs) }.list().apply()
     }
   }
@@ -37,19 +37,34 @@ object Bucket extends Model[Bucket] {
     if (range.length == 2) Option(range.head.toInt, range.last.toInt)
     else None
   }
+
+  def findByImpressionId(impressionId: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[Bucket] = {
+    val cacheKey = "impressionId=" + impressionId
+    val sql = sql"""select * from buckets where impression_id=$impressionId"""
+      .map { rs => Bucket(rs)}
+    if (useCache) {
+      withCache(cacheKey) {
+        sql.single().apply()
+      }
+    } else {
+      sql.single().apply()
+    }
+  }
 }
 
 case class Bucket(id: Option[Int],
                   experimentId: Int,
                   uuidMods: String,
                   trafficRatios: String,
-                  httpVerb: String, apiPath: String,
-                  requestBody: String, timeout: Int, impressionId: String,
+                  httpVerb: String,
+                  apiPath: String,
+                  requestBody: String,
+                  timeout: Int,
+                  impressionId: String,
                   isGraphQuery: Boolean = true) {
 
   import Bucket._
 
   lazy val uuidRangeOpt = toRange(uuidMods)
   lazy val trafficRangeOpt = toRange(trafficRatios)
-
 }

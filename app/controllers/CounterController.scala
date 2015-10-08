@@ -12,7 +12,7 @@ import play.api.mvc.{Action, Controller, Request}
 import s2.config.S2CounterConfig
 import s2.counter.core.TimedQualifier.IntervalUnit
 import s2.counter.core._
-import s2.counter.core.v1.{ExactStorageHBaseV1, RankingStorageV1}
+import s2.counter.core.v1.{ExactStorageAsyncHBase, RankingStorageRedis}
 import s2.counter.core.v2.{ExactStorageGraph, RankingStorageGraph}
 import s2.models.Counter.ItemType
 import s2.models.{Counter, CounterModel}
@@ -31,11 +31,11 @@ object CounterController extends Controller {
   val s2config = new S2CounterConfig(config)
 
   private val exactCounterMap = Map(
-    s2.counter.VERSION_1 -> new ExactCounter(config, new ExactStorageHBaseV1(config)),
+    s2.counter.VERSION_1 -> new ExactCounter(config, new ExactStorageAsyncHBase(config)),
     s2.counter.VERSION_2 -> new ExactCounter(config, new ExactStorageGraph(config))
   )
   private val rankingCounterMap = Map(
-    s2.counter.VERSION_1 -> new RankingCounter(config, new RankingStorageV1(config)),
+    s2.counter.VERSION_1 -> new RankingCounter(config, new RankingStorageRedis(config)),
     s2.counter.VERSION_2 -> new RankingCounter(config, new RankingStorageGraph(config))
   )
 
@@ -56,6 +56,8 @@ object CounterController extends Controller {
         val autoComb = (body \ "autoComb").asOpt[Boolean].getOrElse(true)
         val dimension = (body \ "dimension").asOpt[String].getOrElse("")
         val useProfile = (body \ "useProfile").asOpt[Boolean].getOrElse(false)
+        val bucketImpId = (body \ "bucketImpId").asOpt[String]
+
         val useExact = (body \ "useExact").asOpt[Boolean].getOrElse(true)
         val useRank = (body \ "useRank").asOpt[Boolean].getOrElse(true)
 
@@ -108,7 +110,7 @@ object CounterController extends Controller {
             ItemType.withName(strItemType.toUpperCase)
         }
         val policy = Counter(useFlag = true, version, service, action, itemType, autoComb = autoComb, dimension,
-          useProfile = useProfile, useRank = useRank, ttl, dailyTtl, Some(hbaseTable), intervalUnit,
+          useProfile = useProfile, bucketImpId, useRank = useRank, ttl, dailyTtl, Some(hbaseTable), intervalUnit,
           rateActionId, rateBaseId, rateThreshold)
 
         // prepare exact storage

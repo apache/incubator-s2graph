@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory
 import s2.config.S2CounterConfig
 import s2.counter.core.ExactCounter.ExactValueMap
 import s2.counter.core._
-import s2.helper.{Management, WithAsyncHBaseNew, WithHBaseNew}
+import s2.helper.{Management, WithAsyncHBase, WithHBase}
 import s2.models.Counter
 import s2.models.Counter.ItemType
 
@@ -23,19 +23,15 @@ import scala.util.{Failure, Success}
 /**
  * Created by hsleep(honeysleep@gmail.com) on 15. 8. 19..
  */
-class ExactStorageHBaseV1(config: Config) extends ExactStorage {
-  import ExactStorageHBaseV1._
-  import TimedQualifier.IntervalUnit._
+class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
+  import ExactStorageHBase._
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  val intervalsMap = Map(MINUTELY -> ColumnFamily.SHORT, HOURLY -> ColumnFamily.SHORT,
-    DAILY -> ColumnFamily.LONG, MONTHLY -> ColumnFamily.LONG, TOTAL -> ColumnFamily.LONG)
-
   lazy val s2config = new S2CounterConfig(config)
 
-  private[counter] val withHBase = new WithHBaseNew(config)
-  private[counter] val withAsyncHBase = new WithAsyncHBaseNew(config)
+  private[counter] val withHBase = new WithHBase(config)
+  private[counter] val withAsyncHBase = new WithAsyncHBase(config)
   private[counter] val hbaseManagement = new Management(config)
 
   private def getTableName(policy: Counter): String = {
@@ -308,16 +304,4 @@ class ExactStorageHBaseV1(config: Config) extends ExactStorage {
   override def destroy(policy: Counter): Unit = {
 
   }
-}
-
-object ExactStorageHBaseV1 {
-  object ColumnFamily extends Enumeration {
-    type ColumnFamily = Value
-
-    val SHORT = Value("s")
-    val LONG = Value("l")
-  }
-
-  val blobCF = ColumnFamily.LONG.toString.getBytes
-  val blobColumn = "b".getBytes
 }

@@ -14,7 +14,7 @@ import scala.util.Try
 /**
  * Created by hsleep(honeysleep@gmail.com) on 15. 6. 19..
  */
-class WithHBaseNew(config: Config) {
+class WithHBase(config: Config) {
   lazy val logger = LoggerFactory.getLogger(this.getClass)
   lazy val s2config = new S2CounterConfig(config)
 
@@ -58,9 +58,9 @@ class WithHBaseNew(config: Config) {
       try {
         op(table)
       } catch {
-        case e: Throwable =>
-          logger.error(s"Operation to table($tableName) is failed: ${e.getMessage}")
-          throw e
+        case ex: Exception =>
+          logger.error(s"$ex: Operation to table($tableName) is failed")
+          throw ex
       } finally {
         table.close()
       }
@@ -68,7 +68,7 @@ class WithHBaseNew(config: Config) {
   }
 }
 
-case class WithAsyncHBaseNew(config: Config) {
+case class WithAsyncHBase(config: Config) {
   lazy val logger = LoggerFactory.getLogger(this.getClass)
   lazy val s2config = new S2CounterConfig(config)
 
@@ -83,7 +83,6 @@ case class WithAsyncHBaseNew(config: Config) {
   lazy val client: HBaseClient = new HBaseClient(zkQuorum)
 
   val writeBufferSize = 1024 * 1024 * 2   // 2MB
-
 
   def apply[T](op: HBaseClient => Deferred[T]): Future[T] = {
     val promise = Promise[T]()

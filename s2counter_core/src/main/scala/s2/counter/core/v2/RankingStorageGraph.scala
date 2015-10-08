@@ -42,6 +42,15 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
     Some(RankingResult(0d, values))
   }
 
+  override def getTopK(keys: Seq[RankingKey], k: Int): Seq[(RankingKey, RankingResult)] = {
+    for {
+      key <- keys
+      result <- getTopK(key, k)
+    } yield {
+      (key, result)
+    }
+  }
+
   override def update(key: RankingKey, value: RankingValueMap, k: Int): Unit = {
     update(Seq((key, value, k)))
   }
@@ -62,8 +71,10 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
       }
     }
     if (!respLs.forall(resp => resp.isSuccess)) {
-      log.error(s"$respLs")
-      throw new RuntimeException("update failed.")
+      val keys = values.map(_._1)
+      keys.zip(respLs).filter(_._2.isError).foreach { case (key, resp) =>
+        log.error(s"$key: $resp")
+      }
     }
   }
 
@@ -225,10 +236,6 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
         throw new RuntimeException(s"$json ${response.code} ${response.body}")
       }
     }
-  }
-
-  override def getTopK(keys: Seq[RankingKey], k: Int): Seq[(RankingKey, RankingResult)] = {
-    Nil
   }
 
   override def destroy(policy: Counter): Unit = {

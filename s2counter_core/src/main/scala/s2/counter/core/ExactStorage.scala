@@ -14,11 +14,11 @@ trait ExactStorage {
           items: Seq[String],
           timeRange: Seq[(TimedQualifier, TimedQualifier)],
           dimQuery: Map[String, Set[String]])
-         (implicit ex: ExecutionContext): Future[Seq[FetchedCountsGrouped]]
+         (implicit ec: ExecutionContext): Future[Seq[FetchedCountsGrouped]]
   // for query exact qualifier
   def get(policy: Counter,
           queries: Seq[(ExactKeyTrait, Seq[ExactQualifier])])
-         (implicit ex: ExecutionContext): Future[Seq[FetchedCounts]]
+         (implicit ec: ExecutionContext): Future[Seq[FetchedCounts]]
   def update(policy: Counter, counts: Seq[(ExactKeyTrait, ExactValueMap)]): Map[ExactKeyTrait, ExactValueMap]
   def delete(policy: Counter, keys: Seq[ExactKeyTrait]): Unit
   def insertBlobValue(policy: Counter, keys: Seq[BlobExactKey]): Seq[Boolean]

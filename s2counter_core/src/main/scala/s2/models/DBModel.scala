@@ -16,7 +16,7 @@ object DBModel {
         if (!initialized) {
           val s2Config = new S2CounterConfig(config)
           Class.forName(s2Config.DB_DEFAULT_DRIVER)
-          val settings = ConnectionPoolSettings(initialSize = 0, maxSize = 1, connectionTimeoutMillis = 5000L, validationQuery = "select 1;")
+          val settings = ConnectionPoolSettings(initialSize = 0, maxSize = 10, connectionTimeoutMillis = 5000L, validationQuery = "select 1;")
 
           ConnectionPool.singleton(s2Config.DB_DEFAULT_URL, s2Config.DB_DEFAULT_USER, s2Config.DB_DEFAULT_PASSWORD, settings)
           initialized = true

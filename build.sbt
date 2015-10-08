@@ -4,7 +4,8 @@ lazy val commonSettings = Seq(
   organization := "com.kakao.s2graph",
   version := "0.11.0-SNAPSHOT",
   crossScalaVersions := Seq("2.11.7"),
-  scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xexperimental"),
+  scalacOptions ++= Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xexperimental"),
+  scalacOptions in Test ++= Seq("-Yrangepos"),
   javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map{ case (key, value) => "-D" + key + "=" + value }.toSeq,
   testOptions in Test += Tests.Argument("-oDF"),
   parallelExecution in Test := false,
@@ -30,6 +31,9 @@ lazy val loader = project.dependsOn(s2core, spark)
   .settings(commonSettings: _*)
 
 lazy val s2counter_core = project.dependsOn(s2core)
+  .settings(commonSettings: _*)
+
+lazy val s2counter_loader = project.dependsOn(s2counter_core, spark)
   .settings(commonSettings: _*)
 
 libraryDependencies ++= Seq(
