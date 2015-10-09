@@ -28,7 +28,7 @@ activator run
 Finally, join the [mailing list](https://groups.google.com/forum/#!forum/s2graph)!
 
 
-**Your First S2Graph**
+**Your First Graph**
 ==
 
 As a toy problem, let's try to create the backend for a simple timeline of a new social network service. (Think of a simplified version of Facebook's Timeline. :stuck_out_tongue_winking_eye:)
