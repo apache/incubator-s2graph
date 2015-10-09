@@ -4,7 +4,7 @@
 
 **S2Graph** is a **graph database** designed to handle transactional graph processing at scale. Its REST API allows you to store, manage and query relational information using **edge** and **vertex** representations in a **fully asynchronous** and **non-blocking** manner. This document covers some basic concepts and terms of S2Graph as well as help you get a feel for the S2Graph API.
 
-** Quick Start with Vagrant **
+**Quick Start with Vagrant**
 ==
 
 S2Graph comes with a Vagrantfile that lets you spin up a virtual environment for test and development purposes.
@@ -28,7 +28,7 @@ activator run
 Finally, join the [mailing list](https://groups.google.com/forum/#!forum/s2graph)!
 
 
-** Your First S2Graph **
+**Your First S2Graph**
 ==
 
 As a toy problem, let's try to create the backend for a simple timeline of a new social network service. (Think of a simplified version of Facebook's Timeline. :stuck_out_tongue_winking_eye:)
