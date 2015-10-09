@@ -195,7 +195,7 @@ You will be able to manage "friends" and "posts" of a user with simple S2Graph q
   '
   ```
 
-The above example is by no means a full blown social network timeline, but it gives you an idea on how to represent, store and query relations with S2Graph.
+The above example is by no means a full-blown social network timeline, but it gives you an idea on how to represent, store and query relations with S2Graph.
 
 If you'd like to know more about S2Graph and its powerful APIs, please continue to the [S2Graph API document](https://www.gitbook.com/book/steamshon/s2graph-book)!
 
