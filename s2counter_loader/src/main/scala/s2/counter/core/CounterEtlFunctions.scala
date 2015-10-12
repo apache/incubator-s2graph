@@ -76,11 +76,13 @@ object CounterEtlFunctions extends Logging {
   
   def checkPolicyAndMergeDimension(service: String, action: String, items: List[CounterEtlItem]): List[CounterEtlItem] = {
     counterModel.findByServiceAction(service, action).map { policy =>
-      policy.useProfile && policy.bucketImpId.nonEmpty match {
-        case true =>
-          DimensionProps.mergeDimension(policy, items)
-        case _ =>
-          items
+      if (policy.useProfile) {
+        policy.bucketImpId match {
+          case Some(_) => DimensionProps.mergeDimension(policy, items)
+          case None => Nil
+        }
+      } else {
+        items
       }
     }.getOrElse(Nil)
   }
