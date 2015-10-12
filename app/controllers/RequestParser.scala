@@ -160,8 +160,8 @@ trait RequestParser extends JSONParser {
             case _ => List.empty[JsValue]
           }
           val nextStepScoreThreshold = step match {
-            case obj: JsObject => (obj \ "nextStepThreshold").asOpt[Double].getOrElse(QueryParam.defaultThreshold)
-            case _ => QueryParam.defaultThreshold
+            case obj: JsObject => (obj \ "nextStepThreshold").asOpt[Double].getOrElse(QueryParam.DefaultThreshold)
+            case _ => QueryParam.DefaultThreshold
           }
           val nextStepLimit = step match {
             case obj: JsObject => (obj \ "nextStepLimit").asOpt[Int].getOrElse(-1)
@@ -233,7 +233,7 @@ trait RequestParser extends JSONParser {
       val labelWithDir = LabelWithDirection(label.id.get, direction)
       val indexNameOpt = (labelGroup \ "index").asOpt[String]
       val indexSeq = indexNameOpt match {
-        case None => label.indexSeqsMap.get(scorings.map(kv => kv._1)).map(_.seq).getOrElse(LabelIndex.defaultSeq)
+        case None => label.indexSeqsMap.get(scorings.map(kv => kv._1)).map(_.seq).getOrElse(LabelIndex.DefaultSeq)
         case Some(indexName) => label.indexNameMap.get(indexName).map(_.seq).getOrElse(throw new RuntimeException("cannot find index"))
       }
       val where = extractWhere(labelMap, labelGroup)
@@ -251,7 +251,7 @@ trait RequestParser extends JSONParser {
         val timeUnit = (jsVal \ "timeUnit").asOpt[Double].getOrElse(60 * 60 * 24.0)
         TimeDecay(initial, decayRate, timeUnit)
       }
-      val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(QueryParam.defaultThreshold)
+      val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(QueryParam.DefaultThreshold)
       // TODO: refactor this. dirty
       val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
 

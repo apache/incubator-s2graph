@@ -124,7 +124,7 @@ trait TestCommonWithModels {
 
   lazy val dir = GraphUtil.directions("out")
   lazy val op = GraphUtil.operations("insert")
-  lazy val labelOrderSeq = LabelIndex.defaultSeq
+  lazy val labelOrderSeq = LabelIndex.DefaultSeq
 
   lazy val labelWithDir = LabelWithDirection(label.id.get, dir)
   lazy val labelWithDirV2 = LabelWithDirection(labelV2.id.get, dir)

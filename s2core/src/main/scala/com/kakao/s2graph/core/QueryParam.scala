@@ -66,9 +66,9 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
 }
 
 object EdgeTransformer {
-  val defaultTransformField = Json.arr("_to")
-  val defaultTransformFieldAsList = Json.arr("_to").as[List[String]]
-  val defaultJson = Json.arr(defaultTransformField)
+  val DefaultTransformField = Json.arr("_to")
+  val DefaultTransformFieldAsList = Json.arr("_to").as[List[String]]
+  val DefaultJson = Json.arr(DefaultTransformField)
 }
 
 /**
@@ -76,7 +76,7 @@ object EdgeTransformer {
  * @param jsValue
  */
 case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
-  val delimiter = "\\$"
+  val Delimiter = "\\$"
   val targets = jsValue.asOpt[List[List[String]]].toList
   val fieldsLs = for {
     target <- targets
@@ -87,7 +87,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
               values: List[InnerValLike],
               nextStepOpt: Option[Step]): Seq[InnerValLike] = {
 
-    val tokens = fmt.split(delimiter)
+    val tokens = fmt.split(Delimiter)
     val mergedStr = tokens.zip(values).map { case (prefix, innerVal) => prefix + innerVal.toString }.mkString
     //    logger.error(s"${tokens.toList}, ${values}, $mergedStr")
     //    println(s"${tokens.toList}, ${values}, $mergedStr")
@@ -150,7 +150,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
         }
       }
     } yield {
-        if (fields == EdgeTransformer.defaultTransformFieldAsList) edge
+        if (fields == EdgeTransformer.DefaultTransformFieldAsList) edge
         else edge.updateTgtVertex(innerVal).copy(originalEdgeOpt = Option(edge))
       }
 
@@ -221,8 +221,8 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
 }
 
 object QueryParam {
-  lazy val empty = QueryParam(LabelWithDirection(0, 0))
-  lazy val defaultThreshold = Double.MinValue
+  lazy val Empty = QueryParam(LabelWithDirection(0, 0))
+  lazy val DefaultThreshold = Double.MinValue
 }
 
 case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System.currentTimeMillis()) {
@@ -232,8 +232,8 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   import Query.DuplicatePolicy._
 
   val label = Label.findById(labelWithDir.labelId)
-  val defaultKey = LabelIndex.defaultSeq
-  val fullKey = defaultKey
+  val DefaultKey = LabelIndex.DefaultSeq
+  val fullKey = DefaultKey
 
   var labelOrderSeq = fullKey
 
@@ -267,9 +267,9 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var includeDegree = false
   var tgtVertexInnerIdOpt: Option[InnerValLike] = None
   var cacheTTLInMillis: Long = -1L
-  var threshold = QueryParam.defaultThreshold
+  var threshold = QueryParam.DefaultThreshold
   var timeDecay: Option[TimeDecay] = None
-  var transformer: EdgeTransformer = EdgeTransformer(this, EdgeTransformer.defaultJson)
+  var transformer: EdgeTransformer = EdgeTransformer(this, EdgeTransformer.DefaultJson)
   var scorePropagateOp: String = "multiply"
   //  var excludeBy: Option[String] = None
 

@@ -8,10 +8,10 @@ import play.api.libs.json.Json
 import scalikejdbc._
 
 object LabelIndex extends Model[LabelIndex] {
-  val defaultName = "_PK"
-  val defaultMetaSeqs = Seq(LabelMeta.timeStampSeq)
-  val defaultSeq = 1.toByte
-  val maxOrderSeq = 7
+  val DefaultName = "_PK"
+  val DefaultMetaSeqs = Seq(LabelMeta.timeStampSeq)
+  val DefaultSeq = 1.toByte
+  val MaxOrderSeq = 7
 
   def apply(rs: WrappedResultSet): LabelIndex = {
     LabelIndex(rs.intOpt("id"), rs.int("label_id"), rs.string("name"), rs.byte("seq"),
@@ -55,7 +55,7 @@ object LabelIndex extends Model[LabelIndex] {
       case None =>
         val orders = findByLabelIdAll(labelId, false)
         val seq = (orders.size + 1).toByte
-        assert(seq <= maxOrderSeq)
+        assert(seq <= MaxOrderSeq)
         val createdId = insert(labelId, indexName, seq, metaSeqs, formulars)
         val cacheKeys = List(s"labelId=$labelId:seq=$seq",
           s"labelId=$labelId:seqs=$metaSeqs", s"labelId=$labelId:seq=$seq", s"id=$createdId")
