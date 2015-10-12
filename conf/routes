@@ -4,29 +4,34 @@
 
 
 # publish
-#POST   /publish/:topic                                                         controllers.PublishController.publish(topic)
+#POST   /publish/:topic                                                        controllers.PublishController.publish(topic)
 POST   /publish/:topic                                                         controllers.PublishController.mutateBulk(topic)
 POST   /publishOnly/:topic                                                     controllers.PublishController.publishOnly(topic)
 
 #### Health Check
-#GET    /health_check.html                                                      controllers.Assets.at(path="/public", file="health_check.html")
+#GET    /health_check.html                                                     controllers.Assets.at(path="/public", file="health_check.html")
 GET    /health_check.html                                                      controllers.ApplicationController.healthCheck()
 PUT    /health_check/:isHealthy                                                controllers.ApplicationController.updateHealthCheck(isHealthy: Boolean)
 
 ## Edge
 POST   /graphs/edges/insert                                                    controllers.EdgeController.inserts()
+POST   /graphs/edges/insertWithWait                                            controllers.EdgeController.insertsWithWait()
 POST   /graphs/edges/insertBulk                                                controllers.EdgeController.insertsBulk()
 POST   /graphs/edges/delete                                                    controllers.EdgeController.deletes()
+POST   /graphs/edges/deleteWithWait                                            controllers.EdgeController.deletesWithWait()
 POST   /graphs/edges/deleteAll                                                 controllers.EdgeController.deleteAll()
 POST   /graphs/edges/update                                                    controllers.EdgeController.updates()
+POST   /graphs/edges/updateWithWait                                            controllers.EdgeController.updatesWithWait()
 POST   /graphs/edges/increment                                                 controllers.EdgeController.increments()
 POST   /graphs/edges/incrementCount                                            controllers.EdgeController.incrementCounts()
 POST   /graphs/edges/bulk                                                      controllers.EdgeController.mutateBulk()
 
 ## Vertex
 POST   /graphs/vertices/insert                                                 controllers.VertexController.inserts()
+POST   /graphs/vertices/insertWithWait                                         controllers.VertexController.insertsWithWait()
 POST   /graphs/vertices/insert/:serviceName/:columnName                        controllers.VertexController.insertsSimple(serviceName, columnName)
 POST   /graphs/vertices/delete                                                 controllers.VertexController.deletes()
+POST   /graphs/vertices/deleteWithWait                                         controllers.VertexController.deletesWithWait()
 POST   /graphs/vertices/delete/:serviceName/:columnName                        controllers.VertexController.deletesSimple(serviceName, columnName)
 POST   /graphs/vertices/deleteAll                                              controllers.VertexController.deletesAll()
 POST   /graphs/vertices/deleteAll/:serviceName/:columnName                     controllers.VertexController.deletesAllSimple(serviceName, columnName)
@@ -47,7 +52,7 @@ GET    /graphs/getEdge/:srcId/:tgtId/:labelName/:direction                     c
 
 
 ### SELECT Vertices
-#POST   /graphs/getVertex                                                       controllers.QueryController.getVertex()
+#POST   /graphs/getVertex                                                      controllers.QueryController.getVertex()
 POST   /graphs/getVertices                                                     controllers.QueryController.getVertices()
 
 
