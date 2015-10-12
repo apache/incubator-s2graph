@@ -252,7 +252,7 @@ object Graph {
         // TODO: this should be get vertex query.
         Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.Empty)))
       } else {
-        val startQueryResultLs = QueryResult.fromVertices(q, stepIdx = 0, q.steps.head.queryParams, q.vertices)
+        val startQueryResultLs = QueryResult.fromVertices(q)
         q.steps.zipWithIndex.foldLeft(Future.successful(startQueryResultLs)) { case (acc, (_, idx)) =>
           getEdgesAsyncWithRank(acc, q, idx)
         }
