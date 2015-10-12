@@ -5,7 +5,6 @@ import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.Label
 import com.kakao.s2graph.logger
 import config.Config
-import play.api.Logger
 import play.api.libs.json._
 import play.api.mvc.{Controller, Result}
 
@@ -19,46 +18,38 @@ object EdgeController extends Controller with RequestParser {
 
   private val maxLength = 1024 * 1024 * 16
 
-  def tryMutates(jsValue: JsValue, operation: String): Future[Result] = {
+  def tryMutates(jsValue: JsValue, operation: String, withWait: Boolean = false): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
+
     else {
       try {
         logger.debug(s"$jsValue")
         val edges = toEdges(jsValue, operation)
-        for {edge <- edges} {
-          if (edge.isAsync) {
+        for ( edge <- edges ) {
+          if (edge.isAsync)
             ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC_ASYNC, edge, None))
-          } else {
+          else
             ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC, edge, None))
-          }
         }
 
         val edgesToStore = edges.filterNot(e => e.isAsync)
 
-        val rets = for {
-          element <- edgesToStore
-        } yield {
-          QueueActor.router ! element
-          true
-
+        if (withWait) {
+          val rets = Graph.mutateEdges(edgesToStore, withWait = true)
+          rets.map(Json.toJson(_)).map(jsonResponse(_))
+        } else {
+          val rets = edgesToStore.map { edge => QueueActor.router ! edge ; true }
+          Future.successful(jsonResponse(Json.toJson(rets)))
         }
-        Future.successful(jsonResponse(Json.toJson(rets)))
       } catch {
         case e: GraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
-        case e: Throwable =>
+        case e: Exception =>
           logger.error(s"mutateAndPublish: $e", e)
           Future.successful(InternalServerError(s"${e.getStackTrace}"))
       }
     }
   }
 
-  //  private[controllers] def aggregateElements(elements: Seq[GraphElement], originalString: Seq[Option[String]]): Future[Seq[Boolean]] = {
-  //    elements.foreach {
-  //
-  //    }
-  //    KafkaAggregatorActor.enqueue(Protocol.elementToKafkaMessage(Config.KAFKA_LOG_TOPIC, element, originalString))
-  //    Graph.mutateElements(elements)
-  //  }
   def mutateAndPublish(str: String): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
 
@@ -110,6 +101,10 @@ object EdgeController extends Controller with RequestParser {
     tryMutates(request.body, "insert")
   }
 
+  def insertsWithWait() = withHeaderAsync(jsonParser) { request =>
+    tryMutates(request.body, "insert", withWait = true)
+  }
+
   def insertsBulk() = withHeaderAsync(jsonParser) { request =>
     tryMutates(request.body, "insertBulk")
   }
@@ -118,8 +113,16 @@ object EdgeController extends Controller with RequestParser {
     tryMutates(request.body, "delete")
   }
 
+  def deletesWithWait() = withHeaderAsync(jsonParser) { request =>
+    tryMutates(request.body, "delete", withWait = true)
+  }
+
   def updates() = withHeaderAsync(jsonParser) { request =>
     tryMutates(request.body, "update")
+  }
+
+  def updatesWithWait() = withHeaderAsync(jsonParser) { request =>
+    tryMutates(request.body, "update", withWait = true)
   }
 
   def increments() = withHeaderAsync(jsonParser) { request =>

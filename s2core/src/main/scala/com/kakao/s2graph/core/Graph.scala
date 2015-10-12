@@ -617,48 +617,53 @@ object Graph {
     Future.sequence(futures).map { result => result.toList.flatten }
   }
 
-  def mutateEdge(edge: Edge): Future[Boolean] = {
+  def mutateEdge(edge: Edge, withWait: Boolean = false): Future[Boolean] = {
     implicit val ex = this.executionContext
-    writeAsync(edge.label.hbaseZkAddr, Seq(edge).map(e => e.buildPutsAll())).map { rets =>
-      rets.forall(identity)
-    }
+
+    if (withWait)
+      writeAsyncWithWait(edge.label.hbaseZkAddr, Seq(edge).map(_.buildPutsAll())).map(_.forall(identity))
+    else
+      writeAsync(edge.label.hbaseZkAddr, Seq(edge).map(_.buildPutsAll())).map(_.forall(identity))
   }
 
-  def mutateEdges(edges: Seq[Edge]): Future[Seq[Boolean]] = {
+  def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
-    val futures = edges.map { edge => mutateEdge(edge) }
+    val futures = edges.map { edge => mutateEdge(edge, withWait) }
+
     Future.sequence(futures)
   }
 
-  def mutateVertex(vertex: Vertex): Future[Boolean] = {
+  def mutateVertex(vertex: Vertex, withWait: Boolean = false): Future[Boolean] = {
     implicit val ex = this.executionContext
     if (vertex.op == GraphUtil.operations("delete")) {
-      deleteVertex(vertex)
+      deleteVertex(vertex, withWait)
     } else if (vertex.op == GraphUtil.operations("deleteAll")) {
-      //      throw new RuntimeException("Not yet supported")
       deleteVerticesAll(List(vertex)).onComplete {
         case Success(s) => logger.info(s"mutateVertex($vertex) for deleteAll successed.")
         case Failure(ex) => logger.error(s"mutateVertex($vertex) for deleteAll failed. $ex", ex)
       }
-      Future.successful(true)
+      Future.successful(true) // Ignore withWait parameter, because deleteAll operation may takes long time
     } else {
-      writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(v => v.buildPutsAll())).map { rets =>
-        rets.forall(identity)
-      }
+      if (withWait)
+        writeAsyncWithWait(vertex.hbaseZkAddr, Seq(vertex).map(_.buildPutsAll())).map(_.forall(identity))
+      else
+        writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(_.buildPutsAll())).map(_.forall(identity))
     }
   }
 
-  def mutateVertices(vertices: Seq[Vertex]): Future[Seq[Boolean]] = {
+  def mutateVertices(vertices: Seq[Vertex], withWait: Boolean = false): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
-    val futures = vertices.map { vertex => mutateVertex(vertex) }
+    val futures = vertices.map { vertex => mutateVertex(vertex, withWait) }
     Future.sequence(futures)
   }
 
-  private def deleteVertex(vertex: Vertex): Future[Boolean] = {
+  private def deleteVertex(vertex: Vertex, withWait: Boolean = false): Future[Boolean] = {
     implicit val ex = this.executionContext
-    writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(_.buildDeleteAsync())).map { rets =>
-      rets.forall(identity)
-    }
+
+    if (withWait)
+      writeAsyncWithWait(vertex.hbaseZkAddr, Seq(vertex).map(_.buildDeleteAsync())).map(_.forall(identity))
+    else
+      writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(_.buildDeleteAsync())).map(_.forall(identity))
   }
 
   private def deleteVertices(vertices: Seq[Vertex]): Future[Seq[Boolean]] = {
@@ -676,7 +681,7 @@ object Graph {
 
     val labelsMap = for {
       vertex <- vertices
-      label <- (Label.findBySrcColumnId(vertex.id.colId) ++ Label.findByTgtColumnId(vertex.id.colId))
+      label <- Label.findBySrcColumnId(vertex.id.colId) ++ Label.findByTgtColumnId(vertex.id.colId)
     } yield {
         label.id.get -> label
       }
