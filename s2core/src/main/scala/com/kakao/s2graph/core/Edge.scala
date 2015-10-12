@@ -30,7 +30,7 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
 
   //  logger.error(s"EdgeWithIndexInverted${this.toString}")
   val schemaVer = label.schemaVersion
-  lazy val rowKey = EdgeRowKey(VertexId.toSourceVertexId(srcVertex.id), labelWithDir, LabelIndex.defaultSeq, isInverted = true)(version = schemaVer)
+  lazy val rowKey = EdgeRowKey(VertexId.toSourceVertexId(srcVertex.id), labelWithDir, LabelIndex.DefaultSeq, isInverted = true)(version = schemaVer)
   lazy val qualifier = EdgeQualifierInverted(VertexId.toTargetVertexId(tgtVertex.id))(version = schemaVer)
   lazy val value = EdgeValueInverted(op, props.toList)(version = schemaVer)
   lazy val valueBytes = pendingEdgeOpt match {
