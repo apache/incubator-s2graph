@@ -1,7 +1,7 @@
 package com.kakao.s2graph.core
 
 
-import com.kakao.s2graph.core.GraphExceptions.{LabelAlreadyExistException, LabelNotExistException}
+import com.kakao.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNotExistException}
 import com.kakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types._
@@ -59,6 +59,12 @@ object Management extends JSONParser {
     }
   }
 
+  def updateHTable(labelName: String, newHTableName: String): Try[Int] = Try {
+    val targetLabel = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(s"Target label $labelName does not exist."))
+    if (targetLabel.hTableName == newHTableName) throw new InvalidHTableException(s"New HTable name is already in use for target label.")
+
+    Label.updateHTableName(targetLabel.label, newHTableName)
+  }
   /**
    * label
    */
