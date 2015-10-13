@@ -366,12 +366,11 @@ case class EdgeWriter(edge: Edge) {
   val op = edge.op
   val label = edge.label
   val labelWithDir = edge.labelWithDir
-  val (srcVertex, tgtVertex) = (edge.srcVertex, edge.tgtVertex)
 
   def fetchInvertedAsync(): Future[(QueryParam, Option[Edge])] = {
     val queryParam = QueryParam(labelWithDir)
 
-    Graph.getEdge(srcVertex, tgtVertex, queryParam, isInnerCall = true).map { case queryResult =>
+    Graph.getEdge(edge.srcVertex, edge.tgtVertex, queryParam, isInnerCall = true).map { queryResult =>
       (queryParam, queryResult.edgeWithScoreLs.headOption.map { case (e, _) => e })
     }
   }
