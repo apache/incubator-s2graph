@@ -109,16 +109,7 @@ object DimensionProps {
                 result <- results.headOption
                 props <- (result \ "props").asOpt[JsValue]
               } yield {
-                // make props value type to string
-                val newProps = for {
-                  (pk, pv) <- props.as[JsObject].fields
-                  v <- pv match {
-                    case JsString(s) => Some(s)
-                    case JsNumber(n) => Some(n.toString())
-                    case _ => None
-                  }
-                } yield pk -> v
-                Json.toJson(newProps.toMap)
+                props
               }
             case _ =>
               log.error(s"${resp.body}(${resp.status}}) item: $item")
