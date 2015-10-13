@@ -97,21 +97,21 @@ GET    /admin/labels/:serviceName                                              c
 #POST   /admin/swapLabel/:oldLabelName/:newLabelName                            controllers.AdminController.swapLabel(oldLabelName, newLabelName)
 #GET    /admin/reloadLabel/:labelName                                           controllers.AdminController.reloadLabel(labelName)
 #POST        /admin/getEdges                                                              controllers.AdminController.getEdges()
-POST        /graphs/copyLabel/:oldLabelName/:newLabelName                                controllers.AdminController.copyLabel(oldLabelName, newLabelName)
+POST   /graphs/copyLabel/:oldLabelName/:newLabelName                           controllers.AdminController.copyLabel(oldLabelName, newLabelName)
 POST   /graphs/renameLabel/:oldLabelName/:newLabelName                         controllers.AdminController.renameLabel(oldLabelName, newLabelName)
-PUT   /graphs/loadCache                                                        controllers.AdminController.loadCache()
+PUT    /graphs/loadCache                                                       controllers.AdminController.loadCache()
 
 
 # Counter API
-POST          /counter/v1/:service/:action                                  controllers.CounterController.createAction(service, action)
-GET           /counter/v1/:service/:action                                  controllers.CounterController.getAction(service, action)
-PUT           /counter/v1/:service/:action                                  controllers.CounterController.updateAction(service, action)
-DELETE        /counter/v1/:service/:action                                  controllers.CounterController.deleteAction(service, action)
-GET           /counter/v1/:service/:action/ranking                          controllers.CounterController.getRankingCountAsync(service, action)
-DELETE        /counter/v1/:service/:action/ranking                          controllers.CounterController.deleteRankingCount(service, action)
-GET           /counter/v1/:service/:action/:item                            controllers.CounterController.getExactCountAsync(service, action, item)
-PUT           /counter/v1/:service/:action/:item                            controllers.CounterController.incrementCount(service, action, item)
-POST          /counter/v1/mget                                              controllers.CounterController.getExactCountAsyncMulti()
+POST   /counter/v1/:service/:action                                            controllers.CounterController.createAction(service, action)
+GET    /counter/v1/:service/:action                                            controllers.CounterController.getAction(service, action)
+PUT    /counter/v1/:service/:action                                            controllers.CounterController.updateAction(service, action)
+DELETE /counter/v1/:service/:action                                            controllers.CounterController.deleteAction(service, action)
+GET    /counter/v1/:service/:action/ranking                                    controllers.CounterController.getRankingCountAsync(service, action)
+DELETE /counter/v1/:service/:action/ranking                                    controllers.CounterController.deleteRankingCount(service, action)
+GET    /counter/v1/:service/:action/:item                                      controllers.CounterController.getExactCountAsync(service, action, item)
+PUT    /counter/v1/:service/:action/:item                                      controllers.CounterController.incrementCount(service, action, item)
+POST   /counter/v1/mget                                                        controllers.CounterController.getExactCountAsyncMulti()
 
 # Experiment API
-POST     /graphs/experiment/:accessToken/:experimentName/:uuid                    controllers.ExperimentController.experiment(accessToken, experimentName, uuid)
+POST   /graphs/experiment/:accessToken/:experimentName/:uuid                   controllers.ExperimentController.experiment(accessToken, experimentName, uuid)
