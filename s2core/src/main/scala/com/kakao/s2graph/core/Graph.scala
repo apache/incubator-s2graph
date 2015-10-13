@@ -33,10 +33,6 @@ object Graph {
 
   var emptyKVs = new ArrayList[KeyValue]()
 
-  //  var shouldRunFromBytes = true
-  //  var shouldReturnResults = true
-  //  var shouldRunFetch = true
-  //  var shouldRunFilter = true
   val DefaultClientFlushInterval = 100.toShort
   val DefaultClientTimeout = 1000
   val DefaultCacheMaxSize = 10000
