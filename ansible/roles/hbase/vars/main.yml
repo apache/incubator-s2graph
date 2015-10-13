@@ -1,7 +1,0 @@
----
-hbase_release: 1.1.0.1
-hbase_archive: 'hbase-{{ hbase_release }}-bin.tar.gz'
-hbase_sha256: '414248386fcb6ee5d93866bfd489fb107cf7cf7412841576b28e29af9be66ca8'
-hbase_home_dir: '/home/vagrant/hbase-{{ hbase_release }}'
-hbase_data_dir: /data/hbase
-zookeeper_data_dir: /data/zk

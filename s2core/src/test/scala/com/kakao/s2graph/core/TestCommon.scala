@@ -22,7 +22,7 @@ trait TestCommon {
   val testLabelId = 1
   val testDir = GraphUtil.directions("out")
   val testOp = GraphUtil.operations("insert")
-  val testLabelOrderSeq = LabelIndex.defaultSeq
+  val testLabelOrderSeq = LabelIndex.DefaultSeq
   val testLabelWithDir = LabelWithDirection(testLabelId, testDir)
   val labelMeta = LabelMeta
 

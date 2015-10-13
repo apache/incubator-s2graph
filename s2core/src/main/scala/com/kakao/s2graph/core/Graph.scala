@@ -33,45 +33,41 @@ object Graph {
 
   var emptyKVs = new ArrayList[KeyValue]()
 
-  //  var shouldRunFromBytes = true
-  //  var shouldReturnResults = true
-  //  var shouldRunFetch = true
-  //  var shouldRunFilter = true
-  val DEFAULT_CLIENT_FLUSH_INTERVAL = 100.toShort
-  val DEFAULT_CLIENT_TIMEOUT = 1000
-  val DEFAULT_CACHE_MAX_SIZE = 10000
-  val DEFAULT_TTL_SECONDS = 60
-  
+  val DefaultClientFlushInterval = 100.toShort
+  val DefaultClientTimeout = 1000
+  val DefaultCacheMaxSize = 10000
+  val DefaultTtlSeconds = 60
+  val DefaultScore = 1.0
 
-  val DEFAULT_CONFIGS: Map[String, AnyRef] = Map(
+  val DefaultConfigs: Map[String, AnyRef] = Map(
     "hbase.zookeeper.quorum" -> "localhost",
     "hbase.table.name" -> "s2graph",
     "hbase.table.compression.algorithm" -> "gz",
     "phase" -> "dev",
-    "async.hbase.client.flush.interval" -> java.lang.Short.valueOf(DEFAULT_CLIENT_FLUSH_INTERVAL),
-    "hbase.client.operation.timeout" -> java.lang.Integer.valueOf(DEFAULT_CLIENT_TIMEOUT),
+    "async.hbase.client.flush.interval" -> java.lang.Short.valueOf(DefaultClientFlushInterval),
+    "hbase.client.operation.timeout" -> java.lang.Integer.valueOf(DefaultClientTimeout),
     "db.default.driver" -> "com.mysql.jdbc.Driver",
     "db.default.url" -> "jdbc:mysql://localhost:3306/graph_dev",
     "db.default.password" -> "graph",
     "db.default.user" -> "graph",
-    "cache.max.size" -> java.lang.Integer.valueOf(DEFAULT_CACHE_MAX_SIZE),
+    "cache.max.size" -> java.lang.Integer.valueOf(DefaultCacheMaxSize),
     "cache.ttl.seconds" -> java.lang.Integer.valueOf(60))
 
-  var config: Config = ConfigFactory.parseMap(DEFAULT_CONFIGS)
+  var config: Config = ConfigFactory.parseMap(DefaultConfigs)
   var executionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1))
 
   var hbaseConfig: org.apache.hadoop.conf.Configuration = HBaseConfiguration.create()
   var storageExceptionCount = 0L
-  var singleGetTimeout = DEFAULT_CLIENT_TIMEOUT
-  var clientFlushInterval = DEFAULT_CLIENT_FLUSH_INTERVAL
-  val DEFAULT_SCORE = 1.0
+  var singleGetTimeout = DefaultClientTimeout
+  var clientFlushInterval = DefaultClientFlushInterval
+  
 
   lazy val cache = CacheBuilder.newBuilder()
-    .maximumSize(DEFAULT_CACHE_MAX_SIZE)
+    .maximumSize(DefaultCacheMaxSize)
     .build[java.lang.Integer, QueryResult]()
 
   lazy val vertexCache = CacheBuilder.newBuilder()
-    .maximumSize(DEFAULT_CACHE_MAX_SIZE)
+    .maximumSize(DefaultCacheMaxSize)
     .build[java.lang.Integer, Option[Vertex]]()
 
   /**
@@ -82,7 +78,7 @@ object Graph {
     val conf = HBaseConfiguration.create()
 
     for {
-      (k, v) <- DEFAULT_CONFIGS if !config.hasPath(k)
+      (k, v) <- DefaultConfigs if !config.hasPath(k)
     } {
       conf.set(k, v.toString)
     }
@@ -109,7 +105,7 @@ object Graph {
 
     ExceptionHandler.apply(config)
 
-    DEFAULT_CONFIGS.foreach { case (k, v) =>
+    DefaultConfigs.foreach { case (k, v) =>
       logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
       println(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
     }
@@ -250,9 +246,9 @@ object Graph {
     Try {
       if (q.steps.isEmpty) {
         // TODO: this should be get vertex query.
-        Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.empty)))
+        Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.Empty)))
       } else {
-        val startQueryResultLs = QueryResult.fromVertices(q, stepIdx = 0, q.steps.head.queryParams, q.vertices)
+        val startQueryResultLs = QueryResult.fromVertices(q)
         q.steps.zipWithIndex.foldLeft(Future.successful(startQueryResultLs)) { case (acc, (_, idx)) =>
           getEdgesAsyncWithRank(acc, q, idx)
         }
@@ -260,7 +256,7 @@ object Graph {
     } recover {
       case e: Exception =>
         logger.error(s"getEdgesAsync: $e", e)
-        Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.empty)))
+        Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.Empty)))
     } get
   }
 
@@ -351,7 +347,7 @@ object Graph {
     implicit val ex = executionContext
 
     val prevStepOpt = if (stepIdx > 0) Option(q.steps(stepIdx - 1)) else None
-    val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(QueryParam.defaultThreshold)
+    val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(QueryParam.DefaultThreshold)
     val prevStepLimit = prevStepOpt.map(_.nextStepLimit).getOrElse(-1)
     val step = q.steps(stepIdx)
     val alreadyVisited =
@@ -390,8 +386,8 @@ object Graph {
       getsWithQueryParams.map { case (vertexId, get, queryParam) => queryParam }
     }
     val fallback = new util.ArrayList(queryParams.map(param => QueryResult(q, stepIdx, param)))
-    val deffered = fetchEdgesLs(prevStepTgtVertexIdEdges, currentStepRequestLss, q, stepIdx)
-    val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deffered)
+    val deferred = fetchEdgesLs(prevStepTgtVertexIdEdges, currentStepRequestLss, q, stepIdx)
+    val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deferred)
 
     filterEdges(deferredToFuture(grouped)(fallback), q, stepIdx, alreadyVisited)
   }
@@ -617,48 +613,53 @@ object Graph {
     Future.sequence(futures).map { result => result.toList.flatten }
   }
 
-  def mutateEdge(edge: Edge): Future[Boolean] = {
+  def mutateEdge(edge: Edge, withWait: Boolean = false): Future[Boolean] = {
     implicit val ex = this.executionContext
-    writeAsync(edge.label.hbaseZkAddr, Seq(edge).map(e => e.buildPutsAll())).map { rets =>
-      rets.forall(identity)
-    }
+
+    if (withWait)
+      writeAsyncWithWait(edge.label.hbaseZkAddr, Seq(edge).map(_.buildPutsAll())).map(_.forall(identity))
+    else
+      writeAsync(edge.label.hbaseZkAddr, Seq(edge).map(_.buildPutsAll())).map(_.forall(identity))
   }
 
-  def mutateEdges(edges: Seq[Edge]): Future[Seq[Boolean]] = {
+  def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
-    val futures = edges.map { edge => mutateEdge(edge) }
+    val futures = edges.map { edge => mutateEdge(edge, withWait) }
+
     Future.sequence(futures)
   }
 
-  def mutateVertex(vertex: Vertex): Future[Boolean] = {
+  def mutateVertex(vertex: Vertex, withWait: Boolean = false): Future[Boolean] = {
     implicit val ex = this.executionContext
     if (vertex.op == GraphUtil.operations("delete")) {
-      deleteVertex(vertex)
+      deleteVertex(vertex, withWait)
     } else if (vertex.op == GraphUtil.operations("deleteAll")) {
-      //      throw new RuntimeException("Not yet supported")
       deleteVerticesAll(List(vertex)).onComplete {
         case Success(s) => logger.info(s"mutateVertex($vertex) for deleteAll successed.")
         case Failure(ex) => logger.error(s"mutateVertex($vertex) for deleteAll failed. $ex", ex)
       }
-      Future.successful(true)
+      Future.successful(true) // Ignore withWait parameter, because deleteAll operation may takes long time
     } else {
-      writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(v => v.buildPutsAll())).map { rets =>
-        rets.forall(identity)
-      }
+      if (withWait)
+        writeAsyncWithWait(vertex.hbaseZkAddr, Seq(vertex).map(_.buildPutsAll())).map(_.forall(identity))
+      else
+        writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(_.buildPutsAll())).map(_.forall(identity))
     }
   }
 
-  def mutateVertices(vertices: Seq[Vertex]): Future[Seq[Boolean]] = {
+  def mutateVertices(vertices: Seq[Vertex], withWait: Boolean = false): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
-    val futures = vertices.map { vertex => mutateVertex(vertex) }
+    val futures = vertices.map { vertex => mutateVertex(vertex, withWait) }
     Future.sequence(futures)
   }
 
-  private def deleteVertex(vertex: Vertex): Future[Boolean] = {
+  private def deleteVertex(vertex: Vertex, withWait: Boolean = false): Future[Boolean] = {
     implicit val ex = this.executionContext
-    writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(_.buildDeleteAsync())).map { rets =>
-      rets.forall(identity)
-    }
+
+    if (withWait)
+      writeAsyncWithWait(vertex.hbaseZkAddr, Seq(vertex).map(_.buildDeleteAsync())).map(_.forall(identity))
+    else
+      writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(_.buildDeleteAsync())).map(_.forall(identity))
   }
 
   private def deleteVertices(vertices: Seq[Vertex]): Future[Seq[Boolean]] = {
@@ -668,7 +669,7 @@ object Graph {
   }
 
   /**
-   * O(E), maynot feasable
+   * O(E), maynot feasible
    */
 
   def deleteVerticesAll(vertices: List[Vertex]): Future[Boolean] = {
@@ -676,7 +677,7 @@ object Graph {
 
     val labelsMap = for {
       vertex <- vertices
-      label <- (Label.findBySrcColumnId(vertex.id.colId) ++ Label.findByTgtColumnId(vertex.id.colId))
+      label <- Label.findBySrcColumnId(vertex.id.colId) ++ Label.findByTgtColumnId(vertex.id.colId)
     } yield {
         label.id.get -> label
       }
@@ -765,9 +766,9 @@ object Graph {
   }
 
 
-  def mutateElements(elemnents: Seq[GraphElement]): Future[Seq[Boolean]] = {
+  def mutateElements(elements: Seq[GraphElement]): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
-    val futures = elemnents.map { element =>
+    val futures = elements.map { element =>
       element match {
         case edge: Edge => mutateEdge(edge)
         case vertex: Vertex => mutateVertex(vertex)
@@ -793,8 +794,8 @@ object Graph {
 
   /**
    * when how from to what direction (meta info key:value)
-   * ex) timestamp insert shon sol talk_friend directed/undirected propperties
-   * ex) timestamp insert shon talk_user_id propperties
+   * ex) timestamp insert shon sol talk_friend directed/undirected properties
+   * ex) timestamp insert shon talk_user_id properties
    *
    */
   def toGraphElement(s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] = Try {

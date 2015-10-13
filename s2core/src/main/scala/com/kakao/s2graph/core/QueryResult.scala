@@ -5,11 +5,14 @@ package com.kakao.s2graph.core
  */
 //case class QueryResultLs(queryResults: Seq[QueryResult] = Seq.empty[QueryResult])
 object QueryResult {
-  def fromVertices(query: Query, stepIdx: Int, queryParams: Seq[QueryParam], vertices: Seq[Vertex]): Seq[QueryResult] = {
+  def fromVertices(query: Query): Seq[QueryResult] = {
+    val queryParam =  query.steps.head.queryParams.head
     for {
-      vertex <- vertices
-      queryParam <- queryParams
-    } yield QueryResult(query, stepIdx, queryParam, Seq((Edge(vertex, vertex, queryParam.labelWithDir), Graph.DEFAULT_SCORE)))
+      vertex <- query.vertices
+    } yield {
+      val edgeWithScoreLs = Seq((Edge(vertex, vertex, queryParam.labelWithDir), Graph.DefaultScore))
+      QueryResult(query, stepIdx = -1, queryParam = queryParam, edgeWithScoreLs = edgeWithScoreLs)
+    }
   }
 }
 
