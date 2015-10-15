@@ -333,4 +333,15 @@ object AdminController extends Controller with RequestParser {
         ok(s"Label was updated")
     }
   }
+
+  /**
+   * update HTable for a label
+   * @param labelName
+   * @param newHTableName
+   * @return
+   */
+  def updateHTable(labelName: String, newHTableName: String) = Action { request =>
+    val updateTry = Management.updateHTable(labelName, newHTableName)
+    tryResponse(updateTry)(_.toString + " label(s) updated.")
+  }
 }

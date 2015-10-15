@@ -214,7 +214,12 @@ object Label extends Model[Label] {
 
   def updateName(oldName: String, newName: String)(implicit session: DBSession = AutoSession) = {
     logger.info(s"rename label: $oldName -> $newName")
-    sql"""update labels set label = ${newName} where label = ${oldName}""".execute.apply()
+    sql"""update labels set label = ${newName} where label = ${oldName}""".update.apply()
+  }
+
+  def updateHTableName(labelName: String, newHTableName: String)(implicit session: DBSession = AutoSession) = {
+    logger.info(s"update HTable of label $labelName to $newHTableName")
+    sql"""update labels set hbase_table_name = ${newHTableName} where label = ${labelName}""".update.apply()
   }
 
   def delete(id: Int)(implicit session: DBSession = AutoSession) = {
