@@ -17,13 +17,12 @@ class AdminControllerSpec extends SpecCommon {
   "EdgeControllerSpec" should {
     "update htable" in {
       running(FakeApplication()) {
-        val insertUrl = s"/graphs/updateHTable/${testLabelName}/${newHTableName}"
+        val insertUrl = s"/graphs/updateHTable/$testLabelName/$newHTableName"
 
         val req = FakeRequest("POST", insertUrl).withBody("").withHeaders(HeaderNames.CONTENT_TYPE -> "text/plain")
 
         Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
-        Thread.sleep(10000)
-        Label.findByName(testLabelName, false).get.hTableName mustEqual(newHTableName)
+        Label.findByName(testLabelName, useCache = true).get.hTableName mustEqual newHTableName
       }
     }
   }

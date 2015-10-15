@@ -73,7 +73,8 @@ trait Clause extends ExtractValue {
 }
 
 case class Where(clauses: Seq[Clause] = Seq.empty[Clause]) {
-  def filter(edge: Edge) = clauses.map(_.filter(edge)).forall(identity)
+  def filter(edge: Edge) =
+    if (clauses.isEmpty) true else clauses.map(_.filter(edge)).forall(identity)
 }
 
 case class Gt(propKey: String, value: String) extends Clause {

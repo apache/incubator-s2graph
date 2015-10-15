@@ -219,15 +219,21 @@ object Label extends Model[Label] {
 
   def updateHTableName(labelName: String, newHTableName: String)(implicit session: DBSession = AutoSession) = {
     logger.info(s"update HTable of label $labelName to $newHTableName")
-    sql"""update labels set hbase_table_name = ${newHTableName} where label = ${labelName}""".update.apply()
+    val cnt = sql"""update labels set hbase_table_name = $newHTableName where label = $labelName""".update().apply()
+    val label = Label.findByName(labelName, useCache = false).get
+
+    val cacheKeys = List(s"id=${label.id}", s"label=${label.label}")
+    cacheKeys.foreach(expireCache)
+    cnt
   }
 
   def delete(id: Int)(implicit session: DBSession = AutoSession) = {
     val label = findById(id)
     logger.info(s"delete label: $label")
-    sql"""delete from labels where id = ${label.id.get}""".execute.apply()
+    val cnt = sql"""delete from labels where id = ${label.id.get}""".update().apply()
     val cacheKeys = List(s"id=$id", s"label=${label.label}")
-    cacheKeys.foreach(expireCache(_))
+    cacheKeys.foreach(expireCache)
+    cnt
   }
 }
 
