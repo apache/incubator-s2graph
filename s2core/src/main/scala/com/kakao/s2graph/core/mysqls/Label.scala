@@ -279,6 +279,12 @@ case class Label(id: Option[Int], label: String,
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
   lazy val metaPropNames = metaProps.map(x => x.name)
   lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
+  /** this is used only by edgeToProps */
+  lazy val metaPropsDefaultMap = (for {
+    prop <- metaProps if LabelMeta.isValidSeqForAdmin(prop.seq)
+    jsValue <- innerValToJsValue(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), prop.dataType)
+  } yield (prop.name -> jsValue)).toMap
+
 
   def srcColumnWithDir(dir: Int) = {
     if (dir == GraphUtil.directions("out")) srcColumn else tgtColumn

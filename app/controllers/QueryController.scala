@@ -253,7 +253,7 @@ object QueryController extends Controller with RequestParser {
             score, queryResult.query, queryResult.queryParam)
         } yield edgeJson
 
-        val json = Json.toJson(edgeJsons)
+        val json = Json.toJson(edgeJsons.toMap)
         jsonResponse(json, "result_size" -> edgeJsons.size.toString)
       }
     } catch {

@@ -5,7 +5,7 @@ import org.apache.hadoop.hbase.util._
 /**
  * Created by shon on 6/6/15.
  */
-object InnerVal extends HBaseDeserializable {
+object InnerVal extends HBaseDeserializableWithIsVertexId {
   import HBaseType._
 
   val order = Order.DESCENDING
@@ -63,10 +63,11 @@ object InnerVal extends HBaseDeserializable {
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = DEFAULT_VERSION): (InnerValLike, Int) = {
+                version: String,
+                isVertexId: Boolean): (InnerValLike, Int) = {
     version match {
-      case VERSION2 => v2.InnerVal.fromBytes(bytes, offset, len, version)
-      case VERSION1 => v1.InnerVal.fromBytes(bytes, offset, len, version)
+      case VERSION2 => v2.InnerVal.fromBytes(bytes, offset, len, version, isVertexId)
+      case VERSION1 => v1.InnerVal.fromBytes(bytes, offset, len, version, isVertexId)
       case _ => throw notSupportedEx(version)
     }
   }
