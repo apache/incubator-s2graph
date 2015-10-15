@@ -218,6 +218,7 @@ case class Edge(srcVertex: Vertex,
 
   val schemaVer = label.schemaVersion
 
+
   def props = propsWithTs.mapValues(_.innerVal)
 
   def relatedEdges = {
@@ -318,6 +319,7 @@ case class Edge(srcVertex: Vertex,
     val newTgtVertex = Vertex(newId, tgtVertex.ts, tgtVertex.props)
     Edge(srcVertex, newTgtVertex, labelWithDir, op, ts, version, propsWithTs)
   }
+
 
   def toJson = {}
 
@@ -1044,49 +1046,14 @@ object Edge extends JSONParser {
       //        if (!param.label.isDirected && param.labelWithDir.dir == GraphUtil.directions("in")) {
       //          Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir.updateDir(0), op, ts, version, props)
       //        } else {
-        Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, parentEdges)
-      Option(edge)
-      //        }
-
-      //          logger.debug(s"toEdge: $srcVertexId, $tgtVertexId, $props, $op, $ts")
-      //        val labelMetas = LabelMeta.findAllByLabelId(rowKey.labelWithDir.labelId)
-      //        val propsWithDefault = (for (meta <- param.label.metaProps) yield {
-      //          props.get(meta.seq) match {
-      //            case Some(v) => (meta.seq -> v)
-      //            case None =>
-      //              val defaultInnerVal = toInnerVal(meta.defaultValue, meta.dataType, param.label.schemaVersion)
-      //              (meta.seq -> InnerValLikeWithTs(defaultInnerVal, minTsVal))
-      //          }
-      //        }).toMap
-      //        /**
-      //         * TODO: backward compatability only. deprecate has field
-      //         */
-      //        val matches =
-      //          for {
-      //            (k, v) <- param.hasFilters
-      //            edgeVal <- propsWithDefault.get(k) if edgeVal.innerVal == v
-      //          } yield (k -> v)
-      //        val ret = if (matches.size == param.hasFilters.size && param.where.map(_.filter(edge)).getOrElse(true)) {
-      // val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
-
-      //        //      val edge = Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props)
-      //        //        logger.debug(s"fetchedEdge: ${edge.toLogString()}")
-      //        //        for {
-      //        //          parent <- edge.parentEdges
-      //        //          (parentEdge, parentScore) = (parent.edge, parent.score)
-      //        //        } {
-      //        //          logger.debug(s"parent: ${parentEdge.toLogString}, ${parentScore}")
-      //        //        }
-      //
-      //        Some(edge)
+      //      if (param.labelWithDir.dir == GraphUtil.directions("in")) {
+      //        Edge(Vertex(tgtVertexId, ts), Vertex(srcVertexId, ts), rowKey.labelWithDir.dirToggled, op, ts, version, props, pendingEdgeOpt, parentEdges)
       //      } else {
-      //        None
+        Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, parentEdges)
       //      }
-      //      //      logger.error(s"fetchedEdge: $ret, $kv")
-      //      //        val ret = Option(edge)
-      //      //      logger.debug(s"$param, $kv, $ret")
-      //      //    logger.debug(s"${cell.getQualifier().toList}, ${ret.map(x => x.toStringRaw)}")
-      //      ret
+//      logger.error(s"$edge")
+      Option(edge)
+
     }
   }
 

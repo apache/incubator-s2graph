@@ -300,6 +300,17 @@ case class Label(id: Option[Int], label: String,
     if (dir == GraphUtil.directions("out")) tgtColumn else srcColumn
   }
 
+  def srcTgtColumn(dir: Int) =
+    if (isDirected) {
+      (srcColumnWithDir(dir), tgtColumnWithDir(dir))
+    } else {
+      if (dir == GraphUtil.directions("in")) {
+        (tgtColumn, srcColumn)
+      } else {
+        (srcColumn, tgtColumn)
+      }
+    }
+
   def init() = {
     metas
     metaSeqsToNames

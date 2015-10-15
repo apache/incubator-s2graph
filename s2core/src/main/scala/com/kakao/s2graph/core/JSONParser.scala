@@ -75,7 +75,7 @@ trait JSONParser {
 
   def toInnerVal(str: String, dataType: String, version: String): InnerValLike = {
     //TODO:
-    //    logger.error(s"$str, $dataType, $version")
+//        logger.error(s"toInnerVal: $str, $dataType, $version")
     val s =
       if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
       else str
