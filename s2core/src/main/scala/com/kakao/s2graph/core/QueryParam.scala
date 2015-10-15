@@ -31,6 +31,7 @@ object Query {
       }
     }
   }
+
 }
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
@@ -40,9 +41,9 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  selectColumns: Seq[String] = Seq.empty[String],
                  groupByColumns: Seq[String] = Seq.empty[String],
                  filterOutQuery: Option[Query] = None,
+                 filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
                  withScore: Boolean = true,
                  returnTree: Boolean = false) {
-
   lazy val selectColumnsSet = selectColumns.map { c =>
     if (c == "_from") "from"
     else if (c == "_to") "to"
@@ -77,14 +78,15 @@ object EdgeTransformer {
  */
 case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
   val Delimiter = "\\$"
-  val targets = jsValue.asOpt[List[List[String]]].toList
+  val targets = jsValue.asOpt[List[Vector[String]]].toList
   val fieldsLs = for {
     target <- targets
     fields <- target
   } yield fields
+  val isDefault = fieldsLs.size == 1 && fieldsLs.head.size == 1 && (fieldsLs.head.head == "_to" || fieldsLs.head.head == "to")
 
   def replace(fmt: String,
-              values: List[InnerValLike],
+              values: Seq[InnerValLike],
               nextStepOpt: Option[Step]): Seq[InnerValLike] = {
 
     val tokens = fmt.split(Delimiter)
@@ -110,15 +112,6 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
           InnerVal.withStr(mergedStr, nextQueryParam.label.schemaVersion)
         }
     }
-    //    val nextQueryParams = nextStepOpt.map(_.queryParams).getOrElse(Seq(queryParam)).filter { qParam =>
-    //      if (qParam.labelWithDir.dir == GraphUtil.directions("out")) qParam.label.tgtColumnType == "string"
-    //      else qParam.label.srcColumnType == "string"
-    //    }
-    //    for {
-    //      nextQueryParam <- nextQueryParams
-    //    } yield {
-    //      InnerVal.withStr(mergedStr, nextQueryParam.label.schemaVersion)
-    //    }
   }
 
   def toInnerValOpt(edge: Edge, fieldName: String): Option[InnerValLike] = {
@@ -126,37 +119,35 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
       case LabelMeta.to.name => Option(edge.tgtVertex.innerId)
       case LabelMeta.from.name => Option(edge.srcVertex.innerId)
       case _ =>
-        //        val columnType =
-        //          if (queryParam.labelWithDir.dir == GraphUtil.directions("out")) queryParam.label.tgtColumnType
-        //          else queryParam.label.srcColumnType
         for {
           labelMeta <- queryParam.label.metaPropsInvMap.get(fieldName)
-          //          if labelMeta.dataType == columnType
           value <- edge.propsWithTs.get(labelMeta.seq)
         } yield value.innerVal
     }
   }
 
   def transform(edge: Edge, nextStepOpt: Option[Step]): Seq[Edge] = {
-    val edges = for {
-      fields <- fieldsLs
-      innerVal <- {
-        if (fields.size == 1) {
-          val fieldName = fields.head
-          toInnerValOpt(edge, fieldName).toSeq
-        } else {
-          val fmt :: fieldNames = fields
-          replace(fmt, fieldNames.flatMap(fieldName => toInnerValOpt(edge, fieldName)), nextStepOpt)
+    if (isDefault) Seq(edge)
+    else {
+      val edges = for {
+        fields <- fieldsLs
+        innerVal <- {
+          if (fields.size == 1) {
+            val fieldName = fields.head
+            toInnerValOpt(edge, fieldName).toSeq
+          } else {
+            val fmt +: fieldNames = fields
+            replace(fmt, fieldNames.flatMap(fieldName => toInnerValOpt(edge, fieldName)), nextStepOpt)
+          }
         }
-      }
-    } yield {
-        if (fields == EdgeTransformer.DefaultTransformFieldAsList) edge
-        else edge.updateTgtVertex(innerVal).copy(originalEdgeOpt = Option(edge))
-      }
+      } yield edge.updateTgtVertex(innerVal).copy(originalEdgeOpt = Option(edge))
 
-    edges
+
+      edges
+    }
   }
 }
+
 
 case class Step(queryParams: List[QueryParam],
                 labelWeights: Map[Int, Double] = Map.empty,
@@ -436,24 +427,19 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
 
   def buildGetRequest(srcVertex: Vertex) = {
-    val (srcColumn, tgtColumn) =
-      if (labelWithDir.dir == GraphUtil.directions("in") && label.isDirected) (label.tgtColumn, label.srcColumn)
-      else (label.srcColumn, label.tgtColumn)
-    val (srcInnerId, tgtInnerId) =
-    //FIXME
-      if (labelWithDir.dir == GraphUtil.directions("in") && tgtVertexInnerIdOpt.isDefined && label.isDirected) {
-        // need to be swap src, tgt
-        val tgtVertexInnerId = tgtVertexInnerIdOpt.get
-        (InnerVal.convertVersion(tgtVertexInnerId, srcColumn.columnType, label.schemaVersion),
-          InnerVal.convertVersion(srcVertex.innerId, tgtColumn.columnType, label.schemaVersion))
-      } else {
-        val tgtVertexInnerId = tgtVertexInnerIdOpt.getOrElse(srcVertex.innerId)
-        (InnerVal.convertVersion(srcVertex.innerId, tgtColumn.columnType, label.schemaVersion),
-          InnerVal.convertVersion(tgtVertexInnerId, srcColumn.columnType, label.schemaVersion))
-      }
+    val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
+    val (srcInnerId, tgtInnerId) = tgtVertexInnerIdOpt match {
+      case Some(tgtVertexInnerId) => // _to is given.
+        /** we use toInvertedEdgeHashLike so dont need to swap src, tgt */
+        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
+        val tgt = InnerVal.convertVersion(tgtVertexInnerId, tgtColumn.columnType, label.schemaVersion)
+        (src, tgt)
+      case None =>
+        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
+        (src, src)
+    }
 
-    val (srcVId, tgtVId) =
-      (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
+    val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
     val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
     val edge = Edge(srcV, tgtV, labelWithDir)
 
@@ -479,7 +465,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     get.setRpcTimeout(rpcTimeoutInMillis)
 
     if (columnRangeFilter != null) get.filter(columnRangeFilter)
-    logger.debug(s"Get: $get")
+    logger.info(s"Get: $get")
 
     get
   }

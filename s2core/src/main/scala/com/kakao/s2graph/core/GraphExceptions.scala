@@ -20,4 +20,6 @@ object GraphExceptions {
   case class WhereParserException(msg: String, ex: Exception = null) extends Exception(msg, ex)
 
   case class BadQueryException(msg: String, ex: Throwable = null) extends Exception(msg, ex)
+
+  case class InvalidHTableException(msg: String) extends Exception(msg)
 }

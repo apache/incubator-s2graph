@@ -22,7 +22,17 @@ trait JSONParser {
             case s: Short => JsNumber(s.toLong)
             case b: Byte => JsNumber(b.toLong)
             case f: Float => JsNumber(f.toDouble)
-            case d: Double => JsNumber(d)
+            case d: Double =>
+//              JsNumber(d)
+              dType match {
+                case InnerVal.BYTE => JsNumber(d.toInt)
+                case InnerVal.SHORT => JsNumber(d.toInt)
+                case InnerVal.INT => JsNumber(d.toInt)
+                case InnerVal.LONG => JsNumber(d.toLong)
+                case InnerVal.FLOAT => JsNumber(d.toDouble)
+                case InnerVal.DOUBLE => JsNumber(d.toDouble)
+                case _ => throw new RuntimeException("innerValToJsValue invalid")
+              }
             case num: BigDecimal =>
 //              JsNumber(num)
 //              JsNumber(InnerVal.scaleNumber(num.asInstanceOf[BigDecimal], dType))
@@ -50,22 +60,22 @@ trait JSONParser {
     }
   }
 
-  def innerValToString(innerVal: InnerValLike, dataType: String): String = {
-    val dType = InnerVal.toInnerDataType(dataType)
-    InnerVal.toInnerDataType(dType) match {
-      case InnerVal.STRING => innerVal.toString
-      case InnerVal.BOOLEAN => innerVal.toString
-      //      case t if InnerVal.NUMERICS.contains(t)  =>
-      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
-        BigDecimal(innerVal.toString).bigDecimal.toPlainString
-      case _ => innerVal.toString
-      //        throw new RuntimeException("innerVal to jsValue failed.")
-    }
-  }
+//  def innerValToString(innerVal: InnerValLike, dataType: String): String = {
+//    val dType = InnerVal.toInnerDataType(dataType)
+//    InnerVal.toInnerDataType(dType) match {
+//      case InnerVal.STRING => innerVal.toString
+//      case InnerVal.BOOLEAN => innerVal.toString
+//      //      case t if InnerVal.NUMERICS.contains(t)  =>
+//      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
+//        BigDecimal(innerVal.toString).bigDecimal.toPlainString
+//      case _ => innerVal.toString
+//      //        throw new RuntimeException("innerVal to jsValue failed.")
+//    }
+//  }
 
   def toInnerVal(str: String, dataType: String, version: String): InnerValLike = {
     //TODO:
-    //    logger.error(s"$str, $dataType, $version")
+//        logger.error(s"toInnerVal: $str, $dataType, $version")
     val s =
       if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
       else str

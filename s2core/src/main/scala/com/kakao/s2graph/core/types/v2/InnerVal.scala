@@ -6,7 +6,7 @@ import org.apache.hadoop.hbase.util._
 /**
  * Created by shon on 6/6/15.
  */
-object InnerVal extends HBaseDeserializable {
+object InnerVal extends HBaseDeserializableWithIsVertexId {
 
   import HBaseType._
 
@@ -15,7 +15,8 @@ object InnerVal extends HBaseDeserializable {
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = DEFAULT_VERSION): (InnerVal, Int) = {
+                version: String = DEFAULT_VERSION,
+                isVertexId: Boolean = false): (InnerVal, Int) = {
     val pbr = new SimplePositionedByteRange(bytes)
     pbr.setPosition(offset)
     val startPos = pbr.getPosition
@@ -30,7 +31,10 @@ object InnerVal extends HBaseDeserializable {
     else {
       if (OrderedBytes.isNumeric(pbr)) {
         val numeric = OrderedBytes.decodeNumericAsBigDecimal(pbr)
-        (InnerVal(BigDecimal(numeric)), pbr.getPosition - startPos)
+        if (isVertexId) (InnerVal(numeric.longValue()), pbr.getPosition - startPos)
+        else (InnerVal(BigDecimal(numeric)), pbr.getPosition - startPos)
+//        (InnerVal(numeric.doubleValue()), pbr.getPosition - startPos)
+//        (InnerVal(BigDecimal(numeric)), pbr.getPosition - startPos)
       } else if (OrderedBytes.isText(pbr)) {
         val str = OrderedBytes.decodeString(pbr)
         (InnerVal(str), pbr.getPosition - startPos)
@@ -59,6 +63,11 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
           case Order.DESCENDING => if (b) Array(0.toByte) else Array(-1.toByte)
           case _ => if (!b) Array(0.toByte) else Array(-1.toByte)
         }
+      case d: Double =>
+        val num = BigDecimal(d)
+        val pbr = numByteRange(num)
+        val len = OrderedBytes.encodeNumeric(pbr, num.bigDecimal, order)
+        pbr.getBytes().take(len)
       case l: Long =>
         val num = BigDecimal(l)
         val pbr = numByteRange(num)
@@ -99,7 +108,7 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
     ret
   }
 
-
+//
   override def hashKey(dataType: String): Int = {
     if (value.isInstanceOf[String]) {
       // since we use dummy stringn value for degree edge.

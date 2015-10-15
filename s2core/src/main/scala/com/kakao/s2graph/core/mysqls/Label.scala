@@ -214,15 +214,26 @@ object Label extends Model[Label] {
 
   def updateName(oldName: String, newName: String)(implicit session: DBSession = AutoSession) = {
     logger.info(s"rename label: $oldName -> $newName")
-    sql"""update labels set label = ${newName} where label = ${oldName}""".execute.apply()
+    sql"""update labels set label = ${newName} where label = ${oldName}""".update.apply()
+  }
+
+  def updateHTableName(labelName: String, newHTableName: String)(implicit session: DBSession = AutoSession) = {
+    logger.info(s"update HTable of label $labelName to $newHTableName")
+    val cnt = sql"""update labels set hbase_table_name = $newHTableName where label = $labelName""".update().apply()
+    val label = Label.findByName(labelName, useCache = false).get
+
+    val cacheKeys = List(s"id=${label.id}", s"label=${label.label}")
+    cacheKeys.foreach(expireCache)
+    cnt
   }
 
   def delete(id: Int)(implicit session: DBSession = AutoSession) = {
     val label = findById(id)
     logger.info(s"delete label: $label")
-    sql"""delete from labels where id = ${label.id.get}""".execute.apply()
+    val cnt = sql"""delete from labels where id = ${label.id.get}""".update().apply()
     val cacheKeys = List(s"id=$id", s"label=${label.label}")
-    cacheKeys.foreach(expireCache(_))
+    cacheKeys.foreach(expireCache)
+    cnt
   }
 }
 
@@ -274,6 +285,12 @@ case class Label(id: Option[Int], label: String,
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
   lazy val metaPropNames = metaProps.map(x => x.name)
   lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
+  /** this is used only by edgeToProps */
+  lazy val metaPropsDefaultMap = (for {
+    prop <- metaProps if LabelMeta.isValidSeqForAdmin(prop.seq)
+    jsValue <- innerValToJsValue(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), prop.dataType)
+  } yield (prop.name -> jsValue)).toMap
+
 
   def srcColumnWithDir(dir: Int) = {
     if (dir == GraphUtil.directions("out")) srcColumn else tgtColumn
@@ -282,6 +299,17 @@ case class Label(id: Option[Int], label: String,
   def tgtColumnWithDir(dir: Int) = {
     if (dir == GraphUtil.directions("out")) tgtColumn else srcColumn
   }
+
+  def srcTgtColumn(dir: Int) =
+    if (isDirected) {
+      (srcColumnWithDir(dir), tgtColumnWithDir(dir))
+    } else {
+      if (dir == GraphUtil.directions("in")) {
+        (tgtColumn, srcColumn)
+      } else {
+        (srcColumn, tgtColumn)
+      }
+    }
 
   def init() = {
     metas

@@ -4,6 +4,7 @@ import com.kakao.s2graph.core.GraphExceptions.WhereParserException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types.InnerValLike
+import com.kakao.s2graph.logger
 
 import scala.annotation.tailrec
 import scala.util.Try
@@ -32,13 +33,18 @@ trait ExtractValue extends JSONParser {
 
   def valueToCompare(edge: Edge, key: String, value: String) = {
     val label = edge.label
-
     if (value.startsWith(parent) || label.metaPropsInvMap.contains(value)) propToInnerVal(edge, value)
     else {
       val (propKey, _) = findParentEdge(edge, key)
-      val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
 
-      toInnerVal(value, labelMeta.dataType, label.schemaVersion)
+      val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
+      val (srcColumn, tgtColumn) = label.srcTgtColumn(edge.labelWithDir.dir)
+      val dataType = propKey match {
+        case "_to" | "to" => tgtColumn.columnType
+        case "_from" | "from" => srcColumn.columnType
+        case _ => labelMeta.dataType
+      }
+      toInnerVal(value, dataType, label.schemaVersion)
     }
   }
 
@@ -73,7 +79,8 @@ trait Clause extends ExtractValue {
 }
 
 case class Where(clauses: Seq[Clause] = Seq.empty[Clause]) {
-  def filter(edge: Edge) = clauses.map(_.filter(edge)).forall(identity)
+  def filter(edge: Edge) =
+    if (clauses.isEmpty) true else clauses.map(_.filter(edge)).forall(identity)
 }
 
 case class Gt(propKey: String, value: String) extends Clause {

@@ -62,8 +62,10 @@ trait SpecCommon extends Specification {
   protected val testColumnName = "user_id_test"
   protected val testColumnType = "long"
   protected val testTgtColumnName = "item_id_test"
+  protected val testHTableName = "test-htable"
+  protected val newHTableName = "new-htable"
 
-  val NUM_OF_EACH_TEST = 3
+  val NUM_OF_EACH_TEST = 10
   val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
   val asyncFlushInterval = 300
 
@@ -105,7 +107,8 @@ trait SpecCommon extends Specification {
     ],
     "consistencyLevel": "strong",
     "schemaVersion": "v2",
-    "compressionAlgorithm": "gz"
+    "compressionAlgorithm": "gz",
+    "hTableName": "$testHTableName"
   }"""
 
   val testLabelName2Create = s"""
