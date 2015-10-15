@@ -7,7 +7,7 @@ import org.apache.hadoop.hbase.util.Bytes
 /**
  * Created by shon on 6/6/15.
  */
-object InnerVal extends HBaseDeserializable {
+object InnerVal extends HBaseDeserializableWithIsVertexId {
   import HBaseType._
   //  val defaultVal = new InnerVal(None, None, None)
   val stringLenOffset = 7.toByte
@@ -49,7 +49,7 @@ object InnerVal extends HBaseDeserializable {
     }
   }
 
-  def fromBytes(bytes: Array[Byte], offset: Int, len: Int, version: String = DEFAULT_VERSION): (InnerVal, Int) = {
+  def fromBytes(bytes: Array[Byte], offset: Int, len: Int, version: String = DEFAULT_VERSION, isVertexId: Boolean = false): (InnerVal, Int) = {
     var pos = offset
     //
     val header = bytes(pos)

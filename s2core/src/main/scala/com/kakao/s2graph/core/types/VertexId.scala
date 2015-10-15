@@ -15,7 +15,7 @@ object VertexId extends HBaseDeserializable {
     /** since murmur hash is prepended, skip numOfBytes for murmur hash */
     var pos = offset + GraphUtil.bytesForMurMurHash
 
-    val (innerId, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, len, version)
+    val (innerId, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, len, version, isVertexId = true)
     pos += numOfBytesUsed
     val colId = Bytes.toInt(bytes, pos, 4)
     (VertexId(colId, innerId), GraphUtil.bytesForMurMurHash + numOfBytesUsed + 4)
@@ -86,7 +86,7 @@ object SourceVertexId extends HBaseDeserializable {
                 version: String = DEFAULT_VERSION): (VertexId, Int) = {
     /** since murmur hash is prepended, skip numOfBytes for murmur hash */
     val pos = offset + GraphUtil.bytesForMurMurHash
-    val (innerId, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, len, version)
+    val (innerId, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, len, version, isVertexId = true)
 
     (SourceVertexId(DEFAULT_COL_ID, innerId), GraphUtil.bytesForMurMurHash + numOfBytesUsed)
   }
@@ -106,7 +106,7 @@ object TargetVertexId extends HBaseDeserializable {
                 len: Int,
                 version: String = DEFAULT_VERSION): (VertexId, Int) = {
     /** murmur has is not prepended so start from offset */
-    val (innerId, numOfBytesUsed) = InnerVal.fromBytes(bytes, offset, len, version)
+    val (innerId, numOfBytesUsed) = InnerVal.fromBytes(bytes, offset, len, version, isVertexId = true)
     (TargetVertexId(DEFAULT_COL_ID, innerId), numOfBytesUsed)
   }
 }

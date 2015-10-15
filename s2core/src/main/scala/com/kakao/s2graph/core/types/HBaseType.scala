@@ -16,8 +16,11 @@ object HBaseType {
   val toSeqByte = -5.toByte
   val defaultTgtVertexId = null
 }
+
 object HBaseDeserializable {
+
   import HBaseType._
+
   // 6 bits is used for index sequence so total index per label is limited to 2^6
   def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte], offset: Int): (Byte, Boolean) = {
     val byte = bytes(offset)
@@ -90,6 +93,7 @@ object HBaseDeserializable {
     ret
   }
 }
+
 object HBaseSerializable {
   def propsToBytes(props: Seq[(Byte, InnerValLike)]): Array[Byte] = {
     val len = props.length
@@ -98,6 +102,7 @@ object HBaseSerializable {
     for ((k, v) <- props) bytes = Bytes.add(bytes, v.bytes)
     bytes
   }
+
   def propsToKeyValues(props: Seq[(Byte, InnerValLike)]): Array[Byte] = {
     val len = props.length
     assert(len < Byte.MaxValue)
@@ -105,6 +110,7 @@ object HBaseSerializable {
     for ((k, v) <- props) bytes = Bytes.add(bytes, Array.fill(1)(k), v.bytes)
     bytes
   }
+
   def propsToKeyValuesWithTs(props: Seq[(Byte, InnerValLikeWithTs)]): Array[Byte] = {
     val len = props.length
     assert(len < Byte.MaxValue)
@@ -112,27 +118,43 @@ object HBaseSerializable {
     for ((k, v) <- props) bytes = Bytes.add(bytes, Array.fill(1)(k), v.bytes)
     bytes
   }
+
   def labelOrderSeqWithIsInverted(labelOrderSeq: Byte, isInverted: Boolean): Array[Byte] = {
     assert(labelOrderSeq < (1 << 6))
     val byte = labelOrderSeq << 1 | (if (isInverted) 1 else 0)
     Array.fill(1)(byte.toByte)
   }
 }
+
 trait HBaseSerializable {
   def bytes: Array[Byte]
 }
 
 trait HBaseDeserializable {
+
   import HBaseType._
+
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
                 version: String = DEFAULT_VERSION): (HBaseSerializable, Int)
-//  def fromBytesWithIndex(bytes: Array[Byte],
-//                offset: Int,
-//                len: Int,
-//                version: String = DEFAULT_VERSION): (HBaseSerializable, Int)
+
+  //  def fromBytesWithIndex(bytes: Array[Byte],
+  //                offset: Int,
+  //                len: Int,
+  //                version: String = DEFAULT_VERSION): (HBaseSerializable, Int)
   def notSupportedEx(version: String) = new RuntimeException(s"not supported version, $version")
+}
 
+trait HBaseDeserializableWithIsVertexId {
 
+  import HBaseType._
+
+  def fromBytes(bytes: Array[Byte],
+                offset: Int,
+                len: Int,
+                version: String = DEFAULT_VERSION,
+                isVertexId: Boolean = false): (HBaseSerializable, Int)
+
+  def notSupportedEx(version: String) = new RuntimeException(s"not supported version, $version")
 }
