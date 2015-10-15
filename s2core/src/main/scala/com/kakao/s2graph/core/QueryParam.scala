@@ -41,6 +41,7 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  selectColumns: Seq[String] = Seq.empty[String],
                  groupByColumns: Seq[String] = Seq.empty[String],
                  filterOutQuery: Option[Query] = None,
+                 filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
                  withScore: Boolean = true,
                  returnTree: Boolean = false) {
 

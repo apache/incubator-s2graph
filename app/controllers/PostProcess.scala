@@ -21,7 +21,7 @@ object PostProcess extends JSONParser {
     //    filterNot {case (edge, score) => edge.props.contains(LabelMeta.degreeSeq)}
     val groupedEdgesWithRank = (for {
       queryResult <- queryResultLs
-      (edge, score) <- queryResult.edgeWithScoreLs
+      (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(toHashKey(edge, queryResult.query.filterOutFields))
     } yield {
         (queryResult.queryParam, edge, score)
       }).groupBy {
@@ -32,8 +32,7 @@ object PostProcess extends JSONParser {
     }
 
     val ret = for {
-      ((tgtColumn, labelName, srcColumn, target, isDegreeEdge), edgesAndRanks) <- groupedEdgesWithRank
-      if !excludeIds.contains(target) && !isDegreeEdge
+      ((tgtColumn, labelName, srcColumn, target, isDegreeEdge), edgesAndRanks) <- groupedEdgesWithRank if !isDegreeEdge
       edgesWithRanks = edgesAndRanks.groupBy(x => x._2.srcVertex).map(_._2.head)
       id <- innerValToJsValue(target, tgtColumn.columnType)
     } yield {
@@ -70,14 +69,25 @@ object PostProcess extends JSONParser {
     )
   }
 
-  def resultInnerIds(queryResultLs: Seq[QueryResult], isSrcVertex: Boolean = false) = {
+  private def toHashKey(edge: Edge, fields: Seq[String], delimiter: String = ","): String = {
+    val ls = for {
+      field <- fields
+    } yield {
+      field match {
+        case "from" | "_from" => edge.srcVertex.innerId
+        case "to" | "_to" => edge.tgtVertex.innerId
+        case "label" => edge.labelWithDir
+        case _ => throw new RuntimeException("not supported")
+      }
+    }
+    ls.mkString(delimiter)
+  }
+  def resultInnerIds(queryResultLs: Seq[QueryResult], isSrcVertex: Boolean = false): Seq[String] = {
     for {
       queryResult <- queryResultLs
+      q = queryResult.query
       (edge, score) <- queryResult.edgeWithScoreLs
-    } yield {
-      if (isSrcVertex) edge.srcVertex.innerId
-      else edge.tgtVertex.innerId
-    }
+    } yield toHashKey(edge, q.filterOutFields)
   }
 
   def summarizeWithListExcludeFormatted(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]) = {
@@ -114,7 +124,7 @@ object PostProcess extends JSONParser {
       for {
         queryResult <- queryResultLs
         queryParam =  queryResult.queryParam
-        (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(edge.tgtVertex.innerId)
+        (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(toHashKey(edge, q.filterOutFields))
       } {
         withScore = queryResult.query.withScore
         val (srcColumn, _) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
@@ -185,17 +195,6 @@ object PostProcess extends JSONParser {
     } yield labelMeta.name -> jsValue
   }
 
-//  def srcTgtColumn(edge: Edge, queryParam: QueryParam) = {
-//    if (queryParam.label.isDirected) {
-//      (queryParam.srcColumnWithDir, queryParam.tgtColumnWithDir)
-//    } else {
-//      if (queryParam.labelWithDir.dir == GraphUtil.directions("in")) {
-//        (queryParam.label.tgtColumn, queryParam.label.srcColumn)
-//      } else {
-//        (queryParam.label.srcColumn, queryParam.label.tgtColumn)
-//      }
-//    }
-//  }
 
   private def edgeParent(parentEdges: Seq[EdgeWithScore], q: Query, queryParam: QueryParam): JsValue = {
 
@@ -302,8 +301,7 @@ object PostProcess extends JSONParser {
 
     val groupedEdgesWithRank = (for {
       queryResult <- queryResultLs
-      (edge, score) <- queryResult.edgeWithScoreLs
-    //      if edge.propsWithTs.contains(LabelMeta.degreeSeq)
+      (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(toHashKey(edge, queryResult.query.filterOutFields))
     } yield {
         (edge, score)
       }).groupBy { case (edge, score) =>
@@ -311,7 +309,7 @@ object PostProcess extends JSONParser {
     }
 
     val jsons = for {
-      ((tgtColumn, srcColumn, target), edgesAndRanks) <- groupedEdgesWithRank if !excludeIds.contains(target)
+      ((tgtColumn, srcColumn, target), edgesAndRanks) <- groupedEdgesWithRank
       (edges, ranks) = edgesAndRanks.groupBy(x => x._1.srcVertex).map(_._2.head).unzip
       tgtId <- innerValToJsValue(target, tgtColumn.columnType)
     } yield {
