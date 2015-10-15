@@ -7,6 +7,7 @@ import config.CounterConfig
 import models._
 import org.apache.kafka.clients.producer.ProducerRecord
 import play.api.Play
+import play.api.libs.json.Reads._
 import play.api.libs.json._
 import play.api.mvc.{Action, Controller, Request}
 import s2.config.S2CounterConfig
@@ -46,6 +47,31 @@ object CounterController extends Controller {
 
   def getQueryString[T](key: String, default: String)(implicit request: Request[T]): String = {
     request.getQueryString(key).getOrElse(default)
+  }
+
+  implicit val counterWrites = new Writes[Counter] {
+    override def writes(o: Counter): JsValue = Json.obj(
+      "version" -> o.version.toInt,
+      "autoComb" -> o.autoComb,
+      "dimension" -> o.dimension,
+      "useProfile" -> o.useProfile,
+      "bucketImpId" -> o.bucketImpId,
+      "useRank" -> o.useRank,
+      "intervalUnit" -> o.intervalUnit,
+      "ttl" -> o.ttl,
+      "dailyTtl" -> o.dailyTtl,
+      "rateAction" -> o.rateActionId.flatMap { actionId =>
+        counterModel.findById(actionId, useCache = false).map { actionPolicy =>
+          Json.obj("service" -> actionPolicy.service, "action" -> actionPolicy.action)
+        }
+      },
+      "rateBase" -> o.rateBaseId.flatMap { baseId =>
+        counterModel.findById(baseId, useCache = false).map { basePolicy =>
+          Json.obj("service" -> basePolicy.service, "action" -> basePolicy.action)
+        }
+      },
+      "rateThreshold" -> o.rateThreshold
+    )
   }
 
   def createAction(service: String, action: String) = Action(s2parse.json) { implicit request =>
@@ -127,11 +153,77 @@ object CounterController extends Controller {
   }
 
   def getAction(service: String, action: String) = Action { request =>
-    Ok("")
+    counterModel.findByServiceAction(service, action) match {
+      case Some(policy) =>
+        Ok(Json.toJson(policy))
+      case None =>
+        NotFound(Json.toJson(Map("msg" -> s"$service.$action not found")))
+    }
   }
 
   def updateAction(service: String, action: String) = Action(s2parse.json) { request =>
-    Ok("")
+    counterModel.findByServiceAction(service, action, useCache = false) match {
+      case Some(oldPolicy) =>
+        val body = request.body
+        val autoComb = (body \ "autoComb").asOpt[Boolean].getOrElse(oldPolicy.autoComb)
+        val dimension = (body \ "dimension").asOpt[String].getOrElse(oldPolicy.dimension)
+        val useProfile = (body \ "useProfile").asOpt[Boolean].getOrElse(oldPolicy.useProfile)
+        val bucketImpId = (body \ "bucketImpId").asOpt[String] match {
+          case Some(s) => Some(s)
+          case None => oldPolicy.bucketImpId
+        }
+
+        val useRank = (body \ "useRank").asOpt[Boolean].getOrElse(oldPolicy.useRank)
+
+        val intervalUnit = (body \ "intervalUnit").asOpt[String] match {
+          case Some(s) => Some(s)
+          case None => oldPolicy.intervalUnit
+        }
+
+        val rateAction = (body \ "rateAction").asOpt[Map[String, String]]
+        val rateBase = (body \ "rateBase").asOpt[Map[String, String]]
+        val rateThreshold = (body \ "rateThreshold").asOpt[Int] match {
+          case Some(i) => Some(i)
+          case None => oldPolicy.rateThreshold
+        }
+
+        val rateActionId = {
+          for {
+            actionMap <- rateAction
+            service <- actionMap.get("service")
+            action <- actionMap.get("action")
+            policy <- counterModel.findByServiceAction(service, action)
+          } yield {
+            policy.id
+          }
+        } match {
+          case Some(i) => Some(i)
+          case None => oldPolicy.rateActionId
+        }
+        val rateBaseId = {
+          for {
+            actionMap <- rateBase
+            service <- actionMap.get("service")
+            action <- actionMap.get("action")
+            policy <- counterModel.findByServiceAction(service, action)
+          } yield {
+            policy.id
+          }
+        } match {
+          case Some(i) => Some(i)
+          case None => oldPolicy.rateBaseId
+        }
+
+        // new counter
+        val policy = Counter(id = oldPolicy.id, useFlag = oldPolicy.useFlag, oldPolicy.version, service, action, oldPolicy.itemType, autoComb = autoComb, dimension,
+          useProfile = useProfile, bucketImpId, useRank = useRank, oldPolicy.ttl, oldPolicy.dailyTtl, oldPolicy.hbaseTable, intervalUnit,
+          rateActionId, rateBaseId, rateThreshold)
+
+        counterModel.updateServiceAction(policy)
+        Ok(Json.toJson(Map("msg" -> s"updated $service/$action")))
+      case None =>
+        NotFound(Json.toJson(Map("msg" -> s"$service.$action not found")))
+    }
   }
 
   def deleteAction(service: String, action: String) = Action.apply {

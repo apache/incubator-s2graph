@@ -181,6 +181,23 @@ class CounterModel(config: Config) extends CachedDBModel[Counter] {
     }.update().apply()
   }
 
+  def updateServiceAction(policy: Counter): Unit = {
+    withSQL {
+      val c = Counter.column
+      update(Counter).set(
+        c.autoComb -> policy.autoComb,
+        c.dimension -> policy.dimension,
+        c.useProfile -> policy.useProfile,
+        c.bucketImpId -> policy.bucketImpId,
+        c.useRank -> policy.useRank,
+        c.intervalUnit -> policy.intervalUnit,
+        c.rateActionId -> policy.rateActionId,
+        c.rateBaseId -> policy.rateBaseId,
+        c.rateThreshold -> policy.rateThreshold
+      ).where.eq(c.id, policy.id)
+    }.update().apply()
+  }
+
   def deleteServiceAction(policy: Counter): Unit = {
     withSQL {
       val c = Counter.column
