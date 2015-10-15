@@ -44,7 +44,6 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
                  withScore: Boolean = true,
                  returnTree: Boolean = false) {
-
   lazy val selectColumnsSet = selectColumns.map { c =>
     if (c == "_from") "from"
     else if (c == "_to") "to"
