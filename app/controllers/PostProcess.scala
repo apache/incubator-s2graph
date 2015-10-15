@@ -113,10 +113,11 @@ object PostProcess extends JSONParser {
       /** build result jsons */
       for {
         queryResult <- queryResultLs
+        queryParam =  queryResult.queryParam
         (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(edge.tgtVertex.innerId)
       } {
         withScore = queryResult.query.withScore
-        val (srcColumn, _) = srcTgtColumn(edge, queryResult.queryParam)
+        val (srcColumn, _) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
         val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
         if (edge.propsWithTs.contains(LabelMeta.degreeSeq) && fromOpt.isDefined) {
           degrees += Json.obj(
@@ -184,17 +185,17 @@ object PostProcess extends JSONParser {
     } yield labelMeta.name -> jsValue
   }
 
-  def srcTgtColumn(edge: Edge, queryParam: QueryParam) = {
-    if (queryParam.label.isDirected) {
-      (queryParam.srcColumnWithDir, queryParam.tgtColumnWithDir)
-    } else {
-      if (queryParam.labelWithDir.dir == GraphUtil.directions("in")) {
-        (queryParam.label.tgtColumn, queryParam.label.srcColumn)
-      } else {
-        (queryParam.label.srcColumn, queryParam.label.tgtColumn)
-      }
-    }
-  }
+//  def srcTgtColumn(edge: Edge, queryParam: QueryParam) = {
+//    if (queryParam.label.isDirected) {
+//      (queryParam.srcColumnWithDir, queryParam.tgtColumnWithDir)
+//    } else {
+//      if (queryParam.labelWithDir.dir == GraphUtil.directions("in")) {
+//        (queryParam.label.tgtColumn, queryParam.label.srcColumn)
+//      } else {
+//        (queryParam.label.srcColumn, queryParam.label.tgtColumn)
+//      }
+//    }
+//  }
 
   private def edgeParent(parentEdges: Seq[EdgeWithScore], q: Query, queryParam: QueryParam): JsValue = {
 
@@ -217,7 +218,7 @@ object PostProcess extends JSONParser {
   }
 
   def edgeToJsonInner(edge: Edge, score: Double, q: Query, queryParam: QueryParam): Map[String, JsValue] = {
-    val (srcColumn, tgtColumn) = srcTgtColumn(edge, queryParam)
+    val (srcColumn, tgtColumn) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
 
     val kvMapOpt = for {
       from <- innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)

@@ -65,7 +65,7 @@ trait SpecCommon extends Specification {
   protected val testHTableName = "test-htable"
   protected val newHTableName = "new-htable"
 
-  val NUM_OF_EACH_TEST = 3
+  val NUM_OF_EACH_TEST = 10
   val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
   val asyncFlushInterval = 300
 

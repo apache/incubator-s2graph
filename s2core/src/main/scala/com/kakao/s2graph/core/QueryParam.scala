@@ -427,24 +427,19 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
 
   def buildGetRequest(srcVertex: Vertex) = {
-    val (srcColumn, tgtColumn) =
-      if (labelWithDir.dir == GraphUtil.directions("in") && label.isDirected) (label.tgtColumn, label.srcColumn)
-      else (label.srcColumn, label.tgtColumn)
-    val (srcInnerId, tgtInnerId) =
-    //FIXME
-      if (labelWithDir.dir == GraphUtil.directions("in") && tgtVertexInnerIdOpt.isDefined && label.isDirected) {
-        // need to be swap src, tgt
-        val tgtVertexInnerId = tgtVertexInnerIdOpt.get
-        (InnerVal.convertVersion(tgtVertexInnerId, srcColumn.columnType, label.schemaVersion),
-          InnerVal.convertVersion(srcVertex.innerId, tgtColumn.columnType, label.schemaVersion))
-      } else {
-        val tgtVertexInnerId = tgtVertexInnerIdOpt.getOrElse(srcVertex.innerId)
-        (InnerVal.convertVersion(srcVertex.innerId, tgtColumn.columnType, label.schemaVersion),
-          InnerVal.convertVersion(tgtVertexInnerId, srcColumn.columnType, label.schemaVersion))
-      }
+    val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
+    val (srcInnerId, tgtInnerId) = tgtVertexInnerIdOpt match {
+      case Some(tgtVertexInnerId) => // _to is given.
+        /** we use toInvertedEdgeHashLike so dont need to swap src, tgt */
+        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
+        val tgt = InnerVal.convertVersion(tgtVertexInnerId, tgtColumn.columnType, label.schemaVersion)
+        (src, tgt)
+      case None =>
+        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
+        (src, src)
+    }
 
-    val (srcVId, tgtVId) =
-      (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
+    val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
     val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
     val edge = Edge(srcV, tgtV, labelWithDir)
 
@@ -470,7 +465,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     get.setRpcTimeout(rpcTimeoutInMillis)
 
     if (columnRangeFilter != null) get.filter(columnRangeFilter)
-    logger.debug(s"Get: $get")
+    logger.info(s"Get: $get")
 
     get
   }
