@@ -227,15 +227,20 @@ object CounterController extends Controller {
   }
 
   def prepareAction(service: String, action: String) = Action(s2parse.json) { request =>
+    // for data migration
     counterModel.findByServiceAction(service, action, useCache = false) match {
       case Some(policy) =>
         val body = request.body
         val version = (body \ "version").as[Int].toByte
-        exactCounter(version).prepare(policy)
-        if (policy.useRank) {
-          rankingCounter(version).prepare(policy)
+        if (version != policy.version) {
+          exactCounter(version).prepare(policy)
+          if (policy.useRank) {
+            rankingCounter(version).prepare(policy)
+          }
+          Ok(Json.toJson(Map("msg" -> s"prepare storage v$version $service/$action")))
+        } else {
+          Ok(Json.toJson(Map("msg" -> s"already prepared storage v$version $service/$action")))
         }
-        Ok(Json.toJson(Map("msg" -> s"prepare storage v$version $service/$action")))
       case None =>
         NotFound(Json.toJson(Map("msg" -> s"$service.$action not found")))
     }
