@@ -304,4 +304,10 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
   override def destroy(policy: Counter): Unit = {
 
   }
+
+  override def ready(policy: Counter): Boolean = {
+    policy.hbaseTable.map { table =>
+      hbaseManagement.tableExists(s2config.HBASE_ZOOKEEPER_QUORUM, table)
+    }.getOrElse(true)
+  }
 }

@@ -7,7 +7,7 @@ import s2.counter.core.TimedQualifier.IntervalUnit.IntervalUnit
 import s2.counter.decay.ExpDecayFormula
 import s2.counter.{TrxLog, TrxLogResult}
 import s2.models.Counter
-import s2.util.FunctionParser
+import s2.util.{CollectionCache, CollectionCacheConfig, FunctionParser}
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -28,6 +28,8 @@ class ExactCounter(config: Config, storage: ExactStorage) {
 
   val syncDuration = Duration(10, SECONDS)
   private val log = LoggerFactory.getLogger(getClass)
+
+  val storageStatusCache = new CollectionCache[Option[Boolean]](CollectionCacheConfig(1000, 60, negativeCache = false, 60))
   
   /**
    * dimension: age, value of ages
@@ -163,12 +165,18 @@ class ExactCounter(config: Config, storage: ExactStorage) {
   }
 
   def updateCount(policy: Counter, counts: Seq[(ExactKeyTrait, ExactValueMap)]): Seq[TrxLog] = {
-    val updateResults = storage.update(policy, counts)
-    for {
-      (exactKey, values) <- counts
-      results = updateResults.getOrElse(exactKey, Nil.toMap)
-    } yield {
-      TrxLog(results.nonEmpty, exactKey.policyId, exactKey.itemKey, makeTrxLogResult(values, results))
+    ready(policy) match {
+      case true =>
+        val updateResults = storage.update(policy, counts)
+        for {
+          (exactKey, values) <- counts
+          results = updateResults.getOrElse(exactKey, Nil.toMap)
+        } yield {
+          TrxLog(results.nonEmpty, exactKey.policyId, exactKey.itemKey, makeTrxLogResult(values, results))
+        }
+      case false =>
+        log.warn(s"${policy.service}.${policy.action} storage is not ready.")
+        Nil
     }
   }
 
@@ -234,6 +242,12 @@ class ExactCounter(config: Config, storage: ExactStorage) {
 
   def destroy(policy: Counter) = {
     storage.destroy(policy)
+  }
+
+  def ready(policy: Counter): Boolean = {
+    storageStatusCache.withCache("$policy.id") {
+      Some(storage.ready(policy))
+    }.getOrElse(false)
   }
 }
 

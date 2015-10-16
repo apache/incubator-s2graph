@@ -25,6 +25,26 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
 
   val TOTAL = "_total_"
 
+  /**
+   * ex1)
+   * dimension = "age.32"
+   * ex2)
+   * dimension = "age.gender.32.m"
+   *
+   */
+  private def makeBucket(rankingKey: RankingKey): String = {
+    val policyId = rankingKey.policyId
+    val q = rankingKey.eq.tq.q
+    val ts = rankingKey.eq.tq.ts
+    val dimension = rankingKey.eq.dimension
+    if (dimension.nonEmpty) {
+      s"$policyId.$q.$ts.$dimension"
+    }
+    else {
+      s"$policyId.$q.$ts"
+    }
+  }
+
   override def getTopK(rankingKey: RankingKey, k: Int): Option[RankingResult] = {
     val bucket = makeBucket(rankingKey)
     withRedis.doBlockWithKey(bucket) { jedis =>
@@ -127,10 +147,6 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
     }
   }
 
-  override def prepare(policy: Counter, rateActionOpt: Option[String]): Unit = {
-    // do nothing
-  }
-
   override def getTopK(keys: Seq[RankingKey], k: Int): Seq[(RankingKey, RankingResult)] = {
     keys.map { key =>
       (makeBucket(key), key)
@@ -166,7 +182,16 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
     }
   }.seq
 
+  override def prepare(policy: Counter, rateActionOpt: Option[String]): Unit = {
+    // do nothing
+  }
+
   override def destroy(policy: Counter): Unit = {
 
+  }
+
+  override def ready(policy: Counter): Boolean = {
+    // always return true
+    true
   }
 }

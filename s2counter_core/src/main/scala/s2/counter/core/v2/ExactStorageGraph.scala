@@ -40,10 +40,6 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
   import ExactStorageGraph._
 
   override def update(policy: Counter, counts: Seq[(ExactKeyTrait, ExactValueMap)]): Map[ExactKeyTrait, ExactValueMap] = {
-    // rowKey: bytesUtil.toBytes(exactKey)
-    // cf: M, D, H, N
-    // qualifier: intervalsMap
-    // value: value
     val (keyWithEq, reqJsLs) = toIncrementCountRequests(policy, counts).unzip(x => ((x._1, x._2), x._3))
     val reqJsStr = Json.toJson(reqJsLs).toString()
     val response = Http(s"$s2graphUrl/graphs/edges/incrementCount")
@@ -51,13 +47,6 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
       .header("content-type", "application/json").asString
 
     if (response.isSuccess) {
-      // [
-      //   {
-      //     "success": true,
-      //     "result": 11
-      //   },
-      //   ...
-      // ]
       val respJs = Json.parse(response.body)
       val respSeq = respJs.as[Seq[RespGraph]]
 
@@ -282,9 +271,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
     val action = policy.action
     val counterLabelName = action + labelPostfix
 
-    val response = Http(s"$s2graphUrl/graphs/getLabel/$counterLabelName").asString
-
-    response.code == HttpStatus.SC_OK
+    Label.findByName(counterLabelName).nonEmpty
   }
 
   override def prepare(policy: Counter): Unit = {
@@ -348,5 +335,9 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
         throw new RuntimeException(s"${response.code} ${response.body}")
       }
     }
+  }
+
+  override def ready(policy: Counter): Boolean = {
+    existsLabel(policy)
   }
 }

@@ -23,6 +23,8 @@ trait ExactStorage {
   def delete(policy: Counter, keys: Seq[ExactKeyTrait]): Unit
   def insertBlobValue(policy: Counter, keys: Seq[BlobExactKey]): Seq[Boolean]
   def getBlobValue(policy: Counter, blobId: String): Option[String]
+
   def prepare(policy: Counter): Unit
   def destroy(policy: Counter): Unit
+  def ready(policy: Counter): Boolean
 }

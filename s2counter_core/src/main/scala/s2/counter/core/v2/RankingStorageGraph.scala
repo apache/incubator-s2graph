@@ -3,7 +3,6 @@ package s2.counter.core.v2
 import com.kakao.s2graph.core.mysqls.Label
 import com.kakao.s2graph.core.types.HBaseType
 import com.typesafe.config.Config
-import org.apache.http.HttpStatus
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{JsObject, JsString, JsValue, Json}
 import s2.config.S2CounterConfig
@@ -27,6 +26,14 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
   private val labelPostfix = "_topK"
 
   val s2graphUrl = s2config.GRAPH_URL
+
+  // "", "age.32", "age.gender.32.M"
+  private def makeBucketSimple(rankingKey: RankingKey): String = {
+    val q = rankingKey.eq.tq.q
+    val ts = rankingKey.eq.tq.ts
+    val dimension = rankingKey.eq.dimension
+    s"$dimension"
+  }
 
   /**
    * indexProps: ["time_unit", "time_value", "score"]
@@ -183,9 +190,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
     val action = policy.action
     val counterLabelName = action + labelPostfix
 
-    val response = Http(s"$s2graphUrl/graphs/getLabel/$counterLabelName").asString
-
-    response.code == HttpStatus.SC_OK
+    Label.findByName(counterLabelName).nonEmpty
   }
 
   override def prepare(policy: Counter, rateActionOpt: Option[String]): Unit = {
@@ -251,5 +256,9 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
         throw new RuntimeException(s"${response.code} ${response.body}")
       }
     }
+  }
+
+  override def ready(policy: Counter): Boolean = {
+    existsLabel(policy)
   }
 }

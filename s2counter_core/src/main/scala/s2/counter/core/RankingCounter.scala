@@ -7,6 +7,7 @@ import com.typesafe.config.Config
 import org.slf4j.LoggerFactory
 import s2.counter.core.RankingCounter.RankingValueMap
 import s2.models.Counter
+import s2.util.{CollectionCache, CollectionCacheConfig}
 
 import scala.collection.JavaConversions._
 
@@ -18,6 +19,8 @@ case class RateRankingRow(key: RankingKey, value: Map[String, RateRankingValue])
 
 class RankingCounter(config: Config, storage: RankingStorage) {
   private val log = LoggerFactory.getLogger(getClass)
+
+  val storageStatusCache = new CollectionCache[Option[Boolean]](CollectionCacheConfig(1000, 60, negativeCache = false, 60))
 
   val cache: LoadingCache[RankingKey, RankingResult] = CacheBuilder.newBuilder()
     .maximumSize(1000000)
@@ -95,6 +98,12 @@ class RankingCounter(config: Config, storage: RankingStorage) {
 
   def destroy(policy: Counter): Unit = {
     storage.destroy(policy)
+  }
+
+  def ready(policy: Counter): Boolean = {
+    storageStatusCache.withCache(s"$policy.id") {
+      Some(storage.ready(policy))
+    }.getOrElse(false)
   }
 }
 
