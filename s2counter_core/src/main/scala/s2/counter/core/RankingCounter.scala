@@ -92,8 +92,8 @@ class RankingCounter(config: Config, storage: RankingStorage) {
     }
   }.toSeq.distinct
 
-  def prepare(policy: Counter, graphLabelOpt: Option[String]): Unit = {
-    storage.prepare(policy, graphLabelOpt)
+  def prepare(policy: Counter): Unit = {
+    storage.prepare(policy)
   }
 
   def destroy(policy: Counter): Unit = {

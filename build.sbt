@@ -2,7 +2,7 @@ name := "s2graph"
 
 lazy val commonSettings = Seq(
   organization := "com.kakao.s2graph",
-  version := "0.11.0-SNAPSHOT",
+  version := "0.11.1-SNAPSHOT",
   crossScalaVersions := Seq("2.11.7"),
   scalacOptions ++= Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xexperimental"),
   scalacOptions in Test ++= Seq("-Yrangepos"),

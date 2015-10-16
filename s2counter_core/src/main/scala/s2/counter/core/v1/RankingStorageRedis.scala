@@ -182,7 +182,7 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
     }
   }.seq
 
-  override def prepare(policy: Counter, rateActionOpt: Option[String]): Unit = {
+  override def prepare(policy: Counter): Unit = {
     // do nothing
   }
 

@@ -193,15 +193,18 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
     Label.findByName(counterLabelName).nonEmpty
   }
 
-  override def prepare(policy: Counter, rateActionOpt: Option[String]): Unit = {
+  override def prepare(policy: Counter): Unit = {
     val service = policy.service
     val action = policy.action
 
     if (!existsLabel(policy)) {
-      val graphLabel = rateActionOpt.getOrElse(action)
-      val defaultLabel = Label(None, graphLabel, -1, "", "", -1, "s2counter_id", policy.itemType.toString.toLowerCase,
+      // find input label to specify target column
+      val inputLabelName = policy.rateActionId.flatMap { id =>
+        counterModel.findById(id, useCache = false).map(_.action)
+      }.getOrElse(action)
+      val defaultLabel = Label(None, inputLabelName, -1, "", "", -1, "s2counter_id", policy.itemType.toString.toLowerCase,
         isDirected = true, service, -1, "weak", "", None, HBaseType.DEFAULT_VERSION, isAsync = false, "lz4")
-      val label = Label.findByName(graphLabel, useCache = false)
+      val label = Label.findByName(inputLabelName, useCache = false)
         .getOrElse(defaultLabel)
 
       val counterLabelName = action + labelPostfix

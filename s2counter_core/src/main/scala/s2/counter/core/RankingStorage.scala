@@ -14,7 +14,7 @@ trait RankingStorage {
   def update(values: Seq[(RankingKey, RankingValueMap, Int)]): Unit
   def delete(key: RankingKey)
 
-  def prepare(policy: Counter, rateActionOpt: Option[String]): Unit
+  def prepare(policy: Counter): Unit
   def destroy(policy: Counter): Unit
   def ready(policy: Counter): Boolean
 }
