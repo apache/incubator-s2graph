@@ -711,7 +711,7 @@ object Graph {
     val futures = vertices.map { vertex =>
       val client = getClient(vertex.hbaseZkAddr)
       val get = vertex.buildGet
-      get.setRpcTimeout(this.singleGetTimeout.toShort)
+      get.setTimeout(this.singleGetTimeout.toShort)
       get.setFailfast(true)
       get.maxVersions(1)
 

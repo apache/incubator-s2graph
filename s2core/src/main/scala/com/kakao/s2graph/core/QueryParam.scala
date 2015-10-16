@@ -461,10 +461,11 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     get.setRowOffsetPerColumnFamily(offset)
     get.setMinTimestamp(minTs)
     get.setMaxTimestamp(maxTs)
-    get.setMaxAttempt(maxAttempt.toByte)
-    get.setRpcTimeout(rpcTimeoutInMillis)
+    get.setTimeout(rpcTimeoutInMillis)
+//    get.setMaxAttempt(maxAttempt.toByte)
+//    get.setRpcTimeout(rpcTimeoutInMillis)
 
-    if (columnRangeFilter != null) get.filter(columnRangeFilter)
+    if (columnRangeFilter != null) get.setFilter(columnRangeFilter)
     logger.info(s"Get: $get")
 
     get
