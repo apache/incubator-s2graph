@@ -153,7 +153,7 @@ object CounterController extends Controller {
   }
 
   def getAction(service: String, action: String) = Action { request =>
-    counterModel.findByServiceAction(service, action) match {
+    counterModel.findByServiceAction(service, action, useCache = false) match {
       case Some(policy) =>
         Ok(Json.toJson(policy))
       case None =>
@@ -192,7 +192,7 @@ object CounterController extends Controller {
             actionMap <- rateAction
             service <- actionMap.get("service")
             action <- actionMap.get("action")
-            policy <- counterModel.findByServiceAction(service, action)
+            policy <- counterModel.findByServiceAction(service, action, useCache = false)
           } yield {
             policy.id
           }
@@ -205,7 +205,7 @@ object CounterController extends Controller {
             actionMap <- rateBase
             service <- actionMap.get("service")
             action <- actionMap.get("action")
-            policy <- counterModel.findByServiceAction(service, action)
+            policy <- counterModel.findByServiceAction(service, action, useCache = false)
           } yield {
             policy.id
           }
@@ -229,7 +229,7 @@ object CounterController extends Controller {
   def deleteAction(service: String, action: String) = Action.apply {
     {
       for {
-        policy <- counterModel.findByServiceAction(service, action)
+        policy <- counterModel.findByServiceAction(service, action, useCache = false)
       } yield {
         Try {
           exactCounter(policy.version).destroy(policy)
