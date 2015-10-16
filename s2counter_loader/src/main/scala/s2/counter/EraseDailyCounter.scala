@@ -9,6 +9,7 @@ import play.api.libs.json.Json
 import s2.config.{S2ConfigFactory, StreamingConfig}
 import s2.counter.core.ExactCounter.ExactValueMap
 import s2.counter.core._
+import s2.counter.core.v2.ExactStorageGraph
 import s2.models.{Counter, CounterModel, DBModel}
 import s2.spark.{SparkApp, WithKafka}
 
@@ -111,17 +112,13 @@ object EraseDailyCounter extends SparkApp with WithKafka {
     val toTs = fromTs + 23 * 60 * 60 * 1000
 
     rdd.mapPartitions { part =>
-      CounterFunctions.exactCounterByVersion(policy.version) match {
-        case Some(exactCounter) =>
-          for {
-            line <- part
-            FetchedCountsGrouped(exactKey, intervalWithCountMap) <- exactCounter.getCount(policy, line, Array(TimedQualifier.IntervalUnit.DAILY), fromTs, toTs, Map.empty[String, Set[String]])
-            count = intervalWithCountMap.values.head
-          } yield {
-            (exactKey, count)
-          }
-        case None =>
-          throw new Exception(s"unknown version: ${policy.version}")
+      val exactCounter = new ExactCounter(S2ConfigFactory.config, new ExactStorageGraph(S2ConfigFactory.config))
+      for {
+        line <- part
+        FetchedCountsGrouped(exactKey, intervalWithCountMap) <- exactCounter.getCount(policy, line, Array(TimedQualifier.IntervalUnit.DAILY), fromTs, toTs, Map.empty[String, Set[String]])
+        count = intervalWithCountMap.values.head
+      } yield {
+        (exactKey, count)
       }
     }
   }

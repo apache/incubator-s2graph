@@ -10,7 +10,6 @@ import s2.counter.TrxLog
 import s2.counter.core.ExactCounter.ExactValueMap
 import s2.counter.core.RankingCounter.RankingValueMap
 import s2.counter.core.TimedQualifier.IntervalUnit
-import s2.counter.core.v1.{ExactStorageHBase, RankingStorageRedis}
 import s2.counter.core.v2.{ExactStorageGraph, RankingStorageGraph}
 import s2.models.{Counter, DBModel, DefaultCounterModel}
 import s2.spark.WithKafka
@@ -24,19 +23,9 @@ import scala.util.Try
  */
 object CounterFunctions extends Logging with WithKafka {
   import scala.concurrent.ExecutionContext.Implicits.global
-  // ttl for ranking(redis)
-  // minute: 2hour, hour: 1hour + 2day, day: 1day + 30day
-//  private[counter] val ttlMap: Map[String, Int] = Map("m" -> 3600 * 2, "H" -> 3600 * (1 + 24 * 2), "d" -> 3600 * (24 + 24 * 30))
 
-  private val exactCounterMap = Map(
-//    s2.counter.VERSION_1 -> new ExactCounter(S2ConfigFactory.config, new ExactStorageHBase(S2ConfigFactory.config)),
-    s2.counter.VERSION_2 -> new ExactCounter(S2ConfigFactory.config, new ExactStorageGraph(S2ConfigFactory.config))
-  )
-
-  private val rankingCounterMap = Map(
-//    s2.counter.VERSION_1 -> new RankingCounter(S2ConfigFactory.config, new RankingStorageRedis(S2ConfigFactory.config)),
-    s2.counter.VERSION_2 -> new RankingCounter(S2ConfigFactory.config, new RankingStorageGraph(S2ConfigFactory.config))
-  )
+  val exactCounter = new ExactCounter(S2ConfigFactory.config, new ExactStorageGraph(S2ConfigFactory.config))
+  val rankingCounter = new RankingCounter(S2ConfigFactory.config, new RankingStorageGraph(S2ConfigFactory.config))
 
   lazy val producer = getProducer[String, String](StreamingConfig.KAFKA_BROKERS)
 
@@ -248,7 +237,6 @@ object CounterFunctions extends Logging with WithKafka {
       val filled = {
         for {
           (policy, missing) <- missingByPolicy.toSeq
-          exactCounter <- exactCounterByPolicy(policy).toSeq
           keyWithPast = exactCounter.getPastCounts(policy, missing.map { case (k, v) => k.itemKey -> v.keys.toSeq })
           (key, current) <- missing
         } yield {
@@ -296,7 +284,6 @@ object CounterFunctions extends Logging with WithKafka {
       val actionFilled = {
         for {
           (actionPolicy, actionMissing) <- actionMissingByPolicy.toSeq
-          exactCounter <- exactCounterByPolicy(actionPolicy).toSeq
           keyWithRelated = exactCounter.getRelatedCounts(actionPolicy, actionMissing.map { case (k, v) => k.itemKey -> v.keys.toSeq })
           (key, current) <- actionMissing
         } yield {
@@ -325,7 +312,6 @@ object CounterFunctions extends Logging with WithKafka {
       val baseFilled = {
         for {
           (basePolicy, baseMissing) <- baseMissingByPolicy.toSeq
-          exactCounter <- exactCounterByPolicy(basePolicy).toSeq
           keyWithRelated = exactCounter.getRelatedCounts(basePolicy, baseMissing.map { case (k, v) => k.itemKey -> v.keys.toSeq })
           (key, current) <- baseMissing
         } yield {
@@ -374,35 +360,12 @@ object CounterFunctions extends Logging with WithKafka {
     for {
       (policy, allKeys) <- keyByPolicy
       keys <- allKeys.grouped(10)
-      exactCounter <- exactCounterByPolicy(policy).toSeq
       success <- exactCounter.insertBlobValue(policy, keys)
     } yield {
       success match {
         case true => acc += ("BLOB", 1)
         case false => acc += ("BLOBFailed", 1)
       }
-    }
-  }
-
-  def exactCounterByPolicy(policy: Counter): Option[ExactCounter] = {
-    exactCounterByVersion(policy.version)
-  }
-
-  def exactCounterByVersion(version: Byte): Option[ExactCounter] = {
-    exactCounterMap.get(version) match {
-      case Some(x) => Some(x)
-      case None =>
-//        logError(s"unknown version. $version")
-        None
-    }
-  }
-
-  def rankingCounterByVersion(version: Byte): Option[RankingCounter] = {
-    rankingCounterMap.get(version) match {
-      case Some(x) => Some(x)
-      case None =>
-//        logError(s"unknown version. $version")
-        None
     }
   }
 
@@ -419,7 +382,6 @@ object CounterFunctions extends Logging with WithKafka {
     for {
       (policy, allCounts) <- countsByPolicy
       counts <- allCounts.grouped(10)
-      exactCounter <- exactCounterByPolicy(policy).toSeq
       trxLog <- exactCounter.updateCount(policy, counts)
     } yield {
       trxLog.success match {
@@ -446,7 +408,6 @@ object CounterFunctions extends Logging with WithKafka {
       (key, value) <- values
       policy <- DefaultCounterModel.findById(key.policyId)
       if policy.useRank && policy.version == s2.counter.VERSION_2  // update only rank counter enabled
-      rankingCounter <- rankingCounterByVersion(policy.version)
     } {
       rankingCounter.update(key, value, 500)
       acc += (s"RankingV${key.version}", 1)
