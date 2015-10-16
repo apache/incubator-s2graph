@@ -249,11 +249,11 @@ object QueryController extends Controller with RequestParser {
         val edgeJsons = for {
           queryResult <- queryResultLs
           (edge, score) <- queryResult.edgeWithScoreLs
-          edgeJson <- PostProcess.edgeToJson(if (isReverted) edge.duplicateEdge else edge,
-            score, queryResult.query, queryResult.queryParam)
-        } yield edgeJson
+          convertedEdge = if (isReverted) edge.duplicateEdge else edge
+          edgeJson = PostProcess.edgeToJson(convertedEdge, score, queryResult.query, queryResult.queryParam)
+        } yield Json.toJson(edgeJson)
 
-        val json = Json.toJson(edgeJsons.toMap)
+        val json = Json.toJson(edgeJsons)
         jsonResponse(json, "result_size" -> edgeJsons.size.toString)
       }
     } catch {
