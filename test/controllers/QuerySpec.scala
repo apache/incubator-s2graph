@@ -117,6 +117,8 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         }
         """)
 
+
+
     def queryUnion(id: Int, size: Int) = JsArray(List.tabulate(size)(_ => querySingle(id)))
 
     def getEdges(queryJson: JsValue): JsValue = {
@@ -224,6 +226,30 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         // timestamp order
         result = getEdges(queryIndex(Seq(0), "idx_2"))
         ((result \ "results").as[List[JsValue]].head \\ "weight").head must equalTo(JsNumber(30))
+      }
+    }
+
+    "checkEdges" in {
+      running(FakeApplication()) {
+        val json = Json.parse(s"""
+         [{"from": 0, "to": 1, "label": "$testLabelName"},
+          {"from": 0, "to": 2, "label": "$testLabelName"}]
+        """)
+
+        def checkEdges(queryJson: JsValue): JsValue = {
+          val ret = route(FakeRequest(POST, "/graphs/checkEdges").withJsonBody(queryJson)).get
+          contentAsJson(ret)
+        }
+
+        val res = checkEdges(json)
+        val typeRes = res.isInstanceOf[JsArray]
+        typeRes must equalTo(true)
+
+        val fst = res.as[Seq[JsValue]].head \ "to"
+        fst.as[Int] must equalTo(1)
+
+        val snd = res.as[Seq[JsValue]].last \ "to"
+        snd.as[Int] must equalTo(2)
       }
     }
 
