@@ -27,7 +27,7 @@ object GraphToETLStreaming extends SparkApp with WithKafka {
 
     val groupId = buildKafkaGroupId(topic, "graph_to_etl")
     val kafkaParam = Map(
-      "auto.offset.reset" -> "smallest",
+//      "auto.offset.reset" -> "smallest",
       "group.id" -> groupId,
       "metadata.broker.list" -> StreamingConfig.KAFKA_BROKERS,
       "zookeeper.connect" -> StreamingConfig.KAFKA_ZOOKEEPER,
