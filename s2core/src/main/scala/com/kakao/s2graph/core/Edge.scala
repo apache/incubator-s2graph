@@ -12,7 +12,6 @@ import org.hbase.async._
 import play.api.libs.json.Json
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Random, Success, Try}
@@ -350,11 +349,12 @@ case class Edge(srcVertex: Vertex,
       sum
     }
 
-  def toLogString = {
-    val ls = Vector(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label)
+  def toLogString: String = {
     val ret =
-      if (propsWithName.nonEmpty) ls :+ Json.toJson(propsWithName)
-      else ls
+      if (propsWithName.nonEmpty)
+        List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName))
+      else
+        List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label)
 
     ret.mkString("\t")
   }
@@ -1052,7 +1052,7 @@ object Edge extends JSONParser {
       //      } else {
         Edge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), rowKey.labelWithDir, op, ts, version, props, pendingEdgeOpt, parentEdges)
       //      }
-//      logger.error(s"$edge")
+      //      logger.error(s"$edge")
       Option(edge)
 
     }
