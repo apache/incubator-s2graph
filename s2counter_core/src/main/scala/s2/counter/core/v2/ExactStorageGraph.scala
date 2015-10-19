@@ -60,6 +60,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
       keyWithEqResult
     }
     else {
+      log.warn(s"update failed: $policy $counts")
       Nil.toMap
     }
   }

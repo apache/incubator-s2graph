@@ -28,7 +28,10 @@ case class Counter(id: Int, useFlag: Boolean, version: Byte, service: String, ac
           combines
         }
       case false =>
-        dimensionSp.toList.map(sp => sp.split('.'))
+        dimensionSp isEmpty match {
+          case true => List(Array())
+          case false => dimensionSp.toList.map(sp => sp.split('.'))
+        }
     }
   }
 
