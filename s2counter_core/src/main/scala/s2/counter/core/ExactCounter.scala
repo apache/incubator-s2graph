@@ -245,7 +245,7 @@ class ExactCounter(config: Config, storage: ExactStorage) {
   }
 
   def ready(policy: Counter): Boolean = {
-    storageStatusCache.withCache("$policy.id") {
+    storageStatusCache.withCache(s"${policy.id}") {
       Some(storage.ready(policy))
     }.getOrElse(false)
   }
