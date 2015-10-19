@@ -40,6 +40,11 @@ object CounterController extends Controller {
     s2.counter.VERSION_2 -> new RankingCounter(config, new RankingStorageGraph(config))
   )
 
+  private val tablePrefixMap = Map (
+    s2.counter.VERSION_1 -> "s2counter",
+    s2.counter.VERSION_2 -> "s2counter_v2"
+  )
+
   private def exactCounter(version: Byte): ExactCounter = exactCounterMap(version)
   private def rankingCounter(version: Byte): RankingCounter = rankingCounterMap(version)
 
@@ -118,13 +123,8 @@ object CounterController extends Controller {
           }
         }
 
-        val tablePrefix = version match {
-          case s2.counter.VERSION_1 => "s2counter"
-          case s2.counter.VERSION_2 => "s2counter_v2"
-        }
-
         val hbaseTable = {
-          Seq(tablePrefix, service, ttl) ++ dailyTtl mkString "_"
+          Seq(tablePrefixMap(version), service, ttl) ++ dailyTtl mkString "_"
         }
 
         // find label
@@ -233,9 +233,12 @@ object CounterController extends Controller {
         val body = request.body
         val version = (body \ "version").as[Int].toByte
         if (version != policy.version) {
-          exactCounter(version).prepare(policy)
-          if (policy.useRank) {
-            rankingCounter(version).prepare(policy)
+          // change table name
+          val newTableName = Seq(tablePrefixMap(version), service, policy.ttl) ++ policy.dailyTtl mkString "_"
+          val newPolicy = policy.copy(version = version, hbaseTable = Some(newTableName))
+          exactCounter(version).prepare(newPolicy)
+          if (newPolicy.useRank) {
+            rankingCounter(version).prepare(newPolicy)
           }
           Ok(Json.toJson(Map("msg" -> s"prepare storage v$version $service/$action")))
         } else {
