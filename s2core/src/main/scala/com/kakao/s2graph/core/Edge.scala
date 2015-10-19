@@ -12,6 +12,7 @@ import org.hbase.async._
 import play.api.libs.json.Json
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Random, Success, Try}
@@ -350,9 +351,9 @@ case class Edge(srcVertex: Vertex,
     }
 
   def toLogString = {
-    val ls = List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label)
+    val ls = Vector(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label)
     val ret =
-      if (propsWithName.nonEmpty) Json.toJson(propsWithName) :: ls
+      if (propsWithName.nonEmpty) ls :+ Json.toJson(propsWithName)
       else ls
 
     ret.mkString("\t")
