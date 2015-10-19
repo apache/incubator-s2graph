@@ -44,9 +44,11 @@ trait SparkApp extends Logging {
 
     val groupId = s"${topic.replace(',', '-')}_$ext"
 
-    groupId + phase match {
+    groupId + {
+      phase match {
         case "real" | "production" => ""
         case x => s"_$x"
+      }
     }
   }
 
