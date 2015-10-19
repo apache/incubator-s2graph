@@ -1,8 +1,8 @@
 package test.controllers
 
-import actors.QueueActor
-import akka.actor.ActorSystem
+import com.kakao.s2graph.core.Management
 import com.kakao.s2graph.core.mysqls._
+
 //import com.kakao.s2graph.core.models._
 
 import play.api.libs.json._
@@ -17,11 +17,10 @@ class BasicCrudSpec extends SpecCommon {
   def runTC(tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]) = {
     for {
       labelName <- List(testLabelName, testLabelName2)
-      //      labelName <- List(testLabelNameV1)
-      i <- (0 to NUM_OF_EACH_TEST)
+      i <- 0 to NUM_OF_EACH_TEST
     } {
       val srcId = ((tcNum * 1000) + i).toString
-      val tgtId = if (labelName == testLabelName) s"${srcId + 1000 + i}" else s"${(srcId + 1000 + i)}abc"
+      val tgtId = if (labelName == testLabelName) s"${srcId + 1000 + i}" else s"${srcId + 1000 + i}abc"
 
       val maxTs = opWithProps.map(t => t._1).max
 
@@ -213,6 +212,35 @@ class BasicCrudSpec extends SpecCommon {
         runTC(tcNum, tcString, bulkQueries, expected)
         true
       }
+    }
+  }
+
+  "toLogString" in {
+    running(FakeApplication()) {
+      val bulkQueries = List(
+        ("1445240543366", "update", "{\"is_blocked\":true}"),
+        ("1445240543362", "insert", "{\"is_hidden\":false}"),
+        ("1445240543364", "insert", "{\"is_hidden\":false,\"weight\":10}"),
+        ("1445240543363", "delete", "{}"),
+        ("1445240543365", "update", "{\"time\":1, \"weight\":-10}"))
+
+      val (srcId, tgtId, labelName) = ("1", "2", testLabelName)
+
+      val bulkEdge = (for ((ts, op, props) <- bulkQueries) yield {
+        Management.toEdge(ts.toLong, op, srcId, tgtId, labelName, "out", props).toLogString
+      }).mkString("\n")
+
+      val expected = Seq(
+        Seq("1445240543366", "update", "e", "1", "2", "s2graph_label_test", "{\"is_blocked\":true}"),
+        Seq("1445240543362", "insert", "e", "1", "2", "s2graph_label_test", "{\"is_hidden\":false}"),
+        Seq("1445240543364", "insert", "e", "1", "2", "s2graph_label_test", "{\"is_hidden\":false,\"weight\":10}"),
+        Seq("1445240543363", "delete", "e", "1", "2", "s2graph_label_test"),
+        Seq("1445240543365", "update", "e", "1", "2", "s2graph_label_test", "{\"time\":1,\"weight\":-10}")
+      ).map(_.mkString("\t")).mkString("\n")
+
+      bulkEdge must equalTo(expected)
+
+      true
     }
   }
 }
