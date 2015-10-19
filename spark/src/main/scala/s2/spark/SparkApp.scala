@@ -42,15 +42,12 @@ trait SparkApp extends Logging {
   def buildKafkaGroupId(topic: String, ext: String): String = {
     val phase = System.getProperty("phase")
 
-    var groupId = s"${topic}_$ext"
+    val groupId = s"${topic.replace(',', '-')}_$ext"
 
-    groupId += {
-      phase match {
+    groupId + phase match {
         case "real" | "production" => ""
         case x => s"_$x"
-    }}
-
-    groupId
+    }
   }
 
   def getStreamHelper(kafkaParam: Map[String, String]): StreamHelper = {
