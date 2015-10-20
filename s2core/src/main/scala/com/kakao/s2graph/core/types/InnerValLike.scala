@@ -166,6 +166,9 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
             case str: String => InnerVal.withStr(str, toVersion)
             case b: Boolean => InnerVal.withBoolean(b, toVersion)
             case n: BigDecimal => InnerVal.withNumber(n, toVersion)
+            case n: Long => InnerVal.withNumber(n, toVersion)
+            case n: Double => InnerVal.withNumber(n, toVersion)
+            case n: Int => InnerVal.withNumber(n, toVersion)
             case _ => throw notSupportedEx(s"v2 to v1: $obj -> $toVersion")
           }
         } else {
