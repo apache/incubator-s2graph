@@ -385,8 +385,8 @@ object CounterFunctions extends Logging with WithKafka {
       trxLog <- exactCounter.updateCount(policy, counts)
     } yield {
       trxLog.success match {
-        case true => acc += ("Exact", 1)
-        case false => acc += ("ExactFailed", 1)
+        case true => acc += (s"ExactV${policy.version}", 1)
+        case false => acc += (s"ExactFailedV${policy.version}", 1)
       }
       trxLog
     }
@@ -406,8 +406,7 @@ object CounterFunctions extends Logging with WithKafka {
   def updateRankingCounter(values: TraversableOnce[(RankingKey, RankingValueMap)], acc: HashMapAccumulable): Unit = {
     for {
       (key, value) <- values
-      policy <- DefaultCounterModel.findById(key.policyId)
-      if policy.useRank && policy.version == s2.counter.VERSION_2  // update only rank counter enabled
+      policy <- DefaultCounterModel.findById(key.policyId) if policy.useRank // update only rank counter enabled
     } {
       rankingCounter.update(key, value, 500)
       acc += (s"RankingV${key.version}", 1)
