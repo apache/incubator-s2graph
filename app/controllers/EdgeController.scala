@@ -153,7 +153,8 @@ object EdgeController extends Controller with RequestParser {
       val ts = (json \ "timestamp").asOpt[Long]
       val vertices = toVertices(labelName, direction, ids)
 
-      Graph.deleteVerticesAllAsync(vertices.toList, labels, GraphUtil.directions(direction), ts)
+      Graph.deleteVerticesAllAsync(vertices.toList, labels, GraphUtil.directions(direction), ts,
+        Config.KAFKA_LOG_TOPIC)
     })
 
     deleteResults.map { rst =>

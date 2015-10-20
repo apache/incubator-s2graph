@@ -166,9 +166,7 @@ object Label extends Model[Label] {
           val labelMetaMap = metaProps.map { case Prop(propName, defaultValue, dataType) =>
             val labelMeta = LabelMeta.findOrInsert(createdId, propName, defaultValue, dataType)
             (propName -> labelMeta.seq)
-          }.toMap ++ Map(LabelMeta.timestamp.name -> LabelMeta.timestamp.seq,
-            LabelMeta.to.name -> LabelMeta.to.seq,
-            LabelMeta.from.name -> LabelMeta.from.seq)
+          }.toMap ++ LabelMeta.reservedMetas.map (labelMeta => labelMeta.name -> labelMeta.seq).toMap
 
           if (indices.isEmpty) {
             // make default index with _PK, _timestamp, 0
