@@ -282,7 +282,7 @@ case class Label(id: Option[Int], label: String,
     else m
   } ::: LabelMeta.findAllByLabelId(id.get, useCache = true)
 
-  lazy val metaPropsMap = metaProps.reverse.map(x => (x.seq, x)).toMap
+  lazy val metaPropsMap = metaProps.map(x => (x.seq, x)).toMap
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
   lazy val metaPropNames = metaProps.map(x => x.name)
   lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
