@@ -175,7 +175,6 @@ class ExactCounter(config: Config, storage: ExactStorage) {
           TrxLog(results.nonEmpty, exactKey.policyId, exactKey.itemKey, makeTrxLogResult(values, results))
         }
       case false =>
-        log.warn(s"${policy.service}.${policy.action} storage is not ready.")
         Nil
     }
   }
@@ -246,7 +245,12 @@ class ExactCounter(config: Config, storage: ExactStorage) {
 
   def ready(policy: Counter): Boolean = {
     storageStatusCache.withCache(s"${policy.id}") {
-      Some(storage.ready(policy))
+      val ready = storage.ready(policy)
+      if (!ready) {
+        // if key is not in cache, log message
+        log.warn(s"${policy.service}.${policy.action} storage is not ready.")
+      }
+      Some(ready)
     }.getOrElse(false)
   }
 }
