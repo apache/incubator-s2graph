@@ -209,40 +209,45 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
   private def getInner(policy: Counter, key: ExactKeyTrait, eqs: Seq[ExactQualifier])
                       (implicit ex: ExecutionContext): Future[Seq[FetchedCounts]] = {
     val labelName = policy.action + labelPostfix
-    val label = Label.findByName(labelName).get
 
-    val src = Json.obj("serviceName" -> policy.service, "columnName" -> label.srcColumnName, "id" -> key.itemKey)
-    val step = {
-      val stepLs = {
-        for {
-          eq <- eqs
-        } yield {
-          val from = Json.obj("_to" -> eq.dimension, "time_unit" -> eq.tq.q.toString, "time_value" -> eq.tq.ts)
-          val to = Json.obj("_to" -> eq.dimension, "time_unit" -> eq.tq.q.toString, "time_value" -> eq.tq.ts)
-          val interval = Json.obj("from" -> from, "to" -> to)
-          Json.obj("limit" -> 1, "label" -> labelName, "interval" -> interval)
-        }
-      }
-      Json.obj("step" -> stepLs)
-    }
-    val query = Json.obj("srcVertices" -> Json.arr(src), "steps" -> Json.arr(step))
-//    println(s"query: ${query.toString()}")
+    Label.findByName(labelName) match {
+      case Some(label) =>
 
-    wsClient.url(s"$s2graphUrl/graphs/getEdges").post(query).map { resp =>
-      resp.status match {
-        case HttpStatus.SC_OK =>
-          val respJs = resp.json
-          val keyWithValues = (respJs \ "results").as[Seq[JsValue]].map { result =>
-            resultToExactKeyValues(policy, result)
-          }.groupBy(_._1).mapValues(seq => seq.map(_._2).toMap)
-          for {
-            (key, eqWithValues) <- keyWithValues.toSeq
-          } yield {
-            FetchedCounts(key, eqWithValues)
+        val src = Json.obj("serviceName" -> policy.service, "columnName" -> label.srcColumnName, "id" -> key.itemKey)
+        val step = {
+          val stepLs = {
+            for {
+              eq <- eqs
+            } yield {
+              val from = Json.obj("_to" -> eq.dimension, "time_unit" -> eq.tq.q.toString, "time_value" -> eq.tq.ts)
+              val to = Json.obj("_to" -> eq.dimension, "time_unit" -> eq.tq.q.toString, "time_value" -> eq.tq.ts)
+              val interval = Json.obj("from" -> from, "to" -> to)
+              Json.obj("limit" -> 1, "label" -> labelName, "interval" -> interval)
+            }
           }
-        case _ =>
-          Nil
-      }
+          Json.obj("step" -> stepLs)
+        }
+        val query = Json.obj("srcVertices" -> Json.arr(src), "steps" -> Json.arr(step))
+        //    println(s"query: ${query.toString()}")
+
+        wsClient.url(s"$s2graphUrl/graphs/getEdges").post(query).map { resp =>
+          resp.status match {
+            case HttpStatus.SC_OK =>
+              val respJs = resp.json
+              val keyWithValues = (respJs \ "results").as[Seq[JsValue]].map { result =>
+                resultToExactKeyValues(policy, result)
+              }.groupBy(_._1).mapValues(seq => seq.map(_._2).toMap)
+              for {
+                (key, eqWithValues) <- keyWithValues.toSeq
+              } yield {
+                FetchedCounts(key, eqWithValues)
+              }
+            case _ =>
+              Nil
+          }
+        }
+      case None =>
+        Future.successful(Nil)
     }
   }
 
