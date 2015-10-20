@@ -13,7 +13,7 @@ object PostProcess extends JSONParser {
    */
   val SCORE_FIELD_NAME = "scoreSum"
   val timeoutResults = Json.obj("size" -> 0, "results" -> Json.arr(), "isTimeout" -> true)
-  val reservedColumns = Set("cacheRemain", "from", "to", "label", "direction", "_timestamp", "timestamp", "score", "props", "_count")
+  val reservedColumns = Set("cacheRemain", "from", "to", "label", "direction", "_timestamp", "timestamp", "score", "props")
 
   def groupEdgeResult(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]) = {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap

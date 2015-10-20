@@ -37,7 +37,9 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
     seq = degreeSeq, defaultValue = "0", dataType = "long")
   val count = LabelMeta(id = Some(-1), labelId = -1, name = "_count",
     seq = countSeq, defaultValue = "-1", dataType = "long")
-  val reservedMetas = List(from, to, degree, timestamp, count).flatMap { lm => List(lm, lm.copy(name = lm.name.drop(1))) }
+
+  // Each reserved column(_timestamp, timestamp) has same seq number, starts with '_' has high priority
+  val reservedMetas = List(from, to, degree, timestamp, count).flatMap { lm => List(lm, lm.copy(name = lm.name.drop(1))) }.reverse
   val notExistSeqInDB = List(lastOpSeq, lastDeletedAt, countSeq, degree, timeStampSeq, from.seq, to.seq)
 
   def apply(rs: WrappedResultSet): LabelMeta = {

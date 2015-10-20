@@ -281,7 +281,8 @@ case class Label(id: Option[Int], label: String,
     else if (m == LabelMeta.from) m.copy(dataType = srcColumnType)
     else m
   } ::: LabelMeta.findAllByLabelId(id.get, useCache = true)
-  lazy val metaPropsMap = metaProps.map(x => (x.seq, x)).toMap
+
+  lazy val metaPropsMap = metaProps.reverse.map(x => (x.seq, x)).toMap
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
   lazy val metaPropNames = metaProps.map(x => x.name)
   lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
@@ -289,7 +290,7 @@ case class Label(id: Option[Int], label: String,
   lazy val metaPropsDefaultMap = (for {
     prop <- metaProps if LabelMeta.isValidSeqForAdmin(prop.seq)
     jsValue <- innerValToJsValue(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), prop.dataType)
-  } yield (prop.name -> jsValue)).toMap
+  } yield prop.name -> jsValue).toMap
 
 
   def srcColumnWithDir(dir: Int) = {
