@@ -298,7 +298,7 @@ object PostProcess extends JSONParser {
   @deprecated(message = "deprecated", since = "0.2")
   def propsToJson(edge: Edge) = {
     for {
-      (seq, v) <- edge.propsWithTs if LabelMeta.isValidSeq(seq)
+      (seq, v) <- edge.propsWithTs if LabelMeta.isValidSeqForAdmin(seq)
       metaProp <- edge.label.metaPropsMap.get(seq)
       jsValue <- innerValToJsValue(v.innerVal, metaProp.dataType)
     } yield {
