@@ -201,7 +201,7 @@ object PostProcess extends JSONParser {
 
   def propsToJson(edge: Edge, q: Query, queryParam: QueryParam): Map[String, JsValue] = {
     for {
-      (seq, innerValWithTs) <- edge.propsWithTs
+      (seq, innerValWithTs) <- edge.propsWithTs if LabelMeta.isValidSeq(seq)
       labelMeta <- queryParam.label.metaPropsMap.get(seq)
       jsValue <- innerValToJsValue(innerValWithTs.innerVal, labelMeta.dataType)
     } yield labelMeta.name -> jsValue
@@ -235,7 +235,7 @@ object PostProcess extends JSONParser {
       from <- innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
       to <- innerValToJsValue(edge.tgtVertex.id.innerId, tgtColumn.columnType)
     } yield {
-        val propsMap = queryParam.label.metaPropsDefaultMap ++ propsToJson(edge, q, queryParam)
+        val propsMap = queryParam.label.metaPropsDefaultMapInner ++ propsToJson(edge, q, queryParam)
         val targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
         val kvMap = targetColumns.foldLeft(Map.empty[String, JsValue]) { (map, column) =>
           val jsValue = column match {
@@ -298,7 +298,7 @@ object PostProcess extends JSONParser {
   @deprecated(message = "deprecated", since = "0.2")
   def propsToJson(edge: Edge) = {
     for {
-      (seq, v) <- edge.propsWithTs if LabelMeta.isValidSeqForAdmin(seq)
+      (seq, v) <- edge.propsWithTs if LabelMeta.isValidSeq(seq)
       metaProp <- edge.label.metaPropsMap.get(seq)
       jsValue <- innerValToJsValue(v.innerVal, metaProp.dataType)
     } yield {
