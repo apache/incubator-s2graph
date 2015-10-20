@@ -42,7 +42,8 @@ trait SparkApp extends Logging {
   def buildKafkaGroupId(topic: String, ext: String): String = {
     val phase = System.getProperty("phase")
 
-    val groupId = s"${topic.replace(',', '-')}_$ext"
+    // use first topic for group id
+    val groupId = s"${topic.split(',')(0)}_$ext"
 
     groupId + {
       phase match {
