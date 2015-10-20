@@ -15,11 +15,15 @@ class KafkaRDDFunctions[T: ClassTag](self: RDD[T])
 {
   def foreachPartitionWithOffsetRange(f: (OffsetRange, Iterator[T]) => Unit): Unit = {
     val offsets = self.asInstanceOf[HasOffsetRanges].offsetRanges
-    self.mapPartitionsWithIndex[Nothing] { case (i, part) =>
+    foreachPartitionWithIndex { (i, part) =>
       val osr: OffsetRange = offsets(i)
-
       f(osr, part)
+    }
+  }
 
+  def foreachPartitionWithIndex(f: (Int, Iterator[T]) => Unit): Unit = {
+    self.mapPartitionsWithIndex[Nothing] { (i, part) =>
+      f(i, part)
       Iterator.empty
     }.foreach {
       (_: Nothing) => ()

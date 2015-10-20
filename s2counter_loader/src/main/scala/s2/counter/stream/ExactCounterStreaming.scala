@@ -56,13 +56,13 @@ object ExactCounterStreaming extends SparkApp with WithKafka {
       val exactRDD = CounterFunctions.makeExactRdd(rdd, offsets.length)
 
       // for at-least once semantic
-      exactRDD.foreachPartitionWithOffsetRange { (osr, part) =>
+      exactRDD.foreachPartitionWithIndex { (i, part) =>
         // update exact counter
         val trxLogs = CounterFunctions.updateExactCounter(part.toSeq, acc)
         CounterFunctions.produceTrxLog(trxLogs)
 
         // commit offset range
-        streamHelper.commitConsumerOffset(osr)
+        streamHelper.commitConsumerOffset(offsets(i))
       }
     }
 
