@@ -21,7 +21,7 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.hashing.MurmurHash3
-import scala.util.{Failure, Success, Try}
+import scala.util.{Random, Failure, Success, Try}
 
 object Graph {
   val vertexCf = "v".getBytes()
@@ -42,7 +42,9 @@ object Graph {
   val DefaultTtlSeconds = 60
   val DefaultScore = 1.0
   val DefaultMaxRetryNum = 100
+  val DefaultMaxBackOff = 3
 
+  var MaxBackOff = DefaultMaxBackOff
 
   val DefaultConfigs: Map[String, AnyRef] = Map(
     "hbase.zookeeper.quorum" -> "localhost",
@@ -185,7 +187,23 @@ object Graph {
   private def errorBack(block: => Exception => Unit) = new Callback[Unit, Exception] {
     def call(ex: Exception): Unit = block(ex)
   }
+  def writeAsyncWithWaitRetry(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]], retryNum: Int): Future[Seq[Boolean]] = {
+    implicit val ex = this.executionContext
 
+    if (retryNum > MaxRetryNum) {
+      logger.error(s"writeAsyncWithWaitRetry failed: $elementRpcs")
+      Future.successful(elementRpcs.map(_ => false))
+    } else {
+      writeAsyncWithWait(zkQuorum, elementRpcs).flatMap { rets =>
+        val allSuccess = rets.forall(identity)
+        if (allSuccess) Future.successful(elementRpcs.map(_ => true))
+        else {
+          Thread.sleep(Random.nextInt(MaxBackOff) + 1)
+          writeAsyncWithWaitRetry(zkQuorum, elementRpcs, retryNum + 1)
+        }
+      }
+    }
+  }
   def writeAsyncWithWait(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]]): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
 
@@ -911,7 +929,7 @@ object Graph {
             val incrs = queryResult.edgeWithScoreLs.headOption.map { case (edge, score) =>
               edge.edgesWithIndex.flatMap { indexedEdge => indexedEdge.buildIncrementsAsync(-1 * deletedEdgesNum) }
             }.getOrElse(Nil)
-            Graph.writeAsyncWithWait(queryParam.label.hbaseZkAddr, Seq(incrs)).map { rets =>
+            Graph.writeAsyncWithWaitRetry(queryParam.label.hbaseZkAddr, Seq(incrs), 0).map { rets =>
               if (!rets.forall(identity)) logger.error(s"decrement for deleteAll failed. $incrs")
               else logger.debug(s"decrement for deleteAll successs. $incrs")
               rets

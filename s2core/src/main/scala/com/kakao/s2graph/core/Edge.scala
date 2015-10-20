@@ -419,10 +419,11 @@ case class EdgeWriter(edge: Edge) {
       }
       def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
         if (!predicate) Future.successful(false)
-        else  Graph.writeAsyncWithWait(label.hbaseZkAddr, Seq(edgeUpdate.increments)).map { rets =>
-          if (!rets.forall(identity)) logger.error(s"indexedEdgeIncrement failed: $edgeUpdate")
+        else  Graph.writeAsyncWithWaitRetry(label.hbaseZkAddr, Seq(edgeUpdate.increments), 0).map { rets =>
+          val allSuccess = rets.forall(identity)
+          if (!allSuccess) logger.error(s"indexedEdgeIncrement failed: $edgeUpdate")
           else logger.debug(s"indexedEdgeIncrement success: $edgeUpdate")
-          true
+          allSuccess
         }
       }
       val fallback = Future.successful(false)
@@ -451,7 +452,7 @@ case class EdgeWriter(edge: Edge) {
       ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
       //      throw new RuntimeException(s"mutate failed after $tryNum")
     } else {
-      val waitTime = Random.nextInt(10) + 1
+      val waitTime = Random.nextInt(Graph.MaxBackOff) + 1
 
       for {
         (queryParam, edges) <- fetchInvertedAsync()
