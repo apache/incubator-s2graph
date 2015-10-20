@@ -2,8 +2,7 @@ package controllers
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.types.{TargetVertexId, HBaseType, InnerVal, InnerValLike}
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
 import play.api.libs.json.{Json, _}
 
 import scala.collection.mutable.ListBuffer
@@ -14,7 +13,7 @@ object PostProcess extends JSONParser {
    */
   val SCORE_FIELD_NAME = "scoreSum"
   val timeoutResults = Json.obj("size" -> 0, "results" -> Json.arr(), "isTimeout" -> true)
-  val reservedColumns = Set("cacheRemain", "from", "to", "label", "direction", "_timestamp", "timestamp", "score", "props")
+  val reservedColumns = Set("cacheRemain", "from", "to", "label", "direction", "_timestamp", "timestamp", "score", "props", "_count")
 
   def groupEdgeResult(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]) = {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
