@@ -365,7 +365,7 @@ case class Edge(srcVertex: Vertex,
 case class EdgeWriter(edge: Edge) {
   implicit val ex = Graph.executionContext
 
-  val MaxTryNum = 10
+  val MaxTryNum = Graph.MaxRetryNum
   val op = edge.op
   val label = edge.label
   val labelWithDir = edge.labelWithDir
@@ -378,6 +378,7 @@ case class EdgeWriter(edge: Edge) {
     }
   }
 
+  /** we need to avoid increment when we retry */
   def commitPending(snapshotEdgeOpt: Option[Edge]): Future[Boolean] = {
     val pendingEdges =
       if (snapshotEdgeOpt.isEmpty || snapshotEdgeOpt.get.pendingEdgeOpt.isEmpty) Nil
@@ -402,7 +403,7 @@ case class EdgeWriter(edge: Edge) {
     }
   }
 
-  def commitUpdate(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeUpdate): Future[Boolean] = {
+  def commitUpdate(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeUpdate, retryNum: Int): Future[Boolean] = {
     val client = Graph.getClient(label.hbaseZkAddr)
     if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
     else {
@@ -410,12 +411,35 @@ case class EdgeWriter(edge: Edge) {
       val before = snapshotEdgeOpt.map(old => old.toInvertedEdgeHashLike.valueBytes).getOrElse(Array.empty[Byte])
       val after = edgeUpdate.newInvertedEdge.get.withNoPendingEdge().buildPutAsync()
 
+      def indexedEdgeMutationFuture(predicate: Boolean): Future[Boolean] = {
+        if (!predicate) Future.successful(false)
+        else Graph.writeAsyncWithWait(label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations)).map { indexedEdgesUpdated =>
+          indexedEdgesUpdated.forall(identity)
+        }
+      }
+      def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
+        if (!predicate) Future.successful(false)
+        else  Graph.writeAsyncWithWait(label.hbaseZkAddr, Seq(edgeUpdate.increments)).map { rets =>
+          if (!rets.forall(identity)) logger.error(s"indexedEdgeIncrement failed: $edgeUpdate")
+          else logger.debug(s"indexedEdgeIncrement success: $edgeUpdate")
+          true
+        }
+      }
+      val fallback = Future.successful(false)
+      val javaFallback = Future.successful[java.lang.Boolean](false)
+      /**
+       * step 1. acquire lock on snapshot edge.
+       * step 2. try mutate indexed Edge mutation. note that increment is seperated for retry cases.
+       * step 3. once all mutate on indexed edge success, then try release lock.
+       * step 4. once lock is releaseed successfully, then mutate increment on this edgeUpdate.
+       * note thta step 4 never fail to avoid multiple increments.
+       */
       for {
         locked <- Graph.deferredToFutureWithoutFallback(client.compareAndSet(lock, before))
-        indexedRets <- if (!locked) Future.successful(Seq(false)) else Graph.writeAsyncWithWait(label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations))
-        releaseLock <- if (indexedRets.forall(identity)) Graph.deferredToFutureWithoutFallback(client.compareAndSet(after, lock.value()))
-        else Future.successful[java.lang.Boolean](false)
-      } yield releaseLock
+        indexEdgesUpdated <- indexedEdgeMutationFuture(locked)
+        releaseLock <- if (indexEdgesUpdated) Graph.deferredToFutureWithoutFallback(client.compareAndSet(after, lock.value())) else javaFallback
+        indexEdgesIncremented <- if (releaseLock) indexedEdgeIncrementFuture(releaseLock) else fallback
+      } yield indexEdgesIncremented
     }
   }
 
@@ -423,11 +447,11 @@ case class EdgeWriter(edge: Edge) {
 
     //             exponentialBackOff: ExponentialBackOff = ExponentialBackOff()): Unit = {
     if (tryNum >= MaxTryNum) {
-      logger.error(s"mutate failed after $tryNum retry")
+      logger.error(s"mutate failed after $tryNum retry, $this")
       ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
       //      throw new RuntimeException(s"mutate failed after $tryNum")
     } else {
-      val waitTime = Random.nextInt(2) + 1
+      val waitTime = Random.nextInt(10) + 1
 
       for {
         (queryParam, edges) <- fetchInvertedAsync()
@@ -438,7 +462,7 @@ case class EdgeWriter(edge: Edge) {
           Thread.sleep(waitTime)
           mutate(f, tryNum + 1)
         } else {
-          for (updateResult <- commitUpdate(invertedEdgeOpt, edgeUpdate)) {
+          for (updateResult <- commitUpdate(invertedEdgeOpt, edgeUpdate, tryNum)) {
             if (!updateResult) {
               Thread.sleep(waitTime)
               logger.info(s"mutate failed. retry $edge")
@@ -571,6 +595,38 @@ case class EdgeUpdate(indexedEdgeMutations: List[HBaseRpc] = List.empty[HBaseRpc
 
     List(indexedEdgeSize, invertedEdgeSize, deletes, inserts, updates).mkString("\n")
   }
+
+  def increments: List[HBaseRpc] = {
+    (edgesToDelete.isEmpty, edgesToInsert.isEmpty) match {
+      case (true, true) =>
+
+        /** when there is no need to update. shouldUpdate == false */
+        List.empty[AtomicIncrementRequest]
+      case (true, false) =>
+
+        /** no edges to delete but there is new edges to insert so increase degree by 1 */
+        edgesToInsert.flatMap { e => e.buildIncrementsAsync() }
+      case (false, true) =>
+
+        /** no edges to insert but there is old edges to delete so decrease degree by 1 */
+        edgesToDelete.flatMap { e => e.buildIncrementsAsync(-1L) }
+      case (false, false) =>
+
+        /** update on existing edges so no change on degree */
+        List.empty[AtomicIncrementRequest]
+    }
+  }
+
+//  def mutate(zkQuorum: String): Future[Boolean] = {
+//    val client = Graph.getClient(zkQuorum)
+//    Graph.writeAsyncWithWait(zkQuorum, Seq(indexedEdgeMutations ++ invertedEdgeMutations)).flatMap { rets =>
+//      if (rets.forall(identity)) {
+//        Graph.writeAsyncWithWait(zkQuorum, Seq(increments)).map { rets => rets.forall(identity) }
+//      } else {
+//        Future.successful(false)
+//      }
+//    }
+//  }
 }
 
 object Edge extends JSONParser {
@@ -688,31 +744,8 @@ object Edge extends JSONParser {
     val indexedEdgeMutations = deleteMutations ++ insertMutations
     val invertedEdgeMutations = invertMutations
 
-    val incrs =
-      (edgesToDelete.isEmpty, edgesToInsert.isEmpty) match {
-        case (true, true) =>
 
-          /** when there is no need to update. shouldUpdate == false */
-          List.empty[AtomicIncrementRequest]
-        case (true, false) =>
-
-          /** no edges to delete but there is new edges to insert so increase degree by 1 */
-          requestEdge.relatedEdges.flatMap { relEdge =>
-            relEdge.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync())
-          }
-        case (false, true) =>
-
-          /** no edges to insert but there is old edges to delete so decrease degree by 1 */
-          requestEdge.relatedEdges.flatMap { relEdge =>
-            relEdge.edgesWithIndexValid.flatMap(e => e.buildIncrementsAsync(-1L))
-          }
-        case (false, false) =>
-
-          /** update on existing edges so no change on degree */
-          List.empty[AtomicIncrementRequest]
-      }
-
-    val update = EdgeUpdate(indexedEdgeMutations ++ incrs, invertedEdgeMutations, edgesToDelete, edgesToInsert, edgeInverted)
+    val update = EdgeUpdate(indexedEdgeMutations, invertedEdgeMutations, edgesToDelete, edgesToInsert, edgeInverted)
 
     //        logger.debug(s"UpdatedProps: ${newPropsWithTs}\n")
     //        logger.debug(s"EdgeUpdate: $update\n")
