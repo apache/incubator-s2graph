@@ -153,9 +153,9 @@ class StrongLabelDeleteSpec extends SpecCommon {
   "largeSet of contention" should {
     val labelName = testLabelName2
     val maxTgtId = 5
-    val maxRetryNum = 10
-    val maxTestNum = 10
-    val maxTestIntervalNum = 10
+    val maxRetryNum = 20
+    val maxTestNum = 3
+    val maxTestIntervalNum = 3
     def testInner(src: Long) = {
       val labelName = testLabelName2
       val lastOps = Array.fill(maxTgtId)("none")
