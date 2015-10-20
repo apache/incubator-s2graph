@@ -2,10 +2,10 @@ package s2.counter.stream
 
 import kafka.serializer.StringDecoder
 import org.apache.spark.streaming.Durations._
+import org.apache.spark.streaming.kafka.KafkaRDDFunctions.rddToKafkaRDDFunctions
 import org.apache.spark.streaming.kafka.{HasOffsetRanges, StreamHelper}
 import s2.config.{S2ConfigFactory, S2CounterConfig, StreamingConfig}
-import s2.counter.core.{BlobExactKey, CounterFunctions}
-import s2.models.Counter.ItemType
+import s2.counter.core.CounterFunctions
 import s2.spark.{HashMapParam, SparkApp, WithKafka}
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
@@ -56,20 +56,13 @@ object ExactCounterStreaming extends SparkApp with WithKafka {
       val exactRDD = CounterFunctions.makeExactRdd(rdd, offsets.length)
 
       // for at-least once semantic
-      exactRDD.mapPartitionsWithIndex { case (i, part) =>
-        val seq = part.toSeq
-        // insert blob first
-        CounterFunctions.insertBlobValue(seq.map(_._1).filter(_.itemType == ItemType.BLOB).map(_.asInstanceOf[BlobExactKey]), acc)
+      exactRDD.foreachPartitionWithOffsetRange { (osr, part) =>
         // update exact counter
-        val trxLogs = CounterFunctions.updateExactCounter(seq, acc)
+        val trxLogs = CounterFunctions.updateExactCounter(part.toSeq, acc)
         CounterFunctions.produceTrxLog(trxLogs)
 
         // commit offset range
-        val osr = offsets(i)
         streamHelper.commitConsumerOffset(osr)
-        Iterator.empty
-      }.foreach {
-        (_: Nothing) => ()
       }
     }
 

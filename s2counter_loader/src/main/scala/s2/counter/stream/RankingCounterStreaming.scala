@@ -2,6 +2,7 @@ package s2.counter.stream
 
 import kafka.serializer.StringDecoder
 import org.apache.spark.streaming.Durations._
+import org.apache.spark.streaming.kafka.KafkaRDDFunctions.rddToKafkaRDDFunctions
 import org.apache.spark.streaming.kafka.{HasOffsetRanges, StreamHelper}
 import s2.config.{S2ConfigFactory, S2CounterConfig, StreamingConfig}
 import s2.counter.core.CounterFunctions
@@ -51,16 +52,12 @@ object RankingCounterStreaming extends SparkApp with WithKafka {
       val offsets = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
 
       // for at-least once semantic
-      CounterFunctions.makeRankingRdd(rdd, offsets.length).mapPartitionsWithIndex { case (i, part) =>
+      CounterFunctions.makeRankingRdd(rdd, offsets.length).foreachPartitionWithOffsetRange { (osr, part) =>
         // update ranking counter
         CounterFunctions.updateRankingCounter(part, acc)
 
         // commit offset range
-        val osr = offsets(i)
         streamHelper.commitConsumerOffset(osr)
-        Iterator.empty
-      }.foreach {
-        (_: Nothing) => ()
       }
     }
 
