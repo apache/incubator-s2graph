@@ -59,13 +59,13 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
   }
 
   override def update(key: RankingKey, value: RankingValueMap, k: Int): Unit = {
-    update(Seq((key, value, k)))
+    update(Seq((key, value)), k)
   }
 
-  override def update(values: Seq[(RankingKey, RankingValueMap, Int)]): Unit = {
+  override def update(values: Seq[(RankingKey, RankingValueMap)], k: Int): Unit = {
     val respLs = {
       for {
-        (key, value, k) <- values
+        (key, value) <- values
       } yield {
         val bucket = makeBucketSimple(key) // srcVertex
         val edges = getEdges(bucket, 0, k, key)

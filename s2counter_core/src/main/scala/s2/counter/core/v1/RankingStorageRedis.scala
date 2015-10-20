@@ -113,16 +113,16 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
     }
   }
 
-  override def update(values: Seq[(RankingKey, RankingValueMap, Int)]): Unit = {
-    values.map { case (key, value, k) =>
-      (makeBucket(key), key, value, k)
-    }.groupBy { case (bucket, key, value, k) =>
+  override def update(values: Seq[(RankingKey, RankingValueMap)], k: Int): Unit = {
+    values.map { case (key, value) =>
+      (makeBucket(key), key, value)
+    }.groupBy { case (bucket, key, value) =>
       withRedis.getBucketIdx(bucket)
     }.foreach { case (idx, seq) =>
       withRedis.doBlockWithIndex(idx) { jedis =>
         val pipeline = jedis.pipelined()
         for {
-          (bucket, key, value, k) <- seq
+          (bucket, key, value) <- seq
         } {
           updateItem(pipeline, bucket, key, value, k)
         }

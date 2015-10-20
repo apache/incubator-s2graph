@@ -55,8 +55,8 @@ class RankingCounter(config: Config, storage: RankingStorage) {
     storage.update(key, value, k)
   }
 
-  def update(values: Seq[(RankingKey, RankingValueMap, Int)]): Unit = {
-    storage.update(values)
+  def update(values: Seq[(RankingKey, RankingValueMap)], k: Int): Unit = {
+    storage.update(values, k)
   }
 
   def delete(key: RankingKey): Unit = {
@@ -101,7 +101,7 @@ class RankingCounter(config: Config, storage: RankingStorage) {
   }
 
   def ready(policy: Counter): Boolean = {
-    storageStatusCache.withCache(s"$policy.id") {
+    storageStatusCache.withCache(s"${policy.id}") {
       Some(storage.ready(policy))
     }.getOrElse(false)
   }

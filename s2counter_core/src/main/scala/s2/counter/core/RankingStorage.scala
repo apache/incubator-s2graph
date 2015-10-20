@@ -11,7 +11,7 @@ trait RankingStorage {
   def getTopK(keys: Seq[RankingKey], k: Int): Seq[(RankingKey, RankingResult)]
 //  def incrementBulk(key: RankingKey, value: Map[String, Double], k: Int): Unit
   def update(key: RankingKey, value: RankingValueMap, k: Int): Unit
-  def update(values: Seq[(RankingKey, RankingValueMap, Int)]): Unit
+  def update(values: Seq[(RankingKey, RankingValueMap)], k: Int): Unit
   def delete(key: RankingKey)
 
   def prepare(policy: Counter): Unit

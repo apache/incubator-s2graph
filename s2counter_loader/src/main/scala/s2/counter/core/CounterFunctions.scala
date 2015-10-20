@@ -404,13 +404,36 @@ object CounterFunctions extends Logging with WithKafka {
   }
 
   def updateRankingCounter(values: TraversableOnce[(RankingKey, RankingValueMap)], acc: HashMapAccumulable): Unit = {
+    val valuesByPolicy = {
+      for {
+        (key, value) <- values.toSeq
+        policy <- DefaultCounterModel.findById(key.policyId)
+        if policy.useRank && rankingCounter.ready(policy) // update only rank counter enabled and ready
+      } yield {
+        (policy, (key, value))
+      }
+    }.groupBy { case (policy, _) => policy }.mapValues(values => values.map(_._2))
+
     for {
-      (key, value) <- values
-      policy <- DefaultCounterModel.findById(key.policyId) if policy.useRank // update only rank counter enabled
+      (policy, allValues) <- valuesByPolicy
+      groupedValues <- allValues.grouped(10)
     } {
-      rankingCounter.update(key, value, 500)
-      acc += (s"RankingV${key.version}", 1)
+      rankingCounter.update(groupedValues, 500)
+      acc += (s"RankingV${policy.version}", groupedValues.length)
     }
+//
+//    for {
+//      (key, value) <- values
+//      policy <- DefaultCounterModel.findById(key.policyId) if policy.useRank // update only rank counter enabled
+//    } {
+//      rankingCounter.ready(policy) match {
+//        case true =>
+//          rankingCounter.update(key, value, 500)
+//          acc += (s"RankingV${key.version}", 1)
+//        case false =>
+//          log.warn(s"${policy.service}.${policy.action} storage is not ready.")
+//      }
+//    }
   }
   
   def produceTrxLog(trxLogs: TraversableOnce[TrxLog]): Unit = {
