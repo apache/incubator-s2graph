@@ -148,6 +148,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
       }
     }
   }
+  
 
   "largeSet of contention" should {
     val labelName = testLabelName2
