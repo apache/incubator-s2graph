@@ -32,7 +32,8 @@ object Label extends Model[Label] {
 
   def findByName(labelName: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[Label] = {
     val cacheKey = "label=" + labelName
-    lazy val labelOpt = sql"""
+    lazy val labelOpt =
+      sql"""
         select *
         from labels
         where label = ${labelName}""".map { rs => Label(rs) }.single.apply()
@@ -73,11 +74,12 @@ object Label extends Model[Label] {
 
   def findById(id: Int)(implicit session: DBSession = AutoSession): Label = {
     val cacheKey = "id=" + id
-    withCache(cacheKey)( sql"""
+    withCache(cacheKey)(
+      sql"""
         select 	*
         from 	labels
         where 	id = ${id}"""
-      .map { rs => Label(rs) }.single.apply()).get
+        .map { rs => Label(rs) }.single.apply()).get
   }
 
   def findByTgtColumnId(columnId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
@@ -164,9 +166,7 @@ object Label extends Model[Label] {
           val labelMetaMap = metaProps.map { case Prop(propName, defaultValue, dataType) =>
             val labelMeta = LabelMeta.findOrInsert(createdId, propName, defaultValue, dataType)
             (propName -> labelMeta.seq)
-          }.toMap ++ Map(LabelMeta.timestamp.name -> LabelMeta.timestamp.seq,
-            LabelMeta.to.name -> LabelMeta.to.seq,
-            LabelMeta.from.name -> LabelMeta.from.seq)
+          }.toMap ++ LabelMeta.reservedMetas.map (labelMeta => labelMeta.name -> labelMeta.seq).toMap
 
           if (indices.isEmpty) {
             // make default index with _PK, _timestamp, 0
@@ -281,16 +281,28 @@ case class Label(id: Option[Int], label: String,
     else if (m == LabelMeta.from) m.copy(dataType = srcColumnType)
     else m
   } ::: LabelMeta.findAllByLabelId(id.get, useCache = true)
+
+  lazy val metaPropsInner = LabelMeta.reservedMetasInner.map { m =>
+    if (m == LabelMeta.to) m.copy(dataType = tgtColumnType)
+    else if (m == LabelMeta.from) m.copy(dataType = srcColumnType)
+    else m
+  } ::: LabelMeta.findAllByLabelId(id.get, useCache = true)
+
   lazy val metaPropsMap = metaProps.map(x => (x.seq, x)).toMap
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
   lazy val metaPropNames = metaProps.map(x => x.name)
   lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
+
   /** this is used only by edgeToProps */
   lazy val metaPropsDefaultMap = (for {
-    prop <- metaProps if LabelMeta.isValidSeqForAdmin(prop.seq)
+    prop <- metaProps if LabelMeta.isValidSeq(prop.seq)
     jsValue <- innerValToJsValue(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), prop.dataType)
-  } yield (prop.name -> jsValue)).toMap
+  } yield prop.name -> jsValue).toMap
 
+  lazy val metaPropsDefaultMapInner = (for {
+    prop <- metaPropsInner if LabelMeta.isValidSeq(prop.seq)
+    jsValue <- innerValToJsValue(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), prop.dataType)
+  } yield prop.name -> jsValue).toMap
 
   def srcColumnWithDir(dir: Int) = {
     if (dir == GraphUtil.directions("out")) srcColumn else tgtColumn

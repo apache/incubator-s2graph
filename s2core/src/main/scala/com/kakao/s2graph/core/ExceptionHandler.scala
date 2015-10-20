@@ -5,9 +5,9 @@ import java.util.concurrent.atomic.AtomicLong
 
 import akka.actor._
 import akka.routing.{Broadcast, RoundRobinPool}
-
 import com.typesafe.config.Config
 import org.apache.kafka.clients.producer._
+
 import scala.concurrent.duration._
 
 /**
@@ -31,14 +31,16 @@ object ExceptionHandler {
     phase = if (config.hasPath("phase")) config.getString("phase") else "dev"
     producer = for {
       props <- properties
-      p <- try { Option(new KafkaProducer[Key, Val](props)) } catch { case e: Throwable => None }
+      p <- try {
+        Option(new KafkaProducer[Key, Val](props))
+      } catch {
+        case e: Throwable => None
+      }
     } yield {
         p
       }
     init()
   }
-
-
 
   def props(producer: Producer[Key, Val]) = Props(classOf[KafkaAggregatorActor], producer)
 
@@ -51,7 +53,7 @@ object ExceptionHandler {
   }
 
   def shutdown() = {
-    routees.map ( _ ! Broadcast(PoisonPill) )
+    routees.map(_ ! Broadcast(PoisonPill))
     Thread.sleep(shutdownTime.length)
   }
 
@@ -60,7 +62,7 @@ object ExceptionHandler {
   }
 
   def enqueue(msg: KafkaMessage) = {
-    routees.map ( _ ! msg )
+    routees.map(_ ! msg)
   }
 
 

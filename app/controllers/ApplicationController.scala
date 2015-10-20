@@ -42,11 +42,15 @@ object ApplicationController extends Controller {
     val resultSize = result.header.headers.getOrElse("result_size", "-1")
 
     try {
-      if (isQueryRequest) {
-        s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${request.body}"
-      } else {
-        s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize}"
-      }
+      val str =
+        if (isQueryRequest)
+          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${request.body}"
+        else
+          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize}"
+
+      logger.info(s"${request.method} ${request.uri} result_size: $resultSize")
+
+      str
     } finally {
       /* pass */
     }

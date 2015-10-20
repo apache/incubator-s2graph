@@ -2,8 +2,7 @@ package controllers
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.types.{TargetVertexId, HBaseType, InnerVal, InnerValLike}
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
 import play.api.libs.json.{Json, _}
 
 import scala.collection.mutable.ListBuffer
@@ -202,7 +201,7 @@ object PostProcess extends JSONParser {
 
   def propsToJson(edge: Edge, q: Query, queryParam: QueryParam): Map[String, JsValue] = {
     for {
-      (seq, innerValWithTs) <- edge.propsWithTs
+      (seq, innerValWithTs) <- edge.propsWithTs if LabelMeta.isValidSeq(seq)
       labelMeta <- queryParam.label.metaPropsMap.get(seq)
       jsValue <- innerValToJsValue(innerValWithTs.innerVal, labelMeta.dataType)
     } yield labelMeta.name -> jsValue
@@ -236,8 +235,11 @@ object PostProcess extends JSONParser {
       from <- innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
       to <- innerValToJsValue(edge.tgtVertex.id.innerId, tgtColumn.columnType)
     } yield {
-        val propsMap = queryParam.label.metaPropsDefaultMap ++ propsToJson(edge, q, queryParam)
-        val targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else reservedColumns & (q.selectColumnsSet) + "props"
+        val targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else (reservedColumns & q.selectColumnsSet) + "props"
+
+        val _propsMap = queryParam.label.metaPropsDefaultMapInner ++ propsToJson(edge, q, queryParam)
+        val propsMap = if (q.selectColumnsSet.nonEmpty) _propsMap.filterKeys(q.selectColumnsSet) else _propsMap
+
         val kvMap = targetColumns.foldLeft(Map.empty[String, JsValue]) { (map, column) =>
           val jsValue = column match {
             case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (System.currentTimeMillis() - queryParam.timestamp))

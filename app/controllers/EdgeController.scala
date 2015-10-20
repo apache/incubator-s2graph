@@ -16,8 +16,6 @@ object EdgeController extends Controller with RequestParser {
   import controllers.ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits._
 
-  private val maxLength = 1024 * 1024 * 16
-
   def tryMutates(jsValue: JsValue, operation: String, withWait: Boolean = false): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
 
@@ -25,7 +23,7 @@ object EdgeController extends Controller with RequestParser {
       try {
         logger.debug(s"$jsValue")
         val edges = toEdges(jsValue, operation)
-        for ( edge <- edges ) {
+        for (edge <- edges) {
           if (edge.isAsync)
             ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC_ASYNC, edge, None))
           else
@@ -155,7 +153,8 @@ object EdgeController extends Controller with RequestParser {
       val ts = (json \ "timestamp").asOpt[Long]
       val vertices = toVertices(labelName, direction, ids)
 
-      Graph.deleteVerticesAllAsync(vertices.toList, labels, GraphUtil.directions(direction), ts)
+      Graph.deleteVerticesAllAsync(vertices.toList, labels, GraphUtil.directions(direction), ts,
+        Config.KAFKA_LOG_TOPIC)
     })
 
     deleteResults.map { rst =>
