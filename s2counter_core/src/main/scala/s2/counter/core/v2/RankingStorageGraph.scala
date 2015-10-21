@@ -140,11 +140,6 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
   }
 
   private def getEdges(bucket: String, offset: Int, limit: Int, key: RankingKey): List[JsValue] = {
-    // bucket 으로 가상의 source vertex 생성하고
-    // itemId 가 target vertex
-    // s2counter_top_k 라는 label 에
-    // indexedProp 에 score 추가
-    // score 대로 sorting 된 결과 ...
     val labelName = counterModel.findById(key.policyId).get.action + labelPostfix
 
     val json =
@@ -252,7 +247,6 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
     if (existsLabel(policy)) {
       val counterLabelName = action + labelPostfix
 
-      //      curl -XPUT localhost:9000/graphs/deleteLabel/friends
       val response = Http(s"$s2graphUrl/graphs/deleteLabel/$counterLabelName").method("PUT").asString
 
       if (response.isError) {

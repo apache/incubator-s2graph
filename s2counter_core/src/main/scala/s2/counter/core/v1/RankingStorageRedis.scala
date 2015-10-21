@@ -64,14 +64,6 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
     }
   }
 
-  // ttl for ranking(redis)
-  // minute: 3hour, hour: 1hour + 3day, day: 1day + 60day
-//  private val ttlMap: Map[IntervalUnit.Value, Int] = Map(
-//    IntervalUnit.MINUTELY -> 3600 * 3,
-//    IntervalUnit.HOURLY -> 3600 * (1 + 24 * 3),
-//    IntervalUnit.DAILY -> 3600 * (24 + 24 * 60)
-//  )
-
   private def getTTL(policyId: Int, intervalUnit: IntervalUnit.IntervalUnit): Option[Int] = {
     counterModel.findById(policyId).flatMap { policy =>
       intervalUnit match {

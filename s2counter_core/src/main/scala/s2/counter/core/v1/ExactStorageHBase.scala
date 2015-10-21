@@ -39,9 +39,6 @@ class ExactStorageHBase(config: Config) extends ExactStorage {
                    timeRange: Seq[(TimedQualifier, TimedQualifier)],
                    dimQuery: Map[String, Set[String]])
                   (implicit ec: ExecutionContext): Future[Seq[FetchedCountsGrouped]] = {
-
-//    val tableName = getTableName(policy)
-
     lazy val messageForLog = s"${policy.service}.${policy.action} $items $timeRange $dimQuery"
 
     val keys = {
@@ -113,48 +110,6 @@ class ExactStorageHBase(config: Config) extends ExactStorage {
           Nil
       }
     }
-
-//    withAsyncHBase[Seq[FetchedCountsGrouped]] { client =>
-//      val deferreds: Seq[Deferred[FetchedCounts]] = {
-//        for {
-//          (key, cf, get) <- gets
-//        } yield {
-//          client.get(get).addCallback { new Callback[FetchedCounts, util.ArrayList[KeyValue]] {
-//            override def call(kvs: util.ArrayList[KeyValue]): FetchedCounts = {
-//              val qualifierWithCounts = {
-//                for {
-//                  kv <- kvs
-//                  eq = BytesUtilV1.toExactQualifier(kv.qualifier()) if eq.checkDimensionEquality(dimQuery)
-//                } yield {
-//                  eq -> Bytes.toLong(kv.value())
-//                }
-//              }.toMap
-//              //              println(s"$key $qualifierWithCounts")
-//              FetchedCounts(key, qualifierWithCounts)
-//            }
-//          }}
-//        }
-//      }
-//      Deferred.group(deferreds).addCallback { new Callback[Seq[FetchedCountsGrouped], util.ArrayList[FetchedCounts]] {
-//        override def call(arg: util.ArrayList[FetchedCounts]): Seq[FetchedCountsGrouped] = {
-//          val counts = {
-//            for {
-//              (key, fetchedGroup) <- Seq(arg: _*).groupBy(_.exactKey)
-//            } yield {
-//              fetchedGroup.reduce[FetchedCounts] { case (f1, f2) =>
-//                FetchedCounts(key, f1.qualifierWithCountMap ++ f2.qualifierWithCountMap)
-//              }
-//            }
-//          }.toSeq
-//
-//          for {
-//            FetchedCounts(k, qualifierWithCountMap) <- counts
-//          } yield {
-//            FetchedCountsGrouped(k, qualifierWithCountMap.groupBy { case (eq, v) => (eq.tq.q, eq.dimKeyValues) })
-//          }
-//        }
-//      }}
-//    }
   }
 
   override def update(policy: Counter, counts: Seq[(ExactKeyTrait, ExactValueMap)]): Map[ExactKeyTrait, ExactValueMap] = {
@@ -231,7 +186,6 @@ class ExactStorageHBase(config: Config) extends ExactStorage {
   override def get(policy: Counter,
                    queries: Seq[(ExactKeyTrait, Seq[ExactQualifier])])
                   (implicit ec: ExecutionContext): Future[Seq[FetchedCounts]] = {
-
     lazy val messageForLog = s"${policy.service}.${policy.action} $queries"
 
     val gets = {
@@ -273,31 +227,6 @@ class ExactStorageHBase(config: Config) extends ExactStorage {
           Nil
       }
     }
-
-//    withAsyncHBase[Seq[FetchedCounts]] { client =>
-//      val deferreds: Seq[Deferred[FetchedCounts]] = {
-//        for {
-//          (key, cf, get) <- gets
-//        } yield {
-//          client.get(get).addCallback { new Callback[FetchedCounts, util.ArrayList[KeyValue]] {
-//            override def call(kvs: util.ArrayList[KeyValue]): FetchedCounts = {
-//              val qualifierWithCounts = {
-//                for {
-//                  kv <- kvs
-//                  eq = BytesUtilV1.toExactQualifier(kv.qualifier())
-//                } yield {
-//                  eq -> Bytes.toLong(kv.value())
-//                }
-//              }.toMap
-//              FetchedCounts(key, qualifierWithCounts)
-//            }
-//          }}
-//        }
-//      }
-//      Deferred.group(deferreds).addCallback { new Callback[Seq[FetchedCounts], util.ArrayList[FetchedCounts]] {
-//        override def call(arg: util.ArrayList[FetchedCounts]): Seq[FetchedCounts] = arg
-//      }}
-//    }
   }
 
   override def insertBlobValue(policy: Counter, keys: Seq[BlobExactKey]): Seq[Boolean] = {

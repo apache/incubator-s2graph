@@ -11,7 +11,6 @@ import s2.util.Hashes
  * Created by jay on 14. 10. 31..
  */
 class HashShardingJedis(config: Config) {
-  //몇대 안되니까 Jedis objects를 여기서 다 들고 있는건 어떨까?
   lazy val s2config = new S2CounterConfig(config)
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -21,8 +20,6 @@ class HashShardingJedis(config: Config) {
   poolConfig.setMaxIdle(50)
   poolConfig.setMaxWaitMillis(200)
 
-  //TODO : Connecting 실패한 JedisPool은 자동으로 Filter 할 수 있으면 베스트
-  //TODO : 현재 Index, Redis Address Map도 필요
   val jedisPools = s2config.REDIS_INSTANCES.map { case (host, port) =>
     new JedisPool(poolConfig, host, port)
   }

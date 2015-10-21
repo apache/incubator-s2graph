@@ -11,11 +11,6 @@ import scala.collection.JavaConversions._
  * Created by hsleep(honeysleep@gmail.com) on 15. 5. 27..
  */
 case class ExactQualifier(tq: TimedQualifier, dimKeyValues: Map[String, String], dimension: String) {
-//  lazy val sortedDimKeyValues = new util.TreeMap[String, String](dimKeyValues)
-//  val dimension = {
-//    (sortedDimKeyValues.keysIterator ++ sortedDimKeyValues.valuesIterator).mkString(".")
-//  }
-
   def checkDimensionEquality(dimQuery: Map[String, Set[String]]): Boolean = {
 //    println(s"self: $dimKeyValues, query: $dimQuery")
     dimQuery.size == dimKeyValues.size && {

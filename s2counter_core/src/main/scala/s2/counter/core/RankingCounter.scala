@@ -64,13 +64,6 @@ class RankingCounter(config: Config, storage: RankingStorage) {
   }
 
   def getAllItems(keys: Seq[RankingKey], k: Int = Int.MaxValue): Seq[String] = {
-//    for {
-//      key <- keys
-//      result <- getTopK(key, k).toSeq
-//      (item, score) <- result.values
-//    } yield {
-//      item
-//    }
     val oldKeys = keys.filter(key => TimedQualifier.getQualifiers(Seq(key.eq.tq.q), System.currentTimeMillis()).head != key.eq.tq)
     val cached = cache.getAllPresent(oldKeys)
     val missed = keys.diff(cached.keys.toSeq)

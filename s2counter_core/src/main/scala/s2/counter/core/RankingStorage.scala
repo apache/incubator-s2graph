@@ -9,7 +9,6 @@ import s2.models.Counter
 trait RankingStorage {
   def getTopK(key: RankingKey, k: Int): Option[RankingResult]
   def getTopK(keys: Seq[RankingKey], k: Int): Seq[(RankingKey, RankingResult)]
-//  def incrementBulk(key: RankingKey, value: Map[String, Double], k: Int): Unit
   def update(key: RankingKey, value: RankingValueMap, k: Int): Unit
   def update(values: Seq[(RankingKey, RankingValueMap)], k: Int): Unit
   def delete(key: RankingKey)

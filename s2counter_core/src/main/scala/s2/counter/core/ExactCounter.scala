@@ -31,10 +31,7 @@ class ExactCounter(config: Config, storage: ExactStorage) {
 
   val storageStatusCache = new CollectionCache[Option[Boolean]](CollectionCacheConfig(1000, 60, negativeCache = false, 60))
   
-  /**
-   * dimension: age, value of ages
-   * TODO: filter dimension in core.
-   */
+  // dimension: age, value of ages
   def getCountAsync(policy: Counter,
                     itemId: String,
                     intervals: Seq[IntervalUnit],
@@ -199,41 +196,6 @@ class ExactCounter(config: Config, storage: ExactStorage) {
   def getBlobValue(policy: Counter, blobId: String): Option[String] = {
     storage.getBlobValue(policy, blobId)
   }
-//
-//  def getStartRowKeyPrefix(policy: Counter): Array[Byte] = {
-//    bytesUtil.getRowKeyPrefix(policy.id)
-//  }
-//
-//  def getStopRowKeyPrefix(policy: Counter): Array[Byte] = {
-//    bytesUtil.getRowKeyPrefix(policy.id + 1)
-//  }
-//
-//  def fetchItems(policy: Counter, limit: Int, cursor: Option[String] = None): Seq[Array[Byte]] = {
-//    //    policy.version match {
-//    //      case 0x01 =>
-//    //        throw MethodNotSupportedException(s"fetchItems operation not supported in version(1)")
-//    //    }
-//
-//    val startKey = cursor.map { s =>
-//      // to exclude start row, add a trailing 0 byte
-//      Base64.decode(s) ++ Array.fill[Byte](1)(0)
-//    }.getOrElse(Array.empty[Byte])
-//
-//    val scan = new Scan(getStartRowKeyPrefix(policy) ++ startKey, getStopRowKeyPrefix(policy))
-//
-//    withHBase(getTableName(policy)) { table =>
-//      val scanner = new DistributedScanner(table, scan)
-//      scanner.next(limit).map { result =>
-//        DistributedScanner.getRealRowKey(result)
-//      }
-//    } match {
-//      case Success(rst) =>
-//        rst.toSeq
-//      case Failure(ex) =>
-//        log.error(s"$ex")
-//        Seq.empty[Array[Byte]]
-//    }
-//  }
 
   def prepare(policy: Counter) = {
     storage.prepare(policy)

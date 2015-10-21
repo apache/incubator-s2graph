@@ -26,5 +26,4 @@ object ExactKey {
       ExactKey(policy.id, policy.version, policy.itemType, itemId)
     }
   }
-//  def apply(policy: Counter, itemId: String, orgItemId: String): ExactKeyTrait = BlobExactKey(policy.id, policy.itemType, itemId, orgItemId)
 }
