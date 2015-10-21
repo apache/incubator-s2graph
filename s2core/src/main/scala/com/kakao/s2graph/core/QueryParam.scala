@@ -284,8 +284,13 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   def limit(offset: Int, limit: Int): QueryParam = {
     /** since degree info is located on first always */
-    this.limit = if (offset == 0) limit + 1 else limit
-    this.offset = offset
+    if (offset == 0) {
+      this.limit = limit + 1
+      this.offset = offset
+    } else {
+      this.limit = limit
+      this.offset = offset + 1
+    }
     //    this.columnPaginationFilter = new ColumnPaginationFilter(this.limit, this.offset)
     this
   }
@@ -461,11 +466,13 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     get.setRowOffsetPerColumnFamily(offset)
     get.setMinTimestamp(minTs)
     get.setMaxTimestamp(maxTs)
-    get.setMaxAttempt(maxAttempt.toByte)
-    get.setRpcTimeout(rpcTimeoutInMillis)
+    get.setTimeout(rpcTimeoutInMillis)
+    if (columnRangeFilter != null) get.setFilter(columnRangeFilter)
+//    get.setMaxAttempt(maxAttempt.toByte)
+//    get.setRpcTimeout(rpcTimeoutInMillis)
 
-    if (columnRangeFilter != null) get.filter(columnRangeFilter)
-//    logger.info(s"Get: $get")
+//    if (columnRangeFilter != null) get.filter(columnRangeFilter)
+//    logger.debug(s"Get: $get, $offset, $limit")
 
     get
   }

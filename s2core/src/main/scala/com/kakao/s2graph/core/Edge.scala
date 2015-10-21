@@ -16,6 +16,7 @@ import scala.concurrent.Future
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Random, Success, Try}
 
+
 case class EdgeWithIndexInverted(srcVertex: Vertex,
                                  tgtVertex: Vertex,
                                  labelWithDir: LabelWithDirection,
@@ -502,9 +503,12 @@ case class EdgeWriter(edge: Edge) {
           insert(createRelEdges = true)
         }
       } else if (op == GraphUtil.operations("delete")) {
-        if (label.consistencyLevel == "strong") delete()
-        else deleteBulk()
-        List.empty[PutRequest]
+        if (label.consistencyLevel == "strong") {
+          delete()
+          List.empty[PutRequest]
+        } else {
+          deleteBulk()
+        }
       } else if (op == GraphUtil.operations("update")) {
         update()
         List.empty[PutRequest]
@@ -551,10 +555,10 @@ case class EdgeWriter(edge: Edge) {
     rets
   }
 
-  def deleteBulk(): Unit = {
+  def deleteBulk(): List[HBaseRpc] = {
     /** delete all edges related to this
       * snapshot edge is not consistent with weak consistencyLevel. */
-    val deletes = edge.relatedEdges.map { relEdge =>
+    edge.relatedEdges.flatMap { relEdge =>
       val snapshotEdgeDelete = relEdge.toInvertedEdgeHashLike.buildDeleteAsync()
       //      logger.error(s"SnapshotEdgeDelete: $snapshotEdgeDelete")
 
@@ -568,16 +572,16 @@ case class EdgeWriter(edge: Edge) {
       snapshotEdgeDelete :: indexedEdgesDelete
     }
 
-    /** not wait for flush interval */
-    for {
-      rets <- Graph.writeAsync(label.hbaseZkAddr, deletes)
-    } yield {
-      val ret = rets.forall(identity)
-      if (!ret) {
-        logger.error(s"DeleteBulk failed. $this")
-        ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
-      }
-    }
+//    /** not wait for flush interval */
+//    for {
+//      rets <- Graph.writeAsync(label.hbaseZkAddr, deletes)
+//    } yield {
+//      val ret = rets.forall(identity)
+//      if (!ret) {
+//        logger.error(s"DeleteBulk failed. $this")
+//        ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
+//      }
+//    }
   }
 }
 
