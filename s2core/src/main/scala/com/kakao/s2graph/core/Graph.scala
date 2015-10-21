@@ -805,6 +805,7 @@ object Graph {
     Future.sequence(futures).map { result => result.toList.flatten }
   }
 
+  /** TODO: this should be tested for moving mutate edge logic into Graph client */
 //
 //  def fetchInvertedAsync(edgeWriter: EdgeWriter): Future[(QueryParam, Option[Edge])] = {
 //    implicit val ex = this.executionContext
