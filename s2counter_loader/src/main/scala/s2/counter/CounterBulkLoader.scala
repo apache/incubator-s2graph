@@ -30,7 +30,6 @@ object CounterBulkLoader extends SparkApp with WithKafka {
     true
   }
 
-  // 상속받은 클래스에서 구현해줘야 하는 함수
   override def run(): Unit = {
     val hdfsPath = args(0)
     val blockSize = args(1).toInt

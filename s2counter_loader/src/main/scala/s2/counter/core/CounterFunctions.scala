@@ -421,19 +421,6 @@ object CounterFunctions extends Logging with WithKafka {
       rankingCounter.update(groupedValues, 500)
       acc += (s"RankingV${policy.version}", groupedValues.length)
     }
-//
-//    for {
-//      (key, value) <- values
-//      policy <- DefaultCounterModel.findById(key.policyId) if policy.useRank // update only rank counter enabled
-//    } {
-//      rankingCounter.ready(policy) match {
-//        case true =>
-//          rankingCounter.update(key, value, 500)
-//          acc += (s"RankingV${key.version}", 1)
-//        case false =>
-//          log.warn(s"${policy.service}.${policy.action} storage is not ready.")
-//      }
-//    }
   }
   
   def produceTrxLog(trxLogs: TraversableOnce[TrxLog]): Unit = {

@@ -22,7 +22,7 @@ trait SparkApp extends Logging {
 
   private var streamHelper: StreamHelper = _
 
-  // should implement in child class
+  // should implement in derived class
   def run()
 
   def getArgs(index: Int) = args(index)

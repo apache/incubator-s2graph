@@ -45,7 +45,6 @@ object EtlStreaming extends SparkApp with WithKafka {
   )
   val streamHelper = StreamHelper(kafkaParam)
 
-  // 상속받은 클래스에서 구현해줘야 하는 함수
   override def run(): Unit = {
     validateArgument("interval")
     val (intervalInSec) = seconds(args(0).toLong)

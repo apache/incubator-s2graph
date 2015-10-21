@@ -65,23 +65,6 @@ object EraseDailyCounter extends SparkApp with WithKafka {
     }
   }
 
-//  def valueToEtlItem2(policy: Counter, key: ExactKeyTrait, values: ExactValue): Seq[CounterETLItem] = {
-//    val sorted = values.toSeq.sortBy(_._1.dimKeyValues.size).reverse
-//    val (eq, value) = sorted.head
-//    val dimKeys = eq.dimKeyValues.toSeq
-//    val reduced = {
-//      for {
-//        i <- dimKeys.indices
-//        comb <- dimKeys.combinations(i)
-//      } yield {
-//        ExactQualifier(eq.tq, comb.toMap) -> value
-//      }
-//    }.toMap
-//    sorted.map { case (eq, value) =>
-//      eq -> (value - reduced(eq))
-//    }
-//  }
-
   def produce(policy: Counter, exactRdd: RDD[(ExactKeyTrait, ExactValueMap)]): Unit = {
     exactRdd.mapPartitions { part =>
       for {
@@ -125,7 +108,6 @@ object EraseDailyCounter extends SparkApp with WithKafka {
 
   lazy val className = getClass.getName.stripSuffix("$")
 
-  // 상속받은 클래스에서 구현해줘야 하는 함수
   override def run(): Unit = {
     validateArgument("service", "action", "date", "file", "op")
     DBModel.initialize(S2ConfigFactory.config)
