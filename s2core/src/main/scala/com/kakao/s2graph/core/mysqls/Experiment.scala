@@ -1,6 +1,7 @@
 package com.kakao.s2graph.core.mysqls
 
 import com.kakao.s2graph.core.GraphUtil
+import com.kakao.s2graph.logger
 import scalikejdbc._
 
 import scala.util.Random
@@ -53,10 +54,7 @@ case class Experiment(id: Option[Int],
   val buckets = Bucket.finds(id.get)
   val rangeBuckets = for {
     bucket <- buckets
-    range <- experimentType match {
-      case "u" => bucket.uuidRangeOpt
-      case _ => bucket.trafficRangeOpt
-    }
+    range <- bucket.rangeOpt
   } yield range -> bucket
 
 
@@ -65,7 +63,6 @@ case class Experiment(id: Option[Int],
       case "u" => (GraphUtil.murmur3(uuid) % totalModular) + 1
       case _ => (Random.nextInt(totalModular)) + 1
     }
-
     findBucket(seed)
   }
 
