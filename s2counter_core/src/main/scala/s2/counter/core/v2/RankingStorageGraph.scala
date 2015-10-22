@@ -170,7 +170,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
          |            "step": [
          |                {
          |                    "label": "$labelName",
-         |                    "duplicate": "$duplicate"
+         |                    "duplicate": "$duplicate",
          |                    "direction": "out",
          |                    "offset": 0,
          |                    "limit": $limit,
