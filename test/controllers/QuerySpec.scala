@@ -100,7 +100,7 @@ class QuerySpec extends SpecCommon with PlaySpecification {
           ]]
         }""")
 
-    def querySingle(id: Int) = Json.parse( s"""
+    def querySingle(id: Int, offset: Int = 0, limit: Int = 100) = Json.parse( s"""
         { "srcVertices": [
           { "serviceName": "${testServiceName}",
             "columnName": "${testColumnName}",
@@ -110,8 +110,8 @@ class QuerySpec extends SpecCommon with PlaySpecification {
           [ {
               "label": "${testLabelName}",
               "direction": "out",
-              "offset": 0,
-              "limit": 100
+              "offset": $offset,
+              "limit": $limit
             }
           ]]
         }
@@ -288,6 +288,39 @@ class QuerySpec extends SpecCommon with PlaySpecification {
 
         result = getEdges(queryDuration(Seq(0, 2), from = 1000, to = 2000))
         (result \ "results").as[List[JsValue]].size must equalTo(1)
+        true
+      }
+    }
+
+    "pagination" in {
+      running(FakeApplication()) {
+        val src = System.currentTimeMillis().toInt
+        val labelName = testLabelName
+        val bulkEdges: String = Seq(
+          edge"1001 insert e $src 1 $labelName"($(weight = 10, is_hidden = true)),
+          edge"2002 insert e $src 2 $labelName"($(weight = 20, is_hidden = false)),
+          edge"3003 insert e $src 3 $labelName"($(weight = 30)),
+          edge"4004 insert e $src 4 $labelName"($(weight = 40))
+        ).mkString("\n")
+
+        val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)
+        Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
+        Thread.sleep(asyncFlushInterval)
+
+        var result = getEdges(querySingle(src, offset = 0, limit = 2))
+        println(result)
+        var edges = (result \ "results").as[List[JsValue]]
+        edges.size must equalTo(2)
+        (edges(0) \ "to").as[Long] must beEqualTo(4)
+        (edges(1) \ "to").as[Long] must beEqualTo(3)
+
+        result = getEdges(querySingle(src, offset = 1, limit = 2))
+        println(result)
+        edges = (result \ "results").as[List[JsValue]]
+        edges.size must equalTo(2)
+        (edges(0) \ "to").as[Long] must beEqualTo(3)
+        (edges(1) \ "to").as[Long] must beEqualTo(2)
+
         true
       }
     }

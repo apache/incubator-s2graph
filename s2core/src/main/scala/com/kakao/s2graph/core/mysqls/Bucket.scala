@@ -14,8 +14,7 @@ object Bucket extends Model[Bucket] {
   def apply(rs: WrappedResultSet): Bucket = {
     Bucket(rs.intOpt("id"),
       rs.int("experiment_id"),
-      rs.string("uuid_mods"),
-      rs.string("traffic_ratios"),
+      rs.string("modular"),
       rs.string("http_verb"),
       rs.string("api_path"),
       rs.string("request_body"),
@@ -42,8 +41,7 @@ object Bucket extends Model[Bucket] {
 
 case class Bucket(id: Option[Int],
                   experimentId: Int,
-                  uuidMods: String,
-                  trafficRatios: String,
+                  modular: String,
                   httpVerb: String, apiPath: String,
                   requestBody: String, timeout: Int, impressionId: String,
                   isGraphQuery: Boolean = true,
@@ -51,7 +49,5 @@ case class Bucket(id: Option[Int],
 
   import Bucket._
 
-  lazy val uuidRangeOpt = toRange(uuidMods)
-  lazy val trafficRangeOpt = toRange(trafficRatios)
-
+  lazy val rangeOpt = toRange(modular)
 }

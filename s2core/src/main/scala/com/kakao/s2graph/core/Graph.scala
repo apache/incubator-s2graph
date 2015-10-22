@@ -1,7 +1,7 @@
 package com.kakao.s2graph.core
 
 import java.util
-import java.util.ArrayList
+import java.util.{Properties, ArrayList}
 import java.util.concurrent.{ConcurrentHashMap, Executors}
 
 import com.kakao.s2graph.core.mysqls._
@@ -13,6 +13,7 @@ import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._
+import org.hbase.async
 import org.hbase.async._
 
 import scala.collection.JavaConversions._
@@ -23,12 +24,13 @@ import scala.concurrent.duration._
 import scala.util.hashing.MurmurHash3
 import scala.util.{Random, Failure, Success, Try}
 
+
 object Graph {
   val vertexCf = "v".getBytes()
   val edgeCf = "e".getBytes()
 
   val maxValidEdgeListSize = 10000
-  var MaxRetryNum = DefaultMaxRetryNum
+  val DefaultScore = 1.0
 
   private val connections = new java.util.concurrent.ConcurrentHashMap[String, Connection]()
   private val clients = new java.util.concurrent.ConcurrentHashMap[String, HBaseClient]()
@@ -36,81 +38,57 @@ object Graph {
 
   var emptyKVs = new ArrayList[KeyValue]()
 
-  val DefaultClientFlushInterval = 100.toShort
-  val DefaultClientTimeout = 1000
-  val DefaultCacheMaxSize = 10000
-  val DefaultTtlSeconds = 60
-  val DefaultScore = 1.0
-  val DefaultMaxRetryNum = 100
-  val DefaultMaxBackOff = 3
-
-  var MaxBackOff = DefaultMaxBackOff
-
   val DefaultConfigs: Map[String, AnyRef] = Map(
     "hbase.zookeeper.quorum" -> "localhost",
     "hbase.table.name" -> "s2graph",
     "hbase.table.compression.algorithm" -> "gz",
     "phase" -> "dev",
-    "async.hbase.client.flush.interval" -> java.lang.Short.valueOf(DefaultClientFlushInterval),
-    "hbase.client.operation.timeout" -> java.lang.Integer.valueOf(DefaultClientTimeout),
     "db.default.driver" -> "com.mysql.jdbc.Driver",
     "db.default.url" -> "jdbc:mysql://localhost:3306/graph_dev",
     "db.default.password" -> "graph",
     "db.default.user" -> "graph",
-    "cache.max.size" -> java.lang.Integer.valueOf(DefaultCacheMaxSize),
+    "cache.max.size" -> java.lang.Integer.valueOf(10000),
     "cache.ttl.seconds" -> java.lang.Integer.valueOf(60),
-    "max.retry.number" -> java.lang.Integer.valueOf(DefaultMaxRetryNum))
+    "hbase.client.retries.number" -> java.lang.Integer.valueOf(20),
+    "hbase.rpcs.buffered_flush_interval" -> java.lang.Short.valueOf(100.toShort),
+    "hbase.rpc.timeout" -> java.lang.Integer.valueOf(1000),
+    "max.retry.number" -> java.lang.Integer.valueOf(100)
+  )
 
   var config: Config = ConfigFactory.parseMap(DefaultConfigs)
   var executionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1))
 
-  var hbaseConfig: org.apache.hadoop.conf.Configuration = HBaseConfiguration.create()
-  var storageExceptionCount = 0L
-  var singleGetTimeout = DefaultClientTimeout
-  var clientFlushInterval = DefaultClientFlushInterval
+  val asyncConfig: org.hbase.async.Config = new org.hbase.async.Config()
+  lazy val MaxBackOff = 5
+  lazy val clientFlushInterval = this.config.getInt("hbase.rpcs.buffered_flush_interval").toString().toShort
+  lazy val MaxRetryNum = this.config.getInt("max.retry.number")
 
 
   lazy val cache = CacheBuilder.newBuilder()
-    .maximumSize(DefaultCacheMaxSize)
+    .maximumSize(this.config.getInt("cache.max.size"))
     .build[java.lang.Integer, QueryResult]()
 
+  //TODO: Merge this into cache.
   lazy val vertexCache = CacheBuilder.newBuilder()
-    .maximumSize(DefaultCacheMaxSize)
+    .maximumSize(this.config.getInt("cache.max.size"))
     .build[java.lang.Integer, Option[Vertex]]()
 
-  /**
-   * requred: hbase.zookeeper.quorum
-   * optional: all `hbase` contains configurations.
-   */
-  private def toHBaseConfig(config: com.typesafe.config.Config) = {
-    val conf = HBaseConfiguration.create()
-
-    for {
-      (k, v) <- DefaultConfigs if !config.hasPath(k)
-    } {
-      conf.set(k, v.toString)
-    }
-
+  def loadAsyncConfig() = {
     for (entry <- config.entrySet() if entry.getKey.contains("hbase")) {
-      conf.set(entry.getKey, entry.getValue.unwrapped().toString)
+      this.asyncConfig.overrideConfig(entry.getKey, entry.getValue.unwrapped().toString)
     }
-
-    conf
   }
 
   def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
     this.config = config.withFallback(this.config)
-    this.hbaseConfig = toHBaseConfig(this.config)
+    loadAsyncConfig()
 
     Model(this.config)
 
     this.executionContext = ex
-    this.singleGetTimeout = this.config.getInt("hbase.client.operation.timeout")
-    this.clientFlushInterval = this.config.getInt("async.hbase.client.flush.interval").toShort
-    this.MaxRetryNum = this.config.getInt("max.retry.number")
 
     // make hbase client for cache
-    getClient(hbaseConfig.get("hbase.zookeeper.quorum"))
+    getClient(this.config.getString("hbase.zookeeper.quorum"))
 
     ExceptionHandler.apply(config)
 
@@ -127,7 +105,7 @@ object Graph {
     val key = zkQuorum + ":" + flushInterval
 
     clients.getOrElseUpdate(key, {
-      val client = new HBaseClient(zkQuorum)
+      val client = new HBaseClient(this.asyncConfig)
       client.setFlushInterval(flushInterval)
       client
     })
@@ -139,7 +117,7 @@ object Graph {
     }
   }
 
-  def getConn(zkQuorum: String) = connections.getOrElseUpdate(zkQuorum, ConnectionFactory.createConnection(this.hbaseConfig))
+  //  def getConn(zkQuorum: String) = connections.getOrElseUpdate(zkQuorum, ConnectionFactory.createConnection(this.hbaseConfig))
 
   def deferredToFuture[A](d: Deferred[A])(fallback: A): Future[A] = {
     val promise = Promise[A]
@@ -187,6 +165,7 @@ object Graph {
   private def errorBack(block: => Exception => Unit) = new Callback[Unit, Exception] {
     def call(ex: Exception): Unit = block(ex)
   }
+
   def writeAsyncWithWaitRetry(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]], retryNum: Int): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
 
@@ -204,6 +183,24 @@ object Graph {
       }
     }
   }
+
+  def writeAsyncWithWaitRetrySimple(zkQuorum: String, elementRpcs: Seq[HBaseRpc], retryNum: Int): Future[Boolean] = {
+    implicit val ex = this.executionContext
+
+    if (retryNum > MaxRetryNum) {
+      logger.error(s"writeAsyncWithWaitRetry failed: $elementRpcs")
+      Future.successful(false)
+    } else {
+      writeAsyncWithWaitSimple(zkQuorum, elementRpcs).flatMap { ret =>
+        if (ret) Future.successful(ret)
+        else {
+          Thread.sleep(Random.nextInt(MaxBackOff) + 1)
+          writeAsyncWithWaitRetrySimple(zkQuorum, elementRpcs, retryNum + 1)
+        }
+      }
+    }
+  }
+
   def writeAsyncWithWait(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]]): Future[Seq[Boolean]] = {
     implicit val ex = this.executionContext
 
@@ -234,6 +231,60 @@ object Graph {
       }
 
       Future.sequence(defers)
+    }
+  }
+  def writeAsyncWithWaitSimple(zkQuorum: String, elementRpcs: Seq[HBaseRpc]): Future[Boolean] = {
+    implicit val ex = this.executionContext
+
+    if (elementRpcs.isEmpty) {
+      Future.successful(true)
+    } else {
+      val client = getClient(zkQuorum)
+
+      val defers = elementRpcs.map { rpc =>
+        val deferred = rpc match {
+          case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
+          case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
+          case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i).addErrback(errorBack(ex => logger.error(s"increment request failed. $i, $ex", ex)))
+        }
+
+        deferredCallbackWithFallback(deferred)({
+          (anyRef: Any) => anyRef match {
+            case e: Exception =>
+              logger.error(s"mutation failed. $e", e)
+              false
+            case _ => true
+          }
+        }, false)
+      }
+      deferredToFutureWithoutFallback(Deferred.group(defers)).map { arr => arr.forall(identity) }
+    }
+  }
+  def writeAsyncSimple(zkQuorum: String, elementRpcs: Seq[HBaseRpc]): Future[Boolean] = {
+    implicit val ex = this.executionContext
+
+    if (elementRpcs.isEmpty) {
+      Future.successful(true)
+    } else {
+      val client = getClient(zkQuorum)
+
+      elementRpcs.foreach { rpc =>
+          val deferred = rpc match {
+            case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
+            case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
+            case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i).addErrback(errorBack(ex => logger.error(s"increment request failed. $i, $ex", ex)))
+          }
+
+          deferredCallbackWithFallback(deferred)({
+            (anyRef: Any) => anyRef match {
+              case e: Exception =>
+                logger.error(s"mutation failed. $e", e)
+                false
+              case _ => true
+            }
+          }, false)
+        }
+      Future.successful(true)
     }
   }
 
@@ -267,6 +318,7 @@ object Graph {
       Future.successful(elementRpcs.map(x => true))
     }
   }
+
 
   def getEdgesAsync(q: Query): Future[Seq[QueryResult]] = {
     implicit val ex = this.executionContext
@@ -738,36 +790,189 @@ object Graph {
     val futures = vertices.map { vertex =>
       val client = getClient(vertex.hbaseZkAddr)
       val get = vertex.buildGet
-      get.setRpcTimeout(this.singleGetTimeout.toShort)
+      //      get.setTimeout(this.singleGetTimeout.toShort)
       get.setFailfast(true)
       get.maxVersions(1)
 
       val cacheKey = MurmurHash3.stringHash(get.toString)
-      if (vertexCache.asMap().containsKey(cacheKey)) {
-        val cachedVal = vertexCache.asMap().get(cacheKey)
-        if (cachedVal == null) {
-          deferredToFuture(client.get(get))(emptyKVs).map { kvs =>
-            Vertex(kvs, vertex.serviceColumn.schemaVersion)
-          }
-        } else {
-          Future.successful(cachedVal)
-        }
-      } else {
+      val cacheVal = vertexCache.getIfPresent(cacheKey)
+      if (cacheVal == null)
         deferredToFuture(client.get(get))(emptyKVs).map { kvs =>
           Vertex(kvs, vertex.serviceColumn.schemaVersion)
         }
-      }
+      else Future.successful(cacheVal)
     }
     Future.sequence(futures).map { result => result.toList.flatten }
   }
 
+  /** TODO: this should be tested for moving mutate edge logic into Graph client */
+//
+//  def fetchInvertedAsync(edgeWriter: EdgeWriter): Future[(QueryParam, Option[Edge])] = {
+//    implicit val ex = this.executionContext
+//    val edge = edgeWriter.edge
+//    val labelWithDir = edgeWriter.labelWithDir
+//    val queryParam = QueryParam(labelWithDir)
+//
+//    getEdge(edge.srcVertex, edge.tgtVertex, queryParam, isInnerCall = true).map { queryResult =>
+//      (queryParam, queryResult.edgeWithScoreLs.headOption.map { case (e, _) => e })
+//    }
+//  }
+//
+//  private def commitPending(edgeWriter: EdgeWriter)(snapshotEdgeOpt: Option[Edge]): Future[Boolean] = {
+//    implicit val ex = this.executionContext
+//    val edge = edgeWriter.edge
+//    val label = edgeWriter.label
+//    val labelWithDir = edgeWriter.labelWithDir
+//    val pendingEdges =
+//      if (snapshotEdgeOpt.isEmpty || snapshotEdgeOpt.get.pendingEdgeOpt.isEmpty) Nil
+//      else Seq(snapshotEdgeOpt.get.pendingEdgeOpt.get)
+//
+//    if (pendingEdges == Nil) Future.successful(true)
+//    else {
+//      val snapshotEdge = snapshotEdgeOpt.get
+//      // 1. commitPendingEdges
+//      // after: state without pending edges
+//      // before: state with pending edges
+//
+//      val after = snapshotEdge.toInvertedEdgeHashLike.withNoPendingEdge().buildPutAsync()
+//      val before = snapshotEdge.toInvertedEdgeHashLike.valueBytes
+//      val client = Graph.getClient(label.hbaseZkAddr)
+//
+//      for {
+//        pendingEdgesLock <- mutateEdges(pendingEdges)
+//        ret <- if (pendingEdgesLock.forall(identity)) Graph.deferredToFutureWithoutFallback(client.compareAndSet(after, before)).map(_.booleanValue())
+//        else Future.successful(false)
+//      } yield ret
+//    }
+//  }
+//
+//  private def commitUpdate(edgeWriter: EdgeWriter)(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeUpdate, retryNum: Int): Future[Boolean] = {
+//    implicit val ex = this.executionContext
+//    val edge = edgeWriter.edge
+//    val label = edgeWriter.label
+//    val labelWithDir = edgeWriter.labelWithDir
+//    val client = Graph.getClient(label.hbaseZkAddr)
+//    if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
+//    else {
+//      val lock = edgeUpdate.newInvertedEdge.get.withPendingEdge(Option(edge)).buildPutAsync()
+//      val before = snapshotEdgeOpt.map(old => old.toInvertedEdgeHashLike.valueBytes).getOrElse(Array.empty[Byte])
+//      val after = edgeUpdate.newInvertedEdge.get.withNoPendingEdge().buildPutAsync()
+//
+//      def indexedEdgeMutationFuture(predicate: Boolean): Future[Boolean] = {
+//        if (!predicate) Future.successful(false)
+//        else Graph.writeAsyncWithWaitSimple(label.hbaseZkAddr, edgeUpdate.indexedEdgeMutations)
+//      }
+//      def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
+//        if (!predicate) Future.successful(false)
+//        else Graph.writeAsyncWithWaitRetrySimple(label.hbaseZkAddr, edgeUpdate.increments, 0)
+//      }
+//      val fallback = Future.successful(false)
+//      val javaFallback = Future.successful[java.lang.Boolean](false)
+//
+//      /**
+//       * step 1. acquire lock on snapshot edge.
+//       * step 2. try mutate indexed Edge mutation. note that increment is seperated for retry cases.
+//       * step 3. once all mutate on indexed edge success, then try release lock.
+//       * step 4. once lock is releaseed successfully, then mutate increment on this edgeUpdate.
+//       * note thta step 4 never fail to avoid multiple increments.
+//       */
+//      for {
+//        locked <- Graph.deferredToFutureWithoutFallback(client.compareAndSet(lock, before))
+//        indexEdgesUpdated <- indexedEdgeMutationFuture(locked)
+//        releaseLock <- if (indexEdgesUpdated) Graph.deferredToFutureWithoutFallback(client.compareAndSet(after, lock.value())) else javaFallback
+//        indexEdgesIncremented <- if (releaseLock) indexedEdgeIncrementFuture(releaseLock) else fallback
+//      } yield indexEdgesIncremented
+//    }
+//  }
+//
+//  def mutateEdgeInner(edgeWriter: EdgeWriter)(f: (Option[Edge], Edge) => EdgeUpdate, tryNum: Int = 0): Future[Boolean] = {
+//    implicit val ex = this.executionContext
+//    val edge = edgeWriter.edge
+//
+//    if (tryNum >= MaxRetryNum) {
+//      logger.error(s"mutate failed after $tryNum retry, $this")
+//      ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
+//      Future.successful(false)
+//    } else {
+//      val waitTime = Random.nextInt(Graph.MaxBackOff) + 1
+//
+//      fetchInvertedAsync(edgeWriter).flatMap { case (queryParam, edges) =>
+//        val snapshotEdgeOpt = edges.headOption
+//        val edgeUpdate = f(snapshotEdgeOpt, edge)
+//
+//        /** if there is no changes to be mutate, then just return true */
+//        if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
+//        else
+//          commitPending(edgeWriter)(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
+//            if (pendingAllCommitted) {
+//              commitUpdate(edgeWriter)(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
+//                if (!updateCommitted) {
+//                  Thread.sleep(waitTime)
+//                  logger.info(s"mutate failed. retry $edge")
+//                  mutateEdgeInner(edgeWriter)(f, tryNum + 1)
+//                } else {
+//                  logger.debug(s"mutate success: ${edgeUpdate.toLogString}\n$edge")
+//                  Future.successful(true)
+//                }
+//              }
+//            } else {
+//              Thread.sleep(waitTime)
+//              mutateEdgeInner(edgeWriter)(f, tryNum + 1)
+//            }
+//          }
+//
+//      }
+//    }
+//  }
+//
+//  def mutateEdgeWithOp(edge: Edge, withWait: Boolean = false): Future[Boolean] = {
+//    val edgeWriter = EdgeWriter(edge)
+//    val hbaseZkAddr = edge.label.hbaseZkAddr
+//    val rpcs = new ListBuffer[HBaseRpc]()
+//    // all cases, it is necessary to insert vertex.
+//    rpcs.appendAll(edgeWriter.buildVertexPutsAsync())
+//
+//    edge.op match {
+//      case op if op == GraphUtil.operations("insert") =>
+//        edge.label.consistencyLevel match {
+//          case "strong" => // upsert
+//            mutateEdgeInner(edgeWriter)(Edge.buildUpsert)
+//          case _ => // insert
+//            rpcs.appendAll(edgeWriter.insert(createRelEdges = true))
+//        }
+//
+//      case op if op == GraphUtil.operations("delete") =>
+//        edge.label.consistencyLevel match {
+//          case "strong" => // delete
+//            mutateEdgeInner(edgeWriter)(Edge.buildDelete)
+//          case _ => // deleteBulk
+//            rpcs.appendAll(edgeWriter.deleteBulk())
+//        }
+//
+//      case op if op == GraphUtil.operations("update") =>
+//        mutateEdgeInner(edgeWriter)(Edge.buildUpdate)
+//
+//      case op if op == GraphUtil.operations("increment") =>
+//        mutateEdgeInner(edgeWriter)(Edge.buildIncrement)
+//
+//      case op if op == GraphUtil.operations("insertBulk") =>
+//        rpcs.appendAll(edgeWriter.insert(createRelEdges = true))
+//
+//      case _ =>
+//        logger.error(s"not supported operation on edge: ${edge.op}, $edge")
+//        throw new RuntimeException(s"operation ${edge.op} is not supported on edge.")
+//    }
+//    if (withWait) writeAsyncWithWaitSimple(hbaseZkAddr, rpcs)
+//    else writeAsyncSimple(hbaseZkAddr, rpcs)
+//  }
+
   def mutateEdge(edge: Edge, withWait: Boolean = false): Future[Boolean] = {
     implicit val ex = this.executionContext
-
+//    mutateEdgeWithOp(edge, withWait)
     if (withWait)
-      writeAsyncWithWait(edge.label.hbaseZkAddr, Seq(edge).map(_.buildPutsAll())).map(_.forall(identity))
+      writeAsyncWithWaitSimple(edge.label.hbaseZkAddr, edge.buildPutsAll())
     else
-      writeAsync(edge.label.hbaseZkAddr, Seq(edge).map(_.buildPutsAll())).map(_.forall(identity))
+      writeAsyncSimple(edge.label.hbaseZkAddr, edge.buildPutsAll())
   }
 
   def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = {
@@ -782,16 +987,17 @@ object Graph {
     if (vertex.op == GraphUtil.operations("delete")) {
       deleteVertex(vertex, withWait)
     } else if (vertex.op == GraphUtil.operations("deleteAll")) {
-      deleteVerticesAll(List(vertex), walTopic).onComplete {
-        case Success(s) => logger.info(s"mutateVertex($vertex) for deleteAll successed.")
-        case Failure(ex) => logger.error(s"mutateVertex($vertex) for deleteAll failed. $ex", ex)
-      }
+      logger.info(s"deleteAll for vertex is truncated. $vertex")
+//      deleteVerticesAll(List(vertex), walTopic).onComplete {
+//        case Success(s) => logger.info(s"mutateVertex($vertex) for deleteAll successed.")
+//        case Failure(ex) => logger.error(s"mutateVertex($vertex) for deleteAll failed. $ex", ex)
+//      }
       Future.successful(true) // Ignore withWait parameter, because deleteAll operation may takes long time
     } else {
       if (withWait)
-        writeAsyncWithWait(vertex.hbaseZkAddr, Seq(vertex).map(_.buildPutsAll())).map(_.forall(identity))
+        writeAsyncWithWaitSimple(vertex.hbaseZkAddr, vertex.buildPutsAll())
       else
-        writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(_.buildPutsAll())).map(_.forall(identity))
+        writeAsyncSimple(vertex.hbaseZkAddr, vertex.buildPutsAll())
     }
   }
 
@@ -989,16 +1195,6 @@ object Graph {
     }
   }
 
-  /**
-   * Bulk
-   */
-
-  /**
-   * when how from to what direction (meta info key:value)
-   * ex) timestamp insert shon sol talk_friend directed/undirected properties
-   * ex) timestamp insert shon talk_user_id properties
-   *
-   */
   def toGraphElement(s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] = Try {
     val parts = GraphUtil.split(s)
     val logType = parts(2)
@@ -1023,19 +1219,6 @@ object Graph {
       None
   } get
 
-//  def bulkMutates(elements: Iterable[GraphElement], mutateInPlace: Boolean = false, walTopic: String) = {
-//    val vertices = new ListBuffer[Vertex]
-//    val edges = new ListBuffer[Edge]
-//    for (e <- elements) {
-//      e match {
-//        case edge: Edge => edges += edge
-//        case vertex: Vertex => vertices += vertex
-//        case _ => throw new Exception("GraphElement should be either vertex or edge.")
-//      }
-//    }
-//    mutateVertices(vertices, walTopic = walTopic)
-//    mutateEdges(edges)
-//  }
 
   def toVertex(s: String): Option[Vertex] = {
     toVertex(GraphUtil.split(s))
