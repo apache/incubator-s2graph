@@ -782,10 +782,11 @@ object Graph {
     if (vertex.op == GraphUtil.operations("delete")) {
       deleteVertex(vertex, withWait)
     } else if (vertex.op == GraphUtil.operations("deleteAll")) {
-      deleteVerticesAll(List(vertex), walTopic).onComplete {
-        case Success(s) => logger.info(s"mutateVertex($vertex) for deleteAll successed.")
-        case Failure(ex) => logger.error(s"mutateVertex($vertex) for deleteAll failed. $ex", ex)
-      }
+//      deleteVerticesAll(List(vertex), walTopic).onComplete {
+//        case Success(s) => logger.info(s"mutateVertex($vertex) for deleteAll successed.")
+//        case Failure(ex) => logger.error(s"mutateVertex($vertex) for deleteAll failed. $ex", ex)
+//      }
+      logger.info(s"vertex deleteAll is truncated. $vertex")
       Future.successful(true) // Ignore withWait parameter, because deleteAll operation may takes long time
     } else {
       if (withWait)
