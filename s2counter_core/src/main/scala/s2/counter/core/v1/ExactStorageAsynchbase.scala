@@ -63,7 +63,7 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
       } yield {
         val get = new GetRequest(tableName, BytesUtilV1.toBytes(key))
         get.family(cf.toString)
-        get.filter(new FilterList({
+        get.setFilter(new FilterList({
           for {
             (from, to) <- timeRange
           } yield {

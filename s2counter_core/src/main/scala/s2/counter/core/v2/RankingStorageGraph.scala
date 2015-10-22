@@ -29,10 +29,11 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
 
   // "", "age.32", "age.gender.32.M"
   private def makeBucketSimple(rankingKey: RankingKey): String = {
+    val labelName = counterModel.findById(rankingKey.policyId).get.action
     val q = rankingKey.eq.tq.q
     val ts = rankingKey.eq.tq.ts
     val dimension = rankingKey.eq.dimension
-    s"$dimension"
+    s"$ts.$q.$labelName.$dimension"
   }
 
   /**
@@ -68,13 +69,25 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
         (key, value) <- values
       } yield {
         val bucket = makeBucketSimple(key) // srcVertex
-        val edges = getEdges(bucket, 0, k, key)
-        val currentRankingMap: Map[String, Double] = toWithScoreLs(edges).toMap
+        val edges = getEdges(bucket, 0, k, key, "raw")
 
-        val newRankingSeq = (currentRankingMap ++ value.mapValues(_.score)).toSeq.sortBy(-_._2)
+        val prevRankingSeq = toWithScoreLs(edges)
+        val prevRankingMap: Map[String, Double] = prevRankingSeq.groupBy(_._1).map(_._2.sortBy(-_._2).head)
+        val currentRankingMap: Map[String, Double] = value.mapValues(_.score)
+        val mergedRankingMap = (prevRankingMap ++ currentRankingMap).toSeq.sortBy(-_._2).take(k).toMap
 
-        deleteAll(edges)
-        insertBulk(key, newRankingSeq.take(k))
+        val insertItems = mergedRankingMap.filterKeys(s => currentRankingMap.contains(s))
+
+        insertBulk(key, insertItems.toSeq)
+
+        val duplicatedItems = prevRankingMap.filterKeys(s => currentRankingMap.contains(s))
+        val cutoffItems = prevRankingMap.filterKeys(s => !mergedRankingMap.contains(s))
+        val deleteItems = duplicatedItems ++ cutoffItems
+
+
+        val keyWithEdgesMap = prevRankingSeq.map(_._1).zip(edges)
+        val deleteEdges = keyWithEdgesMap.filter{ case (s, _) => deleteItems.contains(s) }.map(_._2)
+        deleteAll(deleteEdges)
       }
     }
     if (!respLs.forall(resp => resp.isSuccess)) {
@@ -139,7 +152,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
     deleteAll(edges)
   }
 
-  private def getEdges(bucket: String, offset: Int, limit: Int, key: RankingKey): List[JsValue] = {
+  private def getEdges(bucket: String, offset: Int, limit: Int, key: RankingKey, duplicate: String="first"): List[JsValue] = {
     val labelName = counterModel.findById(key.policyId).get.action + labelPostfix
 
     val json =
@@ -157,6 +170,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
          |            "step": [
          |                {
          |                    "label": "$labelName",
+         |                    "duplicate": "$duplicate"
          |                    "direction": "out",
          |                    "offset": 0,
          |                    "limit": $limit,
@@ -214,7 +228,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
            |	"tgtColumnName": "${label.tgtColumnName}",
            |	"tgtColumnType": "${label.tgtColumnType}",
            |	"indices": [
-           |    {"name": "time", "propNames": ["time_unit", "time_value", "score"]}
+           |    {"name": "score", "propNames": ["score"]}
            |	],
            |  "props": [
            |		{"name": "time_unit", "dataType": "string", "defaultValue": ""},
