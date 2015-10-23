@@ -10,6 +10,7 @@ import s2.config.S2CounterConfig
 import s2.counter.core.RankingCounter.RankingValueMap
 import s2.counter.core.{RankingKey, RankingResult, RankingStorage}
 import s2.models.{Counter, CounterModel}
+import s2.util.{CollectionCacheConfig, CollectionCache}
 
 import scala.util.hashing.MurmurHash3
 import scalaj.http.{Http, HttpResponse}
@@ -25,18 +26,22 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
 //  private val RANK_INTERVAL = 10
   private val BUCKET_COUNT = 53
   private val SERVICE_NAME = "s2counter"
-  private val COLUMN_NAME = "bucket"
+  private val DIMENSION_COLUMN_NAME = "dimension"
+  private val BUCKET_COLUMN_NAME = "bucket"
   private val counterModel = new CounterModel(config)
   private val labelPostfix = "_topK"
 
   val s2graphUrl = s2config.GRAPH_URL
 
+  val prepareCache = new CollectionCache[Option[Boolean]](CollectionCacheConfig(10000, 600))
+
   // "", "age.32", "age.gender.32.M"
   private def makeBucketSimple(rankingKey: RankingKey, bucketIdx: Int): String = {
-//    val labelName = counterModel.findById(rankingKey.policyId).get.action
-//    val q = rankingKey.eq.tq.q
-//    val ts = rankingKey.eq.tq.ts
     val dimension = rankingKey.eq.dimension
+    makeBucketSimple(dimension, bucketIdx)
+  }
+
+  private def makeBucketSimple(dimension: String, bucketIdx: Int): String = {
     s"$bucketIdx.$dimension"
   }
 
@@ -68,6 +73,9 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
       for {
         (key, value) <- values
       } yield {
+        // prepare dimension bucket edge
+//        checkAndPrepareDimensionBucket(key)
+
         val edges = getEdges(key, "raw")
 
         val prevRankingSeq = toWithScoreLs(edges)
@@ -181,7 +189,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
          |    "srcVertices": [
          |        {
          |            "serviceName": "$SERVICE_NAME",
-         |            "columnName": "$COLUMN_NAME",
+         |            "columnName": "$BUCKET_COLUMN_NAME",
          |            "ids": [$ids]
          |        }
          |    ],
@@ -222,6 +230,74 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
     Label.findByName(counterLabelName).nonEmpty
   }
 
+  private def checkAndPrepareDimensionBucket(rankingKey: RankingKey): Boolean = {
+    val dimension = rankingKey.eq.dimension
+    val labelName = "s2counter_topK_bucket"
+
+    val prepared = prepareCache.withCache(dimension) {
+      val json = Json.obj(
+        "srcVertices" -> Json.arr(
+          Json.obj(
+            "serviceName" -> SERVICE_NAME,
+            "columnName" -> DIMENSION_COLUMN_NAME,
+            "id" -> dimension
+          )
+        ),
+        "steps" -> Json.arr(
+          Json.obj(
+            "step" -> Json.arr(
+              Json.obj(
+                "label" -> labelName,
+                "limit" -> 1
+              )
+            )
+          )
+        )
+      )
+
+      val response = Http(s"$s2graphUrl/graphs/getEdges")
+        .postData(json.toString())
+        .header("content-type", "application/json").asString
+
+      response.isSuccess match {
+        case true =>
+          // make
+          log.warn(response.body)
+          if ((Json.parse(response.body) \ "size").as[Int] <= 0) {
+            val jsonLs = {
+              for {
+                i <- 0 to BUCKET_COUNT
+              } yield {
+                Json.obj(
+                  "timestamp" -> System.currentTimeMillis(),
+                  "from" -> dimension,
+                  "to" -> makeBucketSimple(dimension, i),
+                  "label" -> labelName
+                )
+              }
+            }
+
+            val response = Http(s"$s2graphUrl/graphs/edges/insert")
+              .postData(Json.toJson(jsonLs).toString())
+              .header("content-type", "application/json").asString
+
+            if (response.isError) {
+              log.error(s"failed edges/insert $jsonLs ${response.code} ${response.body}")
+              None
+            } else {
+              Some(true)
+            }
+          } else {
+            Some(true)
+          }
+        case false =>
+          log.error(s"failed getEdges: $json ${response.code} ${response.body}")
+          None
+      }
+    }
+    prepared.getOrElse(false)
+  }
+
   override def prepare(policy: Counter): Unit = {
     val service = policy.service
     val action = policy.action
@@ -242,7 +318,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
            |{
            |	"label": "$counterLabelName",
            |	"srcServiceName": "$SERVICE_NAME",
-           |	"srcColumnName": "$COLUMN_NAME",
+           |	"srcColumnName": "$BUCKET_COLUMN_NAME",
            |	"srcColumnType": "string",
            |	"tgtServiceName": "$service",
            |	"tgtColumnName": "${label.tgtColumnName}",

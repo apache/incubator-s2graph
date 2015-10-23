@@ -404,6 +404,7 @@ object CounterFunctions extends Logging with WithKafka {
   }
 
   def updateRankingCounter(values: TraversableOnce[(RankingKey, RankingValueMap)], acc: HashMapAccumulable): Unit = {
+    assert(initialize)
     val valuesByPolicy = {
       for {
         (key, value) <- values.toSeq
