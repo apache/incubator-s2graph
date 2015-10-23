@@ -1,5 +1,6 @@
 package s2.counter.core.v2
 
+import com.kakao.s2graph.core.GraphUtil
 import com.kakao.s2graph.core.mysqls.Label
 import com.kakao.s2graph.core.types.HBaseType
 import com.typesafe.config.Config
@@ -10,6 +11,7 @@ import s2.counter.core.RankingCounter.RankingValueMap
 import s2.counter.core.{RankingKey, RankingResult, RankingStorage}
 import s2.models.{Counter, CounterModel}
 
+import scala.util.hashing.MurmurHash3
 import scalaj.http.{Http, HttpResponse}
 
 /**
@@ -20,6 +22,8 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
   private val s2config = new S2CounterConfig(config)
 
   private val K_MAX = 500
+//  private val RANK_INTERVAL = 10
+  private val BUCKET_COUNT = 53
   private val SERVICE_NAME = "s2counter"
   private val COLUMN_NAME = "bucket"
   private val counterModel = new CounterModel(config)
@@ -28,24 +32,20 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
   val s2graphUrl = s2config.GRAPH_URL
 
   // "", "age.32", "age.gender.32.M"
-  private def makeBucketSimple(rankingKey: RankingKey): String = {
-    val labelName = counterModel.findById(rankingKey.policyId).get.action
-    val q = rankingKey.eq.tq.q
-    val ts = rankingKey.eq.tq.ts
+  private def makeBucketSimple(rankingKey: RankingKey, bucketIdx: Int): String = {
+//    val labelName = counterModel.findById(rankingKey.policyId).get.action
+//    val q = rankingKey.eq.tq.q
+//    val ts = rankingKey.eq.tq.ts
     val dimension = rankingKey.eq.dimension
-    s"$ts.$q.$labelName.$dimension"
+    s"$bucketIdx.$dimension"
   }
 
   /**
    * indexProps: ["time_unit", "time_value", "score"]
    */
   override def getTopK(key: RankingKey, k: Int): Option[RankingResult] = {
-    val offset = 0
-    val limit = k
-    val bucket = makeBucketSimple(key)
-
-    val edges = getEdges(bucket, offset, limit, key)
-    val values = toWithScoreLs(edges)
+    val edges = getEdges(key)
+    val values = toWithScoreLs(edges).take(k)
     log.debug(edges.toString())
     Some(RankingResult(0d, values))
   }
@@ -68,22 +68,26 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
       for {
         (key, value) <- values
       } yield {
-        val bucket = makeBucketSimple(key) // srcVertex
-        val edges = getEdges(bucket, 0, k, key, "raw")
+        val edges = getEdges(key, "raw")
 
         val prevRankingSeq = toWithScoreLs(edges)
         val prevRankingMap: Map[String, Double] = prevRankingSeq.groupBy(_._1).map(_._2.sortBy(-_._2).head)
         val currentRankingMap: Map[String, Double] = value.mapValues(_.score)
-        val mergedRankingMap = (prevRankingMap ++ currentRankingMap).toSeq.sortBy(-_._2).take(k).toMap
+        val mergedRankingSeq = (prevRankingMap ++ currentRankingMap).toSeq.sortBy(-_._2).take(k)
+        val mergedRankingMap = mergedRankingSeq.toMap
 
-        val insertItems = mergedRankingMap.filterKeys(s => currentRankingMap.contains(s))
+        val bucketRankingSeq = mergedRankingSeq.groupBy { case (itemId, score) =>
+          // 0-index
+          GraphUtil.transformHash(MurmurHash3.stringHash(itemId)) % BUCKET_COUNT
+        }.map { case (bucketIdx, groupedRanking) =>
+          bucketIdx -> groupedRanking.filter { case (itemId, _) => currentRankingMap.contains(itemId) }
+        }.toSeq
 
-        insertBulk(key, insertItems.toSeq)
+        insertBulk(key, bucketRankingSeq)
 
         val duplicatedItems = prevRankingMap.filterKeys(s => currentRankingMap.contains(s))
         val cutoffItems = prevRankingMap.filterKeys(s => !mergedRankingMap.contains(s))
         val deleteItems = duplicatedItems ++ cutoffItems
-
 
         val keyWithEdgesMap = prevRankingSeq.map(_._1).zip(edges)
         val deleteEdges = keyWithEdgesMap.filter{ case (s, _) => deleteItems.contains(s) }.map(_._2)
@@ -112,16 +116,26 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
     }
   }
 
-  private def insertBulk(key: RankingKey, newRankingSeq: Seq[(String, Double)]): HttpResponse[String] = {
+  private def insertBulk(key: RankingKey, newRankingSeq: Seq[(Int, Seq[(String, Double)])]): HttpResponse[String] = {
     val labelName = counterModel.findById(key.policyId).get.action + labelPostfix
     val timestamp: Long = System.currentTimeMillis
-    val srcId = makeBucketSimple(key)
     val events = {
       for {
-        (itemId, score) <- newRankingSeq
+        (bucketIdx, rankingSeq) <- newRankingSeq
+        (itemId, score) <- rankingSeq
       } yield {
-        Json.obj("timestamp" -> timestamp, "from" -> srcId, "to" -> itemId, "label" -> labelName,
-          "props" -> Json.obj("time_unit" -> key.eq.tq.q.toString, "time_value" -> key.eq.tq.ts, "score" -> score))
+        val srcId = makeBucketSimple(key, bucketIdx)
+        Json.obj(
+          "timestamp" -> timestamp,
+          "from" -> srcId,
+          "to" -> itemId,
+          "label" -> labelName,
+          "props" -> Json.obj(
+            "time_unit" -> key.eq.tq.q.toString,
+            "time_value" -> key.eq.tq.ts,
+            "score" -> score
+          )
+        )
       }
     }
     val jsonStr = Json.toJson(events).toString()
@@ -145,15 +159,21 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
 
   /** select and delete */
   override def delete(key: RankingKey): Unit = {
-    val bucket = makeBucketSimple(key)
     val offset = 0
     val limit = K_MAX
-    val edges = getEdges(bucket, offset, limit, key)
+    val edges = getEdges(key)
     deleteAll(edges)
   }
 
-  private def getEdges(bucket: String, offset: Int, limit: Int, key: RankingKey, duplicate: String="first"): List[JsValue] = {
+  private def getEdges(key: RankingKey, duplicate: String="first"): List[JsValue] = {
     val labelName = counterModel.findById(key.policyId).get.action + labelPostfix
+
+    val ids = {
+//      val intervals = limit / RANK_INTERVAL + { if (limit % RANK_INTERVAL != 0) 1 else 0 }
+      (0 until BUCKET_COUNT).map { bucketIdx =>
+        s""""${makeBucketSimple(key, bucketIdx)}""""
+      }
+    }.mkString(",")
 
     val json =
       s"""
@@ -162,7 +182,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
          |        {
          |            "serviceName": "$SERVICE_NAME",
          |            "columnName": "$COLUMN_NAME",
-         |            "id": "$bucket"
+         |            "ids": [$ids]
          |        }
          |    ],
          |    "steps": [
@@ -173,7 +193,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
          |                    "duplicate": "$duplicate",
          |                    "direction": "out",
          |                    "offset": 0,
-         |                    "limit": $limit,
+         |                    "limit": -1,
          |                    "interval": {
          |                      "from": {"time_unit": "${key.eq.tq.q.toString}", "time_value": ${key.eq.tq.ts}},
          |                      "to": {"time_unit": "${key.eq.tq.q.toString}", "time_value": ${key.eq.tq.ts}}
@@ -228,7 +248,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
            |	"tgtColumnName": "${label.tgtColumnName}",
            |	"tgtColumnType": "${label.tgtColumnType}",
            |	"indices": [
-           |    {"name": "score", "propNames": ["score"]}
+           |    {"name": "time", "propNames": ["time_unit", "time_value", "score"]}
            |	],
            |  "props": [
            |		{"name": "time_unit", "dataType": "string", "defaultValue": ""},
