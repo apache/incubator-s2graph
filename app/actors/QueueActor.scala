@@ -77,14 +77,14 @@ class QueueActor extends Actor with ActorLogging {
       val flushSize = elementsToFlush.size
 
       queueSize -= elementsToFlush.length
-      Graph.mutateElements(elementsToFlush, Config.KAFKA_LOG_TOPIC)
+      Graph.mutateElements(elementsToFlush)
 
       if (flushSize > 0) {
         logger.info(s"flush: $flushSize, $queueSize")
       }
 
     case FlushAll =>
-      Graph.mutateElements(queue, Config.KAFKA_LOG_TOPIC)
+      Graph.mutateElements(queue)
       context.stop(self)
 
     case _ => logger.error("unknown protocol")

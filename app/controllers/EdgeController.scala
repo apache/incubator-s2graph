@@ -48,7 +48,7 @@ object EdgeController extends Controller with RequestParser {
     }
   }
 
-  def mutateAndPublish(str: String): Future[Result] = {
+  def mutateAndPublish(str: String, withWait: Boolean = false): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
 
     logger.debug(s"$str")
@@ -73,15 +73,14 @@ object EdgeController extends Controller with RequestParser {
 
       //FIXME:
       val elementsToStore = elements.filterNot(e => e.isAsync)
-      val rets = for {
-        element <- elementsToStore
-      } yield {
-          logger.debug(s"sending actor: $element")
-          QueueActor.router ! element
-          true
-        }
+      if (withWait) {
+        val rets = Graph.mutateElements(elementsToStore, withWait)
+        rets.map(Json.toJson(_)).map(jsonResponse(_))
+      } else {
+        val rets = elementsToStore.map { element => QueueActor.router ! element; true }
+        Future.successful(jsonResponse(Json.toJson(rets)))
+      }
 
-      Future.successful(jsonResponse(Json.toJson(rets)))
 
     } catch {
       case e: GraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))

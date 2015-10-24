@@ -373,154 +373,12 @@ case class EdgeWriter(edge: Edge) {
   val label = edge.label
   val labelWithDir = edge.labelWithDir
 
-
-//  /** we need to avoid increment when we retry */
-//  def commitPending(snapshotEdgeOpt: Option[Edge]): Future[Boolean] = {
-//    val pendingEdges =
-//      if (snapshotEdgeOpt.isEmpty || snapshotEdgeOpt.get.pendingEdgeOpt.isEmpty) Nil
-//      else Seq(snapshotEdgeOpt.get.pendingEdgeOpt.get)
-//
-//    if (pendingEdges == Nil) Future.successful(true)
-//    else {
-//      val snapshotEdge = snapshotEdgeOpt.get
-//      // 1. commitPendingEdges
-//      // after: state without pending edges
-//      // before: state with pending edges
-//
-//      val after = snapshotEdge.toInvertedEdgeHashLike.withNoPendingEdge().buildPutAsync()
-//      val before = snapshotEdge.toInvertedEdgeHashLike.valueBytes
-//      val client = Graph.getClient(label.hbaseZkAddr)
-//
-//      for {
-//        pendingEdgesLock: Seq[Boolean] <- Graph.writeAsyncWithWait(label.hbaseZkAddr, pendingEdges.map { edge => edge.buildPutsAll })
-//        ret <- if (pendingEdgesLock.forall(identity)) Graph.deferredToFutureWithoutFallback(client.compareAndSet(after, before)).map(_.booleanValue())
-//        else Future.successful(false)
-//      } yield ret
-//    }
-//  }
-//
-//  def commitUpdate(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeUpdate, retryNum: Int): Future[Boolean] = {
-//    val client = Graph.getClient(label.hbaseZkAddr)
-//    if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
-//    else {
-//      val lock = edgeUpdate.newInvertedEdge.get.withPendingEdge(Option(edge)).buildPutAsync()
-//      val before = snapshotEdgeOpt.map(old => old.toInvertedEdgeHashLike.valueBytes).getOrElse(Array.empty[Byte])
-//      val after = edgeUpdate.newInvertedEdge.get.withNoPendingEdge().buildPutAsync()
-//
-//      def indexedEdgeMutationFuture(predicate: Boolean): Future[Boolean] = {
-//        if (!predicate) Future.successful(false)
-//        else Graph.writeAsyncWithWait(label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations)).map { indexedEdgesUpdated =>
-//          indexedEdgesUpdated.forall(identity)
-//        }
-//      }
-//      def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
-//        if (!predicate) Future.successful(false)
-//        else  Graph.writeAsyncWithWaitRetry(label.hbaseZkAddr, Seq(edgeUpdate.increments), 0).map { rets =>
-//          val allSuccess = rets.forall(identity)
-//          if (!allSuccess) logger.error(s"indexedEdgeIncrement failed: $edgeUpdate")
-//          else logger.debug(s"indexedEdgeIncrement success: $edgeUpdate")
-//          allSuccess
-//        }
-//      }
-//      val fallback = Future.successful(false)
-//      val javaFallback = Future.successful[java.lang.Boolean](false)
-//      /**
-//       * step 1. acquire lock on snapshot edge.
-//       * step 2. try mutate indexed Edge mutation. note that increment is seperated for retry cases.
-//       * step 3. once all mutate on indexed edge success, then try release lock.
-//       * step 4. once lock is releaseed successfully, then mutate increment on this edgeUpdate.
-//       * note thta step 4 never fail to avoid multiple increments.
-//       */
-//      for {
-//        locked <- Graph.deferredToFutureWithoutFallback(client.compareAndSet(lock, before))
-//        indexEdgesUpdated <- indexedEdgeMutationFuture(locked)
-//        releaseLock <- if (indexEdgesUpdated) Graph.deferredToFutureWithoutFallback(client.compareAndSet(after, lock.value())) else javaFallback
-//        indexEdgesIncremented <- if (releaseLock) indexedEdgeIncrementFuture(releaseLock) else fallback
-//      } yield indexEdgesIncremented
-//    }
-//  }
-//
-//  def mutate(f: (Option[Edge], Edge) => EdgeUpdate, tryNum: Int = 0): Unit = {
-//
-//    import Graph._
-//    //             exponentialBackOff: ExponentialBackOff = ExponentialBackOff()): Unit = {
-//    if (tryNum >= MaxTryNum) {
-//      logger.error(s"mutate failed after $tryNum retry, $this")
-//      ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
-//      //      throw new RuntimeException(s"mutate failed after $tryNum")
-//    } else {
-//      val waitTime = Random.nextInt(Graph.MaxBackOff) + 1
-//
-//      for {
-//        (queryParam, edges) <- fetchInvertedAsync(this)
-//        invertedEdgeOpt = edges.headOption
-//        edgeUpdate = f(invertedEdgeOpt, edge) if edgeUpdate.newInvertedEdge.isDefined
-//      } for (pendingResult <- commitPending(this)(invertedEdgeOpt)) {
-//        if (!pendingResult) {
-//          Thread.sleep(waitTime)
-//          mutate(f, tryNum + 1)
-//        } else {
-//          for (updateResult <- commitUpdate(this)(invertedEdgeOpt, edgeUpdate, tryNum)) {
-//            if (!updateResult) {
-//              Thread.sleep(waitTime)
-//              logger.info(s"mutate failed. retry $edge")
-//              mutate(f, tryNum + 1)
-//            } else {
-//              logger.debug(s"mutate success: ${edgeUpdate.toLogString}\n$edge")
-//            }
-//          }
-//        }
-//      }
-//    }
-//  }
-
-//  def upsert() = mutate(Edge.buildUpsert)
-//
-//  def delete() = mutate(Edge.buildDelete)
-//
-//  def update() = mutate(Edge.buildUpdate)
-//
-//  def increment() = mutate(Edge.buildIncrement)
-
   /**
    * methods for build mutations.
    */
   def buildVertexPuts(): List[Put] = edge.srcForVertex.buildPuts ++ edge.tgtForVertex.buildPuts
 
   def buildVertexPutsAsync(): List[PutRequest] = edge.srcForVertex.buildPutsAsync() ++ edge.tgtForVertex.buildPutsAsync()
-
-//  def buildPutsAll(): List[HBaseRpc] = {
-//    val edgePuts = {
-//      if (op == GraphUtil.operations("insert")) {
-//        if (label.consistencyLevel == "strong") {
-//          upsert()
-//          List.empty[PutRequest]
-//        } else {
-//          insert(createRelEdges = true)
-//        }
-//      } else if (op == GraphUtil.operations("delete")) {
-//        if (label.consistencyLevel == "strong") {
-//          delete()
-//          List.empty[PutRequest]
-//        } else {
-//          deleteBulk()
-//        }
-//      } else if (op == GraphUtil.operations("update")) {
-//        update()
-//        List.empty[PutRequest]
-//      } else if (op == GraphUtil.operations("increment")) {
-//        increment()
-//        List.empty[PutRequest]
-//      } else if (op == GraphUtil.operations("insertBulk")) {
-//        insert(createRelEdges = true)
-//      } else {
-//        throw new Exception(s"operation[${op}] is not supported on edge.")
-//      }
-//    }
-//    val ret = edgePuts ++ buildVertexPutsAsync
-//    //    logger.debug(s"$this, $ret")
-//    ret
-//  }
 
   def insertBulk(createRelEdges: Boolean = true) = {
     val vertexPuts = buildVertexPuts()
@@ -568,16 +426,6 @@ case class EdgeWriter(edge: Edge) {
       snapshotEdgeDelete :: indexedEdgesDelete
     }
 
-//    /** not wait for flush interval */
-//    for {
-//      rets <- Graph.writeAsync(label.hbaseZkAddr, deletes)
-//    } yield {
-//      val ret = rets.forall(identity)
-//      if (!ret) {
-//        logger.error(s"DeleteBulk failed. $this")
-//        ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
-//      }
-//    }
   }
 }
 
@@ -910,13 +758,6 @@ object Edge extends JSONParser {
 
   def fromString(s: String): Option[Edge] = Graph.toEdge(s)
 
-  //  def elapsed[T](prefix: String)(f: => T) = {
-  //    val ts = System.nanoTime()
-  //    val ret = f
-  //    val duration = System.nanoTime() - ts
-  //    logger.info(s"[ELAPSED]\t$prefix\t$duration")
-  //    ret
-  //  }
 
   def toEdges(kvs: Seq[KeyValue], queryParam: QueryParam,
               prevScore: Double = 1.0,
