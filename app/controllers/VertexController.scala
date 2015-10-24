@@ -32,7 +32,7 @@ object VertexController extends Controller with RequestParser  {
         val verticesToStore = vertices.filterNot(v => v.isAsync)
 
         if (withWait) {
-          val rets = Graph.mutateVertices(verticesToStore, withWait = true, Config.KAFKA_LOG_TOPIC)
+          val rets = Graph.mutateVertices(verticesToStore, withWait = true)
           rets.map(Json.toJson(_)).map(jsonResponse(_))
         } else {
           val rets = verticesToStore.map { vertex => QueueActor.router ! vertex ; true }
