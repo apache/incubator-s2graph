@@ -512,6 +512,12 @@ object Edge extends JSONParser {
     buildOperation(invertedEdge, requestEdge)(buildIncrement)
   }
 
+  def buildInsertBulk(invertedEdge: Option[Edge], requestEdge: Edge): EdgeUpdate = {
+    assert(invertedEdge.isEmpty)
+    assert(requestEdge.op == GraphUtil.operations("insertBulk") || requestEdge.op == GraphUtil.operations("insert"))
+    buildOperation(None, requestEdge)(buildUpsert)
+  }
+
   def buildOperation(invertedEdge: Option[Edge], requestEdge: Edge)(f: PropsPairWithTs => (Map[Byte, InnerValLikeWithTs], Boolean)) = {
     //            logger.debug(s"oldEdge: ${invertedEdge.map(_.toStringRaw)}")
     //            logger.debug(s"requestEdge: ${requestEdge.toStringRaw}")

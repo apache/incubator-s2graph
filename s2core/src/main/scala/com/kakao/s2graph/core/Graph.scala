@@ -913,42 +913,51 @@ object Graph {
    * @param tryNum
    * @return
    */
-  def mutateEdgeInner(edgeWriter: EdgeWriter)(f: (Option[Edge], Edge) => EdgeUpdate, tryNum: Int = 0): Future[Boolean] = {
+  def mutateEdgeInner(edgeWriter: EdgeWriter,
+                      checkConsistency: Boolean,
+                      withWait: Boolean)(f: (Option[Edge], Edge) => EdgeUpdate, tryNum: Int = 0): Future[Boolean] = {
     implicit val ex = this.executionContext
     val edge = edgeWriter.edge
-
-    if (tryNum >= MaxRetryNum) {
-      logger.error(s"mutate failed after $tryNum retry, $this")
-      ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
-      Future.successful(false)
+    val zkQuorum = edge.label.hbaseZkAddr
+    if (!checkConsistency) {
+      val update = f(None, edge)
+      val mutations = update.indexedEdgeMutations ++ update.invertedEdgeMutations ++ update.increments
+      if (withWait) writeAsyncWithWaitSimple(zkQuorum, mutations)
+      else writeAsyncSimple(zkQuorum, mutations)
     } else {
-      val waitTime = Random.nextInt(Graph.MaxBackOff) + 1
+      if (tryNum >= MaxRetryNum) {
+        logger.error(s"mutate failed after $tryNum retry, $this")
+        ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
+        Future.successful(false)
+      } else {
+        val waitTime = Random.nextInt(Graph.MaxBackOff) + 1
 
-      fetchInvertedAsync(edgeWriter).flatMap { case (queryParam, edges) =>
-        val snapshotEdgeOpt = edges.headOption
-        val edgeUpdate = f(snapshotEdgeOpt, edge)
+        fetchInvertedAsync(edgeWriter).flatMap { case (queryParam, edges) =>
+          val snapshotEdgeOpt = edges.headOption
+          val edgeUpdate = f(snapshotEdgeOpt, edge)
 
-        /** if there is no changes to be mutate, then just return true */
-        if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
-        else
-          commitPending(edgeWriter)(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
-            if (pendingAllCommitted) {
-              commitUpdate(edgeWriter)(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
-                if (!updateCommitted) {
-                  Thread.sleep(waitTime)
-                  logger.info(s"mutate failed. retry $edge")
-                  mutateEdgeInner(edgeWriter)(f, tryNum + 1)
-                } else {
-                  logger.debug(s"mutate success: ${edgeUpdate.toLogString}\n$edge")
-                  Future.successful(true)
+          /** if there is no changes to be mutate, then just return true */
+          if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
+          else
+            commitPending(edgeWriter)(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
+              if (pendingAllCommitted) {
+                commitUpdate(edgeWriter)(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
+                  if (!updateCommitted) {
+                    Thread.sleep(waitTime)
+                    logger.info(s"mutate failed. retry $edge")
+                    mutateEdgeInner(edgeWriter, checkConsistency, withWait = true)(f, tryNum + 1)
+                  } else {
+                    logger.debug(s"mutate success: ${edgeUpdate.toLogString}\n$edge")
+                    Future.successful(true)
+                  }
                 }
+              } else {
+                Thread.sleep(waitTime)
+                mutateEdgeInner(edgeWriter, checkConsistency, withWait = true)(f, tryNum + 1)
               }
-            } else {
-              Thread.sleep(waitTime)
-              mutateEdgeInner(edgeWriter)(f, tryNum + 1)
             }
-          }
 
+        }
       }
     }
   }
@@ -971,27 +980,29 @@ object Graph {
       case op if op == GraphUtil.operations("insert") =>
         edge.label.consistencyLevel match {
           case "strong" => // upsert
-            mutateEdgeInner(edgeWriter)(Edge.buildUpsert)
+            mutateEdgeInner(edgeWriter, checkConsistency = true, withWait = withWait)(Edge.buildUpsert)
           case _ => // insert
-            rpcLs.appendAll(edgeWriter.insert(createRelEdges = true))
+            mutateEdgeInner(edgeWriter, checkConsistency = false, withWait = withWait)(Edge.buildInsertBulk)
+//            rpcLs.appendAll(edgeWriter.insert(createRelEdges = true))
         }
 
       case op if op == GraphUtil.operations("delete") =>
         edge.label.consistencyLevel match {
           case "strong" => // delete
-            mutateEdgeInner(edgeWriter)(Edge.buildDelete)
+            mutateEdgeInner(edgeWriter, checkConsistency = true, withWait = withWait)(Edge.buildDelete)
           case _ => // deleteBulk
             rpcLs.appendAll(edgeWriter.deleteBulk())
         }
 
       case op if op == GraphUtil.operations("update") =>
-        mutateEdgeInner(edgeWriter)(Edge.buildUpdate)
+        mutateEdgeInner(edgeWriter, checkConsistency = true, withWait = withWait)(Edge.buildUpdate)
 
       case op if op == GraphUtil.operations("increment") =>
-        mutateEdgeInner(edgeWriter)(Edge.buildIncrement)
+        mutateEdgeInner(edgeWriter, checkConsistency = true, withWait = withWait)(Edge.buildIncrement)
 
       case op if op == GraphUtil.operations("insertBulk") =>
-        rpcLs.appendAll(edgeWriter.insert(createRelEdges = true))
+        mutateEdgeInner(edgeWriter, checkConsistency =  false, withWait = withWait)(Edge.buildInsertBulk)
+//        rpcLs.appendAll(edgeWriter.insert(createRelEdges = true))
 
       case _ =>
         logger.error(s"not supported operation on edge: ${edge.op}, $edge")
