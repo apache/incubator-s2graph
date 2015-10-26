@@ -71,9 +71,8 @@ class WeakLabelDeleteSpec extends SpecCommon {
         /** expect 4 edges */
         (result \ "results").as[List[JsValue]].size must equalTo(4)
         val edges = (result \ "results").as[List[JsObject]]
-        EdgeController.tryMutates(Json.toJson(edges), "delete")
+        contentAsJson(EdgeController.tryMutates(Json.toJson(edges), "delete", withWait = true))
 
-        Thread.sleep(asyncFlushInterval)
 
         /** expect noting */
         result = getEdges(query(0))
@@ -81,9 +80,8 @@ class WeakLabelDeleteSpec extends SpecCommon {
         (result \ "results").as[List[JsValue]].size must equalTo(0)
 
         /** insert should be ignored */
-        EdgeController.tryMutates(Json.toJson(edges), "insert")
+        contentAsJson(EdgeController.tryMutates(Json.toJson(edges), "insert", withWait = true))
 
-        Thread.sleep(asyncFlushInterval)
 
         result = getEdges(query(0))
         (result \ "results").as[List[JsValue]].size must equalTo(0)

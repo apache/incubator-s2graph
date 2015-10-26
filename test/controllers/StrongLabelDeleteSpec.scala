@@ -172,9 +172,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
             Seq(currentTs, op, "e", src, tgt, labelName, "{}").mkString("\t")
           }
         val bulkEdge = bulkEdgeStr.mkString("\n")
-        val req = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)).get
-        val jsRslt = contentAsJson(req)
-        println(s">> $req, $bulkEdge")
+        val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdge, withWait = true))
         Thread.sleep(asyncFlushInterval)
       }
       Thread.sleep(asyncFlushInterval)
@@ -211,10 +209,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
         val deletedAt = System.currentTimeMillis()
         val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
 
-        val req = route(FakeRequest(POST, "/graphs/edges/deleteAll").withJsonBody(deleteAllRequest)).get
-
-        val jsResult = contentAsString(req)
-        println(s">> $req, $deleteAllRequest, $jsResult")
+        val jsResult = contentAsString(EdgeController.deleteAllInner(deleteAllRequest))
         Thread.sleep(asyncFlushInterval)
 
         val result = getEdges(query(id = src))

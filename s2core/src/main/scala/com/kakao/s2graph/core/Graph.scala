@@ -976,14 +976,18 @@ object Graph {
     // all cases, it is necessary to insert vertex.
     rpcLs.appendAll(edgeWriter.buildVertexPutsAsync())
 
-    edge.op match {
+    val vertexMutateFuture =
+      if (withWait) writeAsyncWithWaitSimple(zkQuorum, rpcLs)
+      else writeAsyncSimple(zkQuorum, rpcLs)
+
+
+    val edgeMutateFuture = edge.op match {
       case op if op == GraphUtil.operations("insert") =>
         edge.label.consistencyLevel match {
           case "strong" => // upsert
             mutateEdgeInner(edgeWriter, checkConsistency = true, withWait = withWait)(Edge.buildUpsert)
           case _ => // insert
             mutateEdgeInner(edgeWriter, checkConsistency = false, withWait = withWait)(Edge.buildInsertBulk)
-//            rpcLs.appendAll(edgeWriter.insert(createRelEdges = true))
         }
 
       case op if op == GraphUtil.operations("delete") =>
@@ -1009,8 +1013,8 @@ object Graph {
         logger.error(s"not supported operation on edge: ${edge.op}, $edge")
         throw new RuntimeException(s"operation ${edge.op} is not supported on edge.")
     }
-    if (withWait) writeAsyncWithWaitSimple(zkQuorum, rpcLs)
-    else writeAsyncSimple(zkQuorum, rpcLs)
+
+    edgeMutateFuture
   }
 
   /**
@@ -1233,7 +1237,11 @@ object Graph {
    * @param walTopic
    * @return
    */
-  def deleteAllAdjacentEdgesAsync(srcVertices: List[Vertex], labels: Seq[Label], dir: Int, ts: Option[Long] = None, walTopic: String): Future[Boolean] = {
+  def deleteAllAdjacentEdgesAsync(srcVertices: List[Vertex],
+                                  labels: Seq[Label],
+                                  dir: Int,
+                                  ts: Option[Long] = None,
+                                  walTopic: String): Future[Boolean] = {
     implicit val ex = Graph.executionContext
     val requestTs = ts.getOrElse(System.currentTimeMillis())
     val queryParams = for {
