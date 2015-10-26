@@ -54,8 +54,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
   "strong label delete test" should {
     running(FakeApplication()) {
       // insert bulk and wait ..
-      val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges())).get
-      val jsRslt = contentAsJson(ret)
+      val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(), withWait = true))
       Thread.sleep(asyncFlushInterval)
     }
 
@@ -86,11 +85,10 @@ class StrongLabelDeleteSpec extends SpecCommon {
           Seq(20, "insert", "edge", "-10", "-20", testLabelName2).mkString("\t")
         ).mkString("\n")
 
-        val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(edges)).get
-        val jsRslt = contentAsJson(ret)
+        val jsResult = contentAsJson(EdgeController.mutateAndPublish(edges, withWait = true))
 
         Thread.sleep(asyncFlushInterval)
-        var result = getEdges(query(-10))
+        val result = getEdges(query(-10))
 
         println(result)
 
@@ -134,9 +132,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
         println(result)
         (result \ "results").as[List[JsValue]].size must equalTo(0)
 
-
-        val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges(startTs = deletedAt + 1))).get
-        val jsRslt = contentAsJson(ret)
+        val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(startTs = deletedAt + 1), withWait = true))
         Thread.sleep(asyncFlushInterval)
 
         result = getEdges(query(20, direction = "in", columnName = testTgtColumnName))
@@ -150,7 +146,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
   }
   
 
-  "largeSet of contention" should {
+  "labelargeSet of contention" should {
     val labelName = testLabelName2
     val maxTgtId = 5
     val maxRetryNum = 20

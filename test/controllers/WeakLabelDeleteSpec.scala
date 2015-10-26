@@ -23,8 +23,7 @@ class WeakLabelDeleteSpec extends SpecCommon {
   "weak label delete test" should {
     running(FakeApplication()) {
       // insert bulk and wait ..
-      val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges())).get
-      val jsRslt = contentAsJson(ret)
+      val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(), withWait = true))
       Thread.sleep(asyncFlushInterval)
     }
 
@@ -118,9 +117,7 @@ class WeakLabelDeleteSpec extends SpecCommon {
         println(result)
         (result \ "results").as[List[JsValue]].size must equalTo(0)
 
-
-        val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges(startTs = deletedAt + 1))).get
-        val jsRslt = contentAsJson(ret)
+        val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(startTs = deletedAt + 1), withWait = true))
         Thread.sleep(asyncFlushInterval)
 
         result = getEdges(query(20, "in", testTgtColumnName))
