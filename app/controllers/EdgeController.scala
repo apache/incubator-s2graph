@@ -21,7 +21,7 @@ object EdgeController extends Controller with RequestParser {
 
     else {
       try {
-        logger.debug(s"$jsValue")
+//        logger.error(s"$jsValue")
         val edges = toEdges(jsValue, operation)
         for (edge <- edges) {
           if (edge.isAsync)
