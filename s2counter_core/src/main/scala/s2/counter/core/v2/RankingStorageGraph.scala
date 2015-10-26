@@ -268,7 +268,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
       response.isSuccess match {
         case true =>
           // make
-          log.warn(response.body)
+//          log.warn(response.body)
           if ((Json.parse(response.body) \ "size").as[Int] <= 0) {
             val jsonLs = {
               for {
