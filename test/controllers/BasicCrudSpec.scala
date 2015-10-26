@@ -2,6 +2,7 @@ package test.controllers
 
 import com.kakao.s2graph.core.Management
 import com.kakao.s2graph.core.mysqls._
+import controllers.EdgeController
 
 //import com.kakao.s2graph.core.models._
 
@@ -30,9 +31,8 @@ class BasicCrudSpec extends SpecCommon {
         List(ts, op, "e", srcId, tgtId, labelName, props).mkString("\t")
       }).mkString("\n")
 
-      val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdge)
-      println(s">> $req, $bulkEdge")
-      val res = Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
+      val req = EdgeController.mutateAndPublish(bulkEdge, withWait = true)
+      val res = Await.result(req, HTTP_REQ_WAITING_TIME)
 
       res.header.status must equalTo(200)
 

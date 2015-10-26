@@ -20,7 +20,8 @@ object Bucket extends Model[Bucket] {
       rs.string("request_body"),
       rs.int("timeout"),
       rs.string("impression_id"),
-      rs.boolean("is_graph_query"))
+      rs.boolean("is_graph_query"),
+      rs.boolean("is_empty"))
   }
 
   def finds(experimentId: Int)(implicit session: DBSession = AutoSession): List[Bucket] = {
@@ -56,7 +57,8 @@ case class Bucket(id: Option[Int],
                   modular: String,
                   httpVerb: String, apiPath: String,
                   requestBody: String, timeout: Int, impressionId: String,
-                  isGraphQuery: Boolean = true) {
+                  isGraphQuery: Boolean = true,
+                  isEmpty: Boolean = false) {
 
   import Bucket._
 
