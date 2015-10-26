@@ -991,7 +991,8 @@ object Graph {
           case "strong" => // delete
             mutateEdgeInner(edgeWriter, checkConsistency = true, withWait = withWait)(Edge.buildDelete)
           case _ => // deleteBulk
-            rpcLs.appendAll(edgeWriter.deleteBulk())
+            mutateEdgeInner(edgeWriter, checkConsistency = false, withWait = withWait)(Edge.buildDeleteBulk)
+
         }
 
       case op if op == GraphUtil.operations("update") =>

@@ -380,53 +380,53 @@ case class EdgeWriter(edge: Edge) {
 
   def buildVertexPutsAsync(): List[PutRequest] = edge.srcForVertex.buildPutsAsync() ++ edge.tgtForVertex.buildPutsAsync()
 
-  def insertBulk(createRelEdges: Boolean = true) = {
-    val vertexPuts = buildVertexPuts()
-    val snapshotPuts =
-      if (createRelEdges && labelWithDir.dir != GraphUtil.directions("in")) List(edge.toInvertedEdgeHashLike.buildPut())
-      else Nil
+//  def insertBulk(createRelEdges: Boolean = true) = {
+//    val vertexPuts = buildVertexPuts()
+//    val snapshotPuts =
+//      if (createRelEdges && labelWithDir.dir != GraphUtil.directions("in")) List(edge.toInvertedEdgeHashLike.buildPut())
+//      else Nil
+//
+//    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
+//    val relatedEdgePuts = relEdges.flatMap { relEdge =>
+//      relEdge.edgesWithIndex.flatMap(e => e.buildPuts())
+//    }
+//
+//    vertexPuts ++ snapshotPuts ++ relatedEdgePuts
+//  }
+//
+//  def insert(createRelEdges: Boolean = true) = {
+//    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
+//    val puts = edge.toInvertedEdgeHashLike.buildPutAsync() :: relEdges.flatMap { relEdge =>
+//      relEdge.edgesWithIndex.flatMap(e => e.buildPutsAsync())
+//    }
+//
+//    val incrs = relEdges.flatMap { relEdge =>
+//      relEdge.edgesWithIndex.flatMap(e => e.buildIncrementsAsync())
+//    }
+//
+//    val rets = puts ++ incrs
+//    //    logger.debug(s"Edge.insert(): $rets")
+//    rets
+//  }
 
-    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
-    val relatedEdgePuts = relEdges.flatMap { relEdge =>
-      relEdge.edgesWithIndex.flatMap(e => e.buildPuts())
-    }
-
-    vertexPuts ++ snapshotPuts ++ relatedEdgePuts
-  }
-
-  def insert(createRelEdges: Boolean = true) = {
-    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
-    val puts = edge.toInvertedEdgeHashLike.buildPutAsync() :: relEdges.flatMap { relEdge =>
-      relEdge.edgesWithIndex.flatMap(e => e.buildPutsAsync())
-    }
-
-    val incrs = relEdges.flatMap { relEdge =>
-      relEdge.edgesWithIndex.flatMap(e => e.buildIncrementsAsync())
-    }
-
-    val rets = puts ++ incrs
-    //    logger.debug(s"Edge.insert(): $rets")
-    rets
-  }
-
-  def deleteBulk(): List[HBaseRpc] = {
-    /** delete all edges related to this
-      * snapshot edge is not consistent with weak consistencyLevel. */
-    edge.relatedEdges.flatMap { relEdge =>
-      val snapshotEdgeDelete = relEdge.toInvertedEdgeHashLike.buildDeleteAsync()
-      //      logger.error(s"SnapshotEdgeDelete: $snapshotEdgeDelete")
-
-      val indexedEdgesDelete = relEdge.edgesWithIndex.flatMap { e =>
-        val indexedEdge = e.copy(op = GraphUtil.defaultOpByte)
-        val d = indexedEdge.buildDeletesAsync() ++ indexedEdge.buildIncrementsAsync(-1L)
-        //        logger.error(s"IndexedEdgesDelete: $d")
-        d
-      }
-
-      snapshotEdgeDelete :: indexedEdgesDelete
-    }
-
-  }
+//  def deleteBulk(): List[HBaseRpc] = {
+//    /** delete all edges related to this
+//      * snapshot edge is not consistent with weak consistencyLevel. */
+//    edge.relatedEdges.flatMap { relEdge =>
+//      val snapshotEdgeDelete = relEdge.toInvertedEdgeHashLike.buildDeleteAsync()
+//      //      logger.error(s"SnapshotEdgeDelete: $snapshotEdgeDelete")
+//
+//      val indexedEdgesDelete = relEdge.edgesWithIndex.flatMap { e =>
+//        val indexedEdge = e.copy(op = GraphUtil.defaultOpByte)
+//        val d = indexedEdge.buildDeletesAsync() ++ indexedEdge.buildIncrementsAsync(-1L)
+//        //        logger.error(s"IndexedEdgesDelete: $d")
+//        d
+//      }
+//
+//      snapshotEdgeDelete :: indexedEdgesDelete
+//    }
+//
+//  }
 }
 
 case class EdgeUpdate(indexedEdgeMutations: List[HBaseRpc] = List.empty[HBaseRpc],
@@ -516,6 +516,12 @@ object Edge extends JSONParser {
     assert(invertedEdge.isEmpty)
     assert(requestEdge.op == GraphUtil.operations("insertBulk") || requestEdge.op == GraphUtil.operations("insert"))
     buildOperation(None, requestEdge)(buildUpsert)
+  }
+
+  def buildDeleteBulk(invertedEdge: Option[Edge], requestEdge: Edge): EdgeUpdate = {
+    assert(invertedEdge.isEmpty)
+    assert(requestEdge.op == GraphUtil.operations("delete"))
+    buildOperation(None, requestEdge)(buildDelete)
   }
 
   def buildOperation(invertedEdge: Option[Edge], requestEdge: Edge)(f: PropsPairWithTs => (Map[Byte, InnerValLikeWithTs], Boolean)) = {
