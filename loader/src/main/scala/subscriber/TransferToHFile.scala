@@ -5,7 +5,7 @@ import java.util.TreeSet
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.fs.permission.FsPermission
-import com.kakao.s2graph.core.{GraphUtil, Edge, Graph}
+import com.kakao.s2graph.core.{EdgeWriter, GraphUtil, Edge, Graph}
 import org.apache.hadoop.hbase.client.{HTable, ConnectionFactory}
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
@@ -88,7 +88,7 @@ object TransferToHFile extends SparkApp {
       s <- strs
       element <- Graph.toGraphElement(s, labelMapping).toSeq if element.isInstanceOf[Edge]
       edge = element.asInstanceOf[Edge]
-      rpc <- edge.insert(autoEdgeCreate) if rpc.isInstanceOf[PutRequest]
+      rpc <- EdgeWriter(edge).insertBulkForLoader(autoEdgeCreate) if rpc.isInstanceOf[PutRequest]
       put = rpc.asInstanceOf[PutRequest]
     } yield {
         val p = put

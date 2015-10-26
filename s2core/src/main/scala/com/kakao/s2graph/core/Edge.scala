@@ -381,6 +381,21 @@ case class EdgeWriter(edge: Edge) {
 
   def buildVertexPutsAsync(): List[PutRequest] = edge.srcForVertex.buildPutsAsync() ++ edge.tgtForVertex.buildPutsAsync()
 
+  def insertBulkForLoader(createRelEdges: Boolean = true) = {
+    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
+    val puts = edge.toInvertedEdgeHashLike.buildPutAsync() :: relEdges.flatMap { relEdge =>
+      relEdge.edgesWithIndex.flatMap(e => e.buildPutsAsync())
+    }
+
+    val incrs = relEdges.flatMap { relEdge =>
+      relEdge.edgesWithIndex.flatMap(e => e.buildIncrementsAsync())
+    }
+
+    val rets = puts ++ incrs
+    //    logger.debug(s"Edge.insert(): $rets")
+    rets
+  }
+
 }
 
 case class EdgeUpdate(indexedEdgeMutations: List[HBaseRpc] = List.empty[HBaseRpc],
