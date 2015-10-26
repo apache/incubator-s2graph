@@ -150,7 +150,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
     val labelName = testLabelName2
     val maxTgtId = 5
     val maxRetryNum = 20
-    val maxTestNum = 2
+    val maxTestNum = 3
     val maxTestIntervalNum = 3
     def testInner(src: Long) = {
       val labelName = testLabelName2
@@ -186,7 +186,9 @@ class StrongLabelDeleteSpec extends SpecCommon {
         val ret = for {
           i <- (0 until maxTestNum)
         } yield {
+          Thread.sleep(asyncFlushInterval)
           val src = System.currentTimeMillis()
+
           val ret = testInner(src)
           ret must beEqualTo(true)
           ret
