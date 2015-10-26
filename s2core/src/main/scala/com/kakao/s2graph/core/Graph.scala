@@ -111,6 +111,14 @@ object Graph {
     })
   }
 
+  /** This method only used by Bulk loader */
+  def getConn(zkQuorum: String) = {
+    val conf = HBaseConfiguration.create()
+    conf.set("hbase.zookeeper.quorum", zkQuorum)
+    connections.getOrElseUpdate(zkQuorum, ConnectionFactory.createConnection(conf))
+  }
+
+
   def flush: Unit = {
     for ((zkQuorum, client) <- Graph.clients) {
       Await.result(deferredToFutureWithoutFallback(client.flush), Duration((clientFlushInterval + 10) * 20, duration.MILLISECONDS))

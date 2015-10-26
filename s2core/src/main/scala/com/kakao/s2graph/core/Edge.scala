@@ -381,19 +381,19 @@ case class EdgeWriter(edge: Edge) {
 
   def buildVertexPutsAsync(): List[PutRequest] = edge.srcForVertex.buildPutsAsync() ++ edge.tgtForVertex.buildPutsAsync()
 
-  def insertBulkForLoader(createRelEdges: Boolean = true) = {
+  /** This method only used by Bulk loader */
+  def insertBulkForLoaderAsync(createRelEdges: Boolean = true) = {
     val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
-    val puts = edge.toInvertedEdgeHashLike.buildPutAsync() :: relEdges.flatMap { relEdge =>
+    edge.toInvertedEdgeHashLike.buildPutAsync() :: relEdges.flatMap { relEdge =>
       relEdge.edgesWithIndex.flatMap(e => e.buildPutsAsync())
     }
-
-    val incrs = relEdges.flatMap { relEdge =>
-      relEdge.edgesWithIndex.flatMap(e => e.buildIncrementsAsync())
+  }
+  /** This method only used by Bulk loader */
+  def insertBulkForLoader(createRelEdges: Boolean = true) = {
+    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
+    edge.toInvertedEdgeHashLike.buildPut() :: relEdges.flatMap { relEdge =>
+      relEdge.edgesWithIndex.flatMap(e => e.buildPuts())
     }
-
-    val rets = puts ++ incrs
-    //    logger.debug(s"Edge.insert(): $rets")
-    rets
   }
 
 }

@@ -1,32 +1,19 @@
 package subscriber
 
-import java.util.TreeSet
 
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.hadoop.fs.permission.FsPermission
 import com.kakao.s2graph.core.{EdgeWriter, GraphUtil, Edge, Graph}
-import org.apache.hadoop.hbase.client.{HTable, ConnectionFactory}
-import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
-import org.apache.hadoop.hbase.mapreduce.{LoadIncrementalHFiles, HFileOutputFormat2, TableOutputFormat}
+import org.apache.hadoop.hbase.mapreduce.{TableOutputFormat}
 import org.apache.hadoop.hbase._
 import org.apache.hadoop.hbase.regionserver.BloomType
-import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.mapreduce.Job
-import org.apache.spark.{Partitioner, SparkContext}
-import org.apache.spark.SparkContext._
+import org.apache.spark.{SparkContext}
 import org.apache.spark.rdd.RDD
 import org.hbase.async.{PutRequest}
-import s2.spark.{HashMapParam, SparkApp}
+import s2.spark.{SparkApp}
 import spark.{FamilyHFileWriteOptions, KeyFamilyQualifier, HBaseContext}
-
-import subscriber.GraphSubscriber._
-
-import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.collection.JavaConversions._
-import scala.util.Random
+
 
 object TransferToHFile extends SparkApp {
 

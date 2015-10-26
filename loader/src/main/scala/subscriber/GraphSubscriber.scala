@@ -151,7 +151,7 @@ object GraphSubscriberHelper extends WithKafka {
         case v: Vertex if v.op == GraphUtil.operations("insert") || v.op == GraphUtil.operations("insertBulk") =>
           v.buildPuts()
         case e: Edge if e.op == GraphUtil.operations("insert") || e.op == GraphUtil.operations("insertBulk") =>
-          e.insertBulk(autoCreateEdge)
+          EdgeWriter(e).insertBulkForLoader(autoCreateEdge)
         case _ => Nil
       }
     } toList
