@@ -403,7 +403,7 @@ object Management extends JSONParser {
 
   def createTable(zkAddr: String, tableName: String, cfs: List[String], regionMultiplier: Int, ttl: Option[Int],
                   compressionAlgorithm: String = "lz4") = {
-    logger.error(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm")
+    logger.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm")
     val admin = getAdmin(zkAddr)
     val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier
     if (!admin.tableExists(TableName.valueOf(tableName))) {
@@ -432,7 +432,7 @@ object Management extends JSONParser {
           throw e
       }
     } else {
-      logger.error(s"$zkAddr, $tableName, $cf already exist.")
+      logger.info(s"$zkAddr, $tableName, $cf already exist.")
     }
   }
 

@@ -1,5 +1,6 @@
 package test.controllers
 
+import controllers.EdgeController
 import play.api.libs.json._
 import play.api.test.{FakeApplication, FakeRequest, PlaySpecification}
 import play.api.{Application => PlayApplication}
@@ -38,8 +39,7 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         edge"2 insert e 11000 200000 $testLabelName",
         edge"3 insert e 12000 300000 $testLabelName").mkString("\n")
 
-      val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)
-      Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
+      val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
 
       Thread.sleep(asyncFlushInterval)
     }
@@ -273,8 +273,7 @@ class QuerySpec extends SpecCommon with PlaySpecification {
           edge"4004 insert e 2 1 $testLabelName"($(weight = 40))
         ).mkString("\n")
 
-        val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)
-        Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
+        val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
         Thread.sleep(asyncFlushInterval)
 
         // duration test after udpate
@@ -303,8 +302,7 @@ class QuerySpec extends SpecCommon with PlaySpecification {
           edge"4004 insert e $src 4 $labelName"($(weight = 40))
         ).mkString("\n")
 
-        val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)
-        Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
+        val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
         Thread.sleep(asyncFlushInterval)
 
         var result = getEdges(querySingle(src, offset = 0, limit = 2))
