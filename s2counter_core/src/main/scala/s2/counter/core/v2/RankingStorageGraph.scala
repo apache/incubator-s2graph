@@ -10,7 +10,7 @@ import s2.config.S2CounterConfig
 import s2.counter.core.RankingCounter.RankingValueMap
 import s2.counter.core.{RankingKey, RankingResult, RankingStorage}
 import s2.models.{Counter, CounterModel}
-import s2.util.{CollectionCacheConfig, CollectionCache}
+import s2.util.{CollectionCache, CollectionCacheConfig}
 
 import scala.util.hashing.MurmurHash3
 import scalaj.http.{Http, HttpResponse}
@@ -74,7 +74,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
         (key, value) <- values
       } yield {
         // prepare dimension bucket edge
-//        checkAndPrepareDimensionBucket(key)
+        checkAndPrepareDimensionBucket(key)
 
         val edges = getEdges(key, "raw")
 
@@ -91,15 +91,18 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
           bucketIdx -> groupedRanking.filter { case (itemId, _) => currentRankingMap.contains(itemId) }
         }.toSeq
 
-        insertBulk(key, bucketRankingSeq)
+        val respInsert = insertBulk(key, bucketRankingSeq)
 
-        val duplicatedItems = prevRankingMap.filterKeys(s => currentRankingMap.contains(s))
-        val cutoffItems = prevRankingMap.filterKeys(s => !mergedRankingMap.contains(s))
-        val deleteItems = duplicatedItems ++ cutoffItems
+        if (respInsert.isSuccess) {
+          val duplicatedItems = prevRankingMap.filterKeys(s => currentRankingMap.contains(s))
+          val cutoffItems = prevRankingMap.filterKeys(s => !mergedRankingMap.contains(s))
+          val deleteItems = duplicatedItems ++ cutoffItems
 
-        val keyWithEdgesMap = prevRankingSeq.map(_._1).zip(edges)
-        val deleteEdges = keyWithEdgesMap.filter{ case (s, _) => deleteItems.contains(s) }.map(_._2)
-        deleteAll(deleteEdges)
+          val keyWithEdgesMap = prevRankingSeq.map(_._1).zip(edges)
+          val deleteEdges = keyWithEdgesMap.filter{ case (s, _) => deleteItems.contains(s) }.map(_._2)
+          deleteAll(deleteEdges)
+        }
+        respInsert
       }
     }
     if (!respLs.forall(resp => resp.isSuccess)) {
@@ -147,7 +150,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
       }
     }
     val jsonStr = Json.toJson(events).toString()
-//    log.warn(jsonStr)
+    log.debug(jsonStr)
     val resp = Http(s"$s2graphUrl/graphs/edges/insertBulk")
       .postData(jsonStr)
       .header("content-type", "application/json").asString
@@ -157,18 +160,21 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
     resp
   }
 
-  private def deleteAll(edges: List[JsValue]) = {
+  private def deleteAll(edges: List[JsValue]): Seq[HttpResponse[String]]  = {
     // /graphs/edges/delete
-    val payload = Json.toJson(edges).toString()
-    Http(s"$s2graphUrl/graphs/edges/delete")
-      .postData(payload)
-      .header("content-type", "application/json").execute()
-  }
+    for {
+      groupedEdges <- edges.grouped(100)
+    } yield {
+      val payload = Json.toJson(groupedEdges).toString()
+      log.debug(payload)
+      Http(s"$s2graphUrl/graphs/edges/delete")
+        .postData(payload)
+        .header("content-type", "application/json").asString
+    }
+  }.toSeq
 
   /** select and delete */
   override def delete(key: RankingKey): Unit = {
-    val offset = 0
-    val limit = K_MAX
     val edges = getEdges(key)
     deleteAll(edges)
   }
