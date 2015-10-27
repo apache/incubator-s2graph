@@ -180,7 +180,10 @@ trait GraphStorageSer[E] {
 }
 
 trait GraphStorageDes[E] {
-  def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String): E
+
+  type RowKeyRaw = (VertexId, LabelWithDirection, Byte, Boolean, Int)
+
+  def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String, rowOpt: Option[RowKeyRaw]): E
 
   def toEdge(e: E): Edge
 }
@@ -219,12 +222,12 @@ object AsyncHBaseStorageWritable extends StorageWritable[HBaseRpc, HBaseRpc, HBa
 
 trait IndexedEdgeGraphStorageDes extends GraphStorageDes[EdgeWithIndex] with GraphDeserializable {
 
-  type RowKeyRaw = (VertexId, LabelWithDirection, Byte, Boolean, Int)
+
   type QualifierRaw = (Array[(Byte, InnerValLike)], VertexId, Byte, Boolean, Int)
   type ValueRaw = (Array[(Byte, InnerValLike)], Int)
 
   /** version 1 and version 2 share same code for parsing row key part */
-  private def parseRow(kv: GKeyValue, version: String): RowKeyRaw = {
+  def parseRow(kv: GKeyValue, version: String): RowKeyRaw = {
     var pos = 0
     val (srcVertexId, srcIdLen) = SourceVertexId.fromBytes(kv.row, pos, kv.row.length, version)
     pos += srcIdLen
@@ -284,11 +287,10 @@ trait IndexedEdgeGraphStorageDes extends GraphStorageDes[EdgeWithIndex] with Gra
   }
 
   /** version 1 and version 2 is same logic */
-  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String): EdgeWithIndex = {
+  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String, rowOpt: Option[RowKeyRaw] = None): EdgeWithIndex = {
     assert(kvs.size == 1)
     val kv = kvs.head
-
-    val (srcVertexId, labelWithDir, labelIdxSeq, isInverted, rowLen) = parseRow(kv, version)
+    val (srcVertexId, labelWithDir, labelIdxSeq, isInverted, rowLen) = rowOpt.getOrElse(parseRow(kv, version))
 
     val (idxPropsRaw, tgtVertexIdRaw, op, tgtVertexIdInQualifier, qualifierLen) =
       if (kv.qualifier.isEmpty) parseDegreeQualifier(kv, version)
@@ -337,7 +339,7 @@ object IndexedEdgeGraphStorageDes extends IndexedEdgeGraphStorageDes {
 object IndexedEdgeGraphStorageDesV2 extends IndexedEdgeGraphStorageDes {
   val version = HBaseType.VERSION2
 
-  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String): EdgeWithIndex = {
+  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String, rowOpt: Option[RowKeyRaw]): EdgeWithIndex = {
     super.fromKeyValues(queryParam, kvs, version)
   }
 }
@@ -345,7 +347,7 @@ object IndexedEdgeGraphStorageDesV2 extends IndexedEdgeGraphStorageDes {
 object IndexedEdgeGraphStorageDesV1 extends IndexedEdgeGraphStorageDes {
   val version = HBaseType.VERSION1
 
-  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String): EdgeWithIndex = {
+  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String, rowOpt: Option[RowKeyRaw]): EdgeWithIndex = {
     super.fromKeyValues(queryParam, kvs, version)
   }
 }
@@ -394,8 +396,6 @@ case class IndexedEdgeGraphStorageSer(indexedEdge: EdgeWithIndex)
 
 trait SnapshotEdgeGraphStorageDes extends GraphStorageDes[EdgeWithIndexInverted] with GraphDeserializable with GraphSerializable {
 
-  type RowKeyRaw = (VertexId, LabelWithDirection, Byte, Boolean, Int)
-
   private def parseRow(kv: GKeyValue, version: String): RowKeyRaw = {
     var pos = 0
     val (srcVertexId, srcIdLen) = SourceVertexId.fromBytes(kv.row, pos, kv.row.length, version)
@@ -408,11 +408,11 @@ trait SnapshotEdgeGraphStorageDes extends GraphStorageDes[EdgeWithIndexInverted]
     (srcVertexId, labelWithDir, labelIdxSeq, isInverted, rowLen)
   }
 
-  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String): EdgeWithIndexInverted = {
+  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String, rowOpt: Option[RowKeyRaw]): EdgeWithIndexInverted = {
     assert(kvs.size == 1)
     val kv = kvs.head
     val schemaVer = queryParam.label.schemaVersion
-    val (srcVertexId, labelWithDir, labelIdxSeq, isInverted, rowLen) = parseRow(kv, schemaVer)
+    val (srcVertexId, labelWithDir, labelIdxSeq, isInverted, rowLen) = rowOpt.getOrElse(parseRow(kv, schemaVer))
 
     val (tgtVertexId, props, op, ts, pendingEdgeOpt) = {
       val (tgtVertexId, _) = TargetVertexId.fromBytes(kv.qualifier, 0, kv.qualifier.length, schemaVer)
@@ -455,15 +455,15 @@ trait SnapshotEdgeGraphStorageDes extends GraphStorageDes[EdgeWithIndexInverted]
 object SnapshotEdgeGraphStorageDesV2 extends SnapshotEdgeGraphStorageDes {
   val version = HBaseType.VERSION2
 
-  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String): EdgeWithIndexInverted = {
-    super.fromKeyValues(queryParam, kvs, version)
+  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String, rowOpt: Option[RowKeyRaw]): EdgeWithIndexInverted = {
+    super.fromKeyValues(queryParam, kvs, version, rowOpt)
   }
 }
 object SnapshotEdgeGraphStorageDesV1 extends SnapshotEdgeGraphStorageDes {
   val version = HBaseType.VERSION1
 
-  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String): EdgeWithIndexInverted = {
-    super.fromKeyValues(queryParam, kvs, version)
+  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String, rowOpt: Option[RowKeyRaw]): EdgeWithIndexInverted = {
+    super.fromKeyValues(queryParam, kvs, version, rowOpt)
   }
 }
 

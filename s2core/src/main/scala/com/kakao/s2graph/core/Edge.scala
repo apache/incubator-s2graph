@@ -735,16 +735,14 @@ object Edge extends JSONParser {
     if (kvs.isEmpty) Seq.empty
     else {
       val first = kvs.head
-      val firstKeyBytes = first.key()
-//      val edgeRowKeyLike = Option(EdgeRowKey.fromBytes(firstKeyBytes, 0, firstKeyBytes.length, queryParam.label.schemaVersion)._1)
+      val kv = HGKeyValue.apply(first)
+      val rowOpt = Option(IndexedEdgeGraphStorageDes.parseRow(kv, queryParam.label.schemaVersion))
 
       for {
         kv <- kvs
         edge <-
-//        if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, edgeRowKeyLike, isInnerCall, parentEdges)
-//        else toEdge(kv, queryParam, edgeRowKeyLike, parentEdges)
-        if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, isInnerCall, parentEdges)
-      else toEdge(kv, queryParam, parentEdges)
+        if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, rowOpt, isInnerCall, parentEdges)
+      else toEdge(kv, queryParam, rowOpt, parentEdges)
       } yield {
         //TODO: Refactor this.
         val currentScore =
@@ -757,13 +755,13 @@ object Edge extends JSONParser {
     }
   }
 
-//  def toSnapshotEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None,
   def toSnapshotEdge(kv: KeyValue, param: QueryParam,
+                     rowOpt: Option[IndexedEdgeGraphStorageDes.RowKeyRaw] = None,
                      isInnerCall: Boolean,
                      parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
     logger.debug(s"$param -> $kv")
     val kvs = Seq(HGKeyValue(kv))
-    val snapshotEdge = SnapshotEdgeGraphStorageDes(param.label.schemaVersion).fromKeyValues(param, kvs, param.label.schemaVersion)
+    val snapshotEdge = SnapshotEdgeGraphStorageDes(param.label.schemaVersion).fromKeyValues(param, kvs, param.label.schemaVersion, rowOpt)
 
     if (isInnerCall) {
       val edge = SnapshotEdgeGraphStorageDes.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
@@ -789,12 +787,12 @@ object Edge extends JSONParser {
     }
   }
 
-//  def toEdge(kv: KeyValue, param: QueryParam, edgeRowKeyLike: Option[EdgeRowKeyLike] = None,
   def toEdge(kv: KeyValue, param: QueryParam,
+             rowOpt: Option[IndexedEdgeGraphStorageDes.RowKeyRaw] = None,
              parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
     logger.debug(s"$param -> $kv")
     val kvs = Seq(HGKeyValue(kv))
-    val edgeWithIndex = IndexedEdgeGraphStorageDes(param.label.schemaVersion).fromKeyValues(param, kvs, param.label.schemaVersion)
+    val edgeWithIndex = IndexedEdgeGraphStorageDes(param.label.schemaVersion).fromKeyValues(param, kvs, param.label.schemaVersion, rowOpt)
     Option(IndexedEdgeGraphStorageDes.toEdge(edgeWithIndex))
     //    None
   }
