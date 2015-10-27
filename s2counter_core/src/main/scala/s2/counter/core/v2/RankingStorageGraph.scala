@@ -98,9 +98,15 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
           val cutoffItems = prevRankingMap.filterKeys(s => !mergedRankingMap.contains(s))
           val deleteItems = duplicatedItems ++ cutoffItems
 
-          val keyWithEdgesMap = prevRankingSeq.map(_._1).zip(edges)
-          val deleteEdges = keyWithEdgesMap.filter{ case (s, _) => deleteItems.contains(s) }.map(_._2)
-          deleteAll(deleteEdges)
+          val keyWithEdgesLs = prevRankingSeq.map(_._1).zip(edges)
+          val deleteEdges = keyWithEdgesLs.filter{ case (s, _) => deleteItems.contains(s) }.map(_._2)
+          for {
+            resp <- deleteAll(deleteEdges)
+          } {
+            if (resp.isError) {
+              log.error(s"update failed deleteAll: $resp, $deleteEdges")
+            }
+          }
         }
         respInsert
       }
@@ -108,7 +114,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
     if (!respLs.forall(resp => resp.isSuccess)) {
       val keys = values.map(_._1)
       keys.zip(respLs).filter(_._2.isError).foreach { case (key, resp) =>
-        log.error(s"$key: $resp")
+        log.error(s"update failed insert: $resp $key")
       }
     }
   }
@@ -163,7 +169,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
   private def deleteAll(edges: List[JsValue]): Seq[HttpResponse[String]]  = {
     // /graphs/edges/delete
     for {
-      groupedEdges <- edges.grouped(100)
+      groupedEdges <- edges.grouped(50)
     } yield {
       val payload = Json.toJson(groupedEdges).toString()
       log.debug(payload)
@@ -272,7 +278,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
           if ((Json.parse(response.body) \ "size").as[Int] <= 0) {
             val jsonLs = {
               for {
-                i <- 0 to BUCKET_COUNT
+                i <- 0 until BUCKET_COUNT
               } yield {
                 Json.obj(
                   "timestamp" -> System.currentTimeMillis(),
