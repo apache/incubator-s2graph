@@ -124,7 +124,7 @@ object PostProcess extends JSONParser {
 
     var withScore = true
     val degrees = ListBuffer[JsValue]()
-    val rawEdges = ListBuffer[Map[String, JsValue]]()
+    val rawEdges = ListBuffer[(Map[String, JsValue], Double, Long)]()
 
     if (queryResultLs.isEmpty) {
       Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr())
@@ -149,17 +149,18 @@ object PostProcess extends JSONParser {
             LabelMeta.degree.name -> innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
           )
         } else {
-          rawEdges += edgeToJson(edge, score, queryResult.query, queryResult.queryParam)
+          val currentEdge = (edgeToJson(edge, score, queryResult.query, queryResult.queryParam), score, edge.ts)
+          rawEdges += currentEdge
         }
       }
       val edges =
         if (q.groupByColumns.isEmpty && withScore) {
-          rawEdges.sortBy { case kvs =>
-            val firstOrder = kvs.get("score").map(n => n.as[Double]).getOrElse(0.0) * -1
-            val secondOrder = kvs.get("_timestamp").map(n => n.as[Long]).getOrElse(0L) * -1
+          rawEdges.sortBy { case (kvs, score, ts) =>
+            val firstOrder = score * -1
+            val secondOrder = ts * -1
             (firstOrder, secondOrder)
-          }
-        } else rawEdges
+          }.map(_._1)
+        } else rawEdges.map(_._1)
 
       val resultJson =
         if (q.groupByColumns.isEmpty) {
@@ -227,7 +228,7 @@ object PostProcess extends JSONParser {
       Json.toJson(parents)
     }
   }
-
+  /** TODO */
   def edgeToJsonInner(edge: Edge, score: Double, q: Query, queryParam: QueryParam): Map[String, JsValue] = {
     val (srcColumn, tgtColumn) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
 
