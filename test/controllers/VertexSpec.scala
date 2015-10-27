@@ -9,13 +9,14 @@ import play.api.test.{FakeApplication, FakeRequest}
 import scala.concurrent.Await
 
 class VertexSpec extends SpecCommon {
-  init()
+//  init()
 
   "vetex tc" should {
     "tc1" in {
 
       running(FakeApplication()) {
-        val ids = (0 until 3).toList
+        val ids = (7 until 20).map(tcNum => tcNum * 1000 + 0)
+
         val (serviceName, columnName) = (testServiceName, testColumnName)
 
         val data = vertexInsertsPayload(serviceName, columnName, ids)

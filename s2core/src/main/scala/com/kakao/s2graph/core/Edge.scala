@@ -361,7 +361,13 @@ case class EdgeWriter(edge: Edge) {
    */
   def buildVertexPuts(): List[Put] = edge.srcForVertex.buildPuts ++ edge.tgtForVertex.buildPuts
 
-  def buildVertexPutsAsync(): List[HBaseRpc] = edge.srcForVertex.buildPutsAsync() ++ edge.tgtForVertex.buildPutsAsync()
+  def buildVertexPutsAsync(): List[HBaseRpc] =
+    if (op == GraphUtil.operations("delete"))
+      edge.srcForVertex.buildDeleteBelongsToId() ++ edge.tgtForVertex.buildDeleteBelongsToId()
+    else
+      edge.srcForVertex.buildPutsAsync() ++ edge.tgtForVertex.buildPutsAsync()
+
+
 
   /** This method only used by Bulk loader */
   def insertBulkForLoaderAsync(createRelEdges: Boolean = true) = {

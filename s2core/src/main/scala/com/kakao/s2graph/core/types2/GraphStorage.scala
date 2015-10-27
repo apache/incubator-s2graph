@@ -185,8 +185,6 @@ trait GraphStorageDes[E] extends GraphDeserializable {
 
   def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String, cacheElementOpt: Option[E]): E
 
-  def toEdge(e: E): Edge
-
   /** version 1 and version 2 share same code for parsing row key part */
   def parseRow(kv: GKeyValue, version: String): RowKeyRaw = {
     var pos = 0
@@ -286,7 +284,7 @@ trait IndexedEdgeGraphStorageDes extends GraphStorageDes[EdgeWithIndex] with Gra
     (Array.empty[(Byte, InnerValLike)], 0)
   }
 
-  override def toEdge(edgeOpt: EdgeWithIndex): Edge = {
+  def toEdge(edgeOpt: EdgeWithIndex): Edge = {
     val e = edgeOpt
     Edge(e.srcVertex, e.tgtVertex, e.labelWithDir, e.op, e.ts, e.ts, e.propsWithTs)
     //    edgeOpt.map { e => Edge(e.srcVertex, e.tgtVertex, e.labelWithDir, e.op, e.ts, e.ts, e.propsWithTs) }
@@ -444,7 +442,7 @@ trait SnapshotEdgeGraphStorageDes extends GraphStorageDes[EdgeWithIndexInverted]
     EdgeWithIndexInverted(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, kv.timestamp, props, pendingEdgeOpt)
   }
 
-  override def toEdge(edgeOpt: EdgeWithIndexInverted): Edge = {
+  def toEdge(edgeOpt: EdgeWithIndexInverted): Edge = {
     val e = edgeOpt
     val ts = e.props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(e.version)
     Edge(e.srcVertex, e.tgtVertex, e.labelWithDir, e.op, ts, e.version, e.props, e.pendingEdgeOpt)
@@ -546,8 +544,6 @@ object VertexGraphStorageDes extends GraphStorageDes[Vertex] {
     assert(maxTs != Long.MinValue)
     Vertex(vertexId, maxTs, propsMap.toMap, belongLabelIds = belongLabelIds)
   }
-
-  def toEdge(e: Vertex): Edge = null
 }
 
 case class VertexGraphStorageSer(vertex: Vertex) extends GraphStorageSer[Vertex] {

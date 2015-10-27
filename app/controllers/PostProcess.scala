@@ -275,7 +275,10 @@ object PostProcess extends JSONParser {
     } yield {
       Json.obj("serviceName" -> serviceColumn.service.serviceName,
         "columnName" -> serviceColumn.columnName,
-        "id" -> id, "props" -> propsToJson(vertex), "timestamp" -> vertex.ts)
+        "id" -> id, "props" -> propsToJson(vertex),
+        "timestamp" -> vertex.ts,
+        "belongsTo" -> vertex.belongLabelIds)
+//        "belongsTo" -> vertex.belongLabelIds.flatMap(Label.findByIdOpt(_).map(_.label)))
     }
   }
 

@@ -87,6 +87,12 @@ case class Vertex(id: VertexId,
     Graph.storageFactory.delete(Seq(kv.copy(_qualifier = null))).toList
   }
 
+  def buildDeleteBelongsToId(): List[HBaseRpc] = {
+    val kv = kvs.head
+    import org.apache.hadoop.hbase.util.Bytes
+    val newKVs = belongLabelIds.map { id => kv.copy(_qualifier = Bytes.toBytes(id) )}
+    Graph.storageFactory.delete(newKVs).toList
+  }
   def buildGet() = {
     new GetRequest(hbaseTableName.getBytes, kvs.head.row, vertexCf)
   }

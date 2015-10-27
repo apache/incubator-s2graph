@@ -72,6 +72,16 @@ object Label extends Model[Label] {
       .updateAndReturnGeneratedKey.apply()
   }
 
+  def findByIdOpt(id: Int)(implicit session: DBSession = AutoSession): Option[Label] = {
+    val cacheKey = "id=" + id
+    withCache(cacheKey)(
+      sql"""
+        select 	*
+        from 	labels
+        where 	id = ${id}"""
+        .map { rs => Label(rs) }.single.apply())
+  }
+
   def findById(id: Int)(implicit session: DBSession = AutoSession): Label = {
     val cacheKey = "id=" + id
     withCache(cacheKey)(
