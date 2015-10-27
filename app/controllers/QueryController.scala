@@ -270,14 +270,18 @@ object QueryController extends Controller with RequestParser {
   }
 
   def getVertices() = withHeaderAsync(jsonParser) { request =>
+    getVerticesInner(request.body)
+  }
+
+  def getVerticesInner(jsValue: JsValue) = {
     if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
-    val jsonQuery = request.body
+    val jsonQuery = jsValue
     val ts = System.currentTimeMillis()
     val props = "{}"
 
     Try {
-      val vertices = request.body.as[List[JsValue]].flatMap { js =>
+      val vertices = jsonQuery.as[List[JsValue]].flatMap { js =>
         val serviceName = (js \ "serviceName").as[String]
         val columnName = (js \ "columnName").as[String]
         for (id <- (js \ "ids").asOpt[List[JsValue]].getOrElse(List.empty[JsValue])) yield {

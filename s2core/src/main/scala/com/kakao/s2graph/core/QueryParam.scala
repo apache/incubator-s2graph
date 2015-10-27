@@ -222,7 +222,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   import Query.DuplicatePolicy
   import Query.DuplicatePolicy._
 
-  val label = Label.findById(labelWithDir.labelId)
+  lazy val label = Label.findById(labelWithDir.labelId)
   val DefaultKey = LabelIndex.DefaultSeq
   val fullKey = DefaultKey
 
@@ -264,8 +264,8 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var scorePropagateOp: String = "multiply"
   //  var excludeBy: Option[String] = None
 
-  val srcColumnWithDir = label.srcColumnWithDir(labelWithDir.dir)
-  val tgtColumnWithDir = label.tgtColumnWithDir(labelWithDir.dir)
+  lazy val srcColumnWithDir = label.srcColumnWithDir(labelWithDir.dir)
+  lazy val tgtColumnWithDir = label.tgtColumnWithDir(labelWithDir.dir)
 
   def isRowKeyOnly(isRowKeyOnly: Boolean): QueryParam = {
     this.isRowKeyOnly = isRowKeyOnly

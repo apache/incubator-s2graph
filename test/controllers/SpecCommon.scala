@@ -230,7 +230,7 @@ trait SpecCommon extends Specification {
   val createVertex = s"""{
     "serviceName": "$testServiceName",
     "columnName": "$testColumnName",
-    "columnType": "long",
+    "columnType": "$testColumnType",
     "props": [
         {"name": "is_active", "dataType": "boolean", "defaultValue": true},
         {"name": "phone_number", "dataType": "string", "defaultValue": "-"},
@@ -347,12 +347,13 @@ trait SpecCommon extends Specification {
             logger.error(s">> Label already exist: $create, $label")
         }
       }
-      println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 
       // 5. create vertex
-      // vertexPropsKeys.map { case (key, keyType) =>
-      //   Management.addVertexProp(testServiceName, testColumnName, key, keyType)
-      // }
+      vertexPropsKeys.map { case (key, keyType) =>
+        Management.addVertexProp(testServiceName, testColumnName, key, keyType)
+      }
+
+      println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 
       Thread.sleep(asyncFlushInterval)
     }

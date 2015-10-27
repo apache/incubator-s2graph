@@ -807,7 +807,7 @@ object Graph {
       val cacheVal = vertexCache.getIfPresent(cacheKey)
       if (cacheVal == null)
         deferredToFuture(client.get(get))(emptyKVs).map { kvs =>
-          Vertex(kvs, vertex.serviceColumn.schemaVersion)
+          Vertex(QueryParam.Empty, kvs, vertex.serviceColumn.schemaVersion)
         }
       else Future.successful(cacheVal)
     }
@@ -1295,7 +1295,7 @@ object Graph {
     implicit val ex = executionContext
     val client = getClient(vertex.hbaseZkAddr)
     deferredToFuture(client.get(vertex.buildGet))(emptyKVs).map { kvs =>
-      Vertex(kvs, vertex.serviceColumn.schemaVersion)
+      Vertex(QueryParam.Empty, kvs, vertex.serviceColumn.schemaVersion)
     }
   }
 

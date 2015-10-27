@@ -3,10 +3,10 @@ package com.kakao.s2graph.core.types2
 import com.kakao.s2graph.core.mysqls.{LabelMeta, LabelIndex}
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.types2.HGKeyValue
-import com.kakao.s2graph.logger
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async._
+
+import scala.collection.mutable.ListBuffer
 
 
 trait GKeyValue {
@@ -42,11 +42,11 @@ trait GKeyValue {
 
   override def toString(): String = {
     Map("table" -> table.toList,
-    "row" -> row.toList,
-    "cf" -> cf.toList,
-    "qualifier" -> qualifier.toList,
-    "value" -> value.toList,
-    "timestamp" -> timestamp).mkString(", ")
+      "row" -> row.toList,
+      "cf" -> cf.toList,
+      "qualifier" -> qualifier.toList,
+      "value" -> value.toList,
+      "timestamp" -> timestamp).mkString(", ")
   }
 }
 
@@ -204,7 +204,9 @@ trait GraphStorageDes[E] extends GraphDeserializable {
 
 trait StorageWritable[I, D, C] {
   def put(kvs: Seq[GKeyValue]): Seq[I]
+
   def delete(kvs: Seq[GKeyValue]): Seq[D]
+
   def increment(kvs: Seq[GKeyValue]): Seq[C]
 }
 
@@ -230,16 +232,17 @@ object AsyncHBaseStorageWritable extends StorageWritable[HBaseRpc, HBaseRpc, HBa
 
 
   override def delete(kvs: Seq[GKeyValue]): Seq[HBaseRpc] =
-    kvs.map { kv => new DeleteRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.timestamp) }
+    kvs.map { kv =>
+      if (kv.qualifier == null) new DeleteRequest(kv.table, kv.row, kv.cf, kv.timestamp)
+      else new DeleteRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.timestamp)
+    }
 }
-
 
 trait IndexedEdgeGraphStorageDes extends GraphStorageDes[EdgeWithIndex] with GraphDeserializable {
 
 
   type QualifierRaw = (Array[(Byte, InnerValLike)], VertexId, Byte, Boolean, Int)
   type ValueRaw = (Array[(Byte, InnerValLike)], Int)
-
 
 
   private def parseDegreeQualifier(kv: GKeyValue, version: String): QualifierRaw = {
@@ -286,7 +289,7 @@ trait IndexedEdgeGraphStorageDes extends GraphStorageDes[EdgeWithIndex] with Gra
   override def toEdge(edgeOpt: EdgeWithIndex): Edge = {
     val e = edgeOpt
     Edge(e.srcVertex, e.tgtVertex, e.labelWithDir, e.op, e.ts, e.ts, e.propsWithTs)
-//    edgeOpt.map { e => Edge(e.srcVertex, e.tgtVertex, e.labelWithDir, e.op, e.ts, e.ts, e.propsWithTs) }
+    //    edgeOpt.map { e => Edge(e.srcVertex, e.tgtVertex, e.labelWithDir, e.op, e.ts, e.ts, e.propsWithTs) }
   }
 
   /** version 1 and version 2 is same logic */
@@ -308,7 +311,7 @@ trait IndexedEdgeGraphStorageDes extends GraphStorageDes[EdgeWithIndex] with Gra
     val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException("invalid index seq"))
 
 
-//    assert(kv.qualifier.nonEmpty && index.metaSeqs.size == idxPropsRaw.size)
+    //    assert(kv.qualifier.nonEmpty && index.metaSeqs.size == idxPropsRaw.size)
 
     val idxProps = for {
       (seq, (k, v)) <- index.metaSeqs.zip(idxPropsRaw)
@@ -447,6 +450,7 @@ trait SnapshotEdgeGraphStorageDes extends GraphStorageDes[EdgeWithIndexInverted]
     Edge(e.srcVertex, e.tgtVertex, e.labelWithDir, e.op, ts, e.version, e.props, e.pendingEdgeOpt)
   }
 }
+
 object SnapshotEdgeGraphStorageDesV2 extends SnapshotEdgeGraphStorageDes {
   val version = HBaseType.VERSION2
 
@@ -454,6 +458,7 @@ object SnapshotEdgeGraphStorageDesV2 extends SnapshotEdgeGraphStorageDes {
     super.fromKeyValues(queryParam, kvs, version, cacheelementOpt)
   }
 }
+
 object SnapshotEdgeGraphStorageDesV1 extends SnapshotEdgeGraphStorageDes {
   val version = HBaseType.VERSION1
 
@@ -503,5 +508,58 @@ case class SnapshotEdgeGraphStorageSer(snapshotEdge: EdgeWithIndexInverted)
 
     val kv = HGKeyValue(table, row, cf, qualifier, value, snapshotEdge.version)
     Seq(kv)
+  }
+}
+
+
+object VertexGraphStorageDes extends GraphStorageDes[Vertex] {
+  def fromKeyValues(queryParam: QueryParam,
+                    kvs: Seq[GKeyValue],
+                    version: String,
+                    cacheElementOpt: Option[Vertex]): Vertex = {
+
+    val kv = kvs.head
+    val (vertexId, _) = VertexId.fromBytes(kv.row, 0, kv.row.length, version)
+
+    var maxTs = Long.MinValue
+    val propsMap = new collection.mutable.HashMap[Int, InnerValLike]
+    val belongLabelIds = new ListBuffer[Int]
+
+    for {
+      kv <- kvs
+    } {
+      val propKey =
+        if (kv.qualifier.length == 1) kv.qualifier.head.toInt
+        else Bytes.toInt(kv.qualifier)
+
+      val ts = kv.timestamp
+      if (ts > maxTs) maxTs = ts
+
+      if (Vertex.isLabelId(propKey)) {
+        belongLabelIds += Vertex.toLabelId(propKey)
+      } else {
+        val v = kv.value
+        val (value, _) = InnerVal.fromBytes(v, 0, v.length, version)
+        propsMap += (propKey -> value)
+      }
+    }
+    assert(maxTs != Long.MinValue)
+    Vertex(vertexId, maxTs, propsMap.toMap, belongLabelIds = belongLabelIds)
+  }
+
+  def toEdge(e: Vertex): Edge = null
+}
+
+case class VertexGraphStorageSer(vertex: Vertex) extends GraphStorageSer[Vertex] {
+
+  val cf = Graph.vertexCf
+
+  override def toKeyValues: Seq[GKeyValue] = {
+    val row = vertex.id.bytes
+    val base = for ((k, v) <- vertex.props ++ vertex.defaultProps) yield Bytes.toBytes(k) -> v.bytes
+    val belongsTo = vertex.belongLabelIds.map { labelId => Bytes.toBytes(labelId) -> Array.empty[Byte] }
+    (base ++ belongsTo).map { case (qualifier, value) =>
+      HGKeyValue(vertex.hbaseTableName.getBytes, row, cf, qualifier, value, vertex.ts)
+    } toSeq
   }
 }

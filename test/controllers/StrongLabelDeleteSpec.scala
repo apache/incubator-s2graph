@@ -1,11 +1,9 @@
 package test.controllers
 
-import com.kakao.s2graph.core.Graph
 import controllers.EdgeController
 import play.api.libs.json._
 import play.api.test.Helpers._
 import play.api.test.{FakeApplication, FakeRequest}
-import test.controllers.SpecCommon
 
 import scala.util.Random
 
