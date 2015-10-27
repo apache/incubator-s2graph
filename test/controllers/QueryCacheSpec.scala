@@ -1,6 +1,8 @@
 package test.controllers
 
 //import com.kakao.s2graph.core.models._
+
+import controllers.EdgeController
 import play.api.libs.json._
 import play.api.test.Helpers._
 import play.api.test.{FakeApplication, FakeRequest}
@@ -37,8 +39,7 @@ class QueryCacheSpec extends SpecCommon {
         Seq("1", "insert", "e", "1", "2", "s2graph_label_test", "{}").mkString("\t")
       ).mkString("\n")
 
-      val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)).get
-      val jsRslt = contentAsJson(ret)
+      val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
       Thread.sleep(asyncFlushInterval)
     }
 
@@ -70,8 +71,7 @@ class QueryCacheSpec extends SpecCommon {
         ).mkString("\n")
 
         // update edges with {is_blocked: true}
-        val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)).get
-        jsRslt = contentAsJson(ret)
+        jsRslt = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
 
         Thread.sleep(asyncFlushInterval)
 
