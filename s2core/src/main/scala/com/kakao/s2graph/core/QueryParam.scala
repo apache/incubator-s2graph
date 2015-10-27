@@ -450,12 +450,18 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
     val get = if (tgtVertexInnerIdOpt.isDefined) {
       val snapshotEdge = edge.toInvertedEdgeHashLike
-      new GetRequest(label.hbaseTableName.getBytes, snapshotEdge.rowKey.bytes, edgeCf, snapshotEdge.qualifier.bytes)
+      val kv = snapshotEdge.kvs.head
+      new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
     } else {
       val indexedEdgeOpt = edge.edgesWithIndex.find(e => e.labelIndexSeq == labelOrderSeq)
       assert(indexedEdgeOpt.isDefined)
       val indexedEdge = indexedEdgeOpt.get
-      new GetRequest(label.hbaseTableName.getBytes, indexedEdge.rowKey.bytes, edgeCf)
+      val kv = indexedEdge.kvs.head
+      val table = label.hbaseTableName.getBytes
+        //kv.table //
+      val rowKey = kv.row // indexedEdge.rowKey.bytes
+      val cf = edgeCf
+      new GetRequest(table, rowKey, cf)
     }
 
     val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))

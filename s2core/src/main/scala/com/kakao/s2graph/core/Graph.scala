@@ -7,6 +7,7 @@ import java.util.concurrent.{ConcurrentHashMap, Executors}
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
 import com.kakao.s2graph.core.types._
+import com.kakao.s2graph.core.types2.{AsyncHBaseStorageWritable}
 import com.kakao.s2graph.logger
 import com.google.common.cache.CacheBuilder
 import com.stumbleupon.async.{Callback, Deferred}
@@ -35,6 +36,8 @@ object Graph {
   private val connections = new java.util.concurrent.ConcurrentHashMap[String, Connection]()
   private val clients = new java.util.concurrent.ConcurrentHashMap[String, HBaseClient]()
 
+  val storageFactory = AsyncHBaseStorageWritable
+//    StorageFactory("asynchbase")
 
   var emptyKVs = new ArrayList[KeyValue]()
 
@@ -849,7 +852,7 @@ object Graph {
       // after: state without pending edges
       // before: state with pending edges
 
-      val after = snapshotEdge.toInvertedEdgeHashLike.withNoPendingEdge().buildPutAsync()
+      val after = snapshotEdge.toInvertedEdgeHashLike.withNoPendingEdge().buildPutAsync().head.asInstanceOf[PutRequest]
       val before = snapshotEdge.toInvertedEdgeHashLike.valueBytes
       val client = Graph.getClient(label.hbaseZkAddr)
 
@@ -876,9 +879,9 @@ object Graph {
     val client = Graph.getClient(label.hbaseZkAddr)
     if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
     else {
-      val lock = edgeUpdate.newInvertedEdge.get.withPendingEdge(Option(edge)).buildPutAsync()
+      val lock = edgeUpdate.newInvertedEdge.get.withPendingEdge(Option(edge)).buildPutAsync().head.asInstanceOf[PutRequest]
       val before = snapshotEdgeOpt.map(old => old.toInvertedEdgeHashLike.valueBytes).getOrElse(Array.empty[Byte])
-      val after = edgeUpdate.newInvertedEdge.get.withNoPendingEdge().buildPutAsync()
+      val after = edgeUpdate.newInvertedEdge.get.withNoPendingEdge().buildPutAsync().head.asInstanceOf[PutRequest]
 
       def indexedEdgeMutationFuture(predicate: Boolean): Future[Boolean] = {
         if (!predicate) Future.successful(false)
@@ -1124,7 +1127,8 @@ object Graph {
                                  walTopic: String): Future[Boolean] = {
     implicit val ex = Graph.executionContext
     val queryParam = queryResult.queryParam
-    val size = queryResult.edgeWithScoreLs.size
+//    val size = queryResult.edgeWithScoreLs.size
+    val size = queryResult.sizeWithoutDegreeEdge()
     if (retryNum > MaxRetryNum) {
       queryResult.edgeWithScoreLs.foreach { case (edge, score) =>
         val copiedEdge = edge.copy(op = GraphUtil.operations("delete"), ts = requestTs, version = requestTs)
@@ -1155,7 +1159,7 @@ object Graph {
           } else Nil
 
           val snapshotEdgeDelete =
-            if (edge.ts < requestTs) Seq(duplicateEdge.toInvertedEdgeHashLike.buildDeleteAsync())
+            if (edge.ts < requestTs) duplicateEdge.toInvertedEdgeHashLike.buildDeleteAsync()
             else Nil
 
           val copyEdgeIndexedEdgesDeletes =
