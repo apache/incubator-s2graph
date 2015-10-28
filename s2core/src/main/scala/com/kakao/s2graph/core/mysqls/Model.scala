@@ -1,13 +1,15 @@
 package com.kakao.s2graph.core.mysqls
 
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{Executors, TimeUnit}
+import java.util.concurrent.atomic.AtomicBoolean
 
 import com.kakao.s2graph.logger
 import com.google.common.cache.CacheBuilder
 import com.typesafe.config.Config
 import scalikejdbc._
 
-import scala.util.{Failure, Try}
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Success, Failure, Try}
 
 /**
  * Created by shon on 6/3/15.
@@ -15,6 +17,7 @@ import scala.util.{Failure, Try}
 object Model {
   var maxSize = 10000
   var ttl = 60
+  val ex: ExecutionContext  = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(4))
 
   def apply(config: Config) = {
     maxSize = config.getInt("cache.max.size")
@@ -66,11 +69,11 @@ trait Model[V] extends SQLSyntaxSupport[V] {
   val cache = CacheBuilder.newBuilder()
 //    .expireAfterWrite(ttl, TimeUnit.SECONDS)
     .maximumSize(maxSize)
-    .build[String, (Option[V], Int)]()
+    .build[String, (Option[V], Int, AtomicBoolean)]()
 
   val caches = CacheBuilder.newBuilder()
 //    .expireAfterWrite(ttl, TimeUnit.SECONDS)
-    .maximumSize(maxSize / 10).build[String, (List[V], Int)]()
+    .maximumSize(maxSize / 10).build[String, (List[V], Int, AtomicBoolean)]()
 
   def toTs() = (System.currentTimeMillis() / 1000).toInt
 
@@ -81,16 +84,25 @@ trait Model[V] extends SQLSyntaxSupport[V] {
       // fetch and update cache.
       val newValue = op
       val newUpdatedAt = toTs
-      cache.put(newKey, (newValue, newUpdatedAt))
+      cache.put(newKey, (newValue, newUpdatedAt, new AtomicBoolean(false)))
       newValue
     } else {
-      val (cachedVal, updatedAt) = cachedValWithTs
+      val (cachedVal, updatedAt, isRunning) = cachedValWithTs
       if (toTs() < updatedAt + ttl) cachedVal
       else {
-        val newValue = op
-        val newUpdatedAt = toTs()
-        cache.put(newKey, (newValue, newUpdatedAt))
-        newValue
+        val running = isRunning.getAndSet(true)
+        if (running) cachedVal
+        else {
+          Future {
+            val newValue = op
+            val newUpdatedAt = toTs()
+            cache.put(newKey, (newValue, newUpdatedAt, new AtomicBoolean(false)))
+          }(Model.ex) onComplete {
+            case Failure(ex) => logger.error(s"withCache update failed.")
+            case Success(s) => logger.info(s"withCache update successed.")
+          }
+          cachedVal
+        }
       }
     }
   }
@@ -102,16 +114,25 @@ trait Model[V] extends SQLSyntaxSupport[V] {
       // fetch and update cache.
       val newValue = op
       val newUpdatedAt = toTs
-      caches.put(newKey, (newValue, newUpdatedAt))
+      caches.put(newKey, (newValue, newUpdatedAt, new AtomicBoolean(false)))
       newValue
     } else {
-      val (cachedVal, updatedAt) = cachedValWithTs
+      val (cachedVal, updatedAt, isRunning) = cachedValWithTs
       if (toTs() < updatedAt + ttl) cachedVal
       else {
-        val newValue = op
-        val newUpdatedAt = toTs()
-        caches.put(newKey, (newValue, newUpdatedAt))
-        newValue
+        val running = isRunning.getAndSet(true)
+        if (running) cachedVal
+        else {
+          Future {
+            val newValue = op
+            val newUpdatedAt = toTs()
+            caches.put(newKey, (newValue, newUpdatedAt, new AtomicBoolean(false)))
+          }(Model.ex) onComplete {
+            case Failure(ex) => logger.error(s"withCache update failed.")
+            case Success(s) => logger.info(s"withCache update successed.")
+          }
+          cachedVal
+        }
       }
     }
   }
@@ -130,7 +151,7 @@ trait Model[V] extends SQLSyntaxSupport[V] {
     kvs.foreach {
       case (key, value) =>
         val newKey = s"$cName:$key"
-        cache.put(newKey, Option(value) -> toTs())
+        cache.put(newKey, (Option(value), toTs(), new AtomicBoolean((false))))
     }
   }
 
@@ -138,7 +159,7 @@ trait Model[V] extends SQLSyntaxSupport[V] {
     kvs.foreach {
       case (key, values) =>
         val newKey = s"$cName:$key"
-        caches.put(newKey, values -> toTs())
+        caches.put(newKey, (values, toTs(), new AtomicBoolean(false)))
     }
   }
 }
