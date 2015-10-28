@@ -62,7 +62,8 @@ object Model {
 trait Model[V] extends SQLSyntaxSupport[V] {
 
   import Model._
-
+  implicit val ex: ExecutionContext = Model.ex
+  
   private lazy val cName = this.getClass.getSimpleName()
 
   logger.info(s"LocalCache[$cName]: TTL[$ttl], MaxSize[$maxSize]")
@@ -97,7 +98,7 @@ trait Model[V] extends SQLSyntaxSupport[V] {
             val newValue = op
             val newUpdatedAt = toTs()
             cache.put(newKey, (newValue, newUpdatedAt, new AtomicBoolean(false)))
-          }(Model.ex) onComplete {
+          } onComplete {
             case Failure(ex) => logger.error(s"withCache update failed.")
             case Success(s) => logger.info(s"withCache update successed.")
           }
@@ -127,7 +128,7 @@ trait Model[V] extends SQLSyntaxSupport[V] {
             val newValue = op
             val newUpdatedAt = toTs()
             caches.put(newKey, (newValue, newUpdatedAt, new AtomicBoolean(false)))
-          }(Model.ex) onComplete {
+          } onComplete {
             case Failure(ex) => logger.error(s"withCache update failed.")
             case Success(s) => logger.info(s"withCache update successed.")
           }
