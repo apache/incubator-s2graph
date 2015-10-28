@@ -27,6 +27,8 @@ lazy val spark = project.settings(commonSettings: _*)
 
 lazy val loader = project.dependsOn(s2core, spark).settings(commonSettings: _*)
 
+lazy val s2ml = project.settings(commonSettings: _*)
+
 libraryDependencies ++= Seq(
   "com.github.danielwegener" % "logback-kafka-appender" % "0.0.3",
   ws,
