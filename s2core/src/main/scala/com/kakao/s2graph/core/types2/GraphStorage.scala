@@ -553,7 +553,7 @@ case class VertexGraphStorageSer(vertex: Vertex) extends GraphStorageSer[Vertex]
   override def toKeyValues: Seq[GKeyValue] = {
     val row = vertex.id.bytes
     val base = for ((k, v) <- vertex.props ++ vertex.defaultProps) yield Bytes.toBytes(k) -> v.bytes
-    val belongsTo = vertex.belongLabelIds.map { labelId => Bytes.toBytes(labelId) -> Array.empty[Byte] }
+    val belongsTo = vertex.belongLabelIds.map { labelId => Bytes.toBytes(Vertex.toPropKey(labelId)) -> Array.empty[Byte] }
     (base ++ belongsTo).map { case (qualifier, value) =>
       HGKeyValue(vertex.hbaseTableName.getBytes, row, cf, qualifier, value, vertex.ts)
     } toSeq

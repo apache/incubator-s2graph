@@ -277,8 +277,8 @@ object PostProcess extends JSONParser {
         "columnName" -> serviceColumn.columnName,
         "id" -> id, "props" -> propsToJson(vertex),
         "timestamp" -> vertex.ts,
-        "belongsTo" -> vertex.belongLabelIds)
-//        "belongsTo" -> vertex.belongLabelIds.flatMap(Label.findByIdOpt(_).map(_.label)))
+//        "belongsTo" -> vertex.belongLabelIds)
+        "belongsTo" -> vertex.belongLabelIds.flatMap(Label.findByIdOpt(_).map(_.label)))
     }
   }
 

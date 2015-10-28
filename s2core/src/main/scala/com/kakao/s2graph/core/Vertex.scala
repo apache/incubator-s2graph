@@ -90,7 +90,7 @@ case class Vertex(id: VertexId,
   def buildDeleteBelongsToId(): List[HBaseRpc] = {
     val kv = kvs.head
     import org.apache.hadoop.hbase.util.Bytes
-    val newKVs = belongLabelIds.map { id => kv.copy(_qualifier = Bytes.toBytes(id) )}
+    val newKVs = belongLabelIds.map { id => kv.copy(_qualifier = Bytes.toBytes(Vertex.toPropKey(id)) )}
     Graph.storageFactory.delete(newKVs).toList
   }
   def buildGet() = {
