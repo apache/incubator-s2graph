@@ -1,7 +1,16 @@
 package com.kakao.s2graph
 
+import java.util.concurrent.atomic.AtomicBoolean
+
+import com.google.common.cache.CacheBuilder
 import play.api.Logger
 import play.api.libs.json.JsValue
+
+import scala.concurrent.{Future, ExecutionContext}
+import scala.util.{Success, Failure}
+
+import scala.language.higherKinds
+import scala.language.implicitConversions
 
 package object logger {
 
@@ -33,6 +42,53 @@ package object logger {
   def error[T: Loggable](msg: => T, exception: => Throwable) = errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg), exception)
 
   def error[T: Loggable](msg: => T) = errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg))
+}
+
+
+class SafeUpdateCache[T, M[_]](prefix: String, maxSize: Int, ttl: Int)(implicit executionContext: ExecutionContext) {
+
+  implicit class StringOps(key: String) {
+    def withPrefix = prefix + ":" + key
+  }
+
+  def toTs() = (System.currentTimeMillis() / 1000).toInt
+
+  private val cache = CacheBuilder.newBuilder().maximumSize(maxSize).build[String, (M[T], Int, AtomicBoolean)]()
+
+  def put(key: String, value: M[T]) = cache.put(key.withPrefix, (value, toTs, new AtomicBoolean(false)))
+
+  def invalidate(key: String) = cache.invalidate(key.withPrefix)
+
+  def withCache(key: String)(op: => M[T]): M[T] = {
+    val newKey = key.withPrefix
+    val cachedValWithTs = cache.getIfPresent(newKey)
+
+    if (cachedValWithTs == null) {
+      // fetch and update cache.
+      val newValue = op
+      cache.put(newKey, (newValue, toTs(), new AtomicBoolean(false)))
+      newValue
+    } else {
+      val (cachedVal, updatedAt, isUpdating) = cachedValWithTs
+      if (toTs() < updatedAt + ttl) cachedVal
+      else {
+        val running = isUpdating.getAndSet(true)
+        if (running) cachedVal
+        else {
+          Future {
+            val newValue = op
+            val newUpdatedAt = toTs()
+            cache.put(newKey, (newValue, newUpdatedAt, new AtomicBoolean(false)))
+            newValue
+          }(executionContext) onComplete {
+            case Failure(ex) => logger.error(s"withCache update failed.")
+            case Success(s) => logger.info(s"withCache update success: $newKey")
+          }
+          cachedVal
+        }
+      }
+    }
+  }
 }
 
 
