@@ -2,7 +2,6 @@ package com.kakao.ml.launcher
 
 import java.util.UUID
 
-import com.google.common.io.BaseEncoding
 import com.kakao.ml.util.Json
 import com.kakao.ml.{BaseDataProcessor, Data, Params}
 import org.apache.spark.sql.hive.HiveContext
@@ -10,7 +9,7 @@ import org.apache.spark.{Logging, SparkConf, SparkContext}
 
 import scala.reflect.ClassTag
 
-case class ProcessorFactory(className: String, paramsAsMap: Map[String, Any]) {
+case class ProcessorFactory(className: String, paramsAsJValue: Json.JsonValue) {
 
   private val constructor = Class.forName(className).getConstructors.head
 
@@ -19,10 +18,10 @@ case class ProcessorFactory(className: String, paramsAsMap: Map[String, Any]) {
       case Array() =>
         constructor.newInstance()
       case Array(pClass) if classOf[Params].isAssignableFrom(pClass) =>
-        val params = Json.extract(paramsAsMap)(ClassTag(pClass)).asInstanceOf[Params]
+        val params = Json.extract(paramsAsJValue)(ClassTag(pClass)).asInstanceOf[Params]
         constructor.newInstance(params)
       case _ =>
-        require(false, Seq(constructor.getParameterTypes.toSeq, className, paramsAsMap).map(_.toString).mkString(","))
+        require(false, Seq(constructor.getParameterTypes.toSeq, className, paramsAsJValue).map(_.toString).mkString(","))
     }
     instance.asInstanceOf[BaseDataProcessor[Data, Data]]
   }
@@ -31,7 +30,7 @@ case class ProcessorFactory(className: String, paramsAsMap: Map[String, Any]) {
 
 case class ProcessorDesc(
     `class`: String,
-    params: Option[Map[String, Any]],
+    params: Option[Json.JsonValue],
     id: Option[String],
     pid: Option[String],
     pids: Option[Seq[String]])
@@ -51,7 +50,7 @@ object Launcher extends Environment with Visualization with Logging {
 
     val Array(command, encoded) = args.slice(0, 2)
 
-    val jsonString = new String(BaseEncoding.base64().decode(encoded), "UTF-8")
+    val jsonString = new String(javax.xml.bind.DatatypeConverter.parseBase64Binary(encoded), "UTF-8")
 
     launch(jsonString, command, None)
   }
@@ -73,7 +72,7 @@ object Launcher extends Environment with Visualization with Logging {
         case (None, Some(b)) => b
         case (Some(a), Some(b)) => Seq(a) ++ b
       }
-      val instance = ProcessorFactory(p.`class`, p.params.getOrElse(Map.empty[String, Any])).getInstance
+      val instance = ProcessorFactory(p.`class`, p.params.getOrElse(Json.emptyJsonValue)).getInstance
       (order, id, pids, instance)
     }
 
