@@ -168,7 +168,10 @@ trait RequestParser extends JSONParser {
             case obj: JsObject => (obj \ "nextStepLimit").asOpt[Int].getOrElse(-1)
             case _ => -1
           }
-
+          val cacheTTL = step match {
+            case obj: JsObject => (obj \ "cacheTTL").asOpt[Int].getOrElse(-1)
+            case _ => -1
+          }
           val queryParams =
             for {
               labelGroup <- queryParamJsVals
@@ -190,7 +193,8 @@ trait RequestParser extends JSONParser {
           Step(queryParams.toList, labelWeights = labelWeights,
             //            scoreThreshold = stepThreshold,
             nextStepScoreThreshold = nextStepScoreThreshold,
-            nextStepLimit = nextStepLimit)
+            nextStepLimit = nextStepLimit,
+            cacheTTL = cacheTTL)
 
         }
 

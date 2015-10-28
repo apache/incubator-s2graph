@@ -148,18 +148,27 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
   }
 }
 
-
+object Step {
+  val Delimiter = "|"
+}
 case class Step(queryParams: List[QueryParam],
                 labelWeights: Map[Int, Double] = Map.empty,
                 //                scoreThreshold: Double = 0.0,
                 nextStepScoreThreshold: Double = 0.0,
-                nextStepLimit: Int = -1) {
+                nextStepLimit: Int = -1,
+                cacheTTL: Long = -1) {
 
   lazy val excludes = queryParams.filter(_.exclude)
   lazy val includes = queryParams.filterNot(_.exclude)
   lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 
   logger.debug(s"Step: $queryParams, $labelWeights, $nextStepScoreThreshold, $nextStepLimit")
+
+  def toCacheKey(lss: Iterable[(GetRequest, QueryParam)]): Int = {
+    val s = "step" + Step.Delimiter +
+      lss.map { case (getRequest, param) => param.toCacheKey(getRequest) } mkString(Step.Delimiter)
+    MurmurHash3.stringHash(s)
+  }
 }
 
 case class VertexParam(vertices: Seq[Vertex]) {
@@ -214,6 +223,7 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
 object QueryParam {
   lazy val Empty = QueryParam(LabelWithDirection(0, 0))
   lazy val DefaultThreshold = Double.MinValue
+  val Delimiter = ","
 }
 
 case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System.currentTimeMillis()) {
@@ -228,29 +238,17 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   var labelOrderSeq = fullKey
 
-  //  var outputFields: Seq[LabelMeta] = Seq(LabelMeta.to)
-  //  var start = OrderProps.empty
-  //  var end = OrderProps.empty
   var limit = 10
   var offset = 0
   var rank = new RankParam(labelWithDir.labelId, List(LabelMeta.countSeq -> 1))
-  var isRowKeyOnly = false
-  var duration: Option[(Long, Long)] = None
 
-  //  var direction = 0
-  //  var props = OrderProps.empty
+  var duration: Option[(Long, Long)] = None
   var isInverted: Boolean = false
 
-  //  var filters = new FilterList(FilterList.Operator.MUST_PASS_ALL)
-  //  val scanFilters = ListBuffer.empty[ScanFilter]
-  //  var filters = new FilterList(List.empty[ScanFilter], FilterList.Operator.MUST_PASS_ALL)
   var columnRangeFilter: ColumnRangeFilter = null
-  //  var columnPaginationFilter: ColumnPaginationFilter = null
-  var exclude = false
-  var include = false
+
 
   var hasFilters: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike]
-  //  var propsFilters: PropsFilter = PropsFilter()
   var where: Try[Where] = Success(WhereParser.success)
   var duplicatePolicy = DuplicatePolicy.First
   var rpcTimeoutInMillis = 1000
@@ -262,14 +260,24 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var timeDecay: Option[TimeDecay] = None
   var transformer: EdgeTransformer = EdgeTransformer(this, EdgeTransformer.DefaultJson)
   var scorePropagateOp: String = "multiply"
-  //  var excludeBy: Option[String] = None
+  var exclude = false
+  var include = false
 
   lazy val srcColumnWithDir = label.srcColumnWithDir(labelWithDir.dir)
   lazy val tgtColumnWithDir = label.tgtColumnWithDir(labelWithDir.dir)
 
-  def isRowKeyOnly(isRowKeyOnly: Boolean): QueryParam = {
-    this.isRowKeyOnly = isRowKeyOnly
-    this
+  /**
+   * consider only I/O specific parameters.
+   * properties that is used on Graph.filterEdges should not be considered.
+   * @param getRequest
+   * @return
+   */
+  def toCacheKey(getRequest: GetRequest): Int = {
+    val s = Seq(getRequest, labelWithDir, labelOrderSeq, offset, limit, rank,
+//      duration,
+      isInverted,
+      columnRangeFilter).mkString(QueryParam.Delimiter)
+    MurmurHash3.stringHash(s)
   }
 
   def isInverted(isInverted: Boolean): QueryParam = {
@@ -350,11 +358,6 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this
   }
 
-  //  def outputFields(ofs: Seq[LabelMeta] = Seq(LabelMeta.to)): QueryParam = {
-  //    this.outputFields = ofs
-  //    this
-  //  }
-
   def has(hasFilters: Map[Byte, InnerValLike]): QueryParam = {
     this.hasFilters = hasFilters
     this
@@ -420,16 +423,11 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   def isSnapshotEdge = tgtVertexInnerIdOpt.isDefined
 
-  //  def excludeBy(other: Option[String]): QueryParam = {
-  //    this.excludeBy = other
-  //    this
-  //  }
   override def toString = {
-    List(label.label, labelOrderSeq, offset, limit, rank, isRowKeyOnly,
+    List(label.label, labelOrderSeq, offset, limit, rank,
       duration, isInverted, exclude, include, hasFilters).mkString("\t")
     //      duration, isInverted, exclude, include, hasFilters, outputFields).mkString("\t")
   }
-
 
   def buildGetRequest(srcVertex: Vertex) = {
     val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
@@ -474,11 +472,11 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     get.setMaxTimestamp(maxTs)
     get.setTimeout(rpcTimeoutInMillis)
     if (columnRangeFilter != null) get.setFilter(columnRangeFilter)
-//    get.setMaxAttempt(maxAttempt.toByte)
-//    get.setRpcTimeout(rpcTimeoutInMillis)
+    //    get.setMaxAttempt(maxAttempt.toByte)
+    //    get.setRpcTimeout(rpcTimeoutInMillis)
 
-//    if (columnRangeFilter != null) get.filter(columnRangeFilter)
-//    logger.debug(s"Get: $get, $offset, $limit")
+    //    if (columnRangeFilter != null) get.filter(columnRangeFilter)
+    //    logger.debug(s"Get: $get, $offset, $limit")
 
     get
   }
