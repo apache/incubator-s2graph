@@ -374,7 +374,7 @@ object Graph {
                                   stepIdx: Int,
                                   queryParam: QueryParam,
                                   prevScore: Double): Deferred[QueryResult] = {
-    val cacheKey = MurmurHash3.stringHash(getRequest.toString)
+    val cacheKey = queryParam.toCacheKey(getRequest)
     def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
       def call(arg: QueryResult): QueryResult = {
         //        logger.debug(s"queryResultCachePut, $arg")
@@ -485,10 +485,12 @@ object Graph {
     val queryParams = currentStepRequestLss.flatMap { case (getsWithQueryParams, prevScore) =>
       getsWithQueryParams.map { case (vertexId, get, queryParam) => queryParam }
     }
-    val cacheKeys = currentStepRequestLss.flatMap { case (getsWithQueryParams, prevScore) =>
-      getsWithQueryParams.map { case (vertexId, get, queryParam) => get.toString }
+    /** support step wise cache */
+    val getWithQueryParams = currentStepRequestLss.flatMap { case (getsWithQueryParams, prevScore) =>
+      getsWithQueryParams.map { case (vertexId, get, queryParam) => (get, queryParam) }
     }
-    val cacheKey = MurmurHash3.stringHash("step" + cacheKeys.mkString(""))
+    val cacheKey = step.toCacheKey(getWithQueryParams)
+
     val fallback = new util.ArrayList(queryParams.map(param => QueryResult(q, stepIdx, param)))
 
     if (step.cacheTTL > 0) {
