@@ -59,7 +59,6 @@ object Model {
   }
 }
 
-
 trait Model[V] extends SQLSyntaxSupport[V] {
 
   import Model._
@@ -76,9 +75,9 @@ trait Model[V] extends SQLSyntaxSupport[V] {
 
   def withCaches = listCache.withCache _
 
-  def expireCache(key: String): Unit = optionCache.invalidate(key)
+  def expireCache = optionCache.invalidate _
 
-  def expireCaches(key: String): Unit = listCache.invalidate(key)
+  def expireCaches = listCache.invalidate _
 
   def putsToCache(kvs: List[(String, V)]) = kvs.foreach {
     case (key, value) => optionCache.put(key, Option(value))
