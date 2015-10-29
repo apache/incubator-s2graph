@@ -7,9 +7,11 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async._
 
 import scala.collection.mutable.ListBuffer
+import scala.concurrent.Future
 
 
 trait GStorable[I, D, C] {
+
   def put(kvs: Seq[GKeyValue]): Seq[I]
 
   def delete(kvs: Seq[GKeyValue]): Seq[D]
@@ -17,5 +19,6 @@ trait GStorable[I, D, C] {
   def increment(kvs: Seq[GKeyValue]): Seq[C]
 
   def fetch(): Seq[GKeyValue]
+
 }
 

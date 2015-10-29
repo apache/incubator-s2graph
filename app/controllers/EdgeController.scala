@@ -3,7 +3,7 @@ package controllers
 import actors.QueueActor
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.Label
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.utils.logger
 import config.Config
 import play.api.libs.json._
 import play.api.mvc.{Controller, Result}
@@ -129,7 +129,7 @@ object EdgeController extends Controller with RequestParser {
   def incrementCounts() = withHeaderAsync(jsonParser) { request =>
     val jsValue = request.body
     val edges = toEdges(jsValue, "incrementCount")
-    Edge.incrementCounts(edges).map { results =>
+    Graph.incrementCounts(edges).map { results =>
       val json = results.map { case (isSuccess, resultCount) =>
         Json.obj("success" -> isSuccess, "result" -> resultCount)
       }
@@ -152,7 +152,7 @@ object EdgeController extends Controller with RequestParser {
       val ts = (json \ "timestamp").asOpt[Long]
       val vertices = toVertices(labelName, direction, ids)
 
-      Graph.deleteAllAdjacentEdgesAsync(vertices.toList, labels, GraphUtil.directions(direction), ts,
+      Graph.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts,
         Config.KAFKA_LOG_TOPIC)
     })
 

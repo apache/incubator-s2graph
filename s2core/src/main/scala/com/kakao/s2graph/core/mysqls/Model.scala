@@ -2,8 +2,8 @@ package com.kakao.s2graph.core.mysqls
 
 import java.util.concurrent.TimeUnit
 
-import com.kakao.s2graph.logger
 import com.google.common.cache.CacheBuilder
+import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.Config
 import scalikejdbc._
 

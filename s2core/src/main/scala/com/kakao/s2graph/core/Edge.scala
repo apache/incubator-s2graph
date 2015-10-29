@@ -1,20 +1,16 @@
 package com.kakao.s2graph.core
 
-import java.util
 
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.logger
-import com.stumbleupon.async.Deferred
+import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.client.{Delete, Put}
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async._
 import play.api.libs.json.Json
 
 import scala.collection.JavaConversions._
-import scala.concurrent.Future
 import scala.util.hashing.MurmurHash3
-import scala.util.{Failure, Success, Try}
 
 
 case class EdgeWithIndexInverted(srcVertex: Vertex,
@@ -29,7 +25,7 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
 
   //  logger.error(s"EdgeWithIndexInverted${this.toString}")
   val schemaVer = label.schemaVersion
-  lazy val kvs = Graph.snapshotEdgeSerializer(this).toKeyValues.toList
+  lazy val kvs = Graph.client.snapshotEdgeSerializer(this).toKeyValues.toList
 
   // only for toString.
   lazy val label = Label.findById(labelWithDir.labelId)
@@ -47,13 +43,13 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
 
   def buildPutAsync(): List[HBaseRpc] = {
 //    new PutRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, valueBytes, version)
-    Graph.mutator.put(kvs).toList
+    Graph.client.put(kvs).toList
   }
 
   def buildDeleteAsync(): List[HBaseRpc] = {
 //    val ret = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, version)
 //    ret
-    Graph.mutator.delete(kvs).toList
+    Graph.client.delete(kvs).toList
   }
 
   def withNoPendingEdge() = copy(pendingEdgeOpt = None)
@@ -108,7 +104,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
 
   lazy val propsWithTs = props.map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }
 
-  lazy val kvs = Graph.indexedEdgeSerializer(this).toKeyValues.toList
+  lazy val kvs = Graph.client.indexedEdgeSerializer(this).toKeyValues.toList
 
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
 
@@ -129,7 +125,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
       logger.error(s"$this dont have all props for index")
       List.empty[PutRequest]
     } else {
-      Graph.mutator.put(kvs).toList
+      Graph.client.put(kvs).toList
     }
   }
 
@@ -152,7 +148,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
         case None => Nil
         case Some(kv) =>
           val copiedKV = kv.copy(_qualifier = Array.empty[Byte], _value = Bytes.toBytes(amount))
-          Graph.mutator.increment(Seq(copiedKV)).toList
+          Graph.client.increment(Seq(copiedKV)).toList
       }
     }
 
@@ -166,7 +162,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
         case None => Nil
         case Some(kv) =>
           val copiedKV = kv.copy(_value = Bytes.toBytes(amount))
-          Graph.mutator.increment(Seq(copiedKV)).toList
+          Graph.client.increment(Seq(copiedKV)).toList
       }
     }
 
@@ -183,7 +179,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
 
   def buildDeletesAsync(): List[HBaseRpc] =
     if (!hasAllPropsForIndex) Nil
-    else Graph.mutator.delete(kvs).toList
+    else Graph.client.delete(kvs).toList
 
 }
 
@@ -348,7 +344,6 @@ case class Edge(srcVertex: Vertex,
 }
 
 case class EdgeWriter(edge: Edge) {
-  implicit val ex = Graph.executionContext
 
   val MaxTryNum = Graph.MaxRetryNum
   val op = edge.op
@@ -398,8 +393,9 @@ case class EdgeUpdate(indexedEdgeMutations: List[HBaseRpc] = List.empty[HBaseRpc
     val deletes = s"deletes: ${edgesToDelete.map(e => e.toString).mkString("\n")}"
     val inserts = s"inserts: ${edgesToInsert.map(e => e.toString).mkString("\n")}"
     val updates = s"snapshot: $newInvertedEdge"
+    val increments = s"increments: ${this.increments}"
 
-    List(indexedEdgeSize, invertedEdgeSize, deletes, inserts, updates).mkString("\n\n")
+    List(indexedEdgeSize, invertedEdgeSize, deletes, inserts, updates, increments).mkString("\n\n")
   }
 
   def increments: List[HBaseRpc] = {
@@ -740,10 +736,10 @@ object Edge extends JSONParser {
     if (kvs.isEmpty) Seq.empty
     else {
       val first = kvs.head
-      val kv = Graph.toGKeyValue(first)
+      val kv = Graph.client.toGKeyValue(first)
       val cacheElementOpt =
         if (queryParam.isSnapshotEdge) None
-        else Option(Graph.indexedEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion))
+        else Option(Graph.client.indexedEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion))
 
       for {
         kv <- kvs
@@ -767,11 +763,11 @@ object Edge extends JSONParser {
                      isInnerCall: Boolean,
                      parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
     logger.debug(s"$param -> $kv")
-    val kvs = Seq(Graph.toGKeyValue(kv))
-    val snapshotEdge = Graph.snapshotEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
+    val kvs = Seq(Graph.client.toGKeyValue(kv))
+    val snapshotEdge = Graph.client.snapshotEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
 
     if (isInnerCall) {
-      val edge = Graph.snapshotEdgeDeserializer.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
+      val edge = Graph.client.snapshotEdgeDeserializer.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
       val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
         Some(edge)
       } else {
@@ -782,7 +778,7 @@ object Edge extends JSONParser {
     } else {
       if (allPropsDeleted(snapshotEdge.props)) None
       else {
-        val edge = Graph.snapshotEdgeDeserializer.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
+        val edge = Graph.client.snapshotEdgeDeserializer.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
         val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
           logger.debug(s"fetchedEdge: $edge")
           Some(edge)
@@ -798,56 +794,11 @@ object Edge extends JSONParser {
              cacheElementOpt: Option[EdgeWithIndex] = None,
              parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
     logger.debug(s"$param -> $kv")
-    val kvs = Seq(Graph.toGKeyValue(kv))
-    val edgeWithIndex = Graph.indexedEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
-    Option(Graph.indexedEdgeDeserializer.toEdge(edgeWithIndex))
+    val kvs = Seq(Graph.client.toGKeyValue(kv))
+    val edgeWithIndex = Graph.client.indexedEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
+    Option(Graph.client.indexedEdgeDeserializer.toEdge(edgeWithIndex))
     //    None
   }
 
-  //FIXME
-  def buildIncrementDegreeBulk(srcVertexId: String, labelName: String, direction: String, degreeVal: Long) = {
-    for {
-      label <- Label.findByName(labelName)
-      dir <- GraphUtil.toDir(direction)
-      jsValue = Json.toJson(srcVertexId)
-      innerVal <- jsValueToInnerVal(jsValue, label.srcColumnWithDir(dir).columnType, label.schemaVersion)
-      vertexId = SourceVertexId(label.srcColumn.id.get, innerVal)
-      vertex = Vertex(vertexId)
-      labelWithDir = LabelWithDirection(label.id.get, GraphUtil.toDirection(direction))
-      edge = Edge(vertex, vertex, labelWithDir)
-    } yield {
-      for {
-        edgeWithIndex <- edge.edgesWithIndex
-        incr <- edgeWithIndex.buildIncrementsBulk(degreeVal)
-      } yield incr
-    }
-  }
 
-
-  def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = {
-    implicit val ex = Graph.executionContext
-
-    val defers: Seq[Deferred[(Boolean, Long)]] = for {
-      edge <- edges
-    } yield {
-        Try {
-          val edgeWithIndex = edge.edgesWithIndex.head
-          val countWithTs = edge.propsWithTs(LabelMeta.countSeq)
-          val countVal = countWithTs.innerVal.toString().toLong
-          val incr = edgeWithIndex.buildIncrementsCountAsync(countVal).head
-          val request = incr.asInstanceOf[AtomicIncrementRequest]
-          val client = Graph.getClient(edge.label.hbaseZkAddr)
-          val defered = Graph.deferredCallbackWithFallback[java.lang.Long, (Boolean, Long)](client.bufferAtomicIncrement(request))({
-            (resultCount: java.lang.Long) => (true, resultCount)
-          }, (false, -1L))
-          defered
-        } match {
-          case Success(r) => r
-          case Failure(ex) => Deferred.fromResult((false, -1L))
-        }
-      }
-
-    val grouped: Deferred[util.ArrayList[(Boolean, Long)]] = Deferred.groupInOrder(defers)
-    Graph.deferredToFutureWithoutFallback(grouped).map(_.toSeq)
-  }
 }

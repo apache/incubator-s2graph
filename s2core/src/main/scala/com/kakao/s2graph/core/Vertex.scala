@@ -34,7 +34,7 @@ case class Vertex(id: VertexId,
 
   def defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq.toInt -> InnerVal.withLong(ts, schemaVer))
 
-  lazy val kvs = Graph.vertexSerializer(this).toKeyValues
+  lazy val kvs = Graph.client.vertexSerializer(this).toKeyValues
 
 
   /** TODO: make this as configurable */
@@ -67,7 +67,7 @@ case class Vertex(id: VertexId,
   }
 
   def buildPutsAsync(): List[HBaseRpc] = {
-    Graph.mutator.put(kvs).toList
+    Graph.client.put(kvs).toList
   }
 
   def buildPutsAll(): List[HBaseRpc] = {
@@ -83,14 +83,14 @@ case class Vertex(id: VertexId,
 
   def buildDeleteAsync(): List[HBaseRpc] = {
     val kv = kvs.head
-    Graph.mutator.delete(Seq(kv.copy(_qualifier = null))).toList
+    Graph.client.delete(Seq(kv.copy(_qualifier = null))).toList
   }
 
   def buildDeleteBelongsToId(): List[HBaseRpc] = {
     val kv = kvs.head
     import org.apache.hadoop.hbase.util.Bytes
     val newKVs = belongLabelIds.map { id => kv.copy(_qualifier = Bytes.toBytes(Vertex.toPropKey(id)) )}
-    Graph.mutator.delete(newKVs).toList
+    Graph.client.delete(newKVs).toList
   }
   def buildGet() = {
     new GetRequest(hbaseTableName.getBytes, kvs.head.row, vertexCf)
@@ -146,8 +146,8 @@ object Vertex {
             version: String): Option[Vertex] = {
     if (kvs.isEmpty) None
     else {
-      val newKVs = kvs.map(Graph.toGKeyValue(_))
-      Option(Graph.vertexDeserializer.fromKeyValues(queryParam, newKVs, version, None))
+      val newKVs = kvs.map(Graph.client.toGKeyValue(_))
+      Option(Graph.client.vertexDeserializer.fromKeyValues(queryParam, newKVs, version, None))
     }
   }
 }

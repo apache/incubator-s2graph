@@ -3,10 +3,8 @@ package test.controllers
 
 import controllers.{QueryController, VertexController}
 import play.api.libs.json._
+import play.api.test.FakeApplication
 import play.api.test.Helpers._
-import play.api.test.{FakeApplication, FakeRequest}
-
-import scala.concurrent.Await
 
 class VertexSpec extends SpecCommon {
 //  init()

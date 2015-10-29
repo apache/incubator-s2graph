@@ -2,7 +2,6 @@ package test.controllers
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.logger
 import controllers.AdminController
 import org.specs2.mutable.Specification
 import play.api.libs.json._
@@ -67,7 +66,7 @@ trait SpecCommon extends Specification {
 
   val NUM_OF_EACH_TEST = 3
   val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
-  val asyncFlushInterval = 1
+  val asyncFlushInterval = 100
 
   val createService = s"""{"serviceName" : "$testServiceName"}"""
   val testLabelNameCreate = s"""
@@ -344,7 +343,7 @@ trait SpecCommon extends Specification {
           case None =>
             AdminController.createLabelInner(Json.parse(create))
           case Some(label) =>
-            logger.error(s">> Label already exist: $create, $label")
+            println(s">> Label already exist: $create, $label")
         }
       }
 

@@ -5,7 +5,7 @@ import com.kakao.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlre
 import com.kakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
@@ -65,6 +65,7 @@ object Management extends JSONParser {
 
     Label.updateHTableName(targetLabel.label, newHTableName)
   }
+
   /**
    * label
    */

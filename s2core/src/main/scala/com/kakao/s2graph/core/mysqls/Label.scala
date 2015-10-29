@@ -6,8 +6,8 @@ package com.kakao.s2graph.core.mysqls
 
 import com.kakao.s2graph.core.GraphExceptions.ModelNotFoundException
 import com.kakao.s2graph.core.Management.JsonModel.{Index, Prop}
+import com.kakao.s2graph.core.utils.logger
 import com.kakao.s2graph.core.{GraphUtil, JSONParser, Management}
-import com.kakao.s2graph.logger
 import play.api.libs.json.Json
 import scalikejdbc._
 

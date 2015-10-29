@@ -2,8 +2,8 @@ package controllers
 
 
 import actors.QueueActor
-import com.kakao.s2graph.core.{Graph, ExceptionHandler, GraphExceptions}
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.utils.logger
+import com.kakao.s2graph.core.{ExceptionHandler, Graph, GraphExceptions}
 import config.Config
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Controller, Result}

@@ -5,8 +5,6 @@ import play.api.libs.json._
 import play.api.test.{FakeApplication, FakeRequest, PlaySpecification}
 import play.api.{Application => PlayApplication}
 
-import scala.concurrent.Await
-
 class QuerySpec extends SpecCommon with PlaySpecification {
 
   import Helper._
