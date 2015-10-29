@@ -176,7 +176,10 @@ class StrongLabelDeleteSpec extends SpecCommon {
       val resultDegree = getDegree(result)
       println(lastOps.toList)
       println(result)
-      resultDegree == expectedDegree
+
+      val ret = resultDegree == expectedDegree
+      if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree")
+      ret
     }
 
     "update delete" in {

@@ -61,7 +61,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
   val maxValidEdgeListSize = 10000
   val DefaultScore = 1.0
 
-  val MaxBackOff = 1
+  val MaxBackOff = 10
   val clientFlushInterval = this.config.getInt("hbase.rpcs.buffered_flush_interval").toString().toShort
   val MaxRetryNum = this.config.getInt("max.retry.number")
 
