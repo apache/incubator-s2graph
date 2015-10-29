@@ -4,7 +4,6 @@ import java.util
 
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.types2._
 import com.kakao.s2graph.logger
 import com.stumbleupon.async.Deferred
 import org.apache.hadoop.hbase.client.{Delete, Put}
@@ -15,7 +14,7 @@ import play.api.libs.json.Json
 import scala.collection.JavaConversions._
 import scala.concurrent.Future
 import scala.util.hashing.MurmurHash3
-import scala.util.{Failure, Random, Success, Try}
+import scala.util.{Failure, Success, Try}
 
 
 case class EdgeWithIndexInverted(srcVertex: Vertex,
@@ -30,7 +29,7 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
 
   //  logger.error(s"EdgeWithIndexInverted${this.toString}")
   val schemaVer = label.schemaVersion
-  lazy val kvs = SnapshotEdgeGraphStorageSer(this).toKeyValues.toList
+  lazy val kvs = Graph.snapshotEdgeSerializer(this).toKeyValues.toList
 
   // only for toString.
   lazy val label = Label.findById(labelWithDir.labelId)
@@ -48,13 +47,13 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
 
   def buildPutAsync(): List[HBaseRpc] = {
 //    new PutRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, valueBytes, version)
-    Graph.storageFactory.put(kvs).toList
+    Graph.mutator.put(kvs).toList
   }
 
   def buildDeleteAsync(): List[HBaseRpc] = {
 //    val ret = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, version)
 //    ret
-    Graph.storageFactory.delete(kvs).toList
+    Graph.mutator.delete(kvs).toList
   }
 
   def withNoPendingEdge() = copy(pendingEdgeOpt = None)
@@ -109,7 +108,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
 
   lazy val propsWithTs = props.map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }
 
-  lazy val kvs = IndexedEdgeGraphStorageSer(this).toKeyValues.toList
+  lazy val kvs = Graph.indexedEdgeSerializer(this).toKeyValues.toList
 
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
 
@@ -130,7 +129,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
       logger.error(s"$this dont have all props for index")
       List.empty[PutRequest]
     } else {
-      Graph.storageFactory.put(kvs).toList
+      Graph.mutator.put(kvs).toList
     }
   }
 
@@ -153,7 +152,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
         case None => Nil
         case Some(kv) =>
           val copiedKV = kv.copy(_qualifier = Array.empty[Byte], _value = Bytes.toBytes(amount))
-          Graph.storageFactory.increment(Seq(copiedKV)).toList
+          Graph.mutator.increment(Seq(copiedKV)).toList
       }
     }
 
@@ -167,7 +166,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
         case None => Nil
         case Some(kv) =>
           val copiedKV = kv.copy(_value = Bytes.toBytes(amount))
-          Graph.storageFactory.increment(Seq(copiedKV)).toList
+          Graph.mutator.increment(Seq(copiedKV)).toList
       }
     }
 
@@ -184,7 +183,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
 
   def buildDeletesAsync(): List[HBaseRpc] =
     if (!hasAllPropsForIndex) Nil
-    else Graph.storageFactory.delete(kvs).toList
+    else Graph.mutator.delete(kvs).toList
 
 }
 
@@ -741,10 +740,10 @@ object Edge extends JSONParser {
     if (kvs.isEmpty) Seq.empty
     else {
       val first = kvs.head
-      val kv = HGKeyValue.apply(first)
+      val kv = Graph.toGKeyValue(first)
       val cacheElementOpt =
         if (queryParam.isSnapshotEdge) None
-        else Option(IndexedEdgeGraphStorageDes.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion))
+        else Option(Graph.indexedEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion))
 
       for {
         kv <- kvs
@@ -768,11 +767,11 @@ object Edge extends JSONParser {
                      isInnerCall: Boolean,
                      parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
     logger.debug(s"$param -> $kv")
-    val kvs = Seq(HGKeyValue(kv))
-    val snapshotEdge = SnapshotEdgeGraphStorageDes(param.label.schemaVersion).fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
+    val kvs = Seq(Graph.toGKeyValue(kv))
+    val snapshotEdge = Graph.snapshotEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
 
     if (isInnerCall) {
-      val edge = SnapshotEdgeGraphStorageDes.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
+      val edge = Graph.snapshotEdgeDeserializer.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
       val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
         Some(edge)
       } else {
@@ -783,7 +782,7 @@ object Edge extends JSONParser {
     } else {
       if (allPropsDeleted(snapshotEdge.props)) None
       else {
-        val edge = SnapshotEdgeGraphStorageDes.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
+        val edge = Graph.snapshotEdgeDeserializer.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
         val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
           logger.debug(s"fetchedEdge: $edge")
           Some(edge)
@@ -799,9 +798,9 @@ object Edge extends JSONParser {
              cacheElementOpt: Option[EdgeWithIndex] = None,
              parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
     logger.debug(s"$param -> $kv")
-    val kvs = Seq(HGKeyValue(kv))
-    val edgeWithIndex = IndexedEdgeGraphStorageDes(param.label.schemaVersion).fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
-    Option(IndexedEdgeGraphStorageDes.toEdge(edgeWithIndex))
+    val kvs = Seq(Graph.toGKeyValue(kv))
+    val edgeWithIndex = Graph.indexedEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
+    Option(Graph.indexedEdgeDeserializer.toEdge(edgeWithIndex))
     //    None
   }
 

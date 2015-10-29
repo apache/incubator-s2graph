@@ -206,7 +206,6 @@ class StrongLabelDeleteSpec extends SpecCommon {
         val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
 
         val jsResult = contentAsString(EdgeController.deleteAllInner(deleteAllRequest))
-        Thread.sleep(asyncFlushInterval)
 
         val result = getEdges(query(id = src))
         println(result)

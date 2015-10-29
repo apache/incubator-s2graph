@@ -1,7 +1,6 @@
 package com.kakao.s2graph.core
 
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.types2.{HGKeyValue, VertexGraphStorageDes, VertexGraphStorageSer}
 
 //import com.kakao.s2graph.core.models._
 
@@ -35,7 +34,7 @@ case class Vertex(id: VertexId,
 
   def defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq.toInt -> InnerVal.withLong(ts, schemaVer))
 
-  lazy val kvs = VertexGraphStorageSer(this).toKeyValues
+  lazy val kvs = Graph.vertexSerializer(this).toKeyValues
 
 
   /** TODO: make this as configurable */
@@ -68,7 +67,7 @@ case class Vertex(id: VertexId,
   }
 
   def buildPutsAsync(): List[HBaseRpc] = {
-    Graph.storageFactory.put(kvs).toList
+    Graph.mutator.put(kvs).toList
   }
 
   def buildPutsAll(): List[HBaseRpc] = {
@@ -84,14 +83,14 @@ case class Vertex(id: VertexId,
 
   def buildDeleteAsync(): List[HBaseRpc] = {
     val kv = kvs.head
-    Graph.storageFactory.delete(Seq(kv.copy(_qualifier = null))).toList
+    Graph.mutator.delete(Seq(kv.copy(_qualifier = null))).toList
   }
 
   def buildDeleteBelongsToId(): List[HBaseRpc] = {
     val kv = kvs.head
     import org.apache.hadoop.hbase.util.Bytes
     val newKVs = belongLabelIds.map { id => kv.copy(_qualifier = Bytes.toBytes(Vertex.toPropKey(id)) )}
-    Graph.storageFactory.delete(newKVs).toList
+    Graph.mutator.delete(newKVs).toList
   }
   def buildGet() = {
     new GetRequest(hbaseTableName.getBytes, kvs.head.row, vertexCf)
@@ -147,8 +146,8 @@ object Vertex {
             version: String): Option[Vertex] = {
     if (kvs.isEmpty) None
     else {
-      val newKVs = kvs.map(HGKeyValue(_))
-      Option(VertexGraphStorageDes.fromKeyValues(queryParam, newKVs, version, None))
+      val newKVs = kvs.map(Graph.toGKeyValue(_))
+      Option(Graph.vertexDeserializer.fromKeyValues(queryParam, newKVs, version, None))
     }
   }
 }

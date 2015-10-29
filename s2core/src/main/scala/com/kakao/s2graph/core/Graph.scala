@@ -4,10 +4,11 @@ import java.util
 import java.util.{Properties, ArrayList}
 import java.util.concurrent.{ConcurrentHashMap, Executors}
 
+import com.kakao.s2graph.core.storage.hbase._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
+import com.kakao.s2graph.core.storage.hbase.HGKeyValue
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.types2.{AsyncHBaseStorageWritable}
 import com.kakao.s2graph.logger
 import com.google.common.cache.CacheBuilder
 import com.stumbleupon.async.{Callback, Deferred}
@@ -36,8 +37,27 @@ object Graph {
   private val connections = new java.util.concurrent.ConcurrentHashMap[String, Connection]()
   private val clients = new java.util.concurrent.ConcurrentHashMap[String, HBaseClient]()
 
-  val storageFactory = AsyncHBaseStorageWritable
-//    StorageFactory("asynchbase")
+  val mutator = AsynchbaseStorage
+  
+  def snapshotEdgeSerializer(snapshotEdge: EdgeWithIndexInverted) =
+    SnapshotEdgeHGStorageSerializable(snapshotEdge)
+
+  def indexedEdgeSerializer(indexedEdge: EdgeWithIndex) =
+    IndexedEdgeHGStorageSerializable(indexedEdge)
+
+  def vertexSerializer(vertex: Vertex) =
+    VertexHGStorageSerializable(vertex)
+
+  val snapshotEdgeDeserializer =
+    SnapshotEdgeHGStorageDeserializable
+
+  val indexedEdgeDeserializer =
+    IndexedEdgeHGStorageDeserializable
+
+  val vertexDeserializer =
+    VertexHGStorageDeserializable
+
+  def toGKeyValue(kv: KeyValue) = HGKeyValue.apply(kv)
 
   var emptyKVs = new ArrayList[KeyValue]()
 
@@ -62,7 +82,7 @@ object Graph {
   var executionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1))
 
   val asyncConfig: org.hbase.async.Config = new org.hbase.async.Config()
-  lazy val MaxBackOff = 5
+  lazy val MaxBackOff = 1
   lazy val clientFlushInterval = this.config.getInt("hbase.rpcs.buffered_flush_interval").toString().toShort
   lazy val MaxRetryNum = this.config.getInt("max.retry.number")
 
