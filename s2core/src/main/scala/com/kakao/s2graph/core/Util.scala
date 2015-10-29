@@ -44,23 +44,27 @@ package object logger {
   def error[T: Loggable](msg: => T) = errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg))
 }
 
+object SafeUpdateCache {
+  case class CacheKey(key: String)
+}
 
 class SafeUpdateCache[T, M[_]](prefix: String, maxSize: Int, ttl: Int)(implicit executionContext: ExecutionContext) {
+  import SafeUpdateCache._
 
   implicit class StringOps(key: String) {
-    def withPrefix = prefix + ":" + key
+    def toCacheKey = new CacheKey(prefix + ":" + key)
   }
 
   def toTs() = (System.currentTimeMillis() / 1000).toInt
 
-  private val cache = CacheBuilder.newBuilder().maximumSize(maxSize).build[String, (M[T], Int, AtomicBoolean)]()
+  private val cache = CacheBuilder.newBuilder().maximumSize(maxSize).build[CacheKey, (M[T], Int, AtomicBoolean)]()
 
-  def put(key: String, value: M[T]) = cache.put(key.withPrefix, (value, toTs, new AtomicBoolean(false)))
+  def put(key: String, value: M[T]) = cache.put(key.toCacheKey, (value, toTs, new AtomicBoolean(false)))
 
-  def invalidate(key: String) = cache.invalidate(key.withPrefix)
+  def invalidate(key: String) = cache.invalidate(key.toCacheKey)
 
   def withCache(key: String)(op: => M[T]): M[T] = {
-    val newKey = key.withPrefix
+    val newKey = key.toCacheKey
     val cachedValWithTs = cache.getIfPresent(newKey)
 
     if (cachedValWithTs == null) {
