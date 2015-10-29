@@ -41,17 +41,6 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
 //    put.addColumn(edgeCf, qualifier.bytes, version, value.bytes)
   }
 
-  def buildPutAsync(): List[HBaseRpc] = {
-//    new PutRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, valueBytes, version)
-    Graph.client.put(kvs).toList
-  }
-
-  def buildDeleteAsync(): List[HBaseRpc] = {
-//    val ret = new DeleteRequest(label.hbaseTableName.getBytes, rowKey.bytes, edgeCf, qualifier.bytes, version)
-//    ret
-    Graph.client.delete(kvs).toList
-  }
-
   def withNoPendingEdge() = copy(pendingEdgeOpt = None)
 
   def withPendingEdge(pendingEdgeOpt: Option[Edge]) = copy(pendingEdgeOpt = pendingEdgeOpt)
@@ -104,83 +93,10 @@ case class EdgeWithIndex(srcVertex: Vertex,
 
   lazy val propsWithTs = props.map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }
 
+  //TODO:
   lazy val kvs = Graph.client.indexedEdgeSerializer(this).toKeyValues.toList
 
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
-
-  def buildPuts(): List[Put] = {
-    if (!hasAllPropsForIndex) {
-      logger.error(s"$this dont have all props for index")
-      List.empty[Put]
-    } else {
-      kvs.map { kv =>
-        val put = new Put(kv.row)
-        put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
-      }
-    }
-  }
-
-  def buildPutsAsync(): List[HBaseRpc] = {
-    if (!hasAllPropsForIndex) {
-      logger.error(s"$this dont have all props for index")
-      List.empty[PutRequest]
-    } else {
-      Graph.client.put(kvs).toList
-    }
-  }
-
-  def buildIncrementsBulk(amount: Long = 1L): List[Put] =
-    kvs.headOption match {
-      case None => List.empty[Put]
-      case Some(kv) =>
-        val put = new Put(kv.row)
-        put.addColumn(kv.cf, Array.empty[Byte], Bytes.toBytes(amount))
-        List(put)
-    }
-
-
-  def buildIncrementsAsync(amount: Long = 1L): List[HBaseRpc] =
-    if (!hasAllPropsForIndex) {
-      logger.error(s"$this dont have all props for index")
-      Nil
-    } else {
-      kvs.headOption match {
-        case None => Nil
-        case Some(kv) =>
-          val copiedKV = kv.copy(_qualifier = Array.empty[Byte], _value = Bytes.toBytes(amount))
-          Graph.client.increment(Seq(copiedKV)).toList
-      }
-    }
-
-
-  def buildIncrementsCountAsync(amount: Long = 1L): List[HBaseRpc] =
-    if (!hasAllPropsForIndex) {
-      logger.error(s"$this dont have all props for index")
-      Nil
-    } else {
-      kvs.headOption match {
-        case None => Nil
-        case Some(kv) =>
-          val copiedKV = kv.copy(_value = Bytes.toBytes(amount))
-          Graph.client.increment(Seq(copiedKV)).toList
-      }
-    }
-
-  def buildDeletes(): List[Delete] =
-    if (!hasAllPropsForIndex) List.empty[Delete]
-    else {
-      kvs.map { kv =>
-        val delete = new Delete(kv.row)
-        delete.addColumns(kv.cf, kv.qualifier, kv.timestamp)
-        delete
-      }
-    }
-
-
-  def buildDeletesAsync(): List[HBaseRpc] =
-    if (!hasAllPropsForIndex) Nil
-    else Graph.client.delete(kvs).toList
-
 }
 
 case class Edge(srcVertex: Vertex,
@@ -337,10 +253,7 @@ case class Edge(srcVertex: Vertex,
     ret.mkString("\t")
   }
 
-  override def buildPutsAll(): List[HBaseRpc] =
-    Nil
 
-  //    EdgeWriter(this).buildPutsAll()
 }
 
 case class EdgeWriter(edge: Edge) {
@@ -353,80 +266,35 @@ case class EdgeWriter(edge: Edge) {
   /**
    * methods for build mutations.
    */
-  def buildVertexPuts(): List[Put] = edge.srcForVertex.buildPuts ++ edge.tgtForVertex.buildPuts
-
-  def buildVertexPutsAsync(): List[HBaseRpc] =
-    if (op == GraphUtil.operations("delete"))
-      edge.srcForVertex.buildDeleteBelongsToId() ++ edge.tgtForVertex.buildDeleteBelongsToId()
-    else
-      edge.srcForVertex.buildPutsAsync() ++ edge.tgtForVertex.buildPutsAsync()
-
-
-
-  /** This method only used by Bulk loader */
-  def insertBulkForLoaderAsync(createRelEdges: Boolean = true) = {
-    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
-    edge.toInvertedEdgeHashLike.buildPutAsync() ++ relEdges.flatMap { relEdge =>
-      relEdge.edgesWithIndex.flatMap(e => e.buildPutsAsync())
-    }
-  }
-
   /** This method only used by Bulk loader */
   def insertBulkForLoader(createRelEdges: Boolean = true) = {
     val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
     edge.toInvertedEdgeHashLike.buildPut() ++ relEdges.flatMap { relEdge =>
-      relEdge.edgesWithIndex.flatMap(e => e.buildPuts())
+      relEdge.edgesWithIndex.flatMap { e =>
+        e.kvs.map { kv =>
+          val put = new Put(kv.row)
+          put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
+        }
+      }
     }
   }
 
 }
 
-case class EdgeUpdate(indexedEdgeMutations: List[HBaseRpc] = List.empty[HBaseRpc],
-                      invertedEdgeMutations: List[HBaseRpc] = List.empty[HBaseRpc],
-                      edgesToDelete: List[EdgeWithIndex] = List.empty[EdgeWithIndex],
+case class EdgeUpdate(edgesToDelete: List[EdgeWithIndex] = List.empty[EdgeWithIndex],
                       edgesToInsert: List[EdgeWithIndex] = List.empty[EdgeWithIndex],
                       newInvertedEdge: Option[EdgeWithIndexInverted] = None) {
 
   def toLogString: String = {
-    val indexedEdgeSize = s"indexedEdgeMutationSize: ${indexedEdgeMutations.size}"
-    val invertedEdgeSize = s"invertedEdgeMutationSize: ${invertedEdgeMutations.size}"
     val deletes = s"deletes: ${edgesToDelete.map(e => e.toString).mkString("\n")}"
     val inserts = s"inserts: ${edgesToInsert.map(e => e.toString).mkString("\n")}"
     val updates = s"snapshot: $newInvertedEdge"
-    val increments = s"increments: ${this.increments}"
 
-    List(indexedEdgeSize, invertedEdgeSize, deletes, inserts, updates, increments).mkString("\n\n")
-  }
-
-  def increments: List[HBaseRpc] = {
-    (edgesToDelete.isEmpty, edgesToInsert.isEmpty) match {
-      case (true, true) =>
-
-        /** when there is no need to update. shouldUpdate == false */
-        List.empty[AtomicIncrementRequest]
-      case (true, false) =>
-
-        /** no edges to delete but there is new edges to insert so increase degree by 1 */
-        edgesToInsert.flatMap { e => e.buildIncrementsAsync() }
-      case (false, true) =>
-
-        /** no edges to insert but there is old edges to delete so decrease degree by 1 */
-        edgesToDelete.flatMap { e => e.buildIncrementsAsync(-1L) }
-      case (false, false) =>
-
-        /** update on existing edges so no change on degree */
-        List.empty[AtomicIncrementRequest]
-    }
+    List(deletes, inserts, updates).mkString("\n\n")
   }
 }
 
 object Edge extends JSONParser {
-
-  import HBaseDeserializable._
-  import HBaseSerializable._
-
-
-  //  val initialVersion = 2L
   val incrementVersion = 1L
   val minTsVal = 0L
   // FIXME:
@@ -465,21 +333,9 @@ object Edge extends JSONParser {
     assert(requestEdge.op == GraphUtil.operations("delete"))
 
     val edgesToDelete = requestEdge.relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
-
-    val edgesToInsert = Nil
-
     val edgeInverted = Option(requestEdge.toInvertedEdgeHashLike)
 
-    val deleteMutations = edgesToDelete.flatMap(edge => edge.buildDeletesAsync())
-    val insertMutations = Nil
-
-    val indexedEdgeMutations = deleteMutations ++ insertMutations
-    val invertedEdgeMutations = requestEdge.toInvertedEdgeHashLike.buildDeleteAsync()
-
-
-    EdgeUpdate(indexedEdgeMutations,
-      invertedEdgeMutations, edgesToDelete, edgesToInsert, edgeInverted)
-
+    EdgeUpdate(edgesToDelete, edgesToInsert = Nil, edgeInverted)
   }
 
   def buildOperation(invertedEdge: Option[Edge], requestEdge: Edge)(f: PropsPairWithTs => (Map[Byte, InnerValLikeWithTs], Boolean)) = {
@@ -556,19 +412,7 @@ object Edge extends JSONParser {
     }
 
     val edgeInverted = if (newPropsWithTs.isEmpty) None else Some(requestEdge.toInvertedEdgeHashLike)
-
-    val deleteMutations = edgesToDelete.flatMap(edge => edge.buildDeletesAsync())
-    val insertMutations = edgesToInsert.flatMap(edge => edge.buildPutsAsync())
-    val invertMutations = edgeInverted.map(e => e.buildPutAsync()).getOrElse(List.empty[PutRequest])
-    val indexedEdgeMutations = deleteMutations ++ insertMutations
-    val invertedEdgeMutations = invertMutations
-
-
-    val update = EdgeUpdate(indexedEdgeMutations, invertedEdgeMutations, edgesToDelete, edgesToInsert, edgeInverted)
-
-    //        logger.debug(s"UpdatedProps: ${newPropsWithTs}\n")
-    //        logger.debug(s"EdgeUpdate: $update\n")
-    //    logger.debug(s"$update")
+    val update = EdgeUpdate(edgesToDelete, edgesToInsert, edgeInverted)
     update
   }
 

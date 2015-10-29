@@ -51,6 +51,7 @@ case class Vertex(id: VertexId,
     meta <- ColumnMeta.findByIdAndSeq(id.colId, seq.toByte)
   } yield (meta.name -> v.toString)
 
+  /** only used by bulk loader */
   def buildPuts(): List[Put] = {
     //    logger.error(s"put: $this => $rowKey")
 //    val put = new Put(rowKey.bytes)
@@ -66,35 +67,6 @@ case class Vertex(id: VertexId,
     List(put)
   }
 
-  def buildPutsAsync(): List[HBaseRpc] = {
-    Graph.client.put(kvs).toList
-  }
-
-  def buildPutsAll(): List[HBaseRpc] = {
-    op match {
-      case d: Byte if d == GraphUtil.operations("delete") => buildDeleteAsync()
-      case _ => buildPutsAsync()
-    }
-  }
-
-  def buildDelete(): List[Delete] = {
-    List(new Delete(kvs.head.row, ts))
-  }
-
-  def buildDeleteAsync(): List[HBaseRpc] = {
-    val kv = kvs.head
-    Graph.client.delete(Seq(kv.copy(_qualifier = null))).toList
-  }
-
-  def buildDeleteBelongsToId(): List[HBaseRpc] = {
-    val kv = kvs.head
-    import org.apache.hadoop.hbase.util.Bytes
-    val newKVs = belongLabelIds.map { id => kv.copy(_qualifier = Bytes.toBytes(Vertex.toPropKey(id)) )}
-    Graph.client.delete(newKVs).toList
-  }
-  def buildGet() = {
-    new GetRequest(hbaseTableName.getBytes, kvs.head.row, vertexCf)
-  }
 
   def toEdgeVertex() = Vertex(SourceVertexId(id.colId, innerId), ts, props, op)
 

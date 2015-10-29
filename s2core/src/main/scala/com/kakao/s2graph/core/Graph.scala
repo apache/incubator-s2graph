@@ -127,24 +127,6 @@ object Graph {
 
 
   /** common methods for filter out, transform, aggregate queryResult */
-  //FIXME
-  def buildIncrementDegreeBulk(srcVertexId: String, labelName: String, direction: String, degreeVal: Long) = {
-    for {
-      label <- Label.findByName(labelName)
-      dir <- GraphUtil.toDir(direction)
-      jsValue = Json.toJson(srcVertexId)
-      innerVal <- jsValueToInnerVal(jsValue, label.srcColumnWithDir(dir).columnType, label.schemaVersion)
-      vertexId = SourceVertexId(label.srcColumn.id.get, innerVal)
-      vertex = Vertex(vertexId)
-      labelWithDir = LabelWithDirection(label.id.get, GraphUtil.toDirection(direction))
-      edge = Edge(vertex, vertex, labelWithDir)
-    } yield {
-      for {
-        edgeWithIndex <- edge.edgesWithIndex
-        incr <- edgeWithIndex.buildIncrementsBulk(degreeVal)
-      } yield incr
-    }
-  }
 
   def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = client.incrementCounts(edges)
 

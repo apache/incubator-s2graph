@@ -130,7 +130,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 
   def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
     val futures = vertices.map { vertex =>
-      val get = vertex.buildGet
+      val get = new GetRequest(vertex.hbaseTableName.getBytes, vertex.kvs.head.row, vertexCf)
       //      get.setTimeout(this.singleGetTimeout.toShort)
       get.setFailfast(true)
       get.maxVersions(1)
@@ -196,9 +196,9 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       Future.successful(true) // Ignore withWait parameter, because deleteAll operation may takes long time
     } else {
       if (withWait)
-        writeAsyncWithWaitSimple(vertex.hbaseZkAddr, vertex.buildPutsAll())
+        writeAsyncWithWaitSimple(vertex.hbaseZkAddr, buildPutsAll(vertex))
       else
-        writeAsyncSimple(vertex.hbaseZkAddr, vertex.buildPutsAll())
+        writeAsyncSimple(vertex.hbaseZkAddr, buildPutsAll(vertex))
     }
   }
 
@@ -216,7 +216,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
           val edgeWithIndex = edge.edgesWithIndex.head
           val countWithTs = edge.propsWithTs(LabelMeta.countSeq)
           val countVal = countWithTs.innerVal.toString().toLong
-          val incr = edgeWithIndex.buildIncrementsCountAsync(countVal).head
+          val incr = buildIncrementsCountAsync(edgeWithIndex, countVal).head
           val request = incr.asInstanceOf[AtomicIncrementRequest]
           val defered = deferredCallbackWithFallback[java.lang.Long, (Boolean, Long)](client.bufferAtomicIncrement(request))({
             (resultCount: java.lang.Long) => (true, resultCount)
@@ -404,9 +404,108 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     filterEdges(deferredToFuture(groupedDefer)(new ArrayList(fallback)), q, stepIdx, alreadyVisited)
   }
 
+  /** edge Update **/
+  def indexedEdgeMutations(edgeUpdate: EdgeUpdate): List[HBaseRpc] = {
+    val deleteMutations = edgeUpdate.edgesToDelete.flatMap(edge => buildDeletesAsync(edge))
+    val insertMutations = edgeUpdate.edgesToInsert.flatMap(edge => buildPutsAsync(edge))
+    deleteMutations ++ insertMutations
+  }
 
+  def invertedEdgeMutations(edgeUpdate: EdgeUpdate): List[HBaseRpc] = {
+    edgeUpdate.newInvertedEdge.map(e =>buildDeleteAsync(e)).getOrElse(Nil)
+  }
 
+  def increments(edgeUpdate: EdgeUpdate): List[HBaseRpc] = {
+    (edgeUpdate.edgesToDelete.isEmpty, edgeUpdate.edgesToInsert.isEmpty) match {
+      case (true, true) =>
 
+        /** when there is no need to update. shouldUpdate == false */
+        List.empty[AtomicIncrementRequest]
+      case (true, false) =>
+
+        /** no edges to delete but there is new edges to insert so increase degree by 1 */
+        edgeUpdate.edgesToInsert.flatMap { e => buildIncrementsAsync(e) }
+      case (false, true) =>
+
+        /** no edges to insert but there is old edges to delete so decrease degree by 1 */
+        edgeUpdate.edgesToDelete.flatMap { e => buildIncrementsAsync(e, -1L) }
+      case (false, false) =>
+
+        /** update on existing edges so no change on degree */
+        List.empty[AtomicIncrementRequest]
+    }
+  }
+
+  /** EdgeWithIndex */
+  def buildIncrementsAsync(indexedEdge: EdgeWithIndex, amount: Long = 1L): List[HBaseRpc] = {
+    indexedEdge.kvs.headOption match {
+      case None => Nil
+      case Some(kv) =>
+        val copiedKV = kv.copy(_qualifier = Array.empty[Byte], _value = Bytes.toBytes(amount))
+        Graph.client.increment(Seq(copiedKV)).toList
+    }
+  }
+
+  def buildIncrementsCountAsync(indexedEdge: EdgeWithIndex, amount: Long = 1L): List[HBaseRpc] = {
+    indexedEdge.kvs.headOption match {
+      case None => Nil
+      case Some(kv) =>
+        val copiedKV = kv.copy(_value = Bytes.toBytes(amount))
+        Graph.client.increment(Seq(copiedKV)).toList
+    }
+  }
+
+  def buildDeletesAsync(indexedEdge: EdgeWithIndex): List[HBaseRpc] = {
+    delete(indexedEdge.kvs).toList
+  }
+
+  def buildPutsAsync(indexedEdge: EdgeWithIndex): List[HBaseRpc] = {
+    put(indexedEdge.kvs).toList
+  }
+
+  /** EdgeWithIndexInverted  */
+  def buildPutAsync(snapshotEdge: EdgeWithIndexInverted): List[HBaseRpc] = {
+    put(snapshotEdge.kvs).toList
+  }
+  def buildDeleteAsync(snapshotEdge: EdgeWithIndexInverted): List[HBaseRpc] = {
+    delete(snapshotEdge.kvs).toList
+  }
+
+  /** Vertex */
+  def buildPutsAsync(vertex: Vertex): List[HBaseRpc] = put(vertex.kvs).toList
+
+  def buildDeleteAsync(vertex: Vertex): List[HBaseRpc] = {
+    val kv = vertex.kvs.head
+    delete(Seq(kv.copy(_qualifier = null))).toList
+  }
+
+  def buildPutsAll(vertex: Vertex): List[HBaseRpc] = {
+    vertex.op match {
+      case d: Byte if d == GraphUtil.operations("delete") => buildDeleteAsync(vertex)
+      case _ => buildPutsAsync(vertex)
+    }
+  }
+
+  /** */
+  def buildDeleteBelongsToId(vertex: Vertex): List[HBaseRpc] = {
+    val kv = vertex.kvs.head
+    import org.apache.hadoop.hbase.util.Bytes
+    val newKVs = vertex.belongLabelIds.map { id => kv.copy(_qualifier = Bytes.toBytes(Vertex.toPropKey(id)) )}
+    delete(newKVs).toList
+  }
+
+  def buildVertexPutsAsync(edge: Edge): List[HBaseRpc] =
+    if (edge.op == GraphUtil.operations("delete"))
+      buildDeleteBelongsToId(edge.srcForVertex) ++ buildDeleteBelongsToId(edge.tgtForVertex)
+    else
+      buildPutsAsync(edge.srcForVertex) ++ buildPutsAsync(edge.tgtForVertex)
+
+  def insertBulkForLoaderAsync(edge: Edge, createRelEdges: Boolean = true) = {
+    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
+    buildPutAsync(edge.toInvertedEdgeHashLike) ++ relEdges.flatMap { relEdge =>
+      relEdge.edgesWithIndex.flatMap(e => buildPutsAsync(e))
+    }
+  }
 
   private def writeAsyncWithWaitRetry(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]], retryNum: Int): Future[Seq[Boolean]] = {
     if (retryNum > MaxRetryNum) {
@@ -571,7 +670,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       // after: state without pending edges
       // before: state with pending edges
 
-      val after = snapshotEdge.toInvertedEdgeHashLike.withNoPendingEdge().buildPutAsync().head.asInstanceOf[PutRequest]
+      val after = buildPutAsync(snapshotEdge.toInvertedEdgeHashLike.withNoPendingEdge()).head.asInstanceOf[PutRequest]
       val before = snapshotEdge.toInvertedEdgeHashLike.valueBytes
       for {
         pendingEdgesLock <- mutateEdges(pendingEdges, withWait = true)
@@ -588,19 +687,19 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 
     if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
     else {
-      val lock = edgeUpdate.newInvertedEdge.get.withPendingEdge(Option(edge)).buildPutAsync().head.asInstanceOf[PutRequest]
+      val lock = buildPutAsync(edgeUpdate.newInvertedEdge.get.withPendingEdge(Option(edge))).head.asInstanceOf[PutRequest]
       val before = snapshotEdgeOpt.map(old => old.toInvertedEdgeHashLike.valueBytes).getOrElse(Array.empty[Byte])
-      val after = edgeUpdate.newInvertedEdge.get.withNoPendingEdge().buildPutAsync().head.asInstanceOf[PutRequest]
+      val after = buildPutAsync(edgeUpdate.newInvertedEdge.get.withNoPendingEdge()).head.asInstanceOf[PutRequest]
 
       def indexedEdgeMutationFuture(predicate: Boolean): Future[Boolean] = {
         if (!predicate) Future.successful(false)
-        else writeAsyncWithWait(label.hbaseZkAddr, Seq(edgeUpdate.indexedEdgeMutations)).map { indexedEdgesUpdated =>
+        else writeAsyncWithWait(label.hbaseZkAddr, Seq(indexedEdgeMutations(edgeUpdate))).map { indexedEdgesUpdated =>
           indexedEdgesUpdated.forall(identity)
         }
       }
       def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
         if (!predicate) Future.successful(false)
-        else writeAsyncWithWaitRetry(label.hbaseZkAddr, Seq(edgeUpdate.increments), 0).map { rets =>
+        else writeAsyncWithWaitRetry(label.hbaseZkAddr, Seq(increments(edgeUpdate)), 0).map { rets =>
           val allSuccess = rets.forall(identity)
           if (!allSuccess) logger.error(s"indexedEdgeIncrement failed: $edgeUpdate")
           else logger.debug(s"indexedEdgeIncrement success: $edgeUpdate")
@@ -633,7 +732,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     val zkQuorum = edge.label.hbaseZkAddr
     if (!checkConsistency) {
       val update = f(None, edge)
-      val mutations = update.indexedEdgeMutations ++ update.invertedEdgeMutations ++ update.increments
+      val mutations = indexedEdgeMutations(update) ++ invertedEdgeMutations(update) ++ increments(update)
       if (withWait) writeAsyncWithWaitSimple(zkQuorum, mutations)
       else writeAsyncSimple(zkQuorum, mutations)
     } else {
@@ -679,7 +778,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     val zkQuorum = edge.label.hbaseZkAddr
     val rpcLs = new ListBuffer[HBaseRpc]()
     // all cases, it is necessary to insert vertex.
-    rpcLs.appendAll(edgeWriter.buildVertexPutsAsync())
+    rpcLs.appendAll(buildVertexPutsAsync(edge))
 
     val vertexMutateFuture =
       if (withWait) writeAsyncWithWaitSimple(zkQuorum, rpcLs)
@@ -731,9 +830,9 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
    */
   private def deleteVertex(vertex: Vertex, withWait: Boolean = false): Future[Boolean] = {
     if (withWait)
-      writeAsyncWithWait(vertex.hbaseZkAddr, Seq(vertex).map(_.buildDeleteAsync())).map(_.forall(identity))
+      writeAsyncWithWait(vertex.hbaseZkAddr, Seq(vertex).map(buildDeleteAsync(_))).map(_.forall(identity))
     else
-      writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(_.buildDeleteAsync())).map(_.forall(identity))
+      writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(buildDeleteAsync(_))).map(_.forall(identity))
   }
 
   /**
@@ -777,24 +876,25 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
           logger.debug(s"DeleteEdge: $duplicateEdge")
 
           val indexedEdgesDeletes = if (edge.ts < requestTs) duplicateEdge.edgesWithIndex.flatMap { indexedEdge =>
-            val delete = indexedEdge.buildDeletesAsync()
+            val delete = buildDeletesAsync(indexedEdge)
             logger.debug(s"indexedEdgeDelete: $delete")
             delete
           } else Nil
 
           val snapshotEdgeDelete =
-            if (edge.ts < requestTs) duplicateEdge.toInvertedEdgeHashLike.buildDeleteAsync()
+            if (edge.ts < requestTs) buildDeleteAsync(duplicateEdge.toInvertedEdgeHashLike)
             else Nil
 
           val copyEdgeIndexedEdgesDeletes =
-            if (edge.ts < requestTs) copiedEdge.edgesWithIndex.flatMap { e => e.buildDeletesAsync() }
+            if (edge.ts < requestTs) copiedEdge.edgesWithIndex.flatMap { e => buildDeletesAsync(e) }
             else Nil
 
-          val indexedEdgesIncrements = if (edge.ts < requestTs) duplicateEdge.edgesWithIndex.flatMap { indexedEdge =>
-            val incr = indexedEdge.buildIncrementsAsync(-1L)
-            logger.debug(s"indexedEdgeIncr: $incr")
-            incr
-          } else Nil
+          val indexedEdgesIncrements =
+            if (edge.ts < requestTs) duplicateEdge.edgesWithIndex.flatMap { indexedEdge =>
+              val incr = buildIncrementsAsync(indexedEdge, -1L)
+              logger.debug(s"indexedEdgeIncr: $incr")
+              incr
+            } else Nil
 
           val deletesForThisEdge = snapshotEdgeDelete ++ indexedEdgesDeletes ++ copyEdgeIndexedEdgesDeletes
           writeAsyncWithWait(queryParam.label.hbaseZkAddr, Seq(deletesForThisEdge)).flatMap { rets =>
@@ -819,7 +919,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
         if (deletedEdgesNum > 0) {
           // decrement on current queryResult`s start vertex`s degree
           val incrs = queryResult.edgeWithScoreLs.headOption.map { case (edge, score) =>
-            edge.edgesWithIndex.flatMap { indexedEdge => indexedEdge.buildIncrementsAsync(-1 * deletedEdgesNum) }
+            edge.edgesWithIndex.flatMap { indexedEdge => buildIncrementsAsync(indexedEdge, -1 * deletedEdgesNum) }
           }.getOrElse(Nil)
           writeAsyncWithWaitRetry(queryParam.label.hbaseZkAddr, Seq(incrs), 0).map { rets =>
             if (!rets.forall(identity)) logger.error(s"decrement for deleteAll failed. $incrs")

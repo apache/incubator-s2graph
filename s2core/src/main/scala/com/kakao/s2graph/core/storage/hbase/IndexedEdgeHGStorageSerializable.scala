@@ -39,4 +39,6 @@ case class IndexedEdgeHGStorageSerializable(indexedEdge: EdgeWithIndex) extends 
     val kv = HGKeyValue(table, row, cf, qualifier, value, indexedEdge.ts)
     Seq(kv)
   }
+
+
 }
