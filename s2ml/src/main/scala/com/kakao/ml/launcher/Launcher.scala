@@ -5,7 +5,7 @@ import java.util.UUID
 import com.kakao.ml.util.Json
 import com.kakao.ml.{BaseDataProcessor, Data, Params}
 import org.apache.spark.sql.hive.HiveContext
-import org.apache.spark.{Logging, SparkConf, SparkContext}
+import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.reflect.ClassTag
 
@@ -21,7 +21,8 @@ case class ProcessorFactory(className: String, paramsAsJValue: Json.JsonValue) {
         val params = Json.extract(paramsAsJValue)(ClassTag(pClass)).asInstanceOf[Params]
         constructor.newInstance(params)
       case _ =>
-        require(false, Seq(constructor.getParameterTypes.toSeq, className, paramsAsJValue).map(_.toString).mkString(","))
+        require(false,
+          Seq(constructor.getParameterTypes.toSeq, className, paramsAsJValue).map(_.toString).mkString(","))
     }
     instance.asInstanceOf[BaseDataProcessor[Data, Data]]
   }
@@ -35,16 +36,21 @@ case class ProcessorDesc(
     pid: Option[String],
     pids: Option[Seq[String]])
 
-case class JobDesc(name: String, env: Option[Map[String, Any]], processors: List[ProcessorDesc])
+case class JobDesc(
+    name: String,
+    processors: List[ProcessorDesc],
+    root: Option[String],
+    env: Option[Map[String, Any]],
+    comment: Option[String])
 
-object Launcher extends Environment with Visualization with Logging {
+object Launcher extends Environment with Visualization {
 
   val sparkUser = Option(sys.props("user.name")).getOrElse("unknown")
   val className: String = getClass.getName.stripSuffix("$")
   val name: String = className + "@" + sparkUser
 
   def main(args: Array[String]): Unit = {
-    logInfo(s"Running $name")
+    println(s"Running $name")
 
     require(args.length >= 2)
 
@@ -59,11 +65,16 @@ object Launcher extends Environment with Visualization with Logging {
 
     val jobDesc = Json.extract[JobDesc](jsonString)
 
+    /** set env params */
     setJobId(jobDesc.name)
+    jobDesc.root.foreach(setRootDir)
     jobDesc.env.foreach(setEnv)
+    jobDesc.comment.foreach(setComment)
 
-    logInfo(Json.toPrettyJsonString(jobDesc))
+    /** show jobDesc */
+    println(Json.toPrettyJsonString(jobDesc))
 
+    /** instantiation */
     val instances = jobDesc.processors.zipWithIndex.map { case (p, order) =>
       val id = p.id.getOrElse(UUID.randomUUID().toString)
       val pids = (p.pid, p.pids) match {
@@ -76,6 +87,7 @@ object Launcher extends Environment with Visualization with Logging {
       (order, id, pids, instance)
     }
 
+    /** add dependencies for each processor */
     val keyByOrder = instances.map(x => x._1 -> x).toMap
     val keyById = instances.map(x => x._2 -> x).toMap
 
@@ -100,6 +112,7 @@ object Launcher extends Environment with Visualization with Logging {
           .setPredecessors(predecessors: _*)
     }
 
+    /** get dependency edges for visualization */
     val edges = instances.flatMap { case (order, id, pids, instance) =>
       if (instance.getPredecessors.isEmpty) {
         Seq("root" -> instance.toString(false))
@@ -108,24 +121,27 @@ object Launcher extends Environment with Visualization with Logging {
       }
     }
 
-    logInfo("********** The Overall Execution Plan **********")
-    logInfo(getExecutionPlan(edges))
+    println("********** The Overall Execution Plan **********")
+    println(getExecutionPlan(edges))
 
+    println("********** Leaves **********")
     val leaves = instances.map(_._4).diff(instances.flatMap(_._4.getPredecessors))
+    leaves.foreach(x => println(x.toString(false)))
 
-    logInfo("********** Leaves **********")
-    leaves.foreach(x => logInfo(x.toString(false)))
+    println(s"running $jobId/$batchId: $comment")
 
     command match {
       case "show" => // show plan only
       case "run" =>
-        val sqlContext = if(sparkContext.isDefined) {
-          new HiveContext(sparkContext.get)
+        val sc = if(sparkContext.isDefined) {
+          sparkContext.get
         } else {
-          val sparkConf = new SparkConf().setAppName(name + s"#$getJobId-$getBatchId")
-          val sc = new SparkContext(sparkConf)
-          new HiveContext(sc)
+          val sparkConf = new SparkConf().setAppName(name + s"::$jobId::$batchId")
+          new SparkContext(sparkConf)
         }
+        setSparkContext(sc)
+        val sqlContext = new HiveContext(sc)
+        /** invoke the leaf processors */
         leaves.foreach(_.process(sqlContext))
     }
 

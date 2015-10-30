@@ -12,9 +12,6 @@ object LeftAlignedVertexRenderingStrategy extends VertexRenderingStrategy[Any] {
 
   def getText(v: Any, allocatedSize: Dimension): List[String] =
     splitLines(v.toString).take(allocatedSize.height).map { line ⇒
-      //val discrepancy = allocatedSize.width - line.size
-      //val padding = ""// * (discrepancy / 2)
-      //padding + line
       line
     }
 
@@ -45,7 +42,7 @@ trait Visualization {
   def getExecutionPlan(deps: List[(String, String)]): String = {
     val vertices = deps.flatMap(x => Iterable(x._1, x._2)).distinct
     val graph = Graph(vertices, deps)
-    Layouter.renderGraph(graph)
+    "\n" + Layouter.renderGraph(graph)
   }
 
 }

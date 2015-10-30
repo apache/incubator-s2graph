@@ -1,5 +1,6 @@
 package com.kakao.ml
 
+import com.kakao.ml.launcher.Environment
 import com.kakao.ml.util.Json
 import org.apache.spark.Logging
 import org.apache.spark.sql.SQLContext
@@ -25,7 +26,8 @@ case class EmptyParams() extends Params
 
 case class EmptyOrNotGivenParams() extends Params()
 
-abstract class BaseDataProcessor[I <: Data :ClassTag, O <: Data :ClassTag](params: Params) extends Logging {
+abstract class BaseDataProcessor[I <: Data :ClassTag, O <: Data :ClassTag](params: Params)
+    extends Logging with Environment {
 
   def this() = this(EmptyOrNotGivenParams())
 
@@ -52,13 +54,13 @@ abstract class BaseDataProcessor[I <: Data :ClassTag, O <: Data :ClassTag](param
 
   final def setPredecessors(predecessors: (BaseDataProcessor[_, _])*): this.type = {
 
-    require(this.predecessors == null, "Don't have to call this function twice")
+    require(this.predecessors == null, "Don't call this function twice")
 
     this.predecessors = predecessors.toSet
     val predecessorsOutputKeys = predecessors.flatMap(_.outputKeyArray)
 
     val duplications = predecessorsOutputKeys.groupBy(_._1).map { x => x._2.length -> x }.filter(_._1 > 1)
-    require(duplications.isEmpty, duplications.toString())
+    require(duplications.isEmpty, s"duplications: $duplications")
 
     if(iClass == classOf[PredecessorData]) inputKeyArray = predecessorsOutputKeys.toArray
     if(oClass == classOf[PredecessorData]) outputKeyArray = predecessorsOutputKeys.toArray
@@ -164,10 +166,10 @@ abstract class BaseDataProcessor[I <: Data :ClassTag, O <: Data :ClassTag](param
       predecessorData = PredecessorData(asMap)
 
       val input = {
-        val keySeq = inputKeyArray.map { case (s, clazz) => (s, clazz, asMap(s)) }.toSeq
         if(iClass == classOf[PredecessorData]) {
-          PredecessorData(keySeq.map(x => x._1 -> x._3).toMap).asInstanceOf[I]
+          predecessorData.asInstanceOf[I]
         } else {
+          val keySeq = inputKeyArray.map { case (s, clazz) => (s, clazz, asMap(s)) }.toSeq
           val constructor = iClass.getConstructors.head
           val initArgs = keySeq.map { case (key, requiredTypeClass, acquiredValue) =>
             (requiredTypeClass, acquiredValue.getClass) match {
@@ -185,7 +187,10 @@ abstract class BaseDataProcessor[I <: Data :ClassTag, O <: Data :ClassTag](param
           constructor.newInstance(initArgs: _*).asInstanceOf[I]
         }
       }
+      val tic = System.currentTimeMillis()
       cached = processBlock(sqlContext, input)
+      val toc = System.currentTimeMillis()
+      show(f"$id - elapsed time ${(toc - tic)/1000.0}%.1f s")
     }
     logInfo("done ...")
     cached
@@ -193,8 +198,8 @@ abstract class BaseDataProcessor[I <: Data :ClassTag, O <: Data :ClassTag](param
 
   lazy val pad = "#" * (depth + 1) + "|"
 
-  override def logInfo(msg: => String) {
-    super.logInfo(pad + id + " : " + msg.toString)
+  def show(msg: => String) {
+    System.out.println(pad + id + " : " + msg.toString)
   }
 
   protected def processBlock(sQLContext: SQLContext, input: I): O

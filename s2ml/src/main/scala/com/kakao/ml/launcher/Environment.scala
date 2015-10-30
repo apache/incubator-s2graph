@@ -1,27 +1,88 @@
 package com.kakao.ml.launcher
 
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.spark.SparkContext
+
 object Environment {
 
-  var jobId = "not defined"
+  private var jobId: String = null
+  
+  private var rootDir: String = null
 
-  var env = Map.empty[String, Any]
+  private var comment = ""
 
-  val batchId: String = System.currentTimeMillis().toString
+  private var env: Map[String, Any] = Map.empty[String, Any]
+
+  private val batchId: String = System.currentTimeMillis().toString
+
+  private var lastBatchId: String = null
+
+  private var sparkContext: SparkContext = null
 
 }
 
 trait Environment {
 
-  def setEnv(env: Map[String, Any]): Unit = Environment.env = env
+  def setJobId(jobId: String) {
+    Environment.jobId = jobId
+  }
 
-  def setJobId(jobId: String): Unit = Environment.jobId = jobId
+  def setRootDir(rooDir: String) {
+    Environment.rootDir = rooDir
+  }
 
-  def getJobId: String = Environment.jobId
+  def setSparkContext(sc: SparkContext) {
+    Environment.sparkContext = sc
+  }
 
-  def getBatchId: String = Environment.batchId
+  def setComment(comment: String) {
+    Environment.comment = comment
+  }
 
-  def getBatchDir(prefix: String, suffix: String): String = s"$prefix/$getJobId/$getBatchId/$suffix"
+  def setEnv(env: Map[String, Any]) {
+    Environment.env = env
+  }
 
-  def getJobDir(prefix: String): String = s"$prefix/$getJobId"
+  lazy val jobId: String = {
+    require(Environment.jobId != null)
+    Environment.jobId
+  }
+
+  lazy val rootDir: String = {
+    require(Environment.rootDir != null)
+    Environment.rootDir
+  }
+
+  lazy val sparkContext: SparkContext = {
+    require(Environment.sparkContext != null)
+    Environment.sparkContext
+  }
+
+  lazy val env: Map[String, Any] = Environment.env
+
+  lazy val lastBatchId: String = {
+    if (Environment.lastBatchId == null) {
+      try {
+        val fs = FileSystem.get(sparkContext.hadoopConfiguration)
+        val status = fs.listStatus(new Path(rootDir)).map(_.getPath.getName)
+        Environment.lastBatchId =
+            status.filter(_ != batchId) match {
+              case empty if empty.isEmpty => batchId
+              case nonEmpty => nonEmpty.max
+            }
+      } catch {
+        case _: Throwable => Environment.lastBatchId = batchId
+      }
+    }
+    Environment.lastBatchId
+  }
+
+  lazy val batchId: String = Environment.batchId
+
+  lazy val batchDir: String = s"$rootDir/$batchId"
+
+  lazy val lastBatchDir: String = s"$rootDir/$lastBatchId"
+
+  lazy val comment: String = Environment.comment
 
 }

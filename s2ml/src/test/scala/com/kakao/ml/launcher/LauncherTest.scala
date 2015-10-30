@@ -5,11 +5,9 @@ import org.scalatest.{Matchers, FunSuite}
 class LauncherTest extends FunSuite with Matchers with LocalSparkContext {
 
   val sampleJson =
-    """{
-      |  "name": "s2ml_job",
-      |  "env": {
-      |    "dir": "/path/to/dir"
-      |  },
+    """
+      |{
+      |  "name": "pi",
       |  "processors": [
       |    {
       |      "class": "com.kakao.ml.example.Tuple2RandomNumberGenerator",
@@ -18,10 +16,14 @@ class LauncherTest extends FunSuite with Matchers with LocalSparkContext {
       |      }
       |    },
       |    {
+      |      "class": "com.kakao.ml.Inspector"
+      |    },
+      |    {
       |      "class": "com.kakao.ml.example.PiEstimator"
       |    }
       |  ]
       |}
+      |
     """.stripMargin
 
   test("working") {
