@@ -4,6 +4,8 @@ CREATE USER 'graph'@'%' IDENTIFIED BY 'graph';
 
 GRANT ALL PRIVILEGES ON graph_dev.* TO 'graph'@'%' identified by 'graph';
 
+flush privileges;
+
 use graph_dev;
 
 
