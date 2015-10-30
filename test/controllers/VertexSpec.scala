@@ -1,4 +1,4 @@
-package test.controllers
+package controllers
 
 class VertexSpec extends SpecCommon {
 //  init()

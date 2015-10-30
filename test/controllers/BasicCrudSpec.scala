@@ -1,8 +1,7 @@
-package test.controllers
+package controllers
 
 import com.kakao.s2graph.core.Management
 import com.kakao.s2graph.core.mysqls._
-import controllers.EdgeController
 
 //import com.kakao.s2graph.core.models._
 
