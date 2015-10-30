@@ -117,9 +117,25 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         }
         """)
 
-
-
     def queryUnion(id: Int, size: Int) = JsArray(List.tabulate(size)(_ => querySingle(id)))
+
+    def queryGroupBy(id: Int, props: Seq[String]): JsValue = {
+      Json.obj(
+        "groupBy" -> props,
+        "srcVertices" -> Json.arr(
+          Json.obj("serviceName" -> testServiceName, "columnName" -> testColumnName, "id" -> id)
+        ),
+        "steps" -> Json.arr(
+          Json.obj(
+            "step" -> Json.arr(
+              Json.obj(
+                "label" -> testLabelName
+              )
+            )
+          )
+        )
+      )
+    }
 
     def getEdges(queryJson: JsValue): JsValue = {
       val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryJson)).get
@@ -200,6 +216,16 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       running(FakeApplication()) {
         val result = getEdges(queryExclude(0))
         (result \ "results").as[List[JsValue]].size must equalTo(1)
+      }
+    }
+
+    "get edge groupBy property" in {
+      running(FakeApplication()) {
+        val result = getEdges(queryGroupBy(0, Seq("weight")))
+        (result \ "size").as[Int] must_== 2
+        (result \\ "groupBy").map { js =>
+          (js \ "weight").as[Int]
+        } must contain(exactly(30, 40))
       }
     }
 
