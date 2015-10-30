@@ -214,7 +214,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
         val labelName = testLabelName2
         val dir = "out"
         val maxSize = 1000
-        val deleteSize = 100
+        val deleteSize = 900
         val numOfConcurrentBatch = 1000
         val src = System.currentTimeMillis()
         val tgts = (0 until maxSize).map { ith => src + ith }
