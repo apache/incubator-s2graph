@@ -209,23 +209,26 @@ class StrongLabelDeleteSpec extends SpecCommon {
 //
 //    }
 
+    /** this test stress out test on degree
+      * when contention is low but number of adjacent edges are large */
     "large degrees" in {
       running(FakeApplication()) {
         val labelName = testLabelName2
         val dir = "out"
-        val maxSize = 1000
-        val deleteSize = 900
+        val maxSize = 100000
+        val deleteSize = 9000
         val numOfConcurrentBatch = 1000
         val src = System.currentTimeMillis()
         val tgts = (0 until maxSize).map { ith => src + ith }
-        val deleteTgts = (0 until deleteSize).map { ith => src + Random.nextInt(maxSize) }
+        val deleteTgts = Random.shuffle(tgts).take(deleteSize)
         val insertRequests = tgts.map { tgt =>
-          Seq(System.currentTimeMillis(), "insert", "e", src, tgt, labelName, "{}", dir).mkString("\t")
+          Seq(tgt, "insert", "e", src, tgt, labelName, "{}", dir).mkString("\t")
         }
         val deleteRequests = deleteTgts.take(deleteSize).map { tgt =>
-          Seq(System.currentTimeMillis() + 1000, "delete", "e", src, tgt, labelName, "{}", dir).mkString("\t")
+          Seq(tgt + 1000, "delete", "e", src, tgt, labelName, "{}", dir).mkString("\t")
         }
         val allRequests = Random.shuffle(insertRequests ++ deleteRequests)
+//        val allRequests = insertRequests ++ deleteRequests
         val futures = allRequests.grouped(numOfConcurrentBatch).map { requests =>
           EdgeController.mutateAndPublish(requests.mkString("\n"), withWait = true)
         }
@@ -241,7 +244,11 @@ class StrongLabelDeleteSpec extends SpecCommon {
 //        println(result)
 
         val ret = resultSize == expectedDegree && resultDegree == resultSize
-        if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree, $resultSize")
+        println(s"[MaxSize]: $maxSize")
+        println(s"[DeleteSize]: $deleteSize")
+        println(s"[ResultDegree]: $resultDegree")
+        println(s"[ExpectedDegree]: $expectedDegree")
+        println(s"[ResultSize]: $resultSize")
         ret must beEqualTo(true)
       }
     }

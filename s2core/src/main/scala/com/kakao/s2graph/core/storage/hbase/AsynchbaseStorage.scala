@@ -706,8 +706,8 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
         if (!predicate) Future.successful(false)
         else writeAsyncWithWaitRetrySimple(label.hbaseZkAddr, increments(edgeUpdate), 0).map { allSuccess =>
-          if (!allSuccess) logger.error(s"indexedEdgeIncrement failed: $edgeUpdate")
-          else logger.debug(s"indexedEdgeIncrement success: $edgeUpdate")
+//          if (!allSuccess) logger.error(s"indexedEdgeIncrement failed: $edgeUpdate")
+//          else logger.debug(s"indexedEdgeIncrement success: $edgeUpdate")
           allSuccess
         }
       }
@@ -733,27 +733,37 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
   private def mutateEdgesInner(edges: Seq[Edge],
                                checkConsistency: Boolean,
                                withWait: Boolean)(f: (Option[Edge], Seq[Edge]) => (Edge, EdgeUpdate), tryNum: Int = 0): Future[Boolean] = {
-    fetchInvertedAsync(edges.head) flatMap { case (queryParam, snapshotEdgeOpt) =>
+    //TODO: checkConsistency false?
+    if (tryNum >= MaxRetryNum) {
+      logger.error(s"mutate failed after $tryNum retry")
+      edges.foreach { edge => ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge)) }
+      Future.successful(false)
+    } else {
+      fetchInvertedAsync(edges.head) flatMap { case (queryParam, snapshotEdgeOpt) =>
         val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, edges)
         if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
         else {
           val waitTime = Random.nextInt(MaxBackOff) + 1
           commitPending(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
-              if (pendingAllCommitted) {
-                commitUpdate(EdgeWriter(newEdge))(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
-                    if (!updateCommitted) {
-                      Thread.sleep(waitTime)
-                      mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
-                    } else {
-                      Future.successful(true)
-                    }
+            if (pendingAllCommitted) {
+              commitUpdate(EdgeWriter(newEdge))(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
+                if (!updateCommitted) {
+                  Thread.sleep(waitTime)
+                  logger.info(s"mutate failed $tryNum.")
+                  mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
+                } else {
+                  logger.debug(s"mutate success $tryNum.")
+                  Future.successful(true)
                 }
-              } else {
-                Thread.sleep(waitTime)
-                mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
               }
+            } else {
+              Thread.sleep(waitTime)
+              logger.info(s"mutate failed $tryNum.")
+              mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
+            }
           }
         }
+      }
     }
   }
   private def mutateEdgeInner(edgeWriter: EdgeWriter,
@@ -770,7 +780,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       else writeAsyncSimple(zkQuorum, mutations)
     } else {
       if (tryNum >= MaxRetryNum) {
-        logger.error(s"mutate failed after $tryNum retry, $this")
+        logger.error(s"mutate failed after $tryNum retry")
         ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
         Future.successful(false)
       } else {
@@ -787,10 +797,10 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
                 commitUpdate(edgeWriter)(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
                   if (!updateCommitted) {
                     Thread.sleep(waitTime)
-//                    logger.info(s"mutate failed $tryNum.\nretry $edge")
+                    logger.info(s"mutate failed $tryNum.\nretry $edge")
                     mutateEdgeInner(edgeWriter, checkConsistency, withWait = true)(f, tryNum + 1)
                   } else {
-//                    logger.debug(s"mutate success $tryNum.\n${edgeUpdate.toLogString}\n$edge")
+                    logger.debug(s"mutate success $tryNum.\n${edgeUpdate.toLogString}\n$edge")
                     Future.successful(true)
                   }
                 }
