@@ -31,8 +31,11 @@ case class SnapshotEdgeHGStorageSerializable(snapshotEdge: EdgeWithIndexInverted
         val opBytes = Array.fill(1)(snapshotEdge.op)
         val versionBytes = Bytes.toBytes(snapshotEdge.version)
         val propsBytes = propsToKeyValuesWithTs(pendingEdge.propsWithTs.toSeq)
+        val dummyBytes = Bytes.toBytes(System.nanoTime())
         val pendingEdgeValueBytes = valueBytes()
-        Bytes.add(Bytes.add(valueBytes(), opBytes, versionBytes), propsBytes)
+
+        Bytes.add(Bytes.add(pendingEdgeValueBytes, opBytes, versionBytes),
+          Bytes.add(propsBytes, dummyBytes))
     }
 
     val kv = HGKeyValue(table, row, cf, qualifier, value, snapshotEdge.version)

@@ -302,57 +302,63 @@ object Edge extends JSONParser {
   /** now version information is required also **/
   type State = Map[Byte, InnerValLikeWithTs]
   type PropsPairWithTs = (State, State, Long, String)
-  type FunctionType = PropsPairWithTs => (State, Boolean)
-  type UpdateFunc = (Option[Edge], Edge, FunctionType)
+  type MergeState = PropsPairWithTs => (State, Boolean)
+  type UpdateFunc = (Option[Edge], Edge, MergeState)
 
-  def buildUpsert(invertedEdge: Option[Edge], requestEdges: Edge): EdgeUpdate = {
+  def buildUpsert(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeUpdate) = {
 //    assert(requestEdge.op == GraphUtil.operations("insert"))
-    buildOperation(invertedEdge, Seq(requestEdges))(Seq(mergeUpsert))
+    buildOperation(invertedEdge, Seq(requestEdges))
   }
 
-  def buildUpdate(invertedEdge: Option[Edge], requestEdges: Edge): EdgeUpdate = {
+  def buildUpdate(invertedEdge: Option[Edge], requestEdges: Edge):  (Edge, EdgeUpdate) = {
 //    assert(requestEdge.op == GraphUtil.operations("update"))
-    buildOperation(invertedEdge, Seq(requestEdges))(Seq(mergeUpdate))
+    buildOperation(invertedEdge, Seq(requestEdges))
   }
 
-  def buildDelete(invertedEdge: Option[Edge], requestEdges: Edge): EdgeUpdate = {
+  def buildDelete(invertedEdge: Option[Edge], requestEdges: Edge):  (Edge, EdgeUpdate) = {
 //    assert(requestEdge.op == GraphUtil.operations("delete"))
-    buildOperation(invertedEdge, Seq(requestEdges))(Seq(mergeDelete))
+    buildOperation(invertedEdge, Seq(requestEdges))
   }
 
-  def buildIncrement(invertedEdge: Option[Edge], requestEdges: Edge): EdgeUpdate = {
+  def buildIncrement(invertedEdge: Option[Edge], requestEdges: Edge):  (Edge, EdgeUpdate) = {
 //    assert(requestEdge.op == GraphUtil.operations("increment"))
-    buildOperation(invertedEdge, Seq(requestEdges))(Seq(mergeIncrement))
+    buildOperation(invertedEdge, Seq(requestEdges))
   }
 
-  def buildInsertBulk(invertedEdge: Option[Edge], requestEdges: Edge): EdgeUpdate = {
+  def buildInsertBulk(invertedEdge: Option[Edge], requestEdges: Edge):  (Edge, EdgeUpdate) = {
 //    assert(invertedEdge.isEmpty)
 //    assert(requestEdge.op == GraphUtil.operations("insertBulk") || requestEdge.op == GraphUtil.operations("insert"))
-    buildOperation(None, Seq(requestEdges))(Seq(mergeUpsert))
+    buildOperation(None, Seq(requestEdges))
   }
 
-  def buildDeleteBulk(invertedEdge: Option[Edge], requestEdge: Edge): EdgeUpdate = {
+  def buildDeleteBulk(invertedEdge: Option[Edge], requestEdge: Edge):  (Edge, EdgeUpdate) = {
 //    assert(invertedEdge.isEmpty)
 //    assert(requestEdge.op == GraphUtil.operations("delete"))
 //
     val edgesToDelete = requestEdge.relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
     val edgeInverted = Option(requestEdge.toInvertedEdgeHashLike)
 
-    EdgeUpdate(edgesToDelete, edgesToInsert = Nil, edgeInverted)
+    (requestEdge, EdgeUpdate(edgesToDelete, edgesToInsert = Nil, edgeInverted))
   }
 
-  def buildOperation(invertedEdge: Option[Edge], requestEdges: Seq[Edge])(fs: Seq[FunctionType]): EdgeUpdate = {
+  def buildOperation(invertedEdge: Option[Edge], requestEdges: Seq[Edge]): (Edge, EdgeUpdate) = {
     //            logger.debug(s"oldEdge: ${invertedEdge.map(_.toStringRaw)}")
     //            logger.debug(s"requestEdge: ${requestEdge.toStringRaw}")
-    assert(requestEdges.size == fs.size)
     val oldPropsWithTs = if (invertedEdge.isEmpty) Map.empty[Byte, InnerValLikeWithTs] else invertedEdge.get.propsWithTs
 
+    val funcs = requestEdges.map { edge =>
+      if (edge.op == GraphUtil.operations("insert")) Edge.mergeUpsert _
+      else if (edge.op == GraphUtil.operations("delete")) Edge.mergeDelete _
+      else if (edge.op == GraphUtil.operations("update")) Edge.mergeUpdate _
+      else if (edge.op == GraphUtil.operations("increment")) Edge.mergeIncrement _
+      else throw new RuntimeException(s"not supported operation on edge: $edge")
+    }
     val oldTs = invertedEdge.map(e => e.ts).getOrElse(minTsVal)
-    val requestWithFuncs = requestEdges.zip(fs).filter(oldTs != _._1.ts).sortBy(_._1.ts)
+    val requestWithFuncs = requestEdges.zip(funcs).filter(oldTs != _._1.ts).sortBy(_._1.ts)
 
     if (requestWithFuncs.isEmpty) {
       logger.info(s"all requests have duplicated timestamp with snapshotEdge.")
-      EdgeUpdate()
+      (requestEdges.head, EdgeUpdate())
     } else {
       var shouldReplaceCnt = 0
       var prevPropsWithTs = oldPropsWithTs
@@ -375,13 +381,11 @@ object Edge extends JSONParser {
         // 2. invertedEdge.maxTs vs EdgeRequests.maxTs
         // 3. if request.maxTs > invertedEdge.maxTs => request.op
         // 4. else invertedEdge.op
-
-
       }
 
       if (shouldReplaceCnt <= 0) {
         logger.info(s"drop all requests because all request should replaces are false.")
-        EdgeUpdate()
+        (requestEdges.head, EdgeUpdate())
       }  else {
 
         val maxTsInNewProps = prevPropsWithTs.map(kv => kv._2.ts).max
@@ -401,11 +405,9 @@ object Edge extends JSONParser {
         val (requestEdge, _) = requestWithFuncs.head
         val newEdge = Edge(requestEdge.srcVertex, requestEdge.tgtVertex, requestEdge.labelWithDir, lastOp, maxTs, newEdgeVersion, prevPropsWithTs)
 
-        buildReplace(invertedEdge, newEdge, prevPropsWithTs)
-
+        (newEdge, buildReplace(invertedEdge, newEdge, prevPropsWithTs))
       }
     }
-
   }
 
   /**

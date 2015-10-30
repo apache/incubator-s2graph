@@ -5,6 +5,7 @@ import java.util.ArrayList
 import java.util.concurrent.ConcurrentHashMap
 
 import com.google.common.cache.CacheBuilder
+import com.kakao.s2graph.core.Edge.MergeState
 import com.kakao.s2graph.core.Graph._
 import com.kakao.s2graph.core.mysqls.{LabelMeta, Label}
 import com.kakao.s2graph.core.parsers.WhereParser
@@ -46,15 +47,17 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     for (entry <- config.entrySet() if entry.getKey.contains("hbase")) {
       this.asyncConfig.overrideConfig(entry.getKey, entry.getValue.unwrapped().toString)
     }
+    this.asyncConfig.overrideConfig("hbase.rpc.timeout", "0")
   }
 
   var emptyKVs = new ArrayList[KeyValue]()
 
   val asyncConfig: org.hbase.async.Config = new org.hbase.async.Config()
   loadAsyncConfig()
-
+  logger.info(s"Asynchbase: ${asyncConfig.dumpConfiguration()}")
   val client = new HBaseClient(asyncConfig)
   asyncConfig.overrideConfig("hbase.rpcs.buffered_flush_interval", "0")
+  logger.info(s"AsynchbaseFlush: ${asyncConfig.dumpConfiguration()}")
   val clientWithFlush = new HBaseClient(asyncConfig)
 
 
@@ -183,9 +186,14 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 
 
   def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = {
-    val futures = edges.map { edge => mutateEdge(edge, withWait) }
+    val groupedBySnapShot = edges.groupBy { edge => (edge.label, edge.srcVertex.innerId, edge.tgtVertex.innerId) }
+    val edgeGrouped = groupedBySnapShot.values
 
-    Future.sequence(futures)
+    val ret = edgeGrouped.toSeq.map { edges =>
+      mutateEdgesInner(edges, edges.head.label.consistencyLevel == "strong", withWait)(Edge.buildOperation)
+    }
+
+    Future.sequence(ret)
   }
 
   def mutateVertex(vertex: Vertex, withWait: Boolean = false): Future[Boolean] = {
@@ -206,7 +214,6 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     val futures = vertices.map { vertex => mutateVertex(vertex, withWait) }
     Future.sequence(futures)
   }
-
 
   def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = {
     val defers: Seq[Deferred[(Boolean, Long)]] = for {
@@ -545,6 +552,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     } else {
       val defers = elementRpcs.map { rpcs =>
         val defer = rpcs.map { rpc =>
+          rpc.setTimeout(0)
           val deferred = rpc match {
             case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
             case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
@@ -573,6 +581,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       Future.successful(true)
     } else {
       val defers = elementRpcs.map { rpc =>
+        rpc.setTimeout(0)
         val deferred = rpc match {
           case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
           case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
@@ -597,6 +606,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       Future.successful(true)
     } else {
       elementRpcs.foreach { rpc =>
+        rpc.setTimeout(0)
         val deferred = rpc match {
           case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
           case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
@@ -621,8 +631,8 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       Future.successful(Seq.empty[Boolean])
     } else {
       elementRpcs.foreach { rpcs =>
-
         rpcs.foreach { rpc =>
+          rpc.setTimeout(0)
           val deferred = rpc match {
             case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
             case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
@@ -645,9 +655,8 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
   }
 
 
-  private def fetchInvertedAsync(edgeWriter: EdgeWriter): Future[(QueryParam, Option[Edge])] = {
-    val edge = edgeWriter.edge
-    val labelWithDir = edgeWriter.labelWithDir
+  private def fetchInvertedAsync(edge: Edge): Future[(QueryParam, Option[Edge])] = {
+    val labelWithDir = edge.labelWithDir
     val queryParam = QueryParam(labelWithDir)
 
     getEdge(edge.srcVertex, edge.tgtVertex, queryParam, isInnerCall = true).map { queryResult =>
@@ -655,10 +664,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     }
   }
 
-  private def commitPending(edgeWriter: EdgeWriter)(snapshotEdgeOpt: Option[Edge]): Future[Boolean] = {
-    val edge = edgeWriter.edge
-    val label = edgeWriter.label
-    val labelWithDir = edgeWriter.labelWithDir
+  private def commitPending(snapshotEdgeOpt: Option[Edge]): Future[Boolean] = {
     val pendingEdges =
       if (snapshotEdgeOpt.isEmpty || snapshotEdgeOpt.get.pendingEdgeOpt.isEmpty) Nil
       else Seq(snapshotEdgeOpt.get.pendingEdgeOpt.get)
@@ -724,13 +730,41 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     }
   }
 
+  private def mutateEdgesInner(edges: Seq[Edge],
+                               checkConsistency: Boolean,
+                               withWait: Boolean)(f: (Option[Edge], Seq[Edge]) => (Edge, EdgeUpdate), tryNum: Int = 0): Future[Boolean] = {
+    fetchInvertedAsync(edges.head) flatMap { case (queryParam, snapshotEdgeOpt) =>
+        val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, edges)
+        if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
+        else {
+          val waitTime = Random.nextInt(MaxBackOff) + 1
+          commitPending(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
+              if (pendingAllCommitted) {
+                commitUpdate(EdgeWriter(newEdge))(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
+                    if (!updateCommitted) {
+                      Thread.sleep(waitTime)
+                      mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
+                    } else {
+                      Future.successful(true)
+                    }
+                }
+              } else {
+                Thread.sleep(waitTime)
+                mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
+              }
+          }
+        }
+    }
+  }
   private def mutateEdgeInner(edgeWriter: EdgeWriter,
                               checkConsistency: Boolean,
-                              withWait: Boolean)(f: (Option[Edge], Edge) => EdgeUpdate, tryNum: Int = 0): Future[Boolean] = {
+                              withWait: Boolean)
+                             (f: (Option[Edge], Edge) => (Edge, EdgeUpdate), tryNum: Int = 0): Future[Boolean] = {
+
     val edge = edgeWriter.edge
     val zkQuorum = edge.label.hbaseZkAddr
     if (!checkConsistency) {
-      val update = f(None, edge)
+      val (newEdge, update) = f(None, edge)
       val mutations = indexedEdgeMutations(update) ++ invertedEdgeMutations(update) ++ increments(update)
       if (withWait) writeAsyncWithWaitSimple(zkQuorum, mutations)
       else writeAsyncSimple(zkQuorum, mutations)
@@ -742,14 +776,13 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       } else {
         val waitTime = Random.nextInt(MaxBackOff) + 1
 
-        fetchInvertedAsync(edgeWriter).flatMap { case (queryParam, edges) =>
-          val snapshotEdgeOpt = edges.headOption
-          val edgeUpdate = f(snapshotEdgeOpt, edge)
+        fetchInvertedAsync(edge).flatMap { case (queryParam, snapshotEdgeOpt) =>
+          val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, edge)
 
           /** if there is no changes to be mutate, then just return true */
           if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
           else
-            commitPending(edgeWriter)(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
+            commitPending(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
               if (pendingAllCommitted) {
                 commitUpdate(edgeWriter)(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
                   if (!updateCommitted) {
@@ -771,6 +804,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       }
     }
   }
+
 
   private def mutateEdgeWithOp(edge: Edge, withWait: Boolean = false): Future[Boolean] = {
     val edgeWriter = EdgeWriter(edge)
@@ -799,7 +833,6 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
             mutateEdgeInner(edgeWriter, checkConsistency = true, withWait = withWait)(Edge.buildDelete)
           case _ => // deleteBulk
             mutateEdgeInner(edgeWriter, checkConsistency = false, withWait = withWait)(Edge.buildDeleteBulk)
-
         }
 
       case op if op == GraphUtil.operations("update") =>

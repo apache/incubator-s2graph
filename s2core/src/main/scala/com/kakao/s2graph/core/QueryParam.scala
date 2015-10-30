@@ -162,8 +162,6 @@ case class Step(queryParams: List[QueryParam],
   lazy val includes = queryParams.filterNot(_.exclude)
   lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 
-  logger.debug(s"Step: $queryParams, $labelWeights, $nextStepScoreThreshold, $nextStepLimit")
-
   def toCacheKey(lss: Iterable[(GetRequest, QueryParam)]): Int = {
     val s = "step" + Step.Delimiter +
       lss.map { case (getRequest, param) => param.toCacheKey(getRequest) } mkString(Step.Delimiter)
