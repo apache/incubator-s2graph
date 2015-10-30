@@ -300,81 +300,109 @@ object Edge extends JSONParser {
   // FIXME:
 
   /** now version information is required also **/
-  type PropsPairWithTs = (Map[Byte, InnerValLikeWithTs], Map[Byte, InnerValLikeWithTs], Long, String)
+  type State = Map[Byte, InnerValLikeWithTs]
+  type PropsPairWithTs = (State, State, Long, String)
+  type FunctionType = PropsPairWithTs => (State, Boolean)
+  type UpdateFunc = (Option[Edge], Edge, FunctionType)
 
-  def buildUpsert(invertedEdge: Option[Edge], requestEdge: Edge): EdgeUpdate = {
-    assert(requestEdge.op == GraphUtil.operations("insert"))
-    buildOperation(invertedEdge, requestEdge)(buildUpsert)
+  def buildUpsert(invertedEdge: Option[Edge], requestEdges: Edge): EdgeUpdate = {
+//    assert(requestEdge.op == GraphUtil.operations("insert"))
+    buildOperation(invertedEdge, Seq(requestEdges))(Seq(mergeUpsert))
   }
 
-  def buildUpdate(invertedEdge: Option[Edge], requestEdge: Edge): EdgeUpdate = {
-    assert(requestEdge.op == GraphUtil.operations("update"))
-    buildOperation(invertedEdge, requestEdge)(buildUpdate)
+  def buildUpdate(invertedEdge: Option[Edge], requestEdges: Edge): EdgeUpdate = {
+//    assert(requestEdge.op == GraphUtil.operations("update"))
+    buildOperation(invertedEdge, Seq(requestEdges))(Seq(mergeUpdate))
   }
 
-  def buildDelete(invertedEdge: Option[Edge], requestEdge: Edge): EdgeUpdate = {
-    assert(requestEdge.op == GraphUtil.operations("delete"))
-    buildOperation(invertedEdge, requestEdge)(buildDelete)
+  def buildDelete(invertedEdge: Option[Edge], requestEdges: Edge): EdgeUpdate = {
+//    assert(requestEdge.op == GraphUtil.operations("delete"))
+    buildOperation(invertedEdge, Seq(requestEdges))(Seq(mergeDelete))
   }
 
-  def buildIncrement(invertedEdge: Option[Edge], requestEdge: Edge): EdgeUpdate = {
-    assert(requestEdge.op == GraphUtil.operations("increment"))
-    buildOperation(invertedEdge, requestEdge)(buildIncrement)
+  def buildIncrement(invertedEdge: Option[Edge], requestEdges: Edge): EdgeUpdate = {
+//    assert(requestEdge.op == GraphUtil.operations("increment"))
+    buildOperation(invertedEdge, Seq(requestEdges))(Seq(mergeIncrement))
   }
 
-  def buildInsertBulk(invertedEdge: Option[Edge], requestEdge: Edge): EdgeUpdate = {
-    assert(invertedEdge.isEmpty)
-    assert(requestEdge.op == GraphUtil.operations("insertBulk") || requestEdge.op == GraphUtil.operations("insert"))
-    buildOperation(None, requestEdge)(buildUpsert)
+  def buildInsertBulk(invertedEdge: Option[Edge], requestEdges: Edge): EdgeUpdate = {
+//    assert(invertedEdge.isEmpty)
+//    assert(requestEdge.op == GraphUtil.operations("insertBulk") || requestEdge.op == GraphUtil.operations("insert"))
+    buildOperation(None, Seq(requestEdges))(Seq(mergeUpsert))
   }
 
   def buildDeleteBulk(invertedEdge: Option[Edge], requestEdge: Edge): EdgeUpdate = {
-    assert(invertedEdge.isEmpty)
-    assert(requestEdge.op == GraphUtil.operations("delete"))
-
+//    assert(invertedEdge.isEmpty)
+//    assert(requestEdge.op == GraphUtil.operations("delete"))
+//
     val edgesToDelete = requestEdge.relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
     val edgeInverted = Option(requestEdge.toInvertedEdgeHashLike)
 
     EdgeUpdate(edgesToDelete, edgesToInsert = Nil, edgeInverted)
   }
 
-  def buildOperation(invertedEdge: Option[Edge], requestEdge: Edge)(f: PropsPairWithTs => (Map[Byte, InnerValLikeWithTs], Boolean)) = {
+  def buildOperation(invertedEdge: Option[Edge], requestEdges: Seq[Edge])(fs: Seq[FunctionType]): EdgeUpdate = {
     //            logger.debug(s"oldEdge: ${invertedEdge.map(_.toStringRaw)}")
     //            logger.debug(s"requestEdge: ${requestEdge.toStringRaw}")
-
+    assert(requestEdges.size == fs.size)
     val oldPropsWithTs = if (invertedEdge.isEmpty) Map.empty[Byte, InnerValLikeWithTs] else invertedEdge.get.propsWithTs
 
     val oldTs = invertedEdge.map(e => e.ts).getOrElse(minTsVal)
+    val requestWithFuncs = requestEdges.zip(fs).filter(oldTs != _._1.ts).sortBy(_._1.ts)
 
-    if (oldTs == requestEdge.ts) {
-      logger.info(s"duplicate timestamp on same edge. $requestEdge")
+    if (requestWithFuncs.isEmpty) {
+      logger.info(s"all requests have duplicated timestamp with snapshotEdge.")
       EdgeUpdate()
     } else {
-      val (newPropsWithTs, shouldReplace) =
-        f(oldPropsWithTs, requestEdge.propsWithTs, requestEdge.ts, requestEdge.schemaVer)
+      var shouldReplaceCnt = 0
+      var prevPropsWithTs = oldPropsWithTs
+      var lastOp = GraphUtil.operations("insert")
+      var lastTs = 0L
+      for {
+        (requestEdge, func) <- requestWithFuncs
+      } {
+        val (_newPropsWithTs, _shouldReplace) = func(prevPropsWithTs, requestEdge.propsWithTs, requestEdge.ts, requestEdge.schemaVer)
+        prevPropsWithTs = _newPropsWithTs
 
-      if (!shouldReplace) {
-        logger.info(s"drop request $requestEdge becaseu shouldReplace is $shouldReplace")
+        if (_shouldReplace) shouldReplaceCnt += 1
+
+        if (lastTs < requestEdge.ts) {
+          lastTs = requestEdge.ts
+          lastOp = requestEdge.op
+        }
+
+        // 1. EdgeRequests.maxTs
+        // 2. invertedEdge.maxTs vs EdgeRequests.maxTs
+        // 3. if request.maxTs > invertedEdge.maxTs => request.op
+        // 4. else invertedEdge.op
+
+
+      }
+
+      if (shouldReplaceCnt <= 0) {
+        logger.info(s"drop all requests because all request should replaces are false.")
         EdgeUpdate()
-      } else {
+      }  else {
 
-        val maxTsInNewProps = newPropsWithTs.map(kv => kv._2.ts).max
-        val newOp = if (maxTsInNewProps > requestEdge.ts) {
+        val maxTsInNewProps = prevPropsWithTs.map(kv => kv._2.ts).max
+        val newOp = if (maxTsInNewProps > lastTs) {
           invertedEdge match {
-            case None => requestEdge.op
+            case None => lastOp
             case Some(old) => old.op
           }
         } else {
-          requestEdge.op
+          lastOp
         }
+        lastOp = newOp
 
-        val newEdgeVersion = invertedEdge.map(e => e.version + incrementVersion).getOrElse(requestEdge.ts)
+        val newEdgeVersion = invertedEdge.map(e => e.version + incrementVersion).getOrElse(lastTs)
 
-        val maxTs = if (oldTs > requestEdge.ts) oldTs else requestEdge.ts
-        val newEdge = Edge(requestEdge.srcVertex, requestEdge.tgtVertex, requestEdge.labelWithDir,
-          newOp, maxTs, newEdgeVersion, newPropsWithTs)
+        val maxTs = if (oldTs > lastTs) oldTs else lastTs
+        val (requestEdge, _) = requestWithFuncs.head
+        val newEdge = Edge(requestEdge.srcVertex, requestEdge.tgtVertex, requestEdge.labelWithDir, lastOp, maxTs, newEdgeVersion, prevPropsWithTs)
 
-        buildReplace(invertedEdge, newEdge, newPropsWithTs)
+        buildReplace(invertedEdge, newEdge, prevPropsWithTs)
+
       }
     }
 
@@ -388,7 +416,8 @@ object Edge extends JSONParser {
   def buildReplace(invertedEdge: Option[Edge], requestEdge: Edge, newPropsWithTs: Map[Byte, InnerValLikeWithTs]): EdgeUpdate = {
 
     val edgesToDelete = invertedEdge match {
-      case Some(e) if e.op != GraphUtil.operations("delete") =>
+//      case Some(e) if e.op != GraphUtil.operations("delete") =>
+      case Some(e) if !allPropsDeleted(e.propsWithTs) =>
         e.relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
       //      case Some(e) => e.edgesWithIndexValid
       case _ =>
@@ -416,7 +445,7 @@ object Edge extends JSONParser {
     update
   }
 
-  def buildUpsert(propsPairWithTs: PropsPairWithTs) = {
+  def mergeUpsert(propsPairWithTs: PropsPairWithTs): (State, Boolean) = {
     var shouldReplace = false
     val (oldPropsWithTs, propsWithTs, requestTs, version) = propsPairWithTs
     val lastDeletedAt = oldPropsWithTs.get(LabelMeta.lastDeletedAt).map(v => v.ts).getOrElse(minTsVal)
@@ -451,7 +480,7 @@ object Edge extends JSONParser {
     ((existInOld.flatten ++ existInNew.flatten).toMap, shouldReplace)
   }
 
-  def buildUpdate(propsPairWithTs: PropsPairWithTs) = {
+  def mergeUpdate(propsPairWithTs: PropsPairWithTs): (State, Boolean) = {
     var shouldReplace = false
     val (oldPropsWithTs, propsWithTs, requestTs, version) = propsPairWithTs
     val lastDeletedAt = oldPropsWithTs.get(LabelMeta.lastDeletedAt).map(v => v.ts).getOrElse(minTsVal)
@@ -481,7 +510,7 @@ object Edge extends JSONParser {
     ((existInOld.flatten ++ existInNew.flatten).toMap, shouldReplace)
   }
 
-  def buildIncrement(propsPairWithTs: PropsPairWithTs) = {
+  def mergeIncrement(propsPairWithTs: PropsPairWithTs): (State, Boolean) = {
     var shouldReplace = false
     val (oldPropsWithTs, propsWithTs, requestTs, version) = propsPairWithTs
     val lastDeletedAt = oldPropsWithTs.get(LabelMeta.lastDeletedAt).map(v => v.ts).getOrElse(minTsVal)
@@ -522,7 +551,7 @@ object Edge extends JSONParser {
     ((existInOld.flatten ++ existInNew.flatten).toMap, shouldReplace)
   }
 
-  def buildDelete(propsPairWithTs: PropsPairWithTs) = {
+  def mergeDelete(propsPairWithTs: PropsPairWithTs): (State, Boolean) = {
     var shouldReplace = false
     val (oldPropsWithTs, propsWithTs, requestTs, version) = propsPairWithTs
     val lastDeletedAt = oldPropsWithTs.get(LabelMeta.lastDeletedAt) match {

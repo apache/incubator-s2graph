@@ -699,8 +699,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       }
       def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
         if (!predicate) Future.successful(false)
-        else writeAsyncWithWaitRetry(label.hbaseZkAddr, Seq(increments(edgeUpdate)), 0).map { rets =>
-          val allSuccess = rets.forall(identity)
+        else writeAsyncWithWaitRetrySimple(label.hbaseZkAddr, increments(edgeUpdate), 0).map { allSuccess =>
           if (!allSuccess) logger.error(s"indexedEdgeIncrement failed: $edgeUpdate")
           else logger.debug(s"indexedEdgeIncrement success: $edgeUpdate")
           allSuccess
@@ -741,7 +740,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
         ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
         Future.successful(false)
       } else {
-        val waitTime = Random.nextInt(Graph.MaxBackOff) + 1
+        val waitTime = Random.nextInt(MaxBackOff) + 1
 
         fetchInvertedAsync(edgeWriter).flatMap { case (queryParam, edges) =>
           val snapshotEdgeOpt = edges.headOption
@@ -755,10 +754,10 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
                 commitUpdate(edgeWriter)(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
                   if (!updateCommitted) {
                     Thread.sleep(waitTime)
-                    logger.info(s"mutate failed. retry $edge")
+//                    logger.info(s"mutate failed $tryNum.\nretry $edge")
                     mutateEdgeInner(edgeWriter, checkConsistency, withWait = true)(f, tryNum + 1)
                   } else {
-                    logger.debug(s"mutate success: ${edgeUpdate.toLogString}\n$edge")
+                    logger.debug(s"mutate success $tryNum.\n${edgeUpdate.toLogString}\n$edge")
                     Future.successful(true)
                   }
                 }

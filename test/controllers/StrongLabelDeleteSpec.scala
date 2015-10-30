@@ -34,7 +34,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
               "label": "$labelName",
               "direction": "${direction}",
               "offset": 0,
-              "limit": 1000,
+              "limit": -1,
               "duplicate": "raw"
             }
           ]]
@@ -49,107 +49,107 @@ class StrongLabelDeleteSpec extends SpecCommon {
   }
 
 
-  "strong label delete test" should {
-    running(FakeApplication()) {
-      // insert bulk and wait ..
-      val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(), withWait = true))
-      Thread.sleep(asyncFlushInterval)
-    }
-
-
-
-
-    "test strong consistency select" in {
-      running(FakeApplication()) {
-        var result = getEdges(query(0))
-        println(result)
-        (result \ "results").as[List[JsValue]].size must equalTo(2)
-        result = getEdges(query(10))
-        println(result)
-        (result \ "results").as[List[JsValue]].size must equalTo(2)
-        true
-      }
-    }
-
-    "test strong consistency duration. insert -> delete -> insert" in {
-      running(FakeApplication()) {
-        val ts0 = 1
-        val ts1 = 2
-        val ts2 = 3
-
-        val edges = Seq(
-          Seq(5, "insert", "edge", "-10", "-20", testLabelName2).mkString("\t"),
-          Seq(10, "delete", "edge", "-10", "-20", testLabelName2).mkString("\t"),
-          Seq(20, "insert", "edge", "-10", "-20", testLabelName2).mkString("\t")
-        ).mkString("\n")
-
-        val jsResult = contentAsJson(EdgeController.mutateAndPublish(edges, withWait = true))
-
-        Thread.sleep(asyncFlushInterval)
-        val result = getEdges(query(-10))
-
-        println(result)
-
-        true
-      }
-    }
-
-    "test strong consistency deleteAll" in {
-      running(FakeApplication()) {
-        val deletedAt = 100
-        var result = getEdges(query(20, direction = "in", columnName = testTgtColumnName))
-        println(result)
-        (result \ "results").as[List[JsValue]].size must equalTo(3)
-
-
-
-        val json = Json.arr(Json.obj("label" -> testLabelName2,
-          "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
-        println(json)
-        EdgeController.deleteAllInner(json)
-        Thread.sleep(asyncFlushInterval)
-
-
-        result = getEdges(query(11, direction = "out"))
-        println(result)
-        (result \ "results").as[List[JsValue]].size must equalTo(0)
-
-        result = getEdges(query(12, direction = "out"))
-        println(result)
-        (result \ "results").as[List[JsValue]].size must equalTo(0)
-
-        result = getEdges(query(10, direction = "out"))
-        println(result)
-        // 10 -> out -> 20 should not be in result.
-        (result \ "results").as[List[JsValue]].size must equalTo(1)
-        (result \\ "to").size must equalTo(1)
-        (result \\ "to").head.as[String] must equalTo("21")
-
-
-        result = getEdges(query(20, direction = "in", columnName = testTgtColumnName))
-        println(result)
-        (result \ "results").as[List[JsValue]].size must equalTo(0)
-
-        val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(startTs = deletedAt + 1), withWait = true))
-        Thread.sleep(asyncFlushInterval)
-
-        result = getEdges(query(20, direction = "in", columnName = testTgtColumnName))
-        println(result)
-        (result \ "results").as[List[JsValue]].size must equalTo(3)
-
-        true
-
-      }
-    }
-  }
+//  "strong label delete test" should {
+//    running(FakeApplication()) {
+//      // insert bulk and wait ..
+//      val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(), withWait = true))
+//      Thread.sleep(asyncFlushInterval)
+//    }
+//
+//
+//
+//
+//    "test strong consistency select" in {
+//      running(FakeApplication()) {
+//        var result = getEdges(query(0))
+//        println(result)
+//        (result \ "results").as[List[JsValue]].size must equalTo(2)
+//        result = getEdges(query(10))
+//        println(result)
+//        (result \ "results").as[List[JsValue]].size must equalTo(2)
+//        true
+//      }
+//    }
+//
+//    "test strong consistency duration. insert -> delete -> insert" in {
+//      running(FakeApplication()) {
+//        val ts0 = 1
+//        val ts1 = 2
+//        val ts2 = 3
+//
+//        val edges = Seq(
+//          Seq(5, "insert", "edge", "-10", "-20", testLabelName2).mkString("\t"),
+//          Seq(10, "delete", "edge", "-10", "-20", testLabelName2).mkString("\t"),
+//          Seq(20, "insert", "edge", "-10", "-20", testLabelName2).mkString("\t")
+//        ).mkString("\n")
+//
+//        val jsResult = contentAsJson(EdgeController.mutateAndPublish(edges, withWait = true))
+//
+//        Thread.sleep(asyncFlushInterval)
+//        val result = getEdges(query(-10))
+//
+//        println(result)
+//
+//        true
+//      }
+//    }
+//
+//    "test strong consistency deleteAll" in {
+//      running(FakeApplication()) {
+//        val deletedAt = 100
+//        var result = getEdges(query(20, direction = "in", columnName = testTgtColumnName))
+//        println(result)
+//        (result \ "results").as[List[JsValue]].size must equalTo(3)
+//
+//
+//
+//        val json = Json.arr(Json.obj("label" -> testLabelName2,
+//          "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
+//        println(json)
+//        EdgeController.deleteAllInner(json)
+//        Thread.sleep(asyncFlushInterval)
+//
+//
+//        result = getEdges(query(11, direction = "out"))
+//        println(result)
+//        (result \ "results").as[List[JsValue]].size must equalTo(0)
+//
+//        result = getEdges(query(12, direction = "out"))
+//        println(result)
+//        (result \ "results").as[List[JsValue]].size must equalTo(0)
+//
+//        result = getEdges(query(10, direction = "out"))
+//        println(result)
+//        // 10 -> out -> 20 should not be in result.
+//        (result \ "results").as[List[JsValue]].size must equalTo(1)
+//        (result \\ "to").size must equalTo(1)
+//        (result \\ "to").head.as[String] must equalTo("21")
+//
+//
+//        result = getEdges(query(20, direction = "in", columnName = testTgtColumnName))
+//        println(result)
+//        (result \ "results").as[List[JsValue]].size must equalTo(0)
+//
+//        val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(startTs = deletedAt + 1), withWait = true))
+//        Thread.sleep(asyncFlushInterval)
+//
+//        result = getEdges(query(20, direction = "in", columnName = testTgtColumnName))
+//        println(result)
+//        (result \ "results").as[List[JsValue]].size must equalTo(3)
+//
+//        true
+//
+//      }
+//    }
+//  }
   
 
   "labelargeSet of contention" should {
     val labelName = testLabelName2
-    val maxTgtId = 5
-    val maxRetryNum = 20
-    val maxTestNum = 3
-    val maxTestIntervalNum = 3
+    val maxTgtId = 1
+    val maxRetryNum = 6
+    val maxTestNum = 100000
+    val maxTestIntervalNum = 1
     def testInner(src: Long) = {
       val labelName = testLabelName2
       val lastOps = Array.fill(maxTgtId)("none")
@@ -173,11 +173,12 @@ class StrongLabelDeleteSpec extends SpecCommon {
       val expectedDegree = lastOps.count(op => op != "delete" && op != "none")
       val queryJson = query(id = src)
       val result = getEdges(queryJson)
+      val resultSize = (result \ "size").as[Long]
       val resultDegree = getDegree(result)
       println(lastOps.toList)
       println(result)
 
-      val ret = resultDegree == expectedDegree
+      val ret = resultDegree == expectedDegree && resultSize == resultDegree
       if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree")
       ret
     }
@@ -199,28 +200,28 @@ class StrongLabelDeleteSpec extends SpecCommon {
 
     }
 
-    "deleteAll" in {
-      running(FakeApplication()) {
-        val src = System.currentTimeMillis()
-        val ret = testInner(src)
-        ret must beEqualTo(true)
-
-        val deletedAt = System.currentTimeMillis()
-        val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
-
-        val jsResult = contentAsString(EdgeController.deleteAllInner(deleteAllRequest))
-        Thread.sleep(asyncFlushInterval * 10)
-
-        val result = getEdges(query(id = src))
-        println(result)
-        val resultEdges = (result \ "results").as[Seq[JsValue]]
-        resultEdges.isEmpty must beEqualTo(true)
-
-        val degreeAfterDeleteAll = getDegree(result)
-        degreeAfterDeleteAll must beEqualTo(0)
-      }
-
-    }
+//    "deleteAll" in {
+//      running(FakeApplication()) {
+//        val src = System.currentTimeMillis()
+//        val ret = testInner(src)
+//        ret must beEqualTo(true)
+//
+//        val deletedAt = System.currentTimeMillis()
+//        val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
+//
+//        val jsResult = contentAsString(EdgeController.deleteAllInner(deleteAllRequest))
+//        Thread.sleep(asyncFlushInterval * 10)
+//
+//        val result = getEdges(query(id = src))
+//        println(result)
+//        val resultEdges = (result \ "results").as[Seq[JsValue]]
+//        resultEdges.isEmpty must beEqualTo(true)
+//
+//        val degreeAfterDeleteAll = getDegree(result)
+//        degreeAfterDeleteAll must beEqualTo(0)
+//      }
+//
+//    }
   }
 }
 
