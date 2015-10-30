@@ -220,9 +220,11 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       running(FakeApplication()) {
         val result = getEdges(queryGroupBy(0, Seq("weight")))
         (result \ "size").as[Int] must_== 2
-        (result \\ "groupBy").map { js =>
+        val weights = (result \\ "groupBy").map { js =>
           (js \ "weight").as[Int]
-        } must contain(exactly(30, 40))
+        }
+        weights must contain(exactly(30, 40))
+        weights must not contain(10)
       }
     }
 
