@@ -1,7 +1,5 @@
-package test.controllers
+package controllers
 
-import com.kakao.s2graph.logger
-import controllers.EdgeController
 import play.api.libs.json._
 import play.api.test.Helpers._
 import play.api.test.{FakeApplication, FakeRequest}
