@@ -212,24 +212,26 @@ class StrongLabelDeleteSpec extends SpecCommon {
     "large degrees" in {
       running(FakeApplication()) {
         val labelName = testLabelName2
-        val maxSize = 100000
-        val deleteSize = 1000
-        val numOfConcurrentBatch = 10
+        val dir = "out"
+        val maxSize = 1000
+        val deleteSize = 100
+        val numOfConcurrentBatch = 1000
         val src = System.currentTimeMillis()
         val tgts = (0 until maxSize).map { ith => src + ith }
         val deleteTgts = (0 until deleteSize).map { ith => src + Random.nextInt(maxSize) }
         val insertRequests = tgts.map { tgt =>
-          Seq(System.currentTimeMillis(), "insert", "e", src, tgt, labelName, "{}").mkString("\t")
+          Seq(System.currentTimeMillis(), "insert", "e", src, tgt, labelName, "{}", dir).mkString("\t")
         }
         val deleteRequests = deleteTgts.take(deleteSize).map { tgt =>
-          Seq(System.currentTimeMillis(), "delete", "e", src, tgt, labelName, "{}").mkString("\t")
+          Seq(System.currentTimeMillis() + 1000, "delete", "e", src, tgt, labelName, "{}", dir).mkString("\t")
         }
         val allRequests = Random.shuffle(insertRequests ++ deleteRequests)
         val futures = allRequests.grouped(numOfConcurrentBatch).map { requests =>
           EdgeController.mutateAndPublish(requests.mkString("\n"), withWait = true)
         }
-        Await.result(Future.sequence(futures), Duration(2, TimeUnit.MINUTES))
+        Await.result(Future.sequence(futures), Duration(10, TimeUnit.MINUTES))
 
+        Thread.sleep(asyncFlushInterval * 10)
         val expectedDegree = insertRequests.size - deleteRequests.size
         val queryJson = query(id = src)
         val result = getEdges(queryJson)
@@ -239,7 +241,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
 //        println(result)
 
         val ret = resultSize == expectedDegree && resultDegree == resultSize
-        if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree")
+        if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree, $resultSize")
         ret must beEqualTo(true)
       }
     }

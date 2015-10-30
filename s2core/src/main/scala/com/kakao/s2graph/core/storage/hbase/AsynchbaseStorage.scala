@@ -47,19 +47,19 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     for (entry <- config.entrySet() if entry.getKey.contains("hbase")) {
       this.asyncConfig.overrideConfig(entry.getKey, entry.getValue.unwrapped().toString)
     }
-    this.asyncConfig.overrideConfig("hbase.rpc.timeout", "0")
   }
 
   var emptyKVs = new ArrayList[KeyValue]()
 
   val asyncConfig: org.hbase.async.Config = new org.hbase.async.Config()
   loadAsyncConfig()
-  logger.info(s"Asynchbase: ${asyncConfig.dumpConfiguration()}")
   val client = new HBaseClient(asyncConfig)
-  asyncConfig.overrideConfig("hbase.rpcs.buffered_flush_interval", "0")
-  logger.info(s"AsynchbaseFlush: ${asyncConfig.dumpConfiguration()}")
-  val clientWithFlush = new HBaseClient(asyncConfig)
+  logger.info(s"Asynchbase: ${client.getConfig.dumpConfiguration()}")
 
+
+  asyncConfig.overrideConfig("hbase.rpcs.buffered_flush_interval", "0")
+  val clientWithFlush = new HBaseClient(asyncConfig)
+  logger.info(s"AsynchbaseFlush: ${client.getConfig.dumpConfiguration()}")
 
   val maxValidEdgeListSize = 10000
   val DefaultScore = 1.0
@@ -790,7 +790,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 //                    logger.info(s"mutate failed $tryNum.\nretry $edge")
                     mutateEdgeInner(edgeWriter, checkConsistency, withWait = true)(f, tryNum + 1)
                   } else {
-                    logger.debug(s"mutate success $tryNum.\n${edgeUpdate.toLogString}\n$edge")
+//                    logger.debug(s"mutate success $tryNum.\n${edgeUpdate.toLogString}\n$edge")
                     Future.successful(true)
                   }
                 }

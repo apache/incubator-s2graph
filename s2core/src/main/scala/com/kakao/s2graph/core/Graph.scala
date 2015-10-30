@@ -56,12 +56,10 @@ object Graph {
   )
 
   var config: Config = ConfigFactory.parseMap(DefaultConfigs)
-  lazy val client = {
-    new AsynchbaseStorage(config)
-  }
-
-  val MaxRetryNum = client.MaxRetryNum
-  val MaxBackOff = client.MaxBackOff
+  var client: AsynchbaseStorage = null
+//  lazy val client = {
+//    new AsynchbaseStorage(config)
+//  }
 
   lazy val cache = CacheBuilder.newBuilder()
     .maximumSize(this.config.getInt("cache.max.size"))
@@ -77,7 +75,7 @@ object Graph {
     this.config = config.withFallback(this.config)
     Model(this.config)
     ExceptionHandler.apply(config)
-
+    this.client = new AsynchbaseStorage(config)
     for {
       entry <- this.config.entrySet() if DefaultConfigs.contains(entry.getKey)
       (k, v) = (entry.getKey, entry.getValue)

@@ -123,6 +123,7 @@ case class Edge(srcVertex: Vertex,
       List(base, base.reverseSrcTgtEdge)
     }
   }
+//  def relatedEdges = List(this)
 
   def srcForVertex = {
     val belongLabelIds = Seq(labelWithDir.labelId)
@@ -258,7 +259,6 @@ case class Edge(srcVertex: Vertex,
 
 case class EdgeWriter(edge: Edge) {
 
-  val MaxTryNum = Graph.MaxRetryNum
   val op = edge.op
   val label = edge.label
   val labelWithDir = edge.labelWithDir
@@ -637,7 +637,7 @@ object Edge extends JSONParser {
                      cacheElementOpt: Option[EdgeWithIndexInverted] = None,
                      isInnerCall: Boolean,
                      parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
-    logger.debug(s"$param -> $kv")
+//    logger.debug(s"$param -> $kv")
     val kvs = Seq(Graph.client.toGKeyValue(kv))
     val snapshotEdge = Graph.client.snapshotEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
 
@@ -668,7 +668,7 @@ object Edge extends JSONParser {
   def toEdge(kv: KeyValue, param: QueryParam,
              cacheElementOpt: Option[EdgeWithIndex] = None,
              parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
-    logger.debug(s"$param -> $kv")
+//    logger.debug(s"$param -> $kv")
     val kvs = Seq(Graph.client.toGKeyValue(kv))
     val edgeWithIndex = Graph.client.indexedEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
     Option(Graph.client.indexedEdgeDeserializer.toEdge(edgeWithIndex))
