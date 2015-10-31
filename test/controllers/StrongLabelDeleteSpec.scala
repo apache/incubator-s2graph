@@ -192,22 +192,22 @@ class StrongLabelDeleteSpec extends SpecCommon {
       ret
     }
 
-//    "update delete" in {
-//      running(FakeApplication()) {
-//        val ret = for {
-//          i <- (0 until testNum)
-//        } yield {
-//            Thread.sleep(asyncFlushInterval)
-//            val src = System.currentTimeMillis()
-//
-//            val ret = testInner(src)
-//            ret must beEqualTo(true)
-//            ret
-//          }
-//        ret.forall(identity)
-//      }
-//
-//    }
+    "update delete" in {
+      running(FakeApplication()) {
+        val ret = for {
+          i <- (0 until testNum)
+        } yield {
+            Thread.sleep(asyncFlushInterval)
+            val src = System.currentTimeMillis()
+
+            val ret = testInner(src)
+            ret must beEqualTo(true)
+            ret
+          }
+        ret.forall(identity)
+      }
+
+    }
 
     /** this test stress out test on degree
       * when contention is low but number of adjacent edges are large */
@@ -228,7 +228,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
           Seq(tgt + 1000, "delete", "e", src, tgt, labelName, "{}", dir).mkString("\t")
         }
         val allRequests = Random.shuffle(insertRequests ++ deleteRequests)
-//        val allRequests = insertRequests ++ deleteRequests
+        //        val allRequests = insertRequests ++ deleteRequests
         val futures = allRequests.grouped(numOfConcurrentBatch).map { requests =>
           EdgeController.mutateAndPublish(requests.mkString("\n"), withWait = true)
         }
@@ -241,7 +241,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
         val resultSize = (result \ "size").as[Long]
         val resultDegree = getDegree(result)
 
-//        println(result)
+        //        println(result)
 
         val ret = resultSize == expectedDegree && resultDegree == resultSize
         println(s"[MaxSize]: $maxSize")
@@ -253,28 +253,28 @@ class StrongLabelDeleteSpec extends SpecCommon {
       }
     }
 
-    //    "deleteAll" in {
-    //      running(FakeApplication()) {
-    //        val src = System.currentTimeMillis()
-    //        val ret = testInner(src)
-    //        ret must beEqualTo(true)
-    //
-    //        val deletedAt = System.currentTimeMillis()
-    //        val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
-    //
-    //        val jsResult = contentAsString(EdgeController.deleteAllInner(deleteAllRequest))
-    //        Thread.sleep(asyncFlushInterval * 10)
-    //
-    //        val result = getEdges(query(id = src))
-    //        println(result)
-    //        val resultEdges = (result \ "results").as[Seq[JsValue]]
-    //        resultEdges.isEmpty must beEqualTo(true)
-    //
-    //        val degreeAfterDeleteAll = getDegree(result)
-    //        degreeAfterDeleteAll must beEqualTo(0)
-    //      }
-    //
-    //    }
+    "deleteAll" in {
+      running(FakeApplication()) {
+        val src = System.currentTimeMillis()
+        val ret = testInner(src)
+        ret must beEqualTo(true)
+
+        val deletedAt = System.currentTimeMillis()
+        val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
+
+        val jsResult = contentAsString(EdgeController.deleteAllInner(deleteAllRequest))
+        Thread.sleep(asyncFlushInterval * 10)
+
+        val result = getEdges(query(id = src))
+        println(result)
+        val resultEdges = (result \ "results").as[Seq[JsValue]]
+        resultEdges.isEmpty must beEqualTo(true)
+
+        val degreeAfterDeleteAll = getDegree(result)
+        degreeAfterDeleteAll must beEqualTo(0)
+      }
+
+    }
   }
 }
 
