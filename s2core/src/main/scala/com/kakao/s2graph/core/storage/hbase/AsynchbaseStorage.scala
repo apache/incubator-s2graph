@@ -186,14 +186,22 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 
 
   def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = {
-    val edgeGrouped = edges.groupBy { edge => (edge.label, edge.srcVertex.innerId, edge.tgtVertex.innerId) }
+    val edgeGrouped = edges.groupBy { edge => (edge.label, edge.srcVertex.innerId, edge.tgtVertex.innerId) } toSeq
 
-    val ret = edgeGrouped.toSeq.map { case ((label, srcId, tgtId), edges) =>
-      mutateEdgesInnerOnSameSnapshotEdge(edges, label.consistencyLevel == "strong", withWait)(Edge.buildOperation)
+    val ret = edgeGrouped.map { case ((label, srcId, tgtId), edges) =>
+      if (edges.isEmpty) Future.successful(true)
+      else {
+        val head = edges.head
+        val strongConsistency = head.label.consistencyLevel == "strong"
+        if (strongConsistency) {
+          val edgeFuture = mutateEdgesInner(edges, edges.head.label.consistencyLevel == "strong", withWait)(Edge.buildOperation)
+          val vertexFuture = writeAsyncSimple(head.label.hbaseZkAddr, buildVertexPutsAsync(head))
+          Future.sequence(Seq(edgeFuture, vertexFuture)).map { rets => rets.forall(identity) }
+        } else {
+          Future.sequence(edges.map { edge => mutateEdge(edge) }).map { rets => rets.forall(identity) }
+        }
+      }
     }
-//    TODO:
-//     need to mutate vertex to
-
     Future.sequence(ret)
   }
 
@@ -731,17 +739,19 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     }
   }
 
-  private def mutateEdgesInnerOnSameSnapshotEdge(edges: Seq[Edge],
+  private def mutateEdgesInner(edges: Seq[Edge],
                                checkConsistency: Boolean,
                                withWait: Boolean)(f: (Option[Edge], Seq[Edge]) => (Edge, EdgeUpdate), tryNum: Int = 0): Future[Boolean] = {
 
     if (!checkConsistency) {
-      //TODO: is This right?
       val zkQuorum = edges.head.label.hbaseZkAddr
-      val (newEdge, edgeUpdate) = f(None, edges)
-      val mutations = indexedEdgeMutations(edgeUpdate) ++ invertedEdgeMutations(edgeUpdate) ++ increments(edgeUpdate)
-      if (withWait) writeAsyncWithWaitSimple(zkQuorum, mutations)
-      else writeAsyncSimple(zkQuorum, mutations)
+      val futures = edges.map { edge =>
+        val (newEdge, edgeUpdate) = f(None, Seq(edge))
+        val mutations = indexedEdgeMutations(edgeUpdate) ++ invertedEdgeMutations(edgeUpdate) ++ increments(edgeUpdate)
+        if (withWait) writeAsyncWithWaitSimple(zkQuorum, mutations)
+        else writeAsyncSimple(zkQuorum, mutations)
+      }
+      Future.sequence(futures).map { rets => rets.forall(identity) }
     } else {
       if (tryNum >= MaxRetryNum) {
         logger.error(s"mutate failed after $tryNum retry")
@@ -759,7 +769,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
                   if (!updateCommitted) {
                     Thread.sleep(waitTime)
                     logger.info(s"mutate failed $tryNum.")
-                    mutateEdgesInnerOnSameSnapshotEdge(edges, checkConsistency, withWait)(f, tryNum + 1)
+                    mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
                   } else {
                     logger.debug(s"mutate success $tryNum.")
                     Future.successful(true)
@@ -768,7 +778,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
               } else {
                 Thread.sleep(waitTime)
                 logger.info(s"mutate failed $tryNum.")
-                mutateEdgesInnerOnSameSnapshotEdge(edges, checkConsistency, withWait)(f, tryNum + 1)
+                mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
               }
             }
           }

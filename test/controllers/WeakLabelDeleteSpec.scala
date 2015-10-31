@@ -49,17 +49,17 @@ class WeakLabelDeleteSpec extends SpecCommon {
       contentAsJson(ret)
     }
 
-    "test weak consistency select" in {
-      running(FakeApplication()) {
-        var result = getEdges(query(0))
-        println(result)
-        (result \ "results").as[List[JsValue]].size must equalTo(4)
-        result = getEdges(query(10))
-        println(result)
-        (result \ "results").as[List[JsValue]].size must equalTo(2)
-        true
-      }
-    }
+//    "test weak consistency select" in {
+//      running(FakeApplication()) {
+//        var result = getEdges(query(0))
+//        println(result)
+//        (result \ "results").as[List[JsValue]].size must equalTo(4)
+//        result = getEdges(query(10))
+//        println(result)
+//        (result \ "results").as[List[JsValue]].size must equalTo(2)
+//        true
+//      }
+//    }
 
     "test weak consistency delete" in {
       running(FakeApplication()) {
@@ -86,43 +86,43 @@ class WeakLabelDeleteSpec extends SpecCommon {
       }
     }
 
-    "test weak consistency deleteAll" in {
-      running(FakeApplication()) {
-        val deletedAt = 100
-        var result = getEdges(query(20, "in", testTgtColumnName))
-        println(result)
-        (result \ "results").as[List[JsValue]].size must equalTo(3)
-
-        val json = Json.arr(Json.obj("label" -> testLabelNameWeak,
-          "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
-        println(json)
-        contentAsString(EdgeController.deleteAllInner(json))
-
-
-        result = getEdges(query(11, "out"))
-        (result \ "results").as[List[JsValue]].size must equalTo(0)
-
-        result = getEdges(query(12, "out"))
-        (result \ "results").as[List[JsValue]].size must equalTo(0)
-
-        result = getEdges(query(10, "out"))
-
-        // 10 -> out -> 20 should not be in result.
-        (result \ "results").as[List[JsValue]].size must equalTo(1)
-        (result \\ "to").size must equalTo(1)
-        (result \\ "to").head.as[String] must equalTo("21")
-
-        result = getEdges(query(20, "in", testTgtColumnName))
-        println(result)
-        (result \ "results").as[List[JsValue]].size must equalTo(0)
-
-        val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(startTs = deletedAt + 1), withWait = true))
-        Thread.sleep(asyncFlushInterval)
-
-        result = getEdges(query(20, "in", testTgtColumnName))
-        (result \ "results").as[List[JsValue]].size must equalTo(3)
-      }
-    }
+//    "test weak consistency deleteAll" in {
+//      running(FakeApplication()) {
+//        val deletedAt = 100
+//        var result = getEdges(query(20, "in", testTgtColumnName))
+//        println(result)
+//        (result \ "results").as[List[JsValue]].size must equalTo(3)
+//
+//        val json = Json.arr(Json.obj("label" -> testLabelNameWeak,
+//          "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
+//        println(json)
+//        contentAsString(EdgeController.deleteAllInner(json))
+//
+//
+//        result = getEdges(query(11, "out"))
+//        (result \ "results").as[List[JsValue]].size must equalTo(0)
+//
+//        result = getEdges(query(12, "out"))
+//        (result \ "results").as[List[JsValue]].size must equalTo(0)
+//
+//        result = getEdges(query(10, "out"))
+//
+//        // 10 -> out -> 20 should not be in result.
+//        (result \ "results").as[List[JsValue]].size must equalTo(1)
+//        (result \\ "to").size must equalTo(1)
+//        (result \\ "to").head.as[String] must equalTo("21")
+//
+//        result = getEdges(query(20, "in", testTgtColumnName))
+//        println(result)
+//        (result \ "results").as[List[JsValue]].size must equalTo(0)
+//
+//        val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(startTs = deletedAt + 1), withWait = true))
+//        Thread.sleep(asyncFlushInterval)
+//
+//        result = getEdges(query(20, "in", testTgtColumnName))
+//        (result \ "results").as[List[JsValue]].size must equalTo(3)
+//      }
+//    }
   }
   //
   //  "strong label deleteAll test" should {
