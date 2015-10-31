@@ -25,21 +25,21 @@ case class EdgeWithIndexInverted(srcVertex: Vertex,
 
   //  logger.error(s"EdgeWithIndexInverted${this.toString}")
   val schemaVer = label.schemaVersion
-  lazy val kvs = Graph.client.snapshotEdgeSerializer(this).toKeyValues.toList
+//  lazy val kvs = Graph.client.snapshotEdgeSerializer(this).toKeyValues.toList
 
   // only for toString.
   lazy val label = Label.findById(labelWithDir.labelId)
   lazy val propsWithoutTs = props.mapValues(_.innerVal)
-  lazy val valueBytes = kvs.head.value
+//  lazy val valueBytes = kvs.head.value
 
-  def buildPut(): List[Put] = {
-    kvs.map { kv =>
-      val put = new Put(kv.row)
-      put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
-    }
-//    val put = new Put(rowKey.bytes)
-//    put.addColumn(edgeCf, qualifier.bytes, version, value.bytes)
-  }
+//  def buildPut(): List[Put] = {
+//    kvs.map { kv =>
+//      val put = new Put(kv.row)
+//      put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
+//    }
+////    val put = new Put(rowKey.bytes)
+////    put.addColumn(edgeCf, qualifier.bytes, version, value.bytes)
+//  }
 
   def withNoPendingEdge() = copy(pendingEdgeOpt = None)
 
@@ -94,7 +94,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
   lazy val propsWithTs = props.map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }
 
   //TODO:
-  lazy val kvs = Graph.client.indexedEdgeSerializer(this).toKeyValues.toList
+//  lazy val kvs = Graph.client.indexedEdgeSerializer(this).toKeyValues.toList
 
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
 }
@@ -267,17 +267,17 @@ case class EdgeWriter(edge: Edge) {
    * methods for build mutations.
    */
   /** This method only used by Bulk loader */
-  def insertBulkForLoader(createRelEdges: Boolean = true) = {
-    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
-    edge.toInvertedEdgeHashLike.buildPut() ++ relEdges.flatMap { relEdge =>
-      relEdge.edgesWithIndex.flatMap { e =>
-        e.kvs.map { kv =>
-          val put = new Put(kv.row)
-          put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
-        }
-      }
-    }
-  }
+//  def insertBulkForLoader(createRelEdges: Boolean = true) = {
+//    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
+//    edge.toInvertedEdgeHashLike.buildPut() ++ relEdges.flatMap { relEdge =>
+//      relEdge.edgesWithIndex.flatMap { e =>
+//        e.kvs.map { kv =>
+//          val put = new Put(kv.row)
+//          put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
+//        }
+//      }
+//    }
+//  }
 
 }
 

@@ -426,58 +426,58 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
       duration, isInverted, exclude, include, hasFilters).mkString("\t")
     //      duration, isInverted, exclude, include, hasFilters, outputFields).mkString("\t")
   }
-
-  def buildGetRequest(srcVertex: Vertex) = {
-    val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
-    val (srcInnerId, tgtInnerId) = tgtVertexInnerIdOpt match {
-      case Some(tgtVertexInnerId) => // _to is given.
-        /** we use toInvertedEdgeHashLike so dont need to swap src, tgt */
-        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
-        val tgt = InnerVal.convertVersion(tgtVertexInnerId, tgtColumn.columnType, label.schemaVersion)
-        (src, tgt)
-      case None =>
-        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
-        (src, src)
-    }
-
-    val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
-    val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
-    val edge = Edge(srcV, tgtV, labelWithDir)
-
-    val get = if (tgtVertexInnerIdOpt.isDefined) {
-      val snapshotEdge = edge.toInvertedEdgeHashLike
-      val kv = snapshotEdge.kvs.head
-      new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
-    } else {
-      val indexedEdgeOpt = edge.edgesWithIndex.find(e => e.labelIndexSeq == labelOrderSeq)
-      assert(indexedEdgeOpt.isDefined)
-      val indexedEdge = indexedEdgeOpt.get
-      val kv = indexedEdge.kvs.head
-      val table = label.hbaseTableName.getBytes
-        //kv.table //
-      val rowKey = kv.row // indexedEdge.rowKey.bytes
-      val cf = edgeCf
-      new GetRequest(table, rowKey, cf)
-    }
-
-    val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
-
-    get.maxVersions(1)
-    get.setFailfast(true)
-    get.setMaxResultsPerColumnFamily(limit)
-    get.setRowOffsetPerColumnFamily(offset)
-    get.setMinTimestamp(minTs)
-    get.setMaxTimestamp(maxTs)
-    get.setTimeout(rpcTimeoutInMillis)
-    if (columnRangeFilter != null) get.setFilter(columnRangeFilter)
-    //    get.setMaxAttempt(maxAttempt.toByte)
-    //    get.setRpcTimeout(rpcTimeoutInMillis)
-
-    //    if (columnRangeFilter != null) get.filter(columnRangeFilter)
-    //    logger.debug(s"Get: $get, $offset, $limit")
-
-    get
-  }
+//
+//  def buildGetRequest(srcVertex: Vertex) = {
+//    val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
+//    val (srcInnerId, tgtInnerId) = tgtVertexInnerIdOpt match {
+//      case Some(tgtVertexInnerId) => // _to is given.
+//        /** we use toInvertedEdgeHashLike so dont need to swap src, tgt */
+//        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
+//        val tgt = InnerVal.convertVersion(tgtVertexInnerId, tgtColumn.columnType, label.schemaVersion)
+//        (src, tgt)
+//      case None =>
+//        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
+//        (src, src)
+//    }
+//
+//    val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
+//    val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
+//    val edge = Edge(srcV, tgtV, labelWithDir)
+//
+//    val get = if (tgtVertexInnerIdOpt.isDefined) {
+//      val snapshotEdge = edge.toInvertedEdgeHashLike
+//      val kv = snapshotEdge.kvs.head
+//      new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
+//    } else {
+//      val indexedEdgeOpt = edge.edgesWithIndex.find(e => e.labelIndexSeq == labelOrderSeq)
+//      assert(indexedEdgeOpt.isDefined)
+//      val indexedEdge = indexedEdgeOpt.get
+//      val kv = indexedEdge.kvs.head
+//      val table = label.hbaseTableName.getBytes
+//        //kv.table //
+//      val rowKey = kv.row // indexedEdge.rowKey.bytes
+//      val cf = edgeCf
+//      new GetRequest(table, rowKey, cf)
+//    }
+//
+//    val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
+//
+//    get.maxVersions(1)
+//    get.setFailfast(true)
+//    get.setMaxResultsPerColumnFamily(limit)
+//    get.setRowOffsetPerColumnFamily(offset)
+//    get.setMinTimestamp(minTs)
+//    get.setMaxTimestamp(maxTs)
+//    get.setTimeout(rpcTimeoutInMillis)
+//    if (columnRangeFilter != null) get.setFilter(columnRangeFilter)
+//    //    get.setMaxAttempt(maxAttempt.toByte)
+//    //    get.setRpcTimeout(rpcTimeoutInMillis)
+//
+//    //    if (columnRangeFilter != null) get.filter(columnRangeFilter)
+//    //    logger.debug(s"Get: $get, $offset, $limit")
+//
+//    get
+//  }
 }
 
 case class TimeDecay(initial: Double = 1.0, lambda: Double = 0.1, timeUnit: Double = 60 * 60 * 24) {

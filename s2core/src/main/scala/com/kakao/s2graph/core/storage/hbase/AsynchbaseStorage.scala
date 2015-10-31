@@ -2,10 +2,6 @@ package com.kakao.s2graph.core.storage.hbase
 
 import java.util
 import java.util.ArrayList
-import java.util.concurrent.ConcurrentHashMap
-
-import com.google.common.cache.CacheBuilder
-import com.kakao.s2graph.core.Edge.MergeState
 import com.kakao.s2graph.core.Graph._
 import com.kakao.s2graph.core.mysqls.{LabelMeta, Label}
 import com.kakao.s2graph.core.parsers.WhereParser
@@ -92,18 +88,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     Await.result(deferredToFutureWithoutFallback(client.flush), Duration((clientFlushInterval + 10) * 20, duration.MILLISECONDS))
 
   /** public methods */
-  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean): Future[QueryResult] = {
-    //TODO:
-    val invertedEdge = Edge(srcVertex, tgtVertex, queryParam.labelWithDir).toInvertedEdgeHashLike
-    val getRequest = queryParam.tgtVertexInnerIdOpt(Option(invertedEdge.tgtVertex.innerId))
-      .buildGetRequest(invertedEdge.srcVertex)
-    val q = Query.toQuery(Seq(srcVertex), queryParam)
 
-    deferredToFuture(client.get(getRequest))(emptyKVs).map { kvs =>
-      val edgeWithScoreLs = Edge.toEdges(kvs, queryParam, prevScore = 1.0, isInnerCall = isInnerCall, Nil)
-      QueryResult(query = q, stepIdx = 0, queryParam = queryParam, edgeWithScoreLs = edgeWithScoreLs)
-    }
-  }
 
   def getEdges(q: Query): Future[Seq[QueryResult]] = {
     Try {
@@ -248,6 +233,17 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     deferredToFutureWithoutFallback(grouped).map(_.toSeq)
   }
 
+  private def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean): Future[QueryResult] = {
+    //TODO:
+    val _queryParam = queryParam.tgtVertexInnerIdOpt(Option(tgtVertex.innerId))
+    //    val invertedEdge = Edge(srcVertex, tgtVertex, _queryParam.labelWithDir).toInvertedEdgeHashLike
+    val q = Query.toQuery(Seq(srcVertex), _queryParam)
+    val queryRequest = QueryRequest(q, 0, srcVertex, _queryParam, 1.0, Option(tgtVertex), isInnerCall = true)
+    val fallback = QueryResult(q, 0, queryParam)
+
+    deferredToFuture(fetchQueryParam(queryRequest))(fallback)
+  }
+  
   private def buildRequest(queryRequest: QueryRequest): GetRequest = {
     val srcVertex = queryRequest.vertex
     val tgtVertexOpt = queryRequest.tgtVertexOpt
@@ -272,13 +268,13 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 
     val get = if (tgtVertexOpt.isDefined) {
       val snapshotEdge = edge.toInvertedEdgeHashLike
-      val kv = snapshotEdge.kvs.head
+      val kv = snapshotEdgeSerializer(snapshotEdge).toKeyValues.head
       new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
     } else {
       val indexedEdgeOpt = edge.edgesWithIndex.find(e => e.labelIndexSeq == queryParam.labelOrderSeq)
       assert(indexedEdgeOpt.isDefined)
       val indexedEdge = indexedEdgeOpt.get
-      val kv = indexedEdge.kvs.head
+      val kv = indexedEdgeSerializer(indexedEdge).toKeyValues.head
       val table = label.hbaseTableName.getBytes
       //kv.table //
       val rowKey = kv.row // indexedEdge.rowKey.bytes
@@ -346,20 +342,20 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
   }
 
   private def fetchStep(queryRequests: Seq[QueryRequest],
-                prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Deferred[util.ArrayList[QueryResult]] = {
+                        prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Deferred[util.ArrayList[QueryResult]] = {
     val defers = for {
       queryRequest <- queryRequests
     } yield {
-      val prevStepEdgesOpt = prevStepEdges.get(queryRequest.vertex.id)
-      if (prevStepEdgesOpt.isEmpty) throw new RuntimeException("miss match on prevStepEdge and current GetRequest")
+        val prevStepEdgesOpt = prevStepEdges.get(queryRequest.vertex.id)
+        if (prevStepEdgesOpt.isEmpty) throw new RuntimeException("miss match on prevStepEdge and current GetRequest")
 
-      val parentEdges = for {
-        parentEdge <- prevStepEdgesOpt.get
-      } yield parentEdge
+        val parentEdges = for {
+          parentEdge <- prevStepEdgesOpt.get
+        } yield parentEdge
 
-      val newQueryRequest = queryRequest.copy(parentEdges = parentEdges)
-      fetchhQueryParamWithCache(newQueryRequest)
-    }
+        val newQueryRequest = queryRequest.copy(parentEdges = parentEdges)
+        fetchhQueryParamWithCache(newQueryRequest)
+      }
     Deferred.group(defers)
   }
 
@@ -370,8 +366,8 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 
 
   def fetchStepWithFilter(queryResultsLs: Seq[QueryResult],
-                                  q: Query,
-                                  stepIdx: Int): Future[Seq[QueryResult]] = {
+                          q: Query,
+                          stepIdx: Int): Future[Seq[QueryResult]] = {
 
     val prevStepOpt = if (stepIdx > 0) Option(q.steps(stepIdx - 1)) else None
     val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(QueryParam.DefaultThreshold)
@@ -412,8 +408,8 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       (vertex, prevStepScore) <- nextStepSrcVertices
       queryParam <- step.queryParams
     } yield {
-      QueryRequest(q, stepIdx, vertex, queryParam, prevStepScore, None, Nil, isInnerCall = false)
-    }
+        QueryRequest(q, stepIdx, vertex, queryParam, prevStepScore, None, Nil, isInnerCall = false)
+      }
 
     val fallback = queryRequests.map(request => QueryResult(q, stepIdx, request.queryParam))
     val groupedDefer = fetchStep(queryRequests, prevStepTgtVertexIdEdges)
@@ -428,7 +424,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
   }
 
   def invertedEdgeMutations(edgeUpdate: EdgeUpdate): List[HBaseRpc] = {
-    edgeUpdate.newInvertedEdge.map(e =>buildDeleteAsync(e)).getOrElse(Nil)
+    edgeUpdate.newInvertedEdge.map(e => buildDeleteAsync(e)).getOrElse(Nil)
   }
 
   def increments(edgeUpdate: EdgeUpdate): List[HBaseRpc] = {
@@ -454,7 +450,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 
   /** EdgeWithIndex */
   def buildIncrementsAsync(indexedEdge: EdgeWithIndex, amount: Long = 1L): List[HBaseRpc] = {
-    indexedEdge.kvs.headOption match {
+    indexedEdgeSerializer(indexedEdge).toKeyValues.headOption match {
       case None => Nil
       case Some(kv) =>
         val copiedKV = kv.copy(_qualifier = Array.empty[Byte], _value = Bytes.toBytes(amount))
@@ -463,7 +459,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
   }
 
   def buildIncrementsCountAsync(indexedEdge: EdgeWithIndex, amount: Long = 1L): List[HBaseRpc] = {
-    indexedEdge.kvs.headOption match {
+    indexedEdgeSerializer(indexedEdge).toKeyValues.headOption match {
       case None => Nil
       case Some(kv) =>
         val copiedKV = kv.copy(_value = Bytes.toBytes(amount))
@@ -472,19 +468,20 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
   }
 
   def buildDeletesAsync(indexedEdge: EdgeWithIndex): List[HBaseRpc] = {
-    delete(indexedEdge.kvs).toList
+    delete(indexedEdgeSerializer(indexedEdge).toKeyValues).toList
   }
 
   def buildPutsAsync(indexedEdge: EdgeWithIndex): List[HBaseRpc] = {
-    put(indexedEdge.kvs).toList
+    put(indexedEdgeSerializer(indexedEdge).toKeyValues).toList
   }
 
   /** EdgeWithIndexInverted  */
   def buildPutAsync(snapshotEdge: EdgeWithIndexInverted): List[HBaseRpc] = {
-    put(snapshotEdge.kvs).toList
+    put(snapshotEdgeSerializer(snapshotEdge).toKeyValues).toList
   }
+
   def buildDeleteAsync(snapshotEdge: EdgeWithIndexInverted): List[HBaseRpc] = {
-    delete(snapshotEdge.kvs).toList
+    delete(snapshotEdgeSerializer(snapshotEdge).toKeyValues).toList
   }
 
   /** Vertex */
@@ -506,7 +503,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
   def buildDeleteBelongsToId(vertex: Vertex): List[HBaseRpc] = {
     val kv = vertex.kvs.head
     import org.apache.hadoop.hbase.util.Bytes
-    val newKVs = vertex.belongLabelIds.map { id => kv.copy(_qualifier = Bytes.toBytes(Vertex.toPropKey(id)) )}
+    val newKVs = vertex.belongLabelIds.map { id => kv.copy(_qualifier = Bytes.toBytes(Vertex.toPropKey(id))) }
     delete(newKVs).toList
   }
 
@@ -686,7 +683,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       // before: state with pending edges
 
       val after = buildPutAsync(snapshotEdge.toInvertedEdgeHashLike.withNoPendingEdge()).head.asInstanceOf[PutRequest]
-      val before = snapshotEdge.toInvertedEdgeHashLike.valueBytes
+      val before = snapshotEdgeSerializer(snapshotEdge.toInvertedEdgeHashLike).toKeyValues.head.value
       for {
         pendingEdgesLock <- mutateEdges(pendingEdges, withWait = true)
         ret <- if (pendingEdgesLock.forall(identity)) deferredToFutureWithoutFallback(client.compareAndSet(after, before)).map(_.booleanValue())
@@ -703,7 +700,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
     else {
       val lock = buildPutAsync(edgeUpdate.newInvertedEdge.get.withPendingEdge(Option(edge))).head.asInstanceOf[PutRequest]
-      val before = snapshotEdgeOpt.map(old => old.toInvertedEdgeHashLike.valueBytes).getOrElse(Array.empty[Byte])
+      val before = snapshotEdgeOpt.map(old => snapshotEdgeSerializer(old.toInvertedEdgeHashLike).toKeyValues.head.value).getOrElse(Array.empty[Byte])
       val after = buildPutAsync(edgeUpdate.newInvertedEdge.get.withNoPendingEdge()).head.asInstanceOf[PutRequest]
 
       def indexedEdgeMutationFuture(predicate: Boolean): Future[Boolean] = {
@@ -715,8 +712,8 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
         if (!predicate) Future.successful(false)
         else writeAsyncWithWaitRetrySimple(label.hbaseZkAddr, increments(edgeUpdate), 0).map { allSuccess =>
-//          if (!allSuccess) logger.error(s"indexedEdgeIncrement failed: $edgeUpdate")
-//          else logger.debug(s"indexedEdgeIncrement success: $edgeUpdate")
+          //          if (!allSuccess) logger.error(s"indexedEdgeIncrement failed: $edgeUpdate")
+          //          else logger.debug(s"indexedEdgeIncrement success: $edgeUpdate")
           allSuccess
         }
       }
@@ -787,6 +784,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     }
 
   }
+
   private def mutateEdgeInner(edgeWriter: EdgeWriter,
                               checkConsistency: Boolean,
                               withWait: Boolean)
