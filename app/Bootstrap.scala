@@ -1,3 +1,4 @@
+package com.kakao.s2graph.rest
 
 import java.util.concurrent.Executors
 
@@ -15,20 +16,21 @@ import scala.io.Source
 import scala.util.Try
 
 object Global extends WithFilters(new GzipFilter()) {
+  var s2graph: Graph = _
 
+  // Application entry point
   override def onStart(app: Application) {
+    ApplicationController.isHealthy = false
+
     val numOfThread = Config.conf.getInt("async.thread.size").getOrElse(Runtime.getRuntime.availableProcessors())
     val threadPool = if (numOfThread == -1) Executors.newCachedThreadPool() else Executors.newFixedThreadPool(numOfThread)
     val ex = ExecutionContext.fromExecutor(threadPool)
     val config = Config.conf.underlying
 
-    Graph(config)(ex)
+    // init s2graph with config
+    s2graph = new Graph(config)(ex)
 
-    logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
-
-    QueueActor.init()
-
-    ApplicationController.isHealthy = false
+    QueueActor.init(s2graph)
 
     if (Config.IS_WRITE_SERVER && Config.KAFKA_PRODUCER_POOL_SIZE > 0) {
       ExceptionHandler.apply(config)
@@ -39,6 +41,7 @@ object Global extends WithFilters(new GzipFilter()) {
 
     AdminController.loadCacheInner()
     ApplicationController.isHealthy = defaultHealthOn
+    logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
   }
 
   override def onStop(app: Application) {
@@ -51,7 +54,7 @@ object Global extends WithFilters(new GzipFilter()) {
     /**
      * shutdown hbase client for flush buffers.
      */
-    Graph.flush
+    s2graph.shutdown()
   }
 
   override def onError(request: RequestHeader, ex: Throwable): Future[Result] = {

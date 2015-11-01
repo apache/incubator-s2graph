@@ -3,7 +3,7 @@ package com.kakao.s2graph.core.storage.hbase
 import java.util
 import java.util.ArrayList
 
-import com.kakao.s2graph.core.Graph._
+import com.google.common.cache.Cache
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.{Label, LabelMeta}
 import com.kakao.s2graph.core.types._
@@ -22,8 +22,14 @@ import scala.concurrent.{Await, ExecutionContext, Future, duration}
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Random, Success, Try}
 
-class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) {
+class AsynchbaseStorage(config: Config,
+                        cache: Cache[Integer, Seq[QueryResult]],
+                        vertexCache: Cache[Integer, Option[Vertex]])
+                       (implicit ec: ExecutionContext) {
+
   private val emptyKVs = new util.ArrayList[KeyValue]()
+  val vertexCf = HGStorageSerializable.vertexCf
+  val edgeCf = HGStorageSerializable.edgeCf
 
   private def put(kvs: Seq[HKeyValue]): Seq[HBaseRpc] =
     kvs.map { kv => new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp) }
@@ -64,8 +70,11 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) {
   private val MaxRetryNum = this.config.getInt("max.retry.number")
 
   private def snapshotEdgeSerializer(snapshotEdge: EdgeWithIndexInverted) = new SnapshotEdgeHGStorageSerializable(snapshotEdge)
+
   private def indexedEdgeSerializer(indexedEdge: EdgeWithIndex) = new IndexedEdgeHGStorageSerializable(indexedEdge)
+
   private def vertexSerializer(vertex: Vertex) = new VertexHGStorageSerializable(vertex)
+
   private val snapshotEdgeDeserializer = SnapshotEdgeHGStorageDeserializable
   private val indexedEdgeDeserializer = IndexedEdgeHGStorageDeserializable
   private val vertexDeserializer = VertexHGStorageDeserializable
@@ -74,6 +83,14 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) {
     Await.result(deferredToFutureWithoutFallback(client.flush), Duration((clientFlushInterval + 10) * 20, duration.MILLISECONDS))
 
   /** public methods */
+  def fetchStepFuture(queryResultLsFuture: Future[Seq[QueryResult]], q: Query, stepIdx: Int): Future[Seq[QueryResult]] = {
+    for {
+      queryResultLs <- queryResultLsFuture
+      ret <- fetchStepWithFilter(queryResultLs, q, stepIdx)
+    } yield {
+      ret
+    }
+  }
 
   def getEdges(q: Query): Future[Seq[QueryResult]] = {
     Try {
@@ -445,7 +462,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) {
     val step = q.steps(stepIdx)
     val alreadyVisited =
       if (stepIdx == 0) Map.empty[(LabelWithDirection, Vertex), Boolean]
-      else alreadyVisitedVertices(queryResultsLs)
+      else Graph.alreadyVisitedVertices(queryResultsLs)
 
     //TODO:
     val groupedBy = queryResultsLs.flatMap { queryResult =>
@@ -483,7 +500,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) {
 
     val fallback = queryRequests.map(request => QueryResult(q, stepIdx, request.queryParam))
     val groupedDefer = fetchStep(queryRequests, prevStepTgtVertexIdEdges)
-    filterEdges(deferredToFuture(groupedDefer)(new ArrayList(fallback)), q, stepIdx, alreadyVisited)
+    Graph.filterEdges(deferredToFuture(groupedDefer)(new ArrayList(fallback)), q, stepIdx, alreadyVisited)(ec)
   }
 
   /** edge Update **/
@@ -973,15 +990,10 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) {
       writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(buildDeleteAsync(_))).map(_.forall(identity))
   }
 
-  /**
-   *
-   * @param vertices
-   * @return
-   */
-//  private def deleteVertices(vertices: Seq[Vertex]): Future[Seq[Boolean]] = {
-//    val futures = vertices.map { vertex => deleteVertex(vertex) }
-//    Future.sequence(futures)
-//  }
+  //  private def deleteVertices(vertices: Seq[Vertex]): Future[Seq[Boolean]] = {
+  //    val futures = vertices.map { vertex => deleteVertex(vertex) }
+  //    Future.sequence(futures)
+  //  }
 
   private def deleteAllFetchedEdgesAsync(queryResult: QueryResult,
                                          requestTs: Long,

@@ -1,9 +1,9 @@
 package com.kakao.s2graph.core.storage.hbase
 
 import com.kakao.s2graph.core.mysqls.LabelMeta
+import com.kakao.s2graph.core.storage.GraphSerializable
 import com.kakao.s2graph.core.types.VertexId
-import com.kakao.s2graph.core.{GraphUtil, Graph, JSONParser, EdgeWithIndex}
-import com.kakao.s2graph.core.storage.{GraphSerializable}
+import com.kakao.s2graph.core.{EdgeWithIndex, GraphUtil, JSONParser}
 import org.apache.hadoop.hbase.util.Bytes
 
 /**
@@ -13,7 +13,8 @@ case class IndexedEdgeHGStorageSerializable(indexedEdge: EdgeWithIndex) extends 
 
   val label = indexedEdge.label
   val table = label.hbaseTableName.getBytes()
-  val cf = Graph.edgeCf
+
+  val cf = HGStorageSerializable.edgeCf
   val idxPropsMap = indexedEdge.orders.toMap
   val idxPropsBytes = propsToBytes(indexedEdge.orders)
 

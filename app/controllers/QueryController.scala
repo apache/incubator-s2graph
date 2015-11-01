@@ -19,6 +19,8 @@ object QueryController extends Controller with RequestParser {
   import ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits.defaultContext
 
+  private val s2: Graph = com.kakao.s2graph.rest.Global.s2graph
+
   private def badQueryExceptionResults(ex: Exception) = Future.successful(BadRequest(Json.obj("message" -> ex.getMessage)).as(applicationJsonHeader))
 
   private def errorResults = Future.successful(Ok(PostProcess.timeoutResults).as(applicationJsonHeader))
@@ -33,12 +35,12 @@ object QueryController extends Controller with RequestParser {
 
   private def eachQuery(post: (Seq[QueryResult], Seq[QueryResult]) => JsValue)(q: Query): Future[JsValue] = {
     val filterOutQueryResultsLs = q.filterOutQuery match {
-      case Some(filterOutQuery) => Graph.getEdges(filterOutQuery)
+      case Some(filterOutQuery) => s2.getEdges(filterOutQuery)
       case None => Future.successful(Seq.empty)
     }
 
     for {
-      queryResultsLs <- Graph.getEdges(q)
+      queryResultsLs <- s2.getEdges(q)
       filterOutResultsLs <- filterOutQueryResultsLs
     } yield {
       val json = post(queryResultsLs, filterOutResultsLs)
@@ -86,8 +88,8 @@ object QueryController extends Controller with RequestParser {
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, Vector(q.steps.last))
 
-      val fetchFuture = Graph.getEdges(q)
-      val excludeFuture = Graph.getEdges(filterOutQuery)
+      val fetchFuture = s2.getEdges(q)
+      val excludeFuture = s2.getEdges(filterOutQuery)
 
       for {
         queryResultLs <- fetchFuture
@@ -152,8 +154,8 @@ object QueryController extends Controller with RequestParser {
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, Vector(q.steps.last))
 
-      val fetchFuture = Graph.getEdges(q)
-      val excludeFuture = Graph.getEdges(filterOutQuery)
+      val fetchFuture = s2.getEdges(q)
+      val excludeFuture = s2.getEdges(filterOutQuery)
 
       for {
         queryResultLs <- fetchFuture
@@ -185,8 +187,8 @@ object QueryController extends Controller with RequestParser {
       val q = toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, Vector(q.steps.last))
 
-      val fetchFuture = Graph.getEdges(q)
-      val excludeFuture = Graph.getEdges(filterOutQuery)
+      val fetchFuture = s2.getEdges(q)
+      val excludeFuture = s2.getEdges(filterOutQuery)
 
       for {
         queryResultLs <- fetchFuture
@@ -245,7 +247,7 @@ object QueryController extends Controller with RequestParser {
           (src, tgt, QueryParam(LabelWithDirection(label.id.get, dir)))
         }
 
-      Graph.checkEdges(quads).map { case queryResultLs =>
+      s2.checkEdges(quads).map { case queryResultLs =>
         val edgeJsons = for {
           queryResult <- queryResultLs
           (edge, score) <- queryResult.edgeWithScoreLs
@@ -289,7 +291,7 @@ object QueryController extends Controller with RequestParser {
         }
       }
 
-      Graph.getVertices(vertices) map { vertices =>
+      s2.getVertices(vertices) map { vertices =>
         val json = PostProcess.verticesToJson(vertices)
         jsonResponse(json, "result_size" -> calcSize(json).toString)
       }

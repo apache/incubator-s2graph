@@ -1,11 +1,11 @@
 package com.kakao.s2graph.core.storage.hbase
 
-import com.kakao.s2graph.core.{Graph, Vertex}
+import com.kakao.s2graph.core.Vertex
 import org.apache.hadoop.hbase.util.Bytes
 
 case class VertexHGStorageSerializable(vertex: Vertex) extends HGStorageSerializable {
 
-  val cf = Graph.vertexCf
+  val cf = HGStorageSerializable.vertexCf
 
   override def toKeyValues: Seq[HKeyValue] = {
     val row = vertex.id.bytes

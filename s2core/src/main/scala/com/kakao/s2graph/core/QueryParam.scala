@@ -1,10 +1,8 @@
 package com.kakao.s2graph.core
 
-import com.kakao.s2graph.core.Graph.edgeCf
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.{Where, WhereParser}
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{ColumnRangeFilter, GetRequest}
 import play.api.libs.json.{JsNumber, JsValue, Json}

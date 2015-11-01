@@ -19,11 +19,6 @@ import scala.concurrent._
 import scala.util.Try
 
 object Graph {
-  import scala.concurrent.ExecutionContext.Implicits.global
-
-  val vertexCf = "v".getBytes()
-  val edgeCf = "e".getBytes()
-
   val DefaultScore = 1.0
 
   val DefaultConfigs: Map[String, AnyRef] = Map(
@@ -43,92 +38,12 @@ object Graph {
     "max.retry.number" -> java.lang.Integer.valueOf(100)
   )
 
-  var config: Config = ConfigFactory.parseMap(DefaultConfigs)
-  var client: AsynchbaseStorage = null
-
-  lazy val cache = CacheBuilder.newBuilder()
-    .maximumSize(this.config.getInt("cache.max.size"))
-    .build[java.lang.Integer, Seq[QueryResult]]()
-
-  //TODO: Merge this into cache.
-  lazy val vertexCache = CacheBuilder.newBuilder()
-    .maximumSize(this.config.getInt("cache.max.size"))
-    .build[java.lang.Integer, Option[Vertex]]()
-
-  def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
-    this.config = config.withFallback(this.config)
-
-    Model(this.config)
-
-    this.client = new AsynchbaseStorage(config)
-
-    for {
-      entry <- this.config.entrySet() if DefaultConfigs.contains(entry.getKey)
-      (k, v) = (entry.getKey, entry.getValue)
-    } {
-      logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
-      println(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
-    }
-  }
-
-  def flush: Unit = client.flush
-
-  /** select */
-
-  def getEdges(q: Query): Future[Seq[QueryResult]] = client.getEdges(q)
-
-  def checkEdges(params: Seq[(Vertex, Vertex, QueryParam)]): Future[Seq[QueryResult]] = client.checkEdges(params)
-
-  def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = client.getVertices(vertices)
-
-  /** write */
-  def deleteAllAdjacentEdges(srcVertices: List[Vertex],
-                                  labels: Seq[Label],
-                                  dir: Int,
-                                  ts: Option[Long] = None,
-                                  walTopic: String): Future[Boolean] =
-    client.deleteAllAdjacentEdges(srcVertices, labels, dir, ts, walTopic)
-
-  def mutateElements(elements: Seq[GraphElement], withWait: Boolean = false): Future[Seq[Boolean]] = {
-    client.mutateElements(elements, withWait)
-  }
-
-  def mutateEdge(edge: Edge, withWait: Boolean = false): Future[Boolean] = client.mutateEdge(edge, withWait)
-
-  def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = client.mutateEdges(edges, withWait)
-
-  def mutateVertex(vertex: Vertex, withWait: Boolean = false): Future[Boolean] = client.mutateVertex(vertex, withWait)
-
-  def mutateVertices(vertices: Seq[Vertex], withWait: Boolean = false): Future[Seq[Boolean]] = client.mutateVertices(vertices, withWait)
-
-
-
-  /** common methods for filter out, transform, aggregate queryResult */
-
-  def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = client.incrementCounts(edges)
-
-
-  def alreadyVisitedVertices(queryResultLs: Seq[QueryResult]) = {
-    val vertices = for {
-      queryResult <- queryResultLs
-      (edge, score) <- queryResult.edgeWithScoreLs
-    } yield {
-        (edge.labelWithDir, if (edge.labelWithDir.dir == GraphUtil.directions("out")) edge.tgtVertex else edge.srcVertex) -> true
-      }
-    vertices.toMap
-  }
-
-
-  def convertEdges(queryParam: QueryParam, edge: Edge, nextStepOpt: Option[Step]): Seq[Edge] = {
-    for {
-      convertedEdge <- queryParam.transformer.transform(edge, nextStepOpt)
-    } yield convertedEdge
-  }
+  var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)
 
   /** helpers for filterEdges */
-  private type HashKey = (Int, Int, Int, Int, Boolean)
-  private type FilterHashKey = (Int, Int)
-  private type Result = (ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]],
+  type HashKey = (Int, Int, Int, Int, Boolean)
+  type FilterHashKey = (Int, Int)
+  type Result = (ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]],
     ConcurrentHashMap[HashKey, (FilterHashKey, Edge, Double)],
     ListBuffer[(HashKey, FilterHashKey, Edge, Double)])
 
@@ -141,6 +56,23 @@ object Graph {
     (hashKey, filterHashKey)
   }
 
+  def alreadyVisitedVertices(queryResultLs: Seq[QueryResult]) = {
+    val vertices = for {
+      queryResult <- queryResultLs
+      (edge, score) <- queryResult.edgeWithScoreLs
+    } yield {
+        (edge.labelWithDir, if (edge.labelWithDir.dir == GraphUtil.directions("out")) edge.tgtVertex else edge.srcVertex) -> true
+      }
+    vertices.toMap
+  }
+
+  /** common methods for filter out, transform, aggregate queryResult */
+  def convertEdges(queryParam: QueryParam, edge: Edge, nextStepOpt: Option[Step]): Seq[Edge] = {
+    for {
+      convertedEdge <- queryParam.transformer.transform(edge, nextStepOpt)
+    } yield convertedEdge
+  }
+
   def processTimeDecay(queryParam: QueryParam, edge: Edge) = {
     /** process time decay */
     val tsVal = queryParam.timeDecay match {
@@ -149,17 +81,19 @@ object Graph {
         val timeDiff = queryParam.timestamp - edge.ts
         timeDecay.decay(timeDiff)
     }
+
     tsVal
   }
 
   def aggregateScore(newScore: Double,
-                             resultEdges: ConcurrentHashMap[HashKey, (FilterHashKey, Edge, Double)],
-                             duplicateEdges: ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]],
-                             edgeWithScoreSorted: ListBuffer[(HashKey, FilterHashKey, Edge, Double)],
-                             hashKey: HashKey,
-                             filterHashKey: FilterHashKey,
-                             queryParam: QueryParam,
-                             convertedEdge: Edge) = {
+                     resultEdges: ConcurrentHashMap[HashKey, (FilterHashKey, Edge, Double)],
+                     duplicateEdges: ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]],
+                     edgeWithScoreSorted: ListBuffer[(HashKey, FilterHashKey, Edge, Double)],
+                     hashKey: HashKey,
+                     filterHashKey: FilterHashKey,
+                     queryParam: QueryParam,
+                     convertedEdge: Edge) = {
+
     /** skip duplicate policy check if consistencyLevel is strong */
     if (queryParam.label.consistencyLevel != "strong" && resultEdges.containsKey(hashKey)) {
       val (oldFilterHashKey, oldEdge, oldScore) = resultEdges.get(hashKey)
@@ -185,29 +119,10 @@ object Graph {
     }
   }
 
-  def queryResultWithFilter(queryResult: QueryResult) = {
-    val whereFilter = queryResult.queryParam.where.get
-    if (whereFilter == WhereParser.success) queryResult.edgeWithScoreLs
-    else queryResult.edgeWithScoreLs.withFilter(edgeWithScore => whereFilter.filter(edgeWithScore._1))
-  }
-
-  def buildConvertedEdges(queryParam: QueryParam,
-                                  edge: Edge,
-                                  nextStepOpt: Option[Step]) = {
-    if (queryParam.transformer.isDefault) Seq(edge) else convertEdges(queryParam, edge, nextStepOpt)
-  }
-
-  def fetchDuplicatedEdges(edge: Edge,
-                                   score: Double,
-                                   hashKey: HashKey,
-                                   duplicateEdges: ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]]) = {
-    (edge -> score) +: (if (duplicateEdges.containsKey(hashKey)) duplicateEdges.get(hashKey) else Seq.empty)
-  }
-
   def aggregateResults(queryResult: QueryResult,
-                               queryParamResult: Result,
-                               edgesToInclude: util.HashSet[FilterHashKey],
-                               edgesToExclude: util.HashSet[FilterHashKey]) = {
+                       queryParamResult: Result,
+                       edgesToInclude: util.HashSet[FilterHashKey],
+                       edgesToExclude: util.HashSet[FilterHashKey]) = {
     val (duplicateEdges, resultEdges, edgeWithScoreSorted) = queryParamResult
     val edgesWithScores = for {
       (hashKey, filterHashKey, edge, _) <- edgeWithScoreSorted if !edgesToExclude.contains(filterHashKey) || edgesToInclude.contains(filterHashKey)
@@ -218,10 +133,25 @@ object Graph {
     QueryResult(queryResult.query, queryResult.stepIdx, queryResult.queryParam, edgesWithScores)
   }
 
+  def fetchDuplicatedEdges(edge: Edge,
+                           score: Double,
+                           hashKey: HashKey,
+                           duplicateEdges: ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]]) = {
+    (edge -> score) +: (if (duplicateEdges.containsKey(hashKey)) duplicateEdges.get(hashKey) else Seq.empty)
+  }
+
+  def queryResultWithFilter(queryResult: QueryResult) = {
+    val whereFilter = queryResult.queryParam.where.get
+    if (whereFilter == WhereParser.success) queryResult.edgeWithScoreLs
+    else queryResult.edgeWithScoreLs.withFilter(edgeWithScore => whereFilter.filter(edgeWithScore._1))
+  }
+
   def filterEdges(queryResultLsFuture: Future[ArrayList[QueryResult]],
                   q: Query,
                   stepIdx: Int,
-                  alreadyVisited: Map[(LabelWithDirection, Vertex), Boolean] = Map.empty[(LabelWithDirection, Vertex), Boolean]): Future[Seq[QueryResult]] = {
+                  alreadyVisited: Map[(LabelWithDirection, Vertex), Boolean] = Map.empty[(LabelWithDirection, Vertex), Boolean])
+                 (implicit ec: scala.concurrent.ExecutionContext): Future[Seq[QueryResult]] = {
+
     queryResultLsFuture.map { queryResultLs =>
       val step = q.steps(stepIdx)
 
@@ -244,9 +174,9 @@ object Graph {
         val labelWeight = step.labelWeights.getOrElse(queryResult.queryParam.labelWithDir.labelId, 1.0)
 
         // store degree value with Array.empty so if degree edge exist, it comes at very first.
-        def checkDegree() = queryResult.edgeWithScoreLs.headOption.map { edgeWithScore =>
+        def checkDegree() = queryResult.edgeWithScoreLs.headOption.exists { edgeWithScore =>
           edgeWithScore._1.propsWithTs.containsKey(LabelMeta.degreeSeq)
-        }.getOrElse(false)
+        }
         var isDegree = checkDegree()
 
         val includeExcludeKey = queryResult.queryParam.labelWithDir.labelId -> queryResult.queryParam.labelWithDir.dir
@@ -301,15 +231,6 @@ object Graph {
         }
 
       aggregatedResults
-    }
-  }
-
-  def fetchStepFuture(queryResultLsFuture: Future[Seq[QueryResult]], q: Query, stepIdx: Int): Future[Seq[QueryResult]] = {
-    for {
-      queryResultLs <- queryResultLsFuture
-      ret <- client.fetchStepWithFilter(queryResultLs, q, stepIdx)
-    } yield {
-      ret
     }
   }
 
@@ -373,4 +294,65 @@ object Graph {
       logger.error(s"toVertex: $e", e)
       throw e
   } get
+}
+
+class Graph(_config: Config)(implicit ex: ExecutionContext) {
+  import Graph._
+
+  val config = _config.withFallback(DefaultConfig)
+  val cacheSize = config.getInt("cache.max.size")
+  val cache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Seq[QueryResult]]()
+  val vertexCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Option[Vertex]]()
+
+  Model(config)
+
+  // TODO: remove cache
+  val client = new AsynchbaseStorage(config, cache, vertexCache)(ex)
+
+  for {
+    entry <- config.entrySet() if DefaultConfigs.contains(entry.getKey)
+    (k, v) = (entry.getKey, entry.getValue)
+  } {
+    logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
+  }
+
+  def shutdown(): Unit = client.flush
+
+  /** select */
+
+  def getEdges(q: Query): Future[Seq[QueryResult]] = client.getEdges(q)
+
+  def checkEdges(params: Seq[(Vertex, Vertex, QueryParam)]): Future[Seq[QueryResult]] = client.checkEdges(params)
+
+  def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = client.getVertices(vertices)
+
+  /** write */
+  def deleteAllAdjacentEdges(srcVertices: List[Vertex],
+                             labels: Seq[Label],
+                             dir: Int,
+                             ts: Option[Long] = None,
+                             walTopic: String): Future[Boolean] =
+    client.deleteAllAdjacentEdges(srcVertices, labels, dir, ts, walTopic)
+
+  def mutateElements(elements: Seq[GraphElement], withWait: Boolean = false): Future[Seq[Boolean]] = {
+    client.mutateElements(elements, withWait)
+  }
+
+  def mutateEdge(edge: Edge, withWait: Boolean = false): Future[Boolean] = client.mutateEdge(edge, withWait)
+
+  def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = client.mutateEdges(edges, withWait)
+
+  def mutateVertex(vertex: Vertex, withWait: Boolean = false): Future[Boolean] = client.mutateVertex(vertex, withWait)
+
+  def mutateVertices(vertices: Seq[Vertex], withWait: Boolean = false): Future[Seq[Boolean]] = client.mutateVertices(vertices, withWait)
+
+
+  def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = client.incrementCounts(edges)
+
+
+  //  def buildConvertedEdges(queryParam: QueryParam,
+  //                          edge: Edge,
+  //                          nextStepOpt: Option[Step]) = {
+  //    if (queryParam.transformer.isDefault) Seq(edge) else convertEdges(queryParam, edge, nextStepOpt)
+  //  }
 }
