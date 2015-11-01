@@ -9,7 +9,7 @@ import scala.collection.mutable.ListBuffer
 /**
  * Created by shon on 10/29/15.
  */
-object VertexHGStorageDeserializable extends HGStorageDeserializable[Vertex] {
+trait VertexHGStorageDeserializable extends HGStorageDeserializable[Vertex] {
   def fromKeyValues(queryParam: QueryParam,
                     kvs: Seq[HKeyValue],
                     version: String,
@@ -44,3 +44,6 @@ object VertexHGStorageDeserializable extends HGStorageDeserializable[Vertex] {
     Vertex(vertexId, maxTs, propsMap.toMap, belongLabelIds = belongLabelIds)
   }
 }
+
+
+object VertexHGStorageDeserializable extends VertexHGStorageDeserializable

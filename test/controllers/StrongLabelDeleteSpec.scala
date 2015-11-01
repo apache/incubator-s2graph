@@ -2,7 +2,6 @@ package controllers
 
 import java.util.concurrent.TimeUnit
 
-import controllers.EdgeController
 import play.api.libs.json._
 import play.api.test.Helpers._
 import play.api.test.{FakeApplication, FakeRequest}
@@ -60,9 +59,6 @@ class StrongLabelDeleteSpec extends SpecCommon {
       val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(), withWait = true))
       Thread.sleep(asyncFlushInterval)
     }
-
-
-
 
     "test strong consistency select" in {
       running(FakeApplication()) {

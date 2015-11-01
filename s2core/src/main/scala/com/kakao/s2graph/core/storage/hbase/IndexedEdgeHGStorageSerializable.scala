@@ -9,7 +9,7 @@ import org.apache.hadoop.hbase.util.Bytes
 /**
  * Created by shon on 10/29/15.
  */
-case class IndexedEdgeHGStorageSerializable(indexedEdge: EdgeWithIndex) extends HGStorageSerializable[EdgeWithIndex] with JSONParser with GraphSerializable {
+case class IndexedEdgeHGStorageSerializable(indexedEdge: EdgeWithIndex) extends HGStorageSerializable with JSONParser with GraphSerializable {
 
   val label = indexedEdge.label
   val table = label.hbaseTableName.getBytes()

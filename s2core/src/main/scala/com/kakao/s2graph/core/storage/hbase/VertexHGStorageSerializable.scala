@@ -3,7 +3,7 @@ package com.kakao.s2graph.core.storage.hbase
 import com.kakao.s2graph.core.{Graph, Vertex}
 import org.apache.hadoop.hbase.util.Bytes
 
-case class VertexHGStorageSerializable(vertex: Vertex) extends HGStorageSerializable[Vertex] {
+case class VertexHGStorageSerializable(vertex: Vertex) extends HGStorageSerializable {
 
   val cf = Graph.vertexCf
 

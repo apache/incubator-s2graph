@@ -7,7 +7,7 @@ import com.kakao.s2graph.core.{Graph, JSONParser, EdgeWithIndexInverted}
 import org.apache.hadoop.hbase.util.Bytes
 
 
-case class SnapshotEdgeHGStorageSerializable(snapshotEdge: EdgeWithIndexInverted) extends HGStorageSerializable[EdgeWithIndexInverted] with JSONParser with GraphSerializable {
+class SnapshotEdgeHGStorageSerializable(snapshotEdge: EdgeWithIndexInverted) extends HGStorageSerializable with JSONParser with GraphSerializable {
 
   val label = snapshotEdge.label
   val table = label.hbaseTableName.getBytes()

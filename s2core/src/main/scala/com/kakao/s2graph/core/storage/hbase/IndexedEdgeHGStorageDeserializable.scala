@@ -10,11 +10,8 @@ import org.apache.hadoop.hbase.util.Bytes
  * Created by shon on 10/29/15.
  */
 trait IndexedEdgeHGStorageDeserializable extends HGStorageDeserializable[EdgeWithIndex] with GraphDeserializable {
-
-
   type QualifierRaw = (Array[(Byte, InnerValLike)], VertexId, Byte, Boolean, Int)
   type ValueRaw = (Array[(Byte, InnerValLike)], Int)
-
 
   private def parseDegreeQualifier(kv: HKeyValue, version: String): QualifierRaw = {
     val degree = Bytes.toLong(kv.value)
@@ -105,6 +102,5 @@ trait IndexedEdgeHGStorageDeserializable extends HGStorageDeserializable[EdgeWit
     EdgeWithIndex(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, mergedProps)
   }
 }
-
 
 object IndexedEdgeHGStorageDeserializable extends IndexedEdgeHGStorageDeserializable

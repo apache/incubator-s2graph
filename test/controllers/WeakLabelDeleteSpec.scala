@@ -1,6 +1,5 @@
 package controllers
 
-import controllers.EdgeController
 import play.api.libs.json._
 import play.api.test.Helpers._
 import play.api.test.{FakeApplication, FakeRequest}
@@ -72,7 +71,7 @@ class WeakLabelDeleteSpec extends SpecCommon {
         val edges = (result \ "results").as[List[JsObject]]
 
         contentAsJson(EdgeController.tryMutates(Json.toJson(edges), "delete", withWait = true))
-        Thread.sleep(asyncFlushInterval)
+        Thread.sleep(asyncFlushInterval * 2)
 
         /** expect noting */
         result = getEdges(query(0))

@@ -51,44 +51,29 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) {
     new HBaseClient(asyncConfig)
   }
 
-  val client = makeClient()
+  private val client = makeClient()
   logger.info(s"Asynchbase: ${client.getConfig.dumpConfiguration()}")
 
-  val clientWithFlush = makeClient("hbase.rpcs.buffered_flush_interval" -> "0")
+  private val clientWithFlush = makeClient("hbase.rpcs.buffered_flush_interval" -> "0")
   logger.info(s"AsynchbaseFlush: ${client.getConfig.dumpConfiguration()}")
 
-  val maxValidEdgeListSize = 10000
-  val DefaultScore = 1.0
+  private val maxValidEdgeListSize = 10000
+  private val MaxBackOff = 10
 
-  val MaxBackOff = 10
-  val clientFlushInterval = this.config.getInt("hbase.rpcs.buffered_flush_interval").toString().toShort
-  val MaxRetryNum = this.config.getInt("max.retry.number")
+  private val clientFlushInterval = this.config.getInt("hbase.rpcs.buffered_flush_interval").toString().toShort
+  private val MaxRetryNum = this.config.getInt("max.retry.number")
 
-  def snapshotEdgeSerializer(snapshotEdge: EdgeWithIndexInverted) =
-    SnapshotEdgeHGStorageSerializable(snapshotEdge)
-
-  def indexedEdgeSerializer(indexedEdge: EdgeWithIndex) =
-    IndexedEdgeHGStorageSerializable(indexedEdge)
-
-  def vertexSerializer(vertex: Vertex) =
-    VertexHGStorageSerializable(vertex)
-
-  val snapshotEdgeDeserializer =
-    SnapshotEdgeHGStorageDeserializable
-
-  val indexedEdgeDeserializer =
-    IndexedEdgeHGStorageDeserializable
-
-  val vertexDeserializer =
-    VertexHGStorageDeserializable
-
-  //  def toGKeyValue(kv: KeyValue) = HKeyValue.apply(kv)
+  private def snapshotEdgeSerializer(snapshotEdge: EdgeWithIndexInverted) = new SnapshotEdgeHGStorageSerializable(snapshotEdge)
+  private def indexedEdgeSerializer(indexedEdge: EdgeWithIndex) = new IndexedEdgeHGStorageSerializable(indexedEdge)
+  private def vertexSerializer(vertex: Vertex) = new VertexHGStorageSerializable(vertex)
+  private val snapshotEdgeDeserializer = SnapshotEdgeHGStorageDeserializable
+  private val indexedEdgeDeserializer = IndexedEdgeHGStorageDeserializable
+  private val vertexDeserializer = VertexHGStorageDeserializable
 
   def flush: Unit =
     Await.result(deferredToFutureWithoutFallback(client.flush), Duration((clientFlushInterval + 10) * 20, duration.MILLISECONDS))
 
   /** public methods */
-
 
   def getEdges(q: Query): Future[Seq[QueryResult]] = {
     Try {
@@ -144,6 +129,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) {
 
       else Future.successful(cacheVal)
     }
+
     Future.sequence(futures).map { result => result.toList.flatten }
   }
 
@@ -992,10 +978,10 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) {
    * @param vertices
    * @return
    */
-  private def deleteVertices(vertices: Seq[Vertex]): Future[Seq[Boolean]] = {
-    val futures = vertices.map { vertex => deleteVertex(vertex) }
-    Future.sequence(futures)
-  }
+//  private def deleteVertices(vertices: Seq[Vertex]): Future[Seq[Boolean]] = {
+//    val futures = vertices.map { vertex => deleteVertex(vertex) }
+//    Future.sequence(futures)
+//  }
 
   private def deleteAllFetchedEdgesAsync(queryResult: QueryResult,
                                          requestTs: Long,
