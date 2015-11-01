@@ -127,8 +127,8 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 
       if (kvs.isEmpty) None
       else {
-        val newKVs = kvs.map(Graph.client.toGKeyValue(_))
-        Option(Graph.client.vertexDeserializer.fromKeyValues(queryParam, newKVs, version, None))
+        val newKVs = kvs.map(toGKeyValue(_))
+        Option(vertexDeserializer.fromKeyValues(queryParam, newKVs, version, None))
       }
     }
 
@@ -347,10 +347,80 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       fetchQueryParam(queryRequest).addBoth(queryResultCallback(cacheKey))
     }
   }
+  def toEdges(kvs: Seq[KeyValue], queryParam: QueryParam,
+              prevScore: Double = 1.0,
+              isInnerCall: Boolean,
+              parentEdges: Seq[EdgeWithScore]): Seq[(Edge, Double)] = {
+    if (kvs.isEmpty) Seq.empty
+    else {
+      val first = kvs.head
+      val kv = toGKeyValue(first)
+      val cacheElementOpt =
+        if (queryParam.isSnapshotEdge) None
+        else Option(indexedEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion))
+
+      for {
+        kv <- kvs
+        edge <-
+        if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, None, isInnerCall, parentEdges)
+        else toEdge(kv, queryParam, cacheElementOpt, parentEdges)
+      } yield {
+        //TODO: Refactor this.
+        val currentScore =
+          queryParam.scorePropagateOp match {
+            case "plus" => edge.rank(queryParam.rank) + prevScore
+            case _ => edge.rank(queryParam.rank) * prevScore
+          }
+        (edge, currentScore)
+      }
+    }
+  }
+
+  def toSnapshotEdge(kv: KeyValue, param: QueryParam,
+                     cacheElementOpt: Option[EdgeWithIndexInverted] = None,
+                     isInnerCall: Boolean,
+                     parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
+//    logger.debug(s"$param -> $kv")
+    val kvs = Seq(toGKeyValue(kv))
+    val snapshotEdge = snapshotEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
+
+    if (isInnerCall) {
+      val edge = snapshotEdgeDeserializer.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
+      val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
+        Some(edge)
+      } else {
+        None
+      }
+
+      ret
+    } else {
+      if (Edge.allPropsDeleted(snapshotEdge.props)) None
+      else {
+        val edge = snapshotEdgeDeserializer.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
+        val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
+          logger.debug(s"fetchedEdge: $edge")
+          Some(edge)
+        } else {
+          None
+        }
+        ret
+      }
+    }
+  }
+
+  def toEdge(kv: KeyValue, param: QueryParam,
+             cacheElementOpt: Option[EdgeWithIndex] = None,
+             parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
+//    logger.debug(s"$param -> $kv")
+    val kvs = Seq(toGKeyValue(kv))
+    val edgeWithIndex = indexedEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
+    Option(indexedEdgeDeserializer.toEdge(edgeWithIndex))
+    //    None
+  }
 
   private def fetchQueryParam(queryRequest: QueryRequest): Deferred[QueryResult] = {
     val successCallback = (kvs: util.ArrayList[KeyValue]) => {
-      val edgeWithScores = Edge.toEdges(kvs.toSeq, queryRequest.queryParam, queryRequest.prevStepScore, queryRequest.isInnerCall, queryRequest.parentEdges)
+      val edgeWithScores = toEdges(kvs.toSeq, queryRequest.queryParam, queryRequest.prevStepScore, queryRequest.isInnerCall, queryRequest.parentEdges)
       QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam, edgeWithScores)
     }
     val fallback = QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam)
@@ -1039,6 +1109,4 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       }
     }
   }
-
-
 }

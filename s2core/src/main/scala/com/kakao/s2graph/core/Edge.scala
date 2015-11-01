@@ -4,9 +4,6 @@ package com.kakao.s2graph.core
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.logger
-import org.apache.hadoop.hbase.client.{Delete, Put}
-import org.apache.hadoop.hbase.util.Bytes
-import org.hbase.async._
 import play.api.libs.json.Json
 
 import scala.collection.JavaConversions._
@@ -305,6 +302,20 @@ object Edge extends JSONParser {
   type MergeState = PropsPairWithTs => (State, Boolean)
   type UpdateFunc = (Option[Edge], Edge, MergeState)
 
+  def allPropsDeleted(props: Map[Byte, InnerValLikeWithTs]): Boolean = {
+    if (!props.containsKey(LabelMeta.lastDeletedAt)) false
+    else {
+      val lastDeletedAt = props.get(LabelMeta.lastDeletedAt).get.ts
+      for {
+        (k, v) <- props if k != LabelMeta.lastDeletedAt
+      } {
+        if (v.ts > lastDeletedAt) return false
+      }
+      true
+    }
+  }
+
+
   def buildUpsert(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeUpdate) = {
 //    assert(requestEdge.op == GraphUtil.operations("insert"))
     buildOperation(invertedEdge, Seq(requestEdges))
@@ -587,93 +598,5 @@ object Edge extends JSONParser {
     ((existInOld.flatten ++ mustExistInNew).toMap, shouldReplace)
   }
 
-  def allPropsDeleted(props: Map[Byte, InnerValLikeWithTs]): Boolean = {
-    if (!props.containsKey(LabelMeta.lastDeletedAt)) false
-    else {
-      val lastDeletedAt = props.get(LabelMeta.lastDeletedAt).get.ts
-      for {
-        (k, v) <- props if k != LabelMeta.lastDeletedAt
-      } {
-        if (v.ts > lastDeletedAt) return false
-      }
-      true
-    }
-  }
-
-
   def fromString(s: String): Option[Edge] = Graph.toEdge(s)
-
-
-  def toEdges(kvs: Seq[KeyValue], queryParam: QueryParam,
-              prevScore: Double = 1.0,
-              isInnerCall: Boolean,
-              parentEdges: Seq[EdgeWithScore]): Seq[(Edge, Double)] = {
-    if (kvs.isEmpty) Seq.empty
-    else {
-      val first = kvs.head
-      val kv = Graph.client.toGKeyValue(first)
-      val cacheElementOpt =
-        if (queryParam.isSnapshotEdge) None
-        else Option(Graph.client.indexedEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion))
-
-      for {
-        kv <- kvs
-        edge <-
-        if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, None, isInnerCall, parentEdges)
-        else toEdge(kv, queryParam, cacheElementOpt, parentEdges)
-      } yield {
-        //TODO: Refactor this.
-        val currentScore =
-          queryParam.scorePropagateOp match {
-            case "plus" => edge.rank(queryParam.rank) + prevScore
-            case _ => edge.rank(queryParam.rank) * prevScore
-          }
-        (edge, currentScore)
-      }
-    }
-  }
-
-  def toSnapshotEdge(kv: KeyValue, param: QueryParam,
-                     cacheElementOpt: Option[EdgeWithIndexInverted] = None,
-                     isInnerCall: Boolean,
-                     parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
-//    logger.debug(s"$param -> $kv")
-    val kvs = Seq(Graph.client.toGKeyValue(kv))
-    val snapshotEdge = Graph.client.snapshotEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
-
-    if (isInnerCall) {
-      val edge = Graph.client.snapshotEdgeDeserializer.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
-      val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
-        Some(edge)
-      } else {
-        None
-      }
-
-      ret
-    } else {
-      if (allPropsDeleted(snapshotEdge.props)) None
-      else {
-        val edge = Graph.client.snapshotEdgeDeserializer.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
-        val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
-          logger.debug(s"fetchedEdge: $edge")
-          Some(edge)
-        } else {
-          None
-        }
-        ret
-      }
-    }
-  }
-
-  def toEdge(kv: KeyValue, param: QueryParam,
-             cacheElementOpt: Option[EdgeWithIndex] = None,
-             parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
-//    logger.debug(s"$param -> $kv")
-    val kvs = Seq(Graph.client.toGKeyValue(kv))
-    val edgeWithIndex = Graph.client.indexedEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
-    Option(Graph.client.indexedEdgeDeserializer.toEdge(edgeWithIndex))
-    //    None
-  }
-
-
 }
