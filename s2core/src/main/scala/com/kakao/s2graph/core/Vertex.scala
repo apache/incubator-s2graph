@@ -5,8 +5,6 @@ import com.kakao.s2graph.core.mysqls._
 //import com.kakao.s2graph.core.models._
 
 import com.kakao.s2graph.core.types._
-import org.apache.hadoop.hbase.client.{Delete, Put}
-import org.hbase.async.{DeleteRequest, GetRequest, HBaseRpc, PutRequest}
 import play.api.libs.json.Json
 
 import scala.collection.mutable.ListBuffer
@@ -18,9 +16,6 @@ case class Vertex(id: VertexId,
                   props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
                   op: Byte = 0,
                   belongLabelIds: Seq[Int] = Seq.empty) extends GraphElement {
-
-  import Graph.vertexCf
-  import Vertex._
 
   val innerId = id.innerId
 
@@ -34,8 +29,7 @@ case class Vertex(id: VertexId,
 
   def defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq.toInt -> InnerVal.withLong(ts, schemaVer))
 
-  lazy val kvs = Graph.client.vertexSerializer(this).toKeyValues
-
+//  lazy val kvs = Graph.client.vertexSerializer(this).toKeyValues
 
   /** TODO: make this as configurable */
   override def serviceName = service.serviceName
@@ -51,22 +45,21 @@ case class Vertex(id: VertexId,
     meta <- ColumnMeta.findByIdAndSeq(id.colId, seq.toByte)
   } yield (meta.name -> v.toString)
 
-  /** only used by bulk loader */
-  def buildPuts(): List[Put] = {
-    //    logger.error(s"put: $this => $rowKey")
-//    val put = new Put(rowKey.bytes)
-//    for ((q, v) <- qualifiersWithValues) {
-//      put.addColumn(vertexCf, q, ts, v)
+//  /** only used by bulk loader */
+//  def buildPuts(): List[Put] = {
+//    //    logger.error(s"put: $this => $rowKey")
+////    val put = new Put(rowKey.bytes)
+////    for ((q, v) <- qualifiersWithValues) {
+////      put.addColumn(vertexCf, q, ts, v)
+////    }
+////    List(put)
+//    val kv = kvs.head
+//    val put = new Put(kv.row)
+//    kvs.map { kv =>
+//      put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
 //    }
 //    List(put)
-    val kv = kvs.head
-    val put = new Put(kv.row)
-    kvs.map { kv =>
-      put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
-    }
-    List(put)
-  }
-
+//  }
 
   def toEdgeVertex() = Vertex(SourceVertexId(id.colId, innerId), ts, props, op)
 
@@ -112,14 +105,4 @@ object Vertex {
   //  val emptyVertex = Vertex(new CompositeId(CompositeId.defaultColId, CompositeId.defaultInnerId, false, true),
   //    System.currentTimeMillis())
   def fromString(s: String): Option[Vertex] = Graph.toVertex(s)
-
-  def apply(queryParam: QueryParam,
-            kvs: Seq[org.hbase.async.KeyValue],
-            version: String): Option[Vertex] = {
-    if (kvs.isEmpty) None
-    else {
-      val newKVs = kvs.map(Graph.client.toGKeyValue(_))
-      Option(Graph.client.vertexDeserializer.fromKeyValues(queryParam, newKVs, version, None))
-    }
-  }
 }

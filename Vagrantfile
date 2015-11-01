@@ -13,30 +13,35 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.network "private_network", ip: "192.168.15.166"
 
   # Hadoop web UI ports
-  config.vm.network :forwarded_port, guest: 50070, host: 50171
-  config.vm.network :forwarded_port, guest: 50075, host: 50176
-  config.vm.network :forwarded_port, guest: 50090, host: 50191
+  # 2181:2181 -p 60010:60010 -p 60000:60000 -p 60020:60020 -p 60030:60030
+  # config.vm.network :forwarded_port, guest: 50070, host: 50171
+  # config.vm.network :forwarded_port, guest: 50075, host: 50176
+  # config.vm.network :forwarded_port, guest: 50090, host: 50191
+
   # HBase web UI ports
-  config.vm.network :forwarded_port, guest: 60010, host: 60111
-  config.vm.network :forwarded_port, guest: 60030, host: 60131
+  # config.vm.network :forwarded_port, guest: 60000, host: 60000
+  # config.vm.network :forwarded_port, guest: 60010, host: 60010
+  # config.vm.network :forwarded_port, guest: 60020, host: 60020
+  # config.vm.network :forwarded_port, guest: 60030, host: 60030
+
   # Thrift
-  config.vm.network :forwarded_port, guest: 9090, host: 9191
+  # config.vm.network :forwarded_port, guest: 9090, host: 9090
   # ZooKeeper
-  config.vm.network :forwarded_port, guest: 2181, host: 2282
+  # config.vm.network :forwarded_port, guest: 2181, host: 2181
   # MySQL
-  config.vm.network :forwarded_port, guest: 3306, host: 3307 
+  config.vm.network :forwarded_port, guest: 3306, host: 3306 
   # Play
-  config.vm.network :forwarded_port, guest: 9000, host: 9000
+  # config.vm.network :forwarded_port, guest: 9000, host: 9000
 
   config.ssh.username = 'vagrant'
 	config.ssh.password = 'vagrant'
 
   # Share an additional folder to the guest VM. The first argument is the path on the host to the actual folder.
   # The second argument is the path on the guest to mount the folder.
-  config.vm.synced_folder "./", "/home/vagrant/s2graph"
+  # config.vm.synced_folder "./", "/home/vagrant/s2graph"
 
   # increase available memory
   config.vm.provider :virtualbox do |vb|
-     vb.customize ["modifyvm", :id, "--memory", "4096"]
+     vb.customize ["modifyvm", :id, "--memory", "1024"]
   end
 end

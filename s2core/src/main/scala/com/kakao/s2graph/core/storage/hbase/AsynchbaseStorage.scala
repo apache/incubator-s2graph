@@ -39,22 +39,26 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 
   override def fetch(): Seq[GKeyValue] = Nil
 
-  def loadAsyncConfig() = {
-    for (entry <- config.entrySet() if entry.getKey.contains("hbase")) {
-      this.asyncConfig.overrideConfig(entry.getKey, entry.getValue.unwrapped().toString)
-    }
-  }
-
   var emptyKVs = new ArrayList[KeyValue]()
 
-  val asyncConfig: org.hbase.async.Config = new org.hbase.async.Config()
-  loadAsyncConfig()
-  val client = new HBaseClient(asyncConfig)
+  private def makeClient(overrideKv: (String, String)*) = {
+    val asyncConfig: org.hbase.async.Config = new org.hbase.async.Config()
+
+    for (entry <- config.entrySet() if entry.getKey.contains("hbase")) {
+      asyncConfig.overrideConfig(entry.getKey, entry.getValue.unwrapped().toString)
+    }
+
+    for ((k, v) <- overrideKv) {
+      asyncConfig.overrideConfig(k, v)
+    }
+
+    new HBaseClient(asyncConfig)
+  }
+
+  val client = makeClient()
   logger.info(s"Asynchbase: ${client.getConfig.dumpConfiguration()}")
 
-
-  asyncConfig.overrideConfig("hbase.rpcs.buffered_flush_interval", "0")
-  val clientWithFlush = new HBaseClient(asyncConfig)
+  val clientWithFlush = makeClient("hbase.rpcs.buffered_flush_interval" -> "0")
   logger.info(s"AsynchbaseFlush: ${client.getConfig.dumpConfiguration()}")
 
   val maxValidEdgeListSize = 10000
@@ -117,8 +121,20 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
   }
 
   def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
+    def fromResult(queryParam: QueryParam,
+                     kvs: Seq[org.hbase.async.KeyValue],
+                     version: String): Option[Vertex] = {
+
+      if (kvs.isEmpty) None
+      else {
+        val newKVs = kvs.map(Graph.client.toGKeyValue(_))
+        Option(Graph.client.vertexDeserializer.fromKeyValues(queryParam, newKVs, version, None))
+      }
+    }
+
     val futures = vertices.map { vertex =>
-      val get = new GetRequest(vertex.hbaseTableName.getBytes, vertex.kvs.head.row, vertexCf)
+      val kvs = vertexSerializer(vertex).toKeyValues
+      val get = new GetRequest(vertex.hbaseTableName.getBytes, kvs.head.row, vertexCf)
       //      get.setTimeout(this.singleGetTimeout.toShort)
       get.setFailfast(true)
       get.maxVersions(1)
@@ -127,8 +143,9 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       val cacheVal = vertexCache.getIfPresent(cacheKey)
       if (cacheVal == null)
         deferredToFuture(client.get(get))(emptyKVs).map { kvs =>
-          Vertex(QueryParam.Empty, kvs, vertex.serviceColumn.schemaVersion)
+          fromResult(QueryParam.Empty, kvs, vertex.serviceColumn.schemaVersion)
         }
+
       else Future.successful(cacheVal)
     }
     Future.sequence(futures).map { result => result.toList.flatten }
@@ -243,7 +260,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 
     deferredToFuture(fetchQueryParam(queryRequest))(fallback)
   }
-  
+
   private def buildRequest(queryRequest: QueryRequest): GetRequest = {
     val srcVertex = queryRequest.vertex
     val tgtVertexOpt = queryRequest.tgtVertexOpt
@@ -454,7 +471,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       case None => Nil
       case Some(kv) =>
         val copiedKV = kv.copy(_qualifier = Array.empty[Byte], _value = Bytes.toBytes(amount))
-        Graph.client.increment(Seq(copiedKV)).toList
+        increment(Seq(copiedKV)).toList
     }
   }
 
@@ -463,7 +480,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       case None => Nil
       case Some(kv) =>
         val copiedKV = kv.copy(_value = Bytes.toBytes(amount))
-        Graph.client.increment(Seq(copiedKV)).toList
+        increment(Seq(copiedKV)).toList
     }
   }
 
@@ -485,10 +502,15 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
   }
 
   /** Vertex */
-  def buildPutsAsync(vertex: Vertex): List[HBaseRpc] = put(vertex.kvs).toList
+  def buildPutsAsync(vertex: Vertex): List[HBaseRpc] = {
+    val kvs = vertexSerializer(vertex).toKeyValues
+    put(kvs).toList
+  }
 
   def buildDeleteAsync(vertex: Vertex): List[HBaseRpc] = {
-    val kv = vertex.kvs.head
+
+    val kvs = vertexSerializer(vertex).toKeyValues
+    val kv = kvs.head
     delete(Seq(kv.copy(_qualifier = null))).toList
   }
 
@@ -501,7 +523,9 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 
   /** */
   def buildDeleteBelongsToId(vertex: Vertex): List[HBaseRpc] = {
-    val kv = vertex.kvs.head
+    val kvs = vertexSerializer(vertex).toKeyValues
+    val kv = kvs.head
+
     import org.apache.hadoop.hbase.util.Bytes
     val newKVs = vertex.belongLabelIds.map { id => kv.copy(_qualifier = Bytes.toBytes(Vertex.toPropKey(id))) }
     delete(newKVs).toList

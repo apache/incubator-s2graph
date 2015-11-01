@@ -20,21 +20,19 @@ object Global extends WithFilters(new GzipFilter()) {
     val numOfThread = Config.conf.getInt("async.thread.size").getOrElse(Runtime.getRuntime.availableProcessors())
     val threadPool = if (numOfThread == -1) Executors.newCachedThreadPool() else Executors.newFixedThreadPool(numOfThread)
     val ex = ExecutionContext.fromExecutor(threadPool)
-    Graph(Config.conf.underlying)(ex)
-    logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
+    val config = Config.conf.underlying
 
+    Graph(config)(ex)
+
+    logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
 
     QueueActor.init()
 
     ApplicationController.isHealthy = false
 
     if (Config.IS_WRITE_SERVER && Config.KAFKA_PRODUCER_POOL_SIZE > 0) {
-      ExceptionHandler.init()
+      ExceptionHandler.apply(config)
     }
-
-
-
-
 
     val defaultHealthOn = Config.conf.getBoolean("app.health.on").getOrElse(true)
     ApplicationController.deployInfo = Try(Source.fromFile("./release_info").mkString("")).recover { case _ => "release info not found\n" }.get

@@ -1,40 +1,28 @@
 package com.kakao.s2graph.core
 
 import java.util
-import java.util.{Properties, ArrayList}
-import java.util.concurrent.{ConcurrentHashMap, Executors}
+import java.util.ArrayList
+import java.util.concurrent.ConcurrentHashMap
 
-import com.kakao.s2graph.core.Edge._
-import com.kakao.s2graph.core.storage.GStorable
-import com.kakao.s2graph.core.storage.hbase._
+import com.google.common.cache.CacheBuilder
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
-import com.kakao.s2graph.core.storage.hbase.HGKeyValue
+import com.kakao.s2graph.core.storage.hbase._
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.utils.DeferOp._
-import com.google.common.cache.CacheBuilder
 import com.kakao.s2graph.core.utils.logger
-import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.hadoop.hbase.HBaseConfiguration
-import org.apache.hadoop.hbase.client._
-import org.hbase.async
-import org.hbase.async._
-import play.api.libs.json.Json
 
 import scala.collection.JavaConversions._
 import scala.collection._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent._
-import scala.util.{Random, Failure, Success, Try}
-
+import scala.util.Try
 
 object Graph {
   import scala.concurrent.ExecutionContext.Implicits.global
 
   val vertexCf = "v".getBytes()
   val edgeCf = "e".getBytes()
-
 
   val DefaultScore = 1.0
 
@@ -57,9 +45,6 @@ object Graph {
 
   var config: Config = ConfigFactory.parseMap(DefaultConfigs)
   var client: AsynchbaseStorage = null
-//  lazy val client = {
-//    new AsynchbaseStorage(config)
-//  }
 
   lazy val cache = CacheBuilder.newBuilder()
     .maximumSize(this.config.getInt("cache.max.size"))
@@ -70,12 +55,13 @@ object Graph {
     .maximumSize(this.config.getInt("cache.max.size"))
     .build[java.lang.Integer, Option[Vertex]]()
 
-
   def apply(config: com.typesafe.config.Config)(implicit ex: ExecutionContext) = {
     this.config = config.withFallback(this.config)
+
     Model(this.config)
-    ExceptionHandler.apply(config)
+
     this.client = new AsynchbaseStorage(config)
+
     for {
       entry <- this.config.entrySet() if DefaultConfigs.contains(entry.getKey)
       (k, v) = (entry.getKey, entry.getValue)
@@ -85,16 +71,9 @@ object Graph {
     }
   }
 
-
-
   def flush: Unit = client.flush
 
-
-
   /** select */
-//  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean): Future[QueryResult] = {
-//    client.getEdge(srcVertex, tgtVertex, queryParam, isInnerCall)
-//  }
 
   def getEdges(q: Query): Future[Seq[QueryResult]] = client.getEdges(q)
 

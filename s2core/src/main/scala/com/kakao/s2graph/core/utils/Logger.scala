@@ -48,7 +48,7 @@ object SafeUpdateCache {
   case class CacheKey(key: String)
 }
 
-class SafeUpdateCache[T, M[_]](prefix: String, maxSize: Int, ttl: Int)(implicit executionContext: ExecutionContext) {
+class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(implicit executionContext: ExecutionContext) {
   import SafeUpdateCache._
 
   implicit class StringOps(key: String) {
@@ -57,13 +57,13 @@ class SafeUpdateCache[T, M[_]](prefix: String, maxSize: Int, ttl: Int)(implicit 
 
   def toTs() = (System.currentTimeMillis() / 1000).toInt
 
-  private val cache = CacheBuilder.newBuilder().maximumSize(maxSize).build[CacheKey, (M[T], Int, AtomicBoolean)]()
+  private val cache = CacheBuilder.newBuilder().maximumSize(maxSize).build[CacheKey, (T, Int, AtomicBoolean)]()
 
-  def put(key: String, value: M[T]) = cache.put(key.toCacheKey, (value, toTs, new AtomicBoolean(false)))
+  def put(key: String, value: T) = cache.put(key.toCacheKey, (value, toTs, new AtomicBoolean(false)))
 
   def invalidate(key: String) = cache.invalidate(key.toCacheKey)
 
-  def withCache(key: String)(op: => M[T]): M[T] = {
+  def withCache(key: String)(op: => T): T = {
     val newKey = key.toCacheKey
     val cachedValWithTs = cache.getIfPresent(newKey)
 
