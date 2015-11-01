@@ -10,15 +10,15 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
 
 
-trait GStorable[I, D, C] {
-
-  def put(kvs: Seq[GKeyValue]): Seq[I]
-
-  def delete(kvs: Seq[GKeyValue]): Seq[D]
-
-  def increment(kvs: Seq[GKeyValue]): Seq[C]
-
-  def fetch(): Seq[GKeyValue]
-
-}
+//trait GStorable[I, D, C] {
+//
+//  def put(kvs: Seq[GKeyValue]): Seq[I]
+//
+//  def delete(kvs: Seq[GKeyValue]): Seq[D]
+//
+//  def increment(kvs: Seq[GKeyValue]): Seq[C]
+//
+//  def fetch(): Seq[GKeyValue]
+//
+//}
 

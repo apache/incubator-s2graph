@@ -1,6 +1,5 @@
 package com.kakao.s2graph.core.storage.hbase
 
-import com.kakao.s2graph.core.storage.GKeyValue
 import com.kakao.s2graph.core.types.{InnerVal, InnerValLike, VertexId}
 import com.kakao.s2graph.core.{Vertex, QueryParam}
 import org.apache.hadoop.hbase.util.Bytes
@@ -12,7 +11,7 @@ import scala.collection.mutable.ListBuffer
  */
 object VertexHGStorageDeserializable extends HGStorageDeserializable[Vertex] {
   def fromKeyValues(queryParam: QueryParam,
-                    kvs: Seq[GKeyValue],
+                    kvs: Seq[HKeyValue],
                     version: String,
                     cacheElementOpt: Option[Vertex]): Vertex = {
 

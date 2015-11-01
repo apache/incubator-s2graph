@@ -3,7 +3,7 @@ package com.kakao.s2graph.core.storage.hbase
 import com.kakao.s2graph.core.mysqls.LabelMeta
 import com.kakao.s2graph.core.types.VertexId
 import com.kakao.s2graph.core.{GraphUtil, Graph, JSONParser, EdgeWithIndex}
-import com.kakao.s2graph.core.storage.{GKeyValue, GraphSerializable}
+import com.kakao.s2graph.core.storage.{GraphSerializable}
 import org.apache.hadoop.hbase.util.Bytes
 
 /**
@@ -18,7 +18,7 @@ case class IndexedEdgeHGStorageSerializable(indexedEdge: EdgeWithIndex) extends 
   val idxPropsBytes = propsToBytes(indexedEdge.orders)
 
   /** version 1 and version 2 share same code for serialize row key part */
-  override def toKeyValues: Seq[GKeyValue] = {
+  override def toKeyValues: Seq[HKeyValue] = {
     val srcIdBytes = VertexId.toSourceVertexId(indexedEdge.srcVertex.id).bytes
     val labelWithDirBytes = indexedEdge.labelWithDir.bytes
     val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsInverted(indexedEdge.labelIndexSeq, isInverted = false)
@@ -36,7 +36,7 @@ case class IndexedEdgeHGStorageSerializable(indexedEdge: EdgeWithIndex) extends 
       }
 
     val value = propsToKeyValues(indexedEdge.metas.toSeq)
-    val kv = HGKeyValue(table, row, cf, qualifier, value, indexedEdge.ts)
+    val kv = HKeyValue(table, row, cf, qualifier, value, indexedEdge.ts)
     Seq(kv)
   }
 

@@ -2,44 +2,40 @@ package com.kakao.s2graph.core.storage.hbase
 
 import java.util
 import java.util.ArrayList
+
 import com.kakao.s2graph.core.Graph._
-import com.kakao.s2graph.core.mysqls.{LabelMeta, Label}
-import com.kakao.s2graph.core.parsers.WhereParser
+import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls.{Label, LabelMeta}
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.DeferOp._
-import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.storage.{GraphSerializable, GKeyValue, GStorable}
 import com.kakao.s2graph.core.utils.logger
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async._
-import scala.collection.JavaConversions._
-import scala.collection.{Iterable, Map, Seq}
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Future, duration, Await, ExecutionContext}
-import scala.util.hashing.MurmurHash3
-import scala.util.{Failure, Success, Try, Random}
 
-class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends GStorable[HBaseRpc, HBaseRpc, HBaseRpc] {
-  override def put(kvs: Seq[GKeyValue]): Seq[HBaseRpc] =
+import scala.collection.JavaConversions._
+import scala.collection.mutable.ListBuffer
+import scala.collection.{Map, Seq}
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future, duration}
+import scala.util.hashing.MurmurHash3
+import scala.util.{Failure, Random, Success, Try}
+
+class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) {
+  private val emptyKVs = new util.ArrayList[KeyValue]()
+
+  private def put(kvs: Seq[HKeyValue]): Seq[HBaseRpc] =
     kvs.map { kv => new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp) }
 
-
-  override def increment(kvs: Seq[GKeyValue]): Seq[HBaseRpc] =
+  private def increment(kvs: Seq[HKeyValue]): Seq[HBaseRpc] =
     kvs.map { kv => new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value)) }
 
-
-  override def delete(kvs: Seq[GKeyValue]): Seq[HBaseRpc] =
+  private def delete(kvs: Seq[HKeyValue]): Seq[HBaseRpc] =
     kvs.map { kv =>
       if (kv.qualifier == null) new DeleteRequest(kv.table, kv.row, kv.cf, kv.timestamp)
       else new DeleteRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.timestamp)
     }
-
-  override def fetch(): Seq[GKeyValue] = Nil
-
-  var emptyKVs = new ArrayList[KeyValue]()
 
   private def makeClient(overrideKv: (String, String)*) = {
     val asyncConfig: org.hbase.async.Config = new org.hbase.async.Config()
@@ -86,7 +82,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
   val vertexDeserializer =
     VertexHGStorageDeserializable
 
-  def toGKeyValue(kv: KeyValue) = HGKeyValue.apply(kv)
+  //  def toGKeyValue(kv: KeyValue) = HKeyValue.apply(kv)
 
   def flush: Unit =
     Await.result(deferredToFutureWithoutFallback(client.flush), Duration((clientFlushInterval + 10) * 20, duration.MILLISECONDS))
@@ -122,12 +118,12 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 
   def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
     def fromResult(queryParam: QueryParam,
-                     kvs: Seq[org.hbase.async.KeyValue],
-                     version: String): Option[Vertex] = {
+                   kvs: Seq[org.hbase.async.KeyValue],
+                   version: String): Option[Vertex] = {
 
       if (kvs.isEmpty) None
       else {
-        val newKVs = kvs.map(toGKeyValue(_))
+        val newKVs = kvs.map(HKeyValue(_))
         Option(vertexDeserializer.fromKeyValues(queryParam, newKVs, version, None))
       }
     }
@@ -347,6 +343,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
       fetchQueryParam(queryRequest).addBoth(queryResultCallback(cacheKey))
     }
   }
+
   def toEdges(kvs: Seq[KeyValue], queryParam: QueryParam,
               prevScore: Double = 1.0,
               isInnerCall: Boolean,
@@ -354,7 +351,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     if (kvs.isEmpty) Seq.empty
     else {
       val first = kvs.head
-      val kv = toGKeyValue(first)
+      val kv = HKeyValue(first)
       val cacheElementOpt =
         if (queryParam.isSnapshotEdge) None
         else Option(indexedEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion))
@@ -380,8 +377,8 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
                      cacheElementOpt: Option[EdgeWithIndexInverted] = None,
                      isInnerCall: Boolean,
                      parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
-//    logger.debug(s"$param -> $kv")
-    val kvs = Seq(toGKeyValue(kv))
+    //    logger.debug(s"$param -> $kv")
+    val kvs = Seq(HKeyValue(kv))
     val snapshotEdge = snapshotEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
 
     if (isInnerCall) {
@@ -411,8 +408,8 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
   def toEdge(kv: KeyValue, param: QueryParam,
              cacheElementOpt: Option[EdgeWithIndex] = None,
              parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
-//    logger.debug(s"$param -> $kv")
-    val kvs = Seq(toGKeyValue(kv))
+    //    logger.debug(s"$param -> $kv")
+    val kvs = Seq(HKeyValue(kv))
     val edgeWithIndex = indexedEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
     Option(indexedEdgeDeserializer.toEdge(edgeWithIndex))
     //    None
@@ -540,7 +537,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     indexedEdgeSerializer(indexedEdge).toKeyValues.headOption match {
       case None => Nil
       case Some(kv) =>
-        val copiedKV = kv.copy(_qualifier = Array.empty[Byte], _value = Bytes.toBytes(amount))
+        val copiedKV = kv.copy(qualifier = Array.empty[Byte], value = Bytes.toBytes(amount))
         increment(Seq(copiedKV)).toList
     }
   }
@@ -549,7 +546,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     indexedEdgeSerializer(indexedEdge).toKeyValues.headOption match {
       case None => Nil
       case Some(kv) =>
-        val copiedKV = kv.copy(_value = Bytes.toBytes(amount))
+        val copiedKV = kv.copy(value = Bytes.toBytes(amount))
         increment(Seq(copiedKV)).toList
     }
   }
@@ -581,7 +578,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
 
     val kvs = vertexSerializer(vertex).toKeyValues
     val kv = kvs.head
-    delete(Seq(kv.copy(_qualifier = null))).toList
+    delete(Seq(kv.copy(qualifier = null))).toList
   }
 
   def buildPutsAll(vertex: Vertex): List[HBaseRpc] = {
@@ -597,7 +594,7 @@ class AsynchbaseStorage(config: Config)(implicit ex: ExecutionContext) extends G
     val kv = kvs.head
 
     import org.apache.hadoop.hbase.util.Bytes
-    val newKVs = vertex.belongLabelIds.map { id => kv.copy(_qualifier = Bytes.toBytes(Vertex.toPropKey(id))) }
+    val newKVs = vertex.belongLabelIds.map { id => kv.copy(qualifier = Bytes.toBytes(Vertex.toPropKey(id))) }
     delete(newKVs).toList
   }
 

@@ -1,7 +1,7 @@
 package com.kakao.s2graph.core.storage.hbase
 
 import com.kakao.s2graph.core.mysqls.LabelIndex
-import com.kakao.s2graph.core.storage.{GKeyValue, GraphSerializable}
+import com.kakao.s2graph.core.storage.{GraphSerializable}
 import com.kakao.s2graph.core.types.VertexId
 import com.kakao.s2graph.core.{Graph, JSONParser, EdgeWithIndexInverted}
 import org.apache.hadoop.hbase.util.Bytes
@@ -15,7 +15,7 @@ case class SnapshotEdgeHGStorageSerializable(snapshotEdge: EdgeWithIndexInverted
 
   def valueBytes() = Bytes.add(Array.fill(1)(snapshotEdge.op), propsToKeyValuesWithTs(snapshotEdge.props.toList))
 
-  override def toKeyValues: Seq[GKeyValue] = {
+  override def toKeyValues: Seq[HKeyValue] = {
     val srcIdBytes = VertexId.toSourceVertexId(snapshotEdge.srcVertex.id).bytes
     val labelWithDirBytes = snapshotEdge.labelWithDir.bytes
     val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsInverted(LabelIndex.DefaultSeq, isInverted = true)
@@ -38,7 +38,7 @@ case class SnapshotEdgeHGStorageSerializable(snapshotEdge: EdgeWithIndexInverted
           Bytes.add(propsBytes, dummyBytes))
     }
 
-    val kv = HGKeyValue(table, row, cf, qualifier, value, snapshotEdge.version)
+    val kv = HKeyValue(table, row, cf, qualifier, value, snapshotEdge.version)
     Seq(kv)
   }
 }

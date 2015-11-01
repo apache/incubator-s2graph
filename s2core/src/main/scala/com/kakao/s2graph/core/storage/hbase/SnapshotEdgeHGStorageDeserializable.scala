@@ -1,16 +1,16 @@
 package com.kakao.s2graph.core.storage.hbase
 
-import com.kakao.s2graph.core.mysqls.{LabelMeta, LabelIndex}
-import com.kakao.s2graph.core.types.{HBaseType, TargetVertexId}
-import com.kakao.s2graph.core.{Vertex, Edge, QueryParam, EdgeWithIndexInverted}
-import com.kakao.s2graph.core.storage.{GKeyValue, GraphSerializable, GraphDeserializable}
+import com.kakao.s2graph.core.mysqls.{LabelIndex, LabelMeta}
+import com.kakao.s2graph.core.storage.{GraphDeserializable, GraphSerializable}
+import com.kakao.s2graph.core.types.TargetVertexId
+import com.kakao.s2graph.core.{Edge, EdgeWithIndexInverted, QueryParam, Vertex}
 import org.apache.hadoop.hbase.util.Bytes
 
 /**
  * Created by shon on 10/29/15.
  */
 trait SnapshotEdgeHGStorageDeserializable extends HGStorageDeserializable[EdgeWithIndexInverted] with GraphDeserializable with GraphSerializable {
-  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[GKeyValue], version: String, cacheElementOpt: Option[EdgeWithIndexInverted]): EdgeWithIndexInverted = {
+  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[HKeyValue], version: String, cacheElementOpt: Option[EdgeWithIndexInverted]): EdgeWithIndexInverted = {
     assert(kvs.size == 1)
     val kv = kvs.head
     val schemaVer = queryParam.label.schemaVersion
