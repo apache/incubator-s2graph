@@ -4,10 +4,8 @@ import com.kakao.s2graph.core.mysqls.Label
 import play.api.http.HeaderNames
 import play.api.test.Helpers._
 import play.api.test.{FakeApplication, FakeRequest}
-import test.controllers.SpecCommon
 
 import scala.concurrent.Await
-
 
 /**
  * Created by mojo22jojo(hyunsung.jo@gmail.com) on 15. 10. 13..

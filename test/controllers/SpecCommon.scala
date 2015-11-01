@@ -1,8 +1,7 @@
-package test.controllers
+package controllers
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
-import controllers.AdminController
 import org.specs2.mutable.Specification
 import play.api.libs.json._
 import play.api.test.FakeApplication
@@ -12,12 +11,12 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Random
 
-
 trait SpecCommon extends Specification {
 
   object Helper {
 
     import org.json4s.native.Serialization
+
     type KV = Map[String, Any]
 
     import scala.language.dynamics
@@ -37,13 +36,14 @@ trait SpecCommon extends Specification {
       }
     }
 
-    implicit class S2Context(val sc : StringContext) {
-      def edge(args : Any*)(implicit map: Map[String, Any] = Map.empty) : String = {
+    implicit class S2Context(val sc: StringContext) {
+      def edge(args: Any*)(implicit map: Map[String, Any] = Map.empty): String = {
         val parts = sc.s(args: _*).split("\\s")
         assert(parts.length == 6)
-        (parts.toList :+  map.toJson.toString).mkString("\t")
+        (parts.toList :+ map.toJson.toString).mkString("\t")
       }
     }
+
   }
 
   val curTime = System.currentTimeMillis
@@ -69,7 +69,8 @@ trait SpecCommon extends Specification {
   val asyncFlushInterval = 100
 
   val createService = s"""{"serviceName" : "$testServiceName"}"""
-  val testLabelNameCreate = s"""
+  val testLabelNameCreate =
+    s"""
   {
     "label": "$testLabelName",
     "srcServiceName": "$testServiceName",
@@ -110,7 +111,8 @@ trait SpecCommon extends Specification {
     "hTableName": "$testHTableName"
   }"""
 
-  val testLabelName2Create = s"""
+  val testLabelName2Create =
+    s"""
   {
     "label": "$testLabelName2",
     "srcServiceName": "$testServiceName",
@@ -148,7 +150,8 @@ trait SpecCommon extends Specification {
     "compressionAlgorithm": "gz"
   }"""
 
-  val testLabelNameV1Create = s"""
+  val testLabelNameV1Create =
+    s"""
   {
     "label": "$testLabelNameV1",
     "srcServiceName": "$testServiceName",
@@ -185,7 +188,8 @@ trait SpecCommon extends Specification {
     "schemaVersion": "v1",
     "compressionAlgorithm": "gz"
   }"""
-  val testLabelNameWeakCreate = s"""
+  val testLabelNameWeakCreate =
+    s"""
   {
     "label": "$testLabelNameWeak",
     "srcServiceName": "$testServiceName",
@@ -226,7 +230,8 @@ trait SpecCommon extends Specification {
     ("age", "int")
   )
 
-  val createVertex = s"""{
+  val createVertex =
+    s"""{
     "serviceName": "$testServiceName",
     "columnName": "$testColumnName",
     "columnType": "$testColumnType",
@@ -243,7 +248,8 @@ trait SpecCommon extends Specification {
   val TS = System.currentTimeMillis()
 
   def queryJson(serviceName: String, columnName: String, labelName: String, id: String, dir: String, cacheTTL: Long = -1L) = {
-    val s = s"""{
+    val s =
+      s"""{
       "srcVertices": [
       {
         "serviceName": "$serviceName",

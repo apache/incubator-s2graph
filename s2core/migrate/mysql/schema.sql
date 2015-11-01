@@ -1,8 +1,8 @@
 CREATE DATABASE IF NOT EXISTS graph_dev;
 
-CREATE USER 'graph'@'localhost' IDENTIFIED BY 'graph';
+CREATE USER 'graph'@'%' IDENTIFIED BY 'graph';
 
-GRANT ALL PRIVILEGES ON graph_dev.* TO 'graph'@'localhost' identified by 'graph';
+GRANT ALL PRIVILEGES ON graph_dev.* TO 'graph'@'%' identified by 'graph';
 
 flush privileges;
 

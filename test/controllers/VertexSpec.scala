@@ -1,4 +1,4 @@
-package test.controllers
+package controllers
 
 
 import controllers.{QueryController, VertexController}

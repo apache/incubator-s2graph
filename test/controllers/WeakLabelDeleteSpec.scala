@@ -1,4 +1,4 @@
-package test.controllers
+package controllers
 
 import controllers.EdgeController
 import play.api.libs.json._
@@ -27,7 +27,8 @@ class WeakLabelDeleteSpec extends SpecCommon {
     }
 
 
-    def query(id: Int, direction: String = "out", columnName: String = testColumnName) = Json.parse( s"""
+    def query(id: Int, direction: String = "out", columnName: String = testColumnName) = Json.parse(
+      s"""
         { "srcVertices": [
           { "serviceName": "$testServiceName",
             "columnName": "$columnName",
