@@ -1,9 +1,13 @@
 package controllers
 
+import java.util.concurrent.TimeUnit
+
 import play.api.libs.json._
 import play.api.test.Helpers._
 import play.api.test.{FakeApplication, FakeRequest}
 
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 import scala.util.Random
 
 class StrongLabelDeleteSpec extends SpecCommon {
@@ -33,7 +37,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
               "label": "$labelName",
               "direction": "${direction}",
               "offset": 0,
-              "limit": 1000,
+              "limit": -1,
               "duplicate": "raw"
             }
           ]]
@@ -43,6 +47,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
     val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryJson)).get
     contentAsJson(ret)
   }
+
   def getDegree(jsValue: JsValue): Long = {
     ((jsValue \ "degrees") \\ "_degree").headOption.map(_.as[Long]).getOrElse(0L)
   }
@@ -54,9 +59,6 @@ class StrongLabelDeleteSpec extends SpecCommon {
       val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(), withWait = true))
       Thread.sleep(asyncFlushInterval)
     }
-
-
-
 
     "test strong consistency select" in {
       running(FakeApplication()) {
@@ -141,71 +143,142 @@ class StrongLabelDeleteSpec extends SpecCommon {
       }
     }
   }
-  
+
 
   "labelargeSet of contention" should {
     val labelName = testLabelName2
-    val maxTgtId = 5
-    val maxRetryNum = 20
-    val maxTestNum = 3
-    val maxTestIntervalNum = 3
+    val maxTgtId = 1
+    val batchSize = 100
+    val testNum = 10
+    val numOfBatch = 1000
+
     def testInner(src: Long) = {
       val labelName = testLabelName2
       val lastOps = Array.fill(maxTgtId)("none")
-      for {
-        ith <- (0 until maxTestIntervalNum)
-      } {
-        val bulkEdgeStr = for {
-          jth <- (0 until maxRetryNum)
-        } yield {
-            val currentTs = System.currentTimeMillis() + ith + jth
-            val tgt = Random.nextInt(maxTgtId)
-            val op = if (Random.nextDouble() < 0.5) "delete" else "update"
-            lastOps(tgt) = op
-            Seq(currentTs, op, "e", src, tgt, labelName, "{}").mkString("\t")
-          }
-        val bulkEdge = bulkEdgeStr.mkString("\n")
-        val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdge, withWait = true))
-        Thread.sleep(asyncFlushInterval)
+      val allRequests = for {
+        ith <- (0 until numOfBatch)
+        jth <- (0 until batchSize)
+      } yield {
+          val currentTs = System.currentTimeMillis() + ith + jth
+          val tgt = Random.nextInt(maxTgtId)
+          val op = if (Random.nextDouble() < 0.5) "delete" else "update"
+          lastOps(tgt) = op
+          Seq(currentTs, op, "e", src, tgt, labelName, "{}").mkString("\t")
+        }
+
+      val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequest =>
+        val bulkEdge = bulkRequest.mkString("\n")
+        EdgeController.mutateAndPublish(bulkEdge, withWait = true)
       }
-      Thread.sleep(asyncFlushInterval)
+
+      Await.result(Future.sequence(futures), Duration(2, TimeUnit.MINUTES))
+
+
       val expectedDegree = lastOps.count(op => op != "delete" && op != "none")
       val queryJson = query(id = src)
       val result = getEdges(queryJson)
+      val resultSize = (result \ "size").as[Long]
       val resultDegree = getDegree(result)
+
       println(lastOps.toList)
       println(result)
-      resultDegree == expectedDegree
+
+      val ret = resultDegree == expectedDegree && resultSize == resultDegree
+      if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree")
+      ret
     }
 
     "update delete" in {
       running(FakeApplication()) {
         val ret = for {
-          i <- (0 until maxTestNum)
+          i <- (0 until testNum)
         } yield {
-          Thread.sleep(asyncFlushInterval)
-          val src = System.currentTimeMillis()
+            Thread.sleep(asyncFlushInterval)
+            val src = System.currentTimeMillis()
 
-          val ret = testInner(src)
-          ret must beEqualTo(true)
-          ret
-        }
+            val ret = testInner(src)
+            ret must beEqualTo(true)
+            ret
+          }
         ret.forall(identity)
       }
 
     }
 
+    /** this test stress out test on degree
+      * when contention is low but number of adjacent edges are large */
+    "large degrees" in {
+      running(FakeApplication()) {
+        val labelName = testLabelName2
+        val dir = "out"
+        val maxSize = 100000
+        val deleteSize = 9000
+        val numOfConcurrentBatch = 1000
+        val src = System.currentTimeMillis()
+        val tgts = (0 until maxSize).map { ith => src + ith }
+        val deleteTgts = Random.shuffle(tgts).take(deleteSize)
+        val insertRequests = tgts.map { tgt =>
+          Seq(tgt, "insert", "e", src, tgt, labelName, "{}", dir).mkString("\t")
+        }
+        val deleteRequests = deleteTgts.take(deleteSize).map { tgt =>
+          Seq(tgt + 1000, "delete", "e", src, tgt, labelName, "{}", dir).mkString("\t")
+        }
+        val allRequests = Random.shuffle(insertRequests ++ deleteRequests)
+        //        val allRequests = insertRequests ++ deleteRequests
+        val futures = allRequests.grouped(numOfConcurrentBatch).map { requests =>
+          EdgeController.mutateAndPublish(requests.mkString("\n"), withWait = true)
+        }
+        Await.result(Future.sequence(futures), Duration(10, TimeUnit.MINUTES))
+
+        Thread.sleep(asyncFlushInterval * 10)
+        val expectedDegree = insertRequests.size - deleteRequests.size
+        val queryJson = query(id = src)
+        val result = getEdges(queryJson)
+        val resultSize = (result \ "size").as[Long]
+        val resultDegree = getDegree(result)
+
+        //        println(result)
+
+        val ret = resultSize == expectedDegree && resultDegree == resultSize
+        println(s"[MaxSize]: $maxSize")
+        println(s"[DeleteSize]: $deleteSize")
+        println(s"[ResultDegree]: $resultDegree")
+        println(s"[ExpectedDegree]: $expectedDegree")
+        println(s"[ResultSize]: $resultSize")
+        ret must beEqualTo(true)
+      }
+    }
+
     "deleteAll" in {
       running(FakeApplication()) {
+        val labelName = testLabelName2
+        val dir = "out"
+        val maxSize = 1000
+        val deleteSize = 90
+        val numOfConcurrentBatch = 100
         val src = System.currentTimeMillis()
-        val ret = testInner(src)
-        ret must beEqualTo(true)
+        val tgts = (0 until maxSize).map { ith => src + ith }
+        val deleteTgts = Random.shuffle(tgts).take(deleteSize)
+        val insertRequests = tgts.map { tgt =>
+          Seq(tgt, "insert", "e", src, tgt, labelName, "{}", dir).mkString("\t")
+        }
+        val deleteRequests = deleteTgts.take(deleteSize).map { tgt =>
+          Seq(tgt + 1000, "delete", "e", src, tgt, labelName, "{}", dir).mkString("\t")
+        }
+        val allRequests = Random.shuffle(insertRequests ++ deleteRequests)
+        //        val allRequests = insertRequests ++ deleteRequests
+        val futures = allRequests.grouped(numOfConcurrentBatch).map { requests =>
+          EdgeController.mutateAndPublish(requests.mkString("\n"), withWait = true)
+        }
+        Await.result(Future.sequence(futures), Duration(10, TimeUnit.MINUTES))
+
+        Thread.sleep(asyncFlushInterval * 10)
 
         val deletedAt = System.currentTimeMillis()
         val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
 
-        val jsResult = contentAsString(EdgeController.deleteAllInner(deleteAllRequest))
-        Thread.sleep(asyncFlushInterval)
+        contentAsString(EdgeController.deleteAllInner(deleteAllRequest))
+        Thread.sleep(asyncFlushInterval * 10)
 
         val result = getEdges(query(id = src))
         println(result)

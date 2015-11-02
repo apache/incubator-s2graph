@@ -1,7 +1,7 @@
 package com.kakao.s2graph.core
 
 import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.utils.logger
 import play.api.libs.json._
 
 
@@ -23,7 +23,7 @@ trait JSONParser {
             case b: Byte => JsNumber(b.toLong)
             case f: Float => JsNumber(f.toDouble)
             case d: Double =>
-//              JsNumber(d)
+              //              JsNumber(d)
               dType match {
                 case InnerVal.BYTE => JsNumber(d.toInt)
                 case InnerVal.SHORT => JsNumber(d.toInt)
@@ -34,8 +34,8 @@ trait JSONParser {
                 case _ => throw new RuntimeException("innerValToJsValue invalid")
               }
             case num: BigDecimal =>
-//              JsNumber(num)
-//              JsNumber(InnerVal.scaleNumber(num.asInstanceOf[BigDecimal], dType))
+              //              JsNumber(num)
+              //              JsNumber(InnerVal.scaleNumber(num.asInstanceOf[BigDecimal], dType))
               dType match {
                 case InnerVal.BYTE => JsNumber(num.toInt)
                 case InnerVal.SHORT => JsNumber(num.toInt)
@@ -45,10 +45,10 @@ trait JSONParser {
                 case InnerVal.DOUBLE => JsNumber(num.toDouble)
                 case _ => throw new RuntimeException("innerValToJsValue invalid")
               }
-//              JsNumber(num.toLong)
+            //              JsNumber(num.toLong)
             case _ => throw new RuntimeException("innerValToJsValue invalid")
           }
-//          JsNumber(InnerVal.scaleNumber(innerVal.asInstanceOf[BigDecimal], dType))
+        //          JsNumber(InnerVal.scaleNumber(innerVal.asInstanceOf[BigDecimal], dType))
         case _ =>
           throw new RuntimeException(s"innerVal $innerVal to JsValue with type $dType")
       }
@@ -60,22 +60,22 @@ trait JSONParser {
     }
   }
 
-//  def innerValToString(innerVal: InnerValLike, dataType: String): String = {
-//    val dType = InnerVal.toInnerDataType(dataType)
-//    InnerVal.toInnerDataType(dType) match {
-//      case InnerVal.STRING => innerVal.toString
-//      case InnerVal.BOOLEAN => innerVal.toString
-//      //      case t if InnerVal.NUMERICS.contains(t)  =>
-//      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
-//        BigDecimal(innerVal.toString).bigDecimal.toPlainString
-//      case _ => innerVal.toString
-//      //        throw new RuntimeException("innerVal to jsValue failed.")
-//    }
-//  }
+  //  def innerValToString(innerVal: InnerValLike, dataType: String): String = {
+  //    val dType = InnerVal.toInnerDataType(dataType)
+  //    InnerVal.toInnerDataType(dType) match {
+  //      case InnerVal.STRING => innerVal.toString
+  //      case InnerVal.BOOLEAN => innerVal.toString
+  //      //      case t if InnerVal.NUMERICS.contains(t)  =>
+  //      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
+  //        BigDecimal(innerVal.toString).bigDecimal.toPlainString
+  //      case _ => innerVal.toString
+  //      //        throw new RuntimeException("innerVal to jsValue failed.")
+  //    }
+  //  }
 
   def toInnerVal(str: String, dataType: String, version: String): InnerValLike = {
     //TODO:
-//        logger.error(s"toInnerVal: $str, $dataType, $version")
+    //        logger.error(s"toInnerVal: $str, $dataType, $version")
     val s =
       if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
       else str

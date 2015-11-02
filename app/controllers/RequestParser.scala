@@ -6,6 +6,7 @@ import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
 import com.kakao.s2graph.core.types._
 import config.Config
+import play.Play
 import play.api.libs.json._
 
 import scala.util.{Failure, Success, Try}
@@ -18,8 +19,8 @@ trait RequestParser extends JSONParser {
   val hardLimit = Config.QUERY_HARD_LIMIT
   val defaultLimit = 100
 
-  val defaultCluster = Graph.config.getString("hbase.zookeeper.quorum")
-  val defaultCompressionAlgorithm = Graph.config.getString("hbase.table.compression.algorithm")
+  lazy val defaultCluster = Play.application().configuration().getString("hbase.zookeeper.quorum")
+  lazy val defaultCompressionAlgorithm = Play.application().configuration.getString("hbase.table.compression.algorithm")
 
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {

@@ -5,13 +5,14 @@ import com.kakao.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlre
 import com.kakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
+import play.Play
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 
@@ -37,7 +38,7 @@ object Management extends JSONParser {
 
   val hardLimit = 10000
   val defaultLimit = 100
-  val defaultCompressionAlgorithm = Graph.config.getString("hbase.table.compression.algorithm")
+  val defaultCompressionAlgorithm = Play.application().configuration().getString("hbase.table.compression.algorithm")
 
   def createService(serviceName: String,
                     cluster: String, hTableName: String,
@@ -65,6 +66,7 @@ object Management extends JSONParser {
 
     Label.updateHTableName(targetLabel.label, newHTableName)
   }
+
   /**
    * label
    */
