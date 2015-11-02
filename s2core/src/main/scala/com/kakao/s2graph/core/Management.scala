@@ -402,7 +402,7 @@ object Management extends JSONParser {
   //  }
 
   def createTable(zkAddr: String, tableName: String, cfs: List[String], regionMultiplier: Int, ttl: Option[Int],
-                  compressionAlgorithm: String = "lz4") = {
+                  compressionAlgorithm: String = defaultCompressionAlgorithm) = {
     logger.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm")
     val admin = getAdmin(zkAddr)
     val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier

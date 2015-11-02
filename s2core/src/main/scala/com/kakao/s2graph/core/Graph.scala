@@ -66,7 +66,7 @@ object Graph {
 
   lazy val cache = CacheBuilder.newBuilder()
     .maximumSize(this.config.getInt("cache.max.size"))
-    .build[java.lang.Integer, QueryResult]()
+    .build[java.lang.Integer, Seq[QueryResult]]()
 
   //TODO: Merge this into cache.
   lazy val vertexCache = CacheBuilder.newBuilder()
@@ -368,12 +368,17 @@ object Graph {
     }
   }
 
-  private def fetchEdgesWithCache(parentEdges: Seq[EdgeWithScore], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] = {
-    val cacheKey = MurmurHash3.stringHash(getRequest.toString)
+  private def fetchEdgesWithCache(parentEdges: Seq[EdgeWithScore],
+                                  getRequest: GetRequest,
+                                  q: Query,
+                                  stepIdx: Int,
+                                  queryParam: QueryParam,
+                                  prevScore: Double): Deferred[QueryResult] = {
+    val cacheKey = queryParam.toCacheKey(getRequest)
     def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
       def call(arg: QueryResult): QueryResult = {
         //        logger.debug(s"queryResultCachePut, $arg")
-        cache.put(cacheKey, arg)
+        cache.put(cacheKey, Seq(arg))
         arg
       }
     }
@@ -381,10 +386,10 @@ object Graph {
       val cacheTTL = queryParam.cacheTTLInMillis
       if (cache.asMap().containsKey(cacheKey)) {
         val cachedVal = cache.asMap().get(cacheKey)
-        if (cachedVal != null && queryParam.timestamp - cachedVal.timestamp < cacheTTL) {
+        if (cachedVal != null && cachedVal.nonEmpty && queryParam.timestamp - cachedVal.head.timestamp < cacheTTL) {
           // val elapsedTime = queryParam.timestamp - cachedVal.timestamp
           //          logger.debug(s"cacheHitAndValid: $cacheKey, $cacheTTL, $elapsedTime")
-          Deferred.fromResult(cachedVal)
+          Deferred.fromResult(cachedVal.head)
         }
         else {
           // cache.asMap().remove(cacheKey)
@@ -402,7 +407,12 @@ object Graph {
   }
 
   /** actual request to HBase */
-  private def fetchEdges(parentEdges: Seq[EdgeWithScore], getRequest: GetRequest, q: Query, stepIdx: Int, queryParam: QueryParam, prevScore: Double): Deferred[QueryResult] =
+  private def fetchEdges(parentEdges: Seq[EdgeWithScore],
+                         getRequest: GetRequest,
+                         q: Query,
+                         stepIdx: Int,
+                         queryParam: QueryParam,
+                         prevScore: Double): Deferred[QueryResult] =
     Try {
       val client = getClient(queryParam.label.hbaseZkAddr)
 
@@ -475,11 +485,34 @@ object Graph {
     val queryParams = currentStepRequestLss.flatMap { case (getsWithQueryParams, prevScore) =>
       getsWithQueryParams.map { case (vertexId, get, queryParam) => queryParam }
     }
-    val fallback = new util.ArrayList(queryParams.map(param => QueryResult(q, stepIdx, param)))
-    val deferred = fetchEdgesLs(prevStepTgtVertexIdEdges, currentStepRequestLss, q, stepIdx)
-    val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deferred)
+    /** support step wise cache */
+    val getWithQueryParams = currentStepRequestLss.flatMap { case (getsWithQueryParams, prevScore) =>
+      getsWithQueryParams.map { case (vertexId, get, queryParam) => (get, queryParam) }
+    }
+    val cacheKey = step.toCacheKey(getWithQueryParams)
 
-    filterEdges(deferredToFuture(grouped)(fallback), q, stepIdx, alreadyVisited)
+    val fallback = new util.ArrayList(queryParams.map(param => QueryResult(q, stepIdx, param)))
+
+    if (step.cacheTTL > 0) {
+      val cacheVal = cache.getIfPresent(cacheKey)
+      if (cacheVal == null) {
+        val deferred = fetchEdgesLs(prevStepTgtVertexIdEdges, currentStepRequestLss, q, stepIdx)
+        val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deferred)
+
+        filterEdges(deferredToFuture(grouped)(fallback), q, stepIdx, alreadyVisited).map { queryResultLs =>
+          cache.put(cacheKey, queryResultLs)
+          queryResultLs
+        }
+      } else {
+        Future.successful(cacheVal)
+      }
+    } else {
+      val deferred = fetchEdgesLs(prevStepTgtVertexIdEdges, currentStepRequestLss, q, stepIdx)
+      val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(deferred)
+
+      filterEdges(deferredToFuture(grouped)(fallback), q, stepIdx, alreadyVisited)
+    }
+
   }
 
   def getEdgesAsyncWithRank(queryResultLsFuture: Future[Seq[QueryResult]], q: Query, stepIdx: Int): Future[Seq[QueryResult]] = {

@@ -124,7 +124,7 @@ object PostProcess extends JSONParser {
 
     var withScore = true
     val degrees = ListBuffer[JsValue]()
-    val rawEdges = ListBuffer[Map[String, JsValue]]()
+    val rawEdges = ListBuffer[(Map[String, JsValue], Double, Long)]()
 
     if (queryResultLs.isEmpty) {
       Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr())
@@ -149,49 +149,68 @@ object PostProcess extends JSONParser {
             LabelMeta.degree.name -> innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
           )
         } else {
-          rawEdges += edgeToJson(edge, score, queryResult.query, queryResult.queryParam)
+          val currentEdge = (edgeToJson(edge, score, queryResult.query, queryResult.queryParam), score, edge.ts)
+          rawEdges += currentEdge
         }
       }
-      val edges =
-        if (q.groupByColumns.isEmpty && withScore) {
-          rawEdges.sortBy { case kvs =>
-            val firstOrder = kvs.get("score").map(n => n.as[Double]).getOrElse(0.0) * -1
-            val secondOrder = kvs.get("_timestamp").map(n => n.as[Long]).getOrElse(0L) * -1
-            (firstOrder, secondOrder)
-          }
-        } else rawEdges
 
-      val resultJson =
-        if (q.groupByColumns.isEmpty) {
-          Json.obj("size" -> edges.size, "degrees" -> degrees, "results" -> edges, "impressionId" -> q.impressionId())
-        } else {
-          val grouped = edges.groupBy { props =>
-            for {
-              column <- q.groupByColumns
-              value <- props.get(column)
-            } yield column -> value
+      if (q.groupByColumns.isEmpty) {
+        val edges = {
+          if (withScore) {
+            rawEdges.sortBy { case (kvs, score, ts) =>
+              val firstOrder = score * -1
+              val secondOrder = ts * -1
+              (firstOrder, secondOrder)
+            }
+          } else {
+            rawEdges
           }
+        }.map(_._1)
 
-          val groupedEdges = for {
+        Json.obj(
+          "size" -> edges.size,
+          "degrees" -> degrees,
+          "results" -> edges,
+          "impressionId" -> q.impressionId()
+        )
+      } else {
+        val grouped = rawEdges.groupBy { case (keyWithJs, score, ts) =>
+          val props = keyWithJs.get("props")
+
+          for {
+            column <- q.groupByColumns
+            value <- keyWithJs.get(column) match {
+              case None => props.flatMap { js => (js \ column).asOpt[JsValue] }
+              case Some(x) => Some(x)
+            }
+          } yield column -> value
+        }
+
+        val groupedEdges = {
+          for {
             (groupByKeyVals, edges) <- grouped
           } yield {
-              val scoreSum = edges.map { edge => edge.get("score").map(n => n.as[Double]).getOrElse(0.0) }.sum
-              Json.obj(
-                "groupBy" -> Json.toJson(groupByKeyVals.toMap),
-                "scoreSum" -> scoreSum,
-                "agg" -> edges.sortBy { edge => edge.get("score").map(n => n.as[Double]).getOrElse(0.0) * -1 }
-              )
-            }
-
-          val groupedSortedJsons = groupedEdges.toList.sortBy { jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
-          Json.obj(
-            "size" -> groupedEdges.size,
-            "degrees" -> degrees,
-            "results" -> Json.toJson(groupedSortedJsons),
-            "impressionId" -> q.impressionId()
-          )
+            val scoreSum = edges.map(x => x._2).sum
+            Json.obj(
+              "groupBy" -> Json.toJson(groupByKeyVals.toMap),
+              "scoreSum" -> scoreSum,
+              "agg" -> edges.sortBy { case (kvs, score, ts) =>
+                val firstOrder = score * -1
+                val secondOrder = ts * -1
+                (firstOrder, secondOrder)
+              }.map(_._1)
+            )
+          }
         }
-      resultJson
+
+        val groupedSortedJsons = groupedEdges.toList.sortBy { jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
+        Json.obj(
+          "size" -> groupedEdges.size,
+          "degrees" -> degrees,
+          "results" -> groupedSortedJsons,
+          "impressionId" -> q.impressionId()
+        )
+      }
     }
   }
 
@@ -227,7 +246,7 @@ object PostProcess extends JSONParser {
       Json.toJson(parents)
     }
   }
-
+  /** TODO */
   def edgeToJsonInner(edge: Edge, score: Double, q: Query, queryParam: QueryParam): Map[String, JsValue] = {
     val (srcColumn, tgtColumn) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
 

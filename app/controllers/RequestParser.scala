@@ -18,6 +18,9 @@ trait RequestParser extends JSONParser {
   val hardLimit = Config.QUERY_HARD_LIMIT
   val defaultLimit = 100
 
+  val defaultCluster = Graph.config.getString("hbase.zookeeper.quorum")
+  val defaultCompressionAlgorithm = Graph.config.getString("hbase.table.compression.algorithm")
+
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {
       js <- parse[Option[JsObject]](value, "scoring")
@@ -168,7 +171,10 @@ trait RequestParser extends JSONParser {
             case obj: JsObject => (obj \ "nextStepLimit").asOpt[Int].getOrElse(-1)
             case _ => -1
           }
-
+          val cacheTTL = step match {
+            case obj: JsObject => (obj \ "cacheTTL").asOpt[Int].getOrElse(-1)
+            case _ => -1
+          }
           val queryParams =
             for {
               labelGroup <- queryParamJsVals
@@ -190,7 +196,8 @@ trait RequestParser extends JSONParser {
           Step(queryParams.toList, labelWeights = labelWeights,
             //            scoreThreshold = stepThreshold,
             nextStepScoreThreshold = nextStepScoreThreshold,
-            nextStepLimit = nextStepLimit)
+            nextStepLimit = nextStepLimit,
+            cacheTTL = cacheTTL)
 
         }
 
@@ -391,7 +398,7 @@ trait RequestParser extends JSONParser {
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     val schemaVersion = (jsValue \ "schemaVersion").asOpt[String].getOrElse(HBaseType.DEFAULT_VERSION)
     val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
-    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse("lz4")
+    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(defaultCompressionAlgorithm)
 
     (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
@@ -406,11 +413,11 @@ trait RequestParser extends JSONParser {
 
   def toServiceElements(jsValue: JsValue) = {
     val serviceName = parse[String](jsValue, "serviceName")
-    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(Graph.config.getString("hbase.zookeeper.quorum"))
+    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(defaultCluster)
     val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${Config.PHASE}")
     val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(1)
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
-    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse("lz4")
+    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(defaultCompressionAlgorithm)
     (serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
   }
 
