@@ -24,6 +24,8 @@ import scala.util.Try
 object CounterFunctions extends Logging with WithKafka {
   import scala.concurrent.ExecutionContext.Implicits.global
 
+  private val K_MAX = 500
+
   val exactCounter = new ExactCounter(S2ConfigFactory.config, new ExactStorageGraph(S2ConfigFactory.config))
   val rankingCounter = new RankingCounter(S2ConfigFactory.config, new RankingStorageGraph(S2ConfigFactory.config))
 
@@ -419,7 +421,7 @@ object CounterFunctions extends Logging with WithKafka {
       (policy, allValues) <- valuesByPolicy
       groupedValues <- allValues.grouped(10)
     } {
-      rankingCounter.update(groupedValues, 500)
+      rankingCounter.update(groupedValues, K_MAX)
       acc += (s"RankingV${policy.version}", groupedValues.length)
     }
   }

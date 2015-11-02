@@ -22,11 +22,8 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
   private[counter] val log = LoggerFactory.getLogger(this.getClass)
   private val s2config = new S2CounterConfig(config)
 
-  private val K_MAX = 500
-//  private val RANK_INTERVAL = 10
-  private val BUCKET_COUNT = 53
+  private val BUCKET_SHARD_COUNT = 53
   private val SERVICE_NAME = "s2counter"
-  private val DIMENSION_COLUMN_NAME = "dimension"
   private val BUCKET_COLUMN_NAME = "bucket"
   private val counterModel = new CounterModel(config)
   private val labelPostfix = "_topK"
@@ -35,14 +32,15 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
 
   val prepareCache = new CollectionCache[Option[Boolean]](CollectionCacheConfig(10000, 600))
 
-  // "", "age.32", "age.gender.32.M"
-  private def makeBucketSimple(rankingKey: RankingKey, bucketIdx: Int): String = {
-    val dimension = rankingKey.eq.dimension
-    makeBucketSimple(dimension, bucketIdx)
+  private def makeBucketKey(rankingKey: RankingKey): String = {
+    val eq = rankingKey.eq
+    val tq = eq.tq
+    s"${tq.q}.${tq.ts}.${eq.dimension}"
   }
 
-  private def makeBucketSimple(dimension: String, bucketIdx: Int): String = {
-    s"$bucketIdx.$dimension"
+  // "", "age.32", "age.gender.32.M"
+  private def makeBucketShardKey(shardIdx: Int, rankingKey: RankingKey): String = {
+    s"$shardIdx.${makeBucketKey(rankingKey)}"
   }
 
   /**
@@ -86,9 +84,9 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
 
         val bucketRankingSeq = mergedRankingSeq.groupBy { case (itemId, score) =>
           // 0-index
-          GraphUtil.transformHash(MurmurHash3.stringHash(itemId)) % BUCKET_COUNT
-        }.map { case (bucketIdx, groupedRanking) =>
-          bucketIdx -> groupedRanking.filter { case (itemId, _) => currentRankingMap.contains(itemId) }
+          GraphUtil.transformHash(MurmurHash3.stringHash(itemId)) % BUCKET_SHARD_COUNT
+        }.map { case (shardIdx, groupedRanking) =>
+          shardIdx -> groupedRanking.filter { case (itemId, _) => currentRankingMap.contains(itemId) }
         }.toSeq
 
         val respInsert = insertBulk(key, bucketRankingSeq)
@@ -138,10 +136,10 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
     val timestamp: Long = System.currentTimeMillis
     val events = {
       for {
-        (bucketIdx, rankingSeq) <- newRankingSeq
+        (shardIdx, rankingSeq) <- newRankingSeq
         (itemId, score) <- rankingSeq
       } yield {
-        val srcId = makeBucketSimple(key, bucketIdx)
+        val srcId = makeBucketShardKey(shardIdx, key)
         Json.obj(
           "timestamp" -> timestamp,
           "from" -> srcId,
@@ -189,9 +187,8 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
     val labelName = counterModel.findById(key.policyId).get.action + labelPostfix
 
     val ids = {
-//      val intervals = limit / RANK_INTERVAL + { if (limit % RANK_INTERVAL != 0) 1 else 0 }
-      (0 until BUCKET_COUNT).map { bucketIdx =>
-        s""""${makeBucketSimple(key, bucketIdx)}""""
+      (0 until BUCKET_SHARD_COUNT).map { shardIdx =>
+        s""""${makeBucketShardKey(shardIdx, key)}""""
       }
     }.mkString(",")
 
@@ -244,57 +241,52 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
 
   private def checkAndPrepareDimensionBucket(rankingKey: RankingKey): Boolean = {
     val dimension = rankingKey.eq.dimension
+    val bucketKey = makeBucketKey(rankingKey)
     val labelName = "s2counter_topK_bucket"
 
-    val prepared = prepareCache.withCache(dimension) {
-      val json = Json.obj(
-        "srcVertices" -> Json.arr(
-          Json.obj(
-            "serviceName" -> SERVICE_NAME,
-            "columnName" -> DIMENSION_COLUMN_NAME,
-            "id" -> dimension
-          )
-        ),
-        "steps" -> Json.arr(
-          Json.obj(
-            "step" -> Json.arr(
-              Json.obj(
-                "label" -> labelName,
-                "limit" -> 1
-              )
-            )
-          )
+    val prepared = prepareCache.withCache(s"$dimension:$bucketKey") {
+      val checkReqJs = Json.arr(
+        Json.obj(
+          "label" -> labelName,
+          "direction" -> "out",
+          "from" -> dimension,
+          "to" -> makeBucketShardKey(BUCKET_SHARD_COUNT - 1, rankingKey)
         )
       )
 
-      val response = Http(s"$s2graphUrl/graphs/getEdges")
-        .postData(json.toString())
+      val checkResp = Http(s"$s2graphUrl/graphs/checkEdges")
+        .postData(checkReqJs.toString())
         .header("content-type", "application/json").asString
 
-      response.isSuccess match {
+      checkResp.isSuccess match {
         case true =>
           // make
 //          log.warn(response.body)
-          if ((Json.parse(response.body) \ "size").as[Int] <= 0) {
-            val jsonLs = {
+          val checkRespJs = Json.parse(checkResp.body)
+          if (checkRespJs.as[Seq[JsValue]].isEmpty) {
+            val insertReqJsLs = {
               for {
-                i <- 0 until BUCKET_COUNT
+                i <- 0 until BUCKET_SHARD_COUNT
               } yield {
                 Json.obj(
-                  "timestamp" -> System.currentTimeMillis(),
+                  "timestamp" -> rankingKey.eq.tq.ts,
                   "from" -> dimension,
-                  "to" -> makeBucketSimple(dimension, i),
-                  "label" -> labelName
+                  "to" -> makeBucketShardKey(i, rankingKey),
+                  "label" -> labelName,
+                  "props" -> Json.obj(
+                    "time_unit" -> rankingKey.eq.tq.q.toString,
+                    "time_value" -> rankingKey.eq.tq.ts
+                  )
                 )
               }
             }
 
-            val response = Http(s"$s2graphUrl/graphs/edges/insert")
-              .postData(Json.toJson(jsonLs).toString())
+            val insertResp = Http(s"$s2graphUrl/graphs/edges/insert")
+              .postData(Json.toJson(insertReqJsLs).toString())
               .header("content-type", "application/json").asString
 
-            if (response.isError) {
-              log.error(s"failed edges/insert $jsonLs ${response.code} ${response.body}")
+            if (insertResp.isError) {
+              log.error(s"failed edges/insert $insertReqJsLs ${insertResp.code} ${insertResp.body}")
               None
             } else {
               Some(true)
@@ -303,7 +295,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
             Some(true)
           }
         case false =>
-          log.error(s"failed getEdges: $json ${response.code} ${response.body}")
+          log.error(s"failed getEdges: $checkReqJs ${checkResp.code} ${checkResp.body}")
           None
       }
     }
