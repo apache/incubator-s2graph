@@ -40,13 +40,12 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
   
   override def get(policy: Counter,
                    items: Seq[String],
-                   timeRange: Seq[(TimedQualifier, TimedQualifier)],
-                   dimQuery: Map[String, Set[String]])
-                  (implicit ex: ExecutionContext): Future[Seq[FetchedCountsGrouped]] = {
+                   timeRange: Seq[(TimedQualifier, TimedQualifier)])
+                  (implicit ex: ExecutionContext): Future[Seq[FetchedCounts]] = {
 
     val tableName = getTableName(policy)
 
-    lazy val messageForLog = s"${policy.service}.${policy.action} $items $timeRange $dimQuery"
+    lazy val messageForLog = s"${policy.service}.${policy.action} $items $timeRange"
 
     val keys = {
       for {
@@ -78,7 +77,7 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
 
 //    println(s"$messageForLog $gets")
 
-    withAsyncHBase[Seq[FetchedCountsGrouped]] { client =>
+    withAsyncHBase[Seq[FetchedCounts]] { client =>
       val deferreds: Seq[Deferred[FetchedCounts]] = {
         for {
           (key, cf, get) <- gets
@@ -88,7 +87,7 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
               val qualifierWithCounts = {
                 for {
                   kv <- kvs
-                  eq = BytesUtilV1.toExactQualifier(kv.qualifier()) if eq.checkDimensionEquality(dimQuery)
+                  eq = BytesUtilV1.toExactQualifier(kv.qualifier())
                 } yield {
                   eq -> Bytes.toLong(kv.value())
                 }
@@ -99,25 +98,34 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
           }}
         }
       }
-      Deferred.group(deferreds).addCallback { new Callback[Seq[FetchedCountsGrouped], util.ArrayList[FetchedCounts]] {
-        override def call(arg: util.ArrayList[FetchedCounts]): Seq[FetchedCountsGrouped] = {
-          val counts = {
-            for {
-              (key, fetchedGroup) <- Seq(arg: _*).groupBy(_.exactKey)
-            } yield {
-              fetchedGroup.reduce[FetchedCounts] { case (f1, f2) =>
-                FetchedCounts(key, f1.qualifierWithCountMap ++ f2.qualifierWithCountMap)
-              }
-            }
-          }.toSeq
-
+      Deferred.group(deferreds).addCallback { new Callback[Seq[FetchedCounts], util.ArrayList[FetchedCounts]] {
+        override def call(arg: util.ArrayList[FetchedCounts]): Seq[FetchedCounts] = {
           for {
-            FetchedCounts(k, qualifierWithCountMap) <- counts
+            (key, fetchedGroup) <- Seq(arg: _*).groupBy(_.exactKey)
           } yield {
-            FetchedCountsGrouped(k, qualifierWithCountMap.groupBy { case (eq, v) => (eq.tq.q, eq.dimKeyValues) })
+            fetchedGroup.reduce[FetchedCounts] { case (f1, f2) =>
+              FetchedCounts(key, f1.qualifierWithCountMap ++ f2.qualifierWithCountMap)
+            }
           }
-        }
+        }.toSeq
       }}
+    }
+  }
+
+  override def get(policy: Counter,
+                   items: Seq[String],
+                   timeRange: Seq[(TimedQualifier, TimedQualifier)],
+                   dimQuery: Map[String, Set[String]])
+                  (implicit ec: ExecutionContext): Future[Seq[FetchedCountsGrouped]] = {
+    get(policy, items, timeRange).map { fetchedLs =>
+      for {
+        FetchedCounts(exactKey, qualifierWithCountMap) <- fetchedLs
+      } yield {
+        val intervalWithCountMap = qualifierWithCountMap
+          .filter { case (eq, v) => eq.checkDimensionEquality(dimQuery) }
+          .groupBy { case (eq, v) => (eq.tq.q, eq.dimKeyValues) }
+        FetchedCountsGrouped(exactKey, intervalWithCountMap)
+      }
     }
   }
 
