@@ -122,7 +122,7 @@ object EraseDailyCounter extends SparkApp with WithKafka {
 
     val ctx = new SparkContext(conf)
 
-    val rdd = ctx.textFile(file)
+    val rdd = ctx.textFile(file, 20)
 
     val counterModel = new CounterModel(S2ConfigFactory.config)
 
