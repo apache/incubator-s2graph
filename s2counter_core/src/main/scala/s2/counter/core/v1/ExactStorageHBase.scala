@@ -36,10 +36,9 @@ class ExactStorageHBase(config: Config) extends ExactStorage {
 
   override def get(policy: Counter,
                    items: Seq[String],
-                   timeRange: Seq[(TimedQualifier, TimedQualifier)],
-                   dimQuery: Map[String, Set[String]])
-                  (implicit ec: ExecutionContext): Future[Seq[FetchedCountsGrouped]] = {
-    lazy val messageForLog = s"${policy.service}.${policy.action} $items $timeRange $dimQuery"
+                   timeRange: Seq[(TimedQualifier, TimedQualifier)])
+                  (implicit ec: ExecutionContext): Future[Seq[FetchedCounts]] = {
+    lazy val messageForLog = s"${policy.service}.${policy.action} $items $timeRange"
 
     val keys = {
       for {
@@ -72,42 +71,41 @@ class ExactStorageHBase(config: Config) extends ExactStorage {
     //    println(s"$messageForLog $gets")
     Future {
       withHBase(getTableName(policy)) { table =>
-        val fetchedLs = {
-          for {
-            (rst, key) <- table.get(gets).zip(keys) if !rst.isEmpty
-          } yield {
-            val qualifierWithCounts = {
-              for {
-                cell <- rst.listCells()
-                eq = BytesUtilV1.toExactQualifier(CellUtil.cloneQualifier(cell)) if eq.checkDimensionEquality(dimQuery)
-              } yield {
-                eq -> Bytes.toLong(CellUtil.cloneValue(cell))
-              }
-            }.toMap
-            FetchedCounts(key, qualifierWithCounts)
-          }
-        }
-
-        val counts = {
-          for {
-            (key, fetchedGroup) <- fetchedLs.groupBy(_.exactKey)
-          } yield {
-            fetchedGroup.reduce[FetchedCounts] { case (f1, f2) =>
-              FetchedCounts(key, f1.qualifierWithCountMap ++ f2.qualifierWithCountMap)
-            }
-          }
-        }
-
         for {
-          FetchedCounts(k, qualifierWithCountMap) <- counts
+          (rst, key) <- table.get(gets).zip(keys) if !rst.isEmpty
         } yield {
-          FetchedCountsGrouped(k, qualifierWithCountMap.groupBy { case (eq, v) => (eq.tq.q, eq.dimKeyValues) })
+          val qualifierWithCounts = {
+            for {
+              cell <- rst.listCells()
+              eq = BytesUtilV1.toExactQualifier(CellUtil.cloneQualifier(cell))
+            } yield {
+              eq -> Bytes.toLong(CellUtil.cloneValue(cell))
+            }
+          }.toMap
+          FetchedCounts(key, qualifierWithCounts)
         }
       } match {
-        case Success(rst) => rst.toSeq
+        case Success(rst) => rst
         case Failure(ex) =>
           log.error(s"$ex: $messageForLog")
           Nil
+      }
+    }
+  }
+
+  override def get(policy: Counter,
+                   items: Seq[String],
+                   timeRange: Seq[(TimedQualifier, TimedQualifier)],
+                   dimQuery: Map[String, Set[String]])
+                  (implicit ec: ExecutionContext): Future[Seq[FetchedCountsGrouped]] = {
+    get(policy, items, timeRange).map { fetchedLs =>
+      for {
+        FetchedCounts(exactKey, qualifierWithCountMap) <- fetchedLs
+      } yield {
+        val intervalWithCountMap = qualifierWithCountMap
+          .filter { case (eq, v) => eq.checkDimensionEquality(dimQuery) }
+          .groupBy { case (eq, v) => (eq.tq.q, eq.dimKeyValues) }
+        FetchedCountsGrouped(exactKey, intervalWithCountMap)
       }
     }
   }

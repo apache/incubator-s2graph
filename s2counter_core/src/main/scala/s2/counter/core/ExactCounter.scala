@@ -67,6 +67,18 @@ class ExactCounter(config: Config, storage: ExactStorage) {
       intervals.map(interval => (TimedQualifier(interval, from), TimedQualifier(interval, to))), dimension).headOption
   }
 
+  def getCount(policy: Counter,
+               itemId: String,
+               intervals: Seq[IntervalUnit],
+               from: Long,
+               to: Long)
+              (implicit ex: ExecutionContext): Option[FetchedCounts] = {
+    val future = storage.get(policy,
+      Seq(itemId),
+      intervals.map(interval => (TimedQualifier(interval, from), TimedQualifier(interval, to))))
+    Await.result(future, syncDuration).headOption
+  }
+
   // multi item, time range and multi dimension
   def getCounts(policy: Counter,
                 items: Seq[String],

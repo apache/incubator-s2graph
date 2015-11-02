@@ -9,12 +9,17 @@ import scala.concurrent.{ExecutionContext, Future}
  * Created by shon on 8/12/15.
  */
 trait ExactStorage {
-  // for range query
+  // for range query and check dimension
   def get(policy: Counter,
           items: Seq[String],
           timeRange: Seq[(TimedQualifier, TimedQualifier)],
           dimQuery: Map[String, Set[String]])
          (implicit ec: ExecutionContext): Future[Seq[FetchedCountsGrouped]]
+  // for range query
+  def get(policy: Counter,
+          items: Seq[String],
+          timeRange: Seq[(TimedQualifier, TimedQualifier)])
+         (implicit ec: ExecutionContext): Future[Seq[FetchedCounts]]
   // for query exact qualifier
   def get(policy: Counter,
           queries: Seq[(ExactKeyTrait, Seq[ExactQualifier])])

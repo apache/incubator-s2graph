@@ -346,4 +346,10 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
   override def ready(policy: Counter): Boolean = {
     existsLabel(policy)
   }
+
+  // for range query
+  override def get(policy: Counter, items: Seq[String], timeRange: Seq[(TimedQualifier, TimedQualifier)])
+                  (implicit ec: ExecutionContext): Future[Seq[FetchedCounts]] = {
+    throw new NotImplementedError("Not implemented")
+  }
 }

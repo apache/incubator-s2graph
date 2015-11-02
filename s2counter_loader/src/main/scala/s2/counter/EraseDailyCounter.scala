@@ -84,8 +84,8 @@ object EraseDailyCounter extends SparkApp with WithKafka {
       }
       m.foreach { case (k, v) =>
         v.map(_.toKafkaMessage).grouped(1000).foreach { grouped =>
-          println(grouped)
-//          producer.send(new KeyedMessage[String, String](StreamingConfig.KAFKA_TOPIC_COUNTER, null, k, grouped.mkString("\n")))
+//          println(grouped)
+          producer.send(new KeyedMessage[String, String](StreamingConfig.KAFKA_TOPIC_COUNTER, null, k, grouped.mkString("\n")))
         }
       }
     }
@@ -104,10 +104,9 @@ object EraseDailyCounter extends SparkApp with WithKafka {
 
       for {
         line <- part
-        FetchedCountsGrouped(exactKey, intervalWithCountMap) <- exactCounter.getCount(policy, line, Array(TimedQualifier.IntervalUnit.DAILY), fromTs, toTs, Map.empty[String, Set[String]])
-        count = intervalWithCountMap.values.head
+        FetchedCounts(exactKey, qualifierWithCountMap) <- exactCounter.getCount(policy, line, Array(TimedQualifier.IntervalUnit.DAILY), fromTs, toTs)
       } yield {
-        (exactKey, count)
+        (exactKey, qualifierWithCountMap)
       }
     }
   }
