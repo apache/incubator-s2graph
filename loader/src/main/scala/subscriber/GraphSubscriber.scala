@@ -90,6 +90,8 @@ object GraphSubscriberHelper extends WithKafka {
         case Some(v) if v.isInstanceOf[Vertex] =>
           statFunc("VertexParseOk", 1)
           v.asInstanceOf[Vertex]
+        case Some(x) =>
+          throw new RuntimeException(s">>>>> GraphSubscriber.toGraphElements: parsing failed. ${x.serviceName}")
         case None =>
           throw new RuntimeException(s"GraphSubscriber.toGraphElements: parsing failed. $msg")
       }

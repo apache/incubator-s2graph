@@ -60,6 +60,8 @@ class CosineSimilarity(params: CosineSimilarityParams)
         /* dot product using MatrixFactorizationModel.recommendForAll */
         val dotProduct = "org$apache$spark$mllib$recommendation$MatrixFactorizationModel$$recommendForAll"
         PrivateMethodAccessor(MatrixFactorizationModel, dotProduct)[RDD[(Int, Array[(Int, Double)])]](vecSize, unitVectors, unitVectors, k)
+      case "kdtree" =>
+        ???
       case s =>
         throw new IllegalArgumentException(s"$s is not supported")
     }
