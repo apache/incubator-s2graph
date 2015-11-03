@@ -1,5 +1,6 @@
 package s2.counter.core
 
+import java.text.SimpleDateFormat
 import java.util.Calendar
 
 /**
@@ -7,6 +8,8 @@ import java.util.Calendar
  */
 case class TimedQualifier(q: TimedQualifier.IntervalUnit.Value, ts: Long) {
   import TimedQualifier.IntervalUnit._
+
+  val dateTime: Long = TimedQualifier.dateFormat.format(ts).toLong
 
   def add(amount: Int): TimedQualifier = {
     val cal = Calendar.getInstance()
@@ -27,6 +30,8 @@ case class TimedQualifier(q: TimedQualifier.IntervalUnit.Value, ts: Long) {
 }
 
 object TimedQualifier {
+  val dateFormat = new SimpleDateFormat("yyyyMMddHHmm")
+
   object IntervalUnit extends Enumeration {
     type IntervalUnit = Value
     val TOTAL = Value("t")

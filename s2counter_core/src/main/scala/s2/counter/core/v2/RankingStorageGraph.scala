@@ -1,5 +1,7 @@
 package s2.counter.core.v2
 
+import java.text.SimpleDateFormat
+
 import com.kakao.s2graph.core.GraphUtil
 import com.kakao.s2graph.core.mysqls.Label
 import com.kakao.s2graph.core.types.HBaseType
@@ -18,7 +20,7 @@ import scalaj.http.{Http, HttpResponse}
 /**
  * Created by shon on 7/28/15.
  */
-case class RankingStorageGraph(config: Config) extends RankingStorage {
+class RankingStorageGraph(config: Config) extends RankingStorage {
   private[counter] val log = LoggerFactory.getLogger(this.getClass)
   private val s2config = new S2CounterConfig(config)
 
@@ -29,6 +31,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
   private val labelPostfix = "_topK"
 
   val s2graphUrl = s2config.GRAPH_URL
+//  val dateFormat = new SimpleDateFormat("yyyyMMddHHmm")
 
   val prepareCache = new CollectionCache[Option[Boolean]](CollectionCacheConfig(10000, 600))
 
@@ -148,6 +151,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
           "props" -> Json.obj(
             "time_unit" -> key.eq.tq.q.toString,
             "time_value" -> key.eq.tq.ts,
+            "date_time" -> key.eq.tq.dateTime,
             "score" -> score
           )
         )
@@ -275,7 +279,7 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
                   "label" -> labelName,
                   "props" -> Json.obj(
                     "time_unit" -> rankingKey.eq.tq.q.toString,
-                    "time_value" -> rankingKey.eq.tq.ts
+                    "date_time" -> rankingKey.eq.tq.dateTime
                   )
                 )
               }
@@ -331,9 +335,10 @@ case class RankingStorageGraph(config: Config) extends RankingStorage {
            |    {"name": "time", "propNames": ["time_unit", "time_value", "score"]}
            |	],
            |  "props": [
-           |		{"name": "time_unit", "dataType": "string", "defaultValue": ""},
-           |		{"name": "time_value", "dataType": "long", "defaultValue": 0},
-           |		{"name": "score", "dataType": "float", "defaultValue": 0.0}
+           |    {"name": "time_unit", "dataType": "string", "defaultValue": ""},
+           |    {"name": "time_value", "dataType": "long", "defaultValue": 0},
+           |    {"name": "date_time", "dataType": "long", "defaultValue": 0},
+           |    {"name": "score", "dataType": "float", "defaultValue": 0.0}
            |  ],
            |  "hTableName": "${policy.hbaseTable.get}"
            |}
