@@ -135,6 +135,18 @@ trait RequestParser extends JSONParser {
       val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
       val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
       val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
+      val orderByColumns: List[(String, Boolean)] = (jsValue \ "orderBy").asOpt[List[JsObject]].map { jsLs =>
+        for {
+          js <- jsLs
+          (column, orderJs) <- js.fields
+        } yield {
+          val ascending = orderJs.as[String].toUpperCase match {
+            case "ASC" => true
+            case "DESC" => false
+          }
+          column -> ascending
+        }
+      }.getOrElse(List("score" -> false, "timestamp" -> false))
       val withScore = (jsValue \ "withScore").asOpt[Boolean].getOrElse(true)
       val returnTree = (jsValue \ "returnTree").asOpt[Boolean].getOrElse(false)
 
@@ -201,10 +213,18 @@ trait RequestParser extends JSONParser {
 
         }
 
-      val ret = Query(vertices, querySteps, removeCycle = removeCycle,
-        selectColumns = selectColumns, groupByColumns = groupByColumns,
-        filterOutQuery = filterOutQuery, filterOutFields = filterOutFields,
-        withScore = withScore, returnTree = returnTree)
+      val ret = Query(
+        vertices,
+        querySteps,
+        removeCycle = removeCycle,
+        selectColumns = selectColumns,
+        groupByColumns = groupByColumns,
+        orderByColumns = orderByColumns,
+        filterOutQuery = filterOutQuery,
+        filterOutFields = filterOutFields,
+        withScore = withScore,
+        returnTree = returnTree
+      )
       //      logger.debug(ret.toString)
       ret
     } catch {
@@ -235,14 +255,14 @@ trait RequestParser extends JSONParser {
       val offset = parse[Option[Int]](labelGroup, "offset").getOrElse(0)
       val interval = extractInterval(label, labelGroup)
       val duration = extractDuration(label, labelGroup)
-      val scorings = extractScoring(label.id.get, labelGroup).getOrElse(List.empty[(Byte, Double)]).toList
+      val scoring = extractScoring(label.id.get, labelGroup).getOrElse(List.empty[(Byte, Double)]).toList
       val exclude = parse[Option[Boolean]](labelGroup, "exclude").getOrElse(false)
       val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
       val hasFilter = extractHas(label, labelGroup)
       val labelWithDir = LabelWithDirection(label.id.get, direction)
       val indexNameOpt = (labelGroup \ "index").asOpt[String]
       val indexSeq = indexNameOpt match {
-        case None => label.indexSeqsMap.get(scorings.map(kv => kv._1)).map(_.seq).getOrElse(LabelIndex.DefaultSeq)
+        case None => label.indexSeqsMap.get(scoring.map(kv => kv._1)).map(_.seq).getOrElse(LabelIndex.DefaultSeq)
         case Some(indexName) => label.indexNameMap.get(indexName).map(_.seq).getOrElse(throw new RuntimeException("cannot find index"))
       }
       val where = extractWhere(labelMap, labelGroup)
@@ -271,7 +291,7 @@ trait RequestParser extends JSONParser {
       // FIXME: Order of command matter
       QueryParam(labelWithDir)
         .limit(offset, limit)
-        .rank(RankParam(label.id.get, scorings))
+        .rank(RankParam(label.id.get, scoring))
         .exclude(exclude)
         .include(include)
         .interval(interval)
