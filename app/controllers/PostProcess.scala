@@ -123,7 +123,6 @@ object PostProcess extends JSONParser {
   def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]): JsValue = {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
 
-    var withScore = true
     val degrees = ListBuffer[JsValue]()
     val rawEdges = ListBuffer[(Map[String, JsValue], Double, Seq[JsValue])]()
 
@@ -140,7 +139,6 @@ object PostProcess extends JSONParser {
         (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(toHashKey(edge, queryResult.queryParam, q.filterOutFields))
       } {
         // edge to json
-        withScore = queryResult.query.withScore
         val (srcColumn, _) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
         val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
         if (edge.propsWithTs.contains(LabelMeta.degreeSeq) && fromOpt.isDefined) {
@@ -172,15 +170,6 @@ object PostProcess extends JSONParser {
       if (q.groupByColumns.isEmpty) {
         // ordering
         val edges = {
-//          if (withScore) {
-//            rawEdges.sortBy { case (kvs, score, ts) =>
-//              val firstOrder = score * -1
-//              val secondOrder = ts * -1
-//              (firstOrder, secondOrder)
-//            }
-//          } else {
-//            rawEdges
-//          }
           if (q.orderByColumns.isEmpty) {
             rawEdges
           } else {
