@@ -1,9 +1,9 @@
 package controllers
 
+import com.kakao.s2graph.MultiOrdering
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
-import com.kakao.s2graph.core.util.MultiOrdering
 import play.api.libs.json.{Json, _}
 
 import scala.collection.mutable.ListBuffer
