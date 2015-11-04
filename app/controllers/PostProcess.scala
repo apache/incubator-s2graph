@@ -3,6 +3,7 @@ package controllers
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
+import com.kakao.s2graph.core.util.MultiOrdering
 import play.api.libs.json.{Json, _}
 
 import scala.collection.mutable.ListBuffer
@@ -124,7 +125,7 @@ object PostProcess extends JSONParser {
 
     var withScore = true
     val degrees = ListBuffer[JsValue]()
-    val rawEdges = ListBuffer[(Map[String, JsValue], Double, Long)]()
+    val rawEdges = ListBuffer[(Map[String, JsValue], Double, Seq[JsValue])]()
 
     if (queryResultLs.isEmpty) {
       Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr())
@@ -138,6 +139,7 @@ object PostProcess extends JSONParser {
 
         (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(toHashKey(edge, queryResult.queryParam, q.filterOutFields))
       } {
+        // edge to json
         withScore = queryResult.query.withScore
         val (srcColumn, _) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
         val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
@@ -149,21 +151,41 @@ object PostProcess extends JSONParser {
             LabelMeta.degree.name -> innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
           )
         } else {
-          val currentEdge = (edgeToJson(edge, score, queryResult.query, queryResult.queryParam), score, edge.ts)
+          val keyWithJs = edgeToJson(edge, score, queryResult.query, queryResult.queryParam)
+          val orderByValues: Seq[JsValue] = {
+            val props = keyWithJs.get("props")
+            for {
+              (column, _) <- q.orderByColumns
+              value <- keyWithJs.get(column) match {
+                case None => props.flatMap { js => (js \ column).asOpt[JsValue] }
+                case Some(x) => Some(x)
+              }
+            } yield {
+              value
+            }
+          }
+          val currentEdge = (keyWithJs, score, orderByValues)
           rawEdges += currentEdge
         }
       }
 
       if (q.groupByColumns.isEmpty) {
+        // ordering
         val edges = {
-          if (withScore) {
-            rawEdges.sortBy { case (kvs, score, ts) =>
-              val firstOrder = score * -1
-              val secondOrder = ts * -1
-              (firstOrder, secondOrder)
-            }
-          } else {
+//          if (withScore) {
+//            rawEdges.sortBy { case (kvs, score, ts) =>
+//              val firstOrder = score * -1
+//              val secondOrder = ts * -1
+//              (firstOrder, secondOrder)
+//            }
+//          } else {
+//            rawEdges
+//          }
+          if (q.orderByColumns.isEmpty) {
             rawEdges
+          } else {
+            val ascendingLs = q.orderByColumns.map(_._2)
+            rawEdges.sortBy(_._3)(new MultiOrdering(ascendingLs))
           }
         }.map(_._1)
 
@@ -174,7 +196,7 @@ object PostProcess extends JSONParser {
           "impressionId" -> q.impressionId()
         )
       } else {
-        val grouped = rawEdges.groupBy { case (keyWithJs, score, ts) =>
+        val grouped = rawEdges.groupBy { case (keyWithJs, _, _) =>
           val props = keyWithJs.get("props")
 
           for {
@@ -188,17 +210,22 @@ object PostProcess extends JSONParser {
 
         val groupedEdges = {
           for {
-            (groupByKeyVals, edges) <- grouped
+            (groupByKeyVals, groupedRawEdges) <- grouped
           } yield {
-            val scoreSum = edges.map(x => x._2).sum
+            val scoreSum = groupedRawEdges.map(x => x._2).sum
+            // ordering
+            val edges = {
+              if (q.orderByColumns.isEmpty) {
+                rawEdges
+              } else {
+                val ascendingLs = q.orderByColumns.map(_._2)
+                rawEdges.sortBy(_._3)(new MultiOrdering(ascendingLs))
+              }
+            }.map(_._1)
             Json.obj(
               "groupBy" -> Json.toJson(groupByKeyVals.toMap),
               "scoreSum" -> scoreSum,
-              "agg" -> edges.sortBy { case (kvs, score, ts) =>
-                val firstOrder = score * -1
-                val secondOrder = ts * -1
-                (firstOrder, secondOrder)
-              }.map(_._1)
+              "agg" -> edges
             )
           }
         }

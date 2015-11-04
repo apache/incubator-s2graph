@@ -75,7 +75,7 @@ class PostProcessSpec extends SpecCommon with PlaySpecification {
             Ordering.Double.compare(xv, yv)
           case (xv: String, yv: String) =>
             Ordering.String.compare(xv, yv)
-          case _ => throw new Exception("unsupported type")
+          case _ => throw new Exception(s"unsupported type")
         }
         if (res != 0) return res
       }
