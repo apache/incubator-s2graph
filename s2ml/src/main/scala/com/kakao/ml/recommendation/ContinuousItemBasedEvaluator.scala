@@ -3,7 +3,6 @@ package com.kakao.ml.recommendation
 import com.kakao.ml.Data
 import com.kakao.ml.io._
 import org.apache.spark.mllib.rdd.MLPairRDDFunctions._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
 

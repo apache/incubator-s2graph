@@ -6,6 +6,8 @@ scalacOptions ++= Seq("-deprecation")
 
 val sparkVersion = "1.5.1"
 
+resolvers += "Sonatype OSS Releases" at "http://oss.sonatype.org/content/repositories/releases/"
+
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-mllib" % sparkVersion % "provided",
@@ -13,6 +15,7 @@ libraryDependencies ++= Seq(
   "org.json4s" %% "json4s-native" % "3.2.10",
   "com.github.mdr" %% "ascii-graphs" % "0.0.3",
   "com.github.nscala-time" %% "nscala-time" % "2.4.0",
+  "com.thesamet" %% "kdtree" % "1.0.4",
   "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 )
 

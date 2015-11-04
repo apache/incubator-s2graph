@@ -61,8 +61,8 @@ object Launcher extends Environment with Visualization {
     launch(jsonString, command, None)
   }
 
-  def launch(jsonString: String, command: String, sparkContext: Option[SparkContext] = None): Unit = {
-
+  def buildPipeline(jsonString: String): List[BaseDataProcessor[Data, Data]]  = {
+    
     val jobDesc = Json.extract[JobDesc](jsonString)
 
     /** set env params */
@@ -128,6 +128,14 @@ object Launcher extends Environment with Visualization {
     val leaves = instances.map(_._4).diff(instances.flatMap(_._4.getPredecessors))
     leaves.foreach(x => println(x.toString(false)))
 
+    leaves
+
+  }
+
+  def launch(jsonString: String, command: String, sparkContext: Option[SparkContext] = None): Unit = {
+
+    val leaves = buildPipeline(jsonString)
+    
     println(s"running $jobId/$batchId: $comment")
 
     command match {
