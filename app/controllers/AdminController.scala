@@ -2,7 +2,7 @@ package controllers
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.utils.logger
 import play.api.libs.json._
 import play.api.mvc
 import play.api.mvc.{Action, Controller}
@@ -69,7 +69,10 @@ object AdminController extends Controller with RequestParser {
   }
 
   private[AdminController] def tryResponse[T, R: AdminMessageFormatter](res: Try[T])(callback: T => R): mvc.Result = res match {
-    case Success(m) => ok(callback(m))
+    case Success(m) =>
+      val ret = callback(m)
+      logger.info(ret.toString)
+      ok(ret)
     case Failure(error) =>
       logger.error(error.getMessage, error)
       error match {

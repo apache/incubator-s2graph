@@ -1,7 +1,6 @@
 package com.kakao.s2graph.core.mysqls
 
 import com.kakao.s2graph.core.GraphUtil
-import com.kakao.s2graph.logger
 import scalikejdbc._
 
 import scala.util.Random

@@ -60,7 +60,7 @@ trait TestCommonWithModels {
 
 
   val config = ConfigFactory.parseString("")
-  Graph(config)(ExecutionContext.Implicits.global)
+  val graph = new Graph(config)(ExecutionContext.Implicits.global)
 
   def initTests() = {
     deleteTestLabel()

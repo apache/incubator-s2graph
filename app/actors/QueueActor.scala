@@ -6,7 +6,7 @@ import actors.Protocol.FlushAll
 import akka.actor._
 import com.kakao.s2graph.core.ExceptionHandler._
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.utils.logger
 import config.Config
 import play.api.Play.current
 import play.api.libs.concurrent.Akka
@@ -30,8 +30,8 @@ object QueueActor {
   var router: ActorRef = _
 
   //    Akka.system.actorOf(props(), name = "queueActor")
-  def init() = {
-    router = Akka.system.actorOf(props())
+  def init(s2: Graph) = {
+    router = Akka.system.actorOf(props(s2))
   }
 
   def shutdown() = {
@@ -40,10 +40,10 @@ object QueueActor {
     Thread.sleep(Config.ASYNC_HBASE_CLIENT_FLUSH_INTERVAL * 2)
   }
 
-  def props(): Props = Props[QueueActor]
+  def props(s2: Graph): Props = Props(classOf[QueueActor], s2)
 }
 
-class QueueActor extends Actor with ActorLogging {
+class QueueActor(s2: Graph) extends Actor with ActorLogging {
 
   import Protocol._
 
@@ -77,14 +77,14 @@ class QueueActor extends Actor with ActorLogging {
       val flushSize = elementsToFlush.size
 
       queueSize -= elementsToFlush.length
-      Graph.mutateElements(elementsToFlush)
+      s2.mutateElements(elementsToFlush)
 
       if (flushSize > 0) {
         logger.info(s"flush: $flushSize, $queueSize")
       }
 
     case FlushAll =>
-      Graph.mutateElements(queue)
+      s2.mutateElements(queue)
       context.stop(self)
 
     case _ => logger.error("unknown protocol")

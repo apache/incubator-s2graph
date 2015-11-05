@@ -8,6 +8,5 @@ trait GraphElement {
   def isAsync: Boolean
   def queueKey: String
   def queuePartitionKey: String
-  def buildPutsAll(): List[HBaseRpc]
   def toLogString(): String
 }

@@ -37,8 +37,6 @@ class BasicCrudSpec extends SpecCommon {
 
       println(s"---- TC${tcNum}_init ----")
 
-      Thread.sleep(asyncFlushInterval)
-
       for {
         label <- Label.findByName(labelName)
         direction <- List("out", "in")

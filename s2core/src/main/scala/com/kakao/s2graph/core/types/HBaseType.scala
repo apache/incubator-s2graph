@@ -6,9 +6,11 @@ import org.apache.hadoop.hbase.util.Bytes
  * Created by shon on 6/6/15.
  */
 object HBaseType {
+  val VERSION3 = "v3"
   val VERSION2 = "v2"
   val VERSION1 = "v1"
-  val DEFAULT_VERSION = VERSION2
+//  val DEFAULT_VERSION = VERSION2
+  val DEFAULT_VERSION = VERSION3
   val EMPTY_SEQ_BYTE = Byte.MaxValue
   val DEFAULT_COL_ID = 0
   val bitsForDir = 2

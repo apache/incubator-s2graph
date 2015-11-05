@@ -6,8 +6,8 @@ package com.kakao.s2graph.core.mysqls
 
 import java.util.UUID
 
-import com.kakao.s2graph.core.Management
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.utils.logger
+import com.kakao.s2graph.core.{Management}
 import play.api.libs.json.Json
 import scalikejdbc._
 
