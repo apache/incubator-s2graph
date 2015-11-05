@@ -94,7 +94,7 @@ class CosineSimilarityTest extends FunSuite with Matchers with LocalSparkContext
 
     joined.count() should be (n)
 
-    val numDiff = joined.map(r => math.abs(r.getDouble(2) - r.getDouble(3))).filter(_ > 0.0001).count()
+    val numDiff = joined.map(r => math.abs(r.getDouble(2) - r.getDouble(3))).filter(_ > Blas.tolerance).count()
 
     numDiff should be (0L)
   }

@@ -33,7 +33,7 @@ class CosineSimilarity(params: CosineSimilarityParams)
     extends BaseDataProcessor[SimilarityInputData, SimilarityData](params) {
 
   val defaultNumBlocks = 20
-  val defaultStrategy = "kdtree"
+  val defaultStrategy = "default"
 
   def copyToUnitVector(factors: RDD[(Int, Array[Double])]): RDD[(Int, Array[Double])] = {
     val unitVecId = factors.mapValues { factor =>
@@ -46,7 +46,7 @@ class CosineSimilarity(params: CosineSimilarityParams)
         i += 1
       }
       norm = math.sqrt(norm)
-      if (norm > 1)
+      if (norm > Blas.tolerance)
         Blas.blas.dscal(v.length, 1.0 / norm, v, 1)
       v
     }
@@ -69,8 +69,10 @@ class CosineSimilarity(params: CosineSimilarityParams)
       case "bruteforce" =>
         /** dot product using MatrixFactorizationModel.recommendForAll */
         val dotProduct = "org$apache$spark$mllib$recommendation$MatrixFactorizationModel$$recommendForAll"
-        PrivateMethodAccessor(MatrixFactorizationModel, dotProduct)[RDD[(Int, Array[(Int, Double)])]](vecSize, unitVectors, unitVectors, k)
-      case "kdtree" =>
+        val included = PrivateMethodAccessor(MatrixFactorizationModel, dotProduct)[RDD[(Int, Array[(Int, Double)])]](vecSize, unitVectors, unitVectors, k + 1)
+        val excluded = included.map { case (key, values) => key -> values.filter(_._1 != key) }
+        excluded
+      case  `defaultStrategy` | "kdtree" =>
         CosineSimilarityByKDTree.dotProduct(k, vecSize, unitVectors)
       case s =>
         throw new IllegalArgumentException(s"$s is not supported")
@@ -83,7 +85,7 @@ class CosineSimilarity(params: CosineSimilarityParams)
     import sqlContext.implicits._
 
     val k = math.max(params.k, 1)
-    val strategy = params.strategy.getOrElse("bruteforce")
+    val strategy = params.strategy.getOrElse(defaultStrategy)
 
     val rank = input.model.rank
     val (df, indexingMap, sCol, iCol) = params.target match {
@@ -167,12 +169,13 @@ object CosineSimilarityByKDTree {
     }
 
     val product = srcBlocks.cartesian(indexedBlocks).flatMap {
-      case (srcBlock, index) =>
+      case (srcBlock, indexedBlock) =>
         srcBlock.flatMap { case (si, sv) =>
-          index.findNearest(sv, k)
+          val n = sv.length
+          indexedBlock.findNearest(sv, k)
               .map { case (dv, di) =>
-                val n = sv.length
-                (si, (di, Blas.blas.ddot(n, sv, 1, dv, 1)))
+                val dot = if(si == di) 0.0 else Blas.blas.ddot(n, sv, 1, dv, 1)
+                (si, (di, dot))
               }
         }
     }
@@ -183,5 +186,14 @@ object CosineSimilarityByKDTree {
 }
 
 object Blas {
+  
+  val tolerance: Double = {
+    var tol = 1.0
+    while ((1.0 + (tol / 2.0)) != 1.0) {
+      tol /= 2.0
+    }
+    tol
+  }
+  
   val blas = new F2jBLAS
 }
