@@ -125,7 +125,7 @@ object PostProcess extends JSONParser {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
 
     val degrees = ListBuffer[JsValue]()
-    val rawEdges = ListBuffer[(Map[String, JsValue], Double, Seq[JsValue])]()
+    val rawEdges = ListBuffer[(Map[String, JsValue], Double, Seq[Any])]()
 
     if (queryResultLs.isEmpty) {
       Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr())
@@ -151,13 +151,21 @@ object PostProcess extends JSONParser {
           )
         } else {
           val keyWithJs = edgeToJson(edge, score, queryResult.query, queryResult.queryParam)
-          val orderByValues: Seq[JsValue] = {
-            val props = keyWithJs.get("props")
+          val orderByValues: Seq[Any] = {
+//            val props = keyWithJs.get("props")
             for {
               (column, _) <- q.orderByColumns
-              value <- keyWithJs.get(column) match {
-                case None => props.flatMap { js => (js \ column).asOpt[JsValue] }
-                case Some(x) => Some(x)
+//              value <- keyWithJs.get(column) match {
+//                case None => props.flatMap { js => (js \ column).asOpt[JsValue] }
+//                case Some(x) => Some(x)
+//              }
+              value <- column match {
+                case "score" => Some(score)
+                case "timestamp" => Some(edge.ts)
+                case _ => keyWithJs.get(column) match {
+                  case None => keyWithJs.get("props").flatMap { js => (js \ column).asOpt[JsValue] }
+                  case Some(x) => Some(x)
+                }
               }
             } yield {
               value
@@ -175,7 +183,7 @@ object PostProcess extends JSONParser {
             rawEdges
           } else {
             val ascendingLs = q.orderByColumns.map(_._2)
-            rawEdges.sortBy(_._3)(new MultiOrdering[JsValue](ascendingLs))
+            rawEdges.sortBy(_._3)(new MultiOrdering[Any](ascendingLs))
           }
         }.map(_._1)
 
@@ -209,7 +217,7 @@ object PostProcess extends JSONParser {
                 rawEdges
               } else {
                 val ascendingLs = q.orderByColumns.map(_._2)
-                rawEdges.sortBy(_._3)(new MultiOrdering[JsValue](ascendingLs))
+                rawEdges.sortBy(_._3)(new MultiOrdering[Any](ascendingLs))
               }
             }.map(_._1)
             Json.obj(
