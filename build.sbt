@@ -2,9 +2,9 @@ name := "s2graph"
 
 lazy val commonSettings = Seq(
   organization := "com.kakao.s2graph",
+  scalaVersion := "2.11.7",
   version := "0.11.0-SNAPSHOT",
-  crossScalaVersions := Seq("2.11.7"),
-  scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xexperimental"),
+  scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Ydelambdafy:method", "-Xlint"),
   javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map{ case (key, value) => "-D" + key + "=" + value }.toSeq,
   testOptions in Test += Tests.Argument("-oDF"),
   parallelExecution in Test := false,
@@ -28,8 +28,9 @@ lazy val spark = project.settings(commonSettings: _*)
 lazy val loader = project.dependsOn(s2core, spark).settings(commonSettings: _*)
 
 libraryDependencies ++= Seq(
-  "com.github.danielwegener" % "logback-kafka-appender" % "0.0.3",
   ws,
   filters,
+  "xalan" % "serializer" % "2.7.2", // Download in Intelli J(Download Source/Document)
+  "com.github.danielwegener" % "logback-kafka-appender" % "0.0.3",
   "org.json4s" %% "json4s-native" % "3.2.11" % Test
 )

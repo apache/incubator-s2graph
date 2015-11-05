@@ -4,7 +4,7 @@ package controllers
 import java.net.URL
 
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.utils.logger
 import play.api.Play.current
 import play.api.libs.json.{JsObject, JsString, JsValue, Json}
 import play.api.libs.ws.WS

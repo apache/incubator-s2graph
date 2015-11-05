@@ -1,6 +1,5 @@
 package benchmark
 
-import com.kakao.s2graph.logger
 import play.api.libs.json.JsNumber
 import play.api.test.{FakeApplication, PlaySpecification, WithApplication}
 import play.libs.Json
@@ -12,7 +11,7 @@ class JsonBenchmarkSpec extends PlaySpecification {
     val startTs = System.currentTimeMillis()
     val ret = block
     val endTs = System.currentTimeMillis()
-    logger.info(s"$wrapStr\n$prefix: took ${endTs - startTs} ms$wrapStr")
+    println(s"$wrapStr\n$prefix: took ${endTs - startTs} ms$wrapStr")
     ret
   }
 
