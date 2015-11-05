@@ -600,12 +600,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     else
       buildPutsAsync(edge.srcForVertex) ++ buildPutsAsync(edge.tgtForVertex)
 
-  private def insertBulkForLoaderAsync(edge: Edge, createRelEdges: Boolean = true) = {
-    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
-    buildPutAsync(edge.toSnapshotEdge) ++ relEdges.flatMap { relEdge =>
-      relEdge.edgesWithIndex.flatMap(e => buildPutsAsync(e))
-    }
-  }
+
 
   private def writeAsyncWithWaitRetry(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]], retryNum: Int): Future[Seq[Boolean]] =
     writeAsyncWithWait(zkQuorum, elementRpcs).flatMap { rets =>
