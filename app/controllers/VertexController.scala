@@ -2,26 +2,28 @@ package controllers
 
 
 import actors.QueueActor
-import com.kakao.s2graph.core.{Graph, ExceptionHandler, GraphExceptions}
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.utils.logger
+import com.kakao.s2graph.core.{ExceptionHandler, Graph, GraphExceptions}
 import config.Config
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Controller, Result}
 
 import scala.concurrent.Future
 
-object VertexController extends Controller with RequestParser  {
+object VertexController extends Controller with RequestParser {
+  private val s2: Graph = com.kakao.s2graph.rest.Global.s2graph
 
   import ExceptionHandler._
   import controllers.ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits._
-  private def tryMutates(jsValue: JsValue, operation: String, serviceNameOpt: Option[String] = None, columnNameOpt: Option[String] = None, withWait: Boolean = false): Future[Result] = {
+
+  def tryMutates(jsValue: JsValue, operation: String, serviceNameOpt: Option[String] = None, columnNameOpt: Option[String] = None, withWait: Boolean = false): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
     else {
       try {
         val vertices = toVertices(jsValue, operation, serviceNameOpt, columnNameOpt)
 
-        for ( vertex <- vertices ) {
+        for (vertex <- vertices) {
           if (vertex.isAsync)
             ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC_ASYNC, vertex, None))
           else
@@ -32,10 +34,10 @@ object VertexController extends Controller with RequestParser  {
         val verticesToStore = vertices.filterNot(v => v.isAsync)
 
         if (withWait) {
-          val rets = Graph.mutateVertices(verticesToStore, withWait = true)
+          val rets = s2.mutateVertices(verticesToStore, withWait = true)
           rets.map(Json.toJson(_)).map(jsonResponse(_))
         } else {
-          val rets = verticesToStore.map { vertex => QueueActor.router ! vertex ; true }
+          val rets = verticesToStore.map { vertex => QueueActor.router ! vertex; true }
           Future.successful(jsonResponse(Json.toJson(rets)))
         }
       } catch {

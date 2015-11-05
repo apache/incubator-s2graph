@@ -7,7 +7,6 @@ import play.api.test.{FakeApplication, FakeRequest}
 
 import scala.concurrent.Await
 
-
 /**
  * Created by mojo22jojo(hyunsung.jo@gmail.com) on 15. 10. 13..
  */

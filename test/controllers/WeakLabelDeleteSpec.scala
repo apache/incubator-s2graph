@@ -22,11 +22,11 @@ class WeakLabelDeleteSpec extends SpecCommon {
     running(FakeApplication()) {
       // insert bulk and wait ..
       val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(), withWait = true))
-      Thread.sleep(asyncFlushInterval)
     }
 
 
-    def query(id: Int, direction: String = "out", columnName: String = testColumnName) = Json.parse( s"""
+    def query(id: Int, direction: String = "out", columnName: String = testColumnName) = Json.parse(
+      s"""
         { "srcVertices": [
           { "serviceName": "$testServiceName",
             "columnName": "$columnName",
@@ -68,8 +68,8 @@ class WeakLabelDeleteSpec extends SpecCommon {
         /** expect 4 edges */
         (result \ "results").as[List[JsValue]].size must equalTo(4)
         val edges = (result \ "results").as[List[JsObject]]
-        contentAsJson(EdgeController.tryMutates(Json.toJson(edges), "delete", withWait = true))
 
+        contentAsJson(EdgeController.tryMutates(Json.toJson(edges), "delete", withWait = true))
 
         /** expect noting */
         result = getEdges(query(0))
@@ -78,7 +78,6 @@ class WeakLabelDeleteSpec extends SpecCommon {
 
         /** insert should be ignored */
         contentAsJson(EdgeController.tryMutates(Json.toJson(edges), "insert", withWait = true))
-
 
         result = getEdges(query(0))
         (result \ "results").as[List[JsValue]].size must equalTo(0)
@@ -95,8 +94,8 @@ class WeakLabelDeleteSpec extends SpecCommon {
         val json = Json.arr(Json.obj("label" -> testLabelNameWeak,
           "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
         println(json)
-        EdgeController.deleteAllInner(json)
-        Thread.sleep(asyncFlushInterval)
+        contentAsString(EdgeController.deleteAllInner(json))
+
 
         result = getEdges(query(11, "out"))
         (result \ "results").as[List[JsValue]].size must equalTo(0)
@@ -116,97 +115,12 @@ class WeakLabelDeleteSpec extends SpecCommon {
         (result \ "results").as[List[JsValue]].size must equalTo(0)
 
         val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(startTs = deletedAt + 1), withWait = true))
-        Thread.sleep(asyncFlushInterval)
 
         result = getEdges(query(20, "in", testTgtColumnName))
         (result \ "results").as[List[JsValue]].size must equalTo(3)
       }
     }
   }
-  //
-  //  "strong label deleteAll test" should {
-  //    running(FakeApplication()) {
-  //      // insert bulk and wait ..
-  //      val bulkEdges: String = Seq(
-  //        Seq("1", "insert", "e", "0", "1", testLabelName, s"""{"time": 10}""").mkString("\t"),
-  //        Seq("2", "insert", "e", "0", "1", testLabelName, s"""{"time": 11}""").mkString("\t"),
-  //        Seq("3", "insert", "e", "0", "1", testLabelName, s"""{"time": 12}""").mkString("\t"),
-  //        Seq("4", "insert", "e", "0", "2", testLabelName, s"""{"time": 10}""").mkString("\t")
-  //      ).mkString("\n")
-  //
-  //      val ret = route(FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges)).get
-  //      val jsRslt = contentAsJson(ret)
-  //      Thread.sleep(asyncFlushInterval)
-  //    }
-  //
-  //    def query(id: Int) = Json.parse( s"""
-  //        { "srcVertices": [
-  //          { "serviceName": "$testServiceName",
-  //            "columnName": "$testColumnName",
-  //            "id": ${id}
-  //           }],
-  //          "steps": [
-  //          [ {
-  //              "label": "${testLabelNameWeak}",
-  //              "direction": "out",
-  //              "offset": 0,
-  //              "limit": 10,
-  //              "duplicate": "raw"
-  //            }
-  //          ]]
-  //        }""")
-  //
-  //    def getEdges(queryJson: JsValue): JsValue = {
-  //      val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryJson)).get
-  //      contentAsJson(ret)
-  //    }
-  //
-  //    "test strong consistency select" in {
-  //      running(FakeApplication()) {
-  //        val result = getEdges(query(0))
-  //        println(result)
-  //        (result \ "results").as[List[JsValue]].size must equalTo(2)
-  //
-  //        true
-  //      }
-  //    }
-  //
-  //    "test strong consistency deleteAll" in {
-  //      running(FakeApplication()) {
-  //        var result = getEdges(query(0))
-  //        println(result)
-  //
-  //        /** expect 4 edges */
-  //        (result \ "results").as[List[JsValue]].size must equalTo(4)
-  //        val edges = (result \ "results").as[List[JsObject]]
-  //        EdgeController.tryMutates(Json.toJson(edges), "delete")
-  //
-  //        Thread.sleep(asyncFlushInterval)
-  //
-  //        /** expect noting */
-  //        result = getEdges(query(0))
-  //        println(result)
-  //        (result \ "results").as[List[JsValue]].size must equalTo(0)
-  //
-  //        /** insert should be ignored */
-  //        EdgeController.tryMutates(Json.toJson(edges), "insert")
-  //
-  //        Thread.sleep(asyncFlushInterval)
-  //
-  //        result = getEdges(query(0))
-  //        println(result)
-  //        (result \ "results").as[List[JsValue]].size must equalTo(0)
-  //
-  //        true
-  //      }
-  //    }
-  //
-  //    "test weak consistency deleteAll" in {
-  //      running(FakeApplication()) {
-  //        var result = getEdges(query(0))
-  //
-  //      }
-  //    }
-  //  }
+
 }
 

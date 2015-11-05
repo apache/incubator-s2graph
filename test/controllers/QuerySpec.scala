@@ -1,5 +1,6 @@
 package controllers
 
+import controllers.EdgeController
 import play.api.libs.json._
 import play.api.test.{FakeApplication, FakeRequest, PlaySpecification}
 import play.api.{Application => PlayApplication}
@@ -37,9 +38,31 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         edge"3 insert e 12000 300000 $testLabelName").mkString("\n")
 
       val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
-
-      Thread.sleep(asyncFlushInterval)
     }
+
+    def queryParents(id: Long) = Json.parse(s"""
+        {
+          "returnTree": true,
+          "srcVertices": [
+          { "serviceName": "${testServiceName}",
+            "columnName": "${testColumnName}",
+            "id": ${id}
+           }],
+          "steps": [
+          [ {
+              "label": "${testLabelName}",
+              "direction": "out",
+              "offset": 0,
+              "limit": 2
+            }
+          ],[{
+              "label": "${testLabelName}",
+              "direction": "in",
+              "offset": 0,
+              "limit": -1
+            }
+          ]]
+        }""".stripMargin)
 
     def queryExclude(id: Int) = Json.parse( s"""
         { "srcVertices": [
@@ -96,6 +119,24 @@ class QuerySpec extends SpecCommon with PlaySpecification {
             }
           ]]
         }""")
+
+    def querySingleWithTo(id: Int, offset: Int = 0, limit: Int = 100, to: Int) = Json.parse( s"""
+        { "srcVertices": [
+          { "serviceName": "${testServiceName}",
+            "columnName": "${testColumnName}",
+            "id": ${id}
+           }],
+          "steps": [
+          [ {
+              "label": "${testLabelName}",
+              "direction": "out",
+              "offset": $offset,
+              "limit": $limit,
+              "_to": $to
+            }
+          ]]
+        }
+        """)
 
     def querySingle(id: Int, offset: Int = 0, limit: Int = 100) = Json.parse( s"""
         { "srcVertices": [
@@ -299,8 +340,6 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         ).mkString("\n")
 
         val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
-        Thread.sleep(asyncFlushInterval)
-
         // duration test after udpate
         // get all
         result = getEdges(queryDuration(Seq(0, 2), from = 0, to = 5000))
@@ -316,7 +355,27 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       }
     }
 
-    "pagination" in {
+    "returnTree" in {
+      running(FakeApplication()) {
+        val src = 100
+        val tgt = 200
+        val labelName = testLabelName
+
+        val bulkEdges: String = Seq(
+          edge"1001 insert e $src $tgt $labelName"
+        ).mkString("\n")
+
+        val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
+
+        val result = getEdges(queryParents(src))
+
+        val parents = (result \ "results").as[Seq[JsValue]]
+        val ret = parents.forall { edge => (edge \ "parents").as[Seq[JsValue]].size == 1 }
+        ret must equalTo(true)
+      }
+    }
+
+    "pagination and _to" in {
       running(FakeApplication()) {
         val src = System.currentTimeMillis().toInt
         val labelName = testLabelName
@@ -328,7 +387,6 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         ).mkString("\n")
 
         val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
-        Thread.sleep(asyncFlushInterval)
 
         var result = getEdges(querySingle(src, offset = 0, limit = 2))
         println(result)
@@ -344,7 +402,10 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         (edges(0) \ "to").as[Long] must beEqualTo(3)
         (edges(1) \ "to").as[Long] must beEqualTo(2)
 
-        true
+        result = getEdges(querySingleWithTo(src, offset = 0, limit = -1, to = 1))
+        println(result)
+        edges = (result \ "results").as[List[JsValue]]
+        edges.size must equalTo(1)
       }
     }
   }

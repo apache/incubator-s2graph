@@ -1,21 +1,26 @@
 package subscriber
 
 
-import com.kakao.s2graph.core.{EdgeWriter, GraphUtil, Edge, Graph}
+import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls.Label
+import com.kakao.s2graph.core.types.{LabelWithDirection, SourceVertexId}
+import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.mapreduce.{TableOutputFormat}
 import org.apache.hadoop.hbase._
 import org.apache.hadoop.hbase.regionserver.BloomType
+import org.apache.hadoop.hbase.util.Bytes
 import org.apache.spark.{SparkContext}
 import org.apache.spark.rdd.RDD
 import org.hbase.async.{PutRequest}
+import play.api.libs.json.Json
 import s2.spark.{SparkApp}
 import spark.{FamilyHFileWriteOptions, KeyFamilyQualifier, HBaseContext}
 import scala.collection.JavaConversions._
 
 
-object TransferToHFile extends SparkApp {
+object TransferToHFile extends SparkApp with JSONParser {
 
   val usages =
     s"""
@@ -33,6 +38,13 @@ object TransferToHFile extends SparkApp {
   //TODO: Process AtomicIncrementRequest too.
   /** build key values */
   case class DegreeKey(vertexIdStr: String, labelName: String, direction: String)
+
+  private def insertBulkForLoaderAsync(edge: Edge, createRelEdges: Boolean = true): List[PutRequest] = {
+    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
+    buildPutRequests(edge.toSnapshotEdge) ++ relEdges.toList.flatMap { e =>
+      e.edgesWithIndex.flatMap { indexEdge => buildPutRequests(indexEdge) }
+    }
+  }
 
   def buildDegrees(msgs: RDD[String], labelMapping: Map[String, String], edgeAutoCreate: Boolean) = {
     for {
@@ -53,18 +65,37 @@ object TransferToHFile extends SparkApp {
       output <- List(degreeKey -> 1L) ++ extra
     } yield output
   }
+  def buildPutRequests(snapshotEdge: SnapshotEdge): List[PutRequest] = {
+    val kvs = GraphSubscriberHelper.g.storage.snapshotEdgeSerializer(snapshotEdge).toKeyValues.toList
+    kvs.map { kv => new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp) }
+  }
+  def buildPutRequests(indexEdge: IndexEdge): List[PutRequest] = {
+    val kvs = GraphSubscriberHelper.g.storage.indexEdgeSerializer(indexEdge).toKeyValues.toList
+    kvs.map { kv => new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp) }
+  }
+  def buildDegreePutRequests(vertexId: String, labelName: String, direction: String, degreeVal: Long): List[PutRequest] = {
+    val label = Label.findByName(labelName).getOrElse(throw new RuntimeException(s"$labelName is not found in DB."))
+    val dir = GraphUtil.directions(direction)
+    val innerVal = jsValueToInnerVal(Json.toJson(vertexId), label.srcColumnWithDir(dir).columnType, label.schemaVersion).getOrElse {
+      throw new RuntimeException(s"$vertexId can not be converted into innerval")
+    }
+    val vertex = Vertex(SourceVertexId(label.srcColumn.id.get, innerVal))
+    val labelWithDir = LabelWithDirection(label.id.get, dir)
+    val edge = Edge(vertex, vertex, labelWithDir)
+    edge.edgesWithIndex.flatMap { indexEdge =>
+      GraphSubscriberHelper.g.storage.indexEdgeSerializer(indexEdge).toKeyValues.map { kv =>
+        new PutRequest(kv.table, kv.row, kv.cf, Array.empty[Byte], Bytes.toBytes(degreeVal), kv.timestamp)
+      }
+    }
+  }
 
   def toKeyValues(degreeKeyVals: Seq[(DegreeKey, Long)]): Iterator[KeyValue] = {
     val kvs = for {
       (key, value) <- degreeKeyVals
-      degreePut <- Edge.buildIncrementDegreeBulk(key.vertexIdStr, key.labelName, key.direction, value).getOrElse(Nil)
-      cfMap = degreePut.getFamilyCellMap
-      if cfMap.containsKey(Graph.edgeCf)
-      cell <- cfMap.get(Graph.edgeCf)
+      putRequest <- buildDegreePutRequests(key.vertexIdStr, key.labelName, key.direction, value)
     } yield {
-        val kv = new KeyValue(cell.getRow, cell.getFamily, cell.getQualifier, cell.getTimestamp, cell.getValue)
-//        val kv = new KeyValue(cell.getRowArray, cell.getFamilyArray, cell.getQualifierArray, cell.getTimestamp, cell.getValueArray)
-        //        println(s"[Edge]: $edge\n[Put]: $p\n[KeyValue]: ${kv.getRow.toList}, ${kv.getQualifier.toList}, ${kv.getValue.toList}, ${kv.getTimestamp}")
+        val p = putRequest
+        val kv = new KeyValue(p.key(), p.family(), p.qualifier, p.timestamp, p.value)
         kv
       }
     kvs.toIterator
@@ -75,10 +106,9 @@ object TransferToHFile extends SparkApp {
       s <- strs
       element <- Graph.toGraphElement(s, labelMapping).toSeq if element.isInstanceOf[Edge]
       edge = element.asInstanceOf[Edge]
-      rpc <- EdgeWriter(edge).insertBulkForLoader(autoEdgeCreate) if rpc.isInstanceOf[PutRequest]
-      put = rpc.asInstanceOf[PutRequest]
+      putRequest <- insertBulkForLoaderAsync(edge, autoEdgeCreate)
     } yield {
-        val p = put
+        val p = putRequest
         val kv = new KeyValue(p.key(), p.family(), p.qualifier, p.timestamp, p.value)
 
         //        println(s"[Edge]: $edge\n[Put]: $p\n[KeyValue]: ${kv.getRow.toList}, ${kv.getQualifier.toList}, ${kv.getValue.toList}, ${kv.getTimestamp}")

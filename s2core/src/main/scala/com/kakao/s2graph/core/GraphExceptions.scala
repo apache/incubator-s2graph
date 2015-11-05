@@ -22,4 +22,6 @@ object GraphExceptions {
   case class BadQueryException(msg: String, ex: Throwable = null) extends Exception(msg, ex)
 
   case class InvalidHTableException(msg: String) extends Exception(msg)
+
+  case class FetchTimeoutException(msg: String) extends Exception(msg)
 }

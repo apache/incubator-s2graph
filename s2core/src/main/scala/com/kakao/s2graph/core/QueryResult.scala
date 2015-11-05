@@ -1,5 +1,7 @@
 package com.kakao.s2graph.core
 
+import com.kakao.s2graph.core.mysqls.LabelMeta
+
 /**
  * Created by shon on 6/26/15.
  */
@@ -20,6 +22,15 @@ case class QueryResult(query: Query,
                        stepIdx: Int,
                        queryParam: QueryParam,
                        edgeWithScoreLs: Seq[(Edge, Double)] = Seq.empty[(Edge, Double)],
-                       timestamp: Long = System.currentTimeMillis())
+                       timestamp: Long = System.currentTimeMillis()) {
+  def sizeWithoutDegreeEdge() = {
+    if (edgeWithScoreLs.isEmpty) 0
+    else {
+      val (edge, score) = edgeWithScoreLs.head
+      if (edge.props.contains(LabelMeta.degreeSeq)) edgeWithScoreLs.size - 1
+      else edgeWithScoreLs.size
+    }
+  }
+}
 
 case class EdgeWithScore(edge: Edge, score: Double)

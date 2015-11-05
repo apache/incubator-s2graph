@@ -2,7 +2,6 @@ package controllers
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.logger
 import org.specs2.mutable.Specification
 import play.api.libs.json._
 import play.api.test.FakeApplication
@@ -12,12 +11,12 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Random
 
-
 trait SpecCommon extends Specification {
 
   object Helper {
 
     import org.json4s.native.Serialization
+
     type KV = Map[String, Any]
 
     import scala.language.dynamics
@@ -37,13 +36,14 @@ trait SpecCommon extends Specification {
       }
     }
 
-    implicit class S2Context(val sc : StringContext) {
-      def edge(args : Any*)(implicit map: Map[String, Any] = Map.empty) : String = {
+    implicit class S2Context(val sc: StringContext) {
+      def edge(args: Any*)(implicit map: Map[String, Any] = Map.empty): String = {
         val parts = sc.s(args: _*).split("\\s")
         assert(parts.length == 6)
-        (parts.toList :+  map.toJson.toString).mkString("\t")
+        (parts.toList :+ map.toJson.toString).mkString("\t")
       }
     }
+
   }
 
   val curTime = System.currentTimeMillis
@@ -64,12 +64,13 @@ trait SpecCommon extends Specification {
   protected val testHTableName = "test-htable"
   protected val newHTableName = "new-htable"
 
-  val NUM_OF_EACH_TEST = 3
+  val NUM_OF_EACH_TEST = 10
   val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
   val asyncFlushInterval = 100
 
   val createService = s"""{"serviceName" : "$testServiceName"}"""
-  val testLabelNameCreate = s"""
+  val testLabelNameCreate =
+    s"""
   {
     "label": "$testLabelName",
     "srcServiceName": "$testServiceName",
@@ -105,12 +106,13 @@ trait SpecCommon extends Specification {
     }
     ],
     "consistencyLevel": "strong",
-    "schemaVersion": "v2",
+    "schemaVersion": "v3",
     "compressionAlgorithm": "gz",
     "hTableName": "$testHTableName"
   }"""
 
-  val testLabelName2Create = s"""
+  val testLabelName2Create =
+    s"""
   {
     "label": "$testLabelName2",
     "srcServiceName": "$testServiceName",
@@ -144,11 +146,12 @@ trait SpecCommon extends Specification {
     ],
     "consistencyLevel": "strong",
     "isDirected": false,
-    "schemaVersion": "v2",
+    "schemaVersion": "v3",
     "compressionAlgorithm": "gz"
   }"""
 
-  val testLabelNameV1Create = s"""
+  val testLabelNameV1Create =
+    s"""
   {
     "label": "$testLabelNameV1",
     "srcServiceName": "$testServiceName",
@@ -185,7 +188,8 @@ trait SpecCommon extends Specification {
     "schemaVersion": "v1",
     "compressionAlgorithm": "gz"
   }"""
-  val testLabelNameWeakCreate = s"""
+  val testLabelNameWeakCreate =
+    s"""
   {
     "label": "$testLabelNameWeak",
     "srcServiceName": "$testServiceName",
@@ -226,10 +230,11 @@ trait SpecCommon extends Specification {
     ("age", "int")
   )
 
-  val createVertex = s"""{
+  val createVertex =
+    s"""{
     "serviceName": "$testServiceName",
     "columnName": "$testColumnName",
-    "columnType": "long",
+    "columnType": "$testColumnType",
     "props": [
         {"name": "is_active", "dataType": "boolean", "defaultValue": true},
         {"name": "phone_number", "dataType": "string", "defaultValue": "-"},
@@ -243,7 +248,8 @@ trait SpecCommon extends Specification {
   val TS = System.currentTimeMillis()
 
   def queryJson(serviceName: String, columnName: String, labelName: String, id: String, dir: String, cacheTTL: Long = -1L) = {
-    val s = s"""{
+    val s =
+      s"""{
       "srcVertices": [
       {
         "serviceName": "$serviceName",
@@ -343,17 +349,16 @@ trait SpecCommon extends Specification {
           case None =>
             AdminController.createLabelInner(Json.parse(create))
           case Some(label) =>
-            logger.error(s">> Label already exist: $create, $label")
+            println(s">> Label already exist: $create, $label")
         }
       }
-      println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 
       // 5. create vertex
-      // vertexPropsKeys.map { case (key, keyType) =>
-      //   Management.addVertexProp(testServiceName, testColumnName, key, keyType)
-      // }
+      vertexPropsKeys.map { case (key, keyType) =>
+        Management.addVertexProp(testServiceName, testColumnName, key, keyType)
+      }
 
-      Thread.sleep(asyncFlushInterval)
+      println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     }
   }
 }
