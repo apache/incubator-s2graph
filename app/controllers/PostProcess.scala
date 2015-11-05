@@ -121,6 +121,8 @@ object PostProcess extends JSONParser {
   }
 
   def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]): JsValue = {
+    import com.kakao.s2graph.core.OrderingUtil._
+
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
 
     val degrees = ListBuffer[JsValue]()

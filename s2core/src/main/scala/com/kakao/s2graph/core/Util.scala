@@ -95,8 +95,8 @@ class SafeUpdateCache[T, M[_]](prefix: String, maxSize: Int, ttl: Int)(implicit 
   }
 }
 
-class MultiOrdering(ascendingLs: Seq[Boolean], defaultAscending: Boolean = true) extends Ordering[Seq[JsValue]] {
-  override def compare(x: Seq[JsValue], y: Seq[JsValue]): Int = {
+class MultiOrdering[T](ascendingLs: Seq[Boolean], defaultAscending: Boolean = true)(implicit ord: Ordering[T]) extends Ordering[Seq[T]] {
+  override def compare(x: Seq[T], y: Seq[T]): Int = {
     val xe = x.iterator
     val ye = y.iterator
     val oe = ascendingLs.iterator
@@ -107,13 +107,7 @@ class MultiOrdering(ascendingLs: Seq[Boolean], defaultAscending: Boolean = true)
         case true => xe.next() -> ye.next()
         case false => ye.next() -> xe.next()
       }
-      val res = (xev, yev) match {
-        case (JsNumber(xv), JsNumber(yv)) =>
-          Ordering.BigDecimal.compare(xv, yv)
-        case (JsString(xv), JsString(yv)) =>
-          Ordering.String.compare(xv, yv)
-        case _ => throw new Exception(s"unsupported type")
-      }
+      val res = ord.compare(xev, yev)
       if (res != 0) return res
     }
 
