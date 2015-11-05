@@ -38,7 +38,8 @@ object Management extends JSONParser {
 
   val hardLimit = 10000
   val defaultLimit = 100
-  val defaultCompressionAlgorithm = Play.application().configuration().getString("hbase.table.compression.algorithm")
+  val defaultCompressionAlgorithm = "gz"
+//    Play.application().configuration().getString("hbase.table.compression.algorithm")
 
   def createService(serviceName: String,
                     cluster: String, hTableName: String,
