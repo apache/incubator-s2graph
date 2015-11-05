@@ -253,30 +253,6 @@ case class Edge(srcVertex: Vertex,
   }
 }
 
-case class EdgeWriter(edge: Edge) {
-
-  val op = edge.op
-  val label = edge.label
-  val labelWithDir = edge.labelWithDir
-
-  /**
-   * methods for build mutations.
-   */
-  /** This method only used by Bulk loader */
-  //  def insertBulkForLoader(createRelEdges: Boolean = true) = {
-  //    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
-  //    edge.toInvertedEdgeHashLike.buildPut() ++ relEdges.flatMap { relEdge =>
-  //      relEdge.edgesWithIndex.flatMap { e =>
-  //        e.kvs.map { kv =>
-  //          val put = new Put(kv.row)
-  //          put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
-  //        }
-  //      }
-  //    }
-  //  }
-
-}
-
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],
                       newInvertedEdge: Option[SnapshotEdge] = None) {
@@ -313,33 +289,33 @@ object Edge extends JSONParser {
       true
     }
   }
-
-
-  def buildUpsert(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-    //    assert(requestEdge.op == GraphUtil.operations("insert"))
-    buildOperation(invertedEdge, Seq(requestEdges))
-  }
-
-  def buildUpdate(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-    //    assert(requestEdge.op == GraphUtil.operations("update"))
-    buildOperation(invertedEdge, Seq(requestEdges))
-  }
-
-  def buildDelete(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-    //    assert(requestEdge.op == GraphUtil.operations("delete"))
-    buildOperation(invertedEdge, Seq(requestEdges))
-  }
-
-  def buildIncrement(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-    //    assert(requestEdge.op == GraphUtil.operations("increment"))
-    buildOperation(invertedEdge, Seq(requestEdges))
-  }
-
-  def buildInsertBulk(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-    //    assert(invertedEdge.isEmpty)
-    //    assert(requestEdge.op == GraphUtil.operations("insertBulk") || requestEdge.op == GraphUtil.operations("insert"))
-    buildOperation(None, Seq(requestEdges))
-  }
+//
+//
+//  def buildUpsert(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+//    //    assert(requestEdge.op == GraphUtil.operations("insert"))
+//    buildOperation(invertedEdge, Seq(requestEdges))
+//  }
+//
+//  def buildUpdate(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+//    //    assert(requestEdge.op == GraphUtil.operations("update"))
+//    buildOperation(invertedEdge, Seq(requestEdges))
+//  }
+//
+//  def buildDelete(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+//    //    assert(requestEdge.op == GraphUtil.operations("delete"))
+//    buildOperation(invertedEdge, Seq(requestEdges))
+//  }
+//
+//  def buildIncrement(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+//    //    assert(requestEdge.op == GraphUtil.operations("increment"))
+//    buildOperation(invertedEdge, Seq(requestEdges))
+//  }
+//
+//  def buildInsertBulk(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+//    //    assert(invertedEdge.isEmpty)
+//    //    assert(requestEdge.op == GraphUtil.operations("insertBulk") || requestEdge.op == GraphUtil.operations("insert"))
+//    buildOperation(None, Seq(requestEdges))
+//  }
 
   def buildDeleteBulk(invertedEdge: Option[Edge], requestEdge: Edge): (Edge, EdgeMutate) = {
     //    assert(invertedEdge.isEmpty)

@@ -700,9 +700,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   }
 
 
-  private def commitUpdate(edgeWriter: EdgeWriter)(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeMutate, retryNum: Int): Future[Boolean] = {
-    val edge = edgeWriter.edge
-    val label = edgeWriter.label
+  private def commitUpdate(edge: Edge)(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeMutate, retryNum: Int): Future[Boolean] = {
+    val label = edge.label
 
     if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
     else {
@@ -766,7 +765,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             val waitTime = Random.nextInt(MaxBackOff) + 1
             commitPending(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
               if (pendingAllCommitted) {
-                commitUpdate(EdgeWriter(newEdge))(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
+                commitUpdate(newEdge)(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
                   if (!updateCommitted) {
                     Thread.sleep(waitTime)
                     logger.info(s"mutate failed $tryNum.")
@@ -787,100 +786,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       }
     }
   }
-
-  //
-  //  private def mutateEdgeInner(edgeWriter: EdgeWriter,
-  //                              checkConsistency: Boolean,
-  //                              withWait: Boolean)
-  //                             (f: (Option[Edge], Edge) => (Edge, EdgeMutate), tryNum: Int = 0): Future[Boolean] = {
-  //
-  //    val edge = edgeWriter.edge
-  //    val zkQuorum = edge.label.hbaseZkAddr
-  //    if (!checkConsistency) {
-  //      val (newEdge, update) = f(None, edge)
-  //      val mutations = indexedEdgeMutations(update) ++ invertedEdgeMutations(update) ++ increments(update)
-  //      writeAsyncSimple(zkQuorum, mutations, withWait)
-  //    } else {
-  //      if (tryNum >= MaxRetryNum) {
-  //        logger.error(s"mutate failed after $tryNum retry")
-  //        ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
-  //        Future.successful(false)
-  //      } else {
-  //        val waitTime = Random.nextInt(MaxBackOff) + 1
-  //
-  //        fetchInvertedAsync(edge).flatMap { case (queryParam, snapshotEdgeOpt) =>
-  //          val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, edge)
-  //
-  //          /** if there is no changes to be mutate, then just return true */
-  //          if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
-  //          else
-  //            commitPending(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
-  //              if (pendingAllCommitted) {
-  //                commitUpdate(edgeWriter)(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
-  //                  if (!updateCommitted) {
-  //                    Thread.sleep(waitTime)
-  //                    logger.info(s"mutate failed $tryNum.\nretry $edge")
-  //                    mutateEdgeInner(edgeWriter, checkConsistency, withWait = true)(f, tryNum + 1)
-  //                  } else {
-  //                    logger.debug(s"mutate success $tryNum.\n${edgeUpdate.toLogString}\n$edge")
-  //                    Future.successful(true)
-  //                  }
-  //                }
-  //              } else {
-  //                Thread.sleep(waitTime)
-  //                mutateEdgeInner(edgeWriter, checkConsistency, withWait = true)(f, tryNum + 1)
-  //              }
-  //            }
-  //
-  //        }
-  //      }
-  //    }
-  //  }
-  //
-  //  private def mutateEdgeWithOp(edge: Edge, withWait: Boolean): Future[Boolean] = {
-  //    val edgeWriter = EdgeWriter(edge)
-  //    val zkQuorum = edge.label.hbaseZkAddr
-  //    val rpcLs = new ListBuffer[HBaseRpc]()
-  //    // all cases, it is necessary to insert vertex.
-  //    rpcLs.appendAll(buildVertexPutsAsync(edge))
-  //
-  //    val vertexMutateFuture = writeAsyncSimple(zkQuorum, rpcLs, withWait)
-  //
-  //    val edgeMutateFuture = edge.op match {
-  //      case op if op == GraphUtil.operations("insert") =>
-  //        edge.label.consistencyLevel match {
-  //          case "strong" => // upsert
-  //            mutateEdgeInner(edgeWriter, checkConsistency = true, withWait = withWait)(Edge.buildUpsert)
-  //          case _ => // insert
-  //            mutateEdgeInner(edgeWriter, checkConsistency = false, withWait = withWait)(Edge.buildInsertBulk)
-  //        }
-  //
-  //      case op if op == GraphUtil.operations("delete") =>
-  //        edge.label.consistencyLevel match {
-  //          case "strong" => // delete
-  //            mutateEdgeInner(edgeWriter, checkConsistency = true, withWait = withWait)(Edge.buildDelete)
-  //          case _ => // deleteBulk
-  //            mutateEdgeInner(edgeWriter, checkConsistency = false, withWait = withWait)(Edge.buildDeleteBulk)
-  //        }
-  //
-  //      case op if op == GraphUtil.operations("update") =>
-  //        mutateEdgeInner(edgeWriter, checkConsistency = true, withWait = withWait)(Edge.buildUpdate)
-  //
-  //      case op if op == GraphUtil.operations("increment") =>
-  //        mutateEdgeInner(edgeWriter, checkConsistency = true, withWait = withWait)(Edge.buildIncrement)
-  //
-  //      case op if op == GraphUtil.operations("insertBulk") =>
-  //        mutateEdgeInner(edgeWriter, checkConsistency = false, withWait = withWait)(Edge.buildInsertBulk)
-  //      //        rpcLs.appendAll(edgeWriter.insert(createRelEdges = true))
-  //
-  //      case _ =>
-  //        logger.error(s"not supported operation on edge: ${edge.op}, $edge")
-  //        throw new RuntimeException(s"operation ${edge.op} is not supported on edge.")
-  //    }
-  //
-  //    edgeMutateFuture
-  //  }
-
 
   private def deleteVertex(vertex: Vertex, withWait: Boolean): Future[Boolean] = {
     writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(buildDeleteAsync(_)), withWait).map(_.forall(identity))
