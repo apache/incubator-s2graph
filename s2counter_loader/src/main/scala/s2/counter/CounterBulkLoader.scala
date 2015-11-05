@@ -25,7 +25,7 @@ object CounterBulkLoader extends SparkApp with WithKafka {
 
   val initialize = {
     println("initialize")
-    Graph(config)
+//    Graph(config)
     DBModel.initialize(config)
     true
   }

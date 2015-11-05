@@ -29,7 +29,7 @@ object EtlStreaming extends SparkApp with WithKafka {
 
   val initialize = {
     println("streaming initialize")
-    Graph(config)
+//    Graph(config)
     DBModel.initialize(config)
     true
   }
