@@ -357,8 +357,17 @@ object Edge extends JSONParser {
     val oldPropsWithTs = if (invertedEdge.isEmpty) Map.empty[Byte, InnerValLikeWithTs] else invertedEdge.get.propsWithTs
 
     val funcs = requestEdges.map { edge =>
-      if (edge.op == GraphUtil.operations("insert")) Edge.mergeUpsert _
-      else if (edge.op == GraphUtil.operations("delete")) Edge.mergeDelete _
+      if (edge.op == GraphUtil.operations("insert")) {
+        edge.label.consistencyLevel match {
+          case "strong" => Edge.mergeUpsert _
+          case _ => Edge.mergeInsertBulk _
+        }
+      } else if (edge.op == GraphUtil.operations("delete")) {
+        edge.label.consistencyLevel match {
+          case "strong" => Edge.mergeDelete _
+          case _ => throw new RuntimeException("not supported")
+        }
+      }
       else if (edge.op == GraphUtil.operations("update")) Edge.mergeUpdate _
       else if (edge.op == GraphUtil.operations("increment")) Edge.mergeIncrement _
       else throw new RuntimeException(s"not supported operation on edge: $edge")
@@ -595,6 +604,11 @@ object Edge extends JSONParser {
     }
     val mustExistInNew = Map(LabelMeta.lastDeletedAt -> InnerValLikeWithTs.withLong(lastDeletedAt, lastDeletedAt, version))
     ((existInOld.flatten ++ mustExistInNew).toMap, shouldReplace)
+  }
+
+  def mergeInsertBulk(propsPairWithTs: PropsPairWithTs): (State, Boolean) = {
+    val (_, propsWithTs, _, _) = propsPairWithTs
+    (propsWithTs, true)
   }
 
   def fromString(s: String): Option[Edge] = Graph.toEdge(s)
