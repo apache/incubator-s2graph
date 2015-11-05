@@ -21,7 +21,6 @@ class VertexSpec extends SpecCommon {
 
         val jsResult = contentAsString(VertexController.tryMutates(payload, "insert",
           Option(serviceName), Option(columnName), withWait = true))
-        Thread.sleep(asyncFlushInterval)
 
         val query = vertexQueryJson(serviceName, columnName, ids)
         val ret = contentAsJson(QueryController.getVerticesInner(query))

@@ -33,7 +33,7 @@ object GraphConfig {
       if (kafkaBrokerList.isEmpty) Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database, "cache.ttl.seconds" -> cacheTTL)
       else Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database, "kafka.metadata.broker.list" -> kafkaBrokers, "cache.ttl.seconds" -> cacheTTL)
 
-    ConfigFactory.parseMap(newConf).withFallback(Graph.config)
+    ConfigFactory.parseMap(newConf).withFallback(Graph.DefaultConfig)
   }
 }
 

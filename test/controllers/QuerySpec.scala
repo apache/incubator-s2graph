@@ -38,8 +38,6 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         edge"3 insert e 12000 300000 $testLabelName").mkString("\n")
 
       val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
-
-      Thread.sleep(asyncFlushInterval)
     }
 
     def queryParents(id: Long) = Json.parse(s"""
@@ -342,8 +340,6 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         ).mkString("\n")
 
         val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
-        Thread.sleep(asyncFlushInterval)
-
         // duration test after udpate
         // get all
         result = getEdges(queryDuration(Seq(0, 2), from = 0, to = 5000))
@@ -370,7 +366,6 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         ).mkString("\n")
 
         val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
-        Thread.sleep(asyncFlushInterval)
 
         val result = getEdges(queryParents(src))
 
@@ -392,7 +387,6 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         ).mkString("\n")
 
         val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
-        Thread.sleep(asyncFlushInterval)
 
         var result = getEdges(querySingle(src, offset = 0, limit = 2))
         println(result)

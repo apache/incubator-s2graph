@@ -359,8 +359,6 @@ trait SpecCommon extends Specification {
       }
 
       println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-
-      Thread.sleep(asyncFlushInterval)
     }
   }
 }

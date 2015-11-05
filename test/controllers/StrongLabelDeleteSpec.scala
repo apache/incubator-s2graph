@@ -58,7 +58,6 @@ class StrongLabelDeleteSpec extends SpecCommon {
     running(FakeApplication()) {
       // insert bulk and wait ..
       val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(), withWait = true))
-      Thread.sleep(asyncFlushInterval)
     }
 
     "test strong consistency select" in {
@@ -87,7 +86,6 @@ class StrongLabelDeleteSpec extends SpecCommon {
 
         val jsResult = contentAsJson(EdgeController.mutateAndPublish(edges, withWait = true))
 
-        Thread.sleep(asyncFlushInterval)
         val result = getEdges(query(-10))
 
         println(result)
@@ -103,14 +101,10 @@ class StrongLabelDeleteSpec extends SpecCommon {
         println(result)
         (result \ "results").as[List[JsValue]].size must equalTo(3)
 
-
-
         val json = Json.arr(Json.obj("label" -> testLabelName2,
           "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
         println(json)
-        EdgeController.deleteAllInner(json)
-        Thread.sleep(asyncFlushInterval)
-
+        contentAsString(EdgeController.deleteAllInner(json))
 
         result = getEdges(query(11, direction = "out"))
         println(result)
@@ -127,13 +121,11 @@ class StrongLabelDeleteSpec extends SpecCommon {
         (result \\ "to").size must equalTo(1)
         (result \\ "to").head.as[String] must equalTo("21")
 
-
         result = getEdges(query(20, direction = "in", columnName = testTgtColumnName))
         println(result)
         (result \ "results").as[List[JsValue]].size must equalTo(0)
 
         val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(startTs = deletedAt + 1), withWait = true))
-        Thread.sleep(asyncFlushInterval)
 
         result = getEdges(query(20, direction = "in", columnName = testTgtColumnName))
         println(result)
@@ -150,7 +142,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
     val labelName = testLabelName2
     val maxTgtId = 10
     val batchSize = 100
-    val testNum = 10
+    val testNum = 5
     val numOfBatch = 100
 
     def testInner(startTs: Long, src: Long) = {
@@ -226,7 +218,6 @@ class StrongLabelDeleteSpec extends SpecCommon {
 
             logger.error(s"delete timestamp: $deletedAt")
 
-
             val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
             val deleteAllRequest2 = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt2))
 
@@ -258,9 +249,9 @@ class StrongLabelDeleteSpec extends SpecCommon {
       running(FakeApplication()) {
         val labelName = testLabelName2
         val dir = "out"
-        val maxSize = 1000
-        val deleteSize = 90
-        val numOfConcurrentBatch = 1000
+        val maxSize = 100
+        val deleteSize = 10
+        val numOfConcurrentBatch = 100
         val src = System.currentTimeMillis()
         val tgts = (0 until maxSize).map { ith => src + ith }
         val deleteTgts = Random.shuffle(tgts).take(deleteSize)
@@ -276,8 +267,6 @@ class StrongLabelDeleteSpec extends SpecCommon {
           EdgeController.mutateAndPublish(requests.mkString("\n"), withWait = true)
         }
         Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
-
-        Thread.sleep(asyncFlushInterval * 10)
 
         val expectedDegree = insertRequests.size - deleteRequests.size
         val queryJson = query(id = src)
@@ -301,8 +290,8 @@ class StrongLabelDeleteSpec extends SpecCommon {
       running(FakeApplication()) {
         val labelName = testLabelName2
         val dir = "out"
-        val maxSize = 1000
-        val deleteSize = 90
+        val maxSize = 100
+        val deleteSize = 10
         val numOfConcurrentBatch = 100
         val src = System.currentTimeMillis()
         val tgts = (0 until maxSize).map { ith => src + ith }
@@ -320,13 +309,10 @@ class StrongLabelDeleteSpec extends SpecCommon {
         }
         Await.result(Future.sequence(futures), Duration(10, TimeUnit.MINUTES))
 
-        Thread.sleep(asyncFlushInterval * 10)
-
         val deletedAt = System.currentTimeMillis()
         val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
 
         contentAsString(EdgeController.deleteAllInner(deleteAllRequest))
-        Thread.sleep(asyncFlushInterval * 10)
 
         val result = getEdges(query(id = src))
         println(result)

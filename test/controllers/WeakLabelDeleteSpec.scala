@@ -22,7 +22,6 @@ class WeakLabelDeleteSpec extends SpecCommon {
     running(FakeApplication()) {
       // insert bulk and wait ..
       val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(), withWait = true))
-      Thread.sleep(asyncFlushInterval)
     }
 
 
@@ -71,7 +70,6 @@ class WeakLabelDeleteSpec extends SpecCommon {
         val edges = (result \ "results").as[List[JsObject]]
 
         contentAsJson(EdgeController.tryMutates(Json.toJson(edges), "delete", withWait = true))
-        Thread.sleep(asyncFlushInterval * 2)
 
         /** expect noting */
         result = getEdges(query(0))
@@ -80,7 +78,6 @@ class WeakLabelDeleteSpec extends SpecCommon {
 
         /** insert should be ignored */
         contentAsJson(EdgeController.tryMutates(Json.toJson(edges), "insert", withWait = true))
-        Thread.sleep(asyncFlushInterval)
 
         result = getEdges(query(0))
         (result \ "results").as[List[JsValue]].size must equalTo(0)
@@ -118,7 +115,6 @@ class WeakLabelDeleteSpec extends SpecCommon {
         (result \ "results").as[List[JsValue]].size must equalTo(0)
 
         val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(startTs = deletedAt + 1), withWait = true))
-        Thread.sleep(asyncFlushInterval)
 
         result = getEdges(query(20, "in", testTgtColumnName))
         (result \ "results").as[List[JsValue]].size must equalTo(3)

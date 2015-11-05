@@ -167,7 +167,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       }
 
     val step = Step(queryParams.toList)
-    val q = Query(srcVertices, Vector(step), false)
+    val q = Query(srcVertices, Vector(step), unique = false)
 
     for {
       queryResultLs <- getEdges(q)
@@ -607,15 +607,15 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
   }
 
-  private def writeAsyncWithWaitRetry(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]], retryNum: Int): Future[Seq[Boolean]] =
-    writeAsyncWithWait(zkQuorum, elementRpcs).flatMap { rets =>
-      val allSuccess = rets.forall(identity)
-      if (allSuccess) Future.successful(elementRpcs.map(_ => true))
-      else throw FetchTimeoutException("writeAsyncWithWaitRetry")
-    }.retryFallback(retryNum) {
-      logger.error(s"writeAsyncWithWaitRetry: $elementRpcs")
-      elementRpcs.map(_ => false)
-    }
+//  private def writeAsyncWithWaitRetry(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]], retryNum: Int): Future[Seq[Boolean]] =
+//    writeAsyncWithWait(zkQuorum, elementRpcs).flatMap { rets =>
+//      val allSuccess = rets.forall(identity)
+//      if (allSuccess) Future.successful(elementRpcs.map(_ => true))
+//      else throw FetchTimeoutException("writeAsyncWithWaitRetry")
+//    }.retryFallback(retryNum) {
+//      logger.error(s"writeAsyncWithWaitRetry: $elementRpcs")
+//      elementRpcs.map(_ => false)
+//    }
 
   private def writeAsyncWithWaitRetrySimple(zkQuorum: String, elementRpcs: Seq[HBaseRpc], retryNum: Int): Future[Boolean] =
     writeAsyncWithWaitSimple(zkQuorum, elementRpcs).flatMap { ret =>
@@ -909,7 +909,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
   }
 
-
   private def mutateEdgeWithOp(edge: Edge, withWait: Boolean = false): Future[Boolean] = {
     val edgeWriter = EdgeWriter(edge)
     val zkQuorum = edge.label.hbaseZkAddr
@@ -920,7 +919,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val vertexMutateFuture =
       if (withWait) writeAsyncWithWaitSimple(zkQuorum, rpcLs)
       else writeAsyncSimple(zkQuorum, rpcLs)
-
 
     val edgeMutateFuture = edge.op match {
       case op if op == GraphUtil.operations("insert") =>
