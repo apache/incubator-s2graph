@@ -9,7 +9,6 @@ import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.{Label, LabelMeta}
 import com.kakao.s2graph.core.storage.{SKeyValue, Storage}
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.utils.DeferOps._
 import com.kakao.s2graph.core.utils.{Extensions, logger}
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.Config
@@ -54,6 +53,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
   import AsynchbaseStorage._
   import Extensions.FutureOps
+  import Extensions.DeferOps
 
   private val client = AsynchbaseStorage.makeClient(config)
   private val clientWithFlush = AsynchbaseStorage.makeClient(config, "hbase.rpcs.buffered_flush_interval" -> "0")
@@ -144,7 +144,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       val cacheKey = MurmurHash3.stringHash(get.toString)
       val cacheVal = vertexCache.getIfPresent(cacheKey)
       if (cacheVal == null)
-        deferredToFuture(client.get(get))(emptyKVs).map { kvs =>
+        client.get(get).toFutureWith(emptyKVs).map { kvs =>
           fromResult(QueryParam.Empty, kvs, vertex.serviceColumn.schemaVersion)
         }
 
@@ -199,7 +199,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         if (strongConsistency) {
           val edgeFuture = mutateEdgesInner(edges, edges.head.label.consistencyLevel == "strong", withWait)(Edge.buildOperation)
           //TODO: decide what we will do on failure on vertex put
-          val vertexFuture = writeAsyncSimple(head.label.hbaseZkAddr, buildVertexPutsAsync(head))
+          val vertexFuture = writeAsyncSimple(head.label.hbaseZkAddr, buildVertexPutsAsync(head), withWait)
           Future.sequence(Seq(edgeFuture, vertexFuture)).map { rets => rets.forall(identity) }
         } else {
           Future.sequence(edges.map { edge => mutateEdge(edge, withWait = withWait) }).map { rets => rets.forall(identity) }
@@ -216,10 +216,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       logger.info(s"deleteAll for vertex is truncated. $vertex")
       Future.successful(true) // Ignore withWait parameter, because deleteAll operation may takes long time
     } else {
-      if (withWait)
-        writeAsyncWithWaitSimple(vertex.hbaseZkAddr, buildPutsAll(vertex))
-      else
-        writeAsyncSimple(vertex.hbaseZkAddr, buildPutsAll(vertex))
+      writeAsyncSimple(vertex.hbaseZkAddr, buildPutsAll(vertex), withWait)
     }
   }
 
@@ -232,24 +229,21 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val defers: Seq[Deferred[(Boolean, Long)]] = for {
       edge <- edges
     } yield {
-        Try {
-          val edgeWithIndex = edge.edgesWithIndex.head
-          val countWithTs = edge.propsWithTs(LabelMeta.countSeq)
-          val countVal = countWithTs.innerVal.toString().toLong
-          val incr = buildIncrementsCountAsync(edgeWithIndex, countVal).head
-          val request = incr.asInstanceOf[AtomicIncrementRequest]
-          val defered = deferredCallbackWithFallback[java.lang.Long, (Boolean, Long)](client.bufferAtomicIncrement(request))({
-            (resultCount: java.lang.Long) => (true, resultCount)
-          }, (false, -1L))
-          defered
-        } match {
-          case Success(r) => r
-          case Failure(ex) => Deferred.fromResult((false, -1L))
+        val edgeWithIndex = edge.edgesWithIndex.head
+        val countWithTs = edge.propsWithTs(LabelMeta.countSeq)
+        val countVal = countWithTs.innerVal.toString().toLong
+        val incr = buildIncrementsCountAsync(edgeWithIndex, countVal).head
+        val request = incr.asInstanceOf[AtomicIncrementRequest]
+        client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>
+          (true, resultCount.longValue())
+        } recoverWith { ex =>
+          logger.error(s"mutation failed. $request", ex)
+          (false, -1L)
         }
       }
 
     val grouped: Deferred[util.ArrayList[(Boolean, Long)]] = Deferred.groupInOrder(defers)
-    deferredToFutureWithoutFallback(grouped).map(_.toSeq)
+    grouped.toFuture.map(_.toSeq)
   }
 
   private def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean): Future[QueryResult] = {
@@ -258,8 +252,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val q = Query.toQuery(Seq(srcVertex), _queryParam)
     val queryRequest = QueryRequest(q, 0, srcVertex, _queryParam, 1.0, Option(tgtVertex), isInnerCall = true)
     val fallback = QueryResult(q, 0, queryParam)
-
-    deferredToFuture(fetchQueryParam(queryRequest))(fallback)
+    fetchQueryParam(queryRequest).toFutureWith(fallback)
   }
 
   private def buildRequest(queryRequest: QueryRequest): GetRequest = {
@@ -422,9 +415,12 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       val edgeWithScores = toEdges(kvs.toSeq, queryRequest.queryParam, queryRequest.prevStepScore, queryRequest.isInnerCall, queryRequest.parentEdges)
       QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam, edgeWithScores)
     }
-    val fallback = QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam)
+    val fallback = (ex: Exception) => {
+      logger.error(s"fetchQueryParam failed. fallback return.", ex)
+      QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam)
+    }
 
-    deferredCallbackWithFallback(client.get(buildRequest(queryRequest)))(successCallback, fallback)
+    client.get(buildRequest(queryRequest)).withCallback(successCallback).recoverWith(fallback)
   }
 
   private def fetchStep(queryRequests: Seq[QueryRequest],
@@ -492,7 +488,12 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val fallback = queryRequests.map(request => QueryResult(q, stepIdx, request.queryParam))
     val groupedDefer = fetchStep(queryRequests, prevStepTgtVertexIdEdges)
 
-    Graph.filterEdges(deferredToFuture(groupedDefer)(new ArrayList(fallback)), q, stepIdx, alreadyVisited)(ec)
+    val future = groupedDefer.recoverWith { ex: Exception =>
+      logger.error("fetch step failed. fallback return.", ex)
+      new ArrayList(fallback)
+    }.toFuture
+
+    Graph.filterEdges(future, q, stepIdx, alreadyVisited)(ec)
   }
 
   /** edge Update **/
@@ -600,20 +601,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     else
       buildPutsAsync(edge.srcForVertex) ++ buildPutsAsync(edge.tgtForVertex)
 
-
-
-//  private def writeAsyncWithWaitRetry(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]], retryNum: Int): Future[Seq[Boolean]] =
-//    writeAsyncWithWait(zkQuorum, elementRpcs).flatMap { rets =>
-//      val allSuccess = rets.forall(identity)
-//      if (allSuccess) Future.successful(elementRpcs.map(_ => true))
-//      else throw FetchTimeoutException("writeAsyncWithWaitRetry")
-//    }.retryFallback(retryNum) {
-//      logger.error(s"writeAsyncWithWaitRetry: $elementRpcs")
-//      elementRpcs.map(_ => false)
-//    }
-
-  private def writeAsyncWithWaitRetrySimple(zkQuorum: String, elementRpcs: Seq[HBaseRpc], retryNum: Int): Future[Boolean] =
-    writeAsyncWithWaitSimple(zkQuorum, elementRpcs).flatMap { ret =>
+  private def writeAsyncSimpleRetry(zkQuorum: String, elementRpcs: Seq[HBaseRpc], withWait: Boolean, retryNum: Int): Future[Boolean] =
+    writeAsyncSimple(zkQuorum, elementRpcs, withWait).flatMap { ret =>
       if (ret) Future.successful(ret)
       else throw FetchTimeoutException("writeAsyncWithWaitRetrySimple")
     }.retryFallback(retryNum) {
@@ -621,115 +610,49 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       false
     }
 
-  private def writeAsyncWithWait(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]]): Future[Seq[Boolean]] = {
-    val client = clientWithFlush
+  private def writeToStorage(_client: HBaseClient, rpc: HBaseRpc): Deferred[Boolean] = {
+    val defer = rpc match {
+      case d: DeleteRequest => _client.delete(d)
+      case p: PutRequest => _client.put(p)
+      case i: AtomicIncrementRequest => _client.bufferAtomicIncrement(i)
+    }
+    defer withCallback { ret => true } recoverWith { ex =>
+      logger.error(s"mutation failed. $rpc", ex)
+      false
+    }
+  }
+
+  private def writeAsyncSimple(zkQuorum: String, elementRpcs: Seq[HBaseRpc], withWait: Boolean): Future[Boolean] = {
+    val _client = if (withWait) clientWithFlush else client
+    if (elementRpcs.isEmpty) {
+      Future.successful(true)
+    } else {
+      val defers = elementRpcs.map { rpc => writeToStorage(_client, rpc) }
+      if (withWait)
+        Deferred.group(defers).toFuture map { arr => arr.forall(identity) }
+      else
+        Future.successful(true)
+    }
+  }
+
+  private def writeAsync(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]], withWait: Boolean): Future[Seq[Boolean]] = {
+    val _client = if (withWait) clientWithFlush else client
     if (elementRpcs.isEmpty) {
       Future.successful(Seq.empty[Boolean])
     } else {
-      val defers = elementRpcs.map { rpcs =>
-        val defer = rpcs.map { rpc =>
-          // logger.error(rpc.toString)
-          val deferred = rpc match {
-            case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
-            case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
-            case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i).addErrback(errorBack(ex => logger.error(s"increment request failed. $i, $ex", ex)))
-          }
-
-          deferredCallbackWithFallback(deferred)({
-            (anyRef: Any) => anyRef match {
-              case e: Exception =>
-                logger.error(s"mutation failed. $e", e)
-                false
-              case _ => true
-            }
-          }, false)
-        }
-
-        deferredToFutureWithoutFallback(Deferred.group(defer)).map { arr => arr.forall(identity) }
+      val futures = elementRpcs.map { rpcs =>
+        val defers = rpcs.map { rpc => writeToStorage(_client, rpc) }
+        if (withWait)
+          Deferred.group(defers).toFuture map { arr => arr.forall(identity) }
+        else
+          Future.successful(true)
       }
-
-      Future.sequence(defers)
+      if (withWait)
+        Future.sequence(futures)
+      else
+        Future.successful(elementRpcs.map(_ => true))
     }
   }
-
-  private def writeAsyncWithWaitSimple(zkQuorum: String, elementRpcs: Seq[HBaseRpc]): Future[Boolean] = {
-    if (elementRpcs.isEmpty) {
-      Future.successful(true)
-    } else {
-      val defers = elementRpcs.map { rpc =>
-        //        logger.error(rpc.toString)
-        val deferred = rpc match {
-          case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
-          case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
-          case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i).addErrback(errorBack(ex => logger.error(s"increment request failed. $i, $ex", ex)))
-        }
-
-        deferredCallbackWithFallback(deferred)({
-          (anyRef: Any) => anyRef match {
-            case e: Exception =>
-              logger.error(s"mutation failed. $e", e)
-              false
-            case _ => true
-          }
-        }, false)
-      }
-      deferredToFutureWithoutFallback(Deferred.group(defers)).map { arr => arr.forall(identity) }
-    }
-  }
-
-  private def writeAsyncSimple(zkQuorum: String, elementRpcs: Seq[HBaseRpc]): Future[Boolean] = {
-    if (elementRpcs.isEmpty) {
-      Future.successful(true)
-    } else {
-      elementRpcs.foreach { rpc =>
-        //        logger.error(rpc.toString)
-        val deferred = rpc match {
-          case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
-          case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
-          case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i).addErrback(errorBack(ex => logger.error(s"increment request failed. $i, $ex", ex)))
-        }
-
-        deferredCallbackWithFallback(deferred)({
-          (anyRef: Any) => anyRef match {
-            case e: Exception =>
-              logger.error(s"mutation failed. $e", e)
-              false
-            case _ => true
-          }
-        }, false)
-      }
-      Future.successful(true)
-    }
-  }
-
-  private def writeAsync(zkQuorum: String, elementRpcs: Seq[Seq[HBaseRpc]]): Future[Seq[Boolean]] = {
-    if (elementRpcs.isEmpty) {
-      Future.successful(Seq.empty[Boolean])
-    } else {
-      elementRpcs.foreach { rpcs =>
-        rpcs.foreach { rpc =>
-          // logger.error(rpc.toString)
-          val deferred = rpc match {
-            case d: DeleteRequest => client.delete(d).addErrback(errorBack(ex => logger.error(s"delete request failed. $d, $ex", ex)))
-            case p: PutRequest => client.put(p).addErrback(errorBack(ex => logger.error(s"put request failed. $p, $ex", ex)))
-            case i: AtomicIncrementRequest => client.bufferAtomicIncrement(i).addErrback(errorBack(ex => logger.error(s"increment request failed. $i, $ex", ex)))
-          }
-
-          deferredCallbackWithFallback(deferred)({
-            (anyRef: Any) => anyRef match {
-              case e: Exception =>
-                logger.error(s"mutation failed. $e", e)
-                false
-              case _ => true
-            }
-          }, false)
-        }
-      }
-
-      Future.successful(elementRpcs.map(x => true))
-    }
-  }
-
 
   private def fetchInvertedAsync(edge: Edge): Future[(QueryParam, Option[Edge])] = {
     val labelWithDir = edge.labelWithDir
@@ -756,7 +679,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       val before = snapshotEdgeSerializer(snapshotEdge.toSnapshotEdge).toKeyValues.head.value
       for {
         pendingEdgesLock <- mutateEdges(pendingEdges, withWait = true)
-        ret <- if (pendingEdgesLock.forall(identity)) deferredToFutureWithoutFallback(client.compareAndSet(after, before)).map(_.booleanValue())
+        ret <- if (pendingEdgesLock.forall(identity)) client.compareAndSet(after, before).toFuture.map(_.booleanValue())
         else Future.successful(false)
       } yield ret
     }
@@ -775,13 +698,11 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
       def indexedEdgeMutationFuture(predicate: Boolean): Future[Boolean] = {
         if (!predicate) Future.successful(false)
-        else writeAsyncWithWait(label.hbaseZkAddr, Seq(indexedEdgeMutations(edgeUpdate))).map { indexedEdgesUpdated =>
-          indexedEdgesUpdated.forall(identity)
-        }
+        else writeAsyncSimple(label.hbaseZkAddr, indexedEdgeMutations(edgeUpdate), withWait = true)
       }
       def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
         if (!predicate) Future.successful(false)
-        else writeAsyncWithWaitRetrySimple(label.hbaseZkAddr, increments(edgeUpdate), MaxRetryNum).map { allSuccess =>
+        else writeAsyncSimpleRetry(label.hbaseZkAddr, increments(edgeUpdate), withWait = true, MaxRetryNum).map { allSuccess =>
           //          if (!allSuccess) logger.error(s"indexedEdgeIncrement failed: $edgeUpdate")
           //          else logger.debug(s"indexedEdgeIncrement success: $edgeUpdate")
           allSuccess
@@ -798,9 +719,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
        * note thta step 4 never fail to avoid multiple increments.
        */
       for {
-        locked <- deferredToFutureWithoutFallback(client.compareAndSet(lock, before))
+        locked <- client.compareAndSet(lock, before).toFuture
         indexEdgesUpdated <- indexedEdgeMutationFuture(locked)
-        releaseLock <- if (indexEdgesUpdated) deferredToFutureWithoutFallback(client.compareAndSet(after, lock.value())) else javaFallback
+        releaseLock <- if (indexEdgesUpdated) client.compareAndSet(after, lock.value()).toFuture else javaFallback
         indexEdgesIncremented <- if (releaseLock) indexedEdgeIncrementFuture(releaseLock) else fallback
       } yield indexEdgesIncremented
     }
@@ -813,10 +734,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     if (!checkConsistency) {
       val zkQuorum = edges.head.label.hbaseZkAddr
       val futures = edges.map { edge =>
-        val (newEdge, edgeUpdate) = f(None, Seq(edge))
+        val (_, edgeUpdate) = f(None, Seq(edge))
         val mutations = indexedEdgeMutations(edgeUpdate) ++ invertedEdgeMutations(edgeUpdate) ++ increments(edgeUpdate)
-        if (withWait) writeAsyncWithWaitSimple(zkQuorum, mutations)
-        else writeAsyncSimple(zkQuorum, mutations)
+        writeAsyncSimple(zkQuorum, mutations, withWait)
       }
       Future.sequence(futures).map { rets => rets.forall(identity) }
     } else {
@@ -852,7 +772,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         }
       }
     }
-
   }
 
   private def mutateEdgeInner(edgeWriter: EdgeWriter,
@@ -865,8 +784,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     if (!checkConsistency) {
       val (newEdge, update) = f(None, edge)
       val mutations = indexedEdgeMutations(update) ++ invertedEdgeMutations(update) ++ increments(update)
-      if (withWait) writeAsyncWithWaitSimple(zkQuorum, mutations)
-      else writeAsyncSimple(zkQuorum, mutations)
+      writeAsyncSimple(zkQuorum, mutations, withWait)
     } else {
       if (tryNum >= MaxRetryNum) {
         logger.error(s"mutate failed after $tryNum retry")
@@ -911,9 +829,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     // all cases, it is necessary to insert vertex.
     rpcLs.appendAll(buildVertexPutsAsync(edge))
 
-    val vertexMutateFuture =
-      if (withWait) writeAsyncWithWaitSimple(zkQuorum, rpcLs)
-      else writeAsyncSimple(zkQuorum, rpcLs)
+    val vertexMutateFuture = writeAsyncSimple(zkQuorum, rpcLs, withWait)
 
     val edgeMutateFuture = edge.op match {
       case op if op == GraphUtil.operations("insert") =>
@@ -952,10 +868,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
 
   private def deleteVertex(vertex: Vertex, withWait: Boolean): Future[Boolean] = {
-    if (withWait)
-      writeAsyncWithWait(vertex.hbaseZkAddr, Seq(vertex).map(buildDeleteAsync(_))).map(_.forall(identity))
-    else
-      writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(buildDeleteAsync(_))).map(_.forall(identity))
+    writeAsync(vertex.hbaseZkAddr, Seq(vertex).map(buildDeleteAsync(_)), withWait).map(_.forall(identity))
   }
 
   private def deleteAllFetchedEdgesAsync(queryResult: QueryResult,
@@ -997,7 +910,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
   def flush(): Unit = clients.foreach { client =>
     val timeout = Duration((clientFlushInterval + 10) * 20, duration.MILLISECONDS)
-    Await.result(deferredToFutureWithoutFallback(client.flush()), timeout)
+    Await.result(client.flush().toFuture, timeout)
   }
 
 }
