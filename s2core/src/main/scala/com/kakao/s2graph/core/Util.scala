@@ -94,23 +94,3 @@ class SafeUpdateCache[T, M[_]](prefix: String, maxSize: Int, ttl: Int)(implicit 
     }
   }
 }
-
-class MultiOrdering[T](ascendingLs: Seq[Boolean], defaultAscending: Boolean = true)(implicit ord: Ordering[T]) extends Ordering[Seq[T]] {
-  override def compare(x: Seq[T], y: Seq[T]): Int = {
-    val xe = x.iterator
-    val ye = y.iterator
-    val oe = ascendingLs.iterator
-
-    while (xe.hasNext && ye.hasNext) {
-      val ascending = if (oe.hasNext) oe.next() else defaultAscending
-      val (xev, yev) = ascending match {
-        case true => xe.next() -> ye.next()
-        case false => ye.next() -> xe.next()
-      }
-      val res = ord.compare(xev, yev)
-      if (res != 0) return res
-    }
-
-    Ordering.Boolean.compare(xe.hasNext, ye.hasNext)
-  }
-}

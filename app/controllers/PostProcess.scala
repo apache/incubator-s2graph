@@ -1,6 +1,5 @@
 package controllers
 
-import com.kakao.s2graph.MultiOrdering
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
@@ -176,7 +175,7 @@ object PostProcess extends JSONParser {
             rawEdges
           } else {
             val ascendingLs = q.orderByColumns.map(_._2)
-            rawEdges.sortBy(_._3)(new MultiOrdering(ascendingLs))
+            rawEdges.sortBy(_._3)(new MultiOrdering[JsValue](ascendingLs))
           }
         }.map(_._1)
 
@@ -210,7 +209,7 @@ object PostProcess extends JSONParser {
                 rawEdges
               } else {
                 val ascendingLs = q.orderByColumns.map(_._2)
-                rawEdges.sortBy(_._3)(new MultiOrdering(ascendingLs))
+                rawEdges.sortBy(_._3)(new MultiOrdering[JsValue](ascendingLs))
               }
             }.map(_._1)
             Json.obj(
