@@ -5,7 +5,7 @@ import play.api.libs.json.JsValue
 
 import scala.language.{higherKinds, implicitConversions}
 
-package object logger {
+object logger {
 
   trait Loggable[T] {
     def toLogMessage(msg: T): String

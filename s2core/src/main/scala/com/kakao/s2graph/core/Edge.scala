@@ -212,9 +212,6 @@ case class Edge(srcVertex: Vertex,
     Edge(srcVertex, newTgtVertex, labelWithDir, op, ts, version, propsWithTs)
   }
 
-
-  def toJson = {}
-
   def rank(r: RankParam): Double =
     if (r.keySeqAndWeights.size <= 0) 1.0f
     else {
@@ -242,14 +239,10 @@ case class Edge(srcVertex: Vertex,
     }
 
   def toLogString: String = {
-    import Writes._
-    val ret =
-      if (propsWithName.nonEmpty)
-        List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName))
-      else
-        List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label)
-
-    ret.mkString("\t")
+    if (propsWithName.nonEmpty)
+      List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
+    else
+      List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label).mkString("\t")
   }
 }
 

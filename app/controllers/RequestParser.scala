@@ -26,24 +26,28 @@ trait RequestParser extends JSONParser {
     val ret = for {
       js <- parse[Option[JsObject]](value, "scoring")
     } yield {
-        for {
-          (k, v) <- js.fields
-          labelOrderType <- LabelMeta.findByName(labelId, k)
-        } yield {
-          val value = v match {
-            case n: JsNumber => n.as[Double]
-            case _ => throw new Exception("scoring weight should be double.")
-          }
-          (labelOrderType.seq, value)
+      for {
+        (k, v) <- js.fields
+        labelOrderType <- LabelMeta.findByName(labelId, k)
+      } yield {
+        val value = v match {
+          case n: JsNumber => n.as[Double]
+          case _ => throw new Exception("scoring weight should be double.")
         }
+        (labelOrderType.seq, value)
       }
+    }
     ret
   }
 
   def extractInterval(label: Label, jsValue: JsValue) = {
     def extractKv(js: JsValue) = js match {
       case JsObject(obj) => obj
-      case JsArray(arr) => arr.flatMap { case JsObject(obj) => obj }
+      case JsArray(arr) => arr.flatMap {
+        case JsObject(obj) => obj
+        case _ => throw new RuntimeException(s"cannot support json type $js")
+      }
+      case _ => throw new RuntimeException(s"cannot support json type: $js")
     }
 
     val ret = for {
@@ -51,10 +55,10 @@ trait RequestParser extends JSONParser {
       fromJs <- (js \ "from").asOpt[JsValue]
       toJs <- (js \ "to").asOpt[JsValue]
     } yield {
-        val from = Management.toProps(label, extractKv(fromJs))
-        val to = Management.toProps(label, extractKv(toJs))
-        (from, to)
-      }
+      val from = Management.toProps(label, extractKv(fromJs))
+      val to = Management.toProps(label, extractKv(toJs))
+      (from, to)
+    }
 
     ret
   }
@@ -73,14 +77,14 @@ trait RequestParser extends JSONParser {
     val ret = for {
       js <- parse[Option[JsObject]](jsValue, "has")
     } yield {
-        for {
-          (k, v) <- js.fields
-          labelMeta <- LabelMeta.findByName(label.id.get, k)
-          value <- jsValueToInnerVal(v, labelMeta.dataType, label.schemaVersion)
-        } yield {
-          labelMeta.seq -> value
-        }
+      for {
+        (k, v) <- js.fields
+        labelMeta <- LabelMeta.findByName(label.id.get, k)
+        value <- jsValueToInnerVal(v, labelMeta.dataType, label.schemaVersion)
+      } yield {
+        labelMeta.seq -> value
       }
+    }
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
 
@@ -102,8 +106,8 @@ trait RequestParser extends JSONParser {
       id <- ids
       innerId <- jsValueToInnerVal(id, serviceColumn.columnType, label.schemaVersion)
     } yield {
-        Vertex(SourceVertexId(serviceColumn.id.get, innerId), System.currentTimeMillis())
-      }
+      Vertex(SourceVertexId(serviceColumn.id.get, innerId), System.currentTimeMillis())
+    }
     vertices.toSeq
   }
 
@@ -115,23 +119,23 @@ trait RequestParser extends JSONParser {
           serviceName = parse[String](value, "serviceName")
           column = parse[String](value, "columnName")
         } yield {
-            val service = Service.findByName(serviceName).getOrElse(throw BadQueryException("service not found"))
-            val col = ServiceColumn.find(service.id.get, column).getOrElse(throw BadQueryException("bad column name"))
-            val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
-            for {
-              idVal <- idOpt ++ idsOpt.toSeq.flatten
+          val service = Service.findByName(serviceName).getOrElse(throw BadQueryException("service not found"))
+          val col = ServiceColumn.find(service.id.get, column).getOrElse(throw BadQueryException("bad column name"))
+          val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
+          for {
+            idVal <- idOpt ++ idsOpt.toSeq.flatten
 
-              /** bug, need to use labels schemaVersion  */
-              innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
-            } yield {
-              Vertex(SourceVertexId(col.id.get, innerVal), System.currentTimeMillis())
-            }
-          }).flatten
+            /** bug, need to use labels schemaVersion  */
+            innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
+          } yield {
+            Vertex(SourceVertexId(col.id.get, innerVal), System.currentTimeMillis())
+          }
+        }).flatten
 
       if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
 
       val filterOutFields = (jsValue \ "filterOutFields").asOpt[List[String]].getOrElse(List(LabelMeta.to.name))
-      val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v) }.map { q => q.copy(filterOutFields = filterOutFields)}
+      val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v) }.map { q => q.copy(filterOutFields = filterOutFields) }
       val steps = parse[Vector[JsValue]](jsValue, "steps")
       val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
       val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
@@ -154,8 +158,8 @@ trait RequestParser extends JSONParser {
                 (k, v) <- (obj \ "weights").asOpt[JsObject].getOrElse(Json.obj()).fields
                 l <- Label.findByName(k)
               } yield {
-                  l.id.get -> v.toString().toDouble
-                }
+                l.id.get -> v.toString().toDouble
+              }
               converted.toMap
             case _ => Map.empty[Int, Double]
           }
@@ -363,14 +367,14 @@ trait RequestParser extends JSONParser {
   def toPropsElements(jsValue: JsValue): Seq[Prop] = for {
     jsObj <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
   } yield {
-      val propName = (jsObj \ "name").as[String]
-      val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
-      val defaultValue = (jsObj \ "defaultValue").as[JsValue] match {
-        case JsString(s) => s
-        case _@js => js.toString
-      }
-      Prop(propName, defaultValue, dataType)
+    val propName = (jsObj \ "name").as[String]
+    val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
+    val defaultValue = (jsObj \ "defaultValue").as[JsValue] match {
+      case JsString(s) => s
+      case _@js => js.toString
     }
+    Prop(propName, defaultValue, dataType)
+  }
 
   def toIndicesElements(jsValue: JsValue): Seq[Index] = for {
     jsObj <- jsValue.as[Seq[JsValue]]

@@ -155,6 +155,7 @@ object EdgeController extends Controller with RequestParser {
       val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
       val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
       val vertices = toVertices(labelName, direction, ids)
+
       /** logging for delete all request */
       for {
         id <- ids
@@ -165,6 +166,7 @@ object EdgeController extends Controller with RequestParser {
         val kafkaMsg = KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
         ExceptionHandler.enqueue(kafkaMsg)
       }
+
       s2.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts)
     })
 
