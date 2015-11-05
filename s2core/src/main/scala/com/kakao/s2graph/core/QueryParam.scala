@@ -34,7 +34,6 @@ object Query {
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  steps: IndexedSeq[Step] = Vector.empty[Step],
-                 unique: Boolean = true,
                  removeCycle: Boolean = false,
                  selectColumns: Seq[String] = Seq.empty[String],
                  groupByColumns: Seq[String] = Seq.empty[String],
@@ -42,6 +41,7 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
                  withScore: Boolean = true,
                  returnTree: Boolean = false) {
+
   lazy val selectColumnsSet = selectColumns.map { c =>
     if (c == "_from") "from"
     else if (c == "_to") "to"
@@ -54,8 +54,8 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
       step <- steps
       queryParam <- step.queryParams.sortBy(_.labelWithDir.labelId)
     } yield {
-        Json.obj("label" -> queryParam.label.label, "direction" -> GraphUtil.fromDirection(queryParam.labelWithDir.dir))
-      })
+      Json.obj("label" -> queryParam.label.label, "direction" -> GraphUtil.fromDirection(queryParam.labelWithDir.dir))
+    })
   }
 
   def impressionId(): JsNumber = {
@@ -71,9 +71,9 @@ object EdgeTransformer {
 }
 
 /**
- * TODO: step wise outputFields should be used with nextStepLimit, nextStepThreshold.
- * @param jsValue
- */
+  * TODO: step wise outputFields should be used with nextStepLimit, nextStepThreshold.
+  * @param jsValue
+  */
 case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
   val Delimiter = "\\$"
   val targets = jsValue.asOpt[List[Vector[String]]].toList
@@ -149,6 +149,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
 object Step {
   val Delimiter = "|"
 }
+
 case class Step(queryParams: List[QueryParam],
                 labelWeights: Map[Int, Double] = Map.empty,
                 //                scoreThreshold: Double = 0.0,
@@ -162,7 +163,7 @@ case class Step(queryParams: List[QueryParam],
 
   def toCacheKey(lss: Iterable[(GetRequest, QueryParam)]): Int = {
     val s = "step" + Step.Delimiter +
-      lss.map { case (getRequest, param) => param.toCacheKey(getRequest) } mkString(Step.Delimiter)
+      lss.map { case (getRequest, param) => param.toCacheKey(getRequest) } mkString (Step.Delimiter)
     MurmurHash3.stringHash(s)
   }
 }
@@ -263,17 +264,17 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   lazy val tgtColumnWithDir = label.tgtColumnWithDir(labelWithDir.dir)
 
   /**
-   * consider only I/O specific parameters.
-   * properties that is used on Graph.filterEdges should not be considered.
-   * @param getRequest
-   * @return
-   */
+    * consider only I/O specific parameters.
+    * properties that is used on Graph.filterEdges should not be considered.
+    * @param getRequest
+    * @return
+    */
   def toCacheKey(getRequest: GetRequest): Int = {
     val s = Seq(getRequest, labelWithDir, labelOrderSeq, offset, limit, rank,
-//      duration,
+      //      duration,
       isInverted,
       columnRangeFilter).mkString(QueryParam.Delimiter)
-//    logger.info(s"toCacheKey: $s")
+    //    logger.info(s"toCacheKey: $s")
     MurmurHash3.stringHash(s)
   }
 
@@ -425,58 +426,59 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
       duration, isInverted, exclude, include, hasFilters).mkString("\t")
     //      duration, isInverted, exclude, include, hasFilters, outputFields).mkString("\t")
   }
-//
-//  def buildGetRequest(srcVertex: Vertex) = {
-//    val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
-//    val (srcInnerId, tgtInnerId) = tgtVertexInnerIdOpt match {
-//      case Some(tgtVertexInnerId) => // _to is given.
-//        /** we use toInvertedEdgeHashLike so dont need to swap src, tgt */
-//        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
-//        val tgt = InnerVal.convertVersion(tgtVertexInnerId, tgtColumn.columnType, label.schemaVersion)
-//        (src, tgt)
-//      case None =>
-//        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
-//        (src, src)
-//    }
-//
-//    val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
-//    val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
-//    val edge = Edge(srcV, tgtV, labelWithDir)
-//
-//    val get = if (tgtVertexInnerIdOpt.isDefined) {
-//      val snapshotEdge = edge.toInvertedEdgeHashLike
-//      val kv = snapshotEdge.kvs.head
-//      new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
-//    } else {
-//      val indexedEdgeOpt = edge.edgesWithIndex.find(e => e.labelIndexSeq == labelOrderSeq)
-//      assert(indexedEdgeOpt.isDefined)
-//      val indexedEdge = indexedEdgeOpt.get
-//      val kv = indexedEdge.kvs.head
-//      val table = label.hbaseTableName.getBytes
-//        //kv.table //
-//      val rowKey = kv.row // indexedEdge.rowKey.bytes
-//      val cf = edgeCf
-//      new GetRequest(table, rowKey, cf)
-//    }
-//
-//    val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
-//
-//    get.maxVersions(1)
-//    get.setFailfast(true)
-//    get.setMaxResultsPerColumnFamily(limit)
-//    get.setRowOffsetPerColumnFamily(offset)
-//    get.setMinTimestamp(minTs)
-//    get.setMaxTimestamp(maxTs)
-//    get.setTimeout(rpcTimeoutInMillis)
-//    if (columnRangeFilter != null) get.setFilter(columnRangeFilter)
-//    //    get.setMaxAttempt(maxAttempt.toByte)
-//    //    get.setRpcTimeout(rpcTimeoutInMillis)
-//
-//    //    if (columnRangeFilter != null) get.filter(columnRangeFilter)
-//    //    logger.debug(s"Get: $get, $offset, $limit")
-//
-//    get
-//  }
+
+  //
+  //  def buildGetRequest(srcVertex: Vertex) = {
+  //    val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
+  //    val (srcInnerId, tgtInnerId) = tgtVertexInnerIdOpt match {
+  //      case Some(tgtVertexInnerId) => // _to is given.
+  //        /** we use toInvertedEdgeHashLike so dont need to swap src, tgt */
+  //        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
+  //        val tgt = InnerVal.convertVersion(tgtVertexInnerId, tgtColumn.columnType, label.schemaVersion)
+  //        (src, tgt)
+  //      case None =>
+  //        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
+  //        (src, src)
+  //    }
+  //
+  //    val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
+  //    val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
+  //    val edge = Edge(srcV, tgtV, labelWithDir)
+  //
+  //    val get = if (tgtVertexInnerIdOpt.isDefined) {
+  //      val snapshotEdge = edge.toInvertedEdgeHashLike
+  //      val kv = snapshotEdge.kvs.head
+  //      new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
+  //    } else {
+  //      val indexedEdgeOpt = edge.edgesWithIndex.find(e => e.labelIndexSeq == labelOrderSeq)
+  //      assert(indexedEdgeOpt.isDefined)
+  //      val indexedEdge = indexedEdgeOpt.get
+  //      val kv = indexedEdge.kvs.head
+  //      val table = label.hbaseTableName.getBytes
+  //        //kv.table //
+  //      val rowKey = kv.row // indexedEdge.rowKey.bytes
+  //      val cf = edgeCf
+  //      new GetRequest(table, rowKey, cf)
+  //    }
+  //
+  //    val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
+  //
+  //    get.maxVersions(1)
+  //    get.setFailfast(true)
+  //    get.setMaxResultsPerColumnFamily(limit)
+  //    get.setRowOffsetPerColumnFamily(offset)
+  //    get.setMinTimestamp(minTs)
+  //    get.setMaxTimestamp(maxTs)
+  //    get.setTimeout(rpcTimeoutInMillis)
+  //    if (columnRangeFilter != null) get.setFilter(columnRangeFilter)
+  //    //    get.setMaxAttempt(maxAttempt.toByte)
+  //    //    get.setRpcTimeout(rpcTimeoutInMillis)
+  //
+  //    //    if (columnRangeFilter != null) get.filter(columnRangeFilter)
+  //    //    logger.debug(s"Get: $get, $offset, $limit")
+  //
+  //    get
+  //  }
 }
 
 case class TimeDecay(initial: Double = 1.0, lambda: Double = 0.1, timeUnit: Double = 60 * 60 * 24) {
