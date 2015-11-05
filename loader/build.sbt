@@ -15,6 +15,8 @@ libraryDependencies ++= Seq(
   "org.apache.hadoop" % "hadoop-distcp" % Common.hadoopVersion
 )
 
+crossScalaVersions := Seq("2.10.6")
+
 assemblySettings
 
 mergeStrategy in assembly := {
