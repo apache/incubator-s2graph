@@ -54,8 +54,8 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
       step <- steps
       queryParam <- step.queryParams.sortBy(_.labelWithDir.labelId)
     } yield {
-      Json.obj("label" -> queryParam.label.label, "direction" -> GraphUtil.fromDirection(queryParam.labelWithDir.dir))
-    })
+        Json.obj("label" -> queryParam.label.label, "direction" -> GraphUtil.fromDirection(queryParam.labelWithDir.dir))
+      })
   }
 
   def impressionId(): JsNumber = {
@@ -71,9 +71,9 @@ object EdgeTransformer {
 }
 
 /**
-  * TODO: step wise outputFields should be used with nextStepLimit, nextStepThreshold.
-  * @param jsValue
-  */
+ * TODO: step wise outputFields should be used with nextStepLimit, nextStepThreshold.
+ * @param jsValue
+ */
 case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
   val Delimiter = "\\$"
   val targets = jsValue.asOpt[List[Vector[String]]].toList
@@ -162,9 +162,19 @@ case class Step(queryParams: List[QueryParam],
   lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 
   def toCacheKey(lss: Iterable[(GetRequest, QueryParam)]): Int = {
-    val s = "step" + Step.Delimiter +
-      lss.map { case (getRequest, param) => param.toCacheKey(getRequest) } mkString (Step.Delimiter)
-    MurmurHash3.stringHash(s)
+    MurmurHash3.bytesHash(toCacheKeyRaw(lss))
+
+    //    val s = "step" + Step.Delimiter +
+    //      lss.map { case (getRequest, param) => param.toCacheKey(getRequest) } mkString (Step.Delimiter)
+    //    MurmurHash3.stringHash(s)
+  }
+
+  def toCacheKeyRaw(lss: Iterable[(GetRequest, QueryParam)]): Array[Byte] = {
+    var bytes = Array.empty[Byte]
+    lss.foreach { case (getRequest, queryParam) =>
+      bytes = Bytes.add(bytes, queryParam.toCacheKeyRaw(getRequest))
+    }
+    bytes
   }
 }
 
@@ -198,6 +208,14 @@ case class RankParam(labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = S
   def defaultKey() = {
     this.keySeqAndWeights = List((LabelMeta.countSeq, 1.0))
     this
+  }
+
+  def toHashKeyBytes(): Array[Byte] = {
+    var bytes = Array.empty[Byte]
+    keySeqAndWeights.map { case (key, weight) =>
+      bytes = Bytes.add(bytes, Array.fill(1)(key), Bytes.toBytes(weight))
+    }
+    bytes
   }
 
   //
@@ -260,22 +278,47 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var exclude = false
   var include = false
 
+  var columnRangeFilterMinBytes = Array.empty[Byte]
+  var columnRangeFilterMaxBytes = Array.empty[Byte]
+
   lazy val srcColumnWithDir = label.srcColumnWithDir(labelWithDir.dir)
   lazy val tgtColumnWithDir = label.tgtColumnWithDir(labelWithDir.dir)
 
+  def toBytes(idxSeq: Byte, offset: Int, limit: Int, isInverted: Boolean): Array[Byte] = {
+    val front = Array[Byte](idxSeq, if (isInverted) 1.toByte else 0.toByte)
+    Bytes.add(front, Bytes.toBytes((offset.toLong << 32 | limit)))
+  }
+
   /**
-    * consider only I/O specific parameters.
-    * properties that is used on Graph.filterEdges should not be considered.
-    * @param getRequest
-    * @return
-    */
+   * consider only I/O specific parameters.
+   * properties that is used on Graph.filterEdges should not be considered.
+   * @param getRequest
+   * @return
+   */
   def toCacheKey(getRequest: GetRequest): Int = {
+    val hashBytes = toCacheKeyRaw(getRequest)
+    MurmurHash3.bytesHash(hashBytes)
+
+    //    val s = Seq(getRequest, labelWithDir, labelOrderSeq, offset, limit, rank,
+    //      //      duration,
+    //      isInverted,
+    //      columnRangeFilter).mkString(QueryParam.Delimiter)
+    //    //    logger.info(s"toCacheKey: $s")
+    //    MurmurHash3.stringHash(s)
+  }
+
+  def toCacheKeyStr(getRequest: GetRequest): Int = {
     val s = Seq(getRequest, labelWithDir, labelOrderSeq, offset, limit, rank,
       //      duration,
       isInverted,
       columnRangeFilter).mkString(QueryParam.Delimiter)
     //    logger.info(s"toCacheKey: $s")
     MurmurHash3.stringHash(s)
+  }
+
+  def toCacheKeyRaw(getRequest: GetRequest): Array[Byte] = {
+    Bytes.add(Bytes.add(getRequest.key(), labelWithDir.bytes, toBytes(labelOrderSeq, offset, limit, isInverted)), rank.toHashKeyBytes(),
+      Bytes.add(columnRangeFilterMinBytes, columnRangeFilterMaxBytes))
   }
 
   def isInverted(isInverted: Boolean): QueryParam = {
@@ -324,6 +367,8 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     fromVal(0) = len
     val maxBytes = fromVal
     val minBytes = toVal
+    this.columnRangeFilterMaxBytes = maxBytes
+    this.columnRangeFilterMinBytes = minBytes
     val rangeFilter = new ColumnRangeFilter(minBytes, true, maxBytes, true)
     this.columnRangeFilter = rangeFilter
     this
