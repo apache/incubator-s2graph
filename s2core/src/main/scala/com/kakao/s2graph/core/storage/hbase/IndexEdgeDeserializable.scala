@@ -2,18 +2,18 @@ package com.kakao.s2graph.core.storage.hbase
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.LabelMeta
-import com.kakao.s2graph.core.storage.{GraphDeserializable}
+import com.kakao.s2graph.core.storage.{CanSKeyValue, StorageDeserializable, SKeyValue}
 import com.kakao.s2graph.core.types._
 import org.apache.hadoop.hbase.util.Bytes
 
-/**
- * Created by shon on 10/29/15.
- */
-trait IndexedEdgeHGStorageDeserializable extends HGStorageDeserializable[EdgeWithIndex] with GraphDeserializable {
+class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
+
+  import StorageDeserializable._
+
   type QualifierRaw = (Array[(Byte, InnerValLike)], VertexId, Byte, Boolean, Int)
   type ValueRaw = (Array[(Byte, InnerValLike)], Int)
 
-  private def parseDegreeQualifier(kv: HKeyValue, version: String): QualifierRaw = {
+  private def parseDegreeQualifier(kv: SKeyValue, version: String): QualifierRaw = {
     val degree = Bytes.toLong(kv.value)
     val ts = kv.timestamp
     val idxPropsRaw = Array(LabelMeta.degreeSeq -> InnerVal.withLong(degree, version))
@@ -21,7 +21,7 @@ trait IndexedEdgeHGStorageDeserializable extends HGStorageDeserializable[EdgeWit
     (idxPropsRaw, tgtVertexIdRaw, GraphUtil.operations("insert"), false, 0)
   }
 
-  private def parseQualifier(kv: HKeyValue, version: String): QualifierRaw = {
+  private def parseQualifier(kv: SKeyValue, version: String): QualifierRaw = {
     var qualifierLen = 0
     var pos = 0
     val (idxPropsRaw, idxPropsLen, tgtVertexIdRaw, tgtVertexIdLen) = {
@@ -45,24 +45,27 @@ trait IndexedEdgeHGStorageDeserializable extends HGStorageDeserializable[EdgeWit
     (idxPropsRaw, tgtVertexIdRaw, op, tgtVertexIdLen != 0, qualifierLen)
   }
 
-  private def parseValue(kv: HKeyValue, version: String): ValueRaw = {
+  private def parseValue(kv: SKeyValue, version: String): ValueRaw = {
     val (props, endAt) = bytesToKeyValues(kv.value, 0, kv.value.length, version)
     (props, endAt)
   }
 
-  private def parseDegreeValue(kv: HKeyValue, version: String): ValueRaw = {
+  private def parseDegreeValue(kv: SKeyValue, version: String): ValueRaw = {
     (Array.empty[(Byte, InnerValLike)], 0)
   }
 
-  def toEdge(edgeOpt: EdgeWithIndex): Edge = {
+  def toEdge(edgeOpt: IndexEdge): Edge = {
     val e = edgeOpt
     Edge(e.srcVertex, e.tgtVertex, e.labelWithDir, e.op, e.ts, e.ts, e.propsWithTs)
     //    edgeOpt.map { e => Edge(e.srcVertex, e.tgtVertex, e.labelWithDir, e.op, e.ts, e.ts, e.propsWithTs) }
   }
 
   /** version 1 and version 2 is same logic */
-  override def fromKeyValues(queryParam: QueryParam, kvs: Seq[HKeyValue], version: String, cacheElementOpt: Option[EdgeWithIndex] = None): EdgeWithIndex = {
-    assert(kvs.size == 1)
+  override def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[IndexEdge] = None): IndexEdge = {
+    assert(_kvs.size == 1)
+
+    val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
+
     val kv = kvs.head
     val (srcVertexId, labelWithDir, labelIdxSeq, _, _) = cacheElementOpt.map { e =>
       (e.srcVertex.id, e.labelWithDir, e.labelIndexSeq, false, 0)
@@ -72,9 +75,15 @@ trait IndexedEdgeHGStorageDeserializable extends HGStorageDeserializable[EdgeWit
       if (kv.qualifier.isEmpty) parseDegreeQualifier(kv, version)
       else parseQualifier(kv, version)
 
-    val (props, _) =
-      if (kv.qualifier.isEmpty) parseDegreeValue(kv, version)
-      else parseValue(kv, version)
+    val (props, _) = if (op == GraphUtil.operations("incrementCount")) {
+      val countVal = Bytes.toLong(kv.value)
+      val dummyProps = Array(LabelMeta.countSeq -> InnerVal.withLong(countVal, version))
+      (dummyProps, 8)
+    } else if (kv.qualifier.isEmpty) {
+      parseDegreeValue(kv, version)
+    } else {
+      parseValue(kv, version)
+    }
 
     val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException("invalid index seq"))
 
@@ -99,8 +108,7 @@ trait IndexedEdgeHGStorageDeserializable extends HGStorageDeserializable[EdgeWit
     val mergedProps = (idxProps ++ props).toMap
     val ts = mergedProps.get(LabelMeta.timeStampSeq).map(v => v.toString().toLong).getOrElse(kv.timestamp)
 
-    EdgeWithIndex(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, mergedProps)
+    IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, mergedProps)
   }
 }
 
-object IndexedEdgeHGStorageDeserializable extends IndexedEdgeHGStorageDeserializable

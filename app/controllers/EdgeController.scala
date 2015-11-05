@@ -5,6 +5,7 @@ import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.Label
 import com.kakao.s2graph.core.utils.logger
 import config.Config
+import org.apache.kafka.clients.producer.ProducerRecord
 import play.api.libs.json._
 import play.api.mvc.{Controller, Result}
 
@@ -23,7 +24,7 @@ object EdgeController extends Controller with RequestParser {
 
     else {
       try {
-        logger.error(s"$jsValue")
+        logger.debug(s"$jsValue")
         val edges = toEdges(jsValue, operation)
         for (edge <- edges) {
           if (edge.isAsync)
@@ -146,16 +147,25 @@ object EdgeController extends Controller with RequestParser {
 
   def deleteAllInner(jsValue: JsValue) = {
     val deleteResults = Future.sequence(jsValue.as[Seq[JsValue]] map { json =>
+
       val labelName = (json \ "label").as[String]
       val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil)
       val direction = (json \ "direction").asOpt[String].getOrElse("out")
 
       val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
-      val ts = (json \ "timestamp").asOpt[Long]
+      val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
       val vertices = toVertices(labelName, direction, ids)
-
-      s2.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts,
-        Config.KAFKA_LOG_TOPIC)
+      /** logging for delete all request */
+      for {
+        id <- ids
+        label <- labels
+      } {
+        val tsv = Seq(ts, "deleteAll", "e", id, id, label.label, "{}", direction).mkString("\t")
+        val topic = if (label.isAsync) Config.KAFKA_LOG_TOPIC_ASYNC else Config.KAFKA_LOG_TOPIC
+        val kafkaMsg = KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
+        ExceptionHandler.enqueue(kafkaMsg)
+      }
+      s2.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts)
     })
 
     deleteResults.map { rst =>

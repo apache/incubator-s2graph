@@ -5,7 +5,7 @@ import com.stumbleupon.async.{Callback, Deferred}
 
 import scala.concurrent.{Promise, Future}
 
-object DeferOp {
+object DeferOps {
 
   def deferredToFuture[A](d: Deferred[A])(fallback: A): Future[A] = {
     val promise = Promise[A]

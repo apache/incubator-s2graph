@@ -1,8 +1,9 @@
 package com.kakao.s2graph.core.storage
 
-import com.kakao.s2graph.core.types.{HBaseType, InnerValLikeWithTs, InnerVal, InnerValLike}
+import com.kakao.s2graph.core.QueryParam
+import com.kakao.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, InnerValLikeWithTs}
 
-trait GraphDeserializable {
+object StorageDeserializable {
   /** Deserializer */
   def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte], offset: Int): (Byte, Boolean) = {
     val byte = bytes(offset)
@@ -74,5 +75,8 @@ trait GraphDeserializable {
 
     ret
   }
+}
 
+trait StorageDeserializable[E] {
+  def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam, kvs: Seq[T], version: String, cacheElementOpt: Option[E]): E
 }

@@ -13,7 +13,9 @@ import scala.util.{Failure, Try}
 object Model {
   var maxSize = 10000
   var ttl = 60
-  val ex: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(4))
+  val numOfThread = Runtime.getRuntime.availableProcessors()
+  val threadPool = Executors.newFixedThreadPool(numOfThread)
+  val ec = ExecutionContext.fromExecutor(threadPool)
 
   def apply(config: Config) = {
     maxSize = config.getInt("cache.max.size")
@@ -59,7 +61,7 @@ trait Model[V] extends SQLSyntaxSupport[V] {
 
   import Model._
 
-  implicit val ex: ExecutionContext = Model.ex
+  implicit val ec: ExecutionContext = Model.ec
 
   val cName = this.getClass.getSimpleName()
   logger.info(s"LocalCache[$cName]: TTL[$ttl], MaxSize[$maxSize]")

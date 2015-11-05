@@ -3,8 +3,7 @@ package com.kakao.s2graph.core.storage
 import com.kakao.s2graph.core.types.{InnerValLikeWithTs, InnerValLike}
 import org.apache.hadoop.hbase.util.Bytes
 
-
-trait GraphSerializable {
+object StorageSerializable {
   /** serializer */
   def propsToBytes(props: Seq[(Byte, InnerValLike)]): Array[Byte] = {
     val len = props.length
@@ -35,4 +34,8 @@ trait GraphSerializable {
     val byte = labelOrderSeq << 1 | (if (isInverted) 1 else 0)
     Array.fill(1)(byte.toByte)
   }
+}
+
+trait StorageSerializable[E] {
+  def toKeyValues: Seq[SKeyValue]
 }

@@ -1,13 +1,11 @@
 package controllers
 
-
-import controllers.{QueryController, VertexController}
 import play.api.libs.json._
 import play.api.test.FakeApplication
 import play.api.test.Helpers._
 
 class VertexSpec extends SpecCommon {
-//  init()
+  //  init()
 
   "vetex tc" should {
     "tc1" in {

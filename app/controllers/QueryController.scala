@@ -58,6 +58,7 @@ object QueryController extends Controller with RequestParser {
                            (post: (Seq[QueryResult], Seq[QueryResult]) => JsValue): Future[Result] = {
     if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
     val fetch = eachQuery(post) _
+//    logger.info(jsonQuery)
 
     Try {
       val future = jsonQuery match {

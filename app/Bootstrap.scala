@@ -22,13 +22,14 @@ object Global extends WithFilters(new GzipFilter()) {
   override def onStart(app: Application) {
     ApplicationController.isHealthy = false
 
-    val numOfThread = Config.conf.getInt("async.thread.size").getOrElse(Runtime.getRuntime.availableProcessors())
-    val threadPool = if (numOfThread == -1) Executors.newCachedThreadPool() else Executors.newFixedThreadPool(numOfThread)
-    val ex = ExecutionContext.fromExecutor(threadPool)
+    val numOfThread = Runtime.getRuntime.availableProcessors()
+    val threadPool = Executors.newFixedThreadPool(numOfThread)
+    val ec = ExecutionContext.fromExecutor(threadPool)
+
     val config = Config.conf.underlying
 
     // init s2graph with config
-    s2graph = new Graph(config)(ex)
+    s2graph = new Graph(config)(ec)
 
     QueueActor.init(s2graph)
 

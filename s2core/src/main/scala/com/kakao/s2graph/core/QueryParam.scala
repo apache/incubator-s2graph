@@ -184,13 +184,13 @@ case class VertexParam(vertices: Seq[Vertex]) {
 
 }
 
-object RankParam {
-  def apply(labelId: Int, keyAndWeights: Seq[(Byte, Double)]) = {
-    new RankParam(labelId, keyAndWeights)
-  }
-}
+//object RankParam {
+//  def apply(labelId: Int, keyAndWeights: Seq[(Byte, Double)]) = {
+//    new RankParam(labelId, keyAndWeights)
+//  }
+//}
 
-class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Seq.empty[(Byte, Double)]) {
+case class RankParam(labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Seq.empty[(Byte, Double)]) {
   // empty => Count
   lazy val rankKeysWeightsMap = keySeqAndWeights.toMap
 
@@ -273,6 +273,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 //      duration,
       isInverted,
       columnRangeFilter).mkString(QueryParam.Delimiter)
+//    logger.info(s"toCacheKey: $s")
     MurmurHash3.stringHash(s)
   }
 

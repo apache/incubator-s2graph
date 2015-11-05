@@ -129,8 +129,8 @@ class EdgeTest extends FunSuite with Matchers with TestCommon with TestCommonWit
         } yield {
             println(s"prevEdge: $prev")
             println(s"currentEdge: $edge")
-            val prevEdgeWithIndexInverted = prev.toInvertedEdgeHashLike
-            val edgeWithInvertedIndex = edge.toInvertedEdgeHashLike
+            val prevEdgeWithIndexInverted = prev.toSnapshotEdge
+            val edgeWithInvertedIndex = edge.toSnapshotEdge
             /** test encode decoding */
 
             val put = edgeWithInvertedIndex.buildPutAsync()

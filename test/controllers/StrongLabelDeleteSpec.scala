@@ -2,6 +2,7 @@ package controllers
 
 import java.util.concurrent.TimeUnit
 
+import com.kakao.s2graph.core.utils.logger
 import play.api.libs.json._
 import play.api.test.Helpers._
 import play.api.test.{FakeApplication, FakeRequest}
@@ -147,21 +148,25 @@ class StrongLabelDeleteSpec extends SpecCommon {
 
   "labelargeSet of contention" should {
     val labelName = testLabelName2
-    val maxTgtId = 1
+    val maxTgtId = 10
     val batchSize = 100
     val testNum = 10
-    val numOfBatch = 1000
+    val numOfBatch = 100
 
-    def testInner(src: Long) = {
+    def testInner(startTs: Long, src: Long) = {
       val labelName = testLabelName2
       val lastOps = Array.fill(maxTgtId)("none")
+      var currentTs = startTs
+
       val allRequests = for {
         ith <- (0 until numOfBatch)
         jth <- (0 until batchSize)
       } yield {
-          val currentTs = System.currentTimeMillis() + ith + jth
+          currentTs += 1
+
           val tgt = Random.nextInt(maxTgtId)
           val op = if (Random.nextDouble() < 0.5) "delete" else "update"
+
           lastOps(tgt) = op
           Seq(currentTs, op, "e", src, tgt, labelName, "{}").mkString("\t")
         }
@@ -171,8 +176,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
         EdgeController.mutateAndPublish(bulkEdge, withWait = true)
       }
 
-      Await.result(Future.sequence(futures), Duration(2, TimeUnit.MINUTES))
-
+      Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
 
       val expectedDegree = lastOps.count(op => op != "delete" && op != "none")
       val queryJson = query(id = src)
@@ -185,7 +189,8 @@ class StrongLabelDeleteSpec extends SpecCommon {
 
       val ret = resultDegree == expectedDegree && resultSize == resultDegree
       if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree")
-      ret
+
+      (ret, currentTs)
     }
 
     "update delete" in {
@@ -193,16 +198,58 @@ class StrongLabelDeleteSpec extends SpecCommon {
         val ret = for {
           i <- (0 until testNum)
         } yield {
-            Thread.sleep(asyncFlushInterval)
             val src = System.currentTimeMillis()
 
-            val ret = testInner(src)
+            val (ret, last) = testInner(i, src)
             ret must beEqualTo(true)
             ret
           }
+
         ret.forall(identity)
       }
+    }
 
+    "update delete 2" in {
+      running(FakeApplication()) {
+        val src = System.currentTimeMillis()
+        var ts = 0L
+
+        val ret = for {
+          i <- (0 until testNum)
+        } yield {
+            val (ret, lastTs) = testInner(ts, src)
+            val deletedAt = lastTs + 1
+            val deletedAt2 = lastTs + 2
+            ts = deletedAt2 + 1 // nex start ts
+
+            ret must beEqualTo(true)
+
+            logger.error(s"delete timestamp: $deletedAt")
+
+
+            val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
+            val deleteAllRequest2 = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt2))
+
+            val deleteRet = EdgeController.deleteAllInner(deleteAllRequest)
+            val deleteRet2 = EdgeController.deleteAllInner(deleteAllRequest2)
+
+            contentAsString(deleteRet)
+            contentAsString(deleteRet2)
+
+            val result = getEdges(query(id = src))
+            println(result)
+
+            val resultEdges = (result \ "results").as[Seq[JsValue]]
+            logger.error(Json.toJson(resultEdges).toString)
+            resultEdges.isEmpty must beEqualTo(true)
+
+            val degreeAfterDeleteAll = getDegree(result)
+            degreeAfterDeleteAll must beEqualTo(0)
+            true
+          }
+
+        ret.forall(identity)
+      }
     }
 
     /** this test stress out test on degree
@@ -211,8 +258,8 @@ class StrongLabelDeleteSpec extends SpecCommon {
       running(FakeApplication()) {
         val labelName = testLabelName2
         val dir = "out"
-        val maxSize = 100000
-        val deleteSize = 9000
+        val maxSize = 1000
+        val deleteSize = 90
         val numOfConcurrentBatch = 1000
         val src = System.currentTimeMillis()
         val tgts = (0 until maxSize).map { ith => src + ith }
@@ -228,9 +275,10 @@ class StrongLabelDeleteSpec extends SpecCommon {
         val futures = allRequests.grouped(numOfConcurrentBatch).map { requests =>
           EdgeController.mutateAndPublish(requests.mkString("\n"), withWait = true)
         }
-        Await.result(Future.sequence(futures), Duration(10, TimeUnit.MINUTES))
+        Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
 
         Thread.sleep(asyncFlushInterval * 10)
+
         val expectedDegree = insertRequests.size - deleteRequests.size
         val queryJson = query(id = src)
         val result = getEdges(queryJson)
@@ -288,7 +336,6 @@ class StrongLabelDeleteSpec extends SpecCommon {
         val degreeAfterDeleteAll = getDegree(result)
         degreeAfterDeleteAll must beEqualTo(0)
       }
-
     }
   }
 }

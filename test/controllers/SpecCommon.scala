@@ -106,7 +106,7 @@ trait SpecCommon extends Specification {
     }
     ],
     "consistencyLevel": "strong",
-    "schemaVersion": "v2",
+    "schemaVersion": "v3",
     "compressionAlgorithm": "gz",
     "hTableName": "$testHTableName"
   }"""
@@ -146,7 +146,7 @@ trait SpecCommon extends Specification {
     ],
     "consistencyLevel": "strong",
     "isDirected": false,
-    "schemaVersion": "v2",
+    "schemaVersion": "v3",
     "compressionAlgorithm": "gz"
   }"""
 

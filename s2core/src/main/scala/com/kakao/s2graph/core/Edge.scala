@@ -4,52 +4,51 @@ package com.kakao.s2graph.core
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.logger
-import play.api.libs.json.Json
+import play.api.libs.json.{Writes, Json}
 
 import scala.collection.JavaConversions._
 import scala.util.hashing.MurmurHash3
 
 
-case class EdgeWithIndexInverted(srcVertex: Vertex,
-                                 tgtVertex: Vertex,
-                                 labelWithDir: LabelWithDirection,
-                                 op: Byte,
-                                 version: Long,
-                                 props: Map[Byte, InnerValLikeWithTs],
-                                 pendingEdgeOpt: Option[Edge] = None) {
-
+case class SnapshotEdge(srcVertex: Vertex,
+                        tgtVertex: Vertex,
+                        labelWithDir: LabelWithDirection,
+                        op: Byte,
+                        version: Long,
+                        props: Map[Byte, InnerValLikeWithTs],
+                        pendingEdgeOpt: Option[Edge] = None) {
 
 
   //  logger.error(s"EdgeWithIndexInverted${this.toString}")
   val schemaVer = label.schemaVersion
-//  lazy val kvs = Graph.client.snapshotEdgeSerializer(this).toKeyValues.toList
+  //  lazy val kvs = Graph.client.snapshotEdgeSerializer(this).toKeyValues.toList
 
   // only for toString.
   lazy val label = Label.findById(labelWithDir.labelId)
   lazy val propsWithoutTs = props.mapValues(_.innerVal)
-//  lazy val valueBytes = kvs.head.value
+  //  lazy val valueBytes = kvs.head.value
 
-//  def buildPut(): List[Put] = {
-//    kvs.map { kv =>
-//      val put = new Put(kv.row)
-//      put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
-//    }
-////    val put = new Put(rowKey.bytes)
-////    put.addColumn(edgeCf, qualifier.bytes, version, value.bytes)
-//  }
+  //  def buildPut(): List[Put] = {
+  //    kvs.map { kv =>
+  //      val put = new Put(kv.row)
+  //      put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
+  //    }
+  ////    val put = new Put(rowKey.bytes)
+  ////    put.addColumn(edgeCf, qualifier.bytes, version, value.bytes)
+  //  }
 
   def withNoPendingEdge() = copy(pendingEdgeOpt = None)
 
   def withPendingEdge(pendingEdgeOpt: Option[Edge]) = copy(pendingEdgeOpt = pendingEdgeOpt)
 }
 
-case class EdgeWithIndex(srcVertex: Vertex,
-                         tgtVertex: Vertex,
-                         labelWithDir: LabelWithDirection,
-                         op: Byte,
-                         ts: Long,
-                         labelIndexSeq: Byte,
-                         props: Map[Byte, InnerValLike]) extends JSONParser {
+case class IndexEdge(srcVertex: Vertex,
+                     tgtVertex: Vertex,
+                     labelWithDir: LabelWithDirection,
+                     op: Byte,
+                     ts: Long,
+                     labelIndexSeq: Byte,
+                     props: Map[Byte, InnerValLike]) extends JSONParser {
 
 
   lazy val label = Label.findById(labelWithDir.labelId)
@@ -91,7 +90,7 @@ case class EdgeWithIndex(srcVertex: Vertex,
   lazy val propsWithTs = props.map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }
 
   //TODO:
-//  lazy val kvs = Graph.client.indexedEdgeSerializer(this).toKeyValues.toList
+  //  lazy val kvs = Graph.client.indexedEdgeSerializer(this).toKeyValues.toList
 
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
 }
@@ -120,7 +119,8 @@ case class Edge(srcVertex: Vertex,
       List(base, base.reverseSrcTgtEdge)
     }
   }
-//  def relatedEdges = List(this)
+
+  //  def relatedEdges = List(this)
 
   def srcForVertex = {
     val belongLabelIds = Seq(labelWithDir.labelId)
@@ -166,24 +166,24 @@ case class Edge(srcVertex: Vertex,
   def propsPlusTsValid = propsPlusTs.filter(kv => kv._1 >= 0)
 
   def edgesWithIndex = for (labelOrder <- labelOrders) yield {
-    EdgeWithIndex(srcVertex, tgtVertex, labelWithDir, op, version, labelOrder.seq, propsPlusTs)
+    IndexEdge(srcVertex, tgtVertex, labelWithDir, op, version, labelOrder.seq, propsPlusTs)
   }
 
   def edgesWithIndexValid = for (labelOrder <- labelOrders) yield {
-    EdgeWithIndex(srcVertex, tgtVertex, labelWithDir, op, version, labelOrder.seq, propsPlusTsValid)
+    IndexEdge(srcVertex, tgtVertex, labelWithDir, op, version, labelOrder.seq, propsPlusTsValid)
   }
 
   def edgesWithIndexValid(newOp: Byte) = for (labelOrder <- labelOrders) yield {
-    EdgeWithIndex(srcVertex, tgtVertex, labelWithDir, newOp, version, labelOrder.seq, propsPlusTsValid)
+    IndexEdge(srcVertex, tgtVertex, labelWithDir, newOp, version, labelOrder.seq, propsPlusTsValid)
   }
 
   /** force direction as out on invertedEdge */
-  def toInvertedEdgeHashLike: EdgeWithIndexInverted = {
+  def toSnapshotEdge: SnapshotEdge = {
     val (smaller, larger) = (srcForVertex, tgtForVertex)
 
     val newLabelWithDir = LabelWithDirection(labelWithDir.labelId, GraphUtil.directions("out"))
 
-    val ret = EdgeWithIndexInverted(smaller, larger, newLabelWithDir, op, version, propsWithTs ++
+    val ret = SnapshotEdge(smaller, larger, newLabelWithDir, op, version, propsWithTs ++
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)), pendingEdgeOpt)
     ret
   }
@@ -242,6 +242,7 @@ case class Edge(srcVertex: Vertex,
     }
 
   def toLogString: String = {
+    import Writes._
     val ret =
       if (propsWithName.nonEmpty)
         List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName))
@@ -250,8 +251,6 @@ case class Edge(srcVertex: Vertex,
 
     ret.mkString("\t")
   }
-
-
 }
 
 case class EdgeWriter(edge: Edge) {
@@ -264,23 +263,23 @@ case class EdgeWriter(edge: Edge) {
    * methods for build mutations.
    */
   /** This method only used by Bulk loader */
-//  def insertBulkForLoader(createRelEdges: Boolean = true) = {
-//    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
-//    edge.toInvertedEdgeHashLike.buildPut() ++ relEdges.flatMap { relEdge =>
-//      relEdge.edgesWithIndex.flatMap { e =>
-//        e.kvs.map { kv =>
-//          val put = new Put(kv.row)
-//          put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
-//        }
-//      }
-//    }
-//  }
+  //  def insertBulkForLoader(createRelEdges: Boolean = true) = {
+  //    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
+  //    edge.toInvertedEdgeHashLike.buildPut() ++ relEdges.flatMap { relEdge =>
+  //      relEdge.edgesWithIndex.flatMap { e =>
+  //        e.kvs.map { kv =>
+  //          val put = new Put(kv.row)
+  //          put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
+  //        }
+  //      }
+  //    }
+  //  }
 
 }
 
-case class EdgeUpdate(edgesToDelete: List[EdgeWithIndex] = List.empty[EdgeWithIndex],
-                      edgesToInsert: List[EdgeWithIndex] = List.empty[EdgeWithIndex],
-                      newInvertedEdge: Option[EdgeWithIndexInverted] = None) {
+case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
+                      edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],
+                      newInvertedEdge: Option[SnapshotEdge] = None) {
 
   def toLogString: String = {
     val deletes = s"deletes: ${edgesToDelete.map(e => e.toString).mkString("\n")}"
@@ -316,43 +315,43 @@ object Edge extends JSONParser {
   }
 
 
-  def buildUpsert(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeUpdate) = {
-//    assert(requestEdge.op == GraphUtil.operations("insert"))
+  def buildUpsert(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+    //    assert(requestEdge.op == GraphUtil.operations("insert"))
     buildOperation(invertedEdge, Seq(requestEdges))
   }
 
-  def buildUpdate(invertedEdge: Option[Edge], requestEdges: Edge):  (Edge, EdgeUpdate) = {
-//    assert(requestEdge.op == GraphUtil.operations("update"))
+  def buildUpdate(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+    //    assert(requestEdge.op == GraphUtil.operations("update"))
     buildOperation(invertedEdge, Seq(requestEdges))
   }
 
-  def buildDelete(invertedEdge: Option[Edge], requestEdges: Edge):  (Edge, EdgeUpdate) = {
-//    assert(requestEdge.op == GraphUtil.operations("delete"))
+  def buildDelete(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+    //    assert(requestEdge.op == GraphUtil.operations("delete"))
     buildOperation(invertedEdge, Seq(requestEdges))
   }
 
-  def buildIncrement(invertedEdge: Option[Edge], requestEdges: Edge):  (Edge, EdgeUpdate) = {
-//    assert(requestEdge.op == GraphUtil.operations("increment"))
+  def buildIncrement(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+    //    assert(requestEdge.op == GraphUtil.operations("increment"))
     buildOperation(invertedEdge, Seq(requestEdges))
   }
 
-  def buildInsertBulk(invertedEdge: Option[Edge], requestEdges: Edge):  (Edge, EdgeUpdate) = {
-//    assert(invertedEdge.isEmpty)
-//    assert(requestEdge.op == GraphUtil.operations("insertBulk") || requestEdge.op == GraphUtil.operations("insert"))
+  def buildInsertBulk(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+    //    assert(invertedEdge.isEmpty)
+    //    assert(requestEdge.op == GraphUtil.operations("insertBulk") || requestEdge.op == GraphUtil.operations("insert"))
     buildOperation(None, Seq(requestEdges))
   }
 
-  def buildDeleteBulk(invertedEdge: Option[Edge], requestEdge: Edge):  (Edge, EdgeUpdate) = {
-//    assert(invertedEdge.isEmpty)
-//    assert(requestEdge.op == GraphUtil.operations("delete"))
-//
+  def buildDeleteBulk(invertedEdge: Option[Edge], requestEdge: Edge): (Edge, EdgeMutate) = {
+    //    assert(invertedEdge.isEmpty)
+    //    assert(requestEdge.op == GraphUtil.operations("delete"))
+    //
     val edgesToDelete = requestEdge.relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
-    val edgeInverted = Option(requestEdge.toInvertedEdgeHashLike)
+    val edgeInverted = Option(requestEdge.toSnapshotEdge)
 
-    (requestEdge, EdgeUpdate(edgesToDelete, edgesToInsert = Nil, edgeInverted))
+    (requestEdge, EdgeMutate(edgesToDelete, edgesToInsert = Nil, edgeInverted))
   }
 
-  def buildOperation(invertedEdge: Option[Edge], requestEdges: Seq[Edge]): (Edge, EdgeUpdate) = {
+  def buildOperation(invertedEdge: Option[Edge], requestEdges: Seq[Edge]): (Edge, EdgeMutate) = {
     //            logger.debug(s"oldEdge: ${invertedEdge.map(_.toStringRaw)}")
     //            logger.debug(s"requestEdge: ${requestEdge.toStringRaw}")
     val oldPropsWithTs = if (invertedEdge.isEmpty) Map.empty[Byte, InnerValLikeWithTs] else invertedEdge.get.propsWithTs
@@ -369,7 +368,7 @@ object Edge extends JSONParser {
 
     if (requestWithFuncs.isEmpty) {
       logger.info(s"all requests have duplicated timestamp with snapshotEdge.")
-      (requestEdges.head, EdgeUpdate())
+      (requestEdges.head, EdgeMutate())
     } else {
       var shouldReplaceCnt = 0
       var prevPropsWithTs = oldPropsWithTs
@@ -396,8 +395,8 @@ object Edge extends JSONParser {
 
       if (shouldReplaceCnt <= 0) {
         logger.info(s"drop all requests because all request should replaces are false.")
-        (requestEdges.head, EdgeUpdate())
-      }  else {
+        (requestEdges.head, EdgeMutate())
+      } else {
 
         val maxTsInNewProps = prevPropsWithTs.map(kv => kv._2.ts).max
         val newOp = if (maxTsInNewProps > lastTs) {
@@ -426,24 +425,24 @@ object Edge extends JSONParser {
    * insert requestEdge.edgesWithIndex
    * update requestEdge.edgesWithIndexInverted
    */
-  def buildReplace(invertedEdge: Option[Edge], requestEdge: Edge, newPropsWithTs: Map[Byte, InnerValLikeWithTs]): EdgeUpdate = {
+  def buildReplace(invertedEdge: Option[Edge], requestEdge: Edge, newPropsWithTs: Map[Byte, InnerValLikeWithTs]): EdgeMutate = {
 
     val edgesToDelete = invertedEdge match {
-//      case Some(e) if e.op != GraphUtil.operations("delete") =>
+      //      case Some(e) if e.op != GraphUtil.operations("delete") =>
       case Some(e) if !allPropsDeleted(e.propsWithTs) =>
         e.relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
       //      case Some(e) => e.edgesWithIndexValid
       case _ =>
         // nothing to remove on indexed.
-        List.empty[EdgeWithIndex]
+        List.empty[IndexEdge]
     }
 
     val edgesToInsert = {
-      if (newPropsWithTs.isEmpty) List.empty[EdgeWithIndex]
+      if (newPropsWithTs.isEmpty) List.empty[IndexEdge]
       else {
         if (allPropsDeleted(newPropsWithTs)) {
           // all props is older than lastDeletedAt so nothing to insert on indexed.
-          List.empty[EdgeWithIndex]
+          List.empty[IndexEdge]
         } else {
           /** force operation on edge as insert */
           requestEdge.relatedEdges.flatMap { relEdge =>
@@ -453,8 +452,8 @@ object Edge extends JSONParser {
       }
     }
 
-    val edgeInverted = if (newPropsWithTs.isEmpty) None else Some(requestEdge.toInvertedEdgeHashLike)
-    val update = EdgeUpdate(edgesToDelete, edgesToInsert, edgeInverted)
+    val edgeInverted = if (newPropsWithTs.isEmpty) None else Some(requestEdge.toSnapshotEdge)
+    val update = EdgeMutate(edgesToDelete, edgesToInsert, edgeInverted)
     update
   }
 

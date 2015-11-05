@@ -69,7 +69,10 @@ object AdminController extends Controller with RequestParser {
   }
 
   private[AdminController] def tryResponse[T, R: AdminMessageFormatter](res: Try[T])(callback: T => R): mvc.Result = res match {
-    case Success(m) => ok(callback(m))
+    case Success(m) =>
+      val ret = callback(m)
+      logger.info(ret.toString)
+      ok(ret)
     case Failure(error) =>
       logger.error(error.getMessage, error)
       error match {

@@ -1,12 +1,12 @@
 package com.kakao.s2graph.core
 
 import java.util
-import java.util.ArrayList
 import java.util.concurrent.ConcurrentHashMap
 
 import com.google.common.cache.CacheBuilder
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
+import com.kakao.s2graph.core.storage.Storage
 import com.kakao.s2graph.core.storage.hbase._
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.logger
@@ -21,7 +21,7 @@ import scala.util.Try
 object Graph {
   val DefaultScore = 1.0
 
-  val DefaultConfigs: Map[String, AnyRef] = Map(
+  private val DefaultConfigs: Map[String, AnyRef] = Map(
     "hbase.zookeeper.quorum" -> "localhost",
     "hbase.table.name" -> "s2graph",
     "hbase.table.compression.algorithm" -> "gz",
@@ -146,7 +146,7 @@ object Graph {
     else queryResult.edgeWithScoreLs.withFilter(edgeWithScore => whereFilter.filter(edgeWithScore._1))
   }
 
-  def filterEdges(queryResultLsFuture: Future[ArrayList[QueryResult]],
+  def filterEdges(queryResultLsFuture: Future[util.ArrayList[QueryResult]],
                   q: Query,
                   stepIdx: Int,
                   alreadyVisited: Map[(LabelWithDirection, Vertex), Boolean] = Map.empty[(LabelWithDirection, Vertex), Boolean])
@@ -182,7 +182,6 @@ object Graph {
         val includeExcludeKey = queryResult.queryParam.labelWithDir.labelId -> queryResult.queryParam.labelWithDir.dir
         val shouldBeExcluded = excludeLabelWithDirSet.contains(includeExcludeKey)
         val shouldBeIncluded = includeLabelWithDirSet.contains(includeExcludeKey)
-
 
         queryResultWithFilter(queryResult).foreach { case (edge, score) =>
           if (queryResult.queryParam.transformer.isDefault) {
@@ -297,62 +296,40 @@ object Graph {
 }
 
 class Graph(_config: Config)(implicit ex: ExecutionContext) {
-  import Graph._
-
-  val config = _config.withFallback(DefaultConfig)
+  val config = _config.withFallback(Graph.DefaultConfig)
   val cacheSize = config.getInt("cache.max.size")
   val cache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Seq[QueryResult]]()
   val vertexCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Option[Vertex]]()
 
   Model(config)
 
-  // TODO: remove cache
-  val client = new AsynchbaseStorage(config, cache, vertexCache)(ex)
+  // TODO: Make storage client by config param
+  val storage: Storage = new AsynchbaseStorage(config, cache, vertexCache)(ex)
 
   for {
-    entry <- config.entrySet() if DefaultConfigs.contains(entry.getKey)
+    entry <- config.entrySet() if Graph.DefaultConfigs.contains(entry.getKey)
     (k, v) = (entry.getKey, entry.getValue)
-  } {
-    logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
-  }
-
-  def shutdown(): Unit = client.flush
+  } logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
 
   /** select */
+  def checkEdges(params: Seq[(Vertex, Vertex, QueryParam)]): Future[Seq[QueryResult]] = storage.checkEdges(params)
 
-  def getEdges(q: Query): Future[Seq[QueryResult]] = client.getEdges(q)
+  def getEdges(q: Query): Future[Seq[QueryResult]] = storage.getEdges(q)
 
-  def checkEdges(params: Seq[(Vertex, Vertex, QueryParam)]): Future[Seq[QueryResult]] = client.checkEdges(params)
-
-  def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = client.getVertices(vertices)
+  def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = storage.getVertices(vertices)
 
   /** write */
-  def deleteAllAdjacentEdges(srcVertices: List[Vertex],
-                             labels: Seq[Label],
-                             dir: Int,
-                             ts: Option[Long] = None,
-                             walTopic: String): Future[Boolean] =
-    client.deleteAllAdjacentEdges(srcVertices, labels, dir, ts, walTopic)
+  def deleteAllAdjacentEdges(srcVertices: List[Vertex], labels: Seq[Label], dir: Int, ts: Long): Future[Boolean] =
+    storage.deleteAllAdjacentEdges(srcVertices, labels, dir, ts)
 
-  def mutateElements(elements: Seq[GraphElement], withWait: Boolean = false): Future[Seq[Boolean]] = {
-    client.mutateElements(elements, withWait)
-  }
+  def mutateElements(elements: Seq[GraphElement], withWait: Boolean = false): Future[Seq[Boolean]] =
+    storage.mutateElements(elements, withWait)
 
-  def mutateEdge(edge: Edge, withWait: Boolean = false): Future[Boolean] = client.mutateEdge(edge, withWait)
+  def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = storage.mutateEdges(edges, withWait)
 
-  def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = client.mutateEdges(edges, withWait)
+  def mutateVertices(vertices: Seq[Vertex], withWait: Boolean = false): Future[Seq[Boolean]] = storage.mutateVertices(vertices, withWait)
 
-  def mutateVertex(vertex: Vertex, withWait: Boolean = false): Future[Boolean] = client.mutateVertex(vertex, withWait)
+  def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = storage.incrementCounts(edges)
 
-  def mutateVertices(vertices: Seq[Vertex], withWait: Boolean = false): Future[Seq[Boolean]] = client.mutateVertices(vertices, withWait)
-
-
-  def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = client.incrementCounts(edges)
-
-
-  //  def buildConvertedEdges(queryParam: QueryParam,
-  //                          edge: Edge,
-  //                          nextStepOpt: Option[Step]) = {
-  //    if (queryParam.transformer.isDefault) Seq(edge) else convertEdges(queryParam, edge, nextStepOpt)
-  //  }
+  def shutdown(): Unit = storage.flush()
 }
