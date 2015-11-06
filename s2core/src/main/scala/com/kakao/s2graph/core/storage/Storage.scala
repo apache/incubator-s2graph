@@ -43,7 +43,7 @@ trait Storage {
 
 
 
-  protected def toEdge[K: CanSKeyValue](kv: K,
+  def toEdge[K: CanSKeyValue](kv: K,
                                               queryParam: QueryParam,
                                               cacheElementOpt: Option[IndexEdge],
                                               parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
@@ -51,7 +51,7 @@ trait Storage {
     Option(indexEdge.toEdge.copy(parentEdges = parentEdges))
   }
 
-  protected def toSnapshotEdge[K: CanSKeyValue](kv: K,
+  def toSnapshotEdge[K: CanSKeyValue](kv: K,
                                                 queryParam: QueryParam,
                                                 cacheElementOpt: Option[SnapshotEdge] = None,
                                                 isInnerCall: Boolean,
@@ -72,7 +72,7 @@ trait Storage {
     }
   }
 
-  protected def toEdges[K: CanSKeyValue](kvs: Seq[K],
+  def toEdges[K: CanSKeyValue](kvs: Seq[K],
                                             queryParam: QueryParam,
                                             prevScore: Double = 1.0,
                                             isInnerCall: Boolean,

@@ -55,7 +55,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   import Extensions.FutureOps
   import Extensions.DeferOps
 
-  private val client = AsynchbaseStorage.makeClient(config)
+  val client = AsynchbaseStorage.makeClient(config)
   private val clientWithFlush = AsynchbaseStorage.makeClient(config, "hbase.rpcs.buffered_flush_interval" -> "0")
   private val clients = Seq(client, clientWithFlush)
 
