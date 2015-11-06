@@ -6,13 +6,13 @@ import com.kakao.s2graph.core.mysqls.Label
 
 
 import scala.collection.Seq
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
-trait Storage {
+abstract class Storage(implicit ec: ExecutionContext) {
 
-  val cacheOpt: Option[Cache[Integer, Seq[QueryResult]]] = None
+  def cacheOpt: Option[Cache[Integer, Seq[QueryResult]]]
 
-  val vertexCacheOpt: Option[Cache[Integer, Option[Vertex]]] = None
+  def vertexCacheOpt: Option[Cache[Integer, Option[Vertex]]]
 
   // Serializer/Deserializer
   def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge): StorageSerializable[SnapshotEdge]
@@ -34,11 +34,31 @@ trait Storage {
 
   def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]]
 
-  def mutateElements(elements: Seq[GraphElement], withWait: Boolean = false): Future[Seq[Boolean]]
+  def mutateElements(elements: Seq[GraphElement],
+                     withWait: Boolean = false): Future[Seq[Boolean]] = {
+    val futures = elements.map {
+      case edge: Edge => mutateEdge(edge, withWait)
+      case vertex: Vertex => mutateVertex(vertex, withWait)
+      case element => throw new RuntimeException(s"$element is not edge/vertex")
+    }
+    Future.sequence(futures)
+  }
 
-  def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]]
+  def mutateEdge(edge: Edge, withWait: Boolean): Future[Boolean]
 
-  def mutateVertices(vertices: Seq[Vertex], withWait: Boolean = false): Future[Seq[Boolean]]
+  def mutateEdges(edges: Seq[Edge],
+                  withWait: Boolean = false): Future[Seq[Boolean]] = {
+    val futures = edges.map { edge => mutateEdge(edge, withWait) }
+    Future.sequence(futures)
+  }
+
+  def mutateVertex(vertex: Vertex, withWait: Boolean): Future[Boolean]
+
+  def mutateVertices(vertices: Seq[Vertex],
+                     withWait: Boolean = false): Future[Seq[Boolean]] = {
+    val futures = vertices.map { vertex => mutateVertex(vertex, withWait) }
+    Future.sequence(futures)
+  }
 
   def deleteAllAdjacentEdges(srcVertices: List[Vertex], labels: Seq[Label], dir: Int, ts: Long): Future[Boolean]
 

@@ -56,8 +56,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   val queryBuilder = new AsynchbaseQueryBuilder(this)(ec)
   val mutationBuilder = new AsynchbaseMutationBuilder(this)(ec)
 
-  override val cacheOpt = Option(cache)
-  override val vertexCacheOpt = Option(vertexCache)
+  val cacheOpt = Option(cache)
+  val vertexCacheOpt = Option(vertexCache)
 
   private val clientWithFlush = AsynchbaseStorage.makeClient(config, "hbase.rpcs.buffered_flush_interval" -> "0")
   private val clients = Seq(client, clientWithFlush)
@@ -141,17 +141,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     } yield ret
   }
 
-  def mutateElements(elements: Seq[GraphElement], withWait: Boolean): Future[Seq[Boolean]] = {
-    val futures = elements.map {
-      case edge: Edge => mutateEdge(edge, withWait)
-      case vertex: Vertex => mutateVertex(vertex, withWait)
-      case element => throw new RuntimeException(s"$element is not edge/vertex")
-    }
-
-    Future.sequence(futures)
-  }
-
-  private def mutateEdge(edge: Edge, withWait: Boolean): Future[Boolean] = {
+  def mutateEdge(edge: Edge, withWait: Boolean): Future[Boolean] = {
     //    mutateEdgeWithOp(edge, withWait)
     val strongConsistency = edge.label.consistencyLevel == "strong"
     val edgeFuture =
@@ -171,7 +161,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     Future.sequence(Seq(edgeFuture, vertexFuture)).map { rets => rets.forall(identity) }
   }
 
-  def mutateEdges(edges: Seq[Edge], withWait: Boolean): Future[Seq[Boolean]] = {
+  override def mutateEdges(edges: Seq[Edge], withWait: Boolean): Future[Seq[Boolean]] = {
     val edgeGrouped = edges.groupBy { edge => (edge.label, edge.srcVertex.innerId, edge.tgtVertex.innerId) } toSeq
 
     val ret = edgeGrouped.map { case ((label, srcId, tgtId), edges) =>
@@ -198,20 +188,15 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     Future.sequence(ret)
   }
 
-  private def mutateVertex(vertex: Vertex, withWait: Boolean): Future[Boolean] = {
+  def mutateVertex(vertex: Vertex, withWait: Boolean): Future[Boolean] = {
     if (vertex.op == GraphUtil.operations("delete")) {
-      deleteVertex(vertex, withWait)
+      writeAsyncSimple(vertex.hbaseZkAddr, mutationBuilder.buildDeleteAsync(vertex), withWait)
     } else if (vertex.op == GraphUtil.operations("deleteAll")) {
       logger.info(s"deleteAll for vertex is truncated. $vertex")
       Future.successful(true) // Ignore withWait parameter, because deleteAll operation may takes long time
     } else {
       writeAsyncSimple(vertex.hbaseZkAddr, mutationBuilder.buildPutsAll(vertex), withWait)
     }
-  }
-
-  def mutateVertices(vertices: Seq[Vertex], withWait: Boolean): Future[Seq[Boolean]] = {
-    val futures = vertices.map { vertex => mutateVertex(vertex, withWait) }
-    Future.sequence(futures)
   }
 
   def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = {
@@ -408,11 +393,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         }
       }
     }
-  }
-
-  private def deleteVertex(vertex: Vertex, withWait: Boolean): Future[Boolean] = {
-    writeAsync(vertex.hbaseZkAddr,
-      Seq(vertex).map(mutationBuilder.buildDeleteAsync(_)), withWait).map(_.forall(identity))
   }
 
   private def deleteAllFetchedEdgesAsync(queryResult: QueryResult,
