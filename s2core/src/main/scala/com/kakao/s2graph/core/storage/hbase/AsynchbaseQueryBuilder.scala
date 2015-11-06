@@ -12,6 +12,7 @@ import scala.collection.JavaConversions._
 
 class AsynchbaseQueryBuilder(storage: AsynchbaseStorage) extends QueryBuilder[GetRequest, Deferred[QueryResult]] {
 
+  import Extensions.DeferOps
   override def buildRequest(queryRequest: QueryRequest): GetRequest = {
     val srcVertex = queryRequest.vertex
     //    val tgtVertexOpt = queryRequest.tgtVertexOpt
@@ -70,14 +71,16 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage) extends QueryBuilder[Ge
 
   override def fetch(queryRequest: QueryRequest): Deferred[QueryResult] = {
     val request = buildRequest(queryRequest)
-    val successCallback = (kvs: util.ArrayList[KeyValue]) => {
-      val edgeWithScores = storage.toEdges(kvs.toSeq, queryRequest.queryParam, queryRequest.prevStepScore, queryRequest.isInnerCall, queryRequest.parentEdges)
-      QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam, edgeWithScores)
-    }
-    val fallback = (ex: Exception) => {
-      logger.error(s"fetchQueryParam failed. fallback return.", ex)
-      QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam)
-    }
-    storage.client.get(buildRequest(queryRequest)).withCallback { successCallback } recoverWith { fallback }
+    storage.client.get(request).addCallback(new Callback[QueryResult, util.ArrayList[KeyValue]] {
+      override def call(kvs: util.ArrayList[KeyValue]): QueryResult = {
+        val edgeWithScores = storage.toEdges(kvs.toSeq, queryRequest.queryParam, queryRequest.prevStepScore, queryRequest.isInnerCall, queryRequest.parentEdges)
+        QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam, edgeWithScores)
+      }
+    }).addErrback(new Callback[QueryResult, Exception] {
+      override def call(ex: Exception): QueryResult = {
+        logger.error(s"fetchQueryParam failed. fallback return.", ex)
+        QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam)
+      }
+    })
   }
 }
