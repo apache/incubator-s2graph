@@ -316,8 +316,17 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     MurmurHash3.stringHash(s)
   }
 
+  /**
+   * nasty because of null check.
+   * @param getRequest
+   * @return
+   */
   def toCacheKeyRaw(getRequest: GetRequest): Array[Byte] = {
-    Bytes.add(Bytes.add(getRequest.key(), labelWithDir.bytes, toBytes(labelOrderSeq, offset, limit, isInverted)), rank.toHashKeyBytes(),
+    var getBytes = getRequest.key()
+    if (getRequest.family() != null) getBytes = Bytes.add(getBytes, getRequest.family())
+    if (getRequest.qualifiers() != null)
+      getRequest.qualifiers().filter(q => q != null).foreach { qualifier => getBytes = Bytes.add(getBytes, qualifier) }
+    Bytes.add(Bytes.add(getBytes, labelWithDir.bytes, toBytes(labelOrderSeq, offset, limit, isInverted)), rank.toHashKeyBytes(),
       Bytes.add(columnRangeFilterMinBytes, columnRangeFilterMaxBytes))
   }
 
