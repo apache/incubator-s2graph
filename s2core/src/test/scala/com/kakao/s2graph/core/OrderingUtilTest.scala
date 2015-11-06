@@ -45,7 +45,7 @@ class OrderingUtilTest extends FunSuite with Matchers {
   }
 
   test("performance MultiOrdering any") {
-    val tupLs = (0 until 500) map { i =>
+    val tupLs = (0 until 10) map { i =>
       Random.nextDouble() -> Random.nextLong()
     }
 
@@ -53,19 +53,25 @@ class OrderingUtilTest extends FunSuite with Matchers {
       Seq(tup._1, tup._2)
     }
 
-    duration("TupleOrdering any") {
+    val sorted1 = duration("TupleOrdering double,long") {
       (0 until 10000) foreach { _ =>
         tupLs.sortBy { case (x, y) =>
           -x -> -y
         }
       }
-    }
+      tupLs.sortBy { case (x, y) =>
+        -x -> -y
+      }
+    }.map { x => x._1 }
 
-    duration("MultiOrdering any") {
+    val sorted2 = duration("MultiOrdering double,long") {
       (0 until 10000) foreach { _ =>
         seqLs.sorted(new MultiOrdering[Any](Seq(false, false)))
       }
-    }
+      seqLs.sorted(new MultiOrdering[Any](Seq(false, false)))
+    }.map { x => x.head }
+
+    sorted1.toString() should equal(sorted2.toString())
   }
 
   test("performance MultiOrdering double") {
@@ -101,18 +107,22 @@ class OrderingUtilTest extends FunSuite with Matchers {
       Seq(JsNumber(tup._1), JsNumber(tup._2))
     }
 
-    duration("TupleOrdering double,long") {
+    val sorted1 = duration("TupleOrdering double,long") {
       (0 until 10000) foreach { _ =>
         tupLs.sortBy { case (x, y) =>
           -x -> -y
         }
       }
+      tupLs.sortBy { case (x, y) =>
+        -x -> -y
+      }
     }
 
-    duration("MultiOrdering jsvalue") {
+    val sorted2 = duration("MultiOrdering jsvalue") {
       (0 until 10000) foreach { _ =>
         seqLs.sorted(new MultiOrdering[JsValue](Seq(false, false)))
       }
+      seqLs.sorted(new MultiOrdering[JsValue](Seq(false, false)))
     }
   }
 }

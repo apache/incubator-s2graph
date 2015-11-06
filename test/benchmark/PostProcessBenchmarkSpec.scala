@@ -86,7 +86,10 @@ class PostProcessBenchmarkSpec extends SpecCommon with BenchmarkCommon with Play
            |          "label": "$testLabelNameWeak",
            |          "offset": 0,
            |          "limit": -1,
-           |          "direction": "out"
+           |          "direction": "out",
+           |          "scoring": [
+           |            {"weight": 1}
+           |          ]
            |        }
            |      ]
            |    }
@@ -103,6 +106,8 @@ class PostProcessBenchmarkSpec extends SpecCommon with BenchmarkCommon with Play
       val queryResultLs = Await.result(s2.getEdges(q), 1 seconds)
 
       val resultJs = PostProcess.toSimpleVertexArrJson(queryResultLs)
+
+//      println(resultJs)
 
       (resultJs \ "size").as[Int] must_== 500
 
@@ -138,7 +143,10 @@ class PostProcessBenchmarkSpec extends SpecCommon with BenchmarkCommon with Play
            |          "label": "$testLabelNameWeak",
            |          "offset": 0,
            |          "limit": -1,
-           |          "direction": "out"
+           |          "direction": "out",
+           |          "scoring": [
+           |            {"weight": 1}
+           |          ]
            |        }
            |      ]
            |    }
@@ -159,11 +167,11 @@ class PostProcessBenchmarkSpec extends SpecCommon with BenchmarkCommon with Play
       (resultJs \ "size").as[Int] must_== 500
 
       (0 to 5) foreach { _ =>
-        duration("toSimpleVertexArrJson org") {
-          (0 to 1000) foreach { _ =>
-            PostProcess.toSimpleVertexArrJsonOrg(queryResultLs, Nil)
-          }
-        }
+//        duration("toSimpleVertexArrJson org") {
+//          (0 to 1000) foreach { _ =>
+//            PostProcess.toSimpleVertexArrJsonOrg(queryResultLs, Nil)
+//          }
+//        }
 
         duration("toSimpleVertexArrJson new") {
           (0 to 1000) foreach { _ =>
