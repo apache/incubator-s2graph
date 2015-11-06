@@ -89,9 +89,12 @@ abstract class ContinuousEvaluator[I <: Data: ClassTag](params: ContinuousEvalua
     val results = performance.collect().sortBy(_._1).toMap
 
     val s = results.toSeq.sortBy(_._1).map(x => (x._1, x._2.getHeader, x._2.getRows))
-    val header = Seq("key") ++ s.map(_._2).head
-    val rows = s.flatMap(x => x._3.map(Seq(x._1) ++ _))
-    AsciiTable(rows, header).show(rows.length, false)
+
+    if (s.nonEmpty) {
+      val header = Seq("key") ++ s.map(_._2).head
+      val rows = s.flatMap(x => x._3.map(Seq(x._1) ++ _))
+      AsciiTable(rows, header).show(rows.length, false)
+    }
 
     results
   }
