@@ -2,7 +2,7 @@ package com.kakao.s2graph.core.storage.hbase
 
 import java.util
 
-import com.google.common.cache.Cache
+
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.utils.{logger, Extensions}
 import com.kakao.s2graph.core.storage.{QueryBuilder}

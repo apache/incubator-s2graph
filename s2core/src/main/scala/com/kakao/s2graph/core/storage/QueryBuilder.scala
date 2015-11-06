@@ -3,8 +3,10 @@ package com.kakao.s2graph.core.storage
 import com.google.common.cache.Cache
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.types.{LabelWithDirection, VertexId}
+import com.kakao.s2graph.core.utils.logger
 import scala.collection.{Map, Seq}
 import scala.concurrent.{Future, ExecutionContext}
+import scala.util.Try
 
 abstract class QueryBuilder[R, T](storage: Storage)(implicit ec: ExecutionContext) {
 
@@ -63,11 +65,28 @@ abstract class QueryBuilder[R, T](storage: Storage)(implicit ec: ExecutionContex
 
   def fetchStepFuture(queryResultLsFuture: Future[Seq[QueryResult]],
                       q: Query,
-                      stepIdx: Int,
-                      cacheOpt: Option[Cache[Integer, Seq[QueryResult]]]): Future[Seq[QueryResult]] = {
+                      stepIdx: Int): Future[Seq[QueryResult]] = {
     for {
       queryResultLs <- queryResultLsFuture
       ret <- fetchStep(queryResultLs, q, stepIdx)
     } yield ret
+  }
+
+  def getEdges(q: Query): Future[Seq[QueryResult]] = {
+    Try {
+      if (q.steps.isEmpty) {
+        // TODO: this should be get vertex query.
+        Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.Empty)))
+      } else {
+        val startQueryResultLs = QueryResult.fromVertices(q)
+        q.steps.zipWithIndex.foldLeft(Future.successful(startQueryResultLs)) { case (acc, (_, idx)) =>
+          fetchStepFuture(acc, q, idx)
+        }
+      }
+    } recover {
+      case e: Exception =>
+        logger.error(s"getEdgesAsync: $e", e)
+        Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.Empty)))
+    } get
   }
 }
