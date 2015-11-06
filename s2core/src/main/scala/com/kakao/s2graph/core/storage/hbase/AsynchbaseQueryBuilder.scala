@@ -15,7 +15,7 @@ import scala.collection.{Map, Seq}
 import scala.concurrent.{Future, ExecutionContext}
 
 class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionContext)
-  extends QueryBuilder[GetRequest, Deferred[QueryResult]] {
+  extends QueryBuilder[GetRequest, Deferred[QueryResult]](storage) {
 
   import Extensions.DeferOps
 
@@ -75,8 +75,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
     get
   }
 
-  override def fetch(queryRequest: QueryRequest,
-                     cacheOpt: Option[Cache[Integer, Seq[QueryResult]]] = None): Deferred[QueryResult] = {
+  override def fetch(queryRequest: QueryRequest): Deferred[QueryResult] = {
 
     def fetchInner: Deferred[QueryResult] = {
       val request = buildRequest(queryRequest)
@@ -89,7 +88,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
       }
     }
 
-    cacheOpt match {
+    storage.cacheOpt match {
       case None => fetchInner
       case Some(cache) =>
         val queryParam = queryRequest.queryParam
@@ -133,8 +132,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
   }
 
   override def fetches(queryRequests: Seq[QueryRequest],
-                       prevStepEdges: Map[VertexId, Seq[EdgeWithScore]],
-                       cacheOpt: Option[Cache[Integer, Seq[QueryResult]]]): Future[Seq[QueryResult]] = {
+                       prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[QueryResult]] = {
     val defers: Seq[Deferred[QueryResult]] = for {
       queryRequest <- queryRequests
     } yield {
@@ -146,7 +144,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
         } yield parentEdge
 
         val newQueryRequest = queryRequest.copy(parentEdges = parentEdges)
-        fetch(newQueryRequest, cacheOpt)
+        fetch(newQueryRequest)
       }
     val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(defers)
     grouped withCallback { queryResults: util.ArrayList[QueryResult] =>

@@ -1,5 +1,6 @@
 package com.kakao.s2graph.core.storage
 
+import com.google.common.cache.Cache
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.Label
 
@@ -8,6 +9,10 @@ import scala.collection.Seq
 import scala.concurrent.Future
 
 trait Storage {
+
+  val cacheOpt: Option[Cache[Integer, Seq[QueryResult]]] = None
+
+  val vertexCacheOpt: Option[Cache[Integer, Option[Vertex]]] = None
 
   // Serializer/Deserializer
   def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge): StorageSerializable[SnapshotEdge]

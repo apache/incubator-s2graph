@@ -6,26 +6,23 @@ import com.kakao.s2graph.core.types.{LabelWithDirection, VertexId}
 import scala.collection.{Map, Seq}
 import scala.concurrent.{Future, ExecutionContext}
 
-abstract class QueryBuilder[R, T](implicit ec: ExecutionContext) {
+abstract class QueryBuilder[R, T](storage: Storage)(implicit ec: ExecutionContext) {
 
   def buildRequest(queryRequest: QueryRequest): R
 
   def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean): T
 
-  def fetch(queryRequest: QueryRequest,
-            cacheOpt: Option[Cache[Integer, Seq[QueryResult]]]): T
+  def fetch(queryRequest: QueryRequest): T
 
   def toCacheKeyBytes(request: R): Array[Byte]
 
   def fetches(queryRequests: Seq[QueryRequest],
-              prevStepEdges: Map[VertexId, Seq[EdgeWithScore]],
-              cacheOpt: Option[Cache[Integer, Seq[QueryResult]]]): Future[Seq[QueryResult]]
+              prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[QueryResult]]
 
 
   def fetchStep(queryResultsLs: Seq[QueryResult],
                 q: Query,
-                stepIdx: Int,
-                cacheOpt: Option[Cache[Integer, Seq[QueryResult]]]): Future[Seq[QueryResult]] = {
+                stepIdx: Int): Future[Seq[QueryResult]] = {
 
     val prevStepOpt = if (stepIdx > 0) Option(q.steps(stepIdx - 1)) else None
     val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(QueryParam.DefaultThreshold)
@@ -61,7 +58,7 @@ abstract class QueryBuilder[R, T](implicit ec: ExecutionContext) {
       queryParam <- step.queryParams
     } yield QueryRequest(q, stepIdx, vertex, queryParam, prevStepScore, None, Nil, isInnerCall = false)
 
-    Graph.filterEdges(fetches(queryRequests, prevStepTgtVertexIdEdges, cacheOpt), q, stepIdx, alreadyVisited)(ec)
+    Graph.filterEdges(fetches(queryRequests, prevStepTgtVertexIdEdges), q, stepIdx, alreadyVisited)(ec)
   }
 
   def fetchStepFuture(queryResultLsFuture: Future[Seq[QueryResult]],
@@ -70,7 +67,7 @@ abstract class QueryBuilder[R, T](implicit ec: ExecutionContext) {
                       cacheOpt: Option[Cache[Integer, Seq[QueryResult]]]): Future[Seq[QueryResult]] = {
     for {
       queryResultLs <- queryResultLsFuture
-      ret <- fetchStep(queryResultLs, q, stepIdx, cacheOpt)
+      ret <- fetchStep(queryResultLs, q, stepIdx)
     } yield ret
   }
 }

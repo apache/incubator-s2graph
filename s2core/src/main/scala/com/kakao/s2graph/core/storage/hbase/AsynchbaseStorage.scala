@@ -56,6 +56,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   val client = AsynchbaseStorage.makeClient(config)
   val queryBuilder = new AsynchbaseQueryBuilder(this)(ec)
 
+  override val cacheOpt = Option(cache)
+  override val vertexCacheOpt = Option(vertexCache)
+
   private val clientWithFlush = AsynchbaseStorage.makeClient(config, "hbase.rpcs.buffered_flush_interval" -> "0")
   private val clients = Seq(client, clientWithFlush)
 
