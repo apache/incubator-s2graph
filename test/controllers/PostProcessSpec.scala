@@ -1,12 +1,15 @@
 package controllers
 
-import play.api.libs.json.{Json, JsString, JsNumber, JsValue}
+import com.kakao.s2graph.core.MultiOrdering
+import com.kakao.s2graph.core.OrderingUtil._
+import play.api.libs.json.{JsNumber, JsString, JsValue}
 import play.api.test.PlaySpecification
 
 /**
  * Created by hsleep on 2015. 11. 4..
  */
 class PostProcessSpec extends SpecCommon with PlaySpecification {
+
   "test order by json" >> {
     val jsLs: Seq[Seq[JsValue]] = Seq(
       Seq(JsNumber(0), JsString("a")),
@@ -54,36 +57,6 @@ class PostProcessSpec extends SpecCommon with PlaySpecification {
     resultJsLs.toString() must_== sortedJsLs.toString
   }
 
-  class MultiOrdering(ascendingLs: Seq[Boolean], defaultAscending: Boolean = true) extends Ordering[Seq[Any]] {
-    override def compare(x: Seq[Any], y: Seq[Any]): Int = {
-      val xe = x.iterator
-      val ye = y.iterator
-      val oe = ascendingLs.iterator
-
-      while (xe.hasNext && ye.hasNext) {
-        val ascending = if (oe.hasNext) oe.next() else defaultAscending
-        val (xev, yev) = ascending match {
-          case true => xe.next() -> ye.next()
-          case false => ye.next() -> xe.next()
-        }
-        val res = (xev, yev) match {
-          case (xv: Int, yv: Int) =>
-            Ordering.Int.compare(xv, yv)
-          case (xv: Long, yv: Long) =>
-            Ordering.Long.compare(xv, yv)
-          case (xv: Double, yv: Double) =>
-            Ordering.Double.compare(xv, yv)
-          case (xv: String, yv: String) =>
-            Ordering.String.compare(xv, yv)
-          case _ => throw new Exception(s"unsupported type")
-        }
-        if (res != 0) return res
-      }
-
-      Ordering.Boolean.compare(xe.hasNext, ye.hasNext)
-    }
-  }
-
   "test order by primitive type" >> {
     val jsLs: Seq[Seq[Any]] = Seq(
       Seq(0, "a"),
@@ -103,7 +76,7 @@ class PostProcessSpec extends SpecCommon with PlaySpecification {
     )
 
     val ascendingLs: Seq[Boolean] = Seq(false, true)
-    val resultJsLs = jsLs.sorted(new MultiOrdering(ascendingLs))
+    val resultJsLs = jsLs.sorted(new MultiOrdering[Any](ascendingLs))
 
     resultJsLs.toString() must_== sortedJsLs.toString
   }
@@ -135,7 +108,7 @@ class PostProcessSpec extends SpecCommon with PlaySpecification {
     )
 
     val ascendingLs: Seq[Boolean] = Seq(false)
-    val resultJsLs = jsLs.sorted(new MultiOrdering(ascendingLs))
+    val resultJsLs = jsLs.sorted(new MultiOrdering[Any](ascendingLs))
 
     resultJsLs.toString() must_== sortedJsLs.toString
   }

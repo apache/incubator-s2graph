@@ -4,17 +4,7 @@ import play.api.libs.json.JsNumber
 import play.api.test.{FakeApplication, PlaySpecification, WithApplication}
 import play.libs.Json
 
-class JsonBenchmarkSpec extends PlaySpecification {
-  val wrapStr = s"\n=================================================="
-
-  def duration[T](prefix: String = "")(block: => T) = {
-    val startTs = System.currentTimeMillis()
-    val ret = block
-    val endTs = System.currentTimeMillis()
-    println(s"$wrapStr\n$prefix: took ${endTs - startTs} ms$wrapStr")
-    ret
-  }
-
+class JsonBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
   "to json" should {
     implicit val app = FakeApplication()
 
@@ -51,8 +41,6 @@ class JsonBenchmarkSpec extends PlaySpecification {
           }
         }
       }
-
-      true
     }
   }
 }

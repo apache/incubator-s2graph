@@ -154,7 +154,7 @@ object PostProcess extends JSONParser {
           val orderByValues: Seq[Any] = {
 //            val props = keyWithJs.get("props")
             for {
-              (column, _) <- q.orderByColumns
+              (column, _) <- q.orderByColumns if q.withScore
 //              value <- keyWithJs.get(column) match {
 //                case None => props.flatMap { js => (js \ column).asOpt[JsValue] }
 //                case Some(x) => Some(x)
