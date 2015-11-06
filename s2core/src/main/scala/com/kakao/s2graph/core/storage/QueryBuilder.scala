@@ -6,26 +6,26 @@ import com.kakao.s2graph.core.types.{LabelWithDirection, VertexId}
 import scala.collection.{Map, Seq}
 import scala.concurrent.{Future, ExecutionContext}
 
-trait QueryBuilder[R, T] {
+abstract class QueryBuilder[R, T](implicit ec: ExecutionContext) {
 
   def buildRequest(queryRequest: QueryRequest): R
 
-  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean)(implicit ex: ExecutionContext): T
+  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean): T
 
   def fetch(queryRequest: QueryRequest,
-            cacheOpt: Option[Cache[Integer, Seq[QueryResult]]])(implicit ex: ExecutionContext): T
+            cacheOpt: Option[Cache[Integer, Seq[QueryResult]]]): T
 
   def toCacheKeyBytes(request: R): Array[Byte]
 
   def fetches(queryRequests: Seq[QueryRequest],
               prevStepEdges: Map[VertexId, Seq[EdgeWithScore]],
-              cacheOpt: Option[Cache[Integer, Seq[QueryResult]]])(implicit ex: ExecutionContext): Future[Seq[QueryResult]]
+              cacheOpt: Option[Cache[Integer, Seq[QueryResult]]]): Future[Seq[QueryResult]]
 
 
   def fetchStep(queryResultsLs: Seq[QueryResult],
                 q: Query,
                 stepIdx: Int,
-                cacheOpt: Option[Cache[Integer, Seq[QueryResult]]])(implicit ex: ExecutionContext): Future[Seq[QueryResult]] = {
+                cacheOpt: Option[Cache[Integer, Seq[QueryResult]]]): Future[Seq[QueryResult]] = {
 
     val prevStepOpt = if (stepIdx > 0) Option(q.steps(stepIdx - 1)) else None
     val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(QueryParam.DefaultThreshold)
@@ -61,13 +61,13 @@ trait QueryBuilder[R, T] {
       queryParam <- step.queryParams
     } yield QueryRequest(q, stepIdx, vertex, queryParam, prevStepScore, None, Nil, isInnerCall = false)
 
-    Graph.filterEdges(fetches(queryRequests, prevStepTgtVertexIdEdges, cacheOpt), q, stepIdx, alreadyVisited)(ex)
+    Graph.filterEdges(fetches(queryRequests, prevStepTgtVertexIdEdges, cacheOpt), q, stepIdx, alreadyVisited)(ec)
   }
 
   def fetchStepFuture(queryResultLsFuture: Future[Seq[QueryResult]],
                       q: Query,
                       stepIdx: Int,
-                      cacheOpt: Option[Cache[Integer, Seq[QueryResult]]])(implicit ex: ExecutionContext): Future[Seq[QueryResult]] = {
+                      cacheOpt: Option[Cache[Integer, Seq[QueryResult]]]): Future[Seq[QueryResult]] = {
     for {
       queryResultLs <- queryResultLsFuture
       ret <- fetchStep(queryResultLs, q, stepIdx, cacheOpt)

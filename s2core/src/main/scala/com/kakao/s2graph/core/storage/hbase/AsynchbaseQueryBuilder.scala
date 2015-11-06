@@ -14,7 +14,7 @@ import scala.collection.JavaConversions._
 import scala.collection.{Map, Seq}
 import scala.concurrent.{Future, ExecutionContext}
 
-class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)
+class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionContext)
   extends QueryBuilder[GetRequest, Deferred[QueryResult]] {
 
   import Extensions.DeferOps
@@ -76,8 +76,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)
   }
 
   override def fetch(queryRequest: QueryRequest,
-                     cacheOpt: Option[Cache[Integer, Seq[QueryResult]]] = None)
-                    (implicit ex: ExecutionContext): Deferred[QueryResult] = {
+                     cacheOpt: Option[Cache[Integer, Seq[QueryResult]]] = None): Deferred[QueryResult] = {
 
     def fetchInner: Deferred[QueryResult] = {
       val request = buildRequest(queryRequest)
@@ -124,7 +123,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)
     bytes
   }
 
-  override def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean)(implicit ex: ExecutionContext): Deferred[QueryResult] = {
+  override def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean): Deferred[QueryResult] = {
     //TODO:
     val _queryParam = queryParam.tgtVertexInnerIdOpt(Option(tgtVertex.innerId))
     val q = Query.toQuery(Seq(srcVertex), _queryParam)
@@ -135,7 +134,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)
 
   override def fetches(queryRequests: Seq[QueryRequest],
                        prevStepEdges: Map[VertexId, Seq[EdgeWithScore]],
-                       cacheOpt: Option[Cache[Integer, Seq[QueryResult]]])(implicit ex: ExecutionContext): Future[Seq[QueryResult]] = {
+                       cacheOpt: Option[Cache[Integer, Seq[QueryResult]]]): Future[Seq[QueryResult]] = {
     val defers: Seq[Deferred[QueryResult]] = for {
       queryRequest <- queryRequests
     } yield {

@@ -297,7 +297,7 @@ object Graph {
   } get
 }
 
-class Graph(_config: Config)(implicit ex: ExecutionContext) {
+class Graph(_config: Config)(implicit ec: ExecutionContext) {
   val config = _config.withFallback(Graph.DefaultConfig)
   val cacheSize = config.getInt("cache.max.size")
   val cache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Seq[QueryResult]]()
@@ -306,7 +306,7 @@ class Graph(_config: Config)(implicit ex: ExecutionContext) {
   Model(config)
 
   // TODO: Make storage client by config param
-  val storage: Storage = new AsynchbaseStorage(config, cache, vertexCache)(ex)
+  val storage: Storage = new AsynchbaseStorage(config, cache, vertexCache)(ec)
 
   for {
     entry <- config.entrySet() if Graph.DefaultConfigs.contains(entry.getKey)

@@ -54,7 +54,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   import Extensions.DeferOps
 
   val client = AsynchbaseStorage.makeClient(config)
-  val queryBuilder = new AsynchbaseQueryBuilder(this)
+  val queryBuilder = new AsynchbaseQueryBuilder(this)(ec)
 
   private val clientWithFlush = AsynchbaseStorage.makeClient(config, "hbase.rpcs.buffered_flush_interval" -> "0")
   private val clients = Seq(client, clientWithFlush)
@@ -656,8 +656,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       }
     }
   }
-
-
 
   def flush(): Unit = clients.foreach { client =>
     val timeout = Duration((clientFlushInterval + 10) * 20, duration.MILLISECONDS)
