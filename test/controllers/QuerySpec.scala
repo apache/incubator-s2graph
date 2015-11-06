@@ -1,6 +1,5 @@
 package controllers
 
-import controllers.EdgeController
 import play.api.libs.json._
 import play.api.test.{FakeApplication, FakeRequest, PlaySpecification}
 import play.api.{Application => PlayApplication}
