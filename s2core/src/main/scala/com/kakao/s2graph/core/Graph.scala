@@ -56,13 +56,14 @@ object Graph {
     (hashKey, filterHashKey)
   }
 
-  def alreadyVisitedVertices(queryResultLs: Seq[QueryResult]) = {
+  def alreadyVisitedVertices(queryResultLs: Seq[QueryResult]): Map[(LabelWithDirection, Vertex), Boolean] = {
     val vertices = for {
       queryResult <- queryResultLs
-      (edge, score) <- queryResult.edgeWithScoreLs
-    } yield {
-        (edge.labelWithDir, if (edge.labelWithDir.dir == GraphUtil.directions("out")) edge.tgtVertex else edge.srcVertex) -> true
-      }
+      edgeWithScore <- queryResult.edgeWithScoreLs
+      edge = edgeWithScore.edge
+      vertex = if (edge.labelWithDir.dir == GraphUtil.directions("out")) edge.tgtVertex else edge.srcVertex
+    } yield (edge.labelWithDir, vertex) -> true
+
     vertices.toMap
   }
 
@@ -128,7 +129,7 @@ object Graph {
       (hashKey, filterHashKey, edge, _) <- edgeWithScoreSorted if !edgesToExclude.contains(filterHashKey) || edgesToInclude.contains(filterHashKey)
       score = resultEdges.get(hashKey)._3
       (duplicateEdge, aggregatedScore) <- fetchDuplicatedEdges(edge, score, hashKey, duplicateEdges) if aggregatedScore >= queryResult.queryParam.threshold
-    } yield (duplicateEdge, aggregatedScore)
+    } yield EdgeWithScore(duplicateEdge, aggregatedScore)
 
     QueryResult(queryResult.query, queryResult.stepIdx, queryResult.queryParam, edgesWithScores)
   }
@@ -143,7 +144,7 @@ object Graph {
   def queryResultWithFilter(queryResult: QueryResult) = {
     val whereFilter = queryResult.queryParam.where.get
     if (whereFilter == WhereParser.success) queryResult.edgeWithScoreLs
-    else queryResult.edgeWithScoreLs.withFilter(edgeWithScore => whereFilter.filter(edgeWithScore._1))
+    else queryResult.edgeWithScoreLs.withFilter(edgeWithScore => whereFilter.filter(edgeWithScore.edge))
   }
 
   def filterEdges(queryResultLsFuture: Future[util.ArrayList[QueryResult]],
@@ -175,7 +176,7 @@ object Graph {
 
         // store degree value with Array.empty so if degree edge exist, it comes at very first.
         def checkDegree() = queryResult.edgeWithScoreLs.headOption.exists { edgeWithScore =>
-          edgeWithScore._1.propsWithTs.containsKey(LabelMeta.degreeSeq)
+          edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
         }
         var isDegree = checkDegree()
 
@@ -183,7 +184,8 @@ object Graph {
         val shouldBeExcluded = excludeLabelWithDirSet.contains(includeExcludeKey)
         val shouldBeIncluded = includeLabelWithDirSet.contains(includeExcludeKey)
 
-        queryResultWithFilter(queryResult).foreach { case (edge, score) =>
+        queryResultWithFilter(queryResult).foreach { edgeWithScore =>
+          val (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
           if (queryResult.queryParam.transformer.isDefault) {
             val convertedEdge = edge
 

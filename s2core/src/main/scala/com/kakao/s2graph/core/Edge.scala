@@ -40,6 +40,11 @@ case class SnapshotEdge(srcVertex: Vertex,
   def withNoPendingEdge() = copy(pendingEdgeOpt = None)
 
   def withPendingEdge(pendingEdgeOpt: Option[Edge]) = copy(pendingEdgeOpt = pendingEdgeOpt)
+
+  def toEdge: Edge = {
+    val ts = props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(version)
+    Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version, props, pendingEdgeOpt)
+  }
 }
 
 case class IndexEdge(srcVertex: Vertex,
@@ -93,6 +98,8 @@ case class IndexEdge(srcVertex: Vertex,
   //  lazy val kvs = Graph.client.indexedEdgeSerializer(this).toKeyValues.toList
 
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
+
+  def toEdge: Edge = Edge(srcVertex, tgtVertex, labelWithDir, op, ts, ts, propsWithTs)
 }
 
 case class Edge(srcVertex: Vertex,
@@ -289,33 +296,34 @@ object Edge extends JSONParser {
       true
     }
   }
-//
-//
-//  def buildUpsert(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-//    //    assert(requestEdge.op == GraphUtil.operations("insert"))
-//    buildOperation(invertedEdge, Seq(requestEdges))
-//  }
-//
-//  def buildUpdate(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-//    //    assert(requestEdge.op == GraphUtil.operations("update"))
-//    buildOperation(invertedEdge, Seq(requestEdges))
-//  }
-//
-//  def buildDelete(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-//    //    assert(requestEdge.op == GraphUtil.operations("delete"))
-//    buildOperation(invertedEdge, Seq(requestEdges))
-//  }
-//
-//  def buildIncrement(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-//    //    assert(requestEdge.op == GraphUtil.operations("increment"))
-//    buildOperation(invertedEdge, Seq(requestEdges))
-//  }
-//
-//  def buildInsertBulk(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-//    //    assert(invertedEdge.isEmpty)
-//    //    assert(requestEdge.op == GraphUtil.operations("insertBulk") || requestEdge.op == GraphUtil.operations("insert"))
-//    buildOperation(None, Seq(requestEdges))
-//  }
+
+  //
+  //
+  //  def buildUpsert(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+  //    //    assert(requestEdge.op == GraphUtil.operations("insert"))
+  //    buildOperation(invertedEdge, Seq(requestEdges))
+  //  }
+  //
+  //  def buildUpdate(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+  //    //    assert(requestEdge.op == GraphUtil.operations("update"))
+  //    buildOperation(invertedEdge, Seq(requestEdges))
+  //  }
+  //
+  //  def buildDelete(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+  //    //    assert(requestEdge.op == GraphUtil.operations("delete"))
+  //    buildOperation(invertedEdge, Seq(requestEdges))
+  //  }
+  //
+  //  def buildIncrement(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+  //    //    assert(requestEdge.op == GraphUtil.operations("increment"))
+  //    buildOperation(invertedEdge, Seq(requestEdges))
+  //  }
+  //
+  //  def buildInsertBulk(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+  //    //    assert(invertedEdge.isEmpty)
+  //    //    assert(requestEdge.op == GraphUtil.operations("insertBulk") || requestEdge.op == GraphUtil.operations("insert"))
+  //    buildOperation(None, Seq(requestEdges))
+  //  }
 
   def buildDeleteBulk(invertedEdge: Option[Edge], requestEdge: Edge): (Edge, EdgeMutate) = {
     //    assert(invertedEdge.isEmpty)
@@ -588,4 +596,6 @@ object Edge extends JSONParser {
   }
 
   def fromString(s: String): Option[Edge] = Graph.toEdge(s)
+
+
 }

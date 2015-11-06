@@ -298,13 +298,6 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   def toCacheKey(getRequest: GetRequest): Int = {
     val hashBytes = toCacheKeyRaw(getRequest)
     MurmurHash3.bytesHash(hashBytes)
-
-    //    val s = Seq(getRequest, labelWithDir, labelOrderSeq, offset, limit, rank,
-    //      //      duration,
-    //      isInverted,
-    //      columnRangeFilter).mkString(QueryParam.Delimiter)
-    //    //    logger.info(s"toCacheKey: $s")
-    //    MurmurHash3.stringHash(s)
   }
 
   def toCacheKeyStr(getRequest: GetRequest): Int = {
@@ -312,7 +305,6 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
       //      duration,
       isInverted,
       columnRangeFilter).mkString(QueryParam.Delimiter)
-    //    logger.info(s"toCacheKey: $s")
     MurmurHash3.stringHash(s)
   }
 

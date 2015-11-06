@@ -352,78 +352,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
   }
 
-  private def toEdges(kvs: Seq[KeyValue], queryParam: QueryParam,
-                      prevScore: Double = 1.0,
-                      isInnerCall: Boolean,
-                      parentEdges: Seq[EdgeWithScore]): Seq[(Edge, Double)] = {
-
-    if (kvs.isEmpty) Seq.empty
-    else {
-      val first = kvs.head
-      val kv = first
-      val cacheElementOpt =
-        if (queryParam.isSnapshotEdge) None
-        else Option(indexEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion))
-
-      for {
-        kv <- kvs
-        edge <-
-        if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, None, isInnerCall, parentEdges)
-        else toEdge(kv, queryParam, cacheElementOpt, parentEdges)
-      } yield {
-        //TODO: Refactor this.
-        val currentScore =
-          queryParam.scorePropagateOp match {
-            case "plus" => edge.rank(queryParam.rank) + prevScore
-            case _ => edge.rank(queryParam.rank) * prevScore
-          }
-        (edge, currentScore)
-      }
-    }
-  }
-
-  private def toSnapshotEdge(kv: KeyValue, param: QueryParam,
-                             cacheElementOpt: Option[SnapshotEdge] = None,
-                             isInnerCall: Boolean,
-                             parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
-    val kvs = Seq(kv)
-    val snapshotEdge = snapshotEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
-
-    if (isInnerCall) {
-      val edge = snapshotEdgeDeserializer.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
-      val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
-        Some(edge)
-      } else {
-        None
-      }
-
-      ret
-    } else {
-      if (Edge.allPropsDeleted(snapshotEdge.props)) None
-      else {
-        val edge = snapshotEdgeDeserializer.toEdge(snapshotEdge).copy(parentEdges = parentEdges)
-        val ret = if (param.where.map(_.filter(edge)).getOrElse(true)) {
-          logger.debug(s"fetchedEdge: $edge")
-          Some(edge)
-        } else {
-          None
-        }
-        ret
-      }
-    }
-  }
-
-  private def toEdge(kv: KeyValue, param: QueryParam,
-                     cacheElementOpt: Option[IndexEdge] = None,
-                     parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
-
-    // logger.error(s"kv: => $kv")
-
-    val kvs = Seq(kv)
-    val edgeWithIndex = indexEdgeDeserializer.fromKeyValues(param, kvs, param.label.schemaVersion, cacheElementOpt)
-    Option(indexEdgeDeserializer.toEdge(edgeWithIndex).copy(parentEdges = parentEdges))
-  }
-
   private def fetchQueryParam(queryRequest: QueryRequest): Deferred[QueryResult] = {
     val successCallback = (kvs: util.ArrayList[KeyValue]) => {
       val edgeWithScores = toEdges(kvs.toSeq, queryRequest.queryParam, queryRequest.prevStepScore, queryRequest.isInnerCall, queryRequest.parentEdges)
@@ -469,20 +397,20 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
     //TODO:
     val groupedBy = queryResultsLs.flatMap { queryResult =>
-      queryResult.edgeWithScoreLs.map { case (edge, score) =>
-        edge.tgtVertex -> (edge -> score)
+      queryResult.edgeWithScoreLs.map { case edgeWithScore =>
+        edgeWithScore.edge.tgtVertex -> edgeWithScore
       }
-    }.groupBy { case (vertex, (edge, score)) => vertex }
+    }.groupBy { case (vertex, edgeWithScore) => vertex }
 
     //    logger.debug(s"groupedBy: $groupedBy")
     val groupedByFiltered = for {
       (vertex, edgesWithScore) <- groupedBy
-      aggregatedScore = edgesWithScore.map(_._2._2).sum if aggregatedScore >= prevStepThreshold
+      aggregatedScore = edgesWithScore.map(_._2.score).sum if aggregatedScore >= prevStepThreshold
     } yield vertex -> aggregatedScore
 
     val prevStepTgtVertexIdEdges = for {
       (vertex, edgesWithScore) <- groupedBy
-    } yield vertex.id -> edgesWithScore.map { case (vertex, (edge, score)) => EdgeWithScore(edge, score) }
+    } yield vertex.id -> edgesWithScore.map { case (vertex, edgeWithScore) => edgeWithScore }
     //    logger.debug(s"groupedByFiltered: $groupedByFiltered")
 
     val nextStepSrcVertices = if (prevStepLimit >= 0) {
@@ -673,7 +601,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val queryParam = QueryParam(labelWithDir)
 
     getEdge(edge.srcVertex, edge.tgtVertex, queryParam, isInnerCall = true).map { queryResult =>
-      (queryParam, queryResult.edgeWithScoreLs.headOption.map { case (e, _) => e })
+      (queryParam, queryResult.edgeWithScoreLs.headOption.map(_.edge))
     }
   }
 
@@ -795,15 +723,15 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
                                          requestTs: Long,
                                          retryNum: Int = 0): Future[Boolean] = {
     val queryParam = queryResult.queryParam
-    val queryResultToDelete = queryResult.edgeWithScoreLs.filter { case (edge, score) =>
-      (edge.ts < requestTs) && !edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
+    val queryResultToDelete = queryResult.edgeWithScoreLs.filter { edgeWithScore =>
+      (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
     }
 
     if (queryResultToDelete.isEmpty) {
       Future.successful(true)
     } else {
-      val edgesToDelete = queryResultToDelete.flatMap { case (edge, score) =>
-        edge.copy(op = GraphUtil.operations("delete"), ts = requestTs, version = requestTs).relatedEdges
+      val edgesToDelete = queryResultToDelete.flatMap { edgeWithScore =>
+        edgeWithScore.edge.copy(op = GraphUtil.operations("delete"), ts = requestTs, version = requestTs).relatedEdges
       }
       mutateEdges(edgesToDelete, withWait = true).map { rets => rets.forall(identity) }
     }

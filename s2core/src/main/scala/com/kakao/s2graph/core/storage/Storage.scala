@@ -3,6 +3,8 @@ package com.kakao.s2graph.core.storage
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.Label
 
+
+import scala.collection.Seq
 import scala.concurrent.Future
 
 trait Storage {
@@ -38,5 +40,66 @@ trait Storage {
   def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]]
 
   def flush(): Unit
+
+
+
+  protected def toEdge[K: CanSKeyValue](kv: K,
+                                              queryParam: QueryParam,
+                                              cacheElementOpt: Option[IndexEdge],
+                                              parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
+    val indexEdge = indexEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
+    Option(indexEdge.toEdge.copy(parentEdges = parentEdges))
+  }
+
+  protected def toSnapshotEdge[K: CanSKeyValue](kv: K,
+                                                queryParam: QueryParam,
+                                                cacheElementOpt: Option[SnapshotEdge] = None,
+                                                isInnerCall: Boolean,
+                                                parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
+    val snapshotEdge = snapshotEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
+
+    if (isInnerCall) {
+      val edge = snapshotEdge.toEdge.copy(parentEdges = parentEdges)
+      if (queryParam.where.map(_.filter(edge)).getOrElse(true)) Option(edge)
+      else None
+    } else {
+      if (Edge.allPropsDeleted(snapshotEdge.props)) None
+      else {
+        val edge = snapshotEdge.toEdge.copy(parentEdges = parentEdges)
+        if (queryParam.where.map(_.filter(edge)).getOrElse(true)) Option(edge)
+        else None
+      }
+    }
+  }
+
+  protected def toEdges[K: CanSKeyValue](kvs: Seq[K],
+                                            queryParam: QueryParam,
+                                            prevScore: Double = 1.0,
+                                            isInnerCall: Boolean,
+                                            parentEdges: Seq[EdgeWithScore]): Seq[EdgeWithScore] = {
+    if (kvs.isEmpty) Seq.empty
+    else {
+      val first = kvs.head
+      val kv = first
+      val cacheElementOpt =
+        if (queryParam.isSnapshotEdge) None
+        else Option(indexEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, None))
+
+      for {
+        kv <- kvs
+        edge <-
+        if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, None, isInnerCall, parentEdges)
+        else toEdge(kv, queryParam, cacheElementOpt, parentEdges)
+      } yield {
+        //TODO: Refactor this.
+        val currentScore =
+          queryParam.scorePropagateOp match {
+            case "plus" => edge.rank(queryParam.rank) + prevScore
+            case _ => edge.rank(queryParam.rank) * prevScore
+          }
+        EdgeWithScore(edge, currentScore)
+      }
+    }
+  }
 }
 
