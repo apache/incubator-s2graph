@@ -31,7 +31,6 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
     StructField("label", StringType),
     StructField("props", StringType),
     StructField("service", StringType),
-    StructField("split", StringType),
     StructField("date_id", StringType)))
 
   def getIncrementalPaths(fs: FileSystem, split: String, lastDateId: String): String = {
@@ -87,28 +86,14 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
           date_sub(current_date(), baseBefore) as "b")
         .show(false)
 
-    val orc = sqlContext.read.orc(params.baseRoot)
-
-    // to avoid NullPointException
-    //     at org.apache.spark.sql.hive.HiveInspectors$class.unwrapperFor(HiveInspectors.scala:466)
-    //     using sqlContext.read.schema(rawSchema).orc(params.baseRoot)
-    val orcWithSchema = if(orc.schema.fieldNames.diff(rawSchema.fieldNames).isEmpty) {
-      logInfo("using orc already had schema")
-      orc
-    } else {
-      logInfo(s"using orc with the given schema $rawSchema")
-      var renamed = orc
-      orc.schema.fieldNames.zip(rawSchema.fieldNames).foreach { case (colNameFrom, colNameTo) =>
-        if(colNameFrom.startsWith("_col"))
-          renamed = renamed.withColumnRenamed(colNameFrom, colNameTo)
-      }
-      renamed
-    }
+    // currently, partition discovery does not seem stable.
+    //    https://issues.apache.org/jira/browse/SPARK-10304
+    // gives more explicit sub-directory as possible.
+    val orcWithSchema = sqlContext.read.schema(rawSchema).orc(params.baseRoot + s"/split=$split")
 
     /** from daily data */
     val dailyDF = orcWithSchema
-        .where($"split" === split
-            and $"date_id".between(
+        .where($"date_id".between(
           date_sub(current_date(), params.duration + baseBefore),
           date_sub(current_date(), baseBefore)))
         .where($"label".isin(labelWeight.keys.toSeq: _*))
