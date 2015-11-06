@@ -1,7 +1,7 @@
 package com.kakao.s2graph.core
 
 import com.kakao.s2graph.core.types.InnerValLike
-import play.api.libs.json.{JsValue, JsNumber, JsString}
+import play.api.libs.json.{JsNumber, JsString, JsValue}
 
 /**
  * Created by hsleep(honeysleep@gmail.com) on 2015. 11. 5..
@@ -52,10 +52,7 @@ class MultiOrdering[T: Ordering](ascendingLs: Seq[Boolean], defaultAscending: Bo
         case true => xe.next() -> ye.next()
         case false => ye.next() -> xe.next()
       }
-//      val (xev, yev) = xe.next() -> ye.next()
-      //      val res = ord.compare(xev, yev)
       val res = ord.compare(xev, yev)
-      //      val res = Ordered.orderingToOrdered(xev).compare(yev)
       if (res != 0) return res
     }
 

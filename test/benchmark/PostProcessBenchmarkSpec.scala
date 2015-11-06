@@ -13,6 +13,7 @@ import scala.concurrent.duration._
   * Created by hsleep(honeysleep@gmail.com) on 2015. 11. 6..
   */
 class PostProcessBenchmarkSpec extends SpecCommon with BenchmarkCommon with PlaySpecification {
+  sequential
 
   import Helper._
 
@@ -61,6 +62,62 @@ class PostProcessBenchmarkSpec extends SpecCommon with BenchmarkCommon with Play
 
   val s2: Graph = com.kakao.s2graph.rest.Global.s2graph
 
+  "test performance of getEdges orderBy" >> {
+    running(FakeApplication()) {
+      val strJs =
+        s"""
+           |{
+           |  "orderBy": [
+           |    {"score": "DESC"},
+           |    {"timestamp": "DESC"}
+           |  ],
+           |  "srcVertices": [
+           |    {
+           |      "serviceName": "$testServiceName",
+           |      "columnName": "$testColumnName",
+           |      "ids": [0]
+           |    }
+           |  ],
+           |  "steps": [
+           |    {
+           |      "step": [
+           |        {
+           |          "cacheTTL": 60000,
+           |          "label": "$testLabelNameWeak",
+           |          "offset": 0,
+           |          "limit": -1,
+           |          "direction": "out"
+           |        }
+           |      ]
+           |    }
+           |  ]
+           |}
+      """.stripMargin
+
+      object Parser extends RequestParser
+
+      val js = Json.parse(strJs)
+
+      val q = Parser.toQuery(js)
+
+      val queryResultLs = Await.result(s2.getEdges(q), 1 seconds)
+
+      val resultJs = PostProcess.toSimpleVertexArrJson(queryResultLs)
+
+      (resultJs \ "size").as[Int] must_== 500
+
+      (0 to 5) foreach { _ =>
+        duration("toSimpleVertexArrJson new orderBy") {
+          (0 to 1000) foreach { _ =>
+            PostProcess.toSimpleVertexArrJson(queryResultLs, Nil)
+          }
+        }
+      }
+
+      (resultJs \ "size").as[Int] must_== 500
+    }
+  }
+
   "test performance of getEdges" >> {
     running(FakeApplication()) {
       val strJs =
@@ -101,13 +158,22 @@ class PostProcessBenchmarkSpec extends SpecCommon with BenchmarkCommon with Play
 
       (resultJs \ "size").as[Int] must_== 500
 
-      duration("toSimpleVertexArrJson") {
-        (0 to 1000) foreach { _ =>
-          PostProcess.toSimpleVertexArrJson(queryResultLs)
+      (0 to 5) foreach { _ =>
+        duration("toSimpleVertexArrJson org") {
+          (0 to 1000) foreach { _ =>
+            PostProcess.toSimpleVertexArrJsonOrg(queryResultLs, Nil)
+          }
+        }
+
+        duration("toSimpleVertexArrJson new") {
+          (0 to 1000) foreach { _ =>
+            PostProcess.toSimpleVertexArrJson(queryResultLs, Nil)
+          }
         }
       }
 
       (resultJs \ "size").as[Int] must_== 500
     }
   }
+
 }
