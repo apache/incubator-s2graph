@@ -276,7 +276,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     val hashBytes = toCacheKeyRaw(bytes)
     MurmurHash3.bytesHash(hashBytes)
   }
-
+  
   def toCacheKeyRaw(bytes: Array[Byte]): Array[Byte] = {
     Bytes.add(Bytes.add(bytes, labelWithDir.bytes, toBytes(labelOrderSeq, offset, limit, isInverted)), rank.toHashKeyBytes(),
       Bytes.add(columnRangeFilterMinBytes, columnRangeFilterMaxBytes))
