@@ -7,7 +7,7 @@ import com.google.common.cache.Cache
 import com.kakao.s2graph.core.GraphExceptions.FetchTimeoutException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.{Label, LabelMeta}
-import com.kakao.s2graph.core.storage.{SKeyValue, Storage}
+import com.kakao.s2graph.core.storage.{QueryBuilder, SKeyValue, Storage}
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.{Extensions, logger}
 import com.stumbleupon.async.{Callback, Deferred}
@@ -56,6 +56,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   import Extensions.DeferOps
 
   val client = AsynchbaseStorage.makeClient(config)
+  val queryBuilder = new AsynchbaseQueryBuilder(this)
+
   private val clientWithFlush = AsynchbaseStorage.makeClient(config, "hbase.rpcs.buffered_flush_interval" -> "0")
   private val clients = Seq(client, clientWithFlush)
 
@@ -117,7 +119,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   def checkEdges(params: Seq[(Vertex, Vertex, QueryParam)]): Future[Seq[QueryResult]] = {
     val futures = for {
       (srcVertex, tgtVertex, queryParam) <- params
-    } yield getEdge(srcVertex, tgtVertex, queryParam, false)
+    } yield queryBuilder.getEdge(srcVertex, tgtVertex, queryParam, false).toFuture
 
     Future.sequence(futures)
   }
@@ -260,110 +262,33 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     grouped.toFuture.map(_.toSeq)
   }
 
-  private def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean): Future[QueryResult] = {
-    //TODO:
-    val _queryParam = queryParam.tgtVertexInnerIdOpt(Option(tgtVertex.innerId))
-    val q = Query.toQuery(Seq(srcVertex), _queryParam)
-    val queryRequest = QueryRequest(q, 0, srcVertex, _queryParam, 1.0, Option(tgtVertex), isInnerCall = true)
-    val fallback = QueryResult(q, 0, queryParam)
-    fetchQueryParam(queryRequest).toFutureWith(fallback)
-  }
-
-  private def buildRequest(queryRequest: QueryRequest): GetRequest = {
-    val srcVertex = queryRequest.vertex
-    //    val tgtVertexOpt = queryRequest.tgtVertexOpt
-
-    val queryParam = queryRequest.queryParam
-    val tgtVertexIdOpt = queryParam.tgtVertexInnerIdOpt
-    val label = queryParam.label
-    val labelWithDir = queryParam.labelWithDir
-    val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
-    val (srcInnerId, tgtInnerId) = tgtVertexIdOpt match {
-      case Some(tgtVertexId) => // _to is given.
-        /** we use toInvertedEdgeHashLike so dont need to swap src, tgt */
-        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
-        val tgt = InnerVal.convertVersion(tgtVertexId, tgtColumn.columnType, label.schemaVersion)
-        (src, tgt)
-      case None =>
-        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
-        (src, src)
-    }
-
-    val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
-    val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
-    val edge = Edge(srcV, tgtV, labelWithDir)
-
-    val get = if (tgtVertexIdOpt.isDefined) {
-      val snapshotEdge = edge.toSnapshotEdge
-      val kv = snapshotEdgeSerializer(snapshotEdge).toKeyValues.head
-      new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
-    } else {
-      val indexedEdgeOpt = edge.edgesWithIndex.find(e => e.labelIndexSeq == queryParam.labelOrderSeq)
-      assert(indexedEdgeOpt.isDefined)
-
-      val indexedEdge = indexedEdgeOpt.get
-      val kv = indexEdgeSerializer(indexedEdge).toKeyValues.head
-      val table = label.hbaseTableName.getBytes
-      val rowKey = kv.row
-      val cf = edgeCf
-      new GetRequest(table, rowKey, cf)
-    }
-
-    val (minTs, maxTs) = queryParam.duration.getOrElse((0L, Long.MaxValue))
-
-    get.maxVersions(1)
-    get.setFailfast(true)
-    get.setMaxResultsPerColumnFamily(queryParam.limit)
-    get.setRowOffsetPerColumnFamily(queryParam.offset)
-    get.setMinTimestamp(minTs)
-    get.setMaxTimestamp(maxTs)
-    get.setTimeout(queryParam.rpcTimeoutInMillis)
-
-    if (queryParam.columnRangeFilter != null) get.setFilter(queryParam.columnRangeFilter)
-
-    get
-  }
 
   private def fetchhQueryParamWithCache(queryRequest: QueryRequest): Deferred[QueryResult] = {
     val queryParam = queryRequest.queryParam
-    val cacheKey = queryParam.toCacheKey(buildRequest(queryRequest))
+    val request = queryBuilder.buildRequest(queryRequest)
 
-    def queryResultCallback(cacheKey: Int) = new Callback[QueryResult, QueryResult] {
-      def call(arg: QueryResult): QueryResult = {
-        cache.put(cacheKey, Seq(arg))
-        arg
+    val cacheKey = queryParam.toCacheKey(queryBuilder.toCacheKeyBytes(request))
+
+    def setCacheAfterFetch =
+      queryBuilder.fetch(queryRequest) withCallback { queryResult: QueryResult =>
+        cache.put(cacheKey, Seq(queryResult)); queryResult
       }
-    }
+
+
     if (queryParam.cacheTTLInMillis > 0) {
       val cacheTTL = queryParam.cacheTTLInMillis
       if (cache.asMap().containsKey(cacheKey)) {
         val cachedVal = cache.asMap().get(cacheKey)
-        if (cachedVal != null && cachedVal.nonEmpty && queryParam.timestamp - cachedVal.head.timestamp < cacheTTL) {
+        if (cachedVal != null && cachedVal.nonEmpty && queryParam.timestamp - cachedVal.head.timestamp < cacheTTL)
           Deferred.fromResult(cachedVal.head)
-        }
-        else {
-          fetchQueryParam(queryRequest).addBoth(queryResultCallback(cacheKey))
-        }
-      } else {
-        fetchQueryParam(queryRequest).addBoth(queryResultCallback(cacheKey))
-      }
-    } else {
-      fetchQueryParam(queryRequest).addBoth(queryResultCallback(cacheKey))
-    }
+        else
+          setCacheAfterFetch
+      } else
+        setCacheAfterFetch
+    } else
+      setCacheAfterFetch
   }
 
-  private def fetchQueryParam(queryRequest: QueryRequest): Deferred[QueryResult] = {
-    val successCallback = (kvs: util.ArrayList[KeyValue]) => {
-      val edgeWithScores = toEdges(kvs.toSeq, queryRequest.queryParam, queryRequest.prevStepScore, queryRequest.isInnerCall, queryRequest.parentEdges)
-      QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam, edgeWithScores)
-    }
-    val fallback = (ex: Exception) => {
-      logger.error(s"fetchQueryParam failed. fallback return.", ex)
-      QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam)
-    }
-
-    client.get(buildRequest(queryRequest)).withCallback(successCallback).recoverWith(fallback)
-  }
 
   private def fetchStep(queryRequests: Seq[QueryRequest],
                         prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Deferred[util.ArrayList[QueryResult]] = {
@@ -600,7 +525,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val labelWithDir = edge.labelWithDir
     val queryParam = QueryParam(labelWithDir)
 
-    getEdge(edge.srcVertex, edge.tgtVertex, queryParam, isInnerCall = true).map { queryResult =>
+    queryBuilder.getEdge(edge.srcVertex, edge.tgtVertex, queryParam, isInnerCall = true).toFuture map { queryResult =>
       (queryParam, queryResult.edgeWithScoreLs.headOption.map(_.edge))
     }
   }

@@ -7,12 +7,15 @@ import com.kakao.s2graph.core.utils.{logger, Extensions}
 import com.kakao.s2graph.core.storage.{Storage, SKeyValue, CanSKeyValue, QueryBuilder}
 import com.kakao.s2graph.core.types.{TargetVertexId, SourceVertexId, InnerVal}
 import com.stumbleupon.async.{Callback, Deferred}
+import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{KeyValue, GetRequest}
 import scala.collection.JavaConversions._
+import scala.concurrent.ExecutionContext
 
 class AsynchbaseQueryBuilder(storage: AsynchbaseStorage) extends QueryBuilder[GetRequest, Deferred[QueryResult]] {
 
   import Extensions.DeferOps
+
   override def buildRequest(queryRequest: QueryRequest): GetRequest = {
     val srcVertex = queryRequest.vertex
     //    val tgtVertexOpt = queryRequest.tgtVertexOpt
@@ -69,18 +72,30 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage) extends QueryBuilder[Ge
     get
   }
 
-  override def fetch(queryRequest: QueryRequest): Deferred[QueryResult] = {
+  override def fetch(queryRequest: QueryRequest)(implicit ex: ExecutionContext): Deferred[QueryResult] = {
     val request = buildRequest(queryRequest)
-    storage.client.get(request).addCallback(new Callback[QueryResult, util.ArrayList[KeyValue]] {
-      override def call(kvs: util.ArrayList[KeyValue]): QueryResult = {
-        val edgeWithScores = storage.toEdges(kvs.toSeq, queryRequest.queryParam, queryRequest.prevStepScore, queryRequest.isInnerCall, queryRequest.parentEdges)
-        QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam, edgeWithScores)
-      }
-    }).addErrback(new Callback[QueryResult, Exception] {
-      override def call(ex: Exception): QueryResult = {
-        logger.error(s"fetchQueryParam failed. fallback return.", ex)
-        QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam)
-      }
-    })
+    storage.client.get(request) withCallback { kvs =>
+      val edgeWithScores = storage.toEdges(kvs.toSeq, queryRequest.queryParam, queryRequest.prevStepScore, queryRequest.isInnerCall, queryRequest.parentEdges)
+      QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam, edgeWithScores)
+    } recoverWith { ex =>
+      logger.error(s"fetchQueryParam failed. fallback return.", ex)
+      QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam)
+    }
+  }
+
+  override def toCacheKeyBytes(getRequest: GetRequest): Array[Byte] = {
+    var bytes = getRequest.key()
+    if (getRequest.family() != null) bytes = Bytes.add(bytes, getRequest.family())
+    if (getRequest.qualifiers() != null) getRequest.qualifiers().filter(_ != null).foreach(q => bytes = Bytes.add(bytes, q))
+    bytes
+  }
+
+  def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean): Deferred[QueryResult] = {
+    //TODO:
+    val _queryParam = queryParam.tgtVertexInnerIdOpt(Option(tgtVertex.innerId))
+    val q = Query.toQuery(Seq(srcVertex), _queryParam)
+    val queryRequest = QueryRequest(q, 0, srcVertex, _queryParam, 1.0, Option(tgtVertex), isInnerCall = true)
+    val fallback = QueryResult(q, 0, queryParam)
+    fetch(queryRequest)
   }
 }
