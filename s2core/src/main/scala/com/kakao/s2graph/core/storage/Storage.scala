@@ -42,20 +42,19 @@ trait Storage {
   def flush(): Unit
 
 
-
   def toEdge[K: CanSKeyValue](kv: K,
-                                              queryParam: QueryParam,
-                                              cacheElementOpt: Option[IndexEdge],
-                                              parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
+                              queryParam: QueryParam,
+                              cacheElementOpt: Option[IndexEdge],
+                              parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
     val indexEdge = indexEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
     Option(indexEdge.toEdge.copy(parentEdges = parentEdges))
   }
 
   def toSnapshotEdge[K: CanSKeyValue](kv: K,
-                                                queryParam: QueryParam,
-                                                cacheElementOpt: Option[SnapshotEdge] = None,
-                                                isInnerCall: Boolean,
-                                                parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
+                                      queryParam: QueryParam,
+                                      cacheElementOpt: Option[SnapshotEdge] = None,
+                                      isInnerCall: Boolean,
+                                      parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
     val snapshotEdge = snapshotEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
 
     if (isInnerCall) {
@@ -73,10 +72,10 @@ trait Storage {
   }
 
   def toEdges[K: CanSKeyValue](kvs: Seq[K],
-                                            queryParam: QueryParam,
-                                            prevScore: Double = 1.0,
-                                            isInnerCall: Boolean,
-                                            parentEdges: Seq[EdgeWithScore]): Seq[EdgeWithScore] = {
+                               queryParam: QueryParam,
+                               prevScore: Double = 1.0,
+                               isInnerCall: Boolean,
+                               parentEdges: Seq[EdgeWithScore]): Seq[EdgeWithScore] = {
     if (kvs.isEmpty) Seq.empty
     else {
       val first = kvs.head

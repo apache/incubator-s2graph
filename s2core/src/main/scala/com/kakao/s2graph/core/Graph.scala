@@ -147,7 +147,7 @@ object Graph {
     else queryResult.edgeWithScoreLs.withFilter(edgeWithScore => whereFilter.filter(edgeWithScore.edge))
   }
 
-  def filterEdges(queryResultLsFuture: Future[util.ArrayList[QueryResult]],
+  def filterEdges(queryResultLsFuture: Future[Seq[QueryResult]],
                   q: Query,
                   stepIdx: Int,
                   alreadyVisited: Map[(LabelWithDirection, Vertex), Boolean] = Map.empty[(LabelWithDirection, Vertex), Boolean])

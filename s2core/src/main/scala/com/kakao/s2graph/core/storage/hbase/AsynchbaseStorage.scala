@@ -1,27 +1,25 @@
 package com.kakao.s2graph.core.storage.hbase
 
 import java.util
-import java.util.ArrayList
 
 import com.google.common.cache.Cache
 import com.kakao.s2graph.core.GraphExceptions.FetchTimeoutException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.{Label, LabelMeta}
-import com.kakao.s2graph.core.storage.{QueryBuilder, SKeyValue, Storage}
+import com.kakao.s2graph.core.storage.{SKeyValue, Storage}
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.{Extensions, logger}
-import com.stumbleupon.async.{Callback, Deferred}
+import com.stumbleupon.async.{Deferred}
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async._
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.ListBuffer
-import scala.collection.{Map, Seq}
+import scala.collection.{Seq}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, duration}
 import scala.util.hashing.MurmurHash3
-import scala.util.{Failure, Random, Success, Try}
+import scala.util.{Random, Try}
 
 
 object AsynchbaseStorage {
@@ -77,14 +75,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   val indexEdgeDeserializer = new IndexEdgeDeserializable
   val vertexDeserializer = new VertexDeserializable
 
-  private def fetchStepFuture(queryResultLsFuture: Future[Seq[QueryResult]], q: Query, stepIdx: Int): Future[Seq[QueryResult]] = {
-    for {
-      queryResultLs <- queryResultLsFuture
-      ret <- fetchStepWithFilter(queryResultLs, q, stepIdx)
-    } yield {
-      ret
-    }
-  }
 
   private def put(kvs: Seq[SKeyValue]): Seq[HBaseRpc] =
     kvs.map { kv => new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp) }
@@ -106,7 +96,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       } else {
         val startQueryResultLs = QueryResult.fromVertices(q)
         q.steps.zipWithIndex.foldLeft(Future.successful(startQueryResultLs)) { case (acc, (_, idx)) =>
-          fetchStepFuture(acc, q, idx)
+          queryBuilder.fetchStepFuture(acc, q, idx, Option(cache))
         }
       }
     } recover {
@@ -262,106 +252,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     grouped.toFuture.map(_.toSeq)
   }
 
-
-  private def fetchhQueryParamWithCache(queryRequest: QueryRequest): Deferred[QueryResult] = {
-    val queryParam = queryRequest.queryParam
-    val request = queryBuilder.buildRequest(queryRequest)
-
-    val cacheKey = queryParam.toCacheKey(queryBuilder.toCacheKeyBytes(request))
-
-    def setCacheAfterFetch =
-      queryBuilder.fetch(queryRequest) withCallback { queryResult: QueryResult =>
-        cache.put(cacheKey, Seq(queryResult)); queryResult
-      }
-
-
-    if (queryParam.cacheTTLInMillis > 0) {
-      val cacheTTL = queryParam.cacheTTLInMillis
-      if (cache.asMap().containsKey(cacheKey)) {
-        val cachedVal = cache.asMap().get(cacheKey)
-        if (cachedVal != null && cachedVal.nonEmpty && queryParam.timestamp - cachedVal.head.timestamp < cacheTTL)
-          Deferred.fromResult(cachedVal.head)
-        else
-          setCacheAfterFetch
-      } else
-        setCacheAfterFetch
-    } else
-      setCacheAfterFetch
-  }
-
-
-  private def fetchStep(queryRequests: Seq[QueryRequest],
-                        prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Deferred[util.ArrayList[QueryResult]] = {
-    val defers = for {
-      queryRequest <- queryRequests
-    } yield {
-        val prevStepEdgesOpt = prevStepEdges.get(queryRequest.vertex.id)
-        if (prevStepEdgesOpt.isEmpty) throw new RuntimeException("miss match on prevStepEdge and current GetRequest")
-
-        val parentEdges = for {
-          parentEdge <- prevStepEdgesOpt.get
-        } yield parentEdge
-
-        val newQueryRequest = queryRequest.copy(parentEdges = parentEdges)
-        fetchhQueryParamWithCache(newQueryRequest)
-      }
-    Deferred.group(defers)
-  }
-
-  private def fetchStepWithFilter(queryResultsLs: Seq[QueryResult],
-                                  q: Query,
-                                  stepIdx: Int): Future[Seq[QueryResult]] = {
-
-    val prevStepOpt = if (stepIdx > 0) Option(q.steps(stepIdx - 1)) else None
-    val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(QueryParam.DefaultThreshold)
-    val prevStepLimit = prevStepOpt.map(_.nextStepLimit).getOrElse(-1)
-    val step = q.steps(stepIdx)
-    val alreadyVisited =
-      if (stepIdx == 0) Map.empty[(LabelWithDirection, Vertex), Boolean]
-      else Graph.alreadyVisitedVertices(queryResultsLs)
-
-    //TODO:
-    val groupedBy = queryResultsLs.flatMap { queryResult =>
-      queryResult.edgeWithScoreLs.map { case edgeWithScore =>
-        edgeWithScore.edge.tgtVertex -> edgeWithScore
-      }
-    }.groupBy { case (vertex, edgeWithScore) => vertex }
-
-    //    logger.debug(s"groupedBy: $groupedBy")
-    val groupedByFiltered = for {
-      (vertex, edgesWithScore) <- groupedBy
-      aggregatedScore = edgesWithScore.map(_._2.score).sum if aggregatedScore >= prevStepThreshold
-    } yield vertex -> aggregatedScore
-
-    val prevStepTgtVertexIdEdges = for {
-      (vertex, edgesWithScore) <- groupedBy
-    } yield vertex.id -> edgesWithScore.map { case (vertex, edgeWithScore) => edgeWithScore }
-    //    logger.debug(s"groupedByFiltered: $groupedByFiltered")
-
-    val nextStepSrcVertices = if (prevStepLimit >= 0) {
-      groupedByFiltered.toSeq.sortBy(-1 * _._2).take(prevStepLimit)
-    } else {
-      groupedByFiltered.toSeq
-    }
-    //    logger.debug(s"nextStepSrcVertices: $nextStepSrcVertices")
-
-    val queryRequests = for {
-      (vertex, prevStepScore) <- nextStepSrcVertices
-      queryParam <- step.queryParams
-    } yield {
-        QueryRequest(q, stepIdx, vertex, queryParam, prevStepScore, None, Nil, isInnerCall = false)
-      }
-
-    val fallback = queryRequests.map(request => QueryResult(q, stepIdx, request.queryParam))
-    val groupedDefer = fetchStep(queryRequests, prevStepTgtVertexIdEdges)
-
-    val future = groupedDefer.recoverWith { ex: Exception =>
-      logger.error("fetch step failed. fallback return.", ex)
-      new ArrayList(fallback)
-    }.toFuture
-
-    Graph.filterEdges(future, q, stepIdx, alreadyVisited)(ec)
-  }
 
   /** edge Update **/
   private def indexedEdgeMutations(edgeUpdate: EdgeMutate): List[HBaseRpc] = {
