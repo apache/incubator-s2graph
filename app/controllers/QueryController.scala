@@ -251,7 +251,8 @@ object QueryController extends Controller with RequestParser {
       s2.checkEdges(quads).map { case queryResultLs =>
         val edgeJsons = for {
           queryResult <- queryResultLs
-          (edge, score) <- queryResult.edgeWithScoreLs
+          edgeWithScore <- queryResult.edgeWithScoreLs
+          (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
           convertedEdge = if (isReverted) edge.duplicateEdge else edge
           edgeJson = PostProcess.edgeToJson(convertedEdge, score, queryResult.query, queryResult.queryParam)
         } yield Json.toJson(edgeJson)

@@ -54,11 +54,7 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
     (Array.empty[(Byte, InnerValLike)], 0)
   }
 
-  def toEdge(edgeOpt: IndexEdge): Edge = {
-    val e = edgeOpt
-    Edge(e.srcVertex, e.tgtVertex, e.labelWithDir, e.op, e.ts, e.ts, e.propsWithTs)
-    //    edgeOpt.map { e => Edge(e.srcVertex, e.tgtVertex, e.labelWithDir, e.op, e.ts, e.ts, e.propsWithTs) }
-  }
+
 
   /** version 1 and version 2 is same logic */
   override def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[IndexEdge] = None): IndexEdge = {

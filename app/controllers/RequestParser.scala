@@ -214,7 +214,7 @@ trait RequestParser extends JSONParser {
       case e: ModelNotFoundException =>
         throw BadQueryException(e.getMessage, e)
       case e: Exception =>
-        throw BadQueryException(s"$jsValue", e)
+        throw BadQueryException(s"$jsValue, $e", e)
     }
   }
 

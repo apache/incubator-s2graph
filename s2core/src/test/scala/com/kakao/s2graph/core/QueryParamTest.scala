@@ -25,112 +25,112 @@ class QueryParamTest extends FunSuite with Matchers with TestCommon {
 //    true
 //  }
 
-  test("QueryParam toCacheKey bytes") {
-    val startedAt = System.nanoTime()
-    val queryParam = QueryParam(LabelWithDirection(1, 0))
+//  test("QueryParam toCacheKey bytes") {
+//    val startedAt = System.nanoTime()
+//    val queryParam = QueryParam(LabelWithDirection(1, 0))
+//
+//    val getRequests = for {
+//      id <- (0 until 1000)
+//    } yield {
+//      new GetRequest("a".getBytes, Bytes.toBytes(id))
+//    }
+//
+//    val rets = for {
+//      i <- (0 until getRequests.size)
+//      x = queryParam.toCacheKey(getRequests(i))
+//    } yield {
+//      val rets = for {
+//        j <- (0 until getRequests.size) if i != j
+//        y = queryParam.toCacheKey(getRequests(j))
+//      } yield {
+////          println(x, y)
+//          x != y
+//        }
+//
+//      rets.forall(identity)
+//    }
+//    println("\n\n")
+//    val sames = getRequests.zip(getRequests).map { case (x, y) =>
+//      val xHash = queryParam.toCacheKey(x)
+//      val yHash = queryParam.toCacheKey(y)
+////      println(xHash, yHash)
+//      xHash == yHash
+//    }.forall(identity)
+//    val diffs = rets.forall(identity)
+//    val duration = System.nanoTime() - startedAt
+//
+//    println(s">> bytes: $duration")
+//    sames && diffs
+//  }
 
-    val getRequests = for {
-      id <- (0 until 1000)
-    } yield {
-      new GetRequest("a".getBytes, Bytes.toBytes(id))
-    }
-
-    val rets = for {
-      i <- (0 until getRequests.size)
-      x = queryParam.toCacheKey(getRequests(i))
-    } yield {
-      val rets = for {
-        j <- (0 until getRequests.size) if i != j
-        y = queryParam.toCacheKey(getRequests(j))
-      } yield {
-//          println(x, y)
-          x != y
-        }
-
-      rets.forall(identity)
-    }
-    println("\n\n")
-    val sames = getRequests.zip(getRequests).map { case (x, y) =>
-      val xHash = queryParam.toCacheKey(x)
-      val yHash = queryParam.toCacheKey(y)
-//      println(xHash, yHash)
-      xHash == yHash
-    }.forall(identity)
-    val diffs = rets.forall(identity)
-    val duration = System.nanoTime() - startedAt
-
-    println(s">> bytes: $duration")
-    sames && diffs
-  }
-
-  test("QueryParam toCacheKey bytes2") {
-    val startedAt = System.nanoTime()
-    val queryParam = QueryParam(LabelWithDirection(1, 0))
-
-    val getRequests = for {
-      id <- (0 until 1000)
-    } yield {
-        new GetRequest("a".getBytes, Bytes.toBytes(id))
-      }
-
-    val rets = for {
-      i <- (0 until getRequests.size)
-      x = queryParam.toCacheKeyStr(getRequests(i))
-    } yield {
-        val rets = for {
-          j <- (0 until getRequests.size) if i != j
-          y = queryParam.toCacheKeyStr(getRequests(j))
-        } yield {
-            //          println(x, y)
-            x != y
-          }
-
-        rets.forall(identity)
-      }
-    println("\n\n")
-    val sames = getRequests.zip(getRequests).map { case (x, y) =>
-      val xHash = queryParam.toCacheKeyStr(x)
-      val yHash = queryParam.toCacheKeyStr(y)
-//      println(xHash, yHash)
-      xHash == yHash
-    }.forall(identity)
-    val diffs = rets.forall(identity)
-    val duration = System.nanoTime() - startedAt
-
-    println(s">> strss: $duration")
-    sames && diffs
-  }
-
-  test("QueryParam toCacheKey bytes3") {
-    val startedAt = System.nanoTime()
-    var queryParam = QueryParam(LabelWithDirection(1, 0))
-
-    val getRequests = for {
-      id <- (0 until 1000)
-    } yield {
-        new GetRequest("a".getBytes, Bytes.toBytes(id))
-      }
-    val diff = getRequests.zip(getRequests).map { case (x, y) =>
-      queryParam.limit(0, 10)
-      var xHash = queryParam.toCacheKey(x)
-      queryParam.limit(1, 10)
-      var yHash = queryParam.toCacheKey(y)
-      //      println(xHash, yHash)
-      val ret = xHash != yHash
-
-      queryParam.limit(0, 10)
-      xHash = queryParam.toCacheKey(x)
-      queryParam.limit(0, 11)
-      yHash = queryParam.toCacheKey(y)
-
-      val ret2 = xHash != yHash
-      ret && ret2
-    }.forall(identity)
-
-    val duration = System.nanoTime() - startedAt
-
-    println(s">> diff: $duration")
-    diff
-  }
+//  test("QueryParam toCacheKey bytes2") {
+//    val startedAt = System.nanoTime()
+//    val queryParam = QueryParam(LabelWithDirection(1, 0))
+//
+//    val getRequests = for {
+//      id <- (0 until 1000)
+//    } yield {
+//        new GetRequest("a".getBytes, Bytes.toBytes(id))
+//      }
+//
+//    val rets = for {
+//      i <- (0 until getRequests.size)
+//      x = queryParam.toCacheKeyStr(getRequests(i))
+//    } yield {
+//        val rets = for {
+//          j <- (0 until getRequests.size) if i != j
+//          y = queryParam.toCacheKeyStr(getRequests(j))
+//        } yield {
+//            //          println(x, y)
+//            x != y
+//          }
+//
+//        rets.forall(identity)
+//      }
+//    println("\n\n")
+//    val sames = getRequests.zip(getRequests).map { case (x, y) =>
+//      val xHash = queryParam.toCacheKeyStr(x)
+//      val yHash = queryParam.toCacheKeyStr(y)
+////      println(xHash, yHash)
+//      xHash == yHash
+//    }.forall(identity)
+//    val diffs = rets.forall(identity)
+//    val duration = System.nanoTime() - startedAt
+//
+//    println(s">> strss: $duration")
+//    sames && diffs
+//  }
+//
+//  test("QueryParam toCacheKey bytes3") {
+//    val startedAt = System.nanoTime()
+//    var queryParam = QueryParam(LabelWithDirection(1, 0))
+//
+//    val getRequests = for {
+//      id <- (0 until 1000)
+//    } yield {
+//        new GetRequest("a".getBytes, Bytes.toBytes(id))
+//      }
+//    val diff = getRequests.zip(getRequests).map { case (x, y) =>
+//      queryParam.limit(0, 10)
+//      var xHash = queryParam.toCacheKey(x)
+//      queryParam.limit(1, 10)
+//      var yHash = queryParam.toCacheKey(y)
+//      //      println(xHash, yHash)
+//      val ret = xHash != yHash
+//
+//      queryParam.limit(0, 10)
+//      xHash = queryParam.toCacheKey(x)
+//      queryParam.limit(0, 11)
+//      yHash = queryParam.toCacheKey(y)
+//
+//      val ret2 = xHash != yHash
+//      ret && ret2
+//    }.forall(identity)
+//
+//    val duration = System.nanoTime() - startedAt
+//
+//    println(s">> diff: $duration")
+//    diff
+//  }
 
 }

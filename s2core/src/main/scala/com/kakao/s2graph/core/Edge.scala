@@ -40,6 +40,11 @@ case class SnapshotEdge(srcVertex: Vertex,
   def withNoPendingEdge() = copy(pendingEdgeOpt = None)
 
   def withPendingEdge(pendingEdgeOpt: Option[Edge]) = copy(pendingEdgeOpt = pendingEdgeOpt)
+
+  def toEdge: Edge = {
+    val ts = props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(version)
+    Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version, props, pendingEdgeOpt)
+  }
 }
 
 case class IndexEdge(srcVertex: Vertex,
@@ -93,6 +98,8 @@ case class IndexEdge(srcVertex: Vertex,
   //  lazy val kvs = Graph.client.indexedEdgeSerializer(this).toKeyValues.toList
 
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
+
+  def toEdge: Edge = Edge(srcVertex, tgtVertex, labelWithDir, op, ts, ts, propsWithTs)
 }
 
 case class Edge(srcVertex: Vertex,
@@ -253,30 +260,6 @@ case class Edge(srcVertex: Vertex,
   }
 }
 
-case class EdgeWriter(edge: Edge) {
-
-  val op = edge.op
-  val label = edge.label
-  val labelWithDir = edge.labelWithDir
-
-  /**
-   * methods for build mutations.
-   */
-  /** This method only used by Bulk loader */
-  //  def insertBulkForLoader(createRelEdges: Boolean = true) = {
-  //    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
-  //    edge.toInvertedEdgeHashLike.buildPut() ++ relEdges.flatMap { relEdge =>
-  //      relEdge.edgesWithIndex.flatMap { e =>
-  //        e.kvs.map { kv =>
-  //          val put = new Put(kv.row)
-  //          put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
-  //        }
-  //      }
-  //    }
-  //  }
-
-}
-
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],
                       newInvertedEdge: Option[SnapshotEdge] = None) {
@@ -314,32 +297,33 @@ object Edge extends JSONParser {
     }
   }
 
-
-  def buildUpsert(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-    //    assert(requestEdge.op == GraphUtil.operations("insert"))
-    buildOperation(invertedEdge, Seq(requestEdges))
-  }
-
-  def buildUpdate(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-    //    assert(requestEdge.op == GraphUtil.operations("update"))
-    buildOperation(invertedEdge, Seq(requestEdges))
-  }
-
-  def buildDelete(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-    //    assert(requestEdge.op == GraphUtil.operations("delete"))
-    buildOperation(invertedEdge, Seq(requestEdges))
-  }
-
-  def buildIncrement(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-    //    assert(requestEdge.op == GraphUtil.operations("increment"))
-    buildOperation(invertedEdge, Seq(requestEdges))
-  }
-
-  def buildInsertBulk(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
-    //    assert(invertedEdge.isEmpty)
-    //    assert(requestEdge.op == GraphUtil.operations("insertBulk") || requestEdge.op == GraphUtil.operations("insert"))
-    buildOperation(None, Seq(requestEdges))
-  }
+  //
+  //
+  //  def buildUpsert(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+  //    //    assert(requestEdge.op == GraphUtil.operations("insert"))
+  //    buildOperation(invertedEdge, Seq(requestEdges))
+  //  }
+  //
+  //  def buildUpdate(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+  //    //    assert(requestEdge.op == GraphUtil.operations("update"))
+  //    buildOperation(invertedEdge, Seq(requestEdges))
+  //  }
+  //
+  //  def buildDelete(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+  //    //    assert(requestEdge.op == GraphUtil.operations("delete"))
+  //    buildOperation(invertedEdge, Seq(requestEdges))
+  //  }
+  //
+  //  def buildIncrement(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+  //    //    assert(requestEdge.op == GraphUtil.operations("increment"))
+  //    buildOperation(invertedEdge, Seq(requestEdges))
+  //  }
+  //
+  //  def buildInsertBulk(invertedEdge: Option[Edge], requestEdges: Edge): (Edge, EdgeMutate) = {
+  //    //    assert(invertedEdge.isEmpty)
+  //    //    assert(requestEdge.op == GraphUtil.operations("insertBulk") || requestEdge.op == GraphUtil.operations("insert"))
+  //    buildOperation(None, Seq(requestEdges))
+  //  }
 
   def buildDeleteBulk(invertedEdge: Option[Edge], requestEdge: Edge): (Edge, EdgeMutate) = {
     //    assert(invertedEdge.isEmpty)
@@ -357,8 +341,17 @@ object Edge extends JSONParser {
     val oldPropsWithTs = if (invertedEdge.isEmpty) Map.empty[Byte, InnerValLikeWithTs] else invertedEdge.get.propsWithTs
 
     val funcs = requestEdges.map { edge =>
-      if (edge.op == GraphUtil.operations("insert")) Edge.mergeUpsert _
-      else if (edge.op == GraphUtil.operations("delete")) Edge.mergeDelete _
+      if (edge.op == GraphUtil.operations("insert")) {
+        edge.label.consistencyLevel match {
+          case "strong" => Edge.mergeUpsert _
+          case _ => Edge.mergeInsertBulk _
+        }
+      } else if (edge.op == GraphUtil.operations("delete")) {
+        edge.label.consistencyLevel match {
+          case "strong" => Edge.mergeDelete _
+          case _ => throw new RuntimeException("not supported")
+        }
+      }
       else if (edge.op == GraphUtil.operations("update")) Edge.mergeUpdate _
       else if (edge.op == GraphUtil.operations("increment")) Edge.mergeIncrement _
       else throw new RuntimeException(s"not supported operation on edge: $edge")
@@ -597,5 +590,12 @@ object Edge extends JSONParser {
     ((existInOld.flatten ++ mustExistInNew).toMap, shouldReplace)
   }
 
+  def mergeInsertBulk(propsPairWithTs: PropsPairWithTs): (State, Boolean) = {
+    val (_, propsWithTs, _, _) = propsPairWithTs
+    (propsWithTs, true)
+  }
+
   def fromString(s: String): Option[Edge] = Graph.toEdge(s)
+
+
 }

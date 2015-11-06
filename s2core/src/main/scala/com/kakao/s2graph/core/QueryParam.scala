@@ -2,9 +2,10 @@ package com.kakao.s2graph.core
 
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.{Where, WhereParser}
+import com.kakao.s2graph.core.storage.hbase.AsynchbaseQueryBuilder
 import com.kakao.s2graph.core.types._
 import org.apache.hadoop.hbase.util.Bytes
-import org.hbase.async.{ColumnRangeFilter, GetRequest}
+import org.hbase.async.ColumnRangeFilter
 import play.api.libs.json.{JsNumber, JsValue, Json}
 
 import scala.util.hashing.MurmurHash3
@@ -161,19 +162,11 @@ case class Step(queryParams: List[QueryParam],
   lazy val includes = queryParams.filterNot(_.exclude)
   lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 
-  def toCacheKey(lss: Iterable[(GetRequest, QueryParam)]): Int = {
-    MurmurHash3.bytesHash(toCacheKeyRaw(lss))
+  def toCacheKey(lss: Seq[Int]): Int = MurmurHash3.bytesHash(toCacheKeyRaw(lss))
 
-    //    val s = "step" + Step.Delimiter +
-    //      lss.map { case (getRequest, param) => param.toCacheKey(getRequest) } mkString (Step.Delimiter)
-    //    MurmurHash3.stringHash(s)
-  }
-
-  def toCacheKeyRaw(lss: Iterable[(GetRequest, QueryParam)]): Array[Byte] = {
+  def toCacheKeyRaw(lss: Seq[Int]): Array[Byte] = {
     var bytes = Array.empty[Byte]
-    lss.foreach { case (getRequest, queryParam) =>
-      bytes = Bytes.add(bytes, queryParam.toCacheKeyRaw(getRequest))
-    }
+    lss.sorted.foreach { h => bytes = Bytes.add(bytes, Bytes.toBytes(h)) }
     bytes
   }
 }
@@ -217,22 +210,6 @@ case class RankParam(labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = S
     }
     bytes
   }
-
-  //
-  //  def singleKey(key: String) = {
-  //    this.keySeqAndWeights =
-  //      LabelMeta.findByName(labelId, key) match {
-  //        case None => List.empty[(Byte, Double)]
-  //        case Some(ktype) => List((ktype.seq, 1.0))
-  //      }
-  //    this
-  //  }
-  //
-  //  def multipleKey(keyAndWeights: Seq[(String, Double)]) = {
-  //    this.keySeqAndWeights =
-  //      for ((key, weight) <- keyAndWeights; row <- LabelMeta.findByName(labelId, key)) yield (row.seq, weight)
-  //    this
-  //  }
 }
 
 object QueryParam {
@@ -292,41 +269,16 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   /**
    * consider only I/O specific parameters.
    * properties that is used on Graph.filterEdges should not be considered.
-   * @param getRequest
+   * @param bytes
    * @return
    */
-  def toCacheKey(getRequest: GetRequest): Int = {
-    val hashBytes = toCacheKeyRaw(getRequest)
+  def toCacheKey(bytes: Array[Byte]): Int = {
+    val hashBytes = toCacheKeyRaw(bytes)
     MurmurHash3.bytesHash(hashBytes)
-
-    //    val s = Seq(getRequest, labelWithDir, labelOrderSeq, offset, limit, rank,
-    //      //      duration,
-    //      isInverted,
-    //      columnRangeFilter).mkString(QueryParam.Delimiter)
-    //    //    logger.info(s"toCacheKey: $s")
-    //    MurmurHash3.stringHash(s)
   }
-
-  def toCacheKeyStr(getRequest: GetRequest): Int = {
-    val s = Seq(getRequest, labelWithDir, labelOrderSeq, offset, limit, rank,
-      //      duration,
-      isInverted,
-      columnRangeFilter).mkString(QueryParam.Delimiter)
-    //    logger.info(s"toCacheKey: $s")
-    MurmurHash3.stringHash(s)
-  }
-
-  /**
-   * nasty because of null check.
-   * @param getRequest
-   * @return
-   */
-  def toCacheKeyRaw(getRequest: GetRequest): Array[Byte] = {
-    var getBytes = getRequest.key()
-    if (getRequest.family() != null) getBytes = Bytes.add(getBytes, getRequest.family())
-    if (getRequest.qualifiers() != null)
-      getRequest.qualifiers().filter(q => q != null).foreach { qualifier => getBytes = Bytes.add(getBytes, qualifier) }
-    Bytes.add(Bytes.add(getBytes, labelWithDir.bytes, toBytes(labelOrderSeq, offset, limit, isInverted)), rank.toHashKeyBytes(),
+  
+  def toCacheKeyRaw(bytes: Array[Byte]): Array[Byte] = {
+    Bytes.add(Bytes.add(bytes, labelWithDir.bytes, toBytes(labelOrderSeq, offset, limit, isInverted)), rank.toHashKeyBytes(),
       Bytes.add(columnRangeFilterMinBytes, columnRangeFilterMaxBytes))
   }
 
