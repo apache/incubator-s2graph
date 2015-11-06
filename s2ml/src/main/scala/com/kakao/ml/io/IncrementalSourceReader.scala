@@ -69,11 +69,6 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
 
     import sqlContext.implicits._
 
-    if(predecessorData.asMap.contains("sourceDF")
-        && predecessorData.asMap.contains("lastTS")) {
-
-    }
-
     val sc = sqlContext.sparkContext
     val fs = FileSystem.get(sc.hadoopConfiguration)
 
@@ -82,6 +77,7 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
     val split = if (fs.exists(new Path(params.baseRoot + s"/split=${params.service}"))) {
       params.service
     } else {
+      logWarning("`split=all` is selected. make split for speed up")
       "all"
     }
 
@@ -91,8 +87,26 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
           date_sub(current_date(), baseBefore) as "b")
         .show(false)
 
+    val orc = sqlContext.read.orc(params.baseRoot)
+
+    // to avoid NullPointException
+    //     at org.apache.spark.sql.hive.HiveInspectors$class.unwrapperFor(HiveInspectors.scala:466)
+    //     using sqlContext.read.schema(rawSchema).orc(params.baseRoot)
+    val orcWithSchema = if(orc.schema.fieldNames.diff(rawSchema.fieldNames).isEmpty) {
+      logInfo("using orc already had schema")
+      orc
+    } else {
+      logInfo(s"using orc with the given schema $rawSchema")
+      var renamed = orc
+      orc.schema.fieldNames.zip(rawSchema.fieldNames).foreach { case (colNameFrom, colNameTo) =>
+        if(colNameFrom.startsWith("_col"))
+          renamed = renamed.withColumnRenamed(colNameFrom, colNameTo)
+      }
+      renamed
+    }
+
     /** from daily data */
-    val dailyDF = sqlContext.read.schema(rawSchema).orc(params.baseRoot)
+    val dailyDF = orcWithSchema
         .where($"split" === split
             and $"date_id".between(
           date_sub(current_date(), params.duration + baseBefore),
