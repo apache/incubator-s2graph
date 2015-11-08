@@ -118,11 +118,6 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
     SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, kv.timestamp, props, pendingEdgeOpt)
   }
 
-  def toEdge(edgeOpt: SnapshotEdge): Edge = {
-    val e = edgeOpt
-    val ts = e.props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(e.version)
 
-    Edge(e.srcVertex, e.tgtVertex, e.labelWithDir, e.op, ts, e.version, e.props, e.pendingEdgeOpt)
-  }
 }
 
