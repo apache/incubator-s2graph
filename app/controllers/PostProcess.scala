@@ -196,20 +196,28 @@ object PostProcess extends JSONParser {
   }
 
   private def orderBy(q: Query,
-              rawEdges: ListBuffer[(Map[String, JsValue], Double, Long, Option[Seq[Any]])])
-  : ListBuffer[(Map[String, JsValue], Double, Long, Option[Seq[Any]])] = {
+                      orderByColumns: Seq[(String, Boolean)],
+                      rawEdges: ListBuffer[(Map[String, JsValue], Double, (Any, Any, Any, Any))])
+  : ListBuffer[(Map[String, JsValue], Double, (Any, Any, Any, Any))] = {
     import com.kakao.s2graph.core.OrderingUtil._
 
-    if (q.withScore) {
-      q.orderByColumns match {
-        case Some(orderByColumns) =>
-          val ascendingLs = orderByColumns.map(_._2)
-          rawEdges.sortBy(_._4.get)(new MultiOrdering[Any](ascendingLs))
-        case None =>
-          rawEdges.sortBy(x => (-x._2, -x._3))
-      }
+    if (q.withScore && orderByColumns.nonEmpty) {
+      val ascendingLs = orderByColumns.map(_._2)
+      rawEdges.sortBy(_._3)(new TupleMultiOrdering[Any](ascendingLs))
     } else {
       rawEdges
+    }
+  }
+
+  private def getColumnValue(keyWithJs: Map[String, JsValue], score: Double, edge: Edge, column: String): Any = {
+    column match {
+      case "score" => score
+      case "timestamp" | "_timestamp" => edge.ts
+      case _ =>
+        keyWithJs.get(column) match {
+          case None => keyWithJs.get("props").map { js => (js \ column).as[JsValue] }.get
+          case Some(x) => x
+        }
     }
   }
 
@@ -217,19 +225,29 @@ object PostProcess extends JSONParser {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
 
     val degrees = ListBuffer[JsValue]()
-    val rawEdges = ListBuffer[(Map[String, JsValue], Double, Long, Option[Seq[Any]])]()
+    val rawEdges = ListBuffer[(Map[String, JsValue], Double, (Any, Any, Any, Any))]()
 
     if (queryResultLs.isEmpty) {
       Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr())
     } else {
-      val q = queryResultLs.head.query
+      val queryResult = queryResultLs.head
+      val query = queryResultLs.head.query
+      val queryParam = queryResult.queryParam
+
+      val orderByColumns = query.orderByColumns.filter { case (column, _) =>
+        column match {
+          case "from" | "to" | "label" | "score" | "timestamp" | "_timestamp" => true
+          case _ =>
+            queryParam.label.metaPropNames.contains(column)
+        }
+      }
 
       /** build result jsons */
       for {
         queryResult <- queryResultLs
         queryParam = queryResult.queryParam
 
-        (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(toHashKey(edge, queryResult.queryParam, q.filterOutFields))
+        (edge, score) <- queryResult.edgeWithScoreLs if !excludeIds.contains(toHashKey(edge, queryResult.queryParam, query.filterOutFields))
       } {
         // edge to json
         val (srcColumn, _) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
@@ -243,39 +261,54 @@ object PostProcess extends JSONParser {
           )
         } else {
           val keyWithJs = edgeToJson(edge, score, queryResult.query, queryResult.queryParam)
-          val orderByValues: Option[Seq[Any]] = q.orderByColumns.map { orderByColumns =>
-            for {
-              (column, _) <- orderByColumns
-              value <- keyWithJs.get(column) match {
-                case None => keyWithJs.get("props").flatMap { js => (js \ column).asOpt[JsValue] }
-                case Some(x) => Some(x)
-              }
-            } yield {
-              value
-            }
+          val orderByValues: (Any, Any, Any, Any) = orderByColumns.length match {
+            case 0 =>
+              (None, None, None, None)
+            case 1 =>
+              val it = orderByColumns.iterator
+              val v1 = getColumnValue(keyWithJs, score, edge, it.next()._1)
+              (v1, None, None, None)
+            case 2 =>
+              val it = orderByColumns.iterator
+              val v1 = getColumnValue(keyWithJs, score, edge, it.next()._1)
+              val v2 = getColumnValue(keyWithJs, score, edge, it.next()._1)
+              (v1, v2, None, None)
+            case 3 =>
+              val it = orderByColumns.iterator
+              val v1 = getColumnValue(keyWithJs, score, edge, it.next()._1)
+              val v2 = getColumnValue(keyWithJs, score, edge, it.next()._1)
+              val v3 = getColumnValue(keyWithJs, score, edge, it.next()._1)
+              (v1, v2, v3, None)
+            case _ =>
+              val it = orderByColumns.iterator
+              val v1 = getColumnValue(keyWithJs, score, edge, it.next()._1)
+              val v2 = getColumnValue(keyWithJs, score, edge, it.next()._1)
+              val v3 = getColumnValue(keyWithJs, score, edge, it.next()._1)
+              val v4 = getColumnValue(keyWithJs, score, edge, it.next()._1)
+              (v1, v2, v3, v4)
           }
 
-          val currentEdge = (keyWithJs, score, edge.ts, orderByValues)
+          val currentEdge = (keyWithJs, score, orderByValues)
           rawEdges += currentEdge
         }
       }
 
-      if (q.groupByColumns.isEmpty) {
+      if (query.groupByColumns.isEmpty) {
         // ordering
-        val edges = orderBy(q, rawEdges).map(_._1)
+        val edges = orderBy(query, orderByColumns, rawEdges).map(_._1)
 
         Json.obj(
           "size" -> edges.size,
           "degrees" -> degrees,
           "results" -> edges,
-          "impressionId" -> q.impressionId()
+          "impressionId" -> query.impressionId()
         )
       } else {
-        val grouped = rawEdges.groupBy { case (keyWithJs, _, _, _) =>
+        val grouped = rawEdges.groupBy { case (keyWithJs, _, _) =>
           val props = keyWithJs.get("props")
 
           for {
-            column <- q.groupByColumns
+            column <- query.groupByColumns
             value <- keyWithJs.get(column) match {
               case None => props.flatMap { js => (js \ column).asOpt[JsValue] }
               case Some(x) => Some(x)
@@ -289,7 +322,7 @@ object PostProcess extends JSONParser {
           } yield {
             val scoreSum = groupedRawEdges.map(x => x._2).sum
             // ordering
-            val edges = orderBy(q, rawEdges).map(_._1)
+            val edges = orderBy(query, orderByColumns, rawEdges).map(_._1)
             Json.obj(
               "groupBy" -> Json.toJson(groupByKeyVals.toMap),
               "scoreSum" -> scoreSum,
@@ -303,7 +336,7 @@ object PostProcess extends JSONParser {
           "size" -> groupedEdges.size,
           "degrees" -> degrees,
           "results" -> groupedSortedJsons,
-          "impressionId" -> q.impressionId()
+          "impressionId" -> query.impressionId()
         )
       }
     }

@@ -1,6 +1,6 @@
 package controllers
 
-import com.kakao.s2graph.core.MultiOrdering
+import com.kakao.s2graph.core.SeqMultiOrdering
 import com.kakao.s2graph.core.OrderingUtil._
 import play.api.libs.json.{JsNumber, JsString, JsValue}
 import play.api.test.PlaySpecification
@@ -76,7 +76,7 @@ class PostProcessSpec extends SpecCommon with PlaySpecification {
     )
 
     val ascendingLs: Seq[Boolean] = Seq(false, true)
-    val resultJsLs = jsLs.sorted(new MultiOrdering[Any](ascendingLs))
+    val resultJsLs = jsLs.sorted(new SeqMultiOrdering[Any](ascendingLs))
 
     resultJsLs.toString() must_== sortedJsLs.toString
   }
@@ -108,7 +108,7 @@ class PostProcessSpec extends SpecCommon with PlaySpecification {
     )
 
     val ascendingLs: Seq[Boolean] = Seq(false)
-    val resultJsLs = jsLs.sorted(new MultiOrdering[Any](ascendingLs))
+    val resultJsLs = jsLs.sorted(new SeqMultiOrdering[Any](ascendingLs))
 
     resultJsLs.toString() must_== sortedJsLs.toString
   }

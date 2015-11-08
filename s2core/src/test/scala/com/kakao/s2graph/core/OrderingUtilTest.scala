@@ -39,7 +39,7 @@ class OrderingUtilTest extends FunSuite with Matchers {
     )
 
     val ascendingLs: Seq[Boolean] = Seq(false, true)
-    val resultJsLs = jsLs.sorted(new MultiOrdering[Any](ascendingLs))
+    val resultJsLs = jsLs.sorted(new SeqMultiOrdering[Any](ascendingLs))
 
     resultJsLs.toString() should equal(sortedJsLs.toString())
   }
@@ -66,9 +66,9 @@ class OrderingUtilTest extends FunSuite with Matchers {
 
     val sorted2 = duration("MultiOrdering double,long") {
       (0 until 10000) foreach { _ =>
-        seqLs.sorted(new MultiOrdering[Any](Seq(false, false)))
+        seqLs.sorted(new SeqMultiOrdering[Any](Seq(false, false)))
       }
-      seqLs.sorted(new MultiOrdering[Any](Seq(false, false)))
+      seqLs.sorted(new SeqMultiOrdering[Any](Seq(false, false)))
     }.map { x => x.head }
 
     sorted1.toString() should equal(sorted2.toString())
@@ -85,7 +85,7 @@ class OrderingUtilTest extends FunSuite with Matchers {
 
     duration("MultiOrdering double") {
       (0 until 10000) foreach { _ =>
-        seqLs.sorted(new MultiOrdering[Double](Seq(false, false)))
+        seqLs.sorted(new SeqMultiOrdering[Double](Seq(false, false)))
       }
     }
 
@@ -120,9 +120,9 @@ class OrderingUtilTest extends FunSuite with Matchers {
 
     val sorted2 = duration("MultiOrdering jsvalue") {
       (0 until 10000) foreach { _ =>
-        seqLs.sorted(new MultiOrdering[JsValue](Seq(false, false)))
+        seqLs.sorted(new SeqMultiOrdering[JsValue](Seq(false, false)))
       }
-      seqLs.sorted(new MultiOrdering[JsValue](Seq(false, false)))
+      seqLs.sorted(new SeqMultiOrdering[JsValue](Seq(false, false)))
     }
   }
 }

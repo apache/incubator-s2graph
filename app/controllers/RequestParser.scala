@@ -136,7 +136,7 @@ trait RequestParser extends JSONParser {
       val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
       val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
       val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
-      val orderByColumns: Option[List[(String, Boolean)]] = (jsValue \ "orderBy").asOpt[List[JsObject]].map { jsLs =>
+      val orderByColumns: List[(String, Boolean)] = (jsValue \ "orderBy").asOpt[List[JsObject]].map { jsLs =>
         for {
           js <- jsLs
           (column, orderJs) <- js.fields
@@ -147,7 +147,7 @@ trait RequestParser extends JSONParser {
           }
           column -> ascending
         }
-      }
+      }.getOrElse(List("score" -> false, "timestamp" -> false))
       val withScore = (jsValue \ "withScore").asOpt[Boolean].getOrElse(true)
       val returnTree = (jsValue \ "returnTree").asOpt[Boolean].getOrElse(false)
 
