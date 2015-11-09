@@ -298,14 +298,14 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       val before = snapshotEdgeSerializer(snapshotEdge.toSnapshotEdge).toKeyValues.head.value
       for {
         pendingEdgesLock <- mutateEdges(pendingEdges, withWait = true)
-        ret <- if (pendingEdgesLock.forall(identity)) client.compareAndSet(after, before).toFuture.map(_.booleanValue())
+        ret <- if (pendingEdgesLock.forall(identity)) clientWithFlush.compareAndSet(after, before).toFuture.map(_.booleanValue())
         else Future.successful(false)
       } yield ret
     }
   }
 
 
-  private def commitUpdate(edge: Edge)(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeMutate, retryNum: Int): Future[Boolean] = {
+  private def commitUpdate(edge: Edge)(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeMutate): Future[Boolean] = {
     val label = edge.label
 
     if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
@@ -320,12 +320,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       }
       def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
         if (!predicate) Future.successful(false)
-        else writeAsyncSimpleRetry(label.hbaseZkAddr, mutationBuilder.increments(edgeUpdate), withWait = true, MaxRetryNum).map { allSuccess =>
-          //          if (!allSuccess) logger.error(s"indexedEdgeIncrement failed: $edgeUpdate")
-          //          else logger.debug(s"indexedEdgeIncrement success: $edgeUpdate")
-          allSuccess
-        }
+        else writeAsyncSimpleRetry(label.hbaseZkAddr, mutationBuilder.increments(edgeUpdate), withWait = true, MaxRetryNum)
       }
+
       val fallback = Future.successful(false)
       val javaFallback = Future.successful[java.lang.Boolean](false)
 
@@ -337,9 +334,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
        * note thta step 4 never fail to avoid multiple increments.
        */
       for {
-        locked <- client.compareAndSet(lock, before).toFuture
+        locked <- clientWithFlush.compareAndSet(lock, before).toFuture
         indexEdgesUpdated <- indexedEdgeMutationFuture(locked)
-        releaseLock <- if (indexEdgesUpdated) client.compareAndSet(after, lock.value()).toFuture else javaFallback
+        releaseLock <- if (indexEdgesUpdated) clientWithFlush.compareAndSet(after, lock.value()).toFuture else javaFallback
         indexEdgesIncremented <- if (releaseLock) indexedEdgeIncrementFuture(releaseLock) else fallback
       } yield indexEdgesIncremented
     }
@@ -347,7 +344,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
   private def mutateEdgesInner(edges: Seq[Edge],
                                checkConsistency: Boolean,
-                               withWait: Boolean)(f: (Option[Edge], Seq[Edge]) => (Edge, EdgeMutate), tryNum: Int = 0): Future[Boolean] = {
+                               withWait: Boolean)(f: (Option[Edge], Seq[Edge]) => (Edge, EdgeMutate)): Future[Boolean] = {
 
     if (!checkConsistency) {
       val zkQuorum = edges.head.label.hbaseZkAddr
@@ -368,23 +365,20 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         } else {
           commitPending(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
             if (pendingAllCommitted) {
-              commitUpdate(newEdge)(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
+              commitUpdate(newEdge)(snapshotEdgeOpt, edgeUpdate).flatMap { case updateCommitted =>
                 if (!updateCommitted) {
                   //                    Thread.sleep(waitTime)
-                  logger.info(s"mutate failed $tryNum.")
-                  logger.info(s"mutate failed $edges.")
-                  logger.info(s"mutate failed $newEdge, $edgeUpdate")
-                  throw new RuntimeException(s"mutation failed. $tryNum")
+                  throw new RuntimeException(s"mutation failed. $edges\n $edgeUpdate")
                   //                    mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
                 } else {
-                  logger.debug(s"mutate success $tryNum.")
+                  logger.debug(s"mutate success.")
                   Future.successful(true)
                 }
               }
             } else {
               //                Thread.sleep(waitTime)
-              logger.info(s"mutate failed $tryNum.")
-              throw new RuntimeException(s"mutation failed. $tryNum")
+              logger.info(s"mutate failed.")
+              throw new RuntimeException(s"mutation failed. $edges\n $edgeUpdate")
               //                mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
             }
           }
