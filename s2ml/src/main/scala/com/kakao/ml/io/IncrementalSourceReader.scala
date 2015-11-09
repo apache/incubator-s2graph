@@ -22,17 +22,6 @@ case class IncrementalDataSourceParams(
 class IncrementalDataSource(params: IncrementalDataSourceParams)
     extends BaseDataProcessor[EmptyData, SourceData](params) {
 
-  val rawSchema = StructType(Seq(
-    StructField("log_ts", LongType),
-    StructField("operation", StringType),
-    StructField("log_type", StringType),
-    StructField("edge_from", StringType),
-    StructField("edge_to", StringType),
-    StructField("label", StringType),
-    StructField("props", StringType),
-    StructField("service", StringType),
-    StructField("date_id", StringType)))
-
   def getIncrementalPaths(fs: FileSystem, split: String, lastDateId: String): String = {
 
     val dateIds = new ListBuffer[String]
