@@ -483,33 +483,32 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     } getOrElse(Long.MinValue)
   }
 
-  private def deleteAllFetchedEdgesLs(queryResultLs: Seq[QueryResult], requestTs: Long): Future[Boolean] = {
+  private def deleteAllFetchedEdgesLs(queryResultLs: Seq[QueryResult], requestTs: Long): Future[(Boolean, Boolean)] = {
     val futures = for {
       queryResult <- queryResultLs
+      degreeVal = getDegreeVal(queryResult) if degreeVal > 0
     } yield {
-        val degreeVal = getDegreeVal(queryResult)
-        if (degreeVal > MaxValidEdgeListSize) throw new RuntimeException(s"too many edges for deleteAll: $degreeVal")
-
         queryResult.queryParam.label.schemaVersion match {
           case HBaseType.VERSION3 => deleteAllFetchedEdgesAsync(queryResult, requestTs)
           case _ => deleteAllFetchedEdgesAsyncOld(queryResult, requestTs, MaxRetryNum)
         }
       }
-
-    Future.sequence(futures).map { rets =>
-      val allSuccess = rets.forall(identity)
-      if (!allSuccess) throw new RuntimeException("deleteAllFetchedEdgesLs")
-      allSuccess
+    if (futures.isEmpty) {
+      // all deleted.
+      Future.successful(true -> true)
+    } else {
+      Future.sequence(futures).map { rets => false -> rets.forall(identity) }
     }
   }
 
-  def deleteAllAdjacentEdgesInner(query: Query, requestTs: Long): Future[Boolean] = {
+  def deleteAllAdjacentEdgesInner(query: Query, requestTs: Long): Future[(Boolean, Boolean)] = {
     for {
       queryResultLs <- getEdges(query)
-      ret <- deleteAllFetchedEdgesLs(queryResultLs, requestTs)
+      (allDeleted, ret) <- deleteAllFetchedEdgesLs(queryResultLs, requestTs)
     } yield {
-      if (!ret) throw new RuntimeException("deleteAllAdjacentEdgesInner failed.")
-      else ret
+      (allDeleted, ret)
+//      if (!ret) throw new RuntimeException("deleteAllAdjacentEdgesInner failed.")
+//      else ret
     }
   }
 
@@ -528,9 +527,12 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val step = Step(queryParams.toList)
     val q = Query(srcVertices, Vector(step))
 
+//    Extensions.retryOnSuccessWithBackoff(MaxRetryNum, Random.nextInt(MaxBackOff) + 1) {
     Extensions.retryOnSuccess(MaxRetryNum) {
       deleteAllAdjacentEdgesInner(q, requestTs)
-    }
+    } { case (allDeleted, deleteSuccess) =>
+      allDeleted
+    }.map { case (allDeleted, deleteSuccess) => allDeleted }
   }
 
   def flush(): Unit = clients.foreach { client =>

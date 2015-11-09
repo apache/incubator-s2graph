@@ -1,16 +1,46 @@
 package com.kakao.s2graph.core.utils
 
-import com.stumbleupon.async.{Callback, Deferred}
+import java.util.concurrent.TimeUnit
 
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import com.stumbleupon.async.{Callback, Deferred}
+import io.netty.util.{Timeout, TimerTask, HashedWheelTimer}
+
+import scala.concurrent.duration.Duration
+import scala.concurrent.{TimeoutException, ExecutionContext, Future, Promise}
 
 object Extensions {
-  
-  def retryOnSuccess[T](maxRetryNum: Int, n: Int = 1)(fn: => Future[T])(implicit ex: ExecutionContext): Future[T] = n match {
+//  val timer = new HashedWheelTimer(1, TimeUnit.MILLISECONDS)
+//  def scheduleTimeout[T](after:Duration): Future[T] = {
+//    val promise = Promise[T]
+//    timer.newTimeout(new TimerTask{
+//      def run(timeout:Timeout){
+//        promise.failure(new TimeoutException("Operation timed out after " + after.toMillis + " millis"))
+//      }
+//    }, after.toNanos, TimeUnit.NANOSECONDS)
+//    promise.future
+//  }
+//
+//  def retryOnSuccessWithBackoff[T](maxRetryNum: Int, backoff: Int, n: Int = 1)(fn: => Future[T])(implicit ex: ExecutionContext): Future[T] = n match {
+//    case i if n <= maxRetryNum =>
+//      fn.flatMap { result =>
+//        scheduleTimeout(Duration(backoff, TimeUnit.MILLISECONDS)) recoverWith {
+//          case t: Throwable =>
+//            logger.info(s"retryOnSuccess $n, $t")
+//            retryOnSuccessWithBackoff(maxRetryNum, backoff, n + 1)(fn)
+//        }
+//      }
+//    case _ => fn
+//  }
+
+  def retryOnSuccess[T](maxRetryNum: Int, n: Int = 1)(fn: => Future[T])(shouldStop: T => Boolean)(implicit ex: ExecutionContext): Future[T] = n match {
     case i if n <= maxRetryNum =>
       fn.flatMap { result =>
-        logger.info(s"retryOnSuccess $n")
-        retryOnSuccess(maxRetryNum, n + 1)(fn)
+        if (!shouldStop(result)) {
+          logger.info(s"retryOnSuccess $n")
+          retryOnSuccess(maxRetryNum, n + 1)(fn)(shouldStop)
+        } else {
+          Future.successful(result)
+        }
       }
     case _ => fn
   }
