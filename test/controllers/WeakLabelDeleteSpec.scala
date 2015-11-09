@@ -94,7 +94,7 @@ class WeakLabelDeleteSpec extends SpecCommon {
         val json = Json.arr(Json.obj("label" -> testLabelNameWeak,
           "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
         println(json)
-        contentAsString(EdgeController.deleteAllInnerWithWait(json))
+        contentAsString(EdgeController.deleteAllInner(json, withWait = true))
 
 
         result = getEdges(query(11, "out"))

@@ -49,7 +49,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
                        (implicit ec: ExecutionContext) extends Storage {
 
   import AsynchbaseStorage._
-//  import Extensions.FutureOps
+
+  //  import Extensions.FutureOps
+
   import Extensions.DeferOps
 
   val client = AsynchbaseStorage.makeClient(config)
@@ -120,26 +122,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     Future.sequence(futures).map { result => result.toList.flatten }
   }
 
-  def deleteAllAdjacentEdges(srcVertices: List[Vertex],
-                             labels: Seq[Label],
-                             dir: Int,
-                             ts: Long): Future[Boolean] = {
-    val requestTs = ts
-    val queryParams = for {
-      label <- labels
-    } yield {
-        val labelWithDir = LabelWithDirection(label.id.get, dir)
-        QueryParam(labelWithDir).limit(0, maxValidEdgeListSize * 5).duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
-      }
-
-    val step = Step(queryParams.toList)
-    val q = Query(srcVertices, Vector(step))
-
-    for {
-      queryResultLs <- getEdges(q)
-      ret <- deleteAllFetchedEdgesLs(queryResultLs, requestTs)
-    } yield ret
-  }
 
   def mutateEdge(edge: Edge, withWait: Boolean): Future[Boolean] = {
     //    mutateEdgeWithOp(edge, withWait)
@@ -225,7 +207,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       if (ret) Future.successful(ret)
       else throw FetchTimeoutException("writeAsyncWithWaitRetrySimple")
     }
-    Extensions.retry(MaxRetryNum) { compute } {
+    Extensions.retryOnFailure(MaxRetryNum) {
+      compute
+    } {
       logger.error(s"writeAsyncWithWaitRetrySimple: $elementRpcs")
       false
     }
@@ -385,7 +369,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           }
         }
       }
-      Extensions.retry(MaxRetryNum) { compute } {
+      Extensions.retryOnFailure(MaxRetryNum) {
+        compute
+      } {
         logger.error(s"mutate failed after $MaxRetryNum retry")
         edges.foreach { edge => ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge)) }
         false
@@ -395,7 +381,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
   private def deleteAllFetchedEdgesAsync(queryResult: QueryResult,
                                          requestTs: Long): Future[Boolean] = {
-    val queryParam = queryResult.queryParam
     val queryResultToDelete = queryResult.edgeWithScoreLs.filter { edgeWithScore =>
       (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
     }
@@ -492,26 +477,59 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
   }
 
-  private def deleteAllFetchedEdgesLs(queryResultLs: Seq[QueryResult], requestTs: Long): Future[Boolean] = {
-    def compute = {
-      val futures = for {
-        queryResult <- queryResultLs
-      } yield {
-          queryResult.queryParam.label.schemaVersion match {
-            case HBaseType.VERSION3 => deleteAllFetchedEdgesAsync(queryResult, requestTs)
-            case _ => deleteAllFetchedEdgesAsyncOld(queryResult, requestTs, MaxRetryNum)
-          }
-        }
+  private def getDegreeVal(queryResult: QueryResult): Long = {
+    queryResult.edgeWithScoreLs.headOption.map { head =>
+      head.edge.propsWithTs.get(LabelMeta.degreeSeq).map(_.innerVal.toString.toLong).getOrElse(Long.MinValue)
+    } getOrElse(Long.MinValue)
+  }
 
-      Future.sequence(futures).map { rets =>
-        val allSuccess = rets.forall(identity)
-        if (!allSuccess) throw new RuntimeException("deleteAllFetchedEdgesLs")
-        allSuccess
+  private def deleteAllFetchedEdgesLs(queryResultLs: Seq[QueryResult], requestTs: Long): Future[Boolean] = {
+    val futures = for {
+      queryResult <- queryResultLs
+    } yield {
+        val degreeVal = getDegreeVal(queryResult)
+        if (degreeVal > maxValidEdgeListSize) throw new RuntimeException(s"too many edges for deleteAll: $degreeVal")
+
+        queryResult.queryParam.label.schemaVersion match {
+          case HBaseType.VERSION3 => deleteAllFetchedEdgesAsync(queryResult, requestTs)
+          case _ => deleteAllFetchedEdgesAsyncOld(queryResult, requestTs, MaxRetryNum)
+        }
       }
+
+    Future.sequence(futures).map { rets =>
+      val allSuccess = rets.forall(identity)
+      if (!allSuccess) throw new RuntimeException("deleteAllFetchedEdgesLs")
+      allSuccess
     }
-    Extensions.retry(MaxRetryNum) { compute } {
-      logger.error(s"deleteDuplicateEdgesLs failed. ${queryResultLs}")
-      false
+  }
+
+  def deleteAllAdjacentEdgesInner(query: Query, requestTs: Long): Future[Boolean] = {
+    for {
+      queryResultLs <- getEdges(query)
+      ret <- deleteAllFetchedEdgesLs(queryResultLs, requestTs)
+    } yield {
+      if (!ret) throw new RuntimeException("deleteAllAdjacentEdgesInner failed.")
+      else ret
+    }
+  }
+
+  def deleteAllAdjacentEdges(srcVertices: List[Vertex],
+                             labels: Seq[Label],
+                             dir: Int,
+                             ts: Long): Future[Boolean] = {
+    val requestTs = ts
+    val queryParams = for {
+      label <- labels
+    } yield {
+        val labelWithDir = LabelWithDirection(label.id.get, dir)
+        QueryParam(labelWithDir).limit(0, 10000).duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
+      }
+
+    val step = Step(queryParams.toList)
+    val q = Query(srcVertices, Vector(step))
+
+    Extensions.retryOnSuccess(MaxRetryNum) {
+      deleteAllAdjacentEdgesInner(q, requestTs)
     }
   }
 

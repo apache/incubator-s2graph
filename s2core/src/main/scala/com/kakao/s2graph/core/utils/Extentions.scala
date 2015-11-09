@@ -3,15 +3,23 @@ package com.kakao.s2graph.core.utils
 import com.stumbleupon.async.{Callback, Deferred}
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.{Success, Failure}
 
 object Extensions {
+  
+  def retryOnSuccess[T](maxRetryNum: Int, n: Int = 1)(fn: => Future[T])(implicit ex: ExecutionContext): Future[T] = n match {
+    case i if n <= maxRetryNum =>
+      fn.flatMap { result =>
+        logger.info(s"retryOnSuccess $n")
+        retryOnSuccess(maxRetryNum, n + 1)(fn)
+      }
+    case _ => fn
+  }
 
-  def retry[T](maxRetryNum: Int, n: Int = 1)(fn: => Future[T])(fallback: => T)(implicit ex: ExecutionContext): Future[T] = n match {
+  def retryOnFailure[T](maxRetryNum: Int, n: Int = 1)(fn: => Future[T])(fallback: => T)(implicit ex: ExecutionContext): Future[T] = n match {
     case i if n <= maxRetryNum =>
       fn recoverWith { case t: Throwable =>
-        logger.error(s"retry $n, $t", t)
-        retry(maxRetryNum, n + 1)(fn)(fallback)
+        logger.info(s"retryOnFailure $n, $t")
+        retryOnFailure(maxRetryNum, n + 1)(fn)(fallback)
       }
     case _ =>
       Future.successful(fallback)
