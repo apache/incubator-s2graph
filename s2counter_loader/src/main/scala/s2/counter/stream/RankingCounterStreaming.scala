@@ -49,16 +49,23 @@ object RankingCounterStreaming extends SparkApp with WithKafka {
     // make stream
     val stream = streamHelper.createStream[String, String, StringDecoder, StringDecoder](ssc, inputTopics)
     stream.foreachRDD { (rdd, ts) =>
-      val offsets = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
-
       // for at-least once semantic
-      CounterFunctions.makeRankingRdd(rdd, offsets.length).foreachPartitionWithIndex { (i, part) =>
-        // update ranking counter
-        CounterFunctions.updateRankingCounter(part, acc)
-
-        // commit offset range
-        streamHelper.commitConsumerOffset(offsets(i))
+      val nextRdd = {
+        CounterFunctions.makeRankingRdd(rdd, sc.defaultParallelism).foreachPartition { part =>
+          // update ranking counter
+          CounterFunctions.updateRankingCounter(part, acc)
+        }
+        rdd
       }
+
+      streamHelper.commitConsumerOffsets(nextRdd.asInstanceOf[HasOffsetRanges])
+//      CounterFunctions.makeRankingRdd(rdd, offsets.length).foreachPartitionWithIndex { (i, part) =>
+//        // update ranking counter
+//        CounterFunctions.updateRankingCounter(part, acc)
+//
+//        // commit offset range
+//        streamHelper.commitConsumerOffset(offsets(i))
+//      }
     }
 
     ssc.start()
