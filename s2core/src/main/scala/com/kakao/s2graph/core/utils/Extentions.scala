@@ -2,29 +2,35 @@ package com.kakao.s2graph.core.utils
 
 import com.stumbleupon.async.{Callback, Deferred}
 
-import scala.concurrent.{Promise, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 
 object Extensions {
 
   implicit class FutureOps[T](f: Future[T])(implicit ec: ExecutionContext) {
 
     def retryFallback(n: Int)(fallback: => T): Future[T] = n match {
-      case i if i > 1 => f recoverWith { case t: Throwable => f.retryFallback(n - 1)(fallback) }
+      case i if i > 1 => f recoverWith { case t: Throwable => f.retryFallback(i - 1)(fallback) }
       case _ => Future.successful(fallback)
     }
 
     def retry(n: Int) = retryWith(n)(f)
 
     def retryWith(n: Int)(fallback: => Future[T]): Future[T] = n match {
-      case i if i > 1 => f recoverWith { case t: Throwable => logger.info(s"Future.retryWith: $n"); f.retryWith(n - 1)(fallback) }
+      case i if i > 1 => f recoverWith {
+        case t: Throwable => logger.info(s"Future.retryWith: $n")
+          f.retryWith(i - 1)(fallback);
+      }
       case _ => fallback
     }
   }
+
   implicit class DeferOps[T](d: Deferred[T])(implicit ex: ExecutionContext) {
 
     def retryFallback(n: Int)(fallback: => T): Deferred[T] = n match {
-      case i if i > 1 => d.addErrback( new Callback[Deferred[T], Exception] {
-        override def call(ex: Exception): Deferred[T] = { retryFallback(n - 1)(fallback) }
+      case i if i > 1 => d.addErrback(new Callback[Deferred[T], Exception] {
+        override def call(ex: Exception): Deferred[T] = {
+          retryFallback(n - 1)(fallback)
+        }
       })
     }
 
@@ -32,12 +38,16 @@ object Extensions {
 
     def retryWith(n: Int)(fallback: => Deferred[T]): Deferred[T] = n match {
       case i if i > 1 => d.addErrback(new Callback[Deferred[T], Exception] {
-        override def call(ex: Exception): Deferred[T] = { retryWith(n-1)(fallback) }
+        override def call(ex: Exception): Deferred[T] = {
+          retryWith(n - 1)(fallback)
+        }
       })
     }
 
-    def withCallback[R](op: T => R): Deferred[R]  = {
-      d.addCallback(new Callback[R, T] { override def call(arg: T): R = op(arg) })
+    def withCallback[R](op: T => R): Deferred[R] = {
+      d.addCallback(new Callback[R, T] {
+        override def call(arg: T): R = op(arg)
+      })
     }
 
     def recoverWith(op: Exception => T): Deferred[T] = {
