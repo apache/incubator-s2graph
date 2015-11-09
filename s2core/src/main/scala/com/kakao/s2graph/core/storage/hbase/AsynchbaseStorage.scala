@@ -379,7 +379,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               }
             } else {
               //                Thread.sleep(waitTime)
-              logger.info(s"mutate failed.")
               throw new RuntimeException(s"mutation failed. [RequestEdges]: $edges\n [EdgeUpdate]: $edgeUpdate")
               //                mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
             }

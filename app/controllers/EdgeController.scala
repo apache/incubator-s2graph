@@ -154,20 +154,22 @@ object EdgeController extends Controller with RequestParser {
   def toQuery(srcVertices: Seq[Vertex],
               labels: Seq[Label],
               dir: Int,
-              ts: Long): Query = {
-    val maxEdges = MaxValidDeleteAllSize
-    val maxRpcTimeout = RpcTimeoutDeleteAll
-
-    val queryParams = for {
-      label <- labels
+              ts: Long): Seq[Query] = {
+    val fetchSize = 10000
+    val maxNumOfFetch = MaxValidDeleteAllSize / fetchSize + 1
+    for {
+      ith <- (0 to maxNumOfFetch)
     } yield {
-        val labelWithDir = LabelWithDirection(label.id.get, dir)
-        QueryParam(labelWithDir).limit(0, maxEdges).duplicatePolicy(Option(Query.DuplicatePolicy.Raw)).rpcTimeout(maxRpcTimeout)
-      }
+      val queryParams = for {
+        label <- labels
+      } yield {
+          val labelWithDir = LabelWithDirection(label.id.get, dir)
+          QueryParam(labelWithDir).limit(ith * fetchSize, (ith + 1) * fetchSize).duplicatePolicy(Option(Query.DuplicatePolicy.Raw)).rpcTimeout(RpcTimeoutDeleteAll)
+        }
 
-    val step = Step(queryParams.toList)
-    Query(srcVertices, Vector(step))
-
+      val step = Step(queryParams.toList)
+      Query(srcVertices, Vector(step))
+    }
   }
 
   private def validateDeleteAll(queryResult: QueryResult): Long = {
@@ -194,16 +196,14 @@ object EdgeController extends Controller with RequestParser {
       val vertices = toVertices(labelName, direction, ids)
       /** logging for delete all request */
 
-      val query = toQuery(vertices, labels, dir, ts)
-      val fetchFuture = s2.getEdges(query)
-      fetchFuture.onComplete {
-        case Success(value) =>
-          val size = value.foldLeft(0L) { case (acc, current) => acc + current.edgeWithScoreLs.size }
-          logger.info(s"deleteAllInnerFetch for ${size}")
-        case ex: Exception =>
-          logger.error(s"deleteAllInner fetch failed.: $jsValue", ex)
+      val queryLs = toQuery(vertices, labels, dir, ts)
+      val fetchFuture = queryLs.foldLeft(Future.successful(Seq.empty[QueryResult])) { (acc, current) =>
+        acc.flatMap { result =>
+          s2.getEdges(current).map { result2 =>
+            result ++ result2
+          }
+        }
       }
-
       for {
         queryResultLs <- fetchFuture
       } {
