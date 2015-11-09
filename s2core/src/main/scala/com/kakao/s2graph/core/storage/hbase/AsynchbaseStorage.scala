@@ -137,7 +137,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
     for {
       queryResultLs <- getEdges(q)
-      ret <- deleteAllFetchedEdgesLs(queryResultLs, requestTs, 0)
+      ret <- deleteAllFetchedEdgesLs(queryResultLs, requestTs)
     } yield ret
   }
 
@@ -220,7 +220,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     grouped.toFuture.map(_.toSeq)
   }
 
-  private def writeAsyncSimpleRetry(zkQuorum: String, elementRpcs: Seq[HBaseRpc], withWait: Boolean, retryNum: Int): Future[Boolean] = {
+  private def writeAsyncSimpleRetry(zkQuorum: String, elementRpcs: Seq[HBaseRpc], withWait: Boolean): Future[Boolean] = {
     def compute = writeAsyncSimple(zkQuorum, elementRpcs, withWait).flatMap { ret =>
       if (ret) Future.successful(ret)
       else throw FetchTimeoutException("writeAsyncWithWaitRetrySimple")
@@ -322,7 +322,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       }
       def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
         if (!predicate) Future.successful(false)
-        else writeAsyncSimpleRetry(label.hbaseZkAddr, mutationBuilder.increments(edgeUpdate), withWait = true, MaxRetryNum)
+        else writeAsyncSimpleRetry(label.hbaseZkAddr, mutationBuilder.increments(edgeUpdate), withWait = true)
       }
 
       val fallback = Future.successful(false)
@@ -395,8 +395,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   }
 
   private def deleteAllFetchedEdgesAsync(queryResult: QueryResult,
-                                         requestTs: Long,
-                                         retryNum: Int = 0): Future[Boolean] = {
+                                         requestTs: Long): Future[Boolean] = {
     val queryParam = queryResult.queryParam
     val queryResultToDelete = queryResult.edgeWithScoreLs.filter { edgeWithScore =>
       (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
@@ -482,39 +481,38 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             val (edge, score) = EdgeWithScore.unapply(queryResultToDelete.head).get
             val incrs = edge.edgesWithIndex.flatMap { indexedEdge => mutationBuilder.buildIncrementsAsync(indexedEdge, -1 * deletedEdgesNum) }
 
-            writeAsyncSimpleRetry(queryParam.label.hbaseZkAddr, incrs, withWait = true, 0)
+            writeAsyncSimpleRetry(queryParam.label.hbaseZkAddr, incrs, withWait = true)
           }
           if (edgesToRetry.isEmpty) {
             Future.successful(true)
           } else {
-            deleteAllFetchedEdgesAsync(queryResultToRetry, requestTs, retryNum + 1)
+            deleteAllFetchedEdgesAsyncOld(queryResultToRetry, requestTs, retryNum + 1)
           }
         }
       }
     }
   }
 
-  private def deleteAllFetchedEdgesLs(queryResultLs: Seq[QueryResult], requestTs: Long,
-                                      retryNum: Int = 0): Future[Boolean] = {
-    if (retryNum > MaxRetryNum) {
-      logger.error(s"deleteDuplicateEdgesLs failed. ${queryResultLs}")
-      Future.successful(false)
-    } else {
+  private def deleteAllFetchedEdgesLs(queryResultLs: Seq[QueryResult], requestTs: Long): Future[Boolean] = {
+    def compute = {
       val futures = for {
         queryResult <- queryResultLs
       } yield {
           queryResult.queryParam.label.schemaVersion match {
-            case HBaseType.VERSION3 => deleteAllFetchedEdgesAsync(queryResult, requestTs, 0)
+            case HBaseType.VERSION3 => deleteAllFetchedEdgesAsync(queryResult, requestTs)
             case _ => deleteAllFetchedEdgesAsyncOld(queryResult, requestTs, 0)
           }
         }
 
-      Future.sequence(futures).flatMap { rets =>
+      Future.sequence(futures).map { rets =>
         val allSuccess = rets.forall(identity)
-
-        if (!allSuccess) deleteAllFetchedEdgesLs(queryResultLs, requestTs, retryNum + 1)
-        else Future.successful(allSuccess)
+        if (!allSuccess) throw new RuntimeException("deleteAllFetchedEdgesLs")
+        allSuccess
       }
+    }
+    Extensions.retry(MaxRetryNum) { compute } {
+      logger.error(s"deleteDuplicateEdgesLs failed. ${queryResultLs}")
+      false
     }
   }
 
