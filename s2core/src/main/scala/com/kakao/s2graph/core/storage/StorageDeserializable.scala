@@ -1,6 +1,6 @@
 package com.kakao.s2graph.core.storage
 
-import com.kakao.s2graph.core.QueryParam
+import com.kakao.s2graph.core.{Edge, IndexEdge, QueryParam}
 import com.kakao.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, InnerValLikeWithTs}
 
 object StorageDeserializable {
