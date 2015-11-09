@@ -162,15 +162,7 @@ class PostProcessBenchmarkSpec extends SpecCommon with BenchmarkCommon with Play
 
       val resultJs = PostProcess.toSimpleVertexArrJson(queryResultLs, Nil)
 
-      resultJs \\ "score" must_== PostProcess.toSimpleVertexArrJsonOrg(queryResultLs, Nil) \\ "score"
-
       (0 to 5) foreach { _ =>
-        duration("toSimpleVertexArrJson org") {
-          (0 to 1000) foreach { _ =>
-            PostProcess.toSimpleVertexArrJsonOrg(queryResultLs, Nil)
-          }
-        }
-
         duration("toSimpleVertexArrJson new") {
           (0 to 1000) foreach { _ =>
             PostProcess.toSimpleVertexArrJson(queryResultLs, Nil)
