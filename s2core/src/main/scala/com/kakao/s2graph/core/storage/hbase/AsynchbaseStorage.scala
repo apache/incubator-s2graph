@@ -361,40 +361,41 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       }
       Future.sequence(futures).map { rets => rets.forall(identity) }
     } else {
-      if (tryNum >= MaxRetryNum) {
-        logger.error(s"mutate failed after $tryNum retry")
-        edges.foreach { edge => ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge)) }
-        Future.successful(false)
-      } else {
-        fetchInvertedAsync(edges.head) flatMap { case (queryParam, snapshotEdgeOpt) =>
-          val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, edges)
-          if (edgeUpdate.newInvertedEdge.isEmpty) {
-            Future.successful(true)
-          } else {
-            val waitTime = Random.nextInt(MaxBackOff) + 1
-            commitPending(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
-              if (pendingAllCommitted) {
-                commitUpdate(newEdge)(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
-                  if (!updateCommitted) {
-//                    Thread.sleep(waitTime)
-                    logger.info(s"mutate failed $tryNum.")
-                    logger.info(s"mutate failed $edges.")
-                    logger.info(s"mutate failed $newEdge, $edgeUpdate")
-                    mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
-                  } else {
-                    logger.debug(s"mutate success $tryNum.")
-                    Future.successful(true)
-                  }
+      val future = fetchInvertedAsync(edges.head) flatMap { case (queryParam, snapshotEdgeOpt) =>
+        val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, edges)
+        if (edgeUpdate.newInvertedEdge.isEmpty) {
+          Future.successful(true)
+        } else {
+          commitPending(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
+            if (pendingAllCommitted) {
+              commitUpdate(newEdge)(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
+                if (!updateCommitted) {
+                  //                    Thread.sleep(waitTime)
+                  logger.info(s"mutate failed $tryNum.")
+                  logger.info(s"mutate failed $edges.")
+                  logger.info(s"mutate failed $newEdge, $edgeUpdate")
+                  throw new RuntimeException(s"mutation failed. $tryNum")
+                  //                    mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
+                } else {
+                  logger.debug(s"mutate success $tryNum.")
+                  Future.successful(true)
                 }
-              } else {
-//                Thread.sleep(waitTime)
-                logger.info(s"mutate failed $tryNum.")
-                mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
               }
+            } else {
+              //                Thread.sleep(waitTime)
+              logger.info(s"mutate failed $tryNum.")
+              throw new RuntimeException(s"mutation failed. $tryNum")
+              //                mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
             }
           }
         }
       }
+      future.retryWith(MaxRetryNum) {
+        logger.error(s"mutate failed after $tryNum retry")
+        edges.foreach { edge => ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge)) }
+        Future.successful(false)
+      }
+
     }
   }
 
