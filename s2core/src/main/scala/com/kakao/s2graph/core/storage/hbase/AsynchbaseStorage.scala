@@ -377,6 +377,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
                   if (!updateCommitted) {
                     Thread.sleep(waitTime)
                     logger.info(s"mutate failed $tryNum.")
+                    logger.info(s"mutate failed $edges.")
+                    logger.info(s"mutate failed $newEdge, $edgeUpdate")
                     mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
                   } else {
                     logger.debug(s"mutate success $tryNum.")
