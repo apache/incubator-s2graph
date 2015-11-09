@@ -155,11 +155,12 @@ object EdgeController extends Controller with RequestParser {
               dir: Int,
               ts: Long): Query = {
     val maxEdges = 1000000
+    val maxRpcTimeout = 10000
     val queryParams = for {
       label <- labels
     } yield {
         val labelWithDir = LabelWithDirection(label.id.get, dir)
-        QueryParam(labelWithDir).limit(0, maxEdges).duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
+        QueryParam(labelWithDir).limit(0, maxEdges).duplicatePolicy(Option(Query.DuplicatePolicy.Raw)).rpcTimeout(maxRpcTimeout)
       }
 
     val step = Step(queryParams.toList)
@@ -189,8 +190,15 @@ object EdgeController extends Controller with RequestParser {
       val vertices = toVertices(labelName, direction, ids)
       /** logging for delete all request */
       val query = toQuery(vertices, labels, dir, ts)
+
+      val fetchFuture = s2.getEdges(query)
+      fetchFuture.onFailure {
+        case ex: Exception =>
+          logger.error(s"deleteAllInner fetch failed.: $jsValue", ex)
+      }
+
       for {
-        queryResultLs <- s2.getEdges(query)
+        queryResultLs <- fetchFuture
       } {
         for {
           queryResult <- queryResultLs
@@ -200,6 +208,7 @@ object EdgeController extends Controller with RequestParser {
         } {
           logger.info(s"deleteAll for $degreeVal")
           val duplicateEdge = edge.copy(op = GraphUtil.operations("delete"), ts = ts, version = ts)
+          logger.info(s"deleteAll: $duplicateEdge")
           QueueActor.router ! duplicateEdge
         }
       }
