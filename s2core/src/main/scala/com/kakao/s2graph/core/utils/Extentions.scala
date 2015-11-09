@@ -9,7 +9,10 @@ object Extensions {
 
   def retry[T](n: Int)(fn: => Future[T])(fallback: => T)(implicit ex: ExecutionContext): Future[T] = n match {
     case i if i > 1 =>
-      fn recoverWith { case t: Throwable => retry(n-1)(fn)(fallback) }
+      fn recoverWith { case t: Throwable =>
+        logger.error(s"retry $n, $t", t)
+        retry(n-1)(fn)(fallback)
+      }
     case _ =>
       Future.successful(fallback)
   }

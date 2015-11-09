@@ -370,7 +370,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               commitUpdate(newEdge)(snapshotEdgeOpt, edgeUpdate).flatMap { case updateCommitted =>
                 if (!updateCommitted) {
                   //                    Thread.sleep(waitTime)
-                  throw new RuntimeException(s"mutation failed. $edges\n $edgeUpdate")
+                  throw new RuntimeException(s"mutation failed. [RequestEdges]: $edges\n [EdgeUpdate]: $edgeUpdate")
                   //                    mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
                 } else {
                   logger.debug(s"mutate success.")
@@ -380,7 +380,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             } else {
               //                Thread.sleep(waitTime)
               logger.info(s"mutate failed.")
-              throw new RuntimeException(s"mutation failed. $edges\n $edgeUpdate")
+              throw new RuntimeException(s"mutation failed. [RequestEdges]: $edges\n [EdgeUpdate]: $edgeUpdate")
               //                mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
             }
           }
