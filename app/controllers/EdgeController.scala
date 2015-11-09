@@ -153,29 +153,26 @@ object EdgeController extends Controller with RequestParser {
   def toQuery(srcVertices: Seq[Vertex],
               labels: Seq[Label],
               dir: Int,
-              ts: Long): Seq[Query] = {
+              ts: Long): Query = {
     val maxEdges = 1000000
-    val maxRpcTimeout = 10000
-    val edgeStep = 10000
-    for {
-      ith <- (0 to (maxEdges / edgeStep) + 1)
+    val maxRpcTimeout = 30000
+
+    val queryParams = for {
+      label <- labels
     } yield {
-      val queryParams = for {
-        label <- labels
-      } yield {
         val labelWithDir = LabelWithDirection(label.id.get, dir)
-        QueryParam(labelWithDir).limit(ith * edgeStep , (ith + 1) * edgeStep).duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
+        QueryParam(labelWithDir).limit(0, maxEdges).duplicatePolicy(Option(Query.DuplicatePolicy.Raw)).rpcTimeout(maxRpcTimeout)
       }
 
-      val step = Step(queryParams.toList)
-      Query(srcVertices, Vector(step))
-    }
+    val step = Step(queryParams.toList)
+    Query(srcVertices, Vector(step))
+
   }
 
   private def validateDeleteAll(queryResult: QueryResult): Long = {
     val degreeVal = queryResult.edgeWithScoreLs.headOption.map { head =>
       head.edge.propsWithTs.get(LabelMeta.degreeSeq).map { value => value.innerVal.toString.toLong }.getOrElse(Long.MinValue)
-    } getOrElse(Long.MinValue)
+    } getOrElse (Long.MinValue)
 
     if (degreeVal > maxValidEdgesForDeleteAll) throw new RuntimeException(s"too large number of edges on this. $degreeVal")
     degreeVal
@@ -194,32 +191,27 @@ object EdgeController extends Controller with RequestParser {
       val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
       val vertices = toVertices(labelName, direction, ids)
       /** logging for delete all request */
-      val queries = toQuery(vertices, labels, dir, ts)
-      val futures = for {
-        query <- queries
-      } yield {
-        val fetchFuture = s2.getEdges(query)
-        fetchFuture.onFailure {
-          case ex: Exception =>
-            logger.error(s"deleteAllInner fetch failed.: $jsValue", ex)
-        }
-        fetchFuture
+
+      val query = toQuery(vertices, labels, dir, ts)
+      val fetchFuture = s2.getEdges(query)
+      fetchFuture.onFailure {
+        case ex: Exception =>
+          logger.error(s"deleteAllInner fetch failed.: $jsValue", ex)
       }
-      Future.sequence(futures).map { fetchFutureLs =>
+
+      for {
+        queryResultLs <- fetchFuture
+      } {
         for {
-          queryResultLs <- fetchFutureLs
+          queryResult <- queryResultLs
+          degreeVal = validateDeleteAll(queryResult)
+          edgeWithScore <- queryResult.edgeWithScoreLs
+          (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
         } {
-          for {
-            queryResult <- queryResultLs
-            degreeVal = validateDeleteAll(queryResult)
-            edgeWithScore <- queryResult.edgeWithScoreLs
-            (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-          } {
-            logger.info(s"deleteAll for $degreeVal")
-            val duplicateEdge = edge.copy(op = GraphUtil.operations("delete"), ts = ts, version = ts)
-            logger.info(s"deleteAll: $duplicateEdge")
-            QueueActor.router ! duplicateEdge
-          }
+          logger.info(s"deleteAll for $degreeVal")
+          val duplicateEdge = edge.copy(op = GraphUtil.operations("delete"), ts = ts, version = ts)
+          logger.info(s"deleteAll: $duplicateEdge")
+          QueueActor.router ! duplicateEdge
         }
       }
     }
@@ -239,6 +231,7 @@ object EdgeController extends Controller with RequestParser {
       val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
       val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
       val vertices = toVertices(labelName, direction, ids)
+
       /** logging for delete all request */
       for {
         id <- ids
