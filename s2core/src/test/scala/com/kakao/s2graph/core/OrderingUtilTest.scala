@@ -1,26 +1,14 @@
 package com.kakao.s2graph.core
 
-import com.kakao.s2graph.core.OrderingUtil.{JsValueOrdering, MultiValueOrdering}
+import com.kakao.s2graph.core.OrderingUtil.MultiValueOrdering
 import org.scalatest.{FunSuite, Matchers}
-import play.api.libs.json.{JsNumber, JsValue}
-
-import scala.util.Random
+import play.api.libs.json.JsString
 
 /**
  * Created by hsleep(honeysleep@gmail.com) on 2015. 11. 5..
  */
 class OrderingUtilTest extends FunSuite with Matchers {
-  val wrapStr = s"\n=================================================="
-
-  def duration[T](prefix: String = "")(block: => T) = {
-    val startTs = System.currentTimeMillis()
-    val ret = block
-    val endTs = System.currentTimeMillis()
-    println(s"$wrapStr\n$prefix: took ${endTs - startTs} ms$wrapStr")
-    ret
-  }
-
-  test("test MultiOrdering") {
+  test("test SeqMultiOrdering") {
     val jsLs: Seq[Seq[Any]] = Seq(
       Seq(0, "a"),
       Seq(0, "b"),
@@ -44,85 +32,102 @@ class OrderingUtilTest extends FunSuite with Matchers {
     resultJsLs.toString() should equal(sortedJsLs.toString())
   }
 
-  test("performance MultiOrdering any") {
-    val tupLs = (0 until 10) map { i =>
-      Random.nextDouble() -> Random.nextLong()
-    }
+  test("test tuple 1 TupleMultiOrdering") {
+    val jsLs: Seq[(Any, Any, Any, Any)] = Seq(
+      (0, None, None, None),
+      (0, None, None, None),
+      (1, None, None, None),
+      (1, None, None, None),
+      (2, None, None, None)
+    )
 
-    val seqLs = tupLs.map { tup =>
-      Seq(tup._1, tup._2)
-    }
+    val sortedJsLs: Seq[(Any, Any, Any, Any)] = Seq(
+      (2, None, None, None),
+      (1, None, None, None),
+      (1, None, None, None),
+      (0, None, None, None),
+      (0, None, None, None)
+    )
 
-    val sorted1 = duration("TupleOrdering double,long") {
-      (0 until 10000) foreach { _ =>
-        tupLs.sortBy { case (x, y) =>
-          -x -> -y
-        }
-      }
-      tupLs.sortBy { case (x, y) =>
-        -x -> -y
-      }
-    }.map { x => x._1 }
+    val ascendingLs: Seq[Boolean] = Seq(false)
+    val resultJsLs = jsLs.sorted(new TupleMultiOrdering[Any](ascendingLs))
 
-    val sorted2 = duration("MultiOrdering double,long") {
-      (0 until 10000) foreach { _ =>
-        seqLs.sorted(new SeqMultiOrdering[Any](Seq(false, false)))
-      }
-      seqLs.sorted(new SeqMultiOrdering[Any](Seq(false, false)))
-    }.map { x => x.head }
-
-    sorted1.toString() should equal(sorted2.toString())
+    resultJsLs.toString() should equal(sortedJsLs.toString())
   }
 
-  test("performance MultiOrdering double") {
-    val tupLs = (0 until 500) map { i =>
-      Random.nextDouble() -> Random.nextDouble()
-    }
+  test("test tuple 2 TupleMultiOrdering") {
+    val jsLs: Seq[(Any, Any, Any, Any)] = Seq(
+      (0, "a", None, None),
+      (0, "b", None, None),
+      (1, "a", None, None),
+      (1, "b", None, None),
+      (2, "c", None, None)
+    )
 
-    val seqLs = tupLs.map { tup =>
-      Seq(tup._1, tup._2)
-    }
+    // number descending, string ascending
+    val sortedJsLs: Seq[(Any, Any, Any, Any)] = Seq(
+      (2, "c", None, None),
+      (1, "a", None, None),
+      (1, "b", None, None),
+      (0, "a", None, None),
+      (0, "b", None, None)
+    )
 
-    duration("MultiOrdering double") {
-      (0 until 10000) foreach { _ =>
-        seqLs.sorted(new SeqMultiOrdering[Double](Seq(false, false)))
-      }
-    }
+    val ascendingLs: Seq[Boolean] = Seq(false, true)
+    val resultJsLs = jsLs.sorted(new TupleMultiOrdering[Any](ascendingLs))
 
-    duration("TupleOrdering double") {
-      (0 until 10000) foreach { _ =>
-        tupLs.sortBy { case (x, y) =>
-          -x -> -y
-        }
-      }
-    }
+    resultJsLs.toString() should equal(sortedJsLs.toString())
   }
 
-  test("performance MultiOrdering jsvalue") {
-    val tupLs = (0 until 500) map { i =>
-      Random.nextDouble() -> Random.nextLong()
-    }
+  test("test tuple 3 TupleMultiOrdering") {
+    val jsLs: Seq[(Any, Any, Any, Any)] = Seq(
+      (0, "a", 0l, None),
+      (0, "a", 1l, None),
+      (0, "b", 0l, None),
+      (1, "a", 0l, None),
+      (1, "b", 0l, None),
+      (2, "c", 0l, None)
+    )
 
-    val seqLs = tupLs.map { tup =>
-      Seq(JsNumber(tup._1), JsNumber(tup._2))
-    }
+    val sortedJsLs: Seq[(Any, Any, Any, Any)] = Seq(
+      (0, "a", 1l, None),
+      (0, "a", 0l, None),
+      (0, "b", 0l, None),
+      (1, "a", 0l, None),
+      (1, "b", 0l, None),
+      (2, "c", 0l, None)
+    )
 
-    val sorted1 = duration("TupleOrdering double,long") {
-      (0 until 10000) foreach { _ =>
-        tupLs.sortBy { case (x, y) =>
-          -x -> -y
-        }
-      }
-      tupLs.sortBy { case (x, y) =>
-        -x -> -y
-      }
-    }
+    val ascendingLs: Seq[Boolean] = Seq(true, true, false)
+    val resultJsLs = jsLs.sorted(new TupleMultiOrdering[Any](ascendingLs))
 
-    val sorted2 = duration("MultiOrdering jsvalue") {
-      (0 until 10000) foreach { _ =>
-        seqLs.sorted(new SeqMultiOrdering[JsValue](Seq(false, false)))
-      }
-      seqLs.sorted(new SeqMultiOrdering[JsValue](Seq(false, false)))
-    }
+    resultJsLs.toString() should equal(sortedJsLs.toString())
+  }
+
+  test("test tuple 4 TupleMultiOrdering") {
+    val jsLs: Seq[(Any, Any, Any, Any)] = Seq(
+      (0, "a", 0l, JsString("a")),
+      (0, "a", 0l, JsString("b")),
+      (0, "a", 1l, JsString("a")),
+      (0, "b", 0l, JsString("b")),
+      (1, "a", 0l, JsString("b")),
+      (1, "b", 0l, JsString("b")),
+      (2, "c", 0l, JsString("b"))
+    )
+
+    val sortedJsLs: Seq[(Any, Any, Any, Any)] = Seq(
+      (0, "a", 0l, JsString("b")),
+      (0, "a", 0l, JsString("a")),
+      (0, "a", 1l, JsString("a")),
+      (0, "b", 0l, JsString("b")),
+      (1, "a", 0l, JsString("b")),
+      (1, "b", 0l, JsString("b")),
+      (2, "c", 0l, JsString("b"))
+    )
+
+    val ascendingLs: Seq[Boolean] = Seq(true, true, true, false)
+    val resultJsLs = jsLs.sorted(new TupleMultiOrdering[Any](ascendingLs))
+
+    resultJsLs.toString() should equal(sortedJsLs.toString())
   }
 }
