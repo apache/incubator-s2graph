@@ -368,14 +368,15 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       } else {
         fetchInvertedAsync(edges.head) flatMap { case (queryParam, snapshotEdgeOpt) =>
           val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, edges)
-          if (edgeUpdate.newInvertedEdge.isEmpty) Future.successful(true)
-          else {
+          if (edgeUpdate.newInvertedEdge.isEmpty) {
+            Future.successful(true)
+          } else {
             val waitTime = Random.nextInt(MaxBackOff) + 1
             commitPending(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
               if (pendingAllCommitted) {
                 commitUpdate(newEdge)(snapshotEdgeOpt, edgeUpdate, tryNum).flatMap { case updateCommitted =>
                   if (!updateCommitted) {
-                    Thread.sleep(waitTime)
+//                    Thread.sleep(waitTime)
                     logger.info(s"mutate failed $tryNum.")
                     logger.info(s"mutate failed $edges.")
                     logger.info(s"mutate failed $newEdge, $edgeUpdate")
@@ -386,7 +387,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
                   }
                 }
               } else {
-                Thread.sleep(waitTime)
+//                Thread.sleep(waitTime)
                 logger.info(s"mutate failed $tryNum.")
                 mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
               }

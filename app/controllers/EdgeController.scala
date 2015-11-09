@@ -153,18 +153,23 @@ object EdgeController extends Controller with RequestParser {
   def toQuery(srcVertices: Seq[Vertex],
               labels: Seq[Label],
               dir: Int,
-              ts: Long): Query = {
+              ts: Long): Seq[Query] = {
     val maxEdges = 1000000
     val maxRpcTimeout = 10000
-    val queryParams = for {
-      label <- labels
+    val edgeStep = 10000
+    for {
+      ith <- (0 until (maxEdges / edgeStep) + 1)
     } yield {
+      val queryParams = for {
+        label <- labels
+      } yield {
         val labelWithDir = LabelWithDirection(label.id.get, dir)
-        QueryParam(labelWithDir).limit(0, maxEdges).duplicatePolicy(Option(Query.DuplicatePolicy.Raw)).rpcTimeout(maxRpcTimeout)
+        QueryParam(labelWithDir).limit(ith * edgeStep , (ith + 1) * edgeStep).duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
       }
 
-    val step = Step(queryParams.toList)
-    Query(srcVertices, Vector(step))
+      val step = Step(queryParams.toList)
+      Query(srcVertices, Vector(step))
+    }
   }
 
   private def validateDeleteAll(queryResult: QueryResult): Long = {
@@ -189,27 +194,32 @@ object EdgeController extends Controller with RequestParser {
       val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
       val vertices = toVertices(labelName, direction, ids)
       /** logging for delete all request */
-      val query = toQuery(vertices, labels, dir, ts)
-
-      val fetchFuture = s2.getEdges(query)
-      fetchFuture.onFailure {
-        case ex: Exception =>
-          logger.error(s"deleteAllInner fetch failed.: $jsValue", ex)
+      val queries = toQuery(vertices, labels, dir, ts)
+      val futures = for {
+        query <- queries
+      } yield {
+        val fetchFuture = s2.getEdges(query)
+        fetchFuture.onFailure {
+          case ex: Exception =>
+            logger.error(s"deleteAllInner fetch failed.: $jsValue", ex)
+        }
+        fetchFuture
       }
-
-      for {
-        queryResultLs <- fetchFuture
-      } {
+      Future.sequence(futures).map { fetchFutureLs =>
         for {
-          queryResult <- queryResultLs
-          degreeVal = validateDeleteAll(queryResult)
-          edgeWithScore <- queryResult.edgeWithScoreLs
-          (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
+          queryResultLs <- fetchFutureLs
         } {
-          logger.info(s"deleteAll for $degreeVal")
-          val duplicateEdge = edge.copy(op = GraphUtil.operations("delete"), ts = ts, version = ts)
-          logger.info(s"deleteAll: $duplicateEdge")
-          QueueActor.router ! duplicateEdge
+          for {
+            queryResult <- queryResultLs
+            degreeVal = validateDeleteAll(queryResult)
+            edgeWithScore <- queryResult.edgeWithScoreLs
+            (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
+          } {
+            logger.info(s"deleteAll for $degreeVal")
+            val duplicateEdge = edge.copy(op = GraphUtil.operations("delete"), ts = ts, version = ts)
+            logger.info(s"deleteAll: $duplicateEdge")
+            QueueActor.router ! duplicateEdge
+          }
         }
       }
     }
