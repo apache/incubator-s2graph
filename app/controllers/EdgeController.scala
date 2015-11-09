@@ -13,6 +13,7 @@ import play.api.mvc.{Controller, Result}
 
 import scala.collection.Seq
 import scala.concurrent.Future
+import scala.util.Success
 
 object EdgeController extends Controller with RequestParser {
 
@@ -195,7 +196,10 @@ object EdgeController extends Controller with RequestParser {
 
       val query = toQuery(vertices, labels, dir, ts)
       val fetchFuture = s2.getEdges(query)
-      fetchFuture.onFailure {
+      fetchFuture.onComplete {
+        case Success(value) =>
+          val size = value.foldLeft(0L) { case (acc, current) => acc + current.edgeWithScoreLs.size }
+          logger.info(s"deleteAllInnerFetch for ${size}")
         case ex: Exception =>
           logger.error(s"deleteAllInner fetch failed.: $jsValue", ex)
       }
