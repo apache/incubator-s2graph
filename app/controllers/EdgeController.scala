@@ -4,7 +4,6 @@ import actors.QueueActor
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.{LabelMeta, Label}
-import com.kakao.s2graph.core.storage.hbase.AsynchbaseStorage
 import com.kakao.s2graph.core.types.LabelWithDirection
 import com.kakao.s2graph.core.utils.logger
 import config.Config
@@ -176,6 +175,7 @@ object EdgeController extends Controller with RequestParser {
     } getOrElse (Long.MinValue)
 
     if (degreeVal > MaxValidDeleteAllSize) throw new RuntimeException(s"too large number of edges on this. $degreeVal")
+    logger.info(s"deleteAll for $degreeVal")
     degreeVal
   }
 
@@ -209,9 +209,7 @@ object EdgeController extends Controller with RequestParser {
           edgeWithScore <- queryResult.edgeWithScoreLs
           (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
         } {
-          logger.info(s"deleteAll for $degreeVal")
           val duplicateEdge = edge.copy(op = GraphUtil.operations("delete"), ts = ts, version = ts)
-          logger.info(s"deleteAll: $duplicateEdge")
           QueueActor.router ! duplicateEdge
         }
       }

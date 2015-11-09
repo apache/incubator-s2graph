@@ -38,6 +38,6 @@ object Config {
   // local queue actor
   lazy val LOCAL_QUEUE_ACTOR_MAX_QUEUE_SIZE = conf.getInt("local.queue.actor.max.queue.size").getOrElse(10000)
   lazy val LOCAL_QUEUE_ACTOR_RATE_LIMIT = conf.getInt("local.queue.actor.rate.limit").getOrElse(1000)
-  lazy val MAX_VALID_DELETE_ALL_SIZE =  conf.getInt("max.valid.delete.all.size").getOrElse(10000)
+  lazy val MAX_VALID_DELETE_ALL_SIZE =  conf.getInt("max.valid.delete.all.size").getOrElse(100000)
   lazy val RPC_TIMEOUT_DELETE_ALL = conf.getInt("rpc.timeout.delete.all").getOrElse(0)
 }
