@@ -391,7 +391,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         }
       }
       future.retryWith(MaxRetryNum) {
-        logger.error(s"mutate failed after $tryNum retry")
+        logger.error(s"mutate failed after $MaxRetryNum retry")
         edges.foreach { edge => ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge)) }
         Future.successful(false)
       }
