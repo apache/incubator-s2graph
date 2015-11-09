@@ -7,11 +7,11 @@ import scala.util.{Success, Failure}
 
 object Extensions {
 
-  def retry[T](n: Int)(fn: => Future[T])(fallback: => T)(implicit ex: ExecutionContext): Future[T] = n match {
-    case i if i > 1 =>
+  def retry[T](maxRetryNum: Int, n: Int = 1)(fn: => Future[T])(fallback: => T)(implicit ex: ExecutionContext): Future[T] = n match {
+    case i if n <= maxRetryNum =>
       fn recoverWith { case t: Throwable =>
         logger.error(s"retry $n, $t", t)
-        retry(n-1)(fn)(fallback)
+        retry(maxRetryNum, n + 1)(fn)(fallback)
       }
     case _ =>
       Future.successful(fallback)

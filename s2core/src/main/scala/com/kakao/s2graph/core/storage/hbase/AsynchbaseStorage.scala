@@ -63,7 +63,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   private val clients = Seq(client, clientWithFlush)
 
   private val clientFlushInterval = config.getInt("hbase.rpcs.buffered_flush_interval").toString().toShort
-  private val MaxRetryNum = config.getInt("max.retry.number")
+  val MaxRetryNum = config.getInt("max.retry.number")
 
   /**
    * Serializer/Deserializer
@@ -413,7 +413,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
   private def deleteAllFetchedEdgesAsyncOld(queryResult: QueryResult,
                                             requestTs: Long,
-                                            retryNum: Int = 0): Future[Boolean] = {
+                                            retryNum: Int): Future[Boolean] = {
     val queryParam = queryResult.queryParam
     val queryResultToDelete = queryResult.edgeWithScoreLs.filter { edgeWithScore =>
       val (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
@@ -422,7 +422,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     if (queryResultToDelete.isEmpty) {
       Future.successful(true)
     } else {
-      if (retryNum > MaxRetryNum) {
+      if (retryNum < 1) {
         queryResult.edgeWithScoreLs.foreach { edgeWithScore =>
           val (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
           val copiedEdge = edge.copy(op = GraphUtil.operations("delete"), ts = requestTs, version = requestTs)
@@ -486,7 +486,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           if (edgesToRetry.isEmpty) {
             Future.successful(true)
           } else {
-            deleteAllFetchedEdgesAsyncOld(queryResultToRetry, requestTs, retryNum + 1)
+            deleteAllFetchedEdgesAsyncOld(queryResultToRetry, requestTs, retryNum - 1)
           }
         }
       }
@@ -500,7 +500,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       } yield {
           queryResult.queryParam.label.schemaVersion match {
             case HBaseType.VERSION3 => deleteAllFetchedEdgesAsync(queryResult, requestTs)
-            case _ => deleteAllFetchedEdgesAsyncOld(queryResult, requestTs, 0)
+            case _ => deleteAllFetchedEdgesAsyncOld(queryResult, requestTs, MaxRetryNum)
           }
         }
 
