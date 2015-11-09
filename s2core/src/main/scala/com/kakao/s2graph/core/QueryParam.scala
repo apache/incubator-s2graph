@@ -323,11 +323,20 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
    */
   def toCacheKeyRaw(getRequest: GetRequest): Array[Byte] = {
     var getBytes = getRequest.key()
-    if (getRequest.family() != null) getBytes = Bytes.add(getBytes, getRequest.family())
-    if (getRequest.qualifiers() != null)
-      getRequest.qualifiers().filter(q => q != null).foreach { qualifier => getBytes = Bytes.add(getBytes, qualifier) }
-    Bytes.add(Bytes.add(getBytes, labelWithDir.bytes, toBytes(labelOrderSeq, offset, limit, isInverted)), rank.toHashKeyBytes(),
-      Bytes.add(columnRangeFilterMinBytes, columnRangeFilterMaxBytes))
+    Option(getRequest.family()).foreach(family => getBytes = Bytes.add(getBytes, family))
+    Option(getRequest.qualifiers()).foreach { qualifiers =>
+      qualifiers.filter(q => Option(q).isDefined).foreach { qualifier =>
+        getBytes = Bytes.add(getBytes, qualifier)
+      }
+    }
+//    if (getRequest.family() != null) getBytes = Bytes.add(getBytes, getRequest.family())
+//    if (getRequest.qualifiers() != null)
+//      getRequest.qualifiers().filter(q => q != null).foreach { qualifier => getBytes = Bytes.add(getBytes, qualifier) }
+    Bytes.add(
+      Bytes.add(getBytes, labelWithDir.bytes, toBytes(labelOrderSeq, offset, limit, isInverted)),
+      rank.toHashKeyBytes(),
+      Bytes.add(columnRangeFilterMinBytes, columnRangeFilterMaxBytes)
+    )
   }
 
   def isInverted(isInverted: Boolean): QueryParam = {
