@@ -49,7 +49,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
                        (implicit ec: ExecutionContext) extends Storage {
 
   import AsynchbaseStorage._
-  import Extensions.FutureOps
+//  import Extensions.FutureOps
   import Extensions.DeferOps
 
   val client = AsynchbaseStorage.makeClient(config)
@@ -220,14 +220,16 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     grouped.toFuture.map(_.toSeq)
   }
 
-  private def writeAsyncSimpleRetry(zkQuorum: String, elementRpcs: Seq[HBaseRpc], withWait: Boolean, retryNum: Int): Future[Boolean] =
-    writeAsyncSimple(zkQuorum, elementRpcs, withWait).flatMap { ret =>
+  private def writeAsyncSimpleRetry(zkQuorum: String, elementRpcs: Seq[HBaseRpc], withWait: Boolean, retryNum: Int): Future[Boolean] = {
+    def compute = writeAsyncSimple(zkQuorum, elementRpcs, withWait).flatMap { ret =>
       if (ret) Future.successful(ret)
       else throw FetchTimeoutException("writeAsyncWithWaitRetrySimple")
-    }.retryFallback(retryNum) {
+    }
+    Extensions.retry(MaxRetryNum) { compute } {
       logger.error(s"writeAsyncWithWaitRetrySimple: $elementRpcs")
       false
     }
+  }
 
   private def writeToStorage(_client: HBaseClient, rpc: HBaseRpc): Deferred[Boolean] = {
     val defer = rpc match {
@@ -358,7 +360,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       }
       Future.sequence(futures).map { rets => rets.forall(identity) }
     } else {
-      val future = fetchInvertedAsync(edges.head) flatMap { case (queryParam, snapshotEdgeOpt) =>
+      def compute = fetchInvertedAsync(edges.head) flatMap { case (queryParam, snapshotEdgeOpt) =>
         val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, edges)
         if (edgeUpdate.newInvertedEdge.isEmpty) {
           Future.successful(true)
@@ -384,12 +386,11 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           }
         }
       }
-      future.retryWith(MaxRetryNum) {
+      Extensions.retry(MaxRetryNum) { compute } {
         logger.error(s"mutate failed after $MaxRetryNum retry")
         edges.foreach { edge => ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge)) }
-        Future.successful(false)
+        false
       }
-
     }
   }
 

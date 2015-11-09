@@ -3,46 +3,19 @@ package com.kakao.s2graph.core.utils
 import com.stumbleupon.async.{Callback, Deferred}
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.{Success, Failure}
 
 object Extensions {
 
-  implicit class FutureOps[T](f: Future[T])(implicit ec: ExecutionContext) {
-
-    def retryFallback(n: Int)(fallback: => T): Future[T] = n match {
-      case i if i > 1 => f recoverWith { case t: Throwable => f.retryFallback(i - 1)(fallback) }
-      case _ => Future.successful(fallback)
-    }
-
-    def retry(n: Int) = retryWith(n)(f)
-
-    def retryWith(n: Int)(fallback: => Future[T]): Future[T] = n match {
-      case i if i > 1 => f recoverWith {
-        case t: Throwable => logger.info(s"Future.retryWith: $t, $n")
-          f.retryWith(i - 1)(fallback);
-      }
-      case _ => fallback
-    }
+  def retry[T](n: Int)(fn: => Future[T])(fallback: => T)(implicit ex: ExecutionContext): Future[T] = n match {
+    case i if i > 1 =>
+      fn recoverWith { case t: Throwable => retry(n-1)(fn)(fallback) }
+    case _ =>
+      Future.successful(fallback)
   }
 
+
   implicit class DeferOps[T](d: Deferred[T])(implicit ex: ExecutionContext) {
-
-    def retryFallback(n: Int)(fallback: => T): Deferred[T] = n match {
-      case i if i > 1 => d.addErrback(new Callback[Deferred[T], Exception] {
-        override def call(ex: Exception): Deferred[T] = {
-          retryFallback(n - 1)(fallback)
-        }
-      })
-    }
-
-    def retry(n: Int) = retryWith(n)(d)
-
-    def retryWith(n: Int)(fallback: => Deferred[T]): Deferred[T] = n match {
-      case i if i > 1 => d.addErrback(new Callback[Deferred[T], Exception] {
-        override def call(ex: Exception): Deferred[T] = {
-          retryWith(n - 1)(fallback)
-        }
-      })
-    }
 
     def withCallback[R](op: T => R): Deferred[R] = {
       d.addCallback(new Callback[R, T] {
