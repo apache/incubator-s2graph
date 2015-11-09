@@ -25,7 +25,6 @@ object AsynchbaseStorage {
   val vertexCf = HSerializable.vertexCf
   val edgeCf = HSerializable.edgeCf
   val emptyKVs = new util.ArrayList[KeyValue]()
-  private val maxValidEdgeListSize = 10000
   private val MaxBackOff = 10
 
   def makeClient(config: Config, overrideKv: (String, String)*) = {
@@ -66,6 +65,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
   private val clientFlushInterval = config.getInt("hbase.rpcs.buffered_flush_interval").toString().toShort
   val MaxRetryNum = config.getInt("max.retry.number")
+  val MaxValidEdgeListSize = config.getInt("max.valid.delete.all.size")
 
   /**
    * Serializer/Deserializer
@@ -488,7 +488,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       queryResult <- queryResultLs
     } yield {
         val degreeVal = getDegreeVal(queryResult)
-        if (degreeVal > maxValidEdgeListSize) throw new RuntimeException(s"too many edges for deleteAll: $degreeVal")
+        if (degreeVal > MaxValidEdgeListSize) throw new RuntimeException(s"too many edges for deleteAll: $degreeVal")
 
         queryResult.queryParam.label.schemaVersion match {
           case HBaseType.VERSION3 => deleteAllFetchedEdgesAsync(queryResult, requestTs)

@@ -181,7 +181,7 @@ object EdgeController extends Controller with RequestParser {
 
       val future = s2.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts)
       future.onFailure { case ex: Exception =>
-        logger.error(s"[Error]: deleteAllInner failed.")
+        logger.error(s"[Error]: deleteAllInner failed.", ex)
         val kafkaMessages = for {
           id <- ids
           label <- labels

@@ -1,5 +1,5 @@
-curl -XPUT localhost:9000/graphs/deleteLabel/insert_test
-curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json' -d '
+curl -XPUT alpha-s2graph.daumkakao.io:9000/graphs/deleteLabel/insert_test
+curl -XPOST alpha-s2graph.daumkakao.io:9000/graphs/createLabel -H 'Content-Type: Application/json' -d '
 {
     "label": "insert_test",
     "srcServiceName": "s2graph-test",
