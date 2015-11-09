@@ -6,6 +6,8 @@ import com.kakao.ml.util.PrivateMethodAccessor
 import com.kakao.ml.{BaseDataProcessor, Data, Params}
 import com.thesamet.spatial.{DimensionalOrdering, KDTreeMap, Metric}
 import org.apache.spark.ml.recommendation.ALSModel
+import org.apache.spark.mllib.clustering.KMeans
+import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.rdd.MLPairRDDFunctions._
 import org.apache.spark.mllib.recommendation.MatrixFactorizationModel
 import org.apache.spark.rdd.RDD
@@ -59,11 +61,14 @@ class CosineSimilarity(params: CosineSimilarityParams)
 
     val numBlocks = params.numBlocks.getOrElse(defaultNumBlocks)
 
-    val unitVectors = copyToUnitVector(vectors).repartition(numBlocks)
+    val unitVectors = vectors.partitions.length match {
+      case n if n > numBlocks => copyToUnitVector(vectors).coalesce(numBlocks)
+      case _ => copyToUnitVector(vectors)
+    }
 
     // materialize
     unitVectors.persist(StorageLevel.MEMORY_AND_DISK)
-    unitVectors.count()
+    val numVectors = unitVectors.count()
 
     strategy match {
       case "bruteforce" =>
@@ -74,7 +79,9 @@ class CosineSimilarity(params: CosineSimilarityParams)
         excluded
       case  `defaultStrategy` | "kdtree" =>
         CosineSimilarityByKDTree.dotProduct(k, vecSize, unitVectors)
-      case s =>
+      case "kmeans" =>
+        CosineSimilarityByKMeans.dotProduct(k, vecSize, numVectors, unitVectors)
+     case s =>
         throw new IllegalArgumentException(s"$s is not supported")
     }
 
@@ -155,7 +162,6 @@ object CosineSimilarityByKDTree {
     }
   }
 
-
   val blockSize = 4096
   val treeBlockSize = blockSize * 10
 
@@ -172,15 +178,56 @@ object CosineSimilarityByKDTree {
       case (srcBlock, indexedBlock) =>
         srcBlock.flatMap { case (si, sv) =>
           val n = sv.length
-          indexedBlock.findNearest(sv, k)
-              .map { case (dv, di) =>
-                val dot = if(si == di) 0.0 else Blas.blas.ddot(n, sv, 1, dv, 1)
-                (si, (di, dot))
+          indexedBlock.findNearest(sv, k + 1)
+              .flatMap {
+                case (dv, di) if si != di =>
+                  val dot = Blas.blas.ddot(n, sv, 1, dv, 1)
+                  Some((si, (di, dot)))
+                case _ => None
               }
         }
     }
 
     product.topByKey(k)(Ordering.by(_._2))
+  }
+
+  def dotProductLocal(k: Int, d: Int, vectors: Seq[(Int, Array[Double])]): Seq[(Int, Array[(Int, Double)])] = {
+
+    val srcBlock = vectors
+    val indexedBlock = KDTreeMap.fromSeq(vectors.map(_.swap))(dimensionalOrderingForArray(d))
+
+    srcBlock.map { case (si, sv) =>
+      val n = sv.length
+      si -> indexedBlock.findNearest(sv, k + 1)
+          .flatMap {
+            case (dv, di) if si != di =>
+              val dot = Blas.blas.ddot(n, sv, 1, dv, 1)
+              Some(di, dot)
+            case _ => None
+          }
+          .toArray
+    }
+  }
+
+}
+
+object CosineSimilarityByKMeans {
+
+  val blockSize = 4096
+
+  def dotProduct(k: Int, d: Int, numVectors: Long, vectors: RDD[(Int, Array[Double])]): RDD[(Int, Array[(Int, Double)])] = {
+
+    val numClusters = math.max(2, (numVectors / blockSize.toDouble).toInt)
+
+    println(s"numVectors: $numVectors")
+    println(s"numClusters: $numClusters")
+
+    val v = vectors.map(x => Vectors.dense(x._2))
+    val model = KMeans.train(v, numClusters, 10)
+
+    model.predict(v).zip(vectors).groupByKey().flatMap { case (clusterId, vectorsInCluster) =>
+      CosineSimilarityByKDTree.dotProductLocal(k, d, vectorsInCluster.toSeq)
+    }
   }
 
 }

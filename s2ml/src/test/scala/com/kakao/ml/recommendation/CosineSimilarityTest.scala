@@ -6,7 +6,6 @@ import org.apache.spark.ml.recommendation.ALSModel
 import org.apache.spark.sql.SQLContext
 import org.scalatest.{FunSuite, Matchers}
 
-
 object StaticSimilarityData {
 
   val numSamples = 1000
@@ -97,6 +96,54 @@ class CosineSimilarityTest extends FunSuite with Matchers with LocalSparkContext
     val numDiff = joined.map(r => math.abs(r.getDouble(2) - r.getDouble(3))).filter(_ > Blas.tolerance).count()
 
     numDiff should be (0L)
+
+    val a = bruteForceResults.map(r => r.getString(0) -> (r.getString(1), r.getDouble(2))).groupByKey()
+    val b = kdTreeResults.map(r => r.getString(0) -> (r.getString(1), r.getDouble(2))).groupByKey()
+
+    val map = a.join(b)
+        .map { case (_, (tr, te)) =>
+          ContinuousEvaluator.getAveragePrecision(
+            te.toSeq.sortBy(-_._2).map(_._1).toArray,
+            tr.toSeq.sortBy(-_._2).map(_._1).toArray
+          )
+        }
+        .mean()
+
+    map should be (1.0)
+  }
+
+  test("the results of bruteforce and kmeans are close") {
+
+    val k = 10
+
+    val bruteForcePlan = Launcher.buildPipeline(sampleJson.format(k, "bruteforce"))
+    val bruteForceOutput = bruteForcePlan.head.asInstanceOf[CosineSimilarity].process(new SQLContext(sc))
+
+    val kdTreePlan = Launcher.buildPipeline(sampleJson.format(k, "kmeans"))
+    val kdTreeOutput = kdTreePlan.head.asInstanceOf[CosineSimilarity].process(new SQLContext(sc))
+
+    val bruteForceResults = bruteForceOutput.similarItemDF.get
+    val kmeansResults = kdTreeOutput.similarItemDF.get
+
+    val n = bruteForceResults.count()
+
+    kmeansResults.count() should be (n)
+
+    val a = bruteForceResults.map(r => r.getString(0) -> (r.getString(1), r.getDouble(2))).groupByKey()
+    val b = kmeansResults.map(r => r.getString(0) -> (r.getString(1), r.getDouble(2))).groupByKey()
+
+    val map = a.join(b)
+        .map { case (_, (tr, te)) =>
+          ContinuousEvaluator.getAveragePrecision(
+            te.toSeq.sortBy(-_._2).map(_._1).toArray,
+            tr.toSeq.sortBy(-_._2).map(_._1).toArray
+          )
+        }
+        .mean()
+
+    println(s"map: $map")
+
+    map should be > 0.7
   }
 
 }
