@@ -17,7 +17,7 @@ object Extensions {
 
     def retryWith(n: Int)(fallback: => Future[T]): Future[T] = n match {
       case i if i > 1 => f recoverWith {
-        case t: Throwable => logger.info(s"Future.retryWith: $n")
+        case t: Throwable => logger.info(s"Future.retryWith: $t, $n")
           f.retryWith(i - 1)(fallback);
       }
       case _ => fallback
