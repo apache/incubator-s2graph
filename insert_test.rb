@@ -6,7 +6,7 @@ rnd = Random.new
 label_name = :insert_test
 edges = []
 
-limit = 200000
+limit = 20000
 # from = rnd.rand(limit)
 from = 1
 
@@ -36,14 +36,14 @@ if cmd == "insert"
   puts system("bash ./label.sh")
   sleep(3)
 
-  uri = URI.parse("http://alpha-s2graph.daumkakao.io:9000/graphs/edges/bulk")
+  uri = URI.parse("http://localhost:9000/graphs/edges/bulk")
   ths = edges.each_slice(1000).map do |arr_of_edges|
     puts arr_of_edges.join("\n")
     send(uri, arr_of_edges.join("\n"), "text/plain")
   end
 elsif cmd == "delete"
-  deleteRequest = [{"timestamp": limit + 1, "label": "insert_test", "ids": [from]}]
-  deleteUri = URI.parse("http://alpha-s2graph.daumkakao.io:9000/graphs/edges/deleteAll")
+  deleteRequest = [{"timestamp" => limit + 1, "label" => "insert_test", "ids" => [from]}]
+  deleteUri = URI.parse("http://localhost:9000/graphs/edges/deleteAll")
 
   puts deleteUri
   puts deleteRequest.to_json
