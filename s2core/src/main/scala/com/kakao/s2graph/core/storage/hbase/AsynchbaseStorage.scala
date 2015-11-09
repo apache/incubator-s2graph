@@ -477,16 +477,16 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
   }
 
-  private def getDegreeVal(queryResult: QueryResult): Long = {
-    queryResult.edgeWithScoreLs.headOption.map { head =>
-      head.edge.propsWithTs.get(LabelMeta.degreeSeq).map(_.innerVal.toString.toLong).getOrElse(Long.MinValue)
-    } getOrElse(Long.MinValue)
+  private def getDegreeVal(queryResult: QueryResult): Option[Long] = {
+    queryResult.edgeWithScoreLs.headOption.flatMap { head =>
+      head.edge.propsWithTs.get(LabelMeta.degreeSeq).map(_.innerVal.toString.toLong)
+    }
   }
 
   private def deleteAllFetchedEdgesLs(queryResultLs: Seq[QueryResult], requestTs: Long): Future[(Boolean, Boolean)] = {
     val futures = for {
       queryResult <- queryResultLs
-      degreeVal = getDegreeVal(queryResult) if degreeVal > 0
+      degreeVal <- getDegreeVal(queryResult) if degreeVal > 0
     } yield {
         queryResult.queryParam.label.schemaVersion match {
           case HBaseType.VERSION3 => deleteAllFetchedEdgesAsync(queryResult, requestTs)
