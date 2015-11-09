@@ -158,7 +158,7 @@ object EdgeController extends Controller with RequestParser {
     val maxRpcTimeout = 10000
     val edgeStep = 10000
     for {
-      ith <- (0 until (maxEdges / edgeStep) + 1)
+      ith <- (0 to (maxEdges / edgeStep) + 1)
     } yield {
       val queryParams = for {
         label <- labels
