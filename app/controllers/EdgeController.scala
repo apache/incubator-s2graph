@@ -1,14 +1,18 @@
 package controllers
 
 import actors.QueueActor
+import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls.Label
+import com.kakao.s2graph.core.mysqls.{LabelMeta, Label}
+import com.kakao.s2graph.core.storage.hbase.AsynchbaseStorage
+import com.kakao.s2graph.core.types.LabelWithDirection
 import com.kakao.s2graph.core.utils.logger
 import config.Config
 import org.apache.kafka.clients.producer.ProducerRecord
 import play.api.libs.json._
 import play.api.mvc.{Controller, Result}
 
+import scala.collection.Seq
 import scala.concurrent.Future
 
 object EdgeController extends Controller with RequestParser {
@@ -18,6 +22,7 @@ object EdgeController extends Controller with RequestParser {
   import play.api.libs.concurrent.Execution.Implicits._
 
   private val s2: Graph = com.kakao.s2graph.rest.Global.s2graph
+  private val maxValidEdgesForDeleteAll = Config.MAX_VALID_DELETE_ALL_SIZE
 
   def tryMutates(jsValue: JsValue, operation: String, withWait: Boolean = false): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
@@ -145,7 +150,67 @@ object EdgeController extends Controller with RequestParser {
     deleteAllInner(request.body)
   }
 
+  def toQuery(srcVertices: Seq[Vertex],
+              labels: Seq[Label],
+              dir: Int,
+              ts: Long): Query = {
+    val maxEdges = 1000000
+    val queryParams = for {
+      label <- labels
+    } yield {
+        val labelWithDir = LabelWithDirection(label.id.get, dir)
+        QueryParam(labelWithDir).limit(0, maxEdges).duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
+      }
+
+    val step = Step(queryParams.toList)
+    Query(srcVertices, Vector(step))
+  }
+
+  private def validateDeleteAll(queryResult: QueryResult): Long = {
+    val degreeVal = queryResult.edgeWithScoreLs.headOption.map { head =>
+      head.edge.propsWithTs.get(LabelMeta.degreeSeq).map { value => value.innerVal.toString.toLong }.getOrElse(Long.MinValue)
+    } getOrElse(Long.MinValue)
+
+    if (degreeVal > maxValidEdgesForDeleteAll) throw new RuntimeException(s"too large number of edges on this. $degreeVal")
+    degreeVal
+  }
+
+
   def deleteAllInner(jsValue: JsValue) = {
+    for {
+      json <- jsValue.as[Seq[JsValue]]
+    } {
+      val labelName = (json \ "label").as[String]
+      val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil)
+      val direction = (json \ "direction").asOpt[String].getOrElse("out")
+      val dir = GraphUtil.directions.getOrElse(direction, throw new BadQueryException("direction is not valid."))
+      val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
+      val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
+      val vertices = toVertices(labelName, direction, ids)
+      /** logging for delete all request */
+      val query = toQuery(vertices, labels, dir, ts)
+      for {
+        queryResultLs <- s2.getEdges(query)
+      } {
+        for {
+          queryResult <- queryResultLs
+          degreeVal = validateDeleteAll(queryResult)
+          edgeWithScore <- queryResult.edgeWithScoreLs
+          (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
+        } {
+          logger.info(s"deleteAll for $degreeVal")
+          val duplicateEdge = edge.copy(op = GraphUtil.operations("delete"), ts = ts, version = ts)
+          QueueActor.router ! duplicateEdge
+        }
+      }
+    }
+    Future.successful().map { rst =>
+      logger.debug(s"deleteAllInner: $rst")
+      Ok(s"deleted... ${rst.toString()}")
+    }
+  }
+
+  def deleteAllInnerWithWait(jsValue: JsValue) = {
     val deleteResults = Future.sequence(jsValue.as[Seq[JsValue]] map { json =>
 
       val labelName = (json \ "label").as[String]
