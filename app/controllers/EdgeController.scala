@@ -22,7 +22,8 @@ object EdgeController extends Controller with RequestParser {
   import play.api.libs.concurrent.Execution.Implicits._
 
   private val s2: Graph = com.kakao.s2graph.rest.Global.s2graph
-  private val maxValidEdgesForDeleteAll = Config.MAX_VALID_DELETE_ALL_SIZE
+  private val MaxValidDeleteAllSize = Config.MAX_VALID_DELETE_ALL_SIZE
+  private val RpcTimeoutDeleteAll = Config.RPC_TIMEOUT_DELETE_ALL
 
   def tryMutates(jsValue: JsValue, operation: String, withWait: Boolean = false): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
@@ -154,8 +155,8 @@ object EdgeController extends Controller with RequestParser {
               labels: Seq[Label],
               dir: Int,
               ts: Long): Query = {
-    val maxEdges = 1000000
-    val maxRpcTimeout = 30000
+    val maxEdges = MaxValidDeleteAllSize
+    val maxRpcTimeout = RpcTimeoutDeleteAll
 
     val queryParams = for {
       label <- labels
@@ -174,7 +175,7 @@ object EdgeController extends Controller with RequestParser {
       head.edge.propsWithTs.get(LabelMeta.degreeSeq).map { value => value.innerVal.toString.toLong }.getOrElse(Long.MinValue)
     } getOrElse (Long.MinValue)
 
-    if (degreeVal > maxValidEdgesForDeleteAll) throw new RuntimeException(s"too large number of edges on this. $degreeVal")
+    if (degreeVal > MaxValidDeleteAllSize) throw new RuntimeException(s"too large number of edges on this. $degreeVal")
     degreeVal
   }
 
