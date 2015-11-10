@@ -6,7 +6,7 @@ rnd = Random.new
 label_name = :insert_test
 edges = []
 
-limit = 200000
+limit = 500000
 # from = rnd.rand(limit)
 from = 1
 

@@ -13,7 +13,7 @@ import play.api.mvc.{Controller, Result}
 
 import scala.collection.Seq
 import scala.concurrent.Future
-import scala.util.Success
+import scala.util.{Failure, Success}
 
 object EdgeController extends Controller with RequestParser {
 
@@ -22,8 +22,6 @@ object EdgeController extends Controller with RequestParser {
   import play.api.libs.concurrent.Execution.Implicits._
 
   private val s2: Graph = com.kakao.s2graph.rest.Global.s2graph
-  private val MaxValidDeleteAllSize = Config.MAX_VALID_DELETE_ALL_SIZE
-  private val RpcTimeoutDeleteAll = Config.RPC_TIMEOUT_DELETE_ALL
 
   def tryMutates(jsValue: JsValue, operation: String, withWait: Boolean = false): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
@@ -148,12 +146,7 @@ object EdgeController extends Controller with RequestParser {
   }
 
   def deleteAll() = withHeaderAsync(jsonParser) { request =>
-    try {
-      deleteAllInner(request.body, withWait = false)
-    } catch {
-      case ex: Exception =>
-        Future.successful(BadRequest)
-    }
+    deleteAllInner(request.body, withWait = false)
   }
 
   def deleteAllInner(jsValue: JsValue, withWait: Boolean) = {
@@ -194,8 +187,28 @@ object EdgeController extends Controller with RequestParser {
         ExceptionHandler.enqueues(kafkaMessages)
         throw ex
       }
-      if (withWait) future else Future.successful(true)
-
+      if (withWait) {
+        future.map { ret =>
+          if (!ret) {
+            logger.error(s"[Error]: deleteAllInner failed.")
+            val kafkaMessages = for {
+              id <- ids
+              label <- labels
+            } yield {
+                val tsv = Seq(ts, "deleteAll", "e", id, id, label.label, "{}", direction).mkString("\t")
+                val topic = failTopic
+                val kafkaMsg = KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
+                kafkaMsg
+              }
+            ExceptionHandler.enqueues(kafkaMessages)
+            false
+          } else {
+            true
+          }
+        }
+      } else {
+        Future.successful(true)
+      }
     })
 
     deleteResults.map { rst =>
@@ -203,34 +216,4 @@ object EdgeController extends Controller with RequestParser {
       Ok(s"deleted... ${rst.toString()}")
     }
   }
-//
-//  def deleteAllInnerWithWait(jsValue: JsValue) = {
-//    val deleteResults = Future.sequence(jsValue.as[Seq[JsValue]] map { json =>
-//
-//      val labelName = (json \ "label").as[String]
-//      val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil)
-//      val direction = (json \ "direction").asOpt[String].getOrElse("out")
-//
-//      val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
-//      val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
-//      val vertices = toVertices(labelName, direction, ids)
-//
-//      /** logging for delete all request */
-//      for {
-//        id <- ids
-//        label <- labels
-//      } {
-//        val tsv = Seq(ts, "deleteAll", "e", id, id, label.label, "{}", direction).mkString("\t")
-//        val topic = if (label.isAsync) Config.KAFKA_LOG_TOPIC_ASYNC else Config.KAFKA_LOG_TOPIC
-//        val kafkaMsg = KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
-//        ExceptionHandler.enqueue(kafkaMsg)
-//      }
-//      s2.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts)
-//    })
-//
-//    deleteResults.map { rst =>
-//      logger.debug(s"deleteAllInner: $rst")
-//      Ok(s"deleted... ${rst.toString()}")
-//    }
-//  }
 }

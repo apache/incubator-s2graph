@@ -65,7 +65,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
   private val clientFlushInterval = config.getInt("hbase.rpcs.buffered_flush_interval").toString().toShort
   val MaxRetryNum = config.getInt("max.retry.number")
-  val MaxValidEdgeListSize = config.getInt("max.valid.delete.all.size")
+  val DeleteAllFetchSize = config.getInt("delete.all.fetch.size")
 
   /**
    * Serializer/Deserializer
@@ -379,118 +379,63 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
   }
 
-  private def deleteAllFetchedEdgesAsync(queryResult: QueryResult,
-                                         requestTs: Long): Future[Boolean] = {
-    val queryResultToDelete = queryResult.edgeWithScoreLs.filter { edgeWithScore =>
-      (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
-    }
-
-    if (queryResultToDelete.isEmpty) {
-      Future.successful(true)
-    } else {
-      val edgesToDelete = queryResultToDelete.flatMap { edgeWithScore =>
-        edgeWithScore.edge.copy(op = GraphUtil.operations("delete"), ts = requestTs, version = requestTs).relatedEdges
-      }
-      mutateEdges(edgesToDelete, withWait = true).map { rets => rets.forall(identity) }
-    }
-  }
 
   private def deleteAllFetchedEdgesAsyncOld(queryResult: QueryResult,
                                             requestTs: Long,
                                             retryNum: Int): Future[Boolean] = {
     val queryParam = queryResult.queryParam
-    val queryResultToDelete = queryResult.edgeWithScoreLs.filter { edgeWithScore =>
-      val (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-      (edge.ts < requestTs) && !edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
-    }
-    if (queryResultToDelete.isEmpty) {
-      Future.successful(true)
-    } else {
-      if (retryNum < 1) {
-        queryResult.edgeWithScoreLs.foreach { edgeWithScore =>
-          val (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-          val copiedEdge = edge.copy(op = GraphUtil.operations("delete"), ts = requestTs, version = requestTs)
-          logger.error(s"deleteAll failed: $copiedEdge")
-          ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = copiedEdge))
+    val zkQuorum = queryParam.label.hbaseZkAddr
+    val futures = for {
+      edgeWithScore <- queryResult.edgeWithScoreLs
+      (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
+    } yield {
+        /** reverted direction */
+        val reversedIndexedEdgesMutations = edge.duplicateEdge.edgesWithIndex.flatMap { indexedEdge =>
+          mutationBuilder.buildDeletesAsync(indexedEdge) ++ mutationBuilder.buildIncrementsAsync(indexedEdge, -1L)
         }
-        Future.successful(false)
-      } else {
-        val futures: Seq[Future[Boolean]] =
-          for {
-            edgeWithScore <- queryResultToDelete
-            (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-            duplicateEdge = edge.duplicateEdge.copy(op = GraphUtil.operations("delete"))
-            //        version = edge.version + Edge.incrementVersion // this lead to forcing delete on fetched edges
-            version = requestTs
-            copiedEdge = edge.copy(op = GraphUtil.operations("delete"), ts = requestTs, version = version)
-            hbaseZkAddr = queryResult.queryParam.label.hbaseZkAddr
-          } yield {
-            /** reverted direction */
-            val indexedEdgesDeletes = duplicateEdge.edgesWithIndex.flatMap { indexedEdge =>
-              val delete = mutationBuilder.buildDeletesAsync(indexedEdge)
-              logger.debug(s"indexedEdgeDelete: $delete")
-              delete
-            }
-
-            val snapshotEdgeDelete = mutationBuilder.buildDeleteAsync(duplicateEdge.toSnapshotEdge)
-
-            val indexedEdgesIncrements = duplicateEdge.edgesWithIndex.flatMap { indexedEdge =>
-              val incr = mutationBuilder.buildIncrementsAsync(indexedEdge, -1L)
-              logger.debug(s"indexedEdgeIncr: $incr")
-              incr
-            }
-
-            /** forward direction */
-            val copyEdgeIndexedEdgesDeletes = copiedEdge.edgesWithIndex.flatMap { e => mutationBuilder.buildDeletesAsync(e) }
-
-            val deletesForThisEdge = snapshotEdgeDelete ++ indexedEdgesDeletes ++ copyEdgeIndexedEdgesDeletes
-
-            writeAsyncSimple(queryParam.label.hbaseZkAddr, deletesForThisEdge, withWait = true).flatMap { rets =>
-              if (!rets) Future.successful(false)
-              else writeAsyncSimple(queryParam.label.hbaseZkAddr, indexedEdgesIncrements, withWait = true)
-            }
-          }
-
-        Future.sequence(futures).flatMap { duplicateEdgeDeletedLs =>
-          val edgesToRetry = for {
-            (edgeWithScore, duplicatedEdgeDeleted) <- queryResultToDelete.zip(duplicateEdgeDeletedLs) if !duplicatedEdgeDeleted
-          } yield edgeWithScore
-
-          val deletedEdgesNum = queryResultToDelete.size - edgesToRetry.size
-          //        val deletedEdgeNum = size - edgesToRetry.size
-          val queryResultToRetry = queryResult.copy(edgeWithScoreLs = edgesToRetry)
-          // not sure if increment rpc itset fail, then should we retry increment also?
-          if (deletedEdgesNum > 0) {
-            // decrement on current queryResult`s start vertex`s degree
-            val (edge, score) = EdgeWithScore.unapply(queryResultToDelete.head).get
-            val incrs = edge.edgesWithIndex.flatMap { indexedEdge => mutationBuilder.buildIncrementsAsync(indexedEdge, -1 * deletedEdgesNum) }
-
-            writeAsyncSimpleRetry(queryParam.label.hbaseZkAddr, incrs, withWait = true)
-          }
-          if (edgesToRetry.isEmpty) {
-            Future.successful(true)
-          } else {
-            deleteAllFetchedEdgesAsyncOld(queryResultToRetry, requestTs, retryNum - 1)
-          }
+        val reversedSnapshotEdgeMutations = mutationBuilder.buildDeleteAsync(edge.toSnapshotEdge)
+        val forwardIndexedEdgeMutations = edge.edgesWithIndex.flatMap { indexedEdge =>
+          mutationBuilder.buildDeletesAsync(indexedEdge) ++ mutationBuilder.buildIncrementsAsync(indexedEdge, -1L)
         }
+        val mutations = reversedIndexedEdgesMutations ++ reversedSnapshotEdgeMutations ++ forwardIndexedEdgeMutations
+        writeAsyncSimple(zkQuorum, mutations, withWait = true)
       }
-    }
+
+    Future.sequence(futures).map { rets => rets.forall(identity) }
   }
 
-  private def getDegreeVal(queryResult: QueryResult): Option[Long] = {
-    queryResult.edgeWithScoreLs.headOption.flatMap { head =>
-      head.edge.propsWithTs.get(LabelMeta.degreeSeq).map(_.innerVal.toString.toLong)
+  private def buildEdgesToDelete(queryResult: QueryResult, requestTs: Long): QueryResult = {
+    val edgeWithScoreLs = queryResult.edgeWithScoreLs.filter { edgeWithScore =>
+      (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
+    }.map { edgeWithScore =>
+      val copiedEdge = edgeWithScore.edge.copy(op = GraphUtil.operations("delete"), ts = requestTs, version = requestTs)
+      edgeWithScore.copy(edge = copiedEdge)
     }
+    queryResult.copy(edgeWithScoreLs = edgeWithScoreLs)
   }
 
   private def deleteAllFetchedEdgesLs(queryResultLs: Seq[QueryResult], requestTs: Long): Future[(Boolean, Boolean)] = {
+    queryResultLs.foreach { queryResult =>
+      if (queryResult.isFailure) throw new RuntimeException("fetched result is fallback.")
+    }
+
     val futures = for {
       queryResult <- queryResultLs
-      degreeVal <- getDegreeVal(queryResult) if degreeVal > 0
+      deleteQueryResult = buildEdgesToDelete(queryResult, requestTs) if deleteQueryResult.edgeWithScoreLs.nonEmpty
     } yield {
         queryResult.queryParam.label.schemaVersion match {
-          case HBaseType.VERSION3 => deleteAllFetchedEdgesAsync(queryResult, requestTs)
-          case _ => deleteAllFetchedEdgesAsyncOld(queryResult, requestTs, MaxRetryNum)
+          case HBaseType.VERSION3 =>
+            /**
+             * read: snapshotEdge on queryResult = O(N)
+             * write: N x (relatedEdges x indices(indexedEdge) + 1(snapshotEdge))
+             */
+            mutateEdges(deleteQueryResult.edgeWithScoreLs.map(_.edge), withWait = true).map { rets => rets.forall(identity) }
+          case _ =>
+            /**
+             * read: x
+             * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
+             */
+            deleteAllFetchedEdgesAsyncOld(queryResult, requestTs, MaxRetryNum)
         }
       }
     if (futures.isEmpty) {
@@ -501,15 +446,20 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
   }
 
-  def deleteAllAdjacentEdgesInner(query: Query, requestTs: Long): Future[(Boolean, Boolean)] = {
-    for {
+  def fetchAndDeleteAll(query: Query, requestTs: Long): Future[(Boolean, Boolean)] = {
+    val future = for {
       queryResultLs <- getEdges(query)
       (allDeleted, ret) <- deleteAllFetchedEdgesLs(queryResultLs, requestTs)
     } yield {
-      (allDeleted, ret)
-//      if (!ret) throw new RuntimeException("deleteAllAdjacentEdgesInner failed.")
-//      else ret
+        (allDeleted, ret)
+      }
+    Extensions.retryOnFailure(MaxRetryNum) {
+      future
+    } {
+      logger.error(s"fetch and deleteAll failed.")
+      (true, false)
     }
+
   }
 
   def deleteAllAdjacentEdges(srcVertices: List[Vertex],
@@ -521,18 +471,18 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       label <- labels
     } yield {
         val labelWithDir = LabelWithDirection(label.id.get, dir)
-        QueryParam(labelWithDir).limit(0, 10000).duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
+        QueryParam(labelWithDir).limit(0, DeleteAllFetchSize).duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
       }
 
     val step = Step(queryParams.toList)
     val q = Query(srcVertices, Vector(step))
 
-//    Extensions.retryOnSuccessWithBackoff(MaxRetryNum, Random.nextInt(MaxBackOff) + 1) {
+    //    Extensions.retryOnSuccessWithBackoff(MaxRetryNum, Random.nextInt(MaxBackOff) + 1) {
     Extensions.retryOnSuccess(MaxRetryNum) {
-      deleteAllAdjacentEdgesInner(q, requestTs)
+      fetchAndDeleteAll(q, requestTs)
     } { case (allDeleted, deleteSuccess) =>
-      allDeleted
-    }.map { case (allDeleted, deleteSuccess) => allDeleted }
+      allDeleted && deleteSuccess
+    }.map { case (allDeleted, deleteSuccess) => allDeleted && deleteSuccess }
   }
 
   def flush(): Unit = clients.foreach { client =>
