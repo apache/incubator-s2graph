@@ -407,7 +407,7 @@ object AdminController extends Controller with RequestParser {
     request.body.asJson.map(_.validate[HTableParams] match {
       case JsSuccess(hTableParams, _) => {
         Management.createTable(hTableParams.cluster, hTableParams.hTableName, List("e", "v"), hTableParams.preSplitSize, hTableParams.hTableTTL, hTableParams.compressionAlgorithm.getOrElse(Management.defaultCompressionAlgorithm))
-        logger.error(hTableParams.toString())
+        logger.info(hTableParams.toString())
         ok(s"HTable was created.")
       }
       case err@JsError(_) => bad(Json.toJson(err))
