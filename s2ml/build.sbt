@@ -1,3 +1,4 @@
+import sbt.Keys._
 import sbtassembly.Plugin.AssemblyKeys._
 
 name := "s2ml"
@@ -7,6 +8,13 @@ scalacOptions ++= Seq("-deprecation")
 val sparkVersion = "1.5.1"
 
 resolvers += "Sonatype OSS Releases" at "http://oss.sonatype.org/content/repositories/releases/"
+
+projectDependencies :=
+    Seq((projectID in "s2core").value
+        exclude("org.mortbay.jetty", "*") exclude("javax.xml.stream", "*") exclude("javax.servlet", "*"),
+      (projectID in "spark").value
+          exclude("s2.spark", "WithKafka")
+    )
 
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
