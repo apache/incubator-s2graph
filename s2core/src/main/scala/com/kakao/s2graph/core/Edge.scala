@@ -421,8 +421,8 @@ object Edge extends JSONParser {
   def buildReplace(invertedEdge: Option[Edge], requestEdge: Edge, newPropsWithTs: Map[Byte, InnerValLikeWithTs]): EdgeMutate = {
 
     val edgesToDelete = invertedEdge match {
-//      case Some(e) if e.op != GraphUtil.operations("delete") =>
-      case Some(e) if !allPropsDeleted(e.propsWithTs) =>
+      case Some(e) if e.op != GraphUtil.operations("delete") =>
+//      case Some(e) if !allPropsDeleted(e.propsWithTs) =>
         e.relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
       //      case Some(e) => e.edgesWithIndexValid
       case _ =>

@@ -25,7 +25,7 @@ object AsynchbaseStorage {
   val vertexCf = HSerializable.vertexCf
   val edgeCf = HSerializable.edgeCf
   val emptyKVs = new util.ArrayList[KeyValue]()
-  private val MaxBackOff = 10
+
 
   def makeClient(config: Config, overrideKv: (String, String)*) = {
     val asyncConfig: org.hbase.async.Config = new org.hbase.async.Config()
@@ -65,6 +65,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
   private val clientFlushInterval = config.getInt("hbase.rpcs.buffered_flush_interval").toString().toShort
   val MaxRetryNum = config.getInt("max.retry.number")
+  val MaxBackOff = config.getInt("max.back.off")
   val DeleteAllFetchSize = config.getInt("delete.all.fetch.size")
 
   /**
@@ -268,7 +269,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
   }
 
-  private def commitPending(snapshotEdgeOpt: Option[Edge]): Future[Boolean] = {
+  private def commitPending(snapshotEdgeOpt: Option[Edge], edge: Edge): Future[Boolean] = {
     val pendingEdges =
       if (snapshotEdgeOpt.isEmpty || snapshotEdgeOpt.get.pendingEdgeOpt.isEmpty) Nil
       else Seq(snapshotEdgeOpt.get.pendingEdgeOpt.get)
@@ -276,22 +277,24 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     if (pendingEdges == Nil) Future.successful(true)
     else {
       val snapshotEdge = snapshotEdgeOpt.get
-      // 1. commitPendingEdges
-      // after: state without pending edges
-      // before: state with pending edges
 
       val after = mutationBuilder.buildPutAsync(snapshotEdge.toSnapshotEdge.withNoPendingEdge()).head.asInstanceOf[PutRequest]
       val before = snapshotEdgeSerializer(snapshotEdge.toSnapshotEdge).toKeyValues.head.value
+      val beforePut = mutationBuilder.buildPutAsync(snapshotEdge.toSnapshotEdge).head.asInstanceOf[PutRequest]
+
+      val pendingEdgeMutations = snapshotEdge.pendingEdgeOpt match {
+        case None => Nil
+        case Some(pendingEdge) =>
+          val (_, edgeMutate) = Edge.buildOperation(snapshotEdgeOpt, Seq(pendingEdge))
+          mutationBuilder.indexedEdgeMutations(edgeMutate) ++ mutationBuilder.increments(edgeMutate)
+      }
       for {
-        pendingEdgesLock <- mutateEdges(pendingEdges, withWait = true)
-        ret <- if (pendingEdgesLock.forall(identity)) clientWithFlush.compareAndSet(after, before).toFuture.map(_.booleanValue())
-        else {
-//          logger.error(s"mutate edges on commitPending failed.")
-          Future.successful(false)
-        }
+        lock <- client.compareAndSet(after, before).toFuture.map(_.booleanValue())
+        mutated <- if (lock) writeAsyncSimple(edge.label.hbaseZkAddr, pendingEdgeMutations, withWait = true) else Future.successful(false)
+        ret <- if (mutated) client.compareAndSet(beforePut, after.value()).toFuture.map(_.booleanValue()) else Future.successful(false)
       } yield {
-//        if (!ret) logger.error(s"compareAndSet on commitPending failed. \nAfter: ${after.value().toList}\nBefore: ${before.toList}")
-//        else logger.error(s"compareAndSet on commitPending success.")
+        //        if (!ret) logger.error(s"compareAndSet on commitPending failed. \nAfter: ${after.value().toList}\nBefore: ${before.toList}")
+        //        else logger.error(s"compareAndSet on commitPending success.")
         ret
       }
     }
@@ -313,7 +316,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       }
       def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
         if (!predicate) Future.successful(false)
-        else writeAsyncSimpleRetry(label.hbaseZkAddr, mutationBuilder.increments(edgeUpdate), withWait = true)
+        else writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.increments(edgeUpdate), withWait = true)
       }
 
       val fallback = Future.successful(false)
@@ -327,11 +330,11 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
        * note thta step 4 never fail to avoid multiple increments.
        */
       for {
-        locked <- clientWithFlush.compareAndSet(lock, before).toFuture
+        locked <- client.compareAndSet(lock, before).toFuture
         indexEdgesUpdated <- indexedEdgeMutationFuture(locked)
-        releaseLock <- if (indexEdgesUpdated) clientWithFlush.compareAndSet(after, lock.value()).toFuture else javaFallback
-        indexEdgesIncremented <- if (releaseLock) indexedEdgeIncrementFuture(releaseLock) else fallback
-      } yield indexEdgesIncremented
+        indexEdgesIncremented <- indexedEdgeIncrementFuture(indexEdgesUpdated)
+        releaseLock <- if (indexEdgesIncremented) client.compareAndSet(after, lock.value()).toFuture else javaFallback
+      } yield releaseLock
     }
   }
 
@@ -356,7 +359,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         if (edgeUpdate.newInvertedEdge.isEmpty) {
           Future.successful(true)
         } else {
-          commitPending(snapshotEdgeOpt).flatMap { case pendingAllCommitted =>
+          commitPending(snapshotEdgeOpt, newEdge).flatMap { case pendingAllCommitted =>
             if (pendingAllCommitted) {
               commitUpdate(newEdge)(snapshotEdgeOpt, edgeUpdate).flatMap { case updateCommitted =>
                 if (!updateCommitted) {

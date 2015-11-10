@@ -142,8 +142,8 @@ class StrongLabelDeleteSpec extends SpecCommon {
     val labelName = testLabelName2
     val maxTgtId = 10
     val batchSize = 100
-    val testNum = 5
-    val numOfBatch = 100
+    val testNum = 20
+    val numOfBatch = 1000
 
     def testInner(startTs: Long, src: Long) = {
       val labelName = testLabelName2
@@ -201,47 +201,47 @@ class StrongLabelDeleteSpec extends SpecCommon {
       }
     }
 
-    "update delete 2" in {
-      running(FakeApplication()) {
-        val src = System.currentTimeMillis()
-        var ts = 0L
-
-        val ret = for {
-          i <- (0 until testNum)
-        } yield {
-            val (ret, lastTs) = testInner(ts, src)
-            val deletedAt = lastTs + 1
-            val deletedAt2 = lastTs + 2
-            ts = deletedAt2 + 1 // nex start ts
-
-            ret must beEqualTo(true)
-
-            logger.error(s"delete timestamp: $deletedAt")
-
-            val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
-            val deleteAllRequest2 = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt2))
-
-            val deleteRet = EdgeController.deleteAllInner(deleteAllRequest, withWait = true)
-            val deleteRet2 = EdgeController.deleteAllInner(deleteAllRequest2, withWait = true)
-
-            contentAsString(deleteRet)
-            contentAsString(deleteRet2)
-
-            val result = getEdges(query(id = src))
-            println(result)
-
-            val resultEdges = (result \ "results").as[Seq[JsValue]]
-            logger.error(Json.toJson(resultEdges).toString)
-            resultEdges.isEmpty must beEqualTo(true)
-
-            val degreeAfterDeleteAll = getDegree(result)
-            degreeAfterDeleteAll must beEqualTo(0)
-            true
-          }
-
-        ret.forall(identity)
-      }
-    }
+//    "update delete 2" in {
+//      running(FakeApplication()) {
+//        val src = System.currentTimeMillis()
+//        var ts = 0L
+//
+//        val ret = for {
+//          i <- (0 until testNum)
+//        } yield {
+//            val (ret, lastTs) = testInner(ts, src)
+//            val deletedAt = lastTs + 1
+//            val deletedAt2 = lastTs + 2
+//            ts = deletedAt2 + 1 // nex start ts
+//
+//            ret must beEqualTo(true)
+//
+//            logger.error(s"delete timestamp: $deletedAt")
+//
+//            val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
+//            val deleteAllRequest2 = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt2))
+//
+//            val deleteRet = EdgeController.deleteAllInner(deleteAllRequest, withWait = true)
+//            val deleteRet2 = EdgeController.deleteAllInner(deleteAllRequest2, withWait = true)
+//
+//            contentAsString(deleteRet)
+//            contentAsString(deleteRet2)
+//
+//            val result = getEdges(query(id = src))
+//            println(result)
+//
+//            val resultEdges = (result \ "results").as[Seq[JsValue]]
+//            logger.error(Json.toJson(resultEdges).toString)
+//            resultEdges.isEmpty must beEqualTo(true)
+//
+//            val degreeAfterDeleteAll = getDegree(result)
+//            degreeAfterDeleteAll must beEqualTo(0)
+//            true
+//          }
+//
+//        ret.forall(identity)
+//      }
+//    }
 
     /** this test stress out test on degree
       * when contention is low but number of adjacent edges are large */
