@@ -359,6 +359,7 @@ object Edge extends JSONParser {
       ret
     } else {
       var shouldReplaceCnt = 0
+      val maxTsInNewProps = if (oldPropsWithTs.isEmpty) oldTs else  oldPropsWithTs.map(kv => kv._2.ts).max
       var prevPropsWithTs = oldPropsWithTs
       var lastOp = GraphUtil.operations("insert")
       var lastTs = 0L
@@ -386,7 +387,7 @@ object Edge extends JSONParser {
         (requestEdges.head, EdgeMutate())
       } else {
 
-        val maxTsInNewProps = prevPropsWithTs.map(kv => kv._2.ts).max
+
         val newOp = if (maxTsInNewProps > lastTs) {
           invertedEdge match {
             case None => lastOp
@@ -416,8 +417,8 @@ object Edge extends JSONParser {
   def buildReplace(invertedEdge: Option[Edge], requestEdge: Edge, newPropsWithTs: Map[Byte, InnerValLikeWithTs]): EdgeMutate = {
 
     val edgesToDelete = invertedEdge match {
-      //      case Some(e) if e.op != GraphUtil.operations("delete") =>
-      case Some(e) if !allPropsDeleted(e.propsWithTs) =>
+      case Some(e) if e.op != GraphUtil.operations("delete") =>
+//      case Some(e) if !allPropsDeleted(e.propsWithTs) =>
         e.relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
       //      case Some(e) => e.edgesWithIndexValid
       case _ =>
