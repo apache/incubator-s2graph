@@ -12,8 +12,8 @@ import s2.counter.core._
 import s2.models.Counter
 import s2.util.CartesianProduct
 
-import scala.concurrent.{ExecutionContext, Future}
-import scalaj.http.Http
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration._
 
 /**
  * Created by hsleep(honeysleep@gmail.com) on 15. 8. 19..
@@ -36,33 +36,33 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
   private val labelPostfix = "_counts"
 
   val s2graphUrl = s2config.GRAPH_URL
+  val graphOp = new GraphOperation(config)
 
   import ExactStorageGraph._
 
   override def update(policy: Counter, counts: Seq[(ExactKeyTrait, ExactValueMap)]): Map[ExactKeyTrait, ExactValueMap] = {
+    import scala.concurrent.ExecutionContext.Implicits.global
+
     val (keyWithEq, reqJsLs) = toIncrementCountRequests(policy, counts).unzip(x => ((x._1, x._2), x._3))
-    val reqJsStr = Json.toJson(reqJsLs).toString()
-    val response = Http(s"$s2graphUrl/graphs/edges/incrementCount")
-      .postData(reqJsStr)
-      .header("content-type", "application/json").asString
 
-    if (response.isSuccess) {
-      val respJs = Json.parse(response.body)
-      val respSeq = respJs.as[Seq[RespGraph]]
+    val future = wsClient.url(s"$s2graphUrl/graphs/edges/incrementCount").post(Json.toJson(reqJsLs)).map { resp =>
+      resp.status match {
+        case HttpStatus.SC_OK =>
+          val respSeq = resp.json.as[Seq[RespGraph]]
 
-      val keyWithEqResult = {
-        for {
-          ((key, eq), RespGraph(success, result)) <- keyWithEq.zip(respSeq)
-        } yield {
-          (key, (eq, result))
-        }
-      }.groupBy(_._1).mapValues{ seq => seq.map(_._2).toMap }
-      keyWithEqResult
+          val keyWithEqResult = {
+            for {
+              ((key, eq), RespGraph(success, result)) <- keyWithEq.zip(respSeq)
+            } yield {
+              (key, (eq, result))
+            }
+          }.groupBy(_._1).mapValues{ seq => seq.map(_._2).toMap }
+          keyWithEqResult
+        case _ =>
+          throw new RuntimeException(s"update failed: $policy $counts")
+      }
     }
-    else {
-      log.warn(s"update failed: $policy $counts")
-      Nil.toMap
-    }
+    Await.result(future, 1 second)
   }
 
   def delete(policy: Counter, keys: Seq[ExactKeyTrait]): Unit = {
@@ -314,18 +314,12 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
         """.stripMargin
       val json = policy.dailyTtl.map(ttl => ttl * 24 * 60 * 60) match {
         case Some(ttl) =>
-          Json.parse(defaultJson).as[JsObject] + ("hTableTTL" -> Json.toJson(ttl)) toString()
+          Json.parse(defaultJson).as[JsObject] + ("hTableTTL" -> Json.toJson(ttl))
         case None =>
-          defaultJson
+          Json.parse(defaultJson)
       }
 
-      val response = Http(s"$s2graphUrl/graphs/createLabel")
-        .postData(json)
-        .header("content-type", "application/json").asString
-
-      if (response.isError) {
-        throw new RuntimeException(s"$json ${response.code} ${response.body}")
-      }
+      graphOp.createLabel(json)
     }
   }
 
@@ -335,12 +329,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
     if (existsLabel(policy)) {
       val counterLabelName = action + labelPostfix
 
-//      curl -XPUT localhost:9000/graphs/deleteLabel/friends
-      val response = Http(s"$s2graphUrl/graphs/deleteLabel/$counterLabelName").method("PUT").asString
-
-      if (response.isError) {
-        throw new RuntimeException(s"${response.code} ${response.body}")
-      }
+      graphOp.deleteLabel(counterLabelName)
     }
   }
 

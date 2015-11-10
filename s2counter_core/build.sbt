@@ -18,8 +18,7 @@ libraryDependencies ++= Seq(
   "mysql" % "mysql-connector-java" % "5.1.28",
   "org.scalikejdbc" %% "scalikejdbc" % "2.1.+",
   "org.specs2" %% "specs2-core" % "3.6" % "test",
-  "org.scalatest" %% "scalatest" % "2.2.1" % "test",
-  "org.scalaj" %% "scalaj-http" % "1.1.4"
+  "org.scalatest" %% "scalatest" % "2.2.1" % "test"
 ).map { moduleId =>
   moduleId.exclude("org.slf4j", "slf4j-log4j12")
 }

@@ -4,6 +4,7 @@ import com.kakao.s2graph.core.GraphUtil
 import com.kakao.s2graph.core.mysqls.Label
 import com.kakao.s2graph.core.types.HBaseType
 import com.typesafe.config.Config
+import org.apache.commons.httpclient.HttpStatus
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{JsObject, JsString, JsValue, Json}
 import s2.config.S2CounterConfig
@@ -12,13 +13,22 @@ import s2.counter.core.{RankingKey, RankingResult, RankingStorage}
 import s2.models.{Counter, CounterModel}
 import s2.util.{CollectionCache, CollectionCacheConfig}
 
+import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 import scala.util.hashing.MurmurHash3
-import scalaj.http.{Http, HttpResponse}
 
 /**
  * Created by shon on 7/28/15.
  */
+object RankingStorageGraph {
+  // using play-ws without play app
+  private val builder = new com.ning.http.client.AsyncHttpClientConfig.Builder()
+  private val wsClient = new play.api.libs.ws.ning.NingWSClient(builder.build)
+}
+
 class RankingStorageGraph(config: Config) extends RankingStorage {
+  import RankingStorageGraph._
+
   private[counter] val log = LoggerFactory.getLogger(this.getClass)
   private val s2config = new S2CounterConfig(config)
 
@@ -29,9 +39,10 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
   private val labelPostfix = "_topK"
 
   val s2graphUrl = s2config.GRAPH_URL
-//  val dateFormat = new SimpleDateFormat("yyyyMMddHHmm")
 
   val prepareCache = new CollectionCache[Option[Boolean]](CollectionCacheConfig(10000, 600))
+  val graphOp = new GraphOperation(config)
+  import scala.concurrent.ExecutionContext.Implicits.global
 
   private def makeBucketKey(rankingKey: RankingKey): String = {
     val eq = rankingKey.eq
@@ -48,19 +59,19 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
    * indexProps: ["time_unit", "time_value", "score"]
    */
   override def getTopK(key: RankingKey, k: Int): Option[RankingResult] = {
-    val edges = getEdges(key)
-    val values = toWithScoreLs(edges).take(k)
-    log.debug(edges.toString())
-    Some(RankingResult(0d, values))
+    getTopK(Seq(key), k).headOption.map(_._2)
   }
 
   override def getTopK(keys: Seq[RankingKey], k: Int): Seq[(RankingKey, RankingResult)] = {
-    for {
+    val futures = for {
       key <- keys
-      result <- getTopK(key, k)
     } yield {
-      (key, result)
+      getEdges(key).map { edges =>
+        key -> RankingResult(0d, toWithScoreLs(edges).take(k))
+      }
     }
+
+    Await.result(Future.sequence(futures), 10 seconds)
   }
 
   override def update(key: RankingKey, value: RankingValueMap, k: Int): Unit = {
@@ -68,54 +79,48 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
   }
 
   override def update(values: Seq[(RankingKey, RankingValueMap)], k: Int): Unit = {
-    val respLs = {
+    val futures = {
       for {
         (key, value) <- values
       } yield {
         // prepare dimension bucket edge
         checkAndPrepareDimensionBucket(key)
 
-        val edges = getEdges(key, "raw")
+        val future = getEdges(key, "raw").flatMap { edges =>
+          val prevRankingSeq = toWithScoreLs(edges)
+          val prevRankingMap: Map[String, Double] = prevRankingSeq.groupBy(_._1).map(_._2.sortBy(-_._2).head)
+          val currentRankingMap: Map[String, Double] = value.mapValues(_.score)
+          val mergedRankingSeq = (prevRankingMap ++ currentRankingMap).toSeq.sortBy(-_._2).take(k)
+          val mergedRankingMap = mergedRankingSeq.toMap
 
-        val prevRankingSeq = toWithScoreLs(edges)
-        val prevRankingMap: Map[String, Double] = prevRankingSeq.groupBy(_._1).map(_._2.sortBy(-_._2).head)
-        val currentRankingMap: Map[String, Double] = value.mapValues(_.score)
-        val mergedRankingSeq = (prevRankingMap ++ currentRankingMap).toSeq.sortBy(-_._2).take(k)
-        val mergedRankingMap = mergedRankingSeq.toMap
+          val bucketRankingSeq = mergedRankingSeq.groupBy { case (itemId, score) =>
+            // 0-index
+            GraphUtil.transformHash(MurmurHash3.stringHash(itemId)) % BUCKET_SHARD_COUNT
+          }.map { case (shardIdx, groupedRanking) =>
+            shardIdx -> groupedRanking.filter { case (itemId, _) => currentRankingMap.contains(itemId) }
+          }.toSeq
 
-        val bucketRankingSeq = mergedRankingSeq.groupBy { case (itemId, score) =>
-          // 0-index
-          GraphUtil.transformHash(MurmurHash3.stringHash(itemId)) % BUCKET_SHARD_COUNT
-        }.map { case (shardIdx, groupedRanking) =>
-          shardIdx -> groupedRanking.filter { case (itemId, _) => currentRankingMap.contains(itemId) }
-        }.toSeq
+          insertBulk(key, bucketRankingSeq).flatMap { _ =>
+            val duplicatedItems = prevRankingMap.filterKeys(s => currentRankingMap.contains(s))
+            val cutoffItems = prevRankingMap.filterKeys(s => !mergedRankingMap.contains(s))
+            val deleteItems = duplicatedItems ++ cutoffItems
 
-        val respInsert = insertBulk(key, bucketRankingSeq)
+            val keyWithEdgesLs = prevRankingSeq.map(_._1).zip(edges)
+            val deleteEdges = keyWithEdgesLs.filter{ case (s, _) => deleteItems.contains(s) }.map(_._2)
 
-        if (respInsert.isSuccess) {
-          val duplicatedItems = prevRankingMap.filterKeys(s => currentRankingMap.contains(s))
-          val cutoffItems = prevRankingMap.filterKeys(s => !mergedRankingMap.contains(s))
-          val deleteItems = duplicatedItems ++ cutoffItems
-
-          val keyWithEdgesLs = prevRankingSeq.map(_._1).zip(edges)
-          val deleteEdges = keyWithEdgesLs.filter{ case (s, _) => deleteItems.contains(s) }.map(_._2)
-          for {
-            resp <- deleteAll(deleteEdges)
-          } {
-            if (resp.isError) {
-              log.error(s"update failed deleteAll: $resp, $deleteEdges")
-            }
+            deleteAll(deleteEdges)
           }
         }
-        respInsert
+
+        future.onFailure {
+          case ex: Exception => log.error(s"$ex")
+        }
+
+        future
       }
     }
-    if (!respLs.forall(resp => resp.isSuccess)) {
-      val keys = values.map(_._1)
-      keys.zip(respLs).filter(_._2.isError).foreach { case (key, resp) =>
-        log.error(s"update failed insert: $resp $key")
-      }
-    }
+
+    Await.result(Future.sequence(futures), 10 seconds)
   }
 
   private def toWithScoreLs(edges: List[JsValue]): List[(String, Double)] = {
@@ -132,10 +137,10 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
     }
   }
 
-  private def insertBulk(key: RankingKey, newRankingSeq: Seq[(Int, Seq[(String, Double)])]): HttpResponse[String] = {
+  private def insertBulk(key: RankingKey, newRankingSeq: Seq[(Int, Seq[(String, Double)])]): Future[Boolean] = {
     val labelName = counterModel.findById(key.policyId).get.action + labelPostfix
     val timestamp: Long = System.currentTimeMillis
-    val events = {
+    val payload = Json.toJson {
       for {
         (shardIdx, rankingSeq) <- newRankingSeq
         (itemId, score) <- rankingSeq
@@ -155,37 +160,50 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
         )
       }
     }
-    val jsonStr = Json.toJson(events).toString()
-    log.debug(jsonStr)
-    val resp = Http(s"$s2graphUrl/graphs/edges/insertBulk")
-      .postData(jsonStr)
-      .header("content-type", "application/json").asString
-    if (resp.isError) {
-      log.error(s"errCode: ${resp.code}, body: ${resp.body}, query: $jsonStr")
+
+    wsClient.url(s"$s2graphUrl/graphs/edges/insertBulk").post(payload).map { resp =>
+      resp.status match {
+        case HttpStatus.SC_OK =>
+          true
+        case _ =>
+          throw new RuntimeException(s"failed insertBulk. errCode: ${resp.status}, body: ${resp.body}, query: $payload")
+      }
     }
-    resp
   }
 
-  private def deleteAll(edges: List[JsValue]): Seq[HttpResponse[String]]  = {
+  private def deleteAll(edges: List[JsValue]): Future[Boolean] = {
     // /graphs/edges/delete
-    for {
-      groupedEdges <- edges.grouped(50)
-    } yield {
-      val payload = Json.toJson(groupedEdges).toString()
-      log.debug(payload)
-      Http(s"$s2graphUrl/graphs/edges/delete")
-        .postData(payload)
-        .header("content-type", "application/json").asString
+    val futures = {
+      for {
+        groupedEdges <- edges.grouped(50)
+      } yield {
+        val payload = Json.toJson(groupedEdges)
+        wsClient.url(s"$s2graphUrl/graphs/edges/delete").post(payload).map { resp =>
+          resp.status match {
+            case HttpStatus.SC_OK =>
+              true
+            case _ =>
+              log.error(s"failed delete. errCode: ${resp.status}, body: ${resp.body}, query: $payload")
+              false
+          }
+        }
+      }
+    }.toSeq
+
+    Future.sequence(futures).map { seq =>
+      seq.forall(x => x)
     }
-  }.toSeq
+  }
 
   /** select and delete */
   override def delete(key: RankingKey): Unit = {
-    val edges = getEdges(key)
-    deleteAll(edges)
+    val future = getEdges(key).flatMap { edges =>
+      deleteAll(edges)
+    }
+    Await.result(future, 1 second)
   }
 
-  private def getEdges(key: RankingKey, duplicate: String="first"): List[JsValue] = {
+  private def getEdges(key: RankingKey, duplicate: String="first"): Future[List[JsValue]] = {
     val labelName = counterModel.findById(key.policyId).get.action + labelPostfix
 
     val ids = {
@@ -194,7 +212,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
       }
     }.mkString(",")
 
-    val json =
+    val strJs =
       s"""
          |{
          |    "srcVertices": [
@@ -224,14 +242,17 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
          |    ]
          |}
        """.stripMargin
+    log.debug(strJs)
 
-    log.debug(json)
-
-    val response = Http(s"$s2graphUrl/graphs/getEdges")
-      .postData(json)
-      .header("content-type", "application/json").asString
-
-    (Json.parse(response.body) \ "results").asOpt[List[JsValue]].getOrElse(Nil)
+    val payload = Json.toJson(strJs)
+    wsClient.url(s"$s2graphUrl/graphs/getEdges").post(payload).map { resp =>
+      resp.status match {
+        case HttpStatus.SC_OK =>
+          (resp.json \ "results").asOpt[List[JsValue]].getOrElse(Nil)
+        case _ =>
+          throw new RuntimeException(s"failed getEdges. errCode: ${resp.status}, body: ${resp.body}, query: $payload")
+      }
+    }
   }
 
   private def existsLabel(policy: Counter): Boolean = {
@@ -256,50 +277,53 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
         )
       )
 
-      val checkResp = Http(s"$s2graphUrl/graphs/checkEdges")
-        .postData(checkReqJs.toString())
-        .header("content-type", "application/json").asString
-
-      checkResp.isSuccess match {
-        case true =>
-          // make
-//          log.warn(response.body)
-          val checkRespJs = Json.parse(checkResp.body)
-          if (checkRespJs.as[Seq[JsValue]].isEmpty) {
-            val insertReqJsLs = {
-              for {
-                i <- 0 until BUCKET_SHARD_COUNT
-              } yield {
-                Json.obj(
-                  "timestamp" -> rankingKey.eq.tq.ts,
-                  "from" -> dimension,
-                  "to" -> makeBucketShardKey(i, rankingKey),
-                  "label" -> labelName,
-                  "props" -> Json.obj(
-                    "time_unit" -> rankingKey.eq.tq.q.toString,
-                    "date_time" -> rankingKey.eq.tq.dateTime
-                  )
-                )
-              }
-            }
-
-            val insertResp = Http(s"$s2graphUrl/graphs/edges/insert")
-              .postData(Json.toJson(insertReqJsLs).toString())
-              .header("content-type", "application/json").asString
-
-            if (insertResp.isError) {
-              log.error(s"failed edges/insert $insertReqJsLs ${insertResp.code} ${insertResp.body}")
-              None
+      val future = wsClient.url(s"$s2graphUrl/graphs/checkEdges").post(checkReqJs).map { resp =>
+        resp.status match {
+          case HttpStatus.SC_OK =>
+            val checkRespJs = resp.json
+            if (checkRespJs.as[Seq[JsValue]].nonEmpty) {
+              true
             } else {
-              Some(true)
+              false
             }
-          } else {
-            Some(true)
-          }
+          case _ =>
+            // throw exception
+            throw new Exception(s"failed checkEdges. ${resp.body} ${resp.status}")
+        }
+      }.flatMap {
+        case true => Future.successful(Some(true))
         case false =>
-          log.error(s"failed getEdges: $checkReqJs ${checkResp.code} ${checkResp.body}")
+          val insertReqJsLs = {
+            for {
+              i <- 0 until BUCKET_SHARD_COUNT
+            } yield {
+              Json.obj(
+                "timestamp" -> rankingKey.eq.tq.ts,
+                "from" -> dimension,
+                "to" -> makeBucketShardKey(i, rankingKey),
+                "label" -> labelName,
+                "props" -> Json.obj(
+                  "time_unit" -> rankingKey.eq.tq.q.toString,
+                  "date_time" -> rankingKey.eq.tq.dateTime
+                )
+              )
+            }
+          }
+          wsClient.url(s"$s2graphUrl/graphs/edges/insert").post(Json.toJson(insertReqJsLs)).map { resp =>
+            resp.status match {
+              case HttpStatus.SC_OK =>
+                Some(true)
+              case _ =>
+                // throw exception
+                throw new Exception(s"failed insertEdges. ${resp.body} ${resp.status}")
+            }
+          }
+      }.recover {
+        case e: Exception =>
           None
       }
+
+      Await.result(future, 1 second)
     }
     prepared.getOrElse(false)
   }
@@ -344,18 +368,12 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
          """.stripMargin
       val json = policy.dailyTtl.map(ttl => ttl * 24 * 60 * 60) match {
         case Some(ttl) =>
-          Json.parse(defaultJson).as[JsObject] + ("hTableTTL" -> Json.toJson(ttl)) toString()
+          Json.parse(defaultJson).as[JsObject] + ("hTableTTL" -> Json.toJson(ttl))
         case None =>
-          defaultJson
+          Json.parse(defaultJson)
       }
 
-      val response = Http(s"$s2graphUrl/graphs/createLabel")
-        .postData(json)
-        .header("content-type", "application/json").asString
-
-      if (response.isError) {
-        throw new RuntimeException(s"$json ${response.code} ${response.body}")
-      }
+      graphOp.createLabel(json)
     }
   }
 
@@ -365,11 +383,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
     if (existsLabel(policy)) {
       val counterLabelName = action + labelPostfix
 
-      val response = Http(s"$s2graphUrl/graphs/deleteLabel/$counterLabelName").method("PUT").asString
-
-      if (response.isError) {
-        throw new RuntimeException(s"${response.code} ${response.body}")
-      }
+      graphOp.deleteLabel(counterLabelName)
     }
   }
 
