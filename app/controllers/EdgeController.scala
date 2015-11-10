@@ -210,11 +210,6 @@ object EdgeController extends Controller with RequestParser {
       } else {
         Future.successful(true)
       }
-<<<<<<< HEAD
-
-      s2.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts)
-=======
->>>>>>> 4fb03d62ba77419640429dac73847af711a1da7c
     })
 
     deleteResults.map { rst =>
