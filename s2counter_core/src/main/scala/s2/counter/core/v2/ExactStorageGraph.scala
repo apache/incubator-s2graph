@@ -295,6 +295,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
         s"""
            |{
            |  "label": "$counterLabelName",
+           |  "schemaVersion": "v2",
            |  "srcServiceName": "$service",
            |  "srcColumnName": "${label.tgtColumnName}",
            |  "srcColumnType": "${label.tgtColumnType}",

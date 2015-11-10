@@ -1,7 +1,5 @@
 package s2.counter.core.v2
 
-import java.text.SimpleDateFormat
-
 import com.kakao.s2graph.core.GraphUtil
 import com.kakao.s2graph.core.mysqls.Label
 import com.kakao.s2graph.core.types.HBaseType
@@ -324,16 +322,17 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
       val defaultJson =
         s"""
            |{
-           |	"label": "$counterLabelName",
-           |	"srcServiceName": "$SERVICE_NAME",
-           |	"srcColumnName": "$BUCKET_COLUMN_NAME",
-           |	"srcColumnType": "string",
-           |	"tgtServiceName": "$service",
-           |	"tgtColumnName": "${label.tgtColumnName}",
-           |	"tgtColumnType": "${label.tgtColumnType}",
-           |	"indices": [
+           |  "label": "$counterLabelName",
+           |  "schemaVersion": "v2",
+           |  "srcServiceName": "$SERVICE_NAME",
+           |  "srcColumnName": "$BUCKET_COLUMN_NAME",
+           |  "srcColumnType": "string",
+           |  "tgtServiceName": "$service",
+           |  "tgtColumnName": "${label.tgtColumnName}",
+           |  "tgtColumnType": "${label.tgtColumnType}",
+           |  "indices": [
            |    {"name": "time", "propNames": ["time_unit", "time_value", "score"]}
-           |	],
+           |  ],
            |  "props": [
            |    {"name": "time_unit", "dataType": "string", "defaultValue": ""},
            |    {"name": "time_value", "dataType": "long", "defaultValue": 0},
@@ -342,7 +341,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
            |  ],
            |  "hTableName": "${policy.hbaseTable.get}"
            |}
-     """.stripMargin
+         """.stripMargin
       val json = policy.dailyTtl.map(ttl => ttl * 24 * 60 * 60) match {
         case Some(ttl) =>
           Json.parse(defaultJson).as[JsObject] + ("hTableTTL" -> Json.toJson(ttl)) toString()
