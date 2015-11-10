@@ -358,8 +358,8 @@ object Edge extends JSONParser {
 
     if (requestWithFuncs.isEmpty) {
       val ret = (requestEdges.head, EdgeMutate())
-      logger.info(s"all requests have duplicated timestamp with snapshotEdge. $invertedEdge")
-      logger.info(s"all requests have duplicated timestamp with snapshotEdge. $requestEdges")
+//      logger.info(s"all requests have duplicated timestamp with snapshotEdge. $invertedEdge")
+//      logger.info(s"all requests have duplicated timestamp with snapshotEdge. $requestEdges")
       ret
     } else {
       var shouldReplaceCnt = 0

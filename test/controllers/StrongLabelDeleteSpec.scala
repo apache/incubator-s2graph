@@ -142,8 +142,8 @@ class StrongLabelDeleteSpec extends SpecCommon {
     val labelName = testLabelName2
     val maxTgtId = 10
     val batchSize = 100
-    val testNum = 20
-    val numOfBatch = 1000
+    val testNum = 10
+    val numOfBatch = 100
 
     def testInner(startTs: Long, src: Long) = {
       val labelName = testLabelName2
