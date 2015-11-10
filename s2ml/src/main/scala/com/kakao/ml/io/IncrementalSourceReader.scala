@@ -17,7 +17,8 @@ case class IncrementalDataSourceParams(
     baseRoot: String,
     incRoot: String,
     baseBefore: Option[Int],
-    exceptIncrementalData: Option[Boolean]) extends Params
+    exceptIncrementalData: Option[Boolean],
+    table: Option[String]) extends Params
 
 class IncrementalDataSource(params: IncrementalDataSourceParams)
     extends BaseDataProcessor[EmptyData, SourceData](params) {
@@ -75,10 +76,15 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
           date_sub(current_date(), baseBefore) as "b")
         .show(false)
 
-    // currently, partition discovery does not seem stable.
-    //    https://issues.apache.org/jira/browse/SPARK-10304
-    // gives more explicit sub-directory as possible.
-    val orcWithSchema = sqlContext.read.schema(rawSchema).orc(params.baseRoot + s"/split=$split")
+    val orcWithSchema = params.table match {
+      case Some(table) =>
+        sqlContext.table(table).where($"split" === split)
+      case _ =>
+        // currently, partition discovery does not seem stable.
+        //    https://issues.apache.org/jira/browse/SPARK-10304
+        // gives more explicit sub-directory as possible.
+        sqlContext.read.schema(rawSchema).orc(params.baseRoot + s"/split=$split")
+    }
 
     /** from daily data */
     val dailyDF = orcWithSchema
