@@ -3,8 +3,11 @@ package com.kakao.s2graph.core.storage.hbase
 import com.kakao.s2graph.core.mysqls.{LabelIndex, LabelMeta}
 import com.kakao.s2graph.core.storage.{SKeyValue, CanSKeyValue, StorageDeserializable, StorageSerializable}
 import com.kakao.s2graph.core.types._
+import com.kakao.s2graph.core.utils.logger
 import com.kakao.s2graph.core.{Edge, QueryParam, SnapshotEdge, Vertex}
 import org.apache.hadoop.hbase.util.Bytes
+
+import scala.util.Random
 
 class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
 
@@ -28,19 +31,20 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       (e.srcVertex.id, e.labelWithDir, LabelIndex.DefaultSeq, true, 0)
     }.getOrElse(parseRow(kv, schemaVer))
 
+    var randomSeq = Random.nextLong()
     val (tgtVertexId, props, op, ts, pendingEdgeOpt) = {
       val (tgtVertexId, _) = TargetVertexId.fromBytes(kv.qualifier, 0, kv.qualifier.length, schemaVer)
       var pos = 0
       val op = kv.value(pos)
       pos += 1
-      val (props, _) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
+      val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
       val kvsMap = props.toMap
       val ts = kvsMap.get(LabelMeta.timeStampSeq) match {
         case None => kv.timestamp
         case Some(v) => v.innerVal.toString.toLong
       }
 
-      val pendingEdgePropsOffset = propsToKeyValuesWithTs(props).length + 1
+      val pendingEdgePropsOffset = endAt + 1
       val pendingEdgeOpt =
         if (pendingEdgePropsOffset == kv.value.length) None
         else {
@@ -49,7 +53,10 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
           pos += 1
           val versionNum = Bytes.toLong(kv.value, pos, 8)
           pos += 8
-          val (pendingEdgeProps, _) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
+          val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
+          if (endAt + 8 == kv.value.length) {
+            randomSeq = Bytes.toLong(kv.value, endAt, 8)
+          }
           val edge = Edge(Vertex(srcVertexId, versionNum), Vertex(tgtVertexId, versionNum), labelWithDir, opByte, ts, versionNum, pendingEdgeProps.toMap)
           Option(edge)
         }
@@ -57,7 +64,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       (tgtVertexId, kvsMap, op, ts, pendingEdgeOpt)
     }
 
-    SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, kv.timestamp, props, pendingEdgeOpt)
+    SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, kv.timestamp, props, pendingEdgeOpt, randomSeq = randomSeq)
   }
 
   private def fromKeyValuesInnerV3[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
@@ -86,7 +93,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
 
     val srcVertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, srcInnerId)
     val tgtVertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, tgtInnerId)
-
+    var randomSeq = Random.nextLong()
     val (props, op, ts, pendingEdgeOpt) = {
       var pos = 0
       val op = kv.value(pos)
@@ -107,7 +114,10 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
           pos += 1
           val versionNum = Bytes.toLong(kv.value, pos, 8)
           pos += 8
-          val (pendingEdgeProps, _) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
+          val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
+          if (endAt + 8 == kv.value.length) {
+            randomSeq = Bytes.toLong(kv.value, endAt, 8)
+          }
           val edge = Edge(Vertex(srcVertexId, versionNum), Vertex(tgtVertexId, versionNum), labelWithDir, opByte, ts, versionNum, pendingEdgeProps.toMap)
           Option(edge)
         }
@@ -115,7 +125,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       (kvsMap, op, ts, pendingEdgeOpt)
     }
 
-    SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, kv.timestamp, props, pendingEdgeOpt)
+    SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, kv.timestamp, props, pendingEdgeOpt, randomSeq)
   }
 
 

@@ -7,6 +7,7 @@ import com.kakao.s2graph.core.utils.logger
 import play.api.libs.json.{Writes, Json}
 
 import scala.collection.JavaConversions._
+import scala.util.Random
 import scala.util.hashing.MurmurHash3
 
 
@@ -16,7 +17,8 @@ case class SnapshotEdge(srcVertex: Vertex,
                         op: Byte,
                         version: Long,
                         props: Map[Byte, InnerValLikeWithTs],
-                        pendingEdgeOpt: Option[Edge] = None) {
+                        pendingEdgeOpt: Option[Edge] = None,
+                        randomSeq: Long) {
 
 
   //  logger.error(s"EdgeWithIndexInverted${this.toString}")
@@ -43,7 +45,7 @@ case class SnapshotEdge(srcVertex: Vertex,
 
   def toEdge: Edge = {
     val ts = props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(version)
-    Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version, props, pendingEdgeOpt)
+    Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version, props, pendingEdgeOpt, randomSeq = randomSeq)
   }
 }
 
@@ -111,7 +113,8 @@ case class Edge(srcVertex: Vertex,
                 propsWithTs: Map[Byte, InnerValLikeWithTs] = Map.empty[Byte, InnerValLikeWithTs],
                 pendingEdgeOpt: Option[Edge] = None,
                 parentEdges: Seq[EdgeWithScore] = Nil,
-                originalEdgeOpt: Option[Edge] = None) extends GraphElement with JSONParser {
+                originalEdgeOpt: Option[Edge] = None,
+                randomSeq: Long = Random.nextLong()) extends GraphElement with JSONParser {
 
   val schemaVer = label.schemaVersion
 
@@ -191,7 +194,8 @@ case class Edge(srcVertex: Vertex,
     val newLabelWithDir = LabelWithDirection(labelWithDir.labelId, GraphUtil.directions("out"))
 
     val ret = SnapshotEdge(smaller, larger, newLabelWithDir, op, version, propsWithTs ++
-      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)), pendingEdgeOpt)
+      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)), pendingEdgeOpt,
+      randomSeq = randomSeq)
     ret
   }
 
@@ -417,8 +421,8 @@ object Edge extends JSONParser {
   def buildReplace(invertedEdge: Option[Edge], requestEdge: Edge, newPropsWithTs: Map[Byte, InnerValLikeWithTs]): EdgeMutate = {
 
     val edgesToDelete = invertedEdge match {
-      case Some(e) if e.op != GraphUtil.operations("delete") =>
-//      case Some(e) if !allPropsDeleted(e.propsWithTs) =>
+//      case Some(e) if e.op != GraphUtil.operations("delete") =>
+      case Some(e) if !allPropsDeleted(e.propsWithTs) =>
         e.relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
       //      case Some(e) => e.edgesWithIndexValid
       case _ =>

@@ -285,8 +285,15 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       for {
         pendingEdgesLock <- mutateEdges(pendingEdges, withWait = true)
         ret <- if (pendingEdgesLock.forall(identity)) clientWithFlush.compareAndSet(after, before).toFuture.map(_.booleanValue())
-        else Future.successful(false)
-      } yield ret
+        else {
+//          logger.error(s"mutate edges on commitPending failed.")
+          Future.successful(false)
+        }
+      } yield {
+//        if (!ret) logger.error(s"compareAndSet on commitPending failed. \nAfter: ${after.value().toList}\nBefore: ${before.toList}")
+//        else logger.error(s"compareAndSet on commitPending success.")
+        ret
+      }
     }
   }
 
@@ -425,12 +432,14 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     } yield {
         queryResult.queryParam.label.schemaVersion match {
           case HBaseType.VERSION3 =>
+
             /**
              * read: snapshotEdge on queryResult = O(N)
              * write: N x (relatedEdges x indices(indexedEdge) + 1(snapshotEdge))
              */
             mutateEdges(deleteQueryResult.edgeWithScoreLs.map(_.edge), withWait = true).map { rets => rets.forall(identity) }
           case _ =>
+
             /**
              * read: x
              * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
