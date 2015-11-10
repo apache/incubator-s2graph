@@ -349,6 +349,14 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
   }
 
+  def mutateLog(snapshotEdgeOpt: Option[Edge], edges: Seq[Edge],
+                  newEdge: Edge, edgeMutate: EdgeMutate) = {
+    Seq(s"SnapshotEdge: ${snapshotEdgeOpt.map(_.toLogString)}",
+    s"requestEdges: ${edges.map(_.toLogString).mkString("\n")}",
+    s"newEdge: ${newEdge.toLogString}",
+    s"mutation: \n${edgeMutate.toLogString}").mkString("\n")
+  }
+
   private def mutateEdgesInner(edges: Seq[Edge],
                                checkConsistency: Boolean,
                                withWait: Boolean)(f: (Option[Edge], Seq[Edge]) => (Edge, EdgeMutate)): Future[Boolean] = {
@@ -379,7 +387,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
                   throw new RuntimeException(s"mutation failed updateCommit $newEdge")
                   //                    mutateEdgesInner(edges, checkConsistency, withWait)(f, tryNum + 1)
                 } else {
-                  logger.debug(s"mutation success. [RequestEdges]: \n$snapshotEdgeOpt\n$edges\n [EdgeUpdate]: $edgeUpdate")
+                  logger.debug(s"mutation success.\n${mutateLog(snapshotEdgeOpt, edges, newEdge, edgeUpdate)}")
                   Future.successful(true)
                 }
               }
