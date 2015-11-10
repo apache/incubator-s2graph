@@ -123,9 +123,10 @@ object ContinuousEvaluator {
       }
       i += 1
     }
+
     if(trueResults.isEmpty)
       averagePrecision = 1.0
-    else
+    else if(averagePrecision != 0.0)
       averagePrecision /= math.min(trueResults.length, predResults.length)
 
     averagePrecision
