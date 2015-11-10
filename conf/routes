@@ -71,6 +71,9 @@ PUT         /graphs/deleteServiceColumn/:serviceName/:columnName          contro
 POST        /graphs/addServiceColumnProp/:serviceName/:columnName         controllers.AdminController.addServiceColumnProp(serviceName, columnName)
 POST        /graphs/addServiceColumnProps/:serviceName/:columnName        controllers.AdminController.addServiceColumnProps(serviceName, columnName)
 GET         /graphs/getServiceColumn/:serviceName/:columnName             controllers.AdminController.getServiceColumn(serviceName, columnName)
+POST        /graphs/createHTable                                          controllers.AdminController.createHTable()
+
+
 
 
 #### TEST
