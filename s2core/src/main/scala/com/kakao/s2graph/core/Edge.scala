@@ -353,8 +353,10 @@ object Edge extends JSONParser {
     val requestWithFuncs = requestEdges.zip(funcs).filter(oldTs != _._1.ts).sortBy(_._1.ts)
 
     if (requestWithFuncs.isEmpty) {
-      logger.info(s"all requests have duplicated timestamp with snapshotEdge.")
-      (requestEdges.head, EdgeMutate())
+      val ret = (requestEdges.head, EdgeMutate())
+      logger.info(s"all requests have duplicated timestamp with snapshotEdge. $invertedEdge")
+      logger.info(s"all requests have duplicated timestamp with snapshotEdge. $requestEdges")
+      ret
     } else {
       var shouldReplaceCnt = 0
       var prevPropsWithTs = oldPropsWithTs

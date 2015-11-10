@@ -2,17 +2,17 @@ package com.kakao.s2graph.core.storage.hbase
 
 import java.util
 
-
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.utils.{logger, Extensions}
-import com.kakao.s2graph.core.storage.{QueryBuilder}
-import com.kakao.s2graph.core.types.{VertexId, TargetVertexId, SourceVertexId, InnerVal}
-import com.stumbleupon.async.{Deferred}
+import com.kakao.s2graph.core.storage.QueryBuilder
+import com.kakao.s2graph.core.types.{InnerVal, SourceVertexId, TargetVertexId, VertexId}
+import com.kakao.s2graph.core.utils.{Extensions, logger}
+import com.stumbleupon.async.Deferred
 import org.apache.hadoop.hbase.util.Bytes
-import org.hbase.async.{GetRequest}
+import org.hbase.async.GetRequest
+
 import scala.collection.JavaConversions._
 import scala.collection.{Map, Seq}
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, Future}
 
 class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionContext)
   extends QueryBuilder[GetRequest, Deferred[QueryResult]](storage) {
@@ -110,8 +110,11 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
               setCacheAfterFetch
           } else
             setCacheAfterFetch
-        } else
-          setCacheAfterFetch
+        } else {
+          fetchInner withCallback { queryResult: QueryResult =>
+            queryResult
+          }
+        }
     }
   }
 
@@ -136,16 +139,16 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
     val defers: Seq[Deferred[QueryResult]] = for {
       queryRequest <- queryRequests
     } yield {
-        val prevStepEdgesOpt = prevStepEdges.get(queryRequest.vertex.id)
-        if (prevStepEdgesOpt.isEmpty) throw new RuntimeException("miss match on prevStepEdge and current GetRequest")
+      val prevStepEdgesOpt = prevStepEdges.get(queryRequest.vertex.id)
+      if (prevStepEdgesOpt.isEmpty) throw new RuntimeException("miss match on prevStepEdge and current GetRequest")
 
-        val parentEdges = for {
-          parentEdge <- prevStepEdgesOpt.get
-        } yield parentEdge
+      val parentEdges = for {
+        parentEdge <- prevStepEdgesOpt.get
+      } yield parentEdge
 
-        val newQueryRequest = queryRequest.copy(parentEdges = parentEdges)
-        fetch(newQueryRequest)
-      }
+      val newQueryRequest = queryRequest.copy(parentEdges = parentEdges)
+      fetch(newQueryRequest)
+    }
     val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(defers)
     grouped withCallback { queryResults: util.ArrayList[QueryResult] =>
       queryResults.toIndexedSeq

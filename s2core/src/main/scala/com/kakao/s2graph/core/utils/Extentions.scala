@@ -1,43 +1,41 @@
 package com.kakao.s2graph.core.utils
 
 import com.stumbleupon.async.{Callback, Deferred}
-
-import scala.concurrent.{Promise, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 
 object Extensions {
 
-  implicit class FutureOps[T](f: Future[T])(implicit ec: ExecutionContext) {
 
-    def retryFallback(n: Int)(fallback: => T): Future[T] = n match {
-      case i if i > 1 => f recoverWith { case t: Throwable => f.retryFallback(n - 1)(fallback) }
-      case _ => Future.successful(fallback)
-    }
-
-    def retry(n: Int) = retryWith(n)(f)
-
-    def retryWith(n: Int)(fallback: => Future[T]): Future[T] = n match {
-      case i if i > 1 => f recoverWith { case t: Throwable => f.retryWith(n - 1)(fallback) }
-      case _ => fallback
-    }
+  def retryOnSuccess[T](maxRetryNum: Int, n: Int = 1)(fn: => Future[T])(shouldStop: T => Boolean)(implicit ex: ExecutionContext): Future[T] = n match {
+    case i if n <= maxRetryNum =>
+      fn.flatMap { result =>
+        if (!shouldStop(result)) {
+          logger.info(s"retryOnSuccess $n")
+          retryOnSuccess(maxRetryNum, n + 1)(fn)(shouldStop)
+        } else {
+          Future.successful(result)
+        }
+      }
+    case _ => fn
   }
+
+  def retryOnFailure[T](maxRetryNum: Int, n: Int = 1)(fn: => Future[T])(fallback: => T)(implicit ex: ExecutionContext): Future[T] = n match {
+    case i if n <= maxRetryNum =>
+      fn recoverWith { case t: Throwable =>
+        logger.info(s"retryOnFailure $n, $t")
+        retryOnFailure(maxRetryNum, n + 1)(fn)(fallback)
+      }
+    case _ =>
+      Future.successful(fallback)
+  }
+
+
   implicit class DeferOps[T](d: Deferred[T])(implicit ex: ExecutionContext) {
 
-    def retryFallback(n: Int)(fallback: => T): Deferred[T] = n match {
-      case i if i > 1 => d.addErrback( new Callback[Deferred[T], Exception] {
-        override def call(ex: Exception): Deferred[T] = { retryFallback(n - 1)(fallback) }
+    def withCallback[R](op: T => R): Deferred[R] = {
+      d.addCallback(new Callback[R, T] {
+        override def call(arg: T): R = op(arg)
       })
-    }
-
-    def retry(n: Int) = retryWith(n)(d)
-
-    def retryWith(n: Int)(fallback: => Deferred[T]): Deferred[T] = n match {
-      case i if i > 1 => d.addErrback(new Callback[Deferred[T], Exception] {
-        override def call(ex: Exception): Deferred[T] = { retryWith(n-1)(fallback) }
-      })
-    }
-
-    def withCallback[R](op: T => R): Deferred[R]  = {
-      d.addCallback(new Callback[R, T] { override def call(arg: T): R = op(arg) })
     }
 
     def recoverWith(op: Exception => T): Deferred[T] = {

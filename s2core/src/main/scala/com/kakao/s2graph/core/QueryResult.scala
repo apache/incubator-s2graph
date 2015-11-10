@@ -16,6 +16,7 @@ case class QueryResult(query: Query,
                        stepIdx: Int,
                        queryParam: QueryParam,
                        edgeWithScoreLs: Seq[EdgeWithScore] = Nil,
-                       timestamp: Long = System.currentTimeMillis())
+                       timestamp: Long = System.currentTimeMillis(),
+                       isFailure: Boolean = false)
 
 case class EdgeWithScore(edge: Edge, score: Double)
