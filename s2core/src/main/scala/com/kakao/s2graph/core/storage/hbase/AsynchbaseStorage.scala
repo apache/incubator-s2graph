@@ -389,7 +389,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           val currentTs = System.currentTimeMillis()
           if (snapshotEdgeOpt.isDefined &&
             !newEdge.toSnapshotEdge.isSame(snapshotEdgeOpt.get.toSnapshotEdge) &&
-            snapshotEdgeOpt.get.lockTs + 60000 > currentTs) {
+            snapshotEdgeOpt.get.lockTs + (MaxBackOff + 1) * MaxRetryNum > currentTs) {
 //            throw new RuntimeException(s"mutation failed commitPending \n${edges.map(_.toLogString).mkString("\n")}")
             Thread.sleep(waitTime)
             throw new RuntimeException(s"mutation failed commitPending [${currentTs - snapshotEdgeOpt.get.lockTs}]")
