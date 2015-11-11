@@ -389,6 +389,7 @@ object Edge extends JSONParser {
       }
       else if (edge.op == GraphUtil.operations("update")) Edge.mergeUpdate _
       else if (edge.op == GraphUtil.operations("increment")) Edge.mergeIncrement _
+      else if (edge.op == GraphUtil.operations("insertBulk")) Edge.mergeInsertBulk _
       else throw new RuntimeException(s"not supported operation on edge: $edge")
     }
     val oldTs = invertedEdge.map(e => e.ts).getOrElse(minTsVal)
