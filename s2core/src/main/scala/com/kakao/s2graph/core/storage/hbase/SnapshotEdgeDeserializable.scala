@@ -44,7 +44,8 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
         case Some(v) => v.innerVal.toString.toLong
       }
 
-      val pendingEdgePropsOffset = endAt + 1
+//      val pendingEdgePropsOffset = endAt + 1
+      val pendingEdgePropsOffset = propsToKeyValuesWithTs(props).length + 1
       val pendingEdgeOpt =
         if (pendingEdgePropsOffset == kv.value.length) None
         else {
