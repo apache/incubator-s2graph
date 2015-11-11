@@ -396,7 +396,7 @@ object Edge extends JSONParser {
 
     if (requestWithFuncs.isEmpty) {
       val ret = (requestEdges.head, EdgeMutate())
-      logger.info(s"all requests have duplicated timestamp with snapshotEdge. \n${requestEdges.map(_.toLogString).mkString("\n")}")
+//      logger.info(s"all requests have duplicated timestamp with snapshotEdge. \n${requestEdges.map(_.toLogString).mkString("\n")}")
       ret
     } else {
       var shouldReplaceCnt = 0
@@ -424,7 +424,7 @@ object Edge extends JSONParser {
       }
 
       if (shouldReplaceCnt <= 0) {
-        logger.info(s"drop all requests because all request should replaces are false.")
+//        logger.info(s"drop all requests because all request should replaces are false.")
         (requestEdges.head, EdgeMutate())
       } else {
 

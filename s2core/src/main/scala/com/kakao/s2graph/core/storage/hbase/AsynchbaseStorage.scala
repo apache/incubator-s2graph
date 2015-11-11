@@ -332,19 +332,20 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       val afterPut = mutationBuilder.buildPutAsync(edgeUpdate.newInvertedEdge.get.withNoPendingEdge().copy(lockTs = 0L)).head.asInstanceOf[PutRequest]
 
 
+      val fallback = Future.successful(false)
       def acquireLock(): Future[Boolean] = {
         client.compareAndSet(lockPut, beforeBytes).toFuture.map(_.booleanValue())
       }
       def indexedEdgeMutationFuture(predicate: Boolean): Future[Boolean] = {
-        if (!predicate) Future.successful(false)
+        if (!predicate) fallback
         else writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.indexedEdgeMutations(edgeUpdate), withWait = true)
       }
       def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
-        if (!predicate) Future.successful(false)
+        if (!predicate) fallback
         else writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.increments(edgeUpdate), withWait = true)
       }
-      def releaseLock(predicate: Boolean): Future[java.lang.Boolean] = {
-        if (!predicate) Future.successful(false)
+      def releaseLock(predicate: Boolean): Future[Boolean] = {
+        if (!predicate) fallback
         else client.compareAndSet(afterPut, lockPut.value).toFuture.map(_.booleanValue()).map { ret =>
           if (!ret) {
             logger.error(s"error !!: ${beforeBytes.toList}")
@@ -386,9 +387,12 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           Future.successful(true)
         } else {
           val currentTs = System.currentTimeMillis()
-          if (snapshotEdgeOpt.isDefined && !newEdge.toSnapshotEdge.isSame(snapshotEdgeOpt.get.toSnapshotEdge) && snapshotEdgeOpt.get.lockTs + 1000 > currentTs) {
+          if (snapshotEdgeOpt.isDefined &&
+            !newEdge.toSnapshotEdge.isSame(snapshotEdgeOpt.get.toSnapshotEdge) &&
+            snapshotEdgeOpt.get.lockTs + 60000 > currentTs) {
 //            throw new RuntimeException(s"mutation failed commitPending \n${edges.map(_.toLogString).mkString("\n")}")
-            throw new RuntimeException(s"mutation failed commitPending [$currentTs], [${snapshotEdgeOpt.get.lockTs}]")
+            Thread.sleep(waitTime)
+            throw new RuntimeException(s"mutation failed commitPending [${currentTs - snapshotEdgeOpt.get.lockTs}]")
           } else {
             commitUpdate(newEdge)(snapshotEdgeOpt, edgeUpdate).flatMap { case updateCommitted =>
               if (!updateCommitted) {

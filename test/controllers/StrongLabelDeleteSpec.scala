@@ -140,9 +140,9 @@ class StrongLabelDeleteSpec extends SpecCommon {
 
   "labelargeSet of contention" should {
     val labelName = testLabelName2
-    val maxTgtId = 1
+    val maxTgtId = 100
     val batchSize = 100
-    val testNum = 1
+    val testNum = 3
     val numOfBatch = 1000
 
     def testInner(startTs: Long, src: Long) = {
@@ -160,7 +160,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
           val op = if (Random.nextDouble() < 0.5) "delete" else "update"
 
           lastOps(tgt) = op
-          Seq(currentTs, op, "e", src, tgt, labelName, "{}").mkString("\t")
+          Seq(currentTs, op, "e", src, src + tgt, labelName, "{}").mkString("\t")
         }
 
 
@@ -178,7 +178,6 @@ class StrongLabelDeleteSpec extends SpecCommon {
       Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
 
       val expectedDegree = lastOps.count(op => op != "delete" && op != "none")
-      Thread.sleep(1000)
       val queryJson = query(id = src)
       val result = getEdges(queryJson)
       val resultSize = (result \ "size").as[Long]
@@ -198,7 +197,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
         val ret = for {
           i <- (0 until testNum)
         } yield {
-            val src = testNum
+            val src = System.currentTimeMillis()
 
             val (ret, last) = testInner(i, src)
             ret must beEqualTo(true)
