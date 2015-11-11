@@ -18,7 +18,8 @@ case class SnapshotEdge(srcVertex: Vertex,
                         version: Long,
                         props: Map[Byte, InnerValLikeWithTs],
                         pendingEdgeOpt: Option[Edge] = None,
-                        randomSeq: Long) extends JSONParser {
+                        randomSeq: Long = 0L,
+                        lockTs: Long = System.currentTimeMillis()) extends JSONParser {
 
 
   //  logger.error(s"EdgeWithIndexInverted${this.toString}")
@@ -45,7 +46,7 @@ case class SnapshotEdge(srcVertex: Vertex,
 
   def toEdge: Edge = {
     val ts = props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(version)
-    Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version, props, pendingEdgeOpt, randomSeq = randomSeq)
+    Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version, props, pendingEdgeOpt, randomSeq = randomSeq, lockTs = lockTs)
   }
 
   def propsWithName = for {
@@ -141,7 +142,8 @@ case class Edge(srcVertex: Vertex,
                 pendingEdgeOpt: Option[Edge] = None,
                 parentEdges: Seq[EdgeWithScore] = Nil,
                 originalEdgeOpt: Option[Edge] = None,
-                randomSeq: Long = Random.nextLong()) extends GraphElement with JSONParser {
+                randomSeq: Long = Random.nextLong(),
+                lockTs: Long = System.currentTimeMillis()) extends GraphElement with JSONParser {
 
   val schemaVer = label.schemaVersion
 
@@ -222,7 +224,7 @@ case class Edge(srcVertex: Vertex,
 
     val ret = SnapshotEdge(smaller, larger, newLabelWithDir, op, version, propsWithTs ++
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)), pendingEdgeOpt,
-      randomSeq = randomSeq)
+      randomSeq = randomSeq, lockTs = lockTs)
     ret
   }
 
