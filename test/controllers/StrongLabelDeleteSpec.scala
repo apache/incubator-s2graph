@@ -140,7 +140,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
 
   "labelargeSet of contention" should {
     val labelName = testLabelName2
-    val maxTgtId = 10
+    val maxTgtId = 1
     val batchSize = 100
     val testNum = 1
     val numOfBatch = 1000

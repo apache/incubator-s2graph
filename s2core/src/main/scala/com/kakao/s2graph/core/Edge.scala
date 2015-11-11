@@ -49,6 +49,15 @@ case class SnapshotEdge(srcVertex: Vertex,
     Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version, props, pendingEdgeOpt, randomSeq = randomSeq, lockTs = lockTs)
   }
 
+  def isSame(other: SnapshotEdge) = {
+    this.srcVertex.id == other.srcVertex.id &&
+    this.tgtVertex.id == other.tgtVertex.id &&
+    this.labelWithDir == other.labelWithDir &&
+    this.op == other.op &&
+    this.version == other.version &&
+    this.props == other.props
+  }
+
   def propsWithName = for {
     (seq, v) <- props
     meta <- label.metaPropsMap.get(seq) if seq > 0

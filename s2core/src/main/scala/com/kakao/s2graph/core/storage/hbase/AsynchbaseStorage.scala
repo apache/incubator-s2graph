@@ -341,11 +341,18 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       }
       def indexedEdgeIncrementFuture(predicate: Boolean): Future[Boolean] = {
         if (!predicate) Future.successful(false)
-        else writeAsyncSimpleRetry(label.hbaseZkAddr, mutationBuilder.increments(edgeUpdate), withWait = true)
+        else writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.increments(edgeUpdate), withWait = true)
       }
       def releaseLock(predicate: Boolean): Future[java.lang.Boolean] = {
         if (!predicate) Future.successful(false)
-        else client.compareAndSet(afterPut, lockPut.value).toFuture.map(_.booleanValue())
+        else client.compareAndSet(afterPut, lockPut.value).toFuture.map(_.booleanValue()).map { ret =>
+          if (!ret) {
+            logger.error(s"error !!: ${beforeBytes.toList}")
+            logger.error(s"error !!: $afterPut")
+            logger.error(s"error !!: $lockPut")
+          }
+          ret
+        }
       }
       for {
         locked <- acquireLock()
@@ -379,7 +386,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           Future.successful(true)
         } else {
           val currentTs = System.currentTimeMillis()
-          if (snapshotEdgeOpt.isDefined && snapshotEdgeOpt.get.lockTs + 1000 > currentTs) {
+          if (snapshotEdgeOpt.isDefined && !newEdge.toSnapshotEdge.isSame(snapshotEdgeOpt.get.toSnapshotEdge) && snapshotEdgeOpt.get.lockTs + 1000 > currentTs) {
 //            throw new RuntimeException(s"mutation failed commitPending \n${edges.map(_.toLogString).mkString("\n")}")
             throw new RuntimeException(s"mutation failed commitPending [$currentTs], [${snapshotEdgeOpt.get.lockTs}]")
           } else {
