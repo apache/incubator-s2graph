@@ -14,6 +14,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
   import StorageDeserializable._
   import StorageSerializable._
 
+
   override def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
     queryParam.label.schemaVersion match {
       case HBaseType.VERSION3 => fromKeyValuesInnerV3(queryParam, _kvs, version, cacheElementOpt)

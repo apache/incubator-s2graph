@@ -18,7 +18,7 @@ case class SnapshotEdge(srcVertex: Vertex,
                         version: Long,
                         props: Map[Byte, InnerValLikeWithTs],
                         pendingEdgeOpt: Option[Edge] = None,
-                        randomSeq: Long) {
+                        randomSeq: Long) extends JSONParser {
 
 
   //  logger.error(s"EdgeWithIndexInverted${this.toString}")
@@ -46,6 +46,19 @@ case class SnapshotEdge(srcVertex: Vertex,
   def toEdge: Edge = {
     val ts = props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(version)
     Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version, props, pendingEdgeOpt, randomSeq = randomSeq)
+  }
+
+  def propsWithName = for {
+    (seq, v) <- props
+    meta <- label.metaPropsMap.get(seq) if seq > 0
+    jsValue <- innerValToJsValue(v.innerVal, meta.dataType)
+  } yield meta.name -> jsValue
+
+  def toLogString() = {
+    if (propsWithName.nonEmpty)
+      List(version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
+    else
+      List(version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label).mkString("\t")
   }
 }
 
@@ -101,7 +114,21 @@ case class IndexEdge(srcVertex: Vertex,
 
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
 
+  def propsWithName = for {
+    (seq, v) <- props
+    meta <- label.metaPropsMap.get(seq) if seq > 0
+    jsValue <- innerValToJsValue(v, meta.dataType)
+  } yield meta.name -> jsValue
+
+
   def toEdge: Edge = Edge(srcVertex, tgtVertex, labelWithDir, op, ts, ts, propsWithTs)
+
+  def toLogString() = {
+    if (propsWithName.nonEmpty)
+      List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
+    else
+      List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label).mkString("\t")
+  }
 }
 
 case class Edge(srcVertex: Vertex,
@@ -262,9 +289,9 @@ case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       newInvertedEdge: Option[SnapshotEdge] = None) {
 
   def toLogString: String = {
-    val deletes = s"deletes: ${edgesToDelete.map(e => e.toString).mkString("\n")}"
-    val inserts = s"inserts: ${edgesToInsert.map(e => e.toString).mkString("\n")}"
-    val updates = s"snapshot: $newInvertedEdge"
+    val deletes = s"deletes: ${edgesToDelete.map(e => e.toLogString).mkString("\n")}"
+    val inserts = s"inserts: ${edgesToInsert.map(e => e.toLogString).mkString("\n")}"
+    val updates = s"snapshot: ${newInvertedEdge.map(e => e.toLogString).mkString("\n")}"
 
     List(deletes, inserts, updates).mkString("\n\n")
   }
@@ -358,8 +385,7 @@ object Edge extends JSONParser {
 
     if (requestWithFuncs.isEmpty) {
       val ret = (requestEdges.head, EdgeMutate())
-//      logger.info(s"all requests have duplicated timestamp with snapshotEdge. $invertedEdge")
-//      logger.info(s"all requests have duplicated timestamp with snapshotEdge. $requestEdges")
+      logger.info(s"all requests have duplicated timestamp with snapshotEdge. \n${requestEdges.map(_.toLogString).mkString("\n")}")
       ret
     } else {
       var shouldReplaceCnt = 0
