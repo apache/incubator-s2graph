@@ -183,3 +183,36 @@ CREATE TABLE `buckets` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+
+-- ----------------------------
+--  Table structure for `buckets`
+-- ----------------------------
+DROP TABLE IF EXISTS `counter`;
+CREATE TABLE `counter` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `use_flag` tinyint(1) NOT NULL DEFAULT '0',
+  `version` smallint(1) NOT NULL DEFAULT '1',
+  `service` varchar(64) NOT NULL DEFAULT '',
+  `action` varchar(64) NOT NULL DEFAULT '',
+  `item_type` int(11) NOT NULL DEFAULT '0',
+  `auto_comb` tinyint(1) NOT NULL DEFAULT '1',
+  `dimension` varchar(1024) NOT NULL,
+  `use_profile` tinyint(1) NOT NULL DEFAULT '0',
+  `bucket_imp_id` varchar(64) DEFAULT NULL,
+  `use_exact` tinyint(1) NOT NULL DEFAULT '1',
+  `use_rank` tinyint(1) NOT NULL DEFAULT '1',
+  `ttl` int(11) NOT NULL DEFAULT '172800',
+  `daily_ttl` int(11) DEFAULT NULL,
+  `hbase_table` varchar(1024) DEFAULT NULL,
+  `interval_unit` varchar(1024) DEFAULT NULL,
+  `rate_action_id` int(11) unsigned DEFAULT NULL,
+  `rate_base_id` int(11) unsigned DEFAULT NULL,
+  `rate_threshold` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `svc` (`service`,`action`),
+  KEY `rate_action_id` (`rate_action_id`),
+  KEY `rate_base_id` (`rate_base_id`),
+  CONSTRAINT `rate_action_id` FOREIGN KEY (`rate_action_id`) REFERENCES `counter` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `rate_base_id` FOREIGN KEY (`rate_base_id`) REFERENCES `counter` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

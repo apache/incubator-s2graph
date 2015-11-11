@@ -65,10 +65,10 @@ object Counter extends SQLSyntaxSupport[Counter] {
   }
 
   def apply(useFlag: Boolean, version: Byte, service: String, action: String, itemType: Counter.ItemType.ItemType,
-            autoComb: Boolean, dimension: String, useProfile: Boolean, bucketImpId: Option[String],
-            useRank: Boolean, ttl: Int, dailyTtl: Option[Int],
-            hbaseTable: Option[String], intervalUnit: Option[String],
-            rateActionId: Option[Int], rateBaseId: Option[Int], rateThreshold: Option[Int]): Counter = {
+            autoComb: Boolean, dimension: String, useProfile: Boolean = false, bucketImpId: Option[String] = None,
+            useRank: Boolean = false, ttl: Int = 259200, dailyTtl: Option[Int] = None,
+            hbaseTable: Option[String] = None, intervalUnit: Option[String] = None,
+            rateActionId: Option[Int] = None, rateBaseId: Option[Int] = None, rateThreshold: Option[Int] = None): Counter = {
     Counter(-1, useFlag, version, service, action, itemType, autoComb, dimension,
       useProfile, bucketImpId,
       useRank, ttl, dailyTtl, hbaseTable,

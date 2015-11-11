@@ -3,7 +3,7 @@ package s2.counter.core.v2
 import com.typesafe.config.Config
 import org.apache.http.HttpStatus
 import org.slf4j.LoggerFactory
-import play.api.libs.json.JsValue
+import play.api.libs.json.{JsObject, JsValue, Json}
 import s2.config.S2CounterConfig
 
 import scala.concurrent.Await
@@ -23,7 +23,9 @@ class GraphOperation(config: Config) {
   import scala.concurrent.ExecutionContext.Implicits.global
 
   def createLabel(json: JsValue): Boolean = {
-    val future = wsClient.url(s"$s2graphUrl/graphs/createLabel").post(json).map { resp =>
+    // fix counter label's schemaVersion
+    val newJson = json.as[JsObject] ++ Json.obj("schemaVersion" -> "v2")
+    val future = wsClient.url(s"$s2graphUrl/graphs/createLabel").post(newJson).map { resp =>
       resp.status match {
         case HttpStatus.SC_OK =>
           true
@@ -32,11 +34,7 @@ class GraphOperation(config: Config) {
       }
     }
 
-    future.onFailure {
-      case ex: Exception => log.error(s"$ex")
-    }
-
-    Await.result(future, 1 second)
+    Await.result(future, 10 second)
   }
 
   def deleteLabel(label: String): Boolean = {
@@ -49,10 +47,6 @@ class GraphOperation(config: Config) {
       }
     }
 
-    future.onFailure {
-      case ex: Exception => log.error(s"$ex")
-    }
-
-    Await.result(future, 1 second)
+    Await.result(future, 10 second)
   }
 }

@@ -2,7 +2,6 @@ package s2.counter.core.v2
 
 import com.kakao.s2graph.core.GraphUtil
 import com.kakao.s2graph.core.mysqls.Label
-import com.kakao.s2graph.core.types.HBaseType
 import com.typesafe.config.Config
 import org.apache.commons.httpclient.HttpStatus
 import org.slf4j.LoggerFactory
@@ -110,10 +109,6 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
 
             deleteAll(deleteEdges)
           }
-        }
-
-        future.onFailure {
-          case ex: Exception => log.error(s"$ex")
         }
 
         future
@@ -244,7 +239,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
        """.stripMargin
     log.debug(strJs)
 
-    val payload = Json.toJson(strJs)
+    val payload = Json.parse(strJs)
     wsClient.url(s"$s2graphUrl/graphs/getEdges").post(payload).map { resp =>
       resp.status match {
         case HttpStatus.SC_OK =>
@@ -332,22 +327,23 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
     val service = policy.service
     val action = policy.action
 
+    val graphLabel = Label.findByName(action)
+    if (graphLabel.isEmpty) {
+      throw new Exception(s"label not found. $service.$action")
+    }
+
     if (!existsLabel(policy)) {
       // find input label to specify target column
       val inputLabelName = policy.rateActionId.flatMap { id =>
         counterModel.findById(id, useCache = false).map(_.action)
       }.getOrElse(action)
-      val defaultLabel = Label(None, inputLabelName, -1, "", "", -1, "s2counter_id", policy.itemType.toString.toLowerCase,
-        isDirected = true, service, -1, "weak", "", None, HBaseType.DEFAULT_VERSION, isAsync = false, "lz4")
-      val label = Label.findByName(inputLabelName, useCache = false)
-        .getOrElse(defaultLabel)
+      val label = graphLabel.get
 
       val counterLabelName = action + labelPostfix
       val defaultJson =
         s"""
            |{
            |  "label": "$counterLabelName",
-           |  "schemaVersion": "v2",
            |  "srcServiceName": "$SERVICE_NAME",
            |  "srcColumnName": "$BUCKET_COLUMN_NAME",
            |  "srcColumnType": "string",

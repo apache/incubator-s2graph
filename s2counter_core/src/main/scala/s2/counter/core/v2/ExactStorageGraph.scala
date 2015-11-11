@@ -1,7 +1,6 @@
 package s2.counter.core.v2
 
 import com.kakao.s2graph.core.mysqls.Label
-import com.kakao.s2graph.core.types.HBaseType
 import com.typesafe.config.Config
 import org.apache.http.HttpStatus
 import org.slf4j.LoggerFactory
@@ -12,8 +11,8 @@ import s2.counter.core._
 import s2.models.Counter
 import s2.util.CartesianProduct
 
-import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 /**
  * Created by hsleep(honeysleep@gmail.com) on 15. 8. 19..
@@ -284,18 +283,19 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
     val service = policy.service
     val action = policy.action
 
+    val graphLabel = Label.findByName(action)
+    if (graphLabel.isEmpty) {
+      throw new Exception(s"label not found. $service.$action")
+    }
+
     if (!existsLabel(policy)) {
-      val defaultLabel = Label(None, action, -1, "", "", -1, "s2counter_id", policy.itemType.toString.toLowerCase,
-        isDirected = true, service, -1, "weak", "", None, HBaseType.DEFAULT_VERSION, isAsync = false, "lz4")
-      val label = Label.findByName(action, useCache = false)
-        .getOrElse(defaultLabel)
+      val label = Label.findByName(action, useCache = false).get
 
       val counterLabelName = action + labelPostfix
       val defaultJson =
         s"""
            |{
            |  "label": "$counterLabelName",
-           |  "schemaVersion": "v2",
            |  "srcServiceName": "$service",
            |  "srcColumnName": "${label.tgtColumnName}",
            |  "srcColumnType": "${label.tgtColumnType}",

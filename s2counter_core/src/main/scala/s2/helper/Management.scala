@@ -14,8 +14,8 @@ import scala.collection.JavaConversions._
 import scala.util.Random
 
 /**
- * Created by alec on 15. 3. 30..
- */
+*  Created by hsleep(honeysleep@gmail.com) on 15. 3. 30..
+*/
 class Management(config: Config) {
   val withRedis = new HashShardingJedis(config)
 
