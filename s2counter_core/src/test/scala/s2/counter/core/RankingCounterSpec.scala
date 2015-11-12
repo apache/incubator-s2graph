@@ -103,6 +103,7 @@ class RankingCounterSpec extends Specification with BeforeAfterAll {
     } match {
       case Failure(ex) =>
         println(s"$ex")
+      case Success(_) =>
     }
   }
 
@@ -150,6 +151,8 @@ class RankingCounterSpec extends Specification with BeforeAfterAll {
       Try {
         rankingCounterV2.update(rankingKey, rvMap, 100)
       }.isSuccess must_== true
+
+      Thread.sleep(1000)
 
       val result : RankingResult = rankingCounterV2.getTopK(rankingKey, 10).get
 
