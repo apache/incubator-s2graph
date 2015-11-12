@@ -13,7 +13,7 @@ import scala.concurrent.Await
 
 
 class BasicCrudSpec extends SpecCommon {
-
+  sequential
   def runTC(tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]) = {
     for {
       labelName <- List(testLabelName2)

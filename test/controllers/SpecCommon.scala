@@ -12,7 +12,7 @@ import scala.concurrent.duration._
 import scala.util.Random
 
 trait SpecCommon extends Specification {
-
+  sequential
   object Helper {
 
     import org.json4s.native.Serialization
@@ -64,7 +64,7 @@ trait SpecCommon extends Specification {
   protected val testHTableName = "test-htable"
   protected val newHTableName = "new-htable"
 
-  val NUM_OF_EACH_TEST = 1000
+  val NUM_OF_EACH_TEST = 3
   val HTTP_REQ_WAITING_TIME = Duration(5000, MILLISECONDS)
   val asyncFlushInterval = 100
 
