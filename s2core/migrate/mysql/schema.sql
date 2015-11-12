@@ -186,7 +186,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 
 -- ----------------------------
---  Table structure for `buckets`
+--  Table structure for `counter`
 -- ----------------------------
 DROP TABLE IF EXISTS `counter`;
 CREATE TABLE `counter` (

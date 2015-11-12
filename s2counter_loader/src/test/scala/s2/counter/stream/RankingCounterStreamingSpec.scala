@@ -10,7 +10,7 @@ import s2.config.{S2CounterConfig, S2ConfigFactory}
 import s2.counter.TrxLog
 import s2.counter.core.CounterFunctions.HashMapAccumulable
 import s2.counter.core._
-import s2.counter.core.v2.GraphOperation
+import s2.counter.core.v2.{RankingStorageGraph, GraphOperation}
 import s2.helper.CounterAdmin
 import s2.models.{DefaultCounterModel, Counter, DBModel}
 import s2.spark.HashMapParam
@@ -32,6 +32,7 @@ class RankingCounterStreamingSpec extends FlatSpec with BeforeAndAfterAll with M
   val admin = new CounterAdmin(S2ConfigFactory.config)
   val graphOp = new GraphOperation(S2ConfigFactory.config)
   val s2config = new S2CounterConfig(S2ConfigFactory.config)
+  val rankingCounter = new RankingCounter(S2ConfigFactory.config, new RankingStorageGraph(S2ConfigFactory.config))
 
   val service = "test"
   val action = "test_case"
@@ -88,8 +89,7 @@ class RankingCounterStreamingSpec extends FlatSpec with BeforeAndAfterAll with M
   }
 
   "RankingCounterStreaming" should "update" in {
-
-    val policy = DefaultCounterModel.findByServiceAction(service, action).get
+    val policy = DefaultCounterModel.findByServiceAction(service, action, useCache = false).get
 
     val data =
       s"""
@@ -118,27 +118,28 @@ class RankingCounterStreamingSpec extends FlatSpec with BeforeAndAfterAll with M
     val rankKey = RankingKey(policy.id, policy.version, ExactQualifier(TimedQualifier("M", 1433084400000L), ""))
     result should contain (rankKey -> Map(
       "1" -> RankingValue(3, 1),
-      "2" -> RankingValue(2, 1),
-      "3" -> RankingValue(2, 1),
+      "3" -> RankingValue(2, 2),
       "4" -> RankingValue(1, 1)
     ))
 
-//    val key = RankingKey(7, 1, ExactQualifier(TimedQualifier("M", 1433084400000L), ""))
-//    val value = result.get(key)
-//
-//    value must beSome
-//    value.get.get("1").get must_== RankingValue(3, 1)
-//    value.get.get("2") must beNone
-//    value.get.get("3").get must_== RankingValue(2, 2)
-//
-//    // delete, update and get
-//    CounterFunctions.deleteRankingCounter(key)
-//    CounterFunctions.updateRankingCounter(Seq((key, value.get)), acc)
-//    val rst = CounterFunctions.getRankingCounter(key)
-//
-//    rst must beSome
-//    rst.get.totalScore must_== 4d
-//    rst.get.values must containTheSameElementsAs(Seq(("3", 2d), ("4", 1d), ("1", 3d)))
+    val key = RankingKey(policy.id, policy.version, ExactQualifier(TimedQualifier("M", 1433084400000L), ""))
+    val value = result.get(key)
+
+    value should not be empty
+    value.get.get("1").get should equal (RankingValue(3, 1))
+    value.get.get("2") shouldBe empty
+    value.get.get("3").get should equal (RankingValue(2, 2))
+
+    // delete, update and get
+    rankingCounter.delete(key)
+    Thread.sleep(1000)
+    CounterFunctions.updateRankingCounter(Seq((key, value.get)), acc)
+    Thread.sleep(1000)
+    val rst = rankingCounter.getTopK(key)
+
+    rst should not be empty
+//    rst.get.totalScore should equal(4f)
+    rst.get.values should contain allOf(("3", 2d), ("4", 1d), ("1", 3d))
   }
 
 //  "rate by base" >> {
