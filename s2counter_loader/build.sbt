@@ -2,15 +2,15 @@ import sbtassembly.Plugin.AssemblyKeys._
 
 name := "s2counter-loader"
 
+scalacOptions in Test ++= Seq("-Yrangepos")
+
 libraryDependencies ++= Seq(
-  "org.apache.spark" %% "spark-core" % Common.sparkVersion % "provided",
-  "org.apache.spark" %% "spark-streaming" % Common.sparkVersion % "provided",
+  "org.apache.spark" %% "spark-core" % Common.sparkVersion,
+  "org.apache.spark" %% "spark-streaming" % Common.sparkVersion,
   "org.apache.spark" %% "spark-streaming-kafka" % Common.sparkVersion,
   "com.typesafe.play" %% "play-ws" % Common.playVersion,
   "org.scalatest" %% "scalatest" % "2.2.4" % "test"
-).map { id =>
-  id.excludeAll(ExclusionRule(organization = "javax.servlet"), ExclusionRule(organization = "org.mortbay.jetty"), ExclusionRule(organization = "com.google.guava"))
-}
+)
 
 // force specific library version
 libraryDependencies ++= Seq(
