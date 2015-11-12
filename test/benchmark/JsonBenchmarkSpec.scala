@@ -51,8 +51,6 @@ class JsonBenchmarkSpec extends PlaySpecification {
           }
         }
       }
-
-      true
     }
   }
 }

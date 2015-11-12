@@ -7,8 +7,6 @@ import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types._
 import play.api.libs.json.Json
 
-import scala.collection.mutable.ListBuffer
-
 /**
   */
 case class Vertex(id: VertexId,
@@ -29,7 +27,7 @@ case class Vertex(id: VertexId,
 
   def defaultProps = Map(ColumnMeta.lastModifiedAtColumnSeq.toInt -> InnerVal.withLong(ts, schemaVer))
 
-//  lazy val kvs = Graph.client.vertexSerializer(this).toKeyValues
+  //  lazy val kvs = Graph.client.vertexSerializer(this).toKeyValues
 
   /** TODO: make this as configurable */
   override def serviceName = service.serviceName
@@ -45,28 +43,28 @@ case class Vertex(id: VertexId,
     meta <- ColumnMeta.findByIdAndSeq(id.colId, seq.toByte)
   } yield (meta.name -> v.toString)
 
-//  /** only used by bulk loader */
-//  def buildPuts(): List[Put] = {
-//    //    logger.error(s"put: $this => $rowKey")
-////    val put = new Put(rowKey.bytes)
-////    for ((q, v) <- qualifiersWithValues) {
-////      put.addColumn(vertexCf, q, ts, v)
-////    }
-////    List(put)
-//    val kv = kvs.head
-//    val put = new Put(kv.row)
-//    kvs.map { kv =>
-//      put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
-//    }
-//    List(put)
-//  }
+  //  /** only used by bulk loader */
+  //  def buildPuts(): List[Put] = {
+  //    //    logger.error(s"put: $this => $rowKey")
+  ////    val put = new Put(rowKey.bytes)
+  ////    for ((q, v) <- qualifiersWithValues) {
+  ////      put.addColumn(vertexCf, q, ts, v)
+  ////    }
+  ////    List(put)
+  //    val kv = kvs.head
+  //    val put = new Put(kv.row)
+  //    kvs.map { kv =>
+  //      put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
+  //    }
+  //    List(put)
+  //  }
 
   def toEdgeVertex() = Vertex(SourceVertexId(id.colId, innerId), ts, props, op)
 
 
   override def hashCode() = {
     val hash = id.hashCode()
-//    logger.debug(s"Vertex.hashCode: $this -> $hash")
+    //    logger.debug(s"Vertex.hashCode: $this -> $hash")
     hash
   }
 
@@ -74,7 +72,7 @@ case class Vertex(id: VertexId,
     obj match {
       case otherVertex: Vertex =>
         val ret = id == otherVertex.id
-//        logger.debug(s"Vertex.equals: $this, $obj => $ret")
+        //        logger.debug(s"Vertex.equals: $this, $obj => $ret")
         ret
       case _ => false
     }
@@ -85,12 +83,12 @@ case class Vertex(id: VertexId,
   def toLogString(): String = {
     val (serviceName, columnName) =
       if (!id.storeColId) ("", "")
-      else {
-        (serviceColumn.service.serviceName, serviceColumn.columnName)
-      }
-    val ls = ListBuffer(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName)
-    if (!propsWithName.isEmpty) ls += Json.toJson(propsWithName)
-    ls.mkString("\t")
+      else (serviceColumn.service.serviceName, serviceColumn.columnName)
+
+    if (propsWithName.nonEmpty)
+      Seq(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName, Json.toJson(propsWithName)).mkString("\t")
+    else
+      Seq(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName).mkString("\t")
   }
 }
 

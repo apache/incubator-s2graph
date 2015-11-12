@@ -46,7 +46,7 @@ object ApplicationController extends Controller {
         if (isQueryRequest)
           s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${request.body}"
         else
-          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize}"
+          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${request.body}"
 
       logger.info(s"${request.method} ${request.uri} result_size: $resultSize")
 

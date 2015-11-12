@@ -104,7 +104,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
         val json = Json.arr(Json.obj("label" -> testLabelName2,
           "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
         println(json)
-        contentAsString(EdgeController.deleteAllInner(json))
+        contentAsString(EdgeController.deleteAllInner(json, withWait = true))
 
         result = getEdges(query(11, direction = "out"))
         println(result)
@@ -221,8 +221,8 @@ class StrongLabelDeleteSpec extends SpecCommon {
             val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
             val deleteAllRequest2 = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt2))
 
-            val deleteRet = EdgeController.deleteAllInner(deleteAllRequest)
-            val deleteRet2 = EdgeController.deleteAllInner(deleteAllRequest2)
+            val deleteRet = EdgeController.deleteAllInner(deleteAllRequest, withWait = true)
+            val deleteRet2 = EdgeController.deleteAllInner(deleteAllRequest2, withWait = true)
 
             contentAsString(deleteRet)
             contentAsString(deleteRet2)
@@ -312,7 +312,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
         val deletedAt = System.currentTimeMillis()
         val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
 
-        contentAsString(EdgeController.deleteAllInner(deleteAllRequest))
+        contentAsString(EdgeController.deleteAllInner(deleteAllRequest, withWait = true))
 
         val result = getEdges(query(id = src))
         println(result)

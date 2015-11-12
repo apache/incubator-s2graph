@@ -230,9 +230,7 @@ object PostProcess extends JSONParser {
     } yield labelMeta.name -> jsValue
   }
 
-
   private def edgeParent(parentEdges: Seq[EdgeWithScore], q: Query, queryParam: QueryParam): JsValue = {
-
     if (parentEdges.isEmpty) {
       JsNull
     } else {
@@ -250,6 +248,7 @@ object PostProcess extends JSONParser {
       Json.toJson(parents)
     }
   }
+
   /** TODO */
   def edgeToJsonInner(edge: Edge, score: Double, q: Query, queryParam: QueryParam): Map[String, JsValue] = {
     val (srcColumn, tgtColumn) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)

@@ -86,7 +86,7 @@ abstract class QueryBuilder[R, T](storage: Storage)(implicit ec: ExecutionContex
     } recover {
       case e: Exception =>
         logger.error(s"getEdgesAsync: $e", e)
-        Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.Empty)))
+        Future.successful(q.vertices.map(v => QueryResult(query = q, stepIdx = 0, queryParam = QueryParam.Empty, isFailure = true)))
     } get
   }
 }

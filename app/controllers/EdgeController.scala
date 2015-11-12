@@ -1,15 +1,19 @@
 package controllers
 
 import actors.QueueActor
+import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls.Label
+import com.kakao.s2graph.core.mysqls.{LabelMeta, Label}
+import com.kakao.s2graph.core.types.LabelWithDirection
 import com.kakao.s2graph.core.utils.logger
 import config.Config
 import org.apache.kafka.clients.producer.ProducerRecord
 import play.api.libs.json._
 import play.api.mvc.{Controller, Result}
 
+import scala.collection.Seq
 import scala.concurrent.Future
+import scala.util.{Failure, Success}
 
 object EdgeController extends Controller with RequestParser {
 
@@ -142,10 +146,10 @@ object EdgeController extends Controller with RequestParser {
   }
 
   def deleteAll() = withHeaderAsync(jsonParser) { request =>
-    deleteAllInner(request.body)
+    deleteAllInner(request.body, withWait = false)
   }
 
-  def deleteAllInner(jsValue: JsValue) = {
+  def deleteAllInner(jsValue: JsValue, withWait: Boolean) = {
     val deleteResults = Future.sequence(jsValue.as[Seq[JsValue]] map { json =>
 
       val labelName = (json \ "label").as[String]
@@ -155,17 +159,57 @@ object EdgeController extends Controller with RequestParser {
       val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
       val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
       val vertices = toVertices(labelName, direction, ids)
+
       /** logging for delete all request */
-      for {
+
+      val kafkaMessages = for {
         id <- ids
         label <- labels
-      } {
-        val tsv = Seq(ts, "deleteAll", "e", id, id, label.label, "{}", direction).mkString("\t")
-        val topic = if (label.isAsync) Config.KAFKA_LOG_TOPIC_ASYNC else Config.KAFKA_LOG_TOPIC
-        val kafkaMsg = KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
-        ExceptionHandler.enqueue(kafkaMsg)
+      } yield {
+          val tsv = Seq(ts, "deleteAll", "e", id, id, label.label, "{}", direction).mkString("\t")
+          val topic = if (label.isAsync) Config.KAFKA_LOG_TOPIC_ASYNC else Config.KAFKA_LOG_TOPIC
+          val kafkaMsg = KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
+          kafkaMsg
+        }
+      ExceptionHandler.enqueues(kafkaMessages)
+
+      val future = s2.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts)
+      future.onFailure { case ex: Exception =>
+        logger.error(s"[Error]: deleteAllInner failed.", ex)
+        val kafkaMessages = for {
+          id <- ids
+          label <- labels
+        } yield {
+            val tsv = Seq(ts, "deleteAll", "e", id, id, label.label, "{}", direction).mkString("\t")
+            val topic = failTopic
+            val kafkaMsg = KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
+            kafkaMsg
+          }
+        ExceptionHandler.enqueues(kafkaMessages)
+        throw ex
       }
-      s2.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts)
+      if (withWait) {
+        future.map { ret =>
+          if (!ret) {
+            logger.error(s"[Error]: deleteAllInner failed.")
+            val kafkaMessages = for {
+              id <- ids
+              label <- labels
+            } yield {
+                val tsv = Seq(ts, "deleteAll", "e", id, id, label.label, "{}", direction).mkString("\t")
+                val topic = failTopic
+                val kafkaMsg = KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
+                kafkaMsg
+              }
+            ExceptionHandler.enqueues(kafkaMessages)
+            false
+          } else {
+            true
+          }
+        }
+      } else {
+        Future.successful(true)
+      }
     })
 
     deleteResults.map { rst =>
