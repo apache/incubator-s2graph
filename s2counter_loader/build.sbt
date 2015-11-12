@@ -5,8 +5,8 @@ name := "s2counter-loader"
 scalacOptions in Test ++= Seq("-Yrangepos")
 
 libraryDependencies ++= Seq(
-  "org.apache.spark" %% "spark-core" % Common.sparkVersion,
-  "org.apache.spark" %% "spark-streaming" % Common.sparkVersion,
+  "org.apache.spark" %% "spark-core" % Common.sparkVersion % "provided",
+  "org.apache.spark" %% "spark-streaming" % Common.sparkVersion % "provided",
   "org.apache.spark" %% "spark-streaming-kafka" % Common.sparkVersion,
   "com.typesafe.play" %% "play-ws" % Common.playVersion,
   "org.scalatest" %% "scalatest" % "2.2.4" % "test"
