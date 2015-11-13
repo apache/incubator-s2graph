@@ -195,7 +195,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
     val future = getEdges(key).flatMap { edges =>
       deleteAll(edges)
     }
-    Await.result(future, 1 second)
+    Await.result(future, 10 second)
   }
 
   private def getEdges(key: RankingKey, duplicate: String="first"): Future[List[JsValue]] = {
@@ -250,14 +250,11 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
     }
   }
 
-  private def existsLabel(policy: Counter): Boolean = {
+  private def existsLabel(policy: Counter, useCache: Boolean = true): Boolean = {
     val action = policy.action
     val counterLabelName = action + labelPostfix
 
-    Labe
-
-
-    l.findByName(counterLabelName).nonEmpty
+    Label.findByName(counterLabelName, useCache).nonEmpty
   }
 
   private def checkAndPrepareDimensionBucket(rankingKey: RankingKey): Boolean = {
@@ -321,7 +318,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
           None
       }
 
-      Await.result(future, 1 second)
+      Await.result(future, 10 second)
     }
     prepared.getOrElse(false)
   }
@@ -335,7 +332,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
       throw new Exception(s"label not found. $service.$action")
     }
 
-    if (!existsLabel(policy)) {
+    if (!existsLabel(policy, useCache = false)) {
       // find input label to specify target column
       val inputLabelName = policy.rateActionId.flatMap { id =>
         counterModel.findById(id, useCache = false).map(_.action)
@@ -379,7 +376,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
   override def destroy(policy: Counter): Unit = {
     val action = policy.action
 
-    if (existsLabel(policy)) {
+    if (existsLabel(policy, useCache = false)) {
       val counterLabelName = action + labelPostfix
 
       graphOp.deleteLabel(counterLabelName)

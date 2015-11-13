@@ -61,7 +61,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
           throw new RuntimeException(s"update failed: $policy $counts")
       }
     }
-    Await.result(future, 1 second)
+    Await.result(future, 10 second)
   }
 
   def delete(policy: Counter, keys: Seq[ExactKeyTrait]): Unit = {
@@ -272,11 +272,11 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
     throw new RuntimeException("unsupported insertBlobValue operation")
   }
 
-  private def existsLabel(policy: Counter): Boolean = {
+  private def existsLabel(policy: Counter, useCache: Boolean = true): Boolean = {
     val action = policy.action
     val counterLabelName = action + labelPostfix
 
-    Label.findByName(counterLabelName).nonEmpty
+    Label.findByName(counterLabelName, useCache).nonEmpty
   }
 
   override def prepare(policy: Counter): Unit = {
@@ -288,7 +288,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
       throw new Exception(s"label not found. $service.$action")
     }
 
-    if (!existsLabel(policy)) {
+    if (!existsLabel(policy, useCache = false)) {
       val label = Label.findByName(action, useCache = false).get
 
       val counterLabelName = action + labelPostfix
@@ -326,7 +326,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
   override def destroy(policy: Counter): Unit = {
     val action = policy.action
 
-    if (existsLabel(policy)) {
+    if (existsLabel(policy, useCache = false)) {
       val counterLabelName = action + labelPostfix
 
       graphOp.deleteLabel(counterLabelName)
