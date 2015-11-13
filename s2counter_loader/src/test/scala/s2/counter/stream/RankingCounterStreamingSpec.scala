@@ -89,6 +89,7 @@ class RankingCounterStreamingSpec extends FlatSpec with BeforeAndAfterAll with M
   "RankingCounterStreaming" should "update" in {
     val policy = DefaultCounterModel.findByServiceAction(service, action, useCache = false).get
 
+    rankingCounter.ready(policy) should equal(true)
     val data =
       s"""
          |{"success":true,"policyId":${policy.id},"item":"1","results":[{"interval":"M","dimension":"","ts":1433084400000,"value":1,"result":3}]}
@@ -127,6 +128,8 @@ class RankingCounterStreamingSpec extends FlatSpec with BeforeAndAfterAll with M
     value.get.get("1").get should equal (RankingValue(3, 1))
     value.get.get("2") shouldBe empty
     value.get.get("3").get should equal (RankingValue(2, 2))
+
+    rankingCounter.ready(policy) should equal(true)
 
     // delete, update and get
     rankingCounter.delete(key)

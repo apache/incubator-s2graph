@@ -1,0 +1,30 @@
+graph:
+    image: s2graph:0.12.0-SNAPSHOT
+    container_name: graph
+    net: container:graph_hbase
+    links:
+        - graph_mysql
+        - graph_hbase
+
+graph_mysql:
+    image: devsupport_graph_mysql
+    container_name: graph_mysql
+    environment:
+        MYSQL_ROOT_PASSWORD: graph
+    net: container:graph_hbase
+
+graph_hbase:
+    image: nerdammer/hbase:0.98.10.1
+    container_name: graph_hbase
+    hostname: default
+    ports:
+        - "3306:3306"
+        - "2181:2181"
+        - "60010:60010"
+        - "60000:60000"
+        - "60020:60020"
+        - "60030:60030"
+        - "9000:9000"
+    expose:
+        - "3306:3306"
+        - "9000"

@@ -254,7 +254,10 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
     val action = policy.action
     val counterLabelName = action + labelPostfix
 
-    Label.findByName(counterLabelName).nonEmpty
+    Labe
+
+
+    l.findByName(counterLabelName).nonEmpty
   }
 
   private def checkAndPrepareDimensionBucket(rankingKey: RankingKey): Boolean = {
