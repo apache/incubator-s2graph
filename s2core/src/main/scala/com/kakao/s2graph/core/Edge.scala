@@ -339,6 +339,12 @@ object Edge extends JSONParser {
           case "strong" => Edge.mergeUpsert _
           case _ => Edge.mergeInsertBulk _
         }
+      }
+      else if (edge.op == GraphUtil.operations("insertBulk")) {
+        edge.label.consistencyLevel match {
+          case "weak" => Edge.mergeInsertBulk _
+          case _ => throw new RuntimeException("not supported")
+        }
       } else if (edge.op == GraphUtil.operations("delete")) {
         edge.label.consistencyLevel match {
           case "strong" => Edge.mergeDelete _
