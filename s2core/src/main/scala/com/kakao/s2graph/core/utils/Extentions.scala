@@ -22,7 +22,7 @@ object Extensions {
   def retryOnFailure[T](maxRetryNum: Int, n: Int = 1)(fn: => Future[T])(fallback: => T)(implicit ex: ExecutionContext): Future[T] = n match {
     case i if n <= maxRetryNum =>
       fn recoverWith { case t: Throwable =>
-        logger.info(s"retryOnFailure $n $t")
+        logger.error(s"retryOnFailure $n $t", t)
 //        Thread.sleep(10)
         retryOnFailure(maxRetryNum, n + 1)(fn)(fallback)
       }

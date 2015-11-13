@@ -4,7 +4,7 @@ package com.kakao.s2graph.core
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.logger
-import play.api.libs.json.{Writes, Json}
+import play.api.libs.json.{JsNumber, Writes, Json}
 
 import scala.collection.JavaConversions._
 import scala.util.Random
@@ -30,14 +30,14 @@ case class SnapshotEdge(srcVertex: Vertex,
     Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version, props, lockTsOpt = lockTsOpt)
   }
 
-  def propsWithName = for {
+  def propsWithName = (for {
     (seq, v) <- props
     meta <- label.metaPropsMap.get(seq) if seq >= 0
     jsValue <- innerValToJsValue(v.innerVal, meta.dataType)
-  } yield meta.name -> jsValue
+  } yield meta.name -> jsValue) ++ Map("version" -> JsNumber(version))
 
   def toLogString() = {
-    List(ts, version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
+    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
   }
 }
 
@@ -213,11 +213,11 @@ case class Edge(srcVertex: Vertex,
     case _ => false
   }
 
-  def propsWithName = for {
+  def propsWithName = (for {
     (seq, v) <- props
     meta <- label.metaPropsMap.get(seq) if seq >= 0
     jsValue <- innerValToJsValue(v, meta.dataType)
-  } yield meta.name -> jsValue
+  } yield meta.name -> jsValue) ++ Map("version" -> JsNumber(version))
 
   def updateTgtVertex(id: InnerValLike) = {
     val newId = TargetVertexId(tgtVertex.id.colId, id)
@@ -252,7 +252,7 @@ case class Edge(srcVertex: Vertex,
     }
 
   def toLogString: String = {
-    List(ts, version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
+    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
   }
 }
 
@@ -332,6 +332,8 @@ object Edge extends JSONParser {
   }
 
   def buildOperation(invertedEdge: Option[Edge], requestEdges: Seq[Edge]): (Edge, EdgeMutate) = {
+    //            logger.debug(s"oldEdge: ${invertedEdge.map(_.toStringRaw)}")
+    //            logger.debug(s"requestEdge: ${requestEdge.toStringRaw}")
     val oldPropsWithTs = if (invertedEdge.isEmpty) Map.empty[Byte, InnerValLikeWithTs] else invertedEdge.get.propsWithTs
 
     val funcs = requestEdges.map { edge =>
@@ -348,51 +350,65 @@ object Edge extends JSONParser {
       }
       else if (edge.op == GraphUtil.operations("update")) Edge.mergeUpdate _
       else if (edge.op == GraphUtil.operations("increment")) Edge.mergeIncrement _
-      else if (edge.op == GraphUtil.operations("insertBulk")) Edge.mergeInsertBulk _
       else throw new RuntimeException(s"not supported operation on edge: $edge")
     }
     val oldTs = invertedEdge.map(e => e.ts).getOrElse(minTsVal)
     val requestWithFuncs = requestEdges.zip(funcs).filter(oldTs != _._1.ts).sortBy(_._1.ts)
 
-
-    var shouldReplaceCnt = 0
-    val maxTsInNewProps = if (oldPropsWithTs.isEmpty) oldTs else oldPropsWithTs.map(kv => kv._2.ts).max
-    var prevPropsWithTs = oldPropsWithTs
-    var lastOp = GraphUtil.operations("insert")
-    var lastTs = requestEdges.map(_.ts).min
-    for {
-      (requestEdge, func) <- requestWithFuncs
-    } {
-      val (_newPropsWithTs, _shouldReplace) = func(prevPropsWithTs, requestEdge.propsWithTs, requestEdge.ts, requestEdge.schemaVer)
-      prevPropsWithTs = _newPropsWithTs
-
-      if (_shouldReplace) shouldReplaceCnt += 1
-
-      if (lastTs <= requestEdge.ts) {
-        lastTs = requestEdge.ts
-        lastOp = requestEdge.op
-      }
-    }
-
-    val newEdgeVersion = invertedEdge.map(e => e.version + incrementVersion).getOrElse(lastTs)
-    if (shouldReplaceCnt <= 0) {
-      (requestEdges.last, EdgeMutate())
+    if (requestWithFuncs.isEmpty) {
+      val ret = (requestEdges.head, EdgeMutate())
+      //      logger.info(s"all requests have duplicated timestamp with snapshotEdge. $invertedEdge")
+      //      logger.info(s"all requests have duplicated timestamp with snapshotEdge. $requestEdges")
+      ret
     } else {
-      val newOp = if (maxTsInNewProps > lastTs) {
-        invertedEdge match {
-          case None => lastOp
-          case Some(old) => old.op
-        }
-      } else {
-        lastOp
-      }
-      lastOp = newOp
-      val maxTs = if (oldTs > lastTs) oldTs else lastTs
-      val (requestEdge, _) = requestWithFuncs.head
-      val newEdge = Edge(requestEdge.srcVertex, requestEdge.tgtVertex,
-        requestEdge.labelWithDir, lastOp, maxTs, newEdgeVersion, prevPropsWithTs)
+      var shouldReplaceCnt = 0
+      val maxTsInNewProps = if (oldPropsWithTs.isEmpty) oldTs else  oldPropsWithTs.map(kv => kv._2.ts).max
+      var prevPropsWithTs = oldPropsWithTs
+      var lastOp = GraphUtil.operations("insert")
+      var lastTs = 0L
+      for {
+        (requestEdge, func) <- requestWithFuncs
+      } {
+        val (_newPropsWithTs, _shouldReplace) = func(prevPropsWithTs, requestEdge.propsWithTs, requestEdge.ts, requestEdge.schemaVer)
+        prevPropsWithTs = _newPropsWithTs
 
-      (newEdge, buildReplace(invertedEdge, newEdge, prevPropsWithTs))
+        if (_shouldReplace) shouldReplaceCnt += 1
+
+        if (lastTs < requestEdge.ts) {
+          lastTs = requestEdge.ts
+          lastOp = requestEdge.op
+        }
+
+        // 1. EdgeRequests.maxTs
+        // 2. invertedEdge.maxTs vs EdgeRequests.maxTs
+        // 3. if request.maxTs > invertedEdge.maxTs => request.op
+        // 4. else invertedEdge.op
+      }
+
+      if (shouldReplaceCnt <= 0) {
+        logger.info(s"drop all requests because all request should replaces are false.")
+        (requestEdges.head, EdgeMutate())
+      } else {
+
+
+        val newOp = if (maxTsInNewProps > lastTs) {
+          invertedEdge match {
+            case None => lastOp
+            case Some(old) => old.op
+          }
+        } else {
+          lastOp
+        }
+        lastOp = newOp
+
+        val newEdgeVersion = invertedEdge.map(e => e.version + incrementVersion).getOrElse(lastTs)
+
+        val maxTs = if (oldTs > lastTs) oldTs else lastTs
+        val (requestEdge, _) = requestWithFuncs.head
+        val newEdge = Edge(requestEdge.srcVertex, requestEdge.tgtVertex, requestEdge.labelWithDir, lastOp, maxTs, newEdgeVersion, prevPropsWithTs)
+
+        (newEdge, buildReplace(invertedEdge, newEdge, prevPropsWithTs))
+      }
     }
   }
 
