@@ -270,23 +270,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   }
 
 
-  case class AcquireLockFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
-
-  case class ReleaseLockFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
-
-  case class IndexEdgeMutationFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
-
-  case class IndexEdgeIncrementFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
-
-  case class BuildOperationFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
-
-  case class CommitFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
-
-  case class LockedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
-
-  case class PredicateFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
-
-  case class UnReachableStateException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
+  case class PartialFailureException(edge: Edge, statusCode: Byte) extends Exception
 
 
   def debug(ret: Boolean, phase: String, snapshotEdge: SnapshotEdge) = {
@@ -297,160 +281,152 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     logger.error(s"[${ret}] [${phase}] [TS: ${System.currentTimeMillis()}]: ${snapshotEdge.toLogString}")
   }
 
-  private def commitUpdate(edge: Edge)(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeMutate): Future[Boolean] = {
+  private def commitUpdate(edge: Edge, statusCode: Byte)(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeMutate): Future[Boolean] = {
     val label = edge.label
 
-
-
-    def lockEdge = if (snapshotEdgeOpt.isDefined) {
-      // some mutation successed.
-      snapshotEdgeOpt.get.toSnapshotEdge.copy(lockTsOpt = Option(edge.ts), version = snapshotEdgeOpt.get.version + 1)
-    } else {
-      edge.toSnapshotEdge.copy(lockTsOpt = Option(edge.ts))
+    def lockEdge = {
+      val newVersion = snapshotEdgeOpt.map(_.version).getOrElse(edge.ts) + 1
+      val base =
+        if (snapshotEdgeOpt.isDefined) {
+          // some mutation successed.
+          snapshotEdgeOpt.get.toSnapshotEdge
+        } else {
+          edge.toSnapshotEdge
+        }
+      base.copy(version = newVersion, statusCode = 1, lockTsOpt = Option(edge.ts))
     }
 
     def oldBytes = snapshotEdgeOpt.map { e =>
       snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
     }.getOrElse(Array.empty)
 
-    def releaseLockEdge = edgeUpdate.newInvertedEdge match {
-      case None => // shouldReplace false
-        assert(snapshotEdgeOpt.isDefined)
-        snapshotEdgeOpt.get.toSnapshotEdge.copy(version = lockEdge.version + 1, lockTsOpt = None)
-      case Some(newSnapshotEdge) => newSnapshotEdge.copy(version = lockEdge.version + 1, lockTsOpt = None)
+    def releaseLockEdge = {
+      val newVersion = lockEdge.version + 1
+      val base = edgeUpdate.newInvertedEdge match {
+        case None => // shouldReplace false
+          assert(snapshotEdgeOpt.isDefined)
+          snapshotEdgeOpt.get.toSnapshotEdge
+        case Some(newSnapshotEdge) => newSnapshotEdge
+      }
+      base.copy(version = newVersion, statusCode = 0, lockTsOpt = None)
     }
+
     def lockEdgePut = mutationBuilder.buildPutAsync(lockEdge).head.asInstanceOf[PutRequest]
     def releaseLockEdgePut = mutationBuilder.buildPutAsync(releaseLockEdge).head.asInstanceOf[PutRequest]
 
-//    assert(org.apache.hadoop.hbase.util.Bytes.compareTo(releaseLockEdgePut.value(), lockEdgePut.value()) != 0)
-//    assert(lockEdgePut.timestamp() < releaseLockEdgePut.timestamp())
+    //    assert(org.apache.hadoop.hbase.util.Bytes.compareTo(releaseLockEdgePut.value(), lockEdgePut.value()) != 0)
+    //    assert(lockEdgePut.timestamp() < releaseLockEdgePut.timestamp())
 
     val prob = 0.1
-    def acquireLock: Future[Boolean] =
-      if (Random.nextDouble() < prob) throw new AcquireLockFailedException(s"${edge.toLogString}")
-      else
-        client.compareAndSet(lockEdgePut, oldBytes).toFuture.map { ret =>
-          if (ret) {
-            logger.debug(s"[Acquire]\n${edge.toLogString}\n${oldBytes.toList}\n${lockEdgePut.value.toList}")
-            debug(ret, "acquireLock", lockEdge)
+    def acquireLock(statusCode: Byte): Future[Boolean] =
+      if (Random.nextDouble() < prob) throw new PartialFailureException(edge, 0)
+      else {
+        if (statusCode >= 1)
+          Future.successful(true)
+        else
+          client.compareAndSet(lockEdgePut, oldBytes).toFuture.map { ret =>
+            if (ret) {
+              debug(ret, "acquireLock", edge.toSnapshotEdge)
+            } else {
+              throw new PartialFailureException(edge, 0)
+            }
+            true
           }
-          else
-            throw new AcquireLockFailedException(s"${edge.toLogString}")
-          ret.booleanValue()
-        }
-
-    def releaseLock(predicate: Boolean): Future[Boolean] = {
-      if (!predicate) throw new PredicateFailedException(s"releaseLock. ${edge.toLogString}")
-
-      if (Random.nextDouble() < prob) throw new ReleaseLockFailedException(s"${edge.toLogString}")
-      else
-        client.compareAndSet(releaseLockEdgePut, lockEdgePut.value()).toFuture.map { ret =>
-          if (ret) {
-            logger.debug(s"[Release]\n${edge.toLogString}\n${lockEdgePut.value.toList}\n${releaseLockEdgePut.value.toList}")
-            debug(ret, "releaseLock", releaseLockEdge)
-          }
-          else {
-            error(ret, "releaseLock", snapshotEdgeOpt.get.toSnapshotEdge)
-            logger.error(s"[${System.currentTimeMillis()}] ${lockEdgePut.value.toList} ${oldBytes.toList}")
-            throw new ReleaseLockFailedException(s"${edge.toLogString}")
-          }
-          ret.booleanValue()
-        }
-    }
-
-    def mutate(predicate: Boolean): Future[Boolean] = {
-      if (!predicate) throw new PredicateFailedException(s"mutate. ${edge.toLogString}")
-
-      if (Random.nextDouble() < prob) throw new IndexEdgeMutationFailedException(s"${edge.toLogString}")
-      else
-        writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.indexedEdgeMutations(edgeUpdate), withWait = true).map { ret =>
-          if (ret)
-            debug(ret, "mutate", edge.toSnapshotEdge)
-          else
-            throw new IndexEdgeMutationFailedException(s"${edge.toLogString}")
-          ret
-        }
-    }
-    def increment(predicate: Boolean): Future[Boolean] = {
-      if (!predicate) throw new PredicateFailedException(s"increment. ${edge.toLogString}")
-
-      if (Random.nextDouble() < -0.1) throw new IndexEdgeIncrementFailedException(s"${edge.toLogString}")
-      else
-        writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.increments(edgeUpdate), withWait = true).map { ret =>
-          if (ret)
-            debug(ret, "increment", edge.toSnapshotEdge)
-          else
-            throw new IndexEdgeIncrementFailedException(s"${edge.toLogString}")
-          ret
-        }
-    }
-
-    def process(withLock: Boolean): Future[Boolean] =
-      for {
-        locked <- if (withLock) acquireLock else Future.successful(true)
-        mutationSuccess <- mutate(locked)
-        lockReleased <- releaseLock(mutationSuccess)
-        incrementSuccess <- increment(lockReleased)
-      } yield {
-        incrementSuccess
-//        lockReleased
       }
 
 
-    logger.info(s"CurrentLock: ${System.currentTimeMillis()}\n${snapshotEdgeOpt.map(_.lockTsOpt)}")
+    def releaseLock(predicate: Boolean): Future[Boolean] = {
+      if (!predicate) throw new PartialFailureException(edge, 3)
+
+      if (Random.nextDouble() < prob) throw new PartialFailureException(edge, 3)
+      else {
+        client.compareAndSet(releaseLockEdgePut, lockEdgePut.value()).toFuture.map { ret =>
+          if (ret) {
+            debug(ret, "releaseLock", edge.toSnapshotEdge)
+          } else {
+            error(ret, "releaseLock", edge.toSnapshotEdge)
+            throw new PartialFailureException(edge, 3)
+          }
+          true
+        }
+      }
+    }
+
+    def mutate(predicate: Boolean, statusCode: Byte, _edgeMutate: EdgeMutate): Future[Boolean] = {
+      if (!predicate) throw new PartialFailureException(edge, 1)
+
+      if (Random.nextDouble() < prob) throw new PartialFailureException(edge, 1)
+      else {
+        if (statusCode >= 2) {
+          Future.successful(true)
+        } else {
+          writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.indexedEdgeMutations(_edgeMutate), withWait = true).map { ret =>
+            if (ret) {
+              debug(ret, "mutate", edge.toSnapshotEdge)
+            } else {
+              throw new PartialFailureException(edge, 1)
+            }
+            true
+          }
+        }
+      }
+    }
+
+    def increment(predicate: Boolean, statusCode: Byte, _edgeMutate: EdgeMutate): Future[Boolean] = {
+      if (!predicate) throw new PartialFailureException(edge, 2)
+
+      if (Random.nextDouble() < prob) throw new PartialFailureException(edge, 2)
+      else {
+        if (statusCode >= 3) {
+          Future.successful(true)
+        } else {
+          writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.increments(_edgeMutate), withWait = true).map { ret =>
+            if (ret) {
+              debug(ret, "increment", edge.toSnapshotEdge)
+            } else {
+              throw new PartialFailureException(edge, 2)
+            }
+            true
+          }
+        }
+      }
+    }
+
+    def process(_edgeMutate: EdgeMutate, statusCode: Byte): Future[Boolean] =
+      for {
+        locked <- acquireLock(statusCode)
+        mutated <- mutate(locked, statusCode, _edgeMutate)
+        incremented <- increment(mutated, statusCode, _edgeMutate)
+        released <- releaseLock(incremented)
+      } yield {
+        released
+      }
+
+//        logger.info(s"CurrentLock: \n${snapshotEdgeOpt.map(_.toLogString).getOrElse("")}\nStatusCode: $statusCode\n")
 
     snapshotEdgeOpt match {
       case None =>
         // no one ever did success on acquire lock.
-        process(withLock = true)
+        process(edgeUpdate, statusCode)
       case Some(snapshotEdge) =>
 
         // someone did success on acquire lock at least one.
         snapshotEdge.lockTsOpt match {
           case None =>
             // not locked
-            process(withLock = true)
+            process(edgeUpdate, statusCode)
           case Some(lockTs) =>
             // locked
             if (snapshotEdge.ts == edge.ts) {
               // self locked
               logger.error(s"[Self]: \n${snapshotEdge.toLogString}\n${edge.toLogString}")
-              // only increment is necessary but we can`t trunst edgeMutate
-              val degreeVal =
-                if (edge.op == GraphUtil.operations("insert")) 1L
-                else if (edge.op == GraphUtil.operations("delete")) -1L
-                else 0L
-
-              val incrs = edge.relatedEdges.flatMap { relEdge =>
-                relEdge.edgesWithIndex.flatMap { indexEdge => mutationBuilder.buildIncrementsAsync(indexEdge, degreeVal) }
-              }
-
-              def incrementInner: Future[Boolean] = {
-                writeAsyncSimple(edge.label.hbaseZkAddr, incrs, withWait = true).map { ret =>
-                  if (ret) logger.debug(s"ReIncrementSuccess. ")
-                  else {
-                    logger.error(s"ReIncrementFailed.")
-                    throw new IndexEdgeIncrementFailedException(s"${edge.toLogString}")
-                  }
-                  ret
-                }
-              }
-              for {
-                incrementSuccess <- incrementInner
-                releaseLock <- releaseLock(incrementSuccess)
-              } yield releaseLock
-
+              val (_, newEdgeUpdate) = Edge.buildOperation(None, Seq(edge))
+              process(newEdgeUpdate, 1)
             } else {
               logger.error(s"[Other]: \n${snapshotEdge.toLogString}\n${edge.toLogString}")
-              logger.error(s"[LockEdge]: \n${lockEdge.toLogString}")
-//              logger.error(s"[OldBytes]: ${oldBytes.toList}")
-//              logger.error(s"[ReleaseLock]: ${releaseLockEdge.toLogString}")
-//              logger.error(s"[EdgeUpdate]: ${edgeUpdate}")
-              // other thread locked current snapshot edge
-              throw new LockedException(s"[Current LockTs]: ${snapshotEdge.ts}, Me: ${edge.ts}")
+              throw new PartialFailureException(edge, statusCode)
             }
         }
-      case _ => throw new UnReachableStateException(s"${edge.toLogString}")
     }
   }
 
@@ -470,31 +446,37 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       }
       Future.sequence(futures).map { rets => rets.forall(identity) }
     } else {
-      def compute = {
-        fetchInvertedAsync(edges.head) flatMap { case (queryParam, snapshotEdgeOpt) =>
-          val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, edges)
+      def commit(_edges: Seq[Edge], statusCode: Byte): Future[Boolean] = {
+        fetchInvertedAsync(_edges.head) flatMap { case (queryParam, snapshotEdgeOpt) =>
+          val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, _edges)
           if (snapshotEdgeOpt.isDefined) {
             if (edgeUpdate.newInvertedEdge.isDefined)
               assert(snapshotEdgeOpt.get.version < newEdge.version)
           }
 
-          commitUpdate(newEdge)(snapshotEdgeOpt, edgeUpdate).map { ret =>
-            if (ret)
-              logger.info(s"[Success] commit: \n${edges.map(_.toLogString)}")
-            else
-              throw new CommitFailedException(s"${edges.map(_.toLogString)}")
-            ret
+          commitUpdate(newEdge, statusCode)(snapshotEdgeOpt, edgeUpdate).map { ret =>
+            if (ret) {
+              logger.info(s"[Success] commit: \n${_edges.map(_.toLogString)}")
+            } else {
+              throw new PartialFailureException(newEdge, -1)
+            }
+            true
           }
         }
       }
-
-      Extensions.retryOnFailure(MaxRetryNum) {
-        compute
-      } {
-        logger.error(s"mutate failed after $MaxRetryNum retry")
-        edges.foreach { edge => ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge)) }
-        false
+      def retry(tryNum: Int)(edges: Seq[Edge], statusCode: Byte)(fn: (Seq[Edge], Byte) => Future[Boolean]): Future[Boolean] = {
+        if (tryNum >= MaxRetryNum) {
+          logger.error(s"commit failed after $MaxRetryNum")
+          Future.successful(false)
+        } else {
+          fn(edges, statusCode) recoverWith {
+            case PartialFailureException(retryEdge, failedStatusCode) =>
+               logger.error(s"[Try: $tryNum], [Status: $failedStatusCode] partial fail. ${retryEdge.toLogString}")
+              retry(tryNum + 1)(Seq(retryEdge), failedStatusCode)(fn)
+          }
+        }
       }
+      retry(1)(edges, 0)(commit)
     }
   }
 

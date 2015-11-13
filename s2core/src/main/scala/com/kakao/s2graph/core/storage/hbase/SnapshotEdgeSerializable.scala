@@ -18,7 +18,8 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
   val cf = HSerializable.edgeCf
 
   def statusCodeWithOp(): Array[Byte] = {
-    Bytes.toBytes(((snapshotEdge.statusCode << 4) | snapshotEdge.op).toByte)
+    val byte = (((snapshotEdge.statusCode << 4) | snapshotEdge.op).toByte)
+    Array.fill(1)(byte.toByte)
   }
   def valueBytes() = Bytes.add(statusCodeWithOp, propsToKeyValuesWithTs(snapshotEdge.props.toList))
 
