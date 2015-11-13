@@ -1,22 +1,20 @@
 package s2.counter.stream
 
-import com.kakao.s2graph.core.GraphUtil
 import com.kakao.s2graph.core.mysqls.Label
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkContext}
-import org.scalatest.{Matchers, BeforeAndAfterAll, FlatSpec}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import play.api.libs.json.Json
-import s2.config.{S2CounterConfig, S2ConfigFactory}
-import s2.counter.TrxLog
+import s2.config.{S2ConfigFactory, S2CounterConfig}
 import s2.counter.core.CounterFunctions.HashMapAccumulable
 import s2.counter.core._
-import s2.counter.core.v2.{RankingStorageGraph, GraphOperation}
+import s2.counter.core.v2.{GraphOperation, RankingStorageGraph}
 import s2.helper.CounterAdmin
-import s2.models.{DefaultCounterModel, Counter, DBModel}
+import s2.models.{Counter, DBModel, DefaultCounterModel}
 import s2.spark.HashMapParam
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
-import scala.util.{Success, Failure}
+import scala.util.{Failure, Success}
 
 /**
  * Created by hsleep(honeysleep@gmail.com) on 15. 6. 17..
@@ -52,7 +50,7 @@ class RankingCounterStreamingSpec extends FlatSpec with BeforeAndAfterAll with M
 
     // create test_case label
     com.kakao.s2graph.core.Management.createService(service, s2config.HBASE_ZOOKEEPER_QUORUM, s"${service}_dev", 1, None, "gz")
-    if (Label.findByName(action).isEmpty) {
+    if (Label.findByName(action, useCache = false).isEmpty) {
       val strJs =
         s"""
            |{
