@@ -304,7 +304,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       // some mutation successed.
       snapshotEdgeOpt.get.toSnapshotEdge.copy(lockTsOpt = Option(edge.ts), version = snapshotEdgeOpt.get.version + 1)
     } else {
-      edge.copy(propsWithTs = Map.empty).toSnapshotEdge.copy(lockTsOpt = Option(edge.ts))
+      edge.toSnapshotEdge.copy(lockTsOpt = Option(edge.ts))
     }
 
     val oldBytes = snapshotEdgeOpt.map { e =>
@@ -328,8 +328,10 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       if (Random.nextDouble() < prob) throw new AcquireLockFailedException(s"${edge.toLogString}")
       else
         client.compareAndSet(lockEdgePut, oldBytes).toFuture.map { ret =>
-          if (ret)
+          if (ret) {
+            logger.debug(s"[Acquire]\n${edge.toLogString}\n${oldBytes.toList}\n${lockEdgePut.value.toList}")
             debug(ret, "acquireLock", lockEdge)
+          }
           else
             throw new AcquireLockFailedException(s"${edge.toLogString}")
           ret.booleanValue()
@@ -341,8 +343,10 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       if (Random.nextDouble() < prob) throw new ReleaseLockFailedException(s"${edge.toLogString}")
       else
         client.compareAndSet(releaseLockEdgePut, lockEdgePut.value()).toFuture.map { ret =>
-          if (ret)
+          if (ret) {
+            logger.debug(s"[Release]\n${edge.toLogString}\n${lockEdgePut.value.toList}\n${releaseLockEdgePut.value.toList}")
             debug(ret, "releaseLock", releaseLockEdge)
+          }
           else {
             error(ret, "releaseLock", snapshotEdgeOpt.get.toSnapshotEdge)
             logger.error(s"[${System.currentTimeMillis()}] ${lockEdgePut.value.toList} ${oldBytes.toList}")
@@ -405,11 +409,12 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             process(withLock = true)
           case Some(lockTs) =>
             // locked
-            if (lockTs == edge.ts) {
+            if (snapshotEdge.ts == edge.ts) {
               // self locked)
-              logger.error("self retry!!!!!!!")
+              logger.error(s"[Self]: \n${snapshotEdge.toLogString}\n${edge.toLogString}")
               process(withLock = false)
             } else {
+              logger.error(s"[Other]: \n${snapshotEdge.toLogString}\n${edge.toLogString}")
               // other thread locked current snapshot edge
               throw new LockedException(s"[Current LockTs]: ${lockTs}, Me: ${edge.ts}")
             }
@@ -441,14 +446,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             if (edgeUpdate.newInvertedEdge.isDefined)
               assert(snapshotEdgeOpt.get.version < newEdge.version)
           }
-          //        val maxVersion = edges.map(e => e.version).max
-          //        if (newEdge.version <= maxVersion) {
-          //          logger.error(s"${edges.map(_.toLogString)}")
-          //          logger.error(s"${newEdge.toLogString}")
-          //          logger.error(s"${snapshotEdgeOpt.map(_.toLogString)}")
-          //          logger.error(s"${edgeUpdate.toLogString}")
-          //          throw new BuildOperationFailedException(s"\n[NewEdge]: ${newEdge.version}\n[RequestEdge]: ${maxVersion}")
-          //        }
 
           commitUpdate(newEdge)(snapshotEdgeOpt, edgeUpdate).map { ret =>
             if (ret)
