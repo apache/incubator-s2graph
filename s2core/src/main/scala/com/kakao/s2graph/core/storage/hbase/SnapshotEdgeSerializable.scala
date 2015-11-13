@@ -17,7 +17,10 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
   val table = label.hbaseTableName.getBytes()
   val cf = HSerializable.edgeCf
 
-  def valueBytes() = Bytes.add(Array.fill(1)(snapshotEdge.op), propsToKeyValuesWithTs(snapshotEdge.props.toList))
+  def statusCodeWithOp(): Array[Byte] = {
+    Bytes.toBytes(((snapshotEdge.statusCode << 4) | snapshotEdge.op).toByte)
+  }
+  def valueBytes() = Bytes.add(statusCodeWithOp, propsToKeyValuesWithTs(snapshotEdge.props.toList))
 
   override def toKeyValues: Seq[SKeyValue] = {
     label.schemaVersion match {

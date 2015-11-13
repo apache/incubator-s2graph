@@ -22,6 +22,12 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
     }
   }
 
+  def statusCodeWithOp(byte: Byte): (Byte, Byte) = {
+    val statusCode = (byte >> 4)
+    val op = byte & ((1<<4)-1)
+    (op.toByte, statusCode.toByte)
+  }
+
   private def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
     assert(kvs.size == 1)
@@ -32,10 +38,10 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       (e.srcVertex.id, e.labelWithDir, LabelIndex.DefaultSeq, true, 0)
     }.getOrElse(parseRow(kv, schemaVer))
 
-    val (tgtVertexId, props, op, ts, lockTsOpt) = {
+    val (tgtVertexId, props, op, ts, lockTsOpt, statusCode) = {
       val (tgtVertexId, _) = TargetVertexId.fromBytes(kv.qualifier, 0, kv.qualifier.length, schemaVer)
       var pos = 0
-      val op = kv.value(pos)
+      val (op, statusCode) = statusCodeWithOp(kv.value(pos))
       pos += 1
       val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
       val kvsMap = props.toMap
@@ -45,11 +51,11 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       }
       val lockTsOpt = if (endAt == kv.value.length) None else Option(Bytes.toLong(kv.value, endAt, 8))
 
-      (tgtVertexId, kvsMap, op, ts, lockTsOpt)
+      (tgtVertexId, kvsMap, op, ts, lockTsOpt, statusCode)
     }
 
     SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op,
-      kv.timestamp, props, lockTsOpt)
+      kv.timestamp, props, lockTsOpt, statusCode)
   }
 
   private def fromKeyValuesInnerV3[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
@@ -79,9 +85,9 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
     val srcVertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, srcInnerId)
     val tgtVertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, tgtInnerId)
 
-    val (props, op, ts, lockTsOpt) = {
+    val (props, op, ts, lockTsOpt, statusCode) = {
       var pos = 0
-      val op = kv.value(pos)
+      val (op, statusCode) = statusCodeWithOp(kv.value(pos))
       pos += 1
       val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
       val kvsMap = props.toMap
@@ -108,11 +114,11 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
 //          Option(edge)
 //        }
 
-      (kvsMap, op, ts, lockTsOpt)
+      (kvsMap, op, ts, lockTsOpt, statusCode)
     }
 
     SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),
-      labelWithDir, op, kv.timestamp, props, lockTsOpt)
+      labelWithDir, op, kv.timestamp, props, lockTsOpt, statusCode)
   }
 
 

@@ -300,28 +300,30 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   private def commitUpdate(edge: Edge)(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeMutate): Future[Boolean] = {
     val label = edge.label
 
-    val lockEdge = if (snapshotEdgeOpt.isDefined) {
+
+
+    def lockEdge = if (snapshotEdgeOpt.isDefined) {
       // some mutation successed.
       snapshotEdgeOpt.get.toSnapshotEdge.copy(lockTsOpt = Option(edge.ts), version = snapshotEdgeOpt.get.version + 1)
     } else {
       edge.toSnapshotEdge.copy(lockTsOpt = Option(edge.ts))
     }
 
-    val oldBytes = snapshotEdgeOpt.map { e =>
+    def oldBytes = snapshotEdgeOpt.map { e =>
       snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
     }.getOrElse(Array.empty)
 
-    val releaseLockEdge = edgeUpdate.newInvertedEdge match {
+    def releaseLockEdge = edgeUpdate.newInvertedEdge match {
       case None => // shouldReplace false
         assert(snapshotEdgeOpt.isDefined)
         snapshotEdgeOpt.get.toSnapshotEdge.copy(version = lockEdge.version + 1, lockTsOpt = None)
       case Some(newSnapshotEdge) => newSnapshotEdge.copy(version = lockEdge.version + 1, lockTsOpt = None)
     }
-    val lockEdgePut = mutationBuilder.buildPutAsync(lockEdge).head.asInstanceOf[PutRequest]
-    val releaseLockEdgePut = mutationBuilder.buildPutAsync(releaseLockEdge).head.asInstanceOf[PutRequest]
+    def lockEdgePut = mutationBuilder.buildPutAsync(lockEdge).head.asInstanceOf[PutRequest]
+    def releaseLockEdgePut = mutationBuilder.buildPutAsync(releaseLockEdge).head.asInstanceOf[PutRequest]
 
-    assert(org.apache.hadoop.hbase.util.Bytes.compareTo(releaseLockEdgePut.value(), lockEdgePut.value()) != 0)
-    assert(lockEdgePut.timestamp() < releaseLockEdgePut.timestamp())
+//    assert(org.apache.hadoop.hbase.util.Bytes.compareTo(releaseLockEdgePut.value(), lockEdgePut.value()) != 0)
+//    assert(lockEdgePut.timestamp() < releaseLockEdgePut.timestamp())
 
     val prob = 0.1
     def acquireLock: Future[Boolean] =
@@ -372,7 +374,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     def increment(predicate: Boolean): Future[Boolean] = {
       if (!predicate) throw new PredicateFailedException(s"increment. ${edge.toLogString}")
 
-      if (Random.nextDouble() < prob) throw new IndexEdgeIncrementFailedException(s"${edge.toLogString}")
+      if (Random.nextDouble() < -0.1) throw new IndexEdgeIncrementFailedException(s"${edge.toLogString}")
       else
         writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.increments(edgeUpdate), withWait = true).map { ret =>
           if (ret)
@@ -402,6 +404,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         // no one ever did success on acquire lock.
         process(withLock = true)
       case Some(snapshotEdge) =>
+
         // someone did success on acquire lock at least one.
         snapshotEdge.lockTsOpt match {
           case None =>
@@ -410,13 +413,41 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           case Some(lockTs) =>
             // locked
             if (snapshotEdge.ts == edge.ts) {
-              // self locked)
+              // self locked
               logger.error(s"[Self]: \n${snapshotEdge.toLogString}\n${edge.toLogString}")
-              process(withLock = false)
+              // only increment is necessary but we can`t trunst edgeMutate
+              val degreeVal =
+                if (edge.op == GraphUtil.operations("insert")) 1L
+                else if (edge.op == GraphUtil.operations("delete")) -1L
+                else 0L
+
+              val incrs = edge.relatedEdges.flatMap { relEdge =>
+                relEdge.edgesWithIndex.flatMap { indexEdge => mutationBuilder.buildIncrementsAsync(indexEdge, degreeVal) }
+              }
+
+              def incrementInner: Future[Boolean] = {
+                writeAsyncSimple(edge.label.hbaseZkAddr, incrs, withWait = true).map { ret =>
+                  if (ret) logger.debug(s"ReIncrementSuccess. ")
+                  else {
+                    logger.error(s"ReIncrementFailed.")
+                    throw new IndexEdgeIncrementFailedException(s"${edge.toLogString}")
+                  }
+                  ret
+                }
+              }
+              for {
+                incrementSuccess <- incrementInner
+                releaseLock <- releaseLock(incrementSuccess)
+              } yield releaseLock
+
             } else {
               logger.error(s"[Other]: \n${snapshotEdge.toLogString}\n${edge.toLogString}")
+              logger.error(s"[LockEdge]: \n${lockEdge.toLogString}")
+//              logger.error(s"[OldBytes]: ${oldBytes.toList}")
+//              logger.error(s"[ReleaseLock]: ${releaseLockEdge.toLogString}")
+//              logger.error(s"[EdgeUpdate]: ${edgeUpdate}")
               // other thread locked current snapshot edge
-              throw new LockedException(s"[Current LockTs]: ${lockTs}, Me: ${edge.ts}")
+              throw new LockedException(s"[Current LockTs]: ${snapshotEdge.ts}, Me: ${edge.ts}")
             }
         }
       case _ => throw new UnReachableStateException(s"${edge.toLogString}")

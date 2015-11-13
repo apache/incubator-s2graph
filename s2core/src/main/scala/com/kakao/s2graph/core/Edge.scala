@@ -17,13 +17,14 @@ case class SnapshotEdge(srcVertex: Vertex,
                         op: Byte,
                         version: Long,
                         props: Map[Byte, InnerValLikeWithTs],
-                        lockTsOpt: Option[Long]) extends JSONParser {
+                        lockTsOpt: Option[Long],
+                        statusCode: Byte = 0) extends JSONParser {
 
 
   val schemaVer = label.schemaVersion
   lazy val label = Label.findById(labelWithDir.labelId)
   lazy val propsWithoutTs = props.mapValues(_.innerVal)
-  val ts = props(LabelMeta.timeStampSeq).innerVal.toString.toLong
+  val ts = props(LabelMeta.timeStampSeq).ts
 
   def toEdge: Edge = {
     val ts = props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(version)
@@ -116,7 +117,8 @@ case class Edge(srcVertex: Vertex,
                 propsWithTs: Map[Byte, InnerValLikeWithTs] = Map.empty[Byte, InnerValLikeWithTs],
                 parentEdges: Seq[EdgeWithScore] = Nil,
                 originalEdgeOpt: Option[Edge] = None,
-                lockTsOpt: Option[Long] = None) extends GraphElement with JSONParser {
+                lockTsOpt: Option[Long] = None,
+                statusCode: Byte = 0) extends GraphElement with JSONParser {
 
   val schemaVer = label.schemaVersion
 
@@ -197,7 +199,7 @@ case class Edge(srcVertex: Vertex,
 
     val ret = SnapshotEdge(smaller, larger, newLabelWithDir, op, version, propsWithTs ++
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)),
-      lockTsOpt = lockTsOpt)
+      lockTsOpt = lockTsOpt, statusCode = statusCode)
     ret
   }
 
