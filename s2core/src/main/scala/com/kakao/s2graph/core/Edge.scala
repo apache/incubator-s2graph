@@ -37,10 +37,7 @@ case class SnapshotEdge(srcVertex: Vertex,
   } yield meta.name -> jsValue
 
   def toLogString() = {
-    if (propsWithName.nonEmpty)
-      List(ts, version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
-    else
-      List(ts, version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label).mkString("\t")
+    List(ts, version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
   }
 }
 
@@ -98,7 +95,7 @@ case class IndexEdge(srcVertex: Vertex,
 
   def propsWithName = for {
     (seq, v) <- props
-    meta <- label.metaPropsMap.get(seq) if seq > 0
+    meta <- label.metaPropsMap.get(seq) if seq >= 0
     jsValue <- innerValToJsValue(v, meta.dataType)
   } yield meta.name -> jsValue
 
@@ -106,10 +103,7 @@ case class IndexEdge(srcVertex: Vertex,
   def toEdge: Edge = Edge(srcVertex, tgtVertex, labelWithDir, op, ts, ts, propsWithTs)
 
   def toLogString() = {
-    if (propsWithName.nonEmpty)
-      List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
-    else
-      List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label).mkString("\t")
+    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
   }
 }
 
@@ -258,10 +252,7 @@ case class Edge(srcVertex: Vertex,
     }
 
   def toLogString: String = {
-    if (propsWithName.nonEmpty)
-      List(ts, version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
-    else
-      List(ts, version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label).mkString("\t")
+    List(ts, version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
   }
 }
 
@@ -383,9 +374,9 @@ object Edge extends JSONParser {
       }
     }
 
-    val newEdgeVersion = invertedEdge.map(e => e.version).getOrElse(lastTs) + incrementVersion
+    val newEdgeVersion = invertedEdge.map(e => e.version + incrementVersion).getOrElse(lastTs)
     if (shouldReplaceCnt <= 0) {
-      (requestEdges.last.copy(version = newEdgeVersion), EdgeMutate())
+      (requestEdges.last, EdgeMutate())
     } else {
       val newOp = if (maxTsInNewProps > lastTs) {
         invertedEdge match {

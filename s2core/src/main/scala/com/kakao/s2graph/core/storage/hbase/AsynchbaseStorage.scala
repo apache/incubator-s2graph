@@ -18,7 +18,7 @@ import scala.collection.{Seq}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, duration}
 import scala.util.hashing.MurmurHash3
-import scala.util.{Random}
+import scala.util.{Success, Random}
 
 
 object AsynchbaseStorage {
@@ -269,22 +269,44 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
   }
 
-  case class AcquireLockFailedException(msg: String) extends Exception(msg)
 
-  case class ReleaseLockFailedException(msg: String) extends Exception(msg)
+  case class AcquireLockFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
 
-  case class IndexEdgeMutationFailedException(msg: String) extends Exception(msg)
+  case class ReleaseLockFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
 
-  case class IndexEdgeIncrementFailedException(msg: String) extends Exception(msg)
+  case class IndexEdgeMutationFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
 
-  case class BuildOperationFailedException(msg: String) extends Exception(msg)
+  case class IndexEdgeIncrementFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
 
-  case class CommitFailedException(msg: String) extends Exception(msg)
+  case class BuildOperationFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
+
+  case class CommitFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
+
+  case class LockedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
+
+  case class PredicateFailedException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
+
+  case class UnReachableStateException(msg: String) extends Exception(s"${System.currentTimeMillis()}: $msg")
+
+
+  def debug(ret: Boolean, phase: String, snapshotEdge: SnapshotEdge) = {
+    logger.debug(s"[${ret}] [${phase}] [TS: ${System.currentTimeMillis()}]: ${snapshotEdge.toLogString}")
+  }
+
+  def error(ret: Boolean, phase: String, snapshotEdge: SnapshotEdge) = {
+    logger.error(s"[${ret}] [${phase}] [TS: ${System.currentTimeMillis()}]: ${snapshotEdge.toLogString}")
+  }
 
   private def commitUpdate(edge: Edge)(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeMutate): Future[Boolean] = {
     val label = edge.label
 
-    val lockEdge = edge.toSnapshotEdge.copy(lockTsOpt = Option(edge.ts))
+    val lockEdge = if (snapshotEdgeOpt.isDefined) {
+      // some mutation successed.
+      edge.toSnapshotEdge.copy(lockTsOpt = Option(edge.ts), version = snapshotEdgeOpt.get.version + 1)
+    } else {
+      edge.toSnapshotEdge.copy(lockTsOpt = Option(edge.ts))
+    }
+
     val oldBytes = snapshotEdgeOpt.map { e =>
       snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
     }.getOrElse(Array.empty)
@@ -306,54 +328,65 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       else
         client.compareAndSet(lockEdgePut, oldBytes).toFuture.map { ret =>
           if (ret)
-            logger.debug(s"[Success]: acquireLock \n${lockEdge.toLogString()}")
+            debug(ret, "acquireLock", lockEdge)
           else
             throw new AcquireLockFailedException(s"${edge.toLogString}")
           ret.booleanValue()
         }
 
-    def releaseLock: Future[Boolean] =
-      if (Random.nextDouble() < prob) throw new ReleaseLockFailedException(s"${edge.toLogString}")
+    def releaseLock(predicate: Boolean): Future[Boolean] = {
+      if (!predicate) throw new PredicateFailedException(s"releaseLock. ${edge.toLogString}")
+
+      if (Random.nextDouble() < -1.0) throw new ReleaseLockFailedException(s"${edge.toLogString}")
       else
         client.compareAndSet(releaseLockEdgePut, lockEdgePut.value()).toFuture.map { ret =>
           if (ret)
-            logger.debug(s"[Success]: releaseLock \n${releaseLockEdge.toLogString()}")
-          else
-            logger.error(s"[LockEdgePut]: $lockEdgePut\n[SnapshotEdge]: ${snapshotEdgeOpt.get.toLogString}")
+            debug(ret, "releaseLock", releaseLockEdge)
+          else {
+            error(ret, "releaseLock", snapshotEdgeOpt.get.toSnapshotEdge)
+            logger.error(s"[${System.currentTimeMillis()}] ${lockEdgePut.value.toList} ${oldBytes.toList}")
             throw new ReleaseLockFailedException(s"${edge.toLogString}")
+          }
           ret.booleanValue()
         }
+    }
 
-    def mutate: Future[Boolean] =
+    def mutate(predicate: Boolean): Future[Boolean] = {
+      if (!predicate) throw new PredicateFailedException(s"mutate. ${edge.toLogString}")
+
       if (Random.nextDouble() < prob) throw new IndexEdgeMutationFailedException(s"${edge.toLogString}")
       else
         writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.indexedEdgeMutations(edgeUpdate), withWait = true).map { ret =>
           if (ret)
-            logger.debug(s"[Success]: mutate \n${edge.toLogString}")
+            debug(ret, "mutate", edge.toSnapshotEdge)
           else
             throw new IndexEdgeMutationFailedException(s"${edge.toLogString}")
           ret
         }
-    def increment: Future[Boolean] =
+    }
+    def increment(predicate: Boolean): Future[Boolean] = {
+      if (!predicate) throw new PredicateFailedException(s"increment. ${edge.toLogString}")
+
       if (Random.nextDouble() < prob) throw new IndexEdgeIncrementFailedException(s"${edge.toLogString}")
       else
         writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.increments(edgeUpdate), withWait = true).map { ret =>
           if (ret)
-            logger.debug(s"[Success]: increment \n${edge.toLogString}")
+            debug(ret, "increment", edge.toSnapshotEdge)
           else
             throw new IndexEdgeIncrementFailedException(s"${edge.toLogString}")
           ret
         }
+    }
 
     def process(withLock: Boolean): Future[Boolean] =
       for {
         locked <- if (withLock) acquireLock else Future.successful(true)
-        mutationSuccess <- mutate
-        lockReleased <- releaseLock
-        incrementSuccess <- increment
+        mutationSuccess <- mutate(locked)
+        lockReleased <- releaseLock(mutationSuccess)
+        incrementSuccess <- increment(lockReleased)
       } yield incrementSuccess
 
-    logger.info(s"CurrentLock: \n${snapshotEdgeOpt.map(_.lockTsOpt)}")
+    logger.info(s"CurrentLock: ${System.currentTimeMillis()}\n${snapshotEdgeOpt.map(_.lockTsOpt)}")
 
     snapshotEdgeOpt match {
       case None =>
@@ -371,9 +404,11 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               // self locked
               process(withLock = false)
             } else {
-              throw new AcquireLockFailedException(s"[Current LockTs]: ${lockTs}\n${edge.toLogString}")
+              // other thread locked current snapshot edge
+              throw new LockedException(s"[Current LockTs]: ${lockTs}, Me: ${edge.ts}")
             }
         }
+      case _ => throw new UnReachableStateException(s"${edge.toLogString}")
     }
   }
 
@@ -393,26 +428,31 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       }
       Future.sequence(futures).map { rets => rets.forall(identity) }
     } else {
-      def compute = fetchInvertedAsync(edges.head) flatMap { case (queryParam, snapshotEdgeOpt) =>
-        val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, edges)
-        if (snapshotEdgeOpt.isDefined) {
-          assert(snapshotEdgeOpt.get.version < newEdge.version)
-        }
-        //        val maxVersion = edges.map(e => e.version).max
-        //        if (newEdge.version <= maxVersion) {
-        //          logger.error(s"${edges.map(_.toLogString)}")
-        //          logger.error(s"${newEdge.toLogString}")
-        //          logger.error(s"${snapshotEdgeOpt.map(_.toLogString)}")
-        //          logger.error(s"${edgeUpdate.toLogString}")
-        //          throw new BuildOperationFailedException(s"\n[NewEdge]: ${newEdge.version}\n[RequestEdge]: ${maxVersion}")
-        //        }
+      def compute = {
+        fetchInvertedAsync(edges.head) flatMap { case (queryParam, snapshotEdgeOpt) =>
+          val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, edges)
+          if (snapshotEdgeOpt.isDefined) {
+            if (edgeUpdate.newInvertedEdge.isDefined)
+              assert(snapshotEdgeOpt.get.version < newEdge.version)
+          }
+          //        val maxVersion = edges.map(e => e.version).max
+          //        if (newEdge.version <= maxVersion) {
+          //          logger.error(s"${edges.map(_.toLogString)}")
+          //          logger.error(s"${newEdge.toLogString}")
+          //          logger.error(s"${snapshotEdgeOpt.map(_.toLogString)}")
+          //          logger.error(s"${edgeUpdate.toLogString}")
+          //          throw new BuildOperationFailedException(s"\n[NewEdge]: ${newEdge.version}\n[RequestEdge]: ${maxVersion}")
+          //        }
 
-        commitUpdate(newEdge)(snapshotEdgeOpt, edgeUpdate).map { ret =>
-          if (ret) logger.info(s"[Success] commit: \n${edges.map(_.toLogString)}")
-          else throw new CommitFailedException(s"${edges.map(_.toLogString)}")
-          ret
+          commitUpdate(newEdge)(snapshotEdgeOpt, edgeUpdate).map { ret =>
+            if (ret)
+              logger.info(s"[Success] commit: \n${edges.map(_.toLogString)}")
+//            else throw new CommitFailedException(s"${edges.map(_.toLogString)}")
+            ret
+          }
         }
       }
+
       Extensions.retryOnFailure(MaxRetryNum) {
         compute
       } {

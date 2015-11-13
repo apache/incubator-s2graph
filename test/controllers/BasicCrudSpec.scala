@@ -36,11 +36,12 @@ class BasicCrudSpec extends SpecCommon {
       res.header.status must equalTo(200)
 
       println(s"---- TC${tcNum}_init ----")
+      Thread.sleep(10000)
 
       for {
         label <- Label.findByName(labelName)
         direction <- List("out", "in")
-        cacheTTL <- List(1000L, 2000L)
+        cacheTTL <- List(-1L)
       } {
         val (serviceName, columnName, id, otherId) = direction match {
           case "out" => (label.srcService.serviceName, label.srcColumn.columnName, srcId, tgtId)
