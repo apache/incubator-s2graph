@@ -343,7 +343,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 //        logger.debug(s"skip releaseLock: [$statusCode] ${edge.toLogString}")
 //        Future.successful(true)
 //      } else {
-        if (Random.nextDouble() < prob) throw new PartialFailureException(edge, 3)
+        if (Random.nextDouble() < -1.0) throw new PartialFailureException(edge, 3)
         else {
           client.compareAndSet(releaseLockEdgePut, lockEdgePut.value()).toFuture.map { ret =>
             if (ret) {
@@ -460,7 +460,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             if (ret) {
               logger.info(s"[Success] commit: \n${_edges.map(_.toLogString)}")
             } else {
-              throw new PartialFailureException(newEdge, -1)
+              throw new PartialFailureException(newEdge, 3)
             }
             true
           }
@@ -471,7 +471,12 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           logger.error(s"commit failed after $MaxRetryNum")
           Future.successful(false)
         } else {
-          fn(edges, statusCode) recoverWith {
+          val future = fn(edges, statusCode)
+          future.onSuccess {
+            case success =>
+              logger.debug(s"Finished. [$tryNum]\n${edges.head.toLogString}\n")
+          }
+          future recoverWith {
             case PartialFailureException(retryEdge, failedStatusCode) =>
               val status = failedStatusCode match {
                 case 0 => "AcquireLock failed."

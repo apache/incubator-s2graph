@@ -21,6 +21,9 @@ case class SnapshotEdge(srcVertex: Vertex,
                         statusCode: Byte = 0) extends JSONParser {
 
 
+  assert(props.containsKey(LabelMeta.timeStampSeq))
+
+
   val schemaVer = label.schemaVersion
   lazy val label = Label.findById(labelWithDir.labelId)
   lazy val propsWithoutTs = props.mapValues(_.innerVal)
