@@ -5,7 +5,6 @@ import com.kakao.ml.{BaseDataProcessor, EmptyData, Params}
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{LongType, StringType, StructField, StructType}
 import org.apache.spark.storage.StorageLevel
 
 import scala.collection.mutable.ListBuffer

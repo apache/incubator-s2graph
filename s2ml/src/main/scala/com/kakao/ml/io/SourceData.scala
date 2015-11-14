@@ -12,5 +12,5 @@ case class SourceData(
     tsFrom: Long,
     tsTo: Long,
     labelWeight: Map[String, Double],
-    userActivities: Option[Array[(String, Int)]],
-    itemActivities: Option[Array[(String, Int)]]) extends Data
+    userActivities: Option[Array[(String, Int)]] = None,
+    itemActivities: Option[Array[(String, Int)]] = None) extends Data

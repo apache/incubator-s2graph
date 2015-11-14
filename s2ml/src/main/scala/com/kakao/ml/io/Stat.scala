@@ -6,13 +6,16 @@ import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType
 
-case class StatParams(showPercentile: Option[Boolean]) extends Params
+case class StatParams(showPercentile: Option[Boolean], ntile: Option[Int]) extends Params
 
 class SourceDataStat(params: StatParams) extends BaseDataProcessor[SourceData, SourceData](params) {
+
+  val defaultN = 100
 
   override protected def processBlock(sqlContext: SQLContext, input: SourceData): SourceData = {
 
     val numEvents = input.count
+    val n = params.ntile.getOrElse(defaultN)
 
     val (numUsers, numItems) = (input.userActivities, input.itemActivities) match {
       case (Some(userActivities), Some(itemActivities)) =>
@@ -31,6 +34,7 @@ class SourceDataStat(params: StatParams) extends BaseDataProcessor[SourceData, S
     show(s"numItems: ${fmt.format(numItems)}")
     show(s"numRatings: ${fmt.format(numEvents)}")
     show(f"density: ${density * 100}%.4f%% (max: 100%%)")
+    show(Seq(numUsers, numItems, numEvents).mkString("\t"))
 
     /** show sample users */
     (input.userActivities, input.itemActivities) match {
@@ -60,18 +64,25 @@ class SourceDataStat(params: StatParams) extends BaseDataProcessor[SourceData, S
         }
 
         show("Percentile of UserActivity")
-        userActivityDF
-            .withColumn("ntile", ntile(100) over Window.orderBy(countColString))
+        val ntileOfUserActivities = userActivityDF
+            .withColumn("ntile", ntile(n) over Window.orderBy(countColString))
             .groupBy("ntile")
-            .agg(mean(countCol) cast IntegerType as "value")
-            .show(100, false)
+            .agg(min(countCol), max(countCol), count(countCol), round(mean(countCol), 2) as "mean")
+            .cache()
+
+        ntileOfUserActivities
+            .show(n, false)
 
         show("Percentile of ItemActivity")
-        itemActivityDF
-            .withColumn("ntile", ntile(100) over Window.orderBy(countColString))
+        val ntileOfItemActivities = itemActivityDF
+            .withColumn("ntile", ntile(n) over Window.orderBy(countColString))
             .groupBy("ntile")
-            .agg(mean(countCol) cast IntegerType as "value")
-            .show(100, false)
+            .agg(min(countCol), max(countCol), count(countCol), round(mean(countCol), 2) as "mean")
+            .cache()
+
+        ntileOfItemActivities
+            .show(n, false)
+
     }
 
     input

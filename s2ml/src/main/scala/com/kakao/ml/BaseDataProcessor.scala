@@ -143,6 +143,7 @@ abstract class BaseDataProcessor[I <: Data :ClassTag, O <: Data :ClassTag](param
     else s
   }
 
+  final def processOne(sqlContext: SQLContext, input: I): O = processBlock(sqlContext, input)
 
   final def process(sqlContext: SQLContext): O = {
     logInfo("processing ... ")
