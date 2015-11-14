@@ -23,7 +23,6 @@ case class SnapshotEdge(srcVertex: Vertex,
 
   assert(props.containsKey(LabelMeta.timeStampSeq))
 
-
   val schemaVer = label.schemaVersion
   lazy val label = Label.findById(labelWithDir.labelId)
   lazy val propsWithoutTs = props.mapValues(_.innerVal)
@@ -36,12 +35,12 @@ case class SnapshotEdge(srcVertex: Vertex,
 
   def propsWithName = (for {
     (seq, v) <- props
-    meta <- label.metaPropsMap.get(seq) if seq >= 0
+    meta <- label.metaPropsMap.get(seq)
     jsValue <- innerValToJsValue(v.innerVal, meta.dataType)
   } yield meta.name -> jsValue) ++ Map("version" -> JsNumber(version))
 
   def toLogString() = {
-    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
+    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, props).mkString("\t")
   }
 }
 
@@ -266,11 +265,12 @@ case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       newInvertedEdge: Option[SnapshotEdge] = None) {
 
   def toLogString: String = {
+    val l = (0 until 50).map(_ => "-").mkString("")
     val deletes = s"deletes: ${edgesToDelete.map(e => e.toLogString).mkString("\n")}"
     val inserts = s"inserts: ${edgesToInsert.map(e => e.toLogString).mkString("\n")}"
     val updates = s"snapshot: ${newInvertedEdge.map(e => e.toLogString).mkString("\n")}"
 
-    List(deletes, inserts, updates).mkString("\n\n")
+    List("\n", l, deletes, inserts, updates, l, "\n").mkString("\n")
   }
 }
 
@@ -367,10 +367,11 @@ object Edge extends JSONParser {
       ret
     } else {
       var shouldReplaceCnt = 0
-      val maxTsInNewProps = if (oldPropsWithTs.isEmpty) oldTs else  oldPropsWithTs.map(kv => kv._2.ts).max
+
       var prevPropsWithTs = oldPropsWithTs
-      var lastOp = GraphUtil.operations("insert")
-      var lastTs = 0L
+      var lastOp = requestWithFuncs.head._1.op
+      var lastTs = requestWithFuncs.head._1.ts
+
       for {
         (requestEdge, func) <- requestWithFuncs
       } {
@@ -379,15 +380,10 @@ object Edge extends JSONParser {
 
         if (_shouldReplace) shouldReplaceCnt += 1
 
-        if (lastTs < requestEdge.ts) {
+        if (lastTs <= requestEdge.ts) {
           lastTs = requestEdge.ts
           lastOp = requestEdge.op
         }
-
-        // 1. EdgeRequests.maxTs
-        // 2. invertedEdge.maxTs vs EdgeRequests.maxTs
-        // 3. if request.maxTs > invertedEdge.maxTs => request.op
-        // 4. else invertedEdge.op
       }
 
       if (shouldReplaceCnt <= 0) {
@@ -395,7 +391,11 @@ object Edge extends JSONParser {
         (requestEdges.head, EdgeMutate())
       } else {
 
-
+        /**
+         *  1447469633346	insert	e	7001	700110001abc	s2graph_label_test_2	{"time":10,"_timestamp":1447469633346,"weight":20,"version":1447469633347}
+            1447469633345	delete	e	7001	700110001abc	s2graph_label_test_2	{"_timestamp":1447469633345,"version":1447469633348}
+         */
+        val maxTsInNewProps = if (prevPropsWithTs.isEmpty) oldTs else  prevPropsWithTs.map(kv => kv._2.ts).max
         val newOp = if (maxTsInNewProps > lastTs) {
           invertedEdge match {
             case None => lastOp
@@ -409,19 +409,13 @@ object Edge extends JSONParser {
         val newEdgeVersion = invertedEdge.map(e => e.version + incrementVersion).getOrElse(lastTs)
 
         val maxTs = if (oldTs > lastTs) oldTs else lastTs
-        val (requestEdge, _) = requestWithFuncs.head
-        val newEdge = Edge(requestEdge.srcVertex, requestEdge.tgtVertex, requestEdge.labelWithDir, lastOp, maxTs, newEdgeVersion, prevPropsWithTs)
-
-        (newEdge, buildReplace(invertedEdge, newEdge, prevPropsWithTs))
+        val (requestEdge, _) = requestWithFuncs.last
+        val newEdge = requestEdge.copy(version =  requestEdge.version + 1)
+        (requestWithFuncs.last._1, buildReplace(invertedEdge, newEdge, prevPropsWithTs))
       }
     }
   }
 
-  /**
-   * delete invertedEdge.edgesWithIndex
-   * insert requestEdge.edgesWithIndex
-   * update requestEdge.edgesWithIndexInverted
-   */
   def buildReplace(invertedEdge: Option[Edge], requestEdge: Edge, newPropsWithTs: Map[Byte, InnerValLikeWithTs]): EdgeMutate = {
 
     val edgesToDelete = invertedEdge match {

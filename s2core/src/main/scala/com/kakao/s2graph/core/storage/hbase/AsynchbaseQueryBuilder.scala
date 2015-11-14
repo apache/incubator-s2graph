@@ -84,7 +84,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
         QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam, edgeWithScores)
       } recoverWith { ex =>
         logger.error(s"fetchQueryParam failed. fallback return.", ex)
-        QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam)
+        QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam, isFailure = true)
       }
     }
 
