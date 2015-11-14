@@ -24,7 +24,7 @@ case class SnapshotEdge(srcVertex: Vertex,
   val schemaVer = label.schemaVersion
   lazy val label = Label.findById(labelWithDir.labelId)
   lazy val propsWithoutTs = props.mapValues(_.innerVal)
-  val ts = props(LabelMeta.timeStampSeq).ts
+  val ts = props(LabelMeta.timeStampSeq).innerVal.toString().toLong
 
   def toEdge: Edge = {
     val ts = props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(version)
@@ -388,7 +388,7 @@ object Edge extends JSONParser {
       }
 
       if (shouldReplaceCnt <= 0) {
-        logger.info(s"drop all requests because all request should replaces are false.")
+//        logger.info(s"drop all requests because all request should replaces are false.")
         (requestEdges.head, EdgeMutate())
       } else {
 
