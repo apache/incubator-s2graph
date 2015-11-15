@@ -336,7 +336,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     //    assert(org.apache.hadoop.hbase.util.Bytes.compareTo(releaseLockEdgePut.value(), lockEdgePut.value()) != 0)
     //    assert(lockEdgePut.timestamp() < releaseLockEdgePut.timestamp())
 
-    val prob = 0.1
+    val prob = -0.1
 
     def acquireLock(statusCode: Byte): Future[Boolean] =
       if (statusCode >= 1) {
@@ -361,7 +361,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       //        logger.debug(s"skip releaseLock: [$statusCode] ${edge.toLogString}")
       //        Future.successful(true)
       //      } else {
-      if (Random.nextDouble() < -1.0) throw new PartialFailureException(edge, 3)
+      if (Random.nextDouble() < prob) throw new PartialFailureException(edge, 3)
       else {
         client.compareAndSet(releaseLockEdgePut(edgeMutate), lockEdgePut.value()).toFuture.map { ret =>
           if (ret) {
@@ -376,7 +376,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               "\n"
             )
 
-            logger.error(msg.mkString)
+            logger.error(msg.mkString("\n"))
             error(ret, "releaseLock", edge.toSnapshotEdge)
             throw new PartialFailureException(edge, 3)
           }
