@@ -1,6 +1,5 @@
 package s2.helper
 
-import com.kakao.s2graph.core.Management
 import com.kakao.s2graph.core.mysqls.Label
 import com.typesafe.config.Config
 import play.api.libs.json.Json
@@ -20,10 +19,10 @@ class CounterAdmin(config: Config) {
   val counterModel = new CounterModel(config)
   val graphOp = new GraphOperation(config)
 
-  def setupCounterOnGraph: Unit = {
+  def setupCounterOnGraph(): Unit = {
     // create s2counter service
     val service = "s2counter"
-    Management.createService(service, s2config.HBASE_ZOOKEEPER_QUORUM, s"$service-${config.getString("phase")}", 1, None, "gz")
+    com.kakao.s2graph.core.Management.createService(service, s2config.HBASE_ZOOKEEPER_QUORUM, s"$service-${config.getString("phase")}", 1, None, "gz")
     // create bucket label
     val label = "s2counter_topK_bucket"
     if (Label.findByName(label, useCache = false).isEmpty) {
@@ -73,7 +72,10 @@ class CounterAdmin(config: Config) {
   }
 
   def prepareStorage(policy: Counter): Unit = {
-    exactCounter(policy).prepare(policy)
+    if (policy.rateActionId.isEmpty) {
+      // if defined rate action, do not use exact counter
+      exactCounter(policy).prepare(policy)
+    }
     if (policy.useRank) {
       rankingCounter(policy).prepare(policy)
     }

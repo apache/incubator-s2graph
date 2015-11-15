@@ -8,7 +8,7 @@ import play.api.libs.json.Json
 import s2.config.{S2ConfigFactory, S2CounterConfig}
 import s2.counter.core.CounterFunctions.HashMapAccumulable
 import s2.counter.core._
-import s2.counter.core.v2.{GraphOperation, RankingStorageGraph}
+import s2.counter.core.v2.{ExactStorageGraph, GraphOperation, RankingStorageGraph}
 import s2.helper.CounterAdmin
 import s2.models.{Counter, DBModel, DefaultCounterModel}
 import s2.spark.HashMapParam
@@ -30,10 +30,14 @@ class RankingCounterStreamingSpec extends FlatSpec with BeforeAndAfterAll with M
   val admin = new CounterAdmin(S2ConfigFactory.config)
   val graphOp = new GraphOperation(S2ConfigFactory.config)
   val s2config = new S2CounterConfig(S2ConfigFactory.config)
+
+  val exactCounter = new ExactCounter(S2ConfigFactory.config, new ExactStorageGraph(S2ConfigFactory.config))
   val rankingCounter = new RankingCounter(S2ConfigFactory.config, new RankingStorageGraph(S2ConfigFactory.config))
 
   val service = "test"
   val action = "test_case"
+  val action_base = "test_case_base"
+  val action_rate = "test_case_rate"
 
   override def beforeAll(): Unit = {
     DBModel.initialize(S2ConfigFactory.config)
@@ -46,7 +50,7 @@ class RankingCounterStreamingSpec extends FlatSpec with BeforeAndAfterAll with M
 
     sc = ssc.sparkContext
 
-    admin.setupCounterOnGraph
+    admin.setupCounterOnGraph()
 
     // create test_case label
     com.kakao.s2graph.core.Management.createService(service, s2config.HBASE_ZOOKEEPER_QUORUM, s"${service}_dev", 1, None, "gz")
@@ -69,25 +73,66 @@ class RankingCounterStreamingSpec extends FlatSpec with BeforeAndAfterAll with M
        """.stripMargin
       graphOp.createLabel(Json.parse(strJs))
     }
+    if (Label.findByName(action_base, useCache = false).isEmpty) {
+      val strJs =
+        s"""
+           |{
+           |  "label": "$action_base",
+           |  "srcServiceName": "$service",
+           |  "srcColumnName": "src",
+           |  "srcColumnType": "string",
+           |  "tgtServiceName": "$service",
+           |  "tgtColumnName": "$action",
+           |  "tgtColumnType": "string",
+           |  "indices": [
+           |  ],
+           |  "props": [
+           |  ]
+           |}
+       """.stripMargin
+      graphOp.createLabel(Json.parse(strJs))
+    }
 
+    // action
     admin.deleteCounter(service, action).foreach {
       case Success(v) =>
       case Failure(ex) =>
         println(s"$ex")
-        throw ex
     }
     admin.createCounter(Counter(useFlag = true, 2, service, action, Counter.ItemType.STRING, autoComb = true, "", useRank = true))
-  }
+    val policy = DefaultCounterModel.findByServiceAction(service, action).get
+
+    // action_base
+    admin.deleteCounter(service, action_base).foreach {
+      case Success(v) =>
+      case Failure(ex) =>
+        println(s"$ex")
+    }
+    admin.createCounter(Counter(useFlag = true, 2, service, action_base, Counter.ItemType.STRING, autoComb = true, "", useRank = true))
+    val basePolicy = DefaultCounterModel.findByServiceAction(service, action_base).get
+
+    // action_rate
+    admin.deleteCounter(service, action_rate).foreach {
+      case Success(v) =>
+      case Failure(ex) =>
+        println(s"$ex")
+    }
+    admin.createCounter(Counter(useFlag = true, 2, service, action_rate, Counter.ItemType.STRING, autoComb = true, "gender,p1", useRank = true,
+      rateActionId = Some(policy.id), rateBaseId = Some(basePolicy.id)))
+ }
 
   override def afterAll(): Unit = {
     admin.deleteCounter(service, action)
+    admin.deleteCounter(service, action_base)
+    admin.deleteCounter(service, action_rate)
     if (ssc != null) {
       ssc.stop()
     }
   }
 
   "RankingCounterStreaming" should "update" in {
-    val policy = DefaultCounterModel.findByServiceAction(service, action, useCache = false).get
+    val policy = DefaultCounterModel.findByServiceAction(service, action).get
+//    val basePolicy = DefaultCounterModel.findByServiceAction(service, action_base).get
 
     rankingCounter.ready(policy) should equal(true)
     val data =
@@ -158,78 +203,86 @@ class RankingCounterStreamingSpec extends FlatSpec with BeforeAndAfterAll with M
 //    true must_== true
 //  }
 
-//  it should "update rate ranking counter" in {
-//    S2ConfigFactory.config.getString("db.default.url") must_== "jdbc:mysql://nuk151.kr2.iwilab.com:13306/graph_alpha"
-//
-//    val data =
-//      """
-//        |{"success":true,"policyId":7,"item":"2","results":[{"interval":"M","dimension":"","ts":1433084400000,"value":1,"result":1}]}
-//        |{"success":true,"policyId":7,"item":"2","results":[{"interval":"M","dimension":"gender.M","ts":1433084400000,"value":1,"result":1}]}
-//        |{"success":true,"policyId":42,"item":"2","results":[{"interval":"M","dimension":"","ts":1433084400000,"value":2,"result":4}]}
-//        |{"success":true,"policyId":42,"item":"2","results":[{"interval":"M","dimension":"gender.M","ts":1433084400000,"value":2,"result":4}]}
-//        |{"success":true,"policyId":7,"item":"2","results":[{"interval":"M","dimension":"p1.1","ts":1433084400000,"value":1,"result":1}]}
-//        |{"success":true,"policyId":7,"item":"1","results":[{"interval":"M","dimension":"","ts":1433084400000,"value":1,"result":1}]}
-//        |{"success":true,"policyId":42,"item":"2","results":[{"interval":"M","dimension":"p1.1","ts":1433084400000,"value":2,"result":4}]}
-//        |{"success":true,"policyId":7,"item":"1","results":[{"interval":"M","dimension":"","ts":1433084400000,"value":1,"result":2}]}
-//      """.stripMargin.trim
-//    //    println(data)
-//    val rdd = sc.parallelize(Seq(("", data)))
-//
-//    //    rdd.foreachPartition { part =>
-//    //      part.foreach(println)
-//    //    }
-//
-//    val trxLogRdd = CounterFunctions.makeTrxLogRdd(rdd, 2)
-//    trxLogRdd.count() must_== data.trim.split('\n').length
-//
-//    val itemRankingRdd = CounterFunctions.makeItemRankingRdd(trxLogRdd, 2)
-//    itemRankingRdd.foreach(println)
-//
-//    val result = CounterFunctions.rateRankingCount(itemRankingRdd, 2).collect().toMap
-//    result.foreach(println)
-//    result must have size 4
-//
-//    val acc: HashMapAccumulable = sc.accumulable(MutableHashMap.empty[String, Long], "Throughput")(HashMapParam[String, Long](_ + _))
-//
-//    // rate ranking
-//    val key = RankingKey(43, 2, ExactQualifier(TimedQualifier("M", 1433084400000L), ""))
-//    val value = result.get(key)
-//
-////    println(key, value)
-//
-//    value must beSome
-//    value.get.get("1") must beSome
-//    value.get.get("1").get must_== RankingValue(1, 0)
-//    value.get.get("2").get must_== RankingValue(0.25, 0)
-//
-//    val key2 = RankingKey(43, 2, ExactQualifier(TimedQualifier("M", 1433084400000L), "p1.1"))
-//    val value2 = result.get(key2)
-//
-////    println(key2, value2)
-//
-//    val values = value.map(v => (key, v)).toSeq ++ value2.map(v => (key2, v)).toSeq
-//    println(s"values: $values")
-//
-//    // delete, update and get
-//    CounterFunctions.deleteRankingCounter(key)
-//    CounterFunctions.deleteRankingCounter(key2)
-//
-//    CounterFunctions.updateRankingCounter(values, acc)
-//
-//    // for update graph
-//    Thread.sleep(1000)
-//
-//    val rst = CounterFunctions.getRankingCounter(key)
-//    rst must beSome
-//    rst.get.totalScore must_== 0d
-//    rst.get.values must containTheSameElementsAs(Seq(("2", 0.25d), ("1", 1d)))
-//
-//    val rst2 = CounterFunctions.getRankingCounter(key2)
-//    rst2 must beSome
-//    rst2.get.totalScore must_== 0d
-//    rst2.get.values must containTheSameElementsAs(Seq(("2", 0.25d)))
-//  }
-//
+  it should "update rate ranking counter" in {
+    val policy = DefaultCounterModel.findByServiceAction(service, action).get
+    val basePolicy = DefaultCounterModel.findByServiceAction(service, action_base).get
+    val ratePolicy = DefaultCounterModel.findByServiceAction(service, action_rate).get
+
+    // update base policy
+    exactCounter.updateCount(basePolicy, Seq(
+      (ExactKey(basePolicy, "1", checkItemType = true), Map(ExactQualifier(TimedQualifier("M", 1433084400000l), "") -> 1l))
+    ))
+    Thread.sleep(1000)
+
+    val data =
+      s"""
+        |{"success":true,"policyId":${policy.id},"item":"2","results":[{"interval":"M","dimension":"","ts":1433084400000,"value":1,"result":1}]}
+        |{"success":true,"policyId":${policy.id},"item":"2","results":[{"interval":"M","dimension":"gender.M","ts":1433084400000,"value":1,"result":1}]}
+        |{"success":true,"policyId":${basePolicy.id},"item":"2","results":[{"interval":"M","dimension":"","ts":1433084400000,"value":2,"result":4}]}
+        |{"success":true,"policyId":${basePolicy.id},"item":"2","results":[{"interval":"M","dimension":"gender.M","ts":1433084400000,"value":2,"result":4}]}
+        |{"success":true,"policyId":${policy.id},"item":"2","results":[{"interval":"M","dimension":"p1.1","ts":1433084400000,"value":1,"result":1}]}
+        |{"success":true,"policyId":${policy.id},"item":"1","results":[{"interval":"M","dimension":"","ts":1433084400000,"value":1,"result":1}]}
+        |{"success":true,"policyId":${basePolicy.id},"item":"2","results":[{"interval":"M","dimension":"p1.1","ts":1433084400000,"value":2,"result":4}]}
+        |{"success":true,"policyId":${policy.id},"item":"1","results":[{"interval":"M","dimension":"","ts":1433084400000,"value":1,"result":2}]}
+      """.stripMargin.trim
+    //    println(data)
+    val rdd = sc.parallelize(Seq(("", data)))
+
+    //    rdd.foreachPartition { part =>
+    //      part.foreach(println)
+    //    }
+
+    val trxLogRdd = CounterFunctions.makeTrxLogRdd(rdd, 2)
+    trxLogRdd.count() should equal(data.trim.split('\n').length)
+
+    val itemRankingRdd = CounterFunctions.makeItemRankingRdd(trxLogRdd, 2)
+    itemRankingRdd.foreach(println)
+
+    val result = CounterFunctions.rateRankingCount(itemRankingRdd, 2).collect().toMap
+    result.foreach(println)
+    result should have size 3
+
+    val acc: HashMapAccumulable = sc.accumulable(MutableHashMap.empty[String, Long], "Throughput")(HashMapParam[String, Long](_ + _))
+
+    // rate ranking
+    val key = RankingKey(ratePolicy.id, 2, ExactQualifier(TimedQualifier("M", 1433084400000L), ""))
+    val value = result.get(key)
+
+//    println(key, value)
+
+    value should not be empty
+    value.get.get("1") should not be empty
+    value.get.get("1").get should equal(RankingValue(1, 0))
+    value.get.get("2").get should equal(RankingValue(0.25, 0))
+
+    val key2 = RankingKey(ratePolicy.id, 2, ExactQualifier(TimedQualifier("M", 1433084400000L), "p1.1"))
+    val value2 = result.get(key2)
+
+//    println(key2, value2)
+
+    val values = value.map(v => (key, v)).toSeq ++ value2.map(v => (key2, v)).toSeq
+    println(s"values: $values")
+
+    // delete, update and get
+    rankingCounter.delete(key)
+    rankingCounter.delete(key2)
+
+    CounterFunctions.updateRankingCounter(values, acc)
+
+    // for update graph
+    Thread.sleep(1000)
+
+    val rst = rankingCounter.getTopK(key)
+    rst should not be empty
+    rst.get.totalScore should equal(0d)
+    rst.get.values should equal(Seq(("2", 0.25d), ("1", 1d)))
+
+    val rst2 = rankingCounter.getTopK(key2)
+    rst2 should not be empty
+    rst2.get.totalScore should equal(0d)
+    rst2.get.values should equal(Seq(("2", 0.25d)))
+  }
+
 //  it should "update rate ranking counter with threshold" in {
 //    S2ConfigFactory.config.getString("db.default.url") must_== "jdbc:mysql://nuk151.kr2.iwilab.com:13306/graph_alpha"
 //

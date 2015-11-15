@@ -327,7 +327,16 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
     val service = policy.service
     val action = policy.action
 
-    val graphLabel = Label.findByName(action)
+    val graphLabel = {
+      policy.rateActionId match {
+        case Some(rateId) =>
+          counterModel.findById(rateId, useCache = false).flatMap { ratePolicy =>
+            Label.findByName(ratePolicy.action)
+          }
+        case None =>
+          Label.findByName(action)
+      }
+    }
     if (graphLabel.isEmpty) {
       throw new Exception(s"label not found. $service.$action")
     }
