@@ -355,7 +355,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
                 "\n"
               )
 
-              logger.error(msg)
+              logger.error(msg.mkString)
               debug(ret, "acquireLock", edge.toSnapshotEdge)
             } else {
               throw new PartialFailureException(edge, 0)
@@ -384,7 +384,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               "\n"
             )
 
-            logger.error(msg)
+            logger.error(msg.mkString)
             error(ret, "releaseLock", edge.toSnapshotEdge)
             throw new PartialFailureException(edge, 3)
           }
