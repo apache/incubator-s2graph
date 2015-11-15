@@ -217,6 +217,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   }
 
   private def writeToStorage(_client: HBaseClient, rpc: HBaseRpc): Deferred[Boolean] = {
+    logger.debug(s"$rpc")
     val defer = rpc match {
       case d: DeleteRequest => _client.delete(d)
       case p: PutRequest => _client.put(p)
