@@ -347,15 +347,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         else
           client.compareAndSet(lockEdgePut, oldBytes).toFuture.map { ret =>
             if (ret) {
-              val msg = Seq("\nLock\n",
-                "==================================================================",
-                oldBytes.toList,
-                lockEdgePut.value().toList,
-                "==================================================================",
-                "\n"
-              )
-
-              logger.error(msg.mkString)
               debug(ret, "acquireLock", edge.toSnapshotEdge)
             } else {
               throw new PartialFailureException(edge, 0)
@@ -378,8 +369,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           } else {
             val msg = Seq("\nLock\n",
               "==================================================================",
-              releaseLockEdgePut(edgeMutate).value().toList,
+              oldBytes.toList,
               lockEdgePut.value.toList,
+              releaseLockEdgePut(edgeMutate).value().toList,
               "==================================================================",
               "\n"
             )
