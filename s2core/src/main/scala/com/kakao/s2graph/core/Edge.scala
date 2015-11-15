@@ -17,7 +17,7 @@ case class SnapshotEdge(srcVertex: Vertex,
                         op: Byte,
                         version: Long,
                         props: Map[Byte, InnerValLikeWithTs],
-                        lockTsOpt: Option[Long],
+                        pendingEdgeOpt: Option[Edge],
                         statusCode: Byte = 0) extends JSONParser {
 
 
@@ -30,7 +30,8 @@ case class SnapshotEdge(srcVertex: Vertex,
 
   def toEdge: Edge = {
     val ts = props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(version)
-    Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version, props, lockTsOpt = lockTsOpt)
+    Edge(srcVertex, tgtVertex, labelWithDir, op,
+      ts, version, props, pendingEdgeOpt = pendingEdgeOpt)
   }
 
   def propsWithName = (for {
@@ -119,7 +120,7 @@ case class Edge(srcVertex: Vertex,
                 propsWithTs: Map[Byte, InnerValLikeWithTs] = Map.empty[Byte, InnerValLikeWithTs],
                 parentEdges: Seq[EdgeWithScore] = Nil,
                 originalEdgeOpt: Option[Edge] = None,
-                lockTsOpt: Option[Long] = None,
+                pendingEdgeOpt: Option[Edge] = None,
                 statusCode: Byte = 0) extends GraphElement with JSONParser {
 
   val schemaVer = label.schemaVersion
@@ -201,7 +202,7 @@ case class Edge(srcVertex: Vertex,
 
     val ret = SnapshotEdge(smaller, larger, newLabelWithDir, op, version,
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)) ++ propsWithTs,
-      lockTsOpt = lockTsOpt, statusCode = statusCode)
+      pendingEdgeOpt = pendingEdgeOpt, statusCode = statusCode)
     ret
   }
 
@@ -371,11 +372,11 @@ object Edge extends JSONParser {
       } {
         val (_newPropsWithTs, _) = func(prevPropsWithTs, requestEdge.propsWithTs, requestEdge.ts, requestEdge.schemaVer)
         prevPropsWithTs = _newPropsWithTs
-        logger.debug(s"${requestEdge.toLogString}\n$oldPropsWithTs\n$prevPropsWithTs\n")
+//        logger.debug(s"${requestEdge.toLogString}\n$oldPropsWithTs\n$prevPropsWithTs\n")
       }
       val newVersion = invertedEdge.map(e => e.version + incrementVersion).getOrElse(requestEdge.ts)
       val edgeMutate = buildMutation(invertedEdge, requestEdge, newVersion, oldPropsWithTs, prevPropsWithTs)
-      logger.debug(s"$edgeMutate")
+//      logger.debug(s"${edgeMutate.toLogString}")
       (requestEdge, edgeMutate)
     }
   }
@@ -389,14 +390,18 @@ object Edge extends JSONParser {
       logger.error(s"Case 1")
       EdgeMutate(edgesToDelete = Nil, edgesToInsert = Nil, newInvertedEdge = None)
     } else {
-      val onlyOnNew = for {
-        (newK, newV) <- newPropsWithTs if !oldPropsWithTs.containsKey(newK)
-      } yield (newK, newV)
-
+      val withOutDeletedAt = newPropsWithTs.filter(kv => kv._1 != LabelMeta.lastDeletedAt)
+      val newOp = snapshotEdgeOpt match {
+        case None => requestEdge.op
+        case Some(old) =>
+          val oldMaxTs = old.propsWithTs.map(_._2.ts).max
+          if (oldMaxTs > requestEdge.ts) old.op
+          else requestEdge.op
+      }
       val newSnapshotEdgeOpt =
-        Option(requestEdge.copy(propsWithTs = newPropsWithTs, version = newVersion).toSnapshotEdge)
-
-      if (onlyOnNew.size == 1 && onlyOnNew.containsKey(LabelMeta.lastDeletedAt)) {
+        Option(requestEdge.copy(op = newOp, propsWithTs = newPropsWithTs, version = newVersion).toSnapshotEdge)
+      // delete request must always update snapshot.
+      if (withOutDeletedAt == oldPropsWithTs && newPropsWithTs.containsKey(LabelMeta.lastDeletedAt)) {
         // no mutation on indexEdges. only snapshotEdge should be updated to record lastDeletedAt.
         logger.error(s"Case 2")
         EdgeMutate(edgesToDelete = Nil, edgesToInsert = Nil, newInvertedEdge = newSnapshotEdgeOpt)

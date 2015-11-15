@@ -217,11 +217,13 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   }
 
   private def writeToStorage(_client: HBaseClient, rpc: HBaseRpc): Deferred[Boolean] = {
-    logger.debug(s"$rpc")
+//    logger.debug(s"$rpc")
     val defer = rpc match {
       case d: DeleteRequest => _client.delete(d)
       case p: PutRequest => _client.put(p)
-      case i: AtomicIncrementRequest => _client.bufferAtomicIncrement(i)
+      case i: AtomicIncrementRequest =>
+        logger.error(s"$rpc")
+        _client.bufferAtomicIncrement(i)
     }
     defer withCallback { ret => true } recoverWith { ex =>
       logger.error(s"mutation failed. $rpc", ex)
@@ -298,34 +300,38 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
     def lockEdge = {
       val newVersion = snapshotEdgeOpt.map(_.version).getOrElse(edge.ts) + 1
-      val base =
-        if (snapshotEdgeOpt.isDefined) {
-          // some mutation successed.
-          snapshotEdgeOpt.get.toSnapshotEdge
-        } else {
-          edge.toSnapshotEdge
-        }
-      base.copy(version = newVersion, statusCode = 1, lockTsOpt = Option(edge.ts))
+      val currentTs = System.currentTimeMillis()
+      val pendingEdge = edge.copy(version = newVersion, statusCode = 1)
+      val base = snapshotEdgeOpt match {
+        case None =>
+          // no one ever mutated on this snapshotEdge.
+          edge.toSnapshotEdge.copy(pendingEdgeOpt = Option(pendingEdge))
+        case Some(snapshotEdge) =>
+          // there is at least one mutation have been succeed.
+          snapshotEdgeOpt.get.toSnapshotEdge.copy(pendingEdgeOpt = Option(pendingEdge))
+      }
+      base.copy(version = newVersion, statusCode = 1)
     }
 
     def oldBytes = snapshotEdgeOpt.map { e =>
       snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
     }.getOrElse(Array.empty)
 
-    def releaseLockEdge = {
+    def releaseLockEdge(edgeMutate: EdgeMutate) = {
       val newVersion = lockEdge.version + 1
-      val base = edgeUpdate.newInvertedEdge match {
+      val base = edgeMutate.newInvertedEdge match {
         case None =>
           // shouldReplace false
           assert(snapshotEdgeOpt.isDefined)
           snapshotEdgeOpt.get.toSnapshotEdge
         case Some(newSnapshotEdge) => newSnapshotEdge
       }
-      base.copy(version = newVersion, statusCode = 0, lockTsOpt = None)
+      base.copy(version = newVersion, statusCode = 0, pendingEdgeOpt = None)
     }
 
     def lockEdgePut = mutationBuilder.buildPutAsync(lockEdge).head.asInstanceOf[PutRequest]
-    def releaseLockEdgePut = mutationBuilder.buildPutAsync(releaseLockEdge).head.asInstanceOf[PutRequest]
+    def releaseLockEdgePut(edgeMutate: EdgeMutate) =
+      mutationBuilder.buildPutAsync(releaseLockEdge(edgeMutate)).head.asInstanceOf[PutRequest]
 
     //    assert(org.apache.hadoop.hbase.util.Bytes.compareTo(releaseLockEdgePut.value(), lockEdgePut.value()) != 0)
     //    assert(lockEdgePut.timestamp() < releaseLockEdgePut.timestamp())
@@ -341,6 +347,15 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         else
           client.compareAndSet(lockEdgePut, oldBytes).toFuture.map { ret =>
             if (ret) {
+              val msg = Seq("\nLock\n",
+                "==================================================================",
+                oldBytes.toList,
+                lockEdgePut.value().toList,
+                "==================================================================",
+                "\n"
+              )
+
+              logger.error(msg)
               debug(ret, "acquireLock", edge.toSnapshotEdge)
             } else {
               throw new PartialFailureException(edge, 0)
@@ -349,7 +364,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           }
       }
 
-    def releaseLock(predicate: Boolean): Future[Boolean] = {
+    def releaseLock(predicate: Boolean, edgeMutate: EdgeMutate): Future[Boolean] = {
       if (!predicate) throw new PartialFailureException(edge, 3)
       //      if (statusCode == 0) {
       //        logger.debug(s"skip releaseLock: [$statusCode] ${edge.toLogString}")
@@ -357,10 +372,19 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       //      } else {
       if (Random.nextDouble() < -1.0) throw new PartialFailureException(edge, 3)
       else {
-        client.compareAndSet(releaseLockEdgePut, lockEdgePut.value()).toFuture.map { ret =>
+        client.compareAndSet(releaseLockEdgePut(edgeMutate), lockEdgePut.value()).toFuture.map { ret =>
           if (ret) {
             debug(ret, "releaseLock", edge.toSnapshotEdge)
           } else {
+            val msg = Seq("\nLock\n",
+              "==================================================================",
+              releaseLockEdgePut(edgeMutate).value().toList,
+              lockEdgePut.value.toList,
+              "==================================================================",
+              "\n"
+            )
+
+            logger.error(msg)
             error(ret, "releaseLock", edge.toSnapshotEdge)
             throw new PartialFailureException(edge, 3)
           }
@@ -414,7 +438,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         locked <- acquireLock(statusCode)
         mutated <- mutate(locked, statusCode, _edgeMutate)
         incremented <- increment(mutated, statusCode, _edgeMutate)
-        released <- releaseLock(incremented)
+        released <- releaseLock(incremented, _edgeMutate)
       } yield {
         released
       }
@@ -427,15 +451,16 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         process(edgeUpdate, statusCode)
       case Some(snapshotEdge) =>
         // someone did success on acquire lock at least one.
-        snapshotEdge.lockTsOpt match {
+        snapshotEdge.pendingEdgeOpt match {
           case None =>
             // not locked
             process(edgeUpdate, statusCode)
-          case Some(lockTs) =>
+          case Some(pendingEdge) =>
             // locked
-            if (lockTs == edge.ts) {
+            if (pendingEdge.ts == edge.ts) {
               // self locked
-              val (_, newEdgeUpdate) = Edge.buildOperation(None, Seq(edge))
+              val oldSnapshotEdge = if (snapshotEdge.ts == pendingEdge.ts) None else Option(snapshotEdge)
+              val (_, newEdgeUpdate) = Edge.buildOperation(oldSnapshotEdge, Seq(edge))
               process(newEdgeUpdate, statusCode)
             } else {
               throw new PartialFailureException(edge, statusCode)
@@ -466,21 +491,19 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           if (isFailure) throw new FetchTimeoutException(s"${_edges.head}")
 
           val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, _edges)
-          //          if (snapshotEdgeOpt.isDefined) {
-          //            if (edgeUpdate.newInvertedEdge.isDefined)
-          //              assert(snapshotEdgeOpt.get.version < newEdge.version)
-          //          }
-          //          if (_edges.head.op == GraphUtil.operations("delete")) {
-          //            logger.error(s"${edgeUpdate.toLogString}")
-          //          }
-          commitUpdate(newEdge, statusCode)(snapshotEdgeOpt, edgeUpdate).map { ret =>
-            if (ret) {
-              logger.info(s"[Success] commit: \n${_edges.map(_.toLogString)}")
-            } else {
-              throw new PartialFailureException(newEdge, 3)
+//          if (edgeUpdate.newInvertedEdge.isEmpty) {
+//            logger.debug(s"${newEdge.toLogString} drop.")
+//            Future.successful(true)
+//          } else {
+            commitUpdate(newEdge, statusCode)(snapshotEdgeOpt, edgeUpdate).map { ret =>
+              if (ret) {
+                logger.info(s"[Success] commit: \n${_edges.map(_.toLogString)}")
+              } else {
+                throw new PartialFailureException(newEdge, 3)
+              }
+              true
             }
-            true
-          }
+//          }
         }
       }
       def retry(tryNum: Int)(edges: Seq[Edge], statusCode: Byte)(fn: (Seq[Edge], Byte) => Future[Boolean]): Future[Boolean] = {

@@ -17,11 +17,12 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
   val table = label.hbaseTableName.getBytes()
   val cf = HSerializable.edgeCf
 
-  def statusCodeWithOp(): Array[Byte] = {
-    val byte = (((snapshotEdge.statusCode << 4) | snapshotEdge.op).toByte)
+  def statusCodeWithOp(statusCode: Byte, op: Byte): Array[Byte] = {
+    val byte = (((statusCode << 4) | op).toByte)
     Array.fill(1)(byte.toByte)
   }
-  def valueBytes() = Bytes.add(statusCodeWithOp, propsToKeyValuesWithTs(snapshotEdge.props.toList))
+  def valueBytes() = Bytes.add(statusCodeWithOp(snapshotEdge.statusCode, snapshotEdge.op),
+    propsToKeyValuesWithTs(snapshotEdge.props.toList))
 
   override def toKeyValues: Seq[SKeyValue] = {
     label.schemaVersion match {
@@ -40,8 +41,16 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
 
     val qualifier = tgtIdBytes
 
-    val value = Bytes.add(valueBytes(), snapshotEdge.lockTsOpt.map(Bytes.toBytes(_)).getOrElse(Array.empty[Byte]))
-
+    val value = snapshotEdge.pendingEdgeOpt match {
+      case None => valueBytes()
+      case Some(pendingEdge) =>
+        val opBytes = statusCodeWithOp(pendingEdge.statusCode, pendingEdge.op)
+        val versionBytes = Bytes.toBytes(snapshotEdge.version)
+        val propsBytes = propsToKeyValuesWithTs(pendingEdge.propsWithTs.toSeq)
+        val lockBytes = Array.empty[Byte]
+//          snapshotEdge.lockedAtOpt.map(lockedAt => Bytes.toBytes(lockedAt)).getOrElse(Array.empty[Byte])
+        Bytes.add(Bytes.add(valueBytes(), opBytes, versionBytes), Bytes.add(propsBytes, lockBytes))
+    }
     val kv = SKeyValue(table, row, cf, qualifier, value, snapshotEdge.version)
     Seq(kv)
   }
@@ -55,7 +64,16 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
 
     val qualifier = Array.empty[Byte]
 
-    val value = Bytes.add(valueBytes(), snapshotEdge.lockTsOpt.map(Bytes.toBytes(_)).getOrElse(Array.empty[Byte]))
+    val value = snapshotEdge.pendingEdgeOpt match {
+      case None => valueBytes()
+      case Some(pendingEdge) =>
+        val opBytes = statusCodeWithOp(pendingEdge.statusCode, pendingEdge.op)
+        val versionBytes = Bytes.toBytes(snapshotEdge.version)
+        val propsBytes = propsToKeyValuesWithTs(pendingEdge.propsWithTs.toSeq)
+        val lockBytes = Array.empty[Byte]
+//          snapshotEdge.lockedAtOpt.map(lockedAt => Bytes.toBytes(lockedAt)).getOrElse(Array.empty[Byte])
+        Bytes.add(Bytes.add(valueBytes(), opBytes, versionBytes), Bytes.add(propsBytes, lockBytes))
+    }
 
     val kv = SKeyValue(table, row, cf, qualifier, value, snapshotEdge.version)
     Seq(kv)

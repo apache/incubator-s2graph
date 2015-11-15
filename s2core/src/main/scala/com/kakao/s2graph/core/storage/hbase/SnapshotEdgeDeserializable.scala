@@ -25,7 +25,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
   def statusCodeWithOp(byte: Byte): (Byte, Byte) = {
     val statusCode = (byte >> 4)
     val op = byte & ((1<<4)-1)
-    (op.toByte, statusCode.toByte)
+    (statusCode.toByte, op.toByte)
   }
 
   private def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
@@ -38,10 +38,10 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       (e.srcVertex.id, e.labelWithDir, LabelIndex.DefaultSeq, true, 0)
     }.getOrElse(parseRow(kv, schemaVer))
 
-    val (tgtVertexId, props, op, ts, lockTsOpt, statusCode) = {
+    val (tgtVertexId, props, op, ts, statusCode, _pendingEdgeOpt) = {
       val (tgtVertexId, _) = TargetVertexId.fromBytes(kv.qualifier, 0, kv.qualifier.length, schemaVer)
       var pos = 0
-      val (op, statusCode) = statusCodeWithOp(kv.value(pos))
+      val (statusCode, op) = statusCodeWithOp(kv.value(pos))
       pos += 1
       val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
       val kvsMap = props.toMap
@@ -49,13 +49,30 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
         case None => kv.timestamp
         case Some(v) => v.innerVal.toString.toLong
       }
-      val lockTsOpt = if (endAt == kv.value.length) None else Option(Bytes.toLong(kv.value, endAt, 8))
+      val _pendingEdgeOpt =
+        if (pos == kv.value.length) None
+        else {
+          val (pendingEdgeStatusCode, pendingEdgeOp) = statusCodeWithOp(kv.value(pos))
+          pos += 1
+          val versionNum = Bytes.toLong(kv.value, pos, 8)
+          pos += 8
+          val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
+          pos = endAt
+          //          val lockedAtOpt = Option(Bytes.toLong(kv.value, pos, 8))
+          val pendingEdge =
+            Edge(Vertex(srcVertexId, versionNum),
+              Vertex(tgtVertexId, versionNum),
+              labelWithDir, pendingEdgeOp, ts,
+              versionNum, pendingEdgeProps.toMap,
+              statusCode = pendingEdgeStatusCode)
+          Option(pendingEdge)
+        }
 
-      (tgtVertexId, kvsMap, op, ts, lockTsOpt, statusCode)
+      (tgtVertexId, kvsMap, op, ts, statusCode, _pendingEdgeOpt)
     }
-
-    SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op,
-      kv.timestamp, props, lockTsOpt, statusCode)
+    SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),
+      labelWithDir, op, kv.timestamp, props, statusCode = statusCode,
+      pendingEdgeOpt = _pendingEdgeOpt)
   }
 
   private def fromKeyValuesInnerV3[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
@@ -85,9 +102,9 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
     val srcVertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, srcInnerId)
     val tgtVertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, tgtInnerId)
 
-    val (props, op, ts, lockTsOpt, statusCode) = {
+    val (props, op, ts, statusCode, _pendingEdgeOpt) = {
       var pos = 0
-      val (op, statusCode) = statusCodeWithOp(kv.value(pos))
+      val (statusCode, op) = statusCodeWithOp(kv.value(pos))
       pos += 1
       val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
       val kvsMap = props.toMap
@@ -95,30 +112,32 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
         case None => kv.timestamp
         case Some(v) => v.innerVal.toString.toLong
       }
-      val lockTsOpt = if (endAt == kv.value.length) None else Option(Bytes.toLong(kv.value, endAt, 8))
-//
-//      val pendingEdgePropsOffset = propsToKeyValuesWithTs(props).length + 1
-//      val pendingEdgeOpt =
-//        if (pendingEdgePropsOffset == kv.value.length) None
-//        else {
-//          var pos = pendingEdgePropsOffset
-//          val opByte = kv.value(pos)
-//          pos += 1
-//          val versionNum = Bytes.toLong(kv.value, pos, 8)
-//          pos += 8
-//          val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
-//          if (endAt + 8 == kv.value.length) {
-//            randomSeq = Bytes.toLong(kv.value, endAt, 8)
-//          }
-//          val edge = Edge(Vertex(srcVertexId, versionNum), Vertex(tgtVertexId, versionNum), labelWithDir, opByte, ts, versionNum, pendingEdgeProps.toMap)
-//          Option(edge)
-//        }
+      pos = endAt
+      val _pendingEdgeOpt =
+        if (pos == kv.value.length) None
+        else {
+          val (pendingEdgeStatusCode, pendingEdgeOp) = statusCodeWithOp(kv.value(pos))
+          pos += 1
+          val versionNum = Bytes.toLong(kv.value, pos, 8)
+          pos += 8
+          val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
+          pos = endAt
+//          val lockedAtOpt = Option(Bytes.toLong(kv.value, pos, 8))
+          val pendingEdge =
+            Edge(Vertex(srcVertexId, versionNum),
+              Vertex(tgtVertexId, versionNum),
+              labelWithDir, pendingEdgeOp, ts,
+              versionNum, pendingEdgeProps.toMap,
+              statusCode = pendingEdgeStatusCode)
+          Option(pendingEdge)
+        }
 
-      (kvsMap, op, ts, lockTsOpt, statusCode)
+      (kvsMap, op, ts, statusCode, _pendingEdgeOpt)
     }
 
     SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),
-      labelWithDir, op, kv.timestamp, props, lockTsOpt, statusCode)
+      labelWithDir, op, kv.timestamp, props, statusCode = statusCode,
+      pendingEdgeOpt = _pendingEdgeOpt)
   }
 
 
