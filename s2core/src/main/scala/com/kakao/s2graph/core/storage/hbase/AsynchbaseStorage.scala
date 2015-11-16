@@ -327,6 +327,51 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
     base.copy(version = newVersion, statusCode = 0, pendingEdgeOpt = None)
   }
+  def mutate(predicate: Boolean,
+             edge: Edge,
+             statusCode: Byte,
+             _edgeMutate: EdgeMutate): Future[Boolean] = {
+    if (!predicate) throw new PartialFailureException(edge, 1, "predicate failed.")
+
+    if (statusCode >= 2) {
+      logger.debug(s"skip mutate: [$statusCode]\n${edge.toLogString}")
+      Future.successful(true)
+    } else {
+      val p = Random.nextDouble()
+      if (p < prob) throw new PartialFailureException(edge, 1, s"$p")
+      else
+        writeAsyncSimple(edge.label.hbaseZkAddr, mutationBuilder.indexedEdgeMutations(_edgeMutate), withWait = true).map { ret =>
+          if (ret) {
+            debug(ret, "mutate", edge.toSnapshotEdge, _edgeMutate)
+          } else {
+            throw new PartialFailureException(edge, 1, "hbase fail.")
+          }
+          true
+        }
+    }
+  }
+
+  def increment(predicate: Boolean,
+                edge: Edge,
+                statusCode: Byte, _edgeMutate: EdgeMutate): Future[Boolean] = {
+    if (!predicate) throw new PartialFailureException(edge, 2, "predicate failed.")
+    if (statusCode >= 3) {
+      logger.debug(s"skip increment: [$statusCode]\n${edge.toLogString}")
+      Future.successful(true)
+    } else {
+      val p = Random.nextDouble()
+      if (p < prob) throw new PartialFailureException(edge, 2, s"$p")
+      else
+        writeAsyncSimple(edge.label.hbaseZkAddr, mutationBuilder.increments(_edgeMutate), withWait = true).map { ret =>
+          if (ret) {
+            debug(ret, "increment", edge.toSnapshotEdge, _edgeMutate)
+          } else {
+            throw new PartialFailureException(edge, 2, "hbase fail.")
+          }
+          true
+        }
+    }
+  }
 
   private def toPutRequest(snapshotEdge: SnapshotEdge): PutRequest = {
     mutationBuilder.buildPutAsync(snapshotEdge).head.asInstanceOf[PutRequest]
@@ -411,52 +456,12 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       //      }
     }
 
-    def mutate(predicate: Boolean, statusCode: Byte, _edgeMutate: EdgeMutate): Future[Boolean] = {
-      if (!predicate) throw new PartialFailureException(edge, 1, "predicate failed.")
-
-      if (statusCode >= 2) {
-        logger.debug(s"skip mutate: [$statusCode]\n${edge.toLogString}")
-        Future.successful(true)
-      } else {
-        val p = Random.nextDouble()
-        if (p < prob) throw new PartialFailureException(edge, 1, s"$p")
-        else
-          writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.indexedEdgeMutations(_edgeMutate), withWait = true).map { ret =>
-            if (ret) {
-              debug(ret, "mutate", edge.toSnapshotEdge, _edgeMutate)
-            } else {
-              throw new PartialFailureException(edge, 1, "hbase fail.")
-            }
-            true
-          }
-      }
-    }
-
-    def increment(predicate: Boolean, statusCode: Byte, _edgeMutate: EdgeMutate): Future[Boolean] = {
-      if (!predicate) throw new PartialFailureException(edge, 2, "predicate failed.")
-      if (statusCode >= 3) {
-        logger.debug(s"skip increment: [$statusCode]\n${edge.toLogString}")
-        Future.successful(true)
-      } else {
-        val p = Random.nextDouble()
-        if (p < prob) throw new PartialFailureException(edge, 2, s"$p")
-        else
-          writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.increments(_edgeMutate), withWait = true).map { ret =>
-            if (ret) {
-              debug(ret, "increment", edge.toSnapshotEdge, _edgeMutate)
-            } else {
-              throw new PartialFailureException(edge, 2, "hbase fail.")
-            }
-            true
-          }
-      }
-    }
 
     def process(_edgeMutate: EdgeMutate, statusCode: Byte): Future[Boolean] =
       for {
         locked <- acquireLock(statusCode)
-        mutated <- mutate(locked, statusCode, _edgeMutate)
-        incremented <- increment(mutated, statusCode, _edgeMutate)
+        mutated <- mutate(locked, edge, statusCode, _edgeMutate)
+        incremented <- increment(mutated, edge, statusCode, _edgeMutate)
         released <- releaseLock(incremented, _edgeMutate)
       } yield {
         released
