@@ -47,10 +47,8 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       pos += 1
       val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
       val kvsMap = props.toMap
-      val ts = kvsMap.get(LabelMeta.timeStampSeq) match {
-        case None => kv.timestamp
-        case Some(v) => v.innerVal.toString.toLong
-      }
+      val ts = kvsMap(LabelMeta.timeStampSeq).innerVal.toString.toLong
+
       val _pendingEdgeOpt =
         if (pos == kv.value.length) None
         else {
@@ -60,11 +58,13 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
 //          pos += 8
           val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
           pos = endAt
+          val propsMap = pendingEdgeProps.toMap
+          val pendingTs = propsMap(LabelMeta.timeStampSeq).innerVal.toString.toLong
           //          val lockedAtOpt = Option(Bytes.toLong(kv.value, pos, 8))
           val pendingEdge =
             Edge(Vertex(srcVertexId, cellVersion),
               Vertex(tgtVertexId, cellVersion),
-              labelWithDir, pendingEdgeOp, ts,
+              labelWithDir, pendingEdgeOp, pendingTs,
               cellVersion, pendingEdgeProps.toMap,
               statusCode = pendingEdgeStatusCode)
           Option(pendingEdge)
@@ -110,10 +110,8 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       pos += 1
       val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
       val kvsMap = props.toMap
-      val ts = kvsMap.get(LabelMeta.timeStampSeq) match {
-        case None => kv.timestamp
-        case Some(v) => v.innerVal.toString.toLong
-      }
+      val ts = kvsMap(LabelMeta.timeStampSeq).innerVal.toString.toLong
+
       pos = endAt
       val _pendingEdgeOpt =
         if (pos == kv.value.length) None
@@ -125,10 +123,12 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
           val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
           pos = endAt
 //          val lockedAtOpt = Option(Bytes.toLong(kv.value, pos, 8))
+          val propsMap = pendingEdgeProps.toMap
+          val pendingTs = propsMap(LabelMeta.timeStampSeq).innerVal.toString.toLong
           val pendingEdge =
             Edge(Vertex(srcVertexId, cellVersion),
               Vertex(tgtVertexId, cellVersion),
-              labelWithDir, pendingEdgeOp, ts,
+              labelWithDir, pendingEdgeOp, pendingTs,
               cellVersion, pendingEdgeProps.toMap,
               statusCode = pendingEdgeStatusCode)
           Option(pendingEdge)

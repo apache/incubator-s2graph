@@ -128,16 +128,16 @@ case class Edge(srcVertex: Vertex,
 
   def props = propsWithTs.mapValues(_.innerVal)
 
-//  def relatedEdges = {
-//    if (labelWithDir.isDirected) List(this, duplicateEdge)
-//    else {
-//      val outDir = labelWithDir.copy(dir = GraphUtil.directions("out"))
-//      val base = copy(labelWithDir = outDir)
-//      List(base, base.reverseSrcTgtEdge)
-//    }
-//  }
+  def relatedEdges = {
+    if (labelWithDir.isDirected) List(this, duplicateEdge)
+    else {
+      val outDir = labelWithDir.copy(dir = GraphUtil.directions("out"))
+      val base = copy(labelWithDir = outDir)
+      List(base, base.reverseSrcTgtEdge)
+    }
+  }
 
-    def relatedEdges = List(this)
+//    def relatedEdges = List(this)
 
   def srcForVertex = {
     val belongLabelIds = Seq(labelWithDir.labelId)
