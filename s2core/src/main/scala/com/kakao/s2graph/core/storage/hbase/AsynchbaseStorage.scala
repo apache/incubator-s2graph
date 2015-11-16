@@ -297,35 +297,37 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     logger.error(msg)
   }
 
+  private def buildLockEdge(snapshotEdgeOpt: Option[Edge], edge: Edge) = {
+    val newVersion = snapshotEdgeOpt.map(_.version).getOrElse(edge.ts) + 1
+    val pendingEdge = edge.copy(version = newVersion, statusCode = 1)
+    val base = snapshotEdgeOpt match {
+      case None =>
+        // no one ever mutated on this snapshotEdge.
+        edge.toSnapshotEdge.copy(pendingEdgeOpt = Option(pendingEdge))
+      case Some(snapshotEdge) =>
+        // there is at least one mutation have been succeed.
+        snapshotEdgeOpt.get.toSnapshotEdge.copy(pendingEdgeOpt = Option(pendingEdge))
+    }
+    val _lockEdge = base.copy(version = newVersion, statusCode = 1)
+
+    logger.error(s"Lock Edge: ${_lockEdge.toLogString}")
+    logger.error(s"Pending Edge: ${_lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}")
+
+    _lockEdge
+  }
+  private def toPutRequest(snapshotEdge: SnapshotEdge): PutRequest = {
+    mutationBuilder.buildPutAsync(snapshotEdge).head.asInstanceOf[PutRequest]
+  }
+
   private def commitUpdate(edge: Edge, statusCode: Byte)(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeMutate): Future[Boolean] = {
     val label = edge.label
-
-    def lockEdge = {
-      val newVersion = snapshotEdgeOpt.map(_.version).getOrElse(edge.ts) + 1
-      val currentTs = System.currentTimeMillis()
-      val pendingEdge = edge.copy(version = newVersion, statusCode = 1)
-      val base = snapshotEdgeOpt match {
-        case None =>
-          // no one ever mutated on this snapshotEdge.
-          edge.toSnapshotEdge.copy(pendingEdgeOpt = Option(pendingEdge))
-        case Some(snapshotEdge) =>
-          // there is at least one mutation have been succeed.
-          snapshotEdgeOpt.get.toSnapshotEdge.copy(pendingEdgeOpt = Option(pendingEdge))
-      }
-      val _lockEdge = base.copy(version = newVersion, statusCode = 1)
-
-      logger.error(s"Lock Edge: ${_lockEdge.toLogString}")
-      logger.error(s"Pending Edge: ${_lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}")
-
-      _lockEdge
-    }
 
     def oldBytes = snapshotEdgeOpt.map { e =>
       snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
     }.getOrElse(Array.empty)
 
     def releaseLockEdge(edgeMutate: EdgeMutate) = {
-      val newVersion = lockEdge.version + 1
+      val newVersion = buildLockEdge(snapshotEdgeOpt, edge).version + 1
       val base = edgeMutate.newInvertedEdge match {
         case None =>
           // shouldReplace false
@@ -336,8 +338,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       base.copy(version = newVersion, statusCode = 0, pendingEdgeOpt = None)
     }
 
-    def lockEdgePut = mutationBuilder.buildPutAsync(lockEdge).head.asInstanceOf[PutRequest]
-    def releaseLockEdgePut(edgeMutate: EdgeMutate) =
+    def lockEdgePut = toPutRequest(buildLockEdge(snapshotEdgeOpt, edge))
+    def releaseLockEdgePut(edgeMutate: EdgeMutate) = 
       mutationBuilder.buildPutAsync(releaseLockEdge(edgeMutate)).head.asInstanceOf[PutRequest]
 
     //    assert(org.apache.hadoop.hbase.util.Bytes.compareTo(releaseLockEdgePut.value(), lockEdgePut.value()) != 0)
