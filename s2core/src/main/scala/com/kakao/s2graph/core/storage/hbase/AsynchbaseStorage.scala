@@ -67,8 +67,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   val MaxRetryNum = config.getInt("max.retry.number")
   val MaxBackOff = config.getInt("max.back.off")
   val DeleteAllFetchSize = config.getInt("delete.all.fetch.size")
+//  val prob = config.getDouble("hbase.fail.prob")
   val prob = 0.1
-  val backoff = 10
+
   /**
    * Serializer/Deserializer
    */
@@ -312,6 +313,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           snapshotEdgeOpt.get.toSnapshotEdge.copy(pendingEdgeOpt = Option(pendingEdge))
       }
       val _lockEdge = base.copy(version = newVersion, statusCode = 1)
+
       logger.error(s"Lock Edge: ${_lockEdge.toLogString}")
       logger.error(s"Pending Edge: ${_lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}")
 
@@ -342,7 +344,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     //    assert(lockEdgePut.timestamp() < releaseLockEdgePut.timestamp())
 
 
-
     def acquireLock(statusCode: Byte): Future[Boolean] =
       if (statusCode >= 1) {
         logger.debug(s"skip acquireLock: [$statusCode]\n${edge.toLogString}")
@@ -353,7 +354,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         else
           client.compareAndSet(lockEdgePut, oldBytes).toFuture.map { ret =>
             if (ret) {
-//              logger.error(s"locked: ${lockEdgePut.value.toList}")
+              logger.error(s"locked: ${edge.toLogString} ${lockEdgePut.value.toList}")
               debug(ret, "acquireLock", edge.toSnapshotEdge)
             } else {
               throw new PartialFailureException(edge, 0, "hbase fail.")
@@ -380,7 +381,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             debug(ret, "releaseLock", edge.toSnapshotEdge)
           } else {
             val msg = Seq("\nLock\n",
-              "==================================================================",
+              "FATAL ERROR: =====================================================",
               oldBytes.toList,
               lockEdgePut.value.toList,
               releaseLockEdgePut(_edgeMutate).value().toList,
@@ -535,7 +536,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
                 case 2 => "Increment failed."
                 case 3 => "ReleaseLock failed."
               }
-              Thread.sleep(backoff)
+
+              Thread.sleep(Random.nextInt(MaxBackOff))
               logger.error(s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}\nFailReason: ${faileReason}")
               retry(tryNum + 1)(Seq(retryEdge), failedStatusCode)(fn)
           }
