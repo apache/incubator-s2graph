@@ -352,7 +352,11 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         val p = Random.nextDouble()
         if (p < prob) throw new PartialFailureException(edge, 0, s"$p")
         else
-          client.compareAndSet(lockEdgePut, oldBytes).toFuture.map { ret =>
+          client.compareAndSet(lockEdgePut, oldBytes).toFuture.recoverWith {
+            case ex: Exception =>
+              logger.error(s"AcquireLock RPC Failed.")
+              throw new PartialFailureException(edge, 0, "AcquireLock RPC Failed")
+          }.map { ret =>
             if (ret) {
               logger.error(s"locked: ${edge.toLogString} ${lockEdgePut.value.toList}")
               debug(ret, "acquireLock", edge.toSnapshotEdge)
@@ -376,7 +380,11 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 //      if (cnt == 2)  throw new PartialFailureException(edge, 3, s"$p")
       if (p < prob) throw new PartialFailureException(edge, 3, s"$p")
       else {
-        client.compareAndSet(releaseLockEdgePut(_edgeMutate), lockEdgePut.value()).toFuture.map { ret =>
+        client.compareAndSet(releaseLockEdgePut(_edgeMutate), lockEdgePut.value()).toFuture.recoverWith{
+          case ex: Exception =>
+            logger.error(s"ReleaseLock RPC Failed.")
+            throw new PartialFailureException(edge, 3, "ReleaseLock RPC Failed")
+        }.map { ret =>
           if (ret) {
             debug(ret, "releaseLock", edge.toSnapshotEdge)
           } else {
@@ -517,6 +525,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       def retry(tryNum: Int)(edges: Seq[Edge], statusCode: Byte)(fn: (Seq[Edge], Byte) => Future[Boolean]): Future[Boolean] = {
         if (tryNum >= MaxRetryNum) {
           logger.error(s"commit failed after $MaxRetryNum")
+          edges.foreach { edge =>
+            ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
+          }
           Future.successful(false)
         } else {
           val future = fn(edges, statusCode)
@@ -535,6 +546,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
                 case 1 => "Mutation failed."
                 case 2 => "Increment failed."
                 case 3 => "ReleaseLock failed."
+                case 4 => "Unknown"
               }
 
               Thread.sleep(Random.nextInt(MaxBackOff))

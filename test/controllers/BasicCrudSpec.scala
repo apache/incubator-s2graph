@@ -41,7 +41,7 @@ class BasicCrudSpec extends SpecCommon {
       res.header.status must equalTo(200)
 
       println(s"---- TC${tcNum}_init ----")
-      Thread.sleep(100)
+//      Thread.sleep(100)
 
       for {
         label <- Label.findByName(labelName)
