@@ -49,8 +49,9 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
         val versionBytes = Array.empty[Byte]
 //          Bytes.toBytes(snapshotEdge.version)
         val propsBytes = propsToKeyValuesWithTs(pendingEdge.propsWithTs.toSeq)
-        val lockBytes = Array.empty[Byte]
-//          snapshotEdge.lockedAtOpt.map(lockedAt => Bytes.toBytes(lockedAt)).getOrElse(Array.empty[Byte])
+        //        val lockBytes = Array.empty[Byte]
+//        val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)
+        val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)
         Bytes.add(Bytes.add(valueBytes(), opBytes, versionBytes), Bytes.add(propsBytes, lockBytes))
     }
     val kv = SKeyValue(table, row, cf, qualifier, value, snapshotEdge.version)
@@ -73,7 +74,8 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
         val versionBytes = Array.empty[Byte]
 //          Bytes.toBytes(snapshotEdge.version)
         val propsBytes = propsToKeyValuesWithTs(pendingEdge.propsWithTs.toSeq)
-        val lockBytes = Array.empty[Byte]
+//        val lockBytes = Array.empty[Byte]
+        val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)
 //          snapshotEdge.lockedAtOpt.map(lockedAt => Bytes.toBytes(lockedAt)).getOrElse(Array.empty[Byte])
 //        logger.error(s"ValueBytes: ${valueBytes().toList}")
 //        logger.error(s"opBytes: ${opBytes.toList}")

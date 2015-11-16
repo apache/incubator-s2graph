@@ -60,13 +60,15 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
           pos = endAt
           val propsMap = pendingEdgeProps.toMap
           val pendingTs = propsMap(LabelMeta.timeStampSeq).innerVal.toString.toLong
-          //          val lockedAtOpt = Option(Bytes.toLong(kv.value, pos, 8))
+          val lockedAtOpt = Option(Bytes.toLong(kv.value, pos, 8))
+
           val pendingEdge =
             Edge(Vertex(srcVertexId, cellVersion),
               Vertex(tgtVertexId, cellVersion),
               labelWithDir, pendingEdgeOp, pendingTs,
               cellVersion, pendingEdgeProps.toMap,
-              statusCode = pendingEdgeStatusCode)
+              statusCode = pendingEdgeStatusCode,
+              lockTs = lockedAtOpt)
           Option(pendingEdge)
         }
 
@@ -74,7 +76,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
     }
     SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),
       labelWithDir, op, cellVersion, props, statusCode = statusCode,
-      pendingEdgeOpt = _pendingEdgeOpt)
+      pendingEdgeOpt = _pendingEdgeOpt, lockTs = None)
   }
 
   private def fromKeyValuesInnerV3[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
@@ -122,7 +124,9 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
 //          pos += 8
           val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
           pos = endAt
-//          val lockedAtOpt = Option(Bytes.toLong(kv.value, pos, 8))
+
+          val lockedAtOpt = Option(Bytes.toLong(kv.value, pos
+            , 8))
           val propsMap = pendingEdgeProps.toMap
           val pendingTs = propsMap(LabelMeta.timeStampSeq).innerVal.toString.toLong
           val pendingEdge =
@@ -130,7 +134,8 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
               Vertex(tgtVertexId, cellVersion),
               labelWithDir, pendingEdgeOp, pendingTs,
               cellVersion, pendingEdgeProps.toMap,
-              statusCode = pendingEdgeStatusCode)
+              statusCode = pendingEdgeStatusCode,
+              lockTs = lockedAtOpt)
           Option(pendingEdge)
         }
 
@@ -139,7 +144,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
 
     SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),
       labelWithDir, op, cellVersion, props, statusCode = statusCode,
-      pendingEdgeOpt = _pendingEdgeOpt)
+      pendingEdgeOpt = _pendingEdgeOpt, lockTs = None)
   }
 
 
