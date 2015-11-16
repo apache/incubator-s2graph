@@ -315,6 +315,19 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
     _lockEdge
   }
+
+  private def buildReleaseLockEdge(snapshotEdgeOpt: Option[Edge], edge: Edge, edgeMutate: EdgeMutate) = {
+    val newVersion = buildLockEdge(snapshotEdgeOpt, edge).version + 1
+    val base = edgeMutate.newInvertedEdge match {
+      case None =>
+        // shouldReplace false
+        assert(snapshotEdgeOpt.isDefined)
+        snapshotEdgeOpt.get.toSnapshotEdge
+      case Some(newSnapshotEdge) => newSnapshotEdge
+    }
+    base.copy(version = newVersion, statusCode = 0, pendingEdgeOpt = None)
+  }
+
   private def toPutRequest(snapshotEdge: SnapshotEdge): PutRequest = {
     mutationBuilder.buildPutAsync(snapshotEdge).head.asInstanceOf[PutRequest]
   }
@@ -326,21 +339,10 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
     }.getOrElse(Array.empty)
 
-    def releaseLockEdge(edgeMutate: EdgeMutate) = {
-      val newVersion = buildLockEdge(snapshotEdgeOpt, edge).version + 1
-      val base = edgeMutate.newInvertedEdge match {
-        case None =>
-          // shouldReplace false
-          assert(snapshotEdgeOpt.isDefined)
-          snapshotEdgeOpt.get.toSnapshotEdge
-        case Some(newSnapshotEdge) => newSnapshotEdge
-      }
-      base.copy(version = newVersion, statusCode = 0, pendingEdgeOpt = None)
-    }
 
     def lockEdgePut = toPutRequest(buildLockEdge(snapshotEdgeOpt, edge))
-    def releaseLockEdgePut(edgeMutate: EdgeMutate) = 
-      mutationBuilder.buildPutAsync(releaseLockEdge(edgeMutate)).head.asInstanceOf[PutRequest]
+    def releaseLockEdgePut(edgeMutate: EdgeMutate) =
+      mutationBuilder.buildPutAsync(buildReleaseLockEdge(snapshotEdgeOpt, edge,edgeMutate)).head.asInstanceOf[PutRequest]
 
     //    assert(org.apache.hadoop.hbase.util.Bytes.compareTo(releaseLockEdgePut.value(), lockEdgePut.value()) != 0)
     //    assert(lockEdgePut.timestamp() < releaseLockEdgePut.timestamp())
