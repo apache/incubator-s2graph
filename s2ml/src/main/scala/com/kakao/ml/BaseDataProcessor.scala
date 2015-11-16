@@ -26,19 +26,20 @@ case class EmptyParams() extends Params
 
 case class EmptyOrNotGivenParams() extends Params()
 
-abstract class BaseDataProcessor[I <: Data :ClassTag, O <: Data :ClassTag](params: Params)
-    extends Logging with Environment {
+/**
+ * BaseDataProcessor, the basic abstraction in S2ML, represents a data processor
+ * which generates output data `O` using input data `I`.
+ */
+abstract class BaseDataProcessor[I <: Data : ClassTag, O <: Data : ClassTag](params: Params)
+    extends Serializable with Logging with Environment {
 
-  def this() = this(EmptyOrNotGivenParams())
+  def this() = this(BaseDataProcessor.emptyOrNotGivenParams)
 
-  final var cached: O = _
+  final private var cached: O = _
   final private var predecessors: Set[BaseDataProcessor[_, _]] = _
-  final var depth: Int = -1
-  final var order: Int = -1
+  final private var depth: Int = -1
+  final private var order: Int = -1
   final protected var predecessorData: PredecessorData = PredecessorData(Map.empty[String, Any])
-
-  final def getType[T :ClassTag](value: T): Class[_] = classTag[T].runtimeClass
-  
   final val iClass: Class[_] = classTag[I].runtimeClass
   final val oClass: Class[_] = classTag[O].runtimeClass
 
@@ -143,8 +144,6 @@ abstract class BaseDataProcessor[I <: Data :ClassTag, O <: Data :ClassTag](param
     else s
   }
 
-  final def processOne(sqlContext: SQLContext, input: I): O = processBlock(sqlContext, input)
-
   final def process(sqlContext: SQLContext): O = {
     logInfo("processing ... ")
     if(cached == null) {
@@ -204,5 +203,28 @@ abstract class BaseDataProcessor[I <: Data :ClassTag, O <: Data :ClassTag](param
   }
 
   protected def processBlock(sQLContext: SQLContext, input: I): O
+
+}
+
+object BaseDataProcessor {
+
+  val emptyData = EmptyData()
+
+  val emptyParams = EmptyParams()
+
+  val emptyOrNotGivenParams = EmptyOrNotGivenParams()
+
+  def wrap[O <: Data : ClassTag](output: O): BaseDataProcessor[EmptyData, O] = {
+    new BaseDataProcessor[EmptyData, O] {
+      override protected def processBlock(sqlContext: SQLContext, input: EmptyData): O = output
+    }
+  }
+
+  def wrap(keyValuePairs: (String, Any)*): BaseDataProcessor[EmptyData, PredecessorData] = {
+    new BaseDataProcessor[EmptyData, PredecessorData] {
+      override protected def processBlock(sqlContext: SQLContext, input: EmptyData): PredecessorData =
+        PredecessorData(keyValuePairs.toMap)
+    }
+  }
 
 }

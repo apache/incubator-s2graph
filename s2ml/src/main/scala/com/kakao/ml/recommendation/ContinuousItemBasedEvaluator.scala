@@ -3,6 +3,7 @@ package com.kakao.ml.recommendation
 import com.kakao.ml.Data
 import com.kakao.ml.io._
 import org.apache.spark.mllib.rdd.MLPairRDDFunctions._
+import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
 
@@ -28,6 +29,9 @@ class ContinuousItemBasedEvaluator(params: ContinuousEvaluatorParams)
   override def evaluateItemsForUsers(
       sqlContext: SQLContext, input: ItemBasedEvaluatorData, query: GraphLikeQuery): Map[String, ResultAggregator] = {
 
+    val sc = sqlContext.sparkContext
+    import sqlContext.implicits._
+
     val allTrainingSet = input.sourceDF.where(tsCol <= input.lastTsTo)
     val allTestSet = input.sourceDF.where(tsCol > input.lastTsTo)
 
@@ -40,8 +44,12 @@ class ContinuousItemBasedEvaluator(params: ContinuousEvaluatorParams)
     val usersInTestSet = allTestSet.select(userCol).distinct().collect().map(_.getString(0))
     val testableUsers = usersInTrainingSet.intersect(usersInTestSet)
 
-    val trainingSet = allTrainingSet.where(userCol isin(testableUsers: _*))
-    val testSet = allTestSet.where(userCol isin(testableUsers: _*))
+    var testableUserDF = sc.parallelize(testableUsers).toDF("user_s")
+    if (testableUsers.length <= 5e5)
+      testableUserDF = broadcast(testableUserDF)
+
+    val trainingSet = allTrainingSet.join(testableUserDF, userCol === $"user_s").drop("user_s")
+    val testSet = allTestSet.join(testableUserDF, userCol === $"user_s").drop("user_s")
 
     val similarItems = input.similarItemDF
 

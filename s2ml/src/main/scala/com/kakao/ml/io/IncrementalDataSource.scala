@@ -85,8 +85,8 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
         sqlContext.read.schema(rawSchema).orc(params.baseRoot + s"/split=$split")
     }
 
-    /** from daily data */
-    val dailyDF = orcWithSchema
+    /** from daily data from baseRoot */
+    val baseDF = orcWithSchema
         .where($"date_id".between(
           date_sub(current_date(), params.duration + baseBefore),
           date_sub(current_date(), baseBefore)))
@@ -101,7 +101,7 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
     }
 
     val sourceDF = if(exceptIncrementalData) {
-      dailyDF
+      baseDF
     } else {
       /** from incremental data */
       val lastDateId = fs.listStatus(new Path(s"${params.baseRoot}/split=$split"))
@@ -121,7 +121,7 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
               None
           }
           .toDF(tsColString, labelColString, userColString, itemColString)
-      dailyDF.unionAll(incrementalDF)
+      baseDF.unionAll(incrementalDF)
     }
 
     /** materialize */
