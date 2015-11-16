@@ -7,6 +7,7 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import play.api.libs.json.Json
 import s2.config.{S2ConfigFactory, S2CounterConfig}
 import s2.counter.core.CounterFunctions.HashMapAccumulable
+import s2.counter.core.TimedQualifier.IntervalUnit
 import s2.counter.core._
 import s2.counter.core.v2.{ExactStorageGraph, GraphOperation, RankingStorageGraph}
 import s2.helper.CounterAdmin
@@ -14,6 +15,7 @@ import s2.models.{Counter, DBModel, DefaultCounterModel}
 import s2.spark.HashMapParam
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
 
 /**
@@ -209,10 +211,27 @@ class RankingCounterStreamingSpec extends FlatSpec with BeforeAndAfterAll with M
     val ratePolicy = DefaultCounterModel.findByServiceAction(service, action_rate).get
 
     // update base policy
+    val eq = ExactQualifier(TimedQualifier("M", 1433084400000l), "")
+    val exactKey = ExactKey(basePolicy, "1", checkItemType = true)
+
+    // check base item count
     exactCounter.updateCount(basePolicy, Seq(
-      (ExactKey(basePolicy, "1", checkItemType = true), Map(ExactQualifier(TimedQualifier("M", 1433084400000l), "") -> 1l))
+      (exactKey, Map(eq -> 2l))
     ))
     Thread.sleep(1000)
+
+    // direct get
+    val baseCount = exactCounter.getCount(basePolicy, "1", Seq(IntervalUnit.MONTHLY), 1433084400000l, 1433084400000l, Map.empty[String, Set[String]])
+    baseCount should not be empty
+    baseCount.get should equal(FetchedCountsGrouped(exactKey, Map(
+      (eq.tq.q, Map.empty[String, String]) -> Map(eq-> 2l)
+    )))
+
+    // related get
+    val relatedCount = exactCounter.getRelatedCounts(basePolicy, Seq("1" -> Seq(eq)))
+    relatedCount should not be empty
+    relatedCount.get("1") should not be empty
+    relatedCount.get("1").get should equal(Map(eq -> 2l))
 
     val data =
       s"""
@@ -275,7 +294,7 @@ class RankingCounterStreamingSpec extends FlatSpec with BeforeAndAfterAll with M
     val rst = rankingCounter.getTopK(key)
     rst should not be empty
     rst.get.totalScore should equal(0d)
-    rst.get.values should equal(Seq(("2", 0.25d), ("1", 1d)))
+    rst.get.values should equal(Seq(("1", 1d), ("2", 0.25d)))
 
     val rst2 = rankingCounter.getTopK(key2)
     rst2 should not be empty
