@@ -274,7 +274,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   }
 
 
-  case class PartialFailureException(edge: Edge, statusCode: Byte) extends Exception
+  case class PartialFailureException(edge: Edge, statusCode: Byte, faileReason: String) extends Exception
 
   def debug(ret: Boolean, phase: String, snapshotEdge: SnapshotEdge) = {
     val msg = Seq(s"[$ret] [$phase]", s"${snapshotEdge.toLogString()}").mkString("\n")
@@ -294,7 +294,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
        s"${edgeMutate.toLogString}").mkString("\n")
     logger.error(msg)
   }
-
+  var cnt = 0L
   private def commitUpdate(edge: Edge, statusCode: Byte)(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeMutate): Future[Boolean] = {
     val label = edge.label
 
@@ -336,34 +336,41 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     //    assert(org.apache.hadoop.hbase.util.Bytes.compareTo(releaseLockEdgePut.value(), lockEdgePut.value()) != 0)
     //    assert(lockEdgePut.timestamp() < releaseLockEdgePut.timestamp())
 
-    val prob = -0.1
+    val prob = 0.0
 
     def acquireLock(statusCode: Byte): Future[Boolean] =
       if (statusCode >= 1) {
         logger.debug(s"skip acquireLock: [$statusCode]\n${edge.toLogString}")
         Future.successful(true)
       } else {
-        if (Random.nextDouble() < prob) throw new PartialFailureException(edge, 0)
+        val p = Random.nextDouble()
+        if (p < prob) throw new PartialFailureException(edge, 0, s"$p")
         else
           client.compareAndSet(lockEdgePut, oldBytes).toFuture.map { ret =>
             if (ret) {
+//              logger.error(s"locked: ${lockEdgePut.value.toList}")
               debug(ret, "acquireLock", edge.toSnapshotEdge)
             } else {
-              throw new PartialFailureException(edge, 0)
+              throw new PartialFailureException(edge, 0, "hbase fail.")
             }
             true
           }
       }
 
-    def releaseLock(predicate: Boolean, edgeMutate: EdgeMutate): Future[Boolean] = {
-      if (!predicate) throw new PartialFailureException(edge, 3)
+    def releaseLock(predicate: Boolean, _edgeMutate: EdgeMutate): Future[Boolean] = {
+      if (!predicate) {
+        throw new PartialFailureException(edge, 3, "predicate failed.")
+      }
       //      if (statusCode == 0) {
       //        logger.debug(s"skip releaseLock: [$statusCode] ${edge.toLogString}")
       //        Future.successful(true)
       //      } else {
-      if (Random.nextDouble() < prob) throw new PartialFailureException(edge, 3)
+      val p = Random.nextDouble()
+      cnt += 1
+      if (cnt == 2)  throw new PartialFailureException(edge, 3, s"$p")
+//      if (p < prob) throw new PartialFailureException(edge, 3, s"$p")
       else {
-        client.compareAndSet(releaseLockEdgePut(edgeMutate), lockEdgePut.value()).toFuture.map { ret =>
+        client.compareAndSet(releaseLockEdgePut(_edgeMutate), lockEdgePut.value()).toFuture.map { ret =>
           if (ret) {
             debug(ret, "releaseLock", edge.toSnapshotEdge)
           } else {
@@ -371,14 +378,14 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               "==================================================================",
               oldBytes.toList,
               lockEdgePut.value.toList,
-              releaseLockEdgePut(edgeMutate).value().toList,
+              releaseLockEdgePut(_edgeMutate).value().toList,
               "==================================================================",
               "\n"
             )
 
             logger.error(msg.mkString("\n"))
             error(ret, "releaseLock", edge.toSnapshotEdge)
-            throw new PartialFailureException(edge, 3)
+            throw new PartialFailureException(edge, 3, "hbase fail.")
           }
           true
         }
@@ -387,19 +394,20 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
 
     def mutate(predicate: Boolean, statusCode: Byte, _edgeMutate: EdgeMutate): Future[Boolean] = {
-      if (!predicate) throw new PartialFailureException(edge, 1)
+      if (!predicate) throw new PartialFailureException(edge, 1, "predicate failed.")
 
       if (statusCode >= 2) {
         logger.debug(s"skip mutate: [$statusCode]\n${edge.toLogString}")
         Future.successful(true)
       } else {
-        if (Random.nextDouble() < prob) throw new PartialFailureException(edge, 1)
+        val p = Random.nextDouble()
+        if (p < prob) throw new PartialFailureException(edge, 1, s"$p")
         else
           writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.indexedEdgeMutations(_edgeMutate), withWait = true).map { ret =>
             if (ret) {
-              debug(ret, "mutate", edge.toSnapshotEdge, edgeUpdate)
+              debug(ret, "mutate", edge.toSnapshotEdge, _edgeMutate)
             } else {
-              throw new PartialFailureException(edge, 1)
+              throw new PartialFailureException(edge, 1, "hbase fail.")
             }
             true
           }
@@ -407,18 +415,19 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
 
     def increment(predicate: Boolean, statusCode: Byte, _edgeMutate: EdgeMutate): Future[Boolean] = {
-      if (!predicate) throw new PartialFailureException(edge, 2)
+      if (!predicate) throw new PartialFailureException(edge, 2, "predicate failed.")
       if (statusCode >= 3) {
         logger.debug(s"skip increment: [$statusCode]\n${edge.toLogString}")
         Future.successful(true)
       } else {
-        if (Random.nextDouble() < prob) throw new PartialFailureException(edge, 2)
+        val p = Random.nextDouble()
+        if (p < prob) throw new PartialFailureException(edge, 2, s"$p")
         else
           writeAsyncSimple(label.hbaseZkAddr, mutationBuilder.increments(_edgeMutate), withWait = true).map { ret =>
             if (ret) {
-              debug(ret, "increment", edge.toSnapshotEdge, edgeUpdate)
+              debug(ret, "increment", edge.toSnapshotEdge, _edgeMutate)
             } else {
-              throw new PartialFailureException(edge, 2)
+              throw new PartialFailureException(edge, 2, "hbase fail.")
             }
             true
           }
@@ -435,8 +444,13 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         released
       }
 
-
-    logger.debug(s"[StatusCode]: $statusCode\n[Snapshot]: ${snapshotEdgeOpt.map(_.toLogString).getOrElse("None")}\n[Request]: ${edge.toLogString}\n")
+    snapshotEdgeOpt match {
+      case Some(old) =>
+        val put = mutationBuilder.buildPutAsync(old.toSnapshotEdge).head.asInstanceOf[PutRequest]
+        logger.error(s"${put.value.toList}")
+      case _ =>
+    }
+    logger.debug(s"[StatusCode]: $statusCode\n[Snapshot]: ${snapshotEdgeOpt.map(_.toLogString).getOrElse("None")}\n[Request]: ${edge.toLogString}\n[Pending]: ${snapshotEdgeOpt.map(_.pendingEdgeOpt.map(_.toLogString))}\n")
     snapshotEdgeOpt match {
       case None =>
         // no one ever did success on acquire lock.
@@ -449,13 +463,15 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             process(edgeUpdate, statusCode)
           case Some(pendingEdge) =>
             // locked
+//            if (statusCode >= 1) {
             if (pendingEdge.ts == edge.ts) {
               // self locked
               val oldSnapshotEdge = if (snapshotEdge.ts == pendingEdge.ts) None else Option(snapshotEdge)
               val (_, newEdgeUpdate) = Edge.buildOperation(oldSnapshotEdge, Seq(edge))
               process(newEdgeUpdate, statusCode)
             } else {
-              throw new PartialFailureException(edge, statusCode)
+              logger.error(s"[OTHER]: ${pendingEdge.ts} vs ${edge.ts}")
+              throw new PartialFailureException(edge, statusCode, "others is mutating.")
             }
         }
     }
@@ -491,7 +507,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               if (ret) {
                 logger.info(s"[Success] commit: \n${_edges.map(_.toLogString)}")
               } else {
-                throw new PartialFailureException(newEdge, 3)
+                throw new PartialFailureException(newEdge, 3, "commit failed.")
               }
               true
             }
@@ -513,14 +529,15 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               logger.error(s"[Try: $tryNum], Fetch fail.\n${retryEdge}")
               retry(tryNum + 1)(edges, statusCode)(fn)
 
-            case PartialFailureException(retryEdge, failedStatusCode) =>
+            case PartialFailureException(retryEdge, failedStatusCode, faileReason) =>
               val status = failedStatusCode match {
                 case 0 => "AcquireLock failed."
                 case 1 => "Mutation failed."
                 case 2 => "Increment failed."
                 case 3 => "ReleaseLock failed."
               }
-              logger.error(s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}")
+              Thread.sleep(100)
+              logger.error(s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}\nFailReason: ${faileReason}")
               retry(tryNum + 1)(Seq(retryEdge), failedStatusCode)(fn)
           }
         }
