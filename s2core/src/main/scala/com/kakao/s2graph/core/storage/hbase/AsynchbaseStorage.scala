@@ -372,7 +372,75 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         }
     }
   }
+  def acquireLock(statusCode: Byte, edge: Edge,
+                  lockEdgePut: PutRequest, oldBytes: Array[Byte]): Future[Boolean] =
+    if (statusCode >= 1) {
+      logger.debug(s"skip acquireLock: [$statusCode]\n${edge.toLogString}")
+      Future.successful(true)
+    } else {
+      val p = Random.nextDouble()
+      if (p < prob) throw new PartialFailureException(edge, 0, s"$p")
+      else
+        client.compareAndSet(lockEdgePut, oldBytes).toFuture.recoverWith {
+          case ex: Exception =>
+            logger.error(s"AcquireLock RPC Failed.")
+            throw new PartialFailureException(edge, 0, "AcquireLock RPC Failed")
+        }.map { ret =>
+          if (ret) {
+            logger.error(s"locked: ${edge.toLogString} ${lockEdgePut.value.toList}")
+            debug(ret, "acquireLock", edge.toSnapshotEdge)
+          } else {
+            throw new PartialFailureException(edge, 0, "hbase fail.")
+          }
+          true
+        }
+    }
 
+  def releaseLock(predicate: Boolean,
+                  edge: Edge,
+                  lockEdgePut: PutRequest,
+                  f: EdgeMutate => PutRequest,
+                  _edgeMutate: EdgeMutate,
+                  oldBytes: Array[Byte]): Future[Boolean] = {
+    if (!predicate) {
+      throw new PartialFailureException(edge, 3, "predicate failed.")
+    }
+    //      if (statusCode == 0) {
+    //        logger.debug(s"skip releaseLock: [$statusCode] ${edge.toLogString}")
+    //        Future.successful(true)
+    //      } else {
+    val p = Random.nextDouble()
+    //      cnt += 1
+    //      if (cnt == 2)  throw new PartialFailureException(edge, 3, s"$p")
+    if (p < prob) throw new PartialFailureException(edge, 3, s"$p")
+    else {
+      val put = f(_edgeMutate)
+      client.compareAndSet(put, lockEdgePut.value()).toFuture.recoverWith{
+        case ex: Exception =>
+          logger.error(s"ReleaseLock RPC Failed.")
+          throw new PartialFailureException(edge, 3, "ReleaseLock RPC Failed")
+      }.map { ret =>
+        if (ret) {
+          debug(ret, "releaseLock", edge.toSnapshotEdge)
+        } else {
+          val msg = Seq("\nLock\n",
+            "FATAL ERROR: =====================================================",
+            oldBytes.toList,
+            lockEdgePut.value.toList,
+            put.value().toList,
+            "==================================================================",
+            "\n"
+          )
+
+          logger.error(msg.mkString("\n"))
+          error(ret, "releaseLock", edge.toSnapshotEdge)
+          throw new PartialFailureException(edge, 3, "hbase fail.")
+        }
+        true
+      }
+    }
+    //      }
+  }
   private def toPutRequest(snapshotEdge: SnapshotEdge): PutRequest = {
     mutationBuilder.buildPutAsync(snapshotEdge).head.asInstanceOf[PutRequest]
   }
@@ -386,83 +454,17 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
 
     def lockEdgePut = toPutRequest(buildLockEdge(snapshotEdgeOpt, edge))
-    def releaseLockEdgePut(edgeMutate: EdgeMutate) =
-      mutationBuilder.buildPutAsync(buildReleaseLockEdge(snapshotEdgeOpt, edge,edgeMutate)).head.asInstanceOf[PutRequest]
+    def releaseLockEdgePut(edgeMutate: EdgeMutate) = toPutRequest(buildReleaseLockEdge(snapshotEdgeOpt, edge,edgeMutate))
 
     //    assert(org.apache.hadoop.hbase.util.Bytes.compareTo(releaseLockEdgePut.value(), lockEdgePut.value()) != 0)
     //    assert(lockEdgePut.timestamp() < releaseLockEdgePut.timestamp())
 
-
-    def acquireLock(statusCode: Byte): Future[Boolean] =
-      if (statusCode >= 1) {
-        logger.debug(s"skip acquireLock: [$statusCode]\n${edge.toLogString}")
-        Future.successful(true)
-      } else {
-        val p = Random.nextDouble()
-        if (p < prob) throw new PartialFailureException(edge, 0, s"$p")
-        else
-          client.compareAndSet(lockEdgePut, oldBytes).toFuture.recoverWith {
-            case ex: Exception =>
-              logger.error(s"AcquireLock RPC Failed.")
-              throw new PartialFailureException(edge, 0, "AcquireLock RPC Failed")
-          }.map { ret =>
-            if (ret) {
-              logger.error(s"locked: ${edge.toLogString} ${lockEdgePut.value.toList}")
-              debug(ret, "acquireLock", edge.toSnapshotEdge)
-            } else {
-              throw new PartialFailureException(edge, 0, "hbase fail.")
-            }
-            true
-          }
-      }
-
-    def releaseLock(predicate: Boolean, _edgeMutate: EdgeMutate): Future[Boolean] = {
-      if (!predicate) {
-        throw new PartialFailureException(edge, 3, "predicate failed.")
-      }
-      //      if (statusCode == 0) {
-      //        logger.debug(s"skip releaseLock: [$statusCode] ${edge.toLogString}")
-      //        Future.successful(true)
-      //      } else {
-      val p = Random.nextDouble()
-//      cnt += 1
-//      if (cnt == 2)  throw new PartialFailureException(edge, 3, s"$p")
-      if (p < prob) throw new PartialFailureException(edge, 3, s"$p")
-      else {
-        client.compareAndSet(releaseLockEdgePut(_edgeMutate), lockEdgePut.value()).toFuture.recoverWith{
-          case ex: Exception =>
-            logger.error(s"ReleaseLock RPC Failed.")
-            throw new PartialFailureException(edge, 3, "ReleaseLock RPC Failed")
-        }.map { ret =>
-          if (ret) {
-            debug(ret, "releaseLock", edge.toSnapshotEdge)
-          } else {
-            val msg = Seq("\nLock\n",
-              "FATAL ERROR: =====================================================",
-              oldBytes.toList,
-              lockEdgePut.value.toList,
-              releaseLockEdgePut(_edgeMutate).value().toList,
-              "==================================================================",
-              "\n"
-            )
-
-            logger.error(msg.mkString("\n"))
-            error(ret, "releaseLock", edge.toSnapshotEdge)
-            throw new PartialFailureException(edge, 3, "hbase fail.")
-          }
-          true
-        }
-      }
-      //      }
-    }
-
-
     def process(_edgeMutate: EdgeMutate, statusCode: Byte): Future[Boolean] =
       for {
-        locked <- acquireLock(statusCode)
+        locked <- acquireLock(statusCode, edge, lockEdgePut, oldBytes)
         mutated <- mutate(locked, edge, statusCode, _edgeMutate)
         incremented <- increment(mutated, edge, statusCode, _edgeMutate)
-        released <- releaseLock(incremented, _edgeMutate)
+        released <- releaseLock(incremented, edge, lockEdgePut, releaseLockEdgePut, _edgeMutate, oldBytes)
       } yield {
         released
       }
