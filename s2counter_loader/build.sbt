@@ -2,6 +2,8 @@ import sbtassembly.Plugin.AssemblyKeys._
 
 name := "s2counter-loader"
 
+version := "0.12.1-SNAPSHOT"
+
 scalacOptions in Test ++= Seq("-Yrangepos")
 
 libraryDependencies ++= Seq(
