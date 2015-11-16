@@ -32,7 +32,7 @@ case class SnapshotEdge(srcVertex: Vertex,
   def toEdge: Edge = {
     val ts = props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(version)
     Edge(srcVertex, tgtVertex, labelWithDir, op,
-      ts, version, props, pendingEdgeOpt = pendingEdgeOpt, lockTs = lockTs)
+      ts, version, props, statusCode = statusCode, pendingEdgeOpt = pendingEdgeOpt, lockTs = lockTs)
   }
 
   def propsWithName = (for {
