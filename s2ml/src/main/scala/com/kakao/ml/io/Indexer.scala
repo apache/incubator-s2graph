@@ -8,6 +8,7 @@ import org.apache.spark.storage.StorageLevel
 class Indexer extends BaseDataProcessor[SourceData, IndexedData] {
 
   val defaultBlockSize = 5e6
+  val canBroadcast = 5e5
 
   override protected def processBlock(sqlContext: SQLContext, input: SourceData): IndexedData = {
 
@@ -50,17 +51,24 @@ class Indexer extends BaseDataProcessor[SourceData, IndexedData] {
      * NOTE: broadcast() on Spark 1.5.1 does not seem to support
      *    inner equi-join using `def join(right: DataFrame, usingColumn: String)`
      * so used tmp{Foo}ColStrings instead */
-    val labelDF = sqlContext.sparkContext.parallelize(labelStringDouble, 1)
+    var labelDF = sqlContext.sparkContext.parallelize(labelStringDouble, 1)
         .toDF(tmpLabelColString, confidenceColString)
-    val userDF = sqlContext.sparkContext.parallelize(userStringInt, 1)
+    var userDF = sqlContext.sparkContext.parallelize(userStringInt)
         .toDF(tmpUserColString, indexedUserColString)
-    val itemDF = sqlContext.sparkContext.parallelize(itemStringInt, 1)
+    var itemDF = sqlContext.sparkContext.parallelize(itemStringInt)
         .toDF(tmpItemColString, indexedItemColString)
 
+    if (labelStringDouble.length <= canBroadcast)
+      labelDF = broadcast(labelDF)
+    if (userStringInt.length <= canBroadcast)
+      userDF = broadcast(userDF)
+    if (itemStringInt.length <= canBroadcast)
+      itemDF = broadcast(itemDF)
+
     val indexedDF = input.sourceDF
-        .join(broadcast(labelDF), labelCol === tmpLabelCol)
-        .join(broadcast(userDF), userCol === tmpUserCol)
-        .join(broadcast(itemDF), itemCol === tmpItemCol)
+        .join(labelDF, labelCol === tmpLabelCol)
+        .join(userDF, userCol === tmpUserCol)
+        .join(itemDF, itemCol === tmpItemCol)
         .select(tsColString, labelColString, indexedUserColString, indexedItemColString, confidenceColString)
 
     // materialize
