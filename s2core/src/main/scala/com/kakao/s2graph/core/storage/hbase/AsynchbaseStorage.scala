@@ -362,7 +362,11 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         if (p < prob) throw new PartialFailureException(edge, 0, s"$p")
         else {
           val lockEdgePut = mutationBuilder.buildPutAsync(lockEdge).head.asInstanceOf[PutRequest]
-          client.compareAndSet(lockEdgePut, oldBytes).toFuture.map { ret =>
+          client.compareAndSet(lockEdgePut, oldBytes).toFuture.recoverWith {
+            case ex: Exception =>
+              logger.error(s"AcquireLock exception.", ex)
+              throw new PartialFailureException(edge, 0, "AcquireLock RPC failed.")
+          }.map { ret =>
             if (ret) {
               logger.error(s"locked: ${edge.toLogString} ${lockEdgePut.value.toList}")
               debug(ret, "acquireLock", edge.toSnapshotEdge)
@@ -390,7 +394,11 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         val lockEdgePut = mutationBuilder.buildPutAsync(lockEdge).head.asInstanceOf[PutRequest]
         val releaseLockEdgePut = mutationBuilder.buildPutAsync(buildReleaseLockEdge(lockEdge, _edgeMutate)).head.asInstanceOf[PutRequest]
 
-        client.compareAndSet(releaseLockEdgePut, lockEdgePut.value()).toFuture.map { ret =>
+        client.compareAndSet(releaseLockEdgePut, lockEdgePut.value()).toFuture.recoverWith {
+          case ex: Exception =>
+            logger.error(s"ReleaseLock exception", ex)
+            throw new PartialFailureException(edge, 3, "ReleaseLock RPC failed.")
+        }.map { ret =>
           if (ret) {
             debug(ret, "releaseLock", edge.toSnapshotEdge)
           } else {
@@ -531,19 +539,26 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           if (isFailure) throw new FetchTimeoutException(s"${_edges.head}")
 
           val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, _edges)
-          commitUpdate(newEdge, statusCode)(snapshotEdgeOpt, edgeUpdate).map { ret =>
-            if (ret) {
-              logger.info(s"[Success] commit: \n${_edges.map(_.toLogString)}")
-            } else {
-              throw new PartialFailureException(newEdge, 3, "commit failed.")
+          if (edgeUpdate.newInvertedEdge.isEmpty) {
+            Future.successful(true)
+          } else {
+            commitUpdate(newEdge, statusCode)(snapshotEdgeOpt, edgeUpdate).map { ret =>
+              if (ret) {
+                logger.info(s"[Success] commit: \n${_edges.map(_.toLogString)}")
+              } else {
+                throw new PartialFailureException(newEdge, 3, "commit failed.")
+              }
+              true
             }
-            true
           }
         }
       }
       def retry(tryNum: Int)(edges: Seq[Edge], statusCode: Byte)(fn: (Seq[Edge], Byte) => Future[Boolean]): Future[Boolean] = {
         if (tryNum >= MaxRetryNum) {
           logger.error(s"commit failed after $MaxRetryNum")
+          edges.foreach { edge =>
+            ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
+          }
           Future.successful(false)
         } else {
           val future = fn(edges, statusCode)
@@ -562,11 +577,15 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
                 case 1 => "Mutation failed."
                 case 2 => "Increment failed."
                 case 3 => "ReleaseLock failed."
+                case _ => "Unknown failed."
               }
 
               Thread.sleep(Random.nextInt(MaxBackOff))
               logger.error(s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}\nFailReason: ${faileReason}")
               retry(tryNum + 1)(Seq(retryEdge), failedStatusCode)(fn)
+            case ex: Exception =>
+              logger.error("Unknown exception", ex)
+              Future.successful(false)
           }
         }
       }
