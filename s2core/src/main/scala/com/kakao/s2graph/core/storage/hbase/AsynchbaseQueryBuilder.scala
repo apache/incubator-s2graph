@@ -120,8 +120,14 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
 
   override def toCacheKeyBytes(getRequest: GetRequest): Array[Byte] = {
     var bytes = getRequest.key()
-    if (getRequest.family() != null) bytes = Bytes.add(bytes, getRequest.family())
-    if (getRequest.qualifiers() != null) getRequest.qualifiers().filter(_ != null).foreach(q => bytes = Bytes.add(bytes, q))
+    Option(getRequest.family()).foreach(family => bytes = Bytes.add(bytes, family))
+    Option(getRequest.qualifiers()).foreach { qualifiers =>
+      qualifiers.filter(q => Option(q).isDefined).foreach { qualifier =>
+        bytes = Bytes.add(bytes, qualifier)
+      }
+    }
+//    if (getRequest.family() != null) bytes = Bytes.add(bytes, getRequest.family())
+//    if (getRequest.qualifiers() != null) getRequest.qualifiers().filter(_ != null).foreach(q => bytes = Bytes.add(bytes, q))
     bytes
   }
 
