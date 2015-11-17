@@ -508,16 +508,28 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             // not locked
             process(lockEdge, releaseLockEdge, edgeUpdate, statusCode)
           case Some(pendingEdge) =>
-            // locked
-            if (pendingEdge.ts == edge.ts && statusCode > 0) {
-              // self locked
+            def isLockExpired = pendingEdge.lockTs.get + 10000 < System.currentTimeMillis()
+            if (isLockExpired) {
               val oldSnapshotEdge = if (snapshotEdge.ts == pendingEdge.ts) None else Option(snapshotEdge)
-              val (_, newEdgeUpdate) = Edge.buildOperation(oldSnapshotEdge, Seq(edge))
-              val newReleaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, lockEdge, newEdgeUpdate)
-              /** lockEdge will be ignored */
-              process(lockEdge, newReleaseLockEdge, newEdgeUpdate, statusCode)
+              val (_, newEdgeUpdate) = Edge.buildOperation(oldSnapshotEdge, Seq(pendingEdge))
+              val newLockEdge = buildLockEdge(snapshotEdgeOpt, pendingEdge)
+              val newReleaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, newLockEdge, newEdgeUpdate)
+              process(newLockEdge, newReleaseLockEdge, newEdgeUpdate, statusCode = 0).flatMap { ret =>
+                val log = s"[Success]: Resolving expired pending edge.\n${pendingEdge.toLogString}"
+                throw new PartialFailureException(edge, 0, log)
+              }
             } else {
-              throw new PartialFailureException(edge, statusCode, s"others[${pendingEdge.ts}] is mutating. me[${edge.ts}]")
+              // locked
+              if (pendingEdge.ts == edge.ts && statusCode > 0) {
+                // self locked
+                val oldSnapshotEdge = if (snapshotEdge.ts == pendingEdge.ts) None else Option(snapshotEdge)
+                val (_, newEdgeUpdate) = Edge.buildOperation(oldSnapshotEdge, Seq(edge))
+                val newReleaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, lockEdge, newEdgeUpdate)
+                /** lockEdge will be ignored */
+                process(lockEdge, newReleaseLockEdge, newEdgeUpdate, statusCode)
+              } else {
+                throw new PartialFailureException(edge, statusCode, s"others[${pendingEdge.ts}] is mutating. me[${edge.ts}]")
+              }
             }
         }
     }
