@@ -387,7 +387,7 @@ object Edge extends JSONParser {
                     newPropsWithTs: Map[Byte, InnerValLikeWithTs]): EdgeMutate = {
     if (oldPropsWithTs == newPropsWithTs) {
       // all requests should be dropped. so empty mutation.
-      logger.error(s"Case 1")
+//      logger.error(s"Case 1")
       EdgeMutate(edgesToDelete = Nil, edgesToInsert = Nil, newInvertedEdge = None)
     } else {
       val withOutDeletedAt = newPropsWithTs.filter(kv => kv._1 != LabelMeta.lastDeletedAt)
@@ -403,10 +403,10 @@ object Edge extends JSONParser {
       // delete request must always update snapshot.
       if (withOutDeletedAt == oldPropsWithTs && newPropsWithTs.containsKey(LabelMeta.lastDeletedAt)) {
         // no mutation on indexEdges. only snapshotEdge should be updated to record lastDeletedAt.
-        logger.error(s"Case 2")
+//        logger.error(s"Case 2")
         EdgeMutate(edgesToDelete = Nil, edgesToInsert = Nil, newInvertedEdge = newSnapshotEdgeOpt)
       } else {
-        logger.error(s"Case 3")
+//        logger.error(s"Case 3")
         val edgesToDelete = snapshotEdgeOpt match {
           case Some(snapshotEdge) if snapshotEdge.op != GraphUtil.operations("delete") =>
             snapshotEdge.copy(op = GraphUtil.defaultOpByte).
