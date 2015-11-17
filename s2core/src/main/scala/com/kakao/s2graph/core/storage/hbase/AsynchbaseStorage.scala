@@ -296,8 +296,17 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   }
 
   private def buildLockEdge(snapshotEdgeOpt: Option[Edge], edge: Edge) = {
+    val currentTs = System.currentTimeMillis()
+    val lockTs = snapshotEdgeOpt match {
+      case None => Option(currentTs)
+      case Some(snapshotEdge) =>
+        snapshotEdge.pendingEdgeOpt match {
+          case None => Option(currentTs)
+          case Some(pendingEdge) => pendingEdge.lockTs
+        }
+    }
     val newVersion = snapshotEdgeOpt.map(_.version).getOrElse(edge.ts) + 1
-    val pendingEdge = edge.copy(version = newVersion, statusCode = 1)
+    val pendingEdge = edge.copy(version = newVersion, statusCode = 1, lockTs = lockTs)
     val base = snapshotEdgeOpt match {
       case None =>
         // no one ever mutated on this snapshotEdge.
@@ -306,7 +315,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         // there is at least one mutation have been succeed.
         snapshotEdgeOpt.get.toSnapshotEdge.copy(pendingEdgeOpt = Option(pendingEdge))
     }
-    val _lockEdge = base.copy(version = newVersion, statusCode = 1)
+    val _lockEdge = base.copy(version = newVersion, statusCode = 1, lockTs = None)
 
 //    logger.error(s"Lock Edge: ${_lockEdge.toLogString}")
 //    logger.error(s"Pending Edge: ${_lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}")
@@ -314,8 +323,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     _lockEdge
   }
 
-  private def buildReleaseLockEdge(snapshotEdgeOpt: Option[Edge], edge: Edge, edgeMutate: EdgeMutate) = {
-    val newVersion = buildLockEdge(snapshotEdgeOpt, edge).version + 1
+  private def buildReleaseLockEdge(snapshotEdgeOpt: Option[Edge], lockEdge: SnapshotEdge, edgeMutate: EdgeMutate) = {
+    val newVersion = lockEdge.version + 1
     val base = edgeMutate.newInvertedEdge match {
       case None =>
         // shouldReplace false
@@ -407,8 +416,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
   def releaseLock(predicate: Boolean,
                   edge: Edge,
-                  lockEdgePut: PutRequest,
-                  f: EdgeMutate => PutRequest,
+                  lockEdge: SnapshotEdge,
+                  releaseLockEdge: SnapshotEdge,
                   _edgeMutate: EdgeMutate,
                   oldBytes: Array[Byte]): Future[Boolean] = {
     if (!predicate) {
@@ -423,8 +432,10 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     //      if (cnt == 2)  throw new PartialFailureException(edge, 3, s"$p")
     if (p < prob) throw new PartialFailureException(edge, 3, s"$p")
     else {
-      val put = f(_edgeMutate)
-      client.compareAndSet(put, lockEdgePut.value()).toFuture.recoverWith{
+      val releaseLockEdgePut = toPutRequest(releaseLockEdge)
+      val lockEdgePut = toPutRequest(lockEdge)
+
+      client.compareAndSet(releaseLockEdgePut, lockEdgePut.value()).toFuture.recoverWith{
         case ex: Exception =>
           logger.error(s"ReleaseLock RPC Failed.")
           throw new PartialFailureException(edge, 3, "ReleaseLock RPC Failed")
@@ -436,7 +447,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             "=" * 50,
             oldBytes.toList,
             lockEdgePut.value.toList,
-            put.value().toList,
+            releaseLockEdgePut.value().toList,
             "=" * 50,
             "\n"
           )
@@ -462,13 +473,14 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }.getOrElse(Array.empty)
 
 
-    def lockEdgePut = toPutRequest(buildLockEdge(snapshotEdgeOpt, edge))
-    def releaseLockEdgePut(edgeMutate: EdgeMutate) = toPutRequest(buildReleaseLockEdge(snapshotEdgeOpt, edge,edgeMutate))
+//    def lockEdgePut = toPutRequest(buildLockEdge(snapshotEdgeOpt, edge))
+//    def releaseLockEdgePut(edgeMutate: EdgeMutate) = toPutRequest(buildReleaseLockEdge(snapshotEdgeOpt, edge,edgeMutate))
 
     //    assert(org.apache.hadoop.hbase.util.Bytes.compareTo(releaseLockEdgePut.value(), lockEdgePut.value()) != 0)
     //    assert(lockEdgePut.timestamp() < releaseLockEdgePut.timestamp())
 
     def process(lockEdge: SnapshotEdge,
+                releaseLockEdge: SnapshotEdge,
                 _edgeMutate: EdgeMutate,
                 statusCode: Byte): Future[Boolean] = {
 
@@ -476,7 +488,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         locked <- acquireLock(statusCode, edge, lockEdge, oldBytes)
         mutated <- mutate(locked, edge, statusCode, _edgeMutate)
         incremented <- increment(mutated, edge, statusCode, _edgeMutate)
-        released <- releaseLock(incremented, edge, lockEdgePut, releaseLockEdgePut, _edgeMutate, oldBytes)
+        released <- releaseLock(incremented, edge, lockEdge, releaseLockEdge, _edgeMutate, oldBytes)
       } yield {
         released
       }
@@ -484,23 +496,26 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
 
     val lockEdge = buildLockEdge(snapshotEdgeOpt, edge)
+    val releaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, lockEdge, edgeUpdate)
     snapshotEdgeOpt match {
       case None =>
         // no one ever did success on acquire lock.
-        process(lockEdge, edgeUpdate, statusCode)
+        process(lockEdge, releaseLockEdge, edgeUpdate, statusCode)
       case Some(snapshotEdge) =>
         // someone did success on acquire lock at least one.
         snapshotEdge.pendingEdgeOpt match {
           case None =>
             // not locked
-            process(lockEdge, edgeUpdate, statusCode)
+            process(lockEdge, releaseLockEdge, edgeUpdate, statusCode)
           case Some(pendingEdge) =>
             // locked
             if (pendingEdge.ts == edge.ts && statusCode > 0) {
               // self locked
               val oldSnapshotEdge = if (snapshotEdge.ts == pendingEdge.ts) None else Option(snapshotEdge)
               val (_, newEdgeUpdate) = Edge.buildOperation(oldSnapshotEdge, Seq(edge))
-              process(lockEdge, newEdgeUpdate, statusCode)
+              val newReleaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, lockEdge, newEdgeUpdate)
+              /** lockEdge will be ignored */
+              process(lockEdge, newReleaseLockEdge, newEdgeUpdate, statusCode)
             } else {
               throw new PartialFailureException(edge, statusCode, s"others[${pendingEdge.ts}] is mutating. me[${edge.ts}]")
             }
