@@ -468,7 +468,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     //    assert(org.apache.hadoop.hbase.util.Bytes.compareTo(releaseLockEdgePut.value(), lockEdgePut.value()) != 0)
     //    assert(lockEdgePut.timestamp() < releaseLockEdgePut.timestamp())
 
-    def process(lockEdge: SnapshotEdge, _edgeMutate: EdgeMutate, statusCode: Byte): Future[Boolean] = {
+    def process(lockEdge: SnapshotEdge,
+                _edgeMutate: EdgeMutate,
+                statusCode: Byte): Future[Boolean] = {
 
       for {
         locked <- acquireLock(statusCode, edge, lockEdge, oldBytes)
@@ -500,8 +502,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               val (_, newEdgeUpdate) = Edge.buildOperation(oldSnapshotEdge, Seq(edge))
               process(lockEdge, newEdgeUpdate, statusCode)
             } else {
-//              logger.error(s"[OTHER]: ${pendingEdge.ts} vs ${edge.ts}")
-              throw new PartialFailureException(edge, statusCode, "others is mutating.")
+              throw new PartialFailureException(edge, statusCode, s"others[${pendingEdge.ts}] is mutating. me[${edge.ts}]")
             }
         }
     }
@@ -510,7 +511,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   private def mutateEdgesInner(edges: Seq[Edge],
                                checkConsistency: Boolean,
                                withWait: Boolean)(f: (Option[Edge], Seq[Edge]) => (Edge, EdgeMutate)): Future[Boolean] = {
-
     if (!checkConsistency) {
       val zkQuorum = edges.head.label.hbaseZkAddr
       val futures = edges.map { edge =>
@@ -536,7 +536,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           } else {
             commitUpdate(newEdge, statusCode)(snapshotEdgeOpt, edgeUpdate).map { ret =>
               if (ret) {
-                logger.info(s"[Success] commit: \n${_edges.map(_.toLogString)}")
+                logger.info(s"[Success] commit: \n${_edges.map(_.toLogString).mkString("\n")}")
               } else {
                 throw new PartialFailureException(newEdge, 3, "commit failed.")
               }
@@ -621,7 +621,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val edgeWithScoreLs = queryResult.edgeWithScoreLs.filter { edgeWithScore =>
       (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
     }.map { edgeWithScore =>
-      val copiedEdge = edgeWithScore.edge.copy(op = GraphUtil.operations("delete"), ts = requestTs, version = requestTs)
+      val copiedEdge = edgeWithScore.edge.copy(op = GraphUtil.operations("delete"), version = requestTs)
       edgeWithScore.copy(edge = copiedEdge)
     }
     queryResult.copy(edgeWithScoreLs = edgeWithScoreLs)

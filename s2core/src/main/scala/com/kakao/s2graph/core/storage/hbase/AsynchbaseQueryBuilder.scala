@@ -3,8 +3,9 @@ package com.kakao.s2graph.core.storage.hbase
 import java.util
 
 import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls.LabelMeta
 import com.kakao.s2graph.core.storage.QueryBuilder
-import com.kakao.s2graph.core.types.{InnerVal, SourceVertexId, TargetVertexId, VertexId}
+import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.{Extensions, logger}
 import com.stumbleupon.async.Deferred
 import org.apache.hadoop.hbase.util.Bytes
@@ -42,7 +43,9 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
 
     val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
     val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
-    val edge = Edge(srcV, tgtV, labelWithDir)
+    val currentTs = System.currentTimeMillis()
+    val propsWithTs =  Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs)).toMap
+    val edge = Edge(srcV, tgtV, labelWithDir, propsWithTs = propsWithTs)
 
     val get = if (tgtVertexIdOpt.isDefined) {
       val snapshotEdge = edge.toSnapshotEdge

@@ -20,8 +20,8 @@ case class SnapshotEdge(srcVertex: Vertex,
                         pendingEdgeOpt: Option[Edge],
                         statusCode: Byte = 0) extends JSONParser {
 
-
-  assert(props.containsKey(LabelMeta.timeStampSeq))
+  if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
+//  assert(props.containsKey(LabelMeta.timeStampSeq))
 
   val schemaVer = label.schemaVersion
   lazy val label = Label.findById(labelWithDir.labelId)
@@ -31,7 +31,7 @@ case class SnapshotEdge(srcVertex: Vertex,
   def toEdge: Edge = {
     val ts = props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(version)
     Edge(srcVertex, tgtVertex, labelWithDir, op,
-      ts, version, props, pendingEdgeOpt = pendingEdgeOpt, statusCode = statusCode)
+      version, props, pendingEdgeOpt = pendingEdgeOpt, statusCode = statusCode)
   }
 
   def propsWithName = (for {
@@ -41,7 +41,7 @@ case class SnapshotEdge(srcVertex: Vertex,
   } yield meta.name -> jsValue) ++ Map("version" -> JsNumber(version))
 
   def toLogString() = {
-    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, props).mkString("\t")
+    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, propsWithName).mkString("\t")
   }
 }
 
@@ -49,11 +49,13 @@ case class IndexEdge(srcVertex: Vertex,
                      tgtVertex: Vertex,
                      labelWithDir: LabelWithDirection,
                      op: Byte,
-                     ts: Long,
+                     version: Long,
                      labelIndexSeq: Byte,
                      props: Map[Byte, InnerValLike]) extends JSONParser {
+  if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
+//  assert(props.containsKey(LabelMeta.timeStampSeq))
 
-
+  val ts = props(LabelMeta.timeStampSeq).toString.toLong
   lazy val label = Label.findById(labelWithDir.labelId)
   val schemaVer = label.schemaVersion
   lazy val labelIndex = LabelIndex.findByLabelIdAndSeq(labelWithDir.labelId, labelIndexSeq).get
@@ -74,7 +76,7 @@ case class IndexEdge(srcVertex: Vertex,
          * now we double store target vertex.innerId/srcVertex.innerId for easy development. later fix this to only store id once
          */
         val v = k match {
-          case LabelMeta.timeStampSeq => InnerVal.withLong(ts, schemaVer)
+          case LabelMeta.timeStampSeq => InnerVal.withLong(version, schemaVer)
           case LabelMeta.toSeq => tgtVertex.innerId
           case LabelMeta.fromSeq => //srcVertex.innerId
             // for now, it does not make sense to build index on srcVertex.innerId since all edges have same data.
@@ -90,7 +92,7 @@ case class IndexEdge(srcVertex: Vertex,
   lazy val ordersKeyMap = orders.map { case (byte, _) => byte }.toSet
   lazy val metas = for ((k, v) <- props if !ordersKeyMap.contains(k)) yield k -> v
 
-  lazy val propsWithTs = props.map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }
+  lazy val propsWithTs = props.map { case (k, v) => k -> InnerValLikeWithTs(v, version) }
 
   //TODO:
   //  lazy val kvs = Graph.client.indexedEdgeSerializer(this).toKeyValues.toList
@@ -104,10 +106,10 @@ case class IndexEdge(srcVertex: Vertex,
   } yield meta.name -> jsValue
 
 
-  def toEdge: Edge = Edge(srcVertex, tgtVertex, labelWithDir, op, ts, ts, propsWithTs)
+  def toEdge: Edge = Edge(srcVertex, tgtVertex, labelWithDir, op, version, propsWithTs)
 
   def toLogString() = {
-    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
+    List(version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
   }
 }
 
@@ -115,16 +117,17 @@ case class Edge(srcVertex: Vertex,
                 tgtVertex: Vertex,
                 labelWithDir: LabelWithDirection,
                 op: Byte = GraphUtil.defaultOpByte,
-                ts: Long = System.currentTimeMillis(),
+//                ts: Long = System.currentTimeMillis(),
                 version: Long = System.currentTimeMillis(),
-                propsWithTs: Map[Byte, InnerValLikeWithTs] = Map.empty[Byte, InnerValLikeWithTs],
+                propsWithTs: Map[Byte, InnerValLikeWithTs],
                 parentEdges: Seq[EdgeWithScore] = Nil,
                 originalEdgeOpt: Option[Edge] = None,
                 pendingEdgeOpt: Option[Edge] = None,
                 statusCode: Byte = 0) extends GraphElement with JSONParser {
-
+  if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
+//  assert(propsWithTs.containsKey(LabelMeta.timeStampSeq))
   val schemaVer = label.schemaVersion
-
+  val ts = propsWithTs(LabelMeta.timeStampSeq).innerVal.toString.toLong
 
   def props = propsWithTs.mapValues(_.innerVal)
 
@@ -227,7 +230,7 @@ case class Edge(srcVertex: Vertex,
   def updateTgtVertex(id: InnerValLike) = {
     val newId = TargetVertexId(tgtVertex.id.colId, id)
     val newTgtVertex = Vertex(newId, tgtVertex.ts, tgtVertex.props)
-    Edge(srcVertex, newTgtVertex, labelWithDir, op, ts, version, propsWithTs)
+    Edge(srcVertex, newTgtVertex, labelWithDir, op, version, propsWithTs)
   }
 
   def rank(r: RankParam): Double =
@@ -374,9 +377,16 @@ object Edge extends JSONParser {
         prevPropsWithTs = _newPropsWithTs
 //        logger.debug(s"${requestEdge.toLogString}\n$oldPropsWithTs\n$prevPropsWithTs\n")
       }
-      val newVersion = invertedEdge.map(e => e.version + incrementVersion).getOrElse(requestEdge.ts)
-      val edgeMutate = buildMutation(invertedEdge, requestEdge, newVersion, oldPropsWithTs, prevPropsWithTs)
-//      logger.debug(s"${edgeMutate.toLogString}")
+      val requestTs = requestEdge.ts
+      val newVersion = invertedEdge.map(e => e.version + incrementVersion).getOrElse(requestTs)
+      val maxTs = prevPropsWithTs.map(_._2.ts).max
+      val newTs = if (maxTs > requestTs) maxTs else requestTs
+      val propsWithTs = prevPropsWithTs ++
+        Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(newTs, requestEdge.label.schemaVersion), newTs))
+      val edgeMutate = buildMutation(invertedEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
+
+//      logger.debug(s"${edgeMutate.toLogString}\n${propsWithTs}")
+      logger.error(s"$propsWithTs")
       (requestEdge, edgeMutate)
     }
   }

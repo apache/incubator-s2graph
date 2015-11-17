@@ -4,6 +4,7 @@ import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.LabelMeta
 import com.kakao.s2graph.core.storage.{CanSKeyValue, StorageDeserializable, SKeyValue}
 import com.kakao.s2graph.core.types._
+import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.util.Bytes
 
 class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
@@ -101,10 +102,15 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
       }
     } else tgtVertexIdRaw
 
-    val mergedProps = (idxProps ++ props).toMap
-    val ts = mergedProps.get(LabelMeta.timeStampSeq).map(v => v.toString().toLong).getOrElse(kv.timestamp)
+    val _mergedProps = idxProps ++ props
+    val mergedProps =
+      if (kv.qualifier.isEmpty) _mergedProps ++ Map(LabelMeta.timeStampSeq -> InnerVal.withLong(kv.timestamp, version))
+      else _mergedProps
 
-    IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, mergedProps)
+//    logger.error(s"$mergedProps")
+//    val ts = mergedProps(LabelMeta.timeStampSeq).toString().toLong
+    val ts = kv.timestamp
+    IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, mergedProps.toMap)
   }
 }
 

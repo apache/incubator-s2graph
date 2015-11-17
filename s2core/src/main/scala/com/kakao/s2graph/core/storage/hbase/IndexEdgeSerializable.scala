@@ -38,7 +38,7 @@ case class IndexEdgeSerializable(indexEdge: IndexEdge) extends HSerializable[Ind
       }
 
     val value = propsToKeyValues(indexEdge.metas.toSeq)
-    val kv = SKeyValue(table, row, cf, qualifier, value, indexEdge.ts)
+    val kv = SKeyValue(table, row, cf, qualifier, value, indexEdge.version)
 
     Seq(kv)
   }

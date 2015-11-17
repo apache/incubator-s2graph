@@ -64,7 +64,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
           val pendingEdge =
             Edge(Vertex(srcVertexId, cellVersion),
               Vertex(tgtVertexId, cellVersion),
-              labelWithDir, pendingEdgeOp, pendingTs,
+              labelWithDir, pendingEdgeOp,
               cellVersion, pendingEdgeProps.toMap,
               statusCode = pendingEdgeStatusCode)
           Option(pendingEdge)
@@ -93,7 +93,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       pos += 4
       val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsInverted(kv.row, pos)
 
-      val rowLen = srcIdAndTgtIdLen + 4 + 1
+      val rowLen = srcIdAndTgtIdLen + 4 +  1
       (srcIdAndTgtId.srcInnerId, srcIdAndTgtId.tgtInnerId, labelWithDir, labelIdxSeq, isInverted, rowLen)
 
     }
@@ -128,7 +128,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
           val pendingEdge =
             Edge(Vertex(srcVertexId, cellVersion),
               Vertex(tgtVertexId, cellVersion),
-              labelWithDir, pendingEdgeOp, pendingTs,
+              labelWithDir, pendingEdgeOp,
               cellVersion, pendingEdgeProps.toMap,
               statusCode = pendingEdgeStatusCode)
           Option(pendingEdge)
