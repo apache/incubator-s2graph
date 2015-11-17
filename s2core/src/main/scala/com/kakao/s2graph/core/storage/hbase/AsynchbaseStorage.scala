@@ -648,7 +648,11 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val edgeWithScoreLs = queryResult.edgeWithScoreLs.filter { edgeWithScore =>
       (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
     }.map { edgeWithScore =>
-      val copiedEdge = edgeWithScore.edge.copy(op = GraphUtil.operations("delete"), version = requestTs)
+      val label = queryResult.queryParam.label
+      val newPropsWithTs = edgeWithScore.edge.propsWithTs ++
+        Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs.withLong(requestTs, requestTs, label.schemaVersion))
+      val copiedEdge = edgeWithScore.edge.copy(op = GraphUtil.operations("delete"), version = requestTs,
+        propsWithTs = newPropsWithTs)
       edgeWithScore.copy(edge = copiedEdge)
     }
     queryResult.copy(edgeWithScoreLs = edgeWithScoreLs)
