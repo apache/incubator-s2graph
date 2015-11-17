@@ -483,7 +483,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             process(edgeUpdate, statusCode)
           case Some(pendingEdge) =>
             // locked
-            if (pendingEdge.ts == edge.ts) {
+            if (pendingEdge.ts == edge.ts && statusCode > 0) {
               // self locked
               val oldSnapshotEdge = if (snapshotEdge.ts == pendingEdge.ts) None else Option(snapshotEdge)
               val (_, newEdgeUpdate) = Edge.buildOperation(oldSnapshotEdge, Seq(edge))
