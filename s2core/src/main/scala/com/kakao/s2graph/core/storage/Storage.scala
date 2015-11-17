@@ -116,7 +116,6 @@ abstract class Storage(implicit ec: ExecutionContext) {
         if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, None, isInnerCall, parentEdges)
         else toEdge(kv, queryParam, cacheElementOpt, parentEdges)
       } yield {
-//        logger.info(s"$kv")
         //TODO: Refactor this.
         val currentScore =
           queryParam.scorePropagateOp match {

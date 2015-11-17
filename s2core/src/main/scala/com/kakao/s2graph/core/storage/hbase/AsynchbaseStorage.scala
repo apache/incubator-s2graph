@@ -287,15 +287,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
      s"${edgeMutate.toLogString}").mkString("\n")
     logger.debug(msg)
   }
-  def error(ret: Boolean, phase: String, snapshotEdge: SnapshotEdge) = {
-    val msg = Seq(s"[$ret] [$phase]", s"${snapshotEdge.toLogString()}").mkString("\n")
-    logger.error(msg)
-  }
-  def error(ret: Boolean, phase: String, snapshotEdge: SnapshotEdge, edgeMutate: EdgeMutate) = {
-    val msg = Seq(s"[$ret] [$phase]", s"${snapshotEdge.toLogString()}",
-       s"${edgeMutate.toLogString}").mkString("\n")
-    logger.error(msg)
-  }
 
   private def buildLockEdge(snapshotEdgeOpt: Option[Edge], edge: Edge) = {
     val currentTs = System.currentTimeMillis()
@@ -317,12 +308,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         // there is at least one mutation have been succeed.
         snapshotEdgeOpt.get.toSnapshotEdge.copy(pendingEdgeOpt = Option(pendingEdge))
     }
-    val _lockEdge = base.copy(version = newVersion, statusCode = 1, lockTs = None)
-
-//    logger.error(s"Lock Edge: ${_lockEdge.toLogString}")
-//    logger.error(s"Pending Edge: ${_lockEdge.pendingEdgeOpt.map(_.toLogString).getOrElse("")}")
-
-    _lockEdge
+    base.copy(version = newVersion, statusCode = 1, lockTs = None)
   }
 
   private def buildReleaseLockEdge(snapshotEdgeOpt: Option[Edge], lockEdge: SnapshotEdge, edgeMutate: EdgeMutate) = {
@@ -425,13 +411,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     if (!predicate) {
       throw new PartialFailureException(edge, 3, "predicate failed.")
     }
-    //      if (statusCode == 0) {
-    //        logger.debug(s"skip releaseLock: [$statusCode] ${edge.toLogString}")
-    //        Future.successful(true)
-    //      } else {
     val p = Random.nextDouble()
-    //      cnt += 1
-    //      if (cnt == 2)  throw new PartialFailureException(edge, 3, s"$p")
     if (p < FailProb) throw new PartialFailureException(edge, 3, s"$p")
     else {
       val releaseLockEdgePut = toPutRequest(releaseLockEdge)
@@ -453,9 +433,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             "=" * 50,
             "\n"
           )
-
           logger.error(msg.mkString("\n"))
-          error(ret, "releaseLock", edge.toSnapshotEdge)
+//          error(ret, "releaseLock", edge.toSnapshotEdge)
           throw new PartialFailureException(edge, 3, "hbase fail.")
         }
         true
@@ -473,13 +452,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     def oldBytes = snapshotEdgeOpt.map { e =>
       snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
     }.getOrElse(Array.empty)
-
-
-//    def lockEdgePut = toPutRequest(buildLockEdge(snapshotEdgeOpt, edge))
-//    def releaseLockEdgePut(edgeMutate: EdgeMutate) = toPutRequest(buildReleaseLockEdge(snapshotEdgeOpt, edge,edgeMutate))
-
-    //    assert(org.apache.hadoop.hbase.util.Bytes.compareTo(releaseLockEdgePut.value(), lockEdgePut.value()) != 0)
-    //    assert(lockEdgePut.timestamp() < releaseLockEdgePut.timestamp())
 
     def process(lockEdge: SnapshotEdge,
                 releaseLockEdge: SnapshotEdge,
@@ -589,7 +561,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           }
           future recoverWith {
             case FetchTimeoutException(retryEdge) =>
-              logger.error(s"[Try: $tryNum], Fetch fail.\n${retryEdge}")
+              logger.info(s"[Try: $tryNum], Fetch fail.\n${retryEdge}")
               retry(tryNum + 1)(edges, statusCode)(fn)
 
             case PartialFailureException(retryEdge, failedStatusCode, faileReason) =>
@@ -602,7 +574,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               }
 
               Thread.sleep(Random.nextInt(MaxBackOff))
-              logger.error(s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}\nFailReason: ${faileReason}")
+              logger.info(s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}\nFailReason: ${faileReason}")
               retry(tryNum + 1)(Seq(retryEdge), failedStatusCode)(fn)
           }
         }
