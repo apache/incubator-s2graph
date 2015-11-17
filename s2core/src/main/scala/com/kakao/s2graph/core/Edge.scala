@@ -378,6 +378,7 @@ object Edge extends JSONParser {
 //        logger.debug(s"${requestEdge.toLogString}\n$oldPropsWithTs\n$prevPropsWithTs\n")
       }
       val requestTs = requestEdge.ts
+      /** version should be monotoniously increasing so our RPC mutation should be applied safely */
       val newVersion = invertedEdge.map(e => e.version + incrementVersion).getOrElse(requestTs)
       val maxTs = prevPropsWithTs.map(_._2.ts).max
       val newTs = if (maxTs > requestTs) maxTs else requestTs
@@ -386,7 +387,7 @@ object Edge extends JSONParser {
       val edgeMutate = buildMutation(invertedEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
 
 //      logger.debug(s"${edgeMutate.toLogString}\n${propsWithTs}")
-      logger.error(s"$propsWithTs")
+//      logger.error(s"$propsWithTs")
       (requestEdge, edgeMutate)
     }
   }
