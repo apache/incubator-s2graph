@@ -3,6 +3,8 @@ package com.kakao.s2graph.core.utils
 import java.util.concurrent.atomic.AtomicBoolean
 
 import com.google.common.cache.CacheBuilder
+import play.api.Logger
+import play.api.libs.json.JsValue
 
 import scala.concurrent.{Future, ExecutionContext}
 import scala.util.{Success, Failure}
