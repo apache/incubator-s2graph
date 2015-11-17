@@ -529,10 +529,11 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           if (isFailure) throw new FetchTimeoutException(s"${_edges.head}")
 
           val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, _edges)
-//          if (edgeUpdate.newInvertedEdge.isEmpty) {
-//            logger.debug(s"${newEdge.toLogString} drop.")
-//            Future.successful(true)
-//          } else {
+          //shouldReplace false.
+          if (edgeUpdate.newInvertedEdge.isEmpty && statusCode <= 0) {
+            logger.debug(s"${newEdge.toLogString} drop.")
+            Future.successful(true)
+          } else {
             commitUpdate(newEdge, statusCode)(snapshotEdgeOpt, edgeUpdate).map { ret =>
               if (ret) {
                 logger.info(s"[Success] commit: \n${_edges.map(_.toLogString)}")
@@ -541,7 +542,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               }
               true
             }
-//          }
+          }
         }
       }
       def retry(tryNum: Int)(edges: Seq[Edge], statusCode: Byte)(fn: (Seq[Edge], Byte) => Future[Boolean]): Future[Boolean] = {
