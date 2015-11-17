@@ -67,8 +67,10 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   val MaxRetryNum = config.getInt("max.retry.number")
   val MaxBackOff = config.getInt("max.back.off")
   val DeleteAllFetchSize = config.getInt("delete.all.fetch.size")
-//  val prob = config.getDouble("hbase.fail.prob")
-  val prob = 0.1
+  val FailProb = config.getDouble("hbase.fail.prob")
+  val LockExpireDuration = Math.max(MaxRetryNum * MaxBackOff * 2, 10000)
+
+//  val prob = 0.1
 
   /**
    * Serializer/Deserializer
@@ -345,7 +347,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       Future.successful(true)
     } else {
       val p = Random.nextDouble()
-      if (p < prob) throw new PartialFailureException(edge, 1, s"$p")
+      if (p < FailProb) throw new PartialFailureException(edge, 1, s"$p")
       else
         writeAsyncSimple(edge.label.hbaseZkAddr, mutationBuilder.indexedEdgeMutations(_edgeMutate), withWait = true).map { ret =>
           if (ret) {
@@ -367,7 +369,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       Future.successful(true)
     } else {
       val p = Random.nextDouble()
-      if (p < prob) throw new PartialFailureException(edge, 2, s"$p")
+      if (p < FailProb) throw new PartialFailureException(edge, 2, s"$p")
       else
         writeAsyncSimple(edge.label.hbaseZkAddr, mutationBuilder.increments(_edgeMutate), withWait = true).map { ret =>
           if (ret) {
@@ -386,7 +388,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       Future.successful(true)
     } else {
       val p = Random.nextDouble()
-      if (p < prob) throw new PartialFailureException(edge, 0, s"$p")
+      if (p < FailProb) throw new PartialFailureException(edge, 0, s"$p")
       else {
         val lockEdgePut = toPutRequest(lockEdge)
         client.compareAndSet(lockEdgePut, oldBytes).toFuture.recoverWith {
@@ -430,7 +432,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val p = Random.nextDouble()
     //      cnt += 1
     //      if (cnt == 2)  throw new PartialFailureException(edge, 3, s"$p")
-    if (p < prob) throw new PartialFailureException(edge, 3, s"$p")
+    if (p < FailProb) throw new PartialFailureException(edge, 3, s"$p")
     else {
       val releaseLockEdgePut = toPutRequest(releaseLockEdge)
       val lockEdgePut = toPutRequest(lockEdge)

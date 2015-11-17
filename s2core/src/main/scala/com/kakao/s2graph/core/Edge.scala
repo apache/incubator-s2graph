@@ -42,6 +42,7 @@ case class SnapshotEdge(srcVertex: Vertex,
     jsValue <- innerValToJsValue(v.innerVal, meta.dataType)
   } yield meta.name -> jsValue) ++ Map("version" -> JsNumber(version))
 
+  // only for debug
   def toLogString() = {
     List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, propsWithName).mkString("\t")
   }
@@ -110,6 +111,7 @@ case class IndexEdge(srcVertex: Vertex,
 
   def toEdge: Edge = Edge(srcVertex, tgtVertex, labelWithDir, op, version, propsWithTs)
 
+  // only for debug
   def toLogString() = {
     List(version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
   }
@@ -224,11 +226,11 @@ case class Edge(srcVertex: Vertex,
     case _ => false
   }
 
-  def propsWithName = (for {
+  def propsWithName = for {
     (seq, v) <- props
-    meta <- label.metaPropsMap.get(seq) if seq >= 0
+    meta <- label.metaPropsMap.get(seq) if seq > 0
     jsValue <- innerValToJsValue(v, meta.dataType)
-  } yield meta.name -> jsValue) ++ Map("version" -> JsNumber(version))
+  } yield meta.name -> jsValue
 
   def updateTgtVertex(id: InnerValLike) = {
     val newId = TargetVertexId(tgtVertex.id.colId, id)
@@ -263,7 +265,13 @@ case class Edge(srcVertex: Vertex,
     }
 
   def toLogString: String = {
-    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
+    val ret =
+      if (propsWithName.nonEmpty)
+        List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName))
+      else
+        List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label)
+
+    ret.mkString("\t")
   }
 }
 
