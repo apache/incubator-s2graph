@@ -49,16 +49,18 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       val kvsMap = props.toMap
       val ts = kvsMap(LabelMeta.timeStampSeq).innerVal.toString.toLong
 
+      pos = endAt
       val _pendingEdgeOpt =
         if (pos == kv.value.length) None
         else {
           val (pendingEdgeStatusCode, pendingEdgeOp) = statusCodeWithOp(kv.value(pos))
           pos += 1
-//          val versionNum = Bytes.toLong(kv.value, pos, 8)
-//          pos += 8
+          //          val versionNum = Bytes.toLong(kv.value, pos, 8)
+          //          pos += 8
           val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
           pos = endAt
           val lockTs = Option(Bytes.toLong(kv.value, pos, 8))
+
           val pendingEdge =
             Edge(Vertex(srcVertexId, cellVersion),
               Vertex(tgtVertexId, cellVersion),

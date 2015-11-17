@@ -18,7 +18,7 @@ class BasicCrudSpec extends SpecCommon {
   var seed = 0
   def runTC(tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]) = {
     for {
-      labelName <- List(testLabelName2)
+      labelName <- List(testLabelName, testLabelName2)
       i <- 0 until NUM_OF_EACH_TEST
     } {
       seed += 1
