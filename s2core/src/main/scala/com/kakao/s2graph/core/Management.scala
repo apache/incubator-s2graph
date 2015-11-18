@@ -250,8 +250,11 @@ object Management extends JSONParser {
 
     val label = tryOption(labelStr, getServiceLable)
     val dir =
-      if (direction == "") GraphUtil.toDirection(label.direction)
-      else GraphUtil.toDirection(direction)
+      if (direction == "")
+//        GraphUtil.toDirection(label.direction)
+        GraphUtil.directions("out")
+      else
+        GraphUtil.toDirection(direction)
 
     //    logger.debug(s"$srcId, ${label.srcColumnWithDir(dir)}")
     //    logger.debug(s"$tgtId, ${label.tgtColumnWithDir(dir)}")

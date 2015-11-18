@@ -32,7 +32,7 @@ class AsynchbaseMutationBuilder(storage: AsynchbaseStorage)(implicit ec: Executi
   }
 
   def invertedEdgeMutations(edgeMutate: EdgeMutate): Seq[HBaseRpc] =
-    edgeMutate.newInvertedEdge.map(e => buildDeleteAsync(e)).getOrElse(Nil)
+    edgeMutate.newInvertedEdge.map(e => buildPutAsync(e)).getOrElse(Nil)
 
 
   def increments(edgeMutate: EdgeMutate): Seq[HBaseRpc] = {

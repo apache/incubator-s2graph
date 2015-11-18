@@ -1,6 +1,7 @@
 package com.kakao.s2graph.core.types
 
 import com.kakao.s2graph.core.GraphUtil
+import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.util.Bytes
 
 /**
@@ -43,7 +44,9 @@ case class LabelWithDirection(labelId: Int, dir: Int) extends HBaseSerializable 
 
   lazy val compositeInt = labelBits | dir
 
-  def bytes = Bytes.toBytes(compositeInt)
+  def bytes = {
+     Bytes.toBytes(compositeInt)
+  }
 
   lazy val dirToggled = LabelWithDirection(labelId, GraphUtil.toggleDir(dir))
 

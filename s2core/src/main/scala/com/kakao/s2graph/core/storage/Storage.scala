@@ -3,6 +3,7 @@ package com.kakao.s2graph.core.storage
 import com.google.common.cache.Cache
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.Label
+import com.kakao.s2graph.core.utils.logger
 
 
 import scala.collection.Seq
@@ -115,6 +116,7 @@ abstract class Storage(implicit ec: ExecutionContext) {
         if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryParam, None, isInnerCall, parentEdges)
         else toEdge(kv, queryParam, cacheElementOpt, parentEdges)
       } yield {
+        logger.info(s"KeyValue: ${kv}")
         //TODO: Refactor this.
         val currentScore =
           queryParam.scorePropagateOp match {
