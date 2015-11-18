@@ -6,19 +6,19 @@ import com.google.common.cache.Cache
 import com.kakao.s2graph.core.GraphExceptions.FetchTimeoutException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.{Label, LabelMeta}
-import com.kakao.s2graph.core.storage.{Storage}
+import com.kakao.s2graph.core.storage.Storage
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.{Extensions, logger}
-import com.stumbleupon.async.{Deferred}
+import com.stumbleupon.async.Deferred
 import com.typesafe.config.Config
 import org.hbase.async._
 
 import scala.collection.JavaConversions._
-import scala.collection.{Seq}
+import scala.collection.Seq
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, duration}
+import scala.util.Random
 import scala.util.hashing.MurmurHash3
-import scala.util.{Success, Random}
 
 
 object AsynchbaseStorage {
@@ -71,8 +71,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   val LockExpireDuration = Math.max(MaxRetryNum * MaxBackOff * 2, 10000)
 
   /**
-   * Serializer/Deserializer
-   */
+    * Serializer/Deserializer
+    */
   def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge) = new SnapshotEdgeSerializable(snapshotEdge)
 
   def indexEdgeSerializer(indexedEdge: IndexEdge) = new IndexEdgeSerializable(indexedEdge)
@@ -188,18 +188,18 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val defers: Seq[Deferred[(Boolean, Long)]] = for {
       edge <- edges
     } yield {
-        val edgeWithIndex = edge.edgesWithIndex.head
-        val countWithTs = edge.propsWithTs(LabelMeta.countSeq)
-        val countVal = countWithTs.innerVal.toString().toLong
-        val incr = mutationBuilder.buildIncrementsCountAsync(edgeWithIndex, countVal).head
-        val request = incr.asInstanceOf[AtomicIncrementRequest]
-        client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>
-          (true, resultCount.longValue())
-        } recoverWith { ex =>
-          logger.error(s"mutation failed. $request", ex)
-          (false, -1L)
-        }
+      val edgeWithIndex = edge.edgesWithIndex.head
+      val countWithTs = edge.propsWithTs(LabelMeta.countSeq)
+      val countVal = countWithTs.innerVal.toString().toLong
+      val incr = mutationBuilder.buildIncrementsCountAsync(edgeWithIndex, countVal).head
+      val request = incr.asInstanceOf[AtomicIncrementRequest]
+      client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>
+        (true, resultCount.longValue())
+      } recoverWith { ex =>
+        logger.error(s"mutation failed. $request", ex)
+        (false, -1L)
       }
+    }
 
     val grouped: Deferred[util.ArrayList[(Boolean, Long)]] = Deferred.groupInOrder(defers)
     grouped.toFuture.map(_.toSeq)
@@ -219,7 +219,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   }
 
   private def writeToStorage(_client: HBaseClient, rpc: HBaseRpc): Deferred[Boolean] = {
-//    logger.debug(s"$rpc")
+    //    logger.debug(s"$rpc")
     val defer = rpc match {
       case d: DeleteRequest => _client.delete(d)
       case p: PutRequest => _client.put(p)
@@ -280,6 +280,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val msg = Seq(s"[$ret] [$phase]", s"${snapshotEdge.toLogString()}").mkString("\n")
     logger.debug(msg)
   }
+
   def debug(ret: Boolean, phase: String, snapshotEdge: SnapshotEdge, edgeMutate: EdgeMutate) = {
     val msg = Seq(s"[$ret] [$phase]", s"${snapshotEdge.toLogString()}",
       s"${edgeMutate.toLogString}").mkString("\n")
@@ -320,6 +321,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
     base.copy(version = newVersion, statusCode = 0, pendingEdgeOpt = None)
   }
+
   def mutate(predicate: Boolean,
              edge: Edge,
              statusCode: Byte,
@@ -365,6 +367,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         }
     }
   }
+
   def acquireLock(statusCode: Byte, edge: Edge,
                   lockEdge: SnapshotEdge, oldBytes: Array[Byte]): Future[Boolean] =
     if (statusCode >= 1) {
@@ -391,7 +394,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               "=" * 50, "\n").mkString("\n")
 
             logger.debug(log)
-//            debug(ret, "acquireLock", edge.toSnapshotEdge)
+            //            debug(ret, "acquireLock", edge.toSnapshotEdge)
           } else {
             throw new PartialFailureException(edge, 0, "hbase fail.")
           }
@@ -415,7 +418,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       val releaseLockEdgePut = toPutRequest(releaseLockEdge)
       val lockEdgePut = toPutRequest(lockEdge)
 
-      client.compareAndSet(releaseLockEdgePut, lockEdgePut.value()).toFuture.recoverWith{
+      client.compareAndSet(releaseLockEdgePut, lockEdgePut.value()).toFuture.recoverWith {
         case ex: Exception =>
           logger.error(s"ReleaseLock RPC Failed.")
           throw new PartialFailureException(edge, 3, "ReleaseLock RPC Failed")
@@ -432,7 +435,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             "\n"
           )
           logger.error(msg.mkString("\n"))
-//          error(ret, "releaseLock", edge.toSnapshotEdge)
+          //          error(ret, "releaseLock", edge.toSnapshotEdge)
           throw new PartialFailureException(edge, 3, "hbase fail.")
         }
         true
@@ -440,16 +443,16 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
     //      }
   }
+
   private def toPutRequest(snapshotEdge: SnapshotEdge): PutRequest = {
     mutationBuilder.buildPutAsync(snapshotEdge).head.asInstanceOf[PutRequest]
   }
 
   private def commitUpdate(edge: Edge, statusCode: Byte)(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeMutate): Future[Boolean] = {
-    val label = edge.label
-
-    def oldBytes = snapshotEdgeOpt.map { e =>
-      snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
-    }.getOrElse(Array.empty)
+    //    def oldBytes = snapshotEdgeOpt.map { e =>
+    //      snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
+    //    }.getOrElse(Array.empty)
+    def oldBytes = snapshotEdgeOpt.flatMap(_.valueBytesOpt).getOrElse(Array.empty)
 
     def process(lockEdge: SnapshotEdge,
                 releaseLockEdge: SnapshotEdge,
@@ -497,6 +500,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
                 val oldSnapshotEdge = if (snapshotEdge.ts == pendingEdge.ts) None else Option(snapshotEdge)
                 val (_, newEdgeUpdate) = Edge.buildOperation(oldSnapshotEdge, Seq(edge))
                 val newReleaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, lockEdge, newEdgeUpdate)
+
                 /** lockEdge will be ignored */
                 process(lockEdge, newReleaseLockEdge, newEdgeUpdate, statusCode)
               } else {
@@ -546,8 +550,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       }
       def retry(tryNum: Int)(edges: Seq[Edge], statusCode: Byte)(fn: (Seq[Edge], Byte) => Future[Boolean]): Future[Boolean] = {
         if (tryNum >= MaxRetryNum) {
-          logger.error(s"commit failed after $MaxRetryNum")
           edges.foreach { edge =>
+            logger.error(s"commit failed after $MaxRetryNum\n${edge.toLogString}")
             ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
           }
           Future.successful(false)
@@ -604,17 +608,17 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       edgeWithScore <- queryResult.edgeWithScoreLs
       (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
     } yield {
-        /** reverted direction */
-        val reversedIndexedEdgesMutations = edge.duplicateEdge.edgesWithIndex.flatMap { indexedEdge =>
-          mutationBuilder.buildDeletesAsync(indexedEdge) ++ mutationBuilder.buildIncrementsAsync(indexedEdge, -1L)
-        }
-        val reversedSnapshotEdgeMutations = mutationBuilder.buildDeleteAsync(edge.toSnapshotEdge)
-        val forwardIndexedEdgeMutations = edge.edgesWithIndex.flatMap { indexedEdge =>
-          mutationBuilder.buildDeletesAsync(indexedEdge) ++ mutationBuilder.buildIncrementsAsync(indexedEdge, -1L)
-        }
-        val mutations = reversedIndexedEdgesMutations ++ reversedSnapshotEdgeMutations ++ forwardIndexedEdgeMutations
-        writeAsyncSimple(zkQuorum, mutations, withWait = true)
+      /** reverted direction */
+      val reversedIndexedEdgesMutations = edge.duplicateEdge.edgesWithIndex.flatMap { indexedEdge =>
+        mutationBuilder.buildDeletesAsync(indexedEdge) ++ mutationBuilder.buildIncrementsAsync(indexedEdge, -1L)
       }
+      val reversedSnapshotEdgeMutations = mutationBuilder.buildDeleteAsync(edge.toSnapshotEdge)
+      val forwardIndexedEdgeMutations = edge.edgesWithIndex.flatMap { indexedEdge =>
+        mutationBuilder.buildDeletesAsync(indexedEdge) ++ mutationBuilder.buildIncrementsAsync(indexedEdge, -1L)
+      }
+      val mutations = reversedIndexedEdgesMutations ++ reversedSnapshotEdgeMutations ++ forwardIndexedEdgeMutations
+      writeAsyncSimple(zkQuorum, mutations, withWait = true)
+    }
 
     Future.sequence(futures).map { rets => rets.forall(identity) }
   }
@@ -642,24 +646,24 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       queryResult <- queryResultLs
       deleteQueryResult = buildEdgesToDelete(queryResult, requestTs) if deleteQueryResult.edgeWithScoreLs.nonEmpty
     } yield {
-        val label = queryResult.queryParam.label
-        label.schemaVersion match {
-          case HBaseType.VERSION3 if label.consistencyLevel == "strong" =>
+      val label = queryResult.queryParam.label
+      label.schemaVersion match {
+        case HBaseType.VERSION3 if label.consistencyLevel == "strong" =>
 
-            /**
-             * read: snapshotEdge on queryResult = O(N)
-             * write: N x (relatedEdges x indices(indexedEdge) + 1(snapshotEdge))
-             */
-            mutateEdges(deleteQueryResult.edgeWithScoreLs.map(_.edge), withWait = true).map { rets => rets.forall(identity) }
-          case _ =>
+          /**
+            * read: snapshotEdge on queryResult = O(N)
+            * write: N x (relatedEdges x indices(indexedEdge) + 1(snapshotEdge))
+            */
+          mutateEdges(deleteQueryResult.edgeWithScoreLs.map(_.edge), withWait = true).map { rets => rets.forall(identity) }
+        case _ =>
 
-            /**
-             * read: x
-             * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
-             */
-            deleteAllFetchedEdgesAsyncOld(queryResult, requestTs, MaxRetryNum)
-        }
+          /**
+            * read: x
+            * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
+            */
+          deleteAllFetchedEdgesAsyncOld(queryResult, requestTs, MaxRetryNum)
       }
+    }
     if (futures.isEmpty) {
       // all deleted.
       Future.successful(true -> true)
@@ -673,8 +677,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       queryResultLs <- getEdges(query)
       (allDeleted, ret) <- deleteAllFetchedEdgesLs(queryResultLs, requestTs)
     } yield {
-        (allDeleted, ret)
-      }
+      (allDeleted, ret)
+    }
     Extensions.retryOnFailure(MaxRetryNum) {
       future
     } {
@@ -692,9 +696,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val queryParams = for {
       label <- labels
     } yield {
-        val labelWithDir = LabelWithDirection(label.id.get, dir)
-        QueryParam(labelWithDir).limit(0, DeleteAllFetchSize).duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
-      }
+      val labelWithDir = LabelWithDirection(label.id.get, dir)
+      QueryParam(labelWithDir).limit(0, DeleteAllFetchSize).duplicatePolicy(Option(Query.DuplicatePolicy.Raw))
+    }
 
     val step = Step(queryParams.toList)
     val q = Query(srcVertices, Vector(step))

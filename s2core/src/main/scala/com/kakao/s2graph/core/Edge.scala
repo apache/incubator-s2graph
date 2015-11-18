@@ -18,7 +18,9 @@ case class SnapshotEdge(srcVertex: Vertex,
                         props: Map[Byte, InnerValLikeWithTs],
                         pendingEdgeOpt: Option[Edge],
                         statusCode: Byte = 0,
-                        lockTs: Option[Long]) extends JSONParser {
+                        lockTs: Option[Long],
+                        valueBytesOpt: Option[Array[Byte]] = None
+                       ) extends JSONParser {
 
   if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
   //  assert(props.containsKey(LabelMeta.timeStampSeq))
@@ -32,7 +34,7 @@ case class SnapshotEdge(srcVertex: Vertex,
     val ts = props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(version)
     Edge(srcVertex, tgtVertex, labelWithDir, op,
       version, props, pendingEdgeOpt = pendingEdgeOpt,
-      statusCode = statusCode, lockTs = lockTs)
+      statusCode = statusCode, lockTs = lockTs, valueBytesOpt = valueBytesOpt)
   }
 
   def propsWithName = (for {
@@ -127,7 +129,9 @@ case class Edge(srcVertex: Vertex,
                 originalEdgeOpt: Option[Edge] = None,
                 pendingEdgeOpt: Option[Edge] = None,
                 statusCode: Byte = 0,
-                lockTs: Option[Long] = None) extends GraphElement with JSONParser {
+                lockTs: Option[Long] = None,
+                valueBytesOpt: Option[Array[Byte]] = None) extends GraphElement with JSONParser {
+
   if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
   //  assert(propsWithTs.containsKey(LabelMeta.timeStampSeq))
   val schemaVer = label.schemaVersion
@@ -209,7 +213,7 @@ case class Edge(srcVertex: Vertex,
 
     val ret = SnapshotEdge(smaller, larger, newLabelWithDir, op, version,
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)) ++ propsWithTs,
-      pendingEdgeOpt = pendingEdgeOpt, statusCode = statusCode, lockTs = lockTs)
+      pendingEdgeOpt = pendingEdgeOpt, statusCode = statusCode, lockTs = lockTs, valueBytesOpt = valueBytesOpt)
     ret
   }
 
