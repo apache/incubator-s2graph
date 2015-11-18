@@ -174,6 +174,49 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       )
     }
 
+    def queryScore(id: Int, scoring: Map[String, Int]): JsValue = {
+      val q = Json.obj(
+        "srcVertices" -> Json.arr(
+          Json.obj(
+            "serviceName" -> testServiceName,
+            "columnName" -> testColumnName,
+            "id" -> id
+          )
+        ),
+        "steps" -> Json.arr(
+          Json.obj(
+            "step" -> Json.arr(
+              Json.obj(
+                "label" -> testLabelName,
+                "scoring" -> scoring
+              )
+            )
+          )
+        )
+      )
+      println(q)
+      q
+    }
+
+    def queryOrderBy(id: Int, scoring: Map[String, Int], props: Seq[Map[String, String]]): JsValue = {
+      Json.obj(
+        "orderBy" -> props,
+        "srcVertices" -> Json.arr(
+          Json.obj("serviceName" -> testServiceName, "columnName" -> testColumnName, "id" -> id)
+        ),
+        "steps" -> Json.arr(
+          Json.obj(
+            "step" -> Json.arr(
+              Json.obj(
+                "label" -> testLabelName,
+                "scoring" -> scoring
+              )
+            )
+          )
+        )
+      )
+    }
+
     def getEdges(queryJson: JsValue): JsValue = {
       val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryJson)).get
       contentAsJson(ret)
@@ -405,6 +448,37 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         println(result)
         edges = (result \ "results").as[List[JsValue]]
         edges.size must equalTo(1)
+      }
+    }
+
+    "orderBy" >> {
+      running(FakeApplication()) {
+        // insert test set
+        val bulkEdges: String = Seq(
+          edge"1001 insert e 0 1 $testLabelName"($(weight = 10, is_hidden = true)),
+          edge"2002 insert e 0 2 $testLabelName"($(weight = 20, is_hidden = false)),
+          edge"3003 insert e 2 0 $testLabelName"($(weight = 30)),
+          edge"4004 insert e 2 1 $testLabelName"($(weight = 40))
+        ).mkString("\n")
+        contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
+
+        // get edges
+        val edges = getEdges(queryScore(0, Map("weight" -> 1)))
+        val orderByScore = getEdges(queryOrderBy(0, Map("weight" -> 1), Seq(Map("score" -> "DESC", "timestamp" -> "DESC"))))
+        val ascOrderByScore = getEdges(queryOrderBy(0, Map("weight" -> 1), Seq(Map("score" -> "ASC", "timestamp" -> "DESC"))))
+
+        println(edges)
+        println(orderByScore)
+        println(ascOrderByScore)
+
+        val edgesTo = edges \ "results" \\ "to"
+        val orderByTo = orderByScore \ "results" \\ "to"
+        val ascOrderByTo = ascOrderByScore \ "results" \\ "to"
+
+        edgesTo must_== Seq(JsNumber(2), JsNumber(1))
+        edgesTo must_== orderByTo
+        ascOrderByTo must_== Seq(JsNumber(1), JsNumber(2))
+        edgesTo.reverse must_== ascOrderByTo
       }
     }
   }

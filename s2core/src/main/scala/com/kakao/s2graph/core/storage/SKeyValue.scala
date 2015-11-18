@@ -21,6 +21,11 @@ object CanSKeyValue {
     }
   }
 
+  // For asyncbase KeyValues
+  implicit val sKeyValue = new CanSKeyValue[SKeyValue] {
+    def toSKeyValue(kv: SKeyValue): SKeyValue = kv
+  }
+
   // For hbase KeyValues
 }
 

@@ -70,8 +70,6 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   val FailProb = config.getDouble("hbase.fail.prob")
   val LockExpireDuration = Math.max(MaxRetryNum * MaxBackOff * 2, 10000)
 
-//  val prob = 0.1
-
   /**
    * Serializer/Deserializer
    */
@@ -284,7 +282,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   }
   def debug(ret: Boolean, phase: String, snapshotEdge: SnapshotEdge, edgeMutate: EdgeMutate) = {
     val msg = Seq(s"[$ret] [$phase]", s"${snapshotEdge.toLogString()}",
-     s"${edgeMutate.toLogString}").mkString("\n")
+      s"${edgeMutate.toLogString}").mkString("\n")
     logger.debug(msg)
   }
 
@@ -576,6 +574,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               Thread.sleep(Random.nextInt(MaxBackOff))
               logger.info(s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}\nFailReason: ${faileReason}")
               retry(tryNum + 1)(Seq(retryEdge), failedStatusCode)(fn)
+            case ex: Exception =>
+              logger.error("Unknown exception", ex)
+              Future.successful(false)
           }
         }
       }
