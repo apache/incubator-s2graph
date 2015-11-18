@@ -13,9 +13,6 @@ import play.api.mvc._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-/**
- * Created by shon on 8/5/15.
- */
 object ExperimentController extends Controller with RequestParser {
   val impressionKey = "S2-Impression-Id"
 

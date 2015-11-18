@@ -42,11 +42,16 @@ object ApplicationController extends Controller {
     val resultSize = result.header.headers.getOrElse("result_size", "-1")
 
     try {
+      val body = request.body match {
+        case AnyContentAsJson(jsValue) => jsValue
+        case any@_ => any
+      }
+
       val str =
         if (isQueryRequest)
-          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${request.body}"
+          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${body}"
         else
-          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${request.body}"
+          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${body}"
 
       logger.info(s"${request.method} ${request.uri} result_size: $resultSize")
 
