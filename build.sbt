@@ -18,14 +18,22 @@ lazy val commonSettings = Seq(
   )
 )
 
-lazy val root = project.in(file(".")).enablePlugins(PlayScala).dependsOn(s2core)
+lazy val root = project.in(file(".")).enablePlugins(PlayScala)
+  .dependsOn(s2core, s2counter_core)
   .settings(commonSettings: _*)
 
 lazy val s2core = project.settings(commonSettings: _*)
 
 lazy val spark = project.settings(commonSettings: _*)
 
-lazy val loader = project.dependsOn(s2core, spark).settings(commonSettings: _*)
+lazy val loader = project.dependsOn(s2core, spark)
+  .settings(commonSettings: _*)
+
+lazy val s2counter_core = project.dependsOn(s2core)
+  .settings(commonSettings: _*)
+
+lazy val s2counter_loader = project.dependsOn(s2counter_core, spark)
+  .settings(commonSettings: _*)
 
 libraryDependencies ++= Seq(
   ws,
