@@ -102,15 +102,16 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
       }
     } else tgtVertexIdRaw
 
-    val _mergedProps = idxProps ++ props
+    val _mergedProps = (idxProps ++ props).toMap
     val mergedProps =
-      if (kv.qualifier.isEmpty) _mergedProps ++ Map(LabelMeta.timeStampSeq -> InnerVal.withLong(kv.timestamp, version))
-      else _mergedProps
+      if (_mergedProps.contains(LabelMeta.timeStampSeq)) _mergedProps
+      else _mergedProps + (LabelMeta.timeStampSeq -> InnerVal.withLong(kv.timestamp, version))
 
 //    logger.error(s"$mergedProps")
 //    val ts = mergedProps(LabelMeta.timeStampSeq).toString().toLong
+
     val ts = kv.timestamp
-    IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, mergedProps.toMap)
+    IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, mergedProps)
   }
 }
 
