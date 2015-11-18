@@ -219,7 +219,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   }
 
   private def writeToStorage(_client: HBaseClient, rpc: HBaseRpc): Deferred[Boolean] = {
-//    logger.debug(s"$rpc")
+    //    logger.debug(s"$rpc")
     val defer = rpc match {
       case d: DeleteRequest => _client.delete(d)
       case p: PutRequest => _client.put(p)
@@ -263,14 +263,27 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
   }
 
-  private def fetchInvertedAsync(edge: Edge): Future[(QueryParam, Option[Edge], Boolean)] = {
+  private def fetchSnapshotEdge(edge: Edge): Future[(QueryParam, Option[Edge], Option[KeyValue])] = {
     val labelWithDir = edge.labelWithDir
     val queryParam = QueryParam(labelWithDir)
+    val _queryParam = queryParam.tgtVertexInnerIdOpt(Option(edge.tgtVertex.innerId))
+    val q = Query.toQuery(Seq(edge.srcVertex), _queryParam)
+    val queryRequest = QueryRequest(q, 0, edge.srcVertex, _queryParam, 1.0, Option(edge.tgtVertex), isInnerCall = true)
 
-    queryBuilder.getEdge(edge.srcVertex, edge.tgtVertex, queryParam, isInnerCall = true).toFuture map { queryResult =>
-      if (queryResult.isFailure) throw new FetchTimeoutException(s"$edge")
-      (queryParam, queryResult.edgeWithScoreLs.headOption.map(_.edge), queryResult.isFailure)
-    }
+    client.get(queryBuilder.buildRequest(queryRequest)) withCallback { kvs =>
+      val (edgeOpt, kvOpt) =
+        if (kvs.isEmpty()) (None, None)
+        else {
+          val _edgeOpt = toEdges(kvs, queryParam, queryRequest.prevStepScore,
+            queryRequest.isInnerCall, queryRequest.parentEdges).headOption.map(_.edge)
+          val _kvOpt = kvs.headOption
+          (_edgeOpt, _kvOpt)
+        }
+      (queryParam, edgeOpt, kvOpt)
+    } recoverWith { ex =>
+      logger.error(s"fetchQueryParam failed. fallback return.", ex)
+      throw new FetchTimeoutException(s"${edge.toLogString}")
+    } toFuture
   }
 
 
@@ -280,6 +293,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val msg = Seq(s"[$ret] [$phase]", s"${snapshotEdge.toLogString()}").mkString("\n")
     logger.debug(msg)
   }
+
   def debug(ret: Boolean, phase: String, snapshotEdge: SnapshotEdge, edgeMutate: EdgeMutate) = {
     val msg = Seq(s"[$ret] [$phase]", s"${snapshotEdge.toLogString()}",
       s"${edgeMutate.toLogString}").mkString("\n")
@@ -320,6 +334,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
     base.copy(version = newVersion, statusCode = 0, pendingEdgeOpt = None)
   }
+
   def mutate(predicate: Boolean,
              edge: Edge,
              statusCode: Byte,
@@ -365,6 +380,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
         }
     }
   }
+
   def acquireLock(statusCode: Byte, edge: Edge,
                   lockEdge: SnapshotEdge, oldBytes: Array[Byte]): Future[Boolean] =
     if (statusCode >= 1) {
@@ -391,7 +407,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
               "=" * 50, "\n").mkString("\n")
 
             logger.debug(log)
-//            debug(ret, "acquireLock", edge.toSnapshotEdge)
+            //            debug(ret, "acquireLock", edge.toSnapshotEdge)
           } else {
             throw new PartialFailureException(edge, 0, "hbase fail.")
           }
@@ -415,7 +431,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       val releaseLockEdgePut = toPutRequest(releaseLockEdge)
       val lockEdgePut = toPutRequest(lockEdge)
 
-      client.compareAndSet(releaseLockEdgePut, lockEdgePut.value()).toFuture.recoverWith{
+      client.compareAndSet(releaseLockEdgePut, lockEdgePut.value()).toFuture.recoverWith {
         case ex: Exception =>
           logger.error(s"ReleaseLock RPC Failed.")
           throw new PartialFailureException(edge, 3, "ReleaseLock RPC Failed")
@@ -432,7 +448,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             "\n"
           )
           logger.error(msg.mkString("\n"))
-//          error(ret, "releaseLock", edge.toSnapshotEdge)
+          //          error(ret, "releaseLock", edge.toSnapshotEdge)
           throw new PartialFailureException(edge, 3, "hbase fail.")
         }
         true
@@ -440,16 +456,20 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
     //      }
   }
+
   private def toPutRequest(snapshotEdge: SnapshotEdge): PutRequest = {
     mutationBuilder.buildPutAsync(snapshotEdge).head.asInstanceOf[PutRequest]
   }
 
-  private def commitUpdate(edge: Edge, statusCode: Byte)(snapshotEdgeOpt: Option[Edge], edgeUpdate: EdgeMutate): Future[Boolean] = {
+  private def commitUpdate(edge: Edge,
+                           statusCode: Byte)(snapshotEdgeOpt: Option[Edge],
+                                             kvOpt: Option[KeyValue],
+                                             edgeUpdate: EdgeMutate): Future[Boolean] = {
     val label = edge.label
-
-    def oldBytes = snapshotEdgeOpt.map { e =>
-      snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
-    }.getOrElse(Array.empty)
+    def oldBytes = kvOpt.map(_.value()).getOrElse(Array.empty)
+//    def oldBytes = snapshotEdgeOpt.map { e =>
+//      snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
+//    }.getOrElse(Array.empty)
 
     def process(lockEdge: SnapshotEdge,
                 releaseLockEdge: SnapshotEdge,
@@ -497,6 +517,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
                 val oldSnapshotEdge = if (snapshotEdge.ts == pendingEdge.ts) None else Option(snapshotEdge)
                 val (_, newEdgeUpdate) = Edge.buildOperation(oldSnapshotEdge, Seq(edge))
                 val newReleaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, lockEdge, newEdgeUpdate)
+
                 /** lockEdge will be ignored */
                 process(lockEdge, newReleaseLockEdge, newEdgeUpdate, statusCode)
               } else {
@@ -524,8 +545,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     } else {
       def commit(_edges: Seq[Edge], statusCode: Byte): Future[Boolean] = {
 
-        fetchInvertedAsync(_edges.head) flatMap { case (queryParam, snapshotEdgeOpt, isFailure) =>
-          if (isFailure) throw new FetchTimeoutException(s"${_edges.head}")
+        fetchSnapshotEdge(_edges.head) flatMap { case (queryParam, snapshotEdgeOpt, kvOpt) =>
 
           val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, _edges)
           //shouldReplace false.
@@ -533,7 +553,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             logger.debug(s"${newEdge.toLogString} drop.")
             Future.successful(true)
           } else {
-            commitUpdate(newEdge, statusCode)(snapshotEdgeOpt, edgeUpdate).map { ret =>
+            commitUpdate(newEdge, statusCode)(snapshotEdgeOpt, kvOpt, edgeUpdate).map { ret =>
               if (ret) {
                 logger.info(s"[Success] commit: \n${_edges.map(_.toLogString).mkString("\n")}")
               } else {
