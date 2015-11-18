@@ -38,6 +38,7 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  removeCycle: Boolean = false,
                  selectColumns: Seq[String] = Seq.empty[String],
                  groupByColumns: Seq[String] = Seq.empty[String],
+                 orderByColumns: Seq[(String, Boolean)] = Nil,
                  filterOutQuery: Option[Query] = None,
                  filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
                  withScore: Boolean = true,
@@ -276,7 +277,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     val hashBytes = toCacheKeyRaw(bytes)
     MurmurHash3.bytesHash(hashBytes)
   }
-  
+
   def toCacheKeyRaw(bytes: Array[Byte]): Array[Byte] = {
     Bytes.add(Bytes.add(bytes, labelWithDir.bytes, toBytes(labelOrderSeq, offset, limit, isInverted)), rank.toHashKeyBytes(),
       Bytes.add(columnRangeFilterMinBytes, columnRangeFilterMaxBytes))

@@ -2,6 +2,7 @@ package controllers
 
 import java.util.concurrent.TimeUnit
 
+
 import com.kakao.s2graph.core.utils.logger
 import play.api.libs.json._
 import play.api.test.Helpers._
@@ -13,6 +14,7 @@ import scala.util.Random
 
 class StrongLabelDeleteSpec extends SpecCommon {
   init()
+//  implicit val timeout = Timeout(Duration(20, TimeUnit.MINUTES))
 
   def bulkEdges(startTs: Int = 0) = Seq(
     Seq(startTs + 1, "insert", "e", "0", "1", testLabelName2, s"""{"time": 10}""").mkString("\t"),
@@ -45,6 +47,8 @@ class StrongLabelDeleteSpec extends SpecCommon {
         }""")
 
   def getEdges(queryJson: JsValue): JsValue = {
+//    implicit val timeout = Timeout(Duration(20, TimeUnit.MINUTES))
+
     val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryJson)).get
     contentAsJson(ret)
   }
@@ -57,7 +61,9 @@ class StrongLabelDeleteSpec extends SpecCommon {
   "strong label delete test" should {
     running(FakeApplication()) {
       // insert bulk and wait ..
-      val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges(), withWait = true))
+      val edges = bulkEdges()
+      println(edges)
+      val jsResult = contentAsJson(EdgeController.mutateAndPublish(edges, withWait = true))
     }
 
     "test strong consistency select" in {
@@ -96,6 +102,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
 
     "test strong consistency deleteAll" in {
       running(FakeApplication()) {
+
         val deletedAt = 100
         var result = getEdges(query(20, direction = "in", columnName = testTgtColumnName))
         println(result)
@@ -141,9 +148,9 @@ class StrongLabelDeleteSpec extends SpecCommon {
   "labelargeSet of contention" should {
     val labelName = testLabelName2
     val maxTgtId = 10
-    val batchSize = 100
-    val testNum = 5
-    val numOfBatch = 100
+    val batchSize = 10
+    val testNum = 3
+    val numOfBatch = 10
 
     def testInner(startTs: Long, src: Long) = {
       val labelName = testLabelName2
@@ -160,8 +167,15 @@ class StrongLabelDeleteSpec extends SpecCommon {
           val op = if (Random.nextDouble() < 0.5) "delete" else "update"
 
           lastOps(tgt) = op
-          Seq(currentTs, op, "e", src, tgt, labelName, "{}").mkString("\t")
+          Seq(currentTs, op, "e", src, src + tgt, labelName, "{}").mkString("\t")
         }
+
+
+      allRequests.foreach(println(_))
+//      println(lastOps.count(op => op != "delete" && op != "none"))
+//      println(lastOps)
+//
+//      Thread.sleep(1000)
 
       val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequest =>
         val bulkEdge = bulkRequest.mkString("\n")
@@ -203,6 +217,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
 
     "update delete 2" in {
       running(FakeApplication()) {
+
         val src = System.currentTimeMillis()
         var ts = 0L
 
@@ -224,8 +239,9 @@ class StrongLabelDeleteSpec extends SpecCommon {
             val deleteRet = EdgeController.deleteAllInner(deleteAllRequest, withWait = true)
             val deleteRet2 = EdgeController.deleteAllInner(deleteAllRequest2, withWait = true)
 
-            contentAsString(deleteRet)
-            contentAsString(deleteRet2)
+
+            Await.result(deleteRet, Duration(20, TimeUnit.MINUTES))
+            Await.result(deleteRet2, Duration(20, TimeUnit.MINUTES))
 
             val result = getEdges(query(id = src))
             println(result)
@@ -247,6 +263,8 @@ class StrongLabelDeleteSpec extends SpecCommon {
       * when contention is low but number of adjacent edges are large */
     "large degrees" in {
       running(FakeApplication()) {
+
+
         val labelName = testLabelName2
         val dir = "out"
         val maxSize = 100
@@ -288,6 +306,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
 
     "deleteAll" in {
       running(FakeApplication()) {
+
         val labelName = testLabelName2
         val dir = "out"
         val maxSize = 100
@@ -312,7 +331,7 @@ class StrongLabelDeleteSpec extends SpecCommon {
         val deletedAt = System.currentTimeMillis()
         val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
 
-        contentAsString(EdgeController.deleteAllInner(deleteAllRequest, withWait = true))
+        Await.result(EdgeController.deleteAllInner(deleteAllRequest, withWait = true), Duration(10, TimeUnit.MINUTES))
 
         val result = getEdges(query(id = src))
         println(result)

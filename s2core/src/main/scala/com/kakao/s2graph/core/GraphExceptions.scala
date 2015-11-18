@@ -24,4 +24,6 @@ object GraphExceptions {
   case class InvalidHTableException(msg: String) extends Exception(msg)
 
   case class FetchTimeoutException(msg: String) extends Exception(msg)
+
+  case class DropRequestException(msg: String) extends Exception(msg)
 }

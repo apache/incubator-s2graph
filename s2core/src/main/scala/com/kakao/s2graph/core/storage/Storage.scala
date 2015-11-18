@@ -3,6 +3,7 @@ package com.kakao.s2graph.core.storage
 import com.google.common.cache.Cache
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.Label
+import com.kakao.s2graph.core.utils.logger
 
 
 import scala.collection.Seq

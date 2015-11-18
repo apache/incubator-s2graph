@@ -3,8 +3,9 @@ package com.kakao.s2graph.core.storage.hbase
 import java.util
 
 import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls.LabelMeta
 import com.kakao.s2graph.core.storage.QueryBuilder
-import com.kakao.s2graph.core.types.{InnerVal, SourceVertexId, TargetVertexId, VertexId}
+import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.{Extensions, logger}
 import com.stumbleupon.async.Deferred
 import org.apache.hadoop.hbase.util.Bytes
@@ -42,7 +43,9 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
 
     val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
     val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
-    val edge = Edge(srcV, tgtV, labelWithDir)
+    val currentTs = System.currentTimeMillis()
+    val propsWithTs =  Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs)).toMap
+    val edge = Edge(srcV, tgtV, labelWithDir, propsWithTs = propsWithTs)
 
     val get = if (tgtVertexIdOpt.isDefined) {
       val snapshotEdge = edge.toSnapshotEdge
@@ -84,7 +87,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
         QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam, edgeWithScores)
       } recoverWith { ex =>
         logger.error(s"fetchQueryParam failed. fallback return.", ex)
-        QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam)
+        QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam, isFailure = true)
       }
     }
 
@@ -120,8 +123,14 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
 
   override def toCacheKeyBytes(getRequest: GetRequest): Array[Byte] = {
     var bytes = getRequest.key()
-    if (getRequest.family() != null) bytes = Bytes.add(bytes, getRequest.family())
-    if (getRequest.qualifiers() != null) getRequest.qualifiers().filter(_ != null).foreach(q => bytes = Bytes.add(bytes, q))
+    Option(getRequest.family()).foreach(family => bytes = Bytes.add(bytes, family))
+    Option(getRequest.qualifiers()).foreach { qualifiers =>
+      qualifiers.filter(q => Option(q).isDefined).foreach { qualifier =>
+        bytes = Bytes.add(bytes, qualifier)
+      }
+    }
+//    if (getRequest.family() != null) bytes = Bytes.add(bytes, getRequest.family())
+//    if (getRequest.qualifiers() != null) getRequest.qualifiers().filter(_ != null).foreach(q => bytes = Bytes.add(bytes, q))
     bytes
   }
 
