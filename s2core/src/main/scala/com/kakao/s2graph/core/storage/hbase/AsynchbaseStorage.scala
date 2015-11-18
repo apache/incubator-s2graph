@@ -641,8 +641,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       queryResult <- queryResultLs
       deleteQueryResult = buildEdgesToDelete(queryResult, requestTs) if deleteQueryResult.edgeWithScoreLs.nonEmpty
     } yield {
-        queryResult.queryParam.label.schemaVersion match {
-          case HBaseType.VERSION3 =>
+        val label = queryResult.queryParam.label
+        label.schemaVersion match {
+          case HBaseType.VERSION3 if label.consistencyLevel == "strong" =>
 
             /**
              * read: snapshotEdge on queryResult = O(N)
