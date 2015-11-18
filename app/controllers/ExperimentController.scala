@@ -24,6 +24,7 @@ object ExperimentController extends Controller with RequestParser {
       experiment <- Experiment.findBy(service.id.get, experimentName)
       bucket <- experiment.findBucket(uuid)
     } yield bucket
+
     bucketOpt match {
       case None => Future.successful(NotFound("bucket is not found."))
       case Some(bucket) =>
@@ -61,7 +62,13 @@ object ExperimentController extends Controller with RequestParser {
     else {
       val jsonBody = makeRequestJson(request.body.asJson, bucket, uuid)
       val url = new URL(bucket.apiPath)
-      val response = url.getPath() match {
+      val path = url.getPath()
+
+      // dummy log for sampling
+      val experimentLog = s"POST $path took -1 ms 200 -1 $jsonBody"
+      logger.info(experimentLog)
+
+      val response = path match {
         case "/graphs/getEdges" => controllers.QueryController.getEdgesInner(jsonBody)
         case "/graphs/getEdges/grouped" => controllers.QueryController.getEdgesWithGroupingInner(jsonBody)
         case "/graphs/getEdgesExcluded" => controllers.QueryController.getEdgesExcludedInner(jsonBody)
