@@ -70,7 +70,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
 
     SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),
       labelWithDir, op, cellVersion, props, statusCode = statusCode,
-      pendingEdgeOpt = _pendingEdgeOpt, lockTs = None, valueBytesOpt = Option(kv.value))
+      pendingEdgeOpt = _pendingEdgeOpt, lockTs = None)
   }
 
   private def fromKeyValuesInnerV3[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
@@ -134,7 +134,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
 
     SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),
       labelWithDir, op, cellVersion, props, statusCode = statusCode,
-      pendingEdgeOpt = _pendingEdgeOpt, lockTs = None, valueBytesOpt = Option(kv.value))
+      pendingEdgeOpt = _pendingEdgeOpt, lockTs = None)
   }
 }
 

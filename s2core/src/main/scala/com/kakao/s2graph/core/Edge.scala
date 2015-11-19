@@ -18,9 +18,7 @@ case class SnapshotEdge(srcVertex: Vertex,
                         props: Map[Byte, InnerValLikeWithTs],
                         pendingEdgeOpt: Option[Edge],
                         statusCode: Byte = 0,
-                        lockTs: Option[Long],
-                        valueBytesOpt: Option[Array[Byte]] = None
-                       ) extends JSONParser {
+                        lockTs: Option[Long]) extends JSONParser {
 
   if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
   //  assert(props.containsKey(LabelMeta.timeStampSeq))
@@ -34,7 +32,7 @@ case class SnapshotEdge(srcVertex: Vertex,
     val ts = props.get(LabelMeta.timeStampSeq).map(v => v.ts).getOrElse(version)
     Edge(srcVertex, tgtVertex, labelWithDir, op,
       version, props, pendingEdgeOpt = pendingEdgeOpt,
-      statusCode = statusCode, lockTs = lockTs, valueBytesOpt = valueBytesOpt)
+      statusCode = statusCode, lockTs = lockTs)
   }
 
   def propsWithName = (for {
@@ -129,8 +127,7 @@ case class Edge(srcVertex: Vertex,
                 originalEdgeOpt: Option[Edge] = None,
                 pendingEdgeOpt: Option[Edge] = None,
                 statusCode: Byte = 0,
-                lockTs: Option[Long] = None,
-                valueBytesOpt: Option[Array[Byte]] = None) extends GraphElement with JSONParser {
+                lockTs: Option[Long] = None) extends GraphElement with JSONParser {
 
   if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
   //  assert(propsWithTs.containsKey(LabelMeta.timeStampSeq))
@@ -213,7 +210,7 @@ case class Edge(srcVertex: Vertex,
 
     val ret = SnapshotEdge(smaller, larger, newLabelWithDir, op, version,
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)) ++ propsWithTs,
-      pendingEdgeOpt = pendingEdgeOpt, statusCode = statusCode, lockTs = lockTs, valueBytesOpt = valueBytesOpt)
+      pendingEdgeOpt = pendingEdgeOpt, statusCode = statusCode, lockTs = lockTs)
     ret
   }
 
