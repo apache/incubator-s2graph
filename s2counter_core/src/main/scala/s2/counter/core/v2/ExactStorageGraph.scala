@@ -42,26 +42,52 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
   override def update(policy: Counter, counts: Seq[(ExactKeyTrait, ExactValueMap)]): Map[ExactKeyTrait, ExactValueMap] = {
     import scala.concurrent.ExecutionContext.Implicits.global
 
-    val (keyWithEq, reqJsLs) = toIncrementCountRequests(policy, counts).unzip(x => ((x._1, x._2), x._3))
+    val futureLs = {
+      for {
+        requests <- toIncrementCountRequests(policy, counts).grouped(10)
+        (keyWithEq, reqJsLs) = requests.unzip(x => ((x._1, x._2), x._3))
+      } yield {
+        wsClient.url(s"$s2graphUrl/graphs/edges/incrementCount").post(Json.toJson(reqJsLs)).map { resp =>
+          resp.status match {
+            case HttpStatus.SC_OK =>
+              val respSeq = resp.json.as[Seq[RespGraph]]
 
-    val future = wsClient.url(s"$s2graphUrl/graphs/edges/incrementCount").post(Json.toJson(reqJsLs)).map { resp =>
-      resp.status match {
-        case HttpStatus.SC_OK =>
-          val respSeq = resp.json.as[Seq[RespGraph]]
-
-          val keyWithEqResult = {
-            for {
-              ((key, eq), RespGraph(success, result)) <- keyWithEq.zip(respSeq)
-            } yield {
-              (key, (eq, result))
-            }
-          }.groupBy(_._1).mapValues{ seq => seq.map(_._2).toMap }
-          keyWithEqResult
-        case _ =>
-          throw new RuntimeException(s"update failed: $policy $counts")
+              for {
+                ((key, eq), RespGraph(success, result)) <- keyWithEq.zip(respSeq)
+              } yield {
+                (key, (eq, result))
+              }
+            case _ =>
+              throw new RuntimeException(s"update failed: $policy $counts")
+          }
+        }
       }
     }
+
+    val future = Future.sequence(futureLs).map { seqOfSeq =>
+      seqOfSeq.flatten.toSeq.groupBy(_._1).mapValues { seq => seq.map(_._2).toMap }
+    }
     Await.result(future, 10 second)
+//    val (keyWithEq, reqJsLs) = toIncrementCountRequests(policy, counts).unzip(x => ((x._1, x._2), x._3))
+//
+//    val future = wsClient.url(s"$s2graphUrl/graphs/edges/incrementCount").post(Json.toJson(reqJsLs)).map { resp =>
+//      resp.status match {
+//        case HttpStatus.SC_OK =>
+//          val respSeq = resp.json.as[Seq[RespGraph]]
+//
+//          val keyWithEqResult = {
+//            for {
+//              ((key, eq), RespGraph(success, result)) <- keyWithEq.zip(respSeq)
+//            } yield {
+//              (key, (eq, result))
+//            }
+//          }.groupBy(_._1).mapValues{ seq => seq.map(_._2).toMap }
+//          keyWithEqResult
+//        case _ =>
+//          throw new RuntimeException(s"update failed: $policy $counts")
+//      }
+//    }
+//    Await.result(future, 10 second)
   }
 
   def delete(policy: Counter, keys: Seq[ExactKeyTrait]): Unit = {
