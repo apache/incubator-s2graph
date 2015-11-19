@@ -5,6 +5,7 @@ import java.util.Date
 
 import com.kakao.s2graph.core.Graph
 import kafka.serializer.StringDecoder
+import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.streaming.Durations._
 import org.apache.spark.streaming.kafka.HasOffsetRanges
 import s2.spark.{HashMapParam, SparkApp, WithKafka}
@@ -13,36 +14,20 @@ import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.language.postfixOps
 
 object WalLogToHDFS extends SparkApp with WithKafka {
-  private def toOutputPath(ts: Long): String = {
-    val dateId = new SimpleDateFormat("yyyy-MM-dd").format(new Date(ts))
-    s"date_id=$dateId/ts=$ts"
-  }
 
-  val usages =
-    s"""
-       |/**
-       |this job consume edges/vertices from kafka topic then load them into s2graph.
-       |params:
-       |  1. kafkaZkQuorum: kafka zk address to consume events
-       |  2. brokerList: kafka cluster`s broker list.
-       |  3. topics: , delimited list of topics to consume
-       |  4. intervalInSec: batch interval for this job.
-       |  5. dbUrl:
-       |  6. outputPath:
-       |*/
-   """.stripMargin
   override def run() = {
-    validateArgument("kafkaZkQuorum", "brokerList", "topics", "intervalInSec", "dbUrl", "outputPath")
-//    if (args.length != 7) {
-//      System.err.println(usages)
-//      System.exit(1)
-//    }
+
+    validateArgument("kafkaZkQuorum", "brokerList", "topics", "intervalInSec", "dbUrl", "outputPath", "hiveDatabase", "hiveTable", "splitListPath")
+
     val kafkaZkQuorum = args(0)
     val brokerList = args(1)
     val topics = args(2)
     val intervalInSec = seconds(args(3).toLong)
     val dbUrl = args(4)
     val outputPath = args(5)
+    val hiveDatabase = args(6)
+    val hiveTable = args(7)
+    val splitListPath = args(8)
 
     val conf = sparkConf(s"$topics: WalLogToHDFS")
     val ssc = streamingContext(conf, intervalInSec)
@@ -62,6 +47,7 @@ object WalLogToHDFS extends SparkApp with WithKafka {
 
     val mapAcc = sc.accumulable(new MutableHashMap[String, Long](), "Throughput")(HashMapParam[String, Long](_ + _))
 
+    var splits = Array("all")
     stream.foreachRDD { (rdd, time) =>
       val offsets = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
 
@@ -71,28 +57,49 @@ object WalLogToHDFS extends SparkApp with WithKafka {
         GraphSubscriberHelper.apply(phase, dbUrl, "none", brokerList)
 
         partition.flatMap { case (key, msg) =>
-          val optMsg = Graph.toGraphElement(msg).map { element =>
-            val n = msg.split("\t", -1).length
+          val optMsg = Graph.toGraphElement(msg).flatMap { element =>
+            val n = msg.split("\t", 7).length
             if(n == 6) {
-              Seq(msg, "{}", element.serviceName).mkString("\t")
+              Some(Seq(msg, "{}", element.serviceName).mkString("\t"))
             }
             else if(n == 7) {
-              Seq(msg, element.serviceName).mkString("\t")
+              Some(Seq(msg, element.serviceName).mkString("\t"))
             }
             else {
-              null
+              None
             }
           }
           optMsg
         }
       }
 
+      try {
+        // update splits
+        val read = sc.textFile(splitListPath).collect().map(_.trim)
+        if (read.length > 0) splits =  read
+      } catch {
+        case _: Throwable => // use previous splits
+      }
+
       val ts = time.milliseconds
-      val path = s"$outputPath/${toOutputPath(ts)}"
+      val dateId = new SimpleDateFormat("yyyy-MM-dd").format(new Date(ts))
 
       /** make sure that `elements` are not running at the same time */
       val elementsWritten = {
-        elements.saveAsTextFile(path)
+        elements.cache()
+        splits.foreach {
+          case split if split == "all" =>
+            val path = s"$outputPath/split=$split/date_id=$dateId/ts=$ts"
+            elements.saveAsTextFile(path)
+          case split =>
+            val path = s"$outputPath/split=$split/date_id=$dateId/ts=$ts"
+            val strlen = split.length
+            val splitData = elements.filter(_.takeRight(strlen) == split).cache()
+            val numPartitions = math.max(1, (splitData.count() / 5e5).toInt)
+            splitData.repartition(numPartitions).saveAsTextFile(path)
+            splitData.unpersist()
+        }
+        elements.unpersist()
         elements
       }
 
@@ -103,6 +110,13 @@ object WalLogToHDFS extends SparkApp with WithKafka {
         Iterator.empty
       }.foreach {
         (_: Nothing) => ()
+      }
+
+      val hiveContext = new HiveContext(sc)
+      splits.foreach { split =>
+        val path = s"$outputPath/split=$split/date_id=$dateId/ts=$ts"
+        hiveContext.sql(s"use $hiveDatabase")
+        hiveContext.sql(s"alter table $hiveTable add partition (split='$split', date_id='$dateId', ts='$ts') location '$path'")
       }
     }
 
