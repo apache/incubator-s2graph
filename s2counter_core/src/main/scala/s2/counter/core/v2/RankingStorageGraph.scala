@@ -349,9 +349,6 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
 
     if (!existsLabel(policy, useCache = false)) {
       // find input label to specify target column
-      val inputLabelName = policy.rateActionId.flatMap { id =>
-        counterModel.findById(id, useCache = false).map(_.action)
-      }.getOrElse(action)
       val label = graphLabel.get
 
       val counterLabelName = action + labelPostfix
@@ -374,7 +371,8 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
            |    {"name": "date_time", "dataType": "long", "defaultValue": 0},
            |    {"name": "score", "dataType": "float", "defaultValue": 0.0}
            |  ],
-           |  "hTableName": "${policy.hbaseTable.get}"
+           |  "hTableName": "${policy.hbaseTable.get}",
+           |  "schemaVersion": "${label.schemaVersion}"
            |}
          """.stripMargin
       val json = policy.dailyTtl.map(ttl => ttl * 24 * 60 * 60) match {

@@ -309,7 +309,8 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
            |    {"name": "time_unit", "dataType": "string", "defaultValue": ""},
            |    {"name": "time_value", "dataType": "long", "defaultValue": 0}
            |  ],
-           |  "hTableName": "${policy.hbaseTable.get}"
+           |  "hTableName": "${policy.hbaseTable.get}",
+           |  "schemaVersion": "${label.schemaVersion}"
            |}
         """.stripMargin
       val json = policy.dailyTtl.map(ttl => ttl * 24 * 60 * 60) match {
