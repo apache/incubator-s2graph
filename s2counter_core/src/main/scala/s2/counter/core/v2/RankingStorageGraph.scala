@@ -14,6 +14,7 @@ import s2.util.{CollectionCache, CollectionCacheConfig}
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
+import scala.util.{Failure, Success, Try}
 import scala.util.hashing.MurmurHash3
 
 /**
@@ -83,35 +84,39 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
         (key, value) <- values
       } yield {
         // prepare dimension bucket edge
-        checkAndPrepareDimensionBucket(key)
+        if (checkAndPrepareDimensionBucket(key)) {
+          val future = getEdges(key, "raw").flatMap { edges =>
+            val prevRankingSeq = toWithScoreLs(edges)
+            val prevRankingMap: Map[String, Double] = prevRankingSeq.groupBy(_._1).map(_._2.sortBy(-_._2).head)
+            val currentRankingMap: Map[String, Double] = value.mapValues(_.score)
+            val mergedRankingSeq = (prevRankingMap ++ currentRankingMap).toSeq.sortBy(-_._2).take(k)
+            val mergedRankingMap = mergedRankingSeq.toMap
 
-        val future = getEdges(key, "raw").flatMap { edges =>
-          val prevRankingSeq = toWithScoreLs(edges)
-          val prevRankingMap: Map[String, Double] = prevRankingSeq.groupBy(_._1).map(_._2.sortBy(-_._2).head)
-          val currentRankingMap: Map[String, Double] = value.mapValues(_.score)
-          val mergedRankingSeq = (prevRankingMap ++ currentRankingMap).toSeq.sortBy(-_._2).take(k)
-          val mergedRankingMap = mergedRankingSeq.toMap
+            val bucketRankingSeq = mergedRankingSeq.groupBy { case (itemId, score) =>
+              // 0-index
+              GraphUtil.transformHash(MurmurHash3.stringHash(itemId)) % BUCKET_SHARD_COUNT
+            }.map { case (shardIdx, groupedRanking) =>
+              shardIdx -> groupedRanking.filter { case (itemId, _) => currentRankingMap.contains(itemId) }
+            }.toSeq
 
-          val bucketRankingSeq = mergedRankingSeq.groupBy { case (itemId, score) =>
-            // 0-index
-            GraphUtil.transformHash(MurmurHash3.stringHash(itemId)) % BUCKET_SHARD_COUNT
-          }.map { case (shardIdx, groupedRanking) =>
-            shardIdx -> groupedRanking.filter { case (itemId, _) => currentRankingMap.contains(itemId) }
-          }.toSeq
+            insertBulk(key, bucketRankingSeq).flatMap { _ =>
+              val duplicatedItems = prevRankingMap.filterKeys(s => currentRankingMap.contains(s))
+              val cutoffItems = prevRankingMap.filterKeys(s => !mergedRankingMap.contains(s))
+              val deleteItems = duplicatedItems ++ cutoffItems
 
-          insertBulk(key, bucketRankingSeq).flatMap { _ =>
-            val duplicatedItems = prevRankingMap.filterKeys(s => currentRankingMap.contains(s))
-            val cutoffItems = prevRankingMap.filterKeys(s => !mergedRankingMap.contains(s))
-            val deleteItems = duplicatedItems ++ cutoffItems
+              val keyWithEdgesLs = prevRankingSeq.map(_._1).zip(edges)
+              val deleteEdges = keyWithEdgesLs.filter{ case (s, _) => deleteItems.contains(s) }.map(_._2)
 
-            val keyWithEdgesLs = prevRankingSeq.map(_._1).zip(edges)
-            val deleteEdges = keyWithEdgesLs.filter{ case (s, _) => deleteItems.contains(s) }.map(_._2)
-
-            deleteAll(deleteEdges)
+              deleteAll(deleteEdges)
+            }
           }
-        }
 
-        future
+          future
+        }
+        else {
+          // do nothing
+          Future.successful(false)
+        }
       }
     }
 
@@ -315,6 +320,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
           }
       }.recover {
         case e: Exception =>
+          log.error(s"$e")
           None
       }
 
