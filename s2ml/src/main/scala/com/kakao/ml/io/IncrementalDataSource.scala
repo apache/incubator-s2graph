@@ -6,6 +6,8 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.functions._
 import org.apache.spark.storage.StorageLevel
+import org.json4s.JsonAST._
+import org.json4s.native.JsonMethods
 
 import scala.collection.mutable.ListBuffer
 
@@ -17,10 +19,14 @@ case class IncrementalDataSourceParams(
     incRoot: String,
     baseBefore: Option[Int],
     exceptIncrementalData: Option[Boolean],
-    table: Option[String]) extends Params
+    table: Option[String],
+    outputField: Option[String],
+    removeDuplications: Option[Boolean]) extends Params
 
 class IncrementalDataSource(params: IncrementalDataSourceParams)
     extends BaseDataProcessor[EmptyData, SourceData](params) {
+
+  import IncrementalDataSource._
 
   def getIncrementalPaths(fs: FileSystem, split: String, lastDateId: String): String = {
 
@@ -60,6 +66,7 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
     val sc = sqlContext.sparkContext
     val fs = FileSystem.get(sc.hadoopConfiguration)
 
+    val removeDuplications = params.removeDuplications.getOrElse(false)
     val labelWeight = params.labelWeight
     val baseBefore = params.baseBefore.getOrElse(0)
     val split = if (fs.exists(new Path(params.baseRoot + s"/split=${params.service}"))) {
@@ -91,8 +98,7 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
           date_sub(current_date(), params.duration + baseBefore),
           date_sub(current_date(), baseBefore)))
         .where($"label".isin(labelWeight.keys.toSeq: _*))
-        .select($"log_ts" as tsColString, $"label"
-            as labelColString, $"edge_from" as userColString, $"edge_to" as itemColString)
+        .select("log_ts", "label", "edge_from", "edge_to", "props")
 
     val exceptIncrementalData = if(baseBefore != 0) {
       true
@@ -100,7 +106,7 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
       params.exceptIncrementalData.getOrElse(false)
     }
 
-    val sourceDF = if(exceptIncrementalData) {
+    var sourceDF = if(exceptIncrementalData) {
       baseDF
     } else {
       /** from incremental data */
@@ -116,13 +122,29 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
       val incrementalDF = sc.textFile(getIncrementalPaths(fs, split, lastDateId)).map(_.split("\t", -1))
           .flatMap {
             case Array(log_ts, operation, log_type, edge_from, edge_to, l, props, s) if bcLabelMap.value.contains(l) =>
-              Some((log_ts.toLong, l, edge_from, edge_to))
+              Some((log_ts.toLong, l, edge_from, edge_to, props))
             case _ =>
               None
           }
-          .toDF(tsColString, labelColString, userColString, itemColString)
+          .toDF("log_ts", "label", "edge_from", "edge_to", "props")
+
       baseDF.unionAll(incrementalDF)
     }
+
+    if (removeDuplications) {
+      sourceDF = sourceDF.distinct()
+    }
+
+    // apply `outputField`
+    if (params.outputField.isDefined) {
+      val outputField = params.outputField.get
+      sourceDF = sourceDF
+          .drop("edge_to")
+          .withColumn("edge_to", getJsonObject($"props", lit(outputField)))
+    }
+
+    sourceDF = sourceDF.select($"log_ts" as tsColString, $"label"
+        as labelColString, $"edge_from" as userColString, $"edge_to" as itemColString)
 
     /** materialize */
     sourceDF.persist(StorageLevel.MEMORY_AND_DISK)
@@ -131,6 +153,23 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
     }.head
 
     SourceData(sourceDF, tsCount, tsFrom, tsTo, labelWeight, None, None)
+  }
+
+}
+
+object IncrementalDataSource {
+
+  val getJsonObject = udf { (props: String, outputField: String) =>
+    val v = JsonMethods.parse(props) \ outputField match {
+      case JNothing => null
+      case JNull => null
+      case JDouble(x) => x
+      case JDecimal(x) => x
+      case JInt(x) => x
+      case JBool(x) => x
+    }
+    // Schema for type Any is not supported
+    v.toString
   }
 
 }
