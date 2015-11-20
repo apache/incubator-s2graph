@@ -59,7 +59,11 @@ object LabelIndex extends Model[LabelIndex] {
         val createdId = insert(labelId, indexName, seq, metaSeqs, formulars)
         val cacheKeys = List(s"labelId=$labelId:seq=$seq",
           s"labelId=$labelId:seqs=$metaSeqs", s"labelId=$labelId:seq=$seq", s"id=$createdId")
-        cacheKeys.foreach(expireCache(_))
+        cacheKeys.foreach { key =>
+          expireCache(key)
+          expireCaches(key)
+        }
+
         findByLabelIdAndSeq(labelId, seq).get
     }
   }
@@ -92,8 +96,12 @@ object LabelIndex extends Model[LabelIndex] {
     val seqs = labelIndex.metaSeqs.mkString(",")
     val (labelId, seq) = (labelIndex.labelId, labelIndex.seq)
     sql"""delete from label_indices where id = ${id}""".execute.apply()
+
     val cacheKeys = List(s"id=$id", s"labelId=$labelId", s"labelId=$labelId:seq=$seq", s"labelId=$labelId:seqs=$seqs")
-    cacheKeys.foreach(expireCache(_))
+    cacheKeys.foreach { key =>
+      expireCache(key)
+      expireCaches(key)
+    }
   }
 
   def findAll()(implicit session: DBSession = AutoSession) = {

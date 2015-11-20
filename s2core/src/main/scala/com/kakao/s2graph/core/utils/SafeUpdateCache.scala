@@ -40,7 +40,7 @@ class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(implicit execut
       newValue
     } else {
       val (cachedVal, updatedAt, isUpdating) = cachedValWithTs
-      if (toTs() < updatedAt + ttl) cachedVal
+      if (toTs() < updatedAt + ttl) cachedVal // in cache TTL
       else {
         val running = isUpdating.getAndSet(true)
         if (running) cachedVal

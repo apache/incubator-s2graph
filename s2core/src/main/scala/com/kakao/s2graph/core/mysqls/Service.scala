@@ -52,7 +52,10 @@ object Service extends Model[Service] {
     val serviceName = service.serviceName
     sql"""delete from service_columns where id = ${id}""".execute.apply()
     val cacheKeys = List(s"id=$id", s"serviceName=$serviceName")
-    cacheKeys.foreach(expireCache(_))
+    cacheKeys.foreach { key =>
+      expireCache(key)
+      expireCaches(key)
+    }
   }
 
   def findOrInsert(serviceName: String, cluster: String, hTableName: String,
