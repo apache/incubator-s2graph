@@ -6,6 +6,7 @@ import com.kakao.s2graph.core.mysqls.{Label, Service}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client.ConnectionFactory
 import org.apache.spark.sql.execution.datasources.jdbc.DriverRegistry
+import org.apache.spark.sql.types.DoubleType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import subscriber.GraphSubscriberHelper
 
@@ -47,7 +48,7 @@ class GraphLoader(params: GraphLoaderParams) extends BaseDataProcessor[Predecess
     }
 
     val dataToSave = try {
-      dataToSaveAll.select(fromCol, toCol, scoreCol)
+      dataToSaveAll.select(fromCol, toCol, scoreCol.cast(DoubleType))
     } catch {
       case _: Throwable =>
         logError(s"predecessorData(${params.keyToSave}) dose not contain columns $fromColString, $toColString, $scoreColString")

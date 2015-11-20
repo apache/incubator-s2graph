@@ -78,7 +78,7 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
 
     sc.parallelize(Seq("dual")).toDF("dual")
         .select(lit("date between (a, b), inclusive") as "explain",
-          date_sub(current_date(), params.duration + baseBefore) as "a",
+          date_sub(current_date(), params.duration + baseBefore - 1) as "a",
           date_sub(current_date(), baseBefore) as "b")
         .show(false)
 
@@ -95,7 +95,7 @@ class IncrementalDataSource(params: IncrementalDataSourceParams)
     /** from daily data from baseRoot */
     val baseDF = orcWithSchema
         .where($"date_id".between(
-          date_sub(current_date(), params.duration + baseBefore),
+          date_sub(current_date(), params.duration + baseBefore - 1),
           date_sub(current_date(), baseBefore)))
         .where($"label".isin(labelWeight.keys.toSeq: _*))
         .select("log_ts", "label", "edge_from", "edge_to", "props")
