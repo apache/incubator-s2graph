@@ -23,8 +23,8 @@ case class SnapshotEdge(srcVertex: Vertex,
   if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
   //  assert(props.containsKey(LabelMeta.timeStampSeq))
 
+  val label = Label.findById(labelWithDir.labelId)
   val schemaVer = label.schemaVersion
-  lazy val label = Label.findById(labelWithDir.labelId)
   lazy val propsWithoutTs = props.mapValues(_.innerVal)
   val ts = props(LabelMeta.timeStampSeq).innerVal.toString().toLong
 

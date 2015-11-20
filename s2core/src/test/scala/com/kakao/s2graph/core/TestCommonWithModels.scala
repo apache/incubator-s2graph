@@ -2,6 +2,7 @@ package com.kakao.s2graph.core
 
 import com.kakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.kakao.s2graph.core.mysqls._
+
 //import com.kakao.s2graph.core.models._
 
 
@@ -10,10 +11,8 @@ import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.ExecutionContext
 
-/**
- * Created by shon on 6/1/15.
- */
 trait TestCommonWithModels {
+
   import InnerVal._
   import types.HBaseType._
 
@@ -38,11 +37,6 @@ trait TestCommonWithModels {
 
   val undirectedLabelName = "_test_label_undirected"
   val undirectedLabelNameV2 = "_test_label_undirected_v2"
-
-
-  //FIXME:
-  val LABEL = Label
-  val LABEMETA = LabelMeta
 
   val testProps = Seq(
     Prop("affinity_score", "0.0", DOUBLE),
@@ -74,7 +68,7 @@ trait TestCommonWithModels {
 
   def createTestService() = {
     Management.createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
-    Management.createService(serviceNameV2,  cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
+    Management.createService(serviceNameV2, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
   }
 
   def deleteTestService() = {
@@ -112,7 +106,7 @@ trait TestCommonWithModels {
 
   lazy val column = ServiceColumn.find(service.id.get, columnName, useCache = false).get
   lazy val columnV2 = ServiceColumn.find(serviceV2.id.get, columnNameV2, useCache = false).get
-  
+
   lazy val tgtColumn = ServiceColumn.find(service.id.get, tgtColumnName, useCache = false).get
   lazy val tgtColumnV2 = ServiceColumn.find(serviceV2.id.get, tgtColumnNameV2, useCache = false).get
 

@@ -35,7 +35,10 @@ object Graph {
     "hbase.client.retries.number" -> java.lang.Integer.valueOf(20),
     "hbase.rpcs.buffered_flush_interval" -> java.lang.Short.valueOf(100.toShort),
     "hbase.rpc.timeout" -> java.lang.Integer.valueOf(1000),
-    "max.retry.number" -> java.lang.Integer.valueOf(100)
+    "max.retry.number" -> java.lang.Integer.valueOf(100),
+    "max.back.off" -> java.lang.Integer.valueOf(100),
+    "hbase.fail.prob" -> java.lang.Double.valueOf(-0.1),
+    "delete.all.fetch.size" -> java.lang.Integer.valueOf(1000)
   )
 
   var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)

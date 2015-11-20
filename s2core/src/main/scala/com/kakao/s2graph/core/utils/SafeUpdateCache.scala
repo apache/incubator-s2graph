@@ -9,14 +9,8 @@ import play.api.libs.json.JsValue
 import scala.concurrent.{Future, ExecutionContext}
 import scala.util.{Success, Failure}
 
-/**
- * Created by daewon on 2015. 11. 4..
- */
-
 object SafeUpdateCache {
-
   case class CacheKey(key: String)
-
 }
 
 class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(implicit executionContext: ExecutionContext) {
