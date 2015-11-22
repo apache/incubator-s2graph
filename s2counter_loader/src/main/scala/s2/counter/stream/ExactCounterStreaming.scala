@@ -55,7 +55,8 @@ object ExactCounterStreaming extends SparkApp with WithKafka {
       val nextRdd = {
         CounterFunctions.makeExactRdd(rdd, sc.defaultParallelism).foreachPartition { part =>
           // update exact counter
-          CounterFunctions.updateExactCounter(part.toSeq, acc)
+          val trxLogs = CounterFunctions.updateExactCounter(part.toSeq, acc)
+          CounterFunctions.produceTrxLog(trxLogs)
         }
         rdd
       }
