@@ -2,7 +2,7 @@ package controllers
 
 import com.kakao.s2graph.core.utils.logger
 import play.api.libs.iteratee.Enumerator
-import play.api.libs.json.JsValue
+import play.api.libs.json.{JsString, JsValue}
 import play.api.mvc._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -43,8 +43,11 @@ object ApplicationController extends Controller {
 
     try {
       val body = request.body match {
-        case AnyContentAsJson(jsValue) => jsValue
-        case any@_ => any
+        case AnyContentAsJson(jsValue) => jsValue match {
+          case JsString(str) => str
+          case _ => jsValue.toString
+        }
+        case _ => request.body.toString
       }
 
       val str =

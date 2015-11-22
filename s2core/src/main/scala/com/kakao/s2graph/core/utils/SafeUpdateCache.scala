@@ -3,15 +3,9 @@ package com.kakao.s2graph.core.utils
 import java.util.concurrent.atomic.AtomicBoolean
 
 import com.google.common.cache.CacheBuilder
-import play.api.Logger
-import play.api.libs.json.JsValue
 
-import scala.concurrent.{Future, ExecutionContext}
-import scala.util.{Success, Failure}
-
-/**
- * Created by daewon on 2015. 11. 4..
- */
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 object SafeUpdateCache {
 
@@ -36,29 +30,28 @@ class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(implicit execut
   def invalidate(key: String) = cache.invalidate(key.toCacheKey)
 
   def withCache(key: String)(op: => T): T = {
-    val newKey = key.toCacheKey
-    val cachedValWithTs = cache.getIfPresent(newKey)
+    val cacheKey = key.toCacheKey
+    val cachedValWithTs = cache.getIfPresent(cacheKey)
 
     if (cachedValWithTs == null) {
       // fetch and update cache.
       val newValue = op
-      cache.put(newKey, (newValue, toTs(), new AtomicBoolean(false)))
+      cache.put(cacheKey, (newValue, toTs(), new AtomicBoolean(false)))
       newValue
     } else {
       val (cachedVal, updatedAt, isUpdating) = cachedValWithTs
-      if (toTs() < updatedAt + ttl) cachedVal
+      if (toTs() < updatedAt + ttl) cachedVal // in cache TTL
       else {
         val running = isUpdating.getAndSet(true)
         if (running) cachedVal
         else {
-          Future {
-            val newValue = op
-            val newUpdatedAt = toTs()
-            cache.put(newKey, (newValue, newUpdatedAt, new AtomicBoolean(false)))
-            newValue
-          }(executionContext) onComplete {
-            case Failure(ex) => logger.error(s"withCache update failed.")
-            case Success(s) => logger.info(s"withCache update success: $newKey")
+          Future(op)(executionContext) onComplete {
+            case Failure(ex) =>
+              cache.put(cacheKey, (cachedVal, toTs(), new AtomicBoolean(false))) // keep old value
+              logger.error(s"withCache update failed.")
+            case Success(newValue) =>
+              cache.put(cacheKey, (newValue, toTs(), new AtomicBoolean(false))) // update new value
+              logger.info(s"withCache update success: $cacheKey")
           }
           cachedVal
         }

@@ -118,7 +118,10 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
     val (labelId, name) = (labelMeta.labelId, labelMeta.name)
     sql"""delete from label_metas where id = ${id}""".execute.apply()
     val cacheKeys = List(s"id=$id", s"labelId=$labelId", s"labelId=$labelId:name=$name")
-    cacheKeys.foreach(expireCache)
+    cacheKeys.foreach { key =>
+      expireCache(key)
+      expireCaches(key)
+    }
   }
 
   def findAll()(implicit session: DBSession = AutoSession) = {

@@ -42,7 +42,10 @@ object ServiceColumn extends Model[ServiceColumn] {
     val (serviceId, columnName) = (serviceColumn.serviceId, serviceColumn.columnName)
     sql"""delete from service_columns where id = ${id}""".execute.apply()
     val cacheKeys = List(s"id=$id", s"serviceId=$serviceId:columnName=$columnName")
-    cacheKeys.foreach(expireCache(_))
+    cacheKeys.foreach { key =>
+      expireCache(key)
+      expireCaches(key)
+    }
   }
   def findOrInsert(serviceId: Int, columnName: String, columnType: Option[String], schemaVersion: String)(implicit session: DBSession = AutoSession): ServiceColumn = {
     find(serviceId, columnName) match {

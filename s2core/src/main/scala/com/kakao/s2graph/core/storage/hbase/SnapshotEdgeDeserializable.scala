@@ -1,19 +1,14 @@
 package com.kakao.s2graph.core.storage.hbase
 
 import com.kakao.s2graph.core.mysqls.{LabelIndex, LabelMeta}
-import com.kakao.s2graph.core.storage.{SKeyValue, CanSKeyValue, StorageDeserializable, StorageSerializable}
+import com.kakao.s2graph.core.storage.{CanSKeyValue, SKeyValue, StorageDeserializable}
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.utils.logger
 import com.kakao.s2graph.core.{Edge, QueryParam, SnapshotEdge, Vertex}
 import org.apache.hadoop.hbase.util.Bytes
-
-import scala.util.Random
 
 class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
 
   import StorageDeserializable._
-  import StorageSerializable._
-
 
   override def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
     queryParam.label.schemaVersion match {
@@ -23,8 +18,8 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
   }
 
   def statusCodeWithOp(byte: Byte): (Byte, Byte) = {
-    val statusCode = (byte >> 4)
-    val op = byte & ((1<<4)-1)
+    val statusCode = byte >> 4
+    val op = byte & ((1 << 4) - 1)
     (statusCode.toByte, op.toByte)
   }
 
@@ -72,6 +67,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
 
       (tgtVertexId, kvsMap, op, ts, statusCode, _pendingEdgeOpt)
     }
+
     SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),
       labelWithDir, op, cellVersion, props, statusCode = statusCode,
       pendingEdgeOpt = _pendingEdgeOpt, lockTs = None)
@@ -118,8 +114,8 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
         else {
           val (pendingEdgeStatusCode, pendingEdgeOp) = statusCodeWithOp(kv.value(pos))
           pos += 1
-//          val versionNum = Bytes.toLong(kv.value, pos, 8)
-//          pos += 8
+          //          val versionNum = Bytes.toLong(kv.value, pos, 8)
+          //          pos += 8
           val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
           pos = endAt
           val lockTs = Option(Bytes.toLong(kv.value, pos, 8))
@@ -140,7 +136,5 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       labelWithDir, op, cellVersion, props, statusCode = statusCode,
       pendingEdgeOpt = _pendingEdgeOpt, lockTs = None)
   }
-
-
 }
 

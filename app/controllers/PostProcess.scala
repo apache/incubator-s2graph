@@ -250,7 +250,7 @@ object PostProcess extends JSONParser {
           } yield {
             val scoreSum = groupedRawEdges.map(x => x._2).sum
             // ordering
-            val edges = orderBy(query, orderByColumns, rawEdges).map(_._1)
+            val edges = orderBy(query, orderByColumns, groupedRawEdges).map(_._1)
             Json.obj(
               "groupBy" -> Json.toJson(groupByKeyVals.toMap),
               "scoreSum" -> scoreSum,

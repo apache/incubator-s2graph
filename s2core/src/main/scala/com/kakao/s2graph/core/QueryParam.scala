@@ -240,7 +240,6 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   var columnRangeFilter: ColumnRangeFilter = null
 
-
   var hasFilters: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike]
   var where: Try[Where] = Success(WhereParser.success)
   var duplicatePolicy = DuplicatePolicy.First
