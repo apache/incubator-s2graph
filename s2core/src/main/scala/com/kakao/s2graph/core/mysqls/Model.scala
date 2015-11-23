@@ -1,20 +1,21 @@
 package com.kakao.s2graph.core.mysqls
 
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.Executors
 
-import com.kakao.s2graph.logger
-import com.google.common.cache.CacheBuilder
+import com.kakao.s2graph.core.utils.{SafeUpdateCache, logger}
 import com.typesafe.config.Config
 import scalikejdbc._
 
+import scala.concurrent.ExecutionContext
+import scala.language.{higherKinds, implicitConversions}
 import scala.util.{Failure, Try}
 
-/**
- * Created by shon on 6/3/15.
- */
 object Model {
   var maxSize = 10000
   var ttl = 60
+  val numOfThread = Runtime.getRuntime.availableProcessors()
+  val threadPool = Executors.newFixedThreadPool(numOfThread)
+  val ec = ExecutionContext.fromExecutor(threadPool)
 
   def apply(config: Config) = {
     maxSize = config.getInt("cache.max.size")
@@ -60,65 +61,28 @@ trait Model[V] extends SQLSyntaxSupport[V] {
 
   import Model._
 
-  private lazy val cName = this.getClass.getSimpleName()
+  implicit val ec: ExecutionContext = Model.ec
 
+  val cName = this.getClass.getSimpleName()
   logger.info(s"LocalCache[$cName]: TTL[$ttl], MaxSize[$maxSize]")
-  val cache = CacheBuilder.newBuilder()
-    .expireAfterWrite(ttl, TimeUnit.SECONDS)
-    .maximumSize(maxSize)
-    .build[String, Option[V]]()
 
-  val caches = CacheBuilder.newBuilder()
-    .expireAfterWrite(ttl, TimeUnit.SECONDS)
-    .maximumSize(maxSize / 10).build[String, List[V]]()
+  val optionCache = new SafeUpdateCache[Option[V]](cName, maxSize, ttl)
+  val listCache = new SafeUpdateCache[List[V]](cName, maxSize, ttl)
 
-  def withCache(key: String)(op: => Option[V]): Option[V] = {
-    val newKey = cName + ":" + key
-    val oldValue = cache.getIfPresent(newKey)
-    if (oldValue == null) {
-      val newValue = op
-      cache.put(newKey, newValue)
-      newValue
-    } else {
-      oldValue
-    }
+  val withCache = optionCache.withCache _
+
+  val withCaches = listCache.withCache _
+
+  val expireCache = optionCache.invalidate _
+
+  val expireCaches = listCache.invalidate _
+
+  def putsToCache(kvs: List[(String, V)]) = kvs.foreach {
+    case (key, value) => optionCache.put(key, Option(value))
   }
 
-  def withCaches(key: String)(op: => List[V]): List[V] = {
-    val newKey = cName + ":" + key
-    val oldValue = caches.getIfPresent(newKey)
-    if (oldValue == null) {
-      val newValue = op
-      caches.put(newKey, newValue)
-      newValue
-    } else {
-      oldValue
-    }
-  }
-
-  def expireCache(key: String): Unit = {
-    val newKey = s"$cName:$key"
-    cache.invalidate(newKey)
-  }
-
-  def expireCaches(key: String): Unit = {
-    val newKey = s"$cName:$key"
-    caches.invalidate(newKey)
-  }
-
-  def putsToCache(kvs: List[(String, V)]) = {
-    kvs.foreach {
-      case (key, value) =>
-        val newKey = s"$cName:$key"
-        cache.put(newKey, Some(value))
-    }
-  }
-
-  def putsToCaches(kvs: List[(String, List[V])]) = {
-    kvs.foreach {
-      case (key, values) =>
-        val newKey = s"$cName:$key"
-        caches.put(newKey, values)
-    }
+  def putsToCaches(kvs: List[(String, List[V])]) = kvs.foreach {
+    case (key, values) => listCache.put(key, values)
   }
 }
+

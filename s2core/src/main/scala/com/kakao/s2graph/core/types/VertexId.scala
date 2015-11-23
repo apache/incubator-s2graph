@@ -1,6 +1,7 @@
 package com.kakao.s2graph.core.types
 
 import com.kakao.s2graph.core.GraphUtil
+import com.kakao.s2graph.core.types.HBaseType._
 import org.apache.hadoop.hbase.util.Bytes
 
 /**
@@ -118,3 +119,27 @@ case class TargetVertexId(override val colId: Int,
   override val storeHash: Boolean = false
 
 }
+
+object SourceAndTargetVertexIdPair extends HBaseDeserializable {
+  val delimiter = ":"
+  import HBaseType._
+  def fromBytes(bytes: Array[Byte],
+                offset: Int,
+                len: Int,
+                version: String = DEFAULT_VERSION): (SourceAndTargetVertexIdPair, Int) = {
+    val pos = offset + GraphUtil.bytesForMurMurHash
+    val (srcId, srcBytesLen) = InnerVal.fromBytes(bytes, pos, len, version, isVertexId = true)
+    val (tgtId, tgtBytesLen) = InnerVal.fromBytes(bytes, pos + srcBytesLen, len, version, isVertexId = true)
+    (SourceAndTargetVertexIdPair(srcId, tgtId), GraphUtil.bytesForMurMurHash + srcBytesLen + tgtBytesLen)
+  }
+}
+
+case class SourceAndTargetVertexIdPair(val srcInnerId: InnerValLike, val tgtInnerId: InnerValLike) extends HBaseSerializable {
+  val colId = DEFAULT_COL_ID
+  import SourceAndTargetVertexIdPair._
+  override def bytes: Array[Byte] = {
+    val hashBytes = Bytes.toBytes(GraphUtil.murmur3(srcInnerId + delimiter + tgtInnerId))
+    Bytes.add(hashBytes, srcInnerId.bytes, tgtInnerId.bytes)
+  }
+}
+

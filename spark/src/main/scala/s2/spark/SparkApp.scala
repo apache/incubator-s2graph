@@ -22,7 +22,7 @@ trait SparkApp extends Logging {
 
   private var streamHelper: StreamHelper = _
 
-  // should implement in child class
+  // should implement in derived class
   def run()
 
   def getArgs(index: Int) = args(index)
@@ -42,15 +42,15 @@ trait SparkApp extends Logging {
   def buildKafkaGroupId(topic: String, ext: String): String = {
     val phase = System.getProperty("phase")
 
-    var groupId = s"${topic}_$ext"
+    // use first topic for group id
+    val groupId = s"${topic.split(',')(0)}_$ext"
 
-    groupId += {
+    groupId + {
       phase match {
         case "real" | "production" => ""
         case x => s"_$x"
-    }}
-
-    groupId
+      }
+    }
   }
 
   def getStreamHelper(kafkaParam: Map[String, String]): StreamHelper = {

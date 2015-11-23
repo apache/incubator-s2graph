@@ -1,12 +1,11 @@
 package com.kakao.s2graph.core
 
-import com.kakao.s2graph.core.Graph.edgeCf
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.{Where, WhereParser}
+import com.kakao.s2graph.core.storage.hbase.AsynchbaseQueryBuilder
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.logger
 import org.apache.hadoop.hbase.util.Bytes
-import org.hbase.async.{ColumnRangeFilter, GetRequest}
+import org.hbase.async.ColumnRangeFilter
 import play.api.libs.json.{JsNumber, JsValue, Json}
 
 import scala.util.hashing.MurmurHash3
@@ -36,14 +35,15 @@ object Query {
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  steps: IndexedSeq[Step] = Vector.empty[Step],
-                 unique: Boolean = true,
                  removeCycle: Boolean = false,
                  selectColumns: Seq[String] = Seq.empty[String],
                  groupByColumns: Seq[String] = Seq.empty[String],
+                 orderByColumns: Seq[(String, Boolean)] = Nil,
                  filterOutQuery: Option[Query] = None,
                  filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
                  withScore: Boolean = true,
                  returnTree: Boolean = false) {
+
   lazy val selectColumnsSet = selectColumns.map { c =>
     if (c == "_from") "from"
     else if (c == "_to") "to"
@@ -151,6 +151,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
 object Step {
   val Delimiter = "|"
 }
+
 case class Step(queryParams: List[QueryParam],
                 labelWeights: Map[Int, Double] = Map.empty,
                 //                scoreThreshold: Double = 0.0,
@@ -162,12 +163,12 @@ case class Step(queryParams: List[QueryParam],
   lazy val includes = queryParams.filterNot(_.exclude)
   lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 
-  logger.debug(s"Step: $queryParams, $labelWeights, $nextStepScoreThreshold, $nextStepLimit")
+  def toCacheKey(lss: Seq[Int]): Int = MurmurHash3.bytesHash(toCacheKeyRaw(lss))
 
-  def toCacheKey(lss: Iterable[(GetRequest, QueryParam)]): Int = {
-    val s = "step" + Step.Delimiter +
-      lss.map { case (getRequest, param) => param.toCacheKey(getRequest) } mkString(Step.Delimiter)
-    MurmurHash3.stringHash(s)
+  def toCacheKeyRaw(lss: Seq[Int]): Array[Byte] = {
+    var bytes = Array.empty[Byte]
+    lss.sorted.foreach { h => bytes = Bytes.add(bytes, Bytes.toBytes(h)) }
+    bytes
   }
 }
 
@@ -188,13 +189,13 @@ case class VertexParam(vertices: Seq[Vertex]) {
 
 }
 
-object RankParam {
-  def apply(labelId: Int, keyAndWeights: Seq[(Byte, Double)]) = {
-    new RankParam(labelId, keyAndWeights)
-  }
-}
+//object RankParam {
+//  def apply(labelId: Int, keyAndWeights: Seq[(Byte, Double)]) = {
+//    new RankParam(labelId, keyAndWeights)
+//  }
+//}
 
-class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Seq.empty[(Byte, Double)]) {
+case class RankParam(labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Seq.empty[(Byte, Double)]) {
   // empty => Count
   lazy val rankKeysWeightsMap = keySeqAndWeights.toMap
 
@@ -203,21 +204,13 @@ class RankParam(val labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Se
     this
   }
 
-  //
-  //  def singleKey(key: String) = {
-  //    this.keySeqAndWeights =
-  //      LabelMeta.findByName(labelId, key) match {
-  //        case None => List.empty[(Byte, Double)]
-  //        case Some(ktype) => List((ktype.seq, 1.0))
-  //      }
-  //    this
-  //  }
-  //
-  //  def multipleKey(keyAndWeights: Seq[(String, Double)]) = {
-  //    this.keySeqAndWeights =
-  //      for ((key, weight) <- keyAndWeights; row <- LabelMeta.findByName(labelId, key)) yield (row.seq, weight)
-  //    this
-  //  }
+  def toHashKeyBytes(): Array[Byte] = {
+    var bytes = Array.empty[Byte]
+    keySeqAndWeights.map { case (key, weight) =>
+      bytes = Bytes.add(bytes, Array.fill(1)(key), Bytes.toBytes(weight))
+    }
+    bytes
+  }
 }
 
 object QueryParam {
@@ -232,7 +225,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   import Query.DuplicatePolicy
   import Query.DuplicatePolicy._
 
-  val label = Label.findById(labelWithDir.labelId)
+  lazy val label = Label.findById(labelWithDir.labelId)
   val DefaultKey = LabelIndex.DefaultSeq
   val fullKey = DefaultKey
 
@@ -246,7 +239,6 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var isInverted: Boolean = false
 
   var columnRangeFilter: ColumnRangeFilter = null
-
 
   var hasFilters: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike]
   var where: Try[Where] = Success(WhereParser.success)
@@ -263,21 +255,31 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var exclude = false
   var include = false
 
-  val srcColumnWithDir = label.srcColumnWithDir(labelWithDir.dir)
-  val tgtColumnWithDir = label.tgtColumnWithDir(labelWithDir.dir)
+  var columnRangeFilterMinBytes = Array.empty[Byte]
+  var columnRangeFilterMaxBytes = Array.empty[Byte]
+
+  lazy val srcColumnWithDir = label.srcColumnWithDir(labelWithDir.dir)
+  lazy val tgtColumnWithDir = label.tgtColumnWithDir(labelWithDir.dir)
+
+  def toBytes(idxSeq: Byte, offset: Int, limit: Int, isInverted: Boolean): Array[Byte] = {
+    val front = Array[Byte](idxSeq, if (isInverted) 1.toByte else 0.toByte)
+    Bytes.add(front, Bytes.toBytes((offset.toLong << 32 | limit)))
+  }
 
   /**
    * consider only I/O specific parameters.
    * properties that is used on Graph.filterEdges should not be considered.
-   * @param getRequest
+   * @param bytes
    * @return
    */
-  def toCacheKey(getRequest: GetRequest): Int = {
-    val s = Seq(getRequest, labelWithDir, labelOrderSeq, offset, limit, rank,
-//      duration,
-      isInverted,
-      columnRangeFilter).mkString(QueryParam.Delimiter)
-    MurmurHash3.stringHash(s)
+  def toCacheKey(bytes: Array[Byte]): Int = {
+    val hashBytes = toCacheKeyRaw(bytes)
+    MurmurHash3.bytesHash(hashBytes)
+  }
+
+  def toCacheKeyRaw(bytes: Array[Byte]): Array[Byte] = {
+    Bytes.add(Bytes.add(bytes, labelWithDir.bytes, toBytes(labelOrderSeq, offset, limit, isInverted)), rank.toHashKeyBytes(),
+      Bytes.add(columnRangeFilterMinBytes, columnRangeFilterMaxBytes))
   }
 
   def isInverted(isInverted: Boolean): QueryParam = {
@@ -326,6 +328,8 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     fromVal(0) = len
     val maxBytes = fromVal
     val minBytes = toVal
+    this.columnRangeFilterMaxBytes = maxBytes
+    this.columnRangeFilterMinBytes = minBytes
     val rangeFilter = new ColumnRangeFilter(minBytes, true, maxBytes, true)
     this.columnRangeFilter = rangeFilter
     this
@@ -429,51 +433,58 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     //      duration, isInverted, exclude, include, hasFilters, outputFields).mkString("\t")
   }
 
-  def buildGetRequest(srcVertex: Vertex) = {
-    val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
-    val (srcInnerId, tgtInnerId) = tgtVertexInnerIdOpt match {
-      case Some(tgtVertexInnerId) => // _to is given.
-        /** we use toInvertedEdgeHashLike so dont need to swap src, tgt */
-        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
-        val tgt = InnerVal.convertVersion(tgtVertexInnerId, tgtColumn.columnType, label.schemaVersion)
-        (src, tgt)
-      case None =>
-        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
-        (src, src)
-    }
-
-    val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
-    val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
-    val edge = Edge(srcV, tgtV, labelWithDir)
-
-    val get = if (tgtVertexInnerIdOpt.isDefined) {
-      val snapshotEdge = edge.toInvertedEdgeHashLike
-      new GetRequest(label.hbaseTableName.getBytes, snapshotEdge.rowKey.bytes, edgeCf, snapshotEdge.qualifier.bytes)
-    } else {
-      val indexedEdgeOpt = edge.edgesWithIndex.find(e => e.labelIndexSeq == labelOrderSeq)
-      assert(indexedEdgeOpt.isDefined)
-      val indexedEdge = indexedEdgeOpt.get
-      new GetRequest(label.hbaseTableName.getBytes, indexedEdge.rowKey.bytes, edgeCf)
-    }
-
-    val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
-
-    get.maxVersions(1)
-    get.setFailfast(true)
-    get.setMaxResultsPerColumnFamily(limit)
-    get.setRowOffsetPerColumnFamily(offset)
-    get.setMinTimestamp(minTs)
-    get.setMaxTimestamp(maxTs)
-    get.setTimeout(rpcTimeoutInMillis)
-    if (columnRangeFilter != null) get.setFilter(columnRangeFilter)
-    //    get.setMaxAttempt(maxAttempt.toByte)
-    //    get.setRpcTimeout(rpcTimeoutInMillis)
-
-    //    if (columnRangeFilter != null) get.filter(columnRangeFilter)
-    //    logger.debug(s"Get: $get, $offset, $limit")
-
-    get
-  }
+  //
+  //  def buildGetRequest(srcVertex: Vertex) = {
+  //    val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
+  //    val (srcInnerId, tgtInnerId) = tgtVertexInnerIdOpt match {
+  //      case Some(tgtVertexInnerId) => // _to is given.
+  //        /** we use toInvertedEdgeHashLike so dont need to swap src, tgt */
+  //        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
+  //        val tgt = InnerVal.convertVersion(tgtVertexInnerId, tgtColumn.columnType, label.schemaVersion)
+  //        (src, tgt)
+  //      case None =>
+  //        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
+  //        (src, src)
+  //    }
+  //
+  //    val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
+  //    val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
+  //    val edge = Edge(srcV, tgtV, labelWithDir)
+  //
+  //    val get = if (tgtVertexInnerIdOpt.isDefined) {
+  //      val snapshotEdge = edge.toInvertedEdgeHashLike
+  //      val kv = snapshotEdge.kvs.head
+  //      new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
+  //    } else {
+  //      val indexedEdgeOpt = edge.edgesWithIndex.find(e => e.labelIndexSeq == labelOrderSeq)
+  //      assert(indexedEdgeOpt.isDefined)
+  //      val indexedEdge = indexedEdgeOpt.get
+  //      val kv = indexedEdge.kvs.head
+  //      val table = label.hbaseTableName.getBytes
+  //        //kv.table //
+  //      val rowKey = kv.row // indexedEdge.rowKey.bytes
+  //      val cf = edgeCf
+  //      new GetRequest(table, rowKey, cf)
+  //    }
+  //
+  //    val (minTs, maxTs) = duration.getOrElse((0L, Long.MaxValue))
+  //
+  //    get.maxVersions(1)
+  //    get.setFailfast(true)
+  //    get.setMaxResultsPerColumnFamily(limit)
+  //    get.setRowOffsetPerColumnFamily(offset)
+  //    get.setMinTimestamp(minTs)
+  //    get.setMaxTimestamp(maxTs)
+  //    get.setTimeout(rpcTimeoutInMillis)
+  //    if (columnRangeFilter != null) get.setFilter(columnRangeFilter)
+  //    //    get.setMaxAttempt(maxAttempt.toByte)
+  //    //    get.setRpcTimeout(rpcTimeoutInMillis)
+  //
+  //    //    if (columnRangeFilter != null) get.filter(columnRangeFilter)
+  //    //    logger.debug(s"Get: $get, $offset, $limit")
+  //
+  //    get
+  //  }
 }
 
 case class TimeDecay(initial: Double = 1.0, lambda: Double = 0.1, timeUnit: Double = 60 * 60 * 24) {

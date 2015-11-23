@@ -27,7 +27,7 @@ object Bucket extends Model[Bucket] {
   def finds(experimentId: Int)(implicit session: DBSession = AutoSession): List[Bucket] = {
     val cacheKey = "experimentId=" + experimentId
     withCaches(cacheKey) {
-      sql"""select * from buckets where experiment_id = ${experimentId}"""
+      sql"""select * from buckets where experiment_id = $experimentId"""
         .map { rs => Bucket(rs) }.list().apply()
     }
   }
@@ -36,6 +36,19 @@ object Bucket extends Model[Bucket] {
     val range = str.split(rangeDelimiter)
     if (range.length == 2) Option(range.head.toInt, range.last.toInt)
     else None
+  }
+
+  def findByImpressionId(impressionId: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[Bucket] = {
+    val cacheKey = "impressionId=" + impressionId
+    val sql = sql"""select * from buckets where impression_id=$impressionId"""
+      .map { rs => Bucket(rs)}
+    if (useCache) {
+      withCache(cacheKey) {
+        sql.single().apply()
+      }
+    } else {
+      sql.single().apply()
+    }
   }
 }
 

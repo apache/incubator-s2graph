@@ -4,7 +4,6 @@ import com.kakao.s2graph.core.GraphExceptions.WhereParserException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types.InnerValLike
-import com.kakao.s2graph.logger
 
 import scala.annotation.tailrec
 import scala.util.Try

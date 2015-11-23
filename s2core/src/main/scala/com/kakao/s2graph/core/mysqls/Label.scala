@@ -6,8 +6,8 @@ package com.kakao.s2graph.core.mysqls
 
 import com.kakao.s2graph.core.GraphExceptions.ModelNotFoundException
 import com.kakao.s2graph.core.Management.JsonModel.{Index, Prop}
+import com.kakao.s2graph.core.utils.logger
 import com.kakao.s2graph.core.{GraphUtil, JSONParser, Management}
-import com.kakao.s2graph.logger
 import play.api.libs.json.Json
 import scalikejdbc._
 
@@ -70,6 +70,16 @@ object Label extends Model[Label] {
     ${schemaVersion}, ${isAsync}, ${compressionAlgorithm})
     """
       .updateAndReturnGeneratedKey.apply()
+  }
+
+  def findByIdOpt(id: Int)(implicit session: DBSession = AutoSession): Option[Label] = {
+    val cacheKey = "id=" + id
+    withCache(cacheKey)(
+      sql"""
+        select 	*
+        from 	labels
+        where 	id = ${id}"""
+        .map { rs => Label(rs) }.single.apply())
   }
 
   def findById(id: Int)(implicit session: DBSession = AutoSession): Label = {
@@ -223,7 +233,10 @@ object Label extends Model[Label] {
     val label = Label.findByName(labelName, useCache = false).get
 
     val cacheKeys = List(s"id=${label.id}", s"label=${label.label}")
-    cacheKeys.foreach(expireCache)
+    cacheKeys.foreach { key =>
+      expireCache(key)
+      expireCaches(key)
+    }
     cnt
   }
 
@@ -232,7 +245,10 @@ object Label extends Model[Label] {
     logger.info(s"delete label: $label")
     val cnt = sql"""delete from labels where id = ${label.id.get}""".update().apply()
     val cacheKeys = List(s"id=$id", s"label=${label.label}")
-    cacheKeys.foreach(expireCache)
+    cacheKeys.foreach { key =>
+      expireCache(key)
+      expireCaches(key)
+    }
     cnt
   }
 }

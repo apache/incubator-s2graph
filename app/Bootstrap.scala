@@ -1,9 +1,10 @@
+package com.kakao.s2graph.rest
 
 import java.util.concurrent.Executors
 
 import actors.QueueActor
+import com.kakao.s2graph.core.utils.logger
 import com.kakao.s2graph.core.{ExceptionHandler, Graph}
-import com.kakao.s2graph.logger
 import config.Config
 import controllers.{AdminController, ApplicationController}
 import play.api.Application
@@ -15,28 +16,33 @@ import scala.io.Source
 import scala.util.Try
 
 object Global extends WithFilters(new GzipFilter()) {
+  var s2graph: Graph = _
 
+  // Application entry point
   override def onStart(app: Application) {
-    QueueActor.init()
-
     ApplicationController.isHealthy = false
 
+    val numOfThread = Runtime.getRuntime.availableProcessors()
+    val threadPool = Executors.newFixedThreadPool(numOfThread)
+    val ec = ExecutionContext.fromExecutor(threadPool)
+
+    val config = Config.conf.underlying
+
+    // init s2graph with config
+    s2graph = new Graph(config)(ec)
+
+    QueueActor.init(s2graph)
+
     if (Config.IS_WRITE_SERVER && Config.KAFKA_PRODUCER_POOL_SIZE > 0) {
-      ExceptionHandler.init()
+      ExceptionHandler.apply(config)
     }
-
-    val numOfThread = Config.conf.getInt("async.thread.size").getOrElse(Runtime.getRuntime.availableProcessors())
-    val threadPool = if (numOfThread == -1) Executors.newCachedThreadPool() else Executors.newFixedThreadPool(numOfThread)
-    val ex = ExecutionContext.fromExecutor(threadPool)
-    Graph(Config.conf.underlying)(ex)
-
-    logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
 
     val defaultHealthOn = Config.conf.getBoolean("app.health.on").getOrElse(true)
     ApplicationController.deployInfo = Try(Source.fromFile("./release_info").mkString("")).recover { case _ => "release info not found\n" }.get
 
     AdminController.loadCacheInner()
     ApplicationController.isHealthy = defaultHealthOn
+    logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
   }
 
   override def onStop(app: Application) {
@@ -49,7 +55,7 @@ object Global extends WithFilters(new GzipFilter()) {
     /**
      * shutdown hbase client for flush buffers.
      */
-    Graph.flush
+    s2graph.shutdown()
   }
 
   override def onError(request: RequestHeader, ex: Throwable): Future[Result] = {

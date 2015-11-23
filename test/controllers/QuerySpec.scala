@@ -1,11 +1,8 @@
-package test.controllers
+package controllers
 
-import controllers.EdgeController
 import play.api.libs.json._
 import play.api.test.{FakeApplication, FakeRequest, PlaySpecification}
 import play.api.{Application => PlayApplication}
-
-import scala.concurrent.Await
 
 class QuerySpec extends SpecCommon with PlaySpecification {
 
@@ -40,9 +37,31 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         edge"3 insert e 12000 300000 $testLabelName").mkString("\n")
 
       val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
-
-      Thread.sleep(asyncFlushInterval)
     }
+
+    def queryParents(id: Long) = Json.parse(s"""
+        {
+          "returnTree": true,
+          "srcVertices": [
+          { "serviceName": "${testServiceName}",
+            "columnName": "${testColumnName}",
+            "id": ${id}
+           }],
+          "steps": [
+          [ {
+              "label": "${testLabelName}",
+              "direction": "out",
+              "offset": 0,
+              "limit": 2
+            }
+          ],[{
+              "label": "${testLabelName}",
+              "direction": "in",
+              "offset": 0,
+              "limit": -1
+            }
+          ]]
+        }""".stripMargin)
 
     def queryExclude(id: Int) = Json.parse( s"""
         { "srcVertices": [
@@ -100,6 +119,24 @@ class QuerySpec extends SpecCommon with PlaySpecification {
           ]]
         }""")
 
+    def querySingleWithTo(id: Int, offset: Int = 0, limit: Int = 100, to: Int) = Json.parse( s"""
+        { "srcVertices": [
+          { "serviceName": "${testServiceName}",
+            "columnName": "${testColumnName}",
+            "id": ${id}
+           }],
+          "steps": [
+          [ {
+              "label": "${testLabelName}",
+              "direction": "out",
+              "offset": $offset,
+              "limit": $limit,
+              "_to": $to
+            }
+          ]]
+        }
+        """)
+
     def querySingle(id: Int, offset: Int = 0, limit: Int = 100) = Json.parse( s"""
         { "srcVertices": [
           { "serviceName": "${testServiceName}",
@@ -117,9 +154,68 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         }
         """)
 
-
-
     def queryUnion(id: Int, size: Int) = JsArray(List.tabulate(size)(_ => querySingle(id)))
+
+    def queryGroupBy(id: Int, props: Seq[String]): JsValue = {
+      Json.obj(
+        "groupBy" -> props,
+        "srcVertices" -> Json.arr(
+          Json.obj("serviceName" -> testServiceName, "columnName" -> testColumnName, "id" -> id)
+        ),
+        "steps" -> Json.arr(
+          Json.obj(
+            "step" -> Json.arr(
+              Json.obj(
+                "label" -> testLabelName
+              )
+            )
+          )
+        )
+      )
+    }
+
+    def queryScore(id: Int, scoring: Map[String, Int]): JsValue = {
+      val q = Json.obj(
+        "srcVertices" -> Json.arr(
+          Json.obj(
+            "serviceName" -> testServiceName,
+            "columnName" -> testColumnName,
+            "id" -> id
+          )
+        ),
+        "steps" -> Json.arr(
+          Json.obj(
+            "step" -> Json.arr(
+              Json.obj(
+                "label" -> testLabelName,
+                "scoring" -> scoring
+              )
+            )
+          )
+        )
+      )
+      println(q)
+      q
+    }
+
+    def queryOrderBy(id: Int, scoring: Map[String, Int], props: Seq[Map[String, String]]): JsValue = {
+      Json.obj(
+        "orderBy" -> props,
+        "srcVertices" -> Json.arr(
+          Json.obj("serviceName" -> testServiceName, "columnName" -> testColumnName, "id" -> id)
+        ),
+        "steps" -> Json.arr(
+          Json.obj(
+            "step" -> Json.arr(
+              Json.obj(
+                "label" -> testLabelName,
+                "scoring" -> scoring
+              )
+            )
+          )
+        )
+      )
+    }
 
     def getEdges(queryJson: JsValue): JsValue = {
       val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryJson)).get
@@ -203,6 +299,18 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       }
     }
 
+    "get edge groupBy property" in {
+      running(FakeApplication()) {
+        val result = getEdges(queryGroupBy(0, Seq("weight")))
+        (result \ "size").as[Int] must_== 2
+        val weights = (result \\ "groupBy").map { js =>
+          (js \ "weight").as[Int]
+        }
+        weights must contain(exactly(30, 40))
+        weights must not contain(10)
+      }
+    }
+
     "edge transform " in {
       running(FakeApplication()) {
         var result = getEdges(queryTransform(0, "[[\"_to\"]]"))
@@ -274,8 +382,6 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         ).mkString("\n")
 
         val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
-        Thread.sleep(asyncFlushInterval)
-
         // duration test after udpate
         // get all
         result = getEdges(queryDuration(Seq(0, 2), from = 0, to = 5000))
@@ -291,7 +397,27 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       }
     }
 
-    "pagination" in {
+    "returnTree" in {
+      running(FakeApplication()) {
+        val src = 100
+        val tgt = 200
+        val labelName = testLabelName
+
+        val bulkEdges: String = Seq(
+          edge"1001 insert e $src $tgt $labelName"
+        ).mkString("\n")
+
+        val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
+
+        val result = getEdges(queryParents(src))
+
+        val parents = (result \ "results").as[Seq[JsValue]]
+        val ret = parents.forall { edge => (edge \ "parents").as[Seq[JsValue]].size == 1 }
+        ret must equalTo(true)
+      }
+    }
+
+    "pagination and _to" in {
       running(FakeApplication()) {
         val src = System.currentTimeMillis().toInt
         val labelName = testLabelName
@@ -303,7 +429,6 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         ).mkString("\n")
 
         val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
-        Thread.sleep(asyncFlushInterval)
 
         var result = getEdges(querySingle(src, offset = 0, limit = 2))
         println(result)
@@ -319,7 +444,41 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         (edges(0) \ "to").as[Long] must beEqualTo(3)
         (edges(1) \ "to").as[Long] must beEqualTo(2)
 
-        true
+        result = getEdges(querySingleWithTo(src, offset = 0, limit = -1, to = 1))
+        println(result)
+        edges = (result \ "results").as[List[JsValue]]
+        edges.size must equalTo(1)
+      }
+    }
+
+    "orderBy" >> {
+      running(FakeApplication()) {
+        // insert test set
+        val bulkEdges: String = Seq(
+          edge"1001 insert e 0 1 $testLabelName"($(weight = 10, is_hidden = true)),
+          edge"2002 insert e 0 2 $testLabelName"($(weight = 20, is_hidden = false)),
+          edge"3003 insert e 2 0 $testLabelName"($(weight = 30)),
+          edge"4004 insert e 2 1 $testLabelName"($(weight = 40))
+        ).mkString("\n")
+        contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))
+
+        // get edges
+        val edges = getEdges(queryScore(0, Map("weight" -> 1)))
+        val orderByScore = getEdges(queryOrderBy(0, Map("weight" -> 1), Seq(Map("score" -> "DESC", "timestamp" -> "DESC"))))
+        val ascOrderByScore = getEdges(queryOrderBy(0, Map("weight" -> 1), Seq(Map("score" -> "ASC", "timestamp" -> "DESC"))))
+
+        println(edges)
+        println(orderByScore)
+        println(ascOrderByScore)
+
+        val edgesTo = edges \ "results" \\ "to"
+        val orderByTo = orderByScore \ "results" \\ "to"
+        val ascOrderByTo = ascOrderByScore \ "results" \\ "to"
+
+        edgesTo must_== Seq(JsNumber(2), JsNumber(1))
+        edgesTo must_== orderByTo
+        ascOrderByTo must_== Seq(JsNumber(1), JsNumber(2))
+        edgesTo.reverse must_== ascOrderByTo
       }
     }
   }

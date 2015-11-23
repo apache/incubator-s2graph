@@ -1,8 +1,8 @@
 package controllers
 
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.utils.logger
 import play.api.libs.iteratee.Enumerator
-import play.api.libs.json.JsValue
+import play.api.libs.json.{JsString, JsValue}
 import play.api.mvc._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -42,11 +42,19 @@ object ApplicationController extends Controller {
     val resultSize = result.header.headers.getOrElse("result_size", "-1")
 
     try {
+      val body = request.body match {
+        case AnyContentAsJson(jsValue) => jsValue match {
+          case JsString(str) => str
+          case _ => jsValue.toString
+        }
+        case _ => request.body.toString
+      }
+
       val str =
         if (isQueryRequest)
-          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${request.body}"
+          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${body}"
         else
-          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize}"
+          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${body}"
 
       logger.info(s"${request.method} ${request.uri} result_size: $resultSize")
 

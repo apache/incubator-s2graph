@@ -6,8 +6,8 @@ package com.kakao.s2graph.core.mysqls
 
 import java.util.UUID
 
-import com.kakao.s2graph.core.Management
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.utils.logger
+import com.kakao.s2graph.core.{Management}
 import play.api.libs.json.Json
 import scalikejdbc._
 
@@ -52,7 +52,10 @@ object Service extends Model[Service] {
     val serviceName = service.serviceName
     sql"""delete from service_columns where id = ${id}""".execute.apply()
     val cacheKeys = List(s"id=$id", s"serviceName=$serviceName")
-    cacheKeys.foreach(expireCache(_))
+    cacheKeys.foreach { key =>
+      expireCache(key)
+      expireCaches(key)
+    }
   }
 
   def findOrInsert(serviceName: String, cluster: String, hTableName: String,

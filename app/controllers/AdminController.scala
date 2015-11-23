@@ -2,14 +2,16 @@ package controllers
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.logger
-import play.api.libs.json._
+import com.kakao.s2graph.core.utils.logger
 import play.api.mvc
 import play.api.mvc.{Action, Controller}
+import play.api.libs.json._
+import play.api.libs.functional.syntax._
 
 import scala.util.{Failure, Success, Try}
 
 object AdminController extends Controller with RequestParser {
+
   import ApplicationController._
 
   /**
@@ -69,7 +71,10 @@ object AdminController extends Controller with RequestParser {
   }
 
   private[AdminController] def tryResponse[T, R: AdminMessageFormatter](res: Try[T])(callback: T => R): mvc.Result = res match {
-    case Success(m) => ok(callback(m))
+    case Success(m) =>
+      val ret = callback(m)
+      logger.info(ret.toString)
+      ok(ret)
     case Failure(error) =>
       logger.error(error.getMessage, error)
       error match {
@@ -343,5 +348,70 @@ object AdminController extends Controller with RequestParser {
   def updateHTable(labelName: String, newHTableName: String) = Action { request =>
     val updateTry = Management.updateHTable(labelName, newHTableName)
     tryResponse(updateTry)(_.toString + " label(s) updated.")
+  }
+
+
+  case class HTableParams(cluster: String, hTableName: String,
+    preSplitSize: Int, hTableTTL: Option[Int], compressionAlgorithm: Option[String]) {
+
+    override def toString(): String = {
+      s"""HtableParams
+         |-- cluster : $cluster
+         |-- hTableName : $hTableName
+         |-- preSplitSize : $preSplitSize
+         |-- hTableTTL : $hTableTTL
+         |-- compressionAlgorithm : $compressionAlgorithm
+         |""".stripMargin
+    }
+  }
+
+  implicit object HTableParamsJsonConverter extends Format[HTableParams] {
+    def reads(json: JsValue): JsResult[HTableParams] = (
+    (__ \ "cluster").read[String] and
+    (__ \ "hTableName").read[String] and
+    (__ \ "preSplitSize").read[Int] and
+    (__ \ "hTableTTL").readNullable[Int] and
+      (__ \ "compressionAlgorithm").readNullable[String])(HTableParams.apply _).reads(json)
+
+    def writes(o: HTableParams): JsValue = Json.obj(
+      "cluster" -> o.cluster,
+      "hTableName" -> o.hTableName,
+      "preSplitSize" -> o.preSplitSize,
+      "hTableTTL" -> o.hTableTTL,
+      "compressionAlgorithm" -> o.compressionAlgorithm
+    )
+  }
+
+  implicit object JsErrorJsonWriter extends Writes[JsError] {
+    def writes(o: JsError): JsValue = Json.obj(
+      "errors" -> JsArray(
+        o.errors.map {
+          case (path, validationErrors) => Json.obj(
+            "path" -> Json.toJson(path.toString()),
+            "validationErrors" -> JsArray(validationErrors.map(validationError => Json.obj(
+              "message" -> JsString(validationError.message),
+              "args" -> JsArray(validationError.args.map(_ match {
+                case x: Int => JsNumber(x)
+                case x => JsString(x.toString)
+              }))
+            )))
+          )
+        }
+      )
+    )
+  }
+
+  def createHTable() = Action { request =>
+
+    //    Management.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL, compressionAlgorithm)
+    request.body.asJson.map(_.validate[HTableParams] match {
+      case JsSuccess(hTableParams, _) => {
+        Management.createTable(hTableParams.cluster, hTableParams.hTableName, List("e", "v"), hTableParams.preSplitSize, hTableParams.hTableTTL, hTableParams.compressionAlgorithm.getOrElse(Management.defaultCompressionAlgorithm))
+        logger.info(hTableParams.toString())
+        ok(s"HTable was created.")
+      }
+      case err@JsError(_) => bad(Json.toJson(err))
+    }).getOrElse(bad("Invalid Json."))
+
   }
 }

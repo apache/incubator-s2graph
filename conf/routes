@@ -71,6 +71,9 @@ PUT         /graphs/deleteServiceColumn/:serviceName/:columnName          contro
 POST        /graphs/addServiceColumnProp/:serviceName/:columnName         controllers.AdminController.addServiceColumnProp(serviceName, columnName)
 POST        /graphs/addServiceColumnProps/:serviceName/:columnName        controllers.AdminController.addServiceColumnProps(serviceName, columnName)
 GET         /graphs/getServiceColumn/:serviceName/:columnName             controllers.AdminController.getServiceColumn(serviceName, columnName)
+POST        /graphs/createHTable                                          controllers.AdminController.createHTable()
+
+
 
 
 #### TEST
@@ -102,6 +105,20 @@ POST        /graphs/renameLabel/:oldLabelName/:newLabelName               contro
 POST        /graphs/updateHTable/:labelName/:newHTableName                controllers.AdminController.updateHTable(labelName, newHTableName)
 PUT         /graphs/loadCache                                             controllers.AdminController.loadCache()
 
+
+# Counter Admin API
+POST    /counter/v1/:service/:action                                    controllers.CounterController.createAction(service, action)
+GET     /counter/v1/:service/:action                                    controllers.CounterController.getAction(service, action)
+PUT     /counter/v1/:service/:action                                    controllers.CounterController.updateAction(service, action)
+PUT     /counter/v1/:service/:action/prepare                            controllers.CounterController.prepareAction(service, action)
+DELETE  /counter/v1/:service/:action                                    controllers.CounterController.deleteAction(service, action)
+
+# Counter API
+GET     /counter/v1/:service/:action/ranking                            controllers.CounterController.getRankingCountAsync(service, action)
+DELETE  /counter/v1/:service/:action/ranking                            controllers.CounterController.deleteRankingCount(service, action)
+GET     /counter/v1/:service/:action/:item                              controllers.CounterController.getExactCountAsync(service, action, item)
+PUT     /counter/v1/:service/:action/:item                              controllers.CounterController.incrementCount(service, action, item)
+POST    /counter/v1/mget                                                controllers.CounterController.getExactCountAsyncMulti()
 
 # Experiment API
 POST        /graphs/experiment/:accessToken/:experimentName/:uuid         controllers.ExperimentController.experiment(accessToken, experimentName, uuid)

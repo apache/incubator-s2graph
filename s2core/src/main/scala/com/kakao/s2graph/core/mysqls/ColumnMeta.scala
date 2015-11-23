@@ -77,7 +77,10 @@ object ColumnMeta extends Model[ColumnMeta] {
     val (columnId, name) = (columnMeta.columnId, columnMeta.name)
     sql"""delete from column_metas where id = ${id}""".execute.apply()
     val cacheKeys = List(s"id=$id", s"columnId=$columnId:name=$name", s"colunmId=$columnId")
-    cacheKeys.foreach(expireCache(_))
+    cacheKeys.foreach { key =>
+      expireCache(key)
+      expireCaches(key)
+    }
   }
 
   def findAll()(implicit session: DBSession = AutoSession) = {

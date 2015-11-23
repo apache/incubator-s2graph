@@ -5,13 +5,14 @@ import com.kakao.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlre
 import com.kakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.logger
+import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
+import play.Play
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 
@@ -37,7 +38,8 @@ object Management extends JSONParser {
 
   val hardLimit = 10000
   val defaultLimit = 100
-  val defaultCompressionAlgorithm = Graph.config.getString("hbase.table.compression.algorithm")
+  val defaultCompressionAlgorithm = "gz"
+//    Play.application().configuration().getString("hbase.table.compression.algorithm")
 
   def createService(serviceName: String,
                     cluster: String, hTableName: String,
@@ -65,6 +67,7 @@ object Management extends JSONParser {
 
     Label.updateHTableName(targetLabel.label, newHTableName)
   }
+
   /**
    * label
    */
@@ -247,8 +250,11 @@ object Management extends JSONParser {
 
     val label = tryOption(labelStr, getServiceLable)
     val dir =
-      if (direction == "") GraphUtil.toDirection(label.direction)
-      else GraphUtil.toDirection(direction)
+      if (direction == "")
+//        GraphUtil.toDirection(label.direction)
+        GraphUtil.directions("out")
+      else
+        GraphUtil.toDirection(direction)
 
     //    logger.debug(s"$srcId, ${label.srcColumnWithDir(dir)}")
     //    logger.debug(s"$tgtId, ${label.tgtColumnWithDir(dir)}")
@@ -275,7 +281,7 @@ object Management extends JSONParser {
     val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValLikeWithTs(kv._2, ts))) ++
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.schemaVersion), ts))
 
-    Edge(srcVertex, tgtVertex, labelWithDir, op, ts, version = ts, propsWithTs = propsWithTs)
+    Edge(srcVertex, tgtVertex, labelWithDir, op, version = ts, propsWithTs = propsWithTs)
 
   }
 
@@ -402,7 +408,7 @@ object Management extends JSONParser {
   //  }
 
   def createTable(zkAddr: String, tableName: String, cfs: List[String], regionMultiplier: Int, ttl: Option[Int],
-                  compressionAlgorithm: String = "lz4") = {
+                  compressionAlgorithm: String = defaultCompressionAlgorithm) = {
     logger.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm")
     val admin = getAdmin(zkAddr)
     val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier
