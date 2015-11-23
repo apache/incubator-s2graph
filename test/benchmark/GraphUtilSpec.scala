@@ -11,6 +11,12 @@ import scala.util.Random
 
 class GraphUtilSpec extends BenchmarkCommon with PlaySpecification {
 
+  def between(bytes: Array[Byte], startKey: Array[Byte], endKey: Array[Byte]): Boolean =
+    Bytes.compareTo(startKey, bytes) <= 0 && Bytes.compareTo(endKey, bytes) >= 0
+
+  def betweenShort(value: Short, start: Short, end: Short): Boolean =
+    start <= value && value <= end
+
 
   "GraphUtil" should {
     "test murmur3 hash function distribution" in {
@@ -44,7 +50,7 @@ class GraphUtilSpec extends BenchmarkCommon with PlaySpecification {
       running(FakeApplication()) {
         import HBaseType._
         val testNum = 1000000L
-        val regionCount = 10
+        val regionCount = 40
         val window = Int.MaxValue / regionCount
         val rangeBytes = new ListBuffer[(List[Byte], List[Byte])]()
         for {
@@ -55,11 +61,7 @@ class GraphUtilSpec extends BenchmarkCommon with PlaySpecification {
           rangeBytes += (startKey.toList -> endKey.toList)
         }
 
-        def betweenShort(value: Short, start: Short, end: Short): Boolean =
-          start <= value && value <= end
 
-        def between(bytes: Array[Byte], startKey: Array[Byte], endKey: Array[Byte]): Boolean =
-          (Bytes.compareTo(startKey, bytes) >= 0 && Bytes.compareTo(bytes, endKey) <= 0)
 
         val stats = new collection.mutable.HashMap[Int, ((List[Byte], List[Byte]), Long)]()
         val counts = new collection.mutable.HashMap[Short, Long]()
@@ -68,10 +70,9 @@ class GraphUtilSpec extends BenchmarkCommon with PlaySpecification {
         for (i <- (0L until testNum)) {
           val vertexId = SourceVertexId(DEFAULT_COL_ID, InnerVal.withLong(i, HBaseType.DEFAULT_VERSION))
           val bytes = vertexId.bytes
-          val shortKey = Bytes.toShort(bytes.take(2))
+          val shortKey = GraphUtil.murmur3(vertexId.innerId.toIdString())
           val shortVal = counts.getOrElse(shortKey, 0L) + 1L
           counts += (shortKey -> shortVal)
-
           var j = 0
           var found = false
           while (j < rangeBytes.size && !found) {
@@ -89,14 +90,34 @@ class GraphUtilSpec extends BenchmarkCommon with PlaySpecification {
           }
           stats += (key -> (head, value))
         }
-        stats.toList.sortBy(kv => kv._2._2).reverse.foreach { case (idx, ((start, end), cnt)) =>
+        val sorted = stats.toList.sortBy(kv => kv._2._2).reverse
+        println(s"Index: StartBytes ~ EndBytes\tStartShortBytes ~ EndShortBytes\tStartShort ~ EndShort\tCount\tShortCount")
+        sorted.foreach { case (idx, ((start, end), cnt)) =>
           val startShort = Bytes.toShort(start.take(2).toArray)
           val endShort = Bytes.toShort(end.take(2).toArray)
           val count = counts.count(t => startShort <= t._1 && t._1 < endShort)
-          println(s"$idx: $start ~ $end\t$startShort ~ $endShort\t$cnt\t$count")
+          println(s"$idx: $start ~ $end\t${start.take(2)} ~ ${end.take(2)}\t$startShort ~ $endShort\t$cnt\t$count")
+
+        }
+        println("\n" * 10)
+        println(s"Index: StartBytes ~ EndBytes\tStartShortBytes ~ EndShortBytes\tStartShort ~ EndShort\tCount\tShortCount")
+        stats.toList.sortBy(kv => kv._1).reverse.foreach { case (idx, ((start, end), cnt)) =>
+          val startShort = Bytes.toShort(start.take(2).toArray)
+          val endShort = Bytes.toShort(end.take(2).toArray)
+          val count = counts.count(t => startShort <= t._1 && t._1 < endShort)
+          println(s"$idx: $start ~ $end\t${start.take(2)} ~ ${end.take(2)}\t$startShort ~ $endShort\t$cnt\t$count")
 
         }
       }
+      true
+    }
+
+    "Bytes compareTo" in {
+      val x = Array[Byte](11, -12, -26, -14, -23)
+      val startKey = Array[Byte](0, 0, 0, 0)
+      val endKey = Array[Byte](12, -52, -52, -52)
+      println(Bytes.compareTo(startKey, x))
+      println(Bytes.compareTo(endKey, x))
       true
     }
   }
