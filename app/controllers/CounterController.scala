@@ -139,9 +139,11 @@ object CounterController extends Controller {
           useProfile = useProfile, bucketImpId, useRank = useRank, ttl, dailyTtl, Some(hbaseTable), intervalUnit,
           rateActionId, rateBaseId, rateThreshold)
 
-        // prepare exact storage
-        exactCounter(version).prepare(policy)
-        if (useRank) {
+        if (rateAction.isEmpty) {
+          // prepare exact storage
+          exactCounter(version).prepare(policy)
+        }
+        if (useRank || rateAction.isDefined) {
           // prepare ranking storage
           rankingCounter(version).prepare(policy)
         }
