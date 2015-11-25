@@ -18,7 +18,7 @@ libraryDependencies ++= Seq(
 
 libraryDependencies := {
   CrossVersion.partialVersion(scalaVersion.value) match {
-    // if scala 2.11+ is used, add dependency on scala-xml module
+    // if scala 2.11+ is used, add dependency on scala-xml mqqodule
     case Some((2, scalaMajor)) if scalaMajor >= 11 =>
       libraryDependencies.value ++ Seq(
         "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.4"

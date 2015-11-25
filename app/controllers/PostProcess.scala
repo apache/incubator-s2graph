@@ -15,16 +15,17 @@ object PostProcess extends JSONParser {
   val timeoutResults = Json.obj("size" -> 0, "results" -> Json.arr(), "isTimeout" -> true)
   val reservedColumns = Set("cacheRemain", "from", "to", "label", "direction", "_timestamp", "timestamp", "score", "props")
 
-  def groupEdgeResult(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]) = {
+  def groupEdgeResult(queryRequestWithResultLs: Seq[QueryRequestWithResult], exclude: Seq[QueryRequestWithResult]) = {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
     //    filterNot {case (edge, score) => edge.props.contains(LabelMeta.degreeSeq)}
     val groupedEdgesWithRank = (for {
-      queryResult <- queryResultLs
+      queryRequestWithResult <- queryRequestWithResultLs
+      (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
       edgeWithScore <- queryResult.edgeWithScoreLs
       (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-      if !excludeIds.contains(toHashKey(edge, queryResult.queryParam, queryResult.query.filterOutFields))
+      if !excludeIds.contains(toHashKey(edge, queryRequest.queryParam, queryRequest.query.filterOutFields))
     } yield {
-        (queryResult.queryParam, edge, score)
+        (queryRequest.queryParam, edge, score)
       }).groupBy {
       case (queryParam, edge, rank) if edge.labelWithDir.dir == GraphUtil.directions("in") =>
         (queryParam.label.srcColumn, queryParam.label.label, queryParam.label.tgtColumn, edge.tgtVertex.innerId, edge.propsWithTs.contains(LabelMeta.degreeSeq))
@@ -58,15 +59,18 @@ object PostProcess extends JSONParser {
     ret.toList
   }
 
-  def sortWithFormatted(jsons: Seq[JsObject], scoreField: String = "scoreSum", queryResultLs: Seq[QueryResult], decrease: Boolean = true): JsObject = {
+  def sortWithFormatted(jsons: Seq[JsObject],
+                        scoreField: String = "scoreSum",
+                        queryRequestWithResultLs: Seq[QueryRequestWithResult],
+                        decrease: Boolean = true): JsObject = {
     val ordering = if (decrease) -1 else 1
     val sortedJsons = jsons.sortBy { jsObject => (jsObject \ scoreField).as[Double] * ordering }
 
-    if (queryResultLs.isEmpty) Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
+    if (queryRequestWithResultLs.isEmpty) Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
     else Json.obj(
       "size" -> sortedJsons.size,
       "results" -> sortedJsons,
-      "impressionId" -> queryResultLs.head.query.impressionId()
+      "impressionId" -> queryRequestWithResultLs.head.queryRequest.query.impressionId()
     )
   }
 
@@ -94,32 +98,33 @@ object PostProcess extends JSONParser {
     ret
   }
 
-  def resultInnerIds(queryResultLs: Seq[QueryResult], isSrcVertex: Boolean = false): Seq[Int] = {
+  def resultInnerIds(queryRequestWithResultLs: Seq[QueryRequestWithResult], isSrcVertex: Boolean = false): Seq[Int] = {
     for {
-      queryResult <- queryResultLs
-      q = queryResult.query
+      queryRequestWithResult <- queryRequestWithResultLs
+      (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+      q = queryRequest.query
       edgeWithScore <- queryResult.edgeWithScoreLs
       (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-    } yield toHashKey(edge, queryResult.queryParam, q.filterOutFields)
+    } yield toHashKey(edge, queryRequest.queryParam, q.filterOutFields)
   }
 
-  def summarizeWithListExcludeFormatted(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]) = {
-    val jsons = groupEdgeResult(queryResultLs, exclude)
-    sortWithFormatted(jsons, queryResultLs = queryResultLs, decrease = true)
+  def summarizeWithListExcludeFormatted(queryRequestWithResultLs: Seq[QueryRequestWithResult], exclude: Seq[QueryRequestWithResult]) = {
+    val jsons = groupEdgeResult(queryRequestWithResultLs, exclude)
+    sortWithFormatted(jsons, queryRequestWithResultLs = queryRequestWithResultLs, decrease = true)
   }
 
-  def summarizeWithList(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]) = {
-    val jsons = groupEdgeResult(queryResultLs, exclude)
-    sortWithFormatted(jsons, queryResultLs = queryResultLs)
+  def summarizeWithList(queryRequestWithResultLs: Seq[QueryRequestWithResult], exclude: Seq[QueryRequestWithResult]) = {
+    val jsons = groupEdgeResult(queryRequestWithResultLs, exclude)
+    sortWithFormatted(jsons, queryRequestWithResultLs = queryRequestWithResultLs)
   }
 
-  def summarizeWithListFormatted(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]) = {
-    val jsons = groupEdgeResult(queryResultLs, exclude)
-    sortWithFormatted(jsons, queryResultLs = queryResultLs)
+  def summarizeWithListFormatted(queryRequestWithResultLs: Seq[QueryRequestWithResult], exclude: Seq[QueryRequestWithResult]) = {
+    val jsons = groupEdgeResult(queryRequestWithResultLs, exclude)
+    sortWithFormatted(jsons, queryRequestWithResultLs = queryRequestWithResultLs)
   }
 
-  def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult]): JsValue = {
-    toSimpleVertexArrJson(queryResultLs, Seq.empty[QueryResult])
+  def toSimpleVertexArrJson(queryRequestWithResultLs: Seq[QueryRequestWithResult]): JsValue = {
+    toSimpleVertexArrJson(queryRequestWithResultLs, Seq.empty[QueryRequestWithResult])
   }
 
   private def orderBy(q: Query,
@@ -148,18 +153,18 @@ object PostProcess extends JSONParser {
     }
   }
 
-  def toSimpleVertexArrJson(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]): JsValue = {
+  def toSimpleVertexArrJson(queryRequestWithResultLs: Seq[QueryRequestWithResult], exclude: Seq[QueryRequestWithResult]): JsValue = {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
 
     val degrees = ListBuffer[JsValue]()
     val rawEdges = ListBuffer[(Map[String, JsValue], Double, (Any, Any, Any, Any))]()
 
-    if (queryResultLs.isEmpty) {
+    if (queryRequestWithResultLs.isEmpty) {
       Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr())
     } else {
-      val queryResult = queryResultLs.head
-      val query = queryResultLs.head.query
-      val queryParam = queryResult.queryParam
+      val (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResultLs.head).get
+      val query = queryRequest.query
+      val queryParam = queryRequest.queryParam
 
       val orderByColumns = query.orderByColumns.filter { case (column, _) =>
         column match {
@@ -171,11 +176,12 @@ object PostProcess extends JSONParser {
 
       /** build result jsons */
       for {
-        queryResult <- queryResultLs
-        queryParam = queryResult.queryParam
+        queryRequestWithResult <- queryRequestWithResultLs
+        (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+        queryParam = queryRequest.queryParam
         edgeWithScore <- queryResult.edgeWithScoreLs
         (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-        if !excludeIds.contains(toHashKey(edge, queryResult.queryParam, query.filterOutFields))
+        if !excludeIds.contains(toHashKey(edge, queryRequest.queryParam, query.filterOutFields))
       } {
         // edge to json
         val (srcColumn, _) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
@@ -183,12 +189,12 @@ object PostProcess extends JSONParser {
         if (edge.propsWithTs.contains(LabelMeta.degreeSeq) && fromOpt.isDefined) {
           degrees += Json.obj(
             "from" -> fromOpt.get,
-            "label" -> queryResult.queryParam.label.label,
+            "label" -> queryRequest.queryParam.label.label,
             "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
             LabelMeta.degree.name -> innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
           )
         } else {
-          val keyWithJs = edgeToJson(edge, score, queryResult.query, queryResult.queryParam)
+          val keyWithJs = edgeToJson(edge, score, queryRequest.query, queryRequest.queryParam)
           val orderByValues: (Any, Any, Any, Any) = orderByColumns.length match {
             case 0 =>
               (None, None, None, None)
@@ -387,15 +393,16 @@ object PostProcess extends JSONParser {
   }
 
   @deprecated(message = "deprecated", since = "0.2")
-  def summarizeWithListExclude(queryResultLs: Seq[QueryResult], exclude: Seq[QueryResult]): JsObject = {
+  def summarizeWithListExclude(queryRequestWithResultLs: Seq[QueryRequestWithResult], exclude: Seq[QueryRequestWithResult]): JsObject = {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
 
 
     val groupedEdgesWithRank = (for {
-      queryResult <- queryResultLs
+      queryRequestWithResult <- queryRequestWithResultLs
+      (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
       edgeWithScore <- queryResult.edgeWithScoreLs
       (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-      if !excludeIds.contains(toHashKey(edge, queryResult.queryParam, queryResult.query.filterOutFields))
+      if !excludeIds.contains(toHashKey(edge, queryRequest.queryParam, queryRequest.query.filterOutFields))
     } yield {
         (edge, score)
       }).groupBy { case (edge, score) =>
@@ -412,10 +419,11 @@ object PostProcess extends JSONParser {
             edges.flatMap(edge => innerValToJsValue(edge.srcVertex.innerId, srcColumn.columnType)), "scoreSum" -> ranks.sum)
       }
     val sortedJsons = jsons.toList.sortBy { jsObj => (jsObj \ "scoreSum").as[Double] }.reverse
-    if (queryResultLs.isEmpty) {
+    if (queryRequestWithResultLs.isEmpty) {
       Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons)
     } else {
-      Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons, "impressionId" -> queryResultLs.head.query.impressionId())
+      Json.obj("size" -> sortedJsons.size, "results" -> sortedJsons,
+        "impressionId" -> queryRequestWithResultLs.head.queryRequest.query.impressionId())
     }
 
   }
