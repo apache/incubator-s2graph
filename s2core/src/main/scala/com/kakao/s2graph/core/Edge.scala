@@ -294,7 +294,7 @@ object Edge extends JSONParser {
   type MergeState = PropsPairWithTs => (State, Boolean)
   type UpdateFunc = (Option[Edge], Edge, MergeState)
 
-  def allPropsDeleted(props: Map[Byte, InnerValLikeWithTs]): Boolean = {
+  def allPropsDeleted(props: Map[Byte, InnerValLikeWithTs]): Boolean =
     if (!props.containsKey(LabelMeta.lastDeletedAt)) false
     else {
       val lastDeletedAt = props.get(LabelMeta.lastDeletedAt).get.ts
@@ -302,7 +302,6 @@ object Edge extends JSONParser {
 
       propsWithoutLastDeletedAt.forall { case (_, v) => v.ts <= lastDeletedAt }
     }
-  }
 
   def buildDeleteBulk(invertedEdge: Option[Edge], requestEdge: Edge): (Edge, EdgeMutate) = {
     //    assert(invertedEdge.isEmpty)
@@ -338,7 +337,8 @@ object Edge extends JSONParser {
       else if (edge.op == GraphUtil.operations("increment")) Edge.mergeIncrement _
       else throw new RuntimeException(s"not supported operation on edge: $edge")
     }
-    val oldTs = invertedEdge.map(e => e.ts).getOrElse(minTsVal)
+
+    val oldTs = invertedEdge.map(_.ts).getOrElse(minTsVal)
     val requestWithFuncs = requestEdges.zip(funcs).filter(oldTs != _._1.ts).sortBy(_._1.ts)
 
     if (requestWithFuncs.isEmpty) {
