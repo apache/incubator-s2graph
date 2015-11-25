@@ -3,8 +3,10 @@ package com.kakao.s2graph.core
 import com.kakao.s2graph.core.mysqls.LabelMeta
 import com.kakao.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
 
+import scala.collection.Seq
+
 object QueryResult {
-  def fromVertices(query: Query): Seq[QueryResult] = {
+  def fromVertices(query: Query): Seq[QueryRequestWithResult] = {
     val queryParam = query.steps.head.queryParams.head
     val label = queryParam.label
     val currentTs = System.currentTimeMillis()
@@ -15,15 +17,20 @@ object QueryResult {
     } yield {
       val edge = Edge(vertex, vertex, queryParam.labelWithDir, propsWithTs = propsWithTs)
       val edgeWithScore = EdgeWithScore(edge, Graph.DefaultScore)
-      QueryResult(query, stepIdx = -1, queryParam = queryParam, edgeWithScoreLs = Seq(edgeWithScore))
+      QueryRequestWithResult(QueryRequest(query, -1, vertex, queryParam),
+        QueryResult(edgeWithScoreLs = Seq(edgeWithScore)))
     }
   }
 }
+case class QueryRequestWithResult(queryRequest: QueryRequest, queryResult: QueryResult)
 
-case class QueryResult(query: Query,
-                       stepIdx: Int,
-                       queryParam: QueryParam,
-                       edgeWithScoreLs: Seq[EdgeWithScore] = Nil,
+case class QueryRequest(query: Query,
+                        stepIdx: Int,
+                        vertex: Vertex,
+                        queryParam: QueryParam)
+
+
+case class QueryResult(edgeWithScoreLs: Seq[EdgeWithScore] = Nil,
                        timestamp: Long = System.currentTimeMillis(),
                        isFailure: Boolean = false)
 
