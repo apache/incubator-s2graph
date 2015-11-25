@@ -83,9 +83,9 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   val indexEdgeDeserializer = new IndexEdgeDeserializable
   val vertexDeserializer = new VertexDeserializable
 
-  def getEdges(q: Query): Future[Seq[QueryResult]] = queryBuilder.getEdges(q)
+  def getEdges(q: Query): Future[Seq[QueryRequestWithResult]] = queryBuilder.getEdges(q)
 
-  def checkEdges(params: Seq[(Vertex, Vertex, QueryParam)]): Future[Seq[QueryResult]] = {
+  def checkEdges(params: Seq[(Vertex, Vertex, QueryParam)]): Future[Seq[QueryRequestWithResult]] = {
     val futures = for {
       (srcVertex, tgtVertex, queryParam) <- params
     } yield queryBuilder.getEdge(srcVertex, tgtVertex, queryParam, false).toFuture
@@ -268,14 +268,13 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     val queryParam = QueryParam(labelWithDir)
     val _queryParam = queryParam.tgtVertexInnerIdOpt(Option(edge.tgtVertex.innerId))
     val q = Query.toQuery(Seq(edge.srcVertex), _queryParam)
-    val queryRequest = QueryRequest(q, 0, edge.srcVertex, _queryParam, 1.0, Option(edge.tgtVertex), isInnerCall = true)
+    val queryRequest = QueryRequest(q, 0, edge.srcVertex, _queryParam)
 
     client.get(queryBuilder.buildRequest(queryRequest)) withCallback { kvs =>
       val (edgeOpt, kvOpt) =
         if (kvs.isEmpty()) (None, None)
         else {
-          val _edgeOpt = toEdges(kvs, queryParam, queryRequest.prevStepScore,
-            queryRequest.isInnerCall, queryRequest.parentEdges).headOption.map(_.edge)
+          val _edgeOpt = toEdges(kvs, queryParam, 1.0, isInnerCall = true, parentEdges = Nil).headOption.map(_.edge)
           val _kvOpt = kvs.headOption
           (_edgeOpt, _kvOpt)
         }
@@ -615,10 +614,11 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
       "----------------------------------------------").mkString("\n")
   }
 
-  private def deleteAllFetchedEdgesAsyncOld(queryResult: QueryResult,
+  private def deleteAllFetchedEdgesAsyncOld(queryRequestWithResult: QueryRequestWithResult,
                                             requestTs: Long,
                                             retryNum: Int): Future[Boolean] = {
-    val queryParam = queryResult.queryParam
+    val (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+    val queryParam = queryRequest.queryParam
     val zkQuorum = queryParam.label.hbaseZkAddr
     val futures = for {
       edgeWithScore <- queryResult.edgeWithScoreLs
@@ -639,11 +639,12 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     Future.sequence(futures).map { rets => rets.forall(identity) }
   }
 
-  private def buildEdgesToDelete(queryResult: QueryResult, requestTs: Long): QueryResult = {
+  private def buildEdgesToDelete(queryRequestWithResultLs: QueryRequestWithResult, requestTs: Long): QueryResult = {
+    val (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResultLs).get
     val edgeWithScoreLs = queryResult.edgeWithScoreLs.filter { edgeWithScore =>
       (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
     }.map { edgeWithScore =>
-      val label = queryResult.queryParam.label
+      val label = queryRequest.queryParam.label
       val newPropsWithTs = edgeWithScore.edge.propsWithTs ++
         Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs.withLong(requestTs, requestTs, label.schemaVersion))
       val copiedEdge = edgeWithScore.edge.copy(op = GraphUtil.operations("delete"), version = requestTs,
@@ -653,16 +654,19 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     queryResult.copy(edgeWithScoreLs = edgeWithScoreLs)
   }
 
-  private def deleteAllFetchedEdgesLs(queryResultLs: Seq[QueryResult], requestTs: Long): Future[(Boolean, Boolean)] = {
+  private def deleteAllFetchedEdgesLs(queryRequestWithResultLs: Seq[QueryRequestWithResult], requestTs: Long): Future[(Boolean, Boolean)] = {
+    val queryResultLs = queryRequestWithResultLs.map(_.queryResult)
     queryResultLs.foreach { queryResult =>
       if (queryResult.isFailure) throw new RuntimeException("fetched result is fallback.")
     }
 
     val futures = for {
-      queryResult <- queryResultLs
-      deleteQueryResult = buildEdgesToDelete(queryResult, requestTs) if deleteQueryResult.edgeWithScoreLs.nonEmpty
+      queryRequestWithResult <- queryRequestWithResultLs
+      (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+      deleteQueryResult = buildEdgesToDelete(queryRequestWithResult, requestTs)
+      if deleteQueryResult.edgeWithScoreLs.nonEmpty
     } yield {
-      val label = queryResult.queryParam.label
+      val label = queryRequest.queryParam.label
       label.schemaVersion match {
         case HBaseType.VERSION3 if label.consistencyLevel == "strong" =>
 
@@ -677,7 +681,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             * read: x
             * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
             */
-          deleteAllFetchedEdgesAsyncOld(queryResult, requestTs, MaxRetryNum)
+          deleteAllFetchedEdgesAsyncOld(queryRequestWithResult, requestTs, MaxRetryNum)
       }
     }
     if (futures.isEmpty) {
@@ -690,8 +694,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
 
   def fetchAndDeleteAll(query: Query, requestTs: Long): Future[(Boolean, Boolean)] = {
     val future = for {
-      queryResultLs <- getEdges(query)
-      (allDeleted, ret) <- deleteAllFetchedEdgesLs(queryResultLs, requestTs)
+      queryRequestWithResultLs <- getEdges(query)
+      (allDeleted, ret) <- deleteAllFetchedEdgesLs(queryRequestWithResultLs, requestTs)
     } yield {
       (allDeleted, ret)
     }
