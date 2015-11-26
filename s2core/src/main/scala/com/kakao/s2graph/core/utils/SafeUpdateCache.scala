@@ -48,7 +48,7 @@ class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(implicit execut
           Future(op)(executionContext) onComplete {
             case Failure(ex) =>
               cache.put(cacheKey, (cachedVal, toTs(), new AtomicBoolean(false))) // keep old value
-              logger.error(s"withCache update failed.")
+              logger.error(s"withCache update failed: $cacheKey")
             case Success(newValue) =>
               cache.put(cacheKey, (newValue, toTs(), new AtomicBoolean(false))) // update new value
               logger.info(s"withCache update success: $cacheKey")
