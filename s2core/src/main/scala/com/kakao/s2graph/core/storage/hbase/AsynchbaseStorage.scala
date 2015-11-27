@@ -299,7 +299,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     logger.debug(msg)
   }
 
-  private def buildLockEdge(snapshotEdgeOpt: Option[Edge], edge: Edge) = {
+  private def buildLockEdge(snapshotEdgeOpt: Option[Edge], edge: Edge, kvOpt: Option[KeyValue]) = {
     val currentTs = System.currentTimeMillis()
     val lockTs = snapshotEdgeOpt match {
       case None => Option(currentTs)
@@ -309,7 +309,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
           case Some(pendingEdge) => pendingEdge.lockTs
         }
     }
-    val newVersion = snapshotEdgeOpt.map(_.version).getOrElse(edge.ts) + 1
+    val newVersion = kvOpt.map(_.timestamp()).getOrElse(edge.ts) + 1
+//      snapshotEdgeOpt.map(_.version).getOrElse(edge.ts) + 1
     val pendingEdge = edge.copy(version = newVersion, statusCode = 1, lockTs = lockTs)
     val base = snapshotEdgeOpt match {
       case None =>
@@ -322,7 +323,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     base.copy(version = newVersion, statusCode = 1, lockTs = None)
   }
 
-  private def buildReleaseLockEdge(snapshotEdgeOpt: Option[Edge], lockEdge: SnapshotEdge, edgeMutate: EdgeMutate) = {
+  private def buildReleaseLockEdge(snapshotEdgeOpt: Option[Edge], lockEdge: SnapshotEdge,
+                                   edgeMutate: EdgeMutate) = {
     val newVersion = lockEdge.version + 1
     val base = edgeMutate.newInvertedEdge match {
       case None =>
@@ -486,7 +488,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
     }
 
 
-    val lockEdge = buildLockEdge(snapshotEdgeOpt, edge)
+    val lockEdge = buildLockEdge(snapshotEdgeOpt, edge, kvOpt)
     val releaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, lockEdge, edgeUpdate)
     snapshotEdgeOpt match {
       case None =>
@@ -503,7 +505,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
             if (isLockExpired) {
               val oldSnapshotEdge = if (snapshotEdge.ts == pendingEdge.ts) None else Option(snapshotEdge)
               val (_, newEdgeUpdate) = Edge.buildOperation(oldSnapshotEdge, Seq(pendingEdge))
-              val newLockEdge = buildLockEdge(snapshotEdgeOpt, pendingEdge)
+              val newLockEdge = buildLockEdge(snapshotEdgeOpt, pendingEdge, kvOpt)
               val newReleaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, newLockEdge, newEdgeUpdate)
               process(newLockEdge, newReleaseLockEdge, newEdgeUpdate, statusCode = 0).flatMap { ret =>
                 val log = s"[Success]: Resolving expired pending edge.\n${pendingEdge.toLogString}"
