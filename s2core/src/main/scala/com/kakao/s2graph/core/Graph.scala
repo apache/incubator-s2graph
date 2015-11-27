@@ -160,87 +160,90 @@ object Graph {
                  (implicit ec: scala.concurrent.ExecutionContext): Future[Seq[QueryRequestWithResult]] = {
 
     queryResultLsFuture.map { queryRequestWithResultLs =>
-      val (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResultLs.head).get
-      val (q, stepIdx, srcVertex, queryParam) = QueryRequest.unapply(queryRequest).get
-      val step = q.steps(stepIdx)
+      if (queryRequestWithResultLs.isEmpty) Nil
+      else {
+        val (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResultLs.head).get
+        val (q, stepIdx, srcVertex, queryParam) = QueryRequest.unapply(queryRequest).get
+        val step = q.steps(stepIdx)
 
-      val nextStepOpt = if (stepIdx < q.steps.size - 1) Option(q.steps(stepIdx + 1)) else None
+        val nextStepOpt = if (stepIdx < q.steps.size - 1) Option(q.steps(stepIdx + 1)) else None
 
-      val excludeLabelWithDirSet = new util.HashSet[(Int, Int)]
-      val includeLabelWithDirSet = new util.HashSet[(Int, Int)]
-      step.queryParams.filter(_.exclude).foreach(l => excludeLabelWithDirSet.add(l.labelWithDir.labelId -> l.labelWithDir.dir))
-      step.queryParams.filter(_.include).foreach(l => includeLabelWithDirSet.add(l.labelWithDir.labelId -> l.labelWithDir.dir))
+        val excludeLabelWithDirSet = new util.HashSet[(Int, Int)]
+        val includeLabelWithDirSet = new util.HashSet[(Int, Int)]
+        step.queryParams.filter(_.exclude).foreach(l => excludeLabelWithDirSet.add(l.labelWithDir.labelId -> l.labelWithDir.dir))
+        step.queryParams.filter(_.include).foreach(l => includeLabelWithDirSet.add(l.labelWithDir.labelId -> l.labelWithDir.dir))
 
-      val edgesToExclude = new util.HashSet[FilterHashKey]()
-      val edgesToInclude = new util.HashSet[FilterHashKey]()
+        val edgesToExclude = new util.HashSet[FilterHashKey]()
+        val edgesToInclude = new util.HashSet[FilterHashKey]()
 
-      val queryParamResultLs = new ListBuffer[Result]
-      queryRequestWithResultLs.foreach { queryRequestWithResult =>
-        val (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
-        val queryParam = queryRequest.queryParam
-        val duplicateEdges = new util.concurrent.ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]]()
-        val resultEdges = new util.concurrent.ConcurrentHashMap[HashKey, (FilterHashKey, Edge, Double)]()
-        val edgeWithScoreSorted = new ListBuffer[(HashKey, FilterHashKey, Edge, Double)]
-        val labelWeight = step.labelWeights.getOrElse(queryParam.labelWithDir.labelId, 1.0)
+        val queryParamResultLs = new ListBuffer[Result]
+        queryRequestWithResultLs.foreach { queryRequestWithResult =>
+          val (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+          val queryParam = queryRequest.queryParam
+          val duplicateEdges = new util.concurrent.ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]]()
+          val resultEdges = new util.concurrent.ConcurrentHashMap[HashKey, (FilterHashKey, Edge, Double)]()
+          val edgeWithScoreSorted = new ListBuffer[(HashKey, FilterHashKey, Edge, Double)]
+          val labelWeight = step.labelWeights.getOrElse(queryParam.labelWithDir.labelId, 1.0)
 
-        // store degree value with Array.empty so if degree edge exist, it comes at very first.
-        def checkDegree() = queryResult.edgeWithScoreLs.headOption.exists { edgeWithScore =>
-          edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
-        }
-        var isDegree = checkDegree()
+          // store degree value with Array.empty so if degree edge exist, it comes at very first.
+          def checkDegree() = queryResult.edgeWithScoreLs.headOption.exists { edgeWithScore =>
+            edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
+          }
+          var isDegree = checkDegree()
 
-        val includeExcludeKey = queryParam.labelWithDir.labelId -> queryParam.labelWithDir.dir
-        val shouldBeExcluded = excludeLabelWithDirSet.contains(includeExcludeKey)
-        val shouldBeIncluded = includeLabelWithDirSet.contains(includeExcludeKey)
+          val includeExcludeKey = queryParam.labelWithDir.labelId -> queryParam.labelWithDir.dir
+          val shouldBeExcluded = excludeLabelWithDirSet.contains(includeExcludeKey)
+          val shouldBeIncluded = includeLabelWithDirSet.contains(includeExcludeKey)
 
-        queryResultWithFilter(queryRequestWithResult).foreach { edgeWithScore =>
-          val (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-          if (queryParam.transformer.isDefault) {
-            val convertedEdge = edge
+          queryResultWithFilter(queryRequestWithResult).foreach { edgeWithScore =>
+            val (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
+            if (queryParam.transformer.isDefault) {
+              val convertedEdge = edge
 
-            val (hashKey, filterHashKey) = toHashKey(queryParam, convertedEdge, isDegree)
-
-            /** check if this edge should be exlcuded. */
-            if (shouldBeExcluded && !isDegree) {
-              edgesToExclude.add(filterHashKey)
-            } else {
-              if (shouldBeIncluded && !isDegree) {
-                edgesToInclude.add(filterHashKey)
-              }
-              val tsVal = processTimeDecay(queryParam, convertedEdge)
-              val newScore = labelWeight * score * tsVal
-              aggregateScore(newScore, resultEdges, duplicateEdges, edgeWithScoreSorted, hashKey, filterHashKey, queryParam, convertedEdge)
-            }
-          } else {
-            convertEdges(queryParam, edge, nextStepOpt).foreach { convertedEdge =>
               val (hashKey, filterHashKey) = toHashKey(queryParam, convertedEdge, isDegree)
 
               /** check if this edge should be exlcuded. */
-              if (shouldBeExcluded) {
+              if (shouldBeExcluded && !isDegree) {
                 edgesToExclude.add(filterHashKey)
               } else {
-                if (shouldBeIncluded) {
+                if (shouldBeIncluded && !isDegree) {
                   edgesToInclude.add(filterHashKey)
                 }
                 val tsVal = processTimeDecay(queryParam, convertedEdge)
                 val newScore = labelWeight * score * tsVal
                 aggregateScore(newScore, resultEdges, duplicateEdges, edgeWithScoreSorted, hashKey, filterHashKey, queryParam, convertedEdge)
               }
+            } else {
+              convertEdges(queryParam, edge, nextStepOpt).foreach { convertedEdge =>
+                val (hashKey, filterHashKey) = toHashKey(queryParam, convertedEdge, isDegree)
+
+                /** check if this edge should be exlcuded. */
+                if (shouldBeExcluded) {
+                  edgesToExclude.add(filterHashKey)
+                } else {
+                  if (shouldBeIncluded) {
+                    edgesToInclude.add(filterHashKey)
+                  }
+                  val tsVal = processTimeDecay(queryParam, convertedEdge)
+                  val newScore = labelWeight * score * tsVal
+                  aggregateScore(newScore, resultEdges, duplicateEdges, edgeWithScoreSorted, hashKey, filterHashKey, queryParam, convertedEdge)
+                }
+              }
             }
+            isDegree = false
           }
-          isDegree = false
+          val ret = (duplicateEdges, resultEdges, edgeWithScoreSorted)
+          queryParamResultLs.append(ret)
         }
-        val ret = (duplicateEdges, resultEdges, edgeWithScoreSorted)
-        queryParamResultLs.append(ret)
+
+        val aggregatedResults = for {
+          (queryRequestWithResult, queryParamResult) <- queryRequestWithResultLs.zip(queryParamResultLs)
+        } yield {
+            aggregateResults(queryRequestWithResult, queryParamResult, edgesToInclude, edgesToExclude)
+          }
+
+        aggregatedResults
       }
-
-      val aggregatedResults = for {
-        (queryRequestWithResult, queryParamResult) <- queryRequestWithResultLs.zip(queryParamResultLs)
-      } yield {
-          aggregateResults(queryRequestWithResult, queryParamResult, edgesToInclude, edgesToExclude)
-        }
-
-      aggregatedResults
     }
   }
 
