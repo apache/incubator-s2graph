@@ -61,8 +61,10 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
               // logging
               log.error(s"BAD_REQUEST: $policy $counts")
               Nil
-            case _ =>
-              throw new RuntimeException(s"update failed: $policy $counts")
+            case rc: Int =>
+//              throw new RuntimeException(s"update failed($rc): $policy $counts")
+              log.error(s"update failed($rc): $policy $counts")
+              Nil
           }
         }
       }
