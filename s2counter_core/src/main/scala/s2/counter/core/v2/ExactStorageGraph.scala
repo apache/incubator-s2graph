@@ -57,6 +57,10 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
               } yield {
                 (key, (eq, result))
               }
+            case HttpStatus.SC_BAD_REQUEST =>
+              // logging
+              log.error(s"BAD_REQUEST: $policy $counts")
+              Nil
             case _ =>
               throw new RuntimeException(s"update failed: $policy $counts")
           }
