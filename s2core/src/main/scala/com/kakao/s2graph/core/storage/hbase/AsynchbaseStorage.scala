@@ -44,7 +44,7 @@ object AsynchbaseStorage {
   }
 }
 
-class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]], vertexCache: Cache[Integer, Option[Vertex]])
+class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[Vertex]])
                        (implicit ec: ExecutionContext) extends Storage {
 
   import AsynchbaseStorage._
@@ -57,7 +57,8 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   val queryBuilder = new AsynchbaseQueryBuilder(this)(ec)
   val mutationBuilder = new AsynchbaseMutationBuilder(this)(ec)
 
-  val cacheOpt = Option(cache)
+//  val cacheOpt = Option(cache)
+  val cacheOpt = None
   val vertexCacheOpt = Option(vertexCache)
 
   private val clientWithFlush = AsynchbaseStorage.makeClient(config, "hbase.rpcs.buffered_flush_interval" -> "0")

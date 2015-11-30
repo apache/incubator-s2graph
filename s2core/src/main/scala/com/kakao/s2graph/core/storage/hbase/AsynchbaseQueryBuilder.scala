@@ -1,7 +1,10 @@
 package com.kakao.s2graph.core.storage.hbase
 
 import java.util
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
+import com.google.common.cache.CacheBuilder
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.LabelMeta
 import com.kakao.s2graph.core.storage.QueryBuilder
@@ -13,12 +16,13 @@ import org.hbase.async.GetRequest
 
 import scala.collection.JavaConversions._
 import scala.collection.{Map, Seq}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Promise, ExecutionContext, Future}
 
 class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionContext)
   extends QueryBuilder[GetRequest, Deferred[QueryRequestWithResult]](storage) {
 
   import Extensions.DeferOps
+
 
   override def buildRequest(queryRequest: QueryRequest): GetRequest = {
     val srcVertex = queryRequest.vertex
@@ -44,7 +48,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
     val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
     val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
     val currentTs = System.currentTimeMillis()
-    val propsWithTs =  Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs)).toMap
+    val propsWithTs = Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs)).toMap
     val edge = Edge(srcV, tgtV, labelWithDir, propsWithTs = propsWithTs)
 
     val get = if (tgtVertexIdOpt.isDefined) {
@@ -86,12 +90,16 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
     fetch(queryRequest, 1.0, isInnerCall = true, parentEdges = Nil)
   }
 
+  val maxSize = storage.config.getInt("future.cache.max.size")
+  val futureCache = CacheBuilder.newBuilder()
+  .maximumSize(maxSize).build[java.lang.Long, (Long, Deferred[QueryRequestWithResult])]()
+
   override def fetch(queryRequest: QueryRequest,
                      prevStepScore: Double,
                      isInnerCall: Boolean,
                      parentEdges: Seq[EdgeWithScore]): Deferred[QueryRequestWithResult] = {
 
-    def fetchInner: Deferred[QueryRequestWithResult] = {
+    def fetchInner = {
       val request = buildRequest(queryRequest)
       storage.client.get(request) withCallback { kvs =>
         val edgeWithScores = storage.toEdges(kvs.toSeq, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
@@ -101,45 +109,51 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
         QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
       }
     }
+    val queryParam = queryRequest.queryParam
+    val cacheTTL = queryParam.cacheTTLInMillis
+    if (cacheTTL <= 0) fetchInner
+    else {
+      val request = buildRequest(queryRequest)
+      val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
+      val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
 
-    storage.cacheOpt match {
-      case None => fetchInner
-      case Some(cache) =>
-        val queryParam = queryRequest.queryParam
-        val request = buildRequest(queryRequest)
-        val cacheKey = queryParam.toCacheKey(toCacheKeyBytes(request))
-
-        def setCacheAfterFetch: Deferred[QueryRequestWithResult] =
-          fetchInner withCallback { queryResult: QueryRequestWithResult =>
-            cache.put(cacheKey, Seq(queryResult.queryResult))
-            queryResult
+      val cacheVal = futureCache.getIfPresent(cacheKey)
+      cacheVal match {
+        case null =>
+          // here there is no promise set up for this cacheKey so we need to set promise on future cache.
+          val promise = new Deferred[QueryRequestWithResult]()
+          val oldVal = futureCache.asMap().putIfAbsent(cacheKey, (System.currentTimeMillis(), promise))
+          if (oldVal == null) {
+            // this case, we run defer which will fill out out promise that is stored on future cache table.
+            fetchInner withCallback { queryRequestWithResult =>
+              promise.callback(queryRequestWithResult)
+              queryRequestWithResult
+            }
           }
-        if (queryParam.cacheTTLInMillis > 0) {
-          val cacheTTL = queryParam.cacheTTLInMillis
-          if (cache.asMap().containsKey(cacheKey)) {
-            val cachedVal = cache.asMap().get(cacheKey)
-            if (cachedVal != null && cachedVal.nonEmpty && queryParam.timestamp - cachedVal.head.timestamp < cacheTTL)
-              Deferred.fromResult(QueryRequestWithResult(queryRequest, cachedVal.head))
-            else
-              setCacheAfterFetch
-          } else
-            setCacheAfterFetch
-        } else {
-          fetchInner
-        }
+          // we are sure that at least one thread have set promise.
+          val (cachedAt, defer) = futureCache.getIfPresent(cacheKey)
+          if (System.currentTimeMillis() >= cachedAt + cacheTTL) futureCache.asMap().remove(cacheKey)
+          defer
+        case (cachedAt, defer) =>
+          if (System.currentTimeMillis() >= cachedAt + cacheTTL) futureCache.asMap().remove(cacheKey)
+          defer
+      }
     }
   }
+
 
   override def toCacheKeyBytes(getRequest: GetRequest): Array[Byte] = {
     var bytes = getRequest.key()
     Option(getRequest.family()).foreach(family => bytes = Bytes.add(bytes, family))
-    Option(getRequest.qualifiers()).foreach { qualifiers =>
-      qualifiers.filter(q => Option(q).isDefined).foreach { qualifier =>
-        bytes = Bytes.add(bytes, qualifier)
-      }
+    Option(getRequest.qualifiers()).foreach {
+      qualifiers =>
+        qualifiers.filter(q => Option(q).isDefined).foreach {
+          qualifier =>
+            bytes = Bytes.add(bytes, qualifier)
+        }
     }
-//    if (getRequest.family() != null) bytes = Bytes.add(bytes, getRequest.family())
-//    if (getRequest.qualifiers() != null) getRequest.qualifiers().filter(_ != null).foreach(q => bytes = Bytes.add(bytes, q))
+    //    if (getRequest.family() != null) bytes = Bytes.add(bytes, getRequest.family())
+    //    if (getRequest.qualifiers() != null) getRequest.qualifiers().filter(_ != null).foreach(q => bytes = Bytes.add(bytes, q))
     bytes
   }
 
@@ -149,19 +163,20 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
     val defers: Seq[Deferred[QueryRequestWithResult]] = for {
       (queryRequest, prevStepScore) <- queryRequestWithScoreLs
     } yield {
-      val prevStepEdgesOpt = prevStepEdges.get(queryRequest.vertex.id)
-      if (prevStepEdgesOpt.isEmpty) throw new RuntimeException("miss match on prevStepEdge and current GetRequest")
+        val prevStepEdgesOpt = prevStepEdges.get(queryRequest.vertex.id)
+        if (prevStepEdgesOpt.isEmpty) throw new RuntimeException("miss match on prevStepEdge and current GetRequest")
 
-      val parentEdges = for {
-        parentEdge <- prevStepEdgesOpt.get
-      } yield parentEdge
+        val parentEdges = for {
+          parentEdge <- prevStepEdgesOpt.get
+        } yield parentEdge
 
-      fetch(queryRequest, prevStepScore, isInnerCall = true, parentEdges)
-    }
+        fetch(queryRequest, prevStepScore, isInnerCall = true, parentEdges)
+      }
 
     val grouped: Deferred[util.ArrayList[QueryRequestWithResult]] = Deferred.group(defers)
-    grouped withCallback { queryResults: util.ArrayList[QueryRequestWithResult] =>
-      queryResults.toIndexedSeq
+    grouped withCallback {
+      queryResults: util.ArrayList[QueryRequestWithResult] =>
+        queryResults.toIndexedSeq
     } toFuture
   }
 }
