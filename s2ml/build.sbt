@@ -27,6 +27,8 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 )
 
+crossScalaVersions := Seq("2.10.6")
+
 assemblySettings
 
 mergeStrategy in assembly := {
