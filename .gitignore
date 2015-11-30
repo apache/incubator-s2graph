@@ -80,3 +80,9 @@ project/boot/
 .history
 .cache
 
+
+# Vagrant
+.vagrant
+
+
+/logs/
