@@ -134,7 +134,7 @@ object WalLogToHDFS extends SparkApp with WithKafka {
         (_: Nothing) => ()
       }
 
-      splits.foreach { split =>
+      (Array("all") ++ splits).foreach { split =>
         val path = s"$outputPath/split=$split/date_id=$dateId/ts=$ts"
         hiveContext.sql(s"use $hiveDatabase")
         hiveContext.sql(s"alter table $hiveTable add partition (split='$split', date_id='$dateId', ts='$ts') location '$path'")
