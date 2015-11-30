@@ -16,7 +16,7 @@ import scala.collection.{Map, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 
 class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionContext)
-  extends QueryBuilder[GetRequest, Deferred[QueryResult]](storage) {
+  extends QueryBuilder[GetRequest, Deferred[QueryRequestWithResult]](storage) {
 
   import Extensions.DeferOps
 
@@ -78,16 +78,27 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
     get
   }
 
-  override def fetch(queryRequest: QueryRequest): Deferred[QueryResult] = {
+  override def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean): Deferred[QueryRequestWithResult] = {
+    //TODO:
+    val _queryParam = queryParam.tgtVertexInnerIdOpt(Option(tgtVertex.innerId))
+    val q = Query.toQuery(Seq(srcVertex), _queryParam)
+    val queryRequest = QueryRequest(q, 0, srcVertex, _queryParam)
+    fetch(queryRequest, 1.0, isInnerCall = true, parentEdges = Nil)
+  }
 
-    def fetchInner: Deferred[QueryResult] = {
+  override def fetch(queryRequest: QueryRequest,
+                     prevStepScore: Double,
+                     isInnerCall: Boolean,
+                     parentEdges: Seq[EdgeWithScore]): Deferred[QueryRequestWithResult] = {
+
+    def fetchInner: Deferred[QueryRequestWithResult] = {
       val request = buildRequest(queryRequest)
       storage.client.get(request) withCallback { kvs =>
-        val edgeWithScores = storage.toEdges(kvs.toSeq, queryRequest.queryParam, queryRequest.prevStepScore, queryRequest.isInnerCall, queryRequest.parentEdges)
-        QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam, edgeWithScores)
+        val edgeWithScores = storage.toEdges(kvs.toSeq, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
+        QueryRequestWithResult(queryRequest, QueryResult(edgeWithScores))
       } recoverWith { ex =>
         logger.error(s"fetchQueryParam failed. fallback return.", ex)
-        QueryResult(queryRequest.query, queryRequest.stepIdx, queryRequest.queryParam, isFailure = true)
+        QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
       }
     }
 
@@ -98,9 +109,9 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
         val request = buildRequest(queryRequest)
         val cacheKey = queryParam.toCacheKey(toCacheKeyBytes(request))
 
-        def setCacheAfterFetch: Deferred[QueryResult] =
-          fetchInner withCallback { queryResult: QueryResult =>
-            cache.put(cacheKey, Seq(queryResult))
+        def setCacheAfterFetch: Deferred[QueryRequestWithResult] =
+          fetchInner withCallback { queryResult: QueryRequestWithResult =>
+            cache.put(cacheKey, Seq(queryResult.queryResult))
             queryResult
           }
         if (queryParam.cacheTTLInMillis > 0) {
@@ -108,15 +119,13 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
           if (cache.asMap().containsKey(cacheKey)) {
             val cachedVal = cache.asMap().get(cacheKey)
             if (cachedVal != null && cachedVal.nonEmpty && queryParam.timestamp - cachedVal.head.timestamp < cacheTTL)
-              Deferred.fromResult(cachedVal.head)
+              Deferred.fromResult(QueryRequestWithResult(queryRequest, cachedVal.head))
             else
               setCacheAfterFetch
           } else
             setCacheAfterFetch
         } else {
-          fetchInner withCallback { queryResult: QueryResult =>
-            queryResult
-          }
+          fetchInner
         }
     }
   }
@@ -134,19 +143,11 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
     bytes
   }
 
-  override def getEdge(srcVertex: Vertex, tgtVertex: Vertex, queryParam: QueryParam, isInnerCall: Boolean): Deferred[QueryResult] = {
-    //TODO:
-    val _queryParam = queryParam.tgtVertexInnerIdOpt(Option(tgtVertex.innerId))
-    val q = Query.toQuery(Seq(srcVertex), _queryParam)
-    val queryRequest = QueryRequest(q, 0, srcVertex, _queryParam, 1.0, Option(tgtVertex), isInnerCall = true)
-    val fallback = QueryResult(q, 0, queryParam)
-    fetch(queryRequest)
-  }
 
-  override def fetches(queryRequests: Seq[QueryRequest],
-                       prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[QueryResult]] = {
-    val defers: Seq[Deferred[QueryResult]] = for {
-      queryRequest <- queryRequests
+  override def fetches(queryRequestWithScoreLs: Seq[(QueryRequest, Double)],
+                       prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[QueryRequestWithResult]] = {
+    val defers: Seq[Deferred[QueryRequestWithResult]] = for {
+      (queryRequest, prevStepScore) <- queryRequestWithScoreLs
     } yield {
       val prevStepEdgesOpt = prevStepEdges.get(queryRequest.vertex.id)
       if (prevStepEdgesOpt.isEmpty) throw new RuntimeException("miss match on prevStepEdge and current GetRequest")
@@ -155,11 +156,11 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
         parentEdge <- prevStepEdgesOpt.get
       } yield parentEdge
 
-      val newQueryRequest = queryRequest.copy(parentEdges = parentEdges)
-      fetch(newQueryRequest)
+      fetch(queryRequest, prevStepScore, isInnerCall = true, parentEdges)
     }
-    val grouped: Deferred[util.ArrayList[QueryResult]] = Deferred.group(defers)
-    grouped withCallback { queryResults: util.ArrayList[QueryResult] =>
+
+    val grouped: Deferred[util.ArrayList[QueryRequestWithResult]] = Deferred.group(defers)
+    grouped withCallback { queryResults: util.ArrayList[QueryRequestWithResult] =>
       queryResults.toIndexedSeq
     } toFuture
   }

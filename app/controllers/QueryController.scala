@@ -33,7 +33,7 @@ object QueryController extends Controller with RequestParser {
     getEdgesExcludedInner(request.body)
   }
 
-  private def eachQuery(post: (Seq[QueryResult], Seq[QueryResult]) => JsValue)(q: Query): Future[JsValue] = {
+  private def eachQuery(post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue)(q: Query): Future[JsValue] = {
     val filterOutQueryResultsLs = q.filterOutQuery match {
       case Some(filterOutQuery) => s2.getEdges(filterOutQuery)
       case None => Future.successful(Seq.empty)
@@ -55,7 +55,7 @@ object QueryController extends Controller with RequestParser {
   }
 
   private def getEdgesAsync(jsonQuery: JsValue)
-                           (post: (Seq[QueryResult], Seq[QueryResult]) => JsValue): Future[Result] = {
+                           (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[Result] = {
     if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
     val fetch = eachQuery(post) _
 //    logger.info(jsonQuery)
@@ -81,7 +81,7 @@ object QueryController extends Controller with RequestParser {
 
   @deprecated(message = "deprecated", since = "0.2")
   private def getEdgesExcludedAsync(jsonQuery: JsValue)
-                                   (post: (Seq[QueryResult], Seq[QueryResult]) => JsValue): Future[Result] = {
+                                   (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[Result] = {
 
     if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
@@ -248,13 +248,14 @@ object QueryController extends Controller with RequestParser {
           (src, tgt, QueryParam(LabelWithDirection(label.id.get, dir)))
         }
 
-      s2.checkEdges(quads).map { case queryResultLs =>
+      s2.checkEdges(quads).map { case queryRequestWithResultLs =>
         val edgeJsons = for {
-          queryResult <- queryResultLs
+          queryRequestWithResult <- queryRequestWithResultLs
+          (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
           edgeWithScore <- queryResult.edgeWithScoreLs
           (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
           convertedEdge = if (isReverted) edge.duplicateEdge else edge
-          edgeJson = PostProcess.edgeToJson(convertedEdge, score, queryResult.query, queryResult.queryParam)
+          edgeJson = PostProcess.edgeToJson(convertedEdge, score, queryRequest.query, queryRequest.queryParam)
         } yield Json.toJson(edgeJson)
 
         val json = Json.toJson(edgeJsons)

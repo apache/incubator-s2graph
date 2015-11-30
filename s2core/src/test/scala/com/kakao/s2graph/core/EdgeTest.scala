@@ -1,6 +1,149 @@
-//package com.kakao.s2graph.core
-//
-//import com.kakao.s2graph.core.Edge.PropsPairWithTs
+package com.kakao.s2graph.core
+
+import com.kakao.s2graph.core.mysqls.LabelMeta
+import com.kakao.s2graph.core.types.{InnerVal, InnerValLikeWithTs, VertexId}
+import com.kakao.s2graph.core.utils.logger
+import org.scalatest.FunSuite
+
+class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
+  test("buildOperation") {
+    val schemaVersion = "v2"
+    val vertexId = VertexId(0, InnerVal.withStr("dummy", schemaVersion))
+    val srcVertex = Vertex(vertexId)
+    val tgtVertex = srcVertex
+
+    val timestampProp = LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
+
+    val snapshotEdge = None
+    val propsWithTs = Map(timestampProp)
+    val requestEdge = Edge(srcVertex, tgtVertex, labelWithDirV2, propsWithTs = propsWithTs)
+    val newVersion = 0L
+
+    val newPropsWithTs = Map(
+      timestampProp,
+      1.toByte -> InnerValLikeWithTs(InnerVal.withBoolean(false, schemaVersion), 1)
+    )
+
+    val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
+    logger.info(edgeMutate.toLogString)
+
+    assert(edgeMutate.newInvertedEdge.isDefined)
+    assert(edgeMutate.edgesToInsert.nonEmpty)
+    assert(edgeMutate.edgesToDelete.isEmpty)
+  }
+
+  test("buildMutation: snapshotEdge: None with newProps") {
+    val schemaVersion = "v2"
+    val vertexId = VertexId(0, InnerVal.withStr("dummy", schemaVersion))
+    val srcVertex = Vertex(vertexId)
+    val tgtVertex = srcVertex
+
+    val timestampProp = LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
+
+    val snapshotEdge = None
+    val propsWithTs = Map(timestampProp)
+    val requestEdge = Edge(srcVertex, tgtVertex, labelWithDirV2, propsWithTs = propsWithTs)
+    val newVersion = 0L
+
+    val newPropsWithTs = Map(
+      timestampProp,
+      1.toByte -> InnerValLikeWithTs(InnerVal.withBoolean(false, schemaVersion), 1)
+    )
+
+    val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
+    logger.info(edgeMutate.toLogString)
+
+    assert(edgeMutate.newInvertedEdge.isDefined)
+    assert(edgeMutate.edgesToInsert.nonEmpty)
+    assert(edgeMutate.edgesToDelete.isEmpty)
+  }
+
+  test("buildMutation: oldPropsWithTs == newPropsWithTs, Drop all requests") {
+    val schemaVersion = "v2"
+    val vertexId = VertexId(0, InnerVal.withStr("dummy", schemaVersion))
+    val srcVertex = Vertex(vertexId)
+    val tgtVertex = srcVertex
+
+    val timestampProp = LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
+
+    val snapshotEdge = None
+    val propsWithTs = Map(timestampProp)
+    val requestEdge = Edge(srcVertex, tgtVertex, labelWithDirV2, propsWithTs = propsWithTs)
+    val newVersion = 0L
+
+    val newPropsWithTs = propsWithTs
+
+    val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
+    logger.info(edgeMutate.toLogString)
+
+    assert(edgeMutate.newInvertedEdge.isEmpty)
+    assert(edgeMutate.edgesToInsert.isEmpty)
+    assert(edgeMutate.edgesToDelete.isEmpty)
+  }
+
+  test("buildMutation: All props older than snapshotEdge's LastDeletedAt") {
+    val schemaVersion = "v2"
+    val vertexId = VertexId(0, InnerVal.withStr("dummy", schemaVersion))
+    val srcVertex = Vertex(vertexId)
+    val tgtVertex = srcVertex
+
+    val timestampProp = LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
+    val oldPropsWithTs = Map(
+      timestampProp,
+      LabelMeta.lastDeletedAt -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 3)
+    )
+
+    val propsWithTs = Map(
+      timestampProp,
+      3.toByte -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 2),
+      LabelMeta.lastDeletedAt -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 3)
+    )
+
+    val snapshotEdge =
+      Option(Edge(srcVertex, tgtVertex, labelWithDirV2, op = GraphUtil.operations("delete"), propsWithTs = oldPropsWithTs))
+
+    val requestEdge = Edge(srcVertex, tgtVertex, labelWithDirV2, propsWithTs = propsWithTs)
+    val newVersion = 0L
+    val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
+    logger.info(edgeMutate.toLogString)
+
+    assert(edgeMutate.newInvertedEdge.nonEmpty)
+    assert(edgeMutate.edgesToInsert.isEmpty)
+    assert(edgeMutate.edgesToDelete.isEmpty)
+  }
+
+  test("buildMutation: All props newer than snapshotEdge's LastDeletedAt") {
+    val schemaVersion = "v2"
+    val vertexId = VertexId(0, InnerVal.withStr("dummy", schemaVersion))
+    val srcVertex = Vertex(vertexId)
+    val tgtVertex = srcVertex
+
+    val timestampProp = LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
+    val oldPropsWithTs = Map(
+      timestampProp,
+      LabelMeta.lastDeletedAt -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 3)
+    )
+
+    val propsWithTs = Map(
+      timestampProp,
+      3.toByte -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 4),
+      LabelMeta.lastDeletedAt -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 3)
+    )
+
+    val snapshotEdge =
+      Option(Edge(srcVertex, tgtVertex, labelWithDirV2, op = GraphUtil.operations("delete"), propsWithTs = oldPropsWithTs))
+
+    val requestEdge = Edge(srcVertex, tgtVertex, labelWithDirV2, propsWithTs = propsWithTs)
+    val newVersion = 0L
+    val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
+    logger.info(edgeMutate.toLogString)
+
+    assert(edgeMutate.newInvertedEdge.nonEmpty)
+    assert(edgeMutate.edgesToInsert.nonEmpty)
+    assert(edgeMutate.edgesToDelete.isEmpty)
+  }
+}
+
 //import com.kakao.s2graph.core.types._
 //import org.hbase.async.PutRequest
 //import org.scalatest.{FunSuite, Matchers}

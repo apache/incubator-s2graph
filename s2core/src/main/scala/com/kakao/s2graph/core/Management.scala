@@ -459,11 +459,11 @@ object Management extends JSONParser {
   }
 
   // we only use murmur hash to distribute row key.
-  private def getStartKey(regionCount: Int) = {
+  def getStartKey(regionCount: Int): Array[Byte] = {
     Bytes.toBytes((Int.MaxValue / regionCount))
   }
 
-  private def getEndKey(regionCount: Int) = {
+  def getEndKey(regionCount: Int): Array[Byte] = {
     Bytes.toBytes((Int.MaxValue / regionCount * (regionCount - 1)))
   }
 

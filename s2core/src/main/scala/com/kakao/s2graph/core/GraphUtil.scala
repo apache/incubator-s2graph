@@ -1,5 +1,6 @@
 package com.kakao.s2graph.core
 
+import scala.util.Random
 import scala.util.hashing.MurmurHash3
 import java.util.regex.Pattern
 import play.api.libs.json.Json
@@ -99,15 +100,20 @@ object GraphUtil {
   //    ret.toByte
   //  }
   // 2^31 - 1
+
   def transformHash(h: Int): Int = {
     //    h / 2 + (Int.MaxValue / 2 - 1)
     if (h < 0) -1 * (h + 1) else h
   }
-
+  def murmur3Int(s: String): Int = {
+    val hash = MurmurHash3.stringHash(s)
+    transformHash(hash)
+  }
   def murmur3(s: String): Short = {
     val hash = MurmurHash3.stringHash(s)
     val positiveHash = transformHash(hash) >> BitsForMurMurHash
     positiveHash.toShort
+//    Random.nextInt(Short.MaxValue).toShort
   }
 
   def smartSplit(s: String, delemiter: String) = {
