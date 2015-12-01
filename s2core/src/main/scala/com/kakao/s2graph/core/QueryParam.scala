@@ -1,5 +1,6 @@
 package com.kakao.s2graph.core
 
+import com.google.common.hash.Hashing
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.{Where, WhereParser}
 import com.kakao.s2graph.core.storage.hbase.AsynchbaseQueryBuilder
@@ -44,6 +45,16 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  withScore: Boolean = true,
                  returnTree: Boolean = false) {
 
+  def cacheKeyBytes: Array[Byte] = {
+    val selectBytes = Bytes.toBytes(selectColumns.toString)
+    val groupBytes = Bytes.toBytes(groupByColumns.toString)
+    val orderByBytes = Bytes.toBytes(orderByColumns.toString)
+    val filterOutBytes = filterOutQuery.map(_.cacheKeyBytes).getOrElse(Array.empty[Byte])
+    val returnTreeBytes = Bytes.toBytes(returnTree)
+
+    Seq(selectBytes, groupBytes, orderByBytes, filterOutBytes, returnTreeBytes).foldLeft(Array.empty[Byte])(Bytes.add)
+  }
+
   lazy val selectColumnsSet = selectColumns.map { c =>
     if (c == "_from") "from"
     else if (c == "_to") "to"
@@ -84,6 +95,8 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
     fields <- target
   } yield fields
   val isDefault = fieldsLs.size == 1 && fieldsLs.head.size == 1 && (fieldsLs.head.head == "_to" || fieldsLs.head.head == "to")
+
+  def toHashKeyBytes: Array[Byte] = if (isDefault) Array.empty[Byte] else Bytes.toBytes(jsValue.toString)
 
   def replace(fmt: String,
               values: Seq[InnerValLike],
@@ -163,9 +176,10 @@ case class Step(queryParams: List[QueryParam],
   lazy val includes = queryParams.filterNot(_.exclude)
   lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 
-  def toCacheKey(lss: Seq[Int]): Int = MurmurHash3.bytesHash(toCacheKeyRaw(lss))
+  def toCacheKey(lss: Seq[Long]): Long = Hashing.murmur3_128().hashBytes(toCacheKeyRaw(lss)).asLong()
+//    MurmurHash3.bytesHash(toCacheKeyRaw(lss))
 
-  def toCacheKeyRaw(lss: Seq[Int]): Array[Byte] = {
+  def toCacheKeyRaw(lss: Seq[Long]): Array[Byte] = {
     var bytes = Array.empty[Byte]
     lss.sorted.foreach { h => bytes = Bytes.add(bytes, Bytes.toBytes(h)) }
     bytes
@@ -272,14 +286,21 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
    * @param bytes
    * @return
    */
-  def toCacheKey(bytes: Array[Byte]): Int = {
+  def toCacheKey(bytes: Array[Byte]): Long = {
     val hashBytes = toCacheKeyRaw(bytes)
-    MurmurHash3.bytesHash(hashBytes)
+    Hashing.murmur3_128().hashBytes(hashBytes).asLong()
+//    MurmurHash3.bytesHash(hashBytes)
   }
 
   def toCacheKeyRaw(bytes: Array[Byte]): Array[Byte] = {
+    val transformBytes = transformer.toHashKeyBytes
+    //TODO: change this to binrary format.
+    val whereBytes = Bytes.toBytes(where.toString())
+    val durationBytes = duration.map { case (min, max) => Bytes.add(Bytes.toBytes(min), Bytes.toBytes(max)) } getOrElse Array.empty[Byte]
+//    Bytes.toBytes(duration.toString)
+    val conditionBytes = Bytes.add(transformBytes, whereBytes, durationBytes)
     Bytes.add(Bytes.add(bytes, labelWithDir.bytes, toBytes(labelOrderSeq, offset, limit, isInverted)), rank.toHashKeyBytes(),
-      Bytes.add(columnRangeFilterMinBytes, columnRangeFilterMaxBytes))
+      Bytes.add(columnRangeFilterMinBytes, columnRangeFilterMaxBytes, conditionBytes))
   }
 
   def isInverted(isInverted: Boolean): QueryParam = {
