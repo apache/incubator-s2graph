@@ -112,22 +112,30 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
         QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
       }
     }
-    def checkAndExpire(request: GetRequest, cacheKey: Long, cacheTTL: Long, cachedAt: Long, defer: Deferred[QueryRequestWithResult]) = {
+    def checkAndExpire(request: GetRequest,
+                       cacheKey: Long,
+                       cacheTTL: Long,
+                       cachedAt: Long,
+                       defer: Deferred[QueryRequestWithResult]): Deferred[QueryRequestWithResult] = {
       if (System.currentTimeMillis() >= cachedAt + cacheTTL) {
+        // future is too old. so need to expire and fetch new data from storage.
         futureCache.asMap().remove(cacheKey)
-        val oldVal = futureCache.asMap().get(cacheKey)
-        oldVal match {
+        val newPromise = new Deferred[QueryRequestWithResult]()
+        futureCache.asMap().putIfAbsent(cacheKey, (System.currentTimeMillis(), newPromise)) match {
           case null =>
-            val newPromise = new Deferred[QueryRequestWithResult]()
+            // only one thread succeed to come here concurrently
+            // initiate fetch to storage then add callback on complete to finish promise.
             fetchInner(request) withCallback { queryRequestWithResult =>
               newPromise.callback(queryRequestWithResult)
               queryRequestWithResult
             }
-            futureCache.put(cacheKey, (System.currentTimeMillis(), newPromise))
+            newPromise
+          case (cachedAt, oldDefer) => oldDefer
         }
-        val (_, oldDefer) = futureCache.asMap().get(cacheKey)
-        oldDefer
-      } else defer
+      } else {
+        // future is not to old so reuse it.
+        defer
+      }
     }
 
     val queryParam = queryRequest.queryParam
@@ -143,14 +151,16 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
         case null =>
           // here there is no promise set up for this cacheKey so we need to set promise on future cache.
           val promise = new Deferred[QueryRequestWithResult]()
-          fetchInner(request) withCallback { queryRequestWithResult =>
-            promise.callback(queryRequestWithResult)
-            queryRequestWithResult
+          val now = System.currentTimeMillis()
+          val (cachedAt, defer) = futureCache.asMap().putIfAbsent(cacheKey, (now, promise)) match {
+            case null =>
+              fetchInner(request) withCallback { queryRequestWithResult =>
+                promise.callback(queryRequestWithResult)
+                queryRequestWithResult
+              }
+              (now, promise)
+            case oldVal => oldVal
           }
-          futureCache.put(cacheKey, (System.currentTimeMillis(), promise))
-
-          // we are sure that at least one thread have set promise.
-          val (cachedAt, defer) = futureCache.asMap().get(cacheKey)
           checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
         case (cachedAt, defer) =>
           checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
