@@ -231,6 +231,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   var labelOrderSeq = fullKey
 
+  var sample = -1
   var limit = 10
   var offset = 0
   var rank = new RankParam(labelWithDir.labelId, List(LabelMeta.countSeq -> 1))
@@ -289,6 +290,11 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   def labelOrderSeq(labelOrderSeq: Byte): QueryParam = {
     this.labelOrderSeq = labelOrderSeq
+    this
+  }
+
+  def sample(n: Int): QueryParam = {
+    this.sample = n
     this
   }
 

@@ -11,9 +11,11 @@ import com.stumbleupon.async.Deferred
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.GetRequest
 
+import scala.annotation.tailrec
 import scala.collection.JavaConversions._
 import scala.collection.{Map, Seq}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Random
 
 class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionContext)
   extends QueryBuilder[GetRequest, Deferred[QueryRequestWithResult]](storage) {
@@ -91,11 +93,35 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
                      isInnerCall: Boolean,
                      parentEdges: Seq[EdgeWithScore]): Deferred[QueryRequestWithResult] = {
 
+    def sample(edges: Seq[EdgeWithScore], n: Int): Seq[EdgeWithScore] = {
+      val pureEdges = (if (queryRequest.queryParam.offset == 0) {
+        edges.filterNot { case x => x.edge.propsPlusTs.contains(LabelMeta.degreeSeq) }
+      } else edges).toArray
+
+      val sampled = new Array[EdgeWithScore](n)
+      val N = pureEdges.size // population
+      var t = 0 // total input records dealt with
+      var m = 0 // number of items selected so far
+
+      while (m < n) {
+        val u = Random.nextDouble()
+        if ((N - t) * u < n - m) {
+          sampled(m) = pureEdges(t)
+          m += 1
+        }
+        t += 1
+      }
+      sampled.toSeq
+    }
+
     def fetchInner: Deferred[QueryRequestWithResult] = {
       val request = buildRequest(queryRequest)
       storage.client.get(request) withCallback { kvs =>
         val edgeWithScores = storage.toEdges(kvs.toSeq, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
-        QueryRequestWithResult(queryRequest, QueryResult(edgeWithScores))
+        val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0 ) {
+          sample(edgeWithScores, queryRequest.queryParam.sample)
+        } else edgeWithScores
+        QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores))
       } recoverWith { ex =>
         logger.error(s"fetchQueryParam failed. fallback return.", ex)
         QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
