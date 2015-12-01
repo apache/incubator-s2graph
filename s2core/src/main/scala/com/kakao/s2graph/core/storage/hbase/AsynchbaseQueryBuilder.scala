@@ -109,6 +109,22 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
         QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
       }
     }
+    def checkAndExpire(cacheKey: Long, cacheTTL: Long, cachedAt: Long, defer: Deferred[QueryRequestWithResult]) = {
+      if (System.currentTimeMillis() >= cachedAt + cacheTTL) {
+        futureCache.asMap().remove(cacheKey)
+        val newPromise = new Deferred[QueryRequestWithResult]()
+        futureCache.asMap().putIfAbsent(cacheKey, (System.currentTimeMillis(), newPromise)) match {
+          case null =>
+            fetchInner withCallback { queryRequestWithResult =>
+              newPromise.callback(queryRequestWithResult)
+              queryRequestWithResult
+            }
+            newPromise
+          case (cachedAt, oldDefer) => oldDefer
+        }
+      } else defer
+    }
+
     val queryParam = queryRequest.queryParam
     val cacheTTL = queryParam.cacheTTLInMillis
     if (cacheTTL <= 0) fetchInner
@@ -132,11 +148,9 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
           }
           // we are sure that at least one thread have set promise.
           val (cachedAt, defer) = futureCache.getIfPresent(cacheKey)
-          if (System.currentTimeMillis() >= cachedAt + cacheTTL) futureCache.asMap().remove(cacheKey)
-          defer
+          checkAndExpire(cacheKey, cacheTTL, cachedAt, defer)
         case (cachedAt, defer) =>
-          if (System.currentTimeMillis() >= cachedAt + cacheTTL) futureCache.asMap().remove(cacheKey)
-          defer
+          checkAndExpire(cacheKey, cacheTTL, cachedAt, defer)
       }
     }
   }
