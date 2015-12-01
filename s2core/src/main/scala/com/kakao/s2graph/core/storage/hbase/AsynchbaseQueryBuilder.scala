@@ -91,7 +91,11 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
   }
 
   val maxSize = storage.config.getInt("future.cache.max.size")
+  val futureCacheTTL = storage.config.getInt("future.cache.max.idle.ttl")
   val futureCache = CacheBuilder.newBuilder()
+  .initialCapacity(maxSize)
+  .concurrencyLevel(Runtime.getRuntime.availableProcessors())
+  .expireAfterAccess(futureCacheTTL, TimeUnit.MILLISECONDS)
   .maximumSize(maxSize).build[java.lang.Long, (Long, Deferred[QueryRequestWithResult])]()
 
   override def fetch(queryRequest: QueryRequest,
