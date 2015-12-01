@@ -27,7 +27,7 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
     logger.info(edgeMutate.toLogString)
 
-    assert(edgeMutate.newInvertedEdge.isDefined)
+    assert(edgeMutate.newSnapshotEdge.isDefined)
     assert(edgeMutate.edgesToInsert.nonEmpty)
     assert(edgeMutate.edgesToDelete.isEmpty)
   }
@@ -53,7 +53,7 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
     logger.info(edgeMutate.toLogString)
 
-    assert(edgeMutate.newInvertedEdge.isDefined)
+    assert(edgeMutate.newSnapshotEdge.isDefined)
     assert(edgeMutate.edgesToInsert.nonEmpty)
     assert(edgeMutate.edgesToDelete.isEmpty)
   }
@@ -76,7 +76,7 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
     logger.info(edgeMutate.toLogString)
 
-    assert(edgeMutate.newInvertedEdge.isEmpty)
+    assert(edgeMutate.newSnapshotEdge.isEmpty)
     assert(edgeMutate.edgesToInsert.isEmpty)
     assert(edgeMutate.edgesToDelete.isEmpty)
   }
@@ -107,7 +107,7 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
     logger.info(edgeMutate.toLogString)
 
-    assert(edgeMutate.newInvertedEdge.nonEmpty)
+    assert(edgeMutate.newSnapshotEdge.nonEmpty)
     assert(edgeMutate.edgesToInsert.isEmpty)
     assert(edgeMutate.edgesToDelete.isEmpty)
   }
@@ -138,7 +138,7 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
     logger.info(edgeMutate.toLogString)
 
-    assert(edgeMutate.newInvertedEdge.nonEmpty)
+    assert(edgeMutate.newSnapshotEdge.nonEmpty)
     assert(edgeMutate.edgesToInsert.nonEmpty)
     assert(edgeMutate.edgesToDelete.isEmpty)
   }

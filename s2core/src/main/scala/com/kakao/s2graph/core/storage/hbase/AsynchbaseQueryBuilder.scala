@@ -36,7 +36,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
     val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
     val (srcInnerId, tgtInnerId) = tgtVertexIdOpt match {
       case Some(tgtVertexId) => // _to is given.
-        /** we use toInvertedEdgeHashLike so dont need to swap src, tgt */
+        /** we use toSnapshotEdge so dont need to swap src, tgt */
         val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
         val tgt = InnerVal.convertVersion(tgtVertexId, tgtColumn.columnType, label.schemaVersion)
         (src, tgt)
