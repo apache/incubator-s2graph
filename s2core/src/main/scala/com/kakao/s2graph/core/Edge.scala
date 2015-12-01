@@ -119,7 +119,6 @@ case class Edge(srcVertex: Vertex,
                 tgtVertex: Vertex,
                 labelWithDir: LabelWithDirection,
                 op: Byte = GraphUtil.defaultOpByte,
-                //                ts: Long = System.currentTimeMillis(),
                 version: Long = System.currentTimeMillis(),
                 propsWithTs: Map[Byte, InnerValLikeWithTs],
                 parentEdges: Seq[EdgeWithScore] = Nil,
@@ -181,6 +180,8 @@ case class Edge(srcVertex: Vertex,
   override def queuePartitionKey = Seq(srcVertex.innerId, tgtVertex.innerId).mkString("|")
 
   override def isAsync = label.isAsync
+
+  def isDegree = propsWithTs.contains(LabelMeta.degreeSeq)
 
   def propsPlusTs = propsWithTs.get(LabelMeta.timeStampSeq) match {
     case Some(_) => props

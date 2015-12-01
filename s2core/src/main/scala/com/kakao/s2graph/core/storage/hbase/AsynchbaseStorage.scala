@@ -642,7 +642,7 @@ class AsynchbaseStorage(config: Config, cache: Cache[Integer, Seq[QueryResult]],
   private def buildEdgesToDelete(queryRequestWithResultLs: QueryRequestWithResult, requestTs: Long): QueryResult = {
     val (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResultLs).get
     val edgeWithScoreLs = queryResult.edgeWithScoreLs.filter { edgeWithScore =>
-      (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
+      (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.isDegree
     }.map { edgeWithScore =>
       val label = queryRequest.queryParam.label
       val newPropsWithTs = edgeWithScore.edge.propsWithTs ++

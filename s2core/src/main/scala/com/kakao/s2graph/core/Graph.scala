@@ -187,7 +187,7 @@ object Graph {
 
           // store degree value with Array.empty so if degree edge exist, it comes at very first.
           def checkDegree() = queryResult.edgeWithScoreLs.headOption.exists { edgeWithScore =>
-            edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
+            edgeWithScore.edge.isDegree
           }
           var isDegree = checkDegree()
 
