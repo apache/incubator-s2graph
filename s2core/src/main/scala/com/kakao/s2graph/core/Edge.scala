@@ -90,15 +90,15 @@ case class IndexEdge(srcVertex: Vertex,
     }
   }
 
-  lazy val ordersKeyMap = orders.map { case (byte, _) => byte }.toSet
-  lazy val metas = for ((k, v) <- props if !ordersKeyMap.contains(k)) yield k -> v
+  val ordersKeyMap = orders.map { case (byte, _) => byte }.toSet
+  val metas = for ((k, v) <- props if !ordersKeyMap.contains(k)) yield k -> v
 
-  lazy val propsWithTs = props.map { case (k, v) => k -> InnerValLikeWithTs(v, version) }
+  val propsWithTs = props.map { case (k, v) => k -> InnerValLikeWithTs(v, version) }
 
   //TODO:
   //  lazy val kvs = Graph.client.indexedEdgeSerializer(this).toKeyValues.toList
 
-  lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
+  val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
 
   def propsWithName = for {
     (seq, v) <- props
