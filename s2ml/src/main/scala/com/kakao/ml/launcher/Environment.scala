@@ -23,6 +23,8 @@ object Environment {
 
 trait Environment {
 
+  private val bulkDirSuffix = "bulk"
+
   def setJobId(jobId: String) {
     Environment.jobId = jobId
   }
@@ -53,6 +55,11 @@ trait Environment {
     Environment.rootDir
   }
 
+  lazy val bulkDir: String = {
+    require(Environment.rootDir != null)
+    Environment.rootDir + '/' + bulkDirSuffix
+  }
+
   lazy val sparkContext: SparkContext = {
     require(Environment.sparkContext != null)
     Environment.sparkContext
@@ -66,7 +73,7 @@ trait Environment {
         val fs = FileSystem.get(sparkContext.hadoopConfiguration)
         val status = fs.listStatus(new Path(rootDir)).map(_.getPath.getName)
         Environment.lastBatchId =
-            status.filter(_ != batchId) match {
+            status.filter(_ != bulkDirSuffix).filter(_ != batchId) match {
               case empty if empty.isEmpty => batchId
               case nonEmpty => nonEmpty.max
             }
