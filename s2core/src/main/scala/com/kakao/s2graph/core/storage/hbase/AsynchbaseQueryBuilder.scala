@@ -95,7 +95,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
 
     def sample(edges: Seq[EdgeWithScore], n: Int): Seq[EdgeWithScore] = {
       val pureEdges = (if (queryRequest.queryParam.offset == 0) {
-        edges.filterNot { case x => x.edge.propsPlusTs.contains(LabelMeta.degreeSeq) }
+        edges.tail
       } else edges).toArray
 
       val sampled = new Array[EdgeWithScore](n)
