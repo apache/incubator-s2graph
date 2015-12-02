@@ -2,8 +2,8 @@ package subscriber
 
 
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls.Label
-import com.kakao.s2graph.core.types.{LabelWithDirection, SourceVertexId}
+import com.kakao.s2graph.core.mysqls.{LabelMeta, Label}
+import com.kakao.s2graph.core.types.{InnerValLikeWithTs, LabelWithDirection, SourceVertexId}
 import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
@@ -55,10 +55,7 @@ object TransferToHFile extends SparkApp with JSONParser {
       direction = if (tempDirection != "out" && tempDirection != "in") "out" else tempDirection
       reverseDirection = if (direction == "out") "in" else "out"
       convertedLabelName = labelMapping.get(tokens(5)).getOrElse(tokens(5))
-      (vertexIdStr, vertexIdStrReversed) = direction match {
-        case "out" => (tokens(3), tokens(4))
-        case _ => (tokens(4), tokens(3))
-      }
+      (vertexIdStr, vertexIdStrReversed) = (tokens(3), tokens(4))
       degreeKey = DegreeKey(vertexIdStr, convertedLabelName, direction)
       degreeKeyReversed = DegreeKey(vertexIdStrReversed, convertedLabelName, reverseDirection)
       extra = if (edgeAutoCreate) List(degreeKeyReversed -> 1L) else Nil
@@ -80,8 +77,12 @@ object TransferToHFile extends SparkApp with JSONParser {
       throw new RuntimeException(s"$vertexId can not be converted into innerval")
     }
     val vertex = Vertex(SourceVertexId(label.srcColumn.id.get, innerVal))
+
+    val ts = System.currentTimeMillis()
+    val propsWithTs = Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion))
     val labelWithDir = LabelWithDirection(label.id.get, dir)
-    val edge = Edge(vertex, vertex, labelWithDir)
+    val edge = Edge(vertex, vertex, labelWithDir, propsWithTs=propsWithTs)
+
     edge.edgesWithIndex.flatMap { indexEdge =>
       GraphSubscriberHelper.g.storage.indexEdgeSerializer(indexEdge).toKeyValues.map { kv =>
         new PutRequest(kv.table, kv.row, kv.cf, Array.empty[Byte], Bytes.toBytes(degreeVal), kv.timestamp)
