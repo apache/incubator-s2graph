@@ -292,9 +292,11 @@ trait RequestParser extends JSONParser {
       val outputField = (labelGroup \ "outputField").asOpt[String].map(s => Json.arr(Json.arr(s)))
       val transformer = if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]
       val scorePropagateOp = (labelGroup \ "scorePropagateOp").asOpt[String].getOrElse("multiply")
+      val sample = (labelGroup \ "sample").asOpt[Int].getOrElse(-1)
 
       // FIXME: Order of command matter
       QueryParam(labelWithDir)
+        .sample(sample)
         .limit(offset, limit)
         .rank(RankParam(label.id.get, scoring))
         .exclude(exclude)
