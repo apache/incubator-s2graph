@@ -167,6 +167,7 @@ object IncrementalDataSource {
       case JDecimal(x) => x
       case JInt(x) => x
       case JBool(x) => x
+      case _ => null
     }
     // Schema for type Any is not supported
     v.toString
