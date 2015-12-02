@@ -9,17 +9,11 @@ val sparkVersion = "1.5.1"
 
 resolvers += "Sonatype OSS Releases" at "http://oss.sonatype.org/content/repositories/releases/"
 
-projectDependencies :=
-    Seq((projectID in "s2core").value
-        exclude("org.mortbay.jetty", "*") exclude("javax.xml.stream", "*") exclude("javax.servlet", "*"),
-      (projectID in "spark").value
-          exclude("s2.spark", "WithKafka")
-    )
-
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-mllib" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-hive" % sparkVersion % "provided",
+  "com.typesafe.play" %% "play-ws" % Common.playVersion,
   "org.json4s" %% "json4s-native" % "3.2.10",
   "com.github.mdr" %% "ascii-graphs" % "0.0.3",
   "com.github.nscala-time" %% "nscala-time" % "2.4.0",
