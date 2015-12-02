@@ -119,7 +119,6 @@ case class Edge(srcVertex: Vertex,
                 tgtVertex: Vertex,
                 labelWithDir: LabelWithDirection,
                 op: Byte = GraphUtil.defaultOpByte,
-                //                ts: Long = System.currentTimeMillis(),
                 version: Long = System.currentTimeMillis(),
                 propsWithTs: Map[Byte, InnerValLikeWithTs],
                 parentEdges: Seq[EdgeWithScore] = Nil,
@@ -181,6 +180,8 @@ case class Edge(srcVertex: Vertex,
   override def queuePartitionKey = Seq(srcVertex.innerId, tgtVertex.innerId).mkString("|")
 
   override def isAsync = label.isAsync
+
+  def isDegree = propsWithTs.contains(LabelMeta.degreeSeq)
 
   def propsPlusTs = propsWithTs.get(LabelMeta.timeStampSeq) match {
     case Some(_) => props
@@ -272,13 +273,13 @@ case class Edge(srcVertex: Vertex,
 
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],
-                      newInvertedEdge: Option[SnapshotEdge] = None) {
+                      newSnapshotEdge: Option[SnapshotEdge] = None) {
 
   def toLogString: String = {
     val l = (0 until 50).map(_ => "-").mkString("")
     val deletes = s"deletes: ${edgesToDelete.map(e => e.toLogString).mkString("\n")}"
     val inserts = s"inserts: ${edgesToInsert.map(e => e.toLogString).mkString("\n")}"
-    val updates = s"snapshot: ${newInvertedEdge.map(e => e.toLogString).mkString("\n")}"
+    val updates = s"snapshot: ${newSnapshotEdge.map(e => e.toLogString).mkString("\n")}"
 
     List("\n", l, deletes, inserts, updates, l, "\n").mkString("\n")
   }
@@ -377,7 +378,7 @@ object Edge extends JSONParser {
     if (oldPropsWithTs == newPropsWithTs) {
       // all requests should be dropped. so empty mutation.
       //      logger.error(s"Case 1")
-      EdgeMutate(edgesToDelete = Nil, edgesToInsert = Nil, newInvertedEdge = None)
+      EdgeMutate(edgesToDelete = Nil, edgesToInsert = Nil, newSnapshotEdge = None)
     } else {
       val withOutDeletedAt = newPropsWithTs.filter(kv => kv._1 != LabelMeta.lastDeletedAt)
       val newOp = snapshotEdgeOpt match {
@@ -394,7 +395,7 @@ object Edge extends JSONParser {
       if (withOutDeletedAt == oldPropsWithTs && newPropsWithTs.containsKey(LabelMeta.lastDeletedAt)) {
         // no mutation on indexEdges. only snapshotEdge should be updated to record lastDeletedAt.
         //        logger.error(s"Case 2")
-        EdgeMutate(edgesToDelete = Nil, edgesToInsert = Nil, newInvertedEdge = newSnapshotEdgeOpt)
+        EdgeMutate(edgesToDelete = Nil, edgesToInsert = Nil, newSnapshotEdge = newSnapshotEdgeOpt)
       } else {
         //        logger.error(s"Case 3")
         val edgesToDelete = snapshotEdgeOpt match {
@@ -410,7 +411,7 @@ object Edge extends JSONParser {
             requestEdge.copy(version = newVersion, propsWithTs = newPropsWithTs, op = GraphUtil.defaultOpByte).
               relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
 
-        EdgeMutate(edgesToDelete = edgesToDelete, edgesToInsert = edgesToInsert, newInvertedEdge = newSnapshotEdgeOpt)
+        EdgeMutate(edgesToDelete = edgesToDelete, edgesToInsert = edgesToInsert, newSnapshotEdge = newSnapshotEdgeOpt)
       }
     }
   }

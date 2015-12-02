@@ -16,7 +16,6 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
 
   private def parseDegreeQualifier(kv: SKeyValue, version: String): QualifierRaw = {
     val degree = Bytes.toLong(kv.value)
-    val ts = kv.timestamp
     val idxPropsRaw = Array(LabelMeta.degreeSeq -> InnerVal.withLong(degree, version))
     val tgtVertexIdRaw = VertexId(HBaseType.DEFAULT_COL_ID, InnerVal.withStr("0", version))
     (idxPropsRaw, tgtVertexIdRaw, GraphUtil.operations("insert"), false, 0)

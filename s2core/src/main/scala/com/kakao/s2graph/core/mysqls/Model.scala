@@ -36,24 +36,23 @@ object Model {
   }
 
   def withTx[T](block: DBSession => T): Try[T] = {
-    val conn = DB(ConnectionPool.borrow())
+    using(DB(ConnectionPool.borrow())) { conn =>
+      val res = Try {
+        conn.begin()
+        val session = conn.withinTxSession()
+        val result = block(session)
 
-    val res = Try {
-      conn.begin()
-      val session = conn.withinTxSession()
-      val result = block(session)
+        conn.commit()
 
-      conn.commit()
+        result
+      } recoverWith {
+        case e: Exception =>
+          conn.rollbackIfActive()
+          Failure(e)
+      }
 
-      result
-    } recoverWith {
-      case e: Exception =>
-        conn.rollbackIfActive()
-        Failure(e)
+      res
     }
-    conn.close()
-
-    res
   }
 }
 

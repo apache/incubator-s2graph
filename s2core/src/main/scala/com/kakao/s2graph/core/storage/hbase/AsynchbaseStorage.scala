@@ -136,7 +136,7 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
         val (_, edgeUpdate) = Edge.buildDeleteBulk(None, edge)
         val mutations =
           mutationBuilder.indexedEdgeMutations(edgeUpdate) ++
-            mutationBuilder.invertedEdgeMutations(edgeUpdate) ++
+            mutationBuilder.snapshotEdgeMutations(edgeUpdate) ++
             mutationBuilder.increments(edgeUpdate)
         writeAsyncSimple(zkQuorum, mutations, withWait)
       } else {
@@ -325,7 +325,7 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
 
   private def buildReleaseLockEdge(snapshotEdgeOpt: Option[Edge], lockEdge: SnapshotEdge, edgeMutate: EdgeMutate) = {
     val newVersion = lockEdge.version + 1
-    val base = edgeMutate.newInvertedEdge match {
+    val base = edgeMutate.newSnapshotEdge match {
       case None =>
         // shouldReplace false
         assert(snapshotEdgeOpt.isDefined)
@@ -537,7 +537,7 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
         val (_, edgeUpdate) = f(None, Seq(edge))
         val mutations =
           mutationBuilder.indexedEdgeMutations(edgeUpdate) ++
-            mutationBuilder.invertedEdgeMutations(edgeUpdate) ++
+            mutationBuilder.snapshotEdgeMutations(edgeUpdate) ++
             mutationBuilder.increments(edgeUpdate)
         writeAsyncSimple(zkQuorum, mutations, withWait)
       }
@@ -549,7 +549,7 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
 
           val (newEdge, edgeUpdate) = f(snapshotEdgeOpt, _edges)
           //shouldReplace false.
-          if (edgeUpdate.newInvertedEdge.isEmpty && statusCode <= 0) {
+          if (edgeUpdate.newSnapshotEdge.isEmpty && statusCode <= 0) {
             logger.debug(s"${newEdge.toLogString} drop.")
             Future.successful(true)
           } else {
@@ -643,7 +643,7 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
   private def buildEdgesToDelete(queryRequestWithResultLs: QueryRequestWithResult, requestTs: Long): QueryResult = {
     val (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResultLs).get
     val edgeWithScoreLs = queryResult.edgeWithScoreLs.filter { edgeWithScore =>
-      (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.propsWithTs.containsKey(LabelMeta.degreeSeq)
+      (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.isDegree
     }.map { edgeWithScore =>
       val label = queryRequest.queryParam.label
       val newPropsWithTs = edgeWithScore.edge.propsWithTs ++
