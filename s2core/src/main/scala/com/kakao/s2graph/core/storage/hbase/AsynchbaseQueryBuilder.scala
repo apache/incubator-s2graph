@@ -11,6 +11,7 @@ import com.kakao.s2graph.core.utils.{Extensions, logger}
 import com.stumbleupon.async.Deferred
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.GetRequest
+import scala.annotation.tailrec
 import scala.collection.JavaConversions._
 import scala.collection.{Map, Seq}
 import scala.util.Random
@@ -100,26 +101,26 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
                      prevStepScore: Double,
                      isInnerCall: Boolean,
                      parentEdges: Seq[EdgeWithScore]): Deferred[QueryRequestWithResult] = {
+    @tailrec
+    def randomInt(sampleNumber: Int, range: Int, set: Set[Int] = Set.empty[Int]): Set[Int] = {
+      if (set.size == sampleNumber) set
+      else randomInt(sampleNumber, range, set + Random.nextInt(range))
+    }
 
     def sample(edges: Seq[EdgeWithScore], n: Int): Seq[EdgeWithScore] = {
-      val pureEdges = (if (queryRequest.queryParam.offset == 0) {
+      val plainEdges = if (queryRequest.queryParam.offset == 0) {
         edges.tail
-      } else edges).toArray
+      } else edges
 
-      val sampled = new Array[EdgeWithScore](n)
-      val N = pureEdges.size // population
-      var t = 0 // total input records dealt with
-      var m = 0 // number of items selected so far
-
-      while (m < n) {
-        val u = Random.nextDouble()
-        if ((N - t) * u < n - m) {
-          sampled(m) = pureEdges(t)
-          m += 1
-        }
-        t += 1
+      val randoms = randomInt(n, plainEdges.size)
+      var samples = List.empty[EdgeWithScore]
+      var idx = 0
+      plainEdges.foreach { e =>
+        if (randoms.contains(idx)) samples = e :: samples
+        idx += 1
       }
-      sampled.toSeq
+
+      samples.toSeq
     }
 
     def fetchInner(request: GetRequest) = {

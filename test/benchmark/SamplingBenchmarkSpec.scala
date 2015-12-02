@@ -24,12 +24,10 @@ class SamplingBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
         val randomNum = randomInt(num, ls.size)
         var sample = List.empty[T]
         var idx = 0
-
         ls.foreach { e =>
           if (randomNum.contains(idx)) sample = e :: sample
           idx += 1
         }
-
         sample
       }
 
@@ -82,7 +80,7 @@ class SamplingBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
 
       duration("RNG Sampling") {
         (0 to testLimit) foreach { _ =>
-          val sampled = randomArraySample(testNum, testData)
+          val sampled = rngSample(testNum, testData)
         }
       }
     }
