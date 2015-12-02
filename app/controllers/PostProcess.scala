@@ -28,9 +28,9 @@ object PostProcess extends JSONParser {
         (queryRequest.queryParam, edge, score)
       }).groupBy {
       case (queryParam, edge, rank) if edge.labelWithDir.dir == GraphUtil.directions("in") =>
-        (queryParam.label.srcColumn, queryParam.label.label, queryParam.label.tgtColumn, edge.tgtVertex.innerId, edge.propsWithTs.contains(LabelMeta.degreeSeq))
+        (queryParam.label.srcColumn, queryParam.label.label, queryParam.label.tgtColumn, edge.tgtVertex.innerId, edge.isDegree)
       case (queryParam, edge, rank) =>
-        (queryParam.label.tgtColumn, queryParam.label.label, queryParam.label.srcColumn, edge.tgtVertex.innerId, edge.propsWithTs.contains(LabelMeta.degreeSeq))
+        (queryParam.label.tgtColumn, queryParam.label.label, queryParam.label.srcColumn, edge.tgtVertex.innerId, edge.isDegree)
     }
 
     val ret = for {
@@ -186,7 +186,7 @@ object PostProcess extends JSONParser {
         // edge to json
         val (srcColumn, _) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
         val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
-        if (edge.propsWithTs.contains(LabelMeta.degreeSeq) && fromOpt.isDefined) {
+        if (edge.isDegree && fromOpt.isDefined) {
           degrees += Json.obj(
             "from" -> fromOpt.get,
             "label" -> queryRequest.queryParam.label.label,

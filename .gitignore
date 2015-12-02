@@ -1,4 +1,5 @@
-# Created by https://www.gitignore.io/api/scala,intellij,sbt
+
+# Created by https://www.gitignore.io/api/scala,intellij,sbt,vagrant,playframework
 
 ### Scala ###
 *.class
@@ -21,7 +22,7 @@ project/plugins/project/
 
 
 ### Intellij ###
-# Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio
+# Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio and Webstorm
 
 *.iml
 
@@ -33,6 +34,7 @@ project/plugins/project/
 # .idea/workspace.xml
 # .idea/tasks.xml
 # .idea/dictionaries
+# .idea/shelf
 
 # Sensitive or high-churn files:
 # .idea/dataSources.ids
@@ -67,6 +69,7 @@ atlassian-ide-plugin.xml
 com_crashlytics_export_strings.xml
 crashlytics.properties
 crashlytics-build.properties
+fabric.properties
 
 
 ### SBT ###
@@ -81,8 +84,25 @@ project/boot/
 .cache
 
 
-# Vagrant
-.vagrant
+### Vagrant ###
+.vagrant/
 
 
+### PlayFramework ###
+# Ignore Play! working directory #
+bin/
+/db
+.eclipse
+/lib/
 /logs/
+/modules
+/project/project
+/project/target
+/target
+tmp/
+test-result
+server.pid
+*.eml
+/dist/
+.cache
+

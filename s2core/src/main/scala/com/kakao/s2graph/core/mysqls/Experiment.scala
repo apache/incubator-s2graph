@@ -50,8 +50,8 @@ case class Experiment(id: Option[Int],
                       experimentType: String,
                       totalModular: Int) {
 
-  val buckets = Bucket.finds(id.get)
-  val rangeBuckets = for {
+  def buckets = Bucket.finds(id.get)
+  def rangeBuckets = for {
     bucket <- buckets
     range <- bucket.rangeOpt
   } yield range -> bucket

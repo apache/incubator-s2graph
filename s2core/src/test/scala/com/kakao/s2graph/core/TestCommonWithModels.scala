@@ -16,7 +16,9 @@ trait TestCommonWithModels {
   import InnerVal._
   import types.HBaseType._
 
-  val zkQuorum = "localhost"
+  val config = ConfigFactory.load()
+
+  val zkQuorum = config.getString("hbase.zookeeper.quorum")
   val serviceName = "_test_service"
   val serviceNameV2 = "_test_service_v2"
   val columnName = "user_id"
@@ -29,7 +31,7 @@ trait TestCommonWithModels {
   val tgtColumnType = "string"
   val tgtColumnTypeV2 = "string"
 
-  val cluster = "localhost"
+  val cluster = config.getString("hbase.zookeeper.quorum")
   val hTableName = "_test_cases"
   val preSplitSize = 0
   val labelName = "_test_label"
@@ -52,8 +54,6 @@ trait TestCommonWithModels {
   val consistencyLevel = "strong"
   val hTableTTL = None
 
-
-  val config = ConfigFactory.parseString("")
   val graph = new Graph(config)(ExecutionContext.Implicits.global)
 
   def initTests() = {
