@@ -38,7 +38,9 @@ object Graph {
     "max.retry.number" -> java.lang.Integer.valueOf(100),
     "max.back.off" -> java.lang.Integer.valueOf(100),
     "hbase.fail.prob" -> java.lang.Double.valueOf(-0.1),
-    "delete.all.fetch.size" -> java.lang.Integer.valueOf(1000)
+    "delete.all.fetch.size" -> java.lang.Integer.valueOf(1000),
+    "future.cache.max.size" -> java.lang.Integer.valueOf(1000000),
+    "future.cache.max.idle.ttl" -> java.lang.Integer.valueOf(60000)
   )
 
   var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)

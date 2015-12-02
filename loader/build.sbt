@@ -4,6 +4,10 @@ name := "s2loader"
 
 scalacOptions ++= Seq("-deprecation")
 
+projectDependencies := Seq(
+  (projectID in "s2core").value exclude("org.mortbay.jetty", "*") exclude("javax.xml.stream", "*") exclude("javax.servlet", "*")
+)
+
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % Common.sparkVersion % "provided",
   "org.apache.spark" %% "spark-streaming" % Common.sparkVersion % "provided",
@@ -30,3 +34,5 @@ excludedJars in assembly := {
 }
 
 test in assembly := {}
+
+parallelExecution in Test := false

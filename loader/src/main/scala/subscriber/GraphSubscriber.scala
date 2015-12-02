@@ -22,7 +22,7 @@ object GraphConfig {
   var kafkaBrokers = ""
   var cacheTTL = s"${60 * 60 * 1}"
   def apply(phase: String, dbUrl: Option[String], zkAddr: Option[String], kafkaBrokerList: Option[String]): Config = {
-    database = dbUrl.getOrElse("jdbc:mysql://localhost:3306/graph")
+    database = dbUrl.getOrElse("jdbc:mysql://localhost:3306/graph_dev")
     zkQuorum = zkAddr.getOrElse("localhost")
 
 //    val newConf = new util.HashMap[String, Object]()
