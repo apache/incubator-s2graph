@@ -296,7 +296,11 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     val transformBytes = transformer.toHashKeyBytes
     //TODO: change this to binrary format.
     val whereBytes = Bytes.toBytes(where.toString())
-    val durationBytes = duration.map { case (min, max) => Bytes.add(Bytes.toBytes(min), Bytes.toBytes(max)) } getOrElse Array.empty[Byte]
+    val durationBytes = duration.map { case (min, max) =>
+      val minTs = min / cacheTTLInMillis
+      val maxTs = max / cacheTTLInMillis
+      Bytes.add(Bytes.toBytes(minTs), Bytes.toBytes(maxTs))
+    } getOrElse Array.empty[Byte]
 //    Bytes.toBytes(duration.toString)
     val conditionBytes = Bytes.add(transformBytes, whereBytes, durationBytes)
     Bytes.add(Bytes.add(bytes, labelWithDir.bytes, toBytes(labelOrderSeq, offset, limit, isInverted)), rank.toHashKeyBytes(),
