@@ -231,7 +231,6 @@ class StrongLabelDeleteSpec extends SpecCommon {
 
             ret must beEqualTo(true)
 
-            logger.error(s"delete timestamp: $deletedAt")
 
             val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
             val deleteAllRequest2 = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt2))
@@ -247,7 +246,6 @@ class StrongLabelDeleteSpec extends SpecCommon {
             println(result)
 
             val resultEdges = (result \ "results").as[Seq[JsValue]]
-            logger.error(Json.toJson(resultEdges).toString)
             resultEdges.isEmpty must beEqualTo(true)
 
             val degreeAfterDeleteAll = getDegree(result)

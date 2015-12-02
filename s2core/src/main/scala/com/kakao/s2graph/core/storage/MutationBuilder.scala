@@ -20,7 +20,7 @@ abstract class MutationBuilder[T](storage: Storage)(implicit ex: ExecutionContex
   /** EdgeMutate */
   def indexedEdgeMutations(edgeMutate: EdgeMutate): Seq[T]
 
-  def invertedEdgeMutations(edgeMutate: EdgeMutate): Seq[T]
+  def snapshotEdgeMutations(edgeMutate: EdgeMutate): Seq[T]
 
   def increments(edgeMutate: EdgeMutate): Seq[T]
 
