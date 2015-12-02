@@ -69,6 +69,10 @@ trait RequestParser extends JSONParser {
     } yield {
       val minTs = parse[Option[Long]](js, "from").getOrElse(Long.MaxValue)
       val maxTs = parse[Option[Long]](js, "to").getOrElse(Long.MinValue)
+
+      if (minTs > maxTs){
+        throw new Exception("Duration error. Timestamp of From cannot be larger than To.")
+      }
       (minTs, maxTs)
     }
   }
