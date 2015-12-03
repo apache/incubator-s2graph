@@ -468,6 +468,9 @@ class QuerySpec extends SpecCommon with PlaySpecification {
 
         result = getEdges(queryDuration(Seq(0, 2), from = 1000, to = 2000))
         (result \ "results").as[List[JsValue]].size must equalTo(1)
+
+        result = getEdges(queryDuration(Seq(0, 2), from = 3000, to = 2000))
+        (result \ "message").as[String] must contain("java.lang.Exception")
         true
       }
     }
