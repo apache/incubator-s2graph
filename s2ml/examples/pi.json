@@ -1,0 +1,18 @@
+{
+  "name": "pi",
+  "comment": "Estimating Pi in https://spark.apache.org/examples.html",
+  "processors": [
+    {
+      "class": "com.kakao.ml.example.Tuple2RandomNumberGenerator",
+      "params": {
+        "num": 1000
+      }
+    },
+    {
+      "class": "com.kakao.ml.Inspector"
+    },
+    {
+      "class": "com.kakao.ml.example.PiEstimator"
+    }
+  ]
+}

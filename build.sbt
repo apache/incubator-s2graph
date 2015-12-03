@@ -35,6 +35,8 @@ lazy val s2counter_core = project.dependsOn(s2core)
 lazy val s2counter_loader = project.dependsOn(s2counter_core, spark)
   .settings(commonSettings: _*)
 
+lazy val s2ml = project.settings(commonSettings: _*)
+
 libraryDependencies ++= Seq(
   ws,
   filters,
