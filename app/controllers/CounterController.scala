@@ -139,9 +139,11 @@ object CounterController extends Controller {
           useProfile = useProfile, bucketImpId, useRank = useRank, ttl, dailyTtl, Some(hbaseTable), intervalUnit,
           rateActionId, rateBaseId, rateThreshold)
 
-        // prepare exact storage
-        exactCounter(version).prepare(policy)
-        if (useRank) {
+        if (rateAction.isEmpty) {
+          // prepare exact storage
+          exactCounter(version).prepare(policy)
+        }
+        if (useRank || rateAction.isDefined) {
           // prepare ranking storage
           rankingCounter(version).prepare(policy)
         }
@@ -236,8 +238,11 @@ object CounterController extends Controller {
           // change table name
           val newTableName = Seq(tablePrefixMap(version), service, policy.ttl) ++ policy.dailyTtl mkString "_"
           val newPolicy = policy.copy(version = version, hbaseTable = Some(newTableName))
-          exactCounter(version).prepare(newPolicy)
-          if (newPolicy.useRank) {
+
+          if (newPolicy.rateActionId.isEmpty) {
+            exactCounter(version).prepare(newPolicy)
+          }
+          if (newPolicy.useRank || newPolicy.rateActionId.isDefined) {
             rankingCounter(version).prepare(newPolicy)
           }
           Ok(Json.toJson(Map("msg" -> s"prepare storage v$version $service/$action")))
@@ -255,8 +260,10 @@ object CounterController extends Controller {
         policy <- counterModel.findByServiceAction(service, action, useCache = false)
       } yield {
         Try {
-          exactCounter(policy.version).destroy(policy)
-          if (policy.useRank) {
+          if (policy.rateActionId.isEmpty) {
+            exactCounter(policy.version).destroy(policy)
+          }
+          if (policy.useRank || policy.rateActionId.isDefined) {
             rankingCounter(policy.version).destroy(policy)
           }
           counterModel.deleteServiceAction(policy)
