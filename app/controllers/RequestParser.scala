@@ -158,7 +158,9 @@ trait RequestParser extends JSONParser {
       }.getOrElse(List("score" -> false, "timestamp" -> false))
       val withScore = (jsValue \ "withScore").asOpt[Boolean].getOrElse(true)
       val returnTree = (jsValue \ "returnTree").asOpt[Boolean].getOrElse(false)
+      //TODO: Refactor this
       val limitOpt = (jsValue \ "limit").asOpt[Int]
+      val returnAgg = (jsValue \ "returnAgg").asOpt[Boolean].getOrElse(true)
 
       // TODO: throw exception, when label dosn't exist
       val labelMap = (for {
@@ -234,7 +236,8 @@ trait RequestParser extends JSONParser {
         filterOutFields = filterOutFields,
         withScore = withScore,
         returnTree = returnTree,
-        limitOpt = limitOpt
+        limitOpt = limitOpt,
+        returnAgg = returnAgg
       )
       //      logger.debug(ret.toString)
       ret

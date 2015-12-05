@@ -43,7 +43,8 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
                  withScore: Boolean = true,
                  returnTree: Boolean = false,
-                 limitOpt: Option[Int] = None) {
+                 limitOpt: Option[Int] = None,
+                 returnAgg: Boolean = true) {
 
   def cacheKeyBytes: Array[Byte] = {
     val selectBytes = Bytes.toBytes(selectColumns.toString)

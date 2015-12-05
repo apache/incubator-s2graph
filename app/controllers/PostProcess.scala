@@ -261,18 +261,25 @@ object PostProcess extends JSONParser {
             val scoreSum = groupedRawEdges.map(x => x._2).sum
             // ordering
             val edges = orderBy(query, orderByColumns, groupedRawEdges).map(_._1)
-            Json.obj(
-              "groupBy" -> Json.toJson(groupByKeyVals.toMap),
-              "scoreSum" -> scoreSum,
-              "agg" -> edges
-            )
+            //TODO: refactor this
+            if (query.returnAgg)
+              Json.obj(
+                "groupBy" -> Json.toJson(groupByKeyVals.toMap),
+                "scoreSum" -> scoreSum,
+                "agg" -> edges
+              )
+            else
+              Json.obj(
+                "groupBy" -> Json.toJson(groupByKeyVals.toMap),
+                "scoreSum" -> scoreSum
+              )
           }
 
 
         val groupedSortedJsons = query.limitOpt match {
           case None => groupedEdges.toList.sortBy { jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
           case Some(limit) =>
-            groupedEdges.toList.sortBy { jsVal => -1 * (jsVal \ "scoreSum").as[Double] } take(limit)
+            groupedEdges.toList.sortBy { jsVal => -1 * (jsVal \ "scoreSum").as[Double] } take (limit)
         }
 
         Json.obj(
@@ -366,7 +373,7 @@ object PostProcess extends JSONParser {
         "columnName" -> serviceColumn.columnName,
         "id" -> id, "props" -> propsToJson(vertex),
         "timestamp" -> vertex.ts,
-//        "belongsTo" -> vertex.belongLabelIds)
+        //        "belongsTo" -> vertex.belongLabelIds)
         "belongsTo" -> vertex.belongLabelIds.flatMap(Label.findByIdOpt(_).map(_.label)))
     }
   }
