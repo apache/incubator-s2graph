@@ -15,7 +15,7 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-hive" % sparkVersion % "provided",
   "com.typesafe.play" %% "play-ws" % Common.playVersion,
   "org.json4s" %% "json4s-native" % "3.2.10",
-  "com.github.mdr" %% "ascii-graphs" % "0.0.3",
+  "com.github.mdr" % "ascii-graphs_2.10" % "0.0.6",
   "com.github.nscala-time" %% "nscala-time" % "2.4.0",
   "com.thesamet" %% "kdtree" % "1.0.4",
   "org.scalatest" %% "scalatest" % "2.2.4" % "test"
