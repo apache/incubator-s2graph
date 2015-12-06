@@ -8,3 +8,5 @@ addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.3.10")
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "0.7.0")
 
 resolvers += "sonatype-releases" at "https://oss.sonatype.org/content/repositories/releases/"
+
+addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.0.3")
