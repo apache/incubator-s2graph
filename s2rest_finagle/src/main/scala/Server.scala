@@ -55,11 +55,10 @@ object FinagleServer extends App {
                     response
                   }
 
-                  val duration = System.currentTimeMillis() - startedAt
-                  val resultSize = -1 // TODO
-                val str = s"${req.method} ${req.uri} took ${duration} ms ${200} ${resultSize} ${payload}"
-
-                  logger.info(str)
+//                  val duration = System.currentTimeMillis() - startedAt
+//                  val resultSize = -1 // TODO
+//                val str = s"${req.method} ${req.uri} took ${duration} ms ${200} ${resultSize} ${payload}"
+//                  logger.info(str)
 
                   promise.become(Future.value(httpRes))
               }
