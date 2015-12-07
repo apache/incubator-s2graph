@@ -14,11 +14,16 @@ lazy val commonSettings = Seq(
     "Cloudera" at "https://repository.cloudera.com/artifactory/cloudera-repos",
     "Twitter Maven" at "http://maven.twttr.com",
     "sonatype-snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
-    "Scalaz Bintray Repo" at "http://dl.bintray.com/scalaz/releases"
+    "Scalaz Bintray Repo" at "http://dl.bintray.com/scalaz/releases",
+    "sonatype-releases" at "https://oss.sonatype.org/content/repositories/releases/"
   )
 )
 
-lazy val root = project.in(file(".")).enablePlugins(PlayScala)
+//lazy val root = project.in(file(".")).enablePlugins(PlayScala)
+//  .dependsOn(s2core, s2counter_core)
+//  .settings(commonSettings: _*)
+
+lazy val s2rest_play = project.enablePlugins(PlayScala)
   .dependsOn(s2core, s2counter_core)
   .settings(commonSettings: _*)
 
@@ -36,11 +41,3 @@ lazy val s2counter_loader = project.dependsOn(s2counter_core, spark)
   .settings(commonSettings: _*)
 
 lazy val s2ml = project.settings(commonSettings: _*)
-
-libraryDependencies ++= Seq(
-  ws,
-  filters,
-  "xalan" % "serializer" % "2.7.2", // Download in Intelli J(Download Source/Document)
-  "com.github.danielwegener" % "logback-kafka-appender" % "0.0.3",
-  "org.json4s" %% "json4s-native" % "3.2.11" % Test
-)

@@ -1,9 +1,8 @@
-package controllers
+package com.kakao.s2graph.core
 
-import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
-import play.api.libs.json.{Json, _}
+import com.kakao.s2graph.core.mysqls.{ColumnMeta, Label, ServiceColumn, LabelMeta}
+import com.kakao.s2graph.core.types.{InnerValLike, InnerVal}
+import play.api.libs.json._
 
 import scala.collection.mutable.ListBuffer
 
@@ -357,7 +356,7 @@ object PostProcess extends JSONParser {
         "columnName" -> serviceColumn.columnName,
         "id" -> id, "props" -> propsToJson(vertex),
         "timestamp" -> vertex.ts,
-//        "belongsTo" -> vertex.belongLabelIds)
+        //        "belongsTo" -> vertex.belongLabelIds)
         "belongsTo" -> vertex.belongLabelIds.flatMap(Label.findByIdOpt(_).map(_.label)))
     }
   }
