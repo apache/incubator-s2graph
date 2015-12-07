@@ -110,6 +110,8 @@ object FinagleServer extends App {
   val server: Server = ServerBuilder()
     .codec(Http())
     .backlog(2048)
+    .maxConcurrentRequests(Int.MaxValue)
+    .keepAlive(true)
     .bindTo(new InetSocketAddress(port))
     .name("s2graph-rest")
     .build(service)
