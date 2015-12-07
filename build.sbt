@@ -31,10 +31,6 @@ lazy val s2rest_finagle = project
   .dependsOn(s2core)
   .settings(commonSettings: _*)
 
-lazy val s2rest_netty = project
-  .dependsOn(s2core)
-  .settings(commonSettings: _*)
-
 lazy val s2core = project.settings(commonSettings: _*)
 
 lazy val spark = project.settings(commonSettings: _*)

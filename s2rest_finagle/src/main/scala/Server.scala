@@ -1,6 +1,7 @@
 package com.kakao.s2graph.rest.netty
 
 import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.ConfigFactory
 import io.netty.bootstrap.ServerBootstrap
 import io.netty.buffer.{ByteBuf, Unpooled}
@@ -16,41 +17,45 @@ import play.api.libs.json.Json
 import scala.util.{Failure, Success}
 
 class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] {
-
   import scala.concurrent.ExecutionContext.Implicits.global
 
   val CONTENT_TYPE = "Content-Type"
   val CONTENT_LENGTH = "Content-Length"
   val CONNECTION = "Connection"
   val KEEP_ALIVE = "keep-alive"
+  val version: ByteBuf = Unpooled.copiedBuffer("with netty", CharsetUtil.UTF_8)
 
   override def channelRead0(ctx: ChannelHandlerContext, req: FullHttpRequest): Unit = {
-    val jsonString = req.content.toString(CharsetUtil.UTF_8)
-    val q = NettyServer.s2parser.toQuery(Json.parse(jsonString))
-    val future = NettyServer.s2graph.getEdges(q)
 
-    future onComplete {
-      case Success(s2Res) =>
-        val resJson = PostProcess.toSimpleVertexArrJson(s2Res)
-        val buf: ByteBuf = Unpooled.copiedBuffer(resJson.toString, CharsetUtil.UTF_8)
-        val res: FullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, buf)
+    if (req.getMethod == HttpMethod.GET) {
+      val res: FullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, version)
+      ctx.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE)
+    } else {
+      val jsonString = req.content.toString(CharsetUtil.UTF_8)
+      val q = NettyServer.s2parser.toQuery(Json.parse(jsonString))
+      val future = NettyServer.s2graph.getEdges(q)
 
-        res.headers().set(CONTENT_TYPE, "application/json; charset=utf-8")
+      future onComplete {
+        case Success(s2Res) =>
+          val resJson = PostProcess.toSimpleVertexArrJson(s2Res)
+          val buf: ByteBuf = Unpooled.copiedBuffer(resJson.toString, CharsetUtil.UTF_8)
+          val res: FullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, buf)
 
-        if (HttpHeaders.isKeepAlive(req)) {
-          res.headers().set(CONNECTION, HttpHeaders.Values.KEEP_ALIVE)
-        }
+          res.headers().set(CONTENT_TYPE, "application/json")
+          res.headers().set(CONTENT_LENGTH, buf.readableBytes())
 
-        res.headers().set(CONTENT_LENGTH, buf.readableBytes())
-        ctx.writeAndFlush(res).addListener(new ChannelFutureListener {
-          override def operationComplete(future: ChannelFuture): Unit = {
-            if (!HttpHeaders.isKeepAlive(req)) future.channel().close()
+          if (HttpHeaders.isKeepAlive(req)) {
+            res.headers().set(CONNECTION, HttpHeaders.Values.KEEP_ALIVE)
+            logger.info(s2Res.size.toString)
+            ctx.writeAndFlush(res)
+          } else {
+            ctx.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE)
           }
-        })
 
-      case Failure(ex) =>
-        val res: FullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR)
-        ctx.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE)
+        case Failure(ex) =>
+          val res: FullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR)
+          ctx.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE)
+      }
     }
   }
 
