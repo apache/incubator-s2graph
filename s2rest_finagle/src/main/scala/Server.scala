@@ -27,39 +27,36 @@ object FinagleServer extends App {
   val s2parser = new RequestParser(s2graph)
   var isHealthy = true
 
-  val service = new Service[http.Request, http.Response] {
 
+  val service = new Service[http.Request, http.Response] {
     def apply(req: http.Request): Future[http.Response] = {
       val promise = new com.twitter.util.Promise[http.Response]
-      val payload = req.contentString
-
-      //      def route(req: http.Request)(pf: (http.Request, Promise[_]) => Unit): Future[http.Response] = {
-      //        val promise = new com.twitter.util.Promise[http.Response]
-      //        pf.apply(req, promise)
-      //        promise
-      //      }
       val startedAt = System.currentTimeMillis()
 
       req.method match {
-        case finagle.http.Method.Post =>
+        case http.Method.Post =>
           req.path match {
             case path if path.startsWith("/graphs/getEdges") =>
+              val payload = req.contentString
               val bodyAsJson = Json.parse(payload)
               val query = s2parser.toQuery(bodyAsJson)
               val fetch = s2graph.getEdges(query)
+
               fetch.onComplete {
                 case Success(queryRequestWithResutLs) =>
                   val jsValue = PostProcess.toSimpleVertexArrJson(queryRequestWithResutLs, Nil)
 
                   val httpRes = {
-                    val response = finagle.http.Response(finagle.http.Version.Http11, finagle.http.Status.Ok)
+                    val response = http.Response(finagle.http.Version.Http11, finagle.http.Status.Ok)
                     response.setContentTypeJson()
                     response.setContentString(jsValue.toString)
                     response
                   }
 
                   val duration = System.currentTimeMillis() - startedAt
-                  val str = s"${req.method} ${req.uri} took ${duration} ms ${200} ${-1} ${payload}"
+                  val resultSize = -1 // TODO
+                  val str = s"${req.method} ${req.uri} took ${duration} ms ${200} ${resultSize} ${payload}"
+
                   logger.info(str)
 
                   promise.become(Future.value(httpRes))
