@@ -17,7 +17,7 @@ import scala.concurrent.ExecutionContext
 import scala.util.Success
 
 object FinagleServer extends App {
-  val numOfThread = Runtime.getRuntime.availableProcessors() * 10
+  val numOfThread = Runtime.getRuntime.availableProcessors()
   val threadPool = Executors.newFixedThreadPool(numOfThread)
   implicit val ec = ExecutionContext.fromExecutor(threadPool)
 
@@ -110,7 +110,7 @@ object FinagleServer extends App {
   val server: Server = ServerBuilder()
     .codec(Http())
     .backlog(10240)
-    .maxConcurrentRequests(Int.MaxValue)
+    .maxConcurrentRequests(100000)
     .keepAlive(true)
     .bindTo(new InetSocketAddress(port))
     .name("s2graph-rest")
