@@ -1,6 +1,7 @@
 package com.kakao.s2graph.core.utils
 
-import play.api.Logger
+//import play.api.Logger
+import org.slf4j.LoggerFactory
 import play.api.libs.json.JsValue
 
 import scala.language.{higherKinds, implicitConversions}
@@ -29,8 +30,8 @@ object logger {
     }
   }
 
-  private val logger = Logger("application")
-  private val errorLogger = Logger("error")
+  private val logger = LoggerFactory.getLogger("application")
+  private val errorLogger = LoggerFactory.getLogger("error")
 
   def info[T: Loggable](msg: => T) = logger.info(implicitly[Loggable[T]].toLogMessage(msg))
 
