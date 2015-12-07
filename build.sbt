@@ -27,7 +27,7 @@ lazy val s2rest_play = project.enablePlugins(PlayScala)
   .dependsOn(s2core, s2counter_core)
   .settings(commonSettings: _*)
 
-lazy val s2rest_finagle = project
+lazy val s2rest_netty = project
   .dependsOn(s2core)
   .settings(commonSettings: _*)
 
