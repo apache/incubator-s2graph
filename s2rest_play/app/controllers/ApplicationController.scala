@@ -56,8 +56,6 @@ object ApplicationController extends Controller {
         else
           s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${body}"
 
-      logger.info(s"${request.method} ${request.uri} result_size: $resultSize")
-
       str
     } finally {
       /* pass */
