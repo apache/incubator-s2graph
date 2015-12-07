@@ -1,11 +1,13 @@
 package com.kakao.s2graph.rest.finagle
 
+import java.net.InetSocketAddress
 import java.util.concurrent.Executors
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.utils.logger
 import com.twitter
 import com.twitter.finagle
+import com.twitter.finagle.http.HttpMuxer
 import com.twitter.finagle.{Service, _}
 import com.twitter.util._
 import com.typesafe.config.ConfigFactory
@@ -55,7 +57,7 @@ object FinagleServer extends App {
 
                   val duration = System.currentTimeMillis() - startedAt
                   val resultSize = -1 // TODO
-                  val str = s"${req.method} ${req.uri} took ${duration} ms ${200} ${resultSize} ${payload}"
+                val str = s"${req.method} ${req.uri} took ${duration} ms ${200} ${resultSize} ${payload}"
 
                   logger.info(str)
 
@@ -98,9 +100,20 @@ object FinagleServer extends App {
   val port = try config.getInt("http.port") catch {
     case e: Exception => 9000
   }
+  import com.twitter.finagle.builder.{Server, ServerBuilder}
+  import com.twitter.finagle.http._
+  import com.twitter.finagle.{Service, SimpleFilter}
+  import com.twitter.io.Charsets.Utf8
+  import com.twitter.util.Future
+  import java.net.InetSocketAddress
 
+  val server: Server = ServerBuilder()
+    .codec(Http())
+    .backlog(2048)
+    .bindTo(new InetSocketAddress(port))
+    .name("s2graph-rest")
+    .build(service)
 
-  val server = Http.serve(s":$port", FinagleServer.service)
   Runtime.getRuntime().addShutdownHook(new Thread() {
     override def run(): Unit = {
       s2graph.shutdown()
