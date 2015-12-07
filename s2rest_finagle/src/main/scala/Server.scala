@@ -17,8 +17,8 @@ import scala.concurrent.ExecutionContext
 import scala.util.Success
 
 object FinagleServer extends App {
-  val numOfThread = Runtime.getRuntime.availableProcessors()
-  val threadPool = Executors.newFixedThreadPool(numOfThread)
+//  val numOfThread = Runtime.getRuntime.availableProcessors() * 10
+  val threadPool = Executors.newCachedThreadPool()
   implicit val ec = ExecutionContext.fromExecutor(threadPool)
 
   val config = ConfigFactory.load()
