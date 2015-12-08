@@ -1,4 +1,4 @@
-name := "s2rest_finagle"
+name := "s2rest_netty"
 
 enablePlugins(JavaAppPackaging)
 
