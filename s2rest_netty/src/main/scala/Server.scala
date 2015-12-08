@@ -215,36 +215,37 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
     }
   }
 
-  //
-  //  private def toSimpleMap(map: Map[String, Seq[String]]): Map[String, String] = {
-  //    for {
-  //      (k, vs) <- map
-  //      headVal <- vs.headOption
-  //    } yield {
-  //      k -> headVal
-  //    }
-  //  }
-  //
-  //  private def buildRequest(request: FullHttpRequest, bucket: Bucket, uuid: String): Future[JsValue] = {
-  //    val jsonString = request.content.toString(CharsetUtil.UTF_8)
-  //    val jsonBody = makeRequestJson(Option(Json.parse(jsonString)), bucket, uuid)
-  //
-  //    val url = bucket.apiPath
-  //    val headers = request.headers.toSimpleMap.toSeq
-  //    val verb = bucket.httpVerb.toUpperCase
-  //    val qs = toSimpleMap(request.queryString).toSeq
-  //
-  //    val ws = WS.url(url)
-  //      .withMethod(verb)
-  //      .withBody(jsonBody)
-  //      .withHeaders(headers: _*)
-  //      .withQueryString(qs: _*)
-  //
-  //    ws.stream().map {
-  //      case (proxyResponse, proxyBody) =>
-  //        Result(ResponseHeader(proxyResponse.status, proxyResponse.headers.mapValues(_.toList.head)), proxyBody).withHeaders(impressionKey -> bucket.impressionId)
-  //    }
-  //  }
+//
+//  private def toSimpleMap(map: Map[String, Seq[String]]): Map[String, String] = {
+//    for {
+//      (k, vs) <- map
+//      headVal <- vs.headOption
+//    } yield {
+//      k -> headVal
+//    }
+//  }
+//
+//  private def buildRequest(request: FullHttpRequest, bucket: Bucket, uuid: String): Future[JsValue] = {
+//    val jsonString = request.content.toString(CharsetUtil.UTF_8)
+//    val jsonBody = makeRequestJson(Option(Json.parse(jsonString)), bucket, uuid)
+//
+//    val url = bucket.apiPath
+//    val headers = request.headers.toSimpleMap.toSeq
+//    val verb = bucket.httpVerb.toUpperCase
+//    val qs = toSimpleMap(request.queryString).toSeq
+//
+//    val ws = WS.url(url)
+//      .withMethod(verb)
+//      .withBody(jsonBody)
+//      .withHeaders(headers: _*)
+//      .withQueryString(qs: _*)
+//
+//    ws.stream().map {
+//      case (proxyResponse, proxyBody) =>
+//        Result(ResponseHeader(proxyResponse.status, proxyResponse.headers.mapValues(_.toList.head)), proxyBody).withHeaders(impressionKey -> bucket.impressionId)
+//    }
+//  }
+
   def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, future: Future[JsValue]) = {
     future onComplete {
       case Success(resJson) =>
