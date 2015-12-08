@@ -27,7 +27,6 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
   val CONTENT_TYPE = "Content-Type"
   val CONTENT_LENGTH = "Content-Length"
   val CONNECTION = "Connection"
-  val KEEP_ALIVE = "keep-alive"
   val JSON = "application/json"
   val version: ByteBuf = Unpooled.copiedBuffer("with netty", CharsetUtil.UTF_8)
   val Ok = HttpResponseStatus.OK
@@ -252,7 +251,7 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
         val isKeepAlive = HttpHeaders.isKeepAlive(req)
         val buf: ByteBuf = Unpooled.copiedBuffer(resJson.toString, CharsetUtil.UTF_8)
         val (headers, listenerOpt) =
-          if (isKeepAlive) (Seq(CONTENT_TYPE -> Json, CONTENT_LENGTH -> buf.readableBytes(), CONNECTION -> KEEP_ALIVE), None)
+          if (isKeepAlive) (Seq(CONTENT_TYPE -> Json, CONTENT_LENGTH -> buf.readableBytes(), CONNECTION -> HttpHeaders.Values.KEEP_ALIVE), None)
           else (Seq(CONTENT_TYPE -> Json, CONTENT_LENGTH -> buf.readableBytes()), Option(Close))
         //NOTE: logging size of result should move to s2core.
         //        logger.info(resJson.size.toString)
