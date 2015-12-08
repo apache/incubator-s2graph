@@ -1,42 +1,40 @@
-package controllers
+package com.kakao.s2graph.core
 
-import com.kakao.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
-import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.GraphExceptions.{ModelNotFoundException, BadQueryException}
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
 import com.kakao.s2graph.core.types._
-import config.Config
-import play.Play
 import play.api.libs.json._
 
-import scala.util.{Failure, Success, Try}
+import scala.util.{Try, Failure, Success}
 
-
-trait RequestParser extends JSONParser {
+class RequestParser(graph: Graph) extends JSONParser {
 
   import Management.JsonModel._
 
-  val hardLimit = Config.QUERY_HARD_LIMIT
+  val hardLimit = 100000
   val defaultLimit = 100
-
-  lazy val defaultCluster = Play.application().configuration().getString("hbase.zookeeper.quorum")
-  lazy val defaultCompressionAlgorithm = Play.application().configuration.getString("hbase.table.compression.algorithm")
+  val DefaultRpcTimeout = graph.config.getInt("hbase.rpc.timeout")
+  val DefaultMaxAttempt = graph.config.getInt("hbase.client.retries.number")
+  val DefaultCluster = graph.config.getString("hbase.zookeeper.quorum")
+  val DefaultCompressionAlgorithm = graph.config.getString("hbase.table.compression.algorithm")
+  val DefaultPhase = graph.config.getString("phase")
 
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {
       js <- parse[Option[JsObject]](value, "scoring")
     } yield {
-      for {
-        (k, v) <- js.fields
-        labelOrderType <- LabelMeta.findByName(labelId, k)
-      } yield {
-        val value = v match {
-          case n: JsNumber => n.as[Double]
-          case _ => throw new Exception("scoring weight should be double.")
+        for {
+          (k, v) <- js.fields
+          labelOrderType <- LabelMeta.findByName(labelId, k)
+        } yield {
+          val value = v match {
+            case n: JsNumber => n.as[Double]
+            case _ => throw new Exception("scoring weight should be double.")
+          }
+          (labelOrderType.seq, value)
         }
-        (labelOrderType.seq, value)
       }
-    }
     ret
   }
 
@@ -55,10 +53,10 @@ trait RequestParser extends JSONParser {
       fromJs <- (js \ "from").asOpt[JsValue]
       toJs <- (js \ "to").asOpt[JsValue]
     } yield {
-      val from = Management.toProps(label, extractKv(fromJs))
-      val to = Management.toProps(label, extractKv(toJs))
-      (from, to)
-    }
+        val from = Management.toProps(label, extractKv(fromJs))
+        val to = Management.toProps(label, extractKv(toJs))
+        (from, to)
+      }
 
     ret
   }
@@ -81,14 +79,14 @@ trait RequestParser extends JSONParser {
     val ret = for {
       js <- parse[Option[JsObject]](jsValue, "has")
     } yield {
-      for {
-        (k, v) <- js.fields
-        labelMeta <- LabelMeta.findByName(label.id.get, k)
-        value <- jsValueToInnerVal(v, labelMeta.dataType, label.schemaVersion)
-      } yield {
-        labelMeta.seq -> value
+        for {
+          (k, v) <- js.fields
+          labelMeta <- LabelMeta.findByName(label.id.get, k)
+          value <- jsValueToInnerVal(v, labelMeta.dataType, label.schemaVersion)
+        } yield {
+          labelMeta.seq -> value
+        }
       }
-    }
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
 
@@ -110,8 +108,8 @@ trait RequestParser extends JSONParser {
       id <- ids
       innerId <- jsValueToInnerVal(id, serviceColumn.columnType, label.schemaVersion)
     } yield {
-      Vertex(SourceVertexId(serviceColumn.id.get, innerId), System.currentTimeMillis())
-    }
+        Vertex(SourceVertexId(serviceColumn.id.get, innerId), System.currentTimeMillis())
+      }
     vertices.toSeq
   }
 
@@ -123,18 +121,18 @@ trait RequestParser extends JSONParser {
           serviceName = parse[String](value, "serviceName")
           column = parse[String](value, "columnName")
         } yield {
-          val service = Service.findByName(serviceName).getOrElse(throw BadQueryException("service not found"))
-          val col = ServiceColumn.find(service.id.get, column).getOrElse(throw BadQueryException("bad column name"))
-          val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
-          for {
-            idVal <- idOpt ++ idsOpt.toSeq.flatten
+            val service = Service.findByName(serviceName).getOrElse(throw BadQueryException("service not found"))
+            val col = ServiceColumn.find(service.id.get, column).getOrElse(throw BadQueryException("bad column name"))
+            val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
+            for {
+              idVal <- idOpt ++ idsOpt.toSeq.flatten
 
-            /** bug, need to use labels schemaVersion  */
-            innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
-          } yield {
-            Vertex(SourceVertexId(col.id.get, innerVal), System.currentTimeMillis())
-          }
-        }).flatten
+              /** bug, need to use labels schemaVersion  */
+              innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
+            } yield {
+              Vertex(SourceVertexId(col.id.get, innerVal), System.currentTimeMillis())
+            }
+          }).flatten
 
       if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
 
@@ -174,8 +172,8 @@ trait RequestParser extends JSONParser {
                 (k, v) <- (obj \ "weights").asOpt[JsObject].getOrElse(Json.obj()).fields
                 l <- Label.findByName(k)
               } yield {
-                l.id.get -> v.toString().toDouble
-              }
+                  l.id.get -> v.toString().toDouble
+                }
               converted.toMap
             case _ => Map.empty[Int, Double]
           }
@@ -276,8 +274,8 @@ trait RequestParser extends JSONParser {
       }
       val where = extractWhere(labelMap, labelGroup)
       val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
-      val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(Config.RPC_TIMEOUT)
-      val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(Config.MAX_ATTEMPT)
+      val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(DefaultRpcTimeout)
+      val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(DefaultMaxAttempt)
       val tgtVertexInnerIdOpt = (labelGroup \ "_to").asOpt[JsValue].flatMap { jsVal =>
         jsValueToInnerVal(jsVal, label.tgtColumnWithDir(direction).columnType, label.schemaVersion)
       }
@@ -393,14 +391,14 @@ trait RequestParser extends JSONParser {
   def toPropsElements(jsValue: JsValue): Seq[Prop] = for {
     jsObj <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
   } yield {
-    val propName = (jsObj \ "name").as[String]
-    val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
-    val defaultValue = (jsObj \ "defaultValue").as[JsValue] match {
-      case JsString(s) => s
-      case _@js => js.toString
+      val propName = (jsObj \ "name").as[String]
+      val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
+      val defaultValue = (jsObj \ "defaultValue").as[JsValue] match {
+        case JsString(s) => s
+        case _@js => js.toString
+      }
+      Prop(propName, defaultValue, dataType)
     }
-    Prop(propName, defaultValue, dataType)
-  }
 
   def toIndicesElements(jsValue: JsValue): Seq[Index] = for {
     jsObj <- jsValue.as[Seq[JsValue]]
@@ -429,7 +427,7 @@ trait RequestParser extends JSONParser {
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     val schemaVersion = (jsValue \ "schemaVersion").asOpt[String].getOrElse(HBaseType.DEFAULT_VERSION)
     val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
-    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(defaultCompressionAlgorithm)
+    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(DefaultCompressionAlgorithm)
 
     (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
@@ -444,11 +442,11 @@ trait RequestParser extends JSONParser {
 
   def toServiceElements(jsValue: JsValue) = {
     val serviceName = parse[String](jsValue, "serviceName")
-    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(defaultCluster)
-    val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${Config.PHASE}")
+    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(DefaultCluster)
+    val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${DefaultPhase}")
     val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(1)
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
-    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(defaultCompressionAlgorithm)
+    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(DefaultCompressionAlgorithm)
     (serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
   }
 
@@ -459,6 +457,5 @@ trait RequestParser extends JSONParser {
     val props = toPropsElements(jsValue \ "props")
     (serviceName, columnName, columnType, props)
   }
-
 
 }

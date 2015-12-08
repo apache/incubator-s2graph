@@ -1,7 +1,7 @@
 # Run S2Graph using Docker
 
 1. Build a docker image of the s2graph in the project's root directory
-	- `sbt docker:publishLocal`
+	- `sbt "project s2rest_play" docker:publishLocal`
 2. Run MySQL and HBase container first.
 	- change directory to dev-support. `cd dev-support`
 	- `docker-compose up -d graph_mysql` will run MySQL and HBase at same time.

@@ -1,5 +1,5 @@
 graph:
-    image: s2graph:0.12.1-SNAPSHOT
+    image: s2rest_play:0.12.1-SNAPSHOT
     container_name: graph
     net: container:graph_hbase
     links:
