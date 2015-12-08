@@ -328,9 +328,8 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
   override def exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
     cause.printStackTrace()
     logger.error(s"exception on query.", cause)
-    ctx.close()
+    simpleResponse(ctx, BadRequest, byteBufOpt = None, channelFutureListenerOpt = Option(Close))
   }
-
 }
 
 class S2RestInitializer extends ChannelInitializer[SocketChannel] {
