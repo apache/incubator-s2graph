@@ -245,9 +245,10 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
 //    }
 //  }
 
-  def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, future: Future[JsValue]) = {
+  def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, jsonQuery: JsValue, future: Future[JsValue], startedAt: Long) = {
     future onComplete {
       case Success(resJson) =>
+        val duration = System.currentTimeMillis() - startedAt
         val isKeepAlive = HttpHeaders.isKeepAlive(req)
         val buf: ByteBuf = Unpooled.copiedBuffer(resJson.toString, CharsetUtil.UTF_8)
         val (headers, listenerOpt) =
@@ -255,6 +256,10 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
           else (Seq(CONTENT_TYPE -> Json, CONTENT_LENGTH -> buf.readableBytes()), Option(Close))
         //NOTE: logging size of result should move to s2core.
         //        logger.info(resJson.size.toString)
+
+        val log = s"${req.getMethod} ${req.getUri} took ${duration} ms 200 10 ${jsonQuery}"
+        logger.info(log)
+
         simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = listenerOpt, headers = headers)
       case Failure(ex) => simpleResponse(ctx, InternalServerError, byteBufOpt = None, channelFutureListenerOpt = Option(Close))
     }
@@ -286,8 +291,9 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
             // src, tgt, label, dir
             val Array(srcId, tgtId, labelName, direction) = s.split("/").takeRight(4)
             val params = Json.arr(Json.obj("label" -> labelName, "direction" -> direction, "from" -> srcId, "to" -> tgtId))
+            val startedAt = System.currentTimeMillis()
             val future = checkEdgesInner(params)
-            toResponse(ctx, req, future)
+            toResponse(ctx, req, params, future, startedAt)
           case _ => badRoute(ctx)
         }
 
@@ -299,9 +305,11 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
         } else badRoute(ctx)
 
       case HttpMethod.POST =>
-
         val jsonString = req.content.toString(CharsetUtil.UTF_8)
         val jsQuery = Json.parse(jsonString)
+        //TODO: result_size
+        val startedAt = System.currentTimeMillis()
+
         val future =
           if (uri.startsWith("/graphs/experiment")) {
             val Array(accessToken, experimentName, uuid) = uri.split("/").takeRight(3)
@@ -309,7 +317,8 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
           } else {
             uriMatch(uri, jsQuery)
           }
-        toResponse(ctx, req, future)
+
+        toResponse(ctx, req, jsQuery, future, startedAt)
 
       case _ =>
         simpleResponse(ctx, BadRequest, byteBufOpt = None, channelFutureListenerOpt = Option(Close))
