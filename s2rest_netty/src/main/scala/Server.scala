@@ -257,7 +257,7 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
         //NOTE: logging size of result should move to s2core.
         //        logger.info(resJson.size.toString)
 
-        val log = s"${req.getMethod} ${req.getUri} took ${duration} ms 200 10 ${jsonQuery}"
+        val log = s"${req.getMethod} ${req.getUri} took ${duration} ms 200 ${calcSize(resJson)} ${jsonQuery}"
         logger.info(log)
 
         simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = listenerOpt, headers = headers)
@@ -327,6 +327,7 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
 
   override def exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
     cause.printStackTrace()
+    logger.error(s"exception on query.", cause)
     ctx.close()
   }
 
