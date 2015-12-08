@@ -1,7 +1,8 @@
 package benchmark
 
 import com.kakao.s2graph.core.mysqls.Label
-import com.kakao.s2graph.core.{Graph, Management}
+import com.kakao.s2graph.core.{PostProcess, RequestParser, Graph, Management}
+import com.typesafe.config.ConfigFactory
 import controllers._
 import play.api.libs.json.{JsValue, Json}
 import play.api.test.{FakeApplication, FakeRequest, PlaySpecification}
@@ -152,11 +153,12 @@ class PostProcessBenchmarkSpec extends SpecCommon with BenchmarkCommon with Play
            |}
       """.stripMargin
 
-      object Parser extends RequestParser
-
+      val config = ConfigFactory.load()
+      val s2graph = new Graph(config)(scala.concurrent.ExecutionContext.Implicits.global)
+      val s2parser = new RequestParser(s2graph)
       val js = Json.parse(strJs)
 
-      val q = Parser.toQuery(js)
+      val q = s2parser.toQuery(js)
 
       val queryResultLs = Await.result(s2.getEdges(q), 1 seconds)
 

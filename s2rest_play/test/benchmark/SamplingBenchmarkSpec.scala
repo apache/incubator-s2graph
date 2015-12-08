@@ -12,7 +12,7 @@ class SamplingBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
   "to json" should {
     implicit val app = FakeApplication()
 
-    "json benchmark" in new WithApplication(app) {
+    "shuffle benchmark" in new WithApplication(app) {
       @tailrec
       def randomInt(n: Int, range: Int, set: Set[Int] = Set.empty[Int]): Set[Int] = {
         if (set.size == n) set

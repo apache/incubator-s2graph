@@ -3,7 +3,7 @@ package com.kakao.s2graph.rest.netty
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.types.{VertexId, LabelWithDirection}
+import com.kakao.s2graph.core.types.{LabelWithDirection, VertexId}
 import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.ConfigFactory
 import io.netty.bootstrap.ServerBootstrap
@@ -18,7 +18,7 @@ import io.netty.util.CharsetUtil
 import play.api.libs.json._
 
 import scala.concurrent.Future
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JSONParser {
 
@@ -71,18 +71,18 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
       srcId <- jsValueToInnerVal((param \ "from").as[JsValue], label.srcColumnWithDir(direction.toInt).columnType, label.schemaVersion)
       tgtId <- jsValueToInnerVal((param \ "to").as[JsValue], label.tgtColumnWithDir(direction.toInt).columnType, label.schemaVersion)
     } yield {
-        val labelWithDir = LabelWithDirection(label.id.get, direction)
-        labelWithDirs += labelWithDir
-        val (src, tgt, dir) = if (direction == 1) {
-          isReverted = true
-          (Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)),
-            Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)), 0)
-        } else {
-          (Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)),
-            Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)), 0)
-        }
-        (src, tgt, QueryParam(LabelWithDirection(label.id.get, dir)))
+      val labelWithDir = LabelWithDirection(label.id.get, direction)
+      labelWithDirs += labelWithDir
+      val (src, tgt, dir) = if (direction == 1) {
+        isReverted = true
+        (Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)),
+          Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)), 0)
+      } else {
+        (Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)),
+          Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)), 0)
       }
+      (src, tgt, QueryParam(LabelWithDirection(label.id.get, dir)))
+    }
 
     s2.checkEdges(quads).map { case queryRequestWithResultLs =>
       val edgeJsons = for {
@@ -214,36 +214,36 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
     }
   }
 
-//
-//  private def toSimpleMap(map: Map[String, Seq[String]]): Map[String, String] = {
-//    for {
-//      (k, vs) <- map
-//      headVal <- vs.headOption
-//    } yield {
-//      k -> headVal
-//    }
-//  }
-//
-//  private def buildRequest(request: FullHttpRequest, bucket: Bucket, uuid: String): Future[JsValue] = {
-//    val jsonString = request.content.toString(CharsetUtil.UTF_8)
-//    val jsonBody = makeRequestJson(Option(Json.parse(jsonString)), bucket, uuid)
-//
-//    val url = bucket.apiPath
-//    val headers = request.headers.toSimpleMap.toSeq
-//    val verb = bucket.httpVerb.toUpperCase
-//    val qs = toSimpleMap(request.queryString).toSeq
-//
-//    val ws = WS.url(url)
-//      .withMethod(verb)
-//      .withBody(jsonBody)
-//      .withHeaders(headers: _*)
-//      .withQueryString(qs: _*)
-//
-//    ws.stream().map {
-//      case (proxyResponse, proxyBody) =>
-//        Result(ResponseHeader(proxyResponse.status, proxyResponse.headers.mapValues(_.toList.head)), proxyBody).withHeaders(impressionKey -> bucket.impressionId)
-//    }
-//  }
+  //
+  //  private def toSimpleMap(map: Map[String, Seq[String]]): Map[String, String] = {
+  //    for {
+  //      (k, vs) <- map
+  //      headVal <- vs.headOption
+  //    } yield {
+  //      k -> headVal
+  //    }
+  //  }
+  //
+  //  private def buildRequest(request: FullHttpRequest, bucket: Bucket, uuid: String): Future[JsValue] = {
+  //    val jsonString = request.content.toString(CharsetUtil.UTF_8)
+  //    val jsonBody = makeRequestJson(Option(Json.parse(jsonString)), bucket, uuid)
+  //
+  //    val url = bucket.apiPath
+  //    val headers = request.headers.toSimpleMap.toSeq
+  //    val verb = bucket.httpVerb.toUpperCase
+  //    val qs = toSimpleMap(request.queryString).toSeq
+  //
+  //    val ws = WS.url(url)
+  //      .withMethod(verb)
+  //      .withBody(jsonBody)
+  //      .withHeaders(headers: _*)
+  //      .withQueryString(qs: _*)
+  //
+  //    ws.stream().map {
+  //      case (proxyResponse, proxyBody) =>
+  //        Result(ResponseHeader(proxyResponse.status, proxyResponse.headers.mapValues(_.toList.head)), proxyBody).withHeaders(impressionKey -> bucket.impressionId)
+  //    }
+  //  }
 
   def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, jsonQuery: JsValue, future: Future[JsValue], startedAt: Long) = {
     future onComplete {
@@ -332,17 +332,14 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
   }
 }
 
-class S2RestInitializer extends ChannelInitializer[SocketChannel] {
-  override def initChannel(ch: SocketChannel) {
-    val p = ch.pipeline()
-    p.addLast(new HttpServerCodec())
-    p.addLast(new HttpObjectAggregator(65536))
-    p.addLast(new S2RestHandler())
-  }
-}
-
 object NettyServer extends App {
+  def updateHealthCheck(healthCheck: Boolean): Boolean = {
+    this.isHealthy = healthCheck
+    this.isHealthy
+  }
+
   val config = ConfigFactory.load()
+  val Port = Try(config.getInt("http.port")).recover { case _ => 9000 }.get
 
   // init s2graph with config
   val s2graph = new Graph(config)(scala.concurrent.ExecutionContext.Implicits.global)
@@ -350,14 +347,6 @@ object NettyServer extends App {
 
   // app status code
   var isHealthy = true
-
-
-  val Ssl = false
-  val Port = try {
-    config.getInt("http.port")
-  } catch {
-    case e: Exception => 9000
-  }
 
   // Configure the server.
   val bossGroup: EventLoopGroup = new NioEventLoopGroup(1)
@@ -369,7 +358,14 @@ object NettyServer extends App {
 
     b.group(bossGroup, workerGroup).channel(classOf[NioServerSocketChannel])
       .handler(new LoggingHandler(LogLevel.INFO))
-      .childHandler(new S2RestInitializer())
+      .childHandler(new ChannelInitializer[SocketChannel] {
+        override def initChannel(ch: SocketChannel) {
+          val p = ch.pipeline()
+          p.addLast(new HttpServerCodec())
+          p.addLast(new HttpObjectAggregator(65536))
+          p.addLast(new S2RestHandler())
+        }
+      })
 
     val ch: Channel = b.bind(Port).sync().channel()
     ch.closeFuture().sync()
@@ -377,11 +373,6 @@ object NettyServer extends App {
   } finally {
     bossGroup.shutdownGracefully()
     workerGroup.shutdownGracefully()
-  }
-
-  def updateHealthCheck(healthCheck: Boolean): Boolean = {
-    this.isHealthy = healthCheck
-    this.isHealthy
   }
 }
 
