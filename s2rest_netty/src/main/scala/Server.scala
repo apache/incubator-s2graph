@@ -55,6 +55,7 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
     val channelFuture = ctx.writeAndFlush(res)
     channelFutureListenerOpt match {
       case None =>
+
       case Some(listener) => channelFuture.addListener(listener)
     }
   }
@@ -374,6 +375,7 @@ object NettyServer extends App {
   } finally {
     bossGroup.shutdownGracefully()
     workerGroup.shutdownGracefully()
+    s2graph.shutdown()
   }
 }
 
