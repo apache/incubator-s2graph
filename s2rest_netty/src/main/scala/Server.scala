@@ -14,7 +14,7 @@ import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioServerSocketChannel
 import io.netty.handler.codec.http._
 import io.netty.handler.logging.{LogLevel, LoggingHandler}
-import io.netty.util.{ReferenceCountUtil, CharsetUtil}
+import io.netty.util.CharsetUtil
 import play.api.libs.json._
 
 import scala.concurrent.Future
@@ -122,14 +122,10 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
   def jsonResponse(ctx: ChannelHandlerContext, json: JsValue, headers: (String, String)*) = {
     val byteBuf = Unpooled.copiedBuffer(json.toString, CharsetUtil.UTF_8)
 
-    try {
-      if (NettyServer.isHealthy)
-        simpleResponse(ctx, Ok, byteBufOpt = Option(byteBuf), headers = headers.toSeq)
-      else
-        simpleResponse(ctx, Ok, byteBufOpt = Option(byteBuf), headers = headers.toSeq, channelFutureListenerOpt = Option(Close))
-    } finally{
-      ReferenceCountUtil.release(byteBuf)
-    }
+    if (NettyServer.isHealthy)
+      simpleResponse(ctx, Ok, byteBufOpt = Option(byteBuf), headers = headers.toSeq)
+    else
+      simpleResponse(ctx, Ok, byteBufOpt = Option(byteBuf), headers = headers.toSeq, channelFutureListenerOpt = Option(Close))
   }
 
   private def getEdgesAsync(jsonQuery: JsValue)
