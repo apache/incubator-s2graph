@@ -1,5 +1,7 @@
 package com.kakao.s2graph.rest.netty
 
+import java.net.URL
+
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
@@ -208,9 +210,11 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
     else {
       val jsonString = request.content.toString(CharsetUtil.UTF_8)
       val jsonBody = makeRequestJson(Option(Json.parse(jsonString)), bucket, uuid)
-      val path = request.getUri
+      val url = new URL(bucket.apiPath)
+      val path = url.getPath()
       // dummy log for sampling
       val experimentLog = s"POST $path took -1 ms 200 -1 $jsonBody"
+
       logger.info(experimentLog)
       uriMatch(path, jsonBody)
     }
@@ -313,7 +317,7 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
         val startedAt = System.currentTimeMillis()
 
         val future =
-          if (uri.startsWith("/graphs/experiment")) {
+          if (uri.startsWith("/graphs/experiments")) {
             val Array(accessToken, experimentName, uuid) = uri.split("/").takeRight(3)
             experiment(req, accessToken, experimentName, uuid)
           } else {
