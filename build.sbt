@@ -19,12 +19,14 @@ lazy val commonSettings = Seq(
   )
 )
 
-//lazy val root = project.in(file(".")).enablePlugins(PlayScala)
-//  .dependsOn(s2core, s2counter_core)
-//  .settings(commonSettings: _*)
+Revolver.settings
 
 lazy val s2rest_play = project.enablePlugins(PlayScala)
   .dependsOn(s2core, s2counter_core)
+  .settings(commonSettings: _*)
+
+lazy val s2rest_netty = project
+  .dependsOn(s2core)
   .settings(commonSettings: _*)
 
 lazy val s2core = project.settings(commonSettings: _*)

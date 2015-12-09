@@ -470,8 +470,7 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         (result \ "results").as[List[JsValue]].size must equalTo(1)
 
         result = getEdges(queryDuration(Seq(0, 2), from = 3000, to = 2000))
-        (result \ "message").as[String] must contain("java.lang.Exception")
-        true
+        (result \ "message").as[String] must contain("java.lang.RuntimeException")
       }
     }
 
@@ -584,11 +583,7 @@ class QuerySpec extends SpecCommon with PlaySpecification {
           edge"1442985659166 insert e 322 3322 $testLabelName"
         )
 
-        val req = FakeRequest(POST, "/graphs/edges/bulk").withBody(bulkEdges.mkString("\n"))
-        Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
-
-        Thread.sleep(asyncFlushInterval)
-
+        contentAsJson(EdgeController.mutateAndPublish(bulkEdges.mkString("\n"), withWait = true))
 
         val result1 = getEdges(queryWithSampling(testId, sampleSize))
         println(Json.toJson(result1))

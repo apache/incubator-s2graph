@@ -155,6 +155,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
             "time_unit" -> key.eq.tq.q.toString,
             "time_value" -> key.eq.tq.ts,
             "date_time" -> key.eq.tq.dateTime,
+            "dimension" -> key.eq.dimension,
             "score" -> score
           )
         )
