@@ -38,9 +38,54 @@ object OrderingUtil {
       }
     }
   }
+
+  def TupleMultiOrdering[T](ascendingLs: Seq[Boolean])(implicit ord: Ordering[T]): Ordering[(T, T, T, T)] = {
+    new Ordering[(T, T, T, T)] {
+      override def compare(tx: (T, T, T, T), ty: (T, T, T, T)): Int = {
+        val len = ascendingLs.length
+        val it = ascendingLs.iterator
+        if (len >= 1) {
+          val (x, y) = it.next() match {
+            case true => tx -> ty
+            case false => ty -> tx
+          }
+          val compare1 = ord.compare(x._1, y._1)
+          if (compare1 != 0) return compare1
+        }
+
+        if (len >= 2) {
+          val (x, y) = it.next() match {
+            case true => tx -> ty
+            case false => ty -> tx
+          }
+          val compare2 = ord.compare(x._2, y._2)
+          if (compare2 != 0) return compare2
+        }
+
+        if (len >= 3) {
+          val (x, y) = it.next() match {
+            case true => tx -> ty
+            case false => ty -> tx
+          }
+          val compare3 = ord.compare(x._3, y._3)
+          if (compare3 != 0) return compare3
+        }
+
+        if (len >= 4) {
+          val (x, y) = it.next() match {
+            case true => tx -> ty
+            case false => ty -> tx
+          }
+          val compare4 = ord.compare(x._4, y._4)
+          if (compare4 != 0) return compare4
+        }
+        0
+      }
+    }
+  }
 }
 
-class SeqMultiOrdering[T: Ordering](ascendingLs: Seq[Boolean], defaultAscending: Boolean = true)(implicit ord: Ordering[T]) extends Ordering[Seq[T]] {
+class SeqMultiOrdering[T](ascendingLs: Seq[Boolean], defaultAscending: Boolean = true)(implicit ord: Ordering[T]) extends Ordering[Seq[T]] {
   override def compare(x: Seq[T], y: Seq[T]): Int = {
     val xe = x.iterator
     val ye = y.iterator
@@ -60,45 +105,45 @@ class SeqMultiOrdering[T: Ordering](ascendingLs: Seq[Boolean], defaultAscending:
   }
 }
 
-class TupleMultiOrdering[T: Ordering](ascendingLs: Seq[Boolean])(implicit ord: Ordering[T]) extends Ordering[(T, T, T, T)] {
-  override def compare(tx: (T, T, T, T), ty: (T, T, T, T)): Int = {
-    val len = ascendingLs.length
-    val it = ascendingLs.iterator
-    if (len >= 1) {
-      val (x, y) = it.next() match {
-        case true => tx -> ty
-        case false => ty -> tx
-      }
-      val compare1 = ord.compare(x._1, y._1)
-      if (compare1 != 0) return compare1
-    }
-
-    if (len >= 2) {
-      val (x, y) = it.next() match {
-        case true => tx -> ty
-        case false => ty -> tx
-      }
-      val compare2 = ord.compare(x._2, y._2)
-      if (compare2 != 0) return compare2
-    }
-
-    if (len >= 3) {
-      val (x, y) = it.next() match {
-        case true => tx -> ty
-        case false => ty -> tx
-      }
-      val compare3 = ord.compare(x._3, y._3)
-      if (compare3 != 0) return compare3
-    }
-
-    if (len >= 4) {
-      val (x, y) = it.next() match {
-        case true => tx -> ty
-        case false => ty -> tx
-      }
-      val compare4 = ord.compare(x._4, y._4)
-      if (compare4 != 0) return compare4
-    }
-    0
-  }
-}
+//class TupleMultiOrdering[T](ascendingLs: Seq[Boolean])(implicit ord: Ordering[T]) extends Ordering[(T, T, T, T)] {
+//  override def compare(tx: (T, T, T, T), ty: (T, T, T, T)): Int = {
+//    val len = ascendingLs.length
+//    val it = ascendingLs.iterator
+//    if (len >= 1) {
+//      val (x, y) = it.next() match {
+//        case true => tx -> ty
+//        case false => ty -> tx
+//      }
+//      val compare1 = ord.compare(x._1, y._1)
+//      if (compare1 != 0) return compare1
+//    }
+//
+//    if (len >= 2) {
+//      val (x, y) = it.next() match {
+//        case true => tx -> ty
+//        case false => ty -> tx
+//      }
+//      val compare2 = ord.compare(x._2, y._2)
+//      if (compare2 != 0) return compare2
+//    }
+//
+//    if (len >= 3) {
+//      val (x, y) = it.next() match {
+//        case true => tx -> ty
+//        case false => ty -> tx
+//      }
+//      val compare3 = ord.compare(x._3, y._3)
+//      if (compare3 != 0) return compare3
+//    }
+//
+//    if (len >= 4) {
+//      val (x, y) = it.next() match {
+//        case true => tx -> ty
+//        case false => ty -> tx
+//      }
+//      val compare4 = ord.compare(x._4, y._4)
+//      if (compare4 != 0) return compare4
+//    }
+//    0
+//  }
+//}

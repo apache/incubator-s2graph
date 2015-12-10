@@ -134,7 +134,7 @@ object PostProcess extends JSONParser {
 
     if (q.withScore && orderByColumns.nonEmpty) {
       val ascendingLs = orderByColumns.map(_._2)
-      rawEdges.sortBy(_._3)(new TupleMultiOrdering[Any](ascendingLs))
+      rawEdges.sortBy(_._3)(TupleMultiOrdering[Any](ascendingLs))
     } else {
       rawEdges
     }
@@ -186,12 +186,14 @@ object PostProcess extends JSONParser {
         val (srcColumn, _) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
         val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
         if (edge.isDegree && fromOpt.isDefined) {
-          degrees += Json.obj(
-            "from" -> fromOpt.get,
-            "label" -> queryRequest.queryParam.label.label,
-            "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
-            LabelMeta.degree.name -> innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
-          )
+          if (query.limitOpt.isEmpty) {
+            degrees += Json.obj(
+              "from" -> fromOpt.get,
+              "label" -> queryRequest.queryParam.label.label,
+              "direction" -> GraphUtil.fromDirection(edge.labelWithDir.dir),
+              LabelMeta.degree.name -> innerValToJsValue(edge.propsWithTs(LabelMeta.degreeSeq).innerVal, InnerVal.LONG)
+            )
+          }
         } else {
           val keyWithJs = edgeToJson(edge, score, queryRequest.query, queryRequest.queryParam)
           val orderByValues: (Any, Any, Any, Any) = orderByColumns.length match {
@@ -228,7 +230,11 @@ object PostProcess extends JSONParser {
 
       if (query.groupByColumns.isEmpty) {
         // ordering
-        val edges = orderBy(query, orderByColumns, rawEdges).map(_._1)
+        val ordered = orderBy(query, orderByColumns, rawEdges)
+        val edges = query.limitOpt match {
+          case None => orderBy(query, orderByColumns, rawEdges).map(_._1)
+          case Some(limit) => orderBy(query, orderByColumns, rawEdges).map(_._1).take(limit)
+        }
 
         Json.obj(
           "size" -> edges.size,
@@ -249,26 +255,34 @@ object PostProcess extends JSONParser {
           } yield column -> value
         }
 
-        val groupedEdges = {
+        val groupedEdges =
           for {
             (groupByKeyVals, groupedRawEdges) <- grouped
           } yield {
             val scoreSum = groupedRawEdges.map(x => x._2).sum
             // ordering
             val edges = orderBy(query, orderByColumns, groupedRawEdges).map(_._1)
-            Json.obj(
-              "groupBy" -> Json.toJson(groupByKeyVals.toMap),
-              "scoreSum" -> scoreSum,
-              "agg" -> edges
-            )
-          }
-        }
 
-        val groupedSortedJsons = groupedEdges.toList.sortBy { jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
+            (groupByKeyVals, scoreSum, edges)
+          }
+
+        val sortedGroupedEdges = groupedEdges.toList.sortBy(_._2)(Ordering.Double.reverse)
+
+        def toJson(groupByKeyVals: Seq[(String, JsValue)], scoreSum: Double, edges: ListBuffer[Map[String, JsValue]]): JsValue = {
+          Json.obj(
+            "groupBy" -> Json.toJson(groupByKeyVals.toMap),
+            "scoreSum" -> scoreSum,
+            "agg" -> edges
+          )
+        }
+        val resultEdges = query.limitOpt match {
+          case Some(limit) => sortedGroupedEdges.take(limit)
+          case None => sortedGroupedEdges
+        }
         Json.obj(
-          "size" -> groupedEdges.size,
+          "size" -> resultEdges.size,
           "degrees" -> degrees,
-          "results" -> groupedSortedJsons,
+          "results" -> resultEdges.map((toJson _).tupled),
           "impressionId" -> query.impressionId()
         )
       }
