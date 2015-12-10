@@ -32,7 +32,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
   private[counter] val log = LoggerFactory.getLogger(this.getClass)
   private val s2config = new S2CounterConfig(config)
 
-  private val BUCKET_SHARD_COUNT = 53
+  private val BUCKET_SHARD_COUNT = 1
   private val SERVICE_NAME = "s2counter"
   private val BUCKET_COLUMN_NAME = "bucket"
   private val counterModel = new CounterModel(config)
