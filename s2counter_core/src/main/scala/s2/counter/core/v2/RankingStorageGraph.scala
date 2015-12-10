@@ -32,7 +32,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
   private[counter] val log = LoggerFactory.getLogger(this.getClass)
   private val s2config = new S2CounterConfig(config)
 
-  private val BUCKET_SHARD_COUNT = 53
+  private val BUCKET_SHARD_COUNT = 1
   private val SERVICE_NAME = "s2counter"
   private val BUCKET_COLUMN_NAME = "bucket"
   private val counterModel = new CounterModel(config)
@@ -155,6 +155,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
             "time_unit" -> key.eq.tq.q.toString,
             "time_value" -> key.eq.tq.ts,
             "date_time" -> key.eq.tq.dateTime,
+            "dimension" -> key.eq.dimension,
             "score" -> score
           )
         )

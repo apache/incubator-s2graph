@@ -75,7 +75,7 @@ object Graph {
   /** common methods for filter out, transform, aggregate queryResult */
   def convertEdges(queryParam: QueryParam, edge: Edge, nextStepOpt: Option[Step]): Seq[Edge] = {
     for {
-      convertedEdge <- queryParam.transformer.transform(edge, nextStepOpt)
+      convertedEdge <- queryParam.transformer.transform(edge, nextStepOpt) if !edge.isDegree
     } yield convertedEdge
   }
 
@@ -220,10 +220,10 @@ object Graph {
                 val (hashKey, filterHashKey) = toHashKey(queryParam, convertedEdge, isDegree)
 
                 /** check if this edge should be exlcuded. */
-                if (shouldBeExcluded) {
+                if (shouldBeExcluded && !isDegree) {
                   edgesToExclude.add(filterHashKey)
                 } else {
-                  if (shouldBeIncluded) {
+                  if (shouldBeIncluded && !isDegree) {
                     edgesToInclude.add(filterHashKey)
                   }
                   val tsVal = processTimeDecay(queryParam, convertedEdge)

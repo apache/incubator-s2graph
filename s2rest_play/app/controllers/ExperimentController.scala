@@ -3,6 +3,7 @@ package controllers
 
 import java.net.URL
 
+import com.kakao.s2graph.core.{RequestParser, Graph}
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.utils.logger
 import play.api.Play.current
@@ -13,7 +14,8 @@ import play.api.mvc._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-object ExperimentController extends Controller with RequestParser {
+object ExperimentController extends Controller {
+
   val impressionKey = "S2-Impression-Id"
 
   import ApplicationController._
