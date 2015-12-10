@@ -99,7 +99,11 @@ object EdgeController extends Controller {
   }
 
   def mutateBulk() = withHeaderAsync(parse.text) { request =>
-    mutateAndPublish(request.body)
+    mutateAndPublish(request.body, withWait = false)
+  }
+
+  def mutateBulkWithWait() = withHeaderAsync(parse.text) { request =>
+    mutateAndPublish(request.body, withWait = true)
   }
 
   def inserts() = withHeaderAsync(jsonParser) { request =>
