@@ -317,7 +317,7 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
         val startedAt = System.currentTimeMillis()
 
         val future =
-          if (uri.startsWith("/graphs/experiments")) {
+          if (uri.startsWith("/graphs/experiment")) {
             val Array(accessToken, experimentName, uuid) = uri.split("/").takeRight(3)
             experiment(req, accessToken, experimentName, uuid)
           } else {
