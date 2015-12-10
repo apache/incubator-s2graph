@@ -212,17 +212,9 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
                        prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[QueryRequestWithResult]] = {
     val defers: Seq[Deferred[QueryRequestWithResult]] = for {
       (queryRequest, prevStepScore) <- queryRequestWithScoreLs
-    } yield {
-        val prevStepEdgesOpt = prevStepEdges.get(queryRequest.vertex.id)
-        if (prevStepEdgesOpt.isEmpty) throw new RuntimeException("miss match on prevStepEdge and current GetRequest")
-
-        val parentEdges = for {
-          parentEdge <- prevStepEdgesOpt.get
-        } yield parentEdge
-
-        fetch(queryRequest, prevStepScore, isInnerCall = true, parentEdges)
-      }
-
+      parentEdges <- prevStepEdges.get(queryRequest.vertex.id)
+    } yield fetch(queryRequest, prevStepScore, isInnerCall = true, parentEdges)
+    
     val grouped: Deferred[util.ArrayList[QueryRequestWithResult]] = Deferred.group(defers)
     grouped withCallback {
       queryResults: util.ArrayList[QueryRequestWithResult] =>
