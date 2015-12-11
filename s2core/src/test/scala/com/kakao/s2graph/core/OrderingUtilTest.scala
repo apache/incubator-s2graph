@@ -1,6 +1,6 @@
 package com.kakao.s2graph.core
 
-import com.kakao.s2graph.core.OrderingUtil.MultiValueOrdering
+import com.kakao.s2graph.core.OrderingUtil._
 import org.scalatest.{FunSuite, Matchers}
 import play.api.libs.json.JsString
 
@@ -50,7 +50,7 @@ class OrderingUtilTest extends FunSuite with Matchers {
     )
 
     val ascendingLs: Seq[Boolean] = Seq(false)
-    val resultJsLs = jsLs.sorted(new TupleMultiOrdering[Any](ascendingLs))
+    val resultJsLs = jsLs.sorted(TupleMultiOrdering[Any](ascendingLs))
 
     resultJsLs.toString() should equal(sortedJsLs.toString())
   }
@@ -74,7 +74,7 @@ class OrderingUtilTest extends FunSuite with Matchers {
     )
 
     val ascendingLs: Seq[Boolean] = Seq(false, true)
-    val resultJsLs = jsLs.sorted(new TupleMultiOrdering[Any](ascendingLs))
+    val resultJsLs = jsLs.sorted(TupleMultiOrdering[Any](ascendingLs))
 
     resultJsLs.toString() should equal(sortedJsLs.toString())
   }
@@ -99,7 +99,7 @@ class OrderingUtilTest extends FunSuite with Matchers {
     )
 
     val ascendingLs: Seq[Boolean] = Seq(true, true, false)
-    val resultJsLs = jsLs.sorted(new TupleMultiOrdering[Any](ascendingLs))
+    val resultJsLs = jsLs.sorted(TupleMultiOrdering[Any](ascendingLs))
 
     resultJsLs.toString() should equal(sortedJsLs.toString())
   }
@@ -126,7 +126,7 @@ class OrderingUtilTest extends FunSuite with Matchers {
     )
 
     val ascendingLs: Seq[Boolean] = Seq(true, true, true, false)
-    val resultJsLs = jsLs.sorted(new TupleMultiOrdering[Any](ascendingLs))
+    val resultJsLs = jsLs.sorted(TupleMultiOrdering[Any](ascendingLs))
 
     resultJsLs.toString() should equal(sortedJsLs.toString())
   }
