@@ -94,6 +94,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
   val futureCache = CacheBuilder.newBuilder()
   .initialCapacity(maxSize)
   .concurrencyLevel(Runtime.getRuntime.availableProcessors())
+  .expireAfterWrite(futureCacheTTL, TimeUnit.MILLISECONDS)
   .expireAfterAccess(futureCacheTTL, TimeUnit.MILLISECONDS)
   .maximumSize(maxSize).build[java.lang.Long, (Long, Deferred[QueryRequestWithResult])]()
 
