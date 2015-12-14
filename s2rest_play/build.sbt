@@ -1,3 +1,5 @@
+import com.typesafe.sbt.packager.docker._
+
 name := "s2rest_play"
 
 version := "0.12.1-SNAPSHOT"
@@ -11,3 +13,11 @@ libraryDependencies ++= Seq(
   "com.github.danielwegener" % "logback-kafka-appender" % "0.0.3",
   "org.json4s" %% "json4s-native" % "3.2.11" % Test
 )
+
+enablePlugins(JavaServerAppPackaging)
+
+enablePlugins(DockerPlugin)
+
+dockerBaseImage := "isuper/java-oracle"
+
+dockerExposedPorts := Seq(9000)
