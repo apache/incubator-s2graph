@@ -1,5 +1,5 @@
 graph:
-    image: s2graph:0.12.0-SNAPSHOT
+    image: s2rest_play:0.12.1-SNAPSHOT
     container_name: graph
     net: container:graph_hbase
     links:
@@ -7,7 +7,7 @@ graph:
         - graph_hbase
 
 graph_mysql:
-    image: devsupport_graph_mysql
+    build: graph_mysql
     container_name: graph_mysql
     environment:
         MYSQL_ROOT_PASSWORD: graph
