@@ -34,7 +34,7 @@ In order to develop and test S2Graph. You might be want to run S2Graph as `dev` 
 - Run s2graph as 'dev' mode
 
 ```
-# sbt run -Dhost=default
+# sbt "project s2rest_play" run -Dhost=default
 ```
 
 - or run test cases
