@@ -63,6 +63,8 @@ trait SpecCommon extends Specification {
   protected val testTgtColumnName = "item_id_test"
   protected val testHTableName = "test-htable"
   protected val newHTableName = "new-htable"
+  protected val index1 = "idx_1"
+  protected val index2 = "idx_2"
 
   val NUM_OF_EACH_TEST = 100
   val HTTP_REQ_WAITING_TIME = Duration(300, SECONDS)
@@ -80,8 +82,8 @@ trait SpecCommon extends Specification {
     "tgtColumnName": "$testColumnName",
     "tgtColumnType": "long",
     "indices": [
-      {"name": "idx_1", "propNames": ["weight", "time", "is_hidden", "is_blocked"]},
-      {"name": "idx_2", "propNames": ["_timestamp"]}
+      {"name": "$index1", "propNames": ["weight", "time", "is_hidden", "is_blocked"]},
+      {"name": "$index2", "propNames": ["_timestamp"]}
     ],
     "props": [
     {
@@ -121,7 +123,7 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "$testTgtColumnName",
     "tgtColumnType": "string",
-    "indices": [{"name": "idx_1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]}],
+    "indices": [{"name": "$index1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]}],
     "props": [
     {
       "name": "time",
@@ -160,7 +162,7 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "${testTgtColumnName}_v1",
     "tgtColumnType": "string",
-    "indices": [{"name": "idx_1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]}],
+    "indices": [{"name": "$index1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]}],
     "props": [
     {
       "name": "time",
@@ -198,7 +200,7 @@ trait SpecCommon extends Specification {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "$testTgtColumnName",
     "tgtColumnType": "string",
-    "indices": [{"name": "idx_1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]}],
+    "indices": [{"name": "$index1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]}],
     "props": [
     {
       "name": "time",
