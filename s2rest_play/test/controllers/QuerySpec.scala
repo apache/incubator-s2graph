@@ -310,6 +310,33 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       )
     }
 
+    def queryWithInterval(id: Int, index: String, prop: String, fromVal: Int, toVal: Int) = Json.parse( s"""
+        { "srcVertices": [
+          { "serviceName": "${testServiceName}",
+            "columnName": "${testColumnName}",
+            "id": ${id}
+           }],
+          "steps": [
+          [ {
+              "label": "${testLabelName}",
+              "index": "${index}",
+              "interval": {
+                  "from": [
+                      {
+                          "${prop}": ${fromVal}
+                      }
+                  ],
+                  "to": [
+                      {
+                          "${prop}": ${toVal}
+                      }
+                  ]
+              }
+            }
+          ]]
+        }
+        """)
+
     def getEdges(queryJson: JsValue): JsValue = {
       val ret = route(FakeRequest(POST, "/graphs/getEdges").withJsonBody(queryJson)).get
       contentAsJson(ret)
@@ -341,6 +368,27 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       val $steps = $a($(step = $step))
 
       $(srcVertices = $from, steps = $steps).toJson
+    }
+
+    "interval" >> {
+      running(FakeApplication()) {
+        // insert test set
+        var edges = getEdges(queryWithInterval(0, index2, "_timestamp", 1000, 1001))  // test interval on timestamp index
+        println(edges)
+        (edges \ "size").toString must_== "1"
+
+        edges = getEdges(queryWithInterval(0, index2, "_timestamp", 1000, 2000))  // test interval on timestamp index
+        println(edges)
+        (edges \ "size").toString must_== "2"
+
+        edges = getEdges(queryWithInterval(2, index1, "weight", 10, 11))  // test interval on weight index
+        println(edges)
+        (edges \ "size").toString must_== "1"
+
+        edges = getEdges(queryWithInterval(2, index1, "weight", 10, 20))  // test interval on weight index
+        println(edges)
+        (edges \ "size").toString must_== "2"
+      }
     }
 
     "union query" in {
@@ -577,7 +625,7 @@ class QuerySpec extends SpecCommon with PlaySpecification {
       }
     }
 
-    "query with sampling" in {
+    "query with sampling" >> {
       running(FakeApplication()) {
         val sampleSize = 2
         val testId = 22
