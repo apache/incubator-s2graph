@@ -292,7 +292,9 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
     req.getMethod match {
       case HttpMethod.GET =>
         uri match {
-          case "/health_check.html" => simpleResponse(ctx, Ok, byteBufOpt = None, channelFutureListenerOpt = Option(Close))
+          case "/health_check.html" =>
+            val healthCheckMsg = Unpooled.copiedBuffer(NettyServer.isHealthy.toString, CharsetUtil.UTF_8)
+            simpleResponse(ctx, Ok, byteBufOpt = Option(healthCheckMsg), channelFutureListenerOpt = Option(Close))
           case s if s.startsWith("/graphs/getEdge/") =>
             // src, tgt, label, dir
             val Array(srcId, tgtId, labelName, direction) = s.split("/").takeRight(4)
@@ -307,7 +309,7 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
         if (uri.startsWith("/health_check/")) {
           val newHealthCheck = uri.split("/").last.toBoolean
           NettyServer.isHealthy = newHealthCheck
-          val newHealthCheckMsg = Unpooled.copiedBuffer(NettyServer.updateHealthCheck(NettyServer.isHealthy).toString, CharsetUtil.UTF_8)
+          val newHealthCheckMsg = Unpooled.copiedBuffer(NettyServer.isHealthy.toString, CharsetUtil.UTF_8)
           simpleResponse(ctx, Ok, byteBufOpt = Option(newHealthCheckMsg), channelFutureListenerOpt = Option(Close))
         } else badRoute(ctx)
 
