@@ -130,14 +130,14 @@ object TransferToHFile extends SparkApp with JSONParser {
     val labelMapping = if (args.length >= 7) GraphSubscriberHelper.toLabelMapping(args(6)) else Map.empty[String, String]
     val autoEdgeCreate = if (args.length >= 8) args(7).toBoolean else false
     val buildDegree = if (args.length >= 9) args(8).toBoolean else true
-
+    val compressionAlgorithm = if (args.length >= 10) args(9) else "lz4"
     val conf = sparkConf(s"$input: TransferToHFile")
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     conf.set("spark.kryoserializer.buffer.mb", "24")
 
     val sc = new SparkContext(conf)
 
-
+    Management.createTable(zkQuorum, tableName, List("e", "v"), maxHFilePerResionServer, None, compressionAlgorithm)
 
     /** set up hbase init */
     val hbaseConf = HBaseConfiguration.create()
