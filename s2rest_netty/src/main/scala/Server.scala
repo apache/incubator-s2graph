@@ -258,8 +258,8 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
         val isKeepAlive = HttpHeaders.isKeepAlive(req)
         val buf: ByteBuf = Unpooled.copiedBuffer(resJson.toString, CharsetUtil.UTF_8)
         val (headers, listenerOpt) =
-          if (isKeepAlive) (Seq(CONTENT_TYPE -> Json, CONTENT_LENGTH -> buf.readableBytes(), CONNECTION -> HttpHeaders.Values.KEEP_ALIVE), None)
-          else (Seq(CONTENT_TYPE -> Json, CONTENT_LENGTH -> buf.readableBytes()), Option(Close))
+          if (isKeepAlive) (Seq(CONTENT_TYPE -> JSON, CONTENT_LENGTH -> buf.readableBytes(), CONNECTION -> HttpHeaders.Values.KEEP_ALIVE), None)
+          else (Seq(CONTENT_TYPE -> JSON, CONTENT_LENGTH -> buf.readableBytes()), Option(Close))
         //NOTE: logging size of result should move to s2core.
         //        logger.info(resJson.size.toString)
 
@@ -306,7 +306,8 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
       case HttpMethod.PUT =>
         if (uri.startsWith("/health_check/")) {
           val newHealthCheck = uri.split("/").last.toBoolean
-          val newHealthCheckMsg = Unpooled.copiedBuffer(NettyServer.updateHealthCheck(newHealthCheck).toString, CharsetUtil.UTF_8)
+          NettyServer.isHealthy = newHealthCheck
+          val newHealthCheckMsg = Unpooled.copiedBuffer(NettyServer.updateHealthCheck(NettyServer.isHealthy).toString, CharsetUtil.UTF_8)
           simpleResponse(ctx, Ok, byteBufOpt = Option(newHealthCheckMsg), channelFutureListenerOpt = Option(Close))
         } else badRoute(ctx)
 
