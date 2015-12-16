@@ -36,14 +36,14 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
   .maximumSize(maxSize).build[java.lang.Long, (Long, Deferred[QueryRequestWithResult])]()
 
   //  val scheduleTime = 60L * 60
-  val scheduleTime = 60
-  val scheduler = Executors.newScheduledThreadPool(1)
-
-  scheduler.scheduleAtFixedRate(new Runnable(){
-    override def run() = {
-      logger.info(s"[FutureCache]: ${futureCache.stats()}")
-    }
-  }, scheduleTime, scheduleTime, TimeUnit.SECONDS)
+//  val scheduleTime = 60
+//  val scheduler = Executors.newScheduledThreadPool(1)
+//
+//  scheduler.scheduleAtFixedRate(new Runnable(){
+//    override def run() = {
+//      logger.info(s"[FutureCache]: ${futureCache.stats()}")
+//    }
+//  }, scheduleTime, scheduleTime, TimeUnit.SECONDS)
 
   override def buildRequest(queryRequest: QueryRequest): GetRequest = {
     val srcVertex = queryRequest.vertex
