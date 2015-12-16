@@ -1,6 +1,7 @@
 package com.kakao.s2graph.rest.netty
 
 import java.net.URL
+import java.util.concurrent.Executors
 
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
@@ -19,7 +20,8 @@ import io.netty.handler.logging.{LogLevel, LoggingHandler}
 import io.netty.util.CharsetUtil
 import play.api.libs.json._
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
+import scala.io.Source
 import scala.util.{Failure, Success, Try}
 
 class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JSONParser {
@@ -258,8 +260,8 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
         val isKeepAlive = HttpHeaders.isKeepAlive(req)
         val buf: ByteBuf = Unpooled.copiedBuffer(resJson.toString, CharsetUtil.UTF_8)
         val (headers, listenerOpt) =
-          if (isKeepAlive) (Seq(CONTENT_TYPE -> Json, CONTENT_LENGTH -> buf.readableBytes(), CONNECTION -> HttpHeaders.Values.KEEP_ALIVE), None)
-          else (Seq(CONTENT_TYPE -> Json, CONTENT_LENGTH -> buf.readableBytes()), Option(Close))
+          if (isKeepAlive) (Seq(CONTENT_TYPE -> JSON, CONTENT_LENGTH -> buf.readableBytes(), CONNECTION -> HttpHeaders.Values.KEEP_ALIVE), None)
+          else (Seq(CONTENT_TYPE -> JSON, CONTENT_LENGTH -> buf.readableBytes()), Option(Close))
         //NOTE: logging size of result should move to s2core.
         //        logger.info(resJson.size.toString)
 
@@ -292,7 +294,14 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
     req.getMethod match {
       case HttpMethod.GET =>
         uri match {
-          case "/health_check.html" => simpleResponse(ctx, Ok, byteBufOpt = None, channelFutureListenerOpt = Option(Close))
+          case "/health_check.html" =>
+            if (NettyServer.isHealthy) {
+              val healthCheckMsg = Unpooled.copiedBuffer(NettyServer.deployInfo, CharsetUtil.UTF_8)
+              simpleResponse(ctx, Ok, byteBufOpt = Option(healthCheckMsg), channelFutureListenerOpt = Option(Close))
+            } else {
+              simpleResponse(ctx, NotFound, channelFutureListenerOpt = Option(Close))
+            }
+
           case s if s.startsWith("/graphs/getEdge/") =>
             // src, tgt, label, dir
             val Array(srcId, tgtId, labelName, direction) = s.split("/").takeRight(4)
@@ -306,7 +315,8 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
       case HttpMethod.PUT =>
         if (uri.startsWith("/health_check/")) {
           val newHealthCheck = uri.split("/").last.toBoolean
-          val newHealthCheckMsg = Unpooled.copiedBuffer(NettyServer.updateHealthCheck(newHealthCheck).toString, CharsetUtil.UTF_8)
+          NettyServer.isHealthy = newHealthCheck
+          val newHealthCheckMsg = Unpooled.copiedBuffer(NettyServer.isHealthy.toString, CharsetUtil.UTF_8)
           simpleResponse(ctx, Ok, byteBufOpt = Option(newHealthCheckMsg), channelFutureListenerOpt = Option(Close))
         } else badRoute(ctx)
 
@@ -339,20 +349,45 @@ class S2RestHandler extends SimpleChannelInboundHandler[FullHttpRequest] with JS
 }
 
 object NettyServer extends App {
+  def loadCacheInner() = {
+    Service.findAll()
+    ServiceColumn.findAll()
+    Label.findAll()
+    LabelMeta.findAll()
+    LabelIndex.findAll()
+    ColumnMeta.findAll()
+  }
   def updateHealthCheck(healthCheck: Boolean): Boolean = {
     this.isHealthy = healthCheck
     this.isHealthy
   }
 
+  def getBoolean(key: String, defaultValue: Boolean): Boolean =
+    if (config.hasPath(key)) config.getBoolean(key) else defaultValue
+
+  /** should be same with Boostrap.onStart on play */
+
+  // app status code
+  var isHealthy = false
+  var deployInfo = ""
+
+  val numOfThread = Runtime.getRuntime.availableProcessors()
+  val threadPool = Executors.newFixedThreadPool(numOfThread)
+  val ec = ExecutionContext.fromExecutor(threadPool)
+
   val config = ConfigFactory.load()
   val Port = Try(config.getInt("http.port")).recover { case _ => 9000 }.get
 
   // init s2graph with config
-  val s2graph = new Graph(config)(scala.concurrent.ExecutionContext.Implicits.global)
+  val s2graph = new Graph(config)(ec)
   val s2parser = new RequestParser(s2graph)
 
-  // app status code
-  var isHealthy = true
+  val defaultHealthOn = getBoolean("app.health.on", true)
+  deployInfo = Try(Source.fromFile("./release_info").mkString("")).recover { case _ => "release info not found\n" }.get
+  loadCacheInner()
+  isHealthy = defaultHealthOn
+  logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
+
 
   // Configure the server.
   val bossGroup: EventLoopGroup = new NioEventLoopGroup(1)
@@ -373,6 +408,7 @@ object NettyServer extends App {
         }
       })
 
+    logger.info(s"Listening for HTTP on /0.0.0.0:$Port")
     val ch: Channel = b.bind(Port).sync().channel()
     ch.closeFuture().sync()
 
