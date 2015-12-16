@@ -1,7 +1,7 @@
 package com.kakao.s2graph.core.storage.hbase
 
 import java.util
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{Executors, TimeUnit}
 import com.google.common.cache.CacheBuilder
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.LabelMeta
@@ -22,6 +22,28 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
 
   import Extensions.DeferOps
 
+  val maxSize = storage.config.getInt("future.cache.max.size")
+  val expreAfterWrite = storage.config.getInt("future.cache.expire.after.write")
+  val expreAfterAccess = storage.config.getInt("future.cache.expire.after.access")
+
+  val futureCache = CacheBuilder.newBuilder()
+  .recordStats()
+  .initialCapacity(maxSize)
+  .concurrencyLevel(Runtime.getRuntime.availableProcessors())
+  .expireAfterWrite(expreAfterWrite, TimeUnit.MILLISECONDS)
+  .expireAfterAccess(expreAfterAccess, TimeUnit.MILLISECONDS)
+//  .weakKeys()
+  .maximumSize(maxSize).build[java.lang.Long, (Long, Deferred[QueryRequestWithResult])]()
+
+  //  val scheduleTime = 60L * 60
+  val scheduleTime = 60
+  val scheduler = Executors.newScheduledThreadPool(1)
+
+  scheduler.scheduleAtFixedRate(new Runnable(){
+    override def run() = {
+      logger.info(s"[FutureCache]: ${futureCache.stats()}")
+    }
+  }, scheduleTime, scheduleTime, TimeUnit.SECONDS)
 
   override def buildRequest(queryRequest: QueryRequest): GetRequest = {
     val srcVertex = queryRequest.vertex
@@ -88,15 +110,6 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
     val queryRequest = QueryRequest(q, 0, srcVertex, _queryParam)
     fetch(queryRequest, 1.0, isInnerCall = true, parentEdges = Nil)
   }
-
-  val maxSize = storage.config.getInt("future.cache.max.size")
-  val futureCacheTTL = storage.config.getInt("future.cache.max.idle.ttl")
-  val futureCache = CacheBuilder.newBuilder()
-  .initialCapacity(maxSize)
-  .concurrencyLevel(Runtime.getRuntime.availableProcessors())
-  .expireAfterWrite(futureCacheTTL, TimeUnit.MILLISECONDS)
-  .expireAfterAccess(futureCacheTTL, TimeUnit.MILLISECONDS)
-  .maximumSize(maxSize).build[java.lang.Long, (Long, Deferred[QueryRequestWithResult])]()
 
   override def fetch(queryRequest: QueryRequest,
                      prevStepScore: Double,
