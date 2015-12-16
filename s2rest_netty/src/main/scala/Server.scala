@@ -373,6 +373,7 @@ object NettyServer extends App {
         }
       })
 
+    logger.info(s"Listening for HTTP on /0.0.0.0:$Port")
     val ch: Channel = b.bind(Port).sync().channel()
     ch.closeFuture().sync()
 
