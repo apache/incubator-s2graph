@@ -183,7 +183,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
       val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
       val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
 
-      val cacheVal = futureCache.asMap().get(cacheKey)
+      val cacheVal = futureCache.getIfPresent(cacheKey)
       cacheVal match {
         case null =>
           // here there is no promise set up for this cacheKey so we need to set promise on future cache.
