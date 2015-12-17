@@ -376,7 +376,7 @@ object NettyServer extends App {
   val ec = ExecutionContext.fromExecutor(threadPool)
 
   val config = ConfigFactory.load()
-  val Port = Try(config.getInt("http.port")).recover { case _ => 9000 }.get
+  val port = Try(config.getInt("http.port")).recover { case _ => 9000 }.get
 
   // init s2graph with config
   val s2graph = new Graph(config)(ec)
@@ -408,8 +408,8 @@ object NettyServer extends App {
         }
       })
 
-    logger.info(s"Listening for HTTP on /0.0.0.0:$Port")
-    val ch: Channel = b.bind(Port).sync().channel()
+    logger.info(s"Listening for HTTP on /0.0.0.0:$port")
+    val ch: Channel = b.bind(port).sync().channel()
     ch.closeFuture().sync()
 
   } finally {
