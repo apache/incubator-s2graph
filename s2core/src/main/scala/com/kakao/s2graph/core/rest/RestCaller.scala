@@ -11,27 +11,76 @@ import play.api.libs.json._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
+/**
+  * Public API only return Future.successful or Future.failed
+  * Don't throw exception
+  */
 class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
   val s2Parser = new RequestParser(graph.config)
 
-  def checkEdges(jsValue: JsValue): Future[JsValue] = {
-    val (quads, isReverted) = s2Parser.toCheckEdgeParam(jsValue)
+  /**
+    * Public APIS
+    */
+  def experiment(contentsBody: JsValue, accessToken: String, experimentName: String, uuid: String): Future[(JsValue, String)] = {
+    try {
+      val bucketOpt = for {
+        service <- Service.findByAccessToken(accessToken)
+        experiment <- Experiment.findBy(service.id.get, experimentName)
+        bucket <- experiment.findBucket(uuid)
+      } yield bucket
 
-    graph.checkEdges(quads).map { case queryRequestWithResultLs =>
-      val edgeJsons = for {
-        queryRequestWithResult <- queryRequestWithResultLs
-        (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
-        edgeWithScore <- queryResult.edgeWithScoreLs
-        (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-        convertedEdge = if (isReverted) edge.duplicateEdge else edge
-        edgeJson = PostProcess.edgeToJson(convertedEdge, score, queryRequest.query, queryRequest.queryParam)
-      } yield Json.toJson(edgeJson)
-
-      Json.toJson(edgeJsons)
+      val bucket = bucketOpt.getOrElse(throw new RuntimeException("bucket is not found"))
+      if (bucket.isGraphQuery) buildRequestInner(contentsBody, bucket, uuid).map(_ -> bucket.impressionId)
+      else throw new RuntimeException("not supported yet")
+    } catch {
+      case e: Exception => Future.failed(e)
     }
   }
 
-  def eachQuery(post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue)(q: Query): Future[JsValue] = {
+  def uriMatch(uri: String, jsQuery: JsValue): Future[JsValue] = {
+    try {
+      uri match {
+        case "/graphs/getEdges" => getEdgesAsync(jsQuery)(PostProcess.toSimpleVertexArrJson)
+        case "/graphs/getEdges/grouped" => getEdgesAsync(jsQuery)(PostProcess.summarizeWithListFormatted)
+        case "/graphs/getEdgesExcluded" => getEdgesExcludedAsync(jsQuery)(PostProcess.toSimpleVertexArrJson)
+        case "/graphs/getEdgesExcluded/grouped" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExcludeFormatted)
+        case "/graphs/checkEdges" => checkEdges(jsQuery)
+        case "/graphs/getEdgesGrouped" => getEdgesAsync(jsQuery)(PostProcess.summarizeWithList)
+        case "/graphs/getEdgesGroupedExcluded" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExclude)
+        case "/graphs/getEdgesGroupedExcludedFormatted" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExcludeFormatted)
+        case "/graphs/getVertices" => getVertices(jsQuery)
+        case _ => throw new RuntimeException("route is not found")
+      }
+    } catch {
+      case e: Exception => Future.failed(e)
+    }
+  }
+
+  def checkEdges(jsValue: JsValue): Future[JsValue] = {
+    try {
+      val (quads, isReverted) = s2Parser.toCheckEdgeParam(jsValue)
+
+      graph.checkEdges(quads).map { case queryRequestWithResultLs =>
+        val edgeJsons = for {
+          queryRequestWithResult <- queryRequestWithResultLs
+          (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+          edgeWithScore <- queryResult.edgeWithScoreLs
+          (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
+          convertedEdge = if (isReverted) edge.duplicateEdge else edge
+          edgeJson = PostProcess.edgeToJson(convertedEdge, score, queryRequest.query, queryRequest.queryParam)
+        } yield Json.toJson(edgeJson)
+
+        Json.toJson(edgeJsons)
+      }
+    } catch {
+      case e: Exception => Future.failed(e)
+    }
+  }
+
+  /**
+    * Private APIS
+    */
+  private def eachQuery(post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue)(q: Query): Future[JsValue] = {
     val filterOutQueryResultsLs = q.filterOutQuery match {
       case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
       case None => Future.successful(Seq.empty)
@@ -46,14 +95,9 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
     }
   }
 
-  def calcSize(js: JsValue): Int = js match {
-    case JsObject(obj) => (js \ "size").asOpt[Int].getOrElse(0)
-    case JsArray(seq) => seq.map(js => (js \ "size").asOpt[Int].getOrElse(0)).sum
-    case _ => 0
-  }
 
-  def getEdgesAsync(jsonQuery: JsValue)
-                   (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
+  private def getEdgesAsync(jsonQuery: JsValue)
+                           (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
 
     val fetch = eachQuery(post) _
     jsonQuery match {
@@ -63,8 +107,8 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
     }
   }
 
-  def getEdgesExcludedAsync(jsonQuery: JsValue)
-                           (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
+  private def getEdgesExcludedAsync(jsonQuery: JsValue)
+                                   (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
     val q = s2Parser.toQuery(jsonQuery)
     val filterOutQuery = Query(q.vertices, Vector(q.steps.last))
 
@@ -79,7 +123,7 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
     }
   }
 
-  def getVerticesInner(jsValue: JsValue) = {
+  private def getVertices(jsValue: JsValue) = {
     val jsonQuery = jsValue
     val ts = System.currentTimeMillis()
     val props = "{}"
@@ -95,24 +139,6 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
     graph.getVertices(vertices) map { vertices => PostProcess.verticesToJson(vertices) }
   }
 
-  def uriMatch(uri: String, jsQuery: JsValue): Future[JsValue] = {
-    try {
-      uri match {
-        case "/graphs/getEdges" => getEdgesAsync(jsQuery)(PostProcess.toSimpleVertexArrJson)
-        case "/graphs/getEdges/grouped" => getEdgesAsync(jsQuery)(PostProcess.summarizeWithListFormatted)
-        case "/graphs/getEdgesExcluded" => getEdgesExcludedAsync(jsQuery)(PostProcess.toSimpleVertexArrJson)
-        case "/graphs/getEdgesExcluded/grouped" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExcludeFormatted)
-        case "/graphs/checkEdges" => checkEdges(jsQuery)
-        case "/graphs/getEdgesGrouped" => getEdgesAsync(jsQuery)(PostProcess.summarizeWithList)
-        case "/graphs/getEdgesGroupedExcluded" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExclude)
-        case "/graphs/getEdgesGroupedExcludedFormatted" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExcludeFormatted)
-        case "/graphs/getVertices" => getVerticesInner(jsQuery)
-        case _ => throw new RuntimeException("route is not found")
-      }
-    } catch {
-      case e: Exception => Future.failed(e)
-    }
-  }
 
   private def makeRequestJson(requestKeyJsonOpt: Option[JsValue], bucket: Bucket, uuid: String): JsValue = {
     var body = bucket.requestBody.replace("#uuid", uuid)
@@ -150,19 +176,11 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
     }
   }
 
-  def experiment(contentsBody: JsValue, accessToken: String, experimentName: String, uuid: String): Future[(JsValue, String)] = {
-    val bucketOpt = for {
-      service <- Service.findByAccessToken(accessToken)
-      experiment <- Experiment.findBy(service.id.get, experimentName)
-      bucket <- experiment.findBucket(uuid)
-    } yield bucket
 
-    val bucket = bucketOpt.getOrElse(throw new RuntimeException("bucket is not found"))
-
-    if (bucket.isGraphQuery) buildRequestInner(contentsBody, bucket, uuid).map(_ -> bucket.impressionId)
-    else throw new RuntimeException("not supported yet")
+  def calcSize(js: JsValue): Int = js match {
+    case JsObject(obj) => (js \ "size").asOpt[Int].getOrElse(0)
+    case JsArray(seq) => seq.map(js => (js \ "size").asOpt[Int].getOrElse(0)).sum
+    case _ => 0
   }
-
-
 
 }

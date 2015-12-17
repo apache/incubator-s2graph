@@ -2,6 +2,7 @@ package com.kakao.s2graph.rest.netty
 
 import java.util.concurrent.Executors
 
+import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.Experiment
 import com.kakao.s2graph.core.rest.RestCaller
@@ -14,6 +15,7 @@ import io.netty.channel._
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioServerSocketChannel
+import io.netty.handler.codec.http.HttpHeaders._
 import io.netty.handler.codec.http._
 import io.netty.handler.logging.{LogLevel, LoggingHandler}
 import io.netty.util.CharsetUtil
@@ -41,6 +43,7 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
                      byteBufOpt: Option[ByteBuf] = None,
                      headers: Seq[(String, String)] = Nil,
                      channelFutureListenerOpt: Option[ChannelFutureListener] = None): Unit = {
+
     val res: FullHttpResponse = byteBufOpt match {
       case None => new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, httpResponseStatus)
       case Some(byteBuf) =>
@@ -57,33 +60,42 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
   }
 
   def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, jsonQuery: JsValue, future: Future[(JsValue, String)], startedAt: Long) = {
+
+    val defaultHeaders = List(Names.CONTENT_TYPE -> ApplicationJson)
+    // NOTE: logging size of result should move to s2core.
+    //        logger.info(resJson.size.toString)
     future onComplete {
       case Success(resJsonWithImpId) =>
         val (resJson, impId) = resJsonWithImpId
 
-        import HttpHeaders._
         val duration = System.currentTimeMillis() - startedAt
         val isKeepAlive = HttpHeaders.isKeepAlive(req)
         val buf: ByteBuf = Unpooled.copiedBuffer(resJson.toString, CharsetUtil.UTF_8)
 
-        var defaultHeaders = List(Names.CONTENT_TYPE -> ApplicationJson, Names.CONTENT_LENGTH -> buf.readableBytes().toString)
+
         val (headerWithKeepAlive, listenerOpt) =
           if (isKeepAlive) ((Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE) :: defaultHeaders) -> None
           else defaultHeaders -> Option(Close)
 
-
-        val responseHeaders =
+        val headerWithImpKey =
           if (impId.isEmpty) headerWithKeepAlive
           else (Experiment.impressionKey, impId) :: headerWithKeepAlive
-
-        // NOTE: logging size of result should move to s2core.
-        //        logger.info(resJson.size.toString)
 
         val log = s"${req.getMethod} ${req.getUri} took ${duration} ms 200 ${s2rest.calcSize(resJson)} ${jsonQuery}"
         logger.info(log)
 
+        val responseHeaders = (Names.CONTENT_LENGTH -> buf.readableBytes().toString) :: headerWithImpKey
         simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = listenerOpt, headers = responseHeaders)
-      case Failure(ex) => simpleResponse(ctx, InternalServerError, byteBufOpt = None, channelFutureListenerOpt = Option(Close))
+
+      case Failure(ex) => ex match {
+        case e: BadQueryException =>
+          logger.error(s"{$jsonQuery}, ${e.getMessage}", e)
+          val buf: ByteBuf = Unpooled.copiedBuffer(Json.obj("message" -> e.getMessage).toString, CharsetUtil.UTF_8)
+          simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = Option(Close), headers = defaultHeaders)
+        case e: Exception =>
+          logger.error(s"${jsonQuery}, ${e.getMessage}", e)
+          simpleResponse(ctx, InternalServerError, byteBufOpt = None, channelFutureListenerOpt = Option(Close))
+      }
     }
   }
 
