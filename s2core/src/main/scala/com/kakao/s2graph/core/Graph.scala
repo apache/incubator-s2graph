@@ -318,7 +318,8 @@ class Graph(_config: Config)(implicit ec: ExecutionContext) {
 //  val cache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Seq[QueryResult]]()
   val vertexCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Option[Vertex]]()
 
-  Model(config)
+  Model.apply(config)
+  Model.loadCache()
 
   // TODO: Make storage client by config param
   val storage: Storage = new AsynchbaseStorage(config, vertexCache)(ec)

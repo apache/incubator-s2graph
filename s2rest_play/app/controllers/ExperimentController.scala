@@ -3,7 +3,7 @@ package controllers
 
 import java.net.URL
 
-import com.kakao.s2graph.core.{RequestParser, Graph}
+import com.kakao.s2graph.core.Graph
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.utils.logger
 import play.api.Play.current

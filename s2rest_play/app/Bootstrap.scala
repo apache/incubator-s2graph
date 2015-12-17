@@ -3,8 +3,9 @@ package com.kakao.s2graph.rest
 import java.util.concurrent.Executors
 
 import actors.QueueActor
+import com.kakao.s2graph.core.rest.RequestParser
 import com.kakao.s2graph.core.utils.logger
-import com.kakao.s2graph.core.{RequestParser, ExceptionHandler, Graph}
+import com.kakao.s2graph.core.{ExceptionHandler, Graph}
 import config.Config
 import controllers.{AdminController, ApplicationController}
 import play.api.Application
@@ -31,7 +32,7 @@ object Global extends WithFilters(new GzipFilter()) {
 
     // init s2graph with config
     s2graph = new Graph(config)(ec)
-    s2parser = new RequestParser(s2graph)
+    s2parser = new RequestParser(s2graph.config) // merged config
 
     QueueActor.init(s2graph)
 

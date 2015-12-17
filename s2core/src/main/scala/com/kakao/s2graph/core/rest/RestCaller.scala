@@ -1,0 +1,154 @@
+package com.kakao.s2graph.core.rest
+
+import java.net.URL
+
+import com.kakao.s2graph.core.GraphExceptions.BadQueryException
+import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls.{Bucket, Experiment, Service}
+import com.kakao.s2graph.core.utils.logger
+import play.api.libs.json._
+
+import scala.concurrent.{ExecutionContext, Future}
+
+class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
+  val s2Parser = new RequestParser(graph.config)
+
+  def checkEdgesInner(jsValue: JsValue): Future[JsValue] = {
+    val (quads, isReverted) = s2Parser.toCheckEdgeParam(jsValue)
+
+    graph.checkEdges(quads).map { case queryRequestWithResultLs =>
+      val edgeJsons = for {
+        queryRequestWithResult <- queryRequestWithResultLs
+        (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+        edgeWithScore <- queryResult.edgeWithScoreLs
+        (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
+        convertedEdge = if (isReverted) edge.duplicateEdge else edge
+        edgeJson = PostProcess.edgeToJson(convertedEdge, score, queryRequest.query, queryRequest.queryParam)
+      } yield Json.toJson(edgeJson)
+
+      Json.toJson(edgeJsons)
+    }
+  }
+
+  def eachQuery(post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue)(q: Query): Future[JsValue] = {
+    val filterOutQueryResultsLs = q.filterOutQuery match {
+      case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
+      case None => Future.successful(Seq.empty)
+    }
+
+    for {
+      queryResultsLs <- graph.getEdges(q)
+      filterOutResultsLs <- filterOutQueryResultsLs
+    } yield {
+      val json = post(queryResultsLs, filterOutResultsLs)
+      json
+    }
+  }
+
+  def calcSize(js: JsValue): Int = js match {
+    case JsObject(obj) => (js \ "size").asOpt[Int].getOrElse(0)
+    case JsArray(seq) => seq.map(js => (js \ "size").asOpt[Int].getOrElse(0)).sum
+    case _ => 0
+  }
+
+  def getEdgesAsync(jsonQuery: JsValue)
+                   (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
+    val fetch = eachQuery(post) _
+    //    logger.info(jsonQuery)
+    jsonQuery match {
+      case JsArray(arr) => Future.traverse(arr.map(s2Parser.toQuery(_)))(fetch).map(JsArray)
+      case obj@JsObject(_) => fetch(s2Parser.toQuery(obj))
+      case _ => throw BadQueryException("Cannot support")
+    }
+  }
+
+  def getEdgesExcludedAsync(jsonQuery: JsValue)
+                           (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
+    val q = s2Parser.toQuery(jsonQuery)
+    val filterOutQuery = Query(q.vertices, Vector(q.steps.last))
+
+    val fetchFuture = graph.getEdges(q)
+    val excludeFuture = graph.getEdges(filterOutQuery)
+
+    for {
+      queryResultLs <- fetchFuture
+      exclude <- excludeFuture
+    } yield {
+      post(queryResultLs, exclude)
+    }
+  }
+
+  def getVerticesInner(jsValue: JsValue) = {
+    val jsonQuery = jsValue
+    val ts = System.currentTimeMillis()
+    val props = "{}"
+
+    val vertices = jsonQuery.as[List[JsValue]].flatMap { js =>
+      val serviceName = (js \ "serviceName").as[String]
+      val columnName = (js \ "columnName").as[String]
+      for (id <- (js \ "ids").asOpt[List[JsValue]].getOrElse(List.empty[JsValue])) yield {
+        Management.toVertex(ts, "insert", id.toString, serviceName, columnName, props)
+      }
+    }
+
+    graph.getVertices(vertices) map { vertices => PostProcess.verticesToJson(vertices) }
+  }
+
+  def uriMatch(uri: String, jsQuery: JsValue): Future[JsValue] = {
+    uri match {
+      case "/graphs/getEdges" => getEdgesAsync(jsQuery)(PostProcess.toSimpleVertexArrJson)
+      case "/graphs/getEdges/grouped" => getEdgesAsync(jsQuery)(PostProcess.summarizeWithListFormatted)
+      case "/graphs/getEdgesExcluded" => getEdgesExcludedAsync(jsQuery)(PostProcess.toSimpleVertexArrJson)
+      case "/graphs/getEdgesExcluded/grouped" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExcludeFormatted)
+      case "/graphs/checkEdges" => checkEdgesInner(jsQuery)
+      case "/graphs/getEdgesGrouped" => getEdgesAsync(jsQuery)(PostProcess.summarizeWithList)
+      case "/graphs/getEdgesGroupedExcluded" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExclude)
+      case "/graphs/getEdgesGroupedExcludedFormatted" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExcludeFormatted)
+      case "/graphs/getVertices" => getVerticesInner(jsQuery)
+      case _ => throw new RuntimeException("route is not found")
+    }
+  }
+
+  def makeRequestJson(requestKeyJsonOpt: Option[JsValue], bucket: Bucket, uuid: String): JsValue = {
+    var body = bucket.requestBody.replace("#uuid", uuid)
+    for {
+      requestKeyJson <- requestKeyJsonOpt
+      jsObj <- requestKeyJson.asOpt[JsObject]
+      (key, value) <- jsObj.fieldSet
+    } {
+      val replacement = value match {
+        case JsString(s) => s
+        case _ => value.toString
+      }
+      body = body.replace(key, replacement)
+    }
+    Json.parse(body)
+  }
+
+  def experiment(contentsBody: JsValue, accessToken: String, experimentName: String, uuid: String) = {
+    def buildRequestInner(contentsBody: JsValue, bucket: Bucket, uuid: String): Future[JsValue] = {
+      if (bucket.isEmpty) Future.successful(Json.obj("isEmpty" -> true))
+      else {
+        val jsonBody = makeRequestJson(Option(contentsBody), bucket, uuid)
+        val url = new URL(bucket.apiPath)
+        val path = url.getPath()
+        // dummy log for sampling
+        val experimentLog = s"POST $path took -1 ms 200 -1 $jsonBody"
+
+        logger.info(experimentLog)
+        uriMatch(path, jsonBody)
+      }
+    }
+
+    val bucketOpt = for {
+      service <- Service.findByAccessToken(accessToken)
+      experiment <- Experiment.findBy(service.id.get, experimentName)
+      bucket <- experiment.findBucket(uuid)
+    } yield bucket
+
+    val bucket = bucketOpt.getOrElse(throw new RuntimeException("bucket is not found"))
+    if (bucket.isGraphQuery) buildRequestInner(contentsBody, bucket, uuid)
+    else throw new RuntimeException("not supported yet")
+    //    else buildRequest(request, bucket, uuid)
+  }
+}
