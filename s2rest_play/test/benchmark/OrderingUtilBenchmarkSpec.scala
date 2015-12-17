@@ -8,10 +8,7 @@ import play.api.{Application => PlayApplication}
 
 import scala.util.Random
 
-/**
-  * Created by hsleep(honeysleep@gmail.com) on 2015. 11. 9..
-  */
-class OrderingUtilBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
+class OrderingUtilBenchmarkSpec extends BenchmarkCommon {
   "OrderingUtilBenchmarkSpec" should {
 
     "performance MultiOrdering any" >> {

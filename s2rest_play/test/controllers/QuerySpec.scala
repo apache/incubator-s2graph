@@ -1,5 +1,6 @@
 package controllers
 
+import com.kakao.s2graph.core.utils.logger
 import play.api.libs.json._
 import play.api.test.{FakeApplication, FakeRequest, PlaySpecification}
 import play.api.{Application => PlayApplication}
@@ -536,7 +537,7 @@ class QuerySpec extends SpecCommon with PlaySpecification {
         (result \ "results").as[List[JsValue]].size must equalTo(1)
 
         result = getEdges(queryDuration(Seq(0, 2), from = 3000, to = 2000))
-        (result \ "message").as[String] must contain("java.lang.RuntimeException")
+        (result \ "message").as[String] must contain("Duration error. Timestamp of From cannot be larger than To")
       }
     }
 

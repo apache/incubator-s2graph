@@ -1,14 +1,11 @@
 package benchmark
 
 import play.api.libs.json.JsNumber
-import play.api.test.{FakeApplication, PlaySpecification, WithApplication}
 import play.libs.Json
 
-class JsonBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
-  "to json" should {
-    implicit val app = FakeApplication()
-
-    "json benchmark" in new WithApplication(app) {
+class JsonBenchmarkSpec extends BenchmarkCommon {
+  "to json" >> {
+    "json benchmark" >> {
 
       duration("map to json") {
         (0 to 100) foreach { n =>
@@ -41,6 +38,8 @@ class JsonBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
           }
         }
       }
+      true
     }
+    true
   }
 }

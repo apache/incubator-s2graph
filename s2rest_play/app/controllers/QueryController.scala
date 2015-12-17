@@ -24,7 +24,7 @@ object QueryController extends Controller with JSONParser {
 
   def fallback(body: JsValue): PartialFunction[Throwable, Future[Result]] = {
     case e: BadQueryException =>
-      logger.error(s"{$body}, $e", e)
+      logger.error(s"{$body}, ${e.getMessage}", e)
       badQueryExceptionResults(e)
     case e: Exception =>
       logger.error(s"${body}, ${e.getMessage}", e)
@@ -34,7 +34,12 @@ object QueryController extends Controller with JSONParser {
   def delegate(request: Request[JsValue]) =
     rest.uriMatch(request.uri, request.body).map { js =>
       Ok(js)
-    } recoverWith fallback(request.body)
+    } recoverWith {
+      case e: Exception =>
+        badQueryExceptionResults(e)
+    }
+
+  //    } recoverWith fallback(request.body)
 
   def getEdges() = withHeaderAsync(jsonParser)(delegate)
 

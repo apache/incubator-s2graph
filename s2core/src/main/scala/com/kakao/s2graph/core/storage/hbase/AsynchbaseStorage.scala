@@ -142,6 +142,7 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
       } else {
         mutateEdgesInner(Seq(edge), strongConsistency, withWait)(Edge.buildOperation)
       }
+
     val vertexFuture = writeAsyncSimple(edge.label.hbaseZkAddr,
       mutationBuilder.buildVertexPutsAsync(edge), withWait)
     Future.sequence(Seq(edgeFuture, vertexFuture)).map { rets => rets.forall(identity) }
