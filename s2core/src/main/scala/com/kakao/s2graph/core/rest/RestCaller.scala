@@ -13,7 +13,6 @@ import scala.util.Try
 
 class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
   val s2Parser = new RequestParser(graph.config)
-  val impressionKey = "S2-Impression-Id"
 
   def checkEdges(jsValue: JsValue): Future[JsValue] = {
     val (quads, isReverted) = s2Parser.toCheckEdgeParam(jsValue)
@@ -163,4 +162,7 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
     if (bucket.isGraphQuery) buildRequestInner(contentsBody, bucket, uuid).map(_ -> bucket.impressionId)
     else throw new RuntimeException("not supported yet")
   }
+
+
+
 }

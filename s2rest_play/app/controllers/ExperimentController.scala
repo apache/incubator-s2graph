@@ -1,16 +1,14 @@
 package controllers
 
 
+import com.kakao.s2graph.core.mysqls.Experiment
 import com.kakao.s2graph.core.rest.RestCaller
-import com.kakao.s2graph.core.utils.logger
 import play.api.mvc._
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
 
 object ExperimentController extends Controller {
   private val rest: RestCaller = com.kakao.s2graph.rest.Global.s2rest
-  val impressionKey = "S2-Impression-Id"
 
   import ApplicationController._
 
@@ -19,12 +17,8 @@ object ExperimentController extends Controller {
 
     val res = rest.experiment(body, accessToken, experimentName, uuid)
     res.map { case (js, impId) =>
-      Ok(js).withHeaders(impressionKey -> impId)
-    } recoverWith {
-      case e: Exception =>
-        logger.error(e.getMessage, e)
-        Future.successful(BadRequest(s"${e.getMessage}"))
-    }
+      Ok(js).withHeaders(Experiment.impressionKey -> impId)
+    } recoverWith ApplicationController.requestFallback(body)
   }
 
   //  private def toSimpleMap(map: Map[String, Seq[String]]): Map[String, String] = {

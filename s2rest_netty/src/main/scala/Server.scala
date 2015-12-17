@@ -3,9 +3,10 @@ package com.kakao.s2graph.rest.netty
 import java.util.concurrent.Executors
 
 import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls.Experiment
 import com.kakao.s2graph.core.rest.RestCaller
 import com.kakao.s2graph.core.utils.Extensions._
-import com.kakao.s2graph.core.utils.{Extensions, logger}
+import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.ConfigFactory
 import io.netty.bootstrap.ServerBootstrap
 import io.netty.buffer.{ByteBuf, Unpooled}
@@ -65,11 +66,15 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
         val isKeepAlive = HttpHeaders.isKeepAlive(req)
         val buf: ByteBuf = Unpooled.copiedBuffer(resJson.toString, CharsetUtil.UTF_8)
 
-        val defaultHeaders = List(Names.CONTENT_TYPE -> ApplicationJson, Names.CONTENT_LENGTH -> buf.readableBytes().toString)
-
-        val (headers, listenerOpt) =
+        var defaultHeaders = List(Names.CONTENT_TYPE -> ApplicationJson, Names.CONTENT_LENGTH -> buf.readableBytes().toString)
+        val (headerWithKeepAlive, listenerOpt) =
           if (isKeepAlive) ((Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE) :: defaultHeaders) -> None
           else defaultHeaders -> Option(Close)
+
+
+        val responseHeaders =
+          if (impId.isEmpty) headerWithKeepAlive
+          else (Experiment.impressionKey, impId) :: headerWithKeepAlive
 
         // NOTE: logging size of result should move to s2core.
         //        logger.info(resJson.size.toString)
@@ -77,7 +82,7 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
         val log = s"${req.getMethod} ${req.getUri} took ${duration} ms 200 ${s2rest.calcSize(resJson)} ${jsonQuery}"
         logger.info(log)
 
-        simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = listenerOpt, headers = headers)
+        simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = listenerOpt, headers = responseHeaders)
       case Failure(ex) => simpleResponse(ctx, InternalServerError, byteBufOpt = None, channelFutureListenerOpt = Option(Close))
     }
   }
