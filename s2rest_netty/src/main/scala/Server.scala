@@ -4,7 +4,7 @@ import java.util.concurrent.Executors
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.rest.RestCaller
-import com.kakao.s2graph.core.utils.logger
+import com.kakao.s2graph.core.utils.{Extensions, logger}
 import com.typesafe.config.ConfigFactory
 import io.netty.bootstrap.ServerBootstrap
 import io.netty.buffer.{ByteBuf, Unpooled}
@@ -20,6 +20,8 @@ import play.api.libs.json._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.{Failure, Success, Try}
+
+import Extensions._
 
 class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends SimpleChannelInboundHandler[FullHttpRequest] with JSONParser {
   val ApplicationJson = "application/json"
@@ -54,18 +56,23 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
     }
   }
 
-
-  def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, jsonQuery: JsValue, future: Future[JsValue], startedAt: Long) = {
+  def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, jsonQuery: JsValue, future: Future[(JsValue, String)], startedAt: Long) = {
     future onComplete {
-      case Success(resJson) =>
+      case Success(resJsonWithImpId) =>
+        val (resJson, impId) = resJsonWithImpId
+
         import HttpHeaders._
         val duration = System.currentTimeMillis() - startedAt
         val isKeepAlive = HttpHeaders.isKeepAlive(req)
         val buf: ByteBuf = Unpooled.copiedBuffer(resJson.toString, CharsetUtil.UTF_8)
+
+        val defaultHeaders = List(Names.CONTENT_TYPE -> ApplicationJson, Names.CONTENT_LENGTH -> buf.readableBytes().toString)
+
         val (headers, listenerOpt) =
-          if (isKeepAlive) (Seq(Names.CONTENT_TYPE -> ApplicationJson, Names.CONTENT_LENGTH -> buf.readableBytes().toString, Names.CONNECTION -> HttpHeaders.Values.KEEP_ALIVE), None)
-          else (Seq(Names.CONTENT_TYPE -> ApplicationJson, Names.CONTENT_LENGTH -> buf.readableBytes().toString), Option(Close))
-        //NOTE: logging size of result should move to s2core.
+          if (isKeepAlive) ((Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE) :: defaultHeaders) -> None
+          else defaultHeaders -> Option(Close)
+
+        // NOTE: logging size of result should move to s2core.
         //        logger.info(resJson.size.toString)
 
         val log = s"${req.getMethod} ${req.getUri} took ${duration} ms 200 ${s2rest.calcSize(resJson)} ${jsonQuery}"
@@ -75,7 +82,6 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
       case Failure(ex) => simpleResponse(ctx, InternalServerError, byteBufOpt = None, channelFutureListenerOpt = Option(Close))
     }
   }
-
 
   override def channelRead0(ctx: ChannelHandlerContext, req: FullHttpRequest): Unit = {
     val uri = req.getUri
@@ -96,8 +102,8 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
             val Array(srcId, tgtId, labelName, direction) = s.split("/").takeRight(4)
             val params = Json.arr(Json.obj("label" -> labelName, "direction" -> direction, "from" -> srcId, "to" -> tgtId))
             val startedAt = System.currentTimeMillis()
-            val future = s2rest.checkEdgesInner(params)
-            toResponse(ctx, req, params, future, startedAt)
+            val future = s2rest.checkEdges(params)
+            toResponse(ctx, req, params, future.map(_ -> ""), startedAt)
           case _ => badRoute(ctx)
         }
 
@@ -121,7 +127,7 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
             val Array(accessToken, experimentName, uuid) = uri.split("/").takeRight(3)
             s2rest.experiment(jsQuery, accessToken, experimentName, uuid)
           } else {
-            s2rest.uriMatch(uri, jsQuery)
+            s2rest.uriMatch(uri, jsQuery).map(_ -> "")
           }
 
         toResponse(ctx, req, jsQuery, future, startedAt)
@@ -140,20 +146,7 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
 
 // Simple http server
 object NettyServer extends App {
-
-  def updateHealthCheck(healthCheck: Boolean): Boolean = {
-    this.isHealthy = healthCheck
-    this.isHealthy
-  }
-
-  def getBoolean(key: String, defaultValue: Boolean): Boolean =
-    if (config.hasPath(key)) config.getBoolean(key) else defaultValue
-
   /** should be same with Boostrap.onStart on play */
-
-  // app status code
-  var isHealthy = false
-  var deployInfo = ""
 
   val numOfThread = Runtime.getRuntime.availableProcessors()
   val threadPool = Executors.newFixedThreadPool(numOfThread)
@@ -166,10 +159,9 @@ object NettyServer extends App {
   val s2graph = new Graph(config)(ec)
   val rest = new RestCaller(s2graph)(ec)
 
-  val defaultHealthOn = getBoolean("app.health.on", true)
-  deployInfo = Try(Source.fromFile("./release_info").mkString("")).recover { case _ => "release info not found\n" }.get
+  val deployInfo = Try(Source.fromFile("./release_info").mkString("")).recover { case _ => "release info not found\n" }.get
+  var isHealthy = config.getBooleanWithFallback("app.health.on", true)
 
-  isHealthy = defaultHealthOn
   logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
 
   // Configure the server.

@@ -4,7 +4,7 @@ package controllers
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.rest.RequestParser
+import com.kakao.s2graph.core.rest.{RestCaller, RequestParser}
 import com.kakao.s2graph.core.types.{LabelWithDirection, VertexId}
 import com.kakao.s2graph.core.utils.logger
 import config.Config
@@ -22,6 +22,7 @@ object QueryController extends Controller with JSONParser {
 
   private val s2: Graph = com.kakao.s2graph.rest.Global.s2graph
   private val requestParser: RequestParser = com.kakao.s2graph.rest.Global.s2parser
+  private val rest: RestCaller = com.kakao.s2graph.rest.Global.s2rest
 
   private def badQueryExceptionResults(ex: Exception) = Future.successful(BadRequest(Json.obj("message" -> ex.getMessage)).as(applicationJsonHeader))
 
@@ -222,46 +223,9 @@ object QueryController extends Controller with JSONParser {
 
   def checkEdgesInner(jsValue: JsValue) = {
     try {
-      val params = jsValue.as[List[JsValue]]
-      var isReverted = false
-      val labelWithDirs = scala.collection.mutable.HashSet[LabelWithDirection]()
-      val quads = for {
-        param <- params
-        labelName <- (param \ "label").asOpt[String]
-        direction <- GraphUtil.toDir((param \ "direction").asOpt[String].getOrElse("out"))
-        label <- Label.findByName(labelName)
-        srcId <- jsValueToInnerVal((param \ "from").as[JsValue], label.srcColumnWithDir(direction.toInt).columnType, label.schemaVersion)
-        tgtId <- jsValueToInnerVal((param \ "to").as[JsValue], label.tgtColumnWithDir(direction.toInt).columnType, label.schemaVersion)
-      } yield {
-          val labelWithDir = LabelWithDirection(label.id.get, direction)
-          labelWithDirs += labelWithDir
-          val (src, tgt, dir) = if (direction == 1) {
-            isReverted = true
-            (Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)),
-              Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)), 0)
-          } else {
-            (Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)),
-              Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)), 0)
-          }
-
-          //          logger.debug(s"SrcVertex: $src")
-          //          logger.debug(s"TgtVertex: $tgt")
-          //          logger.debug(s"direction: $dir")
-          (src, tgt, QueryParam(LabelWithDirection(label.id.get, dir)))
-        }
-
-      s2.checkEdges(quads).map { case queryRequestWithResultLs =>
-        val edgeJsons = for {
-          queryRequestWithResult <- queryRequestWithResultLs
-          (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
-          edgeWithScore <- queryResult.edgeWithScoreLs
-          (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-          convertedEdge = if (isReverted) edge.duplicateEdge else edge
-          edgeJson = PostProcess.edgeToJson(convertedEdge, score, queryRequest.query, queryRequest.queryParam)
-        } yield Json.toJson(edgeJson)
-
-        val json = Json.toJson(edgeJsons)
-        jsonResponse(json, "result_size" -> edgeJsons.size.toString)
+      val jsRes = rest.checkEdges(jsValue)
+      jsRes.map { res =>
+        jsonResponse(res, "result_size" -> rest.calcSize(res).toString)
       }
     } catch {
       case e: Exception =>

@@ -9,11 +9,13 @@ import com.kakao.s2graph.core.utils.logger
 import play.api.libs.json._
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 
 class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
   val s2Parser = new RequestParser(graph.config)
+  val impressionKey = "S2-Impression-Id"
 
-  def checkEdgesInner(jsValue: JsValue): Future[JsValue] = {
+  def checkEdges(jsValue: JsValue): Future[JsValue] = {
     val (quads, isReverted) = s2Parser.toCheckEdgeParam(jsValue)
 
     graph.checkEdges(quads).map { case queryRequestWithResultLs =>
@@ -53,8 +55,8 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
 
   def getEdgesAsync(jsonQuery: JsValue)
                    (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
+
     val fetch = eachQuery(post) _
-    //    logger.info(jsonQuery)
     jsonQuery match {
       case JsArray(arr) => Future.traverse(arr.map(s2Parser.toQuery(_)))(fetch).map(JsArray)
       case obj@JsObject(_) => fetch(s2Parser.toQuery(obj))
@@ -100,7 +102,7 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
       case "/graphs/getEdges/grouped" => getEdgesAsync(jsQuery)(PostProcess.summarizeWithListFormatted)
       case "/graphs/getEdgesExcluded" => getEdgesExcludedAsync(jsQuery)(PostProcess.toSimpleVertexArrJson)
       case "/graphs/getEdgesExcluded/grouped" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExcludeFormatted)
-      case "/graphs/checkEdges" => checkEdgesInner(jsQuery)
+      case "/graphs/checkEdges" => checkEdges(jsQuery)
       case "/graphs/getEdgesGrouped" => getEdgesAsync(jsQuery)(PostProcess.summarizeWithList)
       case "/graphs/getEdgesGroupedExcluded" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExclude)
       case "/graphs/getEdgesGroupedExcludedFormatted" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExcludeFormatted)
@@ -109,7 +111,7 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
     }
   }
 
-  def makeRequestJson(requestKeyJsonOpt: Option[JsValue], bucket: Bucket, uuid: String): JsValue = {
+  private def makeRequestJson(requestKeyJsonOpt: Option[JsValue], bucket: Bucket, uuid: String): JsValue = {
     var body = bucket.requestBody.replace("#uuid", uuid)
     for {
       requestKeyJson <- requestKeyJsonOpt
@@ -122,24 +124,29 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
       }
       body = body.replace(key, replacement)
     }
-    Json.parse(body)
+
+    Try(Json.parse(body)).recover {
+      case e: Exception =>
+        throw new RuntimeException(s"wrong or missing template parameter: ${e.getMessage}")
+    } get
   }
 
-  def experiment(contentsBody: JsValue, accessToken: String, experimentName: String, uuid: String) = {
-    def buildRequestInner(contentsBody: JsValue, bucket: Bucket, uuid: String): Future[JsValue] = {
-      if (bucket.isEmpty) Future.successful(Json.obj("isEmpty" -> true))
-      else {
-        val jsonBody = makeRequestJson(Option(contentsBody), bucket, uuid)
-        val url = new URL(bucket.apiPath)
-        val path = url.getPath()
-        // dummy log for sampling
-        val experimentLog = s"POST $path took -1 ms 200 -1 $jsonBody"
+  private def buildRequestInner(contentsBody: JsValue, bucket: Bucket, uuid: String): Future[JsValue] = {
+    if (bucket.isEmpty) Future.successful(PostProcess.emptyResults)
+    else {
+      val jsonBody = makeRequestJson(Option(contentsBody), bucket, uuid)
+      val url = new URL(bucket.apiPath)
+      val path = url.getPath()
+      // dummy log for sampling
+      val experimentLog = s"POST $path took -1 ms 200 -1 $jsonBody"
 
-        logger.info(experimentLog)
-        uriMatch(path, jsonBody)
-      }
+      logger.info(experimentLog)
+
+      uriMatch(path, jsonBody)
     }
+  }
 
+  def experiment(contentsBody: JsValue, accessToken: String, experimentName: String, uuid: String): Future[(JsValue, String)] = {
     val bucketOpt = for {
       service <- Service.findByAccessToken(accessToken)
       experiment <- Experiment.findBy(service.id.get, experimentName)
@@ -147,8 +154,8 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
     } yield bucket
 
     val bucket = bucketOpt.getOrElse(throw new RuntimeException("bucket is not found"))
-    if (bucket.isGraphQuery) buildRequestInner(contentsBody, bucket, uuid)
+
+    if (bucket.isGraphQuery) buildRequestInner(contentsBody, bucket, uuid).map(_ -> bucket.impressionId)
     else throw new RuntimeException("not supported yet")
-    //    else buildRequest(request, bucket, uuid)
   }
 }

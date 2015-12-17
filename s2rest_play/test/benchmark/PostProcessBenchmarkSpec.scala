@@ -156,7 +156,7 @@ class PostProcessBenchmarkSpec extends SpecCommon with BenchmarkCommon with Play
 
       val config = ConfigFactory.load()
       val s2graph = new Graph(config)(scala.concurrent.ExecutionContext.Implicits.global)
-      val s2parser = new RequestParser(s2graph)
+      val s2parser = new RequestParser(s2graph.config)
       val js = Json.parse(strJs)
 
       val q = s2parser.toQuery(js)
