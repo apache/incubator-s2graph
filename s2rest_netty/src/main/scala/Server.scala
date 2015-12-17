@@ -4,6 +4,7 @@ import java.util.concurrent.Executors
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.rest.RestCaller
+import com.kakao.s2graph.core.utils.Extensions._
 import com.kakao.s2graph.core.utils.{Extensions, logger}
 import com.typesafe.config.ConfigFactory
 import io.netty.bootstrap.ServerBootstrap
@@ -20,8 +21,6 @@ import play.api.libs.json._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.{Failure, Success, Try}
-
-import Extensions._
 
 class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends SimpleChannelInboundHandler[FullHttpRequest] with JSONParser {
   val ApplicationJson = "application/json"

@@ -137,6 +137,7 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
       val jsonBody = makeRequestJson(Option(contentsBody), bucket, uuid)
       val url = new URL(bucket.apiPath)
       val path = url.getPath()
+
       // dummy log for sampling
       val experimentLog = s"POST $path took -1 ms 200 -1 $jsonBody"
 
