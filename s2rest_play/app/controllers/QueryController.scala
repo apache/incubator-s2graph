@@ -34,12 +34,7 @@ object QueryController extends Controller with JSONParser {
   def delegate(request: Request[JsValue]) =
     rest.uriMatch(request.uri, request.body).map { js =>
       Ok(js)
-    } recoverWith {
-      case e: Exception =>
-        badQueryExceptionResults(e)
-    }
-
-  //    } recoverWith fallback(request.body)
+    } recoverWith fallback(request.body)
 
   def getEdges() = withHeaderAsync(jsonParser)(delegate)
 
