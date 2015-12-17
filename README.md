@@ -22,7 +22,7 @@ vagrant ssh
 
 // in the virtual environment..
 cd s2graph
-activator run
+activator 'project s2rest_play' run
 ```
 
 Finally, join the [mailing list](https://groups.google.com/forum/#!forum/s2graph)!
