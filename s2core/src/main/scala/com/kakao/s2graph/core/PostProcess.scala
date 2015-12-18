@@ -2,6 +2,7 @@ package com.kakao.s2graph.core
 
 import com.kakao.s2graph.core.mysqls.{ColumnMeta, Label, ServiceColumn, LabelMeta}
 import com.kakao.s2graph.core.types.{InnerValLike, InnerVal}
+import com.kakao.s2graph.core.utils.logger
 import play.api.libs.json._
 
 import scala.collection.mutable.ListBuffer
@@ -264,26 +265,31 @@ object PostProcess extends JSONParser {
             // ordering
             val edges = orderBy(query, orderByColumns, groupedRawEdges).map(_._1)
 
-            (groupByKeyVals, scoreSum, edges)
+            //TODO: refactor this
+            if (query.returnAgg)
+              Json.obj(
+                "groupBy" -> Json.toJson(groupByKeyVals.toMap),
+                "scoreSum" -> scoreSum,
+                "agg" -> edges
+              )
+            else
+              Json.obj(
+                "groupBy" -> Json.toJson(groupByKeyVals.toMap),
+                "scoreSum" -> scoreSum,
+                "agg" -> Json.arr()
+              )
           }
 
-        val sortedGroupedEdges = groupedEdges.toList.sortBy(_._2)(Ordering.Double.reverse)
+        val groupedSortedJsons = query.limitOpt match {
+          case None => groupedEdges.toList.sortBy { jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
+          case Some(limit) =>
+            groupedEdges.toList.sortBy { jsVal => -1 * (jsVal \ "scoreSum").as[Double] } take (limit)
+        }
 
-        def toJson(groupByKeyVals: Seq[(String, JsValue)], scoreSum: Double, edges: ListBuffer[Map[String, JsValue]]): JsValue = {
-          Json.obj(
-            "groupBy" -> Json.toJson(groupByKeyVals.toMap),
-            "scoreSum" -> scoreSum,
-            "agg" -> edges
-          )
-        }
-        val resultEdges = query.limitOpt match {
-          case Some(limit) => sortedGroupedEdges.take(limit)
-          case None => sortedGroupedEdges
-        }
         Json.obj(
-          "size" -> resultEdges.size,
+          "size" -> groupedSortedJsons.size,
           "degrees" -> degrees,
-          "results" -> resultEdges.map((toJson _).tupled),
+          "results" -> groupedSortedJsons,
           "impressionId" -> query.impressionId()
         )
       }
