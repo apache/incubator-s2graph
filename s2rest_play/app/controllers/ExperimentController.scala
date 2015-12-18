@@ -17,7 +17,7 @@ object ExperimentController extends Controller {
 
     val res = rest.experiment(body, accessToken, experimentName, uuid)
     res.map { case (js, impId) =>
-      jsonResponse(js, Experiment.impressionKey -> impId)
+      jsonResponse(js, Experiment.impressionKey -> impId, "result_size" -> rest.calcSize(js).toString)
     } recoverWith ApplicationController.requestFallback(body)
   }
 

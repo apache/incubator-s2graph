@@ -95,7 +95,6 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
     }
   }
 
-
   private def getEdgesAsync(jsonQuery: JsValue)
                            (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
 
