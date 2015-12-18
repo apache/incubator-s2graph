@@ -17,7 +17,7 @@ object QueryController extends Controller with JSONParser {
 
   def delegate(request: Request[JsValue]) =
     rest.uriMatch(request.uri, request.body).map { js =>
-      Ok(js)
+      jsonResponse(js)
     } recoverWith ApplicationController.requestFallback(request.body)
 
   def getEdges() = withHeaderAsync(jsonParser)(delegate)
@@ -40,7 +40,7 @@ object QueryController extends Controller with JSONParser {
     withHeaderAsync(jsonParser) { request =>
       val params = Json.arr(Json.obj("label" -> labelName, "direction" -> direction, "from" -> srcId, "to" -> tgtId))
       rest.checkEdges(params).map { js =>
-        Ok(js)
+        jsonResponse(js)
       } recoverWith ApplicationController.requestFallback(request.body)
     }
 

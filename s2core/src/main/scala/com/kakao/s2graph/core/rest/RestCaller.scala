@@ -176,11 +176,9 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
     }
   }
 
-
   def calcSize(js: JsValue): Int = js match {
     case JsObject(obj) => (js \ "size").asOpt[Int].getOrElse(0)
     case JsArray(seq) => seq.map(js => (js \ "size").asOpt[Int].getOrElse(0)).sum
     case _ => 0
   }
-
 }

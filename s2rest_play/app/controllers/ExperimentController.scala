@@ -17,7 +17,7 @@ object ExperimentController extends Controller {
 
     val res = rest.experiment(body, accessToken, experimentName, uuid)
     res.map { case (js, impId) =>
-      Ok(js).withHeaders(Experiment.impressionKey -> impId)
+      jsonResponse(js, Experiment.impressionKey -> impId)
     } recoverWith ApplicationController.requestFallback(body)
   }
 
