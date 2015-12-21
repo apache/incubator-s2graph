@@ -94,7 +94,8 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
           simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = Option(Close), headers = defaultHeaders)
         case e: Exception =>
           logger.error(s"${jsonQuery}, ${e.getMessage}", e)
-          simpleResponse(ctx, InternalServerError, byteBufOpt = None, channelFutureListenerOpt = Option(Close))
+          val buf: ByteBuf = Unpooled.copiedBuffer(PostProcess.emptyResults.toString, CharsetUtil.UTF_8)
+          simpleResponse(ctx, InternalServerError, byteBufOpt = Option(buf), channelFutureListenerOpt = Option(Close), headers = defaultHeaders)
       }
     }
   }

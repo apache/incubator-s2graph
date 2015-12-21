@@ -21,7 +21,7 @@ object ApplicationController extends Controller {
     Future.successful(BadRequest(Json.obj("message" -> ex.getMessage)).as(applicationJsonHeader))
 
   private def errorResults =
-    Future.successful(Ok(PostProcess.timeoutResults).as(applicationJsonHeader))
+    Future.successful(Ok(PostProcess.emptyResults).as(applicationJsonHeader))
 
   def requestFallback(body: JsValue): PartialFunction[Throwable, Future[Result]] = {
     case e: BadQueryException =>
