@@ -11,9 +11,11 @@ object PostProcess extends JSONParser {
   /**
    * Result Entity score field name
    */
-  val SCORE_FIELD_NAME = "scoreSum"
   val timeoutResults = Json.obj("size" -> 0, "results" -> Json.arr(), "isTimeout" -> true)
   val emptyResults = Json.obj("size" -> 0, "results" -> Json.arr(), "isEmpty" -> true)
+  def badRequestResults(ex: => Exception) = Json.obj("message" -> ex.getMessage)
+
+  val SCORE_FIELD_NAME = "scoreSum"
   val reservedColumns = Set("cacheRemain", "from", "to", "label", "direction", "_timestamp", "timestamp", "score", "props")
 
   def groupEdgeResult(queryRequestWithResultLs: Seq[QueryRequestWithResult], exclude: Seq[QueryRequestWithResult]) = {

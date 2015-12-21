@@ -59,7 +59,7 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
     }
   }
 
-  def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, jsonQuery: JsValue, future: Future[(JsValue, String)], startedAt: Long) = {
+  def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, body: JsValue, future: Future[(JsValue, String)], startedAt: Long) = {
 
     val defaultHeaders = List(Names.CONTENT_TYPE -> ApplicationJson)
     // NOTE: logging size of result should move to s2core.
@@ -81,7 +81,7 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
           if (impId.isEmpty) headerWithKeepAlive
           else (Experiment.impressionKey, impId) :: headerWithKeepAlive
 
-        val log = s"${req.getMethod} ${req.getUri} took ${duration} ms 200 ${s2rest.calcSize(resJson)} ${jsonQuery}"
+        val log = s"${req.getMethod} ${req.getUri} took ${duration} ms 200 ${s2rest.calcSize(resJson)} ${body}"
         logger.info(log)
 
         val responseHeaders = (Names.CONTENT_LENGTH -> buf.readableBytes().toString) :: headerWithImpKey
@@ -89,11 +89,11 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
 
       case Failure(ex) => ex match {
         case e: BadQueryException =>
-          logger.error(s"{$jsonQuery}, ${e.getMessage}", e)
-          val buf: ByteBuf = Unpooled.copiedBuffer(Json.obj("message" -> e.getMessage).toString, CharsetUtil.UTF_8)
+          logger.error(s"{$body}, ${e.getMessage}", e)
+          val buf: ByteBuf = Unpooled.copiedBuffer(PostProcess.badRequestResults(e).toString, CharsetUtil.UTF_8)
           simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = Option(Close), headers = defaultHeaders)
         case e: Exception =>
-          logger.error(s"${jsonQuery}, ${e.getMessage}", e)
+          logger.error(s"${body}, ${e.getMessage}", e)
           val buf: ByteBuf = Unpooled.copiedBuffer(PostProcess.emptyResults.toString, CharsetUtil.UTF_8)
           simpleResponse(ctx, InternalServerError, byteBufOpt = Option(buf), channelFutureListenerOpt = Option(Close), headers = defaultHeaders)
       }
