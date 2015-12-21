@@ -257,7 +257,7 @@ object PostProcess extends JSONParser {
           } yield column -> value
         }
 
-        val groupedEdges =
+        val groupedEdgesWithScoreSum =
           for {
             (groupByKeyVals, groupedRawEdges) <- grouped
           } yield {
@@ -266,7 +266,7 @@ object PostProcess extends JSONParser {
             val edges = orderBy(query, orderByColumns, groupedRawEdges).map(_._1)
 
             //TODO: refactor this
-            if (query.returnAgg)
+            val js = if (query.returnAgg)
               Json.obj(
                 "groupBy" -> Json.toJson(groupByKeyVals.toMap),
                 "scoreSum" -> scoreSum,
@@ -278,12 +278,14 @@ object PostProcess extends JSONParser {
                 "scoreSum" -> scoreSum,
                 "agg" -> Json.arr()
               )
+            (js, scoreSum)
           }
 
         val groupedSortedJsons = query.limitOpt match {
-          case None => groupedEdges.toList.sortBy { jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
+          case None =>
+            groupedEdgesWithScoreSum.toList.sortBy { case (jsVal, scoreSum) => scoreSum * -1 }.map(_._1)
           case Some(limit) =>
-            groupedEdges.toList.sortBy { jsVal => -1 * (jsVal \ "scoreSum").as[Double] } take (limit)
+            groupedEdgesWithScoreSum.toList.sortBy { case (jsVal, scoreSum) => scoreSum * -1 }.map(_._1).take(limit)
         }
 
         Json.obj(
