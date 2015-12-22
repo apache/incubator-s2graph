@@ -202,7 +202,7 @@ class RequestParser(config: Config) extends JSONParser {
           val queryParams =
             for {
               labelGroup <- queryParamJsVals
-              queryParam <- parseQueryParam(labelMap, labelGroup)
+              queryParam <- parseQueryParam(labelGroup)
             } yield {
               val (_, columnName) =
                 if (queryParam.labelWithDir.dir == GraphUtil.directions("out")) {
