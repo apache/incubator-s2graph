@@ -47,18 +47,22 @@ trait ExtractValue extends JSONParser {
     }
   }
 
+  @tailrec
+  private def findParent(edge: Edge, depth: Int): Edge =
+    if (depth > 0) findParent(edge.parentEdges.head.edge, depth - 1)
+    else edge
+
   private def findParentEdge(edge: Edge, key: String): (String, Edge) = {
-    @tailrec def find(edge: Edge, depth: Int): Edge =
-      if (depth > 0) find(edge.parentEdges.head.edge, depth - 1)
-      else edge
+    if (!key.startsWith(parent)) (key, edge)
+    else {
+      val split = key.split(parent)
+      val depth = split.length - 1
+      val propKey = split.last
 
-    val split = key.split(parent)
-    val depth = split.length - 1
-    val propKey = split.last
+      val parentEdge = findParent(edge, depth)
 
-    val parentEdge = find(edge, depth)
-
-    (propKey, parentEdge)
+      (propKey, parentEdge)
+    }
   }
 }
 
@@ -97,9 +101,12 @@ case class Eq(propKey: String, value: String) extends Clause {
 case class IN(propKey: String, values: Set[String]) extends Clause {
   override def filter(edge: Edge): Boolean = {
     val propVal = propToInnerVal(edge, propKey)
-    val valuesToCompare = values.map { value => valueToCompare(edge, propKey, value) }
-
-    valuesToCompare.contains(propVal)
+    values.exists { value =>
+      valueToCompare(edge, propKey, value) == propVal
+    }
+//    val valuesToCompare = values.map { value => valueToCompare(edge, propKey, value) }
+//
+//    valuesToCompare.contains(propVal)
   }
 }
 

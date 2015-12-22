@@ -27,7 +27,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
   val expreAfterAccess = storage.config.getInt("future.cache.expire.after.access")
 
   val futureCache = CacheBuilder.newBuilder()
-  .recordStats()
+//  .recordStats()
   .initialCapacity(maxSize)
   .concurrencyLevel(Runtime.getRuntime.availableProcessors())
   .expireAfterWrite(expreAfterWrite, TimeUnit.MILLISECONDS)

@@ -92,8 +92,8 @@ class RequestParser(config: Config) extends JSONParser {
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
 
-  def extractWhere(labelMap: Map[String, Label], jsValue: JsValue) = {
-    (jsValue \ "where").asOpt[String] match {
+  def extractWhere(labelMap: Map[String, Label], whereClauseOpt: Option[String]) = {
+    whereClauseOpt match {
       case None => Success(WhereParser.success)
       case Some(where) =>
         WhereParser(labelMap).parse(where) match {
@@ -279,7 +279,8 @@ class RequestParser(config: Config) extends JSONParser {
         case None => label.indexSeqsMap.get(scoring.map(kv => kv._1)).map(_.seq).getOrElse(LabelIndex.DefaultSeq)
         case Some(indexName) => label.indexNameMap.get(indexName).map(_.seq).getOrElse(throw new RuntimeException("cannot find index"))
       }
-      val where = extractWhere(labelMap, labelGroup)
+      val whereClauseOpt = (labelGroup \ "where").asOpt[String]
+      val where = extractWhere(labelMap, whereClauseOpt)
       val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
       val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(DefaultRpcTimeout)
       val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(DefaultMaxAttempt)
