@@ -10,7 +10,7 @@ val sparkVersion = "1.5.1"
 resolvers += "Sonatype OSS Releases" at "http://oss.sonatype.org/content/repositories/releases/"
 
 libraryDependencies ++= Seq(
-  "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
+  "org.apache.spark" %% "spark-core" % sparkVersion % "provided" exclude("org.jboss.netty", "netty"),
   "org.apache.spark" %% "spark-mllib" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-hive" % sparkVersion % "provided",
   "com.typesafe.play" %% "play-ws" % Common.playVersion,
