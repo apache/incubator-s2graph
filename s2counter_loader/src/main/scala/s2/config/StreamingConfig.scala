@@ -20,4 +20,5 @@ object StreamingConfig extends ConfigFunctions(S2ConfigFactory.config) {
 
   // graph url
   val GRAPH_URL = getOrElse("s2graph.url", "")
+  val GRAPH_READONLY_URL = getOrElse("s2graph.read-only.url", GRAPH_URL)
 }
