@@ -207,6 +207,46 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
   private def getEdges(key: RankingKey, duplicate: String="first"): Future[List[JsValue]] = {
     val labelName = counterModel.findById(key.policyId).get.action + labelPostfix
 
+//    val ids = (0 until BUCKET_SHARD_COUNT).map { idx =>
+//      s"${makeBucketShardKey(idx, key)}"
+//    }
+//
+//    val payload = Json.obj(
+//      "srcVertices" -> Json.arr(
+//        Json.obj(
+//          "serviceName" -> SERVICE_NAME,
+//          "columnName" -> BUCKET_COLUMN_NAME,
+//          "ids" -> ids
+//        )
+//      ),
+//      "steps" -> Json.arr(
+//        Json.obj(
+//          "step" -> Json.arr(
+//            Json.obj(
+//              "label" -> labelName,
+//              "duplicate" -> duplicate,
+//              "direction" -> "out",
+//              "offset" -> 0,
+//              "limit" -> -1,
+//              "interval" -> Json.obj(
+//                "from" -> Json.obj(
+//                  "time_unit" -> key.eq.tq.q.toString,
+//                  "time_value" -> key.eq.tq.ts
+//                ),
+//                "to" -> Json.obj(
+//                  "time_unit" -> key.eq.tq.q.toString,
+//                  "time_value" -> key.eq.tq.ts
+//                ),
+//                "scoring" -> Json.obj(
+//                  "score" -> 1
+//                )
+//              )
+//            )
+//          )
+//        )
+//      )
+//    )
+
     val ids = {
       (0 until BUCKET_SHARD_COUNT).map { shardIdx =>
         s""""${makeBucketShardKey(shardIdx, key)}""""
@@ -246,6 +286,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
     log.debug(strJs)
 
     val payload = Json.parse(strJs)
+
     wsClient.url(s"$s2graphUrl/graphs/getEdges").post(payload).map { resp =>
       resp.status match {
         case HttpStatus.SC_OK =>

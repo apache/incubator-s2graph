@@ -128,6 +128,12 @@ object CounterFunctions extends Logging with WithKafka {
       itemRankingRdd.unpersist(false)
     }
   }
+
+  private def parseLine(line: String): Option[TrxLog] = Try {
+    val js = Json.parse(line)
+    js.toString()
+    js.as[TrxLog]
+  }.toOption
   
   def makeTrxLogRdd(rdd: RDD[(String, String)], numPartitions: Int): RDD[TrxLog] = {
     rdd.mapPartitions { part =>
@@ -135,10 +141,8 @@ object CounterFunctions extends Logging with WithKafka {
       for {
         (k, v) <- part
         line <- GraphUtil.parseString(v)
-        trxLog = Json.parse(line).as[TrxLog] if trxLog.success
-      } yield {
-        trxLog
-      }
+        trxLog <- parseLine(line) if trxLog.success
+      } yield trxLog
     }
   }
 
