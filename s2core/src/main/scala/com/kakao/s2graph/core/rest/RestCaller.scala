@@ -155,7 +155,7 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
 
     Try(Json.parse(body)).recover {
       case e: Exception =>
-        throw new RuntimeException(s"wrong or missing template parameter: ${e.getMessage}")
+        throw new BadQueryException(s"wrong or missing template parameter: ${e.getMessage.takeWhile(_ != '\n')}")
     } get
   }
 
