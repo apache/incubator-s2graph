@@ -39,6 +39,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
   private val labelPostfix = "_topK"
 
   val s2graphUrl = s2config.GRAPH_URL
+  val s2graphReadOnlyUrl = s2config.GRAPH_READONLY_URL
 
   val prepareCache = new CollectionCache[Option[Boolean]](CollectionCacheConfig(10000, 600))
   val graphOp = new GraphOperation(config)
@@ -246,7 +247,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
     log.debug(strJs)
 
     val payload = Json.parse(strJs)
-    wsClient.url(s"$s2graphUrl/graphs/getEdges").post(payload).map { resp =>
+    wsClient.url(s"$s2graphReadOnlyUrl/graphs/getEdges").post(payload).map { resp =>
       resp.status match {
         case HttpStatus.SC_OK =>
           (resp.json \ "results").asOpt[List[JsValue]].getOrElse(Nil)
@@ -278,7 +279,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
         )
       )
 
-      val future = wsClient.url(s"$s2graphUrl/graphs/checkEdges").post(checkReqJs).map { resp =>
+      val future = wsClient.url(s"$s2graphReadOnlyUrl/graphs/checkEdges").post(checkReqJs).map { resp =>
         resp.status match {
           case HttpStatus.SC_OK =>
             val checkRespJs = resp.json

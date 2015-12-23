@@ -35,6 +35,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
   private val labelPostfix = "_counts"
 
   val s2graphUrl = s2config.GRAPH_URL
+  val s2graphReadOnlyUrl = s2config.GRAPH_READONLY_URL
   val graphOp = new GraphOperation(config)
 
   import ExactStorageGraph._
@@ -74,26 +75,6 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
       seqOfSeq.flatten.toSeq.groupBy(_._1).mapValues { seq => seq.map(_._2).toMap }
     }
     Await.result(future, 10 second)
-//    val (keyWithEq, reqJsLs) = toIncrementCountRequests(policy, counts).unzip(x => ((x._1, x._2), x._3))
-//
-//    val future = wsClient.url(s"$s2graphUrl/graphs/edges/incrementCount").post(Json.toJson(reqJsLs)).map { resp =>
-//      resp.status match {
-//        case HttpStatus.SC_OK =>
-//          val respSeq = resp.json.as[Seq[RespGraph]]
-//
-//          val keyWithEqResult = {
-//            for {
-//              ((key, eq), RespGraph(success, result)) <- keyWithEq.zip(respSeq)
-//            } yield {
-//              (key, (eq, result))
-//            }
-//          }.groupBy(_._1).mapValues{ seq => seq.map(_._2).toMap }
-//          keyWithEqResult
-//        case _ =>
-//          throw new RuntimeException(s"update failed: $policy $counts")
-//      }
-//    }
-//    Await.result(future, 10 second)
   }
 
   def delete(policy: Counter, keys: Seq[ExactKeyTrait]): Unit = {
@@ -201,7 +182,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
     val reqJs = Json.parse(reqJsStr)
 //    log.warn(s"query: ${reqJs.toString()}")
 
-    wsClient.url(s"$s2graphUrl/graphs/getEdges").post(reqJs).map { resp =>
+    wsClient.url(s"$s2graphReadOnlyUrl/graphs/getEdges").post(reqJs).map { resp =>
       resp.status match {
         case HttpStatus.SC_OK =>
           val respJs = resp.json
@@ -261,7 +242,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
         val query = Json.obj("srcVertices" -> Json.arr(src), "steps" -> Json.arr(step))
         //    println(s"query: ${query.toString()}")
 
-        wsClient.url(s"$s2graphUrl/graphs/getEdges").post(query).map { resp =>
+        wsClient.url(s"$s2graphReadOnlyUrl/graphs/getEdges").post(query).map { resp =>
           resp.status match {
             case HttpStatus.SC_OK =>
               val respJs = resp.json
