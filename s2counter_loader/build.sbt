@@ -20,7 +20,7 @@ libraryDependencies ++= Seq(
   "com.google.guava" % "guava" % "16.0.1"
 )
 
-crossScalaVersions := Seq("2.10.6")
+scalaVersion := "2.10.6"
 
 fork := true
 

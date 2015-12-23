@@ -28,7 +28,7 @@ class S2CounterConfig(config: Config) extends ConfigFunctions(config) {
   lazy val DB_DEFAULT_USER = getOrElse("db.default.user", "graph")
   lazy val DB_DEFAULT_PASSWORD = getOrElse("db.default.password", "graph")
 
-  // REDIS
+  // Redis
   lazy val REDIS_INSTANCES = (for {
     s <- config.getStringList("redis.instances")
   } yield {
@@ -36,8 +36,9 @@ class S2CounterConfig(config: Config) extends ConfigFunctions(config) {
     (sp(0), if (sp.length > 1) sp(1).toInt else 6379)
   }).toList
 
-  // graph
+  // Graph
   lazy val GRAPH_URL = getOrElse("s2graph.url", "http://localhost:9000")
+  lazy val GRAPH_READONLY_URL = getOrElse("s2graph.read-only.url", GRAPH_URL)
 
   // Cache
   lazy val CACHE_TTL_SECONDS = getOrElse("cache.ttl.seconds", 600)
