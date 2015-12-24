@@ -44,11 +44,5 @@ lazy val s2counter_loader = project.dependsOn(s2counter_core, spark)
 
 lazy val s2ml = project.settings(commonSettings: _*)
 
-// test in s2core := {}
-// test in s2rest_play := {}
-
-test in spark := {}
-test in loader := {}
-test in s2counter_core := {}
-test in s2counter_loader := {}
-test in s2ml := {}
+lazy val root = (project in file(".")).
+  aggregate(s2core, s2rest_play)
