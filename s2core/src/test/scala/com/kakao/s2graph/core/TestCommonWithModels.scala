@@ -2,23 +2,43 @@ package com.kakao.s2graph.core
 
 import com.kakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.kakao.s2graph.core.mysqls._
+import org.scalatest.BeforeAndAfterAll
+import scalikejdbc.AutoSession
 
 //import com.kakao.s2graph.core.models._
 
 
 import com.kakao.s2graph.core.types.{InnerVal, LabelWithDirection}
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.ExecutionContext
 
-trait TestCommonWithModels {
+trait TestCommonWithModels  {
 
   import InnerVal._
   import types.HBaseType._
 
-  val config = ConfigFactory.load()
+  var graph: Graph = _
+  var config: Config = _
 
-  val zkQuorum = config.getString("hbase.zookeeper.quorum")
+  def initTests() = {
+    config = ConfigFactory.load()
+    graph = new Graph(config)(ExecutionContext.Implicits.global)
+
+    implicit val session = AutoSession
+
+    deleteTestLabel()
+    deleteTestService()
+
+    createTestService()
+    createTestLabel()
+  }
+
+  def zkQuorum = config.getString("hbase.zookeeper.quorum")
+  def cluster = config.getString("hbase.zookeeper.quorum")
+
+  implicit val session = AutoSession
+
   val serviceName = "_test_service"
   val serviceNameV2 = "_test_service_v2"
   val columnName = "user_id"
@@ -31,7 +51,6 @@ trait TestCommonWithModels {
   val tgtColumnType = "string"
   val tgtColumnTypeV2 = "string"
 
-  val cluster = config.getString("hbase.zookeeper.quorum")
   val hTableName = "_test_cases"
   val preSplitSize = 0
   val labelName = "_test_label"
@@ -54,29 +73,21 @@ trait TestCommonWithModels {
   val consistencyLevel = "strong"
   val hTableTTL = None
 
-  val graph = new Graph(config)(ExecutionContext.Implicits.global)
-
-  def initTests() = {
-    deleteTestLabel()
-    deleteTestService()
-
-    Thread.sleep(1000)
-
-    createTestService()
-    createTestLabel()
-  }
 
   def createTestService() = {
+    implicit val session = AutoSession
     Management.createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
     Management.createService(serviceNameV2, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
   }
 
   def deleteTestService() = {
+    implicit val session = AutoSession
     Management.deleteService(serviceName)
     Management.deleteService(serviceNameV2)
   }
 
   def deleteTestLabel() = {
+    implicit val session = AutoSession
     Management.deleteLabel(labelName)
     Management.deleteLabel(labelNameV2)
     Management.deleteLabel(undirectedLabelName)
@@ -85,6 +96,7 @@ trait TestCommonWithModels {
 
 
   def createTestLabel() = {
+    implicit val session = AutoSession
     Management.createLabel(labelName, serviceName, columnName, columnType, serviceName, columnName, columnType,
       isDirected = true, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION1, false, "lg4")
 
@@ -98,31 +110,28 @@ trait TestCommonWithModels {
       isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION2, false, "lg4")
   }
 
-  /** */
-  initTests()
+  def service = Service.findByName(serviceName, useCache = false).get
+  def serviceV2 = Service.findByName(serviceNameV2, useCache = false).get
 
-  lazy val service = Service.findByName(serviceName, useCache = false).get
-  lazy val serviceV2 = Service.findByName(serviceNameV2, useCache = false).get
+  def column = ServiceColumn.find(service.id.get, columnName, useCache = false).get
+  def columnV2 = ServiceColumn.find(serviceV2.id.get, columnNameV2, useCache = false).get
 
-  lazy val column = ServiceColumn.find(service.id.get, columnName, useCache = false).get
-  lazy val columnV2 = ServiceColumn.find(serviceV2.id.get, columnNameV2, useCache = false).get
+  def tgtColumn = ServiceColumn.find(service.id.get, tgtColumnName, useCache = false).get
+  def tgtColumnV2 = ServiceColumn.find(serviceV2.id.get, tgtColumnNameV2, useCache = false).get
 
-  lazy val tgtColumn = ServiceColumn.find(service.id.get, tgtColumnName, useCache = false).get
-  lazy val tgtColumnV2 = ServiceColumn.find(serviceV2.id.get, tgtColumnNameV2, useCache = false).get
+  def label = Label.findByName(labelName, useCache = false).get
+  def labelV2 = Label.findByName(labelNameV2, useCache = false).get
 
-  lazy val label = Label.findByName(labelName, useCache = false).get
-  lazy val labelV2 = Label.findByName(labelNameV2, useCache = false).get
+  def undirectedLabel = Label.findByName(undirectedLabelName, useCache = false).get
+  def undirectedLabelV2 = Label.findByName(undirectedLabelNameV2, useCache = false).get
 
-  lazy val undirectedLabel = Label.findByName(undirectedLabelName, useCache = false).get
-  lazy val undirectedLabelV2 = Label.findByName(undirectedLabelNameV2, useCache = false).get
+  def dir = GraphUtil.directions("out")
+  def op = GraphUtil.operations("insert")
+  def labelOrderSeq = LabelIndex.DefaultSeq
 
-  lazy val dir = GraphUtil.directions("out")
-  lazy val op = GraphUtil.operations("insert")
-  lazy val labelOrderSeq = LabelIndex.DefaultSeq
+  def labelWithDir = LabelWithDirection(label.id.get, dir)
+  def labelWithDirV2 = LabelWithDirection(labelV2.id.get, dir)
 
-  lazy val labelWithDir = LabelWithDirection(label.id.get, dir)
-  lazy val labelWithDirV2 = LabelWithDirection(labelV2.id.get, dir)
-
-  lazy val queryParam = QueryParam(labelWithDir)
-  lazy val queryParamV2 = QueryParam(labelWithDirV2)
+  def queryParam = QueryParam(labelWithDir)
+  def queryParamV2 = QueryParam(labelWithDirV2)
 }
