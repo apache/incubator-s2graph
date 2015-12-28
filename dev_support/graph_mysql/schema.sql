@@ -162,12 +162,10 @@ CREATE TABLE `experiments` (
 -- ----------------------------
 --  Table structure for `buckets`
 -- ----------------------------
-DROP TABLE IF EXISTS `buckets`;
 CREATE TABLE `buckets` (
   `id` integer NOT NULL AUTO_INCREMENT,
   `experiment_id` integer NOT NULL,
-  `uuid_mods` varchar(64) NOT NULL,
-  `traffic_ratios` varchar(64) NOT NULL,
+  `modular` varchar(64) NOT NULL,
   `http_verb` varchar(8) NOT NULL,
   `api_path` text NOT NULL,
   `uuid_key` varchar(128),
@@ -176,6 +174,7 @@ CREATE TABLE `buckets` (
   `timeout` int NOT NULL DEFAULT 1000,
   `impression_id` varchar(64) NOT NULL,
   `is_graph_query` tinyint NOT NULL DEFAULT 1,
+  `is_empty` tinyint NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_impression_id` (`impression_id`),
   INDEX `idx_experiment_id` (`experiment_id`),
