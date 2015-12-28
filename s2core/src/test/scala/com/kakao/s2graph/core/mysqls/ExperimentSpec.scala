@@ -6,9 +6,6 @@ import com.typesafe.config.ConfigFactory
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import scalikejdbc._
 
-/**
-  * Created by hsleep on 2015. 11. 30..
-  */
 class ExperimentSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
   val Ttl = 2
   override def beforeAll(): Unit = {

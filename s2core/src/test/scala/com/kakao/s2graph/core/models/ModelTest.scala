@@ -5,14 +5,18 @@ import java.util.concurrent.ExecutorService
 import com.kakao.s2graph.core.mysqls.{Label, Model}
 import com.kakao.s2graph.core.{TestCommonWithModels, TestCommon, Graph}
 import com.typesafe.config.ConfigFactory
-import org.scalatest.{FunSuite, Matchers}
+import org.scalatest.{BeforeAndAfterAll, Sequential, FunSuite, Matchers}
 
 import scala.concurrent.ExecutionContext
 
-/**
- * Created by shon on 5/12/15.
- */
-class ModelTest extends FunSuite with Matchers with TestCommonWithModels {
+class ModelTest extends FunSuite with Matchers with TestCommonWithModels with BeforeAndAfterAll {
+  override def beforeAll(): Unit = {
+    initTests()
+  }
+
+  override def afterAll(): Unit = {
+    graph.shutdown()
+  }
 
 //  val serviceName = "testService"
 //  val newServiceName = "newTestService"
