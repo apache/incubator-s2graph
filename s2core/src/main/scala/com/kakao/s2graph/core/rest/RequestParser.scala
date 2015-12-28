@@ -493,4 +493,14 @@ class RequestParser(config: Config) extends JSONParser {
 
     (quads, isReverted)
   }
+
+  def toGraphElements(str: String): Seq[GraphElement] = {
+    val edgeStrs = str.split("\\n")
+
+    for {
+      edgeStr <- edgeStrs
+      str <- GraphUtil.parseString(edgeStr)
+      element <- Graph.toGraphElement(str)
+    } yield element
+  }
 }
