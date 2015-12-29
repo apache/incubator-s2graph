@@ -47,7 +47,7 @@ class SamplingBenchmarkSpec extends BenchmarkCommon {
     }
 
     // test data
-    val testLimit = 100000
+    val testLimit = 1000
     val testNum = 10
     val testData = (0 to 1000).toList
 

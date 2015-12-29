@@ -4,7 +4,6 @@ import com.kakao.s2graph.core.mysqls._
 import play.api.libs.json.{JsObject, Json}
 
 class CrudTest extends IntegrateCommon {
-
   import CrudHelper._
   import TestUtil._
 

@@ -10,18 +10,18 @@ import scala.concurrent.Await
 /**
  * Created by mojo22jojo(hyunsung.jo@gmail.com) on 15. 10. 13..
  */
-class AdminControllerSpec extends SpecCommon {
-  init()
-  "EdgeControllerSpec" should {
-    "update htable" in {
-      running(FakeApplication()) {
-        val insertUrl = s"/graphs/updateHTable/$testLabelName/$newHTableName"
-
-        val req = FakeRequest("POST", insertUrl).withBody("").withHeaders(HeaderNames.CONTENT_TYPE -> "text/plain")
-
-        Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
-        Label.findByName(testLabelName, useCache = true).get.hTableName mustEqual newHTableName
-      }
-    }
-  }
-}
+//class AdminControllerSpec extends SpecCommon {
+//  init()
+//  "EdgeControllerSpec" should {
+//    "update htable" in {
+//      running(FakeApplication()) {
+//        val insertUrl = s"/graphs/updateHTable/$testLabelName/$newHTableName"
+//
+//        val req = FakeRequest("POST", insertUrl).withBody("").withHeaders(HeaderNames.CONTENT_TYPE -> "text/plain")
+//
+//        Await.result(route(req).get, HTTP_REQ_WAITING_TIME)
+//        Label.findByName(testLabelName, useCache = true).get.hTableName mustEqual newHTableName
+//      }
+//    }
+//  }
+//}

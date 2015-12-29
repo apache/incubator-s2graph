@@ -1,6 +1,5 @@
 package com.kakao.s2graph.core.utils
 
-//import play.api.Logger
 import org.slf4j.LoggerFactory
 import play.api.libs.json.JsValue
 
