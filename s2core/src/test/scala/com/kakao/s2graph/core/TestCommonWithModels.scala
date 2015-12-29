@@ -2,18 +2,16 @@ package com.kakao.s2graph.core
 
 import com.kakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.kakao.s2graph.core.mysqls._
-import org.scalatest.BeforeAndAfterAll
 import scalikejdbc.AutoSession
 
 //import com.kakao.s2graph.core.models._
-
 
 import com.kakao.s2graph.core.types.{InnerVal, LabelWithDirection}
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.ExecutionContext
 
-trait TestCommonWithModels  {
+trait TestCommonWithModels {
 
   import InnerVal._
   import types.HBaseType._
@@ -35,6 +33,7 @@ trait TestCommonWithModels  {
   }
 
   def zkQuorum = config.getString("hbase.zookeeper.quorum")
+
   def cluster = config.getString("hbase.zookeeper.quorum")
 
   implicit val session = AutoSession
@@ -94,7 +93,6 @@ trait TestCommonWithModels  {
     Management.deleteLabel(undirectedLabelNameV2)
   }
 
-
   def createTestLabel() = {
     implicit val session = AutoSession
     Management.createLabel(labelName, serviceName, columnName, columnType, serviceName, columnName, columnType,
@@ -111,27 +109,36 @@ trait TestCommonWithModels  {
   }
 
   def service = Service.findByName(serviceName, useCache = false).get
+
   def serviceV2 = Service.findByName(serviceNameV2, useCache = false).get
 
   def column = ServiceColumn.find(service.id.get, columnName, useCache = false).get
+
   def columnV2 = ServiceColumn.find(serviceV2.id.get, columnNameV2, useCache = false).get
 
   def tgtColumn = ServiceColumn.find(service.id.get, tgtColumnName, useCache = false).get
+
   def tgtColumnV2 = ServiceColumn.find(serviceV2.id.get, tgtColumnNameV2, useCache = false).get
 
   def label = Label.findByName(labelName, useCache = false).get
+
   def labelV2 = Label.findByName(labelNameV2, useCache = false).get
 
   def undirectedLabel = Label.findByName(undirectedLabelName, useCache = false).get
+
   def undirectedLabelV2 = Label.findByName(undirectedLabelNameV2, useCache = false).get
 
   def dir = GraphUtil.directions("out")
+
   def op = GraphUtil.operations("insert")
+
   def labelOrderSeq = LabelIndex.DefaultSeq
 
   def labelWithDir = LabelWithDirection(label.id.get, dir)
+
   def labelWithDirV2 = LabelWithDirection(labelV2.id.get, dir)
 
   def queryParam = QueryParam(labelWithDir)
+
   def queryParamV2 = QueryParam(labelWithDirV2)
 }

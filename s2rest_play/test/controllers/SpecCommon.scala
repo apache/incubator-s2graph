@@ -12,41 +12,8 @@ import scala.concurrent.duration._
 import scala.util.Random
 
 trait SpecCommon extends Specification {
-  sequential
-  object Helper {
-
-    import org.json4s.native.Serialization
-
-    type KV = Map[String, Any]
-
-    import scala.language.dynamics
-
-    def $aa[T](args: T*) = List($a(args: _ *))
-
-    def $a[T](args: T*) = args.toList
-
-    object $ extends Dynamic {
-      def applyDynamicNamed(name: String)(args: (String, Any)*): Map[String, Any] = args.toMap
-    }
-
-    implicit class anyMapOps(map: Map[String, Any]) {
-      def toJson: JsValue = {
-        val js = Serialization.write(map)(org.json4s.DefaultFormats)
-        Json.parse(js)
-      }
-    }
-
-    implicit class S2Context(val sc: StringContext) {
-      def edge(args: Any*)(implicit map: Map[String, Any] = Map.empty): String = {
-        val parts = sc.s(args: _*).split("\\s")
-        assert(parts.length == 6)
-        (parts.toList :+ map.toJson.toString).mkString("\t")
-      }
-    }
-
-  }
-
   val curTime = System.currentTimeMillis
+
   val t1 = curTime + 0
   val t2 = curTime + 1
   val t3 = curTime + 2

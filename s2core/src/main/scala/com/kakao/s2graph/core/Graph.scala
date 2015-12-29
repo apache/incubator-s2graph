@@ -312,7 +312,7 @@ object Graph {
   } get
 }
 
-class Graph(_config: Config)(implicit ec: ExecutionContext) {
+class Graph(_config: Config)(implicit val ec: ExecutionContext) {
   val config = _config.withFallback(Graph.DefaultConfig)
   val cacheSize = config.getInt("cache.max.size")
 //  val cache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Seq[QueryResult]]()
