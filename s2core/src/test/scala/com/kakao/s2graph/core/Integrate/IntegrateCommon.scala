@@ -15,7 +15,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
   var parser: RequestParser = _
   var config: Config = _
 
-  override def beforeAll(): Unit = {
+  override def beforeAll = {
     config = ConfigFactory.load()
     graph = new Graph(config)(ExecutionContext.Implicits.global)
     parser = new RequestParser(graph.config)
@@ -78,7 +78,18 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
   /**
     * Test Helpers
     */
-  object TestHelper {
+  object Util {
+//    def checkEdgeQueryJson(params: Seq[(String, String, String, String)]) = {
+//      val arr = for {
+//        (label, dir, from, to) <- params
+//      } yield {
+//        Json.obj("label" -> label, "direction" -> dir, "from" -> from, "to" -> to)
+//      }
+//
+//      val s = Json.toJson(arr)
+//      s
+//    }
+
     def getEdges(queryJson: JsValue): JsValue = {
       val ret = graph.getEdges(parser.toQuery(queryJson))
       val result = Await.result(ret, HttpRequestWaitingTime)
@@ -90,6 +101,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     def insertEdges(bulkEdges: String*) = {
       val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
       val jsResult = Await.result(req, HttpRequestWaitingTime)
+
+      jsResult
     }
 
     def toEdge(elems: Any*): String = elems.mkString("\t")

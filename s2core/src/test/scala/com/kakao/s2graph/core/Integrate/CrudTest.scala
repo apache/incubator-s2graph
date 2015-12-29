@@ -169,10 +169,10 @@ class CrudTest extends IntegrateCommon {
         /** insert edges */
         println(s"---- TC${tcNum}_init ----")
         val bulkEdges = (for ((ts, op, props) <- opWithProps) yield {
-          TestHelper.toEdge(ts, op, "e", srcId, tgtId, labelName, props)
+          Util.toEdge(ts, op, "e", srcId, tgtId, labelName, props)
         })
 
-        TestHelper.insertEdges(bulkEdges:_*)
+        Util.insertEdges(bulkEdges:_*)
 
         for {
           label <- Label.findByName(labelName)
@@ -187,7 +187,7 @@ class CrudTest extends IntegrateCommon {
           val qId = if (labelName == testLabelName) id else "\"" + id + "\""
           val query = queryJson(serviceName, columnName, labelName, qId, direction, cacheTTL)
 
-          val jsResult = TestHelper.getEdges(query)
+          val jsResult = Util.getEdges(query)
 
           val results = jsResult \ "results"
           val deegrees = (jsResult \ "degrees").as[List[JsObject]]
