@@ -10,7 +10,7 @@
 S2Graph comes with a Vagrantfile that lets you spin up a virtual environment for test and development purposes.
 (On setting up S2Graph in your local environment directly, please refer to [Quick Start in Your Local Environment](https://steamshon.gitbooks.io/s2graph-book/content/getting_started.html).)
 
-You will need [VirtualBox](https://www.virtualbox.org/wiki/Downloads) and [Vagrant](http://docs.ansible.com/ansible/intro_installation.html) installed on your system.
+You will need [VirtualBox](https://www.virtualbox.org/wiki/Downloads) and [Vagrant](https://www.vagrantup.com/downloads.html) installed on your system.
 
 With everything ready, let's get started by running the following commands:
 
