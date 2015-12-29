@@ -7,6 +7,7 @@ import org.scalatest.FunSuite
 import org.scalatest.matchers.Matcher
 
 class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
+  initTests()
 
   test("toLogString") {
     val testLabelName = labelNameV2
@@ -24,11 +25,11 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     }).mkString("\n")
 
     val expected = Seq(
-      Seq("1445240543366", "update", "e", "1", "2", "s2graph_label_test", "{\"is_blocked\":true}"),
-      Seq("1445240543362", "insert", "e", "1", "2", "s2graph_label_test", "{\"is_hidden\":false}"),
-      Seq("1445240543364", "insert", "e", "1", "2", "s2graph_label_test", "{\"is_hidden\":false,\"weight\":10}"),
-      Seq("1445240543363", "delete", "e", "1", "2", "s2graph_label_test"),
-      Seq("1445240543365", "update", "e", "1", "2", "s2graph_label_test", "{\"time\":1,\"weight\":-10}")
+      Seq("1445240543366", "update", "e", "1", "2", testLabelName, "{\"is_blocked\":true}"),
+      Seq("1445240543362", "insert", "e", "1", "2", testLabelName, "{\"is_hidden\":false}"),
+      Seq("1445240543364", "insert", "e", "1", "2", testLabelName, "{\"is_hidden\":false,\"weight\":10}"),
+      Seq("1445240543363", "delete", "e", "1", "2", testLabelName),
+      Seq("1445240543365", "update", "e", "1", "2", testLabelName, "{\"time\":1,\"weight\":-10}")
     ).map(_.mkString("\t")).mkString("\n")
 
     assert(bulkEdge === expected)

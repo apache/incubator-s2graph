@@ -157,14 +157,7 @@ object EdgeController extends Controller {
 
   def deleteAllInner(jsValue: JsValue, withWait: Boolean) = {
     val deleteResults = Future.sequence(jsValue.as[Seq[JsValue]] map { json =>
-
-      val labelName = (json \ "label").as[String]
-      val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil)
-      val direction = (json \ "direction").asOpt[String].getOrElse("out")
-
-      val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
-      val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
-      val vertices = requestParser.toVertices(labelName, direction, ids)
+      val (labels, direction, ids, ts, vertices) = requestParser.toDeleteParam(json)
 
       /** logging for delete all request */
 

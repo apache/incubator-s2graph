@@ -15,10 +15,6 @@ import scala.concurrent.duration._
   * Created by hsleep(honeysleep@gmail.com) on 2015. 11. 6..
   */
 class PostProcessBenchmarkSpec extends SpecCommon with BenchmarkCommon with PlaySpecification {
-  sequential
-
-  import Helper._
-
   init()
 
   override def init() = {
@@ -48,7 +44,7 @@ class PostProcessBenchmarkSpec extends SpecCommon with BenchmarkCommon with Play
 
       // create edges
       val bulkEdges: String = (0 until 500).map { i =>
-        edge"${System.currentTimeMillis()} insert e 0 $i $testLabelNameWeak"($(weight=i))
+        Seq(System.currentTimeMillis(), "insert", "e", "0", i, testLabelNameWeak, Json.obj("weight" -> i)).mkString("\t")
       }.mkString("\n")
 
       val jsResult = contentAsJson(EdgeController.mutateAndPublish(bulkEdges, withWait = true))

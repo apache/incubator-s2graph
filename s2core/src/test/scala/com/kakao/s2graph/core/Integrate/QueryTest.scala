@@ -8,7 +8,7 @@ import scala.util.{Success, Try}
 
 class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
-  import Util._
+  import TestUtil._
 
   val insert = "insert"
   val e = "e"
@@ -36,16 +36,16 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
         }
         """)
 
-    var edges = getEdges(queryWithInterval(0, index2, "_timestamp", 1000, 1001)) // test interval on timestamp index
+    var edges = getEdgesSync(queryWithInterval(0, index2, "_timestamp", 1000, 1001)) // test interval on timestamp index
     (edges \ "size").toString should be("1")
 
-    edges = getEdges(queryWithInterval(0, index2, "_timestamp", 1000, 2000)) // test interval on timestamp index
+    edges = getEdgesSync(queryWithInterval(0, index2, "_timestamp", 1000, 2000)) // test interval on timestamp index
     (edges \ "size").toString should be("2")
 
-    edges = getEdges(queryWithInterval(2, index1, "weight", 10, 11)) // test interval on weight index
+    edges = getEdgesSync(queryWithInterval(2, index1, "weight", 10, 11)) // test interval on weight index
     (edges \ "size").toString should be("1")
 
-    edges = getEdges(queryWithInterval(2, index1, "weight", 10, 20)) // test interval on weight index
+    edges = getEdgesSync(queryWithInterval(2, index1, "weight", 10, 20)) // test interval on weight index
     (edges \ "size").toString should be("2")
   }
 
@@ -68,19 +68,19 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
           ]]
         }""")
 
-    var result = getEdges(queryWhere(0, "is_hidden=false and _from in (-1, 0)"))
+    var result = getEdgesSync(queryWhere(0, "is_hidden=false and _from in (-1, 0)"))
     (result \ "results").as[List[JsValue]].size should be(1)
 
-    result = getEdges(queryWhere(0, "is_hidden=true and _to in (1)"))
+    result = getEdgesSync(queryWhere(0, "is_hidden=true and _to in (1)"))
     (result \ "results").as[List[JsValue]].size should be(1)
 
-    result = getEdges(queryWhere(0, "_from=0"))
+    result = getEdgesSync(queryWhere(0, "_from=0"))
     (result \ "results").as[List[JsValue]].size should be(2)
 
-    result = getEdges(queryWhere(2, "_from=2 or weight in (-1)"))
+    result = getEdgesSync(queryWhere(2, "_from=2 or weight in (-1)"))
     (result \ "results").as[List[JsValue]].size should be(2)
 
-    result = getEdges(queryWhere(2, "_from=2 and weight in (10, 20)"))
+    result = getEdgesSync(queryWhere(2, "_from=2 and weight in (10, 20)"))
     (result \ "results").as[List[JsValue]].size should be(2)
   }
 
@@ -109,7 +109,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
           ]]
         }""")
 
-    val result = getEdges(queryExclude(0))
+    val result = getEdgesSync(queryExclude(0))
     (result \ "results").as[List[JsValue]].size should be(1)
   }
 
@@ -132,7 +132,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       )
     }
 
-    val result = getEdges(queryGroupBy(0, Seq("weight")))
+    val result = getEdgesSync(queryGroupBy(0, Seq("weight")))
     (result \ "size").as[Int] should be(2)
     val weights = (result \\ "groupBy").map { js =>
       (js \ "weight").as[Int]
@@ -161,13 +161,13 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
           ]]
         }""")
 
-    var result = getEdges(queryTransform(0, "[[\"_to\"]]"))
+    var result = getEdgesSync(queryTransform(0, "[[\"_to\"]]"))
     (result \ "results").as[List[JsValue]].size should be(2)
 
-    result = getEdges(queryTransform(0, "[[\"weight\"]]"))
+    result = getEdgesSync(queryTransform(0, "[[\"weight\"]]"))
     (result \\ "to").map(_.toString).sorted should be((result \\ "weight").map(_.toString).sorted)
 
-    result = getEdges(queryTransform(0, "[[\"_from\"]]"))
+    result = getEdgesSync(queryTransform(0, "[[\"_from\"]]"))
     val results = (result \ "results").as[JsValue]
     (result \\ "to").map(_.toString).sorted should be((results \\ "from").map(_.toString).sorted)
   }
@@ -187,11 +187,11 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     }
 
     // weight order
-    var result = getEdges(queryIndex(Seq(0), "idx_1"))
+    var result = getEdgesSync(queryIndex(Seq(0), "idx_1"))
     ((result \ "results").as[List[JsValue]].head \\ "weight").head should be(JsNumber(40))
 
     // timestamp order
-    result = getEdges(queryIndex(Seq(0), "idx_2"))
+    result = getEdgesSync(queryIndex(Seq(0), "idx_2"))
     ((result \ "results").as[List[JsValue]].head \\ "weight").head should be(JsNumber(30))
   }
 
@@ -237,13 +237,13 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     }
 
     // get all
-    var result = getEdges(queryDuration(Seq(0, 2), from = 0, to = 5000))
+    var result = getEdgesSync(queryDuration(Seq(0, 2), from = 0, to = 5000))
     (result \ "results").as[List[JsValue]].size should be(4)
     // inclusive, exclusive
-    result = getEdges(queryDuration(Seq(0, 2), from = 1000, to = 4000))
+    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 4000))
     (result \ "results").as[List[JsValue]].size should be(3)
 
-    result = getEdges(queryDuration(Seq(0, 2), from = 1000, to = 2000))
+    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 2000))
     (result \ "results").as[List[JsValue]].size should be(1)
 
     val bulkEdges = Seq(
@@ -252,21 +252,21 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       toEdge(3003, insert, e, 2, 0, testLabelName, Json.obj(weight -> 30)),
       toEdge(4004, insert, e, 2, 1, testLabelName, Json.obj(weight -> 40))
     )
-    insertEdges(bulkEdges: _*)
+    insertEdgesSync(bulkEdges: _*)
 
     // duration test after udpate
     // get all
-    result = getEdges(queryDuration(Seq(0, 2), from = 0, to = 5000))
+    result = getEdgesSync(queryDuration(Seq(0, 2), from = 0, to = 5000))
     (result \ "results").as[List[JsValue]].size should be(4)
 
     // inclusive, exclusive
-    result = getEdges(queryDuration(Seq(0, 2), from = 1000, to = 4000))
+    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 4000))
     (result \ "results").as[List[JsValue]].size should be(3)
 
-    result = getEdges(queryDuration(Seq(0, 2), from = 1000, to = 2000))
+    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 2000))
     (result \ "results").as[List[JsValue]].size should be(1)
 
-    def a: JsValue = getEdges(queryDuration(Seq(0, 2), from = 3000, to = 2000))
+    def a: JsValue = getEdgesSync(queryDuration(Seq(0, 2), from = 3000, to = 2000))
     Try(a).recover {
       case e: BadQueryException => JsNull
     } should be(Success(JsNull))
@@ -301,9 +301,9 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     val src = 100
     val tgt = 200
 
-    insertEdges(toEdge(1001, "insert", "e", src, tgt, testLabelName))
+    insertEdgesSync(toEdge(1001, "insert", "e", src, tgt, testLabelName))
 
-    val result = Util.getEdges(queryParents(src))
+    val result = TestUtil.getEdgesSync(queryParents(src))
     val parents = (result \ "results").as[Seq[JsValue]]
     val ret = parents.forall {
       edge => (edge \ "parents").as[Seq[JsValue]].size == 1
@@ -342,23 +342,23 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       toEdge(3003, insert, e, src, 3, testLabelName, Json.obj(weight -> 30)),
       toEdge(4004, insert, e, src, 4, testLabelName, Json.obj(weight -> 40))
     )
-    insertEdges(bulkEdges: _*)
+    insertEdgesSync(bulkEdges: _*)
 
-    var result = getEdges(querySingle(src, offset = 0, limit = 2))
+    var result = getEdgesSync(querySingle(src, offset = 0, limit = 2))
     var edges = (result \ "results").as[List[JsValue]]
 
     edges.size should be(2)
     (edges(0) \ "to").as[Long] should be(4)
     (edges(1) \ "to").as[Long] should be(3)
 
-    result = getEdges(querySingle(src, offset = 1, limit = 2))
+    result = getEdgesSync(querySingle(src, offset = 1, limit = 2))
 
     edges = (result \ "results").as[List[JsValue]]
     edges.size should be(2)
     (edges(0) \ "to").as[Long] should be(3)
     (edges(1) \ "to").as[Long] should be(2)
 
-    result = getEdges(querySingleWithTo(src, offset = 0, limit = -1, to = 1))
+    result = getEdgesSync(querySingleWithTo(src, offset = 0, limit = -1, to = 1))
     edges = (result \ "results").as[List[JsValue]]
     edges.size should be(1)
   }
@@ -406,12 +406,12 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       toEdge(4004, insert, e, 2, 1, testLabelName, Json.obj(weight -> 40))
     )
 
-    insertEdges(bulkEdges: _*)
+    insertEdgesSync(bulkEdges: _*)
 
     // get edges
-    val edges = getEdges(queryScore(0, Map("weight" -> 1)))
-    val orderByScore = getEdges(queryOrderBy(0, Map("weight" -> 1), Seq(Map("score" -> "DESC", "timestamp" -> "DESC"))))
-    val ascOrderByScore = getEdges(queryOrderBy(0, Map("weight" -> 1), Seq(Map("score" -> "ASC", "timestamp" -> "DESC"))))
+    val edges = getEdgesSync(queryScore(0, Map("weight" -> 1)))
+    val orderByScore = getEdgesSync(queryOrderBy(0, Map("weight" -> 1), Seq(Map("score" -> "DESC", "timestamp" -> "DESC"))))
+    val ascOrderByScore = getEdgesSync(queryOrderBy(0, Map("weight" -> 1), Seq(Map("score" -> "ASC", "timestamp" -> "DESC"))))
 
     val edgesTo = edges \ "results" \\ "to"
     val orderByTo = orderByScore \ "results" \\ "to"
@@ -523,27 +523,27 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       toEdge(ts, insert, e, 322, 3322, testLabelName)
     )
 
-    insertEdges(bulkEdges: _*)
+    insertEdgesSync(bulkEdges: _*)
 
-    val result1 = getEdges(queryWithSampling(testId, sampleSize))
+    val result1 = getEdgesSync(queryWithSampling(testId, sampleSize))
     (result1 \ "results").as[List[JsValue]].size should be(math.min(sampleSize, bulkEdges.size))
 
-    val result2 = getEdges(twoStepQueryWithSampling(testId, sampleSize))
+    val result2 = getEdgesSync(twoStepQueryWithSampling(testId, sampleSize))
     (result2 \ "results").as[List[JsValue]].size should be(math.min(sampleSize * sampleSize, bulkEdges.size * bulkEdges.size))
 
-    val result3 = getEdges(twoQueryWithSampling(testId, sampleSize))
+    val result3 = getEdgesSync(twoQueryWithSampling(testId, sampleSize))
     (result3 \ "results").as[List[JsValue]].size should be(sampleSize + 3) // edges in testLabelName2 = 3
   }
 
   test("limit") {
-    insertEdges(
+    insertEdgesSync(
       toEdge(1001, insert, e, 0, 1, testLabelName, Json.obj(weight -> 10, is_hidden -> true)),
       toEdge(2002, insert, e, 0, 2, testLabelName, Json.obj(weight -> 20, is_hidden -> false)),
       toEdge(3003, insert, e, 2, 0, testLabelName, Json.obj(weight -> 30)),
       toEdge(4004, insert, e, 2, 1, testLabelName, Json.obj(weight -> 40)))
 
-    val edges = getEdges(querySingle(0, limit = 1))
-    val limitEdges = getEdges(queryGlobalLimit(0, 1))
+    val edges = getEdgesSync(querySingle(0, limit = 1))
+    val limitEdges = getEdgesSync(queryGlobalLimit(0, 1))
 
     val edgesTo = edges \ "results" \\ "to"
     val limitEdgesTo = limitEdges \ "results" \\ "to"
@@ -615,7 +615,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   override def initTestData(): Unit = {
     super.initTestData()
 
-    insertEdges(
+    insertEdgesSync(
       toEdge(1000, insert, e, 0, 1, testLabelName, Json.obj(weight -> 40, is_hidden -> true)),
       toEdge(2000, insert, e, 0, 2, testLabelName, Json.obj(weight -> 30, is_hidden -> false)),
       toEdge(3000, insert, e, 2, 0, testLabelName, Json.obj(weight -> 20)),

@@ -1,13 +1,12 @@
 package com.kakao.s2graph.core.Integrate
 
-import com.kakao.s2graph.core.{Management, PostProcess}
 import com.kakao.s2graph.core.mysqls._
 import play.api.libs.json.{JsObject, Json}
 
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
-
 class CrudTest extends IntegrateCommon {
+
+  import CrudHelper._
+  import TestUtil._
 
   test("test CRUD") {
     var tcNum = 0
@@ -152,87 +151,77 @@ class CrudTest extends IntegrateCommon {
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
   }
 
-  class CrudTestRunner {
-    var seed = 0
 
-    def run(tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]) = {
-      for {
-        labelName <- List(testLabelName, testLabelName2)
-        i <- 0 until NumOfEachTest
-      } {
-        seed += 1
-        val srcId = seed.toString
-        val tgtId = srcId
+  object CrudHelper {
 
-        val maxTs = opWithProps.map(t => t._1).max
+    class CrudTestRunner {
+      var seed = 0
 
-        /** insert edges */
-        println(s"---- TC${tcNum}_init ----")
-        val bulkEdges = (for ((ts, op, props) <- opWithProps) yield {
-          Util.toEdge(ts, op, "e", srcId, tgtId, labelName, props)
-        })
-
-        Util.insertEdges(bulkEdges:_*)
-
+      def run(tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]) = {
         for {
-          label <- Label.findByName(labelName)
-          direction <- List("out", "in")
-          cacheTTL <- List(-1L)
+          labelName <- List(testLabelName, testLabelName2)
+          i <- 0 until NumOfEachTest
         } {
-          val (serviceName, columnName, id, otherId) = direction match {
-            case "out" => (label.srcService.serviceName, label.srcColumn.columnName, srcId, tgtId)
-            case "in" => (label.tgtService.serviceName, label.tgtColumn.columnName, tgtId, srcId)
-          }
+          seed += 1
+          val srcId = seed.toString
+          val tgtId = srcId
 
-          val qId = if (labelName == testLabelName) id else "\"" + id + "\""
-          val query = queryJson(serviceName, columnName, labelName, qId, direction, cacheTTL)
+          val maxTs = opWithProps.map(t => t._1).max
 
-          val jsResult = Util.getEdges(query)
+          /** insert edges */
+          println(s"---- TC${tcNum}_init ----")
+          val bulkEdges = (for ((ts, op, props) <- opWithProps) yield {
+            TestUtil.toEdge(ts, op, "e", srcId, tgtId, labelName, props)
+          })
 
-          val results = jsResult \ "results"
-          val deegrees = (jsResult \ "degrees").as[List[JsObject]]
-          val propsLs = (results \\ "props").seq
-          (deegrees.head \ LabelMeta.degree.name).as[Int] should be(1)
+          TestUtil.insertEdgesSync(bulkEdges: _*)
 
-          val from = (results \\ "from").seq.last.toString.replaceAll("\"", "")
-          val to = (results \\ "to").seq.last.toString.replaceAll("\"", "")
+          for {
+            label <- Label.findByName(labelName)
+            direction <- List("out", "in")
+            cacheTTL <- List(-1L)
+          } {
+            val (serviceName, columnName, id, otherId) = direction match {
+              case "out" => (label.srcService.serviceName, label.srcColumn.columnName, srcId, tgtId)
+              case "in" => (label.tgtService.serviceName, label.tgtColumn.columnName, tgtId, srcId)
+            }
 
-          from should be(id.toString)
-          to should be(otherId.toString)
-          (results \\ "_timestamp").seq.last.as[Long] should be(maxTs)
+            val qId = if (labelName == testLabelName) id else "\"" + id + "\""
+            val query = queryJson(serviceName, columnName, labelName, qId, direction, cacheTTL)
 
-          for ((key, expectedVal) <- expected) {
-            propsLs.last.as[JsObject].keys.contains(key) should be(true)
-            (propsLs.last \ key).toString should be(expectedVal)
+            val jsResult = TestUtil.getEdgesSync(query)
+
+            val results = jsResult \ "results"
+            val deegrees = (jsResult \ "degrees").as[List[JsObject]]
+            val propsLs = (results \\ "props").seq
+            (deegrees.head \ LabelMeta.degree.name).as[Int] should be(1)
+
+            val from = (results \\ "from").seq.last.toString.replaceAll("\"", "")
+            val to = (results \\ "to").seq.last.toString.replaceAll("\"", "")
+
+            from should be(id.toString)
+            to should be(otherId.toString)
+            (results \\ "_timestamp").seq.last.as[Long] should be(maxTs)
+
+            for ((key, expectedVal) <- expected) {
+              propsLs.last.as[JsObject].keys.contains(key) should be(true)
+              (propsLs.last \ key).toString should be(expectedVal)
+            }
           }
         }
       }
-    }
 
-    def queryJson(serviceName: String, columnName: String, labelName: String, id: String, dir: String, cacheTTL: Long = -1L) = {
-      val s =
-        s"""{
-      "srcVertices": [
-      {
-        "serviceName": "$serviceName",
-        "columnName": "$columnName",
-        "id": $id
-      }
-      ],
-      "steps": [
-      [
-      {
-        "label": "$labelName",
-        "direction": "$dir",
-        "offset": 0,
-        "limit": 10,
-        "cacheTTL": $cacheTTL
-      }
-      ]
-      ]
-    }"""
-      Json.parse(s)
+      def queryJson(serviceName: String, columnName: String, labelName: String, id: String, dir: String, cacheTTL: Long = -1L) = Json.parse(
+        s""" { "srcVertices": [
+             { "serviceName": "$serviceName",
+               "columnName": "$columnName",
+               "id": $id } ],
+             "steps": [ [ {
+             "label": "$labelName",
+             "direction": "$dir",
+             "offset": 0,
+             "limit": 10,
+             "cacheTTL": $cacheTTL }]]}""")
     }
   }
-
 }

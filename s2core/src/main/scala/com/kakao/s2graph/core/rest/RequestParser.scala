@@ -503,4 +503,15 @@ class RequestParser(config: Config) extends JSONParser {
       element <- Graph.toGraphElement(str)
     } yield element
   }
+
+  def toDeleteParam(json: JsValue) = {
+    val labelName = (json \ "label").as[String]
+    val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil)
+    val direction = (json \ "direction").asOpt[String].getOrElse("out")
+
+    val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
+    val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
+    val vertices = toVertices(labelName, direction, ids)
+    (labels, direction, ids, ts, vertices)
+  }
 }

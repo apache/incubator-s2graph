@@ -8,9 +8,12 @@ import org.scalatest._
 import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
+
+  import TestUtil._
+
   var graph: Graph = _
   var parser: RequestParser = _
   var config: Config = _
@@ -78,19 +81,32 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
   /**
     * Test Helpers
     */
-  object Util {
-//    def checkEdgeQueryJson(params: Seq[(String, String, String, String)]) = {
-//      val arr = for {
-//        (label, dir, from, to) <- params
-//      } yield {
-//        Json.obj("label" -> label, "direction" -> dir, "from" -> from, "to" -> to)
-//      }
-//
-//      val s = Json.toJson(arr)
-//      s
-//    }
+  object TestUtil {
+    implicit def ec = graph.ec
 
-    def getEdges(queryJson: JsValue): JsValue = {
+    //    def checkEdgeQueryJson(params: Seq[(String, String, String, String)]) = {
+    //      val arr = for {
+    //        (label, dir, from, to) <- params
+    //      } yield {
+    //        Json.obj("label" -> label, "direction" -> dir, "from" -> from, "to" -> to)
+    //      }
+    //
+    //      val s = Json.toJson(arr)
+    //      s
+    //    }
+
+    def deleteAllSync(jsValue: JsValue) = {
+      val future = Future.sequence(jsValue.as[Seq[JsValue]] map { json =>
+        val (labels, direction, ids, ts, vertices) = parser.toDeleteParam(json)
+        val future = graph.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts)
+
+        future
+      })
+
+      Await.result(future, HttpRequestWaitingTime)
+    }
+
+    def getEdgesSync(queryJson: JsValue): JsValue = {
       val ret = graph.getEdges(parser.toQuery(queryJson))
       val result = Await.result(ret, HttpRequestWaitingTime)
       val jsResult = PostProcess.toSimpleVertexArrJson(result)
@@ -98,37 +114,41 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       jsResult
     }
 
-    def insertEdges(bulkEdges: String*) = {
+    def insertEdgesSync(bulkEdges: String*) = {
       val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
       val jsResult = Await.result(req, HttpRequestWaitingTime)
 
       jsResult
     }
 
+    def insertEdgesAsync(bulkEdges: String*) = {
+      val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
+      req
+    }
+
     def toEdge(elems: Any*): String = elems.mkString("\t")
-  }
 
-  // common tables
-  protected val testServiceName = "s2graph"
-  protected val testLabelName = "s2graph_label_test"
-  protected val testLabelName2 = "s2graph_label_test_2"
-  protected val testLabelNameV1 = "s2graph_label_test_v1"
-  protected val testLabelNameWeak = "s2graph_label_test_weak"
-  protected val testColumnName = "user_id_test"
-  protected val testColumnType = "long"
-  protected val testTgtColumnName = "item_id_test"
-  protected val testHTableName = "test-htable"
-  protected val newHTableName = "new-htable"
-  protected val index1 = "idx_1"
-  protected val index2 = "idx_2"
+    // common tables
+    val testServiceName = "s2graph"
+    val testLabelName = "s2graph_label_test"
+    val testLabelName2 = "s2graph_label_test_2"
+    val testLabelNameV1 = "s2graph_label_test_v1"
+    val testLabelNameWeak = "s2graph_label_test_weak"
+    val testColumnName = "user_id_test"
+    val testColumnType = "long"
+    val testTgtColumnName = "item_id_test"
+    val testHTableName = "test-htable"
+    val newHTableName = "new-htable"
+    val index1 = "idx_1"
+    val index2 = "idx_2"
 
-  val NumOfEachTest = 30
-  val HttpRequestWaitingTime = Duration("Inf")
+    val NumOfEachTest = 30
+    val HttpRequestWaitingTime = Duration("Inf")
 
-  val createService = s"""{"serviceName" : "$testServiceName"}"""
+    val createService = s"""{"serviceName" : "$testServiceName"}"""
 
-  val testLabelNameCreate =
-    s"""
+    val testLabelNameCreate =
+      s"""
   {
     "label": "$testLabelName",
     "srcServiceName": "$testServiceName",
@@ -169,8 +189,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "hTableName": "$testHTableName"
   }"""
 
-  val testLabelName2Create =
-    s"""
+    val testLabelName2Create =
+      s"""
   {
     "label": "$testLabelName2",
     "srcServiceName": "$testServiceName",
@@ -208,8 +228,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "compressionAlgorithm": "gz"
   }"""
 
-  val testLabelNameV1Create =
-    s"""
+    val testLabelNameV1Create =
+      s"""
   {
     "label": "$testLabelNameV1",
     "srcServiceName": "$testServiceName",
@@ -247,8 +267,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "compressionAlgorithm": "gz"
   }"""
 
-  val testLabelNameWeakCreate =
-    s"""
+    val testLabelNameWeakCreate =
+      s"""
   {
     "label": "$testLabelNameWeak",
     "srcServiceName": "$testServiceName",
@@ -284,4 +304,5 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "isDirected": true,
     "compressionAlgorithm": "gz"
   }"""
+  }
 }
