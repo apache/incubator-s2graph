@@ -57,7 +57,7 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
   val queryBuilder = new AsynchbaseQueryBuilder(this)(ec)
   val mutationBuilder = new AsynchbaseMutationBuilder(this)(ec)
 
-//  val cacheOpt = Option(cache)
+  //  val cacheOpt = Option(cache)
   val cacheOpt = None
   val vertexCacheOpt = Option(vertexCache)
 
@@ -312,7 +312,7 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
         }
     }
     val newVersion = kvOpt.map(_.timestamp()).getOrElse(edge.ts) + 1
-//      snapshotEdgeOpt.map(_.version).getOrElse(edge.ts) + 1
+    //      snapshotEdgeOpt.map(_.version).getOrElse(edge.ts) + 1
     val pendingEdge = edge.copy(version = newVersion, statusCode = 1, lockTs = lockTs)
     val base = snapshotEdgeOpt match {
       case None =>
@@ -471,9 +471,9 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
                                              edgeUpdate: EdgeMutate): Future[Boolean] = {
     val label = edge.label
     def oldBytes = kvOpt.map(_.value()).getOrElse(Array.empty)
-//    def oldBytes = snapshotEdgeOpt.map { e =>
-//      snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
-//    }.getOrElse(Array.empty)
+    //    def oldBytes = snapshotEdgeOpt.map { e =>
+    //      snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
+    //    }.getOrElse(Array.empty)
     def process(lockEdge: SnapshotEdge,
                 releaseLockEdge: SnapshotEdge,
                 _edgeMutate: EdgeMutate,

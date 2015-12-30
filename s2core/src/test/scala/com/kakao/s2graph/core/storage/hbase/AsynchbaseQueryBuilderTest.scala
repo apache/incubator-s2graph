@@ -1,6 +1,7 @@
 package com.kakao.s2graph.core.storage.hbase
 
 import com.kakao.s2graph.core.Graph
+import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.ConfigFactory
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.GetRequest
@@ -46,6 +47,6 @@ class AsynchbaseQueryBuilderTest extends FunSuite with Matchers {
     }
     val duration = System.nanoTime() - startedAt
 
-    println(s">> bytes: $duration")
+    logger.debug(s">> bytes: $duration")
   }
 }
