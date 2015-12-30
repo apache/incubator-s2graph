@@ -16,7 +16,7 @@ graph_mysql:
 graph_hbase:
     image: nerdammer/hbase:0.98.10.1
     container_name: graph_hbase
-    hostname: default
+    hostname: "${DOCKER_MACHINE_NAME}"
     ports:
         - "3306:3306"
         - "2181:2181"
