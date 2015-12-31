@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <withJansi>true</withJansi>
         <encoder>
             <pattern>
-                %d{ISO8601} [%highlight(%-5level)] [%magenta(%logger{0})] [%thread] - %msg%n
+                %d{ISO8601} [%highlight(%-5level)] [%gray(%logger{0})] [%thread] - %msg%n
             </pattern>
         </encoder>
     </appender>
@@ -20,5 +21,3 @@
         <appender-ref ref="STDOUT"/>
     </logger>
 </configuration>
-
-
