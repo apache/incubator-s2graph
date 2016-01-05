@@ -2,6 +2,7 @@ package controllers
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
+import com.kakao.s2graph.core.rest.RequestParser
 import com.kakao.s2graph.core.utils.logger
 import play.api.mvc
 import play.api.mvc.{Action, Controller}
@@ -10,9 +11,10 @@ import play.api.libs.functional.syntax._
 
 import scala.util.{Failure, Success, Try}
 
-object AdminController extends Controller with RequestParser {
+object AdminController extends Controller {
 
   import ApplicationController._
+  private val requestParser: RequestParser = com.kakao.s2graph.rest.Global.s2parser
 
   /**
    * admin message formatter
@@ -180,7 +182,7 @@ object AdminController extends Controller with RequestParser {
   }
 
   def createServiceInner(jsValue: JsValue) = {
-    val (serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm) = toServiceElements(jsValue)
+    val (serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm) = requestParser.toServiceElements(jsValue)
     Management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
   }
 
@@ -194,7 +196,7 @@ object AdminController extends Controller with RequestParser {
   }
 
   def createLabelInner(json: JsValue) = for {
-    labelArgs <- toLabelElements(json)
+    labelArgs <- requestParser.toLabelElements(json)
     label <- (Management.createLabel _).tupled(labelArgs)
   } yield label
 
@@ -208,7 +210,7 @@ object AdminController extends Controller with RequestParser {
   }
 
   def addIndexInner(json: JsValue) = for {
-    (labelName, indices) <- toIndexElements(json)
+    (labelName, indices) <- requestParser.toIndexElements(json)
     label <- Management.addIndex(labelName, indices)
   } yield label
 
@@ -222,7 +224,7 @@ object AdminController extends Controller with RequestParser {
   }
 
   def createServiceColumnInner(jsValue: JsValue) = for {
-    (serviceName, columnName, columnType, props) <- toServiceColumnElements(jsValue)
+    (serviceName, columnName, columnType, props) <- requestParser.toServiceColumnElements(jsValue)
     serviceColumn <- Management.createServiceColumn(serviceName, columnName, columnType, props)
   } yield serviceColumn
 
@@ -271,7 +273,7 @@ object AdminController extends Controller with RequestParser {
   }
 
   def addPropInner(labelName: String, js: JsValue) = for {
-    prop <- toPropElements(js)
+    prop <- requestParser.toPropElements(js)
     labelMeta <- Management.addProp(labelName, prop)
   } yield labelMeta
 
@@ -292,7 +294,7 @@ object AdminController extends Controller with RequestParser {
     for {
       service <- Service.findByName(serviceName)
       serviceColumn <- ServiceColumn.find(service.id.get, columnName)
-      prop <- toPropElements(js).toOption
+      prop <- requestParser.toPropElements(js).toOption
     } yield {
       ColumnMeta.findOrInsert(serviceColumn.id.get, prop.name, prop.defaultValue)
     }

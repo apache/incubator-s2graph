@@ -1,23 +1,28 @@
-package controllers
+package com.kakao.s2graph.core.rest
 
 import com.kakao.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
 import com.kakao.s2graph.core.types._
-import config.Config
+import com.typesafe.config.Config
 import play.Play
 import play.api.libs.json._
 
 import scala.util.{Failure, Success, Try}
 
 
-trait RequestParser extends JSONParser {
+class RequestParser(config: Config) extends JSONParser {
 
   import Management.JsonModel._
 
-  val hardLimit = Config.QUERY_HARD_LIMIT
+  val hardLimit = 100000
   val defaultLimit = 100
+  val DefaultRpcTimeout = config.getInt("hbase.rpc.timeout")
+  val DefaultMaxAttempt = config.getInt("hbase.client.retries.number")
+  val DefaultCluster = config.getString("hbase.zookeeper.quorum")
+  val DefaultCompressionAlgorithm = config.getString("hbase.table.compression.algorithm")
+  val DefaultPhase = config.getString("phase")
 
   lazy val defaultCluster = Play.application().configuration().getString("hbase.zookeeper.quorum")
   lazy val defaultCompressionAlgorithm = Play.application().configuration.getString("hbase.table.compression.algorithm")
@@ -272,8 +277,8 @@ trait RequestParser extends JSONParser {
       }
       val where = extractWhere(labelMap, labelGroup)
       val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
-      val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(Config.RPC_TIMEOUT)
-      val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(Config.MAX_ATTEMPT)
+      val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(DefaultRpcTimeout)
+      val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(DefaultMaxAttempt)
       val tgtVertexInnerIdOpt = (labelGroup \ "_to").asOpt[JsValue].flatMap { jsVal =>
         jsValueToInnerVal(jsVal, label.tgtColumnWithDir(direction).columnType, label.schemaVersion)
       }
@@ -441,7 +446,7 @@ trait RequestParser extends JSONParser {
   def toServiceElements(jsValue: JsValue) = {
     val serviceName = parse[String](jsValue, "serviceName")
     val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(defaultCluster)
-    val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${Config.PHASE}")
+    val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${DefaultPhase}")
     val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(1)
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(defaultCompressionAlgorithm)

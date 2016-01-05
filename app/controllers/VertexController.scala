@@ -2,6 +2,7 @@ package controllers
 
 
 import actors.QueueActor
+import com.kakao.s2graph.core.rest.RequestParser
 import com.kakao.s2graph.core.utils.logger
 import com.kakao.s2graph.core.{ExceptionHandler, Graph, GraphExceptions}
 import config.Config
@@ -10,8 +11,9 @@ import play.api.mvc.{Controller, Result}
 
 import scala.concurrent.Future
 
-object VertexController extends Controller with RequestParser {
+object VertexController extends Controller {
   private val s2: Graph = com.kakao.s2graph.rest.Global.s2graph
+  private val requestParser: RequestParser = com.kakao.s2graph.rest.Global.s2parser
 
   import ExceptionHandler._
   import controllers.ApplicationController._
@@ -21,7 +23,7 @@ object VertexController extends Controller with RequestParser {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
     else {
       try {
-        val vertices = toVertices(jsValue, operation, serviceNameOpt, columnNameOpt)
+        val vertices = requestParser.toVertices(jsValue, operation, serviceNameOpt, columnNameOpt)
 
         for (vertex <- vertices) {
           if (vertex.isAsync)
