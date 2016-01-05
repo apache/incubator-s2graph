@@ -4,9 +4,6 @@ import com.kakao.s2graph.core.OrderingUtil.MultiValueOrdering
 import org.scalatest.{FunSuite, Matchers}
 import play.api.libs.json.JsString
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 2015. 11. 5..
- */
 class OrderingUtilTest extends FunSuite with Matchers {
   test("test SeqMultiOrdering") {
     val jsLs: Seq[Seq[Any]] = Seq(
