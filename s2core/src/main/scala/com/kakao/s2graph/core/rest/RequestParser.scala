@@ -461,5 +461,52 @@ class RequestParser(config: Config) extends JSONParser {
     (serviceName, columnName, columnType, props)
   }
 
+  def toCheckEdgeParam(jsValue: JsValue) = {
+    val params = jsValue.as[List[JsValue]]
+    var isReverted = false
+    val labelWithDirs = scala.collection.mutable.HashSet[LabelWithDirection]()
+    val quads = for {
+      param <- params
+      labelName <- (param \ "label").asOpt[String]
+      direction <- GraphUtil.toDir((param \ "direction").asOpt[String].getOrElse("out"))
+      label <- Label.findByName(labelName)
+      srcId <- jsValueToInnerVal((param \ "from").as[JsValue], label.srcColumnWithDir(direction.toInt).columnType, label.schemaVersion)
+      tgtId <- jsValueToInnerVal((param \ "to").as[JsValue], label.tgtColumnWithDir(direction.toInt).columnType, label.schemaVersion)
+    } yield {
+      val labelWithDir = LabelWithDirection(label.id.get, direction)
+      labelWithDirs += labelWithDir
+      val (src, tgt, dir) = if (direction == 1) {
+        isReverted = true
+        (Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)),
+          Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)), 0)
+      } else {
+        (Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)),
+          Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)), 0)
+      }
+      (src, tgt, QueryParam(LabelWithDirection(label.id.get, dir)))
+    }
 
+    (quads, isReverted)
+  }
+
+  def toGraphElements(str: String): Seq[GraphElement] = {
+    val edgeStrs = str.split("\\n")
+
+    for {
+      edgeStr <- edgeStrs
+      str <- GraphUtil.parseString(edgeStr)
+      element <- Graph.toGraphElement(str)
+    } yield element
+  }
+
+  def toDeleteParam(json: JsValue) = {
+    val labelName = (json \ "label").as[String]
+    val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil)
+    val direction = (json \ "direction").asOpt[String].getOrElse("out")
+
+    val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
+    val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
+    val vertices = toVertices(labelName, direction, ids)
+    (labels, direction, ids, ts, vertices)
+  }
 }

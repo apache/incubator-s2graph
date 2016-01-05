@@ -1,5 +1,6 @@
-package controllers
+package com.kakao.s2graph.core
 
+import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
@@ -11,8 +12,14 @@ object PostProcess extends JSONParser {
   /**
     * Result Entity score field name
     */
-  val SCORE_FIELD_NAME = "scoreSum"
   val timeoutResults = Json.obj("size" -> 0, "results" -> Json.arr(), "isTimeout" -> true)
+  val emptyResults = Json.obj("size" -> 0, "results" -> Json.arr(), "isEmpty" -> true)
+  def badRequestResults(ex: => Exception) = ex match {
+    case ex: BadQueryException => Json.obj("message" -> ex.msg)
+    case _ => Json.obj("message" -> ex.getMessage)
+  }
+
+  val SCORE_FIELD_NAME = "scoreSum"
   val reservedColumns = Set("cacheRemain", "from", "to", "label", "direction", "_timestamp", "timestamp", "score", "props")
 
   def groupEdgeResult(queryRequestWithResultLs: Seq[QueryRequestWithResult], exclude: Seq[QueryRequestWithResult]) = {

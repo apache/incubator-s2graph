@@ -2,7 +2,7 @@ package benchmark
 
 import com.kakao.s2graph.core.mysqls.Label
 import com.kakao.s2graph.core.rest.RequestParser
-import com.kakao.s2graph.core.{Graph, Management}
+import com.kakao.s2graph.core.{PostProcess, Graph, Management}
 import com.typesafe.config.ConfigFactory
 import controllers._
 import play.api.libs.json.{JsValue, Json}
