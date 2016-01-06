@@ -1,9 +1,5 @@
 package com.kakao.s2graph.core.mysqls
 
-/**
- * Created by shon on 6/3/15.
- */
-
 import com.kakao.s2graph.core.GraphExceptions.ModelNotFoundException
 import com.kakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.kakao.s2graph.core.utils.logger
@@ -141,7 +137,7 @@ object Label extends Model[Label] {
                 hTableTTL: Option[Int],
                 schemaVersion: String,
                 isAsync: Boolean,
-                compressionAlgorithm: String)(implicit session: DBSession = AutoSession) = {
+                compressionAlgorithm: String)(implicit session: DBSession = AutoSession): Label = {
 
     val srcServiceOpt = Service.findByName(srcServiceName, useCache = false)
     val tgtServiceOpt = Service.findByName(tgtServiceName, useCache = false)
@@ -186,18 +182,6 @@ object Label extends Model[Label] {
               val metaSeq = index.propNames.map { name => labelMetaMap(name) }
               LabelIndex.findOrInsert(createdId, index.name, metaSeq.toList, "none")
             }
-          }
-
-          /** TODO: */
-          (hTableName, hTableTTL) match {
-            case (None, None) => // do nothing
-            case (None, Some(hbaseTableTTL)) => throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
-            case (Some(hbaseTableName), None) =>
-              // create own hbase table with default ttl on service level.
-              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, service.hTableTTL, compressionAlgorithm)
-            case (Some(hbaseTableName), Some(hbaseTableTTL)) =>
-              // create own hbase table with own ttl.
-              Management.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL, compressionAlgorithm)
           }
 
           val cacheKeys = List(s"id=$createdId", s"label=$labelName")
