@@ -103,24 +103,28 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
                      parentEdges: Seq[EdgeWithScore]): Deferred[QueryRequestWithResult] = {
     @tailrec
     def randomInt(sampleNumber: Int, range: Int, set: Set[Int] = Set.empty[Int]): Set[Int] = {
-      if (set.size == sampleNumber) set
+      if (range < sampleNumber || set.size == sampleNumber) set
       else randomInt(sampleNumber, range, set + Random.nextInt(range))
     }
 
     def sample(edges: Seq[EdgeWithScore], n: Int): Seq[EdgeWithScore] = {
-      val plainEdges = if (queryRequest.queryParam.offset == 0) {
-        edges.tail
-      } else edges
+      if (edges.size <= n){
+        edges
+      }else{
+        val plainEdges = if (queryRequest.queryParam.offset == 0) {
+          edges.tail
+        } else edges
 
-      val randoms = randomInt(n, plainEdges.size)
-      var samples = List.empty[EdgeWithScore]
-      var idx = 0
-      plainEdges.foreach { e =>
-        if (randoms.contains(idx)) samples = e :: samples
-        idx += 1
+        val randoms = randomInt(n, plainEdges.size)
+        var samples = List.empty[EdgeWithScore]
+        var idx = 0
+        plainEdges.foreach { e =>
+          if (randoms.contains(idx)) samples = e :: samples
+          idx += 1
+        }
+        samples.toSeq
       }
 
-      samples.toSeq
     }
 
     def fetchInner(request: GetRequest) = {

@@ -2,9 +2,7 @@ package controllers
 
 import play.api.libs.json._
 import play.api.test.{FakeApplication, FakeRequest, PlaySpecification}
-import play.api.{Application => PlayApplication}
 
-import scala.concurrent.Await
 
 class QuerySpec extends SpecCommon with PlaySpecification {
 
@@ -603,17 +601,29 @@ class QuerySpec extends SpecCommon with PlaySpecification {
 
         contentAsJson(EdgeController.mutateAndPublish(bulkEdges.mkString("\n"), withWait = true))
 
-        val result1 = getEdges(queryWithSampling(testId, sampleSize))
-        println(Json.toJson(result1))
-        (result1 \ "results").as[List[JsValue]].size must equalTo(scala.math.min(sampleSize, bulkEdges.size))
+        var result = getEdges(queryWithSampling(testId, sampleSize))
+        println(Json.toJson(result))
+        (result \ "results").as[List[JsValue]].size must equalTo(scala.math.min(sampleSize, bulkEdges.size))
 
-        val result2 = getEdges(twoStepQueryWithSampling(testId, sampleSize))
-        println(Json.toJson(result2))
-        (result2 \ "results").as[List[JsValue]].size must equalTo(scala.math.min(sampleSize * sampleSize, bulkEdges.size * bulkEdges.size))
+        result = getEdges(twoStepQueryWithSampling(testId, sampleSize))
+        println(Json.toJson(result))
+        (result \ "results").as[List[JsValue]].size must equalTo(scala.math.min(sampleSize * sampleSize, bulkEdges.size * bulkEdges.size))
 
-        val result3 = getEdges(twoQueryWithSampling(testId, sampleSize))
-        println(Json.toJson(result3))
-        (result3 \ "results").as[List[JsValue]].size must equalTo(sampleSize + 3) // edges in testLabelName2 = 3
+        result = getEdges(twoQueryWithSampling(testId, sampleSize))
+        println(Json.toJson(result))
+        (result \ "results").as[List[JsValue]].size must equalTo(sampleSize + 3) // edges in testLabelName2 = 3
+
+        result = getEdges(queryWithSampling(testId, 0))
+        println(Json.toJson(result))
+        (result \ "results").as[List[JsValue]].size must equalTo(0) // edges in testLabelName2 = 3
+
+        result = getEdges(queryWithSampling(testId, 10))
+        println(Json.toJson(result))
+        (result \ "results").as[List[JsValue]].size must equalTo(3) // edges in testLabelName2 = 3
+
+        result = getEdges(queryWithSampling(testId, -1))
+        println(Json.toJson(result))
+        (result \ "results").as[List[JsValue]].size must equalTo(3) // edges in testLabelName2 = 3
       }
     }
 
