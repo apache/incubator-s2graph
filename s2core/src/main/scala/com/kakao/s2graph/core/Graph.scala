@@ -38,7 +38,10 @@ object Graph {
     "max.retry.number" -> java.lang.Integer.valueOf(100),
     "max.back.off" -> java.lang.Integer.valueOf(100),
     "hbase.fail.prob" -> java.lang.Double.valueOf(-0.1),
-    "delete.all.fetch.size" -> java.lang.Integer.valueOf(1000)
+    "delete.all.fetch.size" -> java.lang.Integer.valueOf(1000),
+    "future.cache.max.size" -> java.lang.Integer.valueOf(100000),
+    "future.cache.expire.after.write" -> java.lang.Integer.valueOf(10000),
+    "future.cache.expire.after.access" -> java.lang.Integer.valueOf(5000)
   )
 
   var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)
@@ -309,13 +312,14 @@ object Graph {
   } get
 }
 
-class Graph(_config: Config)(implicit ec: ExecutionContext) {
+class Graph(_config: Config)(implicit val ec: ExecutionContext) {
   val config = _config.withFallback(Graph.DefaultConfig)
   val cacheSize = config.getInt("cache.max.size")
 //  val cache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Seq[QueryResult]]()
   val vertexCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Option[Vertex]]()
 
-  Model(config)
+  Model.apply(config)
+  Model.loadCache()
 
   // TODO: Make storage client by config param
   val storage: Storage = new AsynchbaseStorage(config, vertexCache)(ec)
@@ -345,5 +349,8 @@ class Graph(_config: Config)(implicit ec: ExecutionContext) {
 
   def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = storage.incrementCounts(edges)
 
-  def shutdown(): Unit = storage.flush()
+  def shutdown(): Unit = {
+    storage.flush()
+    Model.shutdown()
+  }
 }

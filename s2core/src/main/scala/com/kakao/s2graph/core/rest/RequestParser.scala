@@ -6,11 +6,9 @@ import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
 import com.kakao.s2graph.core.types._
 import com.typesafe.config.Config
-import play.Play
 import play.api.libs.json._
 
 import scala.util.{Failure, Success, Try}
-
 
 class RequestParser(config: Config) extends JSONParser {
 
@@ -23,9 +21,6 @@ class RequestParser(config: Config) extends JSONParser {
   val DefaultCluster = config.getString("hbase.zookeeper.quorum")
   val DefaultCompressionAlgorithm = config.getString("hbase.table.compression.algorithm")
   val DefaultPhase = config.getString("phase")
-
-  lazy val defaultCluster = Play.application().configuration().getString("hbase.zookeeper.quorum")
-  lazy val defaultCompressionAlgorithm = Play.application().configuration.getString("hbase.table.compression.algorithm")
 
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {
@@ -74,6 +69,7 @@ class RequestParser(config: Config) extends JSONParser {
     } yield {
       val minTs = parse[Option[Long]](js, "from").getOrElse(Long.MaxValue)
       val maxTs = parse[Option[Long]](js, "to").getOrElse(Long.MinValue)
+
       (minTs, maxTs)
     }
   }
@@ -310,6 +306,7 @@ class RequestParser(config: Config) extends JSONParser {
         .duration(duration)
         .has(hasFilter)
         .labelOrderSeq(indexSeq)
+        .interval(interval)
         .where(where)
         .duplicatePolicy(duplicate)
         .includeDegree(includeDegree)
@@ -430,7 +427,7 @@ class RequestParser(config: Config) extends JSONParser {
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     val schemaVersion = (jsValue \ "schemaVersion").asOpt[String].getOrElse(HBaseType.DEFAULT_VERSION)
     val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
-    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(defaultCompressionAlgorithm)
+    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(DefaultCompressionAlgorithm)
 
     (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
@@ -445,11 +442,11 @@ class RequestParser(config: Config) extends JSONParser {
 
   def toServiceElements(jsValue: JsValue) = {
     val serviceName = parse[String](jsValue, "serviceName")
-    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(defaultCluster)
+    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(DefaultCluster)
     val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${DefaultPhase}")
     val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(1)
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
-    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(defaultCompressionAlgorithm)
+    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(DefaultCompressionAlgorithm)
     (serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
   }
 

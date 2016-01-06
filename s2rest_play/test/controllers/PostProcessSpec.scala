@@ -1,14 +1,11 @@
 package controllers
 
-import com.kakao.s2graph.core.SeqMultiOrdering
-import com.kakao.s2graph.core.OrderingUtil._
+import com.kakao.s2graph.core.{OrderingUtil, SeqMultiOrdering}
 import play.api.libs.json.{JsNumber, JsString, JsValue}
 import play.api.test.PlaySpecification
 
-/**
- * Created by hsleep on 2015. 11. 4..
- */
-class PostProcessSpec extends SpecCommon with PlaySpecification {
+class PostProcessSpec extends PlaySpecification {
+  import OrderingUtil._
 
   "test order by json" >> {
     val jsLs: Seq[Seq[JsValue]] = Seq(

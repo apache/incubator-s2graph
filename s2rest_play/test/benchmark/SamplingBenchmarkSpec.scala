@@ -1,18 +1,13 @@
 package benchmark
-
-/**
- * Created by jojo on 12/1/15.
- */
-
 import play.api.test.{FakeApplication, PlaySpecification, WithApplication}
 import scala.annotation.tailrec
 import scala.util.Random
 
 class SamplingBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
-  "to json" should {
+  "sample" should {
     implicit val app = FakeApplication()
 
-    "json benchmark" in new WithApplication(app) {
+    "sample benchmark" in new WithApplication(app) {
       @tailrec
       def randomInt(n: Int, range: Int, set: Set[Int] = Set.empty[Int]): Set[Int] = {
         if (set.size == n) set
