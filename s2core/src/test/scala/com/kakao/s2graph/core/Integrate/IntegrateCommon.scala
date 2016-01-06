@@ -83,7 +83,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     * Test Helpers
     */
   object TestUtil {
-    implicit def ec = graph.ec
+    implicit def ec = scala.concurrent.ExecutionContext.global
 
     //    def checkEdgeQueryJson(params: Seq[(String, String, String, String)]) = {
     //      val arr = for {

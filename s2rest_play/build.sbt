@@ -1,7 +1,5 @@
 name := "s2rest_play"
 
-version := "0.12.1-SNAPSHOT"
-
 scalacOptions in Test ++= Seq("-Yrangepos")
 
 libraryDependencies ++= Seq(
