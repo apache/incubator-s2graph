@@ -39,6 +39,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
   private val labelPostfix = "_topK"
 
   val s2graphUrl = s2config.GRAPH_URL
+  val s2graphReadOnlyUrl = s2config.GRAPH_READONLY_URL
 
   val prepareCache = new CollectionCache[Option[Boolean]](CollectionCacheConfig(10000, 600))
   val graphOp = new GraphOperation(config)
@@ -207,6 +208,46 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
   private def getEdges(key: RankingKey, duplicate: String="first"): Future[List[JsValue]] = {
     val labelName = counterModel.findById(key.policyId).get.action + labelPostfix
 
+//    val ids = (0 until BUCKET_SHARD_COUNT).map { idx =>
+//      s"${makeBucketShardKey(idx, key)}"
+//    }
+//
+//    val payload = Json.obj(
+//      "srcVertices" -> Json.arr(
+//        Json.obj(
+//          "serviceName" -> SERVICE_NAME,
+//          "columnName" -> BUCKET_COLUMN_NAME,
+//          "ids" -> ids
+//        )
+//      ),
+//      "steps" -> Json.arr(
+//        Json.obj(
+//          "step" -> Json.arr(
+//            Json.obj(
+//              "label" -> labelName,
+//              "duplicate" -> duplicate,
+//              "direction" -> "out",
+//              "offset" -> 0,
+//              "limit" -> -1,
+//              "interval" -> Json.obj(
+//                "from" -> Json.obj(
+//                  "time_unit" -> key.eq.tq.q.toString,
+//                  "time_value" -> key.eq.tq.ts
+//                ),
+//                "to" -> Json.obj(
+//                  "time_unit" -> key.eq.tq.q.toString,
+//                  "time_value" -> key.eq.tq.ts
+//                ),
+//                "scoring" -> Json.obj(
+//                  "score" -> 1
+//                )
+//              )
+//            )
+//          )
+//        )
+//      )
+//    )
+
     val ids = {
       (0 until BUCKET_SHARD_COUNT).map { shardIdx =>
         s""""${makeBucketShardKey(shardIdx, key)}""""
@@ -245,14 +286,21 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
        """.stripMargin
     log.debug(strJs)
 
-    val payload = Json.parse(strJs)
-    wsClient.url(s"$s2graphUrl/graphs/getEdges").post(payload).map { resp =>
-      resp.status match {
-        case HttpStatus.SC_OK =>
-          (resp.json \ "results").asOpt[List[JsValue]].getOrElse(Nil)
-        case _ =>
-          throw new RuntimeException(s"failed getEdges. errCode: ${resp.status}, body: ${resp.body}, query: $payload")
-      }
+    Try {
+      Json.parse(strJs)
+    } match {
+      case Success(payload) =>
+        wsClient.url(s"$s2graphReadOnlyUrl/graphs/getEdges").post(payload).map { resp =>
+          resp.status match {
+            case HttpStatus.SC_OK =>
+              (resp.json \ "results").asOpt[List[JsValue]].getOrElse(Nil)
+            case _ =>
+              throw new RuntimeException(s"failed getEdges. errCode: ${resp.status}, body: ${resp.body}, query: $payload")
+          }
+        }
+      case Failure(ex) =>
+        log.error(s"$ex")
+        Future.successful(Nil)
     }
   }
 
@@ -278,7 +326,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
         )
       )
 
-      val future = wsClient.url(s"$s2graphUrl/graphs/checkEdges").post(checkReqJs).map { resp =>
+      val future = wsClient.url(s"$s2graphReadOnlyUrl/graphs/checkEdges").post(checkReqJs).map { resp =>
         resp.status match {
           case HttpStatus.SC_OK =>
             val checkRespJs = resp.json

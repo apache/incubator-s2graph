@@ -258,6 +258,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   var hasFilters: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike]
   var where: Try[Where] = Success(WhereParser.success)
+  var whereRawOpt: Option[String] = None
   var duplicatePolicy = DuplicatePolicy.First
   var rpcTimeoutInMillis = 1000
   var maxAttempt = 2
@@ -297,7 +298,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   def toCacheKeyRaw(bytes: Array[Byte]): Array[Byte] = {
     val transformBytes = transformer.toHashKeyBytes
     //TODO: change this to binrary format.
-    val whereBytes = Bytes.toBytes(where.toString())
+    val whereBytes = Bytes.toBytes(whereRawOpt.getOrElse(""))
     val durationBytes = duration.map { case (min, max) =>
       val minTs = min / cacheTTLInMillis
       val maxTs = max / cacheTTLInMillis
@@ -454,6 +455,11 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   def scorePropagateOp(scorePropagateOp: String): QueryParam = {
     this.scorePropagateOp = scorePropagateOp
+    this
+  }
+
+  def whereRawOpt(sqlOpt: Option[String]): QueryParam = {
+    this.whereRawOpt = sqlOpt
     this
   }
 

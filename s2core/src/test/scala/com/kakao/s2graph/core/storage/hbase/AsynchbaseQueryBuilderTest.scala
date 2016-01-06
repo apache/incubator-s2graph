@@ -1,14 +1,14 @@
 package com.kakao.s2graph.core.storage.hbase
 
 import com.kakao.s2graph.core.Graph
+import com.kakao.s2graph.core.utils.logger
+import com.typesafe.config.ConfigFactory
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.GetRequest
 import org.scalatest.{FunSuite, Matchers}
 
-import scala.concurrent.ExecutionContext.Implicits.global
-/**
-  * Created by hsleep(honeysleep@gmail.com) on 2015. 11. 9..
-  */
+import scala.concurrent.ExecutionContext
+
 class AsynchbaseQueryBuilderTest extends FunSuite with Matchers {
   val dummyRequests = {
     for {
@@ -18,8 +18,9 @@ class AsynchbaseQueryBuilderTest extends FunSuite with Matchers {
     }
   }
 
-  val config = Graph.DefaultConfig
-  val graph = new Graph(config)
+  implicit val ec = ExecutionContext.Implicits.global
+  val config = ConfigFactory.load()
+  val graph = new Graph(config)(ec)
 
   val qb = new AsynchbaseQueryBuilder(graph.storage.asInstanceOf[AsynchbaseStorage])
 
@@ -46,6 +47,6 @@ class AsynchbaseQueryBuilderTest extends FunSuite with Matchers {
     }
     val duration = System.nanoTime() - startedAt
 
-    println(s">> bytes: $duration")
+    logger.debug(s">> bytes: $duration")
   }
 }

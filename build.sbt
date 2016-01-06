@@ -5,7 +5,7 @@ lazy val commonSettings = Seq(
   scalaVersion := "2.11.7",
   version := "0.12.1-SNAPSHOT",
   scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xlint"),
-  javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map{ case (key, value) => "-D" + key + "=" + value }.toSeq,
+  javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map { case (key, value) => "-D" + key + "=" + value }.toSeq,
   testOptions in Test += Tests.Argument("-oDF"),
   parallelExecution in Test := false,
   resolvers ++= Seq(
@@ -24,6 +24,7 @@ Revolver.settings
 lazy val s2rest_play = project.enablePlugins(PlayScala)
   .dependsOn(s2core, s2counter_core)
   .settings(commonSettings: _*)
+  .settings(testOptions in Test += Tests.Argument("sequential"))
 
 lazy val s2rest_netty = project
   .dependsOn(s2core)
@@ -43,3 +44,7 @@ lazy val s2counter_loader = project.dependsOn(s2counter_core, spark)
   .settings(commonSettings: _*)
 
 lazy val s2ml = project.settings(commonSettings: _*)
+
+lazy val root = (project in file("."))
+  .aggregate(s2core, s2rest_play)
+  .settings(commonSettings: _*)

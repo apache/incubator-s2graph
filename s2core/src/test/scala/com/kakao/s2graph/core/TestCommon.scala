@@ -9,13 +9,7 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{PutRequest, KeyValue}
 
 
-/**
- * Created by shon on 6/1/15.
- */
 trait TestCommon {
-
-
-
   val ts = System.currentTimeMillis()
   val testServiceId = 1
   val testColumnId = 1

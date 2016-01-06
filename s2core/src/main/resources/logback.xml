@@ -1,15 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-  <jmxConfigurator/>
-  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-    <encoder>
-      <pattern>
-        %d{ISO8601} %-5level [%thread] %logger{0}: %msg%n
-      </pattern>
-    </encoder>
-  </appender>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <withJansi>true</withJansi>
+        <encoder>
+            <pattern>
+                %d{ISO8601} [%highlight(%-5level)] [%gray(%logger{0})] [%thread] - %msg%n
+            </pattern>
+        </encoder>
+    </appender>
 
-  <root level="info">
-    <appender-ref ref="STDOUT"/>
-  </root>
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+
+    <logger name="application" level="DEBUG">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+
+    <logger name="error" level="DEBUG">
+        <appender-ref ref="STDOUT"/>
+    </logger>
 </configuration>

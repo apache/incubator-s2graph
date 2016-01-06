@@ -3,8 +3,9 @@ package com.kakao.s2graph.rest
 import java.util.concurrent.Executors
 
 import actors.QueueActor
+import com.kakao.s2graph.core.rest.{RestCaller, RequestParser}
 import com.kakao.s2graph.core.utils.logger
-import com.kakao.s2graph.core.{RequestParser, ExceptionHandler, Graph}
+import com.kakao.s2graph.core.{ExceptionHandler, Graph}
 import config.Config
 import controllers.{AdminController, ApplicationController}
 import play.api.Application
@@ -18,6 +19,7 @@ import scala.util.Try
 object Global extends WithFilters(new GzipFilter()) {
   var s2graph: Graph = _
   var s2parser: RequestParser = _
+  var s2rest: RestCaller = _
 
   // Application entry point
   override def onStart(app: Application) {
@@ -31,7 +33,8 @@ object Global extends WithFilters(new GzipFilter()) {
 
     // init s2graph with config
     s2graph = new Graph(config)(ec)
-    s2parser = new RequestParser(s2graph)
+    s2parser = new RequestParser(s2graph.config) // merged config
+    s2rest = new RestCaller(s2graph)(ec)
 
     QueueActor.init(s2graph)
 

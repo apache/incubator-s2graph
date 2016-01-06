@@ -1,40 +1,42 @@
-package com.kakao.s2graph.core
+package com.kakao.s2graph.core.rest
 
-import com.kakao.s2graph.core.GraphExceptions.{ModelNotFoundException, BadQueryException}
+import com.kakao.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
+import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
 import com.kakao.s2graph.core.types._
+import com.typesafe.config.Config
 import play.api.libs.json._
 
-import scala.util.{Try, Failure, Success}
+import scala.util.{Failure, Success, Try}
 
-class RequestParser(graph: Graph) extends JSONParser {
+class RequestParser(config: Config) extends JSONParser {
 
   import Management.JsonModel._
 
   val hardLimit = 100000
   val defaultLimit = 100
-  val DefaultRpcTimeout = graph.config.getInt("hbase.rpc.timeout")
-  val DefaultMaxAttempt = graph.config.getInt("hbase.client.retries.number")
-  val DefaultCluster = graph.config.getString("hbase.zookeeper.quorum")
-  val DefaultCompressionAlgorithm = graph.config.getString("hbase.table.compression.algorithm")
-  val DefaultPhase = graph.config.getString("phase")
+  val DefaultRpcTimeout = config.getInt("hbase.rpc.timeout")
+  val DefaultMaxAttempt = config.getInt("hbase.client.retries.number")
+  val DefaultCluster = config.getString("hbase.zookeeper.quorum")
+  val DefaultCompressionAlgorithm = config.getString("hbase.table.compression.algorithm")
+  val DefaultPhase = config.getString("phase")
 
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {
       js <- parse[Option[JsObject]](value, "scoring")
     } yield {
-        for {
-          (k, v) <- js.fields
-          labelOrderType <- LabelMeta.findByName(labelId, k)
-        } yield {
-          val value = v match {
-            case n: JsNumber => n.as[Double]
-            case _ => throw new Exception("scoring weight should be double.")
-          }
-          (labelOrderType.seq, value)
+      for {
+        (k, v) <- js.fields
+        labelOrderType <- LabelMeta.findByName(labelId, k)
+      } yield {
+        val value = v match {
+          case n: JsNumber => n.as[Double]
+          case _ => throw new Exception("scoring weight should be double.")
         }
+        (labelOrderType.seq, value)
       }
+    }
     ret
   }
 
@@ -53,10 +55,10 @@ class RequestParser(graph: Graph) extends JSONParser {
       fromJs <- (js \ "from").asOpt[JsValue]
       toJs <- (js \ "to").asOpt[JsValue]
     } yield {
-        val from = Management.toProps(label, extractKv(fromJs))
-        val to = Management.toProps(label, extractKv(toJs))
-        (from, to)
-      }
+      val from = Management.toProps(label, extractKv(fromJs))
+      val to = Management.toProps(label, extractKv(toJs))
+      (from, to)
+    }
 
     ret
   }
@@ -68,7 +70,7 @@ class RequestParser(graph: Graph) extends JSONParser {
       val minTs = parse[Option[Long]](js, "from").getOrElse(Long.MaxValue)
       val maxTs = parse[Option[Long]](js, "to").getOrElse(Long.MinValue)
 
-      if (minTs > maxTs){
+      if (minTs > maxTs) {
         throw new RuntimeException("Duration error. Timestamp of From cannot be larger than To.")
       }
       (minTs, maxTs)
@@ -79,22 +81,22 @@ class RequestParser(graph: Graph) extends JSONParser {
     val ret = for {
       js <- parse[Option[JsObject]](jsValue, "has")
     } yield {
-        for {
-          (k, v) <- js.fields
-          labelMeta <- LabelMeta.findByName(label.id.get, k)
-          value <- jsValueToInnerVal(v, labelMeta.dataType, label.schemaVersion)
-        } yield {
-          labelMeta.seq -> value
-        }
+      for {
+        (k, v) <- js.fields
+        labelMeta <- LabelMeta.findByName(label.id.get, k)
+        value <- jsValueToInnerVal(v, labelMeta.dataType, label.schemaVersion)
+      } yield {
+        labelMeta.seq -> value
       }
+    }
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
 
-  def extractWhere(labelMap: Map[String, Label], jsValue: JsValue) = {
-    (jsValue \ "where").asOpt[String] match {
+  def extractWhere(label: Label, whereClauseOpt: Option[String]) = {
+    whereClauseOpt match {
       case None => Success(WhereParser.success)
       case Some(where) =>
-        WhereParser(labelMap).parse(where) match {
+        WhereParser(label).parse(where) match {
           case s@Success(_) => s
           case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
         }
@@ -108,8 +110,8 @@ class RequestParser(graph: Graph) extends JSONParser {
       id <- ids
       innerId <- jsValueToInnerVal(id, serviceColumn.columnType, label.schemaVersion)
     } yield {
-        Vertex(SourceVertexId(serviceColumn.id.get, innerId), System.currentTimeMillis())
-      }
+      Vertex(SourceVertexId(serviceColumn.id.get, innerId), System.currentTimeMillis())
+    }
     vertices.toSeq
   }
 
@@ -121,18 +123,18 @@ class RequestParser(graph: Graph) extends JSONParser {
           serviceName = parse[String](value, "serviceName")
           column = parse[String](value, "columnName")
         } yield {
-            val service = Service.findByName(serviceName).getOrElse(throw BadQueryException("service not found"))
-            val col = ServiceColumn.find(service.id.get, column).getOrElse(throw BadQueryException("bad column name"))
-            val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
-            for {
-              idVal <- idOpt ++ idsOpt.toSeq.flatten
+          val service = Service.findByName(serviceName).getOrElse(throw BadQueryException("service not found"))
+          val col = ServiceColumn.find(service.id.get, column).getOrElse(throw BadQueryException("bad column name"))
+          val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
+          for {
+            idVal <- idOpt ++ idsOpt.toSeq.flatten
 
-              /** bug, need to use labels schemaVersion  */
-              innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
-            } yield {
-              Vertex(SourceVertexId(col.id.get, innerVal), System.currentTimeMillis())
-            }
-          }).flatten
+            /** bug, need to use labels schemaVersion  */
+            innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
+          } yield {
+            Vertex(SourceVertexId(col.id.get, innerVal), System.currentTimeMillis())
+          }
+        }).flatten
 
       if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
 
@@ -175,8 +177,8 @@ class RequestParser(graph: Graph) extends JSONParser {
                 (k, v) <- (obj \ "weights").asOpt[JsObject].getOrElse(Json.obj()).fields
                 l <- Label.findByName(k)
               } yield {
-                  l.id.get -> v.toString().toDouble
-                }
+                l.id.get -> v.toString().toDouble
+              }
               converted.toMap
             case _ => Map.empty[Int, Double]
           }
@@ -200,7 +202,7 @@ class RequestParser(graph: Graph) extends JSONParser {
           val queryParams =
             for {
               labelGroup <- queryParamJsVals
-              queryParam <- parseQueryParam(labelMap, labelGroup)
+              queryParam <- parseQueryParam(labelGroup)
             } yield {
               val (_, columnName) =
                 if (queryParam.labelWithDir.dir == GraphUtil.directions("out")) {
@@ -249,7 +251,7 @@ class RequestParser(graph: Graph) extends JSONParser {
     }
   }
 
-  private def parseQueryParam(labelMap: Map[String, Label], labelGroup: JsValue): Option[QueryParam] = {
+  private def parseQueryParam(labelGroup: JsValue): Option[QueryParam] = {
     for {
       labelName <- parse[Option[String]](labelGroup, "label")
     } yield {
@@ -277,7 +279,8 @@ class RequestParser(graph: Graph) extends JSONParser {
         case None => label.indexSeqsMap.get(scoring.map(kv => kv._1)).map(_.seq).getOrElse(LabelIndex.DefaultSeq)
         case Some(indexName) => label.indexNameMap.get(indexName).map(_.seq).getOrElse(throw new RuntimeException("cannot find index"))
       }
-      val where = extractWhere(labelMap, labelGroup)
+      val whereClauseOpt = (labelGroup \ "where").asOpt[String]
+      val where = extractWhere(label, whereClauseOpt)
       val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
       val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(DefaultRpcTimeout)
       val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(DefaultMaxAttempt)
@@ -308,10 +311,10 @@ class RequestParser(graph: Graph) extends JSONParser {
         .rank(RankParam(label.id.get, scoring))
         .exclude(exclude)
         .include(include)
-        .interval(interval)
         .duration(duration)
         .has(hasFilter)
         .labelOrderSeq(indexSeq)
+        .interval(interval)
         .where(where)
         .duplicatePolicy(duplicate)
         .includeDegree(includeDegree)
@@ -396,14 +399,14 @@ class RequestParser(graph: Graph) extends JSONParser {
   def toPropsElements(jsValue: JsValue): Seq[Prop] = for {
     jsObj <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
   } yield {
-      val propName = (jsObj \ "name").as[String]
-      val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
-      val defaultValue = (jsObj \ "defaultValue").as[JsValue] match {
-        case JsString(s) => s
-        case _@js => js.toString
-      }
-      Prop(propName, defaultValue, dataType)
+    val propName = (jsObj \ "name").as[String]
+    val dataType = InnerVal.toInnerDataType((jsObj \ "dataType").as[String])
+    val defaultValue = (jsObj \ "defaultValue").as[JsValue] match {
+      case JsString(s) => s
+      case _@js => js.toString
     }
+    Prop(propName, defaultValue, dataType)
+  }
 
   def toIndicesElements(jsValue: JsValue): Seq[Index] = for {
     jsObj <- jsValue.as[Seq[JsValue]]
@@ -463,4 +466,52 @@ class RequestParser(graph: Graph) extends JSONParser {
     (serviceName, columnName, columnType, props)
   }
 
+  def toCheckEdgeParam(jsValue: JsValue) = {
+    val params = jsValue.as[List[JsValue]]
+    var isReverted = false
+    val labelWithDirs = scala.collection.mutable.HashSet[LabelWithDirection]()
+    val quads = for {
+      param <- params
+      labelName <- (param \ "label").asOpt[String]
+      direction <- GraphUtil.toDir((param \ "direction").asOpt[String].getOrElse("out"))
+      label <- Label.findByName(labelName)
+      srcId <- jsValueToInnerVal((param \ "from").as[JsValue], label.srcColumnWithDir(direction.toInt).columnType, label.schemaVersion)
+      tgtId <- jsValueToInnerVal((param \ "to").as[JsValue], label.tgtColumnWithDir(direction.toInt).columnType, label.schemaVersion)
+    } yield {
+      val labelWithDir = LabelWithDirection(label.id.get, direction)
+      labelWithDirs += labelWithDir
+      val (src, tgt, dir) = if (direction == 1) {
+        isReverted = true
+        (Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)),
+          Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)), 0)
+      } else {
+        (Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)),
+          Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)), 0)
+      }
+      (src, tgt, QueryParam(LabelWithDirection(label.id.get, dir)))
+    }
+
+    (quads, isReverted)
+  }
+
+  def toGraphElements(str: String): Seq[GraphElement] = {
+    val edgeStrs = str.split("\\n")
+
+    for {
+      edgeStr <- edgeStrs
+      str <- GraphUtil.parseString(edgeStr)
+      element <- Graph.toGraphElement(str)
+    } yield element
+  }
+
+  def toDeleteParam(json: JsValue) = {
+    val labelName = (json \ "label").as[String]
+    val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil)
+    val direction = (json \ "direction").asOpt[String].getOrElse("out")
+
+    val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
+    val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
+    val vertices = toVertices(labelName, direction, ids)
+    (labels, direction, ids, ts, vertices)
+  }
 }

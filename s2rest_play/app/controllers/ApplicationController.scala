@@ -1,8 +1,10 @@
 package controllers
 
+import com.kakao.s2graph.core.GraphExceptions.BadQueryException
+import com.kakao.s2graph.core.PostProcess
 import com.kakao.s2graph.core.utils.logger
 import play.api.libs.iteratee.Enumerator
-import play.api.libs.json.{JsString, JsValue}
+import play.api.libs.json.{JsString, JsValue, Json}
 import play.api.mvc._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -14,6 +16,21 @@ object ApplicationController extends Controller {
   val applicationJsonHeader = "application/json"
 
   val jsonParser: BodyParser[JsValue] = controllers.s2parse.json
+
+  private def badQueryExceptionResults(ex: Exception) =
+    Future.successful(BadRequest(PostProcess.badRequestResults(ex)).as(applicationJsonHeader))
+
+  private def errorResults =
+    Future.successful(Ok(PostProcess.emptyResults).as(applicationJsonHeader))
+
+  def requestFallback(body: JsValue): PartialFunction[Throwable, Future[Result]] = {
+    case e: BadQueryException =>
+      logger.error(s"{$body}, ${e.getMessage}", e)
+      badQueryExceptionResults(e)
+    case e: Exception =>
+      logger.error(s"${body}, ${e.getMessage}", e)
+      errorResults
+  }
 
   def updateHealthCheck(isHealthy: Boolean) = Action { request =>
     this.isHealthy = isHealthy

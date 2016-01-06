@@ -8,7 +8,7 @@ import play.api.test.PlaySpecification
 /**
  * Created by hsleep on 2015. 11. 4..
  */
-class PostProcessSpec extends SpecCommon with PlaySpecification {
+class PostProcessSpec extends PlaySpecification {
 
   "test order by json" >> {
     val jsLs: Seq[Seq[JsValue]] = Seq(
