@@ -257,24 +257,25 @@ object PostProcess extends JSONParser {
           } yield column -> value
         }
 
-        val groupedEdges = {
+        val groupedEdgesWithScoreSum = {
           for {
             (groupByKeyVals, groupedRawEdges) <- grouped
           } yield {
             val scoreSum = groupedRawEdges.map(x => x._2).sum
             // ordering
             val edges = orderBy(query, orderByColumns, groupedRawEdges).map(_._1)
-            Json.obj(
+            val js = Json.obj(
               "groupBy" -> Json.toJson(groupByKeyVals.toMap),
               "scoreSum" -> scoreSum,
               "agg" -> edges
             )
+            (js, scoreSum)
           }
         }
 
-        val groupedSortedJsons = groupedEdges.toList.sortBy { jsVal => -1 * (jsVal \ "scoreSum").as[Double] }
+        val groupedSortedJsons = groupedEdgesWithScoreSum.toList.sortBy { case (jsVal, scoreSum) => scoreSum * -1 }.map(_._1)
         Json.obj(
-          "size" -> groupedEdges.size,
+          "size" -> groupedSortedJsons.size,
           "degrees" -> degrees,
           "results" -> groupedSortedJsons,
           "impressionId" -> query.impressionId()
