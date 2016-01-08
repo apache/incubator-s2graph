@@ -42,3 +42,10 @@ libraryDependencies ++= Seq(
   "com.github.danielwegener" % "logback-kafka-appender" % "0.0.3",
   "org.json4s" %% "json4s-native" % "3.2.11" % Test
 )
+
+
+lazy val runRatTask = taskKey[Unit]("Runs Apache rat on S2Graph")
+
+runRatTask := {
+  "sh bin/run-rat.sh" !
+}
