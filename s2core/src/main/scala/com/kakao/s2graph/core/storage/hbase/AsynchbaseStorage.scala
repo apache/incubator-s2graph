@@ -11,12 +11,14 @@ import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.{Extensions, logger}
 import com.stumbleupon.async.Deferred
 import com.typesafe.config.Config
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
+import org.apache.hadoop.security.UserGroupInformation
 import org.hbase.async._
 
 import scala.collection.JavaConversions._
@@ -34,7 +36,17 @@ object AsynchbaseStorage {
 
 
   def makeClient(config: Config, overrideKv: (String, String)*) = {
-    val asyncConfig: org.hbase.async.Config = new org.hbase.async.Config()
+    val asyncConfig: org.hbase.async.Config =
+      if (config.hasPath("hbase.security.auth.enable") && config.getBoolean("hbase.security.auth.enable")) {
+        val krb5Conf = config.getString("java.security.krb5.conf")
+        val jaas = config.getString("java.security.auth.login.config")
+
+        System.setProperty("java.security.krb5.conf", krb5Conf)
+        System.setProperty("java.security.auth.login.config", jaas)
+        new org.hbase.async.Config()
+      } else {
+        new org.hbase.async.Config()
+      }
 
     for (entry <- config.entrySet() if entry.getKey.contains("hbase")) {
       asyncConfig.overrideConfig(entry.getKey, entry.getValue.unwrapped().toString)
@@ -744,6 +756,7 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
   }
 
 
+
   def createTable(zkAddr: String,
                   tableName: String,
                   cfs: List[String],
@@ -783,12 +796,59 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
     }
   }
 
+  private def getSecureClusterAdmin(zkAddr: String) = {
+    val jaas = config.getString("java.security.auth.login.config")
+    val krb5Conf = config.getString("java.security.krb5.conf")
+    val realm = config.getString("realm")
+    val principal = config.getString("principal")
+    val keytab = config.getString("keytab")
 
-  private def getAdmin(zkAddr: String) = {
-    val conf = HBaseConfiguration.create()
-    conf.set("hbase.zookeeper.quorum", zkAddr)
-    val conn = ConnectionFactory.createConnection(conf)
+
+    System.setProperty("java.security.auth.login.config", jaas)
+    System.setProperty("java.security.krb5.conf", krb5Conf)
+    // System.setProperty("sun.security.krb5.debug", "true")
+    // System.setProperty("sun.security.spnego.debug", "true")
+    val conf = new Configuration(true)
+    val hConf = HBaseConfiguration.create(conf)
+
+    hConf.set("hbase.zookeeper.quorum", zkAddr)
+
+    hConf.set("hadoop.security.authentication", "Kerberos")
+    hConf.set("hbase.security.authentication", "Kerberos")
+    hConf.set("hbase.master.kerberos.principal", "hbase/_HOST@" + realm)
+    hConf.set("hbase.regionserver.kerberos.principal", "hbase/_HOST@" + realm)
+
+    System.out.println("Connecting secure cluster, using keytab\n")
+    UserGroupInformation.setConfiguration(hConf)
+    UserGroupInformation.loginUserFromKeytab(principal, keytab)
+    val currentUser = UserGroupInformation.getCurrentUser()
+    System.out.println("current user : " + currentUser + "\n")
+
+    // get table list
+    val conn = ConnectionFactory.createConnection(hConf)
     conn.getAdmin
+  }
+
+  /**
+   * following configuration need to come together to use secured hbase cluster.
+   * 1. set hbase.security.auth.enable = true
+   * 2. set file path to jaas file java.security.auth.login.config
+   * 3. set file path to kerberos file java.security.krb5.conf
+   * 4. set realm
+   * 5. set principal
+   * 6. set file path to keytab
+   * @param zkAddr
+   * @return
+   */
+  private def getAdmin(zkAddr: String) = {
+    if (config.hasPath("hbase.security.auth.enable") && config.getBoolean("hbase.security.auth.enable")) {
+      getSecureClusterAdmin(zkAddr)
+    } else {
+      val conf = HBaseConfiguration.create()
+      conf.set("hbase.zookeeper.quorum", zkAddr)
+      val conn = ConnectionFactory.createConnection(conf)
+      conn.getAdmin
+    }
   }
   private def enableTable(zkAddr: String, tableName: String) = {
     getAdmin(zkAddr).enableTable(TableName.valueOf(tableName))
