@@ -11,7 +11,7 @@ import scala.collection.Seq
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-abstract class Storage(implicit ec: ExecutionContext) {
+abstract class Storage(val config: Config)(implicit ec: ExecutionContext) {
 
   def cacheOpt: Option[Cache[Integer, Seq[QueryResult]]]
 
