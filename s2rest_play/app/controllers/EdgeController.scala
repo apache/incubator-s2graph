@@ -4,6 +4,7 @@ import actors.QueueActor
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.{LabelMeta, Label}
+import com.kakao.s2graph.core.rest.RequestParser
 import com.kakao.s2graph.core.types.LabelWithDirection
 import com.kakao.s2graph.core.utils.logger
 import config.Config
@@ -15,13 +16,14 @@ import scala.collection.Seq
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
-object EdgeController extends Controller with RequestParser {
+object EdgeController extends Controller {
 
   import ExceptionHandler._
   import controllers.ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits._
 
   private val s2: Graph = com.kakao.s2graph.rest.Global.s2graph
+  private val requestParser: RequestParser = com.kakao.s2graph.rest.Global.s2parser
 
   def tryMutates(jsValue: JsValue, operation: String, withWait: Boolean = false): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
@@ -29,7 +31,7 @@ object EdgeController extends Controller with RequestParser {
     else {
       try {
         logger.debug(s"$jsValue")
-        val edges = toEdges(jsValue, operation)
+        val edges = requestParser.toEdges(jsValue, operation)
         for (edge <- edges) {
           if (edge.isAsync)
             ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC_ASYNC, edge, None))
@@ -135,7 +137,7 @@ object EdgeController extends Controller with RequestParser {
 
   def incrementCounts() = withHeaderAsync(jsonParser) { request =>
     val jsValue = request.body
-    val edges = toEdges(jsValue, "incrementCount")
+    val edges = requestParser.toEdges(jsValue, "incrementCount")
     s2.incrementCounts(edges).map { results =>
       val json = results.map { case (isSuccess, resultCount) =>
         Json.obj("success" -> isSuccess, "result" -> resultCount)
@@ -158,7 +160,7 @@ object EdgeController extends Controller with RequestParser {
 
       val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
       val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
-      val vertices = toVertices(labelName, direction, ids)
+      val vertices = requestParser.toVertices(labelName, direction, ids)
 
       /** logging for delete all request */
 

@@ -1,26 +1,26 @@
-package controllers
+package com.kakao.s2graph.core.rest
 
 import com.kakao.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
 import com.kakao.s2graph.core.types._
-import config.Config
-import play.Play
+import com.typesafe.config.Config
 import play.api.libs.json._
 
 import scala.util.{Failure, Success, Try}
 
-
-trait RequestParser extends JSONParser {
+class RequestParser(config: Config) extends JSONParser {
 
   import Management.JsonModel._
 
-  val hardLimit = Config.QUERY_HARD_LIMIT
+  val hardLimit = 100000
   val defaultLimit = 100
-
-  lazy val defaultCluster = Play.application().configuration().getString("hbase.zookeeper.quorum")
-  lazy val defaultCompressionAlgorithm = Play.application().configuration.getString("hbase.table.compression.algorithm")
+  val DefaultRpcTimeout = config.getInt("hbase.rpc.timeout")
+  val DefaultMaxAttempt = config.getInt("hbase.client.retries.number")
+  val DefaultCluster = config.getString("hbase.zookeeper.quorum")
+  val DefaultCompressionAlgorithm = config.getString("hbase.table.compression.algorithm")
+  val DefaultPhase = config.getString("phase")
 
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {
@@ -69,6 +69,7 @@ trait RequestParser extends JSONParser {
     } yield {
       val minTs = parse[Option[Long]](js, "from").getOrElse(Long.MaxValue)
       val maxTs = parse[Option[Long]](js, "to").getOrElse(Long.MinValue)
+
       (minTs, maxTs)
     }
   }
@@ -272,8 +273,8 @@ trait RequestParser extends JSONParser {
       }
       val where = extractWhere(labelMap, labelGroup)
       val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
-      val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(Config.RPC_TIMEOUT)
-      val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(Config.MAX_ATTEMPT)
+      val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(DefaultRpcTimeout)
+      val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(DefaultMaxAttempt)
       val tgtVertexInnerIdOpt = (labelGroup \ "_to").asOpt[JsValue].flatMap { jsVal =>
         jsValueToInnerVal(jsVal, label.tgtColumnWithDir(direction).columnType, label.schemaVersion)
       }
@@ -305,6 +306,7 @@ trait RequestParser extends JSONParser {
         .duration(duration)
         .has(hasFilter)
         .labelOrderSeq(indexSeq)
+        .interval(interval)
         .where(where)
         .duplicatePolicy(duplicate)
         .includeDegree(includeDegree)
@@ -425,7 +427,7 @@ trait RequestParser extends JSONParser {
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
     val schemaVersion = (jsValue \ "schemaVersion").asOpt[String].getOrElse(HBaseType.DEFAULT_VERSION)
     val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
-    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(defaultCompressionAlgorithm)
+    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(DefaultCompressionAlgorithm)
 
     (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
@@ -440,11 +442,11 @@ trait RequestParser extends JSONParser {
 
   def toServiceElements(jsValue: JsValue) = {
     val serviceName = parse[String](jsValue, "serviceName")
-    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(defaultCluster)
-    val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${Config.PHASE}")
+    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(DefaultCluster)
+    val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${DefaultPhase}")
     val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(1)
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
-    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(defaultCompressionAlgorithm)
+    val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(DefaultCompressionAlgorithm)
     (serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
   }
 
@@ -456,5 +458,52 @@ trait RequestParser extends JSONParser {
     (serviceName, columnName, columnType, props)
   }
 
+  def toCheckEdgeParam(jsValue: JsValue) = {
+    val params = jsValue.as[List[JsValue]]
+    var isReverted = false
+    val labelWithDirs = scala.collection.mutable.HashSet[LabelWithDirection]()
+    val quads = for {
+      param <- params
+      labelName <- (param \ "label").asOpt[String]
+      direction <- GraphUtil.toDir((param \ "direction").asOpt[String].getOrElse("out"))
+      label <- Label.findByName(labelName)
+      srcId <- jsValueToInnerVal((param \ "from").as[JsValue], label.srcColumnWithDir(direction.toInt).columnType, label.schemaVersion)
+      tgtId <- jsValueToInnerVal((param \ "to").as[JsValue], label.tgtColumnWithDir(direction.toInt).columnType, label.schemaVersion)
+    } yield {
+      val labelWithDir = LabelWithDirection(label.id.get, direction)
+      labelWithDirs += labelWithDir
+      val (src, tgt, dir) = if (direction == 1) {
+        isReverted = true
+        (Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)),
+          Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)), 0)
+      } else {
+        (Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)),
+          Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)), 0)
+      }
+      (src, tgt, QueryParam(LabelWithDirection(label.id.get, dir)))
+    }
 
+    (quads, isReverted)
+  }
+
+  def toGraphElements(str: String): Seq[GraphElement] = {
+    val edgeStrs = str.split("\\n")
+
+    for {
+      edgeStr <- edgeStrs
+      str <- GraphUtil.parseString(edgeStr)
+      element <- Graph.toGraphElement(str)
+    } yield element
+  }
+
+  def toDeleteParam(json: JsValue) = {
+    val labelName = (json \ "label").as[String]
+    val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil)
+    val direction = (json \ "direction").asOpt[String].getOrElse("out")
+
+    val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
+    val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
+    val vertices = toVertices(labelName, direction, ids)
+    (labels, direction, ids, ts, vertices)
+  }
 }

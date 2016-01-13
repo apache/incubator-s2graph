@@ -14,12 +14,13 @@ import scala.concurrent._
 import scala.language.postfixOps
 import scala.util.Try
 
-object QueryController extends Controller with RequestParser {
+object QueryController extends Controller {
 
   import ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits.defaultContext
 
   private val s2: Graph = com.kakao.s2graph.rest.Global.s2graph
+  private val requestParser = com.kakao.s2graph.rest.Global.s2parser
 
   private def badQueryExceptionResults(ex: Exception) = Future.successful(BadRequest(Json.obj("message" -> ex.getMessage)).as(applicationJsonHeader))
 
@@ -62,8 +63,8 @@ object QueryController extends Controller with RequestParser {
 
     Try {
       val future = jsonQuery match {
-        case JsArray(arr) => Future.traverse(arr.map(toQuery(_)))(fetch).map(JsArray)
-        case obj@JsObject(_) => fetch(toQuery(obj))
+        case JsArray(arr) => Future.traverse(arr.map(requestParser.toQuery(_)))(fetch).map(JsArray)
+        case obj@JsObject(_) => fetch(requestParser.toQuery(obj))
         case _ => throw BadQueryException("Cannot support")
       }
 
@@ -86,7 +87,7 @@ object QueryController extends Controller with RequestParser {
     if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
     Try {
-      val q = toQuery(jsonQuery)
+      val q = requestParser.toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, Vector(q.steps.last))
 
       val fetchFuture = s2.getEdges(q)
@@ -152,7 +153,7 @@ object QueryController extends Controller with RequestParser {
     if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
     Try {
-      val q = toQuery(jsonQuery)
+      val q = requestParser.toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, Vector(q.steps.last))
 
       val fetchFuture = s2.getEdges(q)
@@ -185,7 +186,7 @@ object QueryController extends Controller with RequestParser {
     if (!Config.IS_QUERY_SERVER) Unauthorized.as(applicationJsonHeader)
 
     Try {
-      val q = toQuery(jsonQuery)
+      val q = requestParser.toQuery(jsonQuery)
       val filterOutQuery = Query(q.vertices, Vector(q.steps.last))
 
       val fetchFuture = s2.getEdges(q)
@@ -228,8 +229,8 @@ object QueryController extends Controller with RequestParser {
         labelName <- (param \ "label").asOpt[String]
         direction <- GraphUtil.toDir((param \ "direction").asOpt[String].getOrElse("out"))
         label <- Label.findByName(labelName)
-        srcId <- jsValueToInnerVal((param \ "from").as[JsValue], label.srcColumnWithDir(direction.toInt).columnType, label.schemaVersion)
-        tgtId <- jsValueToInnerVal((param \ "to").as[JsValue], label.tgtColumnWithDir(direction.toInt).columnType, label.schemaVersion)
+        srcId <- requestParser.jsValueToInnerVal((param \ "from").as[JsValue], label.srcColumnWithDir(direction.toInt).columnType, label.schemaVersion)
+        tgtId <- requestParser.jsValueToInnerVal((param \ "to").as[JsValue], label.tgtColumnWithDir(direction.toInt).columnType, label.schemaVersion)
       } yield {
           val labelWithDir = LabelWithDirection(label.id.get, direction)
           labelWithDirs += labelWithDir

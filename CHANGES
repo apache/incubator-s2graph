@@ -1,5 +1,4 @@
-
- Change Log 
+ Change Log
 
 Release 0.12.1 - unreleased
 
@@ -10,8 +9,9 @@ Release 0.12.1 - unreleased
   BUG FIXES
 
   TASKS
- 
+
     S2GRAPH-5: Add Apache RAT to valid LICENSE errors. (Committed by DOYUNG YOON).
 
   SUB TASKS
 
+    S2GRAPH-7: Abstract common codes for rest project into s2core. (Committed by daewon).
