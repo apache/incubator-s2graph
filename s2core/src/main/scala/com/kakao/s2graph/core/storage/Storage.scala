@@ -5,8 +5,8 @@ import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.Label
 import com.kakao.s2graph.core.utils.logger
 
-
 import scala.collection.Seq
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{ExecutionContext, Future}
 
 abstract class Storage(implicit ec: ExecutionContext) {
@@ -37,13 +37,27 @@ abstract class Storage(implicit ec: ExecutionContext) {
 
   def mutateElements(elements: Seq[GraphElement],
                      withWait: Boolean = false): Future[Seq[Boolean]] = {
-    val futures = elements.map {
-      case edge: Edge => mutateEdge(edge, withWait)
-      case vertex: Vertex => mutateVertex(vertex, withWait)
-      case element => throw new RuntimeException(s"$element is not edge/vertex")
+
+    val edgeBuffer = ArrayBuffer[Edge]()
+    val vertexBuffer = ArrayBuffer[Vertex]()
+
+    elements.foreach {
+      case e: Edge => edgeBuffer += e
+      case v: Vertex => vertexBuffer += v
+      case any@_ => logger.error(s"Unknown type: ${any}")
     }
-    Future.sequence(futures)
+
+    val edgeFuture = mutateEdges(edgeBuffer, withWait)
+    val vertexFuture = mutateVertices(vertexBuffer, withWait)
+
+    val graphFuture = for {
+      edgesMutated <- edgeFuture
+      verticesMutated <- vertexFuture
+    } yield edgesMutated ++ verticesMutated
+
+    graphFuture
   }
+
 
   def mutateEdge(edge: Edge, withWait: Boolean): Future[Boolean]
 

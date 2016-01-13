@@ -12,11 +12,12 @@ import play.api.Play.current
 import play.api.libs.concurrent.Akka
 
 import scala.collection.mutable
-import scala.concurrent.duration.Duration
+import scala.concurrent.Await
+import scala.concurrent.duration.{Duration, FiniteDuration}
 
 /**
- * Created by shon on 9/2/15.
- */
+  * Created by shon on 9/2/15.
+  */
 object Protocol {
 
   case object Flush
@@ -48,7 +49,6 @@ class QueueActor(s2: Graph) extends Actor with ActorLogging {
   import Protocol._
 
   implicit val ec = context.system.dispatcher
-  //  logger.error(s"QueueActor: $self")
   val queue = mutable.Queue.empty[GraphElement]
   var queueSize = 0L
   val maxQueueSize = Config.LOCAL_QUEUE_ACTOR_MAX_QUEUE_SIZE
@@ -56,12 +56,12 @@ class QueueActor(s2: Graph) extends Actor with ActorLogging {
   val rateLimitTimeStep = 1000 / timeUnitInMillis
   val rateLimit = Config.LOCAL_QUEUE_ACTOR_RATE_LIMIT / rateLimitTimeStep
 
+  context.system.scheduler.scheduleOnce(Duration.Zero, self, Flush)
 
-  context.system.scheduler.schedule(Duration.Zero, Duration(timeUnitInMillis, TimeUnit.MILLISECONDS), self, Flush)
+  override def receive: Receive = commit
 
-  override def receive: Receive = {
+  def commit: Receive = {
     case element: GraphElement =>
-
       if (queueSize > maxQueueSize) {
         ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_FAIL_TOPIC, element, None))
       } else {
@@ -75,16 +75,22 @@ class QueueActor(s2: Graph) extends Actor with ActorLogging {
         else (0 until rateLimit).map(_ => queue.dequeue())
 
       val flushSize = elementsToFlush.size
-
       queueSize -= elementsToFlush.length
-      s2.mutateElements(elementsToFlush)
 
-      if (flushSize > 0) {
+      if (flushSize == 0) {
+        val duration = FiniteDuration(10, TimeUnit.MILLISECONDS)
+        context.system.scheduler.scheduleOnce(duration, self, Flush)
+      } else {
+        val me = self
+        s2.mutateElements(elementsToFlush, withWait = true) onComplete {
+          case _ => me ! Flush
+        }
+
         logger.info(s"flush: $flushSize, $queueSize")
       }
 
     case FlushAll =>
-      s2.mutateElements(queue)
+      Await.result(s2.mutateElements(queue, withWait = true), Duration("60 seconds"))
       context.stop(self)
 
     case _ => logger.error("unknown protocol")
