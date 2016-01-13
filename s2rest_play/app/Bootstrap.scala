@@ -45,7 +45,6 @@ object Global extends WithFilters(new GzipFilter()) {
     val defaultHealthOn = Config.conf.getBoolean("app.health.on").getOrElse(true)
     ApplicationController.deployInfo = Try(Source.fromFile("./release_info").mkString("")).recover { case _ => "release info not found\n" }.get
 
-    AdminController.loadCacheInner()
     ApplicationController.isHealthy = defaultHealthOn
     logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
   }

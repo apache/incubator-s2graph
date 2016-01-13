@@ -55,6 +55,10 @@ object Model {
     }
   }
 
+  def shutdown() = {
+    ConnectionPool.closeAll()
+  }
+
   def loadCache() = {
     Service.findAll()
     ServiceColumn.findAll()
