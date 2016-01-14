@@ -8,7 +8,6 @@ import play.api.libs.json.Json
 
 class InnerValTest extends FunSuite with Matchers with TestCommonWithModels {
   initTests()
-
   import HBaseType.{VERSION2, VERSION1}
   val decimals = List(
     BigDecimal(Long.MinValue),
