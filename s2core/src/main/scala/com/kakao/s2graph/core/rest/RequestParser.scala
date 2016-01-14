@@ -443,11 +443,7 @@ class RequestParser(config: Config) extends JSONParser {
 
   def toServiceElements(jsValue: JsValue) = {
     val serviceName = parse[String](jsValue, "serviceName")
-<<<<<<< HEAD:s2core/src/main/scala/com/kakao/s2graph/core/rest/RequestParser.scala
     val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(DefaultCluster)
-=======
-    val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(defaultCluster)
->>>>>>> e0b3e2f... S2GRAPH-7 Move RequestParser from Root to s2core:s2core/src/main/scala/com/kakao/s2graph/core/rest/RequestParser.scala
     val hTableName = (jsValue \ "hTableName").asOpt[String].getOrElse(s"${serviceName}-${DefaultPhase}")
     val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(1)
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
@@ -487,7 +483,6 @@ class RequestParser(config: Config) extends JSONParser {
       }
       (src, tgt, QueryParam(LabelWithDirection(label.id.get, dir)))
     }
-
     (quads, isReverted)
   }
 
