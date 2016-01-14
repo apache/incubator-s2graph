@@ -3,6 +3,7 @@ package com.kakao.s2graph.core.storage.hbase
 import java.util
 
 import com.google.common.cache.Cache
+import com.kakao.s2graph.core.ExceptionHandler.{Key, Val, KafkaMessage}
 import com.kakao.s2graph.core.GraphExceptions.FetchTimeoutException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.{Label, LabelMeta}
@@ -11,6 +12,7 @@ import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.{Extensions, logger}
 import com.stumbleupon.async.Deferred
 import com.typesafe.config.Config
+import org.apache.kafka.clients.producer.ProducerRecord
 import org.hbase.async._
 
 import scala.collection.JavaConversions._
@@ -128,50 +130,59 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
 
 
   def mutateEdge(edge: Edge, withWait: Boolean): Future[Boolean] = {
-    //    mutateEdgeWithOp(edge, withWait)
-    val strongConsistency = edge.label.consistencyLevel == "strong"
     val edgeFuture =
-      if (edge.op == GraphUtil.operations("delete") && !strongConsistency) {
-        val zkQuorum = edge.label.hbaseZkAddr
-        val (_, edgeUpdate) = Edge.buildDeleteBulk(None, edge)
-        val mutations =
-          mutationBuilder.indexedEdgeMutations(edgeUpdate) ++
-            mutationBuilder.snapshotEdgeMutations(edgeUpdate) ++
-            mutationBuilder.increments(edgeUpdate)
-        writeAsyncSimple(zkQuorum, mutations, withWait)
+      if (edge.op == GraphUtil.operations("deleteAll")) {
+        deleteAllAdjacentEdges(Seq(edge.srcVertex), Seq(edge.label), edge.labelWithDir.dir, edge.ts)
       } else {
-        mutateEdgesInner(Seq(edge), strongConsistency, withWait)(Edge.buildOperation)
+        val strongConsistency = edge.label.consistencyLevel == "strong"
+        if (edge.op == GraphUtil.operations("delete") && !strongConsistency) {
+          val zkQuorum = edge.label.hbaseZkAddr
+          val (_, edgeUpdate) = Edge.buildDeleteBulk(None, edge)
+          val mutations =
+            mutationBuilder.indexedEdgeMutations(edgeUpdate) ++
+              mutationBuilder.snapshotEdgeMutations(edgeUpdate) ++
+              mutationBuilder.increments(edgeUpdate)
+          writeAsyncSimple(zkQuorum, mutations, withWait)
+        } else {
+          mutateEdgesInner(Seq(edge), strongConsistency, withWait)(Edge.buildOperation)
+        }
       }
 
     val vertexFuture = writeAsyncSimple(edge.label.hbaseZkAddr,
       mutationBuilder.buildVertexPutsAsync(edge), withWait)
-    Future.sequence(Seq(edgeFuture, vertexFuture)).map { rets => rets.forall(identity) }
+
+    Future.sequence(Seq(edgeFuture, vertexFuture)).map(_.forall(identity))
   }
 
   override def mutateEdges(edges: Seq[Edge], withWait: Boolean): Future[Seq[Boolean]] = {
     val edgeGrouped = edges.groupBy { edge => (edge.label, edge.srcVertex.innerId, edge.tgtVertex.innerId) } toSeq
 
     val ret = edgeGrouped.map { case ((label, srcId, tgtId), edges) =>
-      if (edges.isEmpty) Future.successful(true)
-      else {
-        val head = edges.head
+      val head = edges.head
+
+      if (head.op == GraphUtil.operations("deleteAll")) {
+        val deleteAllFutures = edges.map { edge =>
+          deleteAllAdjacentEdges(Seq(edge.srcVertex), Seq(edge.label), edge.labelWithDir.dir, edge.ts)
+        }
+        Future.sequence(deleteAllFutures).map(_.forall(identity))
+      } else {
         val strongConsistency = head.label.consistencyLevel == "strong"
 
         if (strongConsistency) {
           val edgeFuture = mutateEdgesInner(edges, strongConsistency, withWait)(Edge.buildOperation)
+
           //TODO: decide what we will do on failure on vertex put
           val vertexFuture = writeAsyncSimple(head.label.hbaseZkAddr,
             mutationBuilder.buildVertexPutsAsync(head), withWait)
-          Future.sequence(Seq(edgeFuture, vertexFuture)).map { rets => rets.forall(identity) }
+          Future.sequence(Seq(edgeFuture, vertexFuture)).map(_.forall(identity))
         } else {
           Future.sequence(edges.map { edge =>
             mutateEdge(edge, withWait = withWait)
-          }).map { rets =>
-            rets.forall(identity)
-          }
+          }).map(_.forall(identity))
         }
       }
     }
+
     Future.sequence(ret)
   }
 
@@ -712,10 +723,26 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
 
   }
 
-  def deleteAllAdjacentEdges(srcVertices: List[Vertex],
+  def deleteAllAdjacentEdges(srcVertices: Seq[Vertex],
                              labels: Seq[Label],
                              dir: Int,
                              ts: Long): Future[Boolean] = {
+
+    def enqueueLogMessage() = {
+      val kafkaMessages = for {
+        vertice <- srcVertices
+        id = vertice.innerId.toIdString()
+        label <- labels
+      } yield {
+        val tsv = Seq(ts, "deleteAll", "e", id, id, label.label, "{}", GraphUtil.fromOp(dir.toByte)).mkString("\t")
+        val topic = ExceptionHandler.failTopic
+        val kafkaMsg = KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
+        kafkaMsg
+      }
+
+      ExceptionHandler.enqueues(kafkaMessages)
+    }
+
     val requestTs = ts
     val queryParams = for {
       label <- labels
@@ -728,11 +755,19 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
     val q = Query(srcVertices, Vector(step))
 
     //    Extensions.retryOnSuccessWithBackoff(MaxRetryNum, Random.nextInt(MaxBackOff) + 1) {
-    Extensions.retryOnSuccess(MaxRetryNum) {
+    val retryFuture = Extensions.retryOnSuccess(MaxRetryNum) {
       fetchAndDeleteAll(q, requestTs)
     } { case (allDeleted, deleteSuccess) =>
       allDeleted && deleteSuccess
     }.map { case (allDeleted, deleteSuccess) => allDeleted && deleteSuccess }
+
+    retryFuture onFailure {
+      case ex =>
+        logger.error(s"[Error]: deleteAllAdjacentEdges failed.")
+        enqueueLogMessage()
+    }
+
+    retryFuture
   }
 
   def flush(): Unit = clients.foreach { client =>
