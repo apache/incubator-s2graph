@@ -323,17 +323,9 @@ object PostProcess extends JSONParser {
       to <- innerValToJsValue(edge.tgtVertex.id.innerId, tgtColumn.columnType)
     } yield {
       val targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else (reservedColumns & q.selectColumnsSet) + "props"
-<<<<<<< HEAD:s2core/src/main/scala/com/kakao/s2graph/core/PostProcess.scala
-
       val _propsMap = queryParam.label.metaPropsDefaultMapInner ++ propsToJson(edge, q, queryParam)
       val propsMap = if (q.selectColumnsSet.nonEmpty) _propsMap.filterKeys(q.selectColumnsSet) else _propsMap
 
-=======
-
-      val _propsMap = queryParam.label.metaPropsDefaultMapInner ++ propsToJson(edge, q, queryParam)
-      val propsMap = if (q.selectColumnsSet.nonEmpty) _propsMap.filterKeys(q.selectColumnsSet) else _propsMap
-
->>>>>>> 90777fd... S2GRAPH-7 Move PostProcess.scala to s2core from root project:s2core/src/main/scala/com/kakao/s2graph/core/PostProcess.scala
       val kvMap = targetColumns.foldLeft(Map.empty[String, JsValue]) { (map, column) =>
         val jsValue = column match {
           case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (System.currentTimeMillis() - queryParam.timestamp))
