@@ -13,6 +13,7 @@ object ApplicationController extends Controller {
   var deployInfo = ""
   val applicationJsonHeader = "application/json"
 
+  val jsonParser: BodyParser[JsValue] = controllers.s2parse.json
 
   def updateHealthCheck(isHealthy: Boolean) = Action { request =>
     this.isHealthy = isHealthy
