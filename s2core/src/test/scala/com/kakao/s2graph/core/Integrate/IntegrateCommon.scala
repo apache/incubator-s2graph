@@ -17,11 +17,13 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
   var graph: Graph = _
   var parser: RequestParser = _
+  var management: Management = _
   var config: Config = _
 
   override def beforeAll = {
     config = ConfigFactory.load()
     graph = new Graph(config)(ExecutionContext.Implicits.global)
+    management = new Management(graph)
     parser = new RequestParser(graph.config)
     initTestData()
   }
@@ -43,7 +45,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       parser.toServiceElements(jsValue)
 
     val tryRes =
-      Management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
+      management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
     println(s">> Service created : $createService, $tryRes")
 
     val labelNames = Map(testLabelName -> testLabelNameCreate,
@@ -60,7 +62,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
           val json = Json.parse(create)
           val tryRes = for {
             labelArgs <- parser.toLabelElements(json)
-            label <- (Management.createLabel _).tupled(labelArgs)
+            label <- (management.createLabel _).tupled(labelArgs)
           } yield label
 
           tryRes.get

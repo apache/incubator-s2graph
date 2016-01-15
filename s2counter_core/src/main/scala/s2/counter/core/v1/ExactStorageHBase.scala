@@ -1,5 +1,6 @@
 package s2.counter.core.v1
 
+import com.kakao.s2graph.core.Graph
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.CellUtil
 import org.apache.hadoop.hbase.client._
@@ -17,9 +18,7 @@ import scala.collection.JavaConversions._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 2015. 10. 1..
- */
+
 class ExactStorageHBase(config: Config) extends ExactStorage {
   import ExactStorageHBase._
 
@@ -29,6 +28,8 @@ class ExactStorageHBase(config: Config) extends ExactStorage {
 
   private[counter] val withHBase = new WithHBase(config)
   private[counter] val hbaseManagement = new Management(config)
+
+
 
   private def getTableName(policy: Counter): String = {
     policy.hbaseTable.getOrElse(s2config.HBASE_TABLE_NAME)
@@ -280,6 +281,7 @@ class ExactStorageHBase(config: Config) extends ExactStorage {
   override def prepare(policy: Counter): Unit = {
     // create hbase table
     policy.hbaseTable.foreach { table =>
+
       if (!hbaseManagement.tableExists(s2config.HBASE_ZOOKEEPER_QUORUM, table)) {
         hbaseManagement.createTable(s2config.HBASE_ZOOKEEPER_QUORUM, table,
           ColumnFamily.values.map(_.toString).toList, 1)

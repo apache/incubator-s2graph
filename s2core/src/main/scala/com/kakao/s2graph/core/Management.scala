@@ -4,18 +4,11 @@ package com.kakao.s2graph.core
 import com.kakao.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNotExistException}
 import com.kakao.s2graph.core.Management.JsonModel.{Index, Prop}
 import com.kakao.s2graph.core.mysqls._
+import com.kakao.s2graph.core.storage.Storage
+import com.kakao.s2graph.core.types.HBaseType._
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.utils.logger
-import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
-import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
-import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
-import org.apache.hadoop.hbase.regionserver.BloomType
-import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
-import play.Play
 import play.api.libs.json.Reads._
 import play.api.libs.json._
-
 import scala.util.Try
 
 /**
@@ -36,20 +29,8 @@ object Management extends JSONParser {
 
   import HBaseType._
 
-  val hardLimit = 10000
-  val defaultLimit = 100
-  val defaultCompressionAlgorithm = "gz"
-//    Play.application().configuration().getString("hbase.table.compression.algorithm")
+  val DefaultCompressionAlgorithm = "gz"
 
-  def createService(serviceName: String,
-                    cluster: String, hTableName: String,
-                    preSplitSize: Int, hTableTTL: Option[Int],
-                    compressionAlgorithm: String): Try[Service] = {
-
-    Model withTx { implicit session =>
-      Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
-    }
-  }
 
   def findService(serviceName: String) = {
     Service.findByName(serviceName, useCache = false)
@@ -68,62 +49,7 @@ object Management extends JSONParser {
     Label.updateHTableName(targetLabel.label, newHTableName)
   }
 
-  /**
-   * label
-   */
-  /**
-   * copy label when if oldLabel exist and newLabel do not exist.
-   * copy label: only used by bulk load job. not sure if we need to parameterize hbase cluster.
-   */
-  def copyLabel(oldLabelName: String, newLabelName: String, hTableName: Option[String]) = {
-    val old = Label.findByName(oldLabelName).getOrElse(throw new LabelAlreadyExistException(s"Old label $oldLabelName not exists."))
-    if (Label.findByName(newLabelName).isDefined) throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
 
-    val allProps = old.metas.map { labelMeta => Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType) }
-    val allIndices = old.indices.map { index => Index(index.name, index.propNames) }
-
-    createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
-      old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
-      old.isDirected, old.serviceName,
-      allIndices, allProps,
-      old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync, old.compressionAlgorithm)
-  }
-
-  def createLabel(label: String,
-                  srcServiceName: String,
-                  srcColumnName: String,
-                  srcColumnType: String,
-                  tgtServiceName: String,
-                  tgtColumnName: String,
-                  tgtColumnType: String,
-                  isDirected: Boolean = true,
-                  serviceName: String,
-                  indices: Seq[Index],
-                  props: Seq[Prop],
-                  consistencyLevel: String,
-                  hTableName: Option[String],
-                  hTableTTL: Option[Int],
-                  schemaVersion: String = DEFAULT_VERSION,
-                  isAsync: Boolean,
-                  compressionAlgorithm: String = defaultCompressionAlgorithm): Try[Label] = {
-
-    val labelOpt = Label.findByName(label, useCache = false)
-
-    Model withTx { implicit session =>
-      labelOpt match {
-        case Some(l) =>
-          throw new GraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
-        case None =>
-          Label.insertAll(label,
-            srcServiceName, srcColumnName, srcColumnType,
-            tgtServiceName, tgtColumnName, tgtColumnType,
-            isDirected, serviceName, indices, props, consistencyLevel,
-            hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm)
-
-          Label.findByName(label, useCache = false).get
-      }
-    }
-  }
 
   def createServiceColumn(serviceName: String,
                           columnName: String,
@@ -326,121 +252,6 @@ object Management extends JSONParser {
     props
   }
 
-  val idTableName = "id"
-  val cf = "a"
-  val idColName = "id"
-  val regionCnt = 10
-
-  def getAdmin(zkAddr: String) = {
-    val conf = HBaseConfiguration.create()
-    conf.set("hbase.zookeeper.quorum", zkAddr)
-    val conn = ConnectionFactory.createConnection(conf)
-    conn.getAdmin
-  }
-
-  def enableTable(zkAddr: String, tableName: String) = {
-    getAdmin(zkAddr).enableTable(TableName.valueOf(tableName))
-  }
-
-  def disableTable(zkAddr: String, tableName: String) = {
-    getAdmin(zkAddr).disableTable(TableName.valueOf(tableName))
-  }
-
-  def dropTable(zkAddr: String, tableName: String) = {
-    getAdmin(zkAddr).disableTable(TableName.valueOf(tableName))
-    getAdmin(zkAddr).deleteTable(TableName.valueOf(tableName))
-  }
-
-  //  def deleteEdgesByLabelIds(zkAddr: String,
-  //    tableName: String,
-  //    labelIds: String = "",
-  //    minTs: Long = 0L,
-  //    maxTs: Long = Long.MaxValue,
-  //    include: Boolean = true) = {
-  //    val conf = HBaseConfiguration.create()
-  //    val longTimeout = "1200000"
-  //    conf.set("hbase.rpc.timeout", longTimeout)
-  //    conf.set("hbase.client.operation.timeout", longTimeout)
-  //    conf.set("hbase.client.scanner.timeout.period", longTimeout)
-  //    conf.set("hbase.zookeeper.quorum", zkAddr)
-  //    val conn = HConnectionManager.createConnection(conf)
-  //    val table = conn.getTable(tableName.getBytes)
-  //    var builder = DeleteLabelsArgument.newBuilder()
-  //    val scanner = Scan.newBuilder()
-  //
-  //    scanner.setTimeRange(TimeRange.newBuilder().setFrom(minTs).setTo(maxTs))
-  //    /**
-  //     *  when we clean up all data does not match current database ids
-  //     *  we will delete row completely
-  //     */
-  //    if (!include) scanner.setFilter(ProtobufUtil.toFilter(new FirstKeyOnlyFilter))
-  //
-  //    builder.setScan(scanner)
-  //    for (id <- labelIds.split(",")) {
-  //      builder.addId(id.toInt)
-  //    }
-  //
-  //    val argument = builder.build()
-  //
-  //    val regionStats = table.coprocessorService(classOf[GraphStatService], null, null,
-  //      new Batch.Call[GraphStatService, Long]() {
-  //        override def call(counter: GraphStatService): Long = {
-  //          val controller: ServerRpcController = new ServerRpcController()
-  //          val rpcCallback: BlockingRpcCallback[CountResponse] = new BlockingRpcCallback[CountResponse]()
-  //
-  //          if (include) {
-  //            counter.cleanUpDeleteLabelsRows(controller, argument, rpcCallback)
-  //          } else {
-  //            counter.cleanUpDeleteLabelsRowsExclude(controller, argument, rpcCallback)
-  //          }
-  //
-  //          val response: CountResponse = rpcCallback.get()
-  //          if (controller.failedOnException()) throw controller.getFailedOn()
-  //          if (response != null && response.hasCount()) {
-  //            response.getCount()
-  //          } else {
-  //            0L
-  //          }
-  //        }
-  //      })
-  //
-  //    //    regionStats.map(kv => Bytes.toString(kv._1) -> kv._2) ++ Map("total" -> regionStats.values().sum)
-  //  }
-
-  def createTable(zkAddr: String, tableName: String, cfs: List[String], regionMultiplier: Int, ttl: Option[Int],
-                  compressionAlgorithm: String = defaultCompressionAlgorithm) = {
-    logger.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm")
-    val admin = getAdmin(zkAddr)
-    val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier
-    if (!admin.tableExists(TableName.valueOf(tableName))) {
-      try {
-        val desc = new HTableDescriptor(TableName.valueOf(tableName))
-        desc.setDurability(Durability.ASYNC_WAL)
-        for (cf <- cfs) {
-          val columnDesc = new HColumnDescriptor(cf)
-            .setCompressionType(Algorithm.valueOf(compressionAlgorithm.toUpperCase))
-            .setBloomFilterType(BloomType.ROW)
-            .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
-            .setMaxVersions(1)
-            .setTimeToLive(2147483647)
-            .setMinVersions(0)
-            .setBlocksize(32768)
-            .setBlockCacheEnabled(true)
-          if (ttl.isDefined) columnDesc.setTimeToLive(ttl.get)
-          desc.addFamily(columnDesc)
-        }
-
-        if (regionCount <= 1) admin.createTable(desc)
-        else admin.createTable(desc, getStartKey(regionCount), getEndKey(regionCount), regionCount)
-      } catch {
-        case e: Throwable =>
-          logger.error(s"$zkAddr, $tableName failed with $e", e)
-          throw e
-      }
-    } else {
-      logger.info(s"$zkAddr, $tableName, $cf already exist.")
-    }
-  }
 
   /**
    * update label name.
@@ -457,15 +268,102 @@ object Management extends JSONParser {
       }
     }
   }
+}
 
-  // we only use murmur hash to distribute row key.
-  def getStartKey(regionCount: Int): Array[Byte] = {
-    Bytes.toBytes((Int.MaxValue / regionCount))
+class Management(graph: Graph) {
+  import Management._
+  val storage = graph.storage
+
+  def createTable(zkAddr: String,
+                  tableName: String,
+                  cfs: List[String],
+                  regionMultiplier: Int,
+                  ttl: Option[Int],
+                  compressionAlgorithm: String = DefaultCompressionAlgorithm): Unit =
+    storage.createTable(zkAddr, tableName, cfs, regionMultiplier, ttl, compressionAlgorithm)
+
+  /** HBase specific code */
+  def createService(serviceName: String,
+                    cluster: String, hTableName: String,
+                    preSplitSize: Int, hTableTTL: Option[Int],
+                    compressionAlgorithm: String = DefaultCompressionAlgorithm): Try[Service] = {
+
+    Model withTx { implicit session =>
+      val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
+      /** create hbase table for service */
+      storage.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL, compressionAlgorithm)
+      service
+    }
   }
 
-  def getEndKey(regionCount: Int): Array[Byte] = {
-    Bytes.toBytes((Int.MaxValue / regionCount * (regionCount - 1)))
+  /** HBase specific code */
+  def createLabel(label: String,
+                  srcServiceName: String,
+                  srcColumnName: String,
+                  srcColumnType: String,
+                  tgtServiceName: String,
+                  tgtColumnName: String,
+                  tgtColumnType: String,
+                  isDirected: Boolean = true,
+                  serviceName: String,
+                  indices: Seq[Index],
+                  props: Seq[Prop],
+                  consistencyLevel: String,
+                  hTableName: Option[String],
+                  hTableTTL: Option[Int],
+                  schemaVersion: String = DEFAULT_VERSION,
+                  isAsync: Boolean,
+                  compressionAlgorithm: String = "gz"): Try[Label] = {
+
+    val labelOpt = Label.findByName(label, useCache = false)
+
+    Model withTx { implicit session =>
+      labelOpt match {
+        case Some(l) =>
+          throw new GraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
+        case None =>
+          /** create all models */
+          val newLabel = Label.insertAll(label,
+            srcServiceName, srcColumnName, srcColumnType,
+            tgtServiceName, tgtColumnName, tgtColumnType,
+            isDirected, serviceName, indices, props, consistencyLevel,
+            hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm)
+
+          /** create hbase table */
+          val service = newLabel.service
+          (hTableName, hTableTTL) match {
+            case (None, None) => // do nothing
+            case (None, Some(hbaseTableTTL)) => throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
+            case (Some(hbaseTableName), None) =>
+              // create own hbase table with default ttl on service level.
+              storage.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, service.hTableTTL, compressionAlgorithm)
+            case (Some(hbaseTableName), Some(hbaseTableTTL)) =>
+              // create own hbase table with own ttl.
+              storage.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL, compressionAlgorithm)
+          }
+          newLabel
+      }
+    }
   }
 
+  /**
+   * label
+   */
+  /**
+   * copy label when if oldLabel exist and newLabel do not exist.
+   * copy label: only used by bulk load job. not sure if we need to parameterize hbase cluster.
+   */
+  def copyLabel(oldLabelName: String, newLabelName: String, hTableName: Option[String]) = {
+    val old = Label.findByName(oldLabelName).getOrElse(throw new LabelAlreadyExistException(s"Old label $oldLabelName not exists."))
+    if (Label.findByName(newLabelName).isDefined) throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
 
+    val allProps = old.metas.map { labelMeta => Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType) }
+    val allIndices = old.indices.map { index => Index(index.name, index.propNames) }
+
+    createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
+      old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
+      old.isDirected, old.serviceName,
+      allIndices, allProps,
+      old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync, old.compressionAlgorithm)
+  }
 }
