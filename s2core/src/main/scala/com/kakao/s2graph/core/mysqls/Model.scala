@@ -54,6 +54,19 @@ object Model {
       res
     }
   }
+
+  def shutdown() = {
+    ConnectionPool.closeAll()
+  }
+
+  def loadCache() = {
+    Service.findAll()
+    ServiceColumn.findAll()
+    Label.findAll()
+    LabelMeta.findAll()
+    LabelIndex.findAll()
+    ColumnMeta.findAll()
+  }
 }
 
 trait Model[V] extends SQLSyntaxSupport[V] {

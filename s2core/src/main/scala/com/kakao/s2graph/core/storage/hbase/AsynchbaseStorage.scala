@@ -20,7 +20,6 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
 import org.apache.hadoop.security.UserGroupInformation
 import org.hbase.async._
-
 import scala.collection.JavaConversions._
 import scala.collection.Seq
 import scala.concurrent.duration.Duration
@@ -754,7 +753,6 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
     val timeout = Duration((clientFlushInterval + 10) * 20, duration.MILLISECONDS)
     Await.result(client.flush().toFuture, timeout)
   }
-
 
 
   def createTable(zkAddr: String,
