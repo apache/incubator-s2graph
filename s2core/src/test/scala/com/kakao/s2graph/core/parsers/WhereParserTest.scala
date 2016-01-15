@@ -8,7 +8,6 @@ import play.api.libs.json.Json
 
 class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   // dummy data for dummy edge
-
   import HBaseType.{VERSION1, VERSION2}
 
   val ts = System.currentTimeMillis()

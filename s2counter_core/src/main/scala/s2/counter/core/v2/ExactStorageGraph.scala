@@ -35,6 +35,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
   private val labelPostfix = "_counts"
 
   val s2graphUrl = s2config.GRAPH_URL
+  val s2graphReadOnlyUrl = s2config.GRAPH_READONLY_URL
   val graphOp = new GraphOperation(config)
 
   import ExactStorageGraph._
@@ -169,7 +170,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
     val reqJs = Json.parse(reqJsStr)
 //    log.warn(s"query: ${reqJs.toString()}")
 
-    wsClient.url(s"$s2graphUrl/graphs/getEdges").post(reqJs).map { resp =>
+    wsClient.url(s"$s2graphReadOnlyUrl/graphs/getEdges").post(reqJs).map { resp =>
       resp.status match {
         case HttpStatus.SC_OK =>
           val respJs = resp.json
@@ -229,7 +230,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
         val query = Json.obj("srcVertices" -> Json.arr(src), "steps" -> Json.arr(step))
         //    println(s"query: ${query.toString()}")
 
-        wsClient.url(s"$s2graphUrl/graphs/getEdges").post(query).map { resp =>
+        wsClient.url(s"$s2graphReadOnlyUrl/graphs/getEdges").post(query).map { resp =>
           resp.status match {
             case HttpStatus.SC_OK =>
               val respJs = resp.json
