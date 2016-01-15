@@ -8,6 +8,8 @@ import play.api.libs.json.Json
 
 class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   // dummy data for dummy edge
+  initTests()
+
   import HBaseType.{VERSION1, VERSION2}
 
   val ts = System.currentTimeMillis()
@@ -28,10 +30,9 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, version)
   }
 
-  val labelMap = Map(label.label -> label)
 
-  def validate(labelMap: Map[String, Label])(edge: Edge)(sql: String)(expected: Boolean) = {
-    val whereOpt = WhereParser(labelMap).parse(sql)
+  def validate(label: Label)(edge: Edge)(sql: String)(expected: Boolean) = {
+    val whereOpt = WhereParser(label).parse(sql)
     whereOpt.isSuccess shouldBe true
 
     println("=================================================================")
@@ -56,7 +57,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
       val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, propsInner)
-      val f = validate(labelMap)(edge) _
+      val f = validate(label)(edge) _
 
       /** labelName label is long-long relation */
       f(s"_to=${tgtVertex.innerId.toString}")(true)
@@ -76,7 +77,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
       val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, propsInner)
 
-      val f = validate(labelMap)(edge) _
+      val f = validate(label)(edge) _
 
       // time == 3
       f("time >= 3")(true)
@@ -106,7 +107,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       val labelWithDirection = if (schemaVer == VERSION2) labelWithDirV2 else labelWithDir
       val edge = Edge(srcVertex, tgtVertex, labelWithDirection, 0.toByte, ts, propsInner)
       val lname = if (schemaVer == VERSION2) labelNameV2 else labelName
-      val f = validate(labelMap)(edge) _
+      val f = validate(label)(edge) _
 
       f(s"_from = -1 or _to = ${tgtVertex.innerId.value}")(true)
       f(s"_from = ${srcVertex.innerId.value} and _to = ${tgtVertex.innerId.value}")(true)
@@ -138,7 +139,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       println(parentEdge.toString)
       println(grandParentEdge.toString)
 
-      val f = validate(labelMap)(edge) _
+      val f = validate(label)(edge) _
 
       // Compare edge's prop(`_from`) with edge's prop(`name`)
       f("_from = 1")(true)
