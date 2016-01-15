@@ -629,10 +629,10 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
       "----------------------------------------------").mkString("\n")
   }
 
-  private def deleteAllFetchedEdgesAsyncOld(queryRequestWithResult: QueryRequestWithResult,
+  private def deleteAllFetchedEdgesAsyncOld(queryRequest: QueryRequest,
+                                            queryResult: QueryResult,
                                             requestTs: Long,
                                             retryNum: Int): Future[Boolean] = {
-    val (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
     val queryParam = queryRequest.queryParam
     val zkQuorum = queryParam.label.hbaseZkAddr
     val futures = for {
@@ -677,7 +677,7 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
 
     val futures = for {
       queryRequestWithResult <- queryRequestWithResultLs
-      (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+      (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResult).get
       deleteQueryResult = buildEdgesToDelete(queryRequestWithResult, requestTs)
       if deleteQueryResult.edgeWithScoreLs.nonEmpty
     } yield {
@@ -689,14 +689,14 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
             * read: snapshotEdge on queryResult = O(N)
             * write: N x (relatedEdges x indices(indexedEdge) + 1(snapshotEdge))
             */
-          mutateEdges(deleteQueryResult.edgeWithScoreLs.map(_.edge), withWait = true).map { rets => rets.forall(identity) }
+          mutateEdges(deleteQueryResult.edgeWithScoreLs.map(_.edge), withWait = true).map(_.forall(identity))
         case _ =>
 
           /**
             * read: x
             * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
             */
-          deleteAllFetchedEdgesAsyncOld(queryRequestWithResult, requestTs, MaxRetryNum)
+          deleteAllFetchedEdgesAsyncOld(queryRequest, deleteQueryResult, requestTs, MaxRetryNum)
       }
     }
     if (futures.isEmpty) {
