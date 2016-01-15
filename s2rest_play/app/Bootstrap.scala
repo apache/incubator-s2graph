@@ -5,7 +5,7 @@ import java.util.concurrent.Executors
 import actors.QueueActor
 import com.kakao.s2graph.core.rest.RequestParser
 import com.kakao.s2graph.core.utils.logger
-import com.kakao.s2graph.core.{ExceptionHandler, Graph}
+import com.kakao.s2graph.core.{Management, ExceptionHandler, Graph}
 import config.Config
 import controllers.{AdminController, ApplicationController}
 import play.api.Application
@@ -18,6 +18,7 @@ import scala.util.Try
 
 object Global extends WithFilters(new GzipFilter()) {
   var s2graph: Graph = _
+  var storageManagement: Management = _
   var s2parser: RequestParser = _
 
   // Application entry point
@@ -32,6 +33,7 @@ object Global extends WithFilters(new GzipFilter()) {
 
     // init s2graph with config
     s2graph = new Graph(config)(ec)
+    storageManagement = new Management(s2graph)
     s2parser = new RequestParser(s2graph.config) // merged config
 
     QueueActor.init(s2graph)

@@ -1,8 +1,5 @@
 package com.kakao.s2graph.core.mysqls
 
-/**
- * Created by shon on 6/3/15.
- */
 
 import java.util.UUID
 
@@ -39,12 +36,11 @@ object Service extends Model[Service] {
 
   def insert(serviceName: String, cluster: String,
              hTableName: String, preSplitSize: Int, hTableTTL: Option[Int],
-             compressionAlgorithm: String)(implicit session: DBSession = AutoSession) = {
+             compressionAlgorithm: String)(implicit session: DBSession = AutoSession): Unit = {
     logger.info(s"$serviceName, $cluster, $hTableName, $preSplitSize, $hTableTTL, $compressionAlgorithm")
     val accessToken = UUID.randomUUID().toString()
     sql"""insert into services(service_name, access_token, cluster, hbase_table_name, pre_split_size, hbase_table_ttl)
     values(${serviceName}, ${accessToken}, ${cluster}, ${hTableName}, ${preSplitSize}, ${hTableTTL})""".execute.apply()
-    Management.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL, compressionAlgorithm)
   }
 
   def delete(id: Int)(implicit session: DBSession = AutoSession) = {
