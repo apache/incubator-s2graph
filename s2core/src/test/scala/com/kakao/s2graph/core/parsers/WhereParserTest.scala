@@ -7,6 +7,8 @@ import org.scalatest.{FunSuite, Matchers}
 import play.api.libs.json.Json
 
 class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
+  initTests()
+
   // dummy data for dummy edge
   import HBaseType.{VERSION1, VERSION2}
 
