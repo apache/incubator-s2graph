@@ -3,9 +3,6 @@ package com.kakao.s2graph.core
 import com.kakao.s2graph.core.types.{InnerValLike, InnerVal}
 import org.scalatest.{Matchers, FunSuite}
 
-/**
- * Created by shon on 5/30/15.
- */
 class JsonParserTest extends FunSuite with Matchers with TestCommon with JSONParser {
 
   import types.HBaseType._

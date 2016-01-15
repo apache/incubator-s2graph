@@ -4,8 +4,37 @@ import com.kakao.s2graph.core.mysqls.LabelMeta
 import com.kakao.s2graph.core.types.{InnerVal, InnerValLikeWithTs, VertexId}
 import com.kakao.s2graph.core.utils.logger
 import org.scalatest.FunSuite
+import org.scalatest.matchers.Matcher
 
 class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
+  initTests()
+
+  test("toLogString") {
+    val testLabelName = labelNameV2
+    val bulkQueries = List(
+      ("1445240543366", "update", "{\"is_blocked\":true}"),
+      ("1445240543362", "insert", "{\"is_hidden\":false}"),
+      ("1445240543364", "insert", "{\"is_hidden\":false,\"weight\":10}"),
+      ("1445240543363", "delete", "{}"),
+      ("1445240543365", "update", "{\"time\":1, \"weight\":-10}"))
+
+    val (srcId, tgtId, labelName) = ("1", "2", testLabelName)
+
+    val bulkEdge = (for ((ts, op, props) <- bulkQueries) yield {
+      Management.toEdge(ts.toLong, op, srcId, tgtId, labelName, "out", props).toLogString
+    }).mkString("\n")
+
+    val expected = Seq(
+      Seq("1445240543366", "update", "e", "1", "2", testLabelName, "{\"is_blocked\":true}"),
+      Seq("1445240543362", "insert", "e", "1", "2", testLabelName, "{\"is_hidden\":false}"),
+      Seq("1445240543364", "insert", "e", "1", "2", testLabelName, "{\"is_hidden\":false,\"weight\":10}"),
+      Seq("1445240543363", "delete", "e", "1", "2", testLabelName),
+      Seq("1445240543365", "update", "e", "1", "2", testLabelName, "{\"time\":1,\"weight\":-10}")
+    ).map(_.mkString("\t")).mkString("\n")
+
+    assert(bulkEdge === expected)
+  }
+
   test("buildOperation") {
     val schemaVersion = "v2"
     val vertexId = VertexId(0, InnerVal.withStr("dummy", schemaVersion))
