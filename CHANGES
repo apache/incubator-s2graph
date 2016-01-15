@@ -6,8 +6,6 @@ Release 0.12.1 - unreleased
 
   IMPROVEMENT
  
-    S2GRAPH-11: Performance tuning on sort by scoreSum on PostProcess
-
   BUG FIXES
 
   TASKS
