@@ -23,14 +23,15 @@ object EdgeController extends Controller {
   private val requestParser: RequestParser = com.kakao.s2graph.rest.Global.s2parser
 
   def toTsv(jsValue: JsValue, op: String): String = {
-    val ts = jsValue \ "timestamp"
-    val from = jsValue \ "from"
-    val to = jsValue \ "to"
-    val label = jsValue \ "label"
+    val ts = (jsValue \ "timestamp").as[String]
+    val from = (jsValue \ "from").as[String]
+    val to = (jsValue \ "to").as[String]
+    val label = (jsValue \ "label").as[String]
     val props = jsValue \ "props"
-    val direction = (jsValue \ "direction").asOpt[String].getOrElse("out")
+    val direction = (jsValue \ "direction").asOpt[String]
 
-    Seq(ts, op, "e", from, to, label, props, direction).mkString("\t")
+    if (direction.isDefined) Seq(ts, op, "e", from, to, label, props, direction).mkString("\t")
+    else Seq(ts, op, "e", from, to, label, props).mkString("\t")
   }
 
   def tryMutates(jsValue: JsValue, operation: String, withWait: Boolean = false): Future[Result] = {
