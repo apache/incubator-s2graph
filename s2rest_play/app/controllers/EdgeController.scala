@@ -30,7 +30,7 @@ object EdgeController extends Controller {
     val props = jsValue \ "props"
     val direction = (jsValue \ "direction").asOpt[String]
 
-    if (direction.isDefined) Seq(ts, op, "e", from, to, label, props, direction).mkString("\t")
+    if (direction.isDefined) Seq(ts, op, "e", from, to, label, props, direction.get).mkString("\t")
     else Seq(ts, op, "e", from, to, label, props).mkString("\t")
   }
 
