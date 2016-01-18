@@ -6,6 +6,7 @@ import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
 import com.kakao.s2graph.core.types._
 import com.typesafe.config.Config
+
 import play.api.libs.json._
 
 import scala.util.{Failure, Success, Try}
@@ -482,7 +483,6 @@ class RequestParser(config: Config) extends JSONParser {
       }
       (src, tgt, QueryParam(LabelWithDirection(label.id.get, dir)))
     }
-
     (quads, isReverted)
   }
 
