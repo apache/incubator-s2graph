@@ -23,10 +23,15 @@ object EdgeController extends Controller {
   private val requestParser: RequestParser = com.kakao.s2graph.rest.Global.s2parser
 
   def toTsv(jsValue: JsValue, op: String): String = {
-    val ts = (jsValue \ "timestamp").as[String]
-    val from = (jsValue \ "from").as[String]
-    val to = (jsValue \ "to").as[String]
-    val label = (jsValue \ "label").as[String]
+    def jsToStr(js: JsValue): String = js match {
+      case JsString(s) => s
+      case _ => js.toString()
+    }
+
+    val ts = jsToStr(jsValue \ "timestamp")
+    val from = jsToStr(jsValue \ "from")
+    val to = jsToStr(jsValue \ "to")
+    val label = jsToStr(jsValue \ "label")
     val props = jsValue \ "props"
     val direction = (jsValue \ "direction").asOpt[String]
 
