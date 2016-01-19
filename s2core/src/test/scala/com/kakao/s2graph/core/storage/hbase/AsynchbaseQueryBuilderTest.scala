@@ -10,6 +10,7 @@ import org.scalatest.{FunSuite, Matchers}
 import scala.concurrent.ExecutionContext
 
 class AsynchbaseQueryBuilderTest extends FunSuite with Matchers {
+
   val dummyRequests = {
     for {
       id <- 0 until 1000
@@ -20,7 +21,7 @@ class AsynchbaseQueryBuilderTest extends FunSuite with Matchers {
 
   implicit val ec = ExecutionContext.Implicits.global
   val config = ConfigFactory.load()
-  val graph = new Graph(config)(ec)
+  val graph = new Graph(config)
 
   val qb = new AsynchbaseQueryBuilder(graph.storage.asInstanceOf[AsynchbaseStorage])
 

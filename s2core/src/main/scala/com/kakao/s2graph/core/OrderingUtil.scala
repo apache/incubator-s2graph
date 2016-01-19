@@ -3,9 +3,6 @@ package com.kakao.s2graph.core
 import com.kakao.s2graph.core.types.InnerValLike
 import play.api.libs.json.{JsNumber, JsString, JsValue}
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 2015. 11. 5..
- */
 object OrderingUtil {
 
   implicit object JsValueOrdering extends Ordering[JsValue] {

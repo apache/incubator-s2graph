@@ -1,81 +1,85 @@
 package benchmark
-
+import play.api.test.{FakeApplication, PlaySpecification, WithApplication}
 import scala.annotation.tailrec
 import scala.util.Random
 
-class SamplingBenchmarkSpec extends BenchmarkCommon {
-  "shuffle benchmark" >> {
-    @tailrec
-    def randomInt(n: Int, range: Int, set: Set[Int] = Set.empty[Int]): Set[Int] = {
-      if (set.size == n) set
-      else randomInt(n, range, set + Random.nextInt(range))
-    }
+class SamplingBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
+  "sample" should {
+    implicit val app = FakeApplication()
 
-    // sample using random array
-    def randomArraySample[T](num: Int, ls: List[T]): List[T] = {
-      val randomNum = randomInt(num, ls.size)
-      var sample = List.empty[T]
-      var idx = 0
-      ls.foreach { e =>
-        if (randomNum.contains(idx)) sample = e :: sample
-        idx += 1
+    "sample benchmark" in new WithApplication(app) {
+      @tailrec
+      def randomInt(n: Int, range: Int, set: Set[Int] = Set.empty[Int]): Set[Int] = {
+        if (set.size == n) set
+        else randomInt(n, range, set + Random.nextInt(range))
       }
-      sample
-    }
 
-    // sample using shuffle
-    def shuffleSample[T](num: Int, ls: List[T]): List[T] = {
-      Random.shuffle(ls).take(num)
-    }
-
-    // sample using random number generation
-    def rngSample[T](num: Int, ls: List[T]): List[T] = {
-      var sampled = List.empty[T]
-      val N = ls.size // population
-      var t = 0 // total input records dealt with
-      var m = 0 // number of items selected so far
-
-      while (m < num) {
-        val u = Random.nextDouble()
-        if ((N - t) * u < num - m) {
-          sampled = ls(t) :: sampled
-          m += 1
+      // sample using random array
+      def randomArraySample[T](num: Int, ls: List[T]): List[T] = {
+        val randomNum = randomInt(num, ls.size)
+        var sample = List.empty[T]
+        var idx = 0
+        ls.foreach { e =>
+          if (randomNum.contains(idx)) sample = e :: sample
+          idx += 1
         }
-        t += 1
+        sample
       }
-      sampled
-    }
 
-    // test data
-    val testLimit = 1000
-    val testNum = 10
-    val testData = (0 to 1000).toList
+      // sample using shuffle
+      def shuffleSample[T](num: Int, ls: List[T]): List[T] = {
+        Random.shuffle(ls).take(num)
+      }
 
-    // dummy for warm-up
-    (0 to testLimit) foreach { n =>
-      randomArraySample(testNum, testData)
-      shuffleSample(testNum, testData)
-      rngSample(testNum, testData)
-    }
+      // sample using random number generation
+      def rngSample[T](num: Int, ls: List[T]): List[T] = {
+        var sampled = List.empty[T]
+        val N = ls.size // population
+        var t = 0 // total input records dealt with
+        var m = 0 // number of items selected so far
 
-    duration("Random Array Sampling") {
-      (0 to testLimit) foreach { _ =>
-        val sampled = randomArraySample(testNum, testData)
+        while (m < num) {
+          val u = Random.nextDouble()
+          if ( (N - t)*u < num - m) {
+            sampled = ls(t) :: sampled
+            m += 1
+          }
+          t += 1
+        }
+        sampled
+      }
+
+      // test data
+      val testLimit = 500000
+      val testNum = 10
+      val testData = (0 to 1000).toList
+
+      // dummy for warm-up
+      (0 to testLimit) foreach { n =>
+        randomArraySample(testNum, testData)
+        shuffleSample(testNum, testData)
+        rngSample(testNum, testData)
+      }
+
+      duration("Random Array Sampling") {
+        (0 to testLimit) foreach { _ =>
+          val sampled = randomArraySample(testNum, testData)
+        }
+      }
+
+      duration("Shuffle Sampling") {
+        (0 to testLimit) foreach { _ =>
+          val sampled = shuffleSample(testNum, testData)
+        }
+      }
+
+      duration("RNG Sampling") {
+        (0 to testLimit) foreach { _ =>
+          val sampled = rngSample(testNum, testData)
+        }
       }
     }
 
-    duration("Shuffle Sampling") {
-      (0 to testLimit) foreach { _ =>
-        val sampled = shuffleSample(testNum, testData)
-      }
-    }
 
-    duration("RNG Sampling") {
-      (0 to testLimit) foreach { _ =>
-        val sampled = rngSample(testNum, testData)
-      }
-    }
-    true
   }
-  true
 }

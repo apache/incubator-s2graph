@@ -3,6 +3,7 @@ package com.kakao.s2graph.core.Integrate
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.Label
 import com.kakao.s2graph.core.rest.RequestParser
+import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config._
 import org.scalatest._
 import play.api.libs.json.{JsValue, Json}
@@ -16,11 +17,13 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
   var graph: Graph = _
   var parser: RequestParser = _
+  var management: Management = _
   var config: Config = _
 
   override def beforeAll = {
     config = ConfigFactory.load()
     graph = new Graph(config)(ExecutionContext.Implicits.global)
+    management = new Management(graph)
     parser = new RequestParser(graph.config)
     initTestData()
   }
@@ -42,7 +45,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       parser.toServiceElements(jsValue)
 
     val tryRes =
-      Management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
+      management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
+
     println(s">> Service created : $createService, $tryRes")
 
     val labelNames = Map(testLabelName -> testLabelNameCreate,
@@ -59,7 +63,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
           val json = Json.parse(create)
           val tryRes = for {
             labelArgs <- parser.toLabelElements(json)
-            label <- (Management.createLabel _).tupled(labelArgs)
+            label <- (management.createLabel _).tupled(labelArgs)
           } yield label
 
           tryRes.get
@@ -82,7 +86,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     * Test Helpers
     */
   object TestUtil {
-    implicit def ec = graph.ec
+    implicit def ec = scala.concurrent.ExecutionContext.global
 
     //    def checkEdgeQueryJson(params: Seq[(String, String, String, String)]) = {
     //      val arr = for {
@@ -107,6 +111,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     }
 
     def getEdgesSync(queryJson: JsValue): JsValue = {
+      logger.info(Json.prettyPrint(queryJson))
+
       val ret = graph.getEdges(parser.toQuery(queryJson))
       val result = Await.result(ret, HttpRequestWaitingTime)
       val jsResult = PostProcess.toSimpleVertexArrJson(result)

@@ -286,6 +286,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
        """.stripMargin
     log.debug(strJs)
 
+
     Try {
       Json.parse(strJs)
     } match {

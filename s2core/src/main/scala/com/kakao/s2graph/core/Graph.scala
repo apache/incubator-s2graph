@@ -349,5 +349,8 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
 
   def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]] = storage.incrementCounts(edges, withWait)
 
-  def shutdown(): Unit = storage.flush()
+  def shutdown(): Unit = {
+    storage.flush()
+    Model.shutdown()
+  }
 }

@@ -1,0 +1,23 @@
+ Change Log
+
+Release 0.12.1 - unreleased
+
+  NEW FEATURES
+
+  IMPROVEMENT
+
+    S2GRAPH-14: Abstract HBase specific methods in Management and Label (Committed by DOYUNG YOON).
+
+    S2GRAPH-24: Add counter config for readonly graph (Committed by Jaesang Kim).
+
+  BUG FIXES
+
+  TASKS
+
+    S2GRAPH-5: Add Apache RAT to valid LICENSE errors. (Committed by DOYUNG YOON).
+
+  SUB TASKS
+
+    S2GRAPH-9: Provide rest server using netty. (Committed by daewon).
+
+    S2GRAPH-7: Abstract common codes for rest project into s2core. (Committed by daewon).

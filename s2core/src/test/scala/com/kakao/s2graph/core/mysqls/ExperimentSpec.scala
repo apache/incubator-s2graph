@@ -38,7 +38,7 @@ class ExperimentSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
   }
 
   it should "update bucket list after cache ttl time" in {
-     Experiment.findBy(1, "exp1").foreach { exp =>
+    Experiment.findBy(1, "exp1").foreach { exp =>
       val bucket = exp.buckets.head
       bucket.impressionId should equal("imp1")
 

@@ -3,11 +3,11 @@ package com.kakao.s2graph.rest
 import java.util.concurrent.Executors
 
 import actors.QueueActor
-import com.kakao.s2graph.core.rest.{RestCaller, RequestParser}
+import com.kakao.s2graph.core.rest._
 import com.kakao.s2graph.core.utils.logger
-import com.kakao.s2graph.core.{ExceptionHandler, Graph}
+import com.kakao.s2graph.core.{Management, ExceptionHandler, Graph}
 import config.Config
-import controllers.{AdminController, ApplicationController}
+import controllers.{ApplicationController}
 import play.api.Application
 import play.api.mvc.{WithFilters, _}
 import play.filters.gzip.GzipFilter
@@ -18,8 +18,10 @@ import scala.util.Try
 
 object Global extends WithFilters(new GzipFilter()) {
   var s2graph: Graph = _
+  var storageManagement: Management = _
   var s2parser: RequestParser = _
-  var s2rest: RestCaller = _
+  var s2rest: RestHandler = _
+
 
   // Application entry point
   override def onStart(app: Application) {
@@ -33,8 +35,9 @@ object Global extends WithFilters(new GzipFilter()) {
 
     // init s2graph with config
     s2graph = new Graph(config)(ec)
+    storageManagement = new Management(s2graph)
     s2parser = new RequestParser(s2graph.config) // merged config
-    s2rest = new RestCaller(s2graph)(ec)
+    s2rest = new RestHandler(s2graph)(ec)
 
     QueueActor.init(s2graph)
 

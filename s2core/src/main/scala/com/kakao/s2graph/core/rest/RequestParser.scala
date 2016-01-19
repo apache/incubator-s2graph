@@ -73,6 +73,7 @@ class RequestParser(config: Config) extends JSONParser {
       if (minTs > maxTs) {
         throw new RuntimeException("Duration error. Timestamp of From cannot be larger than To.")
       }
+
       (minTs, maxTs)
     }
   }
@@ -497,7 +498,6 @@ class RequestParser(config: Config) extends JSONParser {
       }
       (src, tgt, QueryParam(LabelWithDirection(label.id.get, dir)))
     }
-
     (quads, isReverted)
   }
 

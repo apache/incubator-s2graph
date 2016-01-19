@@ -4,8 +4,8 @@ import java.util.concurrent.Executors
 
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls.Experiment
-import com.kakao.s2graph.core.rest.RestCaller
+import com.kakao.s2graph.core.rest.RestHandler.HandlerResult
+import com.kakao.s2graph.core.rest._
 import com.kakao.s2graph.core.utils.Extensions._
 import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.ConfigFactory
@@ -20,23 +20,23 @@ import io.netty.handler.codec.http._
 import io.netty.handler.logging.{LogLevel, LoggingHandler}
 import io.netty.util.CharsetUtil
 import play.api.libs.json._
-
-import scala.concurrent.{ExecutionContext, Future}
+import scala.collection.mutable
+import scala.concurrent.ExecutionContext
 import scala.io.Source
 import scala.util.{Failure, Success, Try}
 
-class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends SimpleChannelInboundHandler[FullHttpRequest] with JSONParser {
+class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends SimpleChannelInboundHandler[FullHttpRequest] with JSONParser {
   val ApplicationJson = "application/json"
 
   val Ok = HttpResponseStatus.OK
-  val Close = ChannelFutureListener.CLOSE
+  val CloseOpt = Option(ChannelFutureListener.CLOSE)
   val BadRequest = HttpResponseStatus.BAD_REQUEST
   val BadGateway = HttpResponseStatus.BAD_GATEWAY
   val NotFound = HttpResponseStatus.NOT_FOUND
   val InternalServerError = HttpResponseStatus.INTERNAL_SERVER_ERROR
 
   def badRoute(ctx: ChannelHandlerContext) =
-    simpleResponse(ctx, BadGateway, byteBufOpt = None, channelFutureListenerOpt = Option(Close))
+    simpleResponse(ctx, BadGateway, byteBufOpt = None, channelFutureListenerOpt = CloseOpt)
 
   def simpleResponse(ctx: ChannelHandlerContext,
                      httpResponseStatus: HttpResponseStatus,
@@ -59,49 +59,46 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
     }
   }
 
-  def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, body: JsValue, future: Future[(JsValue, String)], startedAt: Long) = {
+  def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, requestBody: JsValue, result: HandlerResult, startedAt: Long) = {
+    var closeOpt = CloseOpt
+    var headers = mutable.ArrayBuilder.make[(String, String)]
 
-    val defaultHeaders = List(Names.CONTENT_TYPE -> ApplicationJson)
-    // NOTE: logging size of result should move to s2core.
-    //        logger.info(resJson.size.toString)
-    future onComplete {
-      case Success(resJsonWithImpId) =>
-        val (resJson, impId) = resJsonWithImpId
+    headers += (Names.CONTENT_TYPE -> ApplicationJson)
+    result.headers.foreach(headers += _)
 
+    if (HttpHeaders.isKeepAlive(req)) {
+      headers += (Names.CONNECTION -> HttpHeaders.Values.KEEP_ALIVE)
+      closeOpt = None
+    }
+
+    result.body onComplete {
+      case Success(json) =>
         val duration = System.currentTimeMillis() - startedAt
-        val isKeepAlive = HttpHeaders.isKeepAlive(req)
-        val buf: ByteBuf = Unpooled.copiedBuffer(resJson.toString, CharsetUtil.UTF_8)
 
-
-        val (headerWithKeepAlive, listenerOpt) =
-          if (isKeepAlive) ((Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE) :: defaultHeaders) -> None
-          else defaultHeaders -> Option(Close)
-
-        val headerWithImpKey =
-          if (impId.isEmpty) headerWithKeepAlive
-          else (Experiment.impressionKey, impId) :: headerWithKeepAlive
-
-        val log = s"${req.getMethod} ${req.getUri} took ${duration} ms 200 ${s2rest.calcSize(resJson)} ${body}"
+        val log = s"${req.getMethod} ${req.getUri} took ${duration} ms 200 ${s2rest.calcSize(json)} ${requestBody}"
         logger.info(log)
 
-        val responseHeaders = (Names.CONTENT_LENGTH -> buf.readableBytes().toString) :: headerWithImpKey
-        simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = listenerOpt, headers = responseHeaders)
+        val buf: ByteBuf = Unpooled.copiedBuffer(json.toString, CharsetUtil.UTF_8)
 
+        headers += (Names.CONTENT_LENGTH -> buf.readableBytes().toString)
+
+        simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = closeOpt, headers = headers.result())
       case Failure(ex) => ex match {
         case e: BadQueryException =>
-          logger.error(s"{$body}, ${e.getMessage}", e)
+          logger.error(s"{$requestBody}, ${e.getMessage}", e)
           val buf: ByteBuf = Unpooled.copiedBuffer(PostProcess.badRequestResults(e).toString, CharsetUtil.UTF_8)
-          simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = Option(Close), headers = defaultHeaders)
+          simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = closeOpt, headers = headers.result())
         case e: Exception =>
-          logger.error(s"${body}, ${e.getMessage}", e)
+          logger.error(s"${requestBody}, ${e.getMessage}", e)
           val buf: ByteBuf = Unpooled.copiedBuffer(PostProcess.emptyResults.toString, CharsetUtil.UTF_8)
-          simpleResponse(ctx, InternalServerError, byteBufOpt = Option(buf), channelFutureListenerOpt = Option(Close), headers = defaultHeaders)
+          simpleResponse(ctx, InternalServerError, byteBufOpt = Option(buf), channelFutureListenerOpt = closeOpt, headers = headers.result())
       }
     }
   }
 
   override def channelRead0(ctx: ChannelHandlerContext, req: FullHttpRequest): Unit = {
     val uri = req.getUri
+    val startedAt = System.currentTimeMillis()
 
     req.getMethod match {
       case HttpMethod.GET =>
@@ -109,18 +106,17 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
           case "/health_check.html" =>
             if (NettyServer.isHealthy) {
               val healthCheckMsg = Unpooled.copiedBuffer(NettyServer.deployInfo, CharsetUtil.UTF_8)
-              simpleResponse(ctx, Ok, byteBufOpt = Option(healthCheckMsg), channelFutureListenerOpt = Option(Close))
+              simpleResponse(ctx, Ok, byteBufOpt = Option(healthCheckMsg), channelFutureListenerOpt = CloseOpt)
             } else {
-              simpleResponse(ctx, NotFound, channelFutureListenerOpt = Option(Close))
+              simpleResponse(ctx, NotFound, channelFutureListenerOpt = CloseOpt)
             }
 
           case s if s.startsWith("/graphs/getEdge/") =>
             // src, tgt, label, dir
             val Array(srcId, tgtId, labelName, direction) = s.split("/").takeRight(4)
             val params = Json.arr(Json.obj("label" -> labelName, "direction" -> direction, "from" -> srcId, "to" -> tgtId))
-            val startedAt = System.currentTimeMillis()
-            val future = s2rest.checkEdges(params)
-            toResponse(ctx, req, params, future.map(_ -> ""), startedAt)
+            val result = s2rest.checkEdges(params)
+            toResponse(ctx, req, params, result, startedAt)
           case _ => badRoute(ctx)
         }
 
@@ -129,35 +125,25 @@ class S2RestHandler(s2rest: RestCaller)(implicit ec: ExecutionContext) extends S
           val newHealthCheck = uri.split("/").last.toBoolean
           NettyServer.isHealthy = newHealthCheck
           val newHealthCheckMsg = Unpooled.copiedBuffer(NettyServer.isHealthy.toString, CharsetUtil.UTF_8)
-          simpleResponse(ctx, Ok, byteBufOpt = Option(newHealthCheckMsg), channelFutureListenerOpt = Option(Close))
+          simpleResponse(ctx, Ok, byteBufOpt = Option(newHealthCheckMsg), channelFutureListenerOpt = CloseOpt)
         } else badRoute(ctx)
 
       case HttpMethod.POST =>
         val jsonString = req.content.toString(CharsetUtil.UTF_8)
         val jsQuery = Json.parse(jsonString)
 
-        //TODO: result_size
-        val startedAt = System.currentTimeMillis()
-
-        val future =
-          if (uri.startsWith("/graphs/experiment")) {
-            val Array(accessToken, experimentName, uuid) = uri.split("/").takeRight(3)
-            s2rest.experiment(jsQuery, accessToken, experimentName, uuid)
-          } else {
-            s2rest.uriMatch(uri, jsQuery).map(_ -> "")
-          }
-
-        toResponse(ctx, req, jsQuery, future, startedAt)
+        val result = s2rest.doPost(uri, jsQuery)
+        toResponse(ctx, req, jsQuery, result, startedAt)
 
       case _ =>
-        simpleResponse(ctx, BadRequest, byteBufOpt = None, channelFutureListenerOpt = Option(Close))
+        simpleResponse(ctx, BadRequest, byteBufOpt = None, channelFutureListenerOpt = CloseOpt)
     }
   }
 
   override def exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
     cause.printStackTrace()
     logger.error(s"exception on query.", cause)
-    simpleResponse(ctx, BadRequest, byteBufOpt = None, channelFutureListenerOpt = Option(Close))
+    simpleResponse(ctx, BadRequest, byteBufOpt = None, channelFutureListenerOpt = CloseOpt)
   }
 }
 
@@ -174,7 +160,7 @@ object NettyServer extends App {
 
   // init s2graph with config
   val s2graph = new Graph(config)(ec)
-  val rest = new RestCaller(s2graph)(ec)
+  val rest = new RestHandler(s2graph)(ec)
 
   val deployInfo = Try(Source.fromFile("./release_info").mkString("")).recover { case _ => "release info not found\n" }.get
   var isHealthy = config.getBooleanWithFallback("app.health.on", true)

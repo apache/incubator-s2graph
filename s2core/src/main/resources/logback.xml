@@ -20,4 +20,6 @@
     <logger name="error" level="DEBUG">
         <appender-ref ref="STDOUT"/>
     </logger>
+
 </configuration>
+

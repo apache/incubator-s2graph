@@ -67,7 +67,6 @@ object Model {
     LabelIndex.findAll()
     ColumnMeta.findAll()
   }
-
 }
 
 trait Model[V] extends SQLSyntaxSupport[V] {

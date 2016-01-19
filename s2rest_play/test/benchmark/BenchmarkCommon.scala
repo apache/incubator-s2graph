@@ -2,9 +2,6 @@ package benchmark
 
 import org.specs2.mutable.Specification
 
-/**
-  * Created by hsleep(honeysleep@gmail.com) on 2015. 11. 6..
-  */
 trait BenchmarkCommon extends Specification {
   val wrapStr = s"\n=================================================="
 

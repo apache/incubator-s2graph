@@ -1,10 +1,9 @@
 package com.kakao.s2graph.core.Integrate
 
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
-import org.scalatest.BeforeAndAfterEach
 import play.api.libs.json.{JsNull, JsNumber, JsValue, Json}
-
 import scala.util.{Success, Try}
+import org.scalatest.BeforeAndAfterEach
 
 class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
@@ -272,6 +271,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     } should be(Success(JsNull))
   }
 
+
   test("return tree") {
     def queryParents(id: Long) = Json.parse(
       s"""
@@ -525,69 +525,15 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
     insertEdgesSync(bulkEdges: _*)
 
-    var result = getEdgesSync(queryWithSampling(testId, sampleSize))
-    println(Json.toJson(result))
-    (result \ "results").as[List[JsValue]].size should be(scala.math.min(sampleSize, bulkEdges.size))
+    val result1 = getEdgesSync(queryWithSampling(testId, sampleSize))
+    (result1 \ "results").as[List[JsValue]].size should be(math.min(sampleSize, bulkEdges.size))
 
-    result = getEdgesSync(twoStepQueryWithSampling(testId, sampleSize))
-    println(Json.toJson(result))
-    (result \ "results").as[List[JsValue]].size should be(scala.math.min(sampleSize * sampleSize, bulkEdges.size * bulkEdges.size))
+    val result2 = getEdgesSync(twoStepQueryWithSampling(testId, sampleSize))
+    (result2 \ "results").as[List[JsValue]].size should be(math.min(sampleSize * sampleSize, bulkEdges.size * bulkEdges.size))
 
-    result = getEdgesSync(twoQueryWithSampling(testId, sampleSize))
-    println(Json.toJson(result))
-    (result \ "results").as[List[JsValue]].size should be(sampleSize + 3) // edges in testLabelName2 = 3
-
-    result = getEdgesSync(queryWithSampling(testId, 0))
-    println(Json.toJson(result))
-    (result \ "results").as[List[JsValue]].size should be(0) // edges in testLabelName2 = 3
-
-    result = getEdgesSync(queryWithSampling(testId, 10))
-    println(Json.toJson(result))
-    (result \ "results").as[List[JsValue]].size should be(3) // edges in testLabelName2 = 3
-
-    result = getEdgesSync(queryWithSampling(testId, -1))
-    println(Json.toJson(result))
-    (result \ "results").as[List[JsValue]].size should be(3) // edges in testLabelName2 = 3
+    val result3 = getEdgesSync(twoQueryWithSampling(testId, sampleSize))
+    (result3 \ "results").as[List[JsValue]].size should be(sampleSize + 3) // edges in testLabelName2 = 3
   }
-
-  test("limit") {
-    insertEdgesSync(
-      toEdge(1001, insert, e, 0, 1, testLabelName, Json.obj(weight -> 10, is_hidden -> true)),
-      toEdge(2002, insert, e, 0, 2, testLabelName, Json.obj(weight -> 20, is_hidden -> false)),
-      toEdge(3003, insert, e, 2, 0, testLabelName, Json.obj(weight -> 30)),
-      toEdge(4004, insert, e, 2, 1, testLabelName, Json.obj(weight -> 40)))
-
-    val edges = getEdgesSync(querySingle(0, limit = 1))
-    val limitEdges = getEdgesSync(queryGlobalLimit(0, 1))
-
-    val edgesTo = edges \ "results" \\ "to"
-    val limitEdgesTo = limitEdges \ "results" \\ "to"
-
-    edgesTo should be(limitEdgesTo)
-  }
-
-  //  test("union query") {
-  //    def queryUnion(id: Int, size: Int) = JsArray(List.tabulate(size)(_ => querySingle(id)))
-  //
-  //    var result = getEdges(queryUnion(0, 2))
-  //    result.as[List[JsValue]].size should be (2)
-  //
-  //    result = getEdges(queryUnion(0, 3))
-  //    result.as[List[JsValue]].size should be (3)
-  //
-  //    result = getEdges(queryUnion(0, 4))
-  //    result.as[List[JsValue]].size should be (4)
-  //
-  //    result = getEdges(queryUnion(0, 5))
-  //    result.as[List[JsValue]].size should be (5)
-  //
-  //    val union = result.as[List[JsValue]].head
-  //    val single = getEdges(querySingle(0))
-  //
-  //    (union \\ "from").map(_.toString).sorted should be ((single \\ "from").map(_.toString).sorted)
-  //    (union \\ "to").map(_.toString).sorted should be ((single \\ "to").map(_.toString).sorted)
-  //    (union \\ "weight").map(_.toString).sorted should be ((single \\ "weight").map(_.toString).sorted)
-  //  }
 
   def querySingle(id: Int, offset: Int = 0, limit: Int = 100) = Json.parse(
     s"""
@@ -622,6 +568,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       )
     )
   )
+
 
   // called by each test, each
   override def beforeEach = initTestData()
