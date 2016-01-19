@@ -154,10 +154,15 @@ object EdgeController extends Controller {
     tryMutates(request.body, "increment")
   }
 
+  def incrementsWithWait() = withHeaderAsync(jsonParser) { request =>
+    tryMutates(request.body, "increment", withWait = true)
+  }
+
   def incrementCounts() = withHeaderAsync(jsonParser) { request =>
     val jsValue = request.body
     val edges = requestParser.toEdges(jsValue, "incrementCount")
-    s2.incrementCounts(edges).map { results =>
+
+    s2.incrementCounts(edges, withWait = true).map { results =>
       val json = results.map { case (isSuccess, resultCount) =>
         Json.obj("success" -> isSuccess, "result" -> resultCount)
       }
