@@ -14,8 +14,9 @@ import scala.util.{Failure, Success, Try}
 object AdminController extends Controller {
 
   import ApplicationController._
-  private val s2: Graph = com.kakao.s2graph.rest.Global.s2graph
+  private val management: Management = com.kakao.s2graph.rest.Global.storageManagement
   private val requestParser: RequestParser = com.kakao.s2graph.rest.Global.s2parser
+
   /**
    * admin message formatter
    * @tparam T
@@ -181,9 +182,10 @@ object AdminController extends Controller {
     tryResponse(serviceTry)(_.toJson)
   }
 
+
   def createServiceInner(jsValue: JsValue) = {
     val (serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm) = requestParser.toServiceElements(jsValue)
-    Management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
+    management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
   }
 
   /**
@@ -195,9 +197,10 @@ object AdminController extends Controller {
     tryResponse(ret)(_.toJson)
   }
 
+
   def createLabelInner(json: JsValue) = for {
     labelArgs <- requestParser.toLabelElements(json)
-    label <- (Management.createLabel _).tupled(labelArgs)
+    label <- (management.createLabel _).tupled(labelArgs)
   } yield label
 
   /**
@@ -322,7 +325,7 @@ object AdminController extends Controller {
    * @return
    */
   def copyLabel(oldLabelName: String, newLabelName: String) = Action { request =>
-    val copyTry = Management.copyLabel(oldLabelName, newLabelName, Some(newLabelName))
+    val copyTry = management.copyLabel(oldLabelName, newLabelName, Some(newLabelName))
     tryResponse(copyTry)(_.label + "created")
   }
 
@@ -408,7 +411,9 @@ object AdminController extends Controller {
     //    Management.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL, compressionAlgorithm)
     request.body.asJson.map(_.validate[HTableParams] match {
       case JsSuccess(hTableParams, _) => {
-        Management.createTable(hTableParams.cluster, hTableParams.hTableName, List("e", "v"), hTableParams.preSplitSize, hTableParams.hTableTTL, hTableParams.compressionAlgorithm.getOrElse(Management.defaultCompressionAlgorithm))
+        management.createTable(hTableParams.cluster, hTableParams.hTableName, List("e", "v"),
+          hTableParams.preSplitSize, hTableParams.hTableTTL,
+          hTableParams.compressionAlgorithm.getOrElse(Management.DefaultCompressionAlgorithm))
         logger.info(hTableParams.toString())
         ok(s"HTable was created.")
       }

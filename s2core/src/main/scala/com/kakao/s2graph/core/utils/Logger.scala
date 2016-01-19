@@ -1,7 +1,8 @@
 package com.kakao.s2graph.core.utils
 
-import org.slf4j.LoggerFactory
+
 import play.api.libs.json.JsValue
+import org.slf4j.LoggerFactory
 
 import scala.language.{higherKinds, implicitConversions}
 

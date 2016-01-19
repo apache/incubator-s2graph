@@ -1,6 +1,6 @@
 package com.kakao.s2graph.core
 
- import com.kakao.s2graph.core.mysqls._
+import com.kakao.s2graph.core.mysqls._
 //import com.kakao.s2graph.core.models._
 
 
@@ -98,95 +98,95 @@ trait TestCommon {
   val idxPropsWithTsLsV2 = idxPropsLsV2.map { idxProps =>
     idxProps.map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }
   }
-//
-//  def testOrder(idxPropsLs: Seq[Seq[(Byte, InnerValLike)]],
-//                innerVals: Iterable[InnerValLike], skipHashBytes: Boolean = false)
-//               (createFunc: (Seq[(Byte, InnerValLike)], InnerValLike) => HBaseSerializable,
-//                fromBytesFunc: Array[Byte] => HBaseSerializable) = {
-//    /** check if increasing target vertex id is ordered properly with same indexProps */
-//    val rets = for {
-//      idxProps <- idxPropsLs
-//    } yield {
-//        val head = createFunc(idxProps, innerVals.head)
-//        val start = head
-//        var prev = head
-//        val rets = for {
-//          innerVal <- innerVals.tail
-//        } yield {
-//            val current = createFunc(idxProps, innerVal)
-//            val bytes = current.bytes
-//            val decoded = fromBytesFunc(bytes)
-//            println(s"current: $current")
-//            println(s"decoded: $decoded")
-//
-//            val prevBytes = if (skipHashBytes) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
-//            val currentBytes = if (skipHashBytes) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
-//            val (isSame, orderPreserved) = (current, decoded) match {
-//              case (c: v2.EdgeQualifier, d: v2.EdgeQualifier) if (idxProps.map(_._1).contains(toSeq)) =>
-//                /** _to is used in indexProps */
-//                (c.props.map(_._2) == d.props.map(_._2) && c.op == d.op, Bytes.compareTo(currentBytes, prevBytes) <= 0)
-//              case _ =>
-//                (current == decoded, lessThan(currentBytes, prevBytes))
-//            }
-//
-//            println(s"$current ${bytes.toList}")
-//            println(s"$prev ${prev.bytes.toList}")
-//            println(s"SerDe[$isSame], Order[$orderPreserved]")
-//            prev = current
-//            isSame && orderPreserved
-//          }
-//        rets.forall(x => x)
-//      }
-//    rets.forall(x => x)
-//  }
-//  def testOrderReverse(idxPropsLs: Seq[Seq[(Byte, InnerValLike)]], innerVals: Iterable[InnerValLike],
-//                       skipHashBytes: Boolean = false)
-//                      (createFunc: (Seq[(Byte, InnerValLike)], InnerValLike) => HBaseSerializable,
-//                       fromBytesFunc: Array[Byte] => HBaseSerializable) = {
-//    /** check if increasing target vertex id is ordered properly with same indexProps */
-//    val rets = for {
-//      innerVal <- innerVals
-//    } yield {
-//        val head = createFunc(idxPropsLs.head, innerVal)
-//        val start = head
-//        var prev = head
-//        val rets = for {
-//          idxProps <- idxPropsLs.tail
-//        } yield {
-//            val current = createFunc(idxProps, innerVal)
-//            val bytes = current.bytes
-//            val decoded = fromBytesFunc(bytes)
-//            println(s"current: $current")
-//            println(s"decoded: $decoded")
-//
-//            val prevBytes = if (skipHashBytes) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
-//            val currentBytes = if (skipHashBytes) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
-//            val (isSame, orderPreserved) = (current, decoded) match {
-//              case (c: v2.EdgeQualifier, d: v2.EdgeQualifier) if (idxProps.map(_._1).contains(toSeq)) =>
-//                /** _to is used in indexProps */
-//                (c.props.map(_._2) == d.props.map(_._2) && c.op == d.op, Bytes.compareTo(currentBytes, prevBytes) <= 0)
-//              case _ =>
-//                (current == decoded, lessThan(currentBytes, prevBytes))
-//            }
-//
-//            println(s"$current ${bytes.toList}")
-//            println(s"$prev ${prev.bytes.toList}")
-//            println(s"SerDe[$isSame], Order[$orderPreserved]")
-//            prev = current
-//            isSame && orderPreserved
-//          }
-//
-//        rets.forall(x => x)
-//      }
-//
-//    rets.forall(x => x)
-//  }
-//
-//
-//  def putToKeyValues(put: PutRequest) = {
-//    val ts = put.timestamp()
-//    for ((q, v) <- put.qualifiers().zip(put.values)) yield {
-//      new KeyValue(put.key(), put.family(), q, ts, v)
-//    }
-//  }
+  //
+  //  def testOrder(idxPropsLs: Seq[Seq[(Byte, InnerValLike)]],
+  //                innerVals: Iterable[InnerValLike], skipHashBytes: Boolean = false)
+  //               (createFunc: (Seq[(Byte, InnerValLike)], InnerValLike) => HBaseSerializable,
+  //                fromBytesFunc: Array[Byte] => HBaseSerializable) = {
+  //    /** check if increasing target vertex id is ordered properly with same indexProps */
+  //    val rets = for {
+  //      idxProps <- idxPropsLs
+  //    } yield {
+  //        val head = createFunc(idxProps, innerVals.head)
+  //        val start = head
+  //        var prev = head
+  //        val rets = for {
+  //          innerVal <- innerVals.tail
+  //        } yield {
+  //            val current = createFunc(idxProps, innerVal)
+  //            val bytes = current.bytes
+  //            val decoded = fromBytesFunc(bytes)
+  //            println(s"current: $current")
+  //            println(s"decoded: $decoded")
+  //
+  //            val prevBytes = if (skipHashBytes) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
+  //            val currentBytes = if (skipHashBytes) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
+  //            val (isSame, orderPreserved) = (current, decoded) match {
+  //              case (c: v2.EdgeQualifier, d: v2.EdgeQualifier) if (idxProps.map(_._1).contains(toSeq)) =>
+  //                /** _to is used in indexProps */
+  //                (c.props.map(_._2) == d.props.map(_._2) && c.op == d.op, Bytes.compareTo(currentBytes, prevBytes) <= 0)
+  //              case _ =>
+  //                (current == decoded, lessThan(currentBytes, prevBytes))
+  //            }
+  //
+  //            println(s"$current ${bytes.toList}")
+  //            println(s"$prev ${prev.bytes.toList}")
+  //            println(s"SerDe[$isSame], Order[$orderPreserved]")
+  //            prev = current
+  //            isSame && orderPreserved
+  //          }
+  //        rets.forall(x => x)
+  //      }
+  //    rets.forall(x => x)
+  //  }
+  //  def testOrderReverse(idxPropsLs: Seq[Seq[(Byte, InnerValLike)]], innerVals: Iterable[InnerValLike],
+  //                       skipHashBytes: Boolean = false)
+  //                      (createFunc: (Seq[(Byte, InnerValLike)], InnerValLike) => HBaseSerializable,
+  //                       fromBytesFunc: Array[Byte] => HBaseSerializable) = {
+  //    /** check if increasing target vertex id is ordered properly with same indexProps */
+  //    val rets = for {
+  //      innerVal <- innerVals
+  //    } yield {
+  //        val head = createFunc(idxPropsLs.head, innerVal)
+  //        val start = head
+  //        var prev = head
+  //        val rets = for {
+  //          idxProps <- idxPropsLs.tail
+  //        } yield {
+  //            val current = createFunc(idxProps, innerVal)
+  //            val bytes = current.bytes
+  //            val decoded = fromBytesFunc(bytes)
+  //            println(s"current: $current")
+  //            println(s"decoded: $decoded")
+  //
+  //            val prevBytes = if (skipHashBytes) prev.bytes.drop(GraphUtil.bytesForMurMurHash) else prev.bytes
+  //            val currentBytes = if (skipHashBytes) bytes.drop(GraphUtil.bytesForMurMurHash) else bytes
+  //            val (isSame, orderPreserved) = (current, decoded) match {
+  //              case (c: v2.EdgeQualifier, d: v2.EdgeQualifier) if (idxProps.map(_._1).contains(toSeq)) =>
+  //                /** _to is used in indexProps */
+  //                (c.props.map(_._2) == d.props.map(_._2) && c.op == d.op, Bytes.compareTo(currentBytes, prevBytes) <= 0)
+  //              case _ =>
+  //                (current == decoded, lessThan(currentBytes, prevBytes))
+  //            }
+  //
+  //            println(s"$current ${bytes.toList}")
+  //            println(s"$prev ${prev.bytes.toList}")
+  //            println(s"SerDe[$isSame], Order[$orderPreserved]")
+  //            prev = current
+  //            isSame && orderPreserved
+  //          }
+  //
+  //        rets.forall(x => x)
+  //      }
+  //
+  //    rets.forall(x => x)
+  //  }
+  //
+  //
+  //  def putToKeyValues(put: PutRequest) = {
+  //    val ts = put.timestamp()
+  //    for ((q, v) <- put.qualifiers().zip(put.values)) yield {
+  //      new KeyValue(put.key(), put.family(), q, ts, v)
+  //    }
+  //  }
 }

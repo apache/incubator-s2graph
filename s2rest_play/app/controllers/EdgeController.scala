@@ -2,7 +2,7 @@ package controllers
 
 import actors.QueueActor
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls.Label
+import com.kakao.s2graph.core.mysqls.{Label}
 import com.kakao.s2graph.core.rest.RequestParser
 import com.kakao.s2graph.core.utils.logger
 import config.Config

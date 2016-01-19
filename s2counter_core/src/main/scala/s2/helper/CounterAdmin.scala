@@ -1,5 +1,6 @@
 package s2.helper
 
+import com.kakao.s2graph.core.Graph
 import com.kakao.s2graph.core.mysqls.Label
 import com.typesafe.config.Config
 import play.api.libs.json.Json
@@ -18,11 +19,13 @@ class CounterAdmin(config: Config) {
   val s2config = new S2CounterConfig(config)
   val counterModel = new CounterModel(config)
   val graphOp = new GraphOperation(config)
+  val s2graph = new Graph(config)(scala.concurrent.ExecutionContext.global)
+  val storageManagement = new com.kakao.s2graph.core.Management(s2graph)
 
   def setupCounterOnGraph(): Unit = {
     // create s2counter service
     val service = "s2counter"
-    com.kakao.s2graph.core.Management.createService(service, s2config.HBASE_ZOOKEEPER_QUORUM, s"$service-${config.getString("phase")}", 1, None, "gz")
+    storageManagement.createService(service, s2config.HBASE_ZOOKEEPER_QUORUM, s"$service-${config.getString("phase")}", 1, None, "gz")
     // create bucket label
     val label = "s2counter_topK_bucket"
     if (Label.findByName(label, useCache = false).isEmpty) {

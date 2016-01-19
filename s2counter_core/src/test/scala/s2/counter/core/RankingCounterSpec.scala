@@ -1,5 +1,6 @@
 package s2.counter.core
 
+import com.kakao.s2graph.core.{Management, Graph}
 import com.kakao.s2graph.core.mysqls.Label
 import com.typesafe.config.ConfigFactory
 import org.specs2.mutable.Specification
@@ -70,7 +71,9 @@ class RankingCounterSpec extends Specification with BeforeAfterAll {
       }
 
       val graphOp = new GraphOperation(config)
-      com.kakao.s2graph.core.Management.createService(service, s2config.HBASE_ZOOKEEPER_QUORUM, s"${service}_dev", 1, None, "gz")
+      val graph = new Graph(config)(scala.concurrent.ExecutionContext.global)
+      val management = new Management(graph)
+      management.createService(service, s2config.HBASE_ZOOKEEPER_QUORUM, s"${service}_dev", 1, None, "gz")
       val strJs =
         s"""
            |{

@@ -48,3 +48,10 @@ lazy val s2ml = project.settings(commonSettings: _*)
 lazy val root = (project in file("."))
   .aggregate(s2core, s2rest_play)
   .settings(commonSettings: _*)
+
+lazy val runRatTask = taskKey[Unit]("Runs Apache rat on S2Graph")
+
+runRatTask := {
+  "sh bin/run-rat.sh" !
+}
+
