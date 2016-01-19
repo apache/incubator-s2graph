@@ -506,12 +506,4 @@ class RequestParser(config: Config) extends JSONParser {
     val vertices = toVertices(labelName, direction, ids)
     (labels, direction, ids, ts, vertices)
   }
-
-  def toSingleDeleteParam(json: JsValue) = {
-    val from = (json \ "from").as[Long]
-    val to = (json \ "from").as[Long]
-    val label = (json \ "label").as[String]
-    val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
-    (from, to, label, ts)
-  }
 }
