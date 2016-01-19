@@ -79,7 +79,7 @@ abstract class Storage(implicit ec: ExecutionContext) {
 
   def deleteAllAdjacentEdges(srcVertices: Seq[Vertex], labels: Seq[Label], dir: Int, ts: Long): Future[Boolean]
 
-  def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]]
+  def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]]
 
   def flush(): Unit
 

@@ -197,22 +197,25 @@ class AsynchbaseStorage(val config: Config, vertexCache: Cache[Integer, Option[V
     }
   }
 
-  def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = {
+  def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]] = {
+    val _client = if (withWait) clientWithFlush else client
     val defers: Seq[Deferred[(Boolean, Long)]] = for {
       edge <- edges
     } yield {
-      val edgeWithIndex = edge.edgesWithIndex.head
-      val countWithTs = edge.propsWithTs(LabelMeta.countSeq)
-      val countVal = countWithTs.innerVal.toString().toLong
-      val incr = mutationBuilder.buildIncrementsCountAsync(edgeWithIndex, countVal).head
-      val request = incr.asInstanceOf[AtomicIncrementRequest]
-      client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>
-        (true, resultCount.longValue())
-      } recoverWith { ex =>
-        logger.error(s"mutation failed. $request", ex)
-        (false, -1L)
+        val edgeWithIndex = edge.edgesWithIndex.head
+        val countWithTs = edge.propsWithTs(LabelMeta.countSeq)
+        val countVal = countWithTs.innerVal.toString().toLong
+        val incr = mutationBuilder.buildIncrementsCountAsync(edgeWithIndex, countVal).head
+        val request = incr.asInstanceOf[AtomicIncrementRequest]
+        val defer = _client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>
+          (true, resultCount.longValue())
+        } recoverWith { ex =>
+          logger.error(s"mutation failed. $request", ex)
+          (false, -1L)
+        }
+        if (withWait) defer
+        else Deferred.fromResult((true, -1L))
       }
-    }
 
     val grouped: Deferred[util.ArrayList[(Boolean, Long)]] = Deferred.groupInOrder(defers)
     grouped.toFuture.map(_.toSeq)
