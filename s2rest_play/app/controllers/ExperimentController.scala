@@ -3,9 +3,11 @@ package controllers
 
 import com.kakao.s2graph.core.rest.RestHandler
 import play.api.mvc._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 object ExperimentController extends Controller {
   private val rest: RestHandler = com.kakao.s2graph.rest.Global.s2rest
+
 
   import ApplicationController._
 
