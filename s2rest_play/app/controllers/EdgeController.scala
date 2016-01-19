@@ -32,11 +32,12 @@ object EdgeController extends Controller {
     val from = jsToStr(jsValue \ "from")
     val to = jsToStr(jsValue \ "to")
     val label = jsToStr(jsValue \ "label")
-    val props = jsValue \ "props"
-    val direction = (jsValue \ "direction").asOpt[String]
+    val props = (jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj())
 
-    if (direction.isDefined) Seq(ts, op, "e", from, to, label, props, direction.get).mkString("\t")
-    else Seq(ts, op, "e", from, to, label, props).mkString("\t")
+    (jsValue \ "direction").asOpt[String] match {
+      case None => Seq(ts, op, "e", from, to, label, props).mkString("\t")
+      case Some(dir) => Seq(ts, op, "e", from, to, label, props, dir).mkString("\t")
+    }
   }
 
   def tryMutates(jsValue: JsValue, operation: String, withWait: Boolean = false): Future[Result] = {
