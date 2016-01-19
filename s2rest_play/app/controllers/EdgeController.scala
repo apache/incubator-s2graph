@@ -47,11 +47,11 @@ object EdgeController extends Controller {
         logger.debug(s"$jsValue")
         val edges = requestParser.toEdges(jsValue, operation)
 
-        for (edge <- edges) {
+        for ((edge, orgJs) <- edges.zip(jsValue.as[Seq[JsValue]])) {
           if (edge.isAsync)
-            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC_ASYNC, edge, Option(toTsv(jsValue, operation))))
+            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC_ASYNC, edge, Option(toTsv(orgJs, operation))))
           else
-            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC, edge, Option(toTsv(jsValue, operation))))
+            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC, edge, Option(toTsv(orgJs, operation))))
         }
 
         val edgesToStore = edges.filterNot(e => e.isAsync)
