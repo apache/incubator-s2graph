@@ -352,6 +352,13 @@ class RequestParser(config: Config) extends JSONParser {
 
   }
 
+  def toEdgesWithOrg(jsValue: JsValue, operation: String): (List[Edge], List[JsValue]) = {
+    val jsValues = toJsValues(jsValue)
+    val edges = jsValues.map(toEdge(_, operation))
+
+    (edges, jsValues)
+  }
+
   def toEdges(jsValue: JsValue, operation: String): List[Edge] = {
     toJsValues(jsValue).map(toEdge(_, operation))
   }
