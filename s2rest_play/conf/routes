@@ -23,6 +23,7 @@ POST        /graphs/edges/deleteAll                                       contro
 POST        /graphs/edges/update                                          controllers.EdgeController.updates()
 POST        /graphs/edges/updateWithWait                                  controllers.EdgeController.updatesWithWait()
 POST        /graphs/edges/increment                                       controllers.EdgeController.increments()
+POST        /graphs/edges/incrementWithWait                               controllers.EdgeController.incrementsWithWait()
 POST        /graphs/edges/incrementCount                                  controllers.EdgeController.incrementCounts()
 POST        /graphs/edges/bulk                                            controllers.EdgeController.mutateBulk()
 POST        /graphs/edges/bulkWithWait                                    controllers.EdgeController.mutateBulkWithWait()
