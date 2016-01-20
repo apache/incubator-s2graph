@@ -182,30 +182,35 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
     val queryParam = queryRequest.queryParam
     val cacheTTL = queryParam.cacheTTLInMillis
     val request = buildRequest(queryRequest)
-    if (cacheTTL <= 0) fetchInner(request)
-    else {
-      val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
-      val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
+    val defer =
+      if (cacheTTL <= 0) fetchInner(request)
+      else {
+        val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
+        val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
 
-      val cacheVal = futureCache.getIfPresent(cacheKey)
-      cacheVal match {
-        case null =>
-          // here there is no promise set up for this cacheKey so we need to set promise on future cache.
-          val promise = new Deferred[QueryRequestWithResult]()
-          val now = System.currentTimeMillis()
-          val (cachedAt, defer) = futureCache.asMap().putIfAbsent(cacheKey, (now, promise)) match {
-            case null =>
-              fetchInner(request) withCallback { queryRequestWithResult =>
-                promise.callback(queryRequestWithResult)
-                queryRequestWithResult
-              }
-              (now, promise)
-            case oldVal => oldVal
-          }
-          checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
-        case (cachedAt, defer) =>
-          checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
+        val cacheVal = futureCache.getIfPresent(cacheKey)
+        cacheVal match {
+          case null =>
+            // here there is no promise set up for this cacheKey so we need to set promise on future cache.
+            val promise = new Deferred[QueryRequestWithResult]()
+            val now = System.currentTimeMillis()
+            val (cachedAt, defer) = futureCache.asMap().putIfAbsent(cacheKey, (now, promise)) match {
+              case null =>
+                fetchInner(request) withCallback { queryRequestWithResult =>
+                  promise.callback(queryRequestWithResult)
+                  queryRequestWithResult
+                }
+                (now, promise)
+              case oldVal => oldVal
+            }
+            checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
+          case (cachedAt, defer) =>
+            checkAndExpire(request, cacheKey, cacheTTL, cachedAt, defer)
+        }
       }
+
+    defer.withCallback { queryRequestWithResult =>
+      queryRequestWithResult.copy(queryRequest = queryRequest)
     }
   }
 
