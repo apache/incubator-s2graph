@@ -173,7 +173,8 @@ object EdgeController extends Controller {
   }
 
   def deleteAll() = withHeaderAsync(jsonParser) { request =>
-    deleteAllInner(request.body, withWait = false)
+//    deleteAllInner(request.body, withWait = false)
+    deleteAllInner(request.body, withWait = true)
   }
 
   def deleteAllInner(jsValue: JsValue, withWait: Boolean) = {
