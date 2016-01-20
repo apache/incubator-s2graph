@@ -21,13 +21,12 @@ object EdgeController extends Controller {
 
   private val s2: Graph = com.kakao.s2graph.rest.Global.s2graph
   private val requestParser: RequestParser = com.kakao.s2graph.rest.Global.s2parser
+  private def jsToStr(js: JsValue): String = js match {
+    case JsString(s) => s
+    case _ => js.toString()
+  }
 
   def toTsv(jsValue: JsValue, op: String): String = {
-    def jsToStr(js: JsValue): String = js match {
-      case JsString(s) => s
-      case _ => js.toString()
-    }
-
     val ts = jsToStr(jsValue \ "timestamp")
     val from = jsToStr(jsValue \ "from")
     val to = jsToStr(jsValue \ "to")
@@ -105,8 +104,6 @@ object EdgeController extends Controller {
         val rets = elementsToStore.map { element => QueueActor.router ! element; true }
         Future.successful(jsonResponse(Json.toJson(rets)))
       }
-
-
     } catch {
       case e: GraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
       case e: Throwable =>
@@ -185,7 +182,7 @@ object EdgeController extends Controller {
         id <- ids
         label <- labels
       } yield {
-        val tsv = Seq(ts, "deleteAll", "e", id, id, label.label, "{}", direction).mkString("\t")
+        val tsv = Seq(ts, "deleteAll", "e", jsToStr(id), jsToStr(id), label.label, "{}", direction).mkString("\t")
         val topic = topicOpt.getOrElse {
           if (label.isAsync) Config.KAFKA_LOG_TOPIC_ASYNC else Config.KAFKA_LOG_TOPIC
         }

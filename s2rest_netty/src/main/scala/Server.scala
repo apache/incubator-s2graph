@@ -87,11 +87,11 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
         case e: BadQueryException =>
           logger.error(s"{$requestBody}, ${e.getMessage}", e)
           val buf: ByteBuf = Unpooled.copiedBuffer(PostProcess.badRequestResults(e).toString, CharsetUtil.UTF_8)
-          simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = closeOpt, headers = headers.result())
+          simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = CloseOpt, headers = headers.result())
         case e: Exception =>
           logger.error(s"${requestBody}, ${e.getMessage}", e)
           val buf: ByteBuf = Unpooled.copiedBuffer(PostProcess.emptyResults.toString, CharsetUtil.UTF_8)
-          simpleResponse(ctx, InternalServerError, byteBufOpt = Option(buf), channelFutureListenerOpt = closeOpt, headers = headers.result())
+          simpleResponse(ctx, InternalServerError, byteBufOpt = Option(buf), channelFutureListenerOpt = CloseOpt, headers = headers.result())
       }
     }
   }
