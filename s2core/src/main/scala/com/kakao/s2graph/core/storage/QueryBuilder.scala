@@ -25,11 +25,11 @@ abstract class QueryBuilder[R, T](storage: Storage)(implicit ec: ExecutionContex
               prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[QueryRequestWithResult]]
 
 
-  def fetchStep(queryRequestWithResultsLs: Seq[QueryRequestWithResult]): Future[Seq[QueryRequestWithResult]] = {
+  def fetchStep(orgQuery: Query, queryRequestWithResultsLs: Seq[QueryRequestWithResult]): Future[Seq[QueryRequestWithResult]] = {
     if (queryRequestWithResultsLs.isEmpty) Future.successful(Nil)
     else {
       val queryRequest = queryRequestWithResultsLs.head.queryRequest
-      val q = queryRequest.query
+      val q = orgQuery
       val queryResultsLs = queryRequestWithResultsLs.map(_.queryResult)
 
       val stepIdx = queryRequest.stepIdx + 1
@@ -72,10 +72,10 @@ abstract class QueryBuilder[R, T](storage: Storage)(implicit ec: ExecutionContex
     }
   }
 
-  def fetchStepFuture(queryRequestWithResultLsFuture: Future[Seq[QueryRequestWithResult]]): Future[Seq[QueryRequestWithResult]] = {
+  def fetchStepFuture(orgQuery: Query, queryRequestWithResultLsFuture: Future[Seq[QueryRequestWithResult]]): Future[Seq[QueryRequestWithResult]] = {
     for {
       queryRequestWithResultLs <- queryRequestWithResultLsFuture
-      ret <- fetchStep(queryRequestWithResultLs)
+      ret <- fetchStep(orgQuery, queryRequestWithResultLs)
     } yield ret
   }
 
@@ -92,7 +92,7 @@ abstract class QueryBuilder[R, T](storage: Storage)(implicit ec: ExecutionContex
         // current stepIdx = -1
         val startQueryResultLs = QueryResult.fromVertices(q)
         q.steps.foldLeft(Future.successful(startQueryResultLs)) { case (acc, step) =>
-          fetchStepFuture(acc)
+          fetchStepFuture(q, acc)
         }
       }
     } recover {
