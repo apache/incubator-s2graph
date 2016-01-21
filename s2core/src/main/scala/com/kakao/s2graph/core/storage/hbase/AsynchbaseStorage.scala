@@ -191,6 +191,12 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
     }
   }
 
+  def mutateVertices(vertices: Seq[Vertex],
+                     withWait: Boolean = false): Future[Seq[Boolean]] = {
+    val futures = vertices.map { vertex => mutateVertex(vertex, withWait) }
+    Future.sequence(futures)
+  }
+
   def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = {
     val defers: Seq[Deferred[(Boolean, Long)]] = for {
       edge <- edges
