@@ -7,4 +7,6 @@ object Common {
   //  lazy val hbaseVersion = "1.0.0-cdh5.4.5"
   lazy val hadoopVersion = "2.7.0"
   //  lazy val hadoopVersion = "2.6.0-cdh5.4.5"
+
+  lazy val s2lambdaSparkVersion = "1.6.0"
 }

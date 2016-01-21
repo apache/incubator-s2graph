@@ -1,0 +1,20 @@
+{
+  "name": "streamingWordCount",
+  "comment": "StreamingWordCount like NetworkWordCount"
+  "streamContainer": {
+    "class": "org.apache.s2graph.lambda.source.FileStreamContainer",
+    "params": {
+      "interval": 1,
+      "path": ".",
+      "timeout": 10000
+    }
+  },
+  "processors": [
+    {
+      "class": "org.apache.s2graph.lambda.example.WordCount",
+    },
+    {
+      "class": "org.apache.s2graph.lambda.util.Inspector"
+    }
+  ]
+}

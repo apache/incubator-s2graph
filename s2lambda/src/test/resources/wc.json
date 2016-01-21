@@ -1,0 +1,21 @@
+{
+  "name": "wordCount",
+  "comment": "Word Count in https://spark.apache.org/examples.html",
+  "processors": [
+    {
+      "class": "org.apache.s2graph.lambda.source.TextFile",
+      "params": {
+        "path": "LICENSE"
+      }
+    },
+    {
+      "class": "org.apache.s2graph.lambda.util.Inspector"
+    },
+    {
+      "class": "org.apache.s2graph.lambda.example.WordCount"
+    },
+    {
+      "class": "org.apache.s2graph.lambda.util.Inspector"
+    }
+  ]
+}
