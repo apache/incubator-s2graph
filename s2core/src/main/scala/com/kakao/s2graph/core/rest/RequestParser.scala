@@ -5,6 +5,7 @@ import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
 import com.kakao.s2graph.core.types._
+import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.Config
 import play.api.libs.json._
 
@@ -120,7 +121,7 @@ class RequestParser(config: Config) extends JSONParser {
     val queries = for {
       queryJson <- (jsValue \ "queries").asOpt[Seq[JsValue]].getOrElse(Seq.empty)
     } yield {
-      toQuery(jsValue, isEdgeQuery)
+      toQuery(queryJson, isEdgeQuery)
     }
     val weights = (jsValue \ "weights").asOpt[Seq[Double]].getOrElse(queries.map(_ => 1.0))
     MultiQuery(queries = queries, weights = weights, queryOption = toQueryOption(jsValue))

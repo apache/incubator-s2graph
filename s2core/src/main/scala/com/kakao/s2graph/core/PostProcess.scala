@@ -167,8 +167,9 @@ object PostProcess extends JSONParser {
 
   private def buildRawEdges(queryOption: QueryOption,
                             queryRequestWithResultLs: Seq[QueryRequestWithResult],
-                            exclude: Seq[QueryRequestWithResult]): (ListBuffer[JsValue], ListBuffer[RAW_EDGE]) = {
-    val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
+                            excludeIds: Map[Int, Boolean],
+                            scoreWeight: Double = 1.0): (ListBuffer[JsValue], ListBuffer[RAW_EDGE]) = {
+
     val degrees = ListBuffer[JsValue]()
     val rawEdges = ListBuffer[(EDGE_VALUES, Double, ORDER_BY_VALUES)]()
 
@@ -232,7 +233,7 @@ object PostProcess extends JSONParser {
             (v1, v2, v3, v4)
         }
 
-        val currentEdge = (keyWithJs, score, orderByValues)
+        val currentEdge = (keyWithJs, score * scoreWeight, orderByValues)
         rawEdges += currentEdge
       }
     }
@@ -241,10 +242,25 @@ object PostProcess extends JSONParser {
 
   private def buildResultJsValue(queryOption: QueryOption,
                                  degrees: ListBuffer[JsValue],
-                                 rawEdges: ListBuffer[RAW_EDGE]): JsValue = {
-    if (rawEdges.isEmpty) {
+                                 _rawEdges: ListBuffer[RAW_EDGE]): JsValue = {
+    if (_rawEdges.isEmpty) {
       Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr())
     } else {
+      val rawEdges =
+        if (queryOption.selectColumns.isEmpty) _rawEdges
+        else {
+
+          for {
+            (edgeMap, score, extra) <- _rawEdges
+          } yield {
+            val newEdgeMap = for {
+              selectColumn <- queryOption.selectColumns
+              edgeVal <- edgeMap.get(selectColumn)
+            } yield selectColumn -> edgeVal
+            (newEdgeMap.toMap, score, extra)
+          }
+        }
+
       if (queryOption.groupByColumns.isEmpty) {
         // ordering
         val ordered = orderBy(queryOption, rawEdges)
@@ -311,17 +327,29 @@ object PostProcess extends JSONParser {
     }
   }
 
-  def toSimpleVertexArrJsonMulti(queryOption: QueryOption, resultLs: Seq[Seq[QueryRequestWithResult]],
-                                 excludeLs: Seq[Seq[QueryRequestWithResult]]): JsValue = {
+  def toSimpleVertexArrJsonMulti(queryOption: QueryOption,
+                                 resultWithExcludeLs: Seq[(Seq[QueryRequestWithResult], Seq[QueryRequestWithResult])],
+                                 excludes: Seq[QueryRequestWithResult]): JsValue = {
+    val excludeIds = resultInnerIds(excludes).map(innerId => innerId -> true).toMap
+
 
     val (degrees, rawEdges) = (ListBuffer.empty[JsValue], ListBuffer.empty[RAW_EDGE])
     for {
-      (result, exclude) <- resultLs.zip(excludeLs)
+      (result, localExclude) <- resultWithExcludeLs
     } {
-      val (_degrees, _rawEdges) = buildRawEdges(queryOption, result, exclude)
+      val localExcludeIds = resultInnerIds(localExclude).map(innerId => innerId -> true).toMap
+      val (_degrees, _rawEdges) = buildRawEdges(queryOption, result, localExcludeIds ++ excludeIds)
       degrees ++= _degrees
       rawEdges ++= _rawEdges
     }
+    buildResultJsValue(queryOption, degrees, rawEdges)
+  }
+
+  def toSimpleVertexArrJson(queryOption: QueryOption,
+                            queryRequestWithResultLs: Seq[QueryRequestWithResult],
+                            exclude: Seq[QueryRequestWithResult]): JsValue = {
+    val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
+    val (degrees, rawEdges) = buildRawEdges(queryOption, queryRequestWithResultLs, excludeIds)
     buildResultJsValue(queryOption, degrees, rawEdges)
   }
 
@@ -332,8 +360,8 @@ object PostProcess extends JSONParser {
     val (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResultLs.head).get
     val query = queryRequest.query
     val queryOption = query.queryOption
-
-    val (degrees, rawEdges) = buildRawEdges(queryOption, queryRequestWithResultLs, exclude)
+    val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
+    val (degrees, rawEdges) = buildRawEdges(queryOption, queryRequestWithResultLs, excludeIds)
     buildResultJsValue(queryOption, degrees, rawEdges)
   }
 

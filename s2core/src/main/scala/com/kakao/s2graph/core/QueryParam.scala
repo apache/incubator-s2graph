@@ -30,7 +30,6 @@ object Query {
       }
     }
   }
-
 }
 
 case class QueryOption(removeCycle: Boolean = false,

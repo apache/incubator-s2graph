@@ -8,6 +8,7 @@ import com.kakao.s2graph.core.mysqls.{Bucket, Experiment, Service}
 import com.kakao.s2graph.core.utils.logger
 import play.api.libs.json._
 
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
@@ -133,7 +134,51 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
     val fetch = eachQuery(post) _
     jsonQuery match {
       case JsArray(arr) => Future.traverse(arr.map(s2Parser.toQuery(_)))(fetch).map(JsArray)
-      case obj@JsObject(_) => fetch(s2Parser.toQuery(obj))
+      case obj@JsObject(_) =>
+        (obj \ "queries").asOpt[JsValue] match {
+          case None => fetch(s2Parser.toQuery(obj))
+          case _ =>
+            val multiQuery = s2Parser.toMultiQuery(obj)
+            val filterOutFuture = multiQuery.queryOption.filterOutQuery match {
+              case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
+              case None => Future.successful(Seq.empty)
+            }
+            val futures = multiQuery.queries.zip(multiQuery.weights).map { case (query, weight) =>
+              val filterOutQueryResultsLs = query.queryOption.filterOutQuery match {
+                case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
+                case None => Future.successful(Seq.empty)
+              }
+              for {
+                queryRequestWithResultLs <- graph.getEdges(query)
+                filterOutResultsLs <- filterOutQueryResultsLs
+              } yield {
+                val newQueryRequestWithResult = for {
+                  queryRequestWithResult <- queryRequestWithResultLs
+                  queryResult = queryRequestWithResult.queryResult
+                } yield {
+                  val newEdgesWithScores = for {
+                    edgeWithScore <- queryRequestWithResult.queryResult.edgeWithScoreLs
+                  } yield {
+                    edgeWithScore.copy(score = edgeWithScore.score * weight)
+                  }
+                  queryRequestWithResult.copy(queryResult = queryResult.copy(edgeWithScoreLs = newEdgesWithScores))
+                }
+                logger.debug(s"[Size]: ${newQueryRequestWithResult.map(_.queryResult.edgeWithScoreLs.size).sum}")
+                (newQueryRequestWithResult, filterOutResultsLs)
+              }
+            }
+            for {
+              filterOut <- filterOutFuture
+              resultWithExcludeLs <- Future.sequence(futures)
+            } yield {
+              PostProcess.toSimpleVertexArrJsonMulti(multiQuery.queryOption, resultWithExcludeLs, filterOut)
+//              val initial = (ListBuffer.empty[QueryRequestWithResult], ListBuffer.empty[QueryRequestWithResult])
+//              val (results, excludes) = resultWithExcludeLs.foldLeft(initial) { case ((prevResults, prevExcludes), (results, excludes)) =>
+//                (prevResults ++= results, prevExcludes ++= excludes)
+//              }
+//              PostProcess.toSimpleVertexArrJson(multiQuery.queryOption, results, excludes ++ filterOut)
+            }
+        }
       case _ => throw BadQueryException("Cannot support")
     }
   }
