@@ -43,7 +43,7 @@ lazy val s2counter_core = project.dependsOn(s2core)
 lazy val s2counter_loader = project.dependsOn(s2counter_core, spark)
   .settings(commonSettings: _*)
 
-lazy val s2lambda = project.settings(commonSettings: _*)
+lazy val s2lambda = project.dependsOn(s2core).settings(commonSettings: _*)
 
 lazy val root = (project in file("."))
   .aggregate(s2core, s2rest_play)
