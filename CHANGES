@@ -14,6 +14,9 @@ Release 0.12.1 - unreleased
 
   TASKS
 
+    S2GRAPH-2: Update document and quick start environment to have recent set-up command changes.
+               (Contributed by Hyunsung Jo<hyunsung.jo@gmail.com>, committed by daewon)
+
     S2GRAPH-5: Add Apache RAT to valid LICENSE errors. (Committed by DOYUNG YOON).
 
   SUB TASKS
