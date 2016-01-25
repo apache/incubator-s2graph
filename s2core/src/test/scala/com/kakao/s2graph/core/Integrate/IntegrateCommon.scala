@@ -6,7 +6,7 @@ import com.kakao.s2graph.core.rest.RequestParser
 import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config._
 import org.scalatest._
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.{JsObject, JsValue, Json}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -33,8 +33,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
   }
 
   /**
-    * Make Service, Label, Vertex for integrate test
-    */
+   * Make Service, Label, Vertex for integrate test
+   */
   def initTestData() = {
     println("[init start]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     Management.deleteService(testServiceName)
@@ -83,8 +83,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
 
   /**
-    * Test Helpers
-    */
+   * Test Helpers
+   */
   object TestUtil {
     implicit def ec = scala.concurrent.ExecutionContext.global
 
@@ -113,48 +113,89 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     def getEdgesSync(queryJson: JsValue): JsValue = {
       logger.info(Json.prettyPrint(queryJson))
 
-      val ret = graph.getEdges(parser.toQuery(queryJson))
-      val result = Await.result(ret, HttpRequestWaitingTime)
-      val jsResult = PostProcess.toSimpleVertexArrJson(result)
+      queryJson match {
+        case obj@JsObject(_) =>
+          (obj \ "queries").asOpt[JsValue] match {
+            case None =>  // regular query
+              val future = graph.getEdges(parser.toQuery(obj))
+              val result = Await.result(future, HttpRequestWaitingTime)
+              PostProcess.toSimpleVertexArrJson(result)
+            case _ =>  // weighted union query
+              val multiQuery = parser.toMultiQuery(obj)
+              val filterOutFuture = multiQuery.queryOption.filterOutQuery match {
+                case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
+                case None => Future.successful(Seq.empty)
+              }
+              val futures = multiQuery.queries.zip(multiQuery.weights).map { case (query, weight) =>
+                val filterOutQueryResultsLs = query.queryOption.filterOutQuery match {
+                  case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
+                  case None => Future.successful(Seq.empty)
+                }
+                for {
+                  queryRequestWithResultLs <- graph.getEdges(query)
+                  filterOutResultsLs <- filterOutQueryResultsLs
+                } yield {
+                  val newQueryRequestWithResult = for {
+                    queryRequestWithResult <- queryRequestWithResultLs
+                    queryResult = queryRequestWithResult.queryResult
+                  } yield {
+                      val newEdgesWithScores = for {
+                        edgeWithScore <- queryRequestWithResult.queryResult.edgeWithScoreLs
+                      } yield {
+                          edgeWithScore.copy(score = edgeWithScore.score * weight)
+                        }
+                      queryRequestWithResult.copy(queryResult = queryResult.copy(edgeWithScoreLs = newEdgesWithScores))
+                    }
+                  logger.debug(s"[Size]: ${newQueryRequestWithResult.map(_.queryResult.edgeWithScoreLs.size).sum}")
+                  (newQueryRequestWithResult, filterOutResultsLs)
+                }
+              }
+              val f = for {
+                filterOut <- filterOutFuture
+                resultWithExcludeLs <- Future.sequence(futures)
+              } yield {
+                PostProcess.toSimpleVertexArrJsonMulti(multiQuery.queryOption, resultWithExcludeLs, filterOut)
+              }
+              Await.result(f, HttpRequestWaitingTime)
+          }
+      }
+  }
 
-      jsResult
-    }
+  def insertEdgesSync(bulkEdges: String*) = {
+    val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
+    val jsResult = Await.result(req, HttpRequestWaitingTime)
 
-    def insertEdgesSync(bulkEdges: String*) = {
-      val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
-      val jsResult = Await.result(req, HttpRequestWaitingTime)
+    jsResult
+  }
 
-      jsResult
-    }
+  def insertEdgesAsync(bulkEdges: String*) = {
+    val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
+    req
+  }
 
-    def insertEdgesAsync(bulkEdges: String*) = {
-      val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
-      req
-    }
+  def toEdge(elems: Any*): String = elems.mkString("\t")
 
-    def toEdge(elems: Any*): String = elems.mkString("\t")
+  // common tables
+  val testServiceName = "s2graph"
+  val testLabelName = "s2graph_label_test"
+  val testLabelName2 = "s2graph_label_test_2"
+  val testLabelNameV1 = "s2graph_label_test_v1"
+  val testLabelNameWeak = "s2graph_label_test_weak"
+  val testColumnName = "user_id_test"
+  val testColumnType = "long"
+  val testTgtColumnName = "item_id_test"
+  val testHTableName = "test-htable"
+  val newHTableName = "new-htable"
+  val index1 = "idx_1"
+  val index2 = "idx_2"
 
-    // common tables
-    val testServiceName = "s2graph"
-    val testLabelName = "s2graph_label_test"
-    val testLabelName2 = "s2graph_label_test_2"
-    val testLabelNameV1 = "s2graph_label_test_v1"
-    val testLabelNameWeak = "s2graph_label_test_weak"
-    val testColumnName = "user_id_test"
-    val testColumnType = "long"
-    val testTgtColumnName = "item_id_test"
-    val testHTableName = "test-htable"
-    val newHTableName = "new-htable"
-    val index1 = "idx_1"
-    val index2 = "idx_2"
+  val NumOfEachTest = 30
+  val HttpRequestWaitingTime = Duration("60 seconds")
 
-    val NumOfEachTest = 30
-    val HttpRequestWaitingTime = Duration("60 seconds")
+  val createService = s"""{"serviceName" : "$testServiceName"}"""
 
-    val createService = s"""{"serviceName" : "$testServiceName"}"""
-
-    val testLabelNameCreate =
-      s"""
+  val testLabelNameCreate =
+    s"""
   {
     "label": "$testLabelName",
     "srcServiceName": "$testServiceName",
@@ -195,8 +236,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "hTableName": "$testHTableName"
   }"""
 
-    val testLabelName2Create =
-      s"""
+  val testLabelName2Create =
+    s"""
   {
     "label": "$testLabelName2",
     "srcServiceName": "$testServiceName",
@@ -234,8 +275,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "compressionAlgorithm": "gz"
   }"""
 
-    val testLabelNameV1Create =
-      s"""
+  val testLabelNameV1Create =
+    s"""
   {
     "label": "$testLabelNameV1",
     "srcServiceName": "$testServiceName",
@@ -273,8 +314,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "compressionAlgorithm": "gz"
   }"""
 
-    val testLabelNameWeakCreate =
-      s"""
+  val testLabelNameWeakCreate =
+    s"""
   {
     "label": "$testLabelNameWeak",
     "srcServiceName": "$testServiceName",
@@ -310,5 +351,6 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "isDirected": true,
     "compressionAlgorithm": "gz"
   }"""
-  }
+}
+
 }
