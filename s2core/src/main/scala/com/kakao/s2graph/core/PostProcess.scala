@@ -4,6 +4,7 @@ import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 
 import com.kakao.s2graph.core.mysqls.{ColumnMeta, Label, ServiceColumn, LabelMeta}
 import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
+import com.kakao.s2graph.core.utils.logger
 import play.api.libs.json.{Json, _}
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
@@ -242,24 +243,10 @@ object PostProcess extends JSONParser {
 
   private def buildResultJsValue(queryOption: QueryOption,
                                  degrees: ListBuffer[JsValue],
-                                 _rawEdges: ListBuffer[RAW_EDGE]): JsValue = {
-    if (_rawEdges.isEmpty) {
+                                 rawEdges: ListBuffer[RAW_EDGE]): JsValue = {
+    if (rawEdges.isEmpty) {
       Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr())
     } else {
-      val rawEdges =
-        if (queryOption.selectColumns.isEmpty) _rawEdges
-        else {
-
-          for {
-            (edgeMap, score, extra) <- _rawEdges
-          } yield {
-            val newEdgeMap = for {
-              selectColumn <- queryOption.selectColumns
-              edgeVal <- edgeMap.get(selectColumn)
-            } yield selectColumn -> edgeVal
-            (newEdgeMap.toMap, score, extra)
-          }
-        }
 
       if (queryOption.groupByColumns.isEmpty) {
         // ordering
