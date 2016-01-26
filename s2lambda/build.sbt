@@ -7,6 +7,10 @@ scalacOptions ++= Seq("-deprecation")
 
 val sparkVersion = Common.s2lambdaSparkVersion
 
+projectDependencies := Seq(
+  (projectID in "s2core").value
+      exclude("org.mortbay.jetty", "*") exclude("javax.xml.stream", "*") exclude("javax.servlet", "*"))
+
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided" exclude("org.jboss.netty", "netty"),
   "org.apache.spark" %% "spark-hive" % sparkVersion % "provided",
