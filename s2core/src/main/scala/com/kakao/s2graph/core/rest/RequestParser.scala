@@ -354,31 +354,39 @@ class RequestParser(config: Config) extends JSONParser {
 
   def toEdgesWithOrg(jsValue: JsValue, operation: String): (List[Edge], List[JsValue]) = {
     val jsValues = toJsValues(jsValue)
-    val edges = jsValues.map(toEdge(_, operation))
+    val edges = jsValues.flatMap(toEdge(_, operation))
 
     (edges, jsValues)
   }
 
   def toEdges(jsValue: JsValue, operation: String): List[Edge] = {
-    toJsValues(jsValue).map(toEdge(_, operation))
+    toJsValues(jsValue).flatMap { edgeJson =>
+      toEdge(edgeJson, operation)
+    }
   }
 
-  def toEdge(jsValue: JsValue, operation: String) = {
 
-    val srcId = parse[JsValue](jsValue, "from") match {
+  private def toEdge(jsValue: JsValue, operation: String): List[Edge] = {
+
+    def parseId(js: JsValue) = js match {
       case s: JsString => s.as[String]
       case o@_ => s"${o}"
     }
-    val tgtId = parse[JsValue](jsValue, "to") match {
-      case s: JsString => s.as[String]
-      case o@_ => s"${o}"
-    }
+    val srcId = (jsValue \ "from").asOpt[JsValue].toList.map(parseId(_))
+    val tgtId = (jsValue \ "to").asOpt[JsValue].toList.map(parseId(_))
+    val srcIds = (jsValue \ "froms").asOpt[List[JsValue]].toList.flatMap(froms => froms.map(js => parseId(js))) ++ srcId
+    val tgtIds = (jsValue \ "tos").asOpt[List[JsValue]].toList.flatMap(froms => froms.map(js => parseId(js))) ++ tgtId
+
     val label = parse[String](jsValue, "label")
     val timestamp = parse[Long](jsValue, "timestamp")
     val direction = parse[Option[String]](jsValue, "direction").getOrElse("")
     val props = (jsValue \ "props").asOpt[JsValue].getOrElse("{}")
-    Management.toEdge(timestamp, operation, srcId, tgtId, label, direction, props.toString)
-
+    for {
+      srcId <- srcIds
+      tgtId <- tgtIds
+    } yield {
+      Management.toEdge(timestamp, operation, srcId, tgtId, label, direction, props.toString)
+    }
   }
 
   def toVertices(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None) = {
