@@ -8,7 +8,6 @@ import com.kakao.s2graph.core.mysqls.{Bucket, Experiment, Service}
 import com.kakao.s2graph.core.utils.logger
 import play.api.libs.json._
 
-import scala.collection.mutable.ListBuffer
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
@@ -128,7 +127,7 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
     }
   }
 
-  private def getEdgesAsync(jsonQuery: JsValue)
+  def getEdgesAsync(jsonQuery: JsValue)
                            (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
 
     val fetch = eachQuery(post) _
