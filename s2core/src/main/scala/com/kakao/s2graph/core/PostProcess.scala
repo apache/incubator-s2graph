@@ -327,7 +327,12 @@ object PostProcess extends JSONParser {
     } {
       val localExcludeIds = resultInnerIds(localExclude).map(innerId => innerId -> true).toMap
       excludeIds ++= localExcludeIds
-      val (_degrees, _rawEdges) = buildRawEdges(queryOption, result, excludeIds)
+      val newResult = result.map { queryRequestWithResult =>
+        val (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+        val newQuery = queryRequest.query.copy(queryOption = queryOption)
+        queryRequestWithResult.copy(queryRequest = queryRequest.copy(query = newQuery))
+      }
+      val (_degrees, _rawEdges) = buildRawEdges(queryOption, newResult, excludeIds)
       degrees ++= _degrees
       rawEdges ++= _rawEdges
     }
