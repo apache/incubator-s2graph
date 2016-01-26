@@ -36,6 +36,7 @@ object Graph {
     "hbase.rpcs.buffered_flush_interval" -> java.lang.Short.valueOf(100.toShort),
     "hbase.rpc.timeout" -> java.lang.Integer.valueOf(1000),
     "max.retry.number" -> java.lang.Integer.valueOf(100),
+    "lock.expire.time" -> java.lang.Integer.valueOf(1000 * 60 * 10),
     "max.back.off" -> java.lang.Integer.valueOf(100),
     "hbase.fail.prob" -> java.lang.Double.valueOf(-0.1),
     "delete.all.fetch.size" -> java.lang.Integer.valueOf(1000),
