@@ -15,13 +15,11 @@ object PostProcess extends JSONParser {
   type ORDER_BY_VALUES =  (Any, Any, Any, Any)
   type RAW_EDGE = (EDGE_VALUES, Double, ORDER_BY_VALUES)
 
-
-
   /**
    * Result Entity score field name
    */
-  val timeoutResults = Json.obj("size" -> 0, "results" -> Json.arr(), "isTimeout" -> true)
-  val emptyResults = Json.obj("size" -> 0, "results" -> Json.arr(), "isEmpty" -> true)
+  val timeoutResults = Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr(), "isTimeout" -> true)
+  val emptyResults = Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr(), "isEmpty" -> true)
   def badRequestResults(ex: => Exception) = ex match {
     case ex: BadQueryException => Json.obj("message" -> ex.msg)
     case _ => Json.obj("message" -> ex.getMessage)
@@ -255,9 +253,8 @@ object PostProcess extends JSONParser {
   private def buildResultJsValue(queryOption: QueryOption,
                                  degrees: ListBuffer[JsValue],
                                  rawEdges: ListBuffer[RAW_EDGE]): JsValue = {
-    if (rawEdges.isEmpty) {
-      Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr())
-    } else {
+    if (rawEdges.isEmpty) emptyResults
+    else {
 
       if (queryOption.groupByColumns.isEmpty) {
         // ordering
@@ -360,12 +357,14 @@ object PostProcess extends JSONParser {
   def toSimpleVertexArrJson(queryRequestWithResultLs: Seq[QueryRequestWithResult],
                             exclude: Seq[QueryRequestWithResult]): JsValue = {
 
-    val (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResultLs.head).get
-    val query = queryRequest.query
-    val queryOption = query.queryOption
-    val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
-    val (degrees, rawEdges) = buildRawEdges(queryOption, queryRequestWithResultLs, excludeIds)
-    buildResultJsValue(queryOption, degrees, rawEdges)
+    queryRequestWithResultLs.headOption.map { queryRequestWithResult =>
+      val (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+      val query = queryRequest.query
+      val queryOption = query.queryOption
+      val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
+      val (degrees, rawEdges) = buildRawEdges(queryOption, queryRequestWithResultLs, excludeIds)
+      buildResultJsValue(queryOption, degrees, rawEdges)
+    } getOrElse emptyResults
   }
 
   def verticesToJson(vertices: Iterable[Vertex]) = {
