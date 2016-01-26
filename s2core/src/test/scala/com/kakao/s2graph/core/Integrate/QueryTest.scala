@@ -1,9 +1,11 @@
 package com.kakao.s2graph.core.Integrate
 
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
-import play.api.libs.json.{JsNull, JsNumber, JsValue, Json}
-import scala.util.{Success, Try}
+import com.kakao.s2graph.core.utils.logger
 import org.scalatest.BeforeAndAfterEach
+import play.api.libs.json.{JsNull, JsNumber, JsValue, Json}
+
+import scala.util.{Success, Try}
 
 class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
@@ -13,6 +15,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   val e = "e"
   val weight = "weight"
   val is_hidden = "is_hidden"
+
 
   test("interval") {
     def queryWithInterval(id: Int, index: String, prop: String, fromVal: Int, toVal: Int) = Json.parse(
@@ -534,6 +537,248 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     val result3 = getEdgesSync(twoQueryWithSampling(testId, sampleSize))
     (result3 \ "results").as[List[JsValue]].size should be(sampleSize + 3) // edges in testLabelName2 = 3
   }
+  test("test query with filterOut query") {
+    def queryWithFilterOut(id1: String, id2: String) = Json.parse(
+      s"""{
+         |	"limit": 10,
+         |	"filterOut": {
+         |		"srcVertices": [{
+         |			"serviceName": "$testServiceName",
+         |			"columnName": "$testColumnName",
+         |			"id": $id1
+         |		}],
+         |		"steps": [{
+         |			"step": [{
+         |				"label": "$testLabelName",
+         |				"direction": "out",
+         |				"offset": 0,
+         |				"limit": 10
+         |			}]
+         |		}]
+         |	},
+         |	"srcVertices": [{
+         |		"serviceName": "$testServiceName",
+         |		"columnName": "$testColumnName",
+         |		"id": $id2
+         |	}],
+         |	"steps": [{
+         |		"step": [{
+         |			"label": "$testLabelName",
+         |			"direction": "out",
+         |			"offset": 0,
+         |			"limit": 5
+         |		}]
+         |	}]
+         |}
+       """.stripMargin
+    )
+
+    val testId1 = "-23"
+    val testId2 = "-25"
+
+    val bulkEdges = Seq(
+      toEdge(1, insert, e, testId1, 111, testLabelName, Json.obj(weight -> 10)),
+      toEdge(2, insert, e, testId1, 222, testLabelName, Json.obj(weight -> 10)),
+      toEdge(3, insert, e, testId1, 333, testLabelName, Json.obj(weight -> 10)),
+      toEdge(4, insert, e, testId2, 111, testLabelName, Json.obj(weight -> 1)),
+      toEdge(5, insert, e, testId2, 333, testLabelName, Json.obj(weight -> 1)),
+      toEdge(6, insert, e, testId2, 555, testLabelName, Json.obj(weight -> 1))
+    )
+    logger.debug(s"${bulkEdges.mkString("\n")}")
+    insertEdgesSync(bulkEdges: _*)
+
+    val rs = getEdgesSync(queryWithFilterOut(testId1, testId2))
+    logger.debug(Json.prettyPrint(rs))
+    val results = (rs \ "results").as[List[JsValue]]
+    results.size should be(1)
+    (results(0) \ "to").toString should be("555")
+  }
+
+
+  /** note that this merge two different label result into one */
+  test("weighted union") {
+    def queryWithWeightedUnion(id1: String, id2: String) = Json.parse(
+      s"""
+				|{
+				|  "limit": 10,
+				|  "weights": [
+				|    10,
+				|    1
+				|  ],
+				|  "groupBy": ["weight"],
+				|  "queries": [
+				|    {
+				|      "srcVertices": [
+				|        {
+				|          "serviceName": "$testServiceName",
+				|          "columnName": "$testColumnName",
+				|          "id": $id1
+				|        }
+				|      ],
+				|      "steps": [
+				|        {
+				|          "step": [
+				|            {
+				|              "label": "$testLabelName",
+				|              "direction": "out",
+				|              "offset": 0,
+				|              "limit": 5
+				|            }
+				|          ]
+				|        }
+				|      ]
+				|    },
+				|    {
+				|      "srcVertices": [
+				|        {
+				|          "serviceName": "$testServiceName",
+				|          "columnName": "$testColumnName",
+				|          "id": $id2
+				|        }
+				|      ],
+				|      "steps": [
+				|        {
+				|          "step": [
+				|            {
+				|              "label": "$testLabelName2",
+				|              "direction": "out",
+				|              "offset": 0,
+				|              "limit": 5
+				|            }
+				|          ]
+				|        }
+				|      ]
+				|    }
+				|  ]
+				|}
+       """.stripMargin
+    )
+
+    val testId1 = "1"
+    val testId2 = "2"
+
+    val bulkEdges = Seq(
+      toEdge(1, insert, e, testId1, 111, testLabelName, Json.obj(weight -> 10)),
+      toEdge(2, insert, e, testId1, 222, testLabelName, Json.obj(weight -> 10)),
+      toEdge(3, insert, e, testId1, 333, testLabelName, Json.obj(weight -> 10)),
+      toEdge(4, insert, e, testId2, 444, testLabelName2, Json.obj(weight -> 1)),
+      toEdge(5, insert, e, testId2, 555, testLabelName2, Json.obj(weight -> 1)),
+      toEdge(6, insert, e, testId2, 666, testLabelName2, Json.obj(weight -> 1))
+    )
+
+    insertEdgesSync(bulkEdges: _*)
+
+    val rs = getEdgesSync(queryWithWeightedUnion(testId1, testId2))
+    logger.debug(Json.prettyPrint(rs))
+    val results = (rs \ "results").as[List[JsValue]]
+    results.size should be(2)
+    (results(0) \ "scoreSum").as[Float] should be(30.0)
+    (results(0) \ "agg").as[List[JsValue]].size should be(3)
+    (results(1) \ "scoreSum").as[Float] should be(3.0)
+    (results(1) \ "agg").as[List[JsValue]].size should be(3)
+  }
+
+  test("weighted union with options") {
+    def queryWithWeightedUnionWithOptions(id1: String, id2: String) = Json.parse(
+      s"""
+         |{
+         |  "limit": 10,
+         |  "weights": [
+         |    10,
+         |    1
+         |  ],
+         |  "groupBy": ["to"],
+         |  "select": ["to", "weight"],
+         |  "filterOut": {
+         |    "srcVertices": [
+         |      {
+         |        "serviceName": "$testServiceName",
+         |        "columnName": "$testColumnName",
+         |        "id": $id1
+         |      }
+         |    ],
+         |    "steps": [
+         |      {
+         |        "step": [
+         |          {
+         |            "label": "$testLabelName",
+         |            "direction": "out",
+         |            "offset": 0,
+         |            "limit": 10
+         |          }
+         |        ]
+         |      }
+         |    ]
+         |  },
+         |  "queries": [
+         |    {
+         |      "srcVertices": [
+         |        {
+         |          "serviceName": "$testServiceName",
+         |          "columnName": "$testColumnName",
+         |          "id": $id1
+         |        }
+         |      ],
+         |      "steps": [
+         |        {
+         |          "step": [
+         |            {
+         |              "label": "$testLabelName",
+         |              "direction": "out",
+         |              "offset": 0,
+         |              "limit": 5
+         |            }
+         |          ]
+         |        }
+         |      ]
+         |    },
+         |    {
+         |      "srcVertices": [
+         |        {
+         |          "serviceName": "$testServiceName",
+         |          "columnName": "$testColumnName",
+         |          "id": $id2
+         |        }
+         |      ],
+         |      "steps": [
+         |        {
+         |          "step": [
+         |            {
+         |              "label": "$testLabelName2",
+         |              "direction": "out",
+         |              "offset": 0,
+         |              "limit": 5
+         |            }
+         |          ]
+         |        }
+         |      ]
+         |    }
+         |  ]
+         |}
+       """.stripMargin
+    )
+
+    val testId1 = "-192848"
+    val testId2 = "-193849"
+
+    val bulkEdges = Seq(
+      toEdge(1, insert, e, testId1, 111, testLabelName, Json.obj(weight -> 10)),
+      toEdge(2, insert, e, testId1, 222, testLabelName, Json.obj(weight -> 10)),
+      toEdge(3, insert, e, testId1, 333, testLabelName, Json.obj(weight -> 10)),
+      toEdge(4, insert, e, testId2, 111, testLabelName2, Json.obj(weight -> 1)),
+      toEdge(5, insert, e, testId2, 333, testLabelName2, Json.obj(weight -> 1)),
+      toEdge(6, insert, e, testId2, 555, testLabelName2, Json.obj(weight -> 1))
+    )
+
+    insertEdgesSync(bulkEdges: _*)
+
+    val rs = getEdgesSync(queryWithWeightedUnionWithOptions(testId1, testId2))
+    logger.debug(Json.prettyPrint(rs))
+    val results = (rs \ "results").as[List[JsValue]]
+    results.size should be(1)
+
+  }
+
 
   def querySingle(id: Int, offset: Int = 0, limit: Int = 100) = Json.parse(
     s"""
