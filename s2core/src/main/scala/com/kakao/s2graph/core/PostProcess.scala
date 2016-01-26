@@ -94,8 +94,8 @@ object PostProcess extends JSONParser {
       field <- fields
     } yield {
       field match {
-        case "from" | "_from" => edge.srcVertex.innerId
-        case "to" | "_to" => edge.tgtVertex.innerId
+        case "from" | "_from" => edge.srcVertex.innerId.toIdString()
+        case "to" | "_to" => edge.tgtVertex.innerId.toIdString()
         case "label" => edge.labelWithDir.labelId
         case "direction" => JsString(GraphUtil.fromDirection(edge.labelWithDir.dir))
         case "_timestamp" | "timestamp" => edge.ts
@@ -120,7 +120,7 @@ object PostProcess extends JSONParser {
       q = queryRequest.query
       edgeWithScore <- queryResult.edgeWithScoreLs
       (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-    } yield toHashKey(edge, queryRequest.queryParam, q.filterOutFields)
+    } yield  toHashKey(edge, queryRequest.queryParam, q.filterOutFields)
   }
 
   def summarizeWithListExcludeFormatted(queryRequestWithResultLs: Seq[QueryRequestWithResult], exclude: Seq[QueryRequestWithResult]) = {
@@ -168,9 +168,9 @@ object PostProcess extends JSONParser {
 
   private def buildRawEdges(queryOption: QueryOption,
                             queryRequestWithResultLs: Seq[QueryRequestWithResult],
+//                            excludeIds: Map[String, Boolean],
                             excludeIds: Map[Int, Boolean],
                             scoreWeight: Double = 1.0): (ListBuffer[JsValue], ListBuffer[RAW_EDGE]) = {
-
     val degrees = ListBuffer[JsValue]()
     val rawEdges = ListBuffer[(EDGE_VALUES, Double, ORDER_BY_VALUES)]()
 
@@ -191,8 +191,10 @@ object PostProcess extends JSONParser {
       queryParam = queryRequest.queryParam
       edgeWithScore <- queryResult.edgeWithScoreLs
       (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-      if !excludeIds.contains(toHashKey(edge, queryRequest.queryParam, queryOption.filterOutFields))
+      hashKey = toHashKey(edge, queryRequest.queryParam, queryOption.filterOutFields)
+      if !excludeIds.contains(hashKey)
     } {
+
       // edge to json
       val (srcColumn, _) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
       val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
@@ -317,15 +319,15 @@ object PostProcess extends JSONParser {
   def toSimpleVertexArrJsonMulti(queryOption: QueryOption,
                                  resultWithExcludeLs: Seq[(Seq[QueryRequestWithResult], Seq[QueryRequestWithResult])],
                                  excludes: Seq[QueryRequestWithResult]): JsValue = {
-    val excludeIds = resultInnerIds(excludes).map(innerId => innerId -> true).toMap
-
+    var excludeIds = resultInnerIds(excludes).map(innerId => innerId -> true).toMap
 
     val (degrees, rawEdges) = (ListBuffer.empty[JsValue], ListBuffer.empty[RAW_EDGE])
     for {
       (result, localExclude) <- resultWithExcludeLs
     } {
       val localExcludeIds = resultInnerIds(localExclude).map(innerId => innerId -> true).toMap
-      val (_degrees, _rawEdges) = buildRawEdges(queryOption, result, localExcludeIds ++ excludeIds)
+      excludeIds ++= localExcludeIds
+      val (_degrees, _rawEdges) = buildRawEdges(queryOption, result, excludeIds)
       degrees ++= _degrees
       rawEdges ++= _rawEdges
     }
