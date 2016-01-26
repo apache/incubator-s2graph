@@ -168,18 +168,27 @@ object PostProcess extends JSONParser {
 
   private def buildRawEdges(queryOption: QueryOption,
                             queryRequestWithResultLs: Seq[QueryRequestWithResult],
-//                            excludeIds: Map[String, Boolean],
                             excludeIds: Map[Int, Boolean],
                             scoreWeight: Double = 1.0): (ListBuffer[JsValue], ListBuffer[RAW_EDGE]) = {
     val degrees = ListBuffer[JsValue]()
     val rawEdges = ListBuffer[(EDGE_VALUES, Double, ORDER_BY_VALUES)]()
-
+    val metaPropNamesMap = scala.collection.mutable.Map[String, Int]()
+    for {
+      queryRequestWithResult <- queryRequestWithResultLs
+    } yield {
+      val (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+      queryRequest.queryParam.label.metaPropNames.foreach { metaPropName =>
+        metaPropNamesMap.put(metaPropName, metaPropNamesMap.getOrElse(metaPropName, 0) + 1)
+      }
+    }
+    val propsExistInAll = metaPropNamesMap.filter(kv => kv._2 == queryRequestWithResultLs.length)
     val orderByColumns = queryOption.orderByColumns.filter { case (column, _) =>
       column match {
         case "from" | "to" | "label" | "score" | "timestamp" | "_timestamp" => true
         case _ =>
-          //TODO??
-          false
+          propsExistInAll.contains(column)
+//          //TODO??
+//          false
 //          queryParam.label.metaPropNames.contains(column)
       }
     }
@@ -319,14 +328,14 @@ object PostProcess extends JSONParser {
   def toSimpleVertexArrJsonMulti(queryOption: QueryOption,
                                  resultWithExcludeLs: Seq[(Seq[QueryRequestWithResult], Seq[QueryRequestWithResult])],
                                  excludes: Seq[QueryRequestWithResult]): JsValue = {
-    var excludeIds = resultInnerIds(excludes).map(innerId => innerId -> true).toMap
+    val excludeIds = (Seq((Seq.empty, excludes)) ++ resultWithExcludeLs).foldLeft(Map.empty[Int, Boolean]) { case (acc, (result, excludes)) =>
+      acc ++ resultInnerIds(excludes).map(hashKey => hashKey -> true).toMap
+    }
 
     val (degrees, rawEdges) = (ListBuffer.empty[JsValue], ListBuffer.empty[RAW_EDGE])
     for {
       (result, localExclude) <- resultWithExcludeLs
     } {
-      val localExcludeIds = resultInnerIds(localExclude).map(innerId => innerId -> true).toMap
-      excludeIds ++= localExcludeIds
       val newResult = result.map { queryRequestWithResult =>
         val (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResult).get
         val newQuery = queryRequest.query.copy(queryOption = queryOption)
