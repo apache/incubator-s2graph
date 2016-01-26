@@ -1,6 +1,6 @@
 package org.apache.s2graph.lambda.source
 
-import org.apache.s2graph.lambda.{BaseDataProcessor, Data, EmptyData, Params}
+import org.apache.s2graph.lambda._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.{Durations, StreamingContext, Time}
@@ -14,7 +14,7 @@ class StreamFrontEnd[T: ClassTag](params: Params, parent: String) extends BaseDa
   var rdd: RDD[T] = null
   var time: Time = null
 
-  override protected def processBlock(input: EmptyData): StreamFrontEndData[T] = {
+  override protected def processBlock(input: EmptyData, context: Context): StreamFrontEndData[T] = {
     StreamFrontEndData(rdd, time)
   }
 
@@ -36,7 +36,12 @@ abstract class StreamContainer[T: ClassTag](params: StreamContainerParams)
 
   final val frontEnd: StreamFrontEnd[T] = new StreamFrontEnd[T](params, getClass.getSimpleName)
 
-  final lazy val streamingContext: StreamingContext = new StreamingContext(context.sparkContext, Durations.seconds(params.interval))
+  final var streamingContext: StreamingContext = _
+
+  final def allocStreamingContext(context: Context): this.type = {
+    streamingContext = new StreamingContext(context.sparkContext, Durations.seconds(params.interval))
+    this
+  }
 
   final def foreachBatch(foreachFunc: => Unit): Unit = {
     stream.foreachRDD { (rdd, time) =>
@@ -46,7 +51,7 @@ abstract class StreamContainer[T: ClassTag](params: StreamContainerParams)
     }
   }
 
-  final override protected def processBlock(input: EmptyData): EmptyData = throw new IllegalAccessError
+  final override protected def processBlock(input: EmptyData, context: Context): EmptyData = throw new IllegalAccessError
 
   protected val stream: DStream[T]
 

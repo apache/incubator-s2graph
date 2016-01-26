@@ -16,7 +16,6 @@ abstract class BaseDataProcessor[I <: Data : ClassTag, O <: Data : ClassTag](par
   final private var predecessors: Set[BaseDataProcessor[_, _]] = _
   final private var depth: Int = -1
   final private var order: Int = -1
-  final protected var context: Context = _
   final protected var predecessorData: PredecessorData = Data.emptyPredecessorData
   final protected val iClass: Class[_] = classTag[I].runtimeClass
   final protected val oClass: Class[_] = classTag[O].runtimeClass
@@ -103,11 +102,6 @@ abstract class BaseDataProcessor[I <: Data : ClassTag, O <: Data : ClassTag](par
     this
   }
 
-  final def setContext(globalContext: Context): this.type = {
-    this.context = globalContext
-    this
-  }
-
   final lazy val id: String = s"${getClass.getName}@${Integer.toHexString(hashCode())}"
 
   override def toString: String = toString(true)
@@ -127,14 +121,14 @@ abstract class BaseDataProcessor[I <: Data : ClassTag, O <: Data : ClassTag](par
     else s
   }
 
-  final def process(): O = {
+  final def process(context: Context): O = {
     logger.info("processing ... ")
     if(cached == null) {
       val asMap: Map[String, AnyRef] = predecessors match {
         case null => Map.empty[String, AnyRef]
         case _ =>
           predecessors.toSeq.sortBy(_.order).flatMap { predecessor =>
-            predecessor.process() match {
+            predecessor.process(context) match {
               case out if out.getClass == classOf[PredecessorData] =>
                 out.asInstanceOf[PredecessorData].asMap.asInstanceOf[Map[String, AnyRef]]
               case out =>
@@ -172,7 +166,7 @@ abstract class BaseDataProcessor[I <: Data : ClassTag, O <: Data : ClassTag](par
         }
       }
       val tic = System.currentTimeMillis()
-      cached = processBlock(input)
+      cached = processBlock(input, context)
       val toc = System.currentTimeMillis()
       show(f"$id - elapsed time ${(toc - tic)/1000.0}%.1f s")
     }
@@ -192,7 +186,7 @@ abstract class BaseDataProcessor[I <: Data : ClassTag, O <: Data : ClassTag](par
       predecessors.foreach(_.invalidateCache())
   }
 
-  protected def processBlock(input: I): O
+  protected def processBlock(input: I, context: org.apache.s2graph.lambda.Context): O
 
 }
 
@@ -200,13 +194,13 @@ object BaseDataProcessor {
 
   def wrap[O <: Data : ClassTag](output: O): BaseDataProcessor[EmptyData, O] = {
     new BaseDataProcessor[EmptyData, O] {
-      override protected def processBlock(input: EmptyData): O = output
+      override protected def processBlock(input: EmptyData, context: Context): O = output
     }
   }
 
   def wrap(keyValuePairs: (String, Any)*): BaseDataProcessor[EmptyData, PredecessorData] = {
     new BaseDataProcessor[EmptyData, PredecessorData] {
-      override protected def processBlock(input: EmptyData): PredecessorData =
+      override protected def processBlock(input: EmptyData, context: Context): PredecessorData =
         PredecessorData(keyValuePairs.toMap)
     }
   }

@@ -1,6 +1,6 @@
 package org.apache.s2graph.lambda.util
 
-import org.apache.s2graph.lambda.{BaseDataProcessor, Params, PredecessorData}
+import org.apache.s2graph.lambda.{Context, BaseDataProcessor, Params, PredecessorData}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.DataFrame
 
@@ -14,7 +14,7 @@ class Inspector(params: InspectorParams) extends BaseDataProcessor[PredecessorDa
 
   def isRDD[T](rdd: T): Boolean = rdd.isInstanceOf[RDD[_]]
 
-  override protected def processBlock(input: PredecessorData): PredecessorData = {
+  override protected def processBlock(input: PredecessorData, context: Context): PredecessorData = {
 
     val num = params.num.getOrElse(defaultNum)
 

@@ -12,7 +12,7 @@ case class Tuple2RandomNumberData(rdd: RDD[(Double, Double)], df: DataFrame, num
 class Tuple2RandomNumberGenerator(params: Tuple2RandomNumberParams)
     extends Source[Tuple2RandomNumberData](params) {
 
-  override protected def processBlock(input: EmptyData): Tuple2RandomNumberData = {
+  override protected def processBlock(input: EmptyData, context: Context): Tuple2RandomNumberData = {
     val sqlContext = context.sqlContext
     import sqlContext.implicits._
 

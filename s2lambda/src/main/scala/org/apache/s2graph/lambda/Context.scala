@@ -9,7 +9,7 @@ import scala.util.Try
 
 case class Context(jobId: String, rootDir: String, comment: String, sparkContext: SparkContext) {
 
-  lazy val sqlContext = Try {
+  val sqlContext = Try {
     new HiveContext(sparkContext)
   } getOrElse {
     println("Fail to get HiveContext, returns SQLContext instead")

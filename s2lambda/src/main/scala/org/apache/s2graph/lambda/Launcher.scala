@@ -11,7 +11,7 @@ case class JobDesc(name: String, processors: List[ProcessorDesc], streamContaine
 
 case class ProcessorDesc(`class`: String, params: Option[JsonUtil.JVal], id: Option[String], pid: Option[String], pids: Option[Seq[String]])
 
-case class ProcessorFactory(className: String, paramsAsJValue: Option[JsonUtil.JVal], context: Context) {
+case class ProcessorFactory(className: String, paramsAsJValue: Option[JsonUtil.JVal]) {
 
   private val constructor = Class.forName(className).getConstructors.head
 
@@ -32,7 +32,7 @@ case class ProcessorFactory(className: String, paramsAsJValue: Option[JsonUtil.J
         require(false,
           Seq(constructor.getParameterTypes.toSeq, className, paramsAsJValue).map(_.toString).mkString(","))
     }
-    instance.asInstanceOf[BaseDataProcessor[Data, Data]].setContext(context)
+    instance.asInstanceOf[BaseDataProcessor[Data, Data]]
   }
 
 }
@@ -48,7 +48,7 @@ object Launcher extends Visualization {
     launch(jsonString, command)
   }
 
-  def buildPipeline(processors: List[ProcessorDesc], context: Context, source: BaseDataProcessor[_ <: Data, _ <: Data] = null)
+  def buildPipeline(processors: List[ProcessorDesc], source: BaseDataProcessor[_ <: Data, _ <: Data] = null)
   : List[BaseDataProcessor[Data, Data]] = {
 
     /** instantiation */
@@ -63,7 +63,7 @@ object Launcher extends Visualization {
           Seq(a) ++ b
         }
       }
-      val instance = ProcessorFactory(p.`class`, p.params, context).getInstance
+      val instance = ProcessorFactory(p.`class`, p.params).getInstance
       (order, id, pids, instance)
     }
 
@@ -127,7 +127,10 @@ object Launcher extends Visualization {
     val context = Context(jobDesc.name, jobDesc.root.orNull, jobDesc.comment.orNull, sparkContext)
 
     val streamContainer = jobDesc.streamContainer.map { desc =>
-      ProcessorFactory(desc.`class`, desc.params, context).getInstance.asInstanceOf[StreamContainer[_]]
+      ProcessorFactory(desc.`class`, desc.params)
+          .getInstance
+          .asInstanceOf[StreamContainer[_]]
+          .allocStreamingContext(context)
     }
 
     println(s"running ${context.jobId}/${context.batchId}: ${context.comment}")
@@ -135,12 +138,12 @@ object Launcher extends Visualization {
     streamContainer match {
       case Some(container) =>
         /** streaming job */
-        val leaves = buildPipeline(jobDesc.processors, context, container.frontEnd)
+        val leaves = buildPipeline(jobDesc.processors, container.frontEnd)
         if (command == "run") {
           val ssc = container.streamingContext
           container.foreachBatch {
             leaves.foreach(_.invalidateCache())
-            leaves.foreach(_.process())
+            leaves.foreach(_.process(context))
           }
 
           ssc.start()
@@ -154,9 +157,9 @@ object Launcher extends Visualization {
         }
       case _ =>
         /** batch job */
-        val leaves = buildPipeline(jobDesc.processors, context)
+        val leaves = buildPipeline(jobDesc.processors)
         if (command == "run") {
-          leaves.foreach(_.process())
+          leaves.foreach(_.process(context))
         }
     }
   }

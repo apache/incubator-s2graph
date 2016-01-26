@@ -1,17 +1,17 @@
-package org.apache.s2graph.lambda.stat
+package org.apache.s2graph.lambda.wal
 
 import java.util.Properties
 
 import com.kakao.s2graph.core.Graph
 import kafka.producer.{KeyedMessage, Producer, ProducerConfig}
 import org.apache.s2graph.lambda.source.KafkaInput
-import org.apache.s2graph.lambda.{BaseDataProcessor, Data, EmptyData, Params}
+import org.apache.s2graph.lambda.{BaseDataProcessor, Context, Data, EmptyData, Params}
 
 case class WALStatParams(phase: String, dbUrl: String, brokerList: String, topic: String) extends Params
 
 class WALStat(params: WALStatParams) extends BaseDataProcessor[KafkaInput, EmptyData](params) {
 
-  override protected def processBlock(input: KafkaInput): EmptyData = {
+  override protected def processBlock(input: KafkaInput, context: Context): EmptyData = {
     val phase = params.phase
     val dbUrl = params.dbUrl
     val brokerList = params.brokerList

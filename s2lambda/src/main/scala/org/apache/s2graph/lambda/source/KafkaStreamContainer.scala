@@ -1,5 +1,7 @@
 package org.apache.s2graph.lambda.source
 
+import java.util.UUID
+
 import kafka.serializer.StringDecoder
 import org.apache.s2graph.lambda.Data
 import org.apache.spark.rdd.RDD
@@ -22,7 +24,7 @@ case class KafkaStreamContainerParams(
 class KafkaStreamContainer(params: KafkaStreamContainerParams) extends StreamContainer[(String, String)](params) {
 
   val topics = params.topics.split(",").toSet
-  val groupId = params.groupId.getOrElse(params.topics.replaceAll(",", "_") + "_stream")
+  val groupId = params.groupId.getOrElse(params.topics.replaceAll(",", "_") + "_" + UUID.randomUUID().toString.split('-')(0))
   val zkTimeout = params.zkTimeout.map(_.toString).getOrElse("10000")
   val offset = params.offset.getOrElse("largest")
 

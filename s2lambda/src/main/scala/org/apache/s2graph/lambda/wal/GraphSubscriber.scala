@@ -1,4 +1,4 @@
-package org.apache.s2graph.lambda.stat
+package org.apache.s2graph.lambda.wal
 
 import com.kakao.s2graph.core.{Graph, _}
 import com.typesafe.config.{Config, ConfigFactory}
