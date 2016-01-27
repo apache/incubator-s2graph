@@ -244,7 +244,7 @@ object PostProcess extends JSONParser {
         }
 
         val currentEdge = (keyWithJs, score * scoreWeight, orderByValues)
-        rawEdges += currentEdge
+        if (queryOption.scoreThreshold < currentEdge._2) rawEdges += currentEdge
       }
     }
     (degrees, rawEdges)

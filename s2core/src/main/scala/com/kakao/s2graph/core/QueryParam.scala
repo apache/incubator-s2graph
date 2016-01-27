@@ -41,7 +41,8 @@ case class QueryOption(removeCycle: Boolean = false,
                        withScore: Boolean = true,
                        returnTree: Boolean = false,
                        limitOpt: Option[Int] = None,
-                       returnAgg: Boolean = true)
+                       returnAgg: Boolean = true,
+                       scoreThreshold: Double = Double.MinValue)
 
 case class MultiQuery(queries: Seq[Query], weights: Seq[Double], queryOption: QueryOption)
 
