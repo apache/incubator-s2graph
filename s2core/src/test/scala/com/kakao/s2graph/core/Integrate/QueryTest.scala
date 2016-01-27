@@ -779,6 +779,73 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
   }
 
+  test("scoreThreshold") {
+    def queryWithScoreThreshold(id: String, scoreThreshold: Int) = Json.parse(
+      s"""{
+         |  "limit": 10,
+         |  "scoreThreshold": $scoreThreshold,
+         |  "groupBy": ["to"],
+         |  "srcVertices": [
+         |    {
+         |      "serviceName": "$testServiceName",
+         |      "columnName": "$testColumnName",
+         |      "id": $id
+         |    }
+         |  ],
+         |  "steps": [
+         |    {
+         |      "step": [
+         |        {
+         |          "label": "$testLabelName",
+         |          "direction": "out",
+         |          "offset": 0,
+         |          "limit": 10
+         |        }
+         |      ]
+         |    },
+         |    {
+         |      "step": [
+         |        {
+         |          "label": "$testLabelName",
+         |          "direction": "out",
+         |          "offset": 0,
+         |          "limit": 10
+         |        }
+         |      ]
+         |    }
+         |  ]
+         |}
+       """.stripMargin
+    )
+
+    val testId = "-23903"
+
+    val bulkEdges = Seq(
+      toEdge(1, insert, e, testId, 101, testLabelName, Json.obj(weight -> 10)),
+      toEdge(1, insert, e, testId, 102, testLabelName, Json.obj(weight -> 10)),
+      toEdge(1, insert, e, testId, 103, testLabelName, Json.obj(weight -> 10)),
+      toEdge(1, insert, e, 101, 102, testLabelName, Json.obj(weight -> 10)),
+      toEdge(1, insert, e, 101, 103, testLabelName, Json.obj(weight -> 10)),
+      toEdge(1, insert, e, 101, 104, testLabelName, Json.obj(weight -> 10)),
+      toEdge(1, insert, e, 102, 103, testLabelName, Json.obj(weight -> 10)),
+      toEdge(1, insert, e, 102, 104, testLabelName, Json.obj(weight -> 10)),
+      toEdge(1, insert, e, 103, 105, testLabelName, Json.obj(weight -> 10))
+    )
+    // expected: 104 -> 2, 103 -> 2, 102 -> 1,, 105 -> 1
+    insertEdgesSync(bulkEdges: _*)
+
+    var rs = getEdgesSync(queryWithScoreThreshold(testId, 2))
+    logger.debug(Json.prettyPrint(rs))
+    var results = (rs \ "results").as[List[JsValue]]
+    results.size should be(2)
+
+    rs = getEdgesSync(queryWithScoreThreshold(testId, 1))
+    logger.debug(Json.prettyPrint(rs))
+
+    results = (rs \ "results").as[List[JsValue]]
+    results.size should be(4)
+  }
+
 
   def querySingle(id: Int, offset: Int = 0, limit: Int = 100) = Json.parse(
     s"""
