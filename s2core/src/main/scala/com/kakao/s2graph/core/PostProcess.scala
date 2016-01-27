@@ -253,73 +253,69 @@ object PostProcess extends JSONParser {
   private def buildResultJsValue(queryOption: QueryOption,
                                  degrees: ListBuffer[JsValue],
                                  rawEdges: ListBuffer[RAW_EDGE]): JsValue = {
-    if (rawEdges.isEmpty) emptyResults
-    else {
+    if (queryOption.groupByColumns.isEmpty) {
+      // ordering
+      val filteredEdges = rawEdges.filter(t => t._2 >= queryOption.scoreThreshold)
 
-      if (queryOption.groupByColumns.isEmpty) {
-        // ordering
-        val filteredEdges = rawEdges.filter(t => t._2 >= queryOption.scoreThreshold)
-
-        val edges = queryOption.limitOpt match {
-          case None => orderBy(queryOption, filteredEdges).map(_._1)
-          case Some(limit) => orderBy(queryOption, filteredEdges).map(_._1).take(limit)
-        }
-
-        Json.obj(
-          "size" -> edges.size,
-          "degrees" -> degrees,
-          "results" -> edges
-        )
-      } else {
-        val grouped = rawEdges.groupBy { case (keyWithJs, _, _) =>
-          val props = keyWithJs.get("props")
-
-          for {
-            column <- queryOption.groupByColumns
-            value <- keyWithJs.get(column) match {
-              case None => props.flatMap { js => (js \ column).asOpt[JsValue] }
-              case Some(x) => Some(x)
-            }
-          } yield column -> value
-        }
-
-        val groupedEdgesWithScoreSum =
-          for {
-            (groupByKeyVals, groupedRawEdges) <- grouped
-            scoreSum = groupedRawEdges.map(x => x._2).sum if scoreSum >= queryOption.scoreThreshold
-          } yield {
-            // ordering
-            val edges = orderBy(queryOption, groupedRawEdges).map(_._1)
-
-            //TODO: refactor this
-            val js = if (queryOption.returnAgg)
-              Json.obj(
-                "groupBy" -> Json.toJson(groupByKeyVals.toMap),
-                "scoreSum" -> scoreSum,
-                "agg" -> edges
-              )
-            else
-              Json.obj(
-                "groupBy" -> Json.toJson(groupByKeyVals.toMap),
-                "scoreSum" -> scoreSum,
-                "agg" -> Json.arr()
-              )
-            (js, scoreSum)
-          }
-
-        val groupedSortedJsons = queryOption.limitOpt match {
-          case None =>
-            groupedEdgesWithScoreSum.toList.sortBy { case (jsVal, scoreSum) => scoreSum * -1 }.map(_._1)
-          case Some(limit) =>
-            groupedEdgesWithScoreSum.toList.sortBy { case (jsVal, scoreSum) => scoreSum * -1 }.map(_._1).take(limit)
-        }
-
-        Json.obj(
-          "size" -> groupedSortedJsons.size,
-          "degrees" -> degrees,
-          "results" -> groupedSortedJsons
-        )
+      val edges = queryOption.limitOpt match {
+        case None => orderBy(queryOption, filteredEdges).map(_._1)
+        case Some(limit) => orderBy(queryOption, filteredEdges).map(_._1).take(limit)
       }
+
+      Json.obj(
+        "size" -> edges.size,
+        "degrees" -> degrees,
+        "results" -> edges
+      )
+    } else {
+      val grouped = rawEdges.groupBy { case (keyWithJs, _, _) =>
+        val props = keyWithJs.get("props")
+
+        for {
+          column <- queryOption.groupByColumns
+          value <- keyWithJs.get(column) match {
+            case None => props.flatMap { js => (js \ column).asOpt[JsValue] }
+            case Some(x) => Some(x)
+          }
+        } yield column -> value
+      }
+
+      val groupedEdgesWithScoreSum =
+        for {
+          (groupByKeyVals, groupedRawEdges) <- grouped
+          scoreSum = groupedRawEdges.map(x => x._2).sum if scoreSum >= queryOption.scoreThreshold
+        } yield {
+          // ordering
+          val edges = orderBy(queryOption, groupedRawEdges).map(_._1)
+
+          //TODO: refactor this
+          val js = if (queryOption.returnAgg)
+            Json.obj(
+              "groupBy" -> Json.toJson(groupByKeyVals.toMap),
+              "scoreSum" -> scoreSum,
+              "agg" -> edges
+            )
+          else
+            Json.obj(
+              "groupBy" -> Json.toJson(groupByKeyVals.toMap),
+              "scoreSum" -> scoreSum,
+              "agg" -> Json.arr()
+            )
+          (js, scoreSum)
+        }
+
+      val groupedSortedJsons = queryOption.limitOpt match {
+        case None =>
+          groupedEdgesWithScoreSum.toList.sortBy { case (jsVal, scoreSum) => scoreSum * -1 }.map(_._1)
+        case Some(limit) =>
+          groupedEdgesWithScoreSum.toList.sortBy { case (jsVal, scoreSum) => scoreSum * -1 }.map(_._1).take(limit)
+      }
+
+      Json.obj(
+        "size" -> groupedSortedJsons.size,
+        "degrees" -> degrees,
+        "results" -> groupedSortedJsons
+      )
     }
   }
 
