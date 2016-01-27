@@ -244,7 +244,7 @@ object PostProcess extends JSONParser {
         }
 
         val currentEdge = (keyWithJs, score * scoreWeight, orderByValues)
-        if (queryOption.scoreThreshold < currentEdge._2) rawEdges += currentEdge
+        rawEdges += currentEdge
       }
     }
     (degrees, rawEdges)
@@ -258,10 +258,11 @@ object PostProcess extends JSONParser {
 
       if (queryOption.groupByColumns.isEmpty) {
         // ordering
-        val ordered = orderBy(queryOption, rawEdges)
+        val filteredEdges = rawEdges.filter(t => t._2 >= queryOption.scoreThreshold)
+
         val edges = queryOption.limitOpt match {
-          case None => orderBy(queryOption, rawEdges).map(_._1)
-          case Some(limit) => orderBy(queryOption, rawEdges).map(_._1).take(limit)
+          case None => orderBy(queryOption, filteredEdges).map(_._1)
+          case Some(limit) => orderBy(queryOption, filteredEdges).map(_._1).take(limit)
         }
 
         Json.obj(
@@ -285,8 +286,8 @@ object PostProcess extends JSONParser {
         val groupedEdgesWithScoreSum =
           for {
             (groupByKeyVals, groupedRawEdges) <- grouped
+            scoreSum = groupedRawEdges.map(x => x._2).sum if scoreSum >= queryOption.scoreThreshold
           } yield {
-            val scoreSum = groupedRawEdges.map(x => x._2).sum
             // ordering
             val edges = orderBy(queryOption, groupedRawEdges).map(_._1)
 
