@@ -136,17 +136,28 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
           if (randoms.contains(idx)) samples = e :: samples
           idx += 1
         }
-        samples.toSeq
+        samples
       }
 
     }
-
+    def normalize(edgeWithScores: Seq[EdgeWithScore]): Seq[EdgeWithScore] = {
+      val sum = edgeWithScores.foldLeft(0.0) { case (acc, cur) => acc + cur.score }
+      edgeWithScores.map { edgeWithScore =>
+        edgeWithScore.copy(score = edgeWithScore.score / sum)
+      }
+    }
     def fetchInner(request: GetRequest) = {
       storage.client.get(request) withCallback { kvs =>
         val edgeWithScores = storage.toEdges(kvs.toSeq, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
-        val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0 ) {
-          sample(edgeWithScores, queryRequest.queryParam.sample)
-        } else edgeWithScores
+
+        val normalized =
+          if (queryRequest.queryParam.shouldNormalize) normalize(edgeWithScores)
+          else edgeWithScores
+
+        val resultEdgesWithScores =
+          if (queryRequest.queryParam.sample >= 0 ) sample(normalized, queryRequest.queryParam.sample)
+          else normalized
+
         QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores))
       } recoverWith { ex =>
         logger.error(s"fetchQueryParam failed. fallback return.", ex)

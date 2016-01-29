@@ -86,7 +86,12 @@ object Graph {
     val tsVal = queryParam.timeDecay match {
       case None => 1.0
       case Some(timeDecay) =>
-        val timeDiff = queryParam.timestamp - edge.ts
+        val tsVal = try {
+          edge.propsWithTs.get(timeDecay.labeMetaSeq).map(_.toString.toLong).getOrElse(edge.ts)
+        } catch {
+          case e: Exception => edge.ts
+        }
+        val timeDiff = queryParam.timestamp - tsVal
         timeDecay.decay(timeDiff)
     }
 
