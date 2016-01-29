@@ -55,7 +55,7 @@ trait JSONParser {
       Some(jsValue)
     } catch {
       case e: Exception =>
-        logger.info(s"JSONParser.innerValToJsValue: $innerVal, $dataType")
+//        logger.info(s"JSONParser.innerValToJsValue: $innerVal, $dataType")
         None
     }
   }

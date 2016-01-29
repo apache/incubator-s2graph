@@ -41,7 +41,7 @@ object Experiment extends Model[Experiment] {
     )
   }
 
-  val findVar = """\$\{(.*?)\}""".r
+  val findVar = """\"?\$\{(.*?)\}\"?""".r
   val num = """(-?[0-9]+)\s*?(hour|day)""".r
 
   val hour = 60 * 60 * 1000

@@ -179,9 +179,9 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     val body = """{
         	"day": ${1day},
           "hour": ${1hour},
-          "-day": ${-10 day},
+          "-day": "${-10 day}",
           "-hour": ${-10 hour},
-          "now": ${now}
+          "now": "${now}"
         }
       """
 
