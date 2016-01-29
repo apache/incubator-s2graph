@@ -1,9 +1,12 @@
 package com.kakao.s2graph.rest.netty
 
+import java.util.Map.Entry
 import java.util.concurrent.Executors
+import java.util.function.Consumer
 
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls.Experiment
 import com.kakao.s2graph.core.rest.RestHandler.HandlerResult
 import com.kakao.s2graph.core.rest._
 import com.kakao.s2graph.core.utils.Extensions._
@@ -20,6 +23,7 @@ import io.netty.handler.codec.http._
 import io.netty.handler.logging.{LogLevel, LoggingHandler}
 import io.netty.util.CharsetUtil
 import play.api.libs.json._
+
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 import scala.io.Source
@@ -132,7 +136,7 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
         val jsonString = req.content.toString(CharsetUtil.UTF_8)
         val jsQuery = Json.parse(jsonString)
 
-        val result = s2rest.doPost(uri, jsQuery)
+        val result = s2rest.doPost(uri, jsQuery, Option(req.headers().get(Experiment.impressionKey)))
         toResponse(ctx, req, jsQuery, result, startedAt)
 
       case _ =>
