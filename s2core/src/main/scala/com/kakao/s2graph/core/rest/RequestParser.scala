@@ -300,11 +300,13 @@ class RequestParser(config: Config) extends JSONParser {
       }
       val cacheTTL = (labelGroup \ "cacheTTL").asOpt[Long].getOrElse(-1L)
       val timeDecayFactor = (labelGroup \ "timeDecay").asOpt[JsObject].map { jsVal =>
+        val propName = (jsVal \ "propName").asOpt[String].getOrElse(LabelMeta.timestamp.name)
+        val propNameSeq = label.metaPropsInvMap.get(propName).map(_.seq).getOrElse(LabelMeta.timeStampSeq)
         val initial = (jsVal \ "initial").asOpt[Double].getOrElse(1.0)
         val decayRate = (jsVal \ "decayRate").asOpt[Double].getOrElse(0.1)
         if (decayRate >= 1.0 || decayRate <= 0.0) throw new BadQueryException("decay rate should be 0.0 ~ 1.0")
         val timeUnit = (jsVal \ "timeUnit").asOpt[Double].getOrElse(60 * 60 * 24.0)
-        TimeDecay(initial, decayRate, timeUnit)
+        TimeDecay(initial, decayRate, timeUnit, propNameSeq)
       }
       val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(QueryParam.DefaultThreshold)
       // TODO: refactor this. dirty
@@ -314,6 +316,7 @@ class RequestParser(config: Config) extends JSONParser {
       val transformer = if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]
       val scorePropagateOp = (labelGroup \ "scorePropagateOp").asOpt[String].getOrElse("multiply")
       val sample = (labelGroup \ "sample").asOpt[Int].getOrElse(-1)
+      val shouldNormalize = (labelGroup \ "normalize").asOpt[Boolean].getOrElse(false)
 
       // FIXME: Order of command matter
       QueryParam(labelWithDir)
@@ -337,6 +340,7 @@ class RequestParser(config: Config) extends JSONParser {
         .threshold(threshold)
         .transformer(transformer)
         .scorePropagateOp(scorePropagateOp)
+        .shouldNormalize(shouldNormalize)
     }
   }
 
