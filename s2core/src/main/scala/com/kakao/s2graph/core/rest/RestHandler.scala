@@ -214,9 +214,13 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
     graph.getVertices(vertices) map { vertices => PostProcess.verticesToJson(vertices) }
   }
 
-
   private def makeRequestJson(requestKeyJsonOpt: Option[JsValue], bucket: Bucket, uuid: String): JsValue = {
     var body = bucket.requestBody.replace("#uuid", uuid)
+
+    // replace variable
+    body = Experiment.replaceVariable(System.currentTimeMillis(), body)
+
+    // replace param
     for {
       requestKeyJson <- requestKeyJsonOpt
       jsObj <- requestKeyJson.asOpt[JsObject]
