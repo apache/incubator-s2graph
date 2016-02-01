@@ -29,7 +29,8 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
   /**
     * Public APIS
     */
-  def doPost(uri: String, jsQuery: JsValue): HandlerResult = {
+  def doPost(uri: String, jsQuery: JsValue, impKeyOpt: => Option[String] = None): HandlerResult = {
+
     try {
       uri match {
         case "/graphs/getEdges" => HandlerResult(getEdgesAsync(jsQuery)(PostProcess.toSimpleVertexArrJson))
@@ -43,7 +44,7 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
         case "/graphs/getVertices" => HandlerResult(getVertices(jsQuery))
         case uri if uri.startsWith("/graphs/experiment") =>
           val Array(accessToken, experimentName, uuid) = uri.split("/").takeRight(3)
-          experiment(jsQuery, accessToken, experimentName, uuid)
+          experiment(jsQuery, accessToken, experimentName, uuid, impKeyOpt)
         case _ => throw new RuntimeException("route is not found")
       }
     } catch {
@@ -77,12 +78,13 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
   /**
     * Private APIS
     */
-  private def experiment(contentsBody: JsValue, accessToken: String, experimentName: String, uuid: String): HandlerResult = {
+  private def experiment(contentsBody: JsValue, accessToken: String, experimentName: String, uuid: String, impKeyOpt: => Option[String]): HandlerResult = {
+
     try {
       val bucketOpt = for {
         service <- Service.findByAccessToken(accessToken)
         experiment <- Experiment.findBy(service.id.get, experimentName)
-        bucket <- experiment.findBucket(uuid)
+        bucket <- experiment.findBucket(uuid, impKeyOpt)
       } yield bucket
 
       val bucket = bucketOpt.getOrElse(throw new RuntimeException("bucket is not found"))

@@ -2,6 +2,7 @@ package controllers
 
 
 import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls.Experiment
 import com.kakao.s2graph.core.rest.RestHandler
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Controller, Request}
@@ -16,7 +17,7 @@ object QueryController extends Controller with JSONParser {
   private val rest: RestHandler = com.kakao.s2graph.rest.Global.s2rest
 
   def delegate(request: Request[JsValue]) =
-    rest.doPost(request.uri, request.body).body.map { js =>
+    rest.doPost(request.uri, request.body, request.headers.get(Experiment.impressionKey)).body.map { js =>
       jsonResponse(js, "result_size" -> rest.calcSize(js).toString)
     } recoverWith ApplicationController.requestFallback(request.body)
 

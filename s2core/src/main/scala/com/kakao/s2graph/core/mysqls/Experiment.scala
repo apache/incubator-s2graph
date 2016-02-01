@@ -41,7 +41,7 @@ object Experiment extends Model[Experiment] {
     )
   }
 
-  val findVar = """\$\{(.*?)\}""".r
+  val findVar = """\"?\$\{(.*?)\}\"?""".r
   val num = """(-?[0-9]+)\s*?(hour|day)""".r
 
   val hour = 60 * 60 * 1000
@@ -86,8 +86,8 @@ case class Experiment(id: Option[Int],
   } yield range -> bucket
 
 
-  def findBucket(uuid: String, impressionIdOpt: Option[String] = None): Option[Bucket] = {
-    impressionIdOpt match {
+  def findBucket(uuid: String, impIdOpt: Option[String] = None): Option[Bucket] = {
+    impIdOpt match {
       case Some(impId) => Bucket.findByImpressionId(impId)
       case None =>
         val seed = experimentType match {
