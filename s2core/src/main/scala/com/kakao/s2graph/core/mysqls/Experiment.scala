@@ -1,6 +1,7 @@
 package com.kakao.s2graph.core.mysqls
 
 import com.kakao.s2graph.core.GraphUtil
+import com.kakao.s2graph.core.utils.logger
 import scalikejdbc._
 
 import scala.util.Random
@@ -41,11 +42,11 @@ object Experiment extends Model[Experiment] {
     )
   }
 
-  val findVar = """\$\{(.*?)\}""".r
+  val findVar = """\"?\$\{(.*?)\}\"?""".r
   val num = """(-?[0-9]+)\s*?(hour|day)""".r
 
-  val hour = 60 * 60 * 1000
-  val day = hour * 24
+  val hour = 60 * 60 * 1000L
+  val day = hour * 24L
 
   def calculate(now: Long, n: Int, unit: String): Long = {
     val duration = unit match {
@@ -86,8 +87,8 @@ case class Experiment(id: Option[Int],
   } yield range -> bucket
 
 
-  def findBucket(uuid: String, impressionIdOpt: Option[String] = None): Option[Bucket] = {
-    impressionIdOpt match {
+  def findBucket(uuid: String, impIdOpt: Option[String] = None): Option[Bucket] = {
+    impIdOpt match {
       case Some(impId) => Bucket.findByImpressionId(impId)
       case None =>
         val seed = experimentType match {

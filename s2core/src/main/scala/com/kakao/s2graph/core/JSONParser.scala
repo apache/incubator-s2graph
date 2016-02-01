@@ -31,7 +31,7 @@ trait JSONParser {
                 case InnerVal.LONG => JsNumber(d.toLong)
                 case InnerVal.FLOAT => JsNumber(d.toDouble)
                 case InnerVal.DOUBLE => JsNumber(d.toDouble)
-                case _ => throw new RuntimeException("innerValToJsValue invalid")
+                case _ => throw new RuntimeException(s"$innerVal, $dType => $dataType")
               }
             case num: BigDecimal =>
               //              JsNumber(num)
@@ -43,19 +43,18 @@ trait JSONParser {
                 case InnerVal.LONG => JsNumber(num.toLong)
                 case InnerVal.FLOAT => JsNumber(num.toDouble)
                 case InnerVal.DOUBLE => JsNumber(num.toDouble)
-                case _ => throw new RuntimeException("innerValToJsValue invalid")
+                case _ => throw new RuntimeException(s"$innerVal, $dType => $dataType")
               }
             //              JsNumber(num.toLong)
-            case _ => throw new RuntimeException("innerValToJsValue invalid")
+            case _ => throw new RuntimeException(s"$innerVal, Numeric Unknown => $dataType")
           }
         //          JsNumber(InnerVal.scaleNumber(innerVal.asInstanceOf[BigDecimal], dType))
-        case _ =>
-          throw new RuntimeException(s"innerVal $innerVal to JsValue with type $dType")
+        case _ => throw new RuntimeException(s"$innerVal, Unknown => $dataType")
       }
       Some(jsValue)
     } catch {
       case e: Exception =>
-        logger.info(s"JSONParser.innerValToJsValue: $innerVal, $dataType")
+        logger.info(s"JSONParser.innerValToJsValue: $e")
         None
     }
   }
