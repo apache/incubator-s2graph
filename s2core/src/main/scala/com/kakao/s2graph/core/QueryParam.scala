@@ -119,7 +119,8 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
               nextStepOpt: Option[Step]): Seq[InnerValLike] = {
 
     val tokens = fmt.split(Delimiter)
-    val mergedStr = tokens.zip(values).map { case (prefix, innerVal) => prefix + innerVal.toString }.mkString
+    val _values = values.padTo(tokens.length, InnerVal.withStr("", queryParam.label.schemaVersion))
+    val mergedStr = tokens.zip(_values).map { case (prefix, innerVal) => prefix + innerVal.toString }.mkString
     //    logger.error(s"${tokens.toList}, ${values}, $mergedStr")
     //    println(s"${tokens.toList}, ${values}, $mergedStr")
     nextStepOpt match {
