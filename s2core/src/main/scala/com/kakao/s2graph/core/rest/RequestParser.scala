@@ -5,6 +5,7 @@ import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
 import com.kakao.s2graph.core.types._
+import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.Config
 import play.api.libs.json._
 
@@ -116,6 +117,56 @@ class RequestParser(config: Config) extends JSONParser {
     vertices.toSeq
   }
 
+  def toMultiQuery(jsValue: JsValue, isEdgeQuery: Boolean = true): MultiQuery = {
+    val queries = for {
+      queryJson <- (jsValue \ "queries").asOpt[Seq[JsValue]].getOrElse(Seq.empty)
+    } yield {
+      toQuery(queryJson, isEdgeQuery)
+    }
+    val weights = (jsValue \ "weights").asOpt[Seq[Double]].getOrElse(queries.map(_ => 1.0))
+    MultiQuery(queries = queries, weights = weights, queryOption = toQueryOption(jsValue))
+  }
+
+  def toQueryOption(jsValue: JsValue): QueryOption = {
+    val filterOutFields = (jsValue \ "filterOutFields").asOpt[List[String]].getOrElse(List(LabelMeta.to.name))
+    val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v) }.map { q =>
+      q.copy(queryOption = q.queryOption.copy(filterOutFields = filterOutFields))
+    }
+    val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
+    val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
+    val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
+    val orderByColumns: List[(String, Boolean)] = (jsValue \ "orderBy").asOpt[List[JsObject]].map { jsLs =>
+      for {
+        js <- jsLs
+        (column, orderJs) <- js.fields
+      } yield {
+        val ascending = orderJs.as[String].toUpperCase match {
+          case "ASC" => true
+          case "DESC" => false
+        }
+        column -> ascending
+      }
+    }.getOrElse(List("score" -> false, "timestamp" -> false))
+    val withScore = (jsValue \ "withScore").asOpt[Boolean].getOrElse(true)
+    val returnTree = (jsValue \ "returnTree").asOpt[Boolean].getOrElse(false)
+    //TODO: Refactor this
+    val limitOpt = (jsValue \ "limit").asOpt[Int]
+    val returnAgg = (jsValue \ "returnAgg").asOpt[Boolean].getOrElse(true)
+    val scoreThreshold = (jsValue \ "scoreThreshold").asOpt[Double].getOrElse(Double.MinValue)
+
+    QueryOption(removeCycle = removeCycle,
+      selectColumns = selectColumns,
+      groupByColumns = groupByColumns,
+      orderByColumns = orderByColumns,
+      filterOutQuery = filterOutQuery,
+      filterOutFields = filterOutFields,
+      withScore = withScore,
+      returnTree = returnTree,
+      limitOpt = limitOpt,
+      returnAgg = returnAgg,
+      scoreThreshold = scoreThreshold
+    )
+  }
   def toQuery(jsValue: JsValue, isEdgeQuery: Boolean = true): Query = {
     try {
       val vertices =
@@ -138,37 +189,9 @@ class RequestParser(config: Config) extends JSONParser {
         }).flatten
 
       if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
-
-      val filterOutFields = (jsValue \ "filterOutFields").asOpt[List[String]].getOrElse(List(LabelMeta.to.name))
-      val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v) }.map { q => q.copy(filterOutFields = filterOutFields) }
       val steps = parse[Vector[JsValue]](jsValue, "steps")
-      val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
-      val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
-      val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
-      val orderByColumns: List[(String, Boolean)] = (jsValue \ "orderBy").asOpt[List[JsObject]].map { jsLs =>
-        for {
-          js <- jsLs
-          (column, orderJs) <- js.fields
-        } yield {
-          val ascending = orderJs.as[String].toUpperCase match {
-            case "ASC" => true
-            case "DESC" => false
-          }
-          column -> ascending
-        }
-      }.getOrElse(List("score" -> false, "timestamp" -> false))
-      val withScore = (jsValue \ "withScore").asOpt[Boolean].getOrElse(true)
-      val returnTree = (jsValue \ "returnTree").asOpt[Boolean].getOrElse(false)
-      //TODO: Refactor this
-      val limitOpt = (jsValue \ "limit").asOpt[Int]
-      val returnAgg = (jsValue \ "returnAgg").asOpt[Boolean].getOrElse(true)
 
-      // TODO: throw exception, when label dosn't exist
-      val labelMap = (for {
-        js <- jsValue \\ "label"
-        labelName <- js.asOpt[String]
-        label <- Label.findByName(labelName)
-      } yield (labelName, label)).toMap
+      val queryOption = toQueryOption(jsValue)
 
       val querySteps =
         steps.zipWithIndex.map { case (step, stepIdx) =>
@@ -226,20 +249,7 @@ class RequestParser(config: Config) extends JSONParser {
 
         }
 
-      val ret = Query(
-        vertices,
-        querySteps,
-        removeCycle = removeCycle,
-        selectColumns = selectColumns,
-        groupByColumns = groupByColumns,
-        orderByColumns = orderByColumns,
-        filterOutQuery = filterOutQuery,
-        filterOutFields = filterOutFields,
-        withScore = withScore,
-        returnTree = returnTree,
-        limitOpt = limitOpt,
-        returnAgg = returnAgg
-      )
+      val ret = Query(vertices, querySteps, queryOption)
       //      logger.debug(ret.toString)
       ret
     } catch {
@@ -290,11 +300,13 @@ class RequestParser(config: Config) extends JSONParser {
       }
       val cacheTTL = (labelGroup \ "cacheTTL").asOpt[Long].getOrElse(-1L)
       val timeDecayFactor = (labelGroup \ "timeDecay").asOpt[JsObject].map { jsVal =>
+        val propName = (jsVal \ "propName").asOpt[String].getOrElse(LabelMeta.timestamp.name)
+        val propNameSeq = label.metaPropsInvMap.get(propName).map(_.seq).getOrElse(LabelMeta.timeStampSeq)
         val initial = (jsVal \ "initial").asOpt[Double].getOrElse(1.0)
         val decayRate = (jsVal \ "decayRate").asOpt[Double].getOrElse(0.1)
         if (decayRate >= 1.0 || decayRate <= 0.0) throw new BadQueryException("decay rate should be 0.0 ~ 1.0")
         val timeUnit = (jsVal \ "timeUnit").asOpt[Double].getOrElse(60 * 60 * 24.0)
-        TimeDecay(initial, decayRate, timeUnit)
+        TimeDecay(initial, decayRate, timeUnit, propNameSeq)
       }
       val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(QueryParam.DefaultThreshold)
       // TODO: refactor this. dirty
@@ -304,6 +316,7 @@ class RequestParser(config: Config) extends JSONParser {
       val transformer = if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]
       val scorePropagateOp = (labelGroup \ "scorePropagateOp").asOpt[String].getOrElse("multiply")
       val sample = (labelGroup \ "sample").asOpt[Int].getOrElse(-1)
+      val shouldNormalize = (labelGroup \ "normalize").asOpt[Boolean].getOrElse(false)
 
       // FIXME: Order of command matter
       QueryParam(labelWithDir)
@@ -327,6 +340,7 @@ class RequestParser(config: Config) extends JSONParser {
         .threshold(threshold)
         .transformer(transformer)
         .scorePropagateOp(scorePropagateOp)
+        .shouldNormalize(shouldNormalize)
     }
   }
 
@@ -354,31 +368,39 @@ class RequestParser(config: Config) extends JSONParser {
 
   def toEdgesWithOrg(jsValue: JsValue, operation: String): (List[Edge], List[JsValue]) = {
     val jsValues = toJsValues(jsValue)
-    val edges = jsValues.map(toEdge(_, operation))
+    val edges = jsValues.flatMap(toEdge(_, operation))
 
     (edges, jsValues)
   }
 
   def toEdges(jsValue: JsValue, operation: String): List[Edge] = {
-    toJsValues(jsValue).map(toEdge(_, operation))
+    toJsValues(jsValue).flatMap { edgeJson =>
+      toEdge(edgeJson, operation)
+    }
   }
 
-  def toEdge(jsValue: JsValue, operation: String) = {
 
-    val srcId = parse[JsValue](jsValue, "from") match {
+  private def toEdge(jsValue: JsValue, operation: String): List[Edge] = {
+
+    def parseId(js: JsValue) = js match {
       case s: JsString => s.as[String]
       case o@_ => s"${o}"
     }
-    val tgtId = parse[JsValue](jsValue, "to") match {
-      case s: JsString => s.as[String]
-      case o@_ => s"${o}"
-    }
+    val srcId = (jsValue \ "from").asOpt[JsValue].toList.map(parseId(_))
+    val tgtId = (jsValue \ "to").asOpt[JsValue].toList.map(parseId(_))
+    val srcIds = (jsValue \ "froms").asOpt[List[JsValue]].toList.flatMap(froms => froms.map(js => parseId(js))) ++ srcId
+    val tgtIds = (jsValue \ "tos").asOpt[List[JsValue]].toList.flatMap(froms => froms.map(js => parseId(js))) ++ tgtId
+
     val label = parse[String](jsValue, "label")
     val timestamp = parse[Long](jsValue, "timestamp")
     val direction = parse[Option[String]](jsValue, "direction").getOrElse("")
     val props = (jsValue \ "props").asOpt[JsValue].getOrElse("{}")
-    Management.toEdge(timestamp, operation, srcId, tgtId, label, direction, props.toString)
-
+    for {
+      srcId <- srcIds
+      tgtId <- tgtIds
+    } yield {
+      Management.toEdge(timestamp, operation, srcId, tgtId, label, direction, props.toString)
+    }
   }
 
   def toVertices(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None) = {

@@ -2,7 +2,7 @@ package com.kakao.s2graph.core.Integrate
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.Label
-import com.kakao.s2graph.core.rest.RequestParser
+import com.kakao.s2graph.core.rest.{RequestParser, RestHandler}
 import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config._
 import org.scalatest._
@@ -33,8 +33,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
   }
 
   /**
-    * Make Service, Label, Vertex for integrate test
-    */
+   * Make Service, Label, Vertex for integrate test
+   */
   def initTestData() = {
     println("[init start]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     Management.deleteService(testServiceName)
@@ -83,8 +83,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
 
   /**
-    * Test Helpers
-    */
+   * Test Helpers
+   */
   object TestUtil {
     implicit def ec = scala.concurrent.ExecutionContext.global
 
@@ -112,12 +112,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
     def getEdgesSync(queryJson: JsValue): JsValue = {
       logger.info(Json.prettyPrint(queryJson))
-
-      val ret = graph.getEdges(parser.toQuery(queryJson))
-      val result = Await.result(ret, HttpRequestWaitingTime)
-      val jsResult = PostProcess.toSimpleVertexArrJson(result)
-
-      jsResult
+      val restHandler = new RestHandler(graph)
+      Await.result(restHandler.getEdgesAsync(queryJson)(PostProcess.toSimpleVertexArrJson), HttpRequestWaitingTime)
     }
 
     def insertEdgesSync(bulkEdges: String*) = {
@@ -311,4 +307,5 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "compressionAlgorithm": "gz"
   }"""
   }
+
 }

@@ -1,7 +1,7 @@
 package com.kakao.s2graph.core.parsers
 
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls.{Label, LabelMeta}
+import com.kakao.s2graph.core.mysqls.{Experiment, Label, LabelMeta}
 import com.kakao.s2graph.core.types._
 import org.scalatest.{FunSuite, Matchers}
 import play.api.libs.json.Json
@@ -165,6 +165,36 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       f("_parent._parent.weight = weight")(false)
       f("_parent._parent.weight = _parent.weight")(true)
     }
+  }
+
+  test("replace reserved") {
+    val ts = 0
+    import Experiment._
+    calculate(ts, 1, "hour") should be(hour + ts)
+    calculate(ts, 1, "day") should be(day + ts)
+
+    calculate(ts + 10, 1, "HOUR") should be(hour + ts + 10)
+    calculate(ts + 10, 1, "DAY") should be(day + ts + 10)
+
+    val body = """{
+        	"day": ${1day},
+          "hour": ${1hour},
+          "-day": "${-10 day}",
+          "-hour": ${-10 hour},
+          "now": "${now}"
+        }
+      """
+
+    val parsed = replaceVariable(ts, body)
+    val json = Json.parse(parsed)
+
+    (json \ "day").as[Long] should be (1 * day + ts)
+    (json \ "hour").as[Long] should be (1 * hour + ts)
+
+    (json \ "-day").as[Long] should be (-10 * day + ts)
+    (json \ "-hour").as[Long] should be (-10 * hour + ts)
+
+    (json \ "now").as[Long] should be (ts)
   }
 
   //  test("time decay") {

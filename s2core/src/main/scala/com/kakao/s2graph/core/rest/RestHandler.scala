@@ -29,7 +29,8 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
   /**
     * Public APIS
     */
-  def doPost(uri: String, jsQuery: JsValue): HandlerResult = {
+  def doPost(uri: String, jsQuery: JsValue, impKeyOpt: => Option[String] = None): HandlerResult = {
+
     try {
       uri match {
         case "/graphs/getEdges" => HandlerResult(getEdgesAsync(jsQuery)(PostProcess.toSimpleVertexArrJson))
@@ -43,7 +44,7 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
         case "/graphs/getVertices" => HandlerResult(getVertices(jsQuery))
         case uri if uri.startsWith("/graphs/experiment") =>
           val Array(accessToken, experimentName, uuid) = uri.split("/").takeRight(3)
-          experiment(jsQuery, accessToken, experimentName, uuid)
+          experiment(jsQuery, accessToken, experimentName, uuid, impKeyOpt)
         case _ => throw new RuntimeException("route is not found")
       }
     } catch {
@@ -77,12 +78,13 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
   /**
     * Private APIS
     */
-  private def experiment(contentsBody: JsValue, accessToken: String, experimentName: String, uuid: String): HandlerResult = {
+  private def experiment(contentsBody: JsValue, accessToken: String, experimentName: String, uuid: String, impKeyOpt: => Option[String]): HandlerResult = {
+
     try {
       val bucketOpt = for {
         service <- Service.findByAccessToken(accessToken)
         experiment <- Experiment.findBy(service.id.get, experimentName)
-        bucket <- experiment.findBucket(uuid)
+        bucket <- experiment.findBucket(uuid, impKeyOpt)
       } yield bucket
 
       val bucket = bucketOpt.getOrElse(throw new RuntimeException("bucket is not found"))
@@ -127,13 +129,57 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
     }
   }
 
-  private def getEdgesAsync(jsonQuery: JsValue)
+  def getEdgesAsync(jsonQuery: JsValue)
                            (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
 
     val fetch = eachQuery(post) _
     jsonQuery match {
       case JsArray(arr) => Future.traverse(arr.map(s2Parser.toQuery(_)))(fetch).map(JsArray)
-      case obj@JsObject(_) => fetch(s2Parser.toQuery(obj))
+      case obj@JsObject(_) =>
+        (obj \ "queries").asOpt[JsValue] match {
+          case None => fetch(s2Parser.toQuery(obj))
+          case _ =>
+            val multiQuery = s2Parser.toMultiQuery(obj)
+            val filterOutFuture = multiQuery.queryOption.filterOutQuery match {
+              case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
+              case None => Future.successful(Seq.empty)
+            }
+            val futures = multiQuery.queries.zip(multiQuery.weights).map { case (query, weight) =>
+              val filterOutQueryResultsLs = query.queryOption.filterOutQuery match {
+                case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
+                case None => Future.successful(Seq.empty)
+              }
+              for {
+                queryRequestWithResultLs <- graph.getEdges(query)
+                filterOutResultsLs <- filterOutQueryResultsLs
+              } yield {
+                val newQueryRequestWithResult = for {
+                  queryRequestWithResult <- queryRequestWithResultLs
+                  queryResult = queryRequestWithResult.queryResult
+                } yield {
+                  val newEdgesWithScores = for {
+                    edgeWithScore <- queryRequestWithResult.queryResult.edgeWithScoreLs
+                  } yield {
+                    edgeWithScore.copy(score = edgeWithScore.score * weight)
+                  }
+                  queryRequestWithResult.copy(queryResult = queryResult.copy(edgeWithScoreLs = newEdgesWithScores))
+                }
+                logger.debug(s"[Size]: ${newQueryRequestWithResult.map(_.queryResult.edgeWithScoreLs.size).sum}")
+                (newQueryRequestWithResult, filterOutResultsLs)
+              }
+            }
+            for {
+              filterOut <- filterOutFuture
+              resultWithExcludeLs <- Future.sequence(futures)
+            } yield {
+              PostProcess.toSimpleVertexArrJsonMulti(multiQuery.queryOption, resultWithExcludeLs, filterOut)
+//              val initial = (ListBuffer.empty[QueryRequestWithResult], ListBuffer.empty[QueryRequestWithResult])
+//              val (results, excludes) = resultWithExcludeLs.foldLeft(initial) { case ((prevResults, prevExcludes), (results, excludes)) =>
+//                (prevResults ++= results, prevExcludes ++= excludes)
+//              }
+//              PostProcess.toSimpleVertexArrJson(multiQuery.queryOption, results, excludes ++ filterOut)
+            }
+        }
       case _ => throw BadQueryException("Cannot support")
     }
   }
@@ -170,9 +216,13 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
     graph.getVertices(vertices) map { vertices => PostProcess.verticesToJson(vertices) }
   }
 
-
   private def makeRequestJson(requestKeyJsonOpt: Option[JsValue], bucket: Bucket, uuid: String): JsValue = {
     var body = bucket.requestBody.replace("#uuid", uuid)
+
+    // replace variable
+    body = Experiment.replaceVariable(System.currentTimeMillis(), body)
+
+    // replace param
     for {
       requestKeyJson <- requestKeyJsonOpt
       jsObj <- requestKeyJson.asOpt[JsObject]

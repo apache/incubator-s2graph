@@ -1,6 +1,7 @@
 package controllers
 
 
+import com.kakao.s2graph.core.mysqls.Experiment
 import com.kakao.s2graph.core.rest.RestHandler
 import play.api.mvc._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -13,7 +14,7 @@ object ExperimentController extends Controller {
 
   def experiment(accessToken: String, experimentName: String, uuid: String) = withHeaderAsync(parse.anyContent) { request =>
     val body = request.body.asJson.get
-    val res = rest.doPost(request.uri, body)
+    val res = rest.doPost(request.uri, body, request.headers.get(Experiment.impressionKey))
 
     res.body.map { case js =>
       val headers = res.headers :+ ("result_size" -> rest.calcSize(js).toString)
