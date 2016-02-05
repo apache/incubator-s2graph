@@ -153,6 +153,7 @@ class RequestParser(config: Config) extends JSONParser {
     val limitOpt = (jsValue \ "limit").asOpt[Int]
     val returnAgg = (jsValue \ "returnAgg").asOpt[Boolean].getOrElse(true)
     val scoreThreshold = (jsValue \ "scoreThreshold").asOpt[Double].getOrElse(Double.MinValue)
+    val returnDegree = (jsValue \ "returnDegree").asOpt[Boolean].getOrElse(true)
 
     QueryOption(removeCycle = removeCycle,
       selectColumns = selectColumns,
@@ -164,7 +165,8 @@ class RequestParser(config: Config) extends JSONParser {
       returnTree = returnTree,
       limitOpt = limitOpt,
       returnAgg = returnAgg,
-      scoreThreshold = scoreThreshold
+      scoreThreshold = scoreThreshold,
+      returnDegree = returnDegree
     )
   }
   def toQuery(jsValue: JsValue, isEdgeQuery: Boolean = true): Query = {
