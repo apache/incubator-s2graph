@@ -87,9 +87,25 @@ object Graph {
       case None => 1.0
       case Some(timeDecay) =>
         val tsVal = try {
-          edge.propsWithTs.get(timeDecay.labeMetaSeq).map(_.toString.toLong).getOrElse(edge.ts)
+          val labelMeta = edge.label.metaPropsMap(timeDecay.labelMetaSeq)
+          val innerValWithTsOpt = edge.propsWithTs.get(timeDecay.labelMetaSeq)
+          innerValWithTsOpt.map { innerValWithTs =>
+            val innerVal = innerValWithTs.innerVal
+            labelMeta.dataType match {
+              case InnerVal.LONG => innerVal.value match {
+                case n: BigDecimal => n.bigDecimal.longValue()
+                case _ => innerVal.toString().toLong
+              }
+              case _ => innerVal.toString().toLong
+            }
+          } getOrElse(edge.ts)
+//          val innerVal = edge.propsWithTs(timeDecay.labelMetaSeq).innerVal
+//
+//          edge.propsWithTs.get(timeDecay.labelMetaSeq).map(_.toString.toLong).getOrElse(edge.ts)
         } catch {
-          case e: Exception => edge.ts
+          case e: Exception =>
+            logger.error(s"processTimeDecay error. ${edge.toLogString}", e)
+            edge.ts
         }
         val timeDiff = queryParam.timestamp - tsVal
         timeDecay.decay(timeDiff)
