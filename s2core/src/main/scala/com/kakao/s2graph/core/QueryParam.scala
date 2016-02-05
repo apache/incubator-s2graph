@@ -42,7 +42,8 @@ case class QueryOption(removeCycle: Boolean = false,
                        returnTree: Boolean = false,
                        limitOpt: Option[Int] = None,
                        returnAgg: Boolean = true,
-                       scoreThreshold: Double = Double.MinValue)
+                       scoreThreshold: Double = Double.MinValue,
+                       returnDegree: Boolean = true)
 
 case class MultiQuery(queries: Seq[Query], weights: Seq[Double], queryOption: QueryOption)
 
@@ -60,6 +61,7 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
   val returnTree = queryOption.returnTree
   val limitOpt = queryOption.limitOpt
   val returnAgg = queryOption.returnAgg
+  val returnDegree = queryOption.returnDegree
 
   def cacheKeyBytes: Array[Byte] = {
     val selectBytes = Bytes.toBytes(queryOption.selectColumns.toString)

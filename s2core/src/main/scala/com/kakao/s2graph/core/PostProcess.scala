@@ -18,6 +18,7 @@ object PostProcess extends JSONParser {
   /**
    * Result Entity score field name
    */
+  val emptyDegrees = Seq(Json.obj())
   val timeoutResults = Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr(), "isTimeout" -> true)
   val emptyResults = Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr(), "isEmpty" -> true)
   def badRequestResults(ex: => Exception) = ex match {
@@ -261,10 +262,11 @@ object PostProcess extends JSONParser {
         case None => orderBy(queryOption, filteredEdges).map(_._1)
         case Some(limit) => orderBy(queryOption, filteredEdges).map(_._1).take(limit)
       }
+      val resultDegrees = if (queryOption.returnDegree) degrees else emptyDegrees
 
       Json.obj(
         "size" -> edges.size,
-        "degrees" -> degrees,
+        "degrees" -> resultDegrees,
         "results" -> edges
       )
     } else {
@@ -310,10 +312,10 @@ object PostProcess extends JSONParser {
         case Some(limit) =>
           groupedEdgesWithScoreSum.toList.sortBy { case (jsVal, scoreSum) => scoreSum * -1 }.map(_._1).take(limit)
       }
-
+      val resultDegrees = if (queryOption.returnDegree) degrees else emptyDegrees
       Json.obj(
         "size" -> groupedSortedJsons.size,
-        "degrees" -> degrees,
+        "degrees" -> resultDegrees,
         "results" -> groupedSortedJsons
       )
     }
