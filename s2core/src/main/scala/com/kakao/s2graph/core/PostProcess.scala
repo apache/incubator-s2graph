@@ -18,7 +18,7 @@ object PostProcess extends JSONParser {
   /**
    * Result Entity score field name
    */
-  val emptyDegrees = Seq(Json.obj())
+  val emptyDegrees = Seq.empty[JsValue]
   val timeoutResults = Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr(), "isTimeout" -> true)
   val emptyResults = Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr(), "isEmpty" -> true)
   def badRequestResults(ex: => Exception) = ex match {
