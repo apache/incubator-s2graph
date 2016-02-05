@@ -206,7 +206,8 @@ object EdgeController extends Controller {
 
     val deleteFutures = jsValue.as[Seq[JsValue]].map { json =>
       val (labels, direction, ids, ts, vertices) = requestParser.toDeleteParam(json)
-      deleteEach(labels, direction, ids, ts, vertices)
+      if (labels.isEmpty || ids.isEmpty) Future.successful(true)
+      else deleteEach(labels, direction, ids, ts, vertices)
     }
 
     val deleteResults = Future.sequence(deleteFutures)
