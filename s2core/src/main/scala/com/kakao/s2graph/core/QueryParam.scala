@@ -6,7 +6,7 @@ import com.kakao.s2graph.core.parsers.{Where, WhereParser}
 import com.kakao.s2graph.core.types._
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.ColumnRangeFilter
-import play.api.libs.json.{JsNumber, JsValue, Json}
+import play.api.libs.json.{JsNull, JsNumber, JsValue, Json}
 
 import scala.util.hashing.MurmurHash3
 import scala.util.{Success, Try}
@@ -44,11 +44,15 @@ case class QueryOption(removeCycle: Boolean = false,
                        returnAgg: Boolean = true,
                        scoreThreshold: Double = Double.MinValue)
 
-case class MultiQuery(queries: Seq[Query], weights: Seq[Double], queryOption: QueryOption)
+case class MultiQuery(queries: Seq[Query],
+                      weights: Seq[Double],
+                      queryOption: QueryOption,
+                      jsonQuery: JsValue = JsNull)
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  steps: IndexedSeq[Step] = Vector.empty[Step],
-                 queryOption: QueryOption = QueryOption()) {
+                 queryOption: QueryOption = QueryOption(),
+                 jsonQuery: JsValue = JsNull) {
 
   val removeCycle = queryOption.removeCycle
   val selectColumns = queryOption.selectColumns
@@ -90,6 +94,15 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
   def impressionId(): JsNumber = {
     val hash = MurmurHash3.stringHash(templateId().toString())
     JsNumber(hash)
+  }
+
+  def cursorStrings(): Seq[Seq[String]] = {
+    //Don`t know how to replace all cursor keys in json
+    steps.map { step =>
+      step.queryParams.map { queryParam =>
+        queryParam.cursorOpt.getOrElse("")
+      }
+    }
   }
 }
 
@@ -288,7 +301,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var exclude = false
   var include = false
   var shouldNormalize= false
-
+  var cursorOpt: Option[String] = None
 
 
   var columnRangeFilterMinBytes = Array.empty[Byte]
@@ -484,6 +497,11 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   def whereRawOpt(sqlOpt: Option[String]): QueryParam = {
     this.whereRawOpt = sqlOpt
+    this
+  }
+
+  def cursorOpt(cursorOpt: Option[String]): QueryParam = {
+    this.cursorOpt = cursorOpt
     this
   }
 

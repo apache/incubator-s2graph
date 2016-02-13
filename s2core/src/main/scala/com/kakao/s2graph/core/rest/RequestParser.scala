@@ -124,7 +124,8 @@ class RequestParser(config: Config) extends JSONParser {
       toQuery(queryJson, isEdgeQuery)
     }
     val weights = (jsValue \ "weights").asOpt[Seq[Double]].getOrElse(queries.map(_ => 1.0))
-    MultiQuery(queries = queries, weights = weights, queryOption = toQueryOption(jsValue))
+    MultiQuery(queries = queries, weights = weights,
+      queryOption = toQueryOption(jsValue), jsonQuery = jsValue)
   }
 
   def toQueryOption(jsValue: JsValue): QueryOption = {
@@ -249,7 +250,7 @@ class RequestParser(config: Config) extends JSONParser {
 
         }
 
-      val ret = Query(vertices, querySteps, queryOption)
+      val ret = Query(vertices, querySteps, queryOption, jsValue)
       //      logger.debug(ret.toString)
       ret
     } catch {
@@ -317,7 +318,7 @@ class RequestParser(config: Config) extends JSONParser {
       val scorePropagateOp = (labelGroup \ "scorePropagateOp").asOpt[String].getOrElse("multiply")
       val sample = (labelGroup \ "sample").asOpt[Int].getOrElse(-1)
       val shouldNormalize = (labelGroup \ "normalize").asOpt[Boolean].getOrElse(false)
-
+      val cursorOpt = (labelGroup \ "cursor").asOpt[String]
       // FIXME: Order of command matter
       QueryParam(labelWithDir)
         .sample(sample)
@@ -341,6 +342,7 @@ class RequestParser(config: Config) extends JSONParser {
         .transformer(transformer)
         .scorePropagateOp(scorePropagateOp)
         .shouldNormalize(shouldNormalize)
+        .cursorOpt(cursorOpt)
     }
   }
 

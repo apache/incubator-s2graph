@@ -320,15 +320,12 @@ object Graph {
 
 class Graph(_config: Config)(implicit val ec: ExecutionContext) {
   val config = _config.withFallback(Graph.DefaultConfig)
-  val cacheSize = config.getInt("cache.max.size")
-//  val cache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Seq[QueryResult]]()
-  val vertexCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Option[Vertex]]()
 
   Model.apply(config)
   Model.loadCache()
 
   // TODO: Make storage client by config param
-  val storage: Storage = new AsynchbaseStorage(config, vertexCache)(ec)
+  val storage = new AsynchbaseStorage(config)(ec)
 
   for {
     entry <- config.entrySet() if Graph.DefaultConfigs.contains(entry.getKey)

@@ -27,8 +27,8 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
 
   override def toKeyValues: Seq[SKeyValue] = {
     label.schemaVersion match {
-      case HBaseType.VERSION3 => toKeyValuesInnerV3
-      case _ => toKeyValuesInner
+      case HBaseType.VERSION1 | HBaseType.VERSION2 => toKeyValuesInner
+      case _ => toKeyValuesInnerV3
     }
   }
 
@@ -47,11 +47,8 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
       case Some(pendingEdge) =>
         val opBytes = statusCodeWithOp(pendingEdge.statusCode, pendingEdge.op)
         val versionBytes = Array.empty[Byte]
-//          Bytes.toBytes(snapshotEdge.version)
         val propsBytes = propsToKeyValuesWithTs(pendingEdge.propsWithTs.toSeq)
         val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)
-//          Array.empty[Byte]
-//          snapshotEdge.lockedAtOpt.map(lockedAt => Bytes.toBytes(lockedAt)).getOrElse(Array.empty[Byte])
         Bytes.add(Bytes.add(valueBytes(), opBytes, versionBytes), Bytes.add(propsBytes, lockBytes))
     }
     val kv = SKeyValue(table, row, cf, qualifier, value, snapshotEdge.version)
@@ -72,16 +69,9 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
       case Some(pendingEdge) =>
         val opBytes = statusCodeWithOp(pendingEdge.statusCode, pendingEdge.op)
         val versionBytes = Array.empty[Byte]
-//          Bytes.toBytes(snapshotEdge.version)
         val propsBytes = propsToKeyValuesWithTs(pendingEdge.propsWithTs.toSeq)
         val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)
-//          Array.empty[Byte]
-//          snapshotEdge.lockedAtOpt.map(lockedAt => Bytes.toBytes(lockedAt)).getOrElse(Array.empty[Byte])
-//        logger.error(s"ValueBytes: ${valueBytes().toList}")
-//        logger.error(s"opBytes: ${opBytes.toList}")
-//        logger.error(s"versionBytes: ${versionBytes.toList}")
-//        logger.error(s"PropsBytes: ${propsBytes.toList}")
-//        logger.error(s"LockBytes: ${lockBytes.toList}")
+
         Bytes.add(Bytes.add(valueBytes(), opBytes, versionBytes), Bytes.add(propsBytes, lockBytes))
     }
 

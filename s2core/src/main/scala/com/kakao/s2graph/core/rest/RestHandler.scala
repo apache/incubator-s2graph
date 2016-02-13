@@ -173,11 +173,6 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
               resultWithExcludeLs <- Future.sequence(futures)
             } yield {
               PostProcess.toSimpleVertexArrJsonMulti(multiQuery.queryOption, resultWithExcludeLs, filterOut)
-//              val initial = (ListBuffer.empty[QueryRequestWithResult], ListBuffer.empty[QueryRequestWithResult])
-//              val (results, excludes) = resultWithExcludeLs.foldLeft(initial) { case ((prevResults, prevExcludes), (results, excludes)) =>
-//                (prevResults ++= results, prevExcludes ++= excludes)
-//              }
-//              PostProcess.toSimpleVertexArrJson(multiQuery.queryOption, results, excludes ++ filterOut)
             }
         }
       case _ => throw BadQueryException("Cannot support")

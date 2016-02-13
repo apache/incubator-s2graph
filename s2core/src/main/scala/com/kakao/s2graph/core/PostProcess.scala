@@ -164,6 +164,37 @@ object PostProcess extends JSONParser {
     }
   }
 
+  private def buildReplaceJson(jsValue: JsValue)(mapper: JsValue => JsValue): JsValue = {
+    def traverse(js: JsValue): JsValue = js match {
+      case JsNull => mapper(JsNull)
+      case JsUndefined() => mapper(JsUndefined(""))
+      case JsNumber(v) => mapper(js)
+      case JsString(v) => mapper(js)
+      case JsBoolean(v) => mapper(js)
+      case JsArray(elements) => JsArray(elements.map { t => traverse(mapper(t)) })
+      case JsObject(values) => JsObject(values.map { case (k, v) => k -> traverse(mapper(v)) })
+    }
+
+    traverse(jsValue)
+  }
+
+  /** test query with filterOut is not working since it can not diffrentate filterOut */
+  private def buildNextQuery(jsonQuery: JsValue, _cursors: Seq[Seq[String]]): JsValue = {
+    val cursors = _cursors.flatten.iterator
+
+    buildReplaceJson(jsonQuery) {
+      case js@JsObject(fields) =>
+        val isStep = fields.find { case (k, _) => k == "label" } // find label group
+        if (isStep.isEmpty) js
+        else {
+          // TODO: Order not ensured
+          val withCursor = js.fieldSet | Set("cursor" -> JsString(cursors.next))
+          JsObject(withCursor.toSeq)
+        }
+      case js => js
+    }
+  }
+
   private def buildRawEdges(queryOption: QueryOption,
                             queryRequestWithResultLs: Seq[QueryRequestWithResult],
                             excludeIds: Map[Int, Boolean],
@@ -265,6 +296,7 @@ object PostProcess extends JSONParser {
       Json.obj(
         "size" -> edges.size,
         "degrees" -> degrees,
+//        "queryNext" -> buildNextQuery(q.jsonQuery, q.cursorStrings()),
         "results" -> edges
       )
     } else {
@@ -314,6 +346,7 @@ object PostProcess extends JSONParser {
       Json.obj(
         "size" -> groupedSortedJsons.size,
         "degrees" -> degrees,
+//        "queryNext" -> buildNextQuery(q.jsonQuery, q.cursorStrings()),
         "results" -> groupedSortedJsons
       )
     }

@@ -136,7 +136,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
     val result = getEdgesSync(queryGroupBy(0, Seq("weight")))
     (result \ "size").as[Int] should be(2)
-    val weights = (result \\ "groupBy").map { js =>
+    val weights = (result \ "results" \\ "groupBy").map { js =>
       (js \ "weight").as[Int]
     }
     weights should contain(30)
@@ -167,11 +167,10 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     (result \ "results").as[List[JsValue]].size should be(2)
 
     result = getEdgesSync(queryTransform(0, "[[\"weight\"]]"))
-    (result \\ "to").map(_.toString).sorted should be((result \\ "weight").map(_.toString).sorted)
+    (result \ "results" \\ "to").map(_.toString).sorted should be((result \ "results" \\ "weight").map(_.toString).sorted)
 
     result = getEdgesSync(queryTransform(0, "[[\"_from\"]]"))
-    val results = (result \ "results").as[JsValue]
-    (result \\ "to").map(_.toString).sorted should be((results \\ "from").map(_.toString).sorted)
+    (result \ "results" \\ "to").map(_.toString).sorted should be((result \ "results" \\ "from").map(_.toString).sorted)
   }
 
   test("index") {
