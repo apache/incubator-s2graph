@@ -11,7 +11,8 @@ object HBaseType {
   val VERSION2 = "v2"
   val VERSION1 = "v1"
 //  val DEFAULT_VERSION = VERSION2
-  val DEFAULT_VERSION = VERSION3
+//  val DEFAULT_VERSION = VERSION3
+  val DEFAULT_VERSION = VERSION4
   val EMPTY_SEQ_BYTE = Byte.MaxValue
   val DEFAULT_COL_ID = 0
   val bitsForDir = 2

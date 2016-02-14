@@ -4,6 +4,7 @@ import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.LabelMeta
 import com.kakao.s2graph.core.storage.{CanSKeyValue, StorageDeserializable, SKeyValue}
 import com.kakao.s2graph.core.types._
+import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.util.Bytes
 
 class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
@@ -93,7 +94,7 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
       parseValue(kv, version)
     }
 
-    val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException("invalid index seq"))
+    val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${queryParam.label.id.get}, ${labelIdxSeq}"))
 
 
     //    assert(kv.qualifier.nonEmpty && index.metaSeqs.size == idxPropsRaw.size)
@@ -133,6 +134,7 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
 
     val kv = kvs.head
 
+//    logger.debug(s"[Des]: ${kv.row.toList}, ${kv.qualifier.toList}, ${kv.value.toList}")
     var pos = 0
     val (srcVertexId, srcIdLen) = SourceVertexId.fromBytes(kv.row, pos, kv.row.length, version)
     pos += srcIdLen
@@ -140,6 +142,7 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
     pos += 4
     val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsInverted(kv.row, pos)
     pos += 1
+
     val op = kv.row(pos)
     pos += 1
 
@@ -153,7 +156,7 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
       IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, props)
     } else {
       // not degree edge
-      val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException("invalid index seq"))
+      val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${queryParam.label.id.get}, ${labelIdxSeq}"))
 
       val (idxPropsRaw, endAt) = bytesToProps(kv.row, pos, version)
       pos = endAt

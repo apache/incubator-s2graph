@@ -83,7 +83,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
 
 
   override def writeToStorage(rpc: HBaseRpc, withWait: Boolean): Future[Boolean] = {
-    //    logger.debug(s"$rpc")
+//        logger.debug(s"$rpc")
     val _client = client(withWait)
     val _defer = rpc match {
       case d: DeleteRequest => _client.delete(d)
@@ -178,8 +178,8 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
             }
             (_startKey, Bytes.add(baseKey, Array.fill(1)(-1)))
           }
-        //        logger.debug(s"[StartKey]: ${startKey.toList}")
-        //        logger.debug(s"[StopKey]: ${stopKey.toList}")
+//                logger.debug(s"[StartKey]: ${startKey.toList}")
+//                logger.debug(s"[StopKey]: ${stopKey.toList}")
 
         scanner.setStartKey(startKey)
         scanner.setStopKey(stopKey)
@@ -218,7 +218,6 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
                      parentEdges: Seq[EdgeWithScore]): Deferred[QueryRequestWithResult] = {
     def fetchInner(hbaseRpc: AnyRef) = {
       fetchKeyValuesInner(hbaseRpc).withCallback { kvs =>
-
         val edgeWithScores = toEdges(kvs, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
         val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0) {
           sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
@@ -226,7 +225,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty)))
 
       } recoverWith { ex =>
-        logger.error(s"fetchQueryParam failed. fallback return.", ex)
+        logger.error(s"fetchInner failed. fallback return. $hbaseRpc}", ex)
         QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
       }
     }
@@ -433,7 +432,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
           scanner.close()
           ls
         }.recoverWith { ex =>
-          logger.error(s"fetchKeyValues failed.", ex)
+          logger.error(s"fetchKeyValuesInner failed.", ex)
           scanner.close()
           emptyKeyValues
         }

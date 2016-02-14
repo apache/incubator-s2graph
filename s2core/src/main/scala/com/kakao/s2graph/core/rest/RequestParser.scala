@@ -17,6 +17,7 @@ class RequestParser(config: Config) extends JSONParser {
 
   val hardLimit = 100000
   val defaultLimit = 100
+  val maxLimit = Int.MaxValue - 1
   val DefaultRpcTimeout = config.getInt("hbase.rpc.timeout")
   val DefaultMaxAttempt = config.getInt("hbase.client.retries.number")
   val DefaultCluster = config.getString("hbase.zookeeper.quorum")
@@ -272,7 +273,7 @@ class RequestParser(config: Config) extends JSONParser {
       val limit = {
         parse[Option[Int]](labelGroup, "limit") match {
           case None => defaultLimit
-          case Some(l) if l < 0 => Int.MaxValue
+          case Some(l) if l < 0 => maxLimit
           case Some(l) if l >= 0 =>
             val default = hardLimit
             Math.min(l, default)

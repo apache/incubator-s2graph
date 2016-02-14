@@ -3,6 +3,7 @@ package com.kakao.s2graph.core.storage.hbase
 import com.kakao.s2graph.core.mysqls.LabelMeta
 import com.kakao.s2graph.core.storage.{StorageSerializable, SKeyValue}
 import com.kakao.s2graph.core.types.{HBaseType, VertexId}
+import com.kakao.s2graph.core.utils.logger
 import com.kakao.s2graph.core.{GraphUtil, IndexEdge}
 import org.apache.hadoop.hbase.util.Bytes
 
@@ -73,7 +74,8 @@ case class IndexEdgeSerializable(indexEdge: IndexEdge) extends HSerializable[Ind
           case Some(vId) => idxPropsBytes
         }
 
-    val rowBytes = Bytes.add(row, Array.fill(1)(indexEdge.op), qualifier)
+    /** TODO search usage of op byte. if there is no, then remove opByte */
+    val rowBytes = Bytes.add(row, Array.fill(1)(GraphUtil.defaultOpByte), qualifier)
     //    val qualifierBytes = Array.fill(1)(indexEdge.op)
     val qualifierBytes = Array.empty[Byte]
 
@@ -86,7 +88,7 @@ case class IndexEdgeSerializable(indexEdge: IndexEdge) extends HSerializable[Ind
 
     val kv = SKeyValue(table, rowBytes, cf, qualifierBytes, value, indexEdge.version)
 
-    //    logger.debug(s"${kv.row.toList}, ${kv.qualifier.toList}, ${kv.value.toList}")
+//        logger.debug(s"[Ser]: ${kv.row.toList}, ${kv.qualifier.toList}, ${kv.value.toList}")
     Seq(kv)
   }
 }

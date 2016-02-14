@@ -347,8 +347,11 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
         Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs.withLong(requestTs, requestTs, label.schemaVersion))
       val copiedEdge = edgeWithScore.edge.copy(op = GraphUtil.operations("delete"), version = requestTs,
         propsWithTs = newPropsWithTs)
-      edgeWithScore.copy(edge = copiedEdge)
+      val edgeToDelete = edgeWithScore.copy(edge = copiedEdge)
+//      logger.debug(s"delete edge from deleteAll: ${edgeToDelete.edge.toLogString}")
+      edgeToDelete
     }
+
     queryResult.copy(edgeWithScoreLs = edgeWithScoreLs)
   }
 
@@ -357,7 +360,6 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
     queryResultLs.foreach { queryResult =>
       if (queryResult.isFailure) throw new RuntimeException("fetched result is fallback.")
     }
-
     val futures = for {
       queryRequestWithResult <- queryRequestWithResultLs
       (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResult).get
@@ -385,6 +387,7 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
             deleteAllFetchedEdgesAsyncOld(queryRequest, deleteQueryResult, requestTs, MaxRetryNum)
         }
       }
+
     if (futures.isEmpty) {
       // all deleted.
       Future.successful(true -> true)
@@ -397,7 +400,10 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
     val future = for {
       queryRequestWithResultLs <- getEdges(query)
       (allDeleted, ret) <- deleteAllFetchedEdgesLs(queryRequestWithResultLs, requestTs)
-    } yield (allDeleted, ret)
+    } yield {
+//        logger.debug(s"fetchAndDeleteAll: ${allDeleted}, ${ret}")
+        (allDeleted, ret)
+      }
 
     Extensions.retryOnFailure(MaxRetryNum) {
       future
@@ -473,7 +479,7 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
       Option(indexEdge.toEdge.copy(parentEdges = parentEdges))
     } catch {
       case ex: Exception =>
-        logger.error(s"Fail on toEdge: ${kv.toString}, ${queryParam}")
+        logger.error(s"Fail on toEdge: ${kv.toString}, ${queryParam}", ex)
         None
     }
   }
@@ -916,13 +922,14 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
         // current stepIdx = -1
         val startQueryResultLs = QueryResult.fromVertices(q)
         q.steps.foldLeft(Future.successful(startQueryResultLs)) { case (acc, step) =>
-          fetchStepFuture(q, acc).map { stepResults =>
-            step.queryParams.zip(stepResults).foreach { case (qParam, queryRequestWithResult)  =>
-              val cursor = Base64.getEncoder.encodeToString(queryRequestWithResult.queryResult.tailCursor)
-              qParam.cursorOpt = Option(cursor)
-            }
-            stepResults
-          }
+            fetchStepFuture(q, acc)
+//          fetchStepFuture(q, acc).map { stepResults =>
+//            step.queryParams.zip(stepResults).foreach { case (qParam, queryRequestWithResult)  =>
+//              val cursor = Base64.getEncoder.encodeToString(queryRequestWithResult.queryResult.tailCursor)
+//              qParam.cursorOpt = Option(cursor)
+//            }
+//            stepResults
+//          }
         }
       }
     } recover {
