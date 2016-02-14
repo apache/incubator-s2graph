@@ -343,10 +343,19 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
       (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.isDegree
     }.map { edgeWithScore =>
       val label = queryRequest.queryParam.label
-      val newPropsWithTs = edgeWithScore.edge.propsWithTs ++
-        Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs.withLong(requestTs, requestTs, label.schemaVersion))
-      val copiedEdge = edgeWithScore.edge.copy(op = GraphUtil.operations("delete"), version = requestTs,
-        propsWithTs = newPropsWithTs)
+      val (newOp, newVersion, newPropsWithTs) = label.consistencyLevel match {
+        case "strong" =>
+          val _newPropsWithTs = edgeWithScore.edge.propsWithTs ++
+            Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs.withLong(requestTs, requestTs, label.schemaVersion))
+          (GraphUtil.operations("delete"), requestTs, _newPropsWithTs)
+        case _ =>
+          val oldEdge = edgeWithScore.edge
+          (oldEdge.op, oldEdge.version, oldEdge.propsWithTs)
+      }
+
+      val copiedEdge =
+        edgeWithScore.edge.copy(op = newOp, version = newVersion, propsWithTs = newPropsWithTs)
+
       val edgeToDelete = edgeWithScore.copy(edge = copiedEdge)
 //      logger.debug(s"delete edge from deleteAll: ${edgeToDelete.edge.toLogString}")
       edgeToDelete
@@ -472,7 +481,7 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
                               queryParam: QueryParam,
                               cacheElementOpt: Option[IndexEdge],
                               parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
-    //    logger.debug(s"toEdge: $kv")
+//        logger.debug(s"toEdge: $kv")
     try {
       val indexEdge = indexEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
 
@@ -489,7 +498,7 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
                                       cacheElementOpt: Option[SnapshotEdge] = None,
                                       isInnerCall: Boolean,
                                       parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
-    //    logger.debug(s"toEdge: $kv")
+//        logger.debug(s"SnapshottoEdge: $kv")
     val snapshotEdge = snapshotEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
 
     if (isInnerCall) {

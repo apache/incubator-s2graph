@@ -309,8 +309,7 @@ object Edge extends JSONParser {
     //    assert(invertedEdge.isEmpty)
     //    assert(requestEdge.op == GraphUtil.operations("delete"))
 
-    val edgesToDelete = requestEdge.copy(op = GraphUtil.operations("insert"))
-      .relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
+    val edgesToDelete = requestEdge.relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
     val edgeInverted = Option(requestEdge.toSnapshotEdge)
 
     (requestEdge, EdgeMutate(edgesToDelete, edgesToInsert = Nil, edgeInverted))
