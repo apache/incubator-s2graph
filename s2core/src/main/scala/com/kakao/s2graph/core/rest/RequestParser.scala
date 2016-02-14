@@ -155,6 +155,7 @@ class RequestParser(config: Config) extends JSONParser {
     val limitOpt = (jsValue \ "limit").asOpt[Int]
     val returnAgg = (jsValue \ "returnAgg").asOpt[Boolean].getOrElse(true)
     val scoreThreshold = (jsValue \ "scoreThreshold").asOpt[Double].getOrElse(Double.MinValue)
+    val returnDegree = (jsValue \ "returnDegree").asOpt[Boolean].getOrElse(true)
 
     QueryOption(removeCycle = removeCycle,
       selectColumns = selectColumns,
@@ -166,7 +167,8 @@ class RequestParser(config: Config) extends JSONParser {
       returnTree = returnTree,
       limitOpt = limitOpt,
       returnAgg = returnAgg,
-      scoreThreshold = scoreThreshold
+      scoreThreshold = scoreThreshold,
+      returnDegree = returnDegree
     )
   }
   def toQuery(jsValue: JsValue, isEdgeQuery: Boolean = true): Query = {
@@ -538,7 +540,7 @@ class RequestParser(config: Config) extends JSONParser {
 
   def toDeleteParam(json: JsValue) = {
     val labelName = (json \ "label").as[String]
-    val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil)
+    val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil).filterNot(_.isAsync)
     val direction = (json \ "direction").asOpt[String].getOrElse("out")
 
     val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)

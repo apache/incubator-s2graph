@@ -42,7 +42,8 @@ case class QueryOption(removeCycle: Boolean = false,
                        returnTree: Boolean = false,
                        limitOpt: Option[Int] = None,
                        returnAgg: Boolean = true,
-                       scoreThreshold: Double = Double.MinValue)
+                       scoreThreshold: Double = Double.MinValue,
+                       returnDegree: Boolean = true)
 
 case class MultiQuery(queries: Seq[Query],
                       weights: Seq[Double],
@@ -64,6 +65,7 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
   val returnTree = queryOption.returnTree
   val limitOpt = queryOption.limitOpt
   val returnAgg = queryOption.returnAgg
+  val returnDegree = queryOption.returnDegree
 
   def cacheKeyBytes: Array[Byte] = {
     val selectBytes = Bytes.toBytes(queryOption.selectColumns.toString)
@@ -570,7 +572,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 case class TimeDecay(initial: Double = 1.0,
                      lambda: Double = 0.1,
                      timeUnit: Double = 60 * 60 * 24,
-                     labeMetaSeq: Byte = LabelMeta.timeStampSeq) {
+                     labelMetaSeq: Byte = LabelMeta.timeStampSeq) {
   def decay(diff: Double): Double = {
     //FIXME
     val ret = initial * Math.pow(1.0 - lambda, diff / timeUnit)
