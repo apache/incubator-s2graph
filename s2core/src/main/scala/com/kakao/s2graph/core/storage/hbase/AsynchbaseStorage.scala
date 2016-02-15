@@ -440,9 +440,9 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     }
   }
 
-  override def writeLock(rpc: HBaseRpc, expectedOpt: Option[HBaseRpc]): Future[Boolean] = {
+  override def writeLock(rpc: HBaseRpc, expectedOpt: Option[SKeyValue]): Future[Boolean] = {
     val put = rpc.asInstanceOf[PutRequest]
-    val expected = expectedOpt.map(_.asInstanceOf[PutRequest].value()).getOrElse(Array.empty)
+    val expected = expectedOpt.map(_.value).getOrElse(Array.empty)
     client(withWait = true).compareAndSet(put, expected).withCallback(ret => ret.booleanValue()).toFuture
   }
 
