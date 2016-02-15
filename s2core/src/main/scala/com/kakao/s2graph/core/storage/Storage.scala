@@ -58,7 +58,7 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
 
   /** End of Mutation */
 
-  def writeLock(rpc: W, expectedOpt: Option[SKeyValue]): Future[Boolean]
+  def writeLock(rpc: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean]
 
   /** Management Logic */
   def flush(): Unit
@@ -619,8 +619,9 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
       val p = Random.nextDouble()
       if (p < FailProb) throw new PartialFailureException(edge, 0, s"$p")
       else {
-        val lockEdgePut = buildPutAsync(lockEdge).head
+        val lockEdgePut = snapshotEdgeSerializer(lockEdge).toKeyValues.head
         val oldPut = oldSnapshotEdgeOpt.map(e => snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head)
+//        val lockEdgePut = buildPutAsync(lockEdge).head
 //        val oldPut = oldSnapshotEdgeOpt.map(e => buildPutAsync(e.toSnapshotEdge).head)
         writeLock(lockEdgePut, oldPut).recoverWith { case ex: Exception =>
           logger.error(s"AcquireLock RPC Failed.")
@@ -661,7 +662,7 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
     val p = Random.nextDouble()
     if (p < FailProb) throw new PartialFailureException(edge, 3, s"$p")
     else {
-      val releaseLockEdgePut = buildPutAsync(releaseLockEdge).head
+      val releaseLockEdgePut = snapshotEdgeSerializer(releaseLockEdge).toKeyValues.head
       val lockEdgePut = snapshotEdgeSerializer(lockEdge).toKeyValues.head
       writeLock(releaseLockEdgePut, Option(lockEdgePut)).recoverWith {
         case ex: Exception =>
