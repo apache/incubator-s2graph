@@ -82,16 +82,19 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
   .maximumSize(maxSize).build[java.lang.Integer, Option[Vertex]]()
 
 
-  override def writeToStorage(rpc: HBaseRpc, withWait: Boolean): Future[Boolean] = {
+  override def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean] = {
 //        logger.debug(s"$rpc")
     val _client = client(withWait)
-    val _defer = rpc match {
-      case d: DeleteRequest => _client.delete(d)
-      case p: PutRequest => _client.put(p)
-      case i: AtomicIncrementRequest => _client.atomicIncrement(i)
+    val _defer = kv.operation match {
+      case SKeyValue.Put => _client.put(new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp))
+      case SKeyValue.Delete =>
+        if (kv.qualifier == null) _client.delete(new DeleteRequest(kv.table, kv.row, kv.cf, kv.timestamp))
+        else _client.delete(new DeleteRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.timestamp))
+      case SKeyValue.Increment =>
+        _client.atomicIncrement(new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value)))
     }
     val future = _defer.withCallback { ret => true }.recoverWith { ex =>
-      logger.error(s"mutation failed. $rpc", ex)
+      logger.error(s"mutation failed. $kv", ex)
       false
     }.toFuture
 
@@ -100,17 +103,17 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
 
 
   /** Mutation Builder */
-  override def put(kvs: Seq[SKeyValue]): Seq[HBaseRpc] =
-    kvs.map { kv => new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp) }
-
-  override def increment(kvs: Seq[SKeyValue]): Seq[HBaseRpc] =
-    kvs.map { kv => new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value)) }
-
-  override def delete(kvs: Seq[SKeyValue]): Seq[HBaseRpc] =
-    kvs.map { kv =>
-      if (kv.qualifier == null) new DeleteRequest(kv.table, kv.row, kv.cf, kv.timestamp)
-      else new DeleteRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.timestamp)
-    }
+//  override def put(kvs: Seq[SKeyValue]): Seq[HBaseRpc] =
+//    kvs.map { kv => new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp) }
+//
+//  override def increment(kvs: Seq[SKeyValue]): Seq[HBaseRpc] =
+//    kvs.map { kv => new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value)) }
+//
+//  override def delete(kvs: Seq[SKeyValue]): Seq[HBaseRpc] =
+//    kvs.map { kv =>
+//      if (kv.qualifier == null) new DeleteRequest(kv.table, kv.row, kv.cf, kv.timestamp)
+//      else new DeleteRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.timestamp)
+//    }
 
 
 

@@ -44,16 +44,16 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
 
 
   /** Mutation Logics */
-  def writeToStorage(rpc: W, withWait: Boolean): Future[Boolean]
+  def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean]
 
   def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]]
 
   /** Build backend storage specific RPC */
-  def put(kvs: Seq[SKeyValue]): Seq[W]
-
-  def increment(kvs: Seq[SKeyValue]): Seq[W]
-
-  def delete(kvs: Seq[SKeyValue]): Seq[W]
+//  def put(kvs: Seq[SKeyValue]): Seq[W]
+//
+//  def increment(kvs: Seq[SKeyValue]): Seq[W]
+//
+//  def delete(kvs: Seq[SKeyValue]): Seq[W]
   /** Build backend storage specific RPC */
 
   /** End of Mutation */
@@ -208,7 +208,8 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
 
   def mutateVertex(vertex: Vertex, withWait: Boolean): Future[Boolean] = {
     if (vertex.op == GraphUtil.operations("delete")) {
-      writeAsyncSimple(vertex.hbaseZkAddr, buildDeleteAsync(vertex), withWait)
+      writeAsyncSimple(vertex.hbaseZkAddr,
+        vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Delete)), withWait)
     } else if (vertex.op == GraphUtil.operations("deleteAll")) {
       logger.info(s"deleteAll for vertex is truncated. $vertex")
       Future.successful(true) // Ignore withWait parameter, because deleteAll operation may takes long time
@@ -323,12 +324,14 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
       (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
     } yield {
         /** reverted direction */
-        val reversedIndexedEdgesMutations = edge.duplicateEdge.edgesWithIndex.flatMap { indexedEdge =>
-          buildDeletesAsync(indexedEdge) ++ buildIncrementsAsync(indexedEdge, -1L)
+        val reversedIndexedEdgesMutations = edge.duplicateEdge.edgesWithIndex.flatMap { indexEdge =>
+          indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
+            buildIncrementsAsync(indexEdge, -1L)
         }
-        val reversedSnapshotEdgeMutations = buildDeleteAsync(edge.toSnapshotEdge)
-        val forwardIndexedEdgeMutations = edge.edgesWithIndex.flatMap { indexedEdge =>
-          buildDeletesAsync(indexedEdge) ++ buildIncrementsAsync(indexedEdge, -1L)
+        val reversedSnapshotEdgeMutations = snapshotEdgeSerializer(edge.toSnapshotEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put))
+        val forwardIndexedEdgeMutations = edge.edgesWithIndex.flatMap { indexEdge =>
+          indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
+            buildIncrementsAsync(indexEdge, -1L)
         }
         val mutations = reversedIndexedEdgesMutations ++ reversedSnapshotEdgeMutations ++ forwardIndexedEdgeMutations
         writeAsyncSimple(zkQuorum, mutations, withWait = true)
@@ -548,7 +551,7 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
   /** End Of Parse Logic */
 
   /** methods for consistency */
-  protected def writeAsyncSimple(zkQuorum: String, elementRpcs: Seq[W], withWait: Boolean): Future[Boolean] = {
+  protected def writeAsyncSimple(zkQuorum: String, elementRpcs: Seq[SKeyValue], withWait: Boolean): Future[Boolean] = {
     if (elementRpcs.isEmpty) {
       Future.successful(true)
     } else {
@@ -1001,17 +1004,21 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
 
 
   /** EdgeMutate */
-  def indexedEdgeMutations(edgeMutate: EdgeMutate): Seq[W] = {
-    val deleteMutations = edgeMutate.edgesToDelete.flatMap(edge => buildDeletesAsync(edge))
-    val insertMutations = edgeMutate.edgesToInsert.flatMap(edge => buildPutsAsync(edge))
+  def indexedEdgeMutations(edgeMutate: EdgeMutate): Seq[SKeyValue] = {
+    val deleteMutations = edgeMutate.edgesToDelete.flatMap { indexEdge =>
+      indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete))
+    }
+    val insertMutations = edgeMutate.edgesToInsert.flatMap { indexEdge =>
+      indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put))
+    }
 
     deleteMutations ++ insertMutations
   }
 
-  def snapshotEdgeMutations(edgeMutate: EdgeMutate): Seq[W] =
-    edgeMutate.newSnapshotEdge.map(e => buildPutAsync(e)).getOrElse(Nil)
+  def snapshotEdgeMutations(edgeMutate: EdgeMutate): Seq[SKeyValue] =
+    edgeMutate.newSnapshotEdge.map(e => snapshotEdgeSerializer(e).toKeyValues).getOrElse(Nil)
 
-  def increments(edgeMutate: EdgeMutate): Seq[W] =
+  def increments(edgeMutate: EdgeMutate): Seq[SKeyValue] =
     (edgeMutate.edgesToDelete.isEmpty, edgeMutate.edgesToInsert.isEmpty) match {
       case (true, true) =>
 
@@ -1032,53 +1039,35 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
     }
 
   /** IndexEdge */
-  def buildIncrementsAsync(indexedEdge: IndexEdge, amount: Long = 1L): Seq[W] = {
+  def buildIncrementsAsync(indexedEdge: IndexEdge, amount: Long = 1L): Seq[SKeyValue] = {
     val newProps = indexedEdge.props ++ Map(LabelMeta.degreeSeq -> InnerVal.withLong(amount, indexedEdge.schemaVer))
     val _indexedEdge = indexedEdge.copy(props = newProps)
-    increment(indexEdgeSerializer(_indexedEdge).toKeyValues)
+    indexEdgeSerializer(_indexedEdge).toKeyValues.map(_.copy(operation = SKeyValue.Increment))
   }
 
-  def buildIncrementsCountAsync(indexedEdge: IndexEdge, amount: Long = 1L): Seq[W] = {
+  def buildIncrementsCountAsync(indexedEdge: IndexEdge, amount: Long = 1L): Seq[SKeyValue] = {
     val newProps = indexedEdge.props ++ Map(LabelMeta.countSeq -> InnerVal.withLong(amount, indexedEdge.schemaVer))
     val _indexedEdge = indexedEdge.copy(props = newProps)
-    increment(indexEdgeSerializer(_indexedEdge).toKeyValues)
+    indexEdgeSerializer(_indexedEdge).toKeyValues.map(_.copy(operation = SKeyValue.Increment))
   }
-
-  def buildDeletesAsync(indexedEdge: IndexEdge): Seq[W] = delete(indexEdgeSerializer(indexedEdge).toKeyValues)
-
-  def buildPutsAsync(indexedEdge: IndexEdge): Seq[W] = put(indexEdgeSerializer(indexedEdge).toKeyValues)
-
-  /** SnapshotEdge */
-  def buildPutAsync(snapshotEdge: SnapshotEdge): Seq[W] = put(snapshotEdgeSerializer(snapshotEdge).toKeyValues)
-
-  def buildDeleteAsync(snapshotEdge: SnapshotEdge): Seq[W] = delete(snapshotEdgeSerializer(snapshotEdge).toKeyValues)
-
-  /** Vertex */
-  def buildPutsAsync(vertex: Vertex): Seq[W] = put(vertexSerializer(vertex).toKeyValues)
-
-  def buildDeleteAsync(vertex: Vertex): Seq[W] = delete(Seq(vertexSerializer(vertex).toKeyValues.head.copy(qualifier = null)))
-
-  def buildDeleteBelongsToId(vertex: Vertex): Seq[W] = {
+  def buildDeleteBelongsToId(vertex: Vertex): Seq[SKeyValue] = {
     val kvs = vertexSerializer(vertex).toKeyValues
     val kv = kvs.head
-
-
-    val newKVs = vertex.belongLabelIds.map { id =>
-      kv.copy(qualifier = Bytes.toBytes(Vertex.toPropKey(id)))
+    vertex.belongLabelIds.map { id =>
+      kv.copy(qualifier = Bytes.toBytes(Vertex.toPropKey(id)), operation = SKeyValue.Delete)
     }
-    delete(newKVs)
   }
 
-  def buildVertexPutsAsync(edge: Edge): Seq[W] =
+  def buildVertexPutsAsync(edge: Edge): Seq[SKeyValue] =
     if (edge.op == GraphUtil.operations("delete"))
       buildDeleteBelongsToId(edge.srcForVertex) ++ buildDeleteBelongsToId(edge.tgtForVertex)
     else
-      buildPutsAsync(edge.srcForVertex) ++ buildPutsAsync(edge.tgtForVertex)
+      vertexSerializer(edge.srcForVertex).toKeyValues ++ vertexSerializer(edge.tgtForVertex).toKeyValues
 
-  def buildPutsAll(vertex: Vertex): Seq[W] = {
+  def buildPutsAll(vertex: Vertex): Seq[SKeyValue] = {
     vertex.op match {
-      case d: Byte if d == GraphUtil.operations("delete") => buildDeleteAsync(vertex)
-      case _ => buildPutsAsync(vertex)
+      case d: Byte if d == GraphUtil.operations("delete") => vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Delete))
+      case _ => vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Put))
     }
   }
 }
