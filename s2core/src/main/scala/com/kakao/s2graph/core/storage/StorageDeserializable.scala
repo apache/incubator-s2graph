@@ -2,6 +2,7 @@ package com.kakao.s2graph.core.storage
 
 import com.kakao.s2graph.core.{Edge, IndexEdge, QueryParam}
 import com.kakao.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, InnerValLikeWithTs}
+import org.apache.hadoop.hbase.util.Bytes
 
 object StorageDeserializable {
   /** Deserializer */
@@ -75,6 +76,8 @@ object StorageDeserializable {
 
     ret
   }
+
+  def bytesToLong(bytes: Array[Byte], offset: Int): Long = Bytes.toLong(bytes, offset)
 }
 
 trait StorageDeserializable[E] {

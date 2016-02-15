@@ -4,10 +4,10 @@ import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.LabelMeta
 import com.kakao.s2graph.core.storage.{CanSKeyValue, StorageDeserializable, SKeyValue}
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.util.Bytes
+import StorageDeserializable._
 
-class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
+class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends HDeserializable[IndexEdge] {
 
   import StorageDeserializable._
 
@@ -15,7 +15,8 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
   type ValueRaw = (Array[(Byte, InnerValLike)], Int)
 
   private def parseDegreeQualifier(kv: SKeyValue, version: String): QualifierRaw = {
-    val degree = Bytes.toLong(kv.value)
+//    val degree = Bytes.toLong(kv.value)
+    val degree = bytesToLongFunc(kv.value, 0)
     val idxPropsRaw = Array(LabelMeta.degreeSeq -> InnerVal.withLong(degree, version))
     val tgtVertexIdRaw = VertexId(HBaseType.DEFAULT_COL_ID, InnerVal.withStr("0", version))
     (idxPropsRaw, tgtVertexIdRaw, GraphUtil.operations("insert"), false, 0)
@@ -85,7 +86,8 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
       else parseQualifier(kv, version)
 
     val (props, _) = if (op == GraphUtil.operations("incrementCount")) {
-      val countVal = Bytes.toLong(kv.value)
+//      val countVal = Bytes.toLong(kv.value)
+      val countVal = bytesToLongFunc(kv.value, 0)
       val dummyProps = Array(LabelMeta.countSeq -> InnerVal.withLong(countVal, version))
       (dummyProps, 8)
     } else if (kv.qualifier.isEmpty) {
@@ -148,7 +150,8 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
 
     if (pos == kv.row.length) {
       // degree
-      val degreeVal = Bytes.toLong(kv.value)
+//      val degreeVal = Bytes.toLong(kv.value)
+      val degreeVal = bytesToLongFunc(kv.value, 0)
       val ts = kv.timestamp
       val props = Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, version),
         LabelMeta.degreeSeq -> InnerVal.withLong(degreeVal, version))
@@ -179,7 +182,8 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
         }
 
       val (props, _) = if (op == GraphUtil.operations("incrementCount")) {
-        val countVal = Bytes.toLong(kv.value)
+//        val countVal = Bytes.toLong(kv.value)
+        val countVal = bytesToLongFunc(kv.value, 0)
         val dummyProps = Array(LabelMeta.countSeq -> InnerVal.withLong(countVal, version))
         (dummyProps, 8)
       } else {
