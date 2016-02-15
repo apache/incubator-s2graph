@@ -51,7 +51,7 @@ object AsynchbaseStorage {
 }
 
 class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionContext)
-  extends Storage[HBaseRpc, Deferred[QueryRequestWithResult]](config) {
+  extends Storage[Deferred[QueryRequestWithResult]](config) {
 
   import Extensions.DeferOps
 

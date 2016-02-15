@@ -20,7 +20,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Random, Try}
 
-abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) {
+abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
   val MaxRetryNum = config.getInt("max.retry.number")
   val MaxBackOff = config.getInt("max.back.off")
@@ -47,15 +47,6 @@ abstract class Storage[W, R](val config: Config)(implicit ec: ExecutionContext) 
   def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean]
 
   def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]]
-
-  /** Build backend storage specific RPC */
-//  def put(kvs: Seq[SKeyValue]): Seq[W]
-//
-//  def increment(kvs: Seq[SKeyValue]): Seq[W]
-//
-//  def delete(kvs: Seq[SKeyValue]): Seq[W]
-  /** Build backend storage specific RPC */
-
   /** End of Mutation */
 
   def writeLock(rpc: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean]
