@@ -845,7 +845,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     val q = Query.toQuery(Seq(edge.srcVertex), _queryParam)
     val queryRequest = QueryRequest(q, 0, edge.srcVertex, _queryParam)
 
-    fetchSnapshotEdgeKeyValue(buildRequest(queryRequest)).map { kvs =>
+    fetchSnapshotEdgeKeyValues(buildRequest(queryRequest)).map { kvs =>
 //    fetchIndexEdgeKeyValues(buildRequest(queryRequest)).map { kvs =>
       val (edgeOpt, kvOpt) =
         if (kvs.isEmpty) (None, None)
