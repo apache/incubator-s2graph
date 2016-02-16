@@ -126,7 +126,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     }
   }
 
-  override def fetchSnapshotEdgeKeyValue(rpc: AnyRef): Future[Seq[SKeyValue]] = fetchIndexEdgeKeyValues(rpc)
+  override def fetchSnapshotEdgeKeyValues(rpc: AnyRef): Future[Seq[SKeyValue]] = fetchIndexEdgeKeyValues(rpc)
 
 
   override def buildRequest(queryRequest: QueryRequest): AnyRef = {

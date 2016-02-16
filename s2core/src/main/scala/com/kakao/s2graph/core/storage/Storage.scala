@@ -68,7 +68,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
   def fetchIndexEdgeKeyValues(rpc: AnyRef): Future[Seq[SKeyValue]]
 
-  def fetchSnapshotEdgeKeyValue(rpc: AnyRef): Future[Seq[SKeyValue]]
+  def fetchSnapshotEdgeKeyValues(rpc: AnyRef): Future[Seq[SKeyValue]]
 
   def buildRequest(queryRequest: QueryRequest): AnyRef
 
