@@ -66,7 +66,9 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
   /** Query Logic */
 
-  def fetchKeyValues(rpc: AnyRef): Future[Seq[SKeyValue]]
+  def fetchIndexEdgeKeyValues(rpc: AnyRef): Future[Seq[SKeyValue]]
+
+  def fetchSnapshotEdgeKeyValue(rpc: AnyRef): Future[Seq[SKeyValue]]
 
   def buildRequest(queryRequest: QueryRequest): AnyRef
 
@@ -101,7 +103,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       val queryParam = QueryParam.Empty
       val q = Query.toQuery(Seq(vertex), queryParam)
       val queryRequest = QueryRequest(q, stepIdx = -1, vertex, queryParam)
-      fetchKeyValues(buildRequest(queryRequest)).map { kvs =>
+      fetchIndexEdgeKeyValues(buildRequest(queryRequest)).map { kvs =>
         fromResult(queryParam, kvs, vertex.serviceColumn.schemaVersion)
       } recoverWith { case ex: Throwable =>
         Future.successful(None)
@@ -843,7 +845,8 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     val q = Query.toQuery(Seq(edge.srcVertex), _queryParam)
     val queryRequest = QueryRequest(q, 0, edge.srcVertex, _queryParam)
 
-    fetchKeyValues(buildRequest(queryRequest)).map { kvs =>
+    fetchSnapshotEdgeKeyValue(buildRequest(queryRequest)).map { kvs =>
+//    fetchIndexEdgeKeyValues(buildRequest(queryRequest)).map { kvs =>
       val (edgeOpt, kvOpt) =
         if (kvs.isEmpty) (None, None)
         else {
