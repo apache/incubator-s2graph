@@ -21,7 +21,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Random, Try}
 
 abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
-
+  /** storage dependent configurations */
   val MaxRetryNum = config.getInt("max.retry.number")
   val MaxBackOff = config.getInt("max.back.off")
   val DeleteAllFetchSize = config.getInt("delete.all.fetch.size")
@@ -32,28 +32,136 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   val expireAfterAccess = config.getInt("future.cache.expire.after.access")
 
 
-  /** Serializer/Deserializer */
-  // default serializer/deserializer. override this if any other backend system need special serialization.
+  /**
+   * create serializer that knows how to convert given snapshotEdge into kvs: Seq[SKeyValue]
+   * so we can store this kvs.
+   * @param snapshotEdge: snapshotEdge to serialize
+   * @return serializer implementation for StorageSerializable which has toKeyValues return Seq[SKeyValue]
+   */
   def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge) = new SnapshotEdgeSerializable(snapshotEdge)
+
+  /**
+   * create serializer that knows how to convert given indexEdge into kvs: Seq[SKeyValue]
+   * @param indexedEdge: indexEdge to serialize
+   * @return serializer implementation
+   */
   def indexEdgeSerializer(indexedEdge: IndexEdge) = new IndexEdgeSerializable(indexedEdge)
+
+  /**
+   * create serializer that knows how to convert given vertex into kvs: Seq[SKeyValue]
+   * @param vertex: vertex to serialize
+   * @return serializer implementation
+   */
   def vertexSerializer(vertex: Vertex) = new VertexSerializable(vertex)
+
+  /**
+   * create deserializer that can parse stored CanSKeyValue into snapshotEdge.
+   * note that each storage implementation should implement implicit type class
+   * to convert storage dependent dataType into common SKeyValue type by implementing CanSKeyValue
+   *
+   * ex) Asynchbase use it's KeyValue class and CanSKeyValue object has implicit type conversion method.
+   * if any storaage use different class to represent stored byte array,
+   * then that storage implementation is responsible to provide implicit type conversion method on CanSKeyValue.
+   * */
   val snapshotEdgeDeserializer = new SnapshotEdgeDeserializable
+
+  /** create deserializer that can parse stored CanSKeyValue into indexEdge. */
   val indexEdgeDeserializer = new IndexEdgeDeserializable
+
+  /** create deserializer that can parser stored CanSKeyValue into vertex. */
   val vertexDeserializer = new VertexDeserializable
-  /** End of Serializer/Deserializer */
 
-
-  /** Mutation Logics */
+  /**
+   * decide how to store given SKeyValue into storage using storage's client.
+   * we assumes that each storage implementation has client as member variable.
+   *
+   * ex) Asynchbase client provide PutRequest/DeleteRequest/AtomicIncrement/CompareAndSet operations
+   * to actually apply byte array into storage. in this case, AsynchbaseStorage use HBaseClient
+   * and build + fire rpc and return future that will return if this rpc has been succeed.
+   * @param kv: SKeyValue that need to be stored in storage.
+   * @param withWait: flag to control wait ack from storage.
+   *                  note that in AsynchbaseStorage(which support asynchronous operations), even with true,
+   *                  it never block thread, but rather submit work and notified by event loop when storage send ack back.
+   * @return ack message from storage.
+   */
   def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean]
 
+
+  /**
+   * decide how to apply given edges(indexProps values + Map(_count -> countVal)) into storage.
+   * @param edges
+   * @param withWait
+   * @return
+   */
   def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]]
-  /** End of Mutation */
 
-  def writeLock(rpc: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean]
 
-  /** Management Logic */
+  /**
+   * fetch SnapshotEdge for given request from storage.
+   * also storage datatype should be converted into SKeyValue.
+   * note that return type is Sequence rather than single SKeyValue for simplicity,
+   * even though there is assertions sequence.length == 1.
+   * @param request
+   * @return
+   */
+  def fetchSnapshotEdgeKeyValues(request: AnyRef): Future[Seq[SKeyValue]]
+
+  /**
+   * fetch IndexEdges for given request from storage.
+   * @param request
+   * @return
+   */
+  def fetchIndexEdgeKeyValues(request: AnyRef): Future[Seq[SKeyValue]]
+
+  /**
+   * build proper request which is specific into storage to call fetchIndexEdgeKeyValues or fetchSnapshotEdgeKeyValues.
+   * for example, Asynchbase use GetRequest, Scanner so this method is responsible to build
+   * client request(GetRequest, Scanner) based on user provided query.
+   * @param queryRequest
+   * @return
+   */
+  def buildRequest(queryRequest: QueryRequest): AnyRef
+
+  /**
+   * write requestKeyValue into storage if the current value in storage that is stored matches.
+   * note that we only use SnapshotEdge as place for lock, so this method only change SnapshotEdge.
+   *
+   * Most important thing is this have to be 'atomic' operation.
+   * When this operation is mutating requestKeyValue's snapshotEdge, then other thread need to be
+   * either blocked or failed on write-write conflict case.
+   *
+   * Also while this method is still running, then fetchSnapshotEdgeKeyValues should be synchronized to
+   * prevent wrong data for read.
+   *
+   * Best is use storage's concurrency control(either pessimistic or optimistic) such as transaction,
+   * compareAndSet to synchronize.
+   *
+   * for example, AsynchbaseStorage use HBase's CheckAndSet atomic operation to guarantee 'atomicity'.
+   * for storage that does not support concurrency control, then storage implementation
+   * itself can maintain manual locks that synchronize read(fetchSnapshotEdgeKeyValues)
+   * and write(writeLock).
+   * @param requestKeyValue
+   * @param expectedOpt
+   * @return
+   */
+  def writeLock(requestKeyValue: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean]
+
+  /**
+   * this method need to be called when client shutdown. this is responsible to cleanUp the resources
+   * such as client into storage.
+   */
   def flush(): Unit
 
+  /**
+   * create table on storage.
+   * if storage implementation does not support namespace or table, then there is nothing to be done
+   * @param zkAddr
+   * @param tableName
+   * @param cfs
+   * @param regionMultiplier
+   * @param ttl
+   * @param compressionAlgorithm
+   */
   def createTable(zkAddr: String,
                   tableName: String,
                   cfs: List[String],
@@ -61,23 +169,33 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
                   ttl: Option[Int],
                   compressionAlgorithm: String): Unit
 
-  /** End of Management Logic */
-
-
-  /** Query Logic */
-
-  def fetchIndexEdgeKeyValues(rpc: AnyRef): Future[Seq[SKeyValue]]
-
-  def fetchSnapshotEdgeKeyValues(rpc: AnyRef): Future[Seq[SKeyValue]]
-
-  def buildRequest(queryRequest: QueryRequest): AnyRef
-
+  /**
+   * fetch IndexEdges for given queryParam in queryRequest.
+   * this expect previous step starting score to propagate score into next step.
+   * also parentEdges is necessary to return full bfs tree when query require it.
+   *
+   * note that return type is general type.
+   * for example, currently we wanted to use Asynchbase
+   * so single I/O return type should be Deferred[T].
+   *
+   * if we use native hbase client, then this return type can be Future[T] or just T.
+   * @param queryRequest
+   * @param prevStepScore
+   * @param isInnerCall
+   * @param parentEdges
+   * @return
+   */
   def fetch(queryRequest: QueryRequest,
             prevStepScore: Double,
             isInnerCall: Boolean,
             parentEdges: Seq[EdgeWithScore]): R
 
-
+  /**
+   * responsible to fire parallel fetch call into storage and create future that will return merged result.
+   * @param queryRequestWithScoreLs
+   * @param prevStepEdges
+   * @return
+   */
   def fetches(queryRequestWithScoreLs: Seq[(QueryRequest, Double)],
               prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[QueryRequestWithResult]]
 
