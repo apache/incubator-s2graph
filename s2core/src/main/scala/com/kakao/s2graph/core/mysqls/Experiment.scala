@@ -43,7 +43,7 @@ object Experiment extends Model[Experiment] {
   }
 
   val findVar = """\"?\$\{(.*?)\}\"?""".r
-  val num = """(-?[0-9]+)\s*?(hour|day)""".r
+  val num = """(next_day|next_hour|now)?\s*(-?\s*[0-9]+)?\s*(hour|day)?""".r
 
   val hour = 60 * 60 * 1000L
   val day = hour * 24L
@@ -60,18 +60,28 @@ object Experiment extends Model[Experiment] {
 
   // TODO: REFACTOR-RENAME
   def replaceVariable(now: Long, body: String): String = {
+
     findVar.replaceAllIn(body, m => {
       val matched = m group 1
-      val matchedLow = matched.toLowerCase()
-      //      if (matched == "now" || matched == "NOW") now.toString
-      if (matchedLow == "now") now.toString
-      else if (matchedLow == "nexthour") (now / hour * hour + hour).toString
-      else if (matchedLow == "nextday") (now / day * day + day).toString
-      else num.replaceAllIn(matched, m => {
-        val (n, unit) = (m.group(1).toInt, m.group(2))
-        calculate(now, n, unit).toString
-      })
 
+      num.replaceAllIn(matched, m => {
+        val (_pivot, n, unit) = (m.group(1), m.group(2), m.group(3))
+
+        val ts = _pivot match {
+          case null => now
+          case "now" => now
+          case "next_day" => now / day * day + day
+          case "next_hour" => now / hour * hour + hour
+        }
+
+        if (_pivot == null && n == null && unit == null) {
+          m group 0
+        } else if (n == null || unit == null) {
+          ts.toString
+        } else {
+          calculate(ts, n.replaceAll(" ", "").toInt, unit).toString
+        }
+      })
     })
   }
 }
