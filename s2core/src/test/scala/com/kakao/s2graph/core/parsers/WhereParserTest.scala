@@ -195,6 +195,22 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     (json \ "-hour").as[Long] should be (-10 * hour + ts)
 
     (json \ "now").as[Long] should be (ts)
+
+    val otherBody = """{
+          "nextday": "${nextday}",
+          "nexthour": "${nexthour}"
+        }
+           """
+    val currentTs = System.currentTimeMillis()
+    val expectedDayTs = currentTs / day * day + day
+    val expectedHourTs = currentTs / hour * hour + hour
+    val currentTsLs = (0 until 1000).map(currentTs + _)
+    currentTsLs.foreach { ts =>
+      val parsed = replaceVariable(ts, otherBody)
+      val json = Json.parse(parsed)
+      (json \ "nextday").as[Long] should be(expectedDayTs)
+      (json \ "nexthour").as[Long] should be(expectedHourTs)
+    }
   }
 
   //  test("time decay") {

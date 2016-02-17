@@ -62,7 +62,11 @@ object Experiment extends Model[Experiment] {
   def replaceVariable(now: Long, body: String): String = {
     findVar.replaceAllIn(body, m => {
       val matched = m group 1
-      if (matched == "now" || matched == "NOW") now.toString
+      val matchedLow = matched.toLowerCase()
+      //      if (matched == "now" || matched == "NOW") now.toString
+      if (matchedLow == "now") now.toString
+      else if (matchedLow == "nexthour") (now / hour * hour + hour).toString
+      else if (matchedLow == "nextday") (now / day * day + day).toString
       else num.replaceAllIn(matched, m => {
         val (n, unit) = (m.group(1).toInt, m.group(2))
         calculate(now, n, unit).toString
