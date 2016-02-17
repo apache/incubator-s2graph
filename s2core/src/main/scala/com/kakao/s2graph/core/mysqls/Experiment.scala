@@ -47,11 +47,13 @@ object Experiment extends Model[Experiment] {
 
   val hour = 60 * 60 * 1000L
   val day = hour * 24L
+  val week = day * 7L
 
   def calculate(now: Long, n: Int, unit: String): Long = {
     val duration = unit match {
       case "hour" | "HOUR" => n * hour
       case "day" | "DAY" => n * day
+      case "week" | "WEEK" => n * week
       case _ => n * day
     }
 
@@ -69,9 +71,10 @@ object Experiment extends Model[Experiment] {
 
         val ts = _pivot match {
           case null => now
-          case "now" => now
-          case "next_day" => now / day * day + day
-          case "next_hour" => now / hour * hour + hour
+          case "now" | "NOW" => now
+          case "next_week" | "NEXT_WEEK" => now / week * week + week
+          case "next_day" | "NEXT_DAY" => now / day * day + day
+          case "next_hour" | "NEXT_HOUR" => now / hour * hour + hour
         }
 
         if (_pivot == null && n == null && unit == null) {
