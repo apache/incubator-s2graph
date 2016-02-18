@@ -9,11 +9,11 @@ import com.kakao.s2graph.core.utils.logger
 import play.api.libs.json._
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
-
 
 object RestHandler {
+
   case class HandlerResult(body: Future[JsValue], headers: (String, String)*)
+
 }
 
 /**
@@ -23,15 +23,16 @@ object RestHandler {
 class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
 
   import RestHandler._
-
-  val s2Parser = new RequestParser(graph.config)
+  val requestParser = new RequestParser(graph.config)
 
   /**
     * Public APIS
     */
-  def doPost(uri: String, jsQuery: JsValue, impKeyOpt: => Option[String] = None): HandlerResult = {
-
+  def doPost(uri: String, body: String, impKeyOpt: => Option[String] = None): HandlerResult = {
     try {
+      val replacedBody = TemplateHelper.replaceVariable(System.currentTimeMillis(), body)
+      val jsQuery = Json.parse(replacedBody)
+
       uri match {
         case "/graphs/getEdges" => HandlerResult(getEdgesAsync(jsQuery)(PostProcess.toSimpleVertexArrJson))
         case "/graphs/getEdges/grouped" => HandlerResult(getEdgesAsync(jsQuery)(PostProcess.summarizeWithListFormatted))
@@ -55,7 +56,7 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
   // TODO: Refactor to doGet
   def checkEdges(jsValue: JsValue): HandlerResult = {
     try {
-      val (quads, isReverted) = s2Parser.toCheckEdgeParam(jsValue)
+      val (quads, isReverted) = requestParser.toCheckEdgeParam(jsValue)
 
       HandlerResult(graph.checkEdges(quads).map { case queryRequestWithResultLs =>
         val edgeJsons = for {
@@ -101,16 +102,16 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
   private def buildRequestInner(contentsBody: JsValue, bucket: Bucket, uuid: String): HandlerResult = {
     if (bucket.isEmpty) HandlerResult(Future.successful(PostProcess.emptyResults))
     else {
-      val jsonBody = makeRequestJson(Option(contentsBody), bucket, uuid)
+      val body = buildRequestBody(Option(contentsBody), bucket, uuid)
       val url = new URL(bucket.apiPath)
       val path = url.getPath()
 
       // dummy log for sampling
-      val experimentLog = s"POST $path took -1 ms 200 -1 $jsonBody"
+      val experimentLog = s"POST $path took -1 ms 200 -1 $body"
 
       logger.info(experimentLog)
 
-      doPost(path, jsonBody)
+      doPost(path, body)
     }
   }
 
@@ -130,16 +131,16 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
   }
 
   def getEdgesAsync(jsonQuery: JsValue)
-                           (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
+                   (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
 
     val fetch = eachQuery(post) _
     jsonQuery match {
-      case JsArray(arr) => Future.traverse(arr.map(s2Parser.toQuery(_)))(fetch).map(JsArray)
+      case JsArray(arr) => Future.traverse(arr.map(requestParser.toQuery(_)))(fetch).map(JsArray)
       case obj@JsObject(_) =>
         (obj \ "queries").asOpt[JsValue] match {
-          case None => fetch(s2Parser.toQuery(obj))
+          case None => fetch(requestParser.toQuery(obj))
           case _ =>
-            val multiQuery = s2Parser.toMultiQuery(obj)
+            val multiQuery = requestParser.toMultiQuery(obj)
             val filterOutFuture = multiQuery.queryOption.filterOutQuery match {
               case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
               case None => Future.successful(Seq.empty)
@@ -173,11 +174,11 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
               resultWithExcludeLs <- Future.sequence(futures)
             } yield {
               PostProcess.toSimpleVertexArrJsonMulti(multiQuery.queryOption, resultWithExcludeLs, filterOut)
-//              val initial = (ListBuffer.empty[QueryRequestWithResult], ListBuffer.empty[QueryRequestWithResult])
-//              val (results, excludes) = resultWithExcludeLs.foldLeft(initial) { case ((prevResults, prevExcludes), (results, excludes)) =>
-//                (prevResults ++= results, prevExcludes ++= excludes)
-//              }
-//              PostProcess.toSimpleVertexArrJson(multiQuery.queryOption, results, excludes ++ filterOut)
+              //              val initial = (ListBuffer.empty[QueryRequestWithResult], ListBuffer.empty[QueryRequestWithResult])
+              //              val (results, excludes) = resultWithExcludeLs.foldLeft(initial) { case ((prevResults, prevExcludes), (results, excludes)) =>
+              //                (prevResults ++= results, prevExcludes ++= excludes)
+              //              }
+              //              PostProcess.toSimpleVertexArrJson(multiQuery.queryOption, results, excludes ++ filterOut)
             }
         }
       case _ => throw BadQueryException("Cannot support")
@@ -186,7 +187,7 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
 
   private def getEdgesExcludedAsync(jsonQuery: JsValue)
                                    (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
-    val q = s2Parser.toQuery(jsonQuery)
+    val q = requestParser.toQuery(jsonQuery)
     val filterOutQuery = Query(q.vertices, Vector(q.steps.last))
 
     val fetchFuture = graph.getEdges(q)
@@ -216,11 +217,11 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
     graph.getVertices(vertices) map { vertices => PostProcess.verticesToJson(vertices) }
   }
 
-  private def makeRequestJson(requestKeyJsonOpt: Option[JsValue], bucket: Bucket, uuid: String): JsValue = {
+  private def buildRequestBody(requestKeyJsonOpt: Option[JsValue], bucket: Bucket, uuid: String): String = {
     var body = bucket.requestBody.replace("#uuid", uuid)
 
-    // replace variable
-    body = Experiment.replaceVariable(System.currentTimeMillis(), body)
+    //    // replace variable
+    //    body = TemplateHelper.replaceVariable(System.currentTimeMillis(), body)
 
     // replace param
     for {
@@ -235,10 +236,7 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
       body = body.replace(key, replacement)
     }
 
-    Try(Json.parse(body)).recover {
-      case e: Exception =>
-        throw new BadQueryException(s"wrong or missing template parameter: ${e.getMessage.takeWhile(_ != '\n')}")
-    } get
+    body
   }
 
   def calcSize(js: JsValue): Int = js match {

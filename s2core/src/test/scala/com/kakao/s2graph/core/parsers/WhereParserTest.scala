@@ -170,7 +170,8 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
 
   test("replace reserved") {
     val ts = 0
-    import Experiment._
+    import com.kakao.s2graph.core.rest.TemplateHelper._
+
     calculate(ts, 1, "hour") should be(hour + ts)
     calculate(ts, 1, "day") should be(day + ts)
 
