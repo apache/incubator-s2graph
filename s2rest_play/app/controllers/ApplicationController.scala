@@ -17,6 +17,8 @@ object ApplicationController extends Controller {
 
   val jsonParser: BodyParser[JsValue] = controllers.s2parse.json
 
+  val jsonText: BodyParser[String] = controllers.s2parse.jsonText
+
   private def badQueryExceptionResults(ex: Exception) =
     Future.successful(BadRequest(PostProcess.badRequestResults(ex)).as(applicationJsonHeader))
 

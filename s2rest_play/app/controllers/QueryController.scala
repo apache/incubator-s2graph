@@ -22,24 +22,24 @@ object QueryController extends Controller with JSONParser {
     } recoverWith ApplicationController.requestFallback(request.body)
   }
 
-  def getEdges() = withHeaderAsync(parse.tolerantText)(delegate)
+  def getEdges() = withHeaderAsync(jsonText)(delegate)
 
-  def getEdgesWithGrouping() = withHeaderAsync(parse.tolerantText)(delegate)
+  def getEdgesWithGrouping() = withHeaderAsync(jsonText)(delegate)
 
-  def getEdgesExcluded() = withHeaderAsync(parse.tolerantText)(delegate)
+  def getEdgesExcluded() = withHeaderAsync(jsonText)(delegate)
 
-  def getEdgesExcludedWithGrouping() = withHeaderAsync(parse.tolerantText)(delegate)
+  def getEdgesExcludedWithGrouping() = withHeaderAsync(jsonText)(delegate)
 
-  def checkEdges() = withHeaderAsync(parse.tolerantText)(delegate)
+  def checkEdges() = withHeaderAsync(jsonText)(delegate)
 
-  def getEdgesGrouped() = withHeaderAsync(parse.tolerantText)(delegate)
+  def getEdgesGrouped() = withHeaderAsync(jsonText)(delegate)
 
-  def getEdgesGroupedExcluded() = withHeaderAsync(parse.tolerantText)(delegate)
+  def getEdgesGroupedExcluded() = withHeaderAsync(jsonText)(delegate)
 
-  def getEdgesGroupedExcludedFormatted() = withHeaderAsync(parse.tolerantText)(delegate)
+  def getEdgesGroupedExcludedFormatted() = withHeaderAsync(jsonText)(delegate)
 
   def getEdge(srcId: String, tgtId: String, labelName: String, direction: String) =
-    withHeaderAsync(parse.tolerantText) {
+    withHeaderAsync(jsonText) {
       request =>
         val params = Json.arr(Json.obj("label" -> labelName, "direction" -> direction, "from" -> srcId, "to" -> tgtId))
         rest.checkEdges(params).body.map {
@@ -48,5 +48,5 @@ object QueryController extends Controller with JSONParser {
         } recoverWith ApplicationController.requestFallback(request.body)
     }
 
-  def getVertices() = withHeaderAsync(parse.tolerantText)(delegate)
+  def getVertices() = withHeaderAsync(jsonText)(delegate)
 }

@@ -12,7 +12,7 @@ object ExperimentController extends Controller {
 
   import ApplicationController._
 
-  def experiment(accessToken: String, experimentName: String, uuid: String) = withHeaderAsync(parse.tolerantText) { request =>
+  def experiment(accessToken: String, experimentName: String, uuid: String) = withHeaderAsync(jsonText) { request =>
     val body = request.body
 
     val res = rest.doPost(request.uri, body, request.headers.get(Experiment.impressionKey))
