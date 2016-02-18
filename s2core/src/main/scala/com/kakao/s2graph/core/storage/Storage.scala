@@ -86,16 +86,6 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    */
   def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean]
 
-
-  /**
-   * decide how to apply given edges(indexProps values + Map(_count -> countVal)) into storage.
-   * @param edges
-   * @param withWait
-   * @return
-   */
-  def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]]
-
-
   /**
    * fetch SnapshotEdge for given request from storage.
    * also storage datatype should be converted into SKeyValue.
@@ -105,22 +95,6 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * @return
    */
   def fetchSnapshotEdgeKeyValues(request: AnyRef): Future[Seq[SKeyValue]]
-
-  /**
-   * fetch IndexEdges for given request from storage.
-   * @param request
-   * @return
-   */
-  def fetchIndexEdgeKeyValues(request: AnyRef): Future[Seq[SKeyValue]]
-
-  /**
-   * build proper request which is specific into storage to call fetchIndexEdgeKeyValues or fetchSnapshotEdgeKeyValues.
-   * for example, Asynchbase use GetRequest, Scanner so this method is responsible to build
-   * client request(GetRequest, Scanner) based on user provided query.
-   * @param queryRequest
-   * @return
-   */
-  def buildRequest(queryRequest: QueryRequest): AnyRef
 
   /**
    * write requestKeyValue into storage if the current value in storage that is stored matches.
@@ -147,27 +121,13 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   def writeLock(requestKeyValue: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean]
 
   /**
-   * this method need to be called when client shutdown. this is responsible to cleanUp the resources
-   * such as client into storage.
+   * build proper request which is specific into storage to call fetchIndexEdgeKeyValues or fetchSnapshotEdgeKeyValues.
+   * for example, Asynchbase use GetRequest, Scanner so this method is responsible to build
+   * client request(GetRequest, Scanner) based on user provided query.
+   * @param queryRequest
+   * @return
    */
-  def flush(): Unit
-
-  /**
-   * create table on storage.
-   * if storage implementation does not support namespace or table, then there is nothing to be done
-   * @param zkAddr
-   * @param tableName
-   * @param cfs
-   * @param regionMultiplier
-   * @param ttl
-   * @param compressionAlgorithm
-   */
-  def createTable(zkAddr: String,
-                  tableName: String,
-                  cfs: List[String],
-                  regionMultiplier: Int,
-                  ttl: Option[Int],
-                  compressionAlgorithm: String): Unit
+  def buildRequest(queryRequest: QueryRequest): AnyRef
 
   /**
    * fetch IndexEdges for given queryParam in queryRequest.
@@ -199,7 +159,45 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   def fetches(queryRequestWithScoreLs: Seq[(QueryRequest, Double)],
               prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[QueryRequestWithResult]]
 
-  /** End of Query */
+  /**
+   * fetch Vertex for given request from storage.
+   * @param request
+   * @return
+   */
+  def fetchVertexKeyValues(request: AnyRef): Future[Seq[SKeyValue]]
+
+  /**
+   * decide how to apply given edges(indexProps values + Map(_count -> countVal)) into storage.
+   * @param edges
+   * @param withWait
+   * @return
+   */
+  def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]]
+
+  /**
+   * this method need to be called when client shutdown. this is responsible to cleanUp the resources
+   * such as client into storage.
+   */
+  def flush(): Unit
+
+  /**
+   * create table on storage.
+   * if storage implementation does not support namespace or table, then there is nothing to be done
+   * @param zkAddr
+   * @param tableName
+   * @param cfs
+   * @param regionMultiplier
+   * @param ttl
+   * @param compressionAlgorithm
+   */
+  def createTable(zkAddr: String,
+                  tableName: String,
+                  cfs: List[String],
+                  regionMultiplier: Int,
+                  ttl: Option[Int],
+                  compressionAlgorithm: String): Unit
+
+
 
 
 
@@ -217,7 +215,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       val queryParam = QueryParam.Empty
       val q = Query.toQuery(Seq(vertex), queryParam)
       val queryRequest = QueryRequest(q, stepIdx = -1, vertex, queryParam)
-      fetchIndexEdgeKeyValues(buildRequest(queryRequest)).map { kvs =>
+      fetchVertexKeyValues(buildRequest(queryRequest)).map { kvs =>
         fromResult(queryParam, kvs, vertex.serviceColumn.schemaVersion)
       } recoverWith { case ex: Throwable =>
         Future.successful(None)
@@ -963,7 +961,6 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     val queryRequest = QueryRequest(q, 0, edge.srcVertex, _queryParam)
 
     fetchSnapshotEdgeKeyValues(buildRequest(queryRequest)).map { kvs =>
-//    fetchIndexEdgeKeyValues(buildRequest(queryRequest)).map { kvs =>
       val (edgeOpt, kvOpt) =
         if (kvs.isEmpty) (None, None)
         else {

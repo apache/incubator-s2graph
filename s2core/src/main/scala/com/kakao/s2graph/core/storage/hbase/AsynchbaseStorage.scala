@@ -117,7 +117,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
 
 
 
-  override def fetchIndexEdgeKeyValues(hbaseRpc: AnyRef): Future[Seq[SKeyValue]] = {
+  override def fetchSnapshotEdgeKeyValues(hbaseRpc: AnyRef): Future[Seq[SKeyValue]] = {
     val defer = fetchKeyValuesInner(hbaseRpc)
     defer.toFuture.map { kvsArr =>
       kvsArr.map { kv =>
@@ -125,8 +125,8 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
       } toSeq
     }
   }
+  def fetchVertexKeyValues(request: AnyRef): Future[Seq[SKeyValue]] = fetchSnapshotEdgeKeyValues(request)
 
-  override def fetchSnapshotEdgeKeyValues(rpc: AnyRef): Future[Seq[SKeyValue]] = fetchIndexEdgeKeyValues(rpc)
 
 
   override def buildRequest(queryRequest: QueryRequest): AnyRef = {
@@ -349,7 +349,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
       val cacheKey = MurmurHash3.stringHash(get.toString)
       val cacheVal = vertexCache.getIfPresent(cacheKey)
       if (cacheVal == null)
-        fetchIndexEdgeKeyValues(get).map { kvs =>
+        fetchVertexKeyValues(get).map { kvs =>
           fromResult(QueryParam.Empty, kvs, vertex.serviceColumn.schemaVersion)
         } recoverWith { case ex: Throwable =>
           Future.successful(None)
