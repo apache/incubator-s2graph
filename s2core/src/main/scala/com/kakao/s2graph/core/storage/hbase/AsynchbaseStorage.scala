@@ -336,10 +336,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
                    version: String): Option[Vertex] = {
 
       if (kvs.isEmpty) None
-      else {
-        val newKVs = kvs
-        Option(vertexDeserializer.fromKeyValues(queryParam, newKVs, version, None))
-      }
+      else vertexDeserializer.fromKeyValues(queryParam, kvs, version, None)
     }
 
     val futures = vertices.map { vertex =>

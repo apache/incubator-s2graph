@@ -10,7 +10,10 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
 
   import StorageDeserializable._
 
-  override def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
+  override def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam,
+                                                   _kvs: Seq[T],
+                                                   version: String,
+                                                   cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
     queryParam.label.schemaVersion match {
       case HBaseType.VERSION2 | HBaseType.VERSION1 => fromKeyValuesInner(queryParam, _kvs, version, cacheElementOpt)
       case _  => fromKeyValuesInnerV3(queryParam, _kvs, version, cacheElementOpt)
@@ -23,7 +26,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
     (statusCode.toByte, op.toByte)
   }
 
-  private def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
+  def fromKeyValuesInnerOld[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
     assert(kvs.size == 1)
 

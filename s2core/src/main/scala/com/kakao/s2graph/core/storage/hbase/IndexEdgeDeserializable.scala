@@ -58,17 +58,17 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
 
 
   /** version 1 and version 2 is same logic */
-  override def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam,
+  override def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam,
                                               _kvs: Seq[T],
                                               version: String,
                                               cacheElementOpt: Option[IndexEdge] = None): IndexEdge = {
     version match {
       case HBaseType.VERSION4 => fromKeyValuesInnerRow(queryParam, _kvs, version, cacheElementOpt)
-      case _ => fromKeyValuesInner(queryParam, _kvs, version, cacheElementOpt)
+      case _ => fromKeyValuesInnerOld(queryParam, _kvs, version, cacheElementOpt)
     }
   }
 
-  def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam,
+  def fromKeyValuesInnerOld[T: CanSKeyValue](queryParam: QueryParam,
                                           _kvs: Seq[T],
                                           version: String,
                                           cacheElementOpt: Option[IndexEdge] = None): IndexEdge = {

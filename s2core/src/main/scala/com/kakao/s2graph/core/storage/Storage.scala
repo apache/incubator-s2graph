@@ -209,12 +209,8 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     def fromResult(queryParam: QueryParam,
                    kvs: Seq[SKeyValue],
                    version: String): Option[Vertex] = {
-
       if (kvs.isEmpty) None
-      else {
-        val newKVs = kvs
-        Option(vertexDeserializer.fromKeyValues(queryParam, newKVs, version, None))
-      }
+      else vertexDeserializer.fromKeyValues(queryParam, kvs, version, None)
     }
 
     val futures = vertices.map { vertex =>
@@ -597,9 +593,8 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
                               parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
 //        logger.debug(s"toEdge: $kv")
     try {
-      val indexEdge = indexEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
-
-      Option(indexEdge.toEdge.copy(parentEdges = parentEdges))
+      val indexEdgeOpt = indexEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
+      indexEdgeOpt.map(indexEdge => indexEdge.toEdge.copy(parentEdges = parentEdges))
     } catch {
       case ex: Exception =>
         logger.error(s"Fail on toEdge: ${kv.toString}, ${queryParam}", ex)
@@ -613,18 +608,22 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
                                       isInnerCall: Boolean,
                                       parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
 //        logger.debug(s"SnapshottoEdge: $kv")
-    val snapshotEdge = snapshotEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
+    val snapshotEdgeOpt = snapshotEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
 
     if (isInnerCall) {
-      val edge = snapshotEdge.toEdge.copy(parentEdges = parentEdges)
-      if (queryParam.where.map(_.filter(edge)).getOrElse(true)) Option(edge)
-      else None
-    } else {
-      if (Edge.allPropsDeleted(snapshotEdge.props)) None
-      else {
+      snapshotEdgeOpt.flatMap { snapshotEdge =>
         val edge = snapshotEdge.toEdge.copy(parentEdges = parentEdges)
         if (queryParam.where.map(_.filter(edge)).getOrElse(true)) Option(edge)
         else None
+      }
+    } else {
+      snapshotEdgeOpt.flatMap { snapshotEdge =>
+        if (Edge.allPropsDeleted(snapshotEdge.props)) None
+        else {
+          val edge = snapshotEdge.toEdge.copy(parentEdges = parentEdges)
+          if (queryParam.where.map(_.filter(edge)).getOrElse(true)) Option(edge)
+          else None
+        }
       }
     }
   }
@@ -640,7 +639,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       val kv = first
       val cacheElementOpt =
         if (queryParam.isSnapshotEdge) None
-        else Option(indexEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, None))
+        else indexEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, None)
 
       for {
         kv <- kvs

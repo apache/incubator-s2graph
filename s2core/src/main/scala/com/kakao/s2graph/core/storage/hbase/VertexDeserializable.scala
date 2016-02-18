@@ -8,7 +8,7 @@ import org.apache.hadoop.hbase.util.Bytes
 import scala.collection.mutable.ListBuffer
 
 class VertexDeserializable extends HDeserializable[Vertex] {
-  def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam,
+  def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam,
                                      _kvs: Seq[T],
                                      version: String,
                                      cacheElementOpt: Option[Vertex]): Vertex = {
