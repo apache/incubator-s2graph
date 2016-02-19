@@ -47,13 +47,16 @@ abstract class Storage(val config: Config)(implicit ec: ExecutionContext) {
     Future.sequence(futures)
   }
 
+
   def mutateEdge(edge: Edge, withWait: Boolean): Future[Boolean]
 
-  def mutateEdges(edges: Seq[Edge],
-                  withWait: Boolean = false): Future[Seq[Boolean]] = {
-    val futures = edges.map { edge => mutateEdge(edge, withWait) }
-    Future.sequence(futures)
-  }
+  def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]]
+
+//  def mutateEdges(edges: Seq[Edge],
+//                  withWait: Boolean = false): Future[Seq[Boolean]] = {
+//    val futures = edges.map { edge => mutateEdge(edge, withWait) }
+//    Future.sequence(futures)
+//  }
 
   def mutateVertex(vertex: Vertex, withWait: Boolean): Future[Boolean]
 
@@ -63,9 +66,9 @@ abstract class Storage(val config: Config)(implicit ec: ExecutionContext) {
     Future.sequence(futures)
   }
 
-  def deleteAllAdjacentEdges(srcVertices: List[Vertex], labels: Seq[Label], dir: Int, ts: Long): Future[Boolean]
+  def deleteAllAdjacentEdges(srcVertices: Seq[Vertex], labels: Seq[Label], dir: Int, ts: Long): Future[Boolean]
 
-  def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]]
+  def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]]
 
   def flush(): Unit
 

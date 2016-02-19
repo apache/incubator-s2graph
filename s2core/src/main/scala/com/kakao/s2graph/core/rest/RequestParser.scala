@@ -344,6 +344,13 @@ class RequestParser(config: Config) extends JSONParser {
 
   }
 
+  def toEdgesWithOrg(jsValue: JsValue, operation: String): (List[Edge], List[JsValue]) = {
+    val jsValues = toJsValues(jsValue)
+    val edges = jsValues.map(toEdge(_, operation))
+
+    (edges, jsValues)
+  }
+
   def toEdges(jsValue: JsValue, operation: String): List[Edge] = {
     toJsValues(jsValue).map(toEdge(_, operation))
   }
@@ -498,7 +505,7 @@ class RequestParser(config: Config) extends JSONParser {
 
   def toDeleteParam(json: JsValue) = {
     val labelName = (json \ "label").as[String]
-    val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil)
+    val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil).filterNot(_.isAsync)
     val direction = (json \ "direction").asOpt[String].getOrElse("out")
 
     val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)

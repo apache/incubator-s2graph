@@ -347,7 +347,7 @@ class Graph(_config: Config)(implicit ec: ExecutionContext) {
 
   def mutateVertices(vertices: Seq[Vertex], withWait: Boolean = false): Future[Seq[Boolean]] = storage.mutateVertices(vertices, withWait)
 
-  def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = storage.incrementCounts(edges)
+  def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]] = storage.incrementCounts(edges, withWait)
 
   def shutdown(): Unit = {
     storage.flush()
