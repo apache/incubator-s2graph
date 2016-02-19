@@ -71,20 +71,23 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   /** create deserializer that can parser stored CanSKeyValue into vertex. */
   val vertexDeserializer = new VertexDeserializable
 
+
   /**
-   * decide how to store given SKeyValue into storage using storage's client.
+   * decide how to store given key values Seq[SKeyValue] into storage using storage's client.
+   * note that this should be return true on all success.
    * we assumes that each storage implementation has client as member variable.
    *
-   * ex) Asynchbase client provide PutRequest/DeleteRequest/AtomicIncrement/CompareAndSet operations
-   * to actually apply byte array into storage. in this case, AsynchbaseStorage use HBaseClient
-   * and build + fire rpc and return future that will return if this rpc has been succeed.
-   * @param kv: SKeyValue that need to be stored in storage.
+   *
+   * @param cluster: where this key values should be stored.
+   * @param kvs: sequence of SKeyValue that need to be stored in storage.
    * @param withWait: flag to control wait ack from storage.
    *                  note that in AsynchbaseStorage(which support asynchronous operations), even with true,
    *                  it never block thread, but rather submit work and notified by event loop when storage send ack back.
    * @return ack message from storage.
    */
-  def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean]
+  def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean): Future[Boolean]
+
+//  def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean]
 
   /**
    * fetch SnapshotEdge for given request from storage.
@@ -260,7 +263,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
         buildVertexPutsAsync(edge) ++ indexedEdgeMutations(edgeUpdate) ++
           snapshotEdgeMutations(edgeUpdate) ++ increments(edgeUpdate)
       }
-      writeAsyncSimple(zkQuorum, mutations, withWait)
+      writeToStorage(zkQuorum, mutations, withWait)
     }
     val strongEdgesFutures = mutateStrongEdges(strongEdges, withWait)
     for {
@@ -291,7 +294,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
           //TODO: decide what we will do on failure on vertex put
           val puts = buildVertexPutsAsync(head)
-          val vertexFuture = writeAsyncSimple(head.label.hbaseZkAddr, puts, withWait)
+          val vertexFuture = writeToStorage(head.label.hbaseZkAddr, puts, withWait)
           Seq(edgeFuture, vertexFuture)
         //          } else {
         //            edges.map { edge => mutateEdge(edge, withWait = withWait) }
@@ -309,77 +312,16 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
     Future.sequence(mutateEdges)
   }
-//  def mutateEdge(edge: Edge, withWait: Boolean): Future[Boolean] = {
-//    val edgeFuture =
-//      if (edge.op == GraphUtil.operations("deleteAll")) {
-//        deleteAllAdjacentEdges(Seq(edge.srcVertex), Seq(edge.label), edge.labelWithDir.dir, edge.ts)
-//      } else {
-//        val strongConsistency = edge.label.consistencyLevel == "strong"
-//        if (edge.op == GraphUtil.operations("delete") && !strongConsistency) {
-//          val zkQuorum = edge.label.hbaseZkAddr
-//          val (_, edgeUpdate) = Edge.buildDeleteBulk(None, edge)
-//          val mutations =
-//            indexedEdgeMutations(edgeUpdate) ++ snapshotEdgeMutations(edgeUpdate) ++ increments(edgeUpdate)
-//          writeAsyncSimple(zkQuorum, mutations, withWait)
-//        } else {
-//          mutateEdgesInner(Seq(edge), strongConsistency, withWait)(Edge.buildOperation)
-//        }
-//      }
-//
-//    val vertexFuture = writeAsyncSimple(edge.label.hbaseZkAddr, buildVertexPutsAsync(edge), withWait)
-//
-//    Future.sequence(Seq(edgeFuture, vertexFuture)).map(_.forall(identity))
-//  }
-//
-//  def mutateEdges(_edges: Seq[Edge], withWait: Boolean): Future[Seq[Boolean]] = {
-//    val grouped = _edges.groupBy { edge => (edge.label, edge.srcVertex.innerId, edge.tgtVertex.innerId) } toSeq
-//
-//    val mutateEdges = grouped.map { case ((_, _, _), edgeGroup) =>
-//      val (deleteAllEdges, edges) = edgeGroup.partition(_.op == GraphUtil.operations("deleteAll"))
-//
-//      // DeleteAll first
-//      val deleteAllFutures = deleteAllEdges.map { edge =>
-//        deleteAllAdjacentEdges(Seq(edge.srcVertex), Seq(edge.label), edge.labelWithDir.dir, edge.ts)
-//      }
-//
-//      // After deleteAll, process others
-//      lazy val mutateEdgeFutures = edges.toList match {
-//        case head :: tail =>
-//          val strongConsistency = edges.head.label.consistencyLevel == "strong"
-//          if (strongConsistency) {
-//            val edgeFuture = mutateEdgesInner(edges, strongConsistency, withWait)(Edge.buildOperation)
-//
-//            //TODO: decide what we will do on failure on vertex put
-//            val puts = buildVertexPutsAsync(head)
-//            val vertexFuture = writeAsyncSimple(head.label.hbaseZkAddr, puts, withWait)
-//            Seq(edgeFuture, vertexFuture)
-//          } else {
-//            edges.map { edge => mutateEdge(edge, withWait = withWait) }
-//          }
-//        case Nil => Nil
-//      }
-//
-//      val composed = for {
-//        deleteRet <- Future.sequence(deleteAllFutures)
-//        mutateRet <- Future.sequence(mutateEdgeFutures)
-//      } yield deleteRet ++ mutateRet
-//
-//      composed.map(_.forall(identity))
-//    }
-//
-//    Future.sequence(mutateEdges)
-//  }
-
 
   def mutateVertex(vertex: Vertex, withWait: Boolean): Future[Boolean] = {
     if (vertex.op == GraphUtil.operations("delete")) {
-      writeAsyncSimple(vertex.hbaseZkAddr,
+      writeToStorage(vertex.hbaseZkAddr,
         vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Delete)), withWait)
     } else if (vertex.op == GraphUtil.operations("deleteAll")) {
       logger.info(s"deleteAll for vertex is truncated. $vertex")
       Future.successful(true) // Ignore withWait parameter, because deleteAll operation may takes long time
     } else {
-      writeAsyncSimple(vertex.hbaseZkAddr, buildPutsAll(vertex), withWait)
+      writeToStorage(vertex.hbaseZkAddr, buildPutsAll(vertex), withWait)
     }
   }
 
@@ -401,7 +343,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
           indexedEdgeMutations(edgeUpdate) ++
             snapshotEdgeMutations(edgeUpdate) ++
             increments(edgeUpdate)
-        writeAsyncSimple(zkQuorum, mutations, withWait)
+        writeToStorage(zkQuorum, mutations, withWait)
       }
       Future.sequence(futures).map { rets => rets.forall(identity) }
     } else {
@@ -499,7 +441,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
             buildIncrementsAsync(indexEdge, -1L)
         }
         val mutations = reversedIndexedEdgesMutations ++ reversedSnapshotEdgeMutations ++ forwardIndexedEdgeMutations
-        writeAsyncSimple(zkQuorum, mutations, withWait = true)
+        writeToStorage(zkQuorum, mutations, withWait = true)
       }
 
     Future.sequence(futures).map { rets => rets.forall(identity) }
@@ -718,15 +660,15 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
   /** End Of Parse Logic */
 
-  /** methods for consistency */
-  protected def writeAsyncSimple(zkQuorum: String, elementRpcs: Seq[SKeyValue], withWait: Boolean): Future[Boolean] = {
-    if (elementRpcs.isEmpty) {
-      Future.successful(true)
-    } else {
-      val futures = elementRpcs.map { rpc => writeToStorage(rpc, withWait) }
-      Future.sequence(futures).map(_.forall(identity))
-    }
-  }
+//  /** methods for consistency */
+//  protected def writeAsyncSimple(zkQuorum: String, elementRpcs: Seq[SKeyValue], withWait: Boolean): Future[Boolean] = {
+//    if (elementRpcs.isEmpty) {
+//      Future.successful(true)
+//    } else {
+//      val futures = elementRpcs.map { rpc => writeToStorage(rpc, withWait) }
+//      Future.sequence(futures).map(_.forall(identity))
+//    }
+//  }
 
   case class PartialFailureException(edge: Edge, statusCode: Byte, failReason: String) extends Exception
 
@@ -877,7 +819,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       val p = Random.nextDouble()
       if (p < FailProb) throw new PartialFailureException(edge, 1, s"$p")
       else
-        writeAsyncSimple(edge.label.hbaseZkAddr, indexedEdgeMutations(_edgeMutate), withWait = true).map { ret =>
+        writeToStorage(edge.label.hbaseZkAddr, indexedEdgeMutations(_edgeMutate), withWait = true).map { ret =>
           if (ret) {
             debug(ret, "mutate", edge.toSnapshotEdge, _edgeMutate)
           } else {
@@ -899,7 +841,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       val p = Random.nextDouble()
       if (p < FailProb) throw new PartialFailureException(edge, 2, s"$p")
       else
-        writeAsyncSimple(edge.label.hbaseZkAddr, increments(_edgeMutate), withWait = true).map { ret =>
+        writeToStorage(edge.label.hbaseZkAddr, increments(_edgeMutate), withWait = true).map { ret =>
           if (ret) {
             debug(ret, "increment", edge.toSnapshotEdge, _edgeMutate)
           } else {

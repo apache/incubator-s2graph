@@ -55,6 +55,10 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
 
   import Extensions.DeferOps
 
+  /**
+   * Asynchbase client setup.
+   * note that we need two client, one for bulk(withWait=false) and another for withWait=true
+   */
   val configWithFlush = config.withFallback(ConfigFactory.parseMap(Map("hbase.rpcs.buffered_flush_interval" -> "0")))
   val client = AsynchbaseStorage.makeClient(config)
 
@@ -82,39 +86,34 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
   .maximumSize(maxSize).build[java.lang.Integer, Option[Vertex]]()
 
 
-  override def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean] = {
-//        logger.debug(s"$rpc")
-    val _client = client(withWait)
-    val _defer = kv.operation match {
-      case SKeyValue.Put => _client.put(new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp))
-      case SKeyValue.Delete =>
-        if (kv.qualifier == null) _client.delete(new DeleteRequest(kv.table, kv.row, kv.cf, kv.timestamp))
-        else _client.delete(new DeleteRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.timestamp))
-      case SKeyValue.Increment =>
-        _client.atomicIncrement(new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value)))
+  /**
+   * fire rpcs into proper hbase cluster using client and
+   * return true on all mutation success. otherwise return false.
+   */
+  override def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean): Future[Boolean] = {
+    if (kvs.isEmpty) Future.successful(true)
+    else {
+      val _client = client(withWait)
+      val futures = kvs.map { kv =>
+        val _defer = kv.operation match {
+          case SKeyValue.Put => _client.put(new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp))
+          case SKeyValue.Delete =>
+            if (kv.qualifier == null) _client.delete(new DeleteRequest(kv.table, kv.row, kv.cf, kv.timestamp))
+            else _client.delete(new DeleteRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.timestamp))
+          case SKeyValue.Increment =>
+            _client.atomicIncrement(new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value)))
+        }
+        val future = _defer.withCallback { ret => true }.recoverWith { ex =>
+          logger.error(s"mutation failed. $kv", ex)
+          false
+        }.toFuture
+
+        if (withWait) future else Future.successful(true)
+      }
+
+      Future.sequence(futures).map(_.forall(identity))
     }
-    val future = _defer.withCallback { ret => true }.recoverWith { ex =>
-      logger.error(s"mutation failed. $kv", ex)
-      false
-    }.toFuture
-
-    if (withWait) future else Future.successful(true)
   }
-
-
-  /** Mutation Builder */
-//  override def put(kvs: Seq[SKeyValue]): Seq[HBaseRpc] =
-//    kvs.map { kv => new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp) }
-//
-//  override def increment(kvs: Seq[SKeyValue]): Seq[HBaseRpc] =
-//    kvs.map { kv => new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value)) }
-//
-//  override def delete(kvs: Seq[SKeyValue]): Seq[HBaseRpc] =
-//    kvs.map { kv =>
-//      if (kv.qualifier == null) new DeleteRequest(kv.table, kv.row, kv.cf, kv.timestamp)
-//      else new DeleteRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.timestamp)
-//    }
-
 
 
   override def fetchSnapshotEdgeKeyValues(hbaseRpc: AnyRef): Future[Seq[SKeyValue]] = {
@@ -125,10 +124,38 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
       } toSeq
     }
   }
-  def fetchVertexKeyValues(request: AnyRef): Future[Seq[SKeyValue]] = fetchSnapshotEdgeKeyValues(request)
+
+  /**
+   * since HBase natively provide CheckAndSet on storage level, implementation becomes simple.
+   * @param rpc: key value that is need to be stored on storage.
+   * @param expectedOpt: last valid value for rpc's KeyValue.value from fetching.
+   * @return return true if expected value matches and our rpc is successfully applied, otherwise false.
+   *         note that when some other thread modified same cell and have different value on this KeyValue,
+   *         then HBase atomically return false.
+   */
+  override def writeLock(rpc: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean] = {
+    val put = new PutRequest(rpc.table, rpc.row, rpc.cf, rpc.qualifier, rpc.value, rpc.timestamp)
+    val expected = expectedOpt.map(_.value).getOrElse(Array.empty)
+    client(withWait = true).compareAndSet(put, expected).withCallback(ret => ret.booleanValue()).toFuture
+  }
 
 
-
+  /**
+   * given queryRequest, build storage specific RPC Request.
+   * In HBase case, we either build Scanner or GetRequest.
+   *
+   * IndexEdge layer:
+   *    Tall schema(v4): use scanner.
+   *    Wide schema(label's schema version in v1, v2, v3): use GetRequest with columnRangeFilter
+   *                                                       when query is given with itnerval option.
+   * SnapshotEdge layer:
+   *    Tall schema(v3, v4): use GetRequest without column filter.
+   *    Wide schema(label's schema version in v1, v2): use GetRequest with columnRangeFilter.
+   * Vertex layer:
+   *    all version: use GetRequest without column filter.
+   * @param queryRequest
+   * @return Scanner or GetRequest with proper setup with StartKey, EndKey, RangeFilter.
+   */
   override def buildRequest(queryRequest: QueryRequest): AnyRef = {
     import HSerializable._
     val queryParam = queryRequest.queryParam
@@ -217,6 +244,16 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     }
   }
 
+  /**
+   * we are using future cache to squash requests into same key on storage.
+   *
+   * @param queryRequest
+   * @param prevStepScore
+   * @param isInnerCall
+   * @param parentEdges
+   * @return we use Deferred here since it has much better performrance compared to scala.concurrent.Future.
+   *         seems like map, flatMap on scala.concurrent.Future is slower than Deferred's addCallback
+   */
   override def fetch(queryRequest: QueryRequest,
                      prevStepScore: Double,
                      isInnerCall: Boolean,
@@ -306,7 +343,20 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     } toFuture
   }
 
+
+  def fetchVertexKeyValues(request: AnyRef): Future[Seq[SKeyValue]] = fetchSnapshotEdgeKeyValues(request)
+
+
+  /**
+   * when withWait is given, we use client with flushInterval set to 0.
+   * if we are not using this, then we are adding extra wait time as much as flushInterval in worst case.
+   *
+   * @param edges
+   * @param withWait
+   * @return
+   */
   override def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]] = {
+    val _client = client(withWait)
     val defers: Seq[Deferred[(Boolean, Long)]] = for {
       edge <- edges
     } yield {
@@ -315,7 +365,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         val countVal = countWithTs.innerVal.toString().toLong
         val incr = buildIncrementsCountAsync(edgeWithIndex, countVal).head
         val request = incr.asInstanceOf[AtomicIncrementRequest]
-        client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>
+        _client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>
           (true, resultCount.longValue())
         } recoverWith { ex =>
           logger.error(s"mutation failed. $request", ex)
@@ -327,39 +377,6 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     grouped.toFuture.map(_.toSeq)
   }
 
-
-
-  /** Asynchbase implementation override default getVertices to use future Cache */
-  override def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
-    def fromResult(queryParam: QueryParam,
-                   kvs: Seq[SKeyValue],
-                   version: String): Option[Vertex] = {
-
-      if (kvs.isEmpty) None
-      else vertexDeserializer.fromKeyValues(queryParam, kvs, version, None)
-    }
-
-    val futures = vertices.map { vertex =>
-      val kvs = vertexSerializer(vertex).toKeyValues
-      val get = new GetRequest(vertex.hbaseTableName.getBytes, kvs.head.row, HSerializable.vertexCf)
-      //      get.setTimeout(this.singleGetTimeout.toShort)
-      get.setFailfast(true)
-      get.maxVersions(1)
-
-      val cacheKey = MurmurHash3.stringHash(get.toString)
-      val cacheVal = vertexCache.getIfPresent(cacheKey)
-      if (cacheVal == null)
-        fetchVertexKeyValues(get).map { kvs =>
-          fromResult(QueryParam.Empty, kvs, vertex.serviceColumn.schemaVersion)
-        } recoverWith { case ex: Throwable =>
-          Future.successful(None)
-        }
-
-      else Future.successful(cacheVal)
-    }
-
-    Future.sequence(futures).map { result => result.toList.flatten }
-  }
 
   override def flush(): Unit = clients.foreach { client =>
     val timeout = Duration((clientFlushInterval + 10) * 20, duration.MILLISECONDS)
@@ -407,14 +424,45 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
   }
 
 
+  /** Asynchbase implementation override default getVertices to use future Cache */
+  override def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
+    def fromResult(queryParam: QueryParam,
+                   kvs: Seq[SKeyValue],
+                   version: String): Option[Vertex] = {
+
+      if (kvs.isEmpty) None
+      else vertexDeserializer.fromKeyValues(queryParam, kvs, version, None)
+    }
+
+    val futures = vertices.map { vertex =>
+      val kvs = vertexSerializer(vertex).toKeyValues
+      val get = new GetRequest(vertex.hbaseTableName.getBytes, kvs.head.row, HSerializable.vertexCf)
+      //      get.setTimeout(this.singleGetTimeout.toShort)
+      get.setFailfast(true)
+      get.maxVersions(1)
+
+      val cacheKey = MurmurHash3.stringHash(get.toString)
+      val cacheVal = vertexCache.getIfPresent(cacheKey)
+      if (cacheVal == null)
+        fetchVertexKeyValues(get).map { kvs =>
+          fromResult(QueryParam.Empty, kvs, vertex.serviceColumn.schemaVersion)
+        } recoverWith { case ex: Throwable =>
+          Future.successful(None)
+        }
+
+      else Future.successful(cacheVal)
+    }
+
+    Future.sequence(futures).map { result => result.toList.flatten }
+  }
+
+
+
+
 
   /**
    * Private Methods which is specific to Asynchbase implementation.
    */
-
-
-
-
   private def fetchKeyValuesInner(rpc: AnyRef): Deferred[util.ArrayList[KeyValue]] = {
     rpc match {
       case getRequest: GetRequest => client.get(getRequest)
@@ -441,13 +489,6 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
       case _ => Deferred.fromError(new RuntimeException(s"fetchKeyValues failed. $rpc"))
     }
   }
-
-  override def writeLock(rpc: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean] = {
-    val put = new PutRequest(rpc.table, rpc.row, rpc.cf, rpc.qualifier, rpc.value, rpc.timestamp)
-    val expected = expectedOpt.map(_.value).getOrElse(Array.empty)
-    client(withWait = true).compareAndSet(put, expected).withCallback(ret => ret.booleanValue()).toFuture
-  }
-
 
   private def toCacheKeyBytes(hbaseRpc: AnyRef): Array[Byte] = {
     hbaseRpc match {
