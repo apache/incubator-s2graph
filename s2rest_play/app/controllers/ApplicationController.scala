@@ -66,6 +66,7 @@ object ApplicationController extends Controller {
           case JsString(str) => str
           case _ => jsValue.toString
         }
+        case AnyContentAsEmpty => ""
         case _ => request.body.toString
       }
 
