@@ -1,19 +1,26 @@
 package com.kakao.s2graph.core
 
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
-import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
-import play.api.libs.json.{Json, _}
 
-import scala.collection.mutable.ListBuffer
+import com.kakao.s2graph.core.mysqls.{ColumnMeta, Label, ServiceColumn, LabelMeta}
+import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
+import com.kakao.s2graph.core.utils.logger
+import play.api.libs.json.{Json, _}
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 object PostProcess extends JSONParser {
+
+
+  type EDGE_VALUES = Map[String, JsValue]
+  type ORDER_BY_VALUES =  (Any, Any, Any, Any)
+  type RAW_EDGE = (EDGE_VALUES, Double, ORDER_BY_VALUES)
+
   /**
-    * Result Entity score field name
-    */
-  val timeoutResults = Json.obj("size" -> 0, "results" -> Json.arr(), "isTimeout" -> true)
-  val emptyResults = Json.obj("size" -> 0, "results" -> Json.arr(), "isEmpty" -> true)
+   * Result Entity score field name
+   */
+  val emptyDegrees = Seq.empty[JsValue]
+  val timeoutResults = Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr(), "isTimeout" -> true)
+  val emptyResults = Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr(), "isEmpty" -> true)
   def badRequestResults(ex: => Exception) = ex match {
     case ex: BadQueryException => Json.obj("message" -> ex.msg)
     case _ => Json.obj("message" -> ex.getMessage)
@@ -86,8 +93,8 @@ object PostProcess extends JSONParser {
       field <- fields
     } yield {
       field match {
-        case "from" | "_from" => edge.srcVertex.innerId
-        case "to" | "_to" => edge.tgtVertex.innerId
+        case "from" | "_from" => edge.srcVertex.innerId.toIdString()
+        case "to" | "_to" => edge.tgtVertex.innerId.toIdString()
         case "label" => edge.labelWithDir.labelId
         case "direction" => JsString(GraphUtil.fromDirection(edge.labelWithDir.dir))
         case "_timestamp" | "timestamp" => edge.ts
@@ -112,7 +119,7 @@ object PostProcess extends JSONParser {
       q = queryRequest.query
       edgeWithScore <- queryResult.edgeWithScoreLs
       (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-    } yield toHashKey(edge, queryRequest.queryParam, q.filterOutFields)
+    } yield  toHashKey(edge, queryRequest.queryParam, q.filterOutFields)
   }
 
   def summarizeWithListExcludeFormatted(queryRequestWithResultLs: Seq[QueryRequestWithResult], exclude: Seq[QueryRequestWithResult]) = {
