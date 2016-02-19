@@ -129,7 +129,7 @@ object WhereParser {
   val success = Where()
 }
 
-case class WhereParser(labelMap: Map[String, Label]) extends JavaTokenParsers with JSONParser {
+case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
 
   val anyStr = "[^\\s(),]+".r
 

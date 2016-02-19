@@ -4,9 +4,6 @@ import com.kakao.s2graph.core.types.LabelWithDirection
 import org.apache.hadoop.hbase.util.Bytes
 import org.scalatest.{FunSuite, Matchers}
 
-/**
- * Created by shon on 7/31/15.
- */
 class QueryParamTest extends FunSuite with Matchers with TestCommon {
 //  val version = HBaseType.VERSION2
 //  val testEdge = Management.toEdge(ts, "insert", "1", "10", labelNameV2, "out", Json.obj("is_blocked" -> true, "phone_number" -> "xxxx", "age" -> 20).toString)

@@ -30,31 +30,49 @@ object Query {
       }
     }
   }
-
 }
+
+case class QueryOption(removeCycle: Boolean = false,
+                       selectColumns: Seq[String] = Seq.empty,
+                       groupByColumns: Seq[String] = Seq.empty,
+                       orderByColumns: Seq[(String, Boolean)] = Seq.empty,
+                       filterOutQuery: Option[Query] = None,
+                       filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
+                       withScore: Boolean = true,
+                       returnTree: Boolean = false,
+                       limitOpt: Option[Int] = None,
+                       returnAgg: Boolean = true,
+                       scoreThreshold: Double = Double.MinValue,
+                       returnDegree: Boolean = true)
+
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  steps: IndexedSeq[Step] = Vector.empty[Step],
-                 removeCycle: Boolean = false,
-                 selectColumns: Seq[String] = Seq.empty[String],
-                 groupByColumns: Seq[String] = Seq.empty[String],
-                 orderByColumns: Seq[(String, Boolean)] = Nil,
-                 filterOutQuery: Option[Query] = None,
-                 filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
-                 withScore: Boolean = true,
-                 returnTree: Boolean = false) {
+                 queryOption: QueryOption = QueryOption()) {
+
+  val removeCycle = queryOption.removeCycle
+  val selectColumns = queryOption.selectColumns
+  val groupByColumns = queryOption.groupByColumns
+  val orderByColumns = queryOption.orderByColumns
+  val filterOutQuery = queryOption.filterOutQuery
+  val filterOutFields = queryOption.filterOutFields
+  val withScore = queryOption.withScore
+  val returnTree = queryOption.returnTree
+  val limitOpt = queryOption.limitOpt
+  val returnAgg = queryOption.returnAgg
+  val returnDegree = queryOption.returnDegree
 
   def cacheKeyBytes: Array[Byte] = {
-    val selectBytes = Bytes.toBytes(selectColumns.toString)
-    val groupBytes = Bytes.toBytes(groupByColumns.toString)
-    val orderByBytes = Bytes.toBytes(orderByColumns.toString)
-    val filterOutBytes = filterOutQuery.map(_.cacheKeyBytes).getOrElse(Array.empty[Byte])
-    val returnTreeBytes = Bytes.toBytes(returnTree)
+    val selectBytes = Bytes.toBytes(queryOption.selectColumns.toString)
+    val groupBytes = Bytes.toBytes(queryOption.groupByColumns.toString)
+    val orderByBytes = Bytes.toBytes(queryOption.orderByColumns.toString)
+    val filterOutBytes = queryOption.filterOutQuery.map(_.cacheKeyBytes).getOrElse(Array.empty[Byte])
+    val returnTreeBytes = Bytes.toBytes(queryOption.returnTree)
 
     Seq(selectBytes, groupBytes, orderByBytes, filterOutBytes, returnTreeBytes).foldLeft(Array.empty[Byte])(Bytes.add)
   }
 
-  lazy val selectColumnsSet = selectColumns.map { c =>
+  lazy val selectColumnsSet = queryOption.selectColumns.map { c =>
     if (c == "_from") "from"
     else if (c == "_to") "to"
     else c
@@ -256,6 +274,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   var hasFilters: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike]
   var where: Try[Where] = Success(WhereParser.success)
+  var whereRawOpt: Option[String] = None
   var duplicatePolicy = DuplicatePolicy.First
   var rpcTimeoutInMillis = 1000
   var maxAttempt = 2
@@ -295,7 +314,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   def toCacheKeyRaw(bytes: Array[Byte]): Array[Byte] = {
     val transformBytes = transformer.toHashKeyBytes
     //TODO: change this to binrary format.
-    val whereBytes = Bytes.toBytes(where.toString())
+    val whereBytes = Bytes.toBytes(whereRawOpt.getOrElse(""))
     val durationBytes = duration.map { case (min, max) =>
       val minTs = min / cacheTTLInMillis
       val maxTs = max / cacheTTLInMillis
@@ -452,6 +471,11 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   def scorePropagateOp(scorePropagateOp: String): QueryParam = {
     this.scorePropagateOp = scorePropagateOp
+    this
+  }
+
+  def whereRawOpt(sqlOpt: Option[String]): QueryParam = {
+    this.whereRawOpt = sqlOpt
     this
   }
 
