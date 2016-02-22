@@ -69,6 +69,12 @@ class RequestParser(config: Config) extends JSONParser {
   val DefaultCompressionAlgorithm = config.getString("hbase.table.compression.algorithm")
   val DefaultPhase = config.getString("phase")
 
+  val parserCache = CacheBuilder.newBuilder()
+    .expireAfterAccess(10000, TimeUnit.MILLISECONDS)
+    .expireAfterWrite(10000, TimeUnit.MILLISECONDS)
+    .maximumSize(10000)
+    .initialCapacity(1000)
+    .build[String, Try[Where]]
 
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {
@@ -141,13 +147,6 @@ class RequestParser(config: Config) extends JSONParser {
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
 
-
-  val parserCache = CacheBuilder.newBuilder()
-    .expireAfterAccess(10000, TimeUnit.MILLISECONDS)
-    .expireAfterWrite(10000, TimeUnit.MILLISECONDS)
-    .maximumSize(10000)
-    .initialCapacity(1000)
-    .build[String, Try[Where]]
 
 
   def extractWhere(label: Label, whereClauseOpt: Option[String]): Try[Where] = {
