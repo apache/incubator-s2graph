@@ -1,14 +1,19 @@
 package com.kakao.s2graph.core.rest
 
+import java.util.concurrent.{Callable, TimeUnit}
+
+import com.google.common.cache.{CacheLoader, CacheBuilder}
+import com.google.common.hash.Hashing
 import com.kakao.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.parsers.WhereParser
+import com.kakao.s2graph.core.parsers.{Where, WhereParser}
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.Config
 import play.api.libs.json._
 
+import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Success, Try}
 
 class RequestParser(config: Config) extends JSONParser {
@@ -22,6 +27,7 @@ class RequestParser(config: Config) extends JSONParser {
   val DefaultCluster = config.getString("hbase.zookeeper.quorum")
   val DefaultCompressionAlgorithm = config.getString("hbase.table.compression.algorithm")
   val DefaultPhase = config.getString("phase")
+
 
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {
@@ -94,14 +100,32 @@ class RequestParser(config: Config) extends JSONParser {
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
 
-  def extractWhere(label: Label, whereClauseOpt: Option[String]) = {
+
+  val parserCache = CacheBuilder.newBuilder()
+    .expireAfterAccess(10000, TimeUnit.MILLISECONDS)
+    .expireAfterWrite(10000, TimeUnit.MILLISECONDS)
+    .maximumSize(10000)
+    .initialCapacity(1000)
+    .build[String, Try[Where]]
+
+
+  def extractWhere(label: Label, whereClauseOpt: Option[String]): Try[Where] = {
     whereClauseOpt match {
       case None => Success(WhereParser.success)
       case Some(where) =>
-        WhereParser(label).parse(where) match {
-          case s@Success(_) => s
-          case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
-        }
+        val whereParserKey = s"${label.label}_${where}"
+        parserCache.get(whereParserKey, new Callable[Try[Where]] {
+          override def call(): Try[Where] = {
+            WhereParser(label).parse(where) match {
+              case s@Success(_) => s
+              case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
+            }
+          }
+        })
+//        WhereParser(label).parse(where) match {
+//          case s@Success(_) => s
+//          case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
+//        }
     }
   }
 
