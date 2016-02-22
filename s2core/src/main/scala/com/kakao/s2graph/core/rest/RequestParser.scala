@@ -1,13 +1,18 @@
 package com.kakao.s2graph.core.rest
 
+import java.util.concurrent.{Callable, TimeUnit}
+
+import com.google.common.cache.{CacheLoader, CacheBuilder}
+import com.google.common.hash.Hashing
 import com.kakao.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.parsers.WhereParser
+import com.kakao.s2graph.core.parsers.{Where, WhereParser}
 import com.kakao.s2graph.core.types._
 import com.typesafe.config.Config
 import play.api.libs.json._
 
+import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Success, Try}
 
 object TemplateHelper {
@@ -62,6 +67,7 @@ class RequestParser(config: Config) extends JSONParser {
   val DefaultCluster = config.getString("hbase.zookeeper.quorum")
   val DefaultCompressionAlgorithm = config.getString("hbase.table.compression.algorithm")
   val DefaultPhase = config.getString("phase")
+
 
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {
@@ -134,14 +140,32 @@ class RequestParser(config: Config) extends JSONParser {
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
 
-  def extractWhere(label: Label, whereClauseOpt: Option[String]) = {
+
+  val parserCache = CacheBuilder.newBuilder()
+    .expireAfterAccess(10000, TimeUnit.MILLISECONDS)
+    .expireAfterWrite(10000, TimeUnit.MILLISECONDS)
+    .maximumSize(10000)
+    .initialCapacity(1000)
+    .build[String, Try[Where]]
+
+
+  def extractWhere(label: Label, whereClauseOpt: Option[String]): Try[Where] = {
     whereClauseOpt match {
       case None => Success(WhereParser.success)
       case Some(where) =>
-        WhereParser(label).parse(where) match {
-          case s@Success(_) => s
-          case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
-        }
+        val whereParserKey = s"${label.label}_${where}"
+        parserCache.get(whereParserKey, new Callable[Try[Where]] {
+          override def call(): Try[Where] = {
+            WhereParser(label).parse(where) match {
+              case s@Success(_) => s
+              case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
+            }
+          }
+        })
+//        WhereParser(label).parse(where) match {
+//          case s@Success(_) => s
+//          case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
+//        }
     }
   }
 
@@ -174,7 +198,17 @@ class RequestParser(config: Config) extends JSONParser {
     }
     val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
     val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
-    val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
+//    val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
+    val groupBy = (jsValue \ "groupBy") match {
+      case obj: JsObject =>
+        val keys = (obj \ "key").asOpt[Seq[String]].getOrElse(Nil)
+        val groupByLimit = (obj \ "limit").asOpt[Int]
+        GroupBy(keys, groupByLimit)
+      case arr: JsArray =>
+        val keys = arr.asOpt[Seq[String]].getOrElse(Nil)
+        GroupBy(keys)
+      case _ => GroupBy.Empty
+    }
     val orderByColumns: List[(String, Boolean)] = (jsValue \ "orderBy").asOpt[List[JsObject]].map { jsLs =>
       for {
         js <- jsLs
@@ -197,7 +231,7 @@ class RequestParser(config: Config) extends JSONParser {
 
     QueryOption(removeCycle = removeCycle,
       selectColumns = selectColumns,
-      groupByColumns = groupByColumns,
+      groupBy = groupBy,
       orderByColumns = orderByColumns,
       filterOutQuery = filterOutQuery,
       filterOutFields = filterOutFields,

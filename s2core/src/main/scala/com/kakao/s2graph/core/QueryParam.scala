@@ -32,9 +32,15 @@ object Query {
   }
 }
 
+object GroupBy {
+  val Empty = GroupBy()
+}
+case class GroupBy(keys: Seq[String] = Nil,
+                   limitOpt: Option[Int] = None)
+
 case class QueryOption(removeCycle: Boolean = false,
                        selectColumns: Seq[String] = Seq.empty,
-                       groupByColumns: Seq[String] = Seq.empty,
+                       groupBy: GroupBy = GroupBy.Empty,
                        orderByColumns: Seq[(String, Boolean)] = Seq.empty,
                        filterOutQuery: Option[Query] = None,
                        filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
@@ -53,7 +59,8 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
 
   val removeCycle = queryOption.removeCycle
   val selectColumns = queryOption.selectColumns
-  val groupByColumns = queryOption.groupByColumns
+  val groupBy = queryOption.groupBy
+//  val groupByColumns = queryOption.groupByColumns
   val orderByColumns = queryOption.orderByColumns
   val filterOutQuery = queryOption.filterOutQuery
   val filterOutFields = queryOption.filterOutFields
@@ -65,7 +72,7 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
 
   def cacheKeyBytes: Array[Byte] = {
     val selectBytes = Bytes.toBytes(queryOption.selectColumns.toString)
-    val groupBytes = Bytes.toBytes(queryOption.groupByColumns.toString)
+    val groupBytes = Bytes.toBytes(queryOption.groupBy.keys.toString)
     val orderByBytes = Bytes.toBytes(queryOption.orderByColumns.toString)
     val filterOutBytes = queryOption.filterOutQuery.map(_.cacheKeyBytes).getOrElse(Array.empty[Byte])
     val returnTreeBytes = Bytes.toBytes(queryOption.returnTree)
