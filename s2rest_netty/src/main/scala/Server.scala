@@ -133,11 +133,10 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
         } else badRoute(ctx)
 
       case HttpMethod.POST =>
-        val jsonString = req.content.toString(CharsetUtil.UTF_8)
-        val jsQuery = Json.parse(jsonString)
+        val body = req.content.toString(CharsetUtil.UTF_8)
 
-        val result = s2rest.doPost(uri, jsQuery, Option(req.headers().get(Experiment.impressionKey)))
-        toResponse(ctx, req, jsQuery, result, startedAt)
+        val result = s2rest.doPost(uri, body, Option(req.headers().get(Experiment.impressionKey)))
+        toResponse(ctx, req, Json.parse(body), result, startedAt)
 
       case _ =>
         simpleResponse(ctx, BadRequest, byteBufOpt = None, channelFutureListenerOpt = CloseOpt)

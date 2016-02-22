@@ -3,6 +3,7 @@ package com.kakao.s2graph.core.parsers
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.{Experiment, Label, LabelMeta}
 import com.kakao.s2graph.core.types._
+import com.kakao.s2graph.core.utils.logger
 import org.scalatest.{FunSuite, Matchers}
 import play.api.libs.json.Json
 
@@ -169,7 +170,8 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
 
   test("replace reserved") {
     val ts = 0
-    import Experiment._
+    import com.kakao.s2graph.core.rest.TemplateHelper._
+
     calculate(ts, 1, "hour") should be(hour + ts)
     calculate(ts, 1, "day") should be(day + ts)
 
@@ -195,6 +197,27 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     (json \ "-hour").as[Long] should be (-10 * hour + ts)
 
     (json \ "now").as[Long] should be (ts)
+
+    val otherBody = """{
+          "nextday": "${next_day}",
+          "3dayago": "${next_day - 3 day}",
+          "nexthour": "${next_hour}"
+        }"""
+
+    val currentTs = System.currentTimeMillis()
+    val expectedDayTs = currentTs / day * day + day
+    val expectedHourTs = currentTs / hour * hour + hour
+    val threeDayAgo = expectedDayTs - 3 * day
+    val currentTsLs = (1 until 1000).map(currentTs + _)
+
+    currentTsLs.foreach { ts =>
+      val parsed = replaceVariable(ts, otherBody)
+      val json = Json.parse(parsed)
+
+      (json \ "nextday").as[Long] should be(expectedDayTs)
+      (json \ "nexthour").as[Long] should be(expectedHourTs)
+      (json \ "3dayago").as[Long] should be(threeDayAgo)
+    }
   }
 
   //  test("time decay") {

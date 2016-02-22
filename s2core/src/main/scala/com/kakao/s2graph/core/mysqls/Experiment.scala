@@ -41,35 +41,6 @@ object Experiment extends Model[Experiment] {
         .map { rs => Experiment(rs) }.single.apply
     )
   }
-
-  val findVar = """\"?\$\{(.*?)\}\"?""".r
-  val num = """(-?[0-9]+)\s*?(hour|day)""".r
-
-  val hour = 60 * 60 * 1000L
-  val day = hour * 24L
-
-  def calculate(now: Long, n: Int, unit: String): Long = {
-    val duration = unit match {
-      case "hour" | "HOUR" => n * hour
-      case "day" | "DAY" => n * day
-      case _ => n * day
-    }
-
-    duration + now
-  }
-
-  // TODO: REFACTOR-RENAME
-  def replaceVariable(now: Long, body: String): String = {
-    findVar.replaceAllIn(body, m => {
-      val matched = m group 1
-      if (matched == "now" || matched == "NOW") now.toString
-      else num.replaceAllIn(matched, m => {
-        val (n, unit) = (m.group(1).toInt, m.group(2))
-        calculate(now, n, unit).toString
-      })
-
-    })
-  }
 }
 
 case class Experiment(id: Option[Int],

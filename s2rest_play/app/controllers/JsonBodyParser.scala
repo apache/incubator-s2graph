@@ -2,16 +2,12 @@ package controllers
 
 import com.kakao.s2graph.core.utils.logger
 import play.api.Play
-import play.api.libs.iteratee.Iteratee
+import play.api.libs.iteratee.{Execution, Iteratee}
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc._
 
 import scala.concurrent.Future
 import scala.util.control.NonFatal
-
-/**
- * Created by hsleep(honeysleep@gmail.com) on 15. 9. 1..
- */
 
 object s2parse extends BodyParsers {
 
@@ -20,8 +16,25 @@ object s2parse extends BodyParsers {
   val defaultMaxTextLength = 1024 * 512
   val defaultMaxJsonLength = 1024 * 512
 
-//  def json: BodyParser[JsValue] = json(DEFAULT_MAX_TEXT_LENGTH)
   def json: BodyParser[JsValue] = json(defaultMaxTextLength)
+
+  /**
+    * parseText with application/json header for Pre-Process text
+    */
+  def jsonText: BodyParser[String] = when(
+    _.contentType.exists(m => m.equalsIgnoreCase("text/json") || m.equalsIgnoreCase("application/json")),
+    jsonText(defaultMaxTextLength),
+    createBadResult("Expecting text/json or application/json body")
+  )
+
+  private def jsonText(maxLength: Int): BodyParser[String] = BodyParser("json, maxLength=" + maxLength) { request =>
+    import play.api.libs.iteratee.Execution.Implicits.trampoline
+    import play.api.libs.iteratee.Traversable
+
+    Traversable.takeUpTo[Array[Byte]](maxLength)
+      .transform(Iteratee.consume[Array[Byte]]().map(c => new String(c, "UTF-8")))
+      .flatMap(Iteratee.eofOrElse(Results.EntityTooLarge))
+  }
 
   def json(maxLength: Int): BodyParser[JsValue] = when(
     _.contentType.exists(m => m.equalsIgnoreCase("text/json") || m.equalsIgnoreCase("application/json")),

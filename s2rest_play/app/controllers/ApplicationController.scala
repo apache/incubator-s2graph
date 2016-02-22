@@ -17,13 +17,15 @@ object ApplicationController extends Controller {
 
   val jsonParser: BodyParser[JsValue] = controllers.s2parse.json
 
+  val jsonText: BodyParser[String] = controllers.s2parse.jsonText
+
   private def badQueryExceptionResults(ex: Exception) =
     Future.successful(BadRequest(PostProcess.badRequestResults(ex)).as(applicationJsonHeader))
 
   private def errorResults =
     Future.successful(Ok(PostProcess.emptyResults).as(applicationJsonHeader))
 
-  def requestFallback(body: JsValue): PartialFunction[Throwable, Future[Result]] = {
+  def requestFallback(body: String): PartialFunction[Throwable, Future[Result]] = {
     case e: BadQueryException =>
       logger.error(s"{$body}, ${e.getMessage}", e)
       badQueryExceptionResults(e)
@@ -64,6 +66,7 @@ object ApplicationController extends Controller {
           case JsString(str) => str
           case _ => jsValue.toString
         }
+        case AnyContentAsEmpty => ""
         case _ => request.body.toString
       }
 
