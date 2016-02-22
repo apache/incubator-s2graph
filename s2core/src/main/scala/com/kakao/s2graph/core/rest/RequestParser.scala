@@ -134,7 +134,17 @@ class RequestParser(config: Config) extends JSONParser {
     }
     val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
     val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
-    val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
+//    val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
+    val groupBy = (jsValue \ "groupBy") match {
+      case obj: JsObject =>
+        val keys = (obj \ "key").asOpt[Seq[String]].getOrElse(Nil)
+        val groupByLimit = (obj \ "limit").asOpt[Int]
+        GroupBy(keys, groupByLimit)
+      case arr: JsArray =>
+        val keys = arr.asOpt[Seq[String]].getOrElse(Nil)
+        GroupBy(keys)
+      case _ => GroupBy.Empty
+    }
     val orderByColumns: List[(String, Boolean)] = (jsValue \ "orderBy").asOpt[List[JsObject]].map { jsLs =>
       for {
         js <- jsLs
@@ -157,7 +167,7 @@ class RequestParser(config: Config) extends JSONParser {
 
     QueryOption(removeCycle = removeCycle,
       selectColumns = selectColumns,
-      groupByColumns = groupByColumns,
+      groupBy = groupBy,
       orderByColumns = orderByColumns,
       filterOutQuery = filterOutQuery,
       filterOutFields = filterOutFields,
