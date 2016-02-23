@@ -328,7 +328,21 @@ object PostProcess extends JSONParser {
     val (degrees, rawEdges) = buildRawEdges(queryOption, queryRequestWithResultLs, excludeIds)
     buildResultJsValue(queryOption, degrees, rawEdges)
   }
-  
+
+
+  def toSimpleVertexArrJson(queryRequestWithResultLs: Seq[QueryRequestWithResult],
+                            exclude: Seq[QueryRequestWithResult]): JsValue = {
+
+    queryRequestWithResultLs.headOption.map { queryRequestWithResult =>
+      val (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+      val query = queryRequest.query
+      val queryOption = query.queryOption
+      val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
+      val (degrees, rawEdges) = buildRawEdges(queryOption, queryRequestWithResultLs, excludeIds)
+      buildResultJsValue(queryOption, degrees, rawEdges)
+    } getOrElse emptyResults
+  }
+
   def verticesToJson(vertices: Iterable[Vertex]) = {
     Json.toJson(vertices.flatMap { v => vertexToJson(v) })
   }
