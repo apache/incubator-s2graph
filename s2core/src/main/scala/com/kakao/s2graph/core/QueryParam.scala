@@ -523,7 +523,10 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   //  }
 }
 
-case class TimeDecay(initial: Double = 1.0, lambda: Double = 0.1, timeUnit: Double = 60 * 60 * 24) {
+case class TimeDecay(initial: Double = 1.0,
+                     lambda: Double = 0.1,
+                     timeUnit: Double = 60 * 60 * 24,
+                     labelMetaSeq: Byte = LabelMeta.timeStampSeq) {
   def decay(diff: Double): Double = {
     //FIXME
     val ret = initial * Math.pow(1.0 - lambda, diff / timeUnit)

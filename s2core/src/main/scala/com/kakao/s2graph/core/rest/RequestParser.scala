@@ -90,11 +90,11 @@ class RequestParser(config: Config) extends JSONParser {
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
 
-  def extractWhere(labelMap: Map[String, Label], jsValue: JsValue) = {
-    (jsValue \ "where").asOpt[String] match {
+  def extractWhere(label: Label, whereClauseOpt: Option[String]) = {
+    whereClauseOpt match {
       case None => Success(WhereParser.success)
       case Some(where) =>
-        WhereParser(labelMap).parse(where) match {
+        WhereParser(label).parse(where) match {
           case s@Success(_) => s
           case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
         }
@@ -272,7 +272,8 @@ class RequestParser(config: Config) extends JSONParser {
         case None => label.indexSeqsMap.get(scoring.map(kv => kv._1)).map(_.seq).getOrElse(LabelIndex.DefaultSeq)
         case Some(indexName) => label.indexNameMap.get(indexName).map(_.seq).getOrElse(throw new RuntimeException("cannot find index"))
       }
-      val where = extractWhere(labelMap, labelGroup)
+      val whereClauseOpt = (labelGroup \ "where").asOpt[String]
+      val where = extractWhere(label, whereClauseOpt)
       val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
       val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(DefaultRpcTimeout)
       val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(DefaultMaxAttempt)
@@ -281,11 +282,13 @@ class RequestParser(config: Config) extends JSONParser {
       }
       val cacheTTL = (labelGroup \ "cacheTTL").asOpt[Long].getOrElse(-1L)
       val timeDecayFactor = (labelGroup \ "timeDecay").asOpt[JsObject].map { jsVal =>
+        val propName = (jsVal \ "propName").asOpt[String].getOrElse(LabelMeta.timestamp.name)
+        val propNameSeq = label.metaPropsInvMap.get(propName).map(_.seq).getOrElse(LabelMeta.timeStampSeq)
         val initial = (jsVal \ "initial").asOpt[Double].getOrElse(1.0)
         val decayRate = (jsVal \ "decayRate").asOpt[Double].getOrElse(0.1)
         if (decayRate >= 1.0 || decayRate <= 0.0) throw new BadQueryException("decay rate should be 0.0 ~ 1.0")
         val timeUnit = (jsVal \ "timeUnit").asOpt[Double].getOrElse(60 * 60 * 24.0)
-        TimeDecay(initial, decayRate, timeUnit)
+        TimeDecay(initial, decayRate, timeUnit, propNameSeq)
       }
       val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(QueryParam.DefaultThreshold)
       // TODO: refactor this. dirty
@@ -304,11 +307,10 @@ class RequestParser(config: Config) extends JSONParser {
         .rank(RankParam(label.id.get, scoring))
         .exclude(exclude)
         .include(include)
-        .interval(interval)
         .duration(duration)
         .has(hasFilter)
         .labelOrderSeq(indexSeq)
-        .interval(interval)
+        .interval(interval) // Interval param should set after labelOrderSeq param
         .where(where)
         .duplicatePolicy(duplicate)
         .includeDegree(includeDegree)

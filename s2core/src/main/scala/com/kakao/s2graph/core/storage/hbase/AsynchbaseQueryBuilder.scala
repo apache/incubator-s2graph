@@ -92,10 +92,10 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
   val maxSize = storage.config.getInt("future.cache.max.size")
   val futureCacheTTL = storage.config.getInt("future.cache.expire.after.access")
   val futureCache = CacheBuilder.newBuilder()
-  .initialCapacity(maxSize)
-  .concurrencyLevel(Runtime.getRuntime.availableProcessors())
-  .expireAfterAccess(futureCacheTTL, TimeUnit.MILLISECONDS)
-  .maximumSize(maxSize).build[java.lang.Long, (Long, Deferred[QueryRequestWithResult])]()
+    .initialCapacity(maxSize)
+    .concurrencyLevel(Runtime.getRuntime.availableProcessors())
+    .expireAfterAccess(futureCacheTTL, TimeUnit.MILLISECONDS)
+    .maximumSize(maxSize).build[java.lang.Long, (Long, Deferred[QueryRequestWithResult])]()
 
   override def fetch(queryRequest: QueryRequest,
                      prevStepScore: Double,
@@ -103,24 +103,27 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
                      parentEdges: Seq[EdgeWithScore]): Deferred[QueryRequestWithResult] = {
     @tailrec
     def randomInt(sampleNumber: Int, range: Int, set: Set[Int] = Set.empty[Int]): Set[Int] = {
-      if (set.size == sampleNumber) set
+      if (range < sampleNumber || set.size == sampleNumber) set
       else randomInt(sampleNumber, range, set + Random.nextInt(range))
     }
 
     def sample(edges: Seq[EdgeWithScore], n: Int): Seq[EdgeWithScore] = {
-      val plainEdges = if (queryRequest.queryParam.offset == 0) {
-        edges.tail
-      } else edges
+      if (edges.size <= n) {
+        edges
+      } else {
+        val plainEdges = if (queryRequest.queryParam.offset == 0) {
+          edges.tail
+        } else edges
 
-      val randoms = randomInt(n, plainEdges.size)
-      var samples = List.empty[EdgeWithScore]
-      var idx = 0
-      plainEdges.foreach { e =>
-        if (randoms.contains(idx)) samples = e :: samples
-        idx += 1
+        val randoms = randomInt(n, plainEdges.size)
+        var samples = List.empty[EdgeWithScore]
+        var idx = 0
+        plainEdges.foreach { e =>
+          if (randoms.contains(idx)) samples = e :: samples
+          idx += 1
+        }
+        samples
       }
-
-      samples
     }
 
     def normalize(edgeWithScores: Seq[EdgeWithScore]): Seq[EdgeWithScore] = {
@@ -128,9 +131,11 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
       edgeWithScores.map { edgeWithScore =>
         edgeWithScore.copy(score = edgeWithScore.score / sum)
       }
+
     }
 
     def fetchInner(request: GetRequest) = {
+
       storage.client.get(request) withCallback { kvs =>
         val edgeWithScores = storage.toEdges(kvs.toSeq, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
         val normalized =
@@ -233,7 +238,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
           parentEdge <- prevStepEdgesOpt.get
         } yield parentEdge
 
-        fetch(queryRequest, prevStepScore, isInnerCall = true, parentEdges)
+        fetch(queryRequest, prevStepScore, isInnerCall = false, parentEdges)
       }
 
     val grouped: Deferred[util.ArrayList[QueryRequestWithResult]] = Deferred.group(defers)
