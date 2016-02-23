@@ -56,12 +56,16 @@ case class Experiment(id: Option[Int],
   } yield range -> bucket
 
 
-  def findBucket(uuid: String): Option[Bucket] = {
-    val seed = experimentType match {
-      case "u" => (GraphUtil.murmur3(uuid) % totalModular) + 1
-      case _ => (Random.nextInt(totalModular)) + 1
+  def findBucket(uuid: String, impIdOpt: Option[String] = None): Option[Bucket] = {
+    impIdOpt match {
+      case Some(impId) => Bucket.findByImpressionId(impId)
+      case None =>
+        val seed = experimentType match {
+          case "u" => (GraphUtil.murmur3(uuid) % totalModular) + 1
+          case _ => Random.nextInt(totalModular) + 1
+        }
+        findBucket(seed)
     }
-    findBucket(seed)
   }
 
   def findBucket(uuidMod: Int): Option[Bucket] = {
