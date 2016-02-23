@@ -5,10 +5,9 @@ import scalikejdbc._
 
 import scala.util.Random
 
-/**
- * Created by shon on 8/5/15.
- */
 object Experiment extends Model[Experiment] {
+  val impressionKey = "S2-Impression-Id"
+
   def apply(rs: WrappedResultSet): Experiment = {
     Experiment(rs.intOpt("id"),
       rs.int("service_id"),

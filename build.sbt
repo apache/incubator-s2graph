@@ -26,6 +26,10 @@ lazy val s2rest_play = project.enablePlugins(PlayScala)
   .settings(commonSettings: _*)
   .settings(testOptions in Test += Tests.Argument("sequential"))
 
+lazy val s2rest_netty = project
+  .dependsOn(s2core)
+  .settings(commonSettings: _*)
+
 lazy val s2core = project.settings(commonSettings: _*)
 
 lazy val spark = project.settings(commonSettings: _*)

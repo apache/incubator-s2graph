@@ -3,6 +3,7 @@ package com.kakao.s2graph.core.storage.hbase
 import java.util
 
 import com.google.common.cache.Cache
+import com.kakao.s2graph.core.ExceptionHandler.{KafkaMessage, Key, Val}
 import com.kakao.s2graph.core.GraphExceptions.FetchTimeoutException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.{Label, LabelMeta}
@@ -18,6 +19,7 @@ import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
+import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.hadoop.security.UserGroupInformation
 import org.hbase.async._
 import scala.collection.JavaConversions._
@@ -86,7 +88,7 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
   val MaxBackOff = config.getInt("max.back.off")
   val DeleteAllFetchSize = config.getInt("delete.all.fetch.size")
   val FailProb = config.getDouble("hbase.fail.prob")
-  val LockExpireDuration = Math.max(MaxRetryNum * MaxBackOff * 2, 10000)
+  val LockExpireDuration = config.getInt("lock.expire.time")
 
   /**
     * Serializer/Deserializer
@@ -145,50 +147,67 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
 
 
   def mutateEdge(edge: Edge, withWait: Boolean): Future[Boolean] = {
-    //    mutateEdgeWithOp(edge, withWait)
-    val strongConsistency = edge.label.consistencyLevel == "strong"
     val edgeFuture =
-      if (edge.op == GraphUtil.operations("delete") && !strongConsistency) {
-        val zkQuorum = edge.label.hbaseZkAddr
-        val (_, edgeUpdate) = Edge.buildDeleteBulk(None, edge)
-        val mutations =
-          mutationBuilder.indexedEdgeMutations(edgeUpdate) ++
-            mutationBuilder.snapshotEdgeMutations(edgeUpdate) ++
-            mutationBuilder.increments(edgeUpdate)
-        writeAsyncSimple(zkQuorum, mutations, withWait)
+      if (edge.op == GraphUtil.operations("deleteAll")) {
+        deleteAllAdjacentEdges(Seq(edge.srcVertex), Seq(edge.label), edge.labelWithDir.dir, edge.ts)
       } else {
-        mutateEdgesInner(Seq(edge), strongConsistency, withWait)(Edge.buildOperation)
-      }
-    val vertexFuture = writeAsyncSimple(edge.label.hbaseZkAddr,
-      mutationBuilder.buildVertexPutsAsync(edge), withWait)
-    Future.sequence(Seq(edgeFuture, vertexFuture)).map { rets => rets.forall(identity) }
-  }
-
-  override def mutateEdges(edges: Seq[Edge], withWait: Boolean): Future[Seq[Boolean]] = {
-    val edgeGrouped = edges.groupBy { edge => (edge.label, edge.srcVertex.innerId, edge.tgtVertex.innerId) } toSeq
-
-    val ret = edgeGrouped.map { case ((label, srcId, tgtId), edges) =>
-      if (edges.isEmpty) Future.successful(true)
-      else {
-        val head = edges.head
-        val strongConsistency = head.label.consistencyLevel == "strong"
-
-        if (strongConsistency) {
-          val edgeFuture = mutateEdgesInner(edges, strongConsistency, withWait)(Edge.buildOperation)
-          //TODO: decide what we will do on failure on vertex put
-          val vertexFuture = writeAsyncSimple(head.label.hbaseZkAddr,
-            mutationBuilder.buildVertexPutsAsync(head), withWait)
-          Future.sequence(Seq(edgeFuture, vertexFuture)).map { rets => rets.forall(identity) }
+        val strongConsistency = edge.label.consistencyLevel == "strong"
+        if (edge.op == GraphUtil.operations("delete") && !strongConsistency) {
+          val zkQuorum = edge.label.hbaseZkAddr
+          val (_, edgeUpdate) = Edge.buildDeleteBulk(None, edge)
+          val mutations =
+            mutationBuilder.indexedEdgeMutations(edgeUpdate) ++
+              mutationBuilder.snapshotEdgeMutations(edgeUpdate) ++
+              mutationBuilder.increments(edgeUpdate)
+          writeAsyncSimple(zkQuorum, mutations, withWait)
         } else {
-          Future.sequence(edges.map { edge =>
-            mutateEdge(edge, withWait = withWait)
-          }).map { rets =>
-            rets.forall(identity)
-          }
+          mutateEdgesInner(Seq(edge), strongConsistency, withWait)(Edge.buildOperation)
         }
       }
+
+    val vertexFuture = writeAsyncSimple(edge.label.hbaseZkAddr,
+      mutationBuilder.buildVertexPutsAsync(edge), withWait)
+
+    Future.sequence(Seq(edgeFuture, vertexFuture)).map(_.forall(identity))
+  }
+
+  override def mutateEdges(_edges: Seq[Edge], withWait: Boolean): Future[Seq[Boolean]] = {
+    val grouped = _edges.groupBy { edge => (edge.label, edge.srcVertex.innerId, edge.tgtVertex.innerId) } toSeq
+
+    val mutateEdges = grouped.map { case ((_, _, _), edgeGroup) =>
+      val (deleteAllEdges, edges) = edgeGroup.partition(_.op == GraphUtil.operations("deleteAll"))
+
+      // DeleteAll first
+      val deleteAllFutures = deleteAllEdges.map { edge =>
+        deleteAllAdjacentEdges(Seq(edge.srcVertex), Seq(edge.label), edge.labelWithDir.dir, edge.ts)
+      }
+
+      // After deleteAll, process others
+      lazy val mutateEdgeFutures = edges.toList match {
+        case head :: tail =>
+          val strongConsistency = edges.head.label.consistencyLevel == "strong"
+          if (strongConsistency) {
+            val edgeFuture = mutateEdgesInner(edges, strongConsistency, withWait)(Edge.buildOperation)
+
+            //TODO: decide what we will do on failure on vertex put
+            val puts = mutationBuilder.buildVertexPutsAsync(head)
+            val vertexFuture = writeAsyncSimple(head.label.hbaseZkAddr, puts, withWait)
+            Seq(edgeFuture, vertexFuture)
+          } else {
+            edges.map { edge => mutateEdge(edge, withWait = withWait) }
+          }
+        case Nil => Nil
+      }
+
+      val composed = for {
+        deleteRet <- Future.sequence(deleteAllFutures)
+        mutateRet <- Future.sequence(mutateEdgeFutures)
+      } yield deleteRet ++ mutateRet
+
+      composed.map(_.forall(identity))
     }
-    Future.sequence(ret)
+
+    Future.sequence(mutateEdges)
   }
 
   def mutateVertex(vertex: Vertex, withWait: Boolean): Future[Boolean] = {
@@ -202,7 +221,8 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
     }
   }
 
-  def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = {
+  def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]] = {
+    val _client = if (withWait) clientWithFlush else client
     val defers: Seq[Deferred[(Boolean, Long)]] = for {
       edge <- edges
     } yield {
@@ -211,12 +231,14 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
       val countVal = countWithTs.innerVal.toString().toLong
       val incr = mutationBuilder.buildIncrementsCountAsync(edgeWithIndex, countVal).head
       val request = incr.asInstanceOf[AtomicIncrementRequest]
-      client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>
+      val defer = _client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>
         (true, resultCount.longValue())
       } recoverWith { ex =>
         logger.error(s"mutation failed. $request", ex)
         (false, -1L)
       }
+      if (withWait) defer
+      else Deferred.fromResult((true, -1L))
     }
 
     val grouped: Deferred[util.ArrayList[(Boolean, Long)]] = Deferred.groupInOrder(defers)
@@ -317,7 +339,7 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
     logger.debug(msg)
   }
 
-  private def buildLockEdge(snapshotEdgeOpt: Option[Edge], edge: Edge) = {
+  private def buildLockEdge(snapshotEdgeOpt: Option[Edge], edge: Edge, kvOpt: Option[KeyValue]) = {
     val currentTs = System.currentTimeMillis()
     val lockTs = snapshotEdgeOpt match {
       case None => Option(currentTs)
@@ -327,7 +349,8 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
           case Some(pendingEdge) => pendingEdge.lockTs
         }
     }
-    val newVersion = snapshotEdgeOpt.map(_.version).getOrElse(edge.ts) + 1
+    val newVersion = kvOpt.map(_.timestamp()).getOrElse(edge.ts) + 1
+    //      snapshotEdgeOpt.map(_.version).getOrElse(edge.ts) + 1
     val pendingEdge = edge.copy(version = newVersion, statusCode = 1, lockTs = lockTs)
     val base = snapshotEdgeOpt match {
       case None =>
@@ -340,7 +363,8 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
     base.copy(version = newVersion, statusCode = 1, lockTs = None)
   }
 
-  private def buildReleaseLockEdge(snapshotEdgeOpt: Option[Edge], lockEdge: SnapshotEdge, edgeMutate: EdgeMutate) = {
+  private def buildReleaseLockEdge(snapshotEdgeOpt: Option[Edge], lockEdge: SnapshotEdge,
+                                   edgeMutate: EdgeMutate) = {
     val newVersion = lockEdge.version + 1
     val base = edgeMutate.newSnapshotEdge match {
       case None =>
@@ -485,9 +509,9 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
                                              edgeUpdate: EdgeMutate): Future[Boolean] = {
     val label = edge.label
     def oldBytes = kvOpt.map(_.value()).getOrElse(Array.empty)
-//    def oldBytes = snapshotEdgeOpt.map { e =>
-//      snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
-//    }.getOrElse(Array.empty)
+    //    def oldBytes = snapshotEdgeOpt.map { e =>
+    //      snapshotEdgeSerializer(e.toSnapshotEdge).toKeyValues.head.value
+    //    }.getOrElse(Array.empty)
     def process(lockEdge: SnapshotEdge,
                 releaseLockEdge: SnapshotEdge,
                 _edgeMutate: EdgeMutate,
@@ -504,7 +528,7 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
     }
 
 
-    val lockEdge = buildLockEdge(snapshotEdgeOpt, edge)
+    val lockEdge = buildLockEdge(snapshotEdgeOpt, edge, kvOpt)
     val releaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, lockEdge, edgeUpdate)
     snapshotEdgeOpt match {
       case None =>
@@ -521,8 +545,13 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
             if (isLockExpired) {
               val oldSnapshotEdge = if (snapshotEdge.ts == pendingEdge.ts) None else Option(snapshotEdge)
               val (_, newEdgeUpdate) = Edge.buildOperation(oldSnapshotEdge, Seq(pendingEdge))
-              val newLockEdge = buildLockEdge(snapshotEdgeOpt, pendingEdge)
-              val newReleaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, newLockEdge, newEdgeUpdate)
+              val newLockEdge = buildLockEdge(snapshotEdgeOpt, pendingEdge, kvOpt)
+              val _newReleaseLockEdge = buildReleaseLockEdge(snapshotEdgeOpt, newLockEdge, newEdgeUpdate)
+
+              // set lock ts as current ts
+              val newPendingEdgeOpt = _newReleaseLockEdge.pendingEdgeOpt.map(_.copy(lockTs = Option(System.currentTimeMillis())))
+              val newReleaseLockEdge = _newReleaseLockEdge.copy(pendingEdgeOpt = newPendingEdgeOpt)
+
               process(newLockEdge, newReleaseLockEdge, newEdgeUpdate, statusCode = 0).flatMap { ret =>
                 val log = s"[Success]: Resolving expired pending edge.\n${pendingEdge.toLogString}"
                 throw new PartialFailureException(edge, 0, log)
@@ -632,10 +661,10 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
       "----------------------------------------------").mkString("\n")
   }
 
-  private def deleteAllFetchedEdgesAsyncOld(queryRequestWithResult: QueryRequestWithResult,
+  private def deleteAllFetchedEdgesAsyncOld(queryRequest: QueryRequest,
+                                            queryResult: QueryResult,
                                             requestTs: Long,
                                             retryNum: Int): Future[Boolean] = {
-    val (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
     val queryParam = queryRequest.queryParam
     val zkQuorum = queryParam.label.hbaseZkAddr
     val futures = for {
@@ -680,7 +709,7 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
 
     val futures = for {
       queryRequestWithResult <- queryRequestWithResultLs
-      (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+      (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResult).get
       deleteQueryResult = buildEdgesToDelete(queryRequestWithResult, requestTs)
       if deleteQueryResult.edgeWithScoreLs.nonEmpty
     } yield {
@@ -692,14 +721,14 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
             * read: snapshotEdge on queryResult = O(N)
             * write: N x (relatedEdges x indices(indexedEdge) + 1(snapshotEdge))
             */
-          mutateEdges(deleteQueryResult.edgeWithScoreLs.map(_.edge), withWait = true).map { rets => rets.forall(identity) }
+          mutateEdges(deleteQueryResult.edgeWithScoreLs.map(_.edge), withWait = true).map(_.forall(identity))
         case _ =>
 
           /**
             * read: x
             * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
             */
-          deleteAllFetchedEdgesAsyncOld(queryRequestWithResult, requestTs, MaxRetryNum)
+          deleteAllFetchedEdgesAsyncOld(queryRequest, deleteQueryResult, requestTs, MaxRetryNum)
       }
     }
     if (futures.isEmpty) {
@@ -726,10 +755,26 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
 
   }
 
-  def deleteAllAdjacentEdges(srcVertices: List[Vertex],
+  def deleteAllAdjacentEdges(srcVertices: Seq[Vertex],
                              labels: Seq[Label],
                              dir: Int,
                              ts: Long): Future[Boolean] = {
+
+    def enqueueLogMessage() = {
+      val kafkaMessages = for {
+        vertice <- srcVertices
+        id = vertice.innerId.toIdString()
+        label <- labels
+      } yield {
+        val tsv = Seq(ts, "deleteAll", "e", id, id, label.label, "{}", GraphUtil.fromOp(dir.toByte)).mkString("\t")
+        val topic = ExceptionHandler.failTopic
+        val kafkaMsg = KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
+        kafkaMsg
+      }
+
+      ExceptionHandler.enqueues(kafkaMessages)
+    }
+
     val requestTs = ts
     val queryParams = for {
       label <- labels
@@ -742,11 +787,19 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
     val q = Query(srcVertices, Vector(step))
 
     //    Extensions.retryOnSuccessWithBackoff(MaxRetryNum, Random.nextInt(MaxBackOff) + 1) {
-    Extensions.retryOnSuccess(MaxRetryNum) {
+    val retryFuture = Extensions.retryOnSuccess(MaxRetryNum) {
       fetchAndDeleteAll(q, requestTs)
     } { case (allDeleted, deleteSuccess) =>
       allDeleted && deleteSuccess
     }.map { case (allDeleted, deleteSuccess) => allDeleted && deleteSuccess }
+
+    retryFuture onFailure {
+      case ex =>
+        logger.error(s"[Error]: deleteAllAdjacentEdges failed.")
+        enqueueLogMessage()
+    }
+
+    retryFuture
   }
 
   def flush(): Unit = clients.foreach { client =>
@@ -848,6 +901,7 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
       conn.getAdmin
     }
   }
+
   private def enableTable(zkAddr: String, tableName: String) = {
     getAdmin(zkAddr).enableTable(TableName.valueOf(tableName))
   }

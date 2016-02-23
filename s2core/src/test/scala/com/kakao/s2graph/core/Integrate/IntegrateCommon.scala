@@ -119,14 +119,14 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       jsResult
     }
 
-    def insertEdgesSync(bulkEdges: String*) = {
+    def mutateEdgesSync(bulkEdges: String*) = {
       val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
       val jsResult = Await.result(req, HttpRequestWaitingTime)
 
       jsResult
     }
 
-    def insertEdgesAsync(bulkEdges: String*) = {
+    def mutateEdgesAsync(bulkEdges: String*) = {
       val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
       req
     }

@@ -14,7 +14,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   import TestUtil._
 
   test("Strong consistency select") {
-    insertEdgesSync(bulkEdges(): _*)
+    mutateEdgesSync(bulkEdges(): _*)
 
     var result = getEdgesSync(query(0))
     (result \ "results").as[List[JsValue]].size should be(2)
@@ -56,7 +56,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     println(result)
     (result \ "results").as[List[JsValue]].size should be(0)
 
-    insertEdgesSync(bulkEdges(startTs = deletedAt + 1): _*)
+    mutateEdgesSync(bulkEdges(startTs = deletedAt + 1): _*)
 
     result = getEdgesSync(query(20, direction = "in", columnName = testTgtColumnName))
     println(result)
@@ -136,7 +136,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val allRequests = Random.shuffle(insertRequests ++ deleteRequests)
     //        val allRequests = insertRequests ++ deleteRequests
     val futures = allRequests.grouped(numOfConcurrentBatch).map { bulkRequests =>
-      insertEdgesAsync(bulkRequests: _*)
+      mutateEdgesAsync(bulkRequests: _*)
     }
 
     Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
@@ -175,7 +175,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     }
     val allRequests = Random.shuffle(insertRequests ++ deleteRequests)
     val futures = allRequests.grouped(numOfConcurrentBatch).map { bulkRequests =>
-      insertEdgesAsync(bulkRequests: _*)
+      mutateEdgesAsync(bulkRequests: _*)
     }
 
     Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
@@ -223,7 +223,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       allRequests.foreach(println(_))
 
       val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequests =>
-        insertEdgesAsync(bulkRequests: _*)
+        mutateEdgesAsync(bulkRequests: _*)
       }
 
       Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))

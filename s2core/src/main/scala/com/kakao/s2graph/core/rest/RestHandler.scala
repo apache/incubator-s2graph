@@ -11,56 +11,52 @@ import play.api.libs.json._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
+
+object RestHandler {
+  case class HandlerResult(body: Future[JsValue], headers: (String, String)*)
+}
+
 /**
-  * Public API only return Future.successful or Future.failed
+  * Public API, only return Future.successful or Future.failed
   * Don't throw exception
   */
-class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
+class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
+
+  import RestHandler._
+
   val s2Parser = new RequestParser(graph.config)
 
   /**
     * Public APIS
     */
-  def experiment(contentsBody: JsValue, accessToken: String, experimentName: String, uuid: String): Future[(JsValue, String)] = {
-    try {
-      val bucketOpt = for {
-        service <- Service.findByAccessToken(accessToken)
-        experiment <- Experiment.findBy(service.id.get, experimentName)
-        bucket <- experiment.findBucket(uuid)
-      } yield bucket
-
-      val bucket = bucketOpt.getOrElse(throw new RuntimeException("bucket is not found"))
-      if (bucket.isGraphQuery) buildRequestInner(contentsBody, bucket, uuid).map(_ -> bucket.impressionId)
-      else throw new RuntimeException("not supported yet")
-    } catch {
-      case e: Exception => Future.failed(e)
-    }
-  }
-
-  def uriMatch(uri: String, jsQuery: JsValue): Future[JsValue] = {
+  def doPost(uri: String, jsQuery: JsValue): HandlerResult = {
     try {
       uri match {
-        case "/graphs/getEdges" => getEdgesAsync(jsQuery)(PostProcess.toSimpleVertexArrJson)
-        case "/graphs/getEdges/grouped" => getEdgesAsync(jsQuery)(PostProcess.summarizeWithListFormatted)
-        case "/graphs/getEdgesExcluded" => getEdgesExcludedAsync(jsQuery)(PostProcess.toSimpleVertexArrJson)
-        case "/graphs/getEdgesExcluded/grouped" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExcludeFormatted)
+        case "/graphs/getEdges" => HandlerResult(getEdgesAsync(jsQuery)(PostProcess.toSimpleVertexArrJson))
+        case "/graphs/getEdges/grouped" => HandlerResult(getEdgesAsync(jsQuery)(PostProcess.summarizeWithListFormatted))
+        case "/graphs/getEdgesExcluded" => HandlerResult(getEdgesExcludedAsync(jsQuery)(PostProcess.toSimpleVertexArrJson))
+        case "/graphs/getEdgesExcluded/grouped" => HandlerResult(getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExcludeFormatted))
         case "/graphs/checkEdges" => checkEdges(jsQuery)
-        case "/graphs/getEdgesGrouped" => getEdgesAsync(jsQuery)(PostProcess.summarizeWithList)
-        case "/graphs/getEdgesGroupedExcluded" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExclude)
-        case "/graphs/getEdgesGroupedExcludedFormatted" => getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExcludeFormatted)
-        case "/graphs/getVertices" => getVertices(jsQuery)
+        case "/graphs/getEdgesGrouped" => HandlerResult(getEdgesAsync(jsQuery)(PostProcess.summarizeWithList))
+        case "/graphs/getEdgesGroupedExcluded" => HandlerResult(getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExclude))
+        case "/graphs/getEdgesGroupedExcludedFormatted" => HandlerResult(getEdgesExcludedAsync(jsQuery)(PostProcess.summarizeWithListExcludeFormatted))
+        case "/graphs/getVertices" => HandlerResult(getVertices(jsQuery))
+        case uri if uri.startsWith("/graphs/experiment") =>
+          val Array(accessToken, experimentName, uuid) = uri.split("/").takeRight(3)
+          experiment(jsQuery, accessToken, experimentName, uuid)
         case _ => throw new RuntimeException("route is not found")
       }
     } catch {
-      case e: Exception => Future.failed(e)
+      case e: Exception => HandlerResult(Future.failed(e))
     }
   }
 
-  def checkEdges(jsValue: JsValue): Future[JsValue] = {
+  // TODO: Refactor to doGet
+  def checkEdges(jsValue: JsValue): HandlerResult = {
     try {
       val (quads, isReverted) = s2Parser.toCheckEdgeParam(jsValue)
 
-      graph.checkEdges(quads).map { case queryRequestWithResultLs =>
+      HandlerResult(graph.checkEdges(quads).map { case queryRequestWithResultLs =>
         val edgeJsons = for {
           queryRequestWithResult <- queryRequestWithResultLs
           (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
@@ -71,15 +67,51 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
         } yield Json.toJson(edgeJson)
 
         Json.toJson(edgeJsons)
-      }
+      })
     } catch {
-      case e: Exception => Future.failed(e)
+      case e: Exception => HandlerResult(Future.failed(e))
     }
   }
+
 
   /**
     * Private APIS
     */
+  private def experiment(contentsBody: JsValue, accessToken: String, experimentName: String, uuid: String): HandlerResult = {
+    try {
+      val bucketOpt = for {
+        service <- Service.findByAccessToken(accessToken)
+        experiment <- Experiment.findBy(service.id.get, experimentName)
+        bucket <- experiment.findBucket(uuid)
+      } yield bucket
+
+      val bucket = bucketOpt.getOrElse(throw new RuntimeException("bucket is not found"))
+      if (bucket.isGraphQuery) {
+        val ret = buildRequestInner(contentsBody, bucket, uuid)
+        HandlerResult(ret.body, Experiment.impressionKey -> bucket.impressionId)
+      }
+      else throw new RuntimeException("not supported yet")
+    } catch {
+      case e: Exception => HandlerResult(Future.failed(e))
+    }
+  }
+
+  private def buildRequestInner(contentsBody: JsValue, bucket: Bucket, uuid: String): HandlerResult = {
+    if (bucket.isEmpty) HandlerResult(Future.successful(PostProcess.emptyResults))
+    else {
+      val jsonBody = makeRequestJson(Option(contentsBody), bucket, uuid)
+      val url = new URL(bucket.apiPath)
+      val path = url.getPath()
+
+      // dummy log for sampling
+      val experimentLog = s"POST $path took -1 ms 200 -1 $jsonBody"
+
+      logger.info(experimentLog)
+
+      doPost(path, jsonBody)
+    }
+  }
+
   private def eachQuery(post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue)(q: Query): Future[JsValue] = {
     val filterOutQueryResultsLs = q.filterOutQuery match {
       case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
@@ -157,22 +189,6 @@ class RestCaller(graph: Graph)(implicit ec: ExecutionContext) {
       case e: Exception =>
         throw new BadQueryException(s"wrong or missing template parameter: ${e.getMessage.takeWhile(_ != '\n')}")
     } get
-  }
-
-  private def buildRequestInner(contentsBody: JsValue, bucket: Bucket, uuid: String): Future[JsValue] = {
-    if (bucket.isEmpty) Future.successful(PostProcess.emptyResults)
-    else {
-      val jsonBody = makeRequestJson(Option(contentsBody), bucket, uuid)
-      val url = new URL(bucket.apiPath)
-      val path = url.getPath()
-
-      // dummy log for sampling
-      val experimentLog = s"POST $path took -1 ms 200 -1 $jsonBody"
-
-      logger.info(experimentLog)
-
-      uriMatch(path, jsonBody)
-    }
   }
 
   def calcSize(js: JsValue): Int = js match {

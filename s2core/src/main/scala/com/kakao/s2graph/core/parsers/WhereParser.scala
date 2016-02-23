@@ -47,18 +47,22 @@ trait ExtractValue extends JSONParser {
     }
   }
 
+  @tailrec
+  private def findParent(edge: Edge, depth: Int): Edge =
+    if (depth > 0) findParent(edge.parentEdges.head.edge, depth - 1)
+    else edge
+
   private def findParentEdge(edge: Edge, key: String): (String, Edge) = {
-    @tailrec def find(edge: Edge, depth: Int): Edge =
-      if (depth > 0) find(edge.parentEdges.head.edge, depth - 1)
-      else edge
+    if (!key.startsWith(parent)) (key, edge)
+    else {
+      val split = key.split(parent)
+      val depth = split.length - 1
+      val propKey = split.last
 
-    val split = key.split(parent)
-    val depth = split.length - 1
-    val propKey = split.last
+      val parentEdge = findParent(edge, depth)
 
-    val parentEdge = find(edge, depth)
-
-    (propKey, parentEdge)
+      (propKey, parentEdge)
+    }
   }
 }
 
@@ -94,12 +98,28 @@ case class Eq(propKey: String, value: String) extends Clause {
   override def filter(edge: Edge): Boolean = binaryOp(_ == _)(propKey, value)(edge)
 }
 
+case class InWithoutParent(label: Label, propKey: String, values: Set[String]) extends Clause {
+  val innerValLikeLs = values.map { value =>
+    val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
+    val dataType = propKey match {
+      case "_to" | "to" => label.tgtColumn.columnType
+      case "_from" | "from" => label.srcColumn.columnType
+      case _ => labelMeta.dataType
+    }
+    toInnerVal(value, dataType, label.schemaVersion)
+  }
+  override def filter(edge: Edge): Boolean = {
+    val propVal = propToInnerVal(edge, propKey)
+    innerValLikeLs.contains(propVal)
+  }
+}
+
 case class IN(propKey: String, values: Set[String]) extends Clause {
   override def filter(edge: Edge): Boolean = {
     val propVal = propToInnerVal(edge, propKey)
-    val valuesToCompare = values.map { value => valueToCompare(edge, propKey, value) }
-
-    valuesToCompare.contains(propVal)
+    values.exists { value =>
+      valueToCompare(edge, propKey, value) == propVal
+    }
   }
 }
 
@@ -129,7 +149,7 @@ object WhereParser {
   val success = Where()
 }
 
-case class WhereParser(labelMap: Map[String, Label]) extends JavaTokenParsers with JSONParser {
+case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
 
   val anyStr = "[^\\s(),]+".r
 
@@ -167,8 +187,13 @@ case class WhereParser(labelMap: Map[String, Label]) extends JavaTokenParsers wi
       case f ~ minV ~ maxV => Between(f, minV, maxV)
     } | identWithDot ~ (notIn | in) ~ ("(" ~> repsep(anyStr, ",") <~ ")") ^^ {
       case f ~ op ~ values =>
-        if (op.toLowerCase == "in") IN(f, values.toSet)
-        else Not(IN(f, values.toSet))
+        val inClause =
+          if (f.startsWith("_parent")) IN(f, values.toSet)
+          else InWithoutParent(label, f, values.toSet)
+        if (op.toLowerCase == "in") inClause
+        else Not(inClause)
+
+
       case _ => throw WhereParserException(s"Failed to parse where clause. ")
     }
   }

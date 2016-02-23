@@ -36,6 +36,7 @@ object Graph {
     "hbase.rpcs.buffered_flush_interval" -> java.lang.Short.valueOf(100.toShort),
     "hbase.rpc.timeout" -> java.lang.Integer.valueOf(1000),
     "max.retry.number" -> java.lang.Integer.valueOf(100),
+    "lock.expire.time" -> java.lang.Integer.valueOf(1000 * 60 * 10),
     "max.back.off" -> java.lang.Integer.valueOf(100),
     "hbase.fail.prob" -> java.lang.Double.valueOf(-0.1),
     "delete.all.fetch.size" -> java.lang.Integer.valueOf(1000),
@@ -76,7 +77,7 @@ object Graph {
   /** common methods for filter out, transform, aggregate queryResult */
   def convertEdges(queryParam: QueryParam, edge: Edge, nextStepOpt: Option[Step]): Seq[Edge] = {
     for {
-      convertedEdge <- queryParam.transformer.transform(edge, nextStepOpt)
+      convertedEdge <- queryParam.transformer.transform(edge, nextStepOpt) if !edge.isDegree
     } yield convertedEdge
   }
 
@@ -85,7 +86,28 @@ object Graph {
     val tsVal = queryParam.timeDecay match {
       case None => 1.0
       case Some(timeDecay) =>
-        val timeDiff = queryParam.timestamp - edge.ts
+        val tsVal = try {
+          val labelMeta = edge.label.metaPropsMap(timeDecay.labelMetaSeq)
+          val innerValWithTsOpt = edge.propsWithTs.get(timeDecay.labelMetaSeq)
+          innerValWithTsOpt.map { innerValWithTs =>
+            val innerVal = innerValWithTs.innerVal
+            labelMeta.dataType match {
+              case InnerVal.LONG => innerVal.value match {
+                case n: BigDecimal => n.bigDecimal.longValue()
+                case _ => innerVal.toString().toLong
+              }
+              case _ => innerVal.toString().toLong
+            }
+          } getOrElse(edge.ts)
+          //          val innerVal = edge.propsWithTs(timeDecay.labelMetaSeq).innerVal
+          //
+          //          edge.propsWithTs.get(timeDecay.labelMetaSeq).map(_.toString.toLong).getOrElse(edge.ts)
+        } catch {
+          case e: Exception =>
+            logger.error(s"processTimeDecay error. ${edge.toLogString}", e)
+            edge.ts
+        }
+        val timeDiff = queryParam.timestamp - tsVal
         timeDecay.decay(timeDiff)
     }
 
@@ -221,10 +243,10 @@ object Graph {
                 val (hashKey, filterHashKey) = toHashKey(queryParam, convertedEdge, isDegree)
 
                 /** check if this edge should be exlcuded. */
-                if (shouldBeExcluded) {
+                if (shouldBeExcluded && !isDegree) {
                   edgesToExclude.add(filterHashKey)
                 } else {
-                  if (shouldBeIncluded) {
+                  if (shouldBeIncluded && !isDegree) {
                     edgesToInclude.add(filterHashKey)
                   }
                   val tsVal = processTimeDecay(queryParam, convertedEdge)
@@ -347,7 +369,7 @@ class Graph(_config: Config)(implicit ec: ExecutionContext) {
 
   def mutateVertices(vertices: Seq[Vertex], withWait: Boolean = false): Future[Seq[Boolean]] = storage.mutateVertices(vertices, withWait)
 
-  def incrementCounts(edges: Seq[Edge]): Future[Seq[(Boolean, Long)]] = storage.incrementCounts(edges)
+  def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]] = storage.incrementCounts(edges, withWait)
 
   def shutdown(): Unit = {
     storage.flush()

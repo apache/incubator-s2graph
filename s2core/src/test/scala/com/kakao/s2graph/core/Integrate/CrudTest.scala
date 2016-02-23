@@ -173,7 +173,7 @@ class CrudTest extends IntegrateCommon {
             TestUtil.toEdge(ts, op, "e", srcId, tgtId, labelName, props)
           })
 
-          TestUtil.insertEdgesSync(bulkEdges: _*)
+          TestUtil.mutateEdgesSync(bulkEdges: _*)
 
           for {
             label <- Label.findByName(labelName)

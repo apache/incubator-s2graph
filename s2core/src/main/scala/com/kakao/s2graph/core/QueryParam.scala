@@ -30,31 +30,49 @@ object Query {
       }
     }
   }
-
 }
+
+case class QueryOption(removeCycle: Boolean = false,
+                       selectColumns: Seq[String] = Seq.empty,
+                       groupByColumns: Seq[String] = Seq.empty,
+                       orderByColumns: Seq[(String, Boolean)] = Seq.empty,
+                       filterOutQuery: Option[Query] = None,
+                       filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
+                       withScore: Boolean = true,
+                       returnTree: Boolean = false,
+                       limitOpt: Option[Int] = None,
+                       returnAgg: Boolean = true,
+                       scoreThreshold: Double = Double.MinValue,
+                       returnDegree: Boolean = true)
+
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  steps: IndexedSeq[Step] = Vector.empty[Step],
-                 removeCycle: Boolean = false,
-                 selectColumns: Seq[String] = Seq.empty[String],
-                 groupByColumns: Seq[String] = Seq.empty[String],
-                 orderByColumns: Seq[(String, Boolean)] = Nil,
-                 filterOutQuery: Option[Query] = None,
-                 filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
-                 withScore: Boolean = true,
-                 returnTree: Boolean = false) {
+                 queryOption: QueryOption = QueryOption()) {
+
+  val removeCycle = queryOption.removeCycle
+  val selectColumns = queryOption.selectColumns
+  val groupByColumns = queryOption.groupByColumns
+  val orderByColumns = queryOption.orderByColumns
+  val filterOutQuery = queryOption.filterOutQuery
+  val filterOutFields = queryOption.filterOutFields
+  val withScore = queryOption.withScore
+  val returnTree = queryOption.returnTree
+  val limitOpt = queryOption.limitOpt
+  val returnAgg = queryOption.returnAgg
+  val returnDegree = queryOption.returnDegree
 
   def cacheKeyBytes: Array[Byte] = {
-    val selectBytes = Bytes.toBytes(selectColumns.toString)
-    val groupBytes = Bytes.toBytes(groupByColumns.toString)
-    val orderByBytes = Bytes.toBytes(orderByColumns.toString)
-    val filterOutBytes = filterOutQuery.map(_.cacheKeyBytes).getOrElse(Array.empty[Byte])
-    val returnTreeBytes = Bytes.toBytes(returnTree)
+    val selectBytes = Bytes.toBytes(queryOption.selectColumns.toString)
+    val groupBytes = Bytes.toBytes(queryOption.groupByColumns.toString)
+    val orderByBytes = Bytes.toBytes(queryOption.orderByColumns.toString)
+    val filterOutBytes = queryOption.filterOutQuery.map(_.cacheKeyBytes).getOrElse(Array.empty[Byte])
+    val returnTreeBytes = Bytes.toBytes(queryOption.returnTree)
 
     Seq(selectBytes, groupBytes, orderByBytes, filterOutBytes, returnTreeBytes).foldLeft(Array.empty[Byte])(Bytes.add)
   }
 
-  lazy val selectColumnsSet = selectColumns.map { c =>
+  lazy val selectColumnsSet = queryOption.selectColumns.map { c =>
     if (c == "_from") "from"
     else if (c == "_to") "to"
     else c
@@ -102,7 +120,8 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
               nextStepOpt: Option[Step]): Seq[InnerValLike] = {
 
     val tokens = fmt.split(Delimiter)
-    val mergedStr = tokens.zip(values).map { case (prefix, innerVal) => prefix + innerVal.toString }.mkString
+    val _values = values.padTo(tokens.length, InnerVal.withStr("", queryParam.label.schemaVersion))
+    val mergedStr = tokens.zip(_values).map { case (prefix, innerVal) => prefix + innerVal.toString }.mkString
     //    logger.error(s"${tokens.toList}, ${values}, $mergedStr")
     //    println(s"${tokens.toList}, ${values}, $mergedStr")
     nextStepOpt match {
@@ -256,6 +275,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   var hasFilters: Map[Byte, InnerValLike] = Map.empty[Byte, InnerValLike]
   var where: Try[Where] = Success(WhereParser.success)
+  var whereRawOpt: Option[String] = None
   var duplicatePolicy = DuplicatePolicy.First
   var rpcTimeoutInMillis = 1000
   var maxAttempt = 2
@@ -268,6 +288,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var scorePropagateOp: String = "multiply"
   var exclude = false
   var include = false
+  var shouldNormalize= false
 
   var columnRangeFilterMinBytes = Array.empty[Byte]
   var columnRangeFilterMaxBytes = Array.empty[Byte]
@@ -295,7 +316,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   def toCacheKeyRaw(bytes: Array[Byte]): Array[Byte] = {
     val transformBytes = transformer.toHashKeyBytes
     //TODO: change this to binrary format.
-    val whereBytes = Bytes.toBytes(where.toString())
+    val whereBytes = Bytes.toBytes(whereRawOpt.getOrElse(""))
     val durationBytes = duration.map { case (min, max) =>
       val minTs = min / cacheTTLInMillis
       val maxTs = max / cacheTTLInMillis
@@ -324,7 +345,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   def limit(offset: Int, limit: Int): QueryParam = {
     /** since degree info is located on first always */
-    if (offset == 0) {
+    if (offset == 0 && this.columnRangeFilter == null) {
       this.limit = limit + 1
       this.offset = offset
     } else {
@@ -455,6 +476,16 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this
   }
 
+  def whereRawOpt(sqlOpt: Option[String]): QueryParam = {
+    this.whereRawOpt = sqlOpt
+    this
+  }
+
+  def shouldNormalize(shouldNormalize: Boolean): QueryParam = {
+    this.shouldNormalize = shouldNormalize
+    this
+  }
+
   def isSnapshotEdge = tgtVertexInnerIdOpt.isDefined
 
   override def toString = {
@@ -517,7 +548,10 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   //  }
 }
 
-case class TimeDecay(initial: Double = 1.0, lambda: Double = 0.1, timeUnit: Double = 60 * 60 * 24) {
+case class TimeDecay(initial: Double = 1.0,
+                     lambda: Double = 0.1,
+                     timeUnit: Double = 60 * 60 * 24,
+                     labelMetaSeq: Byte = LabelMeta.timeStampSeq) {
   def decay(diff: Double): Double = {
     //FIXME
     val ret = initial * Math.pow(1.0 - lambda, diff / timeUnit)
