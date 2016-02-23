@@ -1,4 +1,4 @@
-package com.kakao.s2graph.core.storage.hbase
+package com.kakao.s2graph.core.storage
 
 import com.kakao.s2graph.core.mysqls.{LabelIndex, LabelMeta}
 import com.kakao.s2graph.core.storage.{CanSKeyValue, SKeyValue, StorageDeserializable}
@@ -6,7 +6,7 @@ import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.{Edge, QueryParam, SnapshotEdge, Vertex}
 import org.apache.hadoop.hbase.util.Bytes
 
-class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
+class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
 
   import StorageDeserializable._
 

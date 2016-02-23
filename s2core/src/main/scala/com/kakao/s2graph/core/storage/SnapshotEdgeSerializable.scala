@@ -1,22 +1,17 @@
-package com.kakao.s2graph.core.storage.hbase
-
-import java.util.UUID
+package com.kakao.s2graph.core.storage
 
 import com.kakao.s2graph.core.SnapshotEdge
 import com.kakao.s2graph.core.mysqls.LabelIndex
-import com.kakao.s2graph.core.storage.{StorageSerializable, SKeyValue}
 import com.kakao.s2graph.core.types.{HBaseType, SourceAndTargetVertexIdPair, VertexId}
-import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.util.Bytes
 
-import scala.util.Random
 
-class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable[SnapshotEdge] {
+class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[SnapshotEdge] {
   import StorageSerializable._
 
   val label = snapshotEdge.label
   val table = label.hbaseTableName.getBytes()
-  val cf = HSerializable.edgeCf
+  val cf = Serializable.edgeCf
 
   def statusCodeWithOp(statusCode: Byte, op: Byte): Array[Byte] = {
     val byte = (((statusCode << 4) | op).toByte)

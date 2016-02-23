@@ -1,4 +1,4 @@
-package com.kakao.s2graph.core.storage.hbase
+package com.kakao.s2graph.core.storage
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.LabelMeta
@@ -7,7 +7,7 @@ import com.kakao.s2graph.core.types._
 import org.apache.hadoop.hbase.util.Bytes
 import StorageDeserializable._
 
-class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends HDeserializable[IndexEdge] {
+class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends Deserializable[IndexEdge] {
 
   import StorageDeserializable._
 

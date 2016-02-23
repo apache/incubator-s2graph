@@ -1,13 +1,12 @@
-package com.kakao.s2graph.core.storage.hbase
+package com.kakao.s2graph.core.storage
 
-import com.kakao.s2graph.core.storage.CanSKeyValue
 import com.kakao.s2graph.core.types.{InnerVal, InnerValLike, VertexId}
 import com.kakao.s2graph.core.{QueryParam, Vertex}
 import org.apache.hadoop.hbase.util.Bytes
 
 import scala.collection.mutable.ListBuffer
 
-class VertexDeserializable extends HDeserializable[Vertex] {
+class VertexDeserializable extends Deserializable[Vertex] {
   def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam,
                                      _kvs: Seq[T],
                                      version: String,

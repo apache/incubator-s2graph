@@ -1,11 +1,11 @@
-package com.kakao.s2graph.core.storage.hbase
+package com.kakao.s2graph.core.storage
 
 import com.kakao.s2graph.core.storage.{SKeyValue, StorageDeserializable}
 import com.kakao.s2graph.core.types.{LabelWithDirection, SourceVertexId, VertexId}
 import org.apache.hadoop.hbase.util.Bytes
 
 
-trait HDeserializable[E] extends StorageDeserializable[E] {
+trait Deserializable[E] extends StorageDeserializable[E] {
   import StorageDeserializable._
 
   type RowKeyRaw = (VertexId, LabelWithDirection, Byte, Boolean, Int)

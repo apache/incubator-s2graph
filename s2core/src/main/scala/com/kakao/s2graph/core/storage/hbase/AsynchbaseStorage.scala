@@ -1,10 +1,6 @@
 package com.kakao.s2graph.core.storage.hbase
 
-import java.util
-import java.util.Base64
-import java.util.concurrent.TimeUnit
 
-import com.google.common.cache.{CacheBuilder}
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.storage._
@@ -23,13 +19,14 @@ import scala.collection.JavaConversions._
 import scala.collection.{Map, Seq}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, duration}
-import scala.util.Random
 import scala.util.hashing.MurmurHash3
+import java.util
+import java.util.Base64
 
 
 object AsynchbaseStorage {
-  val vertexCf = HSerializable.vertexCf
-  val edgeCf = HSerializable.edgeCf
+  val vertexCf = Serializable.vertexCf
+  val edgeCf = Serializable.edgeCf
   val emptyKVs = new util.ArrayList[KeyValue]()
 
 
@@ -147,7 +144,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
    * @return Scanner or GetRequest with proper setup with StartKey, EndKey, RangeFilter.
    */
   override def buildRequest(queryRequest: QueryRequest): AnyRef = {
-    import HSerializable._
+    import Serializable._
     val queryParam = queryRequest.queryParam
     val label = queryParam.label
     val edge = toRequestEdge(queryRequest)
@@ -387,7 +384,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
 
     val futures = vertices.map { vertex =>
       val kvs = vertexSerializer(vertex).toKeyValues
-      val get = new GetRequest(vertex.hbaseTableName.getBytes, kvs.head.row, HSerializable.vertexCf)
+      val get = new GetRequest(vertex.hbaseTableName.getBytes, kvs.head.row, Serializable.vertexCf)
       //      get.setTimeout(this.singleGetTimeout.toShort)
       get.setFailfast(true)
       get.maxVersions(1)
