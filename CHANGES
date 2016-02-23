@@ -3,6 +3,8 @@
 Release 0.12.1 - unreleased
 
   NEW FEATURES
+    
+    S2GRAPH-34: Provide option to select which field in edge's properties to run timeDecay function (Committed by DOYUNG YOON).
 
   IMPROVEMENT
 
