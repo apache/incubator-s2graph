@@ -3,6 +3,12 @@
 Release 0.12.1 - unreleased
 
   NEW FEATURES
+    
+    S2GRAPH-34: Provide option to select which field in edge's properties to run timeDecay function (Committed by DOYUNG YOON).
+
+    S2GRAPH-35: Provide normalize option on query (Committed by DOYUNG YOON).
+
+    S2GRAPH-36: Provide Blocking API for Edge/Vertex operations (Committed by DOYUNG YOON).
 
   IMPROVEMENT
 
@@ -10,7 +16,29 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-24: Add counter config for readonly graph (Committed by Jaesang Kim).
 
+    S2GRAPH-11: Performance tuning on sort by scoreSum on PostProcess (Committed by DOYUNG YOON).
+
+    S2GRAPH-16: Performance tunning on where parser (Committed by DOYUNG YOON).
+
+    S2GRAPH-37: Extract LockExpireDuration as configuration (Committed by DOYUNG YOON).
+
+    S2GRAPH-39: Better exception message on converting between Json and InnerVal (Committed by DOYUNG YOON).
+
+    S2GRAPH-40: PostProcess.toHashKey gives different hash key with same value when edge's label schema version is different 
+                (Committed by DOYUNG YOON).
+
   BUG FIXES
+
+    S2GRAPH-18: Query Option "interval" is Broken. 
+                (Contributed by Hyunsung Jo<hyunsung.jo@gmail.com>, committed by daewon)
+
+    S2GRAPH-20: bug fix in query option "sample".
+                (Contributed by Hyunsung Jo<hyunsung.jo@gmail.com>, committed by DOYUNG YOON)
+      
+    S2GRAPH-28: _to option gives wrong result on query.	
+                (Contributed by Hyunsung Jo<hyunsung.jo@gmail.com>, committed by DOYUNG YOON)
+    
+    S2GRAPH-38: Transform option gives wrong result since it transform degree edge too (Committed by DOYUNG YOON).
 
   TASKS
 
@@ -24,3 +52,9 @@ Release 0.12.1 - unreleased
     S2GRAPH-9: Provide rest server using netty. (Committed by daewon).
 
     S2GRAPH-7: Abstract common codes for rest project into s2core. (Committed by daewon).
+
+    S2GRAPH-31: Remove playframework dependencies on s2core/build.sbt. (Committed by DOYUNG YOON).
+
+  TEST
+    
+    S2GRAPH-21: Change PostProcessBenchmarkSpec not to store and fetch test data from storage. (Committed by DOYUNG YOON).

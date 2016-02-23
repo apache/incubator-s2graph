@@ -1,12 +1,12 @@
 package com.kakao.s2graph.core
 
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
-
-import com.kakao.s2graph.core.mysqls.{ColumnMeta, Label, ServiceColumn, LabelMeta}
+import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
-import com.kakao.s2graph.core.utils.logger
 import play.api.libs.json.{Json, _}
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+
+import scala.collection.mutable.ListBuffer
 
 object PostProcess extends JSONParser {
 
@@ -93,8 +93,8 @@ object PostProcess extends JSONParser {
       field <- fields
     } yield {
       field match {
-        case "from" | "_from" => edge.srcVertex.innerId
-        case "to" | "_to" => edge.tgtVertex.innerId
+        case "from" | "_from" => edge.srcVertex.innerId.toIdString()
+        case "to" | "_to" => edge.tgtVertex.innerId.toIdString()
         case "label" => edge.labelWithDir.labelId
         case "direction" => JsString(GraphUtil.fromDirection(edge.labelWithDir.dir))
         case "_timestamp" | "timestamp" => edge.ts
@@ -119,7 +119,7 @@ object PostProcess extends JSONParser {
       q = queryRequest.query
       edgeWithScore <- queryResult.edgeWithScoreLs
       (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-    } yield toHashKey(edge, queryRequest.queryParam, q.filterOutFields)
+    } yield  toHashKey(edge, queryRequest.queryParam, q.filterOutFields)
   }
 
   def summarizeWithListExcludeFormatted(queryRequestWithResultLs: Seq[QueryRequestWithResult], exclude: Seq[QueryRequestWithResult]) = {
@@ -320,30 +320,7 @@ object PostProcess extends JSONParser {
       )
     }
   }
-
-  def toSimpleVertexArrJsonMulti(queryOption: QueryOption,
-                                 resultWithExcludeLs: Seq[(Seq[QueryRequestWithResult], Seq[QueryRequestWithResult])],
-                                 excludes: Seq[QueryRequestWithResult]): JsValue = {
-    val excludeIds = (Seq((Seq.empty, excludes)) ++ resultWithExcludeLs).foldLeft(Map.empty[Int, Boolean]) { case (acc, (result, excludes)) =>
-      acc ++ resultInnerIds(excludes).map(hashKey => hashKey -> true).toMap
-    }
-
-    val (degrees, rawEdges) = (ListBuffer.empty[JsValue], ListBuffer.empty[RAW_EDGE])
-    for {
-      (result, localExclude) <- resultWithExcludeLs
-    } {
-      val newResult = result.map { queryRequestWithResult =>
-        val (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResult).get
-        val newQuery = queryRequest.query.copy(queryOption = queryOption)
-        queryRequestWithResult.copy(queryRequest = queryRequest.copy(query = newQuery))
-      }
-      val (_degrees, _rawEdges) = buildRawEdges(queryOption, newResult, excludeIds)
-      degrees ++= _degrees
-      rawEdges ++= _rawEdges
-    }
-    buildResultJsValue(queryOption, degrees, rawEdges)
-  }
-
+  
   def toSimpleVertexArrJson(queryOption: QueryOption,
                             queryRequestWithResultLs: Seq[QueryRequestWithResult],
                             exclude: Seq[QueryRequestWithResult]): JsValue = {
@@ -351,21 +328,7 @@ object PostProcess extends JSONParser {
     val (degrees, rawEdges) = buildRawEdges(queryOption, queryRequestWithResultLs, excludeIds)
     buildResultJsValue(queryOption, degrees, rawEdges)
   }
-
-
-  def toSimpleVertexArrJson(queryRequestWithResultLs: Seq[QueryRequestWithResult],
-                            exclude: Seq[QueryRequestWithResult]): JsValue = {
-
-    queryRequestWithResultLs.headOption.map { queryRequestWithResult =>
-      val (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResult).get
-      val query = queryRequest.query
-      val queryOption = query.queryOption
-      val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
-      val (degrees, rawEdges) = buildRawEdges(queryOption, queryRequestWithResultLs, excludeIds)
-      buildResultJsValue(queryOption, degrees, rawEdges)
-    } getOrElse emptyResults
-  }
-
+  
   def verticesToJson(vertices: Iterable[Vertex]) = {
     Json.toJson(vertices.flatMap { v => vertexToJson(v) })
   }
