@@ -469,14 +469,30 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
     insertEdgesSync(bulkEdges: _*)
 
-    val result1 = getEdgesSync(queryWithSampling(testId, sampleSize))
-    (result1 \ "results").as[List[JsValue]].size should be(math.min(sampleSize, bulkEdges.size))
+    var result = getEdgesSync(queryWithSampling(testId, sampleSize))
+    println(Json.toJson(result))
+    (result \ "results").as[List[JsValue]].size should be(scala.math.min(sampleSize, bulkEdges.size))
 
-    val result2 = getEdgesSync(twoStepQueryWithSampling(testId, sampleSize))
-    (result2 \ "results").as[List[JsValue]].size should be(math.min(sampleSize * sampleSize, bulkEdges.size * bulkEdges.size))
+    result = getEdgesSync(twoStepQueryWithSampling(testId, sampleSize))
+    println(Json.toJson(result))
+    (result \ "results").as[List[JsValue]].size should be(scala.math.min(sampleSize * sampleSize, bulkEdges.size * bulkEdges.size))
 
-    val result3 = getEdgesSync(twoQueryWithSampling(testId, sampleSize))
-    (result3 \ "results").as[List[JsValue]].size should be(sampleSize + 3) // edges in testLabelName2 = 3
+    result = getEdgesSync(twoQueryWithSampling(testId, sampleSize))
+    println(Json.toJson(result))
+    (result \ "results").as[List[JsValue]].size should be(sampleSize + 3) // edges in testLabelName2 = 3
+
+    result = getEdgesSync(queryWithSampling(testId, 0))
+    println(Json.toJson(result))
+    (result \ "results").as[List[JsValue]].size should be(0) // edges in testLabelName2 = 3
+
+    result = getEdgesSync(queryWithSampling(testId, 10))
+    println(Json.toJson(result))
+    (result \ "results").as[List[JsValue]].size should be(3) // edges in testLabelName2 = 3
+
+    result = getEdgesSync(queryWithSampling(testId, -1))
+    println(Json.toJson(result))
+    (result \ "results").as[List[JsValue]].size should be(3) // edges in testLabelName2 = 3
+
   }
 
   def querySingle(id: Int, offset: Int = 0, limit: Int = 100) = Json.parse(
