@@ -44,6 +44,8 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-42: Bug on EdgeTransformer with specific cases (Committed by DOYUNG YOON).
 
+    S2GRAPH-43: Bug on offset when Interval is given on query (Committed by DOYUNG YOON).
+
   TASKS
 
     S2GRAPH-2: Update document and quick start environment to have recent set-up command changes.
