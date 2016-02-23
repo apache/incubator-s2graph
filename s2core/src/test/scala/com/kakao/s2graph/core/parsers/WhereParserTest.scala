@@ -1,8 +1,9 @@
 package com.kakao.s2graph.core.parsers
 
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls.{Label, LabelMeta}
+import com.kakao.s2graph.core.mysqls.{Experiment, Label, LabelMeta}
 import com.kakao.s2graph.core.types._
+import com.kakao.s2graph.core.utils.logger
 import org.scalatest.{FunSuite, Matchers}
 import play.api.libs.json.Json
 

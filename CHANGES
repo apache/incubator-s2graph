@@ -27,6 +27,8 @@ Release 0.12.1 - unreleased
     S2GRAPH-40: PostProcess.toHashKey gives different hash key with same value when edge's label schema version is different 
                 (Committed by DOYUNG YOON).
 
+    S2GRAPH-41: Refactor PostProcess's toSimpleVertexArrJson (Committed by DOYUNG YOON).
+
   BUG FIXES
 
     S2GRAPH-18: Query Option "interval" is Broken. 
