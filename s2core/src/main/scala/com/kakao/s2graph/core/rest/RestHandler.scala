@@ -30,8 +30,7 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
     */
   def doPost(uri: String, body: String, impKeyOpt: => Option[String] = None): HandlerResult = {
     try {
-      val replacedBody = TemplateHelper.replaceVariable(System.currentTimeMillis(), body)
-      val jsQuery = Json.parse(replacedBody)
+      val jsQuery = Json.parse(body)
 
       uri match {
         case "/graphs/getEdges" => HandlerResult(getEdgesAsync(jsQuery)(PostProcess.toSimpleVertexArrJson))

@@ -94,7 +94,10 @@ class RequestParser(config: Config) extends JSONParser {
     ret
   }
 
-  def extractInterval(label: Label, jsValue: JsValue) = {
+  def extractInterval(label: Label, _jsValue: JsValue) = {
+    val replaced = TemplateHelper.replaceVariable(System.currentTimeMillis(), _jsValue.toString())
+    val jsValue = Json.parse(replaced)
+
     def extractKv(js: JsValue) = js match {
       case JsObject(obj) => obj
       case JsArray(arr) => arr.flatMap {
@@ -117,7 +120,10 @@ class RequestParser(config: Config) extends JSONParser {
     ret
   }
 
-  def extractDuration(label: Label, jsValue: JsValue) = {
+  def extractDuration(label: Label, _jsValue: JsValue) = {
+    val replaced = TemplateHelper.replaceVariable(System.currentTimeMillis(), _jsValue.toString())
+    val jsValue = Json.parse(replaced)
+
     for {
       js <- parse[Option[JsObject]](jsValue, "duration")
     } yield {
@@ -152,7 +158,9 @@ class RequestParser(config: Config) extends JSONParser {
   def extractWhere(label: Label, whereClauseOpt: Option[String]): Try[Where] = {
     whereClauseOpt match {
       case None => Success(WhereParser.success)
-      case Some(where) =>
+      case Some(_where) =>
+        val where = TemplateHelper.replaceVariable(System.currentTimeMillis(), _where)
+
         val whereParserKey = s"${label.label}_${where}"
         parserCache.get(whereParserKey, new Callable[Try[Where]] {
           override def call(): Try[Where] = {
