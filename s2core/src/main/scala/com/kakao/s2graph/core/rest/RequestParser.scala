@@ -304,11 +304,10 @@ class RequestParser(config: Config) extends JSONParser {
         .rank(RankParam(label.id.get, scoring))
         .exclude(exclude)
         .include(include)
-        .interval(interval)
         .duration(duration)
         .has(hasFilter)
         .labelOrderSeq(indexSeq)
-        .interval(interval)
+        .interval(interval) // Interval param should set after labelOrderSeq param
         .where(where)
         .duplicatePolicy(duplicate)
         .includeDegree(includeDegree)

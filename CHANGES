@@ -16,6 +16,9 @@ Release 0.12.1 - unreleased
 
   BUG FIXES
 
+    S2GRAPH-18: Query Option "interval" is Broken. 
+                (Contributed by Hyunsung Jo<hyunsung.jo@gmail.com>, committed by daewon)
+
   TASKS
 
     S2GRAPH-2: Update document and quick start environment to have recent set-up command changes.
