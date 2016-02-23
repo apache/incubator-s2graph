@@ -42,7 +42,8 @@ object Graph {
     "delete.all.fetch.size" -> java.lang.Integer.valueOf(1000),
     "future.cache.max.size" -> java.lang.Integer.valueOf(100000),
     "future.cache.expire.after.write" -> java.lang.Integer.valueOf(10000),
-    "future.cache.expire.after.access" -> java.lang.Integer.valueOf(5000)
+    "future.cache.expire.after.access" -> java.lang.Integer.valueOf(5000),
+    "s2graph.storage.backend" -> "hbase"
   )
 
   var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)
@@ -332,6 +333,13 @@ object Graph {
       logger.error(s"toVertex: $e", e)
       throw e
   } get
+
+  def initStorage(config: Config)(ec: ExecutionContext) = {
+    config.getString("s2graph.storage.backend") match {
+      case "hbase" => new AsynchbaseStorage(config)(ec)
+      case _ => throw new RuntimeException("not supported storage.")
+    }
+  }
 }
 
 class Graph(_config: Config)(implicit val ec: ExecutionContext) {
@@ -341,7 +349,8 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
   Model.loadCache()
 
   // TODO: Make storage client by config param
-  val storage = new AsynchbaseStorage(config)(ec)
+  val storage = Graph.initStorage(config)(ec)
+
 
   for {
     entry <- config.entrySet() if Graph.DefaultConfigs.contains(entry.getKey)
