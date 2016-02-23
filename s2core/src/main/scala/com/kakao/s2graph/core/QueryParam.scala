@@ -268,6 +268,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var scorePropagateOp: String = "multiply"
   var exclude = false
   var include = false
+  var shouldNormalize= false
 
   var columnRangeFilterMinBytes = Array.empty[Byte]
   var columnRangeFilterMaxBytes = Array.empty[Byte]
@@ -452,6 +453,11 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   def scorePropagateOp(scorePropagateOp: String): QueryParam = {
     this.scorePropagateOp = scorePropagateOp
+    this
+  }
+
+  def shouldNormalize(shouldNormalize: Boolean): QueryParam = {
+    this.shouldNormalize = shouldNormalize
     this
   }
 
