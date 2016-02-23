@@ -20,6 +20,8 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-16: Performance tunning on where parser (Committed by DOYUNG YOON).
 
+    S2GRAPH-37: Extract LockExpireDuration as configuration (Committed by DOYUNG YOON).
+
   BUG FIXES
 
     S2GRAPH-18: Query Option "interval" is Broken. 

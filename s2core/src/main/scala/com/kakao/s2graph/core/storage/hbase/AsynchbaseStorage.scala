@@ -77,7 +77,7 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
   val MaxBackOff = config.getInt("max.back.off")
   val DeleteAllFetchSize = config.getInt("delete.all.fetch.size")
   val FailProb = config.getDouble("hbase.fail.prob")
-  val LockExpireDuration = Math.max(MaxRetryNum * MaxBackOff * 2, 10000)
+  val LockExpireDuration = config.getInt("lock.expire.time")
 
   /**
     * Serializer/Deserializer
