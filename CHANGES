@@ -8,6 +8,8 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-35: Provide normalize option on query (Committed by DOYUNG YOON).
 
+    S2GRAPH-36: Provide Blocking API for Edge/Vertex operations (Committed by DOYUNG YOON).
+
   IMPROVEMENT
 
     S2GRAPH-14: Abstract HBase specific methods in Management and Label (Committed by DOYUNG YOON).
