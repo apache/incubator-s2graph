@@ -10,6 +10,12 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-36: Provide Blocking API for Edge/Vertex operations (Committed by DOYUNG YOON).
 
+    S2GRAPH-32: Support variable such as now, day, hour on query (Committed by DOYUNG YOON).
+
+    S2GRAPH-45: Provide way to call specific bucket on experiment (Committed by DOYUNG YOON).
+  
+    S2GRAPH-33: Support weighted sum of multiple query results (Committed by DOYUNG YOON).
+
   IMPROVEMENT
 
     S2GRAPH-14: Abstract HBase specific methods in Management and Label (Committed by DOYUNG YOON).
@@ -28,6 +34,8 @@ Release 0.12.1 - unreleased
                 (Committed by DOYUNG YOON).
 
     S2GRAPH-41: Refactor PostProcess's toSimpleVertexArrJson (Committed by DOYUNG YOON).
+
+    S2GRAPH-44: Provide cache for WhereParser on query (Committed by DOYUNG YOON).
 
   BUG FIXES
 

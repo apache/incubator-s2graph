@@ -1,15 +1,57 @@
 package com.kakao.s2graph.core.rest
 
+import java.util.concurrent.{Callable, TimeUnit}
+
+import com.google.common.cache.CacheBuilder
 import com.kakao.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.parsers.WhereParser
+import com.kakao.s2graph.core.parsers.{Where, WhereParser}
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.Config
 import play.api.libs.json._
-
 import scala.util.{Failure, Success, Try}
+
+object TemplateHelper {
+  val findVar = """\"?\$\{(.*?)\}\"?""".r
+  val num = """(next_day|next_hour|next_week|now)?\s*(-?\s*[0-9]+)?\s*(hour|day|week)?""".r
+
+  val hour = 60 * 60 * 1000L
+  val day = hour * 24L
+  val week = day * 7L
+
+  def calculate(now: Long, n: Int, unit: String): Long = {
+    val duration = unit match {
+      case "hour" | "HOUR" => n * hour
+      case "day" | "DAY" => n * day
+      case "week" | "WEEK" => n * week
+      case _ => n * day
+    }
+
+    duration + now
+  }
+
+  def replaceVariable(now: Long, body: String): String = {
+    findVar.replaceAllIn(body, m => {
+      val matched = m group 1
+
+      num.replaceSomeIn(matched, m => {
+        val (_pivot, n, unit) = (m.group(1), m.group(2), m.group(3))
+        val ts = _pivot match {
+          case null => now
+          case "now" | "NOW" => now
+          case "next_week" | "NEXT_WEEK" => now / week * week + week
+          case "next_day" | "NEXT_DAY" => now / day * day + day
+          case "next_hour" | "NEXT_HOUR" => now / hour * hour + hour
+        }
+
+        if (_pivot == null && n == null && unit == null) None
+        else if (n == null || unit == null) Option(ts.toString)
+        else Option(calculate(ts, n.replaceAll(" ", "").toInt, unit).toString)
+      })
+    })
+  }
+}
 
 class RequestParser(config: Config) extends JSONParser {
 
@@ -22,6 +64,13 @@ class RequestParser(config: Config) extends JSONParser {
   val DefaultCluster = config.getString("hbase.zookeeper.quorum")
   val DefaultCompressionAlgorithm = config.getString("hbase.table.compression.algorithm")
   val DefaultPhase = config.getString("phase")
+  val parserCache = CacheBuilder.newBuilder()
+    .expireAfterAccess(10000, TimeUnit.MILLISECONDS)
+    .expireAfterWrite(10000, TimeUnit.MILLISECONDS)
+    .maximumSize(10000)
+    .initialCapacity(1000)
+    .build[String, Try[Where]]
+
 
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {
@@ -41,7 +90,10 @@ class RequestParser(config: Config) extends JSONParser {
     ret
   }
 
-  def extractInterval(label: Label, jsValue: JsValue) = {
+  def extractInterval(label: Label, _jsValue: JsValue) = {
+    val replaced = TemplateHelper.replaceVariable(System.currentTimeMillis(), _jsValue.toString())
+    val jsValue = Json.parse(replaced)
+
     def extractKv(js: JsValue) = js match {
       case JsObject(obj) => obj
       case JsArray(arr) => arr.flatMap {
@@ -64,7 +116,10 @@ class RequestParser(config: Config) extends JSONParser {
     ret
   }
 
-  def extractDuration(label: Label, jsValue: JsValue) = {
+  def extractDuration(label: Label, _jsValue: JsValue) = {
+    val replaced = TemplateHelper.replaceVariable(System.currentTimeMillis(), _jsValue.toString())
+    val jsValue = Json.parse(replaced)
+
     for {
       js <- parse[Option[JsObject]](jsValue, "duration")
     } yield {
@@ -89,15 +144,22 @@ class RequestParser(config: Config) extends JSONParser {
     }
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
+  
 
-  def extractWhere(label: Label, whereClauseOpt: Option[String]) = {
+  def extractWhere(label: Label, whereClauseOpt: Option[String]): Try[Where] = {
     whereClauseOpt match {
       case None => Success(WhereParser.success)
-      case Some(where) =>
-        WhereParser(label).parse(where) match {
-          case s@Success(_) => s
-          case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
-        }
+      case Some(_where) =>
+        val where = TemplateHelper.replaceVariable(System.currentTimeMillis(), _where)
+        val whereParserKey = s"${label.label}_${where}"
+        parserCache.get(whereParserKey, new Callable[Try[Where]] {
+          override def call(): Try[Where] = {
+            WhereParser(label).parse(where) match {
+              case s@Success(_) => s
+              case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
+            }
+          }
+        })
     }
   }
 
@@ -112,6 +174,17 @@ class RequestParser(config: Config) extends JSONParser {
     }
     vertices.toSeq
   }
+
+  def toMultiQuery(jsValue: JsValue, isEdgeQuery: Boolean = true): MultiQuery = {
+    val queries = for {
+      queryJson <- (jsValue \ "queries").asOpt[Seq[JsValue]].getOrElse(Seq.empty)
+    } yield {
+      toQuery(queryJson, isEdgeQuery)
+    }
+    val weights = (jsValue \ "weights").asOpt[Seq[Double]].getOrElse(queries.map(_ => 1.0))
+    MultiQuery(queries = queries, weights = weights, queryOption = toQueryOption(jsValue))
+  }
+
   def toQueryOption(jsValue: JsValue): QueryOption = {
     val filterOutFields = (jsValue \ "filterOutFields").asOpt[List[String]].getOrElse(List(LabelMeta.to.name))
     val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v) }.map { q =>
@@ -315,7 +388,7 @@ class RequestParser(config: Config) extends JSONParser {
         .duration(duration)
         .has(hasFilter)
         .labelOrderSeq(indexSeq)
-        .interval(interval) // Interval param should set after labelOrderSeq param
+        .interval(interval)
         .where(where)
         .duplicatePolicy(duplicate)
         .includeDegree(includeDegree)

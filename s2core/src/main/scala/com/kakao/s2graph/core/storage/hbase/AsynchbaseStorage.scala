@@ -65,7 +65,7 @@ class AsynchbaseStorage(override val config: Config, vertexCache: Cache[Integer,
   val queryBuilder = new AsynchbaseQueryBuilder(this)(ec)
   val mutationBuilder = new AsynchbaseMutationBuilder(this)(ec)
 
-//  val cacheOpt = Option(cache)
+  //  val cacheOpt = Option(cache)
   val cacheOpt = None
   val vertexCacheOpt = Option(vertexCache)
 
