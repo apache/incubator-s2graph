@@ -224,7 +224,7 @@ class AsynchbaseQueryBuilder(storage: AsynchbaseStorage)(implicit ec: ExecutionC
           parentEdge <- prevStepEdgesOpt.get
         } yield parentEdge
 
-        fetch(queryRequest, prevStepScore, isInnerCall = true, parentEdges)
+        fetch(queryRequest, prevStepScore, isInnerCall = false, parentEdges)
       }
 
     val grouped: Deferred[util.ArrayList[QueryRequestWithResult]] = Deferred.group(defers)
