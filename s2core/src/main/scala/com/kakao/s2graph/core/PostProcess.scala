@@ -1,12 +1,12 @@
 package com.kakao.s2graph.core
 
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
-import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
-import play.api.libs.json.{Json, _}
 
-import scala.collection.mutable.ListBuffer
+import com.kakao.s2graph.core.mysqls.{ColumnMeta, Label, ServiceColumn, LabelMeta}
+import com.kakao.s2graph.core.types.{InnerVal, InnerValLike}
+import com.kakao.s2graph.core.utils.logger
+import play.api.libs.json.{Json, _}
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 object PostProcess extends JSONParser {
 
@@ -320,7 +320,30 @@ object PostProcess extends JSONParser {
       )
     }
   }
-  
+
+  def toSimpleVertexArrJsonMulti(queryOption: QueryOption,
+                                 resultWithExcludeLs: Seq[(Seq[QueryRequestWithResult], Seq[QueryRequestWithResult])],
+                                 excludes: Seq[QueryRequestWithResult]): JsValue = {
+    val excludeIds = (Seq((Seq.empty, excludes)) ++ resultWithExcludeLs).foldLeft(Map.empty[Int, Boolean]) { case (acc, (result, excludes)) =>
+      acc ++ resultInnerIds(excludes).map(hashKey => hashKey -> true).toMap
+    }
+
+    val (degrees, rawEdges) = (ListBuffer.empty[JsValue], ListBuffer.empty[RAW_EDGE])
+    for {
+      (result, localExclude) <- resultWithExcludeLs
+    } {
+      val newResult = result.map { queryRequestWithResult =>
+        val (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResult).get
+        val newQuery = queryRequest.query.copy(queryOption = queryOption)
+        queryRequestWithResult.copy(queryRequest = queryRequest.copy(query = newQuery))
+      }
+      val (_degrees, _rawEdges) = buildRawEdges(queryOption, newResult, excludeIds)
+      degrees ++= _degrees
+      rawEdges ++= _rawEdges
+    }
+    buildResultJsValue(queryOption, degrees, rawEdges)
+  }
+
   def toSimpleVertexArrJson(queryOption: QueryOption,
                             queryRequestWithResultLs: Seq[QueryRequestWithResult],
                             exclude: Seq[QueryRequestWithResult]): JsValue = {

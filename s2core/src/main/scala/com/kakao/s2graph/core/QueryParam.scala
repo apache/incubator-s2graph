@@ -45,6 +45,7 @@ case class QueryOption(removeCycle: Boolean = false,
                        scoreThreshold: Double = Double.MinValue,
                        returnDegree: Boolean = true)
 
+case class MultiQuery(queries: Seq[Query], weights: Seq[Double], queryOption: QueryOption)
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  steps: IndexedSeq[Step] = Vector.empty[Step],

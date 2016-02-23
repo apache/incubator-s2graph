@@ -13,6 +13,8 @@ Release 0.12.1 - unreleased
     S2GRAPH-32: Support variable such as now, day, hour on query (Committed by DOYUNG YOON).
 
     S2GRAPH-45: Provide way to call specific bucket on experiment (Committed by DOYUNG YOON).
+  
+    S2GRAPH-33: Support weighted sum of multiple query results (Committed by DOYUNG YOON).
 
   IMPROVEMENT
 

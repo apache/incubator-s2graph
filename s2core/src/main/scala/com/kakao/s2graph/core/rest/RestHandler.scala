@@ -128,13 +128,57 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
     }
   }
 
-  private def getEdgesAsync(jsonQuery: JsValue)
-                           (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
+  def getEdgesAsync(jsonQuery: JsValue)
+                   (post: (Seq[QueryRequestWithResult], Seq[QueryRequestWithResult]) => JsValue): Future[JsValue] = {
 
     val fetch = eachQuery(post) _
     jsonQuery match {
       case JsArray(arr) => Future.traverse(arr.map(requestParser.toQuery(_)))(fetch).map(JsArray)
-      case obj@JsObject(_) => fetch(requestParser.toQuery(obj))
+      case obj@JsObject(_) =>
+        (obj \ "queries").asOpt[JsValue] match {
+          case None => fetch(requestParser.toQuery(obj))
+          case _ =>
+            val multiQuery = requestParser.toMultiQuery(obj)
+            val filterOutFuture = multiQuery.queryOption.filterOutQuery match {
+              case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
+              case None => Future.successful(Seq.empty)
+            }
+            val futures = multiQuery.queries.zip(multiQuery.weights).map { case (query, weight) =>
+              val filterOutQueryResultsLs = query.queryOption.filterOutQuery match {
+                case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
+                case None => Future.successful(Seq.empty)
+              }
+              for {
+                queryRequestWithResultLs <- graph.getEdges(query)
+                filterOutResultsLs <- filterOutQueryResultsLs
+              } yield {
+                val newQueryRequestWithResult = for {
+                  queryRequestWithResult <- queryRequestWithResultLs
+                  queryResult = queryRequestWithResult.queryResult
+                } yield {
+                  val newEdgesWithScores = for {
+                    edgeWithScore <- queryRequestWithResult.queryResult.edgeWithScoreLs
+                  } yield {
+                    edgeWithScore.copy(score = edgeWithScore.score * weight)
+                  }
+                  queryRequestWithResult.copy(queryResult = queryResult.copy(edgeWithScoreLs = newEdgesWithScores))
+                }
+                logger.debug(s"[Size]: ${newQueryRequestWithResult.map(_.queryResult.edgeWithScoreLs.size).sum}")
+                (newQueryRequestWithResult, filterOutResultsLs)
+              }
+            }
+            for {
+              filterOut <- filterOutFuture
+              resultWithExcludeLs <- Future.sequence(futures)
+            } yield {
+              PostProcess.toSimpleVertexArrJsonMulti(multiQuery.queryOption, resultWithExcludeLs, filterOut)
+              //              val initial = (ListBuffer.empty[QueryRequestWithResult], ListBuffer.empty[QueryRequestWithResult])
+              //              val (results, excludes) = resultWithExcludeLs.foldLeft(initial) { case ((prevResults, prevExcludes), (results, excludes)) =>
+              //                (prevResults ++= results, prevExcludes ++= excludes)
+              //              }
+              //              PostProcess.toSimpleVertexArrJson(multiQuery.queryOption, results, excludes ++ filterOut)
+            }
+        }
       case _ => throw BadQueryException("Cannot support")
     }
   }

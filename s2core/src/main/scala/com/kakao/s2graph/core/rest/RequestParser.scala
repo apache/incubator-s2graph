@@ -174,6 +174,17 @@ class RequestParser(config: Config) extends JSONParser {
     }
     vertices.toSeq
   }
+
+  def toMultiQuery(jsValue: JsValue, isEdgeQuery: Boolean = true): MultiQuery = {
+    val queries = for {
+      queryJson <- (jsValue \ "queries").asOpt[Seq[JsValue]].getOrElse(Seq.empty)
+    } yield {
+      toQuery(queryJson, isEdgeQuery)
+    }
+    val weights = (jsValue \ "weights").asOpt[Seq[Double]].getOrElse(queries.map(_ => 1.0))
+    MultiQuery(queries = queries, weights = weights, queryOption = toQueryOption(jsValue))
+  }
+
   def toQueryOption(jsValue: JsValue): QueryOption = {
     val filterOutFields = (jsValue \ "filterOutFields").asOpt[List[String]].getOrElse(List(LabelMeta.to.name))
     val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v) }.map { q =>
