@@ -76,7 +76,7 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
     println(result)
     (result \ "results").as[List[JsValue]].size should be(0)
 
-    insertEdgesSync(bulkEdges(startTs = deletedAt + 1): _*)
+    mutateEdgesSync(bulkEdges(startTs = deletedAt + 1): _*)
 
     result = getEdgesSync(query(20, "in", testTgtColumnName))
     (result \ "results").as[List[JsValue]].size should be(3)
@@ -90,7 +90,7 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
 
   override def initTestData(): Unit = {
     super.initTestData()
-    insertEdgesSync(bulkEdges(): _*)
+    mutateEdgesSync(bulkEdges(): _*)
   }
 
   object WeakLabelDeleteHelper {
