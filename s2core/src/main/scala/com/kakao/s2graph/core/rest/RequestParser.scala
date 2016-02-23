@@ -146,7 +146,8 @@ class RequestParser(config: Config) extends JSONParser {
   def extractWhere(label: Label, whereClauseOpt: Option[String]): Try[Where] = {
     whereClauseOpt match {
       case None => Success(WhereParser.success)
-      case Some(where) =>
+      case Some(_where) =>
+        val where = TemplateHelper.replaceVariable(System.currentTimeMillis(), _where)
         WhereParser(label).parse(where) match {
           case s@Success(_) => s
           case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
