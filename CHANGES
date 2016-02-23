@@ -12,6 +12,8 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-11: Performance tuning on sort by scoreSum on PostProcess (Committed by DOYUNG YOON).
 
+    S2GRAPH-16: Performance tunning on where parser (Committed by DOYUNG YOON).
+
   BUG FIXES
 
   TASKS
