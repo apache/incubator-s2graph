@@ -15,7 +15,7 @@ class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
                                                    version: String,
                                                    cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
     queryParam.label.schemaVersion match {
-      case HBaseType.VERSION2 | HBaseType.VERSION1 => fromKeyValuesInner(queryParam, _kvs, version, cacheElementOpt)
+      case HBaseType.VERSION2 | HBaseType.VERSION1 => fromKeyValuesInnerOld(queryParam, _kvs, version, cacheElementOpt)
       case _  => fromKeyValuesInnerV3(queryParam, _kvs, version, cacheElementOpt)
     }
   }

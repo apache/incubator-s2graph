@@ -4,7 +4,6 @@ import com.kakao.s2graph.core.{OrderingUtil, SeqMultiOrdering}
 import play.api.libs.json.{JsNumber, JsString, JsValue}
 import play.api.test.PlaySpecification
 
-
 class PostProcessSpec extends PlaySpecification {
   import OrderingUtil._
 

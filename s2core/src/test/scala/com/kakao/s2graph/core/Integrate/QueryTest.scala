@@ -16,7 +16,6 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   val weight = "weight"
   val is_hidden = "is_hidden"
 
-
   test("interval") {
     def queryWithInterval(id: Int, index: String, prop: String, fromVal: Int, toVal: Int) = Json.parse(
       s"""
@@ -221,6 +220,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   //    }
 
 
+
   test("duration") {
     def queryDuration(ids: Seq[Int], from: Int, to: Int) = {
       val $from = Json.arr(
@@ -267,10 +267,6 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 2000))
     (result \ "results").as[List[JsValue]].size should be(1)
 
-    def a: JsValue = getEdgesSync(queryDuration(Seq(0, 2), from = 3000, to = 2000))
-    Try(a).recover {
-      case e: BadQueryException => JsNull
-    } should be(Success(JsNull))
   }
 
 
@@ -364,6 +360,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 //    edges = (result \ "results").as[List[JsValue]]
 //    edges.size should be(1)
 //  }
+
   test("order by") {
     def queryScore(id: Int, scoring: Map[String, Int]): JsValue = Json.obj(
       "srcVertices" -> Json.arr(
@@ -424,6 +421,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     ascOrderByTo should be(Seq(JsNumber(1), JsNumber(2)))
     edgesTo.reverse should be(ascOrderByTo)
   }
+
 
   test("query with sampling") {
     def queryWithSampling(id: Int, sample: Int) = Json.parse(
@@ -845,7 +843,6 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     results.size should be(4)
   }
 
-
   def querySingle(id: Int, offset: Int = 0, limit: Int = 100) = Json.parse(
     s"""
           { "srcVertices": [
@@ -863,6 +860,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
             ]]
           }
           """)
+
 
   def queryGlobalLimit(id: Int, limit: Int): JsValue = Json.obj(
     "limit" -> limit,
@@ -887,6 +885,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   // called by start test, once
   override def initTestData(): Unit = {
     super.initTestData()
+
 
     insertEdgesSync(
       toEdge(1000, insert, e, 0, 1, testLabelName, Json.obj(weight -> 40, is_hidden -> true)),

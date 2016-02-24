@@ -1,7 +1,5 @@
 package com.kakao.s2graph.core.storage
 
-
-
 import com.kakao.s2graph.core.ExceptionHandler.{Key, Val, KafkaMessage}
 import com.kakao.s2graph.core.GraphExceptions.FetchTimeoutException
 import com.kakao.s2graph.core._
@@ -11,7 +9,6 @@ import com.kakao.s2graph.core.utils.{Extensions, logger}
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.kafka.clients.producer.ProducerRecord
-
 import scala.annotation.tailrec
 import scala.collection.Seq
 import scala.collection.mutable.ArrayBuffer
@@ -584,7 +581,6 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
 
   /** Parsing Logic: parse from kv from Storage into Edge */
-
   def toEdge[K: CanSKeyValue](kv: K,
                               queryParam: QueryParam,
                               cacheElementOpt: Option[IndexEdge],

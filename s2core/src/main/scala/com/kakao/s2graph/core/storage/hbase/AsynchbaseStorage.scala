@@ -47,6 +47,7 @@ object AsynchbaseStorage {
   }
 }
 
+
 class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionContext)
   extends Storage[Deferred[QueryRequestWithResult]](config) {
 
@@ -63,7 +64,6 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
   private val clients = Seq(client, clientWithFlush)
   private val clientFlushInterval = config.getInt("hbase.rpcs.buffered_flush_interval").toString().toShort
   private val emptyKeyValues = new util.ArrayList[KeyValue]()
-
   private def client(withWait: Boolean): HBaseClient = if (withWait) clientWithFlush else client
 
   /** Future Cache to squash request */
@@ -448,6 +448,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     val conn = ConnectionFactory.createConnection(conf)
     conn.getAdmin
   }
+
   private def enableTable(zkAddr: String, tableName: String) = {
     getAdmin(zkAddr).enableTable(TableName.valueOf(tableName))
   }
@@ -468,6 +469,4 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
   private def getEndKey(regionCount: Int): Array[Byte] = {
     Bytes.toBytes((Int.MaxValue / regionCount * (regionCount - 1)))
   }
-
-
 }

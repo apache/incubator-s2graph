@@ -285,7 +285,7 @@ object PostProcess extends JSONParser {
   private def buildResultJsValue(queryOption: QueryOption,
                                  degrees: ListBuffer[JsValue],
                                  rawEdges: ListBuffer[RAW_EDGE]): JsValue = {
-    if (queryOption.groupBy.keys.isEmpty) {
+    if (queryOption.groupByColumns.isEmpty) {
       // ordering
       val filteredEdges = rawEdges.filter(t => t._2 >= queryOption.scoreThreshold)
 
@@ -306,7 +306,7 @@ object PostProcess extends JSONParser {
         val props = keyWithJs.get("props")
 
         for {
-          column <- queryOption.groupBy.keys
+          column <- queryOption.groupByColumns
           value <- keyWithJs.get(column) match {
             case None => props.flatMap { js => (js \ column).asOpt[JsValue] }
             case Some(x) => Some(x)
@@ -320,13 +320,7 @@ object PostProcess extends JSONParser {
           scoreSum = groupedRawEdges.map(x => x._2).sum if scoreSum >= queryOption.scoreThreshold
         } yield {
           // ordering
-          val _edges =
-            orderBy(queryOption, groupedRawEdges).map(_._1)
-
-          val edges = queryOption.groupBy.limitOpt match {
-            case None => _edges
-            case Some(limit) => _edges.take(limit)
-          }
+          val edges = orderBy(queryOption, groupedRawEdges).map(_._1)
 
           //TODO: refactor this
           val js = if (queryOption.returnAgg)

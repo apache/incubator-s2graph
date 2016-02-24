@@ -22,7 +22,6 @@ object Global extends WithFilters(new GzipFilter()) {
   var s2parser: RequestParser = _
   var s2rest: RestHandler = _
 
-
   // Application entry point
   override def onStart(app: Application) {
     ApplicationController.isHealthy = false

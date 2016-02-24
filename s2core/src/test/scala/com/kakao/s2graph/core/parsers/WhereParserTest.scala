@@ -33,7 +33,6 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, version)
   }
 
-  val labelMap = Map(label.label -> label)
 
   def validate(label: Label)(edge: Edge)(sql: String)(expected: Boolean) = {
     val whereOpt = WhereParser(label).parse(sql)

@@ -100,9 +100,6 @@ object Graph {
               case _ => innerVal.toString().toLong
             }
           } getOrElse(edge.ts)
-//          val innerVal = edge.propsWithTs(timeDecay.labelMetaSeq).innerVal
-//
-//          edge.propsWithTs.get(timeDecay.labelMetaSeq).map(_.toString.toLong).getOrElse(edge.ts)
         } catch {
           case e: Exception =>
             logger.error(s"processTimeDecay error. ${edge.toLogString}", e)

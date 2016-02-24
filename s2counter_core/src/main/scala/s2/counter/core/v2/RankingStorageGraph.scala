@@ -286,22 +286,14 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
        """.stripMargin
     log.debug(strJs)
 
-
-    Try {
-      Json.parse(strJs)
-    } match {
-      case Success(payload) =>
-        wsClient.url(s"$s2graphReadOnlyUrl/graphs/getEdges").post(payload).map { resp =>
-          resp.status match {
-            case HttpStatus.SC_OK =>
-              (resp.json \ "results").asOpt[List[JsValue]].getOrElse(Nil)
-            case _ =>
-              throw new RuntimeException(s"failed getEdges. errCode: ${resp.status}, body: ${resp.body}, query: $payload")
-          }
-        }
-      case Failure(ex) =>
-        log.error(s"$ex")
-        Future.successful(Nil)
+    val payload = Json.parse(strJs)
+    wsClient.url(s"$s2graphReadOnlyUrl/graphs/getEdges").post(payload).map { resp =>
+      resp.status match {
+        case HttpStatus.SC_OK =>
+          (resp.json \ "results").asOpt[List[JsValue]].getOrElse(Nil)
+        case _ =>
+          throw new RuntimeException(s"failed getEdges. errCode: ${resp.status}, body: ${resp.body}, query: $payload")
+      }
     }
   }
 

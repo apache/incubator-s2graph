@@ -46,7 +46,6 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
     val tryRes =
       management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
-
     println(s">> Service created : $createService, $tryRes")
 
     val labelNames = Map(testLabelName -> testLabelNameCreate,
@@ -186,7 +185,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     }
     ],
     "consistencyLevel": "strong",
-    "schemaVersion": "v4",
+    "schemaVersion": "v2",
     "compressionAlgorithm": "gz",
     "hTableName": "$testHTableName"
   }"""
@@ -226,7 +225,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     ],
     "consistencyLevel": "strong",
     "isDirected": false,
-    "schemaVersion": "v4",
+    "schemaVersion": "v3",
     "compressionAlgorithm": "gz"
   }"""
 
@@ -307,5 +306,4 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "compressionAlgorithm": "gz"
   }"""
   }
-
 }
