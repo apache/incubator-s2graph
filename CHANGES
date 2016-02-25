@@ -3,8 +3,6 @@
 Release 0.12.1 - unreleased
 
   NEW FEATURES
-<<<<<<< HEAD
-=======
     
     S2GRAPH-34: Provide option to select which field in edge's properties to run timeDecay function (Committed by DOYUNG YOON).
 
@@ -17,7 +15,6 @@ Release 0.12.1 - unreleased
     S2GRAPH-45: Provide way to call specific bucket on experiment (Committed by DOYUNG YOON).
   
     S2GRAPH-33: Support weighted sum of multiple query results (Committed by DOYUNG YOON).
->>>>>>> master
 
   IMPROVEMENT
 
@@ -25,12 +22,6 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-24: Add counter config for readonly graph (Committed by Jaesang Kim).
 
-<<<<<<< HEAD
-  BUG FIXES
-
-  TASKS
-
-=======
     S2GRAPH-11: Performance tuning on sort by scoreSum on PostProcess (Committed by DOYUNG YOON).
 
     S2GRAPH-16: Performance tunning on where parser (Committed by DOYUNG YOON).
@@ -68,7 +59,6 @@ Release 0.12.1 - unreleased
     S2GRAPH-2: Update document and quick start environment to have recent set-up command changes.
                (Contributed by Hyunsung Jo<hyunsung.jo@gmail.com>, committed by daewon)
 
->>>>>>> master
     S2GRAPH-5: Add Apache RAT to valid LICENSE errors. (Committed by DOYUNG YOON).
 
   SUB TASKS
@@ -76,12 +66,9 @@ Release 0.12.1 - unreleased
     S2GRAPH-9: Provide rest server using netty. (Committed by daewon).
 
     S2GRAPH-7: Abstract common codes for rest project into s2core. (Committed by daewon).
-<<<<<<< HEAD
-=======
 
     S2GRAPH-31: Remove playframework dependencies on s2core/build.sbt. (Committed by DOYUNG YOON).
 
   TEST
     
     S2GRAPH-21: Change PostProcessBenchmarkSpec not to store and fetch test data from storage. (Committed by DOYUNG YOON).
->>>>>>> master
