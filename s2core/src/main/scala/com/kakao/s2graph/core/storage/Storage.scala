@@ -645,6 +645,9 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
         val currentScore =
           queryParam.scorePropagateOp match {
             case "plus" => edge.rank(queryParam.rank) + prevScore
+            case "divide" =>
+              if ( (prevScore + queryParam.scorePropagateShrinkage) == 0 ) 0
+              else edge.rank(queryParam.rank) / (prevScore + queryParam.scorePropagateShrinkage)
             case _ => edge.rank(queryParam.rank) * prevScore
           }
         EdgeWithScore(edge, currentScore)
