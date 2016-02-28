@@ -482,7 +482,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     } yield {
         val label = queryRequest.queryParam.label
         label.schemaVersion match {
-          case HBaseType.VERSION3 | HBaseType.VERSION4 =>
+          case HBaseType.VERSION3 =>
             if (label.consistencyLevel == "strong") {
               /**
                * read: snapshotEdge on queryResult = O(N)
