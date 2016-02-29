@@ -1,6 +1,7 @@
 package com.kakao.s2graph.core.mysqls
 
 import com.kakao.s2graph.core.GraphUtil
+import com.kakao.s2graph.core.utils.logger
 import scalikejdbc._
 
 import scala.util.Random
@@ -50,6 +51,7 @@ case class Experiment(id: Option[Int],
                       totalModular: Int) {
 
   def buckets = Bucket.finds(id.get)
+
   def rangeBuckets = for {
     bucket <- buckets
     range <- bucket.rangeOpt

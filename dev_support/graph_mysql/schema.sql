@@ -163,7 +163,6 @@ CREATE TABLE `experiments` (
 -- ----------------------------
 --  Table structure for `buckets`
 -- ----------------------------
-DROP TABLE IF EXISTS `buckets`;
 CREATE TABLE `buckets` (
   `id` integer NOT NULL AUTO_INCREMENT,
   `experiment_id` integer NOT NULL,

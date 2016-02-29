@@ -42,7 +42,8 @@ object Graph {
     "delete.all.fetch.size" -> java.lang.Integer.valueOf(1000),
     "future.cache.max.size" -> java.lang.Integer.valueOf(100000),
     "future.cache.expire.after.write" -> java.lang.Integer.valueOf(10000),
-    "future.cache.expire.after.access" -> java.lang.Integer.valueOf(5000)
+    "future.cache.expire.after.access" -> java.lang.Integer.valueOf(5000),
+    "s2graph.storage.backend" -> "hbase"
   )
 
   var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)
@@ -99,9 +100,6 @@ object Graph {
               case _ => innerVal.toString().toLong
             }
           } getOrElse(edge.ts)
-          //          val innerVal = edge.propsWithTs(timeDecay.labelMetaSeq).innerVal
-          //
-          //          edge.propsWithTs.get(timeDecay.labelMetaSeq).map(_.toString.toLong).getOrElse(edge.ts)
         } catch {
           case e: Exception =>
             logger.error(s"processTimeDecay error. ${edge.toLogString}", e)
@@ -332,19 +330,24 @@ object Graph {
       logger.error(s"toVertex: $e", e)
       throw e
   } get
+
+  def initStorage(config: Config)(ec: ExecutionContext) = {
+    config.getString("s2graph.storage.backend") match {
+      case "hbase" => new AsynchbaseStorage(config)(ec)
+      case _ => throw new RuntimeException("not supported storage.")
+    }
+  }
 }
 
-class Graph(_config: Config)(implicit ec: ExecutionContext) {
+class Graph(_config: Config)(implicit val ec: ExecutionContext) {
   val config = _config.withFallback(Graph.DefaultConfig)
-  val cacheSize = config.getInt("cache.max.size")
-//  val cache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Seq[QueryResult]]()
-  val vertexCache = CacheBuilder.newBuilder().maximumSize(cacheSize).build[java.lang.Integer, Option[Vertex]]()
 
   Model.apply(config)
   Model.loadCache()
 
   // TODO: Make storage client by config param
-  val storage: Storage = new AsynchbaseStorage(config, vertexCache)(ec)
+  val storage = Graph.initStorage(config)(ec)
+
 
   for {
     entry <- config.entrySet() if Graph.DefaultConfigs.contains(entry.getKey)

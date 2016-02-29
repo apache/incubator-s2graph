@@ -12,7 +12,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
 
   // dummy data for dummy edge
   initTests()
-
+  
   import HBaseType.{VERSION1, VERSION2}
 
   val ts = System.currentTimeMillis()
@@ -164,6 +164,58 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       f("_parent._parent.is_blocked = is_blocked")(true)
       f("_parent._parent.weight = weight")(false)
       f("_parent._parent.weight = _parent.weight")(true)
+    }
+  }
+
+  test("replace reserved") {
+    val ts = 0
+    import com.kakao.s2graph.core.rest.TemplateHelper._
+
+    calculate(ts, 1, "hour") should be(hour + ts)
+    calculate(ts, 1, "day") should be(day + ts)
+
+    calculate(ts + 10, 1, "HOUR") should be(hour + ts + 10)
+    calculate(ts + 10, 1, "DAY") should be(day + ts + 10)
+
+    val body = """{
+        	"day": ${1day},
+          "hour": ${1hour},
+          "-day": "${-10 day}",
+          "-hour": ${-10 hour},
+          "now": "${now}"
+        }
+      """
+
+    val parsed = replaceVariable(ts, body)
+    val json = Json.parse(parsed)
+
+    (json \ "day").as[Long] should be (1 * day + ts)
+    (json \ "hour").as[Long] should be (1 * hour + ts)
+
+    (json \ "-day").as[Long] should be (-10 * day + ts)
+    (json \ "-hour").as[Long] should be (-10 * hour + ts)
+
+    (json \ "now").as[Long] should be (ts)
+
+    val otherBody = """{
+          "nextday": "${next_day}",
+          "3dayago": "${next_day - 3 day}",
+          "nexthour": "${next_hour}"
+        }"""
+
+    val currentTs = System.currentTimeMillis()
+    val expectedDayTs = currentTs / day * day + day
+    val expectedHourTs = currentTs / hour * hour + hour
+    val threeDayAgo = expectedDayTs - 3 * day
+    val currentTsLs = (1 until 1000).map(currentTs + _)
+
+    currentTsLs.foreach { ts =>
+      val parsed = replaceVariable(ts, otherBody)
+      val json = Json.parse(parsed)
+
+      (json \ "nextday").as[Long] should be(expectedDayTs)
+      (json \ "nexthour").as[Long] should be(expectedHourTs)
+      (json \ "3dayago").as[Long] should be(threeDayAgo)
     }
   }
 

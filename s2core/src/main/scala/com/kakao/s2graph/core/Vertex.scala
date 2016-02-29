@@ -1,5 +1,6 @@
 package com.kakao.s2graph.core
 
+
 import com.kakao.s2graph.core.mysqls._
 
 //import com.kakao.s2graph.core.models._
