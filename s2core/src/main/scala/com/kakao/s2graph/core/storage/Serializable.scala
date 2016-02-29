@@ -1,10 +1,10 @@
-package com.kakao.s2graph.core.storage.hbase
+package com.kakao.s2graph.core.storage
 
 import com.kakao.s2graph.core.storage.StorageSerializable
 
-object HSerializable {
+object Serializable {
   val vertexCf = "v".getBytes()
   val edgeCf = "e".getBytes()
 }
 
-trait HSerializable[E] extends StorageSerializable[E]
+trait Serializable[E] extends StorageSerializable[E]

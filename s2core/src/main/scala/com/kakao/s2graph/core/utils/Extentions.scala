@@ -2,7 +2,6 @@ package com.kakao.s2graph.core.utils
 
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.Config
-
 import scala.concurrent.{ExecutionContext, Future, Promise}
 
 object Extensions {
@@ -70,5 +69,4 @@ object Extensions {
     def getBooleanWithFallback(key: String, defaultValue: Boolean): Boolean =
       if (config.hasPath(key)) config.getBoolean(key) else defaultValue
   }
-
 }

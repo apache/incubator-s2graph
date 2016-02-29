@@ -8,10 +8,7 @@ import play.api.{Application => PlayApplication}
 
 import scala.util.Random
 
-/**
-  * Created by hsleep(honeysleep@gmail.com) on 2015. 11. 9..
-  */
-class OrderingUtilBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
+class OrderingUtilBenchmarkSpec extends BenchmarkCommon {
   "OrderingUtilBenchmarkSpec" should {
 
     "performance MultiOrdering any" >> {
@@ -24,7 +21,7 @@ class OrderingUtilBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
       }
 
       val sorted1 = duration("TupleOrdering double,long") {
-        (0 until 10000) foreach { _ =>
+        (0 until 1000) foreach { _ =>
           tupLs.sortBy { case (x, y) =>
             -x -> -y
           }
@@ -35,7 +32,7 @@ class OrderingUtilBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
       }.map { x => x._1 }
 
       val sorted2 = duration("MultiOrdering double,long") {
-        (0 until 10000) foreach { _ =>
+        (0 until 1000) foreach { _ =>
           seqLs.sorted(new SeqMultiOrdering[Any](Seq(false, false)))
         }
         seqLs.sorted(new SeqMultiOrdering[Any](Seq(false, false)))
@@ -45,7 +42,7 @@ class OrderingUtilBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
     }
 
     "performance MultiOrdering double" >> {
-      val tupLs = (0 until 500) map { i =>
+      val tupLs = (0 until 50) map { i =>
         Random.nextDouble() -> Random.nextDouble()
       }
 
@@ -54,13 +51,13 @@ class OrderingUtilBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
       }
 
       duration("MultiOrdering double") {
-        (0 until 10000) foreach { _ =>
+        (0 until 1000) foreach { _ =>
           seqLs.sorted(new SeqMultiOrdering[Double](Seq(false, false)))
         }
       }
 
       duration("TupleOrdering double") {
-        (0 until 10000) foreach { _ =>
+        (0 until 1000) foreach { _ =>
           tupLs.sortBy { case (x, y) =>
             -x -> -y
           }
@@ -71,7 +68,7 @@ class OrderingUtilBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
     }
 
     "performance MultiOrdering jsvalue" >> {
-      val tupLs = (0 until 500) map { i =>
+      val tupLs = (0 until 50) map { i =>
         Random.nextDouble() -> Random.nextLong()
       }
 
@@ -80,7 +77,7 @@ class OrderingUtilBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
       }
 
       val sorted1 = duration("TupleOrdering double,long") {
-        (0 until 10000) foreach { _ =>
+        (0 until 1000) foreach { _ =>
           tupLs.sortBy { case (x, y) =>
             -x -> -y
           }
@@ -91,7 +88,7 @@ class OrderingUtilBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
       }
 
       val sorted2 = duration("MultiOrdering jsvalue") {
-        (0 until 10000) foreach { _ =>
+        (0 until 1000) foreach { _ =>
           seqLs.sorted(new SeqMultiOrdering[JsValue](Seq(false, false)))
         }
         seqLs.sorted(new SeqMultiOrdering[JsValue](Seq(false, false)))

@@ -128,7 +128,7 @@ object CounterFunctions extends Logging with WithKafka {
       itemRankingRdd.unpersist(false)
     }
   }
-  
+
   def makeTrxLogRdd(rdd: RDD[(String, String)], numPartitions: Int): RDD[TrxLog] = {
     rdd.mapPartitions { part =>
       assert(initialize)

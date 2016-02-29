@@ -2,7 +2,7 @@ package com.kakao.s2graph.core.rest
 
 import java.util.concurrent.{Callable, TimeUnit}
 
-import com.google.common.cache.CacheBuilder
+import com.google.common.cache.{CacheLoader, CacheBuilder}
 import com.kakao.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
@@ -15,11 +15,9 @@ import scala.util.{Failure, Success, Try}
 object TemplateHelper {
   val findVar = """\"?\$\{(.*?)\}\"?""".r
   val num = """(next_day|next_hour|next_week|now)?\s*(-?\s*[0-9]+)?\s*(hour|day|week)?""".r
-
   val hour = 60 * 60 * 1000L
   val day = hour * 24L
   val week = day * 7L
-
   def calculate(now: Long, n: Int, unit: String): Long = {
     val duration = unit match {
       case "hour" | "HOUR" => n * hour
@@ -59,6 +57,7 @@ class RequestParser(config: Config) extends JSONParser {
 
   val hardLimit = 100000
   val defaultLimit = 100
+  val maxLimit = Int.MaxValue - 1
   val DefaultRpcTimeout = config.getInt("hbase.rpc.timeout")
   val DefaultMaxAttempt = config.getInt("hbase.client.retries.number")
   val DefaultCluster = config.getString("hbase.zookeeper.quorum")
@@ -70,7 +69,6 @@ class RequestParser(config: Config) extends JSONParser {
     .maximumSize(10000)
     .initialCapacity(1000)
     .build[String, Try[Where]]
-
 
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {
@@ -145,7 +143,6 @@ class RequestParser(config: Config) extends JSONParser {
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
   
-
   def extractWhere(label: Label, whereClauseOpt: Option[String]): Try[Where] = {
     whereClauseOpt match {
       case None => Success(WhereParser.success)
@@ -182,7 +179,8 @@ class RequestParser(config: Config) extends JSONParser {
       toQuery(queryJson, isEdgeQuery)
     }
     val weights = (jsValue \ "weights").asOpt[Seq[Double]].getOrElse(queries.map(_ => 1.0))
-    MultiQuery(queries = queries, weights = weights, queryOption = toQueryOption(jsValue))
+    MultiQuery(queries = queries, weights = weights,
+      queryOption = toQueryOption(jsValue), jsonQuery = jsValue)
   }
 
   def toQueryOption(jsValue: JsValue): QueryOption = {
@@ -309,7 +307,7 @@ class RequestParser(config: Config) extends JSONParser {
 
         }
 
-      val ret = Query(vertices, querySteps, queryOption)
+      val ret = Query(vertices, querySteps, queryOption, jsValue)
       //      logger.debug(ret.toString)
       ret
     } catch {
@@ -331,7 +329,7 @@ class RequestParser(config: Config) extends JSONParser {
       val limit = {
         parse[Option[Int]](labelGroup, "limit") match {
           case None => defaultLimit
-          case Some(l) if l < 0 => Int.MaxValue
+          case Some(l) if l < 0 => maxLimit
           case Some(l) if l >= 0 =>
             val default = hardLimit
             Math.min(l, default)
@@ -377,7 +375,6 @@ class RequestParser(config: Config) extends JSONParser {
       val scorePropagateOp = (labelGroup \ "scorePropagateOp").asOpt[String].getOrElse("multiply")
       val sample = (labelGroup \ "sample").asOpt[Int].getOrElse(-1)
       val shouldNormalize = (labelGroup \ "normalize").asOpt[Boolean].getOrElse(false)
-
       // FIXME: Order of command matter
       QueryParam(labelWithDir)
         .sample(sample)
@@ -428,31 +425,39 @@ class RequestParser(config: Config) extends JSONParser {
 
   def toEdgesWithOrg(jsValue: JsValue, operation: String): (List[Edge], List[JsValue]) = {
     val jsValues = toJsValues(jsValue)
-    val edges = jsValues.map(toEdge(_, operation))
+    val edges = jsValues.flatMap(toEdge(_, operation))
 
     (edges, jsValues)
   }
 
   def toEdges(jsValue: JsValue, operation: String): List[Edge] = {
-    toJsValues(jsValue).map(toEdge(_, operation))
+    toJsValues(jsValue).flatMap { edgeJson =>
+      toEdge(edgeJson, operation)
+    }
   }
 
-  def toEdge(jsValue: JsValue, operation: String) = {
 
-    val srcId = parse[JsValue](jsValue, "from") match {
+  private def toEdge(jsValue: JsValue, operation: String): List[Edge] = {
+
+    def parseId(js: JsValue) = js match {
       case s: JsString => s.as[String]
       case o@_ => s"${o}"
     }
-    val tgtId = parse[JsValue](jsValue, "to") match {
-      case s: JsString => s.as[String]
-      case o@_ => s"${o}"
-    }
+    val srcId = (jsValue \ "from").asOpt[JsValue].toList.map(parseId(_))
+    val tgtId = (jsValue \ "to").asOpt[JsValue].toList.map(parseId(_))
+    val srcIds = (jsValue \ "froms").asOpt[List[JsValue]].toList.flatMap(froms => froms.map(js => parseId(js))) ++ srcId
+    val tgtIds = (jsValue \ "tos").asOpt[List[JsValue]].toList.flatMap(froms => froms.map(js => parseId(js))) ++ tgtId
+
     val label = parse[String](jsValue, "label")
     val timestamp = parse[Long](jsValue, "timestamp")
     val direction = parse[Option[String]](jsValue, "direction").getOrElse("")
     val props = (jsValue \ "props").asOpt[JsValue].getOrElse("{}")
-    Management.toEdge(timestamp, operation, srcId, tgtId, label, direction, props.toString)
-
+    for {
+      srcId <- srcIds
+      tgtId <- tgtIds
+    } yield {
+      Management.toEdge(timestamp, operation, srcId, tgtId, label, direction, props.toString)
+    }
   }
 
   def toVertices(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None) = {
