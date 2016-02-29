@@ -193,7 +193,8 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
                   cfs: List[String],
                   regionMultiplier: Int,
                   ttl: Option[Int],
-                  compressionAlgorithm: String): Unit
+                  compressionAlgorithm: String,
+                  replicationScopeOpt: Option[Int] = None): Unit
 
 
 

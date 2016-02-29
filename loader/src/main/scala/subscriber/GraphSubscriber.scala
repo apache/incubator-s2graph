@@ -66,7 +66,7 @@ object GraphSubscriberHelper extends WithKafka {
     if (g == null) {
       val ec = ExecutionContext.Implicits.global
       g = new Graph(config)(ec)
-      management = new Management(g)(ec)
+      management = new Management(g)
     }
   }
 
