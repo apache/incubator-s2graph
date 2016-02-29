@@ -6,7 +6,7 @@ import com.kakao.s2graph.core.parsers.{Where, WhereParser}
 import com.kakao.s2graph.core.types._
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.ColumnRangeFilter
-import play.api.libs.json.{JsNumber, JsValue, Json}
+import play.api.libs.json.{JsNull, JsNumber, JsValue, Json}
 
 import scala.util.hashing.MurmurHash3
 import scala.util.{Success, Try}
@@ -32,6 +32,11 @@ object Query {
   }
 }
 
+case class MultiQuery(queries: Seq[Query],
+                      weights: Seq[Double],
+                      queryOption: QueryOption,
+                      jsonQuery: JsValue = JsNull)
+
 case class QueryOption(removeCycle: Boolean = false,
                        selectColumns: Seq[String] = Seq.empty,
                        groupByColumns: Seq[String] = Seq.empty,
@@ -45,14 +50,15 @@ case class QueryOption(removeCycle: Boolean = false,
                        scoreThreshold: Double = Double.MinValue,
                        returnDegree: Boolean = true)
 
-case class MultiQuery(queries: Seq[Query], weights: Seq[Double], queryOption: QueryOption)
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  steps: IndexedSeq[Step] = Vector.empty[Step],
-                 queryOption: QueryOption = QueryOption()) {
+                 queryOption: QueryOption = QueryOption(),
+                 jsonQuery: JsValue = JsNull) {
 
   val removeCycle = queryOption.removeCycle
   val selectColumns = queryOption.selectColumns
+//  val groupBy = queryOption.groupBy
   val groupByColumns = queryOption.groupByColumns
   val orderByColumns = queryOption.orderByColumns
   val filterOutQuery = queryOption.filterOutQuery
@@ -477,13 +483,13 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     this
   }
 
-  def whereRawOpt(sqlOpt: Option[String]): QueryParam = {
-    this.whereRawOpt = sqlOpt
+  def shouldNormalize(shouldNormalize: Boolean): QueryParam = {
+    this.shouldNormalize = shouldNormalize
     this
   }
 
-  def shouldNormalize(shouldNormalize: Boolean): QueryParam = {
-    this.shouldNormalize = shouldNormalize
+  def whereRawOpt(sqlOpt: Option[String]): QueryParam = {
+    this.whereRawOpt = sqlOpt
     this
   }
 

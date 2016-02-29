@@ -1,9 +1,12 @@
 package com.kakao.s2graph.rest.netty
 
+import java.util.Map.Entry
 import java.util.concurrent.Executors
+import java.util.function.Consumer
 
 import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
+import com.kakao.s2graph.core.mysqls.Experiment
 import com.kakao.s2graph.core.rest.RestHandler.HandlerResult
 import com.kakao.s2graph.core.rest._
 import com.kakao.s2graph.core.utils.Extensions._
@@ -88,11 +91,11 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
         case e: BadQueryException =>
           logger.error(s"{$requestBody}, ${e.getMessage}", e)
           val buf: ByteBuf = Unpooled.copiedBuffer(PostProcess.badRequestResults(e).toString, CharsetUtil.UTF_8)
-          simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = closeOpt, headers = headers.result())
+          simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = CloseOpt, headers = headers.result())
         case e: Exception =>
           logger.error(s"${requestBody}, ${e.getMessage}", e)
           val buf: ByteBuf = Unpooled.copiedBuffer(PostProcess.emptyResults.toString, CharsetUtil.UTF_8)
-          simpleResponse(ctx, InternalServerError, byteBufOpt = Option(buf), channelFutureListenerOpt = closeOpt, headers = headers.result())
+          simpleResponse(ctx, InternalServerError, byteBufOpt = Option(buf), channelFutureListenerOpt = CloseOpt, headers = headers.result())
       }
     }
   }
@@ -130,11 +133,10 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
         } else badRoute(ctx)
 
       case HttpMethod.POST =>
-        val jsonString = req.content.toString(CharsetUtil.UTF_8)
-        val jsQuery = Json.parse(jsonString)
+        val body = req.content.toString(CharsetUtil.UTF_8)
 
-        val result = s2rest.doPost(uri, jsQuery)
-        toResponse(ctx, req, jsQuery, result, startedAt)
+        val result = s2rest.doPost(uri, body, Option(req.headers().get(Experiment.impressionKey)))
+        toResponse(ctx, req, Json.parse(body), result, startedAt)
 
       case _ =>
         simpleResponse(ctx, BadRequest, byteBufOpt = None, channelFutureListenerOpt = CloseOpt)

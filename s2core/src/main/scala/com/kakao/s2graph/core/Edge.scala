@@ -57,6 +57,7 @@ case class IndexEdge(srcVertex: Vertex,
   //  assert(props.containsKey(LabelMeta.timeStampSeq))
 
   val ts = props(LabelMeta.timeStampSeq).toString.toLong
+  val degreeEdge = props.contains(LabelMeta.degreeSeq)
   lazy val label = Label.findById(labelWithDir.labelId)
   val schemaVer = label.schemaVersion
   lazy val labelIndex = LabelIndex.findByLabelIdAndSeq(labelWithDir.labelId, labelIndexSeq).get
