@@ -1,4 +1,4 @@
-package com.kakao.s2graph.core.storage.hbase
+package com.kakao.s2graph.core.storage
 
 import com.kakao.s2graph.core.mysqls.{LabelIndex, LabelMeta}
 import com.kakao.s2graph.core.storage.{CanSKeyValue, SKeyValue, StorageDeserializable}
@@ -6,14 +6,17 @@ import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.{Edge, QueryParam, SnapshotEdge, Vertex}
 import org.apache.hadoop.hbase.util.Bytes
 
-class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
+class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
 
   import StorageDeserializable._
 
-  override def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
+  override def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam,
+                                                   _kvs: Seq[T],
+                                                   version: String,
+                                                   cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
     queryParam.label.schemaVersion match {
-      case HBaseType.VERSION3 => fromKeyValuesInnerV3(queryParam, _kvs, version, cacheElementOpt)
-      case _ => fromKeyValuesInner(queryParam, _kvs, version, cacheElementOpt)
+      case HBaseType.VERSION2 | HBaseType.VERSION1 => fromKeyValuesInnerOld(queryParam, _kvs, version, cacheElementOpt)
+      case _  => fromKeyValuesInnerV3(queryParam, _kvs, version, cacheElementOpt)
     }
   }
 
@@ -23,7 +26,7 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
     (statusCode.toByte, op.toByte)
   }
 
-  private def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
+  def fromKeyValuesInnerOld[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
     assert(kvs.size == 1)
 
@@ -137,4 +140,3 @@ class SnapshotEdgeDeserializable extends HDeserializable[SnapshotEdge] {
       pendingEdgeOpt = _pendingEdgeOpt, lockTs = None)
   }
 }
-

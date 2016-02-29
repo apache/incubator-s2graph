@@ -9,12 +9,17 @@
         </encoder>
     </appender>
 
-    <root level="ERROR">
+    <!--<root level="INFO">-->
+        <!--<appender-ref ref="STDOUT"/>-->
+    <!--</root>-->
+
+    <logger name="application" level="DEBUG">
         <appender-ref ref="STDOUT"/>
-    </root>
+    </logger>
 
-    <logger name="application" level="DEBUG"></logger>
+    <logger name="error" level="DEBUG">
+        <appender-ref ref="STDOUT"/>
+    </logger>
 
-    <logger name="error" level="DEBUG"></logger>
 </configuration>
 

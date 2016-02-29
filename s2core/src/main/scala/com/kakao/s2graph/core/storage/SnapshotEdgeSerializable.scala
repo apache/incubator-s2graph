@@ -1,22 +1,17 @@
-package com.kakao.s2graph.core.storage.hbase
-
-import java.util.UUID
+package com.kakao.s2graph.core.storage
 
 import com.kakao.s2graph.core.SnapshotEdge
 import com.kakao.s2graph.core.mysqls.LabelIndex
-import com.kakao.s2graph.core.storage.{StorageSerializable, SKeyValue}
 import com.kakao.s2graph.core.types.{HBaseType, SourceAndTargetVertexIdPair, VertexId}
-import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.util.Bytes
 
-import scala.util.Random
 
-class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable[SnapshotEdge] {
+class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[SnapshotEdge] {
   import StorageSerializable._
 
   val label = snapshotEdge.label
   val table = label.hbaseTableName.getBytes()
-  val cf = HSerializable.edgeCf
+  val cf = Serializable.edgeCf
 
   def statusCodeWithOp(statusCode: Byte, op: Byte): Array[Byte] = {
     val byte = (((statusCode << 4) | op).toByte)
@@ -27,8 +22,8 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
 
   override def toKeyValues: Seq[SKeyValue] = {
     label.schemaVersion match {
-      case HBaseType.VERSION3 => toKeyValuesInnerV3
-      case _ => toKeyValuesInner
+      case HBaseType.VERSION1 | HBaseType.VERSION2 => toKeyValuesInner
+      case _ => toKeyValuesInnerV3
     }
   }
 
@@ -47,11 +42,8 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
       case Some(pendingEdge) =>
         val opBytes = statusCodeWithOp(pendingEdge.statusCode, pendingEdge.op)
         val versionBytes = Array.empty[Byte]
-//          Bytes.toBytes(snapshotEdge.version)
         val propsBytes = propsToKeyValuesWithTs(pendingEdge.propsWithTs.toSeq)
         val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)
-//          Array.empty[Byte]
-//          snapshotEdge.lockedAtOpt.map(lockedAt => Bytes.toBytes(lockedAt)).getOrElse(Array.empty[Byte])
         Bytes.add(Bytes.add(valueBytes(), opBytes, versionBytes), Bytes.add(propsBytes, lockBytes))
     }
     val kv = SKeyValue(table, row, cf, qualifier, value, snapshotEdge.version)
@@ -72,16 +64,9 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends HSerializable
       case Some(pendingEdge) =>
         val opBytes = statusCodeWithOp(pendingEdge.statusCode, pendingEdge.op)
         val versionBytes = Array.empty[Byte]
-//          Bytes.toBytes(snapshotEdge.version)
         val propsBytes = propsToKeyValuesWithTs(pendingEdge.propsWithTs.toSeq)
         val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)
-//          Array.empty[Byte]
-//          snapshotEdge.lockedAtOpt.map(lockedAt => Bytes.toBytes(lockedAt)).getOrElse(Array.empty[Byte])
-//        logger.error(s"ValueBytes: ${valueBytes().toList}")
-//        logger.error(s"opBytes: ${opBytes.toList}")
-//        logger.error(s"versionBytes: ${versionBytes.toList}")
-//        logger.error(s"PropsBytes: ${propsBytes.toList}")
-//        logger.error(s"LockBytes: ${lockBytes.toList}")
+
         Bytes.add(Bytes.add(valueBytes(), opBytes, versionBytes), Bytes.add(propsBytes, lockBytes))
     }
 

@@ -1,7 +1,9 @@
 package com.kakao.s2graph.core.storage
 
-import com.kakao.s2graph.core.{Edge, IndexEdge, QueryParam}
+import com.kakao.s2graph.core.utils.logger
+import com.kakao.s2graph.core.QueryParam
 import com.kakao.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, InnerValLikeWithTs}
+import org.apache.hadoop.hbase.util.Bytes
 
 object StorageDeserializable {
   /** Deserializer */
@@ -75,8 +77,19 @@ object StorageDeserializable {
 
     ret
   }
+
+  def bytesToLong(bytes: Array[Byte], offset: Int): Long = Bytes.toLong(bytes, offset)
 }
 
 trait StorageDeserializable[E] {
-  def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam, kvs: Seq[T], version: String, cacheElementOpt: Option[E]): E
+  def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam, kvs: Seq[T], version: String, cacheElementOpt: Option[E]): Option[E] = {
+    try {
+      Option(fromKeyValuesInner(queryParam, kvs, version, cacheElementOpt))
+    } catch {
+      case e: Exception =>
+        logger.error(s"${this.getClass.getName} fromKeyValues failed.", e)
+        None
+    }
+  }
+  def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam, kvs: Seq[T], version: String, cacheElementOpt: Option[E]): E
 }

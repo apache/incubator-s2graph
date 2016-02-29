@@ -7,7 +7,7 @@ import com.kakao.s2graph.core.rest._
 import com.kakao.s2graph.core.utils.logger
 import com.kakao.s2graph.core.{Management, ExceptionHandler, Graph}
 import config.Config
-import controllers.{AdminController, ApplicationController}
+import controllers.{ApplicationController}
 import play.api.Application
 import play.api.mvc.{WithFilters, _}
 import play.filters.gzip.GzipFilter

@@ -1,11 +1,9 @@
 package controllers
 
 import actors.QueueActor
-import com.kakao.s2graph.core.GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls.{LabelMeta, Label}
+import com.kakao.s2graph.core.mysqls.{Label}
 import com.kakao.s2graph.core.rest.RequestParser
-import com.kakao.s2graph.core.types.LabelWithDirection
 import com.kakao.s2graph.core.utils.logger
 import config.Config
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -14,7 +12,6 @@ import play.api.mvc.{Controller, Result}
 
 import scala.collection.Seq
 import scala.concurrent.Future
-import scala.util.{Failure, Success}
 
 object EdgeController extends Controller {
 

@@ -14,7 +14,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   import TestUtil._
 
   test("Strong consistency select") {
-    mutateEdgesSync(bulkEdges(): _*)
+    insertEdgesSync(bulkEdges(): _*)
 
     var result = getEdgesSync(query(0))
     (result \ "results").as[List[JsValue]].size should be(2)
@@ -56,7 +56,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     println(result)
     (result \ "results").as[List[JsValue]].size should be(0)
 
-    mutateEdgesSync(bulkEdges(startTs = deletedAt + 1): _*)
+    insertEdgesSync(bulkEdges(startTs = deletedAt + 1): _*)
 
     result = getEdgesSync(query(20, direction = "in", columnName = testTgtColumnName))
     println(result)
@@ -69,7 +69,8 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val ret = for {
       i <- 0 until testNum
     } yield {
-      val src = System.currentTimeMillis()
+        val src = (i + 1) * 10000
+//      val src = System.currentTimeMillis()
 
       val (ret, last) = testInner(i, src)
       ret should be(true)
@@ -136,7 +137,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val allRequests = Random.shuffle(insertRequests ++ deleteRequests)
     //        val allRequests = insertRequests ++ deleteRequests
     val futures = allRequests.grouped(numOfConcurrentBatch).map { bulkRequests =>
-      mutateEdgesAsync(bulkRequests: _*)
+      insertEdgesAsync(bulkRequests: _*)
     }
 
     Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
@@ -175,7 +176,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     }
     val allRequests = Random.shuffle(insertRequests ++ deleteRequests)
     val futures = allRequests.grouped(numOfConcurrentBatch).map { bulkRequests =>
-      mutateEdgesAsync(bulkRequests: _*)
+      insertEdgesAsync(bulkRequests: _*)
     }
 
     Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
@@ -199,7 +200,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val labelName = testLabelName2
     val maxTgtId = 10
     val batchSize = 10
-    val testNum = 3
+    val testNum = 100
     val numOfBatch = 10
 
     def testInner(startTs: Long, src: Long) = {
@@ -217,13 +218,13 @@ class StrongLabelDeleteTest extends IntegrateCommon {
         val op = if (Random.nextDouble() < 0.5) "delete" else "update"
 
         lastOps(tgt) = op
-        Seq(currentTs, op, "e", src, src + tgt, labelName, "{}").mkString("\t")
+        Seq(currentTs, op, "e", src, tgt, labelName, "{}").mkString("\t")
       }
 
       allRequests.foreach(println(_))
 
       val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequests =>
-        mutateEdgesAsync(bulkRequests: _*)
+        insertEdgesAsync(bulkRequests: _*)
       }
 
       Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))

@@ -1,13 +1,13 @@
-package com.kakao.s2graph.core.storage.hbase
+package com.kakao.s2graph.core.storage
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.LabelMeta
 import com.kakao.s2graph.core.storage.{CanSKeyValue, StorageDeserializable, SKeyValue}
 import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.utils.logger
 import org.apache.hadoop.hbase.util.Bytes
+import StorageDeserializable._
 
-class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
+class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends Deserializable[IndexEdge] {
 
   import StorageDeserializable._
 
@@ -15,7 +15,8 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
   type ValueRaw = (Array[(Byte, InnerValLike)], Int)
 
   private def parseDegreeQualifier(kv: SKeyValue, version: String): QualifierRaw = {
-    val degree = Bytes.toLong(kv.value)
+//    val degree = Bytes.toLong(kv.value)
+    val degree = bytesToLongFunc(kv.value, 0)
     val idxPropsRaw = Array(LabelMeta.degreeSeq -> InnerVal.withLong(degree, version))
     val tgtVertexIdRaw = VertexId(HBaseType.DEFAULT_COL_ID, InnerVal.withStr("0", version))
     (idxPropsRaw, tgtVertexIdRaw, GraphUtil.operations("insert"), false, 0)
@@ -57,7 +58,17 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
 
 
   /** version 1 and version 2 is same logic */
-  override def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam, _kvs: Seq[T], version: String, cacheElementOpt: Option[IndexEdge] = None): IndexEdge = {
+  override def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam,
+                                              _kvs: Seq[T],
+                                              version: String,
+                                              cacheElementOpt: Option[IndexEdge] = None): IndexEdge = {
+    fromKeyValuesInnerOld(queryParam, _kvs, version, cacheElementOpt)
+  }
+
+  def fromKeyValuesInnerOld[T: CanSKeyValue](queryParam: QueryParam,
+                                          _kvs: Seq[T],
+                                          version: String,
+                                          cacheElementOpt: Option[IndexEdge] = None): IndexEdge = {
     assert(_kvs.size == 1)
 
     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
@@ -72,7 +83,8 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
       else parseQualifier(kv, version)
 
     val (props, _) = if (op == GraphUtil.operations("incrementCount")) {
-      val countVal = Bytes.toLong(kv.value)
+//      val countVal = Bytes.toLong(kv.value)
+      val countVal = bytesToLongFunc(kv.value, 0)
       val dummyProps = Array(LabelMeta.countSeq -> InnerVal.withLong(countVal, version))
       (dummyProps, 8)
     } else if (kv.qualifier.isEmpty) {
@@ -81,7 +93,7 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
       parseValue(kv, version)
     }
 
-    val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException("invalid index seq"))
+    val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${queryParam.label.id.get}, ${labelIdxSeq}"))
 
 
     //    assert(kv.qualifier.nonEmpty && index.metaSeqs.size == idxPropsRaw.size)
@@ -106,11 +118,11 @@ class IndexEdgeDeserializable extends HDeserializable[IndexEdge] {
       if (_mergedProps.contains(LabelMeta.timeStampSeq)) _mergedProps
       else _mergedProps + (LabelMeta.timeStampSeq -> InnerVal.withLong(kv.timestamp, version))
 
-//    logger.error(s"$mergedProps")
-//    val ts = mergedProps(LabelMeta.timeStampSeq).toString().toLong
+    //    logger.error(s"$mergedProps")
+    //    val ts = mergedProps(LabelMeta.timeStampSeq).toString().toLong
 
     val ts = kv.timestamp
     IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, mergedProps)
+
   }
 }
-
