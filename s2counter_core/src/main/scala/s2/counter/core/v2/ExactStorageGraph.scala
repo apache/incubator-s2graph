@@ -43,36 +43,24 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
   override def update(policy: Counter, counts: Seq[(ExactKeyTrait, ExactValueMap)]): Map[ExactKeyTrait, ExactValueMap] = {
     import scala.concurrent.ExecutionContext.Implicits.global
 
-    val futureLs = {
-      for {
-        requests <- toIncrementCountRequests(policy, counts).grouped(10)
-        (keyWithEq, reqJsLs) = requests.unzip(x => ((x._1, x._2), x._3))
-      } yield {
-        wsClient.url(s"$s2graphUrl/graphs/edges/incrementCount").post(Json.toJson(reqJsLs)).map { resp =>
-          resp.status match {
-            case HttpStatus.SC_OK =>
-              val respSeq = resp.json.as[Seq[RespGraph]]
+    val (keyWithEq, reqJsLs) = toIncrementCountRequests(policy, counts).unzip(x => ((x._1, x._2), x._3))
 
-              for {
-                ((key, eq), RespGraph(success, result)) <- keyWithEq.zip(respSeq)
-              } yield {
-                (key, (eq, result))
-              }
-            case HttpStatus.SC_BAD_REQUEST =>
-              // logging
-              log.error(s"BAD_REQUEST: $policy $counts")
-              Nil
-            case rc: Int =>
-//              throw new RuntimeException(s"update failed($rc): $policy $counts")
-              log.error(s"update failed($rc): $policy $counts")
-              Nil
-          }
-        }
+    val future = wsClient.url(s"$s2graphUrl/graphs/edges/incrementCount").post(Json.toJson(reqJsLs)).map { resp =>
+      resp.status match {
+        case HttpStatus.SC_OK =>
+          val respSeq = resp.json.as[Seq[RespGraph]]
+
+          val keyWithEqResult = {
+            for {
+              ((key, eq), RespGraph(success, result)) <- keyWithEq.zip(respSeq)
+            } yield {
+              (key, (eq, result))
+            }
+          }.groupBy(_._1).mapValues{ seq => seq.map(_._2).toMap }
+          keyWithEqResult
+        case _ =>
+          throw new RuntimeException(s"update failed: $policy $counts")
       }
-    }
-
-    val future = Future.sequence(futureLs).map { seqOfSeq =>
-      seqOfSeq.flatten.toSeq.groupBy(_._1).mapValues { seq => seq.map(_._2).toMap }
     }
     Await.result(future, 10 second)
   }
@@ -322,8 +310,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
            |    {"name": "time_unit", "dataType": "string", "defaultValue": ""},
            |    {"name": "time_value", "dataType": "long", "defaultValue": 0}
            |  ],
-           |  "hTableName": "${policy.hbaseTable.get}",
-           |  "schemaVersion": "${label.schemaVersion}"
+           |  "hTableName": "${policy.hbaseTable.get}"
            |}
         """.stripMargin
       val json = policy.dailyTtl.map(ttl => ttl * 24 * 60 * 60) match {

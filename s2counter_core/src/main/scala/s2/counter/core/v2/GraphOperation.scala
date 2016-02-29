@@ -24,7 +24,8 @@ class GraphOperation(config: Config) {
 
   def createLabel(json: JsValue): Boolean = {
     // fix counter label's schemaVersion
-    val future = wsClient.url(s"$s2graphUrl/graphs/createLabel").post(json).map { resp =>
+    val newJson = json.as[JsObject] ++ Json.obj("schemaVersion" -> "v2")
+    val future = wsClient.url(s"$s2graphUrl/graphs/createLabel").post(newJson).map { resp =>
       resp.status match {
         case HttpStatus.SC_OK =>
           true

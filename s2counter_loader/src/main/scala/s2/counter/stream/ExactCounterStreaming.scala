@@ -51,30 +51,19 @@ object ExactCounterStreaming extends SparkApp with WithKafka {
     // make stream
     val stream = streamHelper.createStream[String, String, StringDecoder, StringDecoder](ssc, inputTopics)
     stream.foreachRDD { (rdd, ts) =>
-      // for at-least once semantic
-      val nextRdd = {
-        CounterFunctions.makeExactRdd(rdd, sc.defaultParallelism).foreachPartition { part =>
-          // update exact counter
-          val trxLogs = CounterFunctions.updateExactCounter(part.toSeq, acc)
-          CounterFunctions.produceTrxLog(trxLogs)
-        }
-        rdd
-      }
+      val offsets = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
 
-      streamHelper.commitConsumerOffsets(nextRdd.asInstanceOf[HasOffsetRanges])
-//      val offsets = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
-//
-//      val exactRDD = CounterFunctions.makeExactRdd(rdd, offsets.length)
-//
-//      // for at-least once semantic
-//      exactRDD.foreachPartitionWithIndex { (i, part) =>
-//        // update exact counter
-//        val trxLogs = CounterFunctions.updateExactCounter(part.toSeq, acc)
-//        CounterFunctions.produceTrxLog(trxLogs)
-//
-//        // commit offset range
-//        streamHelper.commitConsumerOffset(offsets(i))
-//      }
+      val exactRDD = CounterFunctions.makeExactRdd(rdd, offsets.length)
+
+      // for at-least once semantic
+      exactRDD.foreachPartitionWithIndex { (i, part) =>
+        // update exact counter
+        val trxLogs = CounterFunctions.updateExactCounter(part.toSeq, acc)
+        CounterFunctions.produceTrxLog(trxLogs)
+
+        // commit offset range
+        streamHelper.commitConsumerOffset(offsets(i))
+      }
     }
 
     ssc.start()

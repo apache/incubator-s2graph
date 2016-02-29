@@ -14,7 +14,6 @@ import s2.util.{CollectionCache, CollectionCacheConfig}
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
-import scala.util.{Failure, Success, Try}
 import scala.util.hashing.MurmurHash3
 
 /**
@@ -32,7 +31,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
   private[counter] val log = LoggerFactory.getLogger(this.getClass)
   private val s2config = new S2CounterConfig(config)
 
-  private val BUCKET_SHARD_COUNT = 1
+  private val BUCKET_SHARD_COUNT = 53
   private val SERVICE_NAME = "s2counter"
   private val BUCKET_COLUMN_NAME = "bucket"
   private val counterModel = new CounterModel(config)
@@ -85,39 +84,35 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
         (key, value) <- values
       } yield {
         // prepare dimension bucket edge
-        if (checkAndPrepareDimensionBucket(key)) {
-          val future = getEdges(key, "raw").flatMap { edges =>
-            val prevRankingSeq = toWithScoreLs(edges)
-            val prevRankingMap: Map[String, Double] = prevRankingSeq.groupBy(_._1).map(_._2.sortBy(-_._2).head)
-            val currentRankingMap: Map[String, Double] = value.mapValues(_.score)
-            val mergedRankingSeq = (prevRankingMap ++ currentRankingMap).toSeq.sortBy(-_._2).take(k)
-            val mergedRankingMap = mergedRankingSeq.toMap
+        checkAndPrepareDimensionBucket(key)
 
-            val bucketRankingSeq = mergedRankingSeq.groupBy { case (itemId, score) =>
-              // 0-index
-              GraphUtil.transformHash(MurmurHash3.stringHash(itemId)) % BUCKET_SHARD_COUNT
-            }.map { case (shardIdx, groupedRanking) =>
-              shardIdx -> groupedRanking.filter { case (itemId, _) => currentRankingMap.contains(itemId) }
-            }.toSeq
+        val future = getEdges(key, "raw").flatMap { edges =>
+          val prevRankingSeq = toWithScoreLs(edges)
+          val prevRankingMap: Map[String, Double] = prevRankingSeq.groupBy(_._1).map(_._2.sortBy(-_._2).head)
+          val currentRankingMap: Map[String, Double] = value.mapValues(_.score)
+          val mergedRankingSeq = (prevRankingMap ++ currentRankingMap).toSeq.sortBy(-_._2).take(k)
+          val mergedRankingMap = mergedRankingSeq.toMap
 
-            insertBulk(key, bucketRankingSeq).flatMap { _ =>
-              val duplicatedItems = prevRankingMap.filterKeys(s => currentRankingMap.contains(s))
-              val cutoffItems = prevRankingMap.filterKeys(s => !mergedRankingMap.contains(s))
-              val deleteItems = duplicatedItems ++ cutoffItems
+          val bucketRankingSeq = mergedRankingSeq.groupBy { case (itemId, score) =>
+            // 0-index
+            GraphUtil.transformHash(MurmurHash3.stringHash(itemId)) % BUCKET_SHARD_COUNT
+          }.map { case (shardIdx, groupedRanking) =>
+            shardIdx -> groupedRanking.filter { case (itemId, _) => currentRankingMap.contains(itemId) }
+          }.toSeq
 
-              val keyWithEdgesLs = prevRankingSeq.map(_._1).zip(edges)
-              val deleteEdges = keyWithEdgesLs.filter{ case (s, _) => deleteItems.contains(s) }.map(_._2)
+          insertBulk(key, bucketRankingSeq).flatMap { _ =>
+            val duplicatedItems = prevRankingMap.filterKeys(s => currentRankingMap.contains(s))
+            val cutoffItems = prevRankingMap.filterKeys(s => !mergedRankingMap.contains(s))
+            val deleteItems = duplicatedItems ++ cutoffItems
 
-              deleteAll(deleteEdges)
-            }
+            val keyWithEdgesLs = prevRankingSeq.map(_._1).zip(edges)
+            val deleteEdges = keyWithEdgesLs.filter{ case (s, _) => deleteItems.contains(s) }.map(_._2)
+
+            deleteAll(deleteEdges)
           }
+        }
 
-          future
-        }
-        else {
-          // do nothing
-          Future.successful(false)
-        }
+        future
       }
     }
 
@@ -156,7 +151,6 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
             "time_unit" -> key.eq.tq.q.toString,
             "time_value" -> key.eq.tq.ts,
             "date_time" -> key.eq.tq.dateTime,
-            "dimension" -> key.eq.dimension,
             "score" -> score
           )
         )
@@ -207,46 +201,6 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
 
   private def getEdges(key: RankingKey, duplicate: String="first"): Future[List[JsValue]] = {
     val labelName = counterModel.findById(key.policyId).get.action + labelPostfix
-
-//    val ids = (0 until BUCKET_SHARD_COUNT).map { idx =>
-//      s"${makeBucketShardKey(idx, key)}"
-//    }
-//
-//    val payload = Json.obj(
-//      "srcVertices" -> Json.arr(
-//        Json.obj(
-//          "serviceName" -> SERVICE_NAME,
-//          "columnName" -> BUCKET_COLUMN_NAME,
-//          "ids" -> ids
-//        )
-//      ),
-//      "steps" -> Json.arr(
-//        Json.obj(
-//          "step" -> Json.arr(
-//            Json.obj(
-//              "label" -> labelName,
-//              "duplicate" -> duplicate,
-//              "direction" -> "out",
-//              "offset" -> 0,
-//              "limit" -> -1,
-//              "interval" -> Json.obj(
-//                "from" -> Json.obj(
-//                  "time_unit" -> key.eq.tq.q.toString,
-//                  "time_value" -> key.eq.tq.ts
-//                ),
-//                "to" -> Json.obj(
-//                  "time_unit" -> key.eq.tq.q.toString,
-//                  "time_value" -> key.eq.tq.ts
-//                ),
-//                "scoring" -> Json.obj(
-//                  "score" -> 1
-//                )
-//              )
-//            )
-//          )
-//        )
-//      )
-//    )
 
     val ids = {
       (0 until BUCKET_SHARD_COUNT).map { shardIdx =>
@@ -362,7 +316,6 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
           }
       }.recover {
         case e: Exception =>
-          log.error(s"$e")
           None
       }
 
@@ -391,6 +344,9 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
 
     if (!existsLabel(policy, useCache = false)) {
       // find input label to specify target column
+      val inputLabelName = policy.rateActionId.flatMap { id =>
+        counterModel.findById(id, useCache = false).map(_.action)
+      }.getOrElse(action)
       val label = graphLabel.get
 
       val counterLabelName = action + labelPostfix
@@ -413,8 +369,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
            |    {"name": "date_time", "dataType": "long", "defaultValue": 0},
            |    {"name": "score", "dataType": "float", "defaultValue": 0.0}
            |  ],
-           |  "hTableName": "${policy.hbaseTable.get}",
-           |  "schemaVersion": "${label.schemaVersion}"
+           |  "hTableName": "${policy.hbaseTable.get}"
            |}
          """.stripMargin
       val json = policy.dailyTtl.map(ttl => ttl * 24 * 60 * 60) match {

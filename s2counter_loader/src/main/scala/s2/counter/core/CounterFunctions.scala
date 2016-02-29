@@ -129,20 +129,16 @@ object CounterFunctions extends Logging with WithKafka {
     }
   }
 
-  private def parseLine(line: String): Option[TrxLog] = Try {
-    val js = Json.parse(line)
-    js.toString()
-    js.as[TrxLog]
-  }.toOption
-  
   def makeTrxLogRdd(rdd: RDD[(String, String)], numPartitions: Int): RDD[TrxLog] = {
     rdd.mapPartitions { part =>
       assert(initialize)
       for {
         (k, v) <- part
         line <- GraphUtil.parseString(v)
-        trxLog <- parseLine(line) if trxLog.success
-      } yield trxLog
+        trxLog = Json.parse(line).as[TrxLog] if trxLog.success
+      } yield {
+        trxLog
+      }
     }
   }
 

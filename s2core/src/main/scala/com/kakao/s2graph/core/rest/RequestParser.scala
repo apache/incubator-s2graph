@@ -373,10 +373,8 @@ class RequestParser(config: Config) extends JSONParser {
       val outputField = (labelGroup \ "outputField").asOpt[String].map(s => Json.arr(Json.arr(s)))
       val transformer = if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]
       val scorePropagateOp = (labelGroup \ "scorePropagateOp").asOpt[String].getOrElse("multiply")
-      val scorePropagateShrinkage = (labelGroup \ "scorePropagateShrinkage").asOpt[Long].getOrElse(500l)
       val sample = (labelGroup \ "sample").asOpt[Int].getOrElse(-1)
       val shouldNormalize = (labelGroup \ "normalize").asOpt[Boolean].getOrElse(false)
-      val cursorOpt = (labelGroup \ "cursor").asOpt[String]
       // FIXME: Order of command matter
       QueryParam(labelWithDir)
         .sample(sample)
@@ -399,9 +397,7 @@ class RequestParser(config: Config) extends JSONParser {
         .threshold(threshold)
         .transformer(transformer)
         .scorePropagateOp(scorePropagateOp)
-        .scorePropagateShrinkage(scorePropagateShrinkage)
         .shouldNormalize(shouldNormalize)
-        .cursorOpt(cursorOpt)
     }
   }
 

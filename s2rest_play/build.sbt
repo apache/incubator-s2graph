@@ -1,4 +1,3 @@
-
 name := "s2rest_play"
 
 scalacOptions in Test ++= Seq("-Yrangepos")
@@ -10,3 +9,4 @@ libraryDependencies ++= Seq(
 )
 
 enablePlugins(JavaServerAppPackaging)
+

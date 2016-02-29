@@ -1,6 +1,7 @@
 package benchmark
 
 import play.api.libs.json.JsNumber
+import play.api.test.{FakeApplication, PlaySpecification, WithApplication}
 import play.libs.Json
 
 class JsonBenchmarkSpec extends BenchmarkCommon {

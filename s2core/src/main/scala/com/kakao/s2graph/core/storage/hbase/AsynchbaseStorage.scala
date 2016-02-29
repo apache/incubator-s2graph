@@ -23,7 +23,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, duration}
 import scala.util.hashing.MurmurHash3
 import java.util
-import java.util.Base64
+
 
 
 object AsynchbaseStorage {
@@ -212,7 +212,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0) {
           sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
         } else edgeWithScores
-        QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty[Byte]))
+        QueryResult(resultEdgesWithScores)
 //        QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty)))
 
       } recoverWith { ex =>

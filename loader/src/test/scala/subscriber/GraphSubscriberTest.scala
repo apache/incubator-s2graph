@@ -28,7 +28,7 @@ class GraphSubscriberTest extends FunSuite with Matchers with WithKafka {
   test("GraphSubscriberHelper.store") {
     // actually we need to delete labelToReplace first for each test.
     val labelMapping = Map(testLabelName -> labelToReplace)
-    Management.copyLabel(testLabelName, labelToReplace, Some(hTableName))
+    GraphSubscriberHelper.management.copyLabel(testLabelName, labelToReplace, Some(hTableName))
 
 //
 //    val msgs = (for {
