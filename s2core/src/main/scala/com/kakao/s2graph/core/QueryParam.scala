@@ -99,6 +99,15 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
     val hash = MurmurHash3.stringHash(templateId().toString())
     JsNumber(hash)
   }
+
+  def cursorStrings(): Seq[Seq[String]] = {
+    //Don`t know how to replace all cursor keys in json
+    steps.map { step =>
+      step.queryParams.map { queryParam =>
+        queryParam.cursorOpt.getOrElse("")
+      }
+    }
+  }
 }
 
 object EdgeTransformer {
@@ -296,6 +305,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var exclude = false
   var include = false
   var shouldNormalize= false
+  var cursorOpt: Option[String] = None
 
   var columnRangeFilterMinBytes = Array.empty[Byte]
   var columnRangeFilterMaxBytes = Array.empty[Byte]
@@ -490,6 +500,11 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   def whereRawOpt(sqlOpt: Option[String]): QueryParam = {
     this.whereRawOpt = sqlOpt
+    this
+  }
+
+  def cursorOpt(cursorOpt: Option[String]): QueryParam = {
+    this.cursorOpt = cursorOpt
     this
   }
 

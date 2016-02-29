@@ -6,6 +6,7 @@ import org.apache.hadoop.hbase.util.Bytes
  * Created by shon on 6/6/15.
  */
 object HBaseType {
+  val VERSION4 = "v4"
   val VERSION3 = "v3"
   val VERSION2 = "v2"
   val VERSION1 = "v1"

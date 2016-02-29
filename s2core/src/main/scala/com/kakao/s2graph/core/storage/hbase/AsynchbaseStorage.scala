@@ -23,7 +23,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, duration}
 import scala.util.hashing.MurmurHash3
 import java.util
-
+import java.util.Base64
 
 
 object AsynchbaseStorage {
@@ -174,21 +174,73 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     }
 
     val (minTs, maxTs) = queryParam.duration.getOrElse((0L, Long.MaxValue))
-    val get =
-      if (queryParam.tgtVertexInnerIdOpt.isDefined) new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
-      else new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf)
 
-    get.maxVersions(1)
-    get.setFailfast(true)
-    get.setMaxResultsPerColumnFamily(queryParam.limit)
-    get.setRowOffsetPerColumnFamily(queryParam.offset)
-    get.setMinTimestamp(minTs)
-    get.setMaxTimestamp(maxTs)
-    get.setTimeout(queryParam.rpcTimeoutInMillis)
+    label.schemaVersion match {
+      case HBaseType.VERSION4 if queryParam.tgtVertexInnerIdOpt.isEmpty =>
+        val scanner = client.newScanner(label.hbaseTableName.getBytes)
+        scanner.setFamily(edgeCf)
 
-    if (queryParam.columnRangeFilter != null) get.setFilter(queryParam.columnRangeFilter)
+        /**
+         * TODO: remove this part.
+         */
+        val indexEdgeOpt = edge.edgesWithIndex.filter(edgeWithIndex => edgeWithIndex.labelIndex.seq == queryParam.labelOrderSeq).headOption
+        val indexEdge = indexEdgeOpt.getOrElse(throw new RuntimeException(s"Can`t find index for query $queryParam"))
 
-    get
+        val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes
+        val labelWithDirBytes = indexEdge.labelWithDir.bytes
+        val labelIndexSeqWithIsInvertedBytes = StorageSerializable.labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = false)
+        //        val labelIndexSeqWithIsInvertedStopBytes =  StorageSerializable.labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = true)
+        val baseKey = Bytes.add(srcIdBytes, labelWithDirBytes, Bytes.add(labelIndexSeqWithIsInvertedBytes, Array.fill(1)(edge.op)))
+        val (startKey, stopKey) =
+          if (queryParam.columnRangeFilter != null) {
+            // interval is set.
+            val _startKey = queryParam.cursorOpt match {
+              case Some(cursor) => Bytes.add(Base64.getDecoder.decode(cursor), Array.fill(1)(0))
+              case None => Bytes.add(baseKey, queryParam.columnRangeFilterMinBytes)
+            }
+            (_startKey, Bytes.add(baseKey, queryParam.columnRangeFilterMaxBytes))
+          } else {
+            /**
+             * note: since propsToBytes encode size of property map at first byte, we are sure about max value here
+             */
+            val _startKey = queryParam.cursorOpt match {
+              case Some(cursor) => Bytes.add(Base64.getDecoder.decode(cursor), Array.fill(1)(0))
+              case None => baseKey
+            }
+            (_startKey, Bytes.add(baseKey, Array.fill(1)(-1)))
+          }
+//                logger.debug(s"[StartKey]: ${startKey.toList}")
+//                logger.debug(s"[StopKey]: ${stopKey.toList}")
+
+        scanner.setStartKey(startKey)
+        scanner.setStopKey(stopKey)
+
+        if (queryParam.limit == Int.MinValue) logger.debug(s"MinValue: $queryParam")
+
+        scanner.setMaxVersions(1)
+        scanner.setMaxNumRows(queryParam.limit)
+        scanner.setMaxTimestamp(maxTs)
+        scanner.setMinTimestamp(minTs)
+        scanner.setRpcTimeout(queryParam.rpcTimeoutInMillis)
+        // SET option for this rpc properly.
+        scanner
+      case _ =>
+        val get =
+          if (queryParam.tgtVertexInnerIdOpt.isDefined) new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
+          else new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf)
+
+        get.maxVersions(1)
+        get.setFailfast(true)
+        get.setMaxResultsPerColumnFamily(queryParam.limit)
+        get.setRowOffsetPerColumnFamily(queryParam.offset)
+        get.setMinTimestamp(minTs)
+        get.setMaxTimestamp(maxTs)
+        get.setTimeout(queryParam.rpcTimeoutInMillis)
+
+        if (queryParam.columnRangeFilter != null) get.setFilter(queryParam.columnRangeFilter)
+
+        get
+    }
   }
 
   /**
@@ -212,13 +264,13 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0) {
           sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
         } else edgeWithScores
-        QueryResult(resultEdgesWithScores)
-        //        QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty)))
+        QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty[Byte]))
+//        QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty)))
 
       } recoverWith { ex =>
         logger.error(s"fetchInner failed. fallback return. $hbaseRpc}", ex)
         QueryResult(isFailure = true)
-        //        QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
+//        QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
       }
     }
 
@@ -232,7 +284,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
         val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
         futureCache.getOrElseUpdate(cacheKey, cacheTTL)(fetchInner(request))
-      }
+    }
     defer withCallback { queryResult => QueryRequestWithResult(queryRequest, queryResult)}
   }
 
