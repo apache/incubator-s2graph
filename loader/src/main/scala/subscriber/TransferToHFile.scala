@@ -145,8 +145,7 @@ object TransferToHFile extends SparkApp with JSONParser {
     hbaseConf.set(TableOutputFormat.OUTPUT_TABLE, tableName)
     hbaseConf.set("hadoop.tmp.dir", s"/tmp/$tableName")
 
-
-    val rdd = sc.textFile(input)
+    val rdd = if (args.length >= 9) sc.textFile(input).repartition(args(8).toInt) else sc.textFile(input)
 
 
     val kvs = rdd.mapPartitions { iter =>
