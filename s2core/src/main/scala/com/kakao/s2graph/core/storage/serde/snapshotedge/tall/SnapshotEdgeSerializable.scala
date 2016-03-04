@@ -1,8 +1,9 @@
-package com.kakao.s2graph.core.storage
+package com.kakao.s2graph.core.storage.serde.snapshotedge.tall
 
 import com.kakao.s2graph.core.SnapshotEdge
 import com.kakao.s2graph.core.mysqls.LabelIndex
-import com.kakao.s2graph.core.types.{HBaseType, SourceAndTargetVertexIdPair, VertexId}
+import com.kakao.s2graph.core.storage.{SKeyValue, Serializable, StorageSerializable}
+import com.kakao.s2graph.core.types.SourceAndTargetVertexIdPair
 import org.apache.hadoop.hbase.util.Bytes
 
 
@@ -21,36 +22,6 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[
     propsToKeyValuesWithTs(snapshotEdge.props.toList))
 
   override def toKeyValues: Seq[SKeyValue] = {
-    label.schemaVersion match {
-      case HBaseType.VERSION1 | HBaseType.VERSION2 => toKeyValuesInner
-      case _ => toKeyValuesInnerV3
-    }
-  }
-
-  private def toKeyValuesInner: Seq[SKeyValue] = {
-    val srcIdBytes = VertexId.toSourceVertexId(snapshotEdge.srcVertex.id).bytes
-    val labelWithDirBytes = snapshotEdge.labelWithDir.bytes
-    val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsInverted(LabelIndex.DefaultSeq, isInverted = true)
-
-    val row = Bytes.add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
-    val tgtIdBytes = VertexId.toTargetVertexId(snapshotEdge.tgtVertex.id).bytes
-
-    val qualifier = tgtIdBytes
-
-    val value = snapshotEdge.pendingEdgeOpt match {
-      case None => valueBytes()
-      case Some(pendingEdge) =>
-        val opBytes = statusCodeWithOp(pendingEdge.statusCode, pendingEdge.op)
-        val versionBytes = Array.empty[Byte]
-        val propsBytes = propsToKeyValuesWithTs(pendingEdge.propsWithTs.toSeq)
-        val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)
-        Bytes.add(Bytes.add(valueBytes(), opBytes, versionBytes), Bytes.add(propsBytes, lockBytes))
-    }
-    val kv = SKeyValue(table, row, cf, qualifier, value, snapshotEdge.version)
-    Seq(kv)
-  }
-
-  private def toKeyValuesInnerV3: Seq[SKeyValue] = {
     val srcIdAndTgtIdBytes = SourceAndTargetVertexIdPair(snapshotEdge.srcVertex.innerId, snapshotEdge.tgtVertex.innerId).bytes
     val labelWithDirBytes = snapshotEdge.labelWithDir.bytes
     val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsInverted(LabelIndex.DefaultSeq, isInverted = true)

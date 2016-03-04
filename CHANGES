@@ -37,6 +37,9 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-44: Provide cache for WhereParser on query (Committed by DOYUNG YOON).
 
+    S2GRAPH-53: Refactor Storage to decide which serializer/deserializer for IndexEdge/SnapshotEdge/Vertex 
+		(Committed by DOYUNG YOON).
+
   BUG FIXES
 
     S2GRAPH-18: Query Option "interval" is Broken. 

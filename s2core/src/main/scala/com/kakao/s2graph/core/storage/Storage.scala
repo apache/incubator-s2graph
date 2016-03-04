@@ -4,6 +4,10 @@ import com.kakao.s2graph.core.ExceptionHandler.{Key, Val, KafkaMessage}
 import com.kakao.s2graph.core.GraphExceptions.FetchTimeoutException
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
+import com.kakao.s2graph.core.storage.serde._
+import com.kakao.s2graph.core.storage.serde.snapshotedge.tall
+import com.kakao.s2graph.core.storage.serde.snapshotedge.wide.SnapshotEdgeDeserializable
+import com.kakao.s2graph.core.storage.serde.vertex._
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.{Extensions, logger}
 import com.typesafe.config.Config
@@ -16,6 +20,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Random, Try}
 
 abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
+  import HBaseType._
+
   /** storage dependent configurations */
   val MaxRetryNum = config.getInt("max.retry.number")
   val MaxBackOff = config.getInt("max.back.off")
@@ -26,6 +32,14 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   val expireAfterWrite = config.getInt("future.cache.expire.after.write")
   val expireAfterAccess = config.getInt("future.cache.expire.after.access")
 
+  /**
+   * Compatibility table
+   * | label schema version | snapshot edge | index edge | vertex | note |
+   * | v1 | serde.snapshotedge.wide | serde.indexedge.wide | serde.vertex | do not use this. this exist only for backward compatibility issue |
+   * | v2 | serde.snapshotedge.wide | serde.indexedge.wide | serde.vertex | do not use this. this exist only for backward compatibility issue |
+   * | v3 | serde.snapshotedge.tall | serde.indexedge.wide | serde.vertex | recommended with HBase. current stable schema |
+   *
+   */
 
   /**
    * create serializer that knows how to convert given snapshotEdge into kvs: Seq[SKeyValue]
@@ -33,14 +47,26 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * @param snapshotEdge: snapshotEdge to serialize
    * @return serializer implementation for StorageSerializable which has toKeyValues return Seq[SKeyValue]
    */
-  def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge) = new SnapshotEdgeSerializable(snapshotEdge)
+  def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge) = {
+    snapshotEdge.schemaVer match {
+      case VERSION1 | VERSION2 => new serde.snapshotedge.wide.SnapshotEdgeSerializable(snapshotEdge)
+      case VERSION3 => new serde.snapshotedge.tall.SnapshotEdgeSerializable(snapshotEdge)
+      case _ => throw new RuntimeException(s"not supported version: ${snapshotEdge.schemaVer}")
+    }
+  }
 
   /**
    * create serializer that knows how to convert given indexEdge into kvs: Seq[SKeyValue]
-   * @param indexedEdge: indexEdge to serialize
+   * @param indexEdge: indexEdge to serialize
    * @return serializer implementation
    */
-  def indexEdgeSerializer(indexedEdge: IndexEdge) = new IndexEdgeSerializable(indexedEdge)
+  def indexEdgeSerializer(indexEdge: IndexEdge) = {
+    indexEdge.schemaVer match {
+      case VERSION1 | VERSION2 | VERSION3 => new indexedge.wide.IndexEdgeSerializable(indexEdge)
+      case _ => throw new RuntimeException(s"not supported version: ${indexEdge.schemaVer}")
+
+    }
+  }
 
   /**
    * create serializer that knows how to convert given vertex into kvs: Seq[SKeyValue]
@@ -58,10 +84,24 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * if any storaage use different class to represent stored byte array,
    * then that storage implementation is responsible to provide implicit type conversion method on CanSKeyValue.
    * */
-  val snapshotEdgeDeserializer = new SnapshotEdgeDeserializable
+
+  val snapshotEdgeDeserializers = Map(
+    VERSION1 -> new snapshotedge.wide.SnapshotEdgeDeserializable,
+    VERSION2 -> new snapshotedge.wide.SnapshotEdgeDeserializable,
+    VERSION3 -> new tall.SnapshotEdgeDeserializable
+  )
+  def snapshotEdgeDeserializer(schemaVer: String) =
+    snapshotEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
 
   /** create deserializer that can parse stored CanSKeyValue into indexEdge. */
-  val indexEdgeDeserializer = new IndexEdgeDeserializable
+  val indexEdgeDeserializers = Map(
+    VERSION1 -> new indexedge.wide.IndexEdgeDeserializable,
+    VERSION2 -> new indexedge.wide.IndexEdgeDeserializable,
+    VERSION3 -> new indexedge.wide.IndexEdgeDeserializable
+  )
+
+  def indexEdgeDeserializer(schemaVer: String) =
+    indexEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
 
   /** create deserializer that can parser stored CanSKeyValue into vertex. */
   val vertexDeserializer = new VertexDeserializable
@@ -587,7 +627,8 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
                               parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
 //        logger.debug(s"toEdge: $kv")
     try {
-      val indexEdgeOpt = indexEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
+      val schemaVer = queryParam.label.schemaVersion
+      val indexEdgeOpt = indexEdgeDeserializer(schemaVer).fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
       indexEdgeOpt.map(indexEdge => indexEdge.toEdge.copy(parentEdges = parentEdges))
     } catch {
       case ex: Exception =>
@@ -602,7 +643,8 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
                                       isInnerCall: Boolean,
                                       parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
 //        logger.debug(s"SnapshottoEdge: $kv")
-    val snapshotEdgeOpt = snapshotEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
+    val schemaVer = queryParam.label.schemaVersion
+    val snapshotEdgeOpt = snapshotEdgeDeserializer(schemaVer).fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
 
     if (isInnerCall) {
       snapshotEdgeOpt.flatMap { snapshotEdge =>
@@ -631,9 +673,10 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     else {
       val first = kvs.head
       val kv = first
+      val schemaVer = queryParam.label.schemaVersion
       val cacheElementOpt =
         if (queryParam.isSnapshotEdge) None
-        else indexEdgeDeserializer.fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, None)
+        else indexEdgeDeserializer(schemaVer).fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, None)
 
       for {
         kv <- kvs
