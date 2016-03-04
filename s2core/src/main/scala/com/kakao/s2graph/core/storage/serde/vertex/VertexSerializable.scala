@@ -1,7 +1,9 @@
-package com.kakao.s2graph.core.storage
+package com.kakao.s2graph.core.storage.serde.vertex
 
 import com.kakao.s2graph.core.Vertex
+import com.kakao.s2graph.core.storage.{SKeyValue, Serializable}
 import org.apache.hadoop.hbase.util.Bytes
+
 
 case class VertexSerializable(vertex: Vertex) extends Serializable[Vertex] {
 
