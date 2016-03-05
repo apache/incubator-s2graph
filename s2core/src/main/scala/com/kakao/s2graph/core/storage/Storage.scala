@@ -47,7 +47,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * @param snapshotEdge: snapshotEdge to serialize
    * @return serializer implementation for StorageSerializable which has toKeyValues return Seq[SKeyValue]
    */
-  def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge) = {
+  def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge): Serializable[SnapshotEdge] = {
     snapshotEdge.schemaVer match {
       case VERSION1 | VERSION2 => new serde.snapshotedge.wide.SnapshotEdgeSerializable(snapshotEdge)
       case VERSION3 => new serde.snapshotedge.tall.SnapshotEdgeSerializable(snapshotEdge)
@@ -60,7 +60,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * @param indexEdge: indexEdge to serialize
    * @return serializer implementation
    */
-  def indexEdgeSerializer(indexEdge: IndexEdge) = {
+  def indexEdgeSerializer(indexEdge: IndexEdge): Serializable[IndexEdge] = {
     indexEdge.schemaVer match {
       case VERSION1 | VERSION2 | VERSION3 => new indexedge.wide.IndexEdgeSerializable(indexEdge)
       case _ => throw new RuntimeException(s"not supported version: ${indexEdge.schemaVer}")
@@ -85,7 +85,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * then that storage implementation is responsible to provide implicit type conversion method on CanSKeyValue.
    * */
 
-  val snapshotEdgeDeserializers = Map(
+  val snapshotEdgeDeserializers: Map[String, Deserializable[SnapshotEdge]] = Map(
     VERSION1 -> new snapshotedge.wide.SnapshotEdgeDeserializable,
     VERSION2 -> new snapshotedge.wide.SnapshotEdgeDeserializable,
     VERSION3 -> new tall.SnapshotEdgeDeserializable
@@ -94,7 +94,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     snapshotEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
 
   /** create deserializer that can parse stored CanSKeyValue into indexEdge. */
-  val indexEdgeDeserializers = Map(
+  val indexEdgeDeserializers: Map[String, Deserializable[IndexEdge]] = Map(
     VERSION1 -> new indexedge.wide.IndexEdgeDeserializable,
     VERSION2 -> new indexedge.wide.IndexEdgeDeserializable,
     VERSION3 -> new indexedge.wide.IndexEdgeDeserializable

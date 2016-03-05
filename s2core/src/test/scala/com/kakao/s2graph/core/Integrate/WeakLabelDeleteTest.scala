@@ -39,12 +39,19 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
     (result \ "results").as[List[JsValue]].size should be(0)
 
     /** insert should be ignored */
-    val edgesToStore2 = parser.toEdges(Json.toJson(edges), "insert")
-    val rets2 = graph.mutateEdges(edgesToStore2, withWait = true)
-    Await.result(rets2, Duration(20, TimeUnit.MINUTES))
-
-    result = getEdgesSync(query(0))
-    (result \ "results").as[List[JsValue]].size should be(0)
+    /**
+     * I am wondering if this is right test case
+     * This makes sense because hbase think cell is deleted when there are
+     * insert/delete with same timestamp(version) on same cell.
+     * This can be different on different storage system so I think
+     * this test should be removed.
+     */
+//    val edgesToStore2 = parser.toEdges(Json.toJson(edges), "insert")
+//    val rets2 = graph.mutateEdges(edgesToStore2, withWait = true)
+//    Await.result(rets2, Duration(20, TimeUnit.MINUTES))
+//
+//    result = getEdgesSync(query(0))
+//    (result \ "results").as[List[JsValue]].size should be(0)
   }
 
 

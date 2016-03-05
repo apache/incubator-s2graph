@@ -197,14 +197,14 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
   object StrongDeleteUtil {
 
-    val labelName = testLabelName2
+//    val labelName = testLabelName2
+    val labelName = testLabelName
     val maxTgtId = 10
     val batchSize = 10
     val testNum = 100
     val numOfBatch = 10
 
     def testInner(startTs: Long, src: Long) = {
-      val labelName = testLabelName2
       val lastOps = Array.fill(maxTgtId)("none")
       var currentTs = startTs
 
@@ -245,18 +245,18 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     }
 
     def bulkEdges(startTs: Int = 0) = Seq(
-      toEdge(startTs + 1, "insert", "e", "0", "1", testLabelName2, s"""{"time": 10}"""),
-      toEdge(startTs + 2, "insert", "e", "0", "1", testLabelName2, s"""{"time": 11}"""),
-      toEdge(startTs + 3, "insert", "e", "0", "1", testLabelName2, s"""{"time": 12}"""),
-      toEdge(startTs + 4, "insert", "e", "0", "2", testLabelName2, s"""{"time": 10}"""),
-      toEdge(startTs + 5, "insert", "e", "10", "20", testLabelName2, s"""{"time": 10}"""),
-      toEdge(startTs + 6, "insert", "e", "10", "21", testLabelName2, s"""{"time": 11}"""),
-      toEdge(startTs + 7, "insert", "e", "11", "20", testLabelName2, s"""{"time": 12}"""),
-      toEdge(startTs + 8, "insert", "e", "12", "20", testLabelName2, s"""{"time": 13}""")
+      toEdge(startTs + 1, "insert", "e", "0", "1", labelName, s"""{"time": 10}"""),
+      toEdge(startTs + 2, "insert", "e", "0", "1", labelName, s"""{"time": 11}"""),
+      toEdge(startTs + 3, "insert", "e", "0", "1", labelName, s"""{"time": 12}"""),
+      toEdge(startTs + 4, "insert", "e", "0", "2", labelName, s"""{"time": 10}"""),
+      toEdge(startTs + 5, "insert", "e", "10", "20", labelName, s"""{"time": 10}"""),
+      toEdge(startTs + 6, "insert", "e", "10", "21", labelName, s"""{"time": 11}"""),
+      toEdge(startTs + 7, "insert", "e", "11", "20", labelName, s"""{"time": 12}"""),
+      toEdge(startTs + 8, "insert", "e", "12", "20", labelName, s"""{"time": 13}""")
     )
 
     def query(id: Long, serviceName: String = testServiceName, columnName: String = testColumnName,
-              labelName: String = testLabelName2, direction: String = "out") = Json.parse(
+              _labelName: String = labelName, direction: String = "out") = Json.parse(
       s"""
           { "srcVertices": [
             { "serviceName": "$serviceName",
@@ -265,7 +265,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
              }],
             "steps": [
             [ {
-                "label": "$labelName",
+                "label": "${_labelName}",
                 "direction": "${direction}",
                 "offset": 0,
                 "limit": -1,
