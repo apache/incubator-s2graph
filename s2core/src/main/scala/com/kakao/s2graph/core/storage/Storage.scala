@@ -50,7 +50,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge): Serializable[SnapshotEdge] = {
     snapshotEdge.schemaVer match {
       case VERSION1 | VERSION2 => new serde.snapshotedge.wide.SnapshotEdgeSerializable(snapshotEdge)
-      case VERSION3 => new serde.snapshotedge.tall.SnapshotEdgeSerializable(snapshotEdge)
+      case VERSION3 | VERSION4 => new serde.snapshotedge.tall.SnapshotEdgeSerializable(snapshotEdge)
       case _ => throw new RuntimeException(s"not supported version: ${snapshotEdge.schemaVer}")
     }
   }
@@ -63,6 +63,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   def indexEdgeSerializer(indexEdge: IndexEdge): Serializable[IndexEdge] = {
     indexEdge.schemaVer match {
       case VERSION1 | VERSION2 | VERSION3 => new indexedge.wide.IndexEdgeSerializable(indexEdge)
+      case VERSION4 => new indexedge.tall.IndexEdgeSerializable(indexEdge)
       case _ => throw new RuntimeException(s"not supported version: ${indexEdge.schemaVer}")
 
     }
@@ -88,7 +89,8 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   val snapshotEdgeDeserializers: Map[String, Deserializable[SnapshotEdge]] = Map(
     VERSION1 -> new snapshotedge.wide.SnapshotEdgeDeserializable,
     VERSION2 -> new snapshotedge.wide.SnapshotEdgeDeserializable,
-    VERSION3 -> new tall.SnapshotEdgeDeserializable
+    VERSION3 -> new tall.SnapshotEdgeDeserializable,
+    VERSION4 -> new tall.SnapshotEdgeDeserializable
   )
   def snapshotEdgeDeserializer(schemaVer: String) =
     snapshotEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
@@ -97,7 +99,8 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   val indexEdgeDeserializers: Map[String, Deserializable[IndexEdge]] = Map(
     VERSION1 -> new indexedge.wide.IndexEdgeDeserializable,
     VERSION2 -> new indexedge.wide.IndexEdgeDeserializable,
-    VERSION3 -> new indexedge.wide.IndexEdgeDeserializable
+    VERSION3 -> new indexedge.wide.IndexEdgeDeserializable,
+    VERSION4 -> new indexedge.tall.IndexEdgeDeserializable
   )
 
   def indexEdgeDeserializer(schemaVer: String) =

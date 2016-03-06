@@ -197,8 +197,8 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
   object StrongDeleteUtil {
 
-//    val labelName = testLabelName2
-    val labelName = testLabelName
+    val labelName = testLabelName2
+//    val labelName = testLabelName
     val maxTgtId = 10
     val batchSize = 10
     val testNum = 100
