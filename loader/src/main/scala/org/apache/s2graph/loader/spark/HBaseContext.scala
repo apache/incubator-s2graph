@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package spark
+package org.apache.s2graph.loader.spark
 
 import java.net.InetSocketAddress
 import java.util
@@ -32,7 +32,7 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.rdd.RDD
 import org.apache.hadoop.conf.Configuration
-import spark.HBaseRDDFunctions._
+import HBaseRDDFunctions._
 import org.apache.hadoop.hbase.client._
 import scala.reflect.ClassTag
 import org.apache.spark.{Logging, SerializableWritable, SparkContext}

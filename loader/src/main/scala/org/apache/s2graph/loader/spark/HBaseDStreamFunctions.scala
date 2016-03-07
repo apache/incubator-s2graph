@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package spark
+package org.apache.s2graph.loader.spark
 
 import org.apache.hadoop.hbase.TableName
 import org.apache.hadoop.hbase.client._

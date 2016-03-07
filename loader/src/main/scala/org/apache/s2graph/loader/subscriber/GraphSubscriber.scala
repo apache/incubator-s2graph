@@ -1,5 +1,4 @@
-package subscriber
-
+package org.apache.s2graph.loader.subscriber
 
 import java.util
 

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package spark
+package org.apache.s2graph.loader.spark
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase.TableName

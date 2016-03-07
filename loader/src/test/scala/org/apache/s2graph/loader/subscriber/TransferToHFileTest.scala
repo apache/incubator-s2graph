@@ -1,10 +1,10 @@
-package subscriber
+package org.apache.s2graph.loader.subscriber
 
 import com.kakao.s2graph.core.Management
 import com.kakao.s2graph.core.types.HBaseType
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest._
-import subscriber.TransferToHFile._
+import TransferToHFile._
 
 /**
   * Created by Eric on 2015. 12. 2..

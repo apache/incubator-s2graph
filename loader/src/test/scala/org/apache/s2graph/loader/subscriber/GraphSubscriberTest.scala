@@ -1,4 +1,4 @@
-package subscriber
+package org.apache.s2graph.loader.subscriber
 
 import com.kakao.s2graph.core.Management
 import org.scalatest.{ FunSuite, Matchers }

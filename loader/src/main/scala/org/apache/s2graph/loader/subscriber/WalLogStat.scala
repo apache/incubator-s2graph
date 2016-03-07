@@ -1,4 +1,4 @@
-package subscriber
+package org.apache.s2graph.loader.subscriber
 
 import java.text.SimpleDateFormat
 import java.util.Date

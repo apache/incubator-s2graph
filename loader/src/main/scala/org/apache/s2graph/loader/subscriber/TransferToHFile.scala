@@ -1,5 +1,4 @@
-package subscriber
-
+package org.apache.s2graph.loader.subscriber
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls.{LabelMeta, Label}
@@ -11,12 +10,13 @@ import org.apache.hadoop.hbase.mapreduce.{TableOutputFormat}
 import org.apache.hadoop.hbase._
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
+import org.apache.s2graph.loader.spark.{KeyFamilyQualifier, HBaseContext, FamilyHFileWriteOptions}
 import org.apache.spark.{SparkContext}
 import org.apache.spark.rdd.RDD
 import org.hbase.async.{PutRequest}
 import play.api.libs.json.Json
 import s2.spark.{SparkApp}
-import spark.{FamilyHFileWriteOptions, KeyFamilyQualifier, HBaseContext}
+import spark.KeyFamilyQualifier
 import scala.collection.JavaConversions._
 
 
