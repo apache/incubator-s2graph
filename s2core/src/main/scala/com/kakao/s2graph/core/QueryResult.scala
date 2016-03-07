@@ -35,6 +35,7 @@ case class QueryRequest(query: Query,
 
 
 case class QueryResult(edgeWithScoreLs: Seq[EdgeWithScore] = Nil,
+                       tailCursor: Array[Byte] = Array.empty,
                        timestamp: Long = System.currentTimeMillis(),
                        isFailure: Boolean = false)
 

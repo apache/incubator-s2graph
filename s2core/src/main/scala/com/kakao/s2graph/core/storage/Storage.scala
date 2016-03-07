@@ -38,6 +38,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * | v1 | serde.snapshotedge.wide | serde.indexedge.wide | serde.vertex | do not use this. this exist only for backward compatibility issue |
    * | v2 | serde.snapshotedge.wide | serde.indexedge.wide | serde.vertex | do not use this. this exist only for backward compatibility issue |
    * | v3 | serde.snapshotedge.tall | serde.indexedge.wide | serde.vertex | recommended with HBase. current stable schema |
+   * | v4 | serde.snapshotedge.tall | serde.indexedge.tall | serde.vertex | experimental schema. use scanner instead of get |
    *
    */
 
@@ -47,10 +48,10 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * @param snapshotEdge: snapshotEdge to serialize
    * @return serializer implementation for StorageSerializable which has toKeyValues return Seq[SKeyValue]
    */
-  def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge) = {
+  def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge): Serializable[SnapshotEdge] = {
     snapshotEdge.schemaVer match {
       case VERSION1 | VERSION2 => new serde.snapshotedge.wide.SnapshotEdgeSerializable(snapshotEdge)
-      case VERSION3 => new serde.snapshotedge.tall.SnapshotEdgeSerializable(snapshotEdge)
+      case VERSION3 | VERSION4 => new serde.snapshotedge.tall.SnapshotEdgeSerializable(snapshotEdge)
       case _ => throw new RuntimeException(s"not supported version: ${snapshotEdge.schemaVer}")
     }
   }
@@ -60,9 +61,10 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * @param indexEdge: indexEdge to serialize
    * @return serializer implementation
    */
-  def indexEdgeSerializer(indexEdge: IndexEdge) = {
+  def indexEdgeSerializer(indexEdge: IndexEdge): Serializable[IndexEdge] = {
     indexEdge.schemaVer match {
       case VERSION1 | VERSION2 | VERSION3 => new indexedge.wide.IndexEdgeSerializable(indexEdge)
+      case VERSION4 => new indexedge.tall.IndexEdgeSerializable(indexEdge)
       case _ => throw new RuntimeException(s"not supported version: ${indexEdge.schemaVer}")
 
     }
@@ -85,19 +87,21 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * then that storage implementation is responsible to provide implicit type conversion method on CanSKeyValue.
    * */
 
-  val snapshotEdgeDeserializers = Map(
+  val snapshotEdgeDeserializers: Map[String, Deserializable[SnapshotEdge]] = Map(
     VERSION1 -> new snapshotedge.wide.SnapshotEdgeDeserializable,
     VERSION2 -> new snapshotedge.wide.SnapshotEdgeDeserializable,
-    VERSION3 -> new tall.SnapshotEdgeDeserializable
+    VERSION3 -> new tall.SnapshotEdgeDeserializable,
+    VERSION4 -> new tall.SnapshotEdgeDeserializable
   )
   def snapshotEdgeDeserializer(schemaVer: String) =
     snapshotEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
 
   /** create deserializer that can parse stored CanSKeyValue into indexEdge. */
-  val indexEdgeDeserializers = Map(
+  val indexEdgeDeserializers: Map[String, Deserializable[IndexEdge]] = Map(
     VERSION1 -> new indexedge.wide.IndexEdgeDeserializable,
     VERSION2 -> new indexedge.wide.IndexEdgeDeserializable,
-    VERSION3 -> new indexedge.wide.IndexEdgeDeserializable
+    VERSION3 -> new indexedge.wide.IndexEdgeDeserializable,
+    VERSION4 -> new indexedge.tall.IndexEdgeDeserializable
   )
 
   def indexEdgeDeserializer(schemaVer: String) =
@@ -522,7 +526,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     } yield {
         val label = queryRequest.queryParam.label
         label.schemaVersion match {
-          case HBaseType.VERSION3 =>
+          case HBaseType.VERSION3 | HBaseType.VERSION4 =>
             if (label.consistencyLevel == "strong") {
               /**
                * read: snapshotEdge on queryResult = O(N)

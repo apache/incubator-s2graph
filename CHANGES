@@ -16,6 +16,8 @@ Release 0.12.1 - unreleased
   
     S2GRAPH-33: Support weighted sum of multiple query results (Committed by DOYUNG YOON).
 
+    S2GRAPH-50: Provide new HBase Storage Schema (Committed by DOYUNG YOON).
+
   IMPROVEMENT
 
     S2GRAPH-14: Abstract HBase specific methods in Management and Label (Committed by DOYUNG YOON).

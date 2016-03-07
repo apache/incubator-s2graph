@@ -185,7 +185,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     }
     ],
     "consistencyLevel": "strong",
-    "schemaVersion": "v2",
+    "schemaVersion": "v4",
     "compressionAlgorithm": "gz",
     "hTableName": "$testHTableName"
   }"""
