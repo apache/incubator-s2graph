@@ -15,6 +15,7 @@ import com.typesafe.config.ConfigFactory
 import io.netty.bootstrap.ServerBootstrap
 import io.netty.buffer.{ByteBuf, Unpooled}
 import io.netty.channel._
+import io.netty.channel.epoll.{EpollServerSocketChannel, EpollEventLoopGroup}
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioServerSocketChannel
@@ -160,6 +161,7 @@ object NettyServer extends App {
 
   val config = ConfigFactory.load()
   val port = Try(config.getInt("http.port")).recover { case _ => 9000 }.get
+  val transport = Try(config.getString("netty.transport")).recover { case _ => "jdk" }.get
 
   // init s2graph with config
   val s2graph = new Graph(config)(ec)
@@ -169,16 +171,21 @@ object NettyServer extends App {
   var isHealthy = config.getBooleanWithFallback("app.health.on", true)
 
   logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
+  logger.info(s"transport: $transport")
 
   // Configure the server.
-  val bossGroup: EventLoopGroup = new NioEventLoopGroup(1)
-  val workerGroup: EventLoopGroup = new NioEventLoopGroup()
+  val (bossGroup, workerGroup, channelClass) = transport match {
+    case "native" =>
+      (new EpollEventLoopGroup(1), new EpollEventLoopGroup(), classOf[EpollServerSocketChannel])
+    case _ =>
+      (new NioEventLoopGroup(1), new NioEventLoopGroup(), classOf[NioServerSocketChannel])
+  }
 
   try {
     val b: ServerBootstrap = new ServerBootstrap()
-    b.option(ChannelOption.SO_BACKLOG, Int.box(2048))
+      .option(ChannelOption.SO_BACKLOG, Int.box(2048))
 
-    b.group(bossGroup, workerGroup).channel(classOf[NioServerSocketChannel])
+    b.group(bossGroup, workerGroup).channel(channelClass)
       .handler(new LoggingHandler(LogLevel.INFO))
       .childHandler(new ChannelInitializer[SocketChannel] {
         override def initChannel(ch: SocketChannel) {
@@ -189,6 +196,7 @@ object NettyServer extends App {
         }
       })
 
+    // for check server is started
     logger.info(s"Listening for HTTP on /0.0.0.0:$port")
     val ch: Channel = b.bind(port).sync().channel()
     ch.closeFuture().sync()
