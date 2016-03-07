@@ -4,10 +4,11 @@ import java.util.concurrent.TimeUnit
 
 import actors.Protocol.FlushAll
 import akka.actor._
-import com.kakao.s2graph.core.ExceptionHandler._
+import org.apache.s2graph.core.{Graph, GraphElement, ExceptionHandler}
+import ExceptionHandler._
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.utils.logger
 import config.Config
+import org.apache.s2graph.core.utils.logger
 import play.api.Play.current
 import play.api.libs.concurrent.Akka
 

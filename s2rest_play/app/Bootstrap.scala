@@ -4,10 +4,12 @@ import java.util.concurrent.Executors
 
 import actors.QueueActor
 import com.kakao.s2graph.core.rest._
-import com.kakao.s2graph.core.utils.logger
-import com.kakao.s2graph.core.{Management, ExceptionHandler, Graph}
+import com.kakao.s2graph.core.Management
 import config.Config
 import controllers.{ApplicationController}
+import org.apache.s2graph.core.{Management, ExceptionHandler, Graph}
+import org.apache.s2graph.core.rest.{RequestParser, RestHandler}
+import org.apache.s2graph.core.utils.logger
 import play.api.Application
 import play.api.mvc.{WithFilters, _}
 import play.filters.gzip.GzipFilter

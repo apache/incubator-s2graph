@@ -1,11 +1,12 @@
 package controllers
 
-import com.kakao.s2graph.core.ExceptionHandler
-import com.kakao.s2graph.core.ExceptionHandler.KafkaMessage
-import com.kakao.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.ExceptionHandler
+import ExceptionHandler.KafkaMessage
 import config.CounterConfig
 import models._
 import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.s2graph.core.ExceptionHandler
+import org.apache.s2graph.core.mysqls.Label
 import play.api.Play
 import play.api.libs.json.Reads._
 import play.api.libs.json._

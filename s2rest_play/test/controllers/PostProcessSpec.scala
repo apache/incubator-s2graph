@@ -1,6 +1,7 @@
 package controllers
 
-import com.kakao.s2graph.core.{OrderingUtil, SeqMultiOrdering}
+import com.kakao.s2graph.core.SeqMultiOrdering
+import org.apache.s2graph.core.{SeqMultiOrdering, OrderingUtil}
 import play.api.libs.json.{JsNumber, JsString, JsValue}
 import play.api.test.PlaySpecification
 

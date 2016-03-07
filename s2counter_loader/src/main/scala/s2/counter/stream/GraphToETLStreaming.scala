@@ -1,8 +1,8 @@
 package s2.counter.stream
 
-import com.kakao.s2graph.core.GraphUtil
 import kafka.producer.KeyedMessage
 import kafka.serializer.StringDecoder
+import org.apache.s2graph.core.GraphUtil
 import org.apache.spark.streaming.Durations._
 import org.apache.spark.streaming.kafka.KafkaRDDFunctions.rddToKafkaRDDFunctions
 import s2.config.{S2ConfigFactory, S2CounterConfig, StreamingConfig}

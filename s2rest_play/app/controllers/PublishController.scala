@@ -1,8 +1,8 @@
 package controllers
 
-import com.kakao.s2graph.core.ExceptionHandler
 import config.Config
 import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.s2graph.core.ExceptionHandler
 import play.api.mvc._
 
 import scala.concurrent.Future

@@ -1,7 +1,7 @@
 package org.apache.s2graph.loader.subscriber
 
-import com.kakao.s2graph.core.Management
-import com.kakao.s2graph.core.types.HBaseType
+import org.apache.s2graph.core.Management
+import org.apache.s2graph.core.types.HBaseType
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest._
 import TransferToHFile._

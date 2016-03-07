@@ -4,13 +4,14 @@ import java.util.Map.Entry
 import java.util.concurrent.Executors
 import java.util.function.Consumer
 
-import com.kakao.s2graph.core.GraphExceptions.BadQueryException
+import org.apache.s2graph.core.{JSONParser, PostProcess, Graph, GraphExceptions}
+import GraphExceptions.BadQueryException
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls.Experiment
-import com.kakao.s2graph.core.rest.RestHandler.HandlerResult
+import org.apache.s2graph.core.rest.RestHandler
+import RestHandler.HandlerResult
 import com.kakao.s2graph.core.rest._
-import com.kakao.s2graph.core.utils.Extensions._
-import com.kakao.s2graph.core.utils.logger
+import org.apache.s2graph.core.utils.{Extensions, logger}
+import Extensions._
 import com.typesafe.config.ConfigFactory
 import io.netty.bootstrap.ServerBootstrap
 import io.netty.buffer.{ByteBuf, Unpooled}
@@ -22,6 +23,8 @@ import io.netty.handler.codec.http.HttpHeaders._
 import io.netty.handler.codec.http._
 import io.netty.handler.logging.{LogLevel, LoggingHandler}
 import io.netty.util.CharsetUtil
+import org.apache.s2graph.core.mysqls.Experiment
+import org.apache.s2graph.core.utils.logger
 import play.api.libs.json._
 
 import scala.collection.mutable

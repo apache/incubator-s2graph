@@ -2,8 +2,10 @@ package controllers
 
 import com.kakao.s2graph.core._
 import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.rest.RequestParser
-import com.kakao.s2graph.core.utils.logger
+import org.apache.s2graph.core.Management
+import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.rest.RequestParser
+import org.apache.s2graph.core.utils.logger
 import play.api.mvc
 import play.api.mvc.{Action, Controller}
 import play.api.libs.json._

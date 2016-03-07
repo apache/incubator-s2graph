@@ -2,12 +2,12 @@ package org.apache.s2graph.loader.subscriber
 
 import java.util
 
-import com.kakao.s2graph.core.{Graph, _}
 import com.typesafe.config.{Config, ConfigFactory}
 import kafka.javaapi.producer.Producer
 import kafka.producer.KeyedMessage
 import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
 import org.apache.hadoop.hbase.client._
+import org.apache.s2graph.core._
 import org.apache.spark.{Accumulable, SparkContext}
 import s2.spark.{HashMapParam, SparkApp, WithKafka}
 

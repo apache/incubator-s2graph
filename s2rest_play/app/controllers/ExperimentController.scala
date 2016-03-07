@@ -1,9 +1,8 @@
 package controllers
 
-
-import com.kakao.s2graph.core.mysqls.Experiment
-import com.kakao.s2graph.core.rest.RestHandler
-import com.kakao.s2graph.core.utils.logger
+import org.apache.s2graph.core.mysqls.Experiment
+import org.apache.s2graph.core.rest.RestHandler
+import org.apache.s2graph.core.utils.logger
 import play.api.mvc._
 import scala.concurrent.ExecutionContext.Implicits.global
 

@@ -1,9 +1,9 @@
 package s2.counter.core.v2
 
-import com.kakao.s2graph.core.GraphUtil
-import com.kakao.s2graph.core.mysqls.Label
 import com.typesafe.config.Config
 import org.apache.commons.httpclient.HttpStatus
+import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.core.mysqls.Label
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{JsObject, JsString, JsValue, Json}
 import s2.config.S2CounterConfig

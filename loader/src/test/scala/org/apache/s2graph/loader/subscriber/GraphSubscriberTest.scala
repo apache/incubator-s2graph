@@ -1,6 +1,6 @@
 package org.apache.s2graph.loader.subscriber
 
-import com.kakao.s2graph.core.Management
+import org.apache.s2graph.core.Management
 import org.scalatest.{ FunSuite, Matchers }
 import play.api.libs.json.{JsBoolean, JsNumber}
 import s2.spark.WithKafka

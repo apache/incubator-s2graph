@@ -1,7 +1,7 @@
 package benchmark
 
-import com.kakao.s2graph.core.OrderingUtil._
-import com.kakao.s2graph.core.SeqMultiOrdering
+import org.apache.s2graph.core.{SeqMultiOrdering, OrderingUtil}
+import OrderingUtil._
 import play.api.libs.json.{JsNumber, JsValue}
 import play.api.test.PlaySpecification
 import play.api.{Application => PlayApplication}

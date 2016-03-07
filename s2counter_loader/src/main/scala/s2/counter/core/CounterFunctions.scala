@@ -1,7 +1,7 @@
 package s2.counter.core
 
-import com.kakao.s2graph.core.GraphUtil
 import kafka.producer.KeyedMessage
+import org.apache.s2graph.core.GraphUtil
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Accumulable, Logging}
 import play.api.libs.json.{JsString, JsNumber, JsValue, Json}

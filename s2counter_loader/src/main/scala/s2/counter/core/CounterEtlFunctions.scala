@@ -1,6 +1,7 @@
 package s2.counter.core
 
-import com.kakao.s2graph.core.{Edge, Graph, GraphUtil}
+import com.kakao.s2graph.core.Graph
+import org.apache.s2graph.core.{Graph, GraphUtil, Edge}
 import org.apache.spark.Logging
 import play.api.libs.json._
 import s2.config.{S2ConfigFactory, StreamingConfig}

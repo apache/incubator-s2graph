@@ -1,8 +1,9 @@
 package controllers
 
 import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls.Experiment
-import com.kakao.s2graph.core.rest.RestHandler
+import org.apache.s2graph.core.JSONParser
+import org.apache.s2graph.core.mysqls.Experiment
+import org.apache.s2graph.core.rest.RestHandler
 import play.api.libs.json.{Json}
 import play.api.mvc._
 

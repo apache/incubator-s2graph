@@ -1,8 +1,9 @@
 package s2.counter.core
 
-import com.kakao.s2graph.core.{Management, Graph}
-import com.kakao.s2graph.core.mysqls.Label
+import com.kakao.s2graph.core.Management
 import com.typesafe.config.ConfigFactory
+import org.apache.s2graph.core.{Management, Graph}
+import org.apache.s2graph.core.mysqls.Label
 import org.specs2.mutable.Specification
 import org.specs2.specification.BeforeAfterAll
 import play.api.libs.json.Json

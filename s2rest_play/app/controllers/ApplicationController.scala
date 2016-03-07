@@ -1,8 +1,9 @@
 package controllers
 
-import com.kakao.s2graph.core.GraphExceptions.BadQueryException
-import com.kakao.s2graph.core.PostProcess
-import com.kakao.s2graph.core.utils.logger
+import org.apache.s2graph.core.{GraphExceptions, PostProcess}
+import GraphExceptions.BadQueryException
+import org.apache.s2graph.core.PostProcess
+import org.apache.s2graph.core.utils.logger
 import play.api.libs.iteratee.Enumerator
 import play.api.libs.json.{JsString, JsValue, Json}
 import play.api.mvc._

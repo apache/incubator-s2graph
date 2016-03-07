@@ -1,8 +1,10 @@
 package benchmark
 
-import com.kakao.s2graph.core.{Management, GraphUtil}
-import com.kakao.s2graph.core.types.{SourceVertexId, HBaseType, InnerVal, VertexId}
+import com.kakao.s2graph.core.Management
+import com.kakao.s2graph.core.types.HBaseType
 import org.apache.hadoop.hbase.util.Bytes
+import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.core.types.{HBaseType, InnerVal, SourceVertexId}
 import play.api.test.{FakeApplication, PlaySpecification}
 
 import scala.collection.mutable

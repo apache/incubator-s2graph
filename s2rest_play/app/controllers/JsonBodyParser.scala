@@ -1,6 +1,6 @@
 package controllers
 
-import com.kakao.s2graph.core.utils.logger
+import org.apache.s2graph.core.utils.logger
 import play.api.Play
 import play.api.libs.iteratee.{Execution, Iteratee}
 import play.api.libs.json.{JsValue, Json}

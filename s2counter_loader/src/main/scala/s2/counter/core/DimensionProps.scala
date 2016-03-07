@@ -1,7 +1,8 @@
 package s2.counter.core
 
-import com.kakao.s2graph.core.mysqls.{Bucket, Experiment, Service}
+import com.kakao.s2graph.core.mysqls.Service
 import org.apache.commons.httpclient.HttpStatus
+import org.apache.s2graph.core.mysqls.{Service, Experiment, Bucket}
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 import s2.config.StreamingConfig

@@ -1,6 +1,7 @@
 package s2.counter
 
-import com.kakao.s2graph.core.{Graph, GraphUtil}
+import com.kakao.s2graph.core.Graph
+import org.apache.s2graph.core.GraphUtil
 import org.apache.spark.SparkContext
 import s2.config.{S2ConfigFactory, S2CounterConfig, StreamingConfig}
 import s2.counter.core.{BlobExactKey, CounterEtlFunctions, CounterFunctions}
