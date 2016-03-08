@@ -1,23 +1,20 @@
-package s2.counter.core
+package org.apache.s2graph.counter.core
 
-import com.kakao.s2graph.core.Management
 import com.typesafe.config.ConfigFactory
-import org.apache.s2graph.core.{Management, Graph}
 import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.{Graph, Management}
+import org.apache.s2graph.counter.config.S2CounterConfig
+import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
+import org.apache.s2graph.counter.core.v2.{GraphOperation, RankingStorageGraph}
+import org.apache.s2graph.counter.helper.CounterAdmin
+import org.apache.s2graph.counter.models.{Counter, CounterModel, DBModel}
+import org.apache.s2graph.counter.util.Retry
 import org.specs2.mutable.Specification
 import org.specs2.specification.BeforeAfterAll
 import play.api.libs.json.Json
-import s2.counter.core.TimedQualifier.IntervalUnit
-import s2.counter.core.v2.{GraphOperation, RankingStorageGraph}
-import s2.helper.CounterAdmin
-import s2.models.{Counter, CounterModel, DBModel}
-import s2.util.Retry
 
 import scala.util.{Failure, Random, Success, Try}
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 15. 6. 19..
- */
 class RankingCounterSpec extends Specification with BeforeAfterAll {
   val config = ConfigFactory.load()
   DBModel.initialize(config)

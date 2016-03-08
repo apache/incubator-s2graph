@@ -1,11 +1,8 @@
-package org.apache.s2graph.models
+package org.apache.s2graph.counter.models
 
+import org.apache.s2graph.counter.models.Counter.ItemType
 import org.specs2.mutable.Specification
-import s2.models.Counter.ItemType
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 15. 6. 11..
- */
 class CounterSpec extends Specification {
   "Counter" should {
     "dimension auto combination" in {

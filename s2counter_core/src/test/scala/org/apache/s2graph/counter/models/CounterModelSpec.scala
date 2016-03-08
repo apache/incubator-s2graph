@@ -1,11 +1,8 @@
-package org.apache.s2graph.models
+package org.apache.s2graph.counter.models
 
 import com.typesafe.config.ConfigFactory
 import org.specs2.mutable.Specification
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 15. 5. 26..
- */
 class CounterModelSpec extends Specification {
   val config = ConfigFactory.load()
 
