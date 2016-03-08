@@ -1,16 +1,13 @@
 package org.apache.s2graph.loader.subscriber
 
-import java.util
-
 import com.typesafe.config.{Config, ConfigFactory}
 import kafka.javaapi.producer.Producer
 import kafka.producer.KeyedMessage
-import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
+import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client._
 import org.apache.s2graph.core._
 import org.apache.s2graph.spark.spark.WithKafka
 import org.apache.spark.{Accumulable, SparkContext}
-
 import scala.collection.JavaConversions._
 import scala.collection.mutable.HashMap
 import scala.concurrent.ExecutionContext
@@ -65,7 +62,7 @@ object GraphSubscriberHelper extends WithKafka {
     if (g == null) {
       val ec = ExecutionContext.Implicits.global
       g = new Graph(config)(ec)
-      management = new Management(g)(ec)
+      management = new Management(g)
     }
   }
 
