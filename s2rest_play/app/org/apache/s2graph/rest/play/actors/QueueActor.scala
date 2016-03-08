@@ -2,14 +2,15 @@ package org.apache.s2graph.rest.play.actors
 
 import java.util.concurrent.TimeUnit
 
-import Protocol.FlushAll
 import akka.actor._
-import org.apache.s2graph.core.{Graph, GraphElement, ExceptionHandler}
-import ExceptionHandler._
+import org.apache.s2graph.core.ExceptionHandler._
 import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.{ExceptionHandler, Graph, GraphElement}
+import org.apache.s2graph.rest.play.actors.Protocol.FlushAll
 import org.apache.s2graph.rest.play.config.Config
 import play.api.Play.current
 import play.api.libs.concurrent.Akka
+
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 

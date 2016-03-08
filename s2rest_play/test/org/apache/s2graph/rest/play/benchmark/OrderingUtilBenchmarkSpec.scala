@@ -1,7 +1,7 @@
 package org.apache.s2graph.rest.play.benchmark
 
-import org.apache.s2graph.core.{SeqMultiOrdering, OrderingUtil}
-import OrderingUtil._
+import org.apache.s2graph.core.OrderingUtil._
+import org.apache.s2graph.core.{OrderingUtil, SeqMultiOrdering}
 import play.api.libs.json.{JsNumber, JsValue}
 
 import scala.util.Random

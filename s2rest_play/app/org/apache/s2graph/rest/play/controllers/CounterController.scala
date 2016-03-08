@@ -18,6 +18,7 @@ import s2.counter.core.v2.{ExactStorageGraph, RankingStorageGraph}
 import s2.models.Counter.ItemType
 import s2.models.{Counter, CounterModel}
 import s2.util.{CartesianProduct, ReduceMapValue, UnitConverter}
+
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 

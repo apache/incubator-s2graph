@@ -7,7 +7,6 @@ import play.api.test.{FakeApplication, PlaySpecification}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-import scala.util.Random
 
 class GraphUtilSpec extends BenchmarkCommon with PlaySpecification {
 

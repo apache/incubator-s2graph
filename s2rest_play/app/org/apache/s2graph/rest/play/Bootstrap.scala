@@ -1,15 +1,17 @@
 package org.apache.s2graph.rest.play
 
 import java.util.concurrent.Executors
-import controllers.{ApplicationController}
-import org.apache.s2graph.core.{Management, ExceptionHandler, Graph}
+
 import org.apache.s2graph.core.rest.{RequestParser, RestHandler}
 import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.{ExceptionHandler, Graph, Management}
 import org.apache.s2graph.rest.play.actors.QueueActor
 import org.apache.s2graph.rest.play.config.Config
+import org.apache.s2graph.rest.play.controllers.ApplicationController
 import play.api.Application
 import play.api.mvc.{WithFilters, _}
 import play.filters.gzip.GzipFilter
+
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.Try
