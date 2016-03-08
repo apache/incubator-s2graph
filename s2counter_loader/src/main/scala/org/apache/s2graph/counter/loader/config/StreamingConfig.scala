@@ -1,10 +1,8 @@
-package s2.config
+package org.apache.s2graph.counter.loader.config
 
+import org.apache.s2graph.counter.config.ConfigFunctions
 import org.apache.s2graph.spark.config.S2ConfigFactory
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 15. 4. 7..
- */
 object StreamingConfig extends ConfigFunctions(S2ConfigFactory.config) {
   // kafka
   val KAFKA_ZOOKEEPER = getOrElse("kafka.zookeeper", "localhost")

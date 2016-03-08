@@ -1,17 +1,13 @@
-package s2.counter.core
+package org.apache.s2graph.counter.loader.core
 
-import com.kakao.s2graph.core.Graph
-import org.apache.s2graph.core.{Graph, GraphUtil, Edge}
+import org.apache.s2graph.core.{Edge, Graph, GraphUtil}
+import org.apache.s2graph.counter.loader.config.StreamingConfig
+import org.apache.s2graph.counter.models.CounterModel
 import org.apache.s2graph.spark.config.S2ConfigFactory
 import org.apache.spark.Logging
 import play.api.libs.json._
-import s2.models.CounterModel
-
 import scala.collection.mutable.{HashMap => MutableHashMap}
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 15. 3. 17..
- */
 object CounterEtlFunctions extends Logging {
   lazy val filterOps = Seq("insert", "insertBulk", "update", "increment").map(op => GraphUtil.operations(op))
   lazy val preFetchSize = StreamingConfig.PROFILE_PREFETCH_SIZE

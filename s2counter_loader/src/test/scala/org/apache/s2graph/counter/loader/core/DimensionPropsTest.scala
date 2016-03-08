@@ -1,4 +1,4 @@
-package s2.counter.core
+package org.apache.s2graph.counter.loader.core
 
 import org.scalatest.{FunSuite, Matchers}
 

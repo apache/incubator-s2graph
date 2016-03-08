@@ -1,30 +1,30 @@
-package s2.counter.core
+package org.apache.s2graph.counter.loader.core
 
 import kafka.producer.KeyedMessage
 import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.counter.TrxLog
+import org.apache.s2graph.counter.core.ExactCounter.ExactValueMap
+import org.apache.s2graph.counter.core.RankingCounter.RankingValueMap
+import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
+import org.apache.s2graph.counter.core._
+import org.apache.s2graph.counter.core.v2.{RankingStorageGraph, ExactStorageGraph}
+import org.apache.s2graph.counter.loader.config.StreamingConfig
+import org.apache.s2graph.counter.loader.models.DefaultCounterModel
+import org.apache.s2graph.counter.models.{Counter, DBModel}
 import org.apache.s2graph.spark.config.S2ConfigFactory
 import org.apache.s2graph.spark.spark.WithKafka
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Accumulable, Logging}
-import play.api.libs.json.{JsString, JsNumber, JsValue, Json}
-import s2.counter.TrxLog
-import s2.counter.core.ExactCounter.ExactValueMap
-import s2.counter.core.RankingCounter.RankingValueMap
-import s2.counter.core.TimedQualifier.IntervalUnit
-import s2.counter.core.v2.{ExactStorageGraph, RankingStorageGraph}
-import s2.models.{Counter, DBModel, DefaultCounterModel}
-
+import play.api.libs.json.{JsNumber, JsString, JsValue, Json}
 import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.concurrent.ExecutionContext
 import scala.language.postfixOps
 import scala.util.Try
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 15. 10. 6..
- */
 object CounterFunctions extends Logging with WithKafka {
-  import scala.concurrent.ExecutionContext.Implicits.global
 
   private val K_MAX = 500
+  implicit val ec = ExecutionContext.Implicits.global
 
   val exactCounter = new ExactCounter(S2ConfigFactory.config, new ExactStorageGraph(S2ConfigFactory.config))
   val rankingCounter = new RankingCounter(S2ConfigFactory.config, new RankingStorageGraph(S2ConfigFactory.config))

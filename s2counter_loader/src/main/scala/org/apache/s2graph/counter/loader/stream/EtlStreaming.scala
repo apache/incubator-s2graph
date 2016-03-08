@@ -1,28 +1,21 @@
-package org.apache.s2graph.counter.stream
+package org.apache.s2graph.counter.loader.stream
 
-import com.kakao.s2graph.core.Graph
 import kafka.producer.KeyedMessage
 import kafka.serializer.StringDecoder
 import org.apache.s2graph.core.GraphUtil
-import org.apache.s2graph.counter.core.{CounterEtlFunctions, DimensionProps}
-import org.apache.s2graph.counter.core.counter.core.DimensionProps
-import org.apache.s2graph.models.DBModel
+import org.apache.s2graph.counter.config.S2CounterConfig
+import org.apache.s2graph.counter.loader.config.StreamingConfig
+import org.apache.s2graph.counter.loader.core.{DimensionProps, CounterEtlItem, CounterEtlFunctions}
+import org.apache.s2graph.counter.models.{DBModel, CounterModel}
 import org.apache.s2graph.spark.config.S2ConfigFactory
 import org.apache.s2graph.spark.spark.{WithKafka, SparkApp, HashMapParam}
 import org.apache.spark.streaming.Durations._
 import org.apache.spark.streaming.kafka.KafkaRDDFunctions.rddToKafkaRDDFunctions
 import org.apache.spark.streaming.kafka.StreamHelper
-import s2.counter.core.{CounterEtlFunctions, CounterEtlItem, DimensionProps}
-import s2.models.{CounterModel, DBModel}
-import spark.spark.WithKafka
-
 import scala.collection.mutable
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.concurrent.ExecutionContext
 
-/**
-  * Created by hsleep(honeysleep@gmail.com) on 15. 10. 6..
-  */
 object EtlStreaming extends SparkApp with WithKafka {
   lazy val config = S2ConfigFactory.config
   lazy val s2Config = new S2CounterConfig(config)

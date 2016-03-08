@@ -1,31 +1,26 @@
-package s2.counter.stream
+package org.apache.s2graph.counter.loader.stream
 
 import kafka.serializer.StringDecoder
+import org.apache.s2graph.counter.config.S2CounterConfig
+import org.apache.s2graph.counter.loader.config.StreamingConfig
+import org.apache.s2graph.counter.loader.core.CounterFunctions
 import org.apache.s2graph.spark.config.S2ConfigFactory
 import org.apache.s2graph.spark.spark.{WithKafka, SparkApp, HashMapParam}
 import org.apache.spark.streaming.Durations._
 import org.apache.spark.streaming.kafka.KafkaRDDFunctions.rddToKafkaRDDFunctions
 import org.apache.spark.streaming.kafka.{HasOffsetRanges, StreamHelper}
-import s2.counter.core.CounterFunctions
-import spark.spark.WithKafka
-
 import scala.collection.mutable.{HashMap => MutableHashMap}
-import scala.language.postfixOps
 
-/**
- * Streaming job for counter topic
- * Created by hsleep(honeysleep@gmail.com) on 15. 1. 15..
- */
-object ExactCounterStreaming extends SparkApp with WithKafka {
+object RankingCounterStreaming extends SparkApp with WithKafka {
   lazy val config = S2ConfigFactory.config
   lazy val s2Config = new S2CounterConfig(config)
   lazy val className = getClass.getName.stripSuffix("$")
 
   lazy val producer = getProducer[String, String](StreamingConfig.KAFKA_BROKERS)
 
-  val inputTopics = Set(StreamingConfig.KAFKA_TOPIC_COUNTER)
+  val inputTopics = Set(StreamingConfig.KAFKA_TOPIC_COUNTER_TRX)
   val strInputTopics = inputTopics.mkString(",")
-  val groupId = buildKafkaGroupId(strInputTopics, "counter_v2")
+  val groupId = buildKafkaGroupId(strInputTopics, "ranking_v2")
   val kafkaParam = Map(
 //    "auto.offset.reset" -> "smallest",
     "group.id" -> groupId,
@@ -52,19 +47,23 @@ object ExactCounterStreaming extends SparkApp with WithKafka {
     // make stream
     val stream = streamHelper.createStream[String, String, StringDecoder, StringDecoder](ssc, inputTopics)
     stream.foreachRDD { (rdd, ts) =>
-      val offsets = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
-
-      val exactRDD = CounterFunctions.makeExactRdd(rdd, offsets.length)
-
       // for at-least once semantic
-      exactRDD.foreachPartitionWithIndex { (i, part) =>
-        // update exact counter
-        val trxLogs = CounterFunctions.updateExactCounter(part.toSeq, acc)
-        CounterFunctions.produceTrxLog(trxLogs)
-
-        // commit offset range
-        streamHelper.commitConsumerOffset(offsets(i))
+      val nextRdd = {
+        CounterFunctions.makeRankingRdd(rdd, sc.defaultParallelism).foreachPartition { part =>
+          // update ranking counter
+          CounterFunctions.updateRankingCounter(part, acc)
+        }
+        rdd
       }
+
+      streamHelper.commitConsumerOffsets(nextRdd.asInstanceOf[HasOffsetRanges])
+//      CounterFunctions.makeRankingRdd(rdd, offsets.length).foreachPartitionWithIndex { (i, part) =>
+//        // update ranking counter
+//        CounterFunctions.updateRankingCounter(part, acc)
+//
+//        // commit offset range
+//        streamHelper.commitConsumerOffset(offsets(i))
+//      }
     }
 
     ssc.start()

@@ -1,22 +1,18 @@
-package s2.counter.core
+package org.apache.s2graph.counter.loader.core
 
-import com.kakao.s2graph.core.mysqls.Service
 import org.apache.commons.httpclient.HttpStatus
-import org.apache.s2graph.core.mysqls.{Service, Experiment, Bucket}
+import org.apache.s2graph.core.mysqls.{Bucket, Experiment, Service}
+import org.apache.s2graph.counter.loader.config.StreamingConfig
+import org.apache.s2graph.counter.models.Counter
+import org.apache.s2graph.counter.util.{RetryAsync, CollectionCache, CollectionCacheConfig}
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
-import s2.models.Counter
-import s2.util.{CollectionCache, CollectionCacheConfig, RetryAsync}
-
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.util.Try
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 2015. 10. 6..
- */
 object DimensionProps {
   // using play-ws without play app
   private val builder = new com.ning.http.client.AsyncHttpClientConfig.Builder()

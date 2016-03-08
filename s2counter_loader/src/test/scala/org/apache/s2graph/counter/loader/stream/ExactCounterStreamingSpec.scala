@@ -1,22 +1,21 @@
-package org.apache.s2graph.counter.stream
+package org.apache.s2graph.counter.loader.stream
 
 import org.apache.s2graph.core.{Management, GraphUtil}
 import org.apache.s2graph.core.mysqls.Label
-import org.apache.s2graph.counter.core.TimedQualifier
-import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
-import TimedQualifier.IntervalUnit
+import org.apache.s2graph.counter.loader.counter.core.{CounterEtlItem, CounterFunctions}
+import org.apache.s2graph.counter.loader.models.DefaultCounterModel
 import org.apache.s2graph.spark.config.S2ConfigFactory
 import org.apache.s2graph.spark.spark.HashMapParam
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import play.api.libs.json.Json
-import s2.counter.core.CounterFunctions.HashMapAccumulable
+import CounterFunctions.HashMapAccumulable
 import s2.counter.core.TimedQualifier.IntervalUnit
 import s2.counter.core._
 import s2.counter.core.v2.{ExactStorageGraph, GraphOperation, RankingStorageGraph}
 import s2.helper.CounterAdmin
-import s2.models.{Counter, DBModel, DefaultCounterModel}
+import s2.models.{Counter, DBModel}
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.concurrent.ExecutionContext.Implicits.global
