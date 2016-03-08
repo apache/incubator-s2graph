@@ -4,20 +4,21 @@ import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.s2graph.core.ExceptionHandler
 import org.apache.s2graph.core.ExceptionHandler.KafkaMessage
 import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.counter
+import org.apache.s2graph.counter.config.S2CounterConfig
+import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
+import org.apache.s2graph.counter.core._
+import org.apache.s2graph.counter.core.v1.{RankingStorageRedis, ExactStorageAsyncHBase}
+import org.apache.s2graph.counter.core.v2.{RankingStorageGraph, ExactStorageGraph}
+import org.apache.s2graph.counter.models.Counter.ItemType
+import org.apache.s2graph.counter.models.{Counter, CounterModel}
+import org.apache.s2graph.counter.util.{ReduceMapValue, CartesianProduct, UnitConverter}
 import org.apache.s2graph.rest.play.config.CounterConfig
 import org.apache.s2graph.rest.play.models._
 import play.api.Play
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 import play.api.mvc.{Action, Controller, Request}
-import s2.counter.core.TimedQualifier.IntervalUnit
-import s2.counter.core._
-import s2.counter.core.v1.{ExactStorageAsyncHBase, RankingStorageRedis}
-import s2.counter.core.v2.{ExactStorageGraph, RankingStorageGraph}
-import s2.models.Counter.ItemType
-import s2.models.{Counter, CounterModel}
-import s2.util.{CartesianProduct, ReduceMapValue, UnitConverter}
-
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 
@@ -28,17 +29,17 @@ object CounterController extends Controller {
   val s2config = new S2CounterConfig(config)
 
   private val exactCounterMap = Map(
-    s2.counter.VERSION_1 -> new ExactCounter(config, new ExactStorageAsyncHBase(config)),
-    s2.counter.VERSION_2 -> new ExactCounter(config, new ExactStorageGraph(config))
+    counter.VERSION_1 -> new ExactCounter(config, new ExactStorageAsyncHBase(config)),
+    counter.VERSION_2 -> new ExactCounter(config, new ExactStorageGraph(config))
   )
   private val rankingCounterMap = Map(
-    s2.counter.VERSION_1 -> new RankingCounter(config, new RankingStorageRedis(config)),
-    s2.counter.VERSION_2 -> new RankingCounter(config, new RankingStorageGraph(config))
+    counter.VERSION_1 -> new RankingCounter(config, new RankingStorageRedis(config)),
+    counter.VERSION_2 -> new RankingCounter(config, new RankingStorageGraph(config))
   )
 
   private val tablePrefixMap = Map (
-    s2.counter.VERSION_1 -> "s2counter",
-    s2.counter.VERSION_2 -> "s2counter_v2"
+    counter.VERSION_1 -> "s2counter",
+    counter.VERSION_2 -> "s2counter_v2"
   )
 
   private def exactCounter(version: Byte): ExactCounter = exactCounterMap(version)
@@ -79,7 +80,7 @@ object CounterController extends Controller {
     counterModel.findByServiceAction(service, action, useCache = false) match {
       case None =>
         val body = request.body
-        val version = (body \ "version").asOpt[Int].map(_.toByte).getOrElse(s2.counter.VERSION_2)
+        val version = (body \ "version").asOpt[Int].map(_.toByte).getOrElse(counter.VERSION_2)
         val autoComb = (body \ "autoComb").asOpt[Boolean].getOrElse(true)
         val dimension = (body \ "dimension").asOpt[String].getOrElse("")
         val useProfile = (body \ "useProfile").asOpt[Boolean].getOrElse(false)
