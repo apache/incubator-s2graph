@@ -1,4 +1,4 @@
-package s2.spark
+package org.apache.s2graph.spark.spark
 
 import kafka.serializer.StringDecoder
 import org.apache.spark.storage.StorageLevel
@@ -9,10 +9,6 @@ import org.apache.spark.{Accumulable, Logging, SparkConf}
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
 
-
-/**
- * Created by hsleep(honeysleep@gmail.com) on 14. 12. 26..
- */
 trait SparkApp extends Logging {
   type HashMapAccumulable = Accumulable[MutableHashMap[String, Long], (String, Long)]
 

@@ -6,7 +6,6 @@ import org.apache.hadoop.hbase.client._
 import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
 import org.hbase.async.HBaseClient
 import org.slf4j.LoggerFactory
-import s2.config.S2CounterConfig
 
 import scala.concurrent.{Future, Promise}
 import scala.util.Try

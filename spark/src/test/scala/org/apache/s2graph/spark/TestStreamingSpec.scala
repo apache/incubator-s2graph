@@ -1,13 +1,10 @@
-package s2.spark
+package org.apache.s2graph.spark
 
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.specs2.mutable.Specification
 import org.specs2.specification.BeforeAfterAll
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 15. 6. 17..
- */
 class TestStreamingSpec extends Specification with BeforeAfterAll {
   private val master = "local[2]"
   private val appName = "test_streaming"

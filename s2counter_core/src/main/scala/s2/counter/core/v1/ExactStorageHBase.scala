@@ -7,7 +7,6 @@ import org.apache.hadoop.hbase.filter.{ColumnRangeFilter, FilterList}
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.Graph
 import org.slf4j.LoggerFactory
-import s2.config.S2CounterConfig
 import s2.counter.core.ExactCounter.ExactValueMap
 import s2.counter.core._
 import s2.helper.{Management, WithHBase}

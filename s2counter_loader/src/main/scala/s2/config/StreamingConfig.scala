@@ -1,5 +1,7 @@
 package s2.config
 
+import org.apache.s2graph.spark.config.S2ConfigFactory
+
 /**
  * Created by hsleep(honeysleep@gmail.com) on 15. 4. 7..
  */

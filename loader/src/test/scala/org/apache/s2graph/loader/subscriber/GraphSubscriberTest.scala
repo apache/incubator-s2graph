@@ -1,9 +1,9 @@
 package org.apache.s2graph.loader.subscriber
 
 import org.apache.s2graph.core.Management
+import org.apache.s2graph.spark.spark.WithKafka
 import org.scalatest.{ FunSuite, Matchers }
 import play.api.libs.json.{JsBoolean, JsNumber}
-import s2.spark.WithKafka
 
 class GraphSubscriberTest extends FunSuite with Matchers with WithKafka {
   val phase = "dev"

@@ -1,7 +1,6 @@
 package s2.models
 
 import com.typesafe.config.Config
-import s2.config.S2CounterConfig
 import scalikejdbc._
 
 /**

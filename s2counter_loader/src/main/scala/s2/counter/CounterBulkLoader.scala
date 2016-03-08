@@ -2,12 +2,13 @@ package s2.counter
 
 import com.kakao.s2graph.core.Graph
 import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.spark.config.S2ConfigFactory
+import org.apache.s2graph.spark.spark.{WithKafka, SparkApp, HashMapParam}
 import org.apache.spark.SparkContext
-import s2.config.{S2ConfigFactory, S2CounterConfig, StreamingConfig}
 import s2.counter.core.{BlobExactKey, CounterEtlFunctions, CounterFunctions}
 import s2.models.Counter.ItemType
 import s2.models.{CounterModel, DBModel}
-import s2.spark.{HashMapParam, SparkApp, WithKafka}
+import spark.spark.WithKafka
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.concurrent.ExecutionContext

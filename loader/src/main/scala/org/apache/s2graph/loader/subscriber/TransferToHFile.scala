@@ -11,11 +11,11 @@ import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.types.{InnerValLikeWithTs, SourceVertexId, LabelWithDirection}
 import org.apache.s2graph.loader.spark.{KeyFamilyQualifier, HBaseContext, FamilyHFileWriteOptions}
+import org.apache.s2graph.spark.spark.SparkApp
 import org.apache.spark.{SparkContext}
 import org.apache.spark.rdd.RDD
 import org.hbase.async.{PutRequest}
 import play.api.libs.json.Json
-import s2.spark.{SparkApp}
 import spark.KeyFamilyQualifier
 import scala.collection.JavaConversions._
 

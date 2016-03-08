@@ -4,10 +4,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import kafka.serializer.StringDecoder
 import org.apache.s2graph.core.Graph
+import org.apache.s2graph.spark.spark.{WithKafka, SparkApp, HashMapParam}
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.streaming.Durations._
 import org.apache.spark.streaming.kafka.HasOffsetRanges
-import s2.spark.{HashMapParam, SparkApp, WithKafka}
+import spark.spark.WithKafka
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.language.postfixOps

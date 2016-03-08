@@ -5,7 +5,6 @@ import org.apache.http.HttpStatus
 import org.apache.s2graph.core.mysqls.Label
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
-import s2.config.S2CounterConfig
 import s2.counter.core.ExactCounter.ExactValueMap
 import s2.counter.core._
 import s2.models.Counter

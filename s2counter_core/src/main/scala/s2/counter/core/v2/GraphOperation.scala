@@ -4,7 +4,6 @@ import com.typesafe.config.Config
 import org.apache.http.HttpStatus
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{JsObject, JsValue, Json}
-import s2.config.S2CounterConfig
 
 import scala.concurrent.Await
 import scala.concurrent.duration._

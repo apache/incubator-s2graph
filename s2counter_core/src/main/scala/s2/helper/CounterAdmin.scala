@@ -4,7 +4,6 @@ import com.typesafe.config.Config
 import org.apache.s2graph.core.Graph
 import org.apache.s2graph.core.mysqls.Label
 import play.api.libs.json.Json
-import s2.config.S2CounterConfig
 import s2.counter.core.v1.{ExactStorageAsyncHBase, RankingStorageRedis}
 import s2.counter.core.v2.{ExactStorageGraph, GraphOperation, RankingStorageGraph}
 import s2.counter.core.{ExactCounter, RankingCounter}

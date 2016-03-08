@@ -5,7 +5,6 @@ import org.apache.commons.httpclient.HttpStatus
 import org.apache.s2graph.core.mysqls.{Service, Experiment, Bucket}
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
-import s2.config.StreamingConfig
 import s2.models.Counter
 import s2.util.{CollectionCache, CollectionCacheConfig, RetryAsync}
 

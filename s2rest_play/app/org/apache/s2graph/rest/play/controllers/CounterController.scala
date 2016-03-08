@@ -10,7 +10,6 @@ import play.api.Play
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 import play.api.mvc.{Action, Controller, Request}
-import s2.config.S2CounterConfig
 import s2.counter.core.TimedQualifier.IntervalUnit
 import s2.counter.core._
 import s2.counter.core.v1.{ExactStorageAsyncHBase, RankingStorageRedis}

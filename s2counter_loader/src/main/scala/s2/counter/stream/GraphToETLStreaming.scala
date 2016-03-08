@@ -3,10 +3,11 @@ package s2.counter.stream
 import kafka.producer.KeyedMessage
 import kafka.serializer.StringDecoder
 import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.spark.config.S2ConfigFactory
+import org.apache.s2graph.spark.spark.{WithKafka, SparkApp, HashMapParam}
 import org.apache.spark.streaming.Durations._
 import org.apache.spark.streaming.kafka.KafkaRDDFunctions.rddToKafkaRDDFunctions
-import s2.config.{S2ConfigFactory, S2CounterConfig, StreamingConfig}
-import s2.spark.{HashMapParam, SparkApp, WithKafka}
+import spark.spark.WithKafka
 
 import scala.collection.mutable
 import scala.collection.mutable.{HashMap => MutableHashMap}

@@ -4,7 +4,6 @@ import com.typesafe.config.Config
 import org.slf4j.LoggerFactory
 import redis.clients.jedis.exceptions.JedisException
 import redis.clients.jedis.{Jedis, JedisPool, JedisPoolConfig}
-import s2.config.S2CounterConfig
 import s2.util.Hashes
 
 import scala.util.Try

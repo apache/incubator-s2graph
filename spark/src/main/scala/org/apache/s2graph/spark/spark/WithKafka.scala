@@ -1,4 +1,4 @@
-package s2.spark
+package org.apache.s2graph.spark.spark
 
 import java.util.Properties
 

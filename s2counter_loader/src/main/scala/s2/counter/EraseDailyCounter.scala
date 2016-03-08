@@ -3,16 +3,17 @@ package s2.counter
 import java.text.SimpleDateFormat
 
 import kafka.producer.KeyedMessage
+import org.apache.s2graph.spark.config.S2ConfigFactory
+import org.apache.s2graph.spark.spark.{WithKafka, SparkApp}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import play.api.libs.json.Json
-import s2.config.{S2ConfigFactory, StreamingConfig}
 import s2.counter.core.ExactCounter.ExactValueMap
 import s2.counter.core._
 import s2.counter.core.v1.ExactStorageHBase
 import s2.counter.core.v2.ExactStorageGraph
 import s2.models.{Counter, CounterModel, DBModel}
-import s2.spark.{SparkApp, WithKafka}
+import spark.spark.WithKafka
 
 import scala.collection.mutable
 import scala.collection.mutable.{HashMap => MutableHashMap}

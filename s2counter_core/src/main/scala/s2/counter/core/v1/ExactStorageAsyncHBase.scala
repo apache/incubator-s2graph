@@ -9,7 +9,6 @@ import org.apache.hadoop.hbase.client._
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.{ColumnRangeFilter, FilterList, GetRequest, KeyValue}
 import org.slf4j.LoggerFactory
-import s2.config.S2CounterConfig
 import s2.counter.core.ExactCounter.ExactValueMap
 import s2.counter.core._
 import s2.helper.{Management, WithAsyncHBase, WithHBase}

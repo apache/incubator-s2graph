@@ -6,7 +6,6 @@ import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.core.mysqls.Label
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{JsObject, JsString, JsValue, Json}
-import s2.config.S2CounterConfig
 import s2.counter.core.RankingCounter.RankingValueMap
 import s2.counter.core.{RankingKey, RankingResult, RankingStorage}
 import s2.models.{Counter, CounterModel}

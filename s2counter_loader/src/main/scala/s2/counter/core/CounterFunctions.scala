@@ -2,17 +2,17 @@ package s2.counter.core
 
 import kafka.producer.KeyedMessage
 import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.spark.config.S2ConfigFactory
+import org.apache.s2graph.spark.spark.WithKafka
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Accumulable, Logging}
 import play.api.libs.json.{JsString, JsNumber, JsValue, Json}
-import s2.config.{S2ConfigFactory, StreamingConfig}
 import s2.counter.TrxLog
 import s2.counter.core.ExactCounter.ExactValueMap
 import s2.counter.core.RankingCounter.RankingValueMap
 import s2.counter.core.TimedQualifier.IntervalUnit
 import s2.counter.core.v2.{ExactStorageGraph, RankingStorageGraph}
 import s2.models.{Counter, DBModel, DefaultCounterModel}
-import s2.spark.WithKafka
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.language.postfixOps

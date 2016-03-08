@@ -1,14 +1,7 @@
-package s2.config
+package org.apache.s2graph.spark.config
 
 import com.typesafe.config.{Config, ConfigFactory}
 
-/**
- * Created by alec on 15. 3. 4..
- */
-
-/**
- * phase에 따라 phase.conf 파일을 load 해주는 config factory
- */
 object S2ConfigFactory {
   lazy val config: Config = _load
 

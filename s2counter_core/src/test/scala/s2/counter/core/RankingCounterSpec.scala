@@ -7,7 +7,6 @@ import org.apache.s2graph.core.mysqls.Label
 import org.specs2.mutable.Specification
 import org.specs2.specification.BeforeAfterAll
 import play.api.libs.json.Json
-import s2.config.S2CounterConfig
 import s2.counter.core.TimedQualifier.IntervalUnit
 import s2.counter.core.v2.{GraphOperation, RankingStorageGraph}
 import s2.helper.CounterAdmin

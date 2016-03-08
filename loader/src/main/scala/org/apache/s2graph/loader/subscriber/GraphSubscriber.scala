@@ -8,8 +8,8 @@ import kafka.producer.KeyedMessage
 import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
 import org.apache.hadoop.hbase.client._
 import org.apache.s2graph.core._
+import org.apache.s2graph.spark.spark.WithKafka
 import org.apache.spark.{Accumulable, SparkContext}
-import s2.spark.{HashMapParam, SparkApp, WithKafka}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.HashMap
