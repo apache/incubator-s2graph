@@ -1,12 +1,8 @@
 package org.apache.s2graph.core.Integrate
 
-import org.apache.s2graph.core.GraphExceptions
-import GraphExceptions.BadQueryException
 import org.apache.s2graph.core.utils.logger
 import org.scalatest.BeforeAndAfterEach
-import play.api.libs.json.{JsNull, JsNumber, JsValue, Json}
-
-import scala.util.{Success, Try}
+import play.api.libs.json.{JsNumber, JsValue, Json}
 
 class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 

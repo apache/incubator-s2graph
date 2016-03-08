@@ -1,6 +1,6 @@
 package org.apache.s2graph.core
 
-import OrderingUtil._
+import org.apache.s2graph.core.OrderingUtil._
 import org.scalatest.{FunSuite, Matchers}
 import play.api.libs.json.JsString
 

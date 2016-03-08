@@ -1,16 +1,9 @@
 package org.apache.s2graph.core
 
-import com.kakao.s2graph.core.mysqls._
-import org.apache.s2graph.core.mysqls.{ServiceColumn, ColumnMeta, Service}
-import org.apache.s2graph.core.types.{InnerValLike, InnerVal, SourceVertexId, VertexId}
-
-//import com.kakao.s2graph.core.models._
-
-import com.kakao.s2graph.core.types._
+import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike, SourceVertexId, VertexId}
 import play.api.libs.json.Json
 
-/**
-  */
 case class Vertex(id: VertexId,
                   ts: Long = System.currentTimeMillis(),
                   props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],

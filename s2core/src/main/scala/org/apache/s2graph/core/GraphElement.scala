@@ -1,7 +1,5 @@
 package org.apache.s2graph.core
 
-import org.hbase.async.{HBaseRpc}
-
 trait GraphElement {
   def serviceName: String
   def ts: Long

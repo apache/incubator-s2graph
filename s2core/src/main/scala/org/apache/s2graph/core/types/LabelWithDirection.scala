@@ -2,11 +2,7 @@ package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.GraphUtil
-import org.apache.s2graph.core.utils.logger
 
-/**
- * Created by shon on 6/6/15.
- */
 object LabelWithDirection {
 
   import HBaseType._

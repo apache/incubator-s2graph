@@ -1,11 +1,8 @@
 package org.apache.s2graph.core.storage.hbase
 
-import com.kakao.s2graph.core.mysqls.Label
-import com.kakao.s2graph.core.Vertex
-import com.kakao.s2graph.core.types._
-import org.apache.s2graph.core.{Vertex, TestCommonWithModels, IndexEdge}
-import org.apache.s2graph.core.mysqls.{LabelIndex, LabelMeta, Label}
+import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.types._
+import org.apache.s2graph.core.{IndexEdge, TestCommonWithModels, Vertex}
 import org.scalatest.{FunSuite, Matchers}
 
 

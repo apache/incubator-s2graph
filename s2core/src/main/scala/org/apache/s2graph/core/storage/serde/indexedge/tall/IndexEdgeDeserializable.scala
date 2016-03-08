@@ -1,14 +1,11 @@
 package org.apache.s2graph.core.storage.serde.indexedge.tall
 
-import org.apache.s2graph.core.{Vertex, GraphUtil, IndexEdge, QueryParam}
-import org.apache.s2graph.core.mysqls.LabelMeta
-import org.apache.s2graph.core.storage.{Deserializable, CanSKeyValue, SKeyValue, StorageDeserializable}
-import StorageDeserializable._
-import com.kakao.s2graph.core.storage.Deserializable
-import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.Vertex
 import org.apache.hadoop.hbase.util.Bytes
+import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.storage.StorageDeserializable._
+import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, SKeyValue, StorageDeserializable}
 import org.apache.s2graph.core.types._
+import org.apache.s2graph.core.{GraphUtil, IndexEdge, QueryParam, Vertex}
 
 class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends Deserializable[IndexEdge] {
    import StorageDeserializable._

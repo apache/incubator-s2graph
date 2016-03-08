@@ -2,17 +2,13 @@ package org.apache.s2graph.core.rest
 
 import java.net.URL
 
+import org.apache.s2graph.core.GraphExceptions.BadQueryException
 import org.apache.s2graph.core._
-import GraphExceptions.BadQueryException
-import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls.Service
 import org.apache.s2graph.core.mysqls.{Bucket, Experiment, Service}
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core._
 import play.api.libs.json._
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
 
 
 object RestHandler {

@@ -1,9 +1,10 @@
 package org.apache.s2graph.core
 
-import scala.util.Random
-import scala.util.hashing.MurmurHash3
 import java.util.regex.Pattern
+
 import play.api.libs.json.Json
+
+import scala.util.hashing.MurmurHash3
 
 object GraphUtil {
   private val TOKEN_DELIMITER = Pattern.compile("[\t]")

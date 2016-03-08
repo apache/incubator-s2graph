@@ -1,14 +1,13 @@
 package org.apache.s2graph.core
 
-import GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNotExistException}
-import Management.JsonModel.{Index, Prop}
-import com.kakao.s2graph.core.mysqls._
-import org.apache.s2graph.core.types._
-import HBaseType._
-import com.kakao.s2graph.core.types._
+import org.apache.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNotExistException}
+import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.types.HBaseType._
+import org.apache.s2graph.core.types._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
+
 import scala.util.Try
 
 /**

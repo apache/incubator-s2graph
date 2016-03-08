@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 import com.google.common.cache.CacheBuilder
 import com.typesafe.config.Config
 
-import scala.concurrent.{Promise, Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 
 
 class FutureCache[R](config: Config)(implicit ex: ExecutionContext) {

@@ -1,9 +1,7 @@
 package org.apache.s2graph.core.storage
 
-import com.kakao.s2graph.core.storage.StorageDeserializable
-import com.kakao.s2graph.core.types.SourceVertexId
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.types.{SourceVertexId, VertexId, LabelWithDirection}
+import org.apache.s2graph.core.types.{LabelWithDirection, SourceVertexId, VertexId}
 
 
 trait Deserializable[E] extends StorageDeserializable[E] {

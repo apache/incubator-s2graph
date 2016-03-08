@@ -2,7 +2,6 @@ package org.apache.s2graph.core.mysqls
 
 import java.util.concurrent.Executors
 
-import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.Config
 import org.apache.s2graph.core.utils.{SafeUpdateCache, logger}
 import scalikejdbc._

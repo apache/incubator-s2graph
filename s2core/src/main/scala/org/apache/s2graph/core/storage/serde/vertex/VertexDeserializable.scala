@@ -1,12 +1,10 @@
 package org.apache.s2graph.core.storage.serde.vertex
 
-import com.kakao.s2graph.core.storage.Deserializable
-import com.kakao.s2graph.core.types.InnerValLike
-import com.kakao.s2graph.core.Vertex
 import org.apache.hadoop.hbase.util.Bytes
+import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike, VertexId}
 import org.apache.s2graph.core.{QueryParam, Vertex}
-import org.apache.s2graph.core.storage.{Deserializable, CanSKeyValue}
-import org.apache.s2graph.core.types.{InnerValLike, InnerVal, VertexId}
+
 import scala.collection.mutable.ListBuffer
 
 class VertexDeserializable extends Deserializable[Vertex] {

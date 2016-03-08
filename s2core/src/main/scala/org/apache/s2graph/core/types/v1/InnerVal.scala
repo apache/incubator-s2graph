@@ -1,14 +1,10 @@
 package org.apache.s2graph.core.types.v1
 
-import org.apache.s2graph.core.GraphExceptions
-import GraphExceptions.IllegalDataTypeException
-import com.kakao.s2graph.core.types._
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.types.{InnerValLike, HBaseSerializable, HBaseType, HBaseDeserializableWithIsVertexId}
+import org.apache.s2graph.core.GraphExceptions
+import org.apache.s2graph.core.GraphExceptions.IllegalDataTypeException
+import org.apache.s2graph.core.types.{HBaseDeserializableWithIsVertexId, HBaseSerializable, HBaseType, InnerValLike}
 
-/**
- * Created by shon on 6/6/15.
- */
 object InnerVal extends HBaseDeserializableWithIsVertexId {
   import HBaseType._
   //  val defaultVal = new InnerVal(None, None, None)

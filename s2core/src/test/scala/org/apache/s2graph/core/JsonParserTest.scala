@@ -1,13 +1,12 @@
 package org.apache.s2graph.core
 
-import com.kakao.s2graph.core.types.InnerValLike
-import org.apache.s2graph.core.types.{InnerValLike, InnerVal}
-import org.scalatest.{Matchers, FunSuite}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
+import org.scalatest.{FunSuite, Matchers}
 
 class JsonParserTest extends FunSuite with Matchers with TestCommon with JSONParser {
 
-  import types.HBaseType._
   import InnerVal._
+  import types.HBaseType._
 
   val innerValsPerVersion = for {
     version <- List(VERSION2, VERSION1)

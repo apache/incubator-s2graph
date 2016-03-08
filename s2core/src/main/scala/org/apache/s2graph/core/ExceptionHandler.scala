@@ -10,9 +10,6 @@ import org.apache.kafka.clients.producer._
 
 import scala.concurrent.duration._
 
-/**
- * Created by shon on 7/16/15.
- */
 object ExceptionHandler {
 
   var producer: Option[Producer[Key, Val]] = None

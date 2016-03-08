@@ -1,7 +1,6 @@
 package org.apache.s2graph.core
 
-import com.kakao.s2graph.core.types.InnerValLike
-import org.apache.s2graph.core.types.{InnerValLike, InnerVal}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json._
 

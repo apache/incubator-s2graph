@@ -1,15 +1,8 @@
 package org.apache.s2graph.core
 
-import com.kakao.s2graph.core.mysqls._
-import org.apache.s2graph.core.mysqls.{LabelMeta, LabelIndex}
-import org.apache.s2graph.core.types.{InnerValLikeWithTs, LabelWithDirection, InnerVal, HBaseType}
-
-//import com.kakao.s2graph.core.models._
-
-
-import com.kakao.s2graph.core.types._
 import org.apache.hadoop.hbase.util.Bytes
-import org.hbase.async.{PutRequest, KeyValue}
+import org.apache.s2graph.core.mysqls.{LabelIndex, LabelMeta}
+import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLikeWithTs, LabelWithDirection}
 
 
 trait TestCommon {
@@ -32,7 +25,7 @@ trait TestCommon {
   def lessThanEqual(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) <= 0
 
   /** */
-  import HBaseType.{VERSION2, VERSION1}
+  import HBaseType.{VERSION1, VERSION2}
   private val tsValSmall = InnerVal.withLong(ts, VERSION1)
   private val tsValLarge = InnerVal.withLong(ts + 1, VERSION1)
   private val boolValSmall = InnerVal.withBoolean(false, VERSION1)

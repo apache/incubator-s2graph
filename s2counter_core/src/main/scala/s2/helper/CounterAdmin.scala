@@ -1,7 +1,7 @@
 package s2.helper
 
 import com.typesafe.config.Config
-import org.apache.s2graph.core.{Management, Graph}
+import org.apache.s2graph.core.Graph
 import org.apache.s2graph.core.mysqls.Label
 import play.api.libs.json.Json
 import s2.config.S2CounterConfig
@@ -9,18 +9,14 @@ import s2.counter.core.v1.{ExactStorageAsyncHBase, RankingStorageRedis}
 import s2.counter.core.v2.{ExactStorageGraph, GraphOperation, RankingStorageGraph}
 import s2.counter.core.{ExactCounter, RankingCounter}
 import s2.models.{Counter, CounterModel}
-
 import scala.util.Try
 
-/**
-  * Created by hsleep(honeysleep@gmail.com) on 2015. 11. 11..
-  */
 class CounterAdmin(config: Config) {
   val s2config = new S2CounterConfig(config)
   val counterModel = new CounterModel(config)
   val graphOp = new GraphOperation(config)
   val s2graph = new Graph(config)(scala.concurrent.ExecutionContext.global)
-  val storageManagement = new Management(s2graph)
+  val storageManagement = new org.apache.s2graph.core.Management(s2graph)
 
   def setupCounterOnGraph(): Unit = {
     // create s2counter service

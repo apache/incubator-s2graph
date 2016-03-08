@@ -1,11 +1,9 @@
 package org.apache.s2graph.core.mysqls
 
-import org.apache.s2graph.core.{GraphUtil, Management, GraphExceptions, JSONParser}
-import GraphExceptions.ModelNotFoundException
-import Management.JsonModel.{Index, Prop}
-import com.kakao.s2graph.core.Management
-import org.apache.s2graph.core.Management.JsonModel.{Prop, Index}
+import org.apache.s2graph.core.GraphExceptions.ModelNotFoundException
+import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.{GraphExceptions, GraphUtil, JSONParser}
 import play.api.libs.json.Json
 import scalikejdbc._
 

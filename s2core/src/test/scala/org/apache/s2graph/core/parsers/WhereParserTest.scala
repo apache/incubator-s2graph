@@ -1,13 +1,9 @@
 package org.apache.s2graph.core.parsers
 
-import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls.Experiment
-import com.kakao.s2graph.core.types._
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.rest.TemplateHelper
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.utils.logger
 import org.scalatest.{FunSuite, Matchers}
 import play.api.libs.json.Json
 

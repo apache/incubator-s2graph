@@ -1,12 +1,10 @@
 package org.apache.s2graph.core.storage.hbase
 
-import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.storage._
-import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.utils.Extensions
+import java.util
+import java.util.Base64
+
 import com.stumbleupon.async.Deferred
-import com.typesafe.config.{ConfigFactory, Config}
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
@@ -15,20 +13,18 @@ import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
 import org.apache.hadoop.security.UserGroupInformation
+import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.storage._
-import org.apache.s2graph.core.types.{VertexId, HBaseType}
-import org.apache.s2graph.core._
-import org.apache.s2graph.core.utils.{FutureCache, DeferCache, logger, Extensions}
+import org.apache.s2graph.core.types.{HBaseType, VertexId}
+import org.apache.s2graph.core.utils.{DeferCache, Extensions, FutureCache, logger}
 import org.hbase.async._
-import scala.Serializable
+
 import scala.collection.JavaConversions._
 import scala.collection.{Map, Seq}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, duration}
 import scala.util.hashing.MurmurHash3
-import java.util
-import java.util.Base64
 
 
 object AsynchbaseStorage {

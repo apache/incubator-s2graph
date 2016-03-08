@@ -1,11 +1,9 @@
 package org.apache.s2graph.core
 
-import com.kakao.s2graph.core.types.InnerValLikeWithTs
 import org.apache.s2graph.core.mysqls.LabelMeta
-import org.apache.s2graph.core.types.{InnerValLikeWithTs, VertexId, InnerVal}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs, VertexId}
 import org.apache.s2graph.core.utils.logger
 import org.scalatest.FunSuite
-import org.scalatest.matchers.Matcher
 
 class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
   initTests()

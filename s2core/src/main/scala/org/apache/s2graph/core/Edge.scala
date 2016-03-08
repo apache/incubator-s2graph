@@ -1,8 +1,6 @@
 package org.apache.s2graph.core
 
-import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.types._
-import org.apache.s2graph.core.mysqls.{LabelIndex, LabelMeta, Label}
+import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.{JsNumber, Json}

@@ -1,13 +1,10 @@
 package org.apache.s2graph.core
 
 import com.google.common.hash.Hashing
-import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.parsers.WhereParser
-import com.kakao.s2graph.core.types._
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.mysqls.{LabelIndex, LabelMeta, Label}
-import org.apache.s2graph.core.parsers.{WhereParser, Where}
-import org.apache.s2graph.core.types.{LabelWithDirection, HBaseSerializable, InnerVal, InnerValLike}
+import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
+import org.apache.s2graph.core.parsers.{Where, WhereParser}
+import org.apache.s2graph.core.types.{HBaseSerializable, InnerVal, InnerValLike, LabelWithDirection}
 import org.hbase.async.ColumnRangeFilter
 import play.api.libs.json.{JsNull, JsNumber, JsValue, Json}
 

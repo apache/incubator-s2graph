@@ -2,6 +2,7 @@ package org.apache.s2graph.core.utils
 
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.Config
+
 import scala.concurrent.{ExecutionContext, Future, Promise}
 
 object Extensions {

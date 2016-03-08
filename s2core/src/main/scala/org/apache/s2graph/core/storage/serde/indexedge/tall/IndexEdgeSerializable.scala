@@ -1,14 +1,10 @@
 package org.apache.s2graph.core.storage.serde.indexedge.tall
 
-import com.kakao.s2graph.core.storage.StorageSerializable
-import com.kakao.s2graph.core.GraphUtil
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.{GraphUtil, IndexEdge}
 import org.apache.s2graph.core.mysqls.LabelMeta
-import org.apache.s2graph.core.storage.{StorageSerializable, Serializable, SKeyValue}
+import org.apache.s2graph.core.storage.{SKeyValue, Serializable, StorageSerializable}
 import org.apache.s2graph.core.types.VertexId
-
-import scala.Serializable
+import org.apache.s2graph.core.{GraphUtil, IndexEdge}
 
 
 class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge] {

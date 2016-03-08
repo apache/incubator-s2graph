@@ -1,12 +1,8 @@
 package org.apache.s2graph.core.storage.serde.vertex
 
-import com.kakao.s2graph.core.storage.Serializable
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.Vertex
-import org.apache.s2graph.core.storage.{Serializable, SKeyValue}
-
-import scala.Serializable
-
+import org.apache.s2graph.core.storage.{SKeyValue, Serializable}
 
 case class VertexSerializable(vertex: Vertex) extends Serializable[Vertex] {
 

@@ -1,12 +1,10 @@
 package org.apache.s2graph.core.Integrate
 
-import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.rest.RequestParser
 import com.typesafe.config._
 import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.rest.{RequestParser, RestHandler}
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{GraphUtil, PostProcess, Management, Graph}
-import org.apache.s2graph.core.rest.{RestHandler, RequestParser}
+import org.apache.s2graph.core.{Graph, GraphUtil, Management, PostProcess}
 import org.scalatest._
 import play.api.libs.json.{JsValue, Json}
 

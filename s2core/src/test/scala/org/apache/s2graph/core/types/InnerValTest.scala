@@ -1,15 +1,13 @@
 package org.apache.s2graph.core.types
 
-import com.kakao.s2graph.core.types._
-import org.apache.hadoop.hbase.util.{Bytes, OrderedBytes, SimplePositionedByteRange}
+import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.TestCommonWithModels
-import org.scalatest.{Matchers, FunSuite}
-import play.api.libs.json.Json
+import org.scalatest.{FunSuite, Matchers}
 
 class InnerValTest extends FunSuite with Matchers with TestCommonWithModels {
   initTests()
 
-  import HBaseType.{VERSION2, VERSION1}
+  import HBaseType.VERSION2
   val decimals = List(
     BigDecimal(Long.MinValue),
     BigDecimal(Int.MinValue),

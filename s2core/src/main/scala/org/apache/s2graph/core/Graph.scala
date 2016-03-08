@@ -3,16 +3,11 @@ package org.apache.s2graph.core
 import java.util
 import java.util.concurrent.ConcurrentHashMap
 
-import com.google.common.cache.CacheBuilder
-import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.storage.hbase._
-import com.kakao.s2graph.core.types._
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.mysqls.{Label, Model}
 import org.apache.s2graph.core.parsers.WhereParser
-import org.apache.s2graph.core.storage.Storage
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
-import org.apache.s2graph.core.types.{LabelWithDirection, InnerVal}
+import org.apache.s2graph.core.types.{InnerVal, LabelWithDirection}
 import org.apache.s2graph.core.utils.logger
 
 import scala.collection.JavaConversions._

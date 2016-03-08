@@ -1,9 +1,8 @@
 package org.apache.s2graph.core.storage
 
-import com.kakao.s2graph.core.types.HBaseType
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.QueryParam
-import org.apache.s2graph.core.types.{HBaseType, InnerValLikeWithTs, InnerVal, InnerValLike}
+import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, InnerValLikeWithTs}
 import org.apache.s2graph.core.utils.logger
 
 object StorageDeserializable {

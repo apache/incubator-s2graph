@@ -1,8 +1,7 @@
 package org.apache.s2graph.core
 
-import com.kakao.s2graph.core.types.InnerValLikeWithTs
 import org.apache.s2graph.core.mysqls.LabelMeta
-import org.apache.s2graph.core.types.{InnerValLikeWithTs, InnerVal}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
 
 import scala.collection.Seq
 

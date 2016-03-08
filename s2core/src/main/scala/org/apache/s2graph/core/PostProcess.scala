@@ -1,15 +1,11 @@
 package org.apache.s2graph.core
 
-import GraphExceptions.BadQueryException
-
-import com.kakao.s2graph.core.mysqls.ServiceColumn
-import com.kakao.s2graph.core.types.InnerValLike
 import org.apache.s2graph.core.GraphExceptions.BadQueryException
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ColumnMeta, ServiceColumn}
-import org.apache.s2graph.core.types.{InnerValLike, InnerVal}
-import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.mysqls.{ColumnMeta, Label, LabelMeta, ServiceColumn}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
 import play.api.libs.json.{Json, _}
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+
+import scala.collection.mutable.ListBuffer
 
 object PostProcess extends JSONParser {
 

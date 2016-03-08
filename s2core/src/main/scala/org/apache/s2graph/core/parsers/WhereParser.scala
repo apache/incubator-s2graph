@@ -1,11 +1,9 @@
 package org.apache.s2graph.core.parsers
 
-import org.apache.s2graph.core.{JSONParser, Edge, GraphExceptions}
-import GraphExceptions.WhereParserException
-import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls._
+import org.apache.s2graph.core.GraphExceptions.WhereParserException
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.types.InnerValLike
+import org.apache.s2graph.core.{Edge, GraphExceptions, JSONParser}
 
 import scala.annotation.tailrec
 import scala.util.Try

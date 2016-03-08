@@ -1,13 +1,11 @@
 package org.apache.s2graph.core.storage.serde.snapshotedge.wide
 
-import com.kakao.s2graph.core.storage.StorageSerializable
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.SnapshotEdge
 import org.apache.s2graph.core.mysqls.LabelIndex
-import org.apache.s2graph.core.storage.{Serializable, SKeyValue, StorageSerializable}
+import org.apache.s2graph.core.storage.{SKeyValue, Serializable, StorageSerializable}
 import org.apache.s2graph.core.types.VertexId
 
-import scala.Serializable
 
 
 /**

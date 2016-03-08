@@ -2,18 +2,15 @@ package org.apache.s2graph.core.rest
 
 import java.util.concurrent.{Callable, TimeUnit}
 
-import com.google.common.cache.{CacheLoader, CacheBuilder}
-import org.apache.s2graph.core._
-import GraphExceptions.{BadQueryException, ModelNotFoundException}
-import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.parsers.WhereParser
-import com.kakao.s2graph.core.types._
+import com.google.common.cache.CacheBuilder
 import com.typesafe.config.Config
+import org.apache.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
+import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls._
-import org.apache.s2graph.core.parsers.{WhereParser, Where}
+import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.types._
 import play.api.libs.json._
+
 import scala.util.{Failure, Success, Try}
 
 object TemplateHelper {

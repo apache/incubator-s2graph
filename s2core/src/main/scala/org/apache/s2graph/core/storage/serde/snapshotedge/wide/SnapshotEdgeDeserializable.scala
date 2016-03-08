@@ -1,14 +1,11 @@
 package org.apache.s2graph.core.storage.serde.snapshotedge.wide
 
-import com.kakao.s2graph.core.mysqls.LabelIndex
-import org.apache.s2graph.core.{Vertex, Edge, SnapshotEdge, QueryParam}
-import org.apache.s2graph.core.mysqls.{LabelIndex, LabelMeta}
-import org.apache.s2graph.core.storage.{Deserializable, CanSKeyValue, StorageDeserializable}
-import StorageDeserializable._
-import com.kakao.s2graph.core.storage.Deserializable
-import com.kakao.s2graph.core.Vertex
 import org.apache.hadoop.hbase.util.Bytes
+import org.apache.s2graph.core.mysqls.{LabelIndex, LabelMeta}
+import org.apache.s2graph.core.storage.StorageDeserializable._
+import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, StorageDeserializable}
 import org.apache.s2graph.core.types.TargetVertexId
+import org.apache.s2graph.core.{Edge, QueryParam, SnapshotEdge, Vertex}
 
 class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
 

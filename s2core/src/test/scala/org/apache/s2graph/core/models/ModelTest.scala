@@ -1,15 +1,8 @@
 package org.apache.s2graph.core.models
 
-import java.util.concurrent.ExecutorService
-
-import com.kakao.s2graph.core.mysqls.Model
-import com.kakao.s2graph.core.TestCommonWithModels
-import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.TestCommonWithModels
 import org.apache.s2graph.core.mysqls.Label
-import org.scalatest.{BeforeAndAfterAll, Sequential, FunSuite, Matchers}
-
-import scala.concurrent.ExecutionContext
+import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 class ModelTest extends FunSuite with Matchers with TestCommonWithModels with BeforeAndAfterAll {
   override def beforeAll(): Unit = {

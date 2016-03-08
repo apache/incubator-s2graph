@@ -1,8 +1,7 @@
 package org.apache.s2graph.core.storage
 
-import com.kakao.s2graph.core.types.InnerValLikeWithTs
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.types.{InnerValLikeWithTs, InnerValLike}
+import org.apache.s2graph.core.types.{InnerValLike, InnerValLikeWithTs}
 
 object StorageSerializable {
   /** serializer */

@@ -4,9 +4,8 @@ package org.apache.s2graph.core.mysqls
  * Created by shon on 6/3/15.
  */
 
+import org.apache.s2graph.core.GraphExceptions.MaxPropSizeReachedException
 import org.apache.s2graph.core.{GraphExceptions, JSONParser}
-import GraphExceptions.MaxPropSizeReachedException
-import org.apache.s2graph.core.JSONParser
 import play.api.libs.json.Json
 import scalikejdbc._
 

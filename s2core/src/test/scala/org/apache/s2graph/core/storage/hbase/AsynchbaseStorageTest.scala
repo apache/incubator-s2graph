@@ -1,9 +1,6 @@
 package org.apache.s2graph.core.storage.hbase
 
-import com.typesafe.config.ConfigFactory
-import org.hbase.async.{GetRequest, PutRequest}
-import org.scalatest.{Matchers, FunSuite}
-import scala.collection.JavaConversions._
+import org.scalatest.{FunSuite, Matchers}
 
 class AsynchbaseStorageTest extends FunSuite with Matchers {
 

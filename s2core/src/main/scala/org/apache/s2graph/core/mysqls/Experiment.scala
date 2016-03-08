@@ -1,7 +1,6 @@
 package org.apache.s2graph.core.mysqls
 
 import org.apache.s2graph.core.GraphUtil
-import org.apache.s2graph.core.utils.logger
 import scalikejdbc._
 
 import scala.util.Random

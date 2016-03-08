@@ -1,15 +1,10 @@
 package org.apache.s2graph.core
 
-import Management.JsonModel.{Index, Prop}
-import com.kakao.s2graph.core.mysqls._
-import org.apache.s2graph.core.mysqls.{LabelIndex, Label, ServiceColumn, Service}
-import org.apache.s2graph.core.types.{LabelWithDirection, InnerVal}
-import scalikejdbc.AutoSession
-
-//import com.kakao.s2graph.core.models._
-
-import com.kakao.s2graph.core.types.InnerVal
 import com.typesafe.config.{Config, ConfigFactory}
+import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
+import org.apache.s2graph.core.mysqls.{Label, LabelIndex, Service, ServiceColumn}
+import org.apache.s2graph.core.types.{InnerVal, LabelWithDirection}
+import scalikejdbc.AutoSession
 
 import scala.concurrent.ExecutionContext
 

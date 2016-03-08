@@ -1,6 +1,7 @@
 package org.apache.s2graph.core.mysqls
 
 import java.util.UUID
+
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.Json
 import scalikejdbc._

@@ -1,25 +1,18 @@
 package org.apache.s2graph.core.storage
 
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
-import org.apache.s2graph.core.storage.serde
-import org.apache.s2graph.core.storage.serde.indexedge.wide.{IndexEdgeDeserializable, IndexEdgeSerializable}
-import org.apache.s2graph.core.storage.serde.vertex.{VertexDeserializable, VertexSerializable}
-import org.apache.s2graph.core.types._
-import org.apache.s2graph.core._
-import ExceptionHandler.{Key, Val, KafkaMessage}
-import GraphExceptions.FetchTimeoutException
-import com.kakao.s2graph.core._
-import com.kakao.s2graph.core.mysqls._
-import com.kakao.s2graph.core.storage.serde._
-import com.kakao.s2graph.core.storage.serde.snapshotedge.tall
-import com.kakao.s2graph.core.storage.serde.vertex._
-import com.kakao.s2graph.core.types._
-import com.kakao.s2graph.core.utils.Extensions
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.s2graph.core.ExceptionHandler.{KafkaMessage, Key, Val}
+import org.apache.s2graph.core.GraphExceptions.FetchTimeoutException
+import org.apache.s2graph.core._
+import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.storage.serde.indexedge.wide.{IndexEdgeDeserializable, IndexEdgeSerializable}
 import org.apache.s2graph.core.storage.serde.snapshotedge.wide.SnapshotEdgeDeserializable
+import org.apache.s2graph.core.storage.serde.vertex.{VertexDeserializable, VertexSerializable}
+import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.{Extensions, logger}
+
 import scala.annotation.tailrec
 import scala.collection.Seq
 import scala.collection.mutable.ArrayBuffer

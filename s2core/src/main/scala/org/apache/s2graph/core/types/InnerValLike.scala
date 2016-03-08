@@ -2,9 +2,6 @@ package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util._
 
-/**
- * Created by shon on 6/6/15.
- */
 object InnerVal extends HBaseDeserializableWithIsVertexId {
   import HBaseType._
 
