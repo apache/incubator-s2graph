@@ -8,12 +8,8 @@ import kafka.serializer.Decoder
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.{Logging, SparkException}
-
 import scala.reflect.ClassTag
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 15. 4. 22..
- */
 case class StreamHelper(kafkaParams: Map[String, String]) extends Logging {
   // helper for kafka zookeeper
   lazy val kafkaHelper = KafkaHelper(kafkaParams)
