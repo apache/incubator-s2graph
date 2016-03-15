@@ -69,6 +69,8 @@ Release 0.12.1 - unreleased
     S2GRAPH-5: Add Apache RAT to valid LICENSE errors. (Committed by DOYUNG YOON).
 
     S2GRAPH-17: Remove unnecessary abstraction layer, Storage. (Committed by DOYUNG YOON).
+    
+    S2GRAPH-57: Change package names into org.apahce.s2graph. (Committed by DOYUNG YOON).
 
   SUB TASKS
 

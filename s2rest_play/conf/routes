@@ -4,87 +4,100 @@
 
 
 # publish
-#POST   /publish/:topic                                                        controllers.PublishController.publish(topic)
-POST        /publish/:topic                                               controllers.PublishController.mutateBulk(topic)
-POST        /publishOnly/:topic                                           controllers.PublishController.publishOnly(topic)
+POST        /publish/:topic                                               org.apache.s2graph.rest.play.controllers.PublishController.mutateBulk(topic)
+POST        /publishOnly/:topic                                           org.apache.s2graph.rest.play.controllers.PublishController.publishOnly(topic)
 
 #### Health Check
-#GET    /health_check.html                                                     controllers.Assets.at(path="/public", file="health_check.html")
-GET         /health_check.html                                            controllers.ApplicationController.healthCheck()
-PUT         /health_check/:isHealthy                                      controllers.ApplicationController.updateHealthCheck(isHealthy: Boolean)
+GET         /health_check.html                                            org.apache.s2graph.rest.play.controllers.ApplicationController.healthCheck()
+PUT         /health_check/:isHealthy                                      org.apache.s2graph.rest.play.controllers.ApplicationController.updateHealthCheck(isHealthy: Boolean)
 
 ## Edge
-POST        /graphs/edges/insert                                          controllers.EdgeController.inserts()
-POST        /graphs/edges/insertWithWait                                  controllers.EdgeController.insertsWithWait()
-POST        /graphs/edges/insertBulk                                      controllers.EdgeController.insertsBulk()
-POST        /graphs/edges/delete                                          controllers.EdgeController.deletes()
-POST        /graphs/edges/deleteWithWait                                  controllers.EdgeController.deletesWithWait()
-POST        /graphs/edges/deleteAll                                       controllers.EdgeController.deleteAll()
-POST        /graphs/edges/update                                          controllers.EdgeController.updates()
-POST        /graphs/edges/updateWithWait                                  controllers.EdgeController.updatesWithWait()
-POST        /graphs/edges/increment                                       controllers.EdgeController.increments()
-POST        /graphs/edges/incrementWithWait                               controllers.EdgeController.incrementsWithWait()
-POST        /graphs/edges/incrementCount                                  controllers.EdgeController.incrementCounts()
-POST        /graphs/edges/bulk                                            controllers.EdgeController.mutateBulk()
-POST        /graphs/edges/bulkWithWait                                    controllers.EdgeController.mutateBulkWithWait()
+POST        /graphs/edges/insert                                          org.apache.s2graph.rest.play.controllers.EdgeController.inserts()
+POST        /graphs/edges/insertWithWait                                  org.apache.s2graph.rest.play.controllers.EdgeController.insertsWithWait()
+POST        /graphs/edges/insertBulk                                      org.apache.s2graph.rest.play.controllers.EdgeController.insertsBulk()
+POST        /graphs/edges/delete                                          org.apache.s2graph.rest.play.controllers.EdgeController.deletes()
+POST        /graphs/edges/deleteWithWait                                  org.apache.s2graph.rest.play.controllers.EdgeController.deletesWithWait()
+POST        /graphs/edges/deleteAll                                       org.apache.s2graph.rest.play.controllers.EdgeController.deleteAll()
+POST        /graphs/edges/update                                          org.apache.s2graph.rest.play.controllers.EdgeController.updates()
+POST        /graphs/edges/updateWithWait                                  org.apache.s2graph.rest.play.controllers.EdgeController.updatesWithWait()
+POST        /graphs/edges/increment                                       org.apache.s2graph.rest.play.controllers.EdgeController.increments()
+POST        /graphs/edges/incrementWithWait                               org.apache.s2graph.rest.play.controllers.EdgeController.incrementsWithWait()
+POST        /graphs/edges/incrementCount                                  org.apache.s2graph.rest.play.controllers.EdgeController.incrementCounts()
+POST        /graphs/edges/bulk                                            org.apache.s2graph.rest.play.controllers.EdgeController.mutateBulk()
+POST        /graphs/edges/bulkWithWait                                    org.apache.s2graph.rest.play.controllers.EdgeController.mutateBulkWithWait()
 
 ## Vertex
-POST        /graphs/vertices/insert                                       controllers.VertexController.inserts()
-POST        /graphs/vertices/insertWithWait                               controllers.VertexController.insertsWithWait()
-POST        /graphs/vertices/insert/:serviceName/:columnName              controllers.VertexController.insertsSimple(serviceName, columnName)
-POST        /graphs/vertices/delete                                       controllers.VertexController.deletes()
-POST        /graphs/vertices/deleteWithWait                               controllers.VertexController.deletesWithWait()
-POST        /graphs/vertices/delete/:serviceName/:columnName              controllers.VertexController.deletesSimple(serviceName, columnName)
-POST        /graphs/vertices/deleteAll                                    controllers.VertexController.deletesAll()
-POST        /graphs/vertices/deleteAll/:serviceName/:columnName           controllers.VertexController.deletesAllSimple(serviceName, columnName)
+POST        /graphs/vertices/insert                                       org.apache.s2graph.rest.play.controllers.VertexController.inserts()
+POST        /graphs/vertices/insertWithWait                               org.apache.s2graph.rest.play.controllers.VertexController.insertsWithWait()
+POST        /graphs/vertices/insert/:serviceName/:columnName              org.apache.s2graph.rest.play.controllers.VertexController.insertsSimple(serviceName, columnName)
+POST        /graphs/vertices/delete                                       org.apache.s2graph.rest.play.controllers.VertexController.deletes()
+POST        /graphs/vertices/deleteWithWait                               org.apache.s2graph.rest.play.controllers.VertexController.deletesWithWait()
+POST        /graphs/vertices/delete/:serviceName/:columnName              org.apache.s2graph.rest.play.controllers.VertexController.deletesSimple(serviceName, columnName)
+POST        /graphs/vertices/deleteAll                                    org.apache.s2graph.rest.play.controllers.VertexController.deletesAll()
+POST        /graphs/vertices/deleteAll/:serviceName/:columnName           org.apache.s2graph.rest.play.controllers.VertexController.deletesAllSimple(serviceName, columnName)
 
 
 ### SELECT Edges
-POST        /graphs/getEdges                                              controllers.QueryController.getEdges()
-POST        /graphs/getEdges/grouped                                      controllers.QueryController.getEdgesWithGrouping()
-POST        /graphs/getEdgesExcluded                                      controllers.QueryController.getEdgesExcluded()
-POST        /graphs/getEdgesExcluded/grouped                              controllers.QueryController.getEdgesExcludedWithGrouping()
-POST        /graphs/checkEdges                                            controllers.QueryController.checkEdges()
+POST        /graphs/getEdges                                              org.apache.s2graph.rest.play.controllers.QueryController.getEdges()
+POST        /graphs/getEdges/grouped                                      org.apache.s2graph.rest.play.controllers.QueryController.getEdgesWithGrouping()
+POST        /graphs/getEdgesExcluded                                      org.apache.s2graph.rest.play.controllers.QueryController.getEdgesExcluded()
+POST        /graphs/getEdgesExcluded/grouped                              org.apache.s2graph.rest.play.controllers.QueryController.getEdgesExcludedWithGrouping()
+POST        /graphs/checkEdges                                            org.apache.s2graph.rest.play.controllers.QueryController.checkEdges()
 
 ### this will be deprecated
-POST        /graphs/getEdgesGrouped                                       controllers.QueryController.getEdgesGrouped()
-POST        /graphs/getEdgesGroupedExcluded                               controllers.QueryController.getEdgesGroupedExcluded()
-POST        /graphs/getEdgesGroupedExcludedFormatted                      controllers.QueryController.getEdgesGroupedExcludedFormatted()
-GET         /graphs/getEdge/:srcId/:tgtId/:labelName/:direction           controllers.QueryController.getEdge(srcId, tgtId, labelName, direction)
+POST        /graphs/getEdgesGrouped                                       org.apache.s2graph.rest.play.controllers.QueryController.getEdgesGrouped()
+POST        /graphs/getEdgesGroupedExcluded                               org.apache.s2graph.rest.play.controllers.QueryController.getEdgesGroupedExcluded()
+POST        /graphs/getEdgesGroupedExcludedFormatted                      org.apache.s2graph.rest.play.controllers.QueryController.getEdgesGroupedExcludedFormatted()
+GET         /graphs/getEdge/:srcId/:tgtId/:labelName/:direction           org.apache.s2graph.rest.play.controllers.QueryController.getEdge(srcId, tgtId, labelName, direction)
 
 
 ### SELECT Vertices
-#POST   /graphs/getVertex                                                      controllers.QueryController.getVertex()
-POST        /graphs/getVertices                                           controllers.QueryController.getVertices()
+POST        /graphs/getVertices                                           org.apache.s2graph.rest.play.controllers.QueryController.getVertices()
 
 
 #### ADMIN
-POST        /graphs/createService                                         controllers.AdminController.createService()
-GET         /graphs/getService/:serviceName                               controllers.AdminController.getService(serviceName)
-GET         /graphs/getLabels/:serviceName                                controllers.AdminController.getLabels(serviceName)
-POST        /graphs/createLabel                                           controllers.AdminController.createLabel()
-POST        /graphs/addIndex                                              controllers.AdminController.addIndex()
-GET         /graphs/getLabel/:labelName                                   controllers.AdminController.getLabel(labelName)
-PUT         /graphs/deleteLabel/:labelName                                controllers.AdminController.deleteLabel(labelName)
+POST        /graphs/createService                                         org.apache.s2graph.rest.play.controllers.AdminController.createService()
+GET         /graphs/getService/:serviceName                               org.apache.s2graph.rest.play.controllers.AdminController.getService(serviceName)
+GET         /graphs/getLabels/:serviceName                                org.apache.s2graph.rest.play.controllers.AdminController.getLabels(serviceName)
+POST        /graphs/createLabel                                           org.apache.s2graph.rest.play.controllers.AdminController.createLabel()
+POST        /graphs/addIndex                                              org.apache.s2graph.rest.play.controllers.AdminController.addIndex()
+GET         /graphs/getLabel/:labelName                                   org.apache.s2graph.rest.play.controllers.AdminController.getLabel(labelName)
+PUT         /graphs/deleteLabel/:labelName                                org.apache.s2graph.rest.play.controllers.AdminController.deleteLabel(labelName)
 
-POST        /graphs/addProp/:labelName                                    controllers.AdminController.addProp(labelName)
-POST        /graphs/createServiceColumn                                   controllers.AdminController.createServiceColumn()
-PUT         /graphs/deleteServiceColumn/:serviceName/:columnName          controllers.AdminController.deleteServiceColumn(serviceName, columnName)
-POST        /graphs/addServiceColumnProp/:serviceName/:columnName         controllers.AdminController.addServiceColumnProp(serviceName, columnName)
-POST        /graphs/addServiceColumnProps/:serviceName/:columnName        controllers.AdminController.addServiceColumnProps(serviceName, columnName)
-GET         /graphs/getServiceColumn/:serviceName/:columnName             controllers.AdminController.getServiceColumn(serviceName, columnName)
-POST        /graphs/createHTable                                          controllers.AdminController.createHTable()
-
-
+POST        /graphs/addProp/:labelName                                    org.apache.s2graph.rest.play.controllers.AdminController.addProp(labelName)
+POST        /graphs/createServiceColumn                                   org.apache.s2graph.rest.play.controllers.AdminController.createServiceColumn()
+PUT         /graphs/deleteServiceColumn/:serviceName/:columnName          org.apache.s2graph.rest.play.controllers.AdminController.deleteServiceColumn(serviceName, columnName)
+POST        /graphs/addServiceColumnProp/:serviceName/:columnName         org.apache.s2graph.rest.play.controllers.AdminController.addServiceColumnProp(serviceName, columnName)
+POST        /graphs/addServiceColumnProps/:serviceName/:columnName        org.apache.s2graph.rest.play.controllers.AdminController.addServiceColumnProps(serviceName, columnName)
+GET         /graphs/getServiceColumn/:serviceName/:columnName             org.apache.s2graph.rest.play.controllers.AdminController.getServiceColumn(serviceName, columnName)
+POST        /graphs/createHTable                                          org.apache.s2graph.rest.play.controllers.AdminController.createHTable()
 
 
-#### TEST
-#GET    /graphs/testGetEdges/:label/:limit/:friendCntStep                       controllers.QueryController.testGetEdges(label, limit: Int, friendCntStep: Int)
-#GET    /graphs/testGetEdges2/:label1/:limit1/:label2/:limit2                   controllers.QueryController.testGetEdges2(label1, limit1: Int, label2, limit2: Int)
-#GET    /graphs/testGetEdges3/:label1/:limit1/:label2/:limit2/:label3/:limit3   controllers.QueryController.testGetEdges3(label1, limit1: Int, label2, limit2: Int, label3, limit3: Int)
-POST        /ping                                                         controllers.TestController.ping()
-POST        /pingAsync                                                    controllers.TestController.pingAsync()
-GET         /graphs/testId                                                controllers.TestController.getRandomId()
+# AdminController API
+GET         /admin/labels/:serviceName                                    org.apache.s2graph.rest.play.controllers.AdminController.getLabels(serviceName)
+POST        /graphs/copyLabel/:oldLabelName/:newLabelName                 org.apache.s2graph.rest.play.controllers.AdminController.copyLabel(oldLabelName, newLabelName)
+POST        /graphs/renameLabel/:oldLabelName/:newLabelName               org.apache.s2graph.rest.play.controllers.AdminController.renameLabel(oldLabelName, newLabelName)
+POST        /graphs/updateHTable/:labelName/:newHTableName                org.apache.s2graph.rest.play.controllers.AdminController.updateHTable(labelName, newHTableName)
+PUT         /graphs/loadCache                                             org.apache.s2graph.rest.play.controllers.AdminController.loadCache()
+
+
+# Counter Admin API
+POST    /counter/v1/:service/:action                                    org.apache.s2graph.rest.play.controllers.CounterController.createAction(service, action)
+GET     /counter/v1/:service/:action                                    org.apache.s2graph.rest.play.controllers.CounterController.getAction(service, action)
+PUT     /counter/v1/:service/:action                                    org.apache.s2graph.rest.play.controllers.CounterController.updateAction(service, action)
+PUT     /counter/v1/:service/:action/prepare                            org.apache.s2graph.rest.play.controllers.CounterController.prepareAction(service, action)
+DELETE  /counter/v1/:service/:action                                    org.apache.s2graph.rest.play.controllers.CounterController.deleteAction(service, action)
+
+# Counter API
+GET     /counter/v1/:service/:action/ranking                            org.apache.s2graph.rest.play.controllers.CounterController.getRankingCountAsync(service, action)
+DELETE  /counter/v1/:service/:action/ranking                            org.apache.s2graph.rest.play.controllers.CounterController.deleteRankingCount(service, action)
+GET     /counter/v1/:service/:action/:item                              org.apache.s2graph.rest.play.controllers.CounterController.getExactCountAsync(service, action, item)
+PUT     /counter/v1/:service/:action/:item                              org.apache.s2graph.rest.play.controllers.CounterController.incrementCount(service, action, item)
+POST    /counter/v1/mget                                                org.apache.s2graph.rest.play.controllers.CounterController.getExactCountAsyncMulti()
+
+# Experiment API
+POST        /graphs/experiment/:accessToken/:experimentName/:uuid         org.apache.s2graph.rest.play.controllers.ExperimentController.experiment(accessToken, experimentName, uuid)
+
 
 # Map static resources from the /public folder to the /assets URL path
 GET         /images/*file                                                 controllers.Assets.at(path="/public/images", file)
@@ -92,35 +105,3 @@ GET         /javascripts/*file                                            contro
 GET         /stylesheets/*file                                            controllers.Assets.at(path="/public/stylesheets", file)
 GET         /font-awesome-4.1.0/*file                                     controllers.Assets.at(path="/public/font-awesome-4.1.0", file)
 GET         /swagger/*file                                                controllers.Assets.at(path="/public/swagger-ui", file)
-
-
-# AdminController API
-#GET    /admin/services                                                         controllers.AdminController.allServices
-GET         /admin/labels/:serviceName                                    controllers.AdminController.getLabels(serviceName)
-#POST   /admin/labels/delete/:zkAddr/:tableName/:labelIds/:minTs/:maxTs         controllers.AdminController.deleteEdges(zkAddr, tableName, labelIds, minTs: Long, maxTs: Long)
-#POST   /admin/labels/deleteAll/:zkAddr/:tableName/:minTs/:maxTs                controllers.AdminController.deleteAllEdges(zkAddr, tableName, minTs: Long, maxTs: Long)
-#POST   /admin/swapLabel/:oldLabelName/:newLabelName                            controllers.AdminController.swapLabel(oldLabelName, newLabelName)
-#GET    /admin/reloadLabel/:labelName                                           controllers.AdminController.reloadLabel(labelName)
-#POST        /admin/getEdges                                                              controllers.AdminController.getEdges()
-POST        /graphs/copyLabel/:oldLabelName/:newLabelName                 controllers.AdminController.copyLabel(oldLabelName, newLabelName)
-POST        /graphs/renameLabel/:oldLabelName/:newLabelName               controllers.AdminController.renameLabel(oldLabelName, newLabelName)
-POST        /graphs/updateHTable/:labelName/:newHTableName                controllers.AdminController.updateHTable(labelName, newHTableName)
-PUT         /graphs/loadCache                                             controllers.AdminController.loadCache()
-
-
-# Counter Admin API
-POST    /counter/v1/:service/:action                                    controllers.CounterController.createAction(service, action)
-GET     /counter/v1/:service/:action                                    controllers.CounterController.getAction(service, action)
-PUT     /counter/v1/:service/:action                                    controllers.CounterController.updateAction(service, action)
-PUT     /counter/v1/:service/:action/prepare                            controllers.CounterController.prepareAction(service, action)
-DELETE  /counter/v1/:service/:action                                    controllers.CounterController.deleteAction(service, action)
-
-# Counter API
-GET     /counter/v1/:service/:action/ranking                            controllers.CounterController.getRankingCountAsync(service, action)
-DELETE  /counter/v1/:service/:action/ranking                            controllers.CounterController.deleteRankingCount(service, action)
-GET     /counter/v1/:service/:action/:item                              controllers.CounterController.getExactCountAsync(service, action, item)
-PUT     /counter/v1/:service/:action/:item                              controllers.CounterController.incrementCount(service, action, item)
-POST    /counter/v1/mget                                                controllers.CounterController.getExactCountAsyncMulti()
-
-# Experiment API
-POST        /graphs/experiment/:accessToken/:experimentName/:uuid         controllers.ExperimentController.experiment(accessToken, experimentName, uuid)

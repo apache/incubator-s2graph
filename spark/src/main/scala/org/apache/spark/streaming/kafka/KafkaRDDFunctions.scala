@@ -6,9 +6,6 @@ import org.apache.spark.rdd.RDD
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 15. 5. 6..
- */
 class KafkaRDDFunctions[T: ClassTag](self: RDD[T])
   extends Logging
   with Serializable
