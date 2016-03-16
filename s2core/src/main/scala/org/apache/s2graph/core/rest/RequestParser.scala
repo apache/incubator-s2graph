@@ -559,10 +559,11 @@ class RequestParser(config: Config) extends JSONParser {
     val schemaVersion = (jsValue \ "schemaVersion").asOpt[String].getOrElse(HBaseType.DEFAULT_VERSION)
     val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
     val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(DefaultCompressionAlgorithm)
+    val options = (jsValue \ "options").asOpt[JsValue].map(_.toString())
 
     (labelName, srcServiceName, srcColumnName, srcColumnType,
       tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
-      indices, allProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm)
+      indices, allProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm, options)
   }
 
   def toIndexElements(jsValue: JsValue) = Try {
