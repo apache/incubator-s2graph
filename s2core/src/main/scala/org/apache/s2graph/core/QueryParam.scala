@@ -321,6 +321,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var timeDecay: Option[TimeDecay] = None
   var transformer: EdgeTransformer = EdgeTransformer(this, EdgeTransformer.DefaultJson)
   var scorePropagateOp: String = "multiply"
+  var scorePropagateShrinkage: Long = 500
   var exclude = false
   var include = false
   var shouldNormalize= false
@@ -476,6 +477,11 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 
   def includeDegree(includeDegree: Boolean): QueryParam = {
     this.includeDegree = includeDegree
+    this
+  }
+
+  def scorePropagateShrinkage(scorePropagateShrinkage: Long): QueryParam = {
+    this.scorePropagateShrinkage = scorePropagateShrinkage
     this
   }
 
