@@ -177,7 +177,7 @@ class CrudTest extends IntegrateCommon {
 
       def run(tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]) = {
         for {
-          labelName <- List(testLabelName, testLabelName2)
+          labelName <- List(testLabelNameV3, testLabelNameV2)
           i <- 0 until NumOfEachTest
         } {
           seed += 1
@@ -204,7 +204,7 @@ class CrudTest extends IntegrateCommon {
               case "in" => (label.tgtService.serviceName, label.tgtColumn.columnName, tgtId, srcId)
             }
 
-            val qId = if (labelName == testLabelName) id else "\"" + id + "\""
+            val qId = if (labelName == testLabelNameV3) id else "\"" + id + "\""
             val query = queryJson(serviceName, columnName, labelName, qId, direction, cacheTTL)
 
             val jsResult = TestUtil.getEdgesSync(query)

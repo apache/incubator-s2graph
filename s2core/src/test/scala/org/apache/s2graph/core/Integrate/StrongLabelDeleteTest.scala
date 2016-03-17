@@ -49,7 +49,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     (result \ "results").as[List[JsValue]].size should be(3)
 
     val deleteParam = Json.arr(
-      Json.obj("label" -> testLabelName2,
+      Json.obj("label" -> testLabelNameV2,
         "direction" -> "in",
         "ids" -> Json.arr("20"),
         "timestamp" -> deletedAt))
@@ -139,7 +139,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     * Large set of contention test
   */
   test("large degrees") {
-    val labelName = testLabelName2
+    val labelName = testLabelNameV2
     val dir = "out"
     val maxSize = 100
     val deleteSize = 10
@@ -179,7 +179,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   }
 
   test("deleteAll") {
-    val labelName = testLabelName2
+    val labelName = testLabelNameV2
     val dir = "out"
     val maxSize = 100
     val deleteSize = 10
@@ -216,7 +216,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
   object StrongDeleteUtil {
 
-    val labelName = testLabelName2
+    val labelName = testLabelNameV2
 //    val labelName = testLabelName
     val maxTgtId = 10
     val batchSize = 10

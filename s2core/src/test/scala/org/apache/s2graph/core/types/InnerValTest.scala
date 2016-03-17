@@ -26,7 +26,7 @@ import org.scalatest.{FunSuite, Matchers}
 class InnerValTest extends FunSuite with Matchers with TestCommonWithModels {
   initTests()
 
-  import HBaseType.VERSION2
+  import GraphType.VERSION2
   val decimals = List(
     BigDecimal(Long.MinValue),
     BigDecimal(Int.MinValue),

@@ -39,7 +39,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Random, Try}
 
 abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
-  import HBaseType._
+  import GraphType._
 
   /** storage dependent configurations */
   val MaxRetryNum = config.getInt("max.retry.number")
@@ -94,7 +94,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * @param vertex: vertex to serialize
    * @return serializer implementation
    */
-  def vertexSerializer(vertex: Vertex) = new VertexSerializable(vertex)
+  def vertexSerializer(vertex: Vertex): Serializable[Vertex] = new VertexSerializable(vertex)
 
   /**
    * create deserializer that can parse stored CanSKeyValue into snapshotEdge.
@@ -259,9 +259,6 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
                   compressionAlgorithm: String): Unit
 
 
-
-
-
   /** Public Interface */
 
   def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
@@ -276,6 +273,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       val queryParam = QueryParam.Empty
       val q = Query.toQuery(Seq(vertex), queryParam)
       val queryRequest = QueryRequest(q, stepIdx = -1, vertex, queryParam)
+
       fetchVertexKeyValues(buildRequest(queryRequest)).map { kvs =>
         fromResult(queryParam, kvs, vertex.serviceColumn.schemaVersion)
       } recoverWith { case ex: Throwable =>
@@ -545,7 +543,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     } yield {
         val label = queryRequest.queryParam.label
         label.schemaVersion match {
-          case HBaseType.VERSION3 | HBaseType.VERSION4 =>
+          case GraphType.VERSION3 | GraphType.VERSION4 =>
             if (label.consistencyLevel == "strong") {
               /**
                * read: snapshotEdge on queryResult = O(N)

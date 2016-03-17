@@ -35,7 +35,7 @@ import org.apache.hadoop.security.UserGroupInformation
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.storage._
-import org.apache.s2graph.core.types.{HBaseType, VertexId}
+import org.apache.s2graph.core.types.{GraphType, VertexId}
 import org.apache.s2graph.core.utils.{DeferCache, Extensions, FutureCache, logger}
 import org.hbase.async._
 
@@ -196,7 +196,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     val (minTs, maxTs) = queryParam.duration.getOrElse((0L, Long.MaxValue))
 
     label.schemaVersion match {
-      case HBaseType.VERSION4 if queryParam.tgtVertexInnerIdOpt.isEmpty =>
+      case GraphType.VERSION4 if queryParam.tgtVertexInnerIdOpt.isEmpty =>
         val scanner = client.newScanner(label.hbaseTableName.getBytes)
         scanner.setFamily(edgeCf)
 
@@ -208,7 +208,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
 
         val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes
         val labelWithDirBytes = indexEdge.labelWithDir.bytes
-        val labelIndexSeqWithIsInvertedBytes = StorageSerializable.labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = false)
+        val labelIndexSeqWithIsInvertedBytes = StorageSerializable.labelOrderSeqWithIsSnapshot(indexEdge.labelIndexSeq, isSnapshot = false)
         //        val labelIndexSeqWithIsInvertedStopBytes =  StorageSerializable.labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = true)
         val baseKey = Bytes.add(srcIdBytes, labelWithDirBytes, Bytes.add(labelIndexSeqWithIsInvertedBytes, Array.fill(1)(edge.op)))
         val (startKey, stopKey) =

@@ -29,7 +29,7 @@ import scala.util.Random
 class VertexTestHelper extends IntegrateCommon {
 
   import TestUtil._
-  import VertexTestHelper._
+//  import VertexTestHelper._
 
   test("vertex") {
     val ids = (7 until 20).map(tcNum => tcNum * 1000 + 0)

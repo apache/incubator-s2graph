@@ -37,8 +37,8 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
    */
   def check(l: Label, ts: Long, to: InnerValLike, props: Map[Byte, InnerValLike]): Unit = {
     val from = InnerVal.withLong(1, l.schemaVersion)
-    val vertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, from)
-    val tgtVertexId = TargetVertexId(HBaseType.DEFAULT_COL_ID, to)
+    val vertexId = SourceVertexId(GraphType.DEFAULT_COL_ID, from)
+    val tgtVertexId = TargetVertexId(GraphType.DEFAULT_COL_ID, to)
     val vertex = Vertex(vertexId, ts)
     val tgtVertex = Vertex(tgtVertexId, ts)
     val labelWithDir = LabelWithDirection(l.id.get, 0)

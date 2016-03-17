@@ -22,6 +22,7 @@ package org.apache.s2graph.core
 import java.util
 import java.util.concurrent.ConcurrentHashMap
 
+import com.kakao.s2graph.core.storage.redis.RedisStorage
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.mysqls.{Label, Model}
 import org.apache.s2graph.core.parsers.WhereParser
@@ -59,8 +60,7 @@ object Graph {
     "delete.all.fetch.size" -> java.lang.Integer.valueOf(1000),
     "future.cache.max.size" -> java.lang.Integer.valueOf(100000),
     "future.cache.expire.after.write" -> java.lang.Integer.valueOf(10000),
-    "future.cache.expire.after.access" -> java.lang.Integer.valueOf(5000),
-    "s2graph.storage.backend" -> "hbase"
+    "future.cache.expire.after.access" -> java.lang.Integer.valueOf(5000)
   )
 
   var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)
@@ -351,6 +351,7 @@ object Graph {
   def initStorage(config: Config)(ec: ExecutionContext) = {
     config.getString("s2graph.storage.backend") match {
       case "hbase" => new AsynchbaseStorage(config)(ec)
+      case "redis" => new RedisStorage(config)(ec)
       case _ => throw new RuntimeException("not supported storage.")
     }
   }

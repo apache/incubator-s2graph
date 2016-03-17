@@ -35,7 +35,7 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
      //    val degree = Bytes.toLong(kv.value)
      val degree = bytesToLongFunc(kv.value, 0)
      val idxPropsRaw = Array(LabelMeta.degreeSeq -> InnerVal.withLong(degree, version))
-     val tgtVertexIdRaw = VertexId(HBaseType.DEFAULT_COL_ID, InnerVal.withStr("0", version))
+     val tgtVertexIdRaw = VertexId(GraphType.DEFAULT_COL_ID, InnerVal.withStr("0", version))
      (idxPropsRaw, tgtVertexIdRaw, GraphUtil.operations("insert"), false, 0)
    }
 
@@ -47,7 +47,7 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
        pos = endAt
        qualifierLen += endAt
        val (tgtVertexId, tgtVertexIdLen) = if (endAt == kv.qualifier.length) {
-         (HBaseType.defaultTgtVertexId, 0)
+         (GraphType.defaultTgtVertexId, 0)
        } else {
          TargetVertexId.fromBytes(kv.qualifier, endAt, kv.qualifier.length, version)
        }
@@ -116,7 +116,7 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
      val tgtVertexId = if (tgtVertexIdInQualifier) {
        idxPropsMap.get(LabelMeta.toSeq) match {
          case None => tgtVertexIdRaw
-         case Some(vId) => TargetVertexId(HBaseType.DEFAULT_COL_ID, vId)
+         case Some(vId) => TargetVertexId(GraphType.DEFAULT_COL_ID, vId)
        }
      } else tgtVertexIdRaw
 

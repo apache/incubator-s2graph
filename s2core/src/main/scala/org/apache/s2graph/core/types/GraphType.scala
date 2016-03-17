@@ -21,7 +21,7 @@ package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util.Bytes
 
-object HBaseType {
+object GraphType {
   val VERSION4 = "v4"
   val VERSION3 = "v3"
   val VERSION2 = "v2"
@@ -38,7 +38,7 @@ object HBaseType {
 
 object HBaseDeserializable {
 
-  import HBaseType._
+  import GraphType._
 
   // 6 bits is used for index sequence so total index per label is limited to 2^6
   def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte], offset: Int): (Byte, Boolean) = {
@@ -151,7 +151,7 @@ trait HBaseSerializable {
 
 trait HBaseDeserializable {
 
-  import HBaseType._
+  import GraphType._
 
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
@@ -167,7 +167,7 @@ trait HBaseDeserializable {
 
 trait HBaseDeserializableWithIsVertexId {
 
-  import HBaseType._
+  import GraphType._
 
   def fromBytes(bytes: Array[Byte],
                 offset: Int,

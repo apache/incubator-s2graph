@@ -29,6 +29,7 @@ import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.util.Random
 
 trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
@@ -67,8 +68,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
     println(s">> Service created : $createService, $tryRes")
 
-    val labelNames = Map(testLabelName -> testLabelNameCreate,
-      testLabelName2 -> testLabelName2Create,
+    val labelNames = Map(testLabelNameV3 -> testLabelNameV3Create,
+      testLabelNameV2 -> testLabelNameV2Create,
       testLabelNameV1 -> testLabelNameV1Create,
       testLabelNameWeak -> testLabelNameWeakCreate)
 
@@ -117,6 +118,40 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     //      s
     //    }
 
+    def vertexQueryJson(serviceName: String, columnName: String, ids: Seq[Int]) = {
+      Json.parse(
+        s"""
+           |[
+           | {"serviceName": "$serviceName", "columnName": "$columnName", "ids": [${ids.mkString(",")}]}
+                                                                                                        |]
+       """.stripMargin)
+    }
+
+    def vertexInsertsPayload(serviceName: String, columnName: String, ids: Seq[Int]): Seq[JsValue] = {
+      ids.map { id =>
+        Json.obj("id" -> id, "props" -> randomProps, "timestamp" -> System.currentTimeMillis())
+      }
+    }
+
+    val vertexPropsKeys = List(
+      ("age", "int")
+    )
+
+    def randomProps() = {
+      (for {
+        (propKey, propType) <- vertexPropsKeys
+      } yield {
+          propKey -> Random.nextInt(100)
+        }).toMap
+    }
+
+    def getVerticesSync(queryJson: JsValue): JsValue = {
+      val restHandler = new RestHandler(graph)
+      logger.info(Json.prettyPrint(queryJson))
+      val f = restHandler.getVertices(queryJson)
+      Await.result(f, HttpRequestWaitingTime)
+    }
+
     def deleteAllSync(jsValue: JsValue) = {
       val future = Future.sequence(jsValue.as[Seq[JsValue]] map { json =>
         val (labels, direction, ids, ts, vertices) = parser.toDeleteParam(json)
@@ -128,10 +163,50 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       Await.result(future, HttpRequestWaitingTime)
     }
 
+    def querySingle(id: Int, dir: String = "out", offset: Int = 0, limit: Int = 10) = Json.parse(
+      s"""
+         |{
+         |	"srcVertices": [{
+         |		"serviceName": "$testServiceName",
+                                                |		"columnName": "$testColumnName",
+                                                                                     |		"id": $id
+          |	}],
+          |	"steps": [
+          |		[{
+          |			"label": "$testLabelNameV3",
+                                             |			"direction": "$dir",
+                                                                        |			"offset": $offset,
+                                                                                                  |			"limit": $limit
+          |		}]
+          |	]
+          |}
+       """.stripMargin
+    )
+
     def getEdgesSync(queryJson: JsValue): JsValue = {
       logger.info(Json.prettyPrint(queryJson))
       val restHandler = new RestHandler(graph)
       Await.result(restHandler.getEdgesAsync(queryJson)(PostProcess.toSimpleVertexArrJson), HttpRequestWaitingTime)
+    }
+
+    def checkEdgesSync(checkEdgeJson: JsValue): JsValue = {
+      logger.info(Json.prettyPrint(checkEdgeJson))
+
+      val ret = parser.toCheckEdgeParam(checkEdgeJson) match {
+        case (e, _) => graph.checkEdges(e)
+      }
+      val result = Await.result(ret, HttpRequestWaitingTime)
+      val jsResult = PostProcess.toSimpleVertexArrJson(result)
+
+      logger.info(jsResult.toString)
+      jsResult
+    }
+
+    def mutateEdgesSync(bulkEdges: String*) = {
+      val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
+      val jsResult = Await.result(req, HttpRequestWaitingTime)
+
+      jsResult
     }
 
     def insertEdgesSync(bulkEdges: String*) = {
@@ -150,8 +225,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
     // common tables
     val testServiceName = "s2graph"
-    val testLabelName = "s2graph_label_test"
-    val testLabelName2 = "s2graph_label_test_2"
+    val testLabelNameV3 = "s2graph_label_test_v3"
+    val testLabelNameV2 = "s2graph_label_test_v2"
     val testLabelNameV1 = "s2graph_label_test_v1"
     val testLabelNameWeak = "s2graph_label_test_weak"
     val testColumnName = "user_id_test"
@@ -167,10 +242,10 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
     val createService = s"""{"serviceName" : "$testServiceName"}"""
 
-    val testLabelNameCreate =
+    val testLabelNameV3Create =
       s"""
   {
-    "label": "$testLabelName",
+    "label": "$testLabelNameV3",
     "srcServiceName": "$testServiceName",
     "srcColumnName": "$testColumnName",
     "srcColumnType": "long",
@@ -209,10 +284,10 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "hTableName": "$testHTableName"
   }"""
 
-    val testLabelName2Create =
+    val testLabelNameV2Create =
       s"""
   {
-    "label": "$testLabelName2",
+    "label": "$testLabelNameV2",
     "srcServiceName": "$testServiceName",
     "srcColumnName": "$testColumnName",
     "srcColumnType": "long",

@@ -25,7 +25,7 @@ import org.scalatest.{FunSuite, Matchers}
 class JsonParserTest extends FunSuite with Matchers with TestCommon with JSONParser {
 
   import InnerVal._
-  import types.HBaseType._
+  import types.GraphType._
 
   val innerValsPerVersion = for {
     version <- List(VERSION2, VERSION1)

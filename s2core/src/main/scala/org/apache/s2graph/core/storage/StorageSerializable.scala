@@ -48,9 +48,9 @@ object StorageSerializable {
     bytes
   }
 
-  def labelOrderSeqWithIsInverted(labelOrderSeq: Byte, isInverted: Boolean): Array[Byte] = {
+  def labelOrderSeqWithIsSnapshot(labelOrderSeq: Byte, isSnapshot: Boolean): Array[Byte] = {
     assert(labelOrderSeq < (1 << 6))
-    val byte = labelOrderSeq << 1 | (if (isInverted) 1 else 0)
+    val byte = labelOrderSeq << 1 | (if (isSnapshot) 1 else 0)
     Array.fill(1)(byte.toByte)
   }
 }

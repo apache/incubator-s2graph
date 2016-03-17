@@ -21,10 +21,10 @@ package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.GraphUtil
-import org.apache.s2graph.core.types.HBaseType._
+import org.apache.s2graph.core.types.GraphType._
 
 object VertexId extends HBaseDeserializable {
-  import HBaseType._
+  import GraphType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -96,7 +96,7 @@ class VertexId protected (val colId: Int, val innerId: InnerValLike) extends HBa
 }
 
 object SourceVertexId extends HBaseDeserializable {
-  import HBaseType._
+  import GraphType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -117,7 +117,7 @@ case class SourceVertexId(override val colId: Int,
 }
 
 object TargetVertexId extends HBaseDeserializable {
-  import HBaseType._
+  import GraphType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -138,7 +138,7 @@ case class TargetVertexId(override val colId: Int,
 
 object SourceAndTargetVertexIdPair extends HBaseDeserializable {
   val delimiter = ":"
-  import HBaseType._
+  import GraphType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,

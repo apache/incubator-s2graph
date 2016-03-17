@@ -30,7 +30,7 @@ import scala.concurrent.ExecutionContext
 trait TestCommonWithModels {
 
   import InnerVal._
-  import types.HBaseType._
+  import types.GraphType._
 
   var graph: Graph = _
   var config: Config = _

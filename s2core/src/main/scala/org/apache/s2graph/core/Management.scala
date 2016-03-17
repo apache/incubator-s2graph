@@ -22,7 +22,7 @@ package org.apache.s2graph.core
 import org.apache.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNotExistException}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls._
-import org.apache.s2graph.core.types.HBaseType._
+import org.apache.s2graph.core.types.GraphType._
 import org.apache.s2graph.core.types._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
@@ -45,7 +45,7 @@ object Management extends JSONParser {
 
   }
 
-  import HBaseType._
+  import GraphType._
 
   val DefaultCompressionAlgorithm = "gz"
 

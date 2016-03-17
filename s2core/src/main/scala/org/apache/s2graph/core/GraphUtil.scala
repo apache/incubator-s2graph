@@ -155,4 +155,8 @@ object GraphUtil {
     }
   }
 
+  def bytesToHexString(b: Array[Byte]): String = {
+    val tmp = b.map("%02x".format(_)).mkString("\\x")
+    if ( tmp.isEmpty ) "" else "\\x" + tmp
+  }
 }
