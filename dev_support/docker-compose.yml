@@ -2,9 +2,6 @@ graph:
     image: s2rest_play:0.12.1-SNAPSHOT
     container_name: graph
     net: container:graph_hbase
-    links:
-        - graph_mysql
-        - graph_hbase
 
 graph_mysql:
     build: graph_mysql
