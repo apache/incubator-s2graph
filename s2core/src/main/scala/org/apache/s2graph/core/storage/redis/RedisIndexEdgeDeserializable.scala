@@ -146,5 +146,3 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
 
   }
 }
-}
-}

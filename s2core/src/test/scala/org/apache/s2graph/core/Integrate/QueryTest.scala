@@ -1,27 +1,8 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+package com.kakao.s2graph.core.Integrate
 
-package org.apache.s2graph.core.Integrate
-
-import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.Integrate.IntegrateCommon
 import org.scalatest.BeforeAndAfterEach
-import play.api.libs.json.{JsNumber, JsValue, Json}
+import play.api.libs.json._
 
 class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
@@ -42,7 +23,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
            }],
           "steps": [
           [ {
-              "label": "$testLabelNameV3",
+              "label": "$testLabelNameV2",
               "index": "$index",
               "interval": {
                   "from": [ { "$prop": $fromVal } ],
@@ -76,7 +57,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
            }],
           "steps": [
           [ {
-              "label": "${testLabelNameV3}",
+              "label": "${testLabelNameV2}",
               "direction": "out",
               "offset": 0,
               "limit": 100,
@@ -111,13 +92,13 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
            }],
           "steps": [
           [ {
-              "label": "${testLabelNameV3}",
+              "label": "${testLabelNameV2}",
               "direction": "out",
               "offset": 0,
               "limit": 2
             },
             {
-              "label": "${testLabelNameV3}",
+              "label": "${testLabelNameV2}",
               "direction": "in",
               "offset": 0,
               "limit": 2,
@@ -141,7 +122,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
           Json.obj(
             "step" -> Json.arr(
               Json.obj(
-                "label" -> testLabelNameV3
+                "label" -> testLabelNameV2
               )
             )
           )
@@ -151,7 +132,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
     val result = getEdgesSync(queryGroupBy(0, Seq("weight")))
     (result \ "size").as[Int] should be(2)
-    val weights = (result \ "results" \\ "groupBy").map { js =>
+    val weights = (result \\ "groupBy").map { js =>
       (js \ "weight").as[Int]
     }
     weights should contain(30)
@@ -170,7 +151,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
            }],
           "steps": [
           [ {
-              "label": "${testLabelNameV3}",
+              "label": "${testLabelNameV2}",
               "direction": "out",
               "offset": 0,
               "transform": $transforms
@@ -182,10 +163,11 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     (result \ "results").as[List[JsValue]].size should be(2)
 
     result = getEdgesSync(queryTransform(0, "[[\"weight\"]]"))
-    (result \ "results" \\ "to").map(_.toString).sorted should be((result \ "results" \\ "weight").map(_.toString).sorted)
+    (result \\ "to").map(_.toString).sorted should be((result \\ "weight").map(_.toString).sorted)
 
     result = getEdgesSync(queryTransform(0, "[[\"_from\"]]"))
-    (result \ "results" \\ "to").map(_.toString).sorted should be((result \ "results" \\ "from").map(_.toString).sorted)
+    val results = (result \ "results").as[JsValue]
+    (result \\ "to").map(_.toString).sorted should be((results \\ "from").map(_.toString).sorted)
   }
 
   test("index") {
@@ -195,7 +177,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
           "columnName" -> testColumnName,
           "ids" -> ids))
 
-      val $step = Json.arr(Json.obj("label" -> testLabelNameV3, "index" -> indexName))
+      val $step = Json.arr(Json.obj("label" -> testLabelNameV2, "index" -> indexName))
       val $steps = Json.arr(Json.obj("step" -> $step))
 
       val js = Json.obj("withScore" -> false, "srcVertices" -> $from, "steps" -> $steps)
@@ -235,57 +217,6 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   //      }
   //    }
 
-
-
-  test("duration") {
-    def queryDuration(ids: Seq[Int], from: Int, to: Int) = {
-      val $from = Json.arr(
-        Json.obj("serviceName" -> testServiceName,
-          "columnName" -> testColumnName,
-          "ids" -> ids))
-
-      val $step = Json.arr(Json.obj(
-        "label" -> testLabelNameV3, "direction" -> "out", "offset" -> 0, "limit" -> 100,
-        "duration" -> Json.obj("from" -> from, "to" -> to)))
-
-      val $steps = Json.arr(Json.obj("step" -> $step))
-
-      Json.obj("srcVertices" -> $from, "steps" -> $steps)
-    }
-
-    // get all
-    var result = getEdgesSync(queryDuration(Seq(0, 2), from = 0, to = 5000))
-    (result \ "results").as[List[JsValue]].size should be(4)
-    // inclusive, exclusive
-    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 4000))
-    (result \ "results").as[List[JsValue]].size should be(3)
-
-    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 2000))
-    (result \ "results").as[List[JsValue]].size should be(1)
-
-    val bulkEdges = Seq(
-      toEdge(1001, insert, e, 0, 1, testLabelNameV3, Json.obj(weight -> 10, is_hidden -> true)),
-      toEdge(2002, insert, e, 0, 2, testLabelNameV3, Json.obj(weight -> 20, is_hidden -> false)),
-      toEdge(3003, insert, e, 2, 0, testLabelNameV3, Json.obj(weight -> 30)),
-      toEdge(4004, insert, e, 2, 1, testLabelNameV3, Json.obj(weight -> 40))
-    )
-    insertEdgesSync(bulkEdges: _*)
-
-    // duration test after udpate
-    // get all
-    result = getEdgesSync(queryDuration(Seq(0, 2), from = 0, to = 5000))
-    (result \ "results").as[List[JsValue]].size should be(4)
-
-    // inclusive, exclusive
-    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 4000))
-    (result \ "results").as[List[JsValue]].size should be(3)
-
-    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 2000))
-    (result \ "results").as[List[JsValue]].size should be(1)
-
-  }
-
-
   test("return tree") {
     def queryParents(id: Long) = Json.parse(
       s"""
@@ -298,13 +229,13 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
            }],
           "steps": [
           [ {
-              "label": "$testLabelNameV3",
+              "label": "$testLabelNameV2",
               "direction": "out",
               "offset": 0,
               "limit": 2
             }
           ],[{
-              "label": "$testLabelNameV3",
+              "label": "$testLabelNameV2",
               "direction": "in",
               "offset": 0,
               "limit": -1
@@ -315,7 +246,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     val src = 100
     val tgt = 200
 
-    insertEdgesSync(toEdge(1001, "insert", "e", src, tgt, testLabelNameV3))
+    insertEdgesSync(toEdge(1001, "insert", "e", src, tgt, testLabelNameV2))
 
     val result = TestUtil.getEdgesSync(queryParents(src))
     val parents = (result \ "results").as[Seq[JsValue]]
@@ -328,54 +259,54 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
 
 
-//  test("pagination and _to") {
-//    def querySingleWithTo(id: Int, offset: Int = 0, limit: Int = 100, to: Int) = Json.parse(
-//      s"""
-//        { "srcVertices": [
-//          { "serviceName": "${testServiceName}",
-//            "columnName": "${testColumnName}",
-//            "id": ${id}
-//           }],
-//          "steps": [
-//          [ {
-//              "label": "${testLabelName}",
-//              "direction": "out",
-//              "offset": $offset,
-//              "limit": $limit,
-//              "_to": $to
-//            }
-//          ]]
-//        }
-//        """)
-//
-//    val src = System.currentTimeMillis().toInt
-//
-//    val bulkEdges = Seq(
-//      toEdge(1001, insert, e, src, 1, testLabelName, Json.obj(weight -> 10, is_hidden -> true)),
-//      toEdge(2002, insert, e, src, 2, testLabelName, Json.obj(weight -> 20, is_hidden -> false)),
-//      toEdge(3003, insert, e, src, 3, testLabelName, Json.obj(weight -> 30)),
-//      toEdge(4004, insert, e, src, 4, testLabelName, Json.obj(weight -> 40))
-//    )
-//    insertEdgesSync(bulkEdges: _*)
-//
-//    var result = getEdgesSync(querySingle(src, offset = 0, limit = 2))
-//    var edges = (result \ "results").as[List[JsValue]]
-//
-//    edges.size should be(2)
-//    (edges(0) \ "to").as[Long] should be(4)
-//    (edges(1) \ "to").as[Long] should be(3)
-//
-//    result = getEdgesSync(querySingle(src, offset = 1, limit = 2))
-//
-//    edges = (result \ "results").as[List[JsValue]]
-//    edges.size should be(2)
-//    (edges(0) \ "to").as[Long] should be(3)
-//    (edges(1) \ "to").as[Long] should be(2)
-//
-//    result = getEdgesSync(querySingleWithTo(src, offset = 0, limit = -1, to = 1))
-//    edges = (result \ "results").as[List[JsValue]]
-//    edges.size should be(1)
-//  }
+  test("pagination and _to") {
+    def querySingleWithTo(id: Int, offset: Int = 0, limit: Int = 100, to: Int) = Json.parse(
+      s"""
+        { "srcVertices": [
+          { "serviceName": "${testServiceName}",
+            "columnName": "${testColumnName}",
+            "id": ${id}
+           }],
+          "steps": [
+          [ {
+              "label": "${testLabelNameV2}",
+              "direction": "out",
+              "offset": $offset,
+              "limit": $limit,
+              "_to": $to
+            }
+          ]]
+        }
+        """)
+
+    val src = System.currentTimeMillis().toInt
+
+    val bulkEdges = Seq(
+      toEdge(1001, insert, e, src, 1, testLabelNameV2, Json.obj(weight -> 10, is_hidden -> true)),
+      toEdge(2002, insert, e, src, 2, testLabelNameV2, Json.obj(weight -> 20, is_hidden -> false)),
+      toEdge(3003, insert, e, src, 3, testLabelNameV2, Json.obj(weight -> 30)),
+      toEdge(4004, insert, e, src, 4, testLabelNameV2, Json.obj(weight -> 40))
+    )
+    insertEdgesSync(bulkEdges: _*)
+
+    var result = getEdgesSync(querySingle(src, offset = 0, limit = 2))
+    var edges = (result \ "results").as[List[JsValue]]
+
+    edges.size should be(2)
+    (edges(0) \ "to").as[Long] should be(4)
+    (edges(1) \ "to").as[Long] should be(3)
+
+    result = getEdgesSync(querySingle(src, offset = 1, limit = 2))
+
+    edges = (result \ "results").as[List[JsValue]]
+    edges.size should be(2)
+    (edges(0) \ "to").as[Long] should be(3)
+    (edges(1) \ "to").as[Long] should be(2)
+
+    result = getEdgesSync(querySingleWithTo(src, offset = 0, limit = -1, to = 1))
+    edges = (result \ "results").as[List[JsValue]]
+    edges.size should be(1)
+  }
 
   test("order by") {
     def queryScore(id: Int, scoring: Map[String, Int]): JsValue = Json.obj(
@@ -390,7 +321,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
         Json.obj(
           "step" -> Json.arr(
             Json.obj(
-              "label" -> testLabelNameV3,
+              "label" -> testLabelNameV2,
               "scoring" -> scoring
             )
           )
@@ -406,7 +337,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
         Json.obj(
           "step" -> Json.arr(
             Json.obj(
-              "label" -> testLabelNameV3,
+              "label" -> testLabelNameV2,
               "scoring" -> scoring
             )
           )
@@ -415,10 +346,10 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     )
 
     val bulkEdges = Seq(
-      toEdge(1001, insert, e, 0, 1, testLabelNameV3, Json.obj(weight -> 10, is_hidden -> true)),
-      toEdge(2002, insert, e, 0, 2, testLabelNameV3, Json.obj(weight -> 20, is_hidden -> false)),
-      toEdge(3003, insert, e, 2, 0, testLabelNameV3, Json.obj(weight -> 30)),
-      toEdge(4004, insert, e, 2, 1, testLabelNameV3, Json.obj(weight -> 40))
+      toEdge(1001, insert, e, 0, 1, testLabelNameV2, Json.obj(weight -> 10, is_hidden -> true)),
+      toEdge(2002, insert, e, 0, 2, testLabelNameV2, Json.obj(weight -> 20, is_hidden -> false)),
+      toEdge(3003, insert, e, 2, 0, testLabelNameV2, Json.obj(weight -> 30)),
+      toEdge(4004, insert, e, 2, 1, testLabelNameV2, Json.obj(weight -> 40))
     )
 
     insertEdgesSync(bulkEdges: _*)
@@ -438,7 +369,6 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     edgesTo.reverse should be(ascOrderByTo)
   }
 
-
   test("query with sampling") {
     def queryWithSampling(id: Int, sample: Int) = Json.parse(
       s"""
@@ -450,7 +380,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
           "steps": [
             {
               "step": [{
-                "label": "$testLabelNameV3",
+                "label": "$testLabelNameV2",
                 "direction": "out",
                 "offset": 0,
                 "limit": 100,
@@ -470,7 +400,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
           "steps": [
             {
               "step": [{
-                "label": "$testLabelNameV3",
+                "label": "$testLabelNameV2",
                 "direction": "out",
                 "offset": 0,
                 "limit": 100,
@@ -479,7 +409,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
             },
             {
                "step": [{
-                 "label": "$testLabelNameV3",
+                 "label": "$testLabelNameV2",
                  "direction": "out",
                  "offset": 0,
                  "limit": 100,
@@ -499,14 +429,14 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
           "steps": [
             {
               "step": [{
-                "label": "$testLabelNameV3",
+                "label": "$testLabelNameV2",
                 "direction": "out",
                 "offset": 0,
                 "limit": 50,
                 "sample": $sample
               },
               {
-                "label": "$testLabelNameV2",
+                "label": "$testLabelNameV3",
                 "direction": "out",
                 "offset": 0,
                 "limit": 50
@@ -520,23 +450,23 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     val testId = 22
 
     val bulkEdges = Seq(
-      toEdge(ts, insert, e, testId, 122, testLabelNameV3),
-      toEdge(ts, insert, e, testId, 222, testLabelNameV3),
-      toEdge(ts, insert, e, testId, 322, testLabelNameV3),
-
-      toEdge(ts, insert, e, testId, 922, testLabelNameV2),
+      toEdge(ts, insert, e, testId, 122, testLabelNameV2),
       toEdge(ts, insert, e, testId, 222, testLabelNameV2),
       toEdge(ts, insert, e, testId, 322, testLabelNameV2),
 
-      toEdge(ts, insert, e, 122, 1122, testLabelNameV3),
-      toEdge(ts, insert, e, 122, 1222, testLabelNameV3),
-      toEdge(ts, insert, e, 122, 1322, testLabelNameV3),
-      toEdge(ts, insert, e, 222, 2122, testLabelNameV3),
-      toEdge(ts, insert, e, 222, 2222, testLabelNameV3),
-      toEdge(ts, insert, e, 222, 2322, testLabelNameV3),
-      toEdge(ts, insert, e, 322, 3122, testLabelNameV3),
-      toEdge(ts, insert, e, 322, 3222, testLabelNameV3),
-      toEdge(ts, insert, e, 322, 3322, testLabelNameV3)
+      toEdge(ts, insert, e, testId, 922, testLabelNameV3),
+      toEdge(ts, insert, e, testId, 222, testLabelNameV3),
+      toEdge(ts, insert, e, testId, 322, testLabelNameV3),
+
+      toEdge(ts, insert, e, 122, 1122, testLabelNameV2),
+      toEdge(ts, insert, e, 122, 1222, testLabelNameV2),
+      toEdge(ts, insert, e, 122, 1322, testLabelNameV2),
+      toEdge(ts, insert, e, 222, 2122, testLabelNameV2),
+      toEdge(ts, insert, e, 222, 2222, testLabelNameV2),
+      toEdge(ts, insert, e, 222, 2322, testLabelNameV2),
+      toEdge(ts, insert, e, 322, 3122, testLabelNameV2),
+      toEdge(ts, insert, e, 322, 3222, testLabelNameV2),
+      toEdge(ts, insert, e, 322, 3322, testLabelNameV2)
     )
 
     insertEdgesSync(bulkEdges: _*)
@@ -550,510 +480,6 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     val result3 = getEdgesSync(twoQueryWithSampling(testId, sampleSize))
     (result3 \ "results").as[List[JsValue]].size should be(sampleSize + 3) // edges in testLabelName2 = 3
   }
-  test("test query with filterOut query") {
-    def queryWithFilterOut(id1: String, id2: String) = Json.parse(
-      s"""{
-         |	"limit": 10,
-         |	"filterOut": {
-         |		"srcVertices": [{
-         |			"serviceName": "$testServiceName",
-         |			"columnName": "$testColumnName",
-         |			"id": $id1
-         |		}],
-         |		"steps": [{
-         |			"step": [{
-         |				"label": "$testLabelNameV3",
-         |				"direction": "out",
-         |				"offset": 0,
-         |				"limit": 10
-         |			}]
-         |		}]
-         |	},
-         |	"srcVertices": [{
-         |		"serviceName": "$testServiceName",
-         |		"columnName": "$testColumnName",
-         |		"id": $id2
-         |	}],
-         |	"steps": [{
-         |		"step": [{
-         |			"label": "$testLabelNameV3",
-         |			"direction": "out",
-         |			"offset": 0,
-         |			"limit": 5
-         |		}]
-         |	}]
-         |}
-       """.stripMargin
-    )
-
-    val testId1 = "-23"
-    val testId2 = "-25"
-
-    val bulkEdges = Seq(
-      toEdge(1, insert, e, testId1, 111, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(2, insert, e, testId1, 222, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(3, insert, e, testId1, 333, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(4, insert, e, testId2, 111, testLabelNameV3, Json.obj(weight -> 1)),
-      toEdge(5, insert, e, testId2, 333, testLabelNameV3, Json.obj(weight -> 1)),
-      toEdge(6, insert, e, testId2, 555, testLabelNameV3, Json.obj(weight -> 1))
-    )
-    logger.debug(s"${bulkEdges.mkString("\n")}")
-    insertEdgesSync(bulkEdges: _*)
-
-    val rs = getEdgesSync(queryWithFilterOut(testId1, testId2))
-    logger.debug(Json.prettyPrint(rs))
-    val results = (rs \ "results").as[List[JsValue]]
-    results.size should be(1)
-    (results(0) \ "to").toString should be("555")
-  }
-
-
-  /** note that this merge two different label result into one */
-  test("weighted union") {
-    def queryWithWeightedUnion(id1: String, id2: String) = Json.parse(
-      s"""
-				|{
-				|  "limit": 10,
-				|  "weights": [
-				|    10,
-				|    1
-				|  ],
-				|  "groupBy": ["weight"],
-				|  "queries": [
-				|    {
-				|      "srcVertices": [
-				|        {
-				|          "serviceName": "$testServiceName",
-				|          "columnName": "$testColumnName",
-				|          "id": $id1
-				|        }
-				|      ],
-				|      "steps": [
-				|        {
-				|          "step": [
-				|            {
-				|              "label": "$testLabelNameV3",
-				|              "direction": "out",
-				|              "offset": 0,
-				|              "limit": 5
-				|            }
-				|          ]
-				|        }
-				|      ]
-				|    },
-				|    {
-				|      "srcVertices": [
-				|        {
-				|          "serviceName": "$testServiceName",
-				|          "columnName": "$testColumnName",
-				|          "id": $id2
-				|        }
-				|      ],
-				|      "steps": [
-				|        {
-				|          "step": [
-				|            {
-				|              "label": "$testLabelNameV2",
-				|              "direction": "out",
-				|              "offset": 0,
-				|              "limit": 5
-				|            }
-				|          ]
-				|        }
-				|      ]
-				|    }
-				|  ]
-				|}
-       """.stripMargin
-    )
-
-    val testId1 = "1"
-    val testId2 = "2"
-
-    val bulkEdges = Seq(
-      toEdge(1, insert, e, testId1, 111, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(2, insert, e, testId1, 222, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(3, insert, e, testId1, 333, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(4, insert, e, testId2, 444, testLabelNameV2, Json.obj(weight -> 1)),
-      toEdge(5, insert, e, testId2, 555, testLabelNameV2, Json.obj(weight -> 1)),
-      toEdge(6, insert, e, testId2, 666, testLabelNameV2, Json.obj(weight -> 1))
-    )
-
-    insertEdgesSync(bulkEdges: _*)
-
-    val rs = getEdgesSync(queryWithWeightedUnion(testId1, testId2))
-    logger.debug(Json.prettyPrint(rs))
-    val results = (rs \ "results").as[List[JsValue]]
-    results.size should be(2)
-    (results(0) \ "scoreSum").as[Float] should be(30.0)
-    (results(0) \ "agg").as[List[JsValue]].size should be(3)
-    (results(1) \ "scoreSum").as[Float] should be(3.0)
-    (results(1) \ "agg").as[List[JsValue]].size should be(3)
-  }
-
-  test("weighted union with options") {
-    def queryWithWeightedUnionWithOptions(id1: String, id2: String) = Json.parse(
-      s"""
-         |{
-         |  "limit": 10,
-         |  "weights": [
-         |    10,
-         |    1
-         |  ],
-         |  "groupBy": ["to"],
-         |  "select": ["to", "weight"],
-         |  "filterOut": {
-         |    "srcVertices": [
-         |      {
-         |        "serviceName": "$testServiceName",
-         |        "columnName": "$testColumnName",
-         |        "id": $id1
-         |      }
-         |    ],
-         |    "steps": [
-         |      {
-         |        "step": [
-         |          {
-         |            "label": "$testLabelNameV3",
-         |            "direction": "out",
-         |            "offset": 0,
-         |            "limit": 10
-         |          }
-         |        ]
-         |      }
-         |    ]
-         |  },
-         |  "queries": [
-         |    {
-         |      "srcVertices": [
-         |        {
-         |          "serviceName": "$testServiceName",
-         |          "columnName": "$testColumnName",
-         |          "id": $id1
-         |        }
-         |      ],
-         |      "steps": [
-         |        {
-         |          "step": [
-         |            {
-         |              "label": "$testLabelNameV3",
-         |              "direction": "out",
-         |              "offset": 0,
-         |              "limit": 5
-         |            }
-         |          ]
-         |        }
-         |      ]
-         |    },
-         |    {
-         |      "srcVertices": [
-         |        {
-         |          "serviceName": "$testServiceName",
-         |          "columnName": "$testColumnName",
-         |          "id": $id2
-         |        }
-         |      ],
-         |      "steps": [
-         |        {
-         |          "step": [
-         |            {
-         |              "label": "$testLabelNameV2",
-         |              "direction": "out",
-         |              "offset": 0,
-         |              "limit": 5
-         |            }
-         |          ]
-         |        }
-         |      ]
-         |    }
-         |  ]
-         |}
-       """.stripMargin
-    )
-
-    val testId1 = "-192848"
-    val testId2 = "-193849"
-
-    val bulkEdges = Seq(
-      toEdge(1, insert, e, testId1, 111, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(2, insert, e, testId1, 222, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(3, insert, e, testId1, 333, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(4, insert, e, testId2, 111, testLabelNameV2, Json.obj(weight -> 1)),
-      toEdge(5, insert, e, testId2, 333, testLabelNameV2, Json.obj(weight -> 1)),
-      toEdge(6, insert, e, testId2, 555, testLabelNameV2, Json.obj(weight -> 1))
-    )
-
-    insertEdgesSync(bulkEdges: _*)
-
-    val rs = getEdgesSync(queryWithWeightedUnionWithOptions(testId1, testId2))
-    logger.debug(Json.prettyPrint(rs))
-    val results = (rs \ "results").as[List[JsValue]]
-    results.size should be(1)
-
-  }
-
-  test("scoreThreshold") {
-    def queryWithScoreThreshold(id: String, scoreThreshold: Int) = Json.parse(
-      s"""{
-         |  "limit": 10,
-         |  "scoreThreshold": $scoreThreshold,
-         |  "groupBy": ["to"],
-         |  "srcVertices": [
-         |    {
-         |      "serviceName": "$testServiceName",
-         |      "columnName": "$testColumnName",
-         |      "id": $id
-         |    }
-         |  ],
-         |  "steps": [
-         |    {
-         |      "step": [
-         |        {
-         |          "label": "$testLabelNameV3",
-         |          "direction": "out",
-         |          "offset": 0,
-         |          "limit": 10
-         |        }
-         |      ]
-         |    },
-         |    {
-         |      "step": [
-         |        {
-         |          "label": "$testLabelNameV3",
-         |          "direction": "out",
-         |          "offset": 0,
-         |          "limit": 10
-         |        }
-         |      ]
-         |    }
-         |  ]
-         |}
-       """.stripMargin
-    )
-
-    val testId = "-23903"
-
-    val bulkEdges = Seq(
-      toEdge(1, insert, e, testId, 101, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(1, insert, e, testId, 102, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(1, insert, e, testId, 103, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(1, insert, e, 101, 102, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(1, insert, e, 101, 103, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(1, insert, e, 101, 104, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(1, insert, e, 102, 103, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(1, insert, e, 102, 104, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(1, insert, e, 103, 105, testLabelNameV3, Json.obj(weight -> 10))
-    )
-    // expected: 104 -> 2, 103 -> 2, 102 -> 1,, 105 -> 1
-    insertEdgesSync(bulkEdges: _*)
-
-    var rs = getEdgesSync(queryWithScoreThreshold(testId, 2))
-    logger.debug(Json.prettyPrint(rs))
-    var results = (rs \ "results").as[List[JsValue]]
-    results.size should be(2)
-
-    rs = getEdgesSync(queryWithScoreThreshold(testId, 1))
-    logger.debug(Json.prettyPrint(rs))
-
-    results = (rs \ "results").as[List[JsValue]]
-    results.size should be(4)
-  }
-
-  test("scorePropagateOp test") {
-    def queryWithPropertyOp(id: String, op: String, shrinkageVal: Long) = Json.parse(
-      s"""{
-         |  "limit": 10,
-         |  "groupBy": ["from"],
-         |  "duplicate": "sum",
-         |  "srcVertices": [
-         |    {
-         |      "serviceName": "$testServiceName",
-         |      "columnName": "$testColumnName",
-         |      "id": $id
-         |    }
-         |  ],
-         |  "steps": [
-         |    {
-         |      "step": [
-         |        {
-         |          "label": "$testLabelName",
-         |          "direction": "out",
-         |          "offset": 0,
-         |          "limit": 10,
-         |          "groupBy": ["from"],
-         |          "duplicate": "sum",
-         |          "index": "idx_1",
-         |          "scoring": {
-         |            "weight":1,
-         |            "time": 0
-         |          },
-         |          "transform": [["_from"]]
-         |        }
-         |      ]
-         |    }, {
-         |      "step": [
-         |        {
-         |          "label": "$testLabelName2",
-         |          "direction": "out",
-         |          "offset": 0,
-         |          "limit": 10,
-         |          "scorePropagateOp": "$op",
-         |          "scorePropagateShrinkage": $shrinkageVal
-         |        }
-         |      ]
-         |    }
-         |  ]
-         |}
-       """.stripMargin
-    )
-
-    def querySingleVertexWithOp(id: String, op: String, shrinkageVal: Long) = Json.parse(
-      s"""{
-         |  "limit": 10,
-         |  "groupBy": ["from"],
-         |  "duplicate": "sum",
-         |  "srcVertices": [
-         |    {
-         |      "serviceName": "$testServiceName",
-         |      "columnName": "$testColumnName",
-         |      "id": $id
-         |    }
-         |  ],
-         |  "steps": [
-         |    {
-         |      "step": [
-         |        {
-         |          "label": "$testLabelName",
-         |          "direction": "out",
-         |          "offset": 0,
-         |          "limit": 10,
-         |          "groupBy": ["from"],
-         |          "duplicate": "countSum",
-         |          "transform": [["_from"]]
-         |        }
-         |      ]
-         |    }, {
-         |      "step": [
-         |        {
-         |          "label": "$testLabelName2",
-         |          "direction": "out",
-         |          "offset": 0,
-         |          "limit": 10,
-         |          "scorePropagateOp": "$op",
-         |          "scorePropagateShrinkage": $shrinkageVal
-         |        }
-         |      ]
-         |    }
-         |  ]
-         |}
-       """.stripMargin
-    )
-
-    def queryMultiVerticesWithOp(id: String, id2: String, op: String, shrinkageVal: Long) = Json.parse(
-      s"""{
-         |  "limit": 10,
-         |  "groupBy": ["from"],
-         |  "duplicate": "sum",
-         |  "srcVertices": [
-         |    {
-         |      "serviceName": "$testServiceName",
-         |      "columnName": "$testColumnName",
-         |      "ids": [$id, $id2]
-         |    }
-         |  ],
-         |  "steps": [
-         |    {
-         |      "step": [
-         |        {
-         |          "label": "$testLabelName",
-         |          "direction": "out",
-         |          "offset": 0,
-         |          "limit": 10,
-         |          "groupBy": ["from"],
-         |          "duplicate": "countSum",
-         |          "transform": [["_from"]]
-         |        }
-         |      ]
-         |    }, {
-         |      "step": [
-         |        {
-         |          "label": "$testLabelName2",
-         |          "direction": "out",
-         |          "offset": 0,
-         |          "limit": 10,
-         |          "scorePropagateOp": "$op",
-         |          "scorePropagateShrinkage": $shrinkageVal
-         |        }
-         |      ]
-         |    }
-         |  ]
-         |}
-       """.stripMargin
-    )
-    val testId = "-30000"
-    val testId2 = "-4000"
-
-    val bulkEdges = Seq(
-      toEdge(1, insert, e, testId, 101, testLabelName, Json.obj(weight -> -10)),
-      toEdge(1, insert, e, testId, 102, testLabelName, Json.obj(weight -> -10)),
-      toEdge(1, insert, e, testId, 103, testLabelName, Json.obj(weight -> -10)),
-      toEdge(1, insert, e, testId, 102, testLabelName2, Json.obj(weight -> 10)),
-      toEdge(1, insert, e, testId, 103, testLabelName2, Json.obj(weight -> 10)),
-      toEdge(1, insert, e, testId, 104, testLabelName2, Json.obj(weight -> 10)),
-      toEdge(1, insert, e, testId, 105, testLabelName2, Json.obj(weight -> 10)),
-
-      toEdge(1, insert, e, testId2, 101, testLabelName, Json.obj(weight -> -10)),
-      toEdge(1, insert, e, testId2, 102, testLabelName, Json.obj(weight -> -10)),
-      toEdge(1, insert, e, testId2, 103, testLabelName, Json.obj(weight -> -10)),
-      toEdge(1, insert, e, testId2, 102, testLabelName2, Json.obj(weight -> 10)),
-      toEdge(1, insert, e, testId2, 105, testLabelName2, Json.obj(weight -> 10))
-    )
-    insertEdgesSync(bulkEdges: _*)
-
-    val firstStepEdgeCount = 3l
-    val secondStepEdgeCount = 4l
-
-    var shrinkageVal = 10l
-    var rs = getEdgesSync(querySingleVertexWithOp(testId, "divide", shrinkageVal))
-    logger.debug(Json.prettyPrint(rs))
-    var results = (rs \ "results").as[List[JsValue]]
-    results.size should be(1)
-    var scoreSum = secondStepEdgeCount.toDouble / (firstStepEdgeCount.toDouble + shrinkageVal)
-    (results(0) \ "scoreSum").as[Double] should be(scoreSum)
-
-    rs = getEdgesSync(queryMultiVerticesWithOp(testId, testId2, "divide", shrinkageVal))
-    logger.debug(Json.prettyPrint(rs))
-    results = (rs \ "results").as[List[JsValue]]
-    results.size should be(2)
-    scoreSum = secondStepEdgeCount.toDouble / (firstStepEdgeCount.toDouble + shrinkageVal)
-    (results(0) \ "scoreSum").as[Double] should be(scoreSum)
-    scoreSum = 2.toDouble / (3.toDouble + shrinkageVal)
-    (results(1) \ "scoreSum").as[Double] should be(scoreSum)
-
-    // check for divide zero case
-    shrinkageVal = 30l
-    rs = getEdgesSync(queryWithPropertyOp(testId, "divide", shrinkageVal))
-    logger.debug(Json.prettyPrint(rs))
-    results = (rs \ "results").as[List[JsValue]]
-    results.size should be(1)
-    (results(0) \ "scoreSum").as[Double] should be(0)
-
-    // "plus" operation
-    rs = getEdgesSync(querySingleVertexWithOp(testId, "plus", shrinkageVal))
-    logger.debug(Json.prettyPrint(rs))
-    results = (rs \ "results").as[List[JsValue]]
-    results.size should be(1)
-    scoreSum = (firstStepEdgeCount + 1) * secondStepEdgeCount
-    (results(0) \ "scoreSum").as[Long] should be(scoreSum)
-
-    // "multiply" operation
-    rs = getEdgesSync(querySingleVertexWithOp(testId, "multiply", shrinkageVal))
-    logger.debug(Json.prettyPrint(rs))
-    results = (rs \ "results").as[List[JsValue]]
-    results.size should be(1)
-    scoreSum = (firstStepEdgeCount * 1) * secondStepEdgeCount
-    (results(0) \ "scoreSum").as[Long] should be(scoreSum)
-  }
 
   def querySingle(id: Int, offset: Int = 0, limit: Int = 100) = Json.parse(
     s"""
@@ -1064,7 +490,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
              }],
             "steps": [
             [ {
-                "label": "$testLabelNameV3",
+                "label": "$testLabelNameV2",
                 "direction": "out",
                 "offset": $offset,
                 "limit": $limit
@@ -1072,23 +498,6 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
             ]]
           }
           """)
-
-  def queryGlobalLimit(id: Int, limit: Int): JsValue = Json.obj(
-    "limit" -> limit,
-    "srcVertices" -> Json.arr(
-      Json.obj("serviceName" -> testServiceName, "columnName" -> testColumnName, "id" -> id)
-    ),
-    "steps" -> Json.arr(
-      Json.obj(
-        "step" -> Json.arr(
-          Json.obj(
-            "label" -> testLabelNameV3
-          )
-        )
-      )
-    )
-  )
-
 
   // called by each test, each
   override def beforeEach = initTestData()
@@ -1098,24 +507,24 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     super.initTestData()
 
     insertEdgesSync(
-      toEdge(1000, insert, e, 0, 1, testLabelNameV3, Json.obj(weight -> 40, is_hidden -> true)),
-      toEdge(2000, insert, e, 0, 2, testLabelNameV3, Json.obj(weight -> 30, is_hidden -> false)),
-      toEdge(3000, insert, e, 2, 0, testLabelNameV3, Json.obj(weight -> 20)),
-      toEdge(4000, insert, e, 2, 1, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(3000, insert, e, 10, 20, testLabelNameV3, Json.obj(weight -> 20)),
-      toEdge(4000, insert, e, 20, 20, testLabelNameV3, Json.obj(weight -> 10)),
-      toEdge(1, insert, e, -1, 1000, testLabelNameV3),
-      toEdge(1, insert, e, -1, 2000, testLabelNameV3),
-      toEdge(1, insert, e, -1, 3000, testLabelNameV3),
-      toEdge(1, insert, e, 1000, 10000, testLabelNameV3),
-      toEdge(1, insert, e, 1000, 11000, testLabelNameV3),
-      toEdge(1, insert, e, 2000, 11000, testLabelNameV3),
-      toEdge(1, insert, e, 2000, 12000, testLabelNameV3),
-      toEdge(1, insert, e, 3000, 12000, testLabelNameV3),
-      toEdge(1, insert, e, 3000, 13000, testLabelNameV3),
-      toEdge(1, insert, e, 10000, 100000, testLabelNameV3),
-      toEdge(2, insert, e, 11000, 200000, testLabelNameV3),
-      toEdge(3, insert, e, 12000, 300000, testLabelNameV3)
+      toEdge(1000, insert, e, 0, 1, testLabelNameV2, Json.obj(weight -> 40, is_hidden -> true)),
+      toEdge(2000, insert, e, 0, 2, testLabelNameV2, Json.obj(weight -> 30, is_hidden -> false)),
+      toEdge(3000, insert, e, 2, 0, testLabelNameV2, Json.obj(weight -> 20)),
+      toEdge(4000, insert, e, 2, 1, testLabelNameV2, Json.obj(weight -> 10)),
+      toEdge(3000, insert, e, 10, 20, testLabelNameV2, Json.obj(weight -> 20)),
+      toEdge(4000, insert, e, 20, 20, testLabelNameV2, Json.obj(weight -> 10)),
+      toEdge(1, insert, e, -1, 1000, testLabelNameV2),
+      toEdge(1, insert, e, -1, 2000, testLabelNameV2),
+      toEdge(1, insert, e, -1, 3000, testLabelNameV2),
+      toEdge(1, insert, e, 1000, 10000, testLabelNameV2),
+      toEdge(1, insert, e, 1000, 11000, testLabelNameV2),
+      toEdge(1, insert, e, 2000, 11000, testLabelNameV2),
+      toEdge(1, insert, e, 2000, 12000, testLabelNameV2),
+      toEdge(1, insert, e, 3000, 12000, testLabelNameV2),
+      toEdge(1, insert, e, 3000, 13000, testLabelNameV2),
+      toEdge(1, insert, e, 10000, 100000, testLabelNameV2),
+      toEdge(2, insert, e, 11000, 200000, testLabelNameV2),
+      toEdge(3, insert, e, 12000, 300000, testLabelNameV2)
     )
   }
 }
