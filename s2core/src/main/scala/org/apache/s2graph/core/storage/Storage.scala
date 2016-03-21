@@ -441,6 +441,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
           }
           future recoverWith {
             case FetchTimeoutException(retryEdge) =>
+              logger.error(s"\n[[ fetch timeout exception")
               logger.info(s"[Try: $tryNum], Fetch fail.\n${retryEdge}")
               retry(tryNum + 1)(edges, statusCode)(fn)
 
@@ -455,6 +456,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
               Thread.sleep(Random.nextInt(MaxBackOff))
               logger.info(s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}\nFailReason: ${faileReason}")
+              logger.error(s"\n[[ Try : $tryNum - $status")
               retry(tryNum + 1)(Seq(retryEdge), failedStatusCode)(fn)
             case ex: Exception =>
               logger.error("Unknown exception", ex)
@@ -815,7 +817,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
             logger.debug(log)
             //            debug(ret, "acquireLock", edge.toSnapshotEdge)
           } else {
-            throw new PartialFailureException(edge, 0, "hbase fail.")
+            throw new PartialFailureException(edge, 0, "acquireLock failed")
           }
           true
         }
@@ -836,6 +838,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     }
     val p = Random.nextDouble()
     if (p < FailProb) throw new PartialFailureException(edge, 3, s"$p")
+//    if (p < 0.3) throw new PartialFailureException(edge, 3, "aaa releaseLock fail.")
     else {
       val releaseLockEdgePut = snapshotEdgeSerializer(releaseLockEdge).toKeyValues.head
       val lockEdgePut = snapshotEdgeSerializer(lockEdge).toKeyValues.head
@@ -847,6 +850,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
         if (ret) {
           debug(ret, "releaseLock", edge.toSnapshotEdge)
         } else {
+          logger.error(s"\n[[ release lock failed")
           val msg = Seq("\nFATAL ERROR\n",
             "=" * 50,
             oldBytes.toList,
@@ -859,7 +863,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
           )
           logger.error(msg.mkString("\n"))
           //          error(ret, "releaseLock", edge.toSnapshotEdge)
-          throw new PartialFailureException(edge, 3, "hbase fail.")
+          throw new PartialFailureException(edge, 3, "aaa releaseLock fail.")
         }
         true
       }

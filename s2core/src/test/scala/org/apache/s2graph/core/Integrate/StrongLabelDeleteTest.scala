@@ -32,7 +32,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   import StrongDeleteUtil._
   import TestUtil._
 
-  ignore("Strong consistency select") {
+  test("Strong consistency select") {
     insertEdgesSync(bulkEdges(): _*)
 
     var result = getEdgesSync(query(0))
@@ -41,7 +41,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     (result \ "results").as[List[JsValue]].size should be(2)
   }
 
-  ignore("Strong consistency deleteAll") {
+  test("Strong consistency deleteAll") {
     val deletedAt = 100
     var result = getEdgesSync(query(20, direction = "in", columnName = testTgtColumnName))
 
@@ -99,7 +99,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     ret.forall(identity)
   }
 
-  ignore("update delete 2") {
+  test("update delete 2") {
     val src = System.currentTimeMillis()
     var ts = 0L
 
@@ -138,7 +138,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     * when contention is low but number of adjacent edges are large
     * Large set of contention test
   */
-  ignore("large degrees") {
+  test("large degrees") {
     val labelName = testLabelNameV2
     val dir = "out"
     val maxSize = 100
@@ -178,7 +178,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     ret should be(true)
   }
 
-  ignore("deleteAll") {
+  test("deleteAll") {
     val labelName = testLabelNameV2
     val dir = "out"
     val maxSize = 100
@@ -220,7 +220,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 //    val labelName = testLabelName
     val maxTgtId = 10
     val batchSize = 10
-    val testNum = 10
+    val testNum = 100
     val numOfBatch = 10
 
     def testInner(startTs: Long, src: Long) = {

@@ -86,7 +86,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
     }
   }
   def writeToRedis(kv: SKeyValue, withWait: Boolean): Future[Boolean] = {
-    val future = Future[Boolean] {
+    val future = Future.successful {
       client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(kv.row)) { jedis =>
         kv.operation match {
           case SKeyValue.Put if kv.qualifier.length > 0 =>
@@ -417,7 +417,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
    * @return
    */
   override def writeLock(requestKeyValue: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean] = {
-    Future[Boolean] {
+    Future.successful {
       client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(requestKeyValue.row)) { jedis =>
         try {
           expectedOpt match {
@@ -459,7 +459,10 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
                       false
                   }
 
-                } else "[FAIL]"
+                } else {
+                  logger.error(s"\n[[ writeLock failed")
+                  "[FAIL]"
+                }
 
               result != null && result.toString.equals("[OK]")
           }
@@ -490,7 +493,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
   }
 
   def writeWithTx(k: String, v: String, exp: String): Future[Boolean] = {
-    Future[Boolean] {
+    Future.successful {
       client.doBlockWithKey(k) { jedis =>
         jedis.watch(k)
         val fetched = jedis.get(k)
