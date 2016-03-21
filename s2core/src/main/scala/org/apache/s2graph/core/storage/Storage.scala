@@ -429,7 +429,8 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
         if (tryNum >= MaxRetryNum) {
           edges.foreach { edge =>
             logger.error(s"commit failed after $MaxRetryNum\n${edge.toLogString}")
-            ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
+            // TODO temporary disable kafka enqueu
+//            ExceptionHandler.enqueue(ExceptionHandler.toKafkaMessage(element = edge))
           }
           Future.successful(false)
         } else {
