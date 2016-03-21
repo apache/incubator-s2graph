@@ -32,7 +32,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   import StrongDeleteUtil._
   import TestUtil._
 
-  test("Strong consistency select") {
+  ignore("Strong consistency select") {
     insertEdgesSync(bulkEdges(): _*)
 
     var result = getEdgesSync(query(0))
@@ -41,7 +41,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     (result \ "results").as[List[JsValue]].size should be(2)
   }
 
-  test("Strong consistency deleteAll") {
+  ignore("Strong consistency deleteAll") {
     val deletedAt = 100
     var result = getEdgesSync(query(20, direction = "in", columnName = testTgtColumnName))
 
@@ -99,7 +99,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     ret.forall(identity)
   }
 
-  test("update delete 2") {
+  ignore("update delete 2") {
     val src = System.currentTimeMillis()
     var ts = 0L
 
@@ -138,7 +138,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     * when contention is low but number of adjacent edges are large
     * Large set of contention test
   */
-  test("large degrees") {
+  ignore("large degrees") {
     val labelName = testLabelNameV2
     val dir = "out"
     val maxSize = 100
@@ -178,7 +178,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     ret should be(true)
   }
 
-  test("deleteAll") {
+  ignore("deleteAll") {
     val labelName = testLabelNameV2
     val dir = "out"
     val maxSize = 100
@@ -216,11 +216,11 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
   object StrongDeleteUtil {
 
-    val labelName = testLabelNameV2
+    val labelName = testLabelNameV3
 //    val labelName = testLabelName
     val maxTgtId = 10
     val batchSize = 10
-    val testNum = 100
+    val testNum = 10
     val numOfBatch = 10
 
     def testInner(startTs: Long, src: Long) = {
@@ -262,6 +262,68 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
       (ret, currentTs)
     }
+
+    def testInnerFail(startTs: Long, src: Long) = {
+      val lastOps = Array.fill(maxTgtId)("none")
+      val currentTs = startTs
+      val allRequests = IndexedSeq(
+        Seq(startTs, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+1, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+2, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+3, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+4, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+5, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+6, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+7, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+8, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+9, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+10, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+11, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+12, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+13, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+14, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+15, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+16, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+17, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+18, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+19, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+20, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+21, "delete", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+22, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+23, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+24, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t"),
+        Seq(startTs+25, "update", "e", src, 1457324321121L, "s2graph_label_test_v3", "{}").mkString("\t")
+      )
+      allRequests.foreach(println _)
+      //      val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequests =>
+      //        insertEdgesAsync(bulkRequests: _*)
+      //      }
+      val futures = allRequests.grouped(batchSize).map { bulkRequests =>
+        insertEdgesAsync(bulkRequests: _*)
+      }
+
+
+      Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
+
+      val expectedDegree = 1
+      val queryJson = query(id = src)
+      val result = getEdgesSync(queryJson)
+      val resultSize = (result \ "size").as[Long]
+      val resultDegree = getDegree(result)
+
+      //      println(lastOps.toList)
+      //      println(result)
+      //      println(s">> ${Json.prettyPrint(result)}")
+      //      println(s">> resultDegree : $resultDegree, expectedDegree : $expectedDegree, resultSize : $resultSize")
+
+      val ret = resultDegree == expectedDegree && resultSize == resultDegree
+      if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree")
+      else println(s"[Contention Success]: $resultDegree, $expectedDegree")
+
+      (ret, currentTs)
+
+    }
+
 
     def bulkEdges(startTs: Int = 0) = Seq(
       toEdge(startTs + 1, "insert", "e", "0", "1", labelName, s"""{"time": 10}"""),
