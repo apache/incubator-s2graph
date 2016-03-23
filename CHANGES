@@ -97,6 +97,9 @@ Release 0.12.1 - unreleased
     S2GRAPH-57: Change package names into org.apahce.s2graph. (Committed by DOYUNG YOON).
 
     S2GRAPH-4: Update license headers in source codes. (Committed by DOYUNG YOON).
+    
+    S2GRAPH-61: Update README.md to have Apache mailing list. 
+		(Contributed by Hyunsung Jo<hyunsung.jo@gmail.com>, committed by DOYUNG YOON)
 
   SUB TASKS
 
