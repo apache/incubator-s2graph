@@ -25,7 +25,7 @@ cd s2graph
 activator 'project s2rest_play' run
 ```
 
-Finally, join the [mailing list](https://groups.google.com/forum/#!forum/s2graph)!
+Finally, join the mailing list by sending a message to [dev-subscribe@s2graph.incubator.apache.org](mailto:dev-subscribe@s2graph.incubator.apache.org)!
 
 
 **Your First Graph**
