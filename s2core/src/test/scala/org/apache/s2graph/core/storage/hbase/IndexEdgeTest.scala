@@ -21,7 +21,7 @@ package org.apache.s2graph.core.storage.hbase
 
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.{IndexEdge, TestCommonWithModels, Vertex}
+import org.apache.s2graph.core.{HBaseTest, IndexEdge, TestCommonWithModels, Vertex}
 import org.scalatest.{FunSuite, Matchers}
 
 
@@ -53,7 +53,7 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
 
 
   /** note that props have to be properly set up for equals */
-  test("test serializer/deserializer for index edge.") {
+  test("test serializer/deserializer for index edge.", HBaseTest) {
     val ts = System.currentTimeMillis()
     for {
       l <- Seq(label, labelV2, labelV3, labelV4)
@@ -67,7 +67,7 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
     }
   }
 
-  test("test serializer/deserializer for degree edge.") {
+  test("test serializer/deserializer for degree edge.", HBaseTest) {
     val ts = System.currentTimeMillis()
     for {
       l <- Seq(label, labelV2, labelV3, labelV4)
@@ -82,7 +82,7 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
     }
   }
 
-  test("test serializer/deserializer for incrementCount index edge.") {
+  test("test serializer/deserializer for incrementCount index edge.", HBaseTest) {
     val ts = System.currentTimeMillis()
     for {
       l <- Seq(label, labelV2, labelV3, labelV4)

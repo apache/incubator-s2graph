@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core.models
 
-import org.apache.s2graph.core.TestCommonWithModels
+import org.apache.s2graph.core.{CommonTest, TestCommonWithModels}
 import org.apache.s2graph.core.mysqls.Label
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
@@ -60,8 +60,7 @@ class ModelTest extends FunSuite with Matchers with TestCommonWithModels with Be
   //    "defaultValue" -> false, "dataType" -> "boolean", "usedInIndex" -> false))
   //  val labelIndex = HLabelIndex(Map("id" -> id, "labelId" -> label.id.get, "seq" -> 1.toByte,
   //    "metaSeqs" -> "0", "formular" -> "none"))
-  test("test Label.findByName") {
-    val labelOpt = Label.findByName(labelName, useCache = false)
+  test("test Label.findByName", CommonTest) {    val labelOpt = Label.findByName(labelName, useCache = false)
     println(labelOpt)
     labelOpt.isDefined shouldBe true
     val indices = labelOpt.get.indices

@@ -24,20 +24,20 @@ import org.apache.s2graph.core.types.LabelWithDirection
 import org.scalatest.{FunSuite, Matchers}
 
 class QueryParamTest extends FunSuite with Matchers with TestCommon {
-//  val version = HBaseType.VERSION2
-//  val testEdge = Management.toEdge(ts, "insert", "1", "10", labelNameV2, "out", Json.obj("is_blocked" -> true, "phone_number" -> "xxxx", "age" -> 20).toString)
-//  test("EdgeTransformer toInnerValOpt") {
-//
-//    /** only labelNameV2 has string type output */
-//    val jsVal = Json.arr(Json.arr("_to"), Json.arr("phone_number.$", "phone_number"), Json.arr("age.$", "age"))
-//    val transformer = EdgeTransformer(queryParamV2, jsVal)
-//    val convertedLs = transformer.transform(testEdge, None)
-//
-//    convertedLs(0).tgtVertex.innerId.toString == "10" shouldBe true
-//    convertedLs(1).tgtVertex.innerId.toString == "phone_number.xxxx" shouldBe true
-//    convertedLs(2).tgtVertex.innerId.toString == "age.20" shouldBe true
-//    true
-//  }
+  //  val version = HBaseType.VERSION2
+  //  val testEdge = Management.toEdge(ts, "insert", "1", "10", labelNameV2, "out", Json.obj("is_blocked" -> true, "phone_number" -> "xxxx", "age" -> 20).toString)
+  //  test("EdgeTransformer toInnerValOpt") {
+  //
+  //    /** only labelNameV2 has string type output */
+  //    val jsVal = Json.arr(Json.arr("_to"), Json.arr("phone_number.$", "phone_number"), Json.arr("age.$", "age"))
+  //    val transformer = EdgeTransformer(queryParamV2, jsVal)
+  //    val convertedLs = transformer.transform(testEdge, None)
+  //
+  //    convertedLs(0).tgtVertex.innerId.toString == "10" shouldBe true
+  //    convertedLs(1).tgtVertex.innerId.toString == "phone_number.xxxx" shouldBe true
+  //    convertedLs(2).tgtVertex.innerId.toString == "age.20" shouldBe true
+  //    true
+  //  }
 
   val dummyRequests = {
     for {
@@ -47,7 +47,7 @@ class QueryParamTest extends FunSuite with Matchers with TestCommon {
     }
   }
 
-  test("QueryParam toCacheKey bytes") {
+  test("QueryParam toCacheKey bytes", CommonTest) {
     val startedAt = System.nanoTime()
     val queryParam = QueryParam(LabelWithDirection(1, 0))
 
@@ -66,15 +66,15 @@ class QueryParamTest extends FunSuite with Matchers with TestCommon {
     dummyRequests.zip(dummyRequests).foreach { case (x, y) =>
       val xHash = queryParam.toCacheKey(x)
       val yHash = queryParam.toCacheKey(y)
-//      println(xHash, yHash)
+      //      println(xHash, yHash)
       xHash should be(yHash)
     }
     val duration = System.nanoTime() - startedAt
 
-    println(s">> bytes: $duration")
+    //    println(s">> bytes: $duration")
   }
 
-  test("QueryParam toCacheKey with variable params") {
+  test("QueryParam toCacheKey with variable params", CommonTest) {
     val startedAt = System.nanoTime()
     val queryParam = QueryParam(LabelWithDirection(1, 0))
 
@@ -86,7 +86,7 @@ class QueryParamTest extends FunSuite with Matchers with TestCommon {
       queryParam.limit(1, 10)
       var yHash = queryParam.toCacheKey(y)
       queryParam.toCacheKey(x) shouldBe yHash
-//      println(xHash, yHash)
+      //      println(xHash, yHash)
       xHash should not be yHash
 
       queryParam.limit(0, 10)
@@ -99,7 +99,7 @@ class QueryParamTest extends FunSuite with Matchers with TestCommon {
 
     val duration = System.nanoTime() - startedAt
 
-    println(s">> diff: $duration")
+    //    println(s">> diff: $duration")
   }
 
 }

@@ -19,19 +19,17 @@
 
 package org.apache.s2graph.core.Integrate
 
-import org.apache.s2graph.core.PostProcess
+import org.apache.s2graph.core.{CommonTest, PostProcess}
 import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.Await
-import scala.util.Random
 
 
-class VertexTestHelper extends IntegrateCommon {
+class VertexTest extends IntegrateCommon {
 
   import TestUtil._
-//  import VertexTestHelper._
 
-  test("vertex") {
+  test("vertex", CommonTest) {
     val ids = (7 until 20).map(tcNum => tcNum * 1000 + 0)
     val (serviceName, columnName) = (testServiceName, testColumnName)
 
@@ -53,36 +51,6 @@ class VertexTestHelper extends IntegrateCommon {
     } yield {
       (d \ "id") should be(f \ "id")
       ((d \ "props") \ "age") should be((f \ "props") \ "age")
-    }
-  }
-
-  object VertexTestHelper {
-    def vertexQueryJson(serviceName: String, columnName: String, ids: Seq[Int]) = {
-      Json.parse(
-        s"""
-           |[
-           |{"serviceName": "$serviceName", "columnName": "$columnName", "ids": [${ids.mkString(",")}
-         ]}
-           |]
-       """.stripMargin)
-    }
-
-    def vertexInsertsPayload(serviceName: String, columnName: String, ids: Seq[Int]): Seq[JsValue] = {
-      ids.map { id =>
-        Json.obj("id" -> id, "props" -> randomProps, "timestamp" -> System.currentTimeMillis())
-      }
-    }
-
-    val vertexPropsKeys = List(
-      ("age", "int")
-    )
-
-    def randomProps() = {
-      (for {
-        (propKey, propType) <- vertexPropsKeys
-      } yield {
-        propKey -> Random.nextInt(100)
-      }).toMap
     }
   }
 }

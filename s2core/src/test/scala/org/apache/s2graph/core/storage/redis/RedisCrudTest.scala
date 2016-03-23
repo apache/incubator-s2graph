@@ -4,7 +4,7 @@ import com.typesafe.config.{ConfigFactory, ConfigValueFactory}
 import org.apache.s2graph.core.Integrate.IntegrateCommon
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.rest.RequestParser
-import org.apache.s2graph.core.{Graph, Management}
+import org.apache.s2graph.core.{RedisTest, Graph, Management}
 import org.scalatest.BeforeAndAfterEach
 import play.api.libs.json.{JsValue, Json}
 
@@ -20,7 +20,15 @@ class RedisCrudTest extends IntegrateCommon with BeforeAndAfterEach {
   val insert = "insert"
   val increment = "increment"
   val e = "e"
-
+  val sid1 = 1000001
+  val sid2 = 1000002
+  val sid3 = 1000003
+  val sid4 = 1000004
+  val sid6 = 1000006
+  val tid1 = 1000
+  val tid2 = 1100
+  val tid3 = 1110
+  val tid4 = 2000
 
   override def beforeAll = {
     config = ConfigFactory.load()
@@ -52,8 +60,8 @@ class RedisCrudTest extends IntegrateCommon with BeforeAndAfterEach {
       management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
 //    println(s">> Service created : $createService, $tryRes")
 
-    // with only v3 label
-    val labelNames = Map(testLabelNameV3 -> testLabelNameV3Create)
+    // with only v4 label
+    val labelNames = Map(testLabelNameV4 -> testLabelCreate("v4"))
 
     for {
       (labelName, create) <- labelNames
@@ -83,40 +91,40 @@ class RedisCrudTest extends IntegrateCommon with BeforeAndAfterEach {
   }
 
 
-  test("test insert/check/get edges") {
+  test("test insert/check/get edges", RedisTest) {
     insertEdgesSync(
-      toEdge(1, insert, e, 1, 1000, testLabelNameV3),
-      toEdge(1, insert, e, 1, 1100, testLabelNameV3),
-      toEdge(1, insert, e, 1, 1110, testLabelNameV3),
-      toEdge(1, insert, e, 2, 2000, testLabelNameV3)
+      toEdge(1, insert, e, sid1, tid1, testLabelNameV4),
+      toEdge(1, insert, e, sid1, tid2, testLabelNameV4),
+      toEdge(1, insert, e, sid1, tid3, testLabelNameV4),
+      toEdge(1, insert, e, sid2, tid4, testLabelNameV4)
     )
     def queryCheckEdges(fromId: Int, toId: Int): JsValue = Json.parse(
       s"""
-         |[{
-         |  "label": "$testLabelNameV3",
-                                        |  "direction": "out",
-                                        |  "from": $fromId,
-                                                            |  "to": $toId
-          |}]
+        |[{
+        |  "label": "$testLabelNameV4",
+        |  "direction": "out",
+        |  "from": $fromId,
+        |  "to": $toId
+        |}]
        """.stripMargin
     )
 
 
-    var result = checkEdgesSync(queryCheckEdges(1, 1000))
+    var result = checkEdgesSync(queryCheckEdges(sid1, tid1))
     println(result.toString())
-    (result \ "size").toString should be("1") // edge 1 -> 1000 should be present
+    (result \ "size").toString should be("1") // edge 1000001 -> 1000 should be present
 
-    result = checkEdgesSync(queryCheckEdges(2, 2000))
+    result = checkEdgesSync(queryCheckEdges(sid2, tid4))
     println(result.toString())
-    (result \ "size").toString should be("1") // edge 2 -> 2000 should be present
+    (result \ "size").toString should be("1") // edge 1000002 -> 2000 should be present
 
-    result = getEdgesSync(querySingle(1, "out", 0, 10))
+    result = getEdgesSync(querySingle(sid1, testLabelNameV4, 0, 10))
     println(result.toString())
-    (result \ "size").toString should be("3") // edge 1 -> 1000, 1100, 1110 should be present
+    (result \ "size").toString should be("3") // edge 1000001 -> 1000, 1100, 1110 should be present
   }
 
-  test("get vertex") {
-    val ids = Array(1, 2)
+  test("get vertex", RedisTest) {
+    val ids = Array(sid1, sid2)
     val q = vertexQueryJson(testServiceName, testColumnName, ids)
     println("vertex get query: " + q.toString())
 
@@ -125,8 +133,8 @@ class RedisCrudTest extends IntegrateCommon with BeforeAndAfterEach {
     rs.as[Array[JsValue]].size should be (2)
   }
 
-  test("insert vertex") {
-    val ids = (3 until 6)
+  test("insert vertex", RedisTest) {
+    val ids = (sid3 until sid6)
     val data = vertexInsertsPayload(testServiceName, testColumnName, ids)
     val payload = Json.parse(Json.toJson(data).toString())
     println(Json.prettyPrint(payload))
@@ -143,7 +151,7 @@ class RedisCrudTest extends IntegrateCommon with BeforeAndAfterEach {
     rs.as[Array[JsValue]].size should be (3)
   }
 
-  test("test increment") {
+  test("test increment", RedisTest) {
     def queryTo(id: Int, to:Int, offset: Int = 0, limit: Int = 10) = Json.parse(
       s"""
       |{
@@ -154,7 +162,7 @@ class RedisCrudTest extends IntegrateCommon with BeforeAndAfterEach {
       |	}],
       |	"steps": [
       |		[{
-      |			"label": "$testLabelNameV3",
+      |			"label": "$testLabelNameV4",
       |			"direction": "out",
       |			"offset": $offset,
       |			"limit": $limit,
@@ -167,40 +175,39 @@ class RedisCrudTest extends IntegrateCommon with BeforeAndAfterEach {
 
     val incrementVal = 10
     mutateEdgesSync(
-      toEdge(1, increment, e, 3, 4, testLabelNameV3, "{\"weight\":%s}".format(incrementVal), "out")
+      toEdge(1, increment, e, sid3, sid4, testLabelNameV4, "{\"weight\":%s}".format(incrementVal), "out")
     )
 
-    // TODO need to change from checkEdges to getEdges, after implements `getEdges` feature
-    val resp = getEdgesSync(queryTo(3, 4))
+    val resp = getEdgesSync(queryTo(sid3, sid4))
     println(s"Result: ${Json.prettyPrint(resp)}")
-    (resp \ "size").toString should be ("1")  // edge 1 -> 1000 should be present
+    (resp \ "size").toString should be ("1")  // edge 1000003 -> 1000004 should be present
 
     val result = (resp \\ "results" ).head(0)
-    (result \ "props" \ "weight" ).toString should be (s"$incrementVal")  // edge 1 -> 1000 should be present
+    (result \ "props" \ "weight" ).toString should be (s"$incrementVal")
   }
 
-  test("deleteAll") {
+  test("deleteAll", RedisTest) {
     val deletedAt = 100
-    var result = getEdgesSync(querySingle(1, "out", 0, 10))
+    var result = getEdgesSync(querySingle(sid1, testLabelNameV4, 0, 10))
 
     println(s"before deleteAll: ${Json.prettyPrint(result)}")
 
-    result = getEdgesSync(querySingle(1, "out", 0, 10))
+    result = getEdgesSync(querySingle(sid1, testLabelNameV4, 0, 10))
     println(result.toString())
-    (result \ "size").toString should be("3") // edge 1 -> 1000, 1100, 1110 should be present
+    (result \ "size").toString should be("3") // edge 1000001 -> 1000, 1100, 1110 should be present
 
     val deleteParam = Json.arr(
-      Json.obj("label" -> testLabelNameV3,
+      Json.obj("label" -> testLabelNameV4,
         "direction" -> "out",
-        "ids" -> Json.arr("1"),
+        "ids" -> Json.arr(sid1.toString),
         "timestamp" -> deletedAt
       )
     )
     deleteAllSync(deleteParam)
 
-    result = getEdgesSync(querySingle(1, "out", 0, 10))
+    result = getEdgesSync(querySingle(sid1, testLabelNameV4, 0, 10))
     println(result.toString())
-    (result \ "size").toString should be("0") // edge 1 -> 1000, 1100, 1110 should be deleted
+    (result \ "size").toString should be("0") // edge 1000001 -> 1000, 1100, 1110 should be deleted
 
   }
 

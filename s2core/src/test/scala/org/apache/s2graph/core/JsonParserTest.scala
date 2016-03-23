@@ -70,12 +70,12 @@ class JsonParserTest extends FunSuite with Matchers with TestCommon with JSONPar
     }
   }
 
-  test("aa") {
+  test("aa", V2Test) {
     val innerVal = InnerVal.withStr("abc", VERSION2)
     val tmp = innerValToJsValue(innerVal, "string")
     println(tmp)
   }
-  test("JsValue <-> InnerVal with dataType") {
+  test("JsValue <-> InnerVal with dataType", List(V1Test, V2Test):_*) {
     for {
       (innerValWithDataTypes, version) <- innerValsPerVersion
     } {

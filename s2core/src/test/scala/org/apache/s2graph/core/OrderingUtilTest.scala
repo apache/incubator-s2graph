@@ -24,7 +24,7 @@ import org.scalatest.{FunSuite, Matchers}
 import play.api.libs.json.JsString
 
 class OrderingUtilTest extends FunSuite with Matchers {
-  test("test SeqMultiOrdering") {
+  test("test SeqMultiOrdering", CommonTest) {
     val jsLs: Seq[Seq[Any]] = Seq(
       Seq(0, "a"),
       Seq(0, "b"),
@@ -48,7 +48,7 @@ class OrderingUtilTest extends FunSuite with Matchers {
     resultJsLs.toString() should equal(sortedJsLs.toString())
   }
 
-  test("test tuple 1 TupleMultiOrdering") {
+  test("test tuple 1 TupleMultiOrdering", CommonTest) {
     val jsLs: Seq[(Any, Any, Any, Any)] = Seq(
       (0, None, None, None),
       (0, None, None, None),
@@ -71,7 +71,7 @@ class OrderingUtilTest extends FunSuite with Matchers {
     resultJsLs.toString() should equal(sortedJsLs.toString())
   }
 
-  test("test tuple 2 TupleMultiOrdering") {
+  test("test tuple 2 TupleMultiOrdering", CommonTest) {
     val jsLs: Seq[(Any, Any, Any, Any)] = Seq(
       (0, "a", None, None),
       (0, "b", None, None),
@@ -95,7 +95,7 @@ class OrderingUtilTest extends FunSuite with Matchers {
     resultJsLs.toString() should equal(sortedJsLs.toString())
   }
 
-  test("test tuple 3 TupleMultiOrdering") {
+  test("test tuple 3 TupleMultiOrdering", CommonTest) {
     val jsLs: Seq[(Any, Any, Any, Any)] = Seq(
       (0, "a", 0l, None),
       (0, "a", 1l, None),
@@ -120,7 +120,7 @@ class OrderingUtilTest extends FunSuite with Matchers {
     resultJsLs.toString() should equal(sortedJsLs.toString())
   }
 
-  test("test tuple 4 TupleMultiOrdering") {
+  test("test tuple 4 TupleMultiOrdering", CommonTest) {
     val jsLs: Seq[(Any, Any, Any, Any)] = Seq(
       (0, "a", 0l, JsString("a")),
       (0, "a", 0l, JsString("b")),
@@ -147,3 +147,4 @@ class OrderingUtilTest extends FunSuite with Matchers {
     resultJsLs.toString() should equal(sortedJsLs.toString())
   }
 }
+

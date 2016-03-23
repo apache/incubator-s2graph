@@ -24,7 +24,7 @@ import org.scalatest.{FunSuite, Matchers}
 class AsynchbaseStorageTest extends FunSuite with Matchers {
 
   /** need secured cluster */
-//  test("test secure cluster connection") {
+//  test("test secure cluster connection", HBaseTest) {
 //    val config = ConfigFactory.parseMap(
 //      Map(
 //        "hbase.zookeeper.quorum" -> "localhost",

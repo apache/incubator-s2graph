@@ -25,7 +25,15 @@ lazy val commonSettings = Seq(
   version := "0.12.1-SNAPSHOT",
   scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xlint"),
   javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map { case (key, value) => "-D" + key + "=" + value }.toSeq,
-  testOptions in Test += Tests.Argument("-oDF"),
+  testOptions in Test ++= Seq(
+    Tests.Argument("-oDF"),
+    Tests.Argument(TestFrameworks.ScalaTest, "-n", "CommonTest"),
+    Tests.Argument(TestFrameworks.ScalaTest, "-n", "V1Test"),
+    Tests.Argument(TestFrameworks.ScalaTest, "-n", "V2Test"),
+    Tests.Argument(TestFrameworks.ScalaTest, "-n", "V3Test"),
+    Tests.Argument(TestFrameworks.ScalaTest, "-n", "V4Test"),
+    Tests.Argument(TestFrameworks.ScalaTest, "-n", "HBaseTest")
+  ),
   parallelExecution in Test := false,
   resolvers ++= Seq(
     Resolver.mavenLocal,
@@ -49,7 +57,23 @@ lazy val s2rest_netty = project
   .dependsOn(s2core)
   .settings(commonSettings: _*)
 
-lazy val s2core = project.settings(commonSettings: _*)
+lazy val HBaseTest = config("hbase") extend(Test)
+lazy val RedisTest = config("redis") extend(Test)
+
+lazy val s2core = project.settings(commonSettings: _*).
+  configs(HBaseTest).
+  configs(RedisTest).
+  settings(inConfig(RedisTest)(Defaults.testTasks): _*).
+  settings(
+    testOptions in RedisTest --= Seq(
+      Tests.Argument(TestFrameworks.ScalaTest, "-n", "V1Test"),
+      Tests.Argument(TestFrameworks.ScalaTest, "-n", "V2Test"),
+      Tests.Argument(TestFrameworks.ScalaTest, "-n", "V3Test"),
+      Tests.Argument(TestFrameworks.ScalaTest, "-n", "HBaseTest")
+    ),
+    testOptions in RedisTest += Tests.Argument(TestFrameworks.ScalaTest, "-n", "RedisTest")
+  )
+
 
 lazy val spark = project.settings(commonSettings: _*)
 

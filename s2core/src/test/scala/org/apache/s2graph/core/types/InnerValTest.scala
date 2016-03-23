@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.TestCommonWithModels
+import org.apache.s2graph.core.{CommonTest, TestCommonWithModels}
 import org.scalatest.{FunSuite, Matchers}
 
 class InnerValTest extends FunSuite with Matchers with TestCommonWithModels {
@@ -107,7 +107,7 @@ class InnerValTest extends FunSuite with Matchers with TestCommonWithModels {
   //      testEncodeDecode(innerVals, version)
   //    }
   //  }
-  test("korean") {
+  test("korean", CommonTest) {
     val small = InnerVal.withStr("가", VERSION2)
     val large = InnerVal.withStr("나", VERSION2)
     val smallBytes = small.bytes
