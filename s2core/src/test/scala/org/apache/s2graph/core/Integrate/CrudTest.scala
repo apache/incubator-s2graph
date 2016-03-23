@@ -31,7 +31,7 @@ class CrudTest extends IntegrateCommon {
   versions map { n =>
     val ver = s"v$n"
     val tag = getTag(ver)
-    println(s">>>>>tag $tag")
+
     test(s"test CRUD $ver", tag) {
       val tcRunner = new CrudTestRunner()
       tcRunner.test(ver)

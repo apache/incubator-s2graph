@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -31,7 +31,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.Random
 
-trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
+trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll with TestCommon{
 
   import TestUtil._
 
@@ -50,15 +50,6 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
     graph.shutdown()
-  }
-
-  def getTag(ver: String) = {
-    ver match {
-      case "v2" => V2Test
-      case "v3" => V3Test
-      case "v4" => V4Test
-      case _ => throw new GraphExceptions.UnsupportedVersionException(s"$ver does no support CRUD!")
-    }
   }
 
   def getLabelName(ver: String, consistency: String = "strong") = s"s2graph_label_test_${ver}_${consistency}"

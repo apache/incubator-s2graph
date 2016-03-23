@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,20 +24,6 @@ import org.apache.s2graph.core.types.LabelWithDirection
 import org.scalatest.{FunSuite, Matchers}
 
 class QueryParamTest extends FunSuite with Matchers with TestCommon {
-  //  val version = HBaseType.VERSION2
-  //  val testEdge = Management.toEdge(ts, "insert", "1", "10", labelNameV2, "out", Json.obj("is_blocked" -> true, "phone_number" -> "xxxx", "age" -> 20).toString)
-  //  test("EdgeTransformer toInnerValOpt") {
-  //
-  //    /** only labelNameV2 has string type output */
-  //    val jsVal = Json.arr(Json.arr("_to"), Json.arr("phone_number.$", "phone_number"), Json.arr("age.$", "age"))
-  //    val transformer = EdgeTransformer(queryParamV2, jsVal)
-  //    val convertedLs = transformer.transform(testEdge, None)
-  //
-  //    convertedLs(0).tgtVertex.innerId.toString == "10" shouldBe true
-  //    convertedLs(1).tgtVertex.innerId.toString == "phone_number.xxxx" shouldBe true
-  //    convertedLs(2).tgtVertex.innerId.toString == "age.20" shouldBe true
-  //    true
-  //  }
 
   val dummyRequests = {
     for {
