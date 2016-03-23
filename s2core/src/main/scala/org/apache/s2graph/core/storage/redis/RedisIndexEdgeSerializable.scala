@@ -29,11 +29,12 @@ class RedisIndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[Inde
      * Qualifier and value byte array map
      *
      *  * byte field design
-     *    [{ qualifier total length - 1 byte } | { # of index property - 1 byte } | -
+     *    [{ # of index property - 1 byte } | -
      *     { series of index property values - sum of length with each property values bytes } | -
      *     { timestamp - 8 bytes } | { target id inner value - length of target id inner value bytes } | -
      *     { operation code byte - 1 byte } -
-     *     { series of non-index property values - sum of length with each property values bytes }]
+     *     { series of non-index property values - sum of length with each property values bytes } | -
+     *     { qualifier total length - 1 byte }]
      *
      *  ** !Serialize operation code byte after target id or series of index props bytes
      */
@@ -47,7 +48,7 @@ class RedisIndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[Inde
     val qualifierLen = Array.fill[Byte](1)(qualifier.length.toByte)
     val propsKv = propsToKeyValues(indexEdge.metas.toSeq)
 
-    val value = qualifierLen ++ qualifier ++ propsKv
+    val value = qualifier ++ propsKv ++ qualifierLen
     val emptyArray = Array.empty[Byte]
     val kv = SKeyValue(emptyArray, row, emptyArray, emptyArray, value, indexEdge.version)
 

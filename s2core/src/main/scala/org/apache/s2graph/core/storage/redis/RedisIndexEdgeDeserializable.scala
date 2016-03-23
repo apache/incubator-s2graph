@@ -40,8 +40,7 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
         (Array.empty[(Byte, InnerValLike)], VertexId(GraphType.DEFAULT_COL_ID, InnerVal.withStr("0", version)), GraphUtil.toOp("increment").get, true, 0, 0)
       case _ =>
         var qualifierLen = 0
-        // skip first byte: qualifier length
-        var pos = 1
+        var pos = 0
         val (idxPropsRaw, tgtVertexIdRaw, tgtVertexIdLen, timestamp) = {
           val (props, endAt) = bytesToProps(kv.value, pos, version)
           pos = endAt
@@ -75,7 +74,10 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
   }
 
   private def parseValue(kv: SKeyValue, offset: Int, version: String): ValueRaw = {
-    val (props, endAt) = bytesToKeyValues(kv.value, offset, 0, version)
+    val value =
+      if ( kv.value.length > 0 ) kv.value.dropRight(1)
+      else kv.value
+    val (props, endAt) = bytesToKeyValues(value, offset, 0, version)
     (props, endAt)
   }
 
@@ -101,7 +103,9 @@ class RedisIndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long =
       (e.srcVertex.id, e.labelWithDir, e.labelIndexSeq, false, 0)
     }.getOrElse(parseRow(kv, version))
 
-    val totalQualifierLen = kv.value(0).toInt
+    val totalQualifierLen =
+      if (kv.value.length > 0 ) kv.value(kv.value.length-1).toInt
+      else 0
 
     val (idxPropsRaw, tgtVertexIdRaw, op, isTgtVertexIdInQualifier, timestamp, numBytesRead) =
       parseQualifier(kv, totalQualifierLen, version)

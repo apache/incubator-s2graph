@@ -188,10 +188,10 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
       val (minTs, maxTs) = queryParam.duration.getOrElse(-1L -> -1L)
       val (min, max) =
         if (queryParam.columnRangeFilterMinBytes.length != 0 && queryParam.columnRangeFilterMaxBytes.length != 0)
-          (queryParam.columnRangeFilterMinBytes, queryParam.columnRangeFilterMaxBytes)
+          (Bytes.add(Bytes.toBytes("["), queryParam.columnRangeFilterMinBytes),
+            Bytes.add(Bytes.toBytes("["), queryParam.columnRangeFilterMaxBytes))
         else
           ("-".getBytes, "+".getBytes)
-
 
       _get.setCount(queryParam.limit)
         .setOffset(queryParam.offset)
