@@ -200,8 +200,10 @@ The above example is by no means a full-blown social network timeline, but it gi
 If you'd like to know more about S2Graph and its powerful APIs, please continue to the [S2Graph API document](https://www.gitbook.com/book/steamshon/s2graph-book)!
 
 
+Please subscribe to the S2Graph mailing list by sending a message to [dev-subscribe@s2graph.incubator.apache.org](mailto:dev-subscribe@s2graph.incubator.apache.org)
+
 #### [S2Graph API document](https://steamshon.gitbooks.io/s2graph-book/content/)
 
-#### [Mailing List](https://groups.google.com/forum/#!forum/s2graph)
+#### [Mailing List](mailto:dev-subscribe@s2graph.incubator.apache.org)
 
 [![Analytics](https://ga-beacon.appspot.com/UA-62888350-1/s2graph/readme.md)](https://github.com/kakao/s2graph)
