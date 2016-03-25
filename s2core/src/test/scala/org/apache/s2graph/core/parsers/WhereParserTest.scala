@@ -30,15 +30,15 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels w
   versions map { n =>
     val ver = s"v$n"
     val tag = getTag(ver)
+    // dummy data for dummy edge
+    initTests(ver)
+
     val l = label(ver)
     val ld = labelWithDir(ver)
 
     val ts = System.currentTimeMillis()
     val dummyTs = (LabelMeta.timeStampSeq -> InnerValLikeWithTs.withLong(ts, ts, ver))
     val labelMap = Map(l.label -> l)
-
-    // dummy data for dummy edge
-    initTests(ver)
 
     val (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) = ids(ver)
 

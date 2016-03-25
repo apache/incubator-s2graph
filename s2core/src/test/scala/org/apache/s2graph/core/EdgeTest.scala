@@ -29,9 +29,11 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
   versions map { n =>
     val ver = s"v$n"
     val tag = getTag(ver)
+    initTests(ver)
+
+    
     val label = labelName(ver)
     val dirLabel = labelWithDir(ver)
-    initTests(ver)
 //    test(s"toLogString $ver", tag) {
 //      val bulkQueries = List(
 //        ("1445240543366", "update", "{\"is_blocked\":true}"),
