@@ -35,7 +35,7 @@ class VertexTest extends IntegrateCommon {
 
     val data = vertexInsertsPayload(serviceName, columnName, ids)
     val payload = Json.parse(Json.toJson(data).toString)
-    println(payload)
+    println(s">>> insert vertices: ${payload}")
 
     val vertices = parser.toVertices(payload, "insert", Option(serviceName), Option(columnName))
     Await.result(graph.mutateVertices(vertices, withWait = true), HttpRequestWaitingTime)
@@ -46,6 +46,7 @@ class VertexTest extends IntegrateCommon {
 
     val ret = Await.result(res, HttpRequestWaitingTime)
     val fetched = ret.as[Seq[JsValue]]
+    println(s">>> fetched vertices: ${fetched}")
     for {
       (d, f) <- data.zip(fetched)
     } yield {

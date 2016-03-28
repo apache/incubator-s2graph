@@ -123,7 +123,10 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       )
       insertEdgesSync(bulkEdges: _*)
 
-      var result = getEdgesSync(querySingle(src, label, offset = 0, limit = 2))
+      val r = getEdgesSync(querySingle(src, label, offset = 0, limit = 10))
+
+      var result = getEdgesSync(querySingle(src, label, offset = 1, limit = 2))
+
       var edges = (result \ "results").as[List[JsValue]]
 
       edges.size should be(2)

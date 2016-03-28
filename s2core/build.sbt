@@ -36,7 +36,7 @@ libraryDependencies ++= Seq(
   "mysql" % "mysql-connector-java" % "5.1.28",
   "org.apache.kafka" % "kafka-clients" % "0.8.2.0" excludeAll(ExclusionRule(organization = "org.slf4j"), ExclusionRule(organization = "com.sun.jdmk"), ExclusionRule(organization = "com.sun.jmx"), ExclusionRule(organization = "javax.jms")),
   "com.github.danielwegener" % "logback-kafka-appender" % "0.0.4",
-  "redis.clients" % "jedis" % "2.6.0"
+  "redis.clients" % "jedis" % "2.7.0"
 )
 
 libraryDependencies := {

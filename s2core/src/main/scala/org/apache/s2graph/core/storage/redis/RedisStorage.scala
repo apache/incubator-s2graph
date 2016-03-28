@@ -13,6 +13,7 @@ import org.apache.s2graph.core.storage.redis.jedis.JedisClient
 import org.apache.s2graph.core.storage.{CanSKeyValue, SKeyValue, Storage}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
+
 import scala.collection.JavaConversions._
 import scala.collection.Seq
 import scala.concurrent.{ExecutionContext, Future, Promise}
@@ -24,6 +25,7 @@ import scala.util.{Failure, Success}
  */
 class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
   extends Storage[Future[QueryRequestWithResult]](config) {
+
   import GraphType._
 
   val futureCache = CacheBuilder.newBuilder()
@@ -46,11 +48,13 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
       case VERSION4 => new RedisIndexEdgeDeserializable
       case _ => throw new UnsupportedVersionException(s"Redis storage does not support version ${schemaVer}")
     }
+
   override def snapshotEdgeDeserializer(schemaVer: String) =
     schemaVer match {
       case VERSION4 => new RedisSnapshotEdgeDeserializable
       case _ => throw new UnsupportedOperationException
     }
+
   override val vertexDeserializer = new RedisVertexDeserializable
 
   override def indexEdgeSerializer(indexedEdge: IndexEdge) = new RedisIndexEdgeSerializable(indexedEdge)
@@ -71,10 +75,10 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
    * to actually apply byte array into storage. in this case, AsynchbaseStorage use HBaseClient
    * and build + fire rpc and return future that will return if this rpc has been succeed.
    *
-//   * @param kv       : SKeyValue that need to be stored in storage.
+  //   * @param kv       : SKeyValue that need to be stored in storage.
 //   * @param withWait : flag to control wait ack from storage.
-   *                 note that in AsynchbaseStorage(which support asynchronous operations), even with true,
-   *                 it never block thread, but rather submit work and notified by event loop when storage send ack back.
+   * note that in AsynchbaseStorage(which support asynchronous operations), even with true,
+   * it never block thread, but rather submit work and notified by event loop when storage send ack back.
    * @return ack message from storage.
    */
   override def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean): Future[Boolean] = {
@@ -85,6 +89,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
       Future.sequence(futures).map(_.forall(identity))
     }
   }
+
   def writeToRedis(kv: SKeyValue, withWait: Boolean): Future[Boolean] = {
     val future = Future.successful {
       client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(kv.row)) { jedis =>
@@ -193,11 +198,26 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
         else
           ("-".getBytes, "+".getBytes)
 
-      _get.setCount(queryParam.limit)
-        .setOffset(queryParam.offset)
+      val (newLimit, newOffset) = revertLimit(queryParam.offset, queryParam.limit)
+
+      _get.setCount(newLimit)
+        .setOffset(newOffset)
         .setTimeout(queryParam.rpcTimeoutInMillis)
         .setFilter(min, true, max, true, minTs, maxTs)
     }
+  }
+
+  // Degrees are handled with separate keys in Redis.
+  // No need for offset/ limit adjustments in QueryParam limit().
+  // Hence, the function name revertLimit.
+  private def revertLimit(offset: Int, limit: Int): (Int, Int) = {
+    /** since degree info is located on first always */
+    val (newLimit, newOffset) = if (offset == 0) {
+      (limit - 1, offset)
+    } else {
+      (limit, offset - 1)
+    }
+    (newLimit, newOffset)
   }
 
   private def fetchKeyValuesInner(request: RedisRPC) = {
@@ -336,20 +356,20 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
 
   }
 
-//  /**
-//   * fetch vertex for given request from storage.
-//   *
-//   * @param request
-//   * @return
-//   */
-//  override def fetchVertexKeyValues(request: AnyRef): Future[Seq[SKeyValue]] = {
-//    val defer = fetchKeyValuesInner(request.asInstanceOf[RedisRPC])
-//    defer.map { kvsArr =>
-//      kvsArr.map { kv =>
-//        implicitly[CanSKeyValue[SKeyValue]].toSKeyValue(kv)
-//      }
-//    }
-//  }
+  //  /**
+  //   * fetch vertex for given request from storage.
+  //   *
+  //   * @param request
+  //   * @return
+  //   */
+  //  override def fetchVertexKeyValues(request: AnyRef): Future[Seq[SKeyValue]] = {
+  //    val defer = fetchKeyValuesInner(request.asInstanceOf[RedisRPC])
+  //    defer.map { kvsArr =>
+  //      kvsArr.map { kv =>
+  //        implicitly[CanSKeyValue[SKeyValue]].toSKeyValue(kv)
+  //      }
+  //    }
+  //  }
 
 
   override def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
@@ -447,7 +467,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
               val curVal = jedis.get(requestKeyValue.row)
 
               val result =
-                if ( curVal == null ) {
+                if (curVal == null) {
                   val transaction = jedis.multi()
                   try {
                     transaction.set(requestKeyValue.row, requestKeyValue.value)
