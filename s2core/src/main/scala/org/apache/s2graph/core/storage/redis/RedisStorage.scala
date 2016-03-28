@@ -233,7 +233,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
             if (req.isIncludeDegree) {
               val degree = jedis.zcard(req.key)
               val degreeBytes = Bytes.toBytes(degree)
-              result :+ SKeyValue(Array.empty[Byte], paddedBytes ++ req.key, Array.empty[Byte], Array.empty[Byte], degreeBytes, 0L, operation = SKeyValue.Increment)
+              SKeyValue(Array.empty[Byte], paddedBytes ++ req.key, Array.empty[Byte], Array.empty[Byte], degreeBytes, 0L, operation = SKeyValue.Increment) +: result
             } else result
           case req@RedisSnapshotGetRequest(_) =>
             val _result = jedis.get(req.key)
@@ -319,7 +319,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
           case (cachedAt, oldDefer) => oldDefer
         }
       } else {
-        // future is not to old so reuse it.
+        // future is not too old so reuse it.
         defer
       }
     }
@@ -355,22 +355,6 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
     }
 
   }
-
-  //  /**
-  //   * fetch vertex for given request from storage.
-  //   *
-  //   * @param request
-  //   * @return
-  //   */
-  //  override def fetchVertexKeyValues(request: AnyRef): Future[Seq[SKeyValue]] = {
-  //    val defer = fetchKeyValuesInner(request.asInstanceOf[RedisRPC])
-  //    defer.map { kvsArr =>
-  //      kvsArr.map { kv =>
-  //        implicitly[CanSKeyValue[SKeyValue]].toSKeyValue(kv)
-  //      }
-  //    }
-  //  }
-
 
   override def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
     def fromResult(queryParam: QueryParam,

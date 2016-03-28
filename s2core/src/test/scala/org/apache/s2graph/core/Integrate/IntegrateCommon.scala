@@ -53,6 +53,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll with
   }
 
   def getLabelName(ver: String, consistency: String = "strong") = s"s2graph_label_test_${ver}_${consistency}"
+  def getLabelName2(ver: String, consistency: String = "strong") = s"s2graph_label_test_${ver}_${consistency}_2"
 
   /**
    * Make Service, Label, Vertex for integrate test
@@ -233,6 +234,49 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll with
 
     def testLabelCreate(ver: String, consistency: String = "strong") = {
       val label = getLabelName(ver, consistency)
+      s"""
+  {
+    "label": "$label",
+    "srcServiceName": "$testServiceName",
+    "srcColumnName": "$testColumnName",
+    "srcColumnType": "long",
+     "tgtServiceName": "$testServiceName",
+    "tgtColumnName": "$testColumnName",
+    "tgtColumnType": "long",
+    "indices": [
+      {"name": "$index1", "propNames": ["weight", "time", "is_hidden", "is_blocked"]},
+      {"name": "$index2", "propNames": ["_timestamp"]}
+    ],
+    "props": [
+    {
+      "name": "time",
+      "dataType": "long",
+      "defaultValue": 0
+    },
+    {
+      "name": "weight",
+      "dataType": "long",
+      "defaultValue": 0
+    },
+    {
+      "name": "is_hidden",
+      "dataType": "boolean",
+      "defaultValue": false
+    },
+    {
+      "name": "is_blocked",
+      "dataType": "boolean",
+      "defaultValue": false
+    }
+    ],
+    "consistencyLevel": "$consistency",
+    "schemaVersion": "$ver",
+    "compressionAlgorithm": "gz"
+  }"""
+    }
+
+    def testLabel2Create(ver: String, consistency: String = "strong") = {
+      val label = getLabelName2(ver, consistency)
       s"""
   {
     "label": "$label",
@@ -532,7 +576,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll with
             ]
           }""")
 
-    def twoQueryWithSampling(id: Int, label: String, sample: Int) = Json.parse(
+    def twoQueryWithSampling(id: Int, label: String, label2: String, sample: Int) = Json.parse(
       s"""
           { "srcVertices": [
             { "serviceName": "$testServiceName",
