@@ -26,6 +26,8 @@ import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, SKeyValue,
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.{GraphUtil, IndexEdge, QueryParam, Vertex}
 
+import scala.collection.immutable
+
 class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends Deserializable[IndexEdge] {
    import StorageDeserializable._
 
@@ -107,7 +109,6 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
        IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, props)
      } else {
        // not degree edge
-       val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${queryParam.label.id.get}, ${labelIdxSeq}"))
 
        val (idxPropsRaw, endAt) = bytesToProps(kv.row, pos, version)
        pos = endAt
@@ -117,31 +118,37 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
          TargetVertexId.fromBytes(kv.row, endAt, kv.row.length, version)
        }
 
-       val idxProps = for {
+       val allProps = immutable.Map.newBuilder[Byte, InnerValLike]
+       /** process index props */
+       val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${queryParam.label.id.get}, ${labelIdxSeq}"))
+
+       for {
          (seq, (k, v)) <- index.metaSeqs.zip(idxPropsRaw)
-       } yield if (k == LabelMeta.degreeSeq) k -> v else seq -> v
-
-       val idxPropsMap = idxProps.toMap
-
-       val tgtVertexId =
-         idxPropsMap.get(LabelMeta.toSeq) match {
-           case None => tgtVertexIdRaw
-           case Some(vId) => TargetVertexId(HBaseType.DEFAULT_COL_ID, vId)
-         }
-
-       val (props, _) = if (op == GraphUtil.operations("incrementCount")) {
+       } {
+         if (k == LabelMeta.degreeSeq) allProps += k -> v
+         else allProps += seq -> v
+       }
+       /** process props */
+       if (op == GraphUtil.operations("incrementCount")) {
          //        val countVal = Bytes.toLong(kv.value)
          val countVal = bytesToLongFunc(kv.value, 0)
-         val dummyProps = Array(LabelMeta.countSeq -> InnerVal.withLong(countVal, version))
-         (dummyProps, 8)
+         allProps += (LabelMeta.countSeq -> InnerVal.withLong(countVal, version))
        } else {
-         bytesToKeyValues(kv.value, 0, kv.value.length, version)
+         val (props, endAt) = bytesToKeyValues(kv.value, 0, kv.value.length, version)
+         props.foreach { case (k, v) =>
+           allProps += (k -> v)
+         }
        }
-
-       val _mergedProps = (idxProps ++ props).toMap
+       val _mergedProps = allProps.result()
        val mergedProps =
          if (_mergedProps.contains(LabelMeta.timeStampSeq)) _mergedProps
          else _mergedProps + (LabelMeta.timeStampSeq -> InnerVal.withLong(kv.timestamp, version))
+
+       val tgtVertexId =
+         mergedProps.get(LabelMeta.toSeq) match {
+           case None => tgtVertexIdRaw
+           case Some(vId) => TargetVertexId(HBaseType.DEFAULT_COL_ID, vId)
+         }
 
        val ts = kv.timestamp
        IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, mergedProps)
