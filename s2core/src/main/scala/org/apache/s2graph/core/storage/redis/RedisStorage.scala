@@ -94,16 +94,23 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
     val future = Future.successful {
       client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(kv.row)) { jedis =>
         kv.operation match {
+          case SKeyValue.SnapshotPut =>
+            jedis.set(kv.row, kv.value) == 1
+
+          // vertex write
           case SKeyValue.Put if kv.qualifier.length > 0 =>
+            if (kv.timestamp == 0) jedis.del(kv.row)
             jedis.zadd(kv.row, RedisZsetScore, kv.qualifier ++ kv.value) == 1
+
+          // edge write
           case SKeyValue.Put if kv.qualifier.length == 0 =>
-            if (kv.operation == SKeyValue.SnapshotPut) {
-              jedis.set(kv.row, kv.value) == 1
-            } else {
-              jedis.zadd(kv.row, RedisZsetScore, kv.value) == 1
-            }
+            jedis.zadd(kv.row, RedisZsetScore, kv.value) == 1
+
+          // vertex delete
           case SKeyValue.Delete if kv.qualifier.length > 0 =>
             jedis.zrem(kv.row, kv.qualifier ++ kv.value) == 1
+
+          // edge delete
           case SKeyValue.Delete if kv.qualifier.length == 0 =>
             val r = jedis.zrem(kv.row, kv.value) == 1
             r
@@ -118,6 +125,34 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
     }
 
     if (withWait) future else Future.successful(true)
+  }
+
+  /** Delete All */
+  override protected def deleteAllFetchedEdgesAsyncOld(queryRequest: QueryRequest,
+                                              queryResult: QueryResult,
+                                              requestTs: Long,
+                                              retryNum: Int): Future[Boolean] = {
+    val queryParam = queryRequest.queryParam
+    val zkQuorum = queryParam.label.hbaseZkAddr
+    val futures = for {
+      edgeWithScore <- queryResult.edgeWithScoreLs
+      (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
+    } yield {
+        /** reverted direction */
+        val reversedIndexedEdgesMutations = edge.duplicateEdge.edgesWithIndex.flatMap { indexEdge =>
+          indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
+            buildIncrementsAsync(indexEdge, -1L)
+        }
+        val reversedSnapshotEdgeMutations = snapshotEdgeSerializer(edge.toSnapshotEdge).toKeyValues.map(_.copy(operation = SKeyValue.SnapshotPut))
+        val forwardIndexedEdgeMutations = edge.edgesWithIndex.flatMap { indexEdge =>
+          indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
+            buildIncrementsAsync(indexEdge, -1L)
+        }
+        val mutations = reversedIndexedEdgesMutations ++ reversedSnapshotEdgeMutations ++ forwardIndexedEdgeMutations
+        writeToStorage(zkQuorum, mutations, withWait = true)
+      }
+
+    Future.sequence(futures).map { rets => rets.forall(identity) }
   }
 
   /**
