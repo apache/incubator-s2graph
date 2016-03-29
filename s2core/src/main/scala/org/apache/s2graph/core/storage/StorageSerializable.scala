@@ -56,5 +56,21 @@ object StorageSerializable {
 }
 
 trait StorageSerializable[E] {
-  def toKeyValues: Seq[SKeyValue]
+  val cf = Serializable.edgeCf
+
+  val table: Array[Byte]
+  val ts: Long
+
+  def toRowKey: Array[Byte]
+  def toQualifier: Array[Byte]
+  def toValue: Array[Byte]
+
+  def toKeyValues: Seq[SKeyValue] = {
+    val row = toRowKey
+    val qualifier = toQualifier
+    val value = toValue
+    val kv = SKeyValue(table, row, cf, qualifier, value, ts)
+
+    Seq(kv)
+  }
 }
