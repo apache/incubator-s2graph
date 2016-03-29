@@ -15,7 +15,7 @@ class RedisSnapshotEdgeDeserializable extends Deserializable[SnapshotEdge]  {
   override def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam, kvs: Seq[T], version: String, cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge ={
     version match {
       case GraphType.VERSION4 => fromKeyValuesInnerV4(queryParam, kvs, version, cacheElementOpt)
-      case _ => throw new GraphExceptions.UnsupportedVersionException(">> Redis storage can only support v3 - current schema version ${label.schemaVersion}")
+      case _ => throw new GraphExceptions.UnsupportedVersionException(">> Redis storage can only support v4 - current schema version ${label.schemaVersion}")
     }
 
   }

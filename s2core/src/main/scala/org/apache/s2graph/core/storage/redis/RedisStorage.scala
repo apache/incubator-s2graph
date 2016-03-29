@@ -112,6 +112,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
 
           // edge delete
           case SKeyValue.Delete if kv.qualifier.length == 0 =>
+            logger.debug(s">>>> write to redis edge delete - key: ${GraphUtil.bytesToHexString(kv.row)}, val: ${GraphUtil.bytesToHexString(kv.value)} ")
             val r = jedis.zrem(kv.row, kv.value) == 1
             r
           case SKeyValue.Increment => true // no need for degree increment since Redis storage uses ZCARD for degree
