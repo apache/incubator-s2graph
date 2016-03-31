@@ -313,7 +313,6 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
     val weakEdgesFutures = weakEdges.groupBy { e => e.label.hbaseZkAddr }.map { case (zkQuorum, edges) =>
       val mutations = edges.flatMap { edge =>
-        logger.debug(s">>>>> weak edges delete: ${edge.toLogString}")
         val (_, edgeUpdate) =
           if (edge.op == GraphUtil.operations("delete")) {logger.debug(s">>>>> op == delete"); Edge.buildDeleteBulk(None, edge)}
           else Edge.buildOperation(None, Seq(edge))
@@ -1183,7 +1182,6 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   /** EdgeMutate */
   def indexedEdgeMutations(edgeMutate: EdgeMutate): Seq[SKeyValue] = {
     val deleteMutations = edgeMutate.edgesToDelete.flatMap { indexEdge =>
-      logger.debug(s">>>>> index edge delete mutation: ${indexEdge.toEdge.toLogString}")
       indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete))
     }
     val insertMutations = edgeMutate.edgesToInsert.flatMap { indexEdge =>

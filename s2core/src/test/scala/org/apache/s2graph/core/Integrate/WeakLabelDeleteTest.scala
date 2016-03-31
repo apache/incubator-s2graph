@@ -54,8 +54,8 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
       println(result)
 
       /** expect 4 edges */
-//      (result \ "results").as[List[JsValue]].size should be(4)
-      (result \ "results").as[List[JsValue]].size should be(1)
+      (result \ "results").as[List[JsValue]].size should be(4)
+
       val edges = (result \ "results").as[List[JsObject]]
       val edgesToStore = parser.toEdges(Json.toJson(edges), "delete")
       val rets = graph.mutateEdges(edgesToStore, withWait = true)
@@ -65,6 +65,7 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
       result = getEdgesSync(queryWeak(0, label))
       println(result)
       (result \ "results").as[List[JsValue]].size should be(0)
+    }
 
       /** insert should be ignored */
       /**
@@ -72,50 +73,49 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
        * This makes sense because hbase think cell is deleted when there are
        * insert/delete with same timestamp(version) on same cell.
        * This can be different on different storage system so I think
-       * this test should be removed.
+       * this test should be removed. => Indeed, Redis does not support this feature.
        */
-      val edgesToStore2 = parser.toEdges(Json.toJson(edges), "insert")
-      val rets2 = graph.mutateEdges(edgesToStore2, withWait = true)
-      Await.result(rets2, Duration(20, TimeUnit.MINUTES))
+//      val edgesToStore2 = parser.toEdges(Json.toJson(edges), "insert")
+//      val rets2 = graph.mutateEdges(edgesToStore2, withWait = true)
+//      Await.result(rets2, Duration(20, TimeUnit.MINUTES))
+//
+//      result = getEdgesSync(queryWeak(0, label))
+//      (result \ "results").as[List[JsValue]].size should be(0)
 
-      result = getEdgesSync(queryWeak(0, label))
+
+    test(s"test weak consistency deleteAll $ver", tag) {
+      val deletedAt = 100
+      var result = getEdgesSync(queryWeak(20, label, "in"))
+      println(result)
+      (result \ "results").as[List[JsValue]].size should be(3)
+
+      val json = Json.arr(Json.obj("label" -> label,
+        "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
+      println(json)
+      deleteAllSync(json)
+
+      result = getEdgesSync(queryWeak(11, label, "out"))
       (result \ "results").as[List[JsValue]].size should be(0)
+
+      result = getEdgesSync(queryWeak(12, label, "out"))
+      (result \ "results").as[List[JsValue]].size should be(0)
+
+      result = getEdgesSync(queryWeak(10, label, "out"))
+
+      // 10 -> out -> 20 should not be in result.
+      (result \ "results").as[List[JsValue]].size should be(1)
+      (result \\ "to").size should be(1)
+      (result \\ "to").head.as[Long] should be(21L)
+
+      result = getEdgesSync(queryWeak(20, label, "in"))
+      println(result)
+      (result \ "results").as[List[JsValue]].size should be(0)
+
+      insertEdgesSync(bulkEdges(startTs = deletedAt + 1, label): _*)
+
+      result = getEdgesSync(queryWeak(20, "in", testColumnName))
+      (result \ "results").as[List[JsValue]].size should be(3)
     }
-
-
-//    test(s"test weak consistency deleteAll $ver", tag) {
-//      val deletedAt = 100
-//      var result = getEdgesSync(queryWeak(20, label, "in"))
-//      println(result)
-//      (result \ "results").as[List[JsValue]].size should be(3)
-//
-//      val json = Json.arr(Json.obj("label" -> label,
-//        "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
-//      println(json)
-//      deleteAllSync(json)
-//
-//      result = getEdgesSync(queryWeak(11, label, "out"))
-//      (result \ "results").as[List[JsValue]].size should be(0)
-//
-//      result = getEdgesSync(queryWeak(12, label, "out"))
-//      (result \ "results").as[List[JsValue]].size should be(0)
-//
-//      result = getEdgesSync(queryWeak(10, label, "out"))
-//
-//      // 10 -> out -> 20 should not be in result.
-//      (result \ "results").as[List[JsValue]].size should be(1)
-//      (result \\ "to").size should be(1)
-//      (result \\ "to").head.as[Long] should be(21L)
-//
-//      result = getEdgesSync(queryWeak(20, label, "in"))
-//      println(result)
-//      (result \ "results").as[List[JsValue]].size should be(0)
-//
-//      insertEdgesSync(bulkEdges(startTs = deletedAt + 1, label): _*)
-//
-//      result = getEdgesSync(queryWeak(20, "in", testColumnName))
-//      (result \ "results").as[List[JsValue]].size should be(3)
-//    }
   }
 
 
@@ -142,15 +142,15 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
   object WeakLabelDeleteHelper {
 
     def bulkEdges(startTs: Int = 0, label: String) = Seq(
-      toEdge(startTs + 1, "insert", "e", "0", "1", label, s"""{"time": 10}""")
-//      toEdge(startTs + 1, "insert", "e", "0", "1", label, s"""{"time": 10}"""),
-//      toEdge(startTs + 2, "insert", "e", "0", "1", label, s"""{"time": 11}"""),
-//      toEdge(startTs + 3, "insert", "e", "0", "1", label, s"""{"time": 12}"""),
-//      toEdge(startTs + 4, "insert", "e", "0", "2", label, s"""{"time": 10}"""),
-//      toEdge(startTs + 5, "insert", "e", "10", "20", label, s"""{"time": 10}"""),
-//      toEdge(startTs + 6, "insert", "e", "10", "21", label, s"""{"time": 11}"""),
-//      toEdge(startTs + 7, "insert", "e", "11", "20", label, s"""{"time": 12}"""),
-//      toEdge(startTs + 8, "insert", "e", "12", "20", label, s"""{"time": 13}""")
+//      toEdge(1, "insert", "e", "0", "1", label, s"""{}""")
+      toEdge(startTs + 1, "insert", "e", "0", "1", label, s"""{"time": 10}"""),
+      toEdge(startTs + 2, "insert", "e", "0", "1", label, s"""{"time": 11}"""),
+      toEdge(startTs + 3, "insert", "e", "0", "1", label, s"""{"time": 12}"""),
+      toEdge(startTs + 4, "insert", "e", "0", "2", label, s"""{"time": 10}"""),
+      toEdge(startTs + 5, "insert", "e", "10", "20", label, s"""{"time": 10}"""),
+      toEdge(startTs + 6, "insert", "e", "10", "21", label, s"""{"time": 11}"""),
+      toEdge(startTs + 7, "insert", "e", "11", "20", label, s"""{"time": 12}"""),
+      toEdge(startTs + 8, "insert", "e", "12", "20", label, s"""{"time": 13}""")
     )
 
     def queryWeak(id: Int, label: String, direction: String = "out", columnName: String = testColumnName) = Json.parse(

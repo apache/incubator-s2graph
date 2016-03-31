@@ -13,6 +13,7 @@ import org.apache.s2graph.core.storage.redis.jedis.JedisClient
 import org.apache.s2graph.core.storage.{CanSKeyValue, SKeyValue, Storage}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
+import redis.clients.jedis.Jedis
 
 import scala.collection.JavaConversions._
 import scala.collection.Seq
@@ -90,6 +91,14 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
     }
   }
 
+  def removeWithQualifier(jedis: Jedis, kv: SKeyValue): Boolean = {
+    val qualifierPos = kv.value(kv.value.length - 1).toInt - 2 // qualifier length w/o op byte
+    val qualifierWithoutOp = kv.value.slice(0, qualifierPos)
+    val min = Bytes.toBytes("[") ++ qualifierWithoutOp ++ Array.fill[Byte](1)(0)
+    val max = Bytes.toBytes("[") ++ qualifierWithoutOp ++ Array.fill[Byte](1)(-1)
+    jedis.zremrangeByLex(kv.row, min, max) > 0
+  }
+
   def writeToRedis(kv: SKeyValue, withWait: Boolean): Future[Boolean] = {
     val future = Future.successful {
       client.doBlockWithKey[Boolean](GraphUtil.bytesToHexString(kv.row)) { jedis =>
@@ -112,9 +121,8 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
 
           // edge delete
           case SKeyValue.Delete if kv.qualifier.length == 0 =>
-            logger.debug(s">>>> write to redis edge delete - key: ${GraphUtil.bytesToHexString(kv.row)}, val: ${GraphUtil.bytesToHexString(kv.value)} ")
-            val r = jedis.zrem(kv.row, kv.value) == 1
-            r
+            removeWithQualifier(jedis, kv)
+
           case SKeyValue.Increment => true // no need for degree increment since Redis storage uses ZCARD for degree
         }
       } match {

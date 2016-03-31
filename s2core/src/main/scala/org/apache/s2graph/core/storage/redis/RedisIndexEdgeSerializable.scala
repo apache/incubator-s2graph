@@ -2,10 +2,10 @@ package org.apache.s2graph.core.storage.redis
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.mysqls.LabelMeta
-import org.apache.s2graph.core.types.v2.InnerVal
-import org.apache.s2graph.core.{GraphUtil, IndexEdge}
 import org.apache.s2graph.core.storage.{SKeyValue, Serializable, StorageSerializable}
 import org.apache.s2graph.core.types.VertexId
+import org.apache.s2graph.core.types.v2.InnerVal
+import org.apache.s2graph.core.{GraphUtil, IndexEdge}
 
 /**
  * @author Junki Kim (wishoping@gmail.com) and Hyunsung Jo (hyunsung.jo@gmail.com) on 2016/Feb/19.
