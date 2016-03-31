@@ -32,22 +32,21 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
   import TestUtil._
   import WeakLabelDeleteHelper._
 
-//  val versions = 2 to 4
-  val versions = 4 to 4
+  val versions = 2 to 4
 
   versions map { n =>
     val ver = s"v$n"
     val tag = getTag(ver)
     val label = getLabelName(ver, "weak")
 
-//    test(s"test weak consistency select $ver", tag) {
-//      var result = getEdgesSync(queryWeak(0, label))
-//      println(result)
-//      (result \ "results").as[List[JsValue]].size should be(4)
-//      result = getEdgesSync(queryWeak(10, label))
-//      println(result)
-//      (result \ "results").as[List[JsValue]].size should be(2)
-//    }
+    test(s"test weak consistency select $ver", tag) {
+      var result = getEdgesSync(queryWeak(0, label))
+      println(result)
+      (result \ "results").as[List[JsValue]].size should be(4)
+      result = getEdgesSync(queryWeak(10, label))
+      println(result)
+      (result \ "results").as[List[JsValue]].size should be(2)
+    }
 
     test(s"test weak consistency delete $ver", tag) {
       var result = getEdgesSync(queryWeak(0, label))
@@ -113,7 +112,7 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
 
       insertEdgesSync(bulkEdges(startTs = deletedAt + 1, label): _*)
 
-      result = getEdgesSync(queryWeak(20, "in", testColumnName))
+      result = getEdgesSync(queryWeak(20, label, "in", testColumnName))
       (result \ "results").as[List[JsValue]].size should be(3)
     }
   }
@@ -142,7 +141,6 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
   object WeakLabelDeleteHelper {
 
     def bulkEdges(startTs: Int = 0, label: String) = Seq(
-//      toEdge(1, "insert", "e", "0", "1", label, s"""{}""")
       toEdge(startTs + 1, "insert", "e", "0", "1", label, s"""{"time": 10}"""),
       toEdge(startTs + 2, "insert", "e", "0", "1", label, s"""{"time": 11}"""),
       toEdge(startTs + 3, "insert", "e", "0", "1", label, s"""{"time": 12}"""),
