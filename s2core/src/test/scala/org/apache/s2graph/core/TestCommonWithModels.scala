@@ -19,7 +19,6 @@
 
 package org.apache.s2graph.core
 
-import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerVal, LabelWithDirection}
@@ -27,19 +26,9 @@ import scalikejdbc.AutoSession
 
 import scala.concurrent.ExecutionContext
 
-trait TestCommonWithModels {
+trait TestCommonWithModels extends TestCommon {
 
   import InnerVal._
-
-  var graph: Graph = _
-  var config: Config = ConfigFactory.load()
-  var management: Management = _
-
-  val versions = config.getString("s2graph.storage.backend") match {
-    case "hbase" => Seq(1,2,3,4)
-    case "redis" => Seq(4)
-    case _ => throw new RuntimeException("unsupported storage")
-  }
 
   def initTests(ver: String) = {
 //    config = ConfigFactory.load()

@@ -26,8 +26,6 @@ class CrudTest extends IntegrateCommon {
   import CrudHelper._
   import TestUtil._
 
-
-  val versions = 2 to 4 // CRUD is supported by v2 and above.
   versions map { n =>
     val ver = s"v$n"
     val tag = getTag(ver)

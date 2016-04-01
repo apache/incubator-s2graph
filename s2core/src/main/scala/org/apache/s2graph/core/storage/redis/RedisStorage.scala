@@ -108,6 +108,7 @@ class RedisStorage(override val config: Config)(implicit ec: ExecutionContext)
 
           // vertex write
           case SKeyValue.Put if kv.qualifier.length > 0 =>
+            // disregard vertex properties at overwrite, but only once at the beginning of each insert
             if (kv.timestamp == 0) jedis.del(kv.row)
             jedis.zadd(kv.row, RedisZsetScore, kv.qualifier ++ kv.value) == 1
 

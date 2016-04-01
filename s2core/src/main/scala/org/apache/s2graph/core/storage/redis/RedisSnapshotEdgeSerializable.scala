@@ -49,7 +49,7 @@ class RedisSnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializ
         val opBytes = statusCodeWithOp(pendingEdge.statusCode, pendingEdge.op)
         val propsBytes = propsToKeyValuesWithTs(pendingEdge.propsWithTs.toSeq)
         val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)
-        Bytes.add(Bytes.add(timestamp, valueBytes(), opBytes), Bytes.add(propsBytes, lockBytes))
+        timestamp ++ valueBytes() ++ opBytes ++ propsBytes ++ lockBytes
     }
 
     val kv = SKeyValue(Array.empty[Byte], row, Array.empty[Byte], Array.empty[Byte], value, snapshotEdge.version, operation = SKeyValue.SnapshotPut)

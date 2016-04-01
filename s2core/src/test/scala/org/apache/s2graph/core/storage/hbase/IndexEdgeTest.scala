@@ -28,8 +28,8 @@ import org.scalatest.{FunSuite, Matchers}
 class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels with TestCommon {
   versions map { n =>
     val ver = s"v$n"
-    val l = label(ver)
     initTests(ver)
+    val l = label(ver)
 
     /** note that props have to be properly set up for equals */
     test(s"test serializer/deserializer for index edge $ver", HBaseTest) {

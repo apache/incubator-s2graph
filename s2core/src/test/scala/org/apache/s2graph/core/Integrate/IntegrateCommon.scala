@@ -35,10 +35,6 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll with
 
   import TestUtil._
 
-  var graph: Graph = _
-  var parser: RequestParser = _
-  var management: Management = _
-  var config: Config = _
 
   override def beforeAll = {
     config = ConfigFactory.load()
@@ -77,7 +73,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll with
     //      testLabelNameWeak -> testLabelNameWeakCreate(ver))
 
     // Create test labels by versions + consistency.
-    for (n <- 1 to 4; consistency <- Seq("strong", "weak")) yield {
+    for (n <- versions; consistency <- Seq("strong", "weak")) yield {
       val ver = s"v$n"
       val labelName = getLabelName(ver, consistency)
       val create = testLabelCreate(ver, consistency)

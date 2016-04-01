@@ -19,12 +19,25 @@
 
 package org.apache.s2graph.core
 
+import com.typesafe.config.{ConfigFactory, Config}
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.mysqls.{LabelIndex, LabelMeta}
+import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.types.{GraphType, InnerVal, InnerValLikeWithTs, LabelWithDirection}
 
 
 trait TestCommon {
+
+  var graph: Graph = _
+  var config: Config = ConfigFactory.load()
+  var management: Management = _
+  var parser: RequestParser = _
+
+  val versions = config.getString("s2graph.storage.backend") match {
+    case "hbase" => Seq(1,2,3,4)
+    case "redis" => Seq(4)
+    case _ => throw new RuntimeException("unsupported storage")
+  }
 
   val ts = System.currentTimeMillis()
   val testServiceId = 1

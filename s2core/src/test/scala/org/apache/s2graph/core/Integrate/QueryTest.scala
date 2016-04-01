@@ -12,7 +12,6 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   val e = "e"
   val weight = "weight"
   val is_hidden = "is_hidden"
-  val versions = 2 to 4
 
   versions map { n =>
 

@@ -32,8 +32,6 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   import StrongDeleteUtil._
   import TestUtil._
 
-  val versions = 2 to 4
-
   versions map { n =>
 
     val ver = s"v$n"

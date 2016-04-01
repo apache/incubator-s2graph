@@ -32,8 +32,6 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
   import TestUtil._
   import WeakLabelDeleteHelper._
 
-  val versions = 2 to 4
-
   versions map { n =>
     val ver = s"v$n"
     val tag = getTag(ver)
