@@ -205,10 +205,8 @@ class CrudTest extends IntegrateCommon {
       }
 
       def run(ver: String, tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]) = {
-        val labelName = ver match {
-          case "v3" => testLabelNameV3
-          case "v4" => testLabelNameV4
-        }
+        val labelName = getLabelName(ver)
+
         for {
           i <- 0 until NumOfEachTest
         } {

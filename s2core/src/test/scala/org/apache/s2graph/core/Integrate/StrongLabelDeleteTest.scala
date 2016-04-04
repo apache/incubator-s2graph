@@ -145,7 +145,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       * Large set of contention test
       */
     test(s"large degrees $ver", tag) {
-      val labelName = testLabelNameV4
+      val labelName = getLabelName(ver)
       val dir = "out"
       val maxSize = 100
       val deleteSize = 10
@@ -185,7 +185,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     }
 
     test(s"deleteAll $ver", tag) {
-      val labelName = testLabelNameV4
+      val labelName = getLabelName(ver)
       val dir = "out"
       val maxSize = 100
       val deleteSize = 10

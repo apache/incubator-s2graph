@@ -125,12 +125,7 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
 
   override def initTestData(): Unit = {
     super.initTestData()
-    val vers = config.getString("s2graph.storage.backend") match {
-      case "hbase" => Seq(1,2,3,4)
-      case "redis" => Seq(4)
-      case _ => throw new RuntimeException("not supported storage.")
-    }
-    vers map { v =>
+    versions map { v =>
       val ver = s"v$v"
       insertEdgesSync(bulkEdges(label = getLabelName(ver, "weak")): _*)
     }
