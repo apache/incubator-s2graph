@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,12 +19,22 @@
 
 package org.apache.s2graph.core
 
+import com.typesafe.config.{ConfigFactory, Config}
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.mysqls.{LabelIndex, LabelMeta}
+import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLikeWithTs, LabelWithDirection}
 
 
 trait TestCommon {
+
+  var graph: Graph = _
+  var config: Config = ConfigFactory.load()
+  var management: Management = _
+  var parser: RequestParser = _
+
+  val versions = 1 to 1
+
   val ts = System.currentTimeMillis()
   val testServiceId = 1
   val testColumnId = 1
@@ -42,6 +52,17 @@ trait TestCommon {
   def lessThan(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) < 0
 
   def lessThanEqual(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) <= 0
+
+  def getTag(ver: String) = {
+    ver match {
+      case "v1" => V1Test
+      case "v2" => V2Test
+      case "v3" => V3Test
+      case "v4" => V4Test
+      case _ => throw new GraphExceptions.UnsupportedVersionException(s"$ver does no support this feature!")
+    }
+  }
+
 
   /** */
   import HBaseType.{VERSION1, VERSION2}
