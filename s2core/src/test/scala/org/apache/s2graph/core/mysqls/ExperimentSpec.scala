@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,6 +22,7 @@ package org.apache.s2graph.core.mysqls
 import java.util.Properties
 
 import com.typesafe.config.ConfigFactory
+import org.apache.s2graph.core.CommonTest
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import scalikejdbc._
 
@@ -47,7 +48,7 @@ class ExperimentSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
   }
 
-  "Experiment" should "find bucket list" in {
+  "Experiment" should "find bucket list" taggedAs CommonTest in {
     Experiment.findBy(1, "exp1") should not be empty
 
     Experiment.findBy(1, "exp1").foreach { exp =>
@@ -56,7 +57,7 @@ class ExperimentSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     }
   }
 
-  it should "update bucket list after cache ttl time" in {
+  it should "update bucket list after cache ttl time" taggedAs CommonTest in {
     Experiment.findBy(1, "exp1").foreach { exp =>
       val bucket = exp.buckets.head
       bucket.impressionId should equal("imp1")
