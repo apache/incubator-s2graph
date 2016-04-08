@@ -22,7 +22,7 @@ package org.apache.s2graph.core.types
 import org.apache.hadoop.hbase.util._
 
 object InnerVal extends HBaseDeserializableWithIsVertexId {
-  import HBaseType._
+  import GraphType._
 
   val order = Order.DESCENDING
   val stringLenOffset = 7.toByte
@@ -234,7 +234,7 @@ trait InnerValLike extends HBaseSerializable {
 }
 
 object InnerValLikeWithTs extends HBaseDeserializable {
-  import HBaseType._
+  import GraphType._
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,

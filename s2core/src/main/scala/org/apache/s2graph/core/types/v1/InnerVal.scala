@@ -22,10 +22,10 @@ package org.apache.s2graph.core.types.v1
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.GraphExceptions
 import org.apache.s2graph.core.GraphExceptions.IllegalDataTypeException
-import org.apache.s2graph.core.types.{HBaseDeserializableWithIsVertexId, HBaseSerializable, HBaseType, InnerValLike}
+import org.apache.s2graph.core.types.{HBaseDeserializableWithIsVertexId, HBaseSerializable, GraphType, InnerValLike}
 
 object InnerVal extends HBaseDeserializableWithIsVertexId {
-  import HBaseType._
+  import GraphType._
   //  val defaultVal = new InnerVal(None, None, None)
   val stringLenOffset = 7.toByte
   val maxStringLen = Byte.MaxValue - stringLenOffset

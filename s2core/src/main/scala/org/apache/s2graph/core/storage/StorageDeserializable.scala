@@ -21,12 +21,12 @@ package org.apache.s2graph.core.storage
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.QueryParam
-import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, InnerValLikeWithTs}
+import org.apache.s2graph.core.types.{GraphType, InnerVal, InnerValLike, InnerValLikeWithTs}
 import org.apache.s2graph.core.utils.logger
 
 object StorageDeserializable {
   /** Deserializer */
-  def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte], offset: Int): (Byte, Boolean) = {
+  def bytesToLabelIndexSeqWithIsSnapshot(bytes: Array[Byte], offset: Int): (Byte, Boolean) = {
     val byte = bytes(offset)
     val isInverted = if ((byte & 1) != 0) true else false
     val labelOrderSeq = byte >> 1
@@ -85,7 +85,7 @@ object StorageDeserializable {
     val kvs = new Array[(Byte, InnerValLike)](len)
     var i = 0
     while (i < len) {
-      val k = HBaseType.EMPTY_SEQ_BYTE
+      val k = GraphType.EMPTY_SEQ_BYTE
       val (v, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, 0, version)
       pos += numOfBytesUsed
       kvs(i) = (k -> v)

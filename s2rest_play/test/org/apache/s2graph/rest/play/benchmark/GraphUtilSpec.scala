@@ -21,7 +21,7 @@ package org.apache.s2graph.rest.play.benchmark
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.GraphUtil
-import org.apache.s2graph.core.types.{HBaseType, InnerVal, SourceVertexId}
+import org.apache.s2graph.core.types.{GraphType, InnerVal, SourceVertexId}
 import play.api.test.{FakeApplication, PlaySpecification}
 
 import scala.collection.mutable
@@ -66,7 +66,7 @@ class GraphUtilSpec extends BenchmarkCommon with PlaySpecification {
 
     "test murmur hash skew2" in {
       running(FakeApplication()) {
-        import HBaseType._
+        import GraphType._
         val testNum = 1000000L
         val regionCount = 40
         val window = Int.MaxValue / regionCount
@@ -86,7 +86,7 @@ class GraphUtilSpec extends BenchmarkCommon with PlaySpecification {
         stats += (0 -> (rangeBytes.head -> 0L))
 
         for (i <- (0L until testNum)) {
-          val vertexId = SourceVertexId(DEFAULT_COL_ID, InnerVal.withLong(i, HBaseType.DEFAULT_VERSION))
+          val vertexId = SourceVertexId(DEFAULT_COL_ID, InnerVal.withLong(i, GraphType.DEFAULT_VERSION))
           val bytes = vertexId.bytes
           val shortKey = GraphUtil.murmur3(vertexId.innerId.toIdString())
           val shortVal = counts.getOrElse(shortKey, 0L) + 1L

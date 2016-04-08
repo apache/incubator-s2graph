@@ -23,7 +23,7 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.mysqls.{LabelIndex, LabelMeta}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, SKeyValue, StorageDeserializable}
-import org.apache.s2graph.core.types.{HBaseType, LabelWithDirection, SourceAndTargetVertexIdPair, SourceVertexId}
+import org.apache.s2graph.core.types.{GraphType, LabelWithDirection, SourceAndTargetVertexIdPair, SourceVertexId}
 import org.apache.s2graph.core.{Edge, QueryParam, SnapshotEdge, Vertex}
 
 class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
@@ -51,7 +51,7 @@ class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
       pos += srcIdAndTgtIdLen
       val labelWithDir = LabelWithDirection(Bytes.toInt(kv.row, pos, 4))
       pos += 4
-      val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsInverted(kv.row, pos)
+      val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsSnapshot(kv.row, pos)
 
       val rowLen = srcIdAndTgtIdLen + 4 + 1
       (srcIdAndTgtId.srcInnerId, srcIdAndTgtId.tgtInnerId, labelWithDir, labelIdxSeq, isInverted, rowLen)
@@ -61,8 +61,8 @@ class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
       (e.srcVertex.innerId, e.tgtVertex.innerId, e.labelWithDir, LabelIndex.DefaultSeq, true, 0)
     }.getOrElse(parseRowV3(kv, schemaVer))
 
-    val srcVertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, srcInnerId)
-    val tgtVertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, tgtInnerId)
+    val srcVertexId = SourceVertexId(GraphType.DEFAULT_COL_ID, srcInnerId)
+    val tgtVertexId = SourceVertexId(GraphType.DEFAULT_COL_ID, tgtInnerId)
 
     val (props, op, ts, statusCode, _pendingEdgeOpt) = {
       var pos = 0

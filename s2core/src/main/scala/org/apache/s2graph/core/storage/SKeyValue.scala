@@ -27,6 +27,7 @@ object SKeyValue {
   val Put = 1
   val Delete = 2
   val Increment = 3
+  val SnapshotPut = 4 // redis exclusive
   val Default = Put
 }
 case class SKeyValue(table: Array[Byte],

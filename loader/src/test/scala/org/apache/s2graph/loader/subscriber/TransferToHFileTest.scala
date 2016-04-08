@@ -20,7 +20,7 @@
 package org.apache.s2graph.loader.subscriber
 
 import org.apache.s2graph.core.Management
-import org.apache.s2graph.core.types.HBaseType
+import org.apache.s2graph.core.types.GraphType
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest._
 import TransferToHFile._
@@ -81,7 +81,7 @@ class TransferToHFileTest  extends FlatSpec with BeforeAndAfterAll with Matchers
         Seq(),
         "weak",
         None, None,
-        HBaseType.DEFAULT_VERSION,
+        GraphType.DEFAULT_VERSION,
         false,
         Management.defaultCompressionAlgorithm
       )

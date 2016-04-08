@@ -548,7 +548,7 @@ class RequestParser(config: Config) extends JSONParser {
     // expect new label don`t provide hTableName
     val hTableName = (jsValue \ "hTableName").asOpt[String]
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
-    val schemaVersion = (jsValue \ "schemaVersion").asOpt[String].getOrElse(HBaseType.DEFAULT_VERSION)
+    val schemaVersion = (jsValue \ "schemaVersion").asOpt[String].getOrElse(GraphType.DEFAULT_VERSION)
     val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
     val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(DefaultCompressionAlgorithm)
 

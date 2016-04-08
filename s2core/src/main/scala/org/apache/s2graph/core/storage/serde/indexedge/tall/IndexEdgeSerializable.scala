@@ -39,7 +39,7 @@ class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge
    override def toKeyValues: Seq[SKeyValue] = {
      val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes
      val labelWithDirBytes = indexEdge.labelWithDir.bytes
-     val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = false)
+     val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsSnapshot(indexEdge.labelIndexSeq, isSnapshot = false)
 
      val row = Bytes.add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
      //    logger.error(s"${row.toList}\n${srcIdBytes.toList}\n${labelWithDirBytes.toList}\n${labelIndexSeqWithIsInvertedBytes.toList}")

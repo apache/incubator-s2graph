@@ -35,7 +35,7 @@ trait Deserializable[E] extends StorageDeserializable[E] {
     pos += srcIdLen
     val labelWithDir = LabelWithDirection(Bytes.toInt(kv.row, pos, 4))
     pos += 4
-    val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsInverted(kv.row, pos)
+    val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsSnapshot(kv.row, pos)
 
     val rowLen = srcIdLen + 4 + 1
     (srcVertexId, labelWithDir, labelIdxSeq, isInverted, rowLen)

@@ -24,7 +24,7 @@ import org.apache.s2graph.core.GraphUtil
 
 object LabelWithDirection {
 
-  import HBaseType._
+  import GraphType._
 
   def apply(compositeInt: Int): LabelWithDirection = {
     //      logger.debug(s"CompositeInt: $compositeInt")
@@ -50,7 +50,7 @@ object LabelWithDirection {
 
 case class LabelWithDirection(labelId: Int, dir: Int) extends HBaseSerializable {
 
-  import HBaseType._
+  import GraphType._
 
   assert(dir < (1 << bitsForDir))
   assert(labelId < (Int.MaxValue >> bitsForDir))

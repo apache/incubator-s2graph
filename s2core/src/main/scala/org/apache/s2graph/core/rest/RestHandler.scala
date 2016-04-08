@@ -217,7 +217,7 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
     }
   }
 
-  private def getVertices(jsValue: JsValue) = {
+  def getVertices(jsValue: JsValue) = {
     val jsonQuery = jsValue
     val ts = System.currentTimeMillis()
     val props = "{}"

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,12 +19,26 @@
 
 package org.apache.s2graph.core
 
+import com.typesafe.config.{ConfigFactory, Config}
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.mysqls.{LabelIndex, LabelMeta}
-import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLikeWithTs, LabelWithDirection}
+import org.apache.s2graph.core.rest.RequestParser
+import org.apache.s2graph.core.types.{GraphType, InnerVal, InnerValLikeWithTs, LabelWithDirection}
 
 
 trait TestCommon {
+
+  var graph: Graph = _
+  var config: Config = ConfigFactory.load()
+  var management: Management = _
+  var parser: RequestParser = _
+
+  val versions = config.getString("s2graph.storage.backend") match {
+    case "hbase" => Seq(1,2,3,4)
+    case "redis" => Seq(4)
+    case _ => throw new RuntimeException("unsupported storage")
+  }
+
   val ts = System.currentTimeMillis()
   val testServiceId = 1
   val testColumnId = 1
@@ -43,8 +57,19 @@ trait TestCommon {
 
   def lessThanEqual(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) <= 0
 
+  def getTag(ver: String) = {
+    ver match {
+      case "v1" => V1Test
+      case "v2" => V2Test
+      case "v3" => V3Test
+      case "v4" => V4Test
+      case _ => throw new GraphExceptions.UnsupportedVersionException(s"$ver does no support CRUD!")
+    }
+  }
+
+
   /** */
-  import HBaseType.{VERSION1, VERSION2}
+  import GraphType.{VERSION1, VERSION2}
   private val tsValSmall = InnerVal.withLong(ts, VERSION1)
   private val tsValLarge = InnerVal.withLong(ts + 1, VERSION1)
   private val boolValSmall = InnerVal.withBoolean(false, VERSION1)

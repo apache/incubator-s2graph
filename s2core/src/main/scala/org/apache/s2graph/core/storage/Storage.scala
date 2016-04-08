@@ -39,7 +39,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Random, Try}
 
 abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
-  import HBaseType._
+  import GraphType._
 
   /** storage dependent configurations */
   val MaxRetryNum = config.getInt("max.retry.number")
@@ -94,7 +94,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * @param vertex: vertex to serialize
    * @return serializer implementation
    */
-  def vertexSerializer(vertex: Vertex) = new VertexSerializable(vertex)
+  def vertexSerializer(vertex: Vertex): Serializable[Vertex] = new VertexSerializable(vertex)
 
   /**
    * create deserializer that can parse stored CanSKeyValue into snapshotEdge.
@@ -259,9 +259,6 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
                   compressionAlgorithm: String): Unit
 
 
-
-
-
   /** Public Interface */
 
   def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
@@ -276,6 +273,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       val queryParam = QueryParam.Empty
       val q = Query.toQuery(Seq(vertex), queryParam)
       val queryRequest = QueryRequest(q, stepIdx = -1, vertex, queryParam)
+
       fetchVertexKeyValues(buildRequest(queryRequest)).map { kvs =>
         fromResult(queryParam, kvs, vertex.serviceColumn.schemaVersion)
       } recoverWith { case ex: Throwable =>
@@ -316,7 +314,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     val weakEdgesFutures = weakEdges.groupBy { e => e.label.hbaseZkAddr }.map { case (zkQuorum, edges) =>
       val mutations = edges.flatMap { edge =>
         val (_, edgeUpdate) =
-          if (edge.op == GraphUtil.operations("delete")) Edge.buildDeleteBulk(None, edge)
+          if (edge.op == GraphUtil.operations("delete")) {logger.debug(s">>>>> op == delete"); Edge.buildDeleteBulk(None, edge)}
           else Edge.buildOperation(None, Seq(edge))
         buildVertexPutsAsync(edge) ++ indexedEdgeMutations(edgeUpdate) ++
           snapshotEdgeMutations(edgeUpdate) ++ increments(edgeUpdate)
@@ -442,6 +440,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
           }
           future recoverWith {
             case FetchTimeoutException(retryEdge) =>
+              logger.error(s"\n[[ fetch timeout exception")
               logger.info(s"[Try: $tryNum], Fetch fail.\n${retryEdge}")
               retry(tryNum + 1)(edges, statusCode)(fn)
 
@@ -456,6 +455,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
               Thread.sleep(Random.nextInt(MaxBackOff))
               logger.info(s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}\nFailReason: ${faileReason}")
+              logger.error(s"\n[[ Try : $tryNum - $status")
               retry(tryNum + 1)(Seq(retryEdge), failedStatusCode)(fn)
             case ex: Exception =>
               logger.error("Unknown exception", ex)
@@ -545,7 +545,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     } yield {
         val label = queryRequest.queryParam.label
         label.schemaVersion match {
-          case HBaseType.VERSION3 | HBaseType.VERSION4 =>
+          case GraphType.VERSION3 | GraphType.VERSION4 =>
             if (label.consistencyLevel == "strong") {
               /**
                * read: snapshotEdge on queryResult = O(N)
@@ -816,7 +816,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
             logger.debug(log)
             //            debug(ret, "acquireLock", edge.toSnapshotEdge)
           } else {
-            throw new PartialFailureException(edge, 0, "hbase fail.")
+            throw new PartialFailureException(edge, 0, "acquireLock failed")
           }
           true
         }
@@ -837,6 +837,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     }
     val p = Random.nextDouble()
     if (p < FailProb) throw new PartialFailureException(edge, 3, s"$p")
+//    if (p < 0.3) throw new PartialFailureException(edge, 3, "aaa releaseLock fail.")
     else {
       val releaseLockEdgePut = snapshotEdgeSerializer(releaseLockEdge).toKeyValues.head
       val lockEdgePut = snapshotEdgeSerializer(lockEdge).toKeyValues.head
@@ -848,6 +849,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
         if (ret) {
           debug(ret, "releaseLock", edge.toSnapshotEdge)
         } else {
+          logger.error(s"\n[[ release lock failed")
           val msg = Seq("\nFATAL ERROR\n",
             "=" * 50,
             oldBytes.toList,
@@ -860,7 +862,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
           )
           logger.error(msg.mkString("\n"))
           //          error(ret, "releaseLock", edge.toSnapshotEdge)
-          throw new PartialFailureException(edge, 3, "hbase fail.")
+          throw new PartialFailureException(edge, 3, "aaa releaseLock fail.")
         }
         true
       }
