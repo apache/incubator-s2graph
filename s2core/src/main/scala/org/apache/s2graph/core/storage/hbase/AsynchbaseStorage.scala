@@ -36,13 +36,13 @@ import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.types.{HBaseType, VertexId}
-import org.apache.s2graph.core.utils.{DeferCache, Extensions, FutureCache, logger}
+import org.apache.s2graph.core.utils._
 import org.hbase.async._
 
 import scala.collection.JavaConversions._
 import scala.collection.{Map, Seq}
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContext, Future, duration}
+import scala.concurrent._
 import scala.util.hashing.MurmurHash3
 
 
@@ -98,11 +98,13 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
   private val emptyKeyValues = new util.ArrayList[KeyValue]()
   private def client(withWait: Boolean): HBaseClient = if (withWait) clientWithFlush else client
 
+  import CanDefer._
+
   /** Future Cache to squash request */
-  private val futureCache = new DeferCache[QueryResult](config)(ec)
+  private val futureCache = new DeferCache[QueryResult, Deferred, Deferred](config)
 
   /** Simple Vertex Cache */
-  private val vertexCache = new FutureCache[Seq[SKeyValue]](config)(ec)
+  private val vertexCache = new DeferCache[Seq[SKeyValue], Promise, Future](config)
 
 
   /**
@@ -146,6 +148,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
 
   /**
    * since HBase natively provide CheckAndSet on storage level, implementation becomes simple.
+ *
    * @param rpc: key value that is need to be stored on storage.
    * @param expectedOpt: last valid value for rpc's KeyValue.value from fetching.
    * @return return true if expected value matches and our rpc is successfully applied, otherwise false.
@@ -172,6 +175,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
    *    Wide schema(label's schema version in v1, v2): use GetRequest with columnRangeFilter.
    * Vertex layer:
    *    all version: use GetRequest without column filter.
+ *
    * @param queryRequest
    * @return Scanner or GetRequest with proper setup with StartKey, EndKey, RangeFilter.
    */
@@ -516,6 +520,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
    * 4. set realm
    * 5. set principal
    * 6. set file path to keytab
+ *
    * @param zkAddr
    * @return
    */
