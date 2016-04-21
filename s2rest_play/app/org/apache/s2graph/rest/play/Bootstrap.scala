@@ -40,11 +40,9 @@ object Global extends WithFilters(new GzipFilter()) {
   var storageManagement: Management = _
   var s2parser: RequestParser = _
   var s2rest: RestHandler = _
+  var wallLogHandler: ExceptionHandler = _
 
-  // Application entry point
-  override def onStart(app: Application) {
-    ApplicationController.isHealthy = false
-
+  def startup() = {
     val numOfThread = Runtime.getRuntime.availableProcessors()
     val threadPool = Executors.newFixedThreadPool(numOfThread)
     val ec = ExecutionContext.fromExecutor(threadPool)
@@ -57,30 +55,38 @@ object Global extends WithFilters(new GzipFilter()) {
     s2parser = new RequestParser(s2graph.config) // merged config
     s2rest = new RestHandler(s2graph)(ec)
 
-    QueueActor.init(s2graph)
+    logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
 
-    if (Config.IS_WRITE_SERVER) {
-      ExceptionHandler.apply(config)
-    }
+    config
+  }
+
+  def shutdown() = {
+    s2graph.shutdown()
+  }
+
+  // Application entry point
+  override def onStart(app: Application) {
+    ApplicationController.isHealthy = false
+
+    val config = startup()
+    wallLogHandler = new ExceptionHandler(config)
+
+    QueueActor.init(s2graph, wallLogHandler)
 
     val defaultHealthOn = Config.conf.getBoolean("app.health.on").getOrElse(true)
     ApplicationController.deployInfo = Try(Source.fromFile("./release_info").mkString("")).recover { case _ => "release info not found\n" }.get
 
     ApplicationController.isHealthy = defaultHealthOn
-    logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
   }
 
   override def onStop(app: Application) {
+    wallLogHandler.shutdown()
     QueueActor.shutdown()
-
-    if (Config.IS_WRITE_SERVER) {
-      ExceptionHandler.shutdown()
-    }
 
     /*
      * shutdown hbase client for flush buffers.
      */
-    s2graph.shutdown()
+    shutdown()
   }
 
   override def onError(request: RequestHeader, ex: Throwable): Future[Result] = {
@@ -98,3 +104,4 @@ object Global extends WithFilters(new GzipFilter()) {
     Future.successful(Results.BadRequest(error))
   }
 }
+

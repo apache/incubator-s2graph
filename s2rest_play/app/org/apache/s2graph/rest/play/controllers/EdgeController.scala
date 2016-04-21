@@ -19,7 +19,6 @@
 
 package org.apache.s2graph.rest.play.controllers
 
-import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.rest.RequestParser
@@ -40,6 +39,7 @@ object EdgeController extends Controller {
 
   private val s2: Graph = org.apache.s2graph.rest.play.Global.s2graph
   private val requestParser: RequestParser = org.apache.s2graph.rest.play.Global.s2parser
+  private val walLogHandler: ExceptionHandler = org.apache.s2graph.rest.play.Global.wallLogHandler
 
   private def jsToStr(js: JsValue): String = js match {
     case JsString(s) => s
@@ -69,10 +69,9 @@ object EdgeController extends Controller {
         val (edges, jsOrgs) = requestParser.toEdgesWithOrg(jsValue, operation)
 
         for ((edge, orgJs) <- edges.zip(jsOrgs)) {
-          if (edge.isAsync)
-            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC_ASYNC, edge, Option(toTsv(orgJs, operation))))
-          else
-            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC, edge, Option(toTsv(orgJs, operation))))
+          val kafkaTopic = toKafkaTopic(edge.isAsync)
+          val kafkaMessage = ExceptionHandler.toKafkaMessage(kafkaTopic, edge, Option(toTsv(orgJs, operation)))
+          walLogHandler.enqueue(kafkaMessage)
         }
 
         val edgesToStore = edges.filterNot(e => e.isAsync)
@@ -108,11 +107,8 @@ object EdgeController extends Controller {
             case v: Vertex => vertexCnt += 1
             case e: Edge => edgeCnt += 1
           }
-          if (element.isAsync) {
-            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC_ASYNC, element, Some(str)))
-          } else {
-            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC, element, Some(str)))
-          }
+          val kafkaTopic = toKafkaTopic(element.isAsync)
+          walLogHandler.enqueue(toKafkaMessage(kafkaTopic, element, Some(str)))
           element
         }
 
@@ -208,11 +204,10 @@ object EdgeController extends Controller {
           if (label.isAsync) Config.KAFKA_LOG_TOPIC_ASYNC else Config.KAFKA_LOG_TOPIC
         }
 
-        val kafkaMsg = KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
-        kafkaMsg
+        ExceptionHandler.toKafkaMessage(topic, tsv)
       }
 
-      ExceptionHandler.enqueues(kafkaMessages)
+      kafkaMessages.foreach(walLogHandler.enqueue)
     }
 
     def deleteEach(labels: Seq[Label], direction: String, ids: Seq[JsValue], ts: Long, vertices: Seq[Vertex]) = {

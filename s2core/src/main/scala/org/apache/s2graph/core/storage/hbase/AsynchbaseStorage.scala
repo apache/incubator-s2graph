@@ -365,6 +365,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
 
 
   override def flush(): Unit = clients.foreach { client =>
+    super.flush()
     val timeout = Duration((clientFlushInterval + 10) * 20, duration.MILLISECONDS)
     Await.result(client.flush().toFuture, timeout)
   }
