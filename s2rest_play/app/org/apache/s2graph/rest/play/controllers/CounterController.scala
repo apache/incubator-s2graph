@@ -47,6 +47,7 @@ object CounterController extends Controller {
   val config = Play.current.configuration.underlying
   val s2config = new S2CounterConfig(config)
 
+  private lazy val walLogHandler: ExceptionHandler = org.apache.s2graph.rest.play.Global.wallLogHandler
   private val exactCounterMap = Map(
     counter.VERSION_1 -> new ExactCounter(config, new ExactStorageAsyncHBase(config)),
     counter.VERSION_2 -> new ExactCounter(config, new ExactStorageGraph(config))
@@ -739,7 +740,7 @@ object CounterController extends Controller {
 
           // produce to kafka
           // hash partitioner by key
-          ExceptionHandler.enqueue(KafkaMessage(new Record(CounterConfig.KAFKA_TOPIC_COUNTER, s"$ts.$item", msg)))
+          walLogHandler.enqueue(KafkaMessage(new Record(CounterConfig.KAFKA_TOPIC_COUNTER, s"$ts.$item", msg)))
 
           Ok(Json.toJson(
             Map(

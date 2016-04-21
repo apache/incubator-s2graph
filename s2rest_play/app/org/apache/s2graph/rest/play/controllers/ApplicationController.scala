@@ -23,6 +23,7 @@ import akka.util.ByteString
 import org.apache.s2graph.core.GraphExceptions.BadQueryException
 import org.apache.s2graph.core.PostProcess
 import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.rest.play.config.Config
 import play.api.http.HttpEntity
 import play.api.libs.iteratee.Enumerator
 import play.api.libs.json.{JsString, JsValue}
@@ -33,6 +34,7 @@ import scala.concurrent.{ExecutionContext, Future}
 object ApplicationController extends Controller {
 
   var isHealthy = true
+  var isWriteFallbackHealthy= true
   var deployInfo = ""
   val applicationJsonHeader = "application/json"
 
@@ -63,6 +65,13 @@ object ApplicationController extends Controller {
   def healthCheck() = withHeader(parse.anyContent) { request =>
     if (isHealthy) Ok(deployInfo)
     else NotFound
+  }
+
+  def toKafkaTopic(isAsync: Boolean) = {
+    if (!isWriteFallbackHealthy) Config.KAFKA_FAIL_TOPIC
+    else {
+      if (isAsync) Config.KAFKA_LOG_TOPIC_ASYNC else Config.KAFKA_LOG_TOPIC
+    }
   }
 
   def jsonResponse(json: JsValue, headers: (String, String)*) =

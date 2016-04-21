@@ -46,8 +46,8 @@ object QueueActor {
   var router: ActorRef = _
 
   //    Akka.system.actorOf(props(), name = "queueActor")
-  def init(s2: Graph) = {
-    router = Akka.system.actorOf(props(s2))
+  def init(s2: Graph, walLogHandler: ExceptionHandler) = {
+    router = Akka.system.actorOf(props(s2, walLogHandler))
   }
 
   def shutdown() = {
@@ -56,10 +56,10 @@ object QueueActor {
     Thread.sleep(Config.ASYNC_HBASE_CLIENT_FLUSH_INTERVAL * 2)
   }
 
-  def props(s2: Graph): Props = Props(classOf[QueueActor], s2)
+  def props(s2: Graph, walLogHandler: ExceptionHandler): Props = Props(classOf[QueueActor], s2, walLogHandler)
 }
 
-class QueueActor(s2: Graph) extends Actor with ActorLogging {
+class QueueActor(s2: Graph, walLogHandler: ExceptionHandler) extends Actor with ActorLogging {
 
   import Protocol._
 
@@ -79,7 +79,7 @@ class QueueActor(s2: Graph) extends Actor with ActorLogging {
     case element: GraphElement =>
 
       if (queueSize > maxQueueSize) {
-        ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_FAIL_TOPIC, element, None))
+        walLogHandler.enqueue(toKafkaMessage(Config.KAFKA_FAIL_TOPIC, element, None))
       } else {
         queueSize += 1L
         queue.enqueue(element)
