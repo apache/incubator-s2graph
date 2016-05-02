@@ -1322,16 +1322,18 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     }
   }
 
-  def buildVertexPutsAsync(edge: Edge): Seq[SKeyValue] =
-    edge.label.extraOptions.get("skipVertex") match {
-      case Some(v) if v == false =>
-        if (edge.op == GraphUtil.operations("delete"))
-          buildDeleteBelongsToId(edge.srcForVertex) ++ buildDeleteBelongsToId(edge.tgtForVertex)
-        else
-          vertexSerializer(edge.srcForVertex).toKeyValues ++ vertexSerializer(edge.tgtForVertex).toKeyValues
-      case _ => Seq.empty
-    }
+  def buildVertexPutsAsync(edge: Edge): Seq[SKeyValue] = {
+    val storeVertex = edge.label.extraOptions.get("storeVertex").map(_.as[Boolean]).getOrElse(false)
 
+    if (storeVertex) {
+      if (edge.op == GraphUtil.operations("delete"))
+        buildDeleteBelongsToId(edge.srcForVertex) ++ buildDeleteBelongsToId(edge.tgtForVertex)
+      else
+        vertexSerializer(edge.srcForVertex).toKeyValues ++ vertexSerializer(edge.tgtForVertex).toKeyValues
+    } else {
+      Seq.empty
+    }
+  }
 
   def buildPutsAll(vertex: Vertex): Seq[SKeyValue] = {
     vertex.op match {
