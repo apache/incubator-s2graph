@@ -64,10 +64,13 @@ lazy val s2counter_loader = project.dependsOn(s2counter_core, spark)
 
 lazy val root = (project in file("."))
   .aggregate(s2core, s2rest_play)
+  .dependsOn(s2rest_play, s2rest_netty, loader, s2counter_loader) // this enables packaging on the root project
   .settings(commonSettings: _*)
 
 lazy val runRatTask = taskKey[Unit]("Runs Apache rat on S2Graph")
 
 runRatTask := {
-  "sh bin/run-rat.sh" !
+  "sh dev/run-rat.sh" !
 }
+
+Packager.defaultSettings
