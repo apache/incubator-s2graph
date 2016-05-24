@@ -456,43 +456,51 @@ class RequestParser(config: Config) {
       case arr: JsArray => arr.as[List[JsValue]]
       case _ => List.empty[JsValue]
     }
-
   }
 
-  def toEdgesWithOrg(jsValue: JsValue, operation: String): (List[Edge], List[JsValue]) = {
+  def jsToStr(js: JsValue): String = js match {
+    case JsString(s) => s
+    case _ => js.toString()
+  }
+
+  def parseBulkFormat(str: String): Seq[(GraphElement, String)] = {
+    val edgeStrs = str.split("\\n")
+    val elementsWithTsv = for {
+      edgeStr <- edgeStrs
+      str <- GraphUtil.parseString(edgeStr)
+      element <- Graph.toGraphElement(str)
+    } yield (element, str)
+
+    elementsWithTsv
+  }
+
+  def parseJsonFormat(jsValue: JsValue, operation: String): Seq[(Edge, String)] = {
     val jsValues = toJsValues(jsValue)
-    val edges = jsValues.flatMap(toEdge(_, operation))
-
-    (edges, jsValues)
+    jsValues.flatMap(toEdgeWithTsv(_, operation))
   }
 
-  def toEdges(jsValue: JsValue, operation: String): List[Edge] = {
-    toJsValues(jsValue).flatMap { edgeJson =>
-      toEdge(edgeJson, operation)
-    }
-  }
-
-
-  private def toEdge(jsValue: JsValue, operation: String): List[Edge] = {
-
-    def parseId(js: JsValue) = js match {
-      case s: JsString => s.as[String]
-      case o@_ => s"${o}"
-    }
-    val srcId = (jsValue \ "from").asOpt[JsValue].toList.map(parseId(_))
-    val tgtId = (jsValue \ "to").asOpt[JsValue].toList.map(parseId(_))
-    val srcIds = (jsValue \ "froms").asOpt[List[JsValue]].toList.flatMap(froms => froms.map(js => parseId(js))) ++ srcId
-    val tgtIds = (jsValue \ "tos").asOpt[List[JsValue]].toList.flatMap(froms => froms.map(js => parseId(js))) ++ tgtId
+  private def toEdgeWithTsv(jsValue: JsValue, operation: String): Seq[(Edge, String)] = {
+    val srcId = (jsValue \ "from").asOpt[JsValue].map(jsToStr)
+    val tgtId = (jsValue \ "to").asOpt[JsValue].map(jsToStr)
+    val srcIds = (jsValue \ "froms").asOpt[List[JsValue]].toList.flatMap(froms => froms.map(jsToStr)) ++ srcId
+    val tgtIds = (jsValue \ "tos").asOpt[List[JsValue]].toList.flatMap(tos => tos.map(jsToStr)) ++ tgtId
 
     val label = parse[String](jsValue, "label")
     val timestamp = parse[Long](jsValue, "timestamp")
     val direction = parseOption[String](jsValue, "direction").getOrElse("")
     val props = (jsValue \ "props").asOpt[JsValue].getOrElse("{}")
+
     for {
       srcId <- srcIds
       tgtId <- tgtIds
     } yield {
-      Management.toEdge(timestamp, operation, srcId, tgtId, label, direction, props.toString)
+      val edge = Management.toEdge(timestamp, operation, srcId, tgtId, label, direction, props.toString)
+      val tsv = (jsValue \ "direction").asOpt[String] match {
+        case None => Seq(timestamp, operation, "e", srcId, tgtId, label, props).mkString("\t")
+        case Some(dir) => Seq(timestamp, operation, "e", srcId, tgtId, label, props, dir).mkString("\t")
+      }
+
+      (edge, tsv)
     }
   }
 

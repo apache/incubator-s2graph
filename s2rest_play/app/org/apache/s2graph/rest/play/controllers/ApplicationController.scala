@@ -67,6 +67,8 @@ object ApplicationController extends Controller {
     else NotFound
   }
 
+  def skipElement(isAsync: Boolean) = !isWriteFallbackHealthy || isAsync
+
   def toKafkaTopic(isAsync: Boolean) = {
     if (!isWriteFallbackHealthy) Config.KAFKA_FAIL_TOPIC
     else {

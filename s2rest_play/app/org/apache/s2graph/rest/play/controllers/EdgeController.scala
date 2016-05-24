@@ -30,159 +30,145 @@ import play.api.mvc.{Controller, Result}
 
 import scala.collection.Seq
 import scala.concurrent.Future
+import scala.util.Random
 
 object EdgeController extends Controller {
 
   import ApplicationController._
-  import ExceptionHandler._
   import play.api.libs.concurrent.Execution.Implicits._
 
   private val s2: Graph = org.apache.s2graph.rest.play.Global.s2graph
   private val requestParser: RequestParser = org.apache.s2graph.rest.play.Global.s2parser
   private val walLogHandler: ExceptionHandler = org.apache.s2graph.rest.play.Global.wallLogHandler
 
-  private def jsToStr(js: JsValue): String = js match {
-    case JsString(s) => s
-    case obj => obj.toString()
+  private def enqueue(topic: String, elem: GraphElement, tsv: String) = {
+    val kafkaMessage = ExceptionHandler.toKafkaMessage(topic, elem, Option(tsv))
+    walLogHandler.enqueue(kafkaMessage)
   }
-  private def jsToStr(js: JsLookupResult): String = js.toOption.map(jsToStr).getOrElse("undefined")
 
-  def toTsv(jsValue: JsValue, op: String): String = {
-    val ts = jsToStr(jsValue \ "timestamp")
-    val from = jsToStr(jsValue \ "from")
-    val to = jsToStr(jsValue \ "to")
-    val label = jsToStr(jsValue \ "label")
-    val props = (jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj())
+  private def publish(graphElem: GraphElement, tsv: String) = {
+    val kafkaTopic = toKafkaTopic(graphElem.isAsync)
 
-    (jsValue \ "direction").asOpt[String] match {
-      case None => Seq(ts, op, "e", from, to, label, props).mkString("\t")
-      case Some(dir) => Seq(ts, op, "e", from, to, label, props, dir).mkString("\t")
+    graphElem match {
+      case v: Vertex => enqueue(kafkaTopic, graphElem, tsv)
+      case e: Edge =>
+        e.label.extraOptions.get("walLog") match {
+          case None => enqueue(kafkaTopic, e, tsv)
+          case Some(walLogOpt) =>
+            (walLogOpt \ "method").as[JsValue] match {
+              case JsString("drop") => // pass
+              case JsString("sample") =>
+                val rate = (walLogOpt \ "rate").as[Int]
+                if (Random.nextInt(100) < rate) enqueue(kafkaTopic, e, tsv)
+              case _ => enqueue(kafkaTopic, e, tsv)
+            }
+        }
     }
   }
 
-  def tryMutates(jsValue: JsValue, operation: String, withWait: Boolean = false): Future[Result] = {
+  private def tryMutate(elementsWithTsv: Seq[(GraphElement, String)], withWait: Boolean): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
-
     else {
       try {
-        logger.debug(s"$jsValue")
-        val (edges, jsOrgs) = requestParser.toEdgesWithOrg(jsValue, operation)
-
-        for ((edge, orgJs) <- edges.zip(jsOrgs)) {
-          val kafkaTopic = toKafkaTopic(edge.isAsync)
-          val kafkaMessage = ExceptionHandler.toKafkaMessage(kafkaTopic, edge, Option(toTsv(orgJs, operation)))
-          walLogHandler.enqueue(kafkaMessage)
+        elementsWithTsv.foreach { case (graphElem, tsv) =>
+          publish(graphElem, tsv)
         }
 
-        val edgesToStore = edges.filterNot(e => e.isAsync)
+        val elementsToStore = for {
+          (e, _tsv) <- elementsWithTsv if !skipElement(e.isAsync)
+        } yield e
 
-        if (withWait) {
-          val rets = s2.mutateEdges(edgesToStore, withWait = true)
-          rets.map(Json.toJson(_)).map(jsonResponse(_))
-        } else {
-          val rets = edgesToStore.map { edge => QueueActor.router ! edge; true }
-          Future.successful(jsonResponse(Json.toJson(rets)))
+        if (elementsToStore.isEmpty) Future.successful(jsonResponse(JsArray()))
+        else {
+          if (withWait) {
+            val rets = s2.mutateElements(elementsToStore, withWait)
+            rets.map(Json.toJson(_)).map(jsonResponse(_))
+          } else {
+            val rets = elementsToStore.map { element => QueueActor.router ! element; true }
+            Future.successful(jsonResponse(Json.toJson(rets)))
+          }
         }
       } catch {
         case e: GraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
-        case e: Exception =>
-          logger.error(s"mutateAndPublish: $e", e)
+        case e: Throwable =>
+          logger.error(s"tryMutate: ${e.getMessage}", e)
           Future.successful(InternalServerError(s"${e.getStackTrace}"))
       }
     }
   }
 
-  def mutateAndPublish(str: String, withWait: Boolean = false): Future[Result] = {
-    if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
+  def mutateJsonFormat(jsValue: JsValue, operation: String, withWait: Boolean = false): Future[Result] = {
+    logger.debug(s"$jsValue")
+    val edgesWithTsv = requestParser.parseJsonFormat(jsValue, operation)
+    tryMutate(edgesWithTsv, withWait)
+  }
 
+  def mutateBulkFormat(str: String, withWait: Boolean = false): Future[Result] = {
     logger.debug(s"$str")
-    val edgeStrs = str.split("\\n")
-
-    var vertexCnt = 0L
-    var edgeCnt = 0L
-    try {
-      val elements =
-        for (edgeStr <- edgeStrs; str <- GraphUtil.parseString(edgeStr); element <- Graph.toGraphElement(str)) yield {
-          element match {
-            case v: Vertex => vertexCnt += 1
-            case e: Edge => edgeCnt += 1
-          }
-          val kafkaTopic = toKafkaTopic(element.isAsync)
-          walLogHandler.enqueue(toKafkaMessage(kafkaTopic, element, Some(str)))
-          element
-        }
-
-      //FIXME:
-      val elementsToStore = elements.filterNot(e => e.isAsync)
-      if (withWait) {
-        val rets = s2.mutateElements(elementsToStore, withWait)
-        rets.map(Json.toJson(_)).map(jsonResponse(_))
-      } else {
-        val rets = elementsToStore.map { element => QueueActor.router ! element; true }
-        Future.successful(jsonResponse(Json.toJson(rets)))
-      }
-    } catch {
-      case e: GraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
-      case e: Throwable =>
-        logger.error(s"mutateAndPublish: $e", e)
-        Future.successful(InternalServerError(s"${e.getStackTrace}"))
-    }
+    val elementsWithTsv = requestParser.parseBulkFormat(str)
+    tryMutate(elementsWithTsv, withWait)
   }
 
   def mutateBulk() = withHeaderAsync(parse.text) { request =>
-    mutateAndPublish(request.body, withWait = false)
+    mutateBulkFormat(request.body, withWait = false)
   }
 
   def mutateBulkWithWait() = withHeaderAsync(parse.text) { request =>
-    mutateAndPublish(request.body, withWait = true)
+    mutateBulkFormat(request.body, withWait = true)
   }
 
   def inserts() = withHeaderAsync(jsonParser) { request =>
-    tryMutates(request.body, "insert")
+    mutateJsonFormat(request.body, "insert")
   }
 
   def insertsWithWait() = withHeaderAsync(jsonParser) { request =>
-    tryMutates(request.body, "insert", withWait = true)
+    mutateJsonFormat(request.body, "insert", withWait = true)
   }
 
   def insertsBulk() = withHeaderAsync(jsonParser) { request =>
-    tryMutates(request.body, "insertBulk")
+    mutateJsonFormat(request.body, "insertBulk")
   }
 
   def deletes() = withHeaderAsync(jsonParser) { request =>
-    tryMutates(request.body, "delete")
+    mutateJsonFormat(request.body, "delete")
   }
 
   def deletesWithWait() = withHeaderAsync(jsonParser) { request =>
-    tryMutates(request.body, "delete", withWait = true)
+    mutateJsonFormat(request.body, "delete", withWait = true)
   }
 
   def updates() = withHeaderAsync(jsonParser) { request =>
-    tryMutates(request.body, "update")
+    mutateJsonFormat(request.body, "update")
   }
 
   def updatesWithWait() = withHeaderAsync(jsonParser) { request =>
-    tryMutates(request.body, "update", withWait = true)
+    mutateJsonFormat(request.body, "update", withWait = true)
   }
 
   def increments() = withHeaderAsync(jsonParser) { request =>
-    tryMutates(request.body, "increment")
+    mutateJsonFormat(request.body, "increment")
   }
 
   def incrementsWithWait() = withHeaderAsync(jsonParser) { request =>
-    tryMutates(request.body, "increment", withWait = true)
+    mutateJsonFormat(request.body, "increment", withWait = true)
   }
 
   def incrementCounts() = withHeaderAsync(jsonParser) { request =>
     val jsValue = request.body
-    val edges = requestParser.toEdges(jsValue, "incrementCount")
+    val edgesWithTsv = requestParser.parseJsonFormat(jsValue, "incrementCount")
 
-    s2.incrementCounts(edges, withWait = true).map { results =>
-      val json = results.map { case (isSuccess, resultCount) =>
-        Json.obj("success" -> isSuccess, "result" -> resultCount)
+    val edges = for {
+      (e, _tsv) <- edgesWithTsv if !skipElement(e.isAsync)
+    } yield e
+
+    if (edges.isEmpty) Future.successful(jsonResponse(JsArray()))
+    else {
+      s2.incrementCounts(edges, withWait = true).map { results =>
+        val json = results.map { case (isSuccess, resultCount) =>
+          Json.obj("success" -> isSuccess, "result" -> resultCount)
+        }
+        jsonResponse(Json.toJson(json))
       }
-
-      jsonResponse(Json.toJson(json))
     }
   }
 
@@ -199,10 +185,8 @@ object EdgeController extends Controller {
         id <- ids
         label <- labels
       } yield {
-        val tsv = Seq(ts, "deleteAll", "e", jsToStr(id), jsToStr(id), label.label, "{}", direction).mkString("\t")
-        val topic = topicOpt.getOrElse {
-          if (label.isAsync) Config.KAFKA_LOG_TOPIC_ASYNC else Config.KAFKA_LOG_TOPIC
-        }
+        val tsv = Seq(ts, "deleteAll", "e", requestParser.jsToStr(id), requestParser.jsToStr(id), label.label, "{}", direction).mkString("\t")
+        val topic = topicOpt.getOrElse { toKafkaTopic(label.isAsync) }
 
         ExceptionHandler.toKafkaMessage(topic, tsv)
       }

@@ -69,6 +69,6 @@ object PublishController extends Controller {
   //    }
   //  }
   def mutateBulk(topic: String) = withHeaderAsync(parse.text) { request =>
-    EdgeController.mutateAndPublish(request.body)
+    EdgeController.mutateBulkFormat(request.body)
   }
 }
