@@ -311,7 +311,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
   def mutateEdges(edges: Seq[Edge], withWait: Boolean): Future[Seq[Boolean]] = {
     val (strongEdges, weakEdges) =
-      (edges.partition(e => e.label.consistencyLevel == "strong" || e.op == GraphUtil.operations("insertBulk")))
+      edges.partition(e => e.label.consistencyLevel == "strong" && e.op != GraphUtil.operations("insertBulk"))
 
     val weakEdgesFutures = weakEdges.groupBy { e => e.label.hbaseZkAddr }.map { case (zkQuorum, edges) =>
       val mutations = edges.flatMap { edge =>
