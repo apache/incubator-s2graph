@@ -35,7 +35,7 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
    * @param to: to VertexId for edge.
    * @param props: expected props of edge.
    */
-  def check(l: Label, ts: Long, to: InnerValLike, props: Map[Byte, InnerValLike]): Unit = {
+  def check(l: Label, ts: Long, to: InnerValLike, props: Map[Byte, InnerValLikeWithTs]): Unit = {
     val from = InnerVal.withLong(1, l.schemaVersion)
     val vertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, from)
     val tgtVertexId = TargetVertexId(HBaseType.DEFAULT_COL_ID, to)
@@ -59,9 +59,9 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
       l <- Seq(label, labelV2, labelV3, labelV4)
     } {
       val to = InnerVal.withLong(101, l.schemaVersion)
-      val tsInnerVal = InnerVal.withLong(ts, l.schemaVersion)
-      val props = Map(LabelMeta.timeStampSeq -> tsInnerVal,
-        1.toByte -> InnerVal.withDouble(2.1, l.schemaVersion))
+      val tsInnerValWithTs = InnerValLikeWithTs.withLong(ts, ts, l.schemaVersion)
+      val props = Map(LabelMeta.timeStampSeq -> tsInnerValWithTs,
+        1.toByte -> InnerValLikeWithTs.withDouble(2.1, ts, l.schemaVersion))
 
       check(l, ts, to, props)
     }
@@ -73,10 +73,10 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
       l <- Seq(label, labelV2, labelV3, labelV4)
     } {
       val to = InnerVal.withStr("0", l.schemaVersion)
-      val tsInnerVal = InnerVal.withLong(ts, l.schemaVersion)
+      val tsInnerValWithTs = InnerValLikeWithTs.withLong(ts, ts, l.schemaVersion)
       val props = Map(
-        LabelMeta.degreeSeq -> InnerVal.withLong(10, l.schemaVersion),
-        LabelMeta.timeStampSeq -> tsInnerVal)
+        LabelMeta.degreeSeq -> InnerValLikeWithTs.withLong(10, ts, l.schemaVersion),
+        LabelMeta.timeStampSeq -> tsInnerValWithTs)
 
       check(l, ts, to, props)
     }
@@ -88,11 +88,11 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
       l <- Seq(label, labelV2, labelV3, labelV4)
     } {
       val to = InnerVal.withLong(101, l.schemaVersion)
+      val tsInnerValWithTs = InnerValLikeWithTs.withLong(ts, ts, l.schemaVersion)
+      val props = Map(LabelMeta.timeStampSeq -> tsInnerValWithTs,
+        1.toByte -> InnerValLikeWithTs.withDouble(2.1, ts, l.schemaVersion),
+        LabelMeta.countSeq -> InnerValLikeWithTs.withLong(10, ts, l.schemaVersion))
 
-      val tsInnerVal = InnerVal.withLong(ts, l.schemaVersion)
-      val props = Map(LabelMeta.timeStampSeq -> tsInnerVal,
-        1.toByte -> InnerVal.withDouble(2.1, l.schemaVersion),
-        LabelMeta.countSeq -> InnerVal.withLong(10, l.schemaVersion))
 
       check(l, ts, to, props)
     }

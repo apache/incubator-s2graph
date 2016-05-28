@@ -59,9 +59,9 @@ class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge
 
      val value =
        if (indexEdge.degreeEdge)
-         Bytes.toBytes(indexEdge.propsWithTs(LabelMeta.degreeSeq).innerVal.toString().toLong)
+         Bytes.toBytes(indexEdge.props(LabelMeta.degreeSeq).innerVal.toString().toLong)
        else if (indexEdge.op == GraphUtil.operations("incrementCount"))
-         Bytes.toBytes(indexEdge.propsWithTs(LabelMeta.countSeq).innerVal.toString().toLong)
+         Bytes.toBytes(indexEdge.props(LabelMeta.countSeq).innerVal.toString().toLong)
        else propsToKeyValues(indexEdge.metas.toSeq)
 
      val kv = SKeyValue(table, row, cf, qualifier, value, indexEdge.version)
