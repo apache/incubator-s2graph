@@ -167,7 +167,7 @@ object Management extends JSONParser {
     })
   }
 
-  def getServiceLable(label: String): Option[Label] = {
+  def getServiceLabel(label: String): Option[Label] = {
     Label.findByName(label, useCache = true)
   }
 
@@ -192,7 +192,7 @@ object Management extends JSONParser {
   def toEdge(ts: Long, operation: String, srcId: String, tgtId: String,
              labelStr: String, direction: String = "", props: String): Edge = {
 
-    val label = tryOption(labelStr, getServiceLable)
+    val label = tryOption(labelStr, getServiceLabel)
     val dir =
       if (direction == "")
 //        GraphUtil.toDirection(label.direction)
