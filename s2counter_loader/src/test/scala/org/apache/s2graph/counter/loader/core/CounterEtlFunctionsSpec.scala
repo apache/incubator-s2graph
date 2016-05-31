@@ -20,15 +20,30 @@
 package org.apache.s2graph.counter.loader.core
 
 import com.typesafe.config.ConfigFactory
-import org.scalatest.{Matchers, BeforeAndAfterAll, FlatSpec}
-import s2.models.DBModel
+import org.apache.s2graph.core.mysqls.{Label, Service}
+import org.apache.s2graph.core.types.HBaseType
+import org.apache.s2graph.core.{Graph, Management}
+import org.apache.s2graph.counter.models.DBModel
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 15. 7. 3..
- */
+import scala.concurrent.ExecutionContext.Implicits.global
+
 class CounterEtlFunctionsSpec extends FlatSpec with BeforeAndAfterAll with Matchers {
+  val config = ConfigFactory.load()
+  val cluster = config.getString("hbase.zookeeper.quorum")
+  DBModel.initialize(config)
+
+  val graph = new Graph(config)(global)
+  val management = new Management(graph)
+
   override def beforeAll: Unit = {
-    DBModel.initialize(ConfigFactory.load())
+    management.createService("test", cluster, "test", 1, None, "gz")
+    management.createLabel("test_case", "test", "src", "string", "test", "tgt", "string", true, "test", Nil, Nil, "weak", None, None, HBaseType.DEFAULT_VERSION, false, "gz")
+  }
+
+  override def afterAll: Unit = {
+    Label.delete(Label.findByName("test_case", false).get.id.get)
+    Service.delete(Service.findByName("test", false).get.id.get)
   }
 
   "CounterEtlFunctions" should "parsing log" in {
