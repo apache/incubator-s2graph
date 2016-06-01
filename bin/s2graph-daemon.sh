@@ -17,7 +17,9 @@
 # starts/stops/restarts a java application as a daemon process
 # also able to run the application directly using run
 
-usage="Usage: s2graph-daemon.sh (start|stop|restart|run|status)"
+usage="This script is intended to be used by other scripts in this directory."
+usage=$"$usage\n Please refer to start-s2graph.sh and stop-s2graph.sh"
+usage=$"$usage\n Usage: s2graph-daemon.sh (start|stop|restart|run|status)"
 usage="$usage (s2rest_play|s2rest_netty|...) <args...>"
 
 bin=$(cd "$(dirname "${BASH_SOURCE-$0}")">/dev/null; pwd)
@@ -28,7 +30,7 @@ bin=$(cd "$(dirname "${BASH_SOURCE-$0}")">/dev/null; pwd)
 
 # show usage when executed without enough arguments
 if [ $# -le 1 ]; then
-  panic $usage
+  panic "$usage"
 fi
 
 # to enable the JVM application to use relative paths as well
@@ -63,6 +65,9 @@ case $service in
 s2rest_play)
   main="play.core.server.NettyServer"
   ;;
+hbase)
+  main="org.apache.hadoop.hbase.master.HMaster"
+  ;;
 *)
   panic "Unknown service: $service"
 esac
@@ -70,8 +75,11 @@ esac
 # file that contains the service's pid
 pidfile="$S2GRAPH_PID_DIR/$service.pid"
 
-# avoid stderr/stdout output, using appropriate log configuration
-log="$S2GRAPH_LOG_DIR/console.log"
+# file that contains the console output of the JVM
+# this file should only contain abnormal logs, while
+# the normal logs should go to the log files as configured separately,
+# ideally with daily log-rotation.
+log="$S2GRAPH_LOG_DIR/$service.log"
 
 start() {
   if [ -f "$pidfile" ]; then
@@ -132,6 +140,7 @@ status() {
 
 run() {
   trap cleanup SIGHUP SIGINT SIGTERM EXIT
+  echo "$JAVA" -cp "$classpath" $S2GRAPH_OPTS "$main" $args 2>&1 &
   "$JAVA" -cp "$classpath" $S2GRAPH_OPTS "$main" $args 2>&1 &
   pid=$!
   echo "$pid" > "$pidfile"
@@ -156,5 +165,5 @@ run)
   run
   ;;
 *)
-  panic $usage
+  panic "$usage"
 esac

@@ -28,6 +28,7 @@ projectDependencies := Seq(
 )
 
 libraryDependencies ++= Seq(
+  "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
   "org.apache.spark" %% "spark-core" % Common.sparkVersion % "provided",
   "org.apache.spark" %% "spark-streaming" % Common.sparkVersion % "provided",
   "org.apache.spark" %% "spark-hive" % Common.sparkVersion % "provided",
@@ -35,7 +36,6 @@ libraryDependencies ++= Seq(
   "org.apache.httpcomponents" % "fluent-hc" % "4.2.5",
   "org.specs2" %% "specs2-core" % "2.4.11" % "test",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test",
-  "org.apache.hbase" % "hbase-hadoop-compat" % "0.98.14-hadoop2",
   "org.apache.hadoop" % "hadoop-distcp" % Common.hadoopVersion
 )
 
