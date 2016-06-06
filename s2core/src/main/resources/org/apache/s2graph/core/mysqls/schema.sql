@@ -17,17 +17,6 @@
 -- under the License.
 --
 
-CREATE DATABASE IF NOT EXISTS graph_dev;
-
-CREATE USER 'graph'@'%' IDENTIFIED BY 'graph';
-
-GRANT ALL PRIVILEGES ON graph_dev.* TO 'graph'@'%' identified by 'graph';
-
-flush privileges;
-
-use graph_dev;
-
-
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- ----------------------------
@@ -43,9 +32,9 @@ CREATE TABLE `services` (
   `pre_split_size` integer NOT NULL default 0,
   `hbase_table_ttl` integer,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `ux_service_name` (`service_name`),
-  INDEX `idx_access_token` (`access_token`),
-  INDEX `idx_cluster` (cluster(75))
+  UNIQUE KEY `ux_services_service_name` (`service_name`),
+  INDEX `idx_services_access_token` (`access_token`),
+  INDEX `idx_services_cluster` (`cluster`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
@@ -109,12 +98,12 @@ CREATE TABLE `labels` (
   `options` text,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_label` (`label`),
-  INDEX `idx_src_column_name` (`src_column_name`),
-  INDEX	`idx_tgt_column_name` (`tgt_column_name`),
-  INDEX `idx_src_service_id` (`src_service_id`),
-  INDEX `idx_tgt_service_id` (`tgt_service_id`),
-  INDEX `idx_service_name` (`service_name`), 
-  INDEX `idx_service_id` (`service_id`)
+  INDEX `idx_labels_src_column_name` (`src_column_name`),
+  INDEX	`idx_labels_tgt_column_name` (`tgt_column_name`),
+  INDEX `idx_labels_src_service_id` (`src_service_id`),
+  INDEX `idx_labels_tgt_service_id` (`tgt_service_id`),
+  INDEX `idx_labels_service_name` (`service_name`),
+  INDEX `idx_labels_service_id` (`service_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE labels add FOREIGN KEY(service_id) REFERENCES services(id);
@@ -134,8 +123,8 @@ CREATE TABLE `label_metas` (
   `data_type` varchar(8) NOT NULL DEFAULT 'long',
   `used_in_index` tinyint	NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `ux_label_id_name` (`label_id`, `name`),
-  INDEX `idx_label_id_seq` (`label_id`, `seq`)
+  UNIQUE KEY `ux_label_metas_label_id_name` (`label_id`, `name`),
+  INDEX `idx_label_metas_label_id_seq` (`label_id`, `seq`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE label_metas ADD FOREIGN KEY(label_id) REFERENCES labels(id) ON DELETE CASCADE;
@@ -153,8 +142,8 @@ CREATE TABLE `label_indices` (
   `meta_seqs` varchar(64) NOT NULL,
   `formulars` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `ux_label_id_seq` (`label_id`,`meta_seqs`),
-  UNIQUE KEY `ux_label_id_name` (`label_id`,`name`)
+  UNIQUE KEY `ux_label_indices_label_id_seq` (`label_id`,`meta_seqs`),
+  UNIQUE KEY `ux_label_indices_label_id_name` (`label_id`,`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE label_indices ADD FOREIGN KEY(label_id) REFERENCES labels(id) ON DELETE CASCADE;
@@ -173,7 +162,7 @@ CREATE TABLE `experiments` (
   `experiment_type` varchar(8) NOT NULL DEFAULT 'u',
   `total_modular` int NOT NULL DEFAULT 100,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `ux_service_id_name` (`service_id`, `name`)
+  UNIQUE KEY `ux_experiments_service_id_name` (`service_id`, `name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ALTER TABLE experiments ADD FOREIGN KEY(service_id) REFERENCES service(id) ON DELETE CASCADE;
@@ -197,9 +186,9 @@ CREATE TABLE `buckets` (
   `is_graph_query` tinyint NOT NULL DEFAULT 1,
   `is_empty` tinyint NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `ux_impression_id` (`impression_id`),
-  INDEX `idx_experiment_id` (`experiment_id`),
-  INDEX `idx_impression_id` (`impression_id`)
+  UNIQUE KEY `ux_buckets_impression_id` (`impression_id`),
+  INDEX `idx_buckets_experiment_id` (`experiment_id`),
+  INDEX `idx_buckets_impression_id` (`impression_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;
@@ -230,9 +219,9 @@ CREATE TABLE `counter` (
   `rate_base_id` int(11) unsigned DEFAULT NULL,
   `rate_threshold` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `svc` (`service`,`action`),
-  KEY `rate_action_id` (`rate_action_id`),
-  KEY `rate_base_id` (`rate_base_id`),
-  CONSTRAINT `rate_action_id` FOREIGN KEY (`rate_action_id`) REFERENCES `counter` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
-  CONSTRAINT `rate_base_id` FOREIGN KEY (`rate_base_id`) REFERENCES `counter` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+  UNIQUE KEY `counter_svc` (`service`,`action`),
+  KEY `counter_rate_action_id` (`rate_action_id`),
+  KEY `counter_rate_base_id` (`rate_base_id`),
+  CONSTRAINT `counter_rate_action_id` FOREIGN KEY (`rate_action_id`) REFERENCES `counter` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `counter_rate_base_id` FOREIGN KEY (`rate_base_id`) REFERENCES `counter` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

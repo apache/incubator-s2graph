@@ -37,6 +37,7 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "2.2.4" % "test",
   "org.scalikejdbc" %% "scalikejdbc" % "2.1.+",
   "mysql" % "mysql-connector-java" % "5.1.28",
+  "com.h2database" % "h2" % "1.4.192",
   "com.github.danielwegener" % "logback-kafka-appender" % "0.0.4"
 )
 

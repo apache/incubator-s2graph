@@ -42,11 +42,11 @@ export S2GRAPH_LIB_DIR=$S2GRAPH_HOME/lib
 export S2GRAPH_LOG_DIR=$S2GRAPH_HOME/logs
 export S2GRAPH_CONF_DIR=$S2GRAPH_HOME/conf
 export S2GRAPH_HBASE_DIR=$S2GRAPH_HOME/var/hbase
-export S2GRAPH_SQLITE_DIR=$S2GRAPH_HOME/var/sqlite
+export S2GRAPH_METASTORE_DIR=$S2GRAPH_HOME/var/metastore
 export S2GRAPH_PID_DIR=$S2GRAPH_HOME/var/pid
 
 mkdir -p "$S2GRAPH_LOG_DIR" "$S2GRAPH_CONF_DIR" "$S2GRAPH_HBASE_DIR" \
-    "$S2GRAPH_SQLITE_DIR" "$S2GRAPH_PID_DIR"
+    "$S2GRAPH_METASTORE_DIR" "$S2GRAPH_PID_DIR"
 
 # apply the minimal JVM settings if none was given;
 # in production, this variable is expected to be given by a deployment system.
