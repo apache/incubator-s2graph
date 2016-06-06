@@ -140,8 +140,8 @@ status() {
 
 run() {
   trap cleanup SIGHUP SIGINT SIGTERM EXIT
-  echo "$JAVA" -cp "$classpath" $S2GRAPH_OPTS "$main" $args 2>&1 &
-  "$JAVA" -cp "$classpath" $S2GRAPH_OPTS "$main" $args 2>&1 &
+  echo "$JAVA" -cp "$classpath" -Ds2graph.home="$S2GRAPH_HOME" $S2GRAPH_OPTS "$main" $args 2>&1 &
+  "$JAVA" -cp "$classpath" -Ds2graph.home="$S2GRAPH_HOME" $S2GRAPH_OPTS "$main" $args 2>&1 &
   pid=$!
   echo "$pid" > "$pidfile"
   wait "$pid"

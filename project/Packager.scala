@@ -1,6 +1,5 @@
-import java.io.IOException
 import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.{SimpleFileVisitor, FileVisitResult, Path, FileVisitor}
+import java.nio.file.{FileVisitResult, Files, Path, Paths, SimpleFileVisitor, StandardCopyOption}
 
 import sbt.Keys._
 import sbt._
@@ -49,8 +48,6 @@ object Packager {
       for (dir <- subdirectories) {
         IO.createDirectory(base / dir)
       }
-
-      import java.nio.file.{Files, Paths, StandardCopyOption}
 
       // copy jars to /lib
       val libs = dependencies.filter(_.data.ext == "jar").map(_.data) ++ packaged
