@@ -84,6 +84,8 @@ Release 0.12.1 - unreleased
     S2GRAPH-43: Bug on offset when Interval is given on query (Committed by DOYUNG YOON).
 
     S2GRAPH-19: When query with duration error (Committed by DOYUNG YOON).
+    
+    S2GRAPH-63: Condition on partition strong edges and weak edges on mutateEdges is wrong (Committed by DOYUNG YOON).
 
   TASKS
 
