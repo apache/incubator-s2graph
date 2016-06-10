@@ -66,6 +66,9 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-55: Add param to enable epoll event loop in experimental netty http server (Committed by daewon).
 
+    S2GRAPH-22: Add missing shebang line to file. 
+		(Contributed by Injun Song<ijsong@gmail.com>, committed by DOYUNG YOON)
+
   BUG FIXES
 
     S2GRAPH-18: Query Option "interval" is Broken. 
