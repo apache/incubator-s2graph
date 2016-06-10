@@ -248,6 +248,10 @@ object InnerValLikeWithTs extends HBaseDeserializable {
     InnerValLikeWithTs(InnerVal.withLong(l, version), ts)
   }
 
+  def withDouble(d: Double, ts: Long, version: String): InnerValLikeWithTs = {
+    InnerValLikeWithTs(InnerVal.withDouble(d, version), ts)
+  }
+
   def withStr(s: String, ts: Long, version: String): InnerValLikeWithTs = {
     InnerValLikeWithTs(InnerVal.withStr(s, version), ts)
   }
