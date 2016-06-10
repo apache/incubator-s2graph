@@ -87,6 +87,8 @@ Release 0.12.1 - unreleased
     
     S2GRAPH-63: Condition on partition strong edges and weak edges on mutateEdges is wrong (Committed by DOYUNG YOON).
 
+    S2GRAPH-64: incrementCounts yield type case exception (Committed by DOYUNG YOON).
+
   TASKS
 
     S2GRAPH-2: Update document and quick start environment to have recent set-up command changes.
