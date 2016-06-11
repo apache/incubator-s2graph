@@ -70,14 +70,14 @@ case class IndexEdge(srcVertex: Vertex,
                      op: Byte,
                      version: Long,
                      labelIndexSeq: Byte,
-                     props: Map[Byte, InnerValLike]) extends JSONParser {
-  if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
+                     props: Map[Byte, InnerValLikeWithTs]) extends JSONParser {
+  //  if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
   //  assert(props.containsKey(LabelMeta.timeStampSeq))
 
-  val ts = props(LabelMeta.timeStampSeq).toString.toLong
-  val degreeEdge = props.contains(LabelMeta.degreeSeq)
+  lazy val ts = props(LabelMeta.timeStampSeq).innerVal.toString.toLong
+  lazy val degreeEdge = props.contains(LabelMeta.degreeSeq)
   lazy val label = Label.findById(labelWithDir.labelId)
-  val schemaVer = label.schemaVersion
+  lazy val schemaVer = label.schemaVersion
   lazy val labelIndex = LabelIndex.findByLabelIdAndSeq(labelWithDir.labelId, labelIndexSeq).get
   lazy val defaultIndexMetas = labelIndex.sortKeyTypes.map { meta =>
     val innerVal = toInnerVal(meta.defaultValue, meta.dataType, schemaVer)
@@ -92,9 +92,9 @@ case class IndexEdge(srcVertex: Vertex,
       case None =>
 
         /**
-          * TODO: agly hack
-          * now we double store target vertex.innerId/srcVertex.innerId for easy development. later fix this to only store id once
-          */
+         * TODO: agly hack
+         * now we double store target vertex.innerId/srcVertex.innerId for easy development. later fix this to only store id once
+         */
         val v = k match {
           case LabelMeta.timeStampSeq => InnerVal.withLong(version, schemaVer)
           case LabelMeta.toSeq => tgtVertex.innerId
@@ -105,14 +105,14 @@ case class IndexEdge(srcVertex: Vertex,
         }
 
         k -> v
-      case Some(v) => k -> v
+      case Some(v) => k -> v.innerVal
     }
   }
 
   lazy val ordersKeyMap = orders.map { case (byte, _) => byte }.toSet
-  lazy val metas = for ((k, v) <- props if !ordersKeyMap.contains(k)) yield k -> v
+  lazy val metas = for ((k, v) <- props if !ordersKeyMap.contains(k)) yield k -> v.innerVal
 
-  lazy val propsWithTs = props.map { case (k, v) => k -> InnerValLikeWithTs(v, version) }
+  //  lazy val propsWithTs = props.map { case (k, v) => k -> InnerValLikeWithTs(v, version) }
 
   //TODO:
   //  lazy val kvs = Graph.client.indexedEdgeSerializer(this).toKeyValues.toList
@@ -122,11 +122,11 @@ case class IndexEdge(srcVertex: Vertex,
   def propsWithName = for {
     (seq, v) <- props
     meta <- label.metaPropsMap.get(seq) if seq >= 0
-    jsValue <- innerValToJsValue(v, meta.dataType)
+    jsValue <- innerValToJsValue(v.innerVal, meta.dataType)
   } yield meta.name -> jsValue
 
 
-  def toEdge: Edge = Edge(srcVertex, tgtVertex, labelWithDir, op, version, propsWithTs)
+  def toEdge: Edge = Edge(srcVertex, tgtVertex, labelWithDir, op, version, props)
 
   // only for debug
   def toLogString() = {
@@ -154,8 +154,9 @@ case class Edge(srcVertex: Vertex,
   def props = propsWithTs.mapValues(_.innerVal)
 
   def relatedEdges = {
-    if (labelWithDir.isDirected) List(this, duplicateEdge)
-    else {
+    if (labelWithDir.isDirected) {
+      List(this, duplicateEdge)
+    } else {
       val outDir = labelWithDir.copy(dir = GraphUtil.directions("out"))
       val base = copy(labelWithDir = outDir)
       List(base, base.reverseSrcTgtEdge)
@@ -202,15 +203,15 @@ case class Edge(srcVertex: Vertex,
 
   def isDegree = propsWithTs.contains(LabelMeta.degreeSeq)
 
-  def propsPlusTs = propsWithTs.get(LabelMeta.timeStampSeq) match {
-    case Some(_) => props
-    case None => props ++ Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, schemaVer))
-  }
+  //  def propsPlusTs = propsWithTs.get(LabelMeta.timeStampSeq) match {
+  //    case Some(_) => props
+  //    case None => props ++ Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, schemaVer))
+  //  }
 
-  def propsPlusTsValid = propsPlusTs.filter(kv => kv._1 >= 0)
+  def propsPlusTsValid = propsWithTs.filter(kv => kv._1 >= 0)
 
   def edgesWithIndex = for (labelOrder <- labelOrders) yield {
-    IndexEdge(srcVertex, tgtVertex, labelWithDir, op, version, labelOrder.seq, propsPlusTs)
+    IndexEdge(srcVertex, tgtVertex, labelWithDir, op, version, labelOrder.seq, propsWithTs)
   }
 
   def edgesWithIndexValid = for (labelOrder <- labelOrders) yield {

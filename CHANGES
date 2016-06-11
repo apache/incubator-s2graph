@@ -121,6 +121,8 @@ Release 0.12.1 - unreleased
     S2GRAPH-7: Abstract common codes for rest project into s2core. (Committed by daewon).
 
     S2GRAPH-31: Remove playframework dependencies on s2core/build.sbt. (Committed by DOYUNG YOON).
+    
+    S2GRAPH-69: Change IndexEdge's props data type. (Committed by DOYUNG YOON).
 
     S2GRAPH-87: LICENSE file should be changed. (Committed by Sergio Fernández).
    
