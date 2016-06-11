@@ -181,17 +181,16 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     val label = queryParam.label
     val edge = toRequestEdge(queryRequest)
 
-    val kv = if (queryParam.tgtVertexInnerIdOpt.isDefined) {
+    val serializer = if (queryParam.tgtVertexInnerIdOpt.isDefined) {
       val snapshotEdge = edge.toSnapshotEdge
-      snapshotEdgeSerializer(snapshotEdge).toKeyValues.head
-      //      new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
+      snapshotEdgeSerializer(snapshotEdge)
     } else {
-      val indexedEdgeOpt = edge.edgesWithIndex.find(e => e.labelIndexSeq == queryParam.labelOrderSeq)
-      assert(indexedEdgeOpt.isDefined)
-
-      val indexedEdge = indexedEdgeOpt.get
-      indexEdgeSerializer(indexedEdge).toKeyValues.head
+      val indexEdge = IndexEdge(edge.srcVertex, edge.tgtVertex, edge.labelWithDir,
+        edge.op, edge.version, queryParam.labelOrderSeq, edge.propsWithTs)
+      indexEdgeSerializer(indexEdge)
     }
+
+    val (rowKey, qualifier) = (serializer.toRowKey, serializer.toQualifier)
 
     val (minTs, maxTs) = queryParam.duration.getOrElse((0L, Long.MaxValue))
 
@@ -246,8 +245,8 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         scanner
       case _ =>
         val get =
-          if (queryParam.tgtVertexInnerIdOpt.isDefined) new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
-          else new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf)
+          if (queryParam.tgtVertexInnerIdOpt.isDefined) new GetRequest(label.hbaseTableName.getBytes, rowKey, edgeCf, qualifier)
+          else new GetRequest(label.hbaseTableName.getBytes, rowKey, edgeCf)
 
         get.maxVersions(1)
         get.setFailfast(true)
