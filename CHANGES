@@ -68,6 +68,9 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-22: Add missing shebang line to file. 
 		(Contributed by Injun Song<ijsong@gmail.com>, committed by DOYUNG YOON)
+    
+    S2GRAPH-70: Automate the process of building a distribution package
+		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
 
   BUG FIXES
 
@@ -118,6 +121,15 @@ Release 0.12.1 - unreleased
     S2GRAPH-31: Remove playframework dependencies on s2core/build.sbt. (Committed by DOYUNG YOON).
 
     S2GRAPH-87: LICENSE file should be changed. (Committed by Sergio Fernández).
+   
+    S2GRAPH-73: Add an SBT task and relevant scripts to construct a package for distribution.
+		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
+
+    S2GRAPH-74: Add a script that starts/stops a local hbase server.
+		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
+
+    S2GRAPH-75: Use an embedded database as the default metadata storage.
+		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
 
   TEST
     

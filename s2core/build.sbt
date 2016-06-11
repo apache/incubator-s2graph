@@ -26,15 +26,18 @@ libraryDependencies ++= Seq(
   "com.typesafe" % "config" % "1.2.1",
   "com.typesafe.play" %% "play-json" % Common.playVersion,
   "com.typesafe.akka" %% "akka-actor" % "2.3.4",
-  "org.apache.hbase" % "hbase-client" % Common.hbaseVersion excludeAll ExclusionRule(organization = "org.slf4j"),
-  "org.apache.hbase" % "hbase-common" % Common.hbaseVersion excludeAll ExclusionRule(organization = "org.slf4j"),
-  "org.apache.hbase" % "hbase-server" % Common.hbaseVersion excludeAll(ExclusionRule(organization = "org.slf4j"), ExclusionRule(organization = "com.google.protobuf")),
-  "org.apache.hadoop" % "hadoop-common" % Common.hadoopVersion excludeAll ExclusionRule(organization = "org.slf4j"),
+  "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
+  "org.apache.hbase" % "hbase-client" % Common.hbaseVersion exclude("org.slf4j", "*"),
+  "org.apache.hbase" % "hbase-common" % Common.hbaseVersion exclude("org.slf4j", "*"),
+  "org.apache.hbase" % "hbase-server" % Common.hbaseVersion exclude("org.slf4j", "*") exclude("com.google.protobuf", "*"),
+  "org.apache.hbase" % "hbase-hadoop-compat" % Common.hbaseVersion exclude("org.slf4j", "*"),
+  "org.apache.hbase" % "hbase-hadoop2-compat" % Common.hbaseVersion exclude("org.slf4j", "*"),
+  "org.apache.kafka" % "kafka-clients" % "0.8.2.0" exclude("org.slf4j", "*") exclude("com.sun.jdmk", "*") exclude("com.sun.jmx", "*") exclude("javax.jms", "*"),
   "commons-pool" % "commons-pool" % "1.6",
   "org.scalatest" %% "scalatest" % "2.2.4" % "test",
   "org.scalikejdbc" %% "scalikejdbc" % "2.1.+",
   "mysql" % "mysql-connector-java" % "5.1.28",
-  "org.apache.kafka" % "kafka-clients" % "0.8.2.0" excludeAll(ExclusionRule(organization = "org.slf4j"), ExclusionRule(organization = "com.sun.jdmk"), ExclusionRule(organization = "com.sun.jmx"), ExclusionRule(organization = "javax.jms")),
+  "com.h2database" % "h2" % "1.4.192",
   "com.github.danielwegener" % "logback-kafka-appender" % "0.0.4"
 )
 

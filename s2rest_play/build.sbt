@@ -24,6 +24,7 @@ scalacOptions in Test ++= Seq("-Yrangepos")
 libraryDependencies ++= Seq(
   ws,
   filters,
+  "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
   "com.github.danielwegener" % "logback-kafka-appender" % "0.0.3"
 )
 

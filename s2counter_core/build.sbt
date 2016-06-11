@@ -29,9 +29,13 @@ libraryDependencies ++= Seq(
   "com.typesafe.play" %% "play-json" % Common.playVersion,
   "com.typesafe.play" %% "play-ws" % Common.playVersion,
   "com.typesafe.akka" %% "akka-actor" % "2.3.4",
+  "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
   "org.apache.hbase" % "hbase-client" % Common.hbaseVersion,
   "org.apache.hbase" % "hbase-common" % Common.hbaseVersion,
+  "org.apache.hbase" % "hbase-hadoop-compat" % Common.hbaseVersion,
+  "org.apache.hbase" % "hbase-hadoop2-compat" % Common.hbaseVersion,
   "org.apache.hadoop" % "hadoop-common" % Common.hadoopVersion,
+  "org.apache.hadoop" % "hadoop-hdfs" % Common.hadoopVersion,
   "redis.clients" % "jedis" % "2.6.0",
   "org.apache.kafka" % "kafka-clients" % "0.8.2.0",
   "mysql" % "mysql-connector-java" % "5.1.28",
