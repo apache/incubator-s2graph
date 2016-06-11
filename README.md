@@ -168,7 +168,7 @@ You will be able to manage "friends" and "posts" of a user with simple S2Graph q
 
   While doing so, we have also prepared ourselves for our timeline query!
 
-  The following two-step query will return ULRs for Elmo's timeline, which are posts of Elmo's friends:
+  The following two-step query will return URLs for Elmo's timeline, which are posts of Elmo's friends:
 
   ```
   curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
