@@ -65,6 +65,8 @@ Release 0.12.1 - unreleased
 		(Committed by DOYUNG YOON).
 
     S2GRAPH-55: Add param to enable epoll event loop in experimental netty http server (Committed by daewon).
+    
+    S2GRAPH-66: Optimize toEdge, IndexEdgeDeserializable using mutable Map. (Committed by DOYUN GYOON).
 
     S2GRAPH-22: Add missing shebang line to file. 
 		(Contributed by Injun Song<ijsong@gmail.com>, committed by DOYUNG YOON)

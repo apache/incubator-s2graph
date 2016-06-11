@@ -25,6 +25,8 @@ import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.{GraphUtil, IndexEdge, QueryParam, Vertex}
 
+import scala.collection.immutable
+
 class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends Deserializable[IndexEdge] {
    import StorageDeserializable._
 
@@ -89,42 +91,43 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
        if (kv.qualifier.isEmpty) parseDegreeQualifier(kv, version)
        else parseQualifier(kv, version)
 
-     val (props, _) = if (op == GraphUtil.operations("incrementCount")) {
-       //      val countVal = Bytes.toLong(kv.value)
-       val countVal = bytesToLongFunc(kv.value, 0)
-       val dummyProps = Array(LabelMeta.countSeq -> InnerVal.withLong(countVal, version))
-       (dummyProps, 8)
-     } else if (kv.qualifier.isEmpty) {
-       parseDegreeValue(kv, version)
-     } else {
-       parseValue(kv, version)
+     val allProps = immutable.Map.newBuilder[Byte, InnerValLike]
+
+     /** process index props */
+     val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${queryParam.label.id.get}, ${labelIdxSeq}"))
+     for {
+       (seq, (k, v)) <- index.metaSeqs.zip(idxPropsRaw)
+     } {
+       if (k == LabelMeta.degreeSeq) allProps += k -> v
+       else allProps += seq -> v
      }
 
-     val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${queryParam.label.id.get}, ${labelIdxSeq}"))
-
-
-     //    assert(kv.qualifier.nonEmpty && index.metaSeqs.size == idxPropsRaw.size)
-
-     val idxProps = for {
-       (seq, (k, v)) <- index.metaSeqs.zip(idxPropsRaw)
-     } yield {
-         if (k == LabelMeta.degreeSeq) k -> v
-         else seq -> v
+     /** process props */
+     if (op == GraphUtil.operations("incrementCount")) {
+       //      val countVal = Bytes.toLong(kv.value)
+       val countVal = bytesToLongFunc(kv.value, 0)
+       allProps += (LabelMeta.countSeq -> InnerVal.withLong(countVal, version))
+     } else if (kv.qualifier.isEmpty) {
+       val countVal = bytesToLongFunc(kv.value, 0)
+       allProps += (LabelMeta.degreeSeq -> InnerVal.withLong(countVal, version))
+     } else {
+       val (props, endAt) = bytesToKeyValues(kv.value, 0, kv.value.length, version)
+       props.foreach { case (k, v) =>
+         allProps += (k -> v)
        }
+     }
 
-     val idxPropsMap = idxProps.toMap
-     val tgtVertexId = if (tgtVertexIdInQualifier) {
-       idxPropsMap.get(LabelMeta.toSeq) match {
-         case None => tgtVertexIdRaw
-         case Some(vId) => TargetVertexId(HBaseType.DEFAULT_COL_ID, vId)
-       }
-     } else tgtVertexIdRaw
-
-     val _mergedProps = (idxProps ++ props).toMap
+     val _mergedProps = allProps.result()
      val mergedProps =
        if (_mergedProps.contains(LabelMeta.timeStampSeq)) _mergedProps
        else _mergedProps + (LabelMeta.timeStampSeq -> InnerVal.withLong(kv.timestamp, version))
 
+     val tgtVertexId = if (tgtVertexIdInQualifier) {
+       mergedProps.get(LabelMeta.toSeq) match {
+         case None => tgtVertexIdRaw
+         case Some(vId) => TargetVertexId(HBaseType.DEFAULT_COL_ID, vId)
+       }
+     } else tgtVertexIdRaw
      //    logger.error(s"$mergedProps")
      //    val ts = mergedProps(LabelMeta.timeStampSeq).toString().toLong
 
