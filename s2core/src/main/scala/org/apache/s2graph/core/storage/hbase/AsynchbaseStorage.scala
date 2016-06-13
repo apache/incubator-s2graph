@@ -342,14 +342,16 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         val edgeWithIndex = edge.edgesWithIndex.head
         val countWithTs = edge.propsWithTs(LabelMeta.countSeq)
         val countVal = countWithTs.innerVal.toString().toLong
-        val incr = buildIncrementsCountAsync(edgeWithIndex, countVal).head
-        val request = incr.asInstanceOf[AtomicIncrementRequest]
-        _client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>
+        val kv = buildIncrementsCountAsync(edgeWithIndex, countVal).head
+        val request = new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value))
+        val defer = _client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>
           (true, resultCount.longValue())
         } recoverWith { ex =>
           logger.error(s"mutation failed. $request", ex)
           (false, -1L)
         }
+        if (withWait) defer
+        else Deferred.fromResult((true, -1L))
       }
 
     val grouped: Deferred[util.ArrayList[(Boolean, Long)]] = Deferred.groupInOrder(defers)
