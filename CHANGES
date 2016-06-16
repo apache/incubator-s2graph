@@ -94,6 +94,8 @@ Release 0.12.1 - unreleased
     S2GRAPH-19: When query with duration error (Committed by DOYUNG YOON).
     
     S2GRAPH-63: Condition on partition strong edges and weak edges on mutateEdges is wrong (Committed by DOYUNG YOON).
+   
+    S2GRAPH-65: Deferred produce exception (Committed by DOYUNG YOON).
 
     S2GRAPH-64: incrementCounts yield type case exception (Committed by DOYUNG YOON).
 
