@@ -99,7 +99,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
   private def client(withWait: Boolean): HBaseClient = if (withWait) clientWithFlush else client
 
   /** Future Cache to squash request */
-  private val futureCache = new DeferCache[QueryResult](config)(ec)
+  private val futureCache = new DeferCache[QueryRequestWithResult](config)(ec)
 
   /** Simple Vertex Cache */
   private val vertexCache = new FutureCache[Seq[SKeyValue]](config)(ec)
@@ -277,19 +277,19 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
                      isInnerCall: Boolean,
                      parentEdges: Seq[EdgeWithScore]): Deferred[QueryRequestWithResult] = {
 
-    def fetchInner(hbaseRpc: AnyRef): Deferred[QueryResult] = {
+    def fetchInner(hbaseRpc: AnyRef): Deferred[QueryRequestWithResult] = {
       fetchKeyValuesInner(hbaseRpc).withCallback { kvs =>
         val edgeWithScores = toEdges(kvs, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
         val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0) {
           sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
         } else edgeWithScores
-        QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty[Byte]))
-//        QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty)))
+//        QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty[Byte]))
+        QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty)))
 
       } recoverWith { ex =>
         logger.error(s"fetchInner failed. fallback return. $hbaseRpc}", ex)
-        QueryResult(isFailure = true)
-//        QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
+//        QueryResult(isFailure = true)
+        QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
       }
     }
 
@@ -297,14 +297,13 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     val cacheTTL = queryParam.cacheTTLInMillis
     val request = buildRequest(queryRequest)
 
-    val defer =
-      if (cacheTTL <= 0) fetchInner(request)
-      else {
-        val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
-        val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
-        futureCache.getOrElseUpdate(cacheKey, cacheTTL)(fetchInner(request))
+
+    if (cacheTTL <= 0) fetchInner(request)
+    else {
+      val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
+      val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
+      futureCache.getOrElseUpdate(cacheKey, cacheTTL)(fetchInner(request))
     }
-    defer withCallback { queryResult => QueryRequestWithResult(queryRequest, queryResult)}
   }
 
 
