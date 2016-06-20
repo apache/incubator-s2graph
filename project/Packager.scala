@@ -36,17 +36,25 @@ object Packager {
     }
   }
 
-  val packagerTask = (baseDirectory, packagedJars, dependencyClasspath in Runtime, target, streams).map {
-    (root, packaged, dependencies, target, streams) =>
-      val base = target / "deploy"
+  val packagerTask = (baseDirectory, packagedJars, dependencyClasspath in Runtime, target, streams, version).map {
+    (root, packaged, dependencies, target, streams, version) =>
+      val name = s"s2graph-$version-incubating-bin"
+      val base = target / name
 
       IO.delete(base)
       IO.createDirectory(base)
 
       val subdirectories = Seq("bin", "conf", "lib")
+      val files = Seq("LICENSE", "NOTICE", "DISCLAIMER")
 
       for (dir <- subdirectories) {
         IO.createDirectory(base / dir)
+      }
+
+      for (file <- files) {
+        val source = (root / file).toPath
+        val target = (base / file).toPath
+        Files.copy(source, target)
       }
 
       // copy jars to /lib
@@ -58,11 +66,11 @@ object Packager {
         try {
           // try to create hard links for speed and to save disk space
           Files.createLink(target, source)
-          streams.log.debug(s"created link: $source -> $target")
+          streams.log.debug(s"Created link: $source -> $target")
         } catch {
           case e: Any =>
             Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING)
-            streams.log.debug(s"copied: $source -> $target")
+            streams.log.debug(s"Copied: $source -> $target")
         }
       }
 
@@ -74,20 +82,28 @@ object Packager {
           override def preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult = {
             val dest = target.resolve(source.relativize(dir))
             Files.createDirectories(dest)
-            streams.log.debug(s"created directory: $dest")
+            streams.log.debug(s"Created directory: $dest")
             FileVisitResult.CONTINUE
           }
 
           override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
             val dest = target.resolve(source.relativize(file))
             Files.copy(file, dest)
-            streams.log.debug(s"copied: $file -> $dest")
+            streams.log.debug(s"Copied: $file -> $dest")
             FileVisitResult.CONTINUE
           }
         })
       }
 
-      streams.log.info(s"package for distribution located at $base")
+      streams.log.info(s"Package for distribution located at $base")
+
+      {
+        import scala.sys.process._
+        streams.log.info(s"creating a tarball...")
+        s"tar zcf $base.tar.gz $base".!!
+        streams.log.info(s"Tarball is located at $base.tar.gz")
+      }
+
       base
   }
 
