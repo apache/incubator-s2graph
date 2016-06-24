@@ -58,8 +58,8 @@ object EdgeController extends Controller {
             (walLogOpt \ "method").as[JsValue] match {
               case JsString("drop") => // pass
               case JsString("sample") =>
-                val rate = (walLogOpt \ "rate").as[Int]
-                if (Random.nextInt(100) < rate) enqueue(kafkaTopic, e, tsv)
+                val rate = (walLogOpt \ "rate").as[Double]
+                if (scala.util.Random.nextDouble() < rate) enqueue(kafkaTopic, e, tsv)
               case _ => enqueue(kafkaTopic, e, tsv)
             }
         }
