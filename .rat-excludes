@@ -6,6 +6,7 @@ rat.out
 sbt
 sbt.boot.lock
 README.md
+BUILD.md
 s2core/README.md
 .gitignore
 .git

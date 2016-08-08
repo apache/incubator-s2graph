@@ -1,0 +1,45 @@
+This file contains the PGP keys of various developers.
+
+Users: pgp < KEYS
+or
+       gpg --import KEYS
+
+
+Developers: 
+    pgp -kxa <your name> and append it to this file.
+or
+    (pgpk -ll <your name> && pgpk -xa <your name>) >> this file.
+or
+    (gpg --list-sigs <your name>
+    && gpg --armor --export <your name>) >> this file.
+
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+Version: GnuPG v1
+
+mQENBFZetVQBCAC7Q4hEzLYmH9+hymFdj8uSAfYAIxZlawFuwf3TMM72gSGqwEQG
+kcOhquA4L5VAk0mfedCUt9mexnEn1wsToeuuW2mJOm3807GEpJ/ZczZqzI8kMJLy
+MinrwLI1ODwFSpviKktakFWW1p/6CCgn6M5u7LUU4CzPWB5ytKUwFfM9d4qmsGV5
+i3XF4G8jb7I/5jzqIXxIDWsJqRCpTm5cg7ESrnb7zddvWwsDbjbl4K+b9JoD9O71
+nkyxQGDXjGnwVrhN0VTstKGK8eHdoYvS3hZD37nz5hwyBjHcRDY3IgsnW5xmK3L3
+WBFzhLqvgrSB6IvfouNparvQQEnxzaoJulUXABEBAAG0H0RPIFlVTkcgWU9PTiA8
+c2hvbTgzQGdtYWlsLmNvbT6JATgEEwECACIFAlZetVQCGwMGCwkIBwMCBhUIAgkK
+CwQWAgMBAh4BAheAAAoJEJUYLMAjBmYkTuUH/04FwKrFxZPOZVloMvp0t6otoFUW
+q+gv9Fy1xaO551mXV4ZQvmmu54PFOThNNRFz6G8afJCv2YaVQRPeUvgjg2gs2GWf
+qKv53zy4s26YKkwWLbSebdfAAT3zGs4fWoFhl8PYW5vnL3N+btRoNJIyZeWax8hb
+Dz/eDe1mrPxO2sV910JAIjn7VfEPe3gojzT4ig+sfj8mZL4AYLRtPCvZuvYnuxf7
+JEsk0zqdX5d6AjNfwZGdE9A8l25V0C6BT+S7VSSHAXQhPJLdb2kVJN22/xGvkzYF
+IfxkXR+EohojD1wTm4Xc4453uJ8pWjbgRbxdBPb0DFN9bbVyXVBlE5iOZhC5AQ0E
+Vl61VAEIAMLsduIOOiU+EwbawGvGfap6L4Jm6wZDr7p2qDdBXixHrPZM+3aqb9DV
+b48Y/KjKXxnu77aETS1ENfxHuShk6DCxoPRTuggQK/KKvP05TeyYIPxdCICmvjQs
+zesZfVlRPMUfHaZLijMEw/YXnEhwZiweIe0DSnAUdT+g6APKJlXKd31zQcukStSR
+h7lko9rK0JVTEAvUi86isdc8w55/m4Xvts78CsL5M4pRV96pXsNFM4udmC9vO0Kk
+mJTCS5jknJFf8MRMAgVlOyYF372uDtmBaRgETmnPQ7llBjHtquAI+f9reK3lE8yg
+RP2WE/CozqP6tjlaHXTJnfaE+ZqWaw0AEQEAAYkBHwQYAQIACQUCVl61VAIbDAAK
+CRCVGCzAIwZmJOTdB/4xQrKdL5UOkpcOAwsL6Rcd07DDFULE4V2cFLOzzdN+G9/y
+7AKMNtbQLcKboe/m+4LEc9lWB5WTnHQNKMJ+bet9xqOgsv5Ok5O/iNw9CBMCUkpk
+rq9Yfa5fhN6gQ5p/RInGEADKrIoTfTlMN4F+QGjuiwh5lFweVYQlBS37tbxITJLd
+YBrgMj5kjTzFCxdnJxHD8ZuhOhHs610rOzaZ1KYU1ZY7ykYZVV/dznhTPNZXy7dW
+cxOIjGS9xsp7Ey+ePdDxLfVNgBq3D41bsWeGl2snbd8LAj7jsHWHh3QM6g4VLLhY
+I/ARan0VFAo6bcEKvcSCGovKvzVqESvnIxe7agav
+=iAmg
+-----END PGP PUBLIC KEY BLOCK-----

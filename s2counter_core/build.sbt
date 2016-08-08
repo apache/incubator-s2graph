@@ -38,7 +38,6 @@ libraryDependencies ++= Seq(
   "org.apache.hadoop" % "hadoop-hdfs" % Common.hadoopVersion,
   "redis.clients" % "jedis" % "2.6.0",
   "org.apache.kafka" % "kafka-clients" % "0.8.2.0",
-  "mysql" % "mysql-connector-java" % "5.1.28",
   "org.scalikejdbc" %% "scalikejdbc" % "2.1.+",
   "org.specs2" %% "specs2-core" % "3.6" % "test",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test"
