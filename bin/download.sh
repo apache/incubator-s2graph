@@ -12,3 +12,6 @@ tar xvzf mysql-connector-java-5.1.39.tar.gz
 
 cp mysql-connector-java-5.*/mysql-connector-java-5.*-bin.jar s2core/lib/
 cp mysql-connector-java-5.*/mysql-connector-java-5.*-bin.jar s2counter_core/lib/
+
+
+rm -rf mysql-connector-java-5.*
