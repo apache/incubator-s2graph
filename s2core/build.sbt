@@ -38,7 +38,8 @@ libraryDependencies ++= Seq(
   "org.scalikejdbc" %% "scalikejdbc" % "2.1.+",
   "mysql" % "mysql-connector-java" % "5.1.28",
   "com.h2database" % "h2" % "1.4.192",
-  "com.github.danielwegener" % "logback-kafka-appender" % "0.0.4"
+  "com.github.danielwegener" % "logback-kafka-appender" % "0.0.4",
+  "org.hbase" % "asynchbase" % "1.7.2-S2GRAPH" from "https://github.com/SteamShon/asynchbase/raw/mvn-repo/org/hbase/asynchbase/1.7.2-S2GRAPH/asynchbase-1.7.2-S2GRAPH-jar-with-dependencies.jar"
 )
 
 libraryDependencies := {
