@@ -17,6 +17,8 @@
  * under the License.
  */
 
+import ReleaseTransformations._
+
 name := "s2graph"
 
 lazy val commonSettings = Seq(
@@ -67,3 +69,15 @@ runRatTask := {
 }
 
 Packager.defaultSettings
+
+releaseProcess := Seq[ReleaseStep](
+  checkSnapshotDependencies,              // : ReleaseStep
+  inquireVersions,                        // : ReleaseStep
+  runTest,                                // : ReleaseStep
+  setReleaseVersion,                      // : ReleaseStep
+  commitReleaseVersion,                   // : ReleaseStep, performs the initial git checks
+  tagRelease,                             // : ReleaseStep
+  publishArtifacts,                       // : ReleaseStep, checks whether `publishTo` is properly set up
+  setNextVersion,                         // : ReleaseStep
+  commitNextVersion
+)
