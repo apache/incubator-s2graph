@@ -38,7 +38,7 @@ object Packager {
 
   val packagerTask = (baseDirectory, packagedJars, dependencyClasspath in Runtime, target, streams, version).map {
     (root, packaged, dependencies, target, streams, version) =>
-      val name = s"s2graph-$version-incubating-bin"
+      val name = s"apache-s2graph-$version-incubating-bin"
       val base = target / name
 
       IO.delete(base)

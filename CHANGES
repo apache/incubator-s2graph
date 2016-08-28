@@ -147,6 +147,8 @@ Release 0.12.1 - unreleased
 		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
     
     S2GRAPH-89: Change version number on project. (Committed by DOYUNG YOON).
+    
+    S2GRAPH-91: Remove custom repository on project's build.sbt (Committed by DOYUNG YOON).
 
   TEST
     
