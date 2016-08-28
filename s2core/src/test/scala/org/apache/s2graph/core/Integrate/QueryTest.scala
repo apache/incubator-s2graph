@@ -307,7 +307,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
               "label": "$testLabelName",
               "direction": "in",
               "offset": 0,
-              "limit": -1
+              "limit": 10
             }
           ]]
         }""".stripMargin)
