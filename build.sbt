@@ -17,12 +17,13 @@
  * under the License.
  */
 
+import ReleaseTransformations._
+
 name := "s2graph"
 
 lazy val commonSettings = Seq(
-  organization := "com.kakao.s2graph",
+  organization := "org.apache.s2graph",
   scalaVersion := "2.11.7",
-  version := "0.12.1-SNAPSHOT",
   scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xlint"),
   javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map { case (key, value) => "-D" + key + "=" + value }.toSeq,
   testOptions in Test += Tests.Argument("-oDF"),
@@ -74,3 +75,15 @@ runRatTask := {
 }
 
 Packager.defaultSettings
+
+releaseProcess := Seq[ReleaseStep](
+  checkSnapshotDependencies,              // : ReleaseStep
+  inquireVersions,                        // : ReleaseStep
+  runTest,                                // : ReleaseStep
+  setReleaseVersion,                      // : ReleaseStep
+  commitReleaseVersion,                   // : ReleaseStep, performs the initial git checks
+  tagRelease,                             // : ReleaseStep
+  publishArtifacts,                       // : ReleaseStep, checks whether `publishTo` is properly set up
+  setNextVersion,                         // : ReleaseStep
+  commitNextVersion
+)
