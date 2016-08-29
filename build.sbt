@@ -27,6 +27,7 @@ lazy val commonSettings = Seq(
   scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xlint"),
   javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map { case (key, value) => "-D" + key + "=" + value }.toSeq,
   testOptions in Test += Tests.Argument("-oDF"),
+  concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
   parallelExecution in Test := false,
   resolvers ++= Seq(
     Resolver.mavenLocal

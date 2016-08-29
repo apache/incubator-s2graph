@@ -151,6 +151,8 @@ Release 0.12.1 - unreleased
     S2GRAPH-91: Remove custom repository on project's build.sbt (Committed by DOYUNG YOON).
     
     S2GRAPH-93: Remove MySQL JDBC driver (Committed by DOYUNG YOON).
+    
+    S2GRAPH-98: Make test cases on multiple projects run sequentially (Committed by DOYUNG YOON).
 
   TEST
     
