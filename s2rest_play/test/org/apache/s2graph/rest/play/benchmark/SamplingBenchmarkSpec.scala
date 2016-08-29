@@ -26,9 +26,8 @@ import scala.util.Random
 
 class SamplingBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
   "sample" should {
-    implicit val app = FakeApplication()
 
-    "sample benchmark" in new WithApplication(app) {
+    "sample benchmark" in {
       @tailrec
       def randomInt(n: Int, range: Int, set: Set[Int] = Set.empty[Int]): Set[Int] = {
         if (set.size == n) set
@@ -61,7 +60,7 @@ class SamplingBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
 
         while (m < num) {
           val u = Random.nextDouble()
-          if ( (N - t)*u < num - m) {
+          if ((N - t) * u < num - m) {
             sampled = ls(t) :: sampled
             m += 1
           }
@@ -99,8 +98,7 @@ class SamplingBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
           val sampled = rngSample(testNum, testData)
         }
       }
+      true
     }
-
-
   }
 }
