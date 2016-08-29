@@ -145,6 +145,18 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-88: Add DISCLAIMER, LICENSE, NOTICE on packaging process.
 		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
+    
+    S2GRAPH-89: Change version number on project. (Committed by DOYUNG YOON).
+    
+    S2GRAPH-91: Remove custom repository on project's build.sbt (Committed by DOYUNG YOON).
+    
+    S2GRAPH-93: Remove MySQL JDBC driver (Committed by DOYUNG YOON).
+    
+    S2GRAPH-98: Make test cases on multiple projects run sequentially (Committed by DOYUNG YOON).
+
+    S2GRAPH-96: Remove unmanaged dependencies(asynchbase) and speficy it on build.sbt. (Committed by DOYUNG YOON).
+    
+    S2GRAPH-97: Add KEYS file (Committed by DOYUNG YOON).
 
   TEST
     
