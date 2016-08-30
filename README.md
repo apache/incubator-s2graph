@@ -24,26 +24,32 @@
 
 **S2Graph** is a **graph database** designed to handle transactional graph processing at scale. Its REST API allows you to store, manage and query relational information using **edge** and **vertex** representations in a **fully asynchronous** and **non-blocking** manner. This document covers some basic concepts and terms of S2Graph as well as help you get a feel for the S2Graph API.
 
-**Quick Start (with Vagrant)**
+**Building from the source **
 ==
 
-S2Graph comes with a Vagrantfile that lets you spin up a virtual environment for test and development purposes.
-(On setting up S2Graph in your local environment directly, please refer to [Quick Start in Your Local Environment](https://steamshon.gitbooks.io/s2graph-book/content/getting_started.html).)
+To build S2Graph from the source, install the JDK 8 and [SBT](http://www.scala-sbt.org/), 
+and run the following command in the project root:
 
-You will need [VirtualBox](https://www.virtualbox.org/wiki/Downloads) and [Vagrant](https://www.vagrantup.com/downloads.html) installed on your system.
+    sbt package
 
-With everything ready, let's get started by running the following commands:
+This will create a distribution of S2Graph that is ready to be deployed.
 
-```
-git clone https://github.com/kakao/s2graph.git
-cd s2graph
-vagrant up
-vagrant ssh
+One can find distribution on `target/apache-s2graph-$version-incubating-bin`.
 
-// in the virtual environment..
-cd s2graph
-activator 'project s2rest_play' run
-```
+**Quick Start **
+==
+Once built from source, then following is list of expected resources under `target/apache-s2graph-$version-incubating-bin`
+
+1. DISCLAIMER	
+2. LICENSE
+3. NOTICE
+4. bin
+5. conf
+6. lib	
+7. logs
+8. var
+
+`sh bin/start-s2graph.sh` will launch the S2Graph server along with a standalone [HBase server](https://hbase.apache.org/) as the data storage and [H2](http://www.h2database.com/html/main.html)  as the metastore
 
 Finally, join the mailing list by sending a message to [dev-subscribe@s2graph.incubator.apache.org](mailto:dev-subscribe@s2graph.incubator.apache.org)!
 
