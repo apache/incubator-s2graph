@@ -18,6 +18,7 @@
  */
 
 import ReleaseTransformations._
+import sbt.complete.Parsers.spaceDelimited
 
 name := "s2graph"
 
@@ -63,10 +64,12 @@ lazy val root = (project in file("."))
   .dependsOn(s2rest_play, s2rest_netty, loader, s2counter_loader) // this enables packaging on the root project
   .settings(commonSettings: _*)
 
-lazy val runRatTask = taskKey[Unit]("Runs Apache rat on S2Graph")
+lazy val runRatTask = inputKey[Unit]("Runs Apache rat on S2Graph")
 
 runRatTask := {
-  "sh dev/run-rat.sh" !
+  // pass absolute path for apache-rat jar.
+  val args: Seq[String] = spaceDelimited("<arg>").parsed
+  s"sh dev/run-rat.sh ${args.head}" !
 }
 
 Packager.defaultSettings

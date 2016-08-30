@@ -15,6 +15,8 @@
 # limitations under the License.
 
 base_dir=$(dirname $0)/..
+rat_jar=$1
+
 rat_excludes_file=$base_dir/.rat-excludes
 
 echo "Base Directory = $base_dir"
@@ -25,7 +27,7 @@ else
   JAVA="$JAVA_HOME/bin/java"
 fi
 
-rat_command="$JAVA -jar $base_dir/lib/apache-rat-0.11.jar --dir $base_dir --exclude-file ${rat_excludes_file} -f -a"
+rat_command="$JAVA -jar $rat_jar --dir $base_dir --exclude-file ${rat_excludes_file} -f -a"
 
 echo "Running " $rat_command
 $rat_command > $base_dir/rat.out
