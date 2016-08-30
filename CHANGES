@@ -164,6 +164,8 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-92: Add proper license headers on files with unknown licenses (Committed by DOYUNG YOON).
 
+    S2GRAPH-100: Add BUILD.md to explain how to package from source, then add it into REAME.md (Committed by DOYUNG YOON).
+
   TEST
     
     S2GRAPH-21: Change PostProcessBenchmarkSpec not to store and fetch test data from storage. (Committed by DOYUNG YOON).
