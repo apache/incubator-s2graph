@@ -70,7 +70,7 @@ class SamplingBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
       }
 
       // test data
-      val testLimit = 500000
+      val testLimit = 10000
       val testNum = 10
       val testData = (0 to 1000).toList
 
