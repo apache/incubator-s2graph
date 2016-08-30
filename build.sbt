@@ -82,3 +82,5 @@ releaseProcess := Seq[ReleaseStep](
   setNextVersion,                         // : ReleaseStep
   commitNextVersion
 )
+
+releasePublishArtifactsAction := PgpKeys.publishSigned.value
