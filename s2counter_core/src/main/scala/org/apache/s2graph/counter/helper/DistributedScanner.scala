@@ -86,4 +86,6 @@ class DistributedScanner(table: Table, scan: Scan) extends AbstractClientScanner
        scanner.close()
      }
    }
- }
+
+  override def renewLease(): Boolean = true
+}
