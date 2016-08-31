@@ -165,6 +165,11 @@ Release 0.12.1 - unreleased
     S2GRAPH-92: Add proper license headers on files with unknown licenses (Committed by DOYUNG YOON).
 
     S2GRAPH-100: Add BUILD.md to explain how to package from source, then add it into REAME.md (Committed by DOYUNG YOON).
+    
+    S2GRAPH-94: Add description for project layout on REAME.
+		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON).
+
+    S2GRAPH-103: Remove dependencies on custom fork of asynchbase (Committed by DOYUNG YOON).
 
     S2GRAPH-102: Add more configuration optoins in application.conf (Committed by DOYUNG YOON).
 
