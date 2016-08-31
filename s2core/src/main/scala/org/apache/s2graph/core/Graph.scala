@@ -61,6 +61,7 @@ object Graph {
     "future.cache.max.size" -> java.lang.Integer.valueOf(100000),
     "future.cache.expire.after.write" -> java.lang.Integer.valueOf(10000),
     "future.cache.expire.after.access" -> java.lang.Integer.valueOf(5000),
+    "future.cache.metric.interval" -> java.lang.Integer.valueOf(60000),
     "s2graph.storage.backend" -> "hbase",
     "query.hardlimit" -> java.lang.Integer.valueOf(100000)
   )
