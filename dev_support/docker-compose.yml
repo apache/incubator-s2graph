@@ -14,7 +14,7 @@
 # limitations under the License.
 
 graph:
-    image: s2rest_play:0.1.0
+    image: s2rest_play:latest
     container_name: graph
     net: container:graph_hbase
 
@@ -26,9 +26,9 @@ graph_mysql:
     net: container:graph_hbase
 
 graph_hbase:
-    image: nerdammer/hbase:0.98.10.1
+    image: harisekhon/hbase:1.2
     container_name: graph_hbase
-    hostname: "${DOCKER_MACHINE_NAME}"
+    hostname: default
     ports:
         - "3306:3306"
         - "2181:2181"
@@ -37,6 +37,10 @@ graph_hbase:
         - "60020:60020"
         - "60030:60030"
         - "9000:9000"
+        - "16000:16000"
+        - "16010:16010"
+        - "16201:16201"
+        - "16301:16301"
     expose:
         - "3306"
         - "9000"

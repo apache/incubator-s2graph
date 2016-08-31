@@ -50,7 +50,8 @@ Once built from source, the following resources are expected under `target/apach
 
 `sh bin/start-s2graph.sh` will launch the S2Graph server along with a standalone [HBase server](https://hbase.apache.org/) as the data storage and [H2](http://www.h2database.com/html/main.html) as the metastore
 
-Finally, join the mailing list by sending a message to [users-subscribe@s2graph.incubator.apache.org](mailto:users-subscribe@s2graph.incubator.apache.org?subject=send this email to subscribe) or [dev-subscribe@s2graph.incubator.apache.org](mailto:dev-subscribe@s2graph.incubator.apache.org?subject=send this email to subscribe)!
+To see how to connect remote HBase and S2Graph configurations, check out conf/application.conf.
+Currently we have tested with these HBase version(0.98, 1.0, 1.1, 1.2)(https://hub.docker.com/r/harisekhon/hbase/tags/).
 
 Project Layout
 ==============

@@ -25,6 +25,7 @@ name := "s2graph"
 lazy val commonSettings = Seq(
   organization := "org.apache.s2graph",
   scalaVersion := "2.11.7",
+  version := "0.1.0",
   scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xlint"),
   javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map { case (key, value) => "-D" + key + "=" + value }.toSeq,
   testOptions in Test += Tests.Argument("-oDF"),

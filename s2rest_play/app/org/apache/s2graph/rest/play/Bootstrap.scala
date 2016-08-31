@@ -59,7 +59,7 @@ object Global extends WithFilters(new GzipFilter()) {
 
     QueueActor.init(s2graph)
 
-    if (Config.IS_WRITE_SERVER && Config.KAFKA_PRODUCER_POOL_SIZE > 0) {
+    if (Config.IS_WRITE_SERVER) {
       ExceptionHandler.apply(config)
     }
 
@@ -73,7 +73,7 @@ object Global extends WithFilters(new GzipFilter()) {
   override def onStop(app: Application) {
     QueueActor.shutdown()
 
-    if (Config.IS_WRITE_SERVER && Config.KAFKA_PRODUCER_POOL_SIZE > 0) {
+    if (Config.IS_WRITE_SERVER) {
       ExceptionHandler.shutdown()
     }
 
