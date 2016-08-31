@@ -52,7 +52,26 @@ Once built from source, the following resources are expected under `target/apach
 
 Finally, join the mailing list by sending a message to [users-subscribe@s2graph.incubator.apache.org](mailto:users-subscribe@s2graph.incubator.apache.org?subject=send this email to subscribe) or [dev-subscribe@s2graph.incubator.apache.org](mailto:dev-subscribe@s2graph.incubator.apache.org?subject=send this email to subscribe)!
 
+Project Layout
+==============
 
+Here is what you can find on each sub projects.
+
+1. s2core: core graph library and client.  
+2. s2rest_play: rest server with [play framework](https://www.playframework.com/) providing write/query API server.
+3. s2rest_netty: rest server with netty. only query API is implemented.
+
+Above projects are for OLTP.
+If user use Kafka with S2Graph, then following projects could be helpful for OLAP.
+
+4. loader: bulk loading library written as spark job.
+5. spark: spark utils for loader and s2counter_loader.
+6. s2counter_core: provide library that counting topK from WALLOG in kafka and store topK as graph in S2Graph.
+7. s2counter_loader: spark streaming jobs to consume WALLOG from kafka then run topK counter library on them.
+
+Note that we have not been worked on loader, spark, s2counter_core, s2counter_loader projects since initial code import.
+We are planning to merge these and clean up on next release.
+ 
 Your First Graph
 ================
 
