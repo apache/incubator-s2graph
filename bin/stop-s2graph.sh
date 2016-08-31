@@ -1,4 +1,4 @@
-#!/bin/bash
+#! /usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -14,18 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-base_dir=$(dirname $0)/..
-rat_excludes_file=$base_dir/.rat-excludes
 
-echo "Base Directory = $base_dir"
+# Stops the S2Graph server, along with an hbase server as required
 
-if [ -z "$JAVA_HOME" ]; then
-  JAVA="java"
-else
-  JAVA="$JAVA_HOME/bin/java"
-fi
+bin=$(cd "$(dirname "${BASH_SOURCE-$0}")">/dev/null; pwd)
 
-rat_command="$JAVA -jar $base_dir/lib/apache-rat-0.11.jar --dir $base_dir --exclude-file ${rat_excludes_file} -f -a"
+# load environment variables
+. $bin/s2graph-env.sh
+. $bin/s2graph-common.sh
 
-echo "Running " $rat_command
-$rat_command > $base_dir/rat.out
+$bin/s2graph.sh stop
+$bin/hbase-standalone.sh stop

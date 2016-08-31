@@ -43,8 +43,8 @@ object Graph {
     "hbase.table.name" -> "s2graph",
     "hbase.table.compression.algorithm" -> "gz",
     "phase" -> "dev",
-    "db.default.driver" -> "com.mysql.jdbc.Driver",
-    "db.default.url" -> "jdbc:mysql://localhost:3306/graph_dev",
+    "db.default.driver" ->  "org.h2.Driver",
+    "db.default.url" -> "jdbc:h2:file:./var/metastore;MODE=MYSQL",
     "db.default.password" -> "graph",
     "db.default.user" -> "graph",
     "cache.max.size" -> java.lang.Integer.valueOf(10000),
@@ -55,12 +55,14 @@ object Graph {
     "max.retry.number" -> java.lang.Integer.valueOf(100),
     "lock.expire.time" -> java.lang.Integer.valueOf(1000 * 60 * 10),
     "max.back.off" -> java.lang.Integer.valueOf(100),
+    "back.off.timeout" -> java.lang.Integer.valueOf(1000),
     "hbase.fail.prob" -> java.lang.Double.valueOf(-0.1),
     "delete.all.fetch.size" -> java.lang.Integer.valueOf(1000),
     "future.cache.max.size" -> java.lang.Integer.valueOf(100000),
     "future.cache.expire.after.write" -> java.lang.Integer.valueOf(10000),
     "future.cache.expire.after.access" -> java.lang.Integer.valueOf(5000),
-    "s2graph.storage.backend" -> "hbase"
+    "s2graph.storage.backend" -> "hbase",
+    "query.hardlimit" -> java.lang.Integer.valueOf(100000)
   )
 
   var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)

@@ -28,44 +28,40 @@ import org.apache.s2graph.core.{GraphUtil, IndexEdge}
 class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge] {
    import StorageSerializable._
 
-   val label = indexEdge.label
-   val table = label.hbaseTableName.getBytes()
-   val cf = Serializable.edgeCf
+   override val ts = indexEdge.version
+   override val table = indexEdge.label.hbaseTableName.getBytes()
 
-   val idxPropsMap = indexEdge.orders.toMap
-   val idxPropsBytes = propsToBytes(indexEdge.orders)
+   def idxPropsMap = indexEdge.orders.toMap
+   def idxPropsBytes = propsToBytes(indexEdge.orders)
 
-   override def toKeyValues: Seq[SKeyValue] = {
+   override def toRowKey: Array[Byte] = {
      val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes
      val labelWithDirBytes = indexEdge.labelWithDir.bytes
      val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = false)
 
-     val row = Bytes.add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
-     //    logger.error(s"${row.toList}\n${srcIdBytes.toList}\n${labelWithDirBytes.toList}\n${labelIndexSeqWithIsInvertedBytes.toList}")
+     Bytes.add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
+   }
+
+   override def toQualifier: Array[Byte] = {
      val tgtIdBytes = VertexId.toTargetVertexId(indexEdge.tgtVertex.id).bytes
-     val qualifier =
-       if (indexEdge.degreeEdge) Array.empty[Byte]
-       else {
-         if (indexEdge.op == GraphUtil.operations("incrementCount")) {
-           Bytes.add(idxPropsBytes, tgtIdBytes, Array.fill(1)(indexEdge.op))
-         } else {
-           idxPropsMap.get(LabelMeta.toSeq) match {
-             case None => Bytes.add(idxPropsBytes, tgtIdBytes)
-             case Some(vId) => idxPropsBytes
-           }
+     if (indexEdge.degreeEdge) Array.empty[Byte]
+     else {
+       if (indexEdge.op == GraphUtil.operations("incrementCount")) {
+         Bytes.add(idxPropsBytes, tgtIdBytes, Array.fill(1)(indexEdge.op))
+       } else {
+         idxPropsMap.get(LabelMeta.toSeq) match {
+           case None => Bytes.add(idxPropsBytes, tgtIdBytes)
+           case Some(vId) => idxPropsBytes
          }
        }
-
-
-     val value =
-       if (indexEdge.degreeEdge)
-         Bytes.toBytes(indexEdge.propsWithTs(LabelMeta.degreeSeq).innerVal.toString().toLong)
-       else if (indexEdge.op == GraphUtil.operations("incrementCount"))
-         Bytes.toBytes(indexEdge.propsWithTs(LabelMeta.countSeq).innerVal.toString().toLong)
-       else propsToKeyValues(indexEdge.metas.toSeq)
-
-     val kv = SKeyValue(table, row, cf, qualifier, value, indexEdge.version)
-
-     Seq(kv)
+     }
    }
+
+  override def toValue: Array[Byte] =
+    if (indexEdge.degreeEdge)
+      Bytes.toBytes(indexEdge.props(LabelMeta.degreeSeq).innerVal.toString().toLong)
+    else if (indexEdge.op == GraphUtil.operations("incrementCount"))
+      Bytes.toBytes(indexEdge.props(LabelMeta.countSeq).innerVal.toString().toLong)
+    else propsToKeyValues(indexEdge.metas.toSeq)
+  
  }

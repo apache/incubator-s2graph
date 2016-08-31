@@ -148,7 +148,6 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
 
   /**
    * since HBase natively provide CheckAndSet on storage level, implementation becomes simple.
- *
    * @param rpc: key value that is need to be stored on storage.
    * @param expectedOpt: last valid value for rpc's KeyValue.value from fetching.
    * @return return true if expected value matches and our rpc is successfully applied, otherwise false.
@@ -175,7 +174,6 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
    *    Wide schema(label's schema version in v1, v2): use GetRequest with columnRangeFilter.
    * Vertex layer:
    *    all version: use GetRequest without column filter.
- *
    * @param queryRequest
    * @return Scanner or GetRequest with proper setup with StartKey, EndKey, RangeFilter.
    */
@@ -185,17 +183,16 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     val label = queryParam.label
     val edge = toRequestEdge(queryRequest)
 
-    val kv = if (queryParam.tgtVertexInnerIdOpt.isDefined) {
+    val serializer = if (queryParam.tgtVertexInnerIdOpt.isDefined) {
       val snapshotEdge = edge.toSnapshotEdge
-      snapshotEdgeSerializer(snapshotEdge).toKeyValues.head
-      //      new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
+      snapshotEdgeSerializer(snapshotEdge)
     } else {
-      val indexedEdgeOpt = edge.edgesWithIndex.find(e => e.labelIndexSeq == queryParam.labelOrderSeq)
-      assert(indexedEdgeOpt.isDefined)
-
-      val indexedEdge = indexedEdgeOpt.get
-      indexEdgeSerializer(indexedEdge).toKeyValues.head
+      val indexEdge = IndexEdge(edge.srcVertex, edge.tgtVertex, edge.labelWithDir,
+        edge.op, edge.version, queryParam.labelOrderSeq, edge.propsWithTs)
+      indexEdgeSerializer(indexEdge)
     }
+
+    val (rowKey, qualifier) = (serializer.toRowKey, serializer.toQualifier)
 
     val (minTs, maxTs) = queryParam.duration.getOrElse((0L, Long.MaxValue))
 
@@ -250,8 +247,8 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         scanner
       case _ =>
         val get =
-          if (queryParam.tgtVertexInnerIdOpt.isDefined) new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf, kv.qualifier)
-          else new GetRequest(label.hbaseTableName.getBytes, kv.row, edgeCf)
+          if (queryParam.tgtVertexInnerIdOpt.isDefined) new GetRequest(label.hbaseTableName.getBytes, rowKey, edgeCf, qualifier)
+          else new GetRequest(label.hbaseTableName.getBytes, rowKey, edgeCf)
 
         get.maxVersions(1)
         get.setFailfast(true)
@@ -347,14 +344,16 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         val edgeWithIndex = edge.edgesWithIndex.head
         val countWithTs = edge.propsWithTs(LabelMeta.countSeq)
         val countVal = countWithTs.innerVal.toString().toLong
-        val incr = buildIncrementsCountAsync(edgeWithIndex, countVal).head
-        val request = incr.asInstanceOf[AtomicIncrementRequest]
-        _client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>
+        val kv = buildIncrementsCountAsync(edgeWithIndex, countVal).head
+        val request = new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value))
+        val defer = _client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>
           (true, resultCount.longValue())
         } recoverWith { ex =>
           logger.error(s"mutation failed. $request", ex)
           (false, -1L)
         }
+        if (withWait) defer
+        else Deferred.fromResult((true, -1L))
       }
 
     val grouped: Deferred[util.ArrayList[(Boolean, Long)]] = Deferred.groupInOrder(defers)
@@ -520,7 +519,6 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
    * 4. set realm
    * 5. set principal
    * 6. set file path to keytab
- *
    * @param zkAddr
    * @return
    */

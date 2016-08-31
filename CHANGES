@@ -65,6 +65,14 @@ Release 0.12.1 - unreleased
 		(Committed by DOYUNG YOON).
 
     S2GRAPH-55: Add param to enable epoll event loop in experimental netty http server (Committed by daewon).
+    
+    S2GRAPH-66: Optimize toEdge, IndexEdgeDeserializable using mutable Map. (Committed by DOYUN GYOON).
+
+    S2GRAPH-22: Add missing shebang line to file. 
+		(Contributed by Injun Song<ijsong@gmail.com>, committed by DOYUNG YOON)
+    
+    S2GRAPH-70: Automate the process of building a distribution package
+		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
 
   BUG FIXES
 
@@ -84,6 +92,12 @@ Release 0.12.1 - unreleased
     S2GRAPH-43: Bug on offset when Interval is given on query (Committed by DOYUNG YOON).
 
     S2GRAPH-19: When query with duration error (Committed by DOYUNG YOON).
+    
+    S2GRAPH-63: Condition on partition strong edges and weak edges on mutateEdges is wrong (Committed by DOYUNG YOON).
+   
+    S2GRAPH-65: Deferred produce exception (Committed by DOYUNG YOON).
+
+    S2GRAPH-64: incrementCounts yield type case exception (Committed by DOYUNG YOON).
 
   TASKS
 
@@ -100,6 +114,11 @@ Release 0.12.1 - unreleased
     
     S2GRAPH-61: Update README.md to have Apache mailing list. 
 		(Contributed by Hyunsung Jo<hyunsung.jo@gmail.com>, committed by DOYUNG YOON)
+	
+    S2GRAPH-71: Missing resolver in plugin settings.
+                (Contributed by Injun Song<ijsong@gmail.com>, committed by DOYUNG YOON)
+
+    S2GRAPH-30: Typo in README. (Contributed by Hyunsung Jo<hyunsung.jo@gmail.com>, committed by DOYUNG YOON).
 
   SUB TASKS
 
@@ -108,6 +127,44 @@ Release 0.12.1 - unreleased
     S2GRAPH-7: Abstract common codes for rest project into s2core. (Committed by daewon).
 
     S2GRAPH-31: Remove playframework dependencies on s2core/build.sbt. (Committed by DOYUNG YOON).
+    
+    S2GRAPH-69: Change IndexEdge's props data type. (Committed by DOYUNG YOON).
+
+    S2GRAPH-87: LICENSE file should be changed. (Committed by Sergio Fernández).
+   
+    S2GRAPH-73: Add an SBT task and relevant scripts to construct a package for distribution.
+		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
+
+    S2GRAPH-74: Add a script that starts/stops a local hbase server.
+		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
+
+    S2GRAPH-75: Use an embedded database as the default metadata storage.
+		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
+
+    S2GRAPH-81: Separate Serializable's toKeyValues into 3, toRowKey, toQualifier, toValue. (Committed by DOYUNG YOON).
+
+    S2GRAPH-88: Add DISCLAIMER, LICENSE, NOTICE on packaging process.
+		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
+    
+    S2GRAPH-89: Change version number on project. (Committed by DOYUNG YOON).
+    
+    S2GRAPH-91: Remove custom repository on project's build.sbt (Committed by DOYUNG YOON).
+    
+    S2GRAPH-93: Remove MySQL JDBC driver (Committed by DOYUNG YOON).
+    
+    S2GRAPH-98: Make test cases on multiple projects run sequentially (Committed by DOYUNG YOON).
+    
+    S2GRAPH-99: Reduce number of test run on test cases on org.apache.s2graph.rest.play.benchmark (Committed by DOYUNG YOON).
+
+    S2GRAPH-96: Remove unmanaged dependencies(asynchbase) and speficy it on build.sbt. (Committed by DOYUNG YOON).
+    
+    S2GRAPH-97: Add KEYS file (Committed by DOYUNG YOON).
+
+    S2GRAPH-95: Add sbt-pgp plugin on plugins.sbt (Committed by DOYUNG YOON).
+
+    S2GRAPH-92: Add proper license headers on files with unknown licenses (Committed by DOYUNG YOON).
+
+    S2GRAPH-100: Add BUILD.md to explain how to package from source, then add it into REAME.md (Committed by DOYUNG YOON).
 
   TEST
     

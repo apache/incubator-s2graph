@@ -26,8 +26,9 @@ import org.apache.s2graph.core.utils.{SafeUpdateCache, logger}
 import scalikejdbc._
 
 import scala.concurrent.ExecutionContext
+import scala.io.Source
 import scala.language.{higherKinds, implicitConversions}
-import scala.util.{Failure, Try}
+import scala.util.{Success, Failure, Try}
 
 object Model {
   var maxSize = 10000
@@ -52,11 +53,42 @@ object Model {
       config.getString("db.default.user"),
       config.getString("db.default.password"),
       settings)
+
+    checkSchema()
+  }
+
+  def checkSchema(): Unit = {
+    withTx { implicit session =>
+      sql"""show tables""".map(rs => rs.string(1)).list.apply()
+    } match {
+      case Success(tables) =>
+        if (tables.isEmpty) {
+          // this is a very simple migration tool that only supports creating
+          // appropriate tables when there are no tables in the database at all.
+          // Ideally, it should be improved to a sophisticated migration tool
+          // that supports versioning, etc.
+          logger.info("Creating tables ...")
+          val schema = getClass.getResourceAsStream("schema.sql")
+          val lines = Source.fromInputStream(schema, "UTF-8").getLines
+          val sources = lines.map(_.split("-- ").head.trim).mkString("\n")
+          val statements = sources.split(";\n")
+          withTx { implicit session =>
+            statements.foreach(sql => session.execute(sql))
+          } match {
+            case Success(_) =>
+              logger.info("Successfully imported schema")
+            case Failure(e) =>
+              throw new RuntimeException("Error while importing schema", e)
+          }
+        }
+      case Failure(e) =>
+        throw new RuntimeException("Could not list tables in the database", e)
+    }
   }
 
   def withTx[T](block: DBSession => T): Try[T] = {
     using(DB(ConnectionPool.borrow())) { conn =>
-      val res = Try {
+      Try {
         conn.begin()
         val session = conn.withinTxSession()
         val result = block(session)
@@ -69,8 +101,6 @@ object Model {
           conn.rollbackIfActive()
           Failure(e)
       }
-
-      res
     }
   }
 

@@ -17,24 +17,21 @@
  * under the License.
  */
 
+import ReleaseTransformations._
+import sbt.complete.Parsers.spaceDelimited
+
 name := "s2graph"
 
 lazy val commonSettings = Seq(
-  organization := "com.kakao.s2graph",
+  organization := "org.apache.s2graph",
   scalaVersion := "2.11.7",
-  version := "0.12.1-SNAPSHOT",
   scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xlint"),
   javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map { case (key, value) => "-D" + key + "=" + value }.toSeq,
   testOptions in Test += Tests.Argument("-oDF"),
+  concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
   parallelExecution in Test := false,
   resolvers ++= Seq(
-    Resolver.mavenLocal,
-    "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
-    "Cloudera" at "https://repository.cloudera.com/artifactory/cloudera-repos",
-    "Twitter Maven" at "http://maven.twttr.com",
-    "sonatype-snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
-    "Scalaz Bintray Repo" at "http://dl.bintray.com/scalaz/releases",
-    "sonatype-releases" at "https://oss.sonatype.org/content/repositories/releases/"
+    Resolver.mavenLocal
   )
 )
 
@@ -64,10 +61,29 @@ lazy val s2counter_loader = project.dependsOn(s2counter_core, spark)
 
 lazy val root = (project in file("."))
   .aggregate(s2core, s2rest_play)
+  .dependsOn(s2rest_play, s2rest_netty, loader, s2counter_loader) // this enables packaging on the root project
   .settings(commonSettings: _*)
 
-lazy val runRatTask = taskKey[Unit]("Runs Apache rat on S2Graph")
+lazy val runRatTask = inputKey[Unit]("Runs Apache rat on S2Graph")
 
 runRatTask := {
-  "sh bin/run-rat.sh" !
+  // pass absolute path for apache-rat jar.
+  val args: Seq[String] = spaceDelimited("<arg>").parsed
+  s"sh dev/run-rat.sh ${args.head}" !
 }
+
+Packager.defaultSettings
+
+releaseProcess := Seq[ReleaseStep](
+  checkSnapshotDependencies,              // : ReleaseStep
+  inquireVersions,                        // : ReleaseStep
+  runTest,                                // : ReleaseStep
+  setReleaseVersion,                      // : ReleaseStep
+  commitReleaseVersion,                   // : ReleaseStep, performs the initial git checks
+  tagRelease,                             // : ReleaseStep
+  publishArtifacts,                       // : ReleaseStep, checks whether `publishTo` is properly set up
+  setNextVersion,                         // : ReleaseStep
+  commitNextVersion
+)
+
+releasePublishArtifactsAction := PgpKeys.publishSigned.value

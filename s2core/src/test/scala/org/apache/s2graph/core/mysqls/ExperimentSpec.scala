@@ -40,10 +40,10 @@ class ExperimentSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     sql"""DELETE FROM buckets""".update().apply()
     sql"""DELETE FROM experiments""".update().apply()
 
-    val expId = sql"""INSERT INTO experiments(service_id, service_name, `name`, description) VALUES(1, "s1", "exp1", "")""".updateAndReturnGeneratedKey().apply()
+    val expId = sql"""INSERT INTO experiments(service_id, service_name, name, description) VALUES(1, 's1', 'exp1', '')""".updateAndReturnGeneratedKey().apply()
     sql"""INSERT INTO
            buckets(experiment_id, modular, http_verb, api_path, request_body, impression_id)
-           VALUES($expId, "1~100", "POST", "/a/b/c", "None", "imp1")""".update().apply()
+           VALUES($expId, '1~100', 'POST', '/a/b/c', 'None', 'imp1')""".update().apply()
 
   }
 
@@ -63,7 +63,7 @@ class ExperimentSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
       implicit val session = AutoSession
 
-      sql"""UPDATE buckets SET impression_id = "imp2" WHERE id = ${bucket.id}""".update().apply()
+      sql"""UPDATE buckets SET impression_id = 'imp2' WHERE id = ${bucket.id}""".update().apply()
     }
 
     // sleep ttl time

@@ -25,6 +25,7 @@ import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, SKeyValue, StorageDeserializable}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.{GraphUtil, IndexEdge, QueryParam, Vertex}
+import scala.collection.immutable
 
 class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends Deserializable[IndexEdge] {
    import StorageDeserializable._
@@ -73,79 +74,87 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
      (Array.empty[(Byte, InnerValLike)], 0)
    }
 
-   override def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam,
-                                                    _kvs: Seq[T],
-                                                    version: String,
-                                                    cacheElementOpt: Option[IndexEdge]): IndexEdge = {
+  override def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam,
+                                                   _kvs: Seq[T],
+                                                   schemaVer: String,
+                                                   cacheElementOpt: Option[IndexEdge]): IndexEdge = {
 
-     assert(_kvs.size == 1)
+    assert(_kvs.size == 1)
 
-     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
+    val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
 
-     val kv = kvs.head
+    val kv = kvs.head
+    val version = kv.timestamp
+    //    logger.debug(s"[Des]: ${kv.row.toList}, ${kv.qualifier.toList}, ${kv.value.toList}")
+    var pos = 0
+    val (srcVertexId, srcIdLen) = SourceVertexId.fromBytes(kv.row, pos, kv.row.length, schemaVer)
+    pos += srcIdLen
+    val labelWithDir = LabelWithDirection(Bytes.toInt(kv.row, pos, 4))
+    pos += 4
+    val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsInverted(kv.row, pos)
+    pos += 1
 
-     //    logger.debug(s"[Des]: ${kv.row.toList}, ${kv.qualifier.toList}, ${kv.value.toList}")
-     var pos = 0
-     val (srcVertexId, srcIdLen) = SourceVertexId.fromBytes(kv.row, pos, kv.row.length, version)
-     pos += srcIdLen
-     val labelWithDir = LabelWithDirection(Bytes.toInt(kv.row, pos, 4))
-     pos += 4
-     val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsInverted(kv.row, pos)
-     pos += 1
+    val op = kv.row(pos)
+    pos += 1
 
-     val op = kv.row(pos)
-     pos += 1
+    if (pos == kv.row.length) {
+      // degree
+      //      val degreeVal = Bytes.toLong(kv.value)
+      val degreeVal = bytesToLongFunc(kv.value, 0)
+      val ts = kv.timestamp
+      val props = Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs.withLong(ts, ts, schemaVer),
+        LabelMeta.degreeSeq -> InnerValLikeWithTs.withLong(degreeVal, ts, schemaVer))
+      val tgtVertexId = VertexId(HBaseType.DEFAULT_COL_ID, InnerVal.withStr("0", schemaVer))
+      IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, props)
+    } else {
+      // not degree edge
 
-     if (pos == kv.row.length) {
-       // degree
-       //      val degreeVal = Bytes.toLong(kv.value)
-       val degreeVal = bytesToLongFunc(kv.value, 0)
-       val ts = kv.timestamp
-       val props = Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, version),
-         LabelMeta.degreeSeq -> InnerVal.withLong(degreeVal, version))
-       val tgtVertexId = VertexId(HBaseType.DEFAULT_COL_ID, InnerVal.withStr("0", version))
-       IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, props)
-     } else {
-       // not degree edge
-       val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${queryParam.label.id.get}, ${labelIdxSeq}"))
 
-       val (idxPropsRaw, endAt) = bytesToProps(kv.row, pos, version)
-       pos = endAt
-       val (tgtVertexIdRaw, tgtVertexIdLen) = if (endAt == kv.row.length) {
-         (HBaseType.defaultTgtVertexId, 0)
-       } else {
-         TargetVertexId.fromBytes(kv.row, endAt, kv.row.length, version)
-       }
+      val (idxPropsRaw, endAt) = bytesToProps(kv.row, pos, schemaVer)
+      pos = endAt
+      val (tgtVertexIdRaw, tgtVertexIdLen) = if (endAt == kv.row.length) {
+        (HBaseType.defaultTgtVertexId, 0)
+      } else {
+        TargetVertexId.fromBytes(kv.row, endAt, kv.row.length, schemaVer)
+      }
 
-       val idxProps = for {
-         (seq, (k, v)) <- index.metaSeqs.zip(idxPropsRaw)
-       } yield if (k == LabelMeta.degreeSeq) k -> v else seq -> v
+      val allProps = immutable.Map.newBuilder[Byte, InnerValLikeWithTs]
+      val index = queryParam.label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${queryParam.label.id.get}, ${labelIdxSeq}"))
 
-       val idxPropsMap = idxProps.toMap
+      /** process indexProps */
+      for {
+        (seq, (k, v)) <- index.metaSeqs.zip(idxPropsRaw)
+      } {
+        if (k == LabelMeta.degreeSeq) allProps += k -> InnerValLikeWithTs(v, version)
+        else allProps += seq -> InnerValLikeWithTs(v, version)
+      }
 
-       val tgtVertexId =
-         idxPropsMap.get(LabelMeta.toSeq) match {
-           case None => tgtVertexIdRaw
-           case Some(vId) => TargetVertexId(HBaseType.DEFAULT_COL_ID, vId)
-         }
+      /** process props */
+      if (op == GraphUtil.operations("incrementCount")) {
+        //        val countVal = Bytes.toLong(kv.value)
+        val countVal = bytesToLongFunc(kv.value, 0)
+        allProps += (LabelMeta.countSeq -> InnerValLikeWithTs.withLong(countVal, version, schemaVer))
+      } else {
+        val (props, endAt) = bytesToKeyValues(kv.value, 0, kv.value.length, schemaVer)
+        props.foreach { case (k, v) =>
+          allProps += (k -> InnerValLikeWithTs(v, version))
+        }
+      }
+      val _mergedProps = allProps.result()
+      val mergedProps =
+        if (_mergedProps.contains(LabelMeta.timeStampSeq)) _mergedProps
+        else _mergedProps + (LabelMeta.timeStampSeq -> InnerValLikeWithTs.withLong(version, version, schemaVer))
 
-       val (props, _) = if (op == GraphUtil.operations("incrementCount")) {
-         //        val countVal = Bytes.toLong(kv.value)
-         val countVal = bytesToLongFunc(kv.value, 0)
-         val dummyProps = Array(LabelMeta.countSeq -> InnerVal.withLong(countVal, version))
-         (dummyProps, 8)
-       } else {
-         bytesToKeyValues(kv.value, 0, kv.value.length, version)
-       }
+      /** process tgtVertexId */
+      val tgtVertexId =
+        mergedProps.get(LabelMeta.toSeq) match {
+          case None => tgtVertexIdRaw
+          case Some(vId) => TargetVertexId(HBaseType.DEFAULT_COL_ID, vId.innerVal)
+        }
 
-       val _mergedProps = (idxProps ++ props).toMap
-       val mergedProps =
-         if (_mergedProps.contains(LabelMeta.timeStampSeq)) _mergedProps
-         else _mergedProps + (LabelMeta.timeStampSeq -> InnerVal.withLong(kv.timestamp, version))
 
-       val ts = kv.timestamp
-       IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), labelWithDir, op, ts, labelIdxSeq, mergedProps)
+      IndexEdge(Vertex(srcVertexId, version), Vertex(tgtVertexId, version), labelWithDir, op, version, labelIdxSeq, mergedProps)
 
-     }
-   }
- }
+    }
+  }
+}
