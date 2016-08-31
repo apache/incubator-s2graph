@@ -101,10 +101,10 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
   import CanDefer._
 
   /** Future Cache to squash request */
-  private val futureCache = new DeferCache[QueryResult, Deferred, Deferred](config)
+  private val futureCache = new DeferCache[QueryResult, Deferred, Deferred](config, QueryResult(), "FutureCache", useMetric = true)
 
   /** Simple Vertex Cache */
-  private val vertexCache = new DeferCache[Seq[SKeyValue], Promise, Future](config)
+  private val vertexCache = new DeferCache[Seq[SKeyValue], Promise, Future](config, Seq.empty[SKeyValue])
 
 
   /**

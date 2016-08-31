@@ -19,10 +19,10 @@
 
 package org.apache.s2graph.core.utils
 
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{Executors, TimeUnit}
 
 import com.google.common.cache.CacheBuilder
-import com.stumbleupon.async.Deferred
+import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.Config
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
@@ -35,7 +35,11 @@ trait CanDefer[A, M[_], C[_]] {
 
   def success(defer: M[A], value: A): Unit
 
-  def onSuccess[U](defer: C[A])(pf: PartialFunction[A, U])(implicit ec: ExecutionContext)
+  def failure(defer: M[A], cause: Throwable): Unit
+
+  def onSuccess(defer: C[A])(pf: PartialFunction[A, A])(implicit ec: ExecutionContext)
+
+  def onFailure(defer: C[A])(pf: PartialFunction[Throwable, A])(implicit ec: ExecutionContext)
 }
 
 object CanDefer {
@@ -46,12 +50,14 @@ object CanDefer {
 
     override def success(defer: Promise[A], value: A) = defer.success(value)
 
-    override def onSuccess[U](defer: Future[A])(pf: PartialFunction[A, U])(implicit ec: ExecutionContext) = defer onSuccess pf
+    override def failure(defer: Promise[A], cause: Throwable) = defer.failure(cause)
+
+    override def onSuccess(defer: Future[A])(pf: PartialFunction[A, A])(implicit ec: ExecutionContext) = defer onSuccess pf
+
+    override def onFailure(defer: Future[A])(pf: PartialFunction[Throwable, A])(implicit ec: ExecutionContext) = defer onFailure pf
   }
 
   implicit def implDeferred[A] = new CanDefer[A, Deferred, Deferred] {
-
-    import Extensions.DeferOps
 
     override def promise: Deferred[A] = new Deferred[A]()
 
@@ -59,12 +65,30 @@ object CanDefer {
 
     override def success(defer: Deferred[A], value: A) = defer.callback(value)
 
-    override def onSuccess[U](defer: Deferred[A])(pf: PartialFunction[A, U])(implicit _ec: ExecutionContext) = defer withCallback pf
+    override def failure(defer: Deferred[A], cause: Throwable) = defer.callback(cause)
+
+    override def onSuccess(defer: Deferred[A])(pf: PartialFunction[A, A])(implicit _ec: ExecutionContext) =
+      defer.addCallback(new Callback[A, A] {
+        override def call(arg: A): A = pf(arg)
+      })
+
+    override def onFailure(defer: Deferred[A])(pf: PartialFunction[Throwable, A])(implicit ec: ExecutionContext) =
+      defer.addErrback(new Callback[A, Exception] {
+        override def call(t: Exception): A = pf(t)
+      })
   }
 }
 
+object DeferCache {
+  private val scheduledThreadPool = Executors.newSingleThreadScheduledExecutor()
+
+  def addScheduleJob(delay: Long)(block: => Unit) =
+    scheduledThreadPool.scheduleWithFixedDelay(new Runnable {
+      override def run(): Unit = block
+    }, 1000, delay, TimeUnit.MILLISECONDS)
+}
+
 /**
- *
  * @param config
  * @param ec
  * @param canDefer: implicit evidence to find out implementation of CanDefer.
@@ -72,21 +96,30 @@ object CanDefer {
  * @tparam M[_]: container type that will be stored in local cache. ex) Promise, Defer.
  * @tparam C[_]: container type that will be returned to client of this class. Ex) Future, Defer.
  */
-class DeferCache[A, M[_], C[_]](config: Config)(implicit ec: ExecutionContext, canDefer: CanDefer[A, M, C]) {
-
+class DeferCache[A, M[_], C[_]](config: Config, empty: => A, name: String = "", useMetric: Boolean = false)(implicit ec: ExecutionContext, canDefer: CanDefer[A, M, C]) {
   type Value = (Long, C[A])
 
   private val maxSize = config.getInt("future.cache.max.size")
+  private val metricInterval = config.getInt("future.cache.metric.interval")
   private val expireAfterWrite = config.getInt("future.cache.expire.after.write")
   private val expireAfterAccess = config.getInt("future.cache.expire.after.access")
 
-  private val futureCache = CacheBuilder.newBuilder()
-    .initialCapacity(maxSize)
-    .concurrencyLevel(Runtime.getRuntime.availableProcessors())
-    .expireAfterWrite(expireAfterWrite, TimeUnit.MILLISECONDS)
-    .expireAfterAccess(expireAfterAccess, TimeUnit.MILLISECONDS)
-    .maximumSize(maxSize).build[java.lang.Long, (Long, M[A])]()
+  private val futureCache = {
+    val builder = CacheBuilder.newBuilder()
+      .initialCapacity(maxSize)
+      .concurrencyLevel(Runtime.getRuntime.availableProcessors())
+      .expireAfterWrite(expireAfterWrite, TimeUnit.MILLISECONDS)
+      .expireAfterAccess(expireAfterAccess, TimeUnit.MILLISECONDS)
+      .maximumSize(maxSize)
 
+    if (useMetric && metricInterval > 0) {
+      val cache = builder.recordStats().build[java.lang.Long, (Long, M[A])]()
+      DeferCache.addScheduleJob(delay = metricInterval) { logger.metric(s"${name}: ${cache.stats()}") }
+      cache
+    } else {
+      builder.build[java.lang.Long, (Long, M[A])]()
+    }
+  }
 
   def asMap() = futureCache.asMap()
 
@@ -110,9 +143,15 @@ class DeferCache[A, M[_], C[_]](config: Config)(implicit ec: ExecutionContext, c
         case null =>
           // only one thread succeed to come here concurrently
           // initiate fetch to storage then add callback on complete to finish promise.
-          canDefer.onSuccess(op) { case value =>
+          val result = op
+          canDefer.onSuccess(result) { case value =>
             canDefer.success(promise, value)
             value
+          }
+
+          canDefer.onFailure(result) { case e: Throwable =>
+            canDefer.failure(promise, e)
+            empty
           }
 
           canDefer.future(promise)
@@ -134,9 +173,15 @@ class DeferCache[A, M[_], C[_]](config: Config)(implicit ec: ExecutionContext, c
 
         val (cachedAt, cachedPromise) = futureCache.asMap().putIfAbsent(cacheKey, (now, promise)) match {
           case null =>
-            canDefer.onSuccess(op) { case value =>
+            val result = op
+            canDefer.onSuccess(result) { case value =>
               canDefer.success(promise, value)
               value
+            }
+
+            canDefer.onFailure(result) { case e: Throwable =>
+              canDefer.failure(promise, e)
+              empty
             }
 
             (now, promise)
