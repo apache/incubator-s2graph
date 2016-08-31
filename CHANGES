@@ -74,7 +74,7 @@ Release 0.12.1 - unreleased
     S2GRAPH-70: Automate the process of building a distribution package
 		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
 
-    S2GRAPH-82: Merge DeferCache and FutureCache (Committed by DOYUNG YOON).
+    S2GRAPH-82: Merge DeferCache and FutureCache (Committed by Daewon Jeong).
 
   BUG FIXES
 
