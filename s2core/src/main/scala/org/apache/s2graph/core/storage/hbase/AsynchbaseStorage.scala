@@ -372,7 +372,8 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
                            cfs: List[String],
                            regionMultiplier: Int,
                            ttl: Option[Int],
-                           compressionAlgorithm: String): Unit = {
+                           compressionAlgorithm: String,
+                           replicationScopeOpt: Option[Int] = None): Unit = {
     logger.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm")
     val admin = getAdmin(zkAddr)
     val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier
@@ -391,6 +392,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
             .setBlocksize(32768)
             .setBlockCacheEnabled(true)
           if (ttl.isDefined) columnDesc.setTimeToLive(ttl.get)
+          if (replicationScopeOpt.isDefined) columnDesc.setScope(replicationScopeOpt.get)
           desc.addFamily(columnDesc)
         }
 

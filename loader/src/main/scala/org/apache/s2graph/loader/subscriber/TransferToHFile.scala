@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.loader.subscriber
 
-import org.apache.hadoop.hbase.client.Put
+import com.typesafe.config.ConfigFactory
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.mapreduce.{TableOutputFormat}
@@ -36,6 +36,7 @@ import org.apache.spark.rdd.RDD
 import org.hbase.async.{PutRequest}
 import play.api.libs.json.Json
 import scala.collection.JavaConversions._
+import scala.concurrent.ExecutionContext
 
 
 object TransferToHFile extends SparkApp with JSONParser {
@@ -144,18 +145,14 @@ object TransferToHFile extends SparkApp with JSONParser {
     val zkQuorum = args(2)
     val tableName = args(3)
     val dbUrl = args(4)
-    val maxHFilePerResionServer = args(5).toInt
-    val labelMapping = if (args.length >= 7) GraphSubscriberHelper.toLabelMapping(args(6)) else Map.empty[String, String]
-    val autoEdgeCreate = if (args.length >= 8) args(7).toBoolean else false
-    val buildDegree = if (args.length >= 9) args(8).toBoolean else true
-    val compressionAlgorithm = if (args.length >= 10) args(9) else "lz4"
+    val labelMapping = if (args.length >= 6) GraphSubscriberHelper.toLabelMapping(args(5)) else Map.empty[String, String]
+    val autoEdgeCreate = if (args.length >= 7) args(6).toBoolean else false
+    val buildDegree = if (args.length >= 8) args(7).toBoolean else true
     val conf = sparkConf(s"$input: TransferToHFile")
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     conf.set("spark.kryoserializer.buffer.mb", "24")
 
     val sc = new SparkContext(conf)
-
-    GraphSubscriberHelper.management.createTable(zkQuorum, tableName, List("e", "v"), maxHFilePerResionServer, None, compressionAlgorithm)
 
     /** set up hbase init */
     val hbaseConf = HBaseConfiguration.create()
@@ -163,8 +160,7 @@ object TransferToHFile extends SparkApp with JSONParser {
     hbaseConf.set(TableOutputFormat.OUTPUT_TABLE, tableName)
     hbaseConf.set("hadoop.tmp.dir", s"/tmp/$tableName")
 
-
-    val rdd = sc.textFile(input)
+    val rdd = if (args.length >= 9) sc.textFile(input).repartition(args(8).toInt) else sc.textFile(input)
 
 
     val kvs = rdd.mapPartitions { iter =>
@@ -172,20 +168,6 @@ object TransferToHFile extends SparkApp with JSONParser {
       GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
       toKeyValues(iter.toSeq, labelMapping, autoEdgeCreate)
     }
-    //
-    //    val newRDD = if (!buildDegree) new HFileRDD(kvs)
-    //    else {
-    //      val degreeKVs = buildDegrees(rdd, labelMapping, autoEdgeCreate).reduceByKey { (agg, current) =>
-    //        agg + current
-    //      }.mapPartitions { iter =>
-    //        val phase = System.getProperty("phase")
-    //        GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
-    //        toKeyValues(iter.toSeq)
-    //      }
-    //      new HFileRDD(kvs ++ degreeKVs)
-    //    }
-    //
-    //    newRDD.toHFile(hbaseConf, zkQuorum, tableName, maxHFilePerResionServer, tmpPath)
     val merged = if (!buildDegree) kvs
     else {
       kvs ++ buildDegrees(rdd, labelMapping, autoEdgeCreate).reduceByKey { (agg, current) =>
@@ -208,6 +190,48 @@ object TransferToHFile extends SparkApp with JSONParser {
     val familyOptionsMap = Map("e".getBytes() -> familyOptions, "v".getBytes() -> familyOptions)
 
     hbaseSc.bulkLoad(merged, TableName.valueOf(tableName), flatMap, tmpPath, familyOptionsMap)
+  }
+
+}
+
+
+object CmdHTableUtil {
+  val usages =
+    s"""
+       |create hbase Table on zkQuorum specified.
+       |note that hbase table can be configured with max file per region multiplier, replicationScope and compression
+       |algorithm from commandline arguments.
+       |
+       |params:
+       |0. zkQuorum: running hbase cluster zkQuorum.
+       |1. tableName: table name for this bulk upload.
+       |2. max file per region server : number of region files per RegionServer.
+       |3. replicationScope[optional] : table columnfamily's replication scope value ( e.g. 1 master and 1 slave, only master has 1 scope)
+       | - default = none
+       |4. compression algorithm[optional] : table compression algorithm ( e.g. lz, gzip, etc. )
+       | - default = lz
+     """.stripMargin
+
+  def main(args: Array[String]) : Unit = {
+
+    if ( args.length < 3 ) {
+      println(usages)
+      sys.exit(1)
+    }
+
+    val zkQuorum = args(0)
+    val tableName = args(1)
+    val maxHFilePerResionServer = args(2).toInt
+    val replicationScopeOpt = if ( args(3) == "none" ) None else Some(args(3).toInt)
+    val compressionAlgorithm = if (args.length >= 5) args(4) else "lz4"
+
+    val config = ConfigFactory.load()
+    val s2graph = new Graph(config)(ExecutionContext.Implicits.global)
+    val storageManagement = new Management(s2graph)
+
+    storageManagement.createTable(zkQuorum, tableName, List("e", "v"), maxHFilePerResionServer, None, compressionAlgorithm, replicationScopeOpt = replicationScopeOpt)
+
+    sys.exit(0)
   }
 
 }

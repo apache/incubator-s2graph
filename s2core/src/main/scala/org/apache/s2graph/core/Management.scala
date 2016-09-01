@@ -297,8 +297,9 @@ class Management(graph: Graph) {
                   cfs: List[String],
                   regionMultiplier: Int,
                   ttl: Option[Int],
-                  compressionAlgorithm: String = DefaultCompressionAlgorithm): Unit =
-    storage.createTable(zkAddr, tableName, cfs, regionMultiplier, ttl, compressionAlgorithm)
+                  compressionAlgorithm: String = DefaultCompressionAlgorithm,
+                  replicationScopeOpt: Option[Int] = None): Unit =
+    storage.createTable(zkAddr, tableName, cfs, regionMultiplier, ttl, compressionAlgorithm, replicationScopeOpt = replicationScopeOpt)
 
   /** HBase specific code */
   def createService(serviceName: String,
