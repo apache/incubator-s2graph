@@ -122,6 +122,8 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-30: Typo in README. (Contributed by Hyunsung Jo<hyunsung.jo@gmail.com>, committed by DOYUNG YOON).
 
+    S2GRAPH-105: remove the full path on packaged tarball (Committed by Sergio Fernández).
+
   SUB TASKS
 
     S2GRAPH-9: Provide rest server using netty. (Committed by daewon).
