@@ -119,7 +119,7 @@ object Packager {
       {
         import scala.sys.process._
         streams.log.info(s"creating a tarball...")
-        s"tar zcf $base.tar.gz $base".!!
+        s"tar zcf $base.tar.gz -C $target $name".!!
         streams.log.info(s"Tarball is located at $base.tar.gz")
       }
 
