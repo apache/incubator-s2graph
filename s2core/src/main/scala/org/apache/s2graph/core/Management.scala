@@ -308,7 +308,7 @@ class Management(graph: Graph) {
 
     Model withTx { implicit session =>
       val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
-      /** create hbase table for service */
+      /* create hbase table for service */
       storage.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL, compressionAlgorithm)
       service
     }
@@ -340,14 +340,14 @@ class Management(graph: Graph) {
         case Some(l) =>
           throw new GraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
         case None =>
-          /** create all models */
+          /* create all models */
           val newLabel = Label.insertAll(label,
             srcServiceName, srcColumnName, srcColumnType,
             tgtServiceName, tgtColumnName, tgtColumnType,
             isDirected, serviceName, indices, props, consistencyLevel,
             hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm)
 
-          /** create hbase table */
+          /* create hbase table */
           val service = newLabel.service
           (hTableName, hTableTTL) match {
             case (None, None) => // do nothing

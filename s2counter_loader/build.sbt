@@ -52,3 +52,5 @@ mergeStrategy in assembly := {
 }
 
 test in assembly := {}
+
+mainClass in (Compile) := None

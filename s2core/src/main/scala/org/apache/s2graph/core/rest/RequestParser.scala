@@ -263,7 +263,7 @@ class RequestParser(config: Config) extends JSONParser {
           for {
             idVal <- idOpt ++ idsOpt.toSeq.flatten
 
-            /** bug, need to use labels schemaVersion  */
+            /* bug, need to use labels schemaVersion  */
             innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
           } yield {
             Vertex(SourceVertexId(col.id.get, innerVal), System.currentTimeMillis())

@@ -103,7 +103,7 @@ object Graph {
   }
 
   def processTimeDecay(queryParam: QueryParam, edge: Edge) = {
-    /** process time decay */
+    /* process time decay */
     val tsVal = queryParam.timeDecay match {
       case None => 1.0
       case Some(timeDecay) =>
@@ -141,7 +141,7 @@ object Graph {
                      queryParam: QueryParam,
                      convertedEdge: Edge) = {
 
-    /** skip duplicate policy check if consistencyLevel is strong */
+    /* skip duplicate policy check if consistencyLevel is strong */
     if (queryParam.label.consistencyLevel != "strong" && resultEdges.containsKey(hashKey)) {
       val (oldFilterHashKey, oldEdge, oldScore) = resultEdges.get(hashKey)
       //TODO:
@@ -245,7 +245,7 @@ object Graph {
 
               val (hashKey, filterHashKey) = toHashKey(queryParam, convertedEdge, isDegree)
 
-              /** check if this edge should be exlcuded. */
+              /* check if this edge should be exlcuded. */
               if (shouldBeExcluded && !isDegree) {
                 edgesToExclude.add(filterHashKey)
               } else {
@@ -260,7 +260,7 @@ object Graph {
               convertEdges(queryParam, edge, nextStepOpt).foreach { convertedEdge =>
                 val (hashKey, filterHashKey) = toHashKey(queryParam, convertedEdge, isDegree)
 
-                /** check if this edge should be exlcuded. */
+                /* check if this edge should be exlcuded. */
                 if (shouldBeExcluded && !isDegree) {
                   edgesToExclude.add(filterHashKey)
                 } else {
@@ -294,7 +294,7 @@ object Graph {
     val parts = GraphUtil.split(s)
     val logType = parts(2)
     val element = if (logType == "edge" | logType == "e") {
-      /** current only edge is considered to be bulk loaded */
+      /* current only edge is considered to be bulk loaded */
       labelMapping.get(parts(5)) match {
         case None =>
         case Some(toReplace) =>

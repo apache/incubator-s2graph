@@ -65,10 +65,13 @@ object TransferToHFile extends SparkApp with JSONParser {
   }
 
   def buildDegrees(msgs: RDD[String], labelMapping: Map[String, String], edgeAutoCreate: Boolean) = {
+    val filtered = msgs.filter { case msg =>
+      val tokens = GraphUtil.split(msg)
+      tokens(2) == "e" || tokens(2) == "edge"
+    }
     for {
-      msg <- msgs
+      msg <- filtered
       tokens = GraphUtil.split(msg)
-      if tokens(2) == "e" || tokens(2) == "edge"
       tempDirection = if (tokens.length == 7) "out" else tokens(7)
       direction = if (tempDirection != "out" && tempDirection != "in") "out" else tempDirection
       reverseDirection = if (direction == "out") "in" else "out"
@@ -157,7 +160,7 @@ object TransferToHFile extends SparkApp with JSONParser {
 
     GraphSubscriberHelper.management.createTable(zkQuorum, tableName, List("e", "v"), maxHFilePerResionServer, None, compressionAlgorithm)
 
-    /** set up hbase init */
+    /* set up hbase init */
     val hbaseConf = HBaseConfiguration.create()
     hbaseConf.set("hbase.zookeeper.quorum", zkQuorum)
     hbaseConf.set(TableOutputFormat.OUTPUT_TABLE, tableName)
@@ -199,8 +202,8 @@ object TransferToHFile extends SparkApp with JSONParser {
 
     val hbaseSc = new HBaseContext(sc, hbaseConf)
     def flatMap(kv: KeyValue): Iterator[(KeyFamilyQualifier, Array[Byte])] = {
-      val k = new KeyFamilyQualifier(kv.getRow(), kv.getFamily(), kv.getQualifier())
-      val v = kv.getValue()
+      val k = new KeyFamilyQualifier(CellUtil.cloneRow(kv), CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv))
+      val v = CellUtil.cloneValue(kv)
       Seq((k -> v)).toIterator
     }
     val familyOptions = new FamilyHFileWriteOptions(Algorithm.LZ4.getName.toUpperCase,

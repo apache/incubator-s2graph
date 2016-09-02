@@ -51,7 +51,7 @@ class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge
            case Some(vId) => idxPropsBytes
          }
 
-     /** TODO search usage of op byte. if there is no, then remove opByte */
+     /* TODO search usage of op byte. if there is no, then remove opByte */
      Bytes.add(row, Array.fill(1)(GraphUtil.defaultOpByte), qualifier)
    }
 

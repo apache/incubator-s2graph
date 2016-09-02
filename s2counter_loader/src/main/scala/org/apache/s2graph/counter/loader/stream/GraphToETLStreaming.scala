@@ -56,7 +56,7 @@ object GraphToETLStreaming extends SparkApp with WithKafka {
 
     val acc = sc.accumulable(MutableHashMap.empty[String, Long], "Throughput")(HashMapParam[String, Long](_ + _))
 
-    /**
+    /*
      * consume graphIn topic and produce messages to etl topic
      * two purpose
      * 1. partition by target vertex id

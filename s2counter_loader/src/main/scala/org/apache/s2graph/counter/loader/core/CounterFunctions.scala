@@ -389,8 +389,8 @@ object CounterFunctions extends Logging with WithKafka {
       success <- exactCounter.insertBlobValue(policy, keys)
     } yield {
       success match {
-        case true => acc += ("BLOB", 1)
-        case false => acc += ("BLOBFailed", 1)
+        case true => acc += (("BLOB", 1))
+        case false => acc += (("BLOBFailed", 1))
       }
     }
   }
@@ -411,8 +411,8 @@ object CounterFunctions extends Logging with WithKafka {
       trxLog <- exactCounter.updateCount(policy, counts)
     } yield {
       trxLog.success match {
-        case true => acc += (s"ExactV${policy.version}", 1)
-        case false => acc += (s"ExactFailedV${policy.version}", 1)
+        case true => acc += ((s"ExactV${policy.version}", 1))
+        case false => acc += ((s"ExactFailedV${policy.version}", 1))
       }
       trxLog
     }
@@ -446,7 +446,7 @@ object CounterFunctions extends Logging with WithKafka {
       groupedValues <- allValues.grouped(10)
     } {
       rankingCounter.update(groupedValues, K_MAX)
-      acc += (s"RankingV${policy.version}", groupedValues.length)
+      acc += ((s"RankingV${policy.version}", groupedValues.length))
     }
   }
   

@@ -442,7 +442,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       future recoverWith {
         case FetchTimeoutException(retryEdge) =>
           logger.info(s"[Try: $tryNum], Fetch fail.\n${retryEdge}")
-          /** fetch failed. re-fetch should be done */
+          /* fetch failed. re-fetch should be done */
           fetchSnapshotEdge(edges.head).flatMap { case (queryParam, snapshotEdgeOpt, kvOpt) =>
             retry(tryNum + 1)(edges, statusCode, snapshotEdgeOpt)
           }
@@ -458,14 +458,14 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
           }
           logger.info(s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}\nFailReason: ${faileReason}")
 
-          /** retry logic */
+          /* retry logic */
           val promise = Promise[Boolean]
           val backOff = exponentialBackOff(tryNum)
           scheduledThreadPool.schedule(new Runnable {
             override def run(): Unit = {
               val future = if (failedStatusCode == 0) {
                 // acquire Lock failed. other is mutating so this thead need to re-fetch snapshotEdge.
-                /** fetch failed. re-fetch should be done */
+                /* fetch failed. re-fetch should be done */
                 fetchSnapshotEdge(edges.head).flatMap { case (queryParam, snapshotEdgeOpt, kvOpt) =>
                   retry(tryNum + 1)(edges, statusCode, snapshotEdgeOpt)
                 }
@@ -498,7 +498,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       case 0 =>
         fetchedSnapshotEdgeOpt match {
           case None =>
-          /**
+          /*
            * no one has never mutated this SN.
            * (squashedEdge, edgeMutate) = Edge.buildOperation(None, edges)
            * pendingE = squashedEdge.copy(statusCode = 1, lockTs = now, version = squashedEdge.ts + 1)
@@ -520,7 +520,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
           case Some(snapshotEdge) =>
             snapshotEdge.pendingEdgeOpt match {
               case None =>
-                /**
+                /*
                  * others finished commit on this SN. but there is no contention.
                  * (squashedEdge, edgeMutate) = Edge.buildOperation(snapshotEdgeOpt, edges)
                  * pendingE = squashedEdge.copy(statusCode = 1, lockTs = now, version = snapshotEdge.version + 1) ?
@@ -542,7 +542,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
               case Some(pendingEdge) =>
                 val isLockExpired = pendingEdge.lockTs.get + LockExpireDuration < System.currentTimeMillis()
                 if (isLockExpired) {
-                  /**
+                  /*
                    * if pendingEdge.ts == snapshotEdge.ts =>
                    *    (squashedEdge, edgeMutate) = Edge.buildOperation(None, Seq(pendingEdge))
                    * else =>
@@ -564,7 +564,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
                   commitProcess(statusCode, squashedEdge, fetchedSnapshotEdgeOpt, lockSnapshotEdge, releaseLockSnapshotEdge, edgeMutate)
                 } else {
-                  /**
+                  /*
                    * others finished commit on this SN and there is currently contention.
                    * this can't be proceed so retry from re-fetch.
                    * throw EX
@@ -577,11 +577,11 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
         }
       case _ =>
 
-        /**
+        /*
          * statusCode > 0 which means self locked and there has been partial failure either on mutate, increment, releaseLock
          */
 
-        /**
+        /*
          * this succeed to lock this SN. keep doing on commit process.
          * if SN.isEmpty =>
          * no one never succed to commit on this SN.
@@ -831,7 +831,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       edgeWithScore <- queryResult.edgeWithScoreLs
       (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
     } yield {
-        /** reverted direction */
+        /* reverted direction */
         val reversedIndexedEdgesMutations = edge.duplicateEdge.edgesWithIndex.flatMap { indexEdge =>
           indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
             buildIncrementsAsync(indexEdge, -1L)
@@ -890,7 +890,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
         label.schemaVersion match {
           case HBaseType.VERSION3 | HBaseType.VERSION4 =>
             if (label.consistencyLevel == "strong") {
-              /**
+              /*
                * read: snapshotEdge on queryResult = O(N)
                * write: N x (relatedEdges x indices(indexedEdge) + 1(snapshotEdge))
                */
@@ -900,7 +900,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
             }
           case _ =>
 
-            /**
+            /*
              * read: x
              * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
              */
@@ -1090,7 +1090,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
     val (srcInnerId, tgtInnerId) = tgtVertexIdOpt match {
       case Some(tgtVertexId) => // _to is given.
-        /** we use toSnapshotEdge so dont need to swap src, tgt */
+        /* we use toSnapshotEdge so dont need to swap src, tgt */
         val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
         val tgt = InnerVal.convertVersion(tgtVertexId, tgtColumn.columnType, label.schemaVersion)
         (src, tgt)
@@ -1285,19 +1285,19 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     (edgeMutate.edgesToDelete.isEmpty, edgeMutate.edgesToInsert.isEmpty) match {
       case (true, true) =>
 
-        /** when there is no need to update. shouldUpdate == false */
+        /* when there is no need to update. shouldUpdate == false */
         List.empty
       case (true, false) =>
 
-        /** no edges to delete but there is new edges to insert so increase degree by 1 */
+        /* no edges to delete but there is new edges to insert so increase degree by 1 */
         edgeMutate.edgesToInsert.flatMap { e => buildIncrementsAsync(e) }
       case (false, true) =>
 
-        /** no edges to insert but there is old edges to delete so decrease degree by 1 */
+        /* no edges to insert but there is old edges to delete so decrease degree by 1 */
         edgeMutate.edgesToDelete.flatMap { e => buildIncrementsAsync(e, -1L) }
       case (false, false) =>
 
-        /** update on existing edges so no change on degree */
+        /* update on existing edges so no change on degree */
         List.empty
     }
 

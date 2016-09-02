@@ -77,7 +77,7 @@ object Global extends WithFilters(new GzipFilter()) {
       ExceptionHandler.shutdown()
     }
 
-    /**
+    /*
      * shutdown hbase client for flush buffers.
      */
     s2graph.shutdown()

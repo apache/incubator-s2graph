@@ -174,14 +174,14 @@ object Label extends Model[Label] {
         val tgtServiceId = tgtService.id.get
         val serviceId = service.id.get
 
-        /** insert serviceColumn */
+        /* insert serviceColumn */
         val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType), schemaVersion)
         val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType), schemaVersion)
 
         if (srcCol.columnType != srcColumnType) throw new RuntimeException(s"source service column type not matched ${srcCol.columnType} != ${srcColumnType}")
         if (tgtCol.columnType != tgtColumnType) throw new RuntimeException(s"target service column type not matched ${tgtCol.columnType} != ${tgtColumnType}")
 
-        /** create label */
+        /* create label */
         Label.findByName(labelName, useCache = false).getOrElse {
 
           val createdId = insert(labelName, srcServiceId, srcColumnName, srcColumnType,

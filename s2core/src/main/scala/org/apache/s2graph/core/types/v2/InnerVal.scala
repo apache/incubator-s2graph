@@ -38,7 +38,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
     pbr.setPosition(offset)
     val startPos = pbr.getPosition
     if (bytes(offset) == -1 | bytes(offset) == 0) {
-      /** simple boolean */
+      /* simple boolean */
       val boolean = order match {
         case Order.DESCENDING => bytes(offset) == 0
         case _ => bytes(offset) == -1
@@ -73,7 +73,7 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
     val ret = value match {
       case b: Boolean =>
 
-        /** since OrderedBytes header start from 0x05, it is safe to use -1, 0
+        /* since OrderedBytes header start from 0x05, it is safe to use -1, 0
           * for decreasing order (true, false) */
         //        Bytes.toBytes(b)
         order match {

@@ -381,7 +381,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   }
 
   def limit(offset: Int, limit: Int): QueryParam = {
-    /** since degree info is located on first always */
+    /* since degree info is located on first always */
     if (offset == 0 && this.columnRangeFilter == null) {
       this.limit = limit + 1
       this.offset = offset

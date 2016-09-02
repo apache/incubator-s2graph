@@ -70,7 +70,7 @@ class WithHBase(config: Config) {
     Try {
       val table = conn.getTable(TableName.valueOf(tableName))
       // do not keep failed operation in writer buffer
-      table.setWriteBufferSize(writeBufferSize)
+//      table.setWriteBufferSize(writeBufferSize)
       try {
         op(table)
       } catch {

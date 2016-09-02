@@ -70,7 +70,7 @@ object CounterBulkLoader extends SparkApp with WithKafka {
            sp = GraphUtil.split(line) if sp.size <= 7 || GraphUtil.split(line)(7) != "in"
            item <- CounterEtlFunctions.parseEdgeFormat(line)
          } yield {
-           acc +=("Edges", 1)
+           acc += (("Edges", 1))
            item
          }
        }

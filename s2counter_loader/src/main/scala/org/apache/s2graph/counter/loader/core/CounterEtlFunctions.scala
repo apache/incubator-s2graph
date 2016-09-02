@@ -45,7 +45,7 @@ object CounterEtlFunctions extends Logging {
   }
 
   def parseEdgeFormat(line: String): Option[CounterEtlItem] = {
-    /**
+    /*
      * 1427082276804	insert	edge	19073318	52453027_93524145648511699	story_user_ch_doc_view	{"doc_type" : "l", "channel_subscribing" : "y", "view_from" : "feed"}
      */
     for {
