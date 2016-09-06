@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+printf "\n\n"
+printf "As a toy problem, let's try to create the backend for a simple timeline of a new social network service.\n"
+printf "(Think of a simplified version of Facebook's Timeline.)\n"
+printf "You will be able to manage 'friends' and 'posts' of a user with simple S2Graph queries.\n\n"
 
 printf "First, we need a name for the new service. \n Why don't we call it Kakao Favorites? \n"
 read -r -p 'Step 1: Creating Service >>> ' var
@@ -91,6 +95,7 @@ read -r -p 'Step 4: Query friends of Elmo with getEdges API: >>> ' var
 # Query friends of Elmo with getEdges API:
 curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
 {
+    "select": ["to"],
     "srcVertices": [{"serviceName": "KakaoFavorites", "columnName": "userName", "id":"Elmo"}],
     "steps": [
       {"step": [{"label": "friends", "direction": "out", "offset": 0, "limit": 10}]}
@@ -102,6 +107,7 @@ read -r -p 'Step 5: Now query friends of Cookie Monster: >>> ' var
 # Now query friends of Cookie Monster:
 curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
 {
+    "select": ["to"],
     "srcVertices": [{"serviceName": "KakaoFavorites", "columnName": "userName", "id":"Cookie Monster"}],
     "steps": [
       {"step": [{"label": "friends", "direction": "out", "offset": 0, "limit": 10}]}
@@ -177,6 +183,7 @@ printf "\n\n"
 read -r -p 'Step 8: Query posts of Big Bird. >>> ' var
 curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
 {
+    "select": ["to"],
     "srcVertices": [{"serviceName": "KakaoFavorites", "columnName": "userName", "id":"Big Bird"}],
     "steps": [
       {"step": [{"label": "post", "direction": "out", "offset": 0, "limit": 10}]}
@@ -192,6 +199,7 @@ printf "\n\n"
 read -r -p 'Step 9: Elmo`s Timeline. >>> ' var
 curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
 {
+    "select": ["from", "to"],
     "srcVertices": [{"serviceName": "KakaoFavorites", "columnName": "userName", "id":"Elmo"}],
     "steps": [
       {"step": [{"label": "friends", "direction": "out", "offset": 0, "limit": 10}]},
@@ -205,6 +213,7 @@ printf "\n\n"
 read -r -p 'Step 10: Also try Cookie Monsters timeline: >>> ' var
 curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -d '
 {
+    "select": ["from", "to"],
     "srcVertices": [{"serviceName": "KakaoFavorites", "columnName": "userName", "id":"Cookie Monster"}],
     "steps": [
       {"step": [{"label": "friends", "direction": "out", "offset": 0, "limit": 10}]},
@@ -213,4 +222,4 @@ curl -XPOST localhost:9000/graphs/getEdges -H 'Content-Type: Application/json' -
 }
 '
 
-printf "\n\n"
+printf "\n\nThe above example is by no means a full-blown social network timeline, but it gives you an idea on how to represent, store and query relations with S2Graph.\n\n"

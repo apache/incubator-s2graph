@@ -180,6 +180,8 @@ Release 0.12.1 - unreleased
     S2GRAPH-84: Test-case compilation error on `s2counter_loader` project (Committed by Jaesang Kim).
 
     S2GRAPH-104: force scalaz-stream, netty-http-pipelining dependencies version which is available on maven central (Committed by DOYUNG YOON).
+    
+    S2GRAPH-109: Merge duplicate test.sh into one same as `Your First Graph` on README.md (Committed by DOYUNG YOON).
 
   TEST
     
