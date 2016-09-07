@@ -63,8 +63,8 @@ read -r -p 'Make Sure Label has been created correctly >>> ' var
 curl -XGET localhost:9000/graphs/getLabel/friends
 
 # Now that the label friends is ready, we can store friend entries.
-# Entries of a label are called edges, and you can add edges with the edges/insert API:
-printf "\n\nNow that the label friends is ready, we can store friend entries.\nEntries of a label are called edges, and you can add edges with the edges/insert API:\n"
+# Entries of a label are called edges, and you can add edges with the edges/insertWithWait API:
+printf "\n\nNow that the label friends is ready, we can store friend entries.\nEntries of a label are called edges, and you can add edges with the edges/insertWithWait API:\n"
 read -r -p 'Step 3: Insert Edges >>> ' var
 payload='
 [
@@ -78,7 +78,7 @@ payload='
 ]
 '
 printf "\n$payload\n"
-curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/json' -d '
+curl -XPOST localhost:9000/graphs/edges/insertWithWait -H 'Content-Type: Application/json' -d '
 [
   {"from":"Elmo","to":"Big Bird","label":"friends","props":{},"timestamp":1444360152477},
   {"from":"Elmo","to":"Ernie","label":"friends","props":{},"timestamp":1444360152478},
@@ -167,7 +167,7 @@ payload='
 printf "\n\n"
 read -r -p 'Step 7: Now, insert some posts of our users. >>> ' var
 printf "\n$payload\n"
-curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/json' -d '
+curl -XPOST localhost:9000/graphs/edges/insertWithWait -H 'Content-Type: Application/json' -d '
 [
   {"from":"Big Bird","to":"www.kakaocorp.com/en/main","label":"post","props":{},"timestamp":1444360152477},
   {"from":"Big Bird","to":"github.com/kakao/s2graph","label":"post","props":{},"timestamp":1444360152478},
