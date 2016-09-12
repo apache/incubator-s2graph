@@ -72,7 +72,7 @@ object EtlStreaming extends SparkApp with WithKafka {
 
     val acc = sc.accumulable(MutableHashMap.empty[String, Long], "Throughput")(HashMapParam[String, Long](_ + _))
 
-    /**
+    /*
      * read message from etl topic and join user profile from graph and then produce whole message to counter topic
      */
     val stream = streamHelper.createStream[String, String, StringDecoder, StringDecoder](ssc, inputTopics)
@@ -89,7 +89,7 @@ object EtlStreaming extends SparkApp with WithKafka {
             line <- GraphUtil.parseString(v)
             item <- CounterEtlFunctions.parseEdgeFormat(line)
           } yield {
-            acc += ("Edges", 1)
+            acc += (("Edges", 1))
             item
           }
         }
@@ -105,7 +105,7 @@ object EtlStreaming extends SparkApp with WithKafka {
         val m = MutableHashMap.empty[Int, mutable.MutableList[CounterEtlItem]]
         joinItems.foreach { item =>
           if (item.useProfile) {
-            acc += ("ETL", 1)
+            acc += (("ETL", 1))
           }
           val k = getPartKey(item.item, 20)
           val values: mutable.MutableList[CounterEtlItem] = m.getOrElse(k, mutable.MutableList.empty[CounterEtlItem])
@@ -114,7 +114,7 @@ object EtlStreaming extends SparkApp with WithKafka {
         }
         m.foreach { case (k, v) =>
           v.map(_.toKafkaMessage).grouped(1000).foreach { grouped =>
-            acc += ("Produce", grouped.size)
+            acc += (("Produce", grouped.size))
             producer.send(new KeyedMessage[String, String](StreamingConfig.KAFKA_TOPIC_COUNTER, null, k, grouped.mkString("\n")))
           }
         }

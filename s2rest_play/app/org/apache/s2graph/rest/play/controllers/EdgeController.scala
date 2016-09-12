@@ -195,7 +195,7 @@ object EdgeController extends Controller {
 
   def deleteAllInner(jsValue: JsValue, withWait: Boolean) = {
 
-    /** logging for delete all request */
+    /* logging for delete all request */
     def enqueueLogMessage(ids: Seq[JsValue], labels: Seq[Label], ts: Long, direction: String, topicOpt: Option[String]) = {
       val kafkaMessages = for {
         id <- ids

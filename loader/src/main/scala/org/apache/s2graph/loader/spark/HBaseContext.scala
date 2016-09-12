@@ -55,8 +55,8 @@ import scala.collection.mutable
   * of disseminating the configuration information
   * to the working and managing the life cycle of HConnections.
  */
-class HBaseContext(@transient sc: SparkContext,
-                   @transient config: Configuration,
+class HBaseContext(@transient private val sc: SparkContext,
+                   @transient private val config: Configuration,
                    val tmpHdfsConfgFile: String = null)
   extends Serializable with Logging {
 
@@ -632,7 +632,7 @@ class HBaseContext(@transient sc: SparkContext,
       familyHFileWriteOptionsMapInternal.put(new ByteArrayWrapper(entry.getKey), entry.getValue)
     }
 
-    /**
+    /*
      *  This will return a new HFile writer when requested
      *
      * @param family       column family
@@ -699,7 +699,7 @@ class HBaseContext(@transient sc: SparkContext,
       var previousRow:Array[Byte] = HConstants.EMPTY_BYTE_ARRAY
       var rollOverRequested = false
 
-      /**
+      /*
        * This will roll all writers
        */
       def rollWriters(): Unit = {
@@ -714,7 +714,7 @@ class HBaseContext(@transient sc: SparkContext,
         rollOverRequested = false
       }
 
-      /**
+      /*
        * This function will close a given HFile writer
        * @param w The writer to close
        */

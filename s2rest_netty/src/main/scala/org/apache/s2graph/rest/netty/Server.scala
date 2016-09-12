@@ -46,6 +46,7 @@ import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 import scala.io.Source
 import scala.util.{Failure, Success, Try}
+import scala.language.existentials
 
 class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends SimpleChannelInboundHandler[FullHttpRequest] with JSONParser {
   val ApplicationJson = "application/json"
@@ -169,9 +170,7 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
 }
 
 // Simple http server
-object NettyServer extends App {
-  /** should be same with Boostrap.onStart on play */
-
+object NettyServer {
   val numOfThread = Runtime.getRuntime.availableProcessors()
   val threadPool = Executors.newFixedThreadPool(numOfThread)
   val ec = ExecutionContext.fromExecutor(threadPool)
@@ -198,30 +197,32 @@ object NettyServer extends App {
       (new NioEventLoopGroup(1), new NioEventLoopGroup(), classOf[NioServerSocketChannel])
   }
 
-  try {
-    val b: ServerBootstrap = new ServerBootstrap()
-      .option(ChannelOption.SO_BACKLOG, Int.box(2048))
+  def main(args : scala.Array[scala.Predef.String]) : scala.Unit = {
+    try {
+      val b: ServerBootstrap = new ServerBootstrap()
+        .option(ChannelOption.SO_BACKLOG, Int.box(2048))
 
-    b.group(bossGroup, workerGroup).channel(channelClass)
-      .handler(new LoggingHandler(LogLevel.INFO))
-      .childHandler(new ChannelInitializer[SocketChannel] {
-        override def initChannel(ch: SocketChannel) {
-          val p = ch.pipeline()
-          p.addLast(new HttpServerCodec())
-          p.addLast(new HttpObjectAggregator(65536))
-          p.addLast(new S2RestHandler(rest)(ec))
-        }
-      })
+      b.group(bossGroup, workerGroup).channel(channelClass)
+        .handler(new LoggingHandler(LogLevel.INFO))
+        .childHandler(new ChannelInitializer[SocketChannel] {
+          override def initChannel(ch: SocketChannel) {
+            val p = ch.pipeline()
+            p.addLast(new HttpServerCodec())
+            p.addLast(new HttpObjectAggregator(65536))
+            p.addLast(new S2RestHandler(rest)(ec))
+          }
+        })
 
-    // for check server is started
-    logger.info(s"Listening for HTTP on /0.0.0.0:$port")
-    val ch: Channel = b.bind(port).sync().channel()
-    ch.closeFuture().sync()
+      // for check server is started
+      logger.info(s"Listening for HTTP on /0.0.0.0:$port")
+      val ch: Channel = b.bind(port).sync().channel()
+      ch.closeFuture().sync()
 
-  } finally {
-    bossGroup.shutdownGracefully()
-    workerGroup.shutdownGracefully()
-    s2graph.shutdown()
+    } finally {
+      bossGroup.shutdownGracefully()
+      workerGroup.shutdownGracefully()
+      s2graph.shutdown()
+    }
   }
 }
 

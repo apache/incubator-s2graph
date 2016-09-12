@@ -117,7 +117,7 @@ object WalLogToHDFS extends SparkApp with WithKafka {
       val ts = time.milliseconds
       val dateId = new SimpleDateFormat("yyyy-MM-dd").format(new Date(ts))
 
-      /** make sure that `elements` are not running at the same time */
+      /* make sure that `elements` are not running at the same time */
       val elementsWritten = {
         elements.cache()
         (Array("all") ++ splits).foreach {

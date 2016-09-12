@@ -44,7 +44,7 @@ class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
     val kv = kvs.head
     val schemaVer = queryParam.label.schemaVersion
     val cellVersion = kv.timestamp
-    /** rowKey */
+    /* rowKey */
     def parseRowV3(kv: SKeyValue, version: String) = {
       var pos = 0
       val (srcIdAndTgtId, srcIdAndTgtIdLen) = SourceAndTargetVertexIdPair.fromBytes(kv.row, pos, kv.row.length, version)

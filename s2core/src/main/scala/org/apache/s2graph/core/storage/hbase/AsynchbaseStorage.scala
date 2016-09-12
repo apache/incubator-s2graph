@@ -201,7 +201,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         val scanner = client.newScanner(label.hbaseTableName.getBytes)
         scanner.setFamily(edgeCf)
 
-        /**
+        /*
          * TODO: remove this part.
          */
         val indexEdgeOpt = edge.edgesWithIndex.filter(edgeWithIndex => edgeWithIndex.labelIndex.seq == queryParam.labelOrderSeq).headOption
@@ -221,7 +221,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
             }
             (_startKey, Bytes.add(baseKey, queryParam.columnRangeFilterMaxBytes))
           } else {
-            /**
+            /*
              * note: since propsToBytes encode size of property map at first byte, we are sure about max value here
              */
             val _startKey = queryParam.cursorOpt match {
