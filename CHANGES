@@ -19,7 +19,7 @@
 
  Change Log
 
-Release 0.12.1 - unreleased
+Release 0.1.0 - unreleased
 
   NEW FEATURES
     
@@ -39,6 +39,9 @@ Release 0.12.1 - unreleased
 
     S2GRAPH-60: Add divide operation to scorePropagateOp.
 		(Contributed by Junki Kim<wishoping@gmail.com>, committed by DOYUNG YOON).
+
+    S2GRAPH-12: Add Label Name Swap Feature.
+		(Contributed by Hyunsung Jo<hyunsung.jo@gmail.com>, committed by DOYUNG YOON).
 
   IMPROVEMENT
 
