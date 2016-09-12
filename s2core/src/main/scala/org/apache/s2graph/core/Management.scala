@@ -270,20 +270,33 @@ object Management extends JSONParser {
     props
   }
 
-
   /**
    * update label name.
    */
   def updateLabelName(oldLabelName: String, newLabelName: String) = {
-    for {
-      old <- Label.findByName(oldLabelName)
-    } {
-      Label.findByName(newLabelName) match {
-        case None =>
-          Label.updateName(oldLabelName, newLabelName)
-        case Some(_) =>
-        //          throw new RuntimeException(s"$newLabelName already exist")
+    Model withTx { implicit session =>
+      for {
+        old <- Label.findByName(oldLabelName, useCache = false)
+      } {
+        Label.findByName(newLabelName, useCache = false) match {
+          case None =>
+            Label.updateName(oldLabelName, newLabelName)
+          case Some(_) =>
+            throw new RuntimeException(s"$newLabelName already exist")
+        }
       }
+    }
+  }
+
+  /**
+   * swap label names.
+   */
+  def swapLabelNames(leftLabel: String, rightLabel: String) = {
+    Model withTx { implicit session =>
+      val tempLabel = "_" + leftLabel + "_"
+      Label.updateName(leftLabel, tempLabel)
+      Label.updateName(rightLabel, leftLabel)
+      Label.updateName(tempLabel, rightLabel)
     }
   }
 }
