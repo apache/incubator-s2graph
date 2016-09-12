@@ -71,6 +71,8 @@ The first three projects are for OLTP-style workloads, currently the main target
 Your First Graph
 ================
 
+Once S2Graph server is up, let's try out small toy example. `bin/example.sh` can be used to go through following example.
+ 
 As a toy problem, let's try to create the backend for a simple timeline of a new social network service. (Think of a simplified version of Facebook's Timeline. :stuck_out_tongue_winking_eye:)
 You will be able to manage "friends" and "posts" of a user with simple S2Graph queries.
 
