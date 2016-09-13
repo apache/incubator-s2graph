@@ -191,6 +191,9 @@ Release 0.1.0 - unreleased
     S2GRAPH-112: Additional refinements in README.md
 		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON).
 
+    S2GRAPH-111: typo fix: getServiceLable -> getServiceLabel
+		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON).
+
   TEST
     
     S2GRAPH-21: Change PostProcessBenchmarkSpec not to store and fetch test data from storage. (Committed by DOYUNG YOON).
