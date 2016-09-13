@@ -188,6 +188,8 @@ Release 0.1.0 - unreleased
 
     S2GRAPH-106: Remove warnings while package (Committed by DOYUNG YOON).
 
+    S2GRAPH-112: Additional refinements in README.md
+
   TEST
     
     S2GRAPH-21: Change PostProcessBenchmarkSpec not to store and fetch test data from storage. (Committed by DOYUNG YOON).
