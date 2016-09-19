@@ -27,18 +27,20 @@ libraryDependencies ++= Seq(
   "com.typesafe.play" %% "play-json" % Common.playVersion,
   "com.typesafe.akka" %% "akka-actor" % "2.3.4",
   "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
-  "org.apache.hbase" % "hbase-client" % Common.hbaseVersion exclude("org.slf4j", "*"),
-  "org.apache.hbase" % "hbase-common" % Common.hbaseVersion exclude("org.slf4j", "*"),
-  "org.apache.hbase" % "hbase-server" % Common.hbaseVersion exclude("org.slf4j", "*") exclude("com.google.protobuf", "*"),
-  "org.apache.hbase" % "hbase-hadoop-compat" % Common.hbaseVersion exclude("org.slf4j", "*"),
-  "org.apache.hbase" % "hbase-hadoop2-compat" % Common.hbaseVersion exclude("org.slf4j", "*"),
-  "org.apache.kafka" % "kafka-clients" % "0.8.2.0" exclude("org.slf4j", "*") exclude("com.sun.jdmk", "*") exclude("com.sun.jmx", "*") exclude("javax.jms", "*"),
+  "org.apache.hbase" % "hbase-client" % Common.hbaseVersion exclude("org.slf4j", "slf4j*"),
+  "org.apache.hbase" % "hbase-common" % Common.hbaseVersion exclude("org.slf4j", "slf4j*"),
+  "org.apache.hbase" % "hbase-server" % Common.hbaseVersion exclude("org.slf4j", "slf4j*") exclude("com.google.protobuf", "protobuf*"),
+  "org.apache.hbase" % "hbase-hadoop-compat" % Common.hbaseVersion exclude("org.slf4j", "slf4j*"),
+  "org.apache.hbase" % "hbase-hadoop2-compat" % Common.hbaseVersion exclude("org.slf4j", "slf4j*"),
+  "org.apache.kafka" % "kafka-clients" % "0.8.2.0" exclude("org.slf4j", "slf4j*") exclude("com.sun.jdmk", "j*") exclude("com.sun.jmx", "j*") exclude("javax.jms", "j*"),
   "commons-pool" % "commons-pool" % "1.6",
   "org.scalatest" %% "scalatest" % "2.2.4" % "test",
   "org.scalikejdbc" %% "scalikejdbc" % "2.1.+",
-  "mysql" % "mysql-connector-java" % "5.1.28",
   "com.h2database" % "h2" % "1.4.192",
-  "com.github.danielwegener" % "logback-kafka-appender" % "0.0.4"
+  "com.github.danielwegener" % "logback-kafka-appender" % "0.0.4",
+  "com.stumbleupon" % "async" % "1.4.1",
+  "io.netty" % "netty" % "3.9.4.Final" force(),
+  "org.hbase" % "asynchbase" % "1.7.2-S2GRAPH" from "https://github.com/SteamShon/asynchbase/raw/mvn-repo/org/hbase/asynchbase/1.7.2-S2GRAPH/asynchbase-1.7.2-S2GRAPH.jar"
 )
 
 libraryDependencies := {

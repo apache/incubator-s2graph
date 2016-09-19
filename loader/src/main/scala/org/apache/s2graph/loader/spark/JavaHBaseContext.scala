@@ -36,8 +36,8 @@ import scala.reflect.ClassTag
  * @param jsc    This is the JavaSparkContext that we will wrap
  * @param config This is the config information to out HBase cluster
  */
-class JavaHBaseContext(@transient jsc: JavaSparkContext,
-                       @transient config: Configuration) extends Serializable {
+class JavaHBaseContext(@transient private val jsc: JavaSparkContext,
+                       @transient private val config: Configuration) extends Serializable {
   val hbaseContext = new HBaseContext(jsc.sc, config)
 
   /**
@@ -78,7 +78,7 @@ class JavaHBaseContext(@transient jsc: JavaSparkContext,
   def foreachPartition[T](javaDstream: JavaDStream[T],
                           f: VoidFunction[(Iterator[T], Connection)]) = {
     hbaseContext.foreachPartition(javaDstream.dstream,
-      (it: Iterator[T], conn: Connection) => f.call(it, conn))
+      (it: Iterator[T], conn: Connection) => f.call((it, conn)))
   }
 
   /**
@@ -138,7 +138,7 @@ class JavaHBaseContext(@transient jsc: JavaSparkContext,
   JavaDStream[U] = {
     JavaDStream.fromDStream(hbaseContext.streamMapPartitions(javaDstream.dstream,
       (it: Iterator[T], conn: Connection) =>
-        mp.call(it, conn))(fakeClassTag[U]))(fakeClassTag[U])
+        mp.call((it, conn)))(fakeClassTag[U]))(fakeClassTag[U])
   }
 
   /**
@@ -307,7 +307,7 @@ class JavaHBaseContext(@transient jsc: JavaSparkContext,
       hbaseContext.hbaseRDD[U](tableName,
         scans,
         (v: (ImmutableBytesWritable, Result)) =>
-          f.call(v._1, v._2))(fakeClassTag[U]))(fakeClassTag[U])
+          f.call((v._1, v._2)))(fakeClassTag[U]))(fakeClassTag[U])
   }
 
   /**

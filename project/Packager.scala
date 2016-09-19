@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{FileVisitResult, Files, Path, Paths, SimpleFileVisitor, StandardCopyOption}
 
@@ -38,7 +57,7 @@ object Packager {
 
   val packagerTask = (baseDirectory, packagedJars, dependencyClasspath in Runtime, target, streams, version).map {
     (root, packaged, dependencies, target, streams, version) =>
-      val name = s"s2graph-$version-incubating-bin"
+      val name = s"apache-s2graph-$version-incubating-bin"
       val base = target / name
 
       IO.delete(base)
@@ -100,7 +119,7 @@ object Packager {
       {
         import scala.sys.process._
         streams.log.info(s"creating a tarball...")
-        s"tar zcf $base.tar.gz $base".!!
+        s"tar zcf $base.tar.gz -C $target $name".!!
         streams.log.info(s"Tarball is located at $base.tar.gz")
       }
 

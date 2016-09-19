@@ -241,7 +241,7 @@ object PostProcess extends JSONParser {
       }
     }
 
-    /** build result jsons */
+    /* build result jsons */
     for {
       queryRequestWithResult <- queryRequestWithResultLs
       (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
@@ -521,7 +521,6 @@ object PostProcess extends JSONParser {
     props.toMap
   }
 
-  @deprecated(message = "deprecated", since = "0.2")
   def propsToJson(edge: Edge) = {
     for {
       (seq, v) <- edge.propsWithTs if LabelMeta.isValidSeq(seq)
@@ -532,7 +531,6 @@ object PostProcess extends JSONParser {
     }
   }
 
-  @deprecated(message = "deprecated", since = "0.2")
   def summarizeWithListExclude(queryRequestWithResultLs: Seq[QueryRequestWithResult], exclude: Seq[QueryRequestWithResult]): JsObject = {
     val excludeIds = resultInnerIds(exclude).map(innerId => innerId -> true).toMap
 

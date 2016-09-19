@@ -19,7 +19,12 @@
 
 package org.apache.s2graph.rest.play.benchmark
 
+import com.typesafe.config.{ConfigFactory, Config}
+import org.apache.s2graph.core.{Management, Graph}
 import org.specs2.mutable.Specification
+import scalikejdbc.AutoSession
+
+import scala.concurrent.ExecutionContext
 
 trait BenchmarkCommon extends Specification {
   val wrapStr = s"\n=================================================="

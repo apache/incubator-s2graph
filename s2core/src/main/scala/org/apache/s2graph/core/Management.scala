@@ -167,7 +167,7 @@ object Management extends JSONParser {
     })
   }
 
-  def getServiceLable(label: String): Option[Label] = {
+  def getServiceLabel(label: String): Option[Label] = {
     Label.findByName(label, useCache = true)
   }
 
@@ -192,7 +192,7 @@ object Management extends JSONParser {
   def toEdge(ts: Long, operation: String, srcId: String, tgtId: String,
              labelStr: String, direction: String = "", props: String): Edge = {
 
-    val label = tryOption(labelStr, getServiceLable)
+    val label = tryOption(labelStr, getServiceLabel)
     val dir =
       if (direction == "")
 //        GraphUtil.toDirection(label.direction)
@@ -270,20 +270,33 @@ object Management extends JSONParser {
     props
   }
 
-
   /**
    * update label name.
    */
   def updateLabelName(oldLabelName: String, newLabelName: String) = {
-    for {
-      old <- Label.findByName(oldLabelName)
-    } {
-      Label.findByName(newLabelName) match {
-        case None =>
-          Label.updateName(oldLabelName, newLabelName)
-        case Some(_) =>
-        //          throw new RuntimeException(s"$newLabelName already exist")
+    Model withTx { implicit session =>
+      for {
+        old <- Label.findByName(oldLabelName, useCache = false)
+      } {
+        Label.findByName(newLabelName, useCache = false) match {
+          case None =>
+            Label.updateName(oldLabelName, newLabelName)
+          case Some(_) =>
+            throw new RuntimeException(s"$newLabelName already exist")
+        }
       }
+    }
+  }
+
+  /**
+   * swap label names.
+   */
+  def swapLabelNames(leftLabel: String, rightLabel: String) = {
+    Model withTx { implicit session =>
+      val tempLabel = "_" + leftLabel + "_"
+      Label.updateName(leftLabel, tempLabel)
+      Label.updateName(rightLabel, leftLabel)
+      Label.updateName(tempLabel, rightLabel)
     }
   }
 }
@@ -308,7 +321,7 @@ class Management(graph: Graph) {
 
     Model withTx { implicit session =>
       val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
-      /** create hbase table for service */
+      /* create hbase table for service */
       storage.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL, compressionAlgorithm)
       service
     }
@@ -340,14 +353,14 @@ class Management(graph: Graph) {
         case Some(l) =>
           throw new GraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
         case None =>
-          /** create all models */
+          /* create all models */
           val newLabel = Label.insertAll(label,
             srcServiceName, srcColumnName, srcColumnType,
             tgtServiceName, tgtColumnName, tgtColumnType,
             isDirected, serviceName, indices, props, consistencyLevel,
             hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm)
 
-          /** create hbase table */
+          /* create hbase table */
           val service = newLabel.service
           (hTableName, hTableTTL) match {
             case (None, None) => // do nothing

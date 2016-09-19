@@ -39,7 +39,7 @@ case class SKeyValue(table: Array[Byte],
   def toLogString = {
     Map("table" -> table.toList, "row" -> row.toList, "cf" -> Bytes.toString(cf),
       "qualifier" -> qualifier.toList, "value" -> value.toList, "timestamp" -> timestamp,
-      "operation" -> operation).toString
+      "operation" -> operation).mapValues(_.toString).toString
   }
   override def toString(): String = toLogString
 }

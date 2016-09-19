@@ -22,7 +22,7 @@ package org.apache.s2graph.rest.play.benchmark
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, SourceVertexId}
-import play.api.test.{FakeApplication, PlaySpecification}
+import play.api.test.PlaySpecification
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
@@ -65,68 +65,68 @@ class GraphUtilSpec extends BenchmarkCommon with PlaySpecification {
     }
 
     "test murmur hash skew2" in {
-      running(FakeApplication()) {
-        import HBaseType._
-        val testNum = 1000000L
-        val regionCount = 40
-        val window = Int.MaxValue / regionCount
-        val rangeBytes = new ListBuffer[(List[Byte], List[Byte])]()
-        for {
-          i <- (0 until regionCount)
-        } yield {
-          val startKey =  Bytes.toBytes(i * window)
-          val endKey = Bytes.toBytes((i + 1) * window)
-          rangeBytes += (startKey.toList -> endKey.toList)
-        }
 
-
-
-        val stats = new collection.mutable.HashMap[Int, ((List[Byte], List[Byte]), Long)]()
-        val counts = new collection.mutable.HashMap[Short, Long]()
-        stats += (0 -> (rangeBytes.head -> 0L))
-
-        for (i <- (0L until testNum)) {
-          val vertexId = SourceVertexId(DEFAULT_COL_ID, InnerVal.withLong(i, HBaseType.DEFAULT_VERSION))
-          val bytes = vertexId.bytes
-          val shortKey = GraphUtil.murmur3(vertexId.innerId.toIdString())
-          val shortVal = counts.getOrElse(shortKey, 0L) + 1L
-          counts += (shortKey -> shortVal)
-          var j = 0
-          var found = false
-          while (j < rangeBytes.size && !found) {
-            val (start, end) = rangeBytes(j)
-            if (between(bytes, start.toArray, end.toArray)) {
-              found = true
-            }
-            j += 1
-          }
-          val head = rangeBytes(j - 1)
-          val key = j - 1
-          val value = stats.get(key) match {
-            case None => 0L
-            case Some(v) => v._2 + 1
-          }
-          stats += (key -> (head, value))
-        }
-        val sorted = stats.toList.sortBy(kv => kv._2._2).reverse
-        println(s"Index: StartBytes ~ EndBytes\tStartShortBytes ~ EndShortBytes\tStartShort ~ EndShort\tCount\tShortCount")
-        sorted.foreach { case (idx, ((start, end), cnt)) =>
-          val startShort = Bytes.toShort(start.take(2).toArray)
-          val endShort = Bytes.toShort(end.take(2).toArray)
-          val count = counts.count(t => startShort <= t._1 && t._1 < endShort)
-          println(s"$idx: $start ~ $end\t${start.take(2)} ~ ${end.take(2)}\t$startShort ~ $endShort\t$cnt\t$count")
-
-        }
-        println("\n" * 10)
-        println(s"Index: StartBytes ~ EndBytes\tStartShortBytes ~ EndShortBytes\tStartShort ~ EndShort\tCount\tShortCount")
-        stats.toList.sortBy(kv => kv._1).reverse.foreach { case (idx, ((start, end), cnt)) =>
-          val startShort = Bytes.toShort(start.take(2).toArray)
-          val endShort = Bytes.toShort(end.take(2).toArray)
-          val count = counts.count(t => startShort <= t._1 && t._1 < endShort)
-          println(s"$idx: $start ~ $end\t${start.take(2)} ~ ${end.take(2)}\t$startShort ~ $endShort\t$cnt\t$count")
-
-        }
+      import HBaseType._
+      val testNum = 1000000L
+      val regionCount = 40
+      val window = Int.MaxValue / regionCount
+      val rangeBytes = new ListBuffer[(List[Byte], List[Byte])]()
+      for {
+        i <- (0 until regionCount)
+      } yield {
+        val startKey = Bytes.toBytes(i * window)
+        val endKey = Bytes.toBytes((i + 1) * window)
+        rangeBytes += (startKey.toList -> endKey.toList)
       }
+
+
+
+      val stats = new collection.mutable.HashMap[Int, ((List[Byte], List[Byte]), Long)]()
+      val counts = new collection.mutable.HashMap[Short, Long]()
+      stats += (0 -> (rangeBytes.head -> 0L))
+
+      for (i <- (0L until testNum)) {
+        val vertexId = SourceVertexId(DEFAULT_COL_ID, InnerVal.withLong(i, HBaseType.DEFAULT_VERSION))
+        val bytes = vertexId.bytes
+        val shortKey = GraphUtil.murmur3(vertexId.innerId.toIdString())
+        val shortVal = counts.getOrElse(shortKey, 0L) + 1L
+        counts += (shortKey -> shortVal)
+        var j = 0
+        var found = false
+        while (j < rangeBytes.size && !found) {
+          val (start, end) = rangeBytes(j)
+          if (between(bytes, start.toArray, end.toArray)) {
+            found = true
+          }
+          j += 1
+        }
+        val head = rangeBytes(j - 1)
+        val key = j - 1
+        val value = stats.get(key) match {
+          case None => 0L
+          case Some(v) => v._2 + 1
+        }
+        stats += (key ->(head, value))
+      }
+      val sorted = stats.toList.sortBy(kv => kv._2._2).reverse
+      println(s"Index: StartBytes ~ EndBytes\tStartShortBytes ~ EndShortBytes\tStartShort ~ EndShort\tCount\tShortCount")
+      sorted.foreach { case (idx, ((start, end), cnt)) =>
+        val startShort = Bytes.toShort(start.take(2).toArray)
+        val endShort = Bytes.toShort(end.take(2).toArray)
+        val count = counts.count(t => startShort <= t._1 && t._1 < endShort)
+        println(s"$idx: $start ~ $end\t${start.take(2)} ~ ${end.take(2)}\t$startShort ~ $endShort\t$cnt\t$count")
+
+      }
+      println("\n" * 10)
+      println(s"Index: StartBytes ~ EndBytes\tStartShortBytes ~ EndShortBytes\tStartShort ~ EndShort\tCount\tShortCount")
+      stats.toList.sortBy(kv => kv._1).reverse.foreach { case (idx, ((start, end), cnt)) =>
+        val startShort = Bytes.toShort(start.take(2).toArray)
+        val endShort = Bytes.toShort(end.take(2).toArray)
+        val count = counts.count(t => startShort <= t._1 && t._1 < endShort)
+        println(s"$idx: $start ~ $end\t${start.take(2)} ~ ${end.take(2)}\t$startShort ~ $endShort\t$cnt\t$count")
+
+      }
+
       true
     }
 

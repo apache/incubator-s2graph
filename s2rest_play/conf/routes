@@ -96,6 +96,7 @@ POST        /graphs/createHTable                                          org.ap
 GET         /admin/labels/:serviceName                                    org.apache.s2graph.rest.play.controllers.AdminController.getLabels(serviceName)
 POST        /graphs/copyLabel/:oldLabelName/:newLabelName                 org.apache.s2graph.rest.play.controllers.AdminController.copyLabel(oldLabelName, newLabelName)
 POST        /graphs/renameLabel/:oldLabelName/:newLabelName               org.apache.s2graph.rest.play.controllers.AdminController.renameLabel(oldLabelName, newLabelName)
+POST        /graphs/swapLabels/:leftLabelName/:rightLabelName             org.apache.s2graph.rest.play.controllers.AdminController.swapLabels(leftLabelName, rightLabelName)
 POST        /graphs/updateHTable/:labelName/:newHTableName                org.apache.s2graph.rest.play.controllers.AdminController.updateHTable(labelName, newHTableName)
 PUT         /graphs/loadCache                                             org.apache.s2graph.rest.play.controllers.AdminController.loadCache()
 

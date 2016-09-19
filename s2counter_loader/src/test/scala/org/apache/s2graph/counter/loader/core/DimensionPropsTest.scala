@@ -23,9 +23,6 @@ import org.scalatest.{FunSuite, Matchers}
 
 import scala.collection.mutable.ListBuffer
 
-/**
- * Created by hsleep(honeysleep@gmail.com) on 2015. 10. 7..
- */
 class DimensionPropsTest extends FunSuite with Matchers {
   test("makeRequestBody with Seq") {
     val requestBody =

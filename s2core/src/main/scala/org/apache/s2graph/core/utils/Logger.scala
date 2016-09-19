@@ -50,6 +50,9 @@ object logger {
 
   private val logger = LoggerFactory.getLogger("application")
   private val errorLogger = LoggerFactory.getLogger("error")
+  private val metricLogger = LoggerFactory.getLogger("metrics")
+
+  def metric[T: Loggable](msg: => T) = metricLogger.info(implicitly[Loggable[T]].toLogMessage(msg))
 
   def info[T: Loggable](msg: => T) = logger.info(implicitly[Loggable[T]].toLogMessage(msg))
 

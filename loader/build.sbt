@@ -24,7 +24,7 @@ name := "s2loader"
 scalacOptions ++= Seq("-deprecation")
 
 projectDependencies := Seq(
-  (projectID in "s2core").value exclude("org.mortbay.jetty", "*") exclude("javax.xml.stream", "*") exclude("javax.servlet", "*")
+  (projectID in "s2core").value exclude("org.mortbay.jetty", "j*") exclude("javax.xml.stream", "s*") exclude("javax.servlet", "s*") exclude("javax.servlet", "j*")
 )
 
 libraryDependencies ++= Seq(
@@ -56,3 +56,5 @@ excludedJars in assembly := {
 test in assembly := {}
 
 parallelExecution in Test := false
+
+mainClass in (Compile) := None

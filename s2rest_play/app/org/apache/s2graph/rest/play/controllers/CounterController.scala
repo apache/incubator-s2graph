@@ -334,7 +334,7 @@ object CounterController extends Controller {
     }
   }
 
-  /**
+  /*
    * [{
    *    "service": , "action", "itemIds": [], "interval": string, "limit": int, "from": ts, "to": ts,
    *    "dimensions": [{"key": list[String]}]
@@ -720,7 +720,7 @@ object CounterController extends Controller {
 
   def incrementCount(service: String, action: String, item: String) = Action.async(s2parse.json) { request =>
     Future {
-      /**
+      /*
        * {
        * timestamp: Long
        * property: {}
