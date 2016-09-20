@@ -194,6 +194,8 @@ Release 0.1.0 - unreleased
     S2GRAPH-111: typo fix: getServiceLable -> getServiceLabel
 		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON).
 
+    S2GRAPH-114: `MethodNotSupportedException` class in s2counter_core project miss license header (Committed by DOYUNG YOON).
+    
   TEST
     
     S2GRAPH-21: Change PostProcessBenchmarkSpec not to store and fetch test data from storage. (Committed by DOYUNG YOON).
