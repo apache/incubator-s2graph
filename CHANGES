@@ -193,6 +193,8 @@ Release 0.1.0 - unreleased
 
     S2GRAPH-111: typo fix: getServiceLable -> getServiceLabel
 		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON).
+	
+    S2GRAPH-110: Add more committer's public key to KEYS file (Committed by DOYUNG YOON).
 
     S2GRAPH-113: Add license header on `bin/example.sh` (Committed by DOYUNG YOON).
      
