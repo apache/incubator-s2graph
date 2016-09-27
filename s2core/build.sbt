@@ -40,7 +40,8 @@ libraryDependencies ++= Seq(
   "com.github.danielwegener" % "logback-kafka-appender" % "0.0.4",
   "com.stumbleupon" % "async" % "1.4.1",
   "io.netty" % "netty" % "3.9.4.Final" force(),
-  "org.hbase" % "asynchbase" % "1.7.2-S2GRAPH" from "https://github.com/SteamShon/asynchbase/raw/mvn-repo/org/hbase/asynchbase/1.7.2-S2GRAPH/asynchbase-1.7.2-S2GRAPH.jar"
+  "org.hbase" % "asynchbase" % "1.7.2",
+  "net.bytebuddy" % "byte-buddy" % "1.4.26"
 )
 
 libraryDependencies := {

@@ -37,6 +37,7 @@ import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.types.{HBaseType, VertexId}
 import org.apache.s2graph.core.utils._
+import org.hbase.async.FilterList.Operator.MUST_PASS_ALL
 import org.hbase.async._
 
 import scala.collection.JavaConversions._
@@ -51,6 +52,7 @@ object AsynchbaseStorage {
   val edgeCf = Serializable.edgeCf
   val emptyKVs = new util.ArrayList[KeyValue]()
 
+  AsynchbasePatcher.init()
 
   def makeClient(config: Config, overrideKv: (String, String)*) = {
     val asyncConfig: org.hbase.async.Config =
@@ -198,13 +200,13 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
 
     label.schemaVersion match {
       case HBaseType.VERSION4 if queryParam.tgtVertexInnerIdOpt.isEmpty =>
-        val scanner = client.newScanner(label.hbaseTableName.getBytes)
+        val scanner = AsynchbasePatcher.newScanner(client, label.hbaseTableName)
         scanner.setFamily(edgeCf)
 
         /*
          * TODO: remove this part.
          */
-        val indexEdgeOpt = edge.edgesWithIndex.filter(edgeWithIndex => edgeWithIndex.labelIndex.seq == queryParam.labelOrderSeq).headOption
+        val indexEdgeOpt = edge.edgesWithIndex.find(edgeWithIndex => edgeWithIndex.labelIndex.seq == queryParam.labelOrderSeq)
         val indexEdge = indexEdgeOpt.getOrElse(throw new RuntimeException(s"Can`t find index for query $queryParam"))
 
         val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes
@@ -246,19 +248,20 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         // SET option for this rpc properly.
         scanner
       case _ =>
-        val get =
-          if (queryParam.tgtVertexInnerIdOpt.isDefined) new GetRequest(label.hbaseTableName.getBytes, rowKey, edgeCf, qualifier)
-          else new GetRequest(label.hbaseTableName.getBytes, rowKey, edgeCf)
+        val get = if (queryParam.tgtVertexInnerIdOpt.isDefined) {
+          new GetRequest(label.hbaseTableName.getBytes, rowKey, edgeCf, qualifier)
+        } else {
+          new GetRequest(label.hbaseTableName.getBytes, rowKey, edgeCf)
+        }
 
         get.maxVersions(1)
         get.setFailfast(true)
-        get.setMaxResultsPerColumnFamily(queryParam.limit)
-        get.setRowOffsetPerColumnFamily(queryParam.offset)
         get.setMinTimestamp(minTs)
         get.setMaxTimestamp(maxTs)
         get.setTimeout(queryParam.rpcTimeoutInMillis)
 
-        if (queryParam.columnRangeFilter != null) get.setFilter(queryParam.columnRangeFilter)
+        val pagination = new ColumnPaginationFilter(queryParam.limit, queryParam.offset)
+        get.setFilter(new FilterList(pagination +: Option(queryParam.columnRangeFilter).toSeq, MUST_PASS_ALL))
 
         get
     }
