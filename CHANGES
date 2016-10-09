@@ -107,6 +107,8 @@ Release 0.1.0 - unreleased
     S2GRAPH-65: Deferred produce exception (Committed by DOYUNG YOON).
 
     S2GRAPH-64: incrementCounts yield type case exception (Committed by DOYUNG YOON).
+  
+    S2GRAPH-118: Fix compile error on test cases on loader project (Committed by DOYUNG YOON).
 
   TASKS
 
