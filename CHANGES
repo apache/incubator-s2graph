@@ -82,6 +82,8 @@ Release 0.1.0 - unreleased
     S2GRAPH-116: using ASM and ByteBuddy to add a proxy to Asynchbase's Scanner.
 		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
 
+    S2GRAPH-117: Cleaner logging library usage.
+		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
 
   BUG FIXES
 
