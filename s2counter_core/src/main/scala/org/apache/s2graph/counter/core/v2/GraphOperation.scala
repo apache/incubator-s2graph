@@ -19,9 +19,13 @@
 
 package org.apache.s2graph.counter.core.v2
 
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
 import com.typesafe.config.Config
 import org.apache.http.HttpStatus
 import org.apache.s2graph.counter.config.S2CounterConfig
+import org.apache.s2graph.counter.core.v2.ExactStorageGraph._
+import org.asynchttpclient.DefaultAsyncHttpClientConfig
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{JsObject, JsValue, Json}
 import scala.concurrent.Await
@@ -29,7 +33,8 @@ import scala.concurrent.duration._
 
 class GraphOperation(config: Config) {
   // using play-ws without play app
-  private val builder = new com.ning.http.client.AsyncHttpClientConfig.Builder()
+  implicit val materializer = ActorMaterializer.create(ActorSystem(getClass.getSimpleName))
+  private val builder = new DefaultAsyncHttpClientConfig.Builder()
   private val wsClient = new play.api.libs.ws.ning.NingWSClient(builder.build)
   private val s2config = new S2CounterConfig(config)
   val s2graphUrl = s2config.GRAPH_URL

@@ -21,7 +21,7 @@ import sbt._
 
 object Common {
   val sparkVersion = "1.4.1"
-  val playVersion = "2.4.8"
+  val playVersion = "2.5.9"
 
   val hbaseVersion = "1.2.2"
   val hadoopVersion = "2.7.3"

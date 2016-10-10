@@ -19,9 +19,11 @@
 
 package org.apache.s2graph.rest.play.controllers
 
+import akka.util.ByteString
 import org.apache.s2graph.core.GraphExceptions.BadQueryException
 import org.apache.s2graph.core.PostProcess
 import org.apache.s2graph.core.utils.logger
+import play.api.http.HttpEntity
 import play.api.libs.iteratee.Enumerator
 import play.api.libs.json.{JsString, JsValue}
 import play.api.mvc._
@@ -69,8 +71,7 @@ object ApplicationController extends Controller {
     } else {
       Result(
         header = ResponseHeader(OK),
-        body = Enumerator(json.toString.getBytes()),
-        connection = HttpConnection.Close
+        body = HttpEntity.Strict(ByteString(json.toString.getBytes()), Some(applicationJsonHeader))
       ).as(applicationJsonHeader).withHeaders((CONNECTION -> "close") +: headers: _*)
     }
 

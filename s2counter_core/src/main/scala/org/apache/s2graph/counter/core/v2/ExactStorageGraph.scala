@@ -19,6 +19,8 @@
 
 package org.apache.s2graph.counter.core.v2
 
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
 import com.typesafe.config.Config
 import org.apache.http.HttpStatus
 import org.apache.s2graph.core.mysqls.Label
@@ -28,6 +30,7 @@ import org.apache.s2graph.counter.core.ExactCounter.ExactValueMap
 import org.apache.s2graph.counter.core._
 import org.apache.s2graph.counter.models.Counter
 import org.apache.s2graph.counter.util.CartesianProduct
+import org.asynchttpclient.DefaultAsyncHttpClientConfig
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 import scala.concurrent.duration._
@@ -38,7 +41,8 @@ object ExactStorageGraph {
   implicit val respGraphFormat = Json.format[RespGraph]
 
   // using play-ws without play app
-  private val builder = new com.ning.http.client.AsyncHttpClientConfig.Builder()
+  implicit val materializer = ActorMaterializer.create(ActorSystem(getClass.getSimpleName))
+  private val builder = new DefaultAsyncHttpClientConfig.Builder()
   private val wsClient = new play.api.libs.ws.ning.NingWSClient(builder.build)
 }
 

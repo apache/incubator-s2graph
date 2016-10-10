@@ -19,7 +19,7 @@
 
 // use the Play sbt plugin for Play projects
 
-addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.4.8")
+addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.5.9")
 
 // http://www.scalastyle.org/sbt.html
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "0.7.0")

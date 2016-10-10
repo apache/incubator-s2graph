@@ -19,15 +19,19 @@
 
 package org.apache.s2graph.counter.core.v2
 
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
 import com.typesafe.config.Config
 import org.apache.commons.httpclient.HttpStatus
 import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.core.RankingCounter.RankingValueMap
+import org.apache.s2graph.counter.core.v2.ExactStorageGraph._
 import org.apache.s2graph.counter.core.{RankingResult, RankingKey, RankingStorage}
 import org.apache.s2graph.counter.models.{Counter, CounterModel}
 import org.apache.s2graph.counter.util.{CollectionCacheConfig, CollectionCache}
+import org.asynchttpclient.DefaultAsyncHttpClientConfig
 import org.slf4j.LoggerFactory
 import play.api.libs.json.{JsObject, JsString, JsValue, Json}
 import scala.concurrent.duration._
@@ -36,7 +40,8 @@ import scala.util.hashing.MurmurHash3
 
 object RankingStorageGraph {
   // using play-ws without play app
-  private val builder = new com.ning.http.client.AsyncHttpClientConfig.Builder()
+  implicit val materializer = ActorMaterializer.create(ActorSystem(getClass.getSimpleName))
+  private val builder = new DefaultAsyncHttpClientConfig.Builder()
   private val wsClient = new play.api.libs.ws.ning.NingWSClient(builder.build)
 }
 

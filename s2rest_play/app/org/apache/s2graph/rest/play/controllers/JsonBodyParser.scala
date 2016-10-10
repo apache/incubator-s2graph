@@ -19,10 +19,12 @@
 
 package org.apache.s2graph.rest.play.controllers
 
+import akka.util.ByteString
 import org.apache.s2graph.core.utils.logger
 import play.api.Play
 import play.api.libs.iteratee.Iteratee
 import play.api.libs.json.{JsValue, Json}
+import play.api.libs.streams.Streams
 import play.api.mvc._
 
 import scala.concurrent.Future
@@ -50,9 +52,11 @@ object s2parse extends BodyParsers {
     import play.api.libs.iteratee.Execution.Implicits.trampoline
     import play.api.libs.iteratee.Traversable
 
-    Traversable.takeUpTo[Array[Byte]](maxLength)
-      .transform(Iteratee.consume[Array[Byte]]().map(c => new String(c, "UTF-8")))
+    val iteratee = Traversable.takeUpTo[ByteString](maxLength)
+      .transform(Iteratee.consume[ByteString]().map(_.utf8String))
       .flatMap(Iteratee.eofOrElse(Results.EntityTooLarge))
+
+    Streams.iterateeToAccumulator(iteratee)
   }
 
   def json(maxLength: Int): BodyParser[JsValue] = when(
@@ -76,14 +80,14 @@ object s2parse extends BodyParsers {
 
       import scala.util.control.Exception._
 
-      val bodyParser: Iteratee[Array[Byte], Either[Result, Either[Future[Result], A]]] =
-        Traversable.takeUpTo[Array[Byte]](maxLength).transform(
-          Iteratee.consume[Array[Byte]]().map { bytes =>
+      val bodyParser: Iteratee[ByteString, Either[Result, Either[Future[Result], A]]] =
+        Traversable.takeUpTo[ByteString](maxLength).transform(
+          Iteratee.consume[ByteString]().map { bytes =>
             allCatch[A].either {
-              parser(request, bytes)
+              parser(request, bytes.toByteBuffer.array())
             }.left.map {
               case NonFatal(e) =>
-                val txt = new String(bytes)
+                val txt = bytes.utf8String
                 logger.error(s"$errorMessage: $txt", e)
                 createBadResult(s"$errorMessage: $e")(request)
               case t => throw t
@@ -91,7 +95,7 @@ object s2parse extends BodyParsers {
           }
         ).flatMap(Iteratee.eofOrElse(Results.EntityTooLarge))
 
-      bodyParser.mapM {
+      Streams.iterateeToAccumulator(bodyParser).mapFuture {
         case Left(tooLarge) => Future.successful(Left(tooLarge))
         case Right(Left(badResult)) => badResult.map(Left.apply)
         case Right(Right(body)) => Future.successful(Right(body))

@@ -16,17 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import Common._
 
-name := "s2rest_play"
+package org.apache.s2graph.rest
 
-scalacOptions in Test ++= Seq("-Yrangepos")
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
 
-libraryDependencies := loggingRuntime ++ (libraryDependencies.value ++ Seq(ws, filters, specs2 % Test)).map(_.excludeLogging()) ++ Seq(
-  "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
-  "org.specs2" %% "specs2-core" % "3.8.5" % "test"
-)
-
-routesGenerator := StaticRoutesGenerator
-
-enablePlugins(JavaServerAppPackaging)
+package object play {
+  implicit val actorSystem = ActorSystem("s2graph")
+  implicit val materializer = ActorMaterializer.create(actorSystem)
+}

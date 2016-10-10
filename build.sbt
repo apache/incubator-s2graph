@@ -38,7 +38,7 @@ lazy val commonSettings = Seq(
 
 Revolver.settings
 
-lazy val s2rest_play = project.enablePlugins(PlayScala)
+lazy val s2rest_play = project.enablePlugins(PlayScala).disablePlugins(PlayLogback)
   .dependsOn(s2core, s2counter_core)
   .settings(commonSettings: _*)
   .settings(testOptions in Test += Tests.Argument("sequential"))

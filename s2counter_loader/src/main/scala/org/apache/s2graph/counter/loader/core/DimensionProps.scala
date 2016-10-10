@@ -19,11 +19,14 @@
 
 package org.apache.s2graph.counter.loader.core
 
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
 import org.apache.commons.httpclient.HttpStatus
 import org.apache.s2graph.core.mysqls.{Bucket, Experiment, Service}
 import org.apache.s2graph.counter.loader.config.StreamingConfig
 import org.apache.s2graph.counter.models.Counter
 import org.apache.s2graph.counter.util.{RetryAsync, CollectionCache, CollectionCacheConfig}
+import org.asynchttpclient.DefaultAsyncHttpClientConfig
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 import scala.annotation.tailrec
@@ -34,7 +37,8 @@ import scala.util.Try
 
 object DimensionProps {
   // using play-ws without play app
-  private val builder = new com.ning.http.client.AsyncHttpClientConfig.Builder()
+  implicit val materializer = ActorMaterializer.create(ActorSystem(getClass.getSimpleName))
+  private val builder = new DefaultAsyncHttpClientConfig.Builder()
   private val client = new play.api.libs.ws.ning.NingWSClient(builder.build)
   private val log = LoggerFactory.getLogger(this.getClass)
 
