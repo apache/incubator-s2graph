@@ -17,14 +17,12 @@
  * under the License.
  */
 
-package org.apache.s2graph.rest.play.benchmark
-
-import play.api.test.{FakeApplication, PlaySpecification, WithApplication}
+package org.apache.s2graph.core.benchmark
 
 import scala.annotation.tailrec
 import scala.util.Random
 
-class SamplingBenchmarkSpec extends BenchmarkCommon with PlaySpecification {
+class SamplingBenchmarkSpec extends BenchmarkCommon {
   "sample" should {
 
     "sample benchmark" in {

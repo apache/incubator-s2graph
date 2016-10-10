@@ -31,6 +31,7 @@ lazy val commonSettings = Seq(
   testOptions in Test += Tests.Argument("-oDF"),
   concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
   parallelExecution in Test := false,
+  libraryDependencies ++= Common.loggingRuntime,
   resolvers ++= Seq(
     Resolver.mavenLocal
   )

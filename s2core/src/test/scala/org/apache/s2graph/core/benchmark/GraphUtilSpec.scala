@@ -17,17 +17,16 @@
  * under the License.
  */
 
-package org.apache.s2graph.rest.play.benchmark
+package org.apache.s2graph.core.benchmark
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, SourceVertexId}
-import play.api.test.PlaySpecification
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
-class GraphUtilSpec extends BenchmarkCommon with PlaySpecification {
+class GraphUtilSpec extends BenchmarkCommon {
 
   def between(bytes: Array[Byte], startKey: Array[Byte], endKey: Array[Byte]): Boolean =
     Bytes.compareTo(startKey, bytes) <= 0 && Bytes.compareTo(endKey, bytes) >= 0

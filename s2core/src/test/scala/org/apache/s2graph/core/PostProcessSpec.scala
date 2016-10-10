@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.apache.s2graph.rest.play.controllers
+package org.apache.s2graph.core
 
-import org.apache.s2graph.core.{OrderingUtil, SeqMultiOrdering}
+import org.specs2.mutable.Specification
 import play.api.libs.json.{JsNumber, JsString, JsValue}
-import play.api.test.PlaySpecification
 
-class PostProcessSpec extends PlaySpecification {
+class PostProcessSpec extends Specification {
   import OrderingUtil._
 
   "test order by json" >> {

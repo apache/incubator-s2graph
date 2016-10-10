@@ -22,6 +22,7 @@ import sbt._
 object Common {
   val sparkVersion = "1.4.1"
   val playVersion = "2.5.9"
+  val specs2Version = "3.8.5"
 
   val hbaseVersion = "1.2.2"
   val hadoopVersion = "2.7.3"
@@ -32,7 +33,7 @@ object Common {
     "org.slf4j" % "slf4j-log4j12" % "1.7.21",
     "org.slf4j" % "jcl-over-slf4j" % "1.7.21",
     "org.slf4j" % "jul-to-slf4j" % "1.7.21"
-  ).map(_ % "runtime")
+  ).flatMap(dep => Seq(dep % "test", dep % "runtime"))
 
   /** rules to exclude logging backends and bridging libraries from dependency */
   val loggingExcludes = Seq(

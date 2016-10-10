@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.rest.play.benchmark
+package org.apache.s2graph.core.benchmark
 
 import play.api.libs.json.JsNumber
 import play.libs.Json

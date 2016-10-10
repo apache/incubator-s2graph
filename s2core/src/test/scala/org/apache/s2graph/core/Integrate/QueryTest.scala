@@ -54,16 +54,16 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
         """)
 
     var edges = getEdgesSync(queryWithInterval(0, index2, "_timestamp", 1000, 1001)) // test interval on timestamp index
-    (edges \ "size").toString should be("1")
+    (edges \ "size").get.toString should be("1")
 
     edges = getEdgesSync(queryWithInterval(0, index2, "_timestamp", 1000, 2000)) // test interval on timestamp index
-    (edges \ "size").toString should be("2")
+    (edges \ "size").get.toString should be("2")
 
     edges = getEdgesSync(queryWithInterval(2, index1, "weight", 10, 11)) // test interval on weight index
-    (edges \ "size").toString should be("1")
+    (edges \ "size").get.toString should be("1")
 
     edges = getEdgesSync(queryWithInterval(2, index1, "weight", 10, 20)) // test interval on weight index
-    (edges \ "size").toString should be("2")
+    (edges \ "size").get.toString should be("2")
   }
 
   test("get edge with where condition") {
@@ -604,7 +604,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     logger.debug(Json.prettyPrint(rs))
     val results = (rs \ "results").as[List[JsValue]]
     results.size should be(1)
-    (results(0) \ "to").toString should be("555")
+    (results(0) \ "to").get.toString should be("555")
   }
 
 

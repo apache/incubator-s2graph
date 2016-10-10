@@ -223,7 +223,7 @@ class CrudTest extends IntegrateCommon {
 
             for ((key, expectedVal) <- expected) {
               propsLs.last.as[JsObject].keys.contains(key) should be(true)
-              (propsLs.last \ key).toString should be(expectedVal)
+              (propsLs.last \ key).get.toString should be(expectedVal)
             }
           }
         }

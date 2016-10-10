@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.rest.play.benchmark
+package org.apache.s2graph.core.benchmark
 
 import com.typesafe.config.{ConfigFactory, Config}
 import org.apache.s2graph.core.{Management, Graph}

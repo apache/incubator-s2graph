@@ -25,11 +25,11 @@ scalacOptions ++= Seq("-feature", "-deprecation", "-language:existentials")
 
 scalacOptions in Test ++= Seq("-Yrangepos")
 
-libraryDependencies ++= loggingRuntime ++ Seq(
+libraryDependencies ++= Seq(
   "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
   "com.typesafe.play" %% "play-ws" % playVersion excludeLogging(),
   "org.apache.hadoop" % "hadoop-common" % hadoopVersion excludeLogging,
   "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion excludeLogging,
   "redis.clients" % "jedis" % "2.6.0",
-  "org.specs2" %% "specs2-core" % "3.8.5" % "test"
+  "org.specs2" %% "specs2-core" % specs2Version % "test"
 )

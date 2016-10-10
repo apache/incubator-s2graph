@@ -23,7 +23,7 @@ name := """s2core"""
 
 scalacOptions ++= Seq("-deprecation")
 
-libraryDependencies ++= loggingRuntime ++ Seq(
+libraryDependencies ++= Seq(
   "org.slf4j" % "slf4j-api" % "1.7.21",
   "com.typesafe" % "config" % "1.2.1",
   "com.typesafe.play" %% "play-json" % playVersion,
@@ -34,15 +34,17 @@ libraryDependencies ++= loggingRuntime ++ Seq(
   "org.apache.hbase" % "hbase-server" % hbaseVersion excludeLogging() exclude("com.google.protobuf", "protobuf*"),
   "org.apache.hbase" % "hbase-hadoop-compat" % hbaseVersion excludeLogging(),
   "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion excludeLogging(),
-  "org.apache.kafka" % "kafka-clients" % "0.8.2.0" excludeAll(loggingExcludes: _*) exclude("com.sun.jdmk", "j*") exclude("com.sun.jmx", "j*") exclude("javax.jms", "j*"),
+  "org.apache.kafka" % "kafka-clients" % "0.8.2.0" excludeLogging() exclude("com.sun.jdmk", "j*") exclude("com.sun.jmx", "j*") exclude("javax.jms", "j*"),
   "commons-pool" % "commons-pool" % "1.6",
-  "org.scalatest" %% "scalatest" % "2.2.4" % "test",
   "org.scalikejdbc" %% "scalikejdbc" % "2.1.4",
   "com.h2database" % "h2" % "1.4.192",
   "com.stumbleupon" % "async" % "1.4.1",
   "io.netty" % "netty" % "3.9.4.Final" force(),
   "org.hbase" % "asynchbase" % "1.7.2" excludeLogging(),
-  "net.bytebuddy" % "byte-buddy" % "1.4.26"
+  "net.bytebuddy" % "byte-buddy" % "1.4.26",
+
+  "org.scalatest" %% "scalatest" % "2.2.4" % "test",
+  "org.specs2" %% "specs2-core" % specs2Version % "test"
 )
 
 libraryDependencies := {

@@ -35,7 +35,7 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-hive" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-streaming-kafka" % sparkVersion,
   "org.apache.httpcomponents" % "fluent-hc" % "4.2.5",
-  "org.specs2" %% "specs2-core" % "2.4.11" % "test",
+  "org.specs2" %% "specs2-core" % specs2Version % "test",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test",
   "org.apache.hadoop" % "hadoop-distcp" % hadoopVersion
 )
