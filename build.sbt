@@ -31,10 +31,6 @@ lazy val commonSettings = Seq(
   testOptions in Test += Tests.Argument("-oDF"),
   concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
   parallelExecution in Test := false,
-  libraryDependencies ++= Seq(
-    "org.scalaz.stream" % "scalaz-stream_2.11" % "0.7.2",
-    "com.typesafe.netty" % "netty-http-pipelining" % "1.1.4"
-  ),
   resolvers ++= Seq(
     Resolver.mavenLocal
   )

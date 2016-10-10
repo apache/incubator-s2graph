@@ -18,6 +18,7 @@
  */
 
 import sbtassembly.Plugin.AssemblyKeys._
+import Common._
 
 name := "s2loader"
 
@@ -29,14 +30,14 @@ projectDependencies := Seq(
 
 libraryDependencies ++= Seq(
   "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
-  "org.apache.spark" %% "spark-core" % Common.sparkVersion % "provided",
-  "org.apache.spark" %% "spark-streaming" % Common.sparkVersion % "provided",
-  "org.apache.spark" %% "spark-hive" % Common.sparkVersion % "provided",
-  "org.apache.spark" %% "spark-streaming-kafka" % Common.sparkVersion,
+  "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
+  "org.apache.spark" %% "spark-streaming" % sparkVersion % "provided",
+  "org.apache.spark" %% "spark-hive" % sparkVersion % "provided",
+  "org.apache.spark" %% "spark-streaming-kafka" % sparkVersion,
   "org.apache.httpcomponents" % "fluent-hc" % "4.2.5",
   "org.specs2" %% "specs2-core" % "2.4.11" % "test",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test",
-  "org.apache.hadoop" % "hadoop-distcp" % Common.hadoopVersion
+  "org.apache.hadoop" % "hadoop-distcp" % hadoopVersion
 )
 
 crossScalaVersions := Seq("2.10.6")

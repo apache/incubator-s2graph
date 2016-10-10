@@ -16,12 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+import Common._
 
 name := "s2rest_netty"
 
 enablePlugins(JavaAppPackaging)
 
-libraryDependencies ++= Seq(
+libraryDependencies ++= loggingRuntime ++ Seq(
   "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
   "io.netty" % "netty-all" % "4.0.33.Final"
 )

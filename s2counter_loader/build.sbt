@@ -28,7 +28,6 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % Common.sparkVersion % "provided",
   "org.apache.spark" %% "spark-streaming" % Common.sparkVersion % "provided",
   "org.apache.spark" %% "spark-streaming-kafka" % Common.sparkVersion,
-  "com.typesafe.play" %% "play-ws" % Common.playVersion,
   "javax.servlet" % "javax.servlet-api" % "3.0.1" % "test",
   "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 )

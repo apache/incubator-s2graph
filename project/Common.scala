@@ -17,13 +17,35 @@
  * under the License.
  */
 
-object Common {
-  //  lazy val sparkVersion = "1.4.1-cdh5.3.3"
-  lazy val sparkVersion = "1.4.1"
-  lazy val playVersion = "2.3.10"
+import sbt._
 
-  lazy val hbaseVersion = "1.2.2"
-  //  lazy val hbaseVersion = "1.0.0-cdh5.4.5"
-  lazy val hadoopVersion = "2.7.3"
-  //  lazy val hadoopVersion = "2.6.0-cdh5.4.5"
+object Common {
+  val sparkVersion = "1.4.1"
+  val playVersion = "2.5.9"
+
+  val hbaseVersion = "1.2.2"
+  val hadoopVersion = "2.7.3"
+
+  /** use Log4j 1.2.17 as the SLF4j backend in runtime, with bridging libraries to forward JCL and JUL logs to SLF4j */
+  val loggingRuntime = Seq(
+    "log4j" % "log4j" % "1.2.17",
+    "org.slf4j" % "slf4j-log4j12" % "1.7.21",
+    "org.slf4j" % "jcl-over-slf4j" % "1.7.21",
+    "org.slf4j" % "jul-to-slf4j" % "1.7.21"
+  ).map(_ % "runtime")
+
+  /** rules to exclude logging backends and bridging libraries from dependency */
+  val loggingExcludes = Seq(
+    ExclusionRule("commons-logging", "commons-logging"),
+    ExclusionRule("log4j", "log4j"),
+    ExclusionRule("ch.qos.logback", "*"),
+    ExclusionRule("org.slf4j", "jcl-over-slf4j"),
+    ExclusionRule("org.slf4j", "log4j-over-slf4j"),
+    ExclusionRule("org.slf4j", "slf4j-log4j12"),
+    ExclusionRule("org.slf4j", "jul-to-slf4j")
+  )
+
+  implicit class LoggingExcluder(moduleId: ModuleID) {
+    def excludeLogging(): ModuleID = moduleId.excludeAll(loggingExcludes: _*)
+  }
 }

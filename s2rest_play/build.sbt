@@ -16,16 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+import Common._
 
 name := "s2rest_play"
 
 scalacOptions in Test ++= Seq("-Yrangepos")
 
-libraryDependencies ++= Seq(
-  ws,
-  filters,
-  "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
-  "com.github.danielwegener" % "logback-kafka-appender" % "0.0.3"
+libraryDependencies := loggingRuntime ++ (libraryDependencies.value ++ Seq(ws, filters)).map(_.excludeLogging()) ++ Seq(
+  "com.google.guava" % "guava" % "12.0.1" force() // use this old version of guava to avoid incompatibility
 )
 
 enablePlugins(JavaServerAppPackaging)

@@ -17,31 +17,19 @@
  * under the License.
  */
 
+import Common._
+
 name := "s2counter-core"
 
 scalacOptions ++= Seq("-feature", "-deprecation", "-language:existentials")
 
 scalacOptions in Test ++= Seq("-Yrangepos")
 
-libraryDependencies ++= Seq(
-  "ch.qos.logback" % "logback-classic" % "1.1.2",
-  "com.typesafe" % "config" % "1.2.1",
-  "com.typesafe.play" %% "play-json" % Common.playVersion,
-  "com.typesafe.play" %% "play-ws" % Common.playVersion,
-  "com.typesafe.akka" %% "akka-actor" % "2.3.4",
+libraryDependencies ++= loggingRuntime ++ Seq(
   "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
-  "org.apache.hbase" % "hbase-client" % Common.hbaseVersion,
-  "org.apache.hbase" % "hbase-common" % Common.hbaseVersion,
-  "org.apache.hbase" % "hbase-hadoop-compat" % Common.hbaseVersion,
-  "org.apache.hbase" % "hbase-hadoop2-compat" % Common.hbaseVersion,
-  "org.apache.hadoop" % "hadoop-common" % Common.hadoopVersion,
-  "org.apache.hadoop" % "hadoop-hdfs" % Common.hadoopVersion,
+  "com.typesafe.play" %% "play-ws" % playVersion excludeLogging(),
+  "org.apache.hadoop" % "hadoop-common" % hadoopVersion excludeLogging,
+  "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion excludeLogging,
   "redis.clients" % "jedis" % "2.6.0",
-  "org.apache.kafka" % "kafka-clients" % "0.8.2.0",
-  "com.h2database" % "h2" % "1.4.192",
-  "org.scalikejdbc" %% "scalikejdbc" % "2.1.+",
-  "org.specs2" %% "specs2-core" % "3.6" % "test",
-  "org.scalatest" %% "scalatest" % "2.2.1" % "test"
-).map { moduleId =>
-  moduleId.exclude("org.slf4j", "slf4j-log4j12")
-}
+  "org.specs2" %% "specs2-core" % "3.8.5" % "test"
+)
