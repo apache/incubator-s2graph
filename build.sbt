@@ -88,6 +88,8 @@ releaseProcess := Seq[ReleaseStep](
   commitNextVersion
 )
 
+evictionWarningOptions in update := EvictionWarningOptions.default.withWarnTransitiveEvictions(false).withWarnDirectEvictions(false).withWarnScalaVersionEviction(false)
+
 releasePublishArtifactsAction := PgpKeys.publishSigned.value
 
 mainClass in (Compile) := None
