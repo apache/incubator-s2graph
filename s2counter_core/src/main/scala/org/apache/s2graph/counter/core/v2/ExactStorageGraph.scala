@@ -209,10 +209,10 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
   }
 
   private def resultToExactKeyValues(policy: Counter, result: JsValue): (ExactKeyTrait, (core.ExactQualifier, Long)) = {
-    val from = result \ "from" match {
+    val from = (result \ "from").get match {
       case s: JsString => s.as[String]
       case n: JsNumber => n.as[Long].toString
-      case x: JsValue => throw new RuntimeException(s"$x's type must be string or number")
+      case x => throw new RuntimeException(s"$x's type must be string or number")
     }
     val dimension = (result \ "to").as[String]
     val props = result \ "props"

@@ -22,8 +22,9 @@ name := "s2rest_play"
 
 scalacOptions in Test ++= Seq("-Yrangepos")
 
-libraryDependencies := loggingRuntime ++ (libraryDependencies.value ++ Seq(ws, filters)).map(_.excludeLogging()) ++ Seq(
-  "com.google.guava" % "guava" % "12.0.1" force() // use this old version of guava to avoid incompatibility
+libraryDependencies := loggingRuntime ++ (libraryDependencies.value ++ Seq(ws, filters, specs2 % Test)).map(_.excludeLogging()) ++ Seq(
+  "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
+  "org.specs2" %% "specs2-core" % "3.8.5" % "test"
 )
 
 enablePlugins(JavaServerAppPackaging)

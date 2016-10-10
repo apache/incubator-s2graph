@@ -30,10 +30,10 @@ case class CounterEtlItem(ts: Long, service: String, action: String, item: Strin
    }
 
    lazy val value = {
-     property \ "value" match {
-       case JsNumber(n) => n.longValue()
-       case JsString(s) => s.toLong
-       case _: JsUndefined => 1L
+     (property \ "value").toOption match {
+       case Some(JsNumber(n)) => n.longValue()
+       case Some(JsString(s)) => s.toLong
+       case None => 1L
        case _ => throw new Exception("wrong type")
      }
    }

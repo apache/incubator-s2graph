@@ -40,10 +40,12 @@ object EdgeController extends Controller {
 
   private val s2: Graph = org.apache.s2graph.rest.play.Global.s2graph
   private val requestParser: RequestParser = org.apache.s2graph.rest.play.Global.s2parser
+
   private def jsToStr(js: JsValue): String = js match {
     case JsString(s) => s
-    case _ => js.toString()
+    case obj => obj.toString()
   }
+  private def jsToStr(js: JsLookupResult): String = js.toOption.map(jsToStr).getOrElse("undefined")
 
   def toTsv(jsValue: JsValue, op: String): String = {
     val ts = jsToStr(jsValue \ "timestamp")

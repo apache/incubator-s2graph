@@ -21,7 +21,7 @@ import sbt._
 
 object Common {
   val sparkVersion = "1.4.1"
-  val playVersion = "2.5.9"
+  val playVersion = "2.4.8"
 
   val hbaseVersion = "1.2.2"
   val hadoopVersion = "2.7.3"
@@ -38,7 +38,8 @@ object Common {
   val loggingExcludes = Seq(
     ExclusionRule("commons-logging", "commons-logging"),
     ExclusionRule("log4j", "log4j"),
-    ExclusionRule("ch.qos.logback", "*"),
+    ExclusionRule("ch.qos.logback", "logback-classic"),
+    ExclusionRule("ch.qos.logback", "logback-core"),
     ExclusionRule("org.slf4j", "jcl-over-slf4j"),
     ExclusionRule("org.slf4j", "log4j-over-slf4j"),
     ExclusionRule("org.slf4j", "slf4j-log4j12"),

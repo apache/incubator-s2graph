@@ -186,7 +186,6 @@ object PostProcess extends JSONParser {
   private def buildReplaceJson(jsValue: JsValue)(mapper: JsValue => JsValue): JsValue = {
     def traverse(js: JsValue): JsValue = js match {
       case JsNull => mapper(JsNull)
-      case JsUndefined() => mapper(JsUndefined(""))
       case JsNumber(v) => mapper(js)
       case JsString(v) => mapper(js)
       case JsBoolean(v) => mapper(js)

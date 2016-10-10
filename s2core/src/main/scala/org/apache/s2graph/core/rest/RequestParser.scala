@@ -29,6 +29,7 @@ import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.types._
 import play.api.libs.json._
+import play.api.libs.json.Reads._
 
 import scala.util.{Failure, Success, Try}
 
@@ -92,7 +93,7 @@ class RequestParser(config: Config) extends JSONParser {
 
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {
-      js <- parse[Option[JsObject]](value, "scoring")
+      js <- parseOption[JsObject](value, "scoring")
     } yield {
       for {
         (k, v) <- js.fields
@@ -113,16 +114,16 @@ class RequestParser(config: Config) extends JSONParser {
     val jsValue = Json.parse(replaced)
 
     def extractKv(js: JsValue) = js match {
-      case JsObject(obj) => obj
+      case JsObject(map) => map.toSeq
       case JsArray(arr) => arr.flatMap {
-        case JsObject(obj) => obj
-        case _ => throw new RuntimeException(s"cannot support json type $js")
+        case JsObject(map) => map.toSeq
+        case _ => throw new RuntimeException(s"cannot support json type: $js")
       }
       case _ => throw new RuntimeException(s"cannot support json type: $js")
     }
 
     val ret = for {
-      js <- parse[Option[JsObject]](jsValue, "interval")
+      js <- parseOption[JsObject](jsValue, "interval")
       fromJs <- (js \ "from").asOpt[JsValue]
       toJs <- (js \ "to").asOpt[JsValue]
     } yield {
@@ -139,10 +140,10 @@ class RequestParser(config: Config) extends JSONParser {
     val jsValue = Json.parse(replaced)
 
     for {
-      js <- parse[Option[JsObject]](jsValue, "duration")
+      js <- parseOption[JsObject](jsValue, "duration")
     } yield {
-      val minTs = parse[Option[Long]](js, "from").getOrElse(Long.MaxValue)
-      val maxTs = parse[Option[Long]](js, "to").getOrElse(Long.MinValue)
+      val minTs = parseOption[Long](js, "from").getOrElse(Long.MaxValue)
+      val maxTs = parseOption[Long](js, "to").getOrElse(Long.MinValue)
 
       if (minTs > maxTs) {
         throw new BadQueryException("Duration error. Timestamp of From cannot be larger than To.")
@@ -154,7 +155,7 @@ class RequestParser(config: Config) extends JSONParser {
 
   def extractHas(label: Label, jsValue: JsValue) = {
     val ret = for {
-      js <- parse[Option[JsObject]](jsValue, "has")
+      js <- parseOption[JsObject](jsValue, "has")
     } yield {
       for {
         (k, v) <- js.fields
@@ -346,12 +347,12 @@ class RequestParser(config: Config) extends JSONParser {
 
   private def parseQueryParam(labelGroup: JsValue): Option[QueryParam] = {
     for {
-      labelName <- parse[Option[String]](labelGroup, "label")
+      labelName <- parseOption[String](labelGroup, "label")
     } yield {
       val label = Label.findByName(labelName).getOrElse(throw BadQueryException(s"$labelName not found"))
-      val direction = parse[Option[String]](labelGroup, "direction").map(GraphUtil.toDirection(_)).getOrElse(0)
+      val direction = parseOption[String](labelGroup, "direction").map(GraphUtil.toDirection(_)).getOrElse(0)
       val limit = {
-        parse[Option[Int]](labelGroup, "limit") match {
+        parseOption[Int](labelGroup, "limit") match {
           case None => defaultLimit
           case Some(l) if l < 0 => maxLimit
           case Some(l) if l >= 0 =>
@@ -359,12 +360,12 @@ class RequestParser(config: Config) extends JSONParser {
             Math.min(l, default)
         }
       }
-      val offset = parse[Option[Int]](labelGroup, "offset").getOrElse(0)
+      val offset = parseOption[Int](labelGroup, "offset").getOrElse(0)
       val interval = extractInterval(label, labelGroup)
       val duration = extractDuration(label, labelGroup)
       val scoring = extractScoring(label.id.get, labelGroup).getOrElse(List.empty[(Byte, Double)]).toList
-      val exclude = parse[Option[Boolean]](labelGroup, "exclude").getOrElse(false)
-      val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
+      val exclude = parseOption[Boolean](labelGroup, "exclude").getOrElse(false)
+      val include = parseOption[Boolean](labelGroup, "include").getOrElse(false)
       val hasFilter = extractHas(label, labelGroup)
       val labelWithDir = LabelWithDirection(label.id.get, direction)
       val indexNameOpt = (labelGroup \ "index").asOpt[String]
@@ -392,7 +393,7 @@ class RequestParser(config: Config) extends JSONParser {
       }
       val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(QueryParam.DefaultThreshold)
       // TODO: refactor this. dirty
-      val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
+      val duplicate = parseOption[String](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
 
       val outputField = (labelGroup \ "outputField").asOpt[String].map(s => Json.arr(Json.arr(s)))
       val transformer = if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]
@@ -430,16 +431,23 @@ class RequestParser(config: Config) extends JSONParser {
   }
 
   private def parse[R](js: JsValue, key: String)(implicit read: Reads[R]): R = {
-    (js \ key).validate[R]
-      .fold(
-        errors => {
-          val msg = (JsError.toFlatJson(errors) \ "obj").as[List[JsValue]].map(x => x \ "msg")
-          val e = Json.obj("args" -> key, "error" -> msg)
-          throw new GraphExceptions.JsonParseException(Json.obj("error" -> key).toString)
-        },
-        r => {
-          r
-        })
+    (js \ key).validate[R] match {
+      case JsError(errors) =>
+        val msg = (JsError.toFlatJson(errors) \ "obj").as[List[JsValue]].flatMap(x => (x \ "msg").toOption)
+        val e = Json.obj("args" -> key, "error" -> msg)
+        throw new GraphExceptions.JsonParseException(Json.obj("error" -> key).toString)
+      case JsSuccess(result, _) => result
+    }
+  }
+
+  private def parseOption[R](js: JsValue, key: String)(implicit read: Reads[R]): Option[R] = {
+    (js \ key).validateOpt[R] match {
+      case JsError(errors) =>
+        val msg = (JsError.toFlatJson(errors) \ "obj").as[List[JsValue]].flatMap(x => (x \ "msg").toOption)
+        val e = Json.obj("args" -> key, "error" -> msg)
+        throw new GraphExceptions.JsonParseException(Json.obj("error" -> key).toString)
+      case JsSuccess(result, _) => result
+    }
   }
 
   def toJsValues(jsValue: JsValue): List[JsValue] = {
@@ -478,7 +486,7 @@ class RequestParser(config: Config) extends JSONParser {
 
     val label = parse[String](jsValue, "label")
     val timestamp = parse[Long](jsValue, "timestamp")
-    val direction = parse[Option[String]](jsValue, "direction").getOrElse("")
+    val direction = parseOption[String](jsValue, "direction").getOrElse("")
     val props = (jsValue \ "props").asOpt[JsValue].getOrElse("{}")
     for {
       srcId <- srcIds
@@ -494,7 +502,7 @@ class RequestParser(config: Config) extends JSONParser {
 
   def toVertex(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None): Vertex = {
     val id = parse[JsValue](jsValue, "id")
-    val ts = parse[Option[Long]](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
+    val ts = parseOption[Long](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
     val sName = if (serviceName.isEmpty) parse[String](jsValue, "serviceName") else serviceName.get
     val cName = if (columnName.isEmpty) parse[String](jsValue, "columnName") else columnName.get
     val props = (jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj())
@@ -511,7 +519,7 @@ class RequestParser(config: Config) extends JSONParser {
     Prop(propName, defaultValue, dataType)
   }
 
-  def toPropsElements(jsValue: JsValue): Seq[Prop] = for {
+  def toPropsElements(jsValue: JsLookupResult): Seq[Prop] = for {
     jsObj <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
   } yield {
     val propName = (jsObj \ "name").as[String]
@@ -523,7 +531,7 @@ class RequestParser(config: Config) extends JSONParser {
     Prop(propName, defaultValue, dataType)
   }
 
-  def toIndicesElements(jsValue: JsValue): Seq[Index] = for {
+  def toIndicesElements(jsValue: JsLookupResult): Seq[Index] = for {
     jsObj <- jsValue.as[Seq[JsValue]]
     indexName = (jsObj \ "name").as[String]
     propNames = (jsObj \ "propNames").as[Seq[String]]

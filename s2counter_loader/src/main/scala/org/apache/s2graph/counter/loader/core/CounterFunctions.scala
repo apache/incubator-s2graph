@@ -72,7 +72,7 @@ object CounterFunctions extends Logging with WithKafka {
     Try {
       for {
         k <- keys
-        jsValue = dimension \ k
+        jsValue <- (dimension \ k).toOption
       } yield {
         jsValue match {
           case JsNumber(n) => n.toString()

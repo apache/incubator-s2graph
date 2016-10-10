@@ -69,7 +69,7 @@ object CounterEtlFunctions extends Logging {
         } yield {
           val jsValue = variable match {
             case "_from" => JsString(srcId)
-            case s => dimension \ s
+            case s => (dimension \ s).get
           }
           s"[[$variable]]" -> jsValue
         }
