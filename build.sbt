@@ -25,7 +25,8 @@ name := "s2graph"
 lazy val commonSettings = Seq(
   organization := "org.apache.s2graph",
   scalaVersion := "2.11.7",
-  version := "0.1.0",
+  version := "0.1.1-SNAPSHOT",
+  isSnapshot := version.value.endsWith("-SNAPSHOT"),
   scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xlint", "-Xlint:-missing-interpolator"),
   javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map { case (key, value) => "-D" + key + "=" + value }.toSeq,
   testOptions in Test += Tests.Argument("-oDF"),
@@ -35,7 +36,7 @@ lazy val commonSettings = Seq(
   resolvers ++= Seq(
     Resolver.mavenLocal
   )
-)
+) ++ Publisher.defaultSettings
 
 Revolver.settings
 
