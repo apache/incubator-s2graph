@@ -5,7 +5,9 @@ import scala.xml.XML
 object Publisher {
 
   val defaultSettings = Seq(
-    publish := {}, // disable unsigned publishing
+    publish := {
+      streams.value.log.error("use publishSigned task instead, to produce code-signed artifacts")
+    },
     publishMavenStyle := true,
     publishTo := {
       if (isSnapshot.value) {
