@@ -27,7 +27,7 @@ import play.api.mvc._
 
 import scala.language.postfixOps
 
-object QueryController extends Controller with JSONParser {
+object QueryController extends Controller {
 
   import ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits.defaultContext

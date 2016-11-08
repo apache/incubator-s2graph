@@ -38,7 +38,7 @@ import play.api.libs.json.Json
 import scala.collection.JavaConversions._
 
 
-object TransferToHFile extends SparkApp with JSONParser {
+object TransferToHFile extends SparkApp {
 
   val usages =
     s"""
@@ -94,7 +94,7 @@ object TransferToHFile extends SparkApp with JSONParser {
   def buildDegreePutRequests(vertexId: String, labelName: String, direction: String, degreeVal: Long): List[PutRequest] = {
     val label = Label.findByName(labelName).getOrElse(throw new RuntimeException(s"$labelName is not found in DB."))
     val dir = GraphUtil.directions(direction)
-    val innerVal = jsValueToInnerVal(Json.toJson(vertexId), label.srcColumnWithDir(dir).columnType, label.schemaVersion).getOrElse {
+    val innerVal = JSONParser.jsValueToInnerVal(Json.toJson(vertexId), label.srcColumnWithDir(dir).columnType, label.schemaVersion).getOrElse {
       throw new RuntimeException(s"$vertexId can not be converted into innerval")
     }
     val vertex = Vertex(SourceVertexId(label.srcColumn.id.get, innerVal))

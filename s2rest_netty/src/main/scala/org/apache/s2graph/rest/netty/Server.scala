@@ -48,7 +48,7 @@ import scala.io.Source
 import scala.util.{Failure, Success, Try}
 import scala.language.existentials
 
-class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends SimpleChannelInboundHandler[FullHttpRequest] with JSONParser {
+class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends SimpleChannelInboundHandler[FullHttpRequest] {
   val ApplicationJson = "application/json"
 
   val Ok = HttpResponseStatus.OK

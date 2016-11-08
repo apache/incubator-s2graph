@@ -23,10 +23,10 @@ import org.apache.s2graph.core.GraphExceptions.BadQueryException
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Label, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
 import play.api.libs.json.{Json, _}
-
+import org.apache.s2graph.core.JSONParser._
 import scala.collection.mutable.ListBuffer
 
-object PostProcess extends JSONParser {
+object PostProcess {
 
 
   type EDGE_VALUES = Map[String, JsValue]
