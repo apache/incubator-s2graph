@@ -18,6 +18,7 @@
  */
 
 import ReleaseTransformations._
+import PgpKeys._
 import sbt.complete.Parsers.spaceDelimited
 
 name := "s2graph"
@@ -25,7 +26,6 @@ name := "s2graph"
 lazy val commonSettings = Seq(
   organization := "org.apache.s2graph",
   scalaVersion := "2.11.7",
-  version := "0.1.1-SNAPSHOT",
   isSnapshot := version.value.endsWith("-SNAPSHOT"),
   scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xlint", "-Xlint:-missing-interpolator"),
   javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map { case (key, value) => "-D" + key + "=" + value }.toSeq,
@@ -77,6 +77,16 @@ runRatTask := {
 
 Packager.defaultSettings
 
+publishSigned := {
+  (publishSigned in s2rest_play).value
+  (publishSigned in s2rest_netty).value
+  (publishSigned in s2core).value
+  (publishSigned in spark).value
+  (publishSigned in loader).value
+  (publishSigned in s2counter_core).value
+  (publishSigned in s2counter_loader).value
+}
+
 releaseProcess := Seq[ReleaseStep](
   checkSnapshotDependencies,              // : ReleaseStep
   inquireVersions,                        // : ReleaseStep
@@ -89,6 +99,6 @@ releaseProcess := Seq[ReleaseStep](
   commitNextVersion
 )
 
-releasePublishArtifactsAction := PgpKeys.publishSigned.value
+releasePublishArtifactsAction := publishSigned.value
 
-mainClass in (Compile) := None
+mainClass in Compile := None

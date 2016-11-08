@@ -3,7 +3,9 @@ import sbt._
 import scala.xml.XML
 
 object Publisher {
+
   val defaultSettings = Seq(
+    publish := {}, // disable unsigned publishing
     publishMavenStyle := true,
     publishTo := {
       if (isSnapshot.value) {
