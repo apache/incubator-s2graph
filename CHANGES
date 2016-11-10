@@ -87,6 +87,8 @@ Release 0.1.0 - unreleased
 
     S2GRAPH-115: Release binary artifacts to Maven Central.
 		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
+    
+    S2GRAPH-124: Change JSONParser from Trait to Object (Committed by DOYUNG YOON).
 
   BUG FIXES
 

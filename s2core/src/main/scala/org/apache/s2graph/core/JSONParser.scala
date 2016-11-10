@@ -19,12 +19,15 @@
 
 package org.apache.s2graph.core
 
-import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
+import org.apache.s2graph.core.GraphExceptions.IllegalDataTypeException
+import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.rest.TemplateHelper
+import org.apache.s2graph.core.types.{InnerValLikeWithTs, InnerVal, InnerValLike}
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json._
 
 
-trait JSONParser {
+object JSONParser {
 
   //TODO: check result notation on bigDecimal.
   def innerValToJsValue(innerVal: InnerValLike, dataType: String): Option[JsValue] = {
@@ -91,27 +94,138 @@ trait JSONParser {
   //    }
   //  }
 
-  def toInnerVal(str: String, dataType: String, version: String): InnerValLike = {
-    //TODO:
-    //        logger.error(s"toInnerVal: $str, $dataType, $version")
-    val s =
-      if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
-      else str
-    val dType = InnerVal.toInnerDataType(dataType)
+  //  def toInnerVal(str: String, dataType: String, version: String): InnerValLike = {
+  //    //TODO:
+  //    //        logger.error(s"toInnerVal: $str, $dataType, $version")
+  //    val s =
+  //      if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
+  //      else str
+  //    val dType = InnerVal.toInnerDataType(dataType)
+  //
+  //    dType match {
+  //      case InnerVal.STRING => InnerVal.withStr(s, version)
+  //      //      case t if InnerVal.NUMERICS.contains(t) => InnerVal.withNumber(BigDecimal(s), version)
+  //      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
+  //        InnerVal.withNumber(BigDecimal(s), version)
+  //      case InnerVal.BOOLEAN => InnerVal.withBoolean(s.toBoolean, version)
+  //      case InnerVal.BLOB => InnerVal.withBlob(s.getBytes, version)
+  //      case _ =>
+  //        //        InnerVal.withStr("")
+  //        throw new RuntimeException(s"illegal datatype for string: dataType is $dataType for $s")
+  //    }
+  //  }
+  def isNumericType(dType: String): Boolean = {
+    dType == InnerVal.LONG || dType == InnerVal.INT ||
+      dType == InnerVal.SHORT || dType == InnerVal.BYTE ||
+      dType == InnerVal.FLOAT || dType == InnerVal.DOUBLE
+  }
 
+  //TODO: fix this messy parts
+  def innerValToAny(innerValLike: InnerValLike, dataType: String): Any = {
+    val dType = InnerVal.toInnerDataType(dataType)
     dType match {
-      case InnerVal.STRING => InnerVal.withStr(s, version)
-      //      case t if InnerVal.NUMERICS.contains(t) => InnerVal.withNumber(BigDecimal(s), version)
-      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
-        InnerVal.withNumber(BigDecimal(s), version)
-      case InnerVal.BOOLEAN => InnerVal.withBoolean(s.toBoolean, version)
-      case InnerVal.BLOB => InnerVal.withBlob(s.getBytes, version)
-      case _ =>
-        //        InnerVal.withStr("")
-        throw new RuntimeException(s"illegal datatype for string: dataType is $dataType for $s")
+      case InnerVal.LONG =>
+        innerValLike.value match {
+          case b: BigDecimal => b.toLong
+          case l: Long => l
+          case i: Int => i.toLong
+          case f: Float => f.toLong
+          case d: Double => d.toLong
+          case _ => throw new RuntimeException(s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType")
+        }
+      case InnerVal.INT =>
+        innerValLike.value match {
+          case b: BigDecimal => b.toInt
+          case l: Long => l.toInt
+          case i: Int => i
+          case f: Float => f.toInt
+          case d: Double => d.toInt
+          case _ => throw new RuntimeException(s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType")
+        }
+      case InnerVal.SHORT =>
+        innerValLike.value match {
+          case b: BigDecimal => b.toShort
+          case s: Short => s
+          case _ => throw new RuntimeException(s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType")
+        }
+      case InnerVal.BYTE =>
+        innerValLike.value match {
+          case b: BigDecimal => b.toByte
+          case b: Byte => b
+          case _ => throw new RuntimeException(s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType")
+        }
+      case InnerVal.FLOAT =>
+        innerValLike.value match {
+          case b: BigDecimal => b.toFloat
+          case d: Double => d.toFloat
+          case f: Float => f
+          case l: Long => l.toFloat
+          case i: Int => i.toFloat
+          case _ => throw new RuntimeException(s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType")
+        }
+      case InnerVal.DOUBLE =>
+        innerValLike.value match {
+          case b: BigDecimal => b.toDouble
+          case d: Double => d
+          case l: Long => l.toDouble
+          case i: Int => i.toDouble
+          case f: Float => f.toDouble
+          case _ => throw new RuntimeException(s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType")
+        }
+      case _ => innerValLike.value
     }
   }
 
+  def toInnerVal(any: Any, dataType: String, version: String): InnerValLike = {
+    val dType = InnerVal.toInnerDataType(dataType)
+    val isNumeric = isNumericType(dType)
+    any match {
+      case n: BigDecimal =>
+        if (isNumeric) InnerVal.withNumber(n, version)
+        else throw new IllegalDataTypeException(s"[ValueType] = BigDecimal, [DataType]: $dataType, [Input]: $any")
+      case l: Long =>
+        if (isNumeric) InnerVal.withLong(l, version)
+        else throw new IllegalDataTypeException(s"[ValueType] = Long, [DataType]: $dataType, [Input]: $any")
+      case i: Int =>
+        if (isNumeric) InnerVal.withInt(i, version)
+        else throw new IllegalDataTypeException(s"[ValueType] = Int, [DataType]: $dataType, [Input]: $any")
+      case sh: Short =>
+        if (isNumeric) InnerVal.withInt(sh.toInt, version)
+        else throw new IllegalDataTypeException(s"[ValueType] = Short, [DataType]: $dataType, [Input]: $any")
+      case b: Byte =>
+        if (isNumeric) InnerVal.withInt(b.toInt, version)
+        else throw new IllegalDataTypeException(s"[ValueType] = Byte, [DataType]: $dataType, [Input]: $any")
+      case f: Float =>
+        if (isNumeric) InnerVal.withFloat(f, version)
+        else throw new IllegalDataTypeException(s"[ValueType] = Float, [DataType]: $dataType, [Input]: $any")
+      case d: Double =>
+        if (isNumeric) InnerVal.withDouble(d, version)
+        else throw new IllegalDataTypeException(s"[ValueType] = Double, [DataType]: $dataType, [Input]: $any")
+      case bl: Boolean =>
+        if (dType == InnerVal.BOOLEAN) InnerVal.withBoolean(bl, version)
+        else throw new IllegalDataTypeException(s"[ValueType] = Boolean, [DataType]: $dataType, [Input]: $any")
+      case _s: String =>
+        if (isNumeric) {
+          try {
+            val s = TemplateHelper.replaceVariable(System.currentTimeMillis(), _s)
+            InnerVal.withNumber(BigDecimal(s), version)
+          } catch {
+            case e: Exception =>
+              throw new IllegalDataTypeException(s"[ValueType] = String, [DataType]: $dataType, [Input]: $any")
+          }
+        } else {
+          dType match {
+            case InnerVal.BOOLEAN => try {
+              InnerVal.withBoolean(_s.toBoolean, version)
+            } catch {
+              case e: Exception =>
+                throw new IllegalDataTypeException(s"[ValueType] = String, [DataType]: boolean, [Input]: $any")
+            }
+            case InnerVal.STRING => InnerVal.withStr(_s, version)
+          }
+        }
+    }
+  }
   def jsValueToInnerVal(jsValue: JsValue, dataType: String, version: String): Option[InnerValLike] = {
     val ret = try {
       val dType = InnerVal.toInnerDataType(dataType.toLowerCase())
@@ -124,13 +238,14 @@ trait JSONParser {
               Some(InnerVal.withNumber(n.value, version))
             case _ => None
           }
-        case s: JsString =>
+        case _s: JsString =>
+          val s = TemplateHelper.replaceVariable(System.currentTimeMillis(), _s.value)
           dType match {
-            case InnerVal.STRING => Some(InnerVal.withStr(s.value, version))
-            case InnerVal.BOOLEAN => Some(InnerVal.withBoolean(s.as[String].toBoolean, version))
+            case InnerVal.STRING => Some(InnerVal.withStr(s, version))
+            case InnerVal.BOOLEAN => Some(InnerVal.withBoolean(s.toBoolean, version))
             //            case t if InnerVal.NUMERICS.contains(t) =>
             case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
-              Some(InnerVal.withNumber(BigDecimal(s.value), version))
+              Some(InnerVal.withNumber(BigDecimal(s), version))
             case _ => None
           }
         case b: JsBoolean =>
@@ -144,10 +259,84 @@ trait JSONParser {
       }
     } catch {
       case e: Exception =>
-        logger.error(e.getMessage)
+        logger.error(s"jsValueToInnerVal: jsValue = ${jsValue}, dataType = ${dataType}, version = ${version}", e)
         None
     }
 
     ret
+  }
+
+  def anyValToJsValue(value: Any): Option[JsValue] = {
+    try {
+      val v = value match {
+        case null => JsNull
+        case l: Long => JsNumber(l)
+        case i: Int => JsNumber(i)
+        case s: Short => JsNumber(s.toInt)
+        case b: Byte => JsNumber(b.toInt)
+        case f: Float => JsNumber(f.toDouble)
+        case d: Double => JsNumber(d)
+        case bd: BigDecimal => if (bd.isValidLong) JsNumber(bd.toLong) else JsNumber(bd)
+        case s: String => JsString(s)
+        case b: Boolean => JsBoolean(b)
+        case _ => throw new RuntimeException(s"$value, ${value.getClass.getName} is not supported data type.")
+      }
+      Option(v)
+    } catch {
+      case e: Exception =>
+        logger.error(s"anyValToJsValue: $value", e)
+        None
+    }
+  }
+
+  def jsValueToAny(value: JsValue): Option[AnyRef] = {
+    try {
+      val v = value match {
+//        case JsNull =>
+        case n: JsNumber => n.value
+        case s: JsString => TemplateHelper.replaceVariable(System.currentTimeMillis(), s.value)
+        case b: JsBoolean => Boolean.box(b.value)
+      }
+      Option(v)
+    } catch {
+      case e: Exception =>
+        logger.error(s"jsValueToAny: $value", e)
+        None
+    }
+  }
+
+  def propertiesToJson(props: Map[String, Any],
+                       selectColumns: Map[String, Boolean] = Map.empty): Map[String, JsValue] = {
+    if (selectColumns.isEmpty) {
+      for {
+        (k, v) <- props
+        jsValue <- anyValToJsValue(v)
+      //      labelMeta <- label.metaPropsInvMap.get(k)
+      //      innerVal = toInnerVal(v.toString, labelMeta.dataType, labelMeta.)
+      } yield {
+        k -> jsValue
+      }
+    } else {
+      for {
+        (k, _) <- selectColumns
+        v <- props.get(k)
+        jsValue <- anyValToJsValue(v)
+      } yield k -> jsValue
+    }
+  }
+
+  def jsValueToString(jsValue: JsValue): String = {
+    jsValue match {
+      case s: JsString => s.value
+      case _ => jsValue.toString
+    }
+  }
+  def fromJsonToProperties(jsObject: JsObject): Map[String, Any] = {
+    val kvs = for {
+      (k, v) <- jsObject.fieldSet
+    } yield {
+        k -> jsValueToString(v)
+      }
+    kvs.toMap
   }
 }
