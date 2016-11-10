@@ -89,6 +89,8 @@ Release 0.1.0 - unreleased
 		(Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
     
     S2GRAPH-124: Change JSONParser from Trait to Object (Committed by DOYUNG YOON).
+    
+    S2GRAPH-127: Refactor ExceptionHander Object into Class (Committed by DOYUNG YOON).
 
   BUG FIXES
 

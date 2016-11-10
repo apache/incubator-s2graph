@@ -57,6 +57,9 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   /** retry scheduler */
   val scheduledThreadPool = Executors.newSingleThreadScheduledExecutor()
 
+  /** handle mutate failed */
+  val exceptionHandler = new ExceptionHandler(config)
+
   val failTopic = s"mutateFailed_${config.getString("phase")}"
 
   /**
@@ -247,7 +250,9 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * this method need to be called when client shutdown. this is responsible to cleanUp the resources
    * such as client into storage.
    */
-  def flush(): Unit
+  def flush(): Unit = {
+    exceptionHandler.shutdown()
+  }
 
   /**
    * create table on storage.
@@ -339,6 +344,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
       strong ++ weak
     }
   }
+
   def mutateStrongEdges(_edges: Seq[Edge], withWait: Boolean): Future[Seq[Boolean]] = {
 
     val grouped = _edges.groupBy { edge => (edge.label, edge.srcVertex.innerId, edge.tgtVertex.innerId) } toSeq
@@ -429,7 +435,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
         logger.error(s"commit failed after $MaxRetryNum\n${edge.toLogString}")
 
         val kafkaMessage = ExceptionHandler.toKafkaMessage(failTopic, element = edge)
-        ExceptionHandler.enqueue(kafkaMessage)
+        exceptionHandler.enqueue(kafkaMessage)
       }
 
       Future.successful(false)
@@ -946,12 +952,10 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
         label <- labels
       } yield {
           val tsv = Seq(ts, "deleteAll", "e", id, id, label.label, "{}", GraphUtil.fromOp(dir.toByte)).mkString("\t")
-          val topic = ExceptionHandler.failTopic
-          val kafkaMsg = KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
-          kafkaMsg
+          ExceptionHandler.toKafkaMessage(failTopic, tsv)
         }
 
-      ExceptionHandler.enqueues(kafkaMessages)
+      kafkaMessages.foreach(exceptionHandler.enqueue)
     }
 
     val requestTs = ts

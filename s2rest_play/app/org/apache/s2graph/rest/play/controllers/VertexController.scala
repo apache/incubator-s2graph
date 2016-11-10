@@ -32,6 +32,7 @@ import scala.concurrent.Future
 object VertexController extends Controller {
   private val s2: Graph = org.apache.s2graph.rest.play.Global.s2graph
   private val requestParser: RequestParser = org.apache.s2graph.rest.play.Global.s2parser
+  private val walLogHandler: ExceptionHandler = org.apache.s2graph.rest.play.Global.wallLogHandler
 
   import ApplicationController._
   import ExceptionHandler._
@@ -44,10 +45,8 @@ object VertexController extends Controller {
         val vertices = requestParser.toVertices(jsValue, operation, serviceNameOpt, columnNameOpt)
 
         for (vertex <- vertices) {
-          if (vertex.isAsync)
-            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC_ASYNC, vertex, None))
-          else
-            ExceptionHandler.enqueue(toKafkaMessage(Config.KAFKA_LOG_TOPIC, vertex, None))
+          val kafkaTopic = toKafkaTopic(vertex.isAsync)
+          walLogHandler.enqueue(toKafkaMessage(kafkaTopic, vertex, None))
         }
 
         //FIXME:

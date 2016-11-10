@@ -37,6 +37,7 @@ object PublishController extends Controller {
    */
   val serviceNotExistException = new RuntimeException(s"service is not created in s2graph. create service first.")
 
+  private val walLogHandler: ExceptionHandler = org.apache.s2graph.rest.play.Global.wallLogHandler
   //  private def toService(topic: String): String = {
   //    Service.findByName(topic).map(service => s"${service.serviceName}-${Config.PHASE}").getOrElse(throw serviceNotExistException)
   //  }
@@ -48,7 +49,7 @@ object PublishController extends Controller {
       val keyedMessage = new ProducerRecord[Key, Val](Config.KAFKA_LOG_TOPIC, str)
       //    val keyedMessage = new ProducerRecord[Key, Val](kafkaTopic, s"$str")
       //        logger.debug(s"$kafkaTopic, $str")
-      ExceptionHandler.enqueue(KafkaMessage(keyedMessage))
+      walLogHandler.enqueue(KafkaMessage(keyedMessage))
     })
     Future.successful(
       Ok("publish success.\n").withHeaders(CONNECTION -> "Keep-Alive", "Keep-Alive" -> "timeout=10, max=10")
