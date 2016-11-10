@@ -19,11 +19,13 @@
 
 package org.apache.s2graph.core.mysqls
 
+
 import org.apache.s2graph.core.GraphExceptions.ModelNotFoundException
+import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{GraphExceptions, GraphUtil, JSONParser}
-import play.api.libs.json.{JsValue, JsObject, Json}
+import org.apache.s2graph.core.JSONParser._
+import play.api.libs.json._
 import scalikejdbc._
 
 object Label extends Model[Label] {
@@ -268,7 +270,8 @@ case class Label(id: Option[Int], label: String,
                  hTableName: String, hTableTTL: Option[Int],
                  schemaVersion: String, isAsync: Boolean = false,
                  compressionAlgorithm: String,
-                 options: Option[String]) extends JSONParser {
+                 options: Option[String]) {
+
   def metas = LabelMeta.findAllByLabelId(id.get)
 
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
