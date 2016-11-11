@@ -1,5 +1,6 @@
 import sbt.Keys._
 import sbt._
+import scala.util.Try
 import scala.xml.XML
 
 object Publisher {
@@ -17,9 +18,10 @@ object Publisher {
       }
     },
     credentials ++= {
-      val xml = XML.loadFile(new File(System.getProperty("user.home")) / ".m2" / "settings.xml")
-      for (server <- xml \\ "server" if (server \ "id").text == "apache") yield {
-        Credentials("Sonatype Nexus Repository Manager", "repository.apache.org", (server \ "username").text, (server \ "password").text)
+      Try(XML.loadFile(new File(System.getProperty("user.home")) / ".m2" / "settings.xml")).toOption.toSeq.flatMap { xml =>
+        for (server <- xml \\ "server" if (server \ "id").text == "apache") yield {
+          Credentials("Sonatype Nexus Repository Manager", "repository.apache.org", (server \ "username").text, (server \ "password").text)
+        }
       }
     },
     pomIncludeRepository := { _ => false },
