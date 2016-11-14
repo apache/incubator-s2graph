@@ -43,8 +43,12 @@ object Config {
   lazy val KAFKA_METADATA_BROKER_LIST = conf.getString("kafka.metadata.broker.list").getOrElse("localhost")
 
   lazy val KAFKA_LOG_TOPIC = s"s2graphIn${PHASE}"
+  lazy val KAFKA_LOG_TOPIC_JSON = s"s2graphIn${PHASE}Json"
   lazy val KAFKA_LOG_TOPIC_ASYNC = s"s2graphIn${PHASE}Async"
+  lazy val KAFKA_LOG_TOPIC_ASYNC_JSON = s"s2graphIn${PHASE}AsyncJson"
   lazy val KAFKA_FAIL_TOPIC = s"s2graphIn${PHASE}Failed"
+  lazy val KAFKA_FAIL_TOPIC_JSON = s"s2graphIn${PHASE}FailedJson"
+  lazy val KAFKA_MUTATE_FAIL_TOPIC = s"mutateFailed_${PHASE}"
 
   // is query or write
   lazy val IS_QUERY_SERVER = conf.getBoolean("is.query.server").getOrElse(true)

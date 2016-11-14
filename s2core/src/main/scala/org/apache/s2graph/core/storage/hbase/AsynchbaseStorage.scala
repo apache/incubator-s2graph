@@ -82,8 +82,9 @@ object AsynchbaseStorage {
 }
 
 
-class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionContext)
-  extends Storage[Deferred[QueryRequestWithResult]](config) {
+class AsynchbaseStorage(override val graph: Graph,
+                        override val config: Config)(implicit ec: ExecutionContext)
+  extends Storage[Deferred[StepInnerResult]](graph, config) {
 
   import Extensions.DeferOps
 
@@ -100,14 +101,16 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
   private val emptyKeyValues = new util.ArrayList[KeyValue]()
   private def client(withWait: Boolean): HBaseClient = if (withWait) clientWithFlush else client
 
-  import CanDefer._
-
   /** Future Cache to squash request */
-  private val futureCache = new DeferCache[QueryResult, Deferred, Deferred](config, QueryResult(), "FutureCache", useMetric = true)
+  private val futureCache = new DeferCache[StepInnerResult, Deferred, Deferred](config, StepInnerResult.Empty, "FutureCache", useMetric = true)
 
   /** Simple Vertex Cache */
   private val vertexCache = new DeferCache[Seq[SKeyValue], Promise, Future](config, Seq.empty[SKeyValue])
 
+  private val zkQuorum = config.getString("hbase.zookeeper.quorum")
+  private val zkQuorumSlave =
+    if (config.hasPath("hbase.zookeeper.quorum")) Option(config.getString("hbase.zookeeper.quorum"))
+    else None
 
   /**
    * fire rpcs into proper hbase cluster using client and
@@ -241,7 +244,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         if (queryParam.limit == Int.MinValue) logger.debug(s"MinValue: $queryParam")
 
         scanner.setMaxVersions(1)
-        scanner.setMaxNumRows(queryParam.limit)
+        scanner.setMaxNumRows(queryParam.offset + queryParam.limit)
         scanner.setMaxTimestamp(maxTs)
         scanner.setMinTimestamp(minTs)
         scanner.setRpcTimeout(queryParam.rpcTimeoutInMillis)
@@ -280,21 +283,38 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
   override def fetch(queryRequest: QueryRequest,
                      prevStepScore: Double,
                      isInnerCall: Boolean,
-                     parentEdges: Seq[EdgeWithScore]): Deferred[QueryRequestWithResult] = {
+                     parentEdges: Seq[EdgeWithScore]): Deferred[StepInnerResult] = {
 
-    def fetchInner(hbaseRpc: AnyRef): Deferred[QueryResult] = {
+    def fetchInner(hbaseRpc: AnyRef): Deferred[StepInnerResult] = {
+      val queryParam = queryRequest.queryParam
+
       fetchKeyValuesInner(hbaseRpc).withCallback { kvs =>
-        val edgeWithScores = toEdges(kvs, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
-        val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0) {
-          sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
-        } else edgeWithScores
-        QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty[Byte]))
-//        QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty)))
+        val (startOffset, length) = queryParam.label.schemaVersion match {
+          case HBaseType.VERSION4 => (queryParam.offset, queryParam.limit)
+          case _ => (0, kvs.length)
+        }
 
+        val edgeWithScores = toEdges(kvs, queryParam, prevStepScore, isInnerCall, parentEdges, startOffset, length)
+        if (edgeWithScores.isEmpty) StepInnerResult.Empty
+        else {
+          val head = edgeWithScores.head
+          val (degreeEdges, indexEdges) =
+            if (head.edge.isDegree) (Seq(head), edgeWithScores.tail)
+            else (Nil, edgeWithScores)
+
+          val normalized =
+            if (queryRequest.queryParam.shouldNormalize) normalize(indexEdges)
+            else indexEdges
+
+          val sampled = if (queryRequest.queryParam.sample >= 0) {
+            sample(queryRequest, normalized, queryRequest.queryParam.sample)
+          } else normalized
+
+          StepInnerResult(edgesWithScoreLs = sampled, degreeEdges)
+        }
       } recoverWith { ex =>
         logger.error(s"fetchInner failed. fallback return. $hbaseRpc}", ex)
-        QueryResult(isFailure = true)
-//        QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
+        StepInnerResult.Failure
       }
     }
 
@@ -302,27 +322,25 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
     val cacheTTL = queryParam.cacheTTLInMillis
     val request = buildRequest(queryRequest)
 
-    val defer =
-      if (cacheTTL <= 0) fetchInner(request)
-      else {
-        val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
-        val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
-        futureCache.getOrElseUpdate(cacheKey, cacheTTL)(fetchInner(request))
+    if (cacheTTL <= 0) fetchInner(request)
+    else {
+      val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
+      val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
+      futureCache.getOrElseUpdate(cacheKey, cacheTTL)(fetchInner(request))
     }
-    defer withCallback { queryResult => QueryRequestWithResult(queryRequest, queryResult)}
   }
 
 
   override def fetches(queryRequestWithScoreLs: scala.Seq[(QueryRequest, Double)],
-                       prevStepEdges: Predef.Map[VertexId, scala.Seq[EdgeWithScore]]): Future[scala.Seq[QueryRequestWithResult]] = {
-    val defers: Seq[Deferred[QueryRequestWithResult]] = for {
+                       prevStepEdges: Predef.Map[VertexId, scala.Seq[EdgeWithScore]]): Future[scala.Seq[StepInnerResult]] = {
+    val defers: Seq[Deferred[StepInnerResult]] = for {
       (queryRequest, prevStepScore) <- queryRequestWithScoreLs
       parentEdges <- prevStepEdges.get(queryRequest.vertex.id)
     } yield fetch(queryRequest, prevStepScore, isInnerCall = false, parentEdges)
 
-    val grouped: Deferred[util.ArrayList[QueryRequestWithResult]] = Deferred.group(defers)
+    val grouped: Deferred[util.ArrayList[StepInnerResult]] = Deferred.group(defers)
     grouped withCallback {
-      queryResults: util.ArrayList[QueryRequestWithResult] =>
+      queryResults: util.ArrayList[StepInnerResult] =>
         queryResults.toIndexedSeq
     } toFuture
   }
@@ -371,47 +389,56 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
   }
 
 
-  override def createTable(zkAddr: String,
+  override def createTable(_zkAddr: String,
                            tableName: String,
                            cfs: List[String],
                            regionMultiplier: Int,
                            ttl: Option[Int],
                            compressionAlgorithm: String): Unit = {
-    logger.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm")
-    val admin = getAdmin(zkAddr)
-    val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier
-    try {
-      if (!admin.tableExists(TableName.valueOf(tableName))) {
-        try {
-          val desc = new HTableDescriptor(TableName.valueOf(tableName))
-          desc.setDurability(Durability.ASYNC_WAL)
-          for (cf <- cfs) {
-            val columnDesc = new HColumnDescriptor(cf)
-              .setCompressionType(Algorithm.valueOf(compressionAlgorithm.toUpperCase))
-              .setBloomFilterType(BloomType.ROW)
-              .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
-              .setMaxVersions(1)
-              .setTimeToLive(2147483647)
-              .setMinVersions(0)
-              .setBlocksize(32768)
-              .setBlockCacheEnabled(true)
-            if (ttl.isDefined) columnDesc.setTimeToLive(ttl.get)
-            desc.addFamily(columnDesc)
-          }
+    /** TODO: Decide if we will allow each app server to connect to multiple hbase cluster */
+    for {
+      zkAddr <- Seq(zkQuorum) ++ zkQuorumSlave.toSeq
+    } {
+      logger.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm")
+      val admin = getAdmin(zkAddr)
+      val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier
+      try {
+        if (!admin.tableExists(TableName.valueOf(tableName))) {
+          try {
+            val desc = new HTableDescriptor(TableName.valueOf(tableName))
+            desc.setDurability(Durability.ASYNC_WAL)
+            for (cf <- cfs) {
+              val columnDesc = new HColumnDescriptor(cf)
+                .setCompressionType(Algorithm.valueOf(compressionAlgorithm.toUpperCase))
+                .setBloomFilterType(BloomType.ROW)
+                .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
+                .setMaxVersions(1)
+                .setTimeToLive(2147483647)
+                .setMinVersions(0)
+                .setBlocksize(32768)
+                .setBlockCacheEnabled(true)
+              if (ttl.isDefined) columnDesc.setTimeToLive(ttl.get)
+              desc.addFamily(columnDesc)
+            }
 
-          if (regionCount <= 1) admin.createTable(desc)
-          else admin.createTable(desc, getStartKey(regionCount), getEndKey(regionCount), regionCount)
-        } catch {
-          case e: Throwable =>
-            logger.error(s"$zkAddr, $tableName failed with $e", e)
-            throw e
+            if (regionCount <= 1) admin.createTable(desc)
+            else admin.createTable(desc, getStartKey(regionCount), getEndKey(regionCount), regionCount)
+          } catch {
+            case e: Throwable =>
+              logger.error(s"$zkAddr, $tableName failed with $e", e)
+              throw e
+          }
+        } else {
+          logger.info(s"$zkAddr, $tableName, $cfs already exist.")
         }
-      } else {
-        logger.info(s"$zkAddr, $tableName, $cfs already exist.")
+      } catch {
+        case e: Throwable =>
+          logger.error(s"$zkAddr, $tableName failed with $e", e)
+          throw e
+      } finally {
+        admin.close()
+        admin.getConnection.close()
       }
-    } finally {
-      admin.close()
-      admin.getConnection.close()
     }
   }
 

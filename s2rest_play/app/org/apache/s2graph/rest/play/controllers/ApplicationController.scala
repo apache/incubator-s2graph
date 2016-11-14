@@ -22,10 +22,10 @@ package org.apache.s2graph.rest.play.controllers
 import akka.util.ByteString
 import org.apache.s2graph.core.GraphExceptions.BadQueryException
 import org.apache.s2graph.core.PostProcess
+import org.apache.s2graph.core.rest.RestHandler.CanLookup
 import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.rest.play.config.Config
 import play.api.http.HttpEntity
-import play.api.libs.iteratee.Enumerator
 import play.api.libs.json.{JsString, JsValue}
 import play.api.mvc._
 
@@ -41,6 +41,10 @@ object ApplicationController extends Controller {
   val jsonParser: BodyParser[JsValue] = s2parse.json
 
   val jsonText: BodyParser[String] = s2parse.jsonText
+
+  implicit val oneTupleLookup = new CanLookup[Headers] {
+    override def lookup(m: Headers, key: String) = m.get(key)
+  }
 
   private def badQueryExceptionResults(ex: Exception) =
     Future.successful(BadRequest(PostProcess.badRequestResults(ex)).as(applicationJsonHeader))

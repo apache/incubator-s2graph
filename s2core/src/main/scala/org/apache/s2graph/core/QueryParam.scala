@@ -21,6 +21,7 @@ package org.apache.s2graph.core
 
 import com.google.common.hash.Hashing
 import org.apache.hadoop.hbase.util.Bytes
+import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.types.{HBaseSerializable, InnerVal, InnerValLike, LabelWithDirection}
@@ -51,6 +52,12 @@ object Query {
   }
 }
 
+object GroupBy {
+  val Empty = GroupBy()
+}
+case class GroupBy(keys: Seq[String] = Nil,
+                   limit: Int = Int.MaxValue)
+
 case class MultiQuery(queries: Seq[Query],
                       weights: Seq[Double],
                       queryOption: QueryOption,
@@ -58,7 +65,7 @@ case class MultiQuery(queries: Seq[Query],
 
 case class QueryOption(removeCycle: Boolean = false,
                        selectColumns: Seq[String] = Seq.empty,
-                       groupByColumns: Seq[String] = Seq.empty,
+                       groupBy: GroupBy = GroupBy.Empty,
                        orderByColumns: Seq[(String, Boolean)] = Seq.empty,
                        filterOutQuery: Option[Query] = None,
                        filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
@@ -67,8 +74,11 @@ case class QueryOption(removeCycle: Boolean = false,
                        limitOpt: Option[Int] = None,
                        returnAgg: Boolean = true,
                        scoreThreshold: Double = Double.MinValue,
-                       returnDegree: Boolean = true)
-
+                       returnDegree: Boolean = true,
+                       impIdOpt: Option[String] = None) {
+  val orderByKeys = orderByColumns.map(_._1)
+  val ascendingVals = orderByColumns.map(_._2)
+}
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  steps: IndexedSeq[Step] = Vector.empty[Step],
@@ -77,8 +87,7 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
 
   val removeCycle = queryOption.removeCycle
   val selectColumns = queryOption.selectColumns
-//  val groupBy = queryOption.groupBy
-  val groupByColumns = queryOption.groupByColumns
+  val groupBy = queryOption.groupBy
   val orderByColumns = queryOption.orderByColumns
   val filterOutQuery = queryOption.filterOutQuery
   val filterOutFields = queryOption.filterOutFields
@@ -90,7 +99,7 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
 
   def cacheKeyBytes: Array[Byte] = {
     val selectBytes = Bytes.toBytes(queryOption.selectColumns.toString)
-    val groupBytes = Bytes.toBytes(queryOption.groupByColumns.toString)
+    val groupBytes = Bytes.toBytes(queryOption.groupBy.keys.toString)
     val orderByBytes = Bytes.toBytes(queryOption.orderByColumns.toString)
     val filterOutBytes = queryOption.filterOutQuery.map(_.cacheKeyBytes).getOrElse(Array.empty[Byte])
     val returnTreeBytes = Bytes.toBytes(queryOption.returnTree)
@@ -279,11 +288,23 @@ case class RankParam(labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = S
     bytes
   }
 }
+case class S2Request(labelName: String,
+                     direction: String = "out",
+                     ts: Long = System.currentTimeMillis(),
+                     options: Map[String, Any] = Map.empty) {
+  val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+  val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
+  val labelWithDir = LabelWithDirection(label.id.get, dir)
+  //TODO: need to merge options into queryParam.
+  val queryParam = QueryParam(labelWithDir, ts)
 
+}
 object QueryParam {
   lazy val Empty = QueryParam(LabelWithDirection(0, 0))
   lazy val DefaultThreshold = Double.MinValue
   val Delimiter = ","
+  val maxMetaByte = (-1).toByte
+  val fillArray = Array.fill(100)(maxMetaByte)
 }
 
 case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System.currentTimeMillis()) {
@@ -381,13 +402,13 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   }
 
   def limit(offset: Int, limit: Int): QueryParam = {
-    /* since degree info is located on first always */
-    if (offset == 0 && this.columnRangeFilter == null) {
-      this.limit = limit + 1
-      this.offset = offset
-    } else {
-      this.limit = limit
-      this.offset = offset + 1
+    /** since degree info is located on first always */
+    this.limit = limit
+    this.offset = offset
+
+    if (this.columnRangeFilter == null) {
+      if (offset == 0) this.limit = limit + 1
+      else this.offset = offset + 1
     }
     //    this.columnPaginationFilter = new ColumnPaginationFilter(this.limit, this.offset)
     this
@@ -400,26 +421,24 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
     }
   }
 
-  def interval(from: Seq[(Byte, InnerValLike)], to: Seq[(Byte, InnerValLike)]): QueryParam = {
-    //    val len = label.orderTypes.size.toByte
-    //    val len = label.extraIndicesMap(labelOrderSeq).sortKeyTypes.size.toByte
-    //    logger.error(s"indicesMap: ${label.indicesMap(labelOrderSeq)}")
-    val len = label.indicesMap(labelOrderSeq).sortKeyTypes.size.toByte
+  def paddingInterval(len: Byte, from: Seq[(Byte, InnerValLike)], to: Seq[(Byte, InnerValLike)]) = {
+    val fromVal = Bytes.add(propsToBytes(from), QueryParam.fillArray)
+    val toVal = propsToBytes(to)
 
-    val minMetaByte = InnerVal.minMetaByte
-    //    val maxMetaByte = InnerVal.maxMetaByte
-    val maxMetaByte = -1.toByte
-    val toVal = Bytes.add(propsToBytes(to), Array.fill(1)(minMetaByte))
-    //FIXME
-    val fromVal = Bytes.add(propsToBytes(from), Array.fill(10)(maxMetaByte))
     toVal(0) = len
     fromVal(0) = len
-    val maxBytes = fromVal
-    val minBytes = toVal
+
+    val minMax = (toVal, fromVal) // inverted
+    minMax
+  }
+
+  def interval(from: Seq[(Byte, InnerValLike)], to: Seq[(Byte, InnerValLike)]): QueryParam = {
+    val len = label.indicesMap(labelOrderSeq).sortKeyTypes.size.toByte
+    val (minBytes, maxBytes) = paddingInterval(len, from, to)
+
     this.columnRangeFilterMaxBytes = maxBytes
     this.columnRangeFilterMinBytes = minBytes
-    val rangeFilter = new ColumnRangeFilter(minBytes, true, maxBytes, true)
-    this.columnRangeFilter = rangeFilter
+    this.columnRangeFilter = new ColumnRangeFilter(minBytes, true, maxBytes, true)
     this
   }
 

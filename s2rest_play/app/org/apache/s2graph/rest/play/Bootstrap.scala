@@ -52,7 +52,7 @@ object Global extends WithFilters(new GzipFilter()) {
     // init s2graph with config
     s2graph = new Graph(config)(ec)
     storageManagement = new Management(s2graph)
-    s2parser = new RequestParser(s2graph.config) // merged config
+    s2parser = new RequestParser(s2graph) 
     s2rest = new RestHandler(s2graph)(ec)
 
     logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
@@ -83,7 +83,7 @@ object Global extends WithFilters(new GzipFilter()) {
     wallLogHandler.shutdown()
     QueueActor.shutdown()
 
-    /*
+    /**
      * shutdown hbase client for flush buffers.
      */
     shutdown()

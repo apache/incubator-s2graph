@@ -24,8 +24,11 @@ import java.util.Properties
 import com.typesafe.config.Config
 import org.apache.kafka.clients.producer._
 import org.apache.s2graph.core.utils.logger
+import play.api.libs.json.JsValue
 
 class ExceptionHandler(config: Config) {
+
+
   import ExceptionHandler._
 
   val keyBrokerList = "kafka.metadata.broker.list"
@@ -42,7 +45,6 @@ class ExceptionHandler(config: Config) {
           None
       }
     } else None
-
 
   def enqueue(m: KafkaMessage): Unit = {
     producer match {
@@ -68,24 +70,33 @@ object ExceptionHandler {
   type Key = String
   type Val = String
 
-  def toKafkaMessage(topic: String, element: GraphElement, originalString: Option[String] = None) = {
+  def toKafkaMessage(topic: String,
+                     element: GraphElement,
+                     originalString: Option[String] = None,
+                     produceJson: Boolean = false) = {
+    val edgeString = originalString.getOrElse(element.toLogString())
+    val msg = edgeString
+
     KafkaMessage(
       new ProducerRecord[Key, Val](
         topic,
         element.queuePartitionKey,
-        originalString.getOrElse(element.toLogString())))
+        msg))
   }
 
+  // only used in deleteAll
   def toKafkaMessage(topic: String, tsv: String) = {
     KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
   }
+
+  def toKafkaMessage(topic: String, jsValue: JsValue): KafkaMessage = toKafkaMessage(topic, jsValue.toString())
 
   case class KafkaMessage(msg: ProducerRecord[Key, Val])
 
   private def toKafkaProp(config: Config) = {
     val props = new Properties()
 
-    /* all default configuration for new producer */
+    /** all default configuration for new producer */
     val brokers =
       if (config.hasPath("kafka.metadata.broker.list")) config.getString("kafka.metadata.broker.list")
       else "localhost"

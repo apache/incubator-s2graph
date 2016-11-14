@@ -19,6 +19,7 @@
 
 package org.apache.s2graph.rest.play.controllers
 
+import com.fasterxml.jackson.databind.JsonMappingException
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.rest.RequestParser
@@ -30,19 +31,19 @@ import play.api.mvc.{Controller, Result}
 
 import scala.collection.Seq
 import scala.concurrent.Future
-import scala.util.Random
 
 object EdgeController extends Controller {
 
   import ApplicationController._
+  import ExceptionHandler._
   import play.api.libs.concurrent.Execution.Implicits._
 
   private val s2: Graph = org.apache.s2graph.rest.play.Global.s2graph
   private val requestParser: RequestParser = org.apache.s2graph.rest.play.Global.s2parser
   private val walLogHandler: ExceptionHandler = org.apache.s2graph.rest.play.Global.wallLogHandler
 
-  private def enqueue(topic: String, elem: GraphElement, tsv: String) = {
-    val kafkaMessage = ExceptionHandler.toKafkaMessage(topic, elem, Option(tsv))
+  private def enqueue(topic: String, elem: GraphElement, tsv: String, publishJson: Boolean = false) = {
+    val kafkaMessage = ExceptionHandler.toKafkaMessage(topic, elem, Option(tsv), publishJson)
     walLogHandler.enqueue(kafkaMessage)
   }
 
@@ -50,63 +51,129 @@ object EdgeController extends Controller {
     val kafkaTopic = toKafkaTopic(graphElem.isAsync)
 
     graphElem match {
-      case v: Vertex => enqueue(kafkaTopic, graphElem, tsv)
+      case v: Vertex =>
+        enqueue(kafkaTopic, graphElem, tsv)
       case e: Edge =>
         e.label.extraOptions.get("walLog") match {
-          case None => enqueue(kafkaTopic, e, tsv)
+          case None =>
+            enqueue(kafkaTopic, e, tsv)
           case Some(walLogOpt) =>
-            (walLogOpt \ "method").as[JsValue] match {
+            (walLogOpt \ "method").get match {
               case JsString("drop") => // pass
               case JsString("sample") =>
                 val rate = (walLogOpt \ "rate").as[Double]
-                if (scala.util.Random.nextDouble() < rate) enqueue(kafkaTopic, e, tsv)
-              case _ => enqueue(kafkaTopic, e, tsv)
+                if (scala.util.Random.nextDouble() < rate) {
+                  enqueue(kafkaTopic, e, tsv)
+                }
+              case _ =>
+                enqueue(kafkaTopic, e, tsv)
             }
         }
+      case _ => logger.error(s"Unknown graph element type: ${graphElem}")
     }
+  }
+
+  private def toDeleteAllFailMessages(srcVertices: Seq[Vertex], labels: Seq[Label], dir: Int, ts: Long ) = {
+    for {
+      vertex <- srcVertices
+      id = vertex.id.toString
+      label <- labels
+    } yield {
+      val tsv = Seq(ts, "deleteAll", "e", id, id, label.label, "{}", GraphUtil.fromOp(dir.toByte)).mkString("\t")
+      ExceptionHandler.toKafkaMessage(Config.KAFKA_MUTATE_FAIL_TOPIC, tsv)
+    }
+  }
+
+  private def publishFailTopic(kafkaMessages: Seq[KafkaMessage]): Unit ={
+    kafkaMessages.foreach(walLogHandler.enqueue)
+  }
+
+  def mutateElementsWithFailLog(elements: Seq[(GraphElement, String)]) ={
+    val result = s2.mutateElements(elements.map(_._1), true)
+    result onComplete { results =>
+      results.get.zip(elements).map {
+        case (false, (e: Edge, tsv: String)) =>
+          val kafkaMessages = if(e.op == GraphUtil.operations("deleteAll")){
+            toDeleteAllFailMessages(Seq(e.srcVertex), Seq(e.label), e.labelWithDir.dir, e.ts)
+          } else{
+            Seq(ExceptionHandler.toKafkaMessage(Config.KAFKA_MUTATE_FAIL_TOPIC, e, Some(tsv)))
+          }
+          publishFailTopic(kafkaMessages)
+        case _ =>
+      }
+    }
+    result
   }
 
   private def tryMutate(elementsWithTsv: Seq[(GraphElement, String)], withWait: Boolean): Future[Result] = {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
     else {
-      try {
-        elementsWithTsv.foreach { case (graphElem, tsv) =>
-          publish(graphElem, tsv)
-        }
+      elementsWithTsv.foreach { case (graphElem, tsv) =>
+        publish(graphElem, tsv)
+      }
 
-        val elementsToStore = for {
-          (e, _tsv) <- elementsWithTsv if !skipElement(e.isAsync)
-        } yield e
-
-        if (elementsToStore.isEmpty) Future.successful(jsonResponse(JsArray()))
-        else {
-          if (withWait) {
-            val rets = s2.mutateElements(elementsToStore, withWait)
-            rets.map(Json.toJson(_)).map(jsonResponse(_))
-          } else {
-            val rets = elementsToStore.map { element => QueueActor.router ! element; true }
-            Future.successful(jsonResponse(Json.toJson(rets)))
+      if (elementsWithTsv.isEmpty) Future.successful(jsonResponse(JsArray()))
+      else {
+        val elementWithIdxs = elementsWithTsv.zipWithIndex
+        if (withWait) {
+          val (elementSync, elementAsync) = elementWithIdxs.partition { case ((element, tsv), idx) =>
+            !skipElement(element.isAsync)
           }
+          val retToSkip = elementAsync.map(_._2 -> true)
+          val elementsToStore = elementSync.map(_._1)
+          val elementsIdxToStore = elementSync.map(_._2)
+          mutateElementsWithFailLog(elementsToStore).map { rets =>
+            elementsIdxToStore.zip(rets) ++ retToSkip
+          }.map { rets =>
+            Json.toJson(rets.sortBy(_._1).map(_._2))
+          }.map(jsonResponse(_))
+        } else {
+          val rets = elementWithIdxs.map { case ((element, tsv), idx) =>
+            if (!skipElement(element.isAsync)) QueueActor.router ! (element, tsv)
+            true
+          }
+          Future.successful(jsonResponse(Json.toJson(rets)))
         }
-      } catch {
-        case e: GraphExceptions.JsonParseException => Future.successful(BadRequest(s"$e"))
-        case e: Throwable =>
-          logger.error(s"tryMutate: ${e.getMessage}", e)
-          Future.successful(InternalServerError(s"${e.getStackTrace}"))
       }
     }
   }
 
   def mutateJsonFormat(jsValue: JsValue, operation: String, withWait: Boolean = false): Future[Result] = {
     logger.debug(s"$jsValue")
-    val edgesWithTsv = requestParser.parseJsonFormat(jsValue, operation)
-    tryMutate(edgesWithTsv, withWait)
+
+    try {
+      val edgesWithTsv = requestParser.parseJsonFormat(jsValue, operation)
+      tryMutate(edgesWithTsv, withWait)
+    } catch {
+      case e: JsonMappingException =>
+        logger.malformed(jsValue, e)
+        Future.successful(BadRequest(s"${e.getMessage}"))
+      case e: GraphExceptions.JsonParseException  =>
+        logger.malformed(jsValue, e)
+        Future.successful(BadRequest(s"${e.getMessage}"))
+      case e: Exception =>
+        logger.malformed(jsValue, e)
+        Future.failed(e)
+    }
   }
 
   def mutateBulkFormat(str: String, withWait: Boolean = false): Future[Result] = {
     logger.debug(s"$str")
-    val elementsWithTsv = requestParser.parseBulkFormat(str)
-    tryMutate(elementsWithTsv, withWait)
+
+    try {
+      val elementsWithTsv = requestParser.parseBulkFormat(str)
+      tryMutate(elementsWithTsv, withWait)
+    } catch {
+      case e: JsonMappingException =>
+        logger.malformed(str, e)
+        Future.successful(BadRequest(s"${e.getMessage}"))
+      case e: GraphExceptions.JsonParseException  =>
+        logger.malformed(str, e)
+        Future.successful(BadRequest(s"${e.getMessage}"))
+      case e: Exception =>
+        logger.malformed(str, e)
+        Future.failed(e)
+    }
   }
 
   def mutateBulk() = withHeaderAsync(parse.text) { request =>
@@ -163,29 +230,34 @@ object EdgeController extends Controller {
 
     if (edges.isEmpty) Future.successful(jsonResponse(JsArray()))
     else {
+
       s2.incrementCounts(edges, withWait = true).map { results =>
         val json = results.map { case (isSuccess, resultCount) =>
           Json.obj("success" -> isSuccess, "result" -> resultCount)
         }
+
         jsonResponse(Json.toJson(json))
       }
     }
   }
 
   def deleteAll() = withHeaderAsync(jsonParser) { request =>
-//    deleteAllInner(request.body, withWait = false)
     deleteAllInner(request.body, withWait = true)
+  }
+
+  def deleteAllWithOutWait() = withHeaderAsync(jsonParser) { request =>
+    deleteAllInner(request.body, withWait = false)
   }
 
   def deleteAllInner(jsValue: JsValue, withWait: Boolean) = {
 
-    /* logging for delete all request */
+    /** logging for delete all request */
     def enqueueLogMessage(ids: Seq[JsValue], labels: Seq[Label], ts: Long, direction: String, topicOpt: Option[String]) = {
       val kafkaMessages = for {
         id <- ids
         label <- labels
       } yield {
-        val tsv = Seq(ts, "deleteAll", "e", requestParser.jsToStr(id), requestParser.jsToStr(id), label.label, "{}", direction).mkString("\t")
+        val tsv = Seq(ts, "deleteAll", "e", RequestParser.jsToStr(id), RequestParser.jsToStr(id), label.label, "{}", direction).mkString("\t")
         val topic = topicOpt.getOrElse { toKafkaTopic(label.isAsync) }
 
         ExceptionHandler.toKafkaMessage(topic, tsv)
@@ -194,10 +266,18 @@ object EdgeController extends Controller {
       kafkaMessages.foreach(walLogHandler.enqueue)
     }
 
-    def deleteEach(labels: Seq[Label], direction: String, ids: Seq[JsValue], ts: Long, vertices: Seq[Vertex]) = {
-      enqueueLogMessage(ids, labels, ts, direction, None)
+    def deleteEach(labels: Seq[Label], direction: String, ids: Seq[JsValue],
+                   ts: Long, vertices: Seq[Vertex]) = {
+
       val future = s2.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts)
       if (withWait) {
+        future onComplete {
+          case ret =>
+            if (!ret.get) {
+              val messages = toDeleteAllFailMessages(vertices.toList, labels, GraphUtil.directions(direction), ts)
+              publishFailTopic(messages)
+            }
+        }
         future
       } else {
         Future.successful(true)
@@ -205,9 +285,13 @@ object EdgeController extends Controller {
     }
 
     val deleteFutures = jsValue.as[Seq[JsValue]].map { json =>
-      val (labels, direction, ids, ts, vertices) = requestParser.toDeleteParam(json)
+      val (_labels, direction, ids, ts, vertices) = requestParser.toDeleteParam(json)
+      val srcVertices = vertices
+      enqueueLogMessage(ids, _labels, ts, direction, None)
+      val labels = _labels.filterNot(e => skipElement(e.isAsync))
+
       if (labels.isEmpty || ids.isEmpty) Future.successful(true)
-      else deleteEach(labels, direction, ids, ts, vertices)
+      else deleteEach(labels, direction, ids, ts, srcVertices)
     }
 
     val deleteResults = Future.sequence(deleteFutures)

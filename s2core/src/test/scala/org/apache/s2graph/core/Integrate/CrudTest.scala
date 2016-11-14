@@ -20,27 +20,27 @@
 package org.apache.s2graph.core.Integrate
 
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.{JsObject, Json}
 
 class CrudTest extends IntegrateCommon {
   import CrudHelper._
   import TestUtil._
 
-  test("test CRUD") {
-    var tcNum = 0
-    var tcString = ""
-    var bulkQueries = List.empty[(Long, String, String)]
-    var expected = Map.empty[String, String]
+  var tcString = ""
+  var bulkQueries = List.empty[(Long, String, String)]
+  var expected = Map.empty[String, String]
 
-    val curTime = System.currentTimeMillis
-    val t1 = curTime + 0
-    val t2 = curTime + 1
-    val t3 = curTime + 2
-    val t4 = curTime + 3
-    val t5 = curTime + 4
+  val curTime = System.currentTimeMillis
+  val t1 = curTime + 0
+  val t2 = curTime + 1
+  val t3 = curTime + 2
+  val t4 = curTime + 3
+  val t5 = curTime + 4
 
-    val tcRunner = new CrudTestRunner()
-    tcNum = 1
+  val tcRunner = new CrudTestRunner()
+  test("1: [t1 -> t2 -> t3 test case] insert(t1) delete(t2) insert(t3) test") {
+    val tcNum = 1
     tcString = "[t1 -> t2 -> t3 test case] insert(t1) delete(t2) insert(t3) test "
 
     bulkQueries = List(
@@ -50,8 +50,9 @@ class CrudTest extends IntegrateCommon {
     expected = Map("time" -> "10", "weight" -> "20")
 
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
-
-    tcNum = 2
+  }
+  test("2: [t1 -> t2 -> t3 test case] insert(t1) delete(t2) insert(t3) test") {
+    val tcNum = 2
     tcString = "[t1 -> t2 -> t3 test case] insert(t1) delete(t2) insert(t3) test "
     bulkQueries = List(
       (t1, "insert", "{\"time\": 10}"),
@@ -60,8 +61,9 @@ class CrudTest extends IntegrateCommon {
     expected = Map("time" -> "10", "weight" -> "20")
 
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
-
-    tcNum = 3
+  }
+  test("3: [t3 -> t2 -> t1 test case] insert(t3) delete(t2) insert(t1) test") {
+    val tcNum = 3
     tcString = "[t3 -> t2 -> t1 test case] insert(t3) delete(t2) insert(t1) test "
     bulkQueries = List(
       (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
@@ -70,8 +72,9 @@ class CrudTest extends IntegrateCommon {
     expected = Map("time" -> "10", "weight" -> "20")
 
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
-
-    tcNum = 4
+  }
+  test("4: [t3 -> t1 -> t2 test case] insert(t3) insert(t1) delete(t2) test") {
+    val tcNum = 4
     tcString = "[t3 -> t1 -> t2 test case] insert(t3) insert(t1) delete(t2) test "
     bulkQueries = List(
       (t3, "insert", "{\"time\": 10, \"weight\": 20}"),
@@ -80,8 +83,9 @@ class CrudTest extends IntegrateCommon {
     expected = Map("time" -> "10", "weight" -> "20")
 
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
-
-    tcNum = 5
+  }
+  test("5: [t2 -> t1 -> t3 test case] delete(t2) insert(t1) insert(t3) test") {
+    val tcNum = 5
     tcString = "[t2 -> t1 -> t3 test case] delete(t2) insert(t1) insert(t3) test"
     bulkQueries = List(
       (t2, "delete", ""),
@@ -90,8 +94,9 @@ class CrudTest extends IntegrateCommon {
     expected = Map("time" -> "10", "weight" -> "20")
 
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
-
-    tcNum = 6
+  }
+  test("6: [t2 -> t3 -> t1 test case] delete(t2) insert(t3) insert(t1) test") {
+    val tcNum = 6
     tcString = "[t2 -> t3 -> t1 test case] delete(t2) insert(t3) insert(t1) test "
     bulkQueries = List(
       (t2, "delete", ""),
@@ -100,8 +105,9 @@ class CrudTest extends IntegrateCommon {
     expected = Map("time" -> "10", "weight" -> "20")
 
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
-
-    tcNum = 7
+  }
+  test("7: [t1 -> t2 -> t3 test case] update(t1) delete(t2) update(t3) test ") {
+    val tcNum = 7
     tcString = "[t1 -> t2 -> t3 test case] update(t1) delete(t2) update(t3) test "
     bulkQueries = List(
       (t1, "update", "{\"time\": 10}"),
@@ -110,7 +116,9 @@ class CrudTest extends IntegrateCommon {
     expected = Map("time" -> "10", "weight" -> "20")
 
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
-    tcNum = 8
+  }
+  test("8: [t1 -> t3 -> t2 test case] update(t1) update(t3) delete(t2) test ") {
+    val tcNum = 8
     tcString = "[t1 -> t3 -> t2 test case] update(t1) update(t3) delete(t2) test "
     bulkQueries = List(
       (t1, "update", "{\"time\": 10}"),
@@ -119,7 +127,9 @@ class CrudTest extends IntegrateCommon {
     expected = Map("time" -> "10", "weight" -> "20")
 
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
-    tcNum = 9
+  }
+  test("9: [t2 -> t1 -> t3 test case] delete(t2) update(t1) update(t3) test") {
+    val tcNum = 9
     tcString = "[t2 -> t1 -> t3 test case] delete(t2) update(t1) update(t3) test "
     bulkQueries = List(
       (t2, "delete", ""),
@@ -128,7 +138,9 @@ class CrudTest extends IntegrateCommon {
     expected = Map("time" -> "10", "weight" -> "20")
 
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
-    tcNum = 10
+  }
+  test("10: [t2 -> t3 -> t1 test case] delete(t2) update(t3) update(t1) test") {
+    val tcNum = 10
     tcString = "[t2 -> t3 -> t1 test case] delete(t2) update(t3) update(t1) test"
     bulkQueries = List(
       (t2, "delete", ""),
@@ -137,7 +149,9 @@ class CrudTest extends IntegrateCommon {
     expected = Map("time" -> "10", "weight" -> "20")
 
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
-    tcNum = 11
+  }
+  test("11: [t3 -> t2 -> t1 test case] update(t3) delete(t2) update(t1) test") {
+    val tcNum = 11
     tcString = "[t3 -> t2 -> t1 test case] update(t3) delete(t2) update(t1) test "
     bulkQueries = List(
       (t3, "update", "{\"time\": 10, \"weight\": 20}"),
@@ -146,7 +160,9 @@ class CrudTest extends IntegrateCommon {
     expected = Map("time" -> "10", "weight" -> "20")
 
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
-    tcNum = 12
+  }
+  test("12: [t3 -> t1 -> t2 test case] update(t3) update(t1) delete(t2) test") {
+    val tcNum = 12
     tcString = "[t3 -> t1 -> t2 test case] update(t3) update(t1) delete(t2) test "
     bulkQueries = List(
       (t3, "update", "{\"time\": 10, \"weight\": 20}"),
@@ -155,8 +171,9 @@ class CrudTest extends IntegrateCommon {
     expected = Map("time" -> "10", "weight" -> "20")
 
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
-
-    tcNum = 13
+  }
+  test("13: [t5 -> t1 -> t3 -> t2 -> t4 test case] update(t5) insert(t1) insert(t3) delete(t2) update(t4) test ") {
+    val tcNum = 13
     tcString = "[t5 -> t1 -> t3 -> t2 -> t4 test case] update(t5) insert(t1) insert(t3) delete(t2) update(t4) test "
     bulkQueries = List(
       (t5, "update", "{\"is_blocked\": true}"),
@@ -167,6 +184,15 @@ class CrudTest extends IntegrateCommon {
     expected = Map("time" -> "1", "weight" -> "-10", "is_hidden" -> "false", "is_blocked" -> "true")
 
     tcRunner.run(tcNum, tcString, bulkQueries, expected)
+  }
+
+  test("14 - test lock expire") {
+    for {
+      labelName <- List(testLabelName, testLabelName2)
+    } {
+      val id = 0
+      tcRunner.expireTC(labelName, id)
+    }
   }
 
 
@@ -191,7 +217,7 @@ class CrudTest extends IntegrateCommon {
           val bulkEdges = (for ((ts, op, props) <- opWithProps) yield {
             TestUtil.toEdge(ts, op, "e", srcId, tgtId, labelName, props)
           })
-
+          println(s"${bulkEdges.mkString("\n")}")
           TestUtil.insertEdgesSync(bulkEdges: _*)
 
           for {
@@ -210,6 +236,7 @@ class CrudTest extends IntegrateCommon {
             val jsResult = TestUtil.getEdgesSync(query)
 
             val results = jsResult \ "results"
+
             val deegrees = (jsResult \ "degrees").as[List[JsObject]]
             val propsLs = (results \\ "props").seq
             (deegrees.head \ LabelMeta.degree.name).as[Int] should be(1)
@@ -229,6 +256,63 @@ class CrudTest extends IntegrateCommon {
         }
       }
 
+      def expireTC(labelName: String, id: Int) = {
+        var i = 1
+        val label = Label.findByName(labelName).get
+        val serviceName = label.serviceName
+        val columnName = label.srcColumnName
+        val id = 0
+
+        while (i < 1000) {
+          val bulkEdges = Seq(TestUtil.toEdge(i, "u", "e", id, id, testLabelName, Json.obj("time" -> 10).toString()))
+          val rets = TestUtil.insertEdgesSync(bulkEdges: _*)
+
+
+          val queryJson = querySnapshotEdgeJson(serviceName, columnName, labelName, id)
+
+          if (!rets.forall(identity)) {
+            Thread.sleep(graph.storage.LockExpireDuration + 100)
+            /** expect current request would be ignored */
+            val bulkEdges = Seq(TestUtil.toEdge(i-1, "u", "e", 0, 0, testLabelName, Json.obj("time" -> 20).toString()))
+            val rets = TestUtil.insertEdgesSync(bulkEdges: _*)
+            if (rets.forall(identity)) {
+              // check
+              val jsResult = TestUtil.getEdgesSync(queryJson)
+              (jsResult \\ "time").head.as[Int] should be(10)
+              logger.debug(jsResult)
+              i = 100000
+            }
+          }
+
+          i += 1
+        }
+
+        i = 1
+        while (i < 1000) {
+          val bulkEdges = Seq(TestUtil.toEdge(i, "u", "e", id, id, testLabelName, Json.obj("time" -> 10).toString()))
+          val rets = TestUtil.insertEdgesSync(bulkEdges: _*)
+
+
+          val queryJson = querySnapshotEdgeJson(serviceName, columnName, labelName, id)
+
+          if (!rets.forall(identity)) {
+            Thread.sleep(graph.storage.LockExpireDuration + 100)
+            /** expect current request would be applied */
+            val bulkEdges = Seq(TestUtil.toEdge(i+1, "u", "e", 0, 0, testLabelName, Json.obj("time" -> 20).toString()))
+            val rets = TestUtil.insertEdgesSync(bulkEdges: _*)
+            if (rets.forall(identity)) {
+              // check
+              val jsResult = TestUtil.getEdgesSync(queryJson)
+              (jsResult \\ "time").head.as[Int] should be(20)
+              logger.debug(jsResult)
+              i = 100000
+            }
+          }
+
+          i += 1
+        }
+      }
+
       def queryJson(serviceName: String, columnName: String, labelName: String, id: String, dir: String, cacheTTL: Long = -1L) = Json.parse(
         s""" { "srcVertices": [
              { "serviceName": "$serviceName",
@@ -240,6 +324,15 @@ class CrudTest extends IntegrateCommon {
              "offset": 0,
              "limit": 10,
              "cacheTTL": $cacheTTL }]]}""")
+
+      def querySnapshotEdgeJson(serviceName: String, columnName: String, labelName: String, id: Int) = Json.parse(
+        s""" { "srcVertices": [
+             { "serviceName": "$serviceName",
+               "columnName": "$columnName",
+               "id": $id } ],
+             "steps": [ [ {
+             "label": "$labelName",
+             "_to": $id }]]}""")
     }
   }
 }

@@ -31,6 +31,8 @@ object GraphExceptions {
 
   case class LabelAlreadyExistException(msg: String) extends Exception(msg)
 
+  case class LabelNameTooLongException(msg: String) extends Exception(msg)
+
   case class InternalException(msg: String) extends Exception(msg)
 
   case class IllegalDataTypeException(msg: String) extends Exception(msg)

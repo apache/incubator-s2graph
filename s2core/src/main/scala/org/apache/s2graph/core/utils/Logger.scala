@@ -51,6 +51,8 @@ object logger {
   private val logger = LoggerFactory.getLogger("application")
   private val errorLogger = LoggerFactory.getLogger("error")
   private val metricLogger = LoggerFactory.getLogger("metrics")
+  private val queryLogger = LoggerFactory.getLogger("query")
+  private val malformedLogger = LoggerFactory.getLogger("malformed")
 
   def metric[T: Loggable](msg: => T) = metricLogger.info(implicitly[Loggable[T]].toLogMessage(msg))
 
@@ -61,6 +63,10 @@ object logger {
   def error[T: Loggable](msg: => T, exception: => Throwable) = errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg), exception)
 
   def error[T: Loggable](msg: => T) = errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg))
+
+  def query[T: Loggable](msg: => T) = queryLogger.info(implicitly[Loggable[T]].toLogMessage(msg))
+
+  def malformed[T: Loggable](msg: => T, exception: => Throwable) = malformedLogger.error(implicitly[Loggable[T]].toLogMessage(msg), exception)
 }
 
 

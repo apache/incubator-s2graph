@@ -63,5 +63,5 @@ class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge
     else if (indexEdge.op == GraphUtil.operations("incrementCount"))
       Bytes.toBytes(indexEdge.props(LabelMeta.countSeq).innerVal.toString().toLong)
     else propsToKeyValues(indexEdge.metas.toSeq)
-  
+
  }

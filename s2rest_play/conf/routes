@@ -23,7 +23,7 @@
 
 
 # publish
-POST        /publish/:topic                                               org.apache.s2graph.rest.play.controllers.PublishController.mutateBulk(topic)
+#POST        /publish/:topic                                               org.apache.s2graph.rest.play.controllers.PublishController.mutateBulk(topic)
 POST        /publishOnly/:topic                                           org.apache.s2graph.rest.play.controllers.PublishController.publishOnly(topic)
 
 #### Health Check
@@ -37,6 +37,7 @@ POST        /graphs/edges/insertBulk                                      org.ap
 POST        /graphs/edges/delete                                          org.apache.s2graph.rest.play.controllers.EdgeController.deletes()
 POST        /graphs/edges/deleteWithWait                                  org.apache.s2graph.rest.play.controllers.EdgeController.deletesWithWait()
 POST        /graphs/edges/deleteAll                                       org.apache.s2graph.rest.play.controllers.EdgeController.deleteAll()
+POST        /graphs/edges/deleteAllWithOutWait                            org.apache.s2graph.rest.play.controllers.EdgeController.deleteAllWithOutWait()
 POST        /graphs/edges/update                                          org.apache.s2graph.rest.play.controllers.EdgeController.updates()
 POST        /graphs/edges/updateWithWait                                  org.apache.s2graph.rest.play.controllers.EdgeController.updatesWithWait()
 POST        /graphs/edges/increment                                       org.apache.s2graph.rest.play.controllers.EdgeController.increments()
@@ -81,7 +82,7 @@ GET         /graphs/getLabels/:serviceName                                org.ap
 POST        /graphs/createLabel                                           org.apache.s2graph.rest.play.controllers.AdminController.createLabel()
 POST        /graphs/addIndex                                              org.apache.s2graph.rest.play.controllers.AdminController.addIndex()
 GET         /graphs/getLabel/:labelName                                   org.apache.s2graph.rest.play.controllers.AdminController.getLabel(labelName)
-PUT         /graphs/deleteLabel/:labelName                                org.apache.s2graph.rest.play.controllers.AdminController.deleteLabel(labelName)
+PUT         /graphs/deleteLabelReally/:labelName                          org.apache.s2graph.rest.play.controllers.AdminController.deleteLabel(labelName)
 
 POST        /graphs/addProp/:labelName                                    org.apache.s2graph.rest.play.controllers.AdminController.addProp(labelName)
 POST        /graphs/createServiceColumn                                   org.apache.s2graph.rest.play.controllers.AdminController.createServiceColumn()
@@ -117,7 +118,7 @@ POST    /counter/v1/mget                                                org.apac
 
 # Experiment API
 POST        /graphs/experiment/:accessToken/:experimentName/:uuid         org.apache.s2graph.rest.play.controllers.ExperimentController.experiment(accessToken, experimentName, uuid)
-
+POST        /graphs/experiments                                           org.apache.s2graph.rest.play.controllers.ExperimentController.experiments()
 
 # Map static resources from the /public folder to the /assets URL path
 GET         /images/*file                                                 controllers.Assets.at(path="/public/images", file)

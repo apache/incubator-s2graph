@@ -43,7 +43,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     config = ConfigFactory.load()
     graph = new Graph(config)(ExecutionContext.Implicits.global)
     management = new Management(graph)
-    parser = new RequestParser(graph.config)
+    parser = new RequestParser(graph)
     initTestData()
   }
 
@@ -120,7 +120,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     def deleteAllSync(jsValue: JsValue) = {
       val future = Future.sequence(jsValue.as[Seq[JsValue]] map { json =>
         val (labels, direction, ids, ts, vertices) = parser.toDeleteParam(json)
-        val future = graph.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts)
+        val srcVertices = vertices
+        val future = graph.deleteAllAdjacentEdges(srcVertices.toList, labels, GraphUtil.directions(direction), ts)
 
         future
       })
@@ -131,10 +132,13 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     def getEdgesSync(queryJson: JsValue): JsValue = {
       logger.info(Json.prettyPrint(queryJson))
       val restHandler = new RestHandler(graph)
-      Await.result(restHandler.getEdgesAsync(queryJson)(PostProcess.toSimpleVertexArrJson), HttpRequestWaitingTime)
+      val result = Await.result(restHandler.getEdgesAsync(queryJson)(PostProcess.toJson), HttpRequestWaitingTime)
+      logger.debug(s"${Json.prettyPrint(result)}")
+      result
     }
 
     def insertEdgesSync(bulkEdges: String*) = {
+      logger.debug(s"${bulkEdges.mkString("\n")}")
       val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
       val jsResult = Await.result(req, HttpRequestWaitingTime)
 

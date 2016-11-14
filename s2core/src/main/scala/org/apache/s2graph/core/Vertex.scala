@@ -19,10 +19,53 @@
 
 package org.apache.s2graph.core
 
+import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, SourceVertexId, VertexId}
 import play.api.libs.json.Json
-
+//
+//object S2Vertex {
+//  def apply(graph: Graph, vertex: Vertex): S2Vertex = {
+//    S2Vertex(graph,
+//      vertex.serviceName,
+//      vertex.serviceColumn.columnName,
+//      vertex.innerIdVal,
+//      vertex.serviceColumn.innerValsToProps(vertex.props),
+//      vertex.ts,
+//      GraphUtil.fromOp(vertex.op)
+//    )
+//  }
+//}
+//
+//case class S2Vertex(graph: Graph,
+//                    serviceName: String,
+//                    columnName: String,
+//                    id: Any,
+//                    props: Map[String, Any] = Map.empty,
+//                    ts: Long = System.currentTimeMillis(),
+//                    operation: String = "insert") extends GraphElement {
+//  lazy val vertex = {
+//    val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
+//    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
+//    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
+//
+//    val srcVertexId = VertexId(column.id.get, toInnerVal(id.toString, column.columnType, column.schemaVersion))
+//    val propsInner = column.propsToInnerVals(props) ++
+//      Map(ColumnMeta.timeStampSeq.toInt -> InnerVal.withLong(ts, column.schemaVersion))
+//
+//    Vertex(srcVertexId, ts, propsInner, op)
+//  }
+//
+//  val uniqueId = (serviceName, columnName, id)
+//
+//  override def isAsync: Boolean = vertex.isAsync
+//
+//  override def toLogString(): String = vertex.toLogString()
+//
+//  override def queueKey: String = vertex.queueKey
+//
+//  override def queuePartitionKey: String = vertex.queuePartitionKey
+//}
 case class Vertex(id: VertexId,
                   ts: Long = System.currentTimeMillis(),
                   props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
@@ -31,9 +74,18 @@ case class Vertex(id: VertexId,
 
   val innerId = id.innerId
 
+  val innerIdVal = innerId.value
+
+  lazy val properties = for {
+    (k, v) <- props
+    meta <- serviceColumn.metasMap.get(k)
+  } yield meta.name -> v.value
+
   def schemaVer = serviceColumn.schemaVersion
 
   def serviceColumn = ServiceColumn.findById(id.colId)
+
+  def columnName = serviceColumn.columnName
 
   def service = Service.findById(serviceColumn.serviceId)
 
@@ -114,7 +166,21 @@ object Vertex {
 
   def isLabelId(propKey: Int): Boolean = propKey > Byte.MaxValue
 
-  //  val emptyVertex = Vertex(new CompositeId(CompositeId.defaultColId, CompositeId.defaultInnerId, false, true),
-  //    System.currentTimeMillis())
-  def fromString(s: String): Option[Vertex] = Graph.toVertex(s)
+  def toVertex(serviceName: String,
+            columnName: String,
+            id: Any,
+            props: Map[String, Any] = Map.empty,
+            ts: Long = System.currentTimeMillis(),
+            operation: String = "insert"): Vertex = {
+
+    val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
+    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
+    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
+
+    val srcVertexId = VertexId(column.id.get, toInnerVal(id.toString, column.columnType, column.schemaVersion))
+    val propsInner = column.propsToInnerVals(props) ++
+      Map(ColumnMeta.timeStampSeq.toInt -> InnerVal.withLong(ts, column.schemaVersion))
+
+    new Vertex(srcVertexId, ts, propsInner, op)
+  }
 }
