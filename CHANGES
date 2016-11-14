@@ -43,6 +43,8 @@ Release 0.1.0 - unreleased
     S2GRAPH-12: Add Label Name Swap Feature.
 		(Contributed by Hyunsung Jo<hyunsung.jo@gmail.com>, committed by DOYUNG YOON).
 
+    S2GRAPH-125: Add options field on Label model for controlling advanced options (Committed by DOYUNG YOON).
+
   IMPROVEMENT
 
     S2GRAPH-14: Abstract HBase specific methods in Management and Label (Committed by DOYUNG YOON).
