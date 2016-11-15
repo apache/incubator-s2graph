@@ -26,7 +26,6 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
 
 object Extensions {
 
-
   def retryOnSuccess[T](maxRetryNum: Int, n: Int = 1)(fn: => Future[T])(shouldStop: T => Boolean)(implicit ex: ExecutionContext): Future[T] = n match {
     case i if n <= maxRetryNum =>
       fn.flatMap { result =>
@@ -52,37 +51,67 @@ object Extensions {
 
 
   implicit class DeferOps[T](d: Deferred[T])(implicit ex: ExecutionContext) {
+    def map[R](dummy: => T)(op: T => R): Deferred[R] = {
+      val newDefer = new Deferred[R]
 
-    def withCallback[R](op: T => R): Deferred[R] = {
-      d.addCallback(new Callback[R, T] {
-        override def call(arg: T): R = op(arg)
-      })
-    }
-
-    def recoverWith(op: Exception => T): Deferred[T] = {
-      d.addErrback(new Callback[Deferred[T], Exception] {
-        override def call(e: Exception): Deferred[T] = Deferred.fromResult(op(e))
-      })
-    }
-
-
-    def toFuture: Future[T] = {
-      val promise = Promise[T]
-
-      d.addBoth(new Callback[Unit, T] {
-        def call(arg: T) = arg match {
-          case e: Exception => promise.failure(e)
-          case _ => promise.success(arg)
+      d.addCallback(new Callback[T, T] {
+        override def call(arg: T): T = {
+          newDefer.callback(op(arg))
+          arg
         }
       })
 
+      d.addErrback(new Callback[T, Exception] {
+        override def call(e: Exception): T = {
+          newDefer.callback(e)
+          dummy
+        }
+      })
+
+      newDefer
+    }
+
+    def mapWithFallback[R](dummy: => T)(fallback: Exception => R)(op: T => R): Deferred[R] = {
+      val newDefer = new Deferred[R]
+
+      d.addCallback(new Callback[T, T] {
+        override def call(arg: T): T = {
+          newDefer.callback(op(arg))
+          arg
+        }
+      })
+
+      d.addErrback(new Callback[T, Exception] {
+        override def call(e: Exception): T = {
+          newDefer.callback(fallback(e))
+          dummy
+        }
+      })
+
+      newDefer
+    }
+
+    def toFuture(dummy: => T): Future[T] = {
+      val promise = Promise[T]
+
+      val cb = new Callback[T, T] {
+        override def call(arg: T): T = {
+          promise.success(arg)
+          arg
+        }
+      }
+
+      val eb = new Callback[T, Exception] {
+        override def call(e: Exception): T = {
+          promise.failure(e)
+          dummy
+        }
+      }
+
+      d.addCallbacks(cb, eb)
+
       promise.future
     }
-
-    def toFutureWith(fallback: => T): Future[T] = {
-      toFuture recoverWith { case t: Throwable => Future.successful(fallback) }
-    }
-
   }
 
   implicit class ConfigOps(config: Config) {

@@ -20,6 +20,24 @@
 package org.apache.s2graph.core
 
 object GraphExceptions {
+  var fillStckTrace = true
+  class BaseException(msg : String) extends Exception(msg){
+    override def fillInStackTrace : Exception = {
+      if(fillStckTrace) super.fillInStackTrace()
+      this
+    }
+  }
+  class NoStackException(msg : String) extends Exception(msg){
+    override def fillInStackTrace : Exception = {
+      this
+    }
+  }
+
+  class NoStackCauseException(msg : String, ex: Throwable ) extends Exception(msg, ex){
+    override def fillInStackTrace : Exception = {
+      this
+    }
+  }
 
   case class JsonParseException(msg: String) extends Exception(msg)
 
@@ -43,7 +61,11 @@ object GraphExceptions {
 
   case class InvalidHTableException(msg: String) extends Exception(msg)
 
-  case class FetchTimeoutException(msg: String) extends Exception(msg)
+  case class FetchTimeoutException(msg: String) extends NoStackException(msg)
 
   case class DropRequestException(msg: String) extends Exception(msg)
+
+  case class FetchAllStepFailException(msg: String) extends Exception(msg)
+
+  case class AccessDeniedException(amsg: String) extends Exception(amsg)
 }
