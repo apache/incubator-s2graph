@@ -20,6 +20,7 @@
 package org.apache.s2graph.rest.play.controllers
 
 import com.fasterxml.jackson.databind.JsonMappingException
+import org.apache.s2graph.core.ExceptionHandler.KafkaMessage
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.rest.RequestParser
@@ -35,7 +36,6 @@ import scala.concurrent.Future
 object EdgeController extends Controller {
 
   import ApplicationController._
-  import ExceptionHandler._
   import play.api.libs.concurrent.Execution.Implicits._
 
   private val s2: Graph = org.apache.s2graph.rest.play.Global.s2graph
@@ -232,8 +232,8 @@ object EdgeController extends Controller {
     else {
 
       s2.incrementCounts(edges, withWait = true).map { results =>
-        val json = results.map { case (isSuccess, resultCount) =>
-          Json.obj("success" -> isSuccess, "result" -> resultCount)
+        val json = results.map { case (isSuccess, resultCount, count) =>
+          Json.obj("success" -> isSuccess, "result" -> resultCount, "_count" -> count)
         }
 
         jsonResponse(Json.toJson(json))
