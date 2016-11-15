@@ -239,6 +239,7 @@ object Label extends Model[Label] {
       val cacheKey = s"label=${x.label}"
       (cacheKey -> x)
     })
+    ls
   }
 
   def updateName(oldName: String, newName: String)(implicit session: DBSession = AutoSession) = {

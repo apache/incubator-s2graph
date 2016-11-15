@@ -72,6 +72,7 @@ case class QueryOption(removeCycle: Boolean = false,
                        scoreThreshold: Double = Double.MinValue,
                        returnDegree: Boolean = true,
                        impIdOpt: Option[String] = None,
+                       shouldPropagateScore: Boolean = true,
                        ignorePrevStepCache: Boolean = false) {
   val orderByKeys = orderByColumns.map(_._1)
   val ascendingVals = orderByColumns.map(_._2)

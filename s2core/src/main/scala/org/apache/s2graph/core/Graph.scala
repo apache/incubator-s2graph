@@ -285,8 +285,6 @@ object Graph {
                  (implicit ec: scala.concurrent.ExecutionContext): Future[StepResult] = {
 
     queryResultLsFuture.map { queryRequestWithResultLs =>
-      if (!q.queryOption.withFallback && queryRequestWithResultLs.forall(_.isFailure)) throw FetchAllStepFailException("All Steps fetches failed")
-
       val (cursors, failCount) = {
         val _cursors = ArrayBuffer.empty[Array[Byte]]
         var _failCount = 0
@@ -386,10 +384,7 @@ object Graph {
             }.foreach { case (k, ls) =>
               val (scoreSum, merged) = StepResult.mergeOrdered(ls, Nil, queryOption)
 
-              val newScoreSum = queryOption.groupBy.groupByScoreParams match {
-                case None => scoreSum
-                case Some(groupByScoreParams) => groupByScoreParams.toScore(merged)
-              }
+              val newScoreSum = scoreSum
 
               /**
                 * watch out here. by calling toString on Any, we lose type information which will be used
@@ -419,7 +414,7 @@ object Graph {
     val labelWeight = queryRequest.labelWeight
     val edgeWithScores = stepResult.edgeWithScores
 
-    val shouldBuildParents = queryOption.returnTree || queryOption.accumulates.nonEmpty || queryParam.whereHasParent
+    val shouldBuildParents = queryOption.returnTree || queryParam.whereHasParent
     val parents = if (shouldBuildParents) {
       parentEdges.getOrElse(queryRequest.vertex.id, Nil).map { edgeWithScore =>
         val edge = edgeWithScore.edge
@@ -451,7 +446,7 @@ object Graph {
     // skip
     if (queryOption.ignorePrevStepCache) stepResult.edgeWithScores
     else {
-      val degreeScore = queryParam.rankingScoreParamsOpt.map(_.toDegreeScore(stepResult.degreeEdges.headOption)).getOrElse(0.0)
+      val degreeScore = 0.0
 
       val sampled =
         if (queryRequest.queryParam.sample >= 0) sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
@@ -471,21 +466,13 @@ object Graph {
         }
 
         val tsVal = processTimeDecay(queryParam, edge)
-        val newScore = queryParam.rankingScoreParamsOpt match {
-          case None => degreeScore + score
-          case Some(rankingScoreParam) =>
-
-            /** we are adding O(# scoreParams on this queryParam) per each fetched edges */
-            degreeScore + rankingScoreParam.toScore(edgeWithScore.copy(score = score))
-        }
+        val newScore = degreeScore + score
         //          val newEdge = if (queryOption.returnTree) edge.copy(parentEdges = parents) else edge
         val newEdge = edge.copy(parentEdges = parents)
         edgeWithScore.copy(edge = newEdge, score = newScore * labelWeight * tsVal)
       }
 
-      val normalized =
-        if (queryParam.shouldNormalize) normalize(withScores)
-        else queryParam.normalizerOpt.map(_.normalize(withScores)).getOrElse(withScores)
+      val normalized = normalize(withScores)
 
       normalized
     }
@@ -605,8 +592,6 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
 
   val scheduledEx = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
-  private val ImportLock = new java.util.concurrent.ConcurrentHashMap[String, Importer]
-
   private def confWithFallback(conf: Config): Config = {
     conf.withFallback(config)
   }
@@ -692,7 +677,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
 
   //  def checkEdges(edges: Seq[Edge]): Future[StepResult] = storage.checkEdges(edges)
 
-  def getEdges(q: S2Query): Future[StepResult] = {
+  def getEdges(q: Query): Future[StepResult] = {
     Try {
       if (q.steps.isEmpty) {
         // TODO: this should be get vertex query.
@@ -700,10 +685,10 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
       } else {
         val filterOutFuture = q.queryOption.filterOutQuery match {
           case None => fallback
-          case Some(filterOutQuery) => getEdgesStepInner(filterOutQuery.innerQuery)
+          case Some(filterOutQuery) => getEdgesStepInner(filterOutQuery)
         }
         for {
-          stepResult <- getEdgesStepInner(q.innerQuery)
+          stepResult <- getEdgesStepInner(q)
           filterOutInnerResult <- filterOutFuture
         } yield {
           if (filterOutInnerResult.isEmpty) stepResult
@@ -738,12 +723,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
           }
         }
 
-        /** need to add QueryLevel Future Cache */
-        if (queryOption.cacheTTL < 0) fetch
-        else {
-          val fullCacheKey = q.fullCacheKey
-          queryFutureCache.getOrElseUpdate(fullCacheKey, queryOption.cacheTTL)(fetch)
-        }
+        fetch
       }
     } recover {
       case e: Exception =>
@@ -790,7 +770,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
 
       val queryRequests = for {
         (vertex, prevStepScore) <- nextStepSrcVertices
-        queryParam <- step.queryParams if queryParam.skipRpc == false
+        queryParam <- step.queryParams
       } yield {
         val labelWeight = step.labelWeights.getOrElse(queryParam.labelWithDir.labelId, 1.0)
         val newPrevStepScore = if (queryOption.shouldPropagateScore) prevStepScore else 1.0
@@ -798,14 +778,9 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
       }
 
       val fetchedLs = fetches(queryRequests, prevStepTgtVertexIdEdges)
-      if (step.calculateSimilarity) {
-        fetchedLs.map { stepResults =>
-          StepResult.topKSim(stepInnerResult, stepResults, 100)
-        }
-      } else {
-        filterEdges(orgQuery, stepIdx, queryRequests,
-          fetchedLs, orgQuery.steps(stepIdx).queryParams, alreadyVisited, buildLastStepInnerResult, prevStepTgtVertexIdEdges)(ec)
-      }
+
+      filterEdges(orgQuery, stepIdx, queryRequests,
+        fetchedLs, orgQuery.steps(stepIdx).queryParams, alreadyVisited, buildLastStepInnerResult, prevStepTgtVertexIdEdges)(ec)
     }
   }
 
@@ -840,7 +815,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
       else {
         val filterOutFuture = mq.queryOption.filterOutQuery match {
           case None => fallback
-          case Some(filterOutQuery) => getEdgesStepInner(filterOutQuery.innerQuery)
+          case Some(filterOutQuery) => getEdgesStepInner(filterOutQuery)
         }
 
         val multiQueryFutures = Future.sequence(mq.queries.map { query => getEdges(query) })
@@ -1076,13 +1051,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
             if (edge.op == GraphUtil.operations("delete")) Edge.buildDeleteBulk(None, edge)
             else Edge.buildOperation(None, Seq(edge))
 
-          if (edgeUpdate.indexEdgeWriteOption.bufferIncrement) {
-            val (inIncrs, outIncrs) = storage.incrementsInOut(edgeUpdate)
-            storage.writeToStorage(zkQuorum, inIncrs, withWait = false) // fire and forget for increment rpcs
-            storage.buildVertexPutsAsync(edge) ++ storage.indexedEdgeMutations(edgeUpdate) ++ storage.snapshotEdgeMutations(edgeUpdate) ++ outIncrs
-          } else {
-            storage.buildVertexPutsAsync(edge) ++ storage.indexedEdgeMutations(edgeUpdate) ++ storage.snapshotEdgeMutations(edgeUpdate) ++ storage.increments(edgeUpdate)
-          }
+          storage.buildVertexPutsAsync(edge) ++ storage.indexedEdgeMutations(edgeUpdate) ++ storage.snapshotEdgeMutations(edgeUpdate) ++ storage.increments(edgeUpdate)
         }
 
         storage.writeToStorage(zkQuorum, mutations, withWait).map { ret =>

@@ -329,6 +329,7 @@ class RequestParser(graph: Graph) {
     val scoreThreshold = (jsValue \ "scoreThreshold").asOpt[Double].getOrElse(Double.MinValue)
     val returnDegree = (jsValue \ "returnDegree").asOpt[Boolean].getOrElse(true)
     val ignorePrevStepCache = (jsValue \ "ignorePrevStepCache").asOpt[Boolean].getOrElse(false)
+    val shouldPropagateScore = (jsValue \ "shouldPropagateScore").asOpt[Boolean].getOrElse(true)
 
     QueryOption(removeCycle = removeCycle,
       selectColumns = selectColumns,
@@ -343,7 +344,8 @@ class RequestParser(graph: Graph) {
       scoreThreshold = scoreThreshold,
       returnDegree = returnDegree,
       impIdOpt = impIdOpt,
-      ignorePrevStepCache
+      ignorePrevStepCache,
+      shouldPropagateScore
     )
   }
 
