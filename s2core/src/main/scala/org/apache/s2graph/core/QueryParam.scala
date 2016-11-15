@@ -75,7 +75,10 @@ case class QueryOption(removeCycle: Boolean = false,
   val ascendingVals = orderByColumns.map(_._2)
   val selectColumnsMap = selectColumns.map { c => c -> true } .toMap
   val scoreFieldIdx = orderByKeys.zipWithIndex.find(t => t._1 == "score").map(_._2).getOrElse(-1)
-
+  val (edgeSelectColumns, propsSelectColumns) = selectColumns.partition(c => LabelMeta.defaultRequiredMetaNames.contains(c))
+  /** */
+  val edgeSelectColumnsFiltered = edgeSelectColumns
+//  val edgeSelectColumnsFiltered = edgeSelectColumns.filterNot(c => groupBy.keys.contains(c))
   lazy val cacheKeyBytes: Array[Byte] = {
     val selectBytes = Bytes.toBytes(selectColumns.toString)
     val groupBytes = Bytes.toBytes(groupBy.keys.toString)

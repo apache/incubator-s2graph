@@ -32,11 +32,15 @@ object LabelMeta extends Model[LabelMeta] {
 
   /** dummy sequences */
 
-  val fromSeq = -4.toByte
-  val toSeq = -5.toByte
-  val lastOpSeq = -3.toByte
-  val lastDeletedAtSeq = -2.toByte
-  val timestampSeq = 0.toByte
+  val fromSeq = (-4).toByte
+  val toSeq = (-5).toByte
+  val lastOpSeq = (-3).toByte
+  val lastDeletedAtSeq = (-2).toByte
+  val timestampSeq = (0).toByte
+  val labelSeq = (-6).toByte
+  val directionSeq = -7.toByte
+  val fromHashSeq = -8.toByte
+
   val countSeq = (Byte.MaxValue - 2).toByte
   val degreeSeq = (Byte.MaxValue - 1).toByte
   val maxValue = Byte.MaxValue
@@ -45,6 +49,8 @@ object LabelMeta extends Model[LabelMeta] {
   /** reserved sequences */
   //  val deleted = LabelMeta(id = Some(lastDeletedAt), labelId = lastDeletedAt, name = "lastDeletedAt",
   //    seq = lastDeletedAt, defaultValue = "", dataType = "long")
+  val fromHash = LabelMeta(id = None, labelId = fromHashSeq, name = "_from_hash",
+    seq = fromHashSeq, defaultValue = fromHashSeq.toString, dataType = "long")
   val from = LabelMeta(id = Some(fromSeq), labelId = fromSeq, name = "_from",
     seq = fromSeq, defaultValue = fromSeq.toString, dataType = "string")
   val to = LabelMeta(id = Some(toSeq), labelId = toSeq, name = "_to",
@@ -57,19 +63,30 @@ object LabelMeta extends Model[LabelMeta] {
     seq = countSeq, defaultValue = "-1", dataType = "long")
   val lastDeletedAt = LabelMeta(id = Some(-1), labelId = -1, name = "_lastDeletedAt",
     seq = lastDeletedAtSeq, defaultValue = "-1", dataType = "long")
+  val label = LabelMeta(id = Some(-1), labelId = -1, name = "label",
+    seq = labelSeq, defaultValue = "", dataType = "string")
+  val direction = LabelMeta(id = Some(-1), labelId = -1, name = "direction",
+    seq = directionSeq, defaultValue = "out", dataType = "string")
   val empty = LabelMeta(id = Some(-1), labelId = -1, name = "_empty",
     seq = emptySeq, defaultValue = "-1", dataType = "long")
 
   // Each reserved column(_timestamp, timestamp) has same seq number, starts with '_' has high priority
-  val reservedMetas = List(empty, lastDeletedAt, from, to, degree, timestamp, count).flatMap { lm => List(lm, lm.copy(name = lm.name.drop(1))) }.reverse
-  val reservedMetasInner = List(empty, lastDeletedAt, from, to, degree, timestamp, count)
+  val reservedMetas = List(empty, label, direction, lastDeletedAt, from, fromHash, to, degree, timestamp, count).flatMap { lm => List(lm, lm.copy(name = lm.name.drop(1))) }.reverse
+  val reservedMetasInner = List(empty, label, direction, lastDeletedAt, from, fromHash, to, degree, timestamp, count)
+
+  val defaultRequiredMetaNames = Set("from", "_from", "to", "_to", "_from_hash", "label", "direction", "timestamp", "_timestamp")
 
   def apply(rs: WrappedResultSet): LabelMeta = {
     LabelMeta(Some(rs.int("id")), rs.int("label_id"), rs.string("name"), rs.byte("seq"), rs.string("default_value"), rs.string("data_type").toLowerCase)
   }
 
-  def isValidSeq(seq: Byte): Boolean = seq >= 0 && seq <= countSeq
-  def isValidSeqForAdmin(seq: Byte): Boolean = seq > 0 && seq < countSeq
+  /** Note: DegreeSeq should not be included in serializer/deserializer.
+    * only 0 <= seq <= CountSeq(Int.MaxValue - 2), not DegreeSet(Int.MaxValue - 1) should be
+    * included in actual bytes in storage.
+    * */
+  def isValidSeq(seq: Byte): Boolean = seq >= 0 && seq <= countSeq // || seq == fromHashSeq
+
+  def isValidSeqForAdmin(seq: Byte): Boolean = seq > 0 && seq < countSeq // || seq == fromHashSeq
 
   def findById(id: Int)(implicit session: DBSession = AutoSession): LabelMeta = {
     val cacheKey = "id=" + id
