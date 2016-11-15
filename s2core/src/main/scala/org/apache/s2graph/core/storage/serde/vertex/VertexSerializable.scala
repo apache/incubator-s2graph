@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,11 +19,12 @@
 
 package org.apache.s2graph.core.storage.serde.vertex
 
-import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.Vertex
+import org.apache.s2graph.core.storage.StorageSerializable._
 import org.apache.s2graph.core.storage.{SKeyValue, Serializable}
+import org.apache.s2graph.core.utils.logger
 
-case class VertexSerializable(vertex: Vertex) extends Serializable[Vertex] {
+case class VertexSerializable(vertex: Vertex, intToBytes: Int => Array[Byte] = intToBytes) extends Serializable[Vertex] {
 
   override val table = vertex.hbaseTableName.getBytes
   override val ts = vertex.ts
@@ -37,8 +38,8 @@ case class VertexSerializable(vertex: Vertex) extends Serializable[Vertex] {
   /** vertex override toKeyValues since vertex expect to produce multiple sKeyValues */
   override def toKeyValues: Seq[SKeyValue] = {
     val row = toRowKey
-    val base = for ((k, v) <- vertex.props ++ vertex.defaultProps) yield Bytes.toBytes(k) -> v.bytes
-    val belongsTo = vertex.belongLabelIds.map { labelId => Bytes.toBytes(Vertex.toPropKey(labelId)) -> Array.empty[Byte] }
+    val base = for ((k, v) <- vertex.props ++ vertex.defaultProps) yield intToBytes(k) -> v.bytes
+    val belongsTo = vertex.belongLabelIds.map { labelId => intToBytes(Vertex.toPropKey(labelId)) -> Array.empty[Byte] }
     (base ++ belongsTo).map { case (qualifier, value) =>
       SKeyValue(vertex.hbaseTableName.getBytes, row, cf, qualifier, value, vertex.ts)
     } toSeq
