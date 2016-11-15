@@ -70,7 +70,8 @@ case class QueryOption(removeCycle: Boolean = false,
                        returnAgg: Boolean = true,
                        scoreThreshold: Double = Double.MinValue,
                        returnDegree: Boolean = true,
-                       impIdOpt: Option[String] = None) {
+                       impIdOpt: Option[String] = None,
+                       ignorePrevStepCache: Boolean = false) {
   val orderByKeys = orderByColumns.map(_._1)
   val ascendingVals = orderByColumns.map(_._2)
   val selectColumnsMap = selectColumns.map { c => c -> true } .toMap
