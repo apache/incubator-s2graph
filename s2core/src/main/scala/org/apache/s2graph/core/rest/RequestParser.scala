@@ -19,17 +19,19 @@
 
 package org.apache.s2graph.core.rest
 
+
+
 import java.util.concurrent.{Callable, TimeUnit}
+
 import com.google.common.cache.CacheBuilder
-import com.typesafe.config.Config
 import org.apache.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
 import org.apache.s2graph.core._
+import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.JSONParser._
 import play.api.libs.json._
-import play.api.libs.json.Reads._
+
 
 import scala.util.{Failure, Success, Try}
 
@@ -76,21 +78,6 @@ object TemplateHelper {
 
 object RequestParser {
   type ExperimentParam = (JsObject, String, String, String, Option[String])
-  val defaultLimit = 100
-
-  def toJsValues(jsValue: JsValue): List[JsValue] = {
-    jsValue match {
-      case obj: JsObject => List(obj)
-      case arr: JsArray => arr.as[List[JsValue]]
-      case _ => List.empty[JsValue]
-    }
-  }
-
-  def jsToStr(js: JsValue): String = js match {
-    case JsString(s) => s
-    case _ => js.toString()
-  }
-
 }
 
 class RequestParser(graph: Graph) {
@@ -100,6 +87,7 @@ class RequestParser(graph: Graph) {
 
   val config = graph.config
   val hardLimit = config.getInt("query.hardlimit")
+  val defaultLimit = 100
   val maxLimit = Int.MaxValue - 1
   val DefaultRpcTimeout = config.getInt("hbase.rpc.timeout")
   val DefaultMaxAttempt = config.getInt("hbase.client.retries.number")
@@ -115,23 +103,28 @@ class RequestParser(graph: Graph) {
 
   private def extractScoring(labelId: Int, value: JsValue) = {
     val ret = for {
-      js <- parseOption[JsObject](value, "scoring")
+      js <- parse[Option[JsObject]](value, "scoring")
     } yield {
       for {
         (k, v) <- js.fields
-        labelOrderType <- LabelMeta.findByName(labelId, k)
+        labelMeta <- LabelMeta.findByName(labelId, k)
       } yield {
         val value = v match {
           case n: JsNumber => n.as[Double]
           case _ => throw new Exception("scoring weight should be double.")
         }
-        (labelOrderType.seq, value)
+        (labelMeta, value)
       }
     }
 
     ret
   }
-
+  def toProps(js: Seq[(String, JsValue)]): Seq[(String, Any)] = {
+    for {
+      (k, v) <- js
+      anyVal <- jsValueToAny(v)
+    } yield k -> anyVal
+  }
   def extractInterval(label: Label, jsValue: JsValue) = {
     def extractKv(js: JsValue) = js match {
       case JsObject(map) => map.toSeq
@@ -147,8 +140,8 @@ class RequestParser(graph: Graph) {
       fromJs <- (js \ "from").asOpt[JsValue]
       toJs <- (js \ "to").asOpt[JsValue]
     } yield {
-      val from = Management.toProps(label, extractKv(fromJs))
-      val to = Management.toProps(label, extractKv(toJs))
+      val from = toProps(extractKv(fromJs))
+      val to = toProps(extractKv(toJs))
       (from, to)
     }
 
@@ -188,10 +181,10 @@ class RequestParser(graph: Graph) {
         labelMeta <- LabelMeta.findByName(label.id.get, k)
         value <- jsValueToInnerVal(v, labelMeta.dataType, label.schemaVersion)
       } yield {
-        labelMeta.seq -> value
+        labelMeta.name -> value
       }
     }
-    ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
+    ret.map(_.toMap).getOrElse(Map.empty[String, InnerValLike])
   }
 
   def extractWhere(label: Label, whereClauseOpt: Option[String]): Try[Where] = {
@@ -247,7 +240,7 @@ class RequestParser(graph: Graph) {
 //    val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
     val groupBy = (jsValue \ "groupBy").asOpt[JsValue].getOrElse(JsNull) match {
       case obj: JsObject =>
-        val keys = (obj \ "key").asOpt[Seq[String]].getOrElse(Nil)
+        val keys = (obj \ "keys").asOpt[Seq[String]].getOrElse(Nil)
         val groupByLimit = (obj \ "limit").asOpt[Int].getOrElse(hardLimit)
         GroupBy(keys, groupByLimit)
       case arr: JsArray =>
@@ -293,24 +286,14 @@ class RequestParser(graph: Graph) {
 
   def toQuery(jsValue: JsValue, impIdOpt: Option[String]): Query = {
     try {
-      val vertices =
-        (for {
-          value <- parse[List[JsValue]](jsValue, "srcVertices")
-          serviceName = parse[String](value, "serviceName")
-          column = parse[String](value, "columnName")
-        } yield {
-          val service = Service.findByName(serviceName).getOrElse(throw BadQueryException("service not found"))
-          val col = ServiceColumn.find(service.id.get, column).getOrElse(throw BadQueryException("bad column name"))
-          val (idOpt, idsOpt) = ((value \ "id").asOpt[JsValue], (value \ "ids").asOpt[List[JsValue]])
-          for {
-            idVal <- idOpt ++ idsOpt.toSeq.flatten
-
-            /* bug, need to use labels schemaVersion  */
-            innerVal <- jsValueToInnerVal(idVal, col.columnType, col.schemaVersion)
-          } yield {
-            Vertex(SourceVertexId(col.id.get, innerVal), System.currentTimeMillis())
-          }
-        }).flatten
+      val vertices = for {
+        value <- (jsValue \ "srcVertices").asOpt[Seq[JsValue]].getOrElse(Nil)
+        serviceName <- (value \ "serviceName").asOpt[String].toSeq
+        columnName <- (value \ "columnName").asOpt[String].toSeq
+        idJson = (value \ "id").asOpt[JsValue].map(Seq(_)).getOrElse(Nil)
+        idsJson = (value \ "ids").asOpt[Seq[JsValue]].getOrElse(Nil)
+        id <- (idJson ++ idsJson).flatMap(jsValueToAny(_).toSeq).distinct
+      } yield Vertex.toVertex(serviceName, columnName, id)
 
       if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
       val steps = parse[Vector[JsValue]](jsValue, "steps")
@@ -325,8 +308,8 @@ class RequestParser(graph: Graph) {
                 (k, v) <- (obj \ "weights").asOpt[JsObject].getOrElse(Json.obj()).fields
                 l <- Label.findByName(k)
               } yield {
-                l.id.get -> v.toString().toDouble
-              }
+                  l.id.get -> v.toString().toDouble
+                }
               converted.toMap
             case _ => Map.empty[Int, Double]
           }
@@ -402,28 +385,24 @@ class RequestParser(graph: Graph) {
       val offset = parseOption[Int](labelGroup, "offset").getOrElse(0)
       val interval = extractInterval(label, labelGroup)
       val duration = extractDuration(label, labelGroup)
-      val scoring = extractScoring(label.id.get, labelGroup).getOrElse(List.empty[(Byte, Double)]).toList
+      val scoring = extractScoring(label.id.get, labelGroup).getOrElse(Nil).toList
       val exclude = parseOption[Boolean](labelGroup, "exclude").getOrElse(false)
       val include = parseOption[Boolean](labelGroup, "include").getOrElse(false)
       val hasFilter = extractHas(label, labelGroup)
-      val labelWithDir = LabelWithDirection(label.id.get, direction)
-      val indexNameOpt = (labelGroup \ "index").asOpt[String]
-      val indexSeq = indexNameOpt match {
-        case None => label.indexSeqsMap.get(scoring.map(kv => kv._1)).map(_.seq).getOrElse(LabelIndex.DefaultSeq)
-        case Some(indexName) => label.indexNameMap.get(indexName).map(_.seq).getOrElse(throw new RuntimeException("cannot find index"))
-      }
+
+      val indexName = (labelGroup \ "index").asOpt[String].getOrElse(LabelIndex.DefaultName)
       val whereClauseOpt = (labelGroup \ "where").asOpt[String]
       val where = extractWhere(label, whereClauseOpt)
       val includeDegree = (labelGroup \ "includeDegree").asOpt[Boolean].getOrElse(true)
       val rpcTimeout = (labelGroup \ "rpcTimeout").asOpt[Int].getOrElse(DefaultRpcTimeout)
       val maxAttempt = (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(DefaultMaxAttempt)
-      val tgtVertexInnerIdOpt = (labelGroup \ "_to").asOpt[JsValue].flatMap { jsVal =>
-        jsValueToInnerVal(jsVal, label.tgtColumnWithDir(direction).columnType, label.schemaVersion)
-      }
+
+      val tgtVertexInnerIdOpt = (labelGroup \ "_to").asOpt[JsValue].filterNot(_ == JsNull).flatMap(jsValueToAny)
+
       val cacheTTL = (labelGroup \ "cacheTTL").asOpt[Long].getOrElse(-1L)
       val timeDecayFactor = (labelGroup \ "timeDecay").asOpt[JsObject].map { jsVal =>
         val propName = (jsVal \ "propName").asOpt[String].getOrElse(LabelMeta.timestamp.name)
-        val propNameSeq = label.metaPropsInvMap.get(propName).map(_.seq).getOrElse(LabelMeta.timeStampSeq)
+        val propNameSeq = label.metaPropsInvMap.get(propName).getOrElse(LabelMeta.timestamp)
         val initial = (jsVal \ "initial").asOpt[Double].getOrElse(1.0)
         val decayRate = (jsVal \ "decayRate").asOpt[Double].getOrElse(0.1)
         if (decayRate >= 1.0 || decayRate <= 0.0) throw new BadQueryException("decay rate should be 0.0 ~ 1.0")
@@ -432,40 +411,33 @@ class RequestParser(graph: Graph) {
       }
       val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(QueryParam.DefaultThreshold)
       // TODO: refactor this. dirty
-      val duplicate = parseOption[String](labelGroup, "duplicate").map(s => Query.DuplicatePolicy(s))
+      val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => DuplicatePolicy(s)).getOrElse(DuplicatePolicy.First)
 
       val outputField = (labelGroup \ "outputField").asOpt[String].map(s => Json.arr(Json.arr(s)))
-      val transformer = if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]
+      val transformer = (if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]) match {
+        case None => EdgeTransformer(EdgeTransformer.DefaultJson)
+        case Some(json) => EdgeTransformer(json)
+      }
       val scorePropagateOp = (labelGroup \ "scorePropagateOp").asOpt[String].getOrElse("multiply")
       val scorePropagateShrinkage = (labelGroup \ "scorePropagateShrinkage").asOpt[Long].getOrElse(500l)
       val sample = (labelGroup \ "sample").asOpt[Int].getOrElse(-1)
       val shouldNormalize = (labelGroup \ "normalize").asOpt[Boolean].getOrElse(false)
       val cursorOpt = (labelGroup \ "cursor").asOpt[String]
       // FIXME: Order of command matter
-      QueryParam(labelWithDir)
-        .sample(sample)
-        .rank(RankParam(label.id.get, scoring))
-        .exclude(exclude)
-        .include(include)
-        .duration(duration)
-        .has(hasFilter)
-        .labelOrderSeq(indexSeq)
-        .interval(interval)
-        .limit(offset, limit)
-        .where(where)
-        .duplicatePolicy(duplicate)
-        .includeDegree(includeDegree)
-        .rpcTimeout(rpcTimeout)
-        .maxAttempt(maxAttempt)
-        .tgtVertexInnerIdOpt(tgtVertexInnerIdOpt)
-        .cacheTTLInMillis(cacheTTL)
-        .timeDecay(timeDecayFactor)
-        .threshold(threshold)
-        .transformer(transformer)
-        .scorePropagateOp(scorePropagateOp)
-        .scorePropagateShrinkage(scorePropagateShrinkage)
-        .shouldNormalize(shouldNormalize)
-        .cursorOpt(cursorOpt)
+      QueryParam(labelName = labelName,
+        direction = direction, offset = offset, limit = limit, sample = sample,
+        maxAttempt = maxAttempt, rpcTimeout = rpcTimeout, cacheTTLInMillis = cacheTTL,
+        indexName = indexName, where = where, threshold = threshold,
+        rank = RankParam(scoring), intervalOpt = interval, durationOpt = duration,
+        exclude = exclude, include = include, has = hasFilter, duplicatePolicy = duplicate,
+        includeDegree = includeDegree, scorePropagateShrinkage = scorePropagateShrinkage,
+        scorePropagateOp = scorePropagateOp, shouldNormalize = shouldNormalize,
+        whereRawOpt = whereClauseOpt, cursorOpt = cursorOpt,
+        tgtVertexIdOpt = tgtVertexInnerIdOpt,
+        edgeTransformer = transformer, timeDecay = timeDecayFactor,
+        rankingScoreParamsOpt = rankingScoreParamsOpt, accumulateScoreParamsOpt = accumulateScoreParamsOpt,
+        normalizerOpt = normalizerOpt
+      )
     }
   }
 
@@ -487,6 +459,11 @@ class RequestParser(graph: Graph) {
         throw new GraphExceptions.JsonParseException(Json.obj("error" -> key).toString)
       case JsSuccess(result, _) => result
     }
+  }
+
+  def jsToStr(js: JsValue): String = js match {
+    case JsString(s) => s
+    case _ => js.toString()
   }
 
   def parseBulkFormat(str: String): Seq[(GraphElement, String)] = {
@@ -624,30 +601,15 @@ class RequestParser(graph: Graph) {
   }
 
   def toCheckEdgeParam(jsValue: JsValue) = {
-    val params = jsValue.as[List[JsValue]]
-    var isReverted = false
-    val labelWithDirs = scala.collection.mutable.HashSet[LabelWithDirection]()
-    val quads = for {
-      param <- params
-      labelName <- (param \ "label").asOpt[String]
-      direction <- GraphUtil.toDir((param \ "direction").asOpt[String].getOrElse("out"))
-      label <- Label.findByName(labelName)
-      srcId <- jsValueToInnerVal((param \ "from").as[JsValue], label.srcColumnWithDir(direction.toInt).columnType, label.schemaVersion)
-      tgtId <- jsValueToInnerVal((param \ "to").as[JsValue], label.tgtColumnWithDir(direction.toInt).columnType, label.schemaVersion)
+    for {
+      json <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
+      from <- (json \ "from").asOpt[JsValue].flatMap(jsValueToAny(_))
+      to <- (json \ "to").asOpt[JsValue].flatMap(jsValueToAny(_))
+      labelName <- (json \ "label").asOpt[String]
+      direction = (json \ "direction").asOpt[String].getOrElse("out")
     } yield {
-      val labelWithDir = LabelWithDirection(label.id.get, direction)
-      labelWithDirs += labelWithDir
-      val (src, tgt, dir) = if (direction == 1) {
-        isReverted = true
-        (Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)),
-          Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)), 0)
-      } else {
-        (Vertex(VertexId(label.srcColumnWithDir(direction.toInt).id.get, srcId)),
-          Vertex(VertexId(label.tgtColumnWithDir(direction.toInt).id.get, tgtId)), 0)
-      }
-      (src, tgt, QueryParam(LabelWithDirection(label.id.get, dir)))
+      Edge.toEdge(from, to, labelName, direction, Map.empty)
     }
-    (quads, isReverted)
   }
 
   def toGraphElements(str: String): Seq[GraphElement] = {
@@ -669,16 +631,6 @@ class RequestParser(graph: Graph) {
     val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
     val vertices = toVertices(labelName, direction, ids)
     (labels, direction, ids, ts, vertices)
-  }
-
-  def toFetchAndDeleteParam(json: JsValue) = {
-    val labelName = (json \ "label").as[String]
-    val fromOpt = (json \ "from").asOpt[JsValue]
-    val toOpt = (json \ "to").asOpt[JsValue]
-    val direction = (json \ "direction").asOpt[String].getOrElse("out")
-    val indexOpt = (json \ "index").asOpt[String]
-    val propsOpt = (json \ "props").asOpt[JsObject]
-    (labelName, fromOpt, toOpt, direction, indexOpt, propsOpt)
   }
 
   def parseExperiment(jsQuery: JsValue): Seq[ExperimentParam] = jsQuery.as[Seq[JsObject]].map { obj =>

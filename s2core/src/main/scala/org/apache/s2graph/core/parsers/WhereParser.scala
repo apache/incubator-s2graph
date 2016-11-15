@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core.parsers
 
-import org.apache.s2graph.core.GraphExceptions.WhereParserException
+import org.apache.s2graph.core.GraphExceptions.{LabelNotExistException, WhereParserException}
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.types.InnerValLike
 import org.apache.s2graph.core.Edge
@@ -37,12 +37,11 @@ trait ExtractValue {
     val label = parentEdge.label
     val metaPropInvMap = label.metaPropsInvMap
     val labelMeta = metaPropInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
-    val metaSeq = labelMeta.seq
 
-    metaSeq match {
-      case LabelMeta.from.seq => parentEdge.srcVertex.innerId
-      case LabelMeta.to.seq => parentEdge.tgtVertex.innerId
-      case _ => parentEdge.propsWithTs.get(metaSeq) match {
+    labelMeta match {
+      case LabelMeta.from => parentEdge.srcVertex.innerId
+      case LabelMeta.to => parentEdge.tgtVertex.innerId
+      case _ => parentEdge.propsWithTs.get(labelMeta) match {
         case None => toInnerVal(labelMeta.defaultValue, labelMeta.dataType, label.schemaVersion)
         case Some(edgeVal) => edgeVal.innerVal
       }
@@ -99,7 +98,13 @@ trait Clause extends ExtractValue {
     binOp(propValue, compValue)
   }
 }
-
+object Where {
+  def apply(labelName: String, sql: String): Try[Where] = {
+    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+    val parser = new WhereParser(label)
+    parser.parse(sql)
+  }
+}
 case class Where(clauses: Seq[Clause] = Seq.empty[Clause]) {
   def filter(edge: Edge) =
     if (clauses.isEmpty) true else clauses.map(_.filter(edge)).forall(identity)
@@ -166,11 +171,15 @@ case class Or(left: Clause, right: Clause) extends Clause {
 
 object WhereParser {
   val success = Where()
+
 }
 
 case class WhereParser(label: Label) extends JavaTokenParsers {
 
-  val anyStr = "[^\\s(),]+".r
+
+  override val stringLiteral = (("'" ~> "(\\\\'|[^'])*".r <~ "'" ) ^^ (_.replace("\\'", "'"))) | anyStr
+
+  val anyStr = "[^\\s(),']+".r
 
   val and = "and|AND".r
 
@@ -190,32 +199,34 @@ case class WhereParser(label: Label) extends JavaTokenParsers {
 
   def identWithDot: Parser[String] = repsep(ident, ".") ^^ { case values => values.mkString(".") }
 
-  def predicate = {
-    identWithDot ~ ("!=" | "=") ~ anyStr ^^ {
-      case f ~ op ~ s =>
-        if (op == "=") Eq(f, s)
-        else Not(Eq(f, s))
-    } | identWithDot ~ (">=" | "<=" | ">" | "<") ~ anyStr ^^ {
-      case f ~ op ~ s => op match {
-        case ">" => Gt(f, s)
-        case ">=" => Or(Gt(f, s), Eq(f, s))
-        case "<" => Lt(f, s)
-        case "<=" => Or(Lt(f, s), Eq(f, s))
-      }
-    } | identWithDot ~ (between ~> anyStr <~ and) ~ anyStr ^^ {
-      case f ~ minV ~ maxV => Between(f, minV, maxV)
-    } | identWithDot ~ (notIn | in) ~ ("(" ~> repsep(anyStr, ",") <~ ")") ^^ {
-      case f ~ op ~ values =>
-        val inClause =
-          if (f.startsWith("_parent")) IN(f, values.toSet)
-          else InWithoutParent(label, f, values.toSet)
-        if (op.toLowerCase == "in") inClause
-        else Not(inClause)
+  val _eq = identWithDot ~ ("!=" | "=") ~ stringLiteral ^^ {
+    case f ~ op ~ s => if (op == "=") Eq(f, s) else Not(Eq(f, s))
+  }
 
-
-      case _ => throw WhereParserException(s"Failed to parse where clause. ")
+  val _ltGt = identWithDot ~ (">=" | "<=" | ">" | "<") ~ stringLiteral ^^ {
+    case f ~ op ~ s => op match {
+      case ">" => Gt(f, s)
+      case ">=" => Or(Gt(f, s), Eq(f, s))
+      case "<" => Lt(f, s)
+      case "<=" => Or(Lt(f, s), Eq(f, s))
     }
   }
+
+  val _between = identWithDot ~ (between ~> stringLiteral <~ and) ~ stringLiteral ^^ {
+    case f ~ minV ~ maxV => Between(f, minV, maxV)
+  }
+
+  val _in = identWithDot ~ (notIn | in) ~ ("(" ~> repsep(stringLiteral, ",") <~ ")") ^^ {
+    case f ~ op ~ values =>
+      val inClause =
+        if (f.startsWith("_parent")) IN(f, values.toSet)
+        else InWithoutParent(label, f, values.toSet)
+
+      if (op.toLowerCase == "in") inClause
+      else Not(inClause)
+  }
+
+  def predicate =  _eq | _ltGt | _between | _in
 
   def parse(sql: String): Try[Where] = Try {
     parseAll(where, sql) match {

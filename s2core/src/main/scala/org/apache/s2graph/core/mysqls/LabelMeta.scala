@@ -35,30 +35,34 @@ object LabelMeta extends Model[LabelMeta] {
   val fromSeq = -4.toByte
   val toSeq = -5.toByte
   val lastOpSeq = -3.toByte
-  val lastDeletedAt = -2.toByte
-  val timeStampSeq = 0.toByte
+  val lastDeletedAtSeq = -2.toByte
+  val timestampSeq = 0.toByte
   val countSeq = (Byte.MaxValue - 2).toByte
   val degreeSeq = (Byte.MaxValue - 1).toByte
   val maxValue = Byte.MaxValue
-  val emptyValue = Byte.MaxValue
+  val emptySeq = Byte.MaxValue
 
   /** reserved sequences */
   //  val deleted = LabelMeta(id = Some(lastDeletedAt), labelId = lastDeletedAt, name = "lastDeletedAt",
   //    seq = lastDeletedAt, defaultValue = "", dataType = "long")
   val from = LabelMeta(id = Some(fromSeq), labelId = fromSeq, name = "_from",
-    seq = fromSeq, defaultValue = fromSeq.toString, dataType = "long")
+    seq = fromSeq, defaultValue = fromSeq.toString, dataType = "string")
   val to = LabelMeta(id = Some(toSeq), labelId = toSeq, name = "_to",
-    seq = toSeq, defaultValue = toSeq.toString, dataType = "long")
+    seq = toSeq, defaultValue = toSeq.toString, dataType = "string")
   val timestamp = LabelMeta(id = Some(-1), labelId = -1, name = "_timestamp",
-    seq = timeStampSeq, defaultValue = "0", dataType = "long")
+    seq = timestampSeq, defaultValue = "0", dataType = "long")
   val degree = LabelMeta(id = Some(-1), labelId = -1, name = "_degree",
     seq = degreeSeq, defaultValue = "0", dataType = "long")
   val count = LabelMeta(id = Some(-1), labelId = -1, name = "_count",
     seq = countSeq, defaultValue = "-1", dataType = "long")
+  val lastDeletedAt = LabelMeta(id = Some(-1), labelId = -1, name = "_lastDeletedAt",
+    seq = lastDeletedAtSeq, defaultValue = "-1", dataType = "long")
+  val empty = LabelMeta(id = Some(-1), labelId = -1, name = "_empty",
+    seq = emptySeq, defaultValue = "-1", dataType = "long")
 
   // Each reserved column(_timestamp, timestamp) has same seq number, starts with '_' has high priority
-  val reservedMetas = List(from, to, degree, timestamp, count).flatMap { lm => List(lm, lm.copy(name = lm.name.drop(1))) }.reverse
-  val reservedMetasInner = List(from, to, degree, timestamp, count)
+  val reservedMetas = List(empty, lastDeletedAt, from, to, degree, timestamp, count).flatMap { lm => List(lm, lm.copy(name = lm.name.drop(1))) }.reverse
+  val reservedMetasInner = List(empty, lastDeletedAt, from, to, degree, timestamp, count)
 
   def apply(rs: WrappedResultSet): LabelMeta = {
     LabelMeta(Some(rs.int("id")), rs.int("label_id"), rs.string("name"), rs.byte("seq"), rs.string("default_value"), rs.string("data_type").toLowerCase)
@@ -164,6 +168,21 @@ object LabelMeta extends Model[LabelMeta] {
   }
 }
 
-case class LabelMeta(id: Option[Int], labelId: Int, name: String, seq: Byte, defaultValue: String, dataType: String) {
+case class LabelMeta(id: Option[Int],
+                     labelId: Int,
+                     name: String,
+                     seq: Byte,
+                     defaultValue: String,
+                     dataType: String) {
   lazy val toJson = Json.obj("name" -> name, "defaultValue" -> defaultValue, "dataType" -> dataType)
+  override def equals(other: Any): Boolean = {
+    if (!other.isInstanceOf[LabelMeta]) false
+    else {
+      val o = other.asInstanceOf[LabelMeta]
+//      labelId == o.labelId &&
+        seq == o.seq
+    }
+  }
+  override def hashCode(): Int = seq.toInt
+//    (labelId, seq).hashCode()
 }
