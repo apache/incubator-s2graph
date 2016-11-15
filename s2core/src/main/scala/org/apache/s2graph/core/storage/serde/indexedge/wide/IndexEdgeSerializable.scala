@@ -49,7 +49,7 @@ class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge
        if (indexEdge.op == GraphUtil.operations("incrementCount")) {
          Bytes.add(idxPropsBytes, tgtIdBytes, Array.fill(1)(indexEdge.op))
        } else {
-         idxPropsMap.get(LabelMeta.toSeq) match {
+         idxPropsMap.get(LabelMeta.to) match {
            case None => Bytes.add(idxPropsBytes, tgtIdBytes)
            case Some(vId) => idxPropsBytes
          }
@@ -59,9 +59,9 @@ class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge
 
   override def toValue: Array[Byte] =
     if (indexEdge.degreeEdge)
-      Bytes.toBytes(indexEdge.props(LabelMeta.degreeSeq).innerVal.toString().toLong)
+      Bytes.toBytes(indexEdge.props(LabelMeta.degree).innerVal.toString().toLong)
     else if (indexEdge.op == GraphUtil.operations("incrementCount"))
-      Bytes.toBytes(indexEdge.props(LabelMeta.countSeq).innerVal.toString().toLong)
+      Bytes.toBytes(indexEdge.props(LabelMeta.count).innerVal.toString().toLong)
     else propsToKeyValues(indexEdge.metas.toSeq)
 
  }

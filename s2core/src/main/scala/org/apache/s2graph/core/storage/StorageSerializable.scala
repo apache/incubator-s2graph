@@ -20,31 +20,32 @@
 package org.apache.s2graph.core.storage
 
 import org.apache.hadoop.hbase.util.Bytes
+import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.types.{InnerValLike, InnerValLikeWithTs}
 
 object StorageSerializable {
   /** serializer */
-  def propsToBytes(props: Seq[(Byte, InnerValLike)]): Array[Byte] = {
+  def propsToBytes(props: Seq[(LabelMeta, InnerValLike)]): Array[Byte] = {
     val len = props.length
     assert(len < Byte.MaxValue)
     var bytes = Array.fill(1)(len.toByte)
-    for ((k, v) <- props) bytes = Bytes.add(bytes, v.bytes)
+    for ((_, v) <- props) bytes = Bytes.add(bytes, v.bytes)
     bytes
   }
 
-  def propsToKeyValues(props: Seq[(Byte, InnerValLike)]): Array[Byte] = {
+  def propsToKeyValues(props: Seq[(LabelMeta, InnerValLike)]): Array[Byte] = {
     val len = props.length
     assert(len < Byte.MaxValue)
     var bytes = Array.fill(1)(len.toByte)
-    for ((k, v) <- props) bytes = Bytes.add(bytes, Array.fill(1)(k), v.bytes)
+    for ((k, v) <- props) bytes = Bytes.add(bytes, Array.fill(1)(k.seq), v.bytes)
     bytes
   }
 
-  def propsToKeyValuesWithTs(props: Seq[(Byte, InnerValLikeWithTs)]): Array[Byte] = {
+  def propsToKeyValuesWithTs(props: Seq[(LabelMeta, InnerValLikeWithTs)]): Array[Byte] = {
     val len = props.length
     assert(len < Byte.MaxValue)
     var bytes = Array.fill(1)(len.toByte)
-    for ((k, v) <- props) bytes = Bytes.add(bytes, Array.fill(1)(k), v.bytes)
+    for ((k, v) <- props) bytes = Bytes.add(bytes, Array.fill(1)(k.seq), v.bytes)
     bytes
   }
 
