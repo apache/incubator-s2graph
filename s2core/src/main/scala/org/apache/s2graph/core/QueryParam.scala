@@ -36,7 +36,9 @@ import scala.util.{Success, Try}
 object Query {
   val initialScore = 1.0
   lazy val empty = Query()
-
+  def apply(query: Query): Query = {
+    Query(query.vertices, query.steps, query.queryOption, query.jsonQuery)
+  }
   def toQuery(srcVertices: Seq[Vertex], queryParam: QueryParam) = Query(srcVertices, Vector(Step(List(queryParam))))
 
 }

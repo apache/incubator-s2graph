@@ -85,6 +85,7 @@ trait TestCommonWithModels {
   val preSplitSize = 0
 
   val labelName = "_test_label"
+  val labelNameSecure = "_test_label_secure"
   val labelNameV2 = "_test_label_v2"
   val labelNameV3 = "_test_label_v3"
   val labelNameV4 = "_test_label_v4"
@@ -102,6 +103,7 @@ trait TestCommonWithModels {
     Prop("score", "0.1", FLOAT),
     Prop("age", "10", INT)
   )
+
   val testIdxProps = Seq(Index("_PK", Seq("_timestamp", "affinity_score")))
   val consistencyLevel = "strong"
   val hTableTTL = None
@@ -129,10 +131,12 @@ trait TestCommonWithModels {
     Management.deleteLabel(labelNameV2)
     Management.deleteLabel(undirectedLabelName)
     Management.deleteLabel(undirectedLabelNameV2)
+    Management.deleteLabel(labelNameSecure)
   }
 
   def createTestLabel() = {
     implicit val session = AutoSession
+
     management.createLabel(labelName, serviceName, columnName, columnType, serviceName, columnName, columnType,
       isDirected = true, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION1, false, "lg4", None)
 
@@ -150,6 +154,10 @@ trait TestCommonWithModels {
 
     management.createLabel(undirectedLabelNameV2, serviceNameV2, columnNameV2, columnTypeV2, serviceNameV2, tgtColumnNameV2, tgtColumnTypeV2,
       isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION2, false, "lg4", None)
+
+    management.createLabel(labelNameSecure, serviceName, columnName, columnType, serviceName, tgtColumnName, tgtColumnType,
+      isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION3, false, "lg4",
+      Option("""{ "tokens": ["xxx-yyy", "aaa-bbb"] }"""))
   }
 
   def service = Service.findByName(serviceName, useCache = false).get

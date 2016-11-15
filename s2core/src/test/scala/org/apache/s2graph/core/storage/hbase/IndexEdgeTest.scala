@@ -19,15 +19,16 @@
 
 package org.apache.s2graph.core.storage.hbase
 
-import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
+import org.apache.s2graph.core.mysqls.{Model, Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.{IndexEdge, TestCommonWithModels, Vertex}
+import org.apache.s2graph.core.{QueryParam, IndexEdge, TestCommonWithModels, Vertex}
 import org.scalatest.{FunSuite, Matchers}
 
 
 class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
   initTests()
 
+  val testLabelMeta = LabelMeta(Option(-1), labelV2.id.get, "test", 1.toByte, "0.0", "double")
   /**
    * check if storage serializer/deserializer can translate from/to bytes array.
    * @param l: label for edge.
@@ -35,17 +36,19 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
    * @param to: to VertexId for edge.
    * @param props: expected props of edge.
    */
-  def check(l: Label, ts: Long, to: InnerValLike, props: Map[Byte, InnerValLikeWithTs]): Unit = {
+  def check(l: Label, ts: Long, to: InnerValLike, props: Map[LabelMeta, InnerValLikeWithTs]): Unit = {
     val from = InnerVal.withLong(1, l.schemaVersion)
     val vertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, from)
     val tgtVertexId = TargetVertexId(HBaseType.DEFAULT_COL_ID, to)
     val vertex = Vertex(vertexId, ts)
     val tgtVertex = Vertex(tgtVertexId, ts)
     val labelWithDir = LabelWithDirection(l.id.get, 0)
+    val labelOpt = Option(l)
 
-    val indexEdge = IndexEdge(vertex, tgtVertex, labelWithDir, 0, ts, LabelIndex.DefaultSeq, props)
-    val _indexEdgeOpt = graph.storage.indexEdgeDeserializer(l.schemaVersion).fromKeyValues(queryParam,
-      graph.storage.indexEdgeSerializer(indexEdge).toKeyValues, l.schemaVersion, None)
+    val indexEdge = IndexEdge(vertex, tgtVertex, l, labelWithDir.dir, 0, ts, LabelIndex.DefaultSeq, props, tsInnerValOpt = Option(InnerVal.withLong(ts, l.schemaVersion)))
+    val _indexEdgeOpt = graph.getStorage(l).indexEdgeDeserializer(l.schemaVersion).fromKeyValues(labelOpt,
+      graph.getStorage(l).indexEdgeSerializer(indexEdge).toKeyValues, l.schemaVersion, None)
+
 
     _indexEdgeOpt should not be empty
     indexEdge should be(_indexEdgeOpt.get)
@@ -60,8 +63,8 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
     } {
       val to = InnerVal.withLong(101, l.schemaVersion)
       val tsInnerValWithTs = InnerValLikeWithTs.withLong(ts, ts, l.schemaVersion)
-      val props = Map(LabelMeta.timeStampSeq -> tsInnerValWithTs,
-        1.toByte -> InnerValLikeWithTs.withDouble(2.1, ts, l.schemaVersion))
+      val props = Map(LabelMeta.timestamp -> tsInnerValWithTs,
+        testLabelMeta -> InnerValLikeWithTs.withDouble(2.1, ts, l.schemaVersion))
 
       check(l, ts, to, props)
     }
@@ -75,8 +78,8 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
       val to = InnerVal.withStr("0", l.schemaVersion)
       val tsInnerValWithTs = InnerValLikeWithTs.withLong(ts, ts, l.schemaVersion)
       val props = Map(
-        LabelMeta.degreeSeq -> InnerValLikeWithTs.withLong(10, ts, l.schemaVersion),
-        LabelMeta.timeStampSeq -> tsInnerValWithTs)
+        LabelMeta.degree -> InnerValLikeWithTs.withLong(10, ts, l.schemaVersion),
+        LabelMeta.timestamp -> tsInnerValWithTs)
 
       check(l, ts, to, props)
     }
@@ -89,9 +92,9 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
     } {
       val to = InnerVal.withLong(101, l.schemaVersion)
       val tsInnerValWithTs = InnerValLikeWithTs.withLong(ts, ts, l.schemaVersion)
-      val props = Map(LabelMeta.timeStampSeq -> tsInnerValWithTs,
-        1.toByte -> InnerValLikeWithTs.withDouble(2.1, ts, l.schemaVersion),
-        LabelMeta.countSeq -> InnerValLikeWithTs.withLong(10, ts, l.schemaVersion))
+      val props = Map(LabelMeta.timestamp -> tsInnerValWithTs,
+        testLabelMeta -> InnerValLikeWithTs.withDouble(2.1, ts, l.schemaVersion),
+        LabelMeta.count -> InnerValLikeWithTs.withLong(10, ts, l.schemaVersion))
 
 
       check(l, ts, to, props)

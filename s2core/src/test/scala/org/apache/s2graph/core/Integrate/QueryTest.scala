@@ -19,9 +19,11 @@
 
 package org.apache.s2graph.core.Integrate
 
+import org.apache.s2graph.core.parsers.Where
 import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core._
 import org.scalatest.BeforeAndAfterEach
-import play.api.libs.json.{JsNumber, JsValue, Json}
+import play.api.libs.json._
 
 class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 

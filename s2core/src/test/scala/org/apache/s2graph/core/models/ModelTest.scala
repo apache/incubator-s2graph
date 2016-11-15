@@ -84,7 +84,46 @@ class ModelTest extends FunSuite with Matchers with TestCommonWithModels with Be
     val tgtColumn = labelOpt.get.tgtService
     println(tgtColumn)
   }
-  //  test("test create") {
+
+  test("test Label.markDeleted cache test") {
+    val delLabelName = "markDelete_label"
+    val label = management.createLabel(delLabelName,
+      serviceName,columnName, columnType,
+      serviceName, columnName, columnType,
+      true,serviceName,
+      Seq.empty,Seq.empty,
+      "week", None,None, "v4",
+      true,"gz",None)
+
+    val id = label.get.id.get
+    Label.findById(id)
+    Label.markDeleted(label.get)
+    val findLabel = Label.findByIdOpt(id)
+    findLabel.isDefined should be (false)
+  }
+
+  test("test Label.updateHTableName cache test") {
+    val labelName = "label_updateHTableName" + System.currentTimeMillis()
+    val tmpTableName = "tmpTableName"
+    val newTableName = "newTableName"
+
+    val label = management.createLabel(labelName,
+      serviceName,columnName, columnType,
+      serviceName, columnName, columnType,
+      true,serviceName,
+      Seq.empty,Seq.empty,
+      "week", Option(tmpTableName),None, "v4",
+      true,"gz",None)
+
+    val id = label.get.id.get
+    Label.findById(id)
+    Label.updateHTableName(labelName, newTableName)
+    val findLabel = Label.findById(id)
+    val result = findLabel.hTableName == newTableName
+    Label.delete(id)
+    result should be (true)
+  }
+    //  test("test create") {
   //    service.create()
   //    HService.findByName(serviceName, useCache = false) == Some(service)
   //
