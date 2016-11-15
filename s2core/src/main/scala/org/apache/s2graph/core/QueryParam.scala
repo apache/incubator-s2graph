@@ -25,9 +25,10 @@ import org.apache.s2graph.core.DuplicatePolicy.DuplicatePolicy
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
-import org.apache.s2graph.core.types.{HBaseSerializable, InnerVal, InnerValLike, LabelWithDirection}
+import org.apache.s2graph.core.storage.StorageSerializable._
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs, LabelWithDirection}
 import org.hbase.async.ColumnRangeFilter
-import play.api.libs.json.{JsNull, JsNumber, JsValue, Json}
+import play.api.libs.json.{JsNull, JsValue, Json}
 
 import scala.util.{Success, Try}
 
