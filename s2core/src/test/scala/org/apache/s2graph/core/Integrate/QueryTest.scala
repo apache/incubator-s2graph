@@ -34,123 +34,215 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   val weight = "weight"
   val is_hidden = "is_hidden"
 
-  test("interval") {
-    def queryWithInterval(id: Int, index: String, prop: String, fromVal: Int, toVal: Int) = Json.parse(
-      s"""
-        { "srcVertices": [
-          { "serviceName": "$testServiceName",
-            "columnName": "$testColumnName",
-            "id": $id
-           }],
-          "steps": [
-          [ {
-              "label": "$testLabelName",
-              "index": "$index",
-              "interval": {
-                  "from": [ { "$prop": $fromVal } ],
-                  "to": [ { "$prop": $toVal } ]
+  def querySingle(id: Int, offset: Int = 0, limit: Int = 100) = Json.parse(
+    s"""
+          { "srcVertices": [
+            { "serviceName": "$testServiceName",
+              "columnName": "$testColumnName",
+              "id": $id
+             }],
+            "steps": [
+            [ {
+                "label": "$testLabelName",
+                "direction": "out",
+                "offset": $offset,
+                "limit": $limit
               }
-            }
-          ]]
-        }
-        """)
+            ]]
+          }
+          """)
 
+  def queryGlobalLimit(id: Int, limit: Int): JsValue = Json.obj(
+    "limit" -> limit,
+    "srcVertices" -> Json.arr(
+      Json.obj("serviceName" -> testServiceName, "columnName" -> testColumnName, "id" -> id)
+    ),
+    "steps" -> Json.arr(
+      Json.obj(
+        "step" -> Json.arr(
+          Json.obj(
+            "label" -> testLabelName
+          )
+        )
+      )
+    )
+  )
+
+  def getQuery(id: Int, where: String): Query =
+    Query(
+      vertices = Seq(Vertex.toVertex(testServiceName, testColumnName, id)),
+      steps = Vector(
+        Step(Seq(QueryParam(testLabelName, where = Where(testLabelName, where))))
+      )
+    )
+
+  def queryIntervalWithParent(id: Int, index: String, prop: String, value: String) =
+    Query(
+      vertices = Seq(Vertex.toVertex(testServiceName, testColumnName, id)),
+      steps = Vector(
+        Step(Seq(QueryParam(testLabelName, indexName = index))),
+        Step(Seq(QueryParam(testLabelName, indexName = index,
+          intervalOpt = Option(Seq(prop -> JsString(value)), Seq(prop -> JsString(value)))))
+        )
+      )
+    )
+
+  def queryIntervalWithParentRange(id: Int, index: String,
+                                   prop: String, value: String,
+                                   toProp: String, toValue: String) =
+    Query(
+      vertices = Seq(Vertex.toVertex(testServiceName, testColumnName, id)),
+      steps = Vector(
+        Step(Seq(QueryParam(testLabelName, indexName = index))),
+        Step(Seq(QueryParam(testLabelName, indexName = index,
+          intervalOpt = Option(Seq(prop -> JsString(value)), Seq(toProp -> JsString(toValue)))))
+        )
+      )
+    )
+
+  def queryWithInterval(id: Int, index: String, prop: String, fromVal: Int, toVal: Int) =
+    Query(
+      vertices = Seq(Vertex.toVertex(testServiceName, testColumnName, id)),
+      steps = Vector(
+        Step(Seq(QueryParam(testLabelName, indexName = index,
+          intervalOpt = Option(Seq(prop -> JsNumber(fromVal)), Seq(prop -> JsNumber(toVal))))))
+      )
+    )
+
+  def queryExclude(id: Int) =
+    Query(
+      vertices = Seq(Vertex.toVertex(testServiceName, testColumnName, id)),
+      steps = Vector(
+        Step(
+          Seq(
+            QueryParam(testLabelName, limit = 2),
+            QueryParam(testLabelName, direction = "in", limit = 2, exclude = true)
+          )
+        )
+      )
+    )
+
+  def queryGroupBy(id: Int, props: Seq[String]) =
+    Query(
+      vertices = Seq(Vertex.toVertex(testServiceName, testColumnName, id)),
+      steps = Vector(
+        Step(
+          Seq(QueryParam(testLabelName))
+        )
+      ),
+      queryOption = QueryOption(groupBy = GroupBy(props, 100))
+    )
+
+  test("query with defaultValue") {
+    // ref: edges from initTestData()
+
+    // no default value
+    var edges = getEdgesSync(getQuery(0, "_to = 1"))
+    (edges \\ "is_hidden").head.as[Boolean] should be(true)
+
+    // default value(weight, is_hidden)
+    edges = getEdgesSync(getQuery(-1, "_to = 1000"))
+    (edges \\ "is_hidden").head.as[Boolean] should be(false)
+    (edges \\ "weight").head.as[Long] should be(0)
+
+    // default value(is_hidden)
+    edges = getEdgesSync(getQuery(10, "_to = 20"))
+    (edges \\ "is_hidden").head.as[Boolean] should be(false)
+  }
+
+  test("degree with `Where clause") {
+    val edges = getEdgesSync(getQuery(2, "_from != 2"))
+    (edges \ "degrees").as[Seq[JsValue]].nonEmpty should be(true)
+  }
+
+  test("interval parent") {
+    val baseId = 1024
+
+    insertEdgesSync(
+      toEdge(20, insert, e, baseId, baseId + 1, testLabelName, Json.obj(weight -> 30, is_hidden -> true)),
+
+      toEdge(10, insert, e, baseId + 1, baseId + 10, testLabelName, Json.obj(weight -> 30, is_hidden -> true)),
+      toEdge(20, insert, e, baseId + 1, baseId + 20, testLabelName, Json.obj(weight -> 30, is_hidden -> true)),
+      toEdge(30, insert, e, baseId + 1, baseId + 30, testLabelName, Json.obj(weight -> 30, is_hidden -> true))
+    )
+
+    val edges = getEdgesSync(queryIntervalWithParent(baseId, index2, "_timestamp", "_parent._timestamp"))
+    (edges \ "size").toString should be("1")
+
+    val to = (edges \\ "to").head.as[Long]
+    to should be (baseId + 20)
+  }
+
+  test("interval parent with range") {
+    val baseId = 9876
+
+    val minute: Long = 60 * 1000L
+    val hour = 60 * minute
+
+    insertEdgesSync(
+      toEdge(1, insert, e, baseId, baseId + 1, testLabelName, Json.obj(weight -> 30, is_hidden -> true)),
+      toEdge(1 + hour * 2, insert, e, baseId + 1, baseId + 10, testLabelName, Json.obj(weight -> 30, is_hidden -> true)),
+      toEdge(1 + hour * 3, insert, e, baseId + 1, baseId + 20, testLabelName, Json.obj(weight -> 30, is_hidden -> true)),
+      toEdge(1 + hour * 4, insert, e, baseId + 1, baseId + 30, testLabelName, Json.obj(weight -> 30, is_hidden -> true))
+    )
+
+    val edges = getEdgesSync(queryIntervalWithParentRange(baseId, index2,
+      "_timestamp", "${_parent._timestamp}",
+      "_timestamp", "${_parent._timestamp + 3 hour}"))
+
+    (edges \ "size").toString should be("2")
+
+    val edges2 = getEdgesSync(queryIntervalWithParentRange(baseId, index2,
+      "_timestamp", "${_parent._timestamp}",
+      "_timestamp", "${_parent._timestamp + 2 hour}"))
+
+    (edges2 \ "size").toString should be("1")
+
+    val edges3 = getEdgesSync(queryIntervalWithParentRange(baseId, index2,
+      "_timestamp", "${_parent._timestamp + 130 minute}",
+      "_timestamp", "${_parent._timestamp + 4 hour}"))
+
+    (edges3 \ "size").toString should be("2")
+  }
+
+  test("interval") {
     var edges = getEdgesSync(queryWithInterval(0, index2, "_timestamp", 1000, 1001)) // test interval on timestamp index
-    (edges \ "size").get.toString should be("1")
+    (edges \ "size").toString should be("1")
 
     edges = getEdgesSync(queryWithInterval(0, index2, "_timestamp", 1000, 2000)) // test interval on timestamp index
-    (edges \ "size").get.toString should be("2")
+    (edges \ "size").toString should be("2")
 
     edges = getEdgesSync(queryWithInterval(2, index1, "weight", 10, 11)) // test interval on weight index
-    (edges \ "size").get.toString should be("1")
+    (edges \ "size").toString should be("1")
 
     edges = getEdgesSync(queryWithInterval(2, index1, "weight", 10, 20)) // test interval on weight index
-    (edges \ "size").get.toString should be("2")
+    (edges \ "size").toString should be("2")
   }
 
   test("get edge with where condition") {
-    def queryWhere(id: Int, where: String) = Json.parse(
-      s"""
-        { "srcVertices": [
-          { "serviceName": "${testServiceName}",
-            "columnName": "${testColumnName}",
-            "id": ${id}
-           }],
-          "steps": [
-          [ {
-              "label": "${testLabelName}",
-              "direction": "out",
-              "offset": 0,
-              "limit": 100,
-              "where": "${where}"
-            }
-          ]]
-        }""")
 
-    var result = getEdgesSync(queryWhere(0, "is_hidden=false and _from in (-1, 0)"))
+    var result = getEdgesSync(getQuery(0, "is_hidden=false and _from in (-1, 0)"))
     (result \ "results").as[List[JsValue]].size should be(1)
 
-    result = getEdgesSync(queryWhere(0, "is_hidden=true and _to in (1)"))
+    result = getEdgesSync(getQuery(0, "is_hidden=true and _to in (1)"))
     (result \ "results").as[List[JsValue]].size should be(1)
 
-    result = getEdgesSync(queryWhere(0, "_from=0"))
+    result = getEdgesSync(getQuery(0, "_from=0"))
     (result \ "results").as[List[JsValue]].size should be(2)
 
-    result = getEdgesSync(queryWhere(2, "_from=2 or weight in (-1)"))
+    result = getEdgesSync(getQuery(2, "_from=2 or weight in (-1)"))
     (result \ "results").as[List[JsValue]].size should be(2)
 
-    result = getEdgesSync(queryWhere(2, "_from=2 and weight in (10, 20)"))
+    result = getEdgesSync(getQuery(2, "_from=2 and weight in (10, 20)"))
     (result \ "results").as[List[JsValue]].size should be(2)
   }
 
   test("get edge exclude") {
-    def queryExclude(id: Int) = Json.parse(
-      s"""
-        { "srcVertices": [
-          { "serviceName": "${testServiceName}",
-            "columnName": "${testColumnName}",
-            "id": ${id}
-           }],
-          "steps": [
-          [ {
-              "label": "${testLabelName}",
-              "direction": "out",
-              "offset": 0,
-              "limit": 2
-            },
-            {
-              "label": "${testLabelName}",
-              "direction": "in",
-              "offset": 0,
-              "limit": 2,
-              "exclude": true
-            }
-          ]]
-        }""")
-
     val result = getEdgesSync(queryExclude(0))
     (result \ "results").as[List[JsValue]].size should be(1)
   }
 
   test("get edge groupBy property") {
-    def queryGroupBy(id: Int, props: Seq[String]): JsValue = {
-      Json.obj(
-        "groupBy" -> props,
-        "srcVertices" -> Json.arr(
-          Json.obj("serviceName" -> testServiceName, "columnName" -> testColumnName, "id" -> id)
-        ),
-        "steps" -> Json.arr(
-          Json.obj(
-            "step" -> Json.arr(
-              Json.obj(
-                "label" -> testLabelName
-              )
-            )
-          )
-        )
-      )
-    }
-
     val result = getEdgesSync(queryGroupBy(0, Seq("weight")))
     (result \ "size").as[Int] should be(2)
     val weights = (result \ "results" \\ "groupBy").map { js =>
@@ -237,8 +329,6 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   //      }
   //    }
 
-
-
   test("duration") {
     def queryDuration(ids: Seq[Int], from: Int, to: Int) = {
       val $from = Json.arr(
@@ -287,11 +377,36 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
   }
 
-
   test("return tree") {
+    def queryParentsWithoutSelect(id: Long) = Json.parse(
+      s"""
+        {
+          "returnTree": true,
+          "srcVertices": [
+          { "serviceName": "$testServiceName",
+            "columnName": "$testColumnName",
+            "id": $id
+           }],
+          "steps": [
+          [ {
+              "label": "$testLabelName",
+              "direction": "out",
+              "offset": 0,
+              "limit": 2
+            }
+          ],[{
+              "label": "$testLabelName",
+              "direction": "in",
+              "offset": 0,
+              "limit": 1000
+            }
+          ]]
+        }""".stripMargin)
+
     def queryParents(id: Long) = Json.parse(
       s"""
         {
+          "select": ["weight"],
           "returnTree": true,
           "srcVertices": [
           { "serviceName": "$testServiceName",
@@ -319,15 +434,45 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
     insertEdgesSync(toEdge(1001, "insert", "e", src, tgt, testLabelName))
 
-    val result = TestUtil.getEdgesSync(queryParents(src))
-    val parents = (result \ "results").as[Seq[JsValue]]
-    val ret = parents.forall {
-      edge => (edge \ "parents").as[Seq[JsValue]].size == 1
+    // test parent With select fields
+    var result = TestUtil.getEdgesSync(queryParents(src))
+    var parents = (result \ "results").as[Seq[JsValue]]
+    var ret = parents.forall { edge =>
+      val parentEdges = (edge \ "parents").as[Seq[JsValue]]
+      val assertSize = parentEdges.size == 1
+      val parentProps = (parentEdges.head \ "props").as[JsObject]
+      val parentWeight = (parentProps \ "weight").as[Long]
+      val parentIsHidden = (parentProps \ "is_hidden").asOpt[Boolean]
+
+      val assertProp = parentWeight == 0 && parentIsHidden.isEmpty // select only "weight"
+
+      assertSize && assertProp
+    }
+
+    ret should be(true)
+
+    // test parent With select fields: check default Prop
+    result = TestUtil.getEdgesSync(queryParentsWithoutSelect(src))
+    parents = (result \ "results").as[Seq[JsValue]]
+    ret = parents.forall { edge =>
+      val parentEdges = (edge \ "parents").as[Seq[JsValue]]
+      val assertSize = parentEdges.size == 1
+
+      val parentProps = (parentEdges.head \ "props").as[JsObject]
+
+      val parentWeight = (parentProps \ "weight").as[Int]
+      val parentIsHidden = (parentProps \ "is_hidden").as[Boolean]
+      val parentIsBlocked = (parentProps \ "is_blocked").as[Boolean]
+      val parentTime = (parentProps \ "time").as[Long]
+
+      val assertProp =
+        parentWeight == 0 && parentIsHidden == false && parentIsBlocked == false && parentTime == 0
+
+      assertSize && assertProp
     }
 
     ret should be(true)
   }
-
 
 
   test("pagination and _to") {
@@ -440,6 +585,57 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     edgesTo.reverse should be(ascOrderByTo)
   }
 
+  test("query with skipRpc") {
+    def queryWithSkipRpc(id: Int, skipRpc: Boolean) = Json.parse(
+      s"""
+         |{ "srcVertices": [{
+         |    "serviceName": "$testServiceName",
+         |    "columnName": "$testColumnName",
+         |    "id": $id
+         |  }],
+         |  "steps": [{
+         |    "step": [
+         |      {
+         |        "label": "$testLabelName",
+         |        "direction": "out",
+         |        "offset": 0,
+         |        "limit": 100,
+         |        "skipRpc": $skipRpc
+         |      },
+         |      {
+         |        "label": "$testLabelName2",
+         |        "direction": "out",
+         |        "offset": 0,
+         |        "limit": 100
+         |      }
+         |    ]
+         |  }]
+         |}
+       """.stripMargin
+    )
+
+    val ts = "1442985659166"
+    val testId = 22
+
+    val bulkEdges = Seq(
+      toEdge(ts, insert, e, testId, 122, testLabelName),
+      toEdge(ts, insert, e, testId, 222, testLabelName),
+      toEdge(ts, insert, e, testId, 322, testLabelName),
+
+      toEdge(ts, insert, e, testId, 922, testLabelName2),
+      toEdge(ts, insert, e, testId, 822, testLabelName2),
+      toEdge(ts, insert, e, testId, 722, testLabelName2)
+    )
+
+    insertEdgesSync(bulkEdges: _*)
+    var edges = getEdgesSync(queryWithSkipRpc(testId, false))
+    println(Json.prettyPrint(edges))
+    (edges \ "results").as[List[JsValue]].size should be(6)
+
+    edges = getEdgesSync(queryWithSkipRpc(testId, true))
+    println(Json.prettyPrint(edges))
+    (edges \ "results").as[List[JsValue]].size should be(3)
+  }
 
   test("query with sampling") {
     def queryWithSampling(id: Int, sample: Int) = Json.parse(
@@ -606,7 +802,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     logger.debug(Json.prettyPrint(rs))
     val results = (rs \ "results").as[List[JsValue]]
     results.size should be(1)
-    (results(0) \ "to").get.toString should be("555")
+    (results(0) \ "to").toString should be("555")
   }
 
 
@@ -759,7 +955,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
          |        {
          |          "step": [
          |            {
-         |              "label": "$testLabelName2",
+         |              "label": "$testLabelName",
          |              "direction": "out",
          |              "offset": 0,
          |              "limit": 5
@@ -780,9 +976,9 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       toEdge(1, insert, e, testId1, 111, testLabelName, Json.obj(weight -> 10)),
       toEdge(2, insert, e, testId1, 222, testLabelName, Json.obj(weight -> 10)),
       toEdge(3, insert, e, testId1, 333, testLabelName, Json.obj(weight -> 10)),
-      toEdge(4, insert, e, testId2, 111, testLabelName2, Json.obj(weight -> 1)),
-      toEdge(5, insert, e, testId2, 333, testLabelName2, Json.obj(weight -> 1)),
-      toEdge(6, insert, e, testId2, 555, testLabelName2, Json.obj(weight -> 1))
+      toEdge(4, insert, e, testId2, 111, testLabelName, Json.obj(weight -> 1)),
+      toEdge(5, insert, e, testId2, 333, testLabelName, Json.obj(weight -> 1)),
+      toEdge(6, insert, e, testId2, 555, testLabelName, Json.obj(weight -> 1))
     )
 
     insertEdgesSync(bulkEdges: _*)
@@ -1015,41 +1211,6 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     scoreSum = (firstStepEdgeCount * 1) * secondStepEdgeCount
     (results(0) \ "scoreSum").as[Long] should be(scoreSum)
   }
-
-  def querySingle(id: Int, offset: Int = 0, limit: Int = 100) = Json.parse(
-    s"""
-          { "srcVertices": [
-            { "serviceName": "$testServiceName",
-              "columnName": "$testColumnName",
-              "id": $id
-             }],
-            "steps": [
-            [ {
-                "label": "$testLabelName",
-                "direction": "out",
-                "offset": $offset,
-                "limit": $limit
-              }
-            ]]
-          }
-          """)
-
-  def queryGlobalLimit(id: Int, limit: Int): JsValue = Json.obj(
-    "limit" -> limit,
-    "srcVertices" -> Json.arr(
-      Json.obj("serviceName" -> testServiceName, "columnName" -> testColumnName, "id" -> id)
-    ),
-    "steps" -> Json.arr(
-      Json.obj(
-        "step" -> Json.arr(
-          Json.obj(
-            "label" -> testLabelName
-          )
-        )
-      )
-    )
-  )
-
 
   // called by each test, each
   override def beforeEach = initTestData()
