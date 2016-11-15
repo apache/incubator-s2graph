@@ -345,7 +345,7 @@ class RequestParser(graph: Graph) {
     )
   }
 
-  def toQuery(jsValue: JsValue, impIdOpt: Option[String]): S2Query = {
+  def toQuery(jsValue: JsValue, impIdOpt: Option[String]): Query = {
     try {
       val vertices = for {
         value <- (jsValue \ "srcVertices").asOpt[Seq[JsValue]].getOrElse(Nil)
@@ -497,9 +497,7 @@ class RequestParser(graph: Graph) {
         scorePropagateOp = scorePropagateOp, shouldNormalize = shouldNormalize,
         whereRawOpt = whereClauseOpt, cursorOpt = cursorOpt,
         tgtVertexIdOpt = tgtVertexInnerIdOpt,
-        edgeTransformer = transformer, timeDecay = timeDecayFactor,
-        rankingScoreParamsOpt = rankingScoreParamsOpt, accumulateScoreParamsOpt = accumulateScoreParamsOpt,
-        normalizerOpt = normalizerOpt
+        edgeTransformer = transformer, timeDecay = timeDecayFactor
       )
     }
   }

@@ -49,7 +49,7 @@ case class GroupBy(keys: Seq[String] = Nil,
                    limit: Int = Int.MaxValue,
                    minShouldMatch: Option[MinShouldMatchParam]= None)
 
-case class MultiQuery(queries: Seq[S2Query],
+case class MultiQuery(queries: Seq[Query],
                       weights: Seq[Double],
                       queryOption: QueryOption,
                       jsonQuery: JsValue = JsNull)
@@ -62,7 +62,7 @@ case class QueryOption(removeCycle: Boolean = false,
                        selectColumns: Seq[String] = Seq.empty,
                        groupBy: GroupBy = GroupBy.Empty,
                        orderByColumns: Seq[(String, Boolean)] = Seq.empty,
-                       filterOutQuery: Option[S2Query] = None,
+                       filterOutQuery: Option[Query] = None,
                        filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
                        withScore: Boolean = true,
                        returnTree: Boolean = false,
@@ -89,15 +89,6 @@ case class QueryOption(removeCycle: Boolean = false,
     Seq(selectBytes, groupBytes, orderByBytes, filterOutBytes, returnTreeBytes).foldLeft(Array.empty[Byte])(Bytes.add)
   }
 
-}
-
-case class S2Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
-                   steps: IndexedSeq[Step] = Vector.empty[Step],
-                   queryOption: QueryOption = QueryOption(),
-                   jsonQuery: JsValue = JsNull) {
-  lazy val innerQuery = Query(vertices, steps, queryOption, jsonQuery)
-
-  lazy val cacheKeyBytes = steps.map(_.cacheKeyBytes).foldLeft(queryOption.cacheKeyBytes)(Bytes.add)
 }
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
