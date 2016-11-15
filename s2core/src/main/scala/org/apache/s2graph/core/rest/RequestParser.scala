@@ -140,7 +140,7 @@ class RequestParser(graph: Graph) {
 
   private def extractScoring(label: Label, value: JsValue): Option[Seq[(LabelMeta, Double)]] = {
     val ret = for {
-      js <- parse[Option[JsObject]](value, "scoring")
+      js <- parseOption[JsObject](value, "scoring")
     } yield {
       for {
         (k, v) <- js.fields
@@ -478,7 +478,7 @@ class RequestParser(graph: Graph) {
       }
       val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(QueryParam.DefaultThreshold)
       // TODO: refactor this. dirty
-      val duplicate = parse[Option[String]](labelGroup, "duplicate").map(s => DuplicatePolicy(s)).getOrElse(DuplicatePolicy.First)
+      val duplicate = parseOption[String](labelGroup, "duplicate").map(s => DuplicatePolicy(s)).getOrElse(DuplicatePolicy.First)
 
       val outputField = (labelGroup \ "outputField").asOpt[String].map(s => Json.arr(Json.arr(s)))
       val transformer = (if (outputField.isDefined) outputField else (labelGroup \ "transform").asOpt[JsValue]) match {

@@ -20,11 +20,10 @@
 package org.apache.s2graph.core.utils
 
 import java.util.concurrent.atomic.AtomicBoolean
-
 import com.google.common.cache.CacheBuilder
-
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
+import scala.collection.JavaConversions._
 
 object SafeUpdateCache {
 
