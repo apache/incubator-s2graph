@@ -52,7 +52,7 @@ object Model {
       validationQuery = "select 1;")
 
     ConnectionPool.singleton(
-      config.getString("db.default.url") + useUTF8Encoding,
+      config.getString("db.default.url"),
       config.getString("db.default.user"),
       config.getString("db.default.password"),
       settings)

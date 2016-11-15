@@ -13,11 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-graph:
-    image: s2rest_play:latest
-    container_name: graph
-    net: container:graph_hbase
-
 graph_mysql:
     build: graph_mysql
     container_name: graph_mysql
