@@ -50,8 +50,8 @@ object GraphUtil {
     val d = direction.trim().toLowerCase match {
       case "directed" | "d" => Some(0)
       case "undirected" | "u" => Some(2)
-      case "out" => Some(0)
-      case "in" => Some(1)
+      case "out" | "o" => Some(0)
+      case "in" | "i" => Some(1)
       case _ => None
     }
     d.map(x => x.toByte)
@@ -61,8 +61,8 @@ object GraphUtil {
     direction.trim().toLowerCase match {
       case "directed" | "d" => 0
       case "undirected" | "u" => 2
-      case "out" => 0
-      case "in" => 1
+      case "out" | "o" => 0
+      case "in" | "i" => 1
       case _ => 2
     }
   }

@@ -19,11 +19,9 @@
 
 package org.apache.s2graph.core.mysqls
 
-/**
- * Created by shon on 8/5/15.
- */
-
 import scalikejdbc._
+
+import scala.util.Try
 
 object Bucket extends Model[Bucket] {
 
@@ -53,7 +51,7 @@ object Bucket extends Model[Bucket] {
 
   def toRange(str: String): Option[(Int, Int)] = {
     val range = str.split(rangeDelimiter)
-    if (range.length == 2) Option((range.head.toInt, range.last.toInt))
+    if (range.length == 2) Option(range.head.toInt, range.last.toInt)
     else None
   }
 
@@ -67,6 +65,24 @@ object Bucket extends Model[Bucket] {
       }
     } else {
       sql.single().apply()
+    }
+  }
+
+  def insert(experiment: Experiment, modular: String, httpVerb: String, apiPath: String,
+             requestBody: String, timeout: Int, impressionId: String,
+             isGraphQuery: Boolean, isEmpty: Boolean)
+            (implicit session: DBSession = AutoSession): Try[Bucket] = {
+    Try {
+      sql"""
+            INSERT INTO buckets(experiment_id, modular, http_verb, api_path, request_body, timeout, impression_id,
+             is_graph_query, is_empty)
+            VALUES (${experiment.id.get}, $modular, $httpVerb, $apiPath, $requestBody, $timeout, $impressionId,
+             $isGraphQuery, $isEmpty)
+        """
+        .updateAndReturnGeneratedKey().apply()
+    }.map { newId =>
+      Bucket(Some(newId.toInt), experiment.id.get, modular, httpVerb, apiPath, requestBody, timeout, impressionId,
+        isGraphQuery, isEmpty)
     }
   }
 }

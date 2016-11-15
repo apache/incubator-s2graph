@@ -452,6 +452,12 @@ case class Label(id: Option[Int], label: String,
     } ::: LabelMeta.findAllByLabelId(id.get, useCache = false)
 
     val defaultIdx = defaultIdxOpt.map(x => x.toJson).getOrElse(Json.obj())
+    val optionsJs = try {
+      val obj = options.map(Json.parse).getOrElse(Json.obj()).as[JsObject]
+      if (!obj.value.contains("tokens")) obj
+      else obj ++ Json.obj("tokens" -> obj.value("tokens").as[Seq[String]].map("*" * _.length))
+
+    } catch { case e: Exception => Json.obj() }
 
     Json.obj("labelName" -> label,
       "from" -> srcColumn.toJson, "to" -> tgtColumn.toJson,
@@ -461,12 +467,12 @@ case class Label(id: Option[Int], label: String,
       "schemaVersion" -> schemaVersion,
       "isAsync" -> isAsync,
       "compressionAlgorithm" -> compressionAlgorithm,
-      "defaultIndex" -> defaultIdxOpt.map(x => x.toJson),
+      "defaultIndex" -> defaultIdx,
       "extraIndex" -> extraIdxs.map(exIdx => exIdx.toJson),
-      "metaProps" -> metaProps.filter { labelMeta => LabelMeta.isValidSeqForAdmin(labelMeta.seq) }.map(_.toJson)
+      "metaProps" -> metaProps.filter { labelMeta => LabelMeta.isValidSeqForAdmin(labelMeta.seq) }.map(_.toJson),
+      "options" -> optionsJs
     )
   }
-
 
   def propsToInnerValsWithTs(props: Map[String, Any],
                              ts: Long = System.currentTimeMillis()): Map[LabelMeta, InnerValLikeWithTs] = {

@@ -22,8 +22,10 @@ package org.apache.s2graph.core.parsers
 import org.apache.s2graph.core.GraphExceptions.{LabelNotExistException, WhereParserException}
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.types.InnerValLike
-import org.apache.s2graph.core.Edge
+import org.apache.s2graph.core.{Edge, GraphUtil}
 import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.utils.logger
+
 import scala.annotation.tailrec
 import scala.util.Try
 import scala.util.parsing.combinator.JavaTokenParsers
@@ -123,18 +125,36 @@ case class Eq(propKey: String, value: String) extends Clause {
 }
 
 case class InWithoutParent(label: Label, propKey: String, values: Set[String]) extends Clause {
-  val innerValLikeLs = values.map { value =>
+  lazy val innerValLikeLsOut = values.map { value =>
     val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
     val dataType = propKey match {
       case "_to" | "to" => label.tgtColumn.columnType
       case "_from" | "from" => label.srcColumn.columnType
       case _ => labelMeta.dataType
     }
+
     toInnerVal(value, dataType, label.schemaVersion)
   }
+
+  lazy val innerValLikeLsIn = values.map { value =>
+    val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
+    val dataType = propKey match {
+      case "_to" | "to" => label.srcColumn.columnType
+      case "_from" | "from" => label.tgtColumn.columnType
+      case _ => labelMeta.dataType
+    }
+
+    toInnerVal(value, dataType, label.schemaVersion)
+  }
+
   override def filter(edge: Edge): Boolean = {
-    val propVal = propToInnerVal(edge, propKey)
-    innerValLikeLs.contains(propVal)
+    if (edge.dir == GraphUtil.directions("in")) {
+      val propVal = propToInnerVal(edge, propKey)
+      innerValLikeLsIn.contains(propVal)
+    } else {
+      val propVal = propToInnerVal(edge, propKey)
+      innerValLikeLsOut.contains(propVal)
+    }
   }
 }
 

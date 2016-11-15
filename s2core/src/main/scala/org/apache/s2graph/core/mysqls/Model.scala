@@ -24,7 +24,7 @@ import java.util.concurrent.Executors
 import com.typesafe.config.{ConfigFactory, Config}
 import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.core.utils.{SafeUpdateCache, logger}
-import play.api.libs.json.{JsObject, JsValue}
+import play.api.libs.json.{Json, JsObject, JsValue}
 import scalikejdbc._
 
 import scala.concurrent.ExecutionContext
@@ -38,6 +38,7 @@ object Model {
   val numOfThread = Runtime.getRuntime.availableProcessors()
   val threadPool = Executors.newFixedThreadPool(numOfThread)
   val ec = ExecutionContext.fromExecutor(threadPool)
+  val useUTF8Encoding = "?useUnicode=true&characterEncoding=utf8"
 
   def apply(config: Config) = {
     maxSize = config.getInt("cache.max.size")
@@ -51,7 +52,7 @@ object Model {
       validationQuery = "select 1;")
 
     ConnectionPool.singleton(
-      config.getString("db.default.url"),
+      config.getString("db.default.url") + useUTF8Encoding,
       config.getString("db.default.user"),
       config.getString("db.default.password"),
       settings)
