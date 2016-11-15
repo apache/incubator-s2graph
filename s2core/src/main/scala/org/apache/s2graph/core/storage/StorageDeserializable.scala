@@ -101,17 +101,19 @@ object StorageDeserializable {
   }
 
   def bytesToLong(bytes: Array[Byte], offset: Int): Long = Bytes.toLong(bytes, offset)
+
+  def bytesToInt(bytes: Array[Byte], offset: Int): Int = Bytes.toInt(bytes, offset)
 }
 
 trait StorageDeserializable[E] {
-  def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam, kvs: Seq[T], version: String, cacheElementOpt: Option[E]): Option[E] = {
+  def fromKeyValues[T: CanSKeyValue](checkLabel: Option[Label], kvs: Seq[T], version: String, cacheElementOpt: Option[E]): Option[E] = {
     try {
-      Option(fromKeyValuesInner(queryParam, kvs, version, cacheElementOpt))
+      Option(fromKeyValuesInner(checkLabel, kvs, version, cacheElementOpt))
     } catch {
       case e: Exception =>
         logger.error(s"${this.getClass.getName} fromKeyValues failed.", e)
         None
     }
   }
-  def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam, kvs: Seq[T], version: String, cacheElementOpt: Option[E]): E
+  def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label], kvs: Seq[T], version: String, cacheElementOpt: Option[E]): E
 }

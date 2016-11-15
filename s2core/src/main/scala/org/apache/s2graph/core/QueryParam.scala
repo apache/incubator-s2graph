@@ -40,16 +40,23 @@ object Query {
 
 }
 
+case class MinShouldMatchParam(prop: String, count: Int, terms: Set[Any])
+
 object GroupBy {
   val Empty = GroupBy()
 }
 case class GroupBy(keys: Seq[String] = Nil,
-                   limit: Int = Int.MaxValue)
+                   limit: Int = Int.MaxValue,
+                   minShouldMatch: Option[MinShouldMatchParam]= None)
 
 case class MultiQuery(queries: Seq[S2Query],
                       weights: Seq[Double],
                       queryOption: QueryOption,
                       jsonQuery: JsValue = JsNull)
+
+object QueryOption {
+  val DefaultAscendingVals: Seq[Boolean] = Seq(false, false)
+}
 
 case class QueryOption(removeCycle: Boolean = false,
                        selectColumns: Seq[String] = Seq.empty,

@@ -127,7 +127,6 @@ object StepResult {
     val scoreSum = merged.foldLeft(0.0) { case (prev, current) => prev + current.score }
     if (scoreSum < queryOption.scoreThreshold) (0.0, Nil)
     else {
-
       val ordered = orderBy(queryOption, merged)
       val filtered = ordered.take(queryOption.groupBy.limit)
       val newScoreSum = filtered.foldLeft(0.0) { case (prev, current) => prev + current.score }

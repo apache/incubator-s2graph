@@ -34,8 +34,8 @@ import org.apache.s2graph.core.types.VertexId
 class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[SnapshotEdge] {
   import StorageSerializable._
 
-  override val ts = snapshotEdge.version
-  override val table = snapshotEdge.label.hbaseTableName.getBytes()
+  override def ts = snapshotEdge.version
+  override def table = snapshotEdge.label.hbaseTableName.getBytes()
 
   def statusCodeWithOp(statusCode: Byte, op: Byte): Array[Byte] = {
     val byte = (((statusCode << 4) | op).toByte)

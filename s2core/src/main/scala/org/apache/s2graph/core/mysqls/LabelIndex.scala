@@ -23,12 +23,14 @@ package org.apache.s2graph.core.mysqls
  * Created by shon on 6/3/15.
  */
 
-import play.api.libs.json.Json
+import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.core.utils.logger
+import play.api.libs.json.{JsObject, JsString, Json}
 import scalikejdbc._
 
 object LabelIndex extends Model[LabelIndex] {
   val DefaultName = "_PK"
-  val DefaultMetaSeqs = Seq(LabelMeta.timeStampSeq)
+  val DefaultMetaSeqs = Seq(LabelMeta.timestampSeq)
   val DefaultSeq = 1.toByte
   val MaxOrderSeq = 7
 
@@ -144,16 +146,11 @@ object LabelIndex extends Model[LabelIndex] {
   }
 }
 
-/**
- * formular
- * ex1): w1, w2, w3
- * ex2): 1.5 * w1^2 + 3.4 * (w1 * w2), w2, w1
- */
-
 case class LabelIndex(id: Option[Int], labelId: Int, name: String, seq: Byte, metaSeqs: Seq[Byte], formulars: String) {
   lazy val label = Label.findById(labelId)
   lazy val metas = label.metaPropsMap
   lazy val sortKeyTypes = metaSeqs.flatMap(metaSeq => label.metaPropsMap.get(metaSeq))
+  lazy val sortKeyTypesArray = sortKeyTypes.toArray
   lazy val propNames = sortKeyTypes.map { labelMeta => labelMeta.name }
   lazy val toJson = Json.obj(
     "name" -> name,

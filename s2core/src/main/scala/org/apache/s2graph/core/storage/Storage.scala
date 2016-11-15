@@ -19,7 +19,6 @@
 
 package org.apache.s2graph.core.storage
 
-import java.util.concurrent.{Executors, TimeUnit}
 
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes

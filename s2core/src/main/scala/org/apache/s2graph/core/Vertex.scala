@@ -23,49 +23,6 @@ import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, SourceVertexId, VertexId}
 import play.api.libs.json.Json
-//
-//object S2Vertex {
-//  def apply(graph: Graph, vertex: Vertex): S2Vertex = {
-//    S2Vertex(graph,
-//      vertex.serviceName,
-//      vertex.serviceColumn.columnName,
-//      vertex.innerIdVal,
-//      vertex.serviceColumn.innerValsToProps(vertex.props),
-//      vertex.ts,
-//      GraphUtil.fromOp(vertex.op)
-//    )
-//  }
-//}
-//
-//case class S2Vertex(graph: Graph,
-//                    serviceName: String,
-//                    columnName: String,
-//                    id: Any,
-//                    props: Map[String, Any] = Map.empty,
-//                    ts: Long = System.currentTimeMillis(),
-//                    operation: String = "insert") extends GraphElement {
-//  lazy val vertex = {
-//    val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
-//    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
-//    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
-//
-//    val srcVertexId = VertexId(column.id.get, toInnerVal(id.toString, column.columnType, column.schemaVersion))
-//    val propsInner = column.propsToInnerVals(props) ++
-//      Map(ColumnMeta.timeStampSeq.toInt -> InnerVal.withLong(ts, column.schemaVersion))
-//
-//    Vertex(srcVertexId, ts, propsInner, op)
-//  }
-//
-//  val uniqueId = (serviceName, columnName, id)
-//
-//  override def isAsync: Boolean = vertex.isAsync
-//
-//  override def toLogString(): String = vertex.toLogString()
-//
-//  override def queueKey: String = vertex.queueKey
-//
-//  override def queuePartitionKey: String = vertex.queuePartitionKey
-//}
 case class Vertex(id: VertexId,
                   ts: Long = System.currentTimeMillis(),
                   props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
@@ -108,22 +65,6 @@ case class Vertex(id: VertexId,
     (seq, v) <- props
     meta <- ColumnMeta.findByIdAndSeq(id.colId, seq.toByte)
   } yield (meta.name -> v.toString)
-
-  //  /** only used by bulk loader */
-  //  def buildPuts(): List[Put] = {
-  //    //    logger.error(s"put: $this => $rowKey")
-  ////    val put = new Put(rowKey.bytes)
-  ////    for ((q, v) <- qualifiersWithValues) {
-  ////      put.addColumn(vertexCf, q, ts, v)
-  ////    }
-  ////    List(put)
-  //    val kv = kvs.head
-  //    val put = new Put(kv.row)
-  //    kvs.map { kv =>
-  //      put.addColumn(kv.cf, kv.qualifier, kv.timestamp, kv.value)
-  //    }
-  //    List(put)
-  //  }
 
   def toEdgeVertex() = Vertex(SourceVertexId(id.colId, innerId), ts, props, op)
 

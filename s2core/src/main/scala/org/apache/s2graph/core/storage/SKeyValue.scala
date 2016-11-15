@@ -24,24 +24,29 @@ import org.hbase.async.KeyValue
 
 
 object SKeyValue {
+  val EdgeCf = "e".getBytes()
   val Put = 1
   val Delete = 2
   val Increment = 3
   val Default = Put
 }
+
 case class SKeyValue(table: Array[Byte],
                      row: Array[Byte],
                      cf: Array[Byte],
                      qualifier: Array[Byte],
                      value: Array[Byte],
                      timestamp: Long,
-                     operation: Int = SKeyValue.Default) {
+                     operation: Int = SKeyValue.Default,
+                     durability: Boolean = true) {
   def toLogString = {
-    Map("table" -> table.toList, "row" -> row.toList, "cf" -> Bytes.toString(cf),
+    Map("table" -> Bytes.toString(table), "row" -> row.toList, "cf" -> Bytes.toString(cf),
       "qualifier" -> qualifier.toList, "value" -> value.toList, "timestamp" -> timestamp,
-      "operation" -> operation).mapValues(_.toString).toString
+      "operation" -> operation, "durability" -> durability).toString
   }
   override def toString(): String = toLogString
+
+  def toKeyValue: KeyValue = new KeyValue(row, cf, qualifier, timestamp, value)
 }
 
 trait CanSKeyValue[T] {
