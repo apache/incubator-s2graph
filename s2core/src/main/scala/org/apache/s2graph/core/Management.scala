@@ -25,6 +25,7 @@ import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 
@@ -104,14 +105,24 @@ object Management {
     }
   }
 
-  def findLabel(labelName: String): Option[Label] = {
-    Label.findByName(labelName, useCache = false)
+  def findLabel(labelName: String, useCache: Boolean = false): Option[Label] = {
+    Label.findByName(labelName, useCache = useCache)
   }
 
   def deleteLabel(labelName: String) = {
     Model withTx { implicit session =>
       Label.findByName(labelName, useCache = false).foreach { label =>
         Label.deleteAll(label)
+      }
+      labelName
+    }
+  }
+
+  def markDeletedLabel(labelName: String) = {
+    Model withTx { implicit session =>
+      Label.findByName(labelName, useCache = false).foreach { label =>
+        // rename & delete_at column filled with current time
+        Label.markDeleted(label)
       }
       labelName
     }
@@ -205,12 +216,12 @@ object Management {
 
   }
 
-  def toProps(label: Label, js: Seq[(String, JsValue)]): Seq[(Byte, InnerValLike)] = {
+  def toProps(label: Label, js: Seq[(String, JsValue)]): Seq[(LabelMeta, InnerValLike)] = {
     val props = for {
       (k, v) <- js
       meta <- label.metaPropsInvMap.get(k)
       innerVal <- jsValueToInnerVal(v, meta.dataType, label.schemaVersion)
-    } yield (meta.seq, innerVal)
+    } yield (meta, innerVal)
 
     props
   }
@@ -248,15 +259,18 @@ object Management {
 
 class Management(graph: Graph) {
   import Management._
-  val storage = graph.storage
 
-  def createTable(zkAddr: String,
+  def createHBaseTable(zkAddr: String,
                   tableName: String,
                   cfs: List[String],
                   regionMultiplier: Int,
                   ttl: Option[Int],
-                  compressionAlgorithm: String = DefaultCompressionAlgorithm): Unit =
-    storage.createTable(zkAddr, tableName, cfs, regionMultiplier, ttl, compressionAlgorithm)
+                  compressionAlgorithm: String = DefaultCompressionAlgorithm,
+                  replicationScopeOpt: Option[Int] = None,
+                  totalRegionCount: Option[Int] = None): Unit = {
+    graph.defaultStorage.createTable(zkAddr, tableName, cfs, regionMultiplier, ttl, compressionAlgorithm, replicationScopeOpt, totalRegionCount)
+  }
+
 
   /** HBase specific code */
   def createService(serviceName: String,
@@ -265,9 +279,9 @@ class Management(graph: Graph) {
                     compressionAlgorithm: String = DefaultCompressionAlgorithm): Try[Service] = {
 
     Model withTx { implicit session =>
-      val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
-      /* create hbase table for service */
-      storage.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL, compressionAlgorithm)
+      val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL.orElse(Some(Integer.MAX_VALUE)), compressionAlgorithm)
+      /** create hbase table for service */
+      graph.getStorage(service).createTable(service.cluster, service.hTableName, List("e", "v"), service.preSplitSize, service.hTableTTL, compressionAlgorithm)
       service
     }
   }
@@ -292,35 +306,26 @@ class Management(graph: Graph) {
                   compressionAlgorithm: String = "gz",
                   options: Option[String]): Try[Label] = {
 
+    if (label.length > LABEL_NAME_MAX_LENGTH ) throw new LabelNameTooLongException(s"Label name ${label} too long.( max length : ${LABEL_NAME_MAX_LENGTH}} )")
+    if (hTableName.isEmpty && hTableTTL.isDefined) throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
+
     val labelOpt = Label.findByName(label, useCache = false)
-
     Model withTx { implicit session =>
-      labelOpt match {
-        case Some(l) =>
-          throw new GraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
-        case None =>
-          /** create all models */
-          if (label.length > LABEL_NAME_MAX_LENGTH ) throw new LabelNameTooLongException(s"Label name ${label} too long.( max length : 40 )")
-          val newLabel = Label.insertAll(label,
-            srcServiceName, srcColumnName, srcColumnType,
-            tgtServiceName, tgtColumnName, tgtColumnType,
-            isDirected, serviceName, indices, props, consistencyLevel,
-            hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm, options)
+      if (labelOpt.isDefined) throw new LabelAlreadyExistException(s"Label name ${label} already exist.")
 
-          /* create hbase table */
-          val service = newLabel.service
-          (hTableName, hTableTTL) match {
-            case (None, None) => // do nothing
-            case (None, Some(hbaseTableTTL)) => throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
-            case (Some(hbaseTableName), None) =>
-              // create own hbase table with default ttl on service level.
-              storage.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, service.hTableTTL, compressionAlgorithm)
-            case (Some(hbaseTableName), Some(hbaseTableTTL)) =>
-              // create own hbase table with own ttl.
-              storage.createTable(service.cluster, hbaseTableName, List("e", "v"), service.preSplitSize, hTableTTL, compressionAlgorithm)
-          }
-          newLabel
-      }
+      /** create all models */
+      val newLabel = Label.insertAll(label,
+        srcServiceName, srcColumnName, srcColumnType,
+        tgtServiceName, tgtColumnName, tgtColumnType,
+        isDirected, serviceName, indices, props, consistencyLevel,
+        hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm, options)
+
+      /** create hbase table */
+      val storage = graph.getStorage(newLabel)
+      val service = newLabel.service
+      storage.createTable(service.cluster, newLabel.hbaseTableName, List("e", "v"), service.preSplitSize, newLabel.hTableTTL, newLabel.compressionAlgorithm)
+
+      newLabel
     }
   }
 
@@ -331,12 +336,11 @@ class Management(graph: Graph) {
    * copy label when if oldLabel exist and newLabel do not exist.
    * copy label: only used by bulk load job. not sure if we need to parameterize hbase cluster.
    */
-  def copyLabel(oldLabelName: String, newLabelName: String, hTableName: Option[String]) = {
+  def copyLabel(oldLabelName: String, newLabelName: String, hTableName: Option[String]): Try[Label] = {
     val old = Label.findByName(oldLabelName, useCache = false).getOrElse(throw new LabelNotExistException(s"Old label $oldLabelName not exists."))
-    if (Label.findByName(newLabelName, useCache = false).isDefined) throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
 
-    val allProps = old.metas.map { labelMeta => Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType) }
-    val allIndices = old.indices.map { index => Index(index.name, index.propNames) }
+    val allProps = old.metas(useCache = false).map { labelMeta => Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType) }
+    val allIndices = old.indices(useCache = false).map { index => Index(index.name, index.propNames, index.dir, index.options) }
 
     createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
       old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
@@ -344,4 +348,13 @@ class Management(graph: Graph) {
       allIndices, allProps,
       old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync, old.compressionAlgorithm, old.options)
   }
+
+  def getCurrentStorageInfo(labelName: String): Try[Map[String, String]] = for {
+    label <- Try(Label.findByName(labelName, useCache = false).get)
+  } yield {
+    val storage = graph.getStorage(label)
+    storage.info
+  }
+
 }
+

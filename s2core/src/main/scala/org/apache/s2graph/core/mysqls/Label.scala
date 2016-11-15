@@ -21,13 +21,14 @@ package org.apache.s2graph.core.mysqls
 
 import java.util.Calendar
 
+import com.typesafe.config.Config
 import org.apache.s2graph.core.GraphExceptions.ModelNotFoundException
 import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
-import org.apache.s2graph.core.types.{InnerValLike, InnerValLikeWithTs}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs}
 import org.apache.s2graph.core.utils.logger
-import play.api.libs.json.{JsObject, JsValue, Json}
+import play.api.libs.json.{JsArray, JsObject, JsValue, Json}
 import scalikejdbc._
 
 object Label extends Model[Label] {
@@ -354,42 +355,61 @@ case class Label(id: Option[Int], label: String,
     jsValue <- innerValToJsValue(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), prop.dataType)
   } yield prop.name -> jsValue).toMap
 
+  lazy val metaPropsDefaultMapInnerString = (for {
+    prop <- metaPropsInner if LabelMeta.isValidSeq(prop.seq)
+    innerVal = InnerValLikeWithTs(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), System.currentTimeMillis())
+  } yield prop.name -> innerVal).toMap
+
   lazy val metaPropsDefaultMapInner = (for {
     prop <- metaPropsInner if LabelMeta.isValidSeq(prop.seq)
     innerVal = InnerValLikeWithTs(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), System.currentTimeMillis())
   } yield prop -> innerVal).toMap
+  lazy val metaPropsDefaultMapInnerSeq = metaPropsDefaultMapInner.toSeq
+  lazy val metaPropsJsValueWithDefault = (for {
+    prop <- metaProps if LabelMeta.isValidSeq(prop.seq)
+    jsValue <- innerValToJsValue(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), prop.dataType)
+  } yield prop -> jsValue).toMap
+//  lazy val extraOptions = Model.extraOptions(Option("""{
+//    "storage": {
+//      "s2graph.storage.backend": "rocks",
+//      "rocks.db.path": "/tmp/db"
+//    }
+//  }"""))
 
-  lazy val extraOptions: Map[String, JsValue] = options match {
-    case None => Map.empty
-    case Some(v) =>
-      try {
-        Json.parse(v).asOpt[JsObject].map { obj => obj.fields.toMap }.getOrElse(Map.empty)
-      } catch {
-        case e: Exception =>
-          logger.error(s"An error occurs while parsing the extra label option: ${label}", e)
-          Map.empty
-      }
+  lazy val tokens: Set[String] = extraOptions.get("tokens").fold(Set.empty[String]) {
+    case JsArray(tokens) => tokens.map(_.as[String]).toSet
+    case _ =>
+      logger.error("Invalid token JSON")
+      Set.empty[String]
   }
 
+  lazy val extraOptions = Model.extraOptions(options)
+
+  lazy val durability = extraOptions.get("durability").map(_.as[Boolean]).getOrElse(true)
+
+  lazy val storageConfigOpt: Option[Config] = toStorageConfig
+
+  def toStorageConfig: Option[Config] = {
+    Model.toStorageConfig(extraOptions)
+  }
+
+
   def srcColumnWithDir(dir: Int) = {
-    if (dir == GraphUtil.directions("out")) srcColumn else tgtColumn
+    // GraphUtil.directions("out"
+    if (dir == 0) srcColumn else tgtColumn
   }
 
   def tgtColumnWithDir(dir: Int) = {
-    if (dir == GraphUtil.directions("out")) tgtColumn else srcColumn
+    // GraphUtil.directions("out"
+    if (dir == 0) tgtColumn else srcColumn
   }
 
-  def srcTgtColumn(dir: Int) =
-    if (isDirected) {
-      (srcColumnWithDir(dir), tgtColumnWithDir(dir))
-    } else {
-      if (dir == GraphUtil.directions("in")) {
-        (tgtColumn, srcColumn)
-      } else {
-        (srcColumn, tgtColumn)
-      }
-    }
+  lazy val tgtSrc = (tgtColumn, srcColumn)
+  lazy val srcTgt = (srcColumn, tgtColumn)
 
+  def srcTgtColumn(dir: Int) = if (dir == 1) tgtSrc else srcTgt
+
+  lazy val EmptyPropsWithTs = Map(LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 0))
 //  def init() = {
 //    metas()
 //    metaSeqsToNames()
@@ -430,6 +450,8 @@ case class Label(id: Option[Int], label: String,
       else if (m == LabelMeta.from) m.copy(dataType = srcColumnType)
       else m
     } ::: LabelMeta.findAllByLabelId(id.get, useCache = false)
+
+    val defaultIdx = defaultIdxOpt.map(x => x.toJson).getOrElse(Json.obj())
 
     Json.obj("labelName" -> label,
       "from" -> srcColumn.toJson, "to" -> tgtColumn.toJson,

@@ -21,8 +21,10 @@ package org.apache.s2graph.core.mysqls
 
 import java.util.concurrent.Executors
 
-import com.typesafe.config.Config
+import com.typesafe.config.{ConfigFactory, Config}
+import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.core.utils.{SafeUpdateCache, logger}
+import play.api.libs.json.{JsObject, JsValue}
 import scalikejdbc._
 
 import scala.concurrent.ExecutionContext
@@ -116,6 +118,34 @@ object Model {
     LabelIndex.findAll()
     ColumnMeta.findAll()
   }
+
+  def extraOptions(options: Option[String]): Map[String, JsValue] = options match {
+    case None => Map.empty
+    case Some(v) =>
+      try {
+        Json.parse(v).asOpt[JsObject].map { obj => obj.fields.toMap }.getOrElse(Map.empty)
+      } catch {
+        case e: Exception =>
+          logger.error(s"An error occurs while parsing the extra label option", e)
+          Map.empty
+      }
+  }
+
+  def toStorageConfig(options: Map[String, JsValue]): Option[Config] = {
+    try {
+      options.get("storage").map { jsValue =>
+        import scala.collection.JavaConverters._
+        val configMap = jsValue.as[JsObject].fieldSet.toMap.map { case (key, value) =>
+          key -> JSONParser.jsValueToAny(value).getOrElse(throw new RuntimeException("!!"))
+        }
+        ConfigFactory.parseMap(configMap.asJava)
+      }
+    } catch {
+      case e: Exception =>
+        logger.error(s"toStorageConfig error. use default storage", e)
+        None
+    }
+  }
 }
 
 trait Model[V] extends SQLSyntaxSupport[V] {
@@ -144,6 +174,10 @@ trait Model[V] extends SQLSyntaxSupport[V] {
 
   def putsToCaches(kvs: List[(String, List[V])]) = kvs.foreach {
     case (key, values) => listCache.put(key, values)
+  }
+
+  def getAllCacheData() : (List[(String, Option[_])], List[(String, List[_])]) = {
+    (optionCache.getAllData(), listCache.getAllData())
   }
 }
 
