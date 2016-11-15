@@ -437,7 +437,7 @@ class RequestParser(graph: Graph) {
       labelName <- parseOption[String](labelGroup, "label")
     } yield {
       val label = Label.findByName(labelName).getOrElse(throw BadQueryException(s"$labelName not found"))
-      val direction = parseOption[String](labelGroup, "direction").map(GraphUtil.toDirection(_)).getOrElse(0)
+      val direction = parseOption[String](labelGroup, "direction").getOrElse("out")
       val limit = {
         parseOption[Int](labelGroup, "limit") match {
           case None => defaultLimit
@@ -488,8 +488,13 @@ class RequestParser(graph: Graph) {
       val cursorOpt = (labelGroup \ "cursor").asOpt[String]
       // FIXME: Order of command matter
       QueryParam(labelName = labelName,
-        direction = direction, offset = offset, limit = limit, sample = sample,
-        maxAttempt = maxAttempt, rpcTimeout = rpcTimeout, cacheTTLInMillis = cacheTTL,
+        direction = direction,
+        offset = offset,
+        limit = limit,
+        sample = sample,
+        maxAttempt = maxAttempt,
+        rpcTimeout = rpcTimeout,
+        cacheTTLInMillis = cacheTTL,
         indexName = indexName, where = where, threshold = threshold,
         rank = RankParam(scoring), intervalOpt = interval, durationOpt = duration,
         exclude = exclude, include = include, has = hasFilter, duplicatePolicy = duplicate,
