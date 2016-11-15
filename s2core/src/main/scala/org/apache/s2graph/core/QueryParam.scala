@@ -213,10 +213,10 @@ object Step {
 
 case class Step(queryParams: Seq[QueryParam],
                 labelWeights: Map[Int, Double] = Map.empty,
-                //                scoreThreshold: Double = 0.0,
                 nextStepScoreThreshold: Double = 0.0,
                 nextStepLimit: Int = -1,
-                cacheTTL: Long = -1) {
+                cacheTTL: Long = -1,
+                groupBy: GroupBy = GroupBy.Empty) {
 
 //  lazy val excludes = queryParams.filter(_.exclude)
 //  lazy val includes = queryParams.filterNot(_.exclude)

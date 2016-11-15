@@ -20,64 +20,102 @@
 package org.apache.s2graph.core.rest
 
 
-
 import java.util.concurrent.{Callable, TimeUnit}
 
 import com.google.common.cache.CacheBuilder
 import org.apache.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
-import org.apache.s2graph.core._
 import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.types._
 import play.api.libs.json._
 
 
-import scala.util.{Failure, Success, Try}
+import scala.util.{Random, Failure, Success, Try}
 
 object TemplateHelper {
   val findVar = """\"?\$\{(.*?)\}\"?""".r
-  val num = """(next_day|next_hour|next_week|now)?\s*(-?\s*[0-9]+)?\s*(hour|day|week)?""".r
+  val num = """(next_minute|next_day|next_hour|next_week|now)?\s*(-?\s*[0-9]+)?\s*(minute|hour|day|week)?""".r
+  val randIntRegex = """randint\((.*,.*)\)""".r
 
-  val hour = 60 * 60 * 1000L
-  val day = hour * 24L
-  val week = day * 7L
+  val minute: Long = 60 * 1000L
+  val hour = 60 * minute
+  val day = 24 * hour
+  val week = 7 * day
 
   def calculate(now: Long, n: Int, unit: String): Long = {
     val duration = unit match {
+      case "minute" | "MINUTE" => n * minute
       case "hour" | "HOUR" => n * hour
       case "day" | "DAY" => n * day
       case "week" | "WEEK" => n * week
-      case _ => n * day
+      case _ => n
     }
 
     duration + now
   }
 
+  def randInt(s: String): Long = {
+    val tokens = s.split(",").map(_.trim)
+    if (tokens.length != 2) throw new RuntimeException(s"TemplateHelper.randint has wrong format. $s")
+    val (from, to) = try {
+      (tokens.head.toInt, tokens.last.toInt)
+    } catch {
+      case e: Exception => throw new RuntimeException(s"TemplateHelper.randint has wrong format. $s")
+    }
+    if (from > to) throw new RuntimeException(s"TemplateHelper.randint has wrong format. $s")
+    val diff = to - from
+    val r = Random.nextInt(diff + 1)
+    assert(diff >= 0 && diff < Int.MaxValue && from + r < Int.MaxValue)
+    from + r
+  }
+
   def replaceVariable(now: Long, body: String): String = {
     findVar.replaceAllIn(body, m => {
       val matched = m group 1
+      randIntRegex.findFirstMatchIn(matched) match {
+        case None =>
+          num.replaceSomeIn(matched, m => {
+            val (_pivot, n, unit) = (m.group(1), m.group(2), m.group(3))
+            val ts = _pivot match {
+              case null => now
+              case "now" | "NOW" => now
+              case "next_minute" | "NEXT_MINUTE" => now / minute * minute + minute
+              case "next_week" | "NEXT_WEEK" => now / week * week + week
+              case "next_day" | "NEXT_DAY" => now / day * day + day
+              case "next_hour" | "NEXT_HOUR" => now / hour * hour + hour
+            }
 
-      num.replaceSomeIn(matched, m => {
-        val (_pivot, n, unit) = (m.group(1), m.group(2), m.group(3))
-        val ts = _pivot match {
-          case null => now
-          case "now" | "NOW" => now
-          case "next_week" | "NEXT_WEEK" => now / week * week + week
-          case "next_day" | "NEXT_DAY" => now / day * day + day
-          case "next_hour" | "NEXT_HOUR" => now / hour * hour + hour
-        }
-
-        if (_pivot == null && n == null && unit == null) None
-        else if (n == null || unit == null) Option(ts.toString)
-        else Option(calculate(ts, n.replaceAll(" ", "").toInt, unit).toString)
-      })
+            if (_pivot == null && n == null && unit == null) None
+            else if (n == null || unit == null) Option(ts.toString)
+            else Option(calculate(ts, n.replaceAll(" ", "").toInt, unit).toString)
+          })
+        case Some(m) =>
+          val range = m group 1
+          randInt(range).toString
+      }
     })
   }
 }
 
 object RequestParser {
   type ExperimentParam = (JsObject, String, String, String, Option[String])
+  val defaultLimit = 100
+
+  def toJsValues(jsValue: JsValue): List[JsValue] = {
+    jsValue match {
+      case obj: JsObject => List(obj)
+      case arr: JsArray => arr.as[List[JsValue]]
+      case _ => List.empty[JsValue]
+    }
+  }
+
+  def jsToStr(js: JsValue): String = js match {
+    case JsString(s) => s
+    case _ => js.toString()
+  }
+
 }
 
 class RequestParser(graph: Graph) {
@@ -87,7 +125,6 @@ class RequestParser(graph: Graph) {
 
   val config = graph.config
   val hardLimit = config.getInt("query.hardlimit")
-  val defaultLimit = 100
   val maxLimit = Int.MaxValue - 1
   val DefaultRpcTimeout = config.getInt("hbase.rpc.timeout")
   val DefaultMaxAttempt = config.getInt("hbase.client.retries.number")
@@ -95,42 +132,37 @@ class RequestParser(graph: Graph) {
   val DefaultCompressionAlgorithm = config.getString("hbase.table.compression.algorithm")
   val DefaultPhase = config.getString("phase")
   val parserCache = CacheBuilder.newBuilder()
-    .expireAfterAccess(10000, TimeUnit.MILLISECONDS)
-    .expireAfterWrite(10000, TimeUnit.MILLISECONDS)
-    .maximumSize(10000)
-    .initialCapacity(1000)
-    .build[String, Try[Where]]
+      .expireAfterAccess(10000, TimeUnit.MILLISECONDS)
+      .expireAfterWrite(10000, TimeUnit.MILLISECONDS)
+      .maximumSize(10000)
+      .initialCapacity(1000)
+      .build[String, Try[Where]]
 
-  private def extractScoring(labelId: Int, value: JsValue) = {
+  private def extractScoring(label: Label, value: JsValue): Option[Seq[(LabelMeta, Double)]] = {
     val ret = for {
       js <- parse[Option[JsObject]](value, "scoring")
     } yield {
       for {
         (k, v) <- js.fields
-        labelMeta <- LabelMeta.findByName(labelId, k)
+        labelMata <- label.metaPropsInvMap.get(k)
       } yield {
         val value = v match {
           case n: JsNumber => n.as[Double]
           case _ => throw new Exception("scoring weight should be double.")
         }
-        (labelMeta, value)
+        (labelMata, value)
       }
     }
 
     ret
   }
-  def toProps(js: Seq[(String, JsValue)]): Seq[(String, Any)] = {
-    for {
-      (k, v) <- js
-      anyVal <- jsValueToAny(v)
-    } yield k -> anyVal
-  }
-  def extractInterval(label: Label, jsValue: JsValue) = {
-    def extractKv(js: JsValue) = js match {
-      case JsObject(map) => map.toSeq
+
+  def extractInterval(label: Label, jsValue: JsValue): Option[(Seq[(String, JsValue)], Seq[(String, JsValue)])] = {
+    def extractKv(js: JsValue): Seq[(String, JsValue)] = js match {
+      case JsObject(obj) => obj.toSeq
       case JsArray(arr) => arr.flatMap {
-        case JsObject(map) => map.toSeq
-        case _ => throw new RuntimeException(s"cannot support json type: $js")
+        case JsObject(obj) => obj.toSeq
+        case _ => throw new RuntimeException(s"cannot support json type $js")
       }
       case _ => throw new RuntimeException(s"cannot support json type: $js")
     }
@@ -140,8 +172,8 @@ class RequestParser(graph: Graph) {
       fromJs <- (js \ "from").asOpt[JsValue]
       toJs <- (js \ "to").asOpt[JsValue]
     } yield {
-      val from = toProps(extractKv(fromJs))
-      val to = toProps(extractKv(toJs))
+      val from = extractKv(fromJs)
+      val to = extractKv(toJs)
       (from, to)
     }
 
@@ -207,6 +239,28 @@ class RequestParser(graph: Graph) {
     }
   }
 
+  def extractGroupBy(value: Option[JsValue]): GroupBy = value.map {
+    case obj: JsObject =>
+      val keys = (obj \ "keys").asOpt[Seq[String]].getOrElse(Nil)
+      val groupByLimit = (obj \ "limit").asOpt[Int].getOrElse(hardLimit)
+      val minShouldMatchOpt = (obj \ "minimumShouldMatch").asOpt[JsObject].map { o =>
+        val prop = (o \ "prop").asOpt[String].getOrElse("to")
+        val count = (o \ "count").asOpt[Int].getOrElse(0)
+        val terms = (o \ "terms").asOpt[Set[JsValue]].getOrElse(Set.empty).map {
+          case JsString(s) => s
+          case JsNumber(n) => n
+          case _ => throw new RuntimeException("not supported data type")
+        }.map(_.asInstanceOf[Any])
+
+        MinShouldMatchParam(prop, count, terms)
+      }
+
+      GroupBy(keys, groupByLimit, minShouldMatch = minShouldMatchOpt)
+    case arr: JsArray =>
+      val keys = arr.asOpt[Seq[String]].getOrElse(Nil)
+      GroupBy(keys)
+  }.getOrElse(GroupBy.Empty)
+
   def toVertices(labelName: String, direction: String, ids: Seq[JsValue]): Seq[Vertex] = {
     val vertices = for {
       label <- Label.findByName(labelName).toSeq
@@ -221,33 +275,40 @@ class RequestParser(graph: Graph) {
   }
 
   def toMultiQuery(jsValue: JsValue, impIdOpt: Option[String]): MultiQuery = {
+    val globalQueryOption = toQueryOption(jsValue, impIdOpt)
     val queries = for {
       queryJson <- (jsValue \ "queries").asOpt[Seq[JsValue]].getOrElse(Seq.empty)
     } yield {
-      toQuery(queryJson, impIdOpt = impIdOpt)
+      val innerQuery = toQuery(queryJson, impIdOpt = impIdOpt)
+      val queryOption = innerQuery.queryOption
+
+      if (queryOption.groupBy.keys.nonEmpty) throw new BadQueryException("Group by option is not allowed in multiple queries.")
+      if (queryOption.orderByKeys.nonEmpty) throw new BadQueryException("Order by option is not allowed in multiple queries.")
+
+      if (globalQueryOption.withScore) innerQuery.copy(queryOption = innerQuery.queryOption.copy(withScore = false))
+      else innerQuery
+      //        val innerQuery3 =
+      //          if (globalQueryOption.groupBy.keys.nonEmpty) innerQuery2.copy(queryOption = innerQuery2.queryOption.copy(groupBy = GroupBy.Empty))
+      //          else innerQuery2
+
     }
     val weights = (jsValue \ "weights").asOpt[Seq[Double]].getOrElse(queries.map(_ => 1.0))
-    MultiQuery(queries = queries, weights = weights, queryOption = toQueryOption(jsValue, impIdOpt))
+    MultiQuery(queries = queries, weights = weights, queryOption = globalQueryOption)
   }
+
 
   def toQueryOption(jsValue: JsValue, impIdOpt: Option[String]): QueryOption = {
     val filterOutFields = (jsValue \ "filterOutFields").asOpt[List[String]].getOrElse(List(LabelMeta.to.name))
-    val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v, impIdOpt = impIdOpt) }.map { q =>
-      q.copy(queryOption = q.queryOption.copy(filterOutFields = filterOutFields))
+    val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v =>
+      toQuery(v, impIdOpt = impIdOpt)
+    }.map { q =>
+      q.copy(queryOption = q.queryOption.copy(filterOutFields = filterOutFields, selectColumns = filterOutFields))
     }
     val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
     val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
-//    val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
-    val groupBy = (jsValue \ "groupBy").asOpt[JsValue].getOrElse(JsNull) match {
-      case obj: JsObject =>
-        val keys = (obj \ "keys").asOpt[Seq[String]].getOrElse(Nil)
-        val groupByLimit = (obj \ "limit").asOpt[Int].getOrElse(hardLimit)
-        GroupBy(keys, groupByLimit)
-      case arr: JsArray =>
-        val keys = arr.asOpt[Seq[String]].getOrElse(Nil)
-        GroupBy(keys)
-      case _ => GroupBy.Empty
-    }
+
+    val groupBy = extractGroupBy((jsValue \ "groupBy").asOpt[JsValue])
+
     val orderByColumns: List[(String, Boolean)] = (jsValue \ "orderBy").asOpt[List[JsObject]].map { jsLs =>
       for {
         js <- jsLs
@@ -259,7 +320,7 @@ class RequestParser(graph: Graph) {
         }
         column -> ascending
       }
-    }.getOrElse(List("score" -> false, "timestamp" -> false))
+    }.getOrElse(Nil)
     val withScore = (jsValue \ "withScore").asOpt[Boolean].getOrElse(true)
     val returnTree = (jsValue \ "returnTree").asOpt[Boolean].getOrElse(false)
     //TODO: Refactor this
@@ -284,7 +345,7 @@ class RequestParser(graph: Graph) {
     )
   }
 
-  def toQuery(jsValue: JsValue, impIdOpt: Option[String]): Query = {
+  def toQuery(jsValue: JsValue, impIdOpt: Option[String]): S2Query = {
     try {
       val vertices = for {
         value <- (jsValue \ "srcVertices").asOpt[Seq[JsValue]].getOrElse(Nil)
@@ -297,7 +358,6 @@ class RequestParser(graph: Graph) {
 
       if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
       val steps = parse[Vector[JsValue]](jsValue, "steps")
-
       val queryOption = toQueryOption(jsValue, impIdOpt)
 
       val querySteps =
@@ -308,8 +368,8 @@ class RequestParser(graph: Graph) {
                 (k, v) <- (obj \ "weights").asOpt[JsObject].getOrElse(Json.obj()).fields
                 l <- Label.findByName(k)
               } yield {
-                  l.id.get -> v.toString().toDouble
-                }
+                l.id.get -> v.toString().toDouble
+              }
               converted.toMap
             case _ => Map.empty[Int, Double]
           }
@@ -333,32 +393,35 @@ class RequestParser(graph: Graph) {
           val queryParams =
             for {
               labelGroup <- queryParamJsVals
-              queryParam <- parseQueryParam(labelGroup)
+              queryParam <- parseQueryParam(labelGroup, queryOption)
             } yield {
               val (_, columnName) =
-                if (queryParam.labelWithDir.dir == GraphUtil.directions("out")) {
+                if (queryParam.dir == GraphUtil.directions("out")) {
                   (queryParam.label.srcService.serviceName, queryParam.label.srcColumnName)
                 } else {
                   (queryParam.label.tgtService.serviceName, queryParam.label.tgtColumnName)
                 }
               //FIXME:
-              if (stepIdx == 0 && vertices.nonEmpty && !vertices.exists(v => v.serviceColumn.columnName == columnName)) {
+              if (stepIdx == 0 && vertices.nonEmpty && !vertices.exists(v => v.columnName == columnName)) {
                 throw BadQueryException("srcVertices contains incompatiable serviceName or columnName with first step.")
               }
 
               queryParam
             }
-          Step(queryParams.toList, labelWeights = labelWeights,
-            //            scoreThreshold = stepThreshold,
+
+
+          val groupBy = extractGroupBy((step \ "groupBy").asOpt[JsValue])
+
+          Step(queryParams = queryParams,
+            labelWeights = labelWeights,
             nextStepScoreThreshold = nextStepScoreThreshold,
             nextStepLimit = nextStepLimit,
-            cacheTTL = cacheTTL)
+            cacheTTL = cacheTTL,
+            groupBy = groupBy)
 
         }
 
-      val ret = Query(vertices, querySteps, queryOption)
-      //      logger.debug(ret.toString)
-      ret
+      Query(vertices, querySteps, queryOption)
     } catch {
       case e: BadQueryException =>
         throw e
@@ -369,7 +432,7 @@ class RequestParser(graph: Graph) {
     }
   }
 
-  private def parseQueryParam(labelGroup: JsValue): Option[QueryParam] = {
+  private def parseQueryParam(labelGroup: JsValue, queryOption: QueryOption): Option[QueryParam] = {
     for {
       labelName <- parseOption[String](labelGroup, "label")
     } yield {
@@ -385,7 +448,7 @@ class RequestParser(graph: Graph) {
       val offset = parseOption[Int](labelGroup, "offset").getOrElse(0)
       val interval = extractInterval(label, labelGroup)
       val duration = extractDuration(label, labelGroup)
-      val scoring = extractScoring(label.id.get, labelGroup).getOrElse(Nil).toList
+      val scoring = extractScoring(label, labelGroup).getOrElse(Nil).toList
       val exclude = parseOption[Boolean](labelGroup, "exclude").getOrElse(false)
       val include = parseOption[Boolean](labelGroup, "include").getOrElse(false)
       val hasFilter = extractHas(label, labelGroup)
