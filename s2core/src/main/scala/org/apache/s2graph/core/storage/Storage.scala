@@ -1021,7 +1021,7 @@ abstract class Storage[Q, R](val graph: Graph,
           if (queryRequest.queryParam.sample >= 0) sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
           else edgeWithScores
 
-        val normalized = normalize(sampled)
+        val normalized = if (queryParam.shouldNormalize) normalize(sampled) else sampled
 
         StepResult(edgeWithScores = normalized, grouped = Nil, degreeEdges = degreeEdges, cursors = lastCursor)
       }

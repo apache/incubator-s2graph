@@ -472,7 +472,9 @@ object Graph {
         edgeWithScore.copy(edge = newEdge, score = newScore * labelWeight * tsVal)
       }
 
-      val normalized = normalize(withScores)
+      val normalized =
+        if (queryParam.shouldNormalize) normalize(withScores)
+        else withScores
 
       normalized
     }
