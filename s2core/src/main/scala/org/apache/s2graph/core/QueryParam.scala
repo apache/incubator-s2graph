@@ -25,10 +25,11 @@ import org.apache.s2graph.core.DuplicatePolicy.DuplicatePolicy
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
+import org.apache.s2graph.core.rest.TemplateHelper
 import org.apache.s2graph.core.storage.StorageSerializable._
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs, LabelWithDirection}
 import org.hbase.async.ColumnRangeFilter
-import play.api.libs.json.{JsNull, JsValue, Json}
+import play.api.libs.json.{JsString, JsNull, JsValue, Json}
 
 import scala.util.{Success, Try}
 
@@ -300,46 +301,43 @@ case class QueryParam(labelName: String,
                         edgeTransformer: EdgeTransformer = EdgeTransformer(EdgeTransformer.DefaultJson),
                         timeDecay: Option[TimeDecay] = None) {
   import JSONParser._
+
   //TODO: implement this.
   lazy val whereHasParent = true
 
-  lazy val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+  lazy val label = Label.findByName(labelName).getOrElse(throw LabelNotExistException(labelName))
   lazy val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"not supported direction: $direction"))
 
   lazy val labelWithDir = LabelWithDirection(label.id.get, dir)
   lazy val labelOrderSeq =
     if (indexName == LabelIndex.DefaultName) LabelIndex.DefaultSeq
-    else label.indexNameMap.get(indexName).getOrElse(throw new RuntimeException(s"$indexName indexName is not found.")).seq
+    else label.indexNameMap.getOrElse(indexName, throw new RuntimeException(s"$indexName indexName is not found.")).seq
+
   lazy val tgtVertexInnerIdOpt = tgtVertexIdOpt.map { id =>
     val tmp = label.tgtColumnWithDir(dir)
     toInnerVal(id, tmp.columnType, tmp.schemaVersion)
   }
-  lazy val (columnRangeFilter, columnRangeFilterMaxBytes, columnRangeFilterMinBytes)  = intervalOpt match {
-    case None => (null, Array.empty[Byte], Array.empty[Byte])
+
+  def buildInterval(edgeOpt: Option[Edge]) = intervalOpt match {
+    case None => Array.empty[Byte] -> Array.empty[Byte]
     case Some(interval) =>
+      val (froms, tos) = interval
+
       val len = label.indicesMap(labelOrderSeq).sortKeyTypes.size.toByte
-      val (minBytes, maxBytes) = paddingInterval(len, interval._1, interval._2)
-      (new ColumnRangeFilter(minBytes, true, maxBytes, true), maxBytes, minBytes)
+      val (maxBytes, minBytes) = paddingInterval(len, froms, tos, edgeOpt)
+
+      maxBytes -> minBytes
   }
+
   lazy val isSnapshotEdge = tgtVertexInnerIdOpt.isDefined
 
   /** since degree info is located on first always */
-  lazy val (innerOffset, innerLimit) = if (columnRangeFilter == null) {
-    if (offset == 0) (offset, limit + 1)
+  lazy val (innerOffset, innerLimit) = if (intervalOpt.isEmpty) {
+    if (offset == 0) (offset, if (limit == Int.MaxValue) limit else limit + 1)
     else (offset + 1, limit)
   } else (offset, limit)
 
-  def toBytes(idxSeq: Byte, offset: Int, limit: Int, isInverted: Boolean): Array[Byte] = {
-    val front = Array[Byte](idxSeq, if (isInverted) 1.toByte else 0.toByte)
-    Bytes.add(front, Bytes.toBytes((offset.toLong << 32 | limit)))
-  }
-
-  def toCacheKey(bytes: Array[Byte]): Long = {
-    val hashBytes = toCacheKeyRaw(bytes)
-    Hashing.murmur3_128().hashBytes(hashBytes).asLong()
-  }
-
-  def toCacheKeyRaw(bytes: Array[Byte]): Array[Byte] = {
+  lazy val optionalCacheKey: Array[Byte] = {
     val transformBytes = edgeTransformer.toHashKeyBytes
     //TODO: change this to binrary format.
     val whereBytes = Bytes.toBytes(whereRawOpt.getOrElse(""))
@@ -350,20 +348,63 @@ case class QueryParam(labelName: String,
     } getOrElse Array.empty[Byte]
 
     val conditionBytes = Bytes.add(transformBytes, whereBytes, durationBytes)
-    val labelWithDirBytes = Bytes.add(Bytes.toBytes(label.id.get), Bytes.toBytes(direction))
-    Bytes.add(Bytes.add(bytes, labelWithDirBytes, toBytes(labelOrderSeq, offset, limit, isSnapshotEdge)), rank.toHashKeyBytes(),
-      Bytes.add(columnRangeFilterMinBytes, columnRangeFilterMaxBytes, conditionBytes))
+
+    // Interval cache bytes is moved to fetch method
+    Bytes.add(Bytes.add(toBytes(offset, limit), rank.toHashKeyBytes()), conditionBytes)
   }
 
-  private def convertToInner(kvs: Seq[(String, Any)]): Seq[(LabelMeta, InnerValLike)] = {
-    kvs.map { kv =>
-      val labelMeta = label.metaPropsInvMap.get(kv._1).getOrElse(throw new RuntimeException(s"$kv is not found in labelMetas."))
-      labelMeta -> toInnerVal(kv._2, labelMeta.dataType, label.schemaVersion)
+  def toBytes(offset: Int, limit: Int): Array[Byte] = {
+    Bytes.add(Bytes.toBytes(offset), Bytes.toBytes(limit))
+  }
+
+  def toCacheKey(bytes: Array[Byte]): Long = {
+    val hashBytes = toCacheKeyRaw(bytes)
+    Hashing.murmur3_128().hashBytes(hashBytes).asLong()
+  }
+
+  def toCacheKeyRaw(bytes: Array[Byte]): Array[Byte] = {
+    Bytes.add(bytes, optionalCacheKey)
+  }
+
+  private def convertToInner(kvs: Seq[(String, JsValue)], edgeOpt: Option[Edge]): Seq[(LabelMeta, InnerValLike)] = {
+    kvs.map { case (propKey, propValJs) =>
+      propValJs match {
+        case JsString(in) if edgeOpt.isDefined && in.contains("_parent.") =>
+          val parentLen = in.split("_parent.").length - 1
+          val edge = (0 until parentLen).foldLeft(edgeOpt.get) { case (acc, _) => acc.parentEdges.head.edge }
+
+          val timePivot = edge.ts
+          val replaced = TemplateHelper.replaceVariable(timePivot, in).trim
+
+          val (_propKey, _padding) = replaced.span(ch => !ch.isDigit && ch != '-' && ch != '+' && ch != ' ')
+          val propKey = _propKey.split("_parent.").last
+          val padding = Try(_padding.trim.toLong).getOrElse(0L)
+
+          val labelMeta = edge.label.metaPropsInvMap.getOrElse(propKey, throw new RuntimeException(s"$propKey not found in ${edge} labelMetas."))
+
+          val propVal =
+            if (InnerVal.isNumericType(labelMeta.dataType)) {
+              InnerVal.withLong(edge.props(labelMeta).value.asInstanceOf[BigDecimal].longValue() + padding, label.schemaVersion)
+            } else {
+              edge.props(labelMeta)
+            }
+
+          labelMeta -> propVal
+        case _ =>
+          val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw new RuntimeException(s"$propKey not found in labelMetas."))
+          val propVal = jsValueToInnerVal(propValJs, labelMeta.dataType, label.schemaVersion)
+
+          labelMeta -> propVal.get
+      }
     }
   }
-  private def paddingInterval(len: Byte, from: Seq[(String, Any)], to: Seq[(String, Any)]) = {
-    val fromVal = Bytes.add(propsToBytes(convertToInner(from)), QueryParam.fillArray)
-    val toVal = propsToBytes(convertToInner(to))
+
+  def paddingInterval(len: Byte, froms: Seq[(String, JsValue)], tos: Seq[(String, JsValue)], edgeOpt: Option[Edge] = None) = {
+    val fromInnerVal = convertToInner(froms, edgeOpt)
+    val toInnerVal = convertToInner(tos, edgeOpt)
+
+    val fromVal = Bytes.add(propsToBytes(fromInnerVal), QueryParam.fillArray)
+    val toVal = propsToBytes(toInnerVal)
 
     toVal(0) = len
     fromVal(0) = len
