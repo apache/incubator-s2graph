@@ -167,7 +167,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     )
 
     val edges = getEdgesSync(queryIntervalWithParent(baseId, index2, "_timestamp", "_parent._timestamp"))
-    (edges \ "size").toString should be("1")
+    (edges \ "size").get.toString should be("1")
 
     val to = (edges \\ "to").head.as[Long]
     to should be (baseId + 20)
@@ -190,33 +190,33 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       "_timestamp", "${_parent._timestamp}",
       "_timestamp", "${_parent._timestamp + 3 hour}"))
 
-    (edges \ "size").toString should be("2")
+    (edges \ "size").get.toString should be("2")
 
     val edges2 = getEdgesSync(queryIntervalWithParentRange(baseId, index2,
       "_timestamp", "${_parent._timestamp}",
       "_timestamp", "${_parent._timestamp + 2 hour}"))
 
-    (edges2 \ "size").toString should be("1")
+    (edges2 \ "size").get.toString should be("1")
 
     val edges3 = getEdgesSync(queryIntervalWithParentRange(baseId, index2,
       "_timestamp", "${_parent._timestamp + 130 minute}",
       "_timestamp", "${_parent._timestamp + 4 hour}"))
 
-    (edges3 \ "size").toString should be("2")
+    (edges3 \ "size").get.toString should be("2")
   }
 
   test("interval") {
     var edges = getEdgesSync(queryWithInterval(0, index2, "_timestamp", 1000, 1001)) // test interval on timestamp index
-    (edges \ "size").toString should be("1")
+    (edges \ "size").get.toString should be("1")
 
     edges = getEdgesSync(queryWithInterval(0, index2, "_timestamp", 1000, 2000)) // test interval on timestamp index
-    (edges \ "size").toString should be("2")
+    (edges \ "size").get.toString should be("2")
 
     edges = getEdgesSync(queryWithInterval(2, index1, "weight", 10, 11)) // test interval on weight index
-    (edges \ "size").toString should be("1")
+    (edges \ "size").get.toString should be("1")
 
     edges = getEdgesSync(queryWithInterval(2, index1, "weight", 10, 20)) // test interval on weight index
-    (edges \ "size").toString should be("2")
+    (edges \ "size").get.toString should be("2")
   }
 
   test("get edge with where condition") {
@@ -585,58 +585,6 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     edgesTo.reverse should be(ascOrderByTo)
   }
 
-  test("query with skipRpc") {
-    def queryWithSkipRpc(id: Int, skipRpc: Boolean) = Json.parse(
-      s"""
-         |{ "srcVertices": [{
-         |    "serviceName": "$testServiceName",
-         |    "columnName": "$testColumnName",
-         |    "id": $id
-         |  }],
-         |  "steps": [{
-         |    "step": [
-         |      {
-         |        "label": "$testLabelName",
-         |        "direction": "out",
-         |        "offset": 0,
-         |        "limit": 100,
-         |        "skipRpc": $skipRpc
-         |      },
-         |      {
-         |        "label": "$testLabelName2",
-         |        "direction": "out",
-         |        "offset": 0,
-         |        "limit": 100
-         |      }
-         |    ]
-         |  }]
-         |}
-       """.stripMargin
-    )
-
-    val ts = "1442985659166"
-    val testId = 22
-
-    val bulkEdges = Seq(
-      toEdge(ts, insert, e, testId, 122, testLabelName),
-      toEdge(ts, insert, e, testId, 222, testLabelName),
-      toEdge(ts, insert, e, testId, 322, testLabelName),
-
-      toEdge(ts, insert, e, testId, 922, testLabelName2),
-      toEdge(ts, insert, e, testId, 822, testLabelName2),
-      toEdge(ts, insert, e, testId, 722, testLabelName2)
-    )
-
-    insertEdgesSync(bulkEdges: _*)
-    var edges = getEdgesSync(queryWithSkipRpc(testId, false))
-    println(Json.prettyPrint(edges))
-    (edges \ "results").as[List[JsValue]].size should be(6)
-
-    edges = getEdgesSync(queryWithSkipRpc(testId, true))
-    println(Json.prettyPrint(edges))
-    (edges \ "results").as[List[JsValue]].size should be(3)
-  }
-
   test("query with sampling") {
     def queryWithSampling(id: Int, sample: Int) = Json.parse(
       s"""
@@ -802,7 +750,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     logger.debug(Json.prettyPrint(rs))
     val results = (rs \ "results").as[List[JsValue]]
     results.size should be(1)
-    (results(0) \ "to").toString should be("555")
+    (results(0) \ "to").get.toString should be("555")
   }
 
 

@@ -88,7 +88,7 @@ case class QueryOption(removeCycle: Boolean = false,
     val selectBytes = Bytes.toBytes(selectColumns.toString)
     val groupBytes = Bytes.toBytes(groupBy.keys.toString)
     val orderByBytes = Bytes.toBytes(orderByColumns.toString)
-    val filterOutBytes = filterOutQuery.map(_.cacheKeyBytes).getOrElse(Array.empty[Byte])
+    val filterOutBytes = filterOutQuery.map(_.fullCacheBytes).getOrElse(Array.empty[Byte])
     val returnTreeBytes = Bytes.toBytes(returnTree)
 
     Seq(selectBytes, groupBytes, orderByBytes, filterOutBytes, returnTreeBytes).foldLeft(Array.empty[Byte])(Bytes.add)
@@ -101,20 +101,13 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  queryOption: QueryOption = QueryOption(),
                  jsonQuery: JsValue = JsNull) {
 
-  lazy val cacheKeyBytes: Array[Byte] = {
-    val selectBytes = Bytes.toBytes(queryOption.selectColumns.toString)
-    val groupBytes = Bytes.toBytes(queryOption.groupBy.keys.toString)
-    val orderByBytes = Bytes.toBytes(queryOption.orderByColumns.toString)
-    val filterOutBytes = queryOption.filterOutQuery.map(_.cacheKeyBytes).getOrElse(Array.empty[Byte])
-    val returnTreeBytes = Bytes.toBytes(queryOption.returnTree)
-
-    Seq(selectBytes, groupBytes, orderByBytes, filterOutBytes, returnTreeBytes).foldLeft(Array.empty[Byte])(Bytes.add)
+  lazy val fullCacheBytes = {
+    val srcBytes = vertices.map(_.innerId.bytes).foldLeft(Array.empty[Byte])(Bytes.add)
+    val stepBytes = steps.map(_.cacheKeyBytes).foldLeft(Array.empty[Byte])(Bytes.add)
+    val queryOptionBytes = queryOption.cacheKeyBytes
+    Bytes.add(srcBytes, stepBytes, queryOptionBytes)
   }
-
-  lazy val fullCacheKeyBytes: Array[Byte] =
-    Bytes.add(vertices.map(_.innerId.bytes).foldLeft(Array.empty[Byte])(Bytes.add), cacheKeyBytes)
-
-  lazy val fullCacheKey: Long = Hashing.murmur3_128().hashBytes(fullCacheKeyBytes).asLong()
+  lazy val fullCacheKey: Long = Hashing.murmur3_128().hashBytes(fullCacheBytes).asLong()
 }
 
 object EdgeTransformer {
