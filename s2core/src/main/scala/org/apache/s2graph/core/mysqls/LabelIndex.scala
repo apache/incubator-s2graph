@@ -59,7 +59,6 @@ object LabelIndex extends Model[LabelIndex] {
         if (scala.util.Random.nextDouble() < rate) true
         else false
       } else if (method == "hash_sample") {
-        //        logger.error(s"[XXX]: ${a.toString} ${hash} ${totalModular}, ${rate}, ${(hash.abs % totalModular) / totalModular.toDouble}")
         val hash = hashOpt.getOrElse(throw new RuntimeException("hash_sample need _from_hash value"))
         if ((hash.abs % totalModular) / totalModular.toDouble < rate) true
         else false
