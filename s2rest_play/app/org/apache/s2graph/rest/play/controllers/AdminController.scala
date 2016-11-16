@@ -448,7 +448,7 @@ object AdminController extends Controller {
     //    Management.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL, compressionAlgorithm)
     request.body.asJson.map(_.validate[HTableParams] match {
       case JsSuccess(hTableParams, _) => {
-        management.createTable(hTableParams.cluster, hTableParams.hTableName, List("e", "v"),
+        management.createStorageTable(hTableParams.cluster, hTableParams.hTableName, List("e", "v"),
           hTableParams.preSplitSize, hTableParams.hTableTTL,
           hTableParams.compressionAlgorithm.getOrElse(Management.DefaultCompressionAlgorithm))
         logger.info(hTableParams.toString())

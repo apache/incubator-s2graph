@@ -20,11 +20,11 @@
 package org.apache.s2graph.core.storage.serde.snapshotedge.wide
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.mysqls.{LabelIndex, LabelMeta}
+import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, StorageDeserializable}
 import org.apache.s2graph.core.types.TargetVertexId
-import org.apache.s2graph.core.{Edge, QueryParam, SnapshotEdge, Vertex}
+import org.apache.s2graph.core.{Edge, SnapshotEdge, Vertex}
 
 class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
 
@@ -34,7 +34,7 @@ class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
     (statusCode.toByte, op.toByte)
   }
 
-  override def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam,
+  override def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
                                                    _kvs: Seq[T],
                                                    version: String,
                                                    cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
@@ -42,21 +42,23 @@ class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
     assert(kvs.size == 1)
 
     val kv = kvs.head
-    val schemaVer = queryParam.label.schemaVersion
+    val label = checkLabel.get
+    val schemaVer = label.schemaVersion
     val cellVersion = kv.timestamp
 
     val (srcVertexId, labelWithDir, _, _, _) = cacheElementOpt.map { e =>
       (e.srcVertex.id, e.labelWithDir, LabelIndex.DefaultSeq, true, 0)
     }.getOrElse(parseRow(kv, schemaVer))
 
-    val (tgtVertexId, props, op, ts, statusCode, _pendingEdgeOpt) = {
+    val (tgtVertexId, props, op, ts, statusCode, _pendingEdgeOpt, tsInnerVal) = {
       val (tgtVertexId, _) = TargetVertexId.fromBytes(kv.qualifier, 0, kv.qualifier.length, schemaVer)
       var pos = 0
       val (statusCode, op) = statusCodeWithOp(kv.value(pos))
       pos += 1
-      val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
+      val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer, label)
       val kvsMap = props.toMap
-      val ts = kvsMap(LabelMeta.timeStampSeq).innerVal.toString.toLong
+      val tsInnerVal = kvsMap(LabelMeta.timestamp).innerVal
+      val ts = tsInnerVal.toString.toLong
 
       pos = endAt
       val _pendingEdgeOpt =
@@ -66,24 +68,24 @@ class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
           pos += 1
           //          val versionNum = Bytes.toLong(kv.value, pos, 8)
           //          pos += 8
-          val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer)
+          val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer, label)
           pos = endAt
           val lockTs = Option(Bytes.toLong(kv.value, pos, 8))
 
           val pendingEdge =
             Edge(Vertex(srcVertexId, cellVersion),
               Vertex(tgtVertexId, cellVersion),
-              labelWithDir, pendingEdgeOp,
+              label, labelWithDir.dir, pendingEdgeOp,
               cellVersion, pendingEdgeProps.toMap,
-              statusCode = pendingEdgeStatusCode, lockTs = lockTs)
+              statusCode = pendingEdgeStatusCode, lockTs = lockTs, tsInnerValOpt = Option(tsInnerVal))
           Option(pendingEdge)
         }
 
-      (tgtVertexId, kvsMap, op, ts, statusCode, _pendingEdgeOpt)
+      (tgtVertexId, kvsMap, op, ts, statusCode, _pendingEdgeOpt, tsInnerVal)
     }
 
     SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),
-      labelWithDir, op, cellVersion, props, statusCode = statusCode,
-      pendingEdgeOpt = _pendingEdgeOpt, lockTs = None)
+      label, labelWithDir.dir, op, cellVersion, props, statusCode = statusCode,
+      pendingEdgeOpt = _pendingEdgeOpt, lockTs = None, tsInnerValOpt = Option(tsInnerVal))
   }
 }

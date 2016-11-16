@@ -22,7 +22,7 @@ package org.apache.s2graph.core.Integrate
 import java.util.concurrent.TimeUnit
 
 import org.scalatest.BeforeAndAfterEach
-import play.api.libs.json.{JsObject, JsValue, Json}
+import play.api.libs.json._
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -130,7 +130,9 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
       toEdge(startTs + 5, "insert", "e", "10", "20", testLabelNameWeak, s"""{"time": 10}"""),
       toEdge(startTs + 6, "insert", "e", "10", "21", testLabelNameWeak, s"""{"time": 11}"""),
       toEdge(startTs + 7, "insert", "e", "11", "20", testLabelNameWeak, s"""{"time": 12}"""),
-      toEdge(startTs + 8, "insert", "e", "12", "20", testLabelNameWeak, s"""{"time": 13}""")
+      toEdge(startTs + 8, "insert", "e", "12", "20", testLabelNameWeak, s"""{"time": 13}"""),
+      toEdge(startTs + 9, "insert", "e", "10000", "20000", testLabelNameWeak,
+        s"""{"time": 1, "weight": 0.1, "is_hidden": true, "is_blocked": false}""")
     )
 
     def query(id: Int, direction: String = "out", columnName: String = testColumnName) = Json.parse(

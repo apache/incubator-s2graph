@@ -21,6 +21,7 @@ package org.apache.s2graph.core.mysqls
 
 import java.util.UUID
 
+import com.typesafe.config.Config
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.Json
 import scalikejdbc._
@@ -94,6 +95,7 @@ object Service extends Model[Service] {
       val cacheKey = s"serviceName=${x.serviceName}"
       (cacheKey -> x)
     })
+    ls
   }
 
   def findAllConn()(implicit session: DBSession = AutoSession): List[String] = {
@@ -101,7 +103,14 @@ object Service extends Model[Service] {
   }
 }
 
-case class Service(id: Option[Int], serviceName: String, accessToken: String, cluster: String, hTableName: String, preSplitSize: Int, hTableTTL: Option[Int]) {
+case class Service(id: Option[Int],
+                   serviceName: String,
+                   accessToken: String,
+                   cluster: String,
+                   hTableName: String,
+                   preSplitSize: Int,
+                   hTableTTL: Option[Int],
+                   options: Option[String] = None) {
   lazy val toJson =
     id match {
       case Some(_id) =>
@@ -110,4 +119,8 @@ case class Service(id: Option[Int], serviceName: String, accessToken: String, cl
       case None =>
         Json.parse("{}")
     }
+
+  lazy val extraOptions = Model.extraOptions(options)
+  lazy val storageConfigOpt: Option[Config] = toStorageConfig
+  def toStorageConfig: Option[Config] = Model.toStorageConfig(extraOptions)
 }

@@ -22,7 +22,7 @@ package org.apache.s2graph.core.mysqls
 import org.apache.s2graph.core.GraphUtil
 import scalikejdbc._
 
-import scala.util.Random
+import scala.util.{Try, Random}
 
 object Experiment extends Model[Experiment] {
   val ImpressionKey = "S2-Impression-Id"
@@ -59,6 +59,17 @@ object Experiment extends Model[Experiment] {
       sql"""select * from experiments where id = ${id}"""
         .map { rs => Experiment(rs) }.single.apply
     )
+  }
+
+  def insert(service: Service, name: String, description: String, experimentType: String = "t", totalModular: Int = 100)
+            (implicit session: DBSession = AutoSession): Try[Experiment] = {
+    Try {
+      sql"""INSERT INTO experiments(service_id, service_name, `name`, description, experiment_type, total_modular)
+         VALUES(${service.id.get}, ${service.serviceName}, $name, $description, $experimentType, $totalModular)"""
+        .updateAndReturnGeneratedKey().apply()
+    }.map { newId =>
+      Experiment(Some(newId.toInt), service.id.get, name, description, experimentType, totalModular)
+    }
   }
 }
 

@@ -33,20 +33,19 @@ import io.netty.handler.codec.http.HttpHeaders._
 import io.netty.handler.codec.http._
 import io.netty.handler.logging.{LogLevel, LoggingHandler}
 import io.netty.util.CharsetUtil
-import org.apache.s2graph.core.GraphExceptions.BadQueryException
+import org.apache.s2graph.core.GraphExceptions.{BadQueryException}
 import org.apache.s2graph.core.mysqls.Experiment
 import org.apache.s2graph.core.rest.RestHandler
 import org.apache.s2graph.core.rest.RestHandler.{CanLookup, HandlerResult}
 import org.apache.s2graph.core.utils.Extensions._
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{Graph, JSONParser, PostProcess}
+import org.apache.s2graph.core.{Graph, PostProcess}
 import play.api.libs.json._
 
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.{Failure, Success, Try}
-import scala.language.existentials
 
 class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends SimpleChannelInboundHandler[FullHttpRequest] {
   val ApplicationJson = "application/json"
@@ -101,8 +100,9 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
     result.body onComplete {
       case Success(json) =>
         val duration = System.currentTimeMillis() - startedAt
+        val bucketName = result.headers.toMap.get(Experiment.ImpressionKey).getOrElse("")
 
-        val log = s"${req.getMethod} ${req.getUri} took ${duration} ms 200 ${s2rest.calcSize(json)} ${requestBody}"
+        val log = s"${req.getMethod} ${req.getUri} took ${duration} ms 200 ${s2rest.calcSize(json)} ${requestBody} ${bucketName}"
         logger.info(log)
 
         val buf: ByteBuf = Unpooled.copiedBuffer(json.toString, CharsetUtil.UTF_8)
@@ -114,7 +114,7 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
         case e: BadQueryException =>
           logger.error(s"{$requestBody}, ${e.getMessage}", e)
           val buf: ByteBuf = Unpooled.copiedBuffer(PostProcess.badRequestResults(e).toString, CharsetUtil.UTF_8)
-          simpleResponse(ctx, Ok, byteBufOpt = Option(buf), channelFutureListenerOpt = CloseOpt, headers = headers.result())
+          simpleResponse(ctx, BadRequest, byteBufOpt = Option(buf), channelFutureListenerOpt = CloseOpt, headers = headers.result())
         case e: Exception =>
           logger.error(s"${requestBody}, ${e.getMessage}", e)
           val buf: ByteBuf = Unpooled.copiedBuffer(PostProcess.emptyResults.toString, CharsetUtil.UTF_8)
@@ -204,7 +204,9 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
 }
 
 // Simple http server
-object NettyServer {
+object NettyServer extends App {
+  /** should be same with Boostrap.onStart on play */
+
   val numOfThread = Runtime.getRuntime.availableProcessors()
   val threadPool = Executors.newFixedThreadPool(numOfThread)
   val ec = ExecutionContext.fromExecutor(threadPool)
@@ -234,31 +236,30 @@ object NettyServer {
       (new NioEventLoopGroup(1), new NioEventLoopGroup(), classOf[NioServerSocketChannel])
   }
 
-  def main(args : scala.Array[scala.Predef.String]) : scala.Unit = {
-    try {
-      val b: ServerBootstrap = new ServerBootstrap()
-        .option(ChannelOption.SO_BACKLOG, Int.box(2048))
-      b.group(bossGroup, workerGroup).channel(channelClass)
-        .handler(new LoggingHandler(LogLevel.INFO))
-        .childHandler(new ChannelInitializer[SocketChannel] {
-          override def initChannel(ch: SocketChannel) {
-            val p = ch.pipeline()
-            p.addLast(new HttpServerCodec())
-            p.addLast(new HttpObjectAggregator(maxBodySize))
-            p.addLast(new S2RestHandler(rest)(ec))
-          }
-        })
+  try {
+    val b: ServerBootstrap = new ServerBootstrap()
+      .option(ChannelOption.SO_BACKLOG, Int.box(2048))
 
-      // for check server is started
-      logger.info(s"Listening for HTTP on /0.0.0.0:$port")
-      val ch: Channel = b.bind(port).sync().channel()
-      ch.closeFuture().sync()
+    b.group(bossGroup, workerGroup).channel(channelClass)
+      .handler(new LoggingHandler(LogLevel.INFO))
+      .childHandler(new ChannelInitializer[SocketChannel] {
+        override def initChannel(ch: SocketChannel) {
+          val p = ch.pipeline()
+          p.addLast(new HttpServerCodec())
+          p.addLast(new HttpObjectAggregator(maxBodySize))
+          p.addLast(new S2RestHandler(rest)(ec))
+        }
+      })
 
-    } finally {
-      bossGroup.shutdownGracefully()
-      workerGroup.shutdownGracefully()
-      s2graph.shutdown()
-    }
+    // for check server is started
+    logger.info(s"Listening for HTTP on /0.0.0.0:$port")
+    val ch: Channel = b.bind(port).sync().channel()
+    ch.closeFuture().sync()
+
+  } finally {
+    bossGroup.shutdownGracefully()
+    workerGroup.shutdownGracefully()
+    s2graph.shutdown()
   }
 }
 

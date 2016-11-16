@@ -21,6 +21,7 @@ package org.apache.s2graph.core.storage
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.QueryParam
+import org.apache.s2graph.core.mysqls.{LabelMeta, Label}
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, InnerValLikeWithTs}
 import org.apache.s2graph.core.utils.logger
 
@@ -36,16 +37,17 @@ object StorageDeserializable {
   def bytesToKeyValues(bytes: Array[Byte],
                        offset: Int,
                        length: Int,
-                       version: String): (Array[(Byte, InnerValLike)], Int) = {
+                       schemaVer: String,
+                       label: Label): (Array[(LabelMeta, InnerValLike)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
-    val kvs = new Array[(Byte, InnerValLike)](len)
+    val kvs = new Array[(LabelMeta, InnerValLike)](len)
     var i = 0
     while (i < len) {
-      val k = bytes(pos)
+      val k = label.labelMetaMap(bytes(pos))
       pos += 1
-      val (v, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, 0, version)
+      val (v, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, 0, schemaVer)
       pos += numOfBytesUsed
       kvs(i) = (k -> v)
       i += 1
@@ -57,16 +59,17 @@ object StorageDeserializable {
 
   def bytesToKeyValuesWithTs(bytes: Array[Byte],
                              offset: Int,
-                             version: String): (Array[(Byte, InnerValLikeWithTs)], Int) = {
+                             schemaVer: String,
+                             label: Label): (Array[(LabelMeta, InnerValLikeWithTs)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
-    val kvs = new Array[(Byte, InnerValLikeWithTs)](len)
+    val kvs = new Array[(LabelMeta, InnerValLikeWithTs)](len)
     var i = 0
     while (i < len) {
-      val k = bytes(pos)
+      val k = label.labelMetaMap(bytes(pos))
       pos += 1
-      val (v, numOfBytesUsed) = InnerValLikeWithTs.fromBytes(bytes, pos, 0, version)
+      val (v, numOfBytesUsed) = InnerValLikeWithTs.fromBytes(bytes, pos, 0, schemaVer)
       pos += numOfBytesUsed
       kvs(i) = (k -> v)
       i += 1
@@ -78,15 +81,15 @@ object StorageDeserializable {
 
   def bytesToProps(bytes: Array[Byte],
                    offset: Int,
-                   version: String): (Array[(Byte, InnerValLike)], Int) = {
+                   schemaVer: String): (Array[(LabelMeta, InnerValLike)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
-    val kvs = new Array[(Byte, InnerValLike)](len)
+    val kvs = new Array[(LabelMeta, InnerValLike)](len)
     var i = 0
     while (i < len) {
-      val k = HBaseType.EMPTY_SEQ_BYTE
-      val (v, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, 0, version)
+      val k = LabelMeta.empty
+      val (v, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, 0, schemaVer)
       pos += numOfBytesUsed
       kvs(i) = (k -> v)
       i += 1
@@ -98,17 +101,19 @@ object StorageDeserializable {
   }
 
   def bytesToLong(bytes: Array[Byte], offset: Int): Long = Bytes.toLong(bytes, offset)
+
+  def bytesToInt(bytes: Array[Byte], offset: Int): Int = Bytes.toInt(bytes, offset)
 }
 
 trait StorageDeserializable[E] {
-  def fromKeyValues[T: CanSKeyValue](queryParam: QueryParam, kvs: Seq[T], version: String, cacheElementOpt: Option[E]): Option[E] = {
+  def fromKeyValues[T: CanSKeyValue](checkLabel: Option[Label], kvs: Seq[T], version: String, cacheElementOpt: Option[E]): Option[E] = {
     try {
-      Option(fromKeyValuesInner(queryParam, kvs, version, cacheElementOpt))
+      Option(fromKeyValuesInner(checkLabel, kvs, version, cacheElementOpt))
     } catch {
       case e: Exception =>
         logger.error(s"${this.getClass.getName} fromKeyValues failed.", e)
         None
     }
   }
-  def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam, kvs: Seq[T], version: String, cacheElementOpt: Option[E]): E
+  def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label], kvs: Seq[T], version: String, cacheElementOpt: Option[E]): E
 }

@@ -24,12 +24,13 @@ import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.storage.{SKeyValue, Serializable, StorageSerializable}
 import org.apache.s2graph.core.types.VertexId
 import org.apache.s2graph.core.{GraphUtil, IndexEdge}
+import org.apache.s2graph.core.storage.StorageSerializable._
 
-class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge] {
+class IndexEdgeSerializable(indexEdge: IndexEdge, longToBytes: Long => Array[Byte] = longToBytes) extends Serializable[IndexEdge] {
    import StorageSerializable._
 
-   override val ts = indexEdge.version
-   override val table = indexEdge.label.hbaseTableName.getBytes()
+   override def ts = indexEdge.version
+   override def table = indexEdge.label.hbaseTableName.getBytes()
 
    def idxPropsMap = indexEdge.orders.toMap
    def idxPropsBytes = propsToBytes(indexEdge.orders)
@@ -49,7 +50,7 @@ class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge
        if (indexEdge.op == GraphUtil.operations("incrementCount")) {
          Bytes.add(idxPropsBytes, tgtIdBytes, Array.fill(1)(indexEdge.op))
        } else {
-         idxPropsMap.get(LabelMeta.toSeq) match {
+         idxPropsMap.get(LabelMeta.to) match {
            case None => Bytes.add(idxPropsBytes, tgtIdBytes)
            case Some(vId) => idxPropsBytes
          }
@@ -59,9 +60,9 @@ class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge
 
   override def toValue: Array[Byte] =
     if (indexEdge.degreeEdge)
-      Bytes.toBytes(indexEdge.props(LabelMeta.degreeSeq).innerVal.toString().toLong)
+      longToBytes(indexEdge.props(LabelMeta.degree).innerVal.toString().toLong)
     else if (indexEdge.op == GraphUtil.operations("incrementCount"))
-      Bytes.toBytes(indexEdge.props(LabelMeta.countSeq).innerVal.toString().toLong)
+      longToBytes(indexEdge.props(LabelMeta.count).innerVal.toString().toLong)
     else propsToKeyValues(indexEdge.metas.toSeq)
 
  }

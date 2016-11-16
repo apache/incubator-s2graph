@@ -19,12 +19,18 @@
 
 package org.apache.s2graph.core
 
-import org.apache.s2graph.core.GraphExceptions.BadQueryException
+import java.util.Base64
+
+import com.google.protobuf.ByteString
+import org.apache.s2graph.core.GraphExceptions.{BadQueryException, LabelNotExistException}
 import org.apache.s2graph.core.mysqls._
-import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs}
 import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.rest.RequestParser
+import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.{Json, _}
 
+import scala.collection.JavaConversions._
 import scala.collection.immutable
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
@@ -40,74 +46,100 @@ object PostProcess {
    * Result Entity score field name
    */
   val emptyDegrees = Seq.empty[JsValue]
-  val timeoutResults = Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr(), "isTimeout" -> true)
-  val emptyResults = Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr(), "isEmpty" -> true)
+  val emptyResults = Json.obj("size" -> 0, "degrees" -> Json.arr(), "results" -> Json.arr(), "isEmpty" -> true, "rpcFail" -> 0)
+
   def badRequestResults(ex: => Exception) = ex match {
     case ex: BadQueryException => Json.obj("message" -> ex.msg)
     case _ => Json.obj("message" -> ex.getMessage)
   }
 
-  val SCORE_FIELD_NAME = "scoreSum"
-  val reservedColumns = Set("cacheRemain", "from", "to", "label", "direction", "_timestamp", "timestamp", "score", "props")
-
-
   def s2EdgeParent(graph: Graph,
+                   queryOption: QueryOption,
                    parentEdges: Seq[EdgeWithScore]): JsValue = {
     if (parentEdges.isEmpty) JsNull
     else {
       val ancestors = for {
         current <- parentEdges
-        parents = s2EdgeParent(graph, current.edge.parentEdges) if parents != JsNull
+        parents = s2EdgeParent(graph, queryOption, current.edge.parentEdges) if parents != JsNull
       } yield {
           val s2Edge = current.edge.originalEdgeOpt.getOrElse(current.edge)
-          s2EdgeToJsValue(s2Edge, current.score, false, parents = parents)
+          s2EdgeToJsValue(queryOption, current.copy(edge = s2Edge), false, parents = parents, checkSelectColumns = true)
         }
       Json.toJson(ancestors)
     }
   }
 
-  def s2EdgeToJsValue(s2Edge: Edge,
-                      score: Double,
+  def s2EdgeToJsValue(queryOption: QueryOption,
+                      edgeWithScore: EdgeWithScore,
                       isDegree: Boolean = false,
-                      parents: JsValue = JsNull): JsValue = {
+                      parents: JsValue = JsNull,
+                      checkSelectColumns: Boolean = false): JsValue = {
+    //    val builder = immutable.Map.newBuilder[String, JsValue]
+    val builder = ArrayBuffer.empty[(String, JsValue)]
+    val s2Edge = edgeWithScore.edge
+    val score = edgeWithScore.score
+    val label = edgeWithScore.label
     if (isDegree) {
-      Json.obj(
-        "from" -> anyValToJsValue(s2Edge.srcId),
-        "label" -> s2Edge.labelName,
-        LabelMeta.degree.name -> anyValToJsValue(s2Edge.propsWithTs(LabelMeta.degreeSeq).innerVal.value)
-      )
+      builder += ("from" -> anyValToJsValue(s2Edge.srcId).get)
+      builder += ("label" -> anyValToJsValue(label.label).get)
+      builder += ("direction" -> anyValToJsValue(s2Edge.direction).get)
+      builder += (LabelMeta.degree.name -> anyValToJsValue(s2Edge.propsWithTs(LabelMeta.degree).innerVal.value).get)
+      JsObject(builder)
     } else {
-      Json.obj("from" -> anyValToJsValue(s2Edge.srcId),
-        "to" -> anyValToJsValue(s2Edge.tgtId),
-        "label" -> s2Edge.labelName,
-        "score" -> score,
-        "props" -> JSONParser.propertiesToJson(s2Edge.properties),
-        "direction" -> s2Edge.direction,
-        "timestamp" -> anyValToJsValue(s2Edge.ts),
-        "parents" -> parents
-      )
+      if (queryOption.withScore) builder += ("score" -> anyValToJsValue(score).get)
+
+      if (queryOption.selectColumns.isEmpty) {
+        builder += ("from" -> anyValToJsValue(s2Edge.srcId).get)
+        builder += ("to" -> anyValToJsValue(s2Edge.tgtId).get)
+        builder += ("label" -> anyValToJsValue(label.label).get)
+
+        val innerProps = ArrayBuffer.empty[(String, JsValue)]
+        for {
+          (labelMeta, v) <- edgeWithScore.edge.propsWithTs
+          jsValue <- anyValToJsValue(v.innerVal.value)
+        } {
+          innerProps += (labelMeta.name -> jsValue)
+        }
+
+
+        builder += ("props" -> JsObject(innerProps))
+        builder += ("direction" -> anyValToJsValue(s2Edge.direction).get)
+        builder += ("timestamp" -> anyValToJsValue(s2Edge.tsInnerVal).get)
+        builder += ("_timestamp" -> anyValToJsValue(s2Edge.tsInnerVal).get) // backward compatibility
+        if (parents != JsNull) builder += ("parents" -> parents)
+        //          Json.toJson(builder.result())
+        JsObject(builder)
+      } else {
+        queryOption.selectColumnsMap.foreach { case (columnName, _) =>
+          columnName match {
+            case "from" => builder += ("from" -> anyValToJsValue(s2Edge.srcId).get)
+            case "_from" => builder += ("_from" -> anyValToJsValue(s2Edge.srcId).get)
+            case "to" => builder += ("to" -> anyValToJsValue(s2Edge.tgtId).get)
+            case "_to" => builder += ("_to" -> anyValToJsValue(s2Edge.tgtId).get)
+            case "label" => builder += ("label" -> anyValToJsValue(label.label).get)
+            case "direction" => builder += ("direction" -> anyValToJsValue(s2Edge.direction).get)
+            case "timestamp" => builder += ("timestamp" -> anyValToJsValue(s2Edge.tsInnerVal).get)
+            case "_timestamp" => builder += ("_timestamp" -> anyValToJsValue(s2Edge.tsInnerVal).get)
+            case _ => // should not happen
+
+          }
+        }
+        val innerProps = ArrayBuffer.empty[(String, JsValue)]
+        for {
+          (labelMeta, v) <- edgeWithScore.edge.propsWithTs
+          if !checkSelectColumns || queryOption.selectColumnsMap.contains(labelMeta.name)
+          jsValue <- anyValToJsValue(v.innerVal.value)
+        } {
+          innerProps += (labelMeta.name -> jsValue)
+        }
+
+        builder += ("props" -> JsObject(innerProps))
+        if (parents != JsNull) builder += ("parents" -> parents)
+        JsObject(builder)
+      }
     }
   }
 
-  def withImpressionId(queryOption: QueryOption,
-                        size: Int,
-                        degrees: Seq[JsValue],
-                        results: Seq[JsValue]): JsValue = {
-    queryOption.impIdOpt match {
-      case None => Json.obj(
-        "size" -> size,
-        "degrees" -> degrees,
-        "results" -> results
-      )
-      case Some(impId) =>
-        Json.obj(
-          "size" -> size,
-          "degrees" -> degrees,
-          "results" -> results,
-          Experiment.ImpressionKey -> impId
-        )
-    }
-  }
   def s2VertexToJson(s2Vertex: Vertex): Option[JsValue] = {
     val props = for {
       (k, v) <- s2Vertex.properties
@@ -140,6 +172,7 @@ object PostProcess {
 
     val kvs = new ArrayBuffer[(String, JsValue)]()
 
+
     kvs.append("size" -> JsNumber(size))
     kvs.append("degrees" -> JsArray(degrees))
     kvs.append("results" -> JsArray(results))
@@ -149,28 +182,71 @@ object PostProcess {
     JsObject(kvs)
   }
 
-  def toJson(graph: Graph,
-             queryOption: QueryOption,
-             stepResult: StepResult): JsValue = {
+  def buildJsonWith(js: JsValue)(implicit fn: (String, JsValue) => JsValue): JsValue = js match {
+    case JsObject(obj) => JsObject(obj.map { case (k, v) => k -> buildJsonWith(fn(k, v)) })
+    case JsArray(arr) => JsArray(arr.map(buildJsonWith(_)))
+    case _ => js
+  }
 
+  def toJson(orgQuery: Option[JsValue])(graph: Graph,
+                                        queryOption: QueryOption,
+                                        stepResult: StepResult): JsValue = {
 
+    // [[cursor, cursor], [cursor]]
+    lazy val cursors: Seq[Seq[String]] = stepResult.accumulatedCursors.map { stepCursors =>
+      stepCursors.map { cursor => new String(Base64.getEncoder.encode(cursor)) }
+    }
+
+    lazy val cursorJson: JsValue = Json.toJson(cursors)
+
+    // build nextQuery with (original query + cursors)
+    lazy val nextQuery: Option[JsValue] = {
+      if (cursors.exists { stepCursors => stepCursors.exists(_ != "") }) {
+        val cursorIter = cursors.iterator
+
+        orgQuery.map { query =>
+          buildJsonWith(query) { (key, js) =>
+            if (key == "step") {
+              val currentCursor = cursorIter.next
+              val res = js.as[Seq[JsObject]].toStream.zip(currentCursor).filterNot(_._2 == "").map { case (obj, cursor) =>
+                val label = (obj \ "label").as[String]
+                if (Label.findByName(label).get.schemaVersion == "v4") obj + ("cursor" -> JsString(cursor))
+                else {
+                  val limit = (obj \ "limit").asOpt[Int].getOrElse(RequestParser.defaultLimit)
+                  val offset = (obj \ "offset").asOpt[Int].getOrElse(0)
+                  obj + ("offset" -> JsNumber(offset + limit))
+                }
+              }
+
+              JsArray(res)
+            } else js
+          }
+        }
+      } else Option(JsNull)
+    }
+
+    val limitOpt = queryOption.limitOpt
+    val selectColumns = queryOption.selectColumnsMap
     val degrees =
-      if (queryOption.returnDegree) stepResult.degreeEdges.map(t => s2EdgeToJsValue(t.s2Edge, t.score, true))
+      if (queryOption.returnDegree) stepResult.degreeEdges.map(t => s2EdgeToJsValue(queryOption, t, true, JsNull))
       else emptyDegrees
 
     if (queryOption.groupBy.keys.isEmpty) {
       // no group by specified on query.
+      val results = if (limitOpt.isDefined) stepResult.edgeWithScores.take(limitOpt.get) else stepResult.edgeWithScores
+      val ls = results.map { t =>
+        val parents = if (queryOption.returnTree) s2EdgeParent(graph, queryOption, t.edge.parentEdges) else JsNull
 
-      val ls = stepResult.results.map { t =>
-        val parents = if (queryOption.returnTree) s2EdgeParent(graph, t.parentEdges) else JsNull
-        s2EdgeToJsValue(t.s2Edge, t.score, false, parents)
+        s2EdgeToJsValue(queryOption, t, false, parents)
       }
-      withImpressionId(queryOption, ls.size, degrees, ls)
+
+      withOptionalFields(queryOption, ls.size, degrees, ls, stepResult.failCount, cursorJson, nextQuery)
     } else {
 
+      val grouped = if (limitOpt.isDefined) stepResult.grouped.take(limitOpt.get) else stepResult.grouped
       val results =
         for {
-          (groupByValues, (scoreSum, edges)) <- stepResult.grouped
+          (groupByValues, (scoreSum, edges)) <- grouped
         } yield {
           val groupByKeyValues = queryOption.groupBy.keys.zip(groupByValues).map { case (k, valueOpt) =>
             k -> valueOpt.flatMap(anyValToJsValue).getOrElse(JsNull)
@@ -185,8 +261,8 @@ object PostProcess {
             )
           } else {
             val agg = edges.map { t =>
-              val parents = if (queryOption.returnTree) s2EdgeParent(graph, t.parentEdges) else JsNull
-              s2EdgeToJsValue(t.s2Edge, t.score, false, parents)
+              val parents = if (queryOption.returnTree) s2EdgeParent(graph, queryOption, t.edge.parentEdges) else JsNull
+              s2EdgeToJsValue(queryOption, t, false, parents)
             }
             val aggJson = Json.toJson(agg)
             Json.obj(
@@ -196,7 +272,8 @@ object PostProcess {
             )
           }
         }
-      withImpressionId(queryOption, results.size, degrees, results)
+
+      withOptionalFields(queryOption, results.size, degrees, results, stepResult.failCount, cursorJson, nextQuery)
     }
   }
 }

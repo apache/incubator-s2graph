@@ -199,7 +199,7 @@ class CrudTest extends IntegrateCommon {
   object CrudHelper {
 
     class CrudTestRunner {
-      var seed = 0
+      var seed = System.currentTimeMillis()
 
       def run(tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]) = {
         for {
@@ -271,7 +271,7 @@ class CrudTest extends IntegrateCommon {
           val queryJson = querySnapshotEdgeJson(serviceName, columnName, labelName, id)
 
           if (!rets.forall(identity)) {
-            Thread.sleep(graph.storage.LockExpireDuration + 100)
+            Thread.sleep(graph.LockExpireDuration + 100)
             /** expect current request would be ignored */
             val bulkEdges = Seq(TestUtil.toEdge(i-1, "u", "e", 0, 0, testLabelName, Json.obj("time" -> 20).toString()))
             val rets = TestUtil.insertEdgesSync(bulkEdges: _*)
@@ -296,7 +296,7 @@ class CrudTest extends IntegrateCommon {
           val queryJson = querySnapshotEdgeJson(serviceName, columnName, labelName, id)
 
           if (!rets.forall(identity)) {
-            Thread.sleep(graph.storage.LockExpireDuration + 100)
+            Thread.sleep(graph.LockExpireDuration + 100)
             /** expect current request would be applied */
             val bulkEdges = Seq(TestUtil.toEdge(i+1, "u", "e", 0, 0, testLabelName, Json.obj("time" -> 20).toString()))
             val rets = TestUtil.insertEdgesSync(bulkEdges: _*)

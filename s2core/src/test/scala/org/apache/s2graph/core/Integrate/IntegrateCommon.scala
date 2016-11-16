@@ -23,7 +23,7 @@ import com.typesafe.config._
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.rest.{RequestParser, RestHandler}
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{Graph, GraphUtil, Management, PostProcess}
+import org.apache.s2graph.core._
 import org.scalatest._
 import play.api.libs.json.{JsValue, Json}
 
@@ -90,7 +90,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       }
     }
 
-    val vertexPropsKeys = List("age" -> "int")
+    val vertexPropsKeys = List("age" -> "int", "im" -> "string")
 
     vertexPropsKeys.map { case (key, keyType) =>
       Management.addVertexProp(testServiceName, testColumnName, key, keyType)
@@ -129,10 +129,19 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       Await.result(future, HttpRequestWaitingTime)
     }
 
+    def getEdgesSync(s2Query: Query): JsValue = {
+      logger.info(s2Query.toString)
+      val stepResult = Await.result(graph.getEdges(s2Query), HttpRequestWaitingTime)
+      val result = PostProcess.toJson(Option(s2Query.jsonQuery))(graph, s2Query.queryOption, stepResult)
+//      val result = Await.result(graph.getEdges(s2Query).(PostProcess.toJson), HttpRequestWaitingTime)
+      logger.debug(s"${Json.prettyPrint(result)}")
+      result
+    }
+
     def getEdgesSync(queryJson: JsValue): JsValue = {
       logger.info(Json.prettyPrint(queryJson))
       val restHandler = new RestHandler(graph)
-      val result = Await.result(restHandler.getEdgesAsync(queryJson)(PostProcess.toJson), HttpRequestWaitingTime)
+      val result = Await.result(restHandler.getEdgesAsync(queryJson)(PostProcess.toJson(Option(queryJson))), HttpRequestWaitingTime)
       logger.debug(s"${Json.prettyPrint(result)}")
       result
     }
@@ -301,7 +310,10 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "tgtServiceName": "$testServiceName",
     "tgtColumnName": "$testTgtColumnName",
     "tgtColumnType": "string",
-    "indices": [{"name": "$index1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]}],
+    "indices": [
+      {"name": "$index1", "propNames": ["time", "weight", "is_hidden", "is_blocked"]},
+      {"name": "$index2", "propNames": ["time"]}
+    ],
     "props": [
     {
       "name": "time",

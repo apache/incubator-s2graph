@@ -29,7 +29,11 @@ import play.api.libs.json.{JsObject, Json}
 class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
   initTests()
 
+  val testLabelMeta1 = LabelMeta(Option(-1), labelV2.id.get, "test", 1.toByte, "true", "boolean")
+  val testLabelMeta3 = LabelMeta(Option(-1), labelV2.id.get, "test", 3.toByte, "-1", "long")
+
   test("toLogString") {
+    val testServiceName = serviceNameV2
     val testLabelName = labelNameV2
     val bulkQueries = List(
       ("1445240543366", "update", "{\"is_blocked\":true}"),
@@ -45,12 +49,14 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
       Edge.toEdge(srcId, tgtId, labelName, "out", properties, ts.toLong, op).toLogString
     }).mkString("\n")
 
+    val attachedProps = "\"from\":\"1\",\"to\":\"2\",\"label\":\"" + testLabelName +
+      "\",\"service\":\"" + testServiceName + "\""
     val expected = Seq(
-      Seq("1445240543366", "update", "e", "1", "2", testLabelName, "{\"is_blocked\":true}"),
-      Seq("1445240543362", "insert", "e", "1", "2", testLabelName, "{\"is_hidden\":false}"),
-      Seq("1445240543364", "insert", "e", "1", "2", testLabelName, "{\"is_hidden\":false,\"weight\":10}"),
-      Seq("1445240543363", "delete", "e", "1", "2", testLabelName),
-      Seq("1445240543365", "update", "e", "1", "2", testLabelName, "{\"time\":1,\"weight\":-10}")
+      Seq("1445240543366", "update", "e", "1", "2", testLabelName, "{" + attachedProps + ",\"is_blocked\":true}"),
+      Seq("1445240543362", "insert", "e", "1", "2", testLabelName, "{" + attachedProps + ",\"is_hidden\":false}"),
+      Seq("1445240543364", "insert", "e", "1", "2", testLabelName, "{" + attachedProps + ",\"is_hidden\":false,\"weight\":10}"),
+      Seq("1445240543363", "delete", "e", "1", "2", testLabelName, "{" + attachedProps + "}"),
+      Seq("1445240543365", "update", "e", "1", "2", testLabelName, "{" + attachedProps + ",\"time\":1,\"weight\":-10}")
     ).map(_.mkString("\t")).mkString("\n")
 
     assert(bulkEdge === expected)
@@ -62,16 +68,16 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val srcVertex = Vertex(vertexId)
     val tgtVertex = srcVertex
 
-    val timestampProp = LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
+    val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
 
     val snapshotEdge = None
     val propsWithTs = Map(timestampProp)
-    val requestEdge = Edge(srcVertex, tgtVertex, labelWithDirV2, propsWithTs = propsWithTs)
+    val requestEdge = Edge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
     val newVersion = 0L
 
     val newPropsWithTs = Map(
       timestampProp,
-      1.toByte -> InnerValLikeWithTs(InnerVal.withBoolean(false, schemaVersion), 1)
+      testLabelMeta1 -> InnerValLikeWithTs(InnerVal.withBoolean(false, schemaVersion), 1)
     )
 
     val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
@@ -88,16 +94,16 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val srcVertex = Vertex(vertexId)
     val tgtVertex = srcVertex
 
-    val timestampProp = LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
+    val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
 
     val snapshotEdge = None
     val propsWithTs = Map(timestampProp)
-    val requestEdge = Edge(srcVertex, tgtVertex, labelWithDirV2, propsWithTs = propsWithTs)
+    val requestEdge = Edge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
     val newVersion = 0L
 
     val newPropsWithTs = Map(
       timestampProp,
-      1.toByte -> InnerValLikeWithTs(InnerVal.withBoolean(false, schemaVersion), 1)
+      testLabelMeta1 -> InnerValLikeWithTs(InnerVal.withBoolean(false, schemaVersion), 1)
     )
 
     val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
@@ -114,11 +120,11 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val srcVertex = Vertex(vertexId)
     val tgtVertex = srcVertex
 
-    val timestampProp = LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
+    val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
 
     val snapshotEdge = None
     val propsWithTs = Map(timestampProp)
-    val requestEdge = Edge(srcVertex, tgtVertex, labelWithDirV2, propsWithTs = propsWithTs)
+    val requestEdge = Edge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
     val newVersion = 0L
 
     val newPropsWithTs = propsWithTs
@@ -137,7 +143,7 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val srcVertex = Vertex(vertexId)
     val tgtVertex = srcVertex
 
-    val timestampProp = LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
+    val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
     val oldPropsWithTs = Map(
       timestampProp,
       LabelMeta.lastDeletedAt -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 3)
@@ -145,14 +151,14 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
 
     val propsWithTs = Map(
       timestampProp,
-      3.toByte -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 2),
+      testLabelMeta3 -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 2),
       LabelMeta.lastDeletedAt -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 3)
     )
 
     val snapshotEdge =
-      Option(Edge(srcVertex, tgtVertex, labelWithDirV2, op = GraphUtil.operations("delete"), propsWithTs = oldPropsWithTs))
+      Option(Edge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, op = GraphUtil.operations("delete"), propsWithTs = oldPropsWithTs))
 
-    val requestEdge = Edge(srcVertex, tgtVertex, labelWithDirV2, propsWithTs = propsWithTs)
+    val requestEdge = Edge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
     val newVersion = 0L
     val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
     logger.info(edgeMutate.toLogString)
@@ -168,7 +174,7 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val srcVertex = Vertex(vertexId)
     val tgtVertex = srcVertex
 
-    val timestampProp = LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
+    val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
     val oldPropsWithTs = Map(
       timestampProp,
       LabelMeta.lastDeletedAt -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 3)
@@ -176,14 +182,14 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
 
     val propsWithTs = Map(
       timestampProp,
-      3.toByte -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 4),
+      testLabelMeta3 -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 4),
       LabelMeta.lastDeletedAt -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 3)
     )
 
     val snapshotEdge =
-      Option(Edge(srcVertex, tgtVertex, labelWithDirV2, op = GraphUtil.operations("delete"), propsWithTs = oldPropsWithTs))
+      Option(Edge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, op = GraphUtil.operations("delete"), propsWithTs = oldPropsWithTs))
 
-    val requestEdge = Edge(srcVertex, tgtVertex, labelWithDirV2, propsWithTs = propsWithTs)
+    val requestEdge = Edge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
     val newVersion = 0L
     val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
     logger.info(edgeMutate.toLogString)

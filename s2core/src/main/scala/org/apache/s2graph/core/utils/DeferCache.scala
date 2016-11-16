@@ -117,7 +117,7 @@ class DeferCache[A, M[_], C[_]](config: Config, empty: => A, name: String = "", 
       DeferCache.addScheduleJob(delay = metricInterval) { logger.metric(s"${name}: ${cache.stats()}") }
       cache
     } else {
-      builder.build[java.lang.Long, (Long, M[A])]()
+      builder.recordStats().build[java.lang.Long, (Long, M[A])]()
     }
   }
 
@@ -194,4 +194,7 @@ class DeferCache[A, M[_], C[_]](config: Config, empty: => A, name: String = "", 
         checkAndExpire(cacheKey, cacheTTL, cachedAt, canDefer.future(cachedPromise))(op)
     }
   }
+
+  def stats = futureCache.stats()
+  def size = futureCache.size()
 }

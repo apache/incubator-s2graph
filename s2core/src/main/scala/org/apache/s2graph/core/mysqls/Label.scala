@@ -21,13 +21,14 @@ package org.apache.s2graph.core.mysqls
 
 import java.util.Calendar
 
+import com.typesafe.config.Config
 import org.apache.s2graph.core.GraphExceptions.ModelNotFoundException
 import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
-import org.apache.s2graph.core.types.{InnerValLike, InnerValLikeWithTs}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs}
 import org.apache.s2graph.core.utils.logger
-import play.api.libs.json.{JsObject, JsValue, Json}
+import play.api.libs.json.{JsArray, JsObject, JsValue, Json}
 import scalikejdbc._
 
 object Label extends Model[Label] {
@@ -57,7 +58,8 @@ object Label extends Model[Label] {
       sql"""
         select *
         from labels
-        where label = ${labelName}""".map { rs => Label(rs) }.single.apply()
+        where label = ${labelName}
+        and deleted_at is null """.map { rs => Label(rs) }.single.apply()
 
     if (useCache) withCache(cacheKey)(labelOpt)
     else labelOpt
@@ -101,7 +103,8 @@ object Label extends Model[Label] {
       sql"""
         select 	*
         from 	labels
-        where 	id = ${id}"""
+        where 	id = ${id}
+        and deleted_at is null"""
         .map { rs => Label(rs) }.single.apply())
   }
 
@@ -111,7 +114,8 @@ object Label extends Model[Label] {
       sql"""
         select 	*
         from 	labels
-        where 	id = ${id}"""
+        where 	id = ${id}
+        and deleted_at is null"""
         .map { rs => Label(rs) }.single.apply()).get
   }
 
@@ -124,6 +128,7 @@ object Label extends Model[Label] {
           from	labels
           where	tgt_column_name = ${col.columnName}
           and service_id = ${col.serviceId}
+          and deleted_at is null
         """.map { rs => Label(rs) }.list().apply())
   }
 
@@ -136,20 +141,21 @@ object Label extends Model[Label] {
           from	labels
           where	src_column_name = ${col.columnName}
           and service_id = ${col.serviceId}
+          and deleted_at is null
         """.map { rs => Label(rs) }.list().apply())
   }
 
   def findBySrcServiceId(serviceId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
     val cacheKey = "srcServiceId=" + serviceId
     withCaches(cacheKey)(
-      sql"""select * from labels where src_service_id = ${serviceId}""".map { rs => Label(rs) }.list().apply
+      sql"""select * from labels where src_service_id = ${serviceId} and deleted_at is null""".map { rs => Label(rs) }.list().apply
     )
   }
 
   def findByTgtServiceId(serviceId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
     val cacheKey = "tgtServiceId=" + serviceId
     withCaches(cacheKey)(
-      sql"""select * from labels where tgt_service_id = ${serviceId}""".map { rs => Label(rs) }.list().apply
+      sql"""select * from labels where tgt_service_id = ${serviceId} and deleted_at is null""".map { rs => Label(rs) }.list().apply
     )
   }
 
@@ -183,14 +189,14 @@ object Label extends Model[Label] {
         val tgtServiceId = tgtService.id.get
         val serviceId = service.id.get
 
-        /* insert serviceColumn */
+        /** insert serviceColumn */
         val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType), schemaVersion)
         val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType), schemaVersion)
 
         if (srcCol.columnType != srcColumnType) throw new RuntimeException(s"source service column type not matched ${srcCol.columnType} != ${srcColumnType}")
         if (tgtCol.columnType != tgtColumnType) throw new RuntimeException(s"target service column type not matched ${tgtCol.columnType} != ${tgtColumnType}")
 
-        /* create label */
+        /** create label */
         Label.findByName(labelName, useCache = false).getOrElse {
 
           val createdId = insert(labelName, srcServiceId, srcColumnName, srcColumnType,
@@ -224,7 +230,7 @@ object Label extends Model[Label] {
   }
 
   def findAll()(implicit session: DBSession = AutoSession) = {
-    val ls = sql"""select * from labels""".map { rs => Label(rs) }.list().apply()
+    val ls = sql"""select * from labels where deleted_at is null""".map { rs => Label(rs) }.list().apply()
     putsToCache(ls.map { x =>
       val cacheKey = s"id=${x.id.get}"
       (cacheKey -> x)
@@ -233,6 +239,7 @@ object Label extends Model[Label] {
       val cacheKey = s"label=${x.label}"
       (cacheKey -> x)
     })
+    ls
   }
 
   def updateName(oldName: String, newName: String)(implicit session: DBSession = AutoSession) = {
@@ -264,6 +271,21 @@ object Label extends Model[Label] {
     }
     cnt
   }
+
+  def markDeleted(label: Label)(implicit session: DBSession = AutoSession) = {
+
+    logger.info(s"mark deleted label: $label")
+    val oldName = label.label
+    val now = Calendar.getInstance().getTime
+    val newName = s"deleted_${now.getTime}_"+ label.label
+    val cnt = sql"""update labels set label = ${newName}, deleted_at = ${now} where id = ${label.id.get}""".update.apply()
+    val cacheKeys = List(s"id=${label.id}", s"label=${oldName}")
+    cacheKeys.foreach { key =>
+      expireCache(key)
+      expireCaches(key)
+    }
+    cnt
+  }
 }
 
 case class Label(id: Option[Int], label: String,
@@ -274,10 +296,9 @@ case class Label(id: Option[Int], label: String,
                  schemaVersion: String, isAsync: Boolean = false,
                  compressionAlgorithm: String,
                  options: Option[String]) {
+  def metas(useCache: Boolean = true) = LabelMeta.findAllByLabelId(id.get, useCache = useCache)
 
-  def metas = LabelMeta.findAllByLabelId(id.get)
-
-  def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
+  def indices(useCache: Boolean = true) = LabelIndex.findByLabelIdAll(id.get, useCache = useCache)
 
   //  lazy val firstHBaseTableName = hbaseTableName.split(",").headOption.getOrElse(Config.HBASE_TABLE_NAME)
   lazy val srcService = Service.findById(srcServiceId)
@@ -356,83 +377,131 @@ case class Label(id: Option[Int], label: String,
 //    }
 //  }"""))
 
-  lazy val extraOptions: Map[String, JsValue] = options match {
-    case None => Map.empty
-    case Some(v) =>
-      try {
-        Json.parse(v).asOpt[JsObject].map { obj => obj.fields.toMap }.getOrElse(Map.empty)
-      } catch {
-        case e: Exception =>
-          logger.error(s"An error occurs while parsing the extra label option: ${label}", e)
-          Map.empty
-      }
+  lazy val tokens: Set[String] = extraOptions.get("tokens").fold(Set.empty[String]) {
+    case JsArray(tokens) => tokens.map(_.as[String]).toSet
+    case _ =>
+      logger.error("Invalid token JSON")
+      Set.empty[String]
   }
 
+  lazy val extraOptions = Model.extraOptions(options)
+
+  lazy val durability = extraOptions.get("durability").map(_.as[Boolean]).getOrElse(true)
+
+  lazy val storageConfigOpt: Option[Config] = toStorageConfig
+
+  def toStorageConfig: Option[Config] = {
+    Model.toStorageConfig(extraOptions)
+  }
+
+
   def srcColumnWithDir(dir: Int) = {
-    if (dir == GraphUtil.directions("out")) srcColumn else tgtColumn
+    // GraphUtil.directions("out"
+    if (dir == 0) srcColumn else tgtColumn
   }
 
   def tgtColumnWithDir(dir: Int) = {
-    if (dir == GraphUtil.directions("out")) tgtColumn else srcColumn
+    // GraphUtil.directions("out"
+    if (dir == 0) tgtColumn else srcColumn
   }
 
-  def srcTgtColumn(dir: Int) =
-    if (isDirected) {
-      (srcColumnWithDir(dir), tgtColumnWithDir(dir))
-    } else {
-      if (dir == GraphUtil.directions("in")) {
-        (tgtColumn, srcColumn)
-      } else {
-        (srcColumn, tgtColumn)
-      }
-    }
+  lazy val tgtSrc = (tgtColumn, srcColumn)
+  lazy val srcTgt = (srcColumn, tgtColumn)
 
-  def init() = {
-    metas
-    metaSeqsToNames
-    service
-    srcColumn
-    tgtColumn
-    defaultIndex
-    indices
-    metaProps
-  }
+  def srcTgtColumn(dir: Int) = if (dir == 1) tgtSrc else srcTgt
+
+  lazy val EmptyPropsWithTs = Map(LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 0))
+//  def init() = {
+//    metas()
+//    metaSeqsToNames()
+//    service
+//    srcColumn
+//    tgtColumn
+//    defaultIndex
+//    indices
+//    metaProps
+//  }
+
+  //  def srcColumnInnerVal(jsValue: JsValue) = {
+  //    jsValueToInnerVal(jsValue, srcColumnType, version)
+  //  }
+  //  def tgtColumnInnerVal(jsValue: JsValue) = {
+  //    jsValueToInnerVal(jsValue, tgtColumnType, version)
+  //  }
 
   override def toString(): String = {
     val orderByKeys = LabelMeta.findAllByLabelId(id.get)
     super.toString() + orderByKeys.toString()
   }
 
-  lazy val toJson = Json.obj("labelName" -> label,
-    "from" -> srcColumn.toJson, "to" -> tgtColumn.toJson,
-    "isDirected" -> isDirected,
-    "serviceName" -> serviceName,
-    "consistencyLevel" -> consistencyLevel,
-    "schemaVersion" -> schemaVersion,
-    "isAsync" -> isAsync,
-    "compressionAlgorithm" -> compressionAlgorithm,
-    "defaultIndex" -> defaultIndex.map(x => x.toJson),
-    "extraIndex" -> extraIndices.map(exIdx => exIdx.toJson),
-    "metaProps" -> metaProps.filter { labelMeta => LabelMeta.isValidSeqForAdmin(labelMeta.seq) }.map(_.toJson)
-  )
+  //  def findLabelIndexSeq(scoring: List[(Byte, Double)]): Byte = {
+  //    if (scoring.isEmpty) LabelIndex.defaultSeq
+  //    else {
+  //      LabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
+  //
+  ////      LabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
+  //    }
+  //  }
+  lazy val toJson = {
+    val allIdxs = LabelIndex.findByLabelIdAll(id.get, useCache = false)
+    val defaultIdxOpt = LabelIndex.findByLabelIdAndSeq(id.get, LabelIndex.DefaultSeq, useCache = false)
+    val extraIdxs = allIdxs.filter(idx => defaultIdxOpt.isDefined && idx.id.get != defaultIdxOpt.get.id.get)
+    val metaProps = LabelMeta.reservedMetas.map { m =>
+      if (m == LabelMeta.to) m.copy(dataType = tgtColumnType)
+      else if (m == LabelMeta.from) m.copy(dataType = srcColumnType)
+      else m
+    } ::: LabelMeta.findAllByLabelId(id.get, useCache = false)
 
+    val defaultIdx = defaultIdxOpt.map(x => x.toJson).getOrElse(Json.obj())
+    val optionsJs = try {
+      val obj = options.map(Json.parse).getOrElse(Json.obj()).as[JsObject]
+      if (!obj.value.contains("tokens")) obj
+      else obj ++ Json.obj("tokens" -> obj.value("tokens").as[Seq[String]].map("*" * _.length))
+
+    } catch { case e: Exception => Json.obj() }
+
+    Json.obj("labelName" -> label,
+      "from" -> srcColumn.toJson, "to" -> tgtColumn.toJson,
+      "isDirected" -> isDirected,
+      "serviceName" -> serviceName,
+      "consistencyLevel" -> consistencyLevel,
+      "schemaVersion" -> schemaVersion,
+      "isAsync" -> isAsync,
+      "compressionAlgorithm" -> compressionAlgorithm,
+      "defaultIndex" -> defaultIdx,
+      "extraIndex" -> extraIdxs.map(exIdx => exIdx.toJson),
+      "metaProps" -> metaProps.filter { labelMeta => LabelMeta.isValidSeqForAdmin(labelMeta.seq) }.map(_.toJson),
+      "options" -> optionsJs
+    )
+  }
 
   def propsToInnerValsWithTs(props: Map[String, Any],
-                             ts: Long = System.currentTimeMillis()): Map[Byte, InnerValLikeWithTs] = {
+                             ts: Long = System.currentTimeMillis()): Map[LabelMeta, InnerValLikeWithTs] = {
     for {
       (k, v) <- props
       labelMeta <- metaPropsInvMap.get(k)
       innerVal = toInnerVal(v.toString, labelMeta.dataType, schemaVersion)
-    } yield labelMeta.seq -> InnerValLikeWithTs(innerVal, ts)
+    } yield labelMeta -> InnerValLikeWithTs(innerVal, ts)
 
   }
 
-  def innerValsWithTsToProps(props: Map[Byte, InnerValLikeWithTs]): Map[String, Any] = {
-    for {
-      (k, v) <- props
-      labelMeta <- metaPropsMap.get(k)
-    } yield {
-      labelMeta.name -> v.innerVal.value
+  def innerValsWithTsToProps(props: Map[LabelMeta, InnerValLikeWithTs],
+                             selectColumns: Map[Byte, Boolean]): Map[String, Any] = {
+    if (selectColumns.isEmpty) {
+      for {
+        (meta, v) <- metaPropsDefaultMapInner ++ props
+      } yield {
+        meta.name -> innerValToAny(v.innerVal, meta.dataType)
+      }
+    } else {
+      for {
+        (k, _) <- selectColumns
+        if k != LabelMeta.toSeq && k != LabelMeta.fromSeq
+        labelMeta <- metaPropsMap.get(k)
+      } yield {
+        val v = props.get(labelMeta).orElse(metaPropsDefaultMapInner.get(labelMeta)).get
+        labelMeta.name -> innerValToAny(v.innerVal, labelMeta.dataType)
+      }
     }
   }
 }

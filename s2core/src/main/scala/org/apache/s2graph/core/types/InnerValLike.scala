@@ -20,6 +20,7 @@
 package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util._
+import org.apache.s2graph.core.utils.logger
 
 object InnerVal extends HBaseDeserializableWithIsVertexId {
   import HBaseType._
@@ -39,7 +40,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
   val INT = "integer"
   val SHORT = "short"
   val BYTE = "byte"
-  val NUMERICS = List(DOUBLE, FLOAT, LONG, INT, SHORT, BYTE)
+  val NUMERICS = Set(DOUBLE, FLOAT, LONG, INT, SHORT, BYTE)
   val BOOLEAN = "boolean"
 
   def isNumericType(dataType: String): Boolean = {
@@ -218,15 +219,11 @@ trait InnerValLike extends HBaseSerializable {
 
   override def hashCode(): Int = value.hashCode()
 
-  override def equals(obj: Any): Boolean = {
-    obj match {
-      case other: InnerValLike =>
-        val ret = toString == obj.toString
-//        logger.debug(s"InnerValLike.equals($this, $obj) => $ret")
-        ret
-      case _ => false
-    }
+  override def equals(obj: Any): Boolean = obj match {
+    case other: InnerValLike => value == other.value
+    case _ => false
   }
+
   def hashKey(dataType: String): Int
 
   def toIdString(): String

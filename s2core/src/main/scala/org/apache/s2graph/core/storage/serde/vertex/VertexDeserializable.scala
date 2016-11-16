@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,18 +19,19 @@
 
 package org.apache.s2graph.core.storage.serde.vertex
 
-import org.apache.hadoop.hbase.util.Bytes
+import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, VertexId}
 import org.apache.s2graph.core.{QueryParam, Vertex}
 
 import scala.collection.mutable.ListBuffer
 
-class VertexDeserializable extends Deserializable[Vertex] {
-  def fromKeyValuesInner[T: CanSKeyValue](queryParam: QueryParam,
-                                     _kvs: Seq[T],
-                                     version: String,
-                                     cacheElementOpt: Option[Vertex]): Vertex = {
+class VertexDeserializable(bytesToInt: (Array[Byte], Int) => Int = bytesToInt) extends Deserializable[Vertex] {
+  def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
+                                          _kvs: Seq[T],
+                                          version: String,
+                                          cacheElementOpt: Option[Vertex]): Vertex = {
 
     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
 
@@ -46,7 +47,7 @@ class VertexDeserializable extends Deserializable[Vertex] {
     } {
       val propKey =
         if (kv.qualifier.length == 1) kv.qualifier.head.toInt
-        else Bytes.toInt(kv.qualifier)
+        else bytesToInt(kv.qualifier, 0)
 
       val ts = kv.timestamp
       if (ts > maxTs) maxTs = ts
@@ -63,4 +64,3 @@ class VertexDeserializable extends Deserializable[Vertex] {
     Vertex(vertexId, maxTs, propsMap.toMap, belongLabelIds = belongLabelIds)
   }
 }
-

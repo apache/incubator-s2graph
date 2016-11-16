@@ -21,16 +21,16 @@ package org.apache.s2graph.core.storage.serde.indexedge.tall
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.mysqls.LabelMeta
-import org.apache.s2graph.core.storage.{SKeyValue, Serializable, StorageSerializable}
+import org.apache.s2graph.core.storage.{Serializable, StorageSerializable}
 import org.apache.s2graph.core.types.VertexId
 import org.apache.s2graph.core.{GraphUtil, IndexEdge}
+import org.apache.s2graph.core.storage.StorageSerializable._
 
-
-class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge] {
+class IndexEdgeSerializable(indexEdge: IndexEdge, longToBytes: Long => Array[Byte] = longToBytes) extends Serializable[IndexEdge] {
    import StorageSerializable._
 
-   override val ts = indexEdge.version
-   override val table = indexEdge.label.hbaseTableName.getBytes()
+   override def ts = indexEdge.version
+   override def table = indexEdge.label.hbaseTableName.getBytes()
 
    def idxPropsMap = indexEdge.orders.toMap
    def idxPropsBytes = propsToBytes(indexEdge.orders)
@@ -43,25 +43,25 @@ class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge
      val row = Bytes.add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
      //    logger.error(s"${row.toList}\n${srcIdBytes.toList}\n${labelWithDirBytes.toList}\n${labelIndexSeqWithIsInvertedBytes.toList}")
 
-     val qualifier =
-       if (indexEdge.degreeEdge) Array.empty[Byte]
-       else
-         idxPropsMap.get(LabelMeta.toSeq) match {
+     if (indexEdge.degreeEdge) row
+     else {
+       val qualifier = idxPropsMap.get(LabelMeta.to) match {
            case None => Bytes.add(idxPropsBytes, VertexId.toTargetVertexId(indexEdge.tgtVertex.id).bytes)
            case Some(vId) => idxPropsBytes
          }
 
-     /* TODO search usage of op byte. if there is no, then remove opByte */
-     Bytes.add(row, Array.fill(1)(GraphUtil.defaultOpByte), qualifier)
+       val opByte = if (indexEdge.op == GraphUtil.operations("incrementCount")) indexEdge.op else GraphUtil.defaultOpByte
+       Bytes.add(row, qualifier, Array.fill(1)(opByte))
+     }
    }
 
    override def toQualifier: Array[Byte] = Array.empty[Byte]
 
    override def toValue: Array[Byte] =
      if (indexEdge.degreeEdge)
-       Bytes.toBytes(indexEdge.props(LabelMeta.degreeSeq).innerVal.toString().toLong)
+       longToBytes(indexEdge.props(LabelMeta.degree).innerVal.toString().toLong)
      else if (indexEdge.op == GraphUtil.operations("incrementCount"))
-       Bytes.toBytes(indexEdge.props(LabelMeta.countSeq).innerVal.toString().toLong)
+       longToBytes(indexEdge.props(LabelMeta.count).innerVal.toString().toLong)
      else propsToKeyValues(indexEdge.metas.toSeq)
 
  }

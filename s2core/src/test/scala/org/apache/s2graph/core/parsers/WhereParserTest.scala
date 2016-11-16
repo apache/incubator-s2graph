@@ -23,81 +23,109 @@ import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.rest.TemplateHelper
 import org.apache.s2graph.core.types._
+import org.apache.s2graph.core.utils.logger
 import org.scalatest.{FunSuite, Matchers}
 import play.api.libs.json.Json
+
+import scala.util.{Random, Try}
 
 class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   initTests()
 
-  // dummy data for dummy edge
-  initTests()
-  
   import HBaseType.{VERSION1, VERSION2}
 
   val ts = System.currentTimeMillis()
-  val dummyTs = (LabelMeta.timeStampSeq -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion))
-
-  def ids(version: String) = {
-    val colId = if (version == VERSION2) columnV2.id.get else column.id.get
-    val srcId = SourceVertexId(colId, InnerVal.withLong(1, version))
-    val tgtId = TargetVertexId(colId, InnerVal.withLong(2, version))
-
-    val srcIdStr = SourceVertexId(colId, InnerVal.withStr("abc", version))
-    val tgtIdStr = TargetVertexId(colId, InnerVal.withStr("def", version))
-
-    val srcVertex = Vertex(srcId, ts)
-    val tgtVertex = Vertex(tgtId, ts)
-    val srcVertexStr = Vertex(srcIdStr, ts)
-    val tgtVertexStr = Vertex(tgtIdStr, ts)
-    (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, version)
-  }
-
+  val dummyTs = LabelMeta.timestamp -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion)
 
   def validate(label: Label)(edge: Edge)(sql: String)(expected: Boolean) = {
-    val whereOpt = WhereParser(label).parse(sql)
-    whereOpt.isSuccess shouldBe true
-
-    println("=================================================================")
-    println(sql)
-    println(whereOpt.get)
-
-    val ret = whereOpt.get.filter(edge)
-    if (ret != expected) {
+    def debug(whereOpt: Try[Where]) = {
       println("==================")
       println(s"$whereOpt")
       println(s"$edge")
       println("==================")
     }
-    ret shouldBe expected
+
+    val whereOpt = WhereParser(label).parse(sql)
+    if (whereOpt.isFailure) {
+      debug(whereOpt)
+      whereOpt.get // touch exception
+    } else {
+      val ret = whereOpt.get.filter(edge)
+      if (ret != expected) {
+        debug(whereOpt)
+      }
+
+      ret shouldBe expected
+    }
+  }
+
+  def ids = for {
+    version <- Seq(VERSION1, VERSION2)
+  } yield {
+    val srcId = SourceVertexId(0, InnerVal.withLong(1, version))
+    val tgtId =
+      if (version == VERSION2) TargetVertexId(0, InnerVal.withStr("2", version))
+      else TargetVertexId(0, InnerVal.withLong(2, version))
+
+    val srcVertex = Vertex(srcId, ts)
+    val tgtVertex = Vertex(tgtId, ts)
+    val (_label, dir) = if (version == VERSION2) (labelV2, labelWithDirV2.dir) else (label, labelWithDir.dir)
+
+    (srcVertex, tgtVertex, _label, dir)
   }
 
   test("check where clause not nested") {
     for {
-      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- List(ids(VERSION1), ids(VERSION2))
+      (srcVertex, tgtVertex, label, dir) <- ids
     } {
       /** test for each version */
-      val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
+      val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "phone_number" -> "1234")
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, propsInner)
+      val edge = Edge(srcVertex, tgtVertex, label, dir, 0.toByte, ts, propsInner)
       val f = validate(label)(edge) _
 
       /** labelName label is long-long relation */
-      f(s"_to=${tgtVertex.innerId.toString}")(true)
-
-      // currently this throw exception since label`s _to is long type.
+      f(s"_to=${tgtVertex.innerId}")(true)
       f(s"_to=19230495")(false)
       f(s"_to!=19230495")(true)
+      f(s"phone_number=1234")(true)
+    }
+  }
+
+  test("check where clause with string literal") {
+    for {
+      (srcVertex, tgtVertex,
+      label, dir) <- ids
+    } {
+      /** test for each version */
+      var js = Json.obj("phone_number" -> "")
+      var propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
+      var edge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+      var f = validate(label)(edge) _
+      f(s"phone_number = '' ")(true)
+
+      js = Json.obj("phone_number" -> "010 3167 1897")
+      propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
+      edge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+      f = validate(label)(edge) _
+      f(s"phone_number = '010 3167 1897' ")(true)
+
+      js = Json.obj("phone_number" -> "010' 3167 1897")
+      propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
+      edge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+      f = validate(label)(edge) _
+      f(s"phone_number = '010\\' 3167 1897' ")(true)
     }
   }
 
   test("check where clause nested") {
     for {
-      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- List(ids(VERSION1), ids(VERSION2))
+      (srcVertex, tgtVertex, label, dir) <- ids
     } {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, propsInner)
+      val edge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
 
       val f = validate(label)(edge) _
 
@@ -119,19 +147,19 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     }
   }
 
+
   test("check where clause with from/to long") {
     for {
-      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- List(ids(VERSION1), ids(VERSION2))
+      (srcVertex, tgtVertex, label, dir) <- ids
     } {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      val labelWithDirection = if (schemaVer == VERSION2) labelWithDirV2 else labelWithDir
-      val edge = Edge(srcVertex, tgtVertex, labelWithDirection, 0.toByte, ts, propsInner)
-      val lname = if (schemaVer == VERSION2) labelNameV2 else labelName
+      val edge = Edge(srcVertex, tgtVertex, label, dir, 0.toByte, ts, propsInner)
       val f = validate(label)(edge) _
 
       f(s"_from = -1 or _to = ${tgtVertex.innerId.value}")(true)
+      f(s"_to = 2")(true)
       f(s"_from = ${srcVertex.innerId.value} and _to = ${tgtVertex.innerId.value}")(true)
       f(s"_from = ${tgtVertex.innerId.value} and _to = 102934")(false)
       f(s"_from = -1")(false)
@@ -139,10 +167,9 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     }
   }
 
-
   test("check where clause with parent") {
     for {
-      (srcId, tgtId, srcIdStr, tgtIdStr, srcVertex, tgtVertex, srcVertexStr, tgtVertexStr, schemaVer) <- List(ids(VERSION1), ids(VERSION2))
+      (srcVertex, tgtVertex, label, dir) <- ids
     } {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 1, "name" -> "abc")
@@ -151,11 +178,11 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
       val parentPropsInner = Management.toProps(label, parentJs.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
 
-      val grandParentEdge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, parentPropsInner)
-      val parentEdge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, parentPropsInner,
-        parentEdges = Seq(EdgeWithScore(grandParentEdge, 1.0)))
-      val edge = Edge(srcVertex, tgtVertex, labelWithDir, 0.toByte, ts, propsInner,
-        parentEdges = Seq(EdgeWithScore(parentEdge, 1.0)))
+      val grandParentEdge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, parentPropsInner)
+      val parentEdge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, parentPropsInner,
+        parentEdges = Seq(EdgeWithScore(grandParentEdge, 1.0, grandParentEdge.label)))
+      val edge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner,
+        parentEdges = Seq(EdgeWithScore(parentEdge, 1.0, grandParentEdge.label)))
 
       println(edge.toString)
       println(parentEdge.toString)
@@ -190,13 +217,16 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     val ts = 0
     import TemplateHelper._
 
+    calculate(ts, 1, "minute") should be(minute + ts)
     calculate(ts, 1, "hour") should be(hour + ts)
     calculate(ts, 1, "day") should be(day + ts)
 
     calculate(ts + 10, 1, "HOUR") should be(hour + ts + 10)
     calculate(ts + 10, 1, "DAY") should be(day + ts + 10)
 
-    val body = """{
+    val body =
+      """{
+        	"minute": ${1 minute},
         	"day": ${1day},
           "hour": ${1hour},
           "-day": "${-10 day}",
@@ -208,21 +238,26 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     val parsed = replaceVariable(ts, body)
     val json = Json.parse(parsed)
 
-    (json \ "day").as[Long] should be (1 * day + ts)
-    (json \ "hour").as[Long] should be (1 * hour + ts)
+    (json \ "minute").as[Long] should be(1 * minute + ts)
 
-    (json \ "-day").as[Long] should be (-10 * day + ts)
-    (json \ "-hour").as[Long] should be (-10 * hour + ts)
+    (json \ "day").as[Long] should be(1 * day + ts)
+    (json \ "hour").as[Long] should be(1 * hour + ts)
 
-    (json \ "now").as[Long] should be (ts)
+    (json \ "-day").as[Long] should be(-10 * day + ts)
+    (json \ "-hour").as[Long] should be(-10 * hour + ts)
 
-    val otherBody = """{
+    (json \ "now").as[Long] should be(ts)
+
+    val otherBody =
+      """{
+          "nextminute": "${next_minute}",
           "nextday": "${next_day}",
           "3dayago": "${next_day - 3 day}",
           "nexthour": "${next_hour}"
         }"""
 
-    val currentTs = System.currentTimeMillis()
+    val currentTs = 1474422964000l
+    val expectedMinuteTs = currentTs / minute * minute + minute
     val expectedDayTs = currentTs / day * day + day
     val expectedHourTs = currentTs / hour * hour + hour
     val threeDayAgo = expectedDayTs - 3 * day
@@ -232,22 +267,15 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       val parsed = replaceVariable(ts, otherBody)
       val json = Json.parse(parsed)
 
+      (json \ "nextminute").as[Long] should be(expectedMinuteTs)
       (json \ "nextday").as[Long] should be(expectedDayTs)
       (json \ "nexthour").as[Long] should be(expectedHourTs)
       (json \ "3dayago").as[Long] should be(threeDayAgo)
     }
-  }
 
-  //  test("time decay") {
-  //    val ts = System.currentTimeMillis()
-  //
-  //    for {
-  //      i <- (0 until 10)
-  //    } {
-  //      val timeUnit = 60 * 60
-  //      val diff = i * timeUnit
-  //      val x = TimeDecay(1.0, 0.05, timeUnit)
-  //      println(x.decay(diff))
-  //    }
-  //  }
+    (0 until 1000).forall { ith =>
+      val r = replaceVariable(ts, "${randint( 10,  30 )}").toInt
+      r >= 10 && r < 30
+    }
+  }
 }
