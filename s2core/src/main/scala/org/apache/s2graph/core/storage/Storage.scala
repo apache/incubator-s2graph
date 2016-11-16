@@ -297,63 +297,6 @@ abstract class Storage[Q, R](val graph: Graph,
 
     Future.sequence(futures).map { result => result.toList.flatten }
   }
-
-//  def mutateElements(elements: Seq[GraphElement],
-//                     withWait: Boolean = false): Future[Seq[Boolean]] = {
-//
-//    val edgeBuffer = ArrayBuffer[Edge]()
-//    val vertexBuffer = ArrayBuffer[Vertex]()
-//
-//    elements.foreach {
-//      case e: Edge => edgeBuffer += e
-//      case v: Vertex => vertexBuffer += v
-//      case any@_ => logger.error(s"Unknown type: ${any}")
-//    }
-//
-//    val edgeFuture = mutateEdges(edgeBuffer, withWait)
-//    val vertexFuture = mutateVertices(vertexBuffer, withWait)
-//
-//    val graphFuture = for {
-//      edgesMutated <- edgeFuture
-//      verticesMutated <- vertexFuture
-//    } yield edgesMutated ++ verticesMutated
-//
-//    graphFuture
-//  }
-
-//  def mutateEdges(edges: Seq[Edge], withWait: Boolean): Future[Seq[Boolean]] = {
-//    val (strongEdges, weakEdges) =
-//      edges.partition(e => e.label.consistencyLevel == "strong" && e.op != GraphUtil.operations("insertBulk"))
-//
-//    val weakEdgesFutures = weakEdges.groupBy { e => e.label.hbaseZkAddr }.map { case (zkQuorum, edges) =>
-//      // TODO: refactor: code duplicate with mutateEdgesInner func
-//      // mutateEdgesInner(edges, checkConsistency = false, withWait)
-//      val mutations = edges.flatMap { edge =>
-//        val (_, edgeUpdate) =
-//          if (edge.op == GraphUtil.operations("delete")) Edge.buildDeleteBulk(None, edge)
-//          else Edge.buildOperation(None, Seq(edge))
-//
-//        if (edgeUpdate.indexEdgeWriteOption.bufferIncrement) {
-//          val (inIncrs, outIncrs) = incrementsInOut(edgeUpdate)
-//          writeToStorage(zkQuorum, inIncrs, withWait = false) // fire and forget for increment rpcs
-//          buildVertexPutsAsync(edge) ++ indexedEdgeMutations(edgeUpdate) ++ snapshotEdgeMutations(edgeUpdate) ++ outIncrs
-//        } else {
-//          buildVertexPutsAsync(edge) ++ indexedEdgeMutations(edgeUpdate) ++ snapshotEdgeMutations(edgeUpdate) ++ increments(edgeUpdate)
-//        }
-//      }
-//
-//      writeToStorage(zkQuorum, mutations, withWait)
-//    }
-//
-//    val strongEdgesFutures = mutateStrongEdges(strongEdges, withWait)
-//    for {
-//      weak <- Future.sequence(weakEdgesFutures)
-//      strong <- strongEdgesFutures
-//    } yield {
-//      strong ++ weak
-//    }
-//  }
-
   def mutateStrongEdges(_edges: Seq[Edge], withWait: Boolean): Future[Seq[Boolean]] = {
 
     val edgeWithIdxs = _edges.zipWithIndex
@@ -364,27 +307,15 @@ abstract class Storage[Q, R](val graph: Graph,
     val mutateEdges = grouped.map { case ((_, _, _), edgeGroup) =>
       val edges = edgeGroup.map(_._1)
       val idxs = edgeGroup.map(_._2)
-//      val (deleteAllEdges, edges) = edgeGroup.partition(_.op == GraphUtil.operations("deleteAll"))
-
-      // DeleteAll first
-//      val deleteAllFutures = deleteAllEdges.map { edge =>
-//        deleteAllAdjacentEdges(Seq(edge.srcVertex), Seq(edge.label), edge.labelWithDir.dir, edge.ts)
-//      }
-
       // After deleteAll, process others
       val mutateEdgeFutures = edges.toList match {
         case head :: tail =>
-          //          val strongConsistency = edges.head.label.consistencyLevel == "strong"
-          //          if (strongConsistency) {
           val edgeFuture = mutateEdgesInner(edges, checkConsistency = true , withWait)
 
           //TODO: decide what we will do on failure on vertex put
           val puts = buildVertexPutsAsync(head)
           val vertexFuture = writeToStorage(head.label.hbaseZkAddr, puts, withWait)
           Seq(edgeFuture, vertexFuture)
-        //          } else {
-        //            edges.map { edge => mutateEdge(edge, withWait = withWait) }
-        //          }
         case Nil => Nil
       }
 
@@ -455,9 +386,6 @@ abstract class Storage[Q, R](val graph: Graph,
     if (tryNum >= MaxRetryNum) {
       edges.foreach { edge =>
         logger.error(s"commit failed after $MaxRetryNum\n${edge.toLogString}")
-
-//        val kafkaMessage = ExceptionHandler.toKafkaMessage(failTopic, element = edge)
-//        exceptionHandler.enqueue(kafkaMessage)
       }
 
       Future.successful(false)
@@ -864,7 +792,6 @@ abstract class Storage[Q, R](val graph: Graph,
       val zkQuorum = head.edge.label.hbaseZkAddr
       val futures = for {
         edgeWithScore <- stepInnerResult.edgeWithScores
-//        (edge, score, _, _) = EdgeWithScore.unapply(edgeWithScore).get
       } yield {
           val edge = edgeWithScore.edge
           val score = edgeWithScore.score
@@ -961,12 +888,6 @@ abstract class Storage[Q, R](val graph: Graph,
       val where = queryParam.where.get
       val label = queryParam.label
       val isDefaultTransformer = queryParam.edgeTransformer.isDefault
-
-      //      val (startOffset, len) = queryParam.label.schemaVersion match {
-      //        case HBaseType.VERSION4 => (queryParam.offset, queryParam.limit)
-      //        case _ => (0, kvs.length)
-      //      }
-
       val first = kvs.head
       val kv = first
       val schemaVer = queryParam.label.schemaVersion
@@ -1037,10 +958,8 @@ abstract class Storage[Q, R](val graph: Graph,
     val label = queryParam.label
     val labelWithDir = queryParam.labelWithDir
     val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
-//    val now = System.currentTimeMillis()
     val propsWithTs = label.EmptyPropsWithTs
-//    val propsWithTs = Map(LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(now, label.schemaVersion), now))
-//    val propsWithTs = Map.empty[LabelMeta, InnerValLikeWithTs]
+
     tgtVertexIdOpt match {
       case Some(tgtVertexId) => // _to is given.
         /** we use toSnapshotEdge so dont need to swap src, tgt */
@@ -1057,12 +976,6 @@ abstract class Storage[Q, R](val graph: Graph,
 
         Edge(srcV, srcV, label, labelWithDir.dir, propsWithTs = propsWithTs, parentEdges = parentEdges)
     }
-
-//    val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
-//    val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
-//
-//      Map(LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs))
-//    Edge(srcV, tgtV, label, labelWithDir.dir, propsWithTs = propsWithTs)
   }
 
   protected def fetchSnapshotEdgeInner(edge: Edge): Future[(QueryParam, Option[Edge], Option[SKeyValue])] = {

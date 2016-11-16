@@ -63,7 +63,7 @@ object PostProcess {
         parents = s2EdgeParent(graph, queryOption, current.edge.parentEdges) if parents != JsNull
       } yield {
           val s2Edge = current.edge.originalEdgeOpt.getOrElse(current.edge)
-          s2EdgeToJsValue(queryOption, current.copy(edge = s2Edge), false, parents = parents)
+          s2EdgeToJsValue(queryOption, current.copy(edge = s2Edge), false, parents = parents, checkSelectColumns = true)
         }
       Json.toJson(ancestors)
     }
@@ -73,64 +73,22 @@ object PostProcess {
                       edgeWithScore: EdgeWithScore,
                       isDegree: Boolean = false,
                       parents: JsValue = JsNull,
-                      selectColumns: Map[String, Boolean] = Map.empty): JsValue = {
+                      checkSelectColumns: Boolean = false): JsValue = {
     //    val builder = immutable.Map.newBuilder[String, JsValue]
     val builder = ArrayBuffer.empty[(String, JsValue)]
     val s2Edge = edgeWithScore.edge
     val score = edgeWithScore.score
     val label = edgeWithScore.label
     if (isDegree) {
-      //      for {
-      //        from <- anyValToJsValue(s2Edge.srcId)
-      //        labelName <- anyValToJsValue(label.label)
-      //        degreeVal <- anyValToJsValue(s2Edge.propsWithTs(LabelMeta.degree).innerVal.value)
-      //        direction <- anyValToJsValue(s2Edge.direction)
-      //      } yield {
-      //        builder += ("from" -> from)
-      //        builder += ("label" -> labelName)
-      //        builder += ("direction" -> direction)
-      //        builder += (LabelMeta.degree.name -> degreeVal)
-      //        JsObject(builder)
-      //      }
       builder += ("from" -> anyValToJsValue(s2Edge.srcId).get)
       builder += ("label" -> anyValToJsValue(label.label).get)
       builder += ("direction" -> anyValToJsValue(s2Edge.direction).get)
       builder += (LabelMeta.degree.name -> anyValToJsValue(s2Edge.propsWithTs(LabelMeta.degree).innerVal.value).get)
       JsObject(builder)
     } else {
-      //      if (queryOption.withScore) anyValToJsValue(score).foreach { s => builder += ("score" -> s) }
       if (queryOption.withScore) builder += ("score" -> anyValToJsValue(score).get)
 
-      if (selectColumns.isEmpty) {
-        //        for {
-        //          from <- anyValToJsValue(s2Edge.srcId)
-        //          to <- anyValToJsValue(s2Edge.tgtId)
-        //          labelName <- anyValToJsValue(label.label)
-        //          score <- anyValToJsValue(score)
-        //          dir <- anyValToJsValue(s2Edge.direction)
-        //          ts <- anyValToJsValue(s2Edge.ts)
-        //        } yield {
-        //          builder += ("from" -> from)
-        //          builder += ("to" -> to)
-        //          builder += ("label" -> labelName)
-        //
-        //          val innerProps = ArrayBuffer.empty[(String, JsValue)]
-        //          for {
-        //            (labelMeta, v) <- edgeWithScore.edge.propsWithTs if labelMeta.seq != LabelMeta.timestampSeq
-        //            jsValue <- anyValToJsValue(v.innerVal.value)
-        //          } {
-        //            innerProps += (labelMeta.name -> jsValue)
-        //          }
-        //
-        //
-        //          builder += ("props" -> JsObject(innerProps))
-        //          builder += ("direction" -> dir)
-        //          builder += ("timestamp" -> ts)
-        //          builder += ("_timestamp" -> ts) // backward compatibility
-        //          if (parents != JsNull) builder += ("parents" -> parents)
-        ////          Json.toJson(builder.result())
-        //          JsObject(builder)
-        //        }
+      if (queryOption.selectColumns.isEmpty) {
         builder += ("from" -> anyValToJsValue(s2Edge.srcId).get)
         builder += ("to" -> anyValToJsValue(s2Edge.tgtId).get)
         builder += ("label" -> anyValToJsValue(label.label).get)
@@ -138,7 +96,6 @@ object PostProcess {
         val innerProps = ArrayBuffer.empty[(String, JsValue)]
         for {
           (labelMeta, v) <- edgeWithScore.edge.propsWithTs
-//          if labelMeta.seq != LabelMeta.timestampSeq
           jsValue <- anyValToJsValue(v.innerVal.value)
         } {
           innerProps += (labelMeta.name -> jsValue)
@@ -153,31 +110,7 @@ object PostProcess {
         //          Json.toJson(builder.result())
         JsObject(builder)
       } else {
-        //        queryOption.edgeSelectColumnsFiltered.foreach { columnName =>
-        //          columnName match {
-        //            case "from" => anyValToJsValue(s2Edge.srcId).foreach { v => builder += ("from" -> v)}
-        //            case "_from" => anyValToJsValue(s2Edge.srcId).foreach { v => builder += ("_from" -> v)}
-        //            case "to" => anyValToJsValue(s2Edge.tgtId).foreach { v => builder += ("to" -> v)}
-        //            case "_to" => anyValToJsValue(s2Edge.tgtId).foreach { v => builder += ("_to" -> v)}
-        //            case "label" => anyValToJsValue(label.label).foreach { v => builder += ("label" -> v)}
-        //            case "direction" => anyValToJsValue(s2Edge.direction).foreach { v => builder += ("direction" -> v) }
-        //            case "timestamp" => anyValToJsValue(s2Edge.ts).foreach { v => builder += ("timestamp" -> v) }
-        //            case "_timestamp" => anyValToJsValue(s2Edge.ts).foreach { v => builder += ("_timestamp" -> v) }
-        //            case _ => // should not happen
-        //          }
-        //        }
-        //        val innerProps = ArrayBuffer.empty[(String, JsValue)]
-        //        for {
-        //          (labelMeta, v) <- edgeWithScore.edge.propsWithTs if labelMeta.seq != LabelMeta.timestampSeq
-        //          jsValue <- anyValToJsValue(v.innerVal.value)
-        //        } {
-        //          innerProps += (labelMeta.name -> jsValue)
-        //        }
-        //
-        //        builder += ("props" -> JsObject(innerProps))
-        //        if (parents != JsNull) builder += ("parents" -> parents)
-        //        Option(JsObject(builder))
-        queryOption.edgeSelectColumnsFiltered.foreach { columnName =>
+        queryOption.selectColumnsMap.foreach { case (columnName, _) =>
           columnName match {
             case "from" => builder += ("from" -> anyValToJsValue(s2Edge.srcId).get)
             case "_from" => builder += ("_from" -> anyValToJsValue(s2Edge.srcId).get)
@@ -194,7 +127,7 @@ object PostProcess {
         val innerProps = ArrayBuffer.empty[(String, JsValue)]
         for {
           (labelMeta, v) <- edgeWithScore.edge.propsWithTs
-//          if labelMeta.seq != LabelMeta.timestampSeq
+          if !checkSelectColumns || queryOption.selectColumnsMap.contains(labelMeta.name)
           jsValue <- anyValToJsValue(v.innerVal.value)
         } {
           innerProps += (labelMeta.name -> jsValue)
@@ -295,16 +228,16 @@ object PostProcess {
     val limitOpt = queryOption.limitOpt
     val selectColumns = queryOption.selectColumnsMap
     val degrees =
-      if (queryOption.returnDegree) stepResult.degreeEdges.map(t => s2EdgeToJsValue(queryOption, t, true))
+      if (queryOption.returnDegree) stepResult.degreeEdges.map(t => s2EdgeToJsValue(queryOption, t, true, JsNull))
       else emptyDegrees
 
     if (queryOption.groupBy.keys.isEmpty) {
       // no group by specified on query.
-
       val results = if (limitOpt.isDefined) stepResult.edgeWithScores.take(limitOpt.get) else stepResult.edgeWithScores
       val ls = results.map { t =>
         val parents = if (queryOption.returnTree) s2EdgeParent(graph, queryOption, t.edge.parentEdges) else JsNull
-        s2EdgeToJsValue(queryOption, t, false, parents, selectColumns)
+
+        s2EdgeToJsValue(queryOption, t, false, parents)
       }
 
       withOptionalFields(queryOption, ls.size, degrees, ls, stepResult.failCount, cursorJson, nextQuery)
@@ -329,7 +262,7 @@ object PostProcess {
           } else {
             val agg = edges.map { t =>
               val parents = if (queryOption.returnTree) s2EdgeParent(graph, queryOption, t.edge.parentEdges) else JsNull
-              s2EdgeToJsValue(queryOption, t, false, parents, selectColumns)
+              s2EdgeToJsValue(queryOption, t, false, parents)
             }
             val aggJson = Json.toJson(agg)
             Json.obj(

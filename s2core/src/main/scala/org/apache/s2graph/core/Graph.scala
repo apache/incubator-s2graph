@@ -342,29 +342,20 @@ object Graph {
             val orderByValues =
              if (queryOption.orderByKeys.isEmpty) (score, edge.tsInnerVal, None, None)
               else StepResult.toTuple4(newEdgeWithScore.toValues(queryOption.orderByKeys))
-//            toOrderByValues(queryOption, orderByColumns, edgeWithScore)
 
             /** StepGroupBy */
             val stepGroupByValues = newEdgeWithScore.toValues(step.groupBy.keys)
 
             /** GroupBy */
             val groupByValues = newEdgeWithScore.toValues(queryOption.groupBy.keys)
-            //              groupByColumns.map { labelMetaOpt =>
-            //              edgeWithScore.toValue(labelMetaOpt)
-            //            }
+
             /** FilterOut */
             val filterOutValues = newEdgeWithScore.toValues(queryOption.filterOutFields)
-            //              filterOutColumns.map { labelMetaOpt =>
-            //              edgeWithScore.toValue(labelMetaOpt).map(_.toString)
-            //            }
 
             newEdgeWithScore.copy(orderByValues = orderByValues,
               stepGroupByValues = stepGroupByValues,
               groupByValues = groupByValues,
               filterOutValues = filterOutValues)
-
-            //            edgeWithScore.copy(edge = newEdge,
-            //              orderByValues = orderByValues, groupByValues = groupByValues, filterOutValues = filterOutValues)
           }
 
           /** process step group by */
@@ -407,7 +398,6 @@ object Graph {
   private def toEdgeWithScores(queryRequest: QueryRequest,
                                stepResult: StepResult,
                                parentEdges: Map[VertexId, Seq[EdgeWithScore]]): Seq[EdgeWithScore] = {
-
     val queryOption = queryRequest.query.queryOption
     val queryParam = queryRequest.queryParam
     val prevScore = queryRequest.prevStepScore
@@ -423,21 +413,22 @@ object Graph {
 
         /** Select */
         val mergedPropsWithTs =
-        if (queryOption.selectColumns.isEmpty) {
-          label.metaPropsDefaultMapInner.map { case (labelMeta, defaultVal) =>
-            labelMeta -> edge.propsWithTs.getOrElse(labelMeta, defaultVal)
-          }
-        } else {
-          val initial = Map(LabelMeta.timestamp -> edge.propsWithTs(LabelMeta.timestamp))
-          queryOption.selectColumns.foldLeft(initial) { case (acc, labelMetaName) =>
-            label.metaPropsDefaultMapInnerString.get(labelMetaName) match {
-              case None => acc
-              case Some(defaultValue) =>
-                val labelMeta = label.metaPropsInvMap(labelMetaName)
-                acc + (labelMeta -> edge.propsWithTs.getOrElse(labelMeta, defaultValue))
+          if (queryOption.selectColumns.isEmpty) {
+            label.metaPropsDefaultMapInner.map { case (labelMeta, defaultVal) =>
+              labelMeta -> edge.propsWithTs.getOrElse(labelMeta, defaultVal)
+            }
+          } else {
+            val initial = Map(LabelMeta.timestamp -> edge.propsWithTs(LabelMeta.timestamp))
+            queryOption.selectColumns.foldLeft(initial) { case (acc, labelMetaName) =>
+              label.metaPropsDefaultMapInnerString.get(labelMetaName) match {
+                case None => acc
+                case Some(defaultValue) =>
+                  val labelMeta = label.metaPropsInvMap(labelMetaName)
+                  acc + (labelMeta -> edge.propsWithTs.getOrElse(labelMeta, defaultValue))
+              }
             }
           }
-        }
+
         val newEdge = edge.copy(propsWithTs = mergedPropsWithTs)
         edgeWithScore.copy(edge = newEdge)
       }

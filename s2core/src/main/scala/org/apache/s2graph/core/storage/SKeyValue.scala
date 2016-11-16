@@ -69,3 +69,4 @@ object CanSKeyValue {
 
   // For hbase KeyValues
 }
+
