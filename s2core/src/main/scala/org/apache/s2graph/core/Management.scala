@@ -260,7 +260,7 @@ object Management {
 class Management(graph: Graph) {
   import Management._
 
-  def createHBaseTable(zkAddr: String,
+  def createStorageTable(zkAddr: String,
                   tableName: String,
                   cfs: List[String],
                   regionMultiplier: Int,
