@@ -136,15 +136,18 @@ ALTER TABLE label_metas ADD FOREIGN KEY(label_id) REFERENCES labels(id) ON DELET
 -- ----------------------------
 DROP TABLE IF EXISTS `label_indices`;
 CREATE TABLE `label_indices` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `label_id` int(11) NOT NULL,
-  `name` varchar(64) NOT NULL DEFAULT '_PK',
-  `seq` tinyint(4) NOT NULL,
-  `meta_seqs` varchar(64) NOT NULL,
-  `formulars` varchar(255) DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `ux_label_indices_label_id_seq` (`label_id`,`meta_seqs`),
-  UNIQUE KEY `ux_label_indices_label_id_name` (`label_id`,`name`)
+	`id` int(11) NOT NULL AUTO_INCREMENT,
+	`label_id` int(11) NOT NULL,
+	`name` varchar(64) NOT NULL DEFAULT '_PK',
+	`seq` tinyint(4) NOT NULL,
+	`meta_seqs` varchar(64) NOT NULL,
+	`formulars` varchar(255) DEFAULT NULL,
+	`dir` int DEFAULT NULL,
+	`options` text,
+	PRIMARY KEY (`id`),
+	UNIQUE KEY `ux_label_id_seq` (`label_id`,`meta_seqs`),
+	UNIQUE KEY `ux_label_id_name` (`label_id`,`name`),
+	UNIQUE KEY `ux_label_id_meta_seqs_dir` (`label_id`,`meta_seqs`,`dir`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE label_indices ADD FOREIGN KEY(label_id) REFERENCES labels(id) ON DELETE CASCADE;

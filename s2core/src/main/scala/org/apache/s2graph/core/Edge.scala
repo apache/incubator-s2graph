@@ -448,6 +448,24 @@ object Edge {
     }
   }
 
+  def filterOutWithLabelOption(ls: Seq[IndexEdge]): Seq[IndexEdge] = ls.filter { ie =>
+    ie.labelIndex.dir match {
+      case None =>
+        // both direction use same indices that is defined when label creation.
+        true
+      case Some(dir) =>
+        if (dir != ie.direction) {
+          // current labelIndex's direction is different with indexEdge's direction so don't touch
+          false
+        } else {
+          ie.labelIndex.writeOption.map { option =>
+            val hashValueOpt = ie.orders.find { case (k, v) => k == LabelMeta.fromHash }.map{ case (k, v) => v.value.toString.toLong }
+            option.sample(ie, hashValueOpt)
+          }.getOrElse(true)
+        }
+    }
+  }
+
   def buildMutation(snapshotEdgeOpt: Option[Edge],
                     requestEdge: Edge,
                     newVersion: Long,
@@ -477,7 +495,7 @@ object Edge {
         val edgesToDelete = snapshotEdgeOpt match {
           case Some(snapshotEdge) if snapshotEdge.op != GraphUtil.operations("delete") =>
             snapshotEdge.copy(op = GraphUtil.defaultOpByte)
-              .relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
+              .relatedEdges.flatMap { relEdge => filterOutWithLabelOption(relEdge.edgesWithIndexValid) }
           case _ => Nil
         }
 
@@ -488,7 +506,7 @@ object Edge {
               version = newVersion,
               propsWithTs = newPropsWithTs,
               op = GraphUtil.defaultOpByte
-            ).relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
+            ).relatedEdges.flatMap { relEdge => filterOutWithLabelOption(relEdge.edgesWithIndexValid) }
 
         EdgeMutate(edgesToDelete = edgesToDelete,
           edgesToInsert = edgesToInsert,
