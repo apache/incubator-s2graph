@@ -36,9 +36,11 @@ import scala.util.{Failure, Success, Try}
 object TemplateHelper {
   val findVar = """\"?\$\{(.*?)\}\"?""".r
   val num = """(next_day|next_hour|next_week|now)?\s*(-?\s*[0-9]+)?\s*(hour|day|week)?""".r
+
   val hour = 60 * 60 * 1000L
   val day = hour * 24L
   val week = day * 7L
+
   def calculate(now: Long, n: Int, unit: String): Long = {
     val duration = unit match {
       case "hour" | "HOUR" => n * hour
@@ -72,12 +74,32 @@ object TemplateHelper {
   }
 }
 
-class RequestParser(config: Config) {
+object RequestParser {
+  type ExperimentParam = (JsObject, String, String, String, Option[String])
+  val defaultLimit = 100
+
+  def toJsValues(jsValue: JsValue): List[JsValue] = {
+    jsValue match {
+      case obj: JsObject => List(obj)
+      case arr: JsArray => arr.as[List[JsValue]]
+      case _ => List.empty[JsValue]
+    }
+  }
+
+  def jsToStr(js: JsValue): String = js match {
+    case JsString(s) => s
+    case _ => js.toString()
+  }
+
+}
+
+class RequestParser(graph: Graph) {
 
   import Management.JsonModel._
+  import RequestParser._
 
-  val hardLimit = 100000
-  val defaultLimit = 100
+  val config = graph.config
+  val hardLimit = config.getInt("query.hardlimit")
   val maxLimit = Int.MaxValue - 1
   val DefaultRpcTimeout = config.getInt("hbase.rpc.timeout")
   val DefaultMaxAttempt = config.getInt("hbase.client.retries.number")
@@ -106,13 +128,11 @@ class RequestParser(config: Config) {
         (labelOrderType.seq, value)
       }
     }
+
     ret
   }
 
-  def extractInterval(label: Label, _jsValue: JsValue) = {
-    val replaced = TemplateHelper.replaceVariable(System.currentTimeMillis(), _jsValue.toString())
-    val jsValue = Json.parse(replaced)
-
+  def extractInterval(label: Label, jsValue: JsValue) = {
     def extractKv(js: JsValue) = js match {
       case JsObject(map) => map.toSeq
       case JsArray(arr) => arr.flatMap {
@@ -135,15 +155,21 @@ class RequestParser(config: Config) {
     ret
   }
 
-  def extractDuration(label: Label, _jsValue: JsValue) = {
-    val replaced = TemplateHelper.replaceVariable(System.currentTimeMillis(), _jsValue.toString())
-    val jsValue = Json.parse(replaced)
-
+  def extractDuration(label: Label, jsValue: JsValue) = {
     for {
       js <- parseOption[JsObject](jsValue, "duration")
     } yield {
-      val minTs = parseOption[Long](js, "from").getOrElse(Long.MaxValue)
-      val maxTs = parseOption[Long](js, "to").getOrElse(Long.MinValue)
+      val minTs = (js \ "from").get match {
+        case JsString(s) => TemplateHelper.replaceVariable(System.currentTimeMillis(), s).toLong
+        case JsNumber(n) => n.toLong
+        case _ => Long.MinValue
+      }
+
+      val maxTs = (js \ "to").get match {
+        case JsString(s) => TemplateHelper.replaceVariable(System.currentTimeMillis(), s).toLong
+        case JsNumber(n) => n.toLong
+        case _ => Long.MaxValue
+      }
 
       if (minTs > maxTs) {
         throw new BadQueryException("Duration error. Timestamp of From cannot be larger than To.")
@@ -167,21 +193,24 @@ class RequestParser(config: Config) {
     }
     ret.map(_.toMap).getOrElse(Map.empty[Byte, InnerValLike])
   }
-  
+
   def extractWhere(label: Label, whereClauseOpt: Option[String]): Try[Where] = {
     whereClauseOpt match {
       case None => Success(WhereParser.success)
-      case Some(_where) =>
-        val where = TemplateHelper.replaceVariable(System.currentTimeMillis(), _where)
+      case Some(where) =>
         val whereParserKey = s"${label.label}_${where}"
+
         parserCache.get(whereParserKey, new Callable[Try[Where]] {
           override def call(): Try[Where] = {
-            WhereParser(label).parse(where) match {
+            val _where = TemplateHelper.replaceVariable(System.currentTimeMillis(), where)
+
+            WhereParser(label).parse(_where) match {
               case s@Success(_) => s
               case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
             }
           }
         })
+
     }
   }
 
@@ -194,28 +223,38 @@ class RequestParser(config: Config) {
     } yield {
       Vertex(SourceVertexId(serviceColumn.id.get, innerId), System.currentTimeMillis())
     }
-    vertices.toSeq
+
+    vertices
   }
 
-  def toMultiQuery(jsValue: JsValue, isEdgeQuery: Boolean = true): MultiQuery = {
+  def toMultiQuery(jsValue: JsValue, impIdOpt: Option[String]): MultiQuery = {
     val queries = for {
       queryJson <- (jsValue \ "queries").asOpt[Seq[JsValue]].getOrElse(Seq.empty)
     } yield {
-      toQuery(queryJson, isEdgeQuery)
+      toQuery(queryJson, impIdOpt = impIdOpt)
     }
     val weights = (jsValue \ "weights").asOpt[Seq[Double]].getOrElse(queries.map(_ => 1.0))
-    MultiQuery(queries = queries, weights = weights,
-      queryOption = toQueryOption(jsValue), jsonQuery = jsValue)
+    MultiQuery(queries = queries, weights = weights, queryOption = toQueryOption(jsValue, impIdOpt))
   }
 
-  def toQueryOption(jsValue: JsValue): QueryOption = {
+  def toQueryOption(jsValue: JsValue, impIdOpt: Option[String]): QueryOption = {
     val filterOutFields = (jsValue \ "filterOutFields").asOpt[List[String]].getOrElse(List(LabelMeta.to.name))
-    val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v) }.map { q =>
+    val filterOutQuery = (jsValue \ "filterOut").asOpt[JsValue].map { v => toQuery(v, impIdOpt = impIdOpt) }.map { q =>
       q.copy(queryOption = q.queryOption.copy(filterOutFields = filterOutFields))
     }
     val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
     val selectColumns = (jsValue \ "select").asOpt[List[String]].getOrElse(List.empty)
-    val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
+//    val groupByColumns = (jsValue \ "groupBy").asOpt[List[String]].getOrElse(List.empty)
+    val groupBy = (jsValue \ "groupBy").asOpt[JsValue].getOrElse(JsNull) match {
+      case obj: JsObject =>
+        val keys = (obj \ "key").asOpt[Seq[String]].getOrElse(Nil)
+        val groupByLimit = (obj \ "limit").asOpt[Int].getOrElse(hardLimit)
+        GroupBy(keys, groupByLimit)
+      case arr: JsArray =>
+        val keys = arr.asOpt[Seq[String]].getOrElse(Nil)
+        GroupBy(keys)
+      case _ => GroupBy.Empty
+    }
     val orderByColumns: List[(String, Boolean)] = (jsValue \ "orderBy").asOpt[List[JsObject]].map { jsLs =>
       for {
         js <- jsLs
@@ -238,7 +277,7 @@ class RequestParser(config: Config) {
 
     QueryOption(removeCycle = removeCycle,
       selectColumns = selectColumns,
-      groupByColumns = groupByColumns,
+      groupBy = groupBy,
       orderByColumns = orderByColumns,
       filterOutQuery = filterOutQuery,
       filterOutFields = filterOutFields,
@@ -247,10 +286,12 @@ class RequestParser(config: Config) {
       limitOpt = limitOpt,
       returnAgg = returnAgg,
       scoreThreshold = scoreThreshold,
-      returnDegree = returnDegree
+      returnDegree = returnDegree,
+      impIdOpt = impIdOpt
     )
   }
-  def toQuery(jsValue: JsValue, isEdgeQuery: Boolean = true): Query = {
+
+  def toQuery(jsValue: JsValue, impIdOpt: Option[String]): Query = {
     try {
       val vertices =
         (for {
@@ -274,7 +315,7 @@ class RequestParser(config: Config) {
       if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
       val steps = parse[Vector[JsValue]](jsValue, "steps")
 
-      val queryOption = toQueryOption(jsValue)
+      val queryOption = toQueryOption(jsValue, impIdOpt)
 
       val querySteps =
         steps.zipWithIndex.map { case (step, stepIdx) =>
@@ -332,7 +373,7 @@ class RequestParser(config: Config) {
 
         }
 
-      val ret = Query(vertices, querySteps, queryOption, jsValue)
+      val ret = Query(vertices, querySteps, queryOption)
       //      logger.debug(ret.toString)
       ret
     } catch {
@@ -354,10 +395,8 @@ class RequestParser(config: Config) {
       val limit = {
         parseOption[Int](labelGroup, "limit") match {
           case None => defaultLimit
-          case Some(l) if l < 0 => maxLimit
-          case Some(l) if l >= 0 =>
-            val default = hardLimit
-            Math.min(l, default)
+          case Some(l) if l < 0 => hardLimit
+          case Some(l) if l >= 0 => Math.min(l, hardLimit)
         }
       }
       val offset = parseOption[Int](labelGroup, "offset").getOrElse(0)
@@ -405,7 +444,6 @@ class RequestParser(config: Config) {
       // FIXME: Order of command matter
       QueryParam(labelWithDir)
         .sample(sample)
-        .limit(offset, limit)
         .rank(RankParam(label.id.get, scoring))
         .exclude(exclude)
         .include(include)
@@ -413,6 +451,7 @@ class RequestParser(config: Config) {
         .has(hasFilter)
         .labelOrderSeq(indexSeq)
         .interval(interval)
+        .limit(offset, limit)
         .where(where)
         .duplicatePolicy(duplicate)
         .includeDegree(includeDegree)
@@ -450,21 +489,8 @@ class RequestParser(config: Config) {
     }
   }
 
-  def toJsValues(jsValue: JsValue): List[JsValue] = {
-    jsValue match {
-      case obj: JsObject => List(obj)
-      case arr: JsArray => arr.as[List[JsValue]]
-      case _ => List.empty[JsValue]
-    }
-  }
-
-  def jsToStr(js: JsValue): String = js match {
-    case JsString(s) => s
-    case _ => js.toString()
-  }
-
   def parseBulkFormat(str: String): Seq[(GraphElement, String)] = {
-    val edgeStrs = str.split("\\n")
+    val edgeStrs = str.split("\\n").filterNot(_.isEmpty)
     val elementsWithTsv = for {
       edgeStr <- edgeStrs
       str <- GraphUtil.parseString(edgeStr)
@@ -480,24 +506,23 @@ class RequestParser(config: Config) {
   }
 
   private def toEdgeWithTsv(jsValue: JsValue, operation: String): Seq[(Edge, String)] = {
-    val srcId = (jsValue \ "from").asOpt[JsValue].map(jsToStr)
-    val tgtId = (jsValue \ "to").asOpt[JsValue].map(jsToStr)
-    val srcIds = (jsValue \ "froms").asOpt[List[JsValue]].toList.flatMap(froms => froms.map(jsToStr)) ++ srcId
-    val tgtIds = (jsValue \ "tos").asOpt[List[JsValue]].toList.flatMap(tos => tos.map(jsToStr)) ++ tgtId
+    val srcIds = (jsValue \ "from").asOpt[JsValue].map(Seq(_)).getOrElse(Nil) ++ (jsValue \ "froms").asOpt[Seq[JsValue]].getOrElse(Nil)
+    val tgtIds = (jsValue \ "to").asOpt[JsValue].map(Seq(_)).getOrElse(Nil) ++ (jsValue \ "tos").asOpt[Seq[JsValue]].getOrElse(Nil)
 
     val label = parse[String](jsValue, "label")
     val timestamp = parse[Long](jsValue, "timestamp")
-    val direction = parseOption[String](jsValue, "direction").getOrElse("")
-    val props = (jsValue \ "props").asOpt[JsValue].getOrElse("{}")
+    val direction = parseOption[String](jsValue, "direction").getOrElse("out")
+    val propsJson = (jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj())
 
     for {
-      srcId <- srcIds
-      tgtId <- tgtIds
+      srcId <- srcIds.flatMap(jsValueToAny(_).toSeq)
+      tgtId <- tgtIds.flatMap(jsValueToAny(_).toSeq)
     } yield {
-      val edge = Management.toEdge(timestamp, operation, srcId, tgtId, label, direction, props.toString)
+      //      val edge = Management.toEdge(graph, timestamp, operation, srcId, tgtId, label, direction, fromJsonToProperties(propsJson))
+      val edge = Edge.toEdge(srcId, tgtId, label, direction, fromJsonToProperties(propsJson), ts = timestamp, operation = operation)
       val tsv = (jsValue \ "direction").asOpt[String] match {
-        case None => Seq(timestamp, operation, "e", srcId, tgtId, label, props).mkString("\t")
-        case Some(dir) => Seq(timestamp, operation, "e", srcId, tgtId, label, props, dir).mkString("\t")
+        case None => Seq(timestamp, operation, "e", srcId, tgtId, label, propsJson.toString).mkString("\t")
+        case Some(dir) => Seq(timestamp, operation, "e", srcId, tgtId, label, propsJson.toString, dir).mkString("\t")
       }
 
       (edge, tsv)
@@ -513,8 +538,8 @@ class RequestParser(config: Config) {
     val ts = parseOption[Long](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
     val sName = if (serviceName.isEmpty) parse[String](jsValue, "serviceName") else serviceName.get
     val cName = if (columnName.isEmpty) parse[String](jsValue, "columnName") else columnName.get
-    val props = (jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj())
-    Management.toVertex(ts, operation, id.toString, sName, cName, props.toString)
+    val props = fromJsonToProperties((jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj()))
+    Vertex.toVertex(sName, cName, id.toString, props, ts, operation)
   }
 
   def toPropElements(jsObj: JsValue) = Try {
@@ -637,12 +662,38 @@ class RequestParser(config: Config) {
 
   def toDeleteParam(json: JsValue) = {
     val labelName = (json \ "label").as[String]
-    val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil).filterNot(_.isAsync)
+    val labels = Label.findByName(labelName).map { l => Seq(l) }.getOrElse(Nil)
     val direction = (json \ "direction").asOpt[String].getOrElse("out")
 
     val ids = (json \ "ids").asOpt[List[JsValue]].getOrElse(Nil)
     val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
     val vertices = toVertices(labelName, direction, ids)
     (labels, direction, ids, ts, vertices)
+  }
+
+  def toFetchAndDeleteParam(json: JsValue) = {
+    val labelName = (json \ "label").as[String]
+    val fromOpt = (json \ "from").asOpt[JsValue]
+    val toOpt = (json \ "to").asOpt[JsValue]
+    val direction = (json \ "direction").asOpt[String].getOrElse("out")
+    val indexOpt = (json \ "index").asOpt[String]
+    val propsOpt = (json \ "props").asOpt[JsObject]
+    (labelName, fromOpt, toOpt, direction, indexOpt, propsOpt)
+  }
+
+  def parseExperiment(jsQuery: JsValue): Seq[ExperimentParam] = jsQuery.as[Seq[JsObject]].map { obj =>
+    def _require(field: String) = throw new RuntimeException(s"${field} not found")
+
+    val accessToken = (obj \ "accessToken").asOpt[String].getOrElse(_require("accessToken"))
+    val experimentName = (obj \ "experiment").asOpt[String].getOrElse(_require("experiment"))
+    val uuid = (obj \ "#uuid").get match {
+      case JsString(s) => s
+      case JsNumber(n) => n.toString
+      case _ => _require("#uuid")
+    }
+    val body = (obj \ "params").asOpt[JsObject].getOrElse(Json.obj())
+    val impKeyOpt = (obj \ Experiment.ImpressionKey).asOpt[String]
+
+    (body, accessToken, experimentName, uuid, impKeyOpt)
   }
 }

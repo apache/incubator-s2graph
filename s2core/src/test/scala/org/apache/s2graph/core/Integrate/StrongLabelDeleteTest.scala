@@ -141,11 +141,12 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   test("large degrees") {
     val labelName = testLabelName2
     val dir = "out"
+    val minSize = 0
     val maxSize = 100
     val deleteSize = 10
     val numOfConcurrentBatch = 100
-    val src = System.currentTimeMillis()
-    val tgts = (0 until maxSize).map { ith => src + ith }
+    val src = 1092983
+    val tgts = (minSize until maxSize).map { ith => src + ith }
     val deleteTgts = Random.shuffle(tgts).take(deleteSize)
     val insertRequests = tgts.map { tgt =>
       Seq(tgt, "insert", "e", src, tgt, labelName, "{}", dir).mkString("\t")
@@ -181,11 +182,12 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   test("deleteAll") {
     val labelName = testLabelName2
     val dir = "out"
-    val maxSize = 100
+    val minSize = 200
+    val maxSize = 300
     val deleteSize = 10
     val numOfConcurrentBatch = 100
-    val src = System.currentTimeMillis()
-    val tgts = (0 until maxSize).map { ith => src + ith }
+    val src = 192338237
+    val tgts = (minSize until maxSize).map { ith => src + ith }
     val deleteTgts = Random.shuffle(tgts).take(deleteSize)
     val insertRequests = tgts.map { tgt =>
       Seq(tgt, "insert", "e", src, tgt, labelName, "{}", dir).mkString("\t")
@@ -220,7 +222,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 //    val labelName = testLabelName
     val maxTgtId = 10
     val batchSize = 10
-    val testNum = 100
+    val testNum = 10
     val numOfBatch = 10
 
     def testInner(startTs: Long, src: Long) = {

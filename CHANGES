@@ -94,6 +94,8 @@ Release 0.1.0 - unreleased
     
     S2GRAPH-127: Refactor ExceptionHander Object into Class (Committed by DOYUNG YOON).
 
+    S2GRAPH-121: Create `Result` class to hold traverse result edges (Committed by DOYUNG YOON).
+
   BUG FIXES
 
     S2GRAPH-18: Query Option "interval" is Broken. 

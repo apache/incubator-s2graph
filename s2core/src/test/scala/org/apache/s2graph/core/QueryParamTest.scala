@@ -20,7 +20,7 @@
 package org.apache.s2graph.core
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.types.LabelWithDirection
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike, HBaseSerializable, LabelWithDirection}
 import org.scalatest.{FunSuite, Matchers}
 
 class QueryParamTest extends FunSuite with Matchers with TestCommon {
@@ -101,5 +101,59 @@ class QueryParamTest extends FunSuite with Matchers with TestCommon {
 
     println(s">> diff: $duration")
   }
+  test("QueryParam interval min/max bytes padding test") {
+    import HBaseSerializable._
+    val queryParam = QueryParam.Empty
+    def compare(_from: Seq[InnerValLike], _to: Seq[InnerValLike], _value: Seq[InnerValLike]): Boolean = {
+      val len = _from.length.toByte
 
+      val from = _from.zipWithIndex map { case (innerVal: InnerValLike, idx: Int) => idx.toByte -> innerVal }
+      val to = _to.zipWithIndex map { case (innerVal: InnerValLike, idx: Int) => idx.toByte -> innerVal }
+      val value = _value.zipWithIndex map { case (innerVal: InnerValLike, idx: Int) => idx.toByte -> innerVal }
+
+      val (fromBytes, toBytes) = queryParam.paddingInterval(len, from, to)
+      val valueBytes = propsToBytes(value)
+
+      val validFrom = Bytes.compareTo(fromBytes, valueBytes) <= 0
+      val validTo = Bytes.compareTo(toBytes, valueBytes) >= 0
+
+      val res = validFrom && validTo
+      //      if (!res) logger.error(s"from: $validFrom, to: $validTo, from: ${_from} to: ${_to} value: ${_value}")
+      res
+    }
+
+    val v = "v3"
+    compare(
+      Seq(InnerVal.withLong(0L, v)),
+      Seq(InnerVal.withLong(0L, v)),
+      Seq(InnerVal.withLong(0L, v))) shouldBe true
+
+    compare(
+      Seq(InnerVal.withLong(0L, v)),
+      Seq(InnerVal.withLong(0L, v)),
+      Seq(InnerVal.withLong(1L, v))) shouldBe false
+
+    compare(
+      Seq(InnerVal.withLong(1L, v)),
+      Seq(InnerVal.withLong(1L, v)),
+      Seq(InnerVal.withLong(0L, v))) shouldBe false
+
+    compare(
+      Seq(InnerVal.withLong(0L, v)),
+      Seq(InnerVal.withLong(1L, v)),
+      Seq(InnerVal.withLong(2L, v))) shouldBe false
+
+    val testNum = 100000
+    val tests = for {
+      n <- 0 to testNum
+      min = scala.util.Random.nextInt(Int.MaxValue / 2) + 1
+      max = min + scala.util.Random.nextInt(min)
+      value = min + scala.util.Random.nextInt(max - min + 1)
+    } yield compare(
+        Seq(InnerVal.withLong(min, v)),
+        Seq(InnerVal.withLong(max, v)),
+        Seq(InnerVal.withLong(value, v)))
+
+    tests.forall(identity) shouldBe true
+  }
 }

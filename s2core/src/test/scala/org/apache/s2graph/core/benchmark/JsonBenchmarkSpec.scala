@@ -23,41 +23,55 @@ import play.api.libs.json.JsNumber
 import play.libs.Json
 
 class JsonBenchmarkSpec extends BenchmarkCommon {
-  "to json" >> {
-    "json benchmark" >> {
 
-      duration("map to json") {
-        (0 to 10) foreach { n =>
-          val numberMaps = (0 to 100).map { n => (n.toString -> JsNumber(n * n)) }.toMap
-          Json.toJson(numberMaps)
+  "JsonBenchSpec" should {
+
+    "Json Append" >> {
+      import play.api.libs.json.{Json, _}
+      val numberJson = Json.toJson((0 to 1000).map { i => s"$i" -> JsNumber(i * i) }.toMap).as[JsObject]
+
+      /** dummy warm-up **/
+      (0 to 10000) foreach { n =>
+        Json.obj(s"$n" -> "dummy") ++ numberJson
+      }
+      (0 to 10000) foreach { n =>
+        Json.obj(s"$n" -> numberJson)
+      }
+
+      duration("Append by JsObj ++ JsObj ") {
+        (0 to 100000) foreach { n =>
+          numberJson ++ Json.obj(s"$n" -> "dummy")
         }
       }
 
-      duration("directMakeJson") {
-        (0 to 10) foreach { n =>
-          var jsObj = play.api.libs.json.Json.obj()
-          (0 to 10).foreach { n =>
-            jsObj += (n.toString -> JsNumber(n * n))
-          }
-        }
-      }
-
-      duration("map to json 2") {
-        (0 to 50) foreach { n =>
-          val numberMaps = (0 to 10).map { n => (n.toString -> JsNumber(n * n)) }.toMap
-          Json.toJson(numberMaps)
-        }
-      }
-
-      duration("directMakeJson 2") {
-        (0 to 50) foreach { n =>
-          var jsObj = play.api.libs.json.Json.obj()
-          (0 to 10).foreach { n =>
-            jsObj += (n.toString -> JsNumber(n * n))
-          }
+      duration("Append by Json.obj(newJson -> JsObj)") {
+        (0 to 100000) foreach { n =>
+          Json.obj(s"$n" -> numberJson)
         }
       }
       true
+    }
+  }
+
+  "Make Json" >> {
+    duration("map to json") {
+      (0 to 10000) foreach { n =>
+        val numberMaps = (0 to 100).map { n =>
+          n.toString -> JsNumber(n * n)
+        }.toMap
+
+        Json.toJson(numberMaps)
+      }
+    }
+
+    duration("direct") {
+      (0 to 10000) foreach { n =>
+        var jsObj = play.api.libs.json.Json.obj()
+
+        (0 to 100).foreach { n =>
+          jsObj += (n.toString -> JsNumber(n * n))
+        }
+      }
     }
     true
   }

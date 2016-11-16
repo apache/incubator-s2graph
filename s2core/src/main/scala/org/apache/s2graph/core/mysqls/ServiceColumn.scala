@@ -24,6 +24,8 @@ package org.apache.s2graph.core.mysqls
  */
 
 import org.apache.s2graph.core.JSONParser
+import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.types.{InnerValLikeWithTs, InnerValLike}
 import play.api.libs.json.Json
 import scalikejdbc._
 object ServiceColumn extends Model[ServiceColumn] {
@@ -89,13 +91,40 @@ object ServiceColumn extends Model[ServiceColumn] {
     })
   }
 }
-case class ServiceColumn(id: Option[Int], serviceId: Int, columnName: String, columnType: String, schemaVersion: String) {
+case class ServiceColumn(id: Option[Int], serviceId: Int, columnName: String, columnType: String, schemaVersion: String)  {
 
   lazy val service = Service.findById(serviceId)
   lazy val metas = ColumnMeta.findAllByColumn(id.get)
+  lazy val metasMap = metas.map { meta => meta.seq.toInt -> meta } toMap
   lazy val metasInvMap = metas.map { meta => meta.name -> meta} toMap
   lazy val metaNamesMap = (ColumnMeta.lastModifiedAtColumn :: metas).map(x => (x.seq.toInt, x.name)) toMap
   lazy val toJson = Json.obj("serviceName" -> service.serviceName, "columnName" -> columnName, "columnType" -> columnType)
+
+  def propsToInnerVals(props: Map[String, Any]): Map[Int, InnerValLike] = {
+    for {
+      (k, v) <- props
+      labelMeta <- metasInvMap.get(k)
+      innerVal = toInnerVal(v.toString, labelMeta.dataType, schemaVersion)
+    } yield labelMeta.seq.toInt -> innerVal
+  }
+
+  def innerValsToProps(props: Map[Int, InnerValLike]): Map[String, Any] = {
+    for {
+      (k, v) <- props
+      columnMeta <- metasMap.get(k)
+    } yield {
+      columnMeta.name -> v.value
+    }
+  }
+
+  def innerValsWithTsToProps(props: Map[Int, InnerValLikeWithTs]): Map[String, Any] = {
+    for {
+      (k, v) <- props
+      columnMeta <- metasMap.get(k)
+    } yield {
+      columnMeta.name -> v.innerVal.value
+    }
+  }
 
 
 }

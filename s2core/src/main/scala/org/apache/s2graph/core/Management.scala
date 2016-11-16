@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core
 
-import org.apache.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNotExistException}
+import org.apache.s2graph.core.GraphExceptions.{LabelNameTooLongException, InvalidHTableException, LabelAlreadyExistException, LabelNotExistException}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.HBaseType._
@@ -48,8 +48,8 @@ object Management {
 
   import HBaseType._
 
+  val LABEL_NAME_MAX_LENGTH = 100
   val DefaultCompressionAlgorithm = "gz"
-
 
   def findService(serviceName: String) = {
     Service.findByName(serviceName, useCache = false)
@@ -190,62 +190,6 @@ object Management {
     }
   }
 
-  def toEdge(ts: Long, operation: String, srcId: String, tgtId: String,
-             labelStr: String, direction: String = "", props: String): Edge = {
-
-    val label = tryOption(labelStr, getServiceLabel)
-    val dir =
-      if (direction == "")
-//        GraphUtil.toDirection(label.direction)
-        GraphUtil.directions("out")
-      else
-        GraphUtil.toDirection(direction)
-
-    //    logger.debug(s"$srcId, ${label.srcColumnWithDir(dir)}")
-    //    logger.debug(s"$tgtId, ${label.tgtColumnWithDir(dir)}")
-
-    val srcVertexId = toInnerVal(srcId, label.srcColumn.columnType, label.schemaVersion)
-    val tgtVertexId = toInnerVal(tgtId, label.tgtColumn.columnType, label.schemaVersion)
-
-    val srcColId = label.srcColumn.id.get
-    val tgtColId = label.tgtColumn.id.get
-    val (srcVertex, tgtVertex) = if (dir == GraphUtil.directions("out")) {
-      (Vertex(SourceVertexId(srcColId, srcVertexId), System.currentTimeMillis()),
-        Vertex(TargetVertexId(tgtColId, tgtVertexId), System.currentTimeMillis()))
-    } else {
-      (Vertex(SourceVertexId(tgtColId, tgtVertexId), System.currentTimeMillis()),
-        Vertex(TargetVertexId(srcColId, srcVertexId), System.currentTimeMillis()))
-    }
-
-    //    val dir = if (direction == "") GraphUtil.toDirection(label.direction) else GraphUtil.toDirection(direction)
-    val labelWithDir = LabelWithDirection(label.id.get, dir)
-    val op = tryOption(operation, GraphUtil.toOp)
-
-    val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
-    val parsedProps = toProps(label, jsObject.fields).toMap
-    val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValLikeWithTs(kv._2, ts))) ++
-      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.schemaVersion), ts))
-
-    Edge(srcVertex, tgtVertex, labelWithDir, op, version = ts, propsWithTs = propsWithTs)
-
-  }
-
-  def toVertex(ts: Long, operation: String, id: String, serviceName: String, columnName: String, props: String): Vertex = {
-    Service.findByName(serviceName) match {
-      case None => throw new RuntimeException(s"$serviceName does not exist. create service first.")
-      case Some(service) =>
-        ServiceColumn.find(service.id.get, columnName) match {
-          case None => throw new RuntimeException(s"$columnName is not exist. create service column first.")
-          case Some(col) =>
-            val idVal = toInnerVal(id, col.columnType, col.schemaVersion)
-            val op = tryOption(operation, GraphUtil.toOp)
-            val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
-            val parsedProps = toProps(col, jsObject).toMap
-            Vertex(VertexId(col.id.get, idVal), ts, parsedProps, op = op)
-        }
-    }
-  }
-
   def toProps(column: ServiceColumn, js: JsObject): Seq[(Int, InnerValLike)] = {
 
     val props = for {
@@ -346,7 +290,7 @@ class Management(graph: Graph) {
                   schemaVersion: String = DEFAULT_VERSION,
                   isAsync: Boolean,
                   compressionAlgorithm: String = "gz",
-                  options: Option[String] = None): Try[Label] = {
+                  options: Option[String]): Try[Label] = {
 
     val labelOpt = Label.findByName(label, useCache = false)
 
@@ -355,7 +299,8 @@ class Management(graph: Graph) {
         case Some(l) =>
           throw new GraphExceptions.LabelAlreadyExistException(s"Label name ${l.label} already exist.")
         case None =>
-          /* create all models */
+          /** create all models */
+          if (label.length > LABEL_NAME_MAX_LENGTH ) throw new LabelNameTooLongException(s"Label name ${label} too long.( max length : 40 )")
           val newLabel = Label.insertAll(label,
             srcServiceName, srcColumnName, srcColumnType,
             tgtServiceName, tgtColumnName, tgtColumnType,
@@ -387,8 +332,8 @@ class Management(graph: Graph) {
    * copy label: only used by bulk load job. not sure if we need to parameterize hbase cluster.
    */
   def copyLabel(oldLabelName: String, newLabelName: String, hTableName: Option[String]) = {
-    val old = Label.findByName(oldLabelName).getOrElse(throw new LabelAlreadyExistException(s"Old label $oldLabelName not exists."))
-    if (Label.findByName(newLabelName).isDefined) throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
+    val old = Label.findByName(oldLabelName, useCache = false).getOrElse(throw new LabelNotExistException(s"Old label $oldLabelName not exists."))
+    if (Label.findByName(newLabelName, useCache = false).isDefined) throw new LabelAlreadyExistException(s"New label $newLabelName already exists.")
 
     val allProps = old.metas.map { labelMeta => Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType) }
     val allIndices = old.indices.map { index => Index(index.name, index.propNames) }

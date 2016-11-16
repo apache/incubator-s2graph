@@ -19,13 +19,15 @@
 
 package org.apache.s2graph.core.mysqls
 
+import java.util.Calendar
 
 import org.apache.s2graph.core.GraphExceptions.ModelNotFoundException
 import org.apache.s2graph.core.GraphUtil
-import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
-import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.core.JSONParser._
-import play.api.libs.json._
+import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
+import org.apache.s2graph.core.types.{InnerValLike, InnerValLikeWithTs}
+import org.apache.s2graph.core.utils.logger
+import play.api.libs.json.{JsObject, JsValue, Json}
 import scalikejdbc._
 
 object Label extends Model[Label] {
@@ -47,6 +49,7 @@ object Label extends Model[Label] {
     LabelIndex.findByLabelIdAll(id.get, false).foreach { x => LabelIndex.delete(x.id.get) }
     Label.delete(id.get)
   }
+
 
   def findByName(labelName: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[Label] = {
     val cacheKey = "label=" + labelName
@@ -292,11 +295,16 @@ case class Label(id: Option[Int], label: String,
   lazy val srcColumn = ServiceColumn.find(srcServiceId, srcColumnName).getOrElse(throw ModelNotFoundException("Source column not found"))
   lazy val tgtColumn = ServiceColumn.find(tgtServiceId, tgtColumnName).getOrElse(throw ModelNotFoundException("Target column not found"))
 
-  lazy val direction = if (isDirected) "out" else "undirected"
   lazy val defaultIndex = LabelIndex.findByLabelIdAndSeq(id.get, LabelIndex.DefaultSeq)
 
   //TODO: Make sure this is correct
+
+//  lazy val metas = metas(useCache = true)
   lazy val indices = LabelIndex.findByLabelIdAll(id.get, useCache = true)
+  lazy val labelMetas = LabelMeta.findAllByLabelId(id.get, useCache = true)
+  lazy val labelMetaSet = labelMetas.toSet
+  lazy val labelMetaMap = (labelMetas ++ LabelMeta.reservedMetas).map(m => m.seq -> m).toMap
+
   lazy val indicesMap = indices.map(idx => (idx.seq, idx)) toMap
   lazy val indexSeqsMap = indices.map(idx => (idx.metaSeqs, idx)) toMap
   lazy val indexNameMap = indices.map(idx => (idx.name, idx)) toMap
@@ -327,14 +335,37 @@ case class Label(id: Option[Int], label: String,
     jsValue <- innerValToJsValue(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), prop.dataType)
   } yield prop.name -> jsValue).toMap
 
+  lazy val metaPropsDefaultMapInnerString = (for {
+    prop <- metaPropsInner if LabelMeta.isValidSeq(prop.seq)
+    innerVal = InnerValLikeWithTs(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), System.currentTimeMillis())
+  } yield prop.name -> innerVal).toMap
+
   lazy val metaPropsDefaultMapInner = (for {
     prop <- metaPropsInner if LabelMeta.isValidSeq(prop.seq)
+    innerVal = InnerValLikeWithTs(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), System.currentTimeMillis())
+  } yield prop -> innerVal).toMap
+  lazy val metaPropsDefaultMapInnerSeq = metaPropsDefaultMapInner.toSeq
+  lazy val metaPropsJsValueWithDefault = (for {
+    prop <- metaProps if LabelMeta.isValidSeq(prop.seq)
     jsValue <- innerValToJsValue(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), prop.dataType)
-  } yield prop.name -> jsValue).toMap
+  } yield prop -> jsValue).toMap
+//  lazy val extraOptions = Model.extraOptions(Option("""{
+//    "storage": {
+//      "s2graph.storage.backend": "rocks",
+//      "rocks.db.path": "/tmp/db"
+//    }
+//  }"""))
 
   lazy val extraOptions: Map[String, JsValue] = options match {
     case None => Map.empty
-    case Some(v) => Json.parse(v).asOpt[JsObject].map { obj => obj.fields.toMap }.getOrElse(Map.empty)
+    case Some(v) =>
+      try {
+        Json.parse(v).asOpt[JsObject].map { obj => obj.fields.toMap }.getOrElse(Map.empty)
+      } catch {
+        case e: Exception =>
+          logger.error(s"An error occurs while parsing the extra label option: ${label}", e)
+          Map.empty
+      }
   }
 
   def srcColumnWithDir(dir: Int) = {
@@ -386,5 +417,23 @@ case class Label(id: Option[Int], label: String,
   )
 
 
+  def propsToInnerValsWithTs(props: Map[String, Any],
+                             ts: Long = System.currentTimeMillis()): Map[Byte, InnerValLikeWithTs] = {
+    for {
+      (k, v) <- props
+      labelMeta <- metaPropsInvMap.get(k)
+      innerVal = toInnerVal(v.toString, labelMeta.dataType, schemaVersion)
+    } yield labelMeta.seq -> InnerValLikeWithTs(innerVal, ts)
+
+  }
+
+  def innerValsWithTsToProps(props: Map[Byte, InnerValLikeWithTs]): Map[String, Any] = {
+    for {
+      (k, v) <- props
+      labelMeta <- metaPropsMap.get(k)
+    } yield {
+      labelMeta.name -> v.innerVal.value
+    }
+  }
 }
 

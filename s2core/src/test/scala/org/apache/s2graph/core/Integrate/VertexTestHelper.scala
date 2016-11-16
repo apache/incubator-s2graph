@@ -31,6 +31,8 @@ class VertexTestHelper extends IntegrateCommon {
   import TestUtil._
   import VertexTestHelper._
 
+
+
   test("vertex") {
     val ids = (7 until 20).map(tcNum => tcNum * 1000 + 0)
     val (serviceName, columnName) = (testServiceName, testColumnName)
@@ -40,9 +42,10 @@ class VertexTestHelper extends IntegrateCommon {
     println(payload)
 
     val vertices = parser.toVertices(payload, "insert", Option(serviceName), Option(columnName))
-    Await.result(graph.mutateVertices(vertices, withWait = true), HttpRequestWaitingTime)
+    val srcVertices = vertices
+    Await.result(graph.mutateVertices(srcVertices, withWait = true), HttpRequestWaitingTime)
 
-    val res = graph.getVertices(vertices).map { vertices =>
+    val res = graph.getVertices(srcVertices).map { vertices =>
       PostProcess.verticesToJson(vertices)
     }
 

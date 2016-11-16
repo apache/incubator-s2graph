@@ -25,7 +25,7 @@ import com.typesafe.config.ConfigFactory
 import io.netty.bootstrap.ServerBootstrap
 import io.netty.buffer.{ByteBuf, Unpooled}
 import io.netty.channel._
-import io.netty.channel.epoll.{EpollServerSocketChannel, EpollEventLoopGroup}
+import io.netty.channel.epoll.{EpollEventLoopGroup, EpollServerSocketChannel}
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioServerSocketChannel
@@ -36,14 +36,14 @@ import io.netty.util.CharsetUtil
 import org.apache.s2graph.core.GraphExceptions.BadQueryException
 import org.apache.s2graph.core.mysqls.Experiment
 import org.apache.s2graph.core.rest.RestHandler
-import org.apache.s2graph.core.rest.RestHandler.HandlerResult
+import org.apache.s2graph.core.rest.RestHandler.{CanLookup, HandlerResult}
 import org.apache.s2graph.core.utils.Extensions._
 import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.core.{Graph, JSONParser, PostProcess}
 import play.api.libs.json._
 
 import scala.collection.mutable
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.{Failure, Success, Try}
 import scala.language.existentials
@@ -57,6 +57,10 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
   val BadGateway = HttpResponseStatus.BAD_GATEWAY
   val NotFound = HttpResponseStatus.NOT_FOUND
   val InternalServerError = HttpResponseStatus.INTERNAL_SERVER_ERROR
+
+  implicit val nettyHeadersLookup = new CanLookup[HttpHeaders] {
+    override def lookup(m: HttpHeaders, key: String) = Option(m.get(key))
+  }
 
   def badRoute(ctx: ChannelHandlerContext) =
     simpleResponse(ctx, BadGateway, byteBufOpt = None, channelFutureListenerOpt = CloseOpt)
@@ -82,7 +86,7 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
     }
   }
 
-  def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, requestBody: JsValue, result: HandlerResult, startedAt: Long) = {
+  def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, requestBody: String, result: HandlerResult, startedAt: Long) = {
     var closeOpt = CloseOpt
     var headers = mutable.ArrayBuilder.make[(String, String)]
 
@@ -119,43 +123,68 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
     }
   }
 
+  private def healthCheck(ctx: ChannelHandlerContext)(predicate: Boolean): Unit = {
+    if (predicate) {
+      val healthCheckMsg = Unpooled.copiedBuffer(NettyServer.deployInfo, CharsetUtil.UTF_8)
+      simpleResponse(ctx, Ok, byteBufOpt = Option(healthCheckMsg), channelFutureListenerOpt = CloseOpt)
+    } else {
+      simpleResponse(ctx, NotFound, channelFutureListenerOpt = CloseOpt)
+    }
+  }
+
+  private def updateHealthCheck(ctx: ChannelHandlerContext)(newValue: Boolean)(updateOp: Boolean => Unit): Unit = {
+    updateOp(newValue)
+    val newHealthCheckMsg = Unpooled.copiedBuffer(newValue.toString, CharsetUtil.UTF_8)
+    simpleResponse(ctx, Ok, byteBufOpt = Option(newHealthCheckMsg), channelFutureListenerOpt = CloseOpt)
+  }
+
   override def channelRead0(ctx: ChannelHandlerContext, req: FullHttpRequest): Unit = {
     val uri = req.getUri
     val startedAt = System.currentTimeMillis()
-
+    val checkFunc = healthCheck(ctx) _
+    val updateFunc = updateHealthCheck(ctx) _
     req.getMethod match {
       case HttpMethod.GET =>
         uri match {
-          case "/health_check.html" =>
-            if (NettyServer.isHealthy) {
-              val healthCheckMsg = Unpooled.copiedBuffer(NettyServer.deployInfo, CharsetUtil.UTF_8)
-              simpleResponse(ctx, Ok, byteBufOpt = Option(healthCheckMsg), channelFutureListenerOpt = CloseOpt)
-            } else {
-              simpleResponse(ctx, NotFound, channelFutureListenerOpt = CloseOpt)
-            }
-
+          case "/health_check.html" => checkFunc(NettyServer.isHealthy)
+          case "/fallback_check.html" => checkFunc(NettyServer.isFallbackHealthy)
+          case "/query_fallback_check.html" => checkFunc(NettyServer.isQueryFallbackHealthy)
           case s if s.startsWith("/graphs/getEdge/") =>
-            // src, tgt, label, dir
-            val Array(srcId, tgtId, labelName, direction) = s.split("/").takeRight(4)
-            val params = Json.arr(Json.obj("label" -> labelName, "direction" -> direction, "from" -> srcId, "to" -> tgtId))
-            val result = s2rest.checkEdges(params)
-            toResponse(ctx, req, params, result, startedAt)
+            if (!NettyServer.isQueryFallbackHealthy) {
+              val result = HandlerResult(body = Future.successful(PostProcess.emptyResults))
+              toResponse(ctx, req, s, result, startedAt)
+            } else {
+              val Array(srcId, tgtId, labelName, direction) = s.split("/").takeRight(4)
+              val params = Json.arr(Json.obj("label" -> labelName, "direction" -> direction, "from" -> srcId, "to" -> tgtId))
+              val result = s2rest.checkEdges(params)
+              toResponse(ctx, req, s, result, startedAt)
+            }
           case _ => badRoute(ctx)
         }
 
       case HttpMethod.PUT =>
         if (uri.startsWith("/health_check/")) {
-          val newHealthCheck = uri.split("/").last.toBoolean
-          NettyServer.isHealthy = newHealthCheck
-          val newHealthCheckMsg = Unpooled.copiedBuffer(NettyServer.isHealthy.toString, CharsetUtil.UTF_8)
-          simpleResponse(ctx, Ok, byteBufOpt = Option(newHealthCheckMsg), channelFutureListenerOpt = CloseOpt)
-        } else badRoute(ctx)
+          val newValue = uri.split("/").last.toBoolean
+          updateFunc(newValue) { v => NettyServer.isHealthy = v }
+        } else if (uri.startsWith("/query_fallback_check/")) {
+          val newValue = uri.split("/").last.toBoolean
+          updateFunc(newValue) { v => NettyServer.isQueryFallbackHealthy = v }
+        } else if (uri.startsWith("/fallback_check/")) {
+          val newValue = uri.split("/").last.toBoolean
+          updateFunc(newValue) { v => NettyServer.isFallbackHealthy = v }
+        } else {
+          badRoute(ctx)
+        }
 
       case HttpMethod.POST =>
         val body = req.content.toString(CharsetUtil.UTF_8)
-
-        val result = s2rest.doPost(uri, body, Option(req.headers().get(Experiment.impressionKey)))
-        toResponse(ctx, req, Json.parse(body), result, startedAt)
+        if (!NettyServer.isQueryFallbackHealthy) {
+          val result = HandlerResult(body = Future.successful(PostProcess.emptyResults))
+          toResponse(ctx, req, body, result, startedAt)
+        } else {
+          val result = s2rest.doPost(uri, body, req.headers())
+          toResponse(ctx, req, body, result, startedAt)
+        }
 
       case _ =>
         simpleResponse(ctx, BadRequest, byteBufOpt = None, channelFutureListenerOpt = CloseOpt)
@@ -163,9 +192,14 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
   }
 
   override def exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
-    cause.printStackTrace()
-    logger.error(s"exception on query.", cause)
-    simpleResponse(ctx, BadRequest, byteBufOpt = None, channelFutureListenerOpt = CloseOpt)
+    cause match {
+      case e: java.io.IOException =>
+        ctx.channel().close().addListener(CloseOpt.get)
+      case _ =>
+        cause.printStackTrace()
+        logger.error(s"exception on query.", cause)
+        simpleResponse(ctx, BadRequest, byteBufOpt = None, channelFutureListenerOpt = CloseOpt)
+    }
   }
 }
 
@@ -178,6 +212,7 @@ object NettyServer {
   val config = ConfigFactory.load()
   val port = Try(config.getInt("http.port")).recover { case _ => 9000 }.get
   val transport = Try(config.getString("netty.transport")).recover { case _ => "jdk" }.get
+  val maxBodySize = Try(config.getInt("max.body.size")).recover { case _ => 65536 * 2 }.get
 
   // init s2graph with config
   val s2graph = new Graph(config)(ec)
@@ -185,6 +220,8 @@ object NettyServer {
 
   val deployInfo = Try(Source.fromFile("./release_info").mkString("")).recover { case _ => "release info not found\n" }.get
   var isHealthy = config.getBooleanWithFallback("app.health.on", true)
+  var isFallbackHealthy = true
+  var isQueryFallbackHealthy = true
 
   logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
   logger.info(s"transport: $transport")
@@ -201,14 +238,13 @@ object NettyServer {
     try {
       val b: ServerBootstrap = new ServerBootstrap()
         .option(ChannelOption.SO_BACKLOG, Int.box(2048))
-
       b.group(bossGroup, workerGroup).channel(channelClass)
         .handler(new LoggingHandler(LogLevel.INFO))
         .childHandler(new ChannelInitializer[SocketChannel] {
           override def initChannel(ch: SocketChannel) {
             val p = ch.pipeline()
             p.addLast(new HttpServerCodec())
-            p.addLast(new HttpObjectAggregator(65536))
+            p.addLast(new HttpObjectAggregator(maxBodySize))
             p.addLast(new S2RestHandler(rest)(ec))
           }
         })

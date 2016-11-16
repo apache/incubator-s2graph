@@ -50,14 +50,16 @@ object VertexController extends Controller {
         }
 
         //FIXME:
-        val verticesToStore = vertices.filterNot(v => v.isAsync)
-
-        if (withWait) {
-          val rets = s2.mutateVertices(verticesToStore, withWait = true)
-          rets.map(Json.toJson(_)).map(jsonResponse(_))
-        } else {
-          val rets = verticesToStore.map { vertex => QueueActor.router ! vertex; true }
-          Future.successful(jsonResponse(Json.toJson(rets)))
+        val verticesToStore = vertices.filterNot(v => skipElement(v.isAsync))
+        if (verticesToStore.isEmpty) Future.successful(jsonResponse(Json.toJson(Seq.empty[Boolean])))
+        else {
+          if (withWait) {
+            val rets = s2.mutateVertices(verticesToStore, withWait = true)
+            rets.map(Json.toJson(_)).map(jsonResponse(_))
+          } else {
+            val rets = verticesToStore.map { vertex => QueueActor.router ! vertex; true }
+            Future.successful(jsonResponse(Json.toJson(rets)))
+          }
         }
       } catch {
         case e: GraphExceptions.JsonParseException => Future.successful(BadRequest(s"e"))

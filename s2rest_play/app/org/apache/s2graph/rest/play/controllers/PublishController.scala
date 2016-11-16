@@ -63,12 +63,4 @@ object PublishController extends Controller {
 
   def publish(topic: String) = publishOnly(topic)
 
-  //  def mutateBulk(topic: String) = Action.async(parse.text) { request =>
-  //    EdgeController.mutateAndPublish(Config.KAFKA_LOG_TOPIC, Config.KAFKA_FAIL_TOPIC, request.body).map { result =>
-  //      result.withHeaders(CONNECTION -> "Keep-Alive", "Keep-Alive" -> "timeout=10, max=10")
-  //    }
-  //  }
-  def mutateBulk(topic: String) = withHeaderAsync(parse.text) { request =>
-    EdgeController.mutateBulkFormat(request.body)
-  }
 }
