@@ -24,6 +24,7 @@ package org.apache.s2graph.core.mysqls
  */
 
 import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.core.mysqls.LabelIndex.WriteOption
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.{JsObject, JsString, Json}
 import scalikejdbc._
@@ -39,7 +40,30 @@ object LabelIndex extends Model[LabelIndex] {
       rs.string("meta_seqs").split(",").filter(_ != "").map(s => s.toByte).toList match {
         case metaSeqsList => metaSeqsList
       },
-      rs.string("formulars"))
+      rs.string("formulars"),
+      rs.intOpt("dir"),
+      rs.stringOpt("options")
+    )
+  }
+  object WriteOption {
+    val Default = WriteOption()
+  }
+  case class WriteOption(method: String = "default",
+                         rate: Double = 1.0,
+                         totalModular: Long = 100,
+                         storeDegree: Boolean = true) {
+
+    def sample[T](a: T, hashOpt: Option[Long]): Boolean = {
+      if (method == "drop") false
+      else if (method == "sample") {
+        if (scala.util.Random.nextDouble() < rate) true
+        else false
+      } else if (method == "hash_sample") {
+        val hash = hashOpt.getOrElse(throw new RuntimeException("hash_sample need _from_hash value"))
+        if ((hash.abs % totalModular) / totalModular.toDouble < rate) true
+        else false
+      } else true
+    }
   }
 
   def findById(id: Int)(implicit session: DBSession = AutoSession) = {
@@ -62,24 +86,27 @@ object LabelIndex extends Model[LabelIndex] {
     }
   }
 
-  def insert(labelId: Int, indexName: String, seq: Byte, metaSeqs: List[Byte], formulars: String)(implicit session: DBSession = AutoSession): Long = {
+  def insert(labelId: Int, indexName: String, seq: Byte, metaSeqs: List[Byte], formulars: String,
+             direction: Option[Int], options: Option[String])(implicit session: DBSession = AutoSession): Long = {
     sql"""
-    	insert into label_indices(label_id, name, seq, meta_seqs, formulars)
-    	values (${labelId}, ${indexName}, ${seq}, ${metaSeqs.mkString(",")}, ${formulars})
+    	insert into label_indices(label_id, name, seq, meta_seqs, formulars, dir, options)
+    	values (${labelId}, ${indexName}, ${seq}, ${metaSeqs.mkString(",")}, ${formulars}, ${direction}, ${options})
     """
       .updateAndReturnGeneratedKey.apply()
   }
 
-  def findOrInsert(labelId: Int, indexName: String, metaSeqs: List[Byte], formulars: String)(implicit session: DBSession = AutoSession): LabelIndex = {
-    findByLabelIdAndSeqs(labelId, metaSeqs) match {
+  def findOrInsert(labelId: Int, indexName: String, metaSeqs: List[Byte], formulars: String,
+                   direction: Option[Int], options: Option[String])(implicit session: DBSession = AutoSession): LabelIndex = {
+    findByLabelIdAndSeqs(labelId, metaSeqs, direction) match {
       case Some(s) => s
       case None =>
         val orders = findByLabelIdAll(labelId, false)
         val seq = (orders.size + 1).toByte
         assert(seq <= MaxOrderSeq)
-        val createdId = insert(labelId, indexName, seq, metaSeqs, formulars)
+        val createdId = insert(labelId, indexName, seq, metaSeqs, formulars, direction, options)
         val cacheKeys = List(s"labelId=$labelId:seq=$seq",
-          s"labelId=$labelId:seqs=$metaSeqs", s"labelId=$labelId:seq=$seq", s"id=$createdId")
+          s"labelId=$labelId:seqs=$metaSeqs:dir=$direction", s"labelId=$labelId:seq=$seq", s"id=$createdId")
+
         cacheKeys.foreach { key =>
           expireCache(key)
           expireCaches(key)
@@ -89,11 +116,11 @@ object LabelIndex extends Model[LabelIndex] {
     }
   }
 
-  def findByLabelIdAndSeqs(labelId: Int, seqs: List[Byte])(implicit session: DBSession = AutoSession): Option[LabelIndex] = {
-    val cacheKey = "labelId=" + labelId + ":seqs=" + seqs.mkString(",")
+  def findByLabelIdAndSeqs(labelId: Int, seqs: List[Byte], direction: Option[Int])(implicit session: DBSession = AutoSession): Option[LabelIndex] = {
+    val cacheKey = "labelId=" + labelId + ":seqs=" + seqs.mkString(",") + ":dir=" + direction
     withCache(cacheKey) {
       sql"""
-      select * from label_indices where label_id = ${labelId} and meta_seqs = ${seqs.mkString(",")}
+      select * from label_indices where label_id = ${labelId} and meta_seqs = ${seqs.mkString(",")} and dir = ${direction}
       """.map { rs => LabelIndex(rs) }.single.apply
     }
   }
@@ -118,7 +145,7 @@ object LabelIndex extends Model[LabelIndex] {
     val (labelId, seq) = (labelIndex.labelId, labelIndex.seq)
     sql"""delete from label_indices where id = ${id}""".execute.apply()
 
-    val cacheKeys = List(s"id=$id", s"labelId=$labelId", s"labelId=$labelId:seq=$seq", s"labelId=$labelId:seqs=$seqs")
+    val cacheKeys = List(s"id=$id", s"labelId=$labelId", s"labelId=$labelId:seq=$seq", s"labelId=$labelId:seqs=$seqs:dir=${labelIndex.dir}")
     cacheKeys.foreach { key =>
       expireCache(key)
       expireCaches(key)
@@ -136,7 +163,7 @@ object LabelIndex extends Model[LabelIndex] {
       (cacheKey -> x)
     })
     putsToCache(ls.map { x =>
-      var cacheKey = s"labelId=${x.labelId}:seqs=${x.metaSeqs.mkString(",")}"
+      var cacheKey = s"labelId=${x.labelId}:seqs=${x.metaSeqs.mkString(",")}:dir=${x.dir}"
       (cacheKey -> x)
     })
     putsToCaches(ls.groupBy(x => x.labelId).map { case (labelId, ls) =>
@@ -146,14 +173,38 @@ object LabelIndex extends Model[LabelIndex] {
   }
 }
 
-case class LabelIndex(id: Option[Int], labelId: Int, name: String, seq: Byte, metaSeqs: Seq[Byte], formulars: String) {
+case class LabelIndex(id: Option[Int], labelId: Int, name: String, seq: Byte, metaSeqs: Seq[Byte], formulars: String,
+                      dir: Option[Int], options: Option[String]) {
+  // both
   lazy val label = Label.findById(labelId)
   lazy val metas = label.metaPropsMap
   lazy val sortKeyTypes = metaSeqs.flatMap(metaSeq => label.metaPropsMap.get(metaSeq))
   lazy val sortKeyTypesArray = sortKeyTypes.toArray
   lazy val propNames = sortKeyTypes.map { labelMeta => labelMeta.name }
+
+  val dirJs = dir.map(GraphUtil.fromDirection).getOrElse("both")
+  val optionsJs = try { options.map(Json.parse).getOrElse(Json.obj()) } catch { case e: Exception => Json.obj() }
   lazy val toJson = Json.obj(
     "name" -> name,
-    "propNames" -> sortKeyTypes.map(x => x.name)
+    "propNames" -> sortKeyTypes.map(x => x.name),
+    "dir" -> dirJs,
+    "options" -> optionsJs
   )
+
+  lazy val writeOption: Option[WriteOption] = try {
+    options.map { string =>
+      val jsObj = Json.parse(string)
+      val method = (jsObj \ "method").as[String]
+
+      val rate = (jsObj \ "rate").asOpt[Double].getOrElse(1.0)
+      val totalModular = (jsObj \ "totalModular").asOpt[Long].getOrElse(100L)
+      val storeDegree = (jsObj \ "degree").asOpt[Boolean].getOrElse(true)
+
+      WriteOption(method, rate, totalModular, storeDegree)
+    }
+  } catch {
+    case e: Exception =>
+      logger.error(s"Parse failed labelOption: ${this.label}", e)
+      None
+  }
 }

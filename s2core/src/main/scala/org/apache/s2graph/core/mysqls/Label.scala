@@ -211,11 +211,11 @@ object Label extends Model[Label] {
 
           if (indices.isEmpty) {
             // make default index with _PK, _timestamp, 0
-            LabelIndex.findOrInsert(createdId, LabelIndex.DefaultName, LabelIndex.DefaultMetaSeqs.toList, "none")
+            LabelIndex.findOrInsert(createdId, LabelIndex.DefaultName, LabelIndex.DefaultMetaSeqs.toList, "none", None, None)
           } else {
             indices.foreach { index =>
               val metaSeq = index.propNames.map { name => labelMetaMap(name) }
-              LabelIndex.findOrInsert(createdId, index.name, metaSeq.toList, "none")
+              LabelIndex.findOrInsert(createdId, index.name, metaSeq.toList, "none", index.direction, index.options)
             }
           }
 

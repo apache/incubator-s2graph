@@ -44,6 +44,8 @@ Release 0.1.0 - unreleased
 		(Contributed by Hyunsung Jo<hyunsung.jo@gmail.com>, committed by DOYUNG YOON).
 
     S2GRAPH-125: Add options field on Label model for controlling advanced options (Committed by DOYUNG YOON).
+   
+    S2GRAPH-123: Support different index on out/in direction (Committed by DOYUNG YOON).
 
   IMPROVEMENT
 

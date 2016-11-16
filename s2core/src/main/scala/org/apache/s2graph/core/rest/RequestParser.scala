@@ -611,11 +611,23 @@ class RequestParser(graph: Graph) {
     Prop(propName, defaultValue, dataType)
   }
 
-  def toIndicesElements(jsValue: JsLookupResult): Seq[Index] = for {
-    jsObj <- jsValue.as[Seq[JsValue]]
-    indexName = (jsObj \ "name").as[String]
-    propNames = (jsObj \ "propNames").as[Seq[String]]
-  } yield Index(indexName, propNames)
+  def toIndicesElements(jsValue: JsLookupResult): Seq[Index] = {
+    val indices = for {
+      jsObj <- jsValue.as[Seq[JsValue]]
+      indexName = (jsObj \ "name").as[String]
+      propNames = (jsObj \ "propNames").as[Seq[String]]
+      direction = (jsObj \ "direction").asOpt[String].map(GraphUtil.toDirection)
+      options = (jsObj \ "options").asOpt[JsValue].map(_.toString)
+    } yield {
+      Index(indexName, propNames, direction, options)
+    }
+
+    val (pk, others) = indices.partition(index => index.name == LabelIndex.DefaultName)
+    val (both, inOut) = others.partition(index => index.direction.isEmpty)
+    val (in, out) = inOut.partition(index => index.direction.get == GraphUtil.directions("in"))
+
+    pk ++ both ++ in ++ out
+  }
 
   def toLabelElements(jsValue: JsValue) = Try {
     val labelName = parse[String](jsValue, "label")
@@ -642,8 +654,8 @@ class RequestParser(graph: Graph) {
     val options = (jsValue \ "options").asOpt[JsValue].map(_.toString())
 
     (labelName, srcServiceName, srcColumnName, srcColumnType,
-      tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
-      indices, allProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm, options)
+        tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
+        indices, allProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm, options)
   }
 
   def toIndexElements(jsValue: JsValue) = Try {
@@ -701,6 +713,16 @@ class RequestParser(graph: Graph) {
     val ts = (json \ "timestamp").asOpt[Long].getOrElse(System.currentTimeMillis())
     val vertices = toVertices(labelName, direction, ids)
     (labels, direction, ids, ts, vertices)
+  }
+
+  def toFetchAndDeleteParam(json: JsValue) = {
+    val labelName = (json \ "label").as[String]
+    val fromOpt = (json \ "from").asOpt[JsValue]
+    val toOpt = (json \ "to").asOpt[JsValue]
+    val direction = (json \ "direction").asOpt[String].getOrElse("out")
+    val indexOpt = (json \ "index").asOpt[String]
+    val propsOpt = (json \ "props").asOpt[JsObject]
+    (labelName, fromOpt, toOpt, direction, indexOpt, propsOpt)
   }
 
   def parseExperiment(jsQuery: JsValue): Seq[ExperimentParam] = jsQuery.as[Seq[JsObject]].map { obj =>

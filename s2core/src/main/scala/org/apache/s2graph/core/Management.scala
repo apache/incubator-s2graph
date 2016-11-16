@@ -43,8 +43,7 @@ object Management {
 
     object Prop extends ((String, String, String) => Prop)
 
-    case class Index(name: String, propNames: Seq[String])
-
+    case class Index(name: String, propNames: Seq[String], direction: Option[Int] = None, options: Option[String] = None)
   }
 
   import HBaseType._
@@ -135,7 +134,7 @@ object Management {
 
       indices.foreach { index =>
         val metaSeq = index.propNames.map { name => labelMetaMap(name).seq }
-        LabelIndex.findOrInsert(label.id.get, index.name, metaSeq.toList, "none")
+        LabelIndex.findOrInsert(label.id.get, index.name, metaSeq.toList, "none", index.direction, index.options)
       }
 
       label
@@ -340,7 +339,7 @@ class Management(graph: Graph) {
     val old = Label.findByName(oldLabelName, useCache = false).getOrElse(throw new LabelNotExistException(s"Old label $oldLabelName not exists."))
 
     val allProps = old.metas(useCache = false).map { labelMeta => Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType) }
-    val allIndices = old.indices(useCache = false).map { index => Index(index.name, index.propNames) }
+    val allIndices = old.indices(useCache = false).map { index => Index(index.name, index.propNames, index.dir, index.options) }
 
     createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
       old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,

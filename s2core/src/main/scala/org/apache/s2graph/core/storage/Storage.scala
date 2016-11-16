@@ -1035,8 +1035,9 @@ abstract class Storage[Q, R](val graph: Graph,
 
   def incrementsInOut(edgeMutate: EdgeMutate): (Seq[SKeyValue], Seq[SKeyValue]) = {
 
-    def filterOutDegree(e: IndexEdge): Boolean = true
-
+    def filterOutDegree(e: IndexEdge): Boolean =
+      e.labelIndex.writeOption.fold(true)(_.storeDegree)
+      
     (edgeMutate.edgesToDelete.isEmpty, edgeMutate.edgesToInsert.isEmpty) match {
       case (true, true) =>
 
