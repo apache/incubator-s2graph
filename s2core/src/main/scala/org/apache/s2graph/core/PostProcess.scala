@@ -83,7 +83,7 @@ object PostProcess {
       builder += ("from" -> anyValToJsValue(s2Edge.srcId).get)
       builder += ("label" -> anyValToJsValue(label.label).get)
       builder += ("direction" -> anyValToJsValue(s2Edge.direction).get)
-      builder += (LabelMeta.degree.name -> anyValToJsValue(s2Edge.propsWithTs(LabelMeta.degree).innerVal.value).get)
+      builder += (LabelMeta.degree.name -> anyValToJsValue(s2Edge.propertyValueInner(LabelMeta.degree).innerVal.value).get)
       JsObject(builder)
     } else {
       if (queryOption.withScore) builder += ("score" -> anyValToJsValue(score).get)
@@ -95,7 +95,7 @@ object PostProcess {
 
         val innerProps = ArrayBuffer.empty[(String, JsValue)]
         for {
-          (labelMeta, v) <- edgeWithScore.edge.propsWithTs
+          (labelMeta, v) <- edgeWithScore.edge.propertyValues()
           jsValue <- anyValToJsValue(v.innerVal.value)
         } {
           innerProps += (labelMeta.name -> jsValue)
@@ -126,9 +126,10 @@ object PostProcess {
         }
         val innerProps = ArrayBuffer.empty[(String, JsValue)]
         for {
-          (labelMeta, v) <- edgeWithScore.edge.propsWithTs
-          if !checkSelectColumns || queryOption.selectColumnsMap.contains(labelMeta.name)
-          jsValue <- anyValToJsValue(v.innerVal.value)
+          (selectColumnName, _) <- queryOption.selectColumnsMap
+          labelMeta <- label.metaPropsInvMap.get(selectColumnName)
+          innerValWithTs = edgeWithScore.edge.propertyValueInner(labelMeta)
+          jsValue <- anyValToJsValue(innerValWithTs.innerVal.value)
         } {
           innerProps += (labelMeta.name -> jsValue)
         }

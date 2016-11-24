@@ -261,3 +261,91 @@ case class InnerValLikeWithTs(innerVal: InnerValLike, ts: Long)
     Bytes.add(innerVal.bytes, Bytes.toBytes(ts))
   }
 }
+
+trait CanInnerValLike[A] {
+  def toInnerVal(element: A)(implicit encodingVer: String): InnerValLike
+}
+object CanInnerValLike {
+  implicit val encodingVer = "v2"
+
+  def validate(element: Any, classType: String): Boolean = {
+    import InnerVal._
+    classType match {
+      case BLOB => element.isInstanceOf[Array[Byte]]
+      case STRING => element.isInstanceOf[String]
+      case DOUBLE => element.isInstanceOf[Double] || element.isInstanceOf[BigDecimal]
+      case FLOAT => element.isInstanceOf[Float] || element.isInstanceOf[BigDecimal]
+      case LONG => element.isInstanceOf[Long] || element.isInstanceOf[BigDecimal]
+      case INT => element.isInstanceOf[Int] || element.isInstanceOf[BigDecimal]
+      case SHORT => element.isInstanceOf[Short]  || element.isInstanceOf[BigDecimal]
+      case BYTE => element.isInstanceOf[Byte]  || element.isInstanceOf[BigDecimal]
+      case BOOLEAN => element.isInstanceOf[Boolean]
+      case _ => throw new RuntimeException(s"not supported data type: $element, $classType")
+    }
+  }
+  implicit val anyToInnerValLike = new CanInnerValLike[Any] {
+    override def toInnerVal(element: Any)(implicit encodingVer: String): InnerValLike = {
+      element match {
+        case i: InnerValLike => i
+        case s: String => stringToInnerValLike.toInnerVal(s)
+        case i: Int => intToInnerValLike.toInnerVal(i)
+        case l: Long => longToInnerValLike.toInnerVal(l)
+        case f: Float => floatToInnerValLike.toInnerVal(f)
+        case d: Double => doubleToInnerValLike.toInnerVal(d)
+        case b: BigDecimal => bigDecimalToInnerValLike.toInnerVal(b)
+        case b: Boolean => booleanToInnerValLike.toInnerVal(b)
+        case b: Array[Byte] => blobToInnerValLike.toInnerVal(b)
+        case _ => throw new RuntimeException(s"not supported element type: $element, ${element.getClass}")
+      }
+    }
+  }
+  implicit val innerValLikeToInnerValLike = new CanInnerValLike[InnerValLike] {
+    override def toInnerVal(element: InnerValLike)(implicit encodingVer: String): InnerValLike = element
+  }
+  implicit val objectToInnerValLike = new CanInnerValLike[Object] {
+    override def toInnerVal(element: Object)(implicit encodingVer: String): InnerValLike = {
+      anyToInnerValLike.toInnerVal(element.asInstanceOf[Any])
+    }
+  }
+
+  implicit val stringToInnerValLike = new CanInnerValLike[String] {
+    override def toInnerVal(element: String)(implicit encodingVer: String): InnerValLike = {
+      InnerVal.withStr(element, encodingVer)
+    }
+  }
+  implicit val longToInnerValLike = new CanInnerValLike[Long] {
+    override def toInnerVal(element: Long)(implicit encodingVer: String): InnerValLike = {
+      InnerVal.withLong(element, encodingVer)
+    }
+  }
+  implicit val intToInnerValLike = new CanInnerValLike[Int] {
+    override def toInnerVal(element: Int)(implicit encodingVer: String): InnerValLike = {
+      InnerVal.withInt(element, encodingVer)
+    }
+  }
+  implicit val floatToInnerValLike = new CanInnerValLike[Float] {
+    override def toInnerVal(element: Float)(implicit encodingVer: String): InnerValLike = {
+      InnerVal.withFloat(element, encodingVer)
+    }
+  }
+  implicit val doubleToInnerValLike = new CanInnerValLike[Double] {
+    override def toInnerVal(element: Double)(implicit encodingVer: String): InnerValLike = {
+      InnerVal.withDouble(element, encodingVer)
+    }
+  }
+  implicit val bigDecimalToInnerValLike = new CanInnerValLike[BigDecimal] {
+    override def toInnerVal(element: BigDecimal)(implicit encodingVer: String): InnerValLike = {
+      InnerVal.withNumber(element, encodingVer)
+    }
+  }
+  implicit val booleanToInnerValLike = new CanInnerValLike[Boolean] {
+    override def toInnerVal(element: Boolean)(implicit encodingVer: String): InnerValLike = {
+      InnerVal.withBoolean(element, encodingVer)
+    }
+  }
+  implicit val blobToInnerValLike = new CanInnerValLike[Array[Byte]] {
+    override def toInnerVal(element: Array[Byte])(implicit encodingVer: String): InnerValLike = {
+      InnerVal.withBlob(element, encodingVer)
+    }
+  }
+}

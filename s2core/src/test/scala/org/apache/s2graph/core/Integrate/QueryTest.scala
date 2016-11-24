@@ -133,6 +133,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       queryOption = QueryOption(groupBy = GroupBy(props, 100))
     )
 
+
   test("query with defaultValue") {
     // ref: edges from initTestData()
 
@@ -436,6 +437,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
     // test parent With select fields
     var result = TestUtil.getEdgesSync(queryParents(src))
+    println(s"$result")
     var parents = (result \ "results").as[Seq[JsValue]]
     var ret = parents.forall { edge =>
       val parentEdges = (edge \ "parents").as[Seq[JsValue]]

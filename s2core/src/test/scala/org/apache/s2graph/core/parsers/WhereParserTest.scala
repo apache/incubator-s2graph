@@ -180,9 +180,9 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
 
       val grandParentEdge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, parentPropsInner)
       val parentEdge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, parentPropsInner,
-        parentEdges = Seq(EdgeWithScore(grandParentEdge, 1.0, grandParentEdge.label)))
+        parentEdges = Seq(EdgeWithScore(grandParentEdge, 1.0, grandParentEdge.innerLabel)))
       val edge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner,
-        parentEdges = Seq(EdgeWithScore(parentEdge, 1.0, grandParentEdge.label)))
+        parentEdges = Seq(EdgeWithScore(parentEdge, 1.0, grandParentEdge.innerLabel)))
 
       println(edge.toString)
       println(parentEdge.toString)

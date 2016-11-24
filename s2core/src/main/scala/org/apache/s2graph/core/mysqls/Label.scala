@@ -362,7 +362,7 @@ case class Label(id: Option[Int], label: String,
   } yield prop.name -> innerVal).toMap
 
   lazy val metaPropsDefaultMapInner = (for {
-    prop <- metaPropsInner if LabelMeta.isValidSeq(prop.seq)
+    prop <- metaPropsInner
     innerVal = InnerValLikeWithTs(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), System.currentTimeMillis())
   } yield prop -> innerVal).toMap
   lazy val metaPropsDefaultMapInnerSeq = metaPropsDefaultMapInner.toSeq

@@ -301,7 +301,7 @@ abstract class Storage[Q, R](val graph: Graph,
 
     val edgeWithIdxs = _edges.zipWithIndex
     val grouped = edgeWithIdxs.groupBy { case (edge, idx) =>
-      (edge.label, edge.srcVertex.innerId, edge.tgtVertex.innerId)
+      (edge.innerLabel, edge.srcVertex.innerId, edge.tgtVertex.innerId)
     } toSeq
 
     val mutateEdges = grouped.map { case ((_, _, _), edgeGroup) =>
@@ -314,7 +314,7 @@ abstract class Storage[Q, R](val graph: Graph,
 
           //TODO: decide what we will do on failure on vertex put
           val puts = buildVertexPutsAsync(head)
-          val vertexFuture = writeToStorage(head.label.hbaseZkAddr, puts, withWait)
+          val vertexFuture = writeToStorage(head.innerLabel.hbaseZkAddr, puts, withWait)
           Seq(edgeFuture, vertexFuture)
         case Nil => Nil
       }
@@ -358,7 +358,7 @@ abstract class Storage[Q, R](val graph: Graph,
     // TODO:: remove after code review: unreachable code
     if (!checkConsistency) {
 
-      val zkQuorum = edges.head.label.hbaseZkAddr
+      val zkQuorum = edges.head.innerLabel.hbaseZkAddr
       val futures = edges.map { edge =>
         val (_, edgeUpdate) = Edge.buildOperation(None, Seq(edge))
 
@@ -672,7 +672,7 @@ abstract class Storage[Q, R](val graph: Graph,
       if (p < FailProb) Future.failed(new PartialFailureException(squashedEdge, 3, s"$p"))
       else {
         val releaseLockEdgePuts = snapshotEdgeSerializer(releaseLockEdge).toKeyValues
-        writeToStorage(squashedEdge.label.hbaseZkAddr, releaseLockEdgePuts, withWait = true).recoverWith {
+        writeToStorage(squashedEdge.innerLabel.hbaseZkAddr, releaseLockEdgePuts, withWait = true).recoverWith {
           case ex: Exception =>
             logger.error(s"ReleaseLock RPC Failed.")
             throw new PartialFailureException(squashedEdge, 3, "ReleaseLock RPC Failed")
@@ -719,7 +719,7 @@ abstract class Storage[Q, R](val graph: Graph,
         val p = Random.nextDouble()
         if (p < FailProb) Future.failed(new PartialFailureException(squashedEdge, 1, s"$p"))
         else
-          writeToStorage(squashedEdge.label.hbaseZkAddr, indexedEdgeMutations(edgeMutate), withWait = true).map { ret =>
+          writeToStorage(squashedEdge.innerLabel.hbaseZkAddr, indexedEdgeMutations(edgeMutate), withWait = true).map { ret =>
             if (ret) {
               debug(ret, "mutate", squashedEdge.toSnapshotEdge, edgeMutate)
             } else {
@@ -746,7 +746,7 @@ abstract class Storage[Q, R](val graph: Graph,
                           edgeMutate: EdgeMutate): Future[Boolean] = {
 
     def _write(kvs: Seq[SKeyValue], withWait: Boolean): Future[Boolean] = {
-      writeToStorage(squashedEdge.label.hbaseZkAddr, kvs, withWait = withWait).map { ret =>
+      writeToStorage(squashedEdge.innerLabel.hbaseZkAddr, kvs, withWait = withWait).map { ret =>
         if (ret) {
           debug(ret, "increment", squashedEdge.toSnapshotEdge, edgeMutate)
         } else {
@@ -789,7 +789,7 @@ abstract class Storage[Q, R](val graph: Graph,
     if (stepInnerResult.isEmpty) Future.successful(true)
     else {
       val head = stepInnerResult.edgeWithScores.head
-      val zkQuorum = head.edge.label.hbaseZkAddr
+      val zkQuorum = head.edge.innerLabel.hbaseZkAddr
       val futures = for {
         edgeWithScore <- stepInnerResult.edgeWithScores
       } yield {
@@ -857,7 +857,7 @@ abstract class Storage[Q, R](val graph: Graph,
       }
     } else {
       snapshotEdgeOpt.flatMap { snapshotEdge =>
-        if (Edge.allPropsDeleted(snapshotEdge.props)) None
+        if (snapshotEdge.allPropsDeleted) None
         else {
           val edge = snapshotEdge.toEdge.copy(parentEdges = parentEdges)
           if (queryParam.where.map(_.filter(edge)).getOrElse(true)) Option(edge)
@@ -982,7 +982,7 @@ abstract class Storage[Q, R](val graph: Graph,
     /** TODO: Fix this. currently fetchSnapshotEdge should not use future cache
       * so use empty cacheKey.
       * */
-    val queryParam = QueryParam(labelName = edge.label.label,
+    val queryParam = QueryParam(labelName = edge.innerLabel.label,
       direction = GraphUtil.fromDirection(edge.labelWithDir.dir),
       tgtVertexIdOpt = Option(edge.tgtVertex.innerIdVal),
       cacheTTLInMillis = -1)
@@ -1075,14 +1075,14 @@ abstract class Storage[Q, R](val graph: Graph,
 
   /** IndexEdge */
   def buildIncrementsAsync(indexedEdge: IndexEdge, amount: Long = 1L): Seq[SKeyValue] = {
-    val newProps = indexedEdge.props ++ Map(LabelMeta.degree -> InnerValLikeWithTs.withLong(amount, indexedEdge.ts, indexedEdge.schemaVer))
-    val _indexedEdge = indexedEdge.copy(props = newProps)
+    val newProps = indexedEdge.updatePropsWithTs(Map(LabelMeta.degree -> InnerValLikeWithTs.withLong(amount, indexedEdge.ts, indexedEdge.schemaVer)))
+    val _indexedEdge = indexedEdge.copy(propsWithTs = newProps)
     indexEdgeSerializer(_indexedEdge).toKeyValues.map(_.copy(operation = SKeyValue.Increment, durability = _indexedEdge.label.durability))
   }
 
   def buildIncrementsCountAsync(indexedEdge: IndexEdge, amount: Long = 1L): Seq[SKeyValue] = {
-    val newProps = indexedEdge.props ++ Map(LabelMeta.count -> InnerValLikeWithTs.withLong(amount, indexedEdge.ts, indexedEdge.schemaVer))
-    val _indexedEdge = indexedEdge.copy(props = newProps)
+    val newProps = indexedEdge.updatePropsWithTs(Map(LabelMeta.count -> InnerValLikeWithTs.withLong(amount, indexedEdge.ts, indexedEdge.schemaVer)))
+    val _indexedEdge = indexedEdge.copy(propsWithTs = newProps)
     indexEdgeSerializer(_indexedEdge).toKeyValues.map(_.copy(operation = SKeyValue.Increment, durability = _indexedEdge.label.durability))
   }
 
@@ -1096,7 +1096,7 @@ abstract class Storage[Q, R](val graph: Graph,
   }
 
   def buildVertexPutsAsync(edge: Edge): Seq[SKeyValue] = {
-    val storeVertex = edge.label.extraOptions.get("storeVertex").map(_.as[Boolean]).getOrElse(false)
+    val storeVertex = edge.innerLabel.extraOptions.get("storeVertex").map(_.as[Boolean]).getOrElse(false)
 
     if (storeVertex) {
       if (edge.op == GraphUtil.operations("delete"))
@@ -1111,7 +1111,7 @@ abstract class Storage[Q, R](val graph: Graph,
   def buildDegreePuts(edge: Edge, degreeVal: Long): Seq[SKeyValue] = {
     val kvs = edge.edgesWithIndexValid.flatMap { _indexEdge =>
       val newProps = Map(LabelMeta.degree -> InnerValLikeWithTs.withLong(degreeVal, _indexEdge.ts, _indexEdge.schemaVer))
-      val indexEdge = _indexEdge.copy(props = newProps)
+      val indexEdge = _indexEdge.copy(propsWithTs = newProps)
 
       indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put, durability = indexEdge.label.durability))
     }

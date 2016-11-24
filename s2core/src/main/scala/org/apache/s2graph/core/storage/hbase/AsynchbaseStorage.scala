@@ -251,8 +251,7 @@ class AsynchbaseStorage(override val graph: Graph,
       val snapshotEdge = edge.toSnapshotEdge
       snapshotEdgeSerializer(snapshotEdge)
     } else {
-      val indexEdge = IndexEdge(edge.srcVertex, edge.tgtVertex, edge.label, edge.dir,
-        edge.op, edge.version, queryParam.labelOrderSeq, edge.propsWithTs)
+      val indexEdge = edge.toIndexEdge(queryParam.labelOrderSeq)
       indexEdgeSerializer(indexEdge)
     }
 
@@ -435,7 +434,7 @@ class AsynchbaseStorage(override val graph: Graph,
           relEdge <- edge.relatedEdges
           edgeWithIndex <- relEdge.edgesWithIndexValid
         } yield {
-          val countWithTs = edge.propsWithTs(LabelMeta.count)
+          val countWithTs = edge.propertyValueInner(LabelMeta.count)
           val countVal = countWithTs.innerVal.toString().toLong
           val kv = buildIncrementsCountAsync(edgeWithIndex, countVal).head
           val request = new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value))

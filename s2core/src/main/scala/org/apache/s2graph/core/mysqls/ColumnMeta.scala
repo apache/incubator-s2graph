@@ -125,5 +125,6 @@ object ColumnMeta extends Model[ColumnMeta] {
 }
 
 case class ColumnMeta(id: Option[Int], columnId: Int, name: String, seq: Byte, dataType: String) {
+  lazy val serviceColumn = ServiceColumn.findById(columnId)
   lazy val toJson = Json.obj("name" -> name, "dataType" -> dataType)
 }

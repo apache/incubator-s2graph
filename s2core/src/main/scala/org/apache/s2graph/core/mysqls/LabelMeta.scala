@@ -191,6 +191,7 @@ case class LabelMeta(id: Option[Int],
                      seq: Byte,
                      defaultValue: String,
                      dataType: String) {
+  lazy val label = Label.findById(labelId)
   lazy val toJson = Json.obj("name" -> name, "defaultValue" -> defaultValue, "dataType" -> dataType)
   override def equals(other: Any): Boolean = {
     if (!other.isInstanceOf[LabelMeta]) false

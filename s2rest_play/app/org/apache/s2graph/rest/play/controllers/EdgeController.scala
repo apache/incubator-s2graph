@@ -54,7 +54,7 @@ object EdgeController extends Controller {
       case v: Vertex =>
         enqueue(kafkaTopic, graphElem, tsv)
       case e: Edge =>
-        e.label.extraOptions.get("walLog") match {
+        e.innerLabel.extraOptions.get("walLog") match {
           case None =>
             enqueue(kafkaTopic, e, tsv)
           case Some(walLogOpt) =>
@@ -94,7 +94,7 @@ object EdgeController extends Controller {
       results.get.zip(elements).map {
         case (false, (e: Edge, tsv: String)) =>
           val kafkaMessages = if(e.op == GraphUtil.operations("deleteAll")){
-            toDeleteAllFailMessages(Seq(e.srcVertex), Seq(e.label), e.labelWithDir.dir, e.ts)
+            toDeleteAllFailMessages(Seq(e.srcVertex), Seq(e.innerLabel), e.labelWithDir.dir, e.ts)
           } else{
             Seq(ExceptionHandler.toKafkaMessage(Config.KAFKA_MUTATE_FAIL_TOPIC, e, Some(tsv)))
           }

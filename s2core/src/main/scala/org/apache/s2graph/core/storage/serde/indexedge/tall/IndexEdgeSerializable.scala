@@ -59,9 +59,9 @@ class IndexEdgeSerializable(indexEdge: IndexEdge, longToBytes: Long => Array[Byt
 
    override def toValue: Array[Byte] =
      if (indexEdge.degreeEdge)
-       longToBytes(indexEdge.props(LabelMeta.degree).innerVal.toString().toLong)
+       longToBytes(indexEdge.property(LabelMeta.degree).innerVal.toString().toLong)
      else if (indexEdge.op == GraphUtil.operations("incrementCount"))
-       longToBytes(indexEdge.props(LabelMeta.count).innerVal.toString().toLong)
+       longToBytes(indexEdge.property(LabelMeta.count).innerVal.toString().toLong)
      else propsToKeyValues(indexEdge.metas.toSeq)
 
  }

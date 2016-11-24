@@ -41,8 +41,7 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[
     val byte = (((statusCode << 4) | op).toByte)
     Array.fill(1)(byte.toByte)
   }
-  def valueBytes() = Bytes.add(statusCodeWithOp(snapshotEdge.statusCode, snapshotEdge.op),
-    propsToKeyValuesWithTs(snapshotEdge.props.toList))
+  def valueBytes() = Bytes.add(statusCodeWithOp(snapshotEdge.statusCode, snapshotEdge.op), snapshotEdge.propsToKeyValuesWithTs)
 
 
   override def toRowKey: Array[Byte] = {
@@ -62,7 +61,7 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[
       case Some(pendingEdge) =>
         val opBytes = statusCodeWithOp(pendingEdge.statusCode, pendingEdge.op)
         val versionBytes = Array.empty[Byte]
-        val propsBytes = propsToKeyValuesWithTs(pendingEdge.propsWithTs.toSeq)
+        val propsBytes = pendingEdge.serializePropsWithTs()
         val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)
         Bytes.add(Bytes.add(valueBytes(), opBytes, versionBytes), Bytes.add(propsBytes, lockBytes))
     }

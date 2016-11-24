@@ -83,15 +83,8 @@ case class EdgeWithScore(edge: Edge,
                          accumulatedScores: Map[String, Double] = Map.empty) {
 
   def toValue(keyName: String): Option[Any] = keyName match {
-    case "from" | "_from" => Option(edge.srcId)
-    case "to" | "_to" => Option(edge.tgtId)
-    case "label" => Option(label.label)
-    case "direction" => Option(edge.dir)
     case "score" => Option(score)
-    case _ =>
-      label.metaPropsInvMap.get(keyName).flatMap { labelMeta =>
-        edge.propsWithTs.get(labelMeta).orElse(label.metaPropsDefaultMapInner.get(labelMeta)).map(_.innerVal.value)
-      }
+    case _ => edge.propertyValue(keyName).map(_.innerVal.value)
   }
 
   def toValues(keyNames: Seq[String]): Seq[Option[Any]] = for {

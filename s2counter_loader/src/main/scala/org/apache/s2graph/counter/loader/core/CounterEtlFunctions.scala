@@ -54,7 +54,7 @@ object CounterEtlFunctions extends Logging {
         filterOps.contains(x.op)
       }
     } yield {
-      val label = edge.label
+      val label = edge.innerLabel
       val labelName = label.label
       val tgtService = label.tgtColumn.service.serviceName
       val tgtId = edge.tgtVertex.innerId.toString()

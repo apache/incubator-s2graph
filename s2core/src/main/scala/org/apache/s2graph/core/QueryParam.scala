@@ -166,11 +166,7 @@ case class EdgeTransformer(jsValue: JsValue) {
     fieldName match {
       case LabelMeta.to.name => Option(edge.tgtVertex.innerId)
       case LabelMeta.from.name => Option(edge.srcVertex.innerId)
-      case _ =>
-        for {
-          labelMeta <- queryParam.label.metaPropsInvMap.get(fieldName)
-          value <- edge.propsWithTs.get(labelMeta)
-        } yield value.innerVal
+      case _ => edge.propertyValue(fieldName).map(_.innerVal)
     }
   }
 
@@ -376,7 +372,7 @@ case class QueryParam(labelName: String,
           val propKey = _propKey.split("_parent.").last
           val padding = Try(_padding.trim.toLong).getOrElse(0L)
 
-          val labelMeta = edge.label.metaPropsInvMap.getOrElse(propKey, throw new RuntimeException(s"$propKey not found in ${edge} labelMetas."))
+          val labelMeta = edge.innerLabel.metaPropsInvMap.getOrElse(propKey, throw new RuntimeException(s"$propKey not found in ${edge} labelMetas."))
 
           val propVal =
             if (InnerVal.isNumericType(labelMeta.dataType)) {

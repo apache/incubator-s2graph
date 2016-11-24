@@ -42,7 +42,7 @@ libraryDependencies ++= Seq(
   "io.netty" % "netty" % "3.9.4.Final" force(),
   "org.hbase" % "asynchbase" % "1.7.2" excludeLogging(),
   "net.bytebuddy" % "byte-buddy" % "1.4.26",
-
+  "org.apache.tinkerpop" % "gremlin-core" % tinkerpopVersion,
   "org.scalatest" %% "scalatest" % "2.2.4" % "test",
   "org.specs2" %% "specs2-core" % specs2Version % "test"
 )

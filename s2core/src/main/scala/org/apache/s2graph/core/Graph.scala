@@ -220,7 +220,7 @@ object Graph {
       case None => 1.0
       case Some(timeDecay) =>
         val tsVal = try {
-          val innerValWithTsOpt = edge.propsWithTs.get(timeDecay.labelMeta)
+          val innerValWithTsOpt = edge.propertyValue(timeDecay.labelMeta.name)
           innerValWithTsOpt.map { innerValWithTs =>
             val innerVal = innerValWithTs.innerVal
             timeDecay.labelMeta.dataType match {
@@ -324,17 +324,7 @@ object Graph {
             val label = edgeWithScore.label
 
             /** Select */
-            val mergedPropsWithTs =
-            if (queryOption.selectColumns.isEmpty) {
-              label.metaPropsDefaultMapInner.map { case (labelMeta, defaultVal) =>
-                labelMeta -> edge.propsWithTs.getOrElse(labelMeta, defaultVal)
-              }
-            } else {
-              val initial = Map(LabelMeta.timestamp -> edge.propsWithTs(LabelMeta.timestamp))
-              propsSelectColumns.foldLeft(initial) { case (prev, labelMeta) =>
-                prev + (labelMeta -> edge.propsWithTs.getOrElse(labelMeta, label.metaPropsDefaultMapInner(labelMeta)))
-              }
-            }
+            val mergedPropsWithTs = edge.propertyValuesInner(propsSelectColumns)
 
             val newEdge = edge.copy(propsWithTs = mergedPropsWithTs)
             val newEdgeWithScore = edgeWithScore.copy(edge = newEdge)
@@ -414,19 +404,10 @@ object Graph {
         /** Select */
         val mergedPropsWithTs =
           if (queryOption.selectColumns.isEmpty) {
-            label.metaPropsDefaultMapInner.map { case (labelMeta, defaultVal) =>
-              labelMeta -> edge.propsWithTs.getOrElse(labelMeta, defaultVal)
-            }
+            edge.propertyValuesInner()
           } else {
-            val initial = Map(LabelMeta.timestamp -> edge.propsWithTs(LabelMeta.timestamp))
-            queryOption.selectColumns.foldLeft(initial) { case (acc, labelMetaName) =>
-              label.metaPropsDefaultMapInnerString.get(labelMetaName) match {
-                case None => acc
-                case Some(defaultValue) =>
-                  val labelMeta = label.metaPropsInvMap(labelMetaName)
-                  acc + (labelMeta -> edge.propsWithTs.getOrElse(labelMeta, defaultValue))
-              }
-            }
+            val initial = Map(LabelMeta.timestamp -> edge.propertyValueInner(LabelMeta.timestamp))
+            edge.propertyValues(queryOption.selectColumns) ++ initial
           }
 
         val newEdge = edge.copy(propsWithTs = mergedPropsWithTs)
@@ -475,7 +456,7 @@ object Graph {
                              stepIdx: Int,
                              stepResultLs: Seq[(QueryRequest, StepResult)],
                              parentEdges: Map[VertexId, Seq[EdgeWithScore]])
-                            (createFunc: (EdgeWithScore, Set[LabelMeta]) => T)
+                            (createFunc: (EdgeWithScore, Seq[LabelMeta]) => T)
                             (implicit ev: WithScore[T]): ListBuffer[T] = {
     import scala.collection._
 
@@ -500,7 +481,7 @@ object Graph {
       val propsSelectColumns = (for {
         column <- queryOption.propsSelectColumns
         labelMeta <- label.metaPropsInvMap.get(column)
-      } yield labelMeta).toSet
+      } yield labelMeta)
 
       for {
         edgeWithScore <- toEdgeWithScores(queryRequest, stepInnerResult, parentEdges)
@@ -831,14 +812,14 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
     /** TODO: Fix this. currently fetchSnapshotEdge should not use future cache
       * so use empty cacheKey.
       * */
-    val queryParam = QueryParam(labelName = edge.label.label,
+    val queryParam = QueryParam(labelName = edge.innerLabel.label,
       direction = GraphUtil.fromDirection(edge.labelWithDir.dir),
       tgtVertexIdOpt = Option(edge.tgtVertex.innerIdVal),
       cacheTTLInMillis = -1)
     val q = Query.toQuery(Seq(edge.srcVertex), queryParam)
     val queryRequest = QueryRequest(q, 0, edge.srcVertex, queryParam)
 
-    val storage = getStorage(edge.label)
+    val storage = getStorage(edge.innerLabel)
     storage.fetchSnapshotEdgeKeyValues(queryRequest).map { kvs =>
       val (edgeOpt, kvOpt) =
         if (kvs.isEmpty) (None, None)
@@ -927,7 +908,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
       if deleteStepInnerResult.edgeWithScores.nonEmpty
     } yield {
       val head = deleteStepInnerResult.edgeWithScores.head
-      val label = head.edge.label
+      val label = head.edge.innerLabel
       val ret = label.schemaVersion match {
         case HBaseType.VERSION3 | HBaseType.VERSION4 =>
           if (label.consistencyLevel == "strong") {
@@ -965,16 +946,18 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
     if (filtered.isEmpty) StepResult.Empty
     else {
       val head = filtered.head
-      val label = head.edge.label
+      val label = head.edge.innerLabel
       val edgeWithScoreLs = filtered.map { edgeWithScore =>
         val (newOp, newVersion, newPropsWithTs) = label.consistencyLevel match {
           case "strong" =>
-            val _newPropsWithTs = edgeWithScore.edge.propsWithTs ++
-                Map(LabelMeta.timestamp -> InnerValLikeWithTs.withLong(requestTs, requestTs, label.schemaVersion))
+            val _newPropsWithTs = edgeWithScore.edge.updatePropsWithTs(
+              Map(LabelMeta.timestamp -> InnerValLikeWithTs.withLong(requestTs, requestTs, label.schemaVersion))
+            )
+
             (GraphUtil.operations("delete"), requestTs, _newPropsWithTs)
           case _ =>
             val oldEdge = edgeWithScore.edge
-            (oldEdge.op, oldEdge.version, oldEdge.propsWithTs)
+            (oldEdge.op, oldEdge.version, oldEdge.updatePropsWithTs())
         }
 
         val copiedEdge =
@@ -1029,11 +1012,11 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
     val (strongEdges, weakEdges) =
       edgeWithIdxs.partition { case (edge, idx) =>
         val e = edge
-        e.label.consistencyLevel == "strong" && e.op != GraphUtil.operations("insertBulk")
+        e.innerLabel.consistencyLevel == "strong" && e.op != GraphUtil.operations("insertBulk")
       }
 
-    val weakEdgesFutures = weakEdges.groupBy { case (edge, idx) => edge.label.hbaseZkAddr }.map { case (zkQuorum, edgeWithIdxs) =>
-      val futures = edgeWithIdxs.groupBy(_._1.label).map { case (label, edgeGroup) =>
+    val weakEdgesFutures = weakEdges.groupBy { case (edge, idx) => edge.innerLabel.hbaseZkAddr }.map { case (zkQuorum, edgeWithIdxs) =>
+      val futures = edgeWithIdxs.groupBy(_._1.innerLabel).map { case (label, edgeGroup) =>
         val storage = getStorage(label)
         val edges = edgeGroup.map(_._1)
         val idxs = edgeGroup.map(_._2)
@@ -1056,10 +1039,10 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
     val (strongDeleteAll, strongEdgesAll) = strongEdges.partition { case (edge, idx) => edge.op == GraphUtil.operations("deleteAll") }
 
     val deleteAllFutures = strongDeleteAll.map { case (edge, idx) =>
-      deleteAllAdjacentEdges(Seq(edge.srcVertex), Seq(edge.label), edge.labelWithDir.dir, edge.ts).map(idx -> _)
+      deleteAllAdjacentEdges(Seq(edge.srcVertex), Seq(edge.innerLabel), edge.labelWithDir.dir, edge.ts).map(idx -> _)
     }
 
-    val strongEdgesFutures = strongEdgesAll.groupBy { case (edge, idx) => edge.label }.map { case (label, edgeGroup) =>
+    val strongEdgesFutures = strongEdgesAll.groupBy { case (edge, idx) => edge.innerLabel }.map { case (label, edgeGroup) =>
       val edges = edgeGroup.map(_._1)
       val idxs = edgeGroup.map(_._2)
       val storage = getStorage(label)
@@ -1087,19 +1070,19 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
 
   def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long, Long)]] = {
     val edgesWithIdx = edges.zipWithIndex
-    val futures = edgesWithIdx.groupBy { case (e, idx) => e.label }.map { case (label, edgeGroup) =>
+    val futures = edgesWithIdx.groupBy { case (e, idx) => e.innerLabel }.map { case (label, edgeGroup) =>
       getStorage(label).incrementCounts(edgeGroup.map(_._1), withWait).map(_.zip(edgeGroup.map(_._2)))
     }
     Future.sequence(futures).map { ls => ls.flatten.toSeq.sortBy(_._2).map(_._1) }
   }
 
   def updateDegree(edge: Edge, degreeVal: Long = 0): Future[Boolean] = {
-    val label = edge.label
+    val label = edge.innerLabel
 
     val storage = getStorage(label)
     val kvs = storage.buildDegreePuts(edge, degreeVal)
 
-    storage.writeToStorage(edge.label.service.cluster, kvs, withWait = true)
+    storage.writeToStorage(edge.innerLabel.service.cluster, kvs, withWait = true)
   }
 
   def shutdown(): Unit = {

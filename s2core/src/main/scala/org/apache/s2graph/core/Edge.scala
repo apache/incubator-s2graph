@@ -19,14 +19,17 @@
 
 package org.apache.s2graph.core
 
+import java.util
+
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
+import org.apache.tinkerpop.gremlin.structure
 import play.api.libs.json.{JsNumber, JsObject, Json}
 import scala.util.hashing.MurmurHash3
-
+import org.apache.tinkerpop.gremlin.structure.{Edge => TpEdge, Direction, Property, Graph => TpGraph}
 
 case class SnapshotEdge(srcVertex: Vertex,
                         tgtVertex: Vertex,
@@ -34,29 +37,33 @@ case class SnapshotEdge(srcVertex: Vertex,
                         direction: Int,
                         op: Byte,
                         version: Long,
-                        props: Map[LabelMeta, InnerValLikeWithTs],
+                        private val propsWithTs: Map[LabelMeta, InnerValLikeWithTs],
                         pendingEdgeOpt: Option[Edge],
                         statusCode: Byte = 0,
                         lockTs: Option[Long],
                         tsInnerValOpt: Option[InnerValLike] = None) {
 
   lazy val labelWithDir = LabelWithDirection(label.id.get, direction)
-  if (!props.contains(LabelMeta.timestamp)) throw new Exception("Timestamp is required.")
+  if (!propsWithTs.contains(LabelMeta.timestamp)) throw new Exception("Timestamp is required.")
 
 //  val label = Label.findById(labelWithDir.labelId)
   lazy val schemaVer = label.schemaVersion
-  lazy val propsWithoutTs = props.mapValues(_.innerVal)
-  lazy val ts = props(LabelMeta.timestamp).innerVal.toString().toLong
+  lazy val propsWithoutTs = propsWithTs.mapValues(_.innerVal)
+  lazy val ts = propsWithTs(LabelMeta.timestamp).innerVal.toString().toLong
+
+  def propsToKeyValuesWithTs = HBaseSerializable.propsToKeyValuesWithTs(propsWithTs.map(kv => kv._1.seq -> kv._2).toSeq)
+
+  def allPropsDeleted = Edge.allPropsDeleted(propsWithTs)
 
   def toEdge: Edge = {
-    val ts = props.get(LabelMeta.timestamp).map(v => v.ts).getOrElse(version)
+    val ts = propsWithTs.get(LabelMeta.timestamp).map(v => v.ts).getOrElse(version)
     Edge(srcVertex, tgtVertex, label, direction, op,
-      version, props, pendingEdgeOpt = pendingEdgeOpt,
+      version, propsWithTs, pendingEdgeOpt = pendingEdgeOpt,
       statusCode = statusCode, lockTs = lockTs, tsInnerValOpt = tsInnerValOpt)
   }
 
   def propsWithName = (for {
-    (meta, v) <- props
+    (meta, v) <- propsWithTs
     jsValue <- innerValToJsValue(v.innerVal, meta.dataType)
   } yield meta.name -> jsValue) ++ Map("version" -> JsNumber(version))
 
@@ -73,7 +80,7 @@ case class IndexEdge(srcVertex: Vertex,
                      op: Byte,
                      version: Long,
                      labelIndexSeq: Byte,
-                     props: Map[LabelMeta, InnerValLikeWithTs],
+                     private val propsWithTs: Map[LabelMeta, InnerValLikeWithTs],
                      tsInnerValOpt: Option[InnerValLike] = None)  {
 //  if (!props.contains(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
   //  assert(props.contains(LabelMeta.timeStampSeq))
@@ -82,8 +89,8 @@ case class IndexEdge(srcVertex: Vertex,
   lazy val isInEdge = labelWithDir.dir == GraphUtil.directions("in")
   lazy val isOutEdge = !isInEdge
 
-  lazy val ts = props(LabelMeta.timestamp).innerVal.toString.toLong
-  lazy val degreeEdge = props.contains(LabelMeta.degree)
+  lazy val ts = propsWithTs(LabelMeta.timestamp).innerVal.toString.toLong
+  lazy val degreeEdge = propsWithTs.contains(LabelMeta.degree)
 
   lazy val schemaVer = label.schemaVersion
   lazy val labelIndex = LabelIndex.findByLabelIdAndSeq(labelWithDir.labelId, labelIndexSeq).get
@@ -96,7 +103,7 @@ case class IndexEdge(srcVertex: Vertex,
 
   /** TODO: make sure call of this class fill props as this assumes */
   lazy val orders = for (meta <- labelIndexMetaSeqs) yield {
-    props.get(meta) match {
+    propsWithTs.get(meta) match {
       case None =>
 
         /**
@@ -118,7 +125,7 @@ case class IndexEdge(srcVertex: Vertex,
   }
 
   lazy val ordersKeyMap = orders.map { case (byte, _) => byte }.toSet
-  lazy val metas = for ((meta, v) <- props if !ordersKeyMap.contains(meta)) yield meta -> v.innerVal
+  lazy val metas = for ((meta, v) <- propsWithTs if !ordersKeyMap.contains(meta)) yield meta -> v.innerVal
 
 //  lazy val propsWithTs = props.map { case (k, v) => k -> InnerValLikeWithTs(v, version) }
 
@@ -128,52 +135,111 @@ case class IndexEdge(srcVertex: Vertex,
   lazy val hasAllPropsForIndex = orders.length == labelIndexMetaSeqs.length
 
   def propsWithName = for {
-    (meta, v) <- props if meta.seq >= 0
+    (meta, v) <- propsWithTs if meta.seq >= 0
     jsValue <- innerValToJsValue(v.innerVal, meta.dataType)
   } yield meta.name -> jsValue
 
 
-  def toEdge: Edge = Edge(srcVertex, tgtVertex, label, direction, op, version, props, tsInnerValOpt = tsInnerValOpt)
+  def toEdge: Edge = Edge(srcVertex, tgtVertex, label, direction, op, version, propsWithTs, tsInnerValOpt = tsInnerValOpt)
 
   // only for debug
   def toLogString() = {
     List(version, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, Json.toJson(propsWithName)).mkString("\t")
   }
+
+  def property(key: String): Option[InnerValLikeWithTs] = {
+    label.metaPropsInvMap.get(key).map(labelMeta => property(labelMeta))
+  }
+
+  def property(labelMeta: LabelMeta): InnerValLikeWithTs = {
+    propsWithTs.get(labelMeta).getOrElse(label.metaPropsDefaultMapInner(labelMeta))
+  }
+
+  def updatePropsWithTs(others: Map[LabelMeta, InnerValLikeWithTs] = Map.empty): Map[LabelMeta, InnerValLikeWithTs] = {
+    if (others.isEmpty) propsWithTs
+    else propsWithTs ++ others
+  }
 }
 
 case class Edge(srcVertex: Vertex,
                 tgtVertex: Vertex,
-                label: Label,
+                innerLabel: Label,
                 dir: Int,
                 op: Byte = GraphUtil.defaultOpByte,
                 version: Long = System.currentTimeMillis(),
-                propsWithTs: Map[LabelMeta, InnerValLikeWithTs],
+                private val propsWithTs: Map[LabelMeta, InnerValLikeWithTs],
                 parentEdges: Seq[EdgeWithScore] = Nil,
                 originalEdgeOpt: Option[Edge] = None,
                 pendingEdgeOpt: Option[Edge] = None,
                 statusCode: Byte = 0,
                 lockTs: Option[Long] = None,
-                tsInnerValOpt: Option[InnerValLike] = None) extends GraphElement {
+                tsInnerValOpt: Option[InnerValLike] = None) extends GraphElement with TpEdge {
 
-  lazy val labelWithDir = LabelWithDirection(label.id.get, dir)
-//  if (!props.contains(LabelMeta.timestamp)) throw new Exception("Timestamp is required.")
-  //  assert(propsWithTs.contains(LabelMeta.timeStampSeq))
-  lazy val schemaVer = label.schemaVersion
+  lazy val labelWithDir = LabelWithDirection(innerLabel.id.get, dir)
+  lazy val schemaVer = innerLabel.schemaVersion
   lazy val ts = propsWithTs(LabelMeta.timestamp).innerVal.value match {
     case b: BigDecimal => b.longValue()
     case l: Long => l
     case i: Int => i.toLong
     case _ => throw new RuntimeException("ts should be in [BigDecimal/Long/Int].")
   }
+
   //FIXME
   lazy val tsInnerVal = tsInnerValOpt.get.value
-//    propsWithTs(LabelMeta.timestamp).innerVal.value
-
-//  lazy val label = Label.findById(labelWithDir.labelId)
   lazy val srcId = srcVertex.innerIdVal
   lazy val tgtId = tgtVertex.innerIdVal
-  lazy val labelName = label.label
+  lazy val labelName = innerLabel.label
   lazy val direction = GraphUtil.fromDirection(dir)
+  
+  def toIndexEdge(labelIndexSeq: Byte): IndexEdge = IndexEdge(srcVertex, tgtVertex, innerLabel, dir, op, version, labelIndexSeq, propsWithTs)
+
+  def serializePropsWithTs(): Array[Byte] = HBaseSerializable.propsToKeyValuesWithTs(propsWithTs.map(kv => kv._1.seq -> kv._2).toSeq)
+
+  def updatePropsWithTs(others: Map[LabelMeta, InnerValLikeWithTs] = Map.empty): Map[LabelMeta, InnerValLikeWithTs] = {
+    if (others.isEmpty) propsWithTs
+    else propsWithTs ++ others
+  }
+
+  def propertyValue(key: String): Option[InnerValLikeWithTs] = {
+    key match {
+      case "from" | "_from" => Option(InnerValLikeWithTs(srcVertex.innerId, ts))
+      case "to" | "_to" => Option(InnerValLikeWithTs(tgtVertex.innerId, ts))
+      case "label" => Option(InnerValLikeWithTs(InnerVal.withStr(innerLabel.label, schemaVer), ts))
+      case "direction" => Option(InnerValLikeWithTs(InnerVal.withStr(direction, schemaVer), ts))
+      case _ =>
+        innerLabel.metaPropsInvMap.get(key).map(labelMeta => propertyValueInner(labelMeta))
+    }
+  }
+
+  def propertyValueInner(labelMeta: LabelMeta): InnerValLikeWithTs= {
+    propsWithTs.getOrElse(labelMeta, innerLabel.metaPropsDefaultMapInner(labelMeta))
+  }
+
+  def propertyValues(keys: Seq[String] = Nil): Map[LabelMeta, InnerValLikeWithTs] = {
+    val labelMetas = for {
+        key <- keys
+        labelMeta <- innerLabel.metaPropsInvMap.get(key)
+      } yield labelMeta
+
+    propertyValuesInner(labelMetas)
+  }
+
+  def propertyValuesInner(labelMetas: Seq[LabelMeta] = Nil): Map[LabelMeta, InnerValLikeWithTs] = {
+    if (labelMetas.isEmpty) {
+      innerLabel.metaPropsDefaultMapInner.map { case (labelMeta, defaultVal) =>
+        labelMeta -> propertyValueInner(labelMeta)
+      }
+    } else {
+      // This is important since timestamp is required for all edges.
+      (LabelMeta.timestamp +: labelMetas).map { labelMeta =>
+        labelMeta -> propertyValueInner(labelMeta)
+      }.toMap
+    }
+  }
+
+//  if (!props.contains(LabelMeta.timestamp)) throw new Exception("Timestamp is required.")
+  //  assert(propsWithTs.contains(LabelMeta.timeStampSeq))
+
   lazy val properties = toProps()
 
   def props = propsWithTs.mapValues(_.innerVal)
@@ -181,7 +247,7 @@ case class Edge(srcVertex: Vertex,
 
   private def toProps(): Map[String, Any] = {
     for {
-      (labelMeta, defaultVal) <- label.metaPropsDefaultMapInner
+      (labelMeta, defaultVal) <- innerLabel.metaPropsDefaultMapInner
     } yield {
       labelMeta.name -> propsWithTs.getOrElse(labelMeta, defaultVal).innerVal.value
     }
@@ -189,7 +255,7 @@ case class Edge(srcVertex: Vertex,
 
   def relatedEdges = {
     if (labelWithDir.isDirected) {
-      val skipReverse = label.extraOptions.get("skipReverse").map(_.as[Boolean]).getOrElse(false)
+      val skipReverse = innerLabel.extraOptions.get("skipReverse").map(_.as[Boolean]).getOrElse(false)
       if (skipReverse) List(this) else List(this, duplicateEdge)
     } else {
 //      val outDir = labelWithDir.copy(dir = GraphUtil.directions("out"))
@@ -204,18 +270,18 @@ case class Edge(srcVertex: Vertex,
   def srcForVertex = {
     val belongLabelIds = Seq(labelWithDir.labelId)
     if (labelWithDir.dir == GraphUtil.directions("in")) {
-      Vertex(VertexId(label.tgtColumn.id.get, tgtVertex.innerId), tgtVertex.ts, tgtVertex.props, belongLabelIds = belongLabelIds)
+      Vertex(VertexId(innerLabel.tgtColumn.id.get, tgtVertex.innerId), tgtVertex.ts, tgtVertex.props, belongLabelIds = belongLabelIds)
     } else {
-      Vertex(VertexId(label.srcColumn.id.get, srcVertex.innerId), srcVertex.ts, srcVertex.props, belongLabelIds = belongLabelIds)
+      Vertex(VertexId(innerLabel.srcColumn.id.get, srcVertex.innerId), srcVertex.ts, srcVertex.props, belongLabelIds = belongLabelIds)
     }
   }
 
   def tgtForVertex = {
     val belongLabelIds = Seq(labelWithDir.labelId)
     if (labelWithDir.dir == GraphUtil.directions("in")) {
-      Vertex(VertexId(label.srcColumn.id.get, srcVertex.innerId), srcVertex.ts, srcVertex.props, belongLabelIds = belongLabelIds)
+      Vertex(VertexId(innerLabel.srcColumn.id.get, srcVertex.innerId), srcVertex.ts, srcVertex.props, belongLabelIds = belongLabelIds)
     } else {
-      Vertex(VertexId(label.tgtColumn.id.get, tgtVertex.innerId), tgtVertex.ts, tgtVertex.props, belongLabelIds = belongLabelIds)
+      Vertex(VertexId(innerLabel.tgtColumn.id.get, tgtVertex.innerId), tgtVertex.ts, tgtVertex.props, belongLabelIds = belongLabelIds)
     }
   }
 
@@ -228,13 +294,13 @@ case class Edge(srcVertex: Vertex,
 
   def labelOrders = LabelIndex.findByLabelIdAll(labelWithDir.labelId)
 
-  override def serviceName = label.serviceName
+  override def serviceName = innerLabel.serviceName
 
   override def queueKey = Seq(ts.toString, tgtVertex.serviceName).mkString("|")
 
   override def queuePartitionKey = Seq(srcVertex.innerId, tgtVertex.innerId).mkString("|")
 
-  override def isAsync = label.isAsync
+  override def isAsync = innerLabel.isAsync
 
   def isDegree = propsWithTs.contains(LabelMeta.degree)
 
@@ -246,11 +312,11 @@ case class Edge(srcVertex: Vertex,
   def propsPlusTsValid = propsWithTs.filter(kv => LabelMeta.isValidSeq(kv._1.seq))
 
   def edgesWithIndex = for (labelOrder <- labelOrders) yield {
-    IndexEdge(srcVertex, tgtVertex, label, dir, op, version, labelOrder.seq, propsWithTs, tsInnerValOpt = tsInnerValOpt)
+    IndexEdge(srcVertex, tgtVertex, innerLabel, dir, op, version, labelOrder.seq, propsWithTs, tsInnerValOpt = tsInnerValOpt)
   }
 
   def edgesWithIndexValid = for (labelOrder <- labelOrders) yield {
-    IndexEdge(srcVertex, tgtVertex, label, dir, op, version, labelOrder.seq, propsPlusTsValid, tsInnerValOpt = tsInnerValOpt)
+    IndexEdge(srcVertex, tgtVertex, innerLabel, dir, op, version, labelOrder.seq, propsPlusTsValid, tsInnerValOpt = tsInnerValOpt)
   }
 
   /** force direction as out on invertedEdge */
@@ -259,7 +325,7 @@ case class Edge(srcVertex: Vertex,
 
 //    val newLabelWithDir = LabelWithDirection(labelWithDir.labelId, GraphUtil.directions("out"))
 
-    val ret = SnapshotEdge(smaller, larger, label, GraphUtil.directions("out"), op, version,
+    val ret = SnapshotEdge(smaller, larger, innerLabel, GraphUtil.directions("out"), op, version,
       Map(LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts)) ++ propsWithTs,
       pendingEdgeOpt = pendingEdgeOpt, statusCode = statusCode, lockTs = lockTs, tsInnerValOpt = tsInnerValOpt)
     ret
@@ -278,7 +344,7 @@ case class Edge(srcVertex: Vertex,
   }
 
   def defaultPropsWithName = Json.obj("from" -> srcVertex.innerId.toString(), "to" -> tgtVertex.innerId.toString(),
-    "label" -> label.label, "service" -> label.serviceName)
+    "label" -> innerLabel.label, "service" -> innerLabel.serviceName)
 
   def propsWithName =
     for {
@@ -290,7 +356,7 @@ case class Edge(srcVertex: Vertex,
   def updateTgtVertex(id: InnerValLike) = {
     val newId = TargetVertexId(tgtVertex.id.colId, id)
     val newTgtVertex = Vertex(newId, tgtVertex.ts, tgtVertex.props)
-    Edge(srcVertex, newTgtVertex, label, dir, op, version, propsWithTs, tsInnerValOpt = tsInnerValOpt)
+    Edge(srcVertex, newTgtVertex, innerLabel, dir, op, version, propsWithTs, tsInnerValOpt = tsInnerValOpt)
   }
 
   def rank(r: RankParam): Double =
@@ -316,8 +382,28 @@ case class Edge(srcVertex: Vertex,
 
   def toLogString: String = {
     val allPropsWithName = defaultPropsWithName ++ Json.toJson(propsWithName).asOpt[JsObject].getOrElse(Json.obj())
-    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, allPropsWithName).mkString("\t")
+    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, innerLabel.label, allPropsWithName).mkString("\t")
   }
+
+  override def vertices(direction: Direction): util.Iterator[structure.Vertex] = ???
+
+  override def properties[V](strings: String*): util.Iterator[Property[V]] = ???
+
+  override def property[V](key: String): Property[V] = ???
+
+  override def property[V](key: String, value: V): Property[V] = {
+    property(key, value, System.currentTimeMillis())
+  }
+
+  def property[V](key: String, value: V, ts: Long): Property[V] = ???
+
+  override def remove(): Unit = ???
+
+  override def graph(): TpGraph = ???
+  
+  override def id(): AnyRef = ???
+
+  override def label(): String = innerLabel.label
 }
 
 
@@ -399,14 +485,14 @@ object Edge {
 
     val funcs = requestEdges.map { edge =>
       if (edge.op == GraphUtil.operations("insert")) {
-        edge.label.consistencyLevel match {
+        edge.innerLabel.consistencyLevel match {
           case "strong" => Edge.mergeUpsert _
           case _ => Edge.mergeInsertBulk _
         }
       } else if (edge.op == GraphUtil.operations("insertBulk")) {
         Edge.mergeInsertBulk _
       } else if (edge.op == GraphUtil.operations("delete")) {
-        edge.label.consistencyLevel match {
+        edge.innerLabel.consistencyLevel match {
           case "strong" => Edge.mergeDelete _
           case _ => throw new RuntimeException("not supported")
         }
@@ -438,7 +524,7 @@ object Edge {
       val maxTs = prevPropsWithTs.map(_._2.ts).max
       val newTs = if (maxTs > requestTs) maxTs else requestTs
       val propsWithTs = prevPropsWithTs ++
-        Map(LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(newTs, requestEdge.label.schemaVersion), newTs))
+        Map(LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(newTs, requestEdge.innerLabel.schemaVersion), newTs))
 
       val edgeMutate = buildMutation(invertedEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
 

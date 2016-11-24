@@ -36,22 +36,19 @@ trait ExtractValue {
   def propToInnerVal(edge: Edge, key: String) = {
     val (propKey, parentEdge) = findParentEdge(edge, key)
 
-    val label = parentEdge.label
+    val label = parentEdge.innerLabel
     val metaPropInvMap = label.metaPropsInvMap
     val labelMeta = metaPropInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
 
     labelMeta match {
       case LabelMeta.from => parentEdge.srcVertex.innerId
       case LabelMeta.to => parentEdge.tgtVertex.innerId
-      case _ => parentEdge.propsWithTs.get(labelMeta) match {
-        case None => toInnerVal(labelMeta.defaultValue, labelMeta.dataType, label.schemaVersion)
-        case Some(edgeVal) => edgeVal.innerVal
-      }
+      case _ => parentEdge.propertyValueInner(labelMeta).innerVal
     }
   }
 
   def valueToCompare(edge: Edge, key: String, value: String) = {
-    val label = edge.label
+    val label = edge.innerLabel
     if (value.startsWith(parent) || label.metaPropsInvMap.contains(value)) propToInnerVal(edge, value)
     else {
       val (propKey, _) = findParentEdge(edge, key)
