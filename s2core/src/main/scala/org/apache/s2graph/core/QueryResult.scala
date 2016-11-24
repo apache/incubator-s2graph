@@ -40,7 +40,7 @@ object QueryResult {
       val edgeWithScores = for {
         vertex <- query.vertices
       } yield {
-          val edge = Edge(vertex, vertex, label, queryParam.labelWithDir.dir, propsWithTs = propsWithTs)
+          val edge = graph.newEdge(vertex, vertex, label, queryParam.labelWithDir.dir, propsWithTs = propsWithTs)
           val edgeWithScore = EdgeWithScore(edge, Graph.DefaultScore, queryParam.label)
           edgeWithScore
         }

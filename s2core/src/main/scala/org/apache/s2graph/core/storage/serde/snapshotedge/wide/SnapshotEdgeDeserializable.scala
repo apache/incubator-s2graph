@@ -24,9 +24,9 @@ import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, StorageDeserializable}
 import org.apache.s2graph.core.types.TargetVertexId
-import org.apache.s2graph.core.{Edge, SnapshotEdge, Vertex}
+import org.apache.s2graph.core.{Graph, Edge, SnapshotEdge, Vertex}
 
-class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
+class SnapshotEdgeDeserializable(graph: Graph) extends Deserializable[SnapshotEdge] {
 
   def statusCodeWithOp(byte: Byte): (Byte, Byte) = {
     val statusCode = byte >> 4
@@ -73,7 +73,7 @@ class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
           val lockTs = Option(Bytes.toLong(kv.value, pos, 8))
 
           val pendingEdge =
-            Edge(Vertex(srcVertexId, cellVersion),
+            graph.newEdge(Vertex(srcVertexId, cellVersion),
               Vertex(tgtVertexId, cellVersion),
               label, labelWithDir.dir, pendingEdgeOp,
               cellVersion, pendingEdgeProps.toMap,
@@ -84,7 +84,7 @@ class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
       (tgtVertexId, kvsMap, op, ts, statusCode, _pendingEdgeOpt, tsInnerVal)
     }
 
-    SnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),
+    graph.newSnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),
       label, labelWithDir.dir, op, cellVersion, props, statusCode = statusCode,
       pendingEdgeOpt = _pendingEdgeOpt, lockTs = None, tsInnerValOpt = Option(tsInnerVal))
   }

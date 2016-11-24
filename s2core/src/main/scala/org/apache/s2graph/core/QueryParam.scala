@@ -376,9 +376,9 @@ case class QueryParam(labelName: String,
 
           val propVal =
             if (InnerVal.isNumericType(labelMeta.dataType)) {
-              InnerVal.withLong(edge.props(labelMeta).value.asInstanceOf[BigDecimal].longValue() + padding, label.schemaVersion)
+              InnerVal.withLong(edge.property(labelMeta.name).value.asInstanceOf[BigDecimal].longValue() + padding, label.schemaVersion)
             } else {
-              edge.props(labelMeta)
+              edge.property(labelMeta.name).asInstanceOf[S2Property[_]].innerVal
             }
 
           labelMeta -> propVal

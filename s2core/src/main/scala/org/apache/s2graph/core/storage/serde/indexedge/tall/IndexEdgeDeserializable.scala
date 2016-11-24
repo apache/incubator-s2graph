@@ -25,13 +25,14 @@ import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, StorageDeserializable}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{GraphUtil, IndexEdge, Vertex}
+import org.apache.s2graph.core._
 import scala.collection.immutable
 
 object IndexEdgeDeserializable{
-  def getNewInstance() = new IndexEdgeDeserializable()
+  def getNewInstance(graph: Graph) = new IndexEdgeDeserializable(graph)
 }
-class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends Deserializable[IndexEdge] {
+class IndexEdgeDeserializable(graph: Graph,
+                              bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends Deserializable[Edge] {
    import StorageDeserializable._
 
    type QualifierRaw = (Array[(LabelMeta, InnerValLike)], VertexId, Byte, Boolean, Int)
@@ -40,7 +41,7 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
    override def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
                                                     _kvs: Seq[T],
                                                     schemaVer: String,
-                                                    cacheElementOpt: Option[IndexEdge]): IndexEdge = {
+                                                    cacheElementOpt: Option[Edge]): Edge = {
 
      assert(_kvs.size == 1)
 
@@ -59,19 +60,25 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
      pos += 1
 
      val label = checkLabel.getOrElse(Label.findById(labelWithDir.labelId))
-//     val op = kv.row(pos)
-//     pos += 1
+
+     val srcVertex = Vertex(srcVertexId, version)
+     //TODO:
+     val edge = graph.newEdge(srcVertex, null,
+       label, labelWithDir.dir, GraphUtil.defaultOpByte, version, Edge.EmptyState)
+     var tsVal = version
 
      if (pos == kv.row.length) {
        // degree
        //      val degreeVal = Bytes.toLong(kv.value)
        val degreeVal = bytesToLongFunc(kv.value, 0)
-       val ts = kv.timestamp
-       val tsInnerValLikeWithTs = InnerValLikeWithTs.withLong(ts, ts, schemaVer)
-       val props = Map(LabelMeta.timestamp -> tsInnerValLikeWithTs,
-         LabelMeta.degree -> InnerValLikeWithTs.withLong(degreeVal, ts, schemaVer))
        val tgtVertexId = VertexId(HBaseType.DEFAULT_COL_ID, InnerVal.withStr("0", schemaVer))
-       IndexEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts), label, labelWithDir.dir, GraphUtil.defaultOpByte, ts, labelIdxSeq, props,  tsInnerValOpt = Option(tsInnerValLikeWithTs.innerVal))
+
+       edge.property(LabelMeta.timestamp.name, version, version)
+       edge.property(LabelMeta.degree.name, degreeVal, version)
+       edge.tgtVertex = Vertex(tgtVertexId, version)
+       edge.op = GraphUtil.defaultOpByte
+       edge.tsInnerValOpt = Option(InnerVal.withLong(tsVal, schemaVer))
+       edge
      } else {
        // not degree edge
        val (idxPropsRaw, endAt) = bytesToProps(kv.row, pos, schemaVer)
@@ -85,60 +92,47 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
        }
        val op = kv.row(kv.row.length-1)
 
-       val allProps = immutable.Map.newBuilder[LabelMeta, InnerValLikeWithTs]
        val index = label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${label.id.get}, ${labelIdxSeq}"))
-
        /** process indexProps */
        val size = idxPropsRaw.length
        (0 until size).foreach { ith =>
          val meta = index.sortKeyTypesArray(ith)
          val (k, v) = idxPropsRaw(ith)
-         if (k == LabelMeta.degree) allProps += LabelMeta.degree -> InnerValLikeWithTs(v, version)
-         else allProps += meta -> InnerValLikeWithTs(v, version)
+         if (k == LabelMeta.timestamp) tsVal = v.value.asInstanceOf[BigDecimal].longValue()
+
+         if (k == LabelMeta.degree) {
+           edge.property(LabelMeta.degree.name, v.value, version)
+         } else {
+           edge.property(meta.name, v.value, version)
+         }
        }
-//       for {
-//         (meta, (k, v)) <- index.sortKeyTypes.zip(idxPropsRaw)
-//       } {
-//         if (k == LabelMeta.degree) allProps += LabelMeta.degree -> InnerValLikeWithTs(v, version)
-//         else {
-//           allProps += meta -> InnerValLikeWithTs(v, version)
-//         }
-//       }
 
        /** process props */
        if (op == GraphUtil.operations("incrementCount")) {
          //        val countVal = Bytes.toLong(kv.value)
          val countVal = bytesToLongFunc(kv.value, 0)
-         allProps += (LabelMeta.count -> InnerValLikeWithTs.withLong(countVal, version, schemaVer))
+         edge.property(LabelMeta.count.name, countVal, version)
        } else {
          val (props, endAt) = bytesToKeyValues(kv.value, 0, kv.value.length, schemaVer, label)
          props.foreach { case (k, v) =>
-           allProps += (k -> InnerValLikeWithTs(v, version))
+           if (k == LabelMeta.timestamp) tsVal = v.value.asInstanceOf[BigDecimal].longValue()
+
+           edge.property(k.name, v.value, version)
          }
        }
-       val _mergedProps = allProps.result()
-       val (mergedProps, tsInnerValLikeWithTs) = _mergedProps.get(LabelMeta.timestamp) match {
-         case None =>
-           val tsInnerVal = InnerValLikeWithTs.withLong(version, version, schemaVer)
-           val mergedProps = _mergedProps + (LabelMeta.timestamp -> InnerValLikeWithTs.withLong(version, version, schemaVer))
-           (mergedProps, tsInnerVal)
-         case Some(tsInnerVal) =>
-           (_mergedProps, tsInnerVal)
-       }
-//       val mergedProps =
-//         if (_mergedProps.contains(LabelMeta.timestamp)) _mergedProps
-//         else _mergedProps + (LabelMeta.timestamp -> InnerValLikeWithTs.withLong(version, version, schemaVer))
 
        /** process tgtVertexId */
        val tgtVertexId =
-         mergedProps.get(LabelMeta.to) match {
-           case None => tgtVertexIdRaw
-           case Some(vId) => TargetVertexId(HBaseType.DEFAULT_COL_ID, vId.innerVal)
-         }
+         if (edge.checkProperty(LabelMeta.to.name)) {
+           val vId = edge.property(LabelMeta.to.name).asInstanceOf[S2Property[_]].innerValWithTs
+           TargetVertexId(HBaseType.DEFAULT_COL_ID, vId.innerVal)
+         } else tgtVertexIdRaw
 
 
-       IndexEdge(Vertex(srcVertexId, version), Vertex(tgtVertexId, version), label, labelWithDir.dir, op, version, labelIdxSeq, mergedProps, tsInnerValOpt = Option(tsInnerValLikeWithTs.innerVal))
-
+       edge.tgtVertex = Vertex(tgtVertexId, version)
+       edge.op = op
+       edge.tsInnerValOpt = Option(InnerVal.withLong(tsVal, schemaVer))
+       edge
      }
    }
  }

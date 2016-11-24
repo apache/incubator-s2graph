@@ -541,7 +541,7 @@ class RequestParser(graph: Graph) {
     val elementsWithTsv = for {
       edgeStr <- edgeStrs
       str <- GraphUtil.parseString(edgeStr)
-      element <- Graph.toGraphElement(str)
+      element <- graph.toGraphElement(str)
     } yield (element, str)
 
     elementsWithTsv
@@ -566,7 +566,7 @@ class RequestParser(graph: Graph) {
       tgtId <- tgtIds.flatMap(jsValueToAny(_).toSeq)
     } yield {
       //      val edge = Management.toEdge(graph, timestamp, operation, srcId, tgtId, label, direction, fromJsonToProperties(propsJson))
-      val edge = Edge.toEdge(srcId, tgtId, label, direction, fromJsonToProperties(propsJson), ts = timestamp, operation = operation)
+      val edge = graph.toEdge(srcId, tgtId, label, direction, fromJsonToProperties(propsJson), ts = timestamp, operation = operation)
       val tsv = (jsValue \ "direction").asOpt[String] match {
         case None => Seq(timestamp, operation, "e", srcId, tgtId, label, propsJson.toString).mkString("\t")
         case Some(dir) => Seq(timestamp, operation, "e", srcId, tgtId, label, propsJson.toString, dir).mkString("\t")
@@ -690,7 +690,7 @@ class RequestParser(graph: Graph) {
       labelName <- (json \ "label").asOpt[String]
       direction = (json \ "direction").asOpt[String].getOrElse("out")
     } yield {
-      Edge.toEdge(from, to, labelName, direction, Map.empty)
+      graph.toEdge(from, to, labelName, direction, Map.empty)
     }
   }
 
@@ -700,7 +700,7 @@ class RequestParser(graph: Graph) {
     for {
       edgeStr <- edgeStrs
       str <- GraphUtil.parseString(edgeStr)
-      element <- Graph.toGraphElement(str)
+      element <- graph.toGraphElement(str)
     } yield element
   }
 

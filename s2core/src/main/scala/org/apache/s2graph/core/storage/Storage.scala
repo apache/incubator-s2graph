@@ -113,20 +113,20 @@ abstract class Storage[Q, R](val graph: Graph,
    * */
 
   val snapshotEdgeDeserializers: Map[String, Deserializable[SnapshotEdge]] = Map(
-    VERSION1 -> new SnapshotEdgeDeserializable,
-    VERSION2 -> new SnapshotEdgeDeserializable,
-    VERSION3 -> new serde.snapshotedge.tall.SnapshotEdgeDeserializable,
-    VERSION4 -> new serde.snapshotedge.tall.SnapshotEdgeDeserializable
+    VERSION1 -> new SnapshotEdgeDeserializable(graph),
+    VERSION2 -> new SnapshotEdgeDeserializable(graph),
+    VERSION3 -> new serde.snapshotedge.tall.SnapshotEdgeDeserializable(graph),
+    VERSION4 -> new serde.snapshotedge.tall.SnapshotEdgeDeserializable(graph)
   )
   def snapshotEdgeDeserializer(schemaVer: String) =
     snapshotEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
 
   /** create deserializer that can parse stored CanSKeyValue into indexEdge. */
-  val indexEdgeDeserializers: Map[String, Deserializable[IndexEdge]] = Map(
-    VERSION1 -> new IndexEdgeDeserializable,
-    VERSION2 -> new IndexEdgeDeserializable,
-    VERSION3 -> new IndexEdgeDeserializable,
-    VERSION4 -> new serde.indexedge.tall.IndexEdgeDeserializable
+  val indexEdgeDeserializers: Map[String, Deserializable[Edge]] = Map(
+    VERSION1 -> new IndexEdgeDeserializable(graph),
+    VERSION2 -> new IndexEdgeDeserializable(graph),
+    VERSION3 -> new IndexEdgeDeserializable(graph),
+    VERSION4 -> new serde.indexedge.tall.IndexEdgeDeserializable(graph)
   )
 
   def indexEdgeDeserializer(schemaVer: String) =
@@ -795,17 +795,25 @@ abstract class Storage[Q, R](val graph: Graph,
       } yield {
           val edge = edgeWithScore.edge
           val score = edgeWithScore.score
+
+          val edgeSnapshot = edge.copyEdge(propsWithTs = Edge.propsToState(edge.updatePropsWithTs()))
+          val reversedSnapshotEdgeMutations = snapshotEdgeSerializer(edgeSnapshot.toSnapshotEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put))
+
+          val edgeForward = edge.copyEdge(propsWithTs = Edge.propsToState(edge.updatePropsWithTs()))
+          val forwardIndexedEdgeMutations = edgeForward.edgesWithIndex.flatMap { indexEdge =>
+            indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
+              buildIncrementsAsync(indexEdge, -1L)
+          }
+
           /** reverted direction */
-          val reversedIndexedEdgesMutations = edge.duplicateEdge.edgesWithIndex.flatMap { indexEdge =>
+          val edgeRevert = edge.copyEdge(propsWithTs = Edge.propsToState(edge.updatePropsWithTs()))
+          val reversedIndexedEdgesMutations = edgeRevert.duplicateEdge.edgesWithIndex.flatMap { indexEdge =>
             indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
               buildIncrementsAsync(indexEdge, -1L)
           }
-          val reversedSnapshotEdgeMutations = snapshotEdgeSerializer(edge.toSnapshotEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put))
-          val forwardIndexedEdgeMutations = edge.edgesWithIndex.flatMap { indexEdge =>
-            indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
-              buildIncrementsAsync(indexEdge, -1L)
-          }
+
           val mutations = reversedIndexedEdgesMutations ++ reversedSnapshotEdgeMutations ++ forwardIndexedEdgeMutations
+
           writeToStorage(zkQuorum, mutations, withWait = true)
         }
 
@@ -821,7 +829,7 @@ abstract class Storage[Q, R](val graph: Graph,
   /** Parsing Logic: parse from kv from Storage into Edge */
   def toEdge[K: CanSKeyValue](kv: K,
                               queryRequest: QueryRequest,
-                              cacheElementOpt: Option[IndexEdge],
+                              cacheElementOpt: Option[Edge],
                               parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
     logger.debug(s"toEdge: $kv")
 
@@ -830,8 +838,8 @@ abstract class Storage[Q, R](val graph: Graph,
       val queryParam = queryRequest.queryParam
       val schemaVer = queryParam.label.schemaVersion
       val indexEdgeOpt = indexEdgeDeserializer(schemaVer).fromKeyValues(Option(queryParam.label), Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
-      if (!queryOption.returnTree) indexEdgeOpt.map(indexEdge => indexEdge.toEdge.copy(parentEdges = parentEdges))
-      else indexEdgeOpt.map(indexEdge => indexEdge.toEdge)
+      if (!queryOption.returnTree) indexEdgeOpt.map(indexEdge => indexEdge.copy(parentEdges = parentEdges))
+      else indexEdgeOpt
     } catch {
       case ex: Exception =>
         logger.error(s"Fail on toEdge: ${kv.toString}, ${queryRequest}", ex)
@@ -898,7 +906,7 @@ abstract class Storage[Q, R](val graph: Graph,
       val (degreeEdges, keyValues) = cacheElementOpt match {
         case None => (Nil, kvs)
         case Some(cacheElement) =>
-          val head = cacheElement.toEdge
+          val head = cacheElement
           if (!head.isDegree) (Nil, kvs)
           else (Seq(EdgeWithScore(head, 1.0, label)), kvs.tail)
       }
@@ -968,13 +976,13 @@ abstract class Storage[Q, R](val graph: Graph,
         val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, src), TargetVertexId(tgtColumn.id.get, tgt))
         val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
 
-        Edge(srcV, tgtV, label, labelWithDir.dir, propsWithTs = propsWithTs)
+        graph.newEdge(srcV, tgtV, label, labelWithDir.dir, propsWithTs = propsWithTs)
       case None =>
         val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
         val srcVId = SourceVertexId(srcColumn.id.get, src)
         val srcV = Vertex(srcVId)
 
-        Edge(srcV, srcV, label, labelWithDir.dir, propsWithTs = propsWithTs, parentEdges = parentEdges)
+        graph.newEdge(srcV, srcV, label, labelWithDir.dir, propsWithTs = propsWithTs, parentEdges = parentEdges)
     }
   }
 
@@ -1075,13 +1083,15 @@ abstract class Storage[Q, R](val graph: Graph,
 
   /** IndexEdge */
   def buildIncrementsAsync(indexedEdge: IndexEdge, amount: Long = 1L): Seq[SKeyValue] = {
-    val newProps = indexedEdge.updatePropsWithTs(Map(LabelMeta.degree -> InnerValLikeWithTs.withLong(amount, indexedEdge.ts, indexedEdge.schemaVer)))
+    val newProps = indexedEdge.updatePropsWithTs()
+    newProps.put(LabelMeta.degree.name, new S2Property(indexedEdge.toEdge, LabelMeta.degree, LabelMeta.degree.name, amount, indexedEdge.ts))
     val _indexedEdge = indexedEdge.copy(propsWithTs = newProps)
     indexEdgeSerializer(_indexedEdge).toKeyValues.map(_.copy(operation = SKeyValue.Increment, durability = _indexedEdge.label.durability))
   }
 
   def buildIncrementsCountAsync(indexedEdge: IndexEdge, amount: Long = 1L): Seq[SKeyValue] = {
-    val newProps = indexedEdge.updatePropsWithTs(Map(LabelMeta.count -> InnerValLikeWithTs.withLong(amount, indexedEdge.ts, indexedEdge.schemaVer)))
+    val newProps = indexedEdge.updatePropsWithTs()
+    newProps.put(LabelMeta.degree.name, new S2Property(indexedEdge.toEdge, LabelMeta.degree, LabelMeta.degree.name, amount, indexedEdge.ts))
     val _indexedEdge = indexedEdge.copy(propsWithTs = newProps)
     indexEdgeSerializer(_indexedEdge).toKeyValues.map(_.copy(operation = SKeyValue.Increment, durability = _indexedEdge.label.durability))
   }
@@ -1109,10 +1119,8 @@ abstract class Storage[Q, R](val graph: Graph,
   }
 
   def buildDegreePuts(edge: Edge, degreeVal: Long): Seq[SKeyValue] = {
-    val kvs = edge.edgesWithIndexValid.flatMap { _indexEdge =>
-      val newProps = Map(LabelMeta.degree -> InnerValLikeWithTs.withLong(degreeVal, _indexEdge.ts, _indexEdge.schemaVer))
-      val indexEdge = _indexEdge.copy(propsWithTs = newProps)
-
+    edge.property(LabelMeta.degree.name, degreeVal, edge.ts)
+    val kvs = edge.edgesWithIndexValid.flatMap { indexEdge =>
       indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put, durability = indexEdge.label.durability))
     }
 

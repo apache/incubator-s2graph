@@ -69,7 +69,7 @@ object WalLogStat extends SparkApp with WithKafka {
         val phase = System.getProperty("phase")
         GraphSubscriberHelper.apply(phase, dbUrl, "none", brokerList)
         partition.map { case (key, msg) =>
-          Graph.toGraphElement(msg) match {
+          GraphSubscriberHelper.g.toGraphElement(msg) match {
             case Some(elem) =>
               val serviceName = elem.serviceName
               msg.split("\t", 7) match {

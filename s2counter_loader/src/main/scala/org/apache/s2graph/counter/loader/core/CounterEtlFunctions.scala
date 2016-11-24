@@ -32,10 +32,11 @@ object CounterEtlFunctions extends Logging {
   lazy val preFetchSize = StreamingConfig.PROFILE_PREFETCH_SIZE
   lazy val config = S2ConfigFactory.config
   lazy val counterModel = new CounterModel(config)
+  lazy val graph = new Graph(config)(scala.concurrent.ExecutionContext.Implicits.global)
 
   def logToEdge(line: String): Option[Edge] = {
     for {
-      elem <- Graph.toGraphElement(line) if elem.isInstanceOf[Edge]
+      elem <- graph.toGraphElement(line) if elem.isInstanceOf[Edge]
       edge <- Some(elem.asInstanceOf[Edge]).filter { x =>
         filterOps.contains(x.op)
       }
@@ -49,7 +50,7 @@ object CounterEtlFunctions extends Logging {
      * 1427082276804	insert	edge	19073318	52453027_93524145648511699	story_user_ch_doc_view	{"doc_type" : "l", "channel_subscribing" : "y", "view_from" : "feed"}
      */
     for {
-      elem <- Graph.toGraphElement(line) if elem.isInstanceOf[Edge]
+      elem <- graph.toGraphElement(line) if elem.isInstanceOf[Edge]
       edge <- Some(elem.asInstanceOf[Edge]).filter { x =>
         filterOps.contains(x.op)
       }

@@ -83,7 +83,7 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
 
     val json = Json.arr(Json.obj("label" -> testLabelNameWeak,
       "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
-    println(json)
+
     deleteAllSync(json)
 
     result = getEdgesSync(query(11, "out"))
@@ -99,8 +99,9 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
     (result \\ "to").size should be(1)
     (result \\ "to").head.as[String] should be("21")
 
+    println("\n" * 10)
     result = getEdgesSync(query(20, "in", testTgtColumnName))
-    println(result)
+
     (result \ "results").as[List[JsValue]].size should be(0)
 
     insertEdgesSync(bulkEdges(startTs = deletedAt + 1): _*)

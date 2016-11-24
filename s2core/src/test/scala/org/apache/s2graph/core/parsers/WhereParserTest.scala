@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -81,7 +81,8 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "phone_number" -> "1234")
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      val edge = Edge(srcVertex, tgtVertex, label, dir, 0.toByte, ts, propsInner)
+      val edge = graph.newEdge(srcVertex, tgtVertex, label, dir, 0.toByte, ts, propsInner)
+
       val f = validate(label)(edge) _
 
       /** labelName label is long-long relation */
@@ -100,19 +101,22 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       /** test for each version */
       var js = Json.obj("phone_number" -> "")
       var propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      var edge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+      var edge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+
       var f = validate(label)(edge) _
       f(s"phone_number = '' ")(true)
 
       js = Json.obj("phone_number" -> "010 3167 1897")
       propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      edge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+      edge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+
       f = validate(label)(edge) _
       f(s"phone_number = '010 3167 1897' ")(true)
 
       js = Json.obj("phone_number" -> "010' 3167 1897")
       propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      edge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+      edge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+
       f = validate(label)(edge) _
       f(s"phone_number = '010\\' 3167 1897' ")(true)
     }
@@ -125,7 +129,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      val edge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+      val edge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
 
       val f = validate(label)(edge) _
 
@@ -155,7 +159,8 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      val edge = Edge(srcVertex, tgtVertex, label, dir, 0.toByte, ts, propsInner)
+      val edge = graph.newEdge(srcVertex, tgtVertex, label, dir, 0.toByte, ts, propsInner)
+
       val f = validate(label)(edge) _
 
       f(s"_from = -1 or _to = ${tgtVertex.innerId.value}")(true)
@@ -178,12 +183,14 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
       val parentPropsInner = Management.toProps(label, parentJs.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
 
-      val grandParentEdge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, parentPropsInner)
-      val parentEdge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, parentPropsInner,
-        parentEdges = Seq(EdgeWithScore(grandParentEdge, 1.0, grandParentEdge.innerLabel)))
-      val edge = Edge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner,
-        parentEdges = Seq(EdgeWithScore(parentEdge, 1.0, grandParentEdge.innerLabel)))
+      val grandParentEdge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, parentPropsInner)
 
+      val parentEdge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, parentPropsInner,
+        parentEdges = Seq(EdgeWithScore(grandParentEdge, 1.0, grandParentEdge.innerLabel)))
+
+      val edge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner,
+        parentEdges = Seq(EdgeWithScore(parentEdge, 1.0, grandParentEdge.innerLabel)))
+      
       println(edge.toString)
       println(parentEdge.toString)
       println(grandParentEdge.toString)

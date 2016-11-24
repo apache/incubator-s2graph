@@ -19,15 +19,21 @@
 
 package org.apache.s2graph.core
 
+import java.util
+
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, SourceVertexId, VertexId}
+import org.apache.tinkerpop.gremlin.structure
+import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
+import org.apache.tinkerpop.gremlin.structure.{Vertex => TpVertex, Direction, Edge, VertexProperty, Graph}
 import play.api.libs.json.Json
+
 case class Vertex(id: VertexId,
                   ts: Long = System.currentTimeMillis(),
                   props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
                   op: Byte = 0,
-                  belongLabelIds: Seq[Int] = Seq.empty) extends GraphElement {
+                  belongLabelIds: Seq[Int] = Seq.empty) extends GraphElement with TpVertex {
 
   val innerId = id.innerId
 
@@ -97,6 +103,22 @@ case class Vertex(id: VertexId,
     else
       Seq(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName).mkString("\t")
   }
+
+  override def vertices(direction: Direction, strings: String*): util.Iterator[TpVertex] = ???
+
+  override def edges(direction: Direction, strings: String*): util.Iterator[structure.Edge] = ???
+
+  override def property[V](cardinality: Cardinality, s: String, v: V, objects: AnyRef*): VertexProperty[V] = ???
+
+  override def addEdge(s: String, vertex: TpVertex, objects: AnyRef*): Edge = ???
+
+  override def properties[V](strings: String*): util.Iterator[VertexProperty[V]] = ???
+
+  override def remove(): Unit = ???
+
+  override def graph(): Graph = ???
+
+  override def label(): String = ???
 }
 
 object Vertex {

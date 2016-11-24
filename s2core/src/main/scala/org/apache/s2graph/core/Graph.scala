@@ -19,10 +19,11 @@
 
 package org.apache.s2graph.core
 
+import java.util
 import java.util.concurrent.Executors
 
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.hadoop.fs.Path
+import org.apache.commons.configuration.Configuration
 import org.apache.s2graph.core.GraphExceptions.{FetchAllStepFailException, FetchTimeoutException, LabelNotExistException}
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta, Model, Service}
@@ -30,8 +31,11 @@ import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.storage.{SKeyValue, Storage}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.{DeferCache, Extensions, SafeUpdateCache, logger}
+import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
+import org.apache.tinkerpop.gremlin.structure
+import org.apache.tinkerpop.gremlin.structure.Graph.Variables
+import org.apache.tinkerpop.gremlin.structure.{Graph => TpGraph, Transaction}
 import play.api.libs.json.{JsObject, Json}
-
 import scala.annotation.tailrec
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
@@ -83,62 +87,7 @@ object Graph {
 
   var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)
 
-  def toGraphElement(s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] = Try {
-    val parts = GraphUtil.split(s)
-    val logType = parts(2)
-    val element = if (logType == "edge" | logType == "e") {
-      /** current only edge is considered to be bulk loaded */
-      labelMapping.get(parts(5)) match {
-        case None =>
-        case Some(toReplace) =>
-          parts(5) = toReplace
-      }
-      toEdge(parts)
-    } else if (logType == "vertex" | logType == "v") {
-      toVertex(parts)
-    } else {
-      throw new GraphExceptions.JsonParseException("log type is not exist in log.")
-    }
 
-    element
-  } recover {
-    case e: Exception =>
-      logger.error(s"[toElement]: $e", e)
-      None
-  } get
-
-
-  def toVertex(s: String): Option[Vertex] = {
-    toVertex(GraphUtil.split(s))
-  }
-
-  def toEdge(s: String): Option[Edge] = {
-    toEdge(GraphUtil.split(s))
-  }
-
-  def toEdge(parts: Array[String]): Option[Edge] = Try {
-    val (ts, operation, logType, srcId, tgtId, label) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
-    val props = if (parts.length >= 7) fromJsonToProperties(Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj())) else Map.empty[String, Any]
-    val tempDirection = if (parts.length >= 8) parts(7) else "out"
-    val direction = if (tempDirection != "out" && tempDirection != "in") "out" else tempDirection
-    val edge = Edge.toEdge(srcId, tgtId, label, direction, props, ts.toLong, operation)
-    Option(edge)
-  } recover {
-    case e: Exception =>
-      logger.error(s"[toEdge]: $e", e)
-      throw e
-  } get
-
-  def toVertex(parts: Array[String]): Option[Vertex] = Try {
-    val (ts, operation, logType, srcId, serviceName, colName) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
-    val props = if (parts.length >= 7) fromJsonToProperties(Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj())) else Map.empty[String, Any]
-    val vertex = Vertex.toVertex(serviceName, colName, srcId, props, ts.toLong, operation)
-    Option(vertex)
-  } recover {
-    case e: Throwable =>
-      logger.error(s"[toVertex]: $e", e)
-      throw e
-  } get
 
   def initStorage(graph: Graph, config: Config)(ec: ExecutionContext): Storage[_, _] = {
     val storageBackend = config.getString("s2graph.storage.backend")
@@ -326,7 +275,9 @@ object Graph {
             /** Select */
             val mergedPropsWithTs = edge.propertyValuesInner(propsSelectColumns)
 
-            val newEdge = edge.copy(propsWithTs = mergedPropsWithTs)
+//            val newEdge = edge.copy(propsWithTs = mergedPropsWithTs)
+            val newEdge = edge.copyEdgeWithState(mergedPropsWithTs)
+
             val newEdgeWithScore = edgeWithScore.copy(edge = newEdge)
             /** OrderBy */
             val orderByValues =
@@ -410,7 +361,7 @@ object Graph {
             edge.propertyValues(queryOption.selectColumns) ++ initial
           }
 
-        val newEdge = edge.copy(propsWithTs = mergedPropsWithTs)
+        val newEdge = edge.copyEdgeWithState(mergedPropsWithTs)
         edgeWithScore.copy(edge = newEdge)
       }
     } else Nil
@@ -544,7 +495,7 @@ object Graph {
 
 }
 
-class Graph(_config: Config)(implicit val ec: ExecutionContext) {
+class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph {
 
   import Graph._
 
@@ -948,20 +899,28 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
       val head = filtered.head
       val label = head.edge.innerLabel
       val edgeWithScoreLs = filtered.map { edgeWithScore =>
-        val (newOp, newVersion, newPropsWithTs) = label.consistencyLevel match {
-          case "strong" =>
-            val _newPropsWithTs = edgeWithScore.edge.updatePropsWithTs(
-              Map(LabelMeta.timestamp -> InnerValLikeWithTs.withLong(requestTs, requestTs, label.schemaVersion))
-            )
-
-            (GraphUtil.operations("delete"), requestTs, _newPropsWithTs)
-          case _ =>
-            val oldEdge = edgeWithScore.edge
-            (oldEdge.op, oldEdge.version, oldEdge.updatePropsWithTs())
-        }
-
-        val copiedEdge =
-          edgeWithScore.edge.copy(op = newOp, version = newVersion, propsWithTs = newPropsWithTs)
+          val edge = edgeWithScore.edge
+          val copiedEdge = label.consistencyLevel match {
+            case "strong" =>
+              edge.copyEdge(op = GraphUtil.operations("delete"),
+                version = requestTs, propsWithTs = Edge.propsToState(edge.updatePropsWithTs()), ts = requestTs)
+            case _ =>
+              edge.copyEdge(propsWithTs = Edge.propsToState(edge.updatePropsWithTs()), ts = requestTs)
+          }
+//        val (newOp, newVersion, newPropsWithTs) = label.consistencyLevel match {
+//          case "strong" =>
+//            val edge = edgeWithScore.edge
+//            edge.property(LabelMeta.timestamp.name, requestTs)
+//            val _newPropsWithTs = edge.updatePropsWithTs()
+//
+//            (GraphUtil.operations("delete"), requestTs, _newPropsWithTs)
+//          case _ =>
+//            val oldEdge = edgeWithScore.edge
+//            (oldEdge.op, oldEdge.version, oldEdge.updatePropsWithTs())
+//        }
+//
+//        val copiedEdge =
+//          edgeWithScore.edge.copy(op = newOp, version = newVersion, propsWithTs = newPropsWithTs)
 
         val edgeToDelete = edgeWithScore.copy(edge = copiedEdge)
         //      logger.debug(s"delete edge from deleteAll: ${edgeToDelete.edge.toLogString}")
@@ -1099,7 +1058,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
               operation: String = "insert",
               withWait: Boolean = true): Future[Boolean] = {
 
-    val innerEdges = Seq(Edge.toEdge(srcId, tgtId, labelName, direction, props.toMap, ts, operation))
+    val innerEdges = Seq(toEdge(srcId, tgtId, labelName, direction, props.toMap, ts, operation))
     mutateEdges(innerEdges, withWait).map(_.headOption.getOrElse(false))
   }
 
@@ -1113,4 +1072,141 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
     val innerVertices = Seq(Vertex.toVertex(serviceName, columnName, id, props.toMap, ts, operation))
     mutateVertices(innerVertices, withWait).map(_.headOption.getOrElse(false))
   }
+
+  def toGraphElement(s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] = Try {
+    val parts = GraphUtil.split(s)
+    val logType = parts(2)
+    val element = if (logType == "edge" | logType == "e") {
+      /** current only edge is considered to be bulk loaded */
+      labelMapping.get(parts(5)) match {
+        case None =>
+        case Some(toReplace) =>
+          parts(5) = toReplace
+      }
+      toEdge(parts)
+    } else if (logType == "vertex" | logType == "v") {
+      toVertex(parts)
+    } else {
+      throw new GraphExceptions.JsonParseException("log type is not exist in log.")
+    }
+
+    element
+  } recover {
+    case e: Exception =>
+      logger.error(s"[toElement]: $e", e)
+      None
+  } get
+
+
+  def toVertex(s: String): Option[Vertex] = {
+    toVertex(GraphUtil.split(s))
+  }
+
+  def toEdge(s: String): Option[Edge] = {
+    toEdge(GraphUtil.split(s))
+  }
+
+  def toEdge(parts: Array[String]): Option[Edge] = Try {
+    val (ts, operation, logType, srcId, tgtId, label) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
+    val props = if (parts.length >= 7) fromJsonToProperties(Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj())) else Map.empty[String, Any]
+    val tempDirection = if (parts.length >= 8) parts(7) else "out"
+    val direction = if (tempDirection != "out" && tempDirection != "in") "out" else tempDirection
+    val edge = toEdge(srcId, tgtId, label, direction, props, ts.toLong, operation)
+    Option(edge)
+  } recover {
+    case e: Exception =>
+      logger.error(s"[toEdge]: $e", e)
+      throw e
+  } get
+
+  def toVertex(parts: Array[String]): Option[Vertex] = Try {
+    val (ts, operation, logType, srcId, serviceName, colName) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
+    val props = if (parts.length >= 7) fromJsonToProperties(Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj())) else Map.empty[String, Any]
+    val vertex = Vertex.toVertex(serviceName, colName, srcId, props, ts.toLong, operation)
+    Option(vertex)
+  } recover {
+    case e: Throwable =>
+      logger.error(s"[toVertex]: $e", e)
+      throw e
+  } get
+
+  def newSnapshotEdge(srcVertex: Vertex,
+                      tgtVertex: Vertex,
+                      label: Label,
+                      dir: Int,
+                      op: Byte,
+                      version: Long,
+                      propsWithTs: Edge.State,
+                      pendingEdgeOpt: Option[Edge],
+                      statusCode: Byte = 0,
+                      lockTs: Option[Long],
+                      tsInnerValOpt: Option[InnerValLike] = None): SnapshotEdge = {
+    val snapshotEdge = new SnapshotEdge(this, srcVertex, tgtVertex, label, dir, op, version, Edge.EmptyProps,
+      pendingEdgeOpt, statusCode, lockTs, tsInnerValOpt)
+    Edge.fillPropsWithTs(snapshotEdge, propsWithTs)
+    snapshotEdge
+  }
+
+  def newEdge(srcVertex: Vertex,
+              tgtVertex: Vertex,
+              innerLabel: Label,
+              dir: Int,
+              op: Byte = GraphUtil.defaultOpByte,
+              version: Long = System.currentTimeMillis(),
+              propsWithTs: Edge.State,
+              parentEdges: Seq[EdgeWithScore] = Nil,
+              originalEdgeOpt: Option[Edge] = None,
+              pendingEdgeOpt: Option[Edge] = None,
+              statusCode: Byte = 0,
+              lockTs: Option[Long] = None,
+              tsInnerValOpt: Option[InnerValLike] = None): Edge = {
+    val edge = new Edge(this, srcVertex, tgtVertex, innerLabel, dir, op, version, Edge.EmptyProps,
+      parentEdges, originalEdgeOpt, pendingEdgeOpt, statusCode, lockTs, tsInnerValOpt)
+    Edge.fillPropsWithTs(edge, propsWithTs)
+    edge
+  }
+  def toEdge(srcId: Any,
+             tgtId: Any,
+             labelName: String,
+             direction: String,
+             props: Map[String, Any] = Map.empty,
+             ts: Long = System.currentTimeMillis(),
+             operation: String = "insert"): Edge = {
+    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+
+    val srcVertexId = toInnerVal(srcId.toString, label.srcColumn.columnType, label.schemaVersion)
+    val tgtVertexId = toInnerVal(tgtId.toString, label.tgtColumn.columnType, label.schemaVersion)
+
+    val srcColId = label.srcColumn.id.get
+    val tgtColId = label.tgtColumn.id.get
+
+    val srcVertex = Vertex(SourceVertexId(srcColId, srcVertexId), System.currentTimeMillis())
+    val tgtVertex = Vertex(TargetVertexId(tgtColId, tgtVertexId), System.currentTimeMillis())
+    val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
+
+    val labelWithDir = LabelWithDirection(label.id.get, dir)
+    val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
+    val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
+    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
+
+    new Edge(this, srcVertex, tgtVertex, label, dir, op = op, version = ts).copyEdgeWithState(propsWithTs)
+  }
+
+  override def vertices(objects: AnyRef*): util.Iterator[structure.Vertex] = ???
+
+  override def tx(): Transaction = ???
+
+  override def edges(objects: AnyRef*): util.Iterator[structure.Edge] = ???
+
+  override def variables(): Variables = ???
+
+  override def configuration(): Configuration = ???
+
+  override def addVertex(objects: AnyRef*): structure.Vertex = ???
+
+  override def close(): Unit = ???
+
+  override def compute[C <: GraphComputer](aClass: Class[C]): C = ???
+
+  override def compute(): GraphComputer = ???
 }
