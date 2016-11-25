@@ -20,7 +20,7 @@
 package org.apache.s2graph.core
 
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.mysqls.{ServiceColumn, LabelMeta}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs, VertexId}
 import org.apache.s2graph.core.utils.logger
 import org.scalatest.FunSuite
@@ -65,8 +65,8 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
 
   test("buildOperation") {
     val schemaVersion = "v2"
-    val vertexId = VertexId(0, InnerVal.withStr("dummy", schemaVersion))
-    val srcVertex = Vertex(vertexId)
+    val vertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("dummy", schemaVersion))
+    val srcVertex = graph.newVertex(vertexId)
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
@@ -92,8 +92,8 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
 
   test("buildMutation: snapshotEdge: None with newProps") {
     val schemaVersion = "v2"
-    val vertexId = VertexId(0, InnerVal.withStr("dummy", schemaVersion))
-    val srcVertex = Vertex(vertexId)
+    val vertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("dummy", schemaVersion))
+    val srcVertex = graph.newVertex(vertexId)
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
@@ -119,8 +119,8 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
 
   test("buildMutation: oldPropsWithTs == newPropsWithTs, Drop all requests") {
     val schemaVersion = "v2"
-    val vertexId = VertexId(0, InnerVal.withStr("dummy", schemaVersion))
-    val srcVertex = Vertex(vertexId)
+    val vertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("dummy", schemaVersion))
+    val srcVertex = graph.newVertex(vertexId)
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
@@ -143,8 +143,8 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
 
   test("buildMutation: All props older than snapshotEdge's LastDeletedAt") {
     val schemaVersion = "v2"
-    val vertexId = VertexId(0, InnerVal.withStr("dummy", schemaVersion))
-    val srcVertex = Vertex(vertexId)
+    val vertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("dummy", schemaVersion))
+    val srcVertex = graph.newVertex(vertexId)
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
@@ -177,8 +177,8 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
 
   test("buildMutation: All props newer than snapshotEdge's LastDeletedAt") {
     val schemaVersion = "v2"
-    val vertexId = VertexId(0, InnerVal.withStr("dummy", schemaVersion))
-    val srcVertex = Vertex(vertexId)
+    val vertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("dummy", schemaVersion))
+    val srcVertex = graph.newVertex(vertexId)
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)

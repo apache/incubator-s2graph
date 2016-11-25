@@ -73,8 +73,8 @@ class SnapshotEdgeDeserializable(graph: Graph) extends Deserializable[SnapshotEd
           val lockTs = Option(Bytes.toLong(kv.value, pos, 8))
 
           val pendingEdge =
-            graph.newEdge(Vertex(srcVertexId, cellVersion),
-              Vertex(tgtVertexId, cellVersion),
+            graph.newEdge(graph.newVertex(srcVertexId, cellVersion),
+              graph.newVertex(tgtVertexId, cellVersion),
               label, labelWithDir.dir, pendingEdgeOp,
               cellVersion, pendingEdgeProps.toMap,
               statusCode = pendingEdgeStatusCode, lockTs = lockTs, tsInnerValOpt = Option(tsInnerVal))
@@ -84,7 +84,7 @@ class SnapshotEdgeDeserializable(graph: Graph) extends Deserializable[SnapshotEd
       (tgtVertexId, kvsMap, op, ts, statusCode, _pendingEdgeOpt, tsInnerVal)
     }
 
-    graph.newSnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),
+    graph.newSnapshotEdge(graph.newVertex(srcVertexId, ts), graph.newVertex(tgtVertexId, ts),
       label, labelWithDir.dir, op, cellVersion, props, statusCode = statusCode,
       pendingEdgeOpt = _pendingEdgeOpt, lockTs = None, tsInnerValOpt = Option(tsInnerVal))
   }

@@ -21,6 +21,7 @@ package org.apache.s2graph.core.benchmark
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.core.mysqls.ServiceColumn
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, SourceVertexId}
 
 import scala.collection.mutable
@@ -85,7 +86,7 @@ class GraphUtilSpec extends BenchmarkCommon {
       stats += (0 -> (rangeBytes.head -> 0L))
 
       for (i <- (0L until testNum)) {
-        val vertexId = SourceVertexId(DEFAULT_COL_ID, InnerVal.withLong(i, HBaseType.DEFAULT_VERSION))
+        val vertexId = SourceVertexId(ServiceColumn.Default, InnerVal.withLong(i, HBaseType.DEFAULT_VERSION))
         val bytes = vertexId.bytes
         val shortKey = GraphUtil.murmur3(vertexId.innerId.toIdString())
         val shortVal = counts.getOrElse(shortKey, 0L) + 1L

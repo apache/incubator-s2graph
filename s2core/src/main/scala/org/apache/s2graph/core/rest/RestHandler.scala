@@ -219,7 +219,7 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
         idJson <- (js \ "ids").asOpt[List[JsValue]].getOrElse(List.empty[JsValue])
         id <- jsValueToAny(idJson)
       } yield {
-        Vertex.toVertex(serviceName, columnName, id)
+        graph.toVertex(serviceName, columnName, id)
       }
     }
 

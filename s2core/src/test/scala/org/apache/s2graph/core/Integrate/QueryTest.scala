@@ -70,7 +70,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
   def getQuery(id: Int, where: String): Query =
     Query(
-      vertices = Seq(Vertex.toVertex(testServiceName, testColumnName, id)),
+      vertices = Seq(graph.toVertex(testServiceName, testColumnName, id)),
       steps = Vector(
         Step(Seq(QueryParam(testLabelName, where = Where(testLabelName, where))))
       )
@@ -78,7 +78,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
   def queryIntervalWithParent(id: Int, index: String, prop: String, value: String) =
     Query(
-      vertices = Seq(Vertex.toVertex(testServiceName, testColumnName, id)),
+      vertices = Seq(graph.toVertex(testServiceName, testColumnName, id)),
       steps = Vector(
         Step(Seq(QueryParam(testLabelName, indexName = index))),
         Step(Seq(QueryParam(testLabelName, indexName = index,
@@ -91,7 +91,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
                                    prop: String, value: String,
                                    toProp: String, toValue: String) =
     Query(
-      vertices = Seq(Vertex.toVertex(testServiceName, testColumnName, id)),
+      vertices = Seq(graph.toVertex(testServiceName, testColumnName, id)),
       steps = Vector(
         Step(Seq(QueryParam(testLabelName, indexName = index))),
         Step(Seq(QueryParam(testLabelName, indexName = index,
@@ -102,7 +102,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
   def queryWithInterval(id: Int, index: String, prop: String, fromVal: Int, toVal: Int) =
     Query(
-      vertices = Seq(Vertex.toVertex(testServiceName, testColumnName, id)),
+      vertices = Seq(graph.toVertex(testServiceName, testColumnName, id)),
       steps = Vector(
         Step(Seq(QueryParam(testLabelName, indexName = index,
           intervalOpt = Option(Seq(prop -> JsNumber(fromVal)), Seq(prop -> JsNumber(toVal))))))
@@ -111,7 +111,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
   def queryExclude(id: Int) =
     Query(
-      vertices = Seq(Vertex.toVertex(testServiceName, testColumnName, id)),
+      vertices = Seq(graph.toVertex(testServiceName, testColumnName, id)),
       steps = Vector(
         Step(
           Seq(
@@ -124,7 +124,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
   def queryGroupBy(id: Int, props: Seq[String]) =
     Query(
-      vertices = Seq(Vertex.toVertex(testServiceName, testColumnName, id)),
+      vertices = Seq(graph.toVertex(testServiceName, testColumnName, id)),
       steps = Vector(
         Step(
           Seq(QueryParam(testLabelName))

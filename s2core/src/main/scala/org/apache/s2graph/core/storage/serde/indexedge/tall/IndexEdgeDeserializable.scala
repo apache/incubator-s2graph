@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.storage.serde.indexedge.tall
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.mysqls.{ServiceColumn, Label, LabelMeta}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, StorageDeserializable}
 import org.apache.s2graph.core.types._
@@ -61,7 +61,7 @@ class IndexEdgeDeserializable(graph: Graph,
 
      val label = checkLabel.getOrElse(Label.findById(labelWithDir.labelId))
 
-     val srcVertex = Vertex(srcVertexId, version)
+     val srcVertex = graph.newVertex(srcVertexId, version)
      //TODO:
      val edge = graph.newEdge(srcVertex, null,
        label, labelWithDir.dir, GraphUtil.defaultOpByte, version, Edge.EmptyState)
@@ -71,11 +71,11 @@ class IndexEdgeDeserializable(graph: Graph,
        // degree
        //      val degreeVal = Bytes.toLong(kv.value)
        val degreeVal = bytesToLongFunc(kv.value, 0)
-       val tgtVertexId = VertexId(HBaseType.DEFAULT_COL_ID, InnerVal.withStr("0", schemaVer))
+       val tgtVertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("0", schemaVer))
 
        edge.property(LabelMeta.timestamp.name, version, version)
        edge.property(LabelMeta.degree.name, degreeVal, version)
-       edge.tgtVertex = Vertex(tgtVertexId, version)
+       edge.tgtVertex = graph.newVertex(tgtVertexId, version)
        edge.op = GraphUtil.defaultOpByte
        edge.tsInnerValOpt = Option(InnerVal.withLong(tsVal, schemaVer))
        edge
@@ -125,11 +125,11 @@ class IndexEdgeDeserializable(graph: Graph,
        val tgtVertexId =
          if (edge.checkProperty(LabelMeta.to.name)) {
            val vId = edge.property(LabelMeta.to.name).asInstanceOf[S2Property[_]].innerValWithTs
-           TargetVertexId(HBaseType.DEFAULT_COL_ID, vId.innerVal)
+           TargetVertexId(ServiceColumn.Default, vId.innerVal)
          } else tgtVertexIdRaw
 
 
-       edge.tgtVertex = Vertex(tgtVertexId, version)
+       edge.tgtVertex = graph.newVertex(tgtVertexId, version)
        edge.op = op
        edge.tsInnerValOpt = Option(InnerVal.withLong(tsVal, schemaVer))
        edge

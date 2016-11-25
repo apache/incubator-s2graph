@@ -97,7 +97,7 @@ object TransferToHFile extends SparkApp {
     val innerVal = JSONParser.jsValueToInnerVal(Json.toJson(vertexId), label.srcColumnWithDir(dir).columnType, label.schemaVersion).getOrElse {
       throw new RuntimeException(s"$vertexId can not be converted into innerval")
     }
-    val vertex = Vertex(SourceVertexId(label.srcColumn.id.get, innerVal))
+    val vertex = GraphSubscriberHelper.g.newVertex(SourceVertexId(label.srcColumn, innerVal))
 
     val ts = System.currentTimeMillis()
     val propsWithTs = Map(LabelMeta.timestamp -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion))

@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core.storage.serde.indexedge.wide
 
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.mysqls.{ServiceColumn, Label, LabelMeta}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.types._
@@ -37,7 +37,7 @@ class IndexEdgeDeserializable(graph: Graph,
      //    val degree = Bytes.toLong(kv.value)
      val degree = bytesToLongFunc(kv.value, 0)
      val idxPropsRaw = Array(LabelMeta.degree -> InnerVal.withLong(degree, schemaVer))
-     val tgtVertexIdRaw = VertexId(HBaseType.DEFAULT_COL_ID, InnerVal.withStr("0", schemaVer))
+     val tgtVertexIdRaw = VertexId(ServiceColumn.Default, InnerVal.withStr("0", schemaVer))
      (idxPropsRaw, tgtVertexIdRaw, GraphUtil.operations("insert"), false, 0)
    }
 
@@ -82,7 +82,7 @@ class IndexEdgeDeserializable(graph: Graph,
      val (srcVertexId, labelWithDir, labelIdxSeq, _, _) = parseRow(kv, schemaVer)
 
      val label = checkLabel.getOrElse(Label.findById(labelWithDir.labelId))
-     val srcVertex = Vertex(srcVertexId, version)
+     val srcVertex = graph.newVertex(srcVertexId, version)
      //TODO:
      val edge = graph.newEdge(srcVertex, null,
        label, labelWithDir.dir, GraphUtil.defaultOpByte, version, Edge.EmptyState)
@@ -125,10 +125,10 @@ class IndexEdgeDeserializable(graph: Graph,
      val tgtVertexId =
        if (edge.checkProperty(LabelMeta.to.name)) {
          val vId = edge.property(LabelMeta.to.name).asInstanceOf[S2Property[_]].innerValWithTs
-         TargetVertexId(HBaseType.DEFAULT_COL_ID, vId.innerVal)
+         TargetVertexId(ServiceColumn.Default, vId.innerVal)
        } else tgtVertexIdRaw
 
-     edge.tgtVertex = Vertex(tgtVertexId, version)
+     edge.tgtVertex = graph.newVertex(tgtVertexId, version)
      edge.op = op
      edge.tsInnerValOpt = Option(InnerVal.withLong(tsVal, schemaVer))
      edge

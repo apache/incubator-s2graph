@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.parsers
 
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.mysqls.{ServiceColumn, Label, LabelMeta}
 import org.apache.s2graph.core.rest.TemplateHelper
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
@@ -62,13 +62,13 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   def ids = for {
     version <- Seq(VERSION1, VERSION2)
   } yield {
-    val srcId = SourceVertexId(0, InnerVal.withLong(1, version))
+    val srcId = SourceVertexId(ServiceColumn.Default, InnerVal.withLong(1, version))
     val tgtId =
-      if (version == VERSION2) TargetVertexId(0, InnerVal.withStr("2", version))
-      else TargetVertexId(0, InnerVal.withLong(2, version))
+      if (version == VERSION2) TargetVertexId(ServiceColumn.Default, InnerVal.withStr("2", version))
+      else TargetVertexId(ServiceColumn.Default, InnerVal.withLong(2, version))
 
-    val srcVertex = Vertex(srcId, ts)
-    val tgtVertex = Vertex(tgtId, ts)
+    val srcVertex = graph.newVertex(srcId, ts)
+    val tgtVertex = graph.newVertex(tgtId, ts)
     val (_label, dir) = if (version == VERSION2) (labelV2, labelWithDirV2.dir) else (label, labelWithDir.dir)
 
     (srcVertex, tgtVertex, _label, dir)

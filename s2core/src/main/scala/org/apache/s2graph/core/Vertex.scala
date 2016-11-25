@@ -29,7 +29,8 @@ import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.apache.tinkerpop.gremlin.structure.{Vertex => TpVertex, Direction, Edge, VertexProperty, Graph}
 import play.api.libs.json.Json
 
-case class Vertex(id: VertexId,
+case class Vertex(graph: Graph,
+                  id: VertexId,
                   ts: Long = System.currentTimeMillis(),
                   props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
                   op: Byte = 0,
@@ -72,7 +73,7 @@ case class Vertex(id: VertexId,
     meta <- ColumnMeta.findByIdAndSeq(id.colId, seq.toByte)
   } yield (meta.name -> v.toString)
 
-  def toEdgeVertex() = Vertex(SourceVertexId(id.colId, innerId), ts, props, op)
+  def toEdgeVertex() = graph.newVertex(SourceVertexId(id.column, innerId), ts, props, op)
 
 
   override def hashCode() = {
@@ -91,7 +92,7 @@ case class Vertex(id: VertexId,
     }
   }
 
-  def withProps(newProps: Map[Int, InnerValLike]) = Vertex(id, ts, newProps, op)
+  def withProps(newProps: Map[Int, InnerValLike]) = graph.newVertex(id, ts, newProps, op)
 
   def toLogString(): String = {
     val (serviceName, columnName) =
@@ -116,8 +117,6 @@ case class Vertex(id: VertexId,
 
   override def remove(): Unit = ???
 
-  override def graph(): Graph = ???
-
   override def label(): String = ???
 }
 
@@ -129,21 +128,5 @@ object Vertex {
 
   def isLabelId(propKey: Int): Boolean = propKey > Byte.MaxValue
 
-  def toVertex(serviceName: String,
-            columnName: String,
-            id: Any,
-            props: Map[String, Any] = Map.empty,
-            ts: Long = System.currentTimeMillis(),
-            operation: String = "insert"): Vertex = {
 
-    val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
-    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
-    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
-
-    val srcVertexId = VertexId(column.id.get, toInnerVal(id.toString, column.columnType, column.schemaVersion))
-    val propsInner = column.propsToInnerVals(props) ++
-      Map(ColumnMeta.timeStampSeq.toInt -> InnerVal.withLong(ts, column.schemaVersion))
-
-    new Vertex(srcVertexId, ts, propsInner, op)
-  }
 }

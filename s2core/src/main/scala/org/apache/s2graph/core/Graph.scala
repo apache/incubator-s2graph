@@ -26,7 +26,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.Configuration
 import org.apache.s2graph.core.GraphExceptions.{FetchAllStepFailException, FetchTimeoutException, LabelNotExistException}
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta, Model, Service}
+import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.storage.{SKeyValue, Storage}
 import org.apache.s2graph.core.types._
@@ -1069,7 +1069,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
                 ts: Long = System.currentTimeMillis(),
                 operation: String = "insert",
                 withWait: Boolean = true): Future[Boolean] = {
-    val innerVertices = Seq(Vertex.toVertex(serviceName, columnName, id, props.toMap, ts, operation))
+    val innerVertices = Seq(toVertex(serviceName, columnName, id, props.toMap, ts, operation))
     mutateVertices(innerVertices, withWait).map(_.headOption.getOrElse(false))
   }
 
@@ -1122,13 +1122,14 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
   def toVertex(parts: Array[String]): Option[Vertex] = Try {
     val (ts, operation, logType, srcId, serviceName, colName) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
     val props = if (parts.length >= 7) fromJsonToProperties(Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj())) else Map.empty[String, Any]
-    val vertex = Vertex.toVertex(serviceName, colName, srcId, props, ts.toLong, operation)
+    val vertex = toVertex(serviceName, colName, srcId, props, ts.toLong, operation)
     Option(vertex)
   } recover {
     case e: Throwable =>
       logger.error(s"[toVertex]: $e", e)
       throw e
   } get
+
 
   def newSnapshotEdge(srcVertex: Vertex,
                       tgtVertex: Vertex,
@@ -1180,8 +1181,8 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
     val srcColId = label.srcColumn.id.get
     val tgtColId = label.tgtColumn.id.get
 
-    val srcVertex = Vertex(SourceVertexId(srcColId, srcVertexId), System.currentTimeMillis())
-    val tgtVertex = Vertex(TargetVertexId(tgtColId, tgtVertexId), System.currentTimeMillis())
+    val srcVertex = newVertex(SourceVertexId(label.srcColumn, srcVertexId), System.currentTimeMillis())
+    val tgtVertex = newVertex(TargetVertexId(label.tgtColumn, tgtVertexId), System.currentTimeMillis())
     val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
 
     val labelWithDir = LabelWithDirection(label.id.get, dir)
@@ -1190,6 +1191,31 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
     val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
 
     new Edge(this, srcVertex, tgtVertex, label, dir, op = op, version = ts).copyEdgeWithState(propsWithTs)
+  }
+
+  def newVertex(id: VertexId,
+                ts: Long = System.currentTimeMillis(),
+                props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
+                op: Byte = 0,
+                belongLabelIds: Seq[Int] = Seq.empty): Vertex = {
+    new Vertex(this, id, ts, props, op, belongLabelIds)
+  }
+  def toVertex(serviceName: String,
+               columnName: String,
+               id: Any,
+               props: Map[String, Any] = Map.empty,
+               ts: Long = System.currentTimeMillis(),
+               operation: String = "insert"): Vertex = {
+
+    val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
+    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
+    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
+
+    val srcVertexId = VertexId(column, toInnerVal(id.toString, column.columnType, column.schemaVersion))
+    val propsInner = column.propsToInnerVals(props) ++
+      Map(ColumnMeta.timeStampSeq.toInt -> InnerVal.withLong(ts, column.schemaVersion))
+
+    new Vertex(this, srcVertexId, ts, propsInner, op)
   }
 
   override def vertices(objects: AnyRef*): util.Iterator[structure.Vertex] = ???

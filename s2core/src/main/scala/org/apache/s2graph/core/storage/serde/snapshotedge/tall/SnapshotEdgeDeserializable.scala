@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.storage.serde.snapshotedge.tall
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
+import org.apache.s2graph.core.mysqls.{ServiceColumn, Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, SKeyValue, StorageDeserializable}
 import org.apache.s2graph.core.types.{HBaseType, LabelWithDirection, SourceAndTargetVertexIdPair, SourceVertexId}
@@ -62,8 +62,8 @@ class SnapshotEdgeDeserializable(graph: Graph) extends Deserializable[SnapshotEd
       (e.srcVertex.innerId, e.tgtVertex.innerId, e.labelWithDir, LabelIndex.DefaultSeq, true, 0)
     }.getOrElse(parseRowV3(kv, schemaVer))
 
-    val srcVertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, srcInnerId)
-    val tgtVertexId = SourceVertexId(HBaseType.DEFAULT_COL_ID, tgtInnerId)
+    val srcVertexId = SourceVertexId(ServiceColumn.Default, srcInnerId)
+    val tgtVertexId = SourceVertexId(ServiceColumn.Default, tgtInnerId)
 
     val (props, op, ts, statusCode, _pendingEdgeOpt, tsInnerVal) = {
       var pos = 0
@@ -87,8 +87,8 @@ class SnapshotEdgeDeserializable(graph: Graph) extends Deserializable[SnapshotEd
           val lockTs = Option(Bytes.toLong(kv.value, pos, 8))
 
           val pendingEdge =
-            graph.newEdge(Vertex(srcVertexId, cellVersion),
-              Vertex(tgtVertexId, cellVersion),
+            graph.newEdge(graph.newVertex(srcVertexId, cellVersion),
+              graph.newVertex(tgtVertexId, cellVersion),
               label, labelWithDir.dir, pendingEdgeOp,
               cellVersion, pendingEdgeProps.toMap,
               statusCode = pendingEdgeStatusCode, lockTs = lockTs, tsInnerValOpt = Option(tsInnerVal))
@@ -98,7 +98,7 @@ class SnapshotEdgeDeserializable(graph: Graph) extends Deserializable[SnapshotEd
       (kvsMap, op, ts, statusCode, _pendingEdgeOpt, tsInnerVal)
     }
 
-    graph.newSnapshotEdge(Vertex(srcVertexId, ts), Vertex(tgtVertexId, ts),
+    graph.newSnapshotEdge(graph.newVertex(srcVertexId, ts), graph.newVertex(tgtVertexId, ts),
       label, labelWithDir.dir, op, cellVersion, props, statusCode = statusCode,
       pendingEdgeOpt = _pendingEdgeOpt, lockTs = None, tsInnerValOpt = Option(tsInnerVal))
   }

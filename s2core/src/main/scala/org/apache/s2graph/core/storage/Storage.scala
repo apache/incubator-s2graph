@@ -133,7 +133,7 @@ abstract class Storage[Q, R](val graph: Graph,
     indexEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
 
   /** create deserializer that can parser stored CanSKeyValue into vertex. */
-  val vertexDeserializer: Deserializable[Vertex] = new VertexDeserializable
+  val vertexDeserializer: Deserializable[Vertex] = new VertexDeserializable(graph)
 
 
   /**
@@ -973,14 +973,14 @@ abstract class Storage[Q, R](val graph: Graph,
         /** we use toSnapshotEdge so dont need to swap src, tgt */
         val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
         val tgt = InnerVal.convertVersion(tgtVertexId, tgtColumn.columnType, label.schemaVersion)
-        val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, src), TargetVertexId(tgtColumn.id.get, tgt))
-        val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
+        val (srcVId, tgtVId) = (SourceVertexId(srcColumn, src), TargetVertexId(tgtColumn, tgt))
+        val (srcV, tgtV) = (graph.newVertex(srcVId), graph.newVertex(tgtVId))
 
         graph.newEdge(srcV, tgtV, label, labelWithDir.dir, propsWithTs = propsWithTs)
       case None =>
         val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
-        val srcVId = SourceVertexId(srcColumn.id.get, src)
-        val srcV = Vertex(srcVId)
+        val srcVId = SourceVertexId(srcColumn, src)
+        val srcV = graph.newVertex(srcVId)
 
         graph.newEdge(srcV, srcV, label, labelWithDir.dir, propsWithTs = propsWithTs, parentEdges = parentEdges)
     }

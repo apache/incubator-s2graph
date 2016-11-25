@@ -25,10 +25,11 @@ package org.apache.s2graph.core.mysqls
 
 import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.types.{InnerValLikeWithTs, InnerValLike}
+import org.apache.s2graph.core.types.{HBaseType, InnerValLikeWithTs, InnerValLike}
 import play.api.libs.json.Json
 import scalikejdbc._
 object ServiceColumn extends Model[ServiceColumn] {
+  val Default = ServiceColumn(Option(HBaseType.DEFAULT_COL_ID), 0, "default", "string", "v4")
 
   def apply(rs: WrappedResultSet): ServiceColumn = {
     ServiceColumn(rs.intOpt("id"), rs.int("service_id"), rs.string("column_name"), rs.string("column_type").toLowerCase(), rs.string("schema_version"))

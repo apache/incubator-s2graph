@@ -268,7 +268,7 @@ class RequestParser(graph: Graph) {
       id <- ids
       innerId <- jsValueToInnerVal(id, serviceColumn.columnType, label.schemaVersion)
     } yield {
-      Vertex(SourceVertexId(serviceColumn.id.get, innerId), System.currentTimeMillis())
+      graph.newVertex(SourceVertexId(serviceColumn, innerId), System.currentTimeMillis())
     }
 
     vertices
@@ -358,7 +358,7 @@ class RequestParser(graph: Graph) {
         idJson = (value \ "id").asOpt[JsValue].map(Seq(_)).getOrElse(Nil)
         idsJson = (value \ "ids").asOpt[Seq[JsValue]].getOrElse(Nil)
         id <- (idJson ++ idsJson).flatMap(jsValueToAny(_).toSeq).distinct
-      } yield Vertex.toVertex(serviceName, columnName, id)
+      } yield graph.toVertex(serviceName, columnName, id)
 
       if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
       val steps = parse[Vector[JsValue]](jsValue, "steps")
@@ -586,7 +586,7 @@ class RequestParser(graph: Graph) {
     val sName = if (serviceName.isEmpty) parse[String](jsValue, "serviceName") else serviceName.get
     val cName = if (columnName.isEmpty) parse[String](jsValue, "columnName") else columnName.get
     val props = fromJsonToProperties((jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj()))
-    Vertex.toVertex(sName, cName, id.toString, props, ts, operation)
+    graph.toVertex(sName, cName, id.toString, props, ts, operation)
   }
 
   def toPropElements(jsObj: JsValue) = Try {

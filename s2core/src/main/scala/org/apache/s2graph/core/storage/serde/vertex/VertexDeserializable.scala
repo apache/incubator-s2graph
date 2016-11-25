@@ -23,11 +23,12 @@ import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, VertexId}
-import org.apache.s2graph.core.{QueryParam, Vertex}
+import org.apache.s2graph.core.{Graph, QueryParam, Vertex}
 
 import scala.collection.mutable.ListBuffer
 
-class VertexDeserializable(bytesToInt: (Array[Byte], Int) => Int = bytesToInt) extends Deserializable[Vertex] {
+class VertexDeserializable(graph: Graph,
+                           bytesToInt: (Array[Byte], Int) => Int = bytesToInt) extends Deserializable[Vertex] {
   def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
                                           _kvs: Seq[T],
                                           version: String,
@@ -61,6 +62,6 @@ class VertexDeserializable(bytesToInt: (Array[Byte], Int) => Int = bytesToInt) e
       }
     }
     assert(maxTs != Long.MinValue)
-    Vertex(vertexId, maxTs, propsMap.toMap, belongLabelIds = belongLabelIds)
+    graph.newVertex(vertexId, maxTs, propsMap.toMap, belongLabelIds = belongLabelIds)
   }
 }
