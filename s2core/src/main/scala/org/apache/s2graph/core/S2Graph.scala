@@ -1336,17 +1336,33 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
   }
 
+  /**
+   * used by graph.traversal().V()
+   * @param vertexIds: array of VertexId values. note that last parameter can be used to control if actually fetch vertices from storage or not.
+   *                 since S2Graph use user-provided id as part of edge, it is possible to
+   *                 fetch edge without fetch start vertex. default is false which means we are not fetching vertices from storage.
+   * @return
+   */
   override def vertices(vertexIds: AnyRef*): util.Iterator[structure.Vertex] = {
+    val fetchVertices = vertexIds.lastOption.map { lastParam =>
+      if (lastParam.isInstanceOf[Boolean]) lastParam.asInstanceOf[Boolean]
+      else false
+    }.getOrElse(false)
+
     val vertices = for {
       vertexId <- vertexIds if vertexId.isInstanceOf[VertexId]
     } yield newVertex(vertexId.asInstanceOf[VertexId])
 
-    val future = getVertices(vertices).map { vs =>
-      val ls = new util.ArrayList[structure.Vertex]()
-      ls.addAll(vs)
-      ls.iterator()
+    if (fetchVertices) {
+      val future = getVertices(vertices).map { vs =>
+        val ls = new util.ArrayList[structure.Vertex]()
+        ls.addAll(vs)
+        ls.iterator()
+      }
+      Await.result(future, WaitTimeout)
+    } else {
+      vertices.iterator
     }
-    Await.result(future, WaitTimeout)
   }
 
   override def tx(): Transaction = ???
