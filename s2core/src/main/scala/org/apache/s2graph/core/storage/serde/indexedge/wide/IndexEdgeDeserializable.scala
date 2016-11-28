@@ -26,8 +26,8 @@ import org.apache.s2graph.core.types._
 import org.apache.s2graph.core._
 import scala.collection.immutable
 
-class IndexEdgeDeserializable(graph: Graph,
-                              bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends Deserializable[Edge] {
+class IndexEdgeDeserializable(graph: S2Graph,
+                              bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends Deserializable[S2Edge] {
    import StorageDeserializable._
 
    type QualifierRaw = (Array[(LabelMeta, InnerValLike)], VertexId, Byte, Boolean, Int)
@@ -68,7 +68,7 @@ class IndexEdgeDeserializable(graph: Graph,
    override def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
                                                     _kvs: Seq[T],
                                                     schemaVer: String,
-                                                    cacheElementOpt: Option[Edge]): Edge = {
+                                                    cacheElementOpt: Option[S2Edge]): S2Edge = {
      assert(_kvs.size == 1)
 
 //     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
@@ -85,7 +85,7 @@ class IndexEdgeDeserializable(graph: Graph,
      val srcVertex = graph.newVertex(srcVertexId, version)
      //TODO:
      val edge = graph.newEdge(srcVertex, null,
-       label, labelWithDir.dir, GraphUtil.defaultOpByte, version, Edge.EmptyState)
+       label, labelWithDir.dir, GraphUtil.defaultOpByte, version, S2Edge.EmptyState)
      var tsVal = version
 
      val (idxPropsRaw, tgtVertexIdRaw, op, tgtVertexIdInQualifier, _) =

@@ -38,7 +38,7 @@ object EdgeController extends Controller {
   import ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits._
 
-  private val s2: Graph = org.apache.s2graph.rest.play.Global.s2graph
+  private val s2: S2Graph = org.apache.s2graph.rest.play.Global.s2graph
   private val requestParser: RequestParser = org.apache.s2graph.rest.play.Global.s2parser
   private val walLogHandler: ExceptionHandler = org.apache.s2graph.rest.play.Global.wallLogHandler
 
@@ -51,9 +51,9 @@ object EdgeController extends Controller {
     val kafkaTopic = toKafkaTopic(graphElem.isAsync)
 
     graphElem match {
-      case v: Vertex =>
+      case v: S2Vertex =>
         enqueue(kafkaTopic, graphElem, tsv)
-      case e: Edge =>
+      case e: S2Edge =>
         e.innerLabel.extraOptions.get("walLog") match {
           case None =>
             enqueue(kafkaTopic, e, tsv)
@@ -73,7 +73,7 @@ object EdgeController extends Controller {
     }
   }
 
-  private def toDeleteAllFailMessages(srcVertices: Seq[Vertex], labels: Seq[Label], dir: Int, ts: Long ) = {
+  private def toDeleteAllFailMessages(srcVertices: Seq[S2Vertex], labels: Seq[Label], dir: Int, ts: Long ) = {
     for {
       vertex <- srcVertices
       id = vertex.id.toString
@@ -92,7 +92,7 @@ object EdgeController extends Controller {
     val result = s2.mutateElements(elements.map(_._1), true)
     result onComplete { results =>
       results.get.zip(elements).map {
-        case (false, (e: Edge, tsv: String)) =>
+        case (false, (e: S2Edge, tsv: String)) =>
           val kafkaMessages = if(e.op == GraphUtil.operations("deleteAll")){
             toDeleteAllFailMessages(Seq(e.srcVertex), Seq(e.innerLabel), e.labelWithDir.dir, e.ts)
           } else{
@@ -267,7 +267,7 @@ object EdgeController extends Controller {
     }
 
     def deleteEach(labels: Seq[Label], direction: String, ids: Seq[JsValue],
-                   ts: Long, vertices: Seq[Vertex]) = {
+                   ts: Long, vertices: Seq[S2Vertex]) = {
 
       val future = s2.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts)
       if (withWait) {

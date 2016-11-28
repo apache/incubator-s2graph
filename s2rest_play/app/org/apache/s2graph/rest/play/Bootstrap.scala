@@ -23,7 +23,7 @@ import java.util.concurrent.Executors
 
 import org.apache.s2graph.core.rest.{RequestParser, RestHandler}
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{ExceptionHandler, Graph, Management}
+import org.apache.s2graph.core.{ExceptionHandler, S2Graph, Management}
 import org.apache.s2graph.rest.play.actors.QueueActor
 import org.apache.s2graph.rest.play.config.Config
 import org.apache.s2graph.rest.play.controllers.ApplicationController
@@ -36,7 +36,7 @@ import scala.io.Source
 import scala.util.Try
 
 object Global extends WithFilters(new GzipFilter()) {
-  var s2graph: Graph = _
+  var s2graph: S2Graph = _
   var storageManagement: Management = _
   var s2parser: RequestParser = _
   var s2rest: RestHandler = _
@@ -50,7 +50,7 @@ object Global extends WithFilters(new GzipFilter()) {
     val config = Config.conf.underlying
 
     // init s2graph with config
-    s2graph = new Graph(config)(ec)
+    s2graph = new S2Graph(config)(ec)
     storageManagement = new Management(s2graph)
     s2parser = new RequestParser(s2graph) 
     s2rest = new RestHandler(s2graph)(ec)

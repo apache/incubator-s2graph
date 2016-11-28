@@ -268,6 +268,23 @@ trait CanInnerValLike[A] {
 object CanInnerValLike {
   implicit val encodingVer = "v2"
 
+  def castValue(element: Any, classType: String): Any = {
+    import InnerVal._
+    element match {
+      case bd: BigDecimal =>
+        classType match {
+          case DOUBLE => bd.doubleValue()
+          case FLOAT => bd.floatValue()
+          case LONG => bd.longValue()
+          case INT | "int" => bd.intValue()
+          case SHORT => bd.shortValue()
+          case BYTE => bd.byteValue()
+          case _ => throw new RuntimeException(s"not supported data type: $element, $classType")
+        }
+      case _ => element
+//        throw new RuntimeException(s"not supported data type: $element, ${element.getClass.getCanonicalName}, $classType")
+    }
+  }
   def validate(element: Any, classType: String): Boolean = {
     import InnerVal._
     classType match {

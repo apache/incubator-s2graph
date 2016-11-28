@@ -21,7 +21,7 @@ package org.apache.s2graph.rest.play.controllers
 
 import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{ExceptionHandler, Graph, GraphExceptions}
+import org.apache.s2graph.core.{ExceptionHandler, S2Graph, GraphExceptions}
 import org.apache.s2graph.rest.play.actors.QueueActor
 import org.apache.s2graph.rest.play.config.Config
 import play.api.libs.json.{JsValue, Json}
@@ -30,7 +30,7 @@ import play.api.mvc.{Controller, Result}
 import scala.concurrent.Future
 
 object VertexController extends Controller {
-  private val s2: Graph = org.apache.s2graph.rest.play.Global.s2graph
+  private val s2: S2Graph = org.apache.s2graph.rest.play.Global.s2graph
   private val requestParser: RequestParser = org.apache.s2graph.rest.play.Global.s2parser
   private val walLogHandler: ExceptionHandler = org.apache.s2graph.rest.play.Global.wallLogHandler
 

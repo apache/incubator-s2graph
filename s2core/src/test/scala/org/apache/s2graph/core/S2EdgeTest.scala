@@ -26,8 +26,8 @@ import org.apache.s2graph.core.utils.logger
 import org.scalatest.FunSuite
 import play.api.libs.json.{JsObject, Json}
 
-class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
-  import Edge._
+class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
+  import S2Edge._
   initTests()
 
   val testLabelMeta1 = LabelMeta(Option(-1), labelV2.id.get, "is_blocked", 1.toByte, "true", "boolean")
@@ -82,7 +82,7 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
       testLabelMeta1 -> InnerValLikeWithTs(InnerVal.withBoolean(false, schemaVersion), 1)
     )
 
-    val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
+    val edgeMutate = S2Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
     logger.info(edgeMutate.toLogString)
 
     assert(edgeMutate.newSnapshotEdge.isDefined)
@@ -109,7 +109,7 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
       testLabelMeta1 -> InnerValLikeWithTs(InnerVal.withBoolean(false, schemaVersion), 1)
     )
 
-    val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
+    val edgeMutate = S2Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
     logger.info(edgeMutate.toLogString)
 
     assert(edgeMutate.newSnapshotEdge.isDefined)
@@ -133,7 +133,7 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
 
     val newPropsWithTs = propsWithTs
 
-    val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
+    val edgeMutate = S2Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
     logger.info(edgeMutate.toLogString)
 
     assert(edgeMutate.newSnapshotEdge.isEmpty)
@@ -167,7 +167,7 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val requestEdge = graph.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
 
     val newVersion = 0L
-    val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
+    val edgeMutate = S2Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
     logger.info(edgeMutate.toLogString)
 
     assert(edgeMutate.newSnapshotEdge.nonEmpty)
@@ -200,7 +200,7 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val requestEdge = graph.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
 
     val newVersion = 0L
-    val edgeMutate = Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
+    val edgeMutate = S2Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
     logger.info(edgeMutate.toLogString)
 
     assert(edgeMutate.newSnapshotEdge.nonEmpty)

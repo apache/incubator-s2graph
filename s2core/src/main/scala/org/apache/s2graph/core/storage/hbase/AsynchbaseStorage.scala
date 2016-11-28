@@ -89,7 +89,7 @@ object AsynchbaseStorage {
 }
 
 
-class AsynchbaseStorage(override val graph: Graph,
+class AsynchbaseStorage(override val graph: S2Graph,
                         override val config: Config)(implicit ec: ExecutionContext)
   extends Storage[AsyncRPC, Deferred[StepResult]](graph, config) {
 
@@ -242,7 +242,7 @@ class AsynchbaseStorage(override val graph: Graph,
    * @param queryRequest
    * @return Scanner or GetRequest with proper setup with StartKey, EndKey, RangeFilter.
    */
-  override def buildRequest(queryRequest: QueryRequest, edge: Edge): AsyncRPC = {
+  override def buildRequest(queryRequest: QueryRequest, edge: S2Edge): AsyncRPC = {
     import Serializable._
     val queryParam = queryRequest.queryParam
     val label = queryParam.label
@@ -424,7 +424,7 @@ class AsynchbaseStorage(override val graph: Graph,
    * @param withWait
    * @return
    */
-  override def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long, Long)]] = {
+  override def incrementCounts(edges: Seq[S2Edge], withWait: Boolean): Future[Seq[(Boolean, Long, Long)]] = {
 
     val _client = client(withWait)
     val defers: Seq[Deferred[(Boolean, Long, Long)]] = for {
@@ -517,9 +517,9 @@ class AsynchbaseStorage(override val graph: Graph,
 
 
   /** Asynchbase implementation override default getVertices to use future Cache */
-  override def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
+  override def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
     def fromResult(kvs: Seq[SKeyValue],
-                   version: String): Option[Vertex] = {
+                   version: String): Option[S2Vertex] = {
 
       if (kvs.isEmpty) None
       else vertexDeserializer.fromKeyValues(None, kvs, version, None)

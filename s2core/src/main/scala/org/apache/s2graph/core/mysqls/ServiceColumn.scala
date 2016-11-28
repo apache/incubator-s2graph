@@ -29,11 +29,18 @@ import org.apache.s2graph.core.types.{HBaseType, InnerValLikeWithTs, InnerValLik
 import play.api.libs.json.Json
 import scalikejdbc._
 object ServiceColumn extends Model[ServiceColumn] {
-  val Default = ServiceColumn(Option(HBaseType.DEFAULT_COL_ID), 0, "default", "string", "v4")
+  val Default = ServiceColumn(Option(0), -1, "default", "string", "v4")
 
   def apply(rs: WrappedResultSet): ServiceColumn = {
     ServiceColumn(rs.intOpt("id"), rs.int("service_id"), rs.string("column_name"), rs.string("column_type").toLowerCase(), rs.string("schema_version"))
   }
+
+//  def findByServiceAndColumn(serviceName: String,
+//                             columnName: String,
+//                             useCache: Boolean  = true)(implicit session: DBSession): Option[ServiceColumn] = {
+//    val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
+//    find(service.id.get, columnName, useCache)
+//  }
 
   def findById(id: Int)(implicit session: DBSession = AutoSession): ServiceColumn = {
 //    val cacheKey = s"id=$id"
@@ -95,18 +102,18 @@ object ServiceColumn extends Model[ServiceColumn] {
 case class ServiceColumn(id: Option[Int], serviceId: Int, columnName: String, columnType: String, schemaVersion: String)  {
 
   lazy val service = Service.findById(serviceId)
-  lazy val metas = ColumnMeta.findAllByColumn(id.get)
+  lazy val metas = ColumnMeta.timestamp +: ColumnMeta.findAllByColumn(id.get) :+ ColumnMeta.lastModifiedAtColumn
   lazy val metasMap = metas.map { meta => meta.seq.toInt -> meta } toMap
   lazy val metasInvMap = metas.map { meta => meta.name -> meta} toMap
   lazy val metaNamesMap = (ColumnMeta.lastModifiedAtColumn :: metas).map(x => (x.seq.toInt, x.name)) toMap
   lazy val toJson = Json.obj("serviceName" -> service.serviceName, "columnName" -> columnName, "columnType" -> columnType)
 
-  def propsToInnerVals(props: Map[String, Any]): Map[Int, InnerValLike] = {
+  def propsToInnerVals(props: Map[String, Any]): Map[ColumnMeta, InnerValLike] = {
     for {
       (k, v) <- props
       labelMeta <- metasInvMap.get(k)
       innerVal = toInnerVal(v.toString, labelMeta.dataType, schemaVersion)
-    } yield labelMeta.seq.toInt -> innerVal
+    } yield labelMeta -> innerVal
   }
 
   def innerValsToProps(props: Map[Int, InnerValLike]): Map[String, Any] = {

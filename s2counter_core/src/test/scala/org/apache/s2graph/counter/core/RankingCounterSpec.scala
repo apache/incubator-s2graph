@@ -21,7 +21,7 @@ package org.apache.s2graph.counter.core
 
 import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.mysqls.Label
-import org.apache.s2graph.core.{Graph, Management}
+import org.apache.s2graph.core.{S2Graph$, Management}
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
 import org.apache.s2graph.counter.core.v2.{GraphOperation, RankingStorageGraph}
@@ -87,7 +87,7 @@ class RankingCounterSpec extends Specification with BeforeAfterAll {
       }
 
       val graphOp = new GraphOperation(config)
-      val graph = new Graph(config)(scala.concurrent.ExecutionContext.global)
+      val graph = new S2Graph(config)(scala.concurrent.ExecutionContext.global)
       val management = new Management(graph)
       management.createService(service, s2config.HBASE_ZOOKEEPER_QUORUM, s"${service}_dev", 1, None, "gz")
       val strJs =

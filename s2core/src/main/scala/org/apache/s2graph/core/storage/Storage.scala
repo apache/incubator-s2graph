@@ -39,10 +39,10 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.hadoop.hbase.util.Bytes
 
 
-abstract class Storage[Q, R](val graph: Graph,
+abstract class Storage[Q, R](val graph: S2Graph,
                           val config: Config)(implicit ec: ExecutionContext) {
   import HBaseType._
-  import Graph._
+  import S2Graph._
 
   val BackoffTimeout = graph.BackoffTimeout
   val MaxRetryNum = graph.MaxRetryNum
@@ -100,7 +100,7 @@ abstract class Storage[Q, R](val graph: Graph,
    * @param vertex: vertex to serialize
    * @return serializer implementation
    */
-  def vertexSerializer(vertex: Vertex): Serializable[Vertex] = new VertexSerializable(vertex)
+  def vertexSerializer(vertex: S2Vertex): Serializable[S2Vertex] = new VertexSerializable(vertex)
 
   /**
    * create deserializer that can parse stored CanSKeyValue into snapshotEdge.
@@ -122,7 +122,7 @@ abstract class Storage[Q, R](val graph: Graph,
     snapshotEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
 
   /** create deserializer that can parse stored CanSKeyValue into indexEdge. */
-  val indexEdgeDeserializers: Map[String, Deserializable[Edge]] = Map(
+  val indexEdgeDeserializers: Map[String, Deserializable[S2Edge]] = Map(
     VERSION1 -> new IndexEdgeDeserializable(graph),
     VERSION2 -> new IndexEdgeDeserializable(graph),
     VERSION3 -> new IndexEdgeDeserializable(graph),
@@ -133,7 +133,7 @@ abstract class Storage[Q, R](val graph: Graph,
     indexEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
 
   /** create deserializer that can parser stored CanSKeyValue into vertex. */
-  val vertexDeserializer: Deserializable[Vertex] = new VertexDeserializable(graph)
+  val vertexDeserializer: Deserializable[S2Vertex] = new VertexDeserializable(graph)
 
 
   /**
@@ -195,7 +195,7 @@ abstract class Storage[Q, R](val graph: Graph,
     * @param queryRequest
    * @return
     */
-  protected def buildRequest(queryRequest: QueryRequest, edge: Edge): Q
+  protected def buildRequest(queryRequest: QueryRequest, edge: S2Edge): Q
 
   /**
    * fetch IndexEdges for given queryParam in queryRequest.
@@ -242,7 +242,7 @@ abstract class Storage[Q, R](val graph: Graph,
    * @param withWait
    * @return
    */
-  def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long, Long)]]
+  def incrementCounts(edges: Seq[S2Edge], withWait: Boolean): Future[Seq[(Boolean, Long, Long)]]
 
   /**
    * this method need to be called when client shutdown. this is responsible to cleanUp the resources
@@ -276,9 +276,9 @@ abstract class Storage[Q, R](val graph: Graph,
 
 
   /** Public Interface */
-  def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
+  def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
     def fromResult(kvs: Seq[SKeyValue],
-                   version: String): Option[Vertex] = {
+                   version: String): Option[S2Vertex] = {
       if (kvs.isEmpty) None
       else vertexDeserializer.fromKeyValues(None, kvs, version, None)
 //        .map(S2Vertex(graph, _))
@@ -286,7 +286,7 @@ abstract class Storage[Q, R](val graph: Graph,
 
     val futures = vertices.map { vertex =>
       val queryParam = QueryParam.Empty
-      val q = Query.toQuery(Seq(vertex), queryParam)
+      val q = Query.toQuery(Seq(vertex), Seq(queryParam))
       val queryRequest = QueryRequest(q, stepIdx = -1, vertex, queryParam)
       fetchVertexKeyValues(queryRequest).map { kvs =>
         fromResult(kvs, vertex.serviceColumn.schemaVersion)
@@ -297,7 +297,7 @@ abstract class Storage[Q, R](val graph: Graph,
 
     Future.sequence(futures).map { result => result.toList.flatten }
   }
-  def mutateStrongEdges(_edges: Seq[Edge], withWait: Boolean): Future[Seq[Boolean]] = {
+  def mutateStrongEdges(_edges: Seq[S2Edge], withWait: Boolean): Future[Seq[Boolean]] = {
 
     val edgeWithIdxs = _edges.zipWithIndex
     val grouped = edgeWithIdxs.groupBy { case (edge, idx) =>
@@ -332,7 +332,7 @@ abstract class Storage[Q, R](val graph: Graph,
     }
   }
 
-  def mutateVertex(vertex: Vertex, withWait: Boolean): Future[Boolean] = {
+  def mutateVertex(vertex: S2Vertex, withWait: Boolean): Future[Boolean] = {
     if (vertex.op == GraphUtil.operations("delete")) {
       writeToStorage(vertex.hbaseZkAddr,
         vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Delete)), withWait)
@@ -344,14 +344,14 @@ abstract class Storage[Q, R](val graph: Graph,
     }
   }
 
-  def mutateVertices(vertices: Seq[Vertex],
+  def mutateVertices(vertices: Seq[S2Vertex],
                      withWait: Boolean = false): Future[Seq[Boolean]] = {
     val futures = vertices.map { vertex => mutateVertex(vertex, withWait) }
     Future.sequence(futures)
   }
 
 
-  def mutateEdgesInner(edges: Seq[Edge],
+  def mutateEdgesInner(edges: Seq[S2Edge],
                        checkConsistency: Boolean,
                        withWait: Boolean): Future[Boolean] = {
     assert(edges.nonEmpty)
@@ -360,7 +360,7 @@ abstract class Storage[Q, R](val graph: Graph,
 
       val zkQuorum = edges.head.innerLabel.hbaseZkAddr
       val futures = edges.map { edge =>
-        val (_, edgeUpdate) = Edge.buildOperation(None, Seq(edge))
+        val (_, edgeUpdate) = S2Edge.buildOperation(None, Seq(edge))
 
         val mutations =
           indexedEdgeMutations(edgeUpdate) ++ snapshotEdgeMutations(edgeUpdate) ++ increments(edgeUpdate)
@@ -382,7 +382,7 @@ abstract class Storage[Q, R](val graph: Graph,
     Random.nextInt(Math.min(BackoffTimeout, slot * Math.pow(2, tryNum)).toInt)
   }
 
-  def retry(tryNum: Int)(edges: Seq[Edge], statusCode: Byte, fetchedSnapshotEdgeOpt: Option[Edge]): Future[Boolean] = {
+  def retry(tryNum: Int)(edges: Seq[S2Edge], statusCode: Byte, fetchedSnapshotEdgeOpt: Option[S2Edge]): Future[Boolean] = {
     if (tryNum >= MaxRetryNum) {
       edges.foreach { edge =>
         logger.error(s"commit failed after $MaxRetryNum\n${edge.toLogString}")
@@ -442,9 +442,9 @@ abstract class Storage[Q, R](val graph: Graph,
     }
   }
 
-  protected def commitUpdate(edges: Seq[Edge],
+  protected def commitUpdate(edges: Seq[S2Edge],
                              statusCode: Byte,
-                             fetchedSnapshotEdgeOpt: Option[Edge]): Future[Boolean] = {
+                             fetchedSnapshotEdgeOpt: Option[S2Edge]): Future[Boolean] = {
 //    Future.failed(new PartialFailureException(edges.head, 0, "ahahah"))
     assert(edges.nonEmpty)
 //    assert(statusCode == 0 || fetchedSnapshotEdgeOpt.isDefined)
@@ -460,7 +460,7 @@ abstract class Storage[Q, R](val graph: Graph,
            * lock = (squashedEdge, pendingE)
            * releaseLock = (edgeMutate.newSnapshotEdge, None)
            */
-            val (squashedEdge, edgeMutate) = Edge.buildOperation(fetchedSnapshotEdgeOpt, edges)
+            val (squashedEdge, edgeMutate) = S2Edge.buildOperation(fetchedSnapshotEdgeOpt, edges)
 
             assert(edgeMutate.newSnapshotEdge.isDefined)
 
@@ -482,7 +482,7 @@ abstract class Storage[Q, R](val graph: Graph,
                  * lock = (snapshotEdge, pendingE)
                  * releaseLock = (edgeMutate.newSnapshotEdge, None)
                  */
-                val (squashedEdge, edgeMutate) = Edge.buildOperation(fetchedSnapshotEdgeOpt, edges)
+                val (squashedEdge, edgeMutate) = S2Edge.buildOperation(fetchedSnapshotEdgeOpt, edges)
                 if (edgeMutate.newSnapshotEdge.isEmpty) {
                   logger.debug(s"drop this requests: \n${edges.map(_.toLogString).mkString("\n")}")
                   Future.successful(true)
@@ -508,8 +508,8 @@ abstract class Storage[Q, R](val graph: Graph,
                    */
                   logger.debug(s"${pendingEdge.toLogString} has been expired.")
                   val (squashedEdge, edgeMutate) =
-                    if (pendingEdge.ts == snapshotEdge.ts) Edge.buildOperation(None, pendingEdge +: edges)
-                    else Edge.buildOperation(fetchedSnapshotEdgeOpt, pendingEdge +: edges)
+                    if (pendingEdge.ts == snapshotEdge.ts) S2Edge.buildOperation(None, pendingEdge +: edges)
+                    else S2Edge.buildOperation(fetchedSnapshotEdgeOpt, pendingEdge +: edges)
 
                   val lockTs = Option(System.currentTimeMillis())
                   val newPendingEdge = squashedEdge.copy(statusCode = 1, lockTs = lockTs, version = snapshotEdge.version + 1)
@@ -524,7 +524,7 @@ abstract class Storage[Q, R](val graph: Graph,
                    * this can't be proceed so retry from re-fetch.
                    * throw EX
                    */
-                  val (squashedEdge, _) = Edge.buildOperation(fetchedSnapshotEdgeOpt, edges)
+                  val (squashedEdge, _) = S2Edge.buildOperation(fetchedSnapshotEdgeOpt, edges)
                   Future.failed(new PartialFailureException(squashedEdge, 0, s"others[${pendingEdge.ts}] is mutating. me[${squashedEdge.ts}]"))
                 }
             }
@@ -551,7 +551,7 @@ abstract class Storage[Q, R](val graph: Graph,
         val _edges =
           if (fetchedSnapshotEdgeOpt.isDefined && fetchedSnapshotEdgeOpt.get.pendingEdgeOpt.isDefined) fetchedSnapshotEdgeOpt.get.pendingEdgeOpt.get +: edges
           else edges
-        val (squashedEdge, edgeMutate) = Edge.buildOperation(fetchedSnapshotEdgeOpt, _edges)
+        val (squashedEdge, edgeMutate) = S2Edge.buildOperation(fetchedSnapshotEdgeOpt, _edges)
         val newVersion = fetchedSnapshotEdgeOpt.map(_.version).getOrElse(squashedEdge.ts) + 2
         val releaseLockSnapshotEdge = edgeMutate.newSnapshotEdge match {
           case None => squashedEdge.toSnapshotEdge.copy(statusCode = 0, pendingEdgeOpt = None, version = newVersion)
@@ -575,8 +575,8 @@ abstract class Storage[Q, R](val graph: Graph,
    * @return
    */
   protected def commitProcess(statusCode: Byte,
-                              squashedEdge: Edge,
-                              fetchedSnapshotEdgeOpt:Option[Edge],
+                              squashedEdge: S2Edge,
+                              fetchedSnapshotEdgeOpt:Option[S2Edge],
                               lockSnapshotEdge: SnapshotEdge,
                               releaseLockSnapshotEdge: SnapshotEdge,
                               edgeMutate: EdgeMutate): Future[Boolean] = {
@@ -588,7 +588,7 @@ abstract class Storage[Q, R](val graph: Graph,
     } yield lockReleased
   }
 
-  case class PartialFailureException(edge: Edge, statusCode: Byte, failReason: String) extends NoStackException(failReason)
+  case class PartialFailureException(edge: S2Edge, statusCode: Byte, failReason: String) extends NoStackException(failReason)
 
   protected def debug(ret: Boolean, phase: String, snapshotEdge: SnapshotEdge) = {
     val msg = Seq(s"[$ret] [$phase]", s"${snapshotEdge.toLogString()}").mkString("\n")
@@ -611,8 +611,8 @@ abstract class Storage[Q, R](val graph: Graph,
    * @return
    */
   protected def acquireLock(statusCode: Byte,
-                            squashedEdge: Edge,
-                            fetchedSnapshotEdgeOpt: Option[Edge],
+                            squashedEdge: S2Edge,
+                            fetchedSnapshotEdgeOpt: Option[S2Edge],
                             lockEdge: SnapshotEdge): Future[Boolean] = {
     if (statusCode >= 1) {
       logger.debug(s"skip acquireLock: [$statusCode]\n${squashedEdge.toLogString}")
@@ -663,7 +663,7 @@ abstract class Storage[Q, R](val graph: Graph,
    */
   protected def releaseLock(predicate: Boolean,
                             statusCode: Byte,
-                            squashedEdge: Edge,
+                            squashedEdge: S2Edge,
                             releaseLockEdge: SnapshotEdge): Future[Boolean] = {
     if (!predicate) {
       Future.failed(new PartialFailureException(squashedEdge, 3, "predicate failed."))
@@ -708,7 +708,7 @@ abstract class Storage[Q, R](val graph: Graph,
    */
   protected def commitIndexEdgeMutations(predicate: Boolean,
                        statusCode: Byte,
-                       squashedEdge: Edge,
+                       squashedEdge: S2Edge,
                        edgeMutate: EdgeMutate): Future[Boolean] = {
     if (!predicate) Future.failed(new PartialFailureException(squashedEdge, 1, "predicate failed."))
     else {
@@ -742,7 +742,7 @@ abstract class Storage[Q, R](val graph: Graph,
    */
   protected def commitIndexEdgeDegreeMutations(predicate: Boolean,
                           statusCode: Byte,
-                          squashedEdge: Edge,
+                          squashedEdge: S2Edge,
                           edgeMutate: EdgeMutate): Future[Boolean] = {
 
     def _write(kvs: Seq[SKeyValue], withWait: Boolean): Future[Boolean] = {
@@ -772,8 +772,8 @@ abstract class Storage[Q, R](val graph: Graph,
 
   /** end of methods for consistency */
 
-  def mutateLog(snapshotEdgeOpt: Option[Edge], edges: Seq[Edge],
-                newEdge: Edge, edgeMutate: EdgeMutate) =
+  def mutateLog(snapshotEdgeOpt: Option[S2Edge], edges: Seq[S2Edge],
+                newEdge: S2Edge, edgeMutate: EdgeMutate) =
     Seq("----------------------------------------------",
       s"SnapshotEdge: ${snapshotEdgeOpt.map(_.toLogString)}",
       s"requestEdges: ${edges.map(_.toLogString).mkString("\n")}",
@@ -796,17 +796,17 @@ abstract class Storage[Q, R](val graph: Graph,
           val edge = edgeWithScore.edge
           val score = edgeWithScore.score
 
-          val edgeSnapshot = edge.copyEdge(propsWithTs = Edge.propsToState(edge.updatePropsWithTs()))
+          val edgeSnapshot = edge.copyEdge(propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()))
           val reversedSnapshotEdgeMutations = snapshotEdgeSerializer(edgeSnapshot.toSnapshotEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put))
 
-          val edgeForward = edge.copyEdge(propsWithTs = Edge.propsToState(edge.updatePropsWithTs()))
+          val edgeForward = edge.copyEdge(propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()))
           val forwardIndexedEdgeMutations = edgeForward.edgesWithIndex.flatMap { indexEdge =>
             indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
               buildIncrementsAsync(indexEdge, -1L)
           }
 
           /** reverted direction */
-          val edgeRevert = edge.copyEdge(propsWithTs = Edge.propsToState(edge.updatePropsWithTs()))
+          val edgeRevert = edge.copyEdge(propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()))
           val reversedIndexedEdgesMutations = edgeRevert.duplicateEdge.edgesWithIndex.flatMap { indexEdge =>
             indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
               buildIncrementsAsync(indexEdge, -1L)
@@ -829,8 +829,8 @@ abstract class Storage[Q, R](val graph: Graph,
   /** Parsing Logic: parse from kv from Storage into Edge */
   def toEdge[K: CanSKeyValue](kv: K,
                               queryRequest: QueryRequest,
-                              cacheElementOpt: Option[Edge],
-                              parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
+                              cacheElementOpt: Option[S2Edge],
+                              parentEdges: Seq[EdgeWithScore]): Option[S2Edge] = {
     logger.debug(s"toEdge: $kv")
 
     try {
@@ -851,7 +851,7 @@ abstract class Storage[Q, R](val graph: Graph,
                                       queryRequest: QueryRequest,
                                       cacheElementOpt: Option[SnapshotEdge] = None,
                                       isInnerCall: Boolean,
-                                      parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
+                                      parentEdges: Seq[EdgeWithScore]): Option[S2Edge] = {
 //        logger.debug(s"SnapshottoEdge: $kv")
     val queryParam = queryRequest.queryParam
     val schemaVer = queryParam.label.schemaVersion
@@ -959,7 +959,7 @@ abstract class Storage[Q, R](val graph: Graph,
 
   /** End Of Parse Logic */
 
-  protected def toRequestEdge(queryRequest: QueryRequest, parentEdges: Seq[EdgeWithScore]): Edge = {
+  protected def toRequestEdge(queryRequest: QueryRequest, parentEdges: Seq[EdgeWithScore]): S2Edge = {
     val srcVertex = queryRequest.vertex
     val queryParam = queryRequest.queryParam
     val tgtVertexIdOpt = queryParam.tgtVertexInnerIdOpt
@@ -986,7 +986,7 @@ abstract class Storage[Q, R](val graph: Graph,
     }
   }
 
-  protected def fetchSnapshotEdgeInner(edge: Edge): Future[(QueryParam, Option[Edge], Option[SKeyValue])] = {
+  protected def fetchSnapshotEdgeInner(edge: S2Edge): Future[(QueryParam, Option[S2Edge], Option[SKeyValue])] = {
     /** TODO: Fix this. currently fetchSnapshotEdge should not use future cache
       * so use empty cacheKey.
       * */
@@ -994,7 +994,7 @@ abstract class Storage[Q, R](val graph: Graph,
       direction = GraphUtil.fromDirection(edge.labelWithDir.dir),
       tgtVertexIdOpt = Option(edge.tgtVertex.innerIdVal),
       cacheTTLInMillis = -1)
-    val q = Query.toQuery(Seq(edge.srcVertex), queryParam)
+    val q = Query.toQuery(Seq(edge.srcVertex), Seq(queryParam))
     val queryRequest = QueryRequest(q, 0, edge.srcVertex, queryParam)
     //    val q = Query.toQuery(Seq(edge.srcVertex), queryParam)
 
@@ -1097,15 +1097,15 @@ abstract class Storage[Q, R](val graph: Graph,
   }
 
   //TODO: ServiceColumn do not have durability property yet.
-  def buildDeleteBelongsToId(vertex: Vertex): Seq[SKeyValue] = {
+  def buildDeleteBelongsToId(vertex: S2Vertex): Seq[SKeyValue] = {
     val kvs = vertexSerializer(vertex).toKeyValues
     val kv = kvs.head
     vertex.belongLabelIds.map { id =>
-      kv.copy(qualifier = Bytes.toBytes(Vertex.toPropKey(id)), operation = SKeyValue.Delete)
+      kv.copy(qualifier = Bytes.toBytes(S2Vertex.toPropKey(id)), operation = SKeyValue.Delete)
     }
   }
 
-  def buildVertexPutsAsync(edge: Edge): Seq[SKeyValue] = {
+  def buildVertexPutsAsync(edge: S2Edge): Seq[SKeyValue] = {
     val storeVertex = edge.innerLabel.extraOptions.get("storeVertex").map(_.as[Boolean]).getOrElse(false)
 
     if (storeVertex) {
@@ -1118,7 +1118,7 @@ abstract class Storage[Q, R](val graph: Graph,
     }
   }
 
-  def buildDegreePuts(edge: Edge, degreeVal: Long): Seq[SKeyValue] = {
+  def buildDegreePuts(edge: S2Edge, degreeVal: Long): Seq[SKeyValue] = {
     edge.property(LabelMeta.degree.name, degreeVal, edge.ts)
     val kvs = edge.edgesWithIndexValid.flatMap { indexEdge =>
       indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put, durability = indexEdge.label.durability))
@@ -1127,7 +1127,7 @@ abstract class Storage[Q, R](val graph: Graph,
     kvs
   }
 
-  def buildPutsAll(vertex: Vertex): Seq[SKeyValue] = {
+  def buildPutsAll(vertex: S2Vertex): Seq[SKeyValue] = {
     vertex.op match {
       case d: Byte if d == GraphUtil.operations("delete") => vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Delete))
       case _ => vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Put))

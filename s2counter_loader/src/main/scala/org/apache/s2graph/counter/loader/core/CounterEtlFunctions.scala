@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.counter.loader.core
 
-import org.apache.s2graph.core.{Edge, Graph, GraphUtil}
+import org.apache.s2graph.core.{S2Edge, S2Graph, GraphUtil}
 import org.apache.s2graph.counter.loader.config.StreamingConfig
 import org.apache.s2graph.counter.models.CounterModel
 import org.apache.s2graph.spark.config.S2ConfigFactory
@@ -32,12 +32,12 @@ object CounterEtlFunctions extends Logging {
   lazy val preFetchSize = StreamingConfig.PROFILE_PREFETCH_SIZE
   lazy val config = S2ConfigFactory.config
   lazy val counterModel = new CounterModel(config)
-  lazy val graph = new Graph(config)(scala.concurrent.ExecutionContext.Implicits.global)
+  lazy val graph = new S2Graph(config)(scala.concurrent.ExecutionContext.Implicits.global)
 
-  def logToEdge(line: String): Option[Edge] = {
+  def logToEdge(line: String): Option[S2Edge] = {
     for {
-      elem <- graph.toGraphElement(line) if elem.isInstanceOf[Edge]
-      edge <- Some(elem.asInstanceOf[Edge]).filter { x =>
+      elem <- graph.toGraphElement(line) if elem.isInstanceOf[S2Edge]
+      edge <- Some(elem.asInstanceOf[S2Edge]).filter { x =>
         filterOps.contains(x.op)
       }
     } yield {
@@ -50,8 +50,8 @@ object CounterEtlFunctions extends Logging {
      * 1427082276804	insert	edge	19073318	52453027_93524145648511699	story_user_ch_doc_view	{"doc_type" : "l", "channel_subscribing" : "y", "view_from" : "feed"}
      */
     for {
-      elem <- graph.toGraphElement(line) if elem.isInstanceOf[Edge]
-      edge <- Some(elem.asInstanceOf[Edge]).filter { x =>
+      elem <- graph.toGraphElement(line) if elem.isInstanceOf[S2Edge]
+      edge <- Some(elem.asInstanceOf[S2Edge]).filter { x =>
         filterOps.contains(x.op)
       }
     } yield {

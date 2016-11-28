@@ -34,14 +34,14 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
   import TestUtil._
 
-  var graph: Graph = _
+  var graph: S2Graph = _
   var parser: RequestParser = _
   var management: Management = _
   var config: Config = _
 
   override def beforeAll = {
     config = ConfigFactory.load()
-    graph = new Graph(config)(ExecutionContext.Implicits.global)
+    graph = new S2Graph(config)(ExecutionContext.Implicits.global)
     management = new Management(graph)
     parser = new RequestParser(graph)
     initTestData()
@@ -92,7 +92,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       }
     }
 
-    val vertexPropsKeys = List("age" -> "int", "im" -> "string")
+    val vertexPropsKeys = List("age" -> "integer", "im" -> "string")
 
     vertexPropsKeys.map { case (key, keyType) =>
       Management.addVertexProp(testServiceName, testColumnName, key, keyType)

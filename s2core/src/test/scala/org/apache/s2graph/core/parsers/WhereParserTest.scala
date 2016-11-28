@@ -37,7 +37,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   val ts = System.currentTimeMillis()
   val dummyTs = LabelMeta.timestamp -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion)
 
-  def validate(label: Label)(edge: Edge)(sql: String)(expected: Boolean) = {
+  def validate(label: Label)(edge: S2Edge)(sql: String)(expected: Boolean) = {
     def debug(whereOpt: Try[Where]) = {
       println("==================")
       println(s"$whereOpt")

@@ -118,7 +118,7 @@ object RequestParser {
 
 }
 
-class RequestParser(graph: Graph) {
+class RequestParser(graph: S2Graph) {
 
   import Management.JsonModel._
   import RequestParser._
@@ -261,7 +261,7 @@ class RequestParser(graph: Graph) {
       GroupBy(keys)
   }.getOrElse(GroupBy.Empty)
 
-  def toVertices(labelName: String, direction: String, ids: Seq[JsValue]): Seq[Vertex] = {
+  def toVertices(labelName: String, direction: String, ids: Seq[JsValue]): Seq[S2Vertex] = {
     val vertices = for {
       label <- Label.findByName(labelName).toSeq
       serviceColumn = if (direction == "out") label.srcColumn else label.tgtColumn
@@ -547,12 +547,12 @@ class RequestParser(graph: Graph) {
     elementsWithTsv
   }
 
-  def parseJsonFormat(jsValue: JsValue, operation: String): Seq[(Edge, String)] = {
+  def parseJsonFormat(jsValue: JsValue, operation: String): Seq[(S2Edge, String)] = {
     val jsValues = toJsValues(jsValue)
     jsValues.flatMap(toEdgeWithTsv(_, operation))
   }
 
-  private def toEdgeWithTsv(jsValue: JsValue, operation: String): Seq[(Edge, String)] = {
+  private def toEdgeWithTsv(jsValue: JsValue, operation: String): Seq[(S2Edge, String)] = {
     val srcIds = (jsValue \ "from").asOpt[JsValue].map(Seq(_)).getOrElse(Nil) ++ (jsValue \ "froms").asOpt[Seq[JsValue]].getOrElse(Nil)
     val tgtIds = (jsValue \ "to").asOpt[JsValue].map(Seq(_)).getOrElse(Nil) ++ (jsValue \ "tos").asOpt[Seq[JsValue]].getOrElse(Nil)
 
@@ -580,7 +580,7 @@ class RequestParser(graph: Graph) {
     toJsValues(jsValue).map(toVertex(_, operation, serviceName, columnName))
   }
 
-  def toVertex(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None): Vertex = {
+  def toVertex(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None): S2Vertex = {
     val id = parse[JsValue](jsValue, "id")
     val ts = parseOption[Long](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
     val sName = if (serviceName.isEmpty) parse[String](jsValue, "serviceName") else serviceName.get

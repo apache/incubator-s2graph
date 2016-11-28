@@ -19,12 +19,12 @@
 
 package org.apache.s2graph.core.storage.serde.vertex
 
-import org.apache.s2graph.core.Vertex
+import org.apache.s2graph.core.S2Vertex
 import org.apache.s2graph.core.storage.StorageSerializable._
 import org.apache.s2graph.core.storage.{SKeyValue, Serializable}
-import org.apache.s2graph.core.utils.logger
+import scala.collection.JavaConverters._
 
-case class VertexSerializable(vertex: Vertex, intToBytes: Int => Array[Byte] = intToBytes) extends Serializable[Vertex] {
+case class VertexSerializable(vertex: S2Vertex, intToBytes: Int => Array[Byte] = intToBytes) extends Serializable[S2Vertex] {
 
   override val table = vertex.hbaseTableName.getBytes
   override val ts = vertex.ts
@@ -38,8 +38,11 @@ case class VertexSerializable(vertex: Vertex, intToBytes: Int => Array[Byte] = i
   /** vertex override toKeyValues since vertex expect to produce multiple sKeyValues */
   override def toKeyValues: Seq[SKeyValue] = {
     val row = toRowKey
-    val base = for ((k, v) <- vertex.props ++ vertex.defaultProps) yield intToBytes(k) -> v.bytes
-    val belongsTo = vertex.belongLabelIds.map { labelId => intToBytes(Vertex.toPropKey(labelId)) -> Array.empty[Byte] }
+    val base = for ((k, v) <- vertex.props.asScala ++ vertex.defaultProps.asScala) yield {
+      val columnMeta = v.columnMeta
+      intToBytes(columnMeta.seq) -> v.innerVal.bytes
+    }
+    val belongsTo = vertex.belongLabelIds.map { labelId => intToBytes(S2Vertex.toPropKey(labelId)) -> Array.empty[Byte] }
     (base ++ belongsTo).map { case (qualifier, value) =>
       SKeyValue(vertex.hbaseTableName.getBytes, row, cf, qualifier, value, vertex.ts)
     } toSeq

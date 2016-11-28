@@ -24,9 +24,9 @@ import org.apache.s2graph.core.mysqls.{ServiceColumn, Label, LabelIndex, LabelMe
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, SKeyValue, StorageDeserializable}
 import org.apache.s2graph.core.types.{HBaseType, LabelWithDirection, SourceAndTargetVertexIdPair, SourceVertexId}
-import org.apache.s2graph.core.{Graph, Edge, SnapshotEdge, Vertex}
+import org.apache.s2graph.core.{S2Graph, S2Edge, SnapshotEdge, S2Vertex}
 
-class SnapshotEdgeDeserializable(graph: Graph) extends Deserializable[SnapshotEdge] {
+class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[SnapshotEdge] {
 
   def statusCodeWithOp(byte: Byte): (Byte, Byte) = {
     val statusCode = byte >> 4

@@ -54,7 +54,7 @@ object RestHandler {
   * Public API, only return Future.successful or Future.failed
   * Don't throw exception
   */
-class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
+class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
 
   import RestHandler._
   val requestParser = new RequestParser(graph)
@@ -172,7 +172,7 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
   }
 
   def getEdgesAsync(jsonQuery: JsValue, impIdOpt: Option[String] = None)
-                   (post: (Graph, QueryOption, StepResult) => JsValue): Future[JsValue] = {
+                   (post: (S2Graph, QueryOption, StepResult) => JsValue): Future[JsValue] = {
 
     def query(obj: JsValue): Future[JsValue] = {
       (obj \ "queries").asOpt[JsValue] match {

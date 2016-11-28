@@ -57,7 +57,7 @@ object TransferToHFile extends SparkApp {
   /** build key values */
   case class DegreeKey(vertexIdStr: String, labelName: String, direction: String)
 
-  private def insertBulkForLoaderAsync(edge: Edge, createRelEdges: Boolean = true): List[PutRequest] = {
+  private def insertBulkForLoaderAsync(edge: S2Edge, createRelEdges: Boolean = true): List[PutRequest] = {
     val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
     buildPutRequests(edge.toSnapshotEdge) ++ relEdges.toList.flatMap { e =>
       e.edgesWithIndex.flatMap { indexEdge => buildPutRequests(indexEdge) }
@@ -125,8 +125,8 @@ object TransferToHFile extends SparkApp {
   def toKeyValues(strs: Seq[String], labelMapping: Map[String, String], autoEdgeCreate: Boolean): Iterator[KeyValue] = {
     val kvs = for {
       s <- strs
-      element <- GraphSubscriberHelper.g.toGraphElement(s, labelMapping).toSeq if element.isInstanceOf[Edge]
-      edge = element.asInstanceOf[Edge]
+      element <- GraphSubscriberHelper.g.toGraphElement(s, labelMapping).toSeq if element.isInstanceOf[S2Edge]
+      edge = element.asInstanceOf[S2Edge]
       putRequest <- insertBulkForLoaderAsync(edge, autoEdgeCreate)
     } yield {
         val p = putRequest

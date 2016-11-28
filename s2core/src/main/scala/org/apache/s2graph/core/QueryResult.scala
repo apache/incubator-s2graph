@@ -27,7 +27,7 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.collection.{Seq, mutable}
 
 object QueryResult {
-  def fromVertices(graph: Graph,
+  def fromVertices(graph: S2Graph,
                    query: Query): StepResult = {
     if (query.steps.isEmpty || query.steps.head.queryParams.isEmpty) {
       StepResult.Empty
@@ -41,7 +41,7 @@ object QueryResult {
         vertex <- query.vertices
       } yield {
           val edge = graph.newEdge(vertex, vertex, label, queryParam.labelWithDir.dir, propsWithTs = propsWithTs)
-          val edgeWithScore = EdgeWithScore(edge, Graph.DefaultScore, queryParam.label)
+          val edgeWithScore = EdgeWithScore(edge, S2Graph.DefaultScore, queryParam.label)
           edgeWithScore
         }
       StepResult(edgeWithScores = edgeWithScores, grouped = Nil, degreeEdges = Nil, false)
@@ -51,7 +51,7 @@ object QueryResult {
 
 case class QueryRequest(query: Query,
                         stepIdx: Int,
-                        vertex: Vertex,
+                        vertex: S2Vertex,
                         queryParam: QueryParam,
                         prevStepScore: Double = 1.0,
                         labelWeight: Double = 1.0) {
@@ -73,7 +73,7 @@ object WithScore {
   }
 }
 
-case class EdgeWithScore(edge: Edge,
+case class EdgeWithScore(edge: S2Edge,
                          score: Double,
                          label: Label,
                          orderByValues: (Any, Any, Any, Any) = StepResult.EmptyOrderByValues,
@@ -283,7 +283,7 @@ object StepResult {
   }
 
   //TODO: Optimize this.
-  def filterOut(graph: Graph,
+  def filterOut(graph: S2Graph,
                 queryOption: QueryOption,
                 baseStepResult: StepResult,
                 filterOutStepResult: StepResult): StepResult = {

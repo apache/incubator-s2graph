@@ -21,7 +21,7 @@ package org.apache.s2graph.loader.subscriber
 
 import kafka.producer.KeyedMessage
 import kafka.serializer.StringDecoder
-import org.apache.s2graph.core.Graph
+import org.apache.s2graph.core.S2Graph$
 import org.apache.s2graph.spark.spark.{WithKafka, SparkApp}
 import org.apache.spark.streaming.Durations._
 import org.apache.spark.streaming.kafka.HasOffsetRanges

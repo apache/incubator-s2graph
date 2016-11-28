@@ -27,7 +27,7 @@ import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.rest.TemplateHelper
 import org.apache.s2graph.core.storage.StorageSerializable._
-import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs, LabelWithDirection}
+import org.apache.s2graph.core.types._
 import org.hbase.async.ColumnRangeFilter
 import play.api.libs.json.{JsString, JsNull, JsValue, Json}
 
@@ -39,7 +39,7 @@ object Query {
   def apply(query: Query): Query = {
     Query(query.vertices, query.steps, query.queryOption, query.jsonQuery)
   }
-  def toQuery(srcVertices: Seq[Vertex], queryParam: QueryParam) = Query(srcVertices, Vector(Step(List(queryParam))))
+  def toQuery(srcVertices: Seq[S2Vertex], queryParams: Seq[QueryParam]) = Query(srcVertices, Vector(Step(queryParams)))
 
 }
 
@@ -96,7 +96,7 @@ case class QueryOption(removeCycle: Boolean = false,
 
 }
 
-case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
+case class Query(vertices: Seq[S2Vertex] = Seq.empty[S2Vertex],
                  steps: IndexedSeq[Step] = Vector.empty[Step],
                  queryOption: QueryOption = QueryOption(),
                  jsonQuery: JsValue = JsNull) {
@@ -162,7 +162,7 @@ case class EdgeTransformer(jsValue: JsValue) {
     }
   }
 
-  def toInnerValOpt(queryParam: QueryParam, edge: Edge, fieldName: String): Option[InnerValLike] = {
+  def toInnerValOpt(queryParam: QueryParam, edge: S2Edge, fieldName: String): Option[InnerValLike] = {
     fieldName match {
       case LabelMeta.to.name => Option(edge.tgtVertex.innerId)
       case LabelMeta.from.name => Option(edge.srcVertex.innerId)
@@ -170,7 +170,7 @@ case class EdgeTransformer(jsValue: JsValue) {
     }
   }
 
-  def transform(queryParam: QueryParam, edge: Edge, nextStepOpt: Option[Step]): Seq[Edge] = {
+  def transform(queryParam: QueryParam, edge: S2Edge, nextStepOpt: Option[Step]): Seq[S2Edge] = {
     if (isDefault) Seq(edge)
     else {
       val edges = for {
@@ -218,7 +218,7 @@ case class Step(queryParams: Seq[QueryParam],
   }
 }
 
-case class VertexParam(vertices: Seq[Vertex]) {
+case class VertexParam(vertices: Seq[S2Vertex]) {
   var filters: Option[Map[Byte, InnerValLike]] = None
 
   def has(what: Option[Map[Byte, InnerValLike]]): VertexParam = {
@@ -306,11 +306,10 @@ case class QueryParam(labelName: String,
     else label.indexNameMap.getOrElse(indexName, throw new RuntimeException(s"$indexName indexName is not found.")).seq
 
   lazy val tgtVertexInnerIdOpt = tgtVertexIdOpt.map { id =>
-    val tmp = label.tgtColumnWithDir(dir)
-    toInnerVal(id, tmp.columnType, tmp.schemaVersion)
+    CanInnerValLike.anyToInnerValLike.toInnerVal(id)(label.tgtColumnWithDir(dir).schemaVersion)
   }
 
-  def buildInterval(edgeOpt: Option[Edge]) = intervalOpt match {
+  def buildInterval(edgeOpt: Option[S2Edge]) = intervalOpt match {
     case None => Array.empty[Byte] -> Array.empty[Byte]
     case Some(interval) =>
       val (froms, tos) = interval
@@ -358,7 +357,7 @@ case class QueryParam(labelName: String,
     Bytes.add(bytes, optionalCacheKey)
   }
 
-  private def convertToInner(kvs: Seq[(String, JsValue)], edgeOpt: Option[Edge]): Seq[(LabelMeta, InnerValLike)] = {
+  private def convertToInner(kvs: Seq[(String, JsValue)], edgeOpt: Option[S2Edge]): Seq[(LabelMeta, InnerValLike)] = {
     kvs.map { case (propKey, propValJs) =>
       propValJs match {
         case JsString(in) if edgeOpt.isDefined && in.contains("_parent.") =>
@@ -376,7 +375,7 @@ case class QueryParam(labelName: String,
 
           val propVal =
             if (InnerVal.isNumericType(labelMeta.dataType)) {
-              InnerVal.withLong(edge.property(labelMeta.name).value.asInstanceOf[BigDecimal].longValue() + padding, label.schemaVersion)
+              InnerVal.withLong(edge.property(labelMeta.name).value.toString.toLong + padding, label.schemaVersion)
             } else {
               edge.property(labelMeta.name).asInstanceOf[S2Property[_]].innerVal
             }
@@ -391,7 +390,7 @@ case class QueryParam(labelName: String,
     }
   }
 
-  def paddingInterval(len: Byte, froms: Seq[(String, JsValue)], tos: Seq[(String, JsValue)], edgeOpt: Option[Edge] = None) = {
+  def paddingInterval(len: Byte, froms: Seq[(String, JsValue)], tos: Seq[(String, JsValue)], edgeOpt: Option[S2Edge] = None) = {
     val fromInnerVal = convertToInner(froms, edgeOpt)
     val toInnerVal = convertToInner(tos, edgeOpt)
 

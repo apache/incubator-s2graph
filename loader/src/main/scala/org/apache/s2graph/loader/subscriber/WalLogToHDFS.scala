@@ -22,7 +22,7 @@ package org.apache.s2graph.loader.subscriber
 import java.text.SimpleDateFormat
 import java.util.Date
 import kafka.serializer.StringDecoder
-import org.apache.s2graph.core.Graph
+import org.apache.s2graph.core.S2Graph$
 import org.apache.s2graph.spark.spark.{WithKafka, SparkApp, HashMapParam}
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.streaming.Durations._

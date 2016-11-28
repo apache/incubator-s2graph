@@ -53,7 +53,7 @@ object PostProcess {
     case _ => Json.obj("message" -> ex.getMessage)
   }
 
-  def s2EdgeParent(graph: Graph,
+  def s2EdgeParent(graph: S2Graph,
                    queryOption: QueryOption,
                    parentEdges: Seq[EdgeWithScore]): JsValue = {
     if (parentEdges.isEmpty) JsNull
@@ -141,7 +141,7 @@ object PostProcess {
     }
   }
 
-  def s2VertexToJson(s2Vertex: Vertex): Option[JsValue] = {
+  def s2VertexToJson(s2Vertex: S2Vertex): Option[JsValue] = {
     val props = for {
       (k, v) <- s2Vertex.properties
       jsVal <- anyValToJsValue(v)
@@ -160,7 +160,7 @@ object PostProcess {
     }
   }
 
-  def verticesToJson(s2Vertices: Seq[Vertex]): JsValue =
+  def verticesToJson(s2Vertices: Seq[S2Vertex]): JsValue =
     Json.toJson(s2Vertices.flatMap(s2VertexToJson(_)))
 
   def withOptionalFields(queryOption: QueryOption,
@@ -189,7 +189,7 @@ object PostProcess {
     case _ => js
   }
 
-  def toJson(orgQuery: Option[JsValue])(graph: Graph,
+  def toJson(orgQuery: Option[JsValue])(graph: S2Graph,
                                         queryOption: QueryOption,
                                         stepResult: StepResult): JsValue = {
 

@@ -51,7 +51,7 @@ object VertexId extends HBaseDeserializable {
   }
 }
 
-class VertexId protected (val column: ServiceColumn, val innerId: InnerValLike) extends HBaseSerializable {
+class VertexId (val column: ServiceColumn, val innerId: InnerValLike) extends HBaseSerializable {
   val storeHash: Boolean = true
   val storeColId: Boolean = true
   val colId = column.id.get

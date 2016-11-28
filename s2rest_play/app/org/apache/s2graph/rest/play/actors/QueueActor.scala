@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit
 import akka.actor._
 import org.apache.s2graph.core.ExceptionHandler._
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{ExceptionHandler, Graph, GraphElement}
+import org.apache.s2graph.core.{ExceptionHandler, S2Graph, GraphElement}
 import org.apache.s2graph.rest.play.actors.Protocol.FlushAll
 import org.apache.s2graph.rest.play.config.Config
 import play.api.Play.current
@@ -46,7 +46,7 @@ object QueueActor {
   var router: ActorRef = _
 
   //    Akka.system.actorOf(props(), name = "queueActor")
-  def init(s2: Graph, walLogHandler: ExceptionHandler) = {
+  def init(s2: S2Graph, walLogHandler: ExceptionHandler) = {
     router = Akka.system.actorOf(props(s2, walLogHandler))
   }
 
@@ -56,10 +56,10 @@ object QueueActor {
     Thread.sleep(Config.ASYNC_HBASE_CLIENT_FLUSH_INTERVAL * 2)
   }
 
-  def props(s2: Graph, walLogHandler: ExceptionHandler): Props = Props(classOf[QueueActor], s2, walLogHandler)
+  def props(s2: S2Graph, walLogHandler: ExceptionHandler): Props = Props(classOf[QueueActor], s2, walLogHandler)
 }
 
-class QueueActor(s2: Graph, walLogHandler: ExceptionHandler) extends Actor with ActorLogging {
+class QueueActor(s2: S2Graph, walLogHandler: ExceptionHandler) extends Actor with ActorLogging {
 
   import Protocol._
 

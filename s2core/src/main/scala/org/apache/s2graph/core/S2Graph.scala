@@ -20,29 +20,34 @@
 package org.apache.s2graph.core
 
 import java.util
-import java.util.concurrent.Executors
+import java.util.concurrent.{Executors, TimeUnit}
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.Configuration
-import org.apache.s2graph.core.GraphExceptions.{FetchAllStepFailException, FetchTimeoutException, LabelNotExistException}
+import org.apache.s2graph.core.GraphExceptions.{FetchTimeoutException, LabelNotExistException}
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.storage.{SKeyValue, Storage}
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.utils.{DeferCache, Extensions, SafeUpdateCache, logger}
+import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
 import org.apache.tinkerpop.gremlin.structure
 import org.apache.tinkerpop.gremlin.structure.Graph.Variables
-import org.apache.tinkerpop.gremlin.structure.{Graph => TpGraph, Transaction}
+import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
+import org.apache.tinkerpop.gremlin.structure.{Edge, Graph, T, Transaction}
 import play.api.libs.json.{JsObject, Json}
+
 import scala.annotation.tailrec
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.concurrent._
+import scala.concurrent.duration.Duration
 import scala.util.{Random, Try}
 
-object Graph {
+
+object S2Graph {
 
   type HashKey = (Int, Int, Int, Int, Boolean)
   type FilterHashKey = (Int, Int)
@@ -89,7 +94,7 @@ object Graph {
 
 
 
-  def initStorage(graph: Graph, config: Config)(ec: ExecutionContext): Storage[_, _] = {
+  def initStorage(graph: S2Graph, config: Config)(ec: ExecutionContext): Storage[_, _] = {
     val storageBackend = config.getString("s2graph.storage.backend")
     logger.info(s"[InitStorage]: $storageBackend")
 
@@ -146,7 +151,7 @@ object Graph {
     }
   }
 
-  def alreadyVisitedVertices(edgeWithScoreLs: Seq[EdgeWithScore]): Map[(LabelWithDirection, Vertex), Boolean] = {
+  def alreadyVisitedVertices(edgeWithScoreLs: Seq[EdgeWithScore]): Map[(LabelWithDirection, S2Vertex), Boolean] = {
     val vertices = for {
       edgeWithScore <- edgeWithScoreLs
       edge = edgeWithScore.edge
@@ -157,13 +162,13 @@ object Graph {
   }
 
   /** common methods for filter out, transform, aggregate queryResult */
-  def convertEdges(queryParam: QueryParam, edge: Edge, nextStepOpt: Option[Step]): Seq[Edge] = {
+  def convertEdges(queryParam: QueryParam, edge: S2Edge, nextStepOpt: Option[Step]): Seq[S2Edge] = {
     for {
       convertedEdge <- queryParam.edgeTransformer.transform(queryParam, edge, nextStepOpt) if !edge.isDegree
     } yield convertedEdge
   }
 
-  def processTimeDecay(queryParam: QueryParam, edge: Edge) = {
+  def processTimeDecay(queryParam: QueryParam, edge: S2Edge) = {
     /* process time decay */
     val tsVal = queryParam.timeDecay match {
       case None => 1.0
@@ -214,7 +219,7 @@ object Graph {
     }
   }
 
-  def toHashKey(queryParam: QueryParam, edge: Edge, isDegree: Boolean): (HashKey, FilterHashKey) = {
+  def toHashKey(queryParam: QueryParam, edge: S2Edge, isDegree: Boolean): (HashKey, FilterHashKey) = {
     val src = edge.srcVertex.innerId.hashCode()
     val tgt = edge.tgtVertex.innerId.hashCode()
     val hashKey = (src, edge.labelWithDir.labelId, edge.labelWithDir.dir, tgt, isDegree)
@@ -228,7 +233,7 @@ object Graph {
                   queryRequests: Seq[QueryRequest],
                   queryResultLsFuture: Future[Seq[StepResult]],
                   queryParams: Seq[QueryParam],
-                  alreadyVisited: Map[(LabelWithDirection, Vertex), Boolean] = Map.empty,
+                  alreadyVisited: Map[(LabelWithDirection, S2Vertex), Boolean] = Map.empty,
                   buildLastStepInnerResult: Boolean = true,
                   parentEdges: Map[VertexId, Seq[EdgeWithScore]])
                  (implicit ec: scala.concurrent.ExecutionContext): Future[StepResult] = {
@@ -495,11 +500,11 @@ object Graph {
 
 }
 
-class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph {
+class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph {
 
-  import Graph._
+  import S2Graph._
 
-  val config = _config.withFallback(Graph.DefaultConfig)
+  val config = _config.withFallback(S2Graph.DefaultConfig)
 
   Model.apply(config)
   Model.loadCache()
@@ -514,7 +519,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
   val MaxSize = config.getInt("future.cache.max.size")
   val ExpireAfterWrite = config.getInt("future.cache.expire.after.write")
   val ExpireAfterAccess = config.getInt("future.cache.expire.after.access")
-
+  val WaitTimeout = Duration(60, TimeUnit.SECONDS)
   val scheduledEx = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
   private def confWithFallback(conf: Config): Config = {
@@ -537,7 +542,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
 
     val pools = new java.util.HashMap[Config, Storage[_, _]]()
     configs.foreach { config =>
-      pools.put(config, Graph.initStorage(this, config)(ec))
+      pools.put(config, S2Graph.initStorage(this, config)(ec))
     }
 
     val m = new java.util.concurrent.ConcurrentHashMap[String, Storage[_, _]]()
@@ -557,13 +562,13 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
     m
   }
 
-  val defaultStorage: Storage[_, _] = Graph.initStorage(this, config)(ec)
+  val defaultStorage: Storage[_, _] = S2Graph.initStorage(this, config)(ec)
 
   /** QueryLevel FutureCache */
   val queryFutureCache = new DeferCache[StepResult, Promise, Future](parseCacheConfig(config, "query."), empty = StepResult.Empty)
 
   for {
-    entry <- config.entrySet() if Graph.DefaultConfigs.contains(entry.getKey)
+    entry <- config.entrySet() if S2Graph.DefaultConfigs.contains(entry.getKey)
     (k, v) = (entry.getKey, entry.getValue)
   } logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
 
@@ -585,7 +590,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
 
   def fallback = Future.successful(StepResult.Empty)
 
-  def checkEdges(edges: Seq[Edge]): Future[StepResult] = {
+  def checkEdges(edges: Seq[S2Edge]): Future[StepResult] = {
     val futures = for {
       edge <- edges
     } yield {
@@ -673,10 +678,10 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
       val step = q.steps(stepIdx)
 
      val alreadyVisited =
-        if (stepIdx == 0) Map.empty[(LabelWithDirection, Vertex), Boolean]
+        if (stepIdx == 0) Map.empty[(LabelWithDirection, S2Vertex), Boolean]
         else alreadyVisitedVertices(stepInnerResult.edgeWithScores)
 
-      val initial = (Map.empty[Vertex, Double], Map.empty[Vertex, ArrayBuffer[EdgeWithScore]])
+      val initial = (Map.empty[S2Vertex, Double], Map.empty[S2Vertex, ArrayBuffer[EdgeWithScore]])
       val (sums, grouped) = edgeWithScoreLs.foldLeft(initial) { case ((sum, group), edgeWithScore) =>
         val key = edgeWithScore.edge.tgtVertex
         val newScore = sum.getOrElse(key, 0.0) + edgeWithScore.score
@@ -759,7 +764,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
   }
 
 
-  def fetchSnapshotEdge(edge: Edge): Future[(QueryParam, Option[Edge], Option[SKeyValue])] = {
+  def fetchSnapshotEdge(edge: S2Edge): Future[(QueryParam, Option[S2Edge], Option[SKeyValue])] = {
     /** TODO: Fix this. currently fetchSnapshotEdge should not use future cache
       * so use empty cacheKey.
       * */
@@ -767,7 +772,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
       direction = GraphUtil.fromDirection(edge.labelWithDir.dir),
       tgtVertexIdOpt = Option(edge.tgtVertex.innerIdVal),
       cacheTTLInMillis = -1)
-    val q = Query.toQuery(Seq(edge.srcVertex), queryParam)
+    val q = Query.toQuery(Seq(edge.srcVertex), Seq(queryParam))
     val queryRequest = QueryRequest(q, 0, edge.srcVertex, queryParam)
 
     val storage = getStorage(edge.innerLabel)
@@ -786,7 +791,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
     }
   }
 
-  def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
+  def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
     val verticesWithIdx = vertices.zipWithIndex
     val futures = verticesWithIdx.groupBy { case (v, idx) => v.service }.map { case (service, vertexGroup) =>
       getStorage(service).getVertices(vertexGroup.map(_._1)).map(_.zip(vertexGroup.map(_._2)))
@@ -798,7 +803,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
   }
 
   /** mutate */
-  def deleteAllAdjacentEdges(srcVertices: Seq[Vertex],
+  def deleteAllAdjacentEdges(srcVertices: Seq[S2Vertex],
                              labels: Seq[Label],
                              dir: Int,
                              ts: Long): Future[Boolean] = {
@@ -903,9 +908,9 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
           val copiedEdge = label.consistencyLevel match {
             case "strong" =>
               edge.copyEdge(op = GraphUtil.operations("delete"),
-                version = requestTs, propsWithTs = Edge.propsToState(edge.updatePropsWithTs()), ts = requestTs)
+                version = requestTs, propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()), ts = requestTs)
             case _ =>
-              edge.copyEdge(propsWithTs = Edge.propsToState(edge.updatePropsWithTs()), ts = requestTs)
+              edge.copyEdge(propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()), ts = requestTs)
           }
 //        val (newOp, newVersion, newPropsWithTs) = label.consistencyLevel match {
 //          case "strong" =>
@@ -937,12 +942,12 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
   def mutateElements(elements: Seq[GraphElement],
                      withWait: Boolean = false): Future[Seq[Boolean]] = {
 
-    val edgeBuffer = ArrayBuffer[(Edge, Int)]()
-    val vertexBuffer = ArrayBuffer[(Vertex, Int)]()
+    val edgeBuffer = ArrayBuffer[(S2Edge, Int)]()
+    val vertexBuffer = ArrayBuffer[(S2Vertex, Int)]()
 
     elements.zipWithIndex.foreach {
-      case (e: Edge, idx: Int) => edgeBuffer.append((e, idx))
-      case (v: Vertex, idx: Int) => vertexBuffer.append((v, idx))
+      case (e: S2Edge, idx: Int) => edgeBuffer.append((e, idx))
+      case (v: S2Vertex, idx: Int) => vertexBuffer.append((v, idx))
       case any@_ => logger.error(s"Unknown type: ${any}")
     }
 
@@ -965,7 +970,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
 
   //  def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = storage.mutateEdges(edges, withWait)
 
-  def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = {
+  def mutateEdges(edges: Seq[S2Edge], withWait: Boolean = false): Future[Seq[Boolean]] = {
     val edgeWithIdxs = edges.zipWithIndex
 
     val (strongEdges, weakEdges) =
@@ -983,8 +988,8 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
         /** multiple edges with weak consistency level will be processed as batch */
         val mutations = edges.flatMap { edge =>
           val (_, edgeUpdate) =
-            if (edge.op == GraphUtil.operations("delete")) Edge.buildDeleteBulk(None, edge)
-            else Edge.buildOperation(None, Seq(edge))
+            if (edge.op == GraphUtil.operations("delete")) S2Edge.buildDeleteBulk(None, edge)
+            else S2Edge.buildOperation(None, Seq(edge))
 
           storage.buildVertexPutsAsync(edge) ++ storage.indexedEdgeMutations(edgeUpdate) ++ storage.snapshotEdgeMutations(edgeUpdate) ++ storage.increments(edgeUpdate)
         }
@@ -1019,7 +1024,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
     }
   }
 
-  def mutateVertices(vertices: Seq[Vertex], withWait: Boolean = false): Future[Seq[Boolean]] = {
+  def mutateVertices(vertices: Seq[S2Vertex], withWait: Boolean = false): Future[Seq[Boolean]] = {
     val verticesWithIdx = vertices.zipWithIndex
     val futures = verticesWithIdx.groupBy { case (v, idx) => v.service }.map { case (service, vertexGroup) =>
       getStorage(service).mutateVertices(vertexGroup.map(_._1), withWait).map(_.zip(vertexGroup.map(_._2)))
@@ -1027,7 +1032,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
     Future.sequence(futures).map { ls => ls.flatten.toSeq.sortBy(_._2).map(_._1) }
   }
 
-  def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long, Long)]] = {
+  def incrementCounts(edges: Seq[S2Edge], withWait: Boolean): Future[Seq[(Boolean, Long, Long)]] = {
     val edgesWithIdx = edges.zipWithIndex
     val futures = edgesWithIdx.groupBy { case (e, idx) => e.innerLabel }.map { case (label, edgeGroup) =>
       getStorage(label).incrementCounts(edgeGroup.map(_._1), withWait).map(_.zip(edgeGroup.map(_._2)))
@@ -1035,7 +1040,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
     Future.sequence(futures).map { ls => ls.flatten.toSeq.sortBy(_._2).map(_._1) }
   }
 
-  def updateDegree(edge: Edge, degreeVal: Long = 0): Future[Boolean] = {
+  def updateDegree(edge: S2Edge, degreeVal: Long = 0): Future[Boolean] = {
     val label = edge.innerLabel
 
     val storage = getStorage(label)
@@ -1047,30 +1052,6 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
   def shutdown(): Unit = {
     flushStorage()
     Model.shutdown()
-  }
-
-  def addEdge(srcId: Any,
-              tgtId: Any,
-              labelName: String,
-              direction: String = "out",
-              props: Map[String, Any] = Map.empty,
-              ts: Long = System.currentTimeMillis(),
-              operation: String = "insert",
-              withWait: Boolean = true): Future[Boolean] = {
-
-    val innerEdges = Seq(toEdge(srcId, tgtId, labelName, direction, props.toMap, ts, operation))
-    mutateEdges(innerEdges, withWait).map(_.headOption.getOrElse(false))
-  }
-
-  def addVertex(serviceName: String,
-                columnName: String,
-                id: Any,
-                props: Map[String, Any] = Map.empty,
-                ts: Long = System.currentTimeMillis(),
-                operation: String = "insert",
-                withWait: Boolean = true): Future[Boolean] = {
-    val innerVertices = Seq(toVertex(serviceName, columnName, id, props.toMap, ts, operation))
-    mutateVertices(innerVertices, withWait).map(_.headOption.getOrElse(false))
   }
 
   def toGraphElement(s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] = Try {
@@ -1098,15 +1079,15 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
   } get
 
 
-  def toVertex(s: String): Option[Vertex] = {
+  def toVertex(s: String): Option[S2Vertex] = {
     toVertex(GraphUtil.split(s))
   }
 
-  def toEdge(s: String): Option[Edge] = {
+  def toEdge(s: String): Option[S2Edge] = {
     toEdge(GraphUtil.split(s))
   }
 
-  def toEdge(parts: Array[String]): Option[Edge] = Try {
+  def toEdge(parts: Array[String]): Option[S2Edge] = Try {
     val (ts, operation, logType, srcId, tgtId, label) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
     val props = if (parts.length >= 7) fromJsonToProperties(Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj())) else Map.empty[String, Any]
     val tempDirection = if (parts.length >= 8) parts(7) else "out"
@@ -1119,7 +1100,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
       throw e
   } get
 
-  def toVertex(parts: Array[String]): Option[Vertex] = Try {
+  def toVertex(parts: Array[String]): Option[S2Vertex] = Try {
     val (ts, operation, logType, srcId, serviceName, colName) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
     val props = if (parts.length >= 7) fromJsonToProperties(Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj())) else Map.empty[String, Any]
     val vertex = toVertex(serviceName, colName, srcId, props, ts.toLong, operation)
@@ -1130,82 +1111,35 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
       throw e
   } get
 
-
-  def newSnapshotEdge(srcVertex: Vertex,
-                      tgtVertex: Vertex,
-                      label: Label,
-                      dir: Int,
-                      op: Byte,
-                      version: Long,
-                      propsWithTs: Edge.State,
-                      pendingEdgeOpt: Option[Edge],
-                      statusCode: Byte = 0,
-                      lockTs: Option[Long],
-                      tsInnerValOpt: Option[InnerValLike] = None): SnapshotEdge = {
-    val snapshotEdge = new SnapshotEdge(this, srcVertex, tgtVertex, label, dir, op, version, Edge.EmptyProps,
-      pendingEdgeOpt, statusCode, lockTs, tsInnerValOpt)
-    Edge.fillPropsWithTs(snapshotEdge, propsWithTs)
-    snapshotEdge
-  }
-
-  def newEdge(srcVertex: Vertex,
-              tgtVertex: Vertex,
-              innerLabel: Label,
-              dir: Int,
-              op: Byte = GraphUtil.defaultOpByte,
-              version: Long = System.currentTimeMillis(),
-              propsWithTs: Edge.State,
-              parentEdges: Seq[EdgeWithScore] = Nil,
-              originalEdgeOpt: Option[Edge] = None,
-              pendingEdgeOpt: Option[Edge] = None,
-              statusCode: Byte = 0,
-              lockTs: Option[Long] = None,
-              tsInnerValOpt: Option[InnerValLike] = None): Edge = {
-    val edge = new Edge(this, srcVertex, tgtVertex, innerLabel, dir, op, version, Edge.EmptyProps,
-      parentEdges, originalEdgeOpt, pendingEdgeOpt, statusCode, lockTs, tsInnerValOpt)
-    Edge.fillPropsWithTs(edge, propsWithTs)
-    edge
-  }
   def toEdge(srcId: Any,
              tgtId: Any,
              labelName: String,
              direction: String,
              props: Map[String, Any] = Map.empty,
              ts: Long = System.currentTimeMillis(),
-             operation: String = "insert"): Edge = {
+             operation: String = "insert"): S2Edge = {
     val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
 
-    val srcVertexId = toInnerVal(srcId.toString, label.srcColumn.columnType, label.schemaVersion)
-    val tgtVertexId = toInnerVal(tgtId.toString, label.tgtColumn.columnType, label.schemaVersion)
+    val srcVertexIdInnerVal = toInnerVal(srcId.toString, label.srcColumn.columnType, label.schemaVersion)
+    val tgtVertexIdInnerVal = toInnerVal(tgtId.toString, label.tgtColumn.columnType, label.schemaVersion)
 
-    val srcColId = label.srcColumn.id.get
-    val tgtColId = label.tgtColumn.id.get
-
-    val srcVertex = newVertex(SourceVertexId(label.srcColumn, srcVertexId), System.currentTimeMillis())
-    val tgtVertex = newVertex(TargetVertexId(label.tgtColumn, tgtVertexId), System.currentTimeMillis())
+    val srcVertex = newVertex(SourceVertexId(label.srcColumn, srcVertexIdInnerVal), System.currentTimeMillis())
+    val tgtVertex = newVertex(TargetVertexId(label.tgtColumn, tgtVertexIdInnerVal), System.currentTimeMillis())
     val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
 
-    val labelWithDir = LabelWithDirection(label.id.get, dir)
     val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
     val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
     val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
 
-    new Edge(this, srcVertex, tgtVertex, label, dir, op = op, version = ts).copyEdgeWithState(propsWithTs)
+    new S2Edge(this, srcVertex, tgtVertex, label, dir, op = op, version = ts).copyEdgeWithState(propsWithTs)
   }
 
-  def newVertex(id: VertexId,
-                ts: Long = System.currentTimeMillis(),
-                props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
-                op: Byte = 0,
-                belongLabelIds: Seq[Int] = Seq.empty): Vertex = {
-    new Vertex(this, id, ts, props, op, belongLabelIds)
-  }
   def toVertex(serviceName: String,
                columnName: String,
                id: Any,
                props: Map[String, Any] = Map.empty,
                ts: Long = System.currentTimeMillis(),
-               operation: String = "insert"): Vertex = {
+               operation: String = "insert"): S2Vertex = {
 
     val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
     val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
@@ -1213,12 +1147,207 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
 
     val srcVertexId = VertexId(column, toInnerVal(id.toString, column.columnType, column.schemaVersion))
     val propsInner = column.propsToInnerVals(props) ++
-      Map(ColumnMeta.timeStampSeq.toInt -> InnerVal.withLong(ts, column.schemaVersion))
+      Map(ColumnMeta.timestamp -> InnerVal.withLong(ts, column.schemaVersion))
 
-    new Vertex(this, srcVertexId, ts, propsInner, op)
+    val vertex = new S2Vertex(this, srcVertexId, ts, S2Vertex.EmptyProps, op)
+    S2Vertex.fillPropsWithTs(vertex, propsInner)
+    vertex
   }
 
-  override def vertices(objects: AnyRef*): util.Iterator[structure.Vertex] = ???
+  /**
+   * helper to create new Edge instance from given parameters on memory(not actually stored in storage).
+   *
+   * Since we are using mutable map for property value(propsWithTs),
+   * we should make sure that reference for mutable map never be shared between multiple Edge instances.
+   * To guarantee this, we never create Edge directly, but rather use this helper which is available on S2Graph.
+   *
+   * Note that we are using following convention
+   * 1. `add*` for method that actually store instance into storage,
+   * 2. `new*` for method that only create instance on memory, but not store it into storage.
+   *
+   * @param srcVertex
+   * @param tgtVertex
+   * @param innerLabel
+   * @param dir
+   * @param op
+   * @param version
+   * @param propsWithTs
+   * @param parentEdges
+   * @param originalEdgeOpt
+   * @param pendingEdgeOpt
+   * @param statusCode
+   * @param lockTs
+   * @param tsInnerValOpt
+   * @return
+   */
+  def newEdge(srcVertex: S2Vertex,
+              tgtVertex: S2Vertex,
+              innerLabel: Label,
+              dir: Int,
+              op: Byte = GraphUtil.defaultOpByte,
+              version: Long = System.currentTimeMillis(),
+              propsWithTs: S2Edge.State,
+              parentEdges: Seq[EdgeWithScore] = Nil,
+              originalEdgeOpt: Option[S2Edge] = None,
+              pendingEdgeOpt: Option[S2Edge] = None,
+              statusCode: Byte = 0,
+              lockTs: Option[Long] = None,
+              tsInnerValOpt: Option[InnerValLike] = None): S2Edge = {
+    val edge = new S2Edge(this, srcVertex, tgtVertex, innerLabel, dir, op, version, S2Edge.EmptyProps,
+      parentEdges, originalEdgeOpt, pendingEdgeOpt, statusCode, lockTs, tsInnerValOpt)
+    S2Edge.fillPropsWithTs(edge, propsWithTs)
+    edge
+  }
+
+  /**
+   * helper to create new SnapshotEdge instance from given parameters on memory(not actually stored in storage).
+   *
+   * Note that this is only available to S2Graph, not structure.Graph so only internal code should use this method.
+   * @param srcVertex
+   * @param tgtVertex
+   * @param label
+   * @param dir
+   * @param op
+   * @param version
+   * @param propsWithTs
+   * @param pendingEdgeOpt
+   * @param statusCode
+   * @param lockTs
+   * @param tsInnerValOpt
+   * @return
+   */
+  private[core] def newSnapshotEdge(srcVertex: S2Vertex,
+                                    tgtVertex: S2Vertex,
+                                    label: Label,
+                                    dir: Int,
+                                    op: Byte,
+                                    version: Long,
+                                    propsWithTs: S2Edge.State,
+                                    pendingEdgeOpt: Option[S2Edge],
+                                    statusCode: Byte = 0,
+                                    lockTs: Option[Long],
+                                    tsInnerValOpt: Option[InnerValLike] = None): SnapshotEdge = {
+    val snapshotEdge = new SnapshotEdge(this, srcVertex, tgtVertex, label, dir, op, version, S2Edge.EmptyProps,
+      pendingEdgeOpt, statusCode, lockTs, tsInnerValOpt)
+    S2Edge.fillPropsWithTs(snapshotEdge, propsWithTs)
+    snapshotEdge
+  }
+
+  /**
+   * internal helper to actually store a single edge based on given peramters.
+   *
+   * Note that this is used from S2Vertex to implement blocking interface from Tp3.
+   * Once tp3 provide AsyncStep, then this can be changed to return Java's CompletableFuture.
+   *
+   * @param srcVertex
+   * @param tgtVertex
+   * @param labelName
+   * @param direction
+   * @param props
+   * @param ts
+   * @param operation
+   * @return
+   */
+  private[core] def addEdgeInner(srcVertex: S2Vertex,
+                                 tgtVertex: S2Vertex,
+                                 labelName: String,
+                                 direction: String = "out",
+                                 props: Map[String, AnyRef] = Map.empty,
+                                 ts: Long = System.currentTimeMillis(),
+                                 operation: String = "insert"): S2Edge = {
+    Await.result(addEdgeInnerAsync(srcVertex, tgtVertex, labelName, direction, props, ts, operation), WaitTimeout)
+  }
+
+  private[core] def addEdgeInnerAsync(srcVertex: S2Vertex,
+                                      tgtVertex: S2Vertex,
+                                      labelName: String,
+                                      direction: String = "out",
+                                      props: Map[String, AnyRef] = Map.empty,
+                                      ts: Long = System.currentTimeMillis(),
+                                      operation: String = "insert"): Future[S2Edge] = {
+    // Validations on input parameter
+    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+    val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
+//    if (srcVertex.id.column != label.srcColumnWithDir(dir)) throw new RuntimeException(s"srcVertex's column[${srcVertex.id.column}] is not matched to label's srcColumn[${label.srcColumnWithDir(dir)}")
+//    if (tgtVertex.id.column != label.tgtColumnWithDir(dir)) throw new RuntimeException(s"tgtVertex's column[${tgtVertex.id.column}] is not matched to label's tgtColumn[${label.tgtColumnWithDir(dir)}")
+
+    // Convert given Map[String, AnyRef] property into internal class.
+    val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
+    val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
+    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
+
+    val edge = newEdge(srcVertex, tgtVertex, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
+    // store edge into storage withWait option.
+    mutateEdges(Seq(edge), withWait = true).map { rets =>
+      if (!rets.headOption.getOrElse(false)) throw new RuntimeException("add edge failed.")
+      else edge
+    }
+  }
+
+
+  def newVertexId(serviceName: String)(columnName: String)(id: Any): VertexId = {
+    val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
+    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
+    newVertexId(service, column, id)
+  }
+
+  /**
+   * helper to create S2Graph's internal VertexId instance with given parameters.
+   * @param service
+   * @param column
+   * @param id
+   * @return
+   */
+  def newVertexId(service: Service,
+                  column: ServiceColumn,
+                  id: Any): VertexId = {
+    val innerVal = CanInnerValLike.anyToInnerValLike.toInnerVal(id)(column.schemaVersion)
+    new VertexId(column, innerVal)
+  }
+
+  def newVertex(id: VertexId,
+                ts: Long = System.currentTimeMillis(),
+                props: S2Vertex.Props = S2Vertex.EmptyProps,
+                op: Byte = 0,
+                belongLabelIds: Seq[Int] = Seq.empty): S2Vertex = {
+    val vertex = new S2Vertex(this, id, ts, S2Vertex.EmptyProps, op, belongLabelIds)
+    S2Vertex.fillPropsWithTs(vertex, props)
+    vertex
+  }
+
+  def getVertex(vertexId: VertexId): Option[S2Vertex] = {
+    val v = newVertex(vertexId)
+    Await.result(getVertices(Seq(v)).map { vertices => vertices.headOption }, WaitTimeout)
+  }
+
+  def fetchEdges(vertex: S2Vertex, labelNames: Seq[String], direction: String = "out"): util.Iterator[Edge] = {
+    Await.result(fetchEdgesAsync(vertex, labelNames, direction), WaitTimeout)
+  }
+
+  def fetchEdgesAsync(vertex: S2Vertex, labelNames: Seq[String], direction: String = "out"): Future[util.Iterator[Edge]] = {
+    val queryParams = labelNames.map { l =>
+      QueryParam(labelName = l, direction = direction)
+    }
+    val query = Query.toQuery(Seq(vertex), queryParams)
+    getEdges(query).map { stepResult =>
+      val ls = new util.ArrayList[Edge]()
+      stepResult.edgeWithScores.foreach(es => ls.add(es.edge))
+      ls.iterator()
+    }
+  }
+
+  override def vertices(vertexIds: AnyRef*): util.Iterator[structure.Vertex] = {
+    val vertices = for {
+      vertexId <- vertexIds if vertexId.isInstanceOf[VertexId]
+    } yield newVertex(vertexId.asInstanceOf[VertexId])
+
+    val future = getVertices(vertices).map { vs =>
+      val ls = new util.ArrayList[structure.Vertex]()
+      ls.addAll(vs)
+      ls.iterator()
+    }
+    Await.result(future, WaitTimeout)
+  }
 
   override def tx(): Transaction = ???
 
@@ -1228,9 +1357,39 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) extends TpGraph 
 
   override def configuration(): Configuration = ???
 
-  override def addVertex(objects: AnyRef*): structure.Vertex = ???
+  override def addVertex(kvs: AnyRef*): structure.Vertex = {
+    val kvsMap = ElementHelper.asMap(kvs: _*).asScala.toMap
+    val id = kvsMap.getOrElse(T.id.toString, throw new RuntimeException("T.id is required."))
+    val serviceColumnNames = kvsMap.getOrElse(T.label.toString, throw new RuntimeException("ServiceName::ColumnName is required.")).toString
+    val names = serviceColumnNames.split(S2Vertex.VertexLabelDelimiter)
+    if (names.length != 2) throw new RuntimeException("malformed data on vertex label.")
+    val serviceName = names(0)
+    val columnName = names(1)
 
-  override def close(): Unit = ???
+    val vertex = toVertex(serviceName, columnName, id, kvsMap)
+    val future = mutateVertices(Seq(vertex), withWait = true).map { vs =>
+      if (vs.forall(identity)) vertex
+      else throw new RuntimeException("addVertex failed.")
+    }
+    Await.result(future, WaitTimeout)
+  }
+
+  def addVertex(id: VertexId,
+                ts: Long = System.currentTimeMillis(),
+                props: S2Vertex.Props = S2Vertex.EmptyProps,
+                op: Byte = 0,
+                belongLabelIds: Seq[Int] = Seq.empty): S2Vertex = {
+    val vertex = newVertex(id, ts, props, op, belongLabelIds)
+    val future = mutateVertices(Seq(vertex), withWait = true).map { rets =>
+      if (rets.forall(identity)) vertex
+      else throw new RuntimeException("addVertex failed.")
+    }
+    Await.result(future, WaitTimeout)
+  }
+
+  override def close(): Unit = {
+    shutdown()
+  }
 
   override def compute[C <: GraphComputer](aClass: Class[C]): C = ???
 

@@ -21,7 +21,7 @@ package org.apache.s2graph.counter.helper
 
 import com.typesafe.config.Config
 import org.apache
-import org.apache.s2graph.core.Graph
+import org.apache.s2graph.core.S2Graph
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.counter
 import org.apache.s2graph.counter.config.S2CounterConfig
@@ -37,7 +37,7 @@ class CounterAdmin(config: Config) {
    val s2config = new S2CounterConfig(config)
    val counterModel = new CounterModel(config)
    val graphOp = new GraphOperation(config)
-   val s2graph = new Graph(config)(scala.concurrent.ExecutionContext.global)
+   val s2graph = new S2Graph(config)(scala.concurrent.ExecutionContext.global)
    val storageManagement = new org.apache.s2graph.core.Management(s2graph)
 
    def setupCounterOnGraph(): Unit = {

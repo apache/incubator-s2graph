@@ -32,13 +32,13 @@ trait TestCommonWithModels {
   import InnerVal._
   import types.HBaseType._
 
-  var graph: Graph = _
+  var graph: S2Graph = _
   var config: Config = _
   var management: Management = _
 
   def initTests() = {
     config = ConfigFactory.load()
-    graph = new Graph(config)(ExecutionContext.Implicits.global)
+    graph = new S2Graph(config)(ExecutionContext.Implicits.global)
     management = new Management(graph)
 
     implicit val session = AutoSession

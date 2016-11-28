@@ -27,15 +27,17 @@ import org.apache.tinkerpop.gremlin.structure.{Property}
 import scala.util.hashing.MurmurHash3
 
 
-case class S2Property[V](element: Edge,
+case class S2Property[V](element: S2Edge,
                          labelMeta: LabelMeta,
                          key: String,
-                         value: V,
+                         v: V,
                          ts: Long) extends Property[V] {
 
   import CanInnerValLike._
   lazy val innerVal = anyToInnerValLike.toInnerVal(value)(element.innerLabel.schemaVersion)
   lazy val innerValWithTs = InnerValLikeWithTs(innerVal, ts)
+
+  val value = castValue(v, labelMeta.dataType).asInstanceOf[V]
 
   def bytes: Array[Byte] = {
     innerVal.bytes
@@ -64,4 +66,5 @@ case class S2Property[V](element: Edge,
   override def toString(): String = {
     Map("labelMeta" -> labelMeta.toString, "key" -> key, "value" -> value, "ts" -> ts).toString
   }
+
 }

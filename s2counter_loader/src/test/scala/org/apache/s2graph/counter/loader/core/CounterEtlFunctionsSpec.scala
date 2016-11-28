@@ -22,7 +22,7 @@ package org.apache.s2graph.counter.loader.core
 import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.mysqls.{Label, Service}
 import org.apache.s2graph.core.types.HBaseType
-import org.apache.s2graph.core.{Graph, Management}
+import org.apache.s2graph.core.{S2Graph$, Management}
 import org.apache.s2graph.counter.models.DBModel
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
@@ -33,7 +33,7 @@ class CounterEtlFunctionsSpec extends FlatSpec with BeforeAndAfterAll with Match
   val cluster = config.getString("hbase.zookeeper.quorum")
   DBModel.initialize(config)
 
-  val graph = new Graph(config)(global)
+  val graph = new S2Graph(config)(global)
   val management = new Management(graph)
 
   override def beforeAll: Unit = {

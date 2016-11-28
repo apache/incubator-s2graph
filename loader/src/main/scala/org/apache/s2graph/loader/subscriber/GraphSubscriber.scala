@@ -48,7 +48,7 @@ object GraphConfig {
       if (kafkaBrokerList.isEmpty) Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database, "cache.ttl.seconds" -> cacheTTL)
       else Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database, "kafka.metadata.broker.list" -> kafkaBrokers, "cache.ttl.seconds" -> cacheTTL)
 
-    ConfigFactory.parseMap(newConf).withFallback(Graph.DefaultConfig)
+    ConfigFactory.parseMap(newConf).withFallback(S2Graph.DefaultConfig)
   }
 }
 
@@ -64,7 +64,7 @@ object GraphSubscriberHelper extends WithKafka {
   private val sleepPeriod = 10000
   private val maxTryNum = 10
 
-  var g: Graph = null
+  var g: S2Graph = null
   var management: Management = null
   val conns = new scala.collection.mutable.HashMap[String, Connection]()
 
@@ -80,7 +80,7 @@ object GraphSubscriberHelper extends WithKafka {
 
     if (g == null) {
       val ec = ExecutionContext.Implicits.global
-      g = new Graph(config)(ec)
+      g = new S2Graph(config)(ec)
       management = new Management(g)
     }
   }
@@ -107,12 +107,12 @@ object GraphSubscriberHelper extends WithKafka {
     (for (msg <- msgs) yield {
       statFunc("total", 1)
       g.toGraphElement(msg, labelMapping) match {
-        case Some(e) if e.isInstanceOf[Edge] =>
+        case Some(e) if e.isInstanceOf[S2Edge] =>
           statFunc("EdgeParseOk", 1)
-          e.asInstanceOf[Edge]
-        case Some(v) if v.isInstanceOf[Vertex] =>
+          e.asInstanceOf[S2Edge]
+        case Some(v) if v.isInstanceOf[S2Vertex] =>
           statFunc("VertexParseOk", 1)
-          v.asInstanceOf[Vertex]
+          v.asInstanceOf[S2Vertex]
         case Some(x) =>
           throw new RuntimeException(s">>>>> GraphSubscriber.toGraphElements: parsing failed. ${x.serviceName}")
         case None =>

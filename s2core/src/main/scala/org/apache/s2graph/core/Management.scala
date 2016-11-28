@@ -256,7 +256,7 @@ object Management {
   }
 }
 
-class Management(graph: Graph) {
+class Management(graph: S2Graph) {
   import Management._
 
   def createStorageTable(zkAddr: String,

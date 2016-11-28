@@ -30,6 +30,8 @@ object ColumnMeta extends Model[ColumnMeta] {
   val lastModifiedAtColumn = ColumnMeta(Some(0), 0, "lastModifiedAt", lastModifiedAtColumnSeq, "long")
   val maxValue = Byte.MaxValue
 
+  val timestamp = ColumnMeta(None, -1, "_timestamp", timeStampSeq, "long")
+
   def apply(rs: WrappedResultSet): ColumnMeta = {
     ColumnMeta(Some(rs.int("id")), rs.int("column_id"), rs.string("name"), rs.byte("seq"), rs.string("data_type").toLowerCase())
   }
@@ -125,6 +127,14 @@ object ColumnMeta extends Model[ColumnMeta] {
 }
 
 case class ColumnMeta(id: Option[Int], columnId: Int, name: String, seq: Byte, dataType: String) {
-  lazy val serviceColumn = ServiceColumn.findById(columnId)
   lazy val toJson = Json.obj("name" -> name, "dataType" -> dataType)
+  override def equals(other: Any): Boolean = {
+    if (!other.isInstanceOf[ColumnMeta]) false
+    else {
+      val o = other.asInstanceOf[ColumnMeta]
+      //      labelId == o.labelId &&
+      seq == o.seq
+    }
+  }
+  override def hashCode(): Int = seq.toInt
 }

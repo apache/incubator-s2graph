@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.benchmark
 
 import com.typesafe.config.{ConfigFactory, Config}
-import org.apache.s2graph.core.{Management, Graph}
+import org.apache.s2graph.core.{Management, S2Graph$}
 import org.specs2.mutable.Specification
 import scalikejdbc.AutoSession
 

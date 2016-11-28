@@ -39,7 +39,7 @@ import org.apache.s2graph.core.rest.RestHandler
 import org.apache.s2graph.core.rest.RestHandler.{CanLookup, HandlerResult}
 import org.apache.s2graph.core.utils.Extensions._
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{Graph, PostProcess}
+import org.apache.s2graph.core.{S2Graph, PostProcess}
 import play.api.libs.json._
 
 import scala.collection.mutable
@@ -217,7 +217,7 @@ object NettyServer extends App {
   val maxBodySize = Try(config.getInt("max.body.size")).recover { case _ => 65536 * 2 }.get
 
   // init s2graph with config
-  val s2graph = new Graph(config)(ec)
+  val s2graph = new S2Graph(config)(ec)
   val rest = new RestHandler(s2graph)(ec)
 
   val deployInfo = Try(Source.fromFile("./release_info").mkString("")).recover { case _ => "release info not found\n" }.get
