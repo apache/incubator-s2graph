@@ -1,0 +1,12 @@
+language: scala
+
+scala:
+  - 2.10.6
+  - 2.11.8
+  - 2.12.0
+
+jdk:
+  - oraclejdk8
+  - openjdk8
+
+sbt_args: -J-Xmx4G -J-Xms2G -J-Xss1M
