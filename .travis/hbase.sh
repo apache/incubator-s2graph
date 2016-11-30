@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 
-wget -q -O - https://archive.cloudera.com/cdh5/cdh/5/hbase-1.0.0-cdh5.4.9.tar.gz | tar xz
-cd hbase-1.0.0-cdh5.4.9
+wget -q -O - http://mirror.navercorp.com/apache/hbase/stable/hbase-1.2.4-bin.tar.gz | tar xz
+cd hbase-1.2.4
 bin/start-hbase.sh
