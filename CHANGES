@@ -229,7 +229,9 @@ Release 0.1.0 - unreleased
     S2GRAPH-114: `MethodNotSupportedException` class in s2counter_core project miss license header (Committed by DOYUNG YOON).
     
     S2GRAPH-129: Restrict direct access on Edge's properties from other classes. (Committed by DOYUNG YOON).
-    
+ 
+    S2GRAPH-130: Edge.propsWithTs data type should be changed into mutable to support setter interface exist in tp3 (Committed by DOYUNG YOON).
+   
   TEST
     
     S2GRAPH-21: Change PostProcessBenchmarkSpec not to store and fetch test data from storage. (Committed by DOYUNG YOON).
