@@ -19,7 +19,7 @@
  */
 --->
 
-S2Graph
+S2Graph [![Build Status](https://travis-ci.org/ijsong/incubator-s2graph.svg?branch=master)](https://travis-ci.org/ijsong/incubator-s2graph)
 =======
 
 [**S2Graph**](http://s2graph.apache.org/) is a **graph database** designed to handle transactional graph processing at scale. Its REST API allows you to store, manage and query relational information using **edge** and **vertex** representations in a **fully asynchronous** and **non-blocking** manner. This document covers some basic concepts and terms of S2Graph as well as help you get a feel for the S2Graph API.
