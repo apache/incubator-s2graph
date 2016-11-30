@@ -9,3 +9,6 @@ jdk:
   - oraclejdk8
 
 sbt_args: -J-Xmx4G -J-Xms2G -J-Xss1M
+
+services:
+  - hbase
