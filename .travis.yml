@@ -11,3 +11,6 @@ sbt_args: -J-Xmx4G -J-Xms2G -J-Xss1M
 
 services:
   - hbase
+
+before_script:
+  - .travis/hbase.sh
