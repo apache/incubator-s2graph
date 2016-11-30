@@ -7,6 +7,5 @@ scala:
 
 jdk:
   - oraclejdk8
-  - openjdk8
 
 sbt_args: -J-Xmx4G -J-Xms2G -J-Xss1M
