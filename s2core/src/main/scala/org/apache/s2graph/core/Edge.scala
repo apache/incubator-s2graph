@@ -655,7 +655,7 @@ object Edge {
 //      propsWithoutLastDeletedAt.forall { case (_, v) => v.ts <= lastDeletedAt }
       var ret = true
       val iter = props.entrySet().iterator()
-      while (iter.hasNext) {
+      while (iter.hasNext && ret) {
         val e = iter.next()
         if (e.getValue.ts > lastDeletedAt) ret = false
       }
