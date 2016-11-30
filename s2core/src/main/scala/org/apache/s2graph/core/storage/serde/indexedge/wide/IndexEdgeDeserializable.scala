@@ -128,6 +128,7 @@ class IndexEdgeDeserializable(graph: S2Graph,
          TargetVertexId(ServiceColumn.Default, vId.innerVal)
        } else tgtVertexIdRaw
 
+     edge.property(LabelMeta.timestamp.name, tsVal, version)
      edge.tgtVertex = graph.newVertex(tgtVertexId, version)
      edge.op = op
      edge.tsInnerValOpt = Option(InnerVal.withLong(tsVal, schemaVer))

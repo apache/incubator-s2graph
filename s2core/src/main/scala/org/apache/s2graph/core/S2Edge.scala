@@ -476,7 +476,8 @@ case class S2Edge(innerGraph: S2Graph,
     case e: S2Edge =>
       srcVertex.innerId == e.srcVertex.innerId &&
         tgtVertex.innerId == e.tgtVertex.innerId &&
-        labelWithDir == e.labelWithDir && op == e.op && version == e.version &&
+        labelWithDir == e.labelWithDir && S2Edge.sameProps(propsWithTs, e.propsWithTs) &&
+        op == e.op && version == e.version &&
         pendingEdgeOpt == e.pendingEdgeOpt && lockTs == lockTs && statusCode == statusCode &&
         parentEdges == e.parentEdges && originalEdgeOpt == originalEdgeOpt
     case _ => false
@@ -624,7 +625,6 @@ object S2Edge {
       }
       ret
     }
-//    base.sameElements(other)
   }
   def fillPropsWithTs(snapshotEdge: SnapshotEdge, state: State): Unit = {
     state.foreach { case (k, v) => snapshotEdge.property(k.name, v.innerVal.value, v.ts) }
