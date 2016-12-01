@@ -1023,16 +1023,12 @@ abstract class Storage[Q, R](val graph: S2Graph,
   /** EdgeMutate */
   def indexedEdgeMutations(edgeMutate: EdgeMutate): Seq[SKeyValue] = {
     // skip sampling for delete operation
-    val deleteMutations = edgeMutate.edgesToDelete.flatMap { indexEdge =>
+    val deleteMutations = edgeMutate.edgesToDeleteWithIndexOpt.flatMap { indexEdge =>
       indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete, durability = indexEdge.label.durability))
     }
 
-    val insertMutations = edgeMutate.edgesToInsert.flatMap { indexEdge =>
-      if (indexEdge.isOutEdge) indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put, durability = indexEdge.label.durability))
-      else {
-        // For InEdge
-        indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put, durability = indexEdge.label.durability))
-      }
+    val insertMutations = edgeMutate.edgesToInsertWithIndexOpt.flatMap { indexEdge =>
+      indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put, durability = indexEdge.label.durability))
     }
 
     deleteMutations ++ insertMutations
@@ -1041,44 +1037,24 @@ abstract class Storage[Q, R](val graph: S2Graph,
   def snapshotEdgeMutations(edgeMutate: EdgeMutate): Seq[SKeyValue] =
     edgeMutate.newSnapshotEdge.map(e => snapshotEdgeSerializer(e).toKeyValues.map(_.copy(durability = e.label.durability))).getOrElse(Nil)
 
-  def incrementsInOut(edgeMutate: EdgeMutate): (Seq[SKeyValue], Seq[SKeyValue]) = {
-
-    def filterOutDegree(e: IndexEdge): Boolean =
-      e.labelIndex.writeOption.fold(true)(_.storeDegree)
-      
-    (edgeMutate.edgesToDelete.isEmpty, edgeMutate.edgesToInsert.isEmpty) match {
-      case (true, true) =>
-
-        /** when there is no need to update. shouldUpdate == false */
-        (Nil, Nil)
-      case (true, false) =>
-
-        /** no edges to delete but there is new edges to insert so increase degree by 1 */
-        val (inEdges, outEdges) = edgeMutate.edgesToInsert.partition(_.isInEdge)
-
-        val in = inEdges.filter(filterOutDegree).flatMap(buildIncrementsAsync(_))
-        val out = outEdges.filter(filterOutDegree).flatMap(buildIncrementsAsync(_))
-
-        in -> out
-      case (false, true) =>
-
-        /** no edges to insert but there is old edges to delete so decrease degree by 1 */
-        val (inEdges, outEdges) = edgeMutate.edgesToDelete.partition(_.isInEdge)
-
-        val in = inEdges.filter(filterOutDegree).flatMap(buildIncrementsAsync(_, -1))
-        val out = outEdges.filter(filterOutDegree).flatMap(buildIncrementsAsync(_, -1))
-
-        in -> out
-      case (false, false) =>
-
-        /** update on existing edges so no change on degree */
-        (Nil, Nil)
-    }
-  }
-
   def increments(edgeMutate: EdgeMutate): Seq[SKeyValue] = {
-    val (in, out) = incrementsInOut(edgeMutate)
-    in ++ out
+    (edgeMutate.edgesToDeleteWithIndexOptForDegree.isEmpty, edgeMutate.edgesToInsertWithIndexOptForDegree.isEmpty) match {
+      case (true, true) =>
+        /** when there is no need to update. shouldUpdate == false */
+        Nil
+
+      case (true, false) =>
+        /** no edges to delete but there is new edges to insert so increase degree by 1 */
+        edgeMutate.edgesToInsertWithIndexOptForDegree.flatMap(buildIncrementsAsync(_))
+
+      case (false, true) =>
+        /** no edges to insert but there is old edges to delete so decrease degree by 1 */
+        edgeMutate.edgesToDeleteWithIndexOptForDegree.flatMap(buildIncrementsAsync(_, -1))
+
+      case (false, false) =>
+        /** update on existing edges so no change on degree */
+        Nil
+    }
   }
 
   /** IndexEdge */

@@ -136,6 +136,8 @@ case class IndexEdge(graph: S2Graph,
 
   lazy val labelIndexMetaSeqs = labelIndex.sortKeyTypes
 
+  def indexOption = if (isInEdge) labelIndex.inDirOption else labelIndex.outDirOption
+
   /** TODO: make sure call of this class fill props as this assumes */
   lazy val orders = for (meta <- labelIndexMetaSeqs) yield {
     propsWithTs.get(meta.name) match {
@@ -149,8 +151,10 @@ case class IndexEdge(graph: S2Graph,
           case LabelMeta.timestamp=> InnerVal.withLong(version, schemaVer)
           case LabelMeta.to => toEdge.tgtVertex.innerId
           case LabelMeta.from => toEdge.srcVertex.innerId
+          case LabelMeta.fromHash => indexOption.map { option =>
+            InnerVal.withLong(MurmurHash3.stringHash(toEdge.srcVertex.innerId.toString()).abs % option.totalModular, schemaVer)
+          }.getOrElse(throw new RuntimeException("from_hash must be used with sampling"))
           // for now, it does not make sense to build index on srcVertex.innerId since all edges have same data.
-          //            throw new RuntimeException("_from on indexProps is not supported")
           case _ => toInnerVal(meta.defaultValue, meta.dataType, schemaVer)
         }
 
@@ -574,9 +578,33 @@ case class S2Edge(innerGraph: S2Graph,
 }
 
 
+object EdgeMutate {
+  def filterIndexOptionForDegree(edges: Seq[IndexEdge]): Seq[IndexEdge] = edges.filter { ie =>
+    ie.indexOption.fold(true)(_.storeDegree)
+  }
+
+  def filterIndexOption(edges: Seq[IndexEdge]): Seq[IndexEdge] = edges.filter { ie =>
+    ie.indexOption.fold(true) { option =>
+      val hashValueOpt = ie.orders.find { case (k, v) => k == LabelMeta.fromHash }.map { case (k, v) =>
+        v.value.toString.toLong
+      }
+
+      option.sample(ie, hashValueOpt)
+    }
+  }
+}
+
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],
                       newSnapshotEdge: Option[SnapshotEdge] = None) {
+
+  val edgesToInsertWithIndexOpt: Seq[IndexEdge] = EdgeMutate.filterIndexOption(edgesToInsert)
+
+  val edgesToDeleteWithIndexOpt: Seq[IndexEdge] = EdgeMutate.filterIndexOption(edgesToDelete)
+
+  val edgesToInsertWithIndexOptForDegree: Seq[IndexEdge] = EdgeMutate.filterIndexOptionForDegree(edgesToInsert)
+
+  val edgesToDeleteWithIndexOptForDegree: Seq[IndexEdge] = EdgeMutate.filterIndexOptionForDegree(edgesToDelete)
 
   def toLogString: String = {
     val l = (0 until 50).map(_ => "-").mkString("")
@@ -745,24 +773,6 @@ object S2Edge {
     }
   }
 
-  def filterOutWithLabelOption(ls: Seq[IndexEdge]): Seq[IndexEdge] = ls.filter { ie =>
-    ie.labelIndex.dir match {
-      case None =>
-        // both direction use same indices that is defined when label creation.
-        true
-      case Some(dir) =>
-        if (dir != ie.dir) {
-          // current labelIndex's direction is different with indexEdge's direction so don't touch
-          false
-        } else {
-          ie.labelIndex.writeOption.map { option =>
-            val hashValueOpt = ie.orders.find { case (k, v) => k == LabelMeta.fromHash }.map{ case (k, v) => v.value.toString.toLong }
-            option.sample(ie, hashValueOpt)
-          }.getOrElse(true)
-        }
-    }
-  }
-
   def buildMutation(snapshotEdgeOpt: Option[S2Edge],
                     requestEdge: S2Edge,
                     newVersion: Long,
@@ -793,7 +803,7 @@ object S2Edge {
         val edgesToDelete = snapshotEdgeOpt match {
           case Some(snapshotEdge) if snapshotEdge.op != GraphUtil.operations("delete") =>
             snapshotEdge.copy(op = GraphUtil.defaultOpByte)
-              .relatedEdges.flatMap { relEdge => filterOutWithLabelOption(relEdge.edgesWithIndexValid) }
+              .relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
           case _ => Nil
         }
 
@@ -807,7 +817,7 @@ object S2Edge {
             )
             newPropsWithTs.foreach { case (k, v) => newEdge.property(k.name, v.innerVal.value, v.ts) }
 
-            newEdge.relatedEdges.flatMap { relEdge => filterOutWithLabelOption(relEdge.edgesWithIndexValid) }
+            newEdge.relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
           }
 
 

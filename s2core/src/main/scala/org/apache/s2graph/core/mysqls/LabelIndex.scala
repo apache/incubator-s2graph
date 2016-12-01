@@ -19,10 +19,6 @@
 
 package org.apache.s2graph.core.mysqls
 
-/**
- * Created by shon on 6/3/15.
- */
-
 import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.core.mysqls.LabelIndex.WriteOption
 import org.apache.s2graph.core.utils.logger
@@ -45,13 +41,14 @@ object LabelIndex extends Model[LabelIndex] {
       rs.stringOpt("options")
     )
   }
-  object WriteOption {
-    val Default = WriteOption()
-  }
-  case class WriteOption(method: String = "default",
-                         rate: Double = 1.0,
-                         totalModular: Long = 100,
-                         storeDegree: Boolean = true) {
+
+  case class WriteOption(dir: Byte,
+                         method: String,
+                         rate: Double,
+                         totalModular: Long,
+                         storeDegree: Boolean) {
+
+    val isBufferIncrement = method == "drop" || method == "sample" || method == "hash_sample"
 
     def sample[T](a: T, hashOpt: Option[Long]): Boolean = {
       if (method == "drop") false
@@ -182,29 +179,36 @@ case class LabelIndex(id: Option[Int], labelId: Int, name: String, seq: Byte, me
   lazy val sortKeyTypesArray = sortKeyTypes.toArray
   lazy val propNames = sortKeyTypes.map { labelMeta => labelMeta.name }
 
-  val dirJs = dir.map(GraphUtil.fromDirection).getOrElse("both")
-  val optionsJs = try { options.map(Json.parse).getOrElse(Json.obj()) } catch { case e: Exception => Json.obj() }
-  lazy val toJson = Json.obj(
-    "name" -> name,
-    "propNames" -> sortKeyTypes.map(x => x.name),
-    "dir" -> dirJs,
-    "options" -> optionsJs
-  )
+  lazy val toJson = {
+    val dirJs = dir.map(GraphUtil.fromDirection).getOrElse("both")
+    val optionsJs = try { options.map(Json.parse).getOrElse(Json.obj()) } catch { case e: Exception => Json.obj() }
 
-  lazy val writeOption: Option[WriteOption] = try {
+    Json.obj(
+      "name" -> name,
+      "propNames" -> sortKeyTypes.map(x => x.name),
+      "dir" -> dirJs,
+      "options" -> optionsJs
+    )
+  }
+
+  def parseOption(dir: String): Option[WriteOption] = try {
     options.map { string =>
-      val jsObj = Json.parse(string)
-      val method = (jsObj \ "method").as[String]
+      val jsObj = Json.parse(string) \ dir
 
+      val method = (jsObj \ "method").asOpt[String].getOrElse("default")
       val rate = (jsObj \ "rate").asOpt[Double].getOrElse(1.0)
       val totalModular = (jsObj \ "totalModular").asOpt[Long].getOrElse(100L)
-      val storeDegree = (jsObj \ "degree").asOpt[Boolean].getOrElse(true)
+      val storeDegree = (jsObj \ "storeDegree").asOpt[Boolean].getOrElse(true)
 
-      WriteOption(method, rate, totalModular, storeDegree)
+      WriteOption(GraphUtil.directions(dir).toByte, method, rate, totalModular, storeDegree)
     }
   } catch {
     case e: Exception =>
       logger.error(s"Parse failed labelOption: ${this.label}", e)
       None
   }
+
+  lazy val inDirOption = parseOption("in")
+
+  lazy val outDirOption = parseOption("out")
 }
