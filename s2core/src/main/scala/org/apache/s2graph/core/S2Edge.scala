@@ -35,6 +35,30 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.{Map => MutableMap}
 import scala.util.hashing.MurmurHash3
 
+object SnapshotEdge {
+
+  def copyFrom(e: SnapshotEdge): SnapshotEdge = {
+    val copy =
+      SnapshotEdge(
+        e.graph,
+        e.srcVertex,
+        e.tgtVertex,
+        e.label,
+        e.dir,
+        e.op,
+        e.version,
+        S2Edge.EmptyProps,
+        e.pendingEdgeOpt,
+        e.statusCode,
+        e.lockTs,
+        e.tsInnerValOpt)
+
+    copy.updatePropsWithTs(e.propsWithTs)
+
+    copy
+  }
+}
+
 case class SnapshotEdge(graph: S2Graph,
                         srcVertex: S2Vertex,
                         tgtVertex: S2Vertex,
@@ -73,6 +97,18 @@ case class SnapshotEdge(graph: S2Graph,
     jsValue <- innerValToJsValue(v.innerVal, meta.dataType)
   } yield meta.name -> jsValue) ++ Map("version" -> JsNumber(version))
 
+  def updatePropsWithTs(others: Props = S2Edge.EmptyProps): Props = {
+    if (others.isEmpty) propsWithTs
+    else {
+      val iter = others.entrySet().iterator()
+      while (iter.hasNext) {
+        val e = iter.next()
+        propsWithTs.put(e.getKey, e.getValue)
+      }
+      propsWithTs
+    }
+  }
+
   // only for debug
   def toLogString() = {
     List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, propsWithName).mkString("\t")
@@ -101,6 +137,27 @@ case class SnapshotEdge(graph: S2Graph,
     Map("srcVertex" -> srcVertex.toString, "tgtVertex" -> tgtVertex.toString, "label" -> label.label, "direction" -> direction,
       "operation" -> operation, "version" -> version, "props" -> propsWithTs.asScala.map(kv => kv._1 -> kv._2.value).toString,
       "statusCode" -> statusCode, "lockTs" -> lockTs).toString
+  }
+}
+
+object IndexEdge {
+  def copyFrom(e: IndexEdge): IndexEdge = {
+    val copy = IndexEdge(
+      e.graph,
+      e.srcVertex,
+      e.tgtVertex,
+      e.label,
+      e.dir,
+      e.op,
+      e.version,
+      e.labelIndexSeq,
+      S2Edge.EmptyProps,
+      e.tsInnerValOpt
+    )
+
+    copy.updatePropsWithTs(e.propsWithTs)
+
+    copy
   }
 }
 
@@ -579,6 +636,11 @@ case class S2Edge(innerGraph: S2Graph,
 
 
 object EdgeMutate {
+
+  def partitionBufferedIncrement(edges: Seq[IndexEdge]): (Seq[IndexEdge], Seq[IndexEdge]) = {
+    edges.partition(_.indexOption.fold(false)(_.isBufferIncrement))
+  }
+
   def filterIndexOptionForDegree(edges: Seq[IndexEdge]): Seq[IndexEdge] = edges.filter { ie =>
     ie.indexOption.fold(true)(_.storeDegree)
   }
@@ -597,6 +659,12 @@ object EdgeMutate {
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],
                       newSnapshotEdge: Option[SnapshotEdge] = None) {
+
+  def deepCopy: EdgeMutate = copy(
+    edgesToDelete = edgesToDelete.map(IndexEdge.copyFrom),
+    edgesToInsert = edgesToInsert.map(IndexEdge.copyFrom),
+    newSnapshotEdge = newSnapshotEdge.map(SnapshotEdge.copyFrom)
+  )
 
   val edgesToInsertWithIndexOpt: Seq[IndexEdge] = EdgeMutate.filterIndexOption(edgesToInsert)
 
@@ -821,9 +889,7 @@ object S2Edge {
           }
 
 
-        EdgeMutate(edgesToDelete = edgesToDelete,
-          edgesToInsert = edgesToInsert,
-          newSnapshotEdge = newSnapshotEdgeOpt)
+        EdgeMutate(edgesToDelete = edgesToDelete, edgesToInsert = edgesToInsert, newSnapshotEdge = newSnapshotEdgeOpt)
       }
     }
   }
