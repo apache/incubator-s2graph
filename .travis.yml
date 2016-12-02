@@ -5,7 +5,7 @@ env:
 
 cache:
   directories:
-  - $HOME/hbase
+  - $HOME/hbase-$HBASE_VERSION
 
 scala:
   - 2.11.8
