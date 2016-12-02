@@ -1,5 +1,12 @@
 language: scala
 
+env:
+  - HBASE_VERSION=1.2.4
+
+cache:
+  directories:
+  - $HOME/hbase
+
 scala:
   - 2.11.8
 
