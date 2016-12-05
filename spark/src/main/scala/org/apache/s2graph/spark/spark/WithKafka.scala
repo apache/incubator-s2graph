@@ -24,7 +24,7 @@ import java.util.Properties
 import kafka.producer.{Producer, ProducerConfig}
 
 trait WithKafka {
-  def kafkaConf(brokerList: String) = {
+  def kafkaConf(brokerList: String): ProducerConfig = {
     val props = new Properties()
     props.put("metadata.broker.list", brokerList)
     props.put("request.required.acks", "0")
@@ -36,7 +36,7 @@ trait WithKafka {
     new ProducerConfig(props)
   }
 
-  def producerConfig(brokerList: String, requireAcks: String = "1", producerType: String = "sync") = {
+  def producerConfig(brokerList: String, requireAcks: String = "1", producerType: String = "sync"): ProducerConfig = {
     val props = new Properties()
     props.setProperty("metadata.broker.list", brokerList)
     props.setProperty("request.required.acks", requireAcks)

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,7 +21,12 @@ package org.apache.s2graph.core.types.v2
 
 import org.apache.hadoop.hbase.util._
 import org.apache.s2graph.core.types
-import org.apache.s2graph.core.types.{HBaseDeserializableWithIsVertexId, HBaseSerializable, HBaseType, InnerValLike}
+import org.apache.s2graph.core.types.{
+  HBaseDeserializableWithIsVertexId,
+  HBaseSerializable,
+  HBaseType,
+  InnerValLike
+}
 
 object InnerVal extends HBaseDeserializableWithIsVertexId {
 
@@ -44,11 +49,11 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
         case _ => bytes(offset) == -1
       }
       (InnerVal(boolean), 1)
-    }
-    else {
+    } else {
       if (OrderedBytes.isNumeric(pbr)) {
         val numeric = OrderedBytes.decodeNumericAsBigDecimal(pbr)
-        if (isVertexId) (InnerVal(numeric.longValue()), pbr.getPosition - startPos)
+        if (isVertexId)
+          (InnerVal(numeric.longValue()), pbr.getPosition - startPos)
         else (InnerVal(BigDecimal(numeric)), pbr.getPosition - startPos)
 //        (InnerVal(numeric.doubleValue()), pbr.getPosition - startPos)
 //        (InnerVal(BigDecimal(numeric)), pbr.getPosition - startPos)
@@ -72,9 +77,8 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
   def bytes: Array[Byte] = {
     val ret = value match {
       case b: Boolean =>
-
         /* since OrderedBytes header start from 0x05, it is safe to use -1, 0
-          * for decreasing order (true, false) */
+         * for decreasing order (true, false) */
         //        Bytes.toBytes(b)
         order match {
           case Order.DESCENDING => if (b) Array(0.toByte) else Array(-1.toByte)
@@ -106,7 +110,6 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
         val len = OrderedBytes.encodeNumeric(pbr, num.bigDecimal, order)
         pbr.getBytes().take(len)
 
-
       case b: BigDecimal =>
         val pbr = numByteRange(b)
         val len = OrderedBytes.encodeNumeric(pbr, b.bigDecimal, order)
@@ -132,12 +135,18 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
       value.toString.hashCode()
     } else {
       dataType match {
-        case BYTE => value.asInstanceOf[BigDecimal].bigDecimal.byteValue().hashCode()
-        case FLOAT => value.asInstanceOf[BigDecimal].bigDecimal.floatValue().hashCode()
-        case DOUBLE => value.asInstanceOf[BigDecimal].bigDecimal.doubleValue().hashCode()
-        case LONG => value.asInstanceOf[BigDecimal].bigDecimal.longValue().hashCode()
-        case INT => value.asInstanceOf[BigDecimal].bigDecimal.intValue().hashCode()
-        case SHORT => value.asInstanceOf[BigDecimal].bigDecimal.shortValue().hashCode()
+        case BYTE =>
+          value.asInstanceOf[BigDecimal].bigDecimal.byteValue().hashCode()
+        case FLOAT =>
+          value.asInstanceOf[BigDecimal].bigDecimal.floatValue().hashCode()
+        case DOUBLE =>
+          value.asInstanceOf[BigDecimal].bigDecimal.doubleValue().hashCode()
+        case LONG =>
+          value.asInstanceOf[BigDecimal].bigDecimal.longValue().hashCode()
+        case INT =>
+          value.asInstanceOf[BigDecimal].bigDecimal.intValue().hashCode()
+        case SHORT =>
+          value.asInstanceOf[BigDecimal].bigDecimal.shortValue().hashCode()
         case STRING => value.toString.hashCode
         case _ => throw new RuntimeException(s"NotSupportede type: $dataType")
       }
@@ -155,8 +164,11 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
       throw new RuntimeException(s"+ $this, $other")
 
     (value, other.value) match {
-      case (v1: BigDecimal, v2: BigDecimal) => new InnerVal(BigDecimal(v1.bigDecimal.add(v2.bigDecimal)))
-      case _ => throw new RuntimeException("+ operation on inner val is for big decimal pair")
+      case (v1: BigDecimal, v2: BigDecimal) =>
+        new InnerVal(BigDecimal(v1.bigDecimal.add(v2.bigDecimal)))
+      case _ =>
+        throw new RuntimeException(
+          "+ operation on inner val is for big decimal pair")
     }
   }
 

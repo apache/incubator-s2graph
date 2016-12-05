@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -23,14 +23,19 @@ import java.util
 
 import org.apache.s2graph.core.mysqls.ColumnMeta
 import org.apache.s2graph.core.types.CanInnerValLike
-import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty, Vertex => TpVertex}
+import org.apache.tinkerpop.gremlin.structure.{
+  Property,
+  VertexProperty,
+  Vertex => TpVertex
+}
 
 import scala.util.hashing.MurmurHash3
 
 case class S2VertexProperty[V](element: S2Vertex,
                                columnMeta: ColumnMeta,
                                key: String,
-                               v: V) extends VertexProperty[V] {
+                               v: V)
+    extends VertexProperty[V] {
   import CanInnerValLike._
   implicit lazy val encodingVer = element.serviceColumn.schemaVersion
   lazy val innerVal = CanInnerValLike.anyToInnerValLike.toInnerVal(value)
@@ -40,7 +45,8 @@ case class S2VertexProperty[V](element: S2Vertex,
 
   val value = castValue(v, columnMeta.dataType).asInstanceOf[V]
 
-  override def properties[U](strings: String*): util.Iterator[Property[U]] = ???
+  override def properties[U](strings: String*): util.Iterator[Property[U]] =
+    ???
 
   override def property[V](key: String, value: V): Property[V] = ???
 
@@ -51,7 +57,8 @@ case class S2VertexProperty[V](element: S2Vertex,
   override def isPresent: Boolean = ???
 
   override def hashCode(): Int = {
-    MurmurHash3.stringHash(columnMeta.columnId + "," + columnMeta.id.get + "," + key + "," + value)
+    MurmurHash3.stringHash(
+      columnMeta.columnId + "," + columnMeta.id.get + "," + key + "," + value)
   }
 
   override def equals(other: Any): Boolean = other match {

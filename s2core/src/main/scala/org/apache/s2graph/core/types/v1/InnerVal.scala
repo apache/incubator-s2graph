@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,7 +22,12 @@ package org.apache.s2graph.core.types.v1
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.GraphExceptions
 import org.apache.s2graph.core.GraphExceptions.IllegalDataTypeException
-import org.apache.s2graph.core.types.{HBaseDeserializableWithIsVertexId, HBaseSerializable, HBaseType, InnerValLike}
+import org.apache.s2graph.core.types.{
+  HBaseDeserializableWithIsVertexId,
+  HBaseSerializable,
+  HBaseType,
+  InnerValLike
+}
 
 object InnerVal extends HBaseDeserializableWithIsVertexId {
   import HBaseType._
@@ -31,33 +36,43 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
   val maxStringLen = Byte.MaxValue - stringLenOffset
   val maxMetaByte = Byte.MaxValue
   val minMetaByte = 0.toByte
+
   /**
-   * first byte encoding rule.
-   * 0 => default
-   * 1 => long
-   * 2 => int
-   * 3 => short
-   * 4 => byte
-   * 5 => true
-   * 6 => false
-   * 7 ~ 127 => string len + 7
-   */
-  val metaByte = Map("default" -> 0, "long" -> 1, "int" -> 2, "short" -> 3,
-    "byte" -> 4, "true" -> 5, "false" -> 6).map {
+    * first byte encoding rule.
+    * 0 => default
+    * 1 => long
+    * 2 => int
+    * 3 => short
+    * 4 => byte
+    * 5 => true
+    * 6 => false
+    * 7 ~ 127 => string len + 7
+    */
+  val metaByte = Map("default" -> 0,
+                     "long" -> 1,
+                     "int" -> 2,
+                     "short" -> 3,
+                     "byte" -> 4,
+                     "true" -> 5,
+                     "false" -> 6).map {
     case (k, v) => (k, v.toByte)
   }
-  val metaByteRev = metaByte.map { case (k, v) => (v.toByte, k) } ++ metaByte.map { case (k, v) => ((-v).toByte, k) }
+  val metaByteRev = metaByte.map { case (k, v) => (v.toByte, k) } ++ metaByte.map {
+    case (k, v) => ((-v).toByte, k)
+  }
 
-  def maxIdVal(dataType: String) = {
+  def maxIdVal(dataType: String): InnerVal = {
     dataType match {
-      case "string" => InnerVal.withStr((0 until (Byte.MaxValue - stringLenOffset)).map("~").mkString)
+      case "string" =>
+        InnerVal.withStr(
+          (0 until (Byte.MaxValue - stringLenOffset)).map("~").mkString)
       case "long" => InnerVal.withLong(Long.MaxValue)
       case "bool" => InnerVal.withBoolean(true)
       case _ => throw IllegalDataTypeException(dataType)
     }
   }
 
-  def minIdVal(dataType: String) = {
+  def minIdVal(dataType: String): InnerVal = {
     dataType match {
       case "string" => InnerVal.withStr("")
       case "long" => InnerVal.withLong(1)
@@ -66,7 +81,11 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
     }
   }
 
-  def fromBytes(bytes: Array[Byte], offset: Int, len: Int, version: String = DEFAULT_VERSION, isVertexId: Boolean = false): (InnerVal, Int) = {
+  def fromBytes(bytes: Array[Byte],
+                offset: Int,
+                len: Int,
+                version: String = DEFAULT_VERSION,
+                isVertexId: Boolean = false): (InnerVal, Int) = {
     var pos = offset
     //
     val header = bytes(pos)
@@ -88,12 +107,14 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
           case "byte" =>
             numOfBytesUsed = 1
             val b = bytes(pos)
-            val value = if (b >= 0) Byte.MaxValue - b else Byte.MinValue - b - 1
+            val value =
+              if (b >= 0) Byte.MaxValue - b else Byte.MinValue - b - 1
             (Some(value.toLong), None, None)
           case "short" =>
             numOfBytesUsed = 2
             val b = Bytes.toShort(bytes, pos, 2)
-            val value = if (b >= 0) Short.MaxValue - b else Short.MinValue - b - 1
+            val value =
+              if (b >= 0) Short.MaxValue - b else Short.MinValue - b - 1
             (Some(value.toLong), None, None)
           case "int" =>
             numOfBytesUsed = 4
@@ -103,7 +124,8 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
           case "long" =>
             numOfBytesUsed = 8
             val b = Bytes.toLong(bytes, pos, 8)
-            val value = if (b >= 0) Long.MaxValue - b else Long.MinValue - b - 1
+            val value =
+              if (b >= 0) Long.MaxValue - b else Long.MinValue - b - 1
             (Some(value.toLong), None, None)
         }
       case _ => // string
@@ -129,13 +151,13 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
   }
 
   /**
-   * In natural order
-   * -129, -128 , -2, -1 < 0 < 1, 2, 127, 128
-   *
-   * In byte order
-   * 0 < 1, 2, 127, 128 < -129, -128, -2, -1
-   *
-   */
+    * In natural order
+    * -129, -128 , -2, -1 < 0 < 1, 2, 127, 128
+    *
+    * In byte order
+    * 0 < 1, 2, 127, 128 < -129, -128, -2, -1
+    *
+    */
   def transform(l: Long): (Byte, Array[Byte]) = {
     if (Byte.MinValue <= l && l <= Byte.MaxValue) {
       //        val value = if (l < 0) l - Byte.MinValue else l + Byte.MinValue
@@ -164,8 +186,11 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
   }
 }
 
-case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boolean])
-  extends HBaseSerializable with InnerValLike {
+case class InnerVal(longV: Option[Long],
+                    strV: Option[String],
+                    boolV: Option[Boolean])
+    extends HBaseSerializable
+    with InnerValLike {
 
   import InnerVal._
 
@@ -174,18 +199,23 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
     case (Some(l), None, None) => l
     case (None, Some(s), None) => s
     case (None, None, Some(b)) => b
-    case _ => throw new Exception(s"InnerVal should be [long/integeer/short/byte/string/boolean]")
+    case _ =>
+      throw new Exception(
+        s"InnerVal should be [long/integeer/short/byte/string/boolean]")
   }
-  def valueType = (longV, strV, boolV) match {
+  def valueType: String = (longV, strV, boolV) match {
     case (Some(l), None, None) => "long"
     case (None, Some(s), None) => "string"
     case (None, None, Some(b)) => "boolean"
-    case _ => throw new Exception(s"InnerVal should be [long/integeer/short/byte/string/boolean]")
+    case _ =>
+      throw new Exception(
+        s"InnerVal should be [long/integeer/short/byte/string/boolean]")
   }
 
   def compare(other: InnerValLike): Int = {
     if (!other.isInstanceOf[InnerVal]) {
-      throw new RuntimeException(s"compare between $this vs $other is not supported")
+      throw new RuntimeException(
+        s"compare between $this vs $other is not supported")
     } else {
 //      (value, other.value) match {
 //        case (v1: Long, v2: Long) => v1.compare(v2)
@@ -197,19 +227,21 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
     }
   }
 
-  def +(other: InnerValLike) = {
+  def +(other: InnerValLike): InnerVal = {
     if (!other.isInstanceOf[InnerVal]) {
       throw new RuntimeException(s"+ between $this vs $other is not supported")
     } else {
       (value, other.value) match {
         case (v1: Long, v2: Long) => InnerVal.withLong(v1 + v2)
-        case (b1: Boolean, b2: Boolean) => InnerVal.withBoolean(if (b2) !b1 else b1)
-        case _ => throw new Exception("Please check a type of the incr operands")
+        case (b1: Boolean, b2: Boolean) =>
+          InnerVal.withBoolean(if (b2) !b1 else b1)
+        case _ =>
+          throw new Exception("Please check a type of the incr operands")
       }
     }
   }
 
-  def bytes = {
+  def bytes: Array[Byte] = {
     val (meta, valBytes) = (longV, strV, boolV) match {
       case (None, None, None) =>
         (metaByte("default"), Array.empty[Byte])
@@ -221,12 +253,15 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
       case (None, Some(s), None) =>
         val sBytes = Bytes.toBytes(s)
         if (sBytes.length > maxStringLen) {
-          throw new IllegalDataTypeException(s"string in innerVal maxSize is $maxStringLen, given ${sBytes.length}")
+          throw new IllegalDataTypeException(
+            s"string in innerVal maxSize is $maxStringLen, given ${sBytes.length}")
         }
         assert(sBytes.length <= maxStringLen)
         val meta = (stringLenOffset + sBytes.length).toByte
         (meta, sBytes)
-      case _ => throw new IllegalDataTypeException("innerVal data type should be [long/string/bool]")
+      case _ =>
+        throw new IllegalDataTypeException(
+          "innerVal data type should be [long/string/bool]")
     }
     Bytes.add(Array.fill(1)(meta.toByte), valBytes)
   }

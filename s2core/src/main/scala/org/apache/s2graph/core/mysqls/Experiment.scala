@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,7 +22,8 @@ package org.apache.s2graph.core.mysqls
 import org.apache.s2graph.core.GraphUtil
 import scalikejdbc._
 
-import scala.util.{Try, Random}
+import scala.collection.immutable.Seq
+import scala.util.{Random, Try}
 
 object Experiment extends Model[Experiment] {
   val ImpressionKey = "S2-Impression-Id"
@@ -30,45 +31,63 @@ object Experiment extends Model[Experiment] {
 
   def apply(rs: WrappedResultSet): Experiment = {
     Experiment(rs.intOpt("id"),
-      rs.int("service_id"),
-      rs.string("name"),
-      rs.string("description"),
-      rs.string("experiment_type"),
-      rs.int("total_modular"))
+               rs.int("service_id"),
+               rs.string("name"),
+               rs.string("description"),
+               rs.string("experiment_type"),
+               rs.int("total_modular"))
   }
 
-  def finds(serviceId: Int)(implicit session: DBSession = AutoSession): List[Experiment] = {
+  def finds(serviceId: Int)(
+      implicit session: DBSession = AutoSession): List[Experiment] = {
     val cacheKey = "serviceId=" + serviceId
     withCaches(cacheKey) {
-      sql"""select * from experiments where service_id = ${serviceId}"""
-        .map { rs => Experiment(rs) }.list().apply()
+      sql"""select * from experiments where service_id = ${serviceId}""".map {
+        rs =>
+          Experiment(rs)
+      }.list().apply()
     }
   }
 
-  def findBy(serviceId: Int, name: String)(implicit session: DBSession = AutoSession): Option[Experiment] = {
+  def findBy(serviceId: Int, name: String)(
+      implicit session: DBSession = AutoSession): Option[Experiment] = {
     val cacheKey = "serviceId=" + serviceId + ":name=" + name
     withCache(cacheKey) {
-      sql"""select * from experiments where service_id = ${serviceId} and name = ${name}"""
-        .map { rs => Experiment(rs) }.single.apply
+      sql"""select * from experiments where service_id = ${serviceId} and name = ${name}""".map {
+        rs =>
+          Experiment(rs)
+      }.single.apply
     }
   }
 
-  def findById(id: Int)(implicit session: DBSession = AutoSession): Option[Experiment] = {
+  def findById(id: Int)(
+      implicit session: DBSession = AutoSession): Option[Experiment] = {
     val cacheKey = "id=" + id
     withCache(cacheKey)(
-      sql"""select * from experiments where id = ${id}"""
-        .map { rs => Experiment(rs) }.single.apply
+      sql"""select * from experiments where id = ${id}""".map { rs =>
+        Experiment(rs)
+      }.single.apply
     )
   }
 
-  def insert(service: Service, name: String, description: String, experimentType: String = "t", totalModular: Int = 100)
-            (implicit session: DBSession = AutoSession): Try[Experiment] = {
+  def insert(service: Service,
+             name: String,
+             description: String,
+             experimentType: String = "t",
+             totalModular: Int = 100)(
+      implicit session: DBSession = AutoSession): Try[Experiment] = {
     Try {
       sql"""INSERT INTO experiments(service_id, service_name, `name`, description, experiment_type, total_modular)
          VALUES(${service.id.get}, ${service.serviceName}, $name, $description, $experimentType, $totalModular)"""
-        .updateAndReturnGeneratedKey().apply()
+        .updateAndReturnGeneratedKey()
+        .apply()
     }.map { newId =>
-      Experiment(Some(newId.toInt), service.id.get, name, description, experimentType, totalModular)
+      Experiment(Some(newId.toInt),
+                 service.id.get,
+                 name,
+                 description,
+                 experimentType,
+                 totalModular)
     }
   }
 }
@@ -80,15 +99,16 @@ case class Experiment(id: Option[Int],
                       experimentType: String,
                       totalModular: Int) {
 
-  def buckets = Bucket.finds(id.get)
+  def buckets: Seq[Bucket] = Bucket.finds(id.get)
 
-  def rangeBuckets = for {
-    bucket <- buckets
-    range <- bucket.rangeOpt
-  } yield range -> bucket
+  def rangeBuckets: Seq[((Int, Int), Bucket)] =
+    for {
+      bucket <- buckets
+      range <- bucket.rangeOpt
+    } yield range -> bucket
 
-
-  def findBucket(uuid: String, impIdOpt: Option[String] = None): Option[Bucket] = {
+  def findBucket(uuid: String,
+                 impIdOpt: Option[String] = None): Option[Bucket] = {
     impIdOpt match {
       case Some(impId) => Bucket.findByImpressionId(impId)
       case None =>
@@ -101,8 +121,9 @@ case class Experiment(id: Option[Int],
   }
 
   def findBucket(uuidMod: Int): Option[Bucket] = {
-    rangeBuckets.find { case ((from, to), bucket) =>
-      from <= uuidMod && uuidMod <= to
+    rangeBuckets.find {
+      case ((from, to), bucket) =>
+        from <= uuidMod && uuidMod <= to
     }.map(_._2)
   }
 }

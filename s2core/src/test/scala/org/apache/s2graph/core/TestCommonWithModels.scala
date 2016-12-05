@@ -26,6 +26,7 @@ import org.apache.s2graph.core.types.{InnerVal, LabelWithDirection}
 import scalikejdbc.AutoSession
 
 import scala.concurrent.ExecutionContext
+import scala.util.Try
 
 trait TestCommonWithModels {
 
@@ -36,7 +37,7 @@ trait TestCommonWithModels {
   var config: Config = _
   var management: Management = _
 
-  def initTests() = {
+  def initTests(): Try[Label] = {
     config = ConfigFactory.load()
     graph = new S2Graph(config)(ExecutionContext.Implicits.global)
     management = new Management(graph)
@@ -50,9 +51,9 @@ trait TestCommonWithModels {
     createTestLabel()
   }
 
-  def zkQuorum = config.getString("hbase.zookeeper.quorum")
+  def zkQuorum: String = config.getString("hbase.zookeeper.quorum")
 
-  def cluster = config.getString("hbase.zookeeper.quorum")
+  def cluster: String = config.getString("hbase.zookeeper.quorum")
 
   implicit val session = AutoSession
 
@@ -109,7 +110,7 @@ trait TestCommonWithModels {
   val hTableTTL = None
 
 
-  def createTestService() = {
+  def createTestService(): Try[Service] = {
     implicit val session = AutoSession
     management.createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
     management.createService(serviceNameV2, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
@@ -117,7 +118,7 @@ trait TestCommonWithModels {
     management.createService(serviceNameV4, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
   }
 
-  def deleteTestService() = {
+  def deleteTestService(): Unit = {
     implicit val session = AutoSession
     Management.deleteService(serviceName)
     Management.deleteService(serviceNameV2)
@@ -125,7 +126,7 @@ trait TestCommonWithModels {
     Management.deleteService(serviceNameV4)
   }
 
-  def deleteTestLabel() = {
+  def deleteTestLabel(): Try[String] = {
     implicit val session = AutoSession
     Management.deleteLabel(labelName)
     Management.deleteLabel(labelNameV2)
@@ -134,7 +135,7 @@ trait TestCommonWithModels {
     Management.deleteLabel(labelNameSecure)
   }
 
-  def createTestLabel() = {
+  def createTestLabel(): Try[Label] = {
     implicit val session = AutoSession
 
     management.createLabel(labelName, serviceName, columnName, columnType, serviceName, columnName, columnType,
@@ -160,62 +161,62 @@ trait TestCommonWithModels {
       Option("""{ "tokens": ["xxx-yyy", "aaa-bbb"] }"""))
   }
 
-  def service = Service.findByName(serviceName, useCache = false).get
+  def service: Service = Service.findByName(serviceName, useCache = false).get
 
-  def serviceV2 = Service.findByName(serviceNameV2, useCache = false).get
+  def serviceV2: Service = Service.findByName(serviceNameV2, useCache = false).get
 
-  def serviceV3 = Service.findByName(serviceNameV3, useCache = false).get
+  def serviceV3: Service = Service.findByName(serviceNameV3, useCache = false).get
 
-  def serviceV4 = Service.findByName(serviceNameV4, useCache = false).get
+  def serviceV4: Service = Service.findByName(serviceNameV4, useCache = false).get
 
-  def column = ServiceColumn.find(service.id.get, columnName, useCache = false).get
+  def column: ServiceColumn = ServiceColumn.find(service.id.get, columnName, useCache = false).get
 
-  def columnV2 = ServiceColumn.find(serviceV2.id.get, columnNameV2, useCache = false).get
+  def columnV2: ServiceColumn = ServiceColumn.find(serviceV2.id.get, columnNameV2, useCache = false).get
 
-  def columnV3 = ServiceColumn.find(serviceV3.id.get, columnNameV3, useCache = false).get
+  def columnV3: ServiceColumn = ServiceColumn.find(serviceV3.id.get, columnNameV3, useCache = false).get
 
-  def columnV4 = ServiceColumn.find(serviceV4.id.get, columnNameV4, useCache = false).get
+  def columnV4: ServiceColumn = ServiceColumn.find(serviceV4.id.get, columnNameV4, useCache = false).get
 
-  def tgtColumn = ServiceColumn.find(service.id.get, tgtColumnName, useCache = false).get
+  def tgtColumn: ServiceColumn = ServiceColumn.find(service.id.get, tgtColumnName, useCache = false).get
 
-  def tgtColumnV2 = ServiceColumn.find(serviceV2.id.get, tgtColumnNameV2, useCache = false).get
+  def tgtColumnV2: ServiceColumn = ServiceColumn.find(serviceV2.id.get, tgtColumnNameV2, useCache = false).get
 
-  def tgtColumnV3 = ServiceColumn.find(serviceV3.id.get, tgtColumnNameV3, useCache = false).get
+  def tgtColumnV3: ServiceColumn = ServiceColumn.find(serviceV3.id.get, tgtColumnNameV3, useCache = false).get
 
-  def tgtColumnV4 = ServiceColumn.find(serviceV4.id.get, tgtColumnNameV4, useCache = false).get
+  def tgtColumnV4: ServiceColumn = ServiceColumn.find(serviceV4.id.get, tgtColumnNameV4, useCache = false).get
 
-  def label = Label.findByName(labelName, useCache = false).get
+  def label: Label = Label.findByName(labelName, useCache = false).get
 
-  def labelV2 = Label.findByName(labelNameV2, useCache = false).get
+  def labelV2: Label = Label.findByName(labelNameV2, useCache = false).get
 
-  def labelV3 = Label.findByName(labelNameV3, useCache = false).get
+  def labelV3: Label = Label.findByName(labelNameV3, useCache = false).get
 
-  def labelV4 = Label.findByName(labelNameV4, useCache = false).get
+  def labelV4: Label = Label.findByName(labelNameV4, useCache = false).get
 
-  def undirectedLabel = Label.findByName(undirectedLabelName, useCache = false).get
+  def undirectedLabel: Label = Label.findByName(undirectedLabelName, useCache = false).get
 
-  def undirectedLabelV2 = Label.findByName(undirectedLabelNameV2, useCache = false).get
+  def undirectedLabelV2: Label = Label.findByName(undirectedLabelNameV2, useCache = false).get
 
-  def dir = GraphUtil.directions("out")
+  def dir: Int = GraphUtil.directions("out")
 
-  def op = GraphUtil.operations("insert")
+  def op: Byte = GraphUtil.operations("insert")
 
-  def labelOrderSeq = LabelIndex.DefaultSeq
+  def labelOrderSeq: Byte = LabelIndex.DefaultSeq
 
-  def labelWithDir = LabelWithDirection(label.id.get, dir)
+  def labelWithDir: LabelWithDirection = LabelWithDirection(label.id.get, dir)
 
-  def labelWithDirV2 = LabelWithDirection(labelV2.id.get, dir)
+  def labelWithDirV2: LabelWithDirection = LabelWithDirection(labelV2.id.get, dir)
 
-  def labelWithDirV3 = LabelWithDirection(labelV3.id.get, dir)
+  def labelWithDirV3: LabelWithDirection = LabelWithDirection(labelV3.id.get, dir)
 
-  def labelWithDirV4 = LabelWithDirection(labelV4.id.get, dir)
+  def labelWithDirV4: LabelWithDirection = LabelWithDirection(labelV4.id.get, dir)
 
-  def queryParam = QueryParam(labelWithDir)
+  def queryParam: QueryParam = QueryParam(labelWithDir)
 
-  def queryParamV2 = QueryParam(labelWithDirV2)
+  def queryParamV2: QueryParam = QueryParam(labelWithDirV2)
 
-  def queryParamV3 = QueryParam(labelWithDirV3)
+  def queryParamV3: QueryParam = QueryParam(labelWithDirV3)
 
-  def queryParamV4 = QueryParam(labelWithDirV4)
+  def queryParamV4: QueryParam = QueryParam(labelWithDirV4)
 
 }

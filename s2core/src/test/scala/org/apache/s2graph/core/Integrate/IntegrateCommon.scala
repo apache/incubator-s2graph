@@ -28,7 +28,7 @@ import org.scalatest._
 import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 
 trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
@@ -39,7 +39,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
   var management: Management = _
   var config: Config = _
 
-  override def beforeAll = {
+  override def beforeAll: Unit = {
     config = ConfigFactory.load()
     graph = new S2Graph(config)(ExecutionContext.Implicits.global)
     management = new Management(graph)
@@ -54,7 +54,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
   /**
    * Make Service, Label, Vertex for integrate test
    */
-  def initTestData() = {
+  def initTestData(): Unit = {
     println("[init start]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     Management.deleteService(testServiceName)
 
@@ -106,7 +106,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
    * Test Helpers
    */
   object TestUtil {
-    implicit def ec = scala.concurrent.ExecutionContext.global
+    implicit def ec: ExecutionContextExecutor = scala.concurrent.ExecutionContext.global
 
     //    def checkEdgeQueryJson(params: Seq[(String, String, String, String)]) = {
     //      val arr = for {
@@ -119,7 +119,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     //      s
     //    }
 
-    def deleteAllSync(jsValue: JsValue) = {
+    def deleteAllSync(jsValue: JsValue): Seq[Boolean] = {
       val future = Future.sequence(jsValue.as[Seq[JsValue]] map { json =>
         val (labels, direction, ids, ts, vertices) = parser.toDeleteParam(json)
         val srcVertices = vertices
@@ -148,7 +148,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       result
     }
 
-    def insertEdgesSync(bulkEdges: String*) = {
+    def insertEdgesSync(bulkEdges: String*): Seq[Boolean] = {
       logger.debug(s"${bulkEdges.mkString("\n")}")
       val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
       val jsResult = Await.result(req, HttpRequestWaitingTime)
@@ -156,7 +156,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       jsResult
     }
 
-    def insertEdgesAsync(bulkEdges: String*) = {
+    def insertEdgesAsync(bulkEdges: String*): Future[Seq[Boolean]] = {
       val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
       req
     }

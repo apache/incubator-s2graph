@@ -20,10 +20,11 @@
 package org.apache.s2graph.core.Integrate.tinkerpop
 
 import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.types.VertexId
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{S2Graph, TestCommonWithModels, S2Vertex}
+import org.apache.s2graph.core.{S2Graph, S2Vertex, TestCommonWithModels}
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal
-import org.apache.tinkerpop.gremlin.structure.{Edge, Vertex, T}
+import org.apache.tinkerpop.gremlin.structure.{Edge, T, Vertex}
 import org.scalatest.{FunSuite, Matchers}
 
 
@@ -44,9 +45,9 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 
   import scala.language.implicitConversions
 
-  def newVertexId(id: Any, label: Label = labelV2) = g.newVertexId(label.srcService, label.srcColumn, id)
+  def newVertexId(id: Any, label: Label = labelV2): VertexId = g.newVertexId(label.srcService, label.srcColumn, id)
 
-  def addVertex(id: AnyRef, label: Label = labelV2) =
+  def addVertex(id: AnyRef, label: Label = labelV2): S2Vertex =
     g.addVertex(T.label, label.srcService.serviceName + S2Vertex.VertexLabelDelimiter + label.srcColumnName,
       T.id, id).asInstanceOf[S2Vertex]
 
@@ -64,7 +65,7 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
   //    Prop("score", "0.1", FLOAT),
   //    Prop("age", "10", INT)
   //  )
-  def testData(srcId: AnyRef, range: Range, label: Label = labelV2) = {
+  def testData(srcId: AnyRef, range: Range, label: Label = labelV2): Unit = {
     val src = addVertex(srcId)
 
     for {

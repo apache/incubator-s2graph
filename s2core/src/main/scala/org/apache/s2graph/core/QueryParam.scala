@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -39,7 +39,9 @@ object Query {
   def apply(query: Query): Query = {
     Query(query.vertices, query.steps, query.queryOption, query.jsonQuery)
   }
-  def toQuery(srcVertices: Seq[S2Vertex], queryParams: Seq[QueryParam]) = Query(srcVertices, Vector(Step(queryParams)))
+  def toQuery(srcVertices: Seq[S2Vertex],
+              queryParams: Seq[QueryParam]): Query =
+    Query(srcVertices, Vector(Step(queryParams)))
 
 }
 
@@ -50,7 +52,7 @@ object GroupBy {
 }
 case class GroupBy(keys: Seq[String] = Nil,
                    limit: Int = Int.MaxValue,
-                   minShouldMatch: Option[MinShouldMatchParam]= None)
+                   minShouldMatch: Option[MinShouldMatchParam] = None)
 
 case class MultiQuery(queries: Seq[Query],
                       weights: Seq[Double],
@@ -78,9 +80,14 @@ case class QueryOption(removeCycle: Boolean = false,
                        ignorePrevStepCache: Boolean = false) {
   val orderByKeys = orderByColumns.map(_._1)
   val ascendingVals = orderByColumns.map(_._2)
-  val selectColumnsMap = selectColumns.map { c => c -> true } .toMap
-  val scoreFieldIdx = orderByKeys.zipWithIndex.find(t => t._1 == "score").map(_._2).getOrElse(-1)
-  val (edgeSelectColumns, propsSelectColumns) = selectColumns.partition(c => LabelMeta.defaultRequiredMetaNames.contains(c))
+  val selectColumnsMap = selectColumns.map { c =>
+    c -> true
+  }.toMap
+  val scoreFieldIdx =
+    orderByKeys.zipWithIndex.find(t => t._1 == "score").map(_._2).getOrElse(-1)
+  val (edgeSelectColumns, propsSelectColumns) = selectColumns.partition(c =>
+    LabelMeta.defaultRequiredMetaNames.contains(c))
+
   /** */
   val edgeSelectColumnsFiltered = edgeSelectColumns
 //  val edgeSelectColumnsFiltered = edgeSelectColumns.filterNot(c => groupBy.keys.contains(c))
@@ -88,10 +95,12 @@ case class QueryOption(removeCycle: Boolean = false,
     val selectBytes = Bytes.toBytes(selectColumns.toString)
     val groupBytes = Bytes.toBytes(groupBy.keys.toString)
     val orderByBytes = Bytes.toBytes(orderByColumns.toString)
-    val filterOutBytes = filterOutQuery.map(_.fullCacheBytes).getOrElse(Array.empty[Byte])
+    val filterOutBytes =
+      filterOutQuery.map(_.fullCacheBytes).getOrElse(Array.empty[Byte])
     val returnTreeBytes = Bytes.toBytes(returnTree)
 
-    Seq(selectBytes, groupBytes, orderByBytes, filterOutBytes, returnTreeBytes).foldLeft(Array.empty[Byte])(Bytes.add)
+    Seq(selectBytes, groupBytes, orderByBytes, filterOutBytes, returnTreeBytes)
+      .foldLeft(Array.empty[Byte])(Bytes.add)
   }
 
 }
@@ -102,12 +111,15 @@ case class Query(vertices: Seq[S2Vertex] = Seq.empty[S2Vertex],
                  jsonQuery: JsValue = JsNull) {
 
   lazy val fullCacheBytes = {
-    val srcBytes = vertices.map(_.innerId.bytes).foldLeft(Array.empty[Byte])(Bytes.add)
-    val stepBytes = steps.map(_.cacheKeyBytes).foldLeft(Array.empty[Byte])(Bytes.add)
+    val srcBytes =
+      vertices.map(_.innerId.bytes).foldLeft(Array.empty[Byte])(Bytes.add)
+    val stepBytes =
+      steps.map(_.cacheKeyBytes).foldLeft(Array.empty[Byte])(Bytes.add)
     val queryOptionBytes = queryOption.cacheKeyBytes
     Bytes.add(srcBytes, stepBytes, queryOptionBytes)
   }
-  lazy val fullCacheKey: Long = Hashing.murmur3_128().hashBytes(fullCacheBytes).asLong()
+  lazy val fullCacheKey: Long =
+    Hashing.murmur3_128().hashBytes(fullCacheBytes).asLong()
 }
 
 object EdgeTransformer {
@@ -117,9 +129,9 @@ object EdgeTransformer {
 }
 
 /**
- * TODO: step wise outputFields should be used with nextStepLimit, nextStepThreshold.
- * @param jsValue
- */
+  * TODO: step wise outputFields should be used with nextStepLimit, nextStepThreshold.
+  * @param jsValue
+  */
 case class EdgeTransformer(jsValue: JsValue) {
   val Delimiter = "\\$"
   val targets = jsValue.asOpt[List[Vector[String]]].toList
@@ -129,7 +141,8 @@ case class EdgeTransformer(jsValue: JsValue) {
   } yield fields
   val isDefault = fieldsLs.size == 1 && fieldsLs.head.size == 1 && (fieldsLs.head.head == "_to" || fieldsLs.head.head == "to")
 
-  def toHashKeyBytes: Array[Byte] = if (isDefault) Array.empty[Byte] else Bytes.toBytes(jsValue.toString)
+  def toHashKeyBytes: Array[Byte] =
+    if (isDefault) Array.empty[Byte] else Bytes.toBytes(jsValue.toString)
 
   def replace(queryParam: QueryParam,
               fmt: String,
@@ -137,21 +150,29 @@ case class EdgeTransformer(jsValue: JsValue) {
               nextStepOpt: Option[Step]): Seq[InnerValLike] = {
 
     val tokens = fmt.split(Delimiter)
-    val _values = values.padTo(tokens.length, InnerVal.withStr("", queryParam.label.schemaVersion))
-    val mergedStr = tokens.zip(_values).map { case (prefix, innerVal) => prefix + innerVal.toString }.mkString
+    val _values = values.padTo(
+      tokens.length,
+      InnerVal.withStr("", queryParam.label.schemaVersion))
+    val mergedStr = tokens
+      .zip(_values)
+      .map { case (prefix, innerVal) => prefix + innerVal.toString }
+      .mkString
     //    logger.error(s"${tokens.toList}, ${values}, $mergedStr")
     //    println(s"${tokens.toList}, ${values}, $mergedStr")
     nextStepOpt match {
       case None =>
         val columnType =
-          if (queryParam.labelWithDir.dir == GraphUtil.directions("out")) queryParam.label.tgtColumnType
+          if (queryParam.labelWithDir.dir == GraphUtil.directions("out"))
+            queryParam.label.tgtColumnType
           else queryParam.label.srcColumnType
 
-        if (columnType == InnerVal.STRING) Seq(InnerVal.withStr(mergedStr, queryParam.label.schemaVersion))
+        if (columnType == InnerVal.STRING)
+          Seq(InnerVal.withStr(mergedStr, queryParam.label.schemaVersion))
         else Nil
       case Some(nextStep) =>
         val nextQueryParamsValid = nextStep.queryParams.filter { qParam =>
-          if (qParam.labelWithDir.dir == GraphUtil.directions("out")) qParam.label.srcColumnType == "string"
+          if (qParam.labelWithDir.dir == GraphUtil.directions("out"))
+            qParam.label.srcColumnType == "string"
           else qParam.label.tgtColumnType == "string"
         }
         for {
@@ -162,7 +183,9 @@ case class EdgeTransformer(jsValue: JsValue) {
     }
   }
 
-  def toInnerValOpt(queryParam: QueryParam, edge: S2Edge, fieldName: String): Option[InnerValLike] = {
+  def toInnerValOpt(queryParam: QueryParam,
+                    edge: S2Edge,
+                    fieldName: String): Option[InnerValLike] = {
     fieldName match {
       case LabelMeta.to.name => Option(edge.tgtVertex.innerId)
       case LabelMeta.from.name => Option(edge.srcVertex.innerId)
@@ -170,7 +193,9 @@ case class EdgeTransformer(jsValue: JsValue) {
     }
   }
 
-  def transform(queryParam: QueryParam, edge: S2Edge, nextStepOpt: Option[Step]): Seq[S2Edge] = {
+  def transform(queryParam: QueryParam,
+                edge: S2Edge,
+                nextStepOpt: Option[Step]): Seq[S2Edge] = {
     if (isDefault) Seq(edge)
     else {
       val edges = for {
@@ -181,11 +206,15 @@ case class EdgeTransformer(jsValue: JsValue) {
             toInnerValOpt(queryParam, edge, fieldName).toSeq
           } else {
             val fmt +: fieldNames = fields
-            replace(queryParam, fmt, fieldNames.flatMap(fieldName => toInnerValOpt(queryParam, edge, fieldName)), nextStepOpt)
+            replace(queryParam,
+                    fmt,
+                    fieldNames.flatMap(fieldName =>
+                      toInnerValOpt(queryParam, edge, fieldName)),
+                    nextStepOpt)
           }
         }
-      } yield edge.updateTgtVertex(innerVal).copy(originalEdgeOpt = Option(edge))
-
+      } yield
+        edge.updateTgtVertex(innerVal).copy(originalEdgeOpt = Option(edge))
 
       edges
     }
@@ -207,13 +236,18 @@ case class Step(queryParams: Seq[QueryParam],
 //  lazy val includes = queryParams.filterNot(_.exclude)
 //  lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 
-  lazy val cacheKeyBytes = queryParams.map(_.toCacheKeyRaw(Array.empty[Byte])).foldLeft(Array.empty[Byte])(Bytes.add)
-  def toCacheKey(lss: Seq[Long]): Long = Hashing.murmur3_128().hashBytes(toCacheKeyRaw(lss)).asLong()
+  lazy val cacheKeyBytes = queryParams
+    .map(_.toCacheKeyRaw(Array.empty[Byte]))
+    .foldLeft(Array.empty[Byte])(Bytes.add)
+  def toCacheKey(lss: Seq[Long]): Long =
+    Hashing.murmur3_128().hashBytes(toCacheKeyRaw(lss)).asLong()
 //    MurmurHash3.bytesHash(toCacheKeyRaw(lss))
 
   def toCacheKeyRaw(lss: Seq[Long]): Array[Byte] = {
     var bytes = Array.empty[Byte]
-    lss.sorted.foreach { h => bytes = Bytes.add(bytes, Bytes.toBytes(h)) }
+    lss.sorted.foreach { h =>
+      bytes = Bytes.add(bytes, Bytes.toBytes(h))
+    }
     bytes
   }
 }
@@ -239,14 +273,17 @@ object RankParam {
   val Default = RankParam()
 }
 
-case class RankParam(keySeqAndWeights: Seq[(LabelMeta, Double)] = Seq((LabelMeta.count, 1.0))) {
+case class RankParam(
+    keySeqAndWeights: Seq[(LabelMeta, Double)] = Seq((LabelMeta.count, 1.0))) {
   // empty => Count
   lazy val rankKeysWeightsMap = keySeqAndWeights.toMap
 
   def toHashKeyBytes(): Array[Byte] = {
     var bytes = Array.empty[Byte]
-    keySeqAndWeights.map { case (labelMeta, weight) =>
-      bytes = Bytes.add(bytes, Array.fill(1)(labelMeta.seq), Bytes.toBytes(weight))
+    keySeqAndWeights.map {
+      case (labelMeta, weight) =>
+        bytes =
+          Bytes.add(bytes, Array.fill(1)(labelMeta.seq), Bytes.toBytes(weight))
     }
     bytes
   }
@@ -264,61 +301,76 @@ object QueryParam {
     QueryParam(labelName = label.label, direction = direction)
   }
 }
-case class QueryParam(labelName: String,
-                        direction: String = "out",
-                        offset: Int = 0,
-                        limit: Int = 100,
-                        sample: Int = -1,
-                        maxAttempt: Int = 2,
-                        rpcTimeout: Int = 1000,
-                        cacheTTLInMillis: Long = -1L,
-                        indexName: String = LabelIndex.DefaultName,
-                        where: Try[Where] = Success(WhereParser.success),
-                        timestamp: Long = System.currentTimeMillis(),
-                        threshold: Double = Double.MinValue,
-                        rank: RankParam = RankParam.Default,
-                        intervalOpt: Option[((Seq[(String, JsValue)]), Seq[(String, JsValue)])] = None,
-                        durationOpt: Option[(Long, Long)] = None,
-                        exclude: Boolean = false,
-                        include: Boolean = false,
-                        has: Map[String, Any] = Map.empty,
-                        duplicatePolicy: DuplicatePolicy = DuplicatePolicy.First,
-                        includeDegree: Boolean = false,
-                        scorePropagateShrinkage: Long = 500L,
-                        scorePropagateOp: String = "multiply",
-                        shouldNormalize: Boolean = false,
-                        whereRawOpt: Option[String] = None,
-                        cursorOpt: Option[String] = None,
-                        tgtVertexIdOpt: Option[Any] = None,
-                        edgeTransformer: EdgeTransformer = EdgeTransformer(EdgeTransformer.DefaultJson),
-                        timeDecay: Option[TimeDecay] = None) {
+case class QueryParam(
+    labelName: String,
+    direction: String = "out",
+    offset: Int = 0,
+    limit: Int = 100,
+    sample: Int = -1,
+    maxAttempt: Int = 2,
+    rpcTimeout: Int = 1000,
+    cacheTTLInMillis: Long = -1L,
+    indexName: String = LabelIndex.DefaultName,
+    where: Try[Where] = Success(WhereParser.success),
+    timestamp: Long = System.currentTimeMillis(),
+    threshold: Double = Double.MinValue,
+    rank: RankParam = RankParam.Default,
+    intervalOpt: Option[((Seq[(String, JsValue)]), Seq[(String, JsValue)])] =
+      None,
+    durationOpt: Option[(Long, Long)] = None,
+    exclude: Boolean = false,
+    include: Boolean = false,
+    has: Map[String, Any] = Map.empty,
+    duplicatePolicy: DuplicatePolicy = DuplicatePolicy.First,
+    includeDegree: Boolean = false,
+    scorePropagateShrinkage: Long = 500L,
+    scorePropagateOp: String = "multiply",
+    shouldNormalize: Boolean = false,
+    whereRawOpt: Option[String] = None,
+    cursorOpt: Option[String] = None,
+    tgtVertexIdOpt: Option[Any] = None,
+    edgeTransformer: EdgeTransformer = EdgeTransformer(
+      EdgeTransformer.DefaultJson),
+    timeDecay: Option[TimeDecay] = None) {
   import JSONParser._
 
   //TODO: implement this.
   lazy val whereHasParent = true
 
-  lazy val label = Label.findByName(labelName).getOrElse(throw LabelNotExistException(labelName))
-  lazy val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"not supported direction: $direction"))
+  lazy val label = Label
+    .findByName(labelName)
+    .getOrElse(throw LabelNotExistException(labelName))
+  lazy val dir = GraphUtil
+    .toDir(direction)
+    .getOrElse(
+      throw new RuntimeException(s"not supported direction: $direction"))
 
   lazy val labelWithDir = LabelWithDirection(label.id.get, dir)
   lazy val labelOrderSeq =
     if (indexName == LabelIndex.DefaultName) LabelIndex.DefaultSeq
-    else label.indexNameMap.getOrElse(indexName, throw new RuntimeException(s"$indexName indexName is not found.")).seq
+    else
+      label.indexNameMap
+        .getOrElse(
+          indexName,
+          throw new RuntimeException(s"$indexName indexName is not found."))
+        .seq
 
   lazy val tgtVertexInnerIdOpt = tgtVertexIdOpt.map { id =>
-    CanInnerValLike.anyToInnerValLike.toInnerVal(id)(label.tgtColumnWithDir(dir).schemaVersion)
+    CanInnerValLike.anyToInnerValLike.toInnerVal(id)(
+      label.tgtColumnWithDir(dir).schemaVersion)
   }
 
-  def buildInterval(edgeOpt: Option[S2Edge]) = intervalOpt match {
-    case None => Array.empty[Byte] -> Array.empty[Byte]
-    case Some(interval) =>
-      val (froms, tos) = interval
+  def buildInterval(edgeOpt: Option[S2Edge]): (Array[Byte], Array[Byte]) =
+    intervalOpt match {
+      case None => Array.empty[Byte] -> Array.empty[Byte]
+      case Some(interval) =>
+        val (froms, tos) = interval
 
-      val len = label.indicesMap(labelOrderSeq).sortKeyTypes.size.toByte
-      val (maxBytes, minBytes) = paddingInterval(len, froms, tos, edgeOpt)
+        val len = label.indicesMap(labelOrderSeq).sortKeyTypes.size.toByte
+        val (maxBytes, minBytes) = paddingInterval(len, froms, tos, edgeOpt)
 
-      maxBytes -> minBytes
-  }
+        maxBytes -> minBytes
+    }
 
   lazy val isSnapshotEdge = tgtVertexInnerIdOpt.isDefined
 
@@ -332,16 +384,18 @@ case class QueryParam(labelName: String,
     val transformBytes = edgeTransformer.toHashKeyBytes
     //TODO: change this to binrary format.
     val whereBytes = Bytes.toBytes(whereRawOpt.getOrElse(""))
-    val durationBytes = durationOpt.map { case (min, max) =>
-      val minTs = min / cacheTTLInMillis
-      val maxTs = max / cacheTTLInMillis
-      Bytes.add(Bytes.toBytes(minTs), Bytes.toBytes(maxTs))
+    val durationBytes = durationOpt.map {
+      case (min, max) =>
+        val minTs = min / cacheTTLInMillis
+        val maxTs = max / cacheTTLInMillis
+        Bytes.add(Bytes.toBytes(minTs), Bytes.toBytes(maxTs))
     } getOrElse Array.empty[Byte]
 
     val conditionBytes = Bytes.add(transformBytes, whereBytes, durationBytes)
 
     // Interval cache bytes is moved to fetch method
-    Bytes.add(Bytes.add(toBytes(offset, limit), rank.toHashKeyBytes()), conditionBytes)
+    Bytes.add(Bytes.add(toBytes(offset, limit), rank.toHashKeyBytes()),
+              conditionBytes)
   }
 
   def toBytes(offset: Int, limit: Int): Array[Byte] = {
@@ -357,40 +411,65 @@ case class QueryParam(labelName: String,
     Bytes.add(bytes, optionalCacheKey)
   }
 
-  private def convertToInner(kvs: Seq[(String, JsValue)], edgeOpt: Option[S2Edge]): Seq[(LabelMeta, InnerValLike)] = {
-    kvs.map { case (propKey, propValJs) =>
-      propValJs match {
-        case JsString(in) if edgeOpt.isDefined && in.contains("_parent.") =>
-          val parentLen = in.split("_parent.").length - 1
-          val edge = (0 until parentLen).foldLeft(edgeOpt.get) { case (acc, _) => acc.parentEdges.head.edge }
-
-          val timePivot = edge.ts
-          val replaced = TemplateHelper.replaceVariable(timePivot, in).trim
-
-          val (_propKey, _padding) = replaced.span(ch => !ch.isDigit && ch != '-' && ch != '+' && ch != ' ')
-          val propKey = _propKey.split("_parent.").last
-          val padding = Try(_padding.trim.toLong).getOrElse(0L)
-
-          val labelMeta = edge.innerLabel.metaPropsInvMap.getOrElse(propKey, throw new RuntimeException(s"$propKey not found in ${edge} labelMetas."))
-
-          val propVal =
-            if (InnerVal.isNumericType(labelMeta.dataType)) {
-              InnerVal.withLong(edge.property(labelMeta.name).value.toString.toLong + padding, label.schemaVersion)
-            } else {
-              edge.property(labelMeta.name).asInstanceOf[S2Property[_]].innerVal
+  private def convertToInner(
+      kvs: Seq[(String, JsValue)],
+      edgeOpt: Option[S2Edge]): Seq[(LabelMeta, InnerValLike)] = {
+    kvs.map {
+      case (propKey, propValJs) =>
+        propValJs match {
+          case JsString(in) if edgeOpt.isDefined && in.contains("_parent.") =>
+            val parentLen = in.split("_parent.").length - 1
+            val edge = (0 until parentLen).foldLeft(edgeOpt.get) {
+              case (acc, _) => acc.parentEdges.head.edge
             }
 
-          labelMeta -> propVal
-        case _ =>
-          val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw new RuntimeException(s"$propKey not found in labelMetas."))
-          val propVal = jsValueToInnerVal(propValJs, labelMeta.dataType, label.schemaVersion)
+            val timePivot = edge.ts
+            val replaced = TemplateHelper.replaceVariable(timePivot, in).trim
 
-          labelMeta -> propVal.get
-      }
+            val (_propKey, _padding) = replaced.span(ch =>
+              !ch.isDigit && ch != '-' && ch != '+' && ch != ' ')
+            val propKey = _propKey.split("_parent.").last
+            val padding = Try(_padding.trim.toLong).getOrElse(0L)
+
+            val labelMeta = edge.innerLabel.metaPropsInvMap.getOrElse(
+              propKey,
+              throw new RuntimeException(
+                s"$propKey not found in ${edge} labelMetas."))
+
+            val propVal =
+              if (InnerVal.isNumericType(labelMeta.dataType)) {
+                InnerVal.withLong(edge
+                                    .property(labelMeta.name)
+                                    .value
+                                    .toString
+                                    .toLong + padding,
+                                  label.schemaVersion)
+              } else {
+                edge
+                  .property(labelMeta.name)
+                  .asInstanceOf[S2Property[_]]
+                  .innerVal
+              }
+
+            labelMeta -> propVal
+          case _ =>
+            val labelMeta = label.metaPropsInvMap.getOrElse(
+              propKey,
+              throw new RuntimeException(s"$propKey not found in labelMetas."))
+            val propVal = jsValueToInnerVal(propValJs,
+                                            labelMeta.dataType,
+                                            label.schemaVersion)
+
+            labelMeta -> propVal.get
+        }
     }
   }
 
-  def paddingInterval(len: Byte, froms: Seq[(String, JsValue)], tos: Seq[(String, JsValue)], edgeOpt: Option[S2Edge] = None) = {
+  def paddingInterval(
+      len: Byte,
+      froms: Seq[(String, JsValue)],
+      tos: Seq[(String, JsValue)],
+      edgeOpt: Option[S2Edge] = None): (Array[Byte], Array[Byte]) = {
     val fromInnerVal = convertToInner(froms, edgeOpt)
     val toInnerVal = convertToInner(tos, edgeOpt)
 

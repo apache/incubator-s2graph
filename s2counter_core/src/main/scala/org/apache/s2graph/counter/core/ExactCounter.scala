@@ -224,11 +224,11 @@ class ExactCounter(config: Config, storage: ExactStorage) {
     storage.getBlobValue(policy, blobId)
   }
 
-  def prepare(policy: Counter) = {
+  def prepare(policy: Counter): Unit = {
     storage.prepare(policy)
   }
 
-  def destroy(policy: Counter) = {
+  def destroy(policy: Counter): Unit = {
     storage.destroy(policy)
   }
 

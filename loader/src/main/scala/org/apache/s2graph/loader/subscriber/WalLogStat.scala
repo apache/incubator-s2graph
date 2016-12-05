@@ -30,7 +30,7 @@ import scala.language.postfixOps
 
 object WalLogStat extends SparkApp with WithKafka {
 
-  override def run() = {
+  override def run(): Unit = {
 
     validateArgument("kafkaZkQuorum", "brokerList", "topics", "intervalInSec", "dbUrl", "statTopic")
 

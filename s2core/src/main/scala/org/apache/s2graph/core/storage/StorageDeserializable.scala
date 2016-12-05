@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,23 +22,31 @@ package org.apache.s2graph.core.storage
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.QueryParam
 import org.apache.s2graph.core.mysqls.{LabelMeta, Label}
-import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, InnerValLikeWithTs}
+import org.apache.s2graph.core.types.{
+  HBaseType,
+  InnerVal,
+  InnerValLike,
+  InnerValLikeWithTs
+}
 import org.apache.s2graph.core.utils.logger
 
 object StorageDeserializable {
+
   /** Deserializer */
-  def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte], offset: Int): (Byte, Boolean) = {
+  def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte],
+                                         offset: Int): (Byte, Boolean) = {
     val byte = bytes(offset)
     val isInverted = if ((byte & 1) != 0) true else false
     val labelOrderSeq = byte >> 1
     (labelOrderSeq.toByte, isInverted)
   }
 
-  def bytesToKeyValues(bytes: Array[Byte],
-                       offset: Int,
-                       length: Int,
-                       schemaVer: String,
-                       label: Label): (Array[(LabelMeta, InnerValLike)], Int) = {
+  def bytesToKeyValues(
+      bytes: Array[Byte],
+      offset: Int,
+      length: Int,
+      schemaVer: String,
+      label: Label): (Array[(LabelMeta, InnerValLike)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
@@ -57,10 +65,11 @@ object StorageDeserializable {
     ret
   }
 
-  def bytesToKeyValuesWithTs(bytes: Array[Byte],
-                             offset: Int,
-                             schemaVer: String,
-                             label: Label): (Array[(LabelMeta, InnerValLikeWithTs)], Int) = {
+  def bytesToKeyValuesWithTs(
+      bytes: Array[Byte],
+      offset: Int,
+      schemaVer: String,
+      label: Label): (Array[(LabelMeta, InnerValLikeWithTs)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
@@ -69,7 +78,8 @@ object StorageDeserializable {
     while (i < len) {
       val k = label.labelMetaMap(bytes(pos))
       pos += 1
-      val (v, numOfBytesUsed) = InnerValLikeWithTs.fromBytes(bytes, pos, 0, schemaVer)
+      val (v, numOfBytesUsed) =
+        InnerValLikeWithTs.fromBytes(bytes, pos, 0, schemaVer)
       pos += numOfBytesUsed
       kvs(i) = (k -> v)
       i += 1
@@ -79,9 +89,10 @@ object StorageDeserializable {
     ret
   }
 
-  def bytesToProps(bytes: Array[Byte],
-                   offset: Int,
-                   schemaVer: String): (Array[(LabelMeta, InnerValLike)], Int) = {
+  def bytesToProps(
+      bytes: Array[Byte],
+      offset: Int,
+      schemaVer: String): (Array[(LabelMeta, InnerValLike)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
@@ -100,13 +111,18 @@ object StorageDeserializable {
     ret
   }
 
-  def bytesToLong(bytes: Array[Byte], offset: Int): Long = Bytes.toLong(bytes, offset)
+  def bytesToLong(bytes: Array[Byte], offset: Int): Long =
+    Bytes.toLong(bytes, offset)
 
-  def bytesToInt(bytes: Array[Byte], offset: Int): Int = Bytes.toInt(bytes, offset)
+  def bytesToInt(bytes: Array[Byte], offset: Int): Int =
+    Bytes.toInt(bytes, offset)
 }
 
 trait StorageDeserializable[E] {
-  def fromKeyValues[T: CanSKeyValue](checkLabel: Option[Label], kvs: Seq[T], version: String, cacheElementOpt: Option[E]): Option[E] = {
+  def fromKeyValues[T: CanSKeyValue](checkLabel: Option[Label],
+                                     kvs: Seq[T],
+                                     version: String,
+                                     cacheElementOpt: Option[E]): Option[E] = {
     try {
       Option(fromKeyValuesInner(checkLabel, kvs, version, cacheElementOpt))
     } catch {
@@ -115,5 +131,8 @@ trait StorageDeserializable[E] {
         None
     }
   }
-  def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label], kvs: Seq[T], version: String, cacheElementOpt: Option[E]): E
+  def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
+                                          kvs: Seq[T],
+                                          version: String,
+                                          cacheElementOpt: Option[E]): E
 }

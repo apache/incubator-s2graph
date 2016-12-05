@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -32,19 +32,19 @@ object logger {
 
   object Loggable {
     implicit val stringLoggable = new Loggable[String] {
-      def toLogMessage(msg: String) = msg
+      def toLogMessage(msg: String): String = msg
     }
 
-    implicit def numericLoggable[T: Numeric] = new Loggable[T] {
-      def toLogMessage(msg: T) = msg.toString
+    implicit def numericLoggable[T: Numeric]: Loggable[T] = new Loggable[T] {
+      def toLogMessage(msg: T): String = msg.toString
     }
 
     implicit val jsonLoggable = new Loggable[JsValue] {
-      def toLogMessage(msg: JsValue) = msg.toString()
+      def toLogMessage(msg: JsValue): String = msg.toString()
     }
 
     implicit val booleanLoggable = new Loggable[Boolean] {
-      def toLogMessage(msg: Boolean) = msg.toString()
+      def toLogMessage(msg: Boolean): String = msg.toString()
     }
   }
 
@@ -54,19 +54,24 @@ object logger {
   private val queryLogger = LoggerFactory.getLogger("query")
   private val malformedLogger = LoggerFactory.getLogger("malformed")
 
-  def metric[T: Loggable](msg: => T) = metricLogger.info(implicitly[Loggable[T]].toLogMessage(msg))
+  def metric[T: Loggable](msg: => T): Unit =
+    metricLogger.info(implicitly[Loggable[T]].toLogMessage(msg))
 
-  def info[T: Loggable](msg: => T) = logger.info(implicitly[Loggable[T]].toLogMessage(msg))
+  def info[T: Loggable](msg: => T): Unit =
+    logger.info(implicitly[Loggable[T]].toLogMessage(msg))
 
-  def debug[T: Loggable](msg: => T) = logger.debug(implicitly[Loggable[T]].toLogMessage(msg))
+  def debug[T: Loggable](msg: => T): Unit =
+    logger.debug(implicitly[Loggable[T]].toLogMessage(msg))
 
-  def error[T: Loggable](msg: => T, exception: => Throwable) = errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg), exception)
+  def error[T: Loggable](msg: => T, exception: => Throwable): Unit =
+    errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg), exception)
 
-  def error[T: Loggable](msg: => T) = errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg))
+  def error[T: Loggable](msg: => T): Unit =
+    errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg))
 
-  def query[T: Loggable](msg: => T) = queryLogger.info(implicitly[Loggable[T]].toLogMessage(msg))
+  def query[T: Loggable](msg: => T): Unit =
+    queryLogger.info(implicitly[Loggable[T]].toLogMessage(msg))
 
-  def malformed[T: Loggable](msg: => T, exception: => Throwable) = malformedLogger.error(implicitly[Loggable[T]].toLogMessage(msg), exception)
+  def malformed[T: Loggable](msg: => T, exception: => Throwable): Unit =
+    malformedLogger.error(implicitly[Loggable[T]].toLogMessage(msg), exception)
 }
-
-

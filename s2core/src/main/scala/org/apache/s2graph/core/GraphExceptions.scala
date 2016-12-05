@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,20 +21,21 @@ package org.apache.s2graph.core
 
 object GraphExceptions {
   var fillStckTrace = true
-  class BaseException(msg : String) extends Exception(msg){
-    override def fillInStackTrace : Exception = {
-      if(fillStckTrace) super.fillInStackTrace()
+  class BaseException(msg: String) extends Exception(msg) {
+    override def fillInStackTrace: Exception = {
+      if (fillStckTrace) super.fillInStackTrace()
       this
     }
   }
-  class NoStackException(msg : String) extends Exception(msg){
-    override def fillInStackTrace : Exception = {
+  class NoStackException(msg: String) extends Exception(msg) {
+    override def fillInStackTrace: Exception = {
       this
     }
   }
 
-  class NoStackCauseException(msg : String, ex: Throwable ) extends Exception(msg, ex){
-    override def fillInStackTrace : Exception = {
+  class NoStackCauseException(msg: String, ex: Throwable)
+      extends Exception(msg, ex) {
+    override def fillInStackTrace: Exception = {
       this
     }
   }
@@ -55,9 +56,11 @@ object GraphExceptions {
 
   case class IllegalDataTypeException(msg: String) extends Exception(msg)
 
-  case class WhereParserException(msg: String, ex: Exception = null) extends Exception(msg, ex)
+  case class WhereParserException(msg: String, ex: Exception = null)
+      extends Exception(msg, ex)
 
-  case class BadQueryException(msg: String, ex: Throwable = null) extends Exception(msg, ex)
+  case class BadQueryException(msg: String, ex: Throwable = null)
+      extends Exception(msg, ex)
 
   case class InvalidHTableException(msg: String) extends Exception(msg)
 

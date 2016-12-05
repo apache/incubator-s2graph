@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -30,22 +30,25 @@ object Bucket extends Model[Bucket] {
 
   def apply(rs: WrappedResultSet): Bucket = {
     Bucket(rs.intOpt("id"),
-      rs.int("experiment_id"),
-      rs.string("modular"),
-      rs.string("http_verb"),
-      rs.string("api_path"),
-      rs.string("request_body"),
-      rs.int("timeout"),
-      rs.string("impression_id"),
-      rs.boolean("is_graph_query"),
-      rs.boolean("is_empty"))
+           rs.int("experiment_id"),
+           rs.string("modular"),
+           rs.string("http_verb"),
+           rs.string("api_path"),
+           rs.string("request_body"),
+           rs.int("timeout"),
+           rs.string("impression_id"),
+           rs.boolean("is_graph_query"),
+           rs.boolean("is_empty"))
   }
 
-  def finds(experimentId: Int)(implicit session: DBSession = AutoSession): List[Bucket] = {
+  def finds(experimentId: Int)(
+      implicit session: DBSession = AutoSession): List[Bucket] = {
     val cacheKey = "experimentId=" + experimentId
     withCaches(cacheKey) {
-      sql"""select * from buckets where experiment_id = $experimentId"""
-        .map { rs => Bucket(rs) }.list().apply()
+      sql"""select * from buckets where experiment_id = $experimentId""".map {
+        rs =>
+          Bucket(rs)
+      }.list().apply()
     }
   }
 
@@ -55,10 +58,14 @@ object Bucket extends Model[Bucket] {
     else None
   }
 
-  def findByImpressionId(impressionId: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[Bucket] = {
+  def findByImpressionId(impressionId: String, useCache: Boolean = true)(
+      implicit session: DBSession = AutoSession): Option[Bucket] = {
     val cacheKey = "impressionId=" + impressionId
-    val sql = sql"""select * from buckets where impression_id=$impressionId"""
-      .map { rs => Bucket(rs)}
+    val sql =
+      sql"""select * from buckets where impression_id=$impressionId""".map {
+        rs =>
+          Bucket(rs)
+      }
     if (useCache) {
       withCache(cacheKey) {
         sql.single().apply()
@@ -68,21 +75,34 @@ object Bucket extends Model[Bucket] {
     }
   }
 
-  def insert(experiment: Experiment, modular: String, httpVerb: String, apiPath: String,
-             requestBody: String, timeout: Int, impressionId: String,
-             isGraphQuery: Boolean, isEmpty: Boolean)
-            (implicit session: DBSession = AutoSession): Try[Bucket] = {
+  def insert(experiment: Experiment,
+             modular: String,
+             httpVerb: String,
+             apiPath: String,
+             requestBody: String,
+             timeout: Int,
+             impressionId: String,
+             isGraphQuery: Boolean,
+             isEmpty: Boolean)(
+      implicit session: DBSession = AutoSession): Try[Bucket] = {
     Try {
       sql"""
             INSERT INTO buckets(experiment_id, modular, http_verb, api_path, request_body, timeout, impression_id,
              is_graph_query, is_empty)
             VALUES (${experiment.id.get}, $modular, $httpVerb, $apiPath, $requestBody, $timeout, $impressionId,
              $isGraphQuery, $isEmpty)
-        """
-        .updateAndReturnGeneratedKey().apply()
+        """.updateAndReturnGeneratedKey().apply()
     }.map { newId =>
-      Bucket(Some(newId.toInt), experiment.id.get, modular, httpVerb, apiPath, requestBody, timeout, impressionId,
-        isGraphQuery, isEmpty)
+      Bucket(Some(newId.toInt),
+             experiment.id.get,
+             modular,
+             httpVerb,
+             apiPath,
+             requestBody,
+             timeout,
+             impressionId,
+             isGraphQuery,
+             isEmpty)
     }
   }
 }
@@ -90,8 +110,11 @@ object Bucket extends Model[Bucket] {
 case class Bucket(id: Option[Int],
                   experimentId: Int,
                   modular: String,
-                  httpVerb: String, apiPath: String,
-                  requestBody: String, timeout: Int, impressionId: String,
+                  httpVerb: String,
+                  apiPath: String,
+                  requestBody: String,
+                  timeout: Int,
+                  impressionId: String,
                   isGraphQuery: Boolean = true,
                   isEmpty: Boolean = false) {
 

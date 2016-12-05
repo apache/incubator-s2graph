@@ -68,7 +68,7 @@ object GraphSubscriberHelper extends WithKafka {
   var management: Management = null
   val conns = new scala.collection.mutable.HashMap[String, Connection]()
 
-  def toOption(s: String) = {
+  def toOption(s: String): Option[String] = {
     s match {
       case "" | "none" => None
       case _ => Some(s)
@@ -96,7 +96,7 @@ object GraphSubscriberHelper extends WithKafka {
   //  def apply(phase: String, dbUrl: Option[String], zkQuorum: Option[String], kafkaBrokerList: Option[String]): Unit  = {
   //    Graph.apply(GraphConfig(phase, dbUrl, zkQuorum, kafkaBrokerList))(ExecutionContext.Implicits.global)
   //  }
-  def report(key: String, value: Option[String], topic: String = "report") = {
+  def report(key: String, value: Option[String], topic: String = "report"): Unit = {
     val msg = Seq(Some(key), value).flatten.mkString("\t")
     val kafkaMsg = new KeyedMessage[String, String](topic, msg)
     producer.send(kafkaMsg)
@@ -185,7 +185,7 @@ object GraphSubscriberHelper extends WithKafka {
 //    counts
 //  }
 
-  def storeStat(counts: HashMap[String, Long])(mapAccOpt: Option[HashMapAccumulable])(key: String, value: Int) = {
+  def storeStat(counts: HashMap[String, Long])(mapAccOpt: Option[HashMapAccumulable])(key: String, value: Int): Unit = {
     counts.put(key, counts.getOrElse(key, 0L) + value)
     mapAccOpt match {
       case None =>
@@ -202,7 +202,7 @@ object GraphSubscriberHelper extends WithKafka {
       }).toMap
   }
 
-  def isValidQuorum(quorum: String) = {
+  def isValidQuorum(quorum: String): Boolean = {
     quorum.split(",").size > 1
   }
 }

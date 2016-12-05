@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,11 +22,16 @@ package org.apache.s2graph.core.storage.serde.snapshotedge.wide
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.storage.StorageDeserializable._
-import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, StorageDeserializable}
+import org.apache.s2graph.core.storage.{
+  CanSKeyValue,
+  Deserializable,
+  StorageDeserializable
+}
 import org.apache.s2graph.core.types.TargetVertexId
 import org.apache.s2graph.core.{S2Graph, S2Edge, SnapshotEdge, S2Vertex}
 
-class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[SnapshotEdge] {
+class SnapshotEdgeDeserializable(graph: S2Graph)
+    extends Deserializable[SnapshotEdge] {
 
   def statusCodeWithOp(byte: Byte): (Byte, Byte) = {
     val statusCode = byte >> 4
@@ -34,11 +39,14 @@ class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[Snapshot
     (statusCode.toByte, op.toByte)
   }
 
-  override def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
-                                                   _kvs: Seq[T],
-                                                   version: String,
-                                                   cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
-    val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
+  override def fromKeyValuesInner[T: CanSKeyValue](
+      checkLabel: Option[Label],
+      _kvs: Seq[T],
+      version: String,
+      cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
+    val kvs = _kvs.map { kv =>
+      implicitly[CanSKeyValue[T]].toSKeyValue(kv)
+    }
     assert(kvs.size == 1)
 
     val kv = kvs.head
@@ -51,11 +59,13 @@ class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[Snapshot
     }.getOrElse(parseRow(kv, schemaVer))
 
     val (tgtVertexId, props, op, ts, statusCode, _pendingEdgeOpt, tsInnerVal) = {
-      val (tgtVertexId, _) = TargetVertexId.fromBytes(kv.qualifier, 0, kv.qualifier.length, schemaVer)
+      val (tgtVertexId, _) = TargetVertexId
+        .fromBytes(kv.qualifier, 0, kv.qualifier.length, schemaVer)
       var pos = 0
       val (statusCode, op) = statusCodeWithOp(kv.value(pos))
       pos += 1
-      val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer, label)
+      val (props, endAt) =
+        bytesToKeyValuesWithTs(kv.value, pos, schemaVer, label)
       val kvsMap = props.toMap
       val tsInnerVal = kvsMap(LabelMeta.timestamp).innerVal
       val ts = tsInnerVal.toString.toLong
@@ -64,28 +74,43 @@ class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[Snapshot
       val _pendingEdgeOpt =
         if (pos == kv.value.length) None
         else {
-          val (pendingEdgeStatusCode, pendingEdgeOp) = statusCodeWithOp(kv.value(pos))
+          val (pendingEdgeStatusCode, pendingEdgeOp) = statusCodeWithOp(
+            kv.value(pos))
           pos += 1
           //          val versionNum = Bytes.toLong(kv.value, pos, 8)
           //          pos += 8
-          val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer, label)
+          val (pendingEdgeProps, endAt) =
+            bytesToKeyValuesWithTs(kv.value, pos, schemaVer, label)
           pos = endAt
           val lockTs = Option(Bytes.toLong(kv.value, pos, 8))
 
           val pendingEdge =
             graph.newEdge(graph.newVertex(srcVertexId, cellVersion),
-              graph.newVertex(tgtVertexId, cellVersion),
-              label, labelWithDir.dir, pendingEdgeOp,
-              cellVersion, pendingEdgeProps.toMap,
-              statusCode = pendingEdgeStatusCode, lockTs = lockTs, tsInnerValOpt = Option(tsInnerVal))
+                          graph.newVertex(tgtVertexId, cellVersion),
+                          label,
+                          labelWithDir.dir,
+                          pendingEdgeOp,
+                          cellVersion,
+                          pendingEdgeProps.toMap,
+                          statusCode = pendingEdgeStatusCode,
+                          lockTs = lockTs,
+                          tsInnerValOpt = Option(tsInnerVal))
           Option(pendingEdge)
         }
 
       (tgtVertexId, kvsMap, op, ts, statusCode, _pendingEdgeOpt, tsInnerVal)
     }
 
-    graph.newSnapshotEdge(graph.newVertex(srcVertexId, ts), graph.newVertex(tgtVertexId, ts),
-      label, labelWithDir.dir, op, cellVersion, props, statusCode = statusCode,
-      pendingEdgeOpt = _pendingEdgeOpt, lockTs = None, tsInnerValOpt = Option(tsInnerVal))
+    graph.newSnapshotEdge(graph.newVertex(srcVertexId, ts),
+                          graph.newVertex(tgtVertexId, ts),
+                          label,
+                          labelWithDir.dir,
+                          op,
+                          cellVersion,
+                          props,
+                          statusCode = statusCode,
+                          pendingEdgeOpt = _pendingEdgeOpt,
+                          lockTs = None,
+                          tsInnerValOpt = Option(tsInnerVal))
   }
 }

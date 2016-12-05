@@ -127,7 +127,7 @@ case class KafkaHelper(kafkaParams: Map[String, String]) extends Logging {
     debug("Committed offset " + offset + " for topic " + tp)
   }
 
-  def shutdown() = {
+  def shutdown(): Unit = {
     zkClient.close()
   }
 }

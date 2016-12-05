@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -47,22 +47,34 @@ object OrderingUtil {
       (x, y) match {
         case (xv: Int, yv: Int) => implicitly[Ordering[Int]].compare(xv, yv)
         case (xv: Long, yv: Long) => implicitly[Ordering[Long]].compare(xv, yv)
-        case (xv: Double, yv: Double) => implicitly[Ordering[Double]].compare(xv, yv)
-        case (xv: String, yv: String) => implicitly[Ordering[String]].compare(xv, yv)
-        case (xv: BigDecimal, yv: BigDecimal) => implicitly[Ordering[BigDecimal]].compare(xv, yv)
-        case (xv: JsValue, yv: JsValue) => implicitly[Ordering[JsValue]].compare(xv, yv)
-        case (xv: InnerValLike, yv: InnerValLike) => implicitly[Ordering[InnerValLike]].compare(xv, yv)
-        case (xv: BigDecimal, yv: Long) => implicitly[Ordering[BigDecimal]].compare(xv, BigDecimal(yv))
-        case (xv: Long, yv: BigDecimal) => implicitly[Ordering[BigDecimal]].compare(BigDecimal(xv), yv)
-        case (xv: BigDecimal, yv: Int) => implicitly[Ordering[BigDecimal]].compare(xv, BigDecimal(yv))
-        case (xv: Int, yv: BigDecimal) => implicitly[Ordering[BigDecimal]].compare(BigDecimal(xv), yv)
-        case (xv: BigDecimal, yv: Double) => implicitly[Ordering[BigDecimal]].compare(xv, BigDecimal(yv))
-        case (xv: Double, yv: BigDecimal) => implicitly[Ordering[BigDecimal]].compare(BigDecimal(xv), yv)
+        case (xv: Double, yv: Double) =>
+          implicitly[Ordering[Double]].compare(xv, yv)
+        case (xv: String, yv: String) =>
+          implicitly[Ordering[String]].compare(xv, yv)
+        case (xv: BigDecimal, yv: BigDecimal) =>
+          implicitly[Ordering[BigDecimal]].compare(xv, yv)
+        case (xv: JsValue, yv: JsValue) =>
+          implicitly[Ordering[JsValue]].compare(xv, yv)
+        case (xv: InnerValLike, yv: InnerValLike) =>
+          implicitly[Ordering[InnerValLike]].compare(xv, yv)
+        case (xv: BigDecimal, yv: Long) =>
+          implicitly[Ordering[BigDecimal]].compare(xv, BigDecimal(yv))
+        case (xv: Long, yv: BigDecimal) =>
+          implicitly[Ordering[BigDecimal]].compare(BigDecimal(xv), yv)
+        case (xv: BigDecimal, yv: Int) =>
+          implicitly[Ordering[BigDecimal]].compare(xv, BigDecimal(yv))
+        case (xv: Int, yv: BigDecimal) =>
+          implicitly[Ordering[BigDecimal]].compare(BigDecimal(xv), yv)
+        case (xv: BigDecimal, yv: Double) =>
+          implicitly[Ordering[BigDecimal]].compare(xv, BigDecimal(yv))
+        case (xv: Double, yv: BigDecimal) =>
+          implicitly[Ordering[BigDecimal]].compare(BigDecimal(xv), yv)
       }
     }
   }
 
-  def TupleMultiOrdering[T](ascendingLs: Seq[Boolean])(implicit ord: Ordering[T]): Ordering[(T, T, T, T)] = {
+  def TupleMultiOrdering[T](ascendingLs: Seq[Boolean])(
+      implicit ord: Ordering[T]): Ordering[(T, T, T, T)] = {
     new Ordering[(T, T, T, T)] {
       override def compare(tx: (T, T, T, T), ty: (T, T, T, T)): Int = {
         val len = ascendingLs.length
@@ -108,7 +120,10 @@ object OrderingUtil {
   }
 }
 
-class SeqMultiOrdering[T](ascendingLs: Seq[Boolean], defaultAscending: Boolean = true)(implicit ord: Ordering[T]) extends Ordering[Seq[T]] {
+class SeqMultiOrdering[T](
+    ascendingLs: Seq[Boolean],
+    defaultAscending: Boolean = true)(implicit ord: Ordering[T])
+    extends Ordering[Seq[T]] {
   override def compare(x: Seq[T], y: Seq[T]): Int = {
     val xe = x.iterator
     val ye = y.iterator

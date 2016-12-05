@@ -50,7 +50,7 @@ object ExactCounterStreaming extends SparkApp with WithKafka {
   )
   val streamHelper = StreamHelper(kafkaParam)
 
-  override def run() = {
+  override def run(): Unit = {
     validateArgument("interval", "clear")
     val (intervalInSec, clear) = (seconds(args(0).toLong), args(1).toBoolean)
 

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -34,7 +34,7 @@ import scala.concurrent.{ExecutionContext, Future}
 object ApplicationController extends Controller {
 
   var isHealthy = true
-  var isWriteFallbackHealthy= true
+  var isWriteFallbackHealthy = true
   var deployInfo = ""
   val applicationJsonHeader = "application/json"
 
@@ -47,12 +47,14 @@ object ApplicationController extends Controller {
   }
 
   private def badQueryExceptionResults(ex: Exception) =
-    Future.successful(BadRequest(PostProcess.badRequestResults(ex)).as(applicationJsonHeader))
+    Future.successful(
+      BadRequest(PostProcess.badRequestResults(ex)).as(applicationJsonHeader))
 
   private def errorResults =
     Future.successful(Ok(PostProcess.emptyResults).as(applicationJsonHeader))
 
-  def requestFallback(body: String): PartialFunction[Throwable, Future[Result]] = {
+  def requestFallback(
+      body: String): PartialFunction[Throwable, Future[Result]] = {
     case e: BadQueryException =>
       logger.error(s"{$body}, ${e.getMessage}", e)
       badQueryExceptionResults(e)
@@ -61,55 +63,63 @@ object ApplicationController extends Controller {
       errorResults
   }
 
-  def updateHealthCheck(isHealthy: Boolean) = Action { request =>
-    this.isHealthy = isHealthy
-    Ok(this.isHealthy + "\n")
+  def updateHealthCheck(isHealthy: Boolean): Action[AnyContent] = Action {
+    request =>
+      this.isHealthy = isHealthy
+      Ok(this.isHealthy + "\n")
   }
 
-  def healthCheck() = withHeader(parse.anyContent) { request =>
-    if (isHealthy) Ok(deployInfo)
-    else NotFound
+  def healthCheck(): Action[AnyContent] = withHeader(parse.anyContent) {
+    request =>
+      if (isHealthy) Ok(deployInfo)
+      else NotFound
   }
 
-  def skipElement(isAsync: Boolean) = !isWriteFallbackHealthy || isAsync
+  def skipElement(isAsync: Boolean): Boolean =
+    !isWriteFallbackHealthy || isAsync
 
-  def toKafkaTopic(isAsync: Boolean) = {
+  def toKafkaTopic(isAsync: Boolean): String = {
     if (!isWriteFallbackHealthy) Config.KAFKA_FAIL_TOPIC
     else {
       if (isAsync) Config.KAFKA_LOG_TOPIC_ASYNC else Config.KAFKA_LOG_TOPIC
     }
   }
 
-  def jsonResponse(json: JsValue, headers: (String, String)*) =
+  def jsonResponse(json: JsValue, headers: (String, String)*): Result =
     if (ApplicationController.isHealthy) {
       Ok(json).as(applicationJsonHeader).withHeaders(headers: _*)
     } else {
       Result(
         header = ResponseHeader(OK),
-        body = HttpEntity.Strict(ByteString(json.toString.getBytes()), Some(applicationJsonHeader))
-      ).as(applicationJsonHeader).withHeaders((CONNECTION -> "close") +: headers: _*)
+        body = HttpEntity.Strict(ByteString(json.toString.getBytes()),
+                                 Some(applicationJsonHeader))
+      ).as(applicationJsonHeader)
+        .withHeaders((CONNECTION -> "close") +: headers: _*)
     }
 
-  def toLogMessage[A](request: Request[A], result: Result)(startedAt: Long): String = {
+  def toLogMessage[A](request: Request[A], result: Result)(
+      startedAt: Long): String = {
     val duration = System.currentTimeMillis() - startedAt
     val isQueryRequest = result.header.headers.contains("result_size")
     val resultSize = result.header.headers.getOrElse("result_size", "-1")
 
     try {
       val body = request.body match {
-        case AnyContentAsJson(jsValue) => jsValue match {
-          case JsString(str) => str
-          case _ => jsValue.toString
-        }
+        case AnyContentAsJson(jsValue) =>
+          jsValue match {
+            case JsString(str) => str
+            case _ => jsValue.toString
+          }
         case AnyContentAsEmpty => ""
         case _ => request.body.toString
       }
 
       val str =
-        if (isQueryRequest)
+        if (isQueryRequest) {
           s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${body}"
-        else
+        } else {
           s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${body}"
+        }
 
       str
     } finally {
@@ -117,7 +127,9 @@ object ApplicationController extends Controller {
     }
   }
 
-  def withHeaderAsync[A](bodyParser: BodyParser[A])(block: Request[A] => Future[Result])(implicit ex: ExecutionContext) =
+  def withHeaderAsync[A](bodyParser: BodyParser[A])(
+      block: Request[A] => Future[Result])(
+      implicit ex: ExecutionContext): Action[A] =
     Action.async(bodyParser) { request =>
       val startedAt = System.currentTimeMillis()
       block(request).map { r =>
@@ -126,7 +138,8 @@ object ApplicationController extends Controller {
       }
     }
 
-  def withHeader[A](bodyParser: BodyParser[A])(block: Request[A] => Result) =
+  def withHeader[A](bodyParser: BodyParser[A])(
+      block: Request[A] => Result): Action[A] =
     Action(bodyParser) { request: Request[A] =>
       val startedAt = System.currentTimeMillis()
       val r = block(request)

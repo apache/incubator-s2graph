@@ -35,13 +35,13 @@ trait TestCommon {
   val testLabelWithDir = LabelWithDirection(testLabelId, testDir)
   val labelMeta = LabelMeta
 
-  def equalsTo(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) == 0
+  def equalsTo(x: Array[Byte], y: Array[Byte]): Boolean = Bytes.compareTo(x, y) == 0
 
-  def largerThan(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) > 0
+  def largerThan(x: Array[Byte], y: Array[Byte]): Boolean = Bytes.compareTo(x, y) > 0
 
-  def lessThan(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) < 0
+  def lessThan(x: Array[Byte], y: Array[Byte]): Boolean = Bytes.compareTo(x, y) < 0
 
-  def lessThanEqual(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) <= 0
+  def lessThanEqual(x: Array[Byte], y: Array[Byte]): Boolean = Bytes.compareTo(x, y) <= 0
 
   /** */
   import HBaseType.{VERSION1, VERSION2}

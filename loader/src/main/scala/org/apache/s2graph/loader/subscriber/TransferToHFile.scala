@@ -64,7 +64,7 @@ object TransferToHFile extends SparkApp {
     }
   }
 
-  def buildDegrees(msgs: RDD[String], labelMapping: Map[String, String], edgeAutoCreate: Boolean) = {
+  def buildDegrees(msgs: RDD[String], labelMapping: Map[String, String], edgeAutoCreate: Boolean): RDD[(DegreeKey, Long)] = {
     val filtered = msgs.filter { case msg =>
       val tokens = GraphUtil.split(msg)
       tokens(2) == "e" || tokens(2) == "edge"
@@ -140,7 +140,7 @@ object TransferToHFile extends SparkApp {
   }
 
 
-  override def run() = {
+  override def run(): Unit = {
     val input = args(0)
     val tmpPath = args(1)
     val zkQuorum = args(2)

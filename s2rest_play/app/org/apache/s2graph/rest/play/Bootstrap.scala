@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -42,7 +42,7 @@ object Global extends WithFilters(new GzipFilter()) {
   var s2rest: RestHandler = _
   var wallLogHandler: ExceptionHandler = _
 
-  def startup() = {
+  def startup(): com.typesafe.config.Config = {
     val numOfThread = Runtime.getRuntime.availableProcessors()
     val threadPool = Executors.newFixedThreadPool(numOfThread)
     val ec = ExecutionContext.fromExecutor(threadPool)
@@ -52,15 +52,16 @@ object Global extends WithFilters(new GzipFilter()) {
     // init s2graph with config
     s2graph = new S2Graph(config)(ec)
     storageManagement = new Management(s2graph)
-    s2parser = new RequestParser(s2graph) 
+    s2parser = new RequestParser(s2graph)
     s2rest = new RestHandler(s2graph)(ec)
 
-    logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
+    logger.info(
+      s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
 
     config
   }
 
-  def shutdown() = {
+  def shutdown(): Unit = {
     s2graph.shutdown()
   }
 
@@ -73,8 +74,12 @@ object Global extends WithFilters(new GzipFilter()) {
 
     QueueActor.init(s2graph, wallLogHandler)
 
-    val defaultHealthOn = Config.conf.getBoolean("app.health.on").getOrElse(true)
-    ApplicationController.deployInfo = Try(Source.fromFile("./release_info").mkString("")).recover { case _ => "release info not found\n" }.get
+    val defaultHealthOn =
+      Config.conf.getBoolean("app.health.on").getOrElse(true)
+    ApplicationController.deployInfo =
+      Try(Source.fromFile("./release_info").mkString("")).recover {
+        case _ => "release info not found\n"
+      }.get
 
     ApplicationController.isHealthy = defaultHealthOn
   }
@@ -84,24 +89,27 @@ object Global extends WithFilters(new GzipFilter()) {
     QueueActor.shutdown()
 
     /**
-     * shutdown hbase client for flush buffers.
-     */
+      * shutdown hbase client for flush buffers.
+      */
     shutdown()
   }
 
   override def onError(request: RequestHeader, ex: Throwable): Future[Result] = {
-    logger.error(s"onError => ip:${request.remoteAddress}, request:${request}", ex)
+    logger
+      .error(s"onError => ip:${request.remoteAddress}, request:${request}", ex)
     Future.successful(Results.InternalServerError)
   }
 
   override def onHandlerNotFound(request: RequestHeader): Future[Result] = {
-    logger.error(s"onHandlerNotFound => ip:${request.remoteAddress}, request:${request}")
+    logger.error(
+      s"onHandlerNotFound => ip:${request.remoteAddress}, request:${request}")
     Future.successful(Results.NotFound)
   }
 
-  override def onBadRequest(request: RequestHeader, error: String): Future[Result] = {
-    logger.error(s"onBadRequest => ip:${request.remoteAddress}, request:$request, error:$error")
+  override def onBadRequest(request: RequestHeader,
+                            error: String): Future[Result] = {
+    logger.error(
+      s"onBadRequest => ip:${request.remoteAddress}, request:$request, error:$error")
     Future.successful(Results.BadRequest(error))
   }
 }
-

@@ -29,7 +29,7 @@ import scala.concurrent.ExecutionContext
 trait BenchmarkCommon extends Specification {
   val wrapStr = s"\n=================================================="
 
-  def duration[T](prefix: String = "")(block: => T) = {
+  def duration[T](prefix: String = "")(block: => T): T = {
     val startTs = System.currentTimeMillis()
     val ret = block
     val endTs = System.currentTimeMillis()

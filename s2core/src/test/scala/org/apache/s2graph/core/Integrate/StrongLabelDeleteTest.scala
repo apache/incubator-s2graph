@@ -225,7 +225,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val testNum = 10
     val numOfBatch = 10
 
-    def testInner(startTs: Long, src: Long) = {
+    def testInner(startTs: Long, src: Long): (Boolean, Long) = {
       val lastOps = Array.fill(maxTgtId)("none")
       var currentTs = startTs
 
@@ -265,7 +265,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       (ret, currentTs)
     }
 
-    def bulkEdges(startTs: Int = 0) = Seq(
+    def bulkEdges(startTs: Int = 0): Seq[String] = Seq(
       toEdge(startTs + 1, "insert", "e", "0", "1", labelName, s"""{"time": 10}"""),
       toEdge(startTs + 2, "insert", "e", "0", "1", labelName, s"""{"time": 11}"""),
       toEdge(startTs + 3, "insert", "e", "0", "1", labelName, s"""{"time": 12}"""),
@@ -277,7 +277,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     )
 
     def query(id: Long, serviceName: String = testServiceName, columnName: String = testColumnName,
-              _labelName: String = labelName, direction: String = "out") = Json.parse(
+              _labelName: String = labelName, direction: String = "out"): JsValue = Json.parse(
       s"""
           { "srcVertices": [
             { "serviceName": "$serviceName",

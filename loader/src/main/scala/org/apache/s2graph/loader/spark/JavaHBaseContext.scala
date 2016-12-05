@@ -54,7 +54,7 @@ class JavaHBaseContext(@transient private val jsc: JavaSparkContext,
    *                with HBase
    */
   def foreachPartition[T](javaRdd: JavaRDD[T],
-                          f: VoidFunction[(java.util.Iterator[T], Connection)]) = {
+                          f: VoidFunction[(java.util.Iterator[T], Connection)]): Unit = {
 
     hbaseContext.foreachPartition(javaRdd.rdd,
       (it: Iterator[T], conn: Connection) => {
@@ -76,7 +76,7 @@ class JavaHBaseContext(@transient private val jsc: JavaSparkContext,
    *                    interact with HBase
    */
   def foreachPartition[T](javaDstream: JavaDStream[T],
-                          f: VoidFunction[(Iterator[T], Connection)]) = {
+                          f: VoidFunction[(Iterator[T], Connection)]): Unit = {
     hbaseContext.foreachPartition(javaDstream.dstream,
       (it: Iterator[T], conn: Connection) => f.call((it, conn)))
   }
@@ -177,7 +177,7 @@ class JavaHBaseContext(@transient private val jsc: JavaSparkContext,
    */
   def streamBulkPut[T](javaDstream: JavaDStream[T],
                        tableName: TableName,
-                       f: Function[T, Put]) = {
+                       f: Function[T, Put]): Unit = {
     hbaseContext.streamBulkPut(javaDstream.dstream,
       tableName,
       (t: T) => f.call(t))
@@ -199,7 +199,7 @@ class JavaHBaseContext(@transient private val jsc: JavaSparkContext,
    * @param batchSize The number of deletes to batch before sending to HBase
    */
   def bulkDelete[T](javaRdd: JavaRDD[T], tableName: TableName,
-                    f: Function[T, Delete], batchSize: Integer) {
+                    f: Function[T, Delete], batchSize: Integer): Unit = {
     hbaseContext.bulkDelete(javaRdd.rdd, tableName, (t: T) => f.call(t), batchSize)
   }
 
@@ -221,7 +221,7 @@ class JavaHBaseContext(@transient private val jsc: JavaSparkContext,
   def streamBulkDelete[T](javaDStream: JavaDStream[T],
                           tableName: TableName,
                           f: Function[T, Delete],
-                          batchSize: Integer) = {
+                          batchSize: Integer): Unit = {
     hbaseContext.streamBulkDelete(javaDStream.dstream, tableName,
       (t: T) => f.call(t),
       batchSize)

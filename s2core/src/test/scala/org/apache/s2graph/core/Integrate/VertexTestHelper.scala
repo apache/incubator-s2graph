@@ -60,7 +60,7 @@ class VertexTestHelper extends IntegrateCommon {
   }
 
   object VertexTestHelper {
-    def vertexQueryJson(serviceName: String, columnName: String, ids: Seq[Int]) = {
+    def vertexQueryJson(serviceName: String, columnName: String, ids: Seq[Int]): JsValue = {
       Json.parse(
         s"""
            |[
@@ -80,7 +80,7 @@ class VertexTestHelper extends IntegrateCommon {
       ("age", "int")
     )
 
-    def randomProps() = {
+    def randomProps(): Map[String, Int] = {
       (for {
         (propKey, propType) <- vertexPropsKeys
       } yield {

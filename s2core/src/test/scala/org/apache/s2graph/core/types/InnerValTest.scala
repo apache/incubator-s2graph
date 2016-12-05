@@ -57,7 +57,7 @@ class InnerValTest extends FunSuite with Matchers with TestCommonWithModels {
   val blobs = List(
     (0 until 1000).map(x => Byte.MaxValue).toArray
   )
-  def testEncodeDecode(ranges: List[InnerValLike], version: String) = {
+  def testEncodeDecode(ranges: List[InnerValLike], version: String): Unit = {
     for {
       innerVal <- ranges
     }  {

@@ -21,7 +21,7 @@ package org.apache.s2graph.core.Integrate
 
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.utils.logger
-import play.api.libs.json.{JsObject, Json}
+import play.api.libs.json.{JsObject, JsValue, Json}
 
 class CrudTest extends IntegrateCommon {
   import CrudHelper._
@@ -201,7 +201,7 @@ class CrudTest extends IntegrateCommon {
     class CrudTestRunner {
       var seed = System.currentTimeMillis()
 
-      def run(tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]) = {
+      def run(tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]): Unit = {
         for {
           labelName <- List(testLabelName, testLabelName2)
           i <- 0 until NumOfEachTest
@@ -256,7 +256,7 @@ class CrudTest extends IntegrateCommon {
         }
       }
 
-      def expireTC(labelName: String, id: Int) = {
+      def expireTC(labelName: String, id: Int): Unit = {
         var i = 1
         val label = Label.findByName(labelName).get
         val serviceName = label.serviceName
@@ -313,7 +313,7 @@ class CrudTest extends IntegrateCommon {
         }
       }
 
-      def queryJson(serviceName: String, columnName: String, labelName: String, id: String, dir: String, cacheTTL: Long = -1L) = Json.parse(
+      def queryJson(serviceName: String, columnName: String, labelName: String, id: String, dir: String, cacheTTL: Long = -1L): JsValue = Json.parse(
         s""" { "srcVertices": [
              { "serviceName": "$serviceName",
                "columnName": "$columnName",
@@ -325,7 +325,7 @@ class CrudTest extends IntegrateCommon {
              "limit": 10,
              "cacheTTL": $cacheTTL }]]}""")
 
-      def querySnapshotEdgeJson(serviceName: String, columnName: String, labelName: String, id: Int) = Json.parse(
+      def querySnapshotEdgeJson(serviceName: String, columnName: String, labelName: String, id: Int): JsValue = Json.parse(
         s""" { "srcVertices": [
              { "serviceName": "$serviceName",
                "columnName": "$columnName",

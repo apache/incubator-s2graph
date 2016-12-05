@@ -33,7 +33,7 @@ import scala.language.postfixOps
 
 object WalLogToHDFS extends SparkApp with WithKafka {
 
-  override def run() = {
+  override def run(): Unit = {
 
     validateArgument("kafkaZkQuorum", "brokerList", "topics", "intervalInSec", "dbUrl", "outputPath", "hiveDatabase", "hiveTable", "splitListPath")
 

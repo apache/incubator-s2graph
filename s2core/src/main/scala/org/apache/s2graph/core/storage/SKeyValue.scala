@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,7 +21,6 @@ package org.apache.s2graph.core.storage
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.KeyValue
-
 
 object SKeyValue {
   val EdgeCf = "e".getBytes()
@@ -39,10 +38,15 @@ case class SKeyValue(table: Array[Byte],
                      timestamp: Long,
                      operation: Int = SKeyValue.Default,
                      durability: Boolean = true) {
-  def toLogString = {
-    Map("table" -> Bytes.toString(table), "row" -> row.toList, "cf" -> Bytes.toString(cf),
-      "qualifier" -> qualifier.toList, "value" -> value.toList, "timestamp" -> timestamp,
-      "operation" -> operation, "durability" -> durability).toString
+  def toLogString: String = {
+    Map("table" -> Bytes.toString(table),
+        "row" -> row.toList,
+        "cf" -> Bytes.toString(cf),
+        "qualifier" -> qualifier.toList,
+        "value" -> value.toList,
+        "timestamp" -> timestamp,
+        "operation" -> operation,
+        "durability" -> durability).toString
   }
   override def toString(): String = toLogString
 
@@ -58,7 +62,12 @@ object CanSKeyValue {
   // For asyncbase KeyValues
   implicit val asyncKeyValue = new CanSKeyValue[KeyValue] {
     def toSKeyValue(kv: KeyValue): SKeyValue = {
-      SKeyValue(Array.empty[Byte], kv.key(), kv.family(), kv.qualifier(), kv.value(), kv.timestamp())
+      SKeyValue(Array.empty[Byte],
+                kv.key(),
+                kv.family(),
+                kv.qualifier(),
+                kv.value(),
+                kv.timestamp())
     }
   }
 
@@ -69,4 +78,3 @@ object CanSKeyValue {
 
   // For hbase KeyValues
 }
-

@@ -34,7 +34,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   val weight = "weight"
   val is_hidden = "is_hidden"
 
-  def querySingle(id: Int, offset: Int = 0, limit: Int = 100) = Json.parse(
+  def querySingle(id: Int, offset: Int = 0, limit: Int = 100): JsValue = Json.parse(
     s"""
           { "srcVertices": [
             { "serviceName": "$testServiceName",
@@ -76,7 +76,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       )
     )
 
-  def queryIntervalWithParent(id: Int, index: String, prop: String, value: String) =
+  def queryIntervalWithParent(id: Int, index: String, prop: String, value: String): Query =
     Query(
       vertices = Seq(graph.toVertex(testServiceName, testColumnName, id)),
       steps = Vector(
@@ -89,7 +89,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
   def queryIntervalWithParentRange(id: Int, index: String,
                                    prop: String, value: String,
-                                   toProp: String, toValue: String) =
+                                   toProp: String, toValue: String): Query =
     Query(
       vertices = Seq(graph.toVertex(testServiceName, testColumnName, id)),
       steps = Vector(
@@ -100,7 +100,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       )
     )
 
-  def queryWithInterval(id: Int, index: String, prop: String, fromVal: Int, toVal: Int) =
+  def queryWithInterval(id: Int, index: String, prop: String, fromVal: Int, toVal: Int): Query =
     Query(
       vertices = Seq(graph.toVertex(testServiceName, testColumnName, id)),
       steps = Vector(
@@ -109,7 +109,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       )
     )
 
-  def queryExclude(id: Int) =
+  def queryExclude(id: Int): Query =
     Query(
       vertices = Seq(graph.toVertex(testServiceName, testColumnName, id)),
       steps = Vector(
@@ -122,7 +122,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
       )
     )
 
-  def queryGroupBy(id: Int, props: Seq[String]) =
+  def queryGroupBy(id: Int, props: Seq[String]): Query =
     Query(
       vertices = Seq(graph.toVertex(testServiceName, testColumnName, id)),
       steps = Vector(
@@ -256,7 +256,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   }
 
   test("edge transform") {
-    def queryTransform(id: Int, transforms: String) = Json.parse(
+    def queryTransform(id: Int, transforms: String): JsValue = Json.parse(
       s"""
         { "srcVertices": [
           { "serviceName": "${testServiceName}",
@@ -284,7 +284,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   }
 
   test("index") {
-    def queryIndex(ids: Seq[Int], indexName: String) = {
+    def queryIndex(ids: Seq[Int], indexName: String): JsValue = {
       val $from = Json.arr(
         Json.obj("serviceName" -> testServiceName,
           "columnName" -> testColumnName,
@@ -331,7 +331,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   //    }
 
   test("duration") {
-    def queryDuration(ids: Seq[Int], from: Int, to: Int) = {
+    def queryDuration(ids: Seq[Int], from: Int, to: Int): JsValue = {
       val $from = Json.arr(
         Json.obj("serviceName" -> testServiceName,
           "columnName" -> testColumnName,
@@ -379,7 +379,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   }
 
   test("return tree") {
-    def queryParentsWithoutSelect(id: Long) = Json.parse(
+    def queryParentsWithoutSelect(id: Long): JsValue = Json.parse(
       s"""
         {
           "returnTree": true,
@@ -404,7 +404,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
           ]]
         }""".stripMargin)
 
-    def queryParents(id: Long) = Json.parse(
+    def queryParents(id: Long): JsValue = Json.parse(
       s"""
         {
           "select": ["weight"],
@@ -478,7 +478,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
 
   test("pagination and _to") {
-    def querySingleWithTo(id: Int, offset: Int = 0, limit: Int = 100, to: Int) = Json.parse(
+    def querySingleWithTo(id: Int, offset: Int = 0, limit: Int = 100, to: Int): JsValue = Json.parse(
       s"""
         { "srcVertices": [
           { "serviceName": "${testServiceName}",
@@ -588,7 +588,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   }
 
   test("query with sampling") {
-    def queryWithSampling(id: Int, sample: Int) = Json.parse(
+    def queryWithSampling(id: Int, sample: Int): JsValue = Json.parse(
       s"""
         { "srcVertices": [
           { "serviceName": "$testServiceName",
@@ -608,7 +608,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
           ]
         }""")
 
-    def twoStepQueryWithSampling(id: Int, sample: Int) = Json.parse(
+    def twoStepQueryWithSampling(id: Int, sample: Int): JsValue = Json.parse(
       s"""
         { "srcVertices": [
           { "serviceName": "$testServiceName",
@@ -637,7 +637,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
           ]
         }""")
 
-    def twoQueryWithSampling(id: Int, sample: Int) = Json.parse(
+    def twoQueryWithSampling(id: Int, sample: Int): JsValue = Json.parse(
       s"""
         { "srcVertices": [
           { "serviceName": "$testServiceName",
@@ -699,7 +699,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     (result3 \ "results").as[List[JsValue]].size should be(sampleSize + 3) // edges in testLabelName2 = 3
   }
   test("test query with filterOut query") {
-    def queryWithFilterOut(id1: String, id2: String) = Json.parse(
+    def queryWithFilterOut(id1: String, id2: String): JsValue = Json.parse(
       s"""{
          |	"limit": 10,
          |	"filterOut": {
@@ -758,7 +758,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 
   /** note that this merge two different label result into one */
   test("weighted union") {
-    def queryWithWeightedUnion(id1: String, id2: String) = Json.parse(
+    def queryWithWeightedUnion(id1: String, id2: String): JsValue = Json.parse(
       s"""
 				|{
 				|  "limit": 10,
@@ -840,7 +840,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   }
 
   test("weighted union with options") {
-    def queryWithWeightedUnionWithOptions(id1: String, id2: String) = Json.parse(
+    def queryWithWeightedUnionWithOptions(id1: String, id2: String): JsValue = Json.parse(
       s"""
          |{
          |  "limit": 10,
@@ -941,7 +941,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   }
 
   test("scoreThreshold") {
-    def queryWithScoreThreshold(id: String, scoreThreshold: Int) = Json.parse(
+    def queryWithScoreThreshold(id: String, scoreThreshold: Int): JsValue = Json.parse(
       s"""{
          |  "limit": 10,
          |  "scoreThreshold": $scoreThreshold,
@@ -1008,7 +1008,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   }
 
   // called by each test, each
-  override def beforeEach = initTestData()
+  override def beforeEach: Unit = initTestData()
 
   // called by start test, once
   override def initTestData(): Unit = {

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -28,12 +28,12 @@ import play.api.libs.json.JsValue
 
 class ExceptionHandler(config: Config) {
 
-
   import ExceptionHandler._
 
   val keyBrokerList = "kafka.metadata.broker.list"
   val phase = if (config.hasPath("phase")) config.getString("phase") else "dev"
-  val useKafka = config.hasPath(keyBrokerList) && config.getString(keyBrokerList) != "localhost"
+  val useKafka = config.hasPath(keyBrokerList) && config.getString(
+      keyBrokerList) != "localhost"
 
   val producer: Option[KafkaProducer[Key, Val]] =
     if (useKafka) {
@@ -63,7 +63,7 @@ class ExceptionHandler(config: Config) {
     }
   }
 
-  def shutdown() = producer.foreach(_.close)
+  def shutdown(): Unit = producer.foreach(_.close)
 }
 
 object ExceptionHandler {
@@ -73,23 +73,21 @@ object ExceptionHandler {
   def toKafkaMessage(topic: String,
                      element: GraphElement,
                      originalString: Option[String] = None,
-                     produceJson: Boolean = false) = {
+                     produceJson: Boolean = false): KafkaMessage = {
     val edgeString = originalString.getOrElse(element.toLogString())
     val msg = edgeString
 
     KafkaMessage(
-      new ProducerRecord[Key, Val](
-        topic,
-        element.queuePartitionKey,
-        msg))
+      new ProducerRecord[Key, Val](topic, element.queuePartitionKey, msg))
   }
 
   // only used in deleteAll
-  def toKafkaMessage(topic: String, tsv: String) = {
+  def toKafkaMessage(topic: String, tsv: String): KafkaMessage = {
     KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
   }
 
-  def toKafkaMessage(topic: String, jsValue: JsValue): KafkaMessage = toKafkaMessage(topic, jsValue.toString())
+  def toKafkaMessage(topic: String, jsValue: JsValue): KafkaMessage =
+    toKafkaMessage(topic, jsValue.toString())
 
   case class KafkaMessage(msg: ProducerRecord[Key, Val])
 
@@ -98,7 +96,8 @@ object ExceptionHandler {
 
     /** all default configuration for new producer */
     val brokers =
-      if (config.hasPath("kafka.metadata.broker.list")) config.getString("kafka.metadata.broker.list")
+      if (config.hasPath("kafka.metadata.broker.list"))
+        config.getString("kafka.metadata.broker.list")
       else "localhost"
 
     props.put("bootstrap.servers", brokers)
@@ -113,8 +112,10 @@ object ExceptionHandler {
     props.put("send.buffer.bytes", "131072")
     props.put("timeout.ms", "30000")
     props.put("block.on.buffer.full", "false")
-    props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
-    props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
+    props.put("value.serializer",
+              "org.apache.kafka.common.serialization.StringSerializer")
+    props.put("key.serializer",
+              "org.apache.kafka.common.serialization.StringSerializer")
 
     props
   }

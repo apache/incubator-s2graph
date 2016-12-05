@@ -24,7 +24,7 @@ name := "s2spark"
 scalacOptions ++= Seq("-deprecation", "-feature")
 
 libraryDependencies ++= Seq(
-  "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
+  "com.google.guava" % "guava" % "12.0.1" force (), // use this old version of guava to avoid incompatibility
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-streaming" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-streaming-kafka" % sparkVersion,

@@ -168,7 +168,7 @@ object S2Graph {
     } yield convertedEdge
   }
 
-  def processTimeDecay(queryParam: QueryParam, edge: S2Edge) = {
+  def processTimeDecay(queryParam: QueryParam, edge: S2Edge): Double = {
     /* process time decay */
     val tsVal = queryParam.timeDecay match {
       case None => 1.0
@@ -588,7 +588,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
   }
 
-  def fallback = Future.successful(StepResult.Empty)
+  def fallback: Future[StepResult] = Future.successful(StepResult.Empty)
 
   def checkEdges(edges: Seq[S2Edge]): Future[StepResult] = {
     val futures = for {

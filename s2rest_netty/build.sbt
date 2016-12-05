@@ -23,6 +23,6 @@ name := "s2rest_netty"
 enablePlugins(JavaAppPackaging)
 
 libraryDependencies ++= Seq(
-  "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
+  "com.google.guava" % "guava" % "12.0.1" force (), // use this old version of guava to avoid incompatibility
   "io.netty" % "netty-all" % "4.0.33.Final"
 )

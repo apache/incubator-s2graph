@@ -70,7 +70,7 @@ class HashShardingJedis(config: Config) {
      (getJedisPool(idx), getJedisPool(secondaryIdx))
    }
 
-   def doBlockWithJedisInstace(f : Jedis => Any, fallBack : => Any, jedis : Jedis) = {
+   def doBlockWithJedisInstace(f : Jedis => Any, fallBack : => Any, jedis : Jedis): Any = {
      try {
        f(jedis)
      }
@@ -81,7 +81,7 @@ class HashShardingJedis(config: Config) {
      }
    }
 
-   def doBlockWithBucketName(f : Jedis => Any, fallBack : => Any, bucket : String) = {
+   def doBlockWithBucketName(f : Jedis => Any, fallBack : => Any, bucket : String): Any = {
  //    Logger.debug(s"start jedis do block")
      //val (jedis_pool1, jedis_pool2) = getJedisPoolWithBucketname(bucket)
      val jedis_pool1= getJedisPoolWithBucketname2(bucket)
@@ -127,7 +127,7 @@ class HashShardingJedis(config: Config) {
      }
    }
 
-   def doBlockWithKey[T](key: String)(f: Jedis => T)(fallBack: => T) = {
+   def doBlockWithKey[T](key: String)(f: Jedis => T)(fallBack: => T): T = {
  //    Logger.debug(s"start jedis do block")
      val (jedis_pool1, jedis_pool2) = getJedisPoolWithBucketname(key)
      if(jedis_pool1 != null && jedis_pool2 != null) {

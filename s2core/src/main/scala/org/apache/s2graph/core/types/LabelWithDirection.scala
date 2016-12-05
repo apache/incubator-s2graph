@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -34,13 +34,15 @@ object LabelWithDirection {
     LabelWithDirection(labelId, dir)
   }
 
-  def labelOrderSeqWithIsInverted(labelOrderSeq: Byte, isInverted: Boolean): Array[Byte] = {
+  def labelOrderSeqWithIsInverted(labelOrderSeq: Byte,
+                                  isInverted: Boolean): Array[Byte] = {
     assert(labelOrderSeq < (1 << 6))
     val byte = labelOrderSeq << 1 | (if (isInverted) 1 else 0)
     Array.fill(1)(byte.toByte)
   }
 
-  def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte], offset: Int): (Byte, Boolean) = {
+  def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte],
+                                         offset: Int): (Byte, Boolean) = {
     val byte = bytes(offset)
     val isInverted = if ((byte & 1) != 0) true else false
     val labelOrderSeq = byte >> 1
@@ -48,7 +50,8 @@ object LabelWithDirection {
   }
 }
 
-case class LabelWithDirection(labelId: Int, dir: Int) extends HBaseSerializable {
+case class LabelWithDirection(labelId: Int, dir: Int)
+    extends HBaseSerializable {
 
   import HBaseType._
 
@@ -59,15 +62,16 @@ case class LabelWithDirection(labelId: Int, dir: Int) extends HBaseSerializable 
 
   lazy val compositeInt = labelBits | dir
 
-  def bytes = {
-     Bytes.toBytes(compositeInt)
+  def bytes: Array[Byte] = {
+    Bytes.toBytes(compositeInt)
   }
 
   lazy val dirToggled = LabelWithDirection(labelId, GraphUtil.toggleDir(dir))
 
-  def updateDir(newDir: Int) = LabelWithDirection(labelId, newDir)
+  def updateDir(newDir: Int): LabelWithDirection =
+    LabelWithDirection(labelId, newDir)
 
-  def isDirected = dir == 0 || dir == 1
+  def isDirected: Boolean = dir == 0 || dir == 1
 
   override def hashCode(): Int = compositeInt
 

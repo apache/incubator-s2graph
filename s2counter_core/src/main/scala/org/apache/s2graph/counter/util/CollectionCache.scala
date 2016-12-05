@@ -42,7 +42,7 @@ class CollectionCache[C <: { def nonEmpty: Boolean; def isEmpty: Boolean } ](con
   private lazy val log = LoggerFactory.getLogger(this.getClass)
   val localHostname = InetAddress.getLocalHost.getHostName
 
-  def size = cache.size
+  def size: Long = cache.size
   val maxSize = config.maxSize
 
   // cache statistics
@@ -75,7 +75,7 @@ class CollectionCache[C <: { def nonEmpty: Boolean; def isEmpty: Boolean } ](con
     }
   }
 
-  def purgeKey(key: String) = {
+  def purgeKey(key: String): Unit = {
     cache.invalidate(key)
   }
 

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -45,7 +45,9 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 
   def isNumericType(dataType: String): Boolean = {
     dataType match {
-      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE => true
+      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG |
+          InnerVal.FLOAT | InnerVal.DOUBLE =>
+        true
       case _ => false
     }
   }
@@ -60,11 +62,13 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
       case "short" | "int16" | "integer16" => SHORT
       case "byte" | "b" | "tinyint" | "int8" | "integer8" => BYTE
       case "boolean" | "bool" => BOOLEAN
-      case _ => throw new RuntimeException(s"can`t convert $dataType into InnerDataType")
+      case _ =>
+        throw new RuntimeException(
+          s"can`t convert $dataType into InnerDataType")
     }
   }
 
-  def numByteRange(num: BigDecimal) = {
+  def numByteRange(num: BigDecimal): SimplePositionedMutableByteRange = {
 //    val byteLen =
 //      if (num.isValidByte | num.isValidChar) 1
 //      else if (num.isValidShort) 2
@@ -83,8 +87,10 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
                 version: String,
                 isVertexId: Boolean): (InnerValLike, Int) = {
     version match {
-      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal.fromBytes(bytes, offset, len, version, isVertexId)
-      case VERSION1 => v1.InnerVal.fromBytes(bytes, offset, len, version, isVertexId)
+      case VERSION2 | VERSION3 | VERSION4 =>
+        v2.InnerVal.fromBytes(bytes, offset, len, version, isVertexId)
+      case VERSION1 =>
+        v1.InnerVal.fromBytes(bytes, offset, len, version, isVertexId)
       case _ => throw notSupportedEx(version)
     }
   }
@@ -107,7 +113,8 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 
   def withFloat(f: Float, version: String): InnerValLike = {
     version match {
-      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(BigDecimal(f.toDouble))
+      case VERSION2 | VERSION3 | VERSION4 =>
+        v2.InnerVal(BigDecimal(f.toDouble))
       case VERSION1 => v1.InnerVal(Some(f.toLong), None, None)
       case _ => throw notSupportedEx(version)
     }
@@ -162,7 +169,9 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 //  }
 
   /** nasty implementation for backward compatability */
-  def convertVersion(innerVal: InnerValLike, dataType: String, toVersion: String): InnerValLike = {
+  def convertVersion(innerVal: InnerValLike,
+                     dataType: String,
+                     toVersion: String): InnerValLike = {
     val ret = toVersion match {
       case VERSION2 | VERSION3 | VERSION4 =>
         if (innerVal.isInstanceOf[v1.InnerVal]) {
@@ -171,7 +180,9 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
             case "long" => InnerVal.withLong(obj.longV.get, toVersion)
             case "string" => InnerVal.withStr(obj.strV.get, toVersion)
             case "boolean" => InnerVal.withBoolean(obj.boolV.get, toVersion)
-            case _ => throw new Exception(s"InnerVal should be [long/integeer/short/byte/string/boolean]")
+            case _ =>
+              throw new Exception(
+                s"InnerVal should be [long/integeer/short/byte/string/boolean]")
           }
         } else {
           innerVal
@@ -207,13 +218,13 @@ trait InnerValLike extends HBaseSerializable {
 
   def +(other: InnerValLike): InnerValLike
 
-  def <(other: InnerValLike) = this.compare(other) < 0
+  def <(other: InnerValLike): Boolean = this.compare(other) < 0
 
-  def <=(other: InnerValLike) = this.compare(other) <= 0
+  def <=(other: InnerValLike): Boolean = this.compare(other) <= 0
 
-  def >(other: InnerValLike) = this.compare(other) > 0
+  def >(other: InnerValLike): Boolean = this.compare(other) > 0
 
-  def >=(other: InnerValLike) = this.compare(other) >= 0
+  def >=(other: InnerValLike): Boolean = this.compare(other) >= 0
 
   override def toString(): String = value.toString
 
@@ -232,11 +243,13 @@ trait InnerValLike extends HBaseSerializable {
 
 object InnerValLikeWithTs extends HBaseDeserializable {
   import HBaseType._
-  def fromBytes(bytes: Array[Byte],
-                offset: Int,
-                len: Int,
-                version: String = DEFAULT_VERSION): (InnerValLikeWithTs, Int) = {
-    val (innerVal, numOfBytesUsed) = InnerVal.fromBytes(bytes, offset, len, version)
+  def fromBytes(
+      bytes: Array[Byte],
+      offset: Int,
+      len: Int,
+      version: String = DEFAULT_VERSION): (InnerValLikeWithTs, Int) = {
+    val (innerVal, numOfBytesUsed) =
+      InnerVal.fromBytes(bytes, offset, len, version)
     val ts = Bytes.toLong(bytes, offset + numOfBytesUsed)
     (InnerValLikeWithTs(innerVal, ts), numOfBytesUsed + 8)
   }
@@ -255,7 +268,7 @@ object InnerValLikeWithTs extends HBaseDeserializable {
 }
 
 case class InnerValLikeWithTs(innerVal: InnerValLike, ts: Long)
-  extends HBaseSerializable {
+    extends HBaseSerializable {
 
   def bytes: Array[Byte] = {
     Bytes.add(innerVal.bytes, Bytes.toBytes(ts))
@@ -279,7 +292,9 @@ object CanInnerValLike {
           case INT | "int" => bd.intValue()
           case SHORT => bd.shortValue()
           case BYTE => bd.byteValue()
-          case _ => throw new RuntimeException(s"not supported data type: $element, $classType")
+          case _ =>
+            throw new RuntimeException(
+              s"not supported data type: $element, $classType")
         }
       case _ => element
 //        throw new RuntimeException(s"not supported data type: $element, ${element.getClass.getCanonicalName}, $classType")
@@ -290,18 +305,26 @@ object CanInnerValLike {
     classType match {
       case BLOB => element.isInstanceOf[Array[Byte]]
       case STRING => element.isInstanceOf[String]
-      case DOUBLE => element.isInstanceOf[Double] || element.isInstanceOf[BigDecimal]
-      case FLOAT => element.isInstanceOf[Float] || element.isInstanceOf[BigDecimal]
-      case LONG => element.isInstanceOf[Long] || element.isInstanceOf[BigDecimal]
+      case DOUBLE =>
+        element.isInstanceOf[Double] || element.isInstanceOf[BigDecimal]
+      case FLOAT =>
+        element.isInstanceOf[Float] || element.isInstanceOf[BigDecimal]
+      case LONG =>
+        element.isInstanceOf[Long] || element.isInstanceOf[BigDecimal]
       case INT => element.isInstanceOf[Int] || element.isInstanceOf[BigDecimal]
-      case SHORT => element.isInstanceOf[Short]  || element.isInstanceOf[BigDecimal]
-      case BYTE => element.isInstanceOf[Byte]  || element.isInstanceOf[BigDecimal]
+      case SHORT =>
+        element.isInstanceOf[Short] || element.isInstanceOf[BigDecimal]
+      case BYTE =>
+        element.isInstanceOf[Byte] || element.isInstanceOf[BigDecimal]
       case BOOLEAN => element.isInstanceOf[Boolean]
-      case _ => throw new RuntimeException(s"not supported data type: $element, $classType")
+      case _ =>
+        throw new RuntimeException(
+          s"not supported data type: $element, $classType")
     }
   }
   implicit val anyToInnerValLike = new CanInnerValLike[Any] {
-    override def toInnerVal(element: Any)(implicit encodingVer: String): InnerValLike = {
+    override def toInnerVal(element: Any)(
+        implicit encodingVer: String): InnerValLike = {
       element match {
         case i: InnerValLike => i
         case s: String => stringToInnerValLike.toInnerVal(s)
@@ -312,56 +335,68 @@ object CanInnerValLike {
         case b: BigDecimal => bigDecimalToInnerValLike.toInnerVal(b)
         case b: Boolean => booleanToInnerValLike.toInnerVal(b)
         case b: Array[Byte] => blobToInnerValLike.toInnerVal(b)
-        case _ => throw new RuntimeException(s"not supported element type: $element, ${element.getClass}")
+        case _ =>
+          throw new RuntimeException(
+            s"not supported element type: $element, ${element.getClass}")
       }
     }
   }
   implicit val innerValLikeToInnerValLike = new CanInnerValLike[InnerValLike] {
-    override def toInnerVal(element: InnerValLike)(implicit encodingVer: String): InnerValLike = element
+    override def toInnerVal(element: InnerValLike)(
+        implicit encodingVer: String): InnerValLike = element
   }
   implicit val objectToInnerValLike = new CanInnerValLike[Object] {
-    override def toInnerVal(element: Object)(implicit encodingVer: String): InnerValLike = {
+    override def toInnerVal(element: Object)(
+        implicit encodingVer: String): InnerValLike = {
       anyToInnerValLike.toInnerVal(element.asInstanceOf[Any])
     }
   }
 
   implicit val stringToInnerValLike = new CanInnerValLike[String] {
-    override def toInnerVal(element: String)(implicit encodingVer: String): InnerValLike = {
+    override def toInnerVal(element: String)(
+        implicit encodingVer: String): InnerValLike = {
       InnerVal.withStr(element, encodingVer)
     }
   }
   implicit val longToInnerValLike = new CanInnerValLike[Long] {
-    override def toInnerVal(element: Long)(implicit encodingVer: String): InnerValLike = {
+    override def toInnerVal(element: Long)(
+        implicit encodingVer: String): InnerValLike = {
       InnerVal.withLong(element, encodingVer)
     }
   }
   implicit val intToInnerValLike = new CanInnerValLike[Int] {
-    override def toInnerVal(element: Int)(implicit encodingVer: String): InnerValLike = {
+    override def toInnerVal(element: Int)(
+        implicit encodingVer: String): InnerValLike = {
       InnerVal.withInt(element, encodingVer)
     }
   }
   implicit val floatToInnerValLike = new CanInnerValLike[Float] {
-    override def toInnerVal(element: Float)(implicit encodingVer: String): InnerValLike = {
+    override def toInnerVal(element: Float)(
+        implicit encodingVer: String): InnerValLike = {
       InnerVal.withFloat(element, encodingVer)
     }
   }
   implicit val doubleToInnerValLike = new CanInnerValLike[Double] {
-    override def toInnerVal(element: Double)(implicit encodingVer: String): InnerValLike = {
+    override def toInnerVal(element: Double)(
+        implicit encodingVer: String): InnerValLike = {
       InnerVal.withDouble(element, encodingVer)
     }
   }
   implicit val bigDecimalToInnerValLike = new CanInnerValLike[BigDecimal] {
-    override def toInnerVal(element: BigDecimal)(implicit encodingVer: String): InnerValLike = {
+    override def toInnerVal(element: BigDecimal)(
+        implicit encodingVer: String): InnerValLike = {
       InnerVal.withNumber(element, encodingVer)
     }
   }
   implicit val booleanToInnerValLike = new CanInnerValLike[Boolean] {
-    override def toInnerVal(element: Boolean)(implicit encodingVer: String): InnerValLike = {
+    override def toInnerVal(element: Boolean)(
+        implicit encodingVer: String): InnerValLike = {
       InnerVal.withBoolean(element, encodingVer)
     }
   }
   implicit val blobToInnerValLike = new CanInnerValLike[Array[Byte]] {
-    override def toInnerVal(element: Array[Byte])(implicit encodingVer: String): InnerValLike = {
+    override def toInnerVal(element: Array[Byte])(
+        implicit encodingVer: String): InnerValLike = {
       InnerVal.withBlob(element, encodingVer)
     }
   }

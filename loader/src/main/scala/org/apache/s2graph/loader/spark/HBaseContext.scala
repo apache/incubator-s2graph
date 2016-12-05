@@ -260,7 +260,7 @@ class HBaseContext(@transient private val sc: SparkContext,
    */
   def streamBulkPut[T](dstream: DStream[T],
                        tableName: TableName,
-                       f: (T) => Put) = {
+                       f: (T) => Put): Unit = {
     val tName = tableName.getName
     dstream.foreachRDD((rdd, time) => {
       bulkPut(rdd, TableName.valueOf(tName), f)
@@ -303,7 +303,7 @@ class HBaseContext(@transient private val sc: SparkContext,
   def streamBulkDelete[T](dstream: DStream[T],
                           tableName: TableName,
                           f: (T) => Delete,
-                          batchSize: Integer) = {
+                          batchSize: Integer): Unit = {
     streamBulkMutation(dstream, tableName, f, batchSize)
   }
 

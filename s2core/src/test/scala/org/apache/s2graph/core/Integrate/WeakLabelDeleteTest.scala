@@ -112,7 +112,7 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
 
 
   // called by each test, each
-  override def beforeEach = initTestData()
+  override def beforeEach: Unit = initTestData()
 
   // called by start test, once
 
@@ -123,7 +123,7 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
 
   object WeakLabelDeleteHelper {
 
-    def bulkEdges(startTs: Int = 0) = Seq(
+    def bulkEdges(startTs: Int = 0): Seq[String] = Seq(
       toEdge(startTs + 1, "insert", "e", "0", "1", testLabelNameWeak, s"""{"time": 10}"""),
       toEdge(startTs + 2, "insert", "e", "0", "1", testLabelNameWeak, s"""{"time": 11}"""),
       toEdge(startTs + 3, "insert", "e", "0", "1", testLabelNameWeak, s"""{"time": 12}"""),
@@ -136,7 +136,7 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
         s"""{"time": 1, "weight": 0.1, "is_hidden": true, "is_blocked": false}""")
     )
 
-    def query(id: Int, direction: String = "out", columnName: String = testColumnName) = Json.parse(
+    def query(id: Int, direction: String = "out", columnName: String = testColumnName): JsValue = Json.parse(
       s"""
         { "srcVertices": [
           { "serviceName": "$testServiceName",

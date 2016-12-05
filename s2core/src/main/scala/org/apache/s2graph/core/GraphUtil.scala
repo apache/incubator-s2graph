@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -27,19 +27,31 @@ import scala.util.hashing.MurmurHash3
 
 object GraphUtil {
   private val TOKEN_DELIMITER = Pattern.compile("[\t]")
-  val operations = Map("i" -> 0, "insert" -> 0, "u" -> 1, "update" -> 1,
-    "increment" -> 2, "d" -> 3, "delete" -> 3,
-    "deleteAll" -> 4, "insertBulk" -> 5, "incrementCount" -> 6).map {
+  val operations = Map("i" -> 0,
+                       "insert" -> 0,
+                       "u" -> 1,
+                       "update" -> 1,
+                       "increment" -> 2,
+                       "d" -> 3,
+                       "delete" -> 3,
+                       "deleteAll" -> 4,
+                       "insertBulk" -> 5,
+                       "incrementCount" -> 6).map {
     case (k, v) =>
       k -> v.toByte
   }
   val BitsForMurMurHash = 16
   val bytesForMurMurHash = 2
   val defaultOpByte = operations("insert")
-  val directions = Map("out" -> 0, "in" -> 1, "undirected" -> 2, "u" -> 2, "directed" -> 0, "d" -> 0)
+  val directions = Map("out" -> 0,
+                       "in" -> 1,
+                       "undirected" -> 2,
+                       "u" -> 2,
+                       "directed" -> 0,
+                       "d" -> 0)
   val consistencyLevel = Map("weak" -> 0, "strong" -> 1)
 
-  def toType(t: String) = {
+  def toType(t: String): String = {
     t.trim().toLowerCase match {
       case "e" | "edge" => "edge"
       case "v" | "vertex" => "vertex"
@@ -67,7 +79,7 @@ object GraphUtil {
     }
   }
 
-  def fromDirection(direction: Int) = {
+  def fromDirection(direction: Int): String = {
     direction match {
       case 0 => "out"
       case 1 => "in"
@@ -75,12 +87,13 @@ object GraphUtil {
     }
   }
 
-  def toggleDir(dir: Int) = {
+  def toggleDir(dir: Int): Int = {
     dir match {
       case 0 => 1
       case 1 => 0
       case 2 => 2
-      case _ => throw new UnsupportedOperationException(s"toggleDirection: $dir")
+      case _ =>
+        throw new UnsupportedOperationException(s"toggleDirection: $dir")
     }
   }
 
@@ -107,7 +120,8 @@ object GraphUtil {
       case 5 => "insertBulk"
       case 6 => "incrementCount"
       case _ =>
-        throw new UnsupportedOperationException(s"op : $op (only support 0(insert),1(delete),2(updaet),3(increment))")
+        throw new UnsupportedOperationException(
+          s"op : $op (only support 0(insert),1(delete),2(updaet),3(increment))")
     }
   }
 
@@ -136,7 +150,7 @@ object GraphUtil {
 //    Random.nextInt(Short.MaxValue).toShort
   }
 
-  def smartSplit(s: String, delemiter: String) = {
+  def smartSplit(s: String, delemiter: String): Seq[String] = {
     val trimed_string = s.trim()
     if (trimed_string.equals("")) {
       Seq[String]()
@@ -145,7 +159,7 @@ object GraphUtil {
     }
   }
 
-  def split(line: String) = TOKEN_DELIMITER.split(line)
+  def split(line: String): Array[String] = TOKEN_DELIMITER.split(line)
 
   def parseString(s: String): List[String] = {
     if (!s.startsWith("[")) {

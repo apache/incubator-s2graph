@@ -61,7 +61,7 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
     override def lookup(m: HttpHeaders, key: String) = Option(m.get(key))
   }
 
-  def badRoute(ctx: ChannelHandlerContext) =
+  def badRoute(ctx: ChannelHandlerContext): Unit =
     simpleResponse(ctx, BadGateway, byteBufOpt = None, channelFutureListenerOpt = CloseOpt)
 
   def simpleResponse(ctx: ChannelHandlerContext,
@@ -85,7 +85,7 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext) extends 
     }
   }
 
-  def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, requestBody: String, result: HandlerResult, startedAt: Long) = {
+  def toResponse(ctx: ChannelHandlerContext, req: FullHttpRequest, requestBody: String, result: HandlerResult, startedAt: Long): Unit = {
     var closeOpt = CloseOpt
     var headers = mutable.ArrayBuilder.make[(String, String)]
 

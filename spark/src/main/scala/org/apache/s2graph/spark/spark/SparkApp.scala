@@ -40,7 +40,7 @@ trait SparkApp extends Logging {
   // should implement in derived class
   def run()
 
-  def getArgs(index: Int) = args(index)
+  def getArgs(index: Int): String = args(index)
 
   def main(args: Array[String]) {
     _args = args
@@ -87,7 +87,7 @@ trait SparkApp extends Logging {
     conf
   }
 
-  def streamingContext(sparkConf: SparkConf, interval: Duration, checkPoint: Option[String] = None) = {
+  def streamingContext(sparkConf: SparkConf, interval: Duration, checkPoint: Option[String] = None): StreamingContext = {
     val ssc = new StreamingContext(sparkConf, interval)
     checkPoint.foreach { dir =>
       ssc.checkpoint(dir)

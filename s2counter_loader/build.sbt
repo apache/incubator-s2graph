@@ -24,7 +24,7 @@ name := "s2counter-loader"
 scalacOptions in Test ++= Seq("-Yrangepos")
 
 libraryDependencies ++= Seq(
-  "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
+  "com.google.guava" % "guava" % "12.0.1" force (), // use this old version of guava to avoid incompatibility
   "org.apache.spark" %% "spark-core" % Common.sparkVersion % "provided",
   "org.apache.spark" %% "spark-streaming" % Common.sparkVersion % "provided",
   "org.apache.spark" %% "spark-streaming-kafka" % Common.sparkVersion,
@@ -46,7 +46,7 @@ transitiveClassifiers ++= Seq()
 assemblySettings
 
 mergeStrategy in assembly := {
-  case PathList("META-INF", ps @ _*) => MergeStrategy.discard
+  case PathList("META-INF", ps @ _ *) => MergeStrategy.discard
   case _ => MergeStrategy.first
 }
 

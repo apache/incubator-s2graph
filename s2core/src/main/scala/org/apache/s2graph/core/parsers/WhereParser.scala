@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,7 +19,10 @@
 
 package org.apache.s2graph.core.parsers
 
-import org.apache.s2graph.core.GraphExceptions.{LabelNotExistException, WhereParserException}
+import org.apache.s2graph.core.GraphExceptions.{
+  LabelNotExistException,
+  WhereParserException
+}
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.types.InnerValLike
 import org.apache.s2graph.core.{S2Edge, GraphUtil}
@@ -33,12 +36,15 @@ import scala.util.parsing.combinator.JavaTokenParsers
 trait ExtractValue {
   val parent = "_parent."
 
-  def propToInnerVal(edge: S2Edge, key: String) = {
+  def propToInnerVal(edge: S2Edge, key: String): InnerValLike = {
     val (propKey, parentEdge) = findParentEdge(edge, key)
 
     val label = parentEdge.innerLabel
     val metaPropInvMap = label.metaPropsInvMap
-    val labelMeta = metaPropInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
+    val labelMeta = metaPropInvMap.getOrElse(
+      propKey,
+      throw WhereParserException(
+        s"Where clause contains not existing property name: $propKey"))
 
     labelMeta match {
       case LabelMeta.from => parentEdge.srcVertex.innerId
@@ -47,13 +53,17 @@ trait ExtractValue {
     }
   }
 
-  def valueToCompare(edge: S2Edge, key: String, value: String) = {
+  def valueToCompare(edge: S2Edge, key: String, value: String): InnerValLike = {
     val label = edge.innerLabel
-    if (value.startsWith(parent) || label.metaPropsInvMap.contains(value)) propToInnerVal(edge, value)
+    if (value.startsWith(parent) || label.metaPropsInvMap.contains(value))
+      propToInnerVal(edge, value)
     else {
       val (propKey, _) = findParentEdge(edge, key)
 
-      val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
+      val labelMeta = label.metaPropsInvMap.getOrElse(
+        propKey,
+        throw WhereParserException(
+          s"Where clause contains not existing property name: $propKey"))
       val (srcColumn, tgtColumn) = label.srcTgtColumn(edge.labelWithDir.dir)
       val dataType = propKey match {
         case "_to" | "to" => tgtColumn.columnType
@@ -90,7 +100,9 @@ trait Clause extends ExtractValue {
 
   def filter(edge: S2Edge): Boolean
 
-  def binaryOp(binOp: (InnerValLike, InnerValLike) => Boolean)(propKey: String, value: String)(edge: S2Edge): Boolean = {
+  def binaryOp(binOp: (InnerValLike, InnerValLike) => Boolean)(
+      propKey: String,
+      value: String)(edge: S2Edge): Boolean = {
     val propValue = propToInnerVal(edge, propKey)
     val compValue = valueToCompare(edge, propKey, value)
 
@@ -99,31 +111,40 @@ trait Clause extends ExtractValue {
 }
 object Where {
   def apply(labelName: String, sql: String): Try[Where] = {
-    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+    val label = Label
+      .findByName(labelName)
+      .getOrElse(throw new LabelNotExistException(labelName))
     val parser = new WhereParser(label)
     parser.parse(sql)
   }
 }
 case class Where(clauses: Seq[Clause] = Seq.empty[Clause]) {
-  def filter(edge: S2Edge) =
+  def filter(edge: S2Edge): Boolean =
     if (clauses.isEmpty) true else clauses.map(_.filter(edge)).forall(identity)
 }
 
 case class Gt(propKey: String, value: String) extends Clause {
-  override def filter(edge: S2Edge): Boolean = binaryOp(_ > _)(propKey, value)(edge)
+  override def filter(edge: S2Edge): Boolean =
+    binaryOp(_ > _)(propKey, value)(edge)
 }
 
 case class Lt(propKey: String, value: String) extends Clause {
-  override def filter(edge: S2Edge): Boolean = binaryOp(_ < _)(propKey, value)(edge)
+  override def filter(edge: S2Edge): Boolean =
+    binaryOp(_ < _)(propKey, value)(edge)
 }
 
 case class Eq(propKey: String, value: String) extends Clause {
-  override def filter(edge: S2Edge): Boolean = binaryOp(_ == _)(propKey, value)(edge)
+  override def filter(edge: S2Edge): Boolean =
+    binaryOp(_ == _)(propKey, value)(edge)
 }
 
-case class InWithoutParent(label: Label, propKey: String, values: Set[String]) extends Clause {
+case class InWithoutParent(label: Label, propKey: String, values: Set[String])
+    extends Clause {
   lazy val innerValLikeLsOut = values.map { value =>
-    val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
+    val labelMeta = label.metaPropsInvMap.getOrElse(
+      propKey,
+      throw WhereParserException(
+        s"Where clause contains not existing property name: $propKey"))
     val dataType = propKey match {
       case "_to" | "to" => label.tgtColumn.columnType
       case "_from" | "from" => label.srcColumn.columnType
@@ -134,7 +155,10 @@ case class InWithoutParent(label: Label, propKey: String, values: Set[String]) e
   }
 
   lazy val innerValLikeLsIn = values.map { value =>
-    val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
+    val labelMeta = label.metaPropsInvMap.getOrElse(
+      propKey,
+      throw WhereParserException(
+        s"Where clause contains not existing property name: $propKey"))
     val dataType = propKey match {
       case "_to" | "to" => label.srcColumn.columnType
       case "_from" | "from" => label.tgtColumn.columnType
@@ -164,7 +188,8 @@ case class IN(propKey: String, values: Set[String]) extends Clause {
   }
 }
 
-case class Between(propKey: String, minValue: String, maxValue: String) extends Clause {
+case class Between(propKey: String, minValue: String, maxValue: String)
+    extends Clause {
   override def filter(edge: S2Edge): Boolean = {
     val propVal = propToInnerVal(edge, propKey)
     val minVal = valueToCompare(edge, propKey, minValue)
@@ -175,15 +200,17 @@ case class Between(propKey: String, minValue: String, maxValue: String) extends 
 }
 
 case class Not(self: Clause) extends Clause {
-  override def filter(edge: S2Edge) = !self.filter(edge)
+  override def filter(edge: S2Edge): Boolean = !self.filter(edge)
 }
 
 case class And(left: Clause, right: Clause) extends Clause {
-  override def filter(edge: S2Edge) = left.filter(edge) && right.filter(edge)
+  override def filter(edge: S2Edge): Boolean =
+    left.filter(edge) && right.filter(edge)
 }
 
 case class Or(left: Clause, right: Clause) extends Clause {
-  override def filter(edge: S2Edge) = left.filter(edge) || right.filter(edge)
+  override def filter(edge: S2Edge): Boolean =
+    left.filter(edge) || right.filter(edge)
 }
 
 object WhereParser {
@@ -193,8 +220,9 @@ object WhereParser {
 
 case class WhereParser(label: Label) extends JavaTokenParsers {
 
-
-  override val stringLiteral = (("'" ~> "(\\\\'|[^'])*".r <~ "'" ) ^^ (_.replace("\\'", "'"))) | anyStr
+  override val stringLiteral = (("'" ~> "(\\\\'|[^'])*".r <~ "'") ^^ (_.replace(
+      "\\'",
+      "'"))) | anyStr
 
   val anyStr = "[^\\s(),']+".r
 
@@ -212,21 +240,29 @@ case class WhereParser(label: Label) extends JavaTokenParsers {
 
   def paren: Parser[Clause] = "(" ~> clause <~ ")"
 
-  def clause: Parser[Clause] = (predicate | paren) * (and ^^^ { (a: Clause, b: Clause) => And(a, b) } | or ^^^ { (a: Clause, b: Clause) => Or(a, b) })
+  def clause: Parser[Clause] =
+    (predicate | paren) * (and ^^^ { (a: Clause, b: Clause) =>
+      And(a, b)
+    } | or ^^^ { (a: Clause, b: Clause) =>
+      Or(a, b)
+    })
 
-  def identWithDot: Parser[String] = repsep(ident, ".") ^^ { case values => values.mkString(".") }
+  def identWithDot: Parser[String] = repsep(ident, ".") ^^ {
+    case values => values.mkString(".")
+  }
 
   val _eq = identWithDot ~ ("!=" | "=") ~ stringLiteral ^^ {
     case f ~ op ~ s => if (op == "=") Eq(f, s) else Not(Eq(f, s))
   }
 
   val _ltGt = identWithDot ~ (">=" | "<=" | ">" | "<") ~ stringLiteral ^^ {
-    case f ~ op ~ s => op match {
-      case ">" => Gt(f, s)
-      case ">=" => Or(Gt(f, s), Eq(f, s))
-      case "<" => Lt(f, s)
-      case "<=" => Or(Lt(f, s), Eq(f, s))
-    }
+    case f ~ op ~ s =>
+      op match {
+        case ">" => Gt(f, s)
+        case ">=" => Or(Gt(f, s), Eq(f, s))
+        case "<" => Lt(f, s)
+        case "<=" => Or(Lt(f, s), Eq(f, s))
+      }
   }
 
   val _between = identWithDot ~ (between ~> stringLiteral <~ and) ~ stringLiteral ^^ {
@@ -243,12 +279,13 @@ case class WhereParser(label: Label) extends JavaTokenParsers {
       else Not(inClause)
   }
 
-  def predicate =  _eq | _ltGt | _between | _in
+  private def predicate = _eq | _ltGt | _between | _in
 
   def parse(sql: String): Try[Where] = Try {
     parseAll(where, sql) match {
       case Success(r, q) => r
-      case fail => throw WhereParserException(s"Where parsing error: ${fail.toString}")
+      case fail =>
+        throw WhereParserException(s"Where parsing error: ${fail.toString}")
     }
   }
 }

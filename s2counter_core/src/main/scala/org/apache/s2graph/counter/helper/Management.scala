@@ -37,7 +37,7 @@ class Management(config: Config) {
 
    val log = LoggerFactory.getLogger(this.getClass)
 
-   def describe(zkAddr: String, tableName: String) = {
+   def describe(zkAddr: String, tableName: String): Unit = {
      val admin = getAdmin(zkAddr)
      val table = admin.getTableDescriptor(TableName.valueOf(tableName))
 
@@ -49,7 +49,7 @@ class Management(config: Config) {
      }
    }
 
-   def setTTL(zkAddr: String, tableName: String, cfName: String, ttl: Int) = {
+   def setTTL(zkAddr: String, tableName: String, cfName: String, ttl: Int): Unit = {
      val admin = getAdmin(zkAddr)
      val tableNameObj = TableName.valueOf(tableName)
      val table = admin.getTableDescriptor(tableNameObj)
@@ -71,7 +71,7 @@ class Management(config: Config) {
      getAdmin(zkAddr).tableExists(TableName.valueOf(tableName))
    }
 
-   def createTable(zkAddr: String, tableName: String, cfs: List[String], regionMultiplier: Int) = {
+   def createTable(zkAddr: String, tableName: String, cfs: List[String], regionMultiplier: Int): Unit = {
      log.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier")
      val admin = getAdmin(zkAddr)
      val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier

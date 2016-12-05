@@ -28,7 +28,7 @@ import play.api.libs.json.{JsValue, Json}
 class ManagementTest extends IntegrateCommon {
 
 
-  def checkCopyLabel(originalLabelName: String, newLabelName: String) = {
+  def checkCopyLabel(originalLabelName: String, newLabelName: String): Unit = {
     val originalLabelOpt = Label.findByName(originalLabelName, useCache = true)
     originalLabelOpt.isDefined should be(true)
     val originalLabel = originalLabelOpt.get
@@ -52,7 +52,7 @@ class ManagementTest extends IntegrateCommon {
     copiedLabel.indices().sortBy(m => m.id.get).map(m => m.metaSeqs) should be(originalLabel.indices().sortBy(m => m.id.get).map(m => m.metaSeqs))
   }
 
-  def checkLabelTTL(labelName:String, serviceName:String, setTTL:Option[Int], checkTTL:Option[Int]) = {
+  def checkLabelTTL(labelName:String, serviceName:String, setTTL:Option[Int], checkTTL:Option[Int]): Unit = {
     Management.deleteLabel(labelName)
     val ttlOption = if(setTTL.isDefined) s""", "hTableTTL": ${setTTL.get}""" else ""
     val createLabelJson = s"""{

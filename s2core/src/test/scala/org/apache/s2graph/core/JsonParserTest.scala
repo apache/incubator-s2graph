@@ -58,7 +58,7 @@ class JsonParserTest extends FunSuite with Matchers with TestCommon {
     }
 
   def testInnerValToJsValue(innerValWithDataTypes: Seq[(InnerValLike, String)],
-                            version: String) = {
+                            version: String): Unit = {
     for {
       (innerVal, dataType) <- innerValWithDataTypes
     } {
