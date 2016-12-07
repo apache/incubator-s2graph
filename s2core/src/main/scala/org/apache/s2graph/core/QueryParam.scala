@@ -29,18 +29,16 @@ import org.apache.s2graph.core.rest.TemplateHelper
 import org.apache.s2graph.core.storage.StorageSerializable._
 import org.apache.s2graph.core.types._
 import org.hbase.async.ColumnRangeFilter
-import play.api.libs.json.{JsString, JsNull, JsValue, Json}
+import play.api.libs.json.{JsNull, JsString, JsValue, Json}
 
 import scala.util.{Success, Try}
 
 object Query {
   val initialScore = 1.0
   lazy val empty = Query()
-  def apply(query: Query): Query = {
+  def apply(query: Query): Query =
     Query(query.vertices, query.steps, query.queryOption, query.jsonQuery)
-  }
-  def toQuery(srcVertices: Seq[S2Vertex],
-              queryParams: Seq[QueryParam]): Query =
+  def toQuery(srcVertices: Seq[S2Vertex], queryParams: Seq[QueryParam]): Query =
     Query(srcVertices, Vector(Step(queryParams)))
 
 }
@@ -80,13 +78,15 @@ case class QueryOption(removeCycle: Boolean = false,
                        ignorePrevStepCache: Boolean = false) {
   val orderByKeys = orderByColumns.map(_._1)
   val ascendingVals = orderByColumns.map(_._2)
-  val selectColumnsMap = selectColumns.map { c =>
-    c -> true
-  }.toMap
+  val selectColumnsMap = selectColumns
+    .map { c =>
+      c -> true
+    }
+    .toMap
   val scoreFieldIdx =
     orderByKeys.zipWithIndex.find(t => t._1 == "score").map(_._2).getOrElse(-1)
-  val (edgeSelectColumns, propsSelectColumns) = selectColumns.partition(c =>
-    LabelMeta.defaultRequiredMetaNames.contains(c))
+  val (edgeSelectColumns, propsSelectColumns) =
+    selectColumns.partition(c => LabelMeta.defaultRequiredMetaNames.contains(c))
 
   /** */
   val edgeSelectColumnsFiltered = edgeSelectColumns
@@ -139,7 +139,8 @@ case class EdgeTransformer(jsValue: JsValue) {
     target <- targets
     fields <- target
   } yield fields
-  val isDefault = fieldsLs.size == 1 && fieldsLs.head.size == 1 && (fieldsLs.head.head == "_to" || fieldsLs.head.head == "to")
+  val isDefault = fieldsLs.size == 1 && fieldsLs.head.size == 1 &&
+      (fieldsLs.head.head == "_to" || fieldsLs.head.head == "to")
 
   def toHashKeyBytes: Array[Byte] =
     if (isDefault) Array.empty[Byte] else Bytes.toBytes(jsValue.toString)
@@ -150,30 +151,35 @@ case class EdgeTransformer(jsValue: JsValue) {
               nextStepOpt: Option[Step]): Seq[InnerValLike] = {
 
     val tokens = fmt.split(Delimiter)
-    val _values = values.padTo(
-      tokens.length,
-      InnerVal.withStr("", queryParam.label.schemaVersion))
-    val mergedStr = tokens
-      .zip(_values)
-      .map { case (prefix, innerVal) => prefix + innerVal.toString }
-      .mkString
+    val _values = values.padTo(tokens.length, InnerVal.withStr("", queryParam.label.schemaVersion))
+    val mergedStr =
+      tokens
+        .zip(_values)
+        .map { case (prefix, innerVal) => prefix + innerVal.toString }
+        .mkString
     //    logger.error(s"${tokens.toList}, ${values}, $mergedStr")
     //    println(s"${tokens.toList}, ${values}, $mergedStr")
     nextStepOpt match {
       case None =>
         val columnType =
-          if (queryParam.labelWithDir.dir == GraphUtil.directions("out"))
+          if (queryParam.labelWithDir.dir == GraphUtil.directions("out")) {
             queryParam.label.tgtColumnType
-          else queryParam.label.srcColumnType
+          } else {
+            queryParam.label.srcColumnType
+          }
 
-        if (columnType == InnerVal.STRING)
+        if (columnType == InnerVal.STRING) {
           Seq(InnerVal.withStr(mergedStr, queryParam.label.schemaVersion))
-        else Nil
+        } else {
+          Nil
+        }
       case Some(nextStep) =>
         val nextQueryParamsValid = nextStep.queryParams.filter { qParam =>
-          if (qParam.labelWithDir.dir == GraphUtil.directions("out"))
+          if (qParam.labelWithDir.dir == GraphUtil.directions("out")) {
             qParam.label.srcColumnType == "string"
-          else qParam.label.tgtColumnType == "string"
+          } else {
+            qParam.label.tgtColumnType == "string"
+          }
         }
         for {
           nextQueryParam <- nextQueryParamsValid
@@ -185,17 +191,14 @@ case class EdgeTransformer(jsValue: JsValue) {
 
   def toInnerValOpt(queryParam: QueryParam,
                     edge: S2Edge,
-                    fieldName: String): Option[InnerValLike] = {
+                    fieldName: String): Option[InnerValLike] =
     fieldName match {
       case LabelMeta.to.name => Option(edge.tgtVertex.innerId)
       case LabelMeta.from.name => Option(edge.srcVertex.innerId)
       case _ => edge.propertyValue(fieldName).map(_.innerVal)
     }
-  }
 
-  def transform(queryParam: QueryParam,
-                edge: S2Edge,
-                nextStepOpt: Option[Step]): Seq[S2Edge] = {
+  def transform(queryParam: QueryParam, edge: S2Edge, nextStepOpt: Option[Step]): Seq[S2Edge] =
     if (isDefault) Seq(edge)
     else {
       val edges = for {
@@ -208,17 +211,14 @@ case class EdgeTransformer(jsValue: JsValue) {
             val fmt +: fieldNames = fields
             replace(queryParam,
                     fmt,
-                    fieldNames.flatMap(fieldName =>
-                      toInnerValOpt(queryParam, edge, fieldName)),
+                    fieldNames.flatMap(fieldName => toInnerValOpt(queryParam, edge, fieldName)),
                     nextStepOpt)
           }
         }
-      } yield
-        edge.updateTgtVertex(innerVal).copy(originalEdgeOpt = Option(edge))
+      } yield edge.updateTgtVertex(innerVal).copy(originalEdgeOpt = Option(edge))
 
       edges
     }
-  }
 }
 
 object Step {
@@ -236,9 +236,10 @@ case class Step(queryParams: Seq[QueryParam],
 //  lazy val includes = queryParams.filterNot(_.exclude)
 //  lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 
-  lazy val cacheKeyBytes = queryParams
-    .map(_.toCacheKeyRaw(Array.empty[Byte]))
-    .foldLeft(Array.empty[Byte])(Bytes.add)
+  lazy val cacheKeyBytes =
+    queryParams
+      .map(_.toCacheKeyRaw(Array.empty[Byte]))
+      .foldLeft(Array.empty[Byte])(Bytes.add)
   def toCacheKey(lss: Seq[Long]): Long =
     Hashing.murmur3_128().hashBytes(toCacheKeyRaw(lss)).asLong()
 //    MurmurHash3.bytesHash(toCacheKeyRaw(lss))
@@ -255,12 +256,11 @@ case class Step(queryParams: Seq[QueryParam],
 case class VertexParam(vertices: Seq[S2Vertex]) {
   var filters: Option[Map[Byte, InnerValLike]] = None
 
-  def has(what: Option[Map[Byte, InnerValLike]]): VertexParam = {
+  def has(what: Option[Map[Byte, InnerValLike]]): VertexParam =
     what match {
       case None => this
       case Some(w) => has(w)
     }
-  }
 
   def has(what: Map[Byte, InnerValLike]): VertexParam = {
     this.filters = Some(what)
@@ -273,8 +273,7 @@ object RankParam {
   val Default = RankParam()
 }
 
-case class RankParam(
-    keySeqAndWeights: Seq[(LabelMeta, Double)] = Seq((LabelMeta.count, 1.0))) {
+case class RankParam(keySeqAndWeights: Seq[(LabelMeta, Double)] = Seq((LabelMeta.count, 1.0))) {
   // empty => Count
   lazy val rankKeysWeightsMap = keySeqAndWeights.toMap
 
@@ -282,8 +281,7 @@ case class RankParam(
     var bytes = Array.empty[Byte]
     keySeqAndWeights.map {
       case (labelMeta, weight) =>
-        bytes =
-          Bytes.add(bytes, Array.fill(1)(labelMeta.seq), Bytes.toBytes(weight))
+        bytes = Bytes.add(bytes, Array.fill(1)(labelMeta.seq), Bytes.toBytes(weight))
     }
     bytes
   }
@@ -315,8 +313,7 @@ case class QueryParam(
     timestamp: Long = System.currentTimeMillis(),
     threshold: Double = Double.MinValue,
     rank: RankParam = RankParam.Default,
-    intervalOpt: Option[((Seq[(String, JsValue)]), Seq[(String, JsValue)])] =
-      None,
+    intervalOpt: Option[((Seq[(String, JsValue)]), Seq[(String, JsValue)])] = None,
     durationOpt: Option[(Long, Long)] = None,
     exclude: Boolean = false,
     include: Boolean = false,
@@ -329,9 +326,9 @@ case class QueryParam(
     whereRawOpt: Option[String] = None,
     cursorOpt: Option[String] = None,
     tgtVertexIdOpt: Option[Any] = None,
-    edgeTransformer: EdgeTransformer = EdgeTransformer(
-      EdgeTransformer.DefaultJson),
-    timeDecay: Option[TimeDecay] = None) {
+    edgeTransformer: EdgeTransformer = EdgeTransformer(EdgeTransformer.DefaultJson),
+    timeDecay: Option[TimeDecay] = None
+) {
   import JSONParser._
 
   //TODO: implement this.
@@ -342,22 +339,20 @@ case class QueryParam(
     .getOrElse(throw LabelNotExistException(labelName))
   lazy val dir = GraphUtil
     .toDir(direction)
-    .getOrElse(
-      throw new RuntimeException(s"not supported direction: $direction"))
+    .getOrElse(throw new RuntimeException(s"not supported direction: $direction"))
 
   lazy val labelWithDir = LabelWithDirection(label.id.get, dir)
   lazy val labelOrderSeq =
-    if (indexName == LabelIndex.DefaultName) LabelIndex.DefaultSeq
-    else
+    if (indexName == LabelIndex.DefaultName) {
+      LabelIndex.DefaultSeq
+    } else {
       label.indexNameMap
-        .getOrElse(
-          indexName,
-          throw new RuntimeException(s"$indexName indexName is not found."))
+        .getOrElse(indexName, throw new RuntimeException(s"$indexName indexName is not found."))
         .seq
+    }
 
   lazy val tgtVertexInnerIdOpt = tgtVertexIdOpt.map { id =>
-    CanInnerValLike.anyToInnerValLike.toInnerVal(id)(
-      label.tgtColumnWithDir(dir).schemaVersion)
+    CanInnerValLike.anyToInnerValLike.toInnerVal(id)(label.tgtColumnWithDir(dir).schemaVersion)
   }
 
   def buildInterval(edgeOpt: Option[S2Edge]): (Array[Byte], Array[Byte]) =
@@ -394,26 +389,22 @@ case class QueryParam(
     val conditionBytes = Bytes.add(transformBytes, whereBytes, durationBytes)
 
     // Interval cache bytes is moved to fetch method
-    Bytes.add(Bytes.add(toBytes(offset, limit), rank.toHashKeyBytes()),
-              conditionBytes)
+    Bytes.add(Bytes.add(toBytes(offset, limit), rank.toHashKeyBytes()), conditionBytes)
   }
 
-  def toBytes(offset: Int, limit: Int): Array[Byte] = {
+  def toBytes(offset: Int, limit: Int): Array[Byte] =
     Bytes.add(Bytes.toBytes(offset), Bytes.toBytes(limit))
-  }
 
   def toCacheKey(bytes: Array[Byte]): Long = {
     val hashBytes = toCacheKeyRaw(bytes)
     Hashing.murmur3_128().hashBytes(hashBytes).asLong()
   }
 
-  def toCacheKeyRaw(bytes: Array[Byte]): Array[Byte] = {
+  def toCacheKeyRaw(bytes: Array[Byte]): Array[Byte] =
     Bytes.add(bytes, optionalCacheKey)
-  }
 
-  private def convertToInner(
-      kvs: Seq[(String, JsValue)],
-      edgeOpt: Option[S2Edge]): Seq[(LabelMeta, InnerValLike)] = {
+  private def convertToInner(kvs: Seq[(String, JsValue)],
+                             edgeOpt: Option[S2Edge]): Seq[(LabelMeta, InnerValLike)] =
     kvs.map {
       case (propKey, propValJs) =>
         propValJs match {
@@ -426,15 +417,15 @@ case class QueryParam(
             val timePivot = edge.ts
             val replaced = TemplateHelper.replaceVariable(timePivot, in).trim
 
-            val (_propKey, _padding) = replaced.span(ch =>
-              !ch.isDigit && ch != '-' && ch != '+' && ch != ' ')
+            val (_propKey, _padding) =
+              replaced.span(ch => !ch.isDigit && ch != '-' && ch != '+' && ch != ' ')
             val propKey = _propKey.split("_parent.").last
             val padding = Try(_padding.trim.toLong).getOrElse(0L)
 
             val labelMeta = edge.innerLabel.metaPropsInvMap.getOrElse(
               propKey,
-              throw new RuntimeException(
-                s"$propKey not found in ${edge} labelMetas."))
+              throw new RuntimeException(s"$propKey not found in ${edge} labelMetas.")
+            )
 
             val propVal =
               if (InnerVal.isNumericType(labelMeta.dataType)) {
@@ -453,23 +444,18 @@ case class QueryParam(
 
             labelMeta -> propVal
           case _ =>
-            val labelMeta = label.metaPropsInvMap.getOrElse(
-              propKey,
-              throw new RuntimeException(s"$propKey not found in labelMetas."))
-            val propVal = jsValueToInnerVal(propValJs,
-                                            labelMeta.dataType,
-                                            label.schemaVersion)
+            val labelMeta = label.metaPropsInvMap
+              .getOrElse(propKey, throw new RuntimeException(s"$propKey not found in labelMetas."))
+            val propVal = jsValueToInnerVal(propValJs, labelMeta.dataType, label.schemaVersion)
 
             labelMeta -> propVal.get
         }
     }
-  }
 
-  def paddingInterval(
-      len: Byte,
-      froms: Seq[(String, JsValue)],
-      tos: Seq[(String, JsValue)],
-      edgeOpt: Option[S2Edge] = None): (Array[Byte], Array[Byte]) = {
+  def paddingInterval(len: Byte,
+                      froms: Seq[(String, JsValue)],
+                      tos: Seq[(String, JsValue)],
+                      edgeOpt: Option[S2Edge] = None): (Array[Byte], Array[Byte]) = {
     val fromInnerVal = convertToInner(froms, edgeOpt)
     val toInnerVal = convertToInner(tos, edgeOpt)
 
@@ -496,14 +482,13 @@ object DuplicatePolicy extends Enumeration {
   type DuplicatePolicy = Value
   val First, Sum, CountSum, Raw = Value
 
-  def apply(policy: String): Value = {
+  def apply(policy: String): Value =
     policy match {
       case "sum" => DuplicatePolicy.Sum
       case "countSum" => DuplicatePolicy.CountSum
       case "raw" => DuplicatePolicy.Raw
       case _ => DuplicatePolicy.First
     }
-  }
 }
 case class TimeDecay(initial: Double = 1.0,
                      lambda: Double = 0.1,

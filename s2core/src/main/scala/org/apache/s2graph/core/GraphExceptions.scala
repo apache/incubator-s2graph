@@ -28,16 +28,13 @@ object GraphExceptions {
     }
   }
   class NoStackException(msg: String) extends Exception(msg) {
-    override def fillInStackTrace: Exception = {
+    override def fillInStackTrace: Exception =
       this
-    }
   }
 
-  class NoStackCauseException(msg: String, ex: Throwable)
-      extends Exception(msg, ex) {
-    override def fillInStackTrace: Exception = {
+  class NoStackCauseException(msg: String, ex: Throwable) extends Exception(msg, ex) {
+    override def fillInStackTrace: Exception =
       this
-    }
   }
 
   case class JsonParseException(msg: String) extends Exception(msg)
@@ -56,11 +53,9 @@ object GraphExceptions {
 
   case class IllegalDataTypeException(msg: String) extends Exception(msg)
 
-  case class WhereParserException(msg: String, ex: Exception = null)
-      extends Exception(msg, ex)
+  case class WhereParserException(msg: String, ex: Exception = null) extends Exception(msg, ex)
 
-  case class BadQueryException(msg: String, ex: Throwable = null)
-      extends Exception(msg, ex)
+  case class BadQueryException(msg: String, ex: Throwable = null) extends Exception(msg, ex)
 
   case class InvalidHTableException(msg: String) extends Exception(msg)
 

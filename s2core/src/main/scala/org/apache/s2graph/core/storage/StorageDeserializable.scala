@@ -21,32 +21,25 @@ package org.apache.s2graph.core.storage
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.QueryParam
-import org.apache.s2graph.core.mysqls.{LabelMeta, Label}
-import org.apache.s2graph.core.types.{
-  HBaseType,
-  InnerVal,
-  InnerValLike,
-  InnerValLikeWithTs
-}
+import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, InnerValLikeWithTs}
 import org.apache.s2graph.core.utils.logger
 
 object StorageDeserializable {
 
   /** Deserializer */
-  def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte],
-                                         offset: Int): (Byte, Boolean) = {
+  def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte], offset: Int): (Byte, Boolean) = {
     val byte = bytes(offset)
     val isInverted = if ((byte & 1) != 0) true else false
     val labelOrderSeq = byte >> 1
     (labelOrderSeq.toByte, isInverted)
   }
 
-  def bytesToKeyValues(
-      bytes: Array[Byte],
-      offset: Int,
-      length: Int,
-      schemaVer: String,
-      label: Label): (Array[(LabelMeta, InnerValLike)], Int) = {
+  def bytesToKeyValues(bytes: Array[Byte],
+                       offset: Int,
+                       length: Int,
+                       schemaVer: String,
+                       label: Label): (Array[(LabelMeta, InnerValLike)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
@@ -65,11 +58,10 @@ object StorageDeserializable {
     ret
   }
 
-  def bytesToKeyValuesWithTs(
-      bytes: Array[Byte],
-      offset: Int,
-      schemaVer: String,
-      label: Label): (Array[(LabelMeta, InnerValLikeWithTs)], Int) = {
+  def bytesToKeyValuesWithTs(bytes: Array[Byte],
+                             offset: Int,
+                             schemaVer: String,
+                             label: Label): (Array[(LabelMeta, InnerValLikeWithTs)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
@@ -89,10 +81,9 @@ object StorageDeserializable {
     ret
   }
 
-  def bytesToProps(
-      bytes: Array[Byte],
-      offset: Int,
-      schemaVer: String): (Array[(LabelMeta, InnerValLike)], Int) = {
+  def bytesToProps(bytes: Array[Byte],
+                   offset: Int,
+                   schemaVer: String): (Array[(LabelMeta, InnerValLike)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
@@ -122,7 +113,7 @@ trait StorageDeserializable[E] {
   def fromKeyValues[T: CanSKeyValue](checkLabel: Option[Label],
                                      kvs: Seq[T],
                                      version: String,
-                                     cacheElementOpt: Option[E]): Option[E] = {
+                                     cacheElementOpt: Option[E]): Option[E] =
     try {
       Option(fromKeyValuesInner(checkLabel, kvs, version, cacheElementOpt))
     } catch {
@@ -130,7 +121,6 @@ trait StorageDeserializable[E] {
         logger.error(s"${this.getClass.getName} fromKeyValues failed.", e)
         None
     }
-  }
   def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
                                           kvs: Seq[T],
                                           version: String,

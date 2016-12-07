@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit
 import akka.actor._
 import org.apache.s2graph.core.ExceptionHandler._
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{ExceptionHandler, S2Graph, GraphElement}
+import org.apache.s2graph.core.{ExceptionHandler, GraphElement, S2Graph}
 import org.apache.s2graph.rest.play.actors.Protocol.FlushAll
 import org.apache.s2graph.rest.play.config.Config
 import play.api.Play.current
@@ -47,9 +47,8 @@ object QueueActor {
   var router: ActorRef = _
 
   //    Akka.system.actorOf(props(), name = "queueActor")
-  def init(s2: S2Graph, walLogHandler: ExceptionHandler): Unit = {
+  def init(s2: S2Graph, walLogHandler: ExceptionHandler): Unit =
     router = Akka.system.actorOf(props(s2, walLogHandler))
-  }
 
   def shutdown(): Unit = {
     router ! FlushAll
@@ -61,9 +60,7 @@ object QueueActor {
     Props(classOf[QueueActor], s2, walLogHandler)
 }
 
-class QueueActor(s2: S2Graph, walLogHandler: ExceptionHandler)
-    extends Actor
-    with ActorLogging {
+class QueueActor(s2: S2Graph, walLogHandler: ExceptionHandler) extends Actor with ActorLogging {
 
   import Protocol._
 
@@ -76,17 +73,13 @@ class QueueActor(s2: S2Graph, walLogHandler: ExceptionHandler)
   val rateLimitTimeStep = 1000 / timeUnitInMillis
   val rateLimit = Config.LOCAL_QUEUE_ACTOR_RATE_LIMIT / rateLimitTimeStep
 
-  context.system.scheduler.schedule(
-    Duration.Zero,
-    Duration(timeUnitInMillis, TimeUnit.MILLISECONDS),
-    self,
-    Flush)
+  context.system.scheduler
+    .schedule(Duration.Zero, Duration(timeUnitInMillis, TimeUnit.MILLISECONDS), self, Flush)
 
   override def receive: Receive = {
     case element: GraphElement =>
       if (queueSize > maxQueueSize) {
-        walLogHandler.enqueue(
-          toKafkaMessage(Config.KAFKA_FAIL_TOPIC, element, None))
+        walLogHandler.enqueue(toKafkaMessage(Config.KAFKA_FAIL_TOPIC, element, None))
       } else {
         queueSize += 1L
         queue.enqueue(element)

@@ -22,10 +22,7 @@ package org.apache.s2graph.core.rest
 import java.util.concurrent.{Callable, TimeUnit}
 
 import com.google.common.cache.CacheBuilder
-import org.apache.s2graph.core.GraphExceptions.{
-  BadQueryException,
-  ModelNotFoundException
-}
+import org.apache.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls._
@@ -60,26 +57,23 @@ object TemplateHelper {
 
   def randInt(s: String): Long = {
     val tokens = s.split(",").map(_.trim)
-    if (tokens.length != 2)
-      throw new RuntimeException(
-        s"TemplateHelper.randint has wrong format. $s")
+    if (tokens.length != 2) {
+      throw new RuntimeException(s"TemplateHelper.randint has wrong format. $s")
+    }
     val (from, to) = try {
       (tokens.head.toInt, tokens.last.toInt)
     } catch {
       case e: Exception =>
-        throw new RuntimeException(
-          s"TemplateHelper.randint has wrong format. $s")
+        throw new RuntimeException(s"TemplateHelper.randint has wrong format. $s")
     }
-    if (from > to)
-      throw new RuntimeException(
-        s"TemplateHelper.randint has wrong format. $s")
+    if (from > to) throw new RuntimeException(s"TemplateHelper.randint has wrong format. $s")
     val diff = to - from
     val r = Random.nextInt(diff + 1)
     assert(diff >= 0 && diff < Int.MaxValue && from + r < Int.MaxValue)
     from + r
   }
 
-  def replaceVariable(now: Long, body: String): String = {
+  def replaceVariable(now: Long, body: String): String =
     findVar.replaceAllIn(body, m => {
       val matched = m group 1
       randIntRegex.findFirstMatchIn(matched) match {
@@ -98,28 +92,25 @@ object TemplateHelper {
 
             if (_pivot == null && n == null && unit == null) None
             else if (n == null || unit == null) Option(ts.toString)
-            else
-              Option(calculate(ts, n.replaceAll(" ", "").toInt, unit).toString)
+            else Option(calculate(ts, n.replaceAll(" ", "").toInt, unit).toString)
           })
         case Some(m) =>
           val range = m group 1
           randInt(range).toString
       }
     })
-  }
 }
 
 object RequestParser {
   type ExperimentParam = (JsObject, String, String, String, Option[String])
   val defaultLimit = 100
 
-  def toJsValues(jsValue: JsValue): List[JsValue] = {
+  def toJsValues(jsValue: JsValue): List[JsValue] =
     jsValue match {
       case obj: JsObject => List(obj)
       case arr: JsArray => arr.as[List[JsValue]]
       case _ => List.empty[JsValue]
     }
-  }
 
   def jsToStr(js: JsValue): String = js match {
     case JsString(s) => s
@@ -150,9 +141,7 @@ class RequestParser(graph: S2Graph) {
     .initialCapacity(1000)
     .build[String, Try[Where]]
 
-  private def extractScoring(
-      label: Label,
-      value: JsValue): Option[Seq[(LabelMeta, Double)]] = {
+  private def extractScoring(label: Label, value: JsValue): Option[Seq[(LabelMeta, Double)]] = {
     val ret = for {
       js <- parseOption[JsObject](value, "scoring")
     } yield {
@@ -171,8 +160,10 @@ class RequestParser(graph: S2Graph) {
     ret
   }
 
-  def extractInterval(label: Label, jsValue: JsValue)
-    : Option[(Seq[(String, JsValue)], Seq[(String, JsValue)])] = {
+  def extractInterval(
+      label: Label,
+      jsValue: JsValue
+  ): Option[(Seq[(String, JsValue)], Seq[(String, JsValue)])] = {
     def extractKv(js: JsValue): Seq[(String, JsValue)] = js match {
       case JsObject(obj) => obj.toSeq
       case JsArray(arr) =>
@@ -196,7 +187,7 @@ class RequestParser(graph: S2Graph) {
     ret
   }
 
-  def extractDuration(label: Label, jsValue: JsValue): Option[(Long, Long)] = {
+  def extractDuration(label: Label, jsValue: JsValue): Option[(Long, Long)] =
     for {
       js <- parseOption[JsObject](jsValue, "duration")
     } yield {
@@ -215,13 +206,11 @@ class RequestParser(graph: S2Graph) {
       }
 
       if (minTs > maxTs) {
-        throw new BadQueryException(
-          "Duration error. Timestamp of From cannot be larger than To.")
+        throw new BadQueryException("Duration error. Timestamp of From cannot be larger than To.")
       }
 
       (minTs, maxTs)
     }
-  }
 
   def extractHas(label: Label, jsValue: JsValue): Map[String, InnerValLike] = {
     val ret = for {
@@ -238,7 +227,7 @@ class RequestParser(graph: S2Graph) {
     ret.map(_.toMap).getOrElse(Map.empty[String, InnerValLike])
   }
 
-  def extractWhere(label: Label, whereClauseOpt: Option[String]): Try[Where] = {
+  def extractWhere(label: Label, whereClauseOpt: Option[String]): Try[Where] =
     whereClauseOpt match {
       case None => Success(WhereParser.success)
       case Some(where) =>
@@ -257,50 +246,46 @@ class RequestParser(graph: S2Graph) {
         })
 
     }
-  }
 
   def extractGroupBy(value: Option[JsValue]): GroupBy =
-    value.map {
-      case obj: JsObject =>
-        val keys = (obj \ "keys").asOpt[Seq[String]].getOrElse(Nil)
-        val groupByLimit = (obj \ "limit").asOpt[Int].getOrElse(hardLimit)
-        val minShouldMatchOpt =
-          (obj \ "minimumShouldMatch").asOpt[JsObject].map { o =>
-            val prop = (o \ "prop").asOpt[String].getOrElse("to")
-            val count = (o \ "count").asOpt[Int].getOrElse(0)
-            val terms = (o \ "terms")
-              .asOpt[Set[JsValue]]
-              .getOrElse(Set.empty)
-              .map {
-                case JsString(s) => s
-                case JsNumber(n) => n
-                case _ => throw new RuntimeException("not supported data type")
-              }
-              .map(_.asInstanceOf[Any])
+    value
+      .map {
+        case obj: JsObject =>
+          val keys = (obj \ "keys").asOpt[Seq[String]].getOrElse(Nil)
+          val groupByLimit = (obj \ "limit").asOpt[Int].getOrElse(hardLimit)
+          val minShouldMatchOpt =
+            (obj \ "minimumShouldMatch").asOpt[JsObject].map { o =>
+              val prop = (o \ "prop").asOpt[String].getOrElse("to")
+              val count = (o \ "count").asOpt[Int].getOrElse(0)
+              val terms = (o \ "terms")
+                .asOpt[Set[JsValue]]
+                .getOrElse(Set.empty)
+                .map {
+                  case JsString(s) => s
+                  case JsNumber(n) => n
+                  case _ => throw new RuntimeException("not supported data type")
+                }
+                .map(_.asInstanceOf[Any])
 
-            MinShouldMatchParam(prop, count, terms)
-          }
+              MinShouldMatchParam(prop, count, terms)
+            }
 
-        GroupBy(keys, groupByLimit, minShouldMatch = minShouldMatchOpt)
-      case arr: JsArray =>
-        val keys = arr.asOpt[Seq[String]].getOrElse(Nil)
-        GroupBy(keys)
-    }.getOrElse(GroupBy.Empty)
+          GroupBy(keys, groupByLimit, minShouldMatch = minShouldMatchOpt)
+        case arr: JsArray =>
+          val keys = arr.asOpt[Seq[String]].getOrElse(Nil)
+          GroupBy(keys)
+      }
+      .getOrElse(GroupBy.Empty)
 
-  def toVertices(labelName: String,
-                 direction: String,
-                 ids: Seq[JsValue]): Seq[S2Vertex] = {
+  def toVertices(labelName: String, direction: String, ids: Seq[JsValue]): Seq[S2Vertex] = {
     val vertices = for {
       label <- Label.findByName(labelName).toSeq
       serviceColumn = if (direction == "out") label.srcColumn
       else label.tgtColumn
       id <- ids
-      innerId <- jsValueToInnerVal(id,
-                                   serviceColumn.columnType,
-                                   label.schemaVersion)
+      innerId <- jsValueToInnerVal(id, serviceColumn.columnType, label.schemaVersion)
     } yield {
-      graph.newVertex(SourceVertexId(serviceColumn, innerId),
-                      System.currentTimeMillis())
+      graph.newVertex(SourceVertexId(serviceColumn, innerId), System.currentTimeMillis())
     }
 
     vertices
@@ -316,17 +301,18 @@ class RequestParser(graph: S2Graph) {
       val innerQuery = toQuery(queryJson, impIdOpt = impIdOpt)
       val queryOption = innerQuery.queryOption
 
-      if (queryOption.groupBy.keys.nonEmpty)
-        throw new BadQueryException(
-          "Group by option is not allowed in multiple queries.")
-      if (queryOption.orderByKeys.nonEmpty)
-        throw new BadQueryException(
-          "Order by option is not allowed in multiple queries.")
+      if (queryOption.groupBy.keys.nonEmpty) {
+        throw new BadQueryException("Group by option is not allowed in multiple queries.")
+      }
+      if (queryOption.orderByKeys.nonEmpty) {
+        throw new BadQueryException("Order by option is not allowed in multiple queries.")
+      }
 
-      if (globalQueryOption.withScore)
-        innerQuery.copy(
-          queryOption = innerQuery.queryOption.copy(withScore = false))
-      else innerQuery
+      if (globalQueryOption.withScore) {
+        innerQuery.copy(queryOption = innerQuery.queryOption.copy(withScore = false))
+      } else {
+        innerQuery
+      }
       //        val innerQuery3 =
       //          if (globalQueryOption.groupBy.keys.nonEmpty) innerQuery2.copy(queryOption = innerQuery2.queryOption.copy(groupBy = GroupBy.Empty))
       //          else innerQuery2
@@ -334,15 +320,14 @@ class RequestParser(graph: S2Graph) {
     }
     val weights =
       (jsValue \ "weights").asOpt[Seq[Double]].getOrElse(queries.map(_ => 1.0))
-    MultiQuery(queries = queries,
-               weights = weights,
-               queryOption = globalQueryOption)
+    MultiQuery(queries = queries, weights = weights, queryOption = globalQueryOption)
   }
 
   def toQueryOption(jsValue: JsValue, impIdOpt: Option[String]): QueryOption = {
-    val filterOutFields = (jsValue \ "filterOutFields")
-      .asOpt[List[String]]
-      .getOrElse(List(LabelMeta.to.name))
+    val filterOutFields =
+      (jsValue \ "filterOutFields")
+        .asOpt[List[String]]
+        .getOrElse(List(LabelMeta.to.name))
     val filterOutQuery = (jsValue \ "filterOut")
       .asOpt[JsValue]
       .map { v =>
@@ -350,8 +335,9 @@ class RequestParser(graph: S2Graph) {
       }
       .map { q =>
         q.copy(
-          queryOption = q.queryOption.copy(filterOutFields = filterOutFields,
-                                           selectColumns = filterOutFields))
+          queryOption =
+            q.queryOption.copy(filterOutFields = filterOutFields, selectColumns = filterOutFields)
+        )
       }
     val removeCycle = (jsValue \ "removeCycle").asOpt[Boolean].getOrElse(true)
     val selectColumns =
@@ -388,24 +374,26 @@ class RequestParser(graph: S2Graph) {
     val shouldPropagateScore =
       (jsValue \ "shouldPropagateScore").asOpt[Boolean].getOrElse(true)
 
-    QueryOption(removeCycle = removeCycle,
-                selectColumns = selectColumns,
-                groupBy = groupBy,
-                orderByColumns = orderByColumns,
-                filterOutQuery = filterOutQuery,
-                filterOutFields = filterOutFields,
-                withScore = withScore,
-                returnTree = returnTree,
-                limitOpt = limitOpt,
-                returnAgg = returnAgg,
-                scoreThreshold = scoreThreshold,
-                returnDegree = returnDegree,
-                impIdOpt = impIdOpt,
-                ignorePrevStepCache,
-                shouldPropagateScore)
+    QueryOption(
+      removeCycle = removeCycle,
+      selectColumns = selectColumns,
+      groupBy = groupBy,
+      orderByColumns = orderByColumns,
+      filterOutQuery = filterOutQuery,
+      filterOutFields = filterOutFields,
+      withScore = withScore,
+      returnTree = returnTree,
+      limitOpt = limitOpt,
+      returnAgg = returnAgg,
+      scoreThreshold = scoreThreshold,
+      returnDegree = returnDegree,
+      impIdOpt = impIdOpt,
+      ignorePrevStepCache,
+      shouldPropagateScore
+    )
   }
 
-  def toQuery(jsValue: JsValue, impIdOpt: Option[String]): Query = {
+  def toQuery(jsValue: JsValue, impIdOpt: Option[String]): Query =
     try {
       val vertices = for {
         value <- (jsValue \ "srcVertices").asOpt[Seq[JsValue]].getOrElse(Nil)
@@ -416,8 +404,7 @@ class RequestParser(graph: S2Graph) {
         id <- (idJson ++ idsJson).flatMap(jsValueToAny(_).toSeq).distinct
       } yield graph.toVertex(serviceName, columnName, id)
 
-      if (vertices.isEmpty)
-        throw BadQueryException("srcVertices`s id is empty")
+      if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
       val steps = parse[Vector[JsValue]](jsValue, "steps")
       val queryOption = toQueryOption(jsValue, impIdOpt)
 
@@ -466,17 +453,17 @@ class RequestParser(graph: S2Graph) {
               } yield {
                 val (_, columnName) =
                   if (queryParam.dir == GraphUtil.directions("out")) {
-                    (queryParam.label.srcService.serviceName,
-                     queryParam.label.srcColumnName)
+                    (queryParam.label.srcService.serviceName, queryParam.label.srcColumnName)
                   } else {
-                    (queryParam.label.tgtService.serviceName,
-                     queryParam.label.tgtColumnName)
+                    (queryParam.label.tgtService.serviceName, queryParam.label.tgtColumnName)
                   }
                 //FIXME:
                 if (stepIdx == 0 && vertices.nonEmpty && !vertices.exists(
-                      v => v.columnName == columnName)) {
+                      v => v.columnName == columnName
+                    )) {
                   throw BadQueryException(
-                    "srcVertices contains incompatiable serviceName or columnName with first step.")
+                    "srcVertices contains incompatiable serviceName or columnName with first step."
+                  )
                 }
 
                 queryParam
@@ -484,12 +471,14 @@ class RequestParser(graph: S2Graph) {
 
             val groupBy = extractGroupBy((step \ "groupBy").asOpt[JsValue])
 
-            Step(queryParams = queryParams,
-                 labelWeights = labelWeights,
-                 nextStepScoreThreshold = nextStepScoreThreshold,
-                 nextStepLimit = nextStepLimit,
-                 cacheTTL = cacheTTL,
-                 groupBy = groupBy)
+            Step(
+              queryParams = queryParams,
+              labelWeights = labelWeights,
+              nextStepScoreThreshold = nextStepScoreThreshold,
+              nextStepLimit = nextStepLimit,
+              cacheTTL = cacheTTL,
+              groupBy = groupBy
+            )
 
         }
 
@@ -502,16 +491,15 @@ class RequestParser(graph: S2Graph) {
       case e: Exception =>
         throw BadQueryException(s"$jsValue, $e", e)
     }
-  }
 
-  private def parseQueryParam(labelGroup: JsValue,
-                              queryOption: QueryOption): Option[QueryParam] = {
+  private def parseQueryParam(labelGroup: JsValue, queryOption: QueryOption): Option[QueryParam] = {
     for {
       labelName <- parseOption[String](labelGroup, "label")
     } yield {
-      val label = Label
-        .findByName(labelName)
-        .getOrElse(throw BadQueryException(s"$labelName not found"))
+      val label =
+        Label
+          .findByName(labelName)
+          .getOrElse(throw BadQueryException(s"$labelName not found"))
       val direction =
         parseOption[String](labelGroup, "direction").getOrElse("out")
       val limit = {
@@ -542,30 +530,32 @@ class RequestParser(graph: S2Graph) {
       val maxAttempt =
         (labelGroup \ "maxAttempt").asOpt[Int].getOrElse(DefaultMaxAttempt)
 
-      val tgtVertexInnerIdOpt = (labelGroup \ "_to")
-        .asOpt[JsValue]
-        .filterNot(_ == JsNull)
-        .flatMap(jsValueToAny)
+      val tgtVertexInnerIdOpt =
+        (labelGroup \ "_to")
+          .asOpt[JsValue]
+          .filterNot(_ == JsNull)
+          .flatMap(jsValueToAny)
 
       val cacheTTL = (labelGroup \ "cacheTTL").asOpt[Long].getOrElse(-1L)
-      val timeDecayFactor = (labelGroup \ "timeDecay").asOpt[JsObject].map {
-        jsVal =>
-          val propName = (jsVal \ "propName")
-            .asOpt[String]
-            .getOrElse(LabelMeta.timestamp.name)
-          val propNameSeq =
-            label.metaPropsInvMap.get(propName).getOrElse(LabelMeta.timestamp)
-          val initial = (jsVal \ "initial").asOpt[Double].getOrElse(1.0)
-          val decayRate = (jsVal \ "decayRate").asOpt[Double].getOrElse(0.1)
-          if (decayRate >= 1.0 || decayRate <= 0.0)
-            throw new BadQueryException("decay rate should be 0.0 ~ 1.0")
-          val timeUnit =
-            (jsVal \ "timeUnit").asOpt[Double].getOrElse(60 * 60 * 24.0)
-          TimeDecay(initial, decayRate, timeUnit, propNameSeq)
+      val timeDecayFactor = (labelGroup \ "timeDecay").asOpt[JsObject].map { jsVal =>
+        val propName = (jsVal \ "propName")
+          .asOpt[String]
+          .getOrElse(LabelMeta.timestamp.name)
+        val propNameSeq =
+          label.metaPropsInvMap.get(propName).getOrElse(LabelMeta.timestamp)
+        val initial = (jsVal \ "initial").asOpt[Double].getOrElse(1.0)
+        val decayRate = (jsVal \ "decayRate").asOpt[Double].getOrElse(0.1)
+        if (decayRate >= 1.0 || decayRate <= 0.0) {
+          throw new BadQueryException("decay rate should be 0.0 ~ 1.0")
+        }
+        val timeUnit =
+          (jsVal \ "timeUnit").asOpt[Double].getOrElse(60 * 60 * 24.0)
+        TimeDecay(initial, decayRate, timeUnit, propNameSeq)
       }
-      val threshold = (labelGroup \ "threshold")
-        .asOpt[Double]
-        .getOrElse(QueryParam.DefaultThreshold)
+      val threshold =
+        (labelGroup \ "threshold")
+          .asOpt[Double]
+          .getOrElse(QueryParam.DefaultThreshold)
       // TODO: refactor this. dirty
       val duplicate = parseOption[String](labelGroup, "duplicate")
         .map(s => DuplicatePolicy(s))
@@ -574,77 +564,76 @@ class RequestParser(graph: S2Graph) {
       val outputField = (labelGroup \ "outputField")
         .asOpt[String]
         .map(s => Json.arr(Json.arr(s)))
-      val transformer = (if (outputField.isDefined) outputField
-                         else
-                           (labelGroup \ "transform").asOpt[JsValue]) match {
-        case None => EdgeTransformer(EdgeTransformer.DefaultJson)
-        case Some(json) => EdgeTransformer(json)
-      }
+      val transformer =
+        (if (outputField.isDefined) outputField
+         else (labelGroup \ "transform").asOpt[JsValue]) match {
+          case None => EdgeTransformer(EdgeTransformer.DefaultJson)
+          case Some(json) => EdgeTransformer(json)
+        }
       val scorePropagateOp =
         (labelGroup \ "scorePropagateOp").asOpt[String].getOrElse("multiply")
       val scorePropagateShrinkage =
-        (labelGroup \ "scorePropagateShrinkage").asOpt[Long].getOrElse(500l)
+        (labelGroup \ "scorePropagateShrinkage").asOpt[Long].getOrElse(500L)
       val sample = (labelGroup \ "sample").asOpt[Int].getOrElse(-1)
       val shouldNormalize =
         (labelGroup \ "normalize").asOpt[Boolean].getOrElse(false)
       val cursorOpt = (labelGroup \ "cursor").asOpt[String]
       // FIXME: Order of command matter
-      QueryParam(labelName = labelName,
-                 direction = direction,
-                 offset = offset,
-                 limit = limit,
-                 sample = sample,
-                 maxAttempt = maxAttempt,
-                 rpcTimeout = rpcTimeout,
-                 cacheTTLInMillis = cacheTTL,
-                 indexName = indexName,
-                 where = where,
-                 threshold = threshold,
-                 rank = RankParam(scoring),
-                 intervalOpt = interval,
-                 durationOpt = duration,
-                 exclude = exclude,
-                 include = include,
-                 has = hasFilter,
-                 duplicatePolicy = duplicate,
-                 includeDegree = includeDegree,
-                 scorePropagateShrinkage = scorePropagateShrinkage,
-                 scorePropagateOp = scorePropagateOp,
-                 shouldNormalize = shouldNormalize,
-                 whereRawOpt = whereClauseOpt,
-                 cursorOpt = cursorOpt,
-                 tgtVertexIdOpt = tgtVertexInnerIdOpt,
-                 edgeTransformer = transformer,
-                 timeDecay = timeDecayFactor)
+      QueryParam(
+        labelName = labelName,
+        direction = direction,
+        offset = offset,
+        limit = limit,
+        sample = sample,
+        maxAttempt = maxAttempt,
+        rpcTimeout = rpcTimeout,
+        cacheTTLInMillis = cacheTTL,
+        indexName = indexName,
+        where = where,
+        threshold = threshold,
+        rank = RankParam(scoring),
+        intervalOpt = interval,
+        durationOpt = duration,
+        exclude = exclude,
+        include = include,
+        has = hasFilter,
+        duplicatePolicy = duplicate,
+        includeDegree = includeDegree,
+        scorePropagateShrinkage = scorePropagateShrinkage,
+        scorePropagateOp = scorePropagateOp,
+        shouldNormalize = shouldNormalize,
+        whereRawOpt = whereClauseOpt,
+        cursorOpt = cursorOpt,
+        tgtVertexIdOpt = tgtVertexInnerIdOpt,
+        edgeTransformer = transformer,
+        timeDecay = timeDecayFactor
+      )
     }
   }
 
-  private def parse[R](js: JsValue, key: String)(implicit read: Reads[R]): R = {
+  private def parse[R](js: JsValue, key: String)(implicit read: Reads[R]): R =
     (js \ key).validate[R] match {
       case JsError(errors) =>
-        val msg = (JsError.toFlatJson(errors) \ "obj")
-          .as[List[JsValue]]
-          .flatMap(x => (x \ "msg").toOption)
+        val msg =
+          (JsError.toFlatJson(errors) \ "obj")
+            .as[List[JsValue]]
+            .flatMap(x => (x \ "msg").toOption)
         val e = Json.obj("args" -> key, "error" -> msg)
-        throw new GraphExceptions.JsonParseException(
-          Json.obj("error" -> key).toString)
+        throw new GraphExceptions.JsonParseException(Json.obj("error" -> key).toString)
       case JsSuccess(result, _) => result
     }
-  }
 
-  private def parseOption[R](js: JsValue, key: String)(
-      implicit read: Reads[R]): Option[R] = {
+  private def parseOption[R](js: JsValue, key: String)(implicit read: Reads[R]): Option[R] =
     (js \ key).validateOpt[R] match {
       case JsError(errors) =>
-        val msg = (JsError.toFlatJson(errors) \ "obj")
-          .as[List[JsValue]]
-          .flatMap(x => (x \ "msg").toOption)
+        val msg =
+          (JsError.toFlatJson(errors) \ "obj")
+            .as[List[JsValue]]
+            .flatMap(x => (x \ "msg").toOption)
         val e = Json.obj("args" -> key, "error" -> msg)
-        throw new GraphExceptions.JsonParseException(
-          Json.obj("error" -> key).toString)
+        throw new GraphExceptions.JsonParseException(Json.obj("error" -> key).toString)
       case JsSuccess(result, _) => result
     }
-  }
 
   def jsToStr(js: JsValue): String = js match {
     case JsString(s) => s
@@ -662,14 +651,12 @@ class RequestParser(graph: S2Graph) {
     elementsWithTsv
   }
 
-  def parseJsonFormat(jsValue: JsValue,
-                      operation: String): Seq[(S2Edge, String)] = {
+  def parseJsonFormat(jsValue: JsValue, operation: String): Seq[(S2Edge, String)] = {
     val jsValues = toJsValues(jsValue)
     jsValues.flatMap(toEdgeWithTsv(_, operation))
   }
 
-  private def toEdgeWithTsv(jsValue: JsValue,
-                            operation: String): Seq[(S2Edge, String)] = {
+  private def toEdgeWithTsv(jsValue: JsValue, operation: String): Seq[(S2Edge, String)] = {
     val srcIds = (jsValue \ "from")
         .asOpt[JsValue]
         .map(Seq(_))
@@ -691,31 +678,21 @@ class RequestParser(graph: S2Graph) {
       tgtId <- tgtIds.flatMap(jsValueToAny(_).toSeq)
     } yield {
       //      val edge = Management.toEdge(graph, timestamp, operation, srcId, tgtId, label, direction, fromJsonToProperties(propsJson))
-      val edge = graph.toEdge(srcId,
-                              tgtId,
-                              label,
-                              direction,
-                              fromJsonToProperties(propsJson),
-                              ts = timestamp,
-                              operation = operation)
+      val edge = graph.toEdge(
+        srcId,
+        tgtId,
+        label,
+        direction,
+        fromJsonToProperties(propsJson),
+        ts = timestamp,
+        operation = operation
+      )
       val tsv = (jsValue \ "direction").asOpt[String] match {
         case None =>
-          Seq(timestamp,
-              operation,
-              "e",
-              srcId,
-              tgtId,
-              label,
-              propsJson.toString).mkString("\t")
+          Seq(timestamp, operation, "e", srcId, tgtId, label, propsJson.toString).mkString("\t")
         case Some(dir) =>
-          Seq(timestamp,
-              operation,
-              "e",
-              srcId,
-              tgtId,
-              label,
-              propsJson.toString,
-              dir).mkString("\t")
+          Seq(timestamp, operation, "e", srcId, tgtId, label, propsJson.toString, dir)
+            .mkString("\t")
       }
 
       (edge, tsv)
@@ -725,9 +702,8 @@ class RequestParser(graph: S2Graph) {
   def toVertices(jsValue: JsValue,
                  operation: String,
                  serviceName: Option[String] = None,
-                 columnName: Option[String] = None): Seq[S2Vertex] = {
+                 columnName: Option[String] = None): Seq[S2Vertex] =
     toJsValues(jsValue).map(toVertex(_, operation, serviceName, columnName))
-  }
 
   def toVertex(jsValue: JsValue,
                operation: String,
@@ -742,8 +718,7 @@ class RequestParser(graph: S2Graph) {
     val cName =
       if (columnName.isEmpty) parse[String](jsValue, "columnName")
       else columnName.get
-    val props = fromJsonToProperties(
-      (jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj()))
+    val props = fromJsonToProperties((jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj()))
     graph.toVertex(sName, cName, id.toString, props, ts, operation)
   }
 
@@ -786,8 +761,7 @@ class RequestParser(graph: S2Graph) {
     val (pk, others) =
       indices.partition(index => index.name == LabelIndex.DefaultName)
     val (both, inOut) = others.partition(index => index.direction.isEmpty)
-    val (in, out) = inOut.partition(index =>
-      index.direction.get == GraphUtil.directions("in"))
+    val (in, out) = inOut.partition(index => index.direction.get == GraphUtil.directions("in"))
 
     pk ++ both ++ in ++ out
   }
@@ -810,7 +784,8 @@ class RequestParser(graph: S2Graph) {
      String,
      Boolean,
      String,
-     Option[String])] = Try {
+     Option[String])
+  ] = Try {
     val labelName = parse[String](jsValue, "label")
     val srcServiceName = parse[String](jsValue, "srcServiceName")
     val tgtServiceName = parse[String](jsValue, "tgtServiceName")
@@ -831,13 +806,15 @@ class RequestParser(graph: S2Graph) {
     // expect new label don`t provide hTableName
     val hTableName = (jsValue \ "hTableName").asOpt[String]
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
-    val schemaVersion = (jsValue \ "schemaVersion")
-      .asOpt[String]
-      .getOrElse(HBaseType.DEFAULT_VERSION)
+    val schemaVersion =
+      (jsValue \ "schemaVersion")
+        .asOpt[String]
+        .getOrElse(HBaseType.DEFAULT_VERSION)
     val isAsync = (jsValue \ "isAsync").asOpt[Boolean].getOrElse(false)
-    val compressionAlgorithm = (jsValue \ "compressionAlgorithm")
-      .asOpt[String]
-      .getOrElse(DefaultCompressionAlgorithm)
+    val compressionAlgorithm =
+      (jsValue \ "compressionAlgorithm")
+        .asOpt[String]
+        .getOrElse(DefaultCompressionAlgorithm)
     val options = (jsValue \ "options").asOpt[JsValue].map(_.toString())
 
     (labelName,
@@ -860,33 +837,29 @@ class RequestParser(graph: S2Graph) {
      options)
   }
 
-  def toIndexElements(jsValue: JsValue) = Try {
+  def toIndexElements(jsValue: JsValue): Try[(String, Seq[Index])] = Try {
     val labelName = parse[String](jsValue, "label")
     val indices = toIndicesElements(jsValue \ "indices")
     (labelName, indices)
   }
 
-  def toServiceElements(
-      jsValue: JsValue): (String, String, String, Int, Option[Int], String) = {
+  def toServiceElements(jsValue: JsValue): (String, String, String, Int, Option[Int], String) = {
     val serviceName = parse[String](jsValue, "serviceName")
     val cluster = (jsValue \ "cluster").asOpt[String].getOrElse(DefaultCluster)
-    val hTableName = (jsValue \ "hTableName")
-      .asOpt[String]
-      .getOrElse(s"${serviceName}-${DefaultPhase}")
+    val hTableName =
+      (jsValue \ "hTableName")
+        .asOpt[String]
+        .getOrElse(s"${serviceName}-${DefaultPhase}")
     val preSplitSize = (jsValue \ "preSplitSize").asOpt[Int].getOrElse(1)
     val hTableTTL = (jsValue \ "hTableTTL").asOpt[Int]
-    val compressionAlgorithm = (jsValue \ "compressionAlgorithm")
-      .asOpt[String]
-      .getOrElse(DefaultCompressionAlgorithm)
-    (serviceName,
-     cluster,
-     hTableName,
-     preSplitSize,
-     hTableTTL,
-     compressionAlgorithm)
+    val compressionAlgorithm =
+      (jsValue \ "compressionAlgorithm")
+        .asOpt[String]
+        .getOrElse(DefaultCompressionAlgorithm)
+    (serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
   }
 
-  def toServiceColumnElements(jsValue: JsValue) = Try {
+  def toServiceColumnElements(jsValue: JsValue): Try[(String, String, String, Seq[Prop])] = Try {
     val serviceName = parse[String](jsValue, "serviceName")
     val columnName = parse[String](jsValue, "columnName")
     val columnType = parse[String](jsValue, "columnType")
@@ -894,7 +867,7 @@ class RequestParser(graph: S2Graph) {
     (serviceName, columnName, columnType, props)
   }
 
-  def toCheckEdgeParam(jsValue: JsValue): Seq[S2Edge] = {
+  def toCheckEdgeParam(jsValue: JsValue): Seq[S2Edge] =
     for {
       json <- jsValue.asOpt[Seq[JsValue]].getOrElse(Nil)
       from <- (json \ "from").asOpt[JsValue].flatMap(jsValueToAny(_))
@@ -904,7 +877,6 @@ class RequestParser(graph: S2Graph) {
     } yield {
       graph.toEdge(from, to, labelName, direction, Map.empty)
     }
-  }
 
   def toGraphElements(str: String): Seq[GraphElement] = {
     val edgeStrs = str.split("\\n")
@@ -916,8 +888,7 @@ class RequestParser(graph: S2Graph) {
     } yield element
   }
 
-  def toDeleteParam(json: JsValue)
-    : (Seq[Label], String, List[JsValue], Long, Seq[S2Vertex]) = {
+  def toDeleteParam(json: JsValue): (Seq[Label], String, List[JsValue], Long, Seq[S2Vertex]) = {
     val labelName = (json \ "label").as[String]
     val labels = Label
       .findByName(labelName)
@@ -934,12 +905,9 @@ class RequestParser(graph: S2Graph) {
     (labels, direction, ids, ts, vertices)
   }
 
-  def toFetchAndDeleteParam(json: JsValue): (String,
-                                             Option[JsValue],
-                                             Option[JsValue],
-                                             String,
-                                             Option[String],
-                                             Option[JsObject]) = {
+  def toFetchAndDeleteParam(
+      json: JsValue
+  ): (String, Option[JsValue], Option[JsValue], String, Option[String], Option[JsObject]) = {
     val labelName = (json \ "label").as[String]
     val fromOpt = (json \ "from").asOpt[JsValue]
     val toOpt = (json \ "to").asOpt[JsValue]

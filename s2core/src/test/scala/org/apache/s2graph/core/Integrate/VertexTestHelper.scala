@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,13 +25,10 @@ import play.api.libs.json.{JsValue, Json}
 import scala.concurrent.Await
 import scala.util.Random
 
-
 class VertexTestHelper extends IntegrateCommon {
 
   import TestUtil._
   import VertexTestHelper._
-
-
 
   test("vertex") {
     val ids = (7 until 20).map(tcNum => tcNum * 1000 + 0)
@@ -60,34 +57,29 @@ class VertexTestHelper extends IntegrateCommon {
   }
 
   object VertexTestHelper {
-    def vertexQueryJson(serviceName: String, columnName: String, ids: Seq[Int]): JsValue = {
-      Json.parse(
-        s"""
-           |[
-           |{"serviceName": "$serviceName", "columnName": "$columnName", "ids": [${ids.mkString(",")}
+    def vertexQueryJson(serviceName: String, columnName: String, ids: Seq[Int]): JsValue =
+      Json.parse(s"""
+                    |[
+                    |{"serviceName": "$serviceName", "columnName": "$columnName", "ids": [${ids
+                      .mkString(",")}
          ]}
-           |]
+                    |]
        """.stripMargin)
-    }
 
-    def vertexInsertsPayload(serviceName: String, columnName: String, ids: Seq[Int]): Seq[JsValue] = {
+    def vertexInsertsPayload(serviceName: String,
+                             columnName: String,
+                             ids: Seq[Int]): Seq[JsValue] =
       ids.map { id =>
         Json.obj("id" -> id, "props" -> randomProps, "timestamp" -> System.currentTimeMillis())
       }
-    }
 
-    val vertexPropsKeys = List(
-      ("age", "int")
-    )
+    val vertexPropsKeys = List(("age", "int"))
 
-    def randomProps(): Map[String, Int] = {
+    def randomProps(): Map[String, Int] =
       (for {
         (propKey, propType) <- vertexPropsKeys
       } yield {
         propKey -> Random.nextInt(100)
       }).toMap
-    }
   }
 }
-
-

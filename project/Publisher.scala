@@ -5,28 +5,30 @@ import scala.xml.XML
 
 object Publisher {
 
-  val defaultSettings = Seq(
-    publish := {
-      streams.value.log.error("use publishSigned task instead, to produce code-signed artifacts")
-    },
-    publishMavenStyle := true,
-    publishTo := {
-      if (isSnapshot.value) {
-        Some("apache" at "https://repository.apache.org/content/repositories/snapshots")
-      } else {
-        Some("apache" at "https://repository.apache.org/content/repositories/releases")
-      }
-    },
-    credentials ++= {
-      Try(XML.loadFile(new File(System.getProperty("user.home")) / ".m2" / "settings.xml")).toOption.toSeq.flatMap { xml =>
+  val defaultSettings = Seq(publish := {
+    streams.value.log.error("use publishSigned task instead, to produce code-signed artifacts")
+  }, publishMavenStyle := true, publishTo := {
+    if (isSnapshot.value) {
+      Some("apache" at "https://repository.apache.org/content/repositories/snapshots")
+    } else {
+      Some("apache" at "https://repository.apache.org/content/repositories/releases")
+    }
+  }, credentials ++= {
+    Try(XML.loadFile(new File(System.getProperty("user.home")) / ".m2" / "settings.xml")).toOption.toSeq
+      .flatMap { xml =>
         for (server <- xml \\ "server" if (server \ "id").text == "apache") yield {
-          Credentials("Sonatype Nexus Repository Manager", "repository.apache.org", (server \ "username").text, (server \ "password").text)
+          Credentials(
+            "Sonatype Nexus Repository Manager",
+            "repository.apache.org",
+            (server \ "username").text,
+            (server \ "password").text
+          )
         }
       }
-    },
-    pomIncludeRepository := { _ => false },
-    pomExtra := {
-      <url>https://github.com/apache/incubator-s2graph</url>
+  }, pomIncludeRepository := { _ =>
+    false
+  }, pomExtra := {
+    <url>https://github.com/apache/incubator-s2graph</url>
       <licenses>
         <license>
           <name>Apache 2</name>
@@ -65,6 +67,5 @@ object Publisher {
           <unsubscribe>commits-unsubscribe@s2graph.incubator.apache.org</unsubscribe>
         </mailingList>
       </mailingLists>
-    }
-  )
+  })
 }

@@ -32,11 +32,10 @@ object QueryController extends Controller {
   import play.api.libs.concurrent.Execution.Implicits.defaultContext
   private val rest: RestHandler = org.apache.s2graph.rest.play.Global.s2rest
 
-  def delegate(request: Request[String]): Future[Result] = {
+  def delegate(request: Request[String]): Future[Result] =
     rest.doPost(request.uri, request.body, request.headers).body.map { js =>
       jsonResponse(js, "result_size" -> rest.calcSize(js).toString)
     } recoverWith ApplicationController.requestFallback(request.body)
-  }
 
   def getEdges(): Action[String] = withHeaderAsync(jsonText)(delegate)
 
@@ -58,16 +57,11 @@ object QueryController extends Controller {
   def getEdgesGroupedExcludedFormatted(): Action[String] =
     withHeaderAsync(jsonText)(delegate)
 
-  def getEdge(srcId: String,
-              tgtId: String,
-              labelName: String,
-              direction: String): Action[String] =
+  def getEdge(srcId: String, tgtId: String, labelName: String, direction: String): Action[String] =
     withHeaderAsync(jsonText) { request =>
       val params = Json.arr(
-        Json.obj("label" -> labelName,
-                 "direction" -> direction,
-                 "from" -> srcId,
-                 "to" -> tgtId))
+        Json.obj("label" -> labelName, "direction" -> direction, "from" -> srcId, "to" -> tgtId)
+      )
       rest.checkEdges(params).body.map { js =>
         jsonResponse(js, "result_size" -> rest.calcSize(js).toString)
       } recoverWith ApplicationController.requestFallback(request.body)

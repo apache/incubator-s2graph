@@ -21,17 +21,12 @@ package org.apache.s2graph.core.storage.serde.indexedge.wide
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.mysqls.LabelMeta
-import org.apache.s2graph.core.storage.{
-  SKeyValue,
-  Serializable,
-  StorageSerializable
-}
+import org.apache.s2graph.core.storage.{SKeyValue, Serializable, StorageSerializable}
 import org.apache.s2graph.core.types.{InnerValLike, VertexId}
 import org.apache.s2graph.core.{GraphUtil, IndexEdge}
 import org.apache.s2graph.core.storage.StorageSerializable._
 
-class IndexEdgeSerializable(indexEdge: IndexEdge,
-                            longToBytes: Long => Array[Byte] = longToBytes)
+class IndexEdgeSerializable(indexEdge: IndexEdge, longToBytes: Long => Array[Byte] = longToBytes)
     extends Serializable[IndexEdge] {
   import StorageSerializable._
 
@@ -66,12 +61,12 @@ class IndexEdgeSerializable(indexEdge: IndexEdge,
   }
 
   override def toValue: Array[Byte] =
-    if (indexEdge.degreeEdge)
-      longToBytes(
-        indexEdge.property(LabelMeta.degree).innerVal.toString().toLong)
-    else if (indexEdge.op == GraphUtil.operations("incrementCount"))
-      longToBytes(
-        indexEdge.property(LabelMeta.count).innerVal.toString().toLong)
-    else propsToKeyValues(indexEdge.metas.toSeq)
+    if (indexEdge.degreeEdge) {
+      longToBytes(indexEdge.property(LabelMeta.degree).innerVal.toString().toLong)
+    } else if (indexEdge.op == GraphUtil.operations("incrementCount")) {
+      longToBytes(indexEdge.property(LabelMeta.count).innerVal.toString().toLong)
+    } else {
+      propsToKeyValues(indexEdge.metas.toSeq)
+    }
 
 }

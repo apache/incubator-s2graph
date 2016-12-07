@@ -30,9 +30,7 @@ object ExperimentController extends Controller {
   import ApplicationController._
 
   def experiments(): Action[String] = experiment("", "", "")
-  def experiment(accessToken: String,
-                 experimentName: String,
-                 uuid: String): Action[String] =
+  def experiment(accessToken: String, experimentName: String, uuid: String): Action[String] =
     withHeaderAsync(jsonText) { request =>
       val body = request.body
       val res = rest.doPost(request.uri, body, request.headers)

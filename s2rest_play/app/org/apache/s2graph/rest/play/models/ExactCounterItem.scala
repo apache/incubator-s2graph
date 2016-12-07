@@ -30,21 +30,16 @@ case class ExactCounterIntervalItem(interval: String,
                                     dimension: Map[String, String],
                                     counter: Seq[ExactCounterItem])
 
-case class ExactCounterResultMeta(service: String,
-                                  action: String,
-                                  item: String)
+case class ExactCounterResultMeta(service: String, action: String, item: String)
 
-case class ExactCounterResult(meta: ExactCounterResultMeta,
-                              data: Seq[ExactCounterIntervalItem])
+case class ExactCounterResult(meta: ExactCounterResultMeta, data: Seq[ExactCounterIntervalItem])
 
 object ExactCounterItem {
   implicit val writes = new Writes[ExactCounterItem] {
-    def writes(item: ExactCounterItem) = Json.obj(
-      "ts" -> item.ts,
-      "time" -> tsFormat.format(item.ts),
-      "count" -> item.count,
-      "score" -> item.score
-    )
+    def writes(item: ExactCounterItem) = Json.obj("ts" -> item.ts,
+                                                  "time" -> tsFormat.format(item.ts),
+                                                  "count" -> item.count,
+                                                  "score" -> item.score)
   }
   implicit val reads = Json.reads[ExactCounterItem]
 }

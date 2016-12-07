@@ -34,15 +34,13 @@ object LabelWithDirection {
     LabelWithDirection(labelId, dir)
   }
 
-  def labelOrderSeqWithIsInverted(labelOrderSeq: Byte,
-                                  isInverted: Boolean): Array[Byte] = {
+  def labelOrderSeqWithIsInverted(labelOrderSeq: Byte, isInverted: Boolean): Array[Byte] = {
     assert(labelOrderSeq < (1 << 6))
     val byte = labelOrderSeq << 1 | (if (isInverted) 1 else 0)
     Array.fill(1)(byte.toByte)
   }
 
-  def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte],
-                                         offset: Int): (Byte, Boolean) = {
+  def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte], offset: Int): (Byte, Boolean) = {
     val byte = bytes(offset)
     val isInverted = if ((byte & 1) != 0) true else false
     val labelOrderSeq = byte >> 1
@@ -50,8 +48,7 @@ object LabelWithDirection {
   }
 }
 
-case class LabelWithDirection(labelId: Int, dir: Int)
-    extends HBaseSerializable {
+case class LabelWithDirection(labelId: Int, dir: Int) extends HBaseSerializable {
 
   import HBaseType._
 
@@ -62,9 +59,8 @@ case class LabelWithDirection(labelId: Int, dir: Int)
 
   lazy val compositeInt = labelBits | dir
 
-  def bytes: Array[Byte] = {
+  def bytes: Array[Byte] =
     Bytes.toBytes(compositeInt)
-  }
 
   lazy val dirToggled = LabelWithDirection(labelId, GraphUtil.toggleDir(dir))
 
@@ -75,10 +71,9 @@ case class LabelWithDirection(labelId: Int, dir: Int)
 
   override def hashCode(): Int = compositeInt
 
-  override def equals(other: Any): Boolean = {
+  override def equals(other: Any): Boolean =
     other match {
       case o: LabelWithDirection => hashCode == o.hashCode()
       case _ => false
     }
-  }
 }

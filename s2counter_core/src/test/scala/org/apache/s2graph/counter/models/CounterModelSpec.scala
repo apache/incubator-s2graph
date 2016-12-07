@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -35,9 +35,24 @@ class CounterModelSpec extends Specification {
 
     "findByServiceAction using cache" in {
       val service = "test"
-      val action = "test_action"
-      val counter = Counter(useFlag = true, 2, service, action, Counter.ItemType.STRING,
-        autoComb = true, "", useProfile = true, None, useRank = true, 0, None, None, None, None, None, None)
+      val action  = "test_action"
+      val counter = Counter(useFlag = true,
+                            2,
+                            service,
+                            action,
+                            Counter.ItemType.STRING,
+                            autoComb = true,
+                            "",
+                            useProfile = true,
+                            None,
+                            useRank = true,
+                            0,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None)
       model.createServiceAction(counter)
       model.findByServiceAction(service, action, useCache = false) must beSome
       val opt = model.findByServiceAction(service, action, useCache = true)
@@ -55,8 +70,24 @@ class CounterModelSpec extends Specification {
       } {
         model.deleteServiceAction(policy)
       }
-      model.createServiceAction(Counter(useFlag = true, 2, service, action, Counter.ItemType.STRING,
-        autoComb = true, "", useProfile = true, None, useRank = true, 0, None, None, None, None, None, None))
+      model.createServiceAction(
+        Counter(useFlag = true,
+                2,
+                service,
+                action,
+                Counter.ItemType.STRING,
+                autoComb = true,
+                "",
+                useProfile = true,
+                None,
+                useRank = true,
+                0,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None))
       model.findByServiceAction(service, action, useCache = false).map { policy =>
         policy.service mustEqual service
         policy.action mustEqual action

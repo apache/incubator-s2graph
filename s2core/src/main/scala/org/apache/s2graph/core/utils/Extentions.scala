@@ -26,8 +26,9 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
 
 object Extensions {
 
-  def retryOnSuccess[T](maxRetryNum: Int, n: Int = 1)(fn: => Future[T])(
-      shouldStop: T => Boolean)(implicit ex: ExecutionContext): Future[T] =
+  def retryOnSuccess[T](maxRetryNum: Int, n: Int = 1)(
+      fn: => Future[T]
+  )(shouldStop: T => Boolean)(implicit ex: ExecutionContext): Future[T] =
     n match {
       case i if n <= maxRetryNum =>
         fn.flatMap { result =>
@@ -41,8 +42,9 @@ object Extensions {
       case _ => fn
     }
 
-  def retryOnFailure[T](maxRetryNum: Int, n: Int = 1)(fn: => Future[T])(
-      fallback: => T)(implicit ex: ExecutionContext): Future[T] = n match {
+  def retryOnFailure[T](maxRetryNum: Int, n: Int = 1)(
+      fn: => Future[T]
+  )(fallback: => T)(implicit ex: ExecutionContext): Future[T] = n match {
     case i if n <= maxRetryNum =>
       fn recoverWith {
         case t: Throwable =>
@@ -74,8 +76,7 @@ object Extensions {
       newDefer
     }
 
-    def mapWithFallback[R](dummy: => T)(fallback: Exception => R)(
-        op: T => R): Deferred[R] = {
+    def mapWithFallback[R](dummy: => T)(fallback: Exception => R)(op: T => R): Deferred[R] = {
       val newDefer = new Deferred[R]
 
       d.addCallback(new Callback[T, T] {

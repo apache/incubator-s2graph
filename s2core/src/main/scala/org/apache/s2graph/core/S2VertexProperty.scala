@@ -23,25 +23,17 @@ import java.util
 
 import org.apache.s2graph.core.mysqls.ColumnMeta
 import org.apache.s2graph.core.types.CanInnerValLike
-import org.apache.tinkerpop.gremlin.structure.{
-  Property,
-  VertexProperty,
-  Vertex => TpVertex
-}
+import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty, Vertex => TpVertex}
 
 import scala.util.hashing.MurmurHash3
 
-case class S2VertexProperty[V](element: S2Vertex,
-                               columnMeta: ColumnMeta,
-                               key: String,
-                               v: V)
+case class S2VertexProperty[V](element: S2Vertex, columnMeta: ColumnMeta, key: String, v: V)
     extends VertexProperty[V] {
   import CanInnerValLike._
   implicit lazy val encodingVer = element.serviceColumn.schemaVersion
   lazy val innerVal = CanInnerValLike.anyToInnerValLike.toInnerVal(value)
-  def toBytes: Array[Byte] = {
+  def toBytes: Array[Byte] =
     innerVal.bytes
-  }
 
   val value = castValue(v, columnMeta.dataType).asInstanceOf[V]
 
@@ -56,10 +48,8 @@ case class S2VertexProperty[V](element: S2Vertex,
 
   override def isPresent: Boolean = ???
 
-  override def hashCode(): Int = {
-    MurmurHash3.stringHash(
-      columnMeta.columnId + "," + columnMeta.id.get + "," + key + "," + value)
-  }
+  override def hashCode(): Int =
+    MurmurHash3.stringHash(columnMeta.columnId + "," + columnMeta.id.get + "," + key + "," + value)
 
   override def equals(other: Any): Boolean = other match {
     case p: S2VertexProperty[_] =>
@@ -69,7 +59,6 @@ case class S2VertexProperty[V](element: S2Vertex,
     case _ => false
   }
 
-  override def toString(): String = {
+  override def toString(): String =
     Map("columnMeta" -> columnMeta.toString, "key" -> key, "value" -> value).toString
-  }
 }

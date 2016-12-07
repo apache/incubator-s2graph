@@ -23,28 +23,24 @@ import sbt.complete.Parsers.spaceDelimited
 
 name := "s2graph"
 
-lazy val commonSettings = Seq(
-    organization := "org.apache.s2graph",
-    scalaVersion := "2.11.7",
-    isSnapshot := version.value.endsWith("-SNAPSHOT"),
-    scalacOptions := Seq("-language:postfixOps",
-                         "-unchecked",
-                         "-deprecation",
-                         "-feature",
-                         "-Xlint",
-                         "-Xlint:-missing-interpolator"),
-    javaOptions ++= collection.JavaConversions
-      .propertiesAsScalaMap(System.getProperties)
-      .map { case (key, value) => "-D" + key + "=" + value }
-      .toSeq,
-    testOptions in Test += Tests.Argument("-oDF"),
-    concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
-    parallelExecution in Test := false,
-    libraryDependencies ++= Common.loggingRuntime,
-    resolvers ++= Seq(
-      Resolver.mavenLocal
-    )
-  ) ++ Publisher.defaultSettings
+lazy val commonSettings = Seq(organization := "org.apache.s2graph",
+                              scalaVersion := "2.11.7",
+                              isSnapshot := version.value.endsWith("-SNAPSHOT"),
+                              scalacOptions := Seq("-language:postfixOps",
+                                                   "-unchecked",
+                                                   "-deprecation",
+                                                   "-feature",
+                                                   "-Xlint",
+                                                   "-Xlint:-missing-interpolator"),
+                              javaOptions ++= collection.JavaConversions
+                                .propertiesAsScalaMap(System.getProperties)
+                                .map { case (key, value) => "-D" + key + "=" + value }
+                                .toSeq,
+                              testOptions in Test += Tests.Argument("-oDF"),
+                              concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
+                              parallelExecution in Test := false,
+                              libraryDependencies ++= Common.loggingRuntime,
+                              resolvers ++= Seq(Resolver.mavenLocal)) ++ Publisher.defaultSettings
 
 Revolver.settings
 
@@ -69,9 +65,10 @@ lazy val s2counter_core =
 lazy val s2counter_loader =
   project.dependsOn(s2counter_core, spark).settings(commonSettings: _*)
 
+// this enables packaging on the root project
 lazy val root = (project in file("."))
   .aggregate(s2core, s2rest_play)
-  .dependsOn(s2rest_play, s2rest_netty, loader, s2counter_loader) // this enables packaging on the root project
+  .dependsOn(s2rest_play, s2rest_netty, loader, s2counter_loader)
   .settings(commonSettings: _*)
 
 lazy val runRatTask = inputKey[Unit]("Runs Apache rat on S2Graph")
@@ -109,3 +106,5 @@ releaseProcess := Seq[ReleaseStep](
 releasePublishArtifactsAction := publishSigned.value
 
 mainClass in Compile := None
+
+scalafmtConfig in ThisBuild := Some(file(".scalafmt.conf"))

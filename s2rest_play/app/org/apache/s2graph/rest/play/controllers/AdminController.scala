@@ -498,7 +498,8 @@ object AdminController extends Controller {
   }
 
   def createHTable(): Action[AnyContent] = Action { request =>
-    //    Management.createTable(cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL, compressionAlgorithm)
+    // Management.createTable(
+    // cluster, hTableName, List("e", "v"), preSplitSize, hTableTTL, compressionAlgorithm)
     request.body.asJson
       .map(_.validate[HTableParams] match {
         case JsSuccess(hTableParams, _) => {

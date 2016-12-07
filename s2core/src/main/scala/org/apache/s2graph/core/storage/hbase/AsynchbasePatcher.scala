@@ -32,12 +32,7 @@ import net.bytebuddy.implementation.bind.annotation.{SuperCall, This}
 import net.bytebuddy.matcher.ElementMatchers._
 import org.apache.commons.io.IOUtils
 import org.hbase.async._
-import org.objectweb.asm.Opcodes.{
-  ACC_FINAL,
-  ACC_PRIVATE,
-  ACC_PROTECTED,
-  ACC_PUBLIC
-}
+import org.objectweb.asm.Opcodes.{ACC_FINAL, ACC_PRIVATE, ACC_PROTECTED, ACC_PUBLIC}
 import org.objectweb.asm._
 
 import scala.collection.JavaConversions._
@@ -48,11 +43,13 @@ import scala.collection.JavaConversions._
   * so that ByteBuddy can create subclasses of them.
   *
   * This object has to be initialized before any access to (i.e. any classloading of) Asynchbase,
-  * since the ClassLoader does not allow redefining already loaded classes unless we use instrumentation.
+  * since the ClassLoader does not allow redefining already loaded classes unless we use
+  * instrumentation.
   */
 object AsynchbasePatcher {
 
-  /** invoking this method will force the classloading of this object, thus triggering the patch mechanism below */
+  /** invoking this method will force the classloading of this object,
+    * thus triggering the patch mechanism below */
   def init(): Unit = {
     val methods = scannerClass.getMethods.map(_.getName)
     assert(methods.contains("getRpcTimeout"))
@@ -67,9 +64,8 @@ object AsynchbasePatcher {
   }
 
   /** instantiate a new Scanner, patched to support RPC timeout */
-  def newScanner(client: HBaseClient, table: String): ScannerExtra = {
+  def newScanner(client: HBaseClient, table: String): ScannerExtra =
     newScanner(client, table.getBytes(StandardCharsets.UTF_8))
-  }
 
   trait RpcTimeout {
     def getRpcTimeout: Int
@@ -79,9 +75,8 @@ object AsynchbasePatcher {
   type ScannerExtra = Scanner with RpcTimeout
 
   val interceptor = new Object() {
-    def getNextRowsRequest(
-        @This scanner: ScannerExtra,
-        @SuperCall getNextRowsRequest: Callable[HBaseRpc]): HBaseRpc = {
+    def getNextRowsRequest(@This scanner: ScannerExtra,
+                           @SuperCall getNextRowsRequest: Callable[HBaseRpc]): HBaseRpc = {
       val request = getNextRowsRequest.call()
       val rpcTimeout = scanner.getRpcTimeout
       if (rpcTimeout > 0) {
@@ -93,12 +88,8 @@ object AsynchbasePatcher {
 
   private val BA = classOf[Array[Byte]]
   private val classLoader = getClass.getClassLoader
-  private val defineClass = classOf[ClassLoader].getDeclaredMethod(
-    "defineClass",
-    classOf[String],
-    BA,
-    classOf[Int],
-    classOf[Int])
+  private val defineClass = classOf[ClassLoader]
+    .getDeclaredMethod("defineClass", classOf[String], BA, classOf[Int], classOf[Int])
 
   /** a java.lang.Class instance for the patched Scanner class */
   private val scannerClass = {
@@ -119,7 +110,7 @@ object AsynchbasePatcher {
     * *MUST* be called before any access to those classes,
     * otherwise the classloading will fail with an "attempted duplicate class definition" error.
     **/
-  private def loadClass(name: String): Class[_] = {
+  private def loadClass(name: String): Class[_] =
     classLoader
       .getResources(s"org/hbase/async/$name.class")
       .toSeq
@@ -130,7 +121,8 @@ object AsynchbasePatcher {
           stream.close()
         }
 
-        // patch the bytecode so that the class is no longer final and the methods are all accessible
+        // patch the bytecode so that the class is no longer final and
+        // the methods are all accessible
         val cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES)
         new ClassReader(bytes).accept(new ClassAdapter(cw) {
           override def visit(version: Int,
@@ -138,27 +130,18 @@ object AsynchbasePatcher {
                              name: String,
                              signature: String,
                              superName: String,
-                             interfaces: Array[String]): Unit = {
-            super.visit(version,
-                        access & ~ACC_FINAL,
-                        name,
-                        signature,
-                        superName,
-                        interfaces)
-          }
-          override def visitMethod(
-              access: Int,
-              name: String,
-              desc: String,
-              signature: String,
-              exceptions: Array[String]): MethodVisitor = {
-            super.visitMethod(
-              access & ~ACC_PRIVATE & ~ACC_PROTECTED & ~ACC_FINAL | ACC_PUBLIC,
-              name,
-              desc,
-              signature,
-              exceptions)
-          }
+                             interfaces: Array[String]): Unit =
+            super.visit(version, access & ~ACC_FINAL, name, signature, superName, interfaces)
+          override def visitMethod(access: Int,
+                                   name: String,
+                                   desc: String,
+                                   signature: String,
+                                   exceptions: Array[String]): MethodVisitor =
+            super.visitMethod(access & ~ACC_PRIVATE & ~ACC_PROTECTED & ~ACC_FINAL | ACC_PUBLIC,
+                              name,
+                              desc,
+                              signature,
+                              exceptions)
         }, 0)
         val patched = cw.toByteArray
 
@@ -171,8 +154,6 @@ object AsynchbasePatcher {
                   valueOf(patched.length))
           .asInstanceOf[Class[_]]
       case None =>
-        throw new ClassNotFoundException(
-          s"Could not find Asynchbase class: $name")
+        throw new ClassNotFoundException(s"Could not find Asynchbase class: $name")
     }
-  }
 }

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -28,7 +28,11 @@ class JsonBenchmarkSpec extends BenchmarkCommon {
 
     "Json Append" >> {
       import play.api.libs.json.{Json, _}
-      val numberJson = Json.toJson((0 to 1000).map { i => s"$i" -> JsNumber(i * i) }.toMap).as[JsObject]
+      val numberJson = Json
+        .toJson((0 to 1000).map { i =>
+          s"$i" -> JsNumber(i * i)
+        }.toMap)
+        .as[JsObject]
 
       /** dummy warm-up **/
       (0 to 10000) foreach { n =>

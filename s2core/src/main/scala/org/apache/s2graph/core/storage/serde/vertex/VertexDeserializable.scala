@@ -23,18 +23,16 @@ import org.apache.s2graph.core.mysqls.{ColumnMeta, Label}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, VertexId}
-import org.apache.s2graph.core.{S2Graph, QueryParam, S2Vertex}
+import org.apache.s2graph.core.{QueryParam, S2Graph, S2Vertex}
 
 import scala.collection.mutable.ListBuffer
 
-class VertexDeserializable(graph: S2Graph,
-                           bytesToInt: (Array[Byte], Int) => Int = bytesToInt)
+class VertexDeserializable(graph: S2Graph, bytesToInt: (Array[Byte], Int) => Int = bytesToInt)
     extends Deserializable[S2Vertex] {
-  def fromKeyValuesInner[T: CanSKeyValue](
-      checkLabel: Option[Label],
-      _kvs: Seq[T],
-      version: String,
-      cacheElementOpt: Option[S2Vertex]): S2Vertex = {
+  def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
+                                          _kvs: Seq[T],
+                                          version: String,
+                                          cacheElementOpt: Option[S2Vertex]): S2Vertex = {
 
     val kvs = _kvs.map { kv =>
       implicitly[CanSKeyValue[T]].toSKeyValue(kv)
@@ -67,10 +65,8 @@ class VertexDeserializable(graph: S2Graph,
       }
     }
     assert(maxTs != Long.MinValue)
-    val vertex = graph.newVertex(vertexId,
-                                 maxTs,
-                                 S2Vertex.EmptyProps,
-                                 belongLabelIds = belongLabelIds)
+    val vertex =
+      graph.newVertex(vertexId, maxTs, S2Vertex.EmptyProps, belongLabelIds = belongLabelIds)
     S2Vertex.fillPropsWithTs(vertex, propsMap.toMap)
     vertex
   }

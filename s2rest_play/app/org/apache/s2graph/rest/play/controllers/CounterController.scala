@@ -28,21 +28,11 @@ import org.apache.s2graph.counter
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
 import org.apache.s2graph.counter.core._
-import org.apache.s2graph.counter.core.v1.{
-  ExactStorageAsyncHBase,
-  RankingStorageRedis
-}
-import org.apache.s2graph.counter.core.v2.{
-  ExactStorageGraph,
-  RankingStorageGraph
-}
+import org.apache.s2graph.counter.core.v1.{ExactStorageAsyncHBase, RankingStorageRedis}
+import org.apache.s2graph.counter.core.v2.{ExactStorageGraph, RankingStorageGraph}
 import org.apache.s2graph.counter.models.Counter.ItemType
 import org.apache.s2graph.counter.models.{Counter, CounterModel}
-import org.apache.s2graph.counter.util.{
-  CartesianProduct,
-  ReduceMapValue,
-  UnitConverter
-}
+import org.apache.s2graph.counter.util.{CartesianProduct, ReduceMapValue, UnitConverter}
 import org.apache.s2graph.rest.play.config.CounterConfig
 import org.apache.s2graph.rest.play.models._
 import play.api.Play
@@ -62,22 +52,16 @@ object CounterController extends Controller {
   private lazy val walLogHandler: ExceptionHandler =
     org.apache.s2graph.rest.play.Global.wallLogHandler
   private val exactCounterMap = Map(
-    counter.VERSION_1 -> new ExactCounter(config,
-                                          new ExactStorageAsyncHBase(config)),
-    counter.VERSION_2 -> new ExactCounter(config,
-                                          new ExactStorageGraph(config))
+    counter.VERSION_1 -> new ExactCounter(config, new ExactStorageAsyncHBase(config)),
+    counter.VERSION_2 -> new ExactCounter(config, new ExactStorageGraph(config))
   )
   private val rankingCounterMap = Map(
-    counter.VERSION_1 -> new RankingCounter(config,
-                                            new RankingStorageRedis(config)),
-    counter.VERSION_2 -> new RankingCounter(config,
-                                            new RankingStorageGraph(config))
+    counter.VERSION_1 -> new RankingCounter(config, new RankingStorageRedis(config)),
+    counter.VERSION_2 -> new RankingCounter(config, new RankingStorageGraph(config))
   )
 
-  private val tablePrefixMap = Map(
-    counter.VERSION_1 -> "s2counter",
-    counter.VERSION_2 -> "s2counter_v2"
-  )
+  private val tablePrefixMap =
+    Map(counter.VERSION_1 -> "s2counter", counter.VERSION_2 -> "s2counter_v2")
 
   private def exactCounter(version: Byte): ExactCounter =
     exactCounterMap(version)
@@ -86,10 +70,8 @@ object CounterController extends Controller {
 
   lazy val counterModel = new CounterModel(config)
 
-  def getQueryString[T](key: String, default: String)(
-      implicit request: Request[T]): String = {
+  def getQueryString[T](key: String, default: String)(implicit request: Request[T]): String =
     request.getQueryString(key).getOrElse(default)
-  }
 
   implicit val counterWrites = new Writes[Counter] {
     override def writes(o: Counter): JsValue = Json.obj(
@@ -104,14 +86,12 @@ object CounterController extends Controller {
       "dailyTtl" -> o.dailyTtl,
       "rateAction" -> o.rateActionId.flatMap { actionId =>
         counterModel.findById(actionId, useCache = false).map { actionPolicy =>
-          Json.obj("service" -> actionPolicy.service,
-                   "action" -> actionPolicy.action)
+          Json.obj("service" -> actionPolicy.service, "action" -> actionPolicy.action)
         }
       },
       "rateBase" -> o.rateBaseId.flatMap { baseId =>
         counterModel.findById(baseId, useCache = false).map { basePolicy =>
-          Json.obj("service" -> basePolicy.service,
-                   "action" -> basePolicy.action)
+          Json.obj("service" -> basePolicy.service, "action" -> basePolicy.action)
         }
       },
       "rateThreshold" -> o.rateThreshold
@@ -215,15 +195,14 @@ object CounterController extends Controller {
       }
     }
 
-  def getAction(service: String, action: String): Action[AnyContent] = Action {
-    request =>
-      counterModel
-        .findByServiceAction(service, action, useCache = false) match {
-        case Some(policy) =>
-          Ok(Json.toJson(policy))
-        case None =>
-          NotFound(Json.toJson(Map("msg" -> s"$service.$action not found")))
-      }
+  def getAction(service: String, action: String): Action[AnyContent] = Action { request =>
+    counterModel
+      .findByServiceAction(service, action, useCache = false) match {
+      case Some(policy) =>
+        Ok(Json.toJson(policy))
+      case None =>
+        NotFound(Json.toJson(Map("msg" -> s"$service.$action not found")))
+    }
   }
 
   def updateAction(service: String, action: String): Action[JsValue] =
@@ -325,9 +304,7 @@ object CounterController extends Controller {
           val version = (body \ "version").as[Int].toByte
           if (version != policy.version) {
             // change table name
-            val newTableName = Seq(tablePrefixMap(version),
-                                   service,
-                                   policy.ttl) ++ policy.dailyTtl mkString "_"
+            val newTableName = Seq(tablePrefixMap(version), service, policy.ttl) ++ policy.dailyTtl mkString "_"
             val newPolicy =
               policy.copy(version = version, hbaseTable = Some(newTableName))
 
@@ -337,12 +314,9 @@ object CounterController extends Controller {
             if (newPolicy.useRank || newPolicy.rateActionId.isDefined) {
               rankingCounter(version).prepare(newPolicy)
             }
-            Ok(
-              Json.toJson(
-                Map("msg" -> s"prepare storage v$version $service/$action")))
+            Ok(Json.toJson(Map("msg" -> s"prepare storage v$version $service/$action")))
           } else {
-            Ok(Json.toJson(Map(
-              "msg" -> s"already prepared storage v$version $service/$action")))
+            Ok(Json.toJson(Map("msg" -> s"already prepared storage v$version $service/$action")))
           }
         case None =>
           NotFound(Json.toJson(Map("msg" -> s"$service.$action not found")))
@@ -353,9 +327,7 @@ object CounterController extends Controller {
     Action.apply {
       {
         for {
-          policy <- counterModel.findByServiceAction(service,
-                                                     action,
-                                                     useCache = false)
+          policy <- counterModel.findByServiceAction(service, action, useCache = false)
         } yield {
           Try {
             if (policy.rateActionId.isEmpty) {
@@ -372,13 +344,10 @@ object CounterController extends Controller {
               throw ex
           }
         }
-      }.getOrElse(NotFound(
-        Json.toJson(Map("msg" -> s"$service.$action not found"))))
+      }.getOrElse(NotFound(Json.toJson(Map("msg" -> s"$service.$action not found"))))
     }
 
-  def getExactCountAsync(service: String,
-                         action: String,
-                         item: String): Action[AnyContent] =
+  def getExactCountAsync(service: String, action: String, item: String): Action[AnyContent] =
     Action.async { implicit request =>
       val intervalUnits =
         getQueryString("interval", getQueryString("step", "t"))
@@ -406,12 +375,14 @@ object CounterController extends Controller {
       }
 
       // find dimension
-      lazy val dimQueryValues = request.queryString.filterKeys { k =>
-        k.charAt(0) == ':'
-      }.map {
-        case (k, v) =>
-          (k.substring(1), v.mkString(",").split(',').filter(_.nonEmpty).toSet)
-      }
+      lazy val dimQueryValues = request.queryString
+        .filterKeys { k =>
+          k.charAt(0) == ':'
+        }
+        .map {
+          case (k, v) =>
+            (k.substring(1), v.mkString(",").split(',').filter(_.nonEmpty).toSet)
+        }
 //    Logger.warn(s"$dimQueryValues")
 
       counterModel.findByServiceAction(service, action) match {
@@ -423,19 +394,11 @@ object CounterController extends Controller {
           try {
 //          Logger.warn(s"$tqs $qsSum")
             if (tqs.head.length > 1 && qsSum.isDefined) {
-              getDecayedCountToJs(policy,
-                                  item,
-                                  timeRange,
-                                  dimQueryValues,
-                                  qsSum).map { jsVal =>
+              getDecayedCountToJs(policy, item, timeRange, dimQueryValues, qsSum).map { jsVal =>
                 Ok(jsVal)
               }
             } else {
-              getExactCountToJs(policy,
-                                item,
-                                timeRange,
-                                limitOpt,
-                                dimQueryValues).map { jsVal =>
+              getExactCountToJs(policy, item, timeRange, limitOpt, dimQueryValues).map { jsVal =>
                 Ok(jsVal)
               }
             }
@@ -445,8 +408,7 @@ object CounterController extends Controller {
 //            Future.successful(BadRequest(s"$service, $action, $item"))
           }
         case None =>
-          Future.successful(
-            NotFound(Json.toJson(Map("msg" -> s"$service.$action not found"))))
+          Future.successful(NotFound(Json.toJson(Map("msg" -> s"$service.$action not found"))))
       }
     }
 
@@ -483,70 +445,56 @@ object CounterController extends Controller {
     (service, action, itemIds, intervals, limit, from, to, dimensions, sum)
   }
 
-  def getExactCountAsyncMulti: Action[JsValue] = Action.async(s2parse.json) {
-    implicit request =>
-      val jsValue = request.body
-      try {
-        val futures = {
-          for {
-            jsObject <- jsValue.asOpt[List[JsObject]].getOrElse(Nil)
-            (service,
-             action,
-             itemIds,
-             intervalUnits,
-             limit,
-             from,
-             to,
-             dimQueryValues,
-             qsSum) = parseExactCountParam(jsObject)
-            optFrom = from.map(UnitConverter.toMillis)
-            optTo = to.map(UnitConverter.toMillis)
-            timeRange = TimedQualifier
-              .getTimeRange(intervalUnits, limit, optFrom, optTo)
-            policy <- counterModel.findByServiceAction(service, action).toSeq
-            item <- itemIds
-          } yield {
-            val tqs = TimedQualifier
-              .getQualifiersToLimit(intervalUnits, limit, optFrom, optTo)
-            val timeRange =
-              TimedQualifier.getTimeRange(intervalUnits, limit, optFrom, optTo)
-            val limitOpt = (optFrom, optTo) match {
-              case (Some(_), Some(_)) =>
-                None
-              case _ =>
-                Some(limit)
-            }
+  def getExactCountAsyncMulti: Action[JsValue] = Action.async(s2parse.json) { implicit request =>
+    val jsValue = request.body
+    try {
+      val futures = {
+        for {
+          jsObject <- jsValue.asOpt[List[JsObject]].getOrElse(Nil)
+          (service, action, itemIds, intervalUnits, limit, from, to, dimQueryValues, qsSum) = parseExactCountParam(
+            jsObject
+          )
+          optFrom = from.map(UnitConverter.toMillis)
+          optTo = to.map(UnitConverter.toMillis)
+          timeRange = TimedQualifier
+            .getTimeRange(intervalUnits, limit, optFrom, optTo)
+          policy <- counterModel.findByServiceAction(service, action).toSeq
+          item <- itemIds
+        } yield {
+          val tqs = TimedQualifier
+            .getQualifiersToLimit(intervalUnits, limit, optFrom, optTo)
+          val timeRange =
+            TimedQualifier.getTimeRange(intervalUnits, limit, optFrom, optTo)
+          val limitOpt = (optFrom, optTo) match {
+            case (Some(_), Some(_)) =>
+              None
+            case _ =>
+              Some(limit)
+          }
 
 //          Logger.warn(s"$item, $limit, $optFrom, $optTo, $qsSum, $tqs")
 
-            if (tqs.head.length > 1 && qsSum.isDefined) {
-              getDecayedCountToJs(policy,
-                                  item,
-                                  timeRange,
-                                  dimQueryValues,
-                                  qsSum)
-            } else {
-              getExactCountToJs(policy,
-                                item,
-                                timeRange,
-                                limitOpt,
-                                dimQueryValues)
-            }
+          if (tqs.head.length > 1 && qsSum.isDefined) {
+            getDecayedCountToJs(policy, item, timeRange, dimQueryValues, qsSum)
+          } else {
+            getExactCountToJs(policy, item, timeRange, limitOpt, dimQueryValues)
           }
         }
-        Future.sequence(futures).map { rets =>
-          Ok(Json.toJson(rets))
-        }
-      } catch {
-        case e: Exception =>
-          throw e
-//        Future.successful(BadRequest(s"$jsValue"))
       }
+      Future.sequence(futures).map { rets =>
+        Ok(Json.toJson(rets))
+      }
+    } catch {
+      case e: Exception =>
+        throw e
+//        Future.successful(BadRequest(s"$jsValue"))
+    }
   }
 
   private[controllers] def fetchedToResult(
       fetchedCounts: FetchedCountsGrouped,
-      limitOpt: Option[Int]): Seq[ExactCounterIntervalItem] = {
+      limitOpt: Option[Int]
+  ): Seq[ExactCounterIntervalItem] = {
     for {
       ((interval, dimKeyValues), values) <- fetchedCounts.intervalWithCountMap
     } yield {
@@ -566,24 +514,21 @@ object CounterController extends Controller {
     }
   }.toSeq
 
-  private def decayedToResult(
-      decayedCounts: DecayedCounts): Seq[ExactCounterIntervalItem] = {
+  private def decayedToResult(decayedCounts: DecayedCounts): Seq[ExactCounterIntervalItem] = {
     for {
       (eq, score) <- decayedCounts.qualifierWithCountMap
     } yield {
-      ExactCounterIntervalItem(
-        eq.tq.q.toString,
-        eq.dimKeyValues,
-        Seq(ExactCounterItem(eq.tq.ts, score.toLong, score)))
+      ExactCounterIntervalItem(eq.tq.q.toString,
+                               eq.dimKeyValues,
+                               Seq(ExactCounterItem(eq.tq.ts, score.toLong, score)))
     }
   }.toSeq
 
-  private def getExactCountToJs(
-      policy: Counter,
-      item: String,
-      timeRange: Seq[(TimedQualifier, TimedQualifier)],
-      limitOpt: Option[Int],
-      dimQueryValues: Map[String, Set[String]]): Future[JsValue] = {
+  private def getExactCountToJs(policy: Counter,
+                                item: String,
+                                timeRange: Seq[(TimedQualifier, TimedQualifier)],
+                                limitOpt: Option[Int],
+                                dimQueryValues: Map[String, Set[String]]): Future[JsValue] =
     exactCounter(policy.version)
       .getCountsAsync(policy, Seq(item), timeRange, dimQueryValues)
       .map { seq =>
@@ -595,36 +540,26 @@ object CounterController extends Controller {
           }
         }.flatten
         Json.toJson(
-          ExactCounterResult(
-            ExactCounterResultMeta(policy.service, policy.action, item),
-            items))
+          ExactCounterResult(ExactCounterResultMeta(policy.service, policy.action, item), items)
+        )
       }
-  }
 
-  private def getDecayedCountToJs(
-      policy: Counter,
-      item: String,
-      timeRange: Seq[(TimedQualifier, TimedQualifier)],
-      dimQueryValues: Map[String, Set[String]],
-      qsSum: Option[String]): Future[JsValue] = {
+  private def getDecayedCountToJs(policy: Counter,
+                                  item: String,
+                                  timeRange: Seq[(TimedQualifier, TimedQualifier)],
+                                  dimQueryValues: Map[String, Set[String]],
+                                  qsSum: Option[String]): Future[JsValue] =
     exactCounter(policy.version)
-      .getDecayedCountsAsync(policy,
-                             Seq(item),
-                             timeRange,
-                             dimQueryValues,
-                             qsSum)
+      .getDecayedCountsAsync(policy, Seq(item), timeRange, dimQueryValues, qsSum)
       .map { seq =>
         val decayedCounts = seq.head
-        val meta = ExactCounterResultMeta(policy.service,
-                                          policy.action,
-                                          decayedCounts.exactKey.itemKey)
+        val meta =
+          ExactCounterResultMeta(policy.service, policy.action, decayedCounts.exactKey.itemKey)
         val intervalItems = decayedToResult(decayedCounts)
         Json.toJson(ExactCounterResult(meta, intervalItems))
       }
-  }
 
-  def getRankingCountAsync(service: String,
-                           action: String): Action[AnyContent] = Action.async {
+  def getRankingCountAsync(service: String, action: String): Action[AnyContent] = Action.async {
     implicit request =>
       lazy val intervalUnits =
         getQueryString("interval", getQueryString("step", "t"))
@@ -646,12 +581,14 @@ object CounterController extends Controller {
         .map(UnitConverter.toMillis)
 
       // find dimension
-      lazy val dimensionMap = request.queryString.filterKeys { k =>
-        k.charAt(0) == ':'
-      }.map {
-        case (k, v) =>
-          (k.substring(1), v.mkString(",").split(',').toList)
-      }
+      lazy val dimensionMap = request.queryString
+        .filterKeys { k =>
+          k.charAt(0) == ':'
+        }
+        .map {
+          case (k, v) =>
+            (k.substring(1), v.mkString(",").split(',').toList)
+        }
 
       val dimensions = {
         for {
@@ -670,10 +607,8 @@ object CounterController extends Controller {
               dimension <- dimensions
             } yield {
               dimension -> tqs.map(
-                tq =>
-                  RankingKey(policy.id,
-                             policy.version,
-                             ExactQualifier(tq, dimension)))
+                tq => RankingKey(policy.id, policy.version, ExactQualifier(tq, dimension))
+              )
             }
           }
 
@@ -684,8 +619,7 @@ object CounterController extends Controller {
                 getSumRankCounterResultAsync(policy, dimKeys, kValue, qsSum)
               } else {
                 // no summary
-                Future.successful(
-                  getRankCounterResult(policy, dimKeys, kValue))
+                Future.successful(getRankCounterResult(policy, dimKeys, kValue))
               }
             }
 
@@ -694,17 +628,12 @@ object CounterController extends Controller {
             }
           } catch {
             case e: UnsupportedOperationException =>
-              Future.successful(
-                NotImplemented(
-                  Json.toJson(
-                    Map("msg" -> e.getMessage)
-                  )))
+              Future.successful(NotImplemented(Json.toJson(Map("msg" -> e.getMessage))))
             case e: Throwable =>
               throw e
           }
         case None =>
-          Future.successful(
-            NotFound(Json.toJson(Map("msg" -> s"$service.$action not found"))))
+          Future.successful(NotFound(Json.toJson(Map("msg" -> s"$service.$action not found"))))
       }
   }
 
@@ -718,12 +647,14 @@ object CounterController extends Controller {
       lazy val limit = getQueryString("limit", "1").toInt
 
       // find dimension
-      lazy val dimensionMap = request.queryString.filterKeys { k =>
-        k.charAt(0) == ':'
-      }.map {
-        case (k, v) =>
-          (k.substring(1), v.mkString(",").split(',').toList)
-      }
+      lazy val dimensionMap = request.queryString
+        .filterKeys { k =>
+          k.charAt(0) == ':'
+        }
+        .map {
+          case (k, v) =>
+            (k.substring(1), v.mkString(",").split(',').toList)
+        }
 
       val dimensions = {
         for {
@@ -742,9 +673,7 @@ object CounterController extends Controller {
                 dimension <- dimensions
                 tq <- tqs
               } yield {
-                RankingKey(policy.id,
-                           policy.version,
-                           ExactQualifier(tq, dimension))
+                RankingKey(policy.id, policy.version, ExactQualifier(tq, dimension))
               }
             }
 
@@ -756,38 +685,32 @@ object CounterController extends Controller {
 
             Ok(
               JsObject(
-                Seq(
-                  ("msg", Json.toJson(s"delete ranking in $service.$action")),
-                  ("items", Json.toJson({
-                    for {
-                      key <- keys
-                    } yield {
-                      s"${key.eq.tq.q}.${key.eq.tq.ts}.${key.eq.dimension}"
-                    }
-                  }))
-                )
-              ))
+                Seq(("msg", Json.toJson(s"delete ranking in $service.$action")),
+                    ("items", Json.toJson({
+                      for {
+                        key <- keys
+                      } yield {
+                        s"${key.eq.tq.q}.${key.eq.tq.ts}.${key.eq.dimension}"
+                      }
+                    })))
+              )
+            )
           case None =>
-            NotFound(
-              Json.toJson(
-                Map("msg" -> s"$service.$action not found")
-              ))
+            NotFound(Json.toJson(Map("msg" -> s"$service.$action not found")))
         }
       }
     }
 
   val reduceRateRankingValue =
-    new ReduceMapValue[ExactKeyTrait, RateRankingValue](
-      RateRankingValue.reduce,
-      RateRankingValue(-1, -1))
+    new ReduceMapValue[ExactKeyTrait, RateRankingValue](RateRankingValue.reduce,
+                                                        RateRankingValue(-1, -1))
 
   // change format
-  private def getDecayedCountsAsync(
-      policy: Counter,
-      items: Seq[String],
-      timeRange: (TimedQualifier, TimedQualifier),
-      dimension: Map[String, String],
-      qsSum: Option[String]): Future[Seq[(ExactKeyTrait, Double)]] = {
+  private def getDecayedCountsAsync(policy: Counter,
+                                    items: Seq[String],
+                                    timeRange: (TimedQualifier, TimedQualifier),
+                                    dimension: Map[String, String],
+                                    qsSum: Option[String]): Future[Seq[(ExactKeyTrait, Double)]] =
     exactCounter(policy.version)
       .getDecayedCountsAsync(policy,
                              items,
@@ -802,13 +725,11 @@ object CounterController extends Controller {
           exactKey -> value
         }
       }
-  }
 
-  def getSumRankCounterResultAsync(
-      policy: Counter,
-      dimKeys: Seq[(Map[String, String], Seq[RankingKey])],
-      kValue: Int,
-      qsSum: Option[String]): Future[RankCounterResult] = {
+  def getSumRankCounterResultAsync(policy: Counter,
+                                   dimKeys: Seq[(Map[String, String], Seq[RankingKey])],
+                                   kValue: Int,
+                                   qsSum: Option[String]): Future[RankCounterResult] = {
     val futures = {
       for {
         (dimension, keys) <- dimKeys
@@ -824,37 +745,41 @@ object CounterController extends Controller {
             val basePolicy =
               policy.rateBaseId.flatMap(counterModel.findById(_)).get
 
-            val futureAction = getDecayedCountsAsync(actionPolicy,
-                                                     items,
-                                                     (tqFrom, tqTo),
-                                                     dimension,
-                                                     qsSum).map { seq =>
-              seq.map {
-                case (k, score) =>
-                  ExactKey(policy, k.itemKey, checkItemType = false) -> RateRankingValue(
-                    score,
-                    -1)
-              }.toMap
-            }
-            val futureBase = getDecayedCountsAsync(basePolicy,
-                                                   items,
-                                                   (tqFrom, tqTo),
-                                                   dimension,
-                                                   qsSum).map { seq =>
-              seq.map {
-                case (k, score) =>
-                  ExactKey(policy, k.itemKey, checkItemType = false) -> RateRankingValue(
-                    -1,
-                    score)
-              }.toMap
-            }
+            val futureAction =
+              getDecayedCountsAsync(actionPolicy, items, (tqFrom, tqTo), dimension, qsSum).map {
+                seq =>
+                  seq
+                    .map {
+                      case (k, score) =>
+                        ExactKey(policy, k.itemKey, checkItemType = false) -> RateRankingValue(
+                          score,
+                          -1
+                        )
+                    }
+                    .toMap
+              }
+            val futureBase =
+              getDecayedCountsAsync(basePolicy, items, (tqFrom, tqTo), dimension, qsSum).map {
+                seq =>
+                  seq
+                    .map {
+                      case (k, score) =>
+                        ExactKey(policy, k.itemKey, checkItemType = false) -> RateRankingValue(
+                          -1,
+                          score
+                        )
+                    }
+                    .toMap
+              }
             futureAction.zip(futureBase).map {
               case (actionScores, baseScores) =>
-                reduceRateRankingValue(actionScores, baseScores).map {
-                  case (k, rrv) =>
+                reduceRateRankingValue(actionScores, baseScores)
+                  .map {
+                    case (k, rrv) =>
 //                Logger.warn(s"$k -> $rrv")
-                    k -> rrv.rankingValue.score
-                }.toSeq
+                      k -> rrv.rankingValue.score
+                  }
+                  .toSeq
             }
           } else if (policy.isTrendCounter) {
             val actionPolicy =
@@ -862,45 +787,45 @@ object CounterController extends Controller {
             val basePolicy =
               policy.rateBaseId.flatMap(counterModel.findById(_)).get
 
-            val futureAction = getDecayedCountsAsync(actionPolicy,
-                                                     items,
-                                                     (tqFrom, tqTo),
-                                                     dimension,
-                                                     qsSum).map { seq =>
-              seq.map {
-                case (k, score) =>
-                  ExactKey(policy, k.itemKey, checkItemType = false) -> RateRankingValue(
-                    score,
-                    -1)
-              }.toMap
-            }
+            val futureAction =
+              getDecayedCountsAsync(actionPolicy, items, (tqFrom, tqTo), dimension, qsSum).map {
+                seq =>
+                  seq
+                    .map {
+                      case (k, score) =>
+                        ExactKey(policy, k.itemKey, checkItemType = false) -> RateRankingValue(
+                          score,
+                          -1
+                        )
+                    }
+                    .toMap
+              }
             val futureBase =
               getDecayedCountsAsync(basePolicy,
                                     items,
                                     (tqFrom.add(-1), tqTo.add(-1)),
                                     dimension,
                                     qsSum).map { seq =>
-                seq.map {
-                  case (k, score) =>
-                    ExactKey(policy, k.itemKey, checkItemType = false) -> RateRankingValue(
-                      -1,
-                      score)
-                }.toMap
+                seq
+                  .map {
+                    case (k, score) =>
+                      ExactKey(policy, k.itemKey, checkItemType = false) -> RateRankingValue(-1,
+                                                                                             score)
+                  }
+                  .toMap
               }
             futureAction.zip(futureBase).map {
               case (actionScores, baseScores) =>
-                reduceRateRankingValue(actionScores, baseScores).map {
-                  case (k, rrv) =>
+                reduceRateRankingValue(actionScores, baseScores)
+                  .map {
+                    case (k, rrv) =>
 //                Logger.warn(s"$k -> $rrv")
-                    k -> rrv.rankingValue.score
-                }.toSeq
+                      k -> rrv.rankingValue.score
+                  }
+                  .toSeq
             }
           } else {
-            getDecayedCountsAsync(policy,
-                                  items,
-                                  (tqFrom, tqTo),
-                                  dimension,
-                                  qsSum)
+            getDecayedCountsAsync(policy, items, (tqFrom, tqTo), dimension, qsSum)
           }
         }
         future.map { keyWithScore =>
@@ -914,8 +839,11 @@ object CounterController extends Controller {
                 case ItemType.BLOB =>
                   exactCounter(policy.version)
                     .getBlobValue(policy, exactKey.itemKey)
-                    .getOrElse(throw new Exception(
-                      s"not found blob id. ${policy.service}.${policy.action} ${exactKey.itemKey}"))
+                    .getOrElse(
+                      throw new Exception(
+                        s"not found blob id. ${policy.service}.${policy.action} ${exactKey.itemKey}"
+                      )
+                    )
                 case _ => exactKey.itemKey
               }
               RankCounterItem(idx + 1, realId, score)
@@ -923,25 +851,19 @@ object CounterController extends Controller {
           }
 
           val eq = ExactQualifier(tqFrom, dimension)
-          RankCounterDimensionItem(eq.tq.q.toString,
-                                   eq.tq.ts,
-                                   eq.dimension,
-                                   -1,
-                                   rankCounterItems)
+          RankCounterDimensionItem(eq.tq.q.toString, eq.tq.ts, eq.dimension, -1, rankCounterItems)
         }
       }
     }
 
     Future.sequence(futures).map { dimensionResultList =>
-      RankCounterResult(RankCounterResultMeta(policy.service, policy.action),
-                        dimensionResultList)
+      RankCounterResult(RankCounterResultMeta(policy.service, policy.action), dimensionResultList)
     }
   }
 
-  def getRankCounterResult(
-      policy: Counter,
-      dimKeys: Seq[(Map[String, String], Seq[RankingKey])],
-      kValue: Int): RankCounterResult = {
+  def getRankCounterResult(policy: Counter,
+                           dimKeys: Seq[(Map[String, String], Seq[RankingKey])],
+                           kValue: Int): RankCounterResult = {
     val dimensionResultList = {
       for {
         (dimension, keys) <- dimKeys
@@ -959,8 +881,11 @@ object CounterController extends Controller {
               case ItemType.BLOB =>
                 exactCounter(policy.version)
                   .getBlobValue(policy, id)
-                  .getOrElse(throw new Exception(
-                    s"not found blob id. ${policy.service}.${policy.action} $id"))
+                  .getOrElse(
+                    throw new Exception(
+                      s"not found blob id. ${policy.service}.${policy.action} $id"
+                    )
+                  )
               case _ => id
             }
             RankCounterItem(rank, realId, score)
@@ -968,24 +893,20 @@ object CounterController extends Controller {
         }
         val eq = key.eq
         val tq = eq.tq
-        RankCounterDimensionItem(
-          tq.q.toString,
-          tq.ts,
-          eq.dimension,
-          rankingValue.map(v => v.totalScore).getOrElse(0d),
-          ranks)
+        RankCounterDimensionItem(tq.q.toString,
+                                 tq.ts,
+                                 eq.dimension,
+                                 rankingValue.map(v => v.totalScore).getOrElse(0d),
+                                 ranks)
       }
     }
 
-    RankCounterResult(RankCounterResultMeta(policy.service, policy.action),
-                      dimensionResultList)
+    RankCounterResult(RankCounterResultMeta(policy.service, policy.action), dimensionResultList)
   }
 
   type Record = ProducerRecord[String, String]
 
-  def incrementCount(service: String,
-                     action: String,
-                     item: String): Action[JsValue] =
+  def incrementCount(service: String, action: String, item: String): Action[JsValue] =
     Action.async(s2parse.json) { request =>
       Future {
         /*
@@ -1017,30 +938,17 @@ object CounterController extends Controller {
               // produce to kafka
               // hash partitioner by key
               walLogHandler.enqueue(
-                KafkaMessage(
-                  new Record(CounterConfig.KAFKA_TOPIC_COUNTER,
-                             s"$ts.$item",
-                             msg)))
+                KafkaMessage(new Record(CounterConfig.KAFKA_TOPIC_COUNTER, s"$ts.$item", msg))
+              )
 
-              Ok(
-                Json.toJson(
-                  Map(
-                    "meta" -> metaMap
-                  )
-                ))
+              Ok(Json.toJson(Map("meta" -> metaMap)))
             } catch {
               case e: JsResultException =>
-                BadRequest(
-                  Json.toJson(
-                    Map("msg" -> s"need timestamp.")
-                  ))
+                BadRequest(Json.toJson(Map("msg" -> s"need timestamp.")))
             }
           }
           .getOrElse {
-            NotFound(
-              Json.toJson(
-                Map("msg" -> s"$service.$action not found")
-              ))
+            NotFound(Json.toJson(Map("msg" -> s"$service.$action not found")))
           }
       }
     }

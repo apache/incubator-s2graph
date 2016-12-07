@@ -22,13 +22,12 @@ name := "s2rest_play"
 
 scalacOptions in Test ++= Seq("-Yrangepos")
 
-libraryDependencies := (libraryDependencies.value ++ Seq(ws,
-                                                         filters,
-                                                         specs2 % Test))
+libraryDependencies := (libraryDependencies.value ++ Seq(ws, filters, specs2 % Test))
   .map(_.excludeLogging()) ++ Seq(
-  "com.google.guava" % "guava" % "12.0.1" force (), // use this old version of guava to avoid incompatibility
-  "io.netty" % "netty-all" % "4.0.40.Final" force ()
-  //"org.specs2" %% "specs2-core" % specs2Version % "test"
+                                  // use this old version of guava to avoid incompatibility
+                                  "com.google.guava" % "guava"     % "12.0.1" force (),
+                                  "io.netty"         % "netty-all" % "4.0.40.Final" force ()
+                                  //"org.specs2" %% "specs2-core" % specs2Version % "test"
 )
 
 routesGenerator := StaticRoutesGenerator

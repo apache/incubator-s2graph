@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -109,13 +109,16 @@ trait TestCommonWithModels {
   val consistencyLevel = "strong"
   val hTableTTL = None
 
-
   def createTestService(): Try[Service] = {
     implicit val session = AutoSession
-    management.createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
-    management.createService(serviceNameV2, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
-    management.createService(serviceNameV3, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
-    management.createService(serviceNameV4, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
+    management
+      .createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
+    management
+      .createService(serviceNameV2, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
+    management
+      .createService(serviceNameV3, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
+    management
+      .createService(serviceNameV4, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
   }
 
   def deleteTestService(): Unit = {
@@ -138,27 +141,138 @@ trait TestCommonWithModels {
   def createTestLabel(): Try[Label] = {
     implicit val session = AutoSession
 
-    management.createLabel(labelName, serviceName, columnName, columnType, serviceName, columnName, columnType,
-      isDirected = true, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION1, false, "lg4", None)
+    management.createLabel(labelName,
+                           serviceName,
+                           columnName,
+                           columnType,
+                           serviceName,
+                           columnName,
+                           columnType,
+                           isDirected = true,
+                           serviceName,
+                           testIdxProps,
+                           testProps,
+                           consistencyLevel,
+                           Some(hTableName),
+                           hTableTTL,
+                           VERSION1,
+                           false,
+                           "lg4",
+                           None)
 
-    management.createLabel(labelNameV2, serviceNameV2, columnNameV2, columnTypeV2, serviceNameV2, tgtColumnNameV2, tgtColumnTypeV2,
-      isDirected = true, serviceNameV2, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION2, false, "lg4", None)
+    management.createLabel(labelNameV2,
+                           serviceNameV2,
+                           columnNameV2,
+                           columnTypeV2,
+                           serviceNameV2,
+                           tgtColumnNameV2,
+                           tgtColumnTypeV2,
+                           isDirected = true,
+                           serviceNameV2,
+                           testIdxProps,
+                           testProps,
+                           consistencyLevel,
+                           Some(hTableName),
+                           hTableTTL,
+                           VERSION2,
+                           false,
+                           "lg4",
+                           None)
 
-    management.createLabel(labelNameV3, serviceNameV3, columnNameV3, columnTypeV3, serviceNameV3, tgtColumnNameV3, tgtColumnTypeV3,
-      isDirected = true, serviceNameV3, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION3, false, "lg4", None)
+    management.createLabel(labelNameV3,
+                           serviceNameV3,
+                           columnNameV3,
+                           columnTypeV3,
+                           serviceNameV3,
+                           tgtColumnNameV3,
+                           tgtColumnTypeV3,
+                           isDirected = true,
+                           serviceNameV3,
+                           testIdxProps,
+                           testProps,
+                           consistencyLevel,
+                           Some(hTableName),
+                           hTableTTL,
+                           VERSION3,
+                           false,
+                           "lg4",
+                           None)
 
-    management.createLabel(labelNameV4, serviceNameV4, columnNameV4, columnTypeV4, serviceNameV4, tgtColumnNameV4, tgtColumnTypeV4,
-      isDirected = true, serviceNameV4, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION4, false, "lg4", None)
+    management.createLabel(labelNameV4,
+                           serviceNameV4,
+                           columnNameV4,
+                           columnTypeV4,
+                           serviceNameV4,
+                           tgtColumnNameV4,
+                           tgtColumnTypeV4,
+                           isDirected = true,
+                           serviceNameV4,
+                           testIdxProps,
+                           testProps,
+                           consistencyLevel,
+                           Some(hTableName),
+                           hTableTTL,
+                           VERSION4,
+                           false,
+                           "lg4",
+                           None)
 
-    management.createLabel(undirectedLabelName, serviceName, columnName, columnType, serviceName, tgtColumnName, tgtColumnType,
-      isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION3, false, "lg4", None)
+    management.createLabel(undirectedLabelName,
+                           serviceName,
+                           columnName,
+                           columnType,
+                           serviceName,
+                           tgtColumnName,
+                           tgtColumnType,
+                           isDirected = false,
+                           serviceName,
+                           testIdxProps,
+                           testProps,
+                           consistencyLevel,
+                           Some(hTableName),
+                           hTableTTL,
+                           VERSION3,
+                           false,
+                           "lg4",
+                           None)
 
-    management.createLabel(undirectedLabelNameV2, serviceNameV2, columnNameV2, columnTypeV2, serviceNameV2, tgtColumnNameV2, tgtColumnTypeV2,
-      isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION2, false, "lg4", None)
+    management.createLabel(undirectedLabelNameV2,
+                           serviceNameV2,
+                           columnNameV2,
+                           columnTypeV2,
+                           serviceNameV2,
+                           tgtColumnNameV2,
+                           tgtColumnTypeV2,
+                           isDirected = false,
+                           serviceName,
+                           testIdxProps,
+                           testProps,
+                           consistencyLevel,
+                           Some(hTableName),
+                           hTableTTL,
+                           VERSION2,
+                           false,
+                           "lg4",
+                           None)
 
-    management.createLabel(labelNameSecure, serviceName, columnName, columnType, serviceName, tgtColumnName, tgtColumnType,
-      isDirected = false, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION3, false, "lg4",
-      Option("""{ "tokens": ["xxx-yyy", "aaa-bbb"] }"""))
+    management.createLabel(labelNameSecure,
+                           serviceName,
+                           columnName,
+                           columnType,
+                           serviceName,
+                           tgtColumnName,
+                           tgtColumnType,
+                           isDirected = false,
+                           serviceName,
+                           testIdxProps,
+                           testProps,
+                           consistencyLevel,
+                           Some(hTableName),
+                           hTableTTL,
+                           VERSION3,
+                           false,
+                           "lg4",
+                           Option("""{ "tokens": ["xxx-yyy", "aaa-bbb"] }"""))
   }
 
   def service: Service = Service.findByName(serviceName, useCache = false).get
@@ -171,19 +285,26 @@ trait TestCommonWithModels {
 
   def column: ServiceColumn = ServiceColumn.find(service.id.get, columnName, useCache = false).get
 
-  def columnV2: ServiceColumn = ServiceColumn.find(serviceV2.id.get, columnNameV2, useCache = false).get
+  def columnV2: ServiceColumn =
+    ServiceColumn.find(serviceV2.id.get, columnNameV2, useCache = false).get
 
-  def columnV3: ServiceColumn = ServiceColumn.find(serviceV3.id.get, columnNameV3, useCache = false).get
+  def columnV3: ServiceColumn =
+    ServiceColumn.find(serviceV3.id.get, columnNameV3, useCache = false).get
 
-  def columnV4: ServiceColumn = ServiceColumn.find(serviceV4.id.get, columnNameV4, useCache = false).get
+  def columnV4: ServiceColumn =
+    ServiceColumn.find(serviceV4.id.get, columnNameV4, useCache = false).get
 
-  def tgtColumn: ServiceColumn = ServiceColumn.find(service.id.get, tgtColumnName, useCache = false).get
+  def tgtColumn: ServiceColumn =
+    ServiceColumn.find(service.id.get, tgtColumnName, useCache = false).get
 
-  def tgtColumnV2: ServiceColumn = ServiceColumn.find(serviceV2.id.get, tgtColumnNameV2, useCache = false).get
+  def tgtColumnV2: ServiceColumn =
+    ServiceColumn.find(serviceV2.id.get, tgtColumnNameV2, useCache = false).get
 
-  def tgtColumnV3: ServiceColumn = ServiceColumn.find(serviceV3.id.get, tgtColumnNameV3, useCache = false).get
+  def tgtColumnV3: ServiceColumn =
+    ServiceColumn.find(serviceV3.id.get, tgtColumnNameV3, useCache = false).get
 
-  def tgtColumnV4: ServiceColumn = ServiceColumn.find(serviceV4.id.get, tgtColumnNameV4, useCache = false).get
+  def tgtColumnV4: ServiceColumn =
+    ServiceColumn.find(serviceV4.id.get, tgtColumnNameV4, useCache = false).get
 
   def label: Label = Label.findByName(labelName, useCache = false).get
 

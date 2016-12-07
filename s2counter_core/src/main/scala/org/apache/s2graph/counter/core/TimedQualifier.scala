@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -62,16 +62,15 @@ object TimedQualifier {
 
   import IntervalUnit._
 
-  def getTsUnit(intervalUnit: IntervalUnit.IntervalUnit): Long = {
+  def getTsUnit(intervalUnit: IntervalUnit.IntervalUnit): Long =
     intervalUnit match {
-      case MINUTELY => 1 * 60 * 1000l
-      case HOURLY => 60 * 60 * 1000l
-      case DAILY => 24 * 60 * 60 * 1000l
-      case MONTHLY => 31 * 24 * 60 * 60 * 1000l
+      case MINUTELY => 1 * 60 * 1000L
+      case HOURLY => 60 * 60 * 1000L
+      case DAILY => 24 * 60 * 60 * 1000L
+      case MONTHLY => 31 * 24 * 60 * 60 * 1000L
       case v: IntervalUnit.IntervalUnit =>
         throw new RuntimeException(s"unsupported operation for ${v.toString}")
     }
-  }
 
   def getQualifiers(intervals: Seq[IntervalUnit], millis: Long): Seq[TimedQualifier] = {
     val cal = Calendar.getInstance()
@@ -105,7 +104,9 @@ object TimedQualifier {
   }
 
   // descending order
-  def getQualifiersToLimit(intervals: Seq[IntervalUnit], limit: Int, tsOpt: Option[Long] = None): Seq[TimedQualifier] = {
+  def getQualifiersToLimit(intervals: Seq[IntervalUnit],
+                           limit: Int,
+                           tsOpt: Option[Long] = None): Seq[TimedQualifier] = {
     val ts = tsOpt.getOrElse(System.currentTimeMillis())
     for {
       interval <- intervals
@@ -149,7 +150,10 @@ object TimedQualifier {
     }
   }
 
-  def getTimeList(interval: IntervalUnit, from: Long, to: Long, rst: List[Long] = Nil): List[Long] = {
+  def getTimeList(interval: IntervalUnit,
+                  from: Long,
+                  to: Long,
+                  rst: List[Long] = Nil): List[Long] =
     interval match {
       case TOTAL => List(0)
       case _ =>
@@ -157,8 +161,7 @@ object TimedQualifier {
         if (next < from) {
           // ignore
           getTimeList(interval, next, to, rst)
-        }
-        else if (next < to) {
+        } else if (next < to) {
           // recall
           getTimeList(interval, next, to, rst :+ next)
         } else {
@@ -166,7 +169,6 @@ object TimedQualifier {
           rst :+ next
         }
     }
-  }
 
   // for reader
   def getQualifiersToLimit(intervals: Seq[IntervalUnit],

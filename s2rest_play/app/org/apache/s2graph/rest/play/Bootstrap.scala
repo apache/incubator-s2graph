@@ -23,7 +23,7 @@ import java.util.concurrent.Executors
 
 import org.apache.s2graph.core.rest.{RequestParser, RestHandler}
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{ExceptionHandler, S2Graph, Management}
+import org.apache.s2graph.core.{ExceptionHandler, Management, S2Graph}
 import org.apache.s2graph.rest.play.actors.QueueActor
 import org.apache.s2graph.rest.play.config.Config
 import org.apache.s2graph.rest.play.controllers.ApplicationController
@@ -55,15 +55,13 @@ object Global extends WithFilters(new GzipFilter()) {
     s2parser = new RequestParser(s2graph)
     s2rest = new RestHandler(s2graph)(ec)
 
-    logger.info(
-      s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
+    logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
 
     config
   }
 
-  def shutdown(): Unit = {
+  def shutdown(): Unit =
     s2graph.shutdown()
-  }
 
   // Application entry point
   override def onStart(app: Application) {
@@ -76,10 +74,11 @@ object Global extends WithFilters(new GzipFilter()) {
 
     val defaultHealthOn =
       Config.conf.getBoolean("app.health.on").getOrElse(true)
-    ApplicationController.deployInfo =
-      Try(Source.fromFile("./release_info").mkString("")).recover {
+    ApplicationController.deployInfo = Try(Source.fromFile("./release_info").mkString(""))
+      .recover {
         case _ => "release info not found\n"
-      }.get
+      }
+      .get
 
     ApplicationController.isHealthy = defaultHealthOn
   }
@@ -101,15 +100,12 @@ object Global extends WithFilters(new GzipFilter()) {
   }
 
   override def onHandlerNotFound(request: RequestHeader): Future[Result] = {
-    logger.error(
-      s"onHandlerNotFound => ip:${request.remoteAddress}, request:${request}")
+    logger.error(s"onHandlerNotFound => ip:${request.remoteAddress}, request:${request}")
     Future.successful(Results.NotFound)
   }
 
-  override def onBadRequest(request: RequestHeader,
-                            error: String): Future[Result] = {
-    logger.error(
-      s"onBadRequest => ip:${request.remoteAddress}, request:$request, error:$error")
+  override def onBadRequest(request: RequestHeader, error: String): Future[Result] = {
+    logger.error(s"onBadRequest => ip:${request.remoteAddress}, request:$request, error:$error")
     Future.successful(Results.BadRequest(error))
   }
 }

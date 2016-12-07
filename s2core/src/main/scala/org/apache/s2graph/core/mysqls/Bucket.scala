@@ -28,7 +28,7 @@ object Bucket extends Model[Bucket] {
   val rangeDelimiter = "~"
   val INVALID_BUCKET_EXCEPTION = new RuntimeException("invalid bucket.")
 
-  def apply(rs: WrappedResultSet): Bucket = {
+  def apply(rs: WrappedResultSet): Bucket =
     Bucket(rs.intOpt("id"),
            rs.int("experiment_id"),
            rs.string("modular"),
@@ -39,16 +39,16 @@ object Bucket extends Model[Bucket] {
            rs.string("impression_id"),
            rs.boolean("is_graph_query"),
            rs.boolean("is_empty"))
-  }
 
-  def finds(experimentId: Int)(
-      implicit session: DBSession = AutoSession): List[Bucket] = {
+  def finds(experimentId: Int)(implicit session: DBSession = AutoSession): List[Bucket] = {
     val cacheKey = "experimentId=" + experimentId
     withCaches(cacheKey) {
-      sql"""select * from buckets where experiment_id = $experimentId""".map {
-        rs =>
+      sql"""select * from buckets where experiment_id = $experimentId"""
+        .map { rs =>
           Bucket(rs)
-      }.list().apply()
+        }
+        .list()
+        .apply()
     }
   }
 
@@ -59,12 +59,12 @@ object Bucket extends Model[Bucket] {
   }
 
   def findByImpressionId(impressionId: String, useCache: Boolean = true)(
-      implicit session: DBSession = AutoSession): Option[Bucket] = {
+      implicit session: DBSession = AutoSession
+  ): Option[Bucket] = {
     val cacheKey = "impressionId=" + impressionId
     val sql =
-      sql"""select * from buckets where impression_id=$impressionId""".map {
-        rs =>
-          Bucket(rs)
+      sql"""select * from buckets where impression_id=$impressionId""".map { rs =>
+        Bucket(rs)
       }
     if (useCache) {
       withCache(cacheKey) {
@@ -83,14 +83,13 @@ object Bucket extends Model[Bucket] {
              timeout: Int,
              impressionId: String,
              isGraphQuery: Boolean,
-             isEmpty: Boolean)(
-      implicit session: DBSession = AutoSession): Try[Bucket] = {
+             isEmpty: Boolean)(implicit session: DBSession = AutoSession): Try[Bucket] =
     Try {
       sql"""
-            INSERT INTO buckets(experiment_id, modular, http_verb, api_path, request_body, timeout, impression_id,
-             is_graph_query, is_empty)
-            VALUES (${experiment.id.get}, $modular, $httpVerb, $apiPath, $requestBody, $timeout, $impressionId,
-             $isGraphQuery, $isEmpty)
+            INSERT INTO buckets(experiment_id, modular, http_verb, api_path, request_body, timeout,
+            impression_id, is_graph_query, is_empty)
+            VALUES (${experiment.id.get}, $modular, $httpVerb, $apiPath, $requestBody, $timeout,
+          $impressionId, $isGraphQuery, $isEmpty)
         """.updateAndReturnGeneratedKey().apply()
     }.map { newId =>
       Bucket(Some(newId.toInt),
@@ -104,7 +103,6 @@ object Bucket extends Model[Bucket] {
              isGraphQuery,
              isEmpty)
     }
-  }
 }
 
 case class Bucket(id: Option[Int],

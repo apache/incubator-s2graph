@@ -20,12 +20,7 @@
 package org.apache.s2graph.core.storage.serde.snapshotedge.tall
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.mysqls.{
-  ServiceColumn,
-  Label,
-  LabelIndex,
-  LabelMeta
-}
+import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{
   CanSKeyValue,
@@ -39,10 +34,9 @@ import org.apache.s2graph.core.types.{
   SourceAndTargetVertexIdPair,
   SourceVertexId
 }
-import org.apache.s2graph.core.{S2Graph, S2Edge, SnapshotEdge, S2Vertex}
+import org.apache.s2graph.core.{S2Edge, S2Graph, S2Vertex, SnapshotEdge}
 
-class SnapshotEdgeDeserializable(graph: S2Graph)
-    extends Deserializable[SnapshotEdge] {
+class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[SnapshotEdge] {
 
   def statusCodeWithOp(byte: Byte): (Byte, Byte) = {
     val statusCode = byte >> 4
@@ -54,7 +48,8 @@ class SnapshotEdgeDeserializable(graph: S2Graph)
       checkLabel: Option[Label],
       _kvs: Seq[T],
       version: String,
-      cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
+      cacheElementOpt: Option[SnapshotEdge]
+  ): SnapshotEdge = {
     val kvs = _kvs.map { kv =>
       implicitly[CanSKeyValue[T]].toSKeyValue(kv)
     }
@@ -85,15 +80,11 @@ class SnapshotEdgeDeserializable(graph: S2Graph)
        rowLen)
 
     }
-    val (srcInnerId, tgtInnerId, labelWithDir, _, _, _) = cacheElementOpt.map {
-      e =>
-        (e.srcVertex.innerId,
-         e.tgtVertex.innerId,
-         e.labelWithDir,
-         LabelIndex.DefaultSeq,
-         true,
-         0)
-    }.getOrElse(parseRowV3(kv, schemaVer))
+    val (srcInnerId, tgtInnerId, labelWithDir, _, _, _) = cacheElementOpt
+      .map { e =>
+        (e.srcVertex.innerId, e.tgtVertex.innerId, e.labelWithDir, LabelIndex.DefaultSeq, true, 0)
+      }
+      .getOrElse(parseRowV3(kv, schemaVer))
 
     val srcVertexId = SourceVertexId(ServiceColumn.Default, srcInnerId)
     val tgtVertexId = SourceVertexId(ServiceColumn.Default, tgtInnerId)
@@ -112,8 +103,7 @@ class SnapshotEdgeDeserializable(graph: S2Graph)
       val _pendingEdgeOpt =
         if (pos == kv.value.length) None
         else {
-          val (pendingEdgeStatusCode, pendingEdgeOp) = statusCodeWithOp(
-            kv.value(pos))
+          val (pendingEdgeStatusCode, pendingEdgeOp) = statusCodeWithOp(kv.value(pos))
           pos += 1
           //          val versionNum = Bytes.toLong(kv.value, pos, 8)
           //          pos += 8

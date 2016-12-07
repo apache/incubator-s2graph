@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -47,13 +47,12 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     initTestData()
   }
 
-  override def afterAll(): Unit = {
+  override def afterAll(): Unit =
     graph.shutdown()
-  }
 
   /**
-   * Make Service, Label, Vertex for integrate test
-   */
+    * Make Service, Label, Vertex for integrate test
+    */
   def initTestData(): Unit = {
     println("[init start]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     Management.deleteService(testServiceName)
@@ -64,13 +63,15 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       parser.toServiceElements(jsValue)
 
     val tryRes =
-      management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
+      management
+        .createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
     println(s">> Service created : $createService, $tryRes")
 
-    val labelNames = Map(testLabelName -> testLabelNameCreate,
-      testLabelName2 -> testLabelName2Create,
-      testLabelNameV1 -> testLabelNameV1Create,
-      testLabelNameWeak -> testLabelNameWeakCreate)
+    val labelNames =
+      Map(testLabelName -> testLabelNameCreate,
+          testLabelName2 -> testLabelName2Create,
+          testLabelNameV1 -> testLabelNameV1Create,
+          testLabelNameWeak -> testLabelNameWeakCreate)
 
     for {
       (labelName, create) <- labelNames
@@ -94,17 +95,17 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
     val vertexPropsKeys = List("age" -> "integer", "im" -> "string")
 
-    vertexPropsKeys.map { case (key, keyType) =>
-      Management.addVertexProp(testServiceName, testColumnName, key, keyType)
+    vertexPropsKeys.map {
+      case (key, keyType) =>
+        Management.addVertexProp(testServiceName, testColumnName, key, keyType)
     }
 
     println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
   }
 
-
   /**
-   * Test Helpers
-   */
+    * Test Helpers
+    */
   object TestUtil {
     implicit def ec: ExecutionContextExecutor = scala.concurrent.ExecutionContext.global
 
@@ -123,7 +124,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       val future = Future.sequence(jsValue.as[Seq[JsValue]] map { json =>
         val (labels, direction, ids, ts, vertices) = parser.toDeleteParam(json)
         val srcVertices = vertices
-        val future = graph.deleteAllAdjacentEdges(srcVertices.toList, labels, GraphUtil.directions(direction), ts)
+        val future = graph
+          .deleteAllAdjacentEdges(srcVertices.toList, labels, GraphUtil.directions(direction), ts)
 
         future
       })
@@ -134,7 +136,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     def getEdgesSync(s2Query: Query): JsValue = {
       logger.info(s2Query.toString)
       val stepResult = Await.result(graph.getEdges(s2Query), HttpRequestWaitingTime)
-      val result = PostProcess.toJson(Option(s2Query.jsonQuery))(graph, s2Query.queryOption, stepResult)
+      val result =
+        PostProcess.toJson(Option(s2Query.jsonQuery))(graph, s2Query.queryOption, stepResult)
 //      val result = Await.result(graph.getEdges(s2Query).(PostProcess.toJson), HttpRequestWaitingTime)
       logger.debug(s"${Json.prettyPrint(result)}")
       result
@@ -143,21 +146,26 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     def getEdgesSync(queryJson: JsValue): JsValue = {
       logger.info(Json.prettyPrint(queryJson))
       val restHandler = new RestHandler(graph)
-      val result = Await.result(restHandler.getEdgesAsync(queryJson)(PostProcess.toJson(Option(queryJson))), HttpRequestWaitingTime)
+      val result = Await.result(
+        restHandler.getEdgesAsync(queryJson)(PostProcess.toJson(Option(queryJson))),
+        HttpRequestWaitingTime
+      )
       logger.debug(s"${Json.prettyPrint(result)}")
       result
     }
 
     def insertEdgesSync(bulkEdges: String*): Seq[Boolean] = {
       logger.debug(s"${bulkEdges.mkString("\n")}")
-      val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
+      val req =
+        graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
       val jsResult = Await.result(req, HttpRequestWaitingTime)
 
       jsResult
     }
 
     def insertEdgesAsync(bulkEdges: String*): Future[Seq[Boolean]] = {
-      val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
+      val req =
+        graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
       req
     }
 

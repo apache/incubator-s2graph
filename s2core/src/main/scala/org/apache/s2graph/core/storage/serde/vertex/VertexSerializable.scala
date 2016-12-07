@@ -24,8 +24,7 @@ import org.apache.s2graph.core.storage.StorageSerializable._
 import org.apache.s2graph.core.storage.{SKeyValue, Serializable}
 import scala.collection.JavaConverters._
 
-case class VertexSerializable(vertex: S2Vertex,
-                              intToBytes: Int => Array[Byte] = intToBytes)
+case class VertexSerializable(vertex: S2Vertex, intToBytes: Int => Array[Byte] = intToBytes)
     extends Serializable[S2Vertex] {
 
   override val table = vertex.hbaseTableName.getBytes
@@ -49,14 +48,10 @@ case class VertexSerializable(vertex: S2Vertex,
     val belongsTo = vertex.belongLabelIds.map { labelId =>
       intToBytes(S2Vertex.toPropKey(labelId)) -> Array.empty[Byte]
     }
-    (base ++ belongsTo).map {
-      case (qualifier, value) =>
-        SKeyValue(vertex.hbaseTableName.getBytes,
-                  row,
-                  cf,
-                  qualifier,
-                  value,
-                  vertex.ts)
+    (base ++ belongsTo)
+      .map {
+        case (qualifier, value) =>
+          SKeyValue(vertex.hbaseTableName.getBytes, row, cf, qualifier, value, vertex.ts)
     } toSeq
   }
 }

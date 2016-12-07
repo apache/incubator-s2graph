@@ -36,7 +36,8 @@ object PublishController extends Controller {
     * never check validation on string. just redirect strings to kafka.
     */
   val serviceNotExistException = new RuntimeException(
-    s"service is not created in s2graph. create service first.")
+    s"service is not created in s2graph. create service first."
+  )
 
   private val walLogHandler: ExceptionHandler =
     org.apache.s2graph.rest.play.Global.wallLogHandler
@@ -56,9 +57,8 @@ object PublishController extends Controller {
         walLogHandler.enqueue(KafkaMessage(keyedMessage))
       })
       Future.successful(
-        Ok("publish success.\n").withHeaders(
-          CONNECTION -> "Keep-Alive",
-          "Keep-Alive" -> "timeout=10, max=10")
+        Ok("publish success.\n").withHeaders(CONNECTION -> "Keep-Alive",
+                                             "Keep-Alive" -> "timeout=10, max=10")
       )
     //    try {
     //

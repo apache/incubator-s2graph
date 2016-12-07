@@ -27,7 +27,6 @@ import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal
 import org.apache.tinkerpop.gremlin.structure.{Edge, T, Vertex}
 import org.scalatest.{FunSuite, Matchers}
 
-
 class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 
   import scala.collection.JavaConversions._
@@ -37,19 +36,23 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 
   val g = new S2Graph(config)
 
-  def printEdges(edges: Seq[Edge]): Unit = {
+  def printEdges(edges: Seq[Edge]): Unit =
     edges.foreach { edge =>
       logger.debug(s"[FetchedEdge]: $edge")
     }
-  }
 
   import scala.language.implicitConversions
 
-  def newVertexId(id: Any, label: Label = labelV2): VertexId = g.newVertexId(label.srcService, label.srcColumn, id)
+  def newVertexId(id: Any, label: Label = labelV2): VertexId =
+    g.newVertexId(label.srcService, label.srcColumn, id)
 
   def addVertex(id: AnyRef, label: Label = labelV2): S2Vertex =
-    g.addVertex(T.label, label.srcService.serviceName + S2Vertex.VertexLabelDelimiter + label.srcColumnName,
-      T.id, id).asInstanceOf[S2Vertex]
+    g.addVertex(
+        T.label,
+        label.srcService.serviceName + S2Vertex.VertexLabelDelimiter + label.srcColumnName,
+        T.id,
+        id)
+      .asInstanceOf[S2Vertex]
 
   val srcId = Long.box(20)
   val range = (100 until 110)
@@ -73,11 +76,16 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     } {
       val tgt = addVertex(Int.box(i))
 
-      src.addEdge(labelV2.label, tgt,
-        "age", Int.box(10), 
-        "affinity_score", Double.box(0.1), 
-        "is_blocked", Boolean.box(true),
-        "ts", Long.box(i))
+      src.addEdge(labelV2.label,
+                  tgt,
+                  "age",
+                  Int.box(10),
+                  "affinity_score",
+                  Double.box(0.1),
+                  "is_blocked",
+                  Boolean.box(true),
+                  "ts",
+                  Long.box(i))
     }
   }
 
@@ -85,21 +93,23 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     val vertices = g.traversal().V(newVertexId(srcId)).out(labelV2.label).toSeq
 
     vertices.size should be(range.size)
-    range.reverse.zip(vertices).foreach { case (tgtId, vertex) =>
-      val vertexId = g.newVertexId(labelV2.tgtService, labelV2.tgtColumn, tgtId)
-      val expectedId = g.newVertex(vertexId)
-      vertex.asInstanceOf[S2Vertex].innerId should be(expectedId.innerId)
+    range.reverse.zip(vertices).foreach {
+      case (tgtId, vertex) =>
+        val vertexId = g.newVertexId(labelV2.tgtService, labelV2.tgtColumn, tgtId)
+        val expectedId = g.newVertex(vertexId)
+        vertex.asInstanceOf[S2Vertex].innerId should be(expectedId.innerId)
     }
   }
 
   test("test traversal. limit 1") {
     val vertexIdParams = Seq(newVertexId(srcId))
-    val t: GraphTraversal[Vertex, Double] = g.traversal().V(vertexIdParams: _*).outE(labelV2.label).limit(1).values("affinity_score")
+    val t: GraphTraversal[Vertex, Double] =
+      g.traversal().V(vertexIdParams: _*).outE(labelV2.label).limit(1).values("affinity_score")
     for {
       affinityScore <- t
     } {
       logger.debug(s"$affinityScore")
-      affinityScore should be (0.1)
+      affinityScore should be(0.1)
     }
   }
   test("test traversal. 3") {

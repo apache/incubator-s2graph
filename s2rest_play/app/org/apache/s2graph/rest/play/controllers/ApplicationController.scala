@@ -47,14 +47,12 @@ object ApplicationController extends Controller {
   }
 
   private def badQueryExceptionResults(ex: Exception) =
-    Future.successful(
-      BadRequest(PostProcess.badRequestResults(ex)).as(applicationJsonHeader))
+    Future.successful(BadRequest(PostProcess.badRequestResults(ex)).as(applicationJsonHeader))
 
   private def errorResults =
     Future.successful(Ok(PostProcess.emptyResults).as(applicationJsonHeader))
 
-  def requestFallback(
-      body: String): PartialFunction[Throwable, Future[Result]] = {
+  def requestFallback(body: String): PartialFunction[Throwable, Future[Result]] = {
     case e: BadQueryException =>
       logger.error(s"{$body}, ${e.getMessage}", e)
       badQueryExceptionResults(e)
@@ -63,27 +61,24 @@ object ApplicationController extends Controller {
       errorResults
   }
 
-  def updateHealthCheck(isHealthy: Boolean): Action[AnyContent] = Action {
-    request =>
-      this.isHealthy = isHealthy
-      Ok(this.isHealthy + "\n")
+  def updateHealthCheck(isHealthy: Boolean): Action[AnyContent] = Action { request =>
+    this.isHealthy = isHealthy
+    Ok(this.isHealthy + "\n")
   }
 
-  def healthCheck(): Action[AnyContent] = withHeader(parse.anyContent) {
-    request =>
-      if (isHealthy) Ok(deployInfo)
-      else NotFound
+  def healthCheck(): Action[AnyContent] = withHeader(parse.anyContent) { request =>
+    if (isHealthy) Ok(deployInfo)
+    else NotFound
   }
 
   def skipElement(isAsync: Boolean): Boolean =
     !isWriteFallbackHealthy || isAsync
 
-  def toKafkaTopic(isAsync: Boolean): String = {
+  def toKafkaTopic(isAsync: Boolean): String =
     if (!isWriteFallbackHealthy) Config.KAFKA_FAIL_TOPIC
     else {
       if (isAsync) Config.KAFKA_LOG_TOPIC_ASYNC else Config.KAFKA_LOG_TOPIC
     }
-  }
 
   def jsonResponse(json: JsValue, headers: (String, String)*): Result =
     if (ApplicationController.isHealthy) {
@@ -91,14 +86,12 @@ object ApplicationController extends Controller {
     } else {
       Result(
         header = ResponseHeader(OK),
-        body = HttpEntity.Strict(ByteString(json.toString.getBytes()),
-                                 Some(applicationJsonHeader))
+        body = HttpEntity.Strict(ByteString(json.toString.getBytes()), Some(applicationJsonHeader))
       ).as(applicationJsonHeader)
         .withHeaders((CONNECTION -> "close") +: headers: _*)
     }
 
-  def toLogMessage[A](request: Request[A], result: Result)(
-      startedAt: Long): String = {
+  def toLogMessage[A](request: Request[A], result: Result)(startedAt: Long): String = {
     val duration = System.currentTimeMillis() - startedAt
     val isQueryRequest = result.header.headers.contains("result_size")
     val resultSize = result.header.headers.getOrElse("result_size", "-1")
@@ -116,9 +109,11 @@ object ApplicationController extends Controller {
 
       val str =
         if (isQueryRequest) {
-          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${body}"
+          "%s %s took %d ms %d %s %s"
+            .format(request.method, request.uri, duration, result.header.status, resultSize, body)
         } else {
-          s"${request.method} ${request.uri} took ${duration} ms ${result.header.status} ${resultSize} ${body}"
+          "%s %s took %d ms %d %s %s"
+            .format(request.method, request.uri, duration, result.header.status, resultSize, body)
         }
 
       str
@@ -127,9 +122,9 @@ object ApplicationController extends Controller {
     }
   }
 
-  def withHeaderAsync[A](bodyParser: BodyParser[A])(
-      block: Request[A] => Future[Result])(
-      implicit ex: ExecutionContext): Action[A] =
+  def withHeaderAsync[A](
+      bodyParser: BodyParser[A]
+  )(block: Request[A] => Future[Result])(implicit ex: ExecutionContext): Action[A] =
     Action.async(bodyParser) { request =>
       val startedAt = System.currentTimeMillis()
       block(request).map { r =>
@@ -138,8 +133,7 @@ object ApplicationController extends Controller {
       }
     }
 
-  def withHeader[A](bodyParser: BodyParser[A])(
-      block: Request[A] => Result): Action[A] =
+  def withHeader[A](bodyParser: BodyParser[A])(block: Request[A] => Result): Action[A] =
     Action(bodyParser) { request: Request[A] =>
       val startedAt = System.currentTimeMillis()
       val r = block(request)

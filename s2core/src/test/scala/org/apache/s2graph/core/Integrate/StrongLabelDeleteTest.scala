@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -50,9 +50,9 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
     val deleteParam = Json.arr(
       Json.obj("label" -> testLabelName2,
-        "direction" -> "in",
-        "ids" -> Json.arr("20"),
-        "timestamp" -> deletedAt))
+               "direction" -> "in",
+               "ids" -> Json.arr("20"),
+               "timestamp" -> deletedAt))
 
     deleteAllSync(deleteParam)
 
@@ -83,12 +83,11 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     (result \ "results").as[List[JsValue]].size should be(3)
   }
 
-
   test("update delete") {
     val ret = for {
       i <- 0 until testNum
     } yield {
-        val src = (i + 1) * 10000
+      val src = (i + 1) * 10000
 //      val src = System.currentTimeMillis()
 
       val (ret, last) = testInner(i, src)
@@ -113,8 +112,10 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
       ret should be(true)
 
-      val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
-      val deleteAllRequest2 = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt2))
+      val deleteAllRequest =
+        Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
+      val deleteAllRequest2 =
+        Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt2))
 
       val deleteRet = deleteAllSync(deleteAllRequest)
       val deleteRet2 = deleteAllSync(deleteAllRequest2)
@@ -137,7 +138,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   /** This test stress out test on degree
     * when contention is low but number of adjacent edges are large
     * Large set of contention test
-  */
+    */
   test("large degrees") {
     val labelName = testLabelName2
     val dir = "out"
@@ -146,7 +147,9 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val deleteSize = 10
     val numOfConcurrentBatch = 100
     val src = 1092983
-    val tgts = (minSize until maxSize).map { ith => src + ith }
+    val tgts = (minSize until maxSize).map { ith =>
+      src + ith
+    }
     val deleteTgts = Random.shuffle(tgts).take(deleteSize)
     val insertRequests = tgts.map { tgt =>
       Seq(tgt, "insert", "e", src, tgt, labelName, "{}", dir).mkString("\t")
@@ -187,7 +190,9 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val deleteSize = 10
     val numOfConcurrentBatch = 100
     val src = 192338237
-    val tgts = (minSize until maxSize).map { ith => src + ith }
+    val tgts = (minSize until maxSize).map { ith =>
+      src + ith
+    }
     val deleteTgts = Random.shuffle(tgts).take(deleteSize)
     val insertRequests = tgts.map { tgt =>
       Seq(tgt, "insert", "e", src, tgt, labelName, "{}", dir).mkString("\t")
@@ -203,7 +208,8 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
 
     val deletedAt = System.currentTimeMillis()
-    val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
+    val deleteAllRequest =
+      Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
 
     deleteAllSync(deleteAllRequest)
 
@@ -276,9 +282,11 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       toEdge(startTs + 8, "insert", "e", "12", "20", labelName, s"""{"time": 13}""")
     )
 
-    def query(id: Long, serviceName: String = testServiceName, columnName: String = testColumnName,
-              _labelName: String = labelName, direction: String = "out"): JsValue = Json.parse(
-      s"""
+    def query(id: Long,
+              serviceName: String = testServiceName,
+              columnName: String = testColumnName,
+              _labelName: String = labelName,
+              direction: String = "out"): JsValue = Json.parse(s"""
           { "srcVertices": [
             { "serviceName": "$serviceName",
               "columnName": "$columnName",
@@ -295,10 +303,8 @@ class StrongLabelDeleteTest extends IntegrateCommon {
             ]]
           }""")
 
-    def getDegree(jsValue: JsValue): Long = {
+    def getDegree(jsValue: JsValue): Long =
       ((jsValue \ "degrees") \\ "_degree").headOption.map(_.as[Long]).getOrElse(0L)
-    }
   }
-
 
 }

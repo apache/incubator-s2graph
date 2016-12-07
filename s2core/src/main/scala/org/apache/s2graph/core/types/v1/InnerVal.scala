@@ -61,25 +61,22 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
     case (k, v) => ((-v).toByte, k)
   }
 
-  def maxIdVal(dataType: String): InnerVal = {
+  def maxIdVal(dataType: String): InnerVal =
     dataType match {
       case "string" =>
-        InnerVal.withStr(
-          (0 until (Byte.MaxValue - stringLenOffset)).map("~").mkString)
+        InnerVal.withStr((0 until (Byte.MaxValue - stringLenOffset)).map("~").mkString)
       case "long" => InnerVal.withLong(Long.MaxValue)
       case "bool" => InnerVal.withBoolean(true)
       case _ => throw IllegalDataTypeException(dataType)
     }
-  }
 
-  def minIdVal(dataType: String): InnerVal = {
+  def minIdVal(dataType: String): InnerVal =
     dataType match {
       case "string" => InnerVal.withStr("")
       case "long" => InnerVal.withLong(1)
       case "bool" => InnerVal.withBoolean(false)
       case _ => throw IllegalDataTypeException(dataType)
     }
-  }
 
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
@@ -137,18 +134,15 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
     (InnerVal(longV, strV, boolV), numOfBytesUsed + 1)
   }
 
-  def withLong(l: Long): InnerVal = {
+  def withLong(l: Long): InnerVal =
     //      if (l < 0) throw new IllegalDataRangeException("value shoudl be >= 0")
     InnerVal(Some(l), None, None)
-  }
 
-  def withStr(s: String): InnerVal = {
+  def withStr(s: String): InnerVal =
     InnerVal(None, Some(s), None)
-  }
 
-  def withBoolean(b: Boolean): InnerVal = {
+  def withBoolean(b: Boolean): InnerVal =
     InnerVal(None, None, Some(b))
-  }
 
   /**
     * In natural order
@@ -158,7 +152,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
     * 0 < 1, 2, 127, 128 < -129, -128, -2, -1
     *
     */
-  def transform(l: Long): (Byte, Array[Byte]) = {
+  def transform(l: Long): (Byte, Array[Byte]) =
     if (Byte.MinValue <= l && l <= Byte.MaxValue) {
       //        val value = if (l < 0) l - Byte.MinValue else l + Byte.MinValue
       val key = if (l >= 0) metaByte("byte") else -metaByte("byte")
@@ -183,14 +177,10 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
     } else {
       throw new Exception(s"InnerVal range is out: $l")
     }
-  }
 }
 
-case class InnerVal(longV: Option[Long],
-                    strV: Option[String],
-                    boolV: Option[Boolean])
-    extends HBaseSerializable
-    with InnerValLike {
+case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boolean])
+    extends HBaseSerializable with InnerValLike {
 
   import InnerVal._
 
@@ -200,22 +190,19 @@ case class InnerVal(longV: Option[Long],
     case (None, Some(s), None) => s
     case (None, None, Some(b)) => b
     case _ =>
-      throw new Exception(
-        s"InnerVal should be [long/integeer/short/byte/string/boolean]")
+      throw new Exception(s"InnerVal should be [long/integeer/short/byte/string/boolean]")
   }
   def valueType: String = (longV, strV, boolV) match {
     case (Some(l), None, None) => "long"
     case (None, Some(s), None) => "string"
     case (None, None, Some(b)) => "boolean"
     case _ =>
-      throw new Exception(
-        s"InnerVal should be [long/integeer/short/byte/string/boolean]")
+      throw new Exception(s"InnerVal should be [long/integeer/short/byte/string/boolean]")
   }
 
-  def compare(other: InnerValLike): Int = {
+  def compare(other: InnerValLike): Int =
     if (!other.isInstanceOf[InnerVal]) {
-      throw new RuntimeException(
-        s"compare between $this vs $other is not supported")
+      throw new RuntimeException(s"compare between $this vs $other is not supported")
     } else {
 //      (value, other.value) match {
 //        case (v1: Long, v2: Long) => v1.compare(v2)
@@ -225,9 +212,8 @@ case class InnerVal(longV: Option[Long],
 //      }
       Bytes.compareTo(bytes, other.bytes) * -1
     }
-  }
 
-  def +(other: InnerValLike): InnerVal = {
+  def +(other: InnerValLike): InnerVal =
     if (!other.isInstanceOf[InnerVal]) {
       throw new RuntimeException(s"+ between $this vs $other is not supported")
     } else {
@@ -239,7 +225,6 @@ case class InnerVal(longV: Option[Long],
           throw new Exception("Please check a type of the incr operands")
       }
     }
-  }
 
   def bytes: Array[Byte] = {
     val (meta, valBytes) = (longV, strV, boolV) match {
@@ -254,25 +239,22 @@ case class InnerVal(longV: Option[Long],
         val sBytes = Bytes.toBytes(s)
         if (sBytes.length > maxStringLen) {
           throw new IllegalDataTypeException(
-            s"string in innerVal maxSize is $maxStringLen, given ${sBytes.length}")
+            s"string in innerVal maxSize is $maxStringLen, given ${sBytes.length}"
+          )
         }
         assert(sBytes.length <= maxStringLen)
         val meta = (stringLenOffset + sBytes.length).toByte
         (meta, sBytes)
       case _ =>
-        throw new IllegalDataTypeException(
-          "innerVal data type should be [long/string/bool]")
+        throw new IllegalDataTypeException("innerVal data type should be [long/string/bool]")
     }
     Bytes.add(Array.fill(1)(meta.toByte), valBytes)
   }
 
-  override def toString(): String = {
+  override def toString(): String =
     value.toString
-  }
-  override def hashKey(dataType: String): Int = {
+  override def hashKey(dataType: String): Int =
     value.toString.hashCode()
-  }
-  override def toIdString(): String = {
+  override def toIdString(): String =
     value.toString
-  }
 }

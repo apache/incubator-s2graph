@@ -22,27 +22,22 @@ package org.apache.s2graph.core
 import org.apache.s2graph.core.GraphExceptions.IllegalDataTypeException
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.rest.TemplateHelper
-import org.apache.s2graph.core.types.{
-  InnerValLikeWithTs,
-  InnerVal,
-  InnerValLike
-}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs}
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json._
 
 object JSONParser {
 
   //TODO: check result notation on bigDecimal.
-  def innerValToJsValue(innerVal: InnerValLike,
-                        dataType: String): Option[JsValue] = {
+  def innerValToJsValue(innerVal: InnerValLike, dataType: String): Option[JsValue] =
     try {
       val dType = InnerVal.toInnerDataType(dataType)
       val jsValue = dType match {
         case InnerVal.STRING => JsString(innerVal.value.asInstanceOf[String])
         case InnerVal.BOOLEAN =>
           JsBoolean(innerVal.value.asInstanceOf[Boolean])
-        case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG |
-            InnerVal.FLOAT | InnerVal.DOUBLE =>
+        case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT |
+            InnerVal.DOUBLE =>
           //        case t if InnerVal.NUMERICS.contains(t) =>
           innerVal.value match {
             case l: Long => JsNumber(l)
@@ -77,8 +72,7 @@ object JSONParser {
               }
             //              JsNumber(num.toLong)
             case _ =>
-              throw new RuntimeException(
-                s"$innerVal, Numeric Unknown => $dataType")
+              throw new RuntimeException(s"$innerVal, Numeric Unknown => $dataType")
           }
         //          JsNumber(InnerVal.scaleNumber(innerVal.asInstanceOf[BigDecimal], dType))
         case _ =>
@@ -90,7 +84,6 @@ object JSONParser {
         logger.info(s"JSONParser.innerValToJsValue: $e")
         None
     }
-  }
 
   //  def innerValToString(innerVal: InnerValLike, dataType: String): String = {
   //    val dType = InnerVal.toInnerDataType(dataType)
@@ -125,11 +118,10 @@ object JSONParser {
   //        throw new RuntimeException(s"illegal datatype for string: dataType is $dataType for $s")
   //    }
   //  }
-  def isNumericType(dType: String): Boolean = {
+  def isNumericType(dType: String): Boolean =
     dType == InnerVal.LONG || dType == InnerVal.INT ||
-    dType == InnerVal.SHORT || dType == InnerVal.BYTE ||
-    dType == InnerVal.FLOAT || dType == InnerVal.DOUBLE
-  }
+      dType == InnerVal.SHORT || dType == InnerVal.BYTE ||
+      dType == InnerVal.FLOAT || dType == InnerVal.DOUBLE
 
   //TODO: fix this messy parts
   def innerValToAny(innerValLike: InnerValLike, dataType: String): Any = {
@@ -144,7 +136,8 @@ object JSONParser {
           case d: Double => d.toLong
           case _ =>
             throw new RuntimeException(
-              s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType")
+              s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType"
+            )
         }
       case InnerVal.INT =>
         innerValLike.value match {
@@ -155,7 +148,8 @@ object JSONParser {
           case d: Double => d.toInt
           case _ =>
             throw new RuntimeException(
-              s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType")
+              s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType"
+            )
         }
       case InnerVal.SHORT =>
         innerValLike.value match {
@@ -163,7 +157,8 @@ object JSONParser {
           case s: Short => s
           case _ =>
             throw new RuntimeException(
-              s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType")
+              s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType"
+            )
         }
       case InnerVal.BYTE =>
         innerValLike.value match {
@@ -171,7 +166,8 @@ object JSONParser {
           case b: Byte => b
           case _ =>
             throw new RuntimeException(
-              s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType")
+              s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType"
+            )
         }
       case InnerVal.FLOAT =>
         innerValLike.value match {
@@ -182,7 +178,8 @@ object JSONParser {
           case i: Int => i.toFloat
           case _ =>
             throw new RuntimeException(
-              s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType")
+              s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType"
+            )
         }
       case InnerVal.DOUBLE =>
         innerValLike.value match {
@@ -193,7 +190,8 @@ object JSONParser {
           case f: Float => f.toDouble
           case _ =>
             throw new RuntimeException(
-              s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType")
+              s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType"
+            )
         }
       case _ => innerValLike.value
     }
@@ -204,45 +202,69 @@ object JSONParser {
     val isNumeric = isNumericType(dType)
     any match {
       case n: BigDecimal =>
-        if (isNumeric) InnerVal.withNumber(n, version)
-        else
+        if (isNumeric) {
+          InnerVal.withNumber(n, version)
+        } else {
           throw new IllegalDataTypeException(
-            s"[ValueType] = BigDecimal, [DataType]: $dataType, [Input]: $any")
+            s"[ValueType] = BigDecimal, [DataType]: $dataType, [Input]: $any"
+          )
+        }
       case l: Long =>
-        if (isNumeric) InnerVal.withLong(l, version)
-        else
+        if (isNumeric) {
+          InnerVal.withLong(l, version)
+        } else {
           throw new IllegalDataTypeException(
-            s"[ValueType] = Long, [DataType]: $dataType, [Input]: $any")
+            s"[ValueType] = Long, [DataType]: $dataType, [Input]: $any"
+          )
+        }
       case i: Int =>
-        if (isNumeric) InnerVal.withInt(i, version)
-        else
+        if (isNumeric) {
+          InnerVal.withInt(i, version)
+        } else {
           throw new IllegalDataTypeException(
-            s"[ValueType] = Int, [DataType]: $dataType, [Input]: $any")
+            s"[ValueType] = Int, [DataType]: $dataType, [Input]: $any"
+          )
+        }
       case sh: Short =>
-        if (isNumeric) InnerVal.withInt(sh.toInt, version)
-        else
+        if (isNumeric) {
+          InnerVal.withInt(sh.toInt, version)
+        } else {
           throw new IllegalDataTypeException(
-            s"[ValueType] = Short, [DataType]: $dataType, [Input]: $any")
+            s"[ValueType] = Short, [DataType]: $dataType, [Input]: $any"
+          )
+        }
       case b: Byte =>
-        if (isNumeric) InnerVal.withInt(b.toInt, version)
-        else
+        if (isNumeric) {
+          InnerVal.withInt(b.toInt, version)
+        } else {
           throw new IllegalDataTypeException(
-            s"[ValueType] = Byte, [DataType]: $dataType, [Input]: $any")
+            s"[ValueType] = Byte, [DataType]: $dataType, [Input]: $any"
+          )
+        }
       case f: Float =>
-        if (isNumeric) InnerVal.withFloat(f, version)
-        else
+        if (isNumeric) {
+          InnerVal.withFloat(f, version)
+        } else {
           throw new IllegalDataTypeException(
-            s"[ValueType] = Float, [DataType]: $dataType, [Input]: $any")
+            s"[ValueType] = Float, [DataType]: $dataType, [Input]: $any"
+          )
+        }
       case d: Double =>
-        if (isNumeric) InnerVal.withDouble(d, version)
-        else
+        if (isNumeric) {
+          InnerVal.withDouble(d, version)
+        } else {
           throw new IllegalDataTypeException(
-            s"[ValueType] = Double, [DataType]: $dataType, [Input]: $any")
+            s"[ValueType] = Double, [DataType]: $dataType, [Input]: $any"
+          )
+        }
       case bl: Boolean =>
-        if (dType == InnerVal.BOOLEAN) InnerVal.withBoolean(bl, version)
-        else
+        if (dType == InnerVal.BOOLEAN) {
+          InnerVal.withBoolean(bl, version)
+        } else {
           throw new IllegalDataTypeException(
-            s"[ValueType] = Boolean, [DataType]: $dataType, [Input]: $any")
+            s"[ValueType] = Boolean, [DataType]: $dataType, [Input]: $any"
+          )
+        }
       case _s: String =>
         if (isNumeric) {
           try {
@@ -252,7 +274,8 @@ object JSONParser {
           } catch {
             case e: Exception =>
               throw new IllegalDataTypeException(
-                s"[ValueType] = String, [DataType]: $dataType, [Input]: $any")
+                s"[ValueType] = String, [DataType]: $dataType, [Input]: $any"
+              )
           }
         } else {
           dType match {
@@ -262,7 +285,8 @@ object JSONParser {
               } catch {
                 case e: Exception =>
                   throw new IllegalDataTypeException(
-                    s"[ValueType] = String, [DataType]: boolean, [Input]: $any")
+                    s"[ValueType] = String, [DataType]: boolean, [Input]: $any"
+                  )
               }
             case InnerVal.STRING => InnerVal.withStr(_s, version)
           }
@@ -280,8 +304,8 @@ object JSONParser {
             case InnerVal.STRING =>
               Some(InnerVal.withStr(jsValue.toString, version))
             //            case t if InnerVal.NUMERICS.contains(t) =>
-            case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT |
-                InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
+            case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT |
+                InnerVal.DOUBLE =>
               Some(InnerVal.withNumber(n.value, version))
             case _ => None
           }
@@ -293,8 +317,8 @@ object JSONParser {
             case InnerVal.BOOLEAN =>
               Some(InnerVal.withBoolean(s.toBoolean, version))
             //            case t if InnerVal.NUMERICS.contains(t) =>
-            case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT |
-                InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
+            case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT |
+                InnerVal.DOUBLE =>
               Some(InnerVal.withNumber(BigDecimal(s), version))
             case _ => None
           }
@@ -312,14 +336,15 @@ object JSONParser {
       case e: Exception =>
         logger.error(
           s"jsValueToInnerVal: jsValue = ${jsValue}, dataType = ${dataType}, version = ${version}",
-          e)
+          e
+        )
         None
     }
 
     ret
   }
 
-  def anyValToJsValue(value: Any): Option[JsValue] = {
+  def anyValToJsValue(value: Any): Option[JsValue] =
     try {
       val v = value match {
         case null => JsNull
@@ -335,7 +360,8 @@ object JSONParser {
         case b: Boolean => JsBoolean(b)
         case _ =>
           throw new RuntimeException(
-            s"$value, ${value.getClass.getName} is not supported data type.")
+            s"$value, ${value.getClass.getName} is not supported data type."
+          )
       }
       Option(v)
     } catch {
@@ -343,9 +369,8 @@ object JSONParser {
         logger.error(s"anyValToJsValue: $value", e)
         None
     }
-  }
 
-  def jsValueToAny(value: JsValue): Option[AnyRef] = {
+  def jsValueToAny(value: JsValue): Option[AnyRef] =
     try {
       val v = value match {
 //        case JsNull =>
@@ -360,11 +385,9 @@ object JSONParser {
         logger.error(s"jsValueToAny: $value", e)
         None
     }
-  }
 
   def propertiesToJson(props: Map[String, Any],
-                       selectColumns: Map[String, Boolean] = Map.empty)
-    : Map[String, JsValue] = {
+                       selectColumns: Map[String, Boolean] = Map.empty): Map[String, JsValue] =
     if (selectColumns.isEmpty) {
       for {
         (k, v) <- props
@@ -381,14 +404,12 @@ object JSONParser {
         jsValue <- anyValToJsValue(v)
       } yield k -> jsValue
     }
-  }
 
-  def jsValueToString(jsValue: JsValue): String = {
+  def jsValueToString(jsValue: JsValue): String =
     jsValue match {
       case s: JsString => s.value
       case _ => jsValue.toString
     }
-  }
   def fromJsonToProperties(jsObject: JsObject): Map[String, Any] = {
     val kvs = for {
       (k, v) <- jsObject.fieldSet

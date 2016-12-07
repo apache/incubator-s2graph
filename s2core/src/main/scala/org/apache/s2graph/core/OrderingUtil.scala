@@ -25,7 +25,7 @@ import play.api.libs.json.{JsNumber, JsString, JsValue}
 object OrderingUtil {
 
   implicit object JsValueOrdering extends Ordering[JsValue] {
-    override def compare(x: JsValue, y: JsValue): Int = {
+    override def compare(x: JsValue, y: JsValue): Int =
       (x, y) match {
         case (JsNumber(xv), JsNumber(yv)) =>
           Ordering.BigDecimal.compare(xv, yv)
@@ -33,17 +33,15 @@ object OrderingUtil {
           Ordering.String.compare(xv, yv)
         case _ => throw new Exception(s"unsupported type")
       }
-    }
   }
 
   implicit object InnerValLikeOrdering extends Ordering[InnerValLike] {
-    override def compare(x: InnerValLike, y: InnerValLike): Int = {
+    override def compare(x: InnerValLike, y: InnerValLike): Int =
       x.compare(y)
-    }
   }
 
   implicit object MultiValueOrdering extends Ordering[Any] {
-    override def compare(x: Any, y: Any): Int = {
+    override def compare(x: Any, y: Any): Int =
       (x, y) match {
         case (xv: Int, yv: Int) => implicitly[Ordering[Int]].compare(xv, yv)
         case (xv: Long, yv: Long) => implicitly[Ordering[Long]].compare(xv, yv)
@@ -70,11 +68,11 @@ object OrderingUtil {
         case (xv: Double, yv: BigDecimal) =>
           implicitly[Ordering[BigDecimal]].compare(BigDecimal(xv), yv)
       }
-    }
   }
 
-  def TupleMultiOrdering[T](ascendingLs: Seq[Boolean])(
-      implicit ord: Ordering[T]): Ordering[(T, T, T, T)] = {
+  def TupleMultiOrdering[T](
+      ascendingLs: Seq[Boolean]
+  )(implicit ord: Ordering[T]): Ordering[(T, T, T, T)] =
     new Ordering[(T, T, T, T)] {
       override def compare(tx: (T, T, T, T), ty: (T, T, T, T)): Int = {
         val len = ascendingLs.length
@@ -117,12 +115,10 @@ object OrderingUtil {
         0
       }
     }
-  }
 }
 
-class SeqMultiOrdering[T](
-    ascendingLs: Seq[Boolean],
-    defaultAscending: Boolean = true)(implicit ord: Ordering[T])
+class SeqMultiOrdering[T](ascendingLs: Seq[Boolean],
+                          defaultAscending: Boolean = true)(implicit ord: Ordering[T])
     extends Ordering[Seq[T]] {
   override def compare(x: Seq[T], y: Seq[T]): Int = {
     val xe = x.iterator

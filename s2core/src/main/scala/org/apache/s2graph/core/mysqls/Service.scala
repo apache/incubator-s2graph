@@ -27,42 +27,54 @@ import play.api.libs.json.Json
 import scalikejdbc._
 
 object Service extends Model[Service] {
-  def apply(rs: WrappedResultSet): Service = {
-    Service(rs.intOpt("id"),
-            rs.string("service_name"),
-            rs.string("access_token"),
-            rs.string("cluster"),
-            rs.string("hbase_table_name"),
-            rs.int("pre_split_size"),
-            rs.intOpt("hbase_table_ttl"))
-  }
+  def apply(rs: WrappedResultSet): Service =
+    Service(
+      rs.intOpt("id"),
+      rs.string("service_name"),
+      rs.string("access_token"),
+      rs.string("cluster"),
+      rs.string("hbase_table_name"),
+      rs.int("pre_split_size"),
+      rs.intOpt("hbase_table_ttl")
+    )
 
-  def findByAccessToken(accessToken: String)(
-      implicit session: DBSession = AutoSession): Option[Service] = {
+  def findByAccessToken(
+      accessToken: String
+  )(implicit session: DBSession = AutoSession): Option[Service] = {
     val cacheKey = s"accessToken=$accessToken"
     withCache(cacheKey)(
-      sql"""select * from services where access_token = ${accessToken}""".map {
-        rs =>
+      sql"""select * from services where access_token = ${accessToken}"""
+        .map { rs =>
           Service(rs)
-      }.single.apply)
+        }
+        .single
+        .apply
+    )
   }
 
   def findById(id: Int)(implicit session: DBSession = AutoSession): Service = {
     val cacheKey = "id=" + id
-    withCache(cacheKey)(sql"""select * from services where id = ${id}""".map {
-      rs =>
-        Service(rs)
-    }.single.apply).get
+    withCache(cacheKey)(
+      sql"""select * from services where id = ${id}"""
+        .map { rs =>
+          Service(rs)
+        }
+        .single
+        .apply
+    ).get
   }
 
-  def findByName(serviceName: String, useCache: Boolean = true)(
-      implicit session: DBSession = AutoSession): Option[Service] = {
+  def findByName(serviceName: String, useCache: Boolean = true)(implicit session: DBSession =
+                                                                  AutoSession): Option[Service] = {
     val cacheKey = "serviceName=" + serviceName
     lazy val serviceOpt = sql"""
         select * from services where service_name = ${serviceName}
-      """.map { rs =>
-      Service(rs)
-    }.single.apply()
+      """
+      .map { rs =>
+        Service(rs)
+      }
+      .single
+      .apply()
 
     if (useCache) withCache(cacheKey)(serviceOpt)
     else serviceOpt
@@ -73,10 +85,10 @@ object Service extends Model[Service] {
              hTableName: String,
              preSplitSize: Int,
              hTableTTL: Option[Int],
-             compressionAlgorithm: String)(implicit session: DBSession =
-                                             AutoSession): Unit = {
+             compressionAlgorithm: String)(implicit session: DBSession = AutoSession): Unit = {
     logger.info(
-      s"$serviceName, $cluster, $hTableName, $preSplitSize, $hTableTTL, $compressionAlgorithm")
+      s"$serviceName, $cluster, $hTableName, $preSplitSize, $hTableTTL, $compressionAlgorithm"
+    )
     val accessToken = UUID.randomUUID().toString()
     sql"""insert into services(service_name, access_token, cluster, hbase_table_name, pre_split_size, hbase_table_ttl)
     values(${serviceName}, ${accessToken}, ${cluster}, ${hTableName}, ${preSplitSize}, ${hTableTTL})""".execute
@@ -94,32 +106,30 @@ object Service extends Model[Service] {
     }
   }
 
-  def findOrInsert(serviceName: String,
-                   cluster: String,
-                   hTableName: String,
-                   preSplitSize: Int,
-                   hTableTTL: Option[Int],
-                   compressionAlgorithm: String)(implicit session: DBSession =
-                                                   AutoSession): Service = {
+  def findOrInsert(
+      serviceName: String,
+      cluster: String,
+      hTableName: String,
+      preSplitSize: Int,
+      hTableTTL: Option[Int],
+      compressionAlgorithm: String
+  )(implicit session: DBSession = AutoSession): Service =
     findByName(serviceName) match {
       case Some(s) => s
       case None =>
-        insert(serviceName,
-               cluster,
-               hTableName,
-               preSplitSize,
-               hTableTTL,
-               compressionAlgorithm)
+        insert(serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
         val cacheKey = "serviceName=" + serviceName
         expireCache(cacheKey)
         findByName(serviceName).get
     }
-  }
 
   def findAll()(implicit session: DBSession = AutoSession): Seq[Service] = {
-    val ls = sql"""select * from services""".map { rs =>
-      Service(rs)
-    }.list.apply
+    val ls = sql"""select * from services"""
+      .map { rs =>
+        Service(rs)
+      }
+      .list
+      .apply
     putsToCache(ls.map { x =>
       val cacheKey = s"id=${x.id.get}"
       (cacheKey -> x)
@@ -132,11 +142,13 @@ object Service extends Model[Service] {
     ls
   }
 
-  def findAllConn()(implicit session: DBSession = AutoSession): List[String] = {
-    sql"""select distinct(cluster) from services""".map { rs =>
-      rs.string("cluster")
-    }.list.apply
-  }
+  def findAllConn()(implicit session: DBSession = AutoSession): List[String] =
+    sql"""select distinct(cluster) from services"""
+      .map { rs =>
+        rs.string("cluster")
+      }
+      .list
+      .apply
 }
 
 case class Service(id: Option[Int],
@@ -150,13 +162,15 @@ case class Service(id: Option[Int],
   lazy val toJson =
     id match {
       case Some(_id) =>
-        Json.obj("id" -> _id,
-                 "name" -> serviceName,
-                 "accessToken" -> accessToken,
-                 "cluster" -> cluster,
-                 "hTableName" -> hTableName,
-                 "preSplitSize" -> preSplitSize,
-                 "hTableTTL" -> hTableTTL)
+        Json.obj(
+          "id" -> _id,
+          "name" -> serviceName,
+          "accessToken" -> accessToken,
+          "cluster" -> cluster,
+          "hTableName" -> hTableName,
+          "preSplitSize" -> preSplitSize,
+          "hTableTTL" -> hTableTTL
+        )
       case None =>
         Json.parse("{}")
     }

@@ -52,8 +52,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
     } else {
       if (OrderedBytes.isNumeric(pbr)) {
         val numeric = OrderedBytes.decodeNumericAsBigDecimal(pbr)
-        if (isVertexId)
-          (InnerVal(numeric.longValue()), pbr.getPosition - startPos)
+        if (isVertexId) (InnerVal(numeric.longValue()), pbr.getPosition - startPos)
         else (InnerVal(BigDecimal(numeric)), pbr.getPosition - startPos)
 //        (InnerVal(numeric.doubleValue()), pbr.getPosition - startPos)
 //        (InnerVal(BigDecimal(numeric)), pbr.getPosition - startPos)
@@ -129,7 +128,7 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
   }
 
 //
-  override def hashKey(dataType: String): Int = {
+  override def hashKey(dataType: String): Int =
     if (value.isInstanceOf[String]) {
       // since we use dummy stringn value for degree edge.
       value.toString.hashCode()
@@ -151,41 +150,35 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
         case _ => throw new RuntimeException(s"NotSupportede type: $dataType")
       }
     }
-  }
 
   def compare(other: InnerValLike): Int = {
-    if (!other.isInstanceOf[InnerValLike])
-      throw new RuntimeException(s"compare $this vs $other")
+    if (!other.isInstanceOf[InnerValLike]) throw new RuntimeException(s"compare $this vs $other")
     Bytes.compareTo(bytes, other.bytes) * -1
   }
 
   def +(other: InnerValLike): InnerValLike = {
-    if (!other.isInstanceOf[InnerValLike])
-      throw new RuntimeException(s"+ $this, $other")
+    if (!other.isInstanceOf[InnerValLike]) throw new RuntimeException(s"+ $this, $other")
 
     (value, other.value) match {
       case (v1: BigDecimal, v2: BigDecimal) =>
         new InnerVal(BigDecimal(v1.bigDecimal.add(v2.bigDecimal)))
       case _ =>
-        throw new RuntimeException(
-          "+ operation on inner val is for big decimal pair")
+        throw new RuntimeException("+ operation on inner val is for big decimal pair")
     }
   }
 
   //need to be removed ??
-  override def toString(): String = {
+  override def toString(): String =
 //    value.toString()
     value match {
       case n: BigDecimal => n.bigDecimal.toPlainString
       case _ => value.toString
     }
-  }
 
-  override def toIdString(): String = {
+  override def toIdString(): String =
     value match {
       case n: BigDecimal => n.bigDecimal.longValue().toString()
       case _ => value.toString
     }
-  }
 
 }

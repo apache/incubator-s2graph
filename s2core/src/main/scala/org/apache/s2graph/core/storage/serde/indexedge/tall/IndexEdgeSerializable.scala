@@ -26,8 +26,7 @@ import org.apache.s2graph.core.types.{InnerValLike, VertexId}
 import org.apache.s2graph.core.{GraphUtil, IndexEdge}
 import org.apache.s2graph.core.storage.StorageSerializable._
 
-class IndexEdgeSerializable(indexEdge: IndexEdge,
-                            longToBytes: Long => Array[Byte] = longToBytes)
+class IndexEdgeSerializable(indexEdge: IndexEdge, longToBytes: Long => Array[Byte] = longToBytes)
     extends Serializable[IndexEdge] {
   import StorageSerializable._
 
@@ -45,20 +44,17 @@ class IndexEdgeSerializable(indexEdge: IndexEdge,
 
     val row = Bytes
       .add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
-    //    logger.error(s"${row.toList}\n${srcIdBytes.toList}\n${labelWithDirBytes.toList}\n${labelIndexSeqWithIsInvertedBytes.toList}")
 
     if (indexEdge.degreeEdge) row
     else {
       val qualifier = idxPropsMap.get(LabelMeta.to) match {
         case None =>
-          Bytes.add(idxPropsBytes,
-                    VertexId.toTargetVertexId(indexEdge.tgtVertex.id).bytes)
+          Bytes.add(idxPropsBytes, VertexId.toTargetVertexId(indexEdge.tgtVertex.id).bytes)
         case Some(vId) => idxPropsBytes
       }
 
       val opByte =
-        if (indexEdge.op == GraphUtil.operations("incrementCount"))
-          indexEdge.op
+        if (indexEdge.op == GraphUtil.operations("incrementCount")) indexEdge.op
         else GraphUtil.defaultOpByte
       Bytes.add(row, qualifier, Array.fill(1)(opByte))
     }
@@ -67,12 +63,12 @@ class IndexEdgeSerializable(indexEdge: IndexEdge,
   override def toQualifier: Array[Byte] = Array.empty[Byte]
 
   override def toValue: Array[Byte] =
-    if (indexEdge.degreeEdge)
-      longToBytes(
-        indexEdge.property(LabelMeta.degree).innerVal.toString().toLong)
-    else if (indexEdge.op == GraphUtil.operations("incrementCount"))
-      longToBytes(
-        indexEdge.property(LabelMeta.count).innerVal.toString().toLong)
-    else propsToKeyValues(indexEdge.metas.toSeq)
+    if (indexEdge.degreeEdge) {
+      longToBytes(indexEdge.property(LabelMeta.degree).innerVal.toString().toLong)
+    } else if (indexEdge.op == GraphUtil.operations("incrementCount")) {
+      longToBytes(indexEdge.property(LabelMeta.count).innerVal.toString().toLong)
+    } else {
+      propsToKeyValues(indexEdge.metas.toSeq)
+    }
 
 }

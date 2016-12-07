@@ -47,109 +47,118 @@ object LabelMeta extends Model[LabelMeta] {
   /** reserved sequences */
   //  val deleted = LabelMeta(id = Some(lastDeletedAt), labelId = lastDeletedAt, name = "lastDeletedAt",
   //    seq = lastDeletedAt, defaultValue = "", dataType = "long")
-  val fromHash = LabelMeta(id = None,
-                           labelId = fromHashSeq,
-                           name = "_from_hash",
-                           seq = fromHashSeq,
-                           defaultValue = fromHashSeq.toString,
-                           dataType = "long")
-  val from = LabelMeta(id = Some(fromSeq),
-                       labelId = fromSeq,
-                       name = "_from",
-                       seq = fromSeq,
-                       defaultValue = fromSeq.toString,
-                       dataType = "string")
-  val to = LabelMeta(id = Some(toSeq),
-                     labelId = toSeq,
-                     name = "_to",
-                     seq = toSeq,
-                     defaultValue = toSeq.toString,
-                     dataType = "string")
-  val timestamp = LabelMeta(id = Some(-1),
-                            labelId = -1,
-                            name = "_timestamp",
-                            seq = timestampSeq,
-                            defaultValue = "0",
-                            dataType = "long")
-  val degree = LabelMeta(id = Some(-1),
-                         labelId = -1,
-                         name = "_degree",
-                         seq = degreeSeq,
-                         defaultValue = "0",
-                         dataType = "long")
-  val count = LabelMeta(id = Some(-1),
-                        labelId = -1,
-                        name = "_count",
-                        seq = countSeq,
-                        defaultValue = "-1",
-                        dataType = "long")
-  val lastDeletedAt = LabelMeta(id = Some(-1),
-                                labelId = -1,
-                                name = "_lastDeletedAt",
-                                seq = lastDeletedAtSeq,
-                                defaultValue = "-1",
-                                dataType = "long")
-  val label = LabelMeta(id = Some(-1),
-                        labelId = -1,
-                        name = "label",
-                        seq = labelSeq,
-                        defaultValue = "",
-                        dataType = "string")
-  val direction = LabelMeta(id = Some(-1),
-                            labelId = -1,
-                            name = "direction",
-                            seq = directionSeq,
-                            defaultValue = "out",
-                            dataType = "string")
-  val empty = LabelMeta(id = Some(-1),
-                        labelId = -1,
-                        name = "_empty",
-                        seq = emptySeq,
-                        defaultValue = "-1",
-                        dataType = "long")
+  val fromHash = LabelMeta(
+    id = None,
+    labelId = fromHashSeq,
+    name = "_from_hash",
+    seq = fromHashSeq,
+    defaultValue = fromHashSeq.toString,
+    dataType = "long"
+  )
+  val from = LabelMeta(
+    id = Some(fromSeq),
+    labelId = fromSeq,
+    name = "_from",
+    seq = fromSeq,
+    defaultValue = fromSeq.toString,
+    dataType = "string"
+  )
+  val to = LabelMeta(
+    id = Some(toSeq),
+    labelId = toSeq,
+    name = "_to",
+    seq = toSeq,
+    defaultValue = toSeq.toString,
+    dataType = "string"
+  )
+  val timestamp = LabelMeta(
+    id = Some(-1),
+    labelId = -1,
+    name = "_timestamp",
+    seq = timestampSeq,
+    defaultValue = "0",
+    dataType = "long"
+  )
+  val degree = LabelMeta(
+    id = Some(-1),
+    labelId = -1,
+    name = "_degree",
+    seq = degreeSeq,
+    defaultValue = "0",
+    dataType = "long"
+  )
+  val count = LabelMeta(
+    id = Some(-1),
+    labelId = -1,
+    name = "_count",
+    seq = countSeq,
+    defaultValue = "-1",
+    dataType = "long"
+  )
+  val lastDeletedAt = LabelMeta(
+    id = Some(-1),
+    labelId = -1,
+    name = "_lastDeletedAt",
+    seq = lastDeletedAtSeq,
+    defaultValue = "-1",
+    dataType = "long"
+  )
+  val label = LabelMeta(
+    id = Some(-1),
+    labelId = -1,
+    name = "label",
+    seq = labelSeq,
+    defaultValue = "",
+    dataType = "string"
+  )
+  val direction = LabelMeta(
+    id = Some(-1),
+    labelId = -1,
+    name = "direction",
+    seq = directionSeq,
+    defaultValue = "out",
+    dataType = "string"
+  )
+  val empty = LabelMeta(
+    id = Some(-1),
+    labelId = -1,
+    name = "_empty",
+    seq = emptySeq,
+    defaultValue = "-1",
+    dataType = "long"
+  )
 
   // Each reserved column(_timestamp, timestamp) has same seq number, starts with '_' has high priority
-  val reservedMetas = List(empty,
-                           label,
-                           direction,
-                           lastDeletedAt,
-                           from,
-                           fromHash,
-                           to,
-                           degree,
-                           timestamp,
-                           count).flatMap { lm =>
-    List(lm, lm.copy(name = lm.name.drop(1)))
-  }.reverse
-  val reservedMetasInner = List(empty,
-                                label,
-                                direction,
-                                lastDeletedAt,
-                                from,
-                                fromHash,
-                                to,
-                                degree,
-                                timestamp,
-                                count)
+  val reservedMetas =
+    List(empty, label, direction, lastDeletedAt, from, fromHash, to, degree, timestamp, count)
+      .flatMap { lm =>
+        List(lm, lm.copy(name = lm.name.drop(1)))
+      }
+      .reverse
+  val reservedMetasInner =
+    List(empty, label, direction, lastDeletedAt, from, fromHash, to, degree, timestamp, count)
 
-  val defaultRequiredMetaNames = Set("from",
-                                     "_from",
-                                     "to",
-                                     "_to",
-                                     "_from_hash",
-                                     "label",
-                                     "direction",
-                                     "timestamp",
-                                     "_timestamp")
+  val defaultRequiredMetaNames = Set(
+    "from",
+    "_from",
+    "to",
+    "_to",
+    "_from_hash",
+    "label",
+    "direction",
+    "timestamp",
+    "_timestamp"
+  )
 
-  def apply(rs: WrappedResultSet): LabelMeta = {
-    LabelMeta(Some(rs.int("id")),
-              rs.int("label_id"),
-              rs.string("name"),
-              rs.byte("seq"),
-              rs.string("default_value"),
-              rs.string("data_type").toLowerCase)
-  }
+  def apply(rs: WrappedResultSet): LabelMeta =
+    LabelMeta(
+      Some(rs.int("id")),
+      rs.int("label_id"),
+      rs.string("name"),
+      rs.byte("seq"),
+      rs.string("default_value"),
+      rs.string("data_type").toLowerCase
+    )
 
   /** Note: DegreeSeq should not be included in serializer/deserializer.
     * only 0 <= seq <= CountSeq(Int.MaxValue - 2), not DegreeSet(Int.MaxValue - 1) should be
@@ -165,14 +174,17 @@ object LabelMeta extends Model[LabelMeta] {
     val cacheKey = "id=" + id
 
     withCache(cacheKey) {
-      sql"""select * from label_metas where id = ${id}""".map { rs =>
-        LabelMeta(rs)
-      }.single.apply
+      sql"""select * from label_metas where id = ${id}"""
+        .map { rs =>
+          LabelMeta(rs)
+        }
+        .single
+        .apply
     }.get
   }
 
-  def findAllByLabelId(labelId: Int, useCache: Boolean = true)(
-      implicit session: DBSession = AutoSession): List[LabelMeta] = {
+  def findAllByLabelId(labelId: Int, useCache: Boolean = true)(implicit session: DBSession =
+                                                                 AutoSession): List[LabelMeta] = {
     val cacheKey = "labelId=" + labelId
     lazy val labelMetas = sql"""select *
     		  						from label_metas
@@ -186,7 +198,8 @@ object LabelMeta extends Model[LabelMeta] {
   }
 
   def findByName(labelId: Int, name: String, useCache: Boolean = true)(
-      implicit session: DBSession = AutoSession): Option[LabelMeta] = {
+      implicit session: DBSession = AutoSession
+  ): Option[LabelMeta] =
     name match {
       case timestamp.name => Some(timestamp)
       case from.name => Some(from)
@@ -195,21 +208,20 @@ object LabelMeta extends Model[LabelMeta] {
         val cacheKey = "labelId=" + labelId + ":name=" + name
         lazy val labelMeta = sql"""
             select *
-            from label_metas where label_id = ${labelId} and name = ${name}""".map {
-          rs =>
+            from label_metas where label_id = ${labelId} and name = ${name}"""
+          .map { rs =>
             LabelMeta(rs)
-        }.single.apply()
+          }
+          .single
+          .apply()
 
         if (useCache) withCache(cacheKey)(labelMeta)
         else labelMeta
     }
-  }
 
-  def insert(
-      labelId: Int,
-      name: String,
-      defaultValue: String,
-      dataType: String)(implicit session: DBSession = AutoSession): Long = {
+  def insert(labelId: Int, name: String, defaultValue: String, dataType: String)(
+      implicit session: DBSession = AutoSession
+  ): Long = {
     val ls = findAllByLabelId(labelId, useCache = false)
     val seq = ls.size + 1
 
@@ -222,12 +234,9 @@ object LabelMeta extends Model[LabelMeta] {
     }
   }
 
-  def findOrInsert(labelId: Int,
-                   name: String,
-                   defaultValue: String,
-                   dataType: String)(
-      implicit session: DBSession = AutoSession): LabelMeta = {
-
+  def findOrInsert(labelId: Int, name: String, defaultValue: String, dataType: String)(
+      implicit session: DBSession = AutoSession
+  ): LabelMeta =
     findByName(labelId, name) match {
       case Some(c) => c
       case None =>
@@ -238,7 +247,6 @@ object LabelMeta extends Model[LabelMeta] {
         expireCaches(cacheKeys)
         findByName(labelId, name, useCache = false).get
     }
-  }
 
   def delete(id: Int)(implicit session: DBSession = AutoSession): Unit = {
     val labelMeta = findById(id)
@@ -253,9 +261,12 @@ object LabelMeta extends Model[LabelMeta] {
   }
 
   def findAll()(implicit session: DBSession = AutoSession): Unit = {
-    val ls = sql"""select * from label_metas""".map { rs =>
-      LabelMeta(rs)
-    }.list.apply
+    val ls = sql"""select * from label_metas"""
+      .map { rs =>
+        LabelMeta(rs)
+      }
+      .list
+      .apply
     putsToCache(ls.map { x =>
       val cacheKey = s"id=${x.id.get}"
       cacheKey -> x
@@ -276,7 +287,8 @@ object LabelMeta extends Model[LabelMeta] {
             val cacheKey = s"labelId=${labelId}"
             cacheKey -> ls
         }
-        .toList)
+        .toList
+    )
   }
 }
 
@@ -286,17 +298,15 @@ case class LabelMeta(id: Option[Int],
                      seq: Byte,
                      defaultValue: String,
                      dataType: String) {
-  lazy val toJson = Json.obj("name" -> name,
-                             "defaultValue" -> defaultValue,
-                             "dataType" -> dataType)
-  override def equals(other: Any): Boolean = {
+  lazy val toJson =
+    Json.obj("name" -> name, "defaultValue" -> defaultValue, "dataType" -> dataType)
+  override def equals(other: Any): Boolean =
     if (!other.isInstanceOf[LabelMeta]) false
     else {
       val o = other.asInstanceOf[LabelMeta]
 //      labelId == o.labelId &&
       seq == o.seq
     }
-  }
   override def hashCode(): Int = seq.toInt
 //    (labelId, seq).hashCode()
 }

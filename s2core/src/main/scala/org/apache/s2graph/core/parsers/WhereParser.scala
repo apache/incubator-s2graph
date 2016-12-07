@@ -19,13 +19,10 @@
 
 package org.apache.s2graph.core.parsers
 
-import org.apache.s2graph.core.GraphExceptions.{
-  LabelNotExistException,
-  WhereParserException
-}
+import org.apache.s2graph.core.GraphExceptions.{LabelNotExistException, WhereParserException}
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.types.InnerValLike
-import org.apache.s2graph.core.{S2Edge, GraphUtil}
+import org.apache.s2graph.core.{GraphUtil, S2Edge}
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.utils.logger
 
@@ -43,8 +40,8 @@ trait ExtractValue {
     val metaPropInvMap = label.metaPropsInvMap
     val labelMeta = metaPropInvMap.getOrElse(
       propKey,
-      throw WhereParserException(
-        s"Where clause contains not existing property name: $propKey"))
+      throw WhereParserException(s"Where clause contains not existing property name: $propKey")
+    )
 
     labelMeta match {
       case LabelMeta.from => parentEdge.srcVertex.innerId
@@ -55,15 +52,15 @@ trait ExtractValue {
 
   def valueToCompare(edge: S2Edge, key: String, value: String): InnerValLike = {
     val label = edge.innerLabel
-    if (value.startsWith(parent) || label.metaPropsInvMap.contains(value))
+    if (value.startsWith(parent) || label.metaPropsInvMap.contains(value)) {
       propToInnerVal(edge, value)
-    else {
+    } else {
       val (propKey, _) = findParentEdge(edge, key)
 
       val labelMeta = label.metaPropsInvMap.getOrElse(
         propKey,
-        throw WhereParserException(
-          s"Where clause contains not existing property name: $propKey"))
+        throw WhereParserException(s"Where clause contains not existing property name: $propKey")
+      )
       val (srcColumn, tgtColumn) = label.srcTgtColumn(edge.labelWithDir.dir)
       val dataType = propKey match {
         case "_to" | "to" => tgtColumn.columnType
@@ -79,7 +76,7 @@ trait ExtractValue {
     if (depth > 0) findParent(edge.parentEdges.head.edge, depth - 1)
     else edge
 
-  private def findParentEdge(edge: S2Edge, key: String): (String, S2Edge) = {
+  private def findParentEdge(edge: S2Edge, key: String): (String, S2Edge) =
     if (!key.startsWith(parent)) (key, edge)
     else {
       val split = key.split(parent)
@@ -90,7 +87,6 @@ trait ExtractValue {
 
       (propKey, parentEdge)
     }
-  }
 }
 
 trait Clause extends ExtractValue {
@@ -100,9 +96,9 @@ trait Clause extends ExtractValue {
 
   def filter(edge: S2Edge): Boolean
 
-  def binaryOp(binOp: (InnerValLike, InnerValLike) => Boolean)(
-      propKey: String,
-      value: String)(edge: S2Edge): Boolean = {
+  def binaryOp(
+      binOp: (InnerValLike, InnerValLike) => Boolean
+  )(propKey: String, value: String)(edge: S2Edge): Boolean = {
     val propValue = propToInnerVal(edge, propKey)
     val compValue = valueToCompare(edge, propKey, value)
 
@@ -138,13 +134,12 @@ case class Eq(propKey: String, value: String) extends Clause {
     binaryOp(_ == _)(propKey, value)(edge)
 }
 
-case class InWithoutParent(label: Label, propKey: String, values: Set[String])
-    extends Clause {
+case class InWithoutParent(label: Label, propKey: String, values: Set[String]) extends Clause {
   lazy val innerValLikeLsOut = values.map { value =>
     val labelMeta = label.metaPropsInvMap.getOrElse(
       propKey,
-      throw WhereParserException(
-        s"Where clause contains not existing property name: $propKey"))
+      throw WhereParserException(s"Where clause contains not existing property name: $propKey")
+    )
     val dataType = propKey match {
       case "_to" | "to" => label.tgtColumn.columnType
       case "_from" | "from" => label.srcColumn.columnType
@@ -157,8 +152,8 @@ case class InWithoutParent(label: Label, propKey: String, values: Set[String])
   lazy val innerValLikeLsIn = values.map { value =>
     val labelMeta = label.metaPropsInvMap.getOrElse(
       propKey,
-      throw WhereParserException(
-        s"Where clause contains not existing property name: $propKey"))
+      throw WhereParserException(s"Where clause contains not existing property name: $propKey")
+    )
     val dataType = propKey match {
       case "_to" | "to" => label.srcColumn.columnType
       case "_from" | "from" => label.tgtColumn.columnType
@@ -168,7 +163,7 @@ case class InWithoutParent(label: Label, propKey: String, values: Set[String])
     toInnerVal(value, dataType, label.schemaVersion)
   }
 
-  override def filter(edge: S2Edge): Boolean = {
+  override def filter(edge: S2Edge): Boolean =
     if (edge.dir == GraphUtil.directions("in")) {
       val propVal = propToInnerVal(edge, propKey)
       innerValLikeLsIn.contains(propVal)
@@ -176,7 +171,6 @@ case class InWithoutParent(label: Label, propKey: String, values: Set[String])
       val propVal = propToInnerVal(edge, propKey)
       innerValLikeLsOut.contains(propVal)
     }
-  }
 }
 
 case class IN(propKey: String, values: Set[String]) extends Clause {
@@ -188,8 +182,7 @@ case class IN(propKey: String, values: Set[String]) extends Clause {
   }
 }
 
-case class Between(propKey: String, minValue: String, maxValue: String)
-    extends Clause {
+case class Between(propKey: String, minValue: String, maxValue: String) extends Clause {
   override def filter(edge: S2Edge): Boolean = {
     val propVal = propToInnerVal(edge, propKey)
     val minVal = valueToCompare(edge, propKey, minValue)
@@ -220,9 +213,8 @@ object WhereParser {
 
 case class WhereParser(label: Label) extends JavaTokenParsers {
 
-  override val stringLiteral = (("'" ~> "(\\\\'|[^'])*".r <~ "'") ^^ (_.replace(
-      "\\'",
-      "'"))) | anyStr
+  override val stringLiteral =
+    (("'" ~> "(\\\\'|[^'])*".r <~ "'") ^^ (_.replace("\\'", "'"))) | anyStr
 
   val anyStr = "[^\\s(),']+".r
 

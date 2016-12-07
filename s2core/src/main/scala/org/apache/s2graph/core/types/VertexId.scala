@@ -38,24 +38,20 @@ object VertexId extends HBaseDeserializable {
     pos += numOfBytesUsed
     val colId = Bytes.toInt(bytes, pos, 4)
     val column = ServiceColumn.findById(colId)
-    (VertexId(column, innerId),
-     GraphUtil.bytesForMurMurHash + numOfBytesUsed + 4)
+    (VertexId(column, innerId), GraphUtil.bytesForMurMurHash + numOfBytesUsed + 4)
   }
 
   def apply(column: ServiceColumn, innerId: InnerValLike): VertexId =
     new VertexId(column, innerId)
 
-  def toSourceVertexId(vid: VertexId): SourceVertexId = {
+  def toSourceVertexId(vid: VertexId): SourceVertexId =
     SourceVertexId(vid.column, vid.innerId)
-  }
 
-  def toTargetVertexId(vid: VertexId): TargetVertexId = {
+  def toTargetVertexId(vid: VertexId): TargetVertexId =
     TargetVertexId(vid.column, vid.innerId)
-  }
 }
 
-class VertexId(val column: ServiceColumn, val innerId: InnerValLike)
-    extends HBaseSerializable {
+class VertexId(val column: ServiceColumn, val innerId: InnerValLike) extends HBaseSerializable {
   val storeHash: Boolean = true
   val storeColId: Boolean = true
   val colId = column.id.get
@@ -70,10 +66,9 @@ class VertexId(val column: ServiceColumn, val innerId: InnerValLike)
 
   def bytes: Array[Byte] = Bytes.add(hashBytes, innerId.bytes, colIdBytes)
 
-  override def toString(): String = {
+  override def toString(): String =
     column.id.get.toString() + "," + innerId.toString()
 //    s"VertexId($colId, $innerId)"
-  }
 
   override def hashCode(): Int = {
     val ret = if (storeColId) {
@@ -95,9 +90,8 @@ class VertexId(val column: ServiceColumn, val innerId: InnerValLike)
     ret
   }
 
-  def compareTo(other: VertexId): Int = {
+  def compareTo(other: VertexId): Int =
     Bytes.compareTo(bytes, other.bytes)
-  }
   def <(other: VertexId): Boolean = compareTo(other) < 0
   def <=(other: VertexId): Boolean = compareTo(other) <= 0
   def >(other: VertexId): Boolean = compareTo(other) > 0
@@ -115,14 +109,12 @@ object SourceVertexId extends HBaseDeserializable {
     val (innerId, numOfBytesUsed) =
       InnerVal.fromBytes(bytes, pos, len, version, isVertexId = true)
 
-    (SourceVertexId(ServiceColumn.Default, innerId),
-     GraphUtil.bytesForMurMurHash + numOfBytesUsed)
+    (SourceVertexId(ServiceColumn.Default, innerId), GraphUtil.bytesForMurMurHash + numOfBytesUsed)
   }
 
 }
 
-case class SourceVertexId(override val column: ServiceColumn,
-                          override val innerId: InnerValLike)
+case class SourceVertexId(override val column: ServiceColumn, override val innerId: InnerValLike)
     extends VertexId(column, innerId) {
   override val storeColId: Boolean = false
 }
@@ -140,8 +132,7 @@ object TargetVertexId extends HBaseDeserializable {
   }
 }
 
-case class TargetVertexId(override val column: ServiceColumn,
-                          override val innerId: InnerValLike)
+case class TargetVertexId(override val column: ServiceColumn, override val innerId: InnerValLike)
     extends VertexId(column, innerId) {
   override val storeColId: Boolean = false
   override val storeHash: Boolean = false
@@ -154,8 +145,7 @@ object SourceAndTargetVertexIdPair extends HBaseDeserializable {
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
-                version: String = DEFAULT_VERSION)
-    : (SourceAndTargetVertexIdPair, Int) = {
+                version: String = DEFAULT_VERSION): (SourceAndTargetVertexIdPair, Int) = {
     val pos = offset + GraphUtil.bytesForMurMurHash
     val (srcId, srcBytesLen) =
       InnerVal.fromBytes(bytes, pos, len, version, isVertexId = true)
@@ -166,8 +156,7 @@ object SourceAndTargetVertexIdPair extends HBaseDeserializable {
   }
 }
 
-case class SourceAndTargetVertexIdPair(val srcInnerId: InnerValLike,
-                                       val tgtInnerId: InnerValLike)
+case class SourceAndTargetVertexIdPair(val srcInnerId: InnerValLike, val tgtInnerId: InnerValLike)
     extends HBaseSerializable {
   val colId = DEFAULT_COL_ID
   import SourceAndTargetVertexIdPair._

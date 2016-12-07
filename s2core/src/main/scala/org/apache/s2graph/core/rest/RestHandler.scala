@@ -21,10 +21,7 @@ package org.apache.s2graph.core.rest
 
 import java.net.URL
 
-import org.apache.s2graph.core.GraphExceptions.{
-  BadQueryException,
-  LabelNotExistException
-}
+import org.apache.s2graph.core.GraphExceptions.{BadQueryException, LabelNotExistException}
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Bucket, Experiment, Service}
@@ -46,8 +43,7 @@ object RestHandler {
         if (m._1 == key) Option(m._2) else None
     }
     implicit val hashMapLookup = new CanLookup[Map[String, String]] {
-      override def lookup(m: Map[String, String],
-                          key: String): Option[String] = m.get(key)
+      override def lookup(m: Map[String, String], key: String): Option[String] = m.get(key)
     }
   }
 
@@ -67,8 +63,7 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
   /**
     * Public APIS
     */
-  def doPost[A](uri: String, body: String, headers: A)(
-      implicit ev: CanLookup[A]): HandlerResult = {
+  def doPost[A](uri: String, body: String, headers: A)(implicit ev: CanLookup[A]): HandlerResult = {
     val impKeyOpt = ev.lookup(headers, Experiment.ImpressionKey)
     val impIdOpt = ev.lookup(headers, Experiment.ImpressionId)
 
@@ -77,9 +72,7 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
 
       uri match {
         case "/graphs/getEdges" =>
-          HandlerResult(
-            getEdgesAsync(jsQuery, impIdOpt)(
-              PostProcess.toJson(Option(jsQuery))))
+          HandlerResult(getEdgesAsync(jsQuery, impIdOpt)(PostProcess.toJson(Option(jsQuery))))
         case "/graphs/checkEdges" => checkEdges(jsQuery)
         case "/graphs/getVertices" => HandlerResult(getVertices(jsQuery))
         case "/graphs/experiments" => experiments(jsQuery)
@@ -95,7 +88,7 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
   }
 
   // TODO: Refactor to doGet
-  def checkEdges(jsValue: JsValue): HandlerResult = {
+  def checkEdges(jsValue: JsValue): HandlerResult =
     try {
       val edges = requestParser.toCheckEdgeParam(jsValue)
 
@@ -113,7 +106,6 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
         logger.error(s"RestHandler#checkEdges error: $e")
         HandlerResult(Future.failed(e))
     }
-  }
 
   /**
     * Private APIS
@@ -128,8 +120,7 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
           experiment(body, token, experimentName, uuid, impKeyOpt)
         val future = handlerResult.body.recover {
           case e: Exception =>
-            PostProcess.emptyResults ++ Json.obj(
-              "error" -> Json.obj("reason" -> e.getMessage))
+            PostProcess.emptyResults ++ Json.obj("error" -> Json.obj("reason" -> e.getMessage))
         }
 
         future
@@ -143,7 +134,7 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
                  accessToken: String,
                  experimentName: String,
                  uuid: String,
-                 impKeyOpt: => Option[String] = None): HandlerResult = {
+                 impKeyOpt: => Option[String] = None): HandlerResult =
     try {
       val bucketOpt = for {
         service <- Service.findByAccessToken(accessToken)
@@ -151,8 +142,11 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
         bucket <- experiment.findBucket(uuid, impKeyOpt)
       } yield bucket
 
-      val bucket = bucketOpt.getOrElse(throw new RuntimeException(
-        s"bucket is not found. $accessToken, $experimentName, $uuid, $impKeyOpt"))
+      val bucket = bucketOpt.getOrElse(
+        throw new RuntimeException(
+          s"bucket is not found. $accessToken, $experimentName, $uuid, $impKeyOpt"
+        )
+      )
       if (bucket.isGraphQuery) {
         val ret = buildRequestInner(contentsBody, bucket, uuid)
 
@@ -161,31 +155,26 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
             "type" -> "experiment",
             "time" -> System.currentTimeMillis(),
             "body" -> contentsBody,
-            "uri" -> Seq("graphs",
-                         "experiment",
-                         accessToken,
-                         experimentName,
-                         uuid).mkString("/"),
+            "uri" -> Seq("graphs", "experiment", accessToken, experimentName, uuid).mkString("/"),
             "accessToken" -> accessToken,
             "experimentName" -> experimentName,
             "uuid" -> uuid,
             "impressionId" -> bucket.impressionId
-          ))
+          )
+        )
 
-        HandlerResult(ret.body,
-                      Experiment.ImpressionKey -> bucket.impressionId)
+        HandlerResult(ret.body, Experiment.ImpressionKey -> bucket.impressionId)
       } else throw new RuntimeException("not supported yet")
     } catch {
       case e: Exception => HandlerResult(Future.failed(e))
     }
-  }
 
   private def buildRequestInner(contentsBody: JsValue,
                                 bucket: Bucket,
-                                uuid: String): HandlerResult = {
-    if (bucket.isEmpty)
+                                uuid: String): HandlerResult =
+    if (bucket.isEmpty) {
       HandlerResult(Future.successful(PostProcess.emptyResults))
-    else {
+    } else {
       val body = buildRequestBody(Option(contentsBody), bucket, uuid)
       val url = new URL(bucket.apiPath)
       val path = url.getPath
@@ -196,12 +185,12 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
 
       doPost(path, body, Experiment.ImpressionId -> bucket.impressionId)
     }
-  }
 
   def getEdgesAsync(jsonQuery: JsValue, impIdOpt: Option[String] = None)(
-      post: (S2Graph, QueryOption, StepResult) => JsValue): Future[JsValue] = {
+      post: (S2Graph, QueryOption, StepResult) => JsValue
+  ): Future[JsValue] = {
 
-    def query(obj: JsValue): Future[JsValue] = {
+    def query(obj: JsValue): Future[JsValue] =
       (obj \ "queries").asOpt[JsValue] match {
         case None =>
           val s2Query = requestParser.toQuery(obj, impIdOpt)
@@ -212,15 +201,13 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
             .getEdgesMultiQuery(multiQuery)
             .map(post(graph, multiQuery.queryOption, _))
       }
-    }
 
     logQuery(
-      Json.obj(
-        "type" -> "getEdges",
-        "time" -> System.currentTimeMillis(),
-        "body" -> jsonQuery,
-        "uri" -> "graphs/getEdges"
-      ))
+      Json.obj("type" -> "getEdges",
+               "time" -> System.currentTimeMillis(),
+               "body" -> jsonQuery,
+               "uri" -> "graphs/getEdges")
+    )
 
     val unionQuery = (jsonQuery \ "union").asOpt[JsObject]
     unionQuery match {
@@ -288,9 +275,8 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
       sizeJs.asOpt[Int].getOrElse(0)
     } sum
 
-  def logQuery(queryJson: => JsObject): Unit = {
+  def logQuery(queryJson: => JsObject): Unit =
     if (scala.util.Random.nextDouble() < querySampleRate) {
       logger.query(queryJson.toString)
     }
-  }
 }

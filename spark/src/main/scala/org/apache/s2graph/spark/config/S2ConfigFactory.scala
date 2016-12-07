@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,15 +25,16 @@ object S2ConfigFactory {
   lazy val config: Config = _load
 
   @deprecated("do not call explicitly. use config", "0.0.6")
-  def load(): Config = {
+  def load(): Config =
     _load
-  }
 
   def _load: Config = {
     // default configuration file name : application.conf
     val sysConfig = ConfigFactory.parseProperties(System.getProperties)
 
     lazy val phase = if (!sysConfig.hasPath("phase")) "alpha" else sysConfig.getString("phase")
-    sysConfig.withFallback(ConfigFactory.parseResourcesAnySyntax(s"$phase.conf")).withFallback(ConfigFactory.load())
+    sysConfig
+      .withFallback(ConfigFactory.parseResourcesAnySyntax(s"$phase.conf"))
+      .withFallback(ConfigFactory.load())
   }
 }

@@ -20,9 +20,9 @@
 package org.apache.s2graph.core
 
 import org.apache.s2graph.core.GraphExceptions.{
-  LabelNameTooLongException,
   InvalidHTableException,
   LabelAlreadyExistException,
+  LabelNameTooLongException,
   LabelNotExistException
 }
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
@@ -59,46 +59,38 @@ object Management {
   val LABEL_NAME_MAX_LENGTH = 100
   val DefaultCompressionAlgorithm = "gz"
 
-  def findService(serviceName: String): Option[Service] = {
+  def findService(serviceName: String): Option[Service] =
     Service.findByName(serviceName, useCache = false)
-  }
 
-  def deleteService(serviceName: String): Unit = {
+  def deleteService(serviceName: String): Unit =
     Service.findByName(serviceName).foreach { service =>
       //      service.deleteAll()
     }
-  }
 
   def updateHTable(labelName: String, newHTableName: String): Try[Int] = Try {
     val targetLabel = Label
       .findByName(labelName)
-      .getOrElse(throw new LabelNotExistException(
-        s"Target label $labelName does not exist."))
-    if (targetLabel.hTableName == newHTableName)
-      throw new InvalidHTableException(
-        s"New HTable name is already in use for target label.")
+      .getOrElse(throw new LabelNotExistException(s"Target label $labelName does not exist."))
+    if (targetLabel.hTableName == newHTableName) {
+      throw new InvalidHTableException(s"New HTable name is already in use for target label.")
+    }
 
     Label.updateHTableName(targetLabel.label, newHTableName)
   }
 
-  def createServiceColumn(
-      serviceName: String,
-      columnName: String,
-      columnType: String,
-      props: Seq[Prop],
-      schemaVersion: String = DEFAULT_VERSION): Try[Seq[ColumnMeta]] = {
-
+  def createServiceColumn(serviceName: String,
+                          columnName: String,
+                          columnType: String,
+                          props: Seq[Prop],
+                          schemaVersion: String = DEFAULT_VERSION): Try[Seq[ColumnMeta]] =
     Model withTx { implicit session =>
       val serviceOpt = Service.findByName(serviceName)
       serviceOpt match {
         case None =>
-          throw new RuntimeException(
-            s"create service $serviceName has not been created.")
+          throw new RuntimeException(s"create service $serviceName has not been created.")
         case Some(service) =>
-          val serviceColumn = ServiceColumn.findOrInsert(service.id.get,
-                                                         columnName,
-                                                         Some(columnType),
-                                                         schemaVersion)
+          val serviceColumn =
+            ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion)
           for {
             Prop(propName, defaultValue, dataType) <- props
           } yield {
@@ -106,11 +98,10 @@ object Management {
           }
       }
     }
-  }
 
   def deleteColumn(serviceName: String,
                    columnName: String,
-                   schemaVersion: String = DEFAULT_VERSION): Try[String] = {
+                   schemaVersion: String = DEFAULT_VERSION): Try[String] =
     Model withTx { implicit session =>
       val service = Service
         .findByName(serviceName, useCache = false)
@@ -124,22 +115,19 @@ object Management {
 
       columnNames.getOrElse(throw new RuntimeException("column not found"))
     }
-  }
 
-  def findLabel(labelName: String, useCache: Boolean = false): Option[Label] = {
+  def findLabel(labelName: String, useCache: Boolean = false): Option[Label] =
     Label.findByName(labelName, useCache = useCache)
-  }
 
-  def deleteLabel(labelName: String): Try[String] = {
+  def deleteLabel(labelName: String): Try[String] =
     Model withTx { implicit session =>
       Label.findByName(labelName, useCache = false).foreach { label =>
         Label.deleteAll(label)
       }
       labelName
     }
-  }
 
-  def markDeletedLabel(labelName: String): Try[String] = {
+  def markDeletedLabel(labelName: String): Try[String] =
     Model withTx { implicit session =>
       Label.findByName(labelName, useCache = false).foreach { label =>
         // rename & delete_at column filled with current time
@@ -147,9 +135,8 @@ object Management {
       }
       labelName
     }
-  }
 
-  def addIndex(labelStr: String, indices: Seq[Index]): Try[Label] = {
+  def addIndex(labelStr: String, indices: Seq[Index]): Try[Label] =
     Model withTx { implicit session =>
       val label = Label
         .findByName(labelStr)
@@ -170,26 +157,19 @@ object Management {
 
       label
     }
-  }
 
-  def addProp(labelStr: String, prop: Prop): Try[LabelMeta] = {
+  def addProp(labelStr: String, prop: Prop): Try[LabelMeta] =
     Model withTx { implicit session =>
       val labelOpt = Label.findByName(labelStr)
-      val label = labelOpt.getOrElse(
-        throw LabelNotExistException(s"$labelStr not found"))
+      val label = labelOpt.getOrElse(throw LabelNotExistException(s"$labelStr not found"))
 
-      LabelMeta.findOrInsert(label.id.get,
-                             prop.name,
-                             prop.defaultValue,
-                             prop.datatType)
+      LabelMeta.findOrInsert(label.id.get, prop.name, prop.defaultValue, prop.datatType)
     }
-  }
 
-  def addProps(labelStr: String, props: Seq[Prop]): Try[Seq[LabelMeta]] = {
+  def addProps(labelStr: String, props: Seq[Prop]): Try[Seq[LabelMeta]] =
     Model withTx { implicit session =>
       val labelOpt = Label.findByName(labelStr)
-      val label = labelOpt.getOrElse(
-        throw LabelNotExistException(s"$labelStr not found"))
+      val label = labelOpt.getOrElse(throw LabelNotExistException(s"$labelStr not found"))
 
       props.map {
         case Prop(propName, defaultValue, dataType) =>
@@ -197,7 +177,6 @@ object Management {
             .findOrInsert(label.id.get, propName, defaultValue, dataType)
       }
     }
-  }
 
   def addVertexProp(serviceName: String,
                     columnName: String,
@@ -215,30 +194,24 @@ object Management {
     })
   }
 
-  def getServiceLabel(label: String): Option[Label] = {
+  def getServiceLabel(label: String): Option[Label] =
     Label.findByName(label, useCache = true)
-  }
 
   /**
     *
     */
-  def toLabelWithDirectionAndOp(
-      label: Label,
-      direction: String): Option[LabelWithDirection] = {
+  def toLabelWithDirectionAndOp(label: Label, direction: String): Option[LabelWithDirection] =
     for {
       labelId <- label.id
       dir = GraphUtil.toDirection(direction)
     } yield LabelWithDirection(labelId, dir)
-  }
 
-  def tryOption[A, R](key: A, f: A => Option[R]): R = {
+  def tryOption[A, R](key: A, f: A => Option[R]): R =
     f(key) match {
       case None =>
-        throw new GraphExceptions.InternalException(
-          s"$key is not found in DB. create $key first.")
+        throw new GraphExceptions.InternalException(s"$key is not found in DB. create $key first.")
       case Some(r) => r
     }
-  }
 
   def toProps(column: ServiceColumn, js: JsObject): Seq[(Int, InnerValLike)] = {
 
@@ -247,9 +220,8 @@ object Management {
       meta <- column.metasInvMap.get(k)
     } yield {
       val innerVal =
-        jsValueToInnerVal(v, meta.dataType, column.schemaVersion).getOrElse(
-          throw new RuntimeException(
-            s"$k is not defined. create schema for vertex."))
+        jsValueToInnerVal(v, meta.dataType, column.schemaVersion)
+          .getOrElse(throw new RuntimeException(s"$k is not defined. create schema for vertex."))
 
       (meta.seq.toInt, innerVal)
     }
@@ -257,8 +229,7 @@ object Management {
 
   }
 
-  def toProps(label: Label,
-              js: Seq[(String, JsValue)]): Seq[(LabelMeta, InnerValLike)] = {
+  def toProps(label: Label, js: Seq[(String, JsValue)]): Seq[(LabelMeta, InnerValLike)] = {
     val props = for {
       (k, v) <- js
       meta <- label.metaPropsInvMap.get(k)
@@ -271,7 +242,7 @@ object Management {
   /**
     * update label name.
     */
-  def updateLabelName(oldLabelName: String, newLabelName: String): Try[Unit] = {
+  def updateLabelName(oldLabelName: String, newLabelName: String): Try[Unit] =
     Model withTx { implicit session =>
       for {
         old <- Label.findByName(oldLabelName, useCache = false)
@@ -284,19 +255,17 @@ object Management {
         }
       }
     }
-  }
 
   /**
     * swap label names.
     */
-  def swapLabelNames(leftLabel: String, rightLabel: String): Try[Int] = {
+  def swapLabelNames(leftLabel: String, rightLabel: String): Try[Int] =
     Model withTx { implicit session =>
       val tempLabel = "_" + leftLabel + "_"
       Label.updateName(leftLabel, tempLabel)
       Label.updateName(rightLabel, leftLabel)
       Label.updateName(tempLabel, rightLabel)
     }
-  }
 }
 
 class Management(graph: S2Graph) {
@@ -307,10 +276,9 @@ class Management(graph: S2Graph) {
                          cfs: List[String],
                          regionMultiplier: Int,
                          ttl: Option[Int],
-                         compressionAlgorithm: String =
-                           DefaultCompressionAlgorithm,
+                         compressionAlgorithm: String = DefaultCompressionAlgorithm,
                          replicationScopeOpt: Option[Int] = None,
-                         totalRegionCount: Option[Int] = None): Unit = {
+                         totalRegionCount: Option[Int] = None): Unit =
     graph.defaultStorage.createTable(zkAddr,
                                      tableName,
                                      cfs,
@@ -319,7 +287,6 @@ class Management(graph: S2Graph) {
                                      compressionAlgorithm,
                                      replicationScopeOpt,
                                      totalRegionCount)
-  }
 
   /** HBase specific code */
   def createService(serviceName: String,
@@ -327,9 +294,7 @@ class Management(graph: S2Graph) {
                     hTableName: String,
                     preSplitSize: Int,
                     hTableTTL: Option[Int],
-                    compressionAlgorithm: String = DefaultCompressionAlgorithm)
-    : Try[Service] = {
-
+                    compressionAlgorithm: String = DefaultCompressionAlgorithm): Try[Service] =
     Model withTx { implicit session =>
       val service =
         Service.findOrInsert(serviceName,
@@ -350,7 +315,6 @@ class Management(graph: S2Graph) {
                      compressionAlgorithm)
       service
     }
-  }
 
   /** HBase specific code */
   def createLabel(label: String,
@@ -372,18 +336,20 @@ class Management(graph: S2Graph) {
                   compressionAlgorithm: String = "gz",
                   options: Option[String]): Try[Label] = {
 
-    if (label.length > LABEL_NAME_MAX_LENGTH)
+    if (label.length > LABEL_NAME_MAX_LENGTH) {
       throw new LabelNameTooLongException(
-        s"Label name ${label} too long.( max length : ${LABEL_NAME_MAX_LENGTH}} )")
-    if (hTableName.isEmpty && hTableTTL.isDefined)
-      throw new RuntimeException(
-        "if want to specify ttl, give hbaseTableName also")
+        s"Label name ${label} too long.( max length : ${LABEL_NAME_MAX_LENGTH}} )"
+      )
+    }
+    if (hTableName.isEmpty && hTableTTL.isDefined) {
+      throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
+    }
 
     val labelOpt = Label.findByName(label, useCache = false)
     Model withTx { implicit session =>
-      if (labelOpt.isDefined)
-        throw new LabelAlreadyExistException(
-          s"Label name ${label} already exist.")
+      if (labelOpt.isDefined) {
+        throw new LabelAlreadyExistException(s"Label name ${label} already exist.")
+      }
 
       /** create all models */
       val newLabel = Label.insertAll(label,
@@ -431,9 +397,7 @@ class Management(graph: S2Graph) {
                 hTableName: Option[String]): Try[Label] = {
     val old = Label
       .findByName(oldLabelName, useCache = false)
-      .getOrElse(
-        throw new LabelNotExistException(
-          s"Old label $oldLabelName not exists."))
+      .getOrElse(throw new LabelNotExistException(s"Old label $oldLabelName not exists."))
 
     val allProps = old.metas(useCache = false).map { labelMeta =>
       Prop(labelMeta.name, labelMeta.defaultValue, labelMeta.dataType)

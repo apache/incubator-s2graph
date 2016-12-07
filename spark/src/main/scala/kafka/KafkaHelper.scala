@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -30,25 +30,28 @@ import org.apache.zookeeper.Watcher.Event
 import org.apache.zookeeper.Watcher.Event.KeeperState
 
 /**
- * Created by hsleep(honeysleep@gmail.com) on 15. 4. 21..
- */
+  * Created by hsleep(honeysleep@gmail.com) on 15. 4. 21..
+  */
 case class KafkaHelper(kafkaParams: Map[String, String]) extends Logging {
   lazy val props = {
     val rtn = new Properties()
     for ((k, v) <- kafkaParams) rtn.put(k, v)
     rtn
   }
-  lazy val config = new ConsumerConfig(props)
+  lazy val config   = new ConsumerConfig(props)
   lazy val zkClient = connectZk()
 
   private def connectZk() = {
     info("Connecting to zookeeper instance at " + config.zkConnect)
-    new ZkClient(config.zkConnect, config.zkSessionTimeoutMs, config.zkConnectionTimeoutMs, ZKStringSerializer)
+    new ZkClient(config.zkConnect,
+                 config.zkSessionTimeoutMs,
+                 config.zkConnectionTimeoutMs,
+                 ZKStringSerializer)
   }
 
   def consumerGroupCleanup() {
     val groupDirs = new ZKGroupDirs(config.groupId)
-    val dir = groupDirs.consumerGroupDir
+    val dir       = groupDirs.consumerGroupDir
     info(s"Cleaning up temporary Zookeeper data under $dir.")
     try {
       zkClient.deleteRecursive(dir)
@@ -60,19 +63,27 @@ case class KafkaHelper(kafkaParams: Map[String, String]) extends Logging {
 
   // register consumer and handle session expire
   def registerConsumerInZK(topics: Set[String]) {
-    val groupDirs = new ZKGroupDirs(config.groupId)
+    val groupDirs     = new ZKGroupDirs(config.groupId)
     val topicCountMap = topics.map((_, 1)).toMap
-    val topicCount = TopicCount.constructTopicCount(consumerIdString, topicCountMap)
+    val topicCount    = TopicCount.constructTopicCount(consumerIdString, topicCountMap)
 
     val stateListener = new IZkStateListener {
       override def handleNewSession(): Unit = {
         info("begin registering consumer " + consumerIdString + " in ZK")
         val timestamp = SystemTime.milliseconds.toString
-        val consumerRegistrationInfo = Json.encode(Map("version" -> 1, "subscription" -> topicCount.getTopicCountMap, "pattern" -> topicCount.pattern,
-          "timestamp" -> timestamp))
+        val consumerRegistrationInfo = Json.encode(
+          Map("version"      -> 1,
+              "subscription" -> topicCount.getTopicCountMap,
+              "pattern"      -> topicCount.pattern,
+              "timestamp"    -> timestamp))
 
-        ZkUtils.createEphemeralPathExpectConflictHandleZKBug(zkClient, groupDirs.consumerRegistryDir + "/" + consumerIdString, consumerRegistrationInfo, null,
-          (consumerZKString, consumer) => true, config.zkSessionTimeoutMs)
+        ZkUtils.createEphemeralPathExpectConflictHandleZKBug(
+          zkClient,
+          groupDirs.consumerRegistryDir + "/" + consumerIdString,
+          consumerRegistrationInfo,
+          null,
+          (consumerZKString, consumer) => true,
+          config.zkSessionTimeoutMs)
         info("end registering consumer " + consumerIdString + " in ZK")
       }
 
@@ -89,22 +100,25 @@ case class KafkaHelper(kafkaParams: Map[String, String]) extends Logging {
         consumerId
       case None => // generate unique consumerId automatically
         val uuid = UUID.randomUUID()
-        "%s-%d-%s".format(InetAddress.getLocalHost.getHostName, System.currentTimeMillis, uuid.getMostSignificantBits.toHexString.substring(0,8))
+        "%s-%d-%s".format(InetAddress.getLocalHost.getHostName,
+                          System.currentTimeMillis,
+                          uuid.getMostSignificantBits.toHexString.substring(0, 8))
     }
     config.groupId + "_" + consumerUuid
   }
 
-  def getConsumerOffsets(topics: Seq[String]): Map[TopicAndPartition, Long] = {
+  def getConsumerOffsets(topics: Seq[String]): Map[TopicAndPartition, Long] =
     for {
       (topic, partitions) <- ZkUtils.getPartitionsForTopics(zkClient, topics).toMap
-      partition <- partitions
+      partition           <- partitions
     } yield {
       val znode = new ZKGroupTopicDirs(config.groupId, topic).consumerOffsetDir + "/" + partition
       // get offset
       val offsetString = ZkUtils.readDataMaybeNull(zkClient, znode)._1
-      TopicAndPartition(topic, partition) -> offsetString.map(_.toLong).getOrElse(PartitionTopicInfo.InvalidOffset)
+      TopicAndPartition(topic, partition) -> offsetString
+        .map(_.toLong)
+        .getOrElse(PartitionTopicInfo.InvalidOffset)
     }
-  }
 
   def commitConsumerOffsets(offsets: Map[TopicAndPartition, Long]) {
     for {
@@ -117,17 +131,18 @@ case class KafkaHelper(kafkaParams: Map[String, String]) extends Logging {
   def commitConsumerOffset(tp: TopicAndPartition, offset: Long): Unit = {
     val topicDirs = new ZKGroupTopicDirs(config.groupId, tp.topic)
     try {
-      ZkUtils.updatePersistentPath(zkClient, topicDirs.consumerOffsetDir + "/" + tp.partition, offset.toString)
+      ZkUtils.updatePersistentPath(zkClient,
+                                   topicDirs.consumerOffsetDir + "/" + tp.partition,
+                                   offset.toString)
     } catch {
       case t: Throwable =>
         // log it and let it go
-        warn("exception during commitOffsets",  t)
+        warn("exception during commitOffsets", t)
         throw t
     }
     debug("Committed offset " + offset + " for topic " + tp)
   }
 
-  def shutdown(): Unit = {
+  def shutdown(): Unit =
     zkClient.close()
-  }
 }

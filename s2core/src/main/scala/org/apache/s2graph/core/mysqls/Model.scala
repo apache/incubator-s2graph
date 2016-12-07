@@ -21,16 +21,16 @@ package org.apache.s2graph.core.mysqls
 
 import java.util.concurrent.Executors
 
-import com.typesafe.config.{ConfigFactory, Config}
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.JSONParser
-import org.apache.s2graph.core.utils.{SafeUpdateCache, logger}
-import play.api.libs.json.{Json, JsObject, JsValue}
+import org.apache.s2graph.core.utils.{logger, SafeUpdateCache}
+import play.api.libs.json.{JsObject, JsValue, Json}
 import scalikejdbc._
 
 import scala.concurrent.ExecutionContext
 import scala.io.Source
 import scala.language.{higherKinds, implicitConversions}
-import scala.util.{Success, Failure, Try}
+import scala.util.{Failure, Success, Try}
 
 object Model {
   var maxSize = 10000
@@ -58,7 +58,7 @@ object Model {
     checkSchema()
   }
 
-  def checkSchema(): Unit = {
+  def checkSchema(): Unit =
     withTx { implicit session =>
       sql"""show tables""".map(rs => rs.string(1)).list.apply()
     } match {
@@ -85,9 +85,8 @@ object Model {
       case Failure(e) =>
         throw new RuntimeException("Could not list tables in the database", e)
     }
-  }
 
-  def withTx[T](block: DBSession => T): Try[T] = {
+  def withTx[T](block: DBSession => T): Try[T] =
     using(DB(ConnectionPool.borrow())) { conn =>
       Try {
         conn.begin()
@@ -103,11 +102,9 @@ object Model {
           Failure(e)
       }
     }
-  }
 
-  def shutdown(): Unit = {
+  def shutdown(): Unit =
     ConnectionPool.closeAll()
-  }
 
   def loadCache(): Unit = {
     Service.findAll()
@@ -132,14 +129,12 @@ object Model {
             .getOrElse(Map.empty)
         } catch {
           case e: Exception =>
-            logger.error(
-              s"An error occurs while parsing the extra label option",
-              e)
+            logger.error(s"An error occurs while parsing the extra label option", e)
             Map.empty
         }
     }
 
-  def toStorageConfig(options: Map[String, JsValue]): Option[Config] = {
+  def toStorageConfig(options: Map[String, JsValue]): Option[Config] =
     try {
       options.get("storage").map { jsValue =>
         import scala.collection.JavaConverters._
@@ -156,7 +151,6 @@ object Model {
         logger.error(s"toStorageConfig error. use default storage", e)
         None
     }
-  }
 }
 
 trait Model[V] extends SQLSyntaxSupport[V] {
@@ -187,8 +181,6 @@ trait Model[V] extends SQLSyntaxSupport[V] {
     case (key, values) => listCache.put(key, values)
   }
 
-  def getAllCacheData()
-    : (List[(String, Option[_])], List[(String, List[_])]) = {
+  def getAllCacheData(): (List[(String, Option[_])], List[(String, List[_])]) =
     (optionCache.getAllData(), listCache.getAllData())
-  }
 }

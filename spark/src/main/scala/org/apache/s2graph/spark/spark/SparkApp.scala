@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -47,12 +47,11 @@ trait SparkApp extends Logging {
     run()
   }
 
-  def validateArgument(argNames: String*): Unit = {
+  def validateArgument(argNames: String*): Unit =
     if (args == null || args.length < argNames.length) {
       System.err.println(s"Usage: ${getClass.getName} " + argNames.map(s => s"<$s>").mkString(" "))
       System.exit(1)
     }
-  }
 
   def buildKafkaGroupId(topic: String, ext: String): String = {
     val phase = System.getProperty("phase")
@@ -87,7 +86,9 @@ trait SparkApp extends Logging {
     conf
   }
 
-  def streamingContext(sparkConf: SparkConf, interval: Duration, checkPoint: Option[String] = None): StreamingContext = {
+  def streamingContext(sparkConf: SparkConf,
+                       interval: Duration,
+                       checkPoint: Option[String] = None): StreamingContext = {
     val ssc = new StreamingContext(sparkConf, interval)
     checkPoint.foreach { dir =>
       ssc.checkpoint(dir)
@@ -99,23 +100,37 @@ trait SparkApp extends Logging {
     ssc
   }
 
-  def createKafkaPairStream(ssc: StreamingContext, kafkaParam: Map[String, String], topics: String, numPartition: Option[Int] = None): DStream[(String, String)] = {
+  def createKafkaPairStream(ssc: StreamingContext,
+                            kafkaParam: Map[String, String],
+                            topics: String,
+                            numPartition: Option[Int] = None): DStream[(String, String)] = {
     val topicMap = topics.split(",").map((_, 1)).toMap
-    val stream = KafkaUtils.createStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParam, topicMap, StorageLevel.MEMORY_AND_DISK_SER_2)
-    numPartition.map(n =>
-      stream.repartition(n)
-    ).getOrElse(stream)
+    val stream = KafkaUtils.createStream[String, String, StringDecoder, StringDecoder](
+      ssc,
+      kafkaParam,
+      topicMap,
+      StorageLevel.MEMORY_AND_DISK_SER_2)
+    numPartition.map(n => stream.repartition(n)).getOrElse(stream)
   }
 
-  def createKafkaValueStream(ssc: StreamingContext, kafkaParam: Map[String, String], topics: String, numPartition: Option[Int] = None): DStream[String] = {
+  def createKafkaValueStream(ssc: StreamingContext,
+                             kafkaParam: Map[String, String],
+                             topics: String,
+                             numPartition: Option[Int] = None): DStream[String] =
     createKafkaPairStream(ssc, kafkaParam, topics, numPartition).map(_._2)
-  }
 
-  def createKafkaPairStreamMulti(ssc: StreamingContext, kafkaParam: Map[String, String], topics: String, receiverCount: Int, numPartition: Option[Int] = None): DStream[(String, String)] = {
+  def createKafkaPairStreamMulti(ssc: StreamingContext,
+                                 kafkaParam: Map[String, String],
+                                 topics: String,
+                                 receiverCount: Int,
+                                 numPartition: Option[Int] = None): DStream[(String, String)] = {
     // wait until all executor is running
-    Stream.continually(ssc.sparkContext.getExecutorStorageStatus).takeWhile(_.length < receiverCount).foreach { arr =>
-      Thread.sleep(100)
-    }
+    Stream
+      .continually(ssc.sparkContext.getExecutorStorageStatus)
+      .takeWhile(_.length < receiverCount)
+      .foreach { arr =>
+        Thread.sleep(100)
+      }
     Thread.sleep(1000)
 
     val topicMap = topics.split(",").map((_, 1)).toMap
@@ -123,17 +138,22 @@ trait SparkApp extends Logging {
     val stream = {
       val streams = {
         (1 to receiverCount) map { _ =>
-          KafkaUtils.createStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParam, topicMap, StorageLevel.MEMORY_AND_DISK_SER_2)
+          KafkaUtils.createStream[String, String, StringDecoder, StringDecoder](
+            ssc,
+            kafkaParam,
+            topicMap,
+            StorageLevel.MEMORY_AND_DISK_SER_2)
         }
       }
       ssc.union(streams)
     }
-    numPartition.map(n =>
-      stream.repartition(n)
-    ).getOrElse(stream)
+    numPartition.map(n => stream.repartition(n)).getOrElse(stream)
   }
 
-  def createKafkaValueStreamMulti(ssc: StreamingContext, kafkaParam: Map[String, String], topics: String, receiverCount: Int, numPartition: Option[Int] = None): DStream[String] = {
+  def createKafkaValueStreamMulti(ssc: StreamingContext,
+                                  kafkaParam: Map[String, String],
+                                  topics: String,
+                                  receiverCount: Int,
+                                  numPartition: Option[Int] = None): DStream[String] =
     createKafkaPairStreamMulti(ssc, kafkaParam, topics, receiverCount, numPartition).map(_._2)
-  }
 }

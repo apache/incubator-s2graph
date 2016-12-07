@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,7 +24,7 @@ import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.loader.config.StreamingConfig
 import org.apache.s2graph.counter.loader.core.CounterFunctions
 import org.apache.s2graph.spark.config.S2ConfigFactory
-import org.apache.s2graph.spark.spark.{WithKafka, SparkApp, HashMapParam}
+import org.apache.s2graph.spark.spark.{HashMapParam, SparkApp, WithKafka}
 import org.apache.spark.streaming.Durations._
 import org.apache.spark.streaming.kafka.KafkaRDDFunctions.rddToKafkaRDDFunctions
 import org.apache.spark.streaming.kafka.{HasOffsetRanges, StreamHelper}
@@ -32,20 +32,20 @@ import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.language.postfixOps
 
 object ExactCounterStreaming extends SparkApp with WithKafka {
-  lazy val config = S2ConfigFactory.config
-  lazy val s2Config = new S2CounterConfig(config)
+  lazy val config    = S2ConfigFactory.config
+  lazy val s2Config  = new S2CounterConfig(config)
   lazy val className = getClass.getName.stripSuffix("$")
 
   lazy val producer = getProducer[String, String](StreamingConfig.KAFKA_BROKERS)
 
-  val inputTopics = Set(StreamingConfig.KAFKA_TOPIC_COUNTER)
+  val inputTopics    = Set(StreamingConfig.KAFKA_TOPIC_COUNTER)
   val strInputTopics = inputTopics.mkString(",")
-  val groupId = buildKafkaGroupId(strInputTopics, "counter_v2")
+  val groupId        = buildKafkaGroupId(strInputTopics, "counter_v2")
   val kafkaParam = Map(
 //    "auto.offset.reset" -> "smallest",
-    "group.id" -> groupId,
-    "metadata.broker.list" -> StreamingConfig.KAFKA_BROKERS,
-    "zookeeper.connect" -> StreamingConfig.KAFKA_ZOOKEEPER,
+    "group.id"                        -> groupId,
+    "metadata.broker.list"            -> StreamingConfig.KAFKA_BROKERS,
+    "zookeeper.connect"               -> StreamingConfig.KAFKA_ZOOKEEPER,
     "zookeeper.connection.timeout.ms" -> "10000"
   )
   val streamHelper = StreamHelper(kafkaParam)
@@ -59,13 +59,16 @@ object ExactCounterStreaming extends SparkApp with WithKafka {
     }
 
     val conf = sparkConf(s"$strInputTopics: $className")
-    val ssc = streamingContext(conf, intervalInSec)
-    val sc = ssc.sparkContext
+    val ssc  = streamingContext(conf, intervalInSec)
+    val sc   = ssc.sparkContext
 
-    implicit val acc: HashMapAccumulable = sc.accumulable(MutableHashMap.empty[String, Long], "Throughput")(HashMapParam[String, Long](_ + _))
+    implicit val acc: HashMapAccumulable =
+      sc.accumulable(MutableHashMap.empty[String, Long], "Throughput")(
+        HashMapParam[String, Long](_ + _))
 
     // make stream
-    val stream = streamHelper.createStream[String, String, StringDecoder, StringDecoder](ssc, inputTopics)
+    val stream =
+      streamHelper.createStream[String, String, StringDecoder, StringDecoder](ssc, inputTopics)
     stream.foreachRDD { (rdd, ts) =>
       val offsets = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
 

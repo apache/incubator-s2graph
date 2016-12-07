@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,26 +25,26 @@ import scala.util.{Failure, Success, Try}
 
 object Retry {
   @tailrec
-  def apply[T](n: Int, withSleep: Boolean = true, tryCount: Int = 0)(fn: => T): T = {
+  def apply[T](n: Int, withSleep: Boolean = true, tryCount: Int = 0)(fn: => T): T =
     Try { fn } match {
-      case Success(x) => x
+      case Success(x)                                       => x
       case Failure(e) if e.isInstanceOf[RetryStopException] => throw e.getCause
-      case _ if n > 1 =>
+      case _ if n > 1                                       =>
         // backoff
         if (withSleep) Thread.sleep(tryCount * 1000)
         apply(n - 1, withSleep, tryCount + 1)(fn)
       case Failure(e) => throw e
     }
-  }
 }
 
 object RetryAsync {
-  def apply[T](n: Int, withSleep: Boolean = true, tryCount: Int = 0)(fn: => Future[T])(implicit ex: ExecutionContext): Future[T] = {
+  def apply[T](n: Int, withSleep: Boolean = true, tryCount: Int = 0)(fn: => Future[T])(
+      implicit ex: ExecutionContext): Future[T] = {
     val promise = Promise[T]()
     fn onComplete {
-      case Success(x) => promise.success(x)
+      case Success(x)                                       => promise.success(x)
       case Failure(e) if e.isInstanceOf[RetryStopException] => promise.failure(e.getCause)
-      case _ if n > 1 =>
+      case _ if n > 1                                       =>
         // backoff
         if (withSleep) Thread.sleep(tryCount * 1000)
         apply(n - 1, withSleep, tryCount + 1)(fn)
@@ -54,8 +54,7 @@ object RetryAsync {
   }
 }
 
-class RetryStopException(message: String, cause: Throwable)
-  extends Exception(message, cause) {
+class RetryStopException(message: String, cause: Throwable) extends Exception(message, cause) {
 
   def this(message: String) = this(message, null)
 

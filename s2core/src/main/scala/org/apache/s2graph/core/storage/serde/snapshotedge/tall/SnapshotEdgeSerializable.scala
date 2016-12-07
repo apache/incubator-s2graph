@@ -22,15 +22,10 @@ package org.apache.s2graph.core.storage.serde.snapshotedge.tall
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.SnapshotEdge
 import org.apache.s2graph.core.mysqls.LabelIndex
-import org.apache.s2graph.core.storage.{
-  SKeyValue,
-  Serializable,
-  StorageSerializable
-}
+import org.apache.s2graph.core.storage.{SKeyValue, Serializable, StorageSerializable}
 import org.apache.s2graph.core.types.SourceAndTargetVertexIdPair
 
-class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge)
-    extends Serializable[SnapshotEdge] {
+class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[SnapshotEdge] {
   import StorageSerializable._
 
   override def ts: Long = snapshotEdge.version
@@ -46,16 +41,13 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge)
               snapshotEdge.propsToKeyValuesWithTs)
 
   override def toRowKey: Array[Byte] = {
-    val srcIdAndTgtIdBytes = SourceAndTargetVertexIdPair(
-      snapshotEdge.srcVertex.innerId,
-      snapshotEdge.tgtVertex.innerId).bytes
+    val srcIdAndTgtIdBytes = SourceAndTargetVertexIdPair(snapshotEdge.srcVertex.innerId,
+                                                         snapshotEdge.tgtVertex.innerId).bytes
     val labelWithDirBytes = snapshotEdge.labelWithDir.bytes
     val labelIndexSeqWithIsInvertedBytes =
       labelOrderSeqWithIsInverted(LabelIndex.DefaultSeq, isInverted = true)
 
-    Bytes.add(srcIdAndTgtIdBytes,
-              labelWithDirBytes,
-              labelIndexSeqWithIsInvertedBytes)
+    Bytes.add(srcIdAndTgtIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
   }
 
   override def toQualifier: Array[Byte] = Array.empty[Byte]
@@ -69,8 +61,7 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge)
         val propsBytes = pendingEdge.serializePropsWithTs()
         val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)
 
-        Bytes.add(Bytes.add(valueBytes(), opBytes, versionBytes),
-                  Bytes.add(propsBytes, lockBytes))
+        Bytes.add(Bytes.add(valueBytes(), opBytes, versionBytes), Bytes.add(propsBytes, lockBytes))
     }
 
 }

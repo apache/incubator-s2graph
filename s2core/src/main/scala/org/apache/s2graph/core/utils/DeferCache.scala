@@ -37,11 +37,9 @@ trait CanDefer[A, M[_], C[_]] {
 
   def failure(defer: M[A], cause: Throwable): Unit
 
-  def onSuccess(defer: C[A])(pf: PartialFunction[A, A])(
-      implicit ec: ExecutionContext)
+  def onSuccess(defer: C[A])(pf: PartialFunction[A, A])(implicit ec: ExecutionContext)
 
-  def onFailure(defer: C[A])(pf: PartialFunction[Throwable, A])(
-      implicit ec: ExecutionContext)
+  def onFailure(defer: C[A])(pf: PartialFunction[Throwable, A])(implicit ec: ExecutionContext)
 }
 
 object CanDefer {
@@ -57,10 +55,12 @@ object CanDefer {
         defer.failure(cause)
 
       override def onSuccess(defer: Future[A])(pf: PartialFunction[A, A])(
-          implicit ec: ExecutionContext) = defer onSuccess pf
+          implicit ec: ExecutionContext
+      ) = defer onSuccess pf
 
-      override def onFailure(defer: Future[A])(
-          pf: PartialFunction[Throwable, A])(implicit ec: ExecutionContext) =
+      override def onFailure(
+          defer: Future[A]
+      )(pf: PartialFunction[Throwable, A])(implicit ec: ExecutionContext) =
         defer onFailure pf
     }
 
@@ -77,14 +77,16 @@ object CanDefer {
       override def failure(defer: Deferred[A], cause: Throwable) =
         defer.callback(cause)
 
-      override def onSuccess(defer: Deferred[A])(pf: PartialFunction[A, A])(
-          implicit _ec: ExecutionContext) =
+      override def onSuccess(
+          defer: Deferred[A]
+      )(pf: PartialFunction[A, A])(implicit _ec: ExecutionContext) =
         defer.addCallback(new Callback[A, A] {
           override def call(arg: A): A = pf(arg)
         })
 
-      override def onFailure(defer: Deferred[A])(
-          pf: PartialFunction[Throwable, A])(implicit ec: ExecutionContext) =
+      override def onFailure(
+          defer: Deferred[A]
+      )(pf: PartialFunction[Throwable, A])(implicit ec: ExecutionContext) =
         defer.addErrback(new Callback[A, Exception] {
           override def call(t: Exception): A = pf(t)
         })
@@ -109,12 +111,12 @@ object DeferCache {
   * @tparam M[_]: container type that will be stored in local cache. ex) Promise, Defer.
   * @tparam C[_]: container type that will be returned to client of this class. Ex) Future, Defer.
   */
-class DeferCache[A, M[_], C[_]](config: Config,
-                                empty: => A,
-                                name: String = "",
-                                useMetric: Boolean = false)(
-    implicit ec: ExecutionContext,
-    canDefer: CanDefer[A, M, C]) {
+class DeferCache[A, M[_], C[_]](
+    config: Config,
+    empty: => A,
+    name: String = "",
+    useMetric: Boolean = false
+)(implicit ec: ExecutionContext, canDefer: CanDefer[A, M, C]) {
   type Value = (Long, C[A])
 
   private val maxSize = config.getInt("future.cache.max.size")
@@ -151,10 +153,9 @@ class DeferCache[A, M[_], C[_]](config: Config,
     (cachedAt, canDefer.future(promise))
   }
 
-  private def checkAndExpire(cacheKey: Long,
-                             cachedAt: Long,
-                             cacheTTL: Long,
-                             oldFuture: C[A])(op: => C[A]): C[A] = {
+  private def checkAndExpire(cacheKey: Long, cachedAt: Long, cacheTTL: Long, oldFuture: C[A])(
+      op: => C[A]
+  ): C[A] =
     if (System.currentTimeMillis() >= cachedAt + cacheTTL) {
       // future is too old. so need to expire and fetch new data from storage.
       futureCache.asMap().remove(cacheKey)
@@ -187,7 +188,6 @@ class DeferCache[A, M[_], C[_]](config: Config,
       // future is not to old so reuse it.
       oldFuture
     }
-  }
 
   def getOrElseUpdate(cacheKey: Long, cacheTTL: Long)(op: => C[A]): C[A] = {
     val cacheVal = futureCache.getIfPresent(cacheKey)
@@ -216,16 +216,10 @@ class DeferCache[A, M[_], C[_]](config: Config,
 
             case oldVal => oldVal
           }
-        checkAndExpire(cacheKey,
-                       cacheTTL,
-                       cachedAt,
-                       canDefer.future(cachedPromise))(op)
+        checkAndExpire(cacheKey, cacheTTL, cachedAt, canDefer.future(cachedPromise))(op)
 
       case (cachedAt, cachedPromise) =>
-        checkAndExpire(cacheKey,
-                       cacheTTL,
-                       cachedAt,
-                       canDefer.future(cachedPromise))(op)
+        checkAndExpire(cacheKey, cacheTTL, cachedAt, canDefer.future(cachedPromise))(op)
     }
   }
 

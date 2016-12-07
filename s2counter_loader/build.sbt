@@ -24,18 +24,17 @@ name := "s2counter-loader"
 scalacOptions in Test ++= Seq("-Yrangepos")
 
 libraryDependencies ++= Seq(
-  "com.google.guava" % "guava" % "12.0.1" force (), // use this old version of guava to avoid incompatibility
-  "org.apache.spark" %% "spark-core" % Common.sparkVersion % "provided",
-  "org.apache.spark" %% "spark-streaming" % Common.sparkVersion % "provided",
+  // use this old version of guava to avoid incompatibility
+  "com.google.guava" % "guava"                  % "12.0.1" force (),
+  "org.apache.spark" %% "spark-core"            % Common.sparkVersion % "provided",
+  "org.apache.spark" %% "spark-streaming"       % Common.sparkVersion % "provided",
   "org.apache.spark" %% "spark-streaming-kafka" % Common.sparkVersion,
-  "javax.servlet" % "javax.servlet-api" % "3.0.1" % "test",
-  "org.scalatest" %% "scalatest" % "2.2.4" % "test"
+  "javax.servlet"    % "javax.servlet-api"      % "3.0.1" % "test",
+  "org.scalatest"    %% "scalatest"             % "2.2.4" % "test"
 )
 
 // force specific library version
-libraryDependencies ++= Seq(
-  "com.google.guava" % "guava" % "16.0.1"
-)
+libraryDependencies ++= Seq("com.google.guava" % "guava" % "16.0.1")
 
 crossScalaVersions := Seq("2.10.6")
 

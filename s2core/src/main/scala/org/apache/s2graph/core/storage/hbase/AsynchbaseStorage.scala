@@ -30,20 +30,12 @@ import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.{
-  HBaseConfiguration,
-  HColumnDescriptor,
-  HTableDescriptor,
-  TableName
-}
+import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
 import org.apache.hadoop.security.UserGroupInformation
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.storage._
-import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage.{
-  AsyncRPC,
-  ScanWithRange
-}
+import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage.{AsyncRPC, ScanWithRange}
 import org.apache.s2graph.core.types.{HBaseType, VertexId}
 import org.apache.s2graph.core.utils._
 import org.hbase.async.FilterList.Operator.MUST_PASS_ALL
@@ -66,7 +58,8 @@ object AsynchbaseStorage {
   def makeClient(config: Config, overrideKv: (String, String)*): HBaseClient = {
     val asyncConfig: org.hbase.async.Config =
       if (config.hasPath("hbase.security.auth.enable") && config.getBoolean(
-            "hbase.security.auth.enable")) {
+            "hbase.security.auth.enable"
+          )) {
         val krb5Conf = config.getString("java.security.krb5.conf")
         val jaas = config.getString("java.security.auth.login.config")
 
@@ -95,9 +88,8 @@ object AsynchbaseStorage {
   type AsyncRPC = Either[GetRequest, ScanWithRange]
 }
 
-class AsynchbaseStorage(
-    override val graph: S2Graph,
-    override val config: Config)(implicit ec: ExecutionContext)
+class AsynchbaseStorage(override val graph: S2Graph,
+                        override val config: Config)(implicit ec: ExecutionContext)
     extends Storage[AsyncRPC, Deferred[StepResult]](graph, config) {
 
   import Extensions.DeferOps
@@ -110,12 +102,14 @@ class AsynchbaseStorage(
     config.getInt("hbase.rpcs.buffered_flush_interval").toString().toShort
 
   /**
-    * since some runtime environment such as spark cluster has issue with guava version, that is used in Asynchbase.
-    * to fix version conflict, make this as lazy val for clients that don't require hbase client.
+    * since some runtime environment such as spark cluster has issue with guava version,
+    * that is used in Asynchbase.* to fix version conflict, make this as lazy val for clients that
+    * don't require hbase client.
     */
   lazy val client = AsynchbaseStorage.makeClient(config)
-  lazy val clientWithFlush = AsynchbaseStorage
-    .makeClient(config, "hbase.rpcs.buffered_flush_interval" -> "0")
+  lazy val clientWithFlush =
+    AsynchbaseStorage
+      .makeClient(config, "hbase.rpcs.buffered_flush_interval" -> "0")
   lazy val clients = Seq(client, clientWithFlush)
 
   private val emptyKeyValues = new util.ArrayList[KeyValue]()
@@ -128,15 +122,16 @@ class AsynchbaseStorage(
 
   /** Future Cache to squash request */
   lazy private val futureCache =
-    new DeferCache[StepResult, Deferred, Deferred](config,
-                                                   StepResult.Empty,
-                                                   "AsyncHbaseFutureCache",
-                                                   useMetric = true)
+    new DeferCache[StepResult, Deferred, Deferred](
+      config,
+      StepResult.Empty,
+      "AsyncHbaseFutureCache",
+      useMetric = true
+    )
 
   /** Simple Vertex Cache */
   lazy private val vertexCache =
-    new DeferCache[Seq[SKeyValue], Promise, Future](config,
-                                                    Seq.empty[SKeyValue])
+    new DeferCache[Seq[SKeyValue], Promise, Future](config, Seq.empty[SKeyValue])
 
   private val zkQuorum = config.getString("hbase.zookeeper.quorum")
   private val zkQuorumSlave =
@@ -148,10 +143,9 @@ class AsynchbaseStorage(
 
   /** v4 max next row size */
   private val v4_max_num_rows = 10000
-  private def getV4MaxNumRows(limit: Int): Int = {
+  private def getV4MaxNumRows(limit: Int): Int =
     if (limit < v4_max_num_rows) limit
     else v4_max_num_rows
-  }
 
   /**
     * fire rpcs into proper hbase cluster using client and
@@ -159,7 +153,7 @@ class AsynchbaseStorage(
     */
   override def writeToStorage(cluster: String,
                               kvs: Seq[SKeyValue],
-                              withWait: Boolean): Future[Boolean] = {
+                              withWait: Boolean): Future[Boolean] =
     if (kvs.isEmpty) Future.successful(true)
     else {
       val _client = client(withWait)
@@ -168,11 +162,8 @@ class AsynchbaseStorage(
 
       /** Asynchbase IncrementRequest does not implement HasQualifiers */
       val incrementsFutures = increments.map { kv =>
-        val inc = new AtomicIncrementRequest(kv.table,
-                                             kv.row,
-                                             kv.cf,
-                                             kv.qualifier,
-                                             Bytes.toLong(kv.value))
+        val inc =
+          new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value))
         val defer = _client.atomicIncrement(inc)
         val future = defer.toFuture(Long.box(0)).map(_ => true).recover {
           case ex: Exception =>
@@ -183,61 +174,63 @@ class AsynchbaseStorage(
       }
 
       /** PutRequest and DeleteRequest accept byte[][] qualifiers/values. */
-      val othersFutures = putAndDeletes.groupBy { kv =>
-        (kv.table.toSeq, kv.row.toSeq, kv.cf.toSeq, kv.operation, kv.timestamp)
-      }.map {
-        case ((table, row, cf, operation, timestamp), groupedKeyValues) =>
-          val durability = groupedKeyValues.head.durability
-          val qualifiers = new ArrayBuffer[Array[Byte]]()
-          val values = new ArrayBuffer[Array[Byte]]()
+      val othersFutures = putAndDeletes
+        .groupBy { kv =>
+          (kv.table.toSeq, kv.row.toSeq, kv.cf.toSeq, kv.operation, kv.timestamp)
+        }
+        .map {
+          case ((table, row, cf, operation, timestamp), groupedKeyValues) =>
+            val durability = groupedKeyValues.head.durability
+            val qualifiers = new ArrayBuffer[Array[Byte]]()
+            val values = new ArrayBuffer[Array[Byte]]()
 
-          groupedKeyValues.foreach { kv =>
-            if (kv.qualifier != null) qualifiers += kv.qualifier
-            if (kv.value != null) values += kv.value
-          }
-          val defer = operation match {
-            case SKeyValue.Put =>
-              val put = new PutRequest(table.toArray,
-                                       row.toArray,
-                                       cf.toArray,
-                                       qualifiers.toArray,
-                                       values.toArray,
-                                       timestamp)
-              put.setDurable(durability)
-              _client.put(put)
-            case SKeyValue.Delete =>
-              val delete =
-                if (qualifiers.isEmpty) {
-                  new DeleteRequest(table.toArray,
-                    row.toArray,
-                    cf.toArray,
-                    timestamp)
-                } else {
-                  new DeleteRequest(table.toArray,
-                    row.toArray,
-                    cf.toArray,
-                    qualifiers.toArray,
-                    timestamp)
-                }
-              delete.setDurable(durability)
-              _client.delete(delete)
-          }
-          if (withWait) {
-            defer.toFuture(new AnyRef()).map(_ => true).recover {
-              case ex: Exception =>
-                groupedKeyValues.foreach { kv =>
-                  logger.error(s"mutation failed. $kv", ex)
-                }
-                false
+            groupedKeyValues.foreach { kv =>
+              if (kv.qualifier != null) qualifiers += kv.qualifier
+              if (kv.value != null) values += kv.value
             }
-          } else Future.successful(true)
-      }
+            val defer = operation match {
+              case SKeyValue.Put =>
+                val put = new PutRequest(
+                  table.toArray,
+                  row.toArray,
+                  cf.toArray,
+                  qualifiers.toArray,
+                  values.toArray,
+                  timestamp
+                )
+                put.setDurable(durability)
+                _client.put(put)
+              case SKeyValue.Delete =>
+                val delete =
+                  if (qualifiers.isEmpty) {
+                    new DeleteRequest(table.toArray, row.toArray, cf.toArray, timestamp)
+                  } else {
+                    new DeleteRequest(
+                      table.toArray,
+                      row.toArray,
+                      cf.toArray,
+                      qualifiers.toArray,
+                      timestamp
+                    )
+                  }
+                delete.setDurable(durability)
+                _client.delete(delete)
+            }
+            if (withWait) {
+              defer.toFuture(new AnyRef()).map(_ => true).recover {
+                case ex: Exception =>
+                  groupedKeyValues.foreach { kv =>
+                    logger.error(s"mutation failed. $kv", ex)
+                  }
+                  false
+              }
+            } else Future.successful(true)
+        }
       for {
         incrementRets <- Future.sequence(incrementsFutures)
         otherRets <- Future.sequence(othersFutures)
       } yield (incrementRets ++ otherRets).forall(identity)
     }
-  }
 
   private def fetchKeyValues(rpc: AsyncRPC): Future[Seq[SKeyValue]] = {
     val defer = fetchKeyValuesInner(rpc)
@@ -248,8 +241,7 @@ class AsynchbaseStorage(
     }
   }
 
-  override def fetchSnapshotEdgeKeyValues(
-      queryRequest: QueryRequest): Future[Seq[SKeyValue]] = {
+  override def fetchSnapshotEdgeKeyValues(queryRequest: QueryRequest): Future[Seq[SKeyValue]] = {
     val edge = toRequestEdge(queryRequest, Nil)
     val rpc = buildRequest(queryRequest, edge)
     fetchKeyValues(rpc)
@@ -259,18 +251,12 @@ class AsynchbaseStorage(
     * since HBase natively provide CheckAndSet on storage level, implementation becomes simple.
     * @param rpc: key value that is need to be stored on storage.
     * @param expectedOpt: last valid value for rpc's KeyValue.value from fetching.
-    * @return return true if expected value matches and our rpc is successfully applied, otherwise false.
-    *         note that when some other thread modified same cell and have different value on this KeyValue,
-    *         then HBase atomically return false.
+    * @return return true if expected value matches and our rpc is successfully applied,
+    *         otherwise false. note that when some other thread modified same cell and
+    *         have different value on this KeyValue, then HBase atomically return false.
     */
-  override def writeLock(rpc: SKeyValue,
-                         expectedOpt: Option[SKeyValue]): Future[Boolean] = {
-    val put = new PutRequest(rpc.table,
-                             rpc.row,
-                             rpc.cf,
-                             rpc.qualifier,
-                             rpc.value,
-                             rpc.timestamp)
+  override def writeLock(rpc: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean] = {
+    val put = new PutRequest(rpc.table, rpc.row, rpc.cf, rpc.qualifier, rpc.value, rpc.timestamp)
     val expected = expectedOpt.map(_.value).getOrElse(Array.empty)
     client(withWait = true)
       .compareAndSet(put, expected)
@@ -285,7 +271,8 @@ class AsynchbaseStorage(
     * IndexEdge layer:
     *    Tall schema(v4): use scanner.
     *    Wide schema(label's schema version in v1, v2, v3): use GetRequest with columnRangeFilter
-    *                                                       when query is given with itnerval option.
+    *                                                       when query is given with
+    *                                                       itnerval option.
     * SnapshotEdge layer:
     *    Tall schema(v3, v4): use GetRequest without column filter.
     *    Wide schema(label's schema version in v1, v2): use GetRequest with columnRangeFilter.
@@ -294,8 +281,7 @@ class AsynchbaseStorage(
     * @param queryRequest
     * @return Scanner or GetRequest with proper setup with StartKey, EndKey, RangeFilter.
     */
-  override def buildRequest(queryRequest: QueryRequest,
-                            edge: S2Edge): AsyncRPC = {
+  override def buildRequest(queryRequest: QueryRequest, edge: S2Edge): AsyncRPC = {
     import Serializable._
     val queryParam = queryRequest.queryParam
     val label = queryParam.label
@@ -323,19 +309,19 @@ class AsynchbaseStorage(
         /*
          * TODO: remove this part.
          */
-        val indexEdgeOpt = edge.edgesWithIndex.find(edgeWithIndex =>
-          edgeWithIndex.labelIndex.seq == queryParam.labelOrderSeq)
+        val indexEdgeOpt = edge.edgesWithIndex.find(
+          edgeWithIndex => edgeWithIndex.labelIndex.seq == queryParam.labelOrderSeq
+        )
         val indexEdge = indexEdgeOpt.getOrElse(
-          throw new RuntimeException(
-            s"Can`t find index for query $queryParam"))
+          throw new RuntimeException(s"Can`t find index for query $queryParam")
+        )
 
         val srcIdBytes =
           VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes
         val labelWithDirBytes = indexEdge.labelWithDir.bytes
         val labelIndexSeqWithIsInvertedBytes =
-          StorageSerializable.labelOrderSeqWithIsInverted(
-            indexEdge.labelIndexSeq,
-            isInverted = false)
+          StorageSerializable
+            .labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = false)
         val baseKey = Bytes
           .add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
 
@@ -366,8 +352,11 @@ class AsynchbaseStorage(
 
         scanner.setMaxVersions(1)
         // TODO: exclusive condition innerOffset with cursorOpt
-        if (queryParam.cursorOpt.isDefined) scanner.setMaxNumRows(getV4MaxNumRows(queryParam.limit))
-        else scanner.setMaxNumRows(getV4MaxNumRows(queryParam.innerOffset + queryParam.innerLimit))
+        if (queryParam.cursorOpt.isDefined) {
+          scanner.setMaxNumRows(getV4MaxNumRows(queryParam.limit))
+        } else {
+          scanner.setMaxNumRows(getV4MaxNumRows(queryParam.innerOffset + queryParam.innerLimit))
+        }
         scanner.setMaxTimestamp(maxTs)
         scanner.setMinTimestamp(minTs)
         scanner.setRpcTimeout(queryParam.rpcTimeout)
@@ -378,10 +367,7 @@ class AsynchbaseStorage(
 
       case _ =>
         val get = if (queryParam.tgtVertexInnerIdOpt.isDefined) {
-          new GetRequest(label.hbaseTableName.getBytes,
-                         rowKey,
-                         edgeCf,
-                         serializer.toQualifier)
+          new GetRequest(label.hbaseTableName.getBytes, rowKey, edgeCf, serializer.toQualifier)
         } else {
           new GetRequest(label.hbaseTableName.getBytes, rowKey, edgeCf)
         }
@@ -397,9 +383,7 @@ class AsynchbaseStorage(
         val columnRangeFilterOpt = queryParam.intervalOpt.map { interval =>
           new ColumnRangeFilter(intervalMaxBytes, true, intervalMinBytes, true)
         }
-        get.setFilter(
-          new FilterList(pagination +: columnRangeFilterOpt.toSeq,
-                         MUST_PASS_ALL))
+        get.setFilter(new FilterList(pagination +: columnRangeFilterOpt.toSeq, MUST_PASS_ALL))
         Left(get)
     }
   }
@@ -410,8 +394,9 @@ class AsynchbaseStorage(
     * @param queryRequest
     * @param isInnerCall
     * @param parentEdges
-    * @return we use Deferred here since it has much better performrance compared to scala.concurrent.Future.
-    *         seems like map, flatMap on scala.concurrent.Future is slower than Deferred's addCallback
+    * @return we use Deferred here since it has much better performrance compared to
+    *         scala.concurrent.Future. seems like map, flatMap on scala.concurrent.Future is slower
+    *         than Deferred's addCallback
     */
   override def fetch(queryRequest: QueryRequest,
                      isInnerCall: Boolean,
@@ -425,23 +410,16 @@ class AsynchbaseStorage(
       }
 
       val queryParam = queryRequest.queryParam
-      fetchKeyValuesInner(hbaseRpc).mapWithFallback(emptyKeyValues)(fallbackFn) {
-        kvs =>
-          val (startOffset, len) = queryParam.label.schemaVersion match {
-            case HBaseType.VERSION4 =>
-              val offset =
-                if (queryParam.cursorOpt.isDefined) 0 else queryParam.offset
-              (offset, queryParam.limit)
-            case _ => (0, kvs.length)
-          }
+      fetchKeyValuesInner(hbaseRpc).mapWithFallback(emptyKeyValues)(fallbackFn) { kvs =>
+        val (startOffset, len) = queryParam.label.schemaVersion match {
+          case HBaseType.VERSION4 =>
+            val offset =
+              if (queryParam.cursorOpt.isDefined) 0 else queryParam.offset
+            (offset, queryParam.limit)
+          case _ => (0, kvs.length)
+        }
 
-          toEdges(kvs,
-                  queryRequest,
-                  prevStepScore,
-                  isInnerCall,
-                  parentEdges,
-                  startOffset,
-                  len)
+        toEdges(kvs, queryRequest, prevStepScore, isInnerCall, parentEdges, startOffset, len)
       }
     }
 
@@ -467,9 +445,10 @@ class AsynchbaseStorage(
     }
   }
 
-  override def fetches(queryRequests: Seq[QueryRequest],
-                       prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])
-    : Future[Seq[StepResult]] = {
+  override def fetches(
+      queryRequests: Seq[QueryRequest],
+      prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]
+  ): Future[Seq[StepResult]] = {
     val defers: Seq[Deferred[StepResult]] = for {
       queryRequest <- queryRequests
     } yield {
@@ -477,8 +456,7 @@ class AsynchbaseStorage(
       val queryParam = queryRequest.queryParam
       val shouldBuildParents = queryOption.returnTree || queryParam.whereHasParent
       val parentEdges =
-        if (shouldBuildParents) prevStepEdges.getOrElse(queryRequest.vertex.id, Nil)
-        else Nil
+        if (shouldBuildParents) prevStepEdges.getOrElse(queryRequest.vertex.id, Nil) else Nil
       fetch(queryRequest, isInnerCall = false, parentEdges)
     }
 
@@ -501,15 +479,15 @@ class AsynchbaseStorage(
 
   /**
     * when withWait is given, we use client with flushInterval set to 0.
-    * if we are not using this, then we are adding extra wait time as much as flushInterval in worst case.
+    * if we are not using this, then we are adding extra wait time as much as flushInterval in
+    * worst case.
     *
     * @param edges
     * @param withWait
     * @return
     */
-  override def incrementCounts(
-      edges: Seq[S2Edge],
-      withWait: Boolean): Future[Seq[(Boolean, Long, Long)]] = {
+  override def incrementCounts(edges: Seq[S2Edge],
+                               withWait: Boolean): Future[Seq[(Boolean, Long, Long)]] = {
 
     val _client = client(withWait)
     val defers: Seq[Deferred[(Boolean, Long, Long)]] = for {
@@ -522,11 +500,8 @@ class AsynchbaseStorage(
         val countWithTs = edge.propertyValueInner(LabelMeta.count)
         val countVal = countWithTs.innerVal.toString().toLong
         val kv = buildIncrementsCountAsync(edgeWithIndex, countVal).head
-        val request = new AtomicIncrementRequest(kv.table,
-                                                 kv.row,
-                                                 kv.cf,
-                                                 kv.qualifier,
-                                                 Bytes.toLong(kv.value))
+        val request =
+          new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value))
         val fallbackFn: (Exception => (Boolean, Long, Long)) = { ex =>
           logger.error(s"mutation failed. $request", ex)
           (false, -1L, -1L)
@@ -566,25 +541,24 @@ class AsynchbaseStorage(
                            ttl: Option[Int],
                            compressionAlgorithm: String,
                            replicationScopeOpt: Option[Int] = None,
-                           totalRegionCount: Option[Int] = None): Unit = {
-
+                           totalRegionCount: Option[Int] = None): Unit =
     /** TODO: Decide if we will allow each app server to connect to multiple hbase cluster */
     for {
       zkAddr <- Seq(zkQuorum) ++ zkQuorumSlave.toSeq
     } {
       logger.info(
-        s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm")
+        s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm"
+      )
       val admin = getAdmin(zkAddr)
-      val regionCount = totalRegionCount.getOrElse(
-        admin.getClusterStatus.getServersSize * regionMultiplier)
+      val regionCount =
+        totalRegionCount.getOrElse(admin.getClusterStatus.getServersSize * regionMultiplier)
       try {
         if (!admin.tableExists(TableName.valueOf(tableName))) {
           val desc = new HTableDescriptor(TableName.valueOf(tableName))
           desc.setDurability(Durability.ASYNC_WAL)
           for (cf <- cfs) {
             val columnDesc = new HColumnDescriptor(cf)
-              .setCompressionType(
-                Algorithm.valueOf(compressionAlgorithm.toUpperCase))
+              .setCompressionType(Algorithm.valueOf(compressionAlgorithm.toUpperCase))
               .setBloomFilterType(BloomType.ROW)
               .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
               .setMaxVersions(1)
@@ -614,30 +588,24 @@ class AsynchbaseStorage(
         admin.getConnection.close()
       }
     }
-  }
 
   /** Asynchbase implementation override default getVertices to use future Cache */
   override def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
-    def fromResult(kvs: Seq[SKeyValue], version: String): Option[S2Vertex] = {
-
+    def fromResult(kvs: Seq[SKeyValue], version: String): Option[S2Vertex] =
       if (kvs.isEmpty) None
       else vertexDeserializer.fromKeyValues(None, kvs, version, None)
 //        .map(S2Vertex(graph, _))
-    }
 
     val futures = vertices.map { vertex =>
       val kvs = vertexSerializer(vertex).toKeyValues
-      val get = new GetRequest(vertex.hbaseTableName.getBytes,
-                               kvs.head.row,
-                               Serializable.vertexCf)
+      val get = new GetRequest(vertex.hbaseTableName.getBytes, kvs.head.row, Serializable.vertexCf)
       //      get.setTimeout(this.singleGetTimeout.toShort)
       get.setFailfast(true)
       get.maxVersions(1)
 
       val cacheKey = MurmurHash3.stringHash(get.toString)
       vertexCache
-        .getOrElseUpdate(cacheKey, cacheTTL = 10000)(
-          fetchVertexKeyValues(Left(get)))
+        .getOrElseUpdate(cacheKey, cacheTTL = 10000)(fetchVertexKeyValues(Left(get)))
         .map { kvs =>
           fromResult(kvs, vertex.serviceColumn.schemaVersion)
         }
@@ -656,8 +624,7 @@ class AsynchbaseStorage(
     val results = new util.ArrayList[KeyValue]()
     var offsetCount = 0
 
-    override def call(
-        kvsLs: util.ArrayList[util.ArrayList[KeyValue]]): Object = {
+    override def call(kvsLs: util.ArrayList[util.ArrayList[KeyValue]]): Object =
       try {
         if (kvsLs == null) {
           defer.callback(results)
@@ -698,14 +665,12 @@ class AsynchbaseStorage(
           defer.callback(ex)
           Try(scanner.close())
       }
-    }
   }
 
   /**
     * Private Methods which is specific to Asynchbase implementation.
     */
-  private def fetchKeyValuesInner(
-      rpc: AsyncRPC): Deferred[util.ArrayList[KeyValue]] = {
+  private def fetchKeyValuesInner(rpc: AsyncRPC): Deferred[util.ArrayList[KeyValue]] =
     rpc match {
       case Left(get) => client.get(get)
       case Right(ScanWithRange(scanner, offset, limit)) =>
@@ -715,25 +680,19 @@ class AsynchbaseStorage(
           .addCallback(new V4ResultHandler(scanner, deferred, offset, limit))
         deferred
       case _ =>
-        Deferred.fromError(
-          new RuntimeException(s"fetchKeyValues failed. $rpc"))
+        Deferred.fromError(new RuntimeException(s"fetchKeyValues failed. $rpc"))
     }
-  }
 
-  private def toCacheKeyBytes(hbaseRpc: AsyncRPC): Array[Byte] = {
-
+  private def toCacheKeyBytes(hbaseRpc: AsyncRPC): Array[Byte] =
     /** with version 4, request's type is (Scanner, (Int, Int)). otherwise GetRequest. */
     hbaseRpc match {
       case Left(getRequest) => getRequest.key
       case Right(ScanWithRange(scanner, offset, limit)) =>
-        Bytes.add(scanner.getCurrentKey,
-                  Bytes.add(Bytes.toBytes(offset), Bytes.toBytes(limit)))
+        Bytes.add(scanner.getCurrentKey, Bytes.add(Bytes.toBytes(offset), Bytes.toBytes(limit)))
       case _ =>
-        logger.error(
-          s"toCacheKeyBytes failed. not supported class type. $hbaseRpc")
+        logger.error(s"toCacheKeyBytes failed. not supported class type. $hbaseRpc")
         throw new RuntimeException(s"toCacheKeyBytes: $hbaseRpc")
     }
-  }
 
   private def getSecureClusterAdmin(zkAddr: String) = {
     val jaas = config.getString("java.security.auth.login.config")
@@ -778,9 +737,10 @@ class AsynchbaseStorage(
     * @param zkAddr
     * @return
     */
-  private def getAdmin(zkAddr: String) = {
+  private def getAdmin(zkAddr: String) =
     if (config.hasPath("hbase.security.auth.enable") && config.getBoolean(
-          "hbase.security.auth.enable")) {
+          "hbase.security.auth.enable"
+        )) {
       getSecureClusterAdmin(zkAddr)
     } else {
       val conf = HBaseConfiguration.create()
@@ -788,26 +748,21 @@ class AsynchbaseStorage(
       val conn = ConnectionFactory.createConnection(conf)
       conn.getAdmin
     }
-  }
 
-  private def enableTable(zkAddr: String, tableName: String) = {
+  private def enableTable(zkAddr: String, tableName: String) =
     getAdmin(zkAddr).enableTable(TableName.valueOf(tableName))
-  }
 
-  private def disableTable(zkAddr: String, tableName: String) = {
+  private def disableTable(zkAddr: String, tableName: String) =
     getAdmin(zkAddr).disableTable(TableName.valueOf(tableName))
-  }
 
   private def dropTable(zkAddr: String, tableName: String) = {
     getAdmin(zkAddr).disableTable(TableName.valueOf(tableName))
     getAdmin(zkAddr).deleteTable(TableName.valueOf(tableName))
   }
 
-  private def getStartKey(regionCount: Int): Array[Byte] = {
+  private def getStartKey(regionCount: Int): Array[Byte] =
     Bytes.toBytes((Int.MaxValue / regionCount))
-  }
 
-  private def getEndKey(regionCount: Int): Array[Byte] = {
+  private def getEndKey(regionCount: Int): Array[Byte] =
     Bytes.toBytes((Int.MaxValue / regionCount * (regionCount - 1)))
-  }
 }

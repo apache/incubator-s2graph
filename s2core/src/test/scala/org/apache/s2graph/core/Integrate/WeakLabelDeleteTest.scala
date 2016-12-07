@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -60,12 +60,12 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
 
     /** insert should be ignored */
     /**
-     * I am wondering if this is right test case
-     * This makes sense because hbase think cell is deleted when there are
-     * insert/delete with same timestamp(version) on same cell.
-     * This can be different on different storage system so I think
-     * this test should be removed.
-     */
+      * I am wondering if this is right test case
+      * This makes sense because hbase think cell is deleted when there are
+      * insert/delete with same timestamp(version) on same cell.
+      * This can be different on different storage system so I think
+      * this test should be removed.
+      */
 //    val edgesToStore2 = parser.toEdges(Json.toJson(edges), "insert")
 //    val rets2 = graph.mutateEdges(edgesToStore2, withWait = true)
 //    Await.result(rets2, Duration(20, TimeUnit.MINUTES))
@@ -74,15 +74,18 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
 //    (result \ "results").as[List[JsValue]].size should be(0)
   }
 
-
   test("test weak consistency deleteAll") {
     val deletedAt = 100
     var result = getEdgesSync(query(20, "in", testTgtColumnName))
     println(result)
     (result \ "results").as[List[JsValue]].size should be(3)
 
-    val json = Json.arr(Json.obj("label" -> testLabelNameWeak,
-      "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
+    val json = Json.arr(
+      Json.obj("label" -> testLabelNameWeak,
+               "direction" -> "in",
+               "ids" -> Json.arr("20"),
+               "timestamp" -> deletedAt)
+    )
 
     deleteAllSync(json)
 
@@ -110,7 +113,6 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
     (result \ "results").as[List[JsValue]].size should be(3)
   }
 
-
   // called by each test, each
   override def beforeEach: Unit = initTestData()
 
@@ -132,12 +134,17 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
       toEdge(startTs + 6, "insert", "e", "10", "21", testLabelNameWeak, s"""{"time": 11}"""),
       toEdge(startTs + 7, "insert", "e", "11", "20", testLabelNameWeak, s"""{"time": 12}"""),
       toEdge(startTs + 8, "insert", "e", "12", "20", testLabelNameWeak, s"""{"time": 13}"""),
-      toEdge(startTs + 9, "insert", "e", "10000", "20000", testLabelNameWeak,
-        s"""{"time": 1, "weight": 0.1, "is_hidden": true, "is_blocked": false}""")
+      toEdge(startTs + 9,
+             "insert",
+             "e",
+             "10000",
+             "20000",
+             testLabelNameWeak,
+             s"""{"time": 1, "weight": 0.1, "is_hidden": true, "is_blocked": false}""")
     )
 
-    def query(id: Int, direction: String = "out", columnName: String = testColumnName): JsValue = Json.parse(
-      s"""
+    def query(id: Int, direction: String = "out", columnName: String = testColumnName): JsValue =
+      Json.parse(s"""
         { "srcVertices": [
           { "serviceName": "$testServiceName",
             "columnName": "$columnName",

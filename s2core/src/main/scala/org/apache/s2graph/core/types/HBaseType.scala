@@ -42,8 +42,7 @@ object HBaseDeserializable {
   import HBaseType._
 
   // 6 bits is used for index sequence so total index per label is limited to 2^6
-  def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte],
-                                         offset: Int): (Byte, Boolean) = {
+  def bytesToLabelIndexSeqWithIsInverted(bytes: Array[Byte], offset: Int): (Byte, Boolean) = {
     val byte = bytes(offset)
     val isInverted = if ((byte & 1) != 0) true else false
     val labelOrderSeq = byte >> 1
@@ -53,8 +52,7 @@ object HBaseDeserializable {
   def bytesToKeyValues(bytes: Array[Byte],
                        offset: Int,
                        length: Int,
-                       version: String = DEFAULT_VERSION)
-    : (Array[(Byte, InnerValLike)], Int) = {
+                       version: String = DEFAULT_VERSION): (Array[(Byte, InnerValLike)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
@@ -73,10 +71,11 @@ object HBaseDeserializable {
     ret
   }
 
-  def bytesToKeyValuesWithTs(bytes: Array[Byte],
-                             offset: Int,
-                             version: String = DEFAULT_VERSION)
-    : (Array[(Byte, InnerValLikeWithTs)], Int) = {
+  def bytesToKeyValuesWithTs(
+      bytes: Array[Byte],
+      offset: Int,
+      version: String = DEFAULT_VERSION
+  ): (Array[(Byte, InnerValLikeWithTs)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
@@ -98,8 +97,7 @@ object HBaseDeserializable {
 
   def bytesToProps(bytes: Array[Byte],
                    offset: Int,
-                   version: String = DEFAULT_VERSION)
-    : (Array[(Byte, InnerValLike)], Int) = {
+                   version: String = DEFAULT_VERSION): (Array[(Byte, InnerValLike)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
@@ -136,8 +134,7 @@ object HBaseSerializable {
     bytes
   }
 
-  def propsToKeyValuesWithTs(
-      props: Seq[(Byte, InnerValLikeWithTs)]): Array[Byte] = {
+  def propsToKeyValuesWithTs(props: Seq[(Byte, InnerValLikeWithTs)]): Array[Byte] = {
     val len = props.length
     assert(len < Byte.MaxValue)
     var bytes = Array.fill(1)(len.toByte)
@@ -145,8 +142,7 @@ object HBaseSerializable {
     bytes
   }
 
-  def labelOrderSeqWithIsInverted(labelOrderSeq: Byte,
-                                  isInverted: Boolean): Array[Byte] = {
+  def labelOrderSeqWithIsInverted(labelOrderSeq: Byte, isInverted: Boolean): Array[Byte] = {
     assert(labelOrderSeq < (1 << 6))
     val byte = labelOrderSeq << 1 | (if (isInverted) 1 else 0)
     Array.fill(1)(byte.toByte)

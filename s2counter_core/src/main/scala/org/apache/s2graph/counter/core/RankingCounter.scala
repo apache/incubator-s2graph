@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,7 +25,7 @@ import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import com.typesafe.config.Config
 import org.apache.s2graph.counter.core.RankingCounter.RankingValueMap
 import org.apache.s2graph.counter.models.Counter
-import org.apache.s2graph.counter.util.{CollectionCacheConfig, CollectionCache}
+import org.apache.s2graph.counter.util.{CollectionCache, CollectionCacheConfig}
 import org.slf4j.LoggerFactory
 import scala.collection.JavaConversions._
 
@@ -35,17 +35,18 @@ case class RateRankingRow(key: RankingKey, value: Map[String, RateRankingValue])
 class RankingCounter(config: Config, storage: RankingStorage) {
   private val log = LoggerFactory.getLogger(getClass)
 
-  val storageStatusCache = new CollectionCache[Option[Boolean]](CollectionCacheConfig(1000, 60, negativeCache = false, 60))
+  val storageStatusCache = new CollectionCache[Option[Boolean]](
+    CollectionCacheConfig(1000, 60, negativeCache = false, 60))
 
-  val cache: LoadingCache[RankingKey, RankingResult] = CacheBuilder.newBuilder()
+  val cache: LoadingCache[RankingKey, RankingResult] = CacheBuilder
+    .newBuilder()
     .maximumSize(1000000)
-    .expireAfterWrite(10l, TimeUnit.MINUTES)
+    .expireAfterWrite(10L, TimeUnit.MINUTES)
     .build(
       new CacheLoader[RankingKey, RankingResult]() {
-        def load(rankingKey: RankingKey): RankingResult = {
+        def load(rankingKey: RankingKey): RankingResult =
 //          log.warn(s"cache load: $rankingKey")
           storage.getTopK(rankingKey, Int.MaxValue).getOrElse(RankingResult(-1, Nil))
-        }
       }
     )
 
@@ -54,35 +55,31 @@ class RankingCounter(config: Config, storage: RankingStorage) {
     if (TimedQualifier.getQualifiers(Seq(tq.q), System.currentTimeMillis()).head == tq) {
       // do not use cache
       storage.getTopK(rankingKey, k)
-    }
-    else {
+    } else {
       val result = cache.get(rankingKey)
       if (result.values.nonEmpty) {
         Some(result.copy(values = result.values.take(k)))
-      }
-      else {
+      } else {
         None
       }
     }
   }
 
-  def update(key: RankingKey, value: RankingValueMap, k: Int): Unit = {
+  def update(key: RankingKey, value: RankingValueMap, k: Int): Unit =
     storage.update(key, value, k)
-  }
 
-  def update(values: Seq[(RankingKey, RankingValueMap)], k: Int): Unit = {
+  def update(values: Seq[(RankingKey, RankingValueMap)], k: Int): Unit =
     storage.update(values, k)
-  }
 
-  def delete(key: RankingKey): Unit = {
+  def delete(key: RankingKey): Unit =
     storage.delete(key)
-  }
 
   def getAllItems(keys: Seq[RankingKey], k: Int = Int.MaxValue): Seq[String] = {
-    val oldKeys = keys.filter(key => TimedQualifier.getQualifiers(Seq(key.eq.tq.q), System.currentTimeMillis()).head != key.eq.tq)
+    val oldKeys = keys.filter(key =>
+      TimedQualifier.getQualifiers(Seq(key.eq.tq.q), System.currentTimeMillis()).head != key.eq.tq)
     val cached = cache.getAllPresent(oldKeys)
     val missed = keys.diff(cached.keys.toSeq)
-    val found = storage.getTopK(missed, k)
+    val found  = storage.getTopK(missed, k)
 
 //    log.warn(s"cached: ${cached.size()}, missed: ${missed.size}")
 
@@ -94,25 +91,24 @@ class RankingCounter(config: Config, storage: RankingStorage) {
 
     for {
       (key, RankingResult(totalScore, values)) <- cached ++ found
-      (item, score) <- values
+      (item, score)                            <- values
     } yield {
       item
     }
   }.toSeq.distinct
 
-  def prepare(policy: Counter): Unit = {
+  def prepare(policy: Counter): Unit =
     storage.prepare(policy)
-  }
 
-  def destroy(policy: Counter): Unit = {
+  def destroy(policy: Counter): Unit =
     storage.destroy(policy)
-  }
 
-  def ready(policy: Counter): Boolean = {
-    storageStatusCache.withCache(s"${policy.id}") {
-      Some(storage.ready(policy))
-    }.getOrElse(false)
-  }
+  def ready(policy: Counter): Boolean =
+    storageStatusCache
+      .withCache(s"${policy.id}") {
+        Some(storage.ready(policy))
+      }
+      .getOrElse(false)
 }
 
 object RankingCounter {

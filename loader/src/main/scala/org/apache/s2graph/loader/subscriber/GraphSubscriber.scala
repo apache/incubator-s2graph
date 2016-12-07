@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -36,7 +36,10 @@ object GraphConfig {
   var zkQuorum = ""
   var kafkaBrokers = ""
   var cacheTTL = s"${60 * 60 * 1}"
-  def apply(phase: String, dbUrl: Option[String], zkAddr: Option[String], kafkaBrokerList: Option[String]): Config = {
+  def apply(phase: String,
+            dbUrl: Option[String],
+            zkAddr: Option[String],
+            kafkaBrokerList: Option[String]): Config = {
     database = dbUrl.getOrElse("jdbc:mysql://localhost:3306/graph_dev")
     zkQuorum = zkAddr.getOrElse("localhost")
 
@@ -45,8 +48,20 @@ object GraphConfig {
 //    newConf.put("db.default.url", database)
 //    newConf.put("kafka.metadata.broker.list", kafkaBrokers)
     val newConf =
-      if (kafkaBrokerList.isEmpty) Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database, "cache.ttl.seconds" -> cacheTTL)
-      else Map("hbase.zookeeper.quorum" -> zkQuorum, "db.default.url" -> database, "kafka.metadata.broker.list" -> kafkaBrokers, "cache.ttl.seconds" -> cacheTTL)
+      if (kafkaBrokerList.isEmpty) {
+        Map(
+          "hbase.zookeeper.quorum" -> zkQuorum,
+          "db.default.url" -> database,
+          "cache.ttl.seconds" -> cacheTTL
+        )
+      } else {
+        Map(
+          "hbase.zookeeper.quorum" -> zkQuorum,
+          "db.default.url" -> database,
+          "kafka.metadata.broker.list" -> kafkaBrokers,
+          "cache.ttl.seconds" -> cacheTTL
+        )
+      }
 
     ConfigFactory.parseMap(newConf).withFallback(S2Graph.DefaultConfig)
   }
@@ -54,9 +69,7 @@ object GraphConfig {
 
 object GraphSubscriberHelper extends WithKafka {
 
-
   type HashMapAccumulable = Accumulable[HashMap[String, Long], (String, Long)]
-
 
   lazy val producer = new Producer[String, String](kafkaConf(GraphConfig.kafkaBrokers))
   var config: Config = _
@@ -68,12 +81,11 @@ object GraphSubscriberHelper extends WithKafka {
   var management: Management = null
   val conns = new scala.collection.mutable.HashMap[String, Connection]()
 
-  def toOption(s: String): Option[String] = {
+  def toOption(s: String): Option[String] =
     s match {
       case "" | "none" => None
       case _ => Some(s)
     }
-  }
 
   def apply(phase: String, dbUrl: String, zkQuorum: String, kafkaBrokerList: String): Unit = {
     config = GraphConfig(phase, toOption(dbUrl), toOption(zkQuorum), toOption(kafkaBrokerList))
@@ -102,8 +114,9 @@ object GraphSubscriberHelper extends WithKafka {
     producer.send(kafkaMsg)
   }
 
-  def toGraphElements(msgs: Seq[String], labelMapping: Map[String, String] = Map.empty)
-                     (statFunc: (String, Int) => Unit): Iterable[GraphElement] = {
+  def toGraphElements(msgs: Seq[String], labelMapping: Map[String, String] = Map.empty)(
+      statFunc: (String, Int) => Unit
+  ): Iterable[GraphElement] =
     (for (msg <- msgs) yield {
       statFunc("total", 1)
       g.toGraphElement(msg, labelMapping) match {
@@ -114,13 +127,14 @@ object GraphSubscriberHelper extends WithKafka {
           statFunc("VertexParseOk", 1)
           v.asInstanceOf[S2Vertex]
         case Some(x) =>
-          throw new RuntimeException(s">>>>> GraphSubscriber.toGraphElements: parsing failed. ${x.serviceName}")
+          throw new RuntimeException(
+            s">>>>> GraphSubscriber.toGraphElements: parsing failed. ${x.serviceName}"
+          )
         case None =>
           throw new RuntimeException(s"GraphSubscriber.toGraphElements: parsing failed. $msg")
       }
 
     }).toList
-  }
 
 //  private def storeRec(zkQuorum: String, tableName: String, puts: List[Put], elementsSize: Int, tryNum: Int)
 //                      (statFunc: (String, Int) => Unit, statPrefix: String = "edge"): Unit = {
@@ -185,7 +199,9 @@ object GraphSubscriberHelper extends WithKafka {
 //    counts
 //  }
 
-  def storeStat(counts: HashMap[String, Long])(mapAccOpt: Option[HashMapAccumulable])(key: String, value: Int): Unit = {
+  def storeStat(
+      counts: HashMap[String, Long]
+  )(mapAccOpt: Option[HashMapAccumulable])(key: String, value: Int): Unit = {
     counts.put(key, counts.getOrElse(key, 0L) + value)
     mapAccOpt match {
       case None =>
@@ -193,17 +209,14 @@ object GraphSubscriberHelper extends WithKafka {
     }
   }
 
-  def toLabelMapping(lableMapping: String): Map[String, String] = {
+  def toLabelMapping(lableMapping: String): Map[String, String] =
     (for {
       token <- lableMapping.split(",")
       inner = token.split(":") if inner.length == 2
     } yield {
-        (inner.head, inner.last)
-      }).toMap
-  }
+      (inner.head, inner.last)
+    }).toMap
 
-  def isValidQuorum(quorum: String): Boolean = {
+  def isValidQuorum(quorum: String): Boolean =
     quorum.split(",").size > 1
-  }
 }
-

@@ -32,8 +32,7 @@ class ExceptionHandler(config: Config) {
 
   val keyBrokerList = "kafka.metadata.broker.list"
   val phase = if (config.hasPath("phase")) config.getString("phase") else "dev"
-  val useKafka = config.hasPath(keyBrokerList) && config.getString(
-      keyBrokerList) != "localhost"
+  val useKafka = config.hasPath(keyBrokerList) && config.getString(keyBrokerList) != "localhost"
 
   val producer: Option[KafkaProducer[Key, Val]] =
     if (useKafka) {
@@ -46,22 +45,20 @@ class ExceptionHandler(config: Config) {
       }
     } else None
 
-  def enqueue(m: KafkaMessage): Unit = {
+  def enqueue(m: KafkaMessage): Unit =
     producer match {
       case None => logger.debug(s"skip log to Kafka: ${m}")
       case Some(kafka) =>
         kafka.send(m.msg, new Callback() {
-          override def onCompletion(meta: RecordMetadata, e: Exception) = {
+          override def onCompletion(meta: RecordMetadata, e: Exception) =
             if (e == null) {
               // success
             } else {
               logger.error(s"log publish failed: ${m}", e)
               // failure
             }
-          }
         })
     }
-  }
 
   def shutdown(): Unit = producer.foreach(_.close)
 }
@@ -77,14 +74,12 @@ object ExceptionHandler {
     val edgeString = originalString.getOrElse(element.toLogString())
     val msg = edgeString
 
-    KafkaMessage(
-      new ProducerRecord[Key, Val](topic, element.queuePartitionKey, msg))
+    KafkaMessage(new ProducerRecord[Key, Val](topic, element.queuePartitionKey, msg))
   }
 
   // only used in deleteAll
-  def toKafkaMessage(topic: String, tsv: String): KafkaMessage = {
+  def toKafkaMessage(topic: String, tsv: String): KafkaMessage =
     KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
-  }
 
   def toKafkaMessage(topic: String, jsValue: JsValue): KafkaMessage =
     toKafkaMessage(topic, jsValue.toString())
@@ -96,9 +91,11 @@ object ExceptionHandler {
 
     /** all default configuration for new producer */
     val brokers =
-      if (config.hasPath("kafka.metadata.broker.list"))
+      if (config.hasPath("kafka.metadata.broker.list")) {
         config.getString("kafka.metadata.broker.list")
-      else "localhost"
+      } else {
+        "localhost"
+      }
 
     props.put("bootstrap.servers", brokers)
     props.put("acks", "1")
@@ -112,10 +109,8 @@ object ExceptionHandler {
     props.put("send.buffer.bytes", "131072")
     props.put("timeout.ms", "30000")
     props.put("block.on.buffer.full", "false")
-    props.put("value.serializer",
-              "org.apache.kafka.common.serialization.StringSerializer")
-    props.put("key.serializer",
-              "org.apache.kafka.common.serialization.StringSerializer")
+    props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
+    props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
 
     props
   }

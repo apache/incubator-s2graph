@@ -24,35 +24,50 @@ import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.TestCommonWithModels
 import org.scalatest.{FunSuite, Matchers}
 
-
 class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
   initTests()
 
-  val testLabelMeta = LabelMeta(Option(-1), labelV2.id.get, "affinity_score", 1.toByte, "0.0", "double")
+  val testLabelMeta =
+    LabelMeta(Option(-1), labelV2.id.get, "affinity_score", 1.toByte, "0.0", "double")
+
   /**
-   * check if storage serializer/deserializer can translate from/to bytes array.
-   * @param l: label for edge.
-   * @param ts: timestamp for edge.
-   * @param to: to VertexId for edge.
-   * @param props: expected props of edge.
-   */
-  def check(l: Label, ts: Long, to: InnerValLike, props: Map[LabelMeta, InnerValLikeWithTs]): Unit = {
-    val from = InnerVal.withLong(1, l.schemaVersion)
-    val vertexId = SourceVertexId(ServiceColumn.Default, from)
-    val tgtVertexId = TargetVertexId(ServiceColumn.Default, to)
-    val vertex = graph.newVertex(vertexId, ts)
-    val tgtVertex = graph.newVertex(tgtVertexId, ts)
+    * check if storage serializer/deserializer can translate from/to bytes array.
+    * @param l: label for edge.
+    * @param ts: timestamp for edge.
+    * @param to: to VertexId for edge.
+    * @param props: expected props of edge.
+    */
+  def check(l: Label,
+            ts: Long,
+            to: InnerValLike,
+            props: Map[LabelMeta, InnerValLikeWithTs]): Unit = {
+    val from         = InnerVal.withLong(1, l.schemaVersion)
+    val vertexId     = SourceVertexId(ServiceColumn.Default, from)
+    val tgtVertexId  = TargetVertexId(ServiceColumn.Default, to)
+    val vertex       = graph.newVertex(vertexId, ts)
+    val tgtVertex    = graph.newVertex(tgtVertexId, ts)
     val labelWithDir = LabelWithDirection(l.id.get, 0)
-    val labelOpt = Option(l)
-    val edge = graph.newEdge(vertex, tgtVertex, l, labelWithDir.dir, 0, ts, props, tsInnerValOpt = Option(InnerVal.withLong(ts, l.schemaVersion)))
+    val labelOpt     = Option(l)
+    val edge = graph.newEdge(vertex,
+                             tgtVertex,
+                             l,
+                             labelWithDir.dir,
+                             0,
+                             ts,
+                             props,
+                             tsInnerValOpt = Option(InnerVal.withLong(ts, l.schemaVersion)))
     val indexEdge = edge.edgesWithIndex.find(_.labelIndexSeq == LabelIndex.DefaultSeq).head
-    val _indexEdgeOpt = graph.getStorage(l).indexEdgeDeserializer(l.schemaVersion).fromKeyValues(labelOpt,
-      graph.getStorage(l).indexEdgeSerializer(indexEdge).toKeyValues, l.schemaVersion, None)
+    val _indexEdgeOpt = graph
+      .getStorage(l)
+      .indexEdgeDeserializer(l.schemaVersion)
+      .fromKeyValues(labelOpt,
+                     graph.getStorage(l).indexEdgeSerializer(indexEdge).toKeyValues,
+                     l.schemaVersion,
+                     None)
 
     _indexEdgeOpt should not be empty
     edge == _indexEdgeOpt.get should be(true)
   }
-
 
   /** note that props have to be properly set up for equals */
   test("test serializer/deserializer for index edge.") {
@@ -60,10 +75,10 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
     for {
       l <- Seq(label, labelV2, labelV3, labelV4)
     } {
-      val to = InnerVal.withLong(101, l.schemaVersion)
+      val to               = InnerVal.withLong(101, l.schemaVersion)
       val tsInnerValWithTs = InnerValLikeWithTs.withLong(ts, ts, l.schemaVersion)
       val props = Map(LabelMeta.timestamp -> tsInnerValWithTs,
-        testLabelMeta -> InnerValLikeWithTs.withDouble(2.1, ts, l.schemaVersion))
+                      testLabelMeta -> InnerValLikeWithTs.withDouble(2.1, ts, l.schemaVersion))
 
       check(l, ts, to, props)
     }
@@ -74,11 +89,10 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
     for {
       l <- Seq(label, labelV2, labelV3, labelV4)
     } {
-      val to = InnerVal.withStr("0", l.schemaVersion)
+      val to               = InnerVal.withStr("0", l.schemaVersion)
       val tsInnerValWithTs = InnerValLikeWithTs.withLong(ts, ts, l.schemaVersion)
-      val props = Map(
-        LabelMeta.degree -> InnerValLikeWithTs.withLong(10, ts, l.schemaVersion),
-        LabelMeta.timestamp -> tsInnerValWithTs)
+      val props = Map(LabelMeta.degree -> InnerValLikeWithTs.withLong(10, ts, l.schemaVersion),
+                      LabelMeta.timestamp -> tsInnerValWithTs)
 
       check(l, ts, to, props)
     }
@@ -89,12 +103,11 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
     for {
       l <- Seq(label, labelV2, labelV3, labelV4)
     } {
-      val to = InnerVal.withLong(101, l.schemaVersion)
+      val to               = InnerVal.withLong(101, l.schemaVersion)
       val tsInnerValWithTs = InnerValLikeWithTs.withLong(ts, ts, l.schemaVersion)
       val props = Map(LabelMeta.timestamp -> tsInnerValWithTs,
-        testLabelMeta -> InnerValLikeWithTs.withDouble(2.1, ts, l.schemaVersion),
-        LabelMeta.count -> InnerValLikeWithTs.withLong(10, ts, l.schemaVersion))
-
+                      testLabelMeta   -> InnerValLikeWithTs.withDouble(2.1, ts, l.schemaVersion),
+                      LabelMeta.count -> InnerValLikeWithTs.withLong(10, ts, l.schemaVersion))
 
       check(l, ts, to, props)
     }

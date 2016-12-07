@@ -24,10 +24,10 @@ import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs, VertexId}
 import org.apache.s2graph.core.utils.logger
 
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
-import scala.collection.{Seq, mutable}
+import scala.collection.{mutable, Seq}
 
 object QueryResult {
-  def fromVertices(graph: S2Graph, query: Query): StepResult = {
+  def fromVertices(graph: S2Graph, query: Query): StepResult =
     if (query.steps.isEmpty || query.steps.head.queryParams.isEmpty) {
       StepResult.Empty
     } else {
@@ -36,26 +36,19 @@ object QueryResult {
       val currentTs = System.currentTimeMillis()
       val propsWithTs = Map(
         LabelMeta.timestamp ->
-          InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion),
-                             currentTs))
+          InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs)
+      )
       val edgeWithScores = for {
         vertex <- query.vertices
       } yield {
-        val edge = graph.newEdge(vertex,
-                                 vertex,
-                                 label,
-                                 queryParam.labelWithDir.dir,
-                                 propsWithTs = propsWithTs)
+        val edge = graph
+          .newEdge(vertex, vertex, label, queryParam.labelWithDir.dir, propsWithTs = propsWithTs)
         val edgeWithScore =
           EdgeWithScore(edge, S2Graph.DefaultScore, queryParam.label)
         edgeWithScore
       }
-      StepResult(edgeWithScores = edgeWithScores,
-                 grouped = Nil,
-                 degreeEdges = Nil,
-                 false)
+      StepResult(edgeWithScores = edgeWithScores, grouped = Nil, degreeEdges = Nil, false)
     }
-  }
 }
 
 case class QueryRequest(query: Query,
@@ -78,8 +71,7 @@ object WithScore {
   implicit val impEdgeWithScore = new WithScore[EdgeWithScore] {
     override def score(me: EdgeWithScore): Double = me.score
 
-    override def withNewScore(me: EdgeWithScore,
-                              newScore: Double): EdgeWithScore =
+    override def withNewScore(me: EdgeWithScore, newScore: Double): EdgeWithScore =
       me.copy(score = newScore)
   }
 }
@@ -87,8 +79,7 @@ object WithScore {
 case class EdgeWithScore(edge: S2Edge,
                          score: Double,
                          label: Label,
-                         orderByValues: (Any, Any, Any, Any) =
-                           StepResult.EmptyOrderByValues,
+                         orderByValues: (Any, Any, Any, Any) = StepResult.EmptyOrderByValues,
                          groupByValues: Seq[Option[Any]] = Nil,
                          stepGroupByValues: Seq[Option[Any]] = Nil,
                          filterOutValues: Seq[Option[Any]] = Nil,
@@ -107,14 +98,13 @@ case class EdgeWithScore(edge: S2Edge,
 }
 
 /** result */
-case class StepResult(
-    edgeWithScores: Seq[EdgeWithScore],
-    grouped: Seq[(StepResult.GroupByKey, (Double, StepResult.Values))],
-    degreeEdges: Seq[EdgeWithScore],
-    isFailure: Boolean = false,
-    accumulatedCursors: Seq[Seq[Array[Byte]]] = Nil,
-    cursors: Seq[Array[Byte]] = Nil,
-    failCount: Int = 0) {
+case class StepResult(edgeWithScores: Seq[EdgeWithScore],
+                      grouped: Seq[(StepResult.GroupByKey, (Double, StepResult.Values))],
+                      degreeEdges: Seq[EdgeWithScore],
+                      isFailure: Boolean = false,
+                      accumulatedCursors: Seq[Seq[Array[Byte]]] = Nil,
+                      cursors: Seq[Array[Byte]] = Nil,
+                      failCount: Int = 0) {
   //  val isInnerEmpty = innerResults.isEmpty
   val isEmpty = edgeWithScores.isEmpty
 }
@@ -154,19 +144,23 @@ object StepResult {
         case Some(minShouldMatch) =>
           val MinShouldMatchParam(propKey, count, terms) = minShouldMatch
 
-          val grouped = edgesWithScores.groupBy { edgeWithScore =>
-            edgeWithScore.stepGroupByValues
-          }.filter {
-            case (key, edges) =>
-              val filtered = edges.toStream.filter { e =>
-                e.toValue(propKey) match {
-                  case None => false
-                  case Some(v) => terms.contains(v)
-                }
-              }.take(count)
+          val grouped = edgesWithScores
+            .groupBy { edgeWithScore =>
+              edgeWithScore.stepGroupByValues
+            }
+            .filter {
+              case (key, edges) =>
+                val filtered = edges.toStream
+                  .filter { e =>
+                    e.toValue(propKey) match {
+                      case None => false
+                      case Some(v) => terms.contains(v)
+                    }
+                  }
+                  .take(count)
 
-              filtered.lengthCompare(count) >= 0
-          }
+                filtered.lengthCompare(count) >= 0
+            }
 
           grouped.values.flatten.toSeq
       }
@@ -178,8 +172,7 @@ object StepResult {
       val ascendingVals =
         if (queryOption.ascendingVals.isEmpty) QueryOption.DefaultAscendingVals
         else queryOption.ascendingVals
-      notOrdered.sortBy(_.orderByValues)(
-        TupleMultiOrdering[Any](ascendingVals))
+      notOrdered.sortBy(_.orderByValues)(TupleMultiOrdering[Any](ascendingVals))
     } else {
       notOrdered
     }
@@ -187,7 +180,7 @@ object StepResult {
 
   def updateScoreOnOrderByValues(scoreFieldIndex: Int,
                                  orderByValues: (Any, Any, Any, Any),
-                                 newScore: Double): (Any, Any, Any, Any) = {
+                                 newScore: Double): (Any, Any, Any, Any) =
     scoreFieldIndex match {
       case 0 =>
         (newScore, orderByValues._2, orderByValues._3, orderByValues._4)
@@ -200,25 +193,19 @@ object StepResult {
       case _ => orderByValues
     }
 
-  }
-
-  def toTuple4(values: Seq[Option[Any]]): (Any, Any, Any, Any) = {
+  def toTuple4(values: Seq[Option[Any]]): (Any, Any, Any, Any) =
     values.length match {
       case 1 => (values(0).getOrElse(None), None, None, None)
       case 2 =>
         (values(0).getOrElse(None), values(1).getOrElse(None), None, None)
       case 3 =>
-        (values(0).getOrElse(None),
-         values(1).getOrElse(None),
-         values(2).getOrElse(None),
-         None)
+        (values(0).getOrElse(None), values(1).getOrElse(None), values(2).getOrElse(None), None)
       case _ =>
         (values(0).getOrElse(None),
          values(1).getOrElse(None),
          values(2).getOrElse(None),
          values(3).getOrElse(None))
     }
-  }
 
   /**
     * merge multiple StepResult into one StepResult.
@@ -237,16 +224,14 @@ object StepResult {
     val agg = new mutable.HashMap[GroupByKey, ListBuffer[EdgeWithScore]]()
     val sums = new mutable.HashMap[GroupByKey, Double]()
 
-    val filterOutSet = filterOutStepResult.edgeWithScores.foldLeft(
-      Set.empty[Seq[Option[Any]]]) {
+    val filterOutSet = filterOutStepResult.edgeWithScores.foldLeft(Set.empty[Seq[Option[Any]]]) {
       case (prev, t) =>
         prev + t.filterOutValues
     }
 
     for {
       (weight, eachStepResult) <- weights.zip(multiStepResults)
-      (ordered, grouped) = (eachStepResult.edgeWithScores,
-                            eachStepResult.grouped)
+      (ordered, grouped) = (eachStepResult.edgeWithScores, eachStepResult.grouped)
     } {
       ordered.foreach { t =>
         val filterOutKey = t.filterOutValues
@@ -256,15 +241,16 @@ object StepResult {
 
           //          val newOrderByValues = updateScoreOnOrderByValues(globalQueryOption.scoreFieldIdx, t.orderByValues, newScore)
           val newOrderByValues =
-            if (globalQueryOption.orderByKeys.isEmpty)
-              (newScore, t.edge.tsInnerVal, None, None)
+            if (globalQueryOption.orderByKeys.isEmpty) (newScore, t.edge.tsInnerVal, None, None)
             else toTuple4(newT.toValues(globalQueryOption.orderByKeys))
 
           val newGroupByValues = newT.toValues(globalQueryOption.groupBy.keys)
 
-          ls += t.copy(score = newScore,
-                       orderByValues = newOrderByValues,
-                       groupByValues = newGroupByValues)
+          ls += t.copy(
+            score = newScore,
+            orderByValues = newOrderByValues,
+            groupByValues = newGroupByValues
+          )
         }
       }
 
@@ -285,16 +271,17 @@ object StepResult {
 //            val newOrderByValues = updateScoreOnOrderByValues(globalQueryOption.scoreFieldIdx, t.orderByValues, newScore)
 
             val newOrderByValues =
-              if (globalQueryOption.orderByKeys.isEmpty)
-                (newScore, t.edge.tsInnerVal, None, None)
+              if (globalQueryOption.orderByKeys.isEmpty) (newScore, t.edge.tsInnerVal, None, None)
               else toTuple4(newT.toValues(globalQueryOption.orderByKeys))
 
             val newGroupByValues =
               newT.toValues(globalQueryOption.groupBy.keys)
 
-            buffer += t.copy(score = newScore,
-                             orderByValues = newOrderByValues,
-                             groupByValues = newGroupByValues)
+            buffer += t.copy(
+              score = newScore,
+              orderByValues = newOrderByValues,
+              groupByValues = newGroupByValues
+            )
             scoreSum += newScore
           }
         }
@@ -325,10 +312,12 @@ object StepResult {
       (ordered, Nil)
     }
 
-    StepResult(edgeWithScores = ordered,
-               grouped = grouped,
-               degrees,
-               failCount = multiStepResults.map(_.failCount).sum)
+    StepResult(
+      edgeWithScores = ordered,
+      grouped = grouped,
+      degrees,
+      failCount = multiStepResults.map(_.failCount).sum
+    )
   }
 
   //TODO: Optimize this.
@@ -337,8 +326,7 @@ object StepResult {
                 baseStepResult: StepResult,
                 filterOutStepResult: StepResult): StepResult = {
 
-    val filterOutSet = filterOutStepResult.edgeWithScores.foldLeft(
-      Set.empty[Seq[Option[Any]]]) {
+    val filterOutSet = filterOutStepResult.edgeWithScores.foldLeft(Set.empty[Seq[Option[Any]]]) {
       case (prev, t) =>
         prev + t.filterOutValues
     }
@@ -350,8 +338,7 @@ object StepResult {
 
     val grouped = for {
       (key, (scoreSum, values)) <- baseStepResult.grouped
-      (out, in) = values.partition(v =>
-        filterOutSet.contains(v.filterOutValues))
+      (out, in) = values.partition(v => filterOutSet.contains(v.filterOutValues))
       newScoreSum = scoreSum - out.foldLeft(0.0) {
         case (prev, current) => prev + current.score
       } if in.nonEmpty
@@ -362,6 +349,7 @@ object StepResult {
       grouped = grouped,
       baseStepResult.degreeEdges,
       cursors = baseStepResult.cursors,
-      failCount = baseStepResult.failCount + filterOutStepResult.failCount)
+      failCount = baseStepResult.failCount + filterOutStepResult.failCount
+    )
   }
 }

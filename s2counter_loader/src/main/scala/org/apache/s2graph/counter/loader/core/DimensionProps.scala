@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,7 +25,7 @@ import org.apache.commons.httpclient.HttpStatus
 import org.apache.s2graph.core.mysqls.{Bucket, Experiment, Service}
 import org.apache.s2graph.counter.loader.config.StreamingConfig
 import org.apache.s2graph.counter.models.Counter
-import org.apache.s2graph.counter.util.{RetryAsync, CollectionCache, CollectionCacheConfig}
+import org.apache.s2graph.counter.util.{CollectionCache, CollectionCacheConfig, RetryAsync}
 import org.asynchttpclient.DefaultAsyncHttpClientConfig
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
@@ -45,33 +45,36 @@ object DimensionProps {
   private val retryCnt = 3
 
   val cacheConfig = CollectionCacheConfig(StreamingConfig.PROFILE_CACHE_MAX_SIZE,
-    StreamingConfig.PROFILE_CACHE_TTL_SECONDS,
-    negativeCache = true,
-    3600 // negative ttl 1 hour
+                                          StreamingConfig.PROFILE_CACHE_TTL_SECONDS,
+                                          negativeCache = true,
+                                          3600 // negative ttl 1 hour
   )
   val cache: CollectionCache[Option[JsValue]] = new CollectionCache[Option[JsValue]](cacheConfig)
 
   @tailrec
-  private[counter] def makeRequestBody(requestBody: String, keyValues: List[(String, String)]): String = {
+  private[counter] def makeRequestBody(requestBody: String,
+                                       keyValues: List[(String, String)]): String =
     keyValues match {
       case head :: tail =>
         makeRequestBody(requestBody.replace(head._1, head._2), tail)
       case Nil => requestBody
     }
-  }
 
   private[counter] def query(bucket: Bucket, item: CounterEtlItem): Future[Option[JsValue]] = {
-    val keyValues = (item.dimension.as[JsObject] ++ item.property.as[JsObject] fields)
-      .filter { case (key, _) => key.startsWith("[[") && key.endsWith("]]") }
-      .map { case (key, jsValue) =>
+    val keyValues = (item.dimension.as[JsObject] ++ item.property.as[JsObject] fields).filter {
+      case (key, _) => key.startsWith("[[") && key.endsWith("]]")
+    }.map {
+      case (key, jsValue) =>
         val replacement = jsValue match {
           case JsString(s) => s
           case value => value.toString()
         }
         key -> replacement
-      }.toList
+    }.toList
 
-    val cacheKey = s"${bucket.impressionId}=" + keyValues.flatMap(x => Seq(x._1, x._2)).mkString("_")
+    val cacheKey = s"${bucket.impressionId}=" + keyValues
+        .flatMap(x => Seq(x._1, x._2))
+        .mkString("_")
 
     cache.withCacheAsync(cacheKey) {
       val retryFuture = RetryAsync(retryCnt, withSleep = false) {
@@ -108,15 +111,21 @@ object DimensionProps {
     }
   }
 
-  private[counter] def query(service: Service, experiment: Experiment, item: CounterEtlItem): Future[Option[JsValue]] = {
-    val keyValues = (item.dimension.as[JsObject] ++ item.property.as[JsObject] fields)
-      .filter { case (key, _) => key.startsWith("[[") && key.endsWith("]]") }.toMap
+  private[counter] def query(service: Service,
+                             experiment: Experiment,
+                             item: CounterEtlItem): Future[Option[JsValue]] = {
+    val keyValues = (item.dimension.as[JsObject] ++ item.property.as[JsObject] fields).filter {
+      case (key, _) => key.startsWith("[[") && key.endsWith("]]")
+    }.toMap
 
     val cacheKey = s"${experiment.name}=" + keyValues.flatMap(x => Seq(x._1, x._2)).mkString("_")
 
     cache.withCacheAsync(cacheKey) {
       val retryFuture = RetryAsync(retryCnt, withSleep = false) {
-        val url = s"${StreamingConfig.GRAPH_URL}/graphs/experiment/${service.accessToken}/${experiment.name}/0"
+        val url =
+          "%s/graphs/experiment/%s/%s/0".format(StreamingConfig.GRAPH_URL,
+                                                service.accessToken,
+                                                experiment.name)
         val future = client.url(url).post(Json.toJson(keyValues))
 
         future.map { resp =>
@@ -167,7 +176,6 @@ object DimensionProps {
     }
   }.getOrElse(items)
 
-  def getCacheStatsString: String = {
+  def getCacheStatsString: String =
     cache.getStatsString
-  }
 }

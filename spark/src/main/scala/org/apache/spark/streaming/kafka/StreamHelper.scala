@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -72,13 +72,20 @@ case class StreamHelper(kafkaParams: Map[String, String]) extends Logging {
     }.fold(errs => throw new SparkException(errs.mkString("\n")), ok => ok)
   }
 
-  def createStream[K: ClassTag, V: ClassTag, KD <: Decoder[K]: ClassTag, VD <: Decoder[V]: ClassTag](ssc: StreamingContext, topics: Set[String]): InputDStream[(K, V)] = {
+  def createStream[K: ClassTag,
+                   V: ClassTag,
+                   KD <: Decoder[K]: ClassTag,
+                   VD <: Decoder[V]: ClassTag](ssc: StreamingContext,
+                                               topics: Set[String]): InputDStream[(K, V)] = {
     type R = (K, V)
     val messageHandler = (mmd: MessageAndMetadata[K, V]) => (mmd.key(), mmd.message())
 
     kafkaHelper.registerConsumerInZK(topics)
 
-    new DirectKafkaInputDStream[K, V, KD, VD, R](ssc, kafkaParams, getStartOffsets(topics), messageHandler)
+    new DirectKafkaInputDStream[K, V, KD, VD, R](ssc,
+                                                 kafkaParams,
+                                                 getStartOffsets(topics),
+                                                 messageHandler)
   }
 
   def commitConsumerOffsets(offsets: HasOffsetRanges): Unit = {
@@ -94,7 +101,7 @@ case class StreamHelper(kafkaParams: Map[String, String]) extends Logging {
     kafkaHelper.commitConsumerOffsets(offsetsMap)
   }
 
-  def commitConsumerOffset(range: OffsetRange): Unit = {
+  def commitConsumerOffset(range: OffsetRange): Unit =
     if (range.fromOffset < range.untilOffset) {
       try {
         val tp = TopicAndPartition(range.topic, range.partition)
@@ -103,15 +110,13 @@ case class StreamHelper(kafkaParams: Map[String, String]) extends Logging {
       } catch {
         case t: Throwable =>
           // log it and let it go
-          logWarning("exception during commitOffsets",  t)
+          logWarning("exception during commitOffsets", t)
           throw t
       }
     }
-  }
 
-  def commitConsumerOffsets[R](stream: InputDStream[R]): Unit = {
+  def commitConsumerOffsets[R](stream: InputDStream[R]): Unit =
     stream.foreachRDD { rdd =>
       commitConsumerOffsets(rdd.asInstanceOf[HasOffsetRanges])
     }
-  }
 }

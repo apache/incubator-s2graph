@@ -44,8 +44,7 @@ object StorageSerializable {
     bytes
   }
 
-  def propsToKeyValuesWithTs(
-      props: Seq[(LabelMeta, InnerValLikeWithTs)]): Array[Byte] = {
+  def propsToKeyValuesWithTs(props: Seq[(LabelMeta, InnerValLikeWithTs)]): Array[Byte] = {
     val len = props.length
     assert(len < Byte.MaxValue)
     var bytes = Array.fill(1)(len.toByte)
@@ -54,8 +53,7 @@ object StorageSerializable {
     bytes
   }
 
-  def labelOrderSeqWithIsInverted(labelOrderSeq: Byte,
-                                  isInverted: Boolean): Array[Byte] = {
+  def labelOrderSeqWithIsInverted(labelOrderSeq: Byte, isInverted: Boolean): Array[Byte] = {
     assert(labelOrderSeq < (1 << 6))
     val byte = labelOrderSeq << 1 | (if (isInverted) 1 else 0)
     Array.fill(1)(byte.toByte)

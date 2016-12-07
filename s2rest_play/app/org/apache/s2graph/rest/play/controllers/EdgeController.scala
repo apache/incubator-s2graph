@@ -82,43 +82,32 @@ object EdgeController extends Controller {
   private def toDeleteAllFailMessages(srcVertices: Seq[S2Vertex],
                                       labels: Seq[Label],
                                       dir: Int,
-                                      ts: Long) = {
+                                      ts: Long) =
     for {
       vertex <- srcVertices
       id = vertex.id.toString
       label <- labels
     } yield {
-      val tsv = Seq(ts,
-                    "deleteAll",
-                    "e",
-                    id,
-                    id,
-                    label.label,
-                    "{}",
-                    GraphUtil.fromOp(dir.toByte)).mkString("\t")
+      val tsv = Seq(ts, "deleteAll", "e", id, id, label.label, "{}", GraphUtil.fromOp(dir.toByte))
+        .mkString("\t")
       ExceptionHandler.toKafkaMessage(Config.KAFKA_MUTATE_FAIL_TOPIC, tsv)
     }
-  }
 
-  private def publishFailTopic(kafkaMessages: Seq[KafkaMessage]): Unit = {
+  private def publishFailTopic(kafkaMessages: Seq[KafkaMessage]): Unit =
     kafkaMessages.foreach(walLogHandler.enqueue)
-  }
 
-  def mutateElementsWithFailLog(
-      elements: Seq[(GraphElement, String)]): Future[Seq[Boolean]] = {
+  def mutateElementsWithFailLog(elements: Seq[(GraphElement, String)]): Future[Seq[Boolean]] = {
     val result = s2.mutateElements(elements.map(_._1), true)
     result onComplete { results =>
       results.get.zip(elements).map {
         case (false, (e: S2Edge, tsv: String)) =>
           val kafkaMessages = if (e.op == GraphUtil.operations("deleteAll")) {
-            toDeleteAllFailMessages(Seq(e.srcVertex),
-                                    Seq(e.innerLabel),
-                                    e.labelWithDir.dir,
-                                    e.ts)
+            toDeleteAllFailMessages(Seq(e.srcVertex), Seq(e.innerLabel), e.labelWithDir.dir, e.ts)
           } else {
             Seq(
               ExceptionHandler
-                .toKafkaMessage(Config.KAFKA_MUTATE_FAIL_TOPIC, e, Some(tsv)))
+                .toKafkaMessage(Config.KAFKA_MUTATE_FAIL_TOPIC, e, Some(tsv))
+            )
           }
           publishFailTopic(kafkaMessages)
         case _ =>
@@ -128,7 +117,7 @@ object EdgeController extends Controller {
   }
 
   private def tryMutate(elementsWithTsv: Seq[(GraphElement, String)],
-                        withWait: Boolean): Future[Result] = {
+                        withWait: Boolean): Future[Result] =
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
     else {
       elementsWithTsv.foreach {
@@ -147,11 +136,14 @@ object EdgeController extends Controller {
           val retToSkip = elementAsync.map(_._2 -> true)
           val elementsToStore = elementSync.map(_._1)
           val elementsIdxToStore = elementSync.map(_._2)
-          mutateElementsWithFailLog(elementsToStore).map { rets =>
-            elementsIdxToStore.zip(rets) ++ retToSkip
-          }.map { rets =>
-            Json.toJson(rets.sortBy(_._1).map(_._2))
-          }.map(jsonResponse(_))
+          mutateElementsWithFailLog(elementsToStore)
+            .map { rets =>
+              elementsIdxToStore.zip(rets) ++ retToSkip
+            }
+            .map { rets =>
+              Json.toJson(rets.sortBy(_._1).map(_._2))
+            }
+            .map(jsonResponse(_))
         } else {
           val rets = elementWithIdxs.map {
             case ((element, tsv), idx) =>
@@ -163,7 +155,6 @@ object EdgeController extends Controller {
         }
       }
     }
-  }
 
   def mutateJsonFormat(jsValue: JsValue,
                        operation: String,
@@ -186,8 +177,7 @@ object EdgeController extends Controller {
     }
   }
 
-  def mutateBulkFormat(str: String,
-                       withWait: Boolean = false): Future[Result] = {
+  def mutateBulkFormat(str: String, withWait: Boolean = false): Future[Result] = {
     logger.debug(s"$str")
 
     try {
@@ -210,18 +200,16 @@ object EdgeController extends Controller {
     mutateBulkFormat(request.body, withWait = false)
   }
 
-  def mutateBulkWithWait(): Action[String] = withHeaderAsync(parse.text) {
-    request =>
-      mutateBulkFormat(request.body, withWait = true)
+  def mutateBulkWithWait(): Action[String] = withHeaderAsync(parse.text) { request =>
+    mutateBulkFormat(request.body, withWait = true)
   }
 
   def inserts(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
     mutateJsonFormat(request.body, "insert")
   }
 
-  def insertsWithWait(): Action[JsValue] = withHeaderAsync(jsonParser) {
-    request =>
-      mutateJsonFormat(request.body, "insert", withWait = true)
+  def insertsWithWait(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
+    mutateJsonFormat(request.body, "insert", withWait = true)
   }
 
   def insertsBulk(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
@@ -232,62 +220,55 @@ object EdgeController extends Controller {
     mutateJsonFormat(request.body, "delete")
   }
 
-  def deletesWithWait(): Action[JsValue] = withHeaderAsync(jsonParser) {
-    request =>
-      mutateJsonFormat(request.body, "delete", withWait = true)
+  def deletesWithWait(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
+    mutateJsonFormat(request.body, "delete", withWait = true)
   }
 
   def updates(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
     mutateJsonFormat(request.body, "update")
   }
 
-  def updatesWithWait(): Action[JsValue] = withHeaderAsync(jsonParser) {
-    request =>
-      mutateJsonFormat(request.body, "update", withWait = true)
+  def updatesWithWait(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
+    mutateJsonFormat(request.body, "update", withWait = true)
   }
 
   def increments(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
     mutateJsonFormat(request.body, "increment")
   }
 
-  def incrementsWithWait(): Action[JsValue] = withHeaderAsync(jsonParser) {
-    request =>
-      mutateJsonFormat(request.body, "increment", withWait = true)
+  def incrementsWithWait(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
+    mutateJsonFormat(request.body, "increment", withWait = true)
   }
 
-  def incrementCounts(): Action[JsValue] = withHeaderAsync(jsonParser) {
-    request =>
-      val jsValue = request.body
-      val edgesWithTsv =
-        requestParser.parseJsonFormat(jsValue, "incrementCount")
+  def incrementCounts(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
+    val jsValue = request.body
+    val edgesWithTsv =
+      requestParser.parseJsonFormat(jsValue, "incrementCount")
 
-      val edges = for {
-        (e, _tsv) <- edgesWithTsv if !skipElement(e.isAsync)
-      } yield e
+    val edges = for {
+      (e, _tsv) <- edgesWithTsv if !skipElement(e.isAsync)
+    } yield e
 
-      if (edges.isEmpty) Future.successful(jsonResponse(JsArray()))
-      else {
+    if (edges.isEmpty) Future.successful(jsonResponse(JsArray()))
+    else {
 
-        s2.incrementCounts(edges, withWait = true).map { results =>
-          val json = results.map {
-            case (isSuccess, resultCount, count) =>
-              Json.obj("success" -> isSuccess,
-                       "result" -> resultCount,
-                       "_count" -> count)
-          }
-
-          jsonResponse(Json.toJson(json))
+      s2.incrementCounts(edges, withWait = true).map { results =>
+        val json = results.map {
+          case (isSuccess, resultCount, count) =>
+            Json.obj("success" -> isSuccess, "result" -> resultCount, "_count" -> count)
         }
+
+        jsonResponse(Json.toJson(json))
       }
+    }
   }
 
   def deleteAll(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
     deleteAllInner(request.body, withWait = true)
   }
 
-  def deleteAllWithOutWait(): Action[JsValue] = withHeaderAsync(jsonParser) {
-    request =>
-      deleteAllInner(request.body, withWait = false)
+  def deleteAllWithOutWait(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
+    deleteAllInner(request.body, withWait = false)
   }
 
   def deleteAllInner(jsValue: JsValue, withWait: Boolean): Future[Result] = {
@@ -324,10 +305,8 @@ object EdgeController extends Controller {
                    ts: Long,
                    vertices: Seq[S2Vertex]) = {
 
-      val future = s2.deleteAllAdjacentEdges(vertices.toList,
-                                             labels,
-                                             GraphUtil.directions(direction),
-                                             ts)
+      val future =
+        s2.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts)
       if (withWait) {
         future onComplete {
           case ret =>

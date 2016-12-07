@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core.storage.serde.indexedge.wide
 
-import org.apache.s2graph.core.mysqls.{ServiceColumn, Label, LabelMeta}
+import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.types._
@@ -27,8 +27,7 @@ import org.apache.s2graph.core._
 import scala.collection.immutable
 
 class IndexEdgeDeserializable(graph: S2Graph,
-                              bytesToLongFunc: (Array[Byte], Int) => Long =
-                                bytesToLong)
+                              bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong)
     extends Deserializable[S2Edge] {
   import StorageDeserializable._
 
@@ -36,12 +35,10 @@ class IndexEdgeDeserializable(graph: S2Graph,
     (Array[(LabelMeta, InnerValLike)], VertexId, Byte, Boolean, Int)
   type ValueRaw = (Array[(LabelMeta, InnerValLike)], Int)
 
-  private def parseDegreeQualifier(kv: SKeyValue,
-                                   schemaVer: String): QualifierRaw = {
+  private def parseDegreeQualifier(kv: SKeyValue, schemaVer: String): QualifierRaw = {
     //    val degree = Bytes.toLong(kv.value)
     val degree = bytesToLongFunc(kv.value, 0)
-    val idxPropsRaw = Array(
-      LabelMeta.degree -> InnerVal.withLong(degree, schemaVer))
+    val idxPropsRaw = Array(LabelMeta.degree -> InnerVal.withLong(degree, schemaVer))
     val tgtVertexIdRaw =
       VertexId(ServiceColumn.Default, InnerVal.withStr("0", schemaVer))
     (idxPropsRaw, tgtVertexIdRaw, GraphUtil.operations("insert"), false, 0)
@@ -72,11 +69,10 @@ class IndexEdgeDeserializable(graph: S2Graph,
     (idxPropsRaw, tgtVertexIdRaw, op, tgtVertexIdLen != 0, qualifierLen)
   }
 
-  override def fromKeyValuesInner[T: CanSKeyValue](
-      checkLabel: Option[Label],
-      _kvs: Seq[T],
-      schemaVer: String,
-      cacheElementOpt: Option[S2Edge]): S2Edge = {
+  override def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
+                                                   _kvs: Seq[T],
+                                                   schemaVer: String,
+                                                   cacheElementOpt: Option[S2Edge]): S2Edge = {
     assert(_kvs.size == 1)
 
 //     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
@@ -108,22 +104,18 @@ class IndexEdgeDeserializable(graph: S2Graph,
 
     val index = label.indicesMap.getOrElse(
       labelIdxSeq,
-      throw new RuntimeException(
-        s"invalid index seq: ${label.id.get}, ${labelIdxSeq}"))
+      throw new RuntimeException(s"invalid index seq: ${label.id.get}, ${labelIdxSeq}")
+    )
 
     /** process indexProps */
     val size = idxPropsRaw.length
     (0 until size).foreach { ith =>
       val meta = index.sortKeyTypesArray(ith)
       val (k, v) = idxPropsRaw(ith)
-      if (k == LabelMeta.timestamp)
-        tsVal = v.value.asInstanceOf[BigDecimal].longValue()
+      if (k == LabelMeta.timestamp) tsVal = v.value.asInstanceOf[BigDecimal].longValue()
 
-      if (k == LabelMeta.degree) {
-        edge.property(LabelMeta.degree.name, v.value, version)
-      } else {
-        edge.property(meta.name, v.value, version)
-      }
+      if (k == LabelMeta.degree) edge.property(LabelMeta.degree.name, v.value, version)
+      else edge.property(meta.name, v.value, version)
     }
 
     /** process props */
@@ -136,8 +128,7 @@ class IndexEdgeDeserializable(graph: S2Graph,
         bytesToKeyValues(kv.value, 0, kv.value.length, schemaVer, label)
       props.foreach {
         case (k, v) =>
-          if (k == LabelMeta.timestamp)
-            tsVal = v.value.asInstanceOf[BigDecimal].longValue()
+          if (k == LabelMeta.timestamp) tsVal = v.value.asInstanceOf[BigDecimal].longValue()
 
           edge.property(k.name, v.value, version)
       }

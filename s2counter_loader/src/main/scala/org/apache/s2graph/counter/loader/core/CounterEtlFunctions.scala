@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.counter.loader.core
 
-import org.apache.s2graph.core.{S2Edge, S2Graph, GraphUtil}
+import org.apache.s2graph.core.{GraphUtil, S2Edge, S2Graph}
 import org.apache.s2graph.counter.loader.config.StreamingConfig
 import org.apache.s2graph.counter.models.CounterModel
 import org.apache.s2graph.spark.config.S2ConfigFactory
@@ -28,13 +28,14 @@ import play.api.libs.json._
 import scala.collection.mutable.{HashMap => MutableHashMap}
 
 object CounterEtlFunctions extends Logging {
-  lazy val filterOps = Seq("insert", "insertBulk", "update", "increment").map(op => GraphUtil.operations(op))
+  lazy val filterOps =
+    Seq("insert", "insertBulk", "update", "increment").map(op => GraphUtil.operations(op))
   lazy val preFetchSize = StreamingConfig.PROFILE_PREFETCH_SIZE
-  lazy val config = S2ConfigFactory.config
+  lazy val config       = S2ConfigFactory.config
   lazy val counterModel = new CounterModel(config)
-  lazy val graph = new S2Graph(config)(scala.concurrent.ExecutionContext.Implicits.global)
+  lazy val graph        = new S2Graph(config)(scala.concurrent.ExecutionContext.Implicits.global)
 
-  def logToEdge(line: String): Option[S2Edge] = {
+  def logToEdge(line: String): Option[S2Edge] =
     for {
       elem <- graph.toGraphElement(line) if elem.isInstanceOf[S2Edge]
       edge <- Some(elem.asInstanceOf[S2Edge]).filter { x =>
@@ -43,9 +44,8 @@ object CounterEtlFunctions extends Logging {
     } yield {
       edge
     }
-  }
 
-  def parseEdgeFormat(line: String): Option[CounterEtlItem] = {
+  def parseEdgeFormat(line: String): Option[CounterEtlItem] =
     /*
      * 1427082276804	insert	edge	19073318	52453027_93524145648511699	story_user_ch_doc_view	{"doc_type" : "l", "channel_subscribing" : "y", "view_from" : "feed"}
      */
@@ -55,14 +55,15 @@ object CounterEtlFunctions extends Logging {
         filterOps.contains(x.op)
       }
     } yield {
-      val label = edge.innerLabel
-      val labelName = label.label
+      val label      = edge.innerLabel
+      val labelName  = label.label
       val tgtService = label.tgtColumn.service.serviceName
-      val tgtId = edge.tgtVertex.innerId.toString()
-      val srcId = edge.srcVertex.innerId.toString()
+      val tgtId      = edge.tgtVertex.innerId.toString()
+      val srcId      = edge.srcVertex.innerId.toString()
 
       // make empty property if no exist edge property
-      val dimension = Json.parse(Some(GraphUtil.split(line)).filter(_.length >= 7).map(_(6)).getOrElse("{}"))
+      val dimension =
+        Json.parse(Some(GraphUtil.split(line)).filter(_.length >= 7).map(_(6)).getOrElse("{}"))
       val bucketKeys = Seq("_from")
       val bucketKeyValues = {
         for {
@@ -70,7 +71,7 @@ object CounterEtlFunctions extends Logging {
         } yield {
           val jsValue = variable match {
             case "_from" => JsString(srcId)
-            case s => (dimension \ s).get
+            case s       => (dimension \ s).get
           }
           s"[[$variable]]" -> jsValue
         }
@@ -80,27 +81,29 @@ object CounterEtlFunctions extends Logging {
 
       CounterEtlItem(edge.ts, tgtService, labelName, tgtId, dimension, property)
     }
-  }
 
-  def parseEdgeFormat(lines: List[String]): List[CounterEtlItem] = {
+  def parseEdgeFormat(lines: List[String]): List[CounterEtlItem] =
     for {
       line <- lines
       item <- parseEdgeFormat(line)
     } yield {
       item
     }
-  }
-  
-  def checkPolicyAndMergeDimension(service: String, action: String, items: List[CounterEtlItem]): List[CounterEtlItem] = {
-    counterModel.findByServiceAction(service, action).map { policy =>
-      if (policy.useProfile) {
-        policy.bucketImpId match {
-          case Some(_) => DimensionProps.mergeDimension(policy, items)
-          case None => Nil
+
+  def checkPolicyAndMergeDimension(service: String,
+                                   action: String,
+                                   items: List[CounterEtlItem]): List[CounterEtlItem] =
+    counterModel
+      .findByServiceAction(service, action)
+      .map { policy =>
+        if (policy.useProfile) {
+          policy.bucketImpId match {
+            case Some(_) => DimensionProps.mergeDimension(policy, items)
+            case None    => Nil
+          }
+        } else {
+          items
         }
-      } else {
-        items
       }
-    }.getOrElse(Nil)
-  }
+      .getOrElse(Nil)
 }

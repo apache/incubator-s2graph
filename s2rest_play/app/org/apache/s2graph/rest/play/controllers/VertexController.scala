@@ -44,7 +44,7 @@ object VertexController extends Controller {
                  operation: String,
                  serviceNameOpt: Option[String] = None,
                  columnNameOpt: Option[String] = None,
-                 withWait: Boolean = false): Future[Result] = {
+                 withWait: Boolean = false): Future[Result] =
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
     else {
       try {
@@ -58,9 +58,9 @@ object VertexController extends Controller {
 
         //FIXME:
         val verticesToStore = vertices.filterNot(v => skipElement(v.isAsync))
-        if (verticesToStore.isEmpty)
+        if (verticesToStore.isEmpty) {
           Future.successful(jsonResponse(Json.toJson(Seq.empty[Boolean])))
-        else {
+        } else {
           if (withWait) {
             val rets = s2.mutateVertices(verticesToStore, withWait = true)
             rets.map(Json.toJson(_)).map(jsonResponse(_))
@@ -79,15 +79,13 @@ object VertexController extends Controller {
           Future.successful(InternalServerError(s"${e.getStackTrace}"))
       }
     }
-  }
 
   def inserts(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
     tryMutates(request.body, "insert")
   }
 
-  def insertsWithWait(): Action[JsValue] = withHeaderAsync(jsonParser) {
-    request =>
-      tryMutates(request.body, "insert", withWait = true)
+  def insertsWithWait(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
+    tryMutates(request.body, "insert", withWait = true)
   }
 
   def insertsSimple(serviceName: String, columnName: String): Action[JsValue] =
@@ -99,9 +97,8 @@ object VertexController extends Controller {
     tryMutates(request.body, "delete")
   }
 
-  def deletesWithWait(): Action[JsValue] = withHeaderAsync(jsonParser) {
-    request =>
-      tryMutates(request.body, "delete", withWait = true)
+  def deletesWithWait(): Action[JsValue] = withHeaderAsync(jsonParser) { request =>
+    tryMutates(request.body, "delete", withWait = true)
   }
 
   def deletesSimple(serviceName: String, columnName: String): Action[JsValue] =
@@ -113,13 +110,9 @@ object VertexController extends Controller {
     tryMutates(request.body, "deleteAll")
   }
 
-  def deletesAllSimple(serviceName: String,
-                       columnName: String): Action[JsValue] =
+  def deletesAllSimple(serviceName: String, columnName: String): Action[JsValue] =
     withHeaderAsync(jsonParser) { request =>
-      tryMutates(request.body,
-                 "deleteAll",
-                 Some(serviceName),
-                 Some(columnName))
+      tryMutates(request.body, "deleteAll", Some(serviceName), Some(columnName))
     }
 
 }

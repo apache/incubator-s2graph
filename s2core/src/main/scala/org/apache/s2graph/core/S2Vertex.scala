@@ -23,21 +23,11 @@ import java.util
 import java.util.function.{BiConsumer, Consumer}
 
 import org.apache.s2graph.core.S2Vertex.Props
-import org.apache.s2graph.core.mysqls.{
-  ColumnMeta,
-  LabelMeta,
-  Service,
-  ServiceColumn
-}
+import org.apache.s2graph.core.mysqls.{ColumnMeta, LabelMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.types._
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
-import org.apache.tinkerpop.gremlin.structure.{
-  Direction,
-  Edge,
-  Vertex,
-  VertexProperty
-}
+import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Vertex, VertexProperty}
 import play.api.libs.json.Json
 
 import scala.collection.JavaConverters._
@@ -48,8 +38,7 @@ case class S2Vertex(graph: S2Graph,
                     props: Props = S2Vertex.EmptyProps,
                     op: Byte = 0,
                     belongLabelIds: Seq[Int] = Seq.empty)
-    extends GraphElement
-    with Vertex {
+    extends GraphElement with Vertex {
 
   val innerId = id.innerId
 
@@ -102,7 +91,7 @@ case class S2Vertex(graph: S2Graph,
     hash
   }
 
-  override def equals(obj: Any): Boolean = {
+  override def equals(obj: Any): Boolean =
     obj match {
       case otherVertex: S2Vertex =>
         val ret = id == otherVertex.id
@@ -110,22 +99,20 @@ case class S2Vertex(graph: S2Graph,
         ret
       case _ => false
     }
-  }
 
-  override def toString(): String = {
+  override def toString(): String =
     Map("id" -> id.toString(),
         "ts" -> ts,
         "props" -> "",
         "op" -> op,
         "belongLabelIds" -> belongLabelIds).toString()
-  }
 
   def toLogString(): String = {
     val (serviceName, columnName) =
       if (!id.storeColId) ("", "")
       else (serviceColumn.service.serviceName, serviceColumn.columnName)
 
-    if (propsWithName.nonEmpty)
+    if (propsWithName.nonEmpty) {
       Seq(ts,
           GraphUtil.fromOp(op),
           "v",
@@ -133,9 +120,10 @@ case class S2Vertex(graph: S2Graph,
           serviceName,
           columnName,
           Json.toJson(propsWithName)).mkString("\t")
-    else
+    } else {
       Seq(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName)
         .mkString("\t")
+    }
   }
 
   def copyVertexWithState(props: Props): S2Vertex = {
@@ -144,11 +132,10 @@ case class S2Vertex(graph: S2Graph,
     newVertex
   }
 
-  override def vertices(direction: Direction,
-                        edgeLabels: String*): util.Iterator[Vertex] = {
+  override def vertices(direction: Direction, edgeLabels: String*): util.Iterator[Vertex] = {
     val arr = new util.ArrayList[Vertex]()
     edges(direction, edgeLabels: _*).forEachRemaining(new Consumer[Edge] {
-      override def accept(edge: Edge): Unit = {
+      override def accept(edge: Edge): Unit =
         direction match {
           case Direction.OUT => arr.add(edge.inVertex())
           case Direction.IN => arr.add(edge.outVertex())
@@ -156,34 +143,29 @@ case class S2Vertex(graph: S2Graph,
             arr.add(edge.inVertex())
             arr.add(edge.outVertex())
         }
-      }
     })
     arr.iterator()
   }
 
-  override def edges(direction: Direction,
-                     labelNames: String*): util.Iterator[Edge] = {
+  override def edges(direction: Direction, labelNames: String*): util.Iterator[Edge] =
     graph.fetchEdges(this, labelNames, direction.name())
-  }
 
   override def property[V](cardinality: Cardinality,
                            key: String,
                            value: V,
-                           objects: AnyRef*): VertexProperty[V] = {
+                           objects: AnyRef*): VertexProperty[V] =
     cardinality match {
       case Cardinality.single =>
-        val columnMeta = serviceColumn.metasInvMap.getOrElse(
-          key,
-          throw new RuntimeException(s"$key is not configured on Vertex."))
+        val columnMeta = serviceColumn.metasInvMap
+          .getOrElse(key, throw new RuntimeException(s"$key is not configured on Vertex."))
         val newProps = new S2VertexProperty[V](this, columnMeta, key, value)
         props.put(key, newProps)
         newProps
       case _ =>
         throw new RuntimeException("only single cardinality is supported.")
     }
-  }
 
-  override def addEdge(label: String, vertex: Vertex, kvs: AnyRef*): S2Edge = {
+  override def addEdge(label: String, vertex: Vertex, kvs: AnyRef*): S2Edge =
     vertex match {
       case otherV: S2Vertex =>
         val props = ElementHelper.asMap(kvs: _*).asScala.toMap
@@ -200,11 +182,9 @@ case class S2Vertex(graph: S2Graph,
           .addEdgeInner(this, otherV, label, direction, props, ts, operation)
       case _ => throw new RuntimeException("only S2Graph vertex can be used.")
     }
-  }
 
-  override def property[V](key: String): VertexProperty[V] = {
+  override def property[V](key: String): VertexProperty[V] =
     props.get(key).asInstanceOf[S2VertexProperty[V]]
-  }
 
   override def properties[V](keys: String*): util.Iterator[VertexProperty[V]] = {
     val ls = for {
@@ -227,8 +207,9 @@ object S2Vertex {
 
   type Props = java.util.Map[String, S2VertexProperty[_]]
   type State = Map[ColumnMeta, InnerValLike]
-  def EmptyProps = new java.util.HashMap[String, S2VertexProperty[_]]()
-  def EmptyState = Map.empty[ColumnMeta, InnerValLike]
+  def EmptyProps: util.HashMap[String, S2VertexProperty[_]] =
+    new java.util.HashMap[String, S2VertexProperty[_]]()
+  def EmptyState: Map[ColumnMeta, InnerValLike] = Map.empty
 
   def toPropKey(labelId: Int): Int = Byte.MaxValue + labelId
 
@@ -236,26 +217,24 @@ object S2Vertex {
 
   def isLabelId(propKey: Int): Boolean = propKey > Byte.MaxValue
 
-  def fillPropsWithTs(vertex: S2Vertex, props: Props): Unit = {
+  def fillPropsWithTs(vertex: S2Vertex, props: Props): Unit =
     props.forEach(new BiConsumer[String, S2VertexProperty[_]] {
-      override def accept(key: String, p: S2VertexProperty[_]): Unit = {
+      override def accept(key: String, p: S2VertexProperty[_]): Unit =
         vertex.property(Cardinality.single, key, p.value)
-      }
     })
-  }
 
-  def fillPropsWithTs(vertex: S2Vertex, state: State): Unit = {
+  def fillPropsWithTs(vertex: S2Vertex, state: State): Unit =
     state.foreach {
       case (k, v) => vertex.property(Cardinality.single, k.name, v.value)
     }
-  }
 
-  def propsToState(props: Props): State = {
-    props.asScala.map {
-      case (k, v) =>
-        v.columnMeta -> v.innerVal
-    }.toMap
-  }
+  def propsToState(props: Props): State =
+    props.asScala
+      .map {
+        case (k, v) =>
+          v.columnMeta -> v.innerVal
+      }
+      .toMap
 
   def stateToProps(vertex: S2Vertex, state: State): Props = {
     state.foreach {

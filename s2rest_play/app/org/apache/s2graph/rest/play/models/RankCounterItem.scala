@@ -34,8 +34,7 @@ case class RankCounterDimensionItem(interval: String,
 
 case class RankCounterResultMeta(service: String, action: String)
 
-case class RankCounterResult(meta: RankCounterResultMeta,
-                             data: Seq[RankCounterDimensionItem])
+case class RankCounterResult(meta: RankCounterResultMeta, data: Seq[RankCounterDimensionItem])
 
 object RankCounterItem {
   implicit val format = Json.format[RankCounterItem]
@@ -43,14 +42,12 @@ object RankCounterItem {
 
 object RankCounterDimensionItem {
   implicit val writes = new Writes[RankCounterDimensionItem] {
-    def writes(item: RankCounterDimensionItem) = Json.obj(
-      "interval" -> item.interval,
-      "ts" -> item.ts,
-      "time" -> tsFormat.format(item.ts),
-      "dimension" -> item.dimension,
-      "total" -> item.total,
-      "ranks" -> item.ranks
-    )
+    def writes(item: RankCounterDimensionItem) = Json.obj("interval" -> item.interval,
+                                                          "ts" -> item.ts,
+                                                          "time" -> tsFormat.format(item.ts),
+                                                          "dimension" -> item.dimension,
+                                                          "total" -> item.total,
+                                                          "ranks" -> item.ranks)
   }
   implicit val reads = Json.reads[RankCounterDimensionItem]
 }

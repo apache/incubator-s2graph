@@ -32,7 +32,8 @@ object SafeUpdateCache {
 }
 
 class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(
-    implicit executionContext: ExecutionContext) {
+    implicit executionContext: ExecutionContext
+) {
 
   import SafeUpdateCache._
 
@@ -70,9 +71,7 @@ class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(
         else {
           Future(op)(executionContext) onComplete {
             case Failure(ex) =>
-              cache.put(
-                cacheKey,
-                (cachedVal, toTs(), new AtomicBoolean(false))) // keep old value
+              cache.put(cacheKey, (cachedVal, toTs(), new AtomicBoolean(false))) // keep old value
               logger.error(s"withCache update failed: $cacheKey")
             case Success(newValue) =>
               cache.put(cacheKey, (newValue, toTs(), new AtomicBoolean(false))) // update new value
@@ -84,7 +83,7 @@ class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(
     }
   }
 
-  def getAllData(): List[(String, T)] = {
+  def getAllData(): List[(String, T)] =
     cache
       .asMap()
       .map {
@@ -92,5 +91,4 @@ class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(
           (key.key.substring(prefix.size + 1), value._1)
       }
       .toList
-  }
 }
