@@ -33,9 +33,8 @@ lazy val commonSettings = Seq(
   concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
   parallelExecution in Test := false,
   libraryDependencies ++= Common.loggingRuntime,
-  resolvers ++= Seq(
-    Resolver.mavenLocal
-  )
+  unmanagedClasspath in Runtime <+= (resourceDirectory in Compile).map(Attributed.blank),
+  resolvers += Resolver.mavenLocal
 ) ++ Publisher.defaultSettings
 
 Revolver.settings
