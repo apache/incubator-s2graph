@@ -19,9 +19,11 @@
 
 package org.apache.s2graph.core.models
 
+import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+
 import org.apache.s2graph.core.TestCommonWithModels
 import org.apache.s2graph.core.mysqls.Label
-import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+import org.apache.s2graph.core.utils.Logger
 
 class ModelTest extends FunSuite with Matchers with TestCommonWithModels with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
@@ -34,26 +36,26 @@ class ModelTest extends FunSuite with Matchers with TestCommonWithModels with Be
 
   test("test Label.findByName") {
     val labelOpt = Label.findByName(labelName, useCache = false)
-    println(labelOpt)
+    Logger.info(labelOpt)
     labelOpt.isDefined shouldBe true
     val indices = labelOpt.get.indices
     indices.size > 0 shouldBe true
-    println(indices)
+    Logger.info(indices)
     val defaultIndexOpt = labelOpt.get.defaultIndex
-    println(defaultIndexOpt)
+    Logger.info(defaultIndexOpt)
     defaultIndexOpt.isDefined shouldBe true
     val metas = labelOpt.get.metaProps
-    println(metas)
+    Logger.info(metas)
     metas.size > 0 shouldBe true
     val srcService = labelOpt.get.srcService
-    println(srcService)
+    Logger.info(srcService)
     val tgtService = labelOpt.get.tgtService
-    println(tgtService)
+    Logger.info(tgtService)
     val service = labelOpt.get.service
-    println(service)
+    Logger.info(service)
     val srcColumn = labelOpt.get.srcService
-    println(srcColumn)
+    Logger.info(srcColumn)
     val tgtColumn = labelOpt.get.tgtService
-    println(tgtColumn)
+    Logger.info(tgtColumn)
   }
 }

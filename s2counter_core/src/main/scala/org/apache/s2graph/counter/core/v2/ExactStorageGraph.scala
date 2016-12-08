@@ -19,25 +19,28 @@
 
 package org.apache.s2graph.counter.core.v2
 
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration._
+
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.typesafe.config.Config
 import org.apache.http.HttpStatus
-import org.apache.s2graph.core.mysqls.Label
-import org.apache.s2graph.counter.config.S2CounterConfig
-import org.apache.s2graph.counter.core
-import org.apache.s2graph.counter.core.ExactCounter.ExactValueMap
-import org.apache.s2graph.counter.core._
-import org.apache.s2graph.counter.models.Counter
-import org.apache.s2graph.counter.util.CartesianProduct
 import org.asynchttpclient.DefaultAsyncHttpClientConfig
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
-import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future}
+
+import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.counter.config.S2CounterConfig
+import org.apache.s2graph.counter.core._
+import org.apache.s2graph.counter.core.ExactCounter.ExactValueMap
+import org.apache.s2graph.counter.models.Counter
+import org.apache.s2graph.counter.util.CartesianProduct
 
 object ExactStorageGraph {
+
   case class RespGraph(success: Boolean, result: Long)
+
   implicit val respGraphFormat = Json.format[RespGraph]
 
   // using play-ws without play app
@@ -61,9 +64,10 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
 
   import ExactStorageGraph._
 
-  override def update(policy: Counter,
-                      counts: Seq[(ExactKeyTrait, ExactValueMap)])
-    : Map[ExactKeyTrait, ExactValueMap] = {
+  override def update(
+      policy: Counter,
+      counts: Seq[(ExactKeyTrait, ExactValueMap)]
+  ): Map[ExactKeyTrait, ExactValueMap] = {
     import scala.concurrent.ExecutionContext.Implicits.global
 
     val (keyWithEq, reqJsLs) =
@@ -80,8 +84,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
 
               val keyWithEqResult = {
                 for {
-                  ((key, eq), RespGraph(success, result)) <- keyWithEq.zip(
-                    respSeq)
+                  ((key, eq), RespGraph(success, result)) <- keyWithEq.zip(respSeq)
                 } yield {
                   (key, (eq, result))
                 }
@@ -100,8 +103,8 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
 
   private def toIncrementCountRequests(
       policy: Counter,
-      counts: Seq[(ExactKeyTrait, ExactValueMap)])
-    : Seq[(ExactKeyTrait, core.ExactQualifier, JsValue)] = {
+      counts: Seq[(ExactKeyTrait, ExactValueMap)]
+  ): Seq[(ExactKeyTrait, ExactQualifier, JsValue)] = {
     val labelName = policy.action + labelPostfix
     val timestamp = System.currentTimeMillis()
     for {
@@ -116,24 +119,22 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
         "from" -> from,
         "to" -> to,
         "label" -> labelName,
-        "props" -> Json.obj(
-          "_count" -> value,
-          "time_unit" -> eq.tq.q.toString,
-          "time_value" -> eq.tq.ts
-        )
+        "props" -> Json
+          .obj("_count" -> value, "time_unit" -> eq.tq.q.toString, "time_value" -> eq.tq.ts)
       )
       (exactKey, eq, json)
     }
   }
 
-  override def get(policy: Counter,
-                   items: Seq[String],
-                   timeRange: Seq[(core.TimedQualifier, core.TimedQualifier)],
-                   dimQuery: Map[String, Set[String]])(
-      implicit ex: ExecutionContext): Future[Seq[FetchedCountsGrouped]] = {
+  override def get(
+      policy: Counter,
+      items: Seq[String],
+      timeRange: Seq[(TimedQualifier, TimedQualifier)],
+      dimQuery: Map[String, Set[String]]
+  )(implicit ex: ExecutionContext): Future[Seq[FetchedCountsGrouped]] = {
     val labelName = policy.action + labelPostfix
     val label = Label.findByName(labelName).get
-//    val label = labelModel.findByName(labelName).get
+    //    val label = labelModel.findByName(labelName).get
 
     val ids = Json.toJson(items)
 
@@ -150,8 +151,8 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
         (tqFrom, tqTo) <- timeRange
         dimension <- dimensions
       } yield {
-        val eqFrom = core.ExactQualifier(tqFrom, dimension)
-        val eqTo = core.ExactQualifier(tqTo, dimension)
+        val eqFrom = ExactQualifier(tqFrom, dimension)
+        val eqTo = ExactQualifier(tqTo, dimension)
         val intervalJs =
           s"""
              |{
@@ -185,7 +186,11 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
       s"""
          |{
          |  "srcVertices": [
-         |    {"serviceName": "${policy.service}", "columnName": "${label.srcColumnName}", "ids": $ids}
+         |    {
+         |      "serviceName": "${policy.service}",
+         |      "columnName": "${label.srcColumnName}",
+         |      "ids": $ids
+         |    }
          |  ],
          |  "steps": [
          |    {
@@ -198,41 +203,38 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
       """.stripMargin
 
     val reqJs = Json.parse(reqJsStr)
-//    log.warn(s"query: ${reqJs.toString()}")
+    //    log.warn(s"query: ${reqJs.toString()}")
 
-    wsClient.url(s"$s2graphReadOnlyUrl/graphs/getEdges").post(reqJs).map {
-      resp =>
-        resp.status match {
-          case HttpStatus.SC_OK =>
-            val respJs = resp.json
-//          println(respJs)
-            val keyWithValues = (respJs \ "results")
-              .as[Seq[JsValue]]
-              .map { result =>
-//            println(s"result: $result")
-                resultToExactKeyValues(policy, result)
-              }
-              .groupBy(_._1)
-              .mapValues(seq =>
+    wsClient.url(s"$s2graphReadOnlyUrl/graphs/getEdges").post(reqJs).map { resp =>
+      resp.status match {
+        case HttpStatus.SC_OK =>
+          val respJs = resp.json
+          val keyWithValues = (respJs \ "results")
+            .as[Seq[JsValue]]
+            .map { result =>
+              resultToExactKeyValues(policy, result)
+            }
+            .groupBy(_._1)
+            .mapValues(
+              seq =>
                 seq.map(_._2).toMap.groupBy {
                   case (eq, v) => (eq.tq.q, eq.dimKeyValues)
-              })
-            for {
-              (k, v) <- keyWithValues.toSeq
-            } yield {
-              FetchedCountsGrouped(k, v)
-            }
-          case n: Int =>
-            log.warn(s"getEdges status($n): $reqJsStr")
-//          println(s"getEdges status($n): $reqJsStr")
-            Nil
-        }
+              }
+            )
+          for {
+            (k, v) <- keyWithValues.toSeq
+          } yield {
+            FetchedCountsGrouped(k, v)
+          }
+        case n: Int =>
+          log.warn(s"getEdges status($n): $reqJsStr")
+          Nil
+      }
     }
   }
 
-  private def resultToExactKeyValues(
-      policy: Counter,
-      result: JsValue): (ExactKeyTrait, (core.ExactQualifier, Long)) = {
+  private def resultToExactKeyValues(policy: Counter,
+                                     result: JsValue): (ExactKeyTrait, (ExactQualifier, Long)) = {
     val from = (result \ "from").get match {
       case s: JsString => s.as[String]
       case n: JsNumber => n.as[Long].toString
@@ -245,64 +247,64 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
     val timeUnit = (props \ "time_unit").as[String]
     val timeValue = (props \ "time_value").as[Long]
     (ExactKey(policy, from, checkItemType = true),
-     (core.ExactQualifier(core.TimedQualifier(timeUnit, timeValue), dimension),
-      count))
+     (ExactQualifier(TimedQualifier(timeUnit, timeValue), dimension), count))
   }
 
-  private def getInner(policy: Counter,
-                       key: ExactKeyTrait,
-                       eqs: Seq[core.ExactQualifier])(
-      implicit ex: ExecutionContext): Future[Seq[FetchedCounts]] = {
+  private def getInner(policy: Counter, key: ExactKeyTrait, eqs: Seq[ExactQualifier])(
+      implicit ex: ExecutionContext
+  ): Future[Seq[FetchedCounts]] = {
     val labelName = policy.action + labelPostfix
 
     Label.findByName(labelName) match {
       case Some(label) =>
-        val src = Json.obj("serviceName" -> policy.service,
-                           "columnName" -> label.srcColumnName,
-                           "id" -> key.itemKey)
+        val src = Json.obj(
+          "serviceName" -> policy.service,
+          "columnName" -> label.srcColumnName,
+          "id" -> key.itemKey
+        )
         val step = {
           val stepLs = {
             for {
               eq <- eqs
             } yield {
-              val from = Json.obj("_to" -> eq.dimension,
-                                  "time_unit" -> eq.tq.q.toString,
-                                  "time_value" -> eq.tq.ts)
-              val to = Json.obj("_to" -> eq.dimension,
-                                "time_unit" -> eq.tq.q.toString,
-                                "time_value" -> eq.tq.ts)
+              val from = Json.obj(
+                "_to" -> eq.dimension,
+                "time_unit" -> eq.tq.q.toString,
+                "time_value" -> eq.tq.ts
+              )
+              val to = Json.obj(
+                "_to" -> eq.dimension,
+                "time_unit" -> eq.tq.q.toString,
+                "time_value" -> eq.tq.ts
+              )
               val interval = Json.obj("from" -> from, "to" -> to)
-              Json.obj("limit" -> 1,
-                       "label" -> labelName,
-                       "interval" -> interval)
+              Json.obj("limit" -> 1, "label" -> labelName, "interval" -> interval)
             }
           }
           Json.obj("step" -> stepLs)
         }
         val query =
           Json.obj("srcVertices" -> Json.arr(src), "steps" -> Json.arr(step))
-        //    println(s"query: ${query.toString()}")
 
-        wsClient.url(s"$s2graphReadOnlyUrl/graphs/getEdges").post(query).map {
-          resp =>
-            resp.status match {
-              case HttpStatus.SC_OK =>
-                val respJs = resp.json
-                val keyWithValues = (respJs \ "results")
-                  .as[Seq[JsValue]]
-                  .map { result =>
-                    resultToExactKeyValues(policy, result)
-                  }
-                  .groupBy(_._1)
-                  .mapValues(seq => seq.map(_._2).toMap)
-                for {
-                  (key, eqWithValues) <- keyWithValues.toSeq
-                } yield {
-                  FetchedCounts(key, eqWithValues)
+        wsClient.url(s"$s2graphReadOnlyUrl/graphs/getEdges").post(query).map { resp =>
+          resp.status match {
+            case HttpStatus.SC_OK =>
+              val respJs = resp.json
+              val keyWithValues = (respJs \ "results")
+                .as[Seq[JsValue]]
+                .map { result =>
+                  resultToExactKeyValues(policy, result)
                 }
-              case _ =>
-                Nil
-            }
+                .groupBy(_._1)
+                .mapValues(seq => seq.map(_._2).toMap)
+              for {
+                (key, eqWithValues) <- keyWithValues.toSeq
+              } yield {
+                FetchedCounts(key, eqWithValues)
+              }
+            case _ =>
+              Nil
+          }
         }
       case None =>
         Future.successful(Nil)
@@ -310,14 +312,13 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
   }
 
   // for query exact qualifier
-  override def get(policy: Counter,
-                   queries: Seq[(ExactKeyTrait, Seq[core.ExactQualifier])])(
-      implicit ex: ExecutionContext): Future[Seq[FetchedCounts]] = {
+  override def get(policy: Counter, queries: Seq[(ExactKeyTrait, Seq[ExactQualifier])])(
+      implicit ex: ExecutionContext
+  ): Future[Seq[FetchedCounts]] = {
     val futures = {
       for {
         (key, eqs) <- queries
       } yield {
-//        println(s"$key $eqs")
         getInner(policy, key, eqs)
       }
     }
@@ -327,8 +328,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
   override def getBlobValue(policy: Counter, blobId: String): Option[String] =
     throw new RuntimeException("unsupported getBlobValue operation")
 
-  override def insertBlobValue(policy: Counter,
-                               keys: Seq[BlobExactKey]): Seq[Boolean] =
+  override def insertBlobValue(policy: Counter, keys: Seq[BlobExactKey]): Seq[Boolean] =
     throw new RuntimeException("unsupported insertBlobValue operation")
 
   private def existsLabel(policy: Counter, useCache: Boolean = true): Boolean = {
@@ -373,8 +373,7 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
         """.stripMargin
       val json = policy.dailyTtl.map(ttl => ttl * 24 * 60 * 60) match {
         case Some(ttl) =>
-          Json.parse(defaultJson).as[JsObject] + ("hTableTTL" -> Json.toJson(
-            ttl))
+          Json.parse(defaultJson).as[JsObject] + ("hTableTTL" -> Json.toJson(ttl))
         case None =>
           Json.parse(defaultJson)
       }
@@ -397,9 +396,10 @@ case class ExactStorageGraph(config: Config) extends ExactStorage {
     existsLabel(policy)
 
   // for range query
-  override def get(policy: Counter,
-                   items: Seq[String],
-                   timeRange: Seq[(core.TimedQualifier, core.TimedQualifier)])(
-      implicit ec: ExecutionContext): Future[Seq[FetchedCounts]] =
+  override def get(
+      policy: Counter,
+      items: Seq[String],
+      timeRange: Seq[(TimedQualifier, TimedQualifier)]
+  )(implicit ec: ExecutionContext): Future[Seq[FetchedCounts]] =
     throw new NotImplementedError("Not implemented")
 }

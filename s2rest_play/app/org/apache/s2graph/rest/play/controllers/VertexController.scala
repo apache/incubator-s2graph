@@ -19,15 +19,16 @@
 
 package org.apache.s2graph.rest.play.controllers
 
-import org.apache.s2graph.core.rest.RequestParser
-import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{ExceptionHandler, GraphExceptions, S2Graph}
-import org.apache.s2graph.rest.play.actors.QueueActor
-import org.apache.s2graph.rest.play.config.Config
-import play.api.libs.json.{JsValue, Json}
+import scala.concurrent.Future
+
+import play.api.libs.json._
 import play.api.mvc.{Action, Controller, Result}
 
-import scala.concurrent.Future
+import org.apache.s2graph.core.{ExceptionHandler, GraphExceptions, S2Graph}
+import org.apache.s2graph.core.rest.RequestParser
+import org.apache.s2graph.core.utils.Logger
+import org.apache.s2graph.rest.play.actors.QueueActor
+import org.apache.s2graph.rest.play.config.Config
 
 object VertexController extends Controller {
   private val s2: S2Graph = org.apache.s2graph.rest.play.Global.s2graph
@@ -36,9 +37,10 @@ object VertexController extends Controller {
   private val walLogHandler: ExceptionHandler =
     org.apache.s2graph.rest.play.Global.wallLogHandler
 
+  import play.api.libs.concurrent.Execution.Implicits._
+
   import ApplicationController._
   import ExceptionHandler._
-  import play.api.libs.concurrent.Execution.Implicits._
 
   def tryMutates(jsValue: JsValue,
                  operation: String,
@@ -56,7 +58,6 @@ object VertexController extends Controller {
           walLogHandler.enqueue(toKafkaMessage(kafkaTopic, vertex, None))
         }
 
-        //FIXME:
         val verticesToStore = vertices.filterNot(v => skipElement(v.isAsync))
         if (verticesToStore.isEmpty) {
           Future.successful(jsonResponse(Json.toJson(Seq.empty[Boolean])))
@@ -75,7 +76,7 @@ object VertexController extends Controller {
         case e: GraphExceptions.JsonParseException =>
           Future.successful(BadRequest(s"e"))
         case e: Exception =>
-          logger.error(s"[Failed] tryMutates", e)
+          Logger.error(s"[Failed] tryMutates", e)
           Future.successful(InternalServerError(s"${e.getStackTrace}"))
       }
     }

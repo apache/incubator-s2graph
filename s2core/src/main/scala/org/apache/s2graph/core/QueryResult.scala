@@ -19,12 +19,10 @@
 
 package org.apache.s2graph.core
 
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
-import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs, VertexId}
-import org.apache.s2graph.core.utils.logger
+import scala.collection.mutable.ListBuffer
 
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
-import scala.collection.{mutable, Seq}
+import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
 
 object QueryResult {
   def fromVertices(graph: S2Graph, query: Query): StepResult =
@@ -64,6 +62,7 @@ case class QueryRequest(query: Query,
 
 trait WithScore[T] {
   def score(me: T): Double
+
   def withNewScore(me: T, newScore: Double): T
 }
 
@@ -209,6 +208,7 @@ object StepResult {
 
   /**
     * merge multiple StepResult into one StepResult.
+    *
     * @param globalQueryOption
     * @param multiStepResults
     * @param weights
@@ -220,9 +220,9 @@ object StepResult {
              weights: Seq[Double] = Nil,
              filterOutStepResult: StepResult): StepResult = {
     val degrees = multiStepResults.flatMap(_.degreeEdges)
-    val ls = new mutable.ListBuffer[EdgeWithScore]()
-    val agg = new mutable.HashMap[GroupByKey, ListBuffer[EdgeWithScore]]()
-    val sums = new mutable.HashMap[GroupByKey, Double]()
+    val ls = new collection.mutable.ListBuffer[EdgeWithScore]()
+    val agg = new collection.mutable.HashMap[GroupByKey, ListBuffer[EdgeWithScore]]()
+    val sums = new collection.mutable.HashMap[GroupByKey, Double]()
 
     val filterOutSet = filterOutStepResult.edgeWithScores.foldLeft(Set.empty[Seq[Option[Any]]]) {
       case (prev, t) =>
@@ -239,7 +239,6 @@ object StepResult {
           val newScore = t.score * weight
           val newT = t.copy(score = newScore)
 
-          //          val newOrderByValues = updateScoreOnOrderByValues(globalQueryOption.scoreFieldIdx, t.orderByValues, newScore)
           val newOrderByValues =
             if (globalQueryOption.orderByKeys.isEmpty) (newScore, t.edge.tsInnerVal, None, None)
             else toTuple4(newT.toValues(globalQueryOption.orderByKeys))
@@ -268,7 +267,6 @@ object StepResult {
             isEmpty = false
             val newScore = t.score * weight
             val newT = t.copy(score = newScore)
-//            val newOrderByValues = updateScoreOnOrderByValues(globalQueryOption.scoreFieldIdx, t.orderByValues, newScore)
 
             val newOrderByValues =
               if (globalQueryOption.orderByKeys.isEmpty) (newScore, t.edge.tsInnerVal, None, None)
@@ -320,7 +318,7 @@ object StepResult {
     )
   }
 
-  //TODO: Optimize this.
+  // TODO: Optimize this.
   def filterOut(graph: S2Graph,
                 queryOption: QueryOption,
                 baseStepResult: StepResult,

@@ -20,25 +20,28 @@
 package org.apache.s2graph.counter.core.v1
 
 import java.util
+
+import scala.collection.JavaConversions._
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
+
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.CellUtil
 import org.apache.hadoop.hbase.client._
 import org.apache.hadoop.hbase.util.Bytes
+import org.hbase.async.{ColumnRangeFilter, FilterList, GetRequest, KeyValue}
+import org.slf4j.LoggerFactory
+
 import org.apache.s2graph.counter.config.S2CounterConfig
-import org.apache.s2graph.counter.core
-import org.apache.s2graph.counter.core.ExactCounter.ExactValueMap
 import org.apache.s2graph.counter.core._
+import org.apache.s2graph.counter.core.ExactCounter.ExactValueMap
 import org.apache.s2graph.counter.helper.{Management, WithAsyncHBase, WithHBase}
 import org.apache.s2graph.counter.models.Counter
 import org.apache.s2graph.counter.models.Counter.ItemType
-import org.hbase.async.{ColumnRangeFilter, FilterList, GetRequest, KeyValue}
-import org.slf4j.LoggerFactory
-import scala.collection.JavaConversions._
-import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
 
 class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
+
   import ExactStorageHBase._
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -52,10 +55,11 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
   private def getTableName(policy: Counter): String =
     policy.hbaseTable.getOrElse(s2config.HBASE_TABLE_NAME)
 
-  override def get(policy: Counter,
-                   items: Seq[String],
-                   timeRange: Seq[(core.TimedQualifier, core.TimedQualifier)])(
-      implicit ex: ExecutionContext): Future[Seq[FetchedCounts]] = {
+  override def get(
+      policy: Counter,
+      items: Seq[String],
+      timeRange: Seq[(TimedQualifier, TimedQualifier)]
+  )(implicit ex: ExecutionContext): Future[Seq[FetchedCounts]] = {
 
     val tableName = getTableName(policy)
 
@@ -81,17 +85,17 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
           for {
             (from, to) <- timeRange
           } yield {
-            new ColumnRangeFilter(BytesUtilV1.toBytes(from),
-                                  true,
-                                  BytesUtilV1.toBytes(to.copy(ts = to.ts + 1)),
-                                  false)
+            new ColumnRangeFilter(
+              BytesUtilV1.toBytes(from),
+              true,
+              BytesUtilV1.toBytes(to.copy(ts = to.ts + 1)),
+              false
+            )
           }
         }, FilterList.Operator.MUST_PASS_ONE))
         (key, cf, get)
       }
     }
-
-//    println(s"$messageForLog $gets")
 
     withAsyncHBase[Seq[FetchedCounts]] { client =>
       val deferreds: Seq[Deferred[FetchedCounts]] = {
@@ -109,25 +113,21 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
                     eq -> Bytes.toLong(kv.value())
                   }
                 }.toMap
-//              println(s"$key $qualifierWithCounts")
                 FetchedCounts(key, qualifierWithCounts)
               }
             }
           }
         }
       }
-      Deferred.group(deferreds).addCallback {
+      Deferred.group[FetchedCounts](deferreds).addCallback {
         new Callback[Seq[FetchedCounts], util.ArrayList[FetchedCounts]] {
-          override def call(
-              arg: util.ArrayList[FetchedCounts]): Seq[FetchedCounts] = {
+          override def call(arg: util.ArrayList[FetchedCounts]): Seq[FetchedCounts] = {
             for {
               (key, fetchedGroup) <- Seq(arg: _*).groupBy(_.exactKey)
             } yield {
               fetchedGroup.reduce[FetchedCounts] {
                 case (f1, f2) =>
-                  FetchedCounts(
-                    key,
-                    f1.qualifierWithCountMap ++ f2.qualifierWithCountMap)
+                  FetchedCounts(key, f1.qualifierWithCountMap ++ f2.qualifierWithCountMap)
               }
             }
           }.toSeq
@@ -136,25 +136,29 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
     }
   }
 
-  override def get(policy: Counter,
-                   items: Seq[String],
-                   timeRange: Seq[(core.TimedQualifier, core.TimedQualifier)],
-                   dimQuery: Map[String, Set[String]])(
-      implicit ec: ExecutionContext): Future[Seq[FetchedCountsGrouped]] =
+  override def get(
+      policy: Counter,
+      items: Seq[String],
+      timeRange: Seq[(TimedQualifier, TimedQualifier)],
+      dimQuery: Map[String, Set[String]]
+  )(implicit ec: ExecutionContext): Future[Seq[FetchedCountsGrouped]] =
     get(policy, items, timeRange).map { fetchedLs =>
       for {
         FetchedCounts(exactKey, qualifierWithCountMap) <- fetchedLs
       } yield {
-        val intervalWithCountMap = qualifierWithCountMap.filter {
-          case (eq, v) => eq.checkDimensionEquality(dimQuery)
-        }.groupBy { case (eq, v) => (eq.tq.q, eq.dimKeyValues) }
+        val intervalWithCountMap = qualifierWithCountMap
+          .filter {
+            case (eq, v) => eq.checkDimensionEquality(dimQuery)
+          }
+          .groupBy { case (eq, v) => (eq.tq.q, eq.dimKeyValues) }
         FetchedCountsGrouped(exactKey, intervalWithCountMap)
       }
     }
 
-  override def update(policy: Counter,
-                      counts: Seq[(ExactKeyTrait, ExactValueMap)])
-    : Map[ExactKeyTrait, ExactValueMap] = {
+  override def update(
+      policy: Counter,
+      counts: Seq[(ExactKeyTrait, ExactValueMap)]
+  ): Map[ExactKeyTrait, ExactValueMap] = {
     // increment mutation to hbase
     val increments = {
       for {
@@ -164,9 +168,11 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
         for {
           (eq, value) <- values
         } {
-          inc.addColumn(intervalsMap.apply(eq.tq.q).toString.getBytes,
-                        BytesUtilV1.toBytes(eq),
-                        value)
+          inc.addColumn(
+            intervalsMap.apply(eq.tq.q).toString.getBytes,
+            BytesUtilV1.toBytes(eq),
+            value
+          )
         }
         // add column by dimension
         inc
@@ -196,11 +202,11 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
             val interval = eq.tq.q
             val cf = intervalsMap(interval)
             val result =
-              Option(
-                r.getColumnLatestCell(cf.toString.getBytes,
-                                      BytesUtilV1.toBytes(eq))).map { cell =>
-                Bytes.toLong(CellUtil.cloneValue(cell))
-              }.getOrElse(-1L)
+              Option(r.getColumnLatestCell(cf.toString.getBytes, BytesUtilV1.toBytes(eq)))
+                .map { cell =>
+                  Bytes.toLong(CellUtil.cloneValue(cell))
+                }
+                .getOrElse(-1L)
             eq -> result
           }
         case ex: Throwable =>
@@ -229,9 +235,9 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
       case _ =>
     }
 
-  override def get(policy: Counter,
-                   queries: Seq[(ExactKeyTrait, Seq[core.ExactQualifier])])(
-      implicit ex: ExecutionContext): Future[Seq[FetchedCounts]] = {
+  override def get(policy: Counter, queries: Seq[(ExactKeyTrait, Seq[ExactQualifier])])(
+      implicit ex: ExecutionContext
+  ): Future[Seq[FetchedCounts]] = {
 
     val tableName = getTableName(policy)
 
@@ -240,7 +246,6 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
         (key, eqs) <- queries
         (cf, eqsGrouped) <- eqs.groupBy(eq => intervalsMap(eq.tq.q))
       } yield {
-//        println(s"$key $eqsGrouped")
         val get = new GetRequest(tableName, BytesUtilV1.toBytes(key))
         get.family(cf.toString)
         get.qualifiers(eqsGrouped.map(BytesUtilV1.toBytes).toArray)
@@ -270,17 +275,15 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
           }
         }
       }
-      Deferred.group(deferreds).addCallback {
+      Deferred.group[FetchedCounts](deferreds).addCallback {
         new Callback[Seq[FetchedCounts], util.ArrayList[FetchedCounts]] {
-          override def call(
-              arg: util.ArrayList[FetchedCounts]): Seq[FetchedCounts] = arg
+          override def call(arg: util.ArrayList[FetchedCounts]): Seq[FetchedCounts] = arg
         }
       }
     }
   }
 
-  override def insertBlobValue(policy: Counter,
-                               keys: Seq[BlobExactKey]): Seq[Boolean] = {
+  override def insertBlobValue(policy: Counter, keys: Seq[BlobExactKey]): Seq[Boolean] = {
     val results: Array[Object] = Array.fill(keys.size)(null)
 
     val puts = keys.map { key =>
@@ -313,8 +316,7 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
       case ItemType.BLOB =>
         withHBase(getTableName(policy)) { table =>
           val rowKey =
-            BytesUtilV1.toBytes(
-              ExactKey(policy.id, policy.version, policy.itemType, blobId))
+            BytesUtilV1.toBytes(ExactKey(policy.id, policy.version, policy.itemType, blobId))
           val get = new Get(rowKey)
           get.addColumn(blobCF, blobColumn)
           table.get(get)
@@ -336,19 +338,21 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
     // create hbase table
     policy.hbaseTable.foreach { table =>
       if (!hbaseManagement.tableExists(s2config.HBASE_ZOOKEEPER_QUORUM, table)) {
-        hbaseManagement.createTable(s2config.HBASE_ZOOKEEPER_QUORUM,
-                                    table,
-                                    ColumnFamily.values.map(_.toString).toList,
-                                    1)
-        hbaseManagement.setTTL(s2config.HBASE_ZOOKEEPER_QUORUM,
-                               table,
-                               ColumnFamily.SHORT.toString,
-                               policy.ttl)
+        hbaseManagement.createTable(
+          s2config.HBASE_ZOOKEEPER_QUORUM,
+          table,
+          ColumnFamily.values.map(_.toString).toList,
+          1
+        )
+        hbaseManagement
+          .setTTL(s2config.HBASE_ZOOKEEPER_QUORUM, table, ColumnFamily.SHORT.toString, policy.ttl)
         policy.dailyTtl.foreach { i =>
-          hbaseManagement.setTTL(s2config.HBASE_ZOOKEEPER_QUORUM,
-                                 table,
-                                 ColumnFamily.LONG.toString,
-                                 i * 24 * 60 * 60)
+          hbaseManagement.setTTL(
+            s2config.HBASE_ZOOKEEPER_QUORUM,
+            table,
+            ColumnFamily.LONG.toString,
+            i * 24 * 60 * 60
+          )
         }
       }
     }
@@ -356,7 +360,9 @@ class ExactStorageAsyncHBase(config: Config) extends ExactStorage {
   override def destroy(policy: Counter): Unit = {}
 
   override def ready(policy: Counter): Boolean =
-    policy.hbaseTable.map { table =>
-      hbaseManagement.tableExists(s2config.HBASE_ZOOKEEPER_QUORUM, table)
-    }.getOrElse(true)
+    policy.hbaseTable
+      .map { table =>
+        hbaseManagement.tableExists(s2config.HBASE_ZOOKEEPER_QUORUM, table)
+      }
+      .getOrElse(true)
 }

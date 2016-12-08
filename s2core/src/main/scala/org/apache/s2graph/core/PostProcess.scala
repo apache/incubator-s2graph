@@ -21,18 +21,14 @@ package org.apache.s2graph.core
 
 import java.util.Base64
 
-import com.google.protobuf.ByteString
-import org.apache.s2graph.core.GraphExceptions.{BadQueryException, LabelNotExistException}
-import org.apache.s2graph.core.mysqls._
-import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs}
-import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.rest.RequestParser
-import org.apache.s2graph.core.utils.logger
+import scala.collection.mutable.ArrayBuffer
+
 import play.api.libs.json.{Json, _}
 
-import scala.collection.JavaConversions._
-import scala.collection.immutable
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import org.apache.s2graph.core.GraphExceptions.BadQueryException
+import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.rest.RequestParser
 
 object PostProcess {
 
@@ -229,8 +225,8 @@ object PostProcess {
     // build nextQuery with (original query + cursors)
     lazy val nextQuery: Option[JsValue] = {
       if (cursors.exists { stepCursors =>
-            stepCursors.exists(_ != "")
-          }) {
+          stepCursors.exists(_ != "")
+        }) {
         val cursorIter = cursors.iterator
 
         orgQuery.map { query =>

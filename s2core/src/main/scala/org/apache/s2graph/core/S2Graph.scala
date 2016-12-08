@@ -22,22 +22,6 @@ package org.apache.s2graph.core
 import java.util
 import java.util.concurrent.{Executors, TimeUnit}
 
-import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.commons.configuration.Configuration
-import org.apache.s2graph.core.GraphExceptions.{FetchTimeoutException, LabelNotExistException}
-import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.mysqls._
-import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
-import org.apache.s2graph.core.storage.{SKeyValue, Storage}
-import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.utils.{logger, DeferCache, Extensions}
-import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
-import org.apache.tinkerpop.gremlin.structure
-import org.apache.tinkerpop.gremlin.structure.Graph.Variables
-import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
-import org.apache.tinkerpop.gremlin.structure.{Edge, Graph, T, Transaction}
-import play.api.libs.json.{JsObject, Json}
-
 import scala.annotation.tailrec
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
@@ -45,6 +29,23 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.concurrent._
 import scala.concurrent.duration.Duration
 import scala.util.{Random, Try}
+
+import com.typesafe.config.{Config, ConfigFactory}
+import org.apache.commons.configuration.Configuration
+import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
+import org.apache.tinkerpop.gremlin.structure
+import org.apache.tinkerpop.gremlin.structure.{Edge, Graph, T, Transaction}
+import org.apache.tinkerpop.gremlin.structure.Graph.Variables
+import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
+import play.api.libs.json.{JsObject, Json}
+
+import org.apache.s2graph.core.GraphExceptions.{FetchTimeoutException, LabelNotExistException}
+import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.storage.{SKeyValue, Storage}
+import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
+import org.apache.s2graph.core.types._
+import org.apache.s2graph.core.utils.{DeferCache, Extensions, Logger}
 
 object S2Graph {
 
@@ -92,7 +93,7 @@ object S2Graph {
 
   def initStorage(graph: S2Graph, config: Config)(ec: ExecutionContext): Storage[_, _] = {
     val storageBackend = config.getString("s2graph.storage.backend")
-    logger.info(s"[InitStorage]: $storageBackend")
+    Logger.info(s"[InitStorage]: $storageBackend")
 
     storageBackend match {
       case "hbase" => new AsynchbaseStorage(graph, config)(ec)
@@ -185,7 +186,7 @@ object S2Graph {
           } getOrElse (edge.ts)
         } catch {
           case e: Exception =>
-            logger.error(s"processTimeDecay error. ${edge.toLogString}", e)
+            Logger.error(s"processTimeDecay error. ${edge.toLogString}", e)
             edge.ts
         }
         val timeDiff = queryParam.timestamp - tsVal
@@ -199,7 +200,6 @@ object S2Graph {
       implicit ev: WithScore[T]
   ): Seq[(FilterHashKey, T)] =
     if (queryParam.label.consistencyLevel != "strong") {
-      //TODO:
       queryParam.duplicatePolicy match {
         case DuplicatePolicy.First => Seq(duplicates.head)
         case DuplicatePolicy.Raw => duplicates
@@ -289,7 +289,7 @@ object S2Graph {
               /** Select */
               val mergedPropsWithTs = edge.propertyValuesInner(propsSelectColumns)
 
-//            val newEdge = edge.copy(propsWithTs = mergedPropsWithTs)
+              //            val newEdge = edge.copy(propsWithTs = mergedPropsWithTs)
               val newEdge = edge.copyEdgeWithState(mergedPropsWithTs)
 
               val newEdgeWithScore = edgeWithScore.copy(edge = newEdge)
@@ -343,7 +343,8 @@ object S2Graph {
                     val newScoreSum = scoreSum
 
                     /**
-                      * watch out here. by calling toString on Any, we lose type information which will be used
+                      * watch out here. by calling toString on Any,
+                      * we lose type information which will be used
                       * later for toJson.
                       */
                     if (merged.nonEmpty) {
@@ -423,7 +424,6 @@ object S2Graph {
 
         val tsVal = processTimeDecay(queryParam, edge)
         val newScore = degreeScore + score
-        //          val newEdge = if (queryOption.returnTree) edge.copy(parentEdges = parents) else edge
         val newEdge = edge.copy(parentEdges = parents)
         edgeWithScore.copy(edge = newEdge, score = newScore * labelWeight * tsVal)
       }
@@ -604,7 +604,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   for {
     entry <- config.entrySet() if S2Graph.DefaultConfigs.contains(entry.getKey)
     (k, v) = (entry.getKey, entry.getValue)
-  } logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
+  } Logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
 
   def getStorage(service: Service): Storage[_, _] =
     storagePool.getOrElse(s"service:${service.serviceName}", defaultStorage)
@@ -659,7 +659,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       }
     } recover {
       case e: Exception =>
-        logger.error(s"getEdgesAsync: $e", e)
+        Logger.error(s"getEdgesAsync: $e", e)
         fallback
     } get
 
@@ -669,6 +669,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       else {
 
         val queryOption = q.queryOption
+
         def fetch: Future[StepResult] = {
           val startStepInnerResult = QueryResult.fromVertices(this, q)
           q.steps.zipWithIndex.foldLeft(Future.successful(startStepInnerResult)) {
@@ -683,7 +684,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
                 )
               } yield {
                 currentStepInnerResult.copy(
-                  accumulatedCursors = prevStepInnerResult.accumulatedCursors :+ currentStepInnerResult.cursors,
+                  accumulatedCursors = prevStepInnerResult.accumulatedCursors :+
+                      currentStepInnerResult.cursors,
                   failCount = currentStepInnerResult.failCount + prevStepInnerResult.failCount
                 )
               }
@@ -694,7 +696,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       }
     } recover {
       case e: Exception =>
-        logger.error(s"getEdgesAsync: $e", e)
+        Logger.error(s"getEdgesAsync: $e", e)
         fallback
     } get
 
@@ -760,7 +762,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
 
   /**
-    * responsible to fire parallel fetch call into storage and create future that will return merged result.
+    * responsible to fire parallel fetch call into storage and create future that will return
+    * merged result.
     *
     * @param queryRequests
     * @param prevStepEdges
@@ -806,7 +809,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       }
     } recover {
       case e: Exception =>
-        logger.error(s"getEdgesAsync: $e", e)
+        Logger.error(s"getEdgesAsync: $e", e)
         fallback
     } get
 
@@ -837,7 +840,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       (queryParam, edgeOpt, kvOpt)
     } recoverWith {
       case ex: Throwable =>
-        logger.error(s"fetchQueryParam failed. fallback return.", ex)
+        Logger.error(s"fetchQueryParam failed. fallback return.", ex)
         throw FetchTimeoutException(s"${edge.toLogString}")
     }
   }
@@ -890,7 +893,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
     retryFuture onFailure {
       case ex =>
-        logger.error(s"[Error]: deleteAllAdjacentEdges failed.")
+        Logger.error(s"[Error]: deleteAllAdjacentEdges failed.")
     }
 
     retryFuture
@@ -908,7 +911,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     Extensions.retryOnFailure(MaxRetryNum) {
       future
     } {
-      logger.error(s"fetch and deleteAll failed.")
+      Logger.error(s"fetch and deleteAll failed.")
       (true, false)
     }
 
@@ -985,32 +988,14 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
               ts = requestTs
             )
         }
-//        val (newOp, newVersion, newPropsWithTs) = label.consistencyLevel match {
-//          case "strong" =>
-//            val edge = edgeWithScore.edge
-//            edge.property(LabelMeta.timestamp.name, requestTs)
-//            val _newPropsWithTs = edge.updatePropsWithTs()
-//
-//            (GraphUtil.operations("delete"), requestTs, _newPropsWithTs)
-//          case _ =>
-//            val oldEdge = edgeWithScore.edge
-//            (oldEdge.op, oldEdge.version, oldEdge.updatePropsWithTs())
-//        }
-//
-//        val copiedEdge =
-//          edgeWithScore.edge.copy(op = newOp, version = newVersion, propsWithTs = newPropsWithTs)
-
         val edgeToDelete = edgeWithScore.copy(edge = copiedEdge)
         //      logger.debug(s"delete edge from deleteAll: ${edgeToDelete.edge.toLogString}")
         edgeToDelete
       }
-      //Degree edge?
+      // Degree edge?
       StepResult(edgeWithScores = edgeWithScoreLs, grouped = Nil, degreeEdges = Nil, false)
     }
   }
-
-  //  def deleteAllAdjacentEdges(srcVertices: List[Vertex], labels: Seq[Label], dir: Int, ts: Long): Future[Boolean] =
-  //    storage.deleteAllAdjacentEdges(srcVertices, labels, dir, ts)
 
   def mutateElements(elements: Seq[GraphElement],
                      withWait: Boolean = false): Future[Seq[Boolean]] = {
@@ -1021,7 +1006,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     elements.zipWithIndex.foreach {
       case (e: S2Edge, idx: Int) => edgeBuffer.append((e, idx))
       case (v: S2Vertex, idx: Int) => vertexBuffer.append((v, idx))
-      case any @ _ => logger.error(s"Unknown type: ${any}")
+      case any @ _ => Logger.error(s"Unknown type: ${any}")
     }
 
     val edgeFutureWithIdx = mutateEdges(edgeBuffer.map(_._1), withWait).map { result =>
@@ -1040,8 +1025,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     graphFuture
 
   }
-
-  //  def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = storage.mutateEdges(edges, withWait)
 
   def mutateEdges(edges: Seq[S2Edge], withWait: Boolean = false): Future[Seq[Boolean]] = {
     val edgeWithIdxs = edges.zipWithIndex
@@ -1175,7 +1158,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       element
     } recover {
       case e: Exception =>
-        logger.error(s"[toElement]: $e", e)
+        Logger.error(s"[toElement]: $e", e)
         None
     } get
 
@@ -1199,7 +1182,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       Option(edge)
     } recover {
       case e: Exception =>
-        logger.error(s"[toEdge]: $e", e)
+        Logger.error(s"[toEdge]: $e", e)
         throw e
     } get
 
@@ -1217,7 +1200,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       Option(vertex)
     } recover {
       case e: Throwable =>
-        logger.error(s"[toVertex]: $e", e)
+        Logger.error(s"[toVertex]: $e", e)
         throw e
     } get
 
@@ -1281,11 +1264,14 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   }
 
   /**
-    * helper to create new Edge instance from given parameters on memory(not actually stored in storage).
+    * helper to create new Edge instance from given parameters on memory(not actually stored
+    * in storage).
     *
     * Since we are using mutable map for property value(propsWithTs),
-    * we should make sure that reference for mutable map never be shared between multiple Edge instances.
-    * To guarantee this, we never create Edge directly, but rather use this helper which is available on S2Graph.
+    * we should make sure that reference for mutable map never be shared between
+    * multiple Edge instances.
+    * To guarantee this, we never create Edge directly, but rather use this helper which is
+    * available on S2Graph.
     *
     * Note that we are using following convention
     * 1. `add*` for method that actually store instance into storage,
@@ -1340,9 +1326,12 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   }
 
   /**
-    * helper to create new SnapshotEdge instance from given parameters on memory(not actually stored in storage).
+    * helper to create new SnapshotEdge instance from given parameters on memory(not actually
+    * stored in storage).
     *
-    * Note that this is only available to S2Graph, not structure.Graph so only internal code should use this method.
+    * Note that this is only available to S2Graph, not structure.Graph so only internal code should
+    * use this method.
+    *
     * @param srcVertex
     * @param tgtVertex
     * @param label
@@ -1424,8 +1413,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     val dir = GraphUtil
       .toDir(direction)
       .getOrElse(throw new RuntimeException(s"$direction is not supported."))
-//    if (srcVertex.id.column != label.srcColumnWithDir(dir)) throw new RuntimeException(s"srcVertex's column[${srcVertex.id.column}] is not matched to label's srcColumn[${label.srcColumnWithDir(dir)}")
-//    if (tgtVertex.id.column != label.tgtColumnWithDir(dir)) throw new RuntimeException(s"tgtVertex's column[${tgtVertex.id.column}] is not matched to label's tgtColumn[${label.tgtColumnWithDir(dir)}")
 
     // Convert given Map[String, AnyRef] property into internal class.
     val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
@@ -1455,6 +1442,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   /**
     * helper to create S2Graph's internal VertexId instance with given parameters.
+    *
     * @param service
     * @param column
     * @param id
@@ -1503,9 +1491,12 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   /**
     * used by graph.traversal().V()
-    * @param vertexIds: array of VertexId values. note that last parameter can be used to control if actually fetch vertices from storage or not.
-    *                 since S2Graph use user-provided id as part of edge, it is possible to
-    *                 fetch edge without fetch start vertex. default is false which means we are not fetching vertices from storage.
+    *
+    * @param vertexIds : array of VertexId values. note that last parameter can be used to control
+    *                  if actually fetch vertices from storage or not.
+    *                  since S2Graph use user-provided id as part of edge, it is possible to
+    *                  fetch edge without fetch start vertex. default is false which means we are
+    *                  not fetching vertices from storage.
     * @return
     */
   override def vertices(vertexIds: AnyRef*): util.Iterator[structure.Vertex] = {

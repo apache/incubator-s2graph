@@ -22,14 +22,14 @@ package org.apache.s2graph.core.mysqls
 import java.util.Calendar
 
 import com.typesafe.config.Config
+import play.api.libs.json.{JsArray, JsObject, Json}
+import scalikejdbc._
+
 import org.apache.s2graph.core.GraphExceptions.ModelNotFoundException
-import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
-import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs}
-import org.apache.s2graph.core.utils.logger
-import play.api.libs.json.{JsArray, JsObject, JsValue, Json}
-import scalikejdbc._
+import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
+import org.apache.s2graph.core.utils.Logger
 
 object Label extends Model[Label] {
 
@@ -338,12 +338,13 @@ object Label extends Model[Label] {
   }
 
   def findAll()(implicit session: DBSession = AutoSession): Seq[Label] = {
-    val ls = sql"""select * from labels where deleted_at is null"""
-      .map { rs =>
-        Label(rs)
-      }
-      .list()
-      .apply()
+    val ls =
+      sql"""select * from labels where deleted_at is null"""
+        .map { rs =>
+          Label(rs)
+        }
+        .list()
+        .apply()
     putsToCache(ls.map { x =>
       val cacheKey = s"id=${x.id.get}"
       (cacheKey -> x)
@@ -357,14 +358,14 @@ object Label extends Model[Label] {
 
   def updateName(oldName: String,
                  newName: String)(implicit session: DBSession = AutoSession): Int = {
-    logger.info(s"rename label: $oldName -> $newName")
+    Logger.info(s"rename label: $oldName -> $newName")
     sql"""update labels set label = ${newName} where label = ${oldName}""".update
       .apply()
   }
 
   def updateHTableName(labelName: String, newHTableName: String)(implicit session: DBSession =
                                                                    AutoSession): Int = {
-    logger.info(s"update HTable of label $labelName to $newHTableName")
+    Logger.info(s"update HTable of label $labelName to $newHTableName")
     val cnt =
       sql"""update labels set hbase_table_name = $newHTableName where label = $labelName"""
         .update()
@@ -381,7 +382,7 @@ object Label extends Model[Label] {
 
   def delete(id: Int)(implicit session: DBSession = AutoSession): Int = {
     val label = findById(id)
-    logger.info(s"delete label: $label")
+    Logger.info(s"delete label: $label")
     val cnt =
       sql"""delete from labels where id = ${label.id.get}""".update().apply()
     val cacheKeys = List(s"id=$id", s"label=${label.label}")
@@ -394,12 +395,14 @@ object Label extends Model[Label] {
 
   def markDeleted(label: Label)(implicit session: DBSession = AutoSession): Int = {
 
-    logger.info(s"mark deleted label: $label")
+    Logger.info(s"mark deleted label: $label")
     val oldName = label.label
     val now = Calendar.getInstance().getTime
     val newName = s"deleted_${now.getTime}_" + label.label
     val cnt =
-      sql"""update labels set label = ${newName}, deleted_at = ${now} where id = ${label.id.get}""".update
+      sql"""
+           update labels set label = ${newName}, deleted_at = ${now} where id = ${label.id.get}
+          """.update
         .apply()
     val cacheKeys = List(s"id=${label.id}", s"label=${oldName}")
     cacheKeys.foreach { key =>
@@ -434,7 +437,6 @@ case class Label(id: Option[Int],
   def indices(useCache: Boolean = true): Seq[LabelIndex] =
     LabelIndex.findByLabelIdAll(id.get, useCache = useCache)
 
-  //  lazy val firstHBaseTableName = hbaseTableName.split(",").headOption.getOrElse(Config.HBASE_TABLE_NAME)
   lazy val srcService = Service.findById(srcServiceId)
   lazy val tgtService = Service.findById(tgtServiceId)
   lazy val service = Service.findById(serviceId)
@@ -443,9 +445,6 @@ case class Label(id: Option[Int],
     * TODO
     * change this to apply hbase table from target serviceName
     */
-  //  lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, service.tableName.split(",").headOption.getOrElse(Config.HBASE_TABLE_NAME))
-  //  lazy val (hbaseZkAddr, hbaseTableName) = (Config.HBASE_ZOOKEEPER_QUORUM, hTableName.split(",").headOption.getOrElse(Config.HBASE_TABLE_NAME))
-  //  lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, hTableName.split(",").headOption.getOrElse(GraphConnection.getConfVal("hbase.table.name")))
   lazy val (hbaseZkAddr, hbaseTableName) =
     (service.cluster, hTableName.split(",").head)
 
@@ -459,9 +458,9 @@ case class Label(id: Option[Int],
   lazy val defaultIndex =
     LabelIndex.findByLabelIdAndSeq(id.get, LabelIndex.DefaultSeq)
 
-  //TODO: Make sure this is correct
+  // TODO: Make sure this is correct
 
-//  lazy val metas = metas(useCache = true)
+  //  lazy val metas = metas(useCache = true)
   lazy val indices = LabelIndex.findByLabelIdAll(id.get, useCache = true)
   lazy val labelMetas = LabelMeta.findAllByLabelId(id.get, useCache = true)
   lazy val labelMetaSet = labelMetas.toSet
@@ -525,18 +524,18 @@ case class Label(id: Option[Int],
       prop.dataType
     )
   } yield prop -> jsValue).toMap
-//  lazy val extraOptions = Model.extraOptions(Option("""{
-//    "storage": {
-//      "s2graph.storage.backend": "rocks",
-//      "rocks.db.path": "/tmp/db"
-//    }
-//  }"""))
+  //  lazy val extraOptions = Model.extraOptions(Option("""{
+  //    "storage": {
+  //      "s2graph.storage.backend": "rocks",
+  //      "rocks.db.path": "/tmp/db"
+  //    }
+  //  }"""))
 
   lazy val tokens: Set[String] =
     extraOptions.get("tokens").fold(Set.empty[String]) {
       case JsArray(tokens) => tokens.map(_.as[String]).toSet
       case _ =>
-        logger.error("Invalid token JSON")
+        Logger.error("Invalid token JSON")
         Set.empty[String]
     }
 
@@ -566,37 +565,12 @@ case class Label(id: Option[Int],
 
   lazy val EmptyPropsWithTs =
     Map(LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 0))
-//  def init() = {
-//    metas()
-//    metaSeqsToNames()
-//    service
-//    srcColumn
-//    tgtColumn
-//    defaultIndex
-//    indices
-//    metaProps
-//  }
-
-  //  def srcColumnInnerVal(jsValue: JsValue) = {
-  //    jsValueToInnerVal(jsValue, srcColumnType, version)
-  //  }
-  //  def tgtColumnInnerVal(jsValue: JsValue) = {
-  //    jsValueToInnerVal(jsValue, tgtColumnType, version)
-  //  }
 
   override def toString(): String = {
     val orderByKeys = LabelMeta.findAllByLabelId(id.get)
     super.toString() + orderByKeys.toString()
   }
 
-  //  def findLabelIndexSeq(scoring: List[(Byte, Double)]): Byte = {
-  //    if (scoring.isEmpty) LabelIndex.defaultSeq
-  //    else {
-  //      LabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
-  //
-  ////      LabelIndex.findByLabelIdAndSeqs(id.get, scoring.map(_._1).sorted).map(_.seq).getOrElse(LabelIndex.defaultSeq)
-  //    }
-  //  }
   lazy val toJson = {
     val allIdxs = LabelIndex.findByLabelIdAll(id.get, useCache = false)
     val defaultIdxOpt =
@@ -614,10 +588,11 @@ case class Label(id: Option[Int],
     val optionsJs = try {
       val obj = options.map(Json.parse).getOrElse(Json.obj()).as[JsObject]
       if (!obj.value.contains("tokens")) obj
-      else
-        obj ++ Json.obj("tokens" -> obj.value("tokens").as[Seq[String]].map("*" * _.length))
+      else obj ++ Json.obj("tokens" -> obj.value("tokens").as[Seq[String]].map("*" * _.length))
 
-    } catch { case e: Exception => Json.obj() }
+    } catch {
+      case e: Exception => Json.obj()
+    }
 
     Json.obj(
       "labelName" -> label,

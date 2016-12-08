@@ -22,11 +22,12 @@ package org.apache.s2graph.core.mysqls
 /**
   * Created by shon on 6/3/15.
   */
-import org.apache.s2graph.core.JSONParser
-import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.types.{HBaseType, InnerValLike, InnerValLikeWithTs}
 import play.api.libs.json.Json
 import scalikejdbc._
+
+import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.types.{InnerValLike, InnerValLikeWithTs}
+
 object ServiceColumn extends Model[ServiceColumn] {
   val Default = ServiceColumn(Option(0), -1, "default", "string", "v4")
 
@@ -39,15 +40,8 @@ object ServiceColumn extends Model[ServiceColumn] {
       rs.string("schema_version")
     )
 
-//  def findByServiceAndColumn(serviceName: String,
-//                             columnName: String,
-//                             useCache: Boolean  = true)(implicit session: DBSession): Option[ServiceColumn] = {
-//    val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
-//    find(service.id.get, columnName, useCache)
-//  }
-
   def findById(id: Int)(implicit session: DBSession = AutoSession): ServiceColumn = {
-//    val cacheKey = s"id=$id"
+    //    val cacheKey = s"id=$id"
     val cacheKey = "id=" + id
     withCache(cacheKey)(
       sql"""select * from service_columns where id = ${id}"""
@@ -58,15 +52,17 @@ object ServiceColumn extends Model[ServiceColumn] {
         .apply
     ).get
   }
+
   def find(serviceId: Int, columnName: String, useCache: Boolean = true)(
       implicit session: DBSession = AutoSession
   ): Option[ServiceColumn] = {
-//    val cacheKey = s"serviceId=$serviceId:columnName=$columnName"
+    //    val cacheKey = s"serviceId=$serviceId:columnName=$columnName"
     val cacheKey = "serviceId=" + serviceId + ":columnName=" + columnName
     if (useCache) {
       withCache(cacheKey) {
         sql"""
-          select * from service_columns where service_id = ${serviceId} and column_name = ${columnName}
+          select * from service_columns
+          where service_id = ${serviceId} and column_name = ${columnName}
         """
           .map { rs =>
             ServiceColumn(rs)
@@ -76,7 +72,8 @@ object ServiceColumn extends Model[ServiceColumn] {
       }
     } else {
       sql"""
-        select * from service_columns where service_id = ${serviceId} and column_name = ${columnName}
+        select * from service_columns 
+        where service_id = ${serviceId} and column_name = ${columnName}
       """
         .map { rs =>
           ServiceColumn(rs)
@@ -85,6 +82,7 @@ object ServiceColumn extends Model[ServiceColumn] {
         .apply()
     }
   }
+
   def insert(serviceId: Int,
              columnName: String,
              columnType: Option[String],
@@ -92,6 +90,7 @@ object ServiceColumn extends Model[ServiceColumn] {
     sql"""insert into service_columns(service_id, column_name, column_type, schema_version)
          values(${serviceId}, ${columnName}, ${columnType}, ${schemaVersion})""".execute
       .apply()
+
   def delete(id: Int)(implicit session: DBSession = AutoSession): Unit = {
     val serviceColumn = findById(id)
     val (serviceId, columnName) =
@@ -104,6 +103,7 @@ object ServiceColumn extends Model[ServiceColumn] {
       expireCaches(key)
     }
   }
+
   def findOrInsert(
       serviceId: Int,
       columnName: String,
@@ -114,18 +114,20 @@ object ServiceColumn extends Model[ServiceColumn] {
       case Some(sc) => sc
       case None =>
         insert(serviceId, columnName, columnType, schemaVersion)
-//        val cacheKey = s"serviceId=$serviceId:columnName=$columnName"
+        //        val cacheKey = s"serviceId=$serviceId:columnName=$columnName"
         val cacheKey = "serviceId=" + serviceId + ":columnName=" + columnName
         expireCache(cacheKey)
         find(serviceId, columnName).get
     }
+
   def findAll()(implicit session: DBSession = AutoSession): Unit = {
-    val ls = sql"""select * from service_columns"""
-      .map { rs =>
-        ServiceColumn(rs)
-      }
-      .list
-      .apply
+    val ls =
+      sql"""select * from service_columns"""
+        .map { rs =>
+          ServiceColumn(rs)
+        }
+        .list
+        .apply
     putsToCache(ls.map { x =>
       var cacheKey = s"id=${x.id.get}"
       (cacheKey -> x)
@@ -136,6 +138,7 @@ object ServiceColumn extends Model[ServiceColumn] {
     })
   }
 }
+
 case class ServiceColumn(id: Option[Int],
                          serviceId: Int,
                          columnName: String,
@@ -143,7 +146,9 @@ case class ServiceColumn(id: Option[Int],
                          schemaVersion: String) {
 
   lazy val service = Service.findById(serviceId)
-  lazy val metas = ColumnMeta.timestamp +: ColumnMeta.findAllByColumn(id.get) :+ ColumnMeta.lastModifiedAtColumn
+  lazy val metas = ColumnMeta.timestamp +:
+      ColumnMeta.findAllByColumn(id.get) :+
+      ColumnMeta.lastModifiedAtColumn
   lazy val metasMap = metas
     .map { meta =>
       meta.seq.toInt -> meta

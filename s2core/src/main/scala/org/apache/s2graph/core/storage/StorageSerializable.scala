@@ -20,9 +20,9 @@
 package org.apache.s2graph.core.storage
 
 import org.apache.hadoop.hbase.util.Bytes
+
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.types.{InnerValLike, InnerValLikeWithTs}
-import org.apache.s2graph.core.utils.logger
 
 object StorageSerializable {
 
@@ -68,10 +68,13 @@ trait StorageSerializable[E] {
   val cf = Serializable.edgeCf
 
   def table: Array[Byte]
+
   def ts: Long
 
   def toRowKey: Array[Byte]
+
   def toQualifier: Array[Byte]
+
   def toValue: Array[Byte]
 
   def toKeyValues: Seq[SKeyValue] = {
@@ -79,7 +82,7 @@ trait StorageSerializable[E] {
     val qualifier = toQualifier
     val value = toValue
     val kv = SKeyValue(table, row, cf, qualifier, value, ts)
-//    logger.debug(s"[SER]: ${kv.toLogString}}")
+    //    logger.debug(s"[SER]: ${kv.toLogString}}")
     Seq(kv)
   }
 }

@@ -19,10 +19,10 @@
 
 package org.apache.s2graph.core.utils
 
+import scala.concurrent.{ExecutionContext, Future, Promise}
+
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.Config
-
-import scala.concurrent.{ExecutionContext, Future, Promise}
 
 object Extensions {
 
@@ -33,7 +33,7 @@ object Extensions {
       case i if n <= maxRetryNum =>
         fn.flatMap { result =>
           if (!shouldStop(result)) {
-            logger.info(s"retryOnSuccess $n")
+            Logger.info(s"retryOnSuccess $n")
             retryOnSuccess(maxRetryNum, n + 1)(fn)(shouldStop)
           } else {
             Future.successful(result)
@@ -48,7 +48,7 @@ object Extensions {
     case i if n <= maxRetryNum =>
       fn recoverWith {
         case t: Throwable =>
-          logger.info(s"retryOnFailure $n $t")
+          Logger.info(s"retryOnFailure $n $t")
           retryOnFailure(maxRetryNum, n + 1)(fn)(fallback)
       }
     case _ =>
@@ -123,4 +123,5 @@ object Extensions {
     def getBooleanWithFallback(key: String, defaultValue: Boolean): Boolean =
       if (config.hasPath(key)) config.getBoolean(key) else defaultValue
   }
+
 }

@@ -20,15 +20,17 @@
 package org.apache.s2graph.counter.core
 
 import java.util
-import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
-import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit.IntervalUnit
+
 import scala.collection.JavaConversions._
+
+import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
+
+import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit.IntervalUnit
 
 case class ExactQualifier(tq: TimedQualifier,
                           dimKeyValues: Map[String, String],
                           dimension: String) {
   def checkDimensionEquality(dimQuery: Map[String, Set[String]]): Boolean =
-//    println(s"self: $dimKeyValues, query: $dimQuery")
     dimQuery.size == dimKeyValues.size && {
       for {
         (k, v) <- dimKeyValues
@@ -40,14 +42,14 @@ case class ExactQualifier(tq: TimedQualifier,
 
 object ExactQualifier {
   val cache: LoadingCache[String, Map[String, String]] = CacheBuilder
-    .newBuilder()
-    .maximumSize(10000)
-    .build(
-      new CacheLoader[String, Map[String, String]]() {
-        def load(s: String): Map[String, String] =
-          strToDimensionMap(s)
-      }
-    )
+      .newBuilder()
+      .maximumSize(10000)
+      .build(
+        new CacheLoader[String, Map[String, String]]() {
+          def load(s: String): Map[String, String] =
+            strToDimensionMap(s)
+        }
+      )
 
   def apply(tq: TimedQualifier, dimension: String): ExactQualifier =
     ExactQualifier(tq, cache.get(dimension), dimension)
@@ -57,7 +59,7 @@ object ExactQualifier {
     ExactQualifier(tq, dimKeyValues, makeDimensionStr(dimKeyValues))
 
   def makeSortedDimension(
-      dimKeyValues: Map[String, String]): Iterator[String] = {
+                             dimKeyValues: Map[String, String]): Iterator[String] = {
     val sortedDimKeyValues = new util.TreeMap[String, String](dimKeyValues)
     sortedDimKeyValues.keysIterator ++ sortedDimKeyValues.valuesIterator
   }

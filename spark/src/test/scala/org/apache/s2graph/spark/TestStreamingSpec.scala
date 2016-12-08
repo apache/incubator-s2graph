@@ -19,8 +19,8 @@
 
 package org.apache.s2graph.spark
 
-import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.specs2.mutable.Specification
 import org.specs2.specification.BeforeAfterAll
 
@@ -34,8 +34,8 @@ class TestStreamingSpec extends Specification with BeforeAfterAll {
 
   override def beforeAll(): Unit = {
     val conf = new SparkConf()
-      .setMaster(master)
-      .setAppName(appName)
+        .setMaster(master)
+        .setAppName(appName)
 
     ssc = new StreamingContext(conf, batchDuration)
 

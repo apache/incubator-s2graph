@@ -19,45 +19,48 @@
 
 package org.apache.s2graph.counter.loader.stream
 
+import scala.collection.mutable
+import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.concurrent.ExecutionContext
+
 import kafka.producer.KeyedMessage
 import kafka.serializer.StringDecoder
+import org.apache.spark.streaming.Durations._
+import org.apache.spark.streaming.kafka.KafkaRDDFunctions.rddToKafkaRDDFunctions
+import org.apache.spark.streaming.kafka.StreamHelper
+
 import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.core.utils.Logger
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.loader.config.StreamingConfig
 import org.apache.s2graph.counter.loader.core.{CounterEtlFunctions, CounterEtlItem, DimensionProps}
 import org.apache.s2graph.counter.models.{CounterModel, DBModel}
 import org.apache.s2graph.spark.config.S2ConfigFactory
 import org.apache.s2graph.spark.spark.{HashMapParam, SparkApp, WithKafka}
-import org.apache.spark.streaming.Durations._
-import org.apache.spark.streaming.kafka.KafkaRDDFunctions.rddToKafkaRDDFunctions
-import org.apache.spark.streaming.kafka.StreamHelper
-import scala.collection.mutable
-import scala.collection.mutable.{HashMap => MutableHashMap}
-import scala.concurrent.ExecutionContext
 
 object EtlStreaming extends SparkApp with WithKafka {
-  lazy val config       = S2ConfigFactory.config
-  lazy val s2Config     = new S2CounterConfig(config)
+  lazy val config = S2ConfigFactory.config
+  lazy val s2Config = new S2CounterConfig(config)
   lazy val counterModel = new CounterModel(config)
-  lazy val className    = getClass.getName.stripSuffix("$")
-  lazy val producer     = getProducer[String, String](StreamingConfig.KAFKA_BROKERS)
+  lazy val className = getClass.getName.stripSuffix("$")
+  lazy val producer = getProducer[String, String](StreamingConfig.KAFKA_BROKERS)
 
   implicit val graphEx = ExecutionContext.Implicits.global
 
   val initialize = {
-    println("streaming initialize")
-//    Graph(config)
+    Logger.info("streaming initialize")
+    //    Graph(config)
     DBModel.initialize(config)
     true
   }
 
-  val inputTopics    = Set(StreamingConfig.KAFKA_TOPIC_ETL)
+  val inputTopics = Set(StreamingConfig.KAFKA_TOPIC_ETL)
   val strInputTopics = inputTopics.mkString(",")
-  val groupId        = buildKafkaGroupId(strInputTopics, "etl_to_counter")
+  val groupId = buildKafkaGroupId(strInputTopics, "etl_to_counter")
   val kafkaParam = Map(
-    "group.id"                        -> groupId,
-    "metadata.broker.list"            -> StreamingConfig.KAFKA_BROKERS,
-    "zookeeper.connect"               -> StreamingConfig.KAFKA_ZOOKEEPER,
+    "group.id" -> groupId,
+    "metadata.broker.list" -> StreamingConfig.KAFKA_BROKERS,
+    "zookeeper.connect" -> StreamingConfig.KAFKA_ZOOKEEPER,
     "zookeeper.connection.timeout.ms" -> "10000"
   )
   val streamHelper = StreamHelper(kafkaParam)
@@ -67,8 +70,8 @@ object EtlStreaming extends SparkApp with WithKafka {
     val (intervalInSec) = seconds(args(0).toLong)
 
     val conf = sparkConf(s"$strInputTopics: $className")
-    val ssc  = streamingContext(conf, intervalInSec)
-    val sc   = ssc.sparkContext
+    val ssc = streamingContext(conf, intervalInSec)
+    val sc = ssc.sparkContext
 
     val acc = sc.accumulable(MutableHashMap.empty[String, Long], "Throughput")(
       HashMapParam[String, Long](_ + _))
@@ -89,8 +92,8 @@ object EtlStreaming extends SparkApp with WithKafka {
           val items = {
             for {
               (k, v) <- part
-              line   <- GraphUtil.parseString(v)
-              item   <- CounterEtlFunctions.parseEdgeFormat(line)
+              line <- GraphUtil.parseString(v)
+              item <- CounterEtlFunctions.parseEdgeFormat(line)
             } yield {
               acc += (("Edges", 1))
               item
@@ -123,9 +126,9 @@ object EtlStreaming extends SparkApp with WithKafka {
                 acc += (("Produce", grouped.size))
                 producer.send(
                   new KeyedMessage[String, String](StreamingConfig.KAFKA_TOPIC_COUNTER,
-                                                   null,
-                                                   k,
-                                                   grouped.mkString("\n")))
+                    null,
+                    k,
+                    grouped.mkString("\n")))
               }
           }
 

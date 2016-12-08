@@ -19,23 +19,24 @@
 
 package org.apache.s2graph.loader.subscriber
 
-import org.apache.hadoop.hbase.client.Put
+import scala.collection.JavaConversions._
+
+import org.apache.hadoop.hbase._
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
-import org.apache.hadoop.hbase.mapreduce.{TableOutputFormat}
-import org.apache.hadoop.hbase._
+import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
+import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
+import org.hbase.async.PutRequest
+import play.api.libs.json.Json
+
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
-import org.apache.s2graph.core.types.{InnerValLikeWithTs, LabelWithDirection, SourceVertexId}
+import org.apache.s2graph.core.types.{InnerValLikeWithTs, SourceVertexId}
 import org.apache.s2graph.loader.spark.{FamilyHFileWriteOptions, HBaseContext, KeyFamilyQualifier}
 import org.apache.s2graph.spark.spark.SparkApp
-import org.apache.spark.{SparkContext}
-import org.apache.spark.rdd.RDD
-import org.hbase.async.{PutRequest}
-import play.api.libs.json.Json
-import scala.collection.JavaConversions._
 
 object TransferToHFile extends SparkApp {
 
@@ -52,7 +53,7 @@ object TransferToHFile extends SparkApp {
        |4. dbUrl: db url for parsing to graph element.
      """.stripMargin
 
-  //TODO: Process AtomicIncrementRequest too.
+  // TODO: Process AtomicIncrementRequest too.
   /** build key values */
   case class DegreeKey(vertexIdStr: String, labelName: String, direction: String)
 
@@ -88,43 +89,46 @@ object TransferToHFile extends SparkApp {
       output <- List(degreeKey -> 1L) ++ extra
     } yield output
   }
+
   def buildPutRequests(snapshotEdge: SnapshotEdge): List[PutRequest] = {
     val kvs = GraphSubscriberHelper.g
-      .getStorage(snapshotEdge.label)
-      .snapshotEdgeSerializer(snapshotEdge)
-      .toKeyValues
-      .toList
+        .getStorage(snapshotEdge.label)
+        .snapshotEdgeSerializer(snapshotEdge)
+        .toKeyValues
+        .toList
     kvs.map { kv =>
       new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp)
     }
   }
+
   def buildPutRequests(indexEdge: IndexEdge): List[PutRequest] = {
     val kvs = GraphSubscriberHelper.g
-      .getStorage(indexEdge.label)
-      .indexEdgeSerializer(indexEdge)
-      .toKeyValues
-      .toList
+        .getStorage(indexEdge.label)
+        .indexEdgeSerializer(indexEdge)
+        .toKeyValues
+        .toList
     kvs.map { kv =>
       new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp)
     }
   }
+
   def buildDegreePutRequests(vertexId: String,
                              labelName: String,
                              direction: String,
                              degreeVal: Long): List[PutRequest] = {
     val label = Label
-      .findByName(labelName)
-      .getOrElse(throw new RuntimeException(s"$labelName is not found in DB."))
+        .findByName(labelName)
+        .getOrElse(throw new RuntimeException(s"$labelName is not found in DB."))
     val dir = GraphUtil.directions(direction)
     val innerVal = JSONParser
-      .jsValueToInnerVal(
-        Json.toJson(vertexId),
-        label.srcColumnWithDir(dir).columnType,
-        label.schemaVersion
-      )
-      .getOrElse {
-        throw new RuntimeException(s"$vertexId can not be converted into innerval")
-      }
+        .jsValueToInnerVal(
+          Json.toJson(vertexId),
+          label.srcColumnWithDir(dir).columnType,
+          label.schemaVersion
+        )
+        .getOrElse {
+          throw new RuntimeException(s"$vertexId can not be converted into innerval")
+        }
     val vertex = GraphSubscriberHelper.g.newVertex(SourceVertexId(label.srcColumn, innerVal))
 
     val ts = System.currentTimeMillis()
@@ -136,19 +140,19 @@ object TransferToHFile extends SparkApp {
 
     edge.edgesWithIndex.flatMap { indexEdge =>
       GraphSubscriberHelper.g
-        .getStorage(indexEdge.label)
-        .indexEdgeSerializer(indexEdge)
-        .toKeyValues
-        .map { kv =>
-          new PutRequest(
-            kv.table,
-            kv.row,
-            kv.cf,
-            Array.empty[Byte],
-            Bytes.toBytes(degreeVal),
-            kv.timestamp
-          )
-        }
+          .getStorage(indexEdge.label)
+          .indexEdgeSerializer(indexEdge)
+          .toKeyValues
+          .map { kv =>
+            new PutRequest(
+              kv.table,
+              kv.row,
+              kv.cf,
+              Array.empty[Byte],
+              Bytes.toBytes(degreeVal),
+              kv.timestamp
+            )
+          }
     }
   }
 
@@ -176,9 +180,6 @@ object TransferToHFile extends SparkApp {
     } yield {
       val p = putRequest
       val kv = new KeyValue(p.key(), p.family(), p.qualifier, p.timestamp, p.value)
-
-      //        println(s"[Edge]: $edge\n[Put]: $p\n[KeyValue]: ${kv.getRow.toList}, ${kv.getQualifier.toList}, ${kv.getValue.toList}, ${kv.getTimestamp}")
-
       kv
     }
     kvs.toIterator
@@ -230,17 +231,18 @@ object TransferToHFile extends SparkApp {
       if (!buildDegree) kvs
       else {
         kvs ++ buildDegrees(rdd, labelMapping, autoEdgeCreate)
-          .reduceByKey { (agg, current) =>
-            agg + current
-          }
-          .mapPartitions { iter =>
-            val phase = System.getProperty("phase")
-            GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
-            toKeyValues(iter.toSeq)
-          }
+            .reduceByKey { (agg, current) =>
+              agg + current
+            }
+            .mapPartitions { iter =>
+              val phase = System.getProperty("phase")
+              GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
+              toKeyValues(iter.toSeq)
+            }
       }
 
     val hbaseSc = new HBaseContext(sc, hbaseConf)
+
     def flatMap(kv: KeyValue): Iterator[(KeyFamilyQualifier, Array[Byte])] = {
       val k = new KeyFamilyQualifier(
         CellUtil.cloneRow(kv),
@@ -250,6 +252,7 @@ object TransferToHFile extends SparkApp {
       val v = CellUtil.cloneValue(kv)
       Seq((k -> v)).toIterator
     }
+
     val familyOptions = new FamilyHFileWriteOptions(
       Algorithm.LZ4.getName.toUpperCase,
       BloomType.ROW.name().toUpperCase,

@@ -22,33 +22,37 @@ package org.apache.s2graph.counter.util
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
-import com.google.common.cache.{Cache, CacheBuilder}
-import org.slf4j.LoggerFactory
-
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.{postfixOps, reflectiveCalls}
 
-case class CollectionCacheConfig(maxSize: Int,
-                                 ttl: Int,
-                                 negativeCache: Boolean = false,
-                                 negativeTTL: Int = 600)
+import com.google.common.cache.{Cache, CacheBuilder}
+import org.slf4j.LoggerFactory
+
+case class CollectionCacheConfig(
+    maxSize: Int,
+    ttl: Int,
+    negativeCache: Boolean = false,
+    negativeTTL: Int = 600
+)
 
 class CollectionCache[C <: { def nonEmpty: Boolean; def isEmpty: Boolean }](
-    config: CollectionCacheConfig) {
+    config: CollectionCacheConfig
+) {
   private val cache: Cache[String, C] = CacheBuilder
     .newBuilder()
     .expireAfterWrite(config.ttl, TimeUnit.SECONDS)
     .maximumSize(config.maxSize)
     .build[String, C]()
 
-//  private lazy val cache = new SynchronizedLruMap[String, (C, Int)](config.maxSize)
+  //  private lazy val cache = new SynchronizedLruMap[String, (C, Int)](config.maxSize)
   private lazy val className = this.getClass.getSimpleName
 
   private lazy val log = LoggerFactory.getLogger(this.getClass)
-  val localHostname    = InetAddress.getLocalHost.getHostName
+  val localHostname = InetAddress.getLocalHost.getHostName
 
   def size: Long = cache.size
-  val maxSize    = config.maxSize
+
+  val maxSize = config.maxSize
 
   // cache statistics
   def getStatsString: String =

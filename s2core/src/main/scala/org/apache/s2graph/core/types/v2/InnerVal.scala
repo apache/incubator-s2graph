@@ -20,6 +20,7 @@
 package org.apache.s2graph.core.types.v2
 
 import org.apache.hadoop.hbase.util._
+
 import org.apache.s2graph.core.types
 import org.apache.s2graph.core.types.{
   HBaseDeserializableWithIsVertexId,
@@ -54,8 +55,8 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
         val numeric = OrderedBytes.decodeNumericAsBigDecimal(pbr)
         if (isVertexId) (InnerVal(numeric.longValue()), pbr.getPosition - startPos)
         else (InnerVal(BigDecimal(numeric)), pbr.getPosition - startPos)
-//        (InnerVal(numeric.doubleValue()), pbr.getPosition - startPos)
-//        (InnerVal(BigDecimal(numeric)), pbr.getPosition - startPos)
+        //        (InnerVal(numeric.doubleValue()), pbr.getPosition - startPos)
+        //        (InnerVal(BigDecimal(numeric)), pbr.getPosition - startPos)
       } else if (OrderedBytes.isText(pbr)) {
         val str = OrderedBytes.decodeString(pbr)
         (InnerVal(str), pbr.getPosition - startPos)
@@ -123,11 +124,10 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
         val totalLen = OrderedBytes.encodeBlobVar(pbr, blob, order)
         pbr.getBytes().take(totalLen)
     }
-    //    println(s"$value => ${ret.toList}, ${ret.length}")
     ret
   }
 
-//
+  //
   override def hashKey(dataType: String): Int =
     if (value.isInstanceOf[String]) {
       // since we use dummy stringn value for degree edge.
@@ -167,9 +167,8 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
     }
   }
 
-  //need to be removed ??
   override def toString(): String =
-//    value.toString()
+    //    value.toString()
     value match {
       case n: BigDecimal => n.bigDecimal.toPlainString
       case _ => value.toString

@@ -19,11 +19,13 @@
 
 package org.apache.s2graph.core.Integrate
 
-import org.apache.s2graph.core.PostProcess
-import play.api.libs.json.{JsValue, Json}
-
 import scala.concurrent.Await
 import scala.util.Random
+
+import play.api.libs.json._
+
+import org.apache.s2graph.core.PostProcess
+import org.apache.s2graph.core.utils.Logger
 
 class VertexTestHelper extends IntegrateCommon {
 
@@ -36,7 +38,7 @@ class VertexTestHelper extends IntegrateCommon {
 
     val data = vertexInsertsPayload(serviceName, columnName, ids)
     val payload = Json.parse(Json.toJson(data).toString)
-    println(payload)
+    Logger.info(payload)
 
     val vertices = parser.toVertices(payload, "insert", Option(serviceName), Option(columnName))
     val srcVertices = vertices
@@ -58,12 +60,15 @@ class VertexTestHelper extends IntegrateCommon {
 
   object VertexTestHelper {
     def vertexQueryJson(serviceName: String, columnName: String, ids: Seq[Int]): JsValue =
-      Json.parse(s"""
-                    |[
-                    |{"serviceName": "$serviceName", "columnName": "$columnName", "ids": [${ids
-                      .mkString(",")}
+      Json.parse(
+        s"""
+           |[
+           |{"serviceName": "$serviceName", "columnName": "$columnName", "ids": [${
+          ids
+              .mkString(",")
+        }
          ]}
-                    |]
+           |]
        """.stripMargin)
 
     def vertexInsertsPayload(serviceName: String,
@@ -82,4 +87,5 @@ class VertexTestHelper extends IntegrateCommon {
         propKey -> Random.nextInt(100)
       }).toMap
   }
+
 }

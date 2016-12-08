@@ -19,41 +19,43 @@
 
 package org.apache.s2graph.counter.loader
 
+import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.concurrent.ExecutionContext
+
+import org.apache.spark.SparkContext
+
 import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.core.utils.Logger
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.core.BlobExactKey
 import org.apache.s2graph.counter.loader.config.StreamingConfig
 import org.apache.s2graph.counter.loader.core.{CounterEtlFunctions, CounterFunctions}
-import org.apache.s2graph.counter.models.Counter.ItemType
 import org.apache.s2graph.counter.models.{CounterModel, DBModel}
+import org.apache.s2graph.counter.models.Counter.ItemType
 import org.apache.s2graph.spark.config.S2ConfigFactory
 import org.apache.s2graph.spark.spark.{HashMapParam, SparkApp, WithKafka}
-import org.apache.spark.SparkContext
-
-import scala.collection.mutable.{HashMap => MutableHashMap}
-import scala.concurrent.ExecutionContext
 
 object CounterBulkLoader extends SparkApp with WithKafka {
-  lazy val config       = S2ConfigFactory.config
-  lazy val s2Config     = new S2CounterConfig(config)
+  lazy val config = S2ConfigFactory.config
+  lazy val s2Config = new S2CounterConfig(config)
   lazy val counterModel = new CounterModel(config)
-  lazy val className    = getClass.getName.stripSuffix("$")
-  lazy val producer     = getProducer[String, String](StreamingConfig.KAFKA_BROKERS)
+  lazy val className = getClass.getName.stripSuffix("$")
+  lazy val producer = getProducer[String, String](StreamingConfig.KAFKA_BROKERS)
 
   implicit val ec = ExecutionContext.Implicits.global
 
   val initialize = {
-    println("initialize")
+    Logger.info("initialize")
     //    Graph(config)
     DBModel.initialize(config)
     true
   }
 
   override def run(): Unit = {
-    val hdfsPath      = args(0)
-    val blockSize     = args(1).toInt
+    val hdfsPath = args(0)
+    val blockSize = args(1).toInt
     val minPartitions = args(2).toInt
-    val conf          = sparkConf(s"$hdfsPath: CounterBulkLoader")
+    val conf = sparkConf(s"$hdfsPath: CounterBulkLoader")
 
     val sc = new SparkContext(conf)
     val acc = sc.accumulable(MutableHashMap.empty[String, Long], "Throughput")(
@@ -66,7 +68,7 @@ object CounterBulkLoader extends SparkApp with WithKafka {
       assert(initialize)
       val items = {
         for {
-          msg  <- part
+          msg <- part
           line <- GraphUtil.parseString(msg)
           sp = GraphUtil.split(line) if sp.size <= 7 || GraphUtil.split(line)(7) != "in"
           item <- CounterEtlFunctions.parseEdgeFormat(line)

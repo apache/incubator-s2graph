@@ -42,7 +42,7 @@ object Config {
   lazy val CACHE_TTL_SECONDS = conf.getInt("cache.ttl.seconds").getOrElse(600)
   lazy val CACHE_MAX_SIZE = conf.getInt("cache.max.size").getOrElse(10000)
 
-  //KAFKA
+  // KAFKA
   lazy val KAFKA_METADATA_BROKER_LIST =
     conf.getString("kafka.metadata.broker.list").getOrElse("localhost")
 

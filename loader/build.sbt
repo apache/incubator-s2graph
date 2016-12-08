@@ -17,8 +17,8 @@
  * under the License.
  */
 
-import sbtassembly.Plugin.AssemblyKeys._
 import Common._
+import sbtassembly.Plugin.AssemblyKeys._
 
 name := "s2loader"
 
@@ -56,7 +56,9 @@ mergeStrategy in assembly := {
 
 excludedJars in assembly := {
   val cp = (fullClasspath in assembly).value
-  cp filter { _.data.getName == "guava-16.0.1.jar" }
+  cp filter {
+    _.data.getName == "guava-16.0.1.jar"
+  }
 }
 
 test in assembly := {}

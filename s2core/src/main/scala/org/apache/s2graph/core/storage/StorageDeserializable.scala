@@ -20,10 +20,10 @@
 package org.apache.s2graph.core.storage
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.QueryParam
+
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
-import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, InnerValLikeWithTs}
-import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs}
+import org.apache.s2graph.core.utils.Logger
 
 object StorageDeserializable {
 
@@ -118,9 +118,10 @@ trait StorageDeserializable[E] {
       Option(fromKeyValuesInner(checkLabel, kvs, version, cacheElementOpt))
     } catch {
       case e: Exception =>
-        logger.error(s"${this.getClass.getName} fromKeyValues failed.", e)
+        Logger.error(s"${this.getClass.getName} fromKeyValues failed.", e)
         None
     }
+
   def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
                                           kvs: Seq[T],
                                           version: String,

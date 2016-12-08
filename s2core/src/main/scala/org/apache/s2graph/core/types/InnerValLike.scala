@@ -20,9 +20,9 @@
 package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util._
-import org.apache.s2graph.core.utils.logger
 
 object InnerVal extends HBaseDeserializableWithIsVertexId {
+
   import HBaseType._
 
   val order = Order.DESCENDING
@@ -50,6 +50,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
         true
       case _ => false
     }
+
   def toInnerDataType(dataType: String): String =
     dataType match {
       case "blob" => BLOB
@@ -66,13 +67,13 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
     }
 
   def numByteRange(num: BigDecimal): SimplePositionedMutableByteRange = {
-//    val byteLen =
-//      if (num.isValidByte | num.isValidChar) 1
-//      else if (num.isValidShort) 2
-//      else if (num.isValidInt) 4
-//      else if (num.isValidLong) 8
-//      else if (num.isValidFloat) 4
-//      else 12
+    //    val byteLen =
+    //      if (num.isValidByte | num.isValidChar) 1
+    //      else if (num.isValidShort) 2
+    //      else if (num.isValidInt) 4
+    //      else if (num.isValidLong) 8
+    //      else if (num.isValidFloat) 4
+    //      else 12
     val byteLen = 12
     //      else throw new RuntimeException(s"wrong data $num")
     new SimplePositionedMutableByteRange(byteLen + 4)
@@ -147,14 +148,14 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
       case _ => throw notSupportedEx(version)
     }
 
-//  def withInnerVal(innerVal: InnerValLike, version: String): InnerValLike = {
-//    val bytes = innerVal.bytes
-//    version match {
-//      case VERSION2 => v2.InnerVal.fromBytes(bytes, 0, bytes.length, version)._1
-//      case VERSION1 => v1.InnerVal.fromBytes(bytes, 0, bytes.length, version)._1
-//      case _ => throw notSupportedEx(version)
-//    }
-//  }
+  //  def withInnerVal(innerVal: InnerValLike, version: String): InnerValLike = {
+  //    val bytes = innerVal.bytes
+  //    version match {
+  //      case VERSION2 => v2.InnerVal.fromBytes(bytes, 0, bytes.length, version)._1
+  //      case VERSION1 => v1.InnerVal.fromBytes(bytes, 0, bytes.length, version)._1
+  //      case _ => throw notSupportedEx(version)
+  //    }
+  //  }
 
   /** nasty implementation for backward compatability */
   def convertVersion(innerVal: InnerValLike, dataType: String, toVersion: String): InnerValLike = {
@@ -226,7 +227,9 @@ trait InnerValLike extends HBaseSerializable {
 }
 
 object InnerValLikeWithTs extends HBaseDeserializable {
+
   import HBaseType._
+
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -256,6 +259,7 @@ case class InnerValLikeWithTs(innerVal: InnerValLike, ts: Long) extends HBaseSer
 trait CanInnerValLike[A] {
   def toInnerVal(element: A)(implicit encodingVer: String): InnerValLike
 }
+
 object CanInnerValLike {
   implicit val encodingVer = "v2"
 
@@ -274,9 +278,9 @@ object CanInnerValLike {
             throw new RuntimeException(s"not supported data type: $element, $classType")
         }
       case _ => element
-//        throw new RuntimeException(s"not supported data type: $element, ${element.getClass.getCanonicalName}, $classType")
     }
   }
+
   def validate(element: Any, classType: String): Boolean = {
     import InnerVal._
     classType match {
@@ -298,6 +302,7 @@ object CanInnerValLike {
         throw new RuntimeException(s"not supported data type: $element, $classType")
     }
   }
+
   implicit val anyToInnerValLike = new CanInnerValLike[Any] {
     override def toInnerVal(element: Any)(implicit encodingVer: String): InnerValLike =
       element match {

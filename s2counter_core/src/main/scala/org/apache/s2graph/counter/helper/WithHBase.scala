@@ -19,15 +19,17 @@
 
 package org.apache.s2graph.counter.helper
 
-import com.stumbleupon.async.{Callback, Deferred}
-import com.typesafe.config.Config
-import org.apache.hadoop.hbase.client._
-import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
-import org.apache.s2graph.counter.config.S2CounterConfig
-import org.hbase.async.HBaseClient
-import org.slf4j.LoggerFactory
 import scala.concurrent.{Future, Promise}
 import scala.util.Try
+
+import com.stumbleupon.async.{Callback, Deferred}
+import com.typesafe.config.Config
+import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
+import org.apache.hadoop.hbase.client._
+import org.hbase.async.HBaseClient
+import org.slf4j.LoggerFactory
+
+import org.apache.s2graph.counter.config.S2CounterConfig
 
 
 class WithHBase(config: Config) {
@@ -44,33 +46,33 @@ class WithHBase(config: Config) {
     hbaseConfig.set(k, v)
   }
 
-//  lazy val conn: HConnection = HConnectionManager.createConnection(hbaseConfig)
+  //  lazy val conn: HConnection = HConnectionManager.createConnection(hbaseConfig)
   lazy val conn: Connection = ConnectionFactory.createConnection(hbaseConfig)
 
-  val writeBufferSize = 1024 * 1024 * 2   // 2MB
+  val writeBufferSize = 1024 * 1024 * 2 // 2MB
 
-//  def apply[T](op: Table => T): Try[T] = {
-//    Try {
-//      val table = conn.getTable(TableName.valueOf(defaultTableName))
-//      // do not keep failed operation in writer buffer
-//      table.setWriteBufferSize(writeBufferSize)
-//      try {
-//        op(table)
-//      } catch {
-//        case e: Throwable =>
-//          logger.error(s"Operation to table($defaultTableName) is failed: ${e.getMessage}")
-//          throw e
-//      } finally {
-//        table.close()
-//      }
-//    }
-//  }
-  
+  //  def apply[T](op: Table => T): Try[T] = {
+  //    Try {
+  //      val table = conn.getTable(TableName.valueOf(defaultTableName))
+  //      // do not keep failed operation in writer buffer
+  //      table.setWriteBufferSize(writeBufferSize)
+  //      try {
+  //        op(table)
+  //      } catch {
+  //        case e: Throwable =>
+  //          logger.error(s"Operation to table($defaultTableName) is failed: ${e.getMessage}")
+  //          throw e
+  //      } finally {
+  //        table.close()
+  //      }
+  //    }
+  //  }
+
   def apply[T](tableName: String)(op: Table => T): Try[T] = {
     Try {
       val table = conn.getTable(TableName.valueOf(tableName))
       // do not keep failed operation in writer buffer
-//      table.setWriteBufferSize(writeBufferSize)
+      //      table.setWriteBufferSize(writeBufferSize)
       try {
         op(table)
       } catch {
@@ -95,10 +97,10 @@ case class WithAsyncHBase(config: Config) {
     hbaseConfig.set(k, v)
   }
 
-//  lazy val conn: HConnection = HConnectionManager.createConnection(hbaseConfig)
+  //  lazy val conn: HConnection = HConnectionManager.createConnection(hbaseConfig)
   lazy val client: HBaseClient = new HBaseClient(zkQuorum)
 
-  val writeBufferSize = 1024 * 1024 * 2   // 2MB
+  val writeBufferSize = 1024 * 1024 * 2 // 2MB
 
   def apply[T](op: HBaseClient => Deferred[T]): Future[T] = {
     val promise = Promise[T]()

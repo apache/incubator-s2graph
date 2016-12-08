@@ -19,16 +19,17 @@
 
 package org.apache.s2graph.counter.loader.stream
 
+import scala.collection.mutable.{HashMap => MutableHashMap}
+
 import kafka.serializer.StringDecoder
+import org.apache.spark.streaming.Durations._
+import org.apache.spark.streaming.kafka.{HasOffsetRanges, StreamHelper}
+
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.loader.config.StreamingConfig
 import org.apache.s2graph.counter.loader.core.CounterFunctions
 import org.apache.s2graph.spark.config.S2ConfigFactory
 import org.apache.s2graph.spark.spark.{HashMapParam, SparkApp, WithKafka}
-import org.apache.spark.streaming.Durations._
-import org.apache.spark.streaming.kafka.KafkaRDDFunctions.rddToKafkaRDDFunctions
-import org.apache.spark.streaming.kafka.{HasOffsetRanges, StreamHelper}
-import scala.collection.mutable.{HashMap => MutableHashMap}
 
 object RankingCounterStreaming extends SparkApp with WithKafka {
   lazy val config = S2ConfigFactory.config
@@ -41,7 +42,7 @@ object RankingCounterStreaming extends SparkApp with WithKafka {
   val strInputTopics = inputTopics.mkString(",")
   val groupId = buildKafkaGroupId(strInputTopics, "ranking_v2")
   val kafkaParam = Map(
-//    "auto.offset.reset" -> "smallest",
+    //    "auto.offset.reset" -> "smallest",
     "group.id" -> groupId,
     "metadata.broker.list" -> StreamingConfig.KAFKA_BROKERS,
     "zookeeper.connect" -> StreamingConfig.KAFKA_ZOOKEEPER,
@@ -80,13 +81,6 @@ object RankingCounterStreaming extends SparkApp with WithKafka {
       }
 
       streamHelper.commitConsumerOffsets(nextRdd.asInstanceOf[HasOffsetRanges])
-//      CounterFunctions.makeRankingRdd(rdd, offsets.length).foreachPartitionWithIndex { (i, part) =>
-//        // update ranking counter
-//        CounterFunctions.updateRankingCounter(part, acc)
-//
-//        // commit offset range
-//        streamHelper.commitConsumerOffset(offsets(i))
-//      }
     }
 
     ssc.start()

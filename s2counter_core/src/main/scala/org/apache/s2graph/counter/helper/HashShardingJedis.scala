@@ -20,11 +20,12 @@
 package org.apache.s2graph.counter.helper
 
 import com.typesafe.config.Config
+import org.slf4j.LoggerFactory
+import redis.clients.jedis.{Jedis, JedisPool, JedisPoolConfig}
+import redis.clients.jedis.exceptions.JedisException
+
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.util.Hashes
-import org.slf4j.LoggerFactory
-import redis.clients.jedis.exceptions.JedisException
-import redis.clients.jedis.{Jedis, JedisPool, JedisPoolConfig}
 
 class HashShardingJedis(config: Config) {
   lazy val s2config = new S2CounterConfig(config)
@@ -47,13 +48,13 @@ class HashShardingJedis(config: Config) {
 
   def getJedisPoolWithBucketname2(bucket: String): JedisPool = {
     val hashedValue = Hashes.murmur3(bucket)
-    val idx         = hashedValue % jedisPoolSize
+    val idx = hashedValue % jedisPoolSize
     getJedisPool(idx)
   }
 
   def getJedisPoolWithBucketname(bucket: String): (JedisPool, JedisPool) = {
     val hashedValue = Hashes.murmur3(bucket)
-    val idx         = hashedValue % jedisPoolSize
+    val idx = hashedValue % jedisPoolSize
     val secondaryIdx = if (jedisPoolSize <= 1) {
       throw new Exception("too small sharding pool <= 1")
     } else {
@@ -77,26 +78,13 @@ class HashShardingJedis(config: Config) {
     }
 
   def doBlockWithBucketName(f: Jedis => Any, fallBack: => Any, bucket: String): Any = {
-    //    Logger.debug(s"start jedis do block")
-    //val (jedis_pool1, jedis_pool2) = getJedisPoolWithBucketname(bucket)
     val jedis_pool1 = getJedisPoolWithBucketname2(bucket)
-    //    if(jedis_pool1 != null && jedis_pool2 != null) {
     if (jedis_pool1 != null) {
       var jedis1: Jedis = null
-      //      var jedis2: Jedis = null
       try {
         jedis1 = jedis_pool1.getResource()
-        //        jedis2 = jedis_pool2.getResource()
         log.info(s">> Jedis Pool Active Num : ${jedis_pool1.getNumActive}")
-
-        /* val f1 = Future(f(jedis1))
-         val f2 = Future(f(jedis2))
-
-         val mixedFuture = Future.sequence(List(f1,f2))   */
-
         val r1 = f(jedis1)
-        //val r2 = f(jedis2)
-
         r1
       } catch {
         case e: JedisException => {
@@ -128,15 +116,7 @@ class HashShardingJedis(config: Config) {
       try {
         jedis1 = jedis_pool1.getResource()
         jedis2 = jedis_pool2.getResource()
-
-        /* val f1 = Future(f(jedis1))
-         val f2 = Future(f(jedis2))
-
-         val mixedFuture = Future.sequence(List(f1,f2))   */
-
         val r1 = f(jedis1)
-        //val r2 = f(jedis2)
-
         r1
       } catch {
         case e: JedisException => {

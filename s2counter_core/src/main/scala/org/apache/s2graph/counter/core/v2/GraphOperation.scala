@@ -19,26 +19,28 @@
 
 package org.apache.s2graph.counter.core.v2
 
+import scala.concurrent.Await
+import scala.concurrent.duration._
+
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.typesafe.config.Config
 import org.apache.http.HttpStatus
-import org.apache.s2graph.counter.config.S2CounterConfig
-import org.apache.s2graph.counter.core.v2.ExactStorageGraph._
 import org.asynchttpclient.DefaultAsyncHttpClientConfig
 import org.slf4j.LoggerFactory
-import play.api.libs.json.{JsObject, JsValue, Json}
-import scala.concurrent.Await
-import scala.concurrent.duration._
+import play.api.libs.json._
+
+import org.apache.s2graph.counter.config.S2CounterConfig
+import org.apache.s2graph.counter.core.v2.ExactStorageGraph._
 
 class GraphOperation(config: Config) {
   // using play-ws without play app
   implicit val materializer = ActorMaterializer.create(ActorSystem(getClass.getSimpleName))
-  private val builder       = new DefaultAsyncHttpClientConfig.Builder()
-  private val wsClient      = new play.api.libs.ws.ning.NingWSClient(builder.build)
-  private val s2config      = new S2CounterConfig(config)
-  val s2graphUrl            = s2config.GRAPH_URL
-  private[counter] val log  = LoggerFactory.getLogger(this.getClass)
+  private val builder = new DefaultAsyncHttpClientConfig.Builder()
+  private val wsClient = new play.api.libs.ws.ning.NingWSClient(builder.build)
+  private val s2config = new S2CounterConfig(config)
+  val s2graphUrl = s2config.GRAPH_URL
+  private[counter] val log = LoggerFactory.getLogger(this.getClass)
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -51,7 +53,8 @@ class GraphOperation(config: Config) {
           true
         case _ =>
           throw new RuntimeException(
-            s"failed createLabel. errCode: ${resp.status} body: ${resp.body} query: $json")
+            s"failed createLabel. errCode: ${resp.status} body: ${resp.body} query: $json"
+          )
       }
     }
 
@@ -65,7 +68,8 @@ class GraphOperation(config: Config) {
           true
         case _ =>
           throw new RuntimeException(
-            s"failed deleteLabel. errCode: ${resp.status} body: ${resp.body}")
+            s"failed deleteLabel. errCode: ${resp.status} body: ${resp.body}"
+          )
       }
     }
 

@@ -19,18 +19,18 @@
 
 package org.apache.s2graph.counter.helper
 
+import scala.collection.JavaConversions._
+import scala.util.Random
+
 import com.typesafe.config.Config
+import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
 import org.apache.hadoop.hbase.client.{Admin, ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.io.compress.Compression
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
 import org.slf4j.LoggerFactory
 import redis.clients.jedis.ScanParams
-
-import scala.collection.JavaConversions._
-import scala.util.Random
 
 class Management(config: Config) {
   val withRedis = new HashShardingJedis(config)
@@ -42,18 +42,18 @@ class Management(config: Config) {
     val table = admin.getTableDescriptor(TableName.valueOf(tableName))
 
     table.getColumnFamilies.foreach { cf =>
-      println(s"columnFamily: ${cf.getNameAsString}")
+      log.info(s"columnFamily: ${cf.getNameAsString}")
       cf.getValues.foreach {
         case (k, v) =>
-          println(s"${Bytes.toString(k.get())} ${Bytes.toString(v.get())}")
+          log.info(s"${Bytes.toString(k.get())} ${Bytes.toString(v.get())}")
       }
     }
   }
 
   def setTTL(zkAddr: String, tableName: String, cfName: String, ttl: Int): Unit = {
-    val admin        = getAdmin(zkAddr)
+    val admin = getAdmin(zkAddr)
     val tableNameObj = TableName.valueOf(tableName)
-    val table        = admin.getTableDescriptor(tableNameObj)
+    val table = admin.getTableDescriptor(tableNameObj)
 
     val cf = table.getFamily(cfName.getBytes)
     cf.setTimeToLive(ttl)
@@ -76,7 +76,7 @@ class Management(config: Config) {
                   cfs: List[String],
                   regionMultiplier: Int): Unit = {
     log.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier")
-    val admin       = getAdmin(zkAddr)
+    val admin = getAdmin(zkAddr)
     val regionCount = admin.getClusterStatus.getServersSize * regionMultiplier
     try {
       val desc = new HTableDescriptor(TableName.valueOf(tableName))
@@ -123,11 +123,11 @@ class Management(config: Config) {
 
     def callScan(): Unit =
       if (nextCursorId.nonEmpty) {
-        //        println(s"callScan: idx: $nextIdx, cursor: $nextCursorId")
-        val idx      = Random.shuffle(nextCursorId.keys).head
+        //        log.info(s"callScan: idx: $nextIdx, cursor: $nextCursorId")
+        val idx = Random.shuffle(nextCursorId.keys).head
         val cursorId = nextCursorId(idx)
-        val pool     = withRedis.getJedisPool(idx)
-        val conn     = pool.getResource
+        val pool = withRedis.getJedisPool(idx)
+        val conn = pool.getResource
         try {
           val result = conn.scan(cursorId, scanParams)
           result.getStringCursor match {
@@ -159,4 +159,5 @@ class Management(config: Config) {
 
     override def next(): String = innerIterator.next()
   }
+
 }

@@ -20,10 +20,12 @@
 package org.apache.s2graph.core.utils
 
 import java.util.concurrent.atomic.AtomicBoolean
-import com.google.common.cache.CacheBuilder
+
+import scala.collection.JavaConversions._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
-import scala.collection.JavaConversions._
+
+import com.google.common.cache.CacheBuilder
 
 object SafeUpdateCache {
 
@@ -72,10 +74,10 @@ class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(
           Future(op)(executionContext) onComplete {
             case Failure(ex) =>
               cache.put(cacheKey, (cachedVal, toTs(), new AtomicBoolean(false))) // keep old value
-              logger.error(s"withCache update failed: $cacheKey")
+              Logger.error(s"withCache update failed: $cacheKey")
             case Success(newValue) =>
               cache.put(cacheKey, (newValue, toTs(), new AtomicBoolean(false))) // update new value
-              logger.info(s"withCache update success: $cacheKey")
+              Logger.info(s"withCache update success: $cacheKey")
           }
           cachedVal
         }

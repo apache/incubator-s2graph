@@ -19,22 +19,21 @@
 
 package org.apache.s2graph.core
 
+import scala.util.Try
+
+import play.api.libs.json._
+
 import org.apache.s2graph.core.GraphExceptions.{
   InvalidHTableException,
   LabelAlreadyExistException,
   LabelNameTooLongException,
   LabelNotExistException
 }
+import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls._
-import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.utils.logger
-import play.api.libs.json.Reads._
-import play.api.libs.json._
-
-import scala.util.Try
+import org.apache.s2graph.core.types.HBaseType._
 
 /**
   * This is designed to be bridge between rest to s2core.
@@ -52,6 +51,7 @@ object Management {
                      propNames: Seq[String],
                      direction: Option[Int] = None,
                      options: Option[String] = None)
+
   }
 
   import HBaseType._
@@ -147,12 +147,14 @@ object Management {
         val metaSeq = index.propNames.map { name =>
           labelMetaMap(name).seq
         }
-        LabelIndex.findOrInsert(label.id.get,
-                                index.name,
-                                metaSeq.toList,
-                                "none",
-                                index.direction,
-                                index.options)
+        LabelIndex.findOrInsert(
+          label.id.get,
+          index.name,
+          metaSeq.toList,
+          "none",
+          index.direction,
+          index.options
+        )
       }
 
       label
@@ -269,6 +271,7 @@ object Management {
 }
 
 class Management(graph: S2Graph) {
+
   import Management._
 
   def createStorageTable(zkAddr: String,
@@ -279,14 +282,16 @@ class Management(graph: S2Graph) {
                          compressionAlgorithm: String = DefaultCompressionAlgorithm,
                          replicationScopeOpt: Option[Int] = None,
                          totalRegionCount: Option[Int] = None): Unit =
-    graph.defaultStorage.createTable(zkAddr,
-                                     tableName,
-                                     cfs,
-                                     regionMultiplier,
-                                     ttl,
-                                     compressionAlgorithm,
-                                     replicationScopeOpt,
-                                     totalRegionCount)
+    graph.defaultStorage.createTable(
+      zkAddr,
+      tableName,
+      cfs,
+      regionMultiplier,
+      ttl,
+      compressionAlgorithm,
+      replicationScopeOpt,
+      totalRegionCount
+    )
 
   /** HBase specific code */
   def createService(serviceName: String,
@@ -297,26 +302,30 @@ class Management(graph: S2Graph) {
                     compressionAlgorithm: String = DefaultCompressionAlgorithm): Try[Service] =
     Model withTx { implicit session =>
       val service =
-        Service.findOrInsert(serviceName,
-                             cluster,
-                             hTableName,
-                             preSplitSize,
-                             hTableTTL.orElse(Some(Integer.MAX_VALUE)),
-                             compressionAlgorithm)
+        Service.findOrInsert(
+          serviceName,
+          cluster,
+          hTableName,
+          preSplitSize,
+          hTableTTL.orElse(Some(Integer.MAX_VALUE)),
+          compressionAlgorithm
+        )
 
       /** create hbase table for service */
       graph
         .getStorage(service)
-        .createTable(service.cluster,
-                     service.hTableName,
-                     List("e", "v"),
-                     service.preSplitSize,
-                     service.hTableTTL,
-                     compressionAlgorithm)
+        .createTable(
+          service.cluster,
+          service.hTableName,
+          List("e", "v"),
+          service.preSplitSize,
+          service.hTableTTL,
+          compressionAlgorithm
+        )
       service
     }
 
-  /** HBase specific code */
+  // HBase specific code
   def createLabel(label: String,
                   srcServiceName: String,
                   srcColumnName: String,
@@ -352,34 +361,38 @@ class Management(graph: S2Graph) {
       }
 
       /** create all models */
-      val newLabel = Label.insertAll(label,
-                                     srcServiceName,
-                                     srcColumnName,
-                                     srcColumnType,
-                                     tgtServiceName,
-                                     tgtColumnName,
-                                     tgtColumnType,
-                                     isDirected,
-                                     serviceName,
-                                     indices,
-                                     props,
-                                     consistencyLevel,
-                                     hTableName,
-                                     hTableTTL,
-                                     schemaVersion,
-                                     isAsync,
-                                     compressionAlgorithm,
-                                     options)
+      val newLabel = Label.insertAll(
+        label,
+        srcServiceName,
+        srcColumnName,
+        srcColumnType,
+        tgtServiceName,
+        tgtColumnName,
+        tgtColumnType,
+        isDirected,
+        serviceName,
+        indices,
+        props,
+        consistencyLevel,
+        hTableName,
+        hTableTTL,
+        schemaVersion,
+        isAsync,
+        compressionAlgorithm,
+        options
+      )
 
       /** create hbase table */
       val storage = graph.getStorage(newLabel)
       val service = newLabel.service
-      storage.createTable(service.cluster,
-                          newLabel.hbaseTableName,
-                          List("e", "v"),
-                          service.preSplitSize,
-                          newLabel.hTableTTL,
-                          newLabel.compressionAlgorithm)
+      storage.createTable(
+        service.cluster,
+        newLabel.hbaseTableName,
+        List("e", "v"),
+        service.preSplitSize,
+        newLabel.hTableTTL,
+        newLabel.compressionAlgorithm
+      )
 
       newLabel
     }
@@ -406,24 +419,26 @@ class Management(graph: S2Graph) {
       Index(index.name, index.propNames, index.dir, index.options)
     }
 
-    createLabel(newLabelName,
-                old.srcService.serviceName,
-                old.srcColumnName,
-                old.srcColumnType,
-                old.tgtService.serviceName,
-                old.tgtColumnName,
-                old.tgtColumnType,
-                old.isDirected,
-                old.serviceName,
-                allIndices,
-                allProps,
-                old.consistencyLevel,
-                hTableName,
-                old.hTableTTL,
-                old.schemaVersion,
-                old.isAsync,
-                old.compressionAlgorithm,
-                old.options)
+    createLabel(
+      newLabelName,
+      old.srcService.serviceName,
+      old.srcColumnName,
+      old.srcColumnType,
+      old.tgtService.serviceName,
+      old.tgtColumnName,
+      old.tgtColumnType,
+      old.isDirected,
+      old.serviceName,
+      allIndices,
+      allProps,
+      old.consistencyLevel,
+      hTableName,
+      old.hTableTTL,
+      old.schemaVersion,
+      old.isAsync,
+      old.compressionAlgorithm,
+      old.options
+    )
   }
 
   def getCurrentStorageInfo(labelName: String): Try[Map[String, String]] =

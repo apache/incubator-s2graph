@@ -19,18 +19,18 @@
 
 package org.apache.s2graph.core.Integrate.tinkerpop
 
-import org.apache.s2graph.core.mysqls.Label
-import org.apache.s2graph.core.types.VertexId
-import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{S2Graph, S2Vertex, TestCommonWithModels}
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal
 import org.apache.tinkerpop.gremlin.structure.{Edge, T, Vertex}
 import org.scalatest.{FunSuite, Matchers}
 
+import org.apache.s2graph.core.{S2Graph, S2Vertex, TestCommonWithModels}
+import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.types.VertexId
+import org.apache.s2graph.core.utils.Logger
+
 class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 
   import scala.collection.JavaConversions._
-  import scala.concurrent.ExecutionContext.Implicits.global
 
   initTests()
 
@@ -38,7 +38,7 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 
   def printEdges(edges: Seq[Edge]): Unit =
     edges.foreach { edge =>
-      logger.debug(s"[FetchedEdge]: $edge")
+      Logger.debug(s"[FetchedEdge]: $edge")
     }
 
   import scala.language.implicitConversions
@@ -51,7 +51,8 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
         T.label,
         label.srcService.serviceName + S2Vertex.VertexLabelDelimiter + label.srcColumnName,
         T.id,
-        id)
+        id
+      )
       .asInstanceOf[S2Vertex]
 
   val srcId = Long.box(20)
@@ -76,16 +77,18 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     } {
       val tgt = addVertex(Int.box(i))
 
-      src.addEdge(labelV2.label,
-                  tgt,
-                  "age",
-                  Int.box(10),
-                  "affinity_score",
-                  Double.box(0.1),
-                  "is_blocked",
-                  Boolean.box(true),
-                  "ts",
-                  Long.box(i))
+      src.addEdge(
+        labelV2.label,
+        tgt,
+        "age",
+        Int.box(10),
+        "affinity_score",
+        Double.box(0.1),
+        "is_blocked",
+        Boolean.box(true),
+        "ts",
+        Long.box(i)
+      )
     }
   }
 
@@ -108,7 +111,7 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     for {
       affinityScore <- t
     } {
-      logger.debug(s"$affinityScore")
+      Logger.debug(s"$affinityScore")
       affinityScore should be(0.1)
     }
   }
@@ -135,7 +138,7 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
       val vertex = v.asInstanceOf[S2Vertex]
       // TODO: we have too many id. this is ugly and confusing so fix me.
       vertex.id.innerId == srcB.id.innerId || vertex.id.innerId == srcC.id.innerId should be(true)
-      logger.debug(s"[Vertex]: $v")
+      Logger.debug(s"[Vertex]: $v")
     }
   }
 }

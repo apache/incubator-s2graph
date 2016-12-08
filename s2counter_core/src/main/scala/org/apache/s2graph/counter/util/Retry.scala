@@ -26,10 +26,12 @@ import scala.util.{Failure, Success, Try}
 object Retry {
   @tailrec
   def apply[T](n: Int, withSleep: Boolean = true, tryCount: Int = 0)(fn: => T): T =
-    Try { fn } match {
-      case Success(x)                                       => x
+    Try {
+      fn
+    } match {
+      case Success(x) => x
       case Failure(e) if e.isInstanceOf[RetryStopException] => throw e.getCause
-      case _ if n > 1                                       =>
+      case _ if n > 1 =>
         // backoff
         if (withSleep) Thread.sleep(tryCount * 1000)
         apply(n - 1, withSleep, tryCount + 1)(fn)
@@ -42,9 +44,9 @@ object RetryAsync {
       implicit ex: ExecutionContext): Future[T] = {
     val promise = Promise[T]()
     fn onComplete {
-      case Success(x)                                       => promise.success(x)
+      case Success(x) => promise.success(x)
       case Failure(e) if e.isInstanceOf[RetryStopException] => promise.failure(e.getCause)
-      case _ if n > 1                                       =>
+      case _ if n > 1 =>
         // backoff
         if (withSleep) Thread.sleep(tryCount * 1000)
         apply(n - 1, withSleep, tryCount + 1)(fn)

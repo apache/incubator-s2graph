@@ -23,6 +23,8 @@ import java.lang.Integer.valueOf
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.Callable
 
+import scala.collection.JavaConversions._
+
 import net.bytebuddy.ByteBuddy
 import net.bytebuddy.description.modifier.Visibility.PUBLIC
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy
@@ -32,10 +34,8 @@ import net.bytebuddy.implementation.bind.annotation.{SuperCall, This}
 import net.bytebuddy.matcher.ElementMatchers._
 import org.apache.commons.io.IOUtils
 import org.hbase.async._
+import org.objectweb.asm.{ClassAdapter, ClassReader, ClassWriter, MethodVisitor}
 import org.objectweb.asm.Opcodes.{ACC_FINAL, ACC_PRIVATE, ACC_PROTECTED, ACC_PUBLIC}
-import org.objectweb.asm._
-
-import scala.collection.JavaConversions._
 
 /**
   * Upon initialization, it loads a patched version of Asynchbase's Scanner class,
@@ -69,6 +69,7 @@ object AsynchbasePatcher {
 
   trait RpcTimeout {
     def getRpcTimeout: Int
+
     def setRpcTimeout(timeout: Int): Unit
   }
 
@@ -109,7 +110,7 @@ object AsynchbasePatcher {
   /** loads Asynchbase classes from s2core's classpath
     * *MUST* be called before any access to those classes,
     * otherwise the classloading will fail with an "attempted duplicate class definition" error.
-    **/
+    * */
   private def loadClass(name: String): Class[_] =
     classLoader
       .getResources(s"org/hbase/async/$name.class")
@@ -117,7 +118,9 @@ object AsynchbasePatcher {
       .headOption match {
       case Some(url) =>
         val stream = url.openStream()
-        val bytes = try { IOUtils.toByteArray(stream) } finally {
+        val bytes = try {
+          IOUtils.toByteArray(stream)
+        } finally {
           stream.close()
         }
 
@@ -132,26 +135,31 @@ object AsynchbasePatcher {
                              superName: String,
                              interfaces: Array[String]): Unit =
             super.visit(version, access & ~ACC_FINAL, name, signature, superName, interfaces)
+
           override def visitMethod(access: Int,
                                    name: String,
                                    desc: String,
                                    signature: String,
                                    exceptions: Array[String]): MethodVisitor =
-            super.visitMethod(access & ~ACC_PRIVATE & ~ACC_PROTECTED & ~ACC_FINAL | ACC_PUBLIC,
-                              name,
-                              desc,
-                              signature,
-                              exceptions)
+            super.visitMethod(
+              access & ~ACC_PRIVATE & ~ACC_PROTECTED & ~ACC_FINAL | ACC_PUBLIC,
+              name,
+              desc,
+              signature,
+              exceptions
+            )
         }, 0)
         val patched = cw.toByteArray
 
         defineClass.setAccessible(true)
         defineClass
-          .invoke(classLoader,
-                  s"org.hbase.async.$name",
-                  patched,
-                  valueOf(0),
-                  valueOf(patched.length))
+          .invoke(
+            classLoader,
+            s"org.hbase.async.$name",
+            patched,
+            valueOf(0),
+            valueOf(patched.length)
+          )
           .asInstanceOf[Class[_]]
       case None =>
         throw new ClassNotFoundException(s"Could not find Asynchbase class: $name")

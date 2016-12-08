@@ -19,8 +19,12 @@
 
 package org.apache.s2graph.counter.helper
 
+import scala.util.Try
+
 import com.typesafe.config.Config
 import org.apache
+import play.api.libs.json.Json
+
 import org.apache.s2graph.core.S2Graph
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.counter
@@ -29,26 +33,23 @@ import org.apache.s2graph.counter.core.{ExactCounter, RankingCounter}
 import org.apache.s2graph.counter.core.v1.{ExactStorageAsyncHBase, RankingStorageRedis}
 import org.apache.s2graph.counter.core.v2.{ExactStorageGraph, GraphOperation, RankingStorageGraph}
 import org.apache.s2graph.counter.models.{Counter, CounterModel}
-import play.api.libs.json.Json
-
-import scala.util.Try
 
 class CounterAdmin(config: Config) {
-  val s2config          = new S2CounterConfig(config)
-  val counterModel      = new CounterModel(config)
-  val graphOp           = new GraphOperation(config)
-  val s2graph           = new S2Graph(config)(scala.concurrent.ExecutionContext.global)
+  val s2config = new S2CounterConfig(config)
+  val counterModel = new CounterModel(config)
+  val graphOp = new GraphOperation(config)
+  val s2graph = new S2Graph(config)(scala.concurrent.ExecutionContext.global)
   val storageManagement = new org.apache.s2graph.core.Management(s2graph)
 
   def setupCounterOnGraph(): Unit = {
     // create s2counter service
     val service = "s2counter"
     storageManagement.createService(service,
-                                    s2config.HBASE_ZOOKEEPER_QUORUM,
-                                    s"$service-${config.getString("phase")}",
-                                    1,
-                                    None,
-                                    "gz")
+      s2config.HBASE_ZOOKEEPER_QUORUM,
+      s"$service-${config.getString("phase")}",
+      1,
+      None,
+      "gz")
     // create bucket label
     val label = "s2counter_topK_bucket"
     if (Label.findByName(label, useCache = false).isEmpty) {
@@ -107,7 +108,7 @@ class CounterAdmin(config: Config) {
   }
 
   def prepareStorage(policy: Counter, version: Byte): Unit =
-    // this function to prepare storage by version parameter instead of policy.version
+  // this function to prepare storage by version parameter instead of policy.version
     prepareStorage(policy.copy(version = version))
 
   private val exactCounterMap = Map(
@@ -116,7 +117,7 @@ class CounterAdmin(config: Config) {
   )
   private val rankingCounterMap = Map(
     apache.s2graph.counter.VERSION_1 -> new RankingCounter(config,
-                                                           new RankingStorageRedis(config)),
+      new RankingStorageRedis(config)),
     apache.s2graph.counter.VERSION_2 -> new RankingCounter(config, new RankingStorageGraph(config))
   )
 
@@ -125,9 +126,12 @@ class CounterAdmin(config: Config) {
     apache.s2graph.counter.VERSION_2 -> "s2counter_v2"
   )
 
-  def exactCounter(version: Byte): ExactCounter       = exactCounterMap(version)
-  def exactCounter(policy: Counter): ExactCounter     = exactCounter(policy.version)
-  def rankingCounter(version: Byte): RankingCounter   = rankingCounterMap(version)
+  def exactCounter(version: Byte): ExactCounter = exactCounterMap(version)
+
+  def exactCounter(policy: Counter): ExactCounter = exactCounter(policy.version)
+
+  def rankingCounter(version: Byte): RankingCounter = rankingCounterMap(version)
+
   def rankingCounter(policy: Counter): RankingCounter = rankingCounter(policy.version)
 
   def makeHTableName(policy: Counter): String =

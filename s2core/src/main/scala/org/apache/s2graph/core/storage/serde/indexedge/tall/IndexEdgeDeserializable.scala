@@ -20,21 +20,22 @@
 package org.apache.s2graph.core.storage.serde.indexedge.tall
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
-import org.apache.s2graph.core.storage.StorageDeserializable._
-import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, StorageDeserializable}
-import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.utils.logger
+
 import org.apache.s2graph.core._
-import scala.collection.immutable
+import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
+import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, StorageDeserializable}
+import org.apache.s2graph.core.storage.StorageDeserializable._
+import org.apache.s2graph.core.types._
 
 object IndexEdgeDeserializable {
   def getNewInstance(graph: S2Graph): IndexEdgeDeserializable =
     new IndexEdgeDeserializable(graph)
 }
+
 class IndexEdgeDeserializable(graph: S2Graph,
                               bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong)
     extends Deserializable[S2Edge] {
+
   import StorageDeserializable._
 
   type QualifierRaw =
@@ -50,7 +51,7 @@ class IndexEdgeDeserializable(graph: S2Graph,
 
     //     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
     val kv = implicitly[CanSKeyValue[T]].toSKeyValue(_kvs.head)
-//     logger.debug(s"[DES]: ${kv.toLogString}}")
+    //     logger.debug(s"[DES]: ${kv.toLogString}}")
 
     val version = kv.timestamp
     //    logger.debug(s"[Des]: ${kv.row.toList}, ${kv.qualifier.toList}, ${kv.value.toList}")
@@ -67,7 +68,6 @@ class IndexEdgeDeserializable(graph: S2Graph,
     val label = checkLabel.getOrElse(Label.findById(labelWithDir.labelId))
 
     val srcVertex = graph.newVertex(srcVertexId, version)
-    //TODO:
     val edge = graph.newEdge(
       srcVertex,
       null,

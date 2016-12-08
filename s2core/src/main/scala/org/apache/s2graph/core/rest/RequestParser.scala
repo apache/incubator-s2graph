@@ -21,22 +21,26 @@ package org.apache.s2graph.core.rest
 
 import java.util.concurrent.{Callable, TimeUnit}
 
+import scala.util.{Failure, Random, Success, Try}
+
 import com.google.common.cache.CacheBuilder
+import play.api.libs.json._
+
+import org.apache.s2graph.core._
 import org.apache.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.types._
-import play.api.libs.json._
-
-import scala.util.{Failure, Random, Success, Try}
 
 object TemplateHelper {
   val findVar = """\"?\$\{(.*?)\}\"?""".r
+  // scalastyle:off
   val num =
     """(next_minute|next_day|next_hour|next_week|now)?\s*(-?\s*[0-9]+)?\s*(minute|hour|day|week)?""".r
-  val randIntRegex = """randint\((.*,.*)\)""".r
+  // scalastyle:on
+  val randIntRegex =
+    """randint\((.*,.*)\)""".r
 
   val minute: Long = 60 * 1000L
   val hour = 60 * minute
@@ -313,10 +317,6 @@ class RequestParser(graph: S2Graph) {
       } else {
         innerQuery
       }
-      //        val innerQuery3 =
-      //          if (globalQueryOption.groupBy.keys.nonEmpty) innerQuery2.copy(queryOption = innerQuery2.queryOption.copy(groupBy = GroupBy.Empty))
-      //          else innerQuery2
-
     }
     val weights =
       (jsValue \ "weights").asOpt[Seq[Double]].getOrElse(queries.map(_ => 1.0))
@@ -362,7 +362,7 @@ class RequestParser(graph: S2Graph) {
       .getOrElse(Nil)
     val withScore = (jsValue \ "withScore").asOpt[Boolean].getOrElse(true)
     val returnTree = (jsValue \ "returnTree").asOpt[Boolean].getOrElse(false)
-    //TODO: Refactor this
+    // TODO: Refactor this
     val limitOpt = (jsValue \ "limit").asOpt[Int]
     val returnAgg = (jsValue \ "returnAgg").asOpt[Boolean].getOrElse(true)
     val scoreThreshold =
@@ -457,10 +457,10 @@ class RequestParser(graph: S2Graph) {
                   } else {
                     (queryParam.label.tgtService.serviceName, queryParam.label.tgtColumnName)
                   }
-                //FIXME:
+                // FIXME:
                 if (stepIdx == 0 && vertices.nonEmpty && !vertices.exists(
-                      v => v.columnName == columnName
-                    )) {
+                    v => v.columnName == columnName
+                  )) {
                   throw BadQueryException(
                     "srcVertices contains incompatiable serviceName or columnName with first step."
                   )
@@ -677,7 +677,6 @@ class RequestParser(graph: S2Graph) {
       srcId <- srcIds.flatMap(jsValueToAny(_).toSeq)
       tgtId <- tgtIds.flatMap(jsValueToAny(_).toSeq)
     } yield {
-      //      val edge = Management.toEdge(graph, timestamp, operation, srcId, tgtId, label, direction, fromJsonToProperties(propsJson))
       val edge = graph.toEdge(
         srcId,
         tgtId,

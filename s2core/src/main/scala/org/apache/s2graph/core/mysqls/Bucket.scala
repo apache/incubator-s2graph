@@ -19,9 +19,9 @@
 
 package org.apache.s2graph.core.mysqls
 
-import scalikejdbc._
-
 import scala.util.Try
+
+import scalikejdbc._
 
 object Bucket extends Model[Bucket] {
 
@@ -29,16 +29,18 @@ object Bucket extends Model[Bucket] {
   val INVALID_BUCKET_EXCEPTION = new RuntimeException("invalid bucket.")
 
   def apply(rs: WrappedResultSet): Bucket =
-    Bucket(rs.intOpt("id"),
-           rs.int("experiment_id"),
-           rs.string("modular"),
-           rs.string("http_verb"),
-           rs.string("api_path"),
-           rs.string("request_body"),
-           rs.int("timeout"),
-           rs.string("impression_id"),
-           rs.boolean("is_graph_query"),
-           rs.boolean("is_empty"))
+    Bucket(
+      rs.intOpt("id"),
+      rs.int("experiment_id"),
+      rs.string("modular"),
+      rs.string("http_verb"),
+      rs.string("api_path"),
+      rs.string("request_body"),
+      rs.int("timeout"),
+      rs.string("impression_id"),
+      rs.boolean("is_graph_query"),
+      rs.boolean("is_empty")
+    )
 
   def finds(experimentId: Int)(implicit session: DBSession = AutoSession): List[Bucket] = {
     val cacheKey = "experimentId=" + experimentId
@@ -92,16 +94,18 @@ object Bucket extends Model[Bucket] {
           $impressionId, $isGraphQuery, $isEmpty)
         """.updateAndReturnGeneratedKey().apply()
     }.map { newId =>
-      Bucket(Some(newId.toInt),
-             experiment.id.get,
-             modular,
-             httpVerb,
-             apiPath,
-             requestBody,
-             timeout,
-             impressionId,
-             isGraphQuery,
-             isEmpty)
+      Bucket(
+        Some(newId.toInt),
+        experiment.id.get,
+        modular,
+        httpVerb,
+        apiPath,
+        requestBody,
+        timeout,
+        impressionId,
+        isGraphQuery,
+        isEmpty
+      )
     }
 }
 

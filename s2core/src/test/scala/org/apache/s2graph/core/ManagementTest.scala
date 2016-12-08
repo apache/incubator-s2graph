@@ -19,11 +19,10 @@
 
 package org.apache.s2graph.core
 
-import org.apache.s2graph.core.Integrate.IntegrateCommon
-import org.apache.s2graph.core.mysqls.{Label, Model, Service}
+import play.api.libs.json.Json
 
-import scala.util.{Failure, Success}
-import play.api.libs.json.{JsValue, Json}
+import org.apache.s2graph.core.Integrate.IntegrateCommon
+import org.apache.s2graph.core.mysqls.Label
 
 class ManagementTest extends IntegrateCommon {
 
@@ -62,8 +61,9 @@ class ManagementTest extends IntegrateCommon {
                     setTTL: Option[Int],
                     checkTTL: Option[Int]): Unit = {
     Management.deleteLabel(labelName)
-    val ttlOption       = if (setTTL.isDefined) s""", "hTableTTL": ${setTTL.get}""" else ""
-    val createLabelJson = s"""{
+    val ttlOption = if (setTTL.isDefined) s""", "hTableTTL": ${setTTL.get}""" else ""
+    val createLabelJson =
+      s"""{
       "label": "$labelName",
       "srcServiceName": "$serviceName",
       "srcColumnName": "id",
@@ -76,8 +76,8 @@ class ManagementTest extends IntegrateCommon {
       "hTableName": "$labelName"
       $ttlOption
     }"""
-    val labelOpts       = parser.toLabelElements(Json.parse(createLabelJson))
-    val tryLabel        = (management.createLabel _).tupled(labelOpts.get)
+    val labelOpts = parser.toLabelElements(Json.parse(createLabelJson))
+    val tryLabel = (management.createLabel _).tupled(labelOpts.get)
     assert(tryLabel.isSuccess)
     val label = tryLabel.get
     label.hTableTTL should be(checkTTL)
@@ -96,7 +96,7 @@ class ManagementTest extends IntegrateCommon {
   }
 
   test("swap label test") {
-    val labelLeft  = TestUtil.testLabelName
+    val labelLeft = TestUtil.testLabelName
     val labelRight = TestUtil.testLabelName2
     Management.swapLabelNames(labelLeft, labelRight)
     Label.findByName(labelLeft, false).get.schemaVersion should be("v3")
@@ -108,13 +108,13 @@ class ManagementTest extends IntegrateCommon {
 
   test("check created service without ttl") {
     // createService
-    val svc_without_ttl   = "s2graph_without_ttl"
+    val svc_without_ttl = "s2graph_without_ttl"
     val createServiceJson = s"""{"serviceName" : "$svc_without_ttl"}"""
     val (serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm) =
       parser.toServiceElements(Json.parse(createServiceJson))
 
     val tryService = management
-      .createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
+        .createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
     assert(tryService.isSuccess)
     val service = tryService.get
     assert(service.hTableTTL.isDefined)
@@ -134,13 +134,13 @@ class ManagementTest extends IntegrateCommon {
   test("check created service with ttl") {
     // createService
     val svc_with_ttl = "s2graph_with_ttl"
-    val ttl_val      = 86400
+    val ttl_val = 86400
     val (serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm) =
       parser.toServiceElements(
         Json.parse(s"""{"serviceName" : "$svc_with_ttl", "hTableTTL":$ttl_val}"""))
 
     val tryService = management
-      .createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
+        .createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
     assert(tryService.isSuccess)
     val service = tryService.get
     assert(service.hTableTTL.isDefined)

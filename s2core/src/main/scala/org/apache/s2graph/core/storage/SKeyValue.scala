@@ -39,14 +39,17 @@ case class SKeyValue(table: Array[Byte],
                      operation: Int = SKeyValue.Default,
                      durability: Boolean = true) {
   def toLogString: String =
-    Map("table" -> Bytes.toString(table),
-        "row" -> row.toList,
-        "cf" -> Bytes.toString(cf),
-        "qualifier" -> qualifier.toList,
-        "value" -> value.toList,
-        "timestamp" -> timestamp,
-        "operation" -> operation,
-        "durability" -> durability).toString
+    Map(
+      "table" -> Bytes.toString(table),
+      "row" -> row.toList,
+      "cf" -> Bytes.toString(cf),
+      "qualifier" -> qualifier.toList,
+      "value" -> value.toList,
+      "timestamp" -> timestamp,
+      "operation" -> operation,
+      "durability" -> durability
+    ).toString
+
   override def toString(): String = toLogString
 
   def toKeyValue: KeyValue = new KeyValue(row, cf, qualifier, timestamp, value)
@@ -61,12 +64,14 @@ object CanSKeyValue {
   // For asyncbase KeyValues
   implicit val asyncKeyValue = new CanSKeyValue[KeyValue] {
     def toSKeyValue(kv: KeyValue): SKeyValue =
-      SKeyValue(Array.empty[Byte],
-                kv.key(),
-                kv.family(),
-                kv.qualifier(),
-                kv.value(),
-                kv.timestamp())
+      SKeyValue(
+        Array.empty[Byte],
+        kv.key(),
+        kv.family(),
+        kv.qualifier(),
+        kv.value(),
+        kv.timestamp()
+      )
   }
 
   // For asyncbase KeyValues

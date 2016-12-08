@@ -22,10 +22,10 @@ package org.apache.s2graph.core.mysqls
 /**
   * Created by shon on 6/3/15.
   */
-import org.apache.s2graph.core.GraphExceptions.MaxPropSizeReachedException
-import org.apache.s2graph.core.{GraphExceptions, JSONParser}
 import play.api.libs.json.Json
 import scalikejdbc._
+
+import org.apache.s2graph.core.GraphExceptions.MaxPropSizeReachedException
 
 object LabelMeta extends Model[LabelMeta] {
 
@@ -45,8 +45,6 @@ object LabelMeta extends Model[LabelMeta] {
   val emptySeq = Byte.MaxValue
 
   /** reserved sequences */
-  //  val deleted = LabelMeta(id = Some(lastDeletedAt), labelId = lastDeletedAt, name = "lastDeletedAt",
-  //    seq = lastDeletedAt, defaultValue = "", dataType = "long")
   val fromHash = LabelMeta(
     id = None,
     labelId = fromHashSeq,
@@ -128,7 +126,8 @@ object LabelMeta extends Model[LabelMeta] {
     dataType = "long"
   )
 
-  // Each reserved column(_timestamp, timestamp) has same seq number, starts with '_' has high priority
+  // Each reserved column(_timestamp, timestamp) has same seq number,
+  // starts with '_' has high priority
   val reservedMetas =
     List(empty, label, direction, lastDeletedAt, from, fromHash, to, degree, timestamp, count)
       .flatMap { lm =>
@@ -186,12 +185,13 @@ object LabelMeta extends Model[LabelMeta] {
   def findAllByLabelId(labelId: Int, useCache: Boolean = true)(implicit session: DBSession =
                                                                  AutoSession): List[LabelMeta] = {
     val cacheKey = "labelId=" + labelId
-    lazy val labelMetas = sql"""select *
+    lazy val labelMetas =
+      sql"""select *
     		  						from label_metas
     		  						where label_id = ${labelId} order by seq ASC"""
-      .map(LabelMeta(_))
-      .list
-      .apply()
+        .map(LabelMeta(_))
+        .list
+        .apply()
 
     if (useCache) withCaches(cacheKey)(labelMetas)
     else labelMetas
@@ -206,14 +206,15 @@ object LabelMeta extends Model[LabelMeta] {
       case to.name => Some(to)
       case _ =>
         val cacheKey = "labelId=" + labelId + ":name=" + name
-        lazy val labelMeta = sql"""
+        lazy val labelMeta =
+          sql"""
             select *
             from label_metas where label_id = ${labelId} and name = ${name}"""
-          .map { rs =>
-            LabelMeta(rs)
-          }
-          .single
-          .apply()
+            .map { rs =>
+              LabelMeta(rs)
+            }
+            .single
+            .apply()
 
         if (useCache) withCache(cacheKey)(labelMeta)
         else labelMeta
@@ -261,12 +262,13 @@ object LabelMeta extends Model[LabelMeta] {
   }
 
   def findAll()(implicit session: DBSession = AutoSession): Unit = {
-    val ls = sql"""select * from label_metas"""
-      .map { rs =>
-        LabelMeta(rs)
-      }
-      .list
-      .apply
+    val ls =
+      sql"""select * from label_metas"""
+        .map { rs =>
+          LabelMeta(rs)
+        }
+        .list
+        .apply
     putsToCache(ls.map { x =>
       val cacheKey = s"id=${x.id.get}"
       cacheKey -> x
@@ -300,13 +302,16 @@ case class LabelMeta(id: Option[Int],
                      dataType: String) {
   lazy val toJson =
     Json.obj("name" -> name, "defaultValue" -> defaultValue, "dataType" -> dataType)
+
   override def equals(other: Any): Boolean =
     if (!other.isInstanceOf[LabelMeta]) false
     else {
       val o = other.asInstanceOf[LabelMeta]
-//      labelId == o.labelId &&
+      //      labelId == o.labelId &&
       seq == o.seq
     }
+
   override def hashCode(): Int = seq.toInt
-//    (labelId, seq).hashCode()
+
+  //    (labelId, seq).hashCode()
 }

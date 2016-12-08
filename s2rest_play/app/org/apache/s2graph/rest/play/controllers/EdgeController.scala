@@ -19,24 +19,25 @@
 
 package org.apache.s2graph.rest.play.controllers
 
+import scala.concurrent.Future
+
 import com.fasterxml.jackson.databind.JsonMappingException
-import org.apache.s2graph.core.ExceptionHandler.KafkaMessage
-import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.Label
-import org.apache.s2graph.core.rest.RequestParser
-import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.rest.play.actors.QueueActor
-import org.apache.s2graph.rest.play.config.Config
 import play.api.libs.json._
 import play.api.mvc.{Action, Controller, Result}
 
-import scala.collection.Seq
-import scala.concurrent.Future
+import org.apache.s2graph.core._
+import org.apache.s2graph.core.ExceptionHandler.KafkaMessage
+import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.rest.RequestParser
+import org.apache.s2graph.core.utils.Logger
+import org.apache.s2graph.rest.play.actors.QueueActor
+import org.apache.s2graph.rest.play.config.Config
 
 object EdgeController extends Controller {
 
-  import ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits._
+
+  import ApplicationController._
 
   private val s2: S2Graph = org.apache.s2graph.rest.play.Global.s2graph
   private val requestParser: RequestParser =
@@ -75,7 +76,7 @@ object EdgeController extends Controller {
                 enqueue(kafkaTopic, e, tsv)
             }
         }
-      case _ => logger.error(s"Unknown graph element type: ${graphElem}")
+      case _ => Logger.error(s"Unknown graph element type: ${graphElem}")
     }
   }
 
@@ -147,8 +148,7 @@ object EdgeController extends Controller {
         } else {
           val rets = elementWithIdxs.map {
             case ((element, tsv), idx) =>
-              if (!skipElement(element.isAsync))
-                QueueActor.router ! (element, tsv)
+              if (!skipElement(element.isAsync)) QueueActor.router ! (element, tsv)
               true
           }
           Future.successful(jsonResponse(Json.toJson(rets)))
@@ -159,39 +159,39 @@ object EdgeController extends Controller {
   def mutateJsonFormat(jsValue: JsValue,
                        operation: String,
                        withWait: Boolean = false): Future[Result] = {
-    logger.debug(s"$jsValue")
+    Logger.debug(s"$jsValue")
 
     try {
       val edgesWithTsv = requestParser.parseJsonFormat(jsValue, operation)
       tryMutate(edgesWithTsv, withWait)
     } catch {
       case e: JsonMappingException =>
-        logger.malformed(jsValue, e)
+        Logger.malformed(jsValue, e)
         Future.successful(BadRequest(s"${e.getMessage}"))
       case e: GraphExceptions.JsonParseException =>
-        logger.malformed(jsValue, e)
+        Logger.malformed(jsValue, e)
         Future.successful(BadRequest(s"${e.getMessage}"))
       case e: Exception =>
-        logger.malformed(jsValue, e)
+        Logger.malformed(jsValue, e)
         Future.failed(e)
     }
   }
 
   def mutateBulkFormat(str: String, withWait: Boolean = false): Future[Result] = {
-    logger.debug(s"$str")
+    Logger.debug(s"$str")
 
     try {
       val elementsWithTsv = requestParser.parseBulkFormat(str)
       tryMutate(elementsWithTsv, withWait)
     } catch {
       case e: JsonMappingException =>
-        logger.malformed(str, e)
+        Logger.malformed(str, e)
         Future.successful(BadRequest(s"${e.getMessage}"))
       case e: GraphExceptions.JsonParseException =>
-        logger.malformed(str, e)
+        Logger.malformed(str, e)
         Future.successful(BadRequest(s"${e.getMessage}"))
       case e: Exception =>
-        logger.malformed(str, e)
+        Logger.malformed(str, e)
         Future.failed(e)
     }
   }
@@ -283,15 +283,19 @@ object EdgeController extends Controller {
         id <- ids
         label <- labels
       } yield {
-        val tsv = Seq(ts,
-                      "deleteAll",
-                      "e",
-                      RequestParser.jsToStr(id),
-                      RequestParser.jsToStr(id),
-                      label.label,
-                      "{}",
-                      direction).mkString("\t")
-        val topic = topicOpt.getOrElse { toKafkaTopic(label.isAsync) }
+        val tsv = Seq(
+          ts,
+          "deleteAll",
+          "e",
+          RequestParser.jsToStr(id),
+          RequestParser.jsToStr(id),
+          label.label,
+          "{}",
+          direction
+        ).mkString("\t")
+        val topic = topicOpt.getOrElse {
+          toKafkaTopic(label.isAsync)
+        }
 
         ExceptionHandler.toKafkaMessage(topic, tsv)
       }
@@ -312,10 +316,12 @@ object EdgeController extends Controller {
           case ret =>
             if (!ret.get) {
               val messages =
-                toDeleteAllFailMessages(vertices.toList,
-                                        labels,
-                                        GraphUtil.directions(direction),
-                                        ts)
+                toDeleteAllFailMessages(
+                  vertices.toList,
+                  labels,
+                  GraphUtil.directions(direction),
+                  ts
+                )
               publishFailTopic(messages)
             }
         }
@@ -338,7 +344,7 @@ object EdgeController extends Controller {
 
     val deleteResults = Future.sequence(deleteFutures)
     deleteResults.map { rst =>
-      logger.debug(s"deleteAllInner: $rst")
+      Logger.debug(s"deleteAllInner: $rst")
       Ok(s"deleted... ${rst.toString()}")
     }
   }

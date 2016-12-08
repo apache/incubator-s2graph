@@ -20,9 +20,11 @@
 package org.apache.s2graph.core.storage
 
 import org.apache.hadoop.hbase.util.Bytes
+
 import org.apache.s2graph.core.types.{LabelWithDirection, SourceVertexId, VertexId}
 
 trait Deserializable[E] extends StorageDeserializable[E] {
+
   import StorageDeserializable._
 
   type RowKeyRaw = (VertexId, LabelWithDirection, Byte, Boolean, Int)

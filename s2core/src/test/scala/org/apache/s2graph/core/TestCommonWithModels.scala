@@ -19,14 +19,15 @@
 
 package org.apache.s2graph.core
 
+import scala.concurrent.ExecutionContext
+import scala.util.Try
+
 import com.typesafe.config.{Config, ConfigFactory}
+import scalikejdbc.AutoSession
+
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerVal, LabelWithDirection}
-import scalikejdbc.AutoSession
-
-import scala.concurrent.ExecutionContext
-import scala.util.Try
 
 trait TestCommonWithModels {
 
@@ -112,13 +113,13 @@ trait TestCommonWithModels {
   def createTestService(): Try[Service] = {
     implicit val session = AutoSession
     management
-      .createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
+        .createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
     management
-      .createService(serviceNameV2, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
+        .createService(serviceNameV2, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
     management
-      .createService(serviceNameV3, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
+        .createService(serviceNameV3, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
     management
-      .createService(serviceNameV4, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
+        .createService(serviceNameV4, cluster, hTableName, preSplitSize, hTableTTL = None, "gz")
   }
 
   def deleteTestService(): Unit = {
@@ -142,137 +143,137 @@ trait TestCommonWithModels {
     implicit val session = AutoSession
 
     management.createLabel(labelName,
-                           serviceName,
-                           columnName,
-                           columnType,
-                           serviceName,
-                           columnName,
-                           columnType,
-                           isDirected = true,
-                           serviceName,
-                           testIdxProps,
-                           testProps,
-                           consistencyLevel,
-                           Some(hTableName),
-                           hTableTTL,
-                           VERSION1,
-                           false,
-                           "lg4",
-                           None)
+      serviceName,
+      columnName,
+      columnType,
+      serviceName,
+      columnName,
+      columnType,
+      isDirected = true,
+      serviceName,
+      testIdxProps,
+      testProps,
+      consistencyLevel,
+      Some(hTableName),
+      hTableTTL,
+      VERSION1,
+      false,
+      "lg4",
+      None)
 
     management.createLabel(labelNameV2,
-                           serviceNameV2,
-                           columnNameV2,
-                           columnTypeV2,
-                           serviceNameV2,
-                           tgtColumnNameV2,
-                           tgtColumnTypeV2,
-                           isDirected = true,
-                           serviceNameV2,
-                           testIdxProps,
-                           testProps,
-                           consistencyLevel,
-                           Some(hTableName),
-                           hTableTTL,
-                           VERSION2,
-                           false,
-                           "lg4",
-                           None)
+      serviceNameV2,
+      columnNameV2,
+      columnTypeV2,
+      serviceNameV2,
+      tgtColumnNameV2,
+      tgtColumnTypeV2,
+      isDirected = true,
+      serviceNameV2,
+      testIdxProps,
+      testProps,
+      consistencyLevel,
+      Some(hTableName),
+      hTableTTL,
+      VERSION2,
+      false,
+      "lg4",
+      None)
 
     management.createLabel(labelNameV3,
-                           serviceNameV3,
-                           columnNameV3,
-                           columnTypeV3,
-                           serviceNameV3,
-                           tgtColumnNameV3,
-                           tgtColumnTypeV3,
-                           isDirected = true,
-                           serviceNameV3,
-                           testIdxProps,
-                           testProps,
-                           consistencyLevel,
-                           Some(hTableName),
-                           hTableTTL,
-                           VERSION3,
-                           false,
-                           "lg4",
-                           None)
+      serviceNameV3,
+      columnNameV3,
+      columnTypeV3,
+      serviceNameV3,
+      tgtColumnNameV3,
+      tgtColumnTypeV3,
+      isDirected = true,
+      serviceNameV3,
+      testIdxProps,
+      testProps,
+      consistencyLevel,
+      Some(hTableName),
+      hTableTTL,
+      VERSION3,
+      false,
+      "lg4",
+      None)
 
     management.createLabel(labelNameV4,
-                           serviceNameV4,
-                           columnNameV4,
-                           columnTypeV4,
-                           serviceNameV4,
-                           tgtColumnNameV4,
-                           tgtColumnTypeV4,
-                           isDirected = true,
-                           serviceNameV4,
-                           testIdxProps,
-                           testProps,
-                           consistencyLevel,
-                           Some(hTableName),
-                           hTableTTL,
-                           VERSION4,
-                           false,
-                           "lg4",
-                           None)
+      serviceNameV4,
+      columnNameV4,
+      columnTypeV4,
+      serviceNameV4,
+      tgtColumnNameV4,
+      tgtColumnTypeV4,
+      isDirected = true,
+      serviceNameV4,
+      testIdxProps,
+      testProps,
+      consistencyLevel,
+      Some(hTableName),
+      hTableTTL,
+      VERSION4,
+      false,
+      "lg4",
+      None)
 
     management.createLabel(undirectedLabelName,
-                           serviceName,
-                           columnName,
-                           columnType,
-                           serviceName,
-                           tgtColumnName,
-                           tgtColumnType,
-                           isDirected = false,
-                           serviceName,
-                           testIdxProps,
-                           testProps,
-                           consistencyLevel,
-                           Some(hTableName),
-                           hTableTTL,
-                           VERSION3,
-                           false,
-                           "lg4",
-                           None)
+      serviceName,
+      columnName,
+      columnType,
+      serviceName,
+      tgtColumnName,
+      tgtColumnType,
+      isDirected = false,
+      serviceName,
+      testIdxProps,
+      testProps,
+      consistencyLevel,
+      Some(hTableName),
+      hTableTTL,
+      VERSION3,
+      false,
+      "lg4",
+      None)
 
     management.createLabel(undirectedLabelNameV2,
-                           serviceNameV2,
-                           columnNameV2,
-                           columnTypeV2,
-                           serviceNameV2,
-                           tgtColumnNameV2,
-                           tgtColumnTypeV2,
-                           isDirected = false,
-                           serviceName,
-                           testIdxProps,
-                           testProps,
-                           consistencyLevel,
-                           Some(hTableName),
-                           hTableTTL,
-                           VERSION2,
-                           false,
-                           "lg4",
-                           None)
+      serviceNameV2,
+      columnNameV2,
+      columnTypeV2,
+      serviceNameV2,
+      tgtColumnNameV2,
+      tgtColumnTypeV2,
+      isDirected = false,
+      serviceName,
+      testIdxProps,
+      testProps,
+      consistencyLevel,
+      Some(hTableName),
+      hTableTTL,
+      VERSION2,
+      false,
+      "lg4",
+      None)
 
     management.createLabel(labelNameSecure,
-                           serviceName,
-                           columnName,
-                           columnType,
-                           serviceName,
-                           tgtColumnName,
-                           tgtColumnType,
-                           isDirected = false,
-                           serviceName,
-                           testIdxProps,
-                           testProps,
-                           consistencyLevel,
-                           Some(hTableName),
-                           hTableTTL,
-                           VERSION3,
-                           false,
-                           "lg4",
-                           Option("""{ "tokens": ["xxx-yyy", "aaa-bbb"] }"""))
+      serviceName,
+      columnName,
+      columnType,
+      serviceName,
+      tgtColumnName,
+      tgtColumnType,
+      isDirected = false,
+      serviceName,
+      testIdxProps,
+      testProps,
+      consistencyLevel,
+      Some(hTableName),
+      hTableTTL,
+      VERSION3,
+      false,
+      "lg4",
+      Option("""{ "tokens": ["xxx-yyy", "aaa-bbb"] }"""))
   }
 
   def service: Service = Service.findByName(serviceName, useCache = false).get

@@ -19,16 +19,16 @@
 
 package org.apache.s2graph.core
 
-import org.apache.s2graph.core.GraphExceptions.IllegalDataTypeException
-import org.apache.s2graph.core.mysqls.LabelMeta
-import org.apache.s2graph.core.rest.TemplateHelper
-import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs}
-import org.apache.s2graph.core.utils.logger
 import play.api.libs.json._
+
+import org.apache.s2graph.core.GraphExceptions.IllegalDataTypeException
+import org.apache.s2graph.core.rest.TemplateHelper
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
+import org.apache.s2graph.core.utils.Logger
 
 object JSONParser {
 
-  //TODO: check result notation on bigDecimal.
+  // TODO: check result notation on bigDecimal.
   def innerValToJsValue(innerVal: InnerValLike, dataType: String): Option[JsValue] =
     try {
       val dType = InnerVal.toInnerDataType(dataType)
@@ -81,49 +81,16 @@ object JSONParser {
       Some(jsValue)
     } catch {
       case e: Exception =>
-        logger.info(s"JSONParser.innerValToJsValue: $e")
+        Logger.info(s"JSONParser.innerValToJsValue: $e")
         None
     }
 
-  //  def innerValToString(innerVal: InnerValLike, dataType: String): String = {
-  //    val dType = InnerVal.toInnerDataType(dataType)
-  //    InnerVal.toInnerDataType(dType) match {
-  //      case InnerVal.STRING => innerVal.toString
-  //      case InnerVal.BOOLEAN => innerVal.toString
-  //      //      case t if InnerVal.NUMERICS.contains(t)  =>
-  //      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
-  //        BigDecimal(innerVal.toString).bigDecimal.toPlainString
-  //      case _ => innerVal.toString
-  //      //        throw new RuntimeException("innerVal to jsValue failed.")
-  //    }
-  //  }
-
-  //  def toInnerVal(str: String, dataType: String, version: String): InnerValLike = {
-  //    //TODO:
-  //    //        logger.error(s"toInnerVal: $str, $dataType, $version")
-  //    val s =
-  //      if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
-  //      else str
-  //    val dType = InnerVal.toInnerDataType(dataType)
-  //
-  //    dType match {
-  //      case InnerVal.STRING => InnerVal.withStr(s, version)
-  //      //      case t if InnerVal.NUMERICS.contains(t) => InnerVal.withNumber(BigDecimal(s), version)
-  //      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
-  //        InnerVal.withNumber(BigDecimal(s), version)
-  //      case InnerVal.BOOLEAN => InnerVal.withBoolean(s.toBoolean, version)
-  //      case InnerVal.BLOB => InnerVal.withBlob(s.getBytes, version)
-  //      case _ =>
-  //        //        InnerVal.withStr("")
-  //        throw new RuntimeException(s"illegal datatype for string: dataType is $dataType for $s")
-  //    }
-  //  }
   def isNumericType(dType: String): Boolean =
     dType == InnerVal.LONG || dType == InnerVal.INT ||
       dType == InnerVal.SHORT || dType == InnerVal.BYTE ||
       dType == InnerVal.FLOAT || dType == InnerVal.DOUBLE
 
-  //TODO: fix this messy parts
+  // TODO: fix this messy parts
   def innerValToAny(innerValLike: InnerValLike, dataType: String): Any = {
     val dType = InnerVal.toInnerDataType(dataType)
     dType match {
@@ -293,6 +260,7 @@ object JSONParser {
         }
     }
   }
+
   def jsValueToInnerVal(jsValue: JsValue,
                         dataType: String,
                         version: String): Option[InnerValLike] = {
@@ -334,7 +302,7 @@ object JSONParser {
       }
     } catch {
       case e: Exception =>
-        logger.error(
+        Logger.error(
           s"jsValueToInnerVal: jsValue = ${jsValue}, dataType = ${dataType}, version = ${version}",
           e
         )
@@ -366,14 +334,14 @@ object JSONParser {
       Option(v)
     } catch {
       case e: Exception =>
-        logger.error(s"anyValToJsValue: $value", e)
+        Logger.error(s"anyValToJsValue: $value", e)
         None
     }
 
   def jsValueToAny(value: JsValue): Option[AnyRef] =
     try {
       val v = value match {
-//        case JsNull =>
+        //        case JsNull =>
         case n: JsNumber => n.value
         case s: JsString =>
           TemplateHelper.replaceVariable(System.currentTimeMillis(), s.value)
@@ -382,7 +350,7 @@ object JSONParser {
       Option(v)
     } catch {
       case e: Exception =>
-        logger.error(s"jsValueToAny: $value", e)
+        Logger.error(s"jsValueToAny: $value", e)
         None
     }
 
@@ -410,6 +378,7 @@ object JSONParser {
       case s: JsString => s.value
       case _ => jsValue.toString
     }
+
   def fromJsonToProperties(jsObject: JsObject): Map[String, Any] = {
     val kvs = for {
       (k, v) <- jsObject.fieldSet

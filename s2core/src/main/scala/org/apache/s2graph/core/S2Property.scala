@@ -19,16 +19,18 @@
 
 package org.apache.s2graph.core
 
+import scala.util.hashing.MurmurHash3
+
+import org.apache.tinkerpop.gremlin.structure.Property
+
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.types.{CanInnerValLike, InnerValLikeWithTs}
-import org.apache.tinkerpop.gremlin.structure.{Property}
-
-import scala.util.hashing.MurmurHash3
 
 case class S2Property[V](element: S2Edge, labelMeta: LabelMeta, key: String, v: V, ts: Long)
     extends Property[V] {
 
   import CanInnerValLike._
+
   lazy val innerVal =
     anyToInnerValLike.toInnerVal(value)(element.innerLabel.schemaVersion)
   lazy val innerValWithTs = InnerValLikeWithTs(innerVal, ts)

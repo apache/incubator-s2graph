@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,10 +19,10 @@
 
 package org.apache.s2graph.spark.spark
 
-import org.apache.spark.serializer.JavaSerializer
-import org.apache.spark.{AccumulableParam, SparkConf}
-
 import scala.collection.mutable.{HashMap => MutableHashMap}
+
+import org.apache.spark.{AccumulableParam, SparkConf}
+import org.apache.spark.serializer.JavaSerializer
 
 /*
  * Allows a mutable HashMap[String, Int] to be used as an accumulator in Spark.
@@ -39,9 +39,12 @@ class HashMapParam[K, V](op: (V, V) => V) extends AccumulableParam[MutableHashMa
 
   def addAccumulator(acc: MapType, elem: ElemType): MapType = {
     val (k1, v1) = elem
-    acc += acc.find(_._1 == k1).map {
-      case (k2, v2) => k2 -> op(v1, v2)
-    }.getOrElse(elem)
+    acc += acc
+      .find(_._1 == k1)
+      .map {
+        case (k2, v2) => k2 -> op(v1, v2)
+      }
+      .getOrElse(elem)
 
     acc
   }

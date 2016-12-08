@@ -22,15 +22,16 @@ package org.apache.s2graph.core
 import java.util
 import java.util.function.{BiConsumer, Consumer}
 
+import scala.collection.JavaConverters._
+
+import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Vertex, VertexProperty}
+import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
+import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
+import play.api.libs.json.Json
+
 import org.apache.s2graph.core.S2Vertex.Props
 import org.apache.s2graph.core.mysqls.{ColumnMeta, LabelMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.types._
-import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
-import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
-import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Vertex, VertexProperty}
-import play.api.libs.json.Json
-
-import scala.collection.JavaConverters._
 
 case class S2Vertex(graph: S2Graph,
                     id: VertexId,
@@ -38,7 +39,8 @@ case class S2Vertex(graph: S2Graph,
                     props: Props = S2Vertex.EmptyProps,
                     op: Byte = 0,
                     belongLabelIds: Seq[Int] = Seq.empty)
-    extends GraphElement with Vertex {
+    extends GraphElement
+    with Vertex {
 
   val innerId = id.innerId
 
@@ -61,10 +63,12 @@ case class S2Vertex(graph: S2Graph,
 
   def defaultProps: util.HashMap[String, S2VertexProperty[_]] = {
     val default = S2Vertex.EmptyProps
-    val newProps = new S2VertexProperty(this,
-                                        ColumnMeta.lastModifiedAtColumn,
-                                        ColumnMeta.lastModifiedAtColumn.name,
-                                        ts)
+    val newProps = new S2VertexProperty(
+      this,
+      ColumnMeta.lastModifiedAtColumn,
+      ColumnMeta.lastModifiedAtColumn.name,
+      ts
+    )
     default.put(ColumnMeta.lastModifiedAtColumn.name, newProps)
     default
   }
@@ -101,11 +105,13 @@ case class S2Vertex(graph: S2Graph,
     }
 
   override def toString(): String =
-    Map("id" -> id.toString(),
-        "ts" -> ts,
-        "props" -> "",
-        "op" -> op,
-        "belongLabelIds" -> belongLabelIds).toString()
+    Map(
+      "id" -> id.toString(),
+      "ts" -> ts,
+      "props" -> "",
+      "op" -> op,
+      "belongLabelIds" -> belongLabelIds
+    ).toString()
 
   def toLogString(): String = {
     val (serviceName, columnName) =
@@ -113,13 +119,15 @@ case class S2Vertex(graph: S2Graph,
       else (serviceColumn.service.serviceName, serviceColumn.columnName)
 
     if (propsWithName.nonEmpty) {
-      Seq(ts,
-          GraphUtil.fromOp(op),
-          "v",
-          id.innerId,
-          serviceName,
-          columnName,
-          Json.toJson(propsWithName)).mkString("\t")
+      Seq(
+        ts,
+        GraphUtil.fromOp(op),
+        "v",
+        id.innerId,
+        serviceName,
+        columnName,
+        Json.toJson(propsWithName)
+      ).mkString("\t")
     } else {
       Seq(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName)
         .mkString("\t")
@@ -169,7 +177,7 @@ case class S2Vertex(graph: S2Graph,
     vertex match {
       case otherV: S2Vertex =>
         val props = ElementHelper.asMap(kvs: _*).asScala.toMap
-        //TODO: direction, operation, _timestamp need to be reserved property key.
+        // TODO: direction, operation, _timestamp need to be reserved property key.
         val direction = props.get("direction").getOrElse("out").toString
         val ts = props
           .get(LabelMeta.timestamp.name)
@@ -207,8 +215,10 @@ object S2Vertex {
 
   type Props = java.util.Map[String, S2VertexProperty[_]]
   type State = Map[ColumnMeta, InnerValLike]
+
   def EmptyProps: util.HashMap[String, S2VertexProperty[_]] =
     new java.util.HashMap[String, S2VertexProperty[_]]()
+
   def EmptyState: Map[ColumnMeta, InnerValLike] = Map.empty
 
   def toPropKey(labelId: Int): Int = Byte.MaxValue + labelId

@@ -36,10 +36,13 @@ case class ExactCounterResult(meta: ExactCounterResultMeta, data: Seq[ExactCount
 
 object ExactCounterItem {
   implicit val writes = new Writes[ExactCounterItem] {
-    def writes(item: ExactCounterItem) = Json.obj("ts" -> item.ts,
-                                                  "time" -> tsFormat.format(item.ts),
-                                                  "count" -> item.count,
-                                                  "score" -> item.score)
+    def writes(item: ExactCounterItem) =
+      Json.obj(
+        "ts" -> item.ts,
+        "time" -> tsFormat.format(item.ts),
+        "count" -> item.count,
+        "score" -> item.score
+      )
   }
   implicit val reads = Json.reads[ExactCounterItem]
 }

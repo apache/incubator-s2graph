@@ -42,12 +42,15 @@ object RankCounterItem {
 
 object RankCounterDimensionItem {
   implicit val writes = new Writes[RankCounterDimensionItem] {
-    def writes(item: RankCounterDimensionItem) = Json.obj("interval" -> item.interval,
-                                                          "ts" -> item.ts,
-                                                          "time" -> tsFormat.format(item.ts),
-                                                          "dimension" -> item.dimension,
-                                                          "total" -> item.total,
-                                                          "ranks" -> item.ranks)
+    def writes(item: RankCounterDimensionItem) =
+      Json.obj(
+        "interval" -> item.interval,
+        "ts" -> item.ts,
+        "time" -> tsFormat.format(item.ts),
+        "dimension" -> item.dimension,
+        "total" -> item.total,
+        "ranks" -> item.ranks
+      )
   }
   implicit val reads = Json.reads[RankCounterDimensionItem]
 }

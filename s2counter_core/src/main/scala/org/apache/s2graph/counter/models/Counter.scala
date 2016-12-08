@@ -20,9 +20,10 @@
 package org.apache.s2graph.counter.models
 
 import com.typesafe.config.Config
+import scalikejdbc._
+
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.util.{CollectionCache, CollectionCacheConfig}
-import scalikejdbc._
 
 case class Counter(id: Int,
                    useFlag: Boolean,
@@ -50,14 +51,14 @@ case class Counter(id: Int,
     autoComb match {
       case true =>
         for {
-          i        <- (0 to math.min(4, dimensionSp.length)).toList
+          i <- (0 to math.min(4, dimensionSp.length)).toList
           combines <- dimensionSp.combinations(i)
         } yield {
           combines
         }
       case false =>
         dimensionSp isEmpty match {
-          case true  => List(Array())
+          case true => List(Array())
           case false => dimensionSp.toList.map(sp => sp.split('.'))
         }
     }
@@ -71,37 +72,39 @@ case class Counter(id: Int,
     }
   }.toSet
 
-  val isRateCounter  = rateActionId.isDefined && rateBaseId.isDefined && rateActionId != rateBaseId
+  val isRateCounter = rateActionId.isDefined && rateBaseId.isDefined && rateActionId != rateBaseId
   val isTrendCounter = rateActionId.isDefined && rateBaseId.isDefined && rateActionId == rateBaseId
 }
 
 object Counter extends SQLSyntaxSupport[Counter] {
+
   object ItemType extends Enumeration {
     type ItemType = Value
     val INT, LONG, STRING, BLOB = Value
   }
 
   def apply(c: SyntaxProvider[Counter])(rs: WrappedResultSet): Counter = apply(c.resultName)(rs)
+
   def apply(r: ResultName[Counter])(rs: WrappedResultSet): Counter = {
     lazy val itemType = Counter.ItemType(rs.int(r.itemType))
     Counter(rs.int(r.id),
-            rs.boolean(r.useFlag),
-            rs.byte(r.version),
-            rs.string(r.service),
-            rs.string(r.action),
-            itemType,
-            rs.boolean(r.autoComb),
-            rs.string(r.dimension),
-            rs.boolean(r.useProfile),
-            rs.stringOpt(r.bucketImpId),
-            rs.boolean(r.useRank),
-            rs.int(r.ttl),
-            rs.intOpt(r.dailyTtl),
-            rs.stringOpt(r.hbaseTable),
-            rs.stringOpt(r.intervalUnit),
-            rs.intOpt(r.rateActionId),
-            rs.intOpt(r.rateBaseId),
-            rs.intOpt(r.rateThreshold))
+      rs.boolean(r.useFlag),
+      rs.byte(r.version),
+      rs.string(r.service),
+      rs.string(r.action),
+      itemType,
+      rs.boolean(r.autoComb),
+      rs.string(r.dimension),
+      rs.boolean(r.useProfile),
+      rs.stringOpt(r.bucketImpId),
+      rs.boolean(r.useRank),
+      rs.int(r.ttl),
+      rs.intOpt(r.dailyTtl),
+      rs.stringOpt(r.hbaseTable),
+      rs.stringOpt(r.intervalUnit),
+      rs.intOpt(r.rateActionId),
+      rs.intOpt(r.rateBaseId),
+      rs.intOpt(r.rateThreshold))
   }
 
   def apply(useFlag: Boolean,
@@ -122,23 +125,23 @@ object Counter extends SQLSyntaxSupport[Counter] {
             rateBaseId: Option[Int] = None,
             rateThreshold: Option[Int] = None): Counter =
     Counter(-1,
-            useFlag,
-            version,
-            service,
-            action,
-            itemType,
-            autoComb,
-            dimension,
-            useProfile,
-            bucketImpId,
-            useRank,
-            ttl,
-            dailyTtl,
-            hbaseTable,
-            intervalUnit,
-            rateActionId,
-            rateBaseId,
-            rateThreshold)
+      useFlag,
+      version,
+      service,
+      action,
+      itemType,
+      autoComb,
+      dimension,
+      useProfile,
+      bucketImpId,
+      useRank,
+      ttl,
+      dailyTtl,
+      hbaseTable,
+      intervalUnit,
+      rateActionId,
+      rateBaseId,
+      rateThreshold)
 }
 
 class CounterModel(config: Config) extends CachedDBModel[Counter] {
@@ -146,9 +149,9 @@ class CounterModel(config: Config) extends CachedDBModel[Counter] {
   // enable negative cache
   override val cacheConfig: CollectionCacheConfig =
     new CollectionCacheConfig(s2Config.CACHE_MAX_SIZE,
-                              s2Config.CACHE_TTL_SECONDS,
-                              negativeCache = true,
-                              s2Config.CACHE_NEGATIVE_TTL_SECONDS)
+      s2Config.CACHE_TTL_SECONDS,
+      negativeCache = true,
+      s2Config.CACHE_NEGATIVE_TTL_SECONDS)
 
   val c = Counter.syntax("c")
   val r = c.result
@@ -174,11 +177,11 @@ class CounterModel(config: Config) extends CachedDBModel[Counter] {
                           useCache: Boolean = true): Option[Counter] = {
     lazy val sql = withSQL {
       selectFrom(Counter as c).where
-        .eq(c.service, service)
-        .and
-        .eq(c.action, action)
-        .and
-        .eq(c.useFlag, 1)
+          .eq(c.service, service)
+          .and
+          .eq(c.action, action)
+          .and
+          .eq(c.useFlag, 1)
     }.map(Counter(c))
 
     if (useCache) {
@@ -193,11 +196,11 @@ class CounterModel(config: Config) extends CachedDBModel[Counter] {
   def findByRateActionId(rateActionId: Int, useCache: Boolean = true): Seq[Counter] = {
     lazy val sql = withSQL {
       selectFrom(Counter as c).where
-        .eq(c.rateActionId, rateActionId)
-        .and
-        .ne(c.rateBaseId, rateActionId)
-        .and
-        .eq(c.useFlag, 1)
+          .eq(c.rateActionId, rateActionId)
+          .and
+          .ne(c.rateBaseId, rateActionId)
+          .and
+          .eq(c.useFlag, 1)
     }.map(Counter(c))
 
     if (useCache) {
@@ -212,11 +215,11 @@ class CounterModel(config: Config) extends CachedDBModel[Counter] {
   def findByRateBaseId(rateBaseId: Int, useCache: Boolean = true): Seq[Counter] = {
     lazy val sql = withSQL {
       selectFrom(Counter as c).where
-        .eq(c.rateBaseId, rateBaseId)
-        .and
-        .ne(c.rateActionId, rateBaseId)
-        .and
-        .eq(c.useFlag, 1)
+          .eq(c.rateBaseId, rateBaseId)
+          .and
+          .ne(c.rateActionId, rateBaseId)
+          .and
+          .eq(c.useFlag, 1)
     }.map(Counter(c))
 
     if (useCache) {
@@ -231,11 +234,11 @@ class CounterModel(config: Config) extends CachedDBModel[Counter] {
   def findByTrendActionId(trendActionId: Int, useCache: Boolean = true): Seq[Counter] = {
     lazy val sql = withSQL {
       selectFrom(Counter as c).where
-        .eq(c.rateActionId, trendActionId)
-        .and
-        .eq(c.rateBaseId, trendActionId)
-        .and
-        .eq(c.useFlag, 1)
+          .eq(c.rateActionId, trendActionId)
+          .and
+          .eq(c.rateBaseId, trendActionId)
+          .and
+          .eq(c.useFlag, 1)
     }.map(Counter(c))
 
     if (useCache) {
@@ -251,56 +254,56 @@ class CounterModel(config: Config) extends CachedDBModel[Counter] {
     withSQL {
       val c = Counter.column
       insert
-        .into(Counter)
-        .namedValues(
-          c.useFlag       -> policy.useFlag,
-          c.version       -> policy.version,
-          c.service       -> policy.service,
-          c.action        -> policy.action,
-          c.itemType      -> policy.itemType.id,
-          c.autoComb      -> policy.autoComb,
-          c.dimension     -> policy.dimension,
-          c.useProfile    -> policy.useProfile,
-          c.bucketImpId   -> policy.bucketImpId,
-          c.useRank       -> policy.useRank,
-          c.ttl           -> policy.ttl,
-          c.dailyTtl      -> policy.dailyTtl,
-          c.hbaseTable    -> policy.hbaseTable,
-          c.intervalUnit  -> policy.intervalUnit,
-          c.rateActionId  -> policy.rateActionId,
-          c.rateBaseId    -> policy.rateBaseId,
-          c.rateThreshold -> policy.rateThreshold
-        )
+          .into(Counter)
+          .namedValues(
+            c.useFlag -> policy.useFlag,
+            c.version -> policy.version,
+            c.service -> policy.service,
+            c.action -> policy.action,
+            c.itemType -> policy.itemType.id,
+            c.autoComb -> policy.autoComb,
+            c.dimension -> policy.dimension,
+            c.useProfile -> policy.useProfile,
+            c.bucketImpId -> policy.bucketImpId,
+            c.useRank -> policy.useRank,
+            c.ttl -> policy.ttl,
+            c.dailyTtl -> policy.dailyTtl,
+            c.hbaseTable -> policy.hbaseTable,
+            c.intervalUnit -> policy.intervalUnit,
+            c.rateActionId -> policy.rateActionId,
+            c.rateBaseId -> policy.rateBaseId,
+            c.rateThreshold -> policy.rateThreshold
+          )
     }.update().apply()
 
   def updateServiceAction(policy: Counter): Unit =
     withSQL {
       val c = Counter.column
       update(Counter)
-        .set(
-          c.autoComb      -> policy.autoComb,
-          c.dimension     -> policy.dimension,
-          c.useProfile    -> policy.useProfile,
-          c.bucketImpId   -> policy.bucketImpId,
-          c.useRank       -> policy.useRank,
-          c.intervalUnit  -> policy.intervalUnit,
-          c.rateActionId  -> policy.rateActionId,
-          c.rateBaseId    -> policy.rateBaseId,
-          c.rateThreshold -> policy.rateThreshold
-        )
-        .where
-        .eq(c.id, policy.id)
+          .set(
+            c.autoComb -> policy.autoComb,
+            c.dimension -> policy.dimension,
+            c.useProfile -> policy.useProfile,
+            c.bucketImpId -> policy.bucketImpId,
+            c.useRank -> policy.useRank,
+            c.intervalUnit -> policy.intervalUnit,
+            c.rateActionId -> policy.rateActionId,
+            c.rateBaseId -> policy.rateBaseId,
+            c.rateThreshold -> policy.rateThreshold
+          )
+          .where
+          .eq(c.id, policy.id)
     }.update().apply()
 
   def deleteServiceAction(policy: Counter): Unit =
     withSQL {
       val c = Counter.column
       update(Counter)
-        .set(
-          c.action  -> s"deleted_${System.currentTimeMillis()}_${policy.action}",
-          c.useFlag -> false
-        )
-        .where
-        .eq(c.id, policy.id)
+          .set(
+            c.action -> s"deleted_${System.currentTimeMillis()}_${policy.action}",
+            c.useFlag -> false
+          )
+          .where
+          .eq(c.id, policy.id)
     }.update().apply()
 }

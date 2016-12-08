@@ -17,42 +17,43 @@
  * under the License.
  */
 
+import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.{FileVisitResult, Files, Path, Paths, SimpleFileVisitor, StandardCopyOption}
 
-import sbt.Keys._
 import sbt._
+import sbt.Keys._
 
 object Packager {
 
   val packagedJars = TaskKey[Seq[File]]("packaged-jars", "list of jar files for packaging")
-  val packager     = TaskKey[File]("package", s"packages the project for deployment")
+  val packager = TaskKey[File]("package", s"packages the project for deployment")
 
   val packagedJarsTask = (state, thisProjectRef).flatMap { (state, project) =>
+
     /** return all tasks of given TaskKey's dependencies */
     def taskInAllDependencies[T](taskKey: TaskKey[T]): Task[Seq[T]] = {
       val structure = Project.structure(state)
 
       Dag
-        .topologicalSort(project) { ref =>
-          Project.getProject(ref, structure).toList.flatMap { p =>
-            p.dependencies.map(_.project) ++ p.aggregate
+          .topologicalSort(project) { ref =>
+            Project.getProject(ref, structure).toList.flatMap { p =>
+              p.dependencies.map(_.project) ++ p.aggregate
+            }
           }
-        }
-        .flatMap { p =>
-          taskKey in p get structure.data
-        }
-        .join
+          .flatMap { p =>
+            taskKey in p get structure.data
+          }
+          .join
     }
 
     for {
       packaged <- taskInAllDependencies(packagedArtifacts)
-      srcs     <- taskInAllDependencies(packageSrc in Compile)
-      docs     <- taskInAllDependencies(packageDoc in Compile)
+      srcs <- taskInAllDependencies(packageSrc in Compile)
+      docs <- taskInAllDependencies(packageDoc in Compile)
     } yield {
       packaged.flatten.collect { case (artifact, path) if artifact.extension == "jar" => path }
-        .diff(srcs ++ docs) //remove srcs & docs since we do not need them in the dist
-        .distinct
+          .diff(srcs ++ docs) // remove srcs & docs since we do not need them in the dist
+          .distinct
     }
   }
 
@@ -66,7 +67,7 @@ object Packager {
         IO.createDirectory(base)
 
         val subdirectories = Seq("bin", "conf", "lib")
-        val files          = Seq("LICENSE", "NOTICE", "DISCLAIMER")
+        val files = Seq("LICENSE", "NOTICE", "DISCLAIMER")
 
         for (dir <- subdirectories) {
           IO.createDirectory(base / dir)
@@ -119,12 +120,12 @@ object Packager {
 
         streams.log.info(s"Package for distribution located at $base")
 
-        {
-          import scala.sys.process._
-          streams.log.info(s"creating a tarball...")
-          s"tar zcf $base.tar.gz -C $target $name".!!
-          streams.log.info(s"Tarball is located at $base.tar.gz")
-        }
+      {
+        import scala.sys.process._
+        streams.log.info(s"creating a tarball...")
+        s"tar zcf $base.tar.gz -C $target $name".!!
+        streams.log.info(s"Tarball is located at $base.tar.gz")
+      }
 
         base
     }

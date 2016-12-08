@@ -1,7 +1,27 @@
-import sbt.Keys._
-import sbt._
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 import scala.util.Try
 import scala.xml.XML
+
+import sbt._
+import sbt.Keys._
 
 object Publisher {
 
@@ -14,58 +34,62 @@ object Publisher {
       Some("apache" at "https://repository.apache.org/content/repositories/releases")
     }
   }, credentials ++= {
-    Try(XML.loadFile(new File(System.getProperty("user.home")) / ".m2" / "settings.xml")).toOption.toSeq
-      .flatMap { xml =>
-        for (server <- xml \\ "server" if (server \ "id").text == "apache") yield {
-          Credentials(
-            "Sonatype Nexus Repository Manager",
-            "repository.apache.org",
-            (server \ "username").text,
-            (server \ "password").text
-          )
+    Try(XML.loadFile(new File(System.getProperty("user.home")) / ".m2" / "settings.xml"))
+        .toOption
+        .toSeq
+        .flatMap { xml =>
+          for (server <- xml \\ "server" if (server \ "id").text == "apache") yield {
+            Credentials(
+              "Sonatype Nexus Repository Manager",
+              "repository.apache.org",
+              (server \ "username").text,
+              (server \ "password").text
+            )
+          }
         }
-      }
   }, pomIncludeRepository := { _ =>
     false
   }, pomExtra := {
+    // scalastyle:off
     <url>https://github.com/apache/incubator-s2graph</url>
-      <licenses>
-        <license>
-          <name>Apache 2</name>
-          <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-        </license>
-      </licenses>
-      <scm>
-        <connection>scm:git://git.apache.org/incubator-s2graph.git</connection>
-        <developerConnection>scm:git:https://git-wip-us.apache.org/repos/asf/incubator-s2graph.git</developerConnection>
-        <url>github.com/apache/incubator-s2graph</url>
-      </scm>
-      <developers>
-        <developer>
-          <id>s2graph</id>
-          <name>S2Graph Team</name>
-          <url>http://s2graph.incubator.apache.org/</url>
-        </developer>
-      </developers>
-      <mailingLists>
-        <mailingList>
-          <name>Dev Mailing List</name>
-          <post>dev@s2graph.incubator.apache.org</post>
-          <subscribe>dev-subscribe@s2graph.incubator.apache.org</subscribe>
-          <unsubscribe>dev-unsubscribe@s2graph.incubator.apache.org</unsubscribe>
-        </mailingList>
-        <mailingList>
-          <name>User Mailing List</name>
-          <post>users@s2graph.incubator.apache.org</post>
-          <subscribe>users-subscribe@s2graph.incubator.apache.org</subscribe>
-          <unsubscribe>users-unsubscribe@s2graph.incubator.apache.org</unsubscribe>
-        </mailingList>
-        <mailingList>
-          <name>Commits Mailing List</name>
-          <post>commits@s2graph.incubator.apache.org</post>
-          <subscribe>commits-subscribe@s2graph.incubator.apache.org</subscribe>
-          <unsubscribe>commits-unsubscribe@s2graph.incubator.apache.org</unsubscribe>
-        </mailingList>
-      </mailingLists>
+        <licenses>
+          <license>
+            <name>Apache 2</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+          </license>
+        </licenses>
+        <scm>
+          <connection>scm:git://git.apache.org/incubator-s2graph.git</connection>
+          <developerConnection>scm:git:https://git-wip-us.apache.org/repos/asf/incubator-s2graph.git</developerConnection>
+          <url>github.com/apache/incubator-s2graph</url>
+        </scm>
+        <developers>
+          <developer>
+            <id>s2graph</id>
+            <name>S2Graph Team</name>
+            <url>http://s2graph.incubator.apache.org/</url>
+          </developer>
+        </developers>
+        <mailingLists>
+          <mailingList>
+            <name>Dev Mailing List</name>
+            <post>dev@s2graph.incubator.apache.org</post>
+            <subscribe>dev-subscribe@s2graph.incubator.apache.org</subscribe>
+            <unsubscribe>dev-unsubscribe@s2graph.incubator.apache.org</unsubscribe>
+          </mailingList>
+          <mailingList>
+            <name>User Mailing List</name>
+            <post>users@s2graph.incubator.apache.org</post>
+            <subscribe>users-subscribe@s2graph.incubator.apache.org</subscribe>
+            <unsubscribe>users-unsubscribe@s2graph.incubator.apache.org</unsubscribe>
+          </mailingList>
+          <mailingList>
+            <name>Commits Mailing List</name>
+            <post>commits@s2graph.incubator.apache.org</post>
+            <subscribe>commits-subscribe@s2graph.incubator.apache.org</subscribe>
+            <unsubscribe>commits-unsubscribe@s2graph.incubator.apache.org</unsubscribe>
+          </mailingList>
+        </mailingLists>
+    // scalastyle:on
   })
 }

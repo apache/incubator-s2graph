@@ -20,6 +20,7 @@
 package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util.Bytes
+
 import org.apache.s2graph.core.mysqls.LabelMeta
 
 object HBaseType {
@@ -27,9 +28,9 @@ object HBaseType {
   val VERSION3 = "v3"
   val VERSION2 = "v2"
   val VERSION1 = "v1"
-//  val DEFAULT_VERSION = VERSION2
+  //  val DEFAULT_VERSION = VERSION2
   val DEFAULT_VERSION = VERSION3
-//  val EMPTY_SEQ_BYTE = Byte.MaxValue
+  //  val EMPTY_SEQ_BYTE = Byte.MaxValue
   val DEFAULT_COL_ID = 0
   val bitsForDir = 2
   val maxBytes = Bytes.toBytes(Int.MaxValue)

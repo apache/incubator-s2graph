@@ -19,20 +19,22 @@
 
 package org.apache.s2graph.rest.play.controllers
 
-import org.apache.s2graph.core.Management
-import org.apache.s2graph.core.mysqls._
-import org.apache.s2graph.core.rest.RequestParser
-import org.apache.s2graph.core.utils.logger
+import scala.util.{Failure, Success, Try}
+
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
 import play.api.mvc
 import play.api.mvc.{Action, AnyContent, Controller}
 
-import scala.util.{Failure, Success, Try}
+import org.apache.s2graph.core.Management
+import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.rest.RequestParser
+import org.apache.s2graph.core.utils.Logger
 
 object AdminController extends Controller {
 
   import ApplicationController._
+
   private val management: Management =
     org.apache.s2graph.rest.play.Global.storageManagement
   private val requestParser: RequestParser =
@@ -40,6 +42,7 @@ object AdminController extends Controller {
 
   /**
     * admin message formatter
+    *
     * @tparam T
     */
   trait AdminMessageFormatter[T] {
@@ -57,14 +60,16 @@ object AdminController extends Controller {
     }
   }
 
-  def format[T: AdminMessageFormatter](f: JsValue => play.mvc.Result)(
-      message: T): play.mvc.Result = {
+  def format[T: AdminMessageFormatter](
+      f: JsValue => play.mvc.Result
+  )(message: T): play.mvc.Result = {
     val formatter = implicitly[AdminMessageFormatter[T]]
     f(formatter.toJson(message))
   }
 
   /**
     * ok response
+    *
     * @param message
     * @tparam T
     * @return
@@ -76,6 +81,7 @@ object AdminController extends Controller {
 
   /**
     * bad request response
+    *
     * @param message
     * @tparam T
     * @return
@@ -87,6 +93,7 @@ object AdminController extends Controller {
 
   /**
     * not found response
+    *
     * @param message
     * @tparam T
     * @return
@@ -97,27 +104,29 @@ object AdminController extends Controller {
   }
 
   private[AdminController] def tryResponse[T, R: AdminMessageFormatter](
-      res: Try[T])(callback: T => R): mvc.Result = res match {
+      res: Try[T]
+  )(callback: T => R): mvc.Result = res match {
     case Success(m) =>
       val ret = callback(m)
-      logger.info(ret.toString)
+      Logger.info(ret.toString)
       ok(ret)
     case Failure(error) =>
-      logger.error(error.getMessage, error)
+      Logger.error(error.getMessage, error)
       error match {
         case JsResultException(e) => bad(JsError.toFlatJson(e))
         case _ => bad(error.getMessage)
       }
   }
 
-  def optionResponse[T, R: AdminMessageFormatter](res: Option[T])(
-      callback: T => R): mvc.Result = res match {
-    case Some(m) => ok(callback(m))
-    case None => notFound("not found")
-  }
+  def optionResponse[T, R: AdminMessageFormatter](res: Option[T])(callback: T => R): mvc.Result =
+    res match {
+      case Some(m) => ok(callback(m))
+      case None => notFound("not found")
+    }
 
   /**
     * load all model cache
+    *
     * @return
     */
   def loadCache(): Action[play.api.mvc.AnyContent] = Action { request =>
@@ -144,6 +153,7 @@ object AdminController extends Controller {
     */
   /**
     * get service info
+    *
     * @param serviceName
     * @return
     */
@@ -155,17 +165,18 @@ object AdminController extends Controller {
 
   /**
     * get label info
+    *
     * @param labelName
     * @return
     */
-  def getLabel(labelName: String): Action[play.api.mvc.AnyContent] = Action {
-    request =>
-      val labelOpt = Management.findLabel(labelName)
-      optionResponse(labelOpt)(_.toJson)
+  def getLabel(labelName: String): Action[play.api.mvc.AnyContent] = Action { request =>
+    val labelOpt = Management.findLabel(labelName)
+    optionResponse(labelOpt)(_.toJson)
   }
 
   /**
     * get all labels of service
+    *
     * @param serviceName
     * @return
     */
@@ -183,12 +194,12 @@ object AdminController extends Controller {
 
   /**
     * get service columns
+    *
     * @param serviceName
     * @param columnName
     * @return
     */
-  def getServiceColumn(serviceName: String,
-                       columnName: String): Action[play.api.mvc.AnyContent] =
+  def getServiceColumn(serviceName: String, columnName: String): Action[play.api.mvc.AnyContent] =
     Action { request =>
       val serviceColumnOpt = for {
         service <- Service.findByName(serviceName)
@@ -204,6 +215,7 @@ object AdminController extends Controller {
     */
   /**
     * create service
+    *
     * @return
     */
   def createService(): Action[JsValue] = Action(parse.json) { request =>
@@ -212,22 +224,15 @@ object AdminController extends Controller {
   }
 
   def createServiceInner(jsValue: JsValue): Try[Service] = {
-    val (serviceName,
-         cluster,
-         tableName,
-         preSplitSize,
-         ttl,
-         compressionAlgorithm) = requestParser.toServiceElements(jsValue)
-    management.createService(serviceName,
-                             cluster,
-                             tableName,
-                             preSplitSize,
-                             ttl,
-                             compressionAlgorithm)
+    val (serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm) =
+      requestParser.toServiceElements(jsValue)
+    management
+      .createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
   }
 
   /**
     * create label
+    *
     * @return
     */
   def createLabel(): Action[JsValue] = Action(parse.json) { request =>
@@ -243,6 +248,7 @@ object AdminController extends Controller {
 
   /**
     * add index
+    *
     * @return
     */
   def addIndex(): Action[JsValue] = Action(parse.json) { request =>
@@ -258,6 +264,7 @@ object AdminController extends Controller {
 
   /**
     * create service column
+    *
     * @return
     */
   def createServiceColumn(): Action[JsValue] = Action(parse.json) { request =>
@@ -280,6 +287,7 @@ object AdminController extends Controller {
     */
   /**
     * delete label
+    *
     * @param labelName
     * @return
     */
@@ -293,19 +301,18 @@ object AdminController extends Controller {
 
   /**
     * delete servieColumn
+    *
     * @param serviceName
     * @param columnName
     * @return
     */
-  def deleteServiceColumn(serviceName: String,
-                          columnName: String): Action[AnyContent] = Action {
+  def deleteServiceColumn(serviceName: String, columnName: String): Action[AnyContent] = Action {
     request =>
       val serviceColumnTry = deleteServiceColumnInner(serviceName, columnName)
       tryResponse(serviceColumnTry)(columnName => columnName + " is deleted")
   }
 
-  def deleteServiceColumnInner(serviceName: String,
-                               columnName: String): Try[String] =
+  def deleteServiceColumnInner(serviceName: String, columnName: String): Try[String] =
     Management.deleteColumn(serviceName, columnName)
 
   /**
@@ -313,13 +320,13 @@ object AdminController extends Controller {
     */
   /**
     * add Prop to label
+    *
     * @param labelName
     * @return
     */
-  def addProp(labelName: String): Action[JsValue] = Action(parse.json) {
-    request =>
-      val labelMetaTry = addPropInner(labelName, request.body)
-      tryResponse(labelMetaTry)(_.toJson)
+  def addProp(labelName: String): Action[JsValue] = Action(parse.json) { request =>
+    val labelMetaTry = addPropInner(labelName, request.body)
+    tryResponse(labelMetaTry)(_.toJson)
   }
 
   def addPropInner(labelName: String, js: JsValue): Try[LabelMeta] =
@@ -330,23 +337,22 @@ object AdminController extends Controller {
 
   /**
     * add prop to serviceColumn
+    *
     * @param serviceName
     * @param columnName
     * @return
     */
-  def addServiceColumnProp(serviceName: String,
-                           columnName: String): Action[JsValue] =
+  def addServiceColumnProp(serviceName: String, columnName: String): Action[JsValue] =
     Action(parse.json) { request =>
       addServiceColumnPropInner(serviceName, columnName)(request.body) match {
         case None =>
-          bad(
-            s"can`t find service with $serviceName or can`t find serviceColumn with $columnName")
+          bad(s"can`t find service with $serviceName or can`t find serviceColumn with $columnName")
         case Some(m) => Ok(m.toJson).as(applicationJsonHeader)
       }
     }
 
-  def addServiceColumnPropInner(serviceName: String, columnName: String)(
-      js: JsValue): Option[ColumnMeta] = {
+  def addServiceColumnPropInner(serviceName: String,
+                                columnName: String)(js: JsValue): Option[ColumnMeta] =
     for {
       service <- Service.findByName(serviceName)
       serviceColumn <- ServiceColumn.find(service.id.get, columnName)
@@ -355,16 +361,15 @@ object AdminController extends Controller {
       ColumnMeta
         .findOrInsert(serviceColumn.id.get, prop.name, prop.defaultValue)
     }
-  }
 
   /**
     * add props to serviceColumn
+    *
     * @param serviecName
     * @param columnName
     * @return
     */
-  def addServiceColumnProps(serviecName: String,
-                            columnName: String): Action[JsValue] =
+  def addServiceColumnProps(serviecName: String, columnName: String): Action[JsValue] =
     Action(parse.json) { request =>
       val jsObjs =
         request.body.asOpt[List[JsObject]].getOrElse(List.empty[JsObject])
@@ -377,25 +382,26 @@ object AdminController extends Controller {
 
   /**
     * copy label
+    *
     * @param oldLabelName
     * @param newLabelName
     * @return
     */
-  def copyLabel(oldLabelName: String,
-                newLabelName: String): Action[AnyContent] = Action { request =>
-    val copyTry =
-      management.copyLabel(oldLabelName, newLabelName, Some(newLabelName))
-    tryResponse(copyTry)(_.label + " created")
+  def copyLabel(oldLabelName: String, newLabelName: String): Action[AnyContent] = Action {
+    request =>
+      val copyTry =
+        management.copyLabel(oldLabelName, newLabelName, Some(newLabelName))
+      tryResponse(copyTry)(_.label + " created")
   }
 
   /**
     * rename label
+    *
     * @param oldLabelName
     * @param newLabelName
     * @return
     */
-  def renameLabel(oldLabelName: String,
-                  newLabelName: String): Action[AnyContent] = Action {
+  def renameLabel(oldLabelName: String, newLabelName: String): Action[AnyContent] = Action {
     request =>
       Label.findByName(oldLabelName) match {
         case None => NotFound.as(s"Label $oldLabelName not found.")
@@ -407,12 +413,12 @@ object AdminController extends Controller {
 
   /**
     * update HTable for a label
+    *
     * @param labelName
     * @param newHTableName
     * @return
     */
-  def updateHTable(labelName: String,
-                   newHTableName: String): Action[AnyContent] = Action {
+  def updateHTable(labelName: String, newHTableName: String): Action[AnyContent] = Action {
     request =>
       val updateTry = Management.updateHTable(labelName, newHTableName)
       tryResponse(updateTry)(_.toString + " label(s) updated.")
@@ -420,12 +426,12 @@ object AdminController extends Controller {
 
   /**
     * swap two label names
+    *
     * @param leftLabelName
     * @param rightLabelName
     * @return
     */
-  def swapLabels(leftLabelName: String,
-                 rightLabelName: String): Action[AnyContent] = Action {
+  def swapLabels(leftLabelName: String, rightLabelName: String): Action[AnyContent] = Action {
     request =>
       val left = Label.findByName(leftLabelName, useCache = false)
       val right = Label.findByName(rightLabelName, useCache = false)
@@ -446,7 +452,7 @@ object AdminController extends Controller {
                           hTableTTL: Option[Int],
                           compressionAlgorithm: Option[String]) {
 
-    override def toString(): String = {
+    override def toString(): String =
       s"""HtableParams
          |-- cluster : $cluster
          |-- hTableName : $hTableName
@@ -454,7 +460,6 @@ object AdminController extends Controller {
          |-- hTableTTL : $hTableTTL
          |-- compressionAlgorithm : $compressionAlgorithm
          |""".stripMargin
-    }
   }
 
   implicit object HTableParamsJsonConverter extends Format[HTableParams] {
@@ -476,25 +481,25 @@ object AdminController extends Controller {
   }
 
   implicit object JsErrorJsonWriter extends Writes[JsError] {
-    def writes(o: JsError): JsValue = Json.obj(
-      "errors" -> JsArray(
-        o.errors.map {
-          case (path, validationErrors) =>
-            Json.obj(
-              "path" -> Json.toJson(path.toString()),
-              "validationErrors" -> JsArray(
-                validationErrors.map(validationError =>
+    def writes(o: JsError): JsValue =
+      Json.obj("errors" -> JsArray(o.errors.map {
+        case (path, validationErrors) =>
+          Json.obj(
+            "path" -> Json.toJson(path.toString()),
+            "validationErrors" -> JsArray(
+              validationErrors.map(
+                validationError =>
                   Json.obj(
                     "message" -> JsString(validationError.message),
                     "args" -> JsArray(validationError.args.map(_ match {
                       case x: Int => JsNumber(x)
                       case x => JsString(x.toString)
                     }))
-                )))
+                )
+              )
             )
-        }
-      )
-    )
+          )
+      }))
   }
 
   def createHTable(): Action[AnyContent] = Action { request =>
@@ -509,9 +514,9 @@ object AdminController extends Controller {
             List("e", "v"),
             hTableParams.preSplitSize,
             hTableParams.hTableTTL,
-            hTableParams.compressionAlgorithm.getOrElse(
-              Management.DefaultCompressionAlgorithm))
-          logger.info(hTableParams.toString())
+            hTableParams.compressionAlgorithm.getOrElse(Management.DefaultCompressionAlgorithm)
+          )
+          Logger.info(hTableParams.toString())
           ok(s"HTable was created.")
         }
         case err @ JsError(_) => bad(Json.toJson(err))

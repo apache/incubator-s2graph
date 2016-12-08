@@ -19,9 +19,9 @@
 
 package org.apache.s2graph.counter.loader.core
 
-import org.scalatest.{FunSuite, Matchers}
-
 import scala.collection.mutable.ListBuffer
+
+import org.scalatest.{FunSuite, Matchers}
 
 class DimensionPropsTest extends FunSuite with Matchers {
   test("makeRequestBody with Seq") {

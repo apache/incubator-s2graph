@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.types.v1
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.GraphExceptions
+
 import org.apache.s2graph.core.GraphExceptions.IllegalDataTypeException
 import org.apache.s2graph.core.types.{
   HBaseDeserializableWithIsVertexId,
@@ -30,7 +30,9 @@ import org.apache.s2graph.core.types.{
 }
 
 object InnerVal extends HBaseDeserializableWithIsVertexId {
+
   import HBaseType._
+
   //  val defaultVal = new InnerVal(None, None, None)
   val stringLenOffset = 7.toByte
   val maxStringLen = Byte.MaxValue - stringLenOffset
@@ -48,13 +50,15 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
     * 6 => false
     * 7 ~ 127 => string len + 7
     */
-  val metaByte = Map("default" -> 0,
-                     "long" -> 1,
-                     "int" -> 2,
-                     "short" -> 3,
-                     "byte" -> 4,
-                     "true" -> 5,
-                     "false" -> 6).map {
+  val metaByte = Map(
+    "default" -> 0,
+    "long" -> 1,
+    "int" -> 2,
+    "short" -> 3,
+    "byte" -> 4,
+    "true" -> 5,
+    "false" -> 6
+  ).map {
     case (k, v) => (k, v.toByte)
   }
   val metaByteRev = metaByte.map { case (k, v) => (v.toByte, k) } ++ metaByte.map {
@@ -180,7 +184,8 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 }
 
 case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boolean])
-    extends HBaseSerializable with InnerValLike {
+    extends HBaseSerializable
+    with InnerValLike {
 
   import InnerVal._
 
@@ -192,6 +197,7 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
     case _ =>
       throw new Exception(s"InnerVal should be [long/integeer/short/byte/string/boolean]")
   }
+
   def valueType: String = (longV, strV, boolV) match {
     case (Some(l), None, None) => "long"
     case (None, Some(s), None) => "string"
@@ -204,12 +210,12 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
     if (!other.isInstanceOf[InnerVal]) {
       throw new RuntimeException(s"compare between $this vs $other is not supported")
     } else {
-//      (value, other.value) match {
-//        case (v1: Long, v2: Long) => v1.compare(v2)
-//        case (b1: Boolean, b2: Boolean) => b1.compare(b2)
-//        case (s1: String, s2: String) => s1.compare(s2)
-//        case _ => throw new Exception("Please check a type of the compare operands")
-//      }
+      //      (value, other.value) match {
+      //        case (v1: Long, v2: Long) => v1.compare(v2)
+      //        case (b1: Boolean, b2: Boolean) => b1.compare(b2)
+      //        case (s1: String, s2: String) => s1.compare(s2)
+      //        case _ => throw new Exception("Please check a type of the compare operands")
+      //      }
       Bytes.compareTo(bytes, other.bytes) * -1
     }
 
@@ -253,8 +259,10 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
 
   override def toString(): String =
     value.toString
+
   override def hashKey(dataType: String): Int =
     value.toString.hashCode()
+
   override def toIdString(): String =
     value.toString
 }

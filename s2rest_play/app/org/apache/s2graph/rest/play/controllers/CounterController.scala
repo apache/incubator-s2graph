@@ -19,31 +19,33 @@
 
 package org.apache.s2graph.rest.play.controllers
 
+import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
+
 import com.typesafe.config.Config
 import org.apache.kafka.clients.producer.ProducerRecord
+import play.api.Play
+import play.api.libs.json._
+import play.api.libs.json.Reads._
+import play.api.mvc.{Action, AnyContent, Controller, Request}
+
 import org.apache.s2graph.core.ExceptionHandler
 import org.apache.s2graph.core.ExceptionHandler.KafkaMessage
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.counter
 import org.apache.s2graph.counter.config.S2CounterConfig
-import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
 import org.apache.s2graph.counter.core._
+import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
 import org.apache.s2graph.counter.core.v1.{ExactStorageAsyncHBase, RankingStorageRedis}
 import org.apache.s2graph.counter.core.v2.{ExactStorageGraph, RankingStorageGraph}
-import org.apache.s2graph.counter.models.Counter.ItemType
 import org.apache.s2graph.counter.models.{Counter, CounterModel}
+import org.apache.s2graph.counter.models.Counter.ItemType
 import org.apache.s2graph.counter.util.{CartesianProduct, ReduceMapValue, UnitConverter}
 import org.apache.s2graph.rest.play.config.CounterConfig
 import org.apache.s2graph.rest.play.models._
-import play.api.Play
-import play.api.libs.json.Reads._
-import play.api.libs.json._
-import play.api.mvc.{Action, AnyContent, Controller, Request}
-
-import scala.concurrent.Future
-import scala.util.{Failure, Success, Try}
 
 object CounterController extends Controller {
+
   import play.api.libs.concurrent.Execution.Implicits.defaultContext
 
   val config: Config = Play.current.configuration.underlying
@@ -65,6 +67,7 @@ object CounterController extends Controller {
 
   private def exactCounter(version: Byte): ExactCounter =
     exactCounterMap(version)
+
   private def rankingCounter(version: Byte): RankingCounter =
     rankingCounterMap(version)
 
@@ -99,7 +102,7 @@ object CounterController extends Controller {
   }
 
   def createAction(service: String, action: String): Action[JsValue] =
-    Action(s2parse.json) { implicit request =>
+    Action(S2Parse.json) { implicit request =>
       counterModel
         .findByServiceAction(service, action, useCache = false) match {
         case None =>
@@ -162,23 +165,25 @@ object CounterController extends Controller {
                 (body \ "itemType").asOpt[String].getOrElse("STRING")
               ItemType.withName(strItemType.toUpperCase)
           }
-          val policy = Counter(useFlag = true,
-                               version,
-                               service,
-                               action,
-                               itemType,
-                               autoComb = autoComb,
-                               dimension,
-                               useProfile = useProfile,
-                               bucketImpId,
-                               useRank = useRank,
-                               ttl,
-                               dailyTtl,
-                               Some(hbaseTable),
-                               intervalUnit,
-                               rateActionId,
-                               rateBaseId,
-                               rateThreshold)
+          val policy = Counter(
+            useFlag = true,
+            version,
+            service,
+            action,
+            itemType,
+            autoComb = autoComb,
+            dimension,
+            useProfile = useProfile,
+            bucketImpId,
+            useRank = useRank,
+            ttl,
+            dailyTtl,
+            Some(hbaseTable),
+            intervalUnit,
+            rateActionId,
+            rateBaseId,
+            rateThreshold
+          )
 
           if (rateAction.isEmpty) {
             // prepare exact storage
@@ -206,7 +211,7 @@ object CounterController extends Controller {
   }
 
   def updateAction(service: String, action: String): Action[JsValue] =
-    Action(s2parse.json) { request =>
+    Action(S2Parse.json) { request =>
       counterModel
         .findByServiceAction(service, action, useCache = false) match {
         case Some(oldPolicy) =>
@@ -268,24 +273,26 @@ object CounterController extends Controller {
           }
 
           // new counter
-          val policy = Counter(id = oldPolicy.id,
-                               useFlag = oldPolicy.useFlag,
-                               oldPolicy.version,
-                               service,
-                               action,
-                               oldPolicy.itemType,
-                               autoComb = autoComb,
-                               dimension,
-                               useProfile = useProfile,
-                               bucketImpId,
-                               useRank = useRank,
-                               oldPolicy.ttl,
-                               oldPolicy.dailyTtl,
-                               oldPolicy.hbaseTable,
-                               intervalUnit,
-                               rateActionId,
-                               rateBaseId,
-                               rateThreshold)
+          val policy = Counter(
+            id = oldPolicy.id,
+            useFlag = oldPolicy.useFlag,
+            oldPolicy.version,
+            service,
+            action,
+            oldPolicy.itemType,
+            autoComb = autoComb,
+            dimension,
+            useProfile = useProfile,
+            bucketImpId,
+            useRank = useRank,
+            oldPolicy.ttl,
+            oldPolicy.dailyTtl,
+            oldPolicy.hbaseTable,
+            intervalUnit,
+            rateActionId,
+            rateBaseId,
+            rateThreshold
+          )
 
           counterModel.updateServiceAction(policy)
           Ok(Json.toJson(Map("msg" -> s"updated $service/$action")))
@@ -295,7 +302,7 @@ object CounterController extends Controller {
     }
 
   def prepareAction(service: String, action: String): Action[JsValue] =
-    Action(s2parse.json) { request =>
+    Action(S2Parse.json) { request =>
       // for data migration
       counterModel
         .findByServiceAction(service, action, useCache = false) match {
@@ -383,7 +390,7 @@ object CounterController extends Controller {
           case (k, v) =>
             (k.substring(1), v.mkString(",").split(',').filter(_.nonEmpty).toSet)
         }
-//    Logger.warn(s"$dimQueryValues")
+      //    Logger.warn(s"$dimQueryValues")
 
       counterModel.findByServiceAction(service, action) match {
         case Some(policy) =>
@@ -392,7 +399,7 @@ object CounterController extends Controller {
           val timeRange =
             TimedQualifier.getTimeRange(intervalUnits, limit, optFrom, optTo)
           try {
-//          Logger.warn(s"$tqs $qsSum")
+            //          Logger.warn(s"$tqs $qsSum")
             if (tqs.head.length > 1 && qsSum.isDefined) {
               getDecayedCountToJs(policy, item, timeRange, dimQueryValues, qsSum).map { jsVal =>
                 Ok(jsVal)
@@ -405,7 +412,7 @@ object CounterController extends Controller {
           } catch {
             case e: Exception =>
               throw e
-//            Future.successful(BadRequest(s"$service, $action, $item"))
+            //            Future.successful(BadRequest(s"$service, $action, $item"))
           }
         case None =>
           Future.successful(NotFound(Json.toJson(Map("msg" -> s"$service.$action not found"))))
@@ -445,7 +452,7 @@ object CounterController extends Controller {
     (service, action, itemIds, intervals, limit, from, to, dimensions, sum)
   }
 
-  def getExactCountAsyncMulti: Action[JsValue] = Action.async(s2parse.json) { implicit request =>
+  def getExactCountAsyncMulti: Action[JsValue] = Action.async(S2Parse.json) { implicit request =>
     val jsValue = request.body
     try {
       val futures = {
@@ -472,7 +479,7 @@ object CounterController extends Controller {
               Some(limit)
           }
 
-//          Logger.warn(s"$item, $limit, $optFrom, $optTo, $qsSum, $tqs")
+          //          Logger.warn(s"$item, $limit, $optFrom, $optTo, $qsSum, $tqs")
 
           if (tqs.head.length > 1 && qsSum.isDefined) {
             getDecayedCountToJs(policy, item, timeRange, dimQueryValues, qsSum)
@@ -487,7 +494,7 @@ object CounterController extends Controller {
     } catch {
       case e: Exception =>
         throw e
-//        Future.successful(BadRequest(s"$jsValue"))
+      //        Future.successful(BadRequest(s"$jsValue"))
     }
   }
 
@@ -518,9 +525,11 @@ object CounterController extends Controller {
     for {
       (eq, score) <- decayedCounts.qualifierWithCountMap
     } yield {
-      ExactCounterIntervalItem(eq.tq.q.toString,
-                               eq.dimKeyValues,
-                               Seq(ExactCounterItem(eq.tq.ts, score.toLong, score)))
+      ExactCounterIntervalItem(
+        eq.tq.q.toString,
+        eq.dimKeyValues,
+        Seq(ExactCounterItem(eq.tq.ts, score.toLong, score))
+      )
     }
   }.toSeq
 
@@ -685,14 +694,16 @@ object CounterController extends Controller {
 
             Ok(
               JsObject(
-                Seq(("msg", Json.toJson(s"delete ranking in $service.$action")),
-                    ("items", Json.toJson({
-                      for {
-                        key <- keys
-                      } yield {
-                        s"${key.eq.tq.q}.${key.eq.tq.ts}.${key.eq.dimension}"
-                      }
-                    })))
+                Seq(
+                  ("msg", Json.toJson(s"delete ranking in $service.$action")),
+                  ("items", Json.toJson({
+                    for {
+                      key <- keys
+                    } yield {
+                      s"${key.eq.tq.q}.${key.eq.tq.ts}.${key.eq.dimension}"
+                    }
+                  }))
+                )
               )
             )
           case None =>
@@ -702,8 +713,10 @@ object CounterController extends Controller {
     }
 
   val reduceRateRankingValue =
-    new ReduceMapValue[ExactKeyTrait, RateRankingValue](RateRankingValue.reduce,
-                                                        RateRankingValue(-1, -1))
+    new ReduceMapValue[ExactKeyTrait, RateRankingValue](
+      RateRankingValue.reduce,
+      RateRankingValue(-1, -1)
+    )
 
   // change format
   private def getDecayedCountsAsync(policy: Counter,
@@ -712,11 +725,13 @@ object CounterController extends Controller {
                                     dimension: Map[String, String],
                                     qsSum: Option[String]): Future[Seq[(ExactKeyTrait, Double)]] =
     exactCounter(policy.version)
-      .getDecayedCountsAsync(policy,
-                             items,
-                             Seq(timeRange),
-                             dimension.mapValues(s => Set(s)),
-                             qsSum)
+      .getDecayedCountsAsync(
+        policy,
+        items,
+        Seq(timeRange),
+        dimension.mapValues(s => Set(s)),
+        qsSum
+      )
       .map { seq =>
         for {
           DecayedCounts(exactKey, qcMap) <- seq
@@ -737,7 +752,7 @@ object CounterController extends Controller {
         val tqs = keys.map(rk => rk.eq.tq)
         val (tqFrom, tqTo) = (tqs.last, tqs.head)
         val items = rankingCounter(policy.version).getAllItems(keys, kValue)
-//        Logger.warn(s"item count: ${items.length}")
+        //        Logger.warn(s"item count: ${items.length}")
         val future = {
           if (policy.isRateCounter) {
             val actionPolicy =
@@ -776,7 +791,7 @@ object CounterController extends Controller {
                 reduceRateRankingValue(actionScores, baseScores)
                   .map {
                     case (k, rrv) =>
-//                Logger.warn(s"$k -> $rrv")
+                      //                Logger.warn(s"$k -> $rrv")
                       k -> rrv.rankingValue.score
                   }
                   .toSeq
@@ -801,16 +816,20 @@ object CounterController extends Controller {
                     .toMap
               }
             val futureBase =
-              getDecayedCountsAsync(basePolicy,
-                                    items,
-                                    (tqFrom.add(-1), tqTo.add(-1)),
-                                    dimension,
-                                    qsSum).map { seq =>
+              getDecayedCountsAsync(
+                basePolicy,
+                items,
+                (tqFrom.add(-1), tqTo.add(-1)),
+                dimension,
+                qsSum
+              ).map { seq =>
                 seq
                   .map {
                     case (k, score) =>
-                      ExactKey(policy, k.itemKey, checkItemType = false) -> RateRankingValue(-1,
-                                                                                             score)
+                      ExactKey(policy, k.itemKey, checkItemType = false) -> RateRankingValue(
+                        -1,
+                        score
+                      )
                   }
                   .toMap
               }
@@ -819,7 +838,7 @@ object CounterController extends Controller {
                 reduceRateRankingValue(actionScores, baseScores)
                   .map {
                     case (k, rrv) =>
-//                Logger.warn(s"$k -> $rrv")
+                      //                Logger.warn(s"$k -> $rrv")
                       k -> rrv.rankingValue.score
                   }
                   .toSeq
@@ -893,11 +912,13 @@ object CounterController extends Controller {
         }
         val eq = key.eq
         val tq = eq.tq
-        RankCounterDimensionItem(tq.q.toString,
-                                 tq.ts,
-                                 eq.dimension,
-                                 rankingValue.map(v => v.totalScore).getOrElse(0d),
-                                 ranks)
+        RankCounterDimensionItem(
+          tq.q.toString,
+          tq.ts,
+          eq.dimension,
+          rankingValue.map(v => v.totalScore).getOrElse(0d),
+          ranks
+        )
       }
     }
 
@@ -907,7 +928,7 @@ object CounterController extends Controller {
   type Record = ProducerRecord[String, String]
 
   def incrementCount(service: String, action: String, item: String): Action[JsValue] =
-    Action.async(s2parse.json) { request =>
+    Action.async(S2Parse.json) { request =>
       Future {
         /*
          * {

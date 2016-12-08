@@ -19,13 +19,13 @@
 
 package org.apache.s2graph.core.storage.serde.vertex
 
-import org.apache.s2graph.core.mysqls.{ColumnMeta, Label}
-import org.apache.s2graph.core.storage.StorageDeserializable._
-import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable}
-import org.apache.s2graph.core.types.{InnerVal, InnerValLike, VertexId}
-import org.apache.s2graph.core.{QueryParam, S2Graph, S2Vertex}
-
 import scala.collection.mutable.ListBuffer
+
+import org.apache.s2graph.core.{S2Graph, S2Vertex}
+import org.apache.s2graph.core.mysqls.{ColumnMeta, Label}
+import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable}
+import org.apache.s2graph.core.storage.StorageDeserializable._
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike, VertexId}
 
 class VertexDeserializable(graph: S2Graph, bytesToInt: (Array[Byte], Int) => Int = bytesToInt)
     extends Deserializable[S2Vertex] {

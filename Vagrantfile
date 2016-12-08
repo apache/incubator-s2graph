@@ -39,12 +39,12 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # ZooKeeper
   config.vm.network :forwarded_port, guest: 2181, host: 2282
   # MySQL
-  config.vm.network :forwarded_port, guest: 3306, host: 3307 
+  config.vm.network :forwarded_port, guest: 3306, host: 3307
   # Play
   config.vm.network :forwarded_port, guest: 9000, host: 9000
 
   config.ssh.username = 'vagrant'
-	config.ssh.password = 'vagrant'
+  config.ssh.password = 'vagrant'
 
   # Share an additional folder to the guest VM. The first argument is the path on the host to the actual folder.
   # The second argument is the path on the guest to mount the folder.
@@ -52,6 +52,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   # increase available memory
   config.vm.provider :virtualbox do |vb|
-     vb.customize ["modifyvm", :id, "--memory", "2048"]
+    vb.customize ["modifyvm", :id, "--memory", "2048"]
   end
 end

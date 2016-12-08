@@ -19,17 +19,18 @@
 
 package org.apache.s2graph.rest.play.controllers
 
+import scala.concurrent.{ExecutionContext, Future}
+
 import akka.util.ByteString
-import org.apache.s2graph.core.GraphExceptions.BadQueryException
-import org.apache.s2graph.core.PostProcess
-import org.apache.s2graph.core.rest.RestHandler.CanLookup
-import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.rest.play.config.Config
 import play.api.http.HttpEntity
 import play.api.libs.json.{JsString, JsValue}
 import play.api.mvc._
 
-import scala.concurrent.{ExecutionContext, Future}
+import org.apache.s2graph.core.GraphExceptions.BadQueryException
+import org.apache.s2graph.core.PostProcess
+import org.apache.s2graph.core.rest.RestHandler.CanLookup
+import org.apache.s2graph.core.utils.Logger
+import org.apache.s2graph.rest.play.config.Config
 
 object ApplicationController extends Controller {
 
@@ -38,9 +39,9 @@ object ApplicationController extends Controller {
   var deployInfo = ""
   val applicationJsonHeader = "application/json"
 
-  val jsonParser: BodyParser[JsValue] = s2parse.json
+  val jsonParser: BodyParser[JsValue] = S2Parse.json
 
-  val jsonText: BodyParser[String] = s2parse.jsonText
+  val jsonText: BodyParser[String] = S2Parse.jsonText
 
   implicit val oneTupleLookup = new CanLookup[Headers] {
     override def lookup(m: Headers, key: String) = m.get(key)
@@ -54,10 +55,10 @@ object ApplicationController extends Controller {
 
   def requestFallback(body: String): PartialFunction[Throwable, Future[Result]] = {
     case e: BadQueryException =>
-      logger.error(s"{$body}, ${e.getMessage}", e)
+      Logger.error(s"{$body}, ${e.getMessage}", e)
       badQueryExceptionResults(e)
     case e: Exception =>
-      logger.error(s"${body}, ${e.getMessage}", e)
+      Logger.error(s"${body}, ${e.getMessage}", e)
       errorResults
   }
 
@@ -128,7 +129,7 @@ object ApplicationController extends Controller {
     Action.async(bodyParser) { request =>
       val startedAt = System.currentTimeMillis()
       block(request).map { r =>
-        logger.info(toLogMessage(request, r)(startedAt))
+        Logger.info(toLogMessage(request, r)(startedAt))
         r
       }
     }
@@ -137,7 +138,7 @@ object ApplicationController extends Controller {
     Action(bodyParser) { request: Request[A] =>
       val startedAt = System.currentTimeMillis()
       val r = block(request)
-      logger.info(toLogMessage(request, r)(startedAt))
+      Logger.info(toLogMessage(request, r)(startedAt))
       r
     }
 }

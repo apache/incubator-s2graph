@@ -19,14 +19,14 @@
 
 package org.apache.s2graph.spark.spark
 
+import scala.collection.mutable.{HashMap => MutableHashMap}
+
 import kafka.serializer.StringDecoder
+import org.apache.spark.{Accumulable, Logging, SparkConf}
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.streaming.{Duration, StreamingContext}
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.kafka.{KafkaUtils, StreamHelper}
-import org.apache.spark.streaming.{Duration, StreamingContext}
-import org.apache.spark.{Accumulable, Logging, SparkConf}
-
-import scala.collection.mutable.{HashMap => MutableHashMap}
 
 trait SparkApp extends Logging {
   type HashMapAccumulable = Accumulable[MutableHashMap[String, Long], (String, Long)]
@@ -49,7 +49,7 @@ trait SparkApp extends Logging {
 
   def validateArgument(argNames: String*): Unit =
     if (args == null || args.length < argNames.length) {
-      System.err.println(s"Usage: ${getClass.getName} " + argNames.map(s => s"<$s>").mkString(" "))
+      logError(s"Usage: ${getClass.getName} " + argNames.map(s => s"<$s>").mkString(" "))
       System.exit(1)
     }
 
@@ -109,7 +109,8 @@ trait SparkApp extends Logging {
       ssc,
       kafkaParam,
       topicMap,
-      StorageLevel.MEMORY_AND_DISK_SER_2)
+      StorageLevel.MEMORY_AND_DISK_SER_2
+    )
     numPartition.map(n => stream.repartition(n)).getOrElse(stream)
   }
 
@@ -142,7 +143,8 @@ trait SparkApp extends Logging {
             ssc,
             kafkaParam,
             topicMap,
-            StorageLevel.MEMORY_AND_DISK_SER_2)
+            StorageLevel.MEMORY_AND_DISK_SER_2
+          )
         }
       }
       ssc.union(streams)

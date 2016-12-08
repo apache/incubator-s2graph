@@ -19,42 +19,43 @@
 
 package org.apache.s2graph.counter.loader.core
 
-import com.typesafe.config.ConfigFactory
-import org.apache.s2graph.core.mysqls.{Label, Service}
-import org.apache.s2graph.core.types.HBaseType
-import org.apache.s2graph.core.{Management, S2Graph}
-import org.apache.s2graph.counter.models.DBModel
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
-
 import scala.concurrent.ExecutionContext.Implicits.global
 
+import com.typesafe.config.ConfigFactory
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+
+import org.apache.s2graph.core.{Management, S2Graph}
+import org.apache.s2graph.core.mysqls.{Label, Service}
+import org.apache.s2graph.core.types.HBaseType
+import org.apache.s2graph.counter.models.DBModel
+
 class CounterEtlFunctionsSpec extends FlatSpec with BeforeAndAfterAll with Matchers {
-  val config  = ConfigFactory.load()
+  val config = ConfigFactory.load()
   val cluster = config.getString("hbase.zookeeper.quorum")
   DBModel.initialize(config)
 
-  val graph      = new S2Graph(config)(global)
+  val graph = new S2Graph(config)(global)
   val management = new Management(graph)
 
   override def beforeAll: Unit = {
     management.createService("test", cluster, "test", 1, None, "gz")
     management.createLabel("test_case",
-                           "test",
-                           "src",
-                           "string",
-                           "test",
-                           "tgt",
-                           "string",
-                           true,
-                           "test",
-                           Nil,
-                           Nil,
-                           "weak",
-                           None,
-                           None,
-                           HBaseType.DEFAULT_VERSION,
-                           false,
-                           "gz")
+      "test",
+      "src",
+      "string",
+      "test",
+      "tgt",
+      "string",
+      true,
+      "test",
+      Nil,
+      Nil,
+      "weak",
+      None,
+      None,
+      HBaseType.DEFAULT_VERSION,
+      false,
+      "gz")
   }
 
   override def afterAll: Unit = {

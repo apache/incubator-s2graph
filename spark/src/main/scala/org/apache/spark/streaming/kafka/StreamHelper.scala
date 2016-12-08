@@ -19,15 +19,16 @@
 
 package org.apache.spark.streaming.kafka
 
+import scala.reflect.ClassTag
+
 import kafka.KafkaHelper
 import kafka.common.TopicAndPartition
 import kafka.consumer.PartitionTopicInfo
 import kafka.message.MessageAndMetadata
 import kafka.serializer.Decoder
+import org.apache.spark.{Logging, SparkException}
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.dstream.InputDStream
-import org.apache.spark.{Logging, SparkException}
-import scala.reflect.ClassTag
 
 case class StreamHelper(kafkaParams: Map[String, String]) extends Logging {
   // helper for kafka zookeeper
@@ -72,20 +73,21 @@ case class StreamHelper(kafkaParams: Map[String, String]) extends Logging {
     }.fold(errs => throw new SparkException(errs.mkString("\n")), ok => ok)
   }
 
-  def createStream[K: ClassTag,
-                   V: ClassTag,
-                   KD <: Decoder[K]: ClassTag,
-                   VD <: Decoder[V]: ClassTag](ssc: StreamingContext,
-                                               topics: Set[String]): InputDStream[(K, V)] = {
+  def createStream[K: ClassTag, V: ClassTag, KD <: Decoder[K]: ClassTag, VD <: Decoder[V]: ClassTag](
+      ssc: StreamingContext,
+      topics: Set[String]
+  ): InputDStream[(K, V)] = {
     type R = (K, V)
     val messageHandler = (mmd: MessageAndMetadata[K, V]) => (mmd.key(), mmd.message())
 
     kafkaHelper.registerConsumerInZK(topics)
 
-    new DirectKafkaInputDStream[K, V, KD, VD, R](ssc,
-                                                 kafkaParams,
-                                                 getStartOffsets(topics),
-                                                 messageHandler)
+    new DirectKafkaInputDStream[K, V, KD, VD, R](
+      ssc,
+      kafkaParams,
+      getStartOffsets(topics),
+      messageHandler
+    )
   }
 
   def commitConsumerOffsets(offsets: HasOffsetRanges): Unit = {

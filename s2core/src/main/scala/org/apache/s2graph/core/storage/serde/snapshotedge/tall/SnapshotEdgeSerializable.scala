@@ -20,15 +20,18 @@
 package org.apache.s2graph.core.storage.serde.snapshotedge.tall
 
 import org.apache.hadoop.hbase.util.Bytes
+
 import org.apache.s2graph.core.SnapshotEdge
 import org.apache.s2graph.core.mysqls.LabelIndex
-import org.apache.s2graph.core.storage.{SKeyValue, Serializable, StorageSerializable}
+import org.apache.s2graph.core.storage.{Serializable, StorageSerializable}
 import org.apache.s2graph.core.types.SourceAndTargetVertexIdPair
 
 class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[SnapshotEdge] {
+
   import StorageSerializable._
 
   override def ts: Long = snapshotEdge.version
+
   override def table: Array[Byte] =
     snapshotEdge.label.hbaseTableName.getBytes()
 
@@ -36,13 +39,18 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[
     val byte = (((statusCode << 4) | op).toByte)
     Array.fill(1)(byte.toByte)
   }
+
   def valueBytes(): Array[Byte] =
-    Bytes.add(statusCodeWithOp(snapshotEdge.statusCode, snapshotEdge.op),
-              snapshotEdge.propsToKeyValuesWithTs)
+    Bytes.add(
+      statusCodeWithOp(snapshotEdge.statusCode, snapshotEdge.op),
+      snapshotEdge.propsToKeyValuesWithTs
+    )
 
   override def toRowKey: Array[Byte] = {
-    val srcIdAndTgtIdBytes = SourceAndTargetVertexIdPair(snapshotEdge.srcVertex.innerId,
-                                                         snapshotEdge.tgtVertex.innerId).bytes
+    val srcIdAndTgtIdBytes = SourceAndTargetVertexIdPair(
+      snapshotEdge.srcVertex.innerId,
+      snapshotEdge.tgtVertex.innerId
+    ).bytes
     val labelWithDirBytes = snapshotEdge.labelWithDir.bytes
     val labelIndexSeqWithIsInvertedBytes =
       labelOrderSeqWithIsInverted(LabelIndex.DefaultSeq, isInverted = true)

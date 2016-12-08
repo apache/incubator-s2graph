@@ -19,11 +19,12 @@
 
 package org.apache.s2graph.core.benchmark
 
-import org.apache.s2graph.core.OrderingUtil._
-import org.apache.s2graph.core.{OrderingUtil, SeqMultiOrdering}
+import scala.util.Random
+
 import play.api.libs.json.{JsNumber, JsValue}
 
-import scala.util.Random
+import org.apache.s2graph.core.OrderingUtil._
+import org.apache.s2graph.core.SeqMultiOrdering
 
 class OrderingUtilBenchmarkSpec extends BenchmarkCommon {
   "OrderingUtilBenchmarkSpec" should {

@@ -20,16 +20,16 @@ package org.apache.s2graph.loader.spark
 import java.io.Serializable
 
 /**
- * This object will hold optional data for how a given column family's
- * writer will work
- *
- * @param compression       String to define the Compression to be used in the HFile
- * @param bloomType         String to define the bloom type to be used in the HFile
- * @param blockSize         The block size to be used in the HFile
- * @param dataBlockEncoding String to define the data block encoding to be used
- *                          in the HFile
- */
-class FamilyHFileWriteOptions( val compression:String,
-                               val bloomType: String,
-                               val blockSize: Int,
-                               val dataBlockEncoding: String) extends Serializable
+  * This object will hold optional data for how a given column family's
+  * writer will work
+  *
+  * @param compression       String to define the Compression to be used in the HFile
+  * @param bloomType         String to define the bloom type to be used in the HFile
+  * @param blockSize         The block size to be used in the HFile
+  * @param dataBlockEncoding String to define the data block encoding to be used
+  *                          in the HFile
+  */
+class FamilyHFileWriteOptions(val compression: String,
+                              val bloomType: String,
+                              val blockSize: Int,
+                              val dataBlockEncoding: String) extends Serializable

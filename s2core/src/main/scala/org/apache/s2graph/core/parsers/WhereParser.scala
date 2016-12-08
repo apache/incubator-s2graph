@@ -19,16 +19,15 @@
 
 package org.apache.s2graph.core.parsers
 
-import org.apache.s2graph.core.GraphExceptions.{LabelNotExistException, WhereParserException}
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
-import org.apache.s2graph.core.types.InnerValLike
-import org.apache.s2graph.core.{GraphUtil, S2Edge}
-import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.utils.logger
-
 import scala.annotation.tailrec
 import scala.util.Try
 import scala.util.parsing.combinator.JavaTokenParsers
+
+import org.apache.s2graph.core.{GraphUtil, S2Edge}
+import org.apache.s2graph.core.GraphExceptions.{LabelNotExistException, WhereParserException}
+import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.types.InnerValLike
 
 trait ExtractValue {
   val parent = "_parent."
@@ -105,6 +104,7 @@ trait Clause extends ExtractValue {
     binOp(propValue, compValue)
   }
 }
+
 object Where {
   def apply(labelName: String, sql: String): Try[Where] = {
     val label = Label
@@ -114,6 +114,7 @@ object Where {
     parser.parse(sql)
   }
 }
+
 case class Where(clauses: Seq[Clause] = Seq.empty[Clause]) {
   def filter(edge: S2Edge): Boolean =
     if (clauses.isEmpty) true else clauses.map(_.filter(edge)).forall(identity)

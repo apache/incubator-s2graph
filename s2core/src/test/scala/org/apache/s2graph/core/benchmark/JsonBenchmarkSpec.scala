@@ -29,12 +29,12 @@ class JsonBenchmarkSpec extends BenchmarkCommon {
     "Json Append" >> {
       import play.api.libs.json.{Json, _}
       val numberJson = Json
-        .toJson((0 to 1000).map { i =>
-          s"$i" -> JsNumber(i * i)
-        }.toMap)
-        .as[JsObject]
+          .toJson((0 to 1000).map { i =>
+            s"$i" -> JsNumber(i * i)
+          }.toMap)
+          .as[JsObject]
 
-      /** dummy warm-up **/
+      // dummy warm-up
       (0 to 10000) foreach { n =>
         Json.obj(s"$n" -> "dummy") ++ numberJson
       }

@@ -19,9 +19,11 @@
 
 package org.apache.s2graph.core
 
+import org.scalatest.{FunSuite, Matchers}
+
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
-import org.scalatest.{FunSuite, Matchers}
+import org.apache.s2graph.core.utils.Logger
 
 
 class JsonParserTest extends FunSuite with Matchers with TestCommon {
@@ -32,30 +34,30 @@ class JsonParserTest extends FunSuite with Matchers with TestCommon {
   val innerValsPerVersion = for {
     version <- List(VERSION2, VERSION1)
   } yield {
-      val innerVals = List(
-        (InnerVal.withStr("ABC123", version), STRING),
-        (InnerVal.withNumber(23, version), BYTE),
-        (InnerVal.withNumber(23, version), INT),
-        (InnerVal.withNumber(Int.MaxValue, version), INT),
-        (InnerVal.withNumber(Int.MinValue, version), INT),
-        (InnerVal.withNumber(Long.MaxValue, version), LONG),
-        (InnerVal.withNumber(Long.MinValue, version), LONG),
-        (InnerVal.withBoolean(true, version), BOOLEAN)
+    val innerVals = List(
+      (InnerVal.withStr("ABC123", version), STRING),
+      (InnerVal.withNumber(23, version), BYTE),
+      (InnerVal.withNumber(23, version), INT),
+      (InnerVal.withNumber(Int.MaxValue, version), INT),
+      (InnerVal.withNumber(Int.MinValue, version), INT),
+      (InnerVal.withNumber(Long.MaxValue, version), LONG),
+      (InnerVal.withNumber(Long.MinValue, version), LONG),
+      (InnerVal.withBoolean(true, version), BOOLEAN)
+    )
+    val doubleVals = if (version == VERSION2) {
+      List(
+        (InnerVal.withDouble(Double.MaxValue, version), DOUBLE),
+        (InnerVal.withDouble(Double.MinValue, version), DOUBLE),
+        (InnerVal.withDouble(0.1, version), DOUBLE),
+        (InnerVal.withFloat(Float.MinValue, version), FLOAT),
+        (InnerVal.withFloat(Float.MaxValue, version), FLOAT),
+        (InnerVal.withFloat(0.9f, version), FLOAT)
       )
-      val doubleVals = if (version == VERSION2) {
-        List(
-          (InnerVal.withDouble(Double.MaxValue, version), DOUBLE),
-          (InnerVal.withDouble(Double.MinValue, version), DOUBLE),
-          (InnerVal.withDouble(0.1, version), DOUBLE),
-          (InnerVal.withFloat(Float.MinValue, version), FLOAT),
-          (InnerVal.withFloat(Float.MaxValue, version), FLOAT),
-          (InnerVal.withFloat(0.9f, version), FLOAT)
-        )
-      } else {
-        List.empty[(InnerValLike, String)]
-      }
-      (innerVals ++ doubleVals, version)
+    } else {
+      List.empty[(InnerValLike, String)]
     }
+    (innerVals ++ doubleVals, version)
+  }
 
   def testInnerValToJsValue(innerValWithDataTypes: Seq[(InnerValLike, String)],
                             version: String): Unit = {
@@ -66,8 +68,8 @@ class JsonParserTest extends FunSuite with Matchers with TestCommon {
       val decodedOpt = jsValueOpt.flatMap { jsValue =>
         jsValueToInnerVal(jsValue, dataType, version)
       }
-      println(s"jsValue: $jsValueOpt")
-      println(s"innerVal: $decodedOpt")
+      Logger.info(s"jsValue: $jsValueOpt")
+      Logger.info(s"innerVal: $decodedOpt")
       (decodedOpt.isDefined && innerVal == decodedOpt.get) shouldBe true
     }
   }
@@ -75,7 +77,7 @@ class JsonParserTest extends FunSuite with Matchers with TestCommon {
   test("aa") {
     val innerVal = InnerVal.withStr("abc", VERSION2)
     val tmp = innerValToJsValue(innerVal, "string")
-    println(tmp)
+    Logger.info(tmp)
   }
   test("JsValue <-> InnerVal with dataType") {
     for {

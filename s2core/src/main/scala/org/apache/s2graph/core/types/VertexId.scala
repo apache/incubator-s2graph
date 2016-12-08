@@ -20,12 +20,15 @@
 package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util.Bytes
+
 import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.core.mysqls.ServiceColumn
 import org.apache.s2graph.core.types.HBaseType._
 
 object VertexId extends HBaseDeserializable {
+
   import HBaseType._
+
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -56,7 +59,7 @@ class VertexId(val column: ServiceColumn, val innerId: InnerValLike) extends HBa
   val storeColId: Boolean = true
   val colId = column.id.get
   lazy val hashBytes =
-//    if (storeHash) Bytes.toBytes(GraphUtil.murmur3(innerId.toString))
+    //    if (storeHash) Bytes.toBytes(GraphUtil.murmur3(innerId.toString))
     if (storeHash) Bytes.toBytes(GraphUtil.murmur3(innerId.toIdString()))
     else Array.empty[Byte]
 
@@ -68,7 +71,8 @@ class VertexId(val column: ServiceColumn, val innerId: InnerValLike) extends HBa
 
   override def toString(): String =
     column.id.get.toString() + "," + innerId.toString()
-//    s"VertexId($colId, $innerId)"
+
+  //    s"VertexId($colId, $innerId)"
 
   override def hashCode(): Int = {
     val ret = if (storeColId) {
@@ -76,9 +80,10 @@ class VertexId(val column: ServiceColumn, val innerId: InnerValLike) extends HBa
     } else {
       innerId.hashCode()
     }
-//    logger.debug(s"VertexId.hashCode: $ret")
+    //    logger.debug(s"VertexId.hashCode: $ret")
     ret
   }
+
   override def equals(obj: Any): Boolean = {
     val ret = obj match {
       case other: VertexId =>
@@ -86,20 +91,26 @@ class VertexId(val column: ServiceColumn, val innerId: InnerValLike) extends HBa
           .toIdString()
       case _ => false
     }
-//    logger.debug(s"VertexId.equals: $this, $obj => $ret")
+    //    logger.debug(s"VertexId.equals: $this, $obj => $ret")
     ret
   }
 
   def compareTo(other: VertexId): Int =
     Bytes.compareTo(bytes, other.bytes)
+
   def <(other: VertexId): Boolean = compareTo(other) < 0
+
   def <=(other: VertexId): Boolean = compareTo(other) <= 0
+
   def >(other: VertexId): Boolean = compareTo(other) > 0
+
   def >=(other: VertexId): Boolean = compareTo(other) >= 0
 }
 
 object SourceVertexId extends HBaseDeserializable {
+
   import HBaseType._
+
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -120,7 +131,9 @@ case class SourceVertexId(override val column: ServiceColumn, override val inner
 }
 
 object TargetVertexId extends HBaseDeserializable {
+
   import HBaseType._
+
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -141,7 +154,9 @@ case class TargetVertexId(override val column: ServiceColumn, override val inner
 
 object SourceAndTargetVertexIdPair extends HBaseDeserializable {
   val delimiter = ":"
+
   import HBaseType._
+
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -159,7 +174,9 @@ object SourceAndTargetVertexIdPair extends HBaseDeserializable {
 case class SourceAndTargetVertexIdPair(val srcInnerId: InnerValLike, val tgtInnerId: InnerValLike)
     extends HBaseSerializable {
   val colId = DEFAULT_COL_ID
+
   import SourceAndTargetVertexIdPair._
+
   override def bytes: Array[Byte] = {
     val hashBytes =
       Bytes.toBytes(GraphUtil.murmur3(srcInnerId + delimiter + tgtInnerId))

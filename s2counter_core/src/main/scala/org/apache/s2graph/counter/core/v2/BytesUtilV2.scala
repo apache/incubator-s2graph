@@ -19,22 +19,24 @@
 
 package org.apache.s2graph.counter.core.v2
 
+import scala.collection.mutable.ArrayBuffer
+
 import org.apache.hadoop.hbase.util._
+
 import org.apache.s2graph.counter
-import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
 import org.apache.s2graph.counter.core.{BytesUtil, ExactKeyTrait, ExactQualifier, TimedQualifier}
+import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
 import org.apache.s2graph.counter.models.Counter.ItemType
 import org.apache.s2graph.counter.util.Hashes
-import scala.collection.mutable.ArrayBuffer
 
 object BytesUtilV2 extends BytesUtil {
   // ExactKey: [hash(1b)][version(1b)][policy(4b)][item(variable)]
-  val BUCKET_BYTE_SIZE  = Bytes.SIZEOF_BYTE
+  val BUCKET_BYTE_SIZE = Bytes.SIZEOF_BYTE
   val VERSION_BYTE_SIZE = Bytes.SIZEOF_BYTE
-  val POLICY_ID_SIZE    = Bytes.SIZEOF_INT
+  val POLICY_ID_SIZE = Bytes.SIZEOF_INT
 
-  val INTERVAL_SIZE        = Bytes.SIZEOF_BYTE
-  val TIMESTAMP_SIZE       = Bytes.SIZEOF_LONG
+  val INTERVAL_SIZE = Bytes.SIZEOF_BYTE
+  val TIMESTAMP_SIZE = Bytes.SIZEOF_LONG
   val TIMED_QUALIFIER_SIZE = INTERVAL_SIZE + TIMESTAMP_SIZE
 
   override def getRowKeyPrefix(id: Int): Array[Byte] =
@@ -51,8 +53,8 @@ object BytesUtilV2 extends BytesUtil {
 
     buff ++= {
       key.itemType match {
-        case ItemType.INT                    => Bytes.toBytes(key.itemKey.toInt)
-        case ItemType.LONG                   => Bytes.toBytes(key.itemKey.toLong)
+        case ItemType.INT => Bytes.toBytes(key.itemKey.toInt)
+        case ItemType.LONG => Bytes.toBytes(key.itemKey.toLong)
         case ItemType.STRING | ItemType.BLOB => Bytes.toBytes(key.itemKey)
       }
     }
@@ -87,7 +89,7 @@ object BytesUtilV2 extends BytesUtil {
   override def toExactQualifier(bytes: Array[Byte]): ExactQualifier = {
     val pbr = new SimplePositionedByteRange(bytes)
     ExactQualifier(toTimedQualifier(pbr), {
-      val seqStr         = decodeString(pbr).toSeq
+      val seqStr = decodeString(pbr).toSeq
       val (keys, values) = seqStr.splitAt(seqStr.length / 2)
       keys.zip(values).toMap
     })
@@ -100,5 +102,5 @@ object BytesUtilV2 extends BytesUtil {
 
   def toTimedQualifier(pbr: PositionedByteRange): TimedQualifier =
     TimedQualifier(IntervalUnit.withName(OrderedBytes.decodeString(pbr)),
-                   OrderedBytes.decodeInt64(pbr))
+      OrderedBytes.decodeInt64(pbr))
 }

@@ -34,6 +34,7 @@ object DistributedScanner {
 }
 
 class DistributedScanner(table: Table, scan: Scan) extends AbstractClientScanner {
+
   import DistributedScanner._
 
   private val BYTE_MAX = BigInt(256)
@@ -44,14 +45,15 @@ class DistributedScanner(table: Table, scan: Scan) extends AbstractClientScanner
     } yield {
       val bucketBytes: Array[Byte] = Bytes.toBytes(i).takeRight(BUCKET_BYTE_SIZE)
       val newScan = new Scan(scan)
-        .setStartRow(bucketBytes ++ scan.getStartRow)
-        .setStopRow(bucketBytes ++ scan.getStopRow)
+          .setStartRow(bucketBytes ++ scan.getStartRow)
+          .setStopRow(bucketBytes ++ scan.getStopRow)
       table.getScanner(newScan)
     }
   }
 
   val resultCache = new util.TreeMap[Result, java.util.Iterator[Result]](new Comparator[Result] {
     val comparator = SignedBytes.lexicographicalComparator()
+
     override def compare(o1: Result, o2: Result): Int =
       comparator.compare(getRealRowKey(o1), getRealRowKey(o2))
   })

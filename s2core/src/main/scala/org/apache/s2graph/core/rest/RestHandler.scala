@@ -21,18 +21,18 @@ package org.apache.s2graph.core.rest
 
 import java.net.URL
 
-import org.apache.s2graph.core.GraphExceptions.{BadQueryException, LabelNotExistException}
-import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{Bucket, Experiment, Service}
-import org.apache.s2graph.core.utils.logger
+import scala.concurrent.{ExecutionContext, Future}
+
 import play.api.libs.json._
 
-import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
-import scala.util.control.NonFatal
+import org.apache.s2graph.core._
+import org.apache.s2graph.core.GraphExceptions.BadQueryException
+import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.mysqls.{Bucket, Experiment, Service}
+import org.apache.s2graph.core.utils.Logger
 
 object RestHandler {
+
   trait CanLookup[A] {
     def lookup(m: A, key: String): Option[String]
   }
@@ -48,6 +48,7 @@ object RestHandler {
   }
 
   case class HandlerResult(body: Future[JsValue], headers: (String, String)*)
+
 }
 
 /**
@@ -57,6 +58,7 @@ object RestHandler {
 class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
 
   import RestHandler._
+
   val requestParser = new RequestParser(graph)
   val querySampleRate: Double = graph.config.getDouble("query.log.sample.rate")
 
@@ -96,14 +98,14 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
         case stepResult =>
           val jsArray = for {
             s2EdgeWithScore <- stepResult.edgeWithScores
-//          json <- PostProcess.s2EdgeToJsValue(QueryOption(), s2EdgeWithScore)
+            //          json <- PostProcess.s2EdgeToJsValue(QueryOption(), s2EdgeWithScore)
             json = PostProcess.s2EdgeToJsValue(QueryOption(), s2EdgeWithScore)
           } yield json
           Json.toJson(jsArray)
       })
     } catch {
       case e: Exception =>
-        logger.error(s"RestHandler#checkEdges error: $e")
+        Logger.error(s"RestHandler#checkEdges error: $e")
         HandlerResult(Future.failed(e))
     }
 
@@ -181,7 +183,7 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
 
       // dummy log for sampling
       val experimentLog = s"POST $path took -1 ms 200 -1 $body"
-      logger.debug(experimentLog)
+      Logger.debug(experimentLog)
 
       doPost(path, body, Experiment.ImpressionId -> bucket.impressionId)
     }
@@ -203,10 +205,12 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
       }
 
     logQuery(
-      Json.obj("type" -> "getEdges",
-               "time" -> System.currentTimeMillis(),
-               "body" -> jsonQuery,
-               "uri" -> "graphs/getEdges")
+      Json.obj(
+        "type" -> "getEdges",
+        "time" -> System.currentTimeMillis(),
+        "body" -> jsonQuery,
+        "uri" -> "graphs/getEdges"
+      )
     )
 
     val unionQuery = (jsonQuery \ "union").asOpt[JsObject]
@@ -277,6 +281,6 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
 
   def logQuery(queryJson: => JsObject): Unit =
     if (scala.util.Random.nextDouble() < querySampleRate) {
-      logger.query(queryJson.toString)
+      Logger.query(queryJson.toString)
     }
 }

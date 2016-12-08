@@ -19,9 +19,17 @@
 
 package org.apache.s2graph.core.storage
 
-import org.apache.s2graph.core.GraphExceptions.{FetchTimeoutException, NoStackException}
+import java.util.concurrent.{Executors, TimeUnit}
+
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.Random
+
+import com.typesafe.config.Config
+import org.apache.hadoop.hbase.util.Bytes
+
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.GraphExceptions.{FetchTimeoutException, NoStackException}
+import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.parsers.WhereParser
 import org.apache.s2graph.core.storage.serde.indexedge.wide.{
   IndexEdgeDeserializable,
@@ -30,17 +38,10 @@ import org.apache.s2graph.core.storage.serde.indexedge.wide.{
 import org.apache.s2graph.core.storage.serde.snapshotedge.wide.SnapshotEdgeDeserializable
 import org.apache.s2graph.core.storage.serde.vertex.{VertexDeserializable, VertexSerializable}
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.utils.{logger, DeferCache, Extensions}
-
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
-import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.{Random, Try}
-import java.util.concurrent.{Executors, TimeUnit}
-
-import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.hadoop.hbase.util.Bytes
+import org.apache.s2graph.core.utils.Logger
 
 abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec: ExecutionContext) {
+
   import HBaseType._
   import S2Graph._
 
@@ -56,6 +57,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
   /** retry scheduler */
   val scheduledThreadPool = Executors.newSingleThreadScheduledExecutor()
 
+  // scalastyle:off
   /**
     * Compatibility table
     * | label schema version | snapshot edge | index edge | vertex | note |
@@ -65,11 +67,14 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
     * | v4 | serde.snapshotedge.tall | serde.indexedge.tall | serde.vertex | experimental schema. use scanner instead of get |
     *
     */
+  // scalastyle:on
   /**
     * create serializer that knows how to convert given snapshotEdge into kvs: Seq[SKeyValue]
     * so we can store this kvs.
-    * @param snapshotEdge: snapshotEdge to serialize
-    * @return serializer implementation for StorageSerializable which has toKeyValues return Seq[SKeyValue]
+    *
+    * @param snapshotEdge : snapshotEdge to serialize
+    * @return serializer implementation for StorageSerializable which has toKeyValues
+    *         return Seq[SKeyValue]
     */
   def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge): Serializable[SnapshotEdge] =
     snapshotEdge.schemaVer match {
@@ -83,7 +88,8 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
 
   /**
     * create serializer that knows how to convert given indexEdge into kvs: Seq[SKeyValue]
-    * @param indexEdge: indexEdge to serialize
+    *
+    * @param indexEdge : indexEdge to serialize
     * @return serializer implementation
     */
   def indexEdgeSerializer(indexEdge: IndexEdge): Serializable[IndexEdge] =
@@ -99,21 +105,23 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
 
   /**
     * create serializer that knows how to convert given vertex into kvs: Seq[SKeyValue]
-    * @param vertex: vertex to serialize
+    *
+    * @param vertex : vertex to serialize
     * @return serializer implementation
     */
   def vertexSerializer(vertex: S2Vertex): Serializable[S2Vertex] =
     new VertexSerializable(vertex)
 
-  /**
-    * create deserializer that can parse stored CanSKeyValue into snapshotEdge.
-    * note that each storage implementation should implement implicit type class
-    * to convert storage dependent dataType into common SKeyValue type by implementing CanSKeyValue
-    *
-    * ex) Asynchbase use it's KeyValue class and CanSKeyValue object has implicit type conversion method.
-    * if any storaage use different class to represent stored byte array,
-    * then that storage implementation is responsible to provide implicit type conversion method on CanSKeyValue.
-    * */
+  // create deserializer that can parse stored CanSKeyValue into snapshotEdge.
+  // note that each storage implementation should implement implicit type class
+  // to convert storage dependent dataType into common SKeyValue type by
+  // implementing CanSKeyValue
+  //
+  // ex) Asynchbase use it's KeyValue class and CanSKeyValue object has implicit type conversion
+  // method.
+  // if any storaage use different class to represent stored byte array,
+  // then that storage implementation is responsible to provide implicit type conversion method on
+  // CanSKeyValue.
   val snapshotEdgeDeserializers: Map[String, Deserializable[SnapshotEdge]] =
     Map(
       VERSION1 -> new SnapshotEdgeDeserializable(graph),
@@ -121,6 +129,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
       VERSION3 -> new serde.snapshotedge.tall.SnapshotEdgeDeserializable(graph),
       VERSION4 -> new serde.snapshotedge.tall.SnapshotEdgeDeserializable(graph)
     )
+
   def snapshotEdgeDeserializer(schemaVer: String): Deserializable[SnapshotEdge] =
     snapshotEdgeDeserializers
       .get(schemaVer)
@@ -147,23 +156,25 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
     * note that this should be return true on all success.
     * we assumes that each storage implementation has client as member variable.
     *
-    *
-    * @param cluster: where this key values should be stored.
-    * @param kvs: sequence of SKeyValue that need to be stored in storage.
-    * @param withWait: flag to control wait ack from storage.
-    *                  note that in AsynchbaseStorage(which support asynchronous operations), even with true,
-    *                  it never block thread, but rather submit work and notified by event loop when storage send ack back.
+    * @param cluster  : where this key values should be stored.
+    * @param kvs      : sequence of SKeyValue that need to be stored in storage.
+    * @param withWait : flag to control wait ack from storage.
+    *                 note that in AsynchbaseStorage(which support asynchronous operations), even
+    *                 with true,
+    *                 it never block thread, but rather submit work and notified by event loop
+    *                 when storage send ack back.
     * @return ack message from storage.
     */
   def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean): Future[Boolean]
 
-//  def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean]
+  //  def writeToStorage(kv: SKeyValue, withWait: Boolean): Future[Boolean]
 
   /**
     * fetch SnapshotEdge for given request from storage.
     * also storage datatype should be converted into SKeyValue.
     * note that return type is Sequence rather than single SKeyValue for simplicity,
     * even though there is assertions sequence.length == 1.
+    *
     * @param request
     * @return
     */
@@ -177,16 +188,17 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
     * When this operation is mutating requestKeyValue's snapshotEdge, then other thread need to be
     * either blocked or failed on write-write conflict case.
     *
-    * Also while this method is still running, then fetchSnapshotEdgeKeyValues should be synchronized to
-    * prevent wrong data for read.
+    * Also while this method is still running, then fetchSnapshotEdgeKeyValues should be
+    * synchronized to prevent wrong data for read.
     *
-    * Best is use storage's concurrency control(either pessimistic or optimistic) such as transaction,
-    * compareAndSet to synchronize.
+    * Best is use storage's concurrency control(either pessimistic or optimistic) such as
+    * transaction, compareAndSet to synchronize.
     *
-    * for example, AsynchbaseStorage use HBase's CheckAndSet atomic operation to guarantee 'atomicity'.
-    * for storage that does not support concurrency control, then storage implementation
-    * itself can maintain manual locks that synchronize read(fetchSnapshotEdgeKeyValues)
-    * and write(writeLock).
+    * for example, AsynchbaseStorage use HBase's CheckAndSet atomic operation to
+    * guarantee 'atomicity'. for storage that does not support concurrency control,
+    * then storage implementation itself can maintain manual locks that synchronize
+    * read(fetchSnapshotEdgeKeyValues) and write(writeLock).
+    *
     * @param requestKeyValue
     * @param expectedOpt
     * @return
@@ -194,7 +206,8 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
   def writeLock(requestKeyValue: SKeyValue, expectedOpt: Option[SKeyValue]): Future[Boolean]
 
   /**
-    * build proper request which is specific into storage to call fetchIndexEdgeKeyValues or fetchSnapshotEdgeKeyValues.
+    * build proper request which is specific into storage to call fetchIndexEdgeKeyValues or
+    * fetchSnapshotEdgeKeyValues.
     * for example, Asynchbase use GetRequest, Scanner so this method is responsible to build
     * client request(GetRequest, Scanner) based on user provided query.
     *
@@ -222,7 +235,8 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
   def fetch(queryRequest: QueryRequest, isInnerCall: Boolean, parentEdges: Seq[EdgeWithScore]): R
 
   /**
-    * responsible to fire parallel fetch call into storage and create future that will return merged result.
+    * responsible to fire parallel fetch call into storage and create future that will return
+    * merged result.
     *
     * @param queryRequests
     * @param prevStepEdges
@@ -249,14 +263,16 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
   def incrementCounts(edges: Seq[S2Edge], withWait: Boolean): Future[Seq[(Boolean, Long, Long)]]
 
   /**
-    * this method need to be called when client shutdown. this is responsible to cleanUp the resources
+    * this method need to be called when client shutdown. this is responsible to cleanUp the
+    * resources
     * such as client into storage.
     */
   def flush(): Unit = {}
 
   /**
     * create table on storage.
-    * if storage implementation does not support namespace or table, then there is nothing to be done
+    * if storage implementation does not support namespace or table, then there is nothing
+    * to be done
     *
     * @param zkAddr
     * @param tableName
@@ -279,7 +295,8 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
     def fromResult(kvs: Seq[SKeyValue], version: String): Option[S2Vertex] =
       if (kvs.isEmpty) None
       else vertexDeserializer.fromKeyValues(None, kvs, version, None)
-//        .map(S2Vertex(graph, _))
+
+    //        .map(S2Vertex(graph, _))
 
     val futures = vertices.map { vertex =>
       val queryParam = QueryParam.Empty
@@ -297,6 +314,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
       result.toList.flatten
     }
   }
+
   def mutateStrongEdges(_edges: Seq[S2Edge], withWait: Boolean): Future[Seq[Boolean]] = {
 
     val edgeWithIdxs = _edges.zipWithIndex
@@ -316,7 +334,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
             val edgeFuture =
               mutateEdgesInner(edges, checkConsistency = true, withWait)
 
-            //TODO: decide what we will do on failure on vertex put
+            // TODO: decide what we will do on failure on vertex put
             val puts = buildVertexPutsAsync(head)
             val vertexFuture =
               writeToStorage(head.innerLabel.hbaseZkAddr, puts, withWait)
@@ -325,7 +343,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
         }
 
         val composed = for {
-//        deleteRet <- Future.sequence(deleteAllFutures)
+          //        deleteRet <- Future.sequence(deleteAllFutures)
           mutateRet <- Future.sequence(mutateEdgeFutures)
         } yield mutateRet
 
@@ -348,8 +366,9 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
         withWait
       )
     } else if (vertex.op == GraphUtil.operations("deleteAll")) {
-      logger.info(s"deleteAll for vertex is truncated. $vertex")
-      Future.successful(true) // Ignore withWait parameter, because deleteAll operation may takes long time
+      Logger.info(s"deleteAll for vertex is truncated. $vertex")
+      Future.successful(true) // Ignore withWait parameter, because deleteAll operation may
+      // takes long time
     } else {
       writeToStorage(vertex.hbaseZkAddr, buildPutsAll(vertex), withWait)
     }
@@ -401,7 +420,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
                          fetchedSnapshotEdgeOpt: Option[S2Edge]): Future[Boolean] =
     if (tryNum >= MaxRetryNum) {
       edges.foreach { edge =>
-        logger.error(s"commit failed after $MaxRetryNum\n${edge.toLogString}")
+        Logger.error(s"commit failed after $MaxRetryNum\n${edge.toLogString}")
       }
 
       Future.successful(false)
@@ -409,11 +428,11 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
       val future = commitUpdate(edges, statusCode, fetchedSnapshotEdgeOpt)
       future.onSuccess {
         case success =>
-          logger.debug(s"Finished. [$tryNum]\n${edges.head.toLogString}\n")
+          Logger.debug(s"Finished. [$tryNum]\n${edges.head.toLogString}\n")
       }
       future recoverWith {
         case FetchTimeoutException(retryEdge) =>
-          logger.info(s"[Try: $tryNum], Fetch fail.\n${retryEdge}")
+          Logger.info(s"[Try: $tryNum], Fetch fail.\n${retryEdge}")
 
           /** fetch failed. re-fetch should be done */
           fetchSnapshotEdgeInner(edges.head).flatMap {
@@ -429,8 +448,9 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
             case 3 => "ReleaseLock failed."
             case 4 => "Unknown"
           }
-          logger.info(
-            s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}\nFailReason: ${faileReason}"
+          Logger.info(
+            "[Try: %d], [Status: %s] partial fail.\n%s\nFailReason: %s"
+              .format(tryNum, status, retryEdge.toLogString, faileReason)
           )
 
           /** retry logic */
@@ -439,7 +459,8 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
           scheduledThreadPool.schedule(new Runnable {
             override def run(): Unit = {
               val future = if (failedStatusCode == 0) {
-                // acquire Lock failed. other is mutating so this thead need to re-fetch snapshotEdge.
+                // acquire Lock failed.
+                // other is mutating so this thead need to re-fetch snapshotEdge.
                 /** fetch failed. re-fetch should be done */
                 fetchSnapshotEdgeInner(edges.head).flatMap {
                   case (queryParam, snapshotEdgeOpt, kvOpt) =>
@@ -457,7 +478,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
           promise.future
 
         case ex: Exception =>
-          logger.error("Unknown exception", ex)
+          Logger.error("Unknown exception", ex)
           Future.successful(false)
       }
     }
@@ -465,9 +486,9 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
   protected def commitUpdate(edges: Seq[S2Edge],
                              statusCode: Byte,
                              fetchedSnapshotEdgeOpt: Option[S2Edge]): Future[Boolean] = {
-//    Future.failed(new PartialFailureException(edges.head, 0, "ahahah"))
+    //    Future.failed(new PartialFailureException(edges.head, 0, "ahahah"))
     assert(edges.nonEmpty)
-//    assert(statusCode == 0 || fetchedSnapshotEdgeOpt.isDefined)
+    //    assert(statusCode == 0 || fetchedSnapshotEdgeOpt.isDefined)
 
     statusCode match {
       case 0 =>
@@ -476,7 +497,8 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
             /**
               * no one has never mutated this SN.
               * (squashedEdge, edgeMutate) = Edge.buildOperation(None, edges)
-              * pendingE = squashedEdge.copy(statusCode = 1, lockTs = now, version = squashedEdge.ts + 1)
+              * pendingE = squashedEdge.copy(statusCode = 1, lockTs = now,
+              * version = squashedEdge.ts + 1)
               * lock = (squashedEdge, pendingE)
               * releaseLock = (edgeMutate.newSnapshotEdge, None)
               */
@@ -508,14 +530,15 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
                 /**
                   * others finished commit on this SN. but there is no contention.
                   * (squashedEdge, edgeMutate) = Edge.buildOperation(snapshotEdgeOpt, edges)
-                  * pendingE = squashedEdge.copy(statusCode = 1, lockTs = now, version = snapshotEdge.version + 1) ?
+                  * pendingE = squashedEdge.copy(statusCode = 1, lockTs = now,
+                  * version = snapshotEdge.version + 1) ?
                   * lock = (snapshotEdge, pendingE)
                   * releaseLock = (edgeMutate.newSnapshotEdge, None)
                   */
                 val (squashedEdge, edgeMutate) =
                   S2Edge.buildOperation(fetchedSnapshotEdgeOpt, edges)
                 if (edgeMutate.newSnapshotEdge.isEmpty) {
-                  logger.debug(s"drop this requests: \n${edges.map(_.toLogString).mkString("\n")}")
+                  Logger.debug(s"drop this requests: \n${edges.map(_.toLogString).mkString("\n")}")
                   Future.successful(true)
                 } else {
                   val lockTs = Option(System.currentTimeMillis())
@@ -545,14 +568,16 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
 
                   /**
                     * if pendingEdge.ts == snapshotEdge.ts =>
-                    *    (squashedEdge, edgeMutate) = Edge.buildOperation(None, Seq(pendingEdge))
+                    * (squashedEdge, edgeMutate) = Edge.buildOperation(None, Seq(pendingEdge))
                     * else =>
-                    *    (squashedEdge, edgeMutate) = Edge.buildOperation(snapshotEdgeOpt, Seq(pendingEdge))
-                    * pendingE = squashedEdge.copy(statusCode = 1, lockTs = now, version = snapshotEdge.version + 1)
+                    * (squashedEdge, edgeMutate) = Edge.buildOperation(snapshotEdgeOpt,
+                    * Seq(pendingEdge))
+                    * pendingE = squashedEdge.copy(statusCode = 1, lockTs = now,
+                    * version = snapshotEdge.version + 1)
                     * lock = (snapshotEdge, pendingE)
                     * releaseLock = (edgeMutate.newSnapshotEdge, None)
                     */
-                  logger.debug(s"${pendingEdge.toLogString} has been expired.")
+                  Logger.debug(s"${pendingEdge.toLogString} has been expired.")
                   val (squashedEdge, edgeMutate) =
                     if (pendingEdge.ts == snapshotEdge.ts) {
                       S2Edge.buildOperation(None, pendingEdge +: edges)
@@ -602,7 +627,8 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
         }
       case _ =>
         /**
-          * statusCode > 0 which means self locked and there has been partial failure either on mutate, increment, releaseLock
+          * statusCode > 0 which means self locked and there has been partial failure either on
+          * mutate, increment, releaseLock
           */
         /**
           * this succeed to lock this SN. keep doing on commit process.
@@ -617,7 +643,8 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
           * releaseLock = (edgeMutate.newSnapshotEdge, None)
           */
         val _edges =
-          if (fetchedSnapshotEdgeOpt.isDefined && fetchedSnapshotEdgeOpt.get.pendingEdgeOpt.isDefined) {
+          if (fetchedSnapshotEdgeOpt.isDefined &&
+            fetchedSnapshotEdgeOpt.get.pendingEdgeOpt.isDefined) {
             fetchedSnapshotEdgeOpt.get.pendingEdgeOpt.get +: edges
           } else {
             edges
@@ -650,13 +677,17 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
     * orchestrate commit process.
     * we separate into 4 step to avoid duplicating each step over and over.
     *
-    * @param statusCode: current statusCode of this thread to process edges.
-    * @param squashedEdge: squashed(in memory) final edge from input edges on same snapshotEdge.
-    * @param fetchedSnapshotEdgeOpt: fetched snapshotEdge from storage before commit process begin.
-    * @param lockSnapshotEdge: lockEdge that hold necessary data to lock this snapshotEdge for this thread.
-    * @param releaseLockSnapshotEdge: releaseLockEdge that will remove lock by storing new final merged states
-    *                               all from current request edges and fetched snapshotEdge.
-    * @param edgeMutate: mutations for indexEdge and snapshotEdge.
+    * @param statusCode              : current statusCode of this thread to process edges.
+    * @param squashedEdge            : squashed(in memory) final edge from input edges on same
+    *                                snapshotEdge.
+    * @param fetchedSnapshotEdgeOpt  : fetched snapshotEdge from storage before commit process
+    *                                begin.
+    * @param lockSnapshotEdge        : lockEdge that hold necessary data to lock this snapshotEdge
+    *                                for this thread.
+    * @param releaseLockSnapshotEdge : releaseLockEdge that will remove lock by storing new final
+    *                                merged states all from current request edges and fetched
+    *                                snapshotEdge.
+    * @param edgeMutate              : mutations for indexEdge and snapshotEdge.
     * @return
     */
   protected def commitProcess(statusCode: Byte,
@@ -678,7 +709,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
   protected def debug(ret: Boolean, phase: String, snapshotEdge: SnapshotEdge) = {
     val msg =
       Seq(s"[$ret] [$phase]", s"${snapshotEdge.toLogString()}").mkString("\n")
-    logger.debug(msg)
+    Logger.debug(msg)
   }
 
   protected def debug(ret: Boolean,
@@ -688,16 +719,17 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
     val msg =
       Seq(s"[$ret] [$phase]", s"${snapshotEdge.toLogString()}", s"${edgeMutate.toLogString}")
         .mkString("\n")
-    logger.debug(msg)
+    Logger.debug(msg)
   }
 
   /**
     * try to acquire lock on storage for this given snapshotEdge(lockEdge).
     *
-    * @param statusCode: current statusCode of this thread to process edges.
-    * @param squashedEdge: squashed(in memory) final edge from input edges on same snapshotEdge. only for debug
-    * @param fetchedSnapshotEdgeOpt: fetched snapshot edge from storage.
-    * @param lockEdge: lockEdge to build RPC request(compareAndSet) into Storage.
+    * @param statusCode             : current statusCode of this thread to process edges.
+    * @param squashedEdge           : squashed(in memory) final edge from input edges on
+    *                               same snapshotEdge. only for debug
+    * @param fetchedSnapshotEdgeOpt : fetched snapshot edge from storage.
+    * @param lockEdge               : lockEdge to build RPC request(compareAndSet) into Storage.
     * @return
     */
   protected def acquireLock(statusCode: Byte,
@@ -705,7 +737,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
                             fetchedSnapshotEdgeOpt: Option[S2Edge],
                             lockEdge: SnapshotEdge): Future[Boolean] =
     if (statusCode >= 1) {
-      logger.debug(s"skip acquireLock: [$statusCode]\n${squashedEdge.toLogString}")
+      Logger.debug(s"skip acquireLock: [$statusCode]\n${squashedEdge.toLogString}")
       Future.successful(true)
     } else {
       val p = Random.nextDouble()
@@ -719,7 +751,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
         writeLock(lockEdgePut, oldPut)
           .recoverWith {
             case ex: Exception =>
-              logger.error(s"AcquireLock RPC Failed.")
+              Logger.error(s"AcquireLock RPC Failed.")
               throw new PartialFailureException(squashedEdge, 0, "AcquireLock RPC Failed")
           }
           .map { ret =>
@@ -736,7 +768,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
                   "\n"
                 ).mkString("\n")
 
-              logger.debug(log)
+              Logger.debug(log)
               //            debug(ret, "acquireLock", edge.toSnapshotEdge)
             } else {
               throw new PartialFailureException(squashedEdge, 0, "hbase fail.")
@@ -751,10 +783,11 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
     * storing new merged states on storage. merge state come from releaseLockEdge.
     * note that releaseLock return Future.failed on predicate failure.
     *
-    * @param predicate: indicate if this releaseLock phase should be proceed or not.
-    * @param statusCode: releaseLock do not use statusCode, only for debug.
-    * @param squashedEdge: squashed(in memory) final edge from input edges on same snapshotEdge. only for debug
-    * @param releaseLockEdge: final merged states if all process goes well.
+    * @param predicate       : indicate if this releaseLock phase should be proceed or not.
+    * @param statusCode      : releaseLock do not use statusCode, only for debug.
+    * @param squashedEdge    : squashed(in memory) final edge from input edges on same snapshotEdge.
+    *                        only for debug
+    * @param releaseLockEdge : final merged states if all process goes well.
     * @return
     */
   protected def releaseLock(predicate: Boolean,
@@ -772,7 +805,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
         writeToStorage(squashedEdge.innerLabel.hbaseZkAddr, releaseLockEdgePuts, withWait = true)
           .recoverWith {
             case ex: Exception =>
-              logger.error(s"ReleaseLock RPC Failed.")
+              Logger.error(s"ReleaseLock RPC Failed.")
               throw new PartialFailureException(squashedEdge, 3, "ReleaseLock RPC Failed")
           }
           .map { ret =>
@@ -787,7 +820,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
                 "=" * 50,
                 "\n"
               )
-              logger.error(msg.mkString("\n"))
+              Logger.error(msg.mkString("\n"))
               //          error(ret, "releaseLock", edge.toSnapshotEdge)
               throw new PartialFailureException(squashedEdge, 3, "hbase fail.")
             }
@@ -798,11 +831,13 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
 
   /**
     *
-    * @param predicate: indicate if this commitIndexEdgeMutations phase should be proceed or not.
-    * @param statusCode: current statusCode of this thread to process edges.
-    * @param squashedEdge: squashed(in memory) final edge from input edges on same snapshotEdge. only for debug
-    * @param edgeMutate: actual collection of mutations. note that edgeMutate contains snapshotEdge mutations,
-    *                  but in here, we only use indexEdge's mutations.
+    * @param predicate    : indicate if this commitIndexEdgeMutations phase should be
+    *                     proceed or not.
+    * @param statusCode   : current statusCode of this thread to process edges.
+    * @param squashedEdge : squashed(in memory) final edge from input edges on same snapshotEdge.
+    *                     only for debug
+    * @param edgeMutate   : actual collection of mutations. note that edgeMutate contains
+    *                     snapshotEdge mutations, but in here, we only use indexEdge's mutations.
     * @return
     */
   protected def commitIndexEdgeMutations(predicate: Boolean,
@@ -813,7 +848,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
       Future.failed(new PartialFailureException(squashedEdge, 1, "predicate failed."))
     } else {
       if (statusCode >= 2) {
-        logger.debug(s"skip mutate: [$statusCode]\n${squashedEdge.toLogString}")
+        Logger.debug(s"skip mutate: [$statusCode]\n${squashedEdge.toLogString}")
         Future.successful(true)
       } else {
         val p = Random.nextDouble()
@@ -835,11 +870,14 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
 
   /**
     *
-    * @param predicate: indicate if this commitIndexEdgeMutations phase should be proceed or not.
-    * @param statusCode: current statusCode of this thread to process edges.
-    * @param squashedEdge: squashed(in memory) final edge from input edges on same snapshotEdge. only for debug
-    * @param edgeMutate: actual collection of mutations. note that edgeMutate contains snapshotEdge mutations,
-    *                  but in here, we only use indexEdge's degree mutations.
+    * @param predicate    : indicate if this commitIndexEdgeMutations phase should be proceed or
+    *                     not.
+    * @param statusCode   : current statusCode of this thread to process edges.
+    * @param squashedEdge : squashed(in memory) final edge from input edges on same snapshotEdge.
+    *                     only for debug
+    * @param edgeMutate   : actual collection of mutations. note that edgeMutate contains
+    *                     snapshotEdge
+    *                     mutations, but in here, we only use indexEdge's degree mutations.
     * @return
     */
   protected def commitIndexEdgeDegreeMutations(predicate: Boolean,
@@ -858,7 +896,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
       Future.failed(new PartialFailureException(squashedEdge, 2, "predicate failed."))
     }
     if (statusCode >= 3) {
-      logger.debug(s"skip increment: [$statusCode]\n${squashedEdge.toLogString}")
+      Logger.debug(s"skip increment: [$statusCode]\n${squashedEdge.toLogString}")
       Future.successful(true)
     } else {
       val p = Random.nextDouble()
@@ -922,7 +960,9 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
               buildIncrementsAsync(indexEdge, -1L)
           }
 
-        val mutations = reversedIndexedEdgesMutations ++ reversedSnapshotEdgeMutations ++ forwardIndexedEdgeMutations
+        val mutations = reversedIndexedEdgesMutations ++
+            reversedSnapshotEdgeMutations ++
+            forwardIndexedEdgeMutations
 
         writeToStorage(zkQuorum, mutations, withWait = true)
       }
@@ -938,7 +978,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
                               queryRequest: QueryRequest,
                               cacheElementOpt: Option[S2Edge],
                               parentEdges: Seq[EdgeWithScore]): Option[S2Edge] = {
-    logger.debug(s"toEdge: $kv")
+    Logger.debug(s"toEdge: $kv")
 
     try {
       val queryOption = queryRequest.query.queryOption
@@ -957,7 +997,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
       }
     } catch {
       case ex: Exception =>
-        logger.error(s"Fail on toEdge: ${kv.toString}, ${queryRequest}", ex)
+        Logger.error(s"Fail on toEdge: ${kv.toString}, ${queryRequest}", ex)
         None
     }
   }
@@ -967,7 +1007,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
                                       cacheElementOpt: Option[SnapshotEdge] = None,
                                       isInnerCall: Boolean,
                                       parentEdges: Seq[EdgeWithScore]): Option[S2Edge] = {
-//        logger.debug(s"SnapshottoEdge: $kv")
+    //        logger.debug(s"SnapshottoEdge: $kv")
     val queryParam = queryRequest.queryParam
     val schemaVer = queryParam.label.schemaVersion
     val snapshotEdgeOpt = snapshotEdgeDeserializer(schemaVer).fromKeyValues(
@@ -988,8 +1028,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
         if (snapshotEdge.allPropsDeleted) None
         else {
           val edge = snapshotEdge.toEdge.copy(parentEdges = parentEdges)
-          if (queryParam.where.map(_.filter(edge)).getOrElse(true))
-            Option(edge)
+          if (queryParam.where.map(_.filter(edge)).getOrElse(true)) Option(edge)
           else None
         }
       }
@@ -1021,10 +1060,12 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
       val kv = first
       val schemaVer = queryParam.label.schemaVersion
       val cacheElementOpt =
-        if (queryParam.isSnapshotEdge) None
-        else
+        if (queryParam.isSnapshotEdge) {
+          None
+        } else {
           indexEdgeDeserializer(schemaVer)
             .fromKeyValues(Option(queryParam.label), Seq(kv), queryParam.label.schemaVersion, None)
+        }
 
       val (degreeEdges, keyValues) = cacheElementOpt match {
         case None => (Nil, kvs)
@@ -1035,8 +1076,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
       }
 
       val lastCursor: Seq[Array[Byte]] = Seq(
-        if (keyValues.nonEmpty)
-          toSKeyValue(keyValues(keyValues.length - 1)).row
+        if (keyValues.nonEmpty) toSKeyValue(keyValues(keyValues.length - 1)).row
         else dummyCursor
       )
 
@@ -1046,8 +1086,9 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
           if idx >= startOffset && idx < startOffset + len
           edge <- (if (queryParam.isSnapshotEdge) {
                      toSnapshotEdge(kv, queryRequest, None, isInnerCall, parentEdges)
-                   } else
-                     toEdge(kv, queryRequest, cacheElementOpt, parentEdges)).toSeq
+                   } else {
+                     toEdge(kv, queryRequest, cacheElementOpt, parentEdges)
+                   }).toSeq
           if where == WhereParser.success || where.filter(edge)
           convertedEdge <- if (isDefaultTransformer) Seq(edge)
           else convertEdges(queryParam, edge, nextStepOpt)
@@ -1067,10 +1108,11 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
         val edgeWithScores = for {
           (kv, idx) <- keyValues.zipWithIndex
           if idx >= startOffset && idx < startOffset + len
-          edge <- (if (queryParam.isSnapshotEdge)
+          edge <- (if (queryParam.isSnapshotEdge) {
                      toSnapshotEdge(kv, queryRequest, None, isInnerCall, parentEdges)
-                   else
-                     toEdge(kv, queryRequest, cacheElementOpt, parentEdges)).toSeq
+                   } else {
+                     toEdge(kv, queryRequest, cacheElementOpt, parentEdges)
+                   }).toSeq
           if where == WhereParser.success || where.filter(edge)
           convertedEdge <- if (isDefaultTransformer) Seq(edge)
           else convertEdges(queryParam, edge, nextStepOpt)
@@ -1093,9 +1135,11 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
         }
 
         val sampled =
-          if (queryRequest.queryParam.sample >= 0)
+          if (queryRequest.queryParam.sample >= 0) {
             sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
-          else edgeWithScores
+          } else {
+            edgeWithScores
+          }
 
         val normalized =
           if (queryParam.shouldNormalize) normalize(sampled) else sampled
@@ -1178,7 +1222,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
       (queryParam, edgeOpt, kvOpt)
     } recoverWith {
       case ex: Throwable =>
-        logger.error(s"fetchQueryParam failed. fallback return.", ex)
+        Logger.error(s"fetchQueryParam failed. fallback return.", ex)
         throw new FetchTimeoutException(s"${edge.toLogString}")
     }
   }
@@ -1194,10 +1238,10 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
     }
 
     val insertMutations = edgeMutate.edgesToInsert.flatMap { indexEdge =>
-      if (indexEdge.isOutEdge)
+      if (indexEdge.isOutEdge) {
         indexEdgeSerializer(indexEdge).toKeyValues
           .map(_.copy(operation = SKeyValue.Put, durability = indexEdge.label.durability))
-      else {
+      } else {
         // For InEdge
         indexEdgeSerializer(indexEdge).toKeyValues
           .map(_.copy(operation = SKeyValue.Put, durability = indexEdge.label.durability))
@@ -1289,7 +1333,7 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
       .map(_.copy(operation = SKeyValue.Increment, durability = _indexedEdge.label.durability))
   }
 
-  //TODO: ServiceColumn do not have durability property yet.
+  // TODO: ServiceColumn do not have durability property yet.
   def buildDeleteBelongsToId(vertex: S2Vertex): Seq[SKeyValue] = {
     val kvs = vertexSerializer(vertex).toKeyValues
     val kv = kvs.head
@@ -1309,7 +1353,8 @@ abstract class Storage[Q, R](val graph: S2Graph, val config: Config)(implicit ec
       if (edge.op == GraphUtil.operations("delete")) {
         buildDeleteBelongsToId(edge.srcForVertex) ++ buildDeleteBelongsToId(edge.tgtForVertex)
       } else {
-        vertexSerializer(edge.srcForVertex).toKeyValues ++ vertexSerializer(edge.tgtForVertex).toKeyValues
+        vertexSerializer(edge.srcForVertex).toKeyValues ++
+          vertexSerializer(edge.tgtForVertex).toKeyValues
       }
     } else {
       Seq.empty

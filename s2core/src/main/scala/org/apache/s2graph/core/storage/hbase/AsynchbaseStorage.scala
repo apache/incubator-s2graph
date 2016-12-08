@@ -22,31 +22,31 @@ package org.apache.s2graph.core.storage.hbase
 import java.util
 import java.util.Base64
 
-import com.stumbleupon.async.{Callback, Deferred}
-import com.typesafe.config.Config
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
-import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
-import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
-import org.apache.hadoop.hbase.regionserver.BloomType
-import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
-import org.apache.hadoop.security.UserGroupInformation
-import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.LabelMeta
-import org.apache.s2graph.core.storage._
-import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage.{AsyncRPC, ScanWithRange}
-import org.apache.s2graph.core.types.{HBaseType, VertexId}
-import org.apache.s2graph.core.utils._
-import org.hbase.async.FilterList.Operator.MUST_PASS_ALL
-import org.hbase.async._
-
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent._
 import scala.concurrent.duration.Duration
 import scala.util.Try
 import scala.util.hashing.MurmurHash3
+
+import com.stumbleupon.async.{Callback, Deferred}
+import com.typesafe.config.Config
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
+import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
+import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
+import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
+import org.apache.hadoop.hbase.regionserver.BloomType
+import org.apache.hadoop.hbase.util.Bytes
+import org.apache.hadoop.security.UserGroupInformation
+import org.hbase.async._
+
+import org.apache.s2graph.core._
+import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.storage._
+import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage.{AsyncRPC, ScanWithRange}
+import org.apache.s2graph.core.types.{HBaseType, VertexId}
+import org.apache.s2graph.core.utils._
 
 object AsynchbaseStorage {
   val vertexCf = Serializable.vertexCf
@@ -58,8 +58,8 @@ object AsynchbaseStorage {
   def makeClient(config: Config, overrideKv: (String, String)*): HBaseClient = {
     val asyncConfig: org.hbase.async.Config =
       if (config.hasPath("hbase.security.auth.enable") && config.getBoolean(
-            "hbase.security.auth.enable"
-          )) {
+          "hbase.security.auth.enable"
+        )) {
         val krb5Conf = config.getString("java.security.krb5.conf")
         val jaas = config.getString("java.security.auth.login.config")
 
@@ -80,11 +80,12 @@ object AsynchbaseStorage {
     }
 
     val client = new HBaseClient(asyncConfig)
-    logger.info(s"Asynchbase: ${client.getConfig.dumpConfiguration()}")
+    Logger.info(s"Asynchbase: ${client.getConfig.dumpConfiguration()}")
     client
   }
 
   case class ScanWithRange(scan: Scanner, offset: Int, limit: Int)
+
   type AsyncRPC = Either[GetRequest, ScanWithRange]
 }
 
@@ -143,6 +144,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
 
   /** v4 max next row size */
   private val v4_max_num_rows = 10000
+
   private def getV4MaxNumRows(limit: Int): Int =
     if (limit < v4_max_num_rows) limit
     else v4_max_num_rows
@@ -167,7 +169,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
         val defer = _client.atomicIncrement(inc)
         val future = defer.toFuture(Long.box(0)).map(_ => true).recover {
           case ex: Exception =>
-            logger.error(s"mutation failed. $kv", ex)
+            Logger.error(s"mutation failed. $kv", ex)
             false
         }
         if (withWait) future else Future.successful(true)
@@ -220,7 +222,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
               defer.toFuture(new AnyRef()).map(_ => true).recover {
                 case ex: Exception =>
                   groupedKeyValues.foreach { kv =>
-                    logger.error(s"mutation failed. $kv", ex)
+                    Logger.error(s"mutation failed. $kv", ex)
                   }
                   false
               }
@@ -249,8 +251,9 @@ class AsynchbaseStorage(override val graph: S2Graph,
 
   /**
     * since HBase natively provide CheckAndSet on storage level, implementation becomes simple.
-    * @param rpc: key value that is need to be stored on storage.
-    * @param expectedOpt: last valid value for rpc's KeyValue.value from fetching.
+    *
+    * @param rpc         : key value that is need to be stored on storage.
+    * @param expectedOpt : last valid value for rpc's KeyValue.value from fetching.
     * @return return true if expected value matches and our rpc is successfully applied,
     *         otherwise false. note that when some other thread modified same cell and
     *         have different value on this KeyValue, then HBase atomically return false.
@@ -269,15 +272,16 @@ class AsynchbaseStorage(override val graph: S2Graph,
     * In HBase case, we either build Scanner or GetRequest.
     *
     * IndexEdge layer:
-    *    Tall schema(v4): use scanner.
-    *    Wide schema(label's schema version in v1, v2, v3): use GetRequest with columnRangeFilter
-    *                                                       when query is given with
-    *                                                       itnerval option.
+    * Tall schema(v4): use scanner.
+    * Wide schema(label's schema version in v1, v2, v3): use GetRequest with columnRangeFilter
+    * when query is given with
+    * itnerval option.
     * SnapshotEdge layer:
-    *    Tall schema(v3, v4): use GetRequest without column filter.
-    *    Wide schema(label's schema version in v1, v2): use GetRequest with columnRangeFilter.
+    * Tall schema(v3, v4): use GetRequest without column filter.
+    * Wide schema(label's schema version in v1, v2): use GetRequest with columnRangeFilter.
     * Vertex layer:
-    *    all version: use GetRequest without column filter.
+    * all version: use GetRequest without column filter.
+    *
     * @param queryRequest
     * @return Scanner or GetRequest with proper setup with StartKey, EndKey, RangeFilter.
     */
@@ -336,7 +340,8 @@ class AsynchbaseStorage(override val graph: S2Graph,
           } else {
 
             /**
-              * note: since propsToBytes encode size of property map at first byte, we are sure about max value here
+              * note: since propsToBytes encode size of property map at first byte,
+              * we are sure about max value here
               */
             val _startKey = queryParam.cursorOpt match {
               case Some(cursor) => Base64.getDecoder.decode(cursor)
@@ -348,7 +353,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
         scanner.setStartKey(startKey)
         scanner.setStopKey(stopKey)
 
-        if (queryParam.limit == Int.MinValue) logger.debug(s"MinValue: $queryParam")
+        if (queryParam.limit == Int.MinValue) Logger.debug(s"MinValue: $queryParam")
 
         scanner.setMaxVersions(1)
         // TODO: exclusive condition innerOffset with cursorOpt
@@ -383,7 +388,12 @@ class AsynchbaseStorage(override val graph: S2Graph,
         val columnRangeFilterOpt = queryParam.intervalOpt.map { interval =>
           new ColumnRangeFilter(intervalMaxBytes, true, intervalMinBytes, true)
         }
-        get.setFilter(new FilterList(pagination +: columnRangeFilterOpt.toSeq, MUST_PASS_ALL))
+        get.setFilter(
+          new FilterList(
+            pagination +: columnRangeFilterOpt.toSeq,
+            FilterList.Operator.MUST_PASS_ALL
+          )
+        )
         Left(get)
     }
   }
@@ -405,7 +415,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
     def fetchInner(hbaseRpc: AsyncRPC): Deferred[StepResult] = {
       val prevStepScore = queryRequest.prevStepScore
       val fallbackFn: (Exception => StepResult) = { ex =>
-        logger.error(s"fetchInner failed. fallback return. $hbaseRpc}", ex)
+        Logger.error(s"fetchInner failed. fallback return. $hbaseRpc}", ex)
         StepResult.Failure
       }
 
@@ -439,7 +449,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
       val cacheKeyBytes = Bytes
         .add(queryRequest.query.queryOption.cacheKeyBytes, requestCacheKey)
 
-//      val cacheKeyBytes = toCacheKeyBytes(request)
+      //      val cacheKeyBytes = toCacheKeyBytes(request)
       val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
       futureCache.getOrElseUpdate(cacheKey, cacheTTL)(fetchInner(request))
     }
@@ -503,7 +513,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
         val request =
           new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value))
         val fallbackFn: (Exception => (Boolean, Long, Long)) = { ex =>
-          logger.error(s"mutation failed. $request", ex)
+          Logger.error(s"mutation failed. $request", ex)
           (false, -1L, -1L)
         }
         val defer = _client
@@ -546,7 +556,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
     for {
       zkAddr <- Seq(zkQuorum) ++ zkQuorumSlave.toSeq
     } {
-      logger.info(
+      Logger.info(
         s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm"
       )
       val admin = getAdmin(zkAddr)
@@ -577,11 +587,11 @@ class AsynchbaseStorage(override val graph: S2Graph,
             admin.createTable(desc, getStartKey(regionCount), getEndKey(regionCount), regionCount)
           }
         } else {
-          logger.info(s"$zkAddr, $tableName, $cfs already exist.")
+          Logger.info(s"$zkAddr, $tableName, $cfs already exist.")
         }
       } catch {
         case e: Throwable =>
-          logger.error(s"$zkAddr, $tableName failed with $e", e)
+          Logger.error(s"$zkAddr, $tableName failed with $e", e)
           throw e
       } finally {
         admin.close()
@@ -594,7 +604,8 @@ class AsynchbaseStorage(override val graph: S2Graph,
     def fromResult(kvs: Seq[SKeyValue], version: String): Option[S2Vertex] =
       if (kvs.isEmpty) None
       else vertexDeserializer.fromKeyValues(None, kvs, version, None)
-//        .map(S2Vertex(graph, _))
+
+    //        .map(S2Vertex(graph, _))
 
     val futures = vertices.map { vertex =>
       val kvs = vertexSerializer(vertex).toKeyValues
@@ -661,7 +672,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
         }
       } catch {
         case ex: Exception =>
-          logger.error(s"fetchKeyValuesInner failed.", ex)
+          Logger.error(s"fetchKeyValuesInner failed.", ex)
           defer.callback(ex)
           Try(scanner.close())
       }
@@ -690,7 +701,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
       case Right(ScanWithRange(scanner, offset, limit)) =>
         Bytes.add(scanner.getCurrentKey, Bytes.add(Bytes.toBytes(offset), Bytes.toBytes(limit)))
       case _ =>
-        logger.error(s"toCacheKeyBytes failed. not supported class type. $hbaseRpc")
+        Logger.error(s"toCacheKeyBytes failed. not supported class type. $hbaseRpc")
         throw new RuntimeException(s"toCacheKeyBytes: $hbaseRpc")
     }
 
@@ -715,11 +726,11 @@ class AsynchbaseStorage(override val graph: S2Graph,
     hConf.set("hbase.master.kerberos.principal", "hbase/_HOST@" + realm)
     hConf.set("hbase.regionserver.kerberos.principal", "hbase/_HOST@" + realm)
 
-    System.out.println("Connecting secure cluster, using keytab\n")
+    Logger.info("Connecting secure cluster, using keytab\n")
     UserGroupInformation.setConfiguration(hConf)
     UserGroupInformation.loginUserFromKeytab(principal, keytab)
     val currentUser = UserGroupInformation.getCurrentUser()
-    System.out.println("current user : " + currentUser + "\n")
+    Logger.info("current user : " + currentUser + "\n")
 
     // get table list
     val conn = ConnectionFactory.createConnection(hConf)
@@ -734,13 +745,14 @@ class AsynchbaseStorage(override val graph: S2Graph,
     * 4. set realm
     * 5. set principal
     * 6. set file path to keytab
+    *
     * @param zkAddr
     * @return
     */
   private def getAdmin(zkAddr: String) =
     if (config.hasPath("hbase.security.auth.enable") && config.getBoolean(
-          "hbase.security.auth.enable"
-        )) {
+        "hbase.security.auth.enable"
+      )) {
       getSecureClusterAdmin(zkAddr)
     } else {
       val conf = HBaseConfiguration.create()

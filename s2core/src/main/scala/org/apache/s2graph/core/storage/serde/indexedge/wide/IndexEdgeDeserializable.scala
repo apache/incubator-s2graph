@@ -19,16 +19,16 @@
 
 package org.apache.s2graph.core.storage.serde.indexedge.wide
 
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
-import org.apache.s2graph.core.storage.StorageDeserializable._
-import org.apache.s2graph.core.storage._
-import org.apache.s2graph.core.types._
 import org.apache.s2graph.core._
-import scala.collection.immutable
+import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
+import org.apache.s2graph.core.storage._
+import org.apache.s2graph.core.storage.StorageDeserializable._
+import org.apache.s2graph.core.types._
 
 class IndexEdgeDeserializable(graph: S2Graph,
                               bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong)
     extends Deserializable[S2Edge] {
+
   import StorageDeserializable._
 
   type QualifierRaw =
@@ -75,27 +75,28 @@ class IndexEdgeDeserializable(graph: S2Graph,
                                                    cacheElementOpt: Option[S2Edge]): S2Edge = {
     assert(_kvs.size == 1)
 
-//     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
+    //     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
 
     val kv = implicitly[CanSKeyValue[T]].toSKeyValue(_kvs.head)
     val version = kv.timestamp
 
-//     val (srcVertexId, labelWithDir, labelIdxSeq, _, _) = cacheElementOpt.map { e =>
-//       (e.srcVertex.id, e.labelWithDir, e.labelIndexSeq, false, 0)
-//     }.getOrElse(parseRow(kv, schemaVer))
+    //     val (srcVertexId, labelWithDir, labelIdxSeq, _, _) = cacheElementOpt.map { e =>
+    //       (e.srcVertex.id, e.labelWithDir, e.labelIndexSeq, false, 0)
+    //     }.getOrElse(parseRow(kv, schemaVer))
     val (srcVertexId, labelWithDir, labelIdxSeq, _, _) =
       parseRow(kv, schemaVer)
 
     val label = checkLabel.getOrElse(Label.findById(labelWithDir.labelId))
     val srcVertex = graph.newVertex(srcVertexId, version)
-    //TODO:
-    val edge = graph.newEdge(srcVertex,
-                             null,
-                             label,
-                             labelWithDir.dir,
-                             GraphUtil.defaultOpByte,
-                             version,
-                             S2Edge.EmptyState)
+    val edge = graph.newEdge(
+      srcVertex,
+      null,
+      label,
+      labelWithDir.dir,
+      GraphUtil.defaultOpByte,
+      version,
+      S2Edge.EmptyState
+    )
     var tsVal = version
 
     val (idxPropsRaw, tgtVertexIdRaw, op, tgtVertexIdInQualifier, _) =

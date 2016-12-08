@@ -22,9 +22,10 @@ package org.apache.s2graph.core.mysqls
 import java.util.UUID
 
 import com.typesafe.config.Config
-import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.Json
 import scalikejdbc._
+
+import org.apache.s2graph.core.utils.Logger
 
 object Service extends Model[Service] {
   def apply(rs: WrappedResultSet): Service =
@@ -67,14 +68,15 @@ object Service extends Model[Service] {
   def findByName(serviceName: String, useCache: Boolean = true)(implicit session: DBSession =
                                                                   AutoSession): Option[Service] = {
     val cacheKey = "serviceName=" + serviceName
-    lazy val serviceOpt = sql"""
+    lazy val serviceOpt =
+      sql"""
         select * from services where service_name = ${serviceName}
       """
-      .map { rs =>
-        Service(rs)
-      }
-      .single
-      .apply()
+        .map { rs =>
+          Service(rs)
+        }
+        .single
+        .apply()
 
     if (useCache) withCache(cacheKey)(serviceOpt)
     else serviceOpt
@@ -86,12 +88,27 @@ object Service extends Model[Service] {
              preSplitSize: Int,
              hTableTTL: Option[Int],
              compressionAlgorithm: String)(implicit session: DBSession = AutoSession): Unit = {
-    logger.info(
+    Logger.info(
       s"$serviceName, $cluster, $hTableName, $preSplitSize, $hTableTTL, $compressionAlgorithm"
     )
     val accessToken = UUID.randomUUID().toString()
-    sql"""insert into services(service_name, access_token, cluster, hbase_table_name, pre_split_size, hbase_table_ttl)
-    values(${serviceName}, ${accessToken}, ${cluster}, ${hTableName}, ${preSplitSize}, ${hTableTTL})""".execute
+    sql"""
+    |INSERT INTO services (
+    |  service_name,
+    |  access_token,
+    |  cluster,
+    |  hbase_table_name,
+    |  pre_split_size,
+    |  hbase_table_ttl
+    |) VALUES (
+    |  ${serviceName},
+    |  ${accessToken},
+    |  ${cluster},
+    |  ${hTableName},
+    |  ${preSplitSize},
+    |  ${hTableTTL}
+    |)
+        """.execute
       .apply()
   }
 
@@ -124,12 +141,13 @@ object Service extends Model[Service] {
     }
 
   def findAll()(implicit session: DBSession = AutoSession): Seq[Service] = {
-    val ls = sql"""select * from services"""
-      .map { rs =>
-        Service(rs)
-      }
-      .list
-      .apply
+    val ls =
+      sql"""select * from services"""
+        .map { rs =>
+          Service(rs)
+        }
+        .list
+        .apply
     putsToCache(ls.map { x =>
       val cacheKey = s"id=${x.id.get}"
       (cacheKey -> x)
@@ -177,5 +195,6 @@ case class Service(id: Option[Int],
 
   lazy val extraOptions = Model.extraOptions(options)
   lazy val storageConfigOpt: Option[Config] = toStorageConfig
+
   def toStorageConfig: Option[Config] = Model.toStorageConfig(extraOptions)
 }

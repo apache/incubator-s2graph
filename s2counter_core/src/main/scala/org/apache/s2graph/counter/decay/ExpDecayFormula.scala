@@ -20,7 +20,7 @@
 package org.apache.s2graph.counter.decay
 
 case class ExpDecayFormula(halfLifeInMillis: Double) extends DecayFormula {
-  val decayRate = - Math.log(2) / halfLifeInMillis
+  val decayRate = -Math.log(2) / halfLifeInMillis
 
   override def apply(value: Double, millis: Long): Double = {
     value * Math.pow(Math.E, decayRate * millis)

@@ -33,7 +33,8 @@ object StreamingConfig extends ConfigFunctions(S2ConfigFactory.config) {
   val KAFKA_TOPIC_COUNTER_FAIL = getOrElse("kafka.topic.counter-fail", "s2counter-fail-alpha")
 
   // profile cache
-  val PROFILE_CACHE_TTL_SECONDS = getOrElse("profile.cache.ttl.seconds", 60 * 60 * 24)    // default 1 day
+  val PROFILE_CACHE_TTL_SECONDS = getOrElse("profile.cache.ttl.seconds", 60 * 60 * 24)
+  // default 1 day
   val PROFILE_CACHE_MAX_SIZE = getOrElse("profile.cache.max.size", 10000)
   val PROFILE_PREFETCH_SIZE = getOrElse("profile.prefetch.size", 10)
 

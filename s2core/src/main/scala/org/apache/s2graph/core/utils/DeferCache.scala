@@ -21,12 +21,12 @@ package org.apache.s2graph.core.utils
 
 import java.util.concurrent.{Executors, ScheduledFuture, TimeUnit}
 
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.language.higherKinds
+
 import com.google.common.cache.{CacheBuilder, CacheStats}
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.Config
-
-import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.language.higherKinds
 
 trait CanDefer[A, M[_], C[_]] {
   def promise: M[A]
@@ -106,10 +106,10 @@ object DeferCache {
 /**
   * @param config
   * @param ec
-  * @param canDefer: implicit evidence to find out implementation of CanDefer.
-  * @tparam A: actual element type that will be stored in M[_]  and C[_].
-  * @tparam M[_]: container type that will be stored in local cache. ex) Promise, Defer.
-  * @tparam C[_]: container type that will be returned to client of this class. Ex) Future, Defer.
+  * @param canDefer : implicit evidence to find out implementation of CanDefer.
+  * @tparam A : actual element type that will be stored in M[_]  and C[_].
+  * @tparam M [_]: container type that will be stored in local cache. ex) Promise, Defer.
+  * @tparam C [_]: container type that will be returned to client of this class. Ex) Future, Defer.
   */
 class DeferCache[A, M[_], C[_]](
     config: Config,
@@ -138,7 +138,7 @@ class DeferCache[A, M[_], C[_]](
     if (useMetric && metricInterval > 0) {
       val cache = builder.recordStats().build[java.lang.Long, (Long, M[A])]()
       DeferCache.addScheduleJob(delay = metricInterval) {
-        logger.metric(s"${name}: ${cache.stats()}")
+        Logger.metric(s"${name}: ${cache.stats()}")
       }
       cache
     } else {
@@ -224,5 +224,6 @@ class DeferCache[A, M[_], C[_]](
   }
 
   def stats: CacheStats = futureCache.stats()
+
   def size: Long = futureCache.size()
 }

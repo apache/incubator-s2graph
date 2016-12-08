@@ -21,22 +21,24 @@ package org.apache.s2graph.core
 
 import java.util.regex.Pattern
 
-import play.api.libs.json.Json
-
 import scala.util.hashing.MurmurHash3
+
+import play.api.libs.json.Json
 
 object GraphUtil {
   private val TOKEN_DELIMITER = Pattern.compile("[\t]")
-  val operations = Map("i" -> 0,
-                       "insert" -> 0,
-                       "u" -> 1,
-                       "update" -> 1,
-                       "increment" -> 2,
-                       "d" -> 3,
-                       "delete" -> 3,
-                       "deleteAll" -> 4,
-                       "insertBulk" -> 5,
-                       "incrementCount" -> 6).map {
+  val operations = Map(
+    "i" -> 0,
+    "insert" -> 0,
+    "u" -> 1,
+    "update" -> 1,
+    "increment" -> 2,
+    "d" -> 3,
+    "delete" -> 3,
+    "deleteAll" -> 4,
+    "insertBulk" -> 5,
+    "incrementCount" -> 6
+  ).map {
     case (k, v) =>
       k -> v.toByte
   }
@@ -129,15 +131,17 @@ object GraphUtil {
   def transformHash(h: Int): Int =
     //    h / 2 + (Int.MaxValue / 2 - 1)
     if (h < 0) -1 * (h + 1) else h
+
   def murmur3Int(s: String): Int = {
     val hash = MurmurHash3.stringHash(s)
     transformHash(hash)
   }
+
   def murmur3(s: String): Short = {
     val hash = MurmurHash3.stringHash(s)
     val positiveHash = transformHash(hash) >> BitsForMurMurHash
     positiveHash.toShort
-//    Random.nextInt(Short.MaxValue).toShort
+    //    Random.nextInt(Short.MaxValue).toShort
   }
 
   def smartSplit(s: String, delemiter: String): Seq[String] = {

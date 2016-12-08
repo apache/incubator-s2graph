@@ -20,20 +20,24 @@
 package org.apache.s2graph.core.storage.serde.indexedge.tall
 
 import org.apache.hadoop.hbase.util.Bytes
+
+import org.apache.s2graph.core.{GraphUtil, IndexEdge}
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.storage.{Serializable, StorageSerializable}
-import org.apache.s2graph.core.types.{InnerValLike, VertexId}
-import org.apache.s2graph.core.{GraphUtil, IndexEdge}
 import org.apache.s2graph.core.storage.StorageSerializable._
+import org.apache.s2graph.core.types.{InnerValLike, VertexId}
 
 class IndexEdgeSerializable(indexEdge: IndexEdge, longToBytes: Long => Array[Byte] = longToBytes)
     extends Serializable[IndexEdge] {
+
   import StorageSerializable._
 
   override def ts: Long = indexEdge.version
+
   override def table: Array[Byte] = indexEdge.label.hbaseTableName.getBytes()
 
   def idxPropsMap: Map[LabelMeta, InnerValLike] = indexEdge.orders.toMap
+
   def idxPropsBytes: Array[Byte] = propsToBytes(indexEdge.orders)
 
   override def toRowKey: Array[Byte] = {

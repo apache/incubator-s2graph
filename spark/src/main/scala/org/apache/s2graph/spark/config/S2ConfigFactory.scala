@@ -34,7 +34,7 @@ object S2ConfigFactory {
 
     lazy val phase = if (!sysConfig.hasPath("phase")) "alpha" else sysConfig.getString("phase")
     sysConfig
-      .withFallback(ConfigFactory.parseResourcesAnySyntax(s"$phase.conf"))
-      .withFallback(ConfigFactory.load())
+        .withFallback(ConfigFactory.parseResourcesAnySyntax(s"$phase.conf"))
+        .withFallback(ConfigFactory.load())
   }
 }

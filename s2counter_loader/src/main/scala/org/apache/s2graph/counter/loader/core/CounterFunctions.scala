@@ -19,26 +19,28 @@
 
 package org.apache.s2graph.counter.loader.core
 
+import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.concurrent.ExecutionContext
+import scala.language.postfixOps
+import scala.util.Try
+
 import kafka.producer.KeyedMessage
+import org.apache.spark.{Accumulable, Logging}
+import org.apache.spark.rdd.RDD
+import play.api.libs.json._
+
 import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.counter.TrxLog
+import org.apache.s2graph.counter.core._
 import org.apache.s2graph.counter.core.ExactCounter.ExactValueMap
 import org.apache.s2graph.counter.core.RankingCounter.RankingValueMap
 import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
-import org.apache.s2graph.counter.core._
 import org.apache.s2graph.counter.core.v2.{ExactStorageGraph, RankingStorageGraph}
 import org.apache.s2graph.counter.loader.config.StreamingConfig
 import org.apache.s2graph.counter.loader.models.DefaultCounterModel
 import org.apache.s2graph.counter.models.{Counter, DBModel}
 import org.apache.s2graph.spark.config.S2ConfigFactory
 import org.apache.s2graph.spark.spark.WithKafka
-import org.apache.spark.rdd.RDD
-import org.apache.spark.{Accumulable, Logging}
-import play.api.libs.json.{JsNumber, JsString, JsValue, Json}
-import scala.collection.mutable.{HashMap => MutableHashMap}
-import scala.concurrent.ExecutionContext
-import scala.language.postfixOps
-import scala.util.Try
 
 object CounterFunctions extends Logging with WithKafka {
 
@@ -64,9 +66,11 @@ object CounterFunctions extends Logging with WithKafka {
     for {
       dimKeys <- policy.dimensionList
       dimValues <- getDimensionValues(item.dimension, dimKeys).toSeq
-      eq <- ExactQualifier.getQualifiers(policy.intervals.map(IntervalUnit.withName),
-                                         item.ts,
-                                         dimKeys.zip(dimValues).toMap)
+      eq <- ExactQualifier.getQualifiers(
+        policy.intervals.map(IntervalUnit.withName),
+        item.ts,
+        dimKeys.zip(dimValues).toMap
+      )
     } yield {
       eq -> item.value
     }
@@ -122,17 +126,19 @@ object CounterFunctions extends Logging with WithKafka {
 
   def makeExactRdd(rdd: RDD[(String, String)],
                    numPartitions: Int): RDD[(ExactKeyTrait, ExactValueMap)] =
-    rdd.mapPartitions { part =>
-      assert(initialize)
-      for {
-        (k, v) <- part
-        line <- GraphUtil.parseString(v)
-        item <- CounterEtlItem(line).toSeq
-        ev <- exactMapper(item).toSeq
-      } yield {
-        ev
+    rdd
+      .mapPartitions { part =>
+        assert(initialize)
+        for {
+          (k, v) <- part
+          line <- GraphUtil.parseString(v)
+          item <- CounterEtlItem(line).toSeq
+          ev <- exactMapper(item).toSeq
+        } yield {
+          ev
+        }
       }
-    }.reduceByKey(reduceValue[ExactQualifier, Long](_ + _, 0L)(_, _), numPartitions)
+      .reduceByKey(reduceValue[ExactQualifier, Long](_ + _, 0L)(_, _), numPartitions)
 
   def makeRankingRdd(rdd: RDD[(String, String)],
                      numPartitions: Int): RDD[(RankingKey, RankingValueMap)] = {
@@ -166,26 +172,30 @@ object CounterFunctions extends Logging with WithKafka {
 
   def rankingCount(rdd: RDD[ItemRankingRow],
                    numPartitions: Int): RDD[(RankingKey, RankingValueMap)] =
-    rdd.mapPartitions { part =>
-      for {
-        row <- part
-        rv <- rankingMapper(row)
-      } yield {
-        rv
+    rdd
+      .mapPartitions { part =>
+        for {
+          row <- part
+          rv <- rankingMapper(row)
+        } yield {
+          rv
+        }
       }
-    }.reduceByKey(reduceValue(RankingValue.reduce, RankingValue(0, 0))(_, _), numPartitions)
+      .reduceByKey(reduceValue(RankingValue.reduce, RankingValue(0, 0))(_, _), numPartitions)
 
   case class ItemRankingRow(key: ExactKeyTrait, value: Map[ExactQualifier, RankingValue])
 
   def makeItemRankingRdd(rdd: RDD[TrxLog], numPartitions: Int): RDD[ItemRankingRow] =
-    rdd.mapPartitions { part =>
-      for {
-        log <- part
-        rv <- logToRankValue(log)
-      } yield {
-        rv
+    rdd
+      .mapPartitions { part =>
+        for {
+          log <- part
+          rv <- logToRankValue(log)
+        } yield {
+          rv
+        }
       }
-    }.reduceByKey(reduceValue(RankingValue.reduce, RankingValue(0, 0))(_, _), numPartitions)
+      .reduceByKey(reduceValue(RankingValue.reduce, RankingValue(0, 0))(_, _), numPartitions)
       .mapPartitions { part =>
         for {
           (key, value) <- part
@@ -195,43 +205,49 @@ object CounterFunctions extends Logging with WithKafka {
       }
 
   def mapTrendRankingValue(
-      rows: Seq[ItemRankingRow]): Seq[(ExactKeyTrait, Map[ExactQualifier, RateRankingValue])] =
+      rows: Seq[ItemRankingRow]
+  ): Seq[(ExactKeyTrait, Map[ExactQualifier, RateRankingValue])] =
     for {
       row <- rows
       trendPolicy <- DefaultCounterModel.findByTrendActionId(row.key.policyId)
     } yield {
       val key = ExactKey(trendPolicy, row.key.itemKey, checkItemType = false)
-      val value = row.value.filter {
-        case (eq, rv) =>
-          // eq filter by rate policy dimension
-          trendPolicy.dimensionSet.exists { dimSet =>
-            dimSet == eq.dimKeyValues.keys
-          }
-      }.map {
-        case (eq, rv) =>
-          eq -> RateRankingValue(rv.score, -1)
-      }
+      val value = row.value
+        .filter {
+          case (eq, rv) =>
+            // eq filter by rate policy dimension
+            trendPolicy.dimensionSet.exists { dimSet =>
+              dimSet == eq.dimKeyValues.keys
+            }
+        }
+        .map {
+          case (eq, rv) =>
+            eq -> RateRankingValue(rv.score, -1)
+        }
       (key, value)
     }
 
   def mapRateRankingValue(
-      rows: Seq[ItemRankingRow]): Seq[(ExactKeyTrait, Map[ExactQualifier, RateRankingValue])] = {
+      rows: Seq[ItemRankingRow]
+  ): Seq[(ExactKeyTrait, Map[ExactQualifier, RateRankingValue])] = {
     val actionPart = {
       for {
         row <- rows
         ratePolicy <- DefaultCounterModel.findByRateActionId(row.key.policyId)
       } yield {
         val key = ExactKey(ratePolicy, row.key.itemKey, checkItemType = false)
-        val value = row.value.filter {
-          case (eq, rv) =>
-            // eq filter by rate policy dimension
-            ratePolicy.dimensionSet.exists { dimSet =>
-              dimSet == eq.dimKeyValues.keys
-            }
-        }.map {
-          case (eq, rv) =>
-            eq -> RateRankingValue(rv.score, -1)
-        }
+        val value = row.value
+          .filter {
+            case (eq, rv) =>
+              // eq filter by rate policy dimension
+              ratePolicy.dimensionSet.exists { dimSet =>
+                dimSet == eq.dimKeyValues.keys
+              }
+          }
+          .map {
+            case (eq, rv) =>
+              eq -> RateRankingValue(rv.score, -1)
+          }
         (key, value)
       }
     }
@@ -242,16 +258,18 @@ object CounterFunctions extends Logging with WithKafka {
         ratePolicy <- DefaultCounterModel.findByRateBaseId(row.key.policyId)
       } yield {
         val key = ExactKey(ratePolicy, row.key.itemKey, checkItemType = false)
-        val value = row.value.filter {
-          case (eq, rv) =>
-            // eq filter by rate policy dimension
-            ratePolicy.dimensionSet.exists { dimSet =>
-              dimSet == eq.dimKeyValues.keys
-            }
-        }.map {
-          case (eq, rv) =>
-            eq -> RateRankingValue(-1, rv.score)
-        }
+        val value = row.value
+          .filter {
+            case (eq, rv) =>
+              // eq filter by rate policy dimension
+              ratePolicy.dimensionSet.exists { dimSet =>
+                dimSet == eq.dimKeyValues.keys
+              }
+          }
+          .map {
+            case (eq, rv) =>
+              eq -> RateRankingValue(-1, rv.score)
+          }
         (key, value)
       }
     }
@@ -261,10 +279,14 @@ object CounterFunctions extends Logging with WithKafka {
 
   def trendRankingCount(rdd: RDD[ItemRankingRow],
                         numPartitions: Int): RDD[(RankingKey, RankingValueMap)] =
-    rdd.mapPartitions { part =>
-      mapTrendRankingValue(part.toSeq) toIterator
-    }.reduceByKey(reduceValue(RateRankingValue.reduce, RateRankingValue(-1, -1))(_, _),
-                   numPartitions)
+    rdd
+      .mapPartitions { part =>
+        mapTrendRankingValue(part.toSeq) toIterator
+      }
+      .reduceByKey(
+        reduceValue(RateRankingValue.reduce, RateRankingValue(-1, -1))(_, _),
+        numPartitions
+      )
       .mapPartitions { part =>
         val missingByPolicy = {
           for {
@@ -291,12 +313,10 @@ object CounterFunctions extends Logging with WithKafka {
           } yield {
             val past = keyWithPast.getOrElse(key.itemKey, Map.empty[ExactQualifier, Long])
             val base = past.mapValues(l => RateRankingValue(-1, l))
-//          log.warn(s"trend: $policy $key -> $current $base")
+            //          log.warn(s"trend: $policy $key -> $current $base")
             key -> reduceValue(RateRankingValue.reduce, RateRankingValue(-1, -1))(current, base)
           }
         }
-
-//      filled.foreach(println)
 
         {
           // filter by rate threshold
@@ -313,14 +333,16 @@ object CounterFunctions extends Logging with WithKafka {
 
   def rateRankingCount(rdd: RDD[ItemRankingRow],
                        numPartitions: Int): RDD[(RankingKey, RankingValueMap)] =
-    rdd.mapPartitions { part =>
-      mapRateRankingValue(part.toSeq) toIterator
-    }.reduceByKey(reduceValue(RateRankingValue.reduce, RateRankingValue(-1, -1))(_, _),
-                   numPartitions)
+    rdd
+      .mapPartitions { part =>
+        mapRateRankingValue(part.toSeq) toIterator
+      }
+      .reduceByKey(
+        reduceValue(RateRankingValue.reduce, RateRankingValue(-1, -1))(_, _),
+        numPartitions
+      )
       .mapPartitions { part =>
         val seq = part.toSeq
-//      seq.foreach(x => println(s"item ranking row>> $x"))
-
         // find and evaluate action value is -1
         val actionMissingByPolicy = {
           for {
@@ -345,12 +367,10 @@ object CounterFunctions extends Logging with WithKafka {
             val found = related.mapValues(l => RateRankingValue(l, -1))
             val filled =
               reduceValue(RateRankingValue.reduce, RateRankingValue(-1, -1))(current, found)
-//          log.warn(s"action: $key -> $found $filled")
+            //          log.warn(s"action: $key -> $found $filled")
             key -> filled
           }
         }
-
-//      actionFilled.foreach(x => println(s"action filled>> $x"))
 
         // find and evaluate base value is -1
         val baseMissingByPolicy = {
@@ -376,12 +396,10 @@ object CounterFunctions extends Logging with WithKafka {
             val found = related.mapValues(l => RateRankingValue(-1, l))
             val filled =
               reduceValue(RateRankingValue.reduce, RateRankingValue(-1, -1))(current, found)
-//          log.warn(s"base: $basePolicy $key -> $found $filled")
+            //          log.warn(s"base: $basePolicy $key -> $found $filled")
             key -> filled
           }
         }
-
-//      baseFilled.foreach(x => println(s"base filled>> $x"))
 
         val alreadyFilled = {
           for {
@@ -455,14 +473,16 @@ object CounterFunctions extends Logging with WithKafka {
 
   def exactCountFromEtl(rdd: RDD[CounterEtlItem],
                         numPartitions: Int): RDD[(ExactKeyTrait, ExactValueMap)] =
-    rdd.mapPartitions { part =>
-      for {
-        item <- part
-        ev <- exactMapper(item).toSeq
-      } yield {
-        ev
+    rdd
+      .mapPartitions { part =>
+        for {
+          item <- part
+          ev <- exactMapper(item).toSeq
+        } yield {
+          ev
+        }
       }
-    }.reduceByKey(reduceValue[ExactQualifier, Long](_ + _, 0L)(_, _), numPartitions)
+      .reduceByKey(reduceValue[ExactQualifier, Long](_ + _, 0L)(_, _), numPartitions)
 
   def updateRankingCounter(values: TraversableOnce[(RankingKey, RankingValueMap)],
                            acc: HashMapAccumulable): Unit = {
@@ -495,9 +515,11 @@ object CounterFunctions extends Logging with WithKafka {
         case true => StreamingConfig.KAFKA_TOPIC_COUNTER_TRX
         case false => StreamingConfig.KAFKA_TOPIC_COUNTER_FAIL
       }
-      val msg = new KeyedMessage[String, String](topic,
-                                                 s"${trxLog.policyId}${trxLog.item}",
-                                                 Json.toJson(trxLog).toString())
+      val msg = new KeyedMessage[String, String](
+        topic,
+        s"${trxLog.policyId}${trxLog.item}",
+        Json.toJson(trxLog).toString()
+      )
       producer.send(msg)
     }
 }

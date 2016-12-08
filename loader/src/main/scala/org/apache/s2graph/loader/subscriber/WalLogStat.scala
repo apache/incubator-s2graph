@@ -19,25 +19,26 @@
 
 package org.apache.s2graph.loader.subscriber
 
-import kafka.producer.KeyedMessage
-import kafka.serializer.StringDecoder
-import org.apache.s2graph.core.S2Graph$
-import org.apache.s2graph.spark.spark.{SparkApp, WithKafka}
-import org.apache.spark.streaming.Durations._
-import org.apache.spark.streaming.kafka.HasOffsetRanges
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.language.postfixOps
+
+import kafka.producer.KeyedMessage
+import kafka.serializer.StringDecoder
+import org.apache.spark.streaming.Durations._
+import org.apache.spark.streaming.kafka.HasOffsetRanges
+
+import org.apache.s2graph.spark.spark.{SparkApp, WithKafka}
 
 object WalLogStat extends SparkApp with WithKafka {
 
   override def run(): Unit = {
 
     validateArgument("kafkaZkQuorum",
-                     "brokerList",
-                     "topics",
-                     "intervalInSec",
-                     "dbUrl",
-                     "statTopic")
+      "brokerList",
+      "topics",
+      "intervalInSec",
+      "dbUrl",
+      "statTopic")
 
     val kafkaZkQuorum = args(0)
     val brokerList = args(1)
@@ -53,13 +54,13 @@ object WalLogStat extends SparkApp with WithKafka {
     val groupId = topics.replaceAll(",", "_") + "_stat"
 
     val kafkaParams = Map("zookeeper.connect" -> kafkaZkQuorum,
-                          "group.id" -> groupId,
-                          "metadata.broker.list" -> brokerList,
-                          "zookeeper.connection.timeout.ms" -> "10000",
-                          "auto.offset.reset" -> "largest")
+      "group.id" -> groupId,
+      "metadata.broker.list" -> brokerList,
+      "zookeeper.connection.timeout.ms" -> "10000",
+      "auto.offset.reset" -> "largest")
 
     val stream = getStreamHelper(kafkaParams)
-      .createStream[String, String, StringDecoder, StringDecoder](ssc, topics.split(",").toSet)
+        .createStream[String, String, StringDecoder, StringDecoder](ssc, topics.split(",").toSet)
     val statProducer = getProducer[String, String](brokerList)
 
     stream.foreachRDD { (rdd, time) =>

@@ -21,17 +21,21 @@ package org.apache.s2graph.core
 
 import java.util
 
+import scala.util.hashing.MurmurHash3
+
+import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty}
+
 import org.apache.s2graph.core.mysqls.ColumnMeta
 import org.apache.s2graph.core.types.CanInnerValLike
-import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty, Vertex => TpVertex}
-
-import scala.util.hashing.MurmurHash3
 
 case class S2VertexProperty[V](element: S2Vertex, columnMeta: ColumnMeta, key: String, v: V)
     extends VertexProperty[V] {
+
   import CanInnerValLike._
+
   implicit lazy val encodingVer = element.serviceColumn.schemaVersion
   lazy val innerVal = CanInnerValLike.anyToInnerValLike.toInnerVal(value)
+
   def toBytes: Array[Byte] =
     innerVal.bytes
 

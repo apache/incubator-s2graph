@@ -57,6 +57,7 @@ trait WithKafka {
 
   /**
     * Kafka DefaultPartitioner
+    *
     * @param k
     * @param n
     * @return

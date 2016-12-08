@@ -19,8 +19,9 @@
 
 package org.apache.s2graph.counter.models
 
-import org.apache.s2graph.counter.models.Counter.ItemType
 import org.specs2.mutable.Specification
+
+import org.apache.s2graph.counter.models.Counter.ItemType
 
 class CounterSpec extends Specification {
   "Counter" should {
@@ -49,13 +50,13 @@ class CounterSpec extends Specification {
       policy.dimensionList.map { arr =>
         arr.toSeq
       }.toSet -- Set(Seq.empty[String],
-                     Seq("p1"),
-                     Seq("p2"),
-                     Seq("p3"),
-                     Seq("p1", "p2"),
-                     Seq("p1", "p3"),
-                     Seq("p2", "p3"),
-                     Seq("p1", "p2", "p3")) must beEmpty
+        Seq("p1"),
+        Seq("p2"),
+        Seq("p3"),
+        Seq("p1", "p2"),
+        Seq("p1", "p3"),
+        Seq("p2", "p3"),
+        Seq("p1", "p2", "p3")) must beEmpty
     }
   }
 }

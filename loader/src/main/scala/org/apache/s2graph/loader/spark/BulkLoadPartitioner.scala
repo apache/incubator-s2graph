@@ -24,19 +24,19 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.spark.Partitioner
 
 /**
- * A Partitioner implementation that will separate records to different
- * HBase Regions based on region splits
- *
- * @param startKeys   The start keys for the given table
- */
-class BulkLoadPartitioner(startKeys:Array[Array[Byte]])
-  extends Partitioner {
+  * A Partitioner implementation that will separate records to different
+  * HBase Regions based on region splits
+  *
+  * @param startKeys The start keys for the given table
+  */
+class BulkLoadPartitioner(startKeys: Array[Array[Byte]])
+    extends Partitioner {
 
   override def numPartitions: Int = startKeys.length
 
   override def getPartition(key: Any): Int = {
 
-    val rowKey:Array[Byte] =
+    val rowKey: Array[Byte] =
       key match {
         case qualifier: KeyFamilyQualifier =>
           qualifier.rowKey

@@ -19,50 +19,19 @@
 
 package org.apache.s2graph.core
 
-import org.apache.s2graph.core.JSONParser._
+import org.scalatest.FunSuite
+
 import org.apache.s2graph.core.mysqls.{LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs, VertexId}
-import org.apache.s2graph.core.utils.logger
-import org.scalatest.FunSuite
-import play.api.libs.json.{JsObject, Json}
+import org.apache.s2graph.core.utils.Logger
 
 class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
-  import S2Edge._
+
   initTests()
 
   val testLabelMeta1 =
     LabelMeta(Option(-1), labelV2.id.get, "is_blocked", 1.toByte, "true", "boolean")
   val testLabelMeta3 = LabelMeta(Option(-1), labelV2.id.get, "time", 3.toByte, "-1", "long")
-
-//  test("toLogString") {
-//    val testServiceName = serviceNameV2
-//    val testLabelName = labelNameV2
-//    val bulkQueries = List(
-//      ("1445240543366", "update", "{\"is_blocked\":true}"),
-//      ("1445240543362", "insert", "{\"is_hidden\":false}"),
-//      ("1445240543364", "insert", "{\"is_hidden\":false,\"weight\":10}"),
-//      ("1445240543363", "delete", "{}"),
-//      ("1445240543365", "update", "{\"time\":1, \"weight\":-10}"))
-//
-//    val (srcId, tgtId, labelName) = ("1", "2", testLabelName)
-//
-//    val bulkEdge = (for ((ts, op, props) <- bulkQueries) yield {
-//      val properties = fromJsonToProperties(Json.parse(props).as[JsObject])
-//      Edge.toEdge(srcId, tgtId, labelName, "out", properties, ts.toLong, op).toLogString
-//    }).mkString("\n")
-//
-//    val attachedProps = "\"from\":\"1\",\"to\":\"2\",\"label\":\"" + testLabelName +
-//      "\",\"service\":\"" + testServiceName + "\""
-//    val expected = Seq(
-//      Seq("1445240543366", "update", "e", "1", "2", testLabelName, "{" + attachedProps + ",\"is_blocked\":true}"),
-//      Seq("1445240543362", "insert", "e", "1", "2", testLabelName, "{" + attachedProps + ",\"is_hidden\":false}"),
-//      Seq("1445240543364", "insert", "e", "1", "2", testLabelName, "{" + attachedProps + ",\"is_hidden\":false,\"weight\":10}"),
-//      Seq("1445240543363", "delete", "e", "1", "2", testLabelName, "{" + attachedProps + "}"),
-//      Seq("1445240543365", "update", "e", "1", "2", testLabelName, "{" + attachedProps + ",\"time\":1,\"weight\":-10}")
-//    ).map(_.mkString("\t")).mkString("\n")
-//
-//    assert(bulkEdge === expected)
-//  }
 
   test("buildOperation") {
     val schemaVersion = "v2"
@@ -71,8 +40,8 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(
-        InnerVal.withLong(0, schemaVersion),
-        1)
+      InnerVal.withLong(0, schemaVersion),
+      1)
 
     val snapshotEdge = None
     val propsWithTs = Map(timestampProp)
@@ -88,7 +57,7 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
 
     val edgeMutate =
       S2Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
-    logger.info(edgeMutate.toLogString)
+    Logger.info(edgeMutate.toLogString)
 
     assert(edgeMutate.newSnapshotEdge.isDefined)
     assert(edgeMutate.edgesToInsert.nonEmpty)
@@ -102,8 +71,8 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(
-        InnerVal.withLong(0, schemaVersion),
-        1)
+      InnerVal.withLong(0, schemaVersion),
+      1)
 
     val snapshotEdge = None
     val propsWithTs = Map(timestampProp)
@@ -119,7 +88,7 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
 
     val edgeMutate =
       S2Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
-    logger.info(edgeMutate.toLogString)
+    Logger.info(edgeMutate.toLogString)
 
     assert(edgeMutate.newSnapshotEdge.isDefined)
     assert(edgeMutate.edgesToInsert.nonEmpty)
@@ -133,8 +102,8 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(
-        InnerVal.withLong(0, schemaVersion),
-        1)
+      InnerVal.withLong(0, schemaVersion),
+      1)
 
     val snapshotEdge = None
     val propsWithTs = Map(timestampProp)
@@ -147,7 +116,7 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
 
     val edgeMutate =
       S2Edge.buildMutation(snapshotEdge, requestEdge, newVersion, propsWithTs, newPropsWithTs)
-    logger.info(edgeMutate.toLogString)
+    Logger.info(edgeMutate.toLogString)
 
     assert(edgeMutate.newSnapshotEdge.isEmpty)
     assert(edgeMutate.edgesToInsert.isEmpty)
@@ -161,8 +130,8 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(
-        InnerVal.withLong(0, schemaVersion),
-        1)
+      InnerVal.withLong(0, schemaVersion),
+      1)
     val oldPropsWithTs = Map(
       timestampProp,
       LabelMeta.lastDeletedAt -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 3)
@@ -175,11 +144,11 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     )
 
     val _snapshotEdge = graph.newEdge(srcVertex,
-                                      tgtVertex,
-                                      labelV2,
-                                      labelWithDirV2.dir,
-                                      op = GraphUtil.operations("delete"),
-                                      propsWithTs = propsWithTs)
+      tgtVertex,
+      labelV2,
+      labelWithDirV2.dir,
+      op = GraphUtil.operations("delete"),
+      propsWithTs = propsWithTs)
 
     val snapshotEdge = Option(_snapshotEdge)
 
@@ -189,7 +158,7 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val newVersion = 0L
     val edgeMutate =
       S2Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
-    logger.info(edgeMutate.toLogString)
+    Logger.info(edgeMutate.toLogString)
 
     assert(edgeMutate.newSnapshotEdge.nonEmpty)
     assert(edgeMutate.edgesToInsert.isEmpty)
@@ -203,8 +172,8 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(
-        InnerVal.withLong(0, schemaVersion),
-        1)
+      InnerVal.withLong(0, schemaVersion),
+      1)
     val oldPropsWithTs = Map(
       timestampProp,
       LabelMeta.lastDeletedAt -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 3)
@@ -217,11 +186,11 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     )
 
     val _snapshotEdge = graph.newEdge(srcVertex,
-                                      tgtVertex,
-                                      labelV2,
-                                      labelWithDirV2.dir,
-                                      op = GraphUtil.operations("delete"),
-                                      propsWithTs = propsWithTs)
+      tgtVertex,
+      labelV2,
+      labelWithDirV2.dir,
+      op = GraphUtil.operations("delete"),
+      propsWithTs = propsWithTs)
 
     val snapshotEdge = Option(_snapshotEdge)
 
@@ -231,7 +200,7 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val newVersion = 0L
     val edgeMutate =
       S2Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
-    logger.info(edgeMutate.toLogString)
+    Logger.info(edgeMutate.toLogString)
 
     assert(edgeMutate.newSnapshotEdge.nonEmpty)
     assert(edgeMutate.edgesToInsert.nonEmpty)

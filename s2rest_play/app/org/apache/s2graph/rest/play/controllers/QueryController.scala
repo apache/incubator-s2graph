@@ -19,17 +19,20 @@
 
 package org.apache.s2graph.rest.play.controllers
 
-import org.apache.s2graph.core.rest.RestHandler
-import play.api.libs.json.Json
-import play.api.mvc._
-
 import scala.concurrent.Future
 import scala.language.postfixOps
 
+import play.api.libs.json.Json
+import play.api.mvc._
+
+import org.apache.s2graph.core.rest.RestHandler
+
 object QueryController extends Controller {
 
-  import ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits.defaultContext
+
+  import ApplicationController._
+
   private val rest: RestHandler = org.apache.s2graph.rest.play.Global.s2rest
 
   def delegate(request: Request[String]): Future[Result] =

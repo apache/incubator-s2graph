@@ -26,13 +26,17 @@ import org.apache.s2graph.counter.util.Hashes
 
 trait ExactKeyTrait {
   def policyId: Int
+
   def version: Byte
+
   def itemType: ItemType
+
   def itemKey: String
 }
 
 case class ExactKey(policyId: Int, version: Byte, itemType: ItemType, itemKey: String)
     extends ExactKeyTrait
+
 case class BlobExactKey(policyId: Int,
                         version: Byte,
                         itemType: ItemType,

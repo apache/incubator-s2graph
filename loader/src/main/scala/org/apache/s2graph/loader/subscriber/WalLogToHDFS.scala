@@ -21,15 +21,17 @@ package org.apache.s2graph.loader.subscriber
 
 import java.text.SimpleDateFormat
 import java.util.Date
+
+import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.language.postfixOps
+
 import kafka.serializer.StringDecoder
-import org.apache.s2graph.core.S2Graph
-import org.apache.s2graph.spark.spark.{HashMapParam, SparkApp, WithKafka}
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.streaming.Durations._
 import org.apache.spark.streaming.kafka.HasOffsetRanges
 
-import scala.collection.mutable.{HashMap => MutableHashMap}
-import scala.language.postfixOps
+import org.apache.s2graph.core.utils.Logger
+import org.apache.s2graph.spark.spark.{HashMapParam, SparkApp, WithKafka}
 
 object WalLogToHDFS extends SparkApp with WithKafka {
 
@@ -73,13 +75,14 @@ object WalLogToHDFS extends SparkApp with WithKafka {
     )
 
     val stream = getStreamHelper(kafkaParams)
-      .createStream[String, String, StringDecoder, StringDecoder](ssc, topics.split(",").toSet)
+        .createStream[String, String, StringDecoder, StringDecoder](ssc, topics.split(",").toSet)
 
     val mapAcc = sc.accumulable(new MutableHashMap[String, Long](), "Throughput")(
       HashMapParam[String, Long](_ + _)
     )
 
-    val hdfsBlockSize = 134217728 // 128M
+    val hdfsBlockSize = 134217728
+    // 128M
     val hiveContext = new HiveContext(sc)
     var splits = Array[String]()
     var excludeLabels = Set[String]()
@@ -142,16 +145,16 @@ object WalLogToHDFS extends SparkApp with WithKafka {
             val strlen = split.length
             val splitData = elements.filter(_.takeRight(strlen) == split).cache()
             val totalSize = splitData
-              .mapPartitions { iterator =>
-                val s = iterator.map(_.length.toLong).sum
-                Iterator.single(s)
-              }
-              .sum
-              .toLong
+                .mapPartitions { iterator =>
+                  val s = iterator.map(_.length.toLong).sum
+                  Iterator.single(s)
+                }
+                .sum
+                .toLong
             val numPartitions = math.max(1, (totalSize / hdfsBlockSize.toDouble).toInt)
             splitData
-              .coalesce(math.min(splitData.partitions.length, numPartitions))
-              .saveAsTextFile(path)
+                .coalesce(math.min(splitData.partitions.length, numPartitions))
+                .saveAsTextFile(path)
             splitData.unpersist()
         }
         elements.unpersist()
@@ -159,27 +162,31 @@ object WalLogToHDFS extends SparkApp with WithKafka {
       }
 
       elementsWritten
-        .mapPartitionsWithIndex { (i, part) =>
-          // commit offset range
-          val osr = offsets(i)
-          getStreamHelper(kafkaParams).commitConsumerOffset(osr)
-          Iterator.empty
-        }
-        .foreach { (_: Nothing) =>
-          ()
-        }
+          .mapPartitionsWithIndex { (i, part) =>
+            // commit offset range
+            val osr = offsets(i)
+            getStreamHelper(kafkaParams).commitConsumerOffset(osr)
+            Iterator.empty
+          }
+          .foreach { (_: Nothing) =>
+            ()
+          }
 
       (Array("all") ++ splits).foreach { split =>
         val path = s"$outputPath/split=$split/date_id=$dateId/ts=$ts"
         hiveContext.sql(s"use $hiveDatabase")
         hiveContext.sql(
-          s"alter table $hiveTable add partition (split='$split', date_id='$dateId', ts='$ts') location '$path'"
+          s"""
+             |ALTER TABLE $hiveTable
+             |ADD PARTITION (split='$split', date_id='$dateId', ts='$ts')
+             |LOCATION '$path'
+           """.stripMargin
         )
       }
     }
 
     logInfo(s"counter: ${mapAcc.value}")
-    println(s"counter: ${mapAcc.value}")
+    Logger.info(s"counter: ${mapAcc.value}")
     ssc.start()
     ssc.awaitTermination()
   }

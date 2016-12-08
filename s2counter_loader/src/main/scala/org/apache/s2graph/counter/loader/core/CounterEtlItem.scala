@@ -19,10 +19,12 @@
 
 package org.apache.s2graph.counter.loader.core
 
-import org.apache.s2graph.counter.util.UnitConverter
+import scala.util.{Failure, Success, Try}
+
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
-import scala.util.{Failure, Success, Try}
+
+import org.apache.s2graph.counter.util.UnitConverter
 
 case class CounterEtlItem(ts: Long,
                           service: String,
@@ -38,8 +40,8 @@ case class CounterEtlItem(ts: Long,
     (property \ "value").toOption match {
       case Some(JsNumber(n)) => n.longValue()
       case Some(JsString(s)) => s.toLong
-      case None              => 1L
-      case _                 => throw new Exception("wrong type")
+      case None => 1L
+      case _ => throw new Exception("wrong type")
     }
   }
 }
@@ -51,11 +53,11 @@ object CounterEtlItem {
     Try {
       val Array(ts, service, action, item, dimension, property) = line.split('\t')
       CounterEtlItem(UnitConverter.toMillis(ts.toLong),
-                     service,
-                     action,
-                     item,
-                     Json.parse(dimension),
-                     Json.parse(property))
+        service,
+        action,
+        item,
+        Json.parse(dimension),
+        Json.parse(property))
     } match {
       case Success(item) =>
         Some(item)

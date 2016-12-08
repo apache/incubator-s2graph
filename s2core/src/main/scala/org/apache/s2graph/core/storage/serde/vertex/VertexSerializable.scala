@@ -19,10 +19,11 @@
 
 package org.apache.s2graph.core.storage.serde.vertex
 
-import org.apache.s2graph.core.S2Vertex
-import org.apache.s2graph.core.storage.StorageSerializable._
-import org.apache.s2graph.core.storage.{SKeyValue, Serializable}
 import scala.collection.JavaConverters._
+
+import org.apache.s2graph.core.S2Vertex
+import org.apache.s2graph.core.storage.{Serializable, SKeyValue}
+import org.apache.s2graph.core.storage.StorageSerializable._
 
 case class VertexSerializable(vertex: S2Vertex, intToBytes: Int => Array[Byte] = intToBytes)
     extends Serializable[S2Vertex] {
@@ -34,6 +35,7 @@ case class VertexSerializable(vertex: S2Vertex, intToBytes: Int => Array[Byte] =
   override def toRowKey: Array[Byte] = vertex.id.bytes
 
   override def toQualifier: Array[Byte] = Array.empty[Byte]
+
   override def toValue: Array[Byte] = Array.empty[Byte]
 
   /** vertex override toKeyValues since vertex expect to produce multiple sKeyValues */

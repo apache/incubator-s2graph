@@ -19,8 +19,12 @@
 
 package org.apache.s2graph.core
 
+import scala.util.{Success, Try}
+
 import com.google.common.hash.Hashing
 import org.apache.hadoop.hbase.util.Bytes
+import play.api.libs.json._
+
 import org.apache.s2graph.core.DuplicatePolicy.DuplicatePolicy
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
@@ -28,16 +32,14 @@ import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.rest.TemplateHelper
 import org.apache.s2graph.core.storage.StorageSerializable._
 import org.apache.s2graph.core.types._
-import org.hbase.async.ColumnRangeFilter
-import play.api.libs.json.{JsNull, JsString, JsValue, Json}
-
-import scala.util.{Success, Try}
 
 object Query {
   val initialScore = 1.0
   lazy val empty = Query()
+
   def apply(query: Query): Query =
     Query(query.vertices, query.steps, query.queryOption, query.jsonQuery)
+
   def toQuery(srcVertices: Seq[S2Vertex], queryParams: Seq[QueryParam]): Query =
     Query(srcVertices, Vector(Step(queryParams)))
 
@@ -48,6 +50,7 @@ case class MinShouldMatchParam(prop: String, count: Int, terms: Set[Any])
 object GroupBy {
   val Empty = GroupBy()
 }
+
 case class GroupBy(keys: Seq[String] = Nil,
                    limit: Int = Int.MaxValue,
                    minShouldMatch: Option[MinShouldMatchParam] = None)
@@ -90,7 +93,7 @@ case class QueryOption(removeCycle: Boolean = false,
 
   /** */
   val edgeSelectColumnsFiltered = edgeSelectColumns
-//  val edgeSelectColumnsFiltered = edgeSelectColumns.filterNot(c => groupBy.keys.contains(c))
+  //  val edgeSelectColumnsFiltered = edgeSelectColumns.filterNot(c => groupBy.keys.contains(c))
   lazy val cacheKeyBytes: Array[Byte] = {
     val selectBytes = Bytes.toBytes(selectColumns.toString)
     val groupBytes = Bytes.toBytes(groupBy.keys.toString)
@@ -130,6 +133,7 @@ object EdgeTransformer {
 
 /**
   * TODO: step wise outputFields should be used with nextStepLimit, nextStepThreshold.
+  *
   * @param jsValue
   */
 case class EdgeTransformer(jsValue: JsValue) {
@@ -157,8 +161,7 @@ case class EdgeTransformer(jsValue: JsValue) {
         .zip(_values)
         .map { case (prefix, innerVal) => prefix + innerVal.toString }
         .mkString
-    //    logger.error(s"${tokens.toList}, ${values}, $mergedStr")
-    //    println(s"${tokens.toList}, ${values}, $mergedStr")
+
     nextStepOpt match {
       case None =>
         val columnType =
@@ -209,10 +212,12 @@ case class EdgeTransformer(jsValue: JsValue) {
             toInnerValOpt(queryParam, edge, fieldName).toSeq
           } else {
             val fmt +: fieldNames = fields
-            replace(queryParam,
-                    fmt,
-                    fieldNames.flatMap(fieldName => toInnerValOpt(queryParam, edge, fieldName)),
-                    nextStepOpt)
+            replace(
+              queryParam,
+              fmt,
+              fieldNames.flatMap(fieldName => toInnerValOpt(queryParam, edge, fieldName)),
+              nextStepOpt
+            )
           }
         }
       } yield edge.updateTgtVertex(innerVal).copy(originalEdgeOpt = Option(edge))
@@ -232,17 +237,19 @@ case class Step(queryParams: Seq[QueryParam],
                 cacheTTL: Long = -1,
                 groupBy: GroupBy = GroupBy.Empty) {
 
-//  lazy val excludes = queryParams.filter(_.exclude)
-//  lazy val includes = queryParams.filterNot(_.exclude)
-//  lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
+  //  lazy val excludes = queryParams.filter(_.exclude)
+  //  lazy val includes = queryParams.filterNot(_.exclude)
+  //  lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 
   lazy val cacheKeyBytes =
     queryParams
       .map(_.toCacheKeyRaw(Array.empty[Byte]))
       .foldLeft(Array.empty[Byte])(Bytes.add)
+
   def toCacheKey(lss: Seq[Long]): Long =
     Hashing.murmur3_128().hashBytes(toCacheKeyRaw(lss)).asLong()
-//    MurmurHash3.bytesHash(toCacheKeyRaw(lss))
+
+  //    MurmurHash3.bytesHash(toCacheKeyRaw(lss))
 
   def toCacheKeyRaw(lss: Seq[Long]): Array[Byte] = {
     var bytes = Array.empty[Byte]
@@ -286,6 +293,7 @@ case class RankParam(keySeqAndWeights: Seq[(LabelMeta, Double)] = Seq((LabelMeta
     bytes
   }
 }
+
 object QueryParam {
   lazy val Empty = QueryParam(labelName = "")
   lazy val DefaultThreshold = Double.MinValue
@@ -299,6 +307,7 @@ object QueryParam {
     QueryParam(labelName = label.label, direction = direction)
   }
 }
+
 case class QueryParam(
     labelName: String,
     direction: String = "out",
@@ -329,9 +338,10 @@ case class QueryParam(
     edgeTransformer: EdgeTransformer = EdgeTransformer(EdgeTransformer.DefaultJson),
     timeDecay: Option[TimeDecay] = None
 ) {
+
   import JSONParser._
 
-  //TODO: implement this.
+  // TODO: implement this.
   lazy val whereHasParent = true
 
   lazy val label = Label
@@ -377,7 +387,7 @@ case class QueryParam(
 
   lazy val optionalCacheKey: Array[Byte] = {
     val transformBytes = edgeTransformer.toHashKeyBytes
-    //TODO: change this to binrary format.
+    // TODO: change this to binrary format.
     val whereBytes = Bytes.toBytes(whereRawOpt.getOrElse(""))
     val durationBytes = durationOpt.map {
       case (min, max) =>
@@ -429,12 +439,14 @@ case class QueryParam(
 
             val propVal =
               if (InnerVal.isNumericType(labelMeta.dataType)) {
-                InnerVal.withLong(edge
-                                    .property(labelMeta.name)
-                                    .value
-                                    .toString
-                                    .toLong + padding,
-                                  label.schemaVersion)
+                InnerVal.withLong(
+                  edge
+                    .property(labelMeta.name)
+                    .value
+                    .toString
+                    .toLong + padding,
+                  label.schemaVersion
+                )
               } else {
                 edge
                   .property(labelMeta.name)
@@ -490,12 +502,13 @@ object DuplicatePolicy extends Enumeration {
       case _ => DuplicatePolicy.First
     }
 }
+
 case class TimeDecay(initial: Double = 1.0,
                      lambda: Double = 0.1,
                      timeUnit: Double = 60 * 60 * 24,
                      labelMeta: LabelMeta = LabelMeta.timestamp) {
   def decay(diff: Double): Double = {
-    //FIXME
+    // FIXME
     val ret = initial * Math.pow(1.0 - lambda, diff / timeUnit)
     //    logger.debug(s"$initial, $lambda, $timeUnit, $diff, ${diff / timeUnit}, $ret")
     ret

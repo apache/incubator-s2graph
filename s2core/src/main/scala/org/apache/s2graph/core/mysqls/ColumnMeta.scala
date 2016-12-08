@@ -19,10 +19,10 @@
 
 package org.apache.s2graph.core.mysqls
 
+import scala.collection.immutable.Seq
+
 import play.api.libs.json.Json
 import scalikejdbc._
-
-import scala.collection.immutable.Seq
 
 object ColumnMeta extends Model[ColumnMeta] {
 
@@ -36,11 +36,13 @@ object ColumnMeta extends Model[ColumnMeta] {
   val timestamp = ColumnMeta(None, -1, "_timestamp", timeStampSeq, "long")
 
   def apply(rs: WrappedResultSet): ColumnMeta =
-    ColumnMeta(Some(rs.int("id")),
-               rs.int("column_id"),
-               rs.string("name"),
-               rs.byte("seq"),
-               rs.string("data_type").toLowerCase())
+    ColumnMeta(
+      Some(rs.int("id")),
+      rs.int("column_id"),
+      rs.string("name"),
+      rs.byte("seq"),
+      rs.string("data_type").toLowerCase()
+    )
 
   def findById(id: Int)(implicit session: DBSession = AutoSession): ColumnMeta = {
     //    val cacheKey = s"id=$id"
@@ -117,14 +119,14 @@ object ColumnMeta extends Model[ColumnMeta] {
       implicit session: DBSession = AutoSession
   ): Option[ColumnMeta] = {
     val cacheKey = "columnId=" + columnId + ":seq=" + seq
-    lazy val columnMetaOpt = sql"""
+    lazy val columnMetaOpt =
+      sql"""
         select * from column_metas where column_id = ${columnId} and seq = ${seq}
-    """
-      .map { rs =>
-        ColumnMeta(rs)
-      }
-      .single
-      .apply()
+    """.map { rs =>
+          ColumnMeta(rs)
+        }
+        .single
+        .apply()
 
     if (useCache) withCache(cacheKey)(columnMetaOpt)
     else columnMetaOpt
@@ -143,12 +145,13 @@ object ColumnMeta extends Model[ColumnMeta] {
   }
 
   def findAll()(implicit session: DBSession = AutoSession): Unit = {
-    val ls = sql"""select * from column_metas"""
-      .map { rs =>
-        ColumnMeta(rs)
-      }
-      .list()
-      .apply()
+    val ls =
+      sql"""select * from column_metas"""
+        .map { rs =>
+          ColumnMeta(rs)
+        }
+        .list()
+        .apply()
 
     putsToCache(ls.map { x =>
       val cacheKey = s"id=${x.id.get}"
@@ -176,6 +179,7 @@ object ColumnMeta extends Model[ColumnMeta] {
 
 case class ColumnMeta(id: Option[Int], columnId: Int, name: String, seq: Byte, dataType: String) {
   lazy val toJson = Json.obj("name" -> name, "dataType" -> dataType)
+
   override def equals(other: Any): Boolean =
     if (!other.isInstanceOf[ColumnMeta]) false
     else {
@@ -183,5 +187,6 @@ case class ColumnMeta(id: Option[Int], columnId: Int, name: String, seq: Byte, d
       //      labelId == o.labelId &&
       seq == o.seq
     }
+
   override def hashCode(): Int = seq.toInt
 }

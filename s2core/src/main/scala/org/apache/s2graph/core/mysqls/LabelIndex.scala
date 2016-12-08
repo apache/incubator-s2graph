@@ -22,13 +22,12 @@ package org.apache.s2graph.core.mysqls
 /**
   * Created by shon on 6/3/15.
   */
-import org.apache.s2graph.core.GraphUtil
-import org.apache.s2graph.core.mysqls.LabelIndex.WriteOption
-import org.apache.s2graph.core.utils.logger
-import play.api.libs.json.{JsObject, JsString, Json}
+import play.api.libs.json.Json
 import scalikejdbc._
 
-import scala.collection.immutable.Seq
+import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.core.mysqls.LabelIndex.WriteOption
+import org.apache.s2graph.core.utils.Logger
 
 object LabelIndex extends Model[LabelIndex] {
   val DefaultName = "_PK"
@@ -42,20 +41,18 @@ object LabelIndex extends Model[LabelIndex] {
       rs.int("label_id"),
       rs.string("name"),
       rs.byte("seq"),
-      rs.string("meta_seqs")
-        .split(",")
-        .filter(_ != "")
-        .map(s => s.toByte)
-        .toList match {
+      rs.string("meta_seqs").split(",").filter(_ != "").map(s => s.toByte).toList match {
         case metaSeqsList => metaSeqsList
       },
       rs.string("formulars"),
       rs.intOpt("dir"),
       rs.stringOpt("options")
     )
+
   object WriteOption {
     val Default = WriteOption()
   }
+
   case class WriteOption(method: String = "default",
                          rate: Double = 1.0,
                          totalModular: Long = 100,
@@ -67,8 +64,8 @@ object LabelIndex extends Model[LabelIndex] {
         if (scala.util.Random.nextDouble() < rate) true
         else false
       } else if (method == "hash_sample") {
-        val hash =
-          hashOpt.getOrElse(throw new RuntimeException("hash_sample need _from_hash value"))
+        val hash = hashOpt
+          .getOrElse(throw new RuntimeException("hash_sample need _from_hash value"))
         if ((hash.abs % totalModular) / totalModular.toDouble < rate) true
         else false
       } else true
@@ -77,7 +74,9 @@ object LabelIndex extends Model[LabelIndex] {
   def findById(id: Int)(implicit session: DBSession = AutoSession): LabelIndex = {
     val cacheKey = "id=" + id
     withCache(cacheKey) {
-      sql"""select * from label_indices where id = ${id}"""
+      sql"""
+           select * from label_indices where id = ${id}
+          """
         .map { rs =>
           LabelIndex(rs)
         }
@@ -87,7 +86,7 @@ object LabelIndex extends Model[LabelIndex] {
   }
 
   def findByLabelIdAll(labelId: Int, useCache: Boolean = true)(implicit session: DBSession =
-                                                                 AutoSession): Seq[LabelIndex] = {
+                                                                 AutoSession): List[LabelIndex] = {
     val cacheKey = "labelId=" + labelId
     if (useCache) {
       withCaches(cacheKey)(
@@ -119,8 +118,23 @@ object LabelIndex extends Model[LabelIndex] {
              direction: Option[Int],
              options: Option[String])(implicit session: DBSession = AutoSession): Long =
     sql"""
-    	insert into label_indices(label_id, name, seq, meta_seqs, formulars, dir, options)
-    	values (${labelId}, ${indexName}, ${seq}, ${metaSeqs.mkString(",")}, ${formulars}, ${direction}, ${options})
+    |INSERT INTO label_indices (
+    |  label_id,
+    |  name,
+    |  seq,
+    |  meta_seqs,
+    |  formulars,
+    |  dir,
+    |  options)
+    |VALUES (
+    |  ${labelId},
+    |  ${indexName},
+    |  ${seq},
+    |  ${metaSeqs.mkString(",")},
+    |  ${formulars},
+    |  ${direction},
+    |  ${options}
+    |)
     """.updateAndReturnGeneratedKey.apply()
 
   def findOrInsert(
@@ -159,8 +173,8 @@ object LabelIndex extends Model[LabelIndex] {
     val cacheKey = "labelId=" + labelId + ":seqs=" + seqs.mkString(",") + ":dir=" + direction
     withCache(cacheKey) {
       sql"""
-      select * from label_indices where label_id = ${labelId} and meta_seqs = ${seqs
-        .mkString(",")} and dir = ${direction}
+      select * from label_indices
+      where label_id = ${labelId} and meta_seqs = ${seqs.mkString(",")} and dir = ${direction}
       """
         .map { rs =>
           LabelIndex(rs)
@@ -216,12 +230,13 @@ object LabelIndex extends Model[LabelIndex] {
   }
 
   def findAll()(implicit session: DBSession = AutoSession): Unit = {
-    val ls = sql"""select * from label_indices"""
-      .map { rs =>
-        LabelIndex(rs)
-      }
-      .list
-      .apply
+    val ls =
+      sql"""select * from label_indices"""
+        .map { rs =>
+          LabelIndex(rs)
+        }
+        .list
+        .apply
     putsToCache(ls.map { x =>
       var cacheKey = s"id=${x.id.get}"
       (cacheKey -> x)
@@ -231,8 +246,7 @@ object LabelIndex extends Model[LabelIndex] {
       (cacheKey -> x)
     })
     putsToCache(ls.map { x =>
-      var cacheKey =
-        s"labelId=${x.labelId}:seqs=${x.metaSeqs.mkString(",")}:dir=${x.dir}"
+      var cacheKey = s"labelId=${x.labelId}:seqs=${x.metaSeqs.mkString(",")}:dir=${x.dir}"
       (cacheKey -> x)
     })
     putsToCaches(
@@ -258,17 +272,19 @@ case class LabelIndex(id: Option[Int],
   // both
   lazy val label = Label.findById(labelId)
   lazy val metas = label.metaPropsMap
-  lazy val sortKeyTypes =
-    metaSeqs.flatMap(metaSeq => label.metaPropsMap.get(metaSeq))
+  lazy val sortKeyTypes = metaSeqs.flatMap(metaSeq => label.metaPropsMap.get(metaSeq))
   lazy val sortKeyTypesArray = sortKeyTypes.toArray
   lazy val propNames = sortKeyTypes.map { labelMeta =>
     labelMeta.name
   }
 
   val dirJs = dir.map(GraphUtil.fromDirection).getOrElse("both")
-  val optionsJs = try { options.map(Json.parse).getOrElse(Json.obj()) } catch {
-    case e: Exception => Json.obj()
-  }
+  val optionsJs =
+    try {
+      options.map(Json.parse).getOrElse(Json.obj())
+    } catch {
+      case e: Exception => Json.obj()
+    }
   lazy val toJson = Json.obj(
     "name" -> name,
     "propNames" -> sortKeyTypes.map(x => x.name),
@@ -289,7 +305,7 @@ case class LabelIndex(id: Option[Int],
     }
   } catch {
     case e: Exception =>
-      logger.error(s"Parse failed labelOption: ${this.label}", e)
+      Logger.error(s"Parse failed labelOption: ${this.label}", e)
       None
   }
 }

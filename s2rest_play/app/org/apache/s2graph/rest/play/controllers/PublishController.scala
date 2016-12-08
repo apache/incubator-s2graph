@@ -19,18 +19,20 @@
 
 package org.apache.s2graph.rest.play.controllers
 
+import scala.concurrent.Future
+
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.s2graph.core.ExceptionHandler
-import org.apache.s2graph.rest.play.config.Config
 import play.api.mvc._
 
-import scala.concurrent.Future
+import org.apache.s2graph.core.ExceptionHandler
+import org.apache.s2graph.rest.play.config.Config
 
 object PublishController extends Controller {
 
+  import play.api.libs.concurrent.Execution.Implicits._
+
   import ApplicationController._
   import ExceptionHandler._
-  import play.api.libs.concurrent.Execution.Implicits._
 
   /**
     * never check validation on string. just redirect strings to kafka.
@@ -41,9 +43,7 @@ object PublishController extends Controller {
 
   private val walLogHandler: ExceptionHandler =
     org.apache.s2graph.rest.play.Global.wallLogHandler
-  //  private def toService(topic: String): String = {
-  //    Service.findByName(topic).map(service => s"${service.serviceName}-${Config.PHASE}").getOrElse(throw serviceNotExistException)
-  //  }
+
   def publishOnly(topic: String): Action[String] =
     withHeaderAsync(parse.text) { request =>
       if (!Config.IS_WRITE_SERVER) Future.successful(UNAUTHORIZED)
@@ -57,14 +57,9 @@ object PublishController extends Controller {
         walLogHandler.enqueue(KafkaMessage(keyedMessage))
       })
       Future.successful(
-        Ok("publish success.\n").withHeaders(CONNECTION -> "Keep-Alive",
-                                             "Keep-Alive" -> "timeout=10, max=10")
+        Ok("publish success.\n")
+          .withHeaders(CONNECTION -> "Keep-Alive", "Keep-Alive" -> "timeout=10, max=10")
       )
-    //    try {
-    //
-    //    } catch {
-    //      case e: Exception => Future.successful(BadRequest(e.getMessage))
-    //    }
     }
 
   def publish(topic: String): Action[String] = publishOnly(topic)

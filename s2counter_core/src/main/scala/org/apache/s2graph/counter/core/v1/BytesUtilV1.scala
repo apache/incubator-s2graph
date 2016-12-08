@@ -19,12 +19,14 @@
 
 package org.apache.s2graph.counter.core.v1
 
+import scala.collection.mutable.ArrayBuffer
+
 import org.apache.hadoop.hbase.util.Bytes
+
+import org.apache.s2graph.counter.core.{BytesUtil, ExactKeyTrait, ExactQualifier, TimedQualifier}
 import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
-import org.apache.s2graph.counter.core.{TimedQualifier, ExactQualifier, ExactKeyTrait, BytesUtil}
 import org.apache.s2graph.counter.models.Counter.ItemType
 import org.apache.s2graph.counter.util.Hashes
-import scala.collection.mutable.ArrayBuffer
 
 object BytesUtilV1 extends BytesUtil {
   // ExactKey: [hash(2b)][policy(4b)][item(variable)]

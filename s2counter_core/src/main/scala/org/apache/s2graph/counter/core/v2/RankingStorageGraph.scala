@@ -19,24 +19,26 @@
 
 package org.apache.s2graph.counter.core.v2
 
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration._
+import scala.util.hashing.MurmurHash3
+
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.typesafe.config.Config
 import org.apache.commons.httpclient.HttpStatus
+import org.asynchttpclient.DefaultAsyncHttpClientConfig
+import org.slf4j.LoggerFactory
+import play.api.libs.json._
+
 import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.counter.config.S2CounterConfig
+import org.apache.s2graph.counter.core.{RankingKey, RankingResult, RankingStorage}
 import org.apache.s2graph.counter.core.RankingCounter.RankingValueMap
 import org.apache.s2graph.counter.core.v2.ExactStorageGraph._
-import org.apache.s2graph.counter.core.{RankingKey, RankingResult, RankingStorage}
 import org.apache.s2graph.counter.models.{Counter, CounterModel}
 import org.apache.s2graph.counter.util.{CollectionCache, CollectionCacheConfig}
-import org.asynchttpclient.DefaultAsyncHttpClientConfig
-import org.slf4j.LoggerFactory
-import play.api.libs.json.{JsObject, JsString, JsValue, Json}
-import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
-import scala.util.hashing.MurmurHash3
 
 object RankingStorageGraph {
   // using play-ws without play app
@@ -46,6 +48,7 @@ object RankingStorageGraph {
 }
 
 class RankingStorageGraph(config: Config) extends RankingStorage {
+
   import RankingStorageGraph._
 
   private[counter] val log = LoggerFactory.getLogger(this.getClass)
@@ -62,6 +65,7 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
 
   val prepareCache = new CollectionCache[Option[Boolean]](CollectionCacheConfig(10000, 600))
   val graphOp = new GraphOperation(config)
+
   import scala.concurrent.ExecutionContext.Implicits.global
 
   private def makeBucketKey(rankingKey: RankingKey): String = {
@@ -259,8 +263,14 @@ class RankingStorageGraph(config: Config) extends RankingStorage {
          |                    "offset": 0,
          |                    "limit": -1,
          |                    "interval": {
-         |                      "from": {"time_unit": "${key.eq.tq.q.toString}", "time_value": ${key.eq.tq.ts}},
-         |                      "to": {"time_unit": "${key.eq.tq.q.toString}", "time_value": ${key.eq.tq.ts}}
+         |                      "from": {
+         |                        "time_unit": "${key.eq.tq.q.toString}",
+         |                        "time_value": ${key.eq.tq.ts}
+         |                      },
+         |                      "to": {
+         |                        "time_unit": "${key.eq.tq.q.toString}",
+         |                        "time_value": ${key.eq.tq.ts}
+         |                      }
          |                    },
          |                    "scoring": {"score": 1}
          |                }

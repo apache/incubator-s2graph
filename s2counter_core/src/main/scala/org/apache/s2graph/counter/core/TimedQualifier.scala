@@ -23,6 +23,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 
 case class TimedQualifier(q: TimedQualifier.IntervalUnit.Value, ts: Long) {
+
   import TimedQualifier.IntervalUnit._
 
   def dateTime: Long = {
@@ -49,6 +50,7 @@ case class TimedQualifier(q: TimedQualifier.IntervalUnit.Value, ts: Long) {
 }
 
 object TimedQualifier {
+
   object IntervalUnit extends Enumeration {
     type IntervalUnit = Value
     val TOTAL = Value("t")
@@ -111,7 +113,7 @@ object TimedQualifier {
     for {
       interval <- intervals
       newLimit = if (interval == TOTAL) 1 else limit
-      i <- 0 until (-newLimit, -1)
+      i <- 0 until(-newLimit, -1)
     } yield {
       val newMillis = nextTime(interval, ts, i)
       TimedQualifier(interval, newMillis)

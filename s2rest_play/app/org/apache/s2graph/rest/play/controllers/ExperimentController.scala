@@ -19,10 +19,11 @@
 
 package org.apache.s2graph.rest.play.controllers
 
-import org.apache.s2graph.core.rest.RestHandler
+import scala.concurrent.ExecutionContext.Implicits.global
+
 import play.api.mvc._
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import org.apache.s2graph.core.rest.RestHandler
 
 object ExperimentController extends Controller {
   private val rest: RestHandler = org.apache.s2graph.rest.play.Global.s2rest
@@ -30,6 +31,7 @@ object ExperimentController extends Controller {
   import ApplicationController._
 
   def experiments(): Action[String] = experiment("", "", "")
+
   def experiment(accessToken: String, experimentName: String, uuid: String): Action[String] =
     withHeaderAsync(jsonText) { request =>
       val body = request.body

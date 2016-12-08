@@ -21,6 +21,11 @@ package org.apache.s2graph.rest.netty
 
 import java.util.concurrent.Executors
 
+import scala.collection.mutable
+import scala.concurrent.{ExecutionContext, Future}
+import scala.io.Source
+import scala.util.{Failure, Success, Try}
+
 import com.typesafe.config.ConfigFactory
 import io.netty.bootstrap.ServerBootstrap
 import io.netty.buffer.{ByteBuf, Unpooled}
@@ -29,23 +34,19 @@ import io.netty.channel.epoll.{EpollEventLoopGroup, EpollServerSocketChannel}
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioServerSocketChannel
-import io.netty.handler.codec.http.HttpHeaders._
 import io.netty.handler.codec.http._
-import io.netty.handler.logging.{LogLevel, LoggingHandler}
+import io.netty.handler.codec.http.HttpHeaders._
+import io.netty.handler.logging.{LoggingHandler, LogLevel}
 import io.netty.util.CharsetUtil
-import org.apache.s2graph.core.GraphExceptions.{BadQueryException}
+import play.api.libs.json._
+
+import org.apache.s2graph.core.{PostProcess, S2Graph}
+import org.apache.s2graph.core.GraphExceptions.BadQueryException
 import org.apache.s2graph.core.mysqls.Experiment
 import org.apache.s2graph.core.rest.RestHandler
 import org.apache.s2graph.core.rest.RestHandler.{CanLookup, HandlerResult}
 import org.apache.s2graph.core.utils.Extensions._
-import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{PostProcess, S2Graph}
-import play.api.libs.json._
-
-import scala.collection.mutable
-import scala.concurrent.{ExecutionContext, Future}
-import scala.io.Source
-import scala.util.{Failure, Success, Try}
+import org.apache.s2graph.core.utils.Logger
 
 class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext)
     extends SimpleChannelInboundHandler[FullHttpRequest] {
@@ -108,43 +109,51 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext)
         val bucketName = result.headers.toMap.get(Experiment.ImpressionKey).getOrElse("")
 
         val log =
-          "%s %s took %d ms 200 %d %s %s".format(req.getMethod,
-                                                 req.getUri,
-                                                 duration,
-                                                 s2rest.calcSize(json),
-                                                 requestBody,
-                                                 bucketName)
-        logger.info(log)
+          "%s %s took %d ms 200 %d %s %s".format(
+            req.getMethod,
+            req.getUri,
+            duration,
+            s2rest.calcSize(json),
+            requestBody,
+            bucketName
+          )
+        Logger.info(log)
 
         val buf: ByteBuf = Unpooled.copiedBuffer(json.toString, CharsetUtil.UTF_8)
 
         headers += (Names.CONTENT_LENGTH -> buf.readableBytes().toString)
 
-        simpleResponse(ctx,
-                       Ok,
-                       byteBufOpt = Option(buf),
-                       channelFutureListenerOpt = closeOpt,
-                       headers = headers.result())
+        simpleResponse(
+          ctx,
+          Ok,
+          byteBufOpt = Option(buf),
+          channelFutureListenerOpt = closeOpt,
+          headers = headers.result()
+        )
       case Failure(ex) =>
         ex match {
           case e: BadQueryException =>
-            logger.error(s"{$requestBody}, ${e.getMessage}", e)
+            Logger.error(s"{$requestBody}, ${e.getMessage}", e)
             val buf: ByteBuf =
               Unpooled.copiedBuffer(PostProcess.badRequestResults(e).toString, CharsetUtil.UTF_8)
-            simpleResponse(ctx,
-                           BadRequest,
-                           byteBufOpt = Option(buf),
-                           channelFutureListenerOpt = CloseOpt,
-                           headers = headers.result())
+            simpleResponse(
+              ctx,
+              BadRequest,
+              byteBufOpt = Option(buf),
+              channelFutureListenerOpt = CloseOpt,
+              headers = headers.result()
+            )
           case e: Exception =>
-            logger.error(s"${requestBody}, ${e.getMessage}", e)
+            Logger.error(s"${requestBody}, ${e.getMessage}", e)
             val buf: ByteBuf =
               Unpooled.copiedBuffer(PostProcess.emptyResults.toString, CharsetUtil.UTF_8)
-            simpleResponse(ctx,
-                           InternalServerError,
-                           byteBufOpt = Option(buf),
-                           channelFutureListenerOpt = CloseOpt,
-                           headers = headers.result())
+            simpleResponse(
+              ctx,
+              InternalServerError,
+              byteBufOpt = Option(buf),
+              channelFutureListenerOpt = CloseOpt,
+              headers = headers.result()
+            )
         }
     }
   }
@@ -152,10 +161,12 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext)
   private def healthCheck(ctx: ChannelHandlerContext)(predicate: Boolean): Unit =
     if (predicate) {
       val healthCheckMsg = Unpooled.copiedBuffer(NettyServer.deployInfo, CharsetUtil.UTF_8)
-      simpleResponse(ctx,
-                     Ok,
-                     byteBufOpt = Option(healthCheckMsg),
-                     channelFutureListenerOpt = CloseOpt)
+      simpleResponse(
+        ctx,
+        Ok,
+        byteBufOpt = Option(healthCheckMsg),
+        channelFutureListenerOpt = CloseOpt
+      )
     } else {
       simpleResponse(ctx, NotFound, channelFutureListenerOpt = CloseOpt)
     }
@@ -165,10 +176,12 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext)
   )(newValue: Boolean)(updateOp: Boolean => Unit): Unit = {
     updateOp(newValue)
     val newHealthCheckMsg = Unpooled.copiedBuffer(newValue.toString, CharsetUtil.UTF_8)
-    simpleResponse(ctx,
-                   Ok,
-                   byteBufOpt = Option(newHealthCheckMsg),
-                   channelFutureListenerOpt = CloseOpt)
+    simpleResponse(
+      ctx,
+      Ok,
+      byteBufOpt = Option(newHealthCheckMsg),
+      channelFutureListenerOpt = CloseOpt
+    )
   }
 
   override def channelRead0(ctx: ChannelHandlerContext, req: FullHttpRequest): Unit = {
@@ -189,10 +202,12 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext)
             } else {
               val Array(srcId, tgtId, labelName, direction) = s.split("/").takeRight(4)
               val params = Json.arr(
-                Json.obj("label" -> labelName,
-                         "direction" -> direction,
-                         "from" -> srcId,
-                         "to" -> tgtId)
+                Json.obj(
+                  "label" -> labelName,
+                  "direction" -> direction,
+                  "from" -> srcId,
+                  "to" -> tgtId
+                )
               )
               val result = s2rest.checkEdges(params)
               toResponse(ctx, req, s, result, startedAt)
@@ -241,7 +256,7 @@ class S2RestHandler(s2rest: RestHandler)(implicit ec: ExecutionContext)
         ctx.channel().close().addListener(CloseOpt.get)
       case _ =>
         cause.printStackTrace()
-        logger.error(s"exception on query.", cause)
+        Logger.error(s"exception on query.", cause)
         simpleResponse(ctx, BadRequest, byteBufOpt = None, channelFutureListenerOpt = CloseOpt)
     }
   }
@@ -273,8 +288,8 @@ object NettyServer extends App {
   var isFallbackHealthy = true
   var isQueryFallbackHealthy = true
 
-  logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
-  logger.info(s"transport: $transport")
+  Logger.info(s"starts with num of thread: $numOfThread, ${threadPool.getClass.getSimpleName}")
+  Logger.info(s"transport: $transport")
 
   // Configure the server.
   val (bossGroup, workerGroup, channelClass) = transport match {
@@ -300,7 +315,7 @@ object NettyServer extends App {
       })
 
     // for check server is started
-    logger.info(s"Listening for HTTP on /0.0.0.0:$port")
+    Logger.info(s"Listening for HTTP on /0.0.0.0:$port")
     val ch: Channel = b.bind(port).sync().channel()
     ch.closeFuture().sync()
 

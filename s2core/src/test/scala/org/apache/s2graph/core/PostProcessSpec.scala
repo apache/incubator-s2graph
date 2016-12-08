@@ -23,6 +23,7 @@ import org.specs2.mutable.Specification
 import play.api.libs.json.{JsNumber, JsString, JsValue}
 
 class PostProcessSpec extends Specification {
+
   import OrderingUtil._
 
   "test order by json" >> {

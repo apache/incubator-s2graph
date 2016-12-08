@@ -20,10 +20,11 @@
 package org.apache.s2graph.counter.core
 
 /**
- * ranking score and increment value
- * @param score ranking score
- * @param increment increment value for v1
- */
+  * ranking score and increment value
+  *
+  * @param score     ranking score
+  * @param increment increment value for v1
+  */
 case class RankingValue(score: Double, increment: Double)
 
 object RankingValue {

@@ -21,16 +21,17 @@ package org.apache.s2graph.core.mysqls
 
 import java.util.concurrent.Executors
 
-import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.s2graph.core.JSONParser
-import org.apache.s2graph.core.utils.{logger, SafeUpdateCache}
-import play.api.libs.json.{JsObject, JsValue, Json}
-import scalikejdbc._
-
 import scala.concurrent.ExecutionContext
 import scala.io.Source
 import scala.language.{higherKinds, implicitConversions}
 import scala.util.{Failure, Success, Try}
+
+import com.typesafe.config.{Config, ConfigFactory}
+import play.api.libs.json._
+import scalikejdbc._
+
+import org.apache.s2graph.core.JSONParser
+import org.apache.s2graph.core.utils.{Logger, SafeUpdateCache}
 
 object Model {
   var maxSize = 10000
@@ -45,15 +46,19 @@ object Model {
     ttl = config.getInt("cache.ttl.seconds")
     Class.forName(config.getString("db.default.driver"))
 
-    val settings = ConnectionPoolSettings(initialSize = 10,
-                                          maxSize = 10,
-                                          connectionTimeoutMillis = 30000L,
-                                          validationQuery = "select 1;")
+    val settings = ConnectionPoolSettings(
+      initialSize = 10,
+      maxSize = 10,
+      connectionTimeoutMillis = 30000L,
+      validationQuery = "select 1;"
+    )
 
-    ConnectionPool.singleton(config.getString("db.default.url"),
-                             config.getString("db.default.user"),
-                             config.getString("db.default.password"),
-                             settings)
+    ConnectionPool.singleton(
+      config.getString("db.default.url"),
+      config.getString("db.default.user"),
+      config.getString("db.default.password"),
+      settings
+    )
 
     checkSchema()
   }
@@ -68,7 +73,7 @@ object Model {
           // appropriate tables when there are no tables in the database at all.
           // Ideally, it should be improved to a sophisticated migration tool
           // that supports versioning, etc.
-          logger.info("Creating tables ...")
+          Logger.info("Creating tables ...")
           val schema = getClass.getResourceAsStream("schema.sql")
           val lines = Source.fromInputStream(schema, "UTF-8").getLines
           val sources = lines.map(_.split("-- ").head.trim).mkString("\n")
@@ -77,7 +82,7 @@ object Model {
             statements.foreach(sql => session.execute(sql))
           } match {
             case Success(_) =>
-              logger.info("Successfully imported schema")
+              Logger.info("Successfully imported schema")
             case Failure(e) =>
               throw new RuntimeException("Error while importing schema", e)
           }
@@ -129,7 +134,7 @@ object Model {
             .getOrElse(Map.empty)
         } catch {
           case e: Exception =>
-            logger.error(s"An error occurs while parsing the extra label option", e)
+            Logger.error(s"An error occurs while parsing the extra label option", e)
             Map.empty
         }
     }
@@ -148,7 +153,7 @@ object Model {
       }
     } catch {
       case e: Exception =>
-        logger.error(s"toStorageConfig error. use default storage", e)
+        Logger.error(s"toStorageConfig error. use default storage", e)
         None
     }
 }
@@ -160,7 +165,7 @@ trait Model[V] extends SQLSyntaxSupport[V] {
   implicit val ec: ExecutionContext = Model.ec
 
   val cName = this.getClass.getSimpleName()
-  logger.info(s"LocalCache[$cName]: TTL[$ttl], MaxSize[$maxSize]")
+  Logger.info(s"LocalCache[$cName]: TTL[$ttl], MaxSize[$maxSize]")
 
   val optionCache = new SafeUpdateCache[Option[V]](cName, maxSize, ttl)
   val listCache = new SafeUpdateCache[List[V]](cName, maxSize, ttl)

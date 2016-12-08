@@ -20,6 +20,7 @@
 package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util.Bytes
+
 import org.apache.s2graph.core.GraphUtil
 
 object LabelWithDirection {

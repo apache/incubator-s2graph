@@ -23,8 +23,9 @@ import java.util.Properties
 
 import com.typesafe.config.Config
 import org.apache.kafka.clients.producer._
-import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.JsValue
+
+import org.apache.s2graph.core.utils.Logger
 
 class ExceptionHandler(config: Config) {
 
@@ -40,21 +41,21 @@ class ExceptionHandler(config: Config) {
         Option(new KafkaProducer[Key, Val](toKafkaProp(config)))
       } catch {
         case e: Exception =>
-          logger.error(s"Initialize kafka fail with: ${toKafkaProp(config)}")
+          Logger.error(s"Initialize kafka fail with: ${toKafkaProp(config)}")
           None
       }
     } else None
 
   def enqueue(m: KafkaMessage): Unit =
     producer match {
-      case None => logger.debug(s"skip log to Kafka: ${m}")
+      case None => Logger.debug(s"skip log to Kafka: ${m}")
       case Some(kafka) =>
         kafka.send(m.msg, new Callback() {
           override def onCompletion(meta: RecordMetadata, e: Exception) =
             if (e == null) {
               // success
             } else {
-              logger.error(s"log publish failed: ${m}", e)
+              Logger.error(s"log publish failed: ${m}", e)
               // failure
             }
         })

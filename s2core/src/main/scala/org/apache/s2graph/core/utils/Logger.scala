@@ -19,12 +19,12 @@
 
 package org.apache.s2graph.core.utils
 
+import scala.language.{higherKinds, implicitConversions}
+
 import org.slf4j.LoggerFactory
 import play.api.libs.json.JsValue
 
-import scala.language.{higherKinds, implicitConversions}
-
-object logger {
+object Logger {
 
   trait Loggable[T] {
     def toLogMessage(msg: T): String

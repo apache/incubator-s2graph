@@ -19,11 +19,12 @@
 
 package org.apache.s2graph.core.mysqls
 
-import org.apache.s2graph.core.GraphUtil
-import scalikejdbc._
-
 import scala.collection.immutable.Seq
 import scala.util.{Random, Try}
+
+import scalikejdbc._
+
+import org.apache.s2graph.core.GraphUtil
 
 object Experiment extends Model[Experiment] {
   val ImpressionKey = "S2-Impression-Id"
@@ -82,8 +83,18 @@ object Experiment extends Model[Experiment] {
              experimentType: String = "t",
              totalModular: Int = 100)(implicit session: DBSession = AutoSession): Try[Experiment] =
     Try {
-      sql"""INSERT INTO experiments(service_id, service_name, `name`, description, experiment_type, total_modular)
-         VALUES(${service.id.get}, ${service.serviceName}, $name, $description, $experimentType, $totalModular)"""
+      sql"""
+      |INSERT INTO experiments (service_id,
+      |                         service_name,
+      |                         `name`,
+      |                         description,
+      |                         experiment_type,
+      |                         total_modular)
+      |VALUES (${service.id.get},
+      |        ${service.serviceName},
+      |        $name, $description,
+      |        $experimentType,
+      |        $totalModular)"""
         .updateAndReturnGeneratedKey()
         .apply()
     }.map { newId =>
