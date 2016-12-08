@@ -93,21 +93,21 @@ object Service extends Model[Service] {
     )
     val accessToken = UUID.randomUUID().toString()
     sql"""
-    |INSERT INTO services (
-    |  service_name,
-    |  access_token,
-    |  cluster,
-    |  hbase_table_name,
-    |  pre_split_size,
-    |  hbase_table_ttl
-    |) VALUES (
-    |  ${serviceName},
-    |  ${accessToken},
-    |  ${cluster},
-    |  ${hTableName},
-    |  ${preSplitSize},
-    |  ${hTableTTL}
-    |)
+    INSERT INTO services (
+      service_name,
+      access_token,
+      cluster,
+      hbase_table_name,
+      pre_split_size,
+      hbase_table_ttl
+    ) VALUES (
+      ${serviceName},
+      ${accessToken},
+      ${cluster},
+      ${hTableName},
+      ${preSplitSize},
+      ${hTableTTL}
+    )
         """.execute
       .apply()
   }

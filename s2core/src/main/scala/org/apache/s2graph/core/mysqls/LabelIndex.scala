@@ -118,23 +118,23 @@ object LabelIndex extends Model[LabelIndex] {
              direction: Option[Int],
              options: Option[String])(implicit session: DBSession = AutoSession): Long =
     sql"""
-    |INSERT INTO label_indices (
-    |  label_id,
-    |  name,
-    |  seq,
-    |  meta_seqs,
-    |  formulars,
-    |  dir,
-    |  options)
-    |VALUES (
-    |  ${labelId},
-    |  ${indexName},
-    |  ${seq},
-    |  ${metaSeqs.mkString(",")},
-    |  ${formulars},
-    |  ${direction},
-    |  ${options}
-    |)
+    INSERT INTO label_indices (
+      label_id,
+      name,
+      seq,
+      meta_seqs,
+      formulars,
+      dir,
+      options)
+    VALUES (
+      ${labelId},
+      ${indexName},
+      ${seq},
+      ${metaSeqs.mkString(",")},
+      ${formulars},
+      ${direction},
+      ${options}
+    )
     """.updateAndReturnGeneratedKey.apply()
 
   def findOrInsert(

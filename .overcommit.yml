@@ -1,4 +1,5 @@
 PreCommit:
   Scalastyle:
     enabled: true
-    flags: ['-c', './scalastyle-config.xml']
+    command: ['./scalastyle']
+    flags: ['-c', 'scalastyle-config.xml']

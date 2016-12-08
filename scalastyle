@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-java -jar ./scalastyle/scalastyle_2.11-0.8.0-batch.jar "$@"
+java -jar ./bin/scalastyle_2.11-0.8.0-batch.jar "$@"

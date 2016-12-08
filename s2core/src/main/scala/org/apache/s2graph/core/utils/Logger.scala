@@ -32,19 +32,23 @@ object Logger {
 
   object Loggable {
     implicit val stringLoggable = new Loggable[String] {
-      def toLogMessage(msg: String): String = msg
+      override def toLogMessage(msg: String): String = msg
     }
 
     implicit def numericLoggable[T: Numeric]: Loggable[T] = new Loggable[T] {
-      def toLogMessage(msg: T): String = msg.toString
+      override def toLogMessage(msg: T): String = msg.toString
     }
 
     implicit val jsonLoggable = new Loggable[JsValue] {
-      def toLogMessage(msg: JsValue): String = msg.toString()
+      override def toLogMessage(msg: JsValue): String = msg.toString()
     }
 
     implicit val booleanLoggable = new Loggable[Boolean] {
-      def toLogMessage(msg: Boolean): String = msg.toString()
+      override def toLogMessage(msg: Boolean): String = msg.toString()
+    }
+
+    implicit def anyLoggable[T <: AnyRef]: Loggable[T] = new Loggable[T] {
+      override def toLogMessage(msg: T): String = msg.toString
     }
   }
 

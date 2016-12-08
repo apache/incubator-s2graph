@@ -19,8 +19,6 @@
 
 package org.apache.s2graph.core.mysqls
 
-import scala.collection.immutable.Seq
-
 import play.api.libs.json.Json
 import scalikejdbc._
 
@@ -58,7 +56,7 @@ object ColumnMeta extends Model[ColumnMeta] {
   }
 
   def findAllByColumn(columnId: Int, useCache: Boolean = true)(implicit session: DBSession =
-                                                                 AutoSession): Seq[ColumnMeta] = {
+                                                                 AutoSession): List[ColumnMeta] = {
     //    val cacheKey = s"columnId=$columnId"
     val cacheKey = "columnId=" + columnId
     if (useCache) {

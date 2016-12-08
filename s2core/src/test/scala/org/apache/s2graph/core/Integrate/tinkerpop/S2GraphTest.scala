@@ -31,6 +31,7 @@ import org.apache.s2graph.core.utils.Logger
 class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 
   import scala.collection.JavaConversions._
+  import scala.concurrent.ExecutionContext.Implicits.global
 
   initTests()
 

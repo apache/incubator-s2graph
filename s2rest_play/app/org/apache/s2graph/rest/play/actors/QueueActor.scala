@@ -28,8 +28,9 @@ import akka.actor._
 import play.api.Play.current
 import play.api.libs.concurrent.Akka
 
-import org.apache.s2graph.core.{ExceptionHandler, GraphElement, S2Graph}
+import org.apache.s2graph.core.{ExceptionHandler, S2Graph, GraphElement}
 import org.apache.s2graph.core.ExceptionHandler._
+import org.apache.s2graph.core.utils.Logger
 import org.apache.s2graph.rest.play.actors.Protocol.FlushAll
 import org.apache.s2graph.rest.play.config.Config
 
@@ -96,13 +97,13 @@ class QueueActor(s2: S2Graph, walLogHandler: ExceptionHandler) extends Actor wit
       s2.mutateElements(elementsToFlush)
 
       if (flushSize > 0) {
-        logger.info(s"flush: $flushSize, $queueSize")
+        Logger.info(s"flush: $flushSize, $queueSize")
       }
 
     case FlushAll =>
       s2.mutateElements(queue)
       context.stop(self)
 
-    case _ => logger.error("unknown protocol")
+    case _ => Logger.error("unknown protocol")
   }
 }

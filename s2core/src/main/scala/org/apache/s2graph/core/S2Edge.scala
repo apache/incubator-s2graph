@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core
 
-import java.util
+import java.util.{ArrayList, HashMap, Iterator}
 import java.util.function.BiConsumer
 
 import scala.collection.JavaConverters._
@@ -420,7 +420,7 @@ case class S2Edge(innerGraph: S2Graph,
   lazy val properties = toProps()
 
   def props: Map[String, InnerValLike] =
-    propsWithTs.asScala.mapValues(_.innerVal)
+    propsWithTs.asScala.mapValues(_.innerVal).toMap
 
   private def toProps(): Map[String, Any] =
     for {
@@ -495,7 +495,7 @@ case class S2Edge(innerGraph: S2Graph,
   def reverseSrcTgtEdge: S2Edge =
     copy(srcVertex = tgtVertex, tgtVertex = srcVertex)
 
-  def labelOrders: Seq[LabelIndex] =
+  def labelOrders: List[LabelIndex] =
     LabelIndex.findByLabelIdAll(labelWithDir.labelId)
 
   override def serviceName: String = innerLabel.serviceName
@@ -515,12 +515,12 @@ case class S2Edge(innerGraph: S2Graph,
   //    case None => props ++ Map(LabelMeta.timeStampSeq -> InnerVal.withLong(ts, schemaVer))
   //  }
 
-  def propsPlusTsValid: util.Map[String, S2Property[_]] =
+  def propsPlusTsValid: java.util.Map[String, S2Property[_]] =
     propsWithTs.asScala
       .filter(kv => LabelMeta.isValidSeq(kv._2.labelMeta.seq))
       .asJava
 
-  def edgesWithIndex: Seq[IndexEdge] = for (labelOrder <- labelOrders) yield {
+  def edgesWithIndex: List[IndexEdge] = for (labelOrder <- labelOrders) yield {
     IndexEdge(
       innerGraph,
       srcVertex,
@@ -535,7 +535,7 @@ case class S2Edge(innerGraph: S2Graph,
     )
   }
 
-  def edgesWithIndexValid: Seq[IndexEdge] =
+  def edgesWithIndexValid: List[IndexEdge] =
     for (labelOrder <- labelOrders) yield {
       IndexEdge(
         innerGraph,
@@ -572,7 +572,7 @@ case class S2Edge(innerGraph: S2Graph,
     ret
   }
 
-  def defaultPropsWithName: JsValue =
+  def defaultPropsWithName: JsObject =
     Json.obj(
       "from" -> srcVertex.innerId.toString(),
       "to" -> tgtVertex.innerId.toString(),
@@ -719,8 +719,8 @@ case class S2Edge(innerGraph: S2Graph,
     newEdge
   }
 
-  override def vertices(direction: Direction): util.Iterator[structure.Vertex] = {
-    val arr = new util.ArrayList[Vertex]()
+  override def vertices(direction: Direction): Iterator[structure.Vertex] = {
+    val arr = new ArrayList    [Vertex]()
     direction match {
       case Direction.OUT => arr.add(srcVertex)
       case Direction.IN => arr.add(tgtVertex)
@@ -731,8 +731,8 @@ case class S2Edge(innerGraph: S2Graph,
     arr.iterator()
   }
 
-  override def properties[V](keys: String*): util.Iterator[Property[V]] = {
-    val ls = new util.ArrayList[Property[V]]()
+  override def properties[V](keys: String*): Iterator[Property[V]] = {
+    val ls = new ArrayList    [Property[V]]()
     keys.foreach { key =>
       ls.add(property(key))
     }
@@ -800,8 +800,8 @@ object S2Edge {
   type MergeState = PropsPairWithTs => (State, Boolean)
   type UpdateFunc = (Option[S2Edge], S2Edge, MergeState)
 
-  def EmptyProps: util.HashMap[String, S2Property[_]] =
-    new java.util.HashMap[String, S2Property[_]]
+  def EmptyProps: HashMap[String, S2Property[_]] =
+    new HashMap[String, S2Property[_]]
 
   def EmptyState: Map[LabelMeta, InnerValLikeWithTs] = Map.empty
 
