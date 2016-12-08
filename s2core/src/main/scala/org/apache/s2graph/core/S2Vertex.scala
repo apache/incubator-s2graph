@@ -73,8 +73,6 @@ case class S2Vertex(graph: S2Graph,
     default
   }
 
-  //  lazy val kvs = Graph.client.vertexSerializer(this).toKeyValues
-
   /** TODO: make this as configurable */
   override def serviceName: String = service.serviceName
 
@@ -91,7 +89,6 @@ case class S2Vertex(graph: S2Graph,
 
   override def hashCode(): Int = {
     val hash = id.hashCode()
-    //    logger.debug(s"Vertex.hashCode: $this -> $hash")
     hash
   }
 
@@ -99,7 +96,6 @@ case class S2Vertex(graph: S2Graph,
     obj match {
       case otherVertex: S2Vertex =>
         val ret = id == otherVertex.id
-        //        logger.debug(s"Vertex.equals: $this, $obj => $ret")
         ret
       case _ => false
     }
