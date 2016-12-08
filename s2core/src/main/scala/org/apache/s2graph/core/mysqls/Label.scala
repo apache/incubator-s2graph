@@ -105,12 +105,12 @@ object Label extends Model[Label] {
              compressionAlgorithm: String,
              options: Option[String])(implicit session: DBSession = AutoSession): Long =
     sql"""
-    	insert into labels(label,
+          insert into labels(label,
     src_service_id, src_column_name, src_column_type,
     tgt_service_id, tgt_column_name, tgt_column_type,
     is_directed, service_name, service_id, consistency_level, hbase_table_name, hbase_table_ttl, schema_version, is_async,
     compressionAlgorithm, options)
-    	values (${label},
+    values (${label},
     ${srcServiceId}, ${srcColumnName}, ${srcColumnType},
     ${tgtServiceId}, ${tgtColumnName}, ${tgtColumnType},
     ${isDirected}, ${serviceName}, ${serviceId}, ${consistencyLevel}, ${hTableName}, ${hTableTTL},
@@ -121,10 +121,7 @@ object Label extends Model[Label] {
     val cacheKey = "id=" + id
     withCache(cacheKey)(
       sql"""
-        select 	*
-        from 	labels
-        where 	id = ${id}
-        and deleted_at is null"""
+        select * from labels where id = ${id} and deleted_at is null"""
         .map { rs =>
           Label(rs)
         }
@@ -137,10 +134,7 @@ object Label extends Model[Label] {
     val cacheKey = "id=" + id
     withCache(cacheKey)(
       sql"""
-        select 	*
-        from 	labels
-        where 	id = ${id}
-        and deleted_at is null"""
+        select * from labels where id = ${id} and deleted_at is null"""
         .map { rs =>
           Label(rs)
         }
@@ -154,9 +148,9 @@ object Label extends Model[Label] {
     val col = ServiceColumn.findById(columnId)
     withCaches(cacheKey)(
       sql"""
-          select	*
-          from	labels
-          where	tgt_column_name = ${col.columnName}
+          select *
+          from labels
+          where tgt_column_name = ${col.columnName}
           and service_id = ${col.serviceId}
           and deleted_at is null
         """
@@ -173,9 +167,9 @@ object Label extends Model[Label] {
     val col = ServiceColumn.findById(columnId)
     withCaches(cacheKey)(
       sql"""
-          select 	*
-          from	labels
-          where	src_column_name = ${col.columnName}
+          select  *
+          from labels
+          where src_column_name = ${col.columnName}
           and service_id = ${col.serviceId}
           and deleted_at is null
         """

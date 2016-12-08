@@ -72,7 +72,7 @@ object ServiceColumn extends Model[ServiceColumn] {
       }
     } else {
       sql"""
-        select * from service_columns 
+        select * from service_columns
         where service_id = ${serviceId} and column_name = ${columnName}
       """
         .map { rs =>

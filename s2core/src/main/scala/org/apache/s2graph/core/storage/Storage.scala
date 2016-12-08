@@ -32,8 +32,7 @@ import org.apache.s2graph.core.GraphExceptions.{FetchTimeoutException, NoStackEx
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.parsers.WhereParser
 import org.apache.s2graph.core.storage.serde.indexedge.wide.{
-  IndexEdgeDeserializable,
-  IndexEdgeSerializable
+  IndexEdgeDeserializable, IndexEdgeSerializable
 }
 import org.apache.s2graph.core.storage.serde.snapshotedge.wide.SnapshotEdgeDeserializable
 import org.apache.s2graph.core.storage.serde.vertex.{VertexDeserializable, VertexSerializable}

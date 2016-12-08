@@ -302,12 +302,12 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
 
     val body =
       """{
-        	"minute": ${1 minute},
-        	"day": ${1day},
-          "hour": ${1hour},
-          "-day": "${-10 day}",
-          "-hour": ${-10 hour},
-          "now": "${now}"
+            "minute": ${1 minute},
+            "day": ${1day},
+            "hour": ${1hour},
+            "-day": "${-10 day}",
+            "-hour": ${-10 hour},
+            "now": "${now}"
         }
       """
 

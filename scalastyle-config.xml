@@ -136,16 +136,6 @@ under the License.
     </parameters>
   </check>
 
-  <check level="warning" class="org.scalastyle.scalariform.ImportOrderChecker" enabled="true">
-    <parameters>
-      <parameter name="groups">java,scala,3rdParty,s2graph</parameter>
-      <parameter name="group.java">javax?\..*</parameter>
-      <parameter name="group.scala">scala\..*</parameter>
-      <parameter name="group.3rdParty">(?!org\.apache\.s2graph\.).*</parameter>
-      <parameter name="group.s2graph">org\.apache\.s2graph\..*</parameter>
-    </parameters>
-  </check>
-
   <check level="error" class="org.scalastyle.scalariform.DisallowSpaceBeforeTokenChecker"
          enabled="true">
     <parameters>
@@ -226,4 +216,14 @@ under the License.
   </check>
 
   <check level="error" class="org.scalastyle.file.NoNewLineAtEofChecker" enabled="false"></check>
+
+  <check level="error" class="org.scalastyle.scalariform.ImportOrderChecker" enabled="false">
+    <parameters>
+      <parameter name="groups">java,scala,3rdParty,s2graph</parameter>
+      <parameter name="group.java">javax?\..*</parameter>
+      <parameter name="group.scala">scala\..*</parameter>
+      <parameter name="group.3rdParty">(?!org\.apache\.s2graph\.).*</parameter>
+      <parameter name="group.s2graph">org\.apache\.s2graph\..*</parameter>
+    </parameters>
+  </check>
 </scalastyle>

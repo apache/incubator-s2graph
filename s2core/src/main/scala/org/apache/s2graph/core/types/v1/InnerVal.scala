@@ -23,10 +23,7 @@ import org.apache.hadoop.hbase.util.Bytes
 
 import org.apache.s2graph.core.GraphExceptions.IllegalDataTypeException
 import org.apache.s2graph.core.types.{
-  HBaseDeserializableWithIsVertexId,
-  HBaseSerializable,
-  HBaseType,
-  InnerValLike
+  HBaseDeserializableWithIsVertexId, HBaseSerializable, HBaseType, InnerValLike
 }
 
 object InnerVal extends HBaseDeserializableWithIsVertexId {

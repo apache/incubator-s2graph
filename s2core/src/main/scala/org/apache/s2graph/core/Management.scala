@@ -24,9 +24,7 @@ import scala.util.Try
 import play.api.libs.json._
 
 import org.apache.s2graph.core.GraphExceptions.{
-  InvalidHTableException,
-  LabelAlreadyExistException,
-  LabelNameTooLongException,
+  InvalidHTableException, LabelAlreadyExistException, LabelNameTooLongException,
   LabelNotExistException
 }
 import org.apache.s2graph.core.JSONParser._

@@ -26,9 +26,7 @@ import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta, ServiceColu
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, SKeyValue}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.types.{
-  LabelWithDirection,
-  SourceAndTargetVertexIdPair,
-  SourceVertexId
+  LabelWithDirection, SourceAndTargetVertexIdPair, SourceVertexId
 }
 
 class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[SnapshotEdge] {

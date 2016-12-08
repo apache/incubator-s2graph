@@ -186,9 +186,7 @@ object LabelMeta extends Model[LabelMeta] {
                                                                  AutoSession): List[LabelMeta] = {
     val cacheKey = "labelId=" + labelId
     lazy val labelMetas =
-      sql"""select *
-    		  						from label_metas
-    		  						where label_id = ${labelId} order by seq ASC"""
+      sql"""select * from label_metas where label_id = ${labelId} order by seq ASC"""
         .map(LabelMeta(_))
         .list
         .apply()

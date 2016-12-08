@@ -797,35 +797,35 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     def queryWithFilterOut(id1: String, id2: String): JsValue =
       Json.parse(
         s"""{
-           |	"limit": 10,
-           |	"filterOut": {
-           |		"srcVertices": [{
-           |			"serviceName": "$testServiceName",
-           |			"columnName": "$testColumnName",
-           |			"id": $id1
-           |		}],
-           |		"steps": [{
-           |			"step": [{
-           |				"label": "$testLabelName",
-           |				"direction": "out",
-           |				"offset": 0,
-           |				"limit": 10
-           |			}]
-           |		}]
-           |	},
-           |	"srcVertices": [{
-           |		"serviceName": "$testServiceName",
-           |		"columnName": "$testColumnName",
-           |		"id": $id2
-           |	}],
-           |	"steps": [{
-           |		"step": [{
-           |			"label": "$testLabelName",
-           |			"direction": "out",
-           |			"offset": 0,
-           |			"limit": 5
-           |		}]
-           |	}]
+           |  "limit": 10,
+           |  "filterOut": {
+           |    "srcVertices": [{
+           |      "serviceName": "$testServiceName",
+           |      "columnName": "$testColumnName",
+           |      "id": $id1
+           |    }],
+           |    "steps": [{
+           |      "step": [{
+           |        "label": "$testLabelName",
+           |        "direction": "out",
+           |        "offset": 0,
+           |        "limit": 10
+           |      }]
+           |    }]
+           |  },
+           |  "srcVertices": [{
+           |    "serviceName": "$testServiceName",
+           |    "columnName": "$testColumnName",
+           |    "id": $id2
+           |  }],
+           |  "steps": [{
+           |    "step": [{
+           |      "label": "$testLabelName",
+           |      "direction": "out",
+           |      "offset": 0,
+           |      "limit": 5
+           |    }]
+           |  }]
            |}
        """.stripMargin)
 
@@ -854,58 +854,58 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
   test("weighted union") {
     def queryWithWeightedUnion(id1: String, id2: String): JsValue = Json.parse(
       s"""
-         				|{
-         				|  "limit": 10,
-         				|  "weights": [
-         				|    10,
-         				|    1
-         				|  ],
-         				|  "groupBy": ["weight"],
-         				|  "queries": [
-         				|    {
-         				|      "srcVertices": [
-         				|        {
-         				|          "serviceName": "$testServiceName",
-         				|          "columnName": "$testColumnName",
-         				|          "id": $id1
-         				|        }
-         				|      ],
-         				|      "steps": [
-         				|        {
-         				|          "step": [
-         				|            {
-         				|              "label": "$testLabelName",
-         				|              "direction": "out",
-         				|              "offset": 0,
-         				|              "limit": 5
-         				|            }
-         				|          ]
-         				|        }
-         				|      ]
-         				|    },
-         				|    {
-         				|      "srcVertices": [
-         				|        {
-         				|          "serviceName": "$testServiceName",
-         				|          "columnName": "$testColumnName",
-         				|          "id": $id2
-         				|        }
-         				|      ],
-         				|      "steps": [
-         				|        {
-         				|          "step": [
-         				|            {
-         				|              "label": "$testLabelName2",
-         				|              "direction": "out",
-         				|              "offset": 0,
-         				|              "limit": 5
-         				|            }
-         				|          ]
-         				|        }
-         				|      ]
-         				|    }
-         				|  ]
-         				|}
+                 |{
+                 |  "limit": 10,
+                 |  "weights": [
+                 |    10,
+                 |    1
+                 |  ],
+                 |  "groupBy": ["weight"],
+                 |  "queries": [
+                 |    {
+                 |      "srcVertices": [
+                 |        {
+                 |          "serviceName": "$testServiceName",
+                 |          "columnName": "$testColumnName",
+                 |          "id": $id1
+                 |        }
+                 |      ],
+                 |      "steps": [
+                 |        {
+                 |          "step": [
+                 |            {
+                 |              "label": "$testLabelName",
+                 |              "direction": "out",
+                 |              "offset": 0,
+                 |              "limit": 5
+                 |            }
+                 |          ]
+                 |        }
+                 |      ]
+                 |    },
+                 |    {
+                 |      "srcVertices": [
+                 |        {
+                 |          "serviceName": "$testServiceName",
+                 |          "columnName": "$testColumnName",
+                 |          "id": $id2
+                 |        }
+                 |      ],
+                 |      "steps": [
+                 |        {
+                 |          "step": [
+                 |            {
+                 |              "label": "$testLabelName2",
+                 |              "direction": "out",
+                 |              "offset": 0,
+                 |              "limit": 5
+                 |            }
+                 |          ]
+                 |        }
+                 |      ]
+                 |    }
+                 |  ]
+                 |}
        """.stripMargin)
 
     val testId1 = "1"
