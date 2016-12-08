@@ -6,6 +6,9 @@ env:
 cache:
   directories:
   - $HOME/hbase-$HBASE_VERSION
+  - $HOME/.sbt
+  - $HOME/.m2/repository
+  - $HOME/.ivy2
 
 scala:
   - 2.11.8
