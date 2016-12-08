@@ -46,10 +46,6 @@ object GraphConfig {
     database = dbUrl.getOrElse("jdbc:mysql://localhost:3306/graph_dev")
     zkQuorum = zkAddr.getOrElse("localhost")
 
-    //    val newConf = new util.HashMap[String, Object]()
-    //    newConf.put("hbase.zookeeper.quorum", zkQuorum)
-    //    newConf.put("db.default.url", database)
-    //    newConf.put("kafka.metadata.broker.list", kafkaBrokers)
     val newConf =
     if (kafkaBrokerList.isEmpty) {
       Map(
