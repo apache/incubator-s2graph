@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,24 +21,24 @@ package org.apache.s2graph.core.rest
 
 import java.net.URL
 
-import org.apache.s2graph.core.GraphExceptions.{BadQueryException, LabelNotExistException}
-import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{Bucket, Experiment, Service}
-import org.apache.s2graph.core.utils.logger
+import scala.concurrent.{ExecutionContext, Future}
+
 import play.api.libs.json._
 
-import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
-import scala.util.control.NonFatal
+import org.apache.s2graph.core._
+import org.apache.s2graph.core.GraphExceptions.BadQueryException
+import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.mysqls.{Bucket, Experiment, Service}
+import org.apache.s2graph.core.utils.Logger
 
 object RestHandler {
+
   trait CanLookup[A] {
     def lookup(m: A, key: String): Option[String]
   }
 
   object CanLookup {
-   implicit val oneTupleLookup = new CanLookup[(String, String)] {
+    implicit val oneTupleLookup = new CanLookup[(String, String)] {
       override def lookup(m: (String, String), key: String) =
         if (m._1 == key) Option(m._2) else None
     }
@@ -48,6 +48,7 @@ object RestHandler {
   }
 
   case class HandlerResult(body: Future[JsValue], headers: (String, String)*)
+
 }
 
 /**
@@ -57,6 +58,7 @@ object RestHandler {
 class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
 
   import RestHandler._
+
   val requestParser = new RequestParser(graph)
   val querySampleRate: Double = graph.config.getDouble("query.log.sample.rate")
 
@@ -71,12 +73,14 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
       val jsQuery = Json.parse(body)
 
       uri match {
-        case "/graphs/getEdges" => HandlerResult(getEdgesAsync(jsQuery, impIdOpt)(PostProcess.toJson(Option(jsQuery))))
+        case "/graphs/getEdges" =>
+          HandlerResult(getEdgesAsync(jsQuery, impIdOpt)(PostProcess.toJson(Option(jsQuery))))
         case "/graphs/checkEdges" => checkEdges(jsQuery)
         case "/graphs/getVertices" => HandlerResult(getVertices(jsQuery))
         case "/graphs/experiments" => experiments(jsQuery)
         case uri if uri.startsWith("/graphs/experiment") =>
-          val Array(accessToken, experimentName, uuid) = uri.split("/").takeRight(3)
+          val Array(accessToken, experimentName, uuid) =
+            uri.split("/").takeRight(3)
           experiment(jsQuery, accessToken, experimentName, uuid, impKeyOpt)
         case _ => throw new RuntimeException("route is not found")
       }
@@ -86,46 +90,53 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
   }
 
   // TODO: Refactor to doGet
-  def checkEdges(jsValue: JsValue): HandlerResult = {
+  def checkEdges(jsValue: JsValue): HandlerResult =
     try {
       val edges = requestParser.toCheckEdgeParam(jsValue)
 
-      HandlerResult(graph.checkEdges(edges).map { case stepResult =>
-        val jsArray = for {
-          s2EdgeWithScore <- stepResult.edgeWithScores
-//          json <- PostProcess.s2EdgeToJsValue(QueryOption(), s2EdgeWithScore)
-          json = PostProcess.s2EdgeToJsValue(QueryOption(), s2EdgeWithScore)
-        } yield json
-        Json.toJson(jsArray)
+      HandlerResult(graph.checkEdges(edges).map {
+        case stepResult =>
+          val jsArray = for {
+            s2EdgeWithScore <- stepResult.edgeWithScores
+            //          json <- PostProcess.s2EdgeToJsValue(QueryOption(), s2EdgeWithScore)
+            json = PostProcess.s2EdgeToJsValue(QueryOption(), s2EdgeWithScore)
+          } yield json
+          Json.toJson(jsArray)
       })
     } catch {
       case e: Exception =>
-        logger.error(s"RestHandler#checkEdges error: $e")
+        Logger.error(s"RestHandler#checkEdges error: $e")
         HandlerResult(Future.failed(e))
     }
-  }
-
 
   /**
     * Private APIS
     */
   private def experiments(jsQuery: JsValue): HandlerResult = {
-    val params: Seq[RequestParser.ExperimentParam] = requestParser.parseExperiment(jsQuery)
+    val params: Seq[RequestParser.ExperimentParam] =
+      requestParser.parseExperiment(jsQuery)
 
-    val results = params map { case (body, token, experimentName, uuid, impKeyOpt) =>
-      val handlerResult = experiment(body, token, experimentName, uuid, impKeyOpt)
-      val future = handlerResult.body.recover {
-        case e: Exception => PostProcess.emptyResults ++ Json.obj("error" -> Json.obj("reason" -> e.getMessage))
-      }
+    val results = params map {
+      case (body, token, experimentName, uuid, impKeyOpt) =>
+        val handlerResult =
+          experiment(body, token, experimentName, uuid, impKeyOpt)
+        val future = handlerResult.body.recover {
+          case e: Exception =>
+            PostProcess.emptyResults ++ Json.obj("error" -> Json.obj("reason" -> e.getMessage))
+        }
 
-      future
+        future
     }
 
     val result = Future.sequence(results).map(JsArray)
     HandlerResult(body = result)
   }
 
-  def experiment(contentsBody: JsValue, accessToken: String, experimentName: String, uuid: String, impKeyOpt: => Option[String] = None): HandlerResult = {
+  def experiment(contentsBody: JsValue,
+                 accessToken: String,
+                 experimentName: String,
+                 uuid: String,
+                 impKeyOpt: => Option[String] = None): HandlerResult =
     try {
       val bucketOpt = for {
         service <- Service.findByAccessToken(accessToken)
@@ -133,74 +144,85 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
         bucket <- experiment.findBucket(uuid, impKeyOpt)
       } yield bucket
 
-      val bucket = bucketOpt.getOrElse(throw new RuntimeException(s"bucket is not found. $accessToken, $experimentName, $uuid, $impKeyOpt"))
+      val bucket = bucketOpt.getOrElse(
+        throw new RuntimeException(
+          s"bucket is not found. $accessToken, $experimentName, $uuid, $impKeyOpt"
+        )
+      )
       if (bucket.isGraphQuery) {
         val ret = buildRequestInner(contentsBody, bucket, uuid)
 
-        logQuery(Json.obj(
-          "type" -> "experiment",
-          "time" -> System.currentTimeMillis(),
-          "body" -> contentsBody,
-          "uri" -> Seq("graphs", "experiment", accessToken, experimentName, uuid).mkString("/"),
-          "accessToken" -> accessToken,
-          "experimentName" -> experimentName,
-          "uuid" -> uuid,
-          "impressionId" -> bucket.impressionId
-        ))
+        logQuery(
+          Json.obj(
+            "type" -> "experiment",
+            "time" -> System.currentTimeMillis(),
+            "body" -> contentsBody,
+            "uri" -> Seq("graphs", "experiment", accessToken, experimentName, uuid).mkString("/"),
+            "accessToken" -> accessToken,
+            "experimentName" -> experimentName,
+            "uuid" -> uuid,
+            "impressionId" -> bucket.impressionId
+          )
+        )
 
         HandlerResult(ret.body, Experiment.ImpressionKey -> bucket.impressionId)
-      }
-      else throw new RuntimeException("not supported yet")
+      } else throw new RuntimeException("not supported yet")
     } catch {
       case e: Exception => HandlerResult(Future.failed(e))
     }
-  }
 
-  private def buildRequestInner(contentsBody: JsValue, bucket: Bucket, uuid: String): HandlerResult = {
-    if (bucket.isEmpty) HandlerResult(Future.successful(PostProcess.emptyResults))
-    else {
+  private def buildRequestInner(contentsBody: JsValue,
+                                bucket: Bucket,
+                                uuid: String): HandlerResult =
+    if (bucket.isEmpty) {
+      HandlerResult(Future.successful(PostProcess.emptyResults))
+    } else {
       val body = buildRequestBody(Option(contentsBody), bucket, uuid)
       val url = new URL(bucket.apiPath)
       val path = url.getPath
 
       // dummy log for sampling
       val experimentLog = s"POST $path took -1 ms 200 -1 $body"
-      logger.debug(experimentLog)
+      Logger.debug(experimentLog)
 
       doPost(path, body, Experiment.ImpressionId -> bucket.impressionId)
     }
-  }
 
-  def getEdgesAsync(jsonQuery: JsValue, impIdOpt: Option[String] = None)
-                   (post: (S2Graph, QueryOption, StepResult) => JsValue): Future[JsValue] = {
+  def getEdgesAsync(jsonQuery: JsValue, impIdOpt: Option[String] = None)(
+      post: (S2Graph, QueryOption, StepResult) => JsValue
+  ): Future[JsValue] = {
 
-    def query(obj: JsValue): Future[JsValue] = {
+    def query(obj: JsValue): Future[JsValue] =
       (obj \ "queries").asOpt[JsValue] match {
         case None =>
           val s2Query = requestParser.toQuery(obj, impIdOpt)
           graph.getEdges(s2Query).map(post(graph, s2Query.queryOption, _))
         case _ =>
           val multiQuery = requestParser.toMultiQuery(obj, impIdOpt)
-          graph.getEdgesMultiQuery(multiQuery).map(post(graph, multiQuery.queryOption, _))
+          graph
+            .getEdgesMultiQuery(multiQuery)
+            .map(post(graph, multiQuery.queryOption, _))
       }
-    }
 
-    logQuery(Json.obj(
-      "type" -> "getEdges",
-      "time" -> System.currentTimeMillis(),
-      "body" -> jsonQuery,
-      "uri" -> "graphs/getEdges"
-    ))
+    logQuery(
+      Json.obj(
+        "type" -> "getEdges",
+        "time" -> System.currentTimeMillis(),
+        "body" -> jsonQuery,
+        "uri" -> "graphs/getEdges"
+      )
+    )
 
     val unionQuery = (jsonQuery \ "union").asOpt[JsObject]
     unionQuery match {
-      case None => jsonQuery match {
-        case obj@JsObject(_) => query(obj)
-        case JsArray(arr) =>
-          val res = arr.map(js => query(js.as[JsObject]))
-          Future.sequence(res).map(JsArray)
-        case _ => throw BadQueryException("Cannot support")
-      }
+      case None =>
+        jsonQuery match {
+          case obj @ JsObject(_) => query(obj)
+          case JsArray(arr) =>
+            val res = arr.map(js => query(js.as[JsObject]))
+            Future.sequence(res).map(JsArray)
+          case _ => throw BadQueryException("Cannot support")
+        }
 
       case Some(jsUnion) =>
         val (keys, queries) = jsUnion.value.unzip
@@ -216,17 +238,23 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
       val serviceName = (js \ "serviceName").as[String]
       val columnName = (js \ "columnName").as[String]
       for {
-        idJson <- (js \ "ids").asOpt[List[JsValue]].getOrElse(List.empty[JsValue])
+        idJson <- (js \ "ids")
+          .asOpt[List[JsValue]]
+          .getOrElse(List.empty[JsValue])
         id <- jsValueToAny(idJson)
       } yield {
         graph.toVertex(serviceName, columnName, id)
       }
     }
 
-    graph.getVertices(vertices) map { vertices => PostProcess.verticesToJson(vertices) }
+    graph.getVertices(vertices) map { vertices =>
+      PostProcess.verticesToJson(vertices)
+    }
   }
 
-  private def buildRequestBody(requestKeyJsonOpt: Option[JsValue], bucket: Bucket, uuid: String): String = {
+  private def buildRequestBody(requestKeyJsonOpt: Option[JsValue],
+                               bucket: Bucket,
+                               uuid: String): String = {
     var body = bucket.requestBody.replace("#uuid", uuid)
 
     for {
@@ -247,11 +275,12 @@ class RestHandler(graph: S2Graph)(implicit ec: ExecutionContext) {
   }
 
   def calcSize(js: JsValue): Int =
-    (js \\ "size") map { sizeJs => sizeJs.asOpt[Int].getOrElse(0) } sum
+    (js \\ "size") map { sizeJs =>
+      sizeJs.asOpt[Int].getOrElse(0)
+    } sum
 
-  def logQuery(queryJson: => JsObject): Unit = {
+  def logQuery(queryJson: => JsObject): Unit =
     if (scala.util.Random.nextDouble() < querySampleRate) {
-      logger.query(queryJson.toString)
+      Logger.query(queryJson.toString)
     }
-  }
 }

@@ -19,16 +19,15 @@
 
 package org.apache.spark.streaming.kafka
 
-import org.apache.spark.Logging
-import org.apache.spark.rdd.RDD
-
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
+import org.apache.spark.Logging
+import org.apache.spark.rdd.RDD
+
 class KafkaRDDFunctions[T: ClassTag](self: RDD[T])
-  extends Logging
-  with Serializable
-{
+    extends Logging
+        with Serializable {
   def foreachPartitionWithOffsetRange(f: (OffsetRange, Iterator[T]) => Unit): Unit = {
     val offsets = self.asInstanceOf[HasOffsetRanges].offsetRanges
     foreachPartitionWithIndex { (i, part) =>

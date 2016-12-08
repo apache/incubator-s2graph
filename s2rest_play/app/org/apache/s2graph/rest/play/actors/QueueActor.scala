@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,17 +21,18 @@ package org.apache.s2graph.rest.play.actors
 
 import java.util.concurrent.TimeUnit
 
+import scala.collection.mutable
+import scala.concurrent.duration.Duration
+
 import akka.actor._
-import org.apache.s2graph.core.ExceptionHandler._
-import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{ExceptionHandler, S2Graph, GraphElement}
-import org.apache.s2graph.rest.play.actors.Protocol.FlushAll
-import org.apache.s2graph.rest.play.config.Config
 import play.api.Play.current
 import play.api.libs.concurrent.Akka
 
-import scala.collection.mutable
-import scala.concurrent.duration.Duration
+import org.apache.s2graph.core.{ExceptionHandler, S2Graph, GraphElement}
+import org.apache.s2graph.core.ExceptionHandler._
+import org.apache.s2graph.core.utils.Logger
+import org.apache.s2graph.rest.play.actors.Protocol.FlushAll
+import org.apache.s2graph.rest.play.config.Config
 
 object Protocol {
 
@@ -42,21 +43,22 @@ object Protocol {
 }
 
 object QueueActor {
+
   /** we are throttling down here so fixed number of actor to constant */
   var router: ActorRef = _
 
   //    Akka.system.actorOf(props(), name = "queueActor")
-  def init(s2: S2Graph, walLogHandler: ExceptionHandler) = {
+  def init(s2: S2Graph, walLogHandler: ExceptionHandler): Unit =
     router = Akka.system.actorOf(props(s2, walLogHandler))
-  }
 
-  def shutdown() = {
+  def shutdown(): Unit = {
     router ! FlushAll
     Akka.system.shutdown()
     Thread.sleep(Config.ASYNC_HBASE_CLIENT_FLUSH_INTERVAL * 2)
   }
 
-  def props(s2: S2Graph, walLogHandler: ExceptionHandler): Props = Props(classOf[QueueActor], s2, walLogHandler)
+  def props(s2: S2Graph, walLogHandler: ExceptionHandler): Props =
+    Props(classOf[QueueActor], s2, walLogHandler)
 }
 
 class QueueActor(s2: S2Graph, walLogHandler: ExceptionHandler) extends Actor with ActorLogging {
@@ -72,12 +74,11 @@ class QueueActor(s2: S2Graph, walLogHandler: ExceptionHandler) extends Actor wit
   val rateLimitTimeStep = 1000 / timeUnitInMillis
   val rateLimit = Config.LOCAL_QUEUE_ACTOR_RATE_LIMIT / rateLimitTimeStep
 
-
-  context.system.scheduler.schedule(Duration.Zero, Duration(timeUnitInMillis, TimeUnit.MILLISECONDS), self, Flush)
+  context.system.scheduler
+    .schedule(Duration.Zero, Duration(timeUnitInMillis, TimeUnit.MILLISECONDS), self, Flush)
 
   override def receive: Receive = {
     case element: GraphElement =>
-
       if (queueSize > maxQueueSize) {
         walLogHandler.enqueue(toKafkaMessage(Config.KAFKA_FAIL_TOPIC, element, None))
       } else {
@@ -96,13 +97,13 @@ class QueueActor(s2: S2Graph, walLogHandler: ExceptionHandler) extends Actor wit
       s2.mutateElements(elementsToFlush)
 
       if (flushSize > 0) {
-        logger.info(s"flush: $flushSize, $queueSize")
+        Logger.info(s"flush: $flushSize, $queueSize")
       }
 
     case FlushAll =>
       s2.mutateElements(queue)
       context.stop(self)
 
-    case _ => logger.error("unknown protocol")
+    case _ => Logger.error("unknown protocol")
   }
 }

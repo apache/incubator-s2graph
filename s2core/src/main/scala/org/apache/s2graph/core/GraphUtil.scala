@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,30 +21,39 @@ package org.apache.s2graph.core
 
 import java.util.regex.Pattern
 
-import play.api.libs.json.Json
-
 import scala.util.hashing.MurmurHash3
+
+import play.api.libs.json.Json
 
 object GraphUtil {
   private val TOKEN_DELIMITER = Pattern.compile("[\t]")
-  val operations = Map("i" -> 0, "insert" -> 0, "u" -> 1, "update" -> 1,
-    "increment" -> 2, "d" -> 3, "delete" -> 3,
-    "deleteAll" -> 4, "insertBulk" -> 5, "incrementCount" -> 6).map {
+  val operations = Map(
+    "i" -> 0,
+    "insert" -> 0,
+    "u" -> 1,
+    "update" -> 1,
+    "increment" -> 2,
+    "d" -> 3,
+    "delete" -> 3,
+    "deleteAll" -> 4,
+    "insertBulk" -> 5,
+    "incrementCount" -> 6
+  ).map {
     case (k, v) =>
       k -> v.toByte
   }
   val BitsForMurMurHash = 16
   val bytesForMurMurHash = 2
   val defaultOpByte = operations("insert")
-  val directions = Map("out" -> 0, "in" -> 1, "undirected" -> 2, "u" -> 2, "directed" -> 0, "d" -> 0)
+  val directions =
+    Map("out" -> 0, "in" -> 1, "undirected" -> 2, "u" -> 2, "directed" -> 0, "d" -> 0)
   val consistencyLevel = Map("weak" -> 0, "strong" -> 1)
 
-  def toType(t: String) = {
+  def toType(t: String): String =
     t.trim().toLowerCase match {
       case "e" | "edge" => "edge"
       case "v" | "vertex" => "vertex"
     }
-  }
 
   def toDir(direction: String): Option[Byte] = {
     val d = direction.trim().toLowerCase match {
@@ -57,7 +66,7 @@ object GraphUtil {
     d.map(x => x.toByte)
   }
 
-  def toDirection(direction: String): Int = {
+  def toDirection(direction: String): Int =
     direction.trim().toLowerCase match {
       case "directed" | "d" => 0
       case "undirected" | "u" => 2
@@ -65,26 +74,24 @@ object GraphUtil {
       case "in" | "i" => 1
       case _ => 2
     }
-  }
 
-  def fromDirection(direction: Int) = {
+  def fromDirection(direction: Int): String =
     direction match {
       case 0 => "out"
       case 1 => "in"
       case 2 => "undirected"
     }
-  }
 
-  def toggleDir(dir: Int) = {
+  def toggleDir(dir: Int): Int =
     dir match {
       case 0 => 1
       case 1 => 0
       case 2 => 2
-      case _ => throw new UnsupportedOperationException(s"toggleDirection: $dir")
+      case _ =>
+        throw new UnsupportedOperationException(s"toggleDirection: $dir")
     }
-  }
 
-  def toOp(op: String): Option[Byte] = {
+  def toOp(op: String): Option[Byte] =
     op.trim() match {
       case "i" | "insert" => Some(0)
       case "d" | "delete" => Some(3)
@@ -95,9 +102,8 @@ object GraphUtil {
       case "incrementCount" => Option(6)
       case _ => None
     }
-  }
 
-  def fromOp(op: Byte): String = {
+  def fromOp(op: Byte): String =
     op match {
       case 0 => "insert"
       case 3 => "delete"
@@ -107,9 +113,10 @@ object GraphUtil {
       case 5 => "insertBulk"
       case 6 => "incrementCount"
       case _ =>
-        throw new UnsupportedOperationException(s"op : $op (only support 0(insert),1(delete),2(updaet),3(increment))")
+        throw new UnsupportedOperationException(
+          s"op : $op (only support 0(insert),1(delete),2(updaet),3(increment))"
+        )
     }
-  }
 
   //  def toggleOp(op: Byte): Byte = {
   //    val ret = op match {
@@ -121,22 +128,23 @@ object GraphUtil {
   //  }
   // 2^31 - 1
 
-  def transformHash(h: Int): Int = {
+  def transformHash(h: Int): Int =
     //    h / 2 + (Int.MaxValue / 2 - 1)
     if (h < 0) -1 * (h + 1) else h
-  }
+
   def murmur3Int(s: String): Int = {
     val hash = MurmurHash3.stringHash(s)
     transformHash(hash)
   }
+
   def murmur3(s: String): Short = {
     val hash = MurmurHash3.stringHash(s)
     val positiveHash = transformHash(hash) >> BitsForMurMurHash
     positiveHash.toShort
-//    Random.nextInt(Short.MaxValue).toShort
+    //    Random.nextInt(Short.MaxValue).toShort
   }
 
-  def smartSplit(s: String, delemiter: String) = {
+  def smartSplit(s: String, delemiter: String): Seq[String] = {
     val trimed_string = s.trim()
     if (trimed_string.equals("")) {
       Seq[String]()
@@ -145,14 +153,13 @@ object GraphUtil {
     }
   }
 
-  def split(line: String) = TOKEN_DELIMITER.split(line)
+  def split(line: String): Array[String] = TOKEN_DELIMITER.split(line)
 
-  def parseString(s: String): List[String] = {
+  def parseString(s: String): List[String] =
     if (!s.startsWith("[")) {
       s.split("\n").toList
     } else {
       Json.parse(s).asOpt[List[String]].getOrElse(List.empty[String])
     }
-  }
 
 }

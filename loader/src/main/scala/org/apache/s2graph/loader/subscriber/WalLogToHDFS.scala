@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,21 +21,33 @@ package org.apache.s2graph.loader.subscriber
 
 import java.text.SimpleDateFormat
 import java.util.Date
-import kafka.serializer.StringDecoder
-import org.apache.s2graph.core.S2Graph$
-import org.apache.s2graph.spark.spark.{WithKafka, SparkApp, HashMapParam}
-import org.apache.spark.sql.hive.HiveContext
-import org.apache.spark.streaming.Durations._
-import org.apache.spark.streaming.kafka.HasOffsetRanges
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.language.postfixOps
 
+import kafka.serializer.StringDecoder
+import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.streaming.Durations._
+import org.apache.spark.streaming.kafka.HasOffsetRanges
+
+import org.apache.s2graph.core.utils.Logger
+import org.apache.s2graph.spark.spark.{HashMapParam, SparkApp, WithKafka}
+
 object WalLogToHDFS extends SparkApp with WithKafka {
 
-  override def run() = {
+  override def run(): Unit = {
 
-    validateArgument("kafkaZkQuorum", "brokerList", "topics", "intervalInSec", "dbUrl", "outputPath", "hiveDatabase", "hiveTable", "splitListPath")
+    validateArgument(
+      "kafkaZkQuorum",
+      "brokerList",
+      "topics",
+      "intervalInSec",
+      "dbUrl",
+      "outputPath",
+      "hiveDatabase",
+      "hiveTable",
+      "splitListPath"
+    )
 
     val kafkaZkQuorum = args(0)
     val brokerList = args(1)
@@ -59,13 +71,18 @@ object WalLogToHDFS extends SparkApp with WithKafka {
       "group.id" -> groupId,
       "metadata.broker.list" -> brokerList,
       "zookeeper.connection.timeout.ms" -> "10000",
-      "auto.offset.reset" -> "largest")
+      "auto.offset.reset" -> "largest"
+    )
 
-    val stream = getStreamHelper(kafkaParams).createStream[String, String, StringDecoder, StringDecoder](ssc, topics.split(",").toSet)
+    val stream = getStreamHelper(kafkaParams)
+        .createStream[String, String, StringDecoder, StringDecoder](ssc, topics.split(",").toSet)
 
-    val mapAcc = sc.accumulable(new MutableHashMap[String, Long](), "Throughput")(HashMapParam[String, Long](_ + _))
+    val mapAcc = sc.accumulable(new MutableHashMap[String, Long](), "Throughput")(
+      HashMapParam[String, Long](_ + _)
+    )
 
-    val hdfsBlockSize = 134217728 // 128M
+    val hdfsBlockSize = 134217728
+    // 128M
     val hiveContext = new HiveContext(sc)
     var splits = Array[String]()
     var excludeLabels = Set[String]()
@@ -91,26 +108,25 @@ object WalLogToHDFS extends SparkApp with WithKafka {
         val phase = System.getProperty("phase")
         GraphSubscriberHelper.apply(phase, dbUrl, "none", brokerList)
 
-        partition.flatMap { case (key, msg) =>
-          val optMsg = GraphSubscriberHelper.g.toGraphElement(msg).flatMap { element =>
-            val arr = msg.split("\t", 7)
-            val service = element.serviceName
-            val label = arr(5)
-            val n = arr.length
+        partition.flatMap {
+          case (key, msg) =>
+            val optMsg = GraphSubscriberHelper.g.toGraphElement(msg).flatMap { element =>
+              val arr = msg.split("\t", 7)
+              val service = element.serviceName
+              val label = arr(5)
+              val n = arr.length
 
-            if (excludeServices.contains(service) || excludeLabels.contains(label)) {
-              None
-            } else if(n == 6) {
-              Some(Seq(msg, "{}", service).mkString("\t"))
+              if (excludeServices.contains(service) || excludeLabels.contains(label)) {
+                None
+              } else if (n == 6) {
+                Some(Seq(msg, "{}", service).mkString("\t"))
+              } else if (n == 7) {
+                Some(Seq(msg, service).mkString("\t"))
+              } else {
+                None
+              }
             }
-            else if(n == 7) {
-              Some(Seq(msg, service).mkString("\t"))
-            }
-            else {
-              None
-            }
-          }
-          optMsg
+            optMsg
         }
       }
 
@@ -136,31 +152,41 @@ object WalLogToHDFS extends SparkApp with WithKafka {
                 .sum
                 .toLong
             val numPartitions = math.max(1, (totalSize / hdfsBlockSize.toDouble).toInt)
-            splitData.coalesce(math.min(splitData.partitions.length, numPartitions)).saveAsTextFile(path)
+            splitData
+                .coalesce(math.min(splitData.partitions.length, numPartitions))
+                .saveAsTextFile(path)
             splitData.unpersist()
         }
         elements.unpersist()
         elements
       }
 
-      elementsWritten.mapPartitionsWithIndex { (i, part) =>
-        // commit offset range
-        val osr = offsets(i)
-        getStreamHelper(kafkaParams).commitConsumerOffset(osr)
-        Iterator.empty
-      }.foreach {
-        (_: Nothing) => ()
-      }
+      elementsWritten
+          .mapPartitionsWithIndex { (i, part) =>
+            // commit offset range
+            val osr = offsets(i)
+            getStreamHelper(kafkaParams).commitConsumerOffset(osr)
+            Iterator.empty
+          }
+          .foreach { (_: Nothing) =>
+            ()
+          }
 
       (Array("all") ++ splits).foreach { split =>
         val path = s"$outputPath/split=$split/date_id=$dateId/ts=$ts"
         hiveContext.sql(s"use $hiveDatabase")
-        hiveContext.sql(s"alter table $hiveTable add partition (split='$split', date_id='$dateId', ts='$ts') location '$path'")
+        hiveContext.sql(
+          s"""
+             |ALTER TABLE $hiveTable
+             |ADD PARTITION (split='$split', date_id='$dateId', ts='$ts')
+             |LOCATION '$path'
+           """.stripMargin
+        )
       }
     }
 
     logInfo(s"counter: ${mapAcc.value}")
-    println(s"counter: ${mapAcc.value}")
+    Logger.info(s"counter: ${mapAcc.value}")
     ssc.start()
     ssc.awaitTermination()
   }

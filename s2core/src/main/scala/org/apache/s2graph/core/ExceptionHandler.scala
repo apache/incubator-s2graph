@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -23,11 +23,11 @@ import java.util.Properties
 
 import com.typesafe.config.Config
 import org.apache.kafka.clients.producer._
-import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.JsValue
 
-class ExceptionHandler(config: Config) {
+import org.apache.s2graph.core.utils.Logger
 
+class ExceptionHandler(config: Config) {
 
   import ExceptionHandler._
 
@@ -41,29 +41,27 @@ class ExceptionHandler(config: Config) {
         Option(new KafkaProducer[Key, Val](toKafkaProp(config)))
       } catch {
         case e: Exception =>
-          logger.error(s"Initialize kafka fail with: ${toKafkaProp(config)}")
+          Logger.error(s"Initialize kafka fail with: ${toKafkaProp(config)}")
           None
       }
     } else None
 
-  def enqueue(m: KafkaMessage): Unit = {
+  def enqueue(m: KafkaMessage): Unit =
     producer match {
-      case None => logger.debug(s"skip log to Kafka: ${m}")
+      case None => Logger.debug(s"skip log to Kafka: ${m}")
       case Some(kafka) =>
         kafka.send(m.msg, new Callback() {
-          override def onCompletion(meta: RecordMetadata, e: Exception) = {
+          override def onCompletion(meta: RecordMetadata, e: Exception) =
             if (e == null) {
               // success
             } else {
-              logger.error(s"log publish failed: ${m}", e)
+              Logger.error(s"log publish failed: ${m}", e)
               // failure
             }
-          }
         })
     }
-  }
 
-  def shutdown() = producer.foreach(_.close)
+  def shutdown(): Unit = producer.foreach(_.close)
 }
 
 object ExceptionHandler {
@@ -73,23 +71,19 @@ object ExceptionHandler {
   def toKafkaMessage(topic: String,
                      element: GraphElement,
                      originalString: Option[String] = None,
-                     produceJson: Boolean = false) = {
+                     produceJson: Boolean = false): KafkaMessage = {
     val edgeString = originalString.getOrElse(element.toLogString())
     val msg = edgeString
 
-    KafkaMessage(
-      new ProducerRecord[Key, Val](
-        topic,
-        element.queuePartitionKey,
-        msg))
+    KafkaMessage(new ProducerRecord[Key, Val](topic, element.queuePartitionKey, msg))
   }
 
   // only used in deleteAll
-  def toKafkaMessage(topic: String, tsv: String) = {
+  def toKafkaMessage(topic: String, tsv: String): KafkaMessage =
     KafkaMessage(new ProducerRecord[Key, Val](topic, null, tsv))
-  }
 
-  def toKafkaMessage(topic: String, jsValue: JsValue): KafkaMessage = toKafkaMessage(topic, jsValue.toString())
+  def toKafkaMessage(topic: String, jsValue: JsValue): KafkaMessage =
+    toKafkaMessage(topic, jsValue.toString())
 
   case class KafkaMessage(msg: ProducerRecord[Key, Val])
 
@@ -98,8 +92,11 @@ object ExceptionHandler {
 
     /** all default configuration for new producer */
     val brokers =
-      if (config.hasPath("kafka.metadata.broker.list")) config.getString("kafka.metadata.broker.list")
-      else "localhost"
+      if (config.hasPath("kafka.metadata.broker.list")) {
+        config.getString("kafka.metadata.broker.list")
+      } else {
+        "localhost"
+      }
 
     props.put("bootstrap.servers", brokers)
     props.put("acks", "1")

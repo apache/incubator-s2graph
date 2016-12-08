@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,7 +24,7 @@ import java.util.Properties
 import kafka.producer.{Producer, ProducerConfig}
 
 trait WithKafka {
-  def kafkaConf(brokerList: String) = {
+  def kafkaConf(brokerList: String): ProducerConfig = {
     val props = new Properties()
     props.put("metadata.broker.list", brokerList)
     props.put("request.required.acks", "0")
@@ -36,7 +36,9 @@ trait WithKafka {
     new ProducerConfig(props)
   }
 
-  def producerConfig(brokerList: String, requireAcks: String = "1", producerType: String = "sync") = {
+  def producerConfig(brokerList: String,
+                     requireAcks: String = "1",
+                     producerType: String = "sync"): ProducerConfig = {
     val props = new Properties()
     props.setProperty("metadata.broker.list", brokerList)
     props.setProperty("request.required.acks", requireAcks)
@@ -47,23 +49,21 @@ trait WithKafka {
     new ProducerConfig(props)
   }
 
-  def getProducer[K, V](config: ProducerConfig): Producer[K, V] = {
+  def getProducer[K, V](config: ProducerConfig): Producer[K, V] =
     new Producer[K, V](config)
-  }
 
-  def getProducer[K, V](brokers: String): Producer[K, V] = {
+  def getProducer[K, V](brokers: String): Producer[K, V] =
     getProducer(producerConfig(brokers))
-  }
 
   /**
-   * Kafka DefaultPartitioner
-   * @param k
-   * @param n
-   * @return
-   */
-  def getPartKey(k: Any, n: Int): Int = {
+    * Kafka DefaultPartitioner
+    *
+    * @param k
+    * @param n
+    * @return
+    */
+  def getPartKey(k: Any, n: Int): Int =
     kafka.utils.Utils.abs(k.hashCode()) % n
-  }
 
   def makeKafkaGroupId(topic: String, ext: String): String = {
     val phase = System.getProperty("phase")
@@ -81,7 +81,8 @@ trait WithKafka {
       phase match {
         case "alpha" => "_alpha"
         case _ => ""
-      }}
+      }
+    }
 
     groupId
   }

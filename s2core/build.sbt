@@ -24,27 +24,30 @@ name := """s2core"""
 scalacOptions ++= Seq("-deprecation")
 
 libraryDependencies ++= Seq(
-  "org.slf4j" % "slf4j-api" % "1.7.21",
-  "com.typesafe" % "config" % "1.2.1",
-  "com.typesafe.play" %% "play-json" % playVersion,
+  "org.slf4j"         % "slf4j-api"   % "1.7.21",
+  "com.typesafe"      % "config"      % "1.2.1",
+  "com.typesafe.play" %% "play-json"  % playVersion,
   "com.typesafe.akka" %% "akka-actor" % "2.3.4",
-  "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
-  "org.apache.hbase" % "hbase-client" % hbaseVersion excludeLogging(),
-  "org.apache.hbase" % "hbase-common" % hbaseVersion excludeLogging(),
-  "org.apache.hbase" % "hbase-server" % hbaseVersion excludeLogging() exclude("com.google.protobuf", "protobuf*"),
-  "org.apache.hbase" % "hbase-hadoop-compat" % hbaseVersion excludeLogging(),
-  "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion excludeLogging(),
-  "org.apache.kafka" % "kafka-clients" % "0.8.2.0" excludeLogging() exclude("com.sun.jdmk", "j*") exclude("com.sun.jmx", "j*") exclude("javax.jms", "j*"),
-  "commons-pool" % "commons-pool" % "1.6",
-  "org.scalikejdbc" %% "scalikejdbc" % "2.1.4",
-  "com.h2database" % "h2" % "1.4.192",
-  "com.stumbleupon" % "async" % "1.4.1",
-  "io.netty" % "netty" % "3.9.4.Final" force(),
-  "org.hbase" % "asynchbase" % "1.7.2" excludeLogging(),
-  "net.bytebuddy" % "byte-buddy" % "1.4.26",
+  // use this old version of guava to avoid incompatibility
+  "com.google.guava" % "guava"        % "12.0.1" force (),
+  "org.apache.hbase" % "hbase-client" % hbaseVersion excludeLogging (),
+  "org.apache.hbase" % "hbase-common" % hbaseVersion excludeLogging (),
+  "org.apache.hbase" % "hbase-server" % hbaseVersion excludeLogging ()
+    exclude ("com.google.protobuf", "protobuf*"),
+  "org.apache.hbase" % "hbase-hadoop-compat"  % hbaseVersion excludeLogging (),
+  "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion excludeLogging (),
+  "org.apache.kafka" % "kafka-clients"        % "0.8.2.0" excludeLogging ()
+    exclude ("com.sun.jdmk", "j*") exclude ("com.sun.jmx", "j*") exclude ("javax.jms", "j*"),
+  "commons-pool"         % "commons-pool" % "1.6",
+  "org.scalikejdbc"      %% "scalikejdbc" % "2.1.4",
+  "com.h2database"       % "h2"           % "1.4.192",
+  "com.stumbleupon"      % "async"        % "1.4.1",
+  "io.netty"             % "netty"        % "3.9.4.Final" force (),
+  "org.hbase"            % "asynchbase"   % "1.7.2" excludeLogging (),
+  "net.bytebuddy"        % "byte-buddy"   % "1.4.26",
   "org.apache.tinkerpop" % "gremlin-core" % tinkerpopVersion,
-  "org.scalatest" %% "scalatest" % "2.2.4" % "test",
-  "org.specs2" %% "specs2-core" % specs2Version % "test"
+  "org.scalatest"        %% "scalatest"   % "2.2.4" % "test",
+  "org.specs2"           %% "specs2-core" % specs2Version % "test"
 )
 
 libraryDependencies := {

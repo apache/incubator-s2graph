@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -20,6 +20,7 @@
 package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util.Bytes
+
 import org.apache.s2graph.core.GraphUtil
 
 object LabelWithDirection {
@@ -59,22 +60,21 @@ case class LabelWithDirection(labelId: Int, dir: Int) extends HBaseSerializable 
 
   lazy val compositeInt = labelBits | dir
 
-  def bytes = {
-     Bytes.toBytes(compositeInt)
-  }
+  def bytes: Array[Byte] =
+    Bytes.toBytes(compositeInt)
 
   lazy val dirToggled = LabelWithDirection(labelId, GraphUtil.toggleDir(dir))
 
-  def updateDir(newDir: Int) = LabelWithDirection(labelId, newDir)
+  def updateDir(newDir: Int): LabelWithDirection =
+    LabelWithDirection(labelId, newDir)
 
-  def isDirected = dir == 0 || dir == 1
+  def isDirected: Boolean = dir == 0 || dir == 1
 
   override def hashCode(): Int = compositeInt
 
-  override def equals(other: Any): Boolean = {
+  override def equals(other: Any): Boolean =
     other match {
       case o: LabelWithDirection => hashCode == o.hashCode()
       case _ => false
     }
-  }
 }

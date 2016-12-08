@@ -19,8 +19,9 @@
 
 package org.apache.s2graph.spark
 
-import org.apache.s2graph.spark.spark.SparkApp
 import org.scalatest.{FunSuite, Matchers}
+
+import org.apache.s2graph.spark.spark.SparkApp
 
 object TestApp extends SparkApp {
   override def run(): Unit = {

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -28,7 +28,8 @@ object Common {
   val hadoopVersion = "2.7.3"
   val tinkerpopVersion = "3.2.3"
 
-  /** use Log4j 1.2.17 as the SLF4j backend in runtime, with bridging libraries to forward JCL and JUL logs to SLF4j */
+  /** use Log4j 1.2.17 as the SLF4j backend in runtime, with bridging libraries to
+    * forward JCL and JUL logs to SLF4j */
   val loggingRuntime = Seq(
     "log4j" % "log4j" % "1.2.17",
     "org.slf4j" % "slf4j-log4j12" % "1.7.21",
@@ -51,4 +52,5 @@ object Common {
   implicit class LoggingExcluder(moduleId: ModuleID) {
     def excludeLogging(): ModuleID = moduleId.excludeAll(loggingExcludes: _*)
   }
+
 }

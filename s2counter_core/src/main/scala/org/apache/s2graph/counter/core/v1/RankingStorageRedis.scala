@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,16 +21,18 @@ package org.apache.s2graph.counter.core.v1
 
 import java.lang
 
-import com.typesafe.config.Config
-import org.apache.s2graph.counter.core.RankingCounter.RankingValueMap
-import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
-import org.apache.s2graph.counter.core.{RankingResult, RankingKey, RankingStorage}
-import org.apache.s2graph.counter.helper.WithRedis
-import org.apache.s2graph.counter.models.{Counter, CounterModel}
-import org.slf4j.LoggerFactory
-import redis.clients.jedis.Pipeline
 import scala.collection.JavaConversions._
 import scala.util.{Failure, Success}
+
+import com.typesafe.config.Config
+import org.slf4j.LoggerFactory
+import redis.clients.jedis.Pipeline
+
+import org.apache.s2graph.counter.core.{RankingKey, RankingResult, RankingStorage}
+import org.apache.s2graph.counter.core.RankingCounter.RankingValueMap
+import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
+import org.apache.s2graph.counter.helper.WithRedis
+import org.apache.s2graph.counter.models.{Counter, CounterModel}
 
 class RankingStorageRedis(config: Config) extends RankingStorage {
   private[counter] val log = LoggerFactory.getLogger(this.getClass)
@@ -41,12 +43,12 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
   val TOTAL = "_total_"
 
   /**
-   * ex1)
-   * dimension = "age.32"
-   * ex2)
-   * dimension = "age.gender.32.m"
-   *
-   */
+    * ex1)
+    * dimension = "age.32"
+    * ex2)
+    * dimension = "age.gender.32.m"
+    *
+    */
   private def makeBucket(rankingKey: RankingKey): String = {
     val policyId = rankingKey.policyId
     val q = rankingKey.eq.tq.q
@@ -54,8 +56,7 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
     val dimension = rankingKey.eq.dimension
     if (dimension.nonEmpty) {
       s"$policyId.$q.$ts.$dimension"
-    }
-    else {
+    } else {
       s"$policyId.$q.$ts"
     }
   }
@@ -63,14 +64,20 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
   override def getTopK(rankingKey: RankingKey, k: Int): Option[RankingResult] = {
     val bucket = makeBucket(rankingKey)
     withRedis.doBlockWithKey(bucket) { jedis =>
-      jedis.zrevrangeByScoreWithScores(bucket, "+inf", "-inf", 0, k + 1).toSeq.map(t => (t.getElement, t.getScore))
+      jedis
+        .zrevrangeByScoreWithScores(bucket, "+inf", "-inf", 0, k + 1)
+        .toSeq
+        .map(t => (t.getElement, t.getScore))
     } match {
       case Success(values) =>
         if (values.nonEmpty) {
-//          println(values)
-          Some(RankingResult(values.find(_._1 == TOTAL).map(_._2).getOrElse(-1d), values.filter(_._1 != TOTAL).take(k)))
-        }
-        else {
+          Some(
+            RankingResult(
+              values.find(_._1 == TOTAL).map(_._2).getOrElse(-1d),
+              values.filter(_._1 != TOTAL).take(k)
+            )
+          )
+        } else {
           None
         }
       case Failure(ex) =>
@@ -79,7 +86,7 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
     }
   }
 
-  private def getTTL(policyId: Int, intervalUnit: IntervalUnit.IntervalUnit): Option[Int] = {
+  private def getTTL(policyId: Int, intervalUnit: IntervalUnit.IntervalUnit): Option[Int] =
     counterModel.findById(policyId).flatMap { policy =>
       intervalUnit match {
         case IntervalUnit.MINUTELY => Some(policy.ttl)
@@ -90,7 +97,6 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
         case IntervalUnit.TOTAL => policy.dailyTtl
       }
     }
-  }
 
   override def update(key: RankingKey, value: RankingValueMap, k: Int): Unit = {
     // update ranking by score
@@ -106,11 +112,20 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
     }
   }
 
-  private def updateItem(pipeline: Pipeline, bucket: String, key: RankingKey, value: RankingValueMap, k: Int): Unit = {
-    val topSeq = value.map { case (item, rv) =>
-      // jedis client accept only java's double
-      item -> rv.score.asInstanceOf[lang.Double]
-    }.toSeq.sortBy(_._2).takeRight(k)
+  private def updateItem(pipeline: Pipeline,
+                         bucket: String,
+                         key: RankingKey,
+                         value: RankingValueMap,
+                         k: Int): Unit = {
+    val topSeq = value
+      .map {
+        case (item, rv) =>
+          // jedis client accept only java's double
+          item -> rv.score.asInstanceOf[lang.Double]
+      }
+      .toSeq
+      .sortBy(_._2)
+      .takeRight(k)
     pipeline.zadd(bucket, topSeq.toMap[String, lang.Double])
     pipeline.zincrby(bucket, value.mapValues(_.increment).values.sum, TOTAL)
     pipeline.zremrangeByRank(bucket, 0, -(k + 1))
@@ -120,27 +135,32 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
     }
   }
 
-  override def update(values: Seq[(RankingKey, RankingValueMap)], k: Int): Unit = {
-    values.map { case (key, value) =>
-      (makeBucket(key), key, value)
-    }.groupBy { case (bucket, key, value) =>
-      withRedis.getBucketIdx(bucket)
-    }.foreach { case (idx, seq) =>
-      withRedis.doBlockWithIndex(idx) { jedis =>
-        val pipeline = jedis.pipelined()
-        for {
-          (bucket, key, value) <- seq
-        } {
-          updateItem(pipeline, bucket, key, value, k)
-        }
-        pipeline.sync()
-      } match {
-        case Failure(ex) =>
-          log.error(s"fail to update multi $idx: $ex")
-        case _ =>
+  override def update(values: Seq[(RankingKey, RankingValueMap)], k: Int): Unit =
+    values
+      .map {
+        case (key, value) =>
+          (makeBucket(key), key, value)
       }
-    }
-  }
+      .groupBy {
+        case (bucket, key, value) =>
+          withRedis.getBucketIdx(bucket)
+      }
+      .foreach {
+        case (idx, seq) =>
+          withRedis.doBlockWithIndex(idx) { jedis =>
+            val pipeline = jedis.pipelined()
+            for {
+              (bucket, key, value) <- seq
+            } {
+              updateItem(pipeline, bucket, key, value, k)
+            }
+            pipeline.sync()
+          } match {
+            case Failure(ex) =>
+              log.error(s"fail to update multi $idx: $ex")
+            case _ =>
+          }
+      }
 
   override def delete(key: RankingKey): Unit = {
     val bucket = makeBucket(key)
@@ -155,50 +175,59 @@ class RankingStorageRedis(config: Config) extends RankingStorage {
   }
 
   override def getTopK(keys: Seq[RankingKey], k: Int): Seq[(RankingKey, RankingResult)] = {
-    keys.map { key =>
-      (makeBucket(key), key)
-    }.groupBy { case (bucket, key) =>
-      withRedis.getBucketIdx(bucket)
-    }.toSeq.par.flatMap { case (idx, seq) =>
-      withRedis.doBlockWithIndex(idx) { jedis =>
-        val pipeline = jedis.pipelined()
-        val keyWithRespLs = {
-          for {
-            (bucket, rankingKey) <- seq
-          } yield {
-            (rankingKey, pipeline.zrevrangeByScoreWithScores(bucket, "+inf", "-inf", 0, k + 1))
-          }
-        }
-        pipeline.sync()
-        for {
-          (rankingKey, resp) <- keyWithRespLs
-        } yield {
-          (rankingKey, resp.get().toSeq.map { t => (t.getElement, t.getScore)})
-        }
-      } match {
-        case Success(keyWithValues) =>
-          for {
-            (rankingKey, values) <- keyWithValues
-          } yield {
-            val result = RankingResult(values.find(_._1 == TOTAL).map(_._2).getOrElse(-1d), values.filter(_._1 != TOTAL).take(k))
-            (rankingKey, result)
-          }
-        case Failure(ex) =>
-          Nil
+    keys
+      .map { key =>
+        (makeBucket(key), key)
       }
-    }
+      .groupBy {
+        case (bucket, key) =>
+          withRedis.getBucketIdx(bucket)
+      }
+      .toSeq
+      .par
+      .flatMap {
+        case (idx, seq) =>
+          withRedis.doBlockWithIndex(idx) { jedis =>
+            val pipeline = jedis.pipelined()
+            val keyWithRespLs = {
+              for {
+                (bucket, rankingKey) <- seq
+              } yield {
+                (rankingKey, pipeline.zrevrangeByScoreWithScores(bucket, "+inf", "-inf", 0, k + 1))
+              }
+            }
+            pipeline.sync()
+            for {
+              (rankingKey, resp) <- keyWithRespLs
+            } yield {
+              (rankingKey, resp.get().toSeq.map { t =>
+                (t.getElement, t.getScore)
+              })
+            }
+          } match {
+            case Success(keyWithValues) =>
+              for {
+                (rankingKey, values) <- keyWithValues
+              } yield {
+                val result = RankingResult(
+                  values.find(_._1 == TOTAL).map(_._2).getOrElse(-1d),
+                  values.filter(_._1 != TOTAL).take(k)
+                )
+                (rankingKey, result)
+              }
+            case Failure(ex) =>
+              Nil
+          }
+      }
   }.seq
 
   override def prepare(policy: Counter): Unit = {
     // do nothing
   }
 
-  override def destroy(policy: Counter): Unit = {
+  override def destroy(policy: Counter): Unit = {}
 
-  }
-
-  override def ready(policy: Counter): Boolean = {
+  override def ready(policy: Counter): Boolean =
     // always return true
     true
-  }
 }

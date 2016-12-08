@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,11 +21,13 @@ package org.apache.s2graph.core.Integrate
 
 import java.util.concurrent.TimeUnit
 
-import play.api.libs.json.{JsValue, Json}
-
-import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
+import scala.concurrent.duration.Duration
 import scala.util.Random
+
+import play.api.libs.json._
+
+import org.apache.s2graph.core.utils.Logger
 
 class StrongLabelDeleteTest extends IntegrateCommon {
 
@@ -45,51 +47,53 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val deletedAt = 100
     var result = getEdgesSync(query(20, direction = "in", columnName = testTgtColumnName))
 
-    println(result)
+    Logger.info(result)
     (result \ "results").as[List[JsValue]].size should be(3)
 
     val deleteParam = Json.arr(
-      Json.obj("label" -> testLabelName2,
+      Json.obj(
+        "label" -> testLabelName2,
         "direction" -> "in",
         "ids" -> Json.arr("20"),
-        "timestamp" -> deletedAt))
+        "timestamp" -> deletedAt
+      )
+    )
 
     deleteAllSync(deleteParam)
 
     result = getEdgesSync(query(11, direction = "out"))
-    println(result)
+    Logger.info(result)
     (result \ "results").as[List[JsValue]].size should be(0)
 
     result = getEdgesSync(query(12, direction = "out"))
-    println(result)
+    Logger.info(result)
     (result \ "results").as[List[JsValue]].size should be(0)
 
     result = getEdgesSync(query(10, direction = "out"))
-    println(result)
+    Logger.info(result)
     // 10 -> out -> 20 should not be in result.
     (result \ "results").as[List[JsValue]].size should be(1)
     (result \\ "to").size should be(1)
     (result \\ "to").head.as[String] should be("21")
 
     result = getEdgesSync(query(20, direction = "in", columnName = testTgtColumnName))
-    println(result)
+    Logger.info(result)
     (result \ "results").as[List[JsValue]].size should be(0)
 
     insertEdgesSync(bulkEdges(startTs = deletedAt + 1): _*)
 
     result = getEdgesSync(query(20, direction = "in", columnName = testTgtColumnName))
-    println(result)
+    Logger.info(result)
 
     (result \ "results").as[List[JsValue]].size should be(3)
   }
-
 
   test("update delete") {
     val ret = for {
       i <- 0 until testNum
     } yield {
-        val src = (i + 1) * 10000
-//      val src = System.currentTimeMillis()
+      val src = (i + 1) * 10000
+      //      val src = System.currentTimeMillis()
 
       val (ret, last) = testInner(i, src)
       ret should be(true)
@@ -113,14 +117,16 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
       ret should be(true)
 
-      val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
-      val deleteAllRequest2 = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt2))
+      val deleteAllRequest =
+        Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
+      val deleteAllRequest2 =
+        Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt2))
 
       val deleteRet = deleteAllSync(deleteAllRequest)
       val deleteRet2 = deleteAllSync(deleteAllRequest2)
 
       val result = getEdgesSync(query(id = src))
-      println(result)
+      Logger.info(result)
 
       val resultEdges = (result \ "results").as[Seq[JsValue]]
       resultEdges.isEmpty should be(true)
@@ -137,7 +143,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   /** This test stress out test on degree
     * when contention is low but number of adjacent edges are large
     * Large set of contention test
-  */
+    */
   test("large degrees") {
     val labelName = testLabelName2
     val dir = "out"
@@ -146,7 +152,9 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val deleteSize = 10
     val numOfConcurrentBatch = 100
     val src = 1092983
-    val tgts = (minSize until maxSize).map { ith => src + ith }
+    val tgts = (minSize until maxSize).map { ith =>
+      src + ith
+    }
     val deleteTgts = Random.shuffle(tgts).take(deleteSize)
     val insertRequests = tgts.map { tgt =>
       Seq(tgt, "insert", "e", src, tgt, labelName, "{}", dir).mkString("\t")
@@ -168,14 +176,12 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val resultSize = (result \ "size").as[Long]
     val resultDegree = getDegree(result)
 
-    //        println(result)
-
     val ret = resultSize == expectedDegree && resultDegree == resultSize
-    println(s"[MaxSize]: $maxSize")
-    println(s"[DeleteSize]: $deleteSize")
-    println(s"[ResultDegree]: $resultDegree")
-    println(s"[ExpectedDegree]: $expectedDegree")
-    println(s"[ResultSize]: $resultSize")
+    Logger.info(s"[MaxSize]: $maxSize")
+    Logger.info(s"[DeleteSize]: $deleteSize")
+    Logger.info(s"[ResultDegree]: $resultDegree")
+    Logger.info(s"[ExpectedDegree]: $expectedDegree")
+    Logger.info(s"[ResultSize]: $resultSize")
     ret should be(true)
   }
 
@@ -187,7 +193,9 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val deleteSize = 10
     val numOfConcurrentBatch = 100
     val src = 192338237
-    val tgts = (minSize until maxSize).map { ith => src + ith }
+    val tgts = (minSize until maxSize).map { ith =>
+      src + ith
+    }
     val deleteTgts = Random.shuffle(tgts).take(deleteSize)
     val insertRequests = tgts.map { tgt =>
       Seq(tgt, "insert", "e", src, tgt, labelName, "{}", dir).mkString("\t")
@@ -203,12 +211,13 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
 
     val deletedAt = System.currentTimeMillis()
-    val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
+    val deleteAllRequest =
+      Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
 
     deleteAllSync(deleteAllRequest)
 
     val result = getEdgesSync(query(id = src))
-    println(result)
+    Logger.info(result)
     val resultEdges = (result \ "results").as[Seq[JsValue]]
     resultEdges.isEmpty should be(true)
 
@@ -219,13 +228,13 @@ class StrongLabelDeleteTest extends IntegrateCommon {
   object StrongDeleteUtil {
 
     val labelName = testLabelName2
-//    val labelName = testLabelName
+    //    val labelName = testLabelName
     val maxTgtId = 10
     val batchSize = 10
     val testNum = 10
     val numOfBatch = 10
 
-    def testInner(startTs: Long, src: Long) = {
+    def testInner(startTs: Long, src: Long): (Boolean, Long) = {
       val lastOps = Array.fill(maxTgtId)("none")
       var currentTs = startTs
 
@@ -242,7 +251,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
         Seq(currentTs, op, "e", src, tgt, labelName, "{}").mkString("\t")
       }
 
-      allRequests.foreach(println(_))
+      allRequests.foreach(Logger.info(_))
 
       val futures = Random.shuffle(allRequests).grouped(batchSize).map { bulkRequests =>
         insertEdgesAsync(bulkRequests: _*)
@@ -256,16 +265,16 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       val resultSize = (result \ "size").as[Long]
       val resultDegree = getDegree(result)
 
-      println(lastOps.toList)
-      println(result)
+      Logger.info(lastOps.toList)
+      Logger.info(result)
 
       val ret = resultDegree == expectedDegree && resultSize == resultDegree
-      if (!ret) System.err.println(s"[Contention Failed]: $resultDegree, $expectedDegree")
+      if (!ret) Logger.error(s"[Contention Failed]: $resultDegree, $expectedDegree")
 
       (ret, currentTs)
     }
 
-    def bulkEdges(startTs: Int = 0) = Seq(
+    def bulkEdges(startTs: Int = 0): Seq[String] = Seq(
       toEdge(startTs + 1, "insert", "e", "0", "1", labelName, s"""{"time": 10}"""),
       toEdge(startTs + 2, "insert", "e", "0", "1", labelName, s"""{"time": 11}"""),
       toEdge(startTs + 3, "insert", "e", "0", "1", labelName, s"""{"time": 12}"""),
@@ -276,9 +285,11 @@ class StrongLabelDeleteTest extends IntegrateCommon {
       toEdge(startTs + 8, "insert", "e", "12", "20", labelName, s"""{"time": 13}""")
     )
 
-    def query(id: Long, serviceName: String = testServiceName, columnName: String = testColumnName,
-              _labelName: String = labelName, direction: String = "out") = Json.parse(
-      s"""
+    def query(id: Long,
+              serviceName: String = testServiceName,
+              columnName: String = testColumnName,
+              _labelName: String = labelName,
+              direction: String = "out"): JsValue = Json.parse(s"""
           { "srcVertices": [
             { "serviceName": "$serviceName",
               "columnName": "$columnName",
@@ -295,10 +306,8 @@ class StrongLabelDeleteTest extends IntegrateCommon {
             ]]
           }""")
 
-    def getDegree(jsValue: JsValue): Long = {
+    def getDegree(jsValue: JsValue): Long =
       ((jsValue \ "degrees") \\ "_degree").headOption.map(_.as[Long]).getOrElse(0L)
-    }
   }
-
 
 }

@@ -19,21 +19,20 @@
 
 package org.apache.s2graph.core
 
-import org.apache.s2graph.core.Integrate.IntegrateCommon
-import org.apache.s2graph.core.mysqls.{Model, Label, Service}
+import play.api.libs.json.Json
 
-import scala.util.{Failure, Success}
-import play.api.libs.json.{JsValue, Json}
+import org.apache.s2graph.core.Integrate.IntegrateCommon
+import org.apache.s2graph.core.mysqls.Label
 
 class ManagementTest extends IntegrateCommon {
 
-
-  def checkCopyLabel(originalLabelName: String, newLabelName: String) = {
+  def checkCopyLabel(originalLabelName: String, newLabelName: String): Unit = {
     val originalLabelOpt = Label.findByName(originalLabelName, useCache = true)
     originalLabelOpt.isDefined should be(true)
     val originalLabel = originalLabelOpt.get
 
-    val labelTry = management.copyLabel(originalLabelName, newLabelName, hTableName = Option(newLabelName))
+    val labelTry =
+      management.copyLabel(originalLabelName, newLabelName, hTableName = Option(newLabelName))
     labelTry.isSuccess should be(true)
     val copiedLabel = labelTry.get
     copiedLabel.label should be(newLabelName)
@@ -41,21 +40,30 @@ class ManagementTest extends IntegrateCommon {
     copiedLabel.hTableTTL should equal(originalLabel.hTableTTL)
 
     val copiedLabelMetaMap = copiedLabel.metas(useCache = false).map(m => m.seq -> m.name).toMap
-    val copiedLabelIndiceMap = copiedLabel.indices(useCache = false).map(m => m.seq -> m.metaSeqs).toMap
-    val originalLabelMetaMap = originalLabel.metas(useCache = false).map(m => m.seq -> m.name).toMap
-    val originalLabelIndiceMap = originalLabel.indices(useCache = false).map(m => m.seq -> m.metaSeqs).toMap
+    val copiedLabelIndiceMap =
+      copiedLabel.indices(useCache = false).map(m => m.seq -> m.metaSeqs).toMap
+    val originalLabelMetaMap =
+      originalLabel.metas(useCache = false).map(m => m.seq -> m.name).toMap
+    val originalLabelIndiceMap =
+      originalLabel.indices(useCache = false).map(m => m.seq -> m.metaSeqs).toMap
 
     copiedLabelMetaMap should be(originalLabelMetaMap)
     copiedLabelIndiceMap should be(originalLabelIndiceMap)
 
-    copiedLabel.metas().sortBy(m => m.id.get).map(m => m.name) should be(originalLabel.metas().sortBy(m => m.id.get).map(m => m.name))
-    copiedLabel.indices().sortBy(m => m.id.get).map(m => m.metaSeqs) should be(originalLabel.indices().sortBy(m => m.id.get).map(m => m.metaSeqs))
+    copiedLabel.metas().sortBy(m => m.id.get).map(m => m.name) should be(
+      originalLabel.metas().sortBy(m => m.id.get).map(m => m.name))
+    copiedLabel.indices().sortBy(m => m.id.get).map(m => m.metaSeqs) should be(
+      originalLabel.indices().sortBy(m => m.id.get).map(m => m.metaSeqs))
   }
 
-  def checkLabelTTL(labelName:String, serviceName:String, setTTL:Option[Int], checkTTL:Option[Int]) = {
+  def checkLabelTTL(labelName: String,
+                    serviceName: String,
+                    setTTL: Option[Int],
+                    checkTTL: Option[Int]): Unit = {
     Management.deleteLabel(labelName)
-    val ttlOption = if(setTTL.isDefined) s""", "hTableTTL": ${setTTL.get}""" else ""
-    val createLabelJson = s"""{
+    val ttlOption = if (setTTL.isDefined) s""", "hTableTTL": ${setTTL.get}""" else ""
+    val createLabelJson =
+      s"""{
       "label": "$labelName",
       "srcServiceName": "$serviceName",
       "srcColumnName": "id",
@@ -79,7 +87,7 @@ class ManagementTest extends IntegrateCommon {
     val labelToCopy = s"${TestUtil.testLabelName}_copied"
     Label.findByName(labelToCopy) match {
       case None =>
-        //
+      //
       case Some(oldLabel) =>
         Label.delete(oldLabel.id.get)
 
@@ -105,7 +113,8 @@ class ManagementTest extends IntegrateCommon {
     val (serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm) =
       parser.toServiceElements(Json.parse(createServiceJson))
 
-    val tryService = management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
+    val tryService = management
+        .createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
     assert(tryService.isSuccess)
     val service = tryService.get
     assert(service.hTableTTL.isDefined)
@@ -127,9 +136,11 @@ class ManagementTest extends IntegrateCommon {
     val svc_with_ttl = "s2graph_with_ttl"
     val ttl_val = 86400
     val (serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm) =
-      parser.toServiceElements(Json.parse(s"""{"serviceName" : "$svc_with_ttl", "hTableTTL":$ttl_val}"""))
+      parser.toServiceElements(
+        Json.parse(s"""{"serviceName" : "$svc_with_ttl", "hTableTTL":$ttl_val}"""))
 
-    val tryService = management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
+    val tryService = management
+        .createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
     assert(tryService.isSuccess)
     val service = tryService.get
     assert(service.hTableTTL.isDefined)

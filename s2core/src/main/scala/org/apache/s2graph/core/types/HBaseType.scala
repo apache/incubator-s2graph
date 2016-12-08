@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -20,6 +20,7 @@
 package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util.Bytes
+
 import org.apache.s2graph.core.mysqls.LabelMeta
 
 object HBaseType {
@@ -27,9 +28,9 @@ object HBaseType {
   val VERSION3 = "v3"
   val VERSION2 = "v2"
   val VERSION1 = "v1"
-//  val DEFAULT_VERSION = VERSION2
+  //  val DEFAULT_VERSION = VERSION2
   val DEFAULT_VERSION = VERSION3
-//  val EMPTY_SEQ_BYTE = Byte.MaxValue
+  //  val EMPTY_SEQ_BYTE = Byte.MaxValue
   val DEFAULT_COL_ID = 0
   val bitsForDir = 2
   val maxBytes = Bytes.toBytes(Int.MaxValue)
@@ -71,9 +72,11 @@ object HBaseDeserializable {
     ret
   }
 
-  def bytesToKeyValuesWithTs(bytes: Array[Byte],
-                             offset: Int,
-                             version: String = DEFAULT_VERSION): (Array[(Byte, InnerValLikeWithTs)], Int) = {
+  def bytesToKeyValuesWithTs(
+      bytes: Array[Byte],
+      offset: Int,
+      version: String = DEFAULT_VERSION
+  ): (Array[(Byte, InnerValLikeWithTs)], Int) = {
     var pos = offset
     val len = bytes(pos)
     pos += 1
@@ -82,7 +85,8 @@ object HBaseDeserializable {
     while (i < len) {
       val k = bytes(pos)
       pos += 1
-      val (v, numOfBytesUsed) = InnerValLikeWithTs.fromBytes(bytes, pos, 0, version)
+      val (v, numOfBytesUsed) =
+        InnerValLikeWithTs.fromBytes(bytes, pos, 0, version)
       pos += numOfBytesUsed
       kvs(i) = (k -> v)
       i += 1
@@ -163,7 +167,8 @@ trait HBaseDeserializable {
   //                offset: Int,
   //                len: Int,
   //                version: String = DEFAULT_VERSION): (HBaseSerializable, Int)
-  def notSupportedEx(version: String) = new RuntimeException(s"not supported version, $version")
+  def notSupportedEx(version: String): RuntimeException =
+    new RuntimeException(s"not supported version, $version")
 }
 
 trait HBaseDeserializableWithIsVertexId {
@@ -176,5 +181,6 @@ trait HBaseDeserializableWithIsVertexId {
                 version: String = DEFAULT_VERSION,
                 isVertexId: Boolean = false): (HBaseSerializable, Int)
 
-  def notSupportedEx(version: String) = new RuntimeException(s"not supported version, $version")
+  def notSupportedEx(version: String): RuntimeException =
+    new RuntimeException(s"not supported version, $version")
 }

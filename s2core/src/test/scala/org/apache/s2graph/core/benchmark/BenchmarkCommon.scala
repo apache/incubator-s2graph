@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,21 +19,18 @@
 
 package org.apache.s2graph.core.benchmark
 
-import com.typesafe.config.{ConfigFactory, Config}
-import org.apache.s2graph.core.{Management, S2Graph$}
 import org.specs2.mutable.Specification
-import scalikejdbc.AutoSession
 
-import scala.concurrent.ExecutionContext
+import org.apache.s2graph.core.utils.Logger
 
 trait BenchmarkCommon extends Specification {
   val wrapStr = s"\n=================================================="
 
-  def duration[T](prefix: String = "")(block: => T) = {
+  def duration[T](prefix: String = "")(block: => T): T = {
     val startTs = System.currentTimeMillis()
     val ret = block
     val endTs = System.currentTimeMillis()
-    println(s"$wrapStr\n$prefix: took ${endTs - startTs} ms$wrapStr")
+    Logger.info(s"$wrapStr\n$prefix: took ${endTs - startTs} ms$wrapStr")
     ret
   }
 
@@ -42,7 +39,6 @@ trait BenchmarkCommon extends Specification {
     val ret = block
     val endTs = System.currentTimeMillis()
     val duration = endTs - startTs
-//    println(s"$wrapStr\n$prefix: took $duration ms$wrapStr")
     (ret, duration)
   }
 }

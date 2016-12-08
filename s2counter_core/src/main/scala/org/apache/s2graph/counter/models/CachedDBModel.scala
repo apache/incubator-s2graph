@@ -19,8 +19,9 @@
 
 package org.apache.s2graph.counter.models
 
-import org.apache.s2graph.counter.util.{CollectionCache, CollectionCacheConfig}
 import scalikejdbc.AutoSession
+
+import org.apache.s2graph.counter.util.{CollectionCache, CollectionCacheConfig}
 
 trait CachedDBModel[T] {
   implicit val s = AutoSession

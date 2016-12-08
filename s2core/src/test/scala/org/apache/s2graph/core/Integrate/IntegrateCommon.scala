@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,16 +19,17 @@
 
 package org.apache.s2graph.core.Integrate
 
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
+import scala.concurrent.duration.Duration
+
 import com.typesafe.config._
+import org.scalatest._
+import play.api.libs.json._
+
+import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.rest.{RequestParser, RestHandler}
-import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core._
-import org.scalatest._
-import play.api.libs.json.{JsValue, Json}
-
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContext, Future}
+import org.apache.s2graph.core.utils.Logger
 
 trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
@@ -39,7 +40,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
   var management: Management = _
   var config: Config = _
 
-  override def beforeAll = {
+  override def beforeAll: Unit = {
     config = ConfigFactory.load()
     graph = new S2Graph(config)(ExecutionContext.Implicits.global)
     management = new Management(graph)
@@ -47,15 +48,14 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     initTestData()
   }
 
-  override def afterAll(): Unit = {
+  override def afterAll(): Unit =
     graph.shutdown()
-  }
 
   /**
-   * Make Service, Label, Vertex for integrate test
-   */
-  def initTestData() = {
-    println("[init start]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    * Make Service, Label, Vertex for integrate test
+    */
+  def initTestData(): Unit = {
+    Logger.info("[init start]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     Management.deleteService(testServiceName)
 
     // 1. createService
@@ -64,13 +64,17 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       parser.toServiceElements(jsValue)
 
     val tryRes =
-      management.createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
-    println(s">> Service created : $createService, $tryRes")
+      management
+        .createService(serviceName, cluster, tableName, preSplitSize, ttl, compressionAlgorithm)
+    Logger.info(s">> Service created : $createService, $tryRes")
 
-    val labelNames = Map(testLabelName -> testLabelNameCreate,
-      testLabelName2 -> testLabelName2Create,
-      testLabelNameV1 -> testLabelNameV1Create,
-      testLabelNameWeak -> testLabelNameWeakCreate)
+    val labelNames =
+      Map(
+        testLabelName -> testLabelNameCreate,
+        testLabelName2 -> testLabelName2Create,
+        testLabelNameV1 -> testLabelNameV1Create,
+        testLabelNameWeak -> testLabelNameWeakCreate
+      )
 
     for {
       (labelName, create) <- labelNames
@@ -79,8 +83,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       Label.findByName(labelName, useCache = false) match {
         case None =>
           val json = Json.parse(create)
-          logger.info(s">> Create Label")
-          logger.info(create)
+          Logger.info(s">> Create Label")
+          Logger.info(create)
           val tryRes = for {
             labelArgs <- parser.toLabelElements(json)
             label <- (management.createLabel _).tupled(labelArgs)
@@ -88,42 +92,32 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
 
           tryRes.get
         case Some(label) =>
-          println(s">> Label already exist: $create, $label")
+          Logger.info(s">> Label already exist: $create, $label")
       }
     }
 
     val vertexPropsKeys = List("age" -> "integer", "im" -> "string")
 
-    vertexPropsKeys.map { case (key, keyType) =>
-      Management.addVertexProp(testServiceName, testColumnName, key, keyType)
+    vertexPropsKeys.map {
+      case (key, keyType) =>
+        Management.addVertexProp(testServiceName, testColumnName, key, keyType)
     }
 
-    println("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    Logger.info("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
   }
 
-
   /**
-   * Test Helpers
-   */
+    * Test Helpers
+    */
   object TestUtil {
-    implicit def ec = scala.concurrent.ExecutionContext.global
+    implicit def ec: ExecutionContextExecutor = scala.concurrent.ExecutionContext.global
 
-    //    def checkEdgeQueryJson(params: Seq[(String, String, String, String)]) = {
-    //      val arr = for {
-    //        (label, dir, from, to) <- params
-    //      } yield {
-    //        Json.obj("label" -> label, "direction" -> dir, "from" -> from, "to" -> to)
-    //      }
-    //
-    //      val s = Json.toJson(arr)
-    //      s
-    //    }
-
-    def deleteAllSync(jsValue: JsValue) = {
+    def deleteAllSync(jsValue: JsValue): Seq[Boolean] = {
       val future = Future.sequence(jsValue.as[Seq[JsValue]] map { json =>
         val (labels, direction, ids, ts, vertices) = parser.toDeleteParam(json)
         val srcVertices = vertices
-        val future = graph.deleteAllAdjacentEdges(srcVertices.toList, labels, GraphUtil.directions(direction), ts)
+        val future = graph
+          .deleteAllAdjacentEdges(srcVertices.toList, labels, GraphUtil.directions(direction), ts)
 
         future
       })
@@ -132,32 +126,37 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     }
 
     def getEdgesSync(s2Query: Query): JsValue = {
-      logger.info(s2Query.toString)
+      Logger.info(s2Query.toString)
       val stepResult = Await.result(graph.getEdges(s2Query), HttpRequestWaitingTime)
-      val result = PostProcess.toJson(Option(s2Query.jsonQuery))(graph, s2Query.queryOption, stepResult)
-//      val result = Await.result(graph.getEdges(s2Query).(PostProcess.toJson), HttpRequestWaitingTime)
-      logger.debug(s"${Json.prettyPrint(result)}")
+      val result =
+        PostProcess.toJson(Option(s2Query.jsonQuery))(graph, s2Query.queryOption, stepResult)
+      Logger.debug(s"${Json.prettyPrint(result)}")
       result
     }
 
     def getEdgesSync(queryJson: JsValue): JsValue = {
-      logger.info(Json.prettyPrint(queryJson))
+      Logger.info(Json.prettyPrint(queryJson))
       val restHandler = new RestHandler(graph)
-      val result = Await.result(restHandler.getEdgesAsync(queryJson)(PostProcess.toJson(Option(queryJson))), HttpRequestWaitingTime)
-      logger.debug(s"${Json.prettyPrint(result)}")
+      val result = Await.result(
+        restHandler.getEdgesAsync(queryJson)(PostProcess.toJson(Option(queryJson))),
+        HttpRequestWaitingTime
+      )
+      Logger.debug(s"${Json.prettyPrint(result)}")
       result
     }
 
-    def insertEdgesSync(bulkEdges: String*) = {
-      logger.debug(s"${bulkEdges.mkString("\n")}")
-      val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
+    def insertEdgesSync(bulkEdges: String*): Seq[Boolean] = {
+      Logger.debug(s"${bulkEdges.mkString("\n")}")
+      val req =
+        graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
       val jsResult = Await.result(req, HttpRequestWaitingTime)
 
       jsResult
     }
 
-    def insertEdgesAsync(bulkEdges: String*) = {
-      val req = graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
+    def insertEdgesAsync(bulkEdges: String*): Future[Seq[Boolean]] = {
+      val req =
+        graph.mutateElements(parser.toGraphElements(bulkEdges.mkString("\n")), withWait = true)
       req
     }
 
@@ -343,4 +342,5 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "compressionAlgorithm": "gz"
   }"""
   }
+
 }

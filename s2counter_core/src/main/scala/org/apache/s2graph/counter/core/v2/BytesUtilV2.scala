@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,13 +19,15 @@
 
 package org.apache.s2graph.counter.core.v2
 
+import scala.collection.mutable.ArrayBuffer
+
 import org.apache.hadoop.hbase.util._
+
 import org.apache.s2graph.counter
+import org.apache.s2graph.counter.core.{BytesUtil, ExactKeyTrait, ExactQualifier, TimedQualifier}
 import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
-import org.apache.s2graph.counter.core.{TimedQualifier, ExactQualifier, ExactKeyTrait, BytesUtil}
 import org.apache.s2graph.counter.models.Counter.ItemType
 import org.apache.s2graph.counter.util.Hashes
-import scala.collection.mutable.ArrayBuffer
 
 object BytesUtilV2 extends BytesUtil {
   // ExactKey: [hash(1b)][version(1b)][policy(4b)][item(variable)]
@@ -37,9 +39,8 @@ object BytesUtilV2 extends BytesUtil {
   val TIMESTAMP_SIZE = Bytes.SIZEOF_LONG
   val TIMED_QUALIFIER_SIZE = INTERVAL_SIZE + TIMESTAMP_SIZE
 
-  override def getRowKeyPrefix(id: Int): Array[Byte] = {
+  override def getRowKeyPrefix(id: Int): Array[Byte] =
     Array(counter.VERSION_2) ++ Bytes.toBytes(id)
-  }
 
   override def toBytes(key: ExactKeyTrait): Array[Byte] = {
     val buff = new ArrayBuffer[Byte]
@@ -78,14 +79,12 @@ object BytesUtilV2 extends BytesUtil {
     pbr.getBytes
   }
 
-  private def decodeString(pbr: PositionedByteRange): Stream[String] = {
+  private def decodeString(pbr: PositionedByteRange): Stream[String] =
     if (pbr.getRemaining > 0) {
       Stream.cons(OrderedBytes.decodeString(pbr), decodeString(pbr))
-    }
-    else {
+    } else {
       Stream.empty
     }
-  }
 
   override def toExactQualifier(bytes: Array[Byte]): ExactQualifier = {
     val pbr = new SimplePositionedByteRange(bytes)
@@ -101,7 +100,7 @@ object BytesUtilV2 extends BytesUtil {
     toTimedQualifier(pbr)
   }
 
-  def toTimedQualifier(pbr: PositionedByteRange): TimedQualifier = {
-    TimedQualifier(IntervalUnit.withName(OrderedBytes.decodeString(pbr)), OrderedBytes.decodeInt64(pbr))
-  }
+  def toTimedQualifier(pbr: PositionedByteRange): TimedQualifier =
+    TimedQualifier(IntervalUnit.withName(OrderedBytes.decodeString(pbr)),
+      OrderedBytes.decodeInt64(pbr))
 }

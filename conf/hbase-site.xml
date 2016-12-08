@@ -19,8 +19,8 @@
  */
 -->
 <configuration>
-    <property>
-        <name>hbase.tmp.dir</name>
-        <value>${s2graph.home}/var/hbase</value>
-    </property>
+  <property>
+    <name>hbase.tmp.dir</name>
+    <value>${s2graph.home}/var/hbase</value>
+  </property>
 </configuration>

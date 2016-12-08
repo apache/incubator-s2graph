@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,16 +19,17 @@
 
 package org.apache.s2graph.counter.loader.stream
 
+import scala.collection.mutable.{HashMap => MutableHashMap}
+
 import kafka.serializer.StringDecoder
+import org.apache.spark.streaming.Durations._
+import org.apache.spark.streaming.kafka.{HasOffsetRanges, StreamHelper}
+
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.loader.config.StreamingConfig
 import org.apache.s2graph.counter.loader.core.CounterFunctions
 import org.apache.s2graph.spark.config.S2ConfigFactory
-import org.apache.s2graph.spark.spark.{WithKafka, SparkApp, HashMapParam}
-import org.apache.spark.streaming.Durations._
-import org.apache.spark.streaming.kafka.KafkaRDDFunctions.rddToKafkaRDDFunctions
-import org.apache.spark.streaming.kafka.{HasOffsetRanges, StreamHelper}
-import scala.collection.mutable.{HashMap => MutableHashMap}
+import org.apache.s2graph.spark.spark.{HashMapParam, SparkApp, WithKafka}
 
 object RankingCounterStreaming extends SparkApp with WithKafka {
   lazy val config = S2ConfigFactory.config
@@ -41,7 +42,7 @@ object RankingCounterStreaming extends SparkApp with WithKafka {
   val strInputTopics = inputTopics.mkString(",")
   val groupId = buildKafkaGroupId(strInputTopics, "ranking_v2")
   val kafkaParam = Map(
-//    "auto.offset.reset" -> "smallest",
+    //    "auto.offset.reset" -> "smallest",
     "group.id" -> groupId,
     "metadata.broker.list" -> StreamingConfig.KAFKA_BROKERS,
     "zookeeper.connect" -> StreamingConfig.KAFKA_ZOOKEEPER,
@@ -49,7 +50,7 @@ object RankingCounterStreaming extends SparkApp with WithKafka {
   )
   val streamHelper = StreamHelper(kafkaParam)
 
-  override def run() = {
+  override def run(): Unit = {
     validateArgument("interval", "clear")
     val (intervalInSec, clear) = (seconds(args(0).toLong), args(1).toBoolean)
 
@@ -61,10 +62,14 @@ object RankingCounterStreaming extends SparkApp with WithKafka {
     val ssc = streamingContext(conf, intervalInSec)
     val sc = ssc.sparkContext
 
-    implicit val acc: HashMapAccumulable = sc.accumulable(MutableHashMap.empty[String, Long], "Throughput")(HashMapParam[String, Long](_ + _))
+    implicit val acc: HashMapAccumulable =
+      sc.accumulable(MutableHashMap.empty[String, Long], "Throughput")(
+        HashMapParam[String, Long](_ + _)
+      )
 
     // make stream
-    val stream = streamHelper.createStream[String, String, StringDecoder, StringDecoder](ssc, inputTopics)
+    val stream =
+      streamHelper.createStream[String, String, StringDecoder, StringDecoder](ssc, inputTopics)
     stream.foreachRDD { (rdd, ts) =>
       // for at-least once semantic
       val nextRdd = {
@@ -76,13 +81,6 @@ object RankingCounterStreaming extends SparkApp with WithKafka {
       }
 
       streamHelper.commitConsumerOffsets(nextRdd.asInstanceOf[HasOffsetRanges])
-//      CounterFunctions.makeRankingRdd(rdd, offsets.length).foreachPartitionWithIndex { (i, part) =>
-//        // update ranking counter
-//        CounterFunctions.updateRankingCounter(part, acc)
-//
-//        // commit offset range
-//        streamHelper.commitConsumerOffset(offsets(i))
-//      }
     }
 
     ssc.start()

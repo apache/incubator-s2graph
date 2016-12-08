@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -20,34 +20,42 @@
 package org.apache.s2graph.core.storage.serde.snapshotedge.wide
 
 import org.apache.hadoop.hbase.util.Bytes
+
 import org.apache.s2graph.core.SnapshotEdge
 import org.apache.s2graph.core.mysqls.LabelIndex
-import org.apache.s2graph.core.storage.{SKeyValue, Serializable, StorageSerializable}
+import org.apache.s2graph.core.storage.{Serializable, StorageSerializable}
 import org.apache.s2graph.core.types.VertexId
 
-
-
 /**
- * this class serialize
- * @param snapshotEdge
- */
+  * this class serialize
+  *
+  * @param snapshotEdge
+  */
 class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[SnapshotEdge] {
+
   import StorageSerializable._
 
-  override def ts = snapshotEdge.version
-  override def table = snapshotEdge.label.hbaseTableName.getBytes()
+  override def ts: Long = snapshotEdge.version
+
+  override def table: Array[Byte] =
+    snapshotEdge.label.hbaseTableName.getBytes()
 
   def statusCodeWithOp(statusCode: Byte, op: Byte): Array[Byte] = {
     val byte = (((statusCode << 4) | op).toByte)
     Array.fill(1)(byte.toByte)
   }
-  def valueBytes() = Bytes.add(statusCodeWithOp(snapshotEdge.statusCode, snapshotEdge.op), snapshotEdge.propsToKeyValuesWithTs)
 
+  def valueBytes(): Array[Byte] =
+    Bytes.add(
+      statusCodeWithOp(snapshotEdge.statusCode, snapshotEdge.op),
+      snapshotEdge.propsToKeyValuesWithTs
+    )
 
   override def toRowKey: Array[Byte] = {
     val srcIdBytes = VertexId.toSourceVertexId(snapshotEdge.srcVertex.id).bytes
     val labelWithDirBytes = snapshotEdge.labelWithDir.bytes
-    val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsInverted(LabelIndex.DefaultSeq, isInverted = true)
+    val labelIndexSeqWithIsInvertedBytes =
+      labelOrderSeqWithIsInverted(LabelIndex.DefaultSeq, isInverted = true)
 
     Bytes.add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
   }

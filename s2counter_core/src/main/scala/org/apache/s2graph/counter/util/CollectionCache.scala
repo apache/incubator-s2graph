@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,35 +22,43 @@ package org.apache.s2graph.counter.util
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
-import com.google.common.cache.{Cache, CacheBuilder}
-import org.slf4j.LoggerFactory
-
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.{postfixOps, reflectiveCalls}
 
-case class CollectionCacheConfig(maxSize: Int, ttl: Int, negativeCache: Boolean = false, negativeTTL: Int = 600)
+import com.google.common.cache.{Cache, CacheBuilder}
+import org.slf4j.LoggerFactory
 
-class CollectionCache[C <: { def nonEmpty: Boolean; def isEmpty: Boolean } ](config: CollectionCacheConfig) {
-  private val cache: Cache[String, C] = CacheBuilder.newBuilder()
+case class CollectionCacheConfig(
+    maxSize: Int,
+    ttl: Int,
+    negativeCache: Boolean = false,
+    negativeTTL: Int = 600
+)
+
+class CollectionCache[C <: { def nonEmpty: Boolean; def isEmpty: Boolean }](
+    config: CollectionCacheConfig
+) {
+  private val cache: Cache[String, C] = CacheBuilder
+    .newBuilder()
     .expireAfterWrite(config.ttl, TimeUnit.SECONDS)
     .maximumSize(config.maxSize)
     .build[String, C]()
 
-//  private lazy val cache = new SynchronizedLruMap[String, (C, Int)](config.maxSize)
+  //  private lazy val cache = new SynchronizedLruMap[String, (C, Int)](config.maxSize)
   private lazy val className = this.getClass.getSimpleName
 
   private lazy val log = LoggerFactory.getLogger(this.getClass)
   val localHostname = InetAddress.getLocalHost.getHostName
 
-  def size = cache.size
+  def size: Long = cache.size
+
   val maxSize = config.maxSize
 
   // cache statistics
-  def getStatsString: String = {
+  def getStatsString: String =
     s"$localHostname ${cache.stats().toString}"
-  }
 
-  def withCache(key: String)(op: => C): C = {
+  def withCache(key: String)(op: => C): C =
     Option(cache.getIfPresent(key)) match {
       case Some(r) => r
       case None =>
@@ -60,9 +68,8 @@ class CollectionCache[C <: { def nonEmpty: Boolean; def isEmpty: Boolean } ](con
         }
         r
     }
-  }
 
-  def withCacheAsync(key: String)(op: => Future[C])(implicit ec: ExecutionContext): Future[C] = {
+  def withCacheAsync(key: String)(op: => Future[C])(implicit ec: ExecutionContext): Future[C] =
     Option(cache.getIfPresent(key)) match {
       case Some(r) => Future.successful(r)
       case None =>
@@ -73,13 +80,10 @@ class CollectionCache[C <: { def nonEmpty: Boolean; def isEmpty: Boolean } ](con
           r
         }
     }
-  }
 
-  def purgeKey(key: String) = {
+  def purgeKey(key: String): Unit =
     cache.invalidate(key)
-  }
 
-  def contains(key: String): Boolean = {
+  def contains(key: String): Boolean =
     Option(cache.getIfPresent(key)).nonEmpty
-  }
 }

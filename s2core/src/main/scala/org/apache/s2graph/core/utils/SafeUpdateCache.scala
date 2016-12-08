@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -20,10 +20,12 @@
 package org.apache.s2graph.core.utils
 
 import java.util.concurrent.atomic.AtomicBoolean
-import com.google.common.cache.CacheBuilder
+
+import scala.collection.JavaConversions._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
-import scala.collection.JavaConversions._
+
+import com.google.common.cache.CacheBuilder
 
 object SafeUpdateCache {
 
@@ -31,21 +33,27 @@ object SafeUpdateCache {
 
 }
 
-class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(implicit executionContext: ExecutionContext) {
+class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(
+    implicit executionContext: ExecutionContext
+) {
 
   import SafeUpdateCache._
 
   implicit class StringOps(key: String) {
-    def toCacheKey = new CacheKey(prefix + ":" + key)
+    def toCacheKey: CacheKey = new CacheKey(prefix + ":" + key)
   }
 
-  def toTs() = (System.currentTimeMillis() / 1000).toInt
+  def toTs(): Int = (System.currentTimeMillis() / 1000).toInt
 
-  private val cache = CacheBuilder.newBuilder().maximumSize(maxSize).build[CacheKey, (T, Int, AtomicBoolean)]()
+  private val cache = CacheBuilder
+    .newBuilder()
+    .maximumSize(maxSize)
+    .build[CacheKey, (T, Int, AtomicBoolean)]()
 
-  def put(key: String, value: T) = cache.put(key.toCacheKey, (value, toTs, new AtomicBoolean(false)))
+  def put(key: String, value: T): Unit =
+    cache.put(key.toCacheKey, (value, toTs, new AtomicBoolean(false)))
 
-  def invalidate(key: String) = cache.invalidate(key.toCacheKey)
+  def invalidate(key: String): Unit = cache.invalidate(key.toCacheKey)
 
   def withCache(key: String)(op: => T): T = {
     val cacheKey = key.toCacheKey
@@ -66,10 +74,10 @@ class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(implicit execut
           Future(op)(executionContext) onComplete {
             case Failure(ex) =>
               cache.put(cacheKey, (cachedVal, toTs(), new AtomicBoolean(false))) // keep old value
-              logger.error(s"withCache update failed: $cacheKey")
+              Logger.error(s"withCache update failed: $cacheKey")
             case Success(newValue) =>
               cache.put(cacheKey, (newValue, toTs(), new AtomicBoolean(false))) // update new value
-              logger.info(s"withCache update success: $cacheKey")
+              Logger.info(s"withCache update success: $cacheKey")
           }
           cachedVal
         }
@@ -77,10 +85,12 @@ class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(implicit execut
     }
   }
 
-  def getAllData() : List[(String, T)] = {
-    cache.asMap().map { case (key, value) =>
-      (key.key.substring(prefix.size + 1), value._1)
-    }.toList
-  }
+  def getAllData(): List[(String, T)] =
+    cache
+      .asMap()
+      .map {
+        case (key, value) =>
+          (key.key.substring(prefix.size + 1), value._1)
+      }
+      .toList
 }
-

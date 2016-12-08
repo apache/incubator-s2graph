@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,17 +19,19 @@
 
 package org.apache.s2graph.counter.core.v2
 
+import scala.concurrent.Await
+import scala.concurrent.duration._
+
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.typesafe.config.Config
 import org.apache.http.HttpStatus
-import org.apache.s2graph.counter.config.S2CounterConfig
-import org.apache.s2graph.counter.core.v2.ExactStorageGraph._
 import org.asynchttpclient.DefaultAsyncHttpClientConfig
 import org.slf4j.LoggerFactory
-import play.api.libs.json.{JsObject, JsValue, Json}
-import scala.concurrent.Await
-import scala.concurrent.duration._
+import play.api.libs.json._
+
+import org.apache.s2graph.counter.config.S2CounterConfig
+import org.apache.s2graph.counter.core.v2.ExactStorageGraph._
 
 class GraphOperation(config: Config) {
   // using play-ws without play app
@@ -50,7 +52,9 @@ class GraphOperation(config: Config) {
         case HttpStatus.SC_OK =>
           true
         case _ =>
-          throw new RuntimeException(s"failed createLabel. errCode: ${resp.status} body: ${resp.body} query: $json")
+          throw new RuntimeException(
+            s"failed createLabel. errCode: ${resp.status} body: ${resp.body} query: $json"
+          )
       }
     }
 
@@ -63,7 +67,9 @@ class GraphOperation(config: Config) {
         case HttpStatus.SC_OK =>
           true
         case _ =>
-          throw new RuntimeException(s"failed deleteLabel. errCode: ${resp.status} body: ${resp.body}")
+          throw new RuntimeException(
+            s"failed deleteLabel. errCode: ${resp.status} body: ${resp.body}"
+          )
       }
     }
 

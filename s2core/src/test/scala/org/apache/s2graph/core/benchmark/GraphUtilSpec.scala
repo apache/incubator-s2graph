@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,13 +19,15 @@
 
 package org.apache.s2graph.core.benchmark
 
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+
 import org.apache.hadoop.hbase.util.Bytes
+
 import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.core.mysqls.ServiceColumn
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, SourceVertexId}
-
-import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
+import org.apache.s2graph.core.utils.Logger
 
 class GraphUtilSpec extends BenchmarkCommon {
 
@@ -34,7 +36,6 @@ class GraphUtilSpec extends BenchmarkCommon {
 
   def betweenShort(value: Short, start: Short, end: Short): Boolean =
     start <= value && value <= end
-
 
   "GraphUtil" should {
     "test murmur3 hash function distribution" in {
@@ -56,17 +57,15 @@ class GraphUtilSpec extends BenchmarkCommon {
       val bottom = all.takeRight(10)
       val topNew = allNew.take(10)
       val bottomNew = allNew.takeRight(10)
-      println(s"Top: $top")
-      println(s"Bottom: $bottom")
-      println("-" * 50)
-      println(s"TopNew: $topNew")
-      println(s"Bottom: $bottomNew")
+      Logger.info(s"Top: $top")
+      Logger.info(s"Bottom: $bottom")
+      Logger.info("-" * 50)
+      Logger.info(s"TopNew: $topNew")
+      Logger.info(s"Bottom: $bottomNew")
       true
     }
 
     "test murmur hash skew2" in {
-
-      import HBaseType._
       val testNum = 1000000L
       val regionCount = 40
       val window = Int.MaxValue / regionCount
@@ -79,14 +78,13 @@ class GraphUtilSpec extends BenchmarkCommon {
         rangeBytes += (startKey.toList -> endKey.toList)
       }
 
-
-
       val stats = new collection.mutable.HashMap[Int, ((List[Byte], List[Byte]), Long)]()
       val counts = new collection.mutable.HashMap[Short, Long]()
       stats += (0 -> (rangeBytes.head -> 0L))
 
       for (i <- (0L until testNum)) {
-        val vertexId = SourceVertexId(ServiceColumn.Default, InnerVal.withLong(i, HBaseType.DEFAULT_VERSION))
+        val vertexId =
+          SourceVertexId(ServiceColumn.Default, InnerVal.withLong(i, HBaseType.DEFAULT_VERSION))
         val bytes = vertexId.bytes
         val shortKey = GraphUtil.murmur3(vertexId.innerId.toIdString())
         val shortVal = counts.getOrElse(shortKey, 0L) + 1L
@@ -106,24 +104,52 @@ class GraphUtilSpec extends BenchmarkCommon {
           case None => 0L
           case Some(v) => v._2 + 1
         }
-        stats += (key ->(head, value))
+        stats += (key -> (head, value))
       }
       val sorted = stats.toList.sortBy(kv => kv._2._2).reverse
-      println(s"Index: StartBytes ~ EndBytes\tStartShortBytes ~ EndShortBytes\tStartShort ~ EndShort\tCount\tShortCount")
-      sorted.foreach { case (idx, ((start, end), cnt)) =>
-        val startShort = Bytes.toShort(start.take(2).toArray)
-        val endShort = Bytes.toShort(end.take(2).toArray)
-        val count = counts.count(t => startShort <= t._1 && t._1 < endShort)
-        println(s"$idx: $start ~ $end\t${start.take(2)} ~ ${end.take(2)}\t$startShort ~ $endShort\t$cnt\t$count")
+      val header = "Index: StartBytes ~ EndBytes\tStartShortBytes ~ EndShortBytes\t" +
+          "StartShort ~ EndShort\tCount\tShortCount"
+      Logger.info(header)
+      sorted.foreach {
+        case (idx, ((start, end), cnt)) =>
+          val startShort = Bytes.toShort(start.take(2).toArray)
+          val endShort = Bytes.toShort(end.take(2).toArray)
+          val count = counts.count(t => startShort <= t._1 && t._1 < endShort)
+          Logger.info(
+            "%d: %s ~ %s\t%s ~ %s\t%d ~ %d\t%d\t%d".format(
+              idx,
+              start,
+              end,
+              start.take(2),
+              end.take(2),
+              startShort,
+              endShort,
+              cnt,
+              count
+            )
+          )
 
       }
-      println("\n" * 10)
-      println(s"Index: StartBytes ~ EndBytes\tStartShortBytes ~ EndShortBytes\tStartShort ~ EndShort\tCount\tShortCount")
-      stats.toList.sortBy(kv => kv._1).reverse.foreach { case (idx, ((start, end), cnt)) =>
-        val startShort = Bytes.toShort(start.take(2).toArray)
-        val endShort = Bytes.toShort(end.take(2).toArray)
-        val count = counts.count(t => startShort <= t._1 && t._1 < endShort)
-        println(s"$idx: $start ~ $end\t${start.take(2)} ~ ${end.take(2)}\t$startShort ~ $endShort\t$cnt\t$count")
+      Logger.info("\n" * 10)
+      Logger.info(header)
+      stats.toList.sortBy(kv => kv._1).reverse.foreach {
+        case (idx, ((start, end), cnt)) =>
+          val startShort = Bytes.toShort(start.take(2).toArray)
+          val endShort = Bytes.toShort(end.take(2).toArray)
+          val count = counts.count(t => startShort <= t._1 && t._1 < endShort)
+          Logger.info(
+            "%d: %s ~ %s\t%s ~ %s\t%d ~ %d\t%d\t%d".format(
+              idx,
+              start,
+              end,
+              start.take(2),
+              end.take(2),
+              startShort,
+              endShort,
+              cnt,
+              count
+            )
+          )
 
       }
 
@@ -134,8 +160,8 @@ class GraphUtilSpec extends BenchmarkCommon {
       val x = Array[Byte](11, -12, -26, -14, -23)
       val startKey = Array[Byte](0, 0, 0, 0)
       val endKey = Array[Byte](12, -52, -52, -52)
-      println(Bytes.compareTo(startKey, x))
-      println(Bytes.compareTo(endKey, x))
+      Logger.info(Bytes.compareTo(startKey, x))
+      Logger.info(Bytes.compareTo(endKey, x))
       true
     }
   }
