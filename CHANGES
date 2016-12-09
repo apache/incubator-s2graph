@@ -244,3 +244,5 @@ Release 0.1.0 - unreleased
     S2GRAPH-108: Support continuous integration test. 
 		(Contributed by Injun Song<ijsong@gmail.com>, committed by DOYUNG YOON)
 		
+    S2GRAPH-144: [S2GRAPH-144] Travis icon in README is not proper link
+		(Contributed by Injun Song<ijsong@gmail.com>, committed by Daewon Jeong)
