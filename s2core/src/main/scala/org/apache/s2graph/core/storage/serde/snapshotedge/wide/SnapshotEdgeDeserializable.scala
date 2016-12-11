@@ -23,8 +23,8 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, StorageDeserializable}
-import org.apache.s2graph.core.types.TargetVertexId
-import org.apache.s2graph.core.{S2Graph, S2Edge, SnapshotEdge, S2Vertex}
+import org.apache.s2graph.core.types.{LabelWithDirection, HBaseType, SourceVertexId, TargetVertexId}
+import org.apache.s2graph.core._
 
 class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[SnapshotEdge] {
 
@@ -34,58 +34,67 @@ class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[Snapshot
     (statusCode.toByte, op.toByte)
   }
 
-  override def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
-                                                   _kvs: Seq[T],
-                                                   version: String,
-                                                   cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
-    val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
-    assert(kvs.size == 1)
+  override def fromKeyValues[T: CanSKeyValue](_kvs: Seq[T],
+                                              cacheElementOpt: Option[SnapshotEdge]): Option[SnapshotEdge] = {
+    try {
+      val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
+      assert(kvs.size == 1)
 
-    val kv = kvs.head
-    val label = checkLabel.get
-    val schemaVer = label.schemaVersion
-    val cellVersion = kv.timestamp
-
-    val (srcVertexId, labelWithDir, _, _, _) = cacheElementOpt.map { e =>
-      (e.srcVertex.id, e.labelWithDir, LabelIndex.DefaultSeq, true, 0)
-    }.getOrElse(parseRow(kv, schemaVer))
-
-    val (tgtVertexId, props, op, ts, statusCode, _pendingEdgeOpt, tsInnerVal) = {
-      val (tgtVertexId, _) = TargetVertexId.fromBytes(kv.qualifier, 0, kv.qualifier.length, schemaVer)
+      val kv = kvs.head
+      val version = kv.timestamp
       var pos = 0
-      val (statusCode, op) = statusCodeWithOp(kv.value(pos))
+      val (srcVertexId, srcIdLen) = SourceVertexId.fromBytes(kv.row, pos, kv.row.length, HBaseType.DEFAULT_VERSION)
+      pos += srcIdLen
+      val labelWithDir = LabelWithDirection(Bytes.toInt(kv.row, pos, 4))
+      pos += 4
+      val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsInverted(kv.row, pos)
       pos += 1
-      val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer, label)
-      val kvsMap = props.toMap
-      val tsInnerVal = kvsMap(LabelMeta.timestamp).innerVal
-      val ts = tsInnerVal.toString.toLong
 
-      pos = endAt
-      val _pendingEdgeOpt =
-        if (pos == kv.value.length) None
-        else {
-          val (pendingEdgeStatusCode, pendingEdgeOp) = statusCodeWithOp(kv.value(pos))
-          pos += 1
-          //          val versionNum = Bytes.toLong(kv.value, pos, 8)
-          //          pos += 8
-          val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer, label)
-          pos = endAt
-          val lockTs = Option(Bytes.toLong(kv.value, pos, 8))
+      if (!isInverted) None
+      else {
+        val label = Label.findById(labelWithDir.labelId)
+        val schemaVer = label.schemaVersion
+        val srcVertex = graph.newVertex(srcVertexId, version)
 
-          val pendingEdge =
-            graph.newEdge(graph.newVertex(srcVertexId, cellVersion),
-              graph.newVertex(tgtVertexId, cellVersion),
-              label, labelWithDir.dir, pendingEdgeOp,
-              cellVersion, pendingEdgeProps.toMap,
-              statusCode = pendingEdgeStatusCode, lockTs = lockTs, tsInnerValOpt = Option(tsInnerVal))
-          Option(pendingEdge)
-        }
+        val (tgtVertexId, _) = TargetVertexId.fromBytes(kv.qualifier, 0, kv.qualifier.length, schemaVer)
 
-      (tgtVertexId, kvsMap, op, ts, statusCode, _pendingEdgeOpt, tsInnerVal)
+        var pos = 0
+        val (statusCode, op) = statusCodeWithOp(kv.value(pos))
+        pos += 1
+        val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer, label)
+        val kvsMap = props.toMap
+        val tsInnerVal = kvsMap(LabelMeta.timestamp).innerVal
+        val ts = tsInnerVal.toString.toLong
+        pos = endAt
+
+        val _pendingEdgeOpt =
+          if (pos == kv.value.length) None
+          else {
+            val (pendingEdgeStatusCode, pendingEdgeOp) = statusCodeWithOp(kv.value(pos))
+            pos += 1
+            //          val versionNum = Bytes.toLong(kv.value, pos, 8)
+            //          pos += 8
+            val (pendingEdgeProps, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer, label)
+            pos = endAt
+            val lockTs = Option(Bytes.toLong(kv.value, pos, 8))
+
+            val pendingEdge =
+              graph.newEdge(graph.newVertex(srcVertexId, version),
+                graph.newVertex(tgtVertexId, version),
+                label, labelWithDir.dir, pendingEdgeOp,
+                version, pendingEdgeProps.toMap,
+                statusCode = pendingEdgeStatusCode, lockTs = lockTs, tsInnerValOpt = Option(tsInnerVal))
+            Option(pendingEdge)
+          }
+
+        val snapshotEdge = graph.newSnapshotEdge(graph.newVertex(srcVertexId, ts), graph.newVertex(tgtVertexId, ts),
+          label, labelWithDir.dir, op, version, props.toMap, statusCode = statusCode,
+          pendingEdgeOpt = _pendingEdgeOpt, lockTs = None, tsInnerValOpt = Option(tsInnerVal))
+
+        Option(snapshotEdge)
+      }
+    } catch {
+      case e: Exception => None
     }
-
-    graph.newSnapshotEdge(graph.newVertex(srcVertexId, ts), graph.newVertex(tgtVertexId, ts),
-      label, labelWithDir.dir, op, cellVersion, props, statusCode = statusCode,
-      pendingEdgeOpt = _pendingEdgeOpt, lockTs = None, tsInnerValOpt = Option(tsInnerVal))
   }
 }

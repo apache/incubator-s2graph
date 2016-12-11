@@ -1120,8 +1120,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
              operation: String = "insert"): S2Edge = {
     val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
 
-    val srcVertexIdInnerVal = toInnerVal(srcId.toString, label.srcColumn.columnType, label.schemaVersion)
-    val tgtVertexIdInnerVal = toInnerVal(tgtId.toString, label.tgtColumn.columnType, label.schemaVersion)
+    val srcVertexIdInnerVal = toInnerVal(srcId, label.srcColumn.columnType, label.schemaVersion)
+    val tgtVertexIdInnerVal = toInnerVal(tgtId, label.tgtColumn.columnType, label.schemaVersion)
 
     val srcVertex = newVertex(SourceVertexId(label.srcColumn, srcVertexIdInnerVal), System.currentTimeMillis())
     val tgtVertex = newVertex(TargetVertexId(label.tgtColumn, tgtVertexIdInnerVal), System.currentTimeMillis())
@@ -1145,7 +1145,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
     val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
 
-    val srcVertexId = VertexId(column, toInnerVal(id.toString, column.columnType, column.schemaVersion))
+    val srcVertexId = VertexId(column, toInnerVal(id, column.columnType, column.schemaVersion))
     val propsInner = column.propsToInnerVals(props) ++
       Map(ColumnMeta.timestamp -> InnerVal.withLong(ts, column.schemaVersion))
 
@@ -1346,28 +1346,55 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   override def vertices(vertexIds: AnyRef*): util.Iterator[structure.Vertex] = {
     val fetchVertices = vertexIds.lastOption.map { lastParam =>
       if (lastParam.isInstanceOf[Boolean]) lastParam.asInstanceOf[Boolean]
-      else false
-    }.getOrElse(false)
+      else true
+    }.getOrElse(true)
 
-    val vertices = for {
-      vertexId <- vertexIds if vertexId.isInstanceOf[VertexId]
-    } yield newVertex(vertexId.asInstanceOf[VertexId])
-
-    if (fetchVertices) {
-      val future = getVertices(vertices).map { vs =>
-        val ls = new util.ArrayList[structure.Vertex]()
-        ls.addAll(vs)
-        ls.iterator()
-      }
-      Await.result(future, WaitTimeout)
+    if (vertexIds.isEmpty) {
+      //TODO: default storage need to be fixed.
+      Await.result(defaultStorage.fetchVerticesAll(), WaitTimeout).iterator
     } else {
-      vertices.iterator
+      val vertices = for {
+        vertexId <- vertexIds if vertexId.isInstanceOf[VertexId]
+      } yield newVertex(vertexId.asInstanceOf[VertexId])
+
+      if (fetchVertices) {
+        val future = getVertices(vertices).map { vs =>
+          val ls = new util.ArrayList[structure.Vertex]()
+          ls.addAll(vs)
+          ls.iterator()
+        }
+        Await.result(future, WaitTimeout)
+      } else {
+        vertices.iterator
+      }
     }
   }
 
+  override def edges(edgeIds: AnyRef*): util.Iterator[structure.Edge] = {
+    if (edgeIds.isEmpty) {
+      Await.result(defaultStorage.fetchEdgesAll(), WaitTimeout).iterator
+    } else {
+      Await.result(edgesAsync(edgeIds: _*), WaitTimeout)
+    }
+  }
+
+  def edgesAsync(edgeIds: AnyRef*): Future[util.Iterator[structure.Edge]] = {
+    val s2EdgeIds = edgeIds.filter(_.isInstanceOf[EdgeId]).map(_.asInstanceOf[EdgeId])
+    val edgesToFetch = for {
+      id <- s2EdgeIds
+    } yield {
+        toEdge(id.srcVertexId, id.tgtVertexId, id.labelName, id.direction)
+      }
+
+    checkEdges(edgesToFetch).map { stepResult =>
+      val ls = new util.ArrayList[structure.Edge]
+      stepResult.edgeWithScores.foreach { es => ls.add(es.edge) }
+      ls.iterator()
+    }
+  }
   override def tx(): Transaction = ???
 
-  override def edges(objects: AnyRef*): util.Iterator[structure.Edge] = ???
+
 
   override def variables(): Variables = ???
 

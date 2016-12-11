@@ -190,8 +190,8 @@ object Label extends Model[Label] {
         val serviceId = service.id.get
 
         /** insert serviceColumn */
-        val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType), schemaVersion)
-        val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType), schemaVersion)
+        val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType))
+        val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType))
 
         if (srcCol.columnType != srcColumnType) throw new RuntimeException(s"source service column type not matched ${srcCol.columnType} != ${srcColumnType}")
         if (tgtCol.columnType != tgtColumnType) throw new RuntimeException(s"target service column type not matched ${tgtCol.columnType} != ${tgtColumnType}")
@@ -480,7 +480,7 @@ case class Label(id: Option[Int], label: String,
     for {
       (k, v) <- props
       labelMeta <- metaPropsInvMap.get(k)
-      innerVal = toInnerVal(v.toString, labelMeta.dataType, schemaVersion)
+      innerVal = toInnerVal(v, labelMeta.dataType, schemaVersion)
     } yield labelMeta -> InnerValLikeWithTs(innerVal, ts)
 
   }

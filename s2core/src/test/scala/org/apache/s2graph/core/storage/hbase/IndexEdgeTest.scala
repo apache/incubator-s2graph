@@ -46,8 +46,7 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
     val labelOpt = Option(l)
     val edge = graph.newEdge(vertex, tgtVertex, l, labelWithDir.dir, 0, ts, props, tsInnerValOpt = Option(InnerVal.withLong(ts, l.schemaVersion)))
     val indexEdge = edge.edgesWithIndex.find(_.labelIndexSeq == LabelIndex.DefaultSeq).head
-    val _indexEdgeOpt = graph.getStorage(l).indexEdgeDeserializer(l.schemaVersion).fromKeyValues(labelOpt,
-      graph.getStorage(l).indexEdgeSerializer(indexEdge).toKeyValues, l.schemaVersion, None)
+    val _indexEdgeOpt = graph.getStorage(l).indexEdgeDeserializer(l.schemaVersion).fromKeyValues(graph.getStorage(l).indexEdgeSerializer(indexEdge).toKeyValues, None)
 
     _indexEdgeOpt should not be empty
     edge == _indexEdgeOpt.get should be(true)

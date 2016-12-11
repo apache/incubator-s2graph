@@ -76,7 +76,7 @@ object ServiceColumn extends Model[ServiceColumn] {
       expireCaches(key)
     }
   }
-  def findOrInsert(serviceId: Int, columnName: String, columnType: Option[String], schemaVersion: String)(implicit session: DBSession = AutoSession): ServiceColumn = {
+  def findOrInsert(serviceId: Int, columnName: String, columnType: Option[String], schemaVersion: String = HBaseType.DEFAULT_VERSION)(implicit session: DBSession = AutoSession): ServiceColumn = {
     find(serviceId, columnName) match {
       case Some(sc) => sc
       case None =>
@@ -97,9 +97,14 @@ object ServiceColumn extends Model[ServiceColumn] {
       var cacheKey = s"serviceId=${x.serviceId}:columnName=${x.columnName}"
       (cacheKey -> x)
     })
+    ls
   }
 }
-case class ServiceColumn(id: Option[Int], serviceId: Int, columnName: String, columnType: String, schemaVersion: String)  {
+case class ServiceColumn(id: Option[Int],
+                         serviceId: Int,
+                         columnName: String,
+                         columnType: String,
+                         schemaVersion: String)  {
 
   lazy val service = Service.findById(serviceId)
   lazy val metas = ColumnMeta.timestamp +: ColumnMeta.findAllByColumn(id.get) :+ ColumnMeta.lastModifiedAtColumn
@@ -112,7 +117,7 @@ case class ServiceColumn(id: Option[Int], serviceId: Int, columnName: String, co
     for {
       (k, v) <- props
       labelMeta <- metasInvMap.get(k)
-      innerVal = toInnerVal(v.toString, labelMeta.dataType, schemaVersion)
+      innerVal = toInnerVal(v, labelMeta.dataType, schemaVersion)
     } yield labelMeta -> innerVal
   }
 

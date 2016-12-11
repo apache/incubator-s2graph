@@ -30,7 +30,7 @@ class JsonParserTest extends FunSuite with Matchers with TestCommon {
   import types.HBaseType._
 
   val innerValsPerVersion = for {
-    version <- List(VERSION2, VERSION1)
+    version <- ValidVersions
   } yield {
       val innerVals = List(
         (InnerVal.withStr("ABC123", version), STRING),

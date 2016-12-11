@@ -298,7 +298,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     ],
     "consistencyLevel": "strong",
     "isDirected": true,
-    "schemaVersion": "v1",
+    "schemaVersion": "v2",
     "compressionAlgorithm": "gz"
   }"""
 

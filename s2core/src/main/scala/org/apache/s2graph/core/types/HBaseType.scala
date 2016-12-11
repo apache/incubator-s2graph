@@ -26,7 +26,8 @@ object HBaseType {
   val VERSION4 = "v4"
   val VERSION3 = "v3"
   val VERSION2 = "v2"
-  val VERSION1 = "v1"
+  val ValidVersions = List(VERSION4, VERSION3, VERSION2)
+//  val VERSION1 = "v1"
 //  val DEFAULT_VERSION = VERSION2
   val DEFAULT_VERSION = VERSION3
 //  val EMPTY_SEQ_BYTE = Byte.MaxValue
