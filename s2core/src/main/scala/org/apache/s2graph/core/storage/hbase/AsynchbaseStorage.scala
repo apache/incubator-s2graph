@@ -35,7 +35,7 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
 import org.apache.hadoop.security.UserGroupInformation
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage.{AsyncRPC, ScanWithRange}
 import org.apache.s2graph.core.types.{HBaseType, VertexId}
@@ -110,6 +110,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
   lazy val clients = Seq(client, clientWithFlush)
 
   private val emptyKeyValues = new util.ArrayList[KeyValue]()
+  private val emptyKeyValuesLs = new util.ArrayList[util.ArrayList[KeyValue]]()
   private val emptyStepResult = new util.ArrayList[StepResult]()
 
   private def client(withWait: Boolean): HBaseClient = if (withWait) clientWithFlush else client
@@ -522,7 +523,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
                    version: String): Option[S2Vertex] = {
 
       if (kvs.isEmpty) None
-      else vertexDeserializer.fromKeyValues(None, kvs, version, None)
+      else vertexDeserializer.fromKeyValues(kvs, None)
 //        .map(S2Vertex(graph, _))
     }
 
@@ -540,6 +541,39 @@ class AsynchbaseStorage(override val graph: S2Graph,
     }
 
     Future.sequence(futures).map { result => result.toList.flatten }
+  }
+
+  override def fetchEdgesAll(): Future[Seq[S2Edge]] = {
+    val futures = Label.findAll().groupBy(_.hbaseTableName).toSeq.map { case (hTableName, labels) =>
+      val scan = AsynchbasePatcher.newScanner(client, hTableName)
+      scan.setFamily(Serializable.edgeCf)
+      scan.setMaxVersions(1)
+
+      scan.nextRows(10000).toFuture(emptyKeyValuesLs).map { kvsLs =>
+        kvsLs.flatMap { kvs =>
+          kvs.flatMap { kv =>
+            indexEdgeDeserializer.fromKeyValues(Seq(kv), None)
+          }
+        }
+      }
+    }
+
+    Future.sequence(futures).map(_.flatten)
+  }
+
+  override def fetchVerticesAll(): Future[Seq[S2Vertex]] = {
+    val futures = ServiceColumn.findAll().groupBy(_.service.hTableName).toSeq.map { case (hTableName, columns) =>
+      val scan = AsynchbasePatcher.newScanner(client, hTableName)
+      scan.setFamily(Serializable.vertexCf)
+      scan.setMaxVersions(1)
+
+      scan.nextRows(10000).toFuture(emptyKeyValuesLs).map { kvsLs =>
+        kvsLs.flatMap { kvs =>
+          vertexDeserializer.fromKeyValues(kvs, None)
+        }
+      }
+    }
+    Future.sequence(futures).map(_.flatten)
   }
 
   class V4ResultHandler(scanner: Scanner, defer: Deferred[util.ArrayList[KeyValue]], offset: Int, limit : Int) extends Callback[Object, util.ArrayList[util.ArrayList[KeyValue]]] {

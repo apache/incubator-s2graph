@@ -469,17 +469,11 @@ case class S2Edge(innerGraph: S2Graph,
   }
 
   override def hashCode(): Int = {
-    MurmurHash3.stringHash(srcVertex.innerId + "," + labelWithDir + "," + tgtVertex.innerId)
+    id().hashCode()
   }
 
   override def equals(other: Any): Boolean = other match {
-    case e: S2Edge =>
-      srcVertex.innerId == e.srcVertex.innerId &&
-        tgtVertex.innerId == e.tgtVertex.innerId &&
-        labelWithDir == e.labelWithDir && S2Edge.sameProps(propsWithTs, e.propsWithTs) &&
-        op == e.op && version == e.version &&
-        pendingEdgeOpt == e.pendingEdgeOpt && lockTs == lockTs && statusCode == statusCode &&
-        parentEdges == e.parentEdges && originalEdgeOpt == originalEdgeOpt
+    case e: Edge => e.id().equals(e.id())
     case _ => false
   }
 
@@ -568,11 +562,12 @@ case class S2Edge(innerGraph: S2Graph,
 
   override def graph(): Graph = innerGraph
 
-  override def id(): AnyRef = (srcVertex.innerId, labelWithDir, tgtVertex.innerId)
+  override def id(): AnyRef = EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), direction)
 
   override def label(): String = innerLabel.label
 }
 
+case class EdgeId(srcVertexId: InnerValLike, tgtVertexId: InnerValLike, labelName: String, direction: String)
 
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],

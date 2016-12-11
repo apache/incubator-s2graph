@@ -44,15 +44,15 @@ trait TestCommon {
   def lessThanEqual(x: Array[Byte], y: Array[Byte]) = Bytes.compareTo(x, y) <= 0
 
   /** */
-  import HBaseType.{VERSION1, VERSION2}
-  private val tsValSmall = InnerVal.withLong(ts, VERSION1)
-  private val tsValLarge = InnerVal.withLong(ts + 1, VERSION1)
-  private val boolValSmall = InnerVal.withBoolean(false, VERSION1)
-  private val boolValLarge = InnerVal.withBoolean(true, VERSION1)
-  private val doubleValSmall = InnerVal.withDouble(-0.1, VERSION1)
-  private val doubleValLarge = InnerVal.withDouble(0.1, VERSION1)
+  import HBaseType._
+  private val tsValSmall = InnerVal.withLong(ts, DEFAULT_VERSION)
+  private val tsValLarge = InnerVal.withLong(ts + 1, DEFAULT_VERSION)
+  private val boolValSmall = InnerVal.withBoolean(false, DEFAULT_VERSION)
+  private val boolValLarge = InnerVal.withBoolean(true, DEFAULT_VERSION)
+  private val doubleValSmall = InnerVal.withDouble(-0.1, DEFAULT_VERSION)
+  private val doubleValLarge = InnerVal.withDouble(0.1, DEFAULT_VERSION)
   private val toSeq = LabelMeta.toSeq.toInt
-  private val toVal = InnerVal.withLong(Long.MinValue, VERSION1)
+  private val toVal = InnerVal.withLong(Long.MinValue, DEFAULT_VERSION)
 
 
   private val tsValSmallV2 = InnerVal.withLong(ts, VERSION2)
@@ -65,19 +65,19 @@ trait TestCommon {
 
   val intVals = (Int.MinValue until Int.MinValue + 10) ++ (-129 to -126) ++ (-1 to 1) ++ (126 to 129) ++
     (Int.MaxValue - 10 until Int.MaxValue)
-  val intInnerVals = intVals.map { v => InnerVal.withNumber(BigDecimal(v), VERSION1) }
+  val intInnerVals = intVals.map { v => InnerVal.withNumber(BigDecimal(v), DEFAULT_VERSION) }
 
   val intInnerValsV2 = intVals.map { v => InnerVal.withNumber(BigDecimal(v), VERSION2) }
 
   val stringVals = List("abc", "abd", "ac", "aca", "b")
-  val stringInnerVals = stringVals.map { s => InnerVal.withStr(s, VERSION1)}
+  val stringInnerVals = stringVals.map { s => InnerVal.withStr(s, DEFAULT_VERSION)}
   val stringInnerValsV2 = stringVals.map { s => InnerVal.withStr(s, VERSION2)}
 
   val numVals = (Long.MinValue until Long.MinValue + 10).map(BigDecimal(_)) ++
     (Int.MinValue until Int.MinValue + 10).map(BigDecimal(_)) ++
     (Int.MaxValue - 10 until Int.MaxValue).map(BigDecimal(_)) ++
     (Long.MaxValue - 10 until Long.MaxValue).map(BigDecimal(_))
-  val numInnerVals = numVals.map { n => InnerVal.withLong(n.toLong, VERSION1)}
+  val numInnerVals = numVals.map { n => InnerVal.withLong(n.toLong, DEFAULT_VERSION)}
   val numInnerValsV2 = numVals.map { n => InnerVal.withNumber(n, VERSION2)}
 
   val doubleStep = Double.MaxValue / 5
@@ -86,16 +86,16 @@ trait TestCommon {
     (-128.0 until 128.0 by 1.2).map(BigDecimal(_)) ++
     (129.0 until 142.0 by 1.1).map(BigDecimal(_)) ++
     (doubleStep until Double.MaxValue by doubleStep).map(BigDecimal(_))
-  val doubleInnerVals = doubleVals.map { d => InnerVal.withDouble(d.toDouble, VERSION1)}
+  val doubleInnerVals = doubleVals.map { d => InnerVal.withDouble(d.toDouble, DEFAULT_VERSION)}
   val doubleInnerValsV2 = doubleVals.map { d => InnerVal.withDouble(d.toDouble, VERSION2)}
 
   /** version 1 string order is broken */
   val idxPropsLs = Seq(
-    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("ac", VERSION1)),(toSeq -> toVal)),
-    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("ab", VERSION1)), (toSeq -> toVal)),
-    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2-> InnerVal.withStr("b", VERSION1)), (toSeq -> toVal)),
-    Seq((0 -> tsValSmall), (1 -> boolValLarge), (2 -> InnerVal.withStr("b", VERSION1)), (toSeq -> toVal)),
-    Seq((0 -> tsValLarge), (1 -> boolValSmall), (2 -> InnerVal.withStr("a", VERSION1)), (toSeq -> toVal))
+    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("ac", DEFAULT_VERSION)),(toSeq -> toVal)),
+    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2 -> InnerVal.withStr("ab", DEFAULT_VERSION)), (toSeq -> toVal)),
+    Seq((0 -> tsValSmall), (1 -> boolValSmall), (2-> InnerVal.withStr("b", DEFAULT_VERSION)), (toSeq -> toVal)),
+    Seq((0 -> tsValSmall), (1 -> boolValLarge), (2 -> InnerVal.withStr("b", DEFAULT_VERSION)), (toSeq -> toVal)),
+    Seq((0 -> tsValLarge), (1 -> boolValSmall), (2 -> InnerVal.withStr("a", DEFAULT_VERSION)), (toSeq -> toVal))
   ).map(seq => seq.map(t => t._1.toByte -> t._2 ))
 
   val idxPropsLsV2 = Seq(

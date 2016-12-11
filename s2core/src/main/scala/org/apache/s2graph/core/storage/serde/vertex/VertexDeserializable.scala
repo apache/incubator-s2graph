@@ -22,49 +22,51 @@ package org.apache.s2graph.core.storage.serde.vertex
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Label}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable}
-import org.apache.s2graph.core.types.{InnerVal, InnerValLike, VertexId}
+import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, VertexId}
 import org.apache.s2graph.core.{S2Graph, QueryParam, S2Vertex}
 
 import scala.collection.mutable.ListBuffer
 
 class VertexDeserializable(graph: S2Graph,
                            bytesToInt: (Array[Byte], Int) => Int = bytesToInt) extends Deserializable[S2Vertex] {
-  def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
-                                          _kvs: Seq[T],
-                                          version: String,
-                                          cacheElementOpt: Option[S2Vertex]): S2Vertex = {
+  def fromKeyValues[T: CanSKeyValue](_kvs: Seq[T],
+                                          cacheElementOpt: Option[S2Vertex]): Option[S2Vertex] = {
+    try {
+      val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
 
-    val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
+      val kv = kvs.head
+      val version = HBaseType.DEFAULT_VERSION
+      val (vertexId, _) = VertexId.fromBytes(kv.row, 0, kv.row.length, version)
 
-    val kv = kvs.head
-    val (vertexId, _) = VertexId.fromBytes(kv.row, 0, kv.row.length, version)
+      var maxTs = Long.MinValue
+      val propsMap = new collection.mutable.HashMap[ColumnMeta, InnerValLike]
+      val belongLabelIds = new ListBuffer[Int]
 
-    var maxTs = Long.MinValue
-    val propsMap = new collection.mutable.HashMap[ColumnMeta, InnerValLike]
-    val belongLabelIds = new ListBuffer[Int]
+      for {
+        kv <- kvs
+      } {
+        val propKey =
+          if (kv.qualifier.length == 1) kv.qualifier.head.toInt
+          else bytesToInt(kv.qualifier, 0)
 
-    for {
-      kv <- kvs
-    } {
-      val propKey =
-        if (kv.qualifier.length == 1) kv.qualifier.head.toInt
-        else bytesToInt(kv.qualifier, 0)
+        val ts = kv.timestamp
+        if (ts > maxTs) maxTs = ts
 
-      val ts = kv.timestamp
-      if (ts > maxTs) maxTs = ts
-
-      if (S2Vertex.isLabelId(propKey)) {
-        belongLabelIds += S2Vertex.toLabelId(propKey)
-      } else {
-        val v = kv.value
-        val (value, _) = InnerVal.fromBytes(v, 0, v.length, version)
-        val columnMeta = vertexId.column.metasMap(propKey)
-        propsMap += (columnMeta -> value)
+        if (S2Vertex.isLabelId(propKey)) {
+          belongLabelIds += S2Vertex.toLabelId(propKey)
+        } else {
+          val v = kv.value
+          val (value, _) = InnerVal.fromBytes(v, 0, v.length, version)
+          val columnMeta = vertexId.column.metasMap(propKey)
+          propsMap += (columnMeta -> value)
+        }
       }
+      assert(maxTs != Long.MinValue)
+      val vertex = graph.newVertex(vertexId, maxTs, S2Vertex.EmptyProps, belongLabelIds = belongLabelIds)
+      S2Vertex.fillPropsWithTs(vertex, propsMap.toMap)
+      Option(vertex)
+    } catch {
+      case e: Exception => None
     }
-    assert(maxTs != Long.MinValue)
-    val vertex = graph.newVertex(vertexId, maxTs, S2Vertex.EmptyProps, belongLabelIds = belongLabelIds)
-    S2Vertex.fillPropsWithTs(vertex, propsMap.toMap)
-    vertex
   }
 }

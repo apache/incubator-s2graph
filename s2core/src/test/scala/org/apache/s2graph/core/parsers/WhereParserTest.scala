@@ -32,7 +32,7 @@ import scala.util.{Random, Try}
 class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   initTests()
 
-  import HBaseType.{VERSION1, VERSION2}
+  import HBaseType._
 
   val ts = System.currentTimeMillis()
   val dummyTs = LabelMeta.timestamp -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion)
@@ -60,7 +60,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   }
 
   def ids = for {
-    version <- Seq(VERSION1, VERSION2)
+    version <- ValidVersions
   } yield {
     val srcId = SourceVertexId(ServiceColumn.Default, InnerVal.withLong(1, version))
     val tgtId =

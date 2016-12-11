@@ -182,6 +182,7 @@ object JSONParser {
     any match {
       case n: BigDecimal =>
         if (isNumeric) InnerVal.withNumber(n, version)
+        else if (dType == InnerVal.STRING) InnerVal.withStr(n.toString, version)
         else throw new IllegalDataTypeException(s"[ValueType] = BigDecimal, [DataType]: $dataType, [Input]: $any")
       case l: Long =>
         if (isNumeric) InnerVal.withLong(l, version)
