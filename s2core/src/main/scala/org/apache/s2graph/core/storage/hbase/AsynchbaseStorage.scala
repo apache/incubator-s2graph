@@ -433,7 +433,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
     } yield {
         val futures: List[Deferred[(Boolean, Long, Long)]] = for {
           relEdge <- edge.relatedEdges
-          edgeWithIndex <- relEdge.edgesWithIndexValid
+          edgeWithIndex <- EdgeMutate.filterIndexOption(relEdge.edgesWithIndexValid)
         } yield {
           val countWithTs = edge.propertyValueInner(LabelMeta.count)
           val countVal = countWithTs.innerVal.toString().toLong

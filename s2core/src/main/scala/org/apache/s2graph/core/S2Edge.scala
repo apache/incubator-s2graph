@@ -35,6 +35,30 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.{Map => MutableMap}
 import scala.util.hashing.MurmurHash3
 
+object SnapshotEdge {
+
+  def copyFrom(e: SnapshotEdge): SnapshotEdge = {
+    val copy =
+      SnapshotEdge(
+        e.graph,
+        e.srcVertex,
+        e.tgtVertex,
+        e.label,
+        e.dir,
+        e.op,
+        e.version,
+        S2Edge.EmptyProps,
+        e.pendingEdgeOpt,
+        e.statusCode,
+        e.lockTs,
+        e.tsInnerValOpt)
+
+    copy.updatePropsWithTs(e.propsWithTs)
+
+    copy
+  }
+}
+
 case class SnapshotEdge(graph: S2Graph,
                         srcVertex: S2Vertex,
                         tgtVertex: S2Vertex,
@@ -73,6 +97,18 @@ case class SnapshotEdge(graph: S2Graph,
     jsValue <- innerValToJsValue(v.innerVal, meta.dataType)
   } yield meta.name -> jsValue) ++ Map("version" -> JsNumber(version))
 
+  def updatePropsWithTs(others: Props = S2Edge.EmptyProps): Props = {
+    if (others.isEmpty) propsWithTs
+    else {
+      val iter = others.entrySet().iterator()
+      while (iter.hasNext) {
+        val e = iter.next()
+        propsWithTs.put(e.getKey, e.getValue)
+      }
+      propsWithTs
+    }
+  }
+
   // only for debug
   def toLogString() = {
     List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, propsWithName).mkString("\t")
@@ -101,6 +137,27 @@ case class SnapshotEdge(graph: S2Graph,
     Map("srcVertex" -> srcVertex.toString, "tgtVertex" -> tgtVertex.toString, "label" -> label.label, "direction" -> direction,
       "operation" -> operation, "version" -> version, "props" -> propsWithTs.asScala.map(kv => kv._1 -> kv._2.value).toString,
       "statusCode" -> statusCode, "lockTs" -> lockTs).toString
+  }
+}
+
+object IndexEdge {
+  def copyFrom(e: IndexEdge): IndexEdge = {
+    val copy = IndexEdge(
+      e.graph,
+      e.srcVertex,
+      e.tgtVertex,
+      e.label,
+      e.dir,
+      e.op,
+      e.version,
+      e.labelIndexSeq,
+      S2Edge.EmptyProps,
+      e.tsInnerValOpt
+    )
+
+    copy.updatePropsWithTs(e.propsWithTs)
+
+    copy
   }
 }
 
@@ -136,6 +193,8 @@ case class IndexEdge(graph: S2Graph,
 
   lazy val labelIndexMetaSeqs = labelIndex.sortKeyTypes
 
+  def indexOption = if (isInEdge) labelIndex.inDirOption else labelIndex.outDirOption
+
   /** TODO: make sure call of this class fill props as this assumes */
   lazy val orders = for (meta <- labelIndexMetaSeqs) yield {
     propsWithTs.get(meta.name) match {
@@ -149,8 +208,10 @@ case class IndexEdge(graph: S2Graph,
           case LabelMeta.timestamp=> InnerVal.withLong(version, schemaVer)
           case LabelMeta.to => toEdge.tgtVertex.innerId
           case LabelMeta.from => toEdge.srcVertex.innerId
+          case LabelMeta.fromHash => indexOption.map { option =>
+            InnerVal.withLong(MurmurHash3.stringHash(toEdge.srcVertex.innerId.toString()).abs % option.totalModular, schemaVer)
+          }.getOrElse(throw new RuntimeException("from_hash must be used with sampling"))
           // for now, it does not make sense to build index on srcVertex.innerId since all edges have same data.
-          //            throw new RuntimeException("_from on indexProps is not supported")
           case _ => toInnerVal(meta.defaultValue, meta.dataType, schemaVer)
         }
 
@@ -569,9 +630,44 @@ case class S2Edge(innerGraph: S2Graph,
 
 case class EdgeId(srcVertexId: InnerValLike, tgtVertexId: InnerValLike, labelName: String, direction: String)
 
+object EdgeMutate {
+
+  def partitionBufferedIncrement(edges: Seq[IndexEdge]): (Seq[IndexEdge], Seq[IndexEdge]) = {
+    edges.partition(_.indexOption.fold(false)(_.isBufferIncrement))
+  }
+
+  def filterIndexOptionForDegree(edges: Seq[IndexEdge]): Seq[IndexEdge] = edges.filter { ie =>
+    ie.indexOption.fold(true)(_.storeDegree)
+  }
+
+  def filterIndexOption(edges: Seq[IndexEdge]): Seq[IndexEdge] = edges.filter { ie =>
+    ie.indexOption.fold(true) { option =>
+      val hashValueOpt = ie.orders.find { case (k, v) => k == LabelMeta.fromHash }.map { case (k, v) =>
+        v.value.toString.toLong
+      }
+
+      option.sample(ie, hashValueOpt)
+    }
+  }
+}
+
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],
                       newSnapshotEdge: Option[SnapshotEdge] = None) {
+
+  def deepCopy: EdgeMutate = copy(
+    edgesToDelete = edgesToDelete.map(IndexEdge.copyFrom),
+    edgesToInsert = edgesToInsert.map(IndexEdge.copyFrom),
+    newSnapshotEdge = newSnapshotEdge.map(SnapshotEdge.copyFrom)
+  )
+
+  val edgesToInsertWithIndexOpt: Seq[IndexEdge] = EdgeMutate.filterIndexOption(edgesToInsert)
+
+  val edgesToDeleteWithIndexOpt: Seq[IndexEdge] = EdgeMutate.filterIndexOption(edgesToDelete)
+
+  val edgesToInsertWithIndexOptForDegree: Seq[IndexEdge] = EdgeMutate.filterIndexOptionForDegree(edgesToInsert)
+
+  val edgesToDeleteWithIndexOptForDegree: Seq[IndexEdge] = EdgeMutate.filterIndexOptionForDegree(edgesToDelete)
 
   def toLogString: String = {
     val l = (0 until 50).map(_ => "-").mkString("")
@@ -740,24 +836,6 @@ object S2Edge {
     }
   }
 
-  def filterOutWithLabelOption(ls: Seq[IndexEdge]): Seq[IndexEdge] = ls.filter { ie =>
-    ie.labelIndex.dir match {
-      case None =>
-        // both direction use same indices that is defined when label creation.
-        true
-      case Some(dir) =>
-        if (dir != ie.dir) {
-          // current labelIndex's direction is different with indexEdge's direction so don't touch
-          false
-        } else {
-          ie.labelIndex.writeOption.map { option =>
-            val hashValueOpt = ie.orders.find { case (k, v) => k == LabelMeta.fromHash }.map{ case (k, v) => v.value.toString.toLong }
-            option.sample(ie, hashValueOpt)
-          }.getOrElse(true)
-        }
-    }
-  }
-
   def buildMutation(snapshotEdgeOpt: Option[S2Edge],
                     requestEdge: S2Edge,
                     newVersion: Long,
@@ -788,7 +866,7 @@ object S2Edge {
         val edgesToDelete = snapshotEdgeOpt match {
           case Some(snapshotEdge) if snapshotEdge.op != GraphUtil.operations("delete") =>
             snapshotEdge.copy(op = GraphUtil.defaultOpByte)
-              .relatedEdges.flatMap { relEdge => filterOutWithLabelOption(relEdge.edgesWithIndexValid) }
+              .relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
           case _ => Nil
         }
 
@@ -802,13 +880,11 @@ object S2Edge {
             )
             newPropsWithTs.foreach { case (k, v) => newEdge.property(k.name, v.innerVal.value, v.ts) }
 
-            newEdge.relatedEdges.flatMap { relEdge => filterOutWithLabelOption(relEdge.edgesWithIndexValid) }
+            newEdge.relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
           }
 
 
-        EdgeMutate(edgesToDelete = edgesToDelete,
-          edgesToInsert = edgesToInsert,
-          newSnapshotEdge = newSnapshotEdgeOpt)
+        EdgeMutate(edgesToDelete = edgesToDelete, edgesToInsert = edgesToInsert, newSnapshotEdge = newSnapshotEdgeOpt)
       }
     }
   }

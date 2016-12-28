@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -70,7 +70,8 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     val labelNames = Map(testLabelName -> testLabelNameCreate,
       testLabelName2 -> testLabelName2Create,
       testLabelNameV1 -> testLabelNameV1Create,
-      testLabelNameWeak -> testLabelNameWeakCreate)
+      testLabelNameWeak -> testLabelNameWeakCreate,
+      testLabelNameLabelIndex -> testLabelNameLabelIndexCreate)
 
     for {
       (labelName, create) <- labelNames
@@ -135,7 +136,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       logger.info(s2Query.toString)
       val stepResult = Await.result(graph.getEdges(s2Query), HttpRequestWaitingTime)
       val result = PostProcess.toJson(Option(s2Query.jsonQuery))(graph, s2Query.queryOption, stepResult)
-//      val result = Await.result(graph.getEdges(s2Query).(PostProcess.toJson), HttpRequestWaitingTime)
+      //      val result = Await.result(graph.getEdges(s2Query).(PostProcess.toJson), HttpRequestWaitingTime)
       logger.debug(s"${Json.prettyPrint(result)}")
       result
     }
@@ -169,6 +170,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     val testLabelName2 = "s2graph_label_test_2"
     val testLabelNameV1 = "s2graph_label_test_v1"
     val testLabelNameWeak = "s2graph_label_test_weak"
+    val testLabelNameLabelIndex = "s2graph_label_test_index"
     val testColumnName = "user_id_test"
     val testColumnType = "long"
     val testTgtColumnName = "item_id_test"
@@ -176,6 +178,12 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     val newHTableName = "new-htable"
     val index1 = "idx_1"
     val index2 = "idx_2"
+    val idxStoreInDropDegree = "idx_drop_In"
+    val idxStoreOutDropDegree = "idx_drop_out"
+    val idxStoreIn = "idx_store_In"
+    val idxStoreOut = "idx_store_out"
+    val idxDropInStoreDegree = "idx_drop_in_store_degree"
+    val idxDropOutStoreDegree = "idx_drop_out_store_degree"
 
     val NumOfEachTest = 30
     val HttpRequestWaitingTime = Duration("60 seconds")
@@ -341,6 +349,53 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     "consistencyLevel": "weak",
     "isDirected": true,
     "compressionAlgorithm": "gz"
+  }"""
+
+    val testLabelNameLabelIndexCreate =
+      s"""
+  {
+    "label": "$testLabelNameLabelIndex",
+    "srcServiceName": "$testServiceName",
+    "srcColumnName": "$testColumnName",
+    "srcColumnType": "long",
+    "tgtServiceName": "$testServiceName",
+    "tgtColumnName": "$testColumnName",
+    "tgtColumnType": "long",
+    "indices": [
+       {"name": "$index1", "propNames": ["weight", "time", "is_hidden", "is_blocked"]},
+       {"name": "$idxStoreInDropDegree", "propNames": ["time"], "options": { "in": {"storeDegree": false }, "out": {"method": "drop", "storeDegree": false }}},
+       {"name": "$idxStoreOutDropDegree", "propNames": ["weight"], "options": { "out": {"storeDegree": false}, "in": { "method": "drop", "storeDegree": false }}},
+       {"name": "$idxStoreIn", "propNames": ["is_hidden"], "options": { "out": {"method": "drop", "storeDegree": false }}},
+       {"name": "$idxStoreOut", "propNames": ["weight", "is_blocked"], "options": { "in": {"method": "drop", "storeDegree": false }, "out": {"method": "normal" }}},
+       {"name": "$idxDropInStoreDegree", "propNames": ["is_blocked"], "options": { "in": {"method": "drop" }, "out": {"method": "drop", "storeDegree": false }}},
+       {"name": "$idxDropOutStoreDegree", "propNames": ["weight", "is_blocked", "_timestamp"], "options": { "in": {"method": "drop", "storeDegree": false }, "out": {"method": "drop"}}}
+    ],
+    "props": [
+    {
+      "name": "time",
+      "dataType": "long",
+      "defaultValue": 0
+    },
+    {
+      "name": "weight",
+      "dataType": "long",
+      "defaultValue": 0
+    },
+    {
+      "name": "is_hidden",
+      "dataType": "boolean",
+      "defaultValue": false
+    },
+    {
+      "name": "is_blocked",
+      "dataType": "boolean",
+      "defaultValue": false
+    }
+    ],
+    "consistencyLevel": "strong",
+    "schemaVersion": "v4",
+    "compressionAlgorithm": "gz",
+    "hTableName": "$testHTableName"
   }"""
   }
 }
