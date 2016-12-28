@@ -99,6 +99,8 @@ Release 0.1.0 - unreleased
     S2GRAPH-121: Create `Result` class to hold traverse result edges (Committed by DOYUNG YOON).
  
     S2GRAPH-122: Change data types of Edge/IndexEdge/SnapshotEdge (Committed by DOYUNG YOON).
+ 
+    S2GRAPH-135: Change the way LabelIndexOption is implemented and improve it (Committed by daewon).
 
   BUG FIXES
 
