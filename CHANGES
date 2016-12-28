@@ -102,6 +102,8 @@ Release 0.1.0 - unreleased
  
     S2GRAPH-135: Change the way LabelIndexOption is implemented and improve it (Committed by daewon).
 
+    S2GRAPH-132: Support buffering for 'Increment RPC' (Committed by daewon).
+
   BUG FIXES
 
     S2GRAPH-18: Query Option "interval" is Broken. 

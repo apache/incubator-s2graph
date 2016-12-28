@@ -357,9 +357,11 @@ abstract class Storage[Q, R](val graph: S2Graph,
       val futures = edges.map { edge =>
         val (_, edgeUpdate) = S2Edge.buildOperation(None, Seq(edge))
 
+        val (bufferIncr, nonBufferIncr) = increments(edgeUpdate.deepCopy)
         val mutations =
-          indexedEdgeMutations(edgeUpdate) ++ snapshotEdgeMutations(edgeUpdate) ++ increments(edgeUpdate)
+          indexedEdgeMutations(edgeUpdate.deepCopy) ++ snapshotEdgeMutations(edgeUpdate.deepCopy) ++ nonBufferIncr
 
+        if (bufferIncr.nonEmpty) writeToStorage(zkQuorum, bufferIncr, withWait = false)
 
         writeToStorage(zkQuorum, mutations, withWait)
       }
@@ -759,8 +761,10 @@ abstract class Storage[Q, R](val graph: S2Graph,
       val p = Random.nextDouble()
       if (p < FailProb) Future.failed(new PartialFailureException(squashedEdge, 2, s"$p"))
       else {
-        val incrs = increments(edgeMutate)
-        _write(incrs, true)
+        val (bufferIncr, nonBufferIncr) = increments(edgeMutate.deepCopy)
+
+        if (bufferIncr.nonEmpty) _write(bufferIncr, withWait = false)
+        _write(nonBufferIncr, withWait = true)
       }
     }
   }
@@ -1032,23 +1036,25 @@ abstract class Storage[Q, R](val graph: S2Graph,
   def snapshotEdgeMutations(edgeMutate: EdgeMutate): Seq[SKeyValue] =
     edgeMutate.newSnapshotEdge.map(e => snapshotEdgeSerializer(e).toKeyValues.map(_.copy(durability = e.label.durability))).getOrElse(Nil)
 
-  def increments(edgeMutate: EdgeMutate): Seq[SKeyValue] = {
+  def increments(edgeMutate: EdgeMutate): (Seq[SKeyValue], Seq[SKeyValue]) = {
     (edgeMutate.edgesToDeleteWithIndexOptForDegree.isEmpty, edgeMutate.edgesToInsertWithIndexOptForDegree.isEmpty) match {
       case (true, true) =>
         /** when there is no need to update. shouldUpdate == false */
-        Nil
+        Nil -> Nil
 
       case (true, false) =>
         /** no edges to delete but there is new edges to insert so increase degree by 1 */
-        edgeMutate.edgesToInsertWithIndexOptForDegree.flatMap(buildIncrementsAsync(_))
+        val (buffer, nonBuffer) = EdgeMutate.partitionBufferedIncrement(edgeMutate.edgesToInsertWithIndexOptForDegree)
+        buffer.flatMap(buildIncrementsAsync(_)) -> nonBuffer.flatMap(buildIncrementsAsync(_))
 
       case (false, true) =>
         /** no edges to insert but there is old edges to delete so decrease degree by 1 */
-        edgeMutate.edgesToDeleteWithIndexOptForDegree.flatMap(buildIncrementsAsync(_, -1))
+        val (buffer, nonBuffer) = EdgeMutate.partitionBufferedIncrement(edgeMutate.edgesToDeleteWithIndexOptForDegree)
+        buffer.flatMap(buildIncrementsAsync(_, -1)) -> nonBuffer.flatMap(buildIncrementsAsync(_, -1))
 
       case (false, false) =>
         /** update on existing edges so no change on degree */
-        Nil
+        Nil -> Nil
     }
   }
 

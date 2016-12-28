@@ -991,7 +991,10 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
             if (edge.op == GraphUtil.operations("delete")) S2Edge.buildDeleteBulk(None, edge)
             else S2Edge.buildOperation(None, Seq(edge))
 
-          storage.buildVertexPutsAsync(edge) ++ storage.indexedEdgeMutations(edgeUpdate) ++ storage.snapshotEdgeMutations(edgeUpdate) ++ storage.increments(edgeUpdate)
+          val (bufferIncr, nonBufferIncr) = storage.increments(edgeUpdate.deepCopy)
+
+          if (bufferIncr.nonEmpty) storage.writeToStorage(zkQuorum, bufferIncr, withWait = false)
+          storage.buildVertexPutsAsync(edge) ++ storage.indexedEdgeMutations(edgeUpdate.deepCopy) ++ storage.snapshotEdgeMutations(edgeUpdate.deepCopy) ++ nonBufferIncr
         }
 
         storage.writeToStorage(zkQuorum, mutations, withWait).map { ret =>
