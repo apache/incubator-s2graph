@@ -20,17 +20,18 @@
 package org.apache.s2graph.core.mysqls
 
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
 
-import com.typesafe.config.{ConfigFactory, Config}
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.core.utils.{SafeUpdateCache, logger}
-import play.api.libs.json.{Json, JsObject, JsValue}
+import play.api.libs.json.{JsObject, JsValue, Json}
 import scalikejdbc._
 
 import scala.concurrent.ExecutionContext
 import scala.io.Source
 import scala.language.{higherKinds, implicitConversions}
-import scala.util.{Success, Failure, Try}
+import scala.util.{Failure, Success, Try}
 
 object Model {
   var maxSize = 10000
@@ -39,6 +40,8 @@ object Model {
   val threadPool = Executors.newFixedThreadPool(numOfThread)
   val ec = ExecutionContext.fromExecutor(threadPool)
   val useUTF8Encoding = "?useUnicode=true&characterEncoding=utf8"
+
+  private val ModelReferenceCount = new AtomicLong(0L)
 
   def apply(config: Config) = {
     maxSize = config.getInt("cache.max.size")
@@ -58,6 +61,8 @@ object Model {
       settings)
 
     checkSchema()
+
+    ModelReferenceCount.incrementAndGet()
   }
 
   def checkSchema(): Unit = {
@@ -107,9 +112,37 @@ object Model {
     }
   }
 
-  def shutdown() = {
-    ConnectionPool.closeAll()
-  }
+  def shutdown(modelDataDelete: Boolean = false) =
+    if (ModelReferenceCount.decrementAndGet() <= 0) {
+      // FIXME: When Model is served by embedded database and deleteData is set, Model deletes
+      // the underlying database. Its purpose is clearing runtime footprint when running tests.
+      if (modelDataDelete) {
+        withTx { implicit session =>
+          sql"SHOW TABLES"
+              .map(rs => rs.string(1))
+              .list
+              .apply()
+              .map { table => s"TRUNCATE TABLE $table" }
+        } match {
+          case Success(stmts) =>
+            val newStmts = List("SET FOREIGN_KEY_CHECKS = 0") ++ stmts ++ List("SET FOREIGN_KEY_CHECKS = 1")
+            withTx { implicit session =>
+              newStmts.foreach { stmt =>
+                session.execute(stmt)
+              }
+            } match {
+              case Success(_) =>
+                logger.info(s"Success to truncate models: $stmts")
+              case Failure(e) =>
+                throw new IllegalStateException(s"Failed to truncate models", e)
+            }
+          case Failure(e) =>
+            throw new IllegalStateException(s"Failed to list models", e)
+        }
+      }
+      clearCache()
+      ConnectionPool.closeAll()
+    }
 
   def loadCache() = {
     Service.findAll()
@@ -118,6 +151,15 @@ object Model {
     LabelMeta.findAll()
     LabelIndex.findAll()
     ColumnMeta.findAll()
+  }
+
+  def clearCache() = {
+    Service.expireAll()
+    ServiceColumn.expireAll()
+    Label.expireAll()
+    LabelMeta.expireAll()
+    LabelIndex.expireAll()
+    ColumnMeta.expireAll()
   }
 
   def extraOptions(options: Option[String]): Map[String, JsValue] = options match {
@@ -168,6 +210,11 @@ trait Model[V] extends SQLSyntaxSupport[V] {
   val expireCache = optionCache.invalidate _
 
   val expireCaches = listCache.invalidate _
+
+  def expireAll() = {
+    listCache.invalidateAll()
+    optionCache.invalidateAll()
+  }
 
   def putsToCache(kvs: List[(String, V)]) = kvs.foreach {
     case (key, value) => optionCache.put(key, Option(value))

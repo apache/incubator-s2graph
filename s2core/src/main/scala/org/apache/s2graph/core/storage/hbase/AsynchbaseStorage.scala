@@ -32,22 +32,23 @@ import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
+import org.apache.hadoop.hbase.{TableName, HColumnDescriptor, HBaseConfiguration, HTableDescriptor}
 import org.apache.hadoop.security.UserGroupInformation
+
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage.{AsyncRPC, ScanWithRange}
-import org.apache.s2graph.core.types.{HBaseType, VertexId}
+import org.apache.s2graph.core.types.{VertexId, HBaseType}
 import org.apache.s2graph.core.utils._
 import org.hbase.async.FilterList.Operator.MUST_PASS_ALL
 import org.hbase.async._
-
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent._
 import scala.concurrent.duration.Duration
 import scala.util.Try
+import scala.util.control.NonFatal
 import scala.util.hashing.MurmurHash3
 
 
@@ -82,6 +83,10 @@ object AsynchbaseStorage {
     val client = new HBaseClient(asyncConfig)
     logger.info(s"Asynchbase: ${client.getConfig.dumpConfiguration()}")
     client
+  }
+
+  def shutdown(client: HBaseClient): Unit = {
+    client.shutdown().join()
   }
 
   case class ScanWithRange(scan: Scanner, offset: Int, limit: Int)
@@ -466,6 +471,13 @@ class AsynchbaseStorage(override val graph: S2Graph,
   }
 
 
+  override def shutdown(): Unit = {
+    flush()
+    clients.foreach { client =>
+      AsynchbaseStorage.shutdown(client)
+    }
+  }
+
   override def createTable(_zkAddr: String,
                            tableName: String,
                            cfs: List[String],
@@ -495,6 +507,8 @@ class AsynchbaseStorage(override val graph: S2Graph,
               .setMinVersions(0)
               .setBlocksize(32768)
               .setBlockCacheEnabled(true)
+                // FIXME: For test!!
+              .setInMemory(true)
             if (ttl.isDefined) columnDesc.setTimeToLive(ttl.get)
             if (replicationScopeOpt.isDefined) columnDesc.setScope(replicationScopeOpt.get)
             desc.addFamily(columnDesc)
@@ -516,6 +530,59 @@ class AsynchbaseStorage(override val graph: S2Graph,
     }
   }
 
+  override def truncateTable(zkAddr: String, tableNameStr: String): Unit = {
+    val tableName = TableName.valueOf(tableNameStr)
+    val adminTry = Try(getAdmin(zkAddr))
+    if (adminTry.isFailure) return
+    val admin = adminTry.get
+
+    if (!Try(admin.tableExists(tableName)).getOrElse(false)) {
+      logger.info(s"No table to truncate ${tableNameStr}")
+      return
+    }
+
+    Try(admin.isTableDisabled(tableName)).map {
+      case true =>
+        logger.info(s"${tableNameStr} is already disabled.")
+
+      case false =>
+        logger.info(s"Before disabling to trucate ${tableNameStr}")
+        Try(admin.disableTable(tableName)).recover {
+          case NonFatal(e) =>
+            logger.info(s"Failed to disable ${tableNameStr}: ${e}")
+        }
+        logger.info(s"After disabling to trucate ${tableNameStr}")
+    }
+
+    logger.info(s"Before truncating ${tableNameStr}")
+    Try(admin.truncateTable(tableName, true)).recover {
+      case NonFatal(e) =>
+        logger.info(s"Failed to truncate ${tableNameStr}: ${e}")
+    }
+    logger.info(s"After truncating ${tableNameStr}")
+    Try(admin.close()).recover {
+      case NonFatal(e) =>
+        logger.info(s"Failed to close admin ${tableNameStr}: ${e}")
+    }
+    Try(admin.getConnection.close()).recover {
+      case NonFatal(e) =>
+        logger.info(s"Failed to close connection ${tableNameStr}: ${e}")
+    }
+
+  }
+
+  override def deleteTable(zkAddr: String, tableNameStr: String): Unit = {
+    val admin = getAdmin(zkAddr)
+    val tableName = TableName.valueOf(tableNameStr)
+    if (!admin.tableExists(tableName)) {
+      return
+    }
+    if (admin.isTableEnabled(tableName)) {
+      admin.disableTable(tableName)
+    }
+    admin.deleteTable(tableName)
+    admin.close()
+  }
 
   /** Asynchbase implementation override default getVertices to use future Cache */
   override def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
@@ -549,7 +616,9 @@ class AsynchbaseStorage(override val graph: S2Graph,
       scan.setFamily(Serializable.edgeCf)
       scan.setMaxVersions(1)
 
-      scan.nextRows(10000).toFuture(emptyKeyValuesLs).map { kvsLs =>
+      scan.nextRows(10000).toFuture(emptyKeyValuesLs).map {
+        case null => Seq.empty
+        case kvsLs =>
         kvsLs.flatMap { kvs =>
           kvs.flatMap { kv =>
             indexEdgeDeserializer.fromKeyValues(Seq(kv), None)
@@ -567,10 +636,12 @@ class AsynchbaseStorage(override val graph: S2Graph,
       scan.setFamily(Serializable.vertexCf)
       scan.setMaxVersions(1)
 
-      scan.nextRows(10000).toFuture(emptyKeyValuesLs).map { kvsLs =>
-        kvsLs.flatMap { kvs =>
-          vertexDeserializer.fromKeyValues(kvs, None)
-        }
+      scan.nextRows(10000).toFuture(emptyKeyValuesLs).map {
+        case null => Seq.empty
+        case kvsLs =>
+          kvsLs.flatMap { kvs =>
+            vertexDeserializer.fromKeyValues(kvs, None)
+          }
       }
     }
     Future.sequence(futures).map(_.flatten)

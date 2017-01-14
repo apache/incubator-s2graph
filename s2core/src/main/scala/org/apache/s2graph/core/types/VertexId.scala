@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.core.{GraphUtil, S2Vertex}
 import org.apache.s2graph.core.mysqls.ServiceColumn
 import org.apache.s2graph.core.types.HBaseType._
 
@@ -67,8 +67,9 @@ class VertexId (val column: ServiceColumn, val innerId: InnerValLike) extends HB
   def bytes: Array[Byte] = Bytes.add(hashBytes, innerId.bytes, colIdBytes)
 
   override def toString(): String = {
-    column.id.get.toString() + "," + innerId.toString()
-//    s"VertexId($colId, $innerId)"
+    //    column.id.get.toString() + "," + innerId.toString()
+    val del = S2Vertex.VertexLabelDelimiter
+    s"${column.service.serviceName}${del}${column.columnName}${del}${innerId}"
   }
 
   override def hashCode(): Int = {
@@ -96,6 +97,7 @@ class VertexId (val column: ServiceColumn, val innerId: InnerValLike) extends HB
   def <=(other: VertexId): Boolean = compareTo(other) <= 0
   def >(other: VertexId): Boolean = compareTo(other) > 0
   def >=(other: VertexId): Boolean = compareTo(other) >= 0
+
 }
 
 object SourceVertexId extends HBaseDeserializable {

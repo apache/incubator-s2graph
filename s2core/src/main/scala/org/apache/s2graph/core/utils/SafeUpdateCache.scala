@@ -77,6 +77,8 @@ class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(implicit execut
     }
   }
 
+  def invalidateAll() = cache.invalidateAll()
+
   def getAllData() : List[(String, T)] = {
     cache.asMap().map { case (key, value) =>
       (key.key.substring(prefix.size + 1), value._1)

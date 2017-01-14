@@ -73,6 +73,7 @@ object LabelMeta extends Model[LabelMeta] {
   // Each reserved column(_timestamp, timestamp) has same seq number, starts with '_' has high priority
   val reservedMetas = List(empty, label, direction, lastDeletedAt, from, fromHash, to, degree, timestamp, count).flatMap { lm => List(lm, lm.copy(name = lm.name.drop(1))) }.reverse
   val reservedMetasInner = List(empty, label, direction, lastDeletedAt, from, fromHash, to, degree, timestamp, count)
+  val reservedMetaNamesSet = reservedMetasInner.map(_.name).toSet
 
   val defaultRequiredMetaNames = Set("from", "_from", "to", "_to", "_from_hash", "label", "direction", "timestamp", "_timestamp")
 

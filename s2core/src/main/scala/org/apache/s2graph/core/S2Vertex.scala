@@ -20,15 +20,18 @@
 package org.apache.s2graph.core
 
 import java.util
-import java.util.function.{Consumer, BiConsumer}
+import java.util.function.{BiConsumer, Consumer}
 
+import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.S2Vertex.Props
-import org.apache.s2graph.core.mysqls.{ColumnMeta, LabelMeta, Service, ServiceColumn}
+import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types._
+import org.apache.tinkerpop.gremlin.structure.Edge.Exceptions
+import org.apache.tinkerpop.gremlin.structure.Graph.Features.{ElementFeatures, VertexFeatures}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
-import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
-import org.apache.tinkerpop.gremlin.structure.{Direction, Vertex, Edge, VertexProperty}
+import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Property, T, Vertex, VertexProperty}
 import play.api.libs.json.Json
+
 import scala.collection.JavaConverters._
 
 case class S2Vertex(graph: S2Graph,
@@ -86,7 +89,7 @@ case class S2Vertex(graph: S2Graph,
 
   override def equals(obj: Any) = {
     obj match {
-      case otherVertex: S2Vertex =>
+      case otherVertex: Vertex =>
         val ret = id == otherVertex.id
         //        logger.debug(s"Vertex.equals: $this, $obj => $ret")
         ret
@@ -95,7 +98,9 @@ case class S2Vertex(graph: S2Graph,
   }
 
   override def toString(): String = {
-    Map("id" -> id.toString(), "ts" -> ts, "props" -> "", "op" -> op, "belongLabelIds" -> belongLabelIds).toString()
+    // V + L_BRACKET + vertex.id() + R_BRACKET;
+    // v[VertexId(1, 1481694411514)]
+    s"v[${id}]"
   }
 
   def toLogString(): String = {
@@ -132,10 +137,24 @@ case class S2Vertex(graph: S2Graph,
   }
 
   override def edges(direction: Direction, labelNames: String*): util.Iterator[Edge] = {
-    graph.fetchEdges(this, labelNames, direction.name())
+    val labelNameList = {
+      if (labelNames.isEmpty) {
+        val labelList =
+          // TODO: Let's clarify direction
+          if (direction == Direction.IN) Label.findBySrcColumnId(id.colId)
+          else Label.findBySrcColumnId(id.colId)
+        labelList.map(_.label)
+      } else {
+        labelNames
+      }
+    }
+    graph.fetchEdges(this, labelNameList, direction.name())
   }
 
-  override def property[V](cardinality: Cardinality, key: String, value: V, objects: AnyRef*): VertexProperty[V] = {
+  // do no save to storage
+  def propertyInner[V](cardinality: Cardinality, key: String, value: V, objects: AnyRef*): VertexProperty[V] = {
+    S2Property.assertValidProp(key, value)
+
     cardinality match {
       case Cardinality.single =>
         val columnMeta = serviceColumn.metasInvMap.getOrElse(key, throw new RuntimeException(s"$key is not configured on Vertex."))
@@ -146,36 +165,83 @@ case class S2Vertex(graph: S2Graph,
     }
   }
 
-  override def addEdge(label: String, vertex: Vertex, kvs: AnyRef*): S2Edge = {
+  override def property[V](cardinality: Cardinality, key: String, value: V, objects: AnyRef*): VertexProperty[V] = {
+    S2Property.assertValidProp(key, value)
+
+    cardinality match {
+      case Cardinality.single =>
+        val columnMeta = serviceColumn.metasInvMap.getOrElse(key, throw new RuntimeException(s"$key is not configured on Vertex."))
+        val newProps = new S2VertexProperty[V](this, columnMeta, key, value)
+        props.put(key, newProps)
+
+        // FIXME: save to persistent for tp test
+        graph.addVertex(this)
+        newProps
+      case _ => throw new RuntimeException("only single cardinality is supported.")
+    }
+  }
+
+  override def addEdge(label: String, vertex: Vertex, kvs: AnyRef*): Edge = {
     vertex match {
       case otherV: S2Vertex =>
-        val props = ElementHelper.asMap(kvs: _*).asScala.toMap
+        if (!graph.features().edge().supportsUserSuppliedIds() && kvs.contains(T.id)) {
+          throw Exceptions.userSuppliedIdsNotSupported()
+        }
+
+        val props = S2Property.kvsToProps(kvs)
+
         //TODO: direction, operation, _timestamp need to be reserved property key.
         val direction = props.get("direction").getOrElse("out").toString
         val ts = props.get(LabelMeta.timestamp.name).map(_.toString.toLong).getOrElse(System.currentTimeMillis())
         val operation = props.get("operation").map(_.toString).getOrElse("insert")
 
-        graph.addEdgeInner(this, otherV, label, direction, props, ts, operation)
+        try {
+          graph.addEdgeInner(this, otherV, label, direction, props, ts, operation)
+        } catch {
+          case e: LabelNotExistException => throw new java.lang.IllegalArgumentException
+         }
+      case null => throw new java.lang.IllegalArgumentException
       case _ => throw new RuntimeException("only S2Graph vertex can be used.")
     }
   }
 
   override def property[V](key: String): VertexProperty[V] = {
-    props.get(key).asInstanceOf[S2VertexProperty[V]]
+    if (props.containsKey(key)) {
+      props.get(key).asInstanceOf[S2VertexProperty[V]]
+    } else {
+      VertexProperty.empty()
+    }
   }
 
   override def properties[V](keys: String*): util.Iterator[VertexProperty[V]] = {
-    val ls = for {
-      key <- keys
-    } yield {
-      property[V](key)
+    val ls = new util.ArrayList[VertexProperty[V]]()
+    if (keys.isEmpty) {
+      props.keySet().forEach(new Consumer[String] {
+        override def accept(key: String): Unit = {
+          if (!ColumnMeta.reservedMetaNamesSet(key)) ls.add(property[V](key))
+        }
+      })
+    } else {
+      keys.foreach { key => ls.add(property[V](key)) }
     }
-    ls.iterator.asJava
+    ls.iterator
   }
 
-  override def remove(): Unit = ???
+  override def label(): String = {
+    serviceColumn.columnName
+//    if (serviceColumn.columnName == Vertex.DEFAULT_LABEL) Vertex.DEFAULT_LABEL // TP3 default vertex label name
+//    else {
+//      service.serviceName + S2Vertex.VertexLabelDelimiter + serviceColumn.columnName
+//    }
+  }
 
-  override def label(): String = service.serviceName + S2Vertex.VertexLabelDelimiter + serviceColumn.columnName
+  override def remove(): Unit = {
+    if (graph.features().vertex().supportsRemoveVertices()) {
+      // remove edge
+    } else {
+      throw Vertex.Exceptions.vertexRemovalNotSupported()
+    }
+  }
 }
 
 object S2Vertex {
@@ -196,13 +262,14 @@ object S2Vertex {
   def fillPropsWithTs(vertex: S2Vertex, props: Props): Unit = {
     props.forEach(new BiConsumer[String, S2VertexProperty[_]] {
       override def accept(key: String, p: S2VertexProperty[_]): Unit = {
-        vertex.property(Cardinality.single, key, p.value)
+//        vertex.property(Cardinality.single, key, p.value)
+        vertex.propertyInner(Cardinality.single, key, p.value)
       }
     })
   }
 
   def fillPropsWithTs(vertex: S2Vertex, state: State): Unit = {
-    state.foreach { case (k, v) => vertex.property(Cardinality.single, k.name, v.value) }
+    state.foreach { case (k, v) => vertex.propertyInner(Cardinality.single, k.name, v.value) }
   }
 
   def propsToState(props: Props): State = {

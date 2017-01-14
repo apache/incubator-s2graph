@@ -73,8 +73,8 @@ object Service extends Model[Service] {
   }
 
   def findOrInsert(serviceName: String, cluster: String, hTableName: String,
-                   preSplitSize: Int, hTableTTL: Option[Int], compressionAlgorithm: String)(implicit session: DBSession = AutoSession): Service = {
-    findByName(serviceName) match {
+                   preSplitSize: Int, hTableTTL: Option[Int], compressionAlgorithm: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Service = {
+    findByName(serviceName, useCache) match {
       case Some(s) => s
       case None =>
         insert(serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
