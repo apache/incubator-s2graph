@@ -21,7 +21,7 @@ package org.apache.s2graph.core
 
 import java.util
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
-import java.util.concurrent.{Executors, TimeUnit}
+import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.{BaseConfiguration, Configuration}
@@ -62,10 +62,8 @@ object S2Graph {
     "hbase.table.name" -> "s2graph",
     "hbase.table.compression.algorithm" -> "gz",
     "phase" -> "dev",
-//    "db.default.driver" ->  "org.h2.Driver",
-//    "db.default.url" -> "jdbc:h2:file:./var/metastore;MODE=MYSQL",
-    "db.default.driver" -> "com.mysql.jdbc.Driver",
-    "db.default.url" -> "jdbc:mysql://default:3306/graph_dev",
+    "db.default.driver" ->  "org.h2.Driver",
+    "db.default.url" -> "jdbc:h2:file:./var/metastore;MODE=MYSQL",
     "db.default.password" -> "graph",
     "db.default.user" -> "graph",
     "cache.max.size" -> java.lang.Integer.valueOf(10000),
@@ -533,8 +531,8 @@ object S2Graph {
 @Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_STANDARD)
 @Graph.OptOuts(value = Array(
 // passed
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.FeatureSupportTest", method="*", reason="no"), // pass
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.PropertyTest", method="*", reason="no"), // pass
+//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.FeatureSupportTest", method="*", reason="no"), // pass
+//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.PropertyTest", method="*", reason="no"), // pass
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VertexPropertyTest", method="*", reason="no"), // pass
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VertexTest", method="*", reason="no"), // pss
@@ -547,7 +545,7 @@ object S2Graph {
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedPropertyTest", method="*", reason="no"), // pass
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedVertexPropertyTest", method="*", reason="no"), // pass
 
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphTest", method="*", reason="no"), // pass
+  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphTest", method="*", reason="no"), // pass
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceEdgeTest", method="*", reason="no"), // pass
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceGraphTest", method="*", reason="no"), // pass

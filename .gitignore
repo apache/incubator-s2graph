@@ -106,3 +106,5 @@ server.pid
 /dist/
 .cache
 
+### Local Embedded HBase Data ###
+storage/

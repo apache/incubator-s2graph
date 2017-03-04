@@ -32,19 +32,10 @@ class S2GraphProvider extends AbstractGraphProvider {
 
   override def getBaseConfiguration(s: String, aClass: Class[_], s1: String, graphData: GraphData): util.Map[String, AnyRef] = {
     val config = ConfigFactory.load()
-//    val dbUrl =
-//      if (config.hasPath("db.default.url")) config.getString("db.default.url")
-//      else "jdbc:mysql://localhost:3306/graph_dev"
-
-    val dbUrl = "jdbc:mysql://localhost:3306/graph_dev"
     val m = new java.util.HashMap[String, AnyRef]()
     m.put(Graph.GRAPH, classOf[S2Graph].getName)
-    m.put("db.default.url", dbUrl)
-    m.put("db.default.driver", "com.mysql.jdbc.Driver")
     m
   }
-
-  private val H2Prefix = "jdbc:h2:file:"
 
   override def clear(graph: Graph, configuration: Configuration): Unit =
     if (graph != null) {

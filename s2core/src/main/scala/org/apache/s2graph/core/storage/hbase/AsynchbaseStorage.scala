@@ -23,9 +23,11 @@ package org.apache.s2graph.core.storage.hbase
 
 import java.util
 import java.util.Base64
+import java.util.concurrent.{TimeUnit, ExecutorService, Executors}
 
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.Config
+import org.apache.commons.io.FileUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
@@ -91,6 +93,61 @@ object AsynchbaseStorage {
 
   case class ScanWithRange(scan: Scanner, offset: Int, limit: Int)
   type AsyncRPC = Either[GetRequest, ScanWithRange]
+
+  def initLocalHBase(config: Config,
+                     overwrite: Boolean = true): ExecutorService = {
+    import java.net.Socket
+    import java.io.{File, IOException}
+
+    lazy val hbaseExecutor = {
+      val executor = Executors.newSingleThreadExecutor()
+
+      Runtime.getRuntime.addShutdownHook(new Thread() {
+        override def run(): Unit = {
+          executor.shutdown()
+        }
+      })
+
+      val hbaseAvailable = try {
+        val (host, port) = config.getString("hbase.zookeeper.quorum").split(":") match {
+          case Array(h, p) => (h, p.toInt)
+          case Array(h) => (h, 2181)
+        }
+
+        val socket = new Socket(host, port)
+        socket.close()
+        true
+      } catch {
+        case e: IOException => false
+      }
+
+      if (!hbaseAvailable) {
+        // start HBase
+        executor.submit(new Runnable {
+          override def run(): Unit = {
+            val cwd = new File(".").getAbsolutePath
+            if (overwrite) {
+              val dataDir = new File(s"$cwd/storage/s2graph")
+              FileUtils.deleteDirectory(dataDir)
+            }
+
+            System.setProperty("proc_master", "")
+            System.setProperty("hbase.log.dir", s"$cwd/storage/s2graph/hbase/")
+            System.setProperty("hbase.log.file", s"$cwd/storage/s2graph/hbase.log")
+            System.setProperty("hbase.tmp.dir", s"$cwd/storage/s2graph/hbase/")
+            System.setProperty("hbase.home.dir", "")
+            System.setProperty("hbase.id.str", "s2graph")
+            System.setProperty("hbase.root.logger", "INFO,RFA")
+
+            org.apache.hadoop.hbase.master.HMaster.main(Array[String]("start"))
+          }
+        })
+      }
+
+      executor
+    }
+    hbaseExecutor
+  }
 }
 
 
@@ -99,6 +156,12 @@ class AsynchbaseStorage(override val graph: S2Graph,
   extends Storage[AsyncRPC, Deferred[StepResult]](graph, config) {
 
   import Extensions.DeferOps
+
+  val hbaseExecutor: ExecutorService  =
+    if (config.getString("hbase.zookeeper.quorum") == "localhost")
+      AsynchbaseStorage.initLocalHBase(config)
+    else
+      null
 
   /**
    * Asynchbase client setup.
@@ -475,6 +538,10 @@ class AsynchbaseStorage(override val graph: S2Graph,
     flush()
     clients.foreach { client =>
       AsynchbaseStorage.shutdown(client)
+    }
+    if (hbaseExecutor != null) {
+      hbaseExecutor.shutdown()
+      hbaseExecutor.awaitTermination(1, TimeUnit.MINUTES)
     }
   }
 
