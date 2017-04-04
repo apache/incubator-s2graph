@@ -216,9 +216,10 @@ case class S2Vertex(graph: S2Graph,
   override def properties[V](keys: String*): util.Iterator[VertexProperty[V]] = {
     val ls = new util.ArrayList[VertexProperty[V]]()
     if (keys.isEmpty) {
-      props.keySet().forEach(new Consumer[String] {
-        override def accept(key: String): Unit = {
-          if (!ColumnMeta.reservedMetaNamesSet(key)) ls.add(property[V](key))
+      props.forEach(new BiConsumer[String, VertexProperty[_]] {
+        override def accept(key: String, property: VertexProperty[_]): Unit = {
+          if (!ColumnMeta.reservedMetaNamesSet(key) && property.isPresent)
+            ls.add(property.asInstanceOf[VertexProperty[V]])
         }
       })
     } else {
