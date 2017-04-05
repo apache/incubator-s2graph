@@ -18,7 +18,7 @@ class S2VertexPropertyFeatures extends S2PropertyFeatures with Features.VertexPr
 
   override def supportsUuidIds(): Boolean = false
 
-  override def supportsCustomIds(): Boolean = false
+  override def supportsCustomIds(): Boolean = true
 
   override def supportsAnyIds(): Boolean = false
 }

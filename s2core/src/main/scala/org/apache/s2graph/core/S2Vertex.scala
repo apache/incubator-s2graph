@@ -33,6 +33,7 @@ import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Property, T, Ver
 import play.api.libs.json.Json
 
 import scala.collection.JavaConverters._
+import scala.concurrent.Await
 
 case class S2Vertex(graph: S2Graph,
                   id: VertexId,
@@ -181,22 +182,32 @@ case class S2Vertex(graph: S2Graph,
     }
   }
 
-  override def addEdge(label: String, vertex: Vertex, kvs: AnyRef*): Edge = {
+  override def addEdge(labelName: String, vertex: Vertex, kvs: AnyRef*): Edge = {
+    val containsId = kvs.contains(T.id)
     vertex match {
       case otherV: S2Vertex =>
-        if (!graph.features().edge().supportsUserSuppliedIds() && kvs.contains(T.id)) {
+        if (!graph.features().edge().supportsUserSuppliedIds() && containsId) {
           throw Exceptions.userSuppliedIdsNotSupported()
         }
 
         val props = S2Property.kvsToProps(kvs)
 
         //TODO: direction, operation, _timestamp need to be reserved property key.
-        val direction = props.get("direction").getOrElse("out").toString
-        val ts = props.get(LabelMeta.timestamp.name).map(_.toString.toLong).getOrElse(System.currentTimeMillis())
-        val operation = props.get("operation").map(_.toString).getOrElse("insert")
 
         try {
-          graph.addEdgeInner(this, otherV, label, direction, props, ts, operation)
+          val direction = props.get("direction").getOrElse("out").toString
+          val ts = props.get(LabelMeta.timestamp.name).map(_.toString.toLong).getOrElse(System.currentTimeMillis())
+          val operation = props.get("operation").map(_.toString).getOrElse("insert")
+          val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+          val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
+          val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
+          val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
+          val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
+
+          val edge = graph.newEdge(this, otherV, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
+          val future = graph.mutateEdges(edge.relatedEdges, withWait = true)
+          Await.ready(future, graph.WaitTimeout)
+          edge
         } catch {
           case e: LabelNotExistException => throw new java.lang.IllegalArgumentException
          }
@@ -239,6 +250,27 @@ case class S2Vertex(graph: S2Graph,
   override def remove(): Unit = {
     if (graph.features().vertex().supportsRemoveVertices()) {
       // remove edge
+      // TODO: remove related edges also.
+      implicit val ec = graph.ec
+      val ts = System.currentTimeMillis()
+      val outLabels = Label.findBySrcColumnId(id.colId)
+      val inLabels = Label.findByTgtColumnId(id.colId)
+      val verticesToDelete = Seq(this.copy(op = GraphUtil.operations("delete")))
+      val outFuture = graph.deleteAllAdjacentEdges(verticesToDelete, outLabels, GraphUtil.directions("out"), ts)
+      val inFuture = graph.deleteAllAdjacentEdges(verticesToDelete, inLabels, GraphUtil.directions("in"), ts)
+      val vertexFuture = graph.mutateVertices(verticesToDelete, withWait = true)
+      val future = for {
+        outSuccess <- outFuture
+        inSuccess <- inFuture
+        vertexSuccess <- vertexFuture
+      } yield {
+        if (!outSuccess) throw new RuntimeException("Vertex.remove out direction edge delete failed.")
+        if (!inSuccess) throw new RuntimeException("Vertex.remove in direction edge delete failed.")
+        if (!vertexSuccess.forall(identity)) throw new RuntimeException("Vertex.remove vertex delete failed.")
+        true
+      }
+      Await.result(future, graph.WaitTimeout)
+
     } else {
       throw Vertex.Exceptions.vertexRemovalNotSupported()
     }

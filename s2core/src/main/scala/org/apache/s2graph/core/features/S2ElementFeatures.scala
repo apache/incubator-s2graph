@@ -3,7 +3,7 @@ package org.apache.s2graph.core.features
 import org.apache.tinkerpop.gremlin.structure.Graph.Features
 
 abstract class S2ElementFeatures extends Features.ElementFeatures {
-  override def supportsStringIds(): Boolean = true
+  override def supportsStringIds(): Boolean = false
 
   override def supportsCustomIds(): Boolean = true
 
@@ -15,7 +15,7 @@ abstract class S2ElementFeatures extends Features.ElementFeatures {
 
   override def supportsUserSuppliedIds(): Boolean = true
 
-  override def supportsAnyIds(): Boolean = true
+  override def supportsAnyIds(): Boolean = false
 
   override def supportsNumericIds(): Boolean = false
 

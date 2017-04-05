@@ -24,7 +24,7 @@ import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.core.{Management, S2Graph, S2Vertex, TestCommonWithModels}
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal
-import org.apache.tinkerpop.gremlin.structure.{Edge, T, Vertex}
+import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, T, Vertex}
 import org.scalatest.{FunSuite, Matchers}
 
 
@@ -181,7 +181,59 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 //    logger.error(x)
   }
 
-  test("addVertex with empty parameter") {
+//  test("addVertex with empty parameter") {
+//
+//  }
+  test("aaa") {
+    val mnt = graph.management
+    val defaultService = graph.DefaultService
+    val defaultServiceColumn = graph.DefaultColumn
+    val columnNames = Set(defaultServiceColumn.columnName, "person", "software", "product", "dog")
+    val labelNames = Set("knows", "created", "bought", "test", "self", "friends", "friend", "hate", "collaborator", "test1", "test2", "test3", "pets", "walks", "knows")
 
+    Management.deleteService(defaultService.serviceName)
+    columnNames.foreach { columnName =>
+      Management.deleteColumn(defaultServiceColumn.service.serviceName, columnName)
+    }
+    labelNames.foreach { labelName =>
+      Management.deleteLabel(labelName)
+    }
+
+    val knows = mnt.createLabel("knows",
+      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      true, defaultService.serviceName, Nil, Seq(Prop("since", "0", "integer")), "strong", None, None,
+      options = Option("""{"skipReverse": false}"""))
+
+    val pets = mnt.createLabel("pets",
+      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      true, defaultService.serviceName, Nil, Nil, "strong", None, None,
+      options = Option("""{"skipReverse": false}"""))
+
+    val walks = mnt.createLabel("walks",
+      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      true, defaultService.serviceName, Nil, Seq(Prop("location", "-", "string")), "strong", None, None,
+      options = Option("""{"skipReverse": false}"""))
+
+    val livesWith = mnt.createLabel("livesWith",
+      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      true, defaultService.serviceName, Nil, Nil, "strong", None, None,
+      options = Option("""{"skipReverse": false}"""))
+
+    (0 until 2).foreach(i => graph.addVertex("myId", Int.box(i)))
+
+    graph.vertices().foreach(v =>
+      graph.vertices().foreach(u => v.addEdge("knows", u, "myEdgeId", Int.box(12)))
+    )
+
+    val v = graph.vertices().toSeq.head
+    v.remove()
+
+    graph.edges().foreach(e =>
+      logger.error(s"[Edge]: $e")
+    )
   }
 }

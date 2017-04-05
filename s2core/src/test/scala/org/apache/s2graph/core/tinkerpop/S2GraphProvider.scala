@@ -41,12 +41,14 @@ class S2GraphProvider extends AbstractGraphProvider {
     if (graph != null) {
       val s2Graph = graph.asInstanceOf[S2Graph]
       if (s2Graph.isRunning) {
-        val labels = Label.findAll()
-        labels.groupBy(_.hbaseTableName).values.foreach { labelsWithSameTable =>
-          labelsWithSameTable.headOption.foreach { label =>
-            s2Graph.management.truncateStorage(label.label)
-          }
-        }
+//        val labels = Label.findAll()
+//        labels.groupBy(_.hbaseTableName).values.foreach { labelsWithSameTable =>
+//          labelsWithSameTable.headOption.foreach { label =>
+//            s2Graph.management.truncateStorage(label.label)
+//          }
+//        }
+//        s2Graph.shutdown(modelDataDelete = true)
+        cleanupSchema(graph)
         s2Graph.shutdown(modelDataDelete = true)
         logger.info("S2Graph Shutdown")
       }
@@ -58,6 +60,24 @@ class S2GraphProvider extends AbstractGraphProvider {
     val testClassName = testClass.getSimpleName
     testClass.getSimpleName match {
       case _ =>
+    }
+  }
+
+  private def cleanupSchema(graph: Graph): Unit = {
+    val s2Graph = graph.asInstanceOf[S2Graph]
+    val mnt = s2Graph.getManagement()
+    val defaultService = s2Graph.DefaultService
+    val defaultServiceColumn = s2Graph.DefaultColumn
+
+    val columnNames = Set(defaultServiceColumn.columnName, "person", "software", "product", "dog")
+    val labelNames = Set("knows", "created", "bought", "test", "self", "friends", "friend", "hate", "collaborator", "test1", "test2", "test3", "pets", "walks", "knows")
+
+    Management.deleteService(defaultService.serviceName)
+    columnNames.foreach { columnName =>
+      Management.deleteColumn(defaultServiceColumn.service.serviceName, columnName)
+    }
+    labelNames.foreach { labelName =>
+      Management.deleteLabel(labelName)
     }
   }
 
@@ -74,14 +94,17 @@ class S2GraphProvider extends AbstractGraphProvider {
     var knowsProp = Vector(
       Prop("weight", "0.0", "double"),
       Prop("data", "-", "string"),
-      Prop("year", "-1", "integer"),
+      Prop("year", "0", "integer"),
       Prop("boolean", "false", "boolean"),
       Prop("float", "0.0", "float"),
       Prop("double", "0.0", "double"),
       Prop("long", "0.0", "long"),
       Prop("string", "-", "string"),
-      Prop("integer", "-", "integer"),
-      Prop("aKey", "-", "string")
+      Prop("integer", "0", "integer"),
+      Prop("aKey", "-", "string"),
+      Prop("stars", "0", "integer"),
+      Prop("since", "0", "integer"),
+      Prop("myEdgeId", "0", "integer")
     )
 
    // Change dataType for ColumnMeta('aKey') for PropertyFeatureSupportTest
@@ -115,12 +138,15 @@ class S2GraphProvider extends AbstractGraphProvider {
     }
 
     // knows props
-    if (testClass.getSimpleName == "EdgeTest" && testName == "shouldAutotypeDoubleProperties") {
+//    mnt.createLabel("knows", defaultService.serviceName, "vertex", "string", defaultService.serviceName, "vertex", "string",
+//      true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+
+    if (testClass.getSimpleName.contains("VertexTest") || (testClass.getSimpleName == "EdgeTest" && testName == "shouldAutotypeDoubleProperties")) {
       mnt.createLabel("knows", defaultService.serviceName, "vertex", "string", defaultService.serviceName, "vertex", "string",
-        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": true}"""))
+        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
     } else {
       mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
-        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": true}"""))
+        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
     }
 
     val personColumn = Management.createServiceColumn(defaultService.serviceName, "person", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
@@ -183,6 +209,21 @@ class S2GraphProvider extends AbstractGraphProvider {
       options = Option("""{"skipReverse": false}""")
     )
     val test3 = mnt.createLabel("test3", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      true, defaultService.serviceName, Nil, Nil, "weak", None, None,
+      options = Option("""{"skipReverse": false}""")
+    )
+    val pets = mnt.createLabel("pets", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      true, defaultService.serviceName, Nil, Nil, "weak", None, None,
+      options = Option("""{"skipReverse": false}""")
+    )
+    val walks = mnt.createLabel("walks", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      true, defaultService.serviceName, Nil,
+      Seq(
+        Prop("location", "-", "string")
+      ), "weak", None, None,
+      options = Option("""{"skipReverse": false}""")
+    )
+    val livesWith = mnt.createLabel("livesWith", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
       true, defaultService.serviceName, Nil, Nil, "weak", None, None,
       options = Option("""{"skipReverse": false}""")
     )

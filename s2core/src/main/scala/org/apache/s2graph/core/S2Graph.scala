@@ -597,7 +597,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   val MaxSize = config.getInt("future.cache.max.size")
   val ExpireAfterWrite = config.getInt("future.cache.expire.after.write")
   val ExpireAfterAccess = config.getInt("future.cache.expire.after.access")
-  val WaitTimeout = Duration(60, TimeUnit.SECONDS)
+  val WaitTimeout = Duration(300, TimeUnit.SECONDS)
   val scheduledEx = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
   val management = new Management(this)
@@ -654,7 +654,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   } logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
 
   /* TODO */
-  val DefaultService = management.createService("_s2graph", "localhost", "s2graph", 0, None).get
+  val DefaultService = management.createService("", "localhost", "s2graph", 0, None).get
   val DefaultColumn = ServiceColumn.findOrInsert(DefaultService.id.get, "vertex", Some("string"), HBaseType.DEFAULT_VERSION, useCache = false)
   val DefaultColumnMetas = {
     ColumnMeta.findOrInsert(DefaultColumn.id.get, "test", "string", useCache = false)
@@ -672,11 +672,16 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     ColumnMeta.findOrInsert(DefaultColumn.id.get, "double", "double", useCache = false)
     ColumnMeta.findOrInsert(DefaultColumn.id.get, "integer", "integer", useCache = false)
     ColumnMeta.findOrInsert(DefaultColumn.id.get, "aKey", "string", useCache = false)
+    ColumnMeta.findOrInsert(DefaultColumn.id.get, "x", "integer", useCache = false)
+    ColumnMeta.findOrInsert(DefaultColumn.id.get, "y", "integer", useCache = false)
+    ColumnMeta.findOrInsert(DefaultColumn.id.get, "location", "string", useCache = false)
+    ColumnMeta.findOrInsert(DefaultColumn.id.get, "status", "string", useCache = false)
+    ColumnMeta.findOrInsert(DefaultColumn.id.get, "myId", "integer", useCache = false)
   }
 
   val DefaultLabel = management.createLabel("_s2graph", DefaultService.serviceName, DefaultColumn.columnName, DefaultColumn.columnType,
     DefaultService.serviceName, DefaultColumn.columnName, DefaultColumn.columnType, true, DefaultService.serviceName, Nil, Nil, "weak", None, None,
-    options = Option("""{"skipReverse": true}""")
+    options = Option("""{"skipReverse": false}""")
   )
 
   def getStorage(service: Service): Storage[_, _] = {
@@ -909,6 +914,20 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
   }
 
+//  def deleteAllAdjacentEdges(vertex: S2Vertex,
+//                             labels: Seq[Label],
+//                             ts: Long = System.currentTimeMillis()): Future[Boolean] = {
+//    val indexEdges = labels.flatMap { label =>
+//      val propsPlusTs = Map(LabelMeta.timestamp.name -> ts)
+//      val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
+//      val edge = newEdge(vertex, vertex, label,
+//        GraphUtil.directions("out"),
+//        GraphUtil.operations("delete"), propsWithTs = propsWithTs)
+//      edge.relatedEdges.flatMap(e => e.edgesWithIndexValid)
+//    }
+//    val kvs = indexEdges.flatMap(ie => defaultStorage.indexEdgeSerializer(ie).toKeyValues)
+//    defaultStorage.writeToStorage(vertex.hbaseZkAddr, kvs, withWait = true)
+//  }
   /** mutate */
   def deleteAllAdjacentEdges(srcVertices: Seq[S2Vertex],
                              labels: Seq[Label],
@@ -947,7 +966,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       stepInnerResultLs <- Future.sequence(queries.map(getEdgesStepInner(_, true)))
       (allDeleted, ret) <- deleteAllFetchedEdgesLs(stepInnerResultLs, requestTs)
     } yield {
-      //        logger.debug(s"fetchAndDeleteAll: ${allDeleted}, ${ret}")
+      logger.debug(s"fetchAndDeleteAll: ${allDeleted}, ${ret}")
       (allDeleted, ret)
     }
 
@@ -993,7 +1012,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       }
       ret
     }
-
+    logger.error(s"[FutureSize]: ${futures.size}")
     if (futures.isEmpty) {
       // all deleted.
       Future.successful(true -> true)
@@ -1008,6 +1027,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
     if (filtered.isEmpty) StepResult.Empty
     else {
+      logger.error(s"[buildEdgesToDelete]: ${filtered.size}")
+
       val head = filtered.head
       val label = head.edge.innerLabel
       val edgeWithScoreLs = filtered.map { edgeWithScore =>
@@ -1035,7 +1056,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 //          edgeWithScore.edge.copy(op = newOp, version = newVersion, propsWithTs = newPropsWithTs)
 
         val edgeToDelete = edgeWithScore.copy(edge = copiedEdge)
-        //      logger.debug(s"delete edge from deleteAll: ${edgeToDelete.edge.toLogString}")
+        logger.error(s"delete edge from deleteAll: ${edgeToDelete.edge.toLogString}")
+        logger.error(s"delete edge from deleteAll edge: ${edge.toLogString}")
         edgeToDelete
       }
       //Degree edge?
@@ -1234,11 +1256,14 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
              operation: String = "insert"): S2Edge = {
     val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
 
-    val srcVertexIdInnerVal = toInnerVal(srcId, label.srcColumn.columnType, label.schemaVersion)
-    val tgtVertexIdInnerVal = toInnerVal(tgtId, label.tgtColumn.columnType, label.schemaVersion)
+    val srcColumn = if (direction == "out") label.srcColumn else label.tgtColumn
+    val tgtColumn = if (direction == "out") label.tgtColumn else label.srcColumn
 
-    val srcVertex = newVertex(SourceVertexId(label.srcColumn, srcVertexIdInnerVal), System.currentTimeMillis())
-    val tgtVertex = newVertex(TargetVertexId(label.tgtColumn, tgtVertexIdInnerVal), System.currentTimeMillis())
+    val srcVertexIdInnerVal = toInnerVal(srcId, srcColumn.columnType, label.schemaVersion)
+    val tgtVertexIdInnerVal = toInnerVal(tgtId, tgtColumn.columnType, label.schemaVersion)
+
+    val srcVertex = newVertex(SourceVertexId(srcColumn, srcVertexIdInnerVal), System.currentTimeMillis())
+    val tgtVertex = newVertex(TargetVertexId(tgtColumn, tgtVertexIdInnerVal), System.currentTimeMillis())
     val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
 
     val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
@@ -1551,11 +1576,22 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   override def configuration(): Configuration = apacheConfiguration
 
+  override def addVertex(label: String): Vertex = {
+    if (label == null) throw Element.Exceptions.labelCanNotBeNull
+    if (label.isEmpty) throw Element.Exceptions.labelCanNotBeEmpty
+
+    addVertex(Seq(T.label, label): _*)
+  }
+
   override def addVertex(kvs: AnyRef*): structure.Vertex = {
     if (!features().vertex().supportsUserSuppliedIds() && kvs.contains(T.id)) {
       throw Vertex.Exceptions.userSuppliedIdsNotSupported
     }
+
     val kvsMap = S2Property.kvsToProps(kvs)
+    if (kvsMap.contains(T.label.name()) && kvsMap(T.label.name).toString.isEmpty)
+      throw Element.Exceptions.labelCanNotBeEmpty
+
     val id = kvsMap.getOrElse(T.id.toString, Random.nextLong)
 
     val serviceColumnNames = kvsMap.getOrElse(T.label.toString, DefaultColumn.columnName).toString
