@@ -530,14 +530,13 @@ object S2Graph {
 
 @Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_STANDARD)
 @Graph.OptOuts(value = Array(
-// passed
+  //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest", method="*", reason="no"), // pass
+  //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphConstructionTest", method="*", reason="no"), // pass
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.FeatureSupportTest", method="*", reason="no"), // pass
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.PropertyTest", method="*", reason="no"), // pass
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VertexPropertyTest", method="*", reason="no"), // pass
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VertexTest", method="*", reason="no"), // pss
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest", method="*", reason="no"), // pass
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphConstructionTest", method="*", reason="no"), // pass
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedEdgeTest", method="*", reason="no"), // pass
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedVertexTest", method="*", reason="no"), // pass one error
