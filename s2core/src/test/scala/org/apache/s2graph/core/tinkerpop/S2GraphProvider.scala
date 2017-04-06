@@ -64,6 +64,8 @@ class S2GraphProvider extends AbstractGraphProvider {
   }
 
   private def cleanupSchema(graph: Graph): Unit = {
+//    new File("./var/metastore").delete()
+
     val s2Graph = graph.asInstanceOf[S2Graph]
     val mnt = s2Graph.getManagement()
     val defaultService = s2Graph.DefaultService
@@ -141,13 +143,15 @@ class S2GraphProvider extends AbstractGraphProvider {
 //    mnt.createLabel("knows", defaultService.serviceName, "vertex", "string", defaultService.serviceName, "vertex", "string",
 //      true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
 
-    if (testClass.getSimpleName.contains("VertexTest") || (testClass.getSimpleName == "EdgeTest" && testName == "shouldAutotypeDoubleProperties")) {
-      mnt.createLabel("knows", defaultService.serviceName, "vertex", "string", defaultService.serviceName, "vertex", "string",
-        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
-    } else {
-      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
-        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
-    }
+    mnt.createLabel("knows", defaultService.serviceName, "vertex", "string", defaultService.serviceName, "vertex", "string",
+      true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+//    if (testClass.getSimpleName.contains("VertexTest") || (testClass.getSimpleName == "EdgeTest" && testName == "shouldAutotypeDoubleProperties")) {
+//      mnt.createLabel("knows", defaultService.serviceName, "vertex", "string", defaultService.serviceName, "vertex", "string",
+//        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+//    } else {
+//      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
+//        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+//    }
 
     val personColumn = Management.createServiceColumn(defaultService.serviceName, "person", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
     val softwareColumn = Management.createServiceColumn(defaultService.serviceName, "software", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("lang", "-", "string")))
@@ -172,8 +176,8 @@ class S2GraphProvider extends AbstractGraphProvider {
 
     val friends = mnt.createLabel("friends", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
       true, defaultService.serviceName, Nil, Nil,
-      "weak", None, None,
-      options = Option("""{"skipReverse": true}"""))
+      "strong", None, None,
+      options = Option("""{"skipReverse": false}"""))
 
     val friend = mnt.createLabel("friend", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
       true, defaultService.serviceName, Nil,
@@ -182,7 +186,7 @@ class S2GraphProvider extends AbstractGraphProvider {
         Prop("location", "-", "string"),
         Prop("status", "-", "string")
       ),
-      "weak", None, None,
+      "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
@@ -213,18 +217,18 @@ class S2GraphProvider extends AbstractGraphProvider {
       options = Option("""{"skipReverse": false}""")
     )
     val pets = mnt.createLabel("pets", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, Nil, "weak", None, None,
+      true, defaultService.serviceName, Nil, Nil, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
     val walks = mnt.createLabel("walks", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
       true, defaultService.serviceName, Nil,
       Seq(
         Prop("location", "-", "string")
-      ), "weak", None, None,
+      ), "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
     val livesWith = mnt.createLabel("livesWith", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, Nil, "weak", None, None,
+      true, defaultService.serviceName, Nil, Nil, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 

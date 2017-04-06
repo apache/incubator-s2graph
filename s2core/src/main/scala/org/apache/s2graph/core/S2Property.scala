@@ -94,7 +94,7 @@ case class S2Property[V](element: S2Edge,
   override def remove(): Unit = isRemoved = true
 
   override def hashCode(): Int = {
-    MurmurHash3.stringHash(labelMeta.labelId + "," + labelMeta.id.get + "," + key + "," + value + "," + ts)
+    MurmurHash3.stringHash(labelMeta.labelId + "," + labelMeta.id + "," + key + "," + value + "," + ts)
   }
 
   override def equals(other: Any): Boolean = other match {

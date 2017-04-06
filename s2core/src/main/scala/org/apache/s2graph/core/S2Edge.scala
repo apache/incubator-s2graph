@@ -614,7 +614,16 @@ case class S2Edge(innerGraph: S2Graph,
 
   override def properties[V](keys: String*): util.Iterator[Property[V]] = {
     val ls = new util.ArrayList[Property[V]]()
-    keys.foreach { key => ls.add(property(key)) }
+    if (keys.isEmpty) {
+      propsWithTs.forEach(new BiConsumer[String, S2Property[_]] {
+        override def accept(key: String, property: S2Property[_]): Unit = {
+          if (!LabelMeta.reservedMetaNamesSet(key) && property.isPresent)
+            ls.add(property.asInstanceOf[S2Property[V]])
+        }
+      })
+    } else {
+      keys.foreach { key => ls.add(property(key)) }
+    }
     ls.iterator()
   }
 
@@ -649,7 +658,13 @@ case class S2Edge(innerGraph: S2Graph,
 
   override def remove(): Unit =  {
     if (graph.features().edge().supportsRemoveEdges()) {
-      // remove edge
+      val requestTs = System.currentTimeMillis()
+      val edgeToDelete = this.copyEdge(op = GraphUtil.operations("delete"),
+        version = version + S2Edge.incrementVersion, propsWithTs = S2Edge.propsToState(updatePropsWithTs()), ts = requestTs)
+      // should we delete related edges also?
+      val future = innerGraph.mutateEdges(Seq(edgeToDelete), withWait = true)
+      val mutateSuccess = Await.result(future, innerGraph.WaitTimeout)
+      if (!mutateSuccess.forall(identity)) throw new RuntimeException("edge remove failed.")
     } else {
       throw Edge.Exceptions.edgeRemovalNotSupported()
     }
@@ -660,9 +675,9 @@ case class S2Edge(innerGraph: S2Graph,
   override def id(): AnyRef = {
     // NOTE: xxxForVertex makes direction to be "out"
     if (this.innerLabel.consistencyLevel == "strong") {
-      EdgeId(srcForVertex.innerId, tgtForVertex.innerId, label(), "out", 0)
+      EdgeId(srcForVertex.innerId, tgtForVertex.innerId, label(), direction, 0)
     } else {
-      EdgeId(srcForVertex.innerId, tgtForVertex.innerId, label(), "out", ts)
+      EdgeId(srcForVertex.innerId, tgtForVertex.innerId, label(), direction, ts)
     }
   }
 

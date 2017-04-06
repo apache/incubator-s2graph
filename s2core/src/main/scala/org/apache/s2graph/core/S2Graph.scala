@@ -535,8 +535,8 @@ object S2Graph {
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.PropertyTest", method="*", reason="no"), // pass
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VertexPropertyTest", method="*", reason="no"), // pass
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VertexTest", method="*", reason="no"), // pss
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest", method="*", reason="no"), // pass
+  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VertexTest", method="*", reason="no"), // pss
+//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest", method="*", reason="no"), // pass
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphConstructionTest", method="*", reason="no"), // pass
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedEdgeTest", method="*", reason="no"), // pass
@@ -597,7 +597,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   val MaxSize = config.getInt("future.cache.max.size")
   val ExpireAfterWrite = config.getInt("future.cache.expire.after.write")
   val ExpireAfterAccess = config.getInt("future.cache.expire.after.access")
-  val WaitTimeout = Duration(300, TimeUnit.SECONDS)
+  val WaitTimeout = Duration(60, TimeUnit.SECONDS)
   val scheduledEx = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
   val management = new Management(this)
@@ -914,20 +914,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
   }
 
-//  def deleteAllAdjacentEdges(vertex: S2Vertex,
-//                             labels: Seq[Label],
-//                             ts: Long = System.currentTimeMillis()): Future[Boolean] = {
-//    val indexEdges = labels.flatMap { label =>
-//      val propsPlusTs = Map(LabelMeta.timestamp.name -> ts)
-//      val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
-//      val edge = newEdge(vertex, vertex, label,
-//        GraphUtil.directions("out"),
-//        GraphUtil.operations("delete"), propsWithTs = propsWithTs)
-//      edge.relatedEdges.flatMap(e => e.edgesWithIndexValid)
-//    }
-//    val kvs = indexEdges.flatMap(ie => defaultStorage.indexEdgeSerializer(ie).toKeyValues)
-//    defaultStorage.writeToStorage(vertex.hbaseZkAddr, kvs, withWait = true)
-//  }
   /** mutate */
   def deleteAllAdjacentEdges(srcVertices: Seq[S2Vertex],
                              labels: Seq[Label],
@@ -966,7 +952,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       stepInnerResultLs <- Future.sequence(queries.map(getEdgesStepInner(_, true)))
       (allDeleted, ret) <- deleteAllFetchedEdgesLs(stepInnerResultLs, requestTs)
     } yield {
-      logger.debug(s"fetchAndDeleteAll: ${allDeleted}, ${ret}")
+      //        logger.debug(s"fetchAndDeleteAll: ${allDeleted}, ${ret}")
       (allDeleted, ret)
     }
 
@@ -1012,7 +998,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       }
       ret
     }
-    logger.error(s"[FutureSize]: ${futures.size}")
+
     if (futures.isEmpty) {
       // all deleted.
       Future.successful(true -> true)
@@ -1027,8 +1013,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
     if (filtered.isEmpty) StepResult.Empty
     else {
-      logger.error(s"[buildEdgesToDelete]: ${filtered.size}")
-
       val head = filtered.head
       val label = head.edge.innerLabel
       val edgeWithScoreLs = filtered.map { edgeWithScore =>
@@ -1056,8 +1040,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 //          edgeWithScore.edge.copy(op = newOp, version = newVersion, propsWithTs = newPropsWithTs)
 
         val edgeToDelete = edgeWithScore.copy(edge = copiedEdge)
-        logger.error(s"delete edge from deleteAll: ${edgeToDelete.edge.toLogString}")
-        logger.error(s"delete edge from deleteAll edge: ${edge.toLogString}")
+        //      logger.debug(s"delete edge from deleteAll: ${edgeToDelete.edge.toLogString}")
         edgeToDelete
       }
       //Degree edge?
@@ -1404,41 +1387,41 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
    * @param operation
    * @return
    */
-  private[core] def addEdgeInner(srcVertex: S2Vertex,
-                                 tgtVertex: S2Vertex,
-                                 labelName: String,
-                                 direction: String = "out",
-                                 props: Map[String, AnyRef] = Map.empty,
-                                 ts: Long = System.currentTimeMillis(),
-                                 operation: String = "insert"): S2Edge = {
-    Await.result(addEdgeInnerAsync(srcVertex, tgtVertex, labelName, direction, props, ts, operation), WaitTimeout)
-  }
-
-  private[core] def addEdgeInnerAsync(srcVertex: S2Vertex,
-                                      tgtVertex: S2Vertex,
-                                      labelName: String,
-                                      direction: String = "out",
-                                      props: Map[String, AnyRef] = Map.empty,
-                                      ts: Long = System.currentTimeMillis(),
-                                      operation: String = "insert"): Future[S2Edge] = {
-    // Validations on input parameter
-    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
-    val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
-//    if (srcVertex.id.column != label.srcColumnWithDir(dir)) throw new RuntimeException(s"srcVertex's column[${srcVertex.id.column}] is not matched to label's srcColumn[${label.srcColumnWithDir(dir)}")
-//    if (tgtVertex.id.column != label.tgtColumnWithDir(dir)) throw new RuntimeException(s"tgtVertex's column[${tgtVertex.id.column}] is not matched to label's tgtColumn[${label.tgtColumnWithDir(dir)}")
-
-    // Convert given Map[String, AnyRef] property into internal class.
-    val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
-    val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
-    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
-
-    val edge = newEdge(srcVertex, tgtVertex, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
-    // store edge into storage withWait option.
-    mutateEdges(Seq(edge), withWait = true).map { rets =>
-      if (!rets.headOption.getOrElse(false)) throw new RuntimeException("add edge failed.")
-      else edge
-    }
-  }
+//  private[core] def addEdgeInner(srcVertex: S2Vertex,
+//                                 tgtVertex: S2Vertex,
+//                                 labelName: String,
+//                                 direction: String = "out",
+//                                 props: Map[String, AnyRef] = Map.empty,
+//                                 ts: Long = System.currentTimeMillis(),
+//                                 operation: String = "insert"): S2Edge = {
+//    Await.result(addEdgeInnerAsync(srcVertex, tgtVertex, labelName, direction, props, ts, operation), WaitTimeout)
+//  }
+//
+//  private[core] def addEdgeInnerAsync(srcVertex: S2Vertex,
+//                                      tgtVertex: S2Vertex,
+//                                      labelName: String,
+//                                      direction: String = "out",
+//                                      props: Map[String, AnyRef] = Map.empty,
+//                                      ts: Long = System.currentTimeMillis(),
+//                                      operation: String = "insert"): Future[S2Edge] = {
+//    // Validations on input parameter
+//    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+//    val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
+////    if (srcVertex.id.column != label.srcColumnWithDir(dir)) throw new RuntimeException(s"srcVertex's column[${srcVertex.id.column}] is not matched to label's srcColumn[${label.srcColumnWithDir(dir)}")
+////    if (tgtVertex.id.column != label.tgtColumnWithDir(dir)) throw new RuntimeException(s"tgtVertex's column[${tgtVertex.id.column}] is not matched to label's tgtColumn[${label.tgtColumnWithDir(dir)}")
+//
+//    // Convert given Map[String, AnyRef] property into internal class.
+//    val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
+//    val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
+//    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
+//
+//    val edge = newEdge(srcVertex, tgtVertex, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
+//    // store edge into storage withWait option.
+//    mutateEdges(Seq(edge), withWait = true).map { rets =>
+//      if (!rets.headOption.getOrElse(false)) throw new RuntimeException("add edge failed.")
+//      else edge
+//    }
+//  }
 
 
   def newVertexId(serviceName: String)(columnName: String)(id: Any): VertexId = {
@@ -1476,15 +1459,16 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     Await.result(getVertices(Seq(v)).map { vertices => vertices.headOption }, WaitTimeout)
   }
 
-  def fetchEdges(vertex: S2Vertex, labelNames: Seq[String], direction: String = "out"): util.Iterator[Edge] = {
-    Await.result(fetchEdgesAsync(vertex, labelNames, direction), WaitTimeout)
+  def fetchEdges(vertex: S2Vertex, labelNameWithDirs: Seq[(String, String)]): util.Iterator[Edge] = {
+    Await.result(fetchEdgesAsync(vertex, labelNameWithDirs), WaitTimeout)
   }
 
-  def fetchEdgesAsync(vertex: S2Vertex, labelNames: Seq[String], direction: String = "out"): Future[util.Iterator[Edge]] = {
-    val queryParams = labelNames.map { l =>
+  def fetchEdgesAsync(vertex: S2Vertex, labelNameWithDirs: Seq[(String, String)]): Future[util.Iterator[Edge]] = {
+    val queryParams = labelNameWithDirs.map { case (l, direction) =>
       QueryParam(labelName = l, direction = direction)
     }
     val query = Query.toQuery(Seq(vertex), queryParams)
+
     getEdges(query).map { stepResult =>
       val ls = new util.ArrayList[Edge]()
       stepResult.edgeWithScores.foreach(es => ls.add(es.edge))

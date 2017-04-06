@@ -138,18 +138,22 @@ case class S2Vertex(graph: S2Graph,
   }
 
   override def edges(direction: Direction, labelNames: String*): util.Iterator[Edge] = {
-    val labelNameList = {
+    val labelNameWithDirs =
       if (labelNames.isEmpty) {
-        val labelList =
-          // TODO: Let's clarify direction
-          if (direction == Direction.IN) Label.findBySrcColumnId(id.colId)
-          else Label.findBySrcColumnId(id.colId)
-        labelList.map(_.label)
+        // TODO: Let's clarify direction
+        if (direction == Direction.BOTH) {
+          Label.findBySrcColumnId(id.colId).map(l => l.label -> Direction.OUT.name) ++
+            Label.findByTgtColumnId(id.colId).map(l => l.label -> Direction.IN.name)
+        } else if (direction == Direction.IN) {
+          Label.findByTgtColumnId(id.colId).map(l => l.label -> direction.name)
+        } else {
+          Label.findBySrcColumnId(id.colId).map(l => l.label -> direction.name)
+        }
       } else {
-        labelNames
+        labelNames.map(_ -> direction.name())
       }
-    }
-    graph.fetchEdges(this, labelNameList, direction.name())
+
+    graph.fetchEdges(this, labelNameWithDirs)
   }
 
   // do no save to storage
