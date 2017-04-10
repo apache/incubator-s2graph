@@ -596,18 +596,26 @@ case class S2Edge(innerGraph: S2Graph,
 
   override def vertices(direction: Direction): util.Iterator[structure.Vertex] = {
     val arr = new util.ArrayList[Vertex]()
+
     direction match {
       case Direction.OUT =>
-        val newVertexId = VertexId(ServiceColumn.findById(srcForVertex.id.colId), srcForVertex.innerId)
-        arr.add(srcVertex.copy(id = newVertexId))
-//        arr.add(srcVertex)
+        val newVertexId = this.direction match {
+          case "out" => VertexId(innerLabel.srcColumn, srcVertex.innerId)
+          case "in" => VertexId(innerLabel.tgtColumn, tgtVertex.innerId)
+          case _ => throw new IllegalArgumentException("direction can only be out/in.")
+        }
+        innerGraph.getVertex(newVertexId).foreach(arr.add)
       case Direction.IN =>
-        val newVertexId = VertexId(ServiceColumn.findById(tgtForVertex.id.colId), tgtForVertex.innerId)
-        arr.add(tgtVertex.copy(id = newVertexId))
-//        arr.add(tgtVertex)
+        val newVertexId = this.direction match {
+          case "in" => VertexId(innerLabel.srcColumn, srcVertex.innerId)
+          case "out" => VertexId(innerLabel.tgtColumn, tgtVertex.innerId)
+          case _ => throw new IllegalArgumentException("direction can only be out/in.")
+        }
+        innerGraph.getVertex(newVertexId).foreach(arr.add)
       case _ =>
-        arr.add(srcVertex)
-        arr.add(tgtVertex)
+        import scala.collection.JavaConversions._
+        vertices(Direction.OUT).foreach(arr.add)
+        vertices(Direction.IN).foreach(arr.add)
     }
     arr.iterator()
   }
@@ -674,11 +682,8 @@ case class S2Edge(innerGraph: S2Graph,
 
   override def id(): AnyRef = {
     // NOTE: xxxForVertex makes direction to be "out"
-    if (this.innerLabel.consistencyLevel == "strong") {
-      EdgeId(srcForVertex.innerId, tgtForVertex.innerId, label(), direction, 0)
-    } else {
-      EdgeId(srcForVertex.innerId, tgtForVertex.innerId, label(), direction, ts)
-    }
+    val timestamp = if (this.innerLabel.consistencyLevel == "string") 0l else ts
+    EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), direction, timestamp)
   }
 
   override def label(): String = innerLabel.label

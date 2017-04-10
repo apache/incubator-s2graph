@@ -70,7 +70,7 @@ object S2Graph {
     "cache.ttl.seconds" -> java.lang.Integer.valueOf(60),
     "hbase.client.retries.number" -> java.lang.Integer.valueOf(20),
     "hbase.rpcs.buffered_flush_interval" -> java.lang.Short.valueOf(100.toShort),
-    "hbase.rpc.timeout" -> java.lang.Integer.valueOf(1000),
+    "hbase.rpc.timeout" -> java.lang.Integer.valueOf(60000),
     "max.retry.number" -> java.lang.Integer.valueOf(100),
     "lock.expire.time" -> java.lang.Integer.valueOf(1000 * 60 * 10),
     "max.back.off" -> java.lang.Integer.valueOf(100),
@@ -530,8 +530,9 @@ object S2Graph {
 
 @Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_STANDARD)
 @Graph.OptOuts(value = Array(
-  //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest", method="*", reason="no"), // pass
-  //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphConstructionTest", method="*", reason="no"), // pass
+//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest", method="*", reason="no"), // pass
+//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphConstructionTest", method="*", reason="no"), // pass
+
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.FeatureSupportTest", method="*", reason="no"), // pass
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.PropertyTest", method="*", reason="no"), // pass
 
@@ -1370,22 +1371,22 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     S2Edge.fillPropsWithTs(snapshotEdge, propsWithTs)
     snapshotEdge
   }
-
-  /**
-   * internal helper to actually store a single edge based on given peramters.
-   *
-   * Note that this is used from S2Vertex to implement blocking interface from Tp3.
-   * Once tp3 provide AsyncStep, then this can be changed to return Java's CompletableFuture.
-   *
-   * @param srcVertex
-   * @param tgtVertex
-   * @param labelName
-   * @param direction
-   * @param props
-   * @param ts
-   * @param operation
-   * @return
-   */
+//
+//  /**
+//   * internal helper to actually store a single edge based on given peramters.
+//   *
+//   * Note that this is used from S2Vertex to implement blocking interface from Tp3.
+//   * Once tp3 provide AsyncStep, then this can be changed to return Java's CompletableFuture.
+//   *
+//   * @param srcVertex
+//   * @param tgtVertex
+//   * @param labelName
+//   * @param direction
+//   * @param props
+//   * @param ts
+//   * @param operation
+//   * @return
+//   */
 //  private[core] def addEdgeInner(srcVertex: S2Vertex,
 //                                 tgtVertex: S2Vertex,
 //                                 labelName: String,
@@ -1466,6 +1467,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     val queryParams = labelNameWithDirs.map { case (l, direction) =>
       QueryParam(labelName = l, direction = direction)
     }
+
     val query = Query.toQuery(Seq(vertex), queryParams)
 
     getEdges(query).map { stepResult =>
@@ -1529,8 +1531,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   override def edges(edgeIds: AnyRef*): util.Iterator[structure.Edge] = {
     if (edgeIds.isEmpty) {
       // FIXME
-      val edges = Await.result(defaultStorage.fetchEdgesAll(), WaitTimeout).iterator
-      edges.filterNot(_.isDegree).filterNot(_.direction == "in")
+      Await.result(defaultStorage.fetchEdgesAll(), WaitTimeout).iterator
     } else {
       Await.result(edgesAsync(edgeIds: _*), WaitTimeout)
     }

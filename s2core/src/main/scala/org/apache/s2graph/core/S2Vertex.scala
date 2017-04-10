@@ -209,7 +209,8 @@ case class S2Vertex(graph: S2Graph,
           val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
 
           val edge = graph.newEdge(this, otherV, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
-          val future = graph.mutateEdges(edge.relatedEdges, withWait = true)
+          // edge.relatedEdges
+          val future = graph.mutateEdges(Seq(edge), withWait = true)
           Await.ready(future, graph.WaitTimeout)
           edge
         } catch {

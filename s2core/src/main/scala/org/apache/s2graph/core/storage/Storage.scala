@@ -285,6 +285,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
       val queryParam = QueryParam.Empty
       val q = Query.toQuery(Seq(vertex), Seq(queryParam))
       val queryRequest = QueryRequest(q, stepIdx = -1, vertex, queryParam)
+
       fetchVertexKeyValues(queryRequest).map { kvs =>
         fromResult(kvs, vertex.serviceColumn.schemaVersion)
       } recoverWith { case ex: Throwable =>
@@ -321,7 +322,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
         mutateRet <- Future.sequence(mutateEdgeFutures)
       } yield mutateRet
 
-      composed.map(_.forall(identity)).map { ret => idxs.map(idx => idx -> ret) }
+      composed.map(_.forall(identity)).map { ret => idxs.map( idx => idx -> ret) }
     }
 
     Future.sequence(mutateEdges).map { squashedRets =>

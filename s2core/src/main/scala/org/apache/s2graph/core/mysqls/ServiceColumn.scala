@@ -25,7 +25,8 @@ package org.apache.s2graph.core.mysqls
 
 import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.types.{HBaseType, InnerValLikeWithTs, InnerValLike}
+import org.apache.s2graph.core.types.{HBaseType, InnerValLike, InnerValLikeWithTs}
+import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.Json
 import scalikejdbc._
 object ServiceColumn extends Model[ServiceColumn] {

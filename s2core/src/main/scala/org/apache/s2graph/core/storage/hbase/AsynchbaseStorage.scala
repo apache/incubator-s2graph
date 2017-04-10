@@ -23,7 +23,7 @@ package org.apache.s2graph.core.storage.hbase
 
 import java.util
 import java.util.Base64
-import java.util.concurrent.{TimeUnit, ExecutorService, Executors}
+import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
 
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.Config
@@ -34,17 +34,17 @@ import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.{TableName, HColumnDescriptor, HBaseConfiguration, HTableDescriptor}
+import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
 import org.apache.hadoop.security.UserGroupInformation
-
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage.{AsyncRPC, ScanWithRange}
-import org.apache.s2graph.core.types.{VertexId, HBaseType}
+import org.apache.s2graph.core.types.{HBaseType, VertexId}
 import org.apache.s2graph.core.utils._
 import org.hbase.async.FilterList.Operator.MUST_PASS_ALL
 import org.hbase.async._
+
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent._
@@ -96,8 +96,8 @@ object AsynchbaseStorage {
 
   def initLocalHBase(config: Config,
                      overwrite: Boolean = true): ExecutorService = {
-    import java.net.Socket
     import java.io.{File, IOException}
+    import java.net.Socket
 
     lazy val hbaseExecutor = {
       val executor = Executors.newSingleThreadExecutor()
@@ -277,6 +277,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
   override def fetchSnapshotEdgeKeyValues(queryRequest: QueryRequest): Future[Seq[SKeyValue]] = {
     val edge = toRequestEdge(queryRequest, Nil)
     val rpc = buildRequest(queryRequest, edge)
+
     fetchKeyValues(rpc)
   }
 
@@ -445,6 +446,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
 
     val edge = toRequestEdge(queryRequest, parentEdges)
     val request = buildRequest(queryRequest, edge)
+
     val (intervalMaxBytes, intervalMinBytes) = queryParam.buildInterval(Option(edge))
     val requestCacheKey = Bytes.add(toCacheKeyBytes(request), intervalMaxBytes, intervalMinBytes)
 
@@ -655,10 +657,8 @@ class AsynchbaseStorage(override val graph: S2Graph,
   override def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
     def fromResult(kvs: Seq[SKeyValue],
                    version: String): Option[S2Vertex] = {
-
       if (kvs.isEmpty) None
       else vertexDeserializer.fromKeyValues(kvs, None)
-//        .map(S2Vertex(graph, _))
     }
 
     val futures = vertices.map { vertex =>
@@ -677,20 +677,25 @@ class AsynchbaseStorage(override val graph: S2Graph,
     Future.sequence(futures).map { result => result.toList.flatten }
   }
 
+  //TODO: Limited to 100000 edges per hbase table. fix this later.
   override def fetchEdgesAll(): Future[Seq[S2Edge]] = {
     val futures = Label.findAll().groupBy(_.hbaseTableName).toSeq.map { case (hTableName, labels) =>
+      val distinctLabels = labels.toSet
       val scan = AsynchbasePatcher.newScanner(client, hTableName)
       scan.setFamily(Serializable.edgeCf)
       scan.setMaxVersions(1)
 
-      scan.nextRows(10000).toFuture(emptyKeyValuesLs).map {
+      scan.nextRows(100000).toFuture(emptyKeyValuesLs).map {
         case null => Seq.empty
         case kvsLs =>
-        kvsLs.flatMap { kvs =>
-          kvs.flatMap { kv =>
-            indexEdgeDeserializer.fromKeyValues(Seq(kv), None)
+          kvsLs.flatMap { kvs =>
+            kvs.flatMap { kv =>
+              val sKV = implicitly[CanSKeyValue[KeyValue]].toSKeyValue(kv)
+
+              indexEdgeDeserializer.fromKeyValues(Seq(kv), None)
+                .filter(e => distinctLabels(e.innerLabel) && e.direction == "out" && !e.isDegree)
+            }
           }
-        }
       }
     }
 
@@ -699,6 +704,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
 
   override def fetchVerticesAll(): Future[Seq[S2Vertex]] = {
     val futures = ServiceColumn.findAll().groupBy(_.service.hTableName).toSeq.map { case (hTableName, columns) =>
+      val distinctColumns = columns.toSet
       val scan = AsynchbasePatcher.newScanner(client, hTableName)
       scan.setFamily(Serializable.vertexCf)
       scan.setMaxVersions(1)
@@ -708,6 +714,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
         case kvsLs =>
           kvsLs.flatMap { kvs =>
             vertexDeserializer.fromKeyValues(kvs, None)
+              .filter(v => distinctColumns(v.serviceColumn))
           }
       }
     }

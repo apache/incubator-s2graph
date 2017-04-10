@@ -34,6 +34,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val config = ConfigFactory.load()
     val m = new java.util.HashMap[String, AnyRef]()
     m.put(Graph.GRAPH, classOf[S2Graph].getName)
+//    m.put("db.default.url", "jdbc:h2:mem:db1;MODE=MYSQL")
     m
   }
 
@@ -64,8 +65,6 @@ class S2GraphProvider extends AbstractGraphProvider {
   }
 
   private def cleanupSchema(graph: Graph): Unit = {
-//    new File("./var/metastore").delete()
-
     val s2Graph = graph.asInstanceOf[S2Graph]
     val mnt = s2Graph.getManagement()
     val defaultService = s2Graph.DefaultService
@@ -139,12 +138,15 @@ class S2GraphProvider extends AbstractGraphProvider {
       ColumnMeta.findOrInsert(defaultServiceColumn.id.get, "aKey", dataType, useCache = false)
     }
 
-    // knows props
-//    mnt.createLabel("knows", defaultService.serviceName, "vertex", "string", defaultService.serviceName, "vertex", "string",
-//      true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+    if (testClass.getSimpleName == "DetachedEdgeTest") {
+      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
+        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+    } else {
+      mnt.createLabel("knows", defaultService.serviceName, "vertex", "string", defaultService.serviceName, "vertex", "string",
+        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+    }
 
-    mnt.createLabel("knows", defaultService.serviceName, "vertex", "string", defaultService.serviceName, "vertex", "string",
-      true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+
 //    if (testClass.getSimpleName.contains("VertexTest") || (testClass.getSimpleName == "EdgeTest" && testName == "shouldAutotypeDoubleProperties")) {
 //      mnt.createLabel("knows", defaultService.serviceName, "vertex", "string", defaultService.serviceName, "vertex", "string",
 //        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
@@ -153,7 +155,8 @@ class S2GraphProvider extends AbstractGraphProvider {
 //        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
 //    }
 
-    val personColumn = Management.createServiceColumn(defaultService.serviceName, "person", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
+    val personColumn = Management.createServiceColumn(defaultService.serviceName, "person", "integer",
+      Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
     val softwareColumn = Management.createServiceColumn(defaultService.serviceName, "software", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("lang", "-", "string")))
     val productColumn = Management.createServiceColumn(defaultService.serviceName, "product", "integer", Nil)
     val dogColumn = Management.createServiceColumn(defaultService.serviceName, "dog", "integer", Nil)

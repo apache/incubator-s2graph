@@ -19,21 +19,18 @@
 
 package org.apache.s2graph.core.tinkerpop.structure
 
-import java.io.File
-
 import org.apache.s2graph.core.Management.JsonModel.Prop
-import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core._
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{Management, S2Graph, S2Vertex, TestCommonWithModels}
-import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal
-import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, T, Vertex}
-import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils
+import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource
+import org.apache.tinkerpop.gremlin.structure._
+import org.apache.tinkerpop.gremlin.structure.util.Attachable
+import org.apache.tinkerpop.gremlin.structure.util.detached.{DetachedEdge, DetachedFactory}
 import org.scalatest.{FunSuite, Matchers}
 
 
 class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 
-  import scala.collection.JavaConversions._
   import scala.concurrent.ExecutionContext.Implicits.global
 
   initTests()
@@ -187,7 +184,147 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 //  test("addVertex with empty parameter") {
 //
 //  }
-  test("aaa") {
+//  test("aaa") {
+//    val mnt = graph.management
+//    val defaultService = graph.DefaultService
+//    val defaultServiceColumn = graph.DefaultColumn
+//    val columnNames = Set(defaultServiceColumn.columnName, "person", "software", "product", "dog")
+//    val labelNames = Set("knows", "created", "bought", "test", "self", "friends", "friend", "hate", "collaborator", "test1", "test2", "test3", "pets", "walks")
+//
+//    Management.deleteService(defaultService.serviceName)
+//    columnNames.foreach { columnName =>
+//      Management.deleteColumn(defaultServiceColumn.service.serviceName, columnName)
+//    }
+//    labelNames.foreach { labelName =>
+//      Management.deleteLabel(labelName)
+//    }
+//
+//    val knows = mnt.createLabel("knows",
+//      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+//      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+//      true, defaultService.serviceName, Nil, Seq(Prop("since", "0", "integer")), consistencyLevel = "strong", None, None,
+//      options = Option("""{"skipReverse": false}"""))
+//
+//    val pets = mnt.createLabel("pets",
+//      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+//      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+//      true, defaultService.serviceName, Nil, Nil, consistencyLevel = "strong", None, None,
+//      options = Option("""{"skipReverse": false}"""))
+//
+//    val walks = mnt.createLabel("walks",
+//      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+//      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+//      true, defaultService.serviceName, Nil, Seq(Prop("location", "-", "string")), consistencyLevel = "strong", None, None,
+//      options = Option("""{"skipReverse": false}"""))
+//
+//    val livesWith = mnt.createLabel("livesWith",
+//      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+//      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+//      true, defaultService.serviceName, Nil, Nil, consistencyLevel = "strong", None, None,
+//      options = Option("""{"skipReverse": false}"""))
+//
+//    val friend = mnt.createLabel("friend", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+//      true, defaultService.serviceName, Nil,
+//      Seq(
+//        Prop("name", "-", "string"),
+//        Prop("location", "-", "string"),
+//        Prop("status", "-", "string")
+//      ),
+//      "strong", None, None,
+//      options = Option("""{"skipReverse": false}""")
+//    )
+//
+//    val v1 = graph.addVertex("name", "marko")
+//    val v2 = graph.addVertex("name", "puppy")
+//
+//    v1.addEdge("knows", v2, "since", Int.box(2010))
+//    v1.addEdge("pets", v2)
+//    v1.addEdge("walks", v2, "location", "arroyo")
+//    v2.addEdge("knows", v1, "since", Int.box(2010))
+//
+//    v1.edges(Direction.BOTH).foreach { e => logger.error(s"[Edge]: $e")}
+//  }
+
+//  test("bb") {
+//    val mnt = graph.management
+//    val defaultService = graph.DefaultService
+//    val defaultServiceColumn = graph.DefaultColumn
+//    val columnNames = Set(defaultServiceColumn.columnName, "person", "software", "product", "dog")
+//    val labelNames = Set("knows", "created", "bought", "test", "self", "friends", "friend", "hate", "collaborator", "test1", "test2", "test3", "pets", "walks")
+//
+//    Management.deleteService(defaultService.serviceName)
+//    columnNames.foreach { columnName =>
+//      Management.deleteColumn(defaultServiceColumn.service.serviceName, columnName)
+//    }
+//    labelNames.foreach { labelName =>
+//      Management.deleteLabel(labelName)
+//    }
+//    val personColumn = Management.createServiceColumn(defaultService.serviceName, "person", "integer",
+//      Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
+//    val knows = mnt.createLabel("knows",
+//      defaultService.serviceName, "person", "integer",
+//      defaultService.serviceName, "person", "integer",
+//      true, defaultService.serviceName, Nil, Seq(Prop("since", "0", "integer"), Prop("year", "0", "integer")), consistencyLevel = "strong", None, None)
+//
+//    val created = mnt.createLabel("created", defaultService.serviceName, "person", "integer", defaultService.serviceName, "software", "integer",
+//      true, defaultService.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
+//
+////    val v1 = graph.toVertex(graph.DefaultService.serviceName, "person", 1)
+////    val v4 = graph.toVertex(graph.DefaultService.serviceName, "person", 4)
+////    val ts = System.currentTimeMillis()
+////    val edge = graph.newEdge(v1, v4, knows.get,
+////      GraphUtil.directions("out"), GraphUtil.operations("insert"),
+////      propsWithTs = Map(LabelMeta.timestamp -> InnerValLikeWithTs.withLong(ts, ts, knows.get.schemaVersion)))
+//    val v1 = graph.addVertex(T.label, "person", T.id, Int.box(1), "name", "marko")
+//    val v4 = graph.addVertex(T.label, "person", T.id, Int.box(4), "name", "vadas")
+//
+//    val g = graph.traversal()
+//    v1.addEdge("knows", v4, "year", Int.box(2002))
+//
+//    def convertToEdgeId(outVertexName: String, edgeLabel: String, inVertexName: String): AnyRef = {
+//      g.V().has("name", outVertexName).outE(edgeLabel).as("e").inV.has("name", inVertexName).select[Edge]("e").next().id()
+//    }
+//
+//    g.V().has("name", "marko").outE("knows").as("e").inV.foreach(e => logger.error(s"[Edge]: $e"))
+//
+////      .as("e").inV.has("name", "vadas").select[Edge]("e").next().id()
+////    g.E(convertToEdgeId("marko", "knows", "vadas")).foreach(e => logger.error(s"[EDGE]: $e"))
+////    val x = DetachedFactory.detach(g.E(convertToEdgeId("marko", "knows", "vadas")).next(), true)
+//////      .hashCode()
+////    val y = DetachedFactory.detach(g.E(convertToEdgeId("marko", "knows", "vadas")).next(), true)
+////      .hashCode()
+////    logger.error(s"[X]: $x")
+////    logger.error(s"[Y]: $y")
+//
+////    g.E().foreach(e => logger.error(s"[Edge]: $e"))
+////    g.V().has("name", "marko").outE("knows").foreach(v => logger.error(s"[OutVertex]: $v"))
+////    g.V().has("name", "vadas").inE("knows").foreach(v => logger.error(s"[InVertex]: $v"))
+//
+//
+//    @Test
+//    @LoadGraphWith(GraphData.MODERN)
+//    @FeatureRequirementSet(FeatureRequirementSet.Package.SIMPLE)
+//    def shouldConstructDetachedEdgeAsReference() {
+//
+//      graph.traversal().E(convertToEdgeId("marko", "knows", "vadas")).next().property("year", 2002);
+//      val detachedEdge = DetachedFactory.detach(g.E(convertToEdgeId("marko", "knows", "vadas")).next(), false);
+////      assertEquals(convertToEdgeId("marko", "knows", "vadas"), detachedEdge.id());
+////      assertEquals("knows", detachedEdge.label());
+////      assertEquals(DetachedVertex.class, detachedEdge.vertices(Direction.OUT).next().getClass());
+////      assertEquals(convertToVertexId("marko"), detachedEdge.vertices(Direction.OUT).next().id());
+////      assertEquals("person", detachedEdge.vertices(Direction.IN).next().label());
+////      assertEquals(DetachedVertex.class, detachedEdge.vertices(Direction.IN).next().getClass());
+////      assertEquals(convertToVertexId("vadas"), detachedEdge.vertices(Direction.IN).next().id());
+////      assertEquals("person", detachedEdge.vertices(Direction.IN).next().label());
+////
+////      assertEquals(0, IteratorUtils.count(detachedEdge.properties()));
+//    }
+////    shouldConstructDetachedEdgeAsReference()
+//  }
+  def convertToEdgeId(g: GraphTraversalSource, outVertexName: String, edgeLabel: String, inVertexName: String): AnyRef = {
+    g.V().has("name", outVertexName).outE(edgeLabel).as("e").inV.has("name", inVertexName).select[Edge]("e").next().id()
+  }
+  test("ccc") {
     val mnt = graph.management
     val defaultService = graph.DefaultService
     val defaultServiceColumn = graph.DefaultColumn
@@ -201,90 +338,29 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     labelNames.foreach { labelName =>
       Management.deleteLabel(labelName)
     }
-
+    val personColumn = Management.createServiceColumn(defaultService.serviceName, "person", "integer",
+      Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
     val knows = mnt.createLabel("knows",
-      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, Seq(Prop("since", "0", "integer")), consistencyLevel = "strong", None, None,
-      options = Option("""{"skipReverse": false}"""))
+      defaultService.serviceName, "person", "integer",
+      defaultService.serviceName, "person", "integer",
+      true, defaultService.serviceName, Nil, Seq(Prop("since", "0", "integer"), Prop("year", "0", "integer")), consistencyLevel = "strong", None, None)
 
-    val pets = mnt.createLabel("pets",
-      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, Nil, consistencyLevel = "strong", None, None,
-      options = Option("""{"skipReverse": false}"""))
+    val created = mnt.createLabel("created",
+      defaultService.serviceName, "person", "integer",
+      defaultService.serviceName, "person", "integer",
+      true, defaultService.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
 
-    val walks = mnt.createLabel("walks",
-      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, Seq(Prop("location", "-", "string")), consistencyLevel = "strong", None, None,
-      options = Option("""{"skipReverse": false}"""))
+    val g = graph.traversal()
+    val v1 = graph.addVertex(T.label, "person", T.id, Int.box(1), "name", "josh")
+    val v4 = graph.addVertex(T.label, "person", T.id, Int.box(4), "name", "lop")
+    val e = v1.addEdge("created", v4)
 
-    val livesWith = mnt.createLabel("livesWith",
-      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, Nil, consistencyLevel = "strong", None, None,
-      options = Option("""{"skipReverse": false}"""))
+    val toDetach = g.E(convertToEdgeId(g, "josh", "created", "lop")).next()
+    val outV = toDetach.vertices(Direction.OUT).next()
+    val detachedEdge = DetachedFactory.detach(toDetach, true)
+    val attached = detachedEdge.attach(Attachable.Method.get(outV))
 
-    val friend = mnt.createLabel("friend", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil,
-      Seq(
-        Prop("name", "-", "string"),
-        Prop("location", "-", "string"),
-        Prop("status", "-", "string")
-      ),
-      "strong", None, None,
-      options = Option("""{"skipReverse": false}""")
-    )
-//    (0 until 2).foreach(i => graph.addVertex("myId", Int.box(i)))
-//
-//    graph.vertices().foreach(v =>
-//      graph.vertices().foreach(u => v.addEdge("knows", u, "myEdgeId", Int.box(12)))
-//    )
-//
-//    val v = graph.vertices().toSeq.head
-//    v.remove()
-//
-//    graph.edges().foreach(e =>
-//      logger.error(s"[Edge]: $e")
-//    )
-
-
-//    val v1 = graph.addVertex(T.id, "v1", "name", "marko")
-//    val v2 = graph.addVertex(T.id, "101", "name", "puppy")
-//    v1.addEdge("knows", v2, "since", Int.box(2010))
-//    v1.addEdge("pets", v2)
-//    v1.addEdge("walks", v2, "location", "arroyo")
-//    v2.addEdge("knows", v1, "since", Int.box(2010))
-//
-//    v1.edges(Direction.BOTH).foreach(edge => {
-//      v1.addEdge("livesWith", v2)
-//      v1.addEdge("walks", v2, "location", "river")
-//      edge.remove()
-//    })
-//
-//    val edges = v1.edges(Direction.BOTH)
-//    edges.foreach { e =>
-//      logger.error(s"[Before]: $e")
-//      e.remove()
-//    }
-//
-//    v1.edges(Direction.OUT).foreach { e =>
-//      logger.error(s"[V1.Edge]: $e")
-//    }
-//    v2.edges(Direction.BOTH).foreach { e =>
-//      logger.error(s"[V2.Edge]: $e")
-//    }
-    (0 until 25).foreach { i =>
-      val v = graph.addVertex()
-      v.addEdge("friend", v)
-    }
-    graph.vertices().foreach(v => logger.error(s"[Vertex]: $v"))
-    graph.edges().foreach(e => logger.error(s"[Edge]: $e"))
-
-    graph.edges().foreach(e => e.remove)
-
-    graph.edges().foreach(e => logger.error(s"[Edge]: $e"))
+    assert(toDetach.equals(attached))
+    assert(!attached.isInstanceOf[DetachedEdge])
   }
-
 }
