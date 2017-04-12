@@ -40,7 +40,7 @@ object S2Property {
       val key = pair.getValue0
       val value = pair.getValue1
       ElementHelper.validateProperty(key, value)
-      if (keySet.contains(key)) throw VertexProperty.Exceptions.multiPropertiesNotSupported
+//      if (keySet.contains(key)) throw VertexProperty.Exceptions.multiPropertiesNotSupported
 
       assertValidProp(key, value)
 

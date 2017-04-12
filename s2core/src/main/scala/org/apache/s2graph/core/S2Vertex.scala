@@ -26,14 +26,14 @@ import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.S2Vertex.Props
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types._
+import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.structure.Edge.Exceptions
-import org.apache.tinkerpop.gremlin.structure.Graph.Features.{ElementFeatures, VertexFeatures}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
-import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Property, T, Vertex, VertexProperty}
+import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph, Property, T, Vertex, VertexProperty}
 import play.api.libs.json.Json
 
 import scala.collection.JavaConverters._
-import scala.concurrent.Await
+import scala.concurrent.{Await, Future}
 
 case class S2Vertex(graph: S2Graph,
                   id: VertexId,
@@ -209,7 +209,15 @@ case class S2Vertex(graph: S2Graph,
           val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
 
           val edge = graph.newEdge(this, otherV, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
-          // edge.relatedEdges
+//          //TODO: return type of mutateEdges can contains information if snapshot edge already exist.
+//          // instead call checkEdges, we can exploit this feature once we refactor return type.
+//          implicit val ec = graph.ec
+//          val future = graph.checkEdges(Seq(edge)).flatMap { stepResult =>
+//            if (stepResult.edgeWithScores.nonEmpty)
+//              Future.failed(throw Graph.Exceptions.edgeWithIdAlreadyExists(edge.id()))
+//            else
+//              graph.mutateEdges(Seq(edge), withWait = true)
+//          }
           val future = graph.mutateEdges(Seq(edge), withWait = true)
           Await.ready(future, graph.WaitTimeout)
           edge

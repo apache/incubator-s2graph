@@ -23,6 +23,7 @@ import org.apache.s2graph.core.Management.JsonModel.Prop
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource
+import org.apache.tinkerpop.gremlin.structure.Graph.Features.EdgePropertyFeatures
 import org.apache.tinkerpop.gremlin.structure._
 import org.apache.tinkerpop.gremlin.structure.util.Attachable
 import org.apache.tinkerpop.gremlin.structure.util.detached.{DetachedEdge, DetachedFactory}
@@ -363,4 +364,57 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     assert(toDetach.equals(attached))
     assert(!attached.isInstanceOf[DetachedEdge])
   }
+
+//  test("ddd") {
+////    @Test
+////    @FeatureRequirement(featureClass = Graph.Features.EdgeFeatures.class, feature = Graph.Features.EdgeFeatures.FEATURE_ADD_EDGES)
+////    @FeatureRequirement(featureClass = Graph.Features.VertexFeatures.class, feature = Graph.Features.VertexFeatures.FEATURE_ADD_VERTICES)
+////    @FeatureRequirement(featureClass = Graph.Features.EdgeFeatures.class, feature = EdgeFeatures.FEATURE_ADD_PROPERTY)
+////    def shouldEnableFeatureOnEdgeIfNotEnabled() = {
+////      graph.features.supports(classOf[EdgePropertyFeatures], "BooleanValues")
+//////      assumeThat(graph.features().supports(EdgePropertyFeatures.class, featureName), is(false));
+//////      try {
+//////        final Edge edge = createEdgeForPropertyFeatureTests();
+//////        edge.property("aKey", value);
+//////        fail(String.format(INVALID_FEATURE_SPECIFICATION, EdgePropertyFeatures.class.getSimpleName(), featureName));
+//////      } catch (Exception e) {
+//////        validateException(Property.Exceptions.dataTypeOfPropertyValueNotSupported(value), e);
+//////      }
+////    }
+//    val ret = graph.features.supports(classOf[EdgePropertyFeatures], "BooleanValues")
+//    logger.error(s"[Support]: $ret")
+////
+////    @Test
+////    @FeatureRequirement(featureClass = Graph.Features.VertexFeatures.class, feature = Graph.Features.VertexFeatures.FEATURE_ADD_VERTICES)
+////    @FeatureRequirement(featureClass = Graph.Features.VertexFeatures.class, feature = Graph.Features.VertexFeatures.FEATURE_ADD_PROPERTY)
+////    public void shouldEnableFeatureOnVertexIfNotEnabled() throws Exception {
+////      assumeThat(graph.features().supports(VertexPropertyFeatures.class, featureName), is(false));
+////      try {
+////        graph.addVertex("aKey", value);
+////        fail(String.format(INVALID_FEATURE_SPECIFICATION, VertexPropertyFeatures.class.getSimpleName(), featureName));
+////      } catch (Exception e) {
+////        validateException(Property.Exceptions.dataTypeOfPropertyValueNotSupported(value), e);
+////      }
+////    }
+////
+////
+////
+////    @Test
+////    @FeatureRequirement(featureClass = Graph.Features.VertexFeatures.class, feature = Graph.Features.VertexFeatures.FEATURE_ADD_VERTICES)
+////    @FeatureRequirement(featureClass = VertexFeatures.class, feature = FEATURE_USER_SUPPLIED_IDS)
+////    @FeatureRequirement(featureClass = VertexFeatures.class, feature = FEATURE_ANY_IDS, supported = false)
+////    public void shouldSupportUserSuppliedIdsOfTypeAny() throws Exception {
+////      try {
+////        final Date id = new Date();
+////        graph.addVertex(T.id, id);
+////
+////        // a graph can "allow" an id without internally supporting it natively and therefore doesn't need
+////        // to throw the exception
+////        if (!graph.features().vertex().willAllowId(id))
+////          fail(String.format(INVALID_FEATURE_SPECIFICATION, VertexFeatures.class.getSimpleName(), FEATURE_ANY_IDS));
+////      } catch (Exception e) {
+////        validateException(Vertex.Exceptions.userSuppliedIdsOfThisTypeNotSupported(), e);
+////      }
+////    }
+//  }
 }
