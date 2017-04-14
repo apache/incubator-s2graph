@@ -682,7 +682,7 @@ case class S2Edge(innerGraph: S2Graph,
 
   override def id(): AnyRef = {
     // NOTE: xxxForVertex makes direction to be "out"
-    val timestamp = if (this.innerLabel.consistencyLevel == "string") 0l else ts
+    val timestamp = if (this.innerLabel.consistencyLevel == "strong") 0l else ts
     EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), direction, timestamp)
   }
 

@@ -71,7 +71,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val defaultServiceColumn = s2Graph.DefaultColumn
 
     val columnNames = Set(defaultServiceColumn.columnName, "person", "software", "product", "dog")
-    val labelNames = Set("knows", "created", "bought", "test", "self", "friends", "friend", "hate", "collaborator", "test1", "test2", "test3", "pets", "walks", "knows")
+    val labelNames = Set("knows", "created", "bought", "test", "self", "friends", "friend", "hate", "collaborator", "test1", "test2", "test3", "pets", "walks")
 
     Management.deleteService(defaultService.serviceName)
     columnNames.foreach { columnName =>
