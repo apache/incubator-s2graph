@@ -35,7 +35,8 @@ import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
 import org.apache.tinkerpop.gremlin.structure
 import org.apache.tinkerpop.gremlin.structure.Graph.{Features, Variables}
-import org.apache.tinkerpop.gremlin.structure.{Edge, Element, Graph, T, Transaction, Vertex}
+import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
+import org.apache.tinkerpop.gremlin.structure.{Edge, Element, Graph, Property, T, Transaction, Vertex}
 import play.api.libs.json.{JsObject, Json}
 
 import scala.annotation.tailrec
@@ -533,37 +534,37 @@ object S2Graph {
 @Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_STANDARD)
 @Graph.OptOuts(value = Array(
 //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest", method="*", reason="no"),
-//  // passed: all, failed: none
-//
+  // passed: all, failed: none
+
 //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphConstructionTest", method="*", reason="no"),
-//  // passed: all, failed: none
-//
+  // passed: all, failed: none
+
 //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.PropertyTest", method="*", reason="no"),
-//  // passed: all, failed: none
-//
+  // passed: all, failed: none
+
 //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VertexPropertyTest", method="*", reason="no"),
-//  // passed: all, failed: none
-//
+  // passed: all, failed: none
+
 //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.FeatureSupportTest", method="*", reason="no"),
-//  // passed: all, failed: none
-//
+  // passed: all, failed: none
+
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VertexTest$BasicVertexTest", method="shouldHaveExceptionConsistencyWhenAssigningSameIdOnEdge", reason="S2Vertex.addEdge behave as upsert."),
-//  // passed: , failed: shouldHaveExceptionConsistencyWhenAssigningSameIdOnEdge
-//
+  // passed: , failed: shouldHaveExceptionConsistencyWhenAssigningSameIdOnEdge
+
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedEdgeTest", method="shouldNotEvaluateToEqualDifferentId", reason="reference equals is not supported."),
-//  // passed: all, failed: shouldNotEvaluateToEqualDifferentId
-//
+  // passed: all, failed: shouldNotEvaluateToEqualDifferentId
+
 //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedVertexTest", method="*", reason="no"),
-//  // passed: all, failed: none
-//
+  // passed: all, failed: none
+
 //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedGraphTest", method="*", reason="no"),
-//  // passed: all, failed: none,  all ignored
-//
+  // passed: all, failed: none,  all ignored
+
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedPropertyTest", method="shouldNotBeEqualPropertiesAsThereIsDifferentKey", reason="reference equals is not supported."),
 //  // passed: , failed: shouldNotBeEqualPropertiesAsThereIsDifferentKey
-//
+
 //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedVertexPropertyTest", method="*", reason="no"),
-//  // passed: all, failed: none
+  // passed: all, failed: none
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphTest", method="*", reason="no"),
   // passed: , failed:
@@ -1614,22 +1615,19 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
   }
 
-  def validType(t: Any): Boolean = t match {
-    case _: VertexId => true
-    case _: String => true
-    case _: java.lang.Integer => true
-    case _: java.lang.Long => true
-    case _: scala.Long => true
-    case _: scala.Int => true
-    case _ => false
-  }
-
   override def addVertex(kvs: AnyRef*): structure.Vertex = {
     if (!features().vertex().supportsUserSuppliedIds() && kvs.contains(T.id)) {
       throw Vertex.Exceptions.userSuppliedIdsNotSupported
     }
 
     val kvsMap = S2Property.kvsToProps(kvs)
+    kvsMap.get(T.id.name()) match {
+      case Some(idValue) if !S2Property.validType(idValue) =>
+        throw Vertex.Exceptions.userSuppliedIdsOfThisTypeNotSupported()
+      case _ =>
+    }
+
+    kvsMap.foreach { case (k, v) => S2Property.assertValidProp(k, v) }
 
     if (kvsMap.contains(T.label.name()) && kvsMap(T.label.name).toString.isEmpty)
       throw Element.Exceptions.labelCanNotBeEmpty
@@ -1638,7 +1636,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       case None => // do nothing
         val id = Random.nextLong
         makeVertex(Long.box(id), kvsMap)
-      case Some(idValue) if validType(idValue) =>
+      case Some(idValue) if S2Property.validType(idValue) =>
         makeVertex(idValue, kvsMap)
       case _ =>
         throw Vertex.Exceptions.userSuppliedIdsOfThisTypeNotSupported

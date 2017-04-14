@@ -21,7 +21,7 @@ package org.apache.s2graph.core
 
 
 import org.apache.s2graph.core.mysqls.LabelMeta
-import org.apache.s2graph.core.types.{CanInnerValLike, InnerValLikeWithTs}
+import org.apache.s2graph.core.types.{CanInnerValLike, InnerValLikeWithTs, VertexId}
 import org.apache.tinkerpop.gremlin.structure.Graph.Features
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
 import org.apache.tinkerpop.gremlin.structure._
@@ -29,6 +29,29 @@ import org.apache.tinkerpop.gremlin.structure._
 import scala.util.hashing.MurmurHash3
 
 object S2Property {
+
+  def validType(t: Any): Boolean = t match {
+    case _: VertexId => true
+    case _: java.lang.Integer => true
+    case _: java.lang.Long => true
+    case _: java.lang.Float => true
+    case _: java.lang.Double => true
+    case _: java.lang.Boolean => true
+    case _: java.lang.Short => true
+    case _: java.lang.Byte => true
+    case _: java.lang.String => true
+    case _: Int => true
+    case _: Long => true
+    case _: Float => true
+    case _: Double => true
+    case _: Boolean => true
+    case _: Short => true
+    case _: Byte => true
+    case _: String => true
+    case _: BigDecimal => true
+    case _ => false
+  }
+
   def kvsToProps(kvs: Seq[AnyRef]): Map[String, AnyRef] = {
     import scala.collection.JavaConverters._
 
@@ -42,7 +65,7 @@ object S2Property {
       ElementHelper.validateProperty(key, value)
 //      if (keySet.contains(key)) throw VertexProperty.Exceptions.multiPropertiesNotSupported
 
-      assertValidProp(key, value)
+//      assertValidProp(key, value)
 
       keySet.add(key)
       result = result + (key -> value)
@@ -56,6 +79,13 @@ object S2Property {
     if (!key.isInstanceOf[String]) throw Element.Exceptions.providedKeyValuesMustHaveALegalKeyOnEvenIndices()
 
     if (value == null) throw Property.Exceptions.propertyValueCanNotBeNull()
+    if (!validType(value)) {
+     value match {
+       case _: java.io.Serializable => throw Property.Exceptions.dataTypeOfPropertyValueNotSupported(value)
+       case _ =>
+     }
+    }
+
     if (value.isInstanceOf[Iterable[_]]) throw new java.lang.IllegalArgumentException("not supported data type")
     if (value.isInstanceOf[Array[_]]) throw new java.lang.IllegalArgumentException("not supported data type")
     if (value.isInstanceOf[java.util.List[_]]) throw new java.lang.IllegalArgumentException("not supported data type")

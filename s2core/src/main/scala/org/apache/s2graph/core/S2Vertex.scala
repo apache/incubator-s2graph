@@ -196,6 +196,8 @@ case class S2Vertex(graph: S2Graph,
 
         val props = S2Property.kvsToProps(kvs)
 
+        props.foreach { case (k, v) => S2Property.assertValidProp(k, v) }
+
         //TODO: direction, operation, _timestamp need to be reserved property key.
 
         try {

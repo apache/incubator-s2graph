@@ -116,6 +116,8 @@ case class SnapshotEdge(graph: S2Graph,
   }
 
   def property[V](key: String, value: V, ts: Long): S2Property[V] = {
+    S2Property.assertValidProp(key, value)
+
     val labelMeta = label.metaPropsInvMap.getOrElse(key, throw new RuntimeException(s"$key is not configured on IndexEdge."))
     val newProps = new S2Property(edge, labelMeta, key, value, ts)
     propsWithTs.put(key, newProps)
