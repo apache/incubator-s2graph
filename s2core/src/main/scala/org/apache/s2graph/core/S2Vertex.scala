@@ -180,7 +180,7 @@ case class S2Vertex(graph: S2Graph,
         props.put(key, newProps)
 
         // FIXME: save to persistent for tp test
-        graph.addVertex(this)
+        graph.addVertexInner(this)
         newProps
       case _ => throw new RuntimeException("only single cardinality is supported.")
     }
