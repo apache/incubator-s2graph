@@ -20,8 +20,8 @@
 package org.apache.s2graph.core
 
 import java.util
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
-import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.{Executors, TimeUnit}
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.{BaseConfiguration, Configuration}
@@ -34,15 +34,12 @@ import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
 import org.apache.tinkerpop.gremlin.structure
-import org.apache.tinkerpop.gremlin.structure.Graph.Features.EdgeFeatures
 import org.apache.tinkerpop.gremlin.structure.Graph.{Features, Variables}
-import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
-import org.apache.tinkerpop.gremlin.structure.{Edge, Element, Graph, Property, T, Transaction, Vertex}
+import org.apache.tinkerpop.gremlin.structure.{Edge, Element, Graph, T, Transaction, Vertex}
 import play.api.libs.json.{JsObject, Json}
 
 import scala.annotation.tailrec
 import scala.collection.JavaConversions._
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.concurrent._
@@ -548,14 +545,14 @@ object S2Graph {
   // passed: all, failed: none
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.FeatureSupportTest", method="*", reason="no"),
-  // passed: , failed: shouldEnableFeatureOnEdgeIfNotEnabled, shouldEnableFeatureOnVertexIfNotEnabled, shouldSupportUserSuppliedIdsOfTypeAny
+  // passed: all, failed: none
+  // shouldEnableFeatureOnEdgeIfNotEnabled, shouldEnableFeatureOnVertexIfNotEnabled, shouldSupportUserSuppliedIdsOfTypeAny
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VertexTest$BasicVertexTest", method="shouldHaveExceptionConsistencyWhenAssigningSameIdOnEdge", reason="S2Vertex.addEdge behave as upsert."),
   // passed: , failed: shouldHaveExceptionConsistencyWhenAssigningSameIdOnEdge
 
-    new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedEdgeTest", method="*", reason="no"),
+  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedEdgeTest", method="shouldNotEvaluateToEqualDifferentId", reason="reference equals is not supported."),
   // passed: all, failed: shouldNotEvaluateToEqualDifferentId
-
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedVertexTest", method="*", reason="no"),
   // passed: all, failed: none
@@ -563,7 +560,7 @@ object S2Graph {
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedGraphTest", method="*", reason="no"),
   // passed: all, failed: none,  all ignored
 
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedPropertyTest", method="*", reason="no"),
+  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedPropertyTest", method="shouldNotBeEqualPropertiesAsThereIsDifferentKey", reason="reference equals is not supported."),
   // passed: , failed: shouldNotBeEqualPropertiesAsThereIsDifferentKey
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedVertexPropertyTest", method="*", reason="no"),
@@ -1608,25 +1605,52 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
 
     val kvsMap = S2Property.kvsToProps(kvs)
+
     if (kvsMap.contains(T.label.name()) && kvsMap(T.label.name).toString.isEmpty)
       throw Element.Exceptions.labelCanNotBeEmpty
 
-    val id = kvsMap.getOrElse(T.id.toString, Random.nextLong)
-
-    val serviceColumnNames = kvsMap.getOrElse(T.label.toString, DefaultColumn.columnName).toString
-
-    val names = serviceColumnNames.split(S2Vertex.VertexLabelDelimiter)
-    val (serviceName, columnName) =
-      if (names.length == 1) (DefaultService.serviceName, names(0))
-      else throw new RuntimeException("malformed data on vertex label.")
-
-    val vertex = toVertex(serviceName, columnName, id, kvsMap)
-
-    val future = mutateVertices(Seq(vertex), withWait = true).map { vs =>
-      if (vs.forall(identity)) vertex
-      else throw new RuntimeException("addVertex failed.")
+    def validType(t: Any): Boolean = t match {
+      case t: String => true
+      case t: java.lang.Integer => true
+      case t: java.lang.Long => true
+      case t: scala.Long => true
+      case t: scala.Int => true
+      case _ => false
     }
-    Await.result(future, WaitTimeout)
+
+    val vertex = kvsMap.get(T.id.name()) match {
+      case None => // do nothing
+        val id = Random.nextLong
+        val serviceColumnNames = kvsMap.getOrElse(T.label.toString, DefaultColumn.columnName).toString
+
+        val names = serviceColumnNames.split(S2Vertex.VertexLabelDelimiter)
+        val (serviceName, columnName) =
+          if (names.length == 1) (DefaultService.serviceName, names(0))
+          else throw new RuntimeException("malformed data on vertex label.")
+
+        toVertex(serviceName, columnName, id, kvsMap)
+      case Some(idValue) =>
+        idValue match {
+          case vId: VertexId =>
+            toVertex(vId.column.service.serviceName, vId.column.columnName, vId, kvsMap)
+
+          case _: Any if validType(idValue) =>
+            val serviceColumnNames = kvsMap.getOrElse(T.label.toString, DefaultColumn.columnName).toString
+            val names = serviceColumnNames.split(S2Vertex.VertexLabelDelimiter)
+
+            val (serviceName, columnName) =
+              if (names.length == 1) (DefaultService.serviceName, names(0))
+              else throw new RuntimeException("malformed data on vertex label.")
+
+            toVertex(serviceName, columnName, idValue, kvsMap)
+            
+          case _ =>
+            logger.error(s"[S2Graph.addVertex]: ${idValue.getClass.getName}")
+            throw Vertex.Exceptions.userSuppliedIdsOfThisTypeNotSupported
+        }
+    }
+
+    addVertex(vertex)
   }
 
   def addVertex(id: VertexId,
