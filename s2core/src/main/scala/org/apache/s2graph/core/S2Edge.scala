@@ -20,17 +20,19 @@
 package org.apache.s2graph.core
 
 import java.util
-import java.util.function.{Consumer, BiConsumer}
+import java.util.function.{BiConsumer, Consumer}
 
-import org.apache.s2graph.core.S2Edge.{State, Props}
+import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
+import org.apache.s2graph.core.S2Edge.{Props, State}
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.structure
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory
-import org.apache.tinkerpop.gremlin.structure.{Graph, Vertex, Edge, Property, Direction}
-import play.api.libs.json.{Json, JsNumber, JsObject}
+import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph, Property, Vertex}
+import play.api.libs.json.{JsNumber, JsObject, Json}
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{Map => MutableMap}
 import scala.concurrent.Await
@@ -682,16 +684,41 @@ case class S2Edge(innerGraph: S2Graph,
 
   override def graph(): Graph = innerGraph
 
-  override def id(): AnyRef = {
+  lazy val edgeId: AnyRef = {
     // NOTE: xxxForVertex makes direction to be "out"
     val timestamp = if (this.innerLabel.consistencyLevel == "strong") 0l else ts
-    EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), direction, timestamp)
+//    EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), "out", timestamp)
+    if (direction == "out")
+      EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), "out", timestamp)
+    else
+      EdgeId(tgtVertex.innerId, srcVertex.innerId, label(), "out", timestamp)
   }
+
+  override def id(): AnyRef = edgeId
 
   override def label(): String = innerLabel.label
 }
+object EdgeId {
+  val EdgeIdDelimiter = ","
+  def fromString(s: String): EdgeId = {
+    val Array(src, tgt, labelName, dir, ts) = s.split(EdgeIdDelimiter)
+    val label = Label.findByName(labelName).getOrElse(throw LabelNotExistException(labelName))
+    val srcColumn = label.srcColumnWithDir(GraphUtil.toDirection(dir))
+    val tgtColumn = label.tgtColumnWithDir(GraphUtil.toDirection(dir))
+    EdgeId(
+      JSONParser.toInnerVal(src, srcColumn.columnType, label.schemaVersion),
+      JSONParser.toInnerVal(tgt, tgtColumn.columnType, label.schemaVersion),
+      labelName,
+      dir,
+      ts.toLong
+    )
+  }
+}
+case class EdgeId(srcVertexId: InnerValLike, tgtVertexId: InnerValLike, labelName: String, direction: String, ts: Long) {
+  override def toString: String =
+    Seq(srcVertexId.toIdString(), tgtVertexId.toIdString(), labelName, direction, ts.toString).mkString(EdgeId.EdgeIdDelimiter)
 
-case class EdgeId(srcVertexId: InnerValLike, tgtVertexId: InnerValLike, labelName: String, direction: String, ts: Long)
+}
 
 object EdgeMutate {
 
