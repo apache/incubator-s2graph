@@ -244,7 +244,7 @@ case class S2Vertex(graph: S2Graph,
     if (keys.isEmpty) {
       props.forEach(new BiConsumer[String, VertexProperty[_]] {
         override def accept(key: String, property: VertexProperty[_]): Unit = {
-          if (!ColumnMeta.reservedMetaNamesSet(key) && property.isPresent)
+          if (!ColumnMeta.reservedMetaNamesSet(key) && property.isPresent && key != T.id.name)
             ls.add(property.asInstanceOf[VertexProperty[V]])
         }
       })

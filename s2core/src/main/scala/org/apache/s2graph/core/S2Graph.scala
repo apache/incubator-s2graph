@@ -572,8 +572,8 @@ object S2Graph {
 //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphTest", method="*", reason="no"),
   // passed: , failed:
 
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceEdgeTest", method="shouldNotEvaluateToEqualDifferentId", reason="Assigning the same ID to an Element update instead of throwing exception."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceEdgeTest", method="*", reason="no"),
+  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceEdgeTest", method="shouldNotEvaluateToEqualDifferentId", reason="Assigning the same ID to an Element update instead of throwing exception."),
+//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceEdgeTest", method="*", reason="no"),
   // passed: , failed: shouldNotEvaluateToEqualDifferentId, shouldConstructReferenceEdge
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceVertexPropertyTest", method="*", reason="no"),
@@ -695,7 +695,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     ColumnMeta.findOrInsert(DefaultColumn.id.get, "lang", "string", useCache = false)
     ColumnMeta.findOrInsert(DefaultColumn.id.get, "oid", "integer", useCache = false)
     ColumnMeta.findOrInsert(DefaultColumn.id.get, "communityIndex", "integer", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "test", "string", useCache = false)
     ColumnMeta.findOrInsert(DefaultColumn.id.get, "testing", "string", useCache = false)
     ColumnMeta.findOrInsert(DefaultColumn.id.get, "string", "string", useCache = false)
     ColumnMeta.findOrInsert(DefaultColumn.id.get, "boolean", "boolean", useCache = false)
@@ -1704,4 +1703,11 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   override def features() = s2Features
 
   override def toString(): String = "[s2graph]"
+
+//  override def io[I <: Io[_ <: GraphReader.ReaderBuilder[_ <: GraphReader], _ <: GraphWriter.WriterBuilder[_ <: GraphWriter], _ <: Mapper.Builder[_]]](builder: Io.Builder[I]): I = {
+//    builder.graph(this).registry(new S2GraphIoRegistry).create().asInstanceOf[I]
+//
+//  }
+
+
 }

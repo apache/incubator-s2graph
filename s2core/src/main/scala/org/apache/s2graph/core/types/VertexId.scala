@@ -69,7 +69,7 @@ class VertexId (val column: ServiceColumn, val innerId: InnerValLike) extends HB
   override def toString(): String = {
     //    column.id.get.toString() + "," + innerId.toString()
     val del = S2Vertex.VertexLabelDelimiter
-    s"${column.service.serviceName}${del}${column.columnName}${del}${innerId}"
+    s"${column.serviceId}${del}${column.columnName}${del}${innerId}"
   }
 
   override def hashCode(): Int = {
@@ -83,7 +83,7 @@ class VertexId (val column: ServiceColumn, val innerId: InnerValLike) extends HB
   }
   override def equals(obj: Any): Boolean = {
     val ret = obj match {
-      case other: VertexId => colId == other.colId && innerId.toIdString() == other.innerId.toIdString()
+      case other: VertexId => column.id.get == other.column.id.get && innerId.toIdString() == other.innerId.toIdString()
       case _ => false
     }
 //    logger.debug(s"VertexId.equals: $this, $obj => $ret")

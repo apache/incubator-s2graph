@@ -105,7 +105,8 @@ class S2GraphProvider extends AbstractGraphProvider {
       Prop("aKey", "-", "string"),
       Prop("stars", "0", "integer"),
       Prop("since", "0", "integer"),
-      Prop("myEdgeId", "0", "integer")
+      Prop("myEdgeId", "0", "integer"),
+      Prop("data", "-", "string")
     )
 
    // Change dataType for ColumnMeta('aKey') for PropertyFeatureSupportTest
@@ -138,7 +139,16 @@ class S2GraphProvider extends AbstractGraphProvider {
       ColumnMeta.findOrInsert(defaultServiceColumn.id.get, "aKey", dataType, useCache = false)
     }
 
-    if (testClass.getSimpleName == "DetachedEdgeTest") {
+    if (testClass.getSimpleName == "ReferenceEdgeTest") {
+      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
+        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+    } else if (testClass.getName.contains("SerializationTest") || testClass.getSimpleName == "IoPropertyTest") {
+      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
+        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+    } else if (testClass.getSimpleName.contains("CommunityGeneratorTest")) {
+      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
+        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": true}"""))
+    } else if (testClass.getSimpleName == "DetachedEdgeTest" || testClass.getSimpleName.contains("GraphSONTest")) {
       mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
         true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
     } else {
@@ -173,13 +183,18 @@ class S2GraphProvider extends AbstractGraphProvider {
       true, defaultService.serviceName, Nil, Seq(Prop("xxx", "-", "string")), "weak", None, None,
       options = Option("""{"skipReverse": true}"""))
 
-    val self = if (testClass.getSimpleName.contains("GraphTest")) {
+    val self = if (testClass.getSimpleName == "StarGraphTest") {
+      mnt.createLabel("self", defaultService.serviceName, "person", "integer",
+        defaultService.serviceName, "person", "integer",
+        true, defaultService.serviceName, Nil, Seq(Prop("acl", "-", "string")), "strong", None, None,
+        options = Option("""{"skipReverse": false}"""))
+    } else if (testClass.getSimpleName.contains("GraphTest")) {
       mnt.createLabel("self", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-        true, defaultService.serviceName, Nil, Nil, "strong", None, None,
+        true, defaultService.serviceName, Nil, Seq(Prop("acl", "-", "string")), "strong", None, None,
         options = Option("""{"skipReverse": true}"""))
     } else {
       mnt.createLabel("self", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-        true, defaultService.serviceName, Nil, Nil, "weak", None, None,
+        true, defaultService.serviceName, Nil, Seq(Prop("acl", "-", "string")), "weak", None, None,
         options = Option("""{"skipReverse": true}"""))
     }
 
@@ -188,16 +203,31 @@ class S2GraphProvider extends AbstractGraphProvider {
       "strong", None, None,
       options = Option("""{"skipReverse": false}"""))
 
-    val friend = mnt.createLabel("friend", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil,
-      Seq(
-        Prop("name", "-", "string"),
-        Prop("location", "-", "string"),
-        Prop("status", "-", "string")
-      ),
-      "strong", None, None,
-      options = Option("""{"skipReverse": false}""")
-    )
+    val friend = if (testClass.getSimpleName.contains("IoEdgeTest")) {
+      mnt.createLabel("friend", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
+        true, defaultService.serviceName, Nil,
+        Seq(
+          Prop("name", "-", "string"),
+          Prop("location", "-", "string"),
+          Prop("status", "-", "string"),
+          Prop("weight", "0.0", "double"),
+          Prop("acl", "-", "string")
+        ), "strong", None, None,
+        options = Option("""{"skipReverse": false}"""))
+    } else {
+      mnt.createLabel("friend", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+        true, defaultService.serviceName, Nil,
+        Seq(
+          Prop("name", "-", "string"),
+          Prop("location", "-", "string"),
+          Prop("status", "-", "string"),
+          Prop("weight", "0.0", "double"),
+          Prop("acl", "-", "string")
+        ),
+        "strong", None, None,
+        options = Option("""{"skipReverse": false}""")
+      )
+    }
 
     val hate = mnt.createLabel("hate", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
       true, defaultService.serviceName, Nil, Nil, "strong", None, None,

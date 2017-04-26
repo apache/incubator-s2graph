@@ -30,7 +30,7 @@ import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.structure
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory
-import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph, Property, Vertex}
+import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph, Property, T, Vertex}
 import play.api.libs.json.{JsNumber, JsObject, Json}
 
 import scala.collection.JavaConverters._
@@ -330,7 +330,7 @@ case class S2Edge(innerGraph: S2Graph,
   lazy val tgtId = tgtVertex.innerIdVal
   lazy val labelName = innerLabel.label
   lazy val direction = GraphUtil.fromDirection(dir)
-  
+
   def toIndexEdge(labelIndexSeq: Byte): IndexEdge = IndexEdge(innerGraph, srcVertex, tgtVertex, innerLabel, dir, op, version, labelIndexSeq, propsWithTs)
 
   def serializePropsWithTs(): Array[Byte] = HBaseSerializable.propsToKeyValuesWithTs(propsWithTs.asScala.map(kv => kv._2.labelMeta.seq -> kv._2.innerValWithTs).toSeq)
@@ -629,7 +629,7 @@ case class S2Edge(innerGraph: S2Graph,
     if (keys.isEmpty) {
       propsWithTs.forEach(new BiConsumer[String, S2Property[_]] {
         override def accept(key: String, property: S2Property[_]): Unit = {
-          if (!LabelMeta.reservedMetaNamesSet(key) && property.isPresent)
+          if (!LabelMeta.reservedMetaNamesSet(key) && property.isPresent && key != T.id.name)
             ls.add(property.asInstanceOf[S2Property[V]])
         }
       })
@@ -689,9 +689,9 @@ case class S2Edge(innerGraph: S2Graph,
     val timestamp = if (this.innerLabel.consistencyLevel == "strong") 0l else ts
 //    EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), "out", timestamp)
     if (direction == "out")
-      EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), "out", timestamp)
+      EdgeId(srcVertex.id.innerId, tgtVertex.id.innerId, label(), "out", timestamp)
     else
-      EdgeId(tgtVertex.innerId, srcVertex.innerId, label(), "out", timestamp)
+      EdgeId(tgtVertex.id.innerId, srcVertex.id.innerId, label(), "out", timestamp)
   }
 
   override def id(): AnyRef = edgeId

@@ -22,12 +22,10 @@ package org.apache.s2graph.core
 import java.util
 
 import org.apache.s2graph.core.mysqls.ColumnMeta
-import org.apache.s2graph.core.types.CanInnerValLike
-import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty, Vertex => TpVertex}
+import org.apache.s2graph.core.types.{CanInnerValLike, InnerValLike}
+import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty}
 
-import scala.util.hashing.MurmurHash3
-
-case class S2VertexPropertyId[V](columnMeta: ColumnMeta, value: V)
+case class S2VertexPropertyId(columnMeta: ColumnMeta, value: InnerValLike)
 
 case class S2VertexProperty[V](element: S2Vertex,
                                columnMeta: ColumnMeta,
@@ -53,7 +51,7 @@ case class S2VertexProperty[V](element: S2Vertex,
     isRemoved = true
   }
 
-  override def id(): AnyRef = S2VertexPropertyId(columnMeta, v)
+  override def id(): AnyRef = S2VertexPropertyId(columnMeta, innerVal)
 
   @volatile var isRemoved = false
 
