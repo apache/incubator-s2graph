@@ -580,7 +580,7 @@ object S2Graph {
 
 //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceGraphTest", method="*", reason="no"),
   // passed: all, failed: none, all ignored
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceVertexTest", method="*", reason="no"),
+//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceVertexTest", method="*", reason="no"),
   // passed: all, failed: none, all ignored
 
   // not yet supported
