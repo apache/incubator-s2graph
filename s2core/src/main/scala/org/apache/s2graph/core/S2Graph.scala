@@ -27,6 +27,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.{BaseConfiguration, Configuration}
 import org.apache.s2graph.core.GraphExceptions.{FetchTimeoutException, LabelNotExistException}
 import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.features.S2GraphVariables
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.storage.{SKeyValue, Storage}
@@ -584,9 +585,10 @@ object S2Graph {
   // passed: all, failed: none, all ignored
 
   // not yet supported
+//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VariablesTest", method="*", reason="no"), // all failed since implementation is missing.
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.SerializationTest", method="*", reason="no"), // 10/16 failed.
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.TransactionTest", method="*", reason="no"), // all ignored since supportTransaction is false.
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VariablesTest", method="*", reason="no"), // all failed since implementation is missing.
+
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoCustomTest", method="*", reason="no"), // all ignored.
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoEdgeTest", method="*", reason="no"), // all failed.
@@ -1590,7 +1592,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     ???
   }
 
-  override def variables(): Variables = ???
+  override def variables(): Variables = new S2GraphVariables()
 
   override def configuration(): Configuration = apacheConfiguration
 
