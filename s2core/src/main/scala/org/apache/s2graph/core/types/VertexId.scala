@@ -23,9 +23,13 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.{GraphUtil, S2Vertex}
 import org.apache.s2graph.core.mysqls.ServiceColumn
 import org.apache.s2graph.core.types.HBaseType._
+import org.apache.s2graph.core.io.Conversions._
+import play.api.libs.json.Json
 
 object VertexId extends HBaseDeserializable {
   import HBaseType._
+
+
   def fromBytes(bytes: Array[Byte],
                 offset: Int,
                 len: Int,
@@ -49,6 +53,20 @@ object VertexId extends HBaseDeserializable {
   def toTargetVertexId(vid: VertexId) = {
     TargetVertexId(vid.column, vid.innerId)
   }
+
+  def unapply(vertexId: VertexId): Option[(ServiceColumn, InnerValLike)] = {
+    Some((vertexId.column, vertexId.innerId))
+  }
+
+  def fromString(s: String): VertexId = {
+
+//    val Array(serviceId, columnName, innerValStr) = s.split(S2Vertex.VertexLabelDelimiter)
+//    val service = Service.findById(serviceId.toInt)
+//    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new LabelNotExistException(columnName))
+//    val innerId = JSONParser.toInnerVal(innerValStr, column.columnType, column.schemaVersion)
+//    VertexId(column, innerId)
+    s2VertexIdReads.reads(Json.parse(s)).get
+  }
 }
 
 class VertexId (val column: ServiceColumn, val innerId: InnerValLike) extends HBaseSerializable {
@@ -67,9 +85,10 @@ class VertexId (val column: ServiceColumn, val innerId: InnerValLike) extends HB
   def bytes: Array[Byte] = Bytes.add(hashBytes, innerId.bytes, colIdBytes)
 
   override def toString(): String = {
+    s2VertexIdWrites.writes(this).toString()
     //    column.id.get.toString() + "," + innerId.toString()
-    val del = S2Vertex.VertexLabelDelimiter
-    s"${column.serviceId}${del}${column.columnName}${del}${innerId}"
+//    val del = S2Vertex.VertexLabelDelimiter
+//    Seq(column.serviceId, column.columnName, innerId.toIdString()).mkString(del)
   }
 
   override def hashCode(): Int = {

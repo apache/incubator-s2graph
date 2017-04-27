@@ -24,8 +24,18 @@ import java.util
 import org.apache.s2graph.core.mysqls.ColumnMeta
 import org.apache.s2graph.core.types.{CanInnerValLike, InnerValLike}
 import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty}
+import play.api.libs.json.Json
 
-case class S2VertexPropertyId(columnMeta: ColumnMeta, value: InnerValLike)
+object S2VertexPropertyId {
+  def fromString(s: String): S2VertexPropertyId = {
+    io.Conversions.s2VertexPropertyIdReads.reads(Json.parse(s)).get
+  }
+}
+case class S2VertexPropertyId(columnMeta: ColumnMeta, value: InnerValLike) {
+  override def toString: String = {
+    io.Conversions.s2VertexPropertyIdWrites.writes(this).toString()
+  }
+}
 
 case class S2VertexProperty[V](element: S2Vertex,
                                columnMeta: ColumnMeta,

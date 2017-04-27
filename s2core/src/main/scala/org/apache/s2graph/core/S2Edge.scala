@@ -28,6 +28,7 @@ import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.io.Conversions._
 import org.apache.tinkerpop.gremlin.structure
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory
 import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph, Property, T, Vertex}
@@ -701,22 +702,34 @@ case class S2Edge(innerGraph: S2Graph,
 object EdgeId {
   val EdgeIdDelimiter = ","
   def fromString(s: String): EdgeId = {
-    val Array(src, tgt, labelName, dir, ts) = s.split(EdgeIdDelimiter)
-    val label = Label.findByName(labelName).getOrElse(throw LabelNotExistException(labelName))
-    val srcColumn = label.srcColumnWithDir(GraphUtil.toDirection(dir))
-    val tgtColumn = label.tgtColumnWithDir(GraphUtil.toDirection(dir))
-    EdgeId(
-      JSONParser.toInnerVal(src, srcColumn.columnType, label.schemaVersion),
-      JSONParser.toInnerVal(tgt, tgtColumn.columnType, label.schemaVersion),
-      labelName,
-      dir,
-      ts.toLong
-    )
+//    val Array(src, tgt, labelName, dir, ts) = s.split(EdgeIdDelimiter)
+//    val label = Label.findByName(labelName).getOrElse(throw LabelNotExistException(labelName))
+//    val srcColumn = label.srcColumnWithDir(GraphUtil.toDirection(dir))
+//    val tgtColumn = label.tgtColumnWithDir(GraphUtil.toDirection(dir))
+//    EdgeId(
+//      JSONParser.toInnerVal(src, srcColumn.columnType, label.schemaVersion),
+//      JSONParser.toInnerVal(tgt, tgtColumn.columnType, label.schemaVersion),
+//      labelName,
+//      dir,
+//      ts.toLong
+//    )
+    val js = Json.parse(s)
+    s2EdgeIdReads.reads(Json.parse(s)).get
   }
 }
-case class EdgeId(srcVertexId: InnerValLike, tgtVertexId: InnerValLike, labelName: String, direction: String, ts: Long) {
-  override def toString: String =
-    Seq(srcVertexId.toIdString(), tgtVertexId.toIdString(), labelName, direction, ts.toString).mkString(EdgeId.EdgeIdDelimiter)
+
+case class EdgeId(srcVertexId: InnerValLike,
+                  tgtVertexId: InnerValLike,
+                  labelName: String,
+                  direction: String,
+                  ts: Long) {
+  override def toString: String = {
+    import io.Conversions._
+    //    Seq(srcVertexId.toIdString(), tgtVertexId.toIdString(), labelName, direction, ts.toString).mkString(EdgeId.EdgeIdDelimiter)
+    s2EdgeIdWrites.writes(this).toString()
+  }
+
+
 
 }
 

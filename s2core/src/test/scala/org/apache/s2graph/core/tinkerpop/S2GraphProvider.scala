@@ -139,16 +139,14 @@ class S2GraphProvider extends AbstractGraphProvider {
       ColumnMeta.findOrInsert(defaultServiceColumn.id.get, "aKey", dataType, useCache = false)
     }
 
-    if (testClass.getSimpleName == "ReferenceEdgeTest") {
-      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
-        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
-    } else if (testClass.getName.contains("SerializationTest") || testClass.getSimpleName == "IoPropertyTest") {
+    if (testClass.getName.contains("SerializationTest") || testClass.getSimpleName == "IoPropertyTest") {
       mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
         true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
     } else if (testClass.getSimpleName.contains("CommunityGeneratorTest")) {
       mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
         true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": true}"""))
-    } else if (testClass.getSimpleName == "DetachedEdgeTest" || testClass.getSimpleName.contains("GraphSONTest")) {
+    } else if (testClass.getSimpleName == "DetachedEdgeTest" ||
+        testClass.getSimpleName.contains("GraphSONTest")) {
       mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
         true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
     } else {

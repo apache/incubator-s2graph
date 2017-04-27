@@ -36,8 +36,8 @@ import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
 import org.apache.tinkerpop.gremlin.structure
 import org.apache.tinkerpop.gremlin.structure.Graph.{Features, Variables}
-import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
-import org.apache.tinkerpop.gremlin.structure.{Edge, Element, Graph, Property, T, Transaction, Vertex}
+import org.apache.tinkerpop.gremlin.structure.io.{GraphReader, GraphWriter, Io, Mapper}
+import org.apache.tinkerpop.gremlin.structure.{Edge, Element, Graph, T, Transaction, Vertex}
 import play.api.libs.json.{JsObject, Json}
 
 import scala.annotation.tailrec
@@ -584,10 +584,8 @@ object S2Graph {
 //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceVertexTest", method="*", reason="no"),
   // passed: all, failed: none, all ignored
 
-  // not yet supported
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VariablesTest", method="*", reason="no"), // all failed since implementation is missing.
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.SerializationTest", method="*", reason="no"), // 10/16 failed.
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.TransactionTest", method="*", reason="no"), // all ignored since supportTransaction is false.
+  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.SerializationTest$GryoTest", method="shouldSerializeTree", reason="order of children is reversed. not sure why."),
+  // passed: all, failed: $GryoTest.shouldSerializeTree
 
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoCustomTest", method="*", reason="no"), // all ignored.
@@ -1403,58 +1401,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     S2Edge.fillPropsWithTs(snapshotEdge, propsWithTs)
     snapshotEdge
   }
-//
-//  /**
-//   * internal helper to actually store a single edge based on given peramters.
-//   *
-//   * Note that this is used from S2Vertex to implement blocking interface from Tp3.
-//   * Once tp3 provide AsyncStep, then this can be changed to return Java's CompletableFuture.
-//   *
-//   * @param srcVertex
-//   * @param tgtVertex
-//   * @param labelName
-//   * @param direction
-//   * @param props
-//   * @param ts
-//   * @param operation
-//   * @return
-//   */
-//  private[core] def addEdgeInner(srcVertex: S2Vertex,
-//                                 tgtVertex: S2Vertex,
-//                                 labelName: String,
-//                                 direction: String = "out",
-//                                 props: Map[String, AnyRef] = Map.empty,
-//                                 ts: Long = System.currentTimeMillis(),
-//                                 operation: String = "insert"): S2Edge = {
-//    Await.result(addEdgeInnerAsync(srcVertex, tgtVertex, labelName, direction, props, ts, operation), WaitTimeout)
-//  }
-//
-//  private[core] def addEdgeInnerAsync(srcVertex: S2Vertex,
-//                                      tgtVertex: S2Vertex,
-//                                      labelName: String,
-//                                      direction: String = "out",
-//                                      props: Map[String, AnyRef] = Map.empty,
-//                                      ts: Long = System.currentTimeMillis(),
-//                                      operation: String = "insert"): Future[S2Edge] = {
-//    // Validations on input parameter
-//    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
-//    val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
-////    if (srcVertex.id.column != label.srcColumnWithDir(dir)) throw new RuntimeException(s"srcVertex's column[${srcVertex.id.column}] is not matched to label's srcColumn[${label.srcColumnWithDir(dir)}")
-////    if (tgtVertex.id.column != label.tgtColumnWithDir(dir)) throw new RuntimeException(s"tgtVertex's column[${tgtVertex.id.column}] is not matched to label's tgtColumn[${label.tgtColumnWithDir(dir)}")
-//
-//    // Convert given Map[String, AnyRef] property into internal class.
-//    val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
-//    val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
-//    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
-//
-//    val edge = newEdge(srcVertex, tgtVertex, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
-//    // store edge into storage withWait option.
-//    mutateEdges(Seq(edge), withWait = true).map { rets =>
-//      if (!rets.headOption.getOrElse(false)) throw new RuntimeException("add edge failed.")
-//      else edge
-//    }
-//  }
-
 
   def newVertexId(serviceName: String)(columnName: String)(id: Any): VertexId = {
     val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
@@ -1511,41 +1457,27 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   /**
    * used by graph.traversal().V()
-   * @param vertexIds: array of VertexId values. note that last parameter can be used to control if actually fetch vertices from storage or not.
+   * @param ids: array of VertexId values. note that last parameter can be used to control if actually fetch vertices from storage or not.
    *                 since S2Graph use user-provided id as part of edge, it is possible to
    *                 fetch edge without fetch start vertex. default is false which means we are not fetching vertices from storage.
    * @return
    */
-  override def vertices(vertexIds: AnyRef*): util.Iterator[structure.Vertex] = {
-    val fetchVertices = vertexIds.lastOption.map { lastParam =>
+  override def vertices(ids: AnyRef*): util.Iterator[structure.Vertex] = {
+    val fetchVertices = ids.lastOption.map { lastParam =>
       if (lastParam.isInstanceOf[Boolean]) lastParam.asInstanceOf[Boolean]
       else true
     }.getOrElse(true)
 
-    if (vertexIds.isEmpty) {
+    if (ids.isEmpty) {
       //TODO: default storage need to be fixed.
       Await.result(defaultStorage.fetchVerticesAll(), WaitTimeout).iterator
     } else {
-      val (vIds, stringIds) = vertexIds.partition(_.isInstanceOf[VertexId])
-      val verticesFromIds = vIds.map(vertexId => newVertex(vertexId.asInstanceOf[VertexId]))
-      val verticesFromString = stringIds.flatMap { vId =>
-        if (vId.toString.contains(S2Vertex.VertexLabelDelimiter)) {
-          val Array(serviceName, columnName, id) =
-            if (vId.toString.take(2).mkString("") == "v[") vId.toString.drop(2).init.split(S2Vertex.VertexLabelDelimiter)
-            else {
-              if (vId.toString.contains(S2Vertex.VertexLabelDelimiter)) {
-                vId.toString.split(S2Vertex.VertexLabelDelimiter)
-              } else {
-                Array(DefaultService.serviceName, DefaultColumn.columnName, vId.toString)
-              }
-            }
-
-          Seq(toVertex(serviceName, columnName, id))
-        } else {
-          Nil
-        }
+      val vertices = ids.collect {
+        case s2Vertex: S2Vertex => s2Vertex
+        case vId: VertexId => newVertex(vId)
+        case vertex: Vertex => newVertex(vertex.id().asInstanceOf[VertexId])
+        case other @ _ => newVertex(VertexId.fromString(other.toString))
       }
-      val vertices = verticesFromIds ++ verticesFromString
 
       if (fetchVertices) {
         val future = getVertices(vertices).map { vs =>
@@ -1574,6 +1506,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       case s2Edge: S2Edge => s2Edge.id().asInstanceOf[EdgeId]
       case id: EdgeId => id
       case s: String => EdgeId.fromString(s)
+      case s: java.lang.String => EdgeId.fromString(s)
     }
     val edgesToFetch = for {
       id <- s2EdgeIds
@@ -1592,7 +1525,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     ???
   }
 
-  override def variables(): Variables = new S2GraphVariables()
+  override def variables(): Variables = new S2GraphVariables
 
   override def configuration(): Configuration = apacheConfiguration
 
@@ -1705,10 +1638,10 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   override def toString(): String = "[s2graph]"
 
-//  override def io[I <: Io[_ <: GraphReader.ReaderBuilder[_ <: GraphReader], _ <: GraphWriter.WriterBuilder[_ <: GraphWriter], _ <: Mapper.Builder[_]]](builder: Io.Builder[I]): I = {
-//    builder.graph(this).registry(new S2GraphIoRegistry).create().asInstanceOf[I]
-//
-//  }
+  override def io[I <: Io[_ <: GraphReader.ReaderBuilder[_ <: GraphReader], _ <: GraphWriter.WriterBuilder[_ <: GraphWriter], _ <: Mapper.Builder[_]]](builder: Io.Builder[I]): I = {
+    builder.graph(this).registry(new S2GraphIoRegistry).create().asInstanceOf[I]
+
+  }
 
 
 }

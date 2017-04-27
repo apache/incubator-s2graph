@@ -20,7 +20,6 @@
 package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util._
-import org.apache.s2graph.core.utils.logger
 
 object InnerVal extends HBaseDeserializableWithIsVertexId {
   import HBaseType._

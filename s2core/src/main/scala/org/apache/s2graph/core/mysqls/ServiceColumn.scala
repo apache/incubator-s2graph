@@ -19,37 +19,26 @@
 
 package org.apache.s2graph.core.mysqls
 
-/**
- * Created by shon on 6/3/15.
- */
-
-import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.types.{HBaseType, InnerValLike, InnerValLikeWithTs}
-import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.Json
 import scalikejdbc._
+
 object ServiceColumn extends Model[ServiceColumn] {
   val Default = ServiceColumn(Option(0), -1, "default", "string", "v4")
 
-  def apply(rs: WrappedResultSet): ServiceColumn = {
+  def valueOf(rs: WrappedResultSet): ServiceColumn = {
     ServiceColumn(rs.intOpt("id"), rs.int("service_id"), rs.string("column_name"), rs.string("column_type").toLowerCase(), rs.string("schema_version"))
   }
 
-//  def findByServiceAndColumn(serviceName: String,
-//                             columnName: String,
-//                             useCache: Boolean  = true)(implicit session: DBSession): Option[ServiceColumn] = {
-//    val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
-//    find(service.id.get, columnName, useCache)
-//  }
 
   def findById(id: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession): ServiceColumn = {
     val cacheKey = "id=" + id
 
     if (useCache) {
-      withCache(cacheKey)(sql"""select * from service_columns where id = ${id}""".map { x => ServiceColumn(x) }.single.apply).get
+      withCache(cacheKey)(sql"""select * from service_columns where id = ${id}""".map { x => ServiceColumn.valueOf(x) }.single.apply).get
     } else {
-      sql"""select * from service_columns where id = ${id}""".map { x => ServiceColumn(x) }.single.apply.get
+      sql"""select * from service_columns where id = ${id}""".map { x => ServiceColumn.valueOf(x) }.single.apply.get
     }
   }
 
@@ -60,12 +49,12 @@ object ServiceColumn extends Model[ServiceColumn] {
       withCache(cacheKey) {
         sql"""
           select * from service_columns where service_id = ${serviceId} and column_name = ${columnName}
-        """.map { rs => ServiceColumn(rs) }.single.apply()
+        """.map { rs => ServiceColumn.valueOf(rs) }.single.apply()
       }
     } else {
       sql"""
         select * from service_columns where service_id = ${serviceId} and column_name = ${columnName}
-      """.map { rs => ServiceColumn(rs) }.single.apply()
+      """.map { rs => ServiceColumn.valueOf(rs) }.single.apply()
     }
   }
   def insert(serviceId: Int, columnName: String, columnType: Option[String], schemaVersion: String)(implicit session: DBSession = AutoSession) = {
@@ -94,7 +83,7 @@ object ServiceColumn extends Model[ServiceColumn] {
     }
   }
   def findAll()(implicit session: DBSession = AutoSession) = {
-    val ls = sql"""select * from service_columns""".map { rs => ServiceColumn(rs) }.list.apply
+    val ls = sql"""select * from service_columns""".map { rs => ServiceColumn.valueOf(rs) }.list.apply
     putsToCache(ls.map { x =>
       var cacheKey = s"id=${x.id.get}"
       (cacheKey -> x)
