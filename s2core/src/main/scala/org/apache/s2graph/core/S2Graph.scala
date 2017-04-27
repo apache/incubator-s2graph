@@ -19,6 +19,7 @@
 
 package org.apache.s2graph.core
 
+import java.lang.annotation.Annotation
 import java.util
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
 import java.util.concurrent.{Executors, TimeUnit}
@@ -527,12 +528,13 @@ object S2Graph {
   }
 }
 
+
 //@Graph.OptIn(Graph.OptIn.SUITE_PROCESS_STANDARD)
-//@Graph.OptIn(Graph.OptIn.SUITE_PROCESS_COMPUTER)
-//@Graph.OptIn(Graph.OptIn.SUITE_GROOVY_PROCESS_STANDARD)
-//@Graph.OptIn(Graph.OptIn.SUITE_GROOVY_PROCESS_COMPUTER)
-//@Graph.OptIn(Graph.OptIn.SUITE_GROOVY_ENVIRONMENT)
-@Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_STANDARD)
+//@Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_STANDARD)
+@Graph.OptIns(value = Array(
+  new Graph.OptIn(value = Graph.OptIn.SUITE_PROCESS_STANDARD),
+  new Graph.OptIn(value = Graph.OptIn.SUITE_STRUCTURE_STANDARD)
+))
 @Graph.OptOuts(value = Array(
 //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest", method="*", reason="no"),
   // passed: all, failed: none
@@ -620,7 +622,7 @@ object S2Graph {
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoEdgeTest", method="shouldReadWriteDetachedEdge", specific="graphson-v2-embedded", reason="no"),
   // passed: all, except graphson-v2-embedded.
 
-  // TODO: 
+  // TODO:
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoGraphTest", method="*", reason="no"), // all failed.
 
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoTest", method="*", reason="no")
