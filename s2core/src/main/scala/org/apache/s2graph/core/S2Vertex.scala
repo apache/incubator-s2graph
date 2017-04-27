@@ -249,7 +249,10 @@ case class S2Vertex(graph: S2Graph,
         }
       })
     } else {
-      keys.foreach { key => ls.add(property[V](key)) }
+      keys.foreach { key =>
+        val prop = property[V](key)
+        if (prop.isPresent) ls.add(prop)
+      }
     }
     ls.iterator
   }

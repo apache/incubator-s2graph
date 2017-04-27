@@ -635,7 +635,10 @@ case class S2Edge(innerGraph: S2Graph,
         }
       })
     } else {
-      keys.foreach { key => ls.add(property(key)) }
+      keys.foreach { key =>
+        val prop = property[V](key)
+        if (prop.isPresent) ls.add(prop)
+      }
     }
     ls.iterator()
   }
@@ -685,7 +688,7 @@ case class S2Edge(innerGraph: S2Graph,
 
   override def graph(): Graph = innerGraph
 
-  lazy val edgeId: AnyRef = {
+  lazy val edgeId: EdgeId = {
     // NOTE: xxxForVertex makes direction to be "out"
     val timestamp = if (this.innerLabel.consistencyLevel == "strong") 0l else ts
 //    EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), "out", timestamp)

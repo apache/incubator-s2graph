@@ -19,6 +19,8 @@ import com.typesafe.config.ConfigFactory
 import org.apache.commons.io.FileUtils
 import org.apache.s2graph.core.utils.logger
 
+import scala.concurrent.ExecutionContext
+
 object S2GraphProvider {
   val Implementation: Set[Class[_]] = Set(
     classOf[S2Edge],
@@ -28,6 +30,7 @@ object S2GraphProvider {
     classOf[S2Graph]
   )
 }
+
 class S2GraphProvider extends AbstractGraphProvider {
 
   override def getBaseConfiguration(s: String, aClass: Class[_], s1: String, graphData: GraphData): util.Map[String, AnyRef] = {
@@ -81,6 +84,8 @@ class S2GraphProvider extends AbstractGraphProvider {
       Management.deleteLabel(labelName)
     }
   }
+
+//  override def openTestGraph(config: Configuration): Graph = new S2Graph(config)(ExecutionContext.global)
 
   override def loadGraphData(graph: Graph, loadGraphWith: LoadGraphWith, testClass: Class[_], testName: String): Unit = {
     val s2Graph = graph.asInstanceOf[S2Graph]
@@ -139,7 +144,13 @@ class S2GraphProvider extends AbstractGraphProvider {
       ColumnMeta.findOrInsert(defaultServiceColumn.id.get, "aKey", dataType, useCache = false)
     }
 
-    if (testClass.getName.contains("SerializationTest") || testClass.getSimpleName == "IoPropertyTest") {
+    if (testClass.getSimpleName == "IoGraphTest") {
+      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
+        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+    } else if (testClass.getSimpleName == "DifferentDistributionsTest") {
+      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
+        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+    } else if (testClass.getName.contains("SerializationTest") || testClass.getSimpleName == "IoPropertyTest") {
       mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
         true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
     } else if (testClass.getSimpleName.contains("CommunityGeneratorTest")) {
@@ -196,10 +207,20 @@ class S2GraphProvider extends AbstractGraphProvider {
         options = Option("""{"skipReverse": true}"""))
     }
 
-    val friends = mnt.createLabel("friends", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, Nil,
-      "strong", None, None,
-      options = Option("""{"skipReverse": false}"""))
+    val friends =
+      if (testClass.getSimpleName == "IoVertexTest") {
+        mnt.createLabel("friends",
+          defaultService.serviceName, "person", "integer",
+          defaultService.serviceName, "person", "integer",
+          true, defaultService.serviceName, Nil, Seq(Prop("weight", "0.0", "double")),
+          "strong", None, None,
+          options = Option("""{"skipReverse": false}"""))
+      } else {
+        mnt.createLabel("friends", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+          true, defaultService.serviceName, Nil, Nil,
+          "strong", None, None,
+          options = Option("""{"skipReverse": false}"""))
+      }
 
     val friend = if (testClass.getSimpleName.contains("IoEdgeTest")) {
       mnt.createLabel("friend", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",

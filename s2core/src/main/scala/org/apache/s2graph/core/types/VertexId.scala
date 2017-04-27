@@ -102,7 +102,9 @@ class VertexId (val column: ServiceColumn, val innerId: InnerValLike) extends HB
   }
   override def equals(obj: Any): Boolean = {
     val ret = obj match {
-      case other: VertexId => column.id.get == other.column.id.get && innerId.toIdString() == other.innerId.toIdString()
+      case other: VertexId =>
+        val ret = column.id.get == other.column.id.get && innerId.toIdString() == other.innerId.toIdString()
+        ret
       case _ => false
     }
 //    logger.debug(s"VertexId.equals: $this, $obj => $ret")
