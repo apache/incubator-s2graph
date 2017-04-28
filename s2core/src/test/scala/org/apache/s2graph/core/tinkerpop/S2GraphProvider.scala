@@ -143,21 +143,7 @@ class S2GraphProvider extends AbstractGraphProvider {
       ColumnMeta.findByName(defaultServiceColumn.id.get, "aKey", useCache = false).foreach(cm => ColumnMeta.delete(cm.id.get))
       ColumnMeta.findOrInsert(defaultServiceColumn.id.get, "aKey", dataType, useCache = false)
     }
-
-    if (testClass.getSimpleName == "IoGraphTest") {
-      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
-        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
-    } else if (testClass.getSimpleName == "DifferentDistributionsTest") {
-      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
-        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
-    } else if (testClass.getName.contains("SerializationTest") || testClass.getSimpleName == "IoPropertyTest") {
-      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
-        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
-    } else if (testClass.getSimpleName.contains("CommunityGeneratorTest")) {
-      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
-        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": true}"""))
-    } else if (testClass.getSimpleName == "DetachedEdgeTest" ||
-        testClass.getSimpleName.contains("GraphSONTest")) {
+    if (loadGraphWith != null && loadGraphWith.value() == GraphData.MODERN) {
       mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
         true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
     } else {
@@ -166,14 +152,6 @@ class S2GraphProvider extends AbstractGraphProvider {
     }
 
 
-//    if (testClass.getSimpleName.contains("VertexTest") || (testClass.getSimpleName == "EdgeTest" && testName == "shouldAutotypeDoubleProperties")) {
-//      mnt.createLabel("knows", defaultService.serviceName, "vertex", "string", defaultService.serviceName, "vertex", "string",
-//        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
-//    } else {
-//      mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
-//        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
-//    }
-
     val personColumn = Management.createServiceColumn(defaultService.serviceName, "person", "integer",
       Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
     val softwareColumn = Management.createServiceColumn(defaultService.serviceName, "software", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("lang", "-", "string")))
@@ -181,8 +159,19 @@ class S2GraphProvider extends AbstractGraphProvider {
     val dogColumn = Management.createServiceColumn(defaultService.serviceName, "dog", "integer", Nil)
 //    val vertexColumn = Management.createServiceColumn(service.serviceName, "vertex", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "-1", "integer"), Prop("lang", "scala", "string")))
 
-    val created = mnt.createLabel("created", defaultService.serviceName, "person", "integer", defaultService.serviceName, "software", "integer",
-      true, defaultService.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
+    val created =
+      if (loadGraphWith != null && loadGraphWith.value() == GraphData.MODERN) {
+        mnt.createLabel("created",
+          defaultService.serviceName, "person", "integer",
+          defaultService.serviceName, "software", "integer",
+          true, defaultService.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
+      } else {
+        mnt.createLabel("created",
+          defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+          defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+          true, defaultService.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
+      }
+
 
     val bought = mnt.createLabel("bought", defaultService.serviceName, "person", "integer", defaultService.serviceName, "product", "integer",
       true, defaultService.serviceName, Nil, Seq(Prop("x", "-", "string"), Prop("y", "-", "string")), "strong", None, None,
