@@ -93,6 +93,9 @@ object S2Graph {
   )
 
   var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)
+  val numOfThread = Runtime.getRuntime.availableProcessors()
+  val threadPool = Executors.newFixedThreadPool(numOfThread)
+  val ec = ExecutionContext.fromExecutor(threadPool)
 
   def toTypeSafeConfig(configuration: Configuration): Config = {
     val m = new mutable.HashMap[String, AnyRef]()
@@ -117,9 +120,6 @@ object S2Graph {
   }
 
   def open(configuration: Configuration): S2Graph = {
-    val numOfThread = Runtime.getRuntime.availableProcessors()
-    val threadPool = Executors.newFixedThreadPool(numOfThread)
-    val ec = ExecutionContext.fromExecutor(threadPool)
     new S2Graph(configuration)(ec)
   }
 

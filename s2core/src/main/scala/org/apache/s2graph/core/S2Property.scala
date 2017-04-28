@@ -31,6 +31,7 @@ import scala.util.hashing.MurmurHash3
 object S2Property {
 
   def validType(t: Any): Boolean = t match {
+    case _: EdgeId => true
     case _: VertexId => true
     case _: java.lang.Integer => true
     case _: java.lang.Long => true
