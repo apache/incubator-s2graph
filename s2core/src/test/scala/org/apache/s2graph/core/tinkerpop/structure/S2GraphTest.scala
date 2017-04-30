@@ -325,45 +325,45 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
   def convertToEdgeId(g: GraphTraversalSource, outVertexName: String, edgeLabel: String, inVertexName: String): AnyRef = {
     g.V().has("name", outVertexName).outE(edgeLabel).as("e").inV.has("name", inVertexName).select[Edge]("e").next().id()
   }
-  test("ccc") {
-    val mnt = graph.management
-    val defaultService = graph.DefaultService
-    val defaultServiceColumn = graph.DefaultColumn
-    val columnNames = Set(defaultServiceColumn.columnName, "person", "software", "product", "dog")
-    val labelNames = Set("knows", "created", "bought", "test", "self", "friends", "friend", "hate", "collaborator", "test1", "test2", "test3", "pets", "walks")
-
-    Management.deleteService(defaultService.serviceName)
-    columnNames.foreach { columnName =>
-      Management.deleteColumn(defaultServiceColumn.service.serviceName, columnName)
-    }
-    labelNames.foreach { labelName =>
-      Management.deleteLabel(labelName)
-    }
-    val personColumn = Management.createServiceColumn(defaultService.serviceName, "person", "integer",
-      Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
-    val knows = mnt.createLabel("knows",
-      defaultService.serviceName, "person", "integer",
-      defaultService.serviceName, "person", "integer",
-      true, defaultService.serviceName, Nil, Seq(Prop("since", "0", "integer"), Prop("year", "0", "integer")), consistencyLevel = "strong", None, None)
-
-    val created = mnt.createLabel("created",
-      defaultService.serviceName, "person", "integer",
-      defaultService.serviceName, "person", "integer",
-      true, defaultService.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
-
-    val g = graph.traversal()
-    val v1 = graph.addVertex(T.label, "person", T.id, Int.box(1), "name", "josh")
-    val v4 = graph.addVertex(T.label, "person", T.id, Int.box(4), "name", "lop")
-    val e = v1.addEdge("created", v4)
-
-    val toDetach = g.E(convertToEdgeId(g, "josh", "created", "lop")).next()
-    val outV = toDetach.vertices(Direction.OUT).next()
-    val detachedEdge = DetachedFactory.detach(toDetach, true)
-    val attached = detachedEdge.attach(Attachable.Method.get(outV))
-
-    assert(toDetach.equals(attached))
-    assert(!attached.isInstanceOf[DetachedEdge])
-  }
+//  test("ccc") {
+//    val mnt = graph.management
+//    val defaultService = graph.DefaultService
+//    val defaultServiceColumn = graph.DefaultColumn
+//    val columnNames = Set(defaultServiceColumn.columnName, "person", "software", "product", "dog")
+//    val labelNames = Set("knows", "created", "bought", "test", "self", "friends", "friend", "hate", "collaborator", "test1", "test2", "test3", "pets", "walks")
+//
+//    Management.deleteService(defaultService.serviceName)
+//    columnNames.foreach { columnName =>
+//      Management.deleteColumn(defaultServiceColumn.service.serviceName, columnName)
+//    }
+//    labelNames.foreach { labelName =>
+//      Management.deleteLabel(labelName)
+//    }
+//    val personColumn = Management.createServiceColumn(defaultService.serviceName, "person", "integer",
+//      Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
+//    val knows = mnt.createLabel("knows",
+//      defaultService.serviceName, "person", "integer",
+//      defaultService.serviceName, "person", "integer",
+//      true, defaultService.serviceName, Nil, Seq(Prop("since", "0", "integer"), Prop("year", "0", "integer")), consistencyLevel = "strong", None, None)
+//
+//    val created = mnt.createLabel("created",
+//      defaultService.serviceName, "person", "integer",
+//      defaultService.serviceName, "person", "integer",
+//      true, defaultService.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
+//
+//    val g = graph.traversal()
+//    val v1 = graph.addVertex(T.label, "person", T.id, Int.box(1), "name", "josh")
+//    val v4 = graph.addVertex(T.label, "person", T.id, Int.box(4), "name", "lop")
+//    val e = v1.addEdge("created", v4)
+//
+//    val toDetach = g.E(convertToEdgeId(g, "josh", "created", "lop")).next()
+//    val outV = toDetach.vertices(Direction.OUT).next()
+//    val detachedEdge = DetachedFactory.detach(toDetach, true)
+//    val attached = detachedEdge.attach(Attachable.Method.get(outV))
+//
+//    assert(toDetach.equals(attached))
+//    assert(!attached.isInstanceOf[DetachedEdge])
+//  }
 
 //  test("ddd") {
 ////    @Test
