@@ -19,7 +19,6 @@
 
 package org.apache.s2graph.core
 
-import java.lang.annotation.Annotation
 import java.util
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
 import java.util.concurrent.{Executors, TimeUnit}
@@ -96,6 +95,10 @@ object S2Graph {
   val numOfThread = Runtime.getRuntime.availableProcessors()
   val threadPool = Executors.newFixedThreadPool(numOfThread)
   val ec = ExecutionContext.fromExecutor(threadPool)
+
+  val DefaultServiceName = ""
+  val DefaultColumnName = "vertex"
+  val DefaultLabelName = "_s2graph"
 
   def toTypeSafeConfig(configuration: Configuration): Config = {
     val m = new mutable.HashMap[String, AnyRef]()
@@ -536,7 +539,15 @@ object S2Graph {
   new Graph.OptIn(value = Graph.OptIn.SUITE_STRUCTURE_STANDARD)
 ))
 @Graph.OptOuts(value = Array(
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest", method="*", reason="no"),
+  /** Process */
+//  new Graph.OptOut(
+//    test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MatchTest$Traversals",
+//    method = "g_V_valueMap_matchXa_selectXnameX_bX",
+//    reason = "Hadoop-Gremlin is OLAP-oriented and for OLTP operations, linear-scan joins are required. This particular tests takes many minutes to execute."),
+
+  /** Structure */
+  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest$BasicEdgeTest", method="shouldValidateIdEquality", reason="reference equals on EdgeId is not supported."),
+  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest$BasicEdgeTest", method="shouldValidateEquality", reason="reference equals on EdgeId is not supported."),
   // passed: all, failed: none
 
 //  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphConstructionTest", method="*", reason="no"),
@@ -717,36 +728,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     (k, v) = (entry.getKey, entry.getValue)
   } logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
 
-  /* TODO */
-  val DefaultService = management.createService("", "localhost", "s2graph", 0, None).get
-  val DefaultColumn = ServiceColumn.findOrInsert(DefaultService.id.get, "vertex", Some("string"), HBaseType.DEFAULT_VERSION, useCache = false)
-  val DefaultColumnMetas = {
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "test", "string", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "name", "string", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "age", "integer", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "lang", "string", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "oid", "integer", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "communityIndex", "integer", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "testing", "string", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "string", "string", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "boolean", "boolean", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "long", "long", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "float", "float", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "double", "double", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "integer", "integer", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "aKey", "string", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "x", "integer", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "y", "integer", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "location", "string", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "status", "string", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "myId", "integer", useCache = false)
-    ColumnMeta.findOrInsert(DefaultColumn.id.get, "acl", "string", useCache = false)
-  }
-
-  val DefaultLabel = management.createLabel("_s2graph", DefaultService.serviceName, DefaultColumn.columnName, DefaultColumn.columnType,
-    DefaultService.serviceName, DefaultColumn.columnName, DefaultColumn.columnType, true, DefaultService.serviceName, Nil, Nil, "weak", None, None,
-    options = Option("""{"skipReverse": false}""")
-  )
 
   def getStorage(service: Service): Storage[_, _] = {
     storagePool.getOrElse(s"service:${service.serviceName}", defaultStorage)
@@ -1576,11 +1557,11 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       case vId: VertexId =>
         toVertex(vId.column.service.serviceName, vId.column.columnName, vId, kvsMap)
       case _ =>
-        val serviceColumnNames = kvsMap.getOrElse(T.label.toString, DefaultColumn.columnName).toString
+        val serviceColumnNames = kvsMap.getOrElse(T.label.toString, DefaultColumnName).toString
 
         val names = serviceColumnNames.split(S2Vertex.VertexLabelDelimiter)
         val (serviceName, columnName) =
-          if (names.length == 1) (DefaultService.serviceName, names(0))
+          if (names.length == 1) (DefaultServiceName, names(0))
           else throw new RuntimeException("malformed data on vertex label.")
 
         toVertex(serviceName, columnName, idValue, kvsMap)
