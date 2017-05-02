@@ -105,16 +105,16 @@ object Conversions {
     )(unlift(VertexId.unapply))
 
   implicit val s2EdgeIdReads: Reads[EdgeId] = (
-    (JsPath \ "srcVertexId").read[InnerValLike] and
-      (JsPath \ "tgtVertexId").read[InnerValLike] and
+    (JsPath \ "srcVertexId").read[VertexId] and
+      (JsPath \ "tgtVertexId").read[VertexId] and
       (JsPath \ "labelName").read[String] and
       (JsPath \ "direction").read[String] and
       (JsPath \ "ts").read[Long]
     )(EdgeId.apply _)
 
   implicit val s2EdgeIdWrites: Writes[EdgeId] = (
-    (JsPath \ "srcVertexId").write[InnerValLike] and
-      (JsPath \ "tgtVertexId").write[InnerValLike] and
+    (JsPath \ "srcVertexId").write[VertexId] and
+      (JsPath \ "tgtVertexId").write[VertexId] and
       (JsPath \ "labelName").write[String] and
       (JsPath \ "direction").write[String] and
       (JsPath \ "ts").write[Long]

@@ -22,7 +22,7 @@ package org.apache.s2graph.core
 import org.apache.s2graph.core.GraphExceptions.IllegalDataTypeException
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.rest.TemplateHelper
-import org.apache.s2graph.core.types.{InnerValLikeWithTs, InnerVal, InnerValLike}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs, VertexId}
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json._
 
@@ -189,6 +189,7 @@ object JSONParser {
     val dType = InnerVal.toInnerDataType(dataType)
     val isNumeric = isNumericType(dType)
     any match {
+      case v: VertexId => v.innerId
       case a: InnerValLike => a
       case n: BigDecimal =>
         if (isNumeric) InnerVal.withNumber(n, version)

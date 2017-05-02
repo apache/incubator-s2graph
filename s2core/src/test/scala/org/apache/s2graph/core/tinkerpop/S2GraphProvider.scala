@@ -4,10 +4,11 @@ import java.util
 
 import com.typesafe.config.ConfigFactory
 import org.apache.commons.configuration.Configuration
+import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.Management.JsonModel.Prop
 import org.apache.s2graph.core.S2Graph.{DefaultColumnName, DefaultServiceName}
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
+import org.apache.s2graph.core.mysqls.{ColumnMeta, Label, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, VertexId}
 import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.LoadGraphWith.GraphData
@@ -239,31 +240,35 @@ class S2GraphProvider extends AbstractGraphProvider {
           options = Option("""{"skipReverse": false}"""))
       }
 
-    val friend = if (testClass.getSimpleName.contains("IoEdgeTest")) {
-      mnt.createLabel("friend", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
-        true, defaultService.serviceName, Nil,
-        Seq(
-          Prop("name", "-", "string"),
-          Prop("location", "-", "string"),
-          Prop("status", "-", "string"),
-          Prop("weight", "0.0", "double"),
-          Prop("acl", "-", "string")
-        ), "strong", None, None,
-        options = Option("""{"skipReverse": false}"""))
-    } else {
-      mnt.createLabel("friend", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-        true, defaultService.serviceName, Nil,
-        Seq(
-          Prop("name", "-", "string"),
-          Prop("location", "-", "string"),
-          Prop("status", "-", "string"),
-          Prop("weight", "0.0", "double"),
-          Prop("acl", "-", "string")
-        ),
-        "strong", None, None,
-        options = Option("""{"skipReverse": false}""")
-      )
-    }
+    val friend =
+      if (testClass.getSimpleName == "IoEdgeTest") {
+        mnt.createLabel("friend",
+          defaultService.serviceName, "person", "integer",
+          defaultService.serviceName, "person", "integer",
+          true, defaultService.serviceName, Nil,
+          Seq(
+            Prop("name", "-", "string"),
+            Prop("location", "-", "string"),
+            Prop("status", "-", "string"),
+            Prop("weight", "0.0", "double"),
+            Prop("acl", "-", "string")
+          ), "strong", None, None,
+          options = Option("""{"skipReverse": false}"""))
+      } else {
+        mnt.createLabel("friend",
+          defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+          defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+          true, defaultService.serviceName, Nil,
+          Seq(
+            Prop("name", "-", "string"),
+            Prop("location", "-", "string"),
+            Prop("status", "-", "string"),
+            Prop("weight", "0.0", "double"),
+            Prop("acl", "-", "string")
+          ), "strong", None, None,
+          options = Option("""{"skipReverse": false}""")
+        )
+      }
 
     val hate = mnt.createLabel("hate", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
       true, defaultService.serviceName, Nil, Nil, "strong", None, None,
@@ -325,9 +330,10 @@ class S2GraphProvider extends AbstractGraphProvider {
     if (isVertex) {
       VertexId(ServiceColumn.findAll().head, InnerVal.withStr(id.toString, HBaseType.DEFAULT_VERSION))
     } else {
+      val label = Label.findByName("_s2graph").getOrElse(throw new LabelNotExistException("_s2graph"))
       EdgeId(
-        InnerVal.withStr(id.toString, HBaseType.DEFAULT_VERSION),
-        InnerVal.withStr(id.toString, HBaseType.DEFAULT_VERSION),
+        VertexId(label.srcColumn, InnerVal.withStr(id.toString, HBaseType.DEFAULT_VERSION)),
+        VertexId(label.tgtColumn, InnerVal.withStr(id.toString, HBaseType.DEFAULT_VERSION)),
         "_s2graph",
         "out",
         System.currentTimeMillis()

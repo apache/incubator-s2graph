@@ -692,10 +692,11 @@ case class S2Edge(innerGraph: S2Graph,
     // NOTE: xxxForVertex makes direction to be "out"
     val timestamp = if (this.innerLabel.consistencyLevel == "strong") 0l else ts
 //    EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), "out", timestamp)
+    val (srcColumn, tgtColumn) = innerLabel.srcTgtColumn(dir)
     if (direction == "out")
-      EdgeId(srcVertex.id.innerId, tgtVertex.id.innerId, label(), "out", timestamp)
+      EdgeId(VertexId(srcColumn, srcVertex.id.innerId), VertexId(tgtColumn, tgtVertex.id.innerId), label(), "out", timestamp)
     else
-      EdgeId(tgtVertex.id.innerId, srcVertex.id.innerId, label(), "out", timestamp)
+      EdgeId(VertexId(tgtColumn, tgtVertex.id.innerId), VertexId(srcColumn, srcVertex.id.innerId), label(), "out", timestamp)
   }
 
   override def id(): AnyRef = edgeId
@@ -721,8 +722,8 @@ object EdgeId {
   }
 }
 
-case class EdgeId(srcVertexId: InnerValLike,
-                  tgtVertexId: InnerValLike,
+case class EdgeId(srcVertexId: VertexId,
+                  tgtVertexId: VertexId,
                   labelName: String,
                   direction: String,
                   ts: Long) {
