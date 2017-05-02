@@ -561,6 +561,7 @@ case class S2Edge(innerGraph: S2Graph,
   override def toString: String = {
     // E + L_BRACKET + edge.id() + R_BRACKET + L_BRACKET + edge.outVertex().id() + DASH + edge.label() + ARROW + edge.inVertex().id() + R_BRACKET;
     s"e[${id}][${srcForVertex.id}-${innerLabel.label}->${tgtForVertex.id}]"
+    //    s"e[${srcForVertex.id}-${innerLabel.label}->${tgtForVertex.id}]"
   }
 
   def checkProperty(key: String): Boolean = propsWithTs.containsKey(key)
@@ -604,18 +605,20 @@ case class S2Edge(innerGraph: S2Graph,
 
     direction match {
       case Direction.OUT =>
-        val newVertexId = this.direction match {
-          case "out" => VertexId(innerLabel.srcColumn, srcVertex.innerId)
-          case "in" => VertexId(innerLabel.tgtColumn, tgtVertex.innerId)
-          case _ => throw new IllegalArgumentException("direction can only be out/in.")
-        }
+//        val newVertexId = this.direction match {
+//          case "out" => VertexId(innerLabel.srcColumn, srcVertex.innerId)
+//          case "in" => VertexId(innerLabel.tgtColumn, tgtVertex.innerId)
+//          case _ => throw new IllegalArgumentException("direction can only be out/in.")
+//        }
+        val newVertexId = edgeId.srcVertexId
         innerGraph.getVertex(newVertexId).foreach(arr.add)
       case Direction.IN =>
-        val newVertexId = this.direction match {
-          case "in" => VertexId(innerLabel.srcColumn, srcVertex.innerId)
-          case "out" => VertexId(innerLabel.tgtColumn, tgtVertex.innerId)
-          case _ => throw new IllegalArgumentException("direction can only be out/in.")
-        }
+//        val newVertexId = this.direction match {
+//          case "in" => VertexId(innerLabel.srcColumn, srcVertex.innerId)
+//          case "out" => VertexId(innerLabel.tgtColumn, tgtVertex.innerId)
+//          case _ => throw new IllegalArgumentException("direction can only be out/in.")
+//        }
+        val newVertexId = edgeId.tgtVertexId
         innerGraph.getVertex(newVertexId).foreach(arr.add)
       case _ =>
         import scala.collection.JavaConversions._
