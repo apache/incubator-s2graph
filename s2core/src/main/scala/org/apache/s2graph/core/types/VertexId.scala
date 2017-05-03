@@ -69,7 +69,7 @@ object VertexId extends HBaseDeserializable {
   }
 }
 
-class VertexId (val column: ServiceColumn, val innerId: InnerValLike) extends HBaseSerializable {
+class VertexId (val column: ServiceColumn, val innerId: InnerValLike) extends HBaseSerializable with Comparable[VertexId] {
   val storeHash: Boolean = true
   val storeColId: Boolean = true
   val colId = column.id.get

@@ -561,6 +561,7 @@ case class S2Edge(innerGraph: S2Graph,
   override def toString: String = {
     // E + L_BRACKET + edge.id() + R_BRACKET + L_BRACKET + edge.outVertex().id() + DASH + edge.label() + ARROW + edge.inVertex().id() + R_BRACKET;
     s"e[${id}][${srcForVertex.id}-${innerLabel.label}->${tgtForVertex.id}]"
+    //    s"e[${srcForVertex.id}-${innerLabel.label}->${tgtForVertex.id}]"
   }
 
   def checkProperty(key: String): Boolean = propsWithTs.containsKey(key)
@@ -604,18 +605,20 @@ case class S2Edge(innerGraph: S2Graph,
 
     direction match {
       case Direction.OUT =>
-        val newVertexId = this.direction match {
-          case "out" => VertexId(innerLabel.srcColumn, srcVertex.innerId)
-          case "in" => VertexId(innerLabel.tgtColumn, tgtVertex.innerId)
-          case _ => throw new IllegalArgumentException("direction can only be out/in.")
-        }
+//        val newVertexId = this.direction match {
+//          case "out" => VertexId(innerLabel.srcColumn, srcVertex.innerId)
+//          case "in" => VertexId(innerLabel.tgtColumn, tgtVertex.innerId)
+//          case _ => throw new IllegalArgumentException("direction can only be out/in.")
+//        }
+        val newVertexId = edgeId.srcVertexId
         innerGraph.getVertex(newVertexId).foreach(arr.add)
       case Direction.IN =>
-        val newVertexId = this.direction match {
-          case "in" => VertexId(innerLabel.srcColumn, srcVertex.innerId)
-          case "out" => VertexId(innerLabel.tgtColumn, tgtVertex.innerId)
-          case _ => throw new IllegalArgumentException("direction can only be out/in.")
-        }
+//        val newVertexId = this.direction match {
+//          case "in" => VertexId(innerLabel.srcColumn, srcVertex.innerId)
+//          case "out" => VertexId(innerLabel.tgtColumn, tgtVertex.innerId)
+//          case _ => throw new IllegalArgumentException("direction can only be out/in.")
+//        }
+        val newVertexId = edgeId.tgtVertexId
         innerGraph.getVertex(newVertexId).foreach(arr.add)
       case _ =>
         import scala.collection.JavaConversions._
@@ -647,8 +650,9 @@ case class S2Edge(innerGraph: S2Graph,
     val labelMeta = innerLabel.metaPropsInvMap.getOrElse(key, throw new java.lang.IllegalStateException(s"$key is not configured on Edge."))
     if (propsWithTs.containsKey(key)) propsWithTs.get(key).asInstanceOf[Property[V]]
     else {
-      val default = innerLabel.metaPropsDefaultMapInner(labelMeta)
-      propertyInner(key, default.innerVal.value, default.ts).asInstanceOf[Property[V]]
+      Property.empty()
+//      val default = innerLabel.metaPropsDefaultMapInner(labelMeta)
+//      propertyInner(key, default.innerVal.value, default.ts).asInstanceOf[Property[V]]
     }
   }
 
@@ -692,10 +696,11 @@ case class S2Edge(innerGraph: S2Graph,
     // NOTE: xxxForVertex makes direction to be "out"
     val timestamp = if (this.innerLabel.consistencyLevel == "strong") 0l else ts
 //    EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), "out", timestamp)
+    val (srcColumn, tgtColumn) = innerLabel.srcTgtColumn(dir)
     if (direction == "out")
-      EdgeId(srcVertex.id.innerId, tgtVertex.id.innerId, label(), "out", timestamp)
+      EdgeId(VertexId(srcColumn, srcVertex.id.innerId), VertexId(tgtColumn, tgtVertex.id.innerId), label(), "out", timestamp)
     else
-      EdgeId(tgtVertex.id.innerId, srcVertex.id.innerId, label(), "out", timestamp)
+      EdgeId(VertexId(tgtColumn, tgtVertex.id.innerId), VertexId(srcColumn, srcVertex.id.innerId), label(), "out", timestamp)
   }
 
   override def id(): AnyRef = edgeId
@@ -721,8 +726,8 @@ object EdgeId {
   }
 }
 
-case class EdgeId(srcVertexId: InnerValLike,
-                  tgtVertexId: InnerValLike,
+case class EdgeId(srcVertexId: VertexId,
+                  tgtVertexId: VertexId,
                   labelName: String,
                   direction: String,
                   ts: Long) {
