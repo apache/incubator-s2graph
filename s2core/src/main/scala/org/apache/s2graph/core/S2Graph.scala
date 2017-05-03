@@ -540,42 +540,67 @@ object S2Graph {
 ))
 @Graph.OptOuts(value = Array(
   /** Process */
+  /* branch */
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.BranchTest$Traversals", method = "*", reason = "no"),
   // passed: all
-
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.ChooseTest$Traversals", method = "*", reason = "no"),
-  // passed: , failed: g_V_chooseXlabel_eqXpersonX__outXknowsX__inXcreatedXX_name
-
+  // passed: all
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.OptionalTest$Traversals", method = "*", reason = "no"),
 //  passed: all
 
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.LocalTest$Traversals", method = "*", reason = "no"),
-//  failed: g_V_localXmatchXproject__created_person__person_name_nameX_selectXname_projectX_by_byXnameX,
-//  g_V_localXbothEXcreatedX_limitX1XX_otherV_name
-//  g_VX4X_localXbothEX1_createdX_limitX1XX
-//g_VX4X_localXbothEXknows_createdX_limitX1XX
+//  passed: all, failed: g_VX4X_localXbothEX1_createdX_limitX1XX, g_V_localXbothEXcreatedX_limitX1XX_otherV_name, g_VX4X_localXbothEXknows_createdX_limitX1XX
 
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.RepeatTest$Traversals", method = "*", reason = "no"),
-//  failed: g_V_repeatXoutX_timesX2X_repeatXinX_timesX2X_name
+//  passed: all
 
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.UnionTest$Traversals", method = "*", reason = "no"),
-//failed: g_V_chooseXlabel_eq_person__unionX__out_lang__out_nameX__in_labelX_groupCount,
-//g_V_unionXout__inX_name
-//g_V_chooseXlabel_eq_person__unionX__out_lang__out_nameX__in_labelX
-//g_V_unionXrepeatXunionXoutXcreatedX__inXcreatedXX_timesX2X__repeatXunionXinXcreatedX__outXcreatedXX_timesX2XX_label_groupCount
-//g_VX1X_unionXrepeatXoutX_timesX2X__outX_name
+//  passed: all
 
+  /* filter */
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.AndTest$Traversals", method = "*", reason = "no"),
-// failed: g_V_asXaX_outXknowsX_and_outXcreatedX_inXcreatedX_asXaX_name
+//  passed: all
 
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.CoinTest$Traversals", method = "*", reason = "no"),
 //  passed: all
 
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.CyclicPathTest$Traversals", method = "*", reason = "no"),
-//  failed: all
+//  passed: all
 
-  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.CyclicPathTest$Traversals", method = "*", reason = "no"),
+//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.DedupTest$Traversals", method = "*", reason = "no"),
+//  passed: all, failed: g_V_asXaX_both_asXbX_dedupXa_bX_byXlabelX_selectXa_bX
 
+//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.DropTest$Traversals", method = "*", reason = "no"),
+//  passed: all, failed: g_V_properties_drop
+
+//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.FilterTest$Traversals", method = "*", reason = "no"),
+//  passed: all
+
+//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.HasTest$Traversals", method = "*", reason = "no"),
+//  passed: all
+
+//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.IsTest$Traversals", method = "*", reason = "no"),
+//  passed: all
+
+//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.OrTest$Traversals", method = "*", reason = "no"),
+//  passed: all
+
+//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.RangeTest$Traversals", method = "*", reason = "no"),
+//  passed: all
+
+//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.SampleTest$Traversals", method = "*", reason = "no"),
+//  passed: all
+
+//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.SimplePathTest$Traversals", method = "*", reason = "no"),
+//  passed: all
+
+//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.TailTest$Traversals", method = "*", reason = "no"),
+//  passed: all
+
+//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.WhereTest$Traversals", method = "*", reason = "no"),
+//  passed: all, failed: g_VX1X_repeatXbothEXcreatedX_whereXwithoutXeXX_aggregateXeX_otherVX_emit_path, g_V_asXaX_outXcreatedX_asXbX_inXcreatedX_asXcX_bothXknowsX_bothXknowsX_asXdX_whereXc__notXeqXaX_orXeqXdXXXX_selectXa_b_c_dX
+
+  /* map */
 
   /** Structure */
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest$BasicEdgeTest", method="shouldValidateIdEquality", reason="reference equals on EdgeId is not supported."),
