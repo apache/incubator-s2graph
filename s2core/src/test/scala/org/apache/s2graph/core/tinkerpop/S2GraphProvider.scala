@@ -55,6 +55,10 @@ object S2GraphProvider {
       ColumnMeta.findOrInsert(DefaultColumn.id.get, "status", "string", useCache = false)
       ColumnMeta.findOrInsert(DefaultColumn.id.get, "myId", "integer", useCache = false)
       ColumnMeta.findOrInsert(DefaultColumn.id.get, "acl", "string", useCache = false)
+      ColumnMeta.findOrInsert(DefaultColumn.id.get, "some", "string", useCache = false)
+      ColumnMeta.findOrInsert(DefaultColumn.id.get, "this", "string", useCache = false)
+      ColumnMeta.findOrInsert(DefaultColumn.id.get, "that", "string", useCache = false)
+      ColumnMeta.findOrInsert(DefaultColumn.id.get, "any", "string", useCache = false)
     }
 
     //    Management.deleteLabel("_s2graph")
@@ -65,8 +69,12 @@ object S2GraphProvider {
   }
 
   def cleanupSchema: Unit = {
-    val columnNames = Set(S2Graph.DefaultColumnName, "person", "software", "product", "dog")
-    val labelNames = Set(S2Graph.DefaultLabelName, "knows", "created", "bought", "test", "self", "friends", "friend", "hate", "collaborator", "test1", "test2", "test3", "pets", "walks", "hates", "link")
+    val columnNames = Set(S2Graph.DefaultColumnName, "person", "software", "product", "dog",
+      "animal", "song", "artist", "STEPHEN")
+
+    val labelNames = Set(S2Graph.DefaultLabelName, "knows", "created", "bought", "test", "self", "friends", "friend", "hate", "collaborator",
+      "test1", "test2", "test3", "pets", "walks", "hates", "link",
+      "codeveloper", "createdBy", "existsWith", "writtenBy", "sungBy", "followedBy", "uses")
 
     columnNames.foreach { columnName =>
       Management.deleteColumn(S2Graph.DefaultServiceName, columnName)
@@ -91,12 +99,12 @@ class S2GraphProvider extends AbstractGraphProvider {
     if (graph != null) {
       val s2Graph = graph.asInstanceOf[S2Graph]
       if (s2Graph.isRunning) {
-//        val labels = Label.findAll()
-//        labels.groupBy(_.hbaseTableName).values.foreach { labelsWithSameTable =>
-//          labelsWithSameTable.headOption.foreach { label =>
-//            s2Graph.management.truncateStorage(label.label)
-//          }
-//        }
+        val labels = Label.findAll()
+        labels.groupBy(_.hbaseTableName).values.foreach { labelsWithSameTable =>
+          labelsWithSameTable.headOption.foreach { label =>
+            s2Graph.management.truncateStorage(label.label)
+          }
+        }
 //        s2Graph.shutdown(modelDataDelete = true)
         S2GraphProvider.cleanupSchema
         s2Graph.shutdown(modelDataDelete = true)
@@ -181,7 +189,7 @@ class S2GraphProvider extends AbstractGraphProvider {
         true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
     }
 
-
+    // columns
     val personColumn = Management.createServiceColumn(defaultService.serviceName, "person", "integer",
       Seq(Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
     val softwareColumn = Management.createServiceColumn(defaultService.serviceName, "software", "integer",
@@ -189,8 +197,19 @@ class S2GraphProvider extends AbstractGraphProvider {
 
     val productColumn = Management.createServiceColumn(defaultService.serviceName, "product", "integer", Nil)
     val dogColumn = Management.createServiceColumn(defaultService.serviceName, "dog", "integer", Nil)
+    val animalColumn = Management.createServiceColumn(defaultService.serviceName, "animal", "integer", Seq(Prop("age", "0", "integer"), Prop("name", "-", "string")))
+    val songColumn = Management.createServiceColumn(defaultService.serviceName, "song", "integer",
+      Seq(Prop("name", "-", "string"), Prop("songType", "-", "string"), Prop("performances", "0", "integer"))
+    )
+    val artistColumn = Management.createServiceColumn(defaultService.serviceName, "artist", "integer",
+      Seq(Prop("name", "-", "string"))
+    )
+    val stephenColumn = Management.createServiceColumn(defaultService.serviceName, "STEPHEN", "integer",
+      Seq(Prop("name", "-", "string"))
+    )
 //    val vertexColumn = Management.createServiceColumn(service.serviceName, "vertex", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "-1", "integer"), Prop("lang", "scala", "string")))
 
+    // labels
     val createdProps = Seq(Prop("weight", "0.0", "double"), Prop("name", "-", "string"))
 
     val created =
@@ -215,17 +234,20 @@ class S2GraphProvider extends AbstractGraphProvider {
       true, defaultService.serviceName, Nil, Seq(Prop("xxx", "-", "string")), "weak", None, None,
       options = Option("""{"skipReverse": true}"""))
 
+    val selfProps = Seq(Prop("__id", "-", "string"),  Prop("acl", "-", "string"),
+      Prop("test", "-", "string"), Prop("name", "-", "string"), Prop("some", "-", "string"))
+
     val self =
       if (loadGraphWith != null && loadGraphWith.value() == GraphData.CLASSIC) {
         mnt.createLabel("self",
           defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
           defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-          true, defaultService.serviceName, Nil, Seq(Prop("acl", "-", "string")), "strong", None, None,
+          true, defaultService.serviceName, Nil, selfProps, "strong", None, None,
           options = Option("""{"skipReverse": true}"""))
       } else {
         mnt.createLabel("self", defaultService.serviceName, "person", "integer",
           defaultService.serviceName, "person", "integer",
-          true, defaultService.serviceName, Nil, Seq(Prop("acl", "-", "string")), "strong", None, None,
+          true, defaultService.serviceName, Nil, selfProps, "strong", None, None,
           options = Option("""{"skipReverse": false}"""))
       }
 
@@ -322,6 +344,61 @@ class S2GraphProvider extends AbstractGraphProvider {
     )
 
     val link = mnt.createLabel("link", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      true, defaultService.serviceName, Nil, Nil, "strong", None, None,
+      options = Option("""{"skipReverse": false}""")
+    )
+
+    val codeveloper = mnt.createLabel("codeveloper",
+      defaultService.serviceName, "person", "integer",
+      defaultService.serviceName, "person", "integer",
+      true, defaultService.serviceName, Nil,
+      Seq(
+        Prop("year", "0", "integer")
+      ), "strong", None, None,
+      options = Option("""{"skipReverse": false}""")
+    )
+
+    val createdBy = mnt.createLabel("createdBy",
+      defaultService.serviceName, "software", "integer",
+      defaultService.serviceName, "person", "integer",
+      true, defaultService.serviceName, Nil,
+      Seq(
+        Prop("weight", "0.0", "double"),
+        Prop("year", "0", "integer"),
+        Prop("acl", "-", "string")
+      ), "strong", None, None)
+
+    val existsWith = mnt.createLabel("existsWith",
+      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
+      true, defaultService.serviceName, Nil, Seq(Prop("time", "-", "string")), "strong", None, None,
+      options = Option("""{"skipReverse": false}""")
+    )
+
+    val followedBy = mnt.createLabel("followedBy",
+      defaultService.serviceName, "song", "integer",
+      defaultService.serviceName, "song", "integer",
+      true, defaultService.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None,
+      options = Option("""{"skipReverse": false}""")
+    )
+
+    val writtenBy = mnt.createLabel("writtenBy",
+      defaultService.serviceName, "song", "integer",
+      defaultService.serviceName, "artist", "integer",
+      true, defaultService.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None,
+      options = Option("""{"skipReverse": false}""")
+    )
+
+    val sungBy = mnt.createLabel("sungBy",
+      defaultService.serviceName, "song", "integer",
+      defaultService.serviceName, "artist", "integer",
+      true, defaultService.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None,
+      options = Option("""{"skipReverse": false}""")
+    )
+
+    val uses = mnt.createLabel("uses",
+      defaultService.serviceName, "person", "integer",
+      defaultService.serviceName, "software", "integer",
       true, defaultService.serviceName, Nil, Nil, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
