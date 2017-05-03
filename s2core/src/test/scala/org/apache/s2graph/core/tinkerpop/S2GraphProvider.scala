@@ -74,7 +74,7 @@ object S2GraphProvider {
 
     val labelNames = Set(S2Graph.DefaultLabelName, "knows", "created", "bought", "test", "self", "friends", "friend", "hate", "collaborator",
       "test1", "test2", "test3", "pets", "walks", "hates", "link",
-      "codeveloper", "createdBy", "existsWith", "writtenBy", "sungBy", "followedBy", "uses")
+      "codeveloper", "createdBy", "existsWith", "writtenBy", "sungBy", "followedBy", "uses", "likes", "foo", "bar")
 
     columnNames.foreach { columnName =>
       Management.deleteColumn(S2Graph.DefaultServiceName, columnName)
@@ -400,6 +400,36 @@ class S2GraphProvider extends AbstractGraphProvider {
       defaultService.serviceName, "person", "integer",
       defaultService.serviceName, "software", "integer",
       true, defaultService.serviceName, Nil, Nil, "strong", None, None,
+      options = Option("""{"skipReverse": false}""")
+    )
+
+    val likes = mnt.createLabel("likes",
+      defaultService.serviceName, "person", "integer",
+      defaultService.serviceName, "person", "integer",
+      true, defaultService.serviceName, Nil,
+      Seq(
+        Prop("year", "0", "integer")
+      ), "strong", None, None,
+      options = Option("""{"skipReverse": false}""")
+    )
+
+    val foo = mnt.createLabel("foo",
+      defaultService.serviceName, "person", "integer",
+      defaultService.serviceName, "person", "integer",
+      true, defaultService.serviceName, Nil,
+      Seq(
+        Prop("year", "0", "integer")
+      ), "strong", None, None,
+      options = Option("""{"skipReverse": false}""")
+    )
+
+    val bar = mnt.createLabel("bar",
+      defaultService.serviceName, "person", "integer",
+      defaultService.serviceName, "person", "integer",
+      true, defaultService.serviceName, Nil,
+      Seq(
+        Prop("year", "0", "integer")
+      ), "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 

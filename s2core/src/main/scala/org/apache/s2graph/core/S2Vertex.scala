@@ -150,7 +150,11 @@ case class S2Vertex(graph: S2Graph,
           Label.findBySrcColumnId(id.colId).map(l => l.label -> direction.name)
         }
       } else {
-        labelNames.map(_ -> direction.name())
+        direction match {
+          case Direction.BOTH =>
+            Seq(Direction.OUT, Direction.IN).flatMap { dir => labelNames.map(_ -> dir.name()) }
+          case _ => labelNames.map(_ -> direction.name())
+        }
       }
 
     graph.fetchEdges(this, labelNameWithDirs)
