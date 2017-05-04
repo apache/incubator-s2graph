@@ -55,6 +55,7 @@ object S2Graph {
   type FilterHashKey = (Int, Int)
 
   val DefaultScore = 1.0
+  val FetchAllLimit = 10000000
 
   private val DefaultConfigs: Map[String, AnyRef] = Map(
     "hbase.zookeeper.quorum" -> "localhost",
@@ -65,11 +66,11 @@ object S2Graph {
     "db.default.url" -> "jdbc:h2:file:./var/metastore;MODE=MYSQL",
     "db.default.password" -> "graph",
     "db.default.user" -> "graph",
-    "cache.max.size" -> java.lang.Integer.valueOf(10000),
-    "cache.ttl.seconds" -> java.lang.Integer.valueOf(60),
+    "cache.max.size" -> java.lang.Integer.valueOf(0),
+    "cache.ttl.seconds" -> java.lang.Integer.valueOf(-1),
     "hbase.client.retries.number" -> java.lang.Integer.valueOf(20),
     "hbase.rpcs.buffered_flush_interval" -> java.lang.Short.valueOf(100.toShort),
-    "hbase.rpc.timeout" -> java.lang.Integer.valueOf(60000),
+    "hbase.rpc.timeout" -> java.lang.Integer.valueOf(600000),
     "max.retry.number" -> java.lang.Integer.valueOf(100),
     "lock.expire.time" -> java.lang.Integer.valueOf(1000 * 60 * 10),
     "max.back.off" -> java.lang.Integer.valueOf(100),

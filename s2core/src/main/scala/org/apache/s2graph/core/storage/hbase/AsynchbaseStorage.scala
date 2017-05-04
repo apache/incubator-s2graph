@@ -663,10 +663,13 @@ class AsynchbaseStorage(override val graph: S2Graph,
       get.setFailfast(true)
       get.maxVersions(1)
 
-      val cacheKey = MurmurHash3.stringHash(get.toString)
-      vertexCache.getOrElseUpdate(cacheKey, cacheTTL = 10000)(fetchVertexKeyValues(Left(get))).map { kvs =>
+      fetchVertexKeyValues(Left(get)).map { kvs =>
         fromResult(kvs, vertex.serviceColumn.schemaVersion)
       }
+//      val cacheKey = MurmurHash3.stringHash(get.toString)
+//      vertexCache.getOrElseUpdate(cacheKey, cacheTTL = -1)(fetchVertexKeyValues(Left(get))).map { kvs =>
+//        fromResult(kvs, vertex.serviceColumn.schemaVersion)
+//      }
     }
 
     Future.sequence(futures).map { result => result.toList.flatten }
@@ -680,7 +683,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
       scan.setFamily(Serializable.edgeCf)
       scan.setMaxVersions(1)
 
-      scan.nextRows(100000).toFuture(emptyKeyValuesLs).map {
+      scan.nextRows(S2Graph.FetchAllLimit).toFuture(emptyKeyValuesLs).map {
         case null => Seq.empty
         case kvsLs =>
           kvsLs.flatMap { kvs =>
@@ -704,7 +707,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
       scan.setFamily(Serializable.vertexCf)
       scan.setMaxVersions(1)
 
-      scan.nextRows(10000).toFuture(emptyKeyValuesLs).map {
+      scan.nextRows(S2Graph.FetchAllLimit).toFuture(emptyKeyValuesLs).map {
         case null => Seq.empty
         case kvsLs =>
           kvsLs.flatMap { kvs =>
