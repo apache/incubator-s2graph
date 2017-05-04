@@ -540,22 +540,25 @@ object S2Graph {
 ))
 @Graph.OptOuts(value = Array(
   /** Process */
-  /* branch */
+  /* branch: passed all. */
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.BranchTest$Traversals", method = "*", reason = "no"),
-  // passed: all
+// passed: all
+
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.ChooseTest$Traversals", method = "*", reason = "no"),
-  // passed: all
+// passed: all
+
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.OptionalTest$Traversals", method = "*", reason = "no"),
 //  passed: all
 
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.LocalTest$Traversals", method = "*", reason = "no"),
-//  passed: all, failed: g_VX4X_localXbothEX1_createdX_limitX1XX, g_V_localXbothEXcreatedX_limitX1XX_otherV_name, g_VX4X_localXbothEXknows_createdX_limitX1XX
+//  passed: all
 
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.RepeatTest$Traversals", method = "*", reason = "no"),
 //  passed: all
 
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.UnionTest$Traversals", method = "*", reason = "no"),
 //  passed: all
+
 
   /* filter */
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.AndTest$Traversals", method = "*", reason = "no"),
