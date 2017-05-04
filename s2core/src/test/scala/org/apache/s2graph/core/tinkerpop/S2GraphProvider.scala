@@ -99,12 +99,12 @@ class S2GraphProvider extends AbstractGraphProvider {
     if (graph != null) {
       val s2Graph = graph.asInstanceOf[S2Graph]
       if (s2Graph.isRunning) {
-        val labels = Label.findAll()
-        labels.groupBy(_.hbaseTableName).values.foreach { labelsWithSameTable =>
-          labelsWithSameTable.headOption.foreach { label =>
-            s2Graph.management.truncateStorage(label.label)
-          }
-        }
+//        val labels = Label.findAll()
+//        labels.groupBy(_.hbaseTableName).values.foreach { labelsWithSameTable =>
+//          labelsWithSameTable.headOption.foreach { label =>
+//            s2Graph.management.truncateStorage(label.label)
+//          }
+//        }
 //        s2Graph.shutdown(modelDataDelete = true)
         S2GraphProvider.cleanupSchema
         s2Graph.shutdown(modelDataDelete = true)

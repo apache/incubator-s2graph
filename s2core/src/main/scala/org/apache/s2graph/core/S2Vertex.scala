@@ -157,7 +157,7 @@ case class S2Vertex(graph: S2Graph,
         }
       }
 
-    graph.fetchEdges(this, labelNameWithDirs)
+    graph.fetchEdges(this, labelNameWithDirs.distinct)
   }
 
   // do no save to storage
