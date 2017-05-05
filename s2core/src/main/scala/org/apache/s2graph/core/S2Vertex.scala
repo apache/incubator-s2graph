@@ -125,13 +125,22 @@ case class S2Vertex(graph: S2Graph,
     val arr = new util.ArrayList[Vertex]()
     edges(direction, edgeLabels: _*).forEachRemaining(new Consumer[Edge] {
       override def accept(edge: Edge): Unit = {
-        direction match {
-          case Direction.OUT => arr.add(edge.inVertex())
-          case Direction.IN => arr.add(edge.outVertex())
-          case _ =>
-            arr.add(edge.inVertex())
-            arr.add(edge.outVertex())
+        val s2Edge = edge.asInstanceOf[S2Edge]
+
+        s2Edge.direction match {
+          case "out" => arr.add(edge.inVertex())
+          case "in" => arr.add(edge.outVertex())
+          case _ => throw new IllegalStateException("only out/in direction can be found in S2Edge")
         }
+//        direction match {
+//          case Direction.OUT => arr.add(edge.inVertex())
+//          case Direction.IN => arr.add(edge.outVertex())
+//          case _ =>
+//            val inV = edge.inVertex()
+//            val outV = edge.outVertex()
+//            if (id != inV.id()) arr.add(inV)
+//            if (id != outV.id()) arr.add(outV)
+//        }
       }
     })
     arr.iterator()
