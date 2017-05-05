@@ -193,7 +193,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val personColumn = Management.createServiceColumn(defaultService.serviceName, "person", "integer",
       Seq(Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
     val softwareColumn = Management.createServiceColumn(defaultService.serviceName, "software", "integer",
-      Seq(Prop("name", "-", "string"), Prop("lang", "-", "string")))
+      Seq(Prop("name", "-", "string"), Prop("lang", "-", "string"), Prop("temp", "-", "string")))
 
     val productColumn = Management.createServiceColumn(defaultService.serviceName, "product", "integer", Nil)
     val dogColumn = Management.createServiceColumn(defaultService.serviceName, "dog", "integer", Nil)
