@@ -22,7 +22,7 @@ package org.apache.s2graph.core
 import org.apache.s2graph.core.GraphExceptions.IllegalDataTypeException
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.rest.TemplateHelper
-import org.apache.s2graph.core.types.{InnerValLikeWithTs, InnerVal, InnerValLike}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs, VertexId}
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json._
 
@@ -180,35 +180,44 @@ object JSONParser {
     val dType = InnerVal.toInnerDataType(dataType)
     val isNumeric = isNumericType(dType)
     any match {
+      case v: VertexId => v.innerId
+      case a: InnerValLike => a
       case n: BigDecimal =>
         if (isNumeric) InnerVal.withNumber(n, version)
         else if (dType == InnerVal.STRING) InnerVal.withStr(n.toString, version)
         else throw new IllegalDataTypeException(s"[ValueType] = BigDecimal, [DataType]: $dataType, [Input]: $any")
       case l: Long =>
         if (isNumeric) InnerVal.withLong(l, version)
+        else if (dType == InnerVal.STRING) InnerVal.withStr(l.toString, version)
         else throw new IllegalDataTypeException(s"[ValueType] = Long, [DataType]: $dataType, [Input]: $any")
       case i: Int =>
         if (isNumeric) InnerVal.withInt(i, version)
+        else if (dType == InnerVal.STRING) InnerVal.withStr(i.toString, version)
         else throw new IllegalDataTypeException(s"[ValueType] = Int, [DataType]: $dataType, [Input]: $any")
       case sh: Short =>
         if (isNumeric) InnerVal.withInt(sh.toInt, version)
+        else if (dType == InnerVal.STRING) InnerVal.withStr(sh.toString, version)
         else throw new IllegalDataTypeException(s"[ValueType] = Short, [DataType]: $dataType, [Input]: $any")
       case b: Byte =>
         if (isNumeric) InnerVal.withInt(b.toInt, version)
+        else if (dType == InnerVal.STRING) InnerVal.withStr(b.toString, version)
         else throw new IllegalDataTypeException(s"[ValueType] = Byte, [DataType]: $dataType, [Input]: $any")
       case f: Float =>
         if (isNumeric) InnerVal.withFloat(f, version)
+        else if (dType == InnerVal.STRING) InnerVal.withStr(f.toString, version)
         else throw new IllegalDataTypeException(s"[ValueType] = Float, [DataType]: $dataType, [Input]: $any")
       case d: Double =>
         if (isNumeric) InnerVal.withDouble(d, version)
+        else if (dType == InnerVal.STRING) InnerVal.withStr(d.toString, version)
         else throw new IllegalDataTypeException(s"[ValueType] = Double, [DataType]: $dataType, [Input]: $any")
       case bl: Boolean =>
         if (dType == InnerVal.BOOLEAN) InnerVal.withBoolean(bl, version)
+        else if (dType == InnerVal.STRING) InnerVal.withStr(bl.toString, version)
         else throw new IllegalDataTypeException(s"[ValueType] = Boolean, [DataType]: $dataType, [Input]: $any")
       case _s: String =>
         if (isNumeric) {
           try {
-            val s = TemplateHelper.replaceVariable(System.currentTimeMillis(), _s)
+            val s = TemplateHelper.replaceVariable(System.currentTimeMillis(), _s.toString)
             InnerVal.withNumber(BigDecimal(s), version)
           } catch {
             case e: Exception =>
@@ -227,6 +236,7 @@ object JSONParser {
         }
     }
   }
+
   def jsValueToInnerVal(jsValue: JsValue, dataType: String, version: String): Option[InnerValLike] = {
     val ret = try {
       val dType = InnerVal.toInnerDataType(dataType.toLowerCase())

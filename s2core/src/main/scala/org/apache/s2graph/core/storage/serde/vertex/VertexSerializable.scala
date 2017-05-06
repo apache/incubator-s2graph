@@ -22,6 +22,8 @@ package org.apache.s2graph.core.storage.serde.vertex
 import org.apache.s2graph.core.S2Vertex
 import org.apache.s2graph.core.storage.StorageSerializable._
 import org.apache.s2graph.core.storage.{SKeyValue, Serializable}
+import org.apache.s2graph.core.utils.logger
+
 import scala.collection.JavaConverters._
 
 case class VertexSerializable(vertex: S2Vertex, intToBytes: Int => Array[Byte] = intToBytes) extends Serializable[S2Vertex] {
@@ -45,6 +47,6 @@ case class VertexSerializable(vertex: S2Vertex, intToBytes: Int => Array[Byte] =
     val belongsTo = vertex.belongLabelIds.map { labelId => intToBytes(S2Vertex.toPropKey(labelId)) -> Array.empty[Byte] }
     (base ++ belongsTo).map { case (qualifier, value) =>
       SKeyValue(vertex.hbaseTableName.getBytes, row, cf, qualifier, value, vertex.ts)
-    } toSeq
+    }.toSeq
   }
 }

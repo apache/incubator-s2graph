@@ -77,15 +77,15 @@ object Management {
                           schemaVersion: String = DEFAULT_VERSION) = {
 
     Model withTx { implicit session =>
-      val serviceOpt = Service.findByName(serviceName)
+      val serviceOpt = Service.findByName(serviceName, useCache = false)
       serviceOpt match {
         case None => throw new RuntimeException(s"create service $serviceName has not been created.")
         case Some(service) =>
-          val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion)
+          val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion, useCache = false)
           for {
             Prop(propName, defaultValue, dataType) <- props
           } yield {
-            ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType)
+            ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType, useCache = false)
           }
       }
     }
@@ -278,7 +278,7 @@ class Management(graph: S2Graph) {
                     compressionAlgorithm: String = DefaultCompressionAlgorithm): Try[Service] = {
 
     Model withTx { implicit session =>
-      val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL.orElse(Some(Integer.MAX_VALUE)), compressionAlgorithm)
+      val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL.orElse(Some(Integer.MAX_VALUE)), compressionAlgorithm, useCache = false)
       /** create hbase table for service */
       graph.getStorage(service).createTable(service.cluster, service.hTableName, List("e", "v"), service.preSplitSize, service.hTableTTL, compressionAlgorithm)
       service
@@ -297,13 +297,13 @@ class Management(graph: S2Graph) {
                   serviceName: String,
                   indices: Seq[Index],
                   props: Seq[Prop],
-                  consistencyLevel: String,
-                  hTableName: Option[String],
-                  hTableTTL: Option[Int],
+                  consistencyLevel: String = "weak",
+                  hTableName: Option[String] = None,
+                  hTableTTL: Option[Int] = None,
                   schemaVersion: String = DEFAULT_VERSION,
-                  isAsync: Boolean,
+                  isAsync: Boolean = false,
                   compressionAlgorithm: String = "gz",
-                  options: Option[String]): Try[Label] = {
+                  options: Option[String] = None): Try[Label] = {
 
     if (label.length > LABEL_NAME_MAX_LENGTH ) throw new LabelNameTooLongException(s"Label name ${label} too long.( max length : ${LABEL_NAME_MAX_LENGTH}} )")
     if (hTableName.isEmpty && hTableTTL.isDefined) throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
@@ -355,5 +355,24 @@ class Management(graph: S2Graph) {
     storage.info
   }
 
+  def truncateStorage(labelName: String): Unit = {
+    Try(Label.findByName(labelName, useCache = false)).map { labelOpt =>
+      labelOpt.map { label =>
+        val storage = graph.getStorage(label)
+        val zkAddr = label.service.cluster
+        storage.truncateTable(zkAddr, label.hbaseTableName)
+      }
+    }
+  }
+
+  def deleteStorage(labelName: String): Unit = {
+    Try(Label.findByName(labelName, useCache = false)).map { labelOpt =>
+      labelOpt.map { label =>
+        val storage = graph.getStorage(label)
+        val zkAddr = label.service.cluster
+        storage.deleteTable(zkAddr, label.hbaseTableName)
+      }
+    }
+  }
 }
 

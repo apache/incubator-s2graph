@@ -27,24 +27,42 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.collection.{Seq, mutable}
 
 object QueryResult {
+  def fromVertices(graph: S2Graph, vertices: Seq[S2Vertex], queryParams: Seq[QueryParam]): StepResult = {
+    val edgeWithScores = vertices.flatMap { vertex =>
+      queryParams.map { queryParam =>
+        val label = queryParam.label
+        val currentTs = System.currentTimeMillis()
+        val propsWithTs = Map(LabelMeta.timestamp ->
+          InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs))
+
+        val edge = graph.newEdge(vertex, vertex, label, queryParam.labelWithDir.dir, propsWithTs = propsWithTs)
+        val edgeWithScore = EdgeWithScore(edge, S2Graph.DefaultScore, queryParam.label)
+        edgeWithScore
+
+      }
+    }
+    StepResult(edgeWithScores = edgeWithScores, grouped = Nil, degreeEdges = Nil, false)
+  }
+
   def fromVertices(graph: S2Graph,
                    query: Query): StepResult = {
     if (query.steps.isEmpty || query.steps.head.queryParams.isEmpty) {
       StepResult.Empty
     } else {
-      val queryParam = query.steps.head.queryParams.head
-      val label = queryParam.label
-      val currentTs = System.currentTimeMillis()
-      val propsWithTs = Map(LabelMeta.timestamp ->
-        InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs))
-      val edgeWithScores = for {
-        vertex <- query.vertices
-      } yield {
-          val edge = graph.newEdge(vertex, vertex, label, queryParam.labelWithDir.dir, propsWithTs = propsWithTs)
-          val edgeWithScore = EdgeWithScore(edge, S2Graph.DefaultScore, queryParam.label)
-          edgeWithScore
-        }
-      StepResult(edgeWithScores = edgeWithScores, grouped = Nil, degreeEdges = Nil, false)
+      fromVertices(graph, query.vertices, query.steps.head.queryParams)
+//      val queryParam = query.steps.head.queryParams.head
+//      val label = queryParam.label
+//      val currentTs = System.currentTimeMillis()
+//      val propsWithTs = Map(LabelMeta.timestamp ->
+//        InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs))
+//      val edgeWithScores = for {
+//        vertex <- query.vertices
+//      } yield {
+//          val edge = graph.newEdge(vertex, vertex, label, queryParam.labelWithDir.dir, propsWithTs = propsWithTs)
+//          val edgeWithScore = EdgeWithScore(edge, S2Graph.DefaultScore, queryParam.label)
+//          edgeWithScore
+//        }
+//      StepResult(edgeWithScores = edgeWithScores, grouped = Nil, degreeEdges = Nil, false)
     }
   }
 }

@@ -24,15 +24,16 @@ import scalikejdbc._
 
 object ColumnMeta extends Model[ColumnMeta] {
 
-  val timeStampSeq = 0.toByte
-  val countSeq = -1.toByte
+  val timeStampSeq = -1.toByte
   val lastModifiedAtColumnSeq = 0.toByte
   val lastModifiedAtColumn = ColumnMeta(Some(0), 0, "lastModifiedAt", lastModifiedAtColumnSeq, "long")
   val maxValue = Byte.MaxValue
 
-  val timestamp = ColumnMeta(None, -1, "_timestamp", timeStampSeq, "long")
+  val timestamp = ColumnMeta(None, -1, "_timestamp", timeStampSeq.toByte, "long")
+  val reservedMetas = Seq(timestamp, lastModifiedAtColumn)
+  val reservedMetaNamesSet = reservedMetas.map(_.name).toSet
 
-  def apply(rs: WrappedResultSet): ColumnMeta = {
+  def valueOf(rs: WrappedResultSet): ColumnMeta = {
     ColumnMeta(Some(rs.int("id")), rs.int("column_id"), rs.string("name"), rs.byte("seq"), rs.string("data_type").toLowerCase())
   }
 
@@ -40,7 +41,7 @@ object ColumnMeta extends Model[ColumnMeta] {
     //    val cacheKey = s"id=$id"
     val cacheKey = "id=" + id
     withCache(cacheKey) {
-      sql"""select * from column_metas where id = ${id}""".map { rs => ColumnMeta(rs) }.single.apply
+      sql"""select * from column_metas where id = ${id}""".map { rs => ColumnMeta.valueOf(rs) }.single.apply
     }.get
   }
 
@@ -49,18 +50,23 @@ object ColumnMeta extends Model[ColumnMeta] {
     val cacheKey = "columnId=" + columnId
     if (useCache) {
       withCaches(cacheKey)( sql"""select *from column_metas where column_id = ${columnId} order by seq ASC"""
-        .map { rs => ColumnMeta(rs) }.list.apply())
+        .map { rs => ColumnMeta.valueOf(rs) }.list.apply())
     } else {
       sql"""select * from column_metas where column_id = ${columnId} order by seq ASC"""
-        .map { rs => ColumnMeta(rs) }.list.apply()
+        .map { rs => ColumnMeta.valueOf(rs) }.list.apply()
     }
   }
 
-  def findByName(columnId: Int, name: String)(implicit session: DBSession = AutoSession) = {
+  def findByName(columnId: Int, name: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession) = {
     //    val cacheKey = s"columnId=$columnId:name=$name"
     val cacheKey = "columnId=" + columnId + ":name=" + name
-    withCache(cacheKey)( sql"""select * from column_metas where column_id = ${columnId} and name = ${name}"""
-      .map { rs => ColumnMeta(rs) }.single.apply())
+    if (useCache) {
+      withCache(cacheKey)( sql"""select * from column_metas where column_id = ${columnId} and name = ${name}"""
+          .map { rs => ColumnMeta.valueOf(rs) }.single.apply())
+    } else {
+      sql"""select * from column_metas where column_id = ${columnId} and name = ${name}"""
+          .map { rs => ColumnMeta.valueOf(rs) }.single.apply()
+    }
   }
 
   def insert(columnId: Int, name: String, dataType: String)(implicit session: DBSession = AutoSession) = {
@@ -73,8 +79,8 @@ object ColumnMeta extends Model[ColumnMeta] {
     }
   }
 
-  def findOrInsert(columnId: Int, name: String, dataType: String)(implicit session: DBSession = AutoSession): ColumnMeta = {
-    findByName(columnId, name) match {
+  def findOrInsert(columnId: Int, name: String, dataType: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): ColumnMeta = {
+    findByName(columnId, name, useCache) match {
       case Some(c) => c
       case None =>
         insert(columnId, name, dataType)
@@ -87,7 +93,7 @@ object ColumnMeta extends Model[ColumnMeta] {
     val cacheKey = "columnId=" + columnId + ":seq=" + seq
     lazy val columnMetaOpt = sql"""
         select * from column_metas where column_id = ${columnId} and seq = ${seq}
-    """.map { rs => ColumnMeta(rs) }.single.apply()
+    """.map { rs => ColumnMeta.valueOf(rs) }.single.apply()
 
     if (useCache) withCache(cacheKey)(columnMetaOpt)
     else columnMetaOpt
@@ -97,7 +103,7 @@ object ColumnMeta extends Model[ColumnMeta] {
     val columnMeta = findById(id)
     val (columnId, name) = (columnMeta.columnId, columnMeta.name)
     sql"""delete from column_metas where id = ${id}""".execute.apply()
-    val cacheKeys = List(s"id=$id", s"columnId=$columnId:name=$name", s"colunmId=$columnId")
+    val cacheKeys = List(s"id=$id", s"columnId=$columnId:name=$name", s"columnId=$columnId")
     cacheKeys.foreach { key =>
       expireCache(key)
       expireCaches(key)
@@ -105,7 +111,7 @@ object ColumnMeta extends Model[ColumnMeta] {
   }
 
   def findAll()(implicit session: DBSession = AutoSession) = {
-    val ls = sql"""select * from column_metas""".map { rs => ColumnMeta(rs) }.list().apply()
+    val ls = sql"""select * from column_metas""".map { rs => ColumnMeta.valueOf(rs) }.list().apply()
 
     putsToCache(ls.map { x =>
       val cacheKey = s"id=${x.id.get}"

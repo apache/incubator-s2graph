@@ -22,10 +22,20 @@ package org.apache.s2graph.core
 import java.util
 
 import org.apache.s2graph.core.mysqls.ColumnMeta
-import org.apache.s2graph.core.types.CanInnerValLike
-import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty, Vertex => TpVertex}
+import org.apache.s2graph.core.types.{CanInnerValLike, InnerValLike}
+import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty}
+import play.api.libs.json.Json
 
-import scala.util.hashing.MurmurHash3
+object S2VertexPropertyId {
+  def fromString(s: String): S2VertexPropertyId = {
+    io.Conversions.s2VertexPropertyIdReads.reads(Json.parse(s)).get
+  }
+}
+case class S2VertexPropertyId(columnMeta: ColumnMeta, value: InnerValLike) {
+  override def toString: String = {
+    io.Conversions.s2VertexPropertyIdWrites.writes(this).toString()
+  }
+}
 
 case class S2VertexProperty[V](element: S2Vertex,
                                columnMeta: ColumnMeta,
@@ -42,27 +52,32 @@ case class S2VertexProperty[V](element: S2Vertex,
 
   override def properties[U](strings: String*): util.Iterator[Property[U]] = ???
 
-  override def property[V](key: String, value: V): Property[V] = ???
+  override def property[A](key: String, value: A): Property[A] = ???
 
-  override def remove(): Unit = ???
+  override def remove(): Unit = {
+    if (!element.graph.features.vertex.properties.supportsRemoveProperty) {
+      throw Property.Exceptions.propertyRemovalNotSupported
+    }
+    isRemoved = true
+  }
 
-  override def id(): AnyRef = ???
+  override def id(): AnyRef = S2VertexPropertyId(columnMeta, innerVal)
 
-  override def isPresent: Boolean = ???
+  @volatile var isRemoved = false
+
+  override def isPresent: Boolean = !isRemoved
 
   override def hashCode(): Int = {
-    MurmurHash3.stringHash(columnMeta.columnId + "," + columnMeta.id.get + "," + key + "," + value)
+    (element, id()).hashCode()
   }
 
   override def equals(other: Any): Boolean = other match {
-    case p: S2VertexProperty[_] =>
-      columnMeta.columnId == p.columnMeta.columnId &&
-        columnMeta.seq == p.columnMeta.seq &&
-        key == p.key && value == p.value
+    case p: VertexProperty[_] => element == p.element && id() == p.id()
     case _ => false
   }
 
   override def toString(): String = {
-    Map("columnMeta" -> columnMeta.toString, "key" -> key, "value" -> value).toString
+//    Map("columnMeta" -> columnMeta.toString, "key" -> key, "value" -> value).toString
+    s"vp[${key}->${value}]"
   }
 }

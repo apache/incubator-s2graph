@@ -23,11 +23,13 @@ package org.apache.s2graph.core.storage.hbase
 
 import java.util
 import java.util.Base64
+import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
 
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.Config
+import org.apache.commons.io.FileUtils
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.hbase.client.{ConnectionFactory, Durability}
+import org.apache.hadoop.hbase.client.{Admin, ConnectionFactory, Durability}
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.regionserver.BloomType
@@ -48,6 +50,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.concurrent._
 import scala.concurrent.duration.Duration
 import scala.util.Try
+import scala.util.control.NonFatal
 import scala.util.hashing.MurmurHash3
 
 
@@ -84,8 +87,67 @@ object AsynchbaseStorage {
     client
   }
 
+  def shutdown(client: HBaseClient): Unit = {
+    client.shutdown().join()
+  }
+
   case class ScanWithRange(scan: Scanner, offset: Int, limit: Int)
   type AsyncRPC = Either[GetRequest, ScanWithRange]
+
+  def initLocalHBase(config: Config,
+                     overwrite: Boolean = true): ExecutorService = {
+    import java.io.{File, IOException}
+    import java.net.Socket
+
+    lazy val hbaseExecutor = {
+      val executor = Executors.newSingleThreadExecutor()
+
+      Runtime.getRuntime.addShutdownHook(new Thread() {
+        override def run(): Unit = {
+          executor.shutdown()
+        }
+      })
+
+      val hbaseAvailable = try {
+        val (host, port) = config.getString("hbase.zookeeper.quorum").split(":") match {
+          case Array(h, p) => (h, p.toInt)
+          case Array(h) => (h, 2181)
+        }
+
+        val socket = new Socket(host, port)
+        socket.close()
+        true
+      } catch {
+        case e: IOException => false
+      }
+
+      if (!hbaseAvailable) {
+        // start HBase
+        executor.submit(new Runnable {
+          override def run(): Unit = {
+            val cwd = new File(".").getAbsolutePath
+            if (overwrite) {
+              val dataDir = new File(s"$cwd/storage/s2graph")
+              FileUtils.deleteDirectory(dataDir)
+            }
+
+            System.setProperty("proc_master", "")
+            System.setProperty("hbase.log.dir", s"$cwd/storage/s2graph/hbase/")
+            System.setProperty("hbase.log.file", s"$cwd/storage/s2graph/hbase.log")
+            System.setProperty("hbase.tmp.dir", s"$cwd/storage/s2graph/hbase/")
+            System.setProperty("hbase.home.dir", "")
+            System.setProperty("hbase.id.str", "s2graph")
+            System.setProperty("hbase.root.logger", "INFO,RFA")
+
+            org.apache.hadoop.hbase.master.HMaster.main(Array[String]("start"))
+          }
+        })
+      }
+
+      executor
+    }
+    hbaseExecutor
+  }
 }
 
 
@@ -94,6 +156,12 @@ class AsynchbaseStorage(override val graph: S2Graph,
   extends Storage[AsyncRPC, Deferred[StepResult]](graph, config) {
 
   import Extensions.DeferOps
+
+  val hbaseExecutor: ExecutorService  =
+    if (config.getString("hbase.zookeeper.quorum") == "localhost")
+      AsynchbaseStorage.initLocalHBase(config)
+    else
+      null
 
   /**
    * Asynchbase client setup.
@@ -209,6 +277,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
   override def fetchSnapshotEdgeKeyValues(queryRequest: QueryRequest): Future[Seq[SKeyValue]] = {
     val edge = toRequestEdge(queryRequest, Nil)
     val rpc = buildRequest(queryRequest, edge)
+
     fetchKeyValues(rpc)
   }
 
@@ -377,6 +446,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
 
     val edge = toRequestEdge(queryRequest, parentEdges)
     val request = buildRequest(queryRequest, edge)
+
     val (intervalMaxBytes, intervalMinBytes) = queryParam.buildInterval(Option(edge))
     val requestCacheKey = Bytes.add(toCacheKeyBytes(request), intervalMaxBytes, intervalMinBytes)
 
@@ -466,6 +536,17 @@ class AsynchbaseStorage(override val graph: S2Graph,
   }
 
 
+  override def shutdown(): Unit = {
+    flush()
+    clients.foreach { client =>
+      AsynchbaseStorage.shutdown(client)
+    }
+    if (hbaseExecutor != null) {
+      hbaseExecutor.shutdown()
+      hbaseExecutor.awaitTermination(1, TimeUnit.MINUTES)
+    }
+  }
+
   override def createTable(_zkAddr: String,
                            tableName: String,
                            cfs: List[String],
@@ -479,52 +560,100 @@ class AsynchbaseStorage(override val graph: S2Graph,
       zkAddr <- Seq(zkQuorum) ++ zkQuorumSlave.toSeq
     } {
       logger.info(s"create table: $tableName on $zkAddr, $cfs, $regionMultiplier, $compressionAlgorithm")
-      val admin = getAdmin(zkAddr)
-      val regionCount = totalRegionCount.getOrElse(admin.getClusterStatus.getServersSize * regionMultiplier)
-      try {
-        if (!admin.tableExists(TableName.valueOf(tableName))) {
-          val desc = new HTableDescriptor(TableName.valueOf(tableName))
-          desc.setDurability(Durability.ASYNC_WAL)
-          for (cf <- cfs) {
-            val columnDesc = new HColumnDescriptor(cf)
-              .setCompressionType(Algorithm.valueOf(compressionAlgorithm.toUpperCase))
-              .setBloomFilterType(BloomType.ROW)
-              .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
-              .setMaxVersions(1)
-              .setTimeToLive(2147483647)
-              .setMinVersions(0)
-              .setBlocksize(32768)
-              .setBlockCacheEnabled(true)
-            if (ttl.isDefined) columnDesc.setTimeToLive(ttl.get)
-            if (replicationScopeOpt.isDefined) columnDesc.setScope(replicationScopeOpt.get)
-            desc.addFamily(columnDesc)
-          }
+      withAdmin(zkAddr) { admin =>
+        val regionCount = totalRegionCount.getOrElse(admin.getClusterStatus.getServersSize * regionMultiplier)
+        try {
+          if (!admin.tableExists(TableName.valueOf(tableName))) {
+            val desc = new HTableDescriptor(TableName.valueOf(tableName))
+            desc.setDurability(Durability.ASYNC_WAL)
+            for (cf <- cfs) {
+              val columnDesc = new HColumnDescriptor(cf)
+                .setCompressionType(Algorithm.valueOf(compressionAlgorithm.toUpperCase))
+                .setBloomFilterType(BloomType.ROW)
+                .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
+                .setMaxVersions(1)
+                .setTimeToLive(2147483647)
+                .setMinVersions(0)
+                .setBlocksize(32768)
+                .setBlockCacheEnabled(true)
+                // FIXME: For test!!
+                .setInMemory(true)
+              if (ttl.isDefined) columnDesc.setTimeToLive(ttl.get)
+              if (replicationScopeOpt.isDefined) columnDesc.setScope(replicationScopeOpt.get)
+              desc.addFamily(columnDesc)
+            }
 
-          if (regionCount <= 1) admin.createTable(desc)
-          else admin.createTable(desc, getStartKey(regionCount), getEndKey(regionCount), regionCount)
-        } else {
-          logger.info(s"$zkAddr, $tableName, $cfs already exist.")
+            if (regionCount <= 1) admin.createTable(desc)
+            else admin.createTable(desc, getStartKey(regionCount), getEndKey(regionCount), regionCount)
+          } else {
+            logger.info(s"$zkAddr, $tableName, $cfs already exist.")
+          }
+        } catch {
+          case e: Throwable =>
+            logger.error(s"$zkAddr, $tableName failed with $e", e)
+            throw e
         }
-      } catch {
-        case e: Throwable =>
-          logger.error(s"$zkAddr, $tableName failed with $e", e)
-          throw e
-      } finally {
-        admin.close()
-        admin.getConnection.close()
       }
     }
   }
 
+  override def truncateTable(zkAddr: String, tableNameStr: String): Unit = {
+    withAdmin(zkAddr) { admin =>
+      val tableName = TableName.valueOf(tableNameStr)
+      if (!Try(admin.tableExists(tableName)).getOrElse(false)) {
+        logger.info(s"No table to truncate ${tableNameStr}")
+        return
+      }
+
+      Try(admin.isTableDisabled(tableName)).map {
+        case true =>
+          logger.info(s"${tableNameStr} is already disabled.")
+
+        case false =>
+          logger.info(s"Before disabling to trucate ${tableNameStr}")
+          Try(admin.disableTable(tableName)).recover {
+            case NonFatal(e) =>
+              logger.info(s"Failed to disable ${tableNameStr}: ${e}")
+          }
+          logger.info(s"After disabling to trucate ${tableNameStr}")
+      }
+
+      logger.info(s"Before truncating ${tableNameStr}")
+      Try(admin.truncateTable(tableName, true)).recover {
+        case NonFatal(e) =>
+          logger.info(s"Failed to truncate ${tableNameStr}: ${e}")
+      }
+      logger.info(s"After truncating ${tableNameStr}")
+      Try(admin.close()).recover {
+        case NonFatal(e) =>
+          logger.info(s"Failed to close admin ${tableNameStr}: ${e}")
+      }
+      Try(admin.getConnection.close()).recover {
+        case NonFatal(e) =>
+          logger.info(s"Failed to close connection ${tableNameStr}: ${e}")
+      }
+    }
+  }
+
+  override def deleteTable(zkAddr: String, tableNameStr: String): Unit = {
+    withAdmin(zkAddr) { admin =>
+      val tableName = TableName.valueOf(tableNameStr)
+      if (!admin.tableExists(tableName)) {
+        return
+      }
+      if (admin.isTableEnabled(tableName)) {
+        admin.disableTable(tableName)
+      }
+      admin.deleteTable(tableName)
+    }
+  }
 
   /** Asynchbase implementation override default getVertices to use future Cache */
   override def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
     def fromResult(kvs: Seq[SKeyValue],
                    version: String): Option[S2Vertex] = {
-
       if (kvs.isEmpty) None
       else vertexDeserializer.fromKeyValues(kvs, None)
-//        .map(S2Vertex(graph, _))
     }
 
     val futures = vertices.map { vertex =>
@@ -534,27 +663,37 @@ class AsynchbaseStorage(override val graph: S2Graph,
       get.setFailfast(true)
       get.maxVersions(1)
 
-      val cacheKey = MurmurHash3.stringHash(get.toString)
-      vertexCache.getOrElseUpdate(cacheKey, cacheTTL = 10000)(fetchVertexKeyValues(Left(get))).map { kvs =>
+      fetchVertexKeyValues(Left(get)).map { kvs =>
         fromResult(kvs, vertex.serviceColumn.schemaVersion)
       }
+//      val cacheKey = MurmurHash3.stringHash(get.toString)
+//      vertexCache.getOrElseUpdate(cacheKey, cacheTTL = -1)(fetchVertexKeyValues(Left(get))).map { kvs =>
+//        fromResult(kvs, vertex.serviceColumn.schemaVersion)
+//      }
     }
 
     Future.sequence(futures).map { result => result.toList.flatten }
   }
 
+  //TODO: Limited to 100000 edges per hbase table. fix this later.
   override def fetchEdgesAll(): Future[Seq[S2Edge]] = {
     val futures = Label.findAll().groupBy(_.hbaseTableName).toSeq.map { case (hTableName, labels) =>
+      val distinctLabels = labels.toSet
       val scan = AsynchbasePatcher.newScanner(client, hTableName)
       scan.setFamily(Serializable.edgeCf)
       scan.setMaxVersions(1)
 
-      scan.nextRows(10000).toFuture(emptyKeyValuesLs).map { kvsLs =>
-        kvsLs.flatMap { kvs =>
-          kvs.flatMap { kv =>
-            indexEdgeDeserializer.fromKeyValues(Seq(kv), None)
+      scan.nextRows(S2Graph.FetchAllLimit).toFuture(emptyKeyValuesLs).map {
+        case null => Seq.empty
+        case kvsLs =>
+          kvsLs.flatMap { kvs =>
+            kvs.flatMap { kv =>
+              val sKV = implicitly[CanSKeyValue[KeyValue]].toSKeyValue(kv)
+
+              indexEdgeDeserializer.fromKeyValues(Seq(kv), None)
+                .filter(e => distinctLabels(e.innerLabel) && e.direction == "out" && !e.isDegree)
+            }
           }
-        }
       }
     }
 
@@ -563,14 +702,18 @@ class AsynchbaseStorage(override val graph: S2Graph,
 
   override def fetchVerticesAll(): Future[Seq[S2Vertex]] = {
     val futures = ServiceColumn.findAll().groupBy(_.service.hTableName).toSeq.map { case (hTableName, columns) =>
+      val distinctColumns = columns.toSet
       val scan = AsynchbasePatcher.newScanner(client, hTableName)
       scan.setFamily(Serializable.vertexCf)
       scan.setMaxVersions(1)
 
-      scan.nextRows(10000).toFuture(emptyKeyValuesLs).map { kvsLs =>
-        kvsLs.flatMap { kvs =>
-          vertexDeserializer.fromKeyValues(kvs, None)
-        }
+      scan.nextRows(S2Graph.FetchAllLimit).toFuture(emptyKeyValuesLs).map {
+        case null => Seq.empty
+        case kvsLs =>
+          kvsLs.flatMap { kvs =>
+            vertexDeserializer.fromKeyValues(kvs, None)
+              .filter(v => distinctColumns(v.serviceColumn))
+          }
       }
     }
     Future.sequence(futures).map(_.flatten)
@@ -682,6 +825,15 @@ class AsynchbaseStorage(override val graph: S2Graph,
     conn.getAdmin
   }
 
+  private def withAdmin(zkAddr: String)(op: Admin => Unit): Unit = {
+    val admin = getAdmin(zkAddr)
+    try {
+      op(admin)
+    } finally {
+      admin.close()
+      admin.getConnection.close()
+    }
+  }
   /**
    * following configuration need to come together to use secured hbase cluster.
    * 1. set hbase.security.auth.enable = true
@@ -705,16 +857,22 @@ class AsynchbaseStorage(override val graph: S2Graph,
   }
 
   private def enableTable(zkAddr: String, tableName: String) = {
-    getAdmin(zkAddr).enableTable(TableName.valueOf(tableName))
+    withAdmin(zkAddr) { admin =>
+      admin.enableTable(TableName.valueOf(tableName))
+    }
   }
 
   private def disableTable(zkAddr: String, tableName: String) = {
-    getAdmin(zkAddr).disableTable(TableName.valueOf(tableName))
+    withAdmin(zkAddr) { admin =>
+      admin.disableTable(TableName.valueOf(tableName))
+    }
   }
 
   private def dropTable(zkAddr: String, tableName: String) = {
-    getAdmin(zkAddr).disableTable(TableName.valueOf(tableName))
-    getAdmin(zkAddr).deleteTable(TableName.valueOf(tableName))
+    withAdmin(zkAddr) { admin =>
+      admin.disableTable(TableName.valueOf(tableName))
+      admin.deleteTable(TableName.valueOf(tableName))
+    }
   }
 
   private def getStartKey(regionCount: Int): Array[Byte] = {

@@ -23,7 +23,8 @@ import org.apache.s2graph.core.mysqls.{ColumnMeta, Label}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable}
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, VertexId}
-import org.apache.s2graph.core.{S2Graph, QueryParam, S2Vertex}
+import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.{QueryParam, S2Graph, S2Vertex}
 
 import scala.collection.mutable.ListBuffer
 
@@ -33,7 +34,6 @@ class VertexDeserializable(graph: S2Graph,
                                           cacheElementOpt: Option[S2Vertex]): Option[S2Vertex] = {
     try {
       val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
-
       val kv = kvs.head
       val version = HBaseType.DEFAULT_VERSION
       val (vertexId, _) = VertexId.fromBytes(kv.row, 0, kv.row.length, version)
@@ -64,6 +64,7 @@ class VertexDeserializable(graph: S2Graph,
       assert(maxTs != Long.MinValue)
       val vertex = graph.newVertex(vertexId, maxTs, S2Vertex.EmptyProps, belongLabelIds = belongLabelIds)
       S2Vertex.fillPropsWithTs(vertex, propsMap.toMap)
+
       Option(vertex)
     } catch {
       case e: Exception => None

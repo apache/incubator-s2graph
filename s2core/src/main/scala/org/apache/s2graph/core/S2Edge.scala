@@ -20,19 +20,23 @@
 package org.apache.s2graph.core
 
 import java.util
-import java.util.function.{Consumer, BiConsumer}
+import java.util.function.{BiConsumer, Consumer}
 
+import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.S2Edge.{Props, State}
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
+import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.io.Conversions._
 import org.apache.tinkerpop.gremlin.structure
-import org.apache.tinkerpop.gremlin.structure.{Edge, Graph, Vertex, Direction, Property}
+import org.apache.tinkerpop.gremlin.structure.util.StringFactory
+import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph, Property, T, Vertex}
 import play.api.libs.json.{JsNumber, JsObject, Json}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{Map => MutableMap}
+import scala.concurrent.Await
 import scala.util.hashing.MurmurHash3
 
 object SnapshotEdge {
@@ -115,6 +119,8 @@ case class SnapshotEdge(graph: S2Graph,
   }
 
   def property[V](key: String, value: V, ts: Long): S2Property[V] = {
+    S2Property.assertValidProp(key, value)
+
     val labelMeta = label.metaPropsInvMap.getOrElse(key, throw new RuntimeException(s"$key is not configured on IndexEdge."))
     val newProps = new S2Property(edge, labelMeta, key, value, ts)
     propsWithTs.put(key, newProps)
@@ -325,7 +331,7 @@ case class S2Edge(innerGraph: S2Graph,
   lazy val tgtId = tgtVertex.innerIdVal
   lazy val labelName = innerLabel.label
   lazy val direction = GraphUtil.fromDirection(dir)
-  
+
   def toIndexEdge(labelIndexSeq: Byte): IndexEdge = IndexEdge(innerGraph, srcVertex, tgtVertex, innerLabel, dir, op, version, labelIndexSeq, propsWithTs)
 
   def serializePropsWithTs(): Array[Byte] = HBaseSerializable.propsToKeyValuesWithTs(propsWithTs.asScala.map(kv => kv._2.labelMeta.seq -> kv._2.innerValWithTs).toSeq)
@@ -423,21 +429,28 @@ case class S2Edge(innerGraph: S2Graph,
 
   //    def relatedEdges = List(this)
 
+  private def getServiceColumn(vertex: S2Vertex, defaultServiceColumn: ServiceColumn) =
+      if (vertex.id.column == ServiceColumn.Default) defaultServiceColumn else vertex.id.column
+
   def srcForVertex = {
     val belongLabelIds = Seq(labelWithDir.labelId)
     if (labelWithDir.dir == GraphUtil.directions("in")) {
-      innerGraph.newVertex(VertexId(innerLabel.tgtColumn, tgtVertex.innerId), tgtVertex.ts, tgtVertex.props, belongLabelIds = belongLabelIds)
+      val tgtColumn = getServiceColumn(tgtVertex, innerLabel.tgtColumn)
+      innerGraph.newVertex(VertexId(tgtColumn, tgtVertex.innerId), tgtVertex.ts, tgtVertex.props, belongLabelIds = belongLabelIds)
     } else {
-      innerGraph.newVertex(VertexId(innerLabel.srcColumn, srcVertex.innerId), srcVertex.ts, srcVertex.props, belongLabelIds = belongLabelIds)
+      val srcColumn = getServiceColumn(srcVertex, innerLabel.srcColumn)
+      innerGraph.newVertex(VertexId(srcColumn, srcVertex.innerId), srcVertex.ts, srcVertex.props, belongLabelIds = belongLabelIds)
     }
   }
 
   def tgtForVertex = {
     val belongLabelIds = Seq(labelWithDir.labelId)
     if (labelWithDir.dir == GraphUtil.directions("in")) {
-      innerGraph.newVertex(VertexId(innerLabel.srcColumn, srcVertex.innerId), srcVertex.ts, srcVertex.props, belongLabelIds = belongLabelIds)
+      val srcColumn = getServiceColumn(srcVertex, innerLabel.srcColumn)
+      innerGraph.newVertex(VertexId(srcColumn, srcVertex.innerId), srcVertex.ts, srcVertex.props, belongLabelIds = belongLabelIds)
     } else {
-      innerGraph.newVertex(VertexId(innerLabel.tgtColumn, tgtVertex.innerId), tgtVertex.ts, tgtVertex.props, belongLabelIds = belongLabelIds)
+      val tgtColumn = getServiceColumn(tgtVertex, innerLabel.tgtColumn)
+      innerGraph.newVertex(VertexId(tgtColumn, tgtVertex.innerId), tgtVertex.ts, tgtVertex.props, belongLabelIds = belongLabelIds)
     }
   }
 
@@ -481,7 +494,7 @@ case class S2Edge(innerGraph: S2Graph,
 
 //    val newLabelWithDir = LabelWithDirection(labelWithDir.labelId, GraphUtil.directions("out"))
 
-    property(LabelMeta.timestamp.name, ts, ts)
+    propertyInner(LabelMeta.timestamp.name, ts, ts)
     val ret = SnapshotEdge(innerGraph, smaller, larger, innerLabel,
       GraphUtil.directions("out"), op, version, propsWithTs,
       pendingEdgeOpt = pendingEdgeOpt, statusCode = statusCode, lockTs = lockTs, tsInnerValOpt = tsInnerValOpt)
@@ -525,8 +538,8 @@ case class S2Edge(innerGraph: S2Graph,
     }
 
   def toLogString: String = {
-    val allPropsWithName = defaultPropsWithName ++ Json.toJson(propsWithName).asOpt[JsObject].getOrElse(Json.obj())
-    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, innerLabel.label, allPropsWithName).mkString("\t")
+//    val allPropsWithName = defaultPropsWithName ++ Json.toJson(propsWithName).asOpt[JsObject].getOrElse(Json.obj())
+    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, innerLabel.label, propsWithTs).mkString("\t")
   }
 
   override def hashCode(): Int = {
@@ -534,15 +547,21 @@ case class S2Edge(innerGraph: S2Graph,
   }
 
   override def equals(other: Any): Boolean = other match {
-    case e: Edge => e.id().equals(e.id())
+    case e: Edge => id().equals(e.id())
     case _ => false
   }
 
-  override def toString(): String = {
-    Map("srcVertex" -> srcVertex.toString, "tgtVertex" -> tgtVertex.toString, "label" -> labelName, "direction" -> direction,
-      "operation" -> operation, "version" -> version, "props" -> propsWithTs.asScala.map(kv => kv._1 -> kv._2.value).toString,
-      "parentEdges" -> parentEdges, "originalEdge" -> originalEdgeOpt, "statusCode" -> statusCode, "lockTs" -> lockTs
-    ).toString
+//  override def toString(): String = {
+//    Map("srcVertex" -> srcVertex.toString, "tgtVertex" -> tgtVertex.toString, "label" -> labelName, "direction" -> direction,
+//      "operation" -> operation, "version" -> version, "props" -> propsWithTs.asScala.map(kv => kv._1 -> kv._2.value).toString,
+//      "parentEdges" -> parentEdges, "originalEdge" -> originalEdgeOpt, "statusCode" -> statusCode, "lockTs" -> lockTs
+//    ).toString
+//  }
+
+  override def toString: String = {
+    // E + L_BRACKET + edge.id() + R_BRACKET + L_BRACKET + edge.outVertex().id() + DASH + edge.label() + ARROW + edge.inVertex().id() + R_BRACKET;
+    s"e[${id}][${srcForVertex.id}-${innerLabel.label}->${tgtForVertex.id}]"
+    //    s"e[${srcForVertex.id}-${innerLabel.label}->${tgtForVertex.id}]"
   }
 
   def checkProperty(key: String): Boolean = propsWithTs.containsKey(key)
@@ -564,14 +583,14 @@ case class S2Edge(innerGraph: S2Graph,
     val edge = new S2Edge(innerGraph, srcVertex, tgtVertex, innerLabel, dir, op, version, S2Edge.EmptyProps,
       parentEdges, originalEdgeOpt, pendingEdgeOpt, statusCode, lockTs, tsInnerValOpt)
     S2Edge.fillPropsWithTs(edge, propsWithTs)
-    edge.property(LabelMeta.timestamp.name, ts, ts)
+    edge.propertyInner(LabelMeta.timestamp.name, ts, ts)
     edge
   }
 
   def copyEdgeWithState(state: State, ts: Long): S2Edge = {
     val newEdge = copy(propsWithTs = S2Edge.EmptyProps)
     S2Edge.fillPropsWithTs(newEdge, state)
-    newEdge.property(LabelMeta.timestamp.name, ts, ts)
+    newEdge.propertyInner(LabelMeta.timestamp.name, ts, ts)
     newEdge
   }
 
@@ -583,52 +602,144 @@ case class S2Edge(innerGraph: S2Graph,
 
   override def vertices(direction: Direction): util.Iterator[structure.Vertex] = {
     val arr = new util.ArrayList[Vertex]()
+
     direction match {
-      case Direction.OUT => arr.add(srcVertex)
-      case Direction.IN => arr.add(tgtVertex)
+      case Direction.OUT =>
+//        val newVertexId = this.direction match {
+//          case "out" => VertexId(innerLabel.srcColumn, srcVertex.innerId)
+//          case "in" => VertexId(innerLabel.tgtColumn, tgtVertex.innerId)
+//          case _ => throw new IllegalArgumentException("direction can only be out/in.")
+//        }
+        val newVertexId = edgeId.srcVertexId
+        innerGraph.getVertex(newVertexId).foreach(arr.add)
+      case Direction.IN =>
+//        val newVertexId = this.direction match {
+//          case "in" => VertexId(innerLabel.srcColumn, srcVertex.innerId)
+//          case "out" => VertexId(innerLabel.tgtColumn, tgtVertex.innerId)
+//          case _ => throw new IllegalArgumentException("direction can only be out/in.")
+//        }
+        val newVertexId = edgeId.tgtVertexId
+        innerGraph.getVertex(newVertexId).foreach(arr.add)
       case _ =>
-        arr.add(srcVertex)
-        arr.add(tgtVertex)
+        import scala.collection.JavaConversions._
+        vertices(Direction.OUT).foreach(arr.add)
+        vertices(Direction.IN).foreach(arr.add)
     }
     arr.iterator()
   }
 
   override def properties[V](keys: String*): util.Iterator[Property[V]] = {
     val ls = new util.ArrayList[Property[V]]()
-    keys.foreach { key => ls.add(property(key)) }
+    if (keys.isEmpty) {
+      propsWithTs.forEach(new BiConsumer[String, S2Property[_]] {
+        override def accept(key: String, property: S2Property[_]): Unit = {
+          if (!LabelMeta.reservedMetaNamesSet(key) && property.isPresent && key != T.id.name)
+            ls.add(property.asInstanceOf[S2Property[V]])
+        }
+      })
+    } else {
+      keys.foreach { key =>
+        val prop = property[V](key)
+        if (prop.isPresent) ls.add(prop)
+      }
+    }
     ls.iterator()
   }
 
   override def property[V](key: String): Property[V] = {
-    val labelMeta = innerLabel.metaPropsInvMap.getOrElse(key, throw new RuntimeException(s"$key is not configured on Edge."))
+    val labelMeta = innerLabel.metaPropsInvMap.getOrElse(key, throw new java.lang.IllegalStateException(s"$key is not configured on Edge."))
     if (propsWithTs.containsKey(key)) propsWithTs.get(key).asInstanceOf[Property[V]]
     else {
-      val default = innerLabel.metaPropsDefaultMapInner(labelMeta)
-      property(key, default.innerVal.value, default.ts).asInstanceOf[Property[V]]
+      Property.empty()
+//      val default = innerLabel.metaPropsDefaultMapInner(labelMeta)
+//      propertyInner(key, default.innerVal.value, default.ts).asInstanceOf[Property[V]]
     }
   }
 
+  // just for tinkerpop: save to storage, do not use for internal
   override def property[V](key: String, value: V): Property[V] = {
-    property(key, value, System.currentTimeMillis())
+    S2Property.assertValidProp(key, value)
+
+    val v = propertyInner(key, value, System.currentTimeMillis())
+    val newTs = props.get(LabelMeta.timestamp.name).map(_.toString.toLong + 1).getOrElse(System.currentTimeMillis())
+    val newEdge = this.copyEdge(ts = newTs)
+
+    Await.result(innerGraph.mutateEdges(Seq(newEdge), withWait = true), innerGraph.WaitTimeout)
+
+    v
   }
 
-  def property[V](key: String, value: V, ts: Long): Property[V] = {
+  def propertyInner[V](key: String, value: V, ts: Long): Property[V] = {
     val labelMeta = innerLabel.metaPropsInvMap.getOrElse(key, throw new RuntimeException(s"$key is not configured on Edge."))
     val newProp = new S2Property[V](this, labelMeta, key, value, ts)
     propsWithTs.put(key, newProp)
     newProp
   }
 
-  override def remove(): Unit = {}
+  override def remove(): Unit =  {
+    if (graph.features().edge().supportsRemoveEdges()) {
+      val requestTs = System.currentTimeMillis()
+      val edgeToDelete = this.copyEdge(op = GraphUtil.operations("delete"),
+        version = version + S2Edge.incrementVersion, propsWithTs = S2Edge.propsToState(updatePropsWithTs()), ts = requestTs)
+      // should we delete related edges also?
+      val future = innerGraph.mutateEdges(Seq(edgeToDelete), withWait = true)
+      val mutateSuccess = Await.result(future, innerGraph.WaitTimeout)
+      if (!mutateSuccess.forall(identity)) throw new RuntimeException("edge remove failed.")
+    } else {
+      throw Edge.Exceptions.edgeRemovalNotSupported()
+    }
+  }
 
   override def graph(): Graph = innerGraph
 
-  override def id(): AnyRef = EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), direction)
+  lazy val edgeId: EdgeId = {
+    // NOTE: xxxForVertex makes direction to be "out"
+    val timestamp = if (this.innerLabel.consistencyLevel == "strong") 0l else ts
+//    EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), "out", timestamp)
+    val (srcColumn, tgtColumn) = innerLabel.srcTgtColumn(dir)
+    if (direction == "out")
+      EdgeId(VertexId(srcColumn, srcVertex.id.innerId), VertexId(tgtColumn, tgtVertex.id.innerId), label(), "out", timestamp)
+    else
+      EdgeId(VertexId(tgtColumn, tgtVertex.id.innerId), VertexId(srcColumn, srcVertex.id.innerId), label(), "out", timestamp)
+  }
+
+  override def id(): AnyRef = edgeId
 
   override def label(): String = innerLabel.label
 }
+object EdgeId {
+  val EdgeIdDelimiter = ","
+  def fromString(s: String): EdgeId = {
+//    val Array(src, tgt, labelName, dir, ts) = s.split(EdgeIdDelimiter)
+//    val label = Label.findByName(labelName).getOrElse(throw LabelNotExistException(labelName))
+//    val srcColumn = label.srcColumnWithDir(GraphUtil.toDirection(dir))
+//    val tgtColumn = label.tgtColumnWithDir(GraphUtil.toDirection(dir))
+//    EdgeId(
+//      JSONParser.toInnerVal(src, srcColumn.columnType, label.schemaVersion),
+//      JSONParser.toInnerVal(tgt, tgtColumn.columnType, label.schemaVersion),
+//      labelName,
+//      dir,
+//      ts.toLong
+//    )
+    val js = Json.parse(s)
+    s2EdgeIdReads.reads(Json.parse(s)).get
+  }
+}
 
-case class EdgeId(srcVertexId: InnerValLike, tgtVertexId: InnerValLike, labelName: String, direction: String)
+case class EdgeId(srcVertexId: VertexId,
+                  tgtVertexId: VertexId,
+                  labelName: String,
+                  direction: String,
+                  ts: Long) {
+  override def toString: String = {
+    import io.Conversions._
+    //    Seq(srcVertexId.toIdString(), tgtVertexId.toIdString(), labelName, direction, ts.toString).mkString(EdgeId.EdgeIdDelimiter)
+    s2EdgeIdWrites.writes(this).toString()
+  }
+
+
+
+}
 
 object EdgeMutate {
 
@@ -724,7 +835,7 @@ object S2Edge {
     state.foreach { case (k, v) => indexEdge.property(k.name, v.innerVal.value, v.ts) }
   }
   def fillPropsWithTs(edge: S2Edge, state: State): Unit = {
-    state.foreach { case (k, v) => edge.property(k.name, v.innerVal.value, v.ts) }
+    state.foreach { case (k, v) => edge.propertyInner(k.name, v.innerVal.value, v.ts) }
   }
 
   def propsToState(props: Props): State = {
@@ -735,7 +846,7 @@ object S2Edge {
 
   def stateToProps(edge: S2Edge, state: State): Props = {
     state.foreach { case (k, v) =>
-      edge.property(k.name, v.innerVal.value, v.ts)
+      edge.propertyInner(k.name, v.innerVal.value, v.ts)
     }
     edge.propsWithTs
   }
@@ -878,7 +989,7 @@ object S2Edge {
               propsWithTs = S2Edge.EmptyProps,
               op = GraphUtil.defaultOpByte
             )
-            newPropsWithTs.foreach { case (k, v) => newEdge.property(k.name, v.innerVal.value, v.ts) }
+            newPropsWithTs.foreach { case (k, v) => newEdge.propertyInner(k.name, v.innerVal.value, v.ts) }
 
             newEdge.relatedEdges.flatMap { relEdge => relEdge.edgesWithIndexValid }
           }

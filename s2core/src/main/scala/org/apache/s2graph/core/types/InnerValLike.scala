@@ -20,7 +20,6 @@
 package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util._
-import org.apache.s2graph.core.utils.logger
 
 object InnerVal extends HBaseDeserializableWithIsVertexId {
   import HBaseType._
@@ -151,52 +150,6 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
       case _ => throw notSupportedEx(version)
     }
   }
-
-//  def withInnerVal(innerVal: InnerValLike, version: String): InnerValLike = {
-//    val bytes = innerVal.bytes
-//    version match {
-//      case VERSION2 => v2.InnerVal.fromBytes(bytes, 0, bytes.length, version)._1
-//      case VERSION1 => v1.InnerVal.fromBytes(bytes, 0, bytes.length, version)._1
-//      case _ => throw notSupportedEx(version)
-//    }
-//  }
-
-  /** nasty implementation for backward compatability */
-//  def convertVersion(innerVal: InnerValLike, dataType: String, toVersion: String): InnerValLike = {
-//    val ret = toVersion match {
-//      case VERSION2 | VERSION3 | VERSION4 =>
-//        if (innerVal.isInstanceOf[v1.InnerVal]) {
-//          val obj = innerVal.asInstanceOf[v1.InnerVal]
-//          obj.valueType match {
-//            case "long" => InnerVal.withLong(obj.longV.get, toVersion)
-//            case "string" => InnerVal.withStr(obj.strV.get, toVersion)
-//            case "boolean" => InnerVal.withBoolean(obj.boolV.get, toVersion)
-//            case _ => throw new Exception(s"InnerVal should be [long/integeer/short/byte/string/boolean]")
-//          }
-//        } else {
-//          innerVal
-//        }
-////      case VERSION1 =>
-////        if (innerVal.isInstanceOf[v2.InnerVal]) {
-////          val obj = innerVal.asInstanceOf[v2.InnerVal]
-////          obj.value match {
-////            case str: String => InnerVal.withStr(str, toVersion)
-////            case b: Boolean => InnerVal.withBoolean(b, toVersion)
-////            case n: BigDecimal => InnerVal.withNumber(n, toVersion)
-////            case n: Long => InnerVal.withNumber(n, toVersion)
-////            case n: Double => InnerVal.withNumber(n, toVersion)
-////            case n: Int => InnerVal.withNumber(n, toVersion)
-////            case _ => throw notSupportedEx(s"v2 to v1: $obj -> $toVersion")
-////          }
-////        } else {
-////          innerVal
-////        }
-//      case _ => throw notSupportedEx(toVersion)
-//    }
-////    logger.debug(s"convertVersion: $innerVal, $dataType, $toVersion, $ret, ${innerVal.bytes.toList}, ${ret.bytes.toList}")
-//    ret
-//  }
-
 }
 
 trait InnerValLike extends HBaseSerializable {

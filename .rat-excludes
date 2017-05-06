@@ -17,3 +17,5 @@ s2counter_core/target
 s2counter_loader/target
 loader/target
 spark/target
+storage/
+var/

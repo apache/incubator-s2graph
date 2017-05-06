@@ -266,9 +266,11 @@ abstract class Storage[Q, R](val graph: S2Graph,
                   replicationScopeOpt: Option[Int] = None,
                   totalRegionCount: Option[Int] = None): Unit
 
+  def truncateTable(zkAddr: String, tableNameStr: String): Unit = {}
 
+  def deleteTable(zkAddr: String, tableNameStr: String): Unit = {}
 
-
+  def shutdown(): Unit
 
   /** Public Interface */
   def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
@@ -283,6 +285,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
       val queryParam = QueryParam.Empty
       val q = Query.toQuery(Seq(vertex), Seq(queryParam))
       val queryRequest = QueryRequest(q, stepIdx = -1, vertex, queryParam)
+
       fetchVertexKeyValues(queryRequest).map { kvs =>
         fromResult(kvs, vertex.serviceColumn.schemaVersion)
       } recoverWith { case ex: Throwable =>
@@ -319,7 +322,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
         mutateRet <- Future.sequence(mutateEdgeFutures)
       } yield mutateRet
 
-      composed.map(_.forall(identity)).map { ret => idxs.map(idx => idx -> ret) }
+      composed.map(_.forall(identity)).map { ret => idxs.map( idx => idx -> ret) }
     }
 
     Future.sequence(mutateEdges).map { squashedRets =>
@@ -1096,7 +1099,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
   }
 
   def buildDegreePuts(edge: S2Edge, degreeVal: Long): Seq[SKeyValue] = {
-    edge.property(LabelMeta.degree.name, degreeVal, edge.ts)
+    edge.propertyInner(LabelMeta.degree.name, degreeVal, edge.ts)
     val kvs = edge.edgesWithIndexValid.flatMap { indexEdge =>
       indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put, durability = indexEdge.label.durability))
     }
@@ -1112,4 +1115,6 @@ abstract class Storage[Q, R](val graph: S2Graph,
   }
 
   def info: Map[String, String] = Map("className" -> this.getClass.getSimpleName)
+
+
 }

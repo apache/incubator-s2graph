@@ -27,26 +27,26 @@ import play.api.libs.json.Json
 import scalikejdbc._
 
 object Service extends Model[Service] {
-  def apply(rs: WrappedResultSet): Service = {
+  def valueOf(rs: WrappedResultSet): Service = {
     Service(rs.intOpt("id"), rs.string("service_name"), rs.string("access_token"),
       rs.string("cluster"), rs.string("hbase_table_name"), rs.int("pre_split_size"), rs.intOpt("hbase_table_ttl"))
   }
 
   def findByAccessToken(accessToken: String)(implicit session: DBSession = AutoSession): Option[Service] = {
     val cacheKey = s"accessToken=$accessToken"
-    withCache(cacheKey)( sql"""select * from services where access_token = ${accessToken}""".map { rs => Service(rs) }.single.apply)
+    withCache(cacheKey)( sql"""select * from services where access_token = ${accessToken}""".map { rs => Service.valueOf(rs) }.single.apply)
   }
 
   def findById(id: Int)(implicit session: DBSession = AutoSession): Service = {
     val cacheKey = "id=" + id
-    withCache(cacheKey)( sql"""select * from services where id = ${id}""".map { rs => Service(rs) }.single.apply).get
+    withCache(cacheKey)( sql"""select * from services where id = ${id}""".map { rs => Service.valueOf(rs) }.single.apply).get
   }
 
   def findByName(serviceName: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[Service] = {
     val cacheKey = "serviceName=" + serviceName
     lazy val serviceOpt = sql"""
         select * from services where service_name = ${serviceName}
-      """.map { rs => Service(rs) }.single.apply()
+      """.map { rs => Service.valueOf(rs) }.single.apply()
 
     if (useCache) withCache(cacheKey)(serviceOpt)
     else serviceOpt
@@ -73,8 +73,8 @@ object Service extends Model[Service] {
   }
 
   def findOrInsert(serviceName: String, cluster: String, hTableName: String,
-                   preSplitSize: Int, hTableTTL: Option[Int], compressionAlgorithm: String)(implicit session: DBSession = AutoSession): Service = {
-    findByName(serviceName) match {
+                   preSplitSize: Int, hTableTTL: Option[Int], compressionAlgorithm: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Service = {
+    findByName(serviceName, useCache) match {
       case Some(s) => s
       case None =>
         insert(serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
@@ -85,7 +85,7 @@ object Service extends Model[Service] {
   }
 
   def findAll()(implicit session: DBSession = AutoSession) = {
-    val ls = sql"""select * from services""".map { rs => Service(rs) }.list.apply
+    val ls = sql"""select * from services""".map { rs => Service.valueOf(rs) }.list.apply
     putsToCache(ls.map { x =>
       val cacheKey = s"id=${x.id.get}"
       (cacheKey -> x)

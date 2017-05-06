@@ -20,10 +20,12 @@
 package org.apache.s2graph.core.utils
 
 import java.util.concurrent.atomic.AtomicBoolean
+
 import com.google.common.cache.CacheBuilder
+
+import scala.collection.JavaConversions._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
-import scala.collection.JavaConversions._
 
 object SafeUpdateCache {
 
@@ -76,6 +78,8 @@ class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(implicit execut
       }
     }
   }
+
+  def invalidateAll() = cache.invalidateAll()
 
   def getAllData() : List[(String, T)] = {
     cache.asMap().map { case (key, value) =>
