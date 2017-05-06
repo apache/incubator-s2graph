@@ -115,7 +115,7 @@ object JSONParser {
   //    }
   //  }
   def isNumericType(dType: String): Boolean = {
-    dType == InnerVal.BIGDECIMAL || dType == InnerVal.LONG || dType == InnerVal.INT ||
+    dType == InnerVal.LONG || dType == InnerVal.INT ||
       dType == InnerVal.SHORT || dType == InnerVal.BYTE ||
       dType == InnerVal.FLOAT || dType == InnerVal.DOUBLE
   }
@@ -124,15 +124,6 @@ object JSONParser {
   def innerValToAny(innerValLike: InnerValLike, dataType: String): Any = {
     val dType = InnerVal.toInnerDataType(dataType)
     dType match {
-      case InnerVal.BIGDECIMAL =>
-        innerValLike.value match {
-          case b: BigDecimal => b
-          case l: Long => BigDecimal(l)
-          case i: Int => BigDecimal(i)
-          case f: Float => BigDecimal(f)
-          case d: Double => BigDecimal(d)
-          case _ => throw new RuntimeException(s"not supported data type: $innerValLike, ${innerValLike.value.getClass}, $dataType")
-        }
       case InnerVal.LONG =>
         innerValLike.value match {
           case b: BigDecimal => b.toLong
@@ -254,7 +245,7 @@ object JSONParser {
           dType match {
             case InnerVal.STRING => Some(InnerVal.withStr(jsValue.toString, version))
             //            case t if InnerVal.NUMERICS.contains(t) =>
-            case InnerVal.BIGDECIMAL | InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
+            case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
               Some(InnerVal.withNumber(n.value, version))
             case _ => None
           }
@@ -264,7 +255,7 @@ object JSONParser {
             case InnerVal.STRING => Some(InnerVal.withStr(s, version))
             case InnerVal.BOOLEAN => Some(InnerVal.withBoolean(s.toBoolean, version))
             //            case t if InnerVal.NUMERICS.contains(t) =>
-            case InnerVal.BIGDECIMAL | InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
+            case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
               Some(InnerVal.withNumber(BigDecimal(s), version))
             case _ => None
           }

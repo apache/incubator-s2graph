@@ -26,7 +26,7 @@ import org.apache.s2graph.core.types.{HBaseDeserializableWithIsVertexId, HBaseSe
 object InnerVal extends HBaseDeserializableWithIsVertexId {
 
   import HBaseType._
-  import types.InnerVal._
+
   val order = Order.DESCENDING
 
   def fromBytes(bytes: Array[Byte],
@@ -43,21 +43,21 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
         case Order.DESCENDING => bytes(offset) == 0
         case _ => bytes(offset) == -1
       }
-      (InnerVal(boolean, BOOLEAN, version), 1)
+      (InnerVal(boolean), 1)
     }
     else {
       if (OrderedBytes.isNumeric(pbr)) {
         val numeric = OrderedBytes.decodeNumericAsBigDecimal(pbr)
-        if (isVertexId) (InnerVal(numeric.longValue(), LONG, version), pbr.getPosition - startPos)
-        else (InnerVal(BigDecimal(numeric), BIGDECIMAL, version), pbr.getPosition - startPos)
+        if (isVertexId) (InnerVal(numeric.longValue()), pbr.getPosition - startPos)
+        else (InnerVal(BigDecimal(numeric)), pbr.getPosition - startPos)
 //        (InnerVal(numeric.doubleValue()), pbr.getPosition - startPos)
 //        (InnerVal(BigDecimal(numeric)), pbr.getPosition - startPos)
       } else if (OrderedBytes.isText(pbr)) {
         val str = OrderedBytes.decodeString(pbr)
-        (InnerVal(str, STRING, version), pbr.getPosition - startPos)
+        (InnerVal(str), pbr.getPosition - startPos)
       } else if (OrderedBytes.isBlobVar(pbr)) {
         val blobVar = OrderedBytes.decodeBlobVar(pbr)
-        (InnerVal(blobVar, BLOB, version), pbr.getPosition - startPos)
+        (InnerVal(blobVar), pbr.getPosition - startPos)
       } else {
         throw new RuntimeException("!!")
       }
@@ -65,9 +65,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
   }
 }
 
-case class InnerVal(value: Any,
-                    dataType: String,
-                    schemaVersion: String) extends HBaseSerializable with InnerValLike {
+case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
 
   import types.InnerVal._
 
@@ -78,10 +76,9 @@ case class InnerVal(value: Any,
         /* since OrderedBytes header start from 0x05, it is safe to use -1, 0
           * for decreasing order (true, false) */
         //        Bytes.toBytes(b)
-        //TODO: 0, 1 is also safe?
         order match {
-          case Order.DESCENDING => if (b) Array(0.toByte) else Array(1.toByte)
-          case _ => if (!b) Array(0.toByte) else Array((1.toByte))
+          case Order.DESCENDING => if (b) Array(0.toByte) else Array(-1.toByte)
+          case _ => if (!b) Array(0.toByte) else Array(-1.toByte)
         }
       case d: Double =>
         val num = BigDecimal(d)
@@ -108,6 +105,8 @@ case class InnerVal(value: Any,
         val pbr = numByteRange(num)
         val len = OrderedBytes.encodeNumeric(pbr, num.bigDecimal, order)
         pbr.getBytes().take(len)
+
+
       case b: BigDecimal =>
         val pbr = numByteRange(b)
         val len = OrderedBytes.encodeNumeric(pbr, b.bigDecimal, order)
@@ -156,7 +155,7 @@ case class InnerVal(value: Any,
       throw new RuntimeException(s"+ $this, $other")
 
     (value, other.value) match {
-      case (v1: BigDecimal, v2: BigDecimal) => new InnerVal(BigDecimal(v1.bigDecimal.add(v2.bigDecimal)), dataType, schemaVersion)
+      case (v1: BigDecimal, v2: BigDecimal) => new InnerVal(BigDecimal(v1.bigDecimal.add(v2.bigDecimal)))
       case _ => throw new RuntimeException("+ operation on inner val is for big decimal pair")
     }
   }

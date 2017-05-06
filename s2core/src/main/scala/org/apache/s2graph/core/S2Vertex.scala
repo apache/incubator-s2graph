@@ -237,7 +237,7 @@ case class S2Vertex(graph: S2Graph,
           Await.ready(future, graph.WaitTimeout)
           edge
         } catch {
-          case e: LabelNotExistException => throw new java.lang.IllegalArgumentException
+          case e: LabelNotExistException => throw new java.lang.IllegalArgumentException(e)
          }
       case null => throw new java.lang.IllegalArgumentException
       case _ => throw new RuntimeException("only S2Graph vertex can be used.")

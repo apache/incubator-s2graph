@@ -39,13 +39,12 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
   val INT = "integer"
   val SHORT = "short"
   val BYTE = "byte"
-  val BIGDECIMAL = "bigDecimal"
-  val NUMERICS = Set(DOUBLE, FLOAT, LONG, INT, SHORT, BYTE, BIGDECIMAL)
+  val NUMERICS = Set(DOUBLE, FLOAT, LONG, INT, SHORT, BYTE)
   val BOOLEAN = "boolean"
 
   def isNumericType(dataType: String): Boolean = {
     dataType match {
-      case BYTE | SHORT | INT | LONG | FLOAT | DOUBLE | BIGDECIMAL=> true
+      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE => true
       case _ => false
     }
   }
@@ -60,7 +59,6 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
       case "short" | "int16" | "integer16" => SHORT
       case "byte" | "b" | "tinyint" | "int8" | "integer8" => BYTE
       case "boolean" | "bool" => BOOLEAN
-      case "bigdecimal" => BIGDECIMAL
       case _ => throw new RuntimeException(s"can`t convert $dataType into InnerDataType")
     }
   }
@@ -92,7 +90,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 
   def withLong(l: Long, version: String): InnerValLike = {
     version match {
-      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(BigDecimal(l), LONG, version)
+      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(BigDecimal(l))
 //      case VERSION1 => v1.InnerVal(Some(l), None, None)
       case _ => throw notSupportedEx(version)
     }
@@ -100,7 +98,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 
   def withInt(i: Int, version: String): InnerValLike = {
     version match {
-      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(BigDecimal(i), INT, version)
+      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(BigDecimal(i))
 //      case VERSION1 => v1.InnerVal(Some(i.toLong), None, None)
       case _ => throw notSupportedEx(version)
     }
@@ -108,7 +106,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 
   def withFloat(f: Float, version: String): InnerValLike = {
     version match {
-      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(BigDecimal(f.toDouble), FLOAT, version)
+      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(BigDecimal(f.toDouble))
 //      case VERSION1 => v1.InnerVal(Some(f.toLong), None, None)
       case _ => throw notSupportedEx(version)
     }
@@ -116,7 +114,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 
   def withDouble(d: Double, version: String): InnerValLike = {
     version match {
-      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(BigDecimal(d), DOUBLE, version)
+      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(BigDecimal(d))
 //      case VERSION1 => v1.InnerVal(Some(d.toLong), None, None)
       case _ => throw notSupportedEx(version)
     }
@@ -124,7 +122,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 
   def withNumber(num: BigDecimal, version: String): InnerValLike = {
     version match {
-      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(num, BIGDECIMAL, version)
+      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(num)
 //      case VERSION1 => v1.InnerVal(Some(num.toLong), None, None)
       case _ => throw notSupportedEx(version)
     }
@@ -132,7 +130,7 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 
   def withBoolean(b: Boolean, version: String): InnerValLike = {
     version match {
-      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(b, BOOLEAN, version)
+      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(b)
 //      case VERSION1 => v1.InnerVal(None, None, Some(b))
       case _ => throw notSupportedEx(version)
     }
@@ -140,14 +138,14 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 
   def withBlob(blob: Array[Byte], version: String): InnerValLike = {
     version match {
-      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(blob, BLOB, version)
+      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(blob)
       case _ => throw notSupportedEx(version)
     }
   }
 
   def withStr(s: String, version: String): InnerValLike = {
     version match {
-      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(s, STRING, version)
+      case VERSION2 | VERSION3 | VERSION4 => v2.InnerVal(s)
 //      case VERSION1 => v1.InnerVal(None, Some(s), None)
       case _ => throw notSupportedEx(version)
     }
@@ -157,10 +155,6 @@ object InnerVal extends HBaseDeserializableWithIsVertexId {
 trait InnerValLike extends HBaseSerializable {
 
   val value: Any
-
-  val dataType: String
-
-  val schemaVersion: String
 
   def compare(other: InnerValLike): Int
 

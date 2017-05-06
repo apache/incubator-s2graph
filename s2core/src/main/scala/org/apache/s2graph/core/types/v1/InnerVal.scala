@@ -176,9 +176,6 @@ case class InnerVal(longV: Option[Long], strV: Option[String], boolV: Option[Boo
     case (None, None, Some(b)) => b
     case _ => throw new Exception(s"InnerVal should be [long/integeer/short/byte/string/boolean]")
   }
-  val dataType = valueType
-
-  val schemaVersion = "v1"
   def valueType = (longV, strV, boolV) match {
     case (Some(l), None, None) => "long"
     case (None, Some(s), None) => "string"

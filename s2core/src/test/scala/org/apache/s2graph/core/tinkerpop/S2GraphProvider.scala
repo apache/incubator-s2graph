@@ -32,7 +32,7 @@ object S2GraphProvider {
     val DefaultService = management.createService(DefaultServiceName, "localhost", "s2graph", 0, None).get
 
     //    Management.deleteColumn(DefaultServiceName, DefaultColumnName)
-    val DefaultColumn = ServiceColumn.findOrInsert(DefaultService.id.get, DefaultColumnName, Some("string"), HBaseType.DEFAULT_VERSION, useCache = false)
+    val DefaultColumn = ServiceColumn.findOrInsert(DefaultService.id.get, DefaultColumnName, Some("integer"), HBaseType.DEFAULT_VERSION, useCache = false)
 
     val DefaultColumnMetas = {
       ColumnMeta.findOrInsert(DefaultColumn.id.get, "test", "string", useCache = false)
@@ -185,7 +185,7 @@ class S2GraphProvider extends AbstractGraphProvider {
       mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
         true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
     } else {
-      mnt.createLabel("knows", defaultService.serviceName, "vertex", "string", defaultService.serviceName, "vertex", "string",
+      mnt.createLabel("knows", defaultService.serviceName, "vertex", "integer", defaultService.serviceName, "vertex", "integer",
         true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
     }
 

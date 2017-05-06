@@ -2,7 +2,7 @@ package org.apache.s2graph.core.io
 
 import org.apache.s2graph.core.{EdgeId, JSONParser, S2VertexPropertyId}
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
-import org.apache.s2graph.core.types.{InnerValLike, VertexId}
+import org.apache.s2graph.core.types.{HBaseType, InnerValLike, VertexId}
 import play.api.libs.json._
 import play.api.libs.json.Reads._
 import play.api.libs.json.Writes._
@@ -10,22 +10,22 @@ import play.api.libs.functional.syntax._
 
 object Conversions {
   /* Serializer for inner value class */
-  implicit object InnerValLikeReads extends Reads[InnerValLike] {
-    def reads(json: JsValue) = {
-      val value = (json \ "value").as[JsValue]
-      val dataType = (json \ "dataType").as[String]
-      val schemaVersion = (json \ "schemaVersion").as[String]
-      val innerVal = JSONParser.jsValueToInnerVal(value, dataType, schemaVersion).get
-      JsSuccess(innerVal)
-    }
-  }
-  implicit object InnerValLikeWrites extends Writes[InnerValLike] {
-    override def writes(o: InnerValLike): JsValue = {
-      Json.obj("value" -> JSONParser.anyValToJsValue(o.value),
-        "dataType" -> o.dataType,
-        "schemaVersion" -> o.schemaVersion)
-    }
-  }
+//  implicit object InnerValLikeReads extends Reads[InnerValLike] {
+//    def reads(json: JsValue) = {
+//      val value = (json \ "value").as[JsValue]
+//      val dataType = (json \ "dataType").as[String]
+//      val schemaVersion = (json \ "schemaVersion").as[String]
+//      val innerVal = JSONParser.jsValueToInnerVal(value, dataType, schemaVersion).get
+//      JsSuccess(innerVal)
+//    }
+//  }
+//  implicit object InnerValLikeWrites extends Writes[InnerValLike] {
+//    override def writes(o: InnerValLike): JsValue = {
+//      Json.obj("value" -> JSONParser.anyValToJsValue(o.value),
+//        "dataType" -> o.dataType,
+//        "schemaVersion" -> o.schemaVersion)
+//    }
+//  }
 
   /* Serializer for Models */
 
@@ -84,25 +84,60 @@ object Conversions {
     )(unlift(ColumnMeta.unapply))
 
   /* Graph Class */
-  implicit val s2VertexPropertyIdReads: Reads[S2VertexPropertyId] = (
-    (JsPath \ "column").read[ColumnMeta] and
-      (JsPath \ "value").read[InnerValLike]
-    )(S2VertexPropertyId.apply _)
+  implicit object S2VertexPropertyIdReads extends Reads[S2VertexPropertyId] {
+    override def reads(json: JsValue): JsResult[S2VertexPropertyId] = {
+      val columnMeta = columnMetaReads.reads((json \ "columnMeta").get).get
+      val innerVal = JSONParser.jsValueToInnerVal((json \ "value").get,
+        columnMeta.dataType, HBaseType.DEFAULT_VERSION).get
+      JsSuccess(S2VertexPropertyId(columnMeta, innerVal))
+    }
+  }
+  implicit object S2VertexPropertyIdWrites extends Writes[S2VertexPropertyId] {
+    override def writes(o: S2VertexPropertyId): JsValue = {
+      Json.obj("columnMeta" -> columnMetaWrites.writes(o.columnMeta),
+        "value" -> JSONParser.anyValToJsValue(o.value.value).get)
+    }
+  }
+  implicit val s2VertexPropertyIdReads: Reads[S2VertexPropertyId] = S2VertexPropertyIdReads
+//    (
+//    (JsPath \ "column").read[ColumnMeta] and
+//      (JsPath \ "value").read[InnerValLike]
+//    )(S2VertexPropertyId.apply _)
 
-  implicit val s2VertexPropertyIdWrites: Writes[S2VertexPropertyId] = (
-    (JsPath \ "column").write[ColumnMeta] and
-      (JsPath \ "value").write[InnerValLike]
-    )(unlift(S2VertexPropertyId.unapply))
+  implicit val s2VertexPropertyIdWrites: Writes[S2VertexPropertyId] = S2VertexPropertyIdWrites
+//    (
+//    (JsPath \ "column").write[ColumnMeta] and
+//      (JsPath \ "value").write[InnerValLike]
+//    )(unlift(S2VertexPropertyId.unapply))
 
-  implicit val s2VertexIdReads: Reads[VertexId] = (
-    (JsPath \ "column").read[ServiceColumn] and
-      (JsPath \ "value").read[InnerValLike]
-    )(VertexId.apply _)
+  implicit object S2VertexIdReads extends Reads[VertexId] {
+    override def reads(json: JsValue): JsResult[VertexId] = {
+      val column = serviceColumnReads.reads((json \ "column").get).get
+      val valueJson = (json \ "value").get
+      val innerVal = JSONParser.jsValueToInnerVal(valueJson, column.columnType, column.schemaVersion).get
 
-  implicit val s2VertexIdWrites: Writes[VertexId] = (
-    (JsPath \ "column").write[ServiceColumn] and
-      (JsPath \ "value").write[InnerValLike]
-    )(unlift(VertexId.unapply))
+      JsSuccess(VertexId(column, innerVal))
+    }
+  }
+  implicit object S2VertexIdWrites extends Writes[VertexId] {
+    override def writes(o: VertexId): JsValue = {
+      Json.obj(
+        "column" -> serviceColumnWrites.writes(o.column),
+        "value" -> JSONParser.anyValToJsValue(o.innerId.value)
+      )
+    }
+  }
+  implicit val s2VertexIdReads: Reads[VertexId] = S2VertexIdReads
+//    (
+//    (JsPath \ "column").read[ServiceColumn] and
+//      (JsPath \ "value").read[InnerValLike]
+//    )(VertexId.apply _)
+
+  implicit val s2VertexIdWrites: Writes[VertexId] = S2VertexIdWrites
+//    (
+//    (JsPath \ "column").write[ServiceColumn] and
+//      (JsPath \ "value").write[InnerValLike]
+//    )(unlift(VertexId.unapply))
 
   implicit val s2EdgeIdReads: Reads[EdgeId] = (
     (JsPath \ "srcVertexId").read[VertexId] and
