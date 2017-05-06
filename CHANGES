@@ -240,6 +240,8 @@ Release 0.1.0 - unreleased
     S2GRAPH-130: Edge.propsWithTs data type should be changed into mutable to support setter interface exist in tp3 (Committed by DOYUNG YOON).
     
     S2GRAPH-131: Add actual implementation on interfaces from TinkerPop3 structure package. (Committed by DOYUNG YOON).
+
+    S2GRAPH-136: Validate TinkerPop3 interface with gremlin-test suite. (Committed by DOYUNG YOON).
    
   TEST
     
