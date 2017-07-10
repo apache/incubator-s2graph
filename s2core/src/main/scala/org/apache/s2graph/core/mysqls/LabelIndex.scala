@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.mysqls
 
 import org.apache.s2graph.core.GraphUtil
-import org.apache.s2graph.core.mysqls.LabelIndex.indexOption
+import org.apache.s2graph.core.mysqls.LabelIndex.IndexOption
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.{JsObject, JsString, Json}
 import scalikejdbc._
@@ -42,7 +42,7 @@ object LabelIndex extends Model[LabelIndex] {
     )
   }
 
-  case class indexOption(dir: Byte,
+  case class IndexOption(dir: Byte,
                          method: String,
                          rate: Double,
                          totalModular: Long,
@@ -191,7 +191,7 @@ case class LabelIndex(id: Option[Int], labelId: Int, name: String, seq: Byte, me
     )
   }
 
-  def parseOption(dir: String): Option[indexOption] = try {
+  def parseOption(dir: String): Option[IndexOption] = try {
     options.map { string =>
       val jsObj = Json.parse(string) \ dir
 
@@ -200,7 +200,7 @@ case class LabelIndex(id: Option[Int], labelId: Int, name: String, seq: Byte, me
       val totalModular = (jsObj \ "totalModular").asOpt[Long].getOrElse(100L)
       val storeDegree = (jsObj \ "storeDegree").asOpt[Boolean].getOrElse(true)
 
-      indexOption(GraphUtil.directions(dir).toByte, method, rate, totalModular, storeDegree)
+      IndexOption(GraphUtil.directions(dir).toByte, method, rate, totalModular, storeDegree)
     }
   } catch {
     case e: Exception =>
