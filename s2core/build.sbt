@@ -46,7 +46,9 @@ libraryDependencies ++= Seq(
   "org.apache.tinkerpop" % "gremlin-test" % tinkerpopVersion % "test",
   "org.scalatest" %% "scalatest" % "2.2.4" % "test",
   "org.specs2" %% "specs2-core" % specs2Version % "test",
-  "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion 
+  "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion ,
+  "org.apache.lucene" % "lucene-core" % "6.6.0",
+  "org.apache.lucene" % "lucene-queryparser" % "6.6.0"
 )
 
 libraryDependencies := {
