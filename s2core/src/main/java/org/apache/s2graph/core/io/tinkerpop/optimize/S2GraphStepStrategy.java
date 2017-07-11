@@ -26,6 +26,8 @@ public class S2GraphStepStrategy extends AbstractTraversalStrategy<TraversalStra
                 final S2GraphStep<?, ?> s2GraphStep = new S2GraphStep<>(originalGraphStep);
                 TraversalHelper.replaceStep(originalGraphStep, (Step) s2GraphStep, traversal);
 
+
+
             } else {
                 //Make sure that any provided "start" elements are instantiated in the current transaction
 //                Object[] ids = originalGraphStep.getIds();

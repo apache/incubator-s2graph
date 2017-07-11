@@ -11,6 +11,7 @@ import org.apache.s2graph.core.io.Conversions
 import org.apache.s2graph.core.{EdgeId, S2Edge}
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.InnerValLike
+import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
 import play.api.libs.json.Json
 
 object IndexProvider {
@@ -23,11 +24,19 @@ object IndexProvider {
       case "lucene" => new LuceneIndexProvider(config)
     }
   }
+
+  def buildQueryString(hasContainers: java.util.List[HasContainer]): String = {
+    import scala.collection.JavaConversions._
+    hasContainers.map { container =>
+      container.getKey + ":" + container.getValue
+    }.mkString(" AND ")
+  }
+
 }
 
 trait IndexProvider {
   //TODO: Seq nee do be changed into stream
-  def fetchEdges(indexProps: Seq[(String, InnerValLike)]): Seq[EdgeId]
+  def fetchIds(queryString: String): java.util.List[String]
 
   def mutateEdges(edges: Seq[S2Edge]): Seq[Boolean]
 
@@ -57,24 +66,22 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     edges.map(_ => true)
   }
 
-  override def fetchEdges(indexProps: Seq[(String, InnerValLike)]): Seq[EdgeId] = {
-    val queryStr = indexProps.map { case (name, value) =>
-      name + ": " + value.toString()
-    }.mkString(" AND ")
-
-    val q = new QueryParser(edgeIdField, analyzer).parse(queryStr)
+  override def fetchIds(queryString: String): java.util.List[String] = {
+    val ids = new java.util.ArrayList[String]
+    val q = new QueryParser(edgeIdField, analyzer).parse(queryString)
     val hitsPerPage = 10
     val reader = DirectoryReader.open(directory)
     val searcher = new IndexSearcher(reader)
 
     val docs = searcher.search(q, hitsPerPage)
-    val ls = docs.scoreDocs.map { scoreDoc =>
+
+    docs.scoreDocs.foreach { scoreDoc =>
       val document = searcher.doc(scoreDoc.doc)
-      Conversions.s2EdgeIdReads.reads(Json.parse(document.get(edgeIdField))).get
+      ids.add(document.get(edgeIdField))
     }
 
     reader.close()
-    ls
+    ids
   }
 
   override def shutdown(): Unit = {

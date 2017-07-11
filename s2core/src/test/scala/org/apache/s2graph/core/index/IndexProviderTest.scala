@@ -25,7 +25,7 @@ class IndexProviderTest extends IntegrateCommon {
     edges.foreach(e => logger.debug(s"[Edge]: $e"))
     indexProvider.mutateEdges(edges)
 
-    val edgeIds = indexProvider.fetchEdges(Seq("time" -> InnerVal.withLong(10, "v4")))
+    val edgeIds = indexProvider.fetchIds("time: 10")
 
     edgeIds.foreach { edgeId =>
       logger.debug(s"[EdgeId]: $edgeId")

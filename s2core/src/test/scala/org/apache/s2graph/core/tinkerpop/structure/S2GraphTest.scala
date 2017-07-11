@@ -463,10 +463,7 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 
     val e12 = v6.addEdge("created", v3, "weight", Double.box(0.2))
 
-    val ls = graph.traversal().V().choose(new Predicate[Vertex] {
-      override def test(t: Vertex): Boolean =
-        t.label().equals("person")
-    }, out("knows"), in("created")).values("name").asAdmin()
+    val ls = graph.traversal().V().has("name", "josh")
 
     val l = ls.toList
     logger.error(s"[Size]: ${l.size}")
