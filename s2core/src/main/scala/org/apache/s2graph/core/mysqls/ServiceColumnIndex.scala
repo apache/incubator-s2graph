@@ -144,23 +144,23 @@ object ServiceColumnIndex extends Model[ServiceColumnIndex] {
     }
   }
 
-  def findAll()(implicit session: DBSession = AutoSession) = {
-    val ls = sql"""select * from $dbTableName""".map { rs => ServiceColumnIndex(rs) }.list.apply
-    val singles = ls.flatMap { x =>
-      val cacheKeys = toCacheKeys(x.id.get, x.serviceId, x.serviceColumnId, x.seq, x.metaSeqs).dropRight(1)
-      cacheKeys.map { cacheKey =>
-        cacheKey -> x
-      }
-    }
-    val multies = ls.groupBy(x => (x.serviceId, x.serviceColumnId)).map { case ((serviceId, serviceColumnId), ls) =>
-      val cacheKey = s"serviceId=$serviceId:serviceColumnId=$serviceColumnId"
-      cacheKey -> ls
-    }.toList
-
-    putsToCache(singles)
-    putsToCaches(multies)
-
-  }
+//  def findAll()(implicit session: DBSession = AutoSession) = {
+//    val ls = sql"""select * from $dbTableName""".map { rs => ServiceColumnIndex(rs) }.list.apply
+//    val singles = ls.flatMap { x =>
+//      val cacheKeys = toCacheKeys(x.id.get, x.serviceId, x.serviceColumnId, x.seq, x.metaSeqs).dropRight(1)
+//      cacheKeys.map { cacheKey =>
+//        cacheKey -> x
+//      }
+//    }
+//    val multies = ls.groupBy(x => (x.serviceId, x.serviceColumnId)).map { case ((serviceId, serviceColumnId), ls) =>
+//      val cacheKey = s"serviceId=$serviceId:serviceColumnId=$serviceColumnId"
+//      cacheKey -> ls
+//    }.toList
+//
+//    putsToCache(singles)
+//    putsToCaches(multies)
+//
+//  }
 }
 
 case class ServiceColumnIndex(id: Option[Int],

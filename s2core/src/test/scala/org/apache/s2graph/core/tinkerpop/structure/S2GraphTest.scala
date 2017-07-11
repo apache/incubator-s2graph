@@ -154,36 +154,31 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 //
 
   test("tinkerpop class graph test.") {
-//    val marko = graph.addVertex(T.label, "person", T.id, Int.box(1))
-//    marko.property("name", "marko")
-//    marko.property("age", Int.box(29))
-//    val vadas = graph.addVertex(T.label, "person", T.id, Int.box(2))
-//    vadas.property("name", "vadas", "age", Int.box(27))
-//    val lop = graph.addVertex(T.label, "software", T.id, Int.box(3), "name", "lop", "lang", "java")
-//    val josh = graph.addVertex(T.label, "person", T.id, Int.box(4), "name", "josh", "age", Int.box(32))
-//    val ripple = graph.addVertex(T.label, "software", T.id, Int.box(5), "name", "ripple", "lang", "java")
-//    val peter = graph.addVertex(T.label, "person", T.id, Int.box(6), "name", "peter", "age", Int.box(35))
-//
-//    marko.addEdge("knows", vadas, T.id, Int.box(7), "weight", Float.box(0.5f))
-//    marko.addEdge("knows", josh, T.id, Int.box(8), "weight", Float.box(1.0f))
-//    marko.addEdge("created", lop, T.id, Int.box(9), "weight", Float.box(0.4f))
-//    josh.addEdge("created", ripple, T.id, Int.box(10), "weight", Float.box(1.0f))
-//    josh.addEdge("created", lop, T.id, Int.box(11), "weight", Float.box(0.4f))
-//    peter.addEdge("created", lop, T.id, Int.box(12), "weight", Float.box(0.2f))
-//    graph.tx().commit()
-//
-//    graph.traversal().V().inV()
-//    val verticees = s2Graph.traversal().V().asAdmin().toSeq
-//
-//
-//    val vs = verticees.toList
-//    val edgeId = graph.traversal().V().has("name", "marko").outE("knows").as("e").inV().has("name", "vadas").select[Edge]("e").toList.head.id()
-//    val edges = graph.traversal().E(edgeId).toList()
-////    .as("e").inV().has("name", "vadas").select[Edge]("e").asAdmin().toSeq
-////    graph.traversal.V.has("name", outVertexName).outE(edgeLabel).as("e").inV.has("name", inVertexName).select[Edge]("e").next.id
-//    logger.error(edgeId.toString)
-//    val x = edges.mkString("\n")
-//    logger.error(x)
+    val marko = graph.addVertex(T.label, "person", T.id, Int.box(1))
+    marko.property("name", "marko")
+    marko.property("age", Int.box(29))
+    val vadas = graph.addVertex(T.label, "person", T.id, Int.box(2))
+    vadas.property("name", "vadas", "age", Int.box(27))
+    val lop = graph.addVertex(T.label, "software", T.id, Int.box(3), "name", "lop", "lang", "java")
+    val josh = graph.addVertex(T.label, "person", T.id, Int.box(4), "name", "josh", "age", Int.box(32))
+    val ripple = graph.addVertex(T.label, "software", T.id, Int.box(5), "name", "ripple", "lang", "java")
+    val peter = graph.addVertex(T.label, "person", T.id, Int.box(6), "name", "peter", "age", Int.box(35))
+
+    marko.addEdge("knows", vadas, T.id, Int.box(7), "weight", Float.box(0.5f))
+    marko.addEdge("knows", josh, T.id, Int.box(8), "weight", Float.box(1.0f))
+    marko.addEdge("created", lop, T.id, Int.box(9), "weight", Float.box(0.4f))
+    josh.addEdge("created", ripple, T.id, Int.box(10), "weight", Float.box(1.0f))
+    josh.addEdge("created", lop, T.id, Int.box(11), "weight", Float.box(0.4f))
+    peter.addEdge("created", lop, T.id, Int.box(12), "weight", Float.box(0.2f))
+    graph.tx().commit()
+
+    graph.traversal().V().inV()
+    val verticees = graph.traversal().V().asAdmin()
+
+
+    val vs = verticees.toList
+
+
   }
 
 //  test("addVertex with empty parameter") {
@@ -421,67 +416,62 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 ////      }
 ////    }
 //  }
-//  test("Modern") {
-//    val mnt = graph.management
-//    S2GraphProvider.cleanupSchema
-//    S2GraphProvider.initDefaultSchema(graph)
-//
-//    val softwareColumn = Management.createServiceColumn(S2Graph.DefaultServiceName, "software", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("lang", "-", "string")))
-//    val personColumn = Management.createServiceColumn(S2Graph.DefaultServiceName, "person", "integer",
-//      Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
-//
-//    val knows = mnt.createLabel("knows",
-//      S2Graph.DefaultServiceName, "person", "integer",
-//      S2Graph.DefaultServiceName, "person", "integer",
-//      true, S2Graph.DefaultServiceName, Nil, Seq(Prop("since", "0", "integer"), Prop("year", "0", "integer")), consistencyLevel = "strong", None, None)
-//
-//    val created = mnt.createLabel("created",
-//      S2Graph.DefaultServiceName, "person", "integer",
-//      S2Graph.DefaultServiceName, "person", "integer",
-//      true, S2Graph.DefaultServiceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
-//
-//    val g = graph.traversal()
-//    val v1 = graph.addVertex(T.label, "person", T.id, Int.box(1), "name", "marko", "age", Int.box(29))
-//    val v2 = graph.addVertex(T.label, "person", T.id, Int.box(2), "name", "vadas", "age", Int.box(27))
-//    val v3 = graph.addVertex(T.label, "software", T.id, Int.box(3), "name", "lop", "lang", "java")
-//    val v4 = graph.addVertex(T.label, "person", T.id, Int.box(4), "name", "josh", "josh", Int.box(32))
-//    val v5 = graph.addVertex(T.label, "software", T.id, Int.box(5), "name", "ripple", "lang", "java")
-//    val v6 = graph.addVertex(T.label, "person", T.id, Int.box(6), "name", "peter", "age", Int.box(35))
-//
-//    val e1 = v1.addEdge("created", v3, "weight", Double.box(0.4))
-//
-//    val e2 = v1.addEdge("knows", v2, "weight", Double.box(0.5))
-//    val e3 = v1.addEdge("knows", v4, "weight", Double.box(1.0))
-//
-//
-//    val e4 = v2.addEdge("knows", v1, "weight", Double.box(0.5))
-//
-//    val e5 = v3.addEdge("created", v1, "weight", Double.box(0.4))
-//    val e6 = v3.addEdge("created", v4, "weight", Double.box(0.4))
-//    val e7 = v3.addEdge("created", v6, "weight", Double.box(0.2))
-//
-//    val e8 = v4.addEdge("knows", v1, "weight", Double.box(1.0))
-//    val e9 = v4.addEdge("created", v5, "weight", Double.box(1.0))
-//    val e10 = v4.addEdge("created", v3, "weight", Double.box(0.4))
-//
-//    val e11 = v5.addEdge("created", v4, "weight", Double.box(1.0))
-//
-//    val e12 = v6.addEdge("created", v3, "weight", Double.box(0.2))
-//
-//    val ls = graph.traversal().V().choose(new Predicate[Vertex] {
-//      override def test(t: Vertex): Boolean =
-//        t.label().equals("person")
-//    }, out("knows"), in("created")).values("name").asAdmin()
-//
-//    val l = ls.toList
-//    logger.error(s"[Size]: ${l.size}")
-//    logger.error(l.toArray.toSeq.mkString("\n"))
-//    println(ls.toList)
-//    ls
-////    val traversal = g.V().out().as("x").in().as("y").select("x", "y").by("name").fold()
-////      .dedup(Scope.local, "x", "y").unfold();
-//
-////    val ls = traversal.toList
-////    ls
-//  }
+  test("Modern") {
+    val mnt = graph.management
+    S2GraphProvider.cleanupSchema
+    S2GraphProvider.initDefaultSchema(graph)
+
+    val softwareColumn = Management.createServiceColumn(S2Graph.DefaultServiceName, "software", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("lang", "-", "string")))
+    val personColumn = Management.createServiceColumn(S2Graph.DefaultServiceName, "person", "integer",
+      Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
+
+    val knows = mnt.createLabel("knows",
+      S2Graph.DefaultServiceName, "person", "integer",
+      S2Graph.DefaultServiceName, "person", "integer",
+      true, S2Graph.DefaultServiceName, Nil, Seq(Prop("since", "0", "integer"), Prop("year", "0", "integer")), consistencyLevel = "strong", None, None)
+
+    val created = mnt.createLabel("created",
+      S2Graph.DefaultServiceName, "person", "integer",
+      S2Graph.DefaultServiceName, "person", "integer",
+      true, S2Graph.DefaultServiceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
+
+    val g = graph.traversal()
+    val v1 = graph.addVertex(T.label, "person", T.id, Int.box(1), "name", "marko", "age", Int.box(29))
+    val v2 = graph.addVertex(T.label, "person", T.id, Int.box(2), "name", "vadas", "age", Int.box(27))
+    val v3 = graph.addVertex(T.label, "software", T.id, Int.box(3), "name", "lop", "lang", "java")
+    val v4 = graph.addVertex(T.label, "person", T.id, Int.box(4), "name", "josh", "josh", Int.box(32))
+    val v5 = graph.addVertex(T.label, "software", T.id, Int.box(5), "name", "ripple", "lang", "java")
+    val v6 = graph.addVertex(T.label, "person", T.id, Int.box(6), "name", "peter", "age", Int.box(35))
+
+    val e1 = v1.addEdge("created", v3, "weight", Double.box(0.4))
+
+    val e2 = v1.addEdge("knows", v2, "weight", Double.box(0.5))
+    val e3 = v1.addEdge("knows", v4, "weight", Double.box(1.0))
+
+
+    val e4 = v2.addEdge("knows", v1, "weight", Double.box(0.5))
+
+    val e5 = v3.addEdge("created", v1, "weight", Double.box(0.4))
+    val e6 = v3.addEdge("created", v4, "weight", Double.box(0.4))
+    val e7 = v3.addEdge("created", v6, "weight", Double.box(0.2))
+
+    val e8 = v4.addEdge("knows", v1, "weight", Double.box(1.0))
+    val e9 = v4.addEdge("created", v5, "weight", Double.box(1.0))
+    val e10 = v4.addEdge("created", v3, "weight", Double.box(0.4))
+
+    val e11 = v5.addEdge("created", v4, "weight", Double.box(1.0))
+
+    val e12 = v6.addEdge("created", v3, "weight", Double.box(0.2))
+
+    val ls = graph.traversal().V().choose(new Predicate[Vertex] {
+      override def test(t: Vertex): Boolean =
+        t.label().equals("person")
+    }, out("knows"), in("created")).values("name").asAdmin()
+
+    val l = ls.toList
+    logger.error(s"[Size]: ${l.size}")
+    logger.error(l.toArray.toSeq.mkString("\n"))
+    println(ls.toList)
+    ls
+  }
 }

@@ -29,12 +29,14 @@ import org.apache.s2graph.core.GraphExceptions.{FetchTimeoutException, LabelNotE
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.features.S2GraphVariables
 import org.apache.s2graph.core.index.{IndexProvider, LuceneIndexProvider}
+import org.apache.s2graph.core.io.tinkerpop.optimize.S2GraphStepStrategy
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.storage.{SKeyValue, Storage}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
+import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
 import org.apache.tinkerpop.gremlin.structure
 import org.apache.tinkerpop.gremlin.structure.Edge.Exceptions
 import org.apache.tinkerpop.gremlin.structure.Graph.{Features, Variables}
@@ -103,6 +105,9 @@ object S2Graph {
   val DefaultServiceName = ""
   val DefaultColumnName = "vertex"
   val DefaultLabelName = "_s2graph"
+
+  val graphStrategies: TraversalStrategies =
+    TraversalStrategies.GlobalCache.getStrategies(classOf[Graph]).addStrategies(S2GraphStepStrategy.instance)
 
   def toTypeSafeConfig(configuration: Configuration): Config = {
     val m = new mutable.HashMap[String, AnyRef]()
