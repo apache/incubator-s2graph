@@ -37,6 +37,7 @@ import org.apache.tinkerpop.gremlin.{AbstractGraphProvider, LoadGraphWith}
 import scala.collection.JavaConverters._
 
 object S2GraphProvider {
+
   val Implementation: Set[Class[_]] = Set(
     classOf[S2Edge],
     classOf[S2Vertex],

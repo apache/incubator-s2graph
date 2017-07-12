@@ -8,14 +8,16 @@ import org.apache.lucene.queryparser.classic.QueryParser
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.store.RAMDirectory
 import org.apache.s2graph.core.io.Conversions
-import org.apache.s2graph.core.{EdgeId, S2Edge}
+import org.apache.s2graph.core.{EdgeId, S2Edge, S2Vertex}
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.InnerValLike
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
 import play.api.libs.json.Json
 
 object IndexProvider {
-  val edgeIdField = "_edgeId_"
+  val vidField = "_vid_"
+  val eidField = "_eid_"
+
   def apply(config: Config): IndexProvider = {
     val indexProviderType = "lucene"
 //      if (config.hasPath("index.provider")) config.getString("index.provider") else "lucene"
@@ -36,10 +38,12 @@ object IndexProvider {
 
 trait IndexProvider {
   //TODO: Seq nee do be changed into stream
-  def fetchIds(queryString: String): java.util.List[String]
+  def fetchIds(queryString: String, isVertex: Boolean = true): java.util.List[String]
+
+  def mutateVertices(vertices: Seq[S2Vertex]): Seq[Boolean]
 
   def mutateEdges(edges: Seq[S2Edge]): Seq[Boolean]
-
+`
   def shutdown(): Unit
 }
 
@@ -51,11 +55,26 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
   val indexConfig = new IndexWriterConfig(analyzer)
   val writer = new IndexWriter(directory, indexConfig)
 
+  override def mutateVertices(vertices: Seq[S2Vertex]): Seq[Boolean] = {
+    vertices.map { vertex =>
+      val doc = new Document()
+      val id = vertex.id.toString()
+      doc.add(new StringField(vidField, id, Field.Store.YES))
+
+      vertex.properties.foreach { case (dim, value) =>
+        doc.add(new TextField(dim, value.toString, Field.Store.YES))
+      }
+      writer.addDocument(doc)
+    }
+    writer.commit()
+    vertices.map(_ => true)
+  }
+
   override def mutateEdges(edges: Seq[S2Edge]): Seq[Boolean] = {
     edges.map { edge =>
       val doc = new Document()
-      val edgeIdString = edge.edgeId.toString
-      doc.add(new StringField(edgeIdField, edgeIdString, Field.Store.YES))
+      val id = edge.edgeId.toString
+      doc.add(new StringField(eidField, id, Field.Store.YES))
 
       edge.properties.foreach { case (dim, value) =>
         doc.add(new TextField(dim, value.toString, Field.Store.YES))
@@ -66,9 +85,10 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     edges.map(_ => true)
   }
 
-  override def fetchIds(queryString: String): java.util.List[String] = {
+  override def fetchIds(queryString: String, isVertex: Boolean = true): java.util.List[String] = {
+    val field = if (isVertex) vidField else eidField
     val ids = new java.util.ArrayList[String]
-    val q = new QueryParser(edgeIdField, analyzer).parse(queryString)
+    val q = new QueryParser(field, analyzer).parse(queryString)
     val hitsPerPage = 10
     val reader = DirectoryReader.open(directory)
     val searcher = new IndexSearcher(reader)
@@ -77,7 +97,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
 
     docs.scoreDocs.foreach { scoreDoc =>
       val document = searcher.doc(scoreDoc.doc)
-      ids.add(document.get(edgeIdField))
+      ids.add(document.get(field))
     }
 
     reader.close()
@@ -87,4 +107,5 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
   override def shutdown(): Unit = {
     writer.close()
   }
+
 }

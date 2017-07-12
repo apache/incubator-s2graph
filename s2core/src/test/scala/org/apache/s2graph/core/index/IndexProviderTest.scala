@@ -25,7 +25,8 @@ class IndexProviderTest extends IntegrateCommon {
     edges.foreach(e => logger.debug(s"[Edge]: $e"))
     indexProvider.mutateEdges(edges)
 
-    val edgeIds = indexProvider.fetchIds("time: 10")
+    import scala.collection.JavaConversions._
+    val edgeIds = indexProvider.fetchIds("time: 10", isVertex = false)
 
     edgeIds.foreach { edgeId =>
       logger.debug(s"[EdgeId]: $edgeId")
