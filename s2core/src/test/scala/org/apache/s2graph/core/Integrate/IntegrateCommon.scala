@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.Integrate
 
 import com.typesafe.config._
-import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.mysqls.{Label, Model}
 import org.apache.s2graph.core.rest.{RequestParser, RestHandler}
 import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.core._

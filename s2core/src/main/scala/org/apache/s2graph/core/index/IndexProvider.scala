@@ -10,7 +10,7 @@ import org.apache.lucene.store.RAMDirectory
 import org.apache.s2graph.core.io.Conversions
 import org.apache.s2graph.core.{EdgeId, S2Edge, S2Vertex}
 import org.apache.s2graph.core.mysqls._
-import org.apache.s2graph.core.types.InnerValLike
+import org.apache.s2graph.core.types.{InnerValLike, VertexId}
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
 import play.api.libs.json.Json
 
@@ -38,12 +38,14 @@ object IndexProvider {
 
 trait IndexProvider {
   //TODO: Seq nee do be changed into stream
-  def fetchIds(queryString: String, isVertex: Boolean = true): java.util.List[String]
+  def fetchEdgeIds(queryString: String): java.util.List[EdgeId]
+
+  def fetchVertexIds(queryString: String): java.util.List[VertexId]
 
   def mutateVertices(vertices: Seq[S2Vertex]): Seq[Boolean]
 
   def mutateEdges(edges: Seq[S2Edge]): Seq[Boolean]
-`
+
   def shutdown(): Unit
 }
 
@@ -85,9 +87,9 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     edges.map(_ => true)
   }
 
-  override def fetchIds(queryString: String, isVertex: Boolean = true): java.util.List[String] = {
-    val field = if (isVertex) vidField else eidField
-    val ids = new java.util.ArrayList[String]
+  override def fetchEdgeIds(queryString: String): java.util.List[EdgeId] = {
+    val field = eidField
+    val ids = new java.util.ArrayList[EdgeId]
     val q = new QueryParser(field, analyzer).parse(queryString)
     val hitsPerPage = 10
     val reader = DirectoryReader.open(directory)
@@ -97,13 +99,31 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
 
     docs.scoreDocs.foreach { scoreDoc =>
       val document = searcher.doc(scoreDoc.doc)
-      ids.add(document.get(field))
+      ids.add(Conversions.s2EdgeIdReads.reads(Json.parse(document.get(field))).get)
     }
 
     reader.close()
     ids
   }
 
+  override def fetchVertexIds(queryString: String): java.util.List[VertexId] = {
+    val field = vidField
+    val ids = new java.util.ArrayList[VertexId]
+    val q = new QueryParser(field, analyzer).parse(queryString)
+    val hitsPerPage = 10
+    val reader = DirectoryReader.open(directory)
+    val searcher = new IndexSearcher(reader)
+
+    val docs = searcher.search(q, hitsPerPage)
+
+    docs.scoreDocs.foreach { scoreDoc =>
+      val document = searcher.doc(scoreDoc.doc)
+      ids.add(Conversions.s2VertexIdReads.reads(Json.parse(document.get(field))).get)
+    }
+
+    reader.close()
+    ids
+  }
   override def shutdown(): Unit = {
     writer.close()
   }

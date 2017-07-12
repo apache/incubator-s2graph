@@ -66,7 +66,12 @@ public class S2GraphStep<S, E extends Element> extends GraphStep<S, E> {
 
             String queryString = IndexProvider$.MODULE$.buildQueryString(hasContainers);
             Boolean isVertex = Vertex.class.isAssignableFrom(this.returnClass);
-            List<String> ids = graph.indexProvider().fetchIds(queryString, isVertex);
+
+            List<String> ids = new ArrayList<>();
+
+            if (isVertex) graph.indexProvider().fetchVertexIds(queryString);
+            else graph.indexProvider().fetchEdgeIds(queryString);
+
             return (Iterator) (Vertex.class.isAssignableFrom(this.returnClass) ? graph.vertices(ids) : graph.edges(ids));
         });
     }
