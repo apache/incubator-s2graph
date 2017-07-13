@@ -68,12 +68,12 @@ public class S2GraphStep<S, E extends Element> extends GraphStep<S, E> {
             if (isVertex) {
                 List<VertexId> ids = graph.indexProvider().fetchVertexIds(queryString);
                 if (ids.isEmpty()) return (Iterator) graph.vertices();
-                else return (Iterator) graph.vertices(ids);
+                else return (Iterator) graph.vertices(ids.toArray());
             }
             else {
                 List<EdgeId> ids = graph.indexProvider().fetchEdgeIds(queryString);
                 if (ids.isEmpty()) return (Iterator) graph.edges();
-                else return (Iterator) graph.edges(ids);
+                else return (Iterator) graph.edges(ids.toArray());
             }
         });
     }
