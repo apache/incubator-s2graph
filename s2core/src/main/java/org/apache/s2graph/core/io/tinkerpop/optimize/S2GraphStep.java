@@ -6,6 +6,7 @@ import org.apache.s2graph.core.S2Graph;
 import org.apache.s2graph.core.index.IndexProvider;
 import org.apache.s2graph.core.index.IndexProvider$;
 import org.apache.s2graph.core.mysqls.Label;
+import org.apache.s2graph.core.types.VertexId;
 import org.apache.s2graph.core.utils.logger;
 import org.apache.tinkerpop.gremlin.process.traversal.Order;
 import org.apache.tinkerpop.gremlin.process.traversal.Step;
@@ -16,16 +17,10 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.map.GraphStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.NoOpBarrierStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.IdentityStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer;
-import org.apache.tinkerpop.gremlin.process.traversal.util.MutableMetrics;
-import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalHelper;
 import org.apache.tinkerpop.gremlin.structure.Element;
-import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
-
 import java.util.*;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 public class S2GraphStep<S, E extends Element> extends GraphStep<S, E> {
     private final List<HasContainer> hasContainers = new ArrayList<>();
@@ -67,12 +62,19 @@ public class S2GraphStep<S, E extends Element> extends GraphStep<S, E> {
             String queryString = IndexProvider$.MODULE$.buildQueryString(hasContainers);
             Boolean isVertex = Vertex.class.isAssignableFrom(this.returnClass);
 
-            List<String> ids = new ArrayList<>();
+            List<VertexId> vids = new ArrayList<>();
+            List<EdgeId> eids = new ArrayList<>();
 
-            if (isVertex) graph.indexProvider().fetchVertexIds(queryString);
-            else graph.indexProvider().fetchEdgeIds(queryString);
-
-            return (Iterator) (Vertex.class.isAssignableFrom(this.returnClass) ? graph.vertices(ids) : graph.edges(ids));
+            if (isVertex) {
+                List<VertexId> ids = graph.indexProvider().fetchVertexIds(queryString);
+                if (ids.isEmpty()) return (Iterator) graph.vertices();
+                else return (Iterator) graph.vertices(ids);
+            }
+            else {
+                List<EdgeId> ids = graph.indexProvider().fetchEdgeIds(queryString);
+                if (ids.isEmpty()) return (Iterator) graph.edges();
+                else return (Iterator) graph.edges(ids);
+            }
         });
     }
 

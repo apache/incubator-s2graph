@@ -4,10 +4,11 @@ import org.apache.s2graph.core.Integrate.IntegrateCommon
 import org.apache.s2graph.core.{Management, S2Vertex}
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
-
+import scala.collection.JavaConversions._
 
 class IndexProviderTest extends IntegrateCommon {
   val indexProvider = IndexProvider(config)
+  val numOfTry = 1
 
   test("test vertex write/query") {
     import TestUtil._
@@ -28,22 +29,23 @@ class IndexProviderTest extends IntegrateCommon {
     val vertex = graph.newVertex(vertexId)
     S2Vertex.fillPropsWithTs(vertex, propsWithTs)
 
-    val vertices = Seq(vertex) ++ (0 until 10).map{ ith =>
-      val v = graph.newVertex(vertexId)
-      S2Vertex.fillPropsWithTs(v, otherPropsWithTs)
-      v
-    }
+    val otherVertex = graph.newVertex(vertexId)
+    S2Vertex.fillPropsWithTs(otherVertex, otherPropsWithTs)
+
+    val numOfOthers = 10
+    val vertices = Seq(vertex) ++ (0 until numOfOthers).map(_ => otherVertex)
 
     println(s"[# of vertices]: ${vertices.size}")
     vertices.foreach(v => println(s"[Vertex]: $v"))
     indexProvider.mutateVertices(vertices)
 
-    import scala.collection.JavaConversions._
-    val ids = indexProvider.fetchVertexIds("_timestamp: 1")
-    ids.head shouldBe vertex.id
+    (0 until numOfTry).foreach { ith =>
+      var ids = indexProvider.fetchVertexIds("_timestamp: 1")
+      ids.head shouldBe vertex.id
 
-    ids.foreach { id =>
-      println(s"[Id]: $id")
+      ids.foreach { id =>
+        println(s"[Id]: $id")
+      }
     }
   }
   test("test edge write/query ") {
@@ -64,21 +66,47 @@ class IndexProviderTest extends IntegrateCommon {
       testLabel.metaPropsInvMap("time") -> InnerValLikeWithTs.withLong(20L, 1L, "v4")
     )
     val edge = graph.newEdge(vertex, vertex, testLabel, 0, propsWithTs = propsWithTs)
-    val edges = Seq(edge) ++ (0 until 10).map{ ith =>
-      graph.newEdge(otherVertex, otherVertex, testLabel, 0, propsWithTs = otherPropsWithTs)
-    }
+    val otherEdge = graph.newEdge(otherVertex, otherVertex, testLabel, 0, propsWithTs = otherPropsWithTs)
+    val numOfOthers = 10
+    val edges = Seq(edge) ++ (0 until numOfOthers).map(_ => otherEdge)
 
     println(s"[# of edges]: ${edges.size}")
     edges.foreach(e => println(s"[Edge]: $e"))
     indexProvider.mutateEdges(edges)
 
-    import scala.collection.JavaConversions._
-    val edgeIds = indexProvider.fetchEdgeIds("time: 10 AND _timestamp: 1")
-    edgeIds.head shouldBe edge.edgeId
+    // match
+    (0 until numOfTry).foreach { _ =>
 
-    edgeIds.foreach { edgeId =>
-      println(s"[EdgeId]: $edgeId")
+      val ids = indexProvider.fetchEdgeIds("time: 10 AND _timestamp: 1")
+      ids.head shouldBe edge.edgeId
+
+      ids.foreach { id =>
+        println(s"[Id]: $id")
+      }
     }
 
+    // match and not
+    (0 until numOfTry).foreach { _ =>
+      val ids = indexProvider.fetchEdgeIds("time: 20 AND NOT _timestamp: 1")
+      //    ids.size shouldBe 0
+      ids.size shouldBe numOfOthers
+
+      ids.foreach { id =>
+        id shouldBe otherEdge.edgeId
+        println(s"[Id]: $id")
+      }
+    }
+
+    // range
+    (0 until numOfTry).foreach { _ =>
+      val ids = indexProvider.fetchEdgeIds("time: [0 TO 10]")
+      //    ids.size shouldBe 0
+      ids.size shouldBe 1
+
+      ids.foreach { id =>
+        id shouldBe edge.edgeId
+        println(s"[Id]: $id")
+      }
+    }
   }
 }

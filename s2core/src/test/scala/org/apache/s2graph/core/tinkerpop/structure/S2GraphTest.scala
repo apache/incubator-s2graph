@@ -466,8 +466,8 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     val ls = graph.traversal().V().has("name", "josh")
 
     val l = ls.toList
-    logger.error(s"[Size]: ${l.size}")
-    logger.error(l.toArray.toSeq.mkString("\n"))
+    println(s"[Size]: ${l.size}")
+    println(l.toArray.toSeq.mkString("\n"))
     println(ls.toList)
     ls
   }

@@ -99,7 +99,8 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
 
     docs.scoreDocs.foreach { scoreDoc =>
       val document = searcher.doc(scoreDoc.doc)
-      ids.add(Conversions.s2EdgeIdReads.reads(Json.parse(document.get(field))).get)
+      val id = Conversions.s2EdgeIdReads.reads(Json.parse(document.get(field))).get
+//      ids.add(id);
     }
 
     reader.close()
@@ -118,7 +119,8 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
 
     docs.scoreDocs.foreach { scoreDoc =>
       val document = searcher.doc(scoreDoc.doc)
-      ids.add(Conversions.s2VertexIdReads.reads(Json.parse(document.get(field))).get)
+      val id = Conversions.s2VertexIdReads.reads(Json.parse(document.get(field))).get
+//      ids.add(id)
     }
 
     reader.close()

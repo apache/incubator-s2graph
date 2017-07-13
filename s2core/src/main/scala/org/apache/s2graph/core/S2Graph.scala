@@ -1826,6 +1826,9 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
 
     addVertexInner(vertex)
+    indexProvider.mutateVertices(Seq(vertex))
+
+    vertex
   }
 
   def addVertex(id: VertexId,
@@ -1834,11 +1837,14 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
                 op: Byte = 0,
                 belongLabelIds: Seq[Int] = Seq.empty): S2Vertex = {
     val vertex = newVertex(id, ts, props, op, belongLabelIds)
+
     val future = mutateVertices(Seq(vertex), withWait = true).map { rets =>
       if (rets.forall(identity)) vertex
       else throw new RuntimeException("addVertex failed.")
     }
-    Await.result(future, WaitTimeout)
+    Await.ready(future, WaitTimeout)
+
+    vertex
   }
 
   def addVertexInner(vertex: S2Vertex): S2Vertex = {
@@ -1846,7 +1852,9 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       if (rets.forall(identity)) vertex
       else throw new RuntimeException("addVertex failed.")
     }
-    Await.result(future, WaitTimeout)
+    Await.ready(future, WaitTimeout)
+
+    vertex
   }
 
   def addEdge(srcVertex: S2Vertex, labelName: String, tgtVertex: Vertex, kvs: AnyRef*): Edge = {
@@ -1876,10 +1884,10 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
           val edge = newEdge(srcVertex, otherV, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
 
-          indexProvider.mutateEdges(Seq(edge))
-
           val future = mutateEdges(Seq(edge), withWait = true)
           Await.ready(future, WaitTimeout)
+
+          indexProvider.mutateEdges(Seq(edge))
           edge
         } catch {
           case e: LabelNotExistException => throw new java.lang.IllegalArgumentException(e)
