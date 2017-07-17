@@ -468,7 +468,7 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     val l = ls.toList
     println(s"[Size]: ${l.size}")
     println(l.toArray.toSeq.mkString("\n"))
-    
+
     ls
   }
 }

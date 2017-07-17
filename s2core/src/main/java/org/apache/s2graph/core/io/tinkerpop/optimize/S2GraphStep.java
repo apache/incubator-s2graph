@@ -18,6 +18,8 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.map.NoOpBarrierStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.IdentityStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer;
 import org.apache.tinkerpop.gremlin.structure.Element;
+import org.apache.tinkerpop.gremlin.structure.Graph;
+import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
 import java.util.*;
@@ -45,6 +47,8 @@ public class S2GraphStep<S, E extends Element> extends GraphStep<S, E> {
     public S2GraphStep(final GraphStep<S, E> originalStep) {
         super(originalStep.getTraversal(), originalStep.getReturnClass(), originalStep.isStartStep(), originalStep.getIds());
 
+        if (!(traversal.asAdmin().getGraph().get() instanceof S2Graph)) return ;
+
         foldInHasContainers(originalStep);
         originalStep.getLabels().forEach(this::addLabel);
         // 1. build S2Graph QueryParams for this step.
@@ -58,22 +62,25 @@ public class S2GraphStep<S, E extends Element> extends GraphStep<S, E> {
                 return iteratorList((Iterator)graph.vertices(this.ids));
             }
             // full scan
-
-            String queryString = IndexProvider$.MODULE$.buildQueryString(hasContainers);
             Boolean isVertex = Vertex.class.isAssignableFrom(this.returnClass);
+            if (hasContainers.isEmpty()) {
+                return (Iterator) (isVertex ? graph.vertices() : graph.edges());
+            } else {
+                String queryString = IndexProvider$.MODULE$.buildQueryString(hasContainers);
 
-            List<VertexId> vids = new ArrayList<>();
-            List<EdgeId> eids = new ArrayList<>();
+                List<VertexId> vids = new ArrayList<>();
+                List<EdgeId> eids = new ArrayList<>();
 
-            if (isVertex) {
-                List<VertexId> ids = graph.indexProvider().fetchVertexIds(queryString);
-                if (ids.isEmpty()) return (Iterator) graph.vertices();
-                else return (Iterator) graph.vertices(ids.toArray());
-            }
-            else {
-                List<EdgeId> ids = graph.indexProvider().fetchEdgeIds(queryString);
-                if (ids.isEmpty()) return (Iterator) graph.edges();
-                else return (Iterator) graph.edges(ids.toArray());
+                if (isVertex) {
+                    List<VertexId> ids = graph.indexProvider().fetchVertexIds(queryString);
+                    if (ids.isEmpty()) return (Iterator) graph.vertices();
+                    else return (Iterator) graph.vertices(ids.toArray());
+                }
+                else {
+                    List<EdgeId> ids = graph.indexProvider().fetchEdgeIds(queryString);
+                    if (ids.isEmpty()) return (Iterator) graph.edges();
+                    else return (Iterator) graph.edges(ids.toArray());
+                }
             }
         });
     }
