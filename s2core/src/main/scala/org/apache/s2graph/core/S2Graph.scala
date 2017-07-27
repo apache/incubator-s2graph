@@ -67,8 +67,10 @@ object S2Graph {
     "hbase.table.name" -> "s2graph",
     "hbase.table.compression.algorithm" -> "gz",
     "phase" -> "dev",
-    "db.default.driver" ->  "org.h2.Driver",
-    "db.default.url" -> "jdbc:h2:file:./var/metastore;MODE=MYSQL",
+//    "db.default.driver" ->  "org.h2.Driver",
+//    "db.default.url" -> "jdbc:h2:file:./var/metastore;MODE=MYSQL",
+    "db.default.driver" -> "com.mysql.jdbc.Driver",
+    "db.default.url" -> "jdbc:mysql://default:3306/graph_dev",
     "db.default.password" -> "graph",
     "db.default.user" -> "graph",
     "cache.max.size" -> java.lang.Integer.valueOf(0),
@@ -1826,7 +1828,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
 
     addVertexInner(vertex)
-    indexProvider.mutateVertices(Seq(vertex))
 
     vertex
   }
@@ -1848,15 +1849,17 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   }
 
   def addVertexInner(vertex: S2Vertex): S2Vertex = {
-    val future = mutateVertices(Seq(vertex), withWait = true).map { rets =>
-      if (rets.forall(identity)) vertex
-      else throw new RuntimeException("addVertex failed.")
+    val future = mutateVertices(Seq(vertex), withWait = true).flatMap { rets =>
+      if (rets.forall(identity)) {
+        indexProvider.mutateVerticesAsync(Seq(vertex))
+      } else throw new RuntimeException("addVertex failed.")
     }
     Await.ready(future, WaitTimeout)
 
     vertex
   }
 
+  /* tp3 only */
   def addEdge(srcVertex: S2Vertex, labelName: String, tgtVertex: Vertex, kvs: AnyRef*): Edge = {
     val containsId = kvs.contains(T.id)
 
@@ -1884,10 +1887,11 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
           val edge = newEdge(srcVertex, otherV, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
 
-          val future = mutateEdges(Seq(edge), withWait = true)
+          val future = mutateEdges(Seq(edge), withWait = true).flatMap { rets =>
+            indexProvider.mutateEdgesAsync(Seq(edge))
+          }
           Await.ready(future, WaitTimeout)
 
-          indexProvider.mutateEdges(Seq(edge))
           edge
         } catch {
           case e: LabelNotExistException => throw new java.lang.IllegalArgumentException(e)

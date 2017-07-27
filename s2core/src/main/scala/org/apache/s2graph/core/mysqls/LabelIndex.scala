@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.mysqls
 
 import org.apache.s2graph.core.GraphUtil
-import org.apache.s2graph.core.mysqls.LabelIndex.IndexOption
+import org.apache.s2graph.core.mysqls.LabelIndex.LabelIndexMutateOption
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.{JsObject, JsString, Json}
 import scalikejdbc._
@@ -42,11 +42,11 @@ object LabelIndex extends Model[LabelIndex] {
     )
   }
 
-  case class IndexOption(dir: Byte,
-                         method: String,
-                         rate: Double,
-                         totalModular: Long,
-                         storeDegree: Boolean) {
+  case class LabelIndexMutateOption(dir: Byte,
+                                    method: String,
+                                    rate: Double,
+                                    totalModular: Long,
+                                    storeDegree: Boolean) {
 
     val isBufferIncrement = method == "drop" || method == "sample" || method == "hash_sample"
 
@@ -169,7 +169,44 @@ object LabelIndex extends Model[LabelIndex] {
     }.toList)
   }
 }
+/**
+mgmt.buildIndex('nameAndAge',Vertex.class)
+.addKey(name,Mapping.TEXT.getParameter())
+.addKey(age,Mapping.TEXT.getParameter())
+.buildMixedIndex("search")
 
+v: {name: abc} - E1: {age: 20}, E2, E3....
+
+Management.createServiceColumn(
+		serviceName = serviceName, columnName = "person", columnType = "integer",
+    props = Seq(
+    	Prop("name", "-", "string"),
+    	Prop("age", "0", "integer"),
+    	Prop("location", "-", "string")
+    )
+)
+
+management.createLabel(
+		label = "bought",
+    srcServiceName = serviceName, srcColumnName = "person", srcColumnType = "integer",
+    tgtServiceName = serviceName, tgtColumnName = "product", tgtColumnType = "integer", idDirected = true,
+    serviceName = serviceName,
+    indices = Seq(
+    	Index("PK", Seq("amount", "created_at"), IndexType("mixed", propsMapping: Map[String, String]),
+{"in": {}, "out": {}})
+    ),
+    props = Seq(
+    	Prop("amount", "0.0", "double"),
+    	Prop("created_at", "2000-01-01", "string")
+    ),
+    consistencyLevel = "strong"
+)
+
+mgmt.buildIndex('PK', Edge.class)
+  .addKey(amount, Double)
+  .buildCompositeIndex
+
+*/
 case class LabelIndex(id: Option[Int], labelId: Int, name: String, seq: Byte, metaSeqs: Seq[Byte], formulars: String,
                       dir: Option[Int], options: Option[String]) {
   // both
@@ -191,7 +228,7 @@ case class LabelIndex(id: Option[Int], labelId: Int, name: String, seq: Byte, me
     )
   }
 
-  def parseOption(dir: String): Option[IndexOption] = try {
+  def parseOption(dir: String): Option[LabelIndexMutateOption] = try {
     options.map { string =>
       val jsObj = Json.parse(string) \ dir
 
@@ -200,7 +237,7 @@ case class LabelIndex(id: Option[Int], labelId: Int, name: String, seq: Byte, me
       val totalModular = (jsObj \ "totalModular").asOpt[Long].getOrElse(100L)
       val storeDegree = (jsObj \ "storeDegree").asOpt[Boolean].getOrElse(true)
 
-      IndexOption(GraphUtil.directions(dir).toByte, method, rate, totalModular, storeDegree)
+      LabelIndexMutateOption(GraphUtil.directions(dir).toByte, method, rate, totalModular, storeDegree)
     }
   } catch {
     case e: Exception =>

@@ -86,18 +86,16 @@ public class S2GraphStep<S, E extends Element> extends GraphStep<S, E> {
             if (hasContainers.isEmpty()) {
                 return (Iterator) (isVertex ? graph.vertices() : graph.edges());
             } else {
-                String queryString = IndexProvider$.MODULE$.buildQueryString(hasContainers);
-
                 List<VertexId> vids = new ArrayList<>();
                 List<EdgeId> eids = new ArrayList<>();
 
                 if (isVertex) {
-                    List<VertexId> ids = graph.indexProvider().fetchVertexIds(queryString);
+                    List<VertexId> ids = graph.indexProvider().fetchVertexIds(hasContainers);
                     if (ids.isEmpty()) return (Iterator) graph.vertices();
                     else return (Iterator) graph.vertices(ids.toArray());
                 }
                 else {
-                    List<EdgeId> ids = graph.indexProvider().fetchEdgeIds(queryString);
+                    List<EdgeId> ids = graph.indexProvider().fetchEdgeIds(hasContainers);
                     if (ids.isEmpty()) return (Iterator) graph.edges();
                     else return (Iterator) graph.edges(ids.toArray());
                 }

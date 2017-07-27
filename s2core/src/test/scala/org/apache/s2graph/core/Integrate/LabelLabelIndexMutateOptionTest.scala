@@ -23,7 +23,7 @@ import org.apache.s2graph.core._
 import org.scalatest.BeforeAndAfterEach
 import play.api.libs.json._
 
-class LabelIndexOptionTest extends IntegrateCommon with BeforeAndAfterEach {
+class LabelLabelIndexMutateOptionTest extends IntegrateCommon with BeforeAndAfterEach {
 
   import TestUtil._
 

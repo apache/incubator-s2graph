@@ -201,48 +201,6 @@ case class S2Vertex(graph: S2Graph,
 
   override def addEdge(labelName: String, vertex: Vertex, kvs: AnyRef*): Edge = {
     graph.addEdge(this, labelName, vertex, kvs: _*)
-//    val containsId = kvs.contains(T.id)
-//    vertex match {
-//      case otherV: S2Vertex =>
-//        if (!graph.features().edge().supportsUserSuppliedIds() && containsId) {
-//          throw Exceptions.userSuppliedIdsNotSupported()
-//        }
-//
-//        val props = S2Property.kvsToProps(kvs)
-//
-//        props.foreach { case (k, v) => S2Property.assertValidProp(k, v) }
-//
-//        //TODO: direction, operation, _timestamp need to be reserved property key.
-//
-//        try {
-//          val direction = props.get("direction").getOrElse("out").toString
-//          val ts = props.get(LabelMeta.timestamp.name).map(_.toString.toLong).getOrElse(System.currentTimeMillis())
-//          val operation = props.get("operation").map(_.toString).getOrElse("insert")
-//          val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
-//          val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
-//          val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
-//          val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
-//          val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
-//
-//          val edge = graph.newEdge(this, otherV, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
-////          //TODO: return type of mutateEdges can contains information if snapshot edge already exist.
-////          // instead call checkEdges, we can exploit this feature once we refactor return type.
-////          implicit val ec = graph.ec
-////          val future = graph.checkEdges(Seq(edge)).flatMap { stepResult =>
-////            if (stepResult.edgeWithScores.nonEmpty)
-////              Future.failed(throw Graph.Exceptions.edgeWithIdAlreadyExists(edge.id()))
-////            else
-////              graph.mutateEdges(Seq(edge), withWait = true)
-////          }
-//          val future = graph.mutateEdges(Seq(edge), withWait = true)
-//          Await.ready(future, graph.WaitTimeout)
-//          edge
-//        } catch {
-//          case e: LabelNotExistException => throw new java.lang.IllegalArgumentException(e)
-//         }
-//      case null => throw new java.lang.IllegalArgumentException
-//      case _ => throw new RuntimeException("only S2Graph vertex can be used.")
-//    }
   }
 
   override def property[V](key: String): VertexProperty[V] = {

@@ -24,10 +24,10 @@ import java.util.function.Predicate
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.Management.JsonModel.Prop
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{Service, ServiceColumn}
+import org.apache.s2graph.core.mysqls.{GlobalIndex, Service, ServiceColumn}
 import org.apache.s2graph.core.tinkerpop.S2GraphProvider
 import org.apache.s2graph.core.utils.logger
-import org.apache.tinkerpop.gremlin.process.traversal.Scope
+import org.apache.tinkerpop.gremlin.process.traversal.{Compare, P, Scope}
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__.{in, out}
 import org.apache.tinkerpop.gremlin.structure._
@@ -41,7 +41,7 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
   initTests()
 
   val g = new S2Graph(config)
-
+  lazy val gIndex = management.buildGlobalIndex("S2GraphTest", Seq("weight"))
   def printEdges(edges: Seq[Edge]): Unit = {
     edges.foreach { edge =>
       logger.debug(s"[FetchedEdge]: $edge")
@@ -153,33 +153,33 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 //    true, service.serviceName, Nil, Seq(Prop("weight", "0.0", "float")), "strong", None, None)
 //
 
-  test("tinkerpop class graph test.") {
-    val marko = graph.addVertex(T.label, "person", T.id, Int.box(1))
-    marko.property("name", "marko")
-    marko.property("age", Int.box(29))
-    val vadas = graph.addVertex(T.label, "person", T.id, Int.box(2))
-    vadas.property("name", "vadas", "age", Int.box(27))
-    val lop = graph.addVertex(T.label, "software", T.id, Int.box(3), "name", "lop", "lang", "java")
-    val josh = graph.addVertex(T.label, "person", T.id, Int.box(4), "name", "josh", "age", Int.box(32))
-    val ripple = graph.addVertex(T.label, "software", T.id, Int.box(5), "name", "ripple", "lang", "java")
-    val peter = graph.addVertex(T.label, "person", T.id, Int.box(6), "name", "peter", "age", Int.box(35))
-
-    marko.addEdge("knows", vadas, T.id, Int.box(7), "weight", Float.box(0.5f))
-    marko.addEdge("knows", josh, T.id, Int.box(8), "weight", Float.box(1.0f))
-    marko.addEdge("created", lop, T.id, Int.box(9), "weight", Float.box(0.4f))
-    josh.addEdge("created", ripple, T.id, Int.box(10), "weight", Float.box(1.0f))
-    josh.addEdge("created", lop, T.id, Int.box(11), "weight", Float.box(0.4f))
-    peter.addEdge("created", lop, T.id, Int.box(12), "weight", Float.box(0.2f))
-    graph.tx().commit()
-
-    graph.traversal().V().inV()
-    val verticees = graph.traversal().V().asAdmin()
-
-
-    val vs = verticees.toList
-
-
-  }
+//  test("tinkerpop class graph test.") {
+//    val marko = graph.addVertex(T.label, "person", T.id, Int.box(1))
+//    marko.property("name", "marko")
+//    marko.property("age", Int.box(29))
+//    val vadas = graph.addVertex(T.label, "person", T.id, Int.box(2))
+//    vadas.property("name", "vadas", "age", Int.box(27))
+//    val lop = graph.addVertex(T.label, "software", T.id, Int.box(3), "name", "lop", "lang", "java")
+//    val josh = graph.addVertex(T.label, "person", T.id, Int.box(4), "name", "josh", "age", Int.box(32))
+//    val ripple = graph.addVertex(T.label, "software", T.id, Int.box(5), "name", "ripple", "lang", "java")
+//    val peter = graph.addVertex(T.label, "person", T.id, Int.box(6), "name", "peter", "age", Int.box(35))
+//
+//    marko.addEdge("knows", vadas, T.id, Int.box(7), "weight", Float.box(0.5f))
+//    marko.addEdge("knows", josh, T.id, Int.box(8), "weight", Float.box(1.0f))
+//    marko.addEdge("created", lop, T.id, Int.box(9), "weight", Float.box(0.4f))
+//    josh.addEdge("created", ripple, T.id, Int.box(10), "weight", Float.box(1.0f))
+//    josh.addEdge("created", lop, T.id, Int.box(11), "weight", Float.box(0.4f))
+//    peter.addEdge("created", lop, T.id, Int.box(12), "weight", Float.box(0.2f))
+//    graph.tx().commit()
+//
+//    graph.traversal().V().inV()
+//    val verticees = graph.traversal().V().asAdmin()
+//
+//
+//    val vs = verticees.toList
+//
+//
+//  }
 
 //  test("addVertex with empty parameter") {
 //
@@ -417,7 +417,10 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 ////    }
 //  }
   test("Modern") {
+    gIndex
     val mnt = graph.management
+
+
     S2GraphProvider.cleanupSchema
     S2GraphProvider.initDefaultSchema(graph)
 
@@ -428,7 +431,7 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     val knows = mnt.createLabel("knows",
       S2Graph.DefaultServiceName, "person", "integer",
       S2Graph.DefaultServiceName, "person", "integer",
-      true, S2Graph.DefaultServiceName, Nil, Seq(Prop("since", "0", "integer"), Prop("year", "0", "integer")), consistencyLevel = "strong", None, None)
+      true, S2Graph.DefaultServiceName, Nil, Seq(Prop("weight", "0.0", "double"), Prop("year", "0", "integer")), consistencyLevel = "strong", None, None)
 
     val created = mnt.createLabel("created",
       S2Graph.DefaultServiceName, "person", "integer",
@@ -463,7 +466,7 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 
     val e12 = v6.addEdge("created", v3, "weight", Double.box(0.2))
 
-    val ls = graph.traversal().V().has("name", "josh")
+    val ls = graph.traversal().E().has("weight", P.eq(Double.box(0.5)))
 
     val l = ls.toList
     println(s"[Size]: ${l.size}")

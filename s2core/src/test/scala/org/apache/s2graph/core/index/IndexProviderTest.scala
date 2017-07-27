@@ -20,7 +20,9 @@
 package org.apache.s2graph.core.index
 
 import org.apache.s2graph.core.Integrate.IntegrateCommon
-import org.apache.s2graph.core.{Management, S2Vertex}
+import org.apache.s2graph.core.S2Vertex
+import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
+import org.apache.tinkerpop.gremlin.process.traversal.P
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
 import scala.collection.JavaConversions._
@@ -29,7 +31,10 @@ class IndexProviderTest extends IntegrateCommon {
   val indexProvider = IndexProvider(config)
   val numOfTry = 1
 
+  lazy val gIndex = management.buildGlobalIndex("test1", Seq("_timestamp", "weight", "time"))
+
   test("test vertex write/query") {
+    gIndex
     import TestUtil._
 //    Management.addVertexProp(testServiceName, testColumnName, "time", "long")
 
@@ -59,7 +64,9 @@ class IndexProviderTest extends IntegrateCommon {
     indexProvider.mutateVertices(vertices)
 
     (0 until numOfTry).foreach { ith =>
-      var ids = indexProvider.fetchVertexIds("_timestamp: 1")
+      val hasContainer = new HasContainer("_timestamp", P.eq(Long.box(1)))
+
+      var ids = indexProvider.fetchVertexIds(Seq(hasContainer))
       ids.head shouldBe vertex.id
 
       ids.foreach { id =>
@@ -67,6 +74,7 @@ class IndexProviderTest extends IntegrateCommon {
       }
     }
   }
+
   test("test edge write/query ") {
     import TestUtil._
     val testLabelName = TestUtil.testLabelName
@@ -95,8 +103,9 @@ class IndexProviderTest extends IntegrateCommon {
 
     // match
     (0 until numOfTry).foreach { _ =>
-
-      val ids = indexProvider.fetchEdgeIds("time: 10 AND _timestamp: 1")
+      val hasContainers = Seq(new HasContainer("time", P.eq(Int.box(10))),
+        new HasContainer("_timestamp", P.eq(Int.box(1))))
+      val ids = indexProvider.fetchEdgeIds(hasContainers)
       ids.head shouldBe edge.edgeId
 
       ids.foreach { id =>
@@ -106,7 +115,9 @@ class IndexProviderTest extends IntegrateCommon {
 
     // match and not
     (0 until numOfTry).foreach { _ =>
-      val ids = indexProvider.fetchEdgeIds("time: 20 AND NOT _timestamp: 1")
+      val hasContainers = Seq(new HasContainer("time", P.eq(Int.box(20))),
+        new HasContainer("_timestamp", P.neq(Int.box(1))))
+      val ids = indexProvider.fetchEdgeIds(hasContainers)
       //    ids.size shouldBe 0
       ids.size shouldBe numOfOthers
 
@@ -118,7 +129,9 @@ class IndexProviderTest extends IntegrateCommon {
 
     // range
     (0 until numOfTry).foreach { _ =>
-      val ids = indexProvider.fetchEdgeIds("time: [0 TO 10]")
+      val hasContainers = Seq(new HasContainer("time",
+        P.inside(Int.box(0), Int.box(11))))
+      val ids = indexProvider.fetchEdgeIds(hasContainers)
       //    ids.size shouldBe 0
       ids.size shouldBe 1
 
@@ -128,4 +141,52 @@ class IndexProviderTest extends IntegrateCommon {
       }
     }
   }
+
+  test("buildQuerySingleString") {
+    // (weight: 34) AND (weight: [0.5 TO *] AND price: 30)
+
+    var hasContainer = new HasContainer("weight", P.eq(Double.box(0.5)))
+
+    var queryString = IndexProvider.buildQuerySingleString(hasContainer)
+
+    println(s"[[QueryString]]: ${queryString}")
+
+    hasContainer = new HasContainer("weight", P.gte(Double.box(0.5)))
+    queryString = IndexProvider.buildQuerySingleString(hasContainer)
+
+    println(s"[[QueryString]]: ${queryString}")
+
+    hasContainer = new HasContainer("weight", P.within(Double.box(0.5), Double.box(0.7)))
+    queryString = IndexProvider.buildQuerySingleString(hasContainer)
+
+    println(s"[[QueryString]]: ${queryString}")
+
+    hasContainer = new HasContainer("weight", P.without(Double.box(0.5), Double.box(0.7)))
+    queryString = IndexProvider.buildQuerySingleString(hasContainer)
+
+    println(s"[[QueryString]]: ${queryString}")
+  }
+
+  test("buildQueryString") {
+    // (weight: 34) AND (weight: [1 TO 100])
+
+    var hasContainers = Seq(
+      new HasContainer("weight", P.eq(Int.box(34))),
+      new HasContainer("weight", P.between(Int.box(1), Int.box(100)))
+    )
+
+    var queryString = IndexProvider.buildQueryString(hasContainers)
+    println(s"[[QueryString]: ${queryString}")
+
+    hasContainers = Seq(
+      new HasContainer("weight", P.eq(Int.box(34))),
+      new HasContainer("weight", P.outside(Int.box(1), Int.box(100)))
+    )
+
+    queryString = IndexProvider.buildQueryString(hasContainers)
+    println(s"[[QueryString]: ${queryString}")
+  }
+
+
+
 }

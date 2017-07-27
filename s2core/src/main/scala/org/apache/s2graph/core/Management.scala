@@ -348,6 +348,15 @@ class Management(graph: S2Graph) {
       old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync, old.compressionAlgorithm, old.options)
   }
 
+  def buildGlobalIndex(name: String, propNames: Seq[String]): GlobalIndex = {
+    GlobalIndex.findBy(name) match {
+      case None =>
+        val idxId = GlobalIndex.insert(name, propNames)
+        GlobalIndex.findBy(name).get
+      case Some(oldIndex) => oldIndex
+    }
+  }
+
   def getCurrentStorageInfo(labelName: String): Try[Map[String, String]] = for {
     label <- Try(Label.findByName(labelName, useCache = false).get)
   } yield {
