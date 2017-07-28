@@ -6,9 +6,15 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
+<<<<<<< HEAD
  * 
  *   http://www.apache.org/licenses/LICENSE-2.0
  * 
+=======
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+>>>>>>> S2GRAPH-152
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,8 +30,13 @@ import scalikejdbc.{AutoSession, DBSession, WrappedResultSet}
 import scalikejdbc._
 
 object GlobalIndex extends Model[GlobalIndex] {
-  import org.apache.s2graph.core.index.IndexProvider._
+  val vidField = "_vid_"
+  val eidField = "_eid_"
+  val labelField = "_label_"
+  val serviceField = "_service_"
+  val serviceColumnField = "_serviceColumn_"
 
+  val hiddenIndexFields = Set(vidField, eidField, labelField, serviceField, serviceColumnField)
   val DefaultIndexName = GlobalIndex(None, Seq(vidField, eidField, serviceField, serviceColumnField, labelField), "_default_")
 
   val TableName = "global_indices"
@@ -42,7 +53,8 @@ object GlobalIndex extends Model[GlobalIndex] {
   }
 
   def insert(indexName: String, propNames: Seq[String])(implicit session: DBSession = AutoSession): Long = {
-    sql"""insert into global_indices(prop_names, index_name) values(${propNames.sorted.mkString(",")}, $indexName)"""
+    val allPropNames = (hiddenIndexFields.toSeq ++ propNames).sorted
+    sql"""insert into global_indices(prop_names, index_name) values(${allPropNames.mkString(",")}, $indexName)"""
       .updateAndReturnGeneratedKey.apply()
   }
 

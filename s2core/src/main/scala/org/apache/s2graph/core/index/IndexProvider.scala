@@ -42,13 +42,7 @@ import play.api.libs.json.Json
 import scala.concurrent.Future
 
 object IndexProvider {
-  val vidField = "_vid_"
-  val eidField = "_eid_"
-  val labelField = "_label_"
-  val serviceField = "_service_"
-  val serviceColumnField = "_serviceColumn_"
-
-  val hiddenIndexFields = Set(vidField, eidField, labelField, serviceField, serviceColumnField)
+  import GlobalIndex._
   val hitsPerPage = 100000
 
   def apply(config: Config): IndexProvider = {
@@ -146,6 +140,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
   import IndexProvider._
   import scala.collection.mutable
   import scala.collection.JavaConverters._
+  import GlobalIndex._
 
   val analyzer = new StandardAnalyzer()
   val writers = mutable.Map.empty[String, IndexWriter]

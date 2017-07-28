@@ -352,7 +352,7 @@ class Management(graph: S2Graph) {
   def buildGlobalIndex(name: String, propNames: Seq[String]): GlobalIndex = {
     GlobalIndex.findBy(name, false) match {
       case None =>
-        val idxId = GlobalIndex.insert(name, propNames ++ IndexProvider.hiddenIndexFields)
+        GlobalIndex.insert(name, propNames)
         GlobalIndex.findBy(name, false).get
       case Some(oldIndex) => oldIndex
     }
