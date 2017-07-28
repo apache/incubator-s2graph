@@ -20,11 +20,14 @@
 package org.apache.s2graph.core.index
 
 import org.apache.s2graph.core.Integrate.IntegrateCommon
-import org.apache.s2graph.core.S2Vertex
+import org.apache.s2graph.core.{Query, QueryParam, S2Vertex, Step}
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
-import org.apache.tinkerpop.gremlin.process.traversal.P
+import org.apache.tinkerpop.gremlin.process.traversal.{Order, P}
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
+import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalHelper
+import org.apache.tinkerpop.gremlin.structure.T
+
 import scala.collection.JavaConversions._
 
 class IndexProviderTest extends IntegrateCommon {
@@ -218,4 +221,12 @@ class IndexProviderTest extends IntegrateCommon {
     println(s"[[QueryString]: ${queryString}")
   }
 
+  test("has label") {
+    //    has("song", "name", "OH BOY").out("followedBy").out("followedBy").order.by("performances").by("songType", Order.decr)
+    val hasContainers = Seq(new HasContainer(T.label.getAccessor, P.eq("song")),
+                            new HasContainer("name", P.eq("OH BOY")))
+    val queryString = IndexProvider.buildQueryString(hasContainers)
+    println(s"[[QueryString]: ${queryString}")
+
+  }
 }

@@ -27,6 +27,7 @@ import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.Management.JsonModel.Prop
 import org.apache.s2graph.core.S2Graph.{DefaultColumnName, DefaultServiceName}
 import org.apache.s2graph.core._
+import org.apache.s2graph.core.index.IndexProvider
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Label, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, VertexId}
 import org.apache.s2graph.core.utils.logger

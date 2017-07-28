@@ -47,6 +47,8 @@ object IndexProvider {
   val labelField = "_label_"
   val serviceField = "_service_"
   val serviceColumnField = "_serviceColumn_"
+
+  val hiddenIndexFields = Set(vidField, eidField, labelField, serviceField, serviceColumnField)
   val hitsPerPage = 100000
 
   def apply(config: Config): IndexProvider = {

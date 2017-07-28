@@ -41,7 +41,7 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
   initTests()
 
   val g = new S2Graph(config)
-  lazy val gIndex = management.buildGlobalIndex("S2GraphTest", Seq("weight"))
+  lazy val gIndex = management.buildGlobalIndex("S2GraphTest2", Seq("weight"))
   def printEdges(edges: Seq[Edge]): Unit = {
     edges.foreach { edge =>
       logger.debug(s"[FetchedEdge]: $edge")
@@ -466,7 +466,8 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 
     val e12 = v6.addEdge("created", v3, "weight", Double.box(0.2))
 
-    val ls = graph.traversal().E().has("weight", P.eq(Double.box(0.5)))
+    val ls = graph.traversal().E().has("knows", "weight", P.eq(Double.box(0.5)))
+
 //    return graph.traversal.V().hasLabel("person").has("age", P.not(P.lte(10).and(P.not(P.between(11, 20)))).and(P.lt(29).or(P.eq(35)))).values("name")
     val l = ls.toList
     println(s"[Size]: ${l.size}")

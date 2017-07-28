@@ -19,12 +19,13 @@
 
 package org.apache.s2graph.core
 
-import org.apache.s2graph.core.GraphExceptions.{LabelNameTooLongException, InvalidHTableException, LabelAlreadyExistException, LabelNotExistException}
+import org.apache.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNameTooLongException, LabelNotExistException}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.index.IndexProvider
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.Reads._
 import play.api.libs.json._
@@ -349,10 +350,10 @@ class Management(graph: S2Graph) {
   }
 
   def buildGlobalIndex(name: String, propNames: Seq[String]): GlobalIndex = {
-    GlobalIndex.findBy(name) match {
+    GlobalIndex.findBy(name, false) match {
       case None =>
-        val idxId = GlobalIndex.insert(name, propNames)
-        GlobalIndex.findBy(name).get
+        val idxId = GlobalIndex.insert(name, propNames ++ IndexProvider.hiddenIndexFields)
+        GlobalIndex.findBy(name, false).get
       case Some(oldIndex) => oldIndex
     }
   }
