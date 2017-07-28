@@ -187,6 +187,35 @@ class IndexProviderTest extends IntegrateCommon {
     println(s"[[QueryString]: ${queryString}")
   }
 
+  test("complex.") {
+    //val predicate = P.lte(10).and(P.between(11, 20)) // .and(P.lt(29).or(P.eq(35)))
+    val predicate = P.eq(30).and(P.between(11, 20)) // .and(P.lt(29).or(P.eq(35)))
 
+      /*
+
+      (x = 30 and x >= 11 and x < 20)
+
+      //
+      ((x <= 10 and (x >= 11 and x < 20)) and (x < 29 or x = 35))
+
+      (and
+        (lte 10)
+        (and
+          (between 11, 20))
+          (or
+            (lt 29)
+            (eq 35))
+          )
+        )
+      )
+
+      (x:[* TO 10] OR x:10) AND ((x:[11 TO *] AND x:[* TO 20]) AND (x:[* TO 29] OR x:35))
+      ((x:[* TO 10] OR x:10) AND x:[11 TO *] AND x:[* TO 20] AND (x:[* TO 29] OR x:35))
+       */
+
+    val hasContainers = Seq(new HasContainer("x", predicate))
+    val queryString = IndexProvider.buildQueryString(hasContainers)
+    println(s"[[QueryString]: ${queryString}")
+  }
 
 }

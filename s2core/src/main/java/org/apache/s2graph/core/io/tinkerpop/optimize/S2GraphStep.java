@@ -43,6 +43,7 @@ import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class S2GraphStep<S, E extends Element> extends GraphStep<S, E> {
     private final List<HasContainer> hasContainers = new ArrayList<>();
@@ -88,14 +89,30 @@ public class S2GraphStep<S, E extends Element> extends GraphStep<S, E> {
             } else {
                 List<VertexId> vids = new ArrayList<>();
                 List<EdgeId> eids = new ArrayList<>();
+                List<HasContainer> filtered = new ArrayList<>();
+
+                hasContainers.forEach(c -> {
+                    if (c.getKey() == T.id.getAccessor()) {
+                        if (c.getValue() instanceof List<?>) {
+                            ((List<?>)c.getValue()).forEach(o -> {
+                                if (isVertex) vids.add((VertexId) o);
+                                else eids.add((EdgeId) o);
+                            });
+                        } else {
+                            if (isVertex) vids.add((VertexId)c.getValue());
+                            else eids.add((EdgeId)c.getValue());
+                        }
+                    } else {
+                        filtered.add(c);
+                    }
+                });
 
                 if (isVertex) {
-                    List<VertexId> ids = graph.indexProvider().fetchVertexIds(hasContainers);
+                    List<VertexId> ids = graph.indexProvider().fetchVertexIds(filtered.stream().distinct().collect(Collectors.toList()));
                     if (ids.isEmpty()) return (Iterator) graph.vertices();
                     else return (Iterator) graph.vertices(ids.toArray());
-                }
-                else {
-                    List<EdgeId> ids = graph.indexProvider().fetchEdgeIds(hasContainers);
+                } else {
+                    List<EdgeId> ids = graph.indexProvider().fetchEdgeIds(filtered.stream().distinct().collect(Collectors.toList()));
                     if (ids.isEmpty()) return (Iterator) graph.edges();
                     else return (Iterator) graph.edges(ids.toArray());
                 }

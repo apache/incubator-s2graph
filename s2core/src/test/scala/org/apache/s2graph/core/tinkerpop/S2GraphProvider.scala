@@ -108,7 +108,6 @@ object S2GraphProvider {
 class S2GraphProvider extends AbstractGraphProvider {
 
   override def getBaseConfiguration(s: String, aClass: Class[_], s1: String, graphData: GraphData): util.Map[String, AnyRef] = {
-    val config = ConfigFactory.load()
     val m = new java.util.HashMap[String, AnyRef]()
     m.put(Graph.GRAPH, classOf[S2Graph].getName)
 //    m.put("db.default.url", "jdbc:h2:mem:db1;MODE=MYSQL")

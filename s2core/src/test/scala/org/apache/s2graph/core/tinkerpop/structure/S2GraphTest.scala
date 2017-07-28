@@ -467,7 +467,7 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     val e12 = v6.addEdge("created", v3, "weight", Double.box(0.2))
 
     val ls = graph.traversal().E().has("weight", P.eq(Double.box(0.5)))
-
+//    return graph.traversal.V().hasLabel("person").has("age", P.not(P.lte(10).and(P.not(P.between(11, 20)))).and(P.lt(29).or(P.eq(35)))).values("name")
     val l = ls.toList
     println(s"[Size]: ${l.size}")
     println(l.toArray.toSeq.mkString("\n"))

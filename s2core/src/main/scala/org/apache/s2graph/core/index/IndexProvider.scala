@@ -36,6 +36,7 @@ import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.process.traversal.{Compare, Contains, P}
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
 import org.apache.tinkerpop.gremlin.process.traversal.util.{AndP, OrP}
+import org.apache.tinkerpop.gremlin.structure.T
 import play.api.libs.json.Json
 
 import scala.concurrent.Future
@@ -46,6 +47,7 @@ object IndexProvider {
   val labelField = "_label_"
   val serviceField = "_service_"
   val serviceColumnField = "_serviceColumn_"
+  val hitsPerPage = 100000
 
   def apply(config: Config): IndexProvider = {
     val indexProviderType = "lucene"
@@ -59,23 +61,38 @@ object IndexProvider {
   def buildQuerySingleString(container: HasContainer): String = {
     import scala.collection.JavaConversions._
 
-    val key = container.getKey
+    val key = if (container.getKey == T.label.getAccessor) labelField else container.getKey
     val value = container.getValue
 
-    val biPredicate = container.getBiPredicate
+    container.getPredicate match {
+      case and: AndP[_] =>
+        val buffer = scala.collection.mutable.ArrayBuffer.empty[String]
+        and.getPredicates.foreach { p =>
+          buffer.append(buildQuerySingleString(new HasContainer(container.getKey, p)))
+        }
+        buffer.mkString("(", " AND ", ")")
+      case or: OrP[_] =>
+        val buffer = scala.collection.mutable.ArrayBuffer.empty[String]
+        or.getPredicates.foreach { p =>
+          buffer.append(buildQuerySingleString(new HasContainer(container.getKey, p)))
+        }
+        buffer.mkString("(", " OR ", ")")
+      case _ =>
+        val biPredicate = container.getBiPredicate
+        biPredicate match {
 
-    biPredicate match {
-      case Contains.within =>
-        key + ":(" + value.asInstanceOf[util.Collection[_]].toSeq.mkString(" OR ") + ")"
-      case Contains.without =>
-        key + ":NOT (" + value.asInstanceOf[util.Collection[_]].toSeq.mkString(" AND ") + ")"
-      case Compare.eq => s"${key}:${value}"
-      case Compare.gte => s"${key}:[${value} TO *] AND NOT ${key}:${value}"
-      case Compare.gt => s"${key}:[${value} TO *]"
-      case Compare.lte => s"${key}:[* TO ${value}]"
-      case Compare.lt => s"${key}:[* TO ${value}] AND NOT ${key}:${value}"
-      case Compare.neq => s"NOT ${key}:${value}"
-      case _ => throw new IllegalArgumentException("not supported yet.")
+          case Contains.within =>
+            key + ":(" + value.asInstanceOf[util.Collection[_]].toSeq.mkString(" OR ") + ")"
+          case Contains.without =>
+            "NOT " + key + ":(" + value.asInstanceOf[util.Collection[_]].toSeq.mkString(" AND ") + ")"
+          case Compare.eq => s"${key}:${value}"
+          case Compare.gt => s"(${key}:[${value} TO *] AND NOT ${key}:${value})"
+          case Compare.gte => s"${key}:[${value} TO *]"
+          case Compare.lt => s"${key}:[* TO ${value}]"
+          case Compare.lte => s"(${key}:[* TO ${value}] OR ${key}:${value})"
+          case Compare.neq => s"NOT ${key}:${value}"
+          case _ => throw new IllegalArgumentException("not supported yet.")
+        }
     }
   }
 
@@ -228,14 +245,14 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
 
   override def fetchEdgeIds(hasContainers: java.util.List[HasContainer]): java.util.List[EdgeId] = {
     val field = eidField
-    val ids = new java.util.ArrayList[EdgeId]
+    val ids = new java.util.HashSet[EdgeId]
 
     GlobalIndex.findGlobalIndex(hasContainers).map { globalIndex =>
       val queryString = buildQueryString(hasContainers)
 
       try {
         val q = new QueryParser(field, analyzer).parse(queryString)
-        val hitsPerPage = 10
+
         val reader = DirectoryReader.open(directories(globalIndex.indexName))
         val searcher = new IndexSearcher(reader)
 
@@ -256,18 +273,19 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
       }
     }
 
-    ids
+    new util.ArrayList[EdgeId](ids)
   }
 
   override def fetchVertexIds(hasContainers: java.util.List[HasContainer]): java.util.List[VertexId] = {
     val field = vidField
-    val ids = new java.util.ArrayList[VertexId]
+    val ids = new java.util.HashSet[VertexId]
+
     GlobalIndex.findGlobalIndex(hasContainers).map { globalIndex =>
       val queryString = buildQueryString(hasContainers)
 
       try {
         val q = new QueryParser(field, analyzer).parse(queryString)
-        val hitsPerPage = 10
+
         val reader = DirectoryReader.open(directories(globalIndex.indexName))
         val searcher = new IndexSearcher(reader)
 
@@ -288,7 +306,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
       }
     }
 
-    ids
+    new util.ArrayList[VertexId](ids)
   }
 
   override def shutdown(): Unit = {
