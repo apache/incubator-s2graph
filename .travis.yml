@@ -16,7 +16,7 @@
 language: scala
 
 env:
-  - HBASE_VERSION=1.2.5
+  - HBASE_VERSION=1.2.6
 
 cache:
   directories:
