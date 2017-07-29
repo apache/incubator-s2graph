@@ -350,12 +350,14 @@ class Management(graph: S2Graph) {
   }
 
   def buildGlobalIndex(name: String, propNames: Seq[String]): GlobalIndex = {
-    GlobalIndex.findBy(name, false) match {
-      case None =>
-        GlobalIndex.insert(name, propNames)
-        GlobalIndex.findBy(name, false).get
-      case Some(oldIndex) => oldIndex
-    }
+    Model.withTx { implicit session =>
+      GlobalIndex.findBy(name, false) match {
+        case None =>
+          GlobalIndex.insert(name, propNames)
+          GlobalIndex.findBy(name, false).get
+        case Some(oldIndex) => oldIndex
+      }
+    }.get
   }
 
   def getCurrentStorageInfo(labelName: String): Try[Map[String, String]] = for {
