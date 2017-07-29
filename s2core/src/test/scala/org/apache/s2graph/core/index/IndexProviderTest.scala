@@ -36,115 +36,115 @@ class IndexProviderTest extends IntegrateCommon {
 
   lazy val gIndex = management.buildGlobalIndex("test1", Seq("_timestamp", "weight", "time"))
 
-  test("test vertex write/query") {
-    gIndex
-    import TestUtil._
-//    Management.addVertexProp(testServiceName, testColumnName, "time", "long")
-
-    val testService = Service.findByName(TestUtil.testServiceName).get
-    val testColumn = ServiceColumn.find(testService.id.get, TestUtil.testColumnName).get
-    val vertexId = graph.newVertexId(testServiceName)(testColumnName)(1L)
-
-    val propsWithTs = Map(
-//      testColumn.metasInvMap("time") -> InnerVal.withLong(1L, "v4")
-      ColumnMeta.timestamp -> InnerVal.withLong(1L, "v4")
-    )
-    val otherPropsWithTs = Map(
-//      testColumn.metasInvMap("time") -> InnerVal.withLong(2L, "v4")
-      ColumnMeta.timestamp -> InnerVal.withLong(2L, "v4")
-    )
-    val vertex = graph.newVertex(vertexId)
-    S2Vertex.fillPropsWithTs(vertex, propsWithTs)
-
-    val otherVertex = graph.newVertex(vertexId)
-    S2Vertex.fillPropsWithTs(otherVertex, otherPropsWithTs)
-
-    val numOfOthers = 10
-    val vertices = Seq(vertex) ++ (0 until numOfOthers).map(_ => otherVertex)
-
-    println(s"[# of vertices]: ${vertices.size}")
-    vertices.foreach(v => println(s"[Vertex]: $v"))
-    indexProvider.mutateVertices(vertices)
-
-    (0 until numOfTry).foreach { ith =>
-      val hasContainer = new HasContainer("_timestamp", P.eq(Long.box(1)))
-
-      var ids = indexProvider.fetchVertexIds(Seq(hasContainer))
-      ids.head shouldBe vertex.id
-
-      ids.foreach { id =>
-        println(s"[Id]: $id")
-      }
-    }
-  }
-
-  test("test edge write/query ") {
-    import TestUtil._
-    val testLabelName = TestUtil.testLabelName
-    val testLabel = Label.findByName(testLabelName).getOrElse(throw new IllegalArgumentException)
-    val vertexId = graph.newVertexId(testServiceName)(testColumnName)(1L)
-    val otherVertexId = graph.newVertexId(testServiceName)(testColumnName)(2L)
-    val vertex = graph.newVertex(vertexId)
-    val otherVertex = graph.newVertex(otherVertexId)
-
-    val propsWithTs = Map(
-      LabelMeta.timestamp -> InnerValLikeWithTs.withLong(1L, 1L, "v4"),
-      testLabel.metaPropsInvMap("time") -> InnerValLikeWithTs.withLong(10L, 1L, "v4")
-    )
-    val otherPropsWithTs = Map(
-      LabelMeta.timestamp -> InnerValLikeWithTs.withLong(2L, 2L, "v4"),
-      testLabel.metaPropsInvMap("time") -> InnerValLikeWithTs.withLong(20L, 2L, "v4")
-    )
-    val edge = graph.newEdge(vertex, vertex, testLabel, 0, propsWithTs = propsWithTs)
-    val otherEdge = graph.newEdge(otherVertex, otherVertex, testLabel, 0, propsWithTs = otherPropsWithTs)
-    val numOfOthers = 10
-    val edges = Seq(edge) ++ (0 until numOfOthers).map(_ => otherEdge)
-
-    println(s"[# of edges]: ${edges.size}")
-    edges.foreach(e => println(s"[Edge]: $e"))
-    indexProvider.mutateEdges(edges)
-
-    // match
-    (0 until numOfTry).foreach { _ =>
-      val hasContainers = Seq(new HasContainer("time", P.eq(Int.box(10))),
-        new HasContainer("_timestamp", P.eq(Int.box(1))))
-      val ids = indexProvider.fetchEdgeIds(hasContainers)
-      ids.head shouldBe edge.edgeId
-
-      ids.foreach { id =>
-        println(s"[Id]: $id")
-      }
-    }
-
-    // match and not
-    (0 until numOfTry).foreach { _ =>
-      val hasContainers = Seq(new HasContainer("time", P.eq(Int.box(20))),
-        new HasContainer("_timestamp", P.neq(Int.box(1))))
-      val ids = indexProvider.fetchEdgeIds(hasContainers)
-      //    ids.size shouldBe 0
-      // distinct make ids size to 1
-//      ids.size shouldBe numOfOthers
-
-      ids.foreach { id =>
-        id shouldBe otherEdge.edgeId
-        println(s"[Id]: $id")
-      }
-    }
-
-    // range
-    (0 until numOfTry).foreach { _ =>
-      val hasContainers = Seq(new HasContainer("time",
-        P.inside(Int.box(0), Int.box(11))))
-      val ids = indexProvider.fetchEdgeIds(hasContainers)
-      //    ids.size shouldBe 0
-      ids.size shouldBe 1
-
-      ids.foreach { id =>
-        id shouldBe edge.edgeId
-        println(s"[Id]: $id")
-      }
-    }
-  }
+//  test("test vertex write/query") {
+//    gIndex
+//    import TestUtil._
+////    Management.addVertexProp(testServiceName, testColumnName, "time", "long")
+//
+//    val testService = Service.findByName(TestUtil.testServiceName).get
+//    val testColumn = ServiceColumn.find(testService.id.get, TestUtil.testColumnName).get
+//    val vertexId = graph.newVertexId(testServiceName)(testColumnName)(1L)
+//
+//    val propsWithTs = Map(
+////      testColumn.metasInvMap("time") -> InnerVal.withLong(1L, "v4")
+//      ColumnMeta.timestamp -> InnerVal.withLong(1L, "v4")
+//    )
+//    val otherPropsWithTs = Map(
+////      testColumn.metasInvMap("time") -> InnerVal.withLong(2L, "v4")
+//      ColumnMeta.timestamp -> InnerVal.withLong(2L, "v4")
+//    )
+//    val vertex = graph.newVertex(vertexId)
+//    S2Vertex.fillPropsWithTs(vertex, propsWithTs)
+//
+//    val otherVertex = graph.newVertex(vertexId)
+//    S2Vertex.fillPropsWithTs(otherVertex, otherPropsWithTs)
+//
+//    val numOfOthers = 10
+//    val vertices = Seq(vertex) ++ (0 until numOfOthers).map(_ => otherVertex)
+//
+//    println(s"[# of vertices]: ${vertices.size}")
+//    vertices.foreach(v => println(s"[Vertex]: $v"))
+//    indexProvider.mutateVertices(vertices)
+//
+//    (0 until numOfTry).foreach { ith =>
+//      val hasContainer = new HasContainer("_timestamp", P.eq(Long.box(1)))
+//
+//      var ids = indexProvider.fetchVertexIds(Seq(hasContainer))
+//      ids.head shouldBe vertex.id
+//
+//      ids.foreach { id =>
+//        println(s"[Id]: $id")
+//      }
+//    }
+//  }
+//
+//  test("test edge write/query ") {
+//    import TestUtil._
+//    val testLabelName = TestUtil.testLabelName
+//    val testLabel = Label.findByName(testLabelName).getOrElse(throw new IllegalArgumentException)
+//    val vertexId = graph.newVertexId(testServiceName)(testColumnName)(1L)
+//    val otherVertexId = graph.newVertexId(testServiceName)(testColumnName)(2L)
+//    val vertex = graph.newVertex(vertexId)
+//    val otherVertex = graph.newVertex(otherVertexId)
+//
+//    val propsWithTs = Map(
+//      LabelMeta.timestamp -> InnerValLikeWithTs.withLong(1L, 1L, "v4"),
+//      testLabel.metaPropsInvMap("time") -> InnerValLikeWithTs.withLong(10L, 1L, "v4")
+//    )
+//    val otherPropsWithTs = Map(
+//      LabelMeta.timestamp -> InnerValLikeWithTs.withLong(2L, 2L, "v4"),
+//      testLabel.metaPropsInvMap("time") -> InnerValLikeWithTs.withLong(20L, 2L, "v4")
+//    )
+//    val edge = graph.newEdge(vertex, vertex, testLabel, 0, propsWithTs = propsWithTs)
+//    val otherEdge = graph.newEdge(otherVertex, otherVertex, testLabel, 0, propsWithTs = otherPropsWithTs)
+//    val numOfOthers = 10
+//    val edges = Seq(edge) ++ (0 until numOfOthers).map(_ => otherEdge)
+//
+//    println(s"[# of edges]: ${edges.size}")
+//    edges.foreach(e => println(s"[Edge]: $e"))
+//    indexProvider.mutateEdges(edges)
+//
+//    // match
+//    (0 until numOfTry).foreach { _ =>
+//      val hasContainers = Seq(new HasContainer("time", P.eq(Int.box(10))),
+//        new HasContainer("_timestamp", P.eq(Int.box(1))))
+//      val ids = indexProvider.fetchEdgeIds(hasContainers)
+//      ids.head shouldBe edge.edgeId
+//
+//      ids.foreach { id =>
+//        println(s"[Id]: $id")
+//      }
+//    }
+//
+//    // match and not
+//    (0 until numOfTry).foreach { _ =>
+//      val hasContainers = Seq(new HasContainer("time", P.eq(Int.box(20))),
+//        new HasContainer("_timestamp", P.neq(Int.box(1))))
+//      val ids = indexProvider.fetchEdgeIds(hasContainers)
+//      //    ids.size shouldBe 0
+//      // distinct make ids size to 1
+////      ids.size shouldBe numOfOthers
+//
+//      ids.foreach { id =>
+//        id shouldBe otherEdge.edgeId
+//        println(s"[Id]: $id")
+//      }
+//    }
+//
+//    // range
+//    (0 until numOfTry).foreach { _ =>
+//      val hasContainers = Seq(new HasContainer("time",
+//        P.inside(Int.box(0), Int.box(11))))
+//      val ids = indexProvider.fetchEdgeIds(hasContainers)
+//      //    ids.size shouldBe 0
+//      ids.size shouldBe 1
+//
+//      ids.foreach { id =>
+//        id shouldBe edge.edgeId
+//        println(s"[Id]: $id")
+//      }
+//    }
+//  }
 
   test("buildQuerySingleString") {
     // (weight: 34) AND (weight: [0.5 TO *] AND price: 30)
