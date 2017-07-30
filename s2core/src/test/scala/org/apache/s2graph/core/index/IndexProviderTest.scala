@@ -34,7 +34,7 @@ class IndexProviderTest extends IntegrateCommon {
   val indexProvider = IndexProvider(config)
   val numOfTry = 1
 
-  lazy val gIndex = management.buildGlobalIndex("test1", Seq("_timestamp", "weight", "time"))
+  lazy val gIndex = management.buildGlobalIndex(GlobalIndex.EdgeType, "test1", Seq("_timestamp", "weight", "time"))
 
 //  test("test vertex write/query") {
 //    gIndex

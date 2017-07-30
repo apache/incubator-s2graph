@@ -115,11 +115,12 @@ ALTER TABLE labels add FOREIGN KEY(service_id) REFERENCES services(id);
 DROP TABLE IF EXISTS `global_indices`;
 CREATE TABLE `global_indices` (
   `id` integer NOT NULL AUTO_INCREMENT,
+  `element_type` varchar(64) NOT NULL,
   `prop_names` varchar(255) NOT NULL,
   `index_name` varchar(64)	NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `ux_global_index_index_name` (`index_name`),
-  UNIQUE KEY `ux_global_index_prop_names` (`prop_names`)
+  UNIQUE KEY `ux_global_index_element_type_index_name` (`element_type`, `index_name`),
+  UNIQUE KEY `ux_global_index_element_type_prop_names` (`element_type`, `prop_names`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 

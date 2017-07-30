@@ -35,35 +35,40 @@ object GlobalIndex extends Model[GlobalIndex] {
   val labelField = "_label_"
   val serviceField = "_service_"
   val serviceColumnField = "_serviceColumn_"
-
+  val EdgeType = "edge"
+  val VertexType = "vertex"
   val hiddenIndexFields = Set(vidField, eidField, labelField, serviceField, serviceColumnField)
-  val DefaultIndexName = GlobalIndex(None, Seq(vidField, eidField, serviceField, serviceColumnField, labelField), "_default_")
 
   val TableName = "global_indices"
 
   def apply(rs: WrappedResultSet): GlobalIndex = {
-    GlobalIndex(rs.intOpt("id"), rs.string("prop_names").split(",").sorted, rs.string("index_name"))
+    GlobalIndex(rs.intOpt("id"),
+      rs.string("element_type"),
+      rs.string("prop_names").split(",").sorted,
+      rs.string("index_name"))
   }
 
-  def findBy(indexName: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[GlobalIndex] = {
-    val cacheKey = s"indexName=$indexName"
-    lazy val sql = sql"""select * from global_indices where index_name = $indexName""".map { rs => GlobalIndex(rs) }.single.apply()
+  def findBy(elementType: String, indexName: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[GlobalIndex] = {
+    val cacheKey = s"elementType=$elementType:indexName=$indexName"
+    lazy val sql = sql"""select * from global_indices where element_type = ${elementType} and index_name = $indexName""".map { rs => GlobalIndex(rs) }.single.apply()
+
     if (useCache) withCache(cacheKey){sql}
     else sql
   }
 
-  def insert(indexName: String, propNames: Seq[String])(implicit session: DBSession = AutoSession): Long = {
+  def insert(elementType: String, indexName: String, propNames: Seq[String])(implicit session: DBSession = AutoSession): Long = {
     val allPropNames = (hiddenIndexFields.toSeq ++ propNames).sorted
-    sql"""insert into global_indices(prop_names, index_name) values(${allPropNames.mkString(",")}, $indexName)"""
+    sql"""insert into global_indices(element_type, prop_names, index_name)
+         values($elementType, ${allPropNames.mkString(",")}, $indexName)"""
       .updateAndReturnGeneratedKey.apply()
   }
 
-  def findAll(useCache: Boolean = true)(implicit session: DBSession = AutoSession): Seq[GlobalIndex] = {
-    lazy val ls = sql"""select * from global_indices """.map { rs => GlobalIndex(rs) }.list.apply
+  def findAll(elementType: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Seq[GlobalIndex] = {
+    lazy val ls = sql"""select * from global_indices where element_type = $elementType""".map { rs => GlobalIndex(rs) }.list.apply
     if (useCache) {
-      listCache.withCache("findAll") {
+      listCache.withCache(s"findAll:elementType=$elementType") {
         putsToCache(ls.map { globalIndex =>
-          val cacheKey = s"indexName=${globalIndex.indexName}"
+          val cacheKey = s"elementType=${globalIndex.elementType}:indexName=${globalIndex.indexName}"
           cacheKey -> globalIndex
         })
         ls
@@ -73,9 +78,9 @@ object GlobalIndex extends Model[GlobalIndex] {
     }
   }
 
-  def findGlobalIndex(hasContainers: java.util.List[HasContainer])(implicit session: DBSession = AutoSession): Option[GlobalIndex] = {
+  def findGlobalIndex(elementType: String, hasContainers: java.util.List[HasContainer])(implicit session: DBSession = AutoSession): Option[GlobalIndex] = {
     import scala.collection.JavaConversions._
-    val indices = findAll(useCache = true)
+    val indices = findAll(elementType, useCache = true)
     val keys = hasContainers.map(_.getKey)
 
     val sorted = indices.map { index =>
@@ -88,6 +93,9 @@ object GlobalIndex extends Model[GlobalIndex] {
 
 }
 
-case class GlobalIndex(id: Option[Int], propNames: Seq[String], indexName: String)  {
+case class GlobalIndex(id: Option[Int],
+                       elementType: String,
+                       propNames: Seq[String],
+                       indexName: String)  {
   lazy val propNamesSet = propNames.toSet
 }

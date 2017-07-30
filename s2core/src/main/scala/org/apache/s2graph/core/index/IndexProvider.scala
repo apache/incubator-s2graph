@@ -205,7 +205,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
   }
 
   override def mutateVertices(vertices: Seq[S2Vertex]): Seq[Boolean] = {
-    val globalIndexOptions = GlobalIndex.findAll()
+    val globalIndexOptions = GlobalIndex.findAll(GlobalIndex.VertexType)
 
     globalIndexOptions.map { globalIndex =>
       val writer = getOrElseCreateIndexWriter(globalIndex.indexName)
@@ -223,7 +223,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
   }
 
   override def mutateEdges(edges: Seq[S2Edge]): Seq[Boolean] = {
-    val globalIndexOptions = GlobalIndex.findAll()
+    val globalIndexOptions = GlobalIndex.findAll(GlobalIndex.EdgeType)
 
     globalIndexOptions.map { globalIndex =>
       val writer = getOrElseCreateIndexWriter(globalIndex.indexName)
@@ -244,7 +244,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     val field = eidField
     val ids = new java.util.HashSet[EdgeId]
 
-    GlobalIndex.findGlobalIndex(hasContainers).map { globalIndex =>
+    GlobalIndex.findGlobalIndex(GlobalIndex.EdgeType, hasContainers).map { globalIndex =>
       val queryString = buildQueryString(hasContainers)
 
       try {
@@ -277,7 +277,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     val field = vidField
     val ids = new java.util.HashSet[VertexId]
 
-    GlobalIndex.findGlobalIndex(hasContainers).map { globalIndex =>
+    GlobalIndex.findGlobalIndex(GlobalIndex.VertexType, hasContainers).map { globalIndex =>
       val queryString = buildQueryString(hasContainers)
 
       try {

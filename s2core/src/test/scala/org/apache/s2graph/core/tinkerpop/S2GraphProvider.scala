@@ -24,13 +24,14 @@ import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.Management.JsonModel.Prop
 import org.apache.s2graph.core.S2Graph.{DefaultColumnName, DefaultServiceName}
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{ColumnMeta, Label, Service, ServiceColumn}
+import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, VertexId}
 import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.LoadGraphWith.GraphData
 import org.apache.tinkerpop.gremlin.structure.{Element, Graph, T}
 import org.apache.tinkerpop.gremlin.{AbstractGraphProvider, LoadGraphWith}
 import java.util
+
 import scala.collection.JavaConverters._
 
 object S2GraphProvider {
@@ -508,7 +509,9 @@ class S2GraphProvider extends AbstractGraphProvider {
       options = Option("""{"skipReverse": false}""")
     )
 
-    val globalIndex = mnt.buildGlobalIndex("global", allProps.map(_.name).toSeq)
+    Seq(GlobalIndex.VertexType, GlobalIndex.EdgeType).foreach { elementType =>
+      mnt.buildGlobalIndex(elementType, "global", allProps.map(_.name).toSeq)
+    }
     super.loadGraphData(graph, loadGraphWith, testClass, testName)
   }
 
