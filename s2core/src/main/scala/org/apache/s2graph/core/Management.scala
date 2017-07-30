@@ -348,11 +348,17 @@ class Management(graph: S2Graph) {
       old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync, old.compressionAlgorithm, old.options)
   }
 
-  def buildGlobalIndex(name: String, propNames: Seq[String]): GlobalIndex = {
-    GlobalIndex.findBy(name, false) match {
+  def buildGlobalVertexIndex(name: String, propNames: Seq[String]): GlobalIndex =
+    buildGlobalIndex(GlobalIndex.VertexType, name, propNames)
+
+  def buildGlobalEdgeIndex(name: String, propNames: Seq[String]): GlobalIndex =
+    buildGlobalIndex(GlobalIndex.EdgeType, name, propNames)
+
+  def buildGlobalIndex(elementType: String, name: String, propNames: Seq[String]): GlobalIndex = {
+    GlobalIndex.findBy(elementType, name, false) match {
       case None =>
-        GlobalIndex.insert(name, propNames)
-        GlobalIndex.findBy(name, false).get
+        GlobalIndex.insert(elementType, name, propNames)
+        GlobalIndex.findBy(elementType, name, false).get
       case Some(oldIndex) => oldIndex
     }
   }
