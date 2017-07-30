@@ -242,6 +242,8 @@ Release 0.1.0 - unreleased
     S2GRAPH-131: Add actual implementation on interfaces from TinkerPop3 structure package. (Committed by DOYUNG YOON).
 
     S2GRAPH-136: Validate TinkerPop3 interface with gremlin-test suite. (Committed by DOYUNG YOON).
+    
+    S2GRAPH-152: Add buildGlobalIndex API on Management. (Committed by DOYUNG YOON).
    
   TEST
     
