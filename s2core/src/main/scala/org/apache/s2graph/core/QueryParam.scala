@@ -28,8 +28,9 @@ import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.rest.TemplateHelper
 import org.apache.s2graph.core.storage.StorageSerializable._
 import org.apache.s2graph.core.types._
+import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
 import org.hbase.async.ColumnRangeFilter
-import play.api.libs.json.{JsString, JsNull, JsValue, Json}
+import play.api.libs.json.{JsNull, JsString, JsValue, Json}
 
 import scala.util.{Success, Try}
 
@@ -257,6 +258,7 @@ object QueryParam {
   val Delimiter = ","
   val maxMetaByte = (-1).toByte
   val fillArray = Array.fill(100)(maxMetaByte)
+  import scala.collection.JavaConverters._
 
   def apply(labelWithDirection: LabelWithDirection): QueryParam = {
     val label = Label.findById(labelWithDirection.labelId)

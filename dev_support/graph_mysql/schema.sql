@@ -178,6 +178,28 @@ ALTER TABLE label_indices ADD FOREIGN KEY(label_id) REFERENCES labels(id) ON DEL
 
 
 -- ----------------------------
+--  Table structure for `service_column_indices`
+-- ----------------------------
+DROP TABLE IF EXISTS `service_column_indices`;
+CREATE TABLE `service_column_indices` (
+	`id` int(11) NOT NULL AUTO_INCREMENT,
+	`service_id` int(11) NOT NULL,
+	`service_column_id` int(11) NOT NULL,
+	`name` varchar(64) NOT NULL DEFAULT '_PK',
+	`seq` tinyint(4) NOT NULL,
+	`meta_seqs` varchar(64) NOT NULL,
+	`options` text,
+	PRIMARY KEY (`id`),
+	UNIQUE KEY `ux_service_id_service_column_id_seq` (`service_id`,`service_column_id`,`seq`),
+	UNIQUE KEY `ux_service_id_service_column_id_name` (`service_id`, `service_column_id`,`name`),
+	UNIQUE KEY `ux_service_id_service_column_id_seqs` (`service_id`, `service_column_id`,`meta_seqs`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE service_column_indices ADD FOREIGN KEY(service_id) REFERENCES services(id) ON DELETE CASCADE;
+ALTER TABLE service_column_indices ADD FOREIGN KEY(service_column_id) REFERENCES service_columns(id) ON DELETE CASCADE;
+
+
+-- ----------------------------
 --  Table structure for `experiments`
 -- ----------------------------
 DROP TABLE IF EXISTS `experiments`;

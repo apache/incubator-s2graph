@@ -28,13 +28,17 @@ import org.apache.commons.configuration.{BaseConfiguration, Configuration}
 import org.apache.s2graph.core.GraphExceptions.{FetchTimeoutException, LabelNotExistException}
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.features.S2GraphVariables
+import org.apache.s2graph.core.index.{IndexProvider, LuceneIndexProvider}
+import org.apache.s2graph.core.io.tinkerpop.optimize.S2GraphStepStrategy
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.storage.{SKeyValue, Storage}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
+import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
 import org.apache.tinkerpop.gremlin.structure
+import org.apache.tinkerpop.gremlin.structure.Edge.Exceptions
 import org.apache.tinkerpop.gremlin.structure.Graph.{Features, Variables}
 import org.apache.tinkerpop.gremlin.structure.io.{GraphReader, GraphWriter, Io, Mapper}
 import org.apache.tinkerpop.gremlin.structure.{Edge, Element, Graph, T, Transaction, Vertex}
@@ -65,6 +69,8 @@ object S2Graph {
     "phase" -> "dev",
     "db.default.driver" ->  "org.h2.Driver",
     "db.default.url" -> "jdbc:h2:file:./var/metastore;MODE=MYSQL",
+//    "db.default.driver" -> "com.mysql.jdbc.Driver",
+//    "db.default.url" -> "jdbc:mysql://default:3306/graph_dev",
     "db.default.password" -> "graph",
     "db.default.user" -> "graph",
     "cache.max.size" -> java.lang.Integer.valueOf(0),
@@ -101,6 +107,9 @@ object S2Graph {
   val DefaultServiceName = ""
   val DefaultColumnName = "vertex"
   val DefaultLabelName = "_s2graph"
+
+  val graphStrategies: TraversalStrategies =
+    TraversalStrategies.GlobalCache.getStrategies(classOf[Graph]).addStrategies(S2GraphStepStrategy.instance)
 
   def toTypeSafeConfig(configuration: Configuration): Config = {
     val m = new mutable.HashMap[String, AnyRef]()
@@ -731,7 +740,7 @@ object S2Graph {
 
 
   /* compliance */
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.CoreTraversalTest", method = "*", reason = "no"),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.CoreTraversalTest", method = "shouldThrowExceptionWhenIdsMixed", reason = "VertexId is not Element."),
 //  passed: all
 
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.TraversalInterruptionTest", method = "*", reason = "not supported yet."),
@@ -945,6 +954,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     (k, v) = (entry.getKey, entry.getValue)
   } logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
 
+  val indexProvider = IndexProvider.apply(config)
 
   def getStorage(service: Service): Storage[_, _] = {
     storagePool.getOrElse(s"service:${service.serviceName}", defaultStorage)
@@ -1818,10 +1828,9 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
 
     addVertexInner(vertex)
+
+    vertex
   }
-
-
-
 
   def addVertex(id: VertexId,
                 ts: Long = System.currentTimeMillis(),
@@ -1829,19 +1838,67 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
                 op: Byte = 0,
                 belongLabelIds: Seq[Int] = Seq.empty): S2Vertex = {
     val vertex = newVertex(id, ts, props, op, belongLabelIds)
+
     val future = mutateVertices(Seq(vertex), withWait = true).map { rets =>
       if (rets.forall(identity)) vertex
       else throw new RuntimeException("addVertex failed.")
     }
-    Await.result(future, WaitTimeout)
+    Await.ready(future, WaitTimeout)
+
+    vertex
   }
 
   def addVertexInner(vertex: S2Vertex): S2Vertex = {
-    val future = mutateVertices(Seq(vertex), withWait = true).map { rets =>
-      if (rets.forall(identity)) vertex
-      else throw new RuntimeException("addVertex failed.")
+    val future = mutateVertices(Seq(vertex), withWait = true).flatMap { rets =>
+      if (rets.forall(identity)) {
+        indexProvider.mutateVerticesAsync(Seq(vertex))
+      } else throw new RuntimeException("addVertex failed.")
     }
-    Await.result(future, WaitTimeout)
+    Await.ready(future, WaitTimeout)
+
+    vertex
+  }
+
+  /* tp3 only */
+  def addEdge(srcVertex: S2Vertex, labelName: String, tgtVertex: Vertex, kvs: AnyRef*): Edge = {
+    val containsId = kvs.contains(T.id)
+
+    tgtVertex match {
+      case otherV: S2Vertex =>
+        if (!features().edge().supportsUserSuppliedIds() && containsId) {
+          throw Exceptions.userSuppliedIdsNotSupported()
+        }
+
+        val props = S2Property.kvsToProps(kvs)
+
+        props.foreach { case (k, v) => S2Property.assertValidProp(k, v) }
+
+        //TODO: direction, operation, _timestamp need to be reserved property key.
+
+        try {
+          val direction = props.get("direction").getOrElse("out").toString
+          val ts = props.get(LabelMeta.timestamp.name).map(_.toString.toLong).getOrElse(System.currentTimeMillis())
+          val operation = props.get("operation").map(_.toString).getOrElse("insert")
+          val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+          val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
+          val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
+          val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
+          val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
+
+          val edge = newEdge(srcVertex, otherV, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
+
+          val future = mutateEdges(Seq(edge), withWait = true).flatMap { rets =>
+            indexProvider.mutateEdgesAsync(Seq(edge))
+          }
+          Await.ready(future, WaitTimeout)
+
+          edge
+        } catch {
+          case e: LabelNotExistException => throw new java.lang.IllegalArgumentException(e)
+        }
+      case null => throw new java.lang.IllegalArgumentException
+      case _ => throw new RuntimeException("only S2Graph vertex can be used.")
+    }
   }
 
   override def close(): Unit = {

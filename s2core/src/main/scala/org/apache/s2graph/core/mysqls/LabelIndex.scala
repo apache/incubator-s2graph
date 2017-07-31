@@ -169,7 +169,44 @@ object LabelIndex extends Model[LabelIndex] {
     }.toList)
   }
 }
+/**
+mgmt.buildIndex('nameAndAge',Vertex.class)
+.addKey(name,Mapping.TEXT.getParameter())
+.addKey(age,Mapping.TEXT.getParameter())
+.buildMixedIndex("search")
 
+v: {name: abc} - E1: {age: 20}, E2, E3....
+
+Management.createServiceColumn(
+		serviceName = serviceName, columnName = "person", columnType = "integer",
+    props = Seq(
+    	Prop("name", "-", "string"),
+    	Prop("age", "0", "integer"),
+    	Prop("location", "-", "string")
+    )
+)
+
+management.createLabel(
+		label = "bought",
+    srcServiceName = serviceName, srcColumnName = "person", srcColumnType = "integer",
+    tgtServiceName = serviceName, tgtColumnName = "product", tgtColumnType = "integer", idDirected = true,
+    serviceName = serviceName,
+    indices = Seq(
+    	Index("PK", Seq("amount", "created_at"), IndexType("mixed", propsMapping: Map[String, String]),
+{"in": {}, "out": {}})
+    ),
+    props = Seq(
+    	Prop("amount", "0.0", "double"),
+    	Prop("created_at", "2000-01-01", "string")
+    ),
+    consistencyLevel = "strong"
+)
+
+mgmt.buildIndex('PK', Edge.class)
+  .addKey(amount, Double)
+  .buildCompositeIndex
+
+*/
 case class LabelIndex(id: Option[Int], labelId: Int, name: String, seq: Byte, metaSeqs: Seq[Byte], formulars: String,
                       dir: Option[Int], options: Option[String]) {
   // both
