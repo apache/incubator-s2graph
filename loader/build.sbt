@@ -17,7 +17,6 @@
  * under the License.
  */
 
-import sbtassembly.Plugin.AssemblyKeys._
 import Common._
 
 name := "s2loader"
@@ -41,8 +40,6 @@ libraryDependencies ++= Seq(
 )
 
 crossScalaVersions := Seq("2.10.6")
-
-assemblySettings
 
 mergeStrategy in assembly := {
   case PathList("META-INF", ps @ _*) => MergeStrategy.discard

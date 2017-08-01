@@ -43,64 +43,6 @@ object S2GraphProvider {
     classOf[S2VertexProperty[_]],
     classOf[S2Graph]
   )
-  def initDefaultSchema(graph: S2Graph): Unit = {
-    val management = graph.management
-
-    //    Management.deleteService(DefaultServiceName)
-    val DefaultService = management.createService(DefaultServiceName, "localhost", "s2graph", 0, None).get
-
-    //    Management.deleteColumn(DefaultServiceName, DefaultColumnName)
-    val DefaultColumn = ServiceColumn.findOrInsert(DefaultService.id.get, DefaultColumnName, Some("integer"), HBaseType.DEFAULT_VERSION, useCache = false)
-
-    val DefaultColumnMetas = {
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "test", "string", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "name", "string", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "age", "integer", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "lang", "string", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "oid", "integer", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "communityIndex", "integer", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "testing", "string", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "string", "string", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "boolean", "boolean", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "long", "long", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "float", "float", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "double", "double", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "integer", "integer", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "aKey", "string", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "x", "integer", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "y", "integer", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "location", "string", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "status", "string", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "myId", "integer", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "acl", "string", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "some", "string", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "this", "string", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "that", "string", useCache = false)
-      ColumnMeta.findOrInsert(DefaultColumn.id.get, "any", "string", useCache = false)
-    }
-
-    //    Management.deleteLabel("_s2graph")
-    val DefaultLabel = management.createLabel("_s2graph", DefaultService.serviceName, DefaultColumn.columnName, DefaultColumn.columnType,
-      DefaultService.serviceName, DefaultColumn.columnName, DefaultColumn.columnType, true, DefaultService.serviceName, Nil, Nil, "weak", None, None,
-      options = Option("""{"skipReverse": false}""")
-    ).get
-  }
-
-  def cleanupSchema: Unit = {
-    val columnNames = Set(S2Graph.DefaultColumnName, "person", "software", "product", "dog",
-      "animal", "song", "artist", "STEPHEN")
-
-    val labelNames = Set(S2Graph.DefaultLabelName, "knows", "created", "bought", "test", "self", "friends", "friend", "hate", "collaborator",
-      "test1", "test2", "test3", "pets", "walks", "hates", "link",
-      "codeveloper", "createdBy", "existsWith", "writtenBy", "sungBy", "followedBy", "uses", "likes", "foo", "bar")
-
-    columnNames.foreach { columnName =>
-      Management.deleteColumn(S2Graph.DefaultServiceName, columnName)
-    }
-    labelNames.foreach { labelName =>
-      Management.deleteLabel(labelName)
-    }
-  }
 }
 
 class S2GraphProvider extends AbstractGraphProvider {
@@ -123,7 +65,7 @@ class S2GraphProvider extends AbstractGraphProvider {
 //          }
 //        }
 //        s2Graph.shutdown(modelDataDelete = true)
-        S2GraphProvider.cleanupSchema
+        S2GraphFactory.cleanupDefaultSchema
         s2Graph.shutdown(modelDataDelete = true)
         logger.info("S2Graph Shutdown")
       }
@@ -144,9 +86,9 @@ class S2GraphProvider extends AbstractGraphProvider {
     val s2Graph = graph.asInstanceOf[S2Graph]
     val mnt = s2Graph.getManagement()
 
-    S2GraphProvider.cleanupSchema
+    S2GraphFactory.cleanupDefaultSchema
     initTestSchema(testClass, testName)
-    S2GraphProvider.initDefaultSchema(s2Graph)
+    S2GraphFactory.initDefaultSchema(s2Graph)
 
     val defaultService = Service.findByName(S2Graph.DefaultServiceName).getOrElse(throw new IllegalStateException("default service is not initialized."))
     val defaultServiceColumn = ServiceColumn.find(defaultService.id.get, S2Graph.DefaultColumnName).getOrElse(throw new IllegalStateException("default column is not initialized."))

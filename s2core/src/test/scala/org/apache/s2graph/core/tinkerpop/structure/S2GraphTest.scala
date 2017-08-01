@@ -421,8 +421,8 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     val mnt = graph.management
 
 
-    S2GraphProvider.cleanupSchema
-    S2GraphProvider.initDefaultSchema(graph)
+    S2GraphFactory.cleanupDefaultSchema
+    S2GraphFactory.initDefaultSchema(graph)
 
     val softwareColumn = Management.createServiceColumn(S2Graph.DefaultServiceName, "software", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("lang", "-", "string")))
     val personColumn = Management.createServiceColumn(S2Graph.DefaultServiceName, "person", "integer",

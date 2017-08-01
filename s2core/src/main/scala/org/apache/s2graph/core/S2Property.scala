@@ -41,6 +41,7 @@ object S2Property {
     case _: java.lang.Short => true
     case _: java.lang.Byte => true
     case _: java.lang.String => true
+    case _: java.math.BigDecimal => true
     case _: Int => true
     case _: Long => true
     case _: Float => true
@@ -62,7 +63,11 @@ object S2Property {
     var result = Map[String, AnyRef]()
     kvsList.foreach { pair =>
       val key = pair.getValue0
-      val value = pair.getValue1
+      val value = pair.getValue1 match {
+        case v: java.math.BigDecimal => new BigDecimal(v)
+        case _@org => org
+      }
+
       ElementHelper.validateProperty(key, value)
 //      if (keySet.contains(key)) throw VertexProperty.Exceptions.multiPropertiesNotSupported
 

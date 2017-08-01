@@ -43,6 +43,7 @@ import org.apache.tinkerpop.gremlin.structure.Graph.{Features, Variables}
 import org.apache.tinkerpop.gremlin.structure.io.{GraphReader, GraphWriter, Io, Mapper}
 import org.apache.tinkerpop.gremlin.structure.{Edge, Element, Graph, T, Transaction, Vertex}
 import play.api.libs.json.{JsObject, Json}
+import scalikejdbc.DBSession
 
 import scala.annotation.tailrec
 import scala.collection.JavaConversions._
@@ -69,8 +70,6 @@ object S2Graph {
     "phase" -> "dev",
     "db.default.driver" ->  "org.h2.Driver",
     "db.default.url" -> "jdbc:h2:file:./var/metastore;MODE=MYSQL",
-//    "db.default.driver" -> "com.mysql.jdbc.Driver",
-//    "db.default.url" -> "jdbc:mysql://default:3306/graph_dev",
     "db.default.password" -> "graph",
     "db.default.user" -> "graph",
     "cache.max.size" -> java.lang.Integer.valueOf(0),
@@ -871,6 +870,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   private var apacheConfiguration: Configuration = _
 
+  def dbSession() = scalikejdbc.AutoSession
+
   def this(apacheConfiguration: Configuration)(ec: ExecutionContext) = {
     this(S2Graph.toTypeSafeConfig(apacheConfiguration))(ec)
     this.apacheConfiguration = apacheConfiguration
@@ -894,7 +895,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   val ExpireAfterWrite = config.getInt("future.cache.expire.after.write")
   val ExpireAfterAccess = config.getInt("future.cache.expire.after.access")
   val WaitTimeout = Duration(600, TimeUnit.SECONDS)
-  val scheduledEx = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
   val management = new Management(this)
 

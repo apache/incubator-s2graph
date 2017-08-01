@@ -116,15 +116,20 @@ object AsynchbaseStorage {
 
         val socket = new Socket(host, port)
         socket.close()
+        logger.info(s"HBase is available.")
         true
       } catch {
-        case e: IOException => false
+        case e: IOException =>
+          logger.info(s"HBase is not available.")
+          false
       }
 
       if (!hbaseAvailable) {
         // start HBase
         executor.submit(new Runnable {
           override def run(): Unit = {
+            logger.info(s"HMaster starting...")
+            val ts = System.currentTimeMillis()
             val cwd = new File(".").getAbsolutePath
             if (overwrite) {
               val dataDir = new File(s"$cwd/storage/s2graph")
@@ -140,12 +145,14 @@ object AsynchbaseStorage {
             System.setProperty("hbase.root.logger", "INFO,RFA")
 
             org.apache.hadoop.hbase.master.HMaster.main(Array[String]("start"))
+            logger.info(s"HMaster startup finished: ${System.currentTimeMillis() - ts}")
           }
         })
       }
 
       executor
     }
+
     hbaseExecutor
   }
 }
