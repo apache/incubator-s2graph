@@ -218,8 +218,7 @@ object AdminController extends Controller {
 
 
   def createLabelInner(json: JsValue) = for {
-    labelArgs <- requestParser.toLabelElements(json)
-    label <- (management.createLabel _).tupled(labelArgs)
+    label <- requestParser.toLabelElements(json)
   } yield label
 
   /**
