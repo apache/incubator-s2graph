@@ -41,7 +41,7 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
   initTests()
 
   val g = new S2Graph(config)
-//  lazy val gIndex = management.buildGlobalIndex(GlobalIndex.EdgeType, "S2GraphTest2", Seq("weight"))
+  lazy val gIndex = management.buildGlobalIndex(GlobalIndex.EdgeType, "S2GraphTest2", Seq("weight"))
   def printEdges(edges: Seq[Edge]): Unit = {
     edges.foreach { edge =>
       logger.debug(s"[FetchedEdge]: $edge")
@@ -416,10 +416,9 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
 ////      }
 ////    }
 //  }
-  test("Modern") {
-//    gIndex
+  ignore("Modern") {
+    gIndex
     val mnt = graph.management
-
 
     S2GraphFactory.cleanupDefaultSchema
     S2GraphFactory.initDefaultSchema(graph)
