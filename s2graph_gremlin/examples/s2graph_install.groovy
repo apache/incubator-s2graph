@@ -17,4 +17,5 @@
  * under the License.
  */
 
-addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.14.5")
+:install org.apache.s2graph s2graph-gremlin 0.1.1-SNAPSHOT
+:plugin use tinkerpop.s2graph

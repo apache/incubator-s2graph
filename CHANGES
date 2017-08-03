@@ -246,6 +246,8 @@ Release 0.1.0 - unreleased
     S2GRAPH-152: Add buildGlobalIndex API on Management. (Committed by DOYUNG YOON).
     
     S2GRAPH-153: Implement IndexProvider(for Mixed IndexType) class. (Committed by DOYUNG YOON).
+
+    S2GRAPH-148: Provide Gremlin Plugin. (Committed by DOYUNG YOON).
    
   TEST
     

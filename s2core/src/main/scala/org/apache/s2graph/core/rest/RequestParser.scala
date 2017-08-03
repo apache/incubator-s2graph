@@ -629,7 +629,7 @@ class RequestParser(graph: S2Graph) {
     pk ++ both ++ in ++ out
   }
 
-  def toLabelElements(jsValue: JsValue) = Try {
+  def toLabelElements(jsValue: JsValue): Try[Label] = {
     val labelName = parse[String](jsValue, "label")
     val srcServiceName = parse[String](jsValue, "srcServiceName")
     val tgtServiceName = parse[String](jsValue, "tgtServiceName")
@@ -653,7 +653,7 @@ class RequestParser(graph: S2Graph) {
     val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(DefaultCompressionAlgorithm)
     val options = (jsValue \ "options").asOpt[JsValue].map(_.toString())
 
-    (labelName, srcServiceName, srcColumnName, srcColumnType,
+    graph.management.createLabel(labelName, srcServiceName, srcColumnName, srcColumnType,
         tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
         indices, allProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm, options)
   }

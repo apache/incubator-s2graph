@@ -20,10 +20,8 @@
 package org.apache.s2graph.core
 
 import org.apache.s2graph.core.Integrate.IntegrateCommon
-import org.apache.s2graph.core.mysqls.{Model, Label, Service}
-
-import scala.util.{Failure, Success}
-import play.api.libs.json.{JsValue, Json}
+import org.apache.s2graph.core.mysqls.Label
+import play.api.libs.json.Json
 
 class ManagementTest extends IntegrateCommon {
 
@@ -52,10 +50,11 @@ class ManagementTest extends IntegrateCommon {
     copiedLabel.indices().sortBy(m => m.id.get).map(m => m.metaSeqs) should be(originalLabel.indices().sortBy(m => m.id.get).map(m => m.metaSeqs))
   }
 
-  def checkLabelTTL(labelName:String, serviceName:String, setTTL:Option[Int], checkTTL:Option[Int]) = {
+  def checkLabelTTL(labelName: String, serviceName: String, setTTL: Option[Int], checkTTL: Option[Int]) = {
     Management.deleteLabel(labelName)
-    val ttlOption = if(setTTL.isDefined) s""", "hTableTTL": ${setTTL.get}""" else ""
-    val createLabelJson = s"""{
+    val ttlOption = if (setTTL.isDefined) s""", "hTableTTL": ${setTTL.get}""" else ""
+    val createLabelJson =
+      s"""{
       "label": "$labelName",
       "srcServiceName": "$serviceName",
       "srcColumnName": "id",
@@ -69,17 +68,18 @@ class ManagementTest extends IntegrateCommon {
       $ttlOption
     }"""
     val labelOpts = parser.toLabelElements(Json.parse(createLabelJson))
-    val tryLabel = (management.createLabel _).tupled(labelOpts.get)
-    assert(tryLabel.isSuccess)
-    val label = tryLabel.get
-    label.hTableTTL should be(checkTTL)
+
+    labelOpts.foreach { label  =>
+      label.hTableTTL should be(checkTTL)
+    }
+
   }
 
   test("copy label test") {
     val labelToCopy = s"${TestUtil.testLabelName}_copied"
     Label.findByName(labelToCopy) match {
       case None =>
-        //
+      //
       case Some(oldLabel) =>
         Label.delete(oldLabel.id.get)
 

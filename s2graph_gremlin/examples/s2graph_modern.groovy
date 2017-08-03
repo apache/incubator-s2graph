@@ -17,4 +17,20 @@
  * under the License.
  */
 
-addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.14.5")
+// init schema
+graph = S2Graph.open(new BaseConfiguration())
+S2GraphFactory.initDefaultSchema(graph)
+
+S2GraphFactory.initModernSchema(graph)
+S2GraphFactory.generateModern(graph)
+
+// traversal
+t = graph.traversal()
+t.E()
+
+shon = graph.addVertex(T.id, 10, T.label, "person", "name", "shon", "age", 35)
+s2graph = graph.addVertex(T.id, 11, T.label, "software", "name", "s2graph", "lang", "scala")
+
+created = shon.addEdge("created", s2graph, "_timestamp", 10, "weight", 0.1)
+
+t.V().has("name", "shon").out()

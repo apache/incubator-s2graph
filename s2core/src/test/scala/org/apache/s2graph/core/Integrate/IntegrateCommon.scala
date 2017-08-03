@@ -83,8 +83,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
           logger.info(s">> Create Label")
           logger.info(create)
           val tryRes = for {
-            labelArgs <- parser.toLabelElements(json)
-            label <- (management.createLabel _).tupled(labelArgs)
+            label <- parser.toLabelElements(json)
           } yield label
 
           tryRes.get

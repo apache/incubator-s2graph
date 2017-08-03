@@ -17,8 +17,6 @@
  * under the License.
  */
 
-import sbtassembly.Plugin.AssemblyKeys._
-
 name := "s2counter-loader"
 
 scalacOptions in Test ++= Seq("-Yrangepos")
@@ -42,8 +40,6 @@ crossScalaVersions := Seq("2.10.6")
 fork := true
 
 transitiveClassifiers ++= Seq()
-
-assemblySettings
 
 mergeStrategy in assembly := {
   case PathList("META-INF", ps @ _*) => MergeStrategy.discard

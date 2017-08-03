@@ -19,15 +19,14 @@
 
 package org.apache.s2graph.core
 
+import java.util
+
 import org.apache.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNameTooLongException, LabelNotExistException}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.index.IndexProvider
-import org.apache.s2graph.core.utils.logger
-import play.api.libs.json.Reads._
 import play.api.libs.json._
 
 import scala.util.Try
@@ -37,6 +36,16 @@ import scala.util.Try
  * s2core never use this for finding models.
  */
 object Management {
+
+  import scala.collection.JavaConversions._
+
+  def newProp(name: String, defaultValue: String, datatType: String): Prop = {
+    new Prop(name, defaultValue, datatType)
+  }
+
+  def newIndex(name: String, propNames: java.util.List[String], options: String): Index = {
+    new Index(name, propNames, options = Option(options))
+  }
 
   object JsonModel {
 
@@ -68,7 +77,6 @@ object Management {
 
     Label.updateHTableName(targetLabel.label, newHTableName)
   }
-
 
 
   def createServiceColumn(serviceName: String,
@@ -259,6 +267,7 @@ object Management {
 
 class Management(graph: S2Graph) {
   import Management._
+  import scala.collection.JavaConversions._
 
   def createStorageTable(zkAddr: String,
                   tableName: String,
@@ -274,6 +283,16 @@ class Management(graph: S2Graph) {
 
   /** HBase specific code */
   def createService(serviceName: String,
+                   cluster: String,
+                   hTableName: String,
+                   preSplitSize: Int,
+                   hTableTTL: Int,
+                   compressionAlgorithm: String): Service = {
+    createService(serviceName, cluster, hTableName, preSplitSize,
+      Option(hTableTTL).filter(_ > -1), compressionAlgorithm).get
+  }
+
+  def createService(serviceName: String,
                     cluster: String, hTableName: String,
                     preSplitSize: Int, hTableTTL: Option[Int],
                     compressionAlgorithm: String = DefaultCompressionAlgorithm): Try[Service] = {
@@ -284,6 +303,54 @@ class Management(graph: S2Graph) {
       graph.getStorage(service).createTable(service.cluster, service.hTableName, List("e", "v"), service.preSplitSize, service.hTableTTL, compressionAlgorithm)
       service
     }
+  }
+
+  def createServiceColumn(serviceName: String,
+                          columnName: String,
+                          columnType: String,
+                          props: java.util.List[Prop],
+                          schemaVersion: String = DEFAULT_VERSION): ServiceColumn = {
+
+    val serviceColumnTry = Model withTx { implicit session =>
+      val serviceOpt = Service.findByName(serviceName, useCache = false)
+      serviceOpt match {
+        case None => throw new RuntimeException(s"create service $serviceName has not been created.")
+        case Some(service) =>
+          val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion, useCache = false)
+          for {
+            Prop(propName, defaultValue, dataType) <- props
+          } yield {
+            ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType, useCache = false)
+          }
+          serviceColumn
+      }
+    }
+
+    serviceColumnTry.get
+  }
+
+  def createLabel(labelName: String,
+                  srcColumn: ServiceColumn,
+                  tgtColumn: ServiceColumn,
+                  isDirected: Boolean,
+                  serviceName: String,
+                  indices: java.util.List[Index],
+                  props: java.util.List[Prop],
+                  consistencyLevel: String,
+                  hTableName: String,
+                  hTableTTL: Int,
+                  schemaVersion: String,
+                  compressionAlgorithm: String,
+                  options: String): Label = {
+    import scala.collection.JavaConversions._
+
+    createLabel(labelName,
+      srcColumn.service.serviceName, srcColumn.columnName, srcColumn.columnType,
+      tgtColumn.service.serviceName, tgtColumn.columnName, tgtColumn.columnType,
+      isDirected, serviceName, indices, props, consistencyLevel,
+      Option(hTableName), Option(hTableTTL).filter(_ > -1),
+      schemaVersion, false, compressionAlgorithm, Option(options)
+    ).get
   }
 
   /** HBase specific code */
@@ -349,8 +416,14 @@ class Management(graph: S2Graph) {
       old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync, old.compressionAlgorithm, old.options)
   }
 
+  def buildGlobalVertexIndex(name: String, propNames: java.util.List[String]): GlobalIndex =
+    buildGlobalIndex(GlobalIndex.VertexType, name, propNames)
+
   def buildGlobalVertexIndex(name: String, propNames: Seq[String]): GlobalIndex =
     buildGlobalIndex(GlobalIndex.VertexType, name, propNames)
+
+  def buildGlobalEdgeIndex(name: String, propNames: java.util.List[String]): GlobalIndex =
+    buildGlobalIndex(GlobalIndex.EdgeType, name, propNames)
 
   def buildGlobalEdgeIndex(name: String, propNames: Seq[String]): GlobalIndex =
     buildGlobalIndex(GlobalIndex.EdgeType, name, propNames)
