@@ -72,6 +72,7 @@ Here is what you can find in each subproject.
 5. `spark`: Spark utilities for `loader` and `s2counter_loader`.
 6. `s2counter_core`: The core library providing data structures and logics for `s2counter_loader`.
 7. `s2counter_loader`: Spark streaming jobs that consume Kafka WAL logs and calculate various top-*K* results on-the-fly.
+8. `s2graph_gremlin`: Gremlin plugin for tinkerpop users.  
 
 The first three projects are for OLTP-style workloads, currently the main target of S2Graph. The other four projects could be helpful for OLAP-style or streaming workloads, especially for integrating S2Graph with [Apache Spark](https://spark.apache.org/) and/or [Kafka](https://kafka.apache.org/). Note that, the latter four projects are currently out-of-date, which we are planning to update and provide documentations in the upcoming releases.
 
