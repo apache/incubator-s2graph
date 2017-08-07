@@ -19,12 +19,13 @@
 
 package org.apache.s2graph.core.storage
 
+import java.nio.charset.StandardCharsets
 import org.apache.hadoop.hbase.util.Bytes
 import org.hbase.async.KeyValue
 
 
 object SKeyValue {
-  val EdgeCf = "e".getBytes()
+  val EdgeCf = "e".getBytes("UTF-8")
   val Put = 1
   val Delete = 2
   val Increment = 3

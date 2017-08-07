@@ -20,8 +20,8 @@
 package org.apache.s2graph.core.storage
 
 object Serializable {
-  val vertexCf = "v".getBytes()
-  val edgeCf = "e".getBytes()
+  val vertexCf = "v".getBytes("UTF-8")
+  val edgeCf = "e".getBytes("UTF-8")
 }
 
 trait Serializable[E] extends StorageSerializable[E]

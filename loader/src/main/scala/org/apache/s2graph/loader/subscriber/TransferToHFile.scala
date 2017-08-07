@@ -194,7 +194,7 @@ object TransferToHFile extends SparkApp {
     }
     val familyOptions = new FamilyHFileWriteOptions(Algorithm.LZ4.getName.toUpperCase,
       BloomType.ROW.name().toUpperCase, 32768, DataBlockEncoding.FAST_DIFF.name().toUpperCase)
-    val familyOptionsMap = Map("e".getBytes() -> familyOptions, "v".getBytes() -> familyOptions)
+    val familyOptionsMap = Map("e".getBytes("UTF-8") -> familyOptions, "v".getBytes("UTF-8") -> familyOptions)
 
     hbaseSc.bulkLoad(merged, TableName.valueOf(tableName), flatMap, tmpPath, familyOptionsMap)
   }

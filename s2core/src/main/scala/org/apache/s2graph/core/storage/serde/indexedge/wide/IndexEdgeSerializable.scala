@@ -30,7 +30,7 @@ class IndexEdgeSerializable(indexEdge: IndexEdge, longToBytes: Long => Array[Byt
    import StorageSerializable._
 
    override def ts = indexEdge.version
-   override def table = indexEdge.label.hbaseTableName.getBytes()
+   override def table = indexEdge.label.hbaseTableName.getBytes("UTF-8")
 
    def idxPropsMap = indexEdge.orders.toMap
    def idxPropsBytes = propsToBytes(indexEdge.orders)
