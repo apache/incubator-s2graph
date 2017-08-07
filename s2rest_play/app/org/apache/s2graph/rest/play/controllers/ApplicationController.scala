@@ -86,7 +86,7 @@ object ApplicationController extends Controller {
     } else {
       Result(
         header = ResponseHeader(OK),
-        body = HttpEntity.Strict(ByteString(json.toString.getBytes()), Some(applicationJsonHeader))
+        body = HttpEntity.Strict(ByteString(json.toString.getBytes("UTF-8")), Some(applicationJsonHeader))
       ).as(applicationJsonHeader).withHeaders((CONNECTION -> "close") +: headers: _*)
     }
 

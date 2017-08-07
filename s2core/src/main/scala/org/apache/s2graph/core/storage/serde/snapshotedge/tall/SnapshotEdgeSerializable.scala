@@ -30,7 +30,7 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[
   import StorageSerializable._
 
   override def ts = snapshotEdge.version
-  override def table = snapshotEdge.label.hbaseTableName.getBytes()
+  override def table = snapshotEdge.label.hbaseTableName.getBytes("UTF-8")
 
   def statusCodeWithOp(statusCode: Byte, op: Byte): Array[Byte] = {
     val byte = (((statusCode << 4) | op).toByte)

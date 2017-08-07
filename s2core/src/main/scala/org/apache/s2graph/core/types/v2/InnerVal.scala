@@ -112,7 +112,7 @@ case class InnerVal(value: Any) extends HBaseSerializable with InnerValLike {
         val len = OrderedBytes.encodeNumeric(pbr, b.bigDecimal, order)
         pbr.getBytes().take(len)
       case s: String =>
-        val pbr = new SimplePositionedMutableByteRange(s.getBytes.length + 3)
+        val pbr = new SimplePositionedMutableByteRange(s.getBytes("UTF-8").length + 3)
         val len = OrderedBytes.encodeString(pbr, s, order)
         pbr.getBytes().take(len)
       case blob: Array[Byte] =>
