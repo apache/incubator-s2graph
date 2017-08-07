@@ -139,6 +139,8 @@ Release 0.1.0 - unreleased
     S2GRAPH-138: Fixed logging in Play! development mode
                  (Contributed by Jong Wook Kim<jongwook@nyu.edu>, committed by DOYUNG YOON)
 
+    S2GRAPH-158: Bug fix on String type InnerVal encoding to use UTF-8 charsetName (Committed by DOYUNG YOON).
+
   TASKS
 
     S2GRAPH-2: Update document and quick start environment to have recent set-up command changes.
