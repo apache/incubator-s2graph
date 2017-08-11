@@ -18,16 +18,8 @@
 # Should be sourced and not be directly executed.
 # The executable flag for this file should not be set, e.g. 644.
 
-# Find the current directory
-SOURCE="${BASH_SOURCE[0]}"
-# resolve $SOURCE until the file is no longer a symlink
-while [ -h "$SOURCE" ]; do
-  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
-  SOURCE="$(readlink "$SOURCE")"
-  # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
-  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
-done
-DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+# find the current directory
+DIR=$(cd "$(dirname "${BASH_SOURCE-$0}")">/dev/null; pwd)
 
 # set S2GRAPH_HOME
 if [ -z $S2GRAPH_HOME ]; then
