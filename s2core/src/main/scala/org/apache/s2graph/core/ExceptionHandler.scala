@@ -96,7 +96,7 @@ object ExceptionHandler {
   private def toKafkaProp(config: Config) = {
     val props = new Properties()
 
-    /** all default configuration for new producer */
+    /* all default configuration for new producer */
     val brokers =
       if (config.hasPath("kafka.metadata.broker.list")) config.getString("kafka.metadata.broker.list")
       else "localhost"

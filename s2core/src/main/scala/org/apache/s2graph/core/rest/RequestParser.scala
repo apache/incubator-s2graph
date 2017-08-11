@@ -259,6 +259,7 @@ class RequestParser(graph: S2Graph) {
     case arr: JsArray =>
       val keys = arr.asOpt[Seq[String]].getOrElse(Nil)
       GroupBy(keys)
+    case _ => GroupBy.Empty
   }.getOrElse(GroupBy.Empty)
 
   def toVertices(labelName: String, direction: String, ids: Seq[JsValue]): Seq[S2Vertex] = {
@@ -514,7 +515,7 @@ class RequestParser(graph: S2Graph) {
   private def parse[R](js: JsValue, key: String)(implicit read: Reads[R]): R = {
     (js \ key).validate[R] match {
       case JsError(errors) =>
-        val msg = (JsError.toFlatJson(errors) \ "obj").as[List[JsValue]].flatMap(x => (x \ "msg").toOption)
+        val msg = (JsError.toJson(errors) \ "obj").as[List[JsValue]].flatMap(x => (x \ "msg").toOption)
         val e = Json.obj("args" -> key, "error" -> msg)
         throw new GraphExceptions.JsonParseException(Json.obj("error" -> key).toString)
       case JsSuccess(result, _) => result
@@ -524,7 +525,7 @@ class RequestParser(graph: S2Graph) {
   private def parseOption[R](js: JsValue, key: String)(implicit read: Reads[R]): Option[R] = {
     (js \ key).validateOpt[R] match {
       case JsError(errors) =>
-        val msg = (JsError.toFlatJson(errors) \ "obj").as[List[JsValue]].flatMap(x => (x \ "msg").toOption)
+        val msg = (JsError.toJson(errors) \ "obj").as[List[JsValue]].flatMap(x => (x \ "msg").toOption)
         val e = Json.obj("args" -> key, "error" -> msg)
         throw new GraphExceptions.JsonParseException(Json.obj("error" -> key).toString)
       case JsSuccess(result, _) => result

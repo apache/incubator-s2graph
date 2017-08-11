@@ -398,7 +398,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
       future recoverWith {
         case FetchTimeoutException(retryEdge) =>
           logger.info(s"[Try: $tryNum], Fetch fail.\n${retryEdge}")
-          /** fetch failed. re-fetch should be done */
+          /* fetch failed. re-fetch should be done */
           fetchSnapshotEdgeInner(edges.head).flatMap { case (queryParam, snapshotEdgeOpt, kvOpt) =>
             retry(tryNum + 1)(edges, statusCode, snapshotEdgeOpt)
           }
@@ -413,14 +413,14 @@ abstract class Storage[Q, R](val graph: S2Graph,
           }
           logger.info(s"[Try: $tryNum], [Status: $status] partial fail.\n${retryEdge.toLogString}\nFailReason: ${faileReason}")
 
-          /** retry logic */
+          /* retry logic */
           val promise = Promise[Boolean]
           val backOff = exponentialBackOff(tryNum)
           scheduledThreadPool.schedule(new Runnable {
             override def run(): Unit = {
               val future = if (failedStatusCode == 0) {
                 // acquire Lock failed. other is mutating so this thead need to re-fetch snapshotEdge.
-                /** fetch failed. re-fetch should be done */
+                /* fetch failed. re-fetch should be done */
                 fetchSnapshotEdgeInner(edges.head).flatMap { case (queryParam, snapshotEdgeOpt, kvOpt) =>
                   retry(tryNum + 1)(edges, statusCode, snapshotEdgeOpt)
                 }
@@ -453,7 +453,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
       case 0 =>
         fetchedSnapshotEdgeOpt match {
           case None =>
-          /**
+          /*
            * no one has never mutated this SN.
            * (squashedEdge, edgeMutate) = Edge.buildOperation(None, edges)
            * pendingE = squashedEdge.copy(statusCode = 1, lockTs = now, version = squashedEdge.ts + 1)
@@ -475,7 +475,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
           case Some(snapshotEdge) =>
             snapshotEdge.pendingEdgeOpt match {
               case None =>
-                /**
+                /*
                  * others finished commit on this SN. but there is no contention.
                  * (squashedEdge, edgeMutate) = Edge.buildOperation(snapshotEdgeOpt, edges)
                  * pendingE = squashedEdge.copy(statusCode = 1, lockTs = now, version = snapshotEdge.version + 1) ?
@@ -497,7 +497,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
               case Some(pendingEdge) =>
                 val isLockExpired = pendingEdge.lockTs.get + LockExpireDuration < System.currentTimeMillis()
                 if (isLockExpired) {
-                  /**
+                  /*
                    * if pendingEdge.ts == snapshotEdge.ts =>
                    *    (squashedEdge, edgeMutate) = Edge.buildOperation(None, Seq(pendingEdge))
                    * else =>
@@ -519,7 +519,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
 
                   commitProcess(statusCode, squashedEdge, fetchedSnapshotEdgeOpt, lockSnapshotEdge, releaseLockSnapshotEdge, edgeMutate)
                 } else {
-                  /**
+                  /*
                    * others finished commit on this SN and there is currently contention.
                    * this can't be proceed so retry from re-fetch.
                    * throw EX
@@ -532,11 +532,11 @@ abstract class Storage[Q, R](val graph: S2Graph,
         }
       case _ =>
 
-        /**
+        /*
          * statusCode > 0 which means self locked and there has been partial failure either on mutate, increment, releaseLock
          */
 
-        /**
+        /*
          * this succeed to lock this SN. keep doing on commit process.
          * if SN.isEmpty =>
          * no one never succed to commit on this SN.
@@ -807,7 +807,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
               buildIncrementsAsync(indexEdge, -1L)
           }
 
-          /** reverted direction */
+          /* reverted direction */
           val edgeRevert = edge.copyEdge(propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()))
           val reversedIndexedEdgesMutations = edgeRevert.duplicateEdge.edgesWithIndex.flatMap { indexEdge =>
             indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
@@ -972,7 +972,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
 
     tgtVertexIdOpt match {
       case Some(tgtVertexId) => // _to is given.
-        /** we use toSnapshotEdge so dont need to swap src, tgt */
+        /* we use toSnapshotEdge so dont need to swap src, tgt */
         val src = srcVertex.innerId
         val tgt = tgtVertexId
         val (srcVId, tgtVId) = (SourceVertexId(srcColumn, src), TargetVertexId(tgtColumn, tgt))
@@ -989,7 +989,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
   }
 
   protected def fetchSnapshotEdgeInner(edge: S2Edge): Future[(QueryParam, Option[S2Edge], Option[SKeyValue])] = {
-    /** TODO: Fix this. currently fetchSnapshotEdge should not use future cache
+    /* TODO: Fix this. currently fetchSnapshotEdge should not use future cache
       * so use empty cacheKey.
       * */
     val queryParam = QueryParam(labelName = edge.innerLabel.label,
@@ -1042,21 +1042,21 @@ abstract class Storage[Q, R](val graph: S2Graph,
   def increments(edgeMutate: EdgeMutate): (Seq[SKeyValue], Seq[SKeyValue]) = {
     (edgeMutate.edgesToDeleteWithIndexOptForDegree.isEmpty, edgeMutate.edgesToInsertWithIndexOptForDegree.isEmpty) match {
       case (true, true) =>
-        /** when there is no need to update. shouldUpdate == false */
+        /* when there is no need to update. shouldUpdate == false */
         Nil -> Nil
 
       case (true, false) =>
-        /** no edges to delete but there is new edges to insert so increase degree by 1 */
+        /* no edges to delete but there is new edges to insert so increase degree by 1 */
         val (buffer, nonBuffer) = EdgeMutate.partitionBufferedIncrement(edgeMutate.edgesToInsertWithIndexOptForDegree)
         buffer.flatMap(buildIncrementsAsync(_)) -> nonBuffer.flatMap(buildIncrementsAsync(_))
 
       case (false, true) =>
-        /** no edges to insert but there is old edges to delete so decrease degree by 1 */
+        /* no edges to insert but there is old edges to delete so decrease degree by 1 */
         val (buffer, nonBuffer) = EdgeMutate.partitionBufferedIncrement(edgeMutate.edgesToDeleteWithIndexOptForDegree)
         buffer.flatMap(buildIncrementsAsync(_, -1)) -> nonBuffer.flatMap(buildIncrementsAsync(_, -1))
 
       case (false, false) =>
-        /** update on existing edges so no change on degree */
+        /* update on existing edges so no change on degree */
         Nil -> Nil
     }
   }

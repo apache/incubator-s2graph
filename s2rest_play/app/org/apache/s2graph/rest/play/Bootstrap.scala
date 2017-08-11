@@ -83,7 +83,7 @@ object Global extends WithFilters(new GzipFilter()) {
     wallLogHandler.shutdown()
     QueueActor.shutdown()
 
-    /**
+    /*
      * shutdown hbase client for flush buffers.
      */
     shutdown()

@@ -22,6 +22,7 @@ package org.apache.s2graph.core
 import java.util
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
 import java.util.concurrent.{Executors, TimeUnit}
+import java.util.function.Consumer
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.{BaseConfiguration, Configuration}
@@ -239,8 +240,8 @@ object S2Graph {
     tsVal
   }
 
-  def processDuplicates[T](queryParam: QueryParam,
-                           duplicates: Seq[(FilterHashKey, T)])(implicit ev: WithScore[T]): Seq[(FilterHashKey, T)] = {
+  def processDuplicates[R](queryParam: QueryParam,
+                           duplicates: Seq[(FilterHashKey, R)])(implicit ev: WithScore[R]): Seq[(FilterHashKey, R)] = {
 
     if (queryParam.label.consistencyLevel != "strong") {
       //TODO:
@@ -309,7 +310,7 @@ object S2Graph {
             edgeWithScore
           }
 
-          /** process step group by */
+          /* process step group by */
           val results = StepResult.filterOutStepGroupBy(_results, step.groupBy)
           StepResult(edgeWithScores = results, grouped = Nil, degreeEdges = degrees, cursors = cursors, failCount = failCount)
 
@@ -319,25 +320,25 @@ object S2Graph {
             val score = edgeWithScore.score
             val label = edgeWithScore.label
 
-            /** Select */
+            /* Select */
             val mergedPropsWithTs = edge.propertyValuesInner(propsSelectColumns)
 
 //            val newEdge = edge.copy(propsWithTs = mergedPropsWithTs)
             val newEdge = edge.copyEdgeWithState(mergedPropsWithTs)
 
             val newEdgeWithScore = edgeWithScore.copy(edge = newEdge)
-            /** OrderBy */
+            /* OrderBy */
             val orderByValues =
              if (queryOption.orderByKeys.isEmpty) (score, edge.tsInnerVal, None, None)
               else StepResult.toTuple4(newEdgeWithScore.toValues(queryOption.orderByKeys))
 
-            /** StepGroupBy */
+            /* StepGroupBy */
             val stepGroupByValues = newEdgeWithScore.toValues(step.groupBy.keys)
 
-            /** GroupBy */
+            /* GroupBy */
             val groupByValues = newEdgeWithScore.toValues(queryOption.groupBy.keys)
 
-            /** FilterOut */
+            /* FilterOut */
             val filterOutValues = newEdgeWithScore.toValues(queryOption.filterOutFields)
 
             newEdgeWithScore.copy(orderByValues = orderByValues,
@@ -346,13 +347,13 @@ object S2Graph {
               filterOutValues = filterOutValues)
           }
 
-          /** process step group by */
+          /* process step group by */
           val results = StepResult.filterOutStepGroupBy(_results, step.groupBy)
 
-          /** process ordered list */
+          /* process ordered list */
           val ordered = if (queryOption.groupBy.keys.isEmpty) StepResult.orderBy(queryOption, results) else Nil
 
-          /** process grouped list */
+          /* process grouped list */
           val grouped =
           if (queryOption.groupBy.keys.isEmpty) Nil
           else {
@@ -365,13 +366,13 @@ object S2Graph {
 
               val newScoreSum = scoreSum
 
-              /**
+              /*
                 * watch out here. by calling toString on Any, we lose type information which will be used
                 * later for toJson.
                 */
               if (merged.nonEmpty) {
                 val newKey = merged.head.groupByValues
-                agg += (newKey -> (newScoreSum, merged))
+                agg += ((newKey, (newScoreSum, merged)))
               }
             }
             agg.toSeq.sortBy(_._2._1 * -1)
@@ -399,7 +400,7 @@ object S2Graph {
         val score = edgeWithScore.score
         val label = edgeWithScore.label
 
-        /** Select */
+        /* Select */
         val mergedPropsWithTs =
           if (queryOption.selectColumns.isEmpty) {
             edge.propertyValuesInner()
@@ -450,17 +451,17 @@ object S2Graph {
     }
   }
 
-  private def buildResult[T](query: Query,
+  private def buildResult[R](query: Query,
                              stepIdx: Int,
                              stepResultLs: Seq[(QueryRequest, StepResult)],
                              parentEdges: Map[VertexId, Seq[EdgeWithScore]])
-                            (createFunc: (EdgeWithScore, Seq[LabelMeta]) => T)
-                            (implicit ev: WithScore[T]): ListBuffer[T] = {
+                            (createFunc: (EdgeWithScore, Seq[LabelMeta]) => R)
+                            (implicit ev: WithScore[R]): ListBuffer[R] = {
     import scala.collection._
 
-    val results = ListBuffer.empty[T]
-    val sequentialLs: ListBuffer[(HashKey, FilterHashKey, T, QueryParam)] = ListBuffer.empty
-    val duplicates: mutable.HashMap[HashKey, ListBuffer[(FilterHashKey, T)]] = mutable.HashMap.empty
+    val results = ListBuffer.empty[R]
+    val sequentialLs: ListBuffer[(HashKey, FilterHashKey, R, QueryParam)] = ListBuffer.empty
+    val duplicates: mutable.HashMap[HashKey, ListBuffer[(FilterHashKey, R)]] = mutable.HashMap.empty
     val edgesToExclude: mutable.HashSet[FilterHashKey] = mutable.HashSet.empty
     val edgesToInclude: mutable.HashSet[FilterHashKey] = mutable.HashSet.empty
 
@@ -488,7 +489,7 @@ object S2Graph {
         val (hashKey, filterHashKey) = toHashKey(queryParam, edge, isDegree = false)
         //        params += (hashKey -> queryParam) //
 
-        /** check if this edge should be exlcuded. */
+        /* check if this edge should be exlcuded. */
         if (shouldBeExcluded) {
           edgesToExclude.add(filterHashKey)
         } else {
@@ -500,7 +501,7 @@ object S2Graph {
           sequentialLs += ((hashKey, filterHashKey, newEdgeWithScore, queryParam))
           duplicates.get(hashKey) match {
             case None =>
-              val newLs = ListBuffer.empty[(FilterHashKey, T)]
+              val newLs = ListBuffer.empty[(FilterHashKey, R)]
               newLs += (filterHashKey -> newEdgeWithScore)
               duplicates += (hashKey -> newLs) //
             case Some(old) =>
@@ -547,7 +548,7 @@ object S2Graph {
   new Graph.OptIn(value = Graph.OptIn.SUITE_STRUCTURE_STANDARD)
 ))
 @Graph.OptOuts(value = Array(
-  /** Process */
+  /* Process */
   /* branch: passed all. */
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.BranchTest$Traversals", method = "*", reason = "no"),
 // passed: all
@@ -769,7 +770,7 @@ object S2Graph {
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.SubgraphStrategyProcessTest", method = "*", reason = "no"),
 //  passed: all
 
-  /** Structure */
+  /* Structure */
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest$BasicEdgeTest", method="shouldValidateIdEquality", reason="reference equals on EdgeId is not supported."),
   new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest$BasicEdgeTest", method="shouldValidateEquality", reason="reference equals on EdgeId is not supported."),
   // passed: all, failed: none
@@ -967,7 +968,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   def flushStorage(): Unit = {
     storagePool.foreach { case (_, storage) =>
 
-      /** flush is blocking */
+      /* flush is blocking */
       storage.flush()
     }
   }
@@ -1149,7 +1150,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
 
   def fetchSnapshotEdge(edge: S2Edge): Future[(QueryParam, Option[S2Edge], Option[SKeyValue])] = {
-    /** TODO: Fix this. currently fetchSnapshotEdge should not use future cache
+    /* TODO: Fix this. currently fetchSnapshotEdge should not use future cache
       * so use empty cacheKey.
       * */
     val queryParam = QueryParam(labelName = edge.innerLabel.label,
@@ -1194,7 +1195,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
     val requestTs = ts
     val vertices = srcVertices
-    /** create query per label */
+    /* create query per label */
     val queries = for {
       label <- labels
     } yield {
@@ -1252,7 +1253,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       val ret = label.schemaVersion match {
         case HBaseType.VERSION3 | HBaseType.VERSION4 =>
           if (label.consistencyLevel == "strong") {
-            /**
+            /*
               * read: snapshotEdge on queryResult = O(N)
               * write: N x (relatedEdges x indices(indexedEdge) + 1(snapshotEdge))
               */
@@ -1262,7 +1263,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
           }
         case _ =>
 
-          /**
+          /*
             * read: x
             * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
             */
@@ -1369,7 +1370,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
         val edges = edgeGroup.map(_._1)
         val idxs = edgeGroup.map(_._2)
 
-        /** multiple edges with weak consistency level will be processed as batch */
+        /* multiple edges with weak consistency level will be processed as batch */
         val mutations = edges.flatMap { edge =>
           val (_, edgeUpdate) =
             if (edge.op == GraphUtil.operations("delete")) S2Edge.buildDeleteBulk(None, edge)
@@ -1450,7 +1451,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     val parts = GraphUtil.split(s)
     val logType = parts(2)
     val element = if (logType == "edge" | logType == "e") {
-      /** current only edge is considered to be bulk loaded */
+      /* current only edge is considered to be bulk loaded */
       labelMapping.get(parts(5)) match {
         case None =>
         case Some(toReplace) =>
@@ -1754,7 +1755,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       case s2Edge: S2Edge => s2Edge.id().asInstanceOf[EdgeId]
       case id: EdgeId => id
       case s: String => EdgeId.fromString(s)
-      case s: java.lang.String => EdgeId.fromString(s)
     }
     val edgesToFetch = for {
       id <- s2EdgeIds
@@ -1937,8 +1937,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   override def toString(): String = "[s2graph]"
 
   override def io[I <: Io[_ <: GraphReader.ReaderBuilder[_ <: GraphReader], _ <: GraphWriter.WriterBuilder[_ <: GraphWriter], _ <: Mapper.Builder[_]]](builder: Io.Builder[I]): I = {
-    builder.graph(this).registry(new S2GraphIoRegistry).create().asInstanceOf[I]
-
+    builder.graph(this).registry(S2GraphIoRegistry.instance).create().asInstanceOf[I]
   }
 
 

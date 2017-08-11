@@ -49,7 +49,6 @@ object S2Property {
     case _: Boolean => true
     case _: Short => true
     case _: Byte => true
-    case _: String => true
     case _: BigDecimal => true
     case _ => false
   }
