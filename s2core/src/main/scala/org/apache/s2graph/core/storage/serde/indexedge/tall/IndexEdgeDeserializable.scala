@@ -111,7 +111,7 @@ class IndexEdgeDeserializable(graph: S2Graph,
              }
 
            val index = label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${label.id.get}, ${labelIdxSeq}"))
-           /** process indexProps */
+           /* process indexProps */
            val size = idxPropsRaw.length
            (0 until size).foreach { ith =>
              val meta = index.sortKeyTypesArray(ith)
@@ -125,7 +125,7 @@ class IndexEdgeDeserializable(graph: S2Graph,
              }
            }
 
-           /** process props */
+           /* process props */
            if (op == GraphUtil.operations("incrementCount")) {
              //        val countVal = Bytes.toLong(kv.value)
              val countVal = bytesToLongFunc(kv.value, 0)
@@ -139,7 +139,7 @@ class IndexEdgeDeserializable(graph: S2Graph,
              }
            }
 
-           /** process tgtVertexId */
+           /* process tgtVertexId */
            val tgtVertexId =
              if (edge.checkProperty(LabelMeta.to.name)) {
                val vId = edge.property(LabelMeta.to.name).asInstanceOf[S2Property[_]].innerValWithTs

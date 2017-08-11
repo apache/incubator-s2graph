@@ -290,7 +290,7 @@ object StepResult {
         (groupByKey, scoreSum) <- sums.toSeq.sortBy(_._2 * -1)
         aggregated = agg(groupByKey) if aggregated.nonEmpty
         sorted = orderBy(globalQueryOption, aggregated)
-      } yield groupByKey -> (scoreSum, sorted)
+      } yield (groupByKey, (scoreSum, sorted))
       (Nil, grouped)
     } else {
       val ordered = orderBy(globalQueryOption, ls)
@@ -319,7 +319,7 @@ object StepResult {
       (key, (scoreSum, values)) <- baseStepResult.grouped
       (out, in) = values.partition(v => filterOutSet.contains(v.filterOutValues))
       newScoreSum = scoreSum - out.foldLeft(0.0) { case (prev, current) => prev + current.score } if in.nonEmpty
-    } yield key -> (newScoreSum, in)
+    } yield (key, (newScoreSum, in))
 
     StepResult(edgeWithScores = filteredResults, grouped = grouped, baseStepResult.degreeEdges, cursors = baseStepResult.cursors, failCount = baseStepResult.failCount + filterOutStepResult.failCount)
   }

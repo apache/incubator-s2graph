@@ -100,7 +100,7 @@ object AdminController extends Controller {
     case Failure(error) =>
       logger.error(error.getMessage, error)
       error match {
-        case JsResultException(e) => bad(JsError.toFlatJson(e))
+        case JsResultException(e) => bad(JsError.toJson(e))
         case _ => bad(error.getMessage)
       }
   }

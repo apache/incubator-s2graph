@@ -119,7 +119,7 @@ object S2GraphFactory {
       true, S2Graph.DefaultServiceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
   }
 
-  def cleanupDefaultSchema: Unit = {
+  def cleanupDefaultSchema(): Unit = {
     val columnNames = Set(S2Graph.DefaultColumnName, "person", "software", "product", "dog",
       "animal", "song", "artist", "STEPHEN")
 

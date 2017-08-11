@@ -51,7 +51,7 @@ object Bucket extends Model[Bucket] {
 
   def toRange(str: String): Option[(Int, Int)] = {
     val range = str.split(rangeDelimiter)
-    if (range.length == 2) Option(range.head.toInt, range.last.toInt)
+    if (range.length == 2) Option((range.head.toInt, range.last.toInt))
     else None
   }
 

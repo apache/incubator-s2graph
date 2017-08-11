@@ -142,7 +142,7 @@ case class SnapshotEdge(graph: S2Graph,
   override def toString(): String = {
     Map("srcVertex" -> srcVertex.toString, "tgtVertex" -> tgtVertex.toString, "label" -> label.label, "direction" -> direction,
       "operation" -> operation, "version" -> version, "props" -> propsWithTs.asScala.map(kv => kv._1 -> kv._2.value).toString,
-      "statusCode" -> statusCode, "lockTs" -> lockTs).toString
+      "statusCode" -> statusCode, "lockTs" -> lockTs).toString()
   }
 }
 
@@ -206,7 +206,7 @@ case class IndexEdge(graph: S2Graph,
     propsWithTs.get(meta.name) match {
       case null =>
 
-        /**
+        /*
           * TODO: agly hack
           * now we double store target vertex.innerId/srcVertex.innerId for easy development. later fix this to only store id once
           */
@@ -297,7 +297,7 @@ case class IndexEdge(graph: S2Graph,
   override def toString(): String = {
     Map("srcVertex" -> srcVertex.toString, "tgtVertex" -> tgtVertex.toString, "label" -> label.label, "direction" -> dir,
       "operation" -> operation, "version" -> version, "props" -> propsWithTs.asScala.map(kv => kv._1 -> kv._2.value).toString
-    ).toString
+    ).toString()
   }
 }
 
@@ -925,12 +925,12 @@ object S2Edge {
       for {
         (requestEdge, func) <- requestWithFuncs
       } {
-        val (_newPropsWithTs, _) = func(prevPropsWithTs, propsToState(requestEdge.propsWithTs), requestEdge.ts, requestEdge.schemaVer)
+        val (_newPropsWithTs, _) = func((prevPropsWithTs, propsToState(requestEdge.propsWithTs), requestEdge.ts, requestEdge.schemaVer))
         prevPropsWithTs = _newPropsWithTs
         //        logger.debug(s"${requestEdge.toLogString}\n$oldPropsWithTs\n$prevPropsWithTs\n")
       }
       val requestTs = requestEdge.ts
-      /** version should be monotoniously increasing so our RPC mutation should be applied safely */
+      /* version should be monotoniously increasing so our RPC mutation should be applied safely */
       val newVersion = invertedEdge.map(e => e.version + incrementVersion).getOrElse(requestTs)
       val maxTs = prevPropsWithTs.map(_._2.ts).max
       val newTs = if (maxTs > requestTs) maxTs else requestTs
