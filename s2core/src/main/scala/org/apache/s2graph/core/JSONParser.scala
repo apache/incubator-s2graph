@@ -302,13 +302,12 @@ object JSONParser {
 
   def jsValueToAny(value: JsValue): Option[AnyRef] = {
     try {
-      val v = value match {
-//        case JsNull =>
-        case n: JsNumber => n.value
-        case s: JsString => TemplateHelper.replaceVariable(System.currentTimeMillis(), s.value)
-        case b: JsBoolean => Boolean.box(b.value)
+      value match {
+        case n: JsNumber => Option(n.value)
+        case s: JsString => Option(TemplateHelper.replaceVariable(System.currentTimeMillis(), s.value))
+        case b: JsBoolean => Option(Boolean.box(b.value))
+        case _ => None
       }
-      Option(v)
     } catch {
       case e: Exception =>
         logger.error(s"jsValueToAny: $value", e)

@@ -220,7 +220,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
       val _client = client(withWait)
       val (increments, putAndDeletes) = kvs.partition(_.operation == SKeyValue.Increment)
 
-      /** Asynchbase IncrementRequest does not implement HasQualifiers */
+      /* Asynchbase IncrementRequest does not implement HasQualifiers */
       val incrementsFutures = increments.map { kv =>
         val inc = new AtomicIncrementRequest(kv.table, kv.row, kv.cf, kv.qualifier, Bytes.toLong(kv.value))
         val defer = _client.atomicIncrement(inc)
@@ -231,7 +231,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
         if (withWait) future else Future.successful(true)
       }
 
-      /** PutRequest and DeleteRequest accept byte[][] qualifiers/values. */
+      /* PutRequest and DeleteRequest accept byte[][] qualifiers/values. */
       val othersFutures = putAndDeletes.groupBy { kv =>
         (kv.table.toSeq, kv.row.toSeq, kv.cf.toSeq, kv.operation, kv.timestamp)
       }.map { case ((table, row, cf, operation, timestamp), groupedKeyValues) =>
@@ -362,7 +362,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
             }
             (_startKey , Bytes.add(baseKey, intervalMinBytes))
           } else {
-            /**
+             /*
               * note: since propsToBytes encode size of property map at first byte, we are sure about max value here
               */
             val _startKey = queryParam.cursorOpt match {
@@ -449,7 +449,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
 
     val queryParam = queryRequest.queryParam
     val cacheTTL = queryParam.cacheTTLInMillis
-    /** with version 4, request's type is (Scanner, (Int, Int)). otherwise GetRequest. */
+    /* with version 4, request's type is (Scanner, (Int, Int)). otherwise GetRequest. */
 
     val edge = toRequestEdge(queryRequest, parentEdges)
     val request = buildRequest(queryRequest, edge)
@@ -562,7 +562,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
                            compressionAlgorithm: String,
                            replicationScopeOpt: Option[Int] = None,
                            totalRegionCount: Option[Int] = None): Unit = {
-    /** TODO: Decide if we will allow each app server to connect to multiple hbase cluster */
+    /* TODO: Decide if we will allow each app server to connect to multiple hbase cluster */
     for {
       zkAddr <- Seq(zkQuorum) ++ zkQuorumSlave.toSeq
     } {
@@ -789,7 +789,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
   }
 
   private def toCacheKeyBytes(hbaseRpc: AsyncRPC): Array[Byte] = {
-    /** with version 4, request's type is (Scanner, (Int, Int)). otherwise GetRequest. */
+    /* with version 4, request's type is (Scanner, (Int, Int)). otherwise GetRequest. */
     hbaseRpc match {
       case Left(getRequest) => getRequest.key
       case Right(ScanWithRange(scanner, offset, limit)) =>

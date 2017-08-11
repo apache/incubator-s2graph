@@ -299,7 +299,7 @@ class Management(graph: S2Graph) {
 
     Model withTx { implicit session =>
       val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL.orElse(Some(Integer.MAX_VALUE)), compressionAlgorithm, useCache = false)
-      /** create hbase table for service */
+      /* create hbase table for service */
       graph.getStorage(service).createTable(service.cluster, service.hTableName, List("e", "v"), service.preSplitSize, service.hTableTTL, compressionAlgorithm)
       service
     }
@@ -380,14 +380,14 @@ class Management(graph: S2Graph) {
     Model withTx { implicit session =>
       if (labelOpt.isDefined) throw new LabelAlreadyExistException(s"Label name ${label} already exist.")
 
-      /** create all models */
+      /* create all models */
       val newLabel = Label.insertAll(label,
         srcServiceName, srcColumnName, srcColumnType,
         tgtServiceName, tgtColumnName, tgtColumnType,
         isDirected, serviceName, indices, props, consistencyLevel,
         hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm, options)
 
-      /** create hbase table */
+      /* create hbase table */
       val storage = graph.getStorage(newLabel)
       val service = newLabel.service
       storage.createTable(service.cluster, newLabel.hbaseTableName, List("e", "v"), service.preSplitSize, newLabel.hTableTTL, newLabel.compressionAlgorithm)

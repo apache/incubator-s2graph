@@ -30,6 +30,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-153] - Implement IndexProvider(for Mixed IndexType) class
     * [S2GRAPH-157] - Check proper apache license header on all files for release 0.2.0
     * [S2GRAPH-158] - Bug fix on String type InnerVal encoding to use UTF-8 charsetName.
+    * [S2GRAPH-160] - Remove warning while package
     * [S2GRAPH-161] - Update CHANGES file with correct release version
 
 ** Bug

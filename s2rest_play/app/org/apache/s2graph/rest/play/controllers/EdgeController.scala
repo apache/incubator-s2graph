@@ -129,7 +129,7 @@ object EdgeController extends Controller {
           }.map(jsonResponse(_))
         } else {
           val rets = elementWithIdxs.map { case ((element, tsv), idx) =>
-            if (!skipElement(element.isAsync)) QueueActor.router ! (element, tsv)
+            if (!skipElement(element.isAsync)) QueueActor.router ! ((element, tsv))
             true
           }
           Future.successful(jsonResponse(Json.toJson(rets)))
@@ -251,7 +251,7 @@ object EdgeController extends Controller {
 
   def deleteAllInner(jsValue: JsValue, withWait: Boolean) = {
 
-    /** logging for delete all request */
+    /* logging for delete all request */
     def enqueueLogMessage(ids: Seq[JsValue], labels: Seq[Label], ts: Long, direction: String, topicOpt: Option[String]) = {
       val kafkaMessages = for {
         id <- ids
