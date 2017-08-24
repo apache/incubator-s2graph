@@ -17,5 +17,5 @@
  * under the License.
  */
 
-:install org.apache.s2graph s2graph-gremlin 0.1.1-SNAPSHOT
+:install org.apache.s2graph s2graph-gremlin 0.2.1-SNAPSHOT
 :plugin use tinkerpop.s2graph
