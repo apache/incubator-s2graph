@@ -22,7 +22,11 @@
 S2Graph [![Build Status](https://travis-ci.org/apache/incubator-s2graph.svg?branch=master)](https://travis-ci.org/apache/incubator-s2graph)
 =======
 
-[**S2Graph**](http://s2graph.apache.org/) is a **graph database** designed to handle transactional graph processing at scale. Its REST API allows you to store, manage and query relational information using **edge** and **vertex** representations in a **fully asynchronous** and **non-blocking** manner. This document covers some basic concepts and terms of S2Graph as well as help you get a feel for the S2Graph API.
+[**S2Graph**](http://s2graph.apache.org/) is a **graph database** designed to handle transactional graph processing at scale. Its REST API allows you to store, manage and query relational information using **edge** and **vertex** representations in a **fully asynchronous** and **non-blocking** manner. 
+
+S2Graph is a implementation of [**Apache TinkerPop**](https://tinkerpop.apache.org/) on [**Apache HBASE**](https://hbase.apache.org/). 
+
+This document covers some basic concepts and terms of S2Graph as well as help you get a feel for the S2Graph API.
 
 Building from the source
 ========================
@@ -249,6 +253,324 @@ The toy problem is to create a timeline feature for a simple social media, like 
 
 The example above is by no means a full blown social network timeline, but it gives you an idea of how to represent, store and query graph data with S2Graph.+
 
+TinkerPop Support
+================
+
+Since version 0.2.0-incubating, S2Graph integrate natively with `Apache TinkerPop 3.2.5`.
+S2Graph passes `Apache TinkerPop`'s `StructureStandardSuite` and `ProcessStandardSuite` test suites.
+
+### Graph Features **not** implemented.
+- Computer
+- Transactions
+- ThreadedTransactions
+
+### Vertex Features **not** implemented.
+- MultiProperties
+- MetaProperties
+- UuidIds
+- AnyIds 
+- NumericIds
+- StringIds
+
+### Edge Features **not** implemented.
+- UuidIds
+- AnyIds 
+- NumericIds
+- StringIds
+
+### Vertex property features **not** implemented.
+- UuidIds
+- AnyIds 
+- NumericIds
+- StringIds
+- MapValues
+- MixedListValues
+- BooleanArrayValues
+- ByteArrayValues
+- DoubleArrayValues
+- FloatArrayValues
+- IntegerArrayValues  
+- StringArrayValues
+- LongArrayValues
+- SerializableValues
+- UniformListValues
+
+### Edge property feature **not** implemented.
+- MapValues
+- MixedListValues
+- BooleanArrayValues
+- ByteArrayValues
+- DoubleArrayValues
+- FloatArrayValues
+- IntegerArrayValues  
+- StringArrayValues
+- LongArrayValues
+- SerializableValues
+- UniformListValues
+
+>NOTE: This is an ongoing task.
+
+## Getting Started
+
+### Maven coordinates
+
+```
+<dependency>
+    <groupId>org.apache.s2graph</groupId>
+    <artifactId>s2core_2.11</artifactId>
+    <version>0.2.0</version>
+</dependency>
+```
+
+### Start
+
+S2Graph is a singleton that can be shared among multiple threads. You instantiate S2Graph using the standard TinkerPop static constructors.
+
+- Graph g = S2Graph.open(final Configuration configuration)
+
+Some important properties for configuration.
+
+#### HBase for data storage. 
+```
+hbase.zookeeper.quorum=localhost:2181
+```
+
+#### RDBMS for meta storage.
+```
+db.default.driver=org.h2.Driver
+db.default.url=jdbc:h2:file:./var/metastore;MODE=MYSQL"
+db.default.password=graph
+db.default.user=graph
+```
+
+### Gremlin Console
+
+#### 1. install plugin
+On gremlin console, it is possible to install s2graph as follow.
+
+```
+:install org.apache.s2graph s2graph-gremlin 0.2.0
+:plugin use tinkerpop.s2graph
+```
+
+Example run.
+
+```
+shonui-MacBook-Pro:apache-tinkerpop-gremlin-console-3.2.5 shon$ bin/gremlin.sh
+
+         \,,,/
+         (o o)
+-----oOOo-(3)-oOOo-----
+plugin activated: tinkerpop.server
+plugin activated: tinkerpop.utilities
+plugin activated: tinkerpop.tinkergraph
+gremlin> :install org.apache.s2graph s2graph-gremlin 0.2.0
+==>Loaded: [org.apache.s2graph, s2graph-gremlin, 0.2.0] - restart the console to use [tinkerpop.s2graph]
+gremlin> :plugin use tinkerpop.s2graph
+==>tinkerpop.s2graph activated
+gremlin> :plugin list
+==>tinkerpop.server[active]
+==>tinkerpop.gephi
+==>tinkerpop.utilities[active]
+==>tinkerpop.sugar
+==>tinkerpop.credentials
+==>tinkerpop.tinkergraph[active]
+==>tinkerpop.s2graph[active]
+gremlin>
+```
+
+Once `s2graph-gremlin` plugin is acvive, then following example will generate tinkerpop's modern graph in s2graph.
+
+Taken from [TinkerPop](http://tinkerpop.apache.org/docs/current/reference/#intro)
+
+![Modern Graph from Tinkerpop](http://tinkerpop.apache.org/docs/current/images/tinkerpop-modern.png)
+
+
+### tp3 modern graph(simple).
+
+```
+conf = new BaseConfiguration()
+graph = S2Graph.open(conf)
+
+// init system default schema
+S2GraphFactory.initDefaultSchema(graph)
+
+// init extra schema for tp3 modern graph.
+S2GraphFactory.initModernSchema(graph)
+
+// load modern graph into current graph instance.
+S2GraphFactory.generateModern(graph)
+
+// traversal
+t = graph.traversal()
+
+// show all vertices in this graph.
+t.V()
+
+// show all edges in this graph.
+t.E()
+
+// add two vertices.
+shon = graph.addVertex(T.id, 10, T.label, "person", "name", "shon", "age", 35)
+s2graph = graph.addVertex(T.id, 11, T.label, "software", "name", "s2graph", "lang", "scala")
+
+// add one edge between two vertices.
+created = shon.addEdge("created", s2graph, "_timestamp", 10, "weight", 0.1)
+
+// check if new edge is available through traversal
+t.V().has("name", "shon").out()
+
+// shutdown
+graph.close()
+```
+
+Note that simple version used default schema for `Service`, `Column`, `Label` for compatibility.
+Please checkout advanced example below to understand what data model is available on S2Graph.
+
+### tp3 modern graph(advanced).
+
+It is possible to separate multiple namespaces into logical spaces.
+S2Graph achieve this by following data model. details can be found on https://steamshon.gitbooks.io/s2graph-book/content/the_data_model.html.
+
+1. Service: the top level abstraction 
+
+A convenient logical grouping of related entities
+Similar to the database abstraction that most relational databases support.       
+
+2. Column: belongs to a service.
+
+A set of homogeneous vertices such as users, news articles or tags. 
+Every vertex has a user-provided unique ID that allows the efficient lookup. 
+A service typically contains multiple columns.
+
+3. Label: schema for edge
+
+A set of homogeneous edges such as friendships, views, or clicks. 
+Relation between two columns as well as a recursive association within one column. 
+The two columns connected with a label may not necessarily be in the same service, allowing us to store and query data that spans over multiple services.
+
+Instead of convert user provided Id into internal unique numeric Id, S2Graph simply composite service and column metadata with user provided Id to guarantee global unique Id.
+
+Following is simple example to exploit these data model in s2graph.            
+```
+// init graph
+graph = S2Graph.open(new BaseConfiguration())
+
+// 0. import necessary methods for schema management.
+import static org.apache.s2graph.core.Management.*
+
+// 1. initialize dbsession for management which store schema into RDBMS.
+session = graph.dbSession()
+
+// 2. properties for new service "s2graph".
+
+serviceName = "s2graph"
+cluster = "localhost"
+hTableName = "s2graph"
+preSplitSize = 0
+hTableTTL = -1
+compressionAlgorithm = "gz"
+
+// 3. actual creation of s2graph service.
+// details can be found on https://steamshon.gitbooks.io/s2graph-book/content/create_a_service.html
+
+service = graph.management.createService(serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
+
+// 4. properties for user vertex schema belongs to s2graph service.
+
+columnName = "user"
+columnType = "integer"
+
+// each property consist of (name: String, defaultValue: String, dataType: String)
+// defailts can be found on https://steamshon.gitbooks.io/s2graph-book/content/create_a_servicecolumn.html
+props = [newProp("name", "-", "string"), newProp("age", "-1", "integer")]
+
+
+schemaVersion = "v3"
+user = graph.management.createServiceColumn(serviceName, columnName, columnType, props, schemaVersion)
+
+// 2.1 (optional) global vertex index.
+graph.management.buildGlobalVertexIndex("global_vertex_index", ["name", "age"])
+
+// 3. create VertexId
+// create S2Graph's VertexId class.
+v1Id = graph.newVertexId(serviceName, columnName, 20)
+v2Id = graph.newVertexId(serviceName, columnName, 30)
+
+shon = graph.addVertex(T.id, v1Id, "name", "shon", "age", 35)
+dun = graph.addVertex(T.id, v2Id, "name", "dun", "age", 36)
+
+// 4. friends label
+labelName = "friend_"
+srcColumn = user
+tgtColumn = user
+isDirected = true
+indices = []
+props = [newProp("since", "-", "string")]
+consistencyLevel = "strong"
+hTableName = "s2graph"
+hTableTTL = -1
+options = null
+
+friend = graph.management.createLabel(labelName, srcColumn, tgtColumn,
+        isDirected, serviceName, indices, props, consistencyLevel,
+        hTableName, hTableTTL, schemaVersion, compressionAlgorithm, options)
+
+shon.addEdge(labelName, dun, "since", "2017-01-01")
+
+t = graph.traversal()
+
+
+println "All Edges"
+println t.E().toList()
+
+println "All Vertices"
+println t.V().toList()
+
+println "Specific Edge"
+println t.V().has("name", "shon").out().toList()
+```
+
+## Architecture
+
+physical data storage is closed related to data model(https://steamshon.gitbooks.io/s2graph-book/content/the_data_model.html).
+
+in HBase storage, Vertex is stored in `v` column family, and Edge is stored in `e` column family.
+
+each `Service`/`Label` can have it's own dedicated HBase Table.
+
+How Edge/Vertex is actually stored in `KeyValue` in HBase is described in [details](https://steamshon.gitbooks.io/s2graph-book/content/the_low-level_data_formats.html).
+
+## Indexes
+will be updated.
+
+## Cache
+will be updated.
+
+## Gremlin 
+S2Graph has full support for gremlin. However gremlin’s fine grained graphy nature results in very high latency
+
+Provider suppose to provide `ProviderOptimization` to improve latency of traversal, and followings are currently available optimizations.
+
+>NOTE: This is an ongoing task
+
+#### 1. `S2GraphStep`
+
+1. translate multiple `has` step into lucene query and find out vertexId/edgeId can be found from index provider, lucene.
+2. if vertexId/edgeId can be found, then change full scan into point lookup using list of vertexId/edgeId.
+
+for examples, following traversal need full scan on storage if there is no index provider.
+
+```
+g.V().has("name", "steamshon").out()
+g.V().has("name", "steamshon").has("age", P.eq(30).or(P.between(20, 30)))
+```
+
+once following global vertex index is created, then `S2GraphStep` translate above traversal into lucene query, then get list of vertexId/edgeId which switch full scan to points lookup.
+```
+graph.management.buildGlobalVertexIndex("global_vertex_index", ["name", "age"])
+```
+
 
 #### [The Official Website](https://s2graph.apache.org/)
 
@@ -264,5 +586,3 @@ The example above is by no means a full blown social network timeline, but it gi
 [(subscribe)](mailto:dev-subscribe@s2graph.incubator.apache.org?subject=send this email to subscribe)
 [(unsubscribe)](mailto:dev-unsubscribe@s2graph.incubator.apache.org?subject=send this email to unsubscribe)
 [(archives)](http://markmail.org/search/?q=list%3Aorg.apache.s2graph.dev)
-
-[![Analytics](https://ga-beacon.appspot.com/UA-62888350-1/s2graph/readme.md)](https://github.com/kakao/s2graph)
