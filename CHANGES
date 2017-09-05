@@ -44,6 +44,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-132] - Support buffering for 'Increment RPC'
     * [S2GRAPH-133] - Deprecating Vagrant environment.
     * [S2GRAPH-135] - Change the way LabelIndexOption is implemented and improve it
+    * [S2GRAPH-165] - Add TinkerPop support documentation on README
     
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.
