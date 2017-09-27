@@ -132,8 +132,7 @@ object TransferToHFile extends SparkApp {
         val p = putRequest
         val kv = new KeyValue(p.key(), p.family(), p.qualifier, p.timestamp, p.value)
 
-        //        println(s"[Edge]: $edge\n[Put]: $p\n[KeyValue]: ${kv.getRow.toList}, ${kv.getQualifier.toList}, ${kv.getValue.toList}, ${kv.getTimestamp}")
-
+   
         kv
       }
     kvs.toIterator
