@@ -121,22 +121,34 @@ object TransferToHFile extends SparkApp {
       }
     kvs.toIterator
   }
-
+  
   def toKeyValues(strs: Seq[String], labelMapping: Map[String, String], autoEdgeCreate: Boolean): Iterator[KeyValue] = {
-    val kvs = for {
-      s <- strs
-      element <- GraphSubscriberHelper.g.toGraphElement(s, labelMapping).toSeq if element.isInstanceOf[S2Edge]
-      edge = element.asInstanceOf[S2Edge]
-      putRequest <- insertBulkForLoaderAsync(edge, autoEdgeCreate)
-    } yield {
-        val p = putRequest
-        val kv = new KeyValue(p.key(), p.family(), p.qualifier, p.timestamp, p.value)
-
-   
-        kv
+    val kvList = new util.ArrayList[KeyValue]
+    for (s <- strs) {
+      val elementList = Graph.toGraphElement(s, labelMapping).toSeq
+      for (element <- elementList) {
+        if (element.isInstanceOf[S2Edge]) {
+          val edge = element.asInstanceOf[S2Edge]
+          val putRequestList = insertBulkForLoaderAsync(edge, autoEdgeCreate)
+          for (p <- putRequestList) {
+            val kv = new KeyValue(p.key(), p.family(), p.qualifier, p.timestamp, p.value)
+            kvList.add(kv)
+          }
+        } else if (element.isInstanceOf[S2Vertex]) {
+          val vertex = element.asInstanceOf[S2Vertex]
+          val putRequestList = GraphSubscriberHelper.g.storage.vertexSerializer(vertex).toKeyValues.map { kv =>
+            new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp)
+          }
+          for (p <- putRequestList) {
+            val kv = new KeyValue(p.key(), p.family(), p.qualifier, p.timestamp, p.value)
+            kvList.add(kv)
+          }
+        } 
       }
-    kvs.toIterator
+    }
+    kvList.iterator()
   }
+  
 
 
   override def run() = {
