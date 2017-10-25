@@ -123,9 +123,9 @@ object TransferToHFile extends SparkApp {
   }
   
   def toKeyValues(strs: Seq[String], labelMapping: Map[String, String], autoEdgeCreate: Boolean): Iterator[KeyValue] = {
-    val kvList = new util.ArrayList[KeyValue]
+    val kvList = new java.util.ArrayList[KeyValue]
     for (s <- strs) {
-      val elementList = Graph.toGraphElement(s, labelMapping).toSeq
+      val elementList = GraphSubscriberHelper.g.toGraphElement(s, labelMapping).toSeq
       for (element <- elementList) {
         if (element.isInstanceOf[S2Edge]) {
           val edge = element.asInstanceOf[S2Edge]
@@ -136,7 +136,7 @@ object TransferToHFile extends SparkApp {
           }
         } else if (element.isInstanceOf[S2Vertex]) {
           val vertex = element.asInstanceOf[S2Vertex]
-          val putRequestList = GraphSubscriberHelper.g.storage.vertexSerializer(vertex).toKeyValues.map { kv =>
+          val putRequestList = GraphSubscriberHelper.g.getStorage(vertex.service).vertexSerializer(vertex).toKeyValues.map { kv =>
             new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp)
           }
           for (p <- putRequestList) {
