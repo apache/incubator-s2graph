@@ -22,7 +22,8 @@ package org.apache.s2graph.core.storage.serde.snapshotedge.wide
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.SnapshotEdge
 import org.apache.s2graph.core.mysqls.LabelIndex
-import org.apache.s2graph.core.storage.{SKeyValue, Serializable, StorageSerializable}
+import org.apache.s2graph.core.storage.serde.Serializable
+import org.apache.s2graph.core.storage.serde.StorageSerializable._
 import org.apache.s2graph.core.types.VertexId
 
 
@@ -32,7 +33,6 @@ import org.apache.s2graph.core.types.VertexId
  * @param snapshotEdge
  */
 class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[SnapshotEdge] {
-  import StorageSerializable._
 
   override def ts = snapshotEdge.version
   override def table = snapshotEdge.label.hbaseTableName.getBytes("UTF-8")

@@ -26,7 +26,7 @@ import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.rest.TemplateHelper
-import org.apache.s2graph.core.storage.StorageSerializable._
+import org.apache.s2graph.core.storage.serde.StorageSerializable._
 import org.apache.s2graph.core.types._
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
 import org.hbase.async.ColumnRangeFilter

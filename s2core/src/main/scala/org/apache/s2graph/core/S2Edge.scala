@@ -684,7 +684,7 @@ case class S2Edge(innerGraph: S2Graph,
       // should we delete related edges also?
       val future = innerGraph.mutateEdges(Seq(edgeToDelete), withWait = true)
       val mutateSuccess = Await.result(future, innerGraph.WaitTimeout)
-      if (!mutateSuccess.forall(identity)) throw new RuntimeException("edge remove failed.")
+      if (!mutateSuccess.forall(_.isSuccess)) throw new RuntimeException("edge remove failed.")
     } else {
       throw Edge.Exceptions.edgeRemovalNotSupported()
     }

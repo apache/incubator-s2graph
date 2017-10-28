@@ -20,8 +20,9 @@
 package org.apache.s2graph.rest.play.controllers
 
 import org.apache.s2graph.core.rest.RequestParser
+import org.apache.s2graph.core.storage.MutateResponse
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{ExceptionHandler, S2Graph, GraphExceptions}
+import org.apache.s2graph.core.{ExceptionHandler, GraphExceptions, S2Graph}
 import org.apache.s2graph.rest.play.actors.QueueActor
 import org.apache.s2graph.rest.play.config.Config
 import play.api.libs.json.{JsValue, Json}
@@ -54,7 +55,7 @@ object VertexController extends Controller {
         if (verticesToStore.isEmpty) Future.successful(jsonResponse(Json.toJson(Seq.empty[Boolean])))
         else {
           if (withWait) {
-            val rets = s2.mutateVertices(verticesToStore, withWait = true)
+            val rets = s2.mutateVertices(verticesToStore, withWait = true).map(_.map(_.isSuccess))
             rets.map(Json.toJson(_)).map(jsonResponse(_))
           } else {
             val rets = verticesToStore.map { vertex => QueueActor.router ! vertex; true }

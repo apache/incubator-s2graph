@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.storage
+package org.apache.s2graph.core.storage.serde
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.mysqls.{ColumnMeta, LabelMeta}
+import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.s2graph.core.types.{InnerValLike, InnerValLikeWithTs}
-import org.apache.s2graph.core.utils.logger
 
 object StorageSerializable {
   /** serializer */
@@ -31,6 +31,14 @@ object StorageSerializable {
     assert(len < Byte.MaxValue)
     var bytes = Array.fill(1)(len.toByte)
     for ((_, v) <- props) bytes = Bytes.add(bytes, v.bytes)
+    bytes
+  }
+
+  def vertexPropsToBytes(props: Seq[(ColumnMeta, Array[Byte])]): Array[Byte] = {
+    val len = props.length
+    assert(len < Byte.MaxValue)
+    var bytes = Array.fill(1)(len.toByte)
+    for ((k, v) <- props) bytes = Bytes.add(bytes, Bytes.toBytes(k.seq.toInt), v)
     bytes
   }
 

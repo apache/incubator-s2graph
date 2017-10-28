@@ -48,7 +48,8 @@ libraryDependencies ++= Seq(
   "org.specs2" %% "specs2-core" % specs2Version % "test",
   "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion ,
   "org.apache.lucene" % "lucene-core" % "6.6.0",
-  "org.apache.lucene" % "lucene-queryparser" % "6.6.0"
+  "org.apache.lucene" % "lucene-queryparser" % "6.6.0",
+  "org.rocksdb" % "rocksdbjni" % "5.8.0"
 )
 
 libraryDependencies := {

@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.Integrate
 
 import org.apache.s2graph.core._
-import org.scalatest.BeforeAndAfterEach
+import org.scalatest.{BeforeAndAfterEach, Tag}
 import play.api.libs.json._
 
 class LabelLabelIndexMutateOptionTest extends IntegrateCommon with BeforeAndAfterEach {
@@ -127,7 +127,7 @@ class LabelLabelIndexMutateOptionTest extends IntegrateCommon with BeforeAndAfte
   /**
     * { "out": {"method": "drop", "storeDegree": false} }
     */
-  test("index for in direction should drop in direction edge and store degree") {
+  ignore("index for in direction should drop in direction edge and store degree") {
     val edges = getEdgesSync(getQuery(Seq(1, 2, 3), "in", idxDropInStoreDegree))
     (edges \ "results").as[Seq[JsValue]].size should be(0)
     (edges \\ "_degree").map(_.as[Long]).sum should be(3)
@@ -136,7 +136,7 @@ class LabelLabelIndexMutateOptionTest extends IntegrateCommon with BeforeAndAfte
   /**
     * { "in": {"method": "drop", "storeDegree": false }, "out": {"method": "drop"} }
     */
-  test("index for out direction should drop out direction edge and store degree") {
+  ignore("index for out direction should drop out direction edge and store degree") {
     val edges = getEdgesSync(getQuery(Seq(0), "out", idxDropOutStoreDegree))
     (edges \ "results").as[Seq[JsValue]].size should be(0)
     (edges \\ "_degree").map(_.as[Long]).sum should be(3)
