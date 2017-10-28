@@ -25,39 +25,7 @@ import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage.serde.Deserializable
 import org.apache.s2graph.core.storage.serde.indexedge.tall.IndexEdgeDeserializable
 import org.apache.s2graph.core.types._
-
 import scala.concurrent.{ExecutionContext, Future}
-
-object Storage {
-  def toRequestEdge(graph: S2Graph)(queryRequest: QueryRequest, parentEdges: Seq[EdgeWithScore]): S2Edge = {
-    val srcVertex = queryRequest.vertex
-    val queryParam = queryRequest.queryParam
-    val tgtVertexIdOpt = queryParam.tgtVertexInnerIdOpt
-    val label = queryParam.label
-    val labelWithDir = queryParam.labelWithDir
-    val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
-    val propsWithTs = label.EmptyPropsWithTs
-
-    tgtVertexIdOpt match {
-      case Some(tgtVertexId) => // _to is given.
-        /* we use toSnapshotEdge so dont need to swap src, tgt */
-        val src = srcVertex.innerId
-        val tgt = tgtVertexId
-        val (srcVId, tgtVId) = (SourceVertexId(srcColumn, src), TargetVertexId(tgtColumn, tgt))
-        val (srcV, tgtV) = (graph.newVertex(srcVId), graph.newVertex(tgtVId))
-
-        graph.newEdge(srcV, tgtV, label, labelWithDir.dir, propsWithTs = propsWithTs)
-      case None =>
-        val src = srcVertex.innerId
-        val srcVId = SourceVertexId(srcColumn, src)
-        val srcV = graph.newVertex(srcVId)
-
-        graph.newEdge(srcV, srcV, label, labelWithDir.dir, propsWithTs = propsWithTs, parentEdges = parentEdges)
-    }
-  }
-
-
-}
 
 abstract class Storage[Q](val graph: S2Graph,
                           val config: Config) {

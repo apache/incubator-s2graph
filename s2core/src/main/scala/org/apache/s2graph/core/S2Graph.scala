@@ -31,7 +31,6 @@ import org.apache.s2graph.core.index.IndexProvider
 import org.apache.s2graph.core.io.tinkerpop.optimize.S2GraphStepStrategy
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
-import org.apache.s2graph.core.storage.rocks.RocksStorage
 import org.apache.s2graph.core.storage.{ MutateResponse, SKeyValue, Storage}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
@@ -140,7 +139,6 @@ object S2Graph {
 
     storageBackend match {
       case "hbase" => new AsynchbaseStorage(graph, config)
-      case "rocks" => new RocksStorage(graph, config)
       case _ => throw new RuntimeException("not supported storage.")
     }
   }
@@ -694,7 +692,7 @@ object S2Graph {
 
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.VertexTest$Traversals", method = "*", reason = "no"),
 //  passed: all
-  
+
 //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.UnfoldTest$Traversals", method = "*", reason = "no"),
 //  passed: all
 
@@ -1145,7 +1143,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
         fallback
     } get
   }
-  
+
   def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
     def getVertices[Q](storage: Storage[Q])(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
       def fromResult(kvs: Seq[SKeyValue],
@@ -1671,6 +1669,33 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     val vertex = new S2Vertex(this, srcVertexId, ts, S2Vertex.EmptyProps, op)
     S2Vertex.fillPropsWithTs(vertex, propsInner)
     vertex
+  }
+
+  def toRequestEdge(queryRequest: QueryRequest, parentEdges: Seq[EdgeWithScore]): S2Edge = {
+    val srcVertex = queryRequest.vertex
+    val queryParam = queryRequest.queryParam
+    val tgtVertexIdOpt = queryParam.tgtVertexInnerIdOpt
+    val label = queryParam.label
+    val labelWithDir = queryParam.labelWithDir
+    val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
+    val propsWithTs = label.EmptyPropsWithTs
+
+    tgtVertexIdOpt match {
+      case Some(tgtVertexId) => // _to is given.
+        /* we use toSnapshotEdge so dont need to swap src, tgt */
+        val src = srcVertex.innerId
+        val tgt = tgtVertexId
+        val (srcVId, tgtVId) = (SourceVertexId(srcColumn, src), TargetVertexId(tgtColumn, tgt))
+        val (srcV, tgtV) = (newVertex(srcVId), newVertex(tgtVId))
+
+        newEdge(srcV, tgtV, label, labelWithDir.dir, propsWithTs = propsWithTs)
+      case None =>
+        val src = srcVertex.innerId
+        val srcVId = SourceVertexId(srcColumn, src)
+        val srcV = newVertex(srcVId)
+
+        newEdge(srcV, srcV, label, labelWithDir.dir, propsWithTs = propsWithTs, parentEdges = parentEdges)
+    }
   }
 
   /**
