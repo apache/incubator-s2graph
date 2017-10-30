@@ -169,6 +169,29 @@ case class S2Vertex(graph: S2Graph,
     graph.fetchEdges(this, labelNameWithDirs.distinct)
   }
 
+  private def edgesAsync(direction: Direction, labelNames: String*): Future[util.Iterator[Edge]] = {
+    val labelNameWithDirs =
+      if (labelNames.isEmpty) {
+        // TODO: Let's clarify direction
+        if (direction == Direction.BOTH) {
+          Label.findBySrcColumnId(id.colId).map(l => l.label -> Direction.OUT.name) ++
+            Label.findByTgtColumnId(id.colId).map(l => l.label -> Direction.IN.name)
+        } else if (direction == Direction.IN) {
+          Label.findByTgtColumnId(id.colId).map(l => l.label -> direction.name)
+        } else {
+          Label.findBySrcColumnId(id.colId).map(l => l.label -> direction.name)
+        }
+      } else {
+        direction match {
+          case Direction.BOTH =>
+            Seq(Direction.OUT, Direction.IN).flatMap { dir => labelNames.map(_ -> dir.name()) }
+          case _ => labelNames.map(_ -> direction.name())
+        }
+      }
+
+    graph.fetchEdgesAsync(this, labelNameWithDirs.distinct)
+  }
+
   // do no save to storage
   def propertyInner[V](cardinality: Cardinality, key: String, value: V, objects: AnyRef*): VertexProperty[V] = {
     S2Property.assertValidProp(key, value)
@@ -242,21 +265,18 @@ case class S2Vertex(graph: S2Graph,
       // remove edge
       // TODO: remove related edges also.
       implicit val ec = graph.ec
-      val ts = System.currentTimeMillis()
-      val outLabels = Label.findBySrcColumnId(id.colId)
-      val inLabels = Label.findByTgtColumnId(id.colId)
+
       val verticesToDelete = Seq(this.copy(op = GraphUtil.operations("delete")))
-      val outFuture = graph.deleteAllAdjacentEdges(verticesToDelete, outLabels, GraphUtil.directions("out"), ts)
-      val inFuture = graph.deleteAllAdjacentEdges(verticesToDelete, inLabels, GraphUtil.directions("in"), ts)
+
       val vertexFuture = graph.mutateVertices(verticesToDelete, withWait = true)
+
       val future = for {
-        outSuccess <- outFuture
-        inSuccess <- inFuture
         vertexSuccess <- vertexFuture
+        edges <- edgesAsync(Direction.BOTH)
       } yield {
-        if (!outSuccess) throw new RuntimeException("Vertex.remove out direction edge delete failed.")
-        if (!inSuccess) throw new RuntimeException("Vertex.remove in direction edge delete failed.")
-        if (!vertexSuccess.forall(identity)) throw new RuntimeException("Vertex.remove vertex delete failed.")
+        edges.asScala.toSeq.foreach { edge => edge.remove() }
+        if (!vertexSuccess.forall(_.isSuccess)) throw new RuntimeException("Vertex.remove vertex delete failed.")
+
         true
       }
       Await.result(future, graph.WaitTimeout)

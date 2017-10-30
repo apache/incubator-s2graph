@@ -46,6 +46,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-135] - Change the way LabelIndexOption is implemented and improve it
     * [S2GRAPH-165] - Add TinkerPop support documentation on README
     * [S2GRAPH-167] - Provide Vertex CSV File BulkLoad
+    * [S2GRAPH-169] - Separate multiple functionalities on Storage class into multiple Interface.
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.

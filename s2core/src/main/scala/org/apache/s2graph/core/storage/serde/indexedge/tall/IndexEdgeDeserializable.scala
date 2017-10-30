@@ -22,16 +22,18 @@ package org.apache.s2graph.core.storage.serde.indexedge.tall
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
-import org.apache.s2graph.core.storage.StorageDeserializable._
-import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, StorageDeserializable}
+import org.apache.s2graph.core.storage.serde._
+import org.apache.s2graph.core.storage.serde.StorageDeserializable._
+import org.apache.s2graph.core.storage.serde.Deserializable
+import org.apache.s2graph.core.storage.CanSKeyValue
 import org.apache.s2graph.core.types._
 
 object IndexEdgeDeserializable{
   def getNewInstance(graph: S2Graph) = new IndexEdgeDeserializable(graph)
 }
 class IndexEdgeDeserializable(graph: S2Graph,
-                              bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends Deserializable[S2Edge] {
-   import StorageDeserializable._
+                              bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong,
+                              tallSchemaVersions: Set[String] = Set(HBaseType.VERSION4)) extends Deserializable[S2Edge] {
 
    type QualifierRaw = (Array[(LabelMeta, InnerValLike)], VertexId, Byte, Boolean, Int)
    type ValueRaw = (Array[(LabelMeta, InnerValLike)], Int)
@@ -65,7 +67,7 @@ class IndexEdgeDeserializable(graph: S2Graph,
          val edge = graph.newEdge(srcVertex, null,
            label, labelWithDir.dir, GraphUtil.defaultOpByte, version, S2Edge.EmptyState)
          var tsVal = version
-         val isTallSchema = label.schemaVersion == HBaseType.VERSION4
+         val isTallSchema = tallSchemaVersions(label.schemaVersion)
          val isDegree = if (isTallSchema) pos == kv.row.length else kv.qualifier.isEmpty
 
          if (isDegree) {

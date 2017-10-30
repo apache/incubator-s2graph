@@ -20,11 +20,12 @@
 package org.apache.s2graph.core.storage.serde.snapshotedge.tall
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.mysqls.{ServiceColumn, Label, LabelIndex, LabelMeta}
-import org.apache.s2graph.core.storage.StorageDeserializable._
-import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, SKeyValue, StorageDeserializable}
+import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
+import org.apache.s2graph.core.storage.serde.StorageDeserializable._
+import org.apache.s2graph.core.storage.CanSKeyValue
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core._
+import org.apache.s2graph.core.storage.serde.Deserializable
 
 class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[SnapshotEdge] {
 

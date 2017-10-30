@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.storage
+package org.apache.s2graph.core.storage.serde
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.QueryParam
-import org.apache.s2graph.core.mysqls.{LabelMeta, Label}
-import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, InnerValLikeWithTs}
-import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.mysqls.{ColumnMeta, Label, LabelMeta, ServiceColumn}
+import org.apache.s2graph.core.storage.CanSKeyValue
+import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs}
 
 object StorageDeserializable {
   /** Deserializer */
@@ -32,6 +31,31 @@ object StorageDeserializable {
     val isInverted = if ((byte & 1) != 0) true else false
     val labelOrderSeq = byte >> 1
     (labelOrderSeq.toByte, isInverted)
+  }
+
+  def bytesToKeyValues(bytes: Array[Byte],
+                       offset: Int,
+                       length: Int,
+                       schemaVer: String,
+                       serviceColumn: ServiceColumn): (Array[(ColumnMeta, InnerValLike)], Int) = {
+    var pos = offset
+    val len = bytes(pos)
+    pos += 1
+    val kvs = new Array[(ColumnMeta, InnerValLike)](len)
+    var i = 0
+    while (i < len) {
+      val kSeq = Bytes.toInt(bytes, pos, 4)
+      val k = serviceColumn.metasMap(kSeq)
+      pos += 4
+
+      val (v, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, 0, schemaVer)
+      pos += numOfBytesUsed
+      kvs(i) = (k -> v)
+      i += 1
+    }
+    val ret = (kvs, pos)
+    //    logger.debug(s"bytesToProps: $ret")
+    ret
   }
 
   def bytesToKeyValues(bytes: Array[Byte],

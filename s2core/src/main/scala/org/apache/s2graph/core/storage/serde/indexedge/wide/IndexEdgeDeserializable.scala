@@ -22,13 +22,13 @@ package org.apache.s2graph.core.storage.serde.indexedge.wide
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
-import org.apache.s2graph.core.storage.StorageDeserializable._
+import org.apache.s2graph.core.storage.serde.StorageDeserializable._
 import org.apache.s2graph.core.storage._
+import org.apache.s2graph.core.storage.serde.Deserializable
 import org.apache.s2graph.core.types._
 
 class IndexEdgeDeserializable(graph: S2Graph,
                               bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends Deserializable[S2Edge] {
-   import StorageDeserializable._
 
    type QualifierRaw = (Array[(LabelMeta, InnerValLike)], VertexId, Byte, Boolean, Int)
    type ValueRaw = (Array[(LabelMeta, InnerValLike)], Int)

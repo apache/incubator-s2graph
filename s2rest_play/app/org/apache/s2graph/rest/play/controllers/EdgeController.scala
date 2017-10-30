@@ -25,6 +25,7 @@ import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.storage.{IncrementResponse, MutateResponse}
 import org.apache.s2graph.rest.play.actors.QueueActor
 import org.apache.s2graph.rest.play.config.Config
 import play.api.libs.json._
@@ -92,7 +93,7 @@ object EdgeController extends Controller {
     val result = s2.mutateElements(elements.map(_._1), true)
     result onComplete { results =>
       results.get.zip(elements).map {
-        case (false, (e: S2Edge, tsv: String)) =>
+        case (r: MutateResponse, (e: S2Edge, tsv: String)) if !r.isSuccess =>
           val kafkaMessages = if(e.op == GraphUtil.operations("deleteAll")){
             toDeleteAllFailMessages(Seq(e.srcVertex), Seq(e.innerLabel), e.labelWithDir.dir, e.ts)
           } else{
@@ -119,13 +120,13 @@ object EdgeController extends Controller {
           val (elementSync, elementAsync) = elementWithIdxs.partition { case ((element, tsv), idx) =>
             !skipElement(element.isAsync)
           }
-          val retToSkip = elementAsync.map(_._2 -> true)
+          val retToSkip = elementAsync.map(_._2 -> MutateResponse.Success)
           val elementsToStore = elementSync.map(_._1)
           val elementsIdxToStore = elementSync.map(_._2)
           mutateElementsWithFailLog(elementsToStore).map { rets =>
             elementsIdxToStore.zip(rets) ++ retToSkip
           }.map { rets =>
-            Json.toJson(rets.sortBy(_._1).map(_._2))
+            Json.toJson(rets.sortBy(_._1).map(_._2.isSuccess))
           }.map(jsonResponse(_))
         } else {
           val rets = elementWithIdxs.map { case ((element, tsv), idx) =>
@@ -232,8 +233,8 @@ object EdgeController extends Controller {
     else {
 
       s2.incrementCounts(edges, withWait = true).map { results =>
-        val json = results.map { case (isSuccess, resultCount, count) =>
-          Json.obj("success" -> isSuccess, "result" -> resultCount, "_count" -> count)
+        val json = results.map { case IncrementResponse(isSuccess, afterCount, beforeCount) =>
+          Json.obj("success" -> isSuccess, "result" -> afterCount, "_count" -> beforeCount)
         }
 
         jsonResponse(Json.toJson(json))

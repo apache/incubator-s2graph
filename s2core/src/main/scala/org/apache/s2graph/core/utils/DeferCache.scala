@@ -90,13 +90,13 @@ object DeferCache {
 
 /**
  * @param config
- * @param ec
  * @param canDefer: implicit evidence to find out implementation of CanDefer.
  * @tparam A: actual element type that will be stored in M[_]  and C[_].
  * @tparam M[_]: container type that will be stored in local cache. ex) Promise, Defer.
  * @tparam C[_]: container type that will be returned to client of this class. Ex) Future, Defer.
  */
-class DeferCache[A, M[_], C[_]](config: Config, empty: => A, name: String = "", useMetric: Boolean = false)(implicit ec: ExecutionContext, canDefer: CanDefer[A, M, C]) {
+class DeferCache[A, M[_], C[_]](config: Config, empty: => A,
+                                name: String = "", useMetric: Boolean = false)(implicit canDefer: CanDefer[A, M, C]) {
   type Value = (Long, C[A])
 
   private val maxSize = config.getInt("future.cache.max.size")
@@ -131,7 +131,7 @@ class DeferCache[A, M[_], C[_]](config: Config, empty: => A, name: String = "", 
   private def checkAndExpire(cacheKey: Long,
                              cachedAt: Long,
                              cacheTTL: Long,
-                             oldFuture: C[A])(op: => C[A]): C[A] = {
+                             oldFuture: C[A])(op: => C[A])(implicit ec: ExecutionContext): C[A] = {
     if (System.currentTimeMillis() >= cachedAt + cacheTTL) {
       // future is too old. so need to expire and fetch new data from storage.
       futureCache.asMap().remove(cacheKey)
@@ -164,7 +164,7 @@ class DeferCache[A, M[_], C[_]](config: Config, empty: => A, name: String = "", 
     }
   }
 
-  def getOrElseUpdate(cacheKey: Long, cacheTTL: Long)(op: => C[A]): C[A] = {
+  def getOrElseUpdate(cacheKey: Long, cacheTTL: Long)(op: => C[A])(implicit ec: ExecutionContext): C[A] = {
     val cacheVal = futureCache.getIfPresent(cacheKey)
     cacheVal match {
       case null =>

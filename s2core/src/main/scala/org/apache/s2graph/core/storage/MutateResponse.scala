@@ -17,23 +17,15 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.features
+package org.apache.s2graph.core.storage
 
-import org.apache.tinkerpop.gremlin.structure.Graph.Features
-import org.apache.tinkerpop.gremlin.structure.Graph.Features.GraphFeatures
-
-class S2GraphFeatures extends GraphFeatures {
-
-
-  override def supportsComputer(): Boolean = false
-
-  override def supportsThreadedTransactions(): Boolean = false
-
-  override def supportsTransactions(): Boolean = false
-
-  override def supportsPersistence(): Boolean = true
-
-  override def variables(): Features.VariableFeatures = super.variables()
-
-  override def supportsConcurrentAccess(): Boolean = false
+object MutateResponse {
+  val Success = new MutateResponse(isSuccess = true)
+  val Failure = new MutateResponse(isSuccess = false)
+  val IncrementFailure = new IncrementResponse(isSuccess = false, -1, -1)
+  val IncrementSuccess = new IncrementResponse(isSuccess = true, -1, -1)
 }
+
+class MutateResponse(val isSuccess: Boolean)
+
+case class IncrementResponse(override val isSuccess: Boolean, afterCount: Long, beforeCount: Long) extends MutateResponse(isSuccess)

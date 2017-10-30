@@ -17,23 +17,38 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.features
+package org.apache.s2graph.core.storage
 
-import org.apache.tinkerpop.gremlin.structure.Graph.Features
-import org.apache.tinkerpop.gremlin.structure.Graph.Features.GraphFeatures
+import com.typesafe.config.Config
 
-class S2GraphFeatures extends GraphFeatures {
+trait StorageManagement {
+  /**
+    * this method need to be called when client shutdown. this is responsible to cleanUp the resources
+    * such as client into storage.
+    */
+  def flush(): Unit
 
+  /**
+    * create table on storage.
+    * if storage implementation does not support namespace or table, then there is nothing to be done
+    * @param config
+    */
+  def createTable(config: Config, tableNameStr: String): Unit
+  /**
+    *
+    * @param config
+    * @param tableNameStr
+    */
+  def truncateTable(config: Config, tableNameStr: String): Unit
+  /**
+    *
+    * @param config
+    * @param tableNameStr
+    */
+  def deleteTable(config: Config, tableNameStr: String): Unit
 
-  override def supportsComputer(): Boolean = false
-
-  override def supportsThreadedTransactions(): Boolean = false
-
-  override def supportsTransactions(): Boolean = false
-
-  override def supportsPersistence(): Boolean = true
-
-  override def variables(): Features.VariableFeatures = super.variables()
-
-  override def supportsConcurrentAccess(): Boolean = false
+  /**
+    *
+    */
+  def shutdown(): Unit
 }
