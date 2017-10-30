@@ -26,21 +26,9 @@ import org.apache.s2graph.core.utils.logger
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait StorageReadable[Q] {
+trait StorageReadable {
   val io: StorageIO
-  /**
-    * build proper request which is specific into storage to call fetchIndexEdgeKeyValues or fetchSnapshotEdgeKeyValues.
-    * for example, Asynchbase use GetRequest, Scanner so this method is responsible to build
-    * client request(GetRequest, Scanner) based on user provided query.
-    *
-    * @param queryRequest
-    * @return
-    */
-  def buildRequest(queryRequest: QueryRequest, edge: S2Edge): Q
-
-  def buildRequest(queryRequest: QueryRequest, vertex: S2Vertex): Q
-
-  /**
+ /**
     * responsible to fire parallel fetch call into storage and create future that will return merged result.
     *
     * @param queryRequests
@@ -50,13 +38,18 @@ trait StorageReadable[Q] {
   def fetches(queryRequests: Seq[QueryRequest],
               prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]]
 
-  def fetchKeyValues(rpc: Q)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
+// private def fetchKeyValues(rpc: Q)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
+  def fetchVertices(vertices: Seq[S2Vertex])(implicit ec: ExecutionContext): Future[Seq[S2Vertex]]
 
   def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2Edge]]
 
   def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2Vertex]]
 
-  def fetchSnapshotEdgeInner(edge: S2Edge)(implicit ec: ExecutionContext): Future[(QueryParam, Option[S2Edge], Option[SKeyValue])] = {
+  protected def fetchKeyValues(queryRequest: QueryRequest, edge: S2Edge)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
+
+  protected def fetchKeyValues(queryRequest: QueryRequest, vertex: S2Vertex)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
+
+  def fetchSnapshotEdgeInner(edge: S2Edge)(implicit ec: ExecutionContext): Future[(Option[S2Edge], Option[SKeyValue])] = {
     val queryParam = QueryParam(labelName = edge.innerLabel.label,
       direction = GraphUtil.fromDirection(edge.labelWithDir.dir),
       tgtVertexIdOpt = Option(edge.tgtVertex.innerIdVal),
@@ -64,15 +57,16 @@ trait StorageReadable[Q] {
     val q = Query.toQuery(Seq(edge.srcVertex), Seq(queryParam))
     val queryRequest = QueryRequest(q, 0, edge.srcVertex, queryParam)
 
-    fetchKeyValues(buildRequest(queryRequest, edge)).map { kvs =>
+    fetchKeyValues(queryRequest, edge).map { kvs =>
       val (edgeOpt, kvOpt) =
         if (kvs.isEmpty) (None, None)
         else {
+          import CanSKeyValue._
           val snapshotEdgeOpt = io.toSnapshotEdge(kvs.head, queryRequest, isInnerCall = true, parentEdges = Nil)
           val _kvOpt = kvs.headOption
           (snapshotEdgeOpt, _kvOpt)
         }
-      (queryParam, edgeOpt, kvOpt)
+      (edgeOpt, kvOpt)
     } recoverWith { case ex: Throwable =>
       logger.error(s"fetchQueryParam failed. fallback return.", ex)
       throw new FetchTimeoutException(s"${edge.toLogString}")

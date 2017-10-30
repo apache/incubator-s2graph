@@ -14,7 +14,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
- * under the License.
+ *
  */
 
 package org.apache.s2graph.core.storage.hbase
@@ -42,7 +42,7 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
                                 val config: Config,
                                 val client: HBaseClient,
                                 val serDe: StorageSerDe,
-                                override val io: StorageIO) extends StorageReadable[AsyncRPC] {
+                                override val io: StorageIO) extends StorageReadable {
   import Extensions.DeferOps
   import CanDefer._
 
@@ -67,7 +67,7 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
     * @param queryRequest
     * @return
     */
-  override def buildRequest(queryRequest: QueryRequest, edge: S2Edge) = {
+  private def buildRequest(queryRequest: QueryRequest, edge: S2Edge) = {
     import Serializable._
     val queryParam = queryRequest.queryParam
     val label = queryParam.label
@@ -168,13 +168,24 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
     * @param vertex
     * @return
     */
-  override def buildRequest(queryRequest: QueryRequest, vertex: S2Vertex) = {
+  private def buildRequest(queryRequest: QueryRequest, vertex: S2Vertex) = {
     val kvs = serDe.vertexSerializer(vertex).toKeyValues
     val get = new GetRequest(vertex.hbaseTableName.getBytes, kvs.head.row, Serializable.vertexCf)
     //      get.setTimeout(this.singleGetTimeout.toShort)
     get.setFailfast(true)
     get.maxVersions(1)
+
     Left(get)
+  }
+
+  override def fetchKeyValues(queryRequest: QueryRequest, edge: S2Edge)(implicit ec: ExecutionContext) = {
+    val rpc = buildRequest(queryRequest, edge)
+    fetchKeyValues(rpc)
+  }
+
+  override def fetchKeyValues(queryRequest: QueryRequest, vertex: S2Vertex)(implicit ec: ExecutionContext) = {
+    val rpc = buildRequest(queryRequest, vertex)
+    fetchKeyValues(rpc)
   }
 
   /**
@@ -201,7 +212,7 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
     }.toFuture(emptyStepResult)
   }
 
-  override def fetchKeyValues(rpc: AsyncRPC)(implicit ec: ExecutionContext) = {
+  def fetchKeyValues(rpc: AsyncRPC)(implicit ec: ExecutionContext) = {
     val defer = fetchKeyValuesInner(rpc)
     defer.toFuture(emptyKeyValues).map { kvsArr =>
       kvsArr.map { kv =>
@@ -224,10 +235,32 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
             kvs.flatMap { kv =>
               val sKV = implicitly[CanSKeyValue[KeyValue]].toSKeyValue(kv)
 
-              serDe.indexEdgeDeserializer(schemaVer = HBaseType.DEFAULT_VERSION).fromKeyValues(Seq(kv), None)
+              serDe.indexEdgeDeserializer(schemaVer = HBaseType.DEFAULT_VERSION)
+                .fromKeyValues(Seq(kv), None)
                 .filter(e => distinctLabels(e.innerLabel) && e.direction == "out" && !e.isDegree)
             }
           }
+      }
+    }
+
+    Future.sequence(futures).map(_.flatten)
+  }
+
+  override def fetchVertices(vertices: Seq[S2Vertex])(implicit ec: ExecutionContext) = {
+    def fromResult(kvs: Seq[SKeyValue], version: String): Seq[S2Vertex] = {
+      if (kvs.isEmpty) Nil
+      else serDe.vertexDeserializer(version).fromKeyValues(kvs, None).toSeq
+    }
+
+    val futures = vertices.map { vertex =>
+      val queryParam = QueryParam.Empty
+      val q = Query.toQuery(Seq(vertex), Seq(queryParam))
+      val queryRequest = QueryRequest(q, stepIdx = -1, vertex, queryParam)
+
+      fetchKeyValues(queryRequest, vertex).map { kvs =>
+        fromResult(kvs, vertex.serviceColumn.schemaVersion)
+      } recoverWith {
+        case ex: Throwable => Future.successful(Nil)
       }
     }
 
@@ -351,4 +384,5 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
         throw new RuntimeException(s"toCacheKeyBytes: $hbaseRpc")
     }
   }
+
 }

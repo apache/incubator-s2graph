@@ -32,7 +32,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
                                  serDe: StorageSerDe,
                                  io: StorageIO,
                                  mutator: StorageWritable,
-                                 fetcher: StorageReadable[_]) {
+                                 fetcher: StorageReadable) {
 
   val BackoffTimeout = graph.BackoffTimeout
   val MaxRetryNum = graph.MaxRetryNum
@@ -69,7 +69,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
         case FetchTimeoutException(retryEdge) =>
           logger.info(s"[Try: $tryNum], Fetch fail.\n${retryEdge}")
           /* fetch failed. re-fetch should be done */
-          fetcher.fetchSnapshotEdgeInner(edges.head).flatMap { case (queryParam, snapshotEdgeOpt, kvOpt) =>
+          fetcher.fetchSnapshotEdgeInner(edges.head).flatMap { case (snapshotEdgeOpt, kvOpt) =>
             retry(tryNum + 1)(edges, statusCode, snapshotEdgeOpt)
           }
 
@@ -91,7 +91,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
               val future = if (failedStatusCode == 0) {
                 // acquire Lock failed. other is mutating so this thead need to re-fetch snapshotEdge.
                 /* fetch failed. re-fetch should be done */
-                fetcher.fetchSnapshotEdgeInner(edges.head).flatMap { case (queryParam, snapshotEdgeOpt, kvOpt) =>
+                fetcher.fetchSnapshotEdgeInner(edges.head).flatMap { case (snapshotEdgeOpt, kvOpt) =>
                   retry(tryNum + 1)(edges, statusCode, snapshotEdgeOpt)
                 }
               } else {

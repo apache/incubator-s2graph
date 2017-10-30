@@ -27,7 +27,6 @@ import com.typesafe.config.Config
 import org.apache.commons.io.FileUtils
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage._
-import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage.AsyncRPC
 import org.apache.s2graph.core.utils._
 import org.hbase.async._
 import org.apache.s2graph.core.storage.serde._
@@ -140,7 +139,7 @@ object AsynchbaseStorage {
 
 
 class AsynchbaseStorage(override val graph: S2Graph,
-                        override val config: Config) extends Storage[AsyncRPC](graph, config) {
+                        override val config: Config) extends Storage(graph, config) {
 
   /**
     * since some runtime environment such as spark cluster has issue with guava version, that is used in Asynchbase.
@@ -156,7 +155,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
 
   override val serDe: StorageSerDe = new AsynchbaseStorageSerDe(graph)
 
-  override val fetcher: StorageReadable[AsyncRPC] = new AsynchbaseStorageReadable(graph, config, client, serDe, io)
+  override val fetcher: StorageReadable = new AsynchbaseStorageReadable(graph, config, client, serDe, io)
 
   //  val hbaseExecutor: ExecutorService  =
   //    if (config.getString("hbase.zookeeper.quorum") == "localhost")

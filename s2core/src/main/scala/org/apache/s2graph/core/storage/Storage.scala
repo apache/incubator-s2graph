@@ -27,7 +27,7 @@ import org.apache.s2graph.core.storage.serde.indexedge.tall.IndexEdgeDeserializa
 import org.apache.s2graph.core.types._
 import scala.concurrent.{ExecutionContext, Future}
 
-abstract class Storage[Q](val graph: S2Graph,
+abstract class Storage(val graph: S2Graph,
                           val config: Config) {
   /* Storage backend specific resource management */
   val management: StorageManagement
@@ -39,7 +39,7 @@ abstract class Storage[Q](val graph: S2Graph,
    * Given QueryRequest/Vertex/Edge, fetch KeyValue from storage
    * then convert them into Edge/Vertex
    */
-  val fetcher: StorageReadable[Q]
+  val fetcher: StorageReadable
 
   /*
    * Serialize Edge/Vertex, to common KeyValue, SKeyValue that
@@ -60,7 +60,6 @@ abstract class Storage[Q](val graph: S2Graph,
    * all of StorageWritable, StorageReadable, StorageSerDe, StorageIO
    */
   lazy val conflictResolver: WriteWriteConflictResolver = new WriteWriteConflictResolver(graph, serDe, io, mutator, fetcher)
-
 
   /** IO **/
   def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge): serde.Serializable[SnapshotEdge] =
@@ -115,22 +114,18 @@ abstract class Storage[Q](val graph: S2Graph,
     mutator.writeLock(requestKeyValue, expectedOpt)
 
   /** Fetch **/
-
-  def buildRequest(queryRequest: QueryRequest, edge: S2Edge): Q = fetcher.buildRequest(queryRequest, edge)
-
-  def buildRequest(queryRequest: QueryRequest, vertex: S2Vertex): Q = fetcher.buildRequest(queryRequest, vertex)
-
   def fetches(queryRequests: Seq[QueryRequest],
               prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]] =
     fetcher.fetches(queryRequests, prevStepEdges)
 
-  def fetchKeyValues(rpc: Q)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]] = fetcher.fetchKeyValues(rpc)
+  def fetchVertices(vertices: Seq[S2Vertex])(implicit ec: ExecutionContext): Future[Seq[S2Vertex]] =
+    fetcher.fetchVertices(vertices)
 
   def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2Edge]] = fetcher.fetchEdgesAll()
 
   def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2Vertex]] = fetcher.fetchVerticesAll()
 
-  def fetchSnapshotEdgeInner(edge: S2Edge)(implicit ec: ExecutionContext): Future[(QueryParam, Option[S2Edge], Option[SKeyValue])] =
+  def fetchSnapshotEdgeInner(edge: S2Edge)(implicit ec: ExecutionContext): Future[(Option[S2Edge], Option[SKeyValue])] =
     fetcher.fetchSnapshotEdgeInner(edge)
 
   /** Conflict Resolver **/
@@ -148,7 +143,6 @@ abstract class Storage[Q](val graph: S2Graph,
   def deleteTable(config: Config, tableNameStr: String): Unit = management.deleteTable(config, tableNameStr)
 
   def shutdown(): Unit = management.shutdown()
-
 
   def info: Map[String, String] = Map("className" -> this.getClass.getSimpleName)
 }

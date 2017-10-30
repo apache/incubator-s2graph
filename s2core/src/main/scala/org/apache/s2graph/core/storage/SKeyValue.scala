@@ -56,18 +56,17 @@ trait CanSKeyValue[T] {
 }
 
 object CanSKeyValue {
-
-  // For asyncbase KeyValues
-  implicit val asyncKeyValue = new CanSKeyValue[KeyValue] {
-    def toSKeyValue(kv: KeyValue): SKeyValue = {
-      SKeyValue(Array.empty[Byte], kv.key(), kv.family(), kv.qualifier(), kv.value(), kv.timestamp())
-    }
+  def instance[T](f: T => SKeyValue): CanSKeyValue[T] = new CanSKeyValue[T] {
+    override def toSKeyValue(from: T): SKeyValue = f.apply(from)
   }
 
   // For asyncbase KeyValues
-  implicit val sKeyValue = new CanSKeyValue[SKeyValue] {
-    def toSKeyValue(kv: SKeyValue): SKeyValue = kv
+  implicit val asyncKeyValue = instance[KeyValue] { kv =>
+    SKeyValue(Array.empty[Byte], kv.key(), kv.family(), kv.qualifier(), kv.value(), kv.timestamp())
   }
+
+  // For asyncbase KeyValues
+  implicit val sKeyValue = instance[SKeyValue](identity)
 
   // For hbase KeyValues
 }

@@ -133,7 +133,7 @@ object S2Graph {
     new S2Graph(configuration)(ec)
   }
 
-  def initStorage(graph: S2Graph, config: Config)(ec: ExecutionContext): Storage[_] = {
+  def initStorage(graph: S2Graph, config: Config)(ec: ExecutionContext): Storage = {
     val storageBackend = config.getString("s2graph.storage.backend")
     logger.info(s"[InitStorage]: $storageBackend")
 
@@ -908,7 +908,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   /**
     * TODO: we need to some way to handle malformed configuration for storage.
     */
-  val storagePool: scala.collection.mutable.Map[String, Storage[_]] = {
+  val storagePool: scala.collection.mutable.Map[String, Storage] = {
     val labels = Label.findAll()
     val services = Service.findAll()
 
@@ -919,12 +919,12 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       confWithFallback(conf)
     }.toSet
 
-    val pools = new java.util.HashMap[Config, Storage[_]]()
+    val pools = new java.util.HashMap[Config, Storage]()
     configs.foreach { config =>
       pools.put(config, S2Graph.initStorage(this, config)(ec))
     }
 
-    val m = new java.util.concurrent.ConcurrentHashMap[String, Storage[_]]()
+    val m = new java.util.concurrent.ConcurrentHashMap[String, Storage]()
 
     labels.foreach { label =>
       if (label.storageConfigOpt.isDefined) {
@@ -941,7 +941,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     m
   }
 
-  val defaultStorage: Storage[_] = S2Graph.initStorage(this, config)(ec)
+  val defaultStorage: Storage = S2Graph.initStorage(this, config)(ec)
 
   /** QueryLevel FutureCache */
   val queryFutureCache = new DeferCache[StepResult, Promise, Future](parseCacheConfig(config, "query."), empty = StepResult.Empty)
@@ -953,11 +953,11 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   val indexProvider = IndexProvider.apply(config)
 
-  def getStorage(service: Service): Storage[_] = {
+  def getStorage(service: Service): Storage = {
     storagePool.getOrElse(s"service:${service.serviceName}", defaultStorage)
   }
 
-  def getStorage(label: Label): Storage[_] = {
+  def getStorage(label: Label): Storage = {
     storagePool.getOrElse(s"label:${label.label}", defaultStorage)
   }
 
@@ -975,7 +975,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     val futures = for {
       edge <- edges
     } yield {
-      getStorage(edge.innerLabel).fetchSnapshotEdgeInner(edge).map { case (_, edgeOpt, _) =>
+      getStorage(edge.innerLabel).fetchSnapshotEdgeInner(edge).map { case (edgeOpt, _) =>
         edgeOpt.toSeq.map(e => EdgeWithScore(e, 1.0, edge.innerLabel))
       }
     }
@@ -1145,31 +1145,9 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   }
 
   def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
-    def getVertices[Q](storage: Storage[Q])(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
-      def fromResult(kvs: Seq[SKeyValue],
-                     version: String): Option[S2Vertex] = {
-        if (kvs.isEmpty) None
-        else storage.vertexDeserializer(version).fromKeyValues(kvs, None)
-        //        .map(S2Vertex(graph, _))
-      }
-
-      val futures = vertices.map { vertex =>
-        val queryParam = QueryParam.Empty
-        val q = Query.toQuery(Seq(vertex), Seq(queryParam))
-        val queryRequest = QueryRequest(q, stepIdx = -1, vertex, queryParam)
-        val rpc = storage.buildRequest(queryRequest, vertex)
-        storage.fetchKeyValues(rpc).map { kvs =>
-          fromResult(kvs, vertex.serviceColumn.schemaVersion)
-        } recoverWith { case ex: Throwable =>
-          Future.successful(None)
-        }
-      }
-
-      Future.sequence(futures).map { result => result.toList.flatten }
-    }
     val verticesWithIdx = vertices.zipWithIndex
     val futures = verticesWithIdx.groupBy { case (v, idx) => v.service }.map { case (service, vertexGroup) =>
-      getVertices(getStorage(service))(vertexGroup.map(_._1)).map(_.zip(vertexGroup.map(_._2)))
+      getStorage(service).fetchVertices(vertices).map(_.zip(vertexGroup.map(_._2)))
     }
 
     Future.sequence(futures).map { ls =>
@@ -1272,7 +1250,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
   }
 
-  private def deleteAllFetchedEdgesAsyncOld(storage: Storage[_])(stepInnerResult: StepResult,
+  private def deleteAllFetchedEdgesAsyncOld(storage: Storage)(stepInnerResult: StepResult,
                                                          requestTs: Long,
                                                          retryNum: Int): Future[Boolean] = {
     if (stepInnerResult.isEmpty) Future.successful(true)
@@ -1426,7 +1404,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
   }
 
-  private def mutateStrongEdges(storage: Storage[_])(_edges: Seq[S2Edge], withWait: Boolean): Future[Seq[Boolean]] = {
+  private def mutateStrongEdges(storage: Storage)(_edges: Seq[S2Edge], withWait: Boolean): Future[Seq[Boolean]] = {
 
     val edgeWithIdxs = _edges.zipWithIndex
     val grouped = edgeWithIdxs.groupBy { case (edge, idx) =>
@@ -1462,7 +1440,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   }
 
 
-  private def mutateEdgesInner(storage: Storage[_])(edges: Seq[S2Edge],
+  private def mutateEdgesInner(storage: Storage)(edges: Seq[S2Edge],
                        checkConsistency: Boolean,
                        withWait: Boolean): Future[MutateResponse] = {
     assert(edges.nonEmpty)
@@ -1483,14 +1461,14 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       }
       Future.sequence(futures).map { rets => new MutateResponse(rets.forall(_.isSuccess)) }
     } else {
-      storage.fetchSnapshotEdgeInner(edges.head).flatMap { case (queryParam, snapshotEdgeOpt, kvOpt) =>
+      storage.fetchSnapshotEdgeInner(edges.head).flatMap { case (snapshotEdgeOpt, kvOpt) =>
         storage.retry(1)(edges, 0, snapshotEdgeOpt).map(new MutateResponse(_))
       }
     }
   }
 
   def mutateVertices(vertices: Seq[S2Vertex], withWait: Boolean = false): Future[Seq[MutateResponse]] = {
-    def mutateVertex(storage: Storage[_])(vertex: S2Vertex, withWait: Boolean): Future[MutateResponse] = {
+    def mutateVertex(storage: Storage)(vertex: S2Vertex, withWait: Boolean): Future[MutateResponse] = {
       if (vertex.op == GraphUtil.operations("delete")) {
         storage.writeToStorage(vertex.hbaseZkAddr,
           storage.vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Delete)), withWait)
@@ -1502,7 +1480,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       }
     }
 
-    def mutateVertices(storage: Storage[_])(vertices: Seq[S2Vertex],
+    def mutateVertices(storage: Storage)(vertices: Seq[S2Vertex],
                        withWait: Boolean = false): Future[Seq[MutateResponse]] = {
       val futures = vertices.map { vertex => mutateVertex(storage)(vertex, withWait) }
       Future.sequence(futures)
@@ -1518,7 +1496,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
 
   def incrementCounts(edges: Seq[S2Edge], withWait: Boolean): Future[Seq[MutateResponse]] = {
-    def incrementCounts(storage: Storage[_])(edges: Seq[S2Edge], withWait: Boolean): Future[Seq[MutateResponse]] = {
+    def incrementCounts(storage: Storage)(edges: Seq[S2Edge], withWait: Boolean): Future[Seq[MutateResponse]] = {
       val futures = for {
         edge <- edges
       } yield {
