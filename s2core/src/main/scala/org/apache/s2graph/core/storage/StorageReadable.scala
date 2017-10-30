@@ -27,6 +27,7 @@ import org.apache.s2graph.core.utils.logger
 import scala.concurrent.{ExecutionContext, Future}
 
 trait StorageReadable {
+  val serDe: StorageSerDe
   val io: StorageIO
  /**
     * responsible to fire parallel fetch call into storage and create future that will return merged result.
@@ -38,9 +39,6 @@ trait StorageReadable {
   def fetches(queryRequests: Seq[QueryRequest],
               prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]]
 
-// private def fetchKeyValues(rpc: Q)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
-  def fetchVertices(vertices: Seq[S2Vertex])(implicit ec: ExecutionContext): Future[Seq[S2Vertex]]
-
   def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2Edge]]
 
   def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2Vertex]]
@@ -48,6 +46,7 @@ trait StorageReadable {
   protected def fetchKeyValues(queryRequest: QueryRequest, edge: S2Edge)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
 
   protected def fetchKeyValues(queryRequest: QueryRequest, vertex: S2Vertex)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
+
 
   def fetchSnapshotEdgeInner(edge: S2Edge)(implicit ec: ExecutionContext): Future[(Option[S2Edge], Option[SKeyValue])] = {
     val queryParam = QueryParam(labelName = edge.innerLabel.label,
@@ -71,5 +70,26 @@ trait StorageReadable {
       logger.error(s"fetchQueryParam failed. fallback return.", ex)
       throw new FetchTimeoutException(s"${edge.toLogString}")
     }
+  }
+
+  def fetchVertices(vertices: Seq[S2Vertex])(implicit ec: ExecutionContext): Future[Seq[S2Vertex]] = {
+    def fromResult(kvs: Seq[SKeyValue], version: String): Seq[S2Vertex] = {
+      if (kvs.isEmpty) Nil
+      else serDe.vertexDeserializer(version).fromKeyValues(kvs, None).toSeq
+    }
+
+    val futures = vertices.map { vertex =>
+      val queryParam = QueryParam.Empty
+      val q = Query.toQuery(Seq(vertex), Seq(queryParam))
+      val queryRequest = QueryRequest(q, stepIdx = -1, vertex, queryParam)
+
+      fetchKeyValues(queryRequest, vertex).map { kvs =>
+        fromResult(kvs, vertex.serviceColumn.schemaVersion)
+      } recoverWith {
+        case ex: Throwable => Future.successful(Nil)
+      }
+    }
+
+    Future.sequence(futures).map(_.flatten)
   }
 }

@@ -246,27 +246,6 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
     Future.sequence(futures).map(_.flatten)
   }
 
-  override def fetchVertices(vertices: Seq[S2Vertex])(implicit ec: ExecutionContext) = {
-    def fromResult(kvs: Seq[SKeyValue], version: String): Seq[S2Vertex] = {
-      if (kvs.isEmpty) Nil
-      else serDe.vertexDeserializer(version).fromKeyValues(kvs, None).toSeq
-    }
-
-    val futures = vertices.map { vertex =>
-      val queryParam = QueryParam.Empty
-      val q = Query.toQuery(Seq(vertex), Seq(queryParam))
-      val queryRequest = QueryRequest(q, stepIdx = -1, vertex, queryParam)
-
-      fetchKeyValues(queryRequest, vertex).map { kvs =>
-        fromResult(kvs, vertex.serviceColumn.schemaVersion)
-      } recoverWith {
-        case ex: Throwable => Future.successful(Nil)
-      }
-    }
-
-    Future.sequence(futures).map(_.flatten)
-  }
-
   override def fetchVerticesAll()(implicit ec: ExecutionContext) = {
     val futures = ServiceColumn.findAll().groupBy(_.service.hTableName).toSeq.map { case (hTableName, columns) =>
       val distinctColumns = columns.toSet
