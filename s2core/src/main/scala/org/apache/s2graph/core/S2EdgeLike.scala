@@ -48,6 +48,7 @@ trait S2EdgeLike extends Edge with GraphElement {
   lazy val labelName = innerLabel.label
   lazy val direction = GraphUtil.fromDirection(dir)
 
+  def setTgtVertex(v: S2VertexLike): Unit = tgtVertex = v
   def getOp(): Byte = op
   def setOp(newOp: Byte): Unit = op = newOp
   def getVersion(): Long = version

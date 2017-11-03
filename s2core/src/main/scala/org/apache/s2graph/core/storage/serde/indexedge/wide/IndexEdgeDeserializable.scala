@@ -57,19 +57,22 @@ class IndexEdgeDeserializable(graph: S2Graph,
          val schemaVer = label.schemaVersion
          val srcVertex = graph.newVertex(srcVertexId, version)
          //TODO:
-         val edge = graph.newEdge(srcVertex, null,
-           label, labelWithDir.dir, GraphUtil.defaultOpByte, version, S2Edge.EmptyState)
          var tsVal = version
 
          if (kv.qualifier.isEmpty) {
            val degreeVal = bytesToLongFunc(kv.value, 0)
            val tgtVertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("0", schemaVer))
+           val tgtVertex = graph.newVertex(tgtVertexId, version)
+           val edge = graph.newEdge(srcVertex, tgtVertex,
+             label, labelWithDir.dir, GraphUtil.defaultOpByte, version, S2Edge.EmptyState)
 
            edge.propertyInner(LabelMeta.timestamp.name, version, version)
            edge.propertyInner(LabelMeta.degree.name, degreeVal, version)
            edge.tgtVertex = graph.newVertex(tgtVertexId, version)
            edge.setOp(GraphUtil.defaultOpByte)
            edge.setTsInnerValOpt(Option(InnerVal.withLong(tsVal, schemaVer)))
+
+           Option(edge)
          } else {
            pos = 0
            val (idxPropsRaw, endAt) = bytesToProps(kv.qualifier, pos, schemaVer)
@@ -84,6 +87,10 @@ class IndexEdgeDeserializable(graph: S2Graph,
            val op =
              if (kv.qualifier.length == pos) GraphUtil.defaultOpByte
              else kv.qualifier(kv.qualifier.length-1)
+
+           val tgtVertex = graph.newVertex(tgtVertexIdRaw, version)
+           val edge = graph.newEdge(srcVertex, tgtVertex,
+             label, labelWithDir.dir, GraphUtil.defaultOpByte, version, S2Edge.EmptyState)
 
            val index = label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${label.id.get}, ${labelIdxSeq}"))
 
@@ -115,19 +122,18 @@ class IndexEdgeDeserializable(graph: S2Graph,
              }
            }
            /* process tgtVertexId */
-           val tgtVertexId =
-             if (edge.checkProperty(LabelMeta.to.name)) {
-               val vId = edge.property(LabelMeta.to.name).asInstanceOf[S2Property[_]].innerValWithTs
-               TargetVertexId(ServiceColumn.Default, vId.innerVal)
-             } else tgtVertexIdRaw
+           if (edge.checkProperty(LabelMeta.to.name)) {
+             val vId = edge.property(LabelMeta.to.name).asInstanceOf[S2Property[_]].innerValWithTs
+             val tgtVertex = graph.newVertex(TargetVertexId(ServiceColumn.Default, vId.innerVal), version)
+             edge.setTgtVertex(tgtVertex)
+           }
 
            edge.propertyInner(LabelMeta.timestamp.name, tsVal, version)
-           edge.tgtVertex = graph.newVertex(tgtVertexId, version)
            edge.setOp(op)
            edge.setTsInnerValOpt(Option(InnerVal.withLong(tsVal, schemaVer)))
-         }
 
-         Option(edge)
+           Option(edge)
+         }
        }
      } catch {
        case e: Exception => None
