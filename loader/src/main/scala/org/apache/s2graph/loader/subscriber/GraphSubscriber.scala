@@ -106,7 +106,7 @@ object GraphSubscriberHelper extends WithKafka {
                      (statFunc: (String, Int) => Unit): Iterable[GraphElement] = {
     (for (msg <- msgs) yield {
       statFunc("total", 1)
-      g.toGraphElement(msg, labelMapping) match {
+      g.elementBuilder.toGraphElement(msg, labelMapping) match {
         case Some(e) if e.isInstanceOf[S2Edge] =>
           statFunc("EdgeParseOk", 1)
           e.asInstanceOf[S2Edge]

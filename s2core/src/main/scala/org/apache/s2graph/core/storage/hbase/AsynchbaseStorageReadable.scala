@@ -303,7 +303,7 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
     val cacheTTL = queryParam.cacheTTLInMillis
     /* with version 4, request's type is (Scanner, (Int, Int)). otherwise GetRequest. */
 
-    val edge = graph.toRequestEdge(queryRequest, parentEdges)
+    val edge = graph.elementBuilder.toRequestEdge(queryRequest, parentEdges)
     val request = buildRequest(queryRequest, edge)
 
     val (intervalMaxBytes, intervalMinBytes) = queryParam.buildInterval(Option(edge))

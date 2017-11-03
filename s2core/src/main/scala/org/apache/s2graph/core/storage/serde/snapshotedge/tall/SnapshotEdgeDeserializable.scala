@@ -97,7 +97,7 @@ class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[Snapshot
             Option(pendingEdge)
           }
 
-        val snapshotEdge = graph.newSnapshotEdge(graph.newVertex(srcVertexId, ts), graph.newVertex(tgtVertexId, ts),
+        val snapshotEdge = graph.elementBuilder.newSnapshotEdge(graph.newVertex(srcVertexId, ts), graph.newVertex(tgtVertexId, ts),
           label, labelWithDir.dir, op, version, props.toMap, statusCode = statusCode,
           pendingEdgeOpt = _pendingEdgeOpt, lockTs = None, tsInnerValOpt = Option(tsInnerVal))
 
