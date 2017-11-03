@@ -25,25 +25,15 @@ import java.util.concurrent.{Executors, TimeUnit}
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.{BaseConfiguration, Configuration}
-import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
-import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.features.S2GraphVariables
 import org.apache.s2graph.core.index.IndexProvider
 import org.apache.s2graph.core.io.tinkerpop.optimize.S2GraphStepStrategy
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
-import org.apache.s2graph.core.storage.{MutateResponse, SKeyValue, Storage}
+import org.apache.s2graph.core.storage.{MutateResponse, Storage}
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.PostProcess._
 import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
-import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
-import org.apache.tinkerpop.gremlin.structure
-import org.apache.tinkerpop.gremlin.structure.Edge.Exceptions
-import org.apache.tinkerpop.gremlin.structure.Graph.{Features, Variables}
-import org.apache.tinkerpop.gremlin.structure.io.{GraphReader, GraphWriter, Io, Mapper}
-import org.apache.tinkerpop.gremlin.structure.{Edge, Element, Graph, T, Transaction, Vertex}
-import play.api.libs.json.{JsObject, Json}
+import org.apache.tinkerpop.gremlin.structure.{Edge, Graph}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -577,6 +567,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
 
   val elementBuilder = new GraphElementBuilder(this)
 
+  val traversalHelper = new TraversalHelper(this)
+
   def getStorage(service: Service): Storage = {
     storagePool.getOrElse(s"service:${service.serviceName}", defaultStorage)
   }
@@ -671,48 +663,12 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
                 buildLastStepInnerResult: Boolean = false): Future[StepResult] = {
     if (stepInnerResult.isEmpty) Future.successful(StepResult.Empty)
     else {
-      val edgeWithScoreLs = stepInnerResult.edgeWithScores
-
-      val q = orgQuery
-      val queryOption = orgQuery.queryOption
-      val prevStepOpt = if (stepIdx > 0) Option(q.steps(stepIdx - 1)) else None
-      val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(QueryParam.DefaultThreshold)
-      val prevStepLimit = prevStepOpt.map(_.nextStepLimit).getOrElse(-1)
-      val step = q.steps(stepIdx)
-
-     val alreadyVisited =
-        if (stepIdx == 0) Map.empty[(LabelWithDirection, S2VertexLike), Boolean]
-        else alreadyVisitedVertices(stepInnerResult.edgeWithScores)
-
-      val initial = (Map.empty[S2VertexLike, Double], Map.empty[S2VertexLike, ArrayBuffer[EdgeWithScore]])
-      val (sums, grouped) = edgeWithScoreLs.foldLeft(initial) { case ((sum, group), edgeWithScore) =>
-        val key = edgeWithScore.edge.tgtVertex
-        val newScore = sum.getOrElse(key, 0.0) + edgeWithScore.score
-        val buffer = group.getOrElse(key, ArrayBuffer.empty[EdgeWithScore])
-        buffer += edgeWithScore
-        (sum + (key -> newScore), group + (key -> buffer))
-      }
-      val groupedByFiltered = sums.filter(t => t._2 >= prevStepThreshold)
-      val prevStepTgtVertexIdEdges = grouped.map(t => t._1.id -> t._2)
-
-      val nextStepSrcVertices = if (prevStepLimit >= 0) {
-        groupedByFiltered.toSeq.sortBy(-1 * _._2).take(prevStepLimit)
-      } else {
-        groupedByFiltered.toSeq
-      }
-
-      val queryRequests = for {
-        (vertex, prevStepScore) <- nextStepSrcVertices
-        queryParam <- step.queryParams
-      } yield {
-        val labelWeight = step.labelWeights.getOrElse(queryParam.labelWithDir.labelId, 1.0)
-        val newPrevStepScore = if (queryOption.shouldPropagateScore) prevStepScore else 1.0
-        QueryRequest(q, stepIdx, vertex, queryParam, newPrevStepScore, labelWeight)
-      }
+      val (alreadyVisited: Map[(LabelWithDirection, S2VertexLike), Boolean], prevStepTgtVertexIdEdges: Map[VertexId, ArrayBuffer[EdgeWithScore]], queryRequests: Seq[QueryRequest]) =
+        traversalHelper.buildNextStepQueryRequests(orgQuery, stepIdx, stepInnerResult)
 
       val fetchedLs = fetches(queryRequests, prevStepTgtVertexIdEdges)
 
-      filterEdges(orgQuery, stepIdx, queryRequests,
+      traversalHelper.filterEdges(orgQuery, stepIdx, queryRequests,
         fetchedLs, orgQuery.steps(stepIdx).queryParams, alreadyVisited, buildLastStepInnerResult, prevStepTgtVertexIdEdges)(ec)
     }
   }
