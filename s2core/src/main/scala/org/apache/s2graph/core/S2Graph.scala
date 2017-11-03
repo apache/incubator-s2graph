@@ -190,7 +190,7 @@ object S2Graph {
     }
   }
 
-  def alreadyVisitedVertices(edgeWithScoreLs: Seq[EdgeWithScore]): Map[(LabelWithDirection, S2Vertex), Boolean] = {
+  def alreadyVisitedVertices(edgeWithScoreLs: Seq[EdgeWithScore]): Map[(LabelWithDirection, S2VertexLike), Boolean] = {
     val vertices = for {
       edgeWithScore <- edgeWithScoreLs
       edge = edgeWithScore.edge
@@ -272,7 +272,7 @@ object S2Graph {
                   queryRequests: Seq[QueryRequest],
                   queryResultLsFuture: Future[Seq[StepResult]],
                   queryParams: Seq[QueryParam],
-                  alreadyVisited: Map[(LabelWithDirection, S2Vertex), Boolean] = Map.empty,
+                  alreadyVisited: Map[(LabelWithDirection, S2VertexLike), Boolean] = Map.empty,
                   buildLastStepInnerResult: Boolean = true,
                   parentEdges: Map[VertexId, Seq[EdgeWithScore]])
                  (implicit ec: scala.concurrent.ExecutionContext): Future[StepResult] = {
@@ -1059,10 +1059,10 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       val step = q.steps(stepIdx)
 
      val alreadyVisited =
-        if (stepIdx == 0) Map.empty[(LabelWithDirection, S2Vertex), Boolean]
+        if (stepIdx == 0) Map.empty[(LabelWithDirection, S2VertexLike), Boolean]
         else alreadyVisitedVertices(stepInnerResult.edgeWithScores)
 
-      val initial = (Map.empty[S2Vertex, Double], Map.empty[S2Vertex, ArrayBuffer[EdgeWithScore]])
+      val initial = (Map.empty[S2VertexLike, Double], Map.empty[S2VertexLike, ArrayBuffer[EdgeWithScore]])
       val (sums, grouped) = edgeWithScoreLs.foldLeft(initial) { case ((sum, group), edgeWithScore) =>
         val key = edgeWithScore.edge.tgtVertex
         val newScore = sum.getOrElse(key, 0.0) + edgeWithScore.score
@@ -1144,7 +1144,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     } get
   }
 
-  def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
+  def getVertices(vertices: Seq[S2VertexLike]): Future[Seq[S2VertexLike]] = {
     val verticesWithIdx = vertices.zipWithIndex
     val futures = verticesWithIdx.groupBy { case (v, idx) => v.service }.map { case (service, vertexGroup) =>
       getStorage(service).fetchVertices(vertices).map(_.zip(vertexGroup.map(_._2)))
@@ -1156,7 +1156,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   }
 
   /** mutate */
-  def deleteAllAdjacentEdges(srcVertices: Seq[S2Vertex],
+  def deleteAllAdjacentEdges(srcVertices: Seq[S2VertexLike],
                              labels: Seq[Label],
                              dir: Int,
                              ts: Long): Future[Boolean] = {
@@ -1320,11 +1320,11 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
                      withWait: Boolean = false): Future[Seq[MutateResponse]] = {
 
     val edgeBuffer = ArrayBuffer[(S2Edge, Int)]()
-    val vertexBuffer = ArrayBuffer[(S2Vertex, Int)]()
+    val vertexBuffer = ArrayBuffer[(S2VertexLike, Int)]()
 
     elements.zipWithIndex.foreach {
       case (e: S2Edge, idx: Int) => edgeBuffer.append((e, idx))
-      case (v: S2Vertex, idx: Int) => vertexBuffer.append((v, idx))
+      case (v: S2VertexLike, idx: Int) => vertexBuffer.append((v, idx))
       case any@_ => logger.error(s"Unknown type: ${any}")
     }
 
@@ -1467,8 +1467,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
   }
 
-  def mutateVertices(vertices: Seq[S2Vertex], withWait: Boolean = false): Future[Seq[MutateResponse]] = {
-    def mutateVertex(storage: Storage)(vertex: S2Vertex, withWait: Boolean): Future[MutateResponse] = {
+  def mutateVertices(vertices: Seq[S2VertexLike], withWait: Boolean = false): Future[Seq[MutateResponse]] = {
+    def mutateVertex(storage: Storage)(vertex: S2VertexLike, withWait: Boolean): Future[MutateResponse] = {
       if (vertex.op == GraphUtil.operations("delete")) {
         storage.writeToStorage(vertex.hbaseZkAddr,
           storage.vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Delete)), withWait)
@@ -1480,7 +1480,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       }
     }
 
-    def mutateVertices(storage: Storage)(vertices: Seq[S2Vertex],
+    def mutateVertices(storage: Storage)(vertices: Seq[S2VertexLike],
                        withWait: Boolean = false): Future[Seq[MutateResponse]] = {
       val futures = vertices.map { vertex => mutateVertex(storage)(vertex, withWait) }
       Future.sequence(futures)
@@ -1567,7 +1567,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   } get
 
 
-  def toVertex(s: String): Option[S2Vertex] = {
+  def toVertex(s: String): Option[S2VertexLike] = {
     toVertex(GraphUtil.split(s))
   }
 
@@ -1588,7 +1588,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       throw e
   } get
 
-  def toVertex(parts: Array[String]): Option[S2Vertex] = Try {
+  def toVertex(parts: Array[String]): Option[S2VertexLike] = Try {
     val (ts, operation, logType, srcId, serviceName, colName) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
     val props = if (parts.length >= 7) fromJsonToProperties(Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj())) else Map.empty[String, Any]
     val vertex = toVertex(serviceName, colName, srcId, props, ts.toLong, operation)
@@ -1630,7 +1630,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
                id: Any,
                props: Map[String, Any] = Map.empty,
                ts: Long = System.currentTimeMillis(),
-               operation: String = "insert"): S2Vertex = {
+               operation: String = "insert"): S2VertexLike = {
 
     val service = Service.findByName(serviceName).getOrElse(throw new java.lang.IllegalArgumentException(s"$serviceName is not found."))
     val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new java.lang.IllegalArgumentException(s"$columnName is not found."))
@@ -1702,8 +1702,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
    * @param tsInnerValOpt
    * @return
    */
-  def newEdge(srcVertex: S2Vertex,
-              tgtVertex: S2Vertex,
+  def newEdge(srcVertex: S2VertexLike,
+              tgtVertex: S2VertexLike,
               innerLabel: Label,
               dir: Int,
               op: Byte = GraphUtil.defaultOpByte,
@@ -1751,8 +1751,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
    * @param tsInnerValOpt
    * @return
    */
-  private[core] def newSnapshotEdge(srcVertex: S2Vertex,
-                                    tgtVertex: S2Vertex,
+  private[core] def newSnapshotEdge(srcVertex: S2VertexLike,
+                                    tgtVertex: S2VertexLike,
                                     label: Label,
                                     dir: Int,
                                     op: Byte,
@@ -1792,22 +1792,22 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
                 ts: Long = System.currentTimeMillis(),
                 props: S2Vertex.Props = S2Vertex.EmptyProps,
                 op: Byte = 0,
-                belongLabelIds: Seq[Int] = Seq.empty): S2Vertex = {
+                belongLabelIds: Seq[Int] = Seq.empty): S2VertexLike = {
     val vertex = new S2Vertex(this, id, ts, S2Vertex.EmptyProps, op, belongLabelIds)
     S2Vertex.fillPropsWithTs(vertex, props)
     vertex
   }
 
-  def getVertex(vertexId: VertexId): Option[S2Vertex] = {
+  def getVertex(vertexId: VertexId): Option[S2VertexLike] = {
     val v = newVertex(vertexId)
     Await.result(getVertices(Seq(v)).map { vertices => vertices.headOption }, WaitTimeout)
   }
 
-  def fetchEdges(vertex: S2Vertex, labelNameWithDirs: Seq[(String, String)]): util.Iterator[Edge] = {
+  def fetchEdges(vertex: S2VertexLike, labelNameWithDirs: Seq[(String, String)]): util.Iterator[Edge] = {
     Await.result(fetchEdgesAsync(vertex, labelNameWithDirs), WaitTimeout)
   }
 
-  def fetchEdgesAsync(vertex: S2Vertex, labelNameWithDirs: Seq[(String, String)]): Future[util.Iterator[Edge]] = {
+  def fetchEdgesAsync(vertex: S2VertexLike, labelNameWithDirs: Seq[(String, String)]): Future[util.Iterator[Edge]] = {
     val queryParams = labelNameWithDirs.map { case (l, direction) =>
       QueryParam(labelName = l, direction = direction.toLowerCase)
     }
@@ -1844,7 +1844,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       Await.result(defaultStorage.fetchVerticesAll(), WaitTimeout).iterator
     } else {
       val vertices = ids.collect {
-        case s2Vertex: S2Vertex => s2Vertex
+        case s2Vertex: S2VertexLike => s2Vertex
         case vId: VertexId => newVertex(vId)
         case vertex: Vertex => newVertex(vertex.id().asInstanceOf[VertexId])
         case other @ _ => newVertex(VertexId.fromString(other.toString))
@@ -1906,7 +1906,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     addVertex(Seq(T.label, label): _*)
   }
 
-  def makeVertex(idValue: AnyRef, kvsMap: Map[String, AnyRef]): S2Vertex = {
+  def makeVertex(idValue: AnyRef, kvsMap: Map[String, AnyRef]): S2VertexLike = {
     idValue match {
       case vId: VertexId =>
         toVertex(vId.column.service.serviceName, vId.column.columnName, vId, kvsMap)
@@ -1958,7 +1958,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
                 ts: Long = System.currentTimeMillis(),
                 props: S2Vertex.Props = S2Vertex.EmptyProps,
                 op: Byte = 0,
-                belongLabelIds: Seq[Int] = Seq.empty): S2Vertex = {
+                belongLabelIds: Seq[Int] = Seq.empty): S2VertexLike = {
     val vertex = newVertex(id, ts, props, op, belongLabelIds)
 
     val future = mutateVertices(Seq(vertex), withWait = true).map { rets =>
@@ -1970,7 +1970,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     vertex
   }
 
-  def addVertexInner(vertex: S2Vertex): S2Vertex = {
+  def addVertexInner(vertex: S2VertexLike): S2VertexLike = {
     val future = mutateVertices(Seq(vertex), withWait = true).flatMap { rets =>
       if (rets.forall(_.isSuccess)) {
         indexProvider.mutateVerticesAsync(Seq(vertex))
@@ -1982,11 +1982,11 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   }
 
   /* tp3 only */
-  def addEdge(srcVertex: S2Vertex, labelName: String, tgtVertex: Vertex, kvs: AnyRef*): Edge = {
+  def addEdge(srcVertex: S2VertexLike, labelName: String, tgtVertex: Vertex, kvs: AnyRef*): Edge = {
     val containsId = kvs.contains(T.id)
 
     tgtVertex match {
-      case otherV: S2Vertex =>
+      case otherV: S2VertexLike =>
         if (!features().edge().supportsUserSuppliedIds() && containsId) {
           throw Exceptions.userSuppliedIdsNotSupported()
         }

@@ -68,7 +68,7 @@ abstract class Storage(val graph: S2Graph,
   def indexEdgeSerializer(indexEdge: IndexEdge): serde.Serializable[IndexEdge] =
     serDe.indexEdgeSerializer(indexEdge)
 
-  def vertexSerializer(vertex: S2Vertex): serde.Serializable[S2Vertex] =
+  def vertexSerializer(vertex: S2VertexLike): serde.Serializable[S2VertexLike] =
     serDe.vertexSerializer(vertex)
 
   def snapshotEdgeDeserializer(schemaVer: String): Deserializable[SnapshotEdge] =
@@ -77,7 +77,7 @@ abstract class Storage(val graph: S2Graph,
   def indexEdgeDeserializer(schemaVer: String): IndexEdgeDeserializable =
     serDe.indexEdgeDeserializer(schemaVer)
 
-  def vertexDeserializer(schemaVer: String): Deserializable[S2Vertex] =
+  def vertexDeserializer(schemaVer: String): Deserializable[S2VertexLike] =
     serDe.vertexDeserializer(schemaVer)
 
   /** Mutation Builder */
@@ -102,7 +102,7 @@ abstract class Storage(val graph: S2Graph,
   def buildDegreePuts(edge: S2Edge, degreeVal: Long): Seq[SKeyValue] =
     io.buildDegreePuts(edge, degreeVal)
 
-  def buildPutsAll(vertex: S2Vertex): Seq[SKeyValue] =
+  def buildPutsAll(vertex: S2VertexLike): Seq[SKeyValue] =
     io.buildPutsAll(vertex)
 
   /** Mutation **/
@@ -118,12 +118,12 @@ abstract class Storage(val graph: S2Graph,
               prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]] =
     fetcher.fetches(queryRequests, prevStepEdges)
 
-  def fetchVertices(vertices: Seq[S2Vertex])(implicit ec: ExecutionContext): Future[Seq[S2Vertex]] =
+  def fetchVertices(vertices: Seq[S2VertexLike])(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] =
     fetcher.fetchVertices(vertices)
 
   def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2Edge]] = fetcher.fetchEdgesAll()
 
-  def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2Vertex]] = fetcher.fetchVerticesAll()
+  def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] = fetcher.fetchVerticesAll()
 
   def fetchSnapshotEdgeInner(edge: S2Edge)(implicit ec: ExecutionContext): Future[(Option[S2Edge], Option[SKeyValue])] =
     fetcher.fetchSnapshotEdgeInner(edge)

@@ -39,6 +39,7 @@ object S2GraphProvider {
   val Implementation: Set[Class[_]] = Set(
     classOf[S2Edge],
     classOf[S2Vertex],
+    classOf[S2VertexLike],
     classOf[S2Property[_]],
     classOf[S2VertexProperty[_]],
     classOf[S2Graph]

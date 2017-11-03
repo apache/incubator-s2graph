@@ -24,12 +24,12 @@ import org.apache.s2graph.core.storage.CanSKeyValue
 import org.apache.s2graph.core.storage.serde.Deserializable
 import org.apache.s2graph.core.storage.serde.StorageDeserializable._
 import org.apache.s2graph.core.types.{HBaseType, InnerValLike, VertexId}
-import org.apache.s2graph.core.{S2Graph, S2Vertex}
+import org.apache.s2graph.core.{S2Graph, S2Vertex, S2VertexLike}
 
 class VertexDeserializable(graph: S2Graph,
-                           bytesToInt: (Array[Byte], Int) => Int = bytesToInt) extends Deserializable[S2Vertex] {
+                           bytesToInt: (Array[Byte], Int) => Int = bytesToInt) extends Deserializable[S2VertexLike] {
   def fromKeyValues[T: CanSKeyValue](_kvs: Seq[T],
-                                          cacheElementOpt: Option[S2Vertex]): Option[S2Vertex] = {
+                                          cacheElementOpt: Option[S2VertexLike]): Option[S2VertexLike] = {
     try {
       assert(_kvs.size == 1)
 

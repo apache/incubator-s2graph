@@ -262,7 +262,7 @@ class RequestParser(graph: S2Graph) {
     case _ => GroupBy.Empty
   }.getOrElse(GroupBy.Empty)
 
-  def toVertices(labelName: String, direction: String, ids: Seq[JsValue]): Seq[S2Vertex] = {
+  def toVertices(labelName: String, direction: String, ids: Seq[JsValue]): Seq[S2VertexLike] = {
     val vertices = for {
       label <- Label.findByName(labelName).toSeq
       serviceColumn = if (direction == "out") label.srcColumn else label.tgtColumn
@@ -581,7 +581,7 @@ class RequestParser(graph: S2Graph) {
     toJsValues(jsValue).map(toVertex(_, operation, serviceName, columnName))
   }
 
-  def toVertex(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None): S2Vertex = {
+  def toVertex(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None): S2VertexLike = {
     val id = parse[JsValue](jsValue, "id")
     val ts = parseOption[Long](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
     val sName = if (serviceName.isEmpty) parse[String](jsValue, "serviceName") else serviceName.get

@@ -27,7 +27,7 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.collection.{Seq, mutable}
 
 object QueryResult {
-  def fromVertices(graph: S2Graph, vertices: Seq[S2Vertex], queryParams: Seq[QueryParam]): StepResult = {
+  def fromVertices(graph: S2Graph, vertices: Seq[S2VertexLike], queryParams: Seq[QueryParam]): StepResult = {
     val edgeWithScores = vertices.flatMap { vertex =>
       queryParams.map { queryParam =>
         val label = queryParam.label
@@ -69,7 +69,7 @@ object QueryResult {
 
 case class QueryRequest(query: Query,
                         stepIdx: Int,
-                        vertex: S2Vertex,
+                        vertex: S2VertexLike,
                         queryParam: QueryParam,
                         prevStepScore: Double = 1.0,
                         labelWeight: Double = 1.0) {

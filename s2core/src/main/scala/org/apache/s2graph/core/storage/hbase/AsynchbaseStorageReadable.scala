@@ -168,7 +168,7 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
     * @param vertex
     * @return
     */
-  private def buildRequest(queryRequest: QueryRequest, vertex: S2Vertex) = {
+  private def buildRequest(queryRequest: QueryRequest, vertex: S2VertexLike) = {
     val kvs = serDe.vertexSerializer(vertex).toKeyValues
     val get = new GetRequest(vertex.hbaseTableName.getBytes, kvs.head.row, Serializable.vertexCf)
     //      get.setTimeout(this.singleGetTimeout.toShort)
@@ -183,7 +183,7 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
     fetchKeyValues(rpc)
   }
 
-  override def fetchKeyValues(queryRequest: QueryRequest, vertex: S2Vertex)(implicit ec: ExecutionContext) = {
+  override def fetchKeyValues(queryRequest: QueryRequest, vertex: S2VertexLike)(implicit ec: ExecutionContext) = {
     val rpc = buildRequest(queryRequest, vertex)
     fetchKeyValues(rpc)
   }

@@ -85,7 +85,7 @@ object S2Vertex {
 
   def isLabelId(propKey: Int): Boolean = propKey > Byte.MaxValue
 
-  def fillPropsWithTs(vertex: S2Vertex, props: Props): Unit = {
+  def fillPropsWithTs(vertex: S2VertexLike, props: Props): Unit = {
     props.forEach(new BiConsumer[String, S2VertexProperty[_]] {
       override def accept(key: String, p: S2VertexProperty[_]): Unit = {
 //        vertex.property(Cardinality.single, key, p.value)
@@ -94,7 +94,7 @@ object S2Vertex {
     })
   }
 
-  def fillPropsWithTs(vertex: S2Vertex, state: State): Unit = {
+  def fillPropsWithTs(vertex: S2VertexLike, state: State): Unit = {
     state.foreach { case (k, v) => vertex.propertyInner(Cardinality.single, k.name, v.value) }
   }
 
@@ -104,7 +104,7 @@ object S2Vertex {
     }.toMap
   }
 
-  def stateToProps(vertex: S2Vertex, state: State): Props = {
+  def stateToProps(vertex: S2VertexLike, state: State): Props = {
     state.foreach { case (k, v) =>
       vertex.property(k.name, v.value)
     }

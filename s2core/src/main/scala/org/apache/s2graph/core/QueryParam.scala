@@ -40,7 +40,7 @@ object Query {
   def apply(query: Query): Query = {
     Query(query.vertices, query.steps, query.queryOption, query.jsonQuery)
   }
-  def toQuery(srcVertices: Seq[S2Vertex], queryParams: Seq[QueryParam]) = Query(srcVertices, Vector(Step(queryParams)))
+  def toQuery(srcVertices: Seq[S2VertexLike], queryParams: Seq[QueryParam]) = Query(srcVertices, Vector(Step(queryParams)))
 
 }
 
@@ -97,7 +97,7 @@ case class QueryOption(removeCycle: Boolean = false,
 
 }
 
-case class Query(vertices: Seq[S2Vertex] = Seq.empty[S2Vertex],
+case class Query(vertices: Seq[S2VertexLike] = Nil,
                  steps: IndexedSeq[Step] = Vector.empty[Step],
                  queryOption: QueryOption = QueryOption(),
                  jsonQuery: JsValue = JsNull) {
@@ -219,7 +219,7 @@ case class Step(queryParams: Seq[QueryParam],
   }
 }
 
-case class VertexParam(vertices: Seq[S2Vertex]) {
+case class VertexParam(vertices: Seq[S2VertexLike]) {
   var filters: Option[Map[Byte, InnerValLike]] = None
 
   def has(what: Option[Map[Byte, InnerValLike]]): VertexParam = {

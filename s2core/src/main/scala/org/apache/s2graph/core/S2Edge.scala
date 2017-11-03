@@ -64,8 +64,8 @@ object SnapshotEdge {
 }
 
 case class SnapshotEdge(graph: S2Graph,
-                        srcVertex: S2Vertex,
-                        tgtVertex: S2Vertex,
+                        srcVertex: S2VertexLike,
+                        tgtVertex: S2VertexLike,
                         label: Label,
                         dir: Int,
                         op: Byte,
@@ -168,8 +168,8 @@ object IndexEdge {
 }
 
 case class IndexEdge(graph: S2Graph,
-                     srcVertex: S2Vertex,
-                     tgtVertex: S2Vertex,
+                     srcVertex: S2VertexLike,
+                     tgtVertex: S2VertexLike,
                      label: Label,
                      dir: Int,
                      op: Byte,
@@ -302,8 +302,8 @@ case class IndexEdge(graph: S2Graph,
 }
 
 case class S2Edge(innerGraph: S2Graph,
-                srcVertex: S2Vertex,
-                var tgtVertex: S2Vertex,
+                srcVertex: S2VertexLike,
+                var tgtVertex: S2VertexLike,
                 innerLabel: Label,
                 dir: Int,
                 var op: Byte = GraphUtil.defaultOpByte,
@@ -429,7 +429,7 @@ case class S2Edge(innerGraph: S2Graph,
 
   //    def relatedEdges = List(this)
 
-  private def getServiceColumn(vertex: S2Vertex, defaultServiceColumn: ServiceColumn) =
+  private def getServiceColumn(vertex: S2VertexLike, defaultServiceColumn: ServiceColumn) =
       if (vertex.id.column == ServiceColumn.Default) defaultServiceColumn else vertex.id.column
 
   def srcForVertex = {
@@ -566,8 +566,8 @@ case class S2Edge(innerGraph: S2Graph,
 
   def checkProperty(key: String): Boolean = propsWithTs.containsKey(key)
 
-  def copyEdge(srcVertex: S2Vertex = srcVertex,
-               tgtVertex: S2Vertex = tgtVertex,
+  def copyEdge(srcVertex: S2VertexLike = srcVertex,
+               tgtVertex: S2VertexLike = tgtVertex,
                innerLabel: Label = innerLabel,
                dir: Int = dir,
                op: Byte = op,

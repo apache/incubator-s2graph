@@ -19,14 +19,14 @@
 
 package org.apache.s2graph.core.storage.serde.vertex.tall
 
-import org.apache.s2graph.core.S2Vertex
+import org.apache.s2graph.core.{S2Vertex, S2VertexLike}
 import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.s2graph.core.storage.serde.Serializable
 import org.apache.s2graph.core.storage.serde.StorageSerializable._
 
 import scala.collection.JavaConverters._
 
-case class VertexSerializable(vertex: S2Vertex, intToBytes: Int => Array[Byte] = intToBytes) extends Serializable[S2Vertex] {
+case class VertexSerializable(vertex: S2VertexLike, intToBytes: Int => Array[Byte] = intToBytes) extends Serializable[S2VertexLike] {
 
   override val table = vertex.hbaseTableName.getBytes
   override val ts = vertex.ts

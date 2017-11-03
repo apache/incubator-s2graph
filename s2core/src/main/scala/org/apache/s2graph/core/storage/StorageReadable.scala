@@ -41,11 +41,11 @@ trait StorageReadable {
 
   def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2Edge]]
 
-  def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2Vertex]]
+  def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]]
 
   protected def fetchKeyValues(queryRequest: QueryRequest, edge: S2Edge)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
 
-  protected def fetchKeyValues(queryRequest: QueryRequest, vertex: S2Vertex)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
+  protected def fetchKeyValues(queryRequest: QueryRequest, vertex: S2VertexLike)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
 
 
   def fetchSnapshotEdgeInner(edge: S2Edge)(implicit ec: ExecutionContext): Future[(Option[S2Edge], Option[SKeyValue])] = {
@@ -72,8 +72,8 @@ trait StorageReadable {
     }
   }
 
-  def fetchVertices(vertices: Seq[S2Vertex])(implicit ec: ExecutionContext): Future[Seq[S2Vertex]] = {
-    def fromResult(kvs: Seq[SKeyValue], version: String): Seq[S2Vertex] = {
+  def fetchVertices(vertices: Seq[S2VertexLike])(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] = {
+    def fromResult(kvs: Seq[SKeyValue], version: String): Seq[S2VertexLike] = {
       if (kvs.isEmpty) Nil
       else serDe.vertexDeserializer(version).fromKeyValues(kvs, None).toSeq
     }

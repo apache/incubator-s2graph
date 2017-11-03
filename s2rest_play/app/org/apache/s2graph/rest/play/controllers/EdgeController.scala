@@ -52,7 +52,7 @@ object EdgeController extends Controller {
     val kafkaTopic = toKafkaTopic(graphElem.isAsync)
 
     graphElem match {
-      case v: S2Vertex =>
+      case v: S2VertexLike =>
         enqueue(kafkaTopic, graphElem, tsv)
       case e: S2Edge =>
         e.innerLabel.extraOptions.get("walLog") match {
@@ -74,7 +74,7 @@ object EdgeController extends Controller {
     }
   }
 
-  private def toDeleteAllFailMessages(srcVertices: Seq[S2Vertex], labels: Seq[Label], dir: Int, ts: Long ) = {
+  private def toDeleteAllFailMessages(srcVertices: Seq[S2VertexLike], labels: Seq[Label], dir: Int, ts: Long ) = {
     for {
       vertex <- srcVertices
       id = vertex.id.toString
@@ -268,7 +268,7 @@ object EdgeController extends Controller {
     }
 
     def deleteEach(labels: Seq[Label], direction: String, ids: Seq[JsValue],
-                   ts: Long, vertices: Seq[S2Vertex]) = {
+                   ts: Long, vertices: Seq[S2VertexLike]) = {
 
       val future = s2.deleteAllAdjacentEdges(vertices.toList, labels, GraphUtil.directions(direction), ts)
       if (withWait) {

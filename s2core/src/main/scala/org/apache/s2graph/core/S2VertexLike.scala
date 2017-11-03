@@ -4,6 +4,7 @@ import java.util.function.{BiConsumer, Consumer}
 
 import org.apache.s2graph.core.S2Vertex.Props
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Label, Service, ServiceColumn}
+import org.apache.s2graph.core.types.VertexId
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, T, Vertex, VertexProperty}
 import play.api.libs.json.Json
@@ -14,8 +15,16 @@ import scala.collection.JavaConverters._
 trait S2VertexLike extends Vertex with GraphElement {
   this: S2Vertex =>
 
+  val graph: S2Graph
+  val id: VertexId
+  val ts: Long
+  val props: Props
+  val op: Byte
+  val belongLabelIds: Seq[Int]
+
   val innerId = id.innerId
   val innerIdVal = innerId.value
+
 
   lazy val properties = for {
     (k, v) <- props.asScala
@@ -52,7 +61,7 @@ trait S2VertexLike extends Vertex with GraphElement {
       Seq(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName).mkString("\t")
   }
 
-  def copyVertexWithState(props: Props): S2Vertex = {
+  def copyVertexWithState(props: Props): S2VertexLike = {
     val newVertex = copy(props = S2Vertex.EmptyProps)
     S2Vertex.fillPropsWithTs(newVertex, props)
     newVertex

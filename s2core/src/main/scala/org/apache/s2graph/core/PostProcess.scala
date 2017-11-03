@@ -141,7 +141,7 @@ object PostProcess {
     }
   }
 
-  def s2VertexToJson(s2Vertex: S2Vertex): Option[JsValue] = {
+  def s2VertexToJson(s2Vertex: S2VertexLike): Option[JsValue] = {
     val props = for {
       (k, v) <- s2Vertex.properties
       jsVal <- anyValToJsValue(v)
@@ -160,7 +160,7 @@ object PostProcess {
     }
   }
 
-  def verticesToJson(s2Vertices: Seq[S2Vertex]): JsValue =
+  def verticesToJson(s2Vertices: Seq[S2VertexLike]): JsValue =
     Json.toJson(s2Vertices.flatMap(s2VertexToJson(_)))
 
   def withOptionalFields(queryOption: QueryOption,

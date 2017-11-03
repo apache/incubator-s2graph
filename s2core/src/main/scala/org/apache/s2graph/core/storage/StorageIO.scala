@@ -221,7 +221,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
   }
 
   //TODO: ServiceColumn do not have durability property yet.
-  def buildDeleteBelongsToId(vertex: S2Vertex): Seq[SKeyValue] = {
+  def buildDeleteBelongsToId(vertex: S2VertexLike): Seq[SKeyValue] = {
     val kvs = serDe.vertexSerializer(vertex).toKeyValues
     val kv = kvs.head
     vertex.belongLabelIds.map { id =>
@@ -251,7 +251,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
     kvs
   }
 
-  def buildPutsAll(vertex: S2Vertex): Seq[SKeyValue] = {
+  def buildPutsAll(vertex: S2VertexLike): Seq[SKeyValue] = {
     vertex.op match {
       case d: Byte if d == GraphUtil.operations("delete") => serDe.vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Delete))
       case _ => serDe.vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Put))
