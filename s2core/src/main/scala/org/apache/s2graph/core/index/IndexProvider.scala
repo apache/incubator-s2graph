@@ -29,7 +29,7 @@ import org.apache.lucene.queryparser.classic.{ParseException, QueryParser}
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.store.{BaseDirectory, RAMDirectory}
 import org.apache.s2graph.core.io.Conversions
-import org.apache.s2graph.core.{EdgeId, S2Edge, S2Vertex, S2VertexLike}
+import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.{InnerValLike, VertexId}
 import org.apache.s2graph.core.utils.logger
@@ -130,8 +130,8 @@ trait IndexProvider {
   def mutateVertices(vertices: Seq[S2VertexLike]): Seq[Boolean]
   def mutateVerticesAsync(vertices: Seq[S2VertexLike]): Future[Seq[Boolean]]
 
-  def mutateEdges(edges: Seq[S2Edge]): Seq[Boolean]
-  def mutateEdgesAsync(edges: Seq[S2Edge]): Future[Seq[Boolean]]
+  def mutateEdges(edges: Seq[S2EdgeLike]): Seq[Boolean]
+  def mutateEdgesAsync(edges: Seq[S2EdgeLike]): Future[Seq[Boolean]]
 
   def shutdown(): Unit
 }
@@ -179,7 +179,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     }
   }
 
-  private def toDocument(globalIndex: GlobalIndex, edge: S2Edge): Option[Document] = {
+  private def toDocument(globalIndex: GlobalIndex, edge: S2EdgeLike): Option[Document] = {
     val props = edge.propsWithTs.asScala
     val exist = props.exists(t => globalIndex.propNamesSet(t._1))
     if (!exist) None
@@ -222,7 +222,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     vertices.map(_ => true)
   }
 
-  override def mutateEdges(edges: Seq[S2Edge]): Seq[Boolean] = {
+  override def mutateEdges(edges: Seq[S2EdgeLike]): Seq[Boolean] = {
     val globalIndexOptions = GlobalIndex.findAll(GlobalIndex.EdgeType)
 
     globalIndexOptions.map { globalIndex =>
@@ -316,5 +316,5 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
 
   override def mutateVerticesAsync(vertices: Seq[S2VertexLike]): Future[Seq[Boolean]] = Future.successful(mutateVertices(vertices))
 
-  override def mutateEdgesAsync(edges: Seq[S2Edge]): Future[Seq[Boolean]] = Future.successful(mutateEdges(edges))
+  override def mutateEdgesAsync(edges: Seq[S2EdgeLike]): Future[Seq[Boolean]] = Future.successful(mutateEdges(edges))
 }

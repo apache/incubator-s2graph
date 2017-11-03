@@ -22,7 +22,7 @@ package org.apache.s2graph.core.parsers
 import org.apache.s2graph.core.GraphExceptions.{LabelNotExistException, WhereParserException}
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.types.InnerValLike
-import org.apache.s2graph.core.{S2Edge, GraphUtil}
+import org.apache.s2graph.core.{GraphUtil, S2Edge, S2EdgeLike}
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.utils.logger
 
@@ -33,7 +33,7 @@ import scala.util.parsing.combinator.JavaTokenParsers
 trait ExtractValue {
   val parent = "_parent."
 
-  def propToInnerVal(edge: S2Edge, key: String) = {
+  def propToInnerVal(edge: S2EdgeLike, key: String) = {
     val (propKey, parentEdge) = findParentEdge(edge, key)
 
     val label = parentEdge.innerLabel
@@ -47,7 +47,7 @@ trait ExtractValue {
     }
   }
 
-  def valueToCompare(edge: S2Edge, key: String, value: String) = {
+  def valueToCompare(edge: S2EdgeLike, key: String, value: String) = {
     val label = edge.innerLabel
     if (value.startsWith(parent) || label.metaPropsInvMap.contains(value)) propToInnerVal(edge, value)
     else {
@@ -65,11 +65,11 @@ trait ExtractValue {
   }
 
   @tailrec
-  private def findParent(edge: S2Edge, depth: Int): S2Edge =
+  private def findParent(edge: S2EdgeLike, depth: Int): S2EdgeLike =
     if (depth > 0) findParent(edge.parentEdges.head.edge, depth - 1)
     else edge
 
-  private def findParentEdge(edge: S2Edge, key: String): (String, S2Edge) = {
+  private def findParentEdge(edge: S2EdgeLike, key: String): (String, S2EdgeLike) = {
     if (!key.startsWith(parent)) (key, edge)
     else {
       val split = key.split(parent)
@@ -88,9 +88,9 @@ trait Clause extends ExtractValue {
 
   def or(otherField: Clause): Clause = Or(this, otherField)
 
-  def filter(edge: S2Edge): Boolean
+  def filter(edge: S2EdgeLike): Boolean
 
-  def binaryOp(binOp: (InnerValLike, InnerValLike) => Boolean)(propKey: String, value: String)(edge: S2Edge): Boolean = {
+  def binaryOp(binOp: (InnerValLike, InnerValLike) => Boolean)(propKey: String, value: String)(edge: S2EdgeLike): Boolean = {
     val propValue = propToInnerVal(edge, propKey)
     val compValue = valueToCompare(edge, propKey, value)
 
@@ -105,20 +105,20 @@ object Where {
   }
 }
 case class Where(clauses: Seq[Clause] = Seq.empty[Clause]) {
-  def filter(edge: S2Edge) =
+  def filter(edge: S2EdgeLike) =
     if (clauses.isEmpty) true else clauses.map(_.filter(edge)).forall(identity)
 }
 
 case class Gt(propKey: String, value: String) extends Clause {
-  override def filter(edge: S2Edge): Boolean = binaryOp(_ > _)(propKey, value)(edge)
+  override def filter(edge: S2EdgeLike): Boolean = binaryOp(_ > _)(propKey, value)(edge)
 }
 
 case class Lt(propKey: String, value: String) extends Clause {
-  override def filter(edge: S2Edge): Boolean = binaryOp(_ < _)(propKey, value)(edge)
+  override def filter(edge: S2EdgeLike): Boolean = binaryOp(_ < _)(propKey, value)(edge)
 }
 
 case class Eq(propKey: String, value: String) extends Clause {
-  override def filter(edge: S2Edge): Boolean = binaryOp(_ == _)(propKey, value)(edge)
+  override def filter(edge: S2EdgeLike): Boolean = binaryOp(_ == _)(propKey, value)(edge)
 }
 
 case class InWithoutParent(label: Label, propKey: String, values: Set[String]) extends Clause {
@@ -144,7 +144,7 @@ case class InWithoutParent(label: Label, propKey: String, values: Set[String]) e
     toInnerVal(value, dataType, label.schemaVersion)
   }
 
-  override def filter(edge: S2Edge): Boolean = {
+  override def filter(edge: S2EdgeLike): Boolean = {
     if (edge.dir == GraphUtil.directions("in")) {
       val propVal = propToInnerVal(edge, propKey)
       innerValLikeLsIn.contains(propVal)
@@ -156,7 +156,7 @@ case class InWithoutParent(label: Label, propKey: String, values: Set[String]) e
 }
 
 case class IN(propKey: String, values: Set[String]) extends Clause {
-  override def filter(edge: S2Edge): Boolean = {
+  override def filter(edge: S2EdgeLike): Boolean = {
     val propVal = propToInnerVal(edge, propKey)
     values.exists { value =>
       valueToCompare(edge, propKey, value) == propVal
@@ -165,7 +165,7 @@ case class IN(propKey: String, values: Set[String]) extends Clause {
 }
 
 case class Between(propKey: String, minValue: String, maxValue: String) extends Clause {
-  override def filter(edge: S2Edge): Boolean = {
+  override def filter(edge: S2EdgeLike): Boolean = {
     val propVal = propToInnerVal(edge, propKey)
     val minVal = valueToCompare(edge, propKey, minValue)
     val maxVal = valueToCompare(edge, propKey, maxValue)
@@ -175,15 +175,15 @@ case class Between(propKey: String, minValue: String, maxValue: String) extends 
 }
 
 case class Not(self: Clause) extends Clause {
-  override def filter(edge: S2Edge) = !self.filter(edge)
+  override def filter(edge: S2EdgeLike) = !self.filter(edge)
 }
 
 case class And(left: Clause, right: Clause) extends Clause {
-  override def filter(edge: S2Edge) = left.filter(edge) && right.filter(edge)
+  override def filter(edge: S2EdgeLike) = left.filter(edge) && right.filter(edge)
 }
 
 case class Or(left: Clause, right: Clause) extends Clause {
-  override def filter(edge: S2Edge) = left.filter(edge) || right.filter(edge)
+  override def filter(edge: S2EdgeLike) = left.filter(edge) || right.filter(edge)
 }
 
 object WhereParser {

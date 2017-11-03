@@ -163,7 +163,7 @@ case class EdgeTransformer(jsValue: JsValue) {
     }
   }
 
-  def toInnerValOpt(queryParam: QueryParam, edge: S2Edge, fieldName: String): Option[InnerValLike] = {
+  def toInnerValOpt(queryParam: QueryParam, edge: S2EdgeLike, fieldName: String): Option[InnerValLike] = {
     fieldName match {
       case LabelMeta.to.name => Option(edge.tgtVertex.innerId)
       case LabelMeta.from.name => Option(edge.srcVertex.innerId)
@@ -171,7 +171,7 @@ case class EdgeTransformer(jsValue: JsValue) {
     }
   }
 
-  def transform(queryParam: QueryParam, edge: S2Edge, nextStepOpt: Option[Step]): Seq[S2Edge] = {
+  def transform(queryParam: QueryParam, edge: S2EdgeLike, nextStepOpt: Option[Step]): Seq[S2EdgeLike] = {
     if (isDefault) Seq(edge)
     else {
       val edges = for {
@@ -311,7 +311,7 @@ case class QueryParam(labelName: String,
     CanInnerValLike.anyToInnerValLike.toInnerVal(id)(label.tgtColumnWithDir(dir).schemaVersion)
   }
 
-  def buildInterval(edgeOpt: Option[S2Edge]) = intervalOpt match {
+  def buildInterval(edgeOpt: Option[S2EdgeLike]) = intervalOpt match {
     case None => Array.empty[Byte] -> Array.empty[Byte]
     case Some(interval) =>
       val (froms, tos) = interval
@@ -359,7 +359,7 @@ case class QueryParam(labelName: String,
     Bytes.add(bytes, optionalCacheKey)
   }
 
-  private def convertToInner(kvs: Seq[(String, JsValue)], edgeOpt: Option[S2Edge]): Seq[(LabelMeta, InnerValLike)] = {
+  private def convertToInner(kvs: Seq[(String, JsValue)], edgeOpt: Option[S2EdgeLike]): Seq[(LabelMeta, InnerValLike)] = {
     kvs.map { case (propKey, propValJs) =>
       propValJs match {
         case JsString(in) if edgeOpt.isDefined && in.contains("_parent.") =>
@@ -392,7 +392,7 @@ case class QueryParam(labelName: String,
     }
   }
 
-  def paddingInterval(len: Byte, froms: Seq[(String, JsValue)], tos: Seq[(String, JsValue)], edgeOpt: Option[S2Edge] = None) = {
+  def paddingInterval(len: Byte, froms: Seq[(String, JsValue)], tos: Seq[(String, JsValue)], edgeOpt: Option[S2EdgeLike] = None) = {
     val fromInnerVal = convertToInner(froms, edgeOpt)
     val toInnerVal = convertToInner(tos, edgeOpt)
 

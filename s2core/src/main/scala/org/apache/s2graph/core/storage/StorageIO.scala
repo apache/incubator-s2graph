@@ -32,8 +32,8 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
   /** Parsing Logic: parse from kv from Storage into Edge */
   def toEdge[K: CanSKeyValue](kv: K,
                               queryRequest: QueryRequest,
-                              cacheElementOpt: Option[S2Edge],
-                              parentEdges: Seq[EdgeWithScore]): Option[S2Edge] = {
+                              cacheElementOpt: Option[S2EdgeLike],
+                              parentEdges: Seq[EdgeWithScore]): Option[S2EdgeLike] = {
     logger.debug(s"toEdge: $kv")
 
     try {
@@ -41,7 +41,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
       val queryParam = queryRequest.queryParam
       val schemaVer = queryParam.label.schemaVersion
       val indexEdgeOpt = serDe.indexEdgeDeserializer(schemaVer).fromKeyValues(Seq(kv), cacheElementOpt)
-      if (!queryOption.returnTree) indexEdgeOpt.map(indexEdge => indexEdge.copy(parentEdges = parentEdges))
+      if (!queryOption.returnTree) indexEdgeOpt.map(indexEdge => indexEdge.copyParentEdges(parentEdges))
       else indexEdgeOpt
     } catch {
       case ex: Exception =>
@@ -54,7 +54,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
                                       queryRequest: QueryRequest,
                                       cacheElementOpt: Option[SnapshotEdge] = None,
                                       isInnerCall: Boolean,
-                                      parentEdges: Seq[EdgeWithScore]): Option[S2Edge] = {
+                                      parentEdges: Seq[EdgeWithScore]): Option[S2EdgeLike] = {
     //        logger.debug(s"SnapshottoEdge: $kv")
     val queryParam = queryRequest.queryParam
     val schemaVer = queryParam.label.schemaVersion
@@ -62,7 +62,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
 
     if (isInnerCall) {
       snapshotEdgeOpt.flatMap { snapshotEdge =>
-        val edge = snapshotEdge.toEdge.copy(parentEdges = parentEdges)
+        val edge = snapshotEdge.toEdge.copyParentEdges(parentEdges)
         if (queryParam.where.map(_.filter(edge)).getOrElse(true)) Option(edge)
         else None
       }
@@ -70,7 +70,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
       snapshotEdgeOpt.flatMap { snapshotEdge =>
         if (snapshotEdge.allPropsDeleted) None
         else {
-          val edge = snapshotEdge.toEdge.copy(parentEdges = parentEdges)
+          val edge = snapshotEdge.toEdge.copyParentEdges(parentEdges)
           if (queryParam.where.map(_.filter(edge)).getOrElse(true)) Option(edge)
           else None
         }
@@ -144,7 +144,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
           }
           val tsVal = processTimeDecay(queryParam, edge)
           val newScore = degreeScore + score
-          EdgeWithScore(convertedEdge.copy(parentEdges = parentEdges), score = newScore * labelWeight * tsVal, label = label)
+          EdgeWithScore(convertedEdge.copyParentEdges(parentEdges), score = newScore * labelWeight * tsVal, label = label)
         }
 
         val sampled =
@@ -229,11 +229,11 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
     }
   }
 
-  def buildVertexPutsAsync(edge: S2Edge): Seq[SKeyValue] = {
+  def buildVertexPutsAsync(edge: S2EdgeLike): Seq[SKeyValue] = {
     val storeVertex = edge.innerLabel.extraOptions.get("storeVertex").map(_.as[Boolean]).getOrElse(false)
 
     if (storeVertex) {
-      if (edge.op == GraphUtil.operations("delete"))
+      if (edge.getOp() == GraphUtil.operations("delete"))
         buildDeleteBelongsToId(edge.srcForVertex) ++ buildDeleteBelongsToId(edge.tgtForVertex)
       else
         serDe.vertexSerializer(edge.srcForVertex).toKeyValues ++ serDe.vertexSerializer(edge.tgtForVertex).toKeyValues
@@ -242,7 +242,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
     }
   }
 
-  def buildDegreePuts(edge: S2Edge, degreeVal: Long): Seq[SKeyValue] = {
+  def buildDegreePuts(edge: S2EdgeLike, degreeVal: Long): Seq[SKeyValue] = {
     edge.propertyInner(LabelMeta.degree.name, degreeVal, edge.ts)
     val kvs = edge.edgesWithIndexValid.flatMap { indexEdge =>
       serDe.indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put, durability = indexEdge.label.durability))

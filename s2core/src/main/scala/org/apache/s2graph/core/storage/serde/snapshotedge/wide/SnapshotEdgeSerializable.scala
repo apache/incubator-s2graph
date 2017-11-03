@@ -59,7 +59,7 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[
     snapshotEdge.pendingEdgeOpt match {
       case None => valueBytes()
       case Some(pendingEdge) =>
-        val opBytes = statusCodeWithOp(pendingEdge.statusCode, pendingEdge.op)
+        val opBytes = statusCodeWithOp(pendingEdge.statusCode, pendingEdge.getOp())
         val versionBytes = Array.empty[Byte]
         val propsBytes = pendingEdge.serializePropsWithTs()
         val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)

@@ -91,7 +91,7 @@ object WithScore {
   }
 }
 
-case class EdgeWithScore(edge: S2Edge,
+case class EdgeWithScore(edge: S2EdgeLike,
                          score: Double,
                          label: Label,
                          orderByValues: (Any, Any, Any, Any) = StepResult.EmptyOrderByValues,

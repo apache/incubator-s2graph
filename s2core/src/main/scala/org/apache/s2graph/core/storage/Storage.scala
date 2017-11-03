@@ -93,13 +93,13 @@ abstract class Storage(val graph: S2Graph,
   def buildIncrementsCountAsync(indexedEdge: IndexEdge, amount: Long = 1L): Seq[SKeyValue] =
     io.buildIncrementsCountAsync(indexedEdge, amount)
 
-  def buildVertexPutsAsync(edge: S2Edge): Seq[SKeyValue] =
+  def buildVertexPutsAsync(edge: S2EdgeLike): Seq[SKeyValue] =
     io.buildVertexPutsAsync(edge)
 
   def snapshotEdgeMutations(edgeMutate: EdgeMutate): Seq[SKeyValue] =
     io.snapshotEdgeMutations(edgeMutate)
 
-  def buildDegreePuts(edge: S2Edge, degreeVal: Long): Seq[SKeyValue] =
+  def buildDegreePuts(edge: S2EdgeLike, degreeVal: Long): Seq[SKeyValue] =
     io.buildDegreePuts(edge, degreeVal)
 
   def buildPutsAll(vertex: S2VertexLike): Seq[SKeyValue] =
@@ -121,15 +121,15 @@ abstract class Storage(val graph: S2Graph,
   def fetchVertices(vertices: Seq[S2VertexLike])(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] =
     fetcher.fetchVertices(vertices)
 
-  def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2Edge]] = fetcher.fetchEdgesAll()
+  def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]] = fetcher.fetchEdgesAll()
 
   def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] = fetcher.fetchVerticesAll()
 
-  def fetchSnapshotEdgeInner(edge: S2Edge)(implicit ec: ExecutionContext): Future[(Option[S2Edge], Option[SKeyValue])] =
+  def fetchSnapshotEdgeInner(edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[(Option[S2EdgeLike], Option[SKeyValue])] =
     fetcher.fetchSnapshotEdgeInner(edge)
 
   /** Conflict Resolver **/
-  def retry(tryNum: Int)(edges: Seq[S2Edge], statusCode: Byte, fetchedSnapshotEdgeOpt: Option[S2Edge])(implicit ec: ExecutionContext): Future[Boolean] =
+  def retry(tryNum: Int)(edges: Seq[S2EdgeLike], statusCode: Byte, fetchedSnapshotEdgeOpt: Option[S2EdgeLike])(implicit ec: ExecutionContext): Future[Boolean] =
     conflictResolver.retry(tryNum)(edges, statusCode, fetchedSnapshotEdgeOpt)
 
   /** Management **/

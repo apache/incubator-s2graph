@@ -71,7 +71,7 @@ trait S2VertexLike extends Vertex with GraphElement {
     val arr = new util.ArrayList[Vertex]()
     edges(direction, edgeLabels: _*).forEachRemaining(new Consumer[Edge] {
       override def accept(edge: Edge): Unit = {
-        val s2Edge = edge.asInstanceOf[S2Edge]
+        val s2Edge = edge.asInstanceOf[S2EdgeLike]
 
         s2Edge.direction match {
           case "out" => arr.add(edge.inVertex())

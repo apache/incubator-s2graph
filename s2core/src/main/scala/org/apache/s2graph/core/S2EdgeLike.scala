@@ -14,7 +14,7 @@ import play.api.libs.json.Json
 import scala.concurrent.Await
 import scala.collection.JavaConverters._
 
-trait S2EdgeLike extends Edge {
+trait S2EdgeLike extends Edge with GraphElement {
   this: S2Edge =>
 
   val innerGraph: S2Graph
@@ -27,8 +27,8 @@ trait S2EdgeLike extends Edge {
 //  var version: Long = System.currentTimeMillis()
   val propsWithTs: Props = S2Edge.EmptyProps
   val parentEdges: Seq[EdgeWithScore] = Nil
-  val originalEdgeOpt: Option[S2Edge] = None
-  val pendingEdgeOpt: Option[S2Edge] = None
+  val originalEdgeOpt: Option[S2EdgeLike] = None
+  val pendingEdgeOpt: Option[S2EdgeLike] = None
   val statusCode: Byte = 0
   val lockTs: Option[Long] = None
 //  var tsInnerValOpt: Option[InnerValLike] = None
@@ -47,6 +47,13 @@ trait S2EdgeLike extends Edge {
   lazy val tgtId = tgtVertex.innerIdVal
   lazy val labelName = innerLabel.label
   lazy val direction = GraphUtil.fromDirection(dir)
+
+  def getOp(): Byte = op
+  def setOp(newOp: Byte): Unit = op = newOp
+  def getVersion(): Long = version
+  def setVersion(newVersion: Long): Unit = version = newVersion
+  def getTsInnerValOpt(): Option[InnerValLike] = tsInnerValOpt
+  def setTsInnerValOpt(newTsInnerValOpt: Option[InnerValLike]): Unit = tsInnerValOpt = newTsInnerValOpt
 
   def toIndexEdge(labelIndexSeq: Byte): IndexEdge = IndexEdge(innerGraph, srcVertex, tgtVertex, innerLabel, dir, op, version, labelIndexSeq, propsWithTs)
 
@@ -196,6 +203,11 @@ trait S2EdgeLike extends Edge {
     S2Edge(innerGraph, srcVertex, newTgtVertex, innerLabel, dir, op, version, propsWithTs, tsInnerValOpt = tsInnerValOpt)
   }
 
+  def updateOriginalEdgeOpt(newOriginalEdgeOpt: S2EdgeLike): S2EdgeLike = {
+    S2Edge(innerGraph, srcVertex, tgtVertex, innerLabel, dir, op, version, propsWithTs, parentEdges,
+      Option(newOriginalEdgeOpt), pendingEdgeOpt, statusCode, lockTs, tsInnerValOpt)
+  }
+
   def rank(r: RankParam): Double =
     if (r.keySeqAndWeights.size <= 0) 1.0f
     else {
@@ -225,12 +237,12 @@ trait S2EdgeLike extends Edge {
                version: Long = version,
                propsWithTs: State = S2Edge.propsToState(this.propsWithTs),
                parentEdges: Seq[EdgeWithScore] = parentEdges,
-               originalEdgeOpt: Option[S2Edge] = originalEdgeOpt,
-               pendingEdgeOpt: Option[S2Edge] = pendingEdgeOpt,
+               originalEdgeOpt: Option[S2EdgeLike] = originalEdgeOpt,
+               pendingEdgeOpt: Option[S2EdgeLike] = pendingEdgeOpt,
                statusCode: Byte = statusCode,
                lockTs: Option[Long] = lockTs,
                tsInnerValOpt: Option[InnerValLike] = tsInnerValOpt,
-               ts: Long = ts): S2Edge = {
+               ts: Long = ts): S2EdgeLike = {
     val edge = new S2Edge(innerGraph, srcVertex, tgtVertex, innerLabel, dir, op, version, S2Edge.EmptyProps,
       parentEdges, originalEdgeOpt, pendingEdgeOpt, statusCode, lockTs, tsInnerValOpt)
     S2Edge.fillPropsWithTs(edge, propsWithTs)
@@ -238,17 +250,37 @@ trait S2EdgeLike extends Edge {
     edge
   }
 
-  def copyEdgeWithState(state: State, ts: Long): S2Edge = {
+  def copyEdgeWithState(state: State, ts: Long): S2EdgeLike = {
     val newEdge = copy(propsWithTs = S2Edge.EmptyProps)
     S2Edge.fillPropsWithTs(newEdge, state)
     newEdge.propertyInner(LabelMeta.timestamp.name, ts, ts)
     newEdge
   }
 
-  def copyEdgeWithState(state: State): S2Edge = {
+  def copyEdgeWithState(state: State): S2EdgeLike = {
     val newEdge = copy(propsWithTs = S2Edge.EmptyProps)
     S2Edge.fillPropsWithTs(newEdge, state)
     newEdge
+  }
+
+  def copyOp(newOp: Byte): S2EdgeLike = {
+    copy(op = newOp)
+  }
+
+  def copyVersion(newVersion: Long): S2EdgeLike = {
+    copy(version = newVersion)
+  }
+
+  def copyParentEdges(parents: Seq[EdgeWithScore]): S2EdgeLike = {
+    copy(parentEdges = parents)
+  }
+
+  def copyStatusCode(newStatusCode: Byte): S2EdgeLike = {
+    copy(statusCode = newStatusCode)
+  }
+
+  def copyLockTs(newLockTs: Option[Long]): S2EdgeLike = {
+    copy(lockTs = newLockTs)
   }
 
   def vertices(direction: Direction): util.Iterator[structure.Vertex] = {
@@ -373,7 +405,13 @@ trait S2EdgeLike extends Edge {
     }
   }
 
+  def toLogString: String = {
+    //    val allPropsWithName = defaultPropsWithName ++ Json.toJson(propsWithName).asOpt[JsObject].getOrElse(Json.obj())
+    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, innerLabel.label, propsWithTs).mkString("\t")
+  }
+
   private def getServiceColumn(vertex: S2VertexLike, defaultServiceColumn: ServiceColumn) =
     if (vertex.id.column == ServiceColumn.Default) defaultServiceColumn else vertex.id.column
+
 
 }

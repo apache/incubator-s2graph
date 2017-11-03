@@ -52,7 +52,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
     Random.nextInt(Math.min(BackoffTimeout, slot * Math.pow(2, tryNum)).toInt)
   }
 
-  def retry(tryNum: Int)(edges: Seq[S2Edge], statusCode: Byte, fetchedSnapshotEdgeOpt: Option[S2Edge])(implicit ec: ExecutionContext): Future[Boolean] = {
+  def retry(tryNum: Int)(edges: Seq[S2EdgeLike], statusCode: Byte, fetchedSnapshotEdgeOpt: Option[S2EdgeLike])(implicit ec: ExecutionContext): Future[Boolean] = {
     if (tryNum >= MaxRetryNum) {
       edges.foreach { edge =>
         logger.error(s"commit failed after $MaxRetryNum\n${edge.toLogString}")
@@ -112,9 +112,9 @@ class WriteWriteConflictResolver(graph: S2Graph,
     }
   }
 
-  protected def commitUpdate(edges: Seq[S2Edge],
+  protected def commitUpdate(edges: Seq[S2EdgeLike],
                              statusCode: Byte,
-                             fetchedSnapshotEdgeOpt: Option[S2Edge])(implicit ec: ExecutionContext): Future[Boolean] = {
+                             fetchedSnapshotEdgeOpt: Option[S2EdgeLike])(implicit ec: ExecutionContext): Future[Boolean] = {
     //    Future.failed(new PartialFailureException(edges.head, 0, "ahahah"))
     assert(edges.nonEmpty)
     //    assert(statusCode == 0 || fetchedSnapshotEdgeOpt.isDefined)
@@ -135,7 +135,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
             assert(edgeMutate.newSnapshotEdge.isDefined)
 
             val lockTs = Option(System.currentTimeMillis())
-            val pendingEdge = squashedEdge.copy(statusCode = 1, lockTs = lockTs, version = squashedEdge.ts + 1)
+            val pendingEdge = squashedEdge.copyStatusCode(1).copyLockTs(lockTs).copyVersion(squashedEdge.ts + 1)
             val lockSnapshotEdge = squashedEdge.toSnapshotEdge.copy(pendingEdgeOpt = Option(pendingEdge))
             val releaseLockSnapshotEdge = edgeMutate.newSnapshotEdge.get.copy(statusCode = 0,
               pendingEdgeOpt = None, version = lockSnapshotEdge.version + 1)
@@ -158,7 +158,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
                   Future.successful(true)
                 } else {
                   val lockTs = Option(System.currentTimeMillis())
-                  val pendingEdge = squashedEdge.copy(statusCode = 1, lockTs = lockTs, version = snapshotEdge.version + 1)
+                  val pendingEdge = squashedEdge.copyStatusCode(1).copyLockTs(lockTs).copyVersion(snapshotEdge.getVersion() + 1)
                   val lockSnapshotEdge = snapshotEdge.toSnapshotEdge.copy(pendingEdgeOpt = Option(pendingEdge))
                   val releaseLockSnapshotEdge = edgeMutate.newSnapshotEdge.get.copy(statusCode = 0,
                     pendingEdgeOpt = None, version = lockSnapshotEdge.version + 1)
@@ -182,7 +182,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
                     else S2Edge.buildOperation(fetchedSnapshotEdgeOpt, pendingEdge +: edges)
 
                   val lockTs = Option(System.currentTimeMillis())
-                  val newPendingEdge = squashedEdge.copy(statusCode = 1, lockTs = lockTs, version = snapshotEdge.version + 1)
+                  val newPendingEdge = squashedEdge.copyStatusCode(1).copyLockTs(lockTs).copyVersion(snapshotEdge.getVersion() + 1)
                   val lockSnapshotEdge = snapshotEdge.toSnapshotEdge.copy(pendingEdgeOpt = Option(newPendingEdge))
                   val releaseLockSnapshotEdge = edgeMutate.newSnapshotEdge.get.copy(statusCode = 0,
                     pendingEdgeOpt = None, version = lockSnapshotEdge.version + 1)
@@ -222,7 +222,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
           if (fetchedSnapshotEdgeOpt.isDefined && fetchedSnapshotEdgeOpt.get.pendingEdgeOpt.isDefined) fetchedSnapshotEdgeOpt.get.pendingEdgeOpt.get +: edges
           else edges
         val (squashedEdge, edgeMutate) = S2Edge.buildOperation(fetchedSnapshotEdgeOpt, _edges)
-        val newVersion = fetchedSnapshotEdgeOpt.map(_.version).getOrElse(squashedEdge.ts) + 2
+        val newVersion = fetchedSnapshotEdgeOpt.map(_.getVersion()).getOrElse(squashedEdge.ts) + 2
         val releaseLockSnapshotEdge = edgeMutate.newSnapshotEdge match {
           case None => squashedEdge.toSnapshotEdge.copy(statusCode = 0, pendingEdgeOpt = None, version = newVersion)
           case Some(newSnapshotEdge) => newSnapshotEdge.copy(statusCode = 0, pendingEdgeOpt = None, version = newVersion)
@@ -246,8 +246,8 @@ class WriteWriteConflictResolver(graph: S2Graph,
     * @return
     */
   protected def commitProcess(statusCode: Byte,
-                              squashedEdge: S2Edge,
-                              fetchedSnapshotEdgeOpt: Option[S2Edge],
+                              squashedEdge: S2EdgeLike,
+                              fetchedSnapshotEdgeOpt: Option[S2EdgeLike],
                               lockSnapshotEdge: SnapshotEdge,
                               releaseLockSnapshotEdge: SnapshotEdge,
                               edgeMutate: EdgeMutate)(implicit ec: ExecutionContext): Future[Boolean] = {
@@ -259,7 +259,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
     } yield lockReleased
   }
 
-  case class PartialFailureException(edge: S2Edge, statusCode: Byte, failReason: String) extends NoStackException(failReason)
+  case class PartialFailureException(edge: S2EdgeLike, statusCode: Byte, failReason: String) extends NoStackException(failReason)
 
   protected def debug(ret: Boolean, phase: String, snapshotEdge: SnapshotEdge) = {
     val msg = Seq(s"[$ret] [$phase]", s"${snapshotEdge.toLogString()}").mkString("\n")
@@ -282,8 +282,8 @@ class WriteWriteConflictResolver(graph: S2Graph,
     * @return
     */
   protected def acquireLock(statusCode: Byte,
-                            squashedEdge: S2Edge,
-                            fetchedSnapshotEdgeOpt: Option[S2Edge],
+                            squashedEdge: S2EdgeLike,
+                            fetchedSnapshotEdgeOpt: Option[S2EdgeLike],
                             lockEdge: SnapshotEdge)(implicit ec: ExecutionContext): Future[Boolean] = {
     if (statusCode >= 1) {
       logger.debug(s"skip acquireLock: [$statusCode]\n${squashedEdge.toLogString}")
@@ -334,7 +334,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
     */
   protected def releaseLock(predicate: Boolean,
                             statusCode: Byte,
-                            squashedEdge: S2Edge,
+                            squashedEdge: S2EdgeLike,
                             releaseLockEdge: SnapshotEdge)(implicit ec: ExecutionContext): Future[Boolean] = {
     if (!predicate) {
       Future.failed(new PartialFailureException(squashedEdge, 3, "predicate failed."))
@@ -379,7 +379,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
     */
   protected def commitIndexEdgeMutations(predicate: Boolean,
                                          statusCode: Byte,
-                                         squashedEdge: S2Edge,
+                                         squashedEdge: S2EdgeLike,
                                          edgeMutate: EdgeMutate)(implicit ec: ExecutionContext): Future[Boolean] = {
     if (!predicate) Future.failed(new PartialFailureException(squashedEdge, 1, "predicate failed."))
     else {
@@ -413,7 +413,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
     */
   protected def commitIndexEdgeDegreeMutations(predicate: Boolean,
                                                statusCode: Byte,
-                                               squashedEdge: S2Edge,
+                                               squashedEdge: S2EdgeLike,
                                                edgeMutate: EdgeMutate)(implicit ec: ExecutionContext): Future[Boolean] = {
 
     def _write(kvs: Seq[SKeyValue], withWait: Boolean): Future[Boolean] = {
@@ -445,8 +445,8 @@ class WriteWriteConflictResolver(graph: S2Graph,
 
   /** end of methods for consistency */
 
-  def mutateLog(snapshotEdgeOpt: Option[S2Edge], edges: Seq[S2Edge],
-                newEdge: S2Edge, edgeMutate: EdgeMutate) =
+  def mutateLog(snapshotEdgeOpt: Option[S2EdgeLike], edges: Seq[S2EdgeLike],
+                newEdge: S2EdgeLike, edgeMutate: EdgeMutate) =
     Seq("----------------------------------------------",
       s"SnapshotEdge: ${snapshotEdgeOpt.map(_.toLogString)}",
       s"requestEdges: ${edges.map(_.toLogString).mkString("\n")}",

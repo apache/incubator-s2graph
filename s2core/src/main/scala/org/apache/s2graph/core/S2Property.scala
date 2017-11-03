@@ -102,7 +102,7 @@ object S2Property {
   }
 }
 
-case class S2Property[V](element: S2Edge,
+case class S2Property[V](element: S2EdgeLike,
                          labelMeta: LabelMeta,
                          key: String,
                          v: V,

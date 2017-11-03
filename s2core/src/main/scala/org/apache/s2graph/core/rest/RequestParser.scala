@@ -548,12 +548,12 @@ class RequestParser(graph: S2Graph) {
     elementsWithTsv
   }
 
-  def parseJsonFormat(jsValue: JsValue, operation: String): Seq[(S2Edge, String)] = {
+  def parseJsonFormat(jsValue: JsValue, operation: String): Seq[(S2EdgeLike, String)] = {
     val jsValues = toJsValues(jsValue)
     jsValues.flatMap(toEdgeWithTsv(_, operation))
   }
 
-  private def toEdgeWithTsv(jsValue: JsValue, operation: String): Seq[(S2Edge, String)] = {
+  private def toEdgeWithTsv(jsValue: JsValue, operation: String): Seq[(S2EdgeLike, String)] = {
     val srcIds = (jsValue \ "from").asOpt[JsValue].map(Seq(_)).getOrElse(Nil) ++ (jsValue \ "froms").asOpt[Seq[JsValue]].getOrElse(Nil)
     val tgtIds = (jsValue \ "to").asOpt[JsValue].map(Seq(_)).getOrElse(Nil) ++ (jsValue \ "tos").asOpt[Seq[JsValue]].getOrElse(Nil)
 

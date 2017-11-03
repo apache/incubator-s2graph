@@ -37,6 +37,7 @@ import scala.collection.JavaConverters._
 object S2GraphProvider {
 
   val Implementation: Set[Class[_]] = Set(
+    classOf[S2EdgeLike],
     classOf[S2Edge],
     classOf[S2Vertex],
     classOf[S2VertexLike],

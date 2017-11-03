@@ -201,13 +201,13 @@ object S2Graph {
   }
 
   /** common methods for filter out, transform, aggregate queryResult */
-  def convertEdges(queryParam: QueryParam, edge: S2Edge, nextStepOpt: Option[Step]): Seq[S2Edge] = {
+  def convertEdges(queryParam: QueryParam, edge: S2EdgeLike, nextStepOpt: Option[Step]): Seq[S2EdgeLike] = {
     for {
       convertedEdge <- queryParam.edgeTransformer.transform(queryParam, edge, nextStepOpt) if !edge.isDegree
     } yield convertedEdge
   }
 
-  def processTimeDecay(queryParam: QueryParam, edge: S2Edge) = {
+  def processTimeDecay(queryParam: QueryParam, edge: S2EdgeLike) = {
     /* process time decay */
     val tsVal = queryParam.timeDecay match {
       case None => 1.0
@@ -258,7 +258,7 @@ object S2Graph {
     }
   }
 
-  def toHashKey(queryParam: QueryParam, edge: S2Edge, isDegree: Boolean): (HashKey, FilterHashKey) = {
+  def toHashKey(queryParam: QueryParam, edge: S2EdgeLike, isDegree: Boolean): (HashKey, FilterHashKey) = {
     val src = edge.srcVertex.innerId.hashCode()
     val tgt = edge.tgtVertex.innerId.hashCode()
     val hashKey = (src, edge.labelWithDir.labelId, edge.labelWithDir.dir, tgt, isDegree)
@@ -435,7 +435,7 @@ object S2Graph {
         val tsVal = processTimeDecay(queryParam, edge)
         val newScore = degreeScore + score
         //          val newEdge = if (queryOption.returnTree) edge.copy(parentEdges = parents) else edge
-        val newEdge = edge.copy(parentEdges = parents)
+        val newEdge = edge.copyParentEdges(parents)
         edgeWithScore.copy(edge = newEdge, score = newScore * labelWeight * tsVal)
       }
 
@@ -971,7 +971,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   def fallback = Future.successful(StepResult.Empty)
 
-  def checkEdges(edges: Seq[S2Edge]): Future[StepResult] = {
+  def checkEdges(edges: Seq[S2EdgeLike]): Future[StepResult] = {
     val futures = for {
       edge <- edges
     } yield {
@@ -1319,11 +1319,11 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   def mutateElements(elements: Seq[GraphElement],
                      withWait: Boolean = false): Future[Seq[MutateResponse]] = {
 
-    val edgeBuffer = ArrayBuffer[(S2Edge, Int)]()
+    val edgeBuffer = ArrayBuffer[(S2EdgeLike, Int)]()
     val vertexBuffer = ArrayBuffer[(S2VertexLike, Int)]()
 
     elements.zipWithIndex.foreach {
-      case (e: S2Edge, idx: Int) => edgeBuffer.append((e, idx))
+      case (e: S2EdgeLike, idx: Int) => edgeBuffer.append((e, idx))
       case (v: S2VertexLike, idx: Int) => vertexBuffer.append((v, idx))
       case any@_ => logger.error(s"Unknown type: ${any}")
     }
@@ -1347,13 +1347,13 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   //  def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = storage.mutateEdges(edges, withWait)
 
-  def mutateEdges(edges: Seq[S2Edge], withWait: Boolean = false): Future[Seq[MutateResponse]] = {
+  def mutateEdges(edges: Seq[S2EdgeLike], withWait: Boolean = false): Future[Seq[MutateResponse]] = {
     val edgeWithIdxs = edges.zipWithIndex
 
     val (strongEdges, weakEdges) =
       edgeWithIdxs.partition { case (edge, idx) =>
         val e = edge
-        e.innerLabel.consistencyLevel == "strong" && e.op != GraphUtil.operations("insertBulk")
+        e.innerLabel.consistencyLevel == "strong" && e.getOp() != GraphUtil.operations("insertBulk")
       }
 
     val weakEdgesFutures = weakEdges.groupBy { case (edge, idx) => edge.innerLabel.hbaseZkAddr }.map { case (zkQuorum, edgeWithIdxs) =>
@@ -1365,7 +1365,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
         /* multiple edges with weak consistency level will be processed as batch */
         val mutations = edges.flatMap { edge =>
           val (_, edgeUpdate) =
-            if (edge.op == GraphUtil.operations("delete")) S2Edge.buildDeleteBulk(None, edge)
+            if (edge.getOp() == GraphUtil.operations("delete")) S2Edge.buildDeleteBulk(None, edge)
             else S2Edge.buildOperation(None, Seq(edge))
 
           val (bufferIncr, nonBufferIncr) = storage.increments(edgeUpdate.deepCopy)
@@ -1380,7 +1380,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       }
       Future.sequence(futures)
     }
-    val (strongDeleteAll, strongEdgesAll) = strongEdges.partition { case (edge, idx) => edge.op == GraphUtil.operations("deleteAll") }
+    val (strongDeleteAll, strongEdgesAll) = strongEdges.partition { case (edge, idx) => edge.getOp() == GraphUtil.operations("deleteAll") }
 
     val deleteAllFutures = strongDeleteAll.map { case (edge, idx) =>
       deleteAllAdjacentEdges(Seq(edge.srcVertex), Seq(edge.innerLabel), edge.labelWithDir.dir, edge.ts).map(idx -> _)
@@ -1404,7 +1404,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
   }
 
-  private def mutateStrongEdges(storage: Storage)(_edges: Seq[S2Edge], withWait: Boolean): Future[Seq[Boolean]] = {
+  private def mutateStrongEdges(storage: Storage)(_edges: Seq[S2EdgeLike], withWait: Boolean): Future[Seq[Boolean]] = {
 
     val edgeWithIdxs = _edges.zipWithIndex
     val grouped = edgeWithIdxs.groupBy { case (edge, idx) =>
@@ -1440,7 +1440,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   }
 
 
-  private def mutateEdgesInner(storage: Storage)(edges: Seq[S2Edge],
+  private def mutateEdgesInner(storage: Storage)(edges: Seq[S2EdgeLike],
                        checkConsistency: Boolean,
                        withWait: Boolean): Future[MutateResponse] = {
     assert(edges.nonEmpty)
@@ -1495,8 +1495,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
 
 
-  def incrementCounts(edges: Seq[S2Edge], withWait: Boolean): Future[Seq[MutateResponse]] = {
-    def incrementCounts(storage: Storage)(edges: Seq[S2Edge], withWait: Boolean): Future[Seq[MutateResponse]] = {
+  def incrementCounts(edges: Seq[S2EdgeLike], withWait: Boolean): Future[Seq[MutateResponse]] = {
+    def incrementCounts(storage: Storage)(edges: Seq[S2EdgeLike], withWait: Boolean): Future[Seq[MutateResponse]] = {
       val futures = for {
         edge <- edges
       } yield {
@@ -1523,7 +1523,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
   }
 
-  def updateDegree(edge: S2Edge, degreeVal: Long = 0): Future[MutateResponse] = {
+  def updateDegree(edge: S2EdgeLike, degreeVal: Long = 0): Future[MutateResponse] = {
     val label = edge.innerLabel
 
     val storage = getStorage(label)
@@ -1571,11 +1571,11 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     toVertex(GraphUtil.split(s))
   }
 
-  def toEdge(s: String): Option[S2Edge] = {
+  def toEdge(s: String): Option[S2EdgeLike] = {
     toEdge(GraphUtil.split(s))
   }
 
-  def toEdge(parts: Array[String]): Option[S2Edge] = Try {
+  def toEdge(parts: Array[String]): Option[S2EdgeLike] = Try {
     val (ts, operation, logType, srcId, tgtId, label) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
     val props = if (parts.length >= 7) fromJsonToProperties(Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj())) else Map.empty[String, Any]
     val tempDirection = if (parts.length >= 8) parts(7) else "out"
@@ -1605,7 +1605,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
              direction: String,
              props: Map[String, Any] = Map.empty,
              ts: Long = System.currentTimeMillis(),
-             operation: String = "insert"): S2Edge = {
+             operation: String = "insert"): S2EdgeLike = {
     val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
 
     val srcColumn = if (direction == "out") label.srcColumn else label.tgtColumn
@@ -1649,7 +1649,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     vertex
   }
 
-  def toRequestEdge(queryRequest: QueryRequest, parentEdges: Seq[EdgeWithScore]): S2Edge = {
+  def toRequestEdge(queryRequest: QueryRequest, parentEdges: Seq[EdgeWithScore]): S2EdgeLike = {
     val srcVertex = queryRequest.vertex
     val queryParam = queryRequest.queryParam
     val tgtVertexIdOpt = queryParam.tgtVertexInnerIdOpt
@@ -1710,11 +1710,11 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
               version: Long = System.currentTimeMillis(),
               propsWithTs: S2Edge.State,
               parentEdges: Seq[EdgeWithScore] = Nil,
-              originalEdgeOpt: Option[S2Edge] = None,
-              pendingEdgeOpt: Option[S2Edge] = None,
+              originalEdgeOpt: Option[S2EdgeLike] = None,
+              pendingEdgeOpt: Option[S2EdgeLike] = None,
               statusCode: Byte = 0,
               lockTs: Option[Long] = None,
-              tsInnerValOpt: Option[InnerValLike] = None): S2Edge = {
+              tsInnerValOpt: Option[InnerValLike] = None): S2EdgeLike = {
     val edge = S2Edge(
       this,
       srcVertex,
@@ -1758,7 +1758,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
                                     op: Byte,
                                     version: Long,
                                     propsWithTs: S2Edge.State,
-                                    pendingEdgeOpt: Option[S2Edge],
+                                    pendingEdgeOpt: Option[S2EdgeLike],
                                     statusCode: Byte = 0,
                                     lockTs: Option[Long],
                                     tsInnerValOpt: Option[InnerValLike] = None): SnapshotEdge = {
@@ -1874,7 +1874,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   def edgesAsync(edgeIds: AnyRef*): Future[util.Iterator[structure.Edge]] = {
     val s2EdgeIds = edgeIds.collect {
-      case s2Edge: S2Edge => s2Edge.id().asInstanceOf[EdgeId]
+      case s2Edge: S2EdgeLike => s2Edge.id().asInstanceOf[EdgeId]
       case id: EdgeId => id
       case s: String => EdgeId.fromString(s)
     }
