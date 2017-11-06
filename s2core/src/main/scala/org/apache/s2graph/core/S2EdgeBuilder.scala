@@ -22,7 +22,7 @@ class S2EdgeBuilder(edge: S2EdgeLike) {
 
   def propsPlusTsValid = edge.getPropsWithTs().asScala.filter(kv => LabelMeta.isValidSeq(kv._2.labelMeta.seq)).asJava
 
-  def labelOrders = LabelIndex.findByLabelIdAll(edge.labelWithDir.labelId)
+  def labelOrders = LabelIndex.findByLabelIdAll(edge.getLabelId())
 
   def edgesWithIndex = for (labelOrder <- labelOrders) yield {
     IndexEdge(edge.innerGraph, edge.srcVertex, edge.tgtVertex, edge.innerLabel, edge.getDir(), edge.getOp(),
@@ -35,7 +35,7 @@ class S2EdgeBuilder(edge: S2EdgeLike) {
   }
 
   def relatedEdges: Seq[S2EdgeLike] = {
-    if (edge.labelWithDir.isDirected) {
+    if (edge.isDirected()) {
       val skipReverse = edge.innerLabel.extraOptions.get("skipReverse").map(_.as[Boolean]).getOrElse(false)
       if (skipReverse) Seq(edge) else Seq(edge, duplicateEdge)
     } else {
@@ -92,12 +92,5 @@ class S2EdgeBuilder(edge: S2EdgeLike) {
       EdgeId(VertexId(srcColumn, edge.srcVertex.id.innerId), VertexId(tgtColumn, edge.tgtVertex.id.innerId), edge.label(), "out", timestamp)
     else
       EdgeId(VertexId(tgtColumn, edge.tgtVertex.id.innerId), VertexId(srcColumn, edge.srcVertex.id.innerId), edge.label(), "out", timestamp)
-  }
-
-  def propertyInner[V](key: String, value: V, ts: Long): Property[V] = {
-    val labelMeta = edge.innerLabel.metaPropsInvMap.getOrElse(key, throw new RuntimeException(s"$key is not configured on Edge."))
-    val newProp = new S2Property[V](edge, labelMeta, key, value, ts)
-    edge.getPropsWithTs().put(key, newProp)
-    newProp
   }
 }

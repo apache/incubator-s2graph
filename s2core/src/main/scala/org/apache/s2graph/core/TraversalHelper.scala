@@ -43,12 +43,12 @@ object TraversalHelper {
     }
   }
 
-  def alreadyVisitedVertices(edgeWithScoreLs: Seq[EdgeWithScore]): Map[(LabelWithDirection, S2VertexLike), Boolean] = {
+  def alreadyVisitedVertices(edgeWithScoreLs: Seq[EdgeWithScore]): Map[(Int, Int, S2VertexLike), Boolean] = {
     val vertices = for {
       edgeWithScore <- edgeWithScoreLs
       edge = edgeWithScore.edge
-      vertex = if (edge.labelWithDir.dir == GraphUtil.directions("out")) edge.tgtVertex else edge.srcVertex
-    } yield (edge.labelWithDir, vertex) -> true
+      vertex = if (edge.getDir() == GraphUtil.directions("out")) edge.tgtVertex else edge.srcVertex
+    } yield (edge.getLabelId(), edge.getDir(), vertex) -> true
 
     vertices.toMap
   }
@@ -114,7 +114,7 @@ object TraversalHelper {
   def toHashKey(queryParam: QueryParam, edge: S2EdgeLike, isDegree: Boolean): (HashKey, FilterHashKey) = {
     val src = edge.srcVertex.innerId.hashCode()
     val tgt = edge.tgtVertex.innerId.hashCode()
-    val hashKey = (src, edge.labelWithDir.labelId, edge.labelWithDir.dir, tgt, isDegree)
+    val hashKey = (src, edge.getLabelId(), edge.getDir(), tgt, isDegree)
     val filterHashKey = (src, tgt)
 
     (hashKey, filterHashKey)
@@ -136,7 +136,7 @@ class TraversalHelper(graph: S2GraphLike) {
     val step = q.steps(stepIdx)
 
     val alreadyVisited =
-      if (stepIdx == 0) Map.empty[(LabelWithDirection, S2VertexLike), Boolean]
+      if (stepIdx == 0) Map.empty[(Int, Int, S2VertexLike), Boolean]
       else alreadyVisitedVertices(stepInnerResult.edgeWithScores)
 
     val initial = (Map.empty[S2VertexLike, Double], Map.empty[S2VertexLike, ArrayBuffer[EdgeWithScore]])
@@ -172,7 +172,6 @@ class TraversalHelper(graph: S2GraphLike) {
                   queryRequests: Seq[QueryRequest],
                   queryResultLsFuture: Future[Seq[StepResult]],
                   queryParams: Seq[QueryParam],
-                  alreadyVisited: Map[(LabelWithDirection, S2VertexLike), Boolean] = Map.empty,
                   buildLastStepInnerResult: Boolean = true,
                   parentEdges: Map[VertexId, Seq[EdgeWithScore]])
                  (implicit ec: scala.concurrent.ExecutionContext): Future[StepResult] = {
@@ -214,7 +213,6 @@ class TraversalHelper(graph: S2GraphLike) {
           val _results = buildResult(q, stepIdx, currentStepResults, parentEdges) { (edgeWithScore, propsSelectColumns) =>
             val edge = edgeWithScore.edge
             val score = edgeWithScore.score
-            val label = edgeWithScore.label
 
             /* Select */
             val mergedPropsWithTs = edge.propertyValuesInner(propsSelectColumns)
@@ -225,7 +223,7 @@ class TraversalHelper(graph: S2GraphLike) {
             val newEdgeWithScore = edgeWithScore.copy(edge = newEdge)
             /* OrderBy */
             val orderByValues =
-              if (queryOption.orderByKeys.isEmpty) (score, edge.tsInnerVal, None, None)
+              if (queryOption.orderByKeys.isEmpty) (score, edge.getTsInnerValValue(), None, None)
               else StepResult.toTuple4(newEdgeWithScore.toValues(queryOption.orderByKeys))
 
             /* StepGroupBy */
@@ -296,8 +294,6 @@ class TraversalHelper(graph: S2GraphLike) {
     val parents = if (shouldBuildParents) {
       parentEdges.getOrElse(queryRequest.vertex.id, Nil).map { edgeWithScore =>
         val edge = edgeWithScore.edge
-        val score = edgeWithScore.score
-        val label = edgeWithScore.label
 
         /* Select */
         val mergedPropsWithTs =

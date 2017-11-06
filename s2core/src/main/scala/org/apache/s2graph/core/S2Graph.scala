@@ -663,13 +663,13 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
                 buildLastStepInnerResult: Boolean = false): Future[StepResult] = {
     if (stepInnerResult.isEmpty) Future.successful(StepResult.Empty)
     else {
-      val (alreadyVisited: Map[(LabelWithDirection, S2VertexLike), Boolean], prevStepTgtVertexIdEdges: Map[VertexId, ArrayBuffer[EdgeWithScore]], queryRequests: Seq[QueryRequest]) =
+      val (_, prevStepTgtVertexIdEdges: Map[VertexId, ArrayBuffer[EdgeWithScore]], queryRequests: Seq[QueryRequest]) =
         traversalHelper.buildNextStepQueryRequests(orgQuery, stepIdx, stepInnerResult)
 
       val fetchedLs = fetches(queryRequests, prevStepTgtVertexIdEdges)
 
       traversalHelper.filterEdges(orgQuery, stepIdx, queryRequests,
-        fetchedLs, orgQuery.steps(stepIdx).queryParams, alreadyVisited, buildLastStepInnerResult, prevStepTgtVertexIdEdges)(ec)
+        fetchedLs, orgQuery.steps(stepIdx).queryParams, buildLastStepInnerResult, prevStepTgtVertexIdEdges)(ec)
     }
   }
 
@@ -883,7 +883,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     val (strongDeleteAll, strongEdgesAll) = strongEdges.partition { case (edge, idx) => edge.getOp() == GraphUtil.operations("deleteAll") }
 
     val deleteAllFutures = strongDeleteAll.map { case (edge, idx) =>
-      deleteAllAdjacentEdges(Seq(edge.srcVertex), Seq(edge.innerLabel), edge.labelWithDir.dir, edge.ts).map(idx -> _)
+      deleteAllAdjacentEdges(Seq(edge.srcVertex), Seq(edge.innerLabel), edge.getDir(), edge.ts).map(idx -> _)
     }
 
     val strongEdgesFutures = strongEdgesAll.groupBy { case (edge, idx) => edge.innerLabel }.map { case (label, edgeGroup) =>

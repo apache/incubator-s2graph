@@ -95,7 +95,7 @@ object EdgeController extends Controller {
       results.get.zip(elements).map {
         case (r: MutateResponse, (e: S2EdgeLike, tsv: String)) if !r.isSuccess =>
           val kafkaMessages = if(e.getOp() == GraphUtil.operations("deleteAll")){
-            toDeleteAllFailMessages(Seq(e.srcVertex), Seq(e.innerLabel), e.labelWithDir.dir, e.ts)
+            toDeleteAllFailMessages(Seq(e.srcVertex), Seq(e.innerLabel), e.getDir(), e.ts)
           } else{
             Seq(ExceptionHandler.toKafkaMessage(Config.KAFKA_MUTATE_FAIL_TOPIC, e, Some(tsv)))
           }

@@ -19,6 +19,7 @@ trait S2EdgeLike extends Edge with GraphElement {
 
   val builder: S2EdgeBuilder = new S2EdgeBuilder(this)
 
+
   val innerGraph: S2Graph
   val srcVertex: S2VertexLike
   var tgtVertex: S2VertexLike
@@ -35,20 +36,35 @@ trait S2EdgeLike extends Edge with GraphElement {
   val lockTs: Option[Long] = None
 //  var tsInnerValOpt: Option[InnerValLike] = None
 
-  lazy val labelWithDir = LabelWithDirection(innerLabel.id.get, dir)
-  lazy val schemaVer = innerLabel.schemaVersion
   lazy val ts = propsWithTs.get(LabelMeta.timestamp.name).innerVal.value match {
     case b: BigDecimal => b.longValue()
     case l: Long => l
     case i: Int => i.toLong
     case _ => throw new RuntimeException("ts should be in [BigDecimal/Long/Int].")
   }
-  lazy val operation = GraphUtil.fromOp(op)
-  lazy val tsInnerVal = tsInnerValOpt.get.value
-  lazy val srcId = srcVertex.innerIdVal
-  lazy val tgtId = tgtVertex.innerIdVal
-  lazy val labelName = innerLabel.label
-  lazy val direction = GraphUtil.fromDirection(dir)
+
+  private lazy val operation = GraphUtil.fromOp(op)
+  private lazy val direction = GraphUtil.fromDirection(dir)
+  private lazy val tsInnerVal = tsInnerValOpt.get.value
+
+  def graph(): Graph = innerGraph
+
+  lazy val edgeId: EdgeId = builder.edgeId
+
+  def id(): AnyRef = edgeId
+
+  def label(): String = innerLabel.label
+
+  def getLabelId(): Int = innerLabel.id.get
+
+  def getDirection(): String = direction
+
+  def getOperation(): String = operation
+
+  def getTsInnerValValue(): Any = tsInnerVal
+
+  def isDirected(): Boolean =
+    getDir() == 0 || getDir() == 1
 
   def getTs(): Long = ts
   def getOriginalEdgeOpt(): Option[S2EdgeLike] = originalEdgeOpt
@@ -68,43 +84,20 @@ trait S2EdgeLike extends Edge with GraphElement {
 
   def toIndexEdge(labelIndexSeq: Byte): IndexEdge = IndexEdge(innerGraph, srcVertex, tgtVertex, innerLabel, dir, op, version, labelIndexSeq, propsWithTs)
 
-  def serializePropsWithTs(): Array[Byte] = HBaseSerializable.propsToKeyValuesWithTs(propsWithTs.asScala.map(kv => kv._2.labelMeta.seq -> kv._2.innerValWithTs).toSeq)
-
   def updatePropsWithTs(others: Props = S2Edge.EmptyProps): Props =
-    S2Edge.updatePropsWithTs(this, others)
+    S2EdgePropertyHelper.updatePropsWithTs(this, others)
 
-  def propertyValue(key: String): Option[InnerValLikeWithTs] = S2Edge.propertyValue(this, key)
+  def propertyValue(key: String): Option[InnerValLikeWithTs] = S2EdgePropertyHelper.propertyValue(this, key)
 
-  def propertyValueInner(labelMeta: LabelMeta): InnerValLikeWithTs = {
-    //    propsWithTs.get(labelMeta.name).map(_.innerValWithTs).getOrElse()
-    if (propsWithTs.containsKey(labelMeta.name)) {
-      propsWithTs.get(labelMeta.name).innerValWithTs
-    } else {
-      innerLabel.metaPropsDefaultMapInner(labelMeta)
-    }
-  }
+  def propertyValueInner(labelMeta: LabelMeta): InnerValLikeWithTs =
+    S2EdgePropertyHelper.propertyValueInner(this, labelMeta)
 
   def propertyValues(keys: Seq[String] = Nil): Map[LabelMeta, InnerValLikeWithTs] = {
-    val labelMetas = for {
-      key <- keys
-      labelMeta <- innerLabel.metaPropsInvMap.get(key)
-    } yield labelMeta
-
-    propertyValuesInner(labelMetas)
+    S2EdgePropertyHelper.propertyValuesInner(this, S2EdgePropertyHelper.toLabelMetas(this, keys))
   }
 
-  def propertyValuesInner(labelMetas: Seq[LabelMeta] = Nil): Map[LabelMeta, InnerValLikeWithTs] = {
-    if (labelMetas.isEmpty) {
-      innerLabel.metaPropsDefaultMapInner.map { case (labelMeta, defaultVal) =>
-        labelMeta -> propertyValueInner(labelMeta)
-      }
-    } else {
-      // This is important since timestamp is required for all edges.
-      (LabelMeta.timestamp +: labelMetas).map { labelMeta =>
-        labelMeta -> propertyValueInner(labelMeta)
-      }.toMap
-    }
-  }
+  def propertyValuesInner(labelMetas: Seq[LabelMeta] = Nil): Map[LabelMeta, InnerValLikeWithTs] =
+    S2EdgePropertyHelper.propertyValuesInner(this, labelMetas)
 
   def relatedEdges = builder.relatedEdges
 
@@ -114,7 +107,6 @@ trait S2EdgeLike extends Edge with GraphElement {
 
   def duplicateEdge = builder.duplicateEdge
 
-  //  def reverseDirEdge = copy(labelWithDir = labelWithDir.dirToggled)
   def reverseDirEdge = builder.reverseDirEdge
 
   def reverseSrcTgtEdge = builder.reverseSrcTgtEdge
@@ -215,7 +207,8 @@ trait S2EdgeLike extends Edge with GraphElement {
     v
   }
 
-  def propertyInner[V](key: String, value: V, ts: Long): Property[V] = builder.propertyInner(key, value, ts)
+  def propertyInner[V](key: String, value: V, ts: Long): Property[V] =
+    S2EdgePropertyHelper.propertyInner(this, key, value, ts)
 
   def remove(): Unit = {
     if (graph.features().edge().supportsRemoveEdges()) {
@@ -230,14 +223,6 @@ trait S2EdgeLike extends Edge with GraphElement {
       throw Edge.Exceptions.edgeRemovalNotSupported()
     }
   }
-
-  def graph(): Graph = innerGraph
-
-  lazy val edgeId: EdgeId = builder.edgeId
-
-  def id(): AnyRef = edgeId
-
-  def label(): String = innerLabel.label
 
   def toLogString: String = {
     //    val allPropsWithName = defaultPropsWithName ++ Json.toJson(propsWithName).asOpt[JsObject].getOrElse(Json.obj())

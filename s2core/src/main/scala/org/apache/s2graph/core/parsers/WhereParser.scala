@@ -54,7 +54,7 @@ trait ExtractValue {
       val (propKey, _) = findParentEdge(edge, key)
 
       val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
-      val (srcColumn, tgtColumn) = label.srcTgtColumn(edge.labelWithDir.dir)
+      val (srcColumn, tgtColumn) = label.srcTgtColumn(edge.getDir())
       val dataType = propKey match {
         case "_to" | "to" => tgtColumn.columnType
         case "_from" | "from" => srcColumn.columnType

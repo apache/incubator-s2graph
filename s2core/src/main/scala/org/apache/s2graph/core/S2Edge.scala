@@ -592,7 +592,7 @@ object S2Edge {
       for {
         (requestEdge, func) <- requestWithFuncs
       } {
-        val (_newPropsWithTs, _) = func((prevPropsWithTs, propsToState(requestEdge.propsWithTs), requestEdge.ts, requestEdge.schemaVer))
+        val (_newPropsWithTs, _) = func((prevPropsWithTs, propsToState(requestEdge.propsWithTs), requestEdge.ts, requestEdge.innerLabel.schemaVersion))
         prevPropsWithTs = _newPropsWithTs
         //        logger.debug(s"${requestEdge.toLogString}\n$oldPropsWithTs\n$prevPropsWithTs\n")
       }
@@ -814,8 +814,8 @@ object S2Edge {
     if (vertex.id.column == ServiceColumn.Default) defaultServiceColumn else vertex.id.column
 
   def srcForVertex(e: S2EdgeLike): S2VertexLike = {
-    val belongLabelIds = Seq(e.labelWithDir.labelId)
-    if (e.labelWithDir.dir == GraphUtil.directions("in")) {
+    val belongLabelIds = Seq(e.getLabelId())
+    if (e.getDir() == GraphUtil.directions("in")) {
       val tgtColumn = getServiceColumn(e.tgtVertex, e.innerLabel.tgtColumn)
       e.innerGraph.newVertex(VertexId(tgtColumn, e.tgtVertex.innerId), e.tgtVertex.ts, e.tgtVertex.props, belongLabelIds = belongLabelIds)
     } else {
@@ -825,8 +825,8 @@ object S2Edge {
   }
 
   def tgtForVertex(e: S2EdgeLike): S2VertexLike = {
-    val belongLabelIds = Seq(e.labelWithDir.labelId)
-    if (e.labelWithDir.dir == GraphUtil.directions("in")) {
+    val belongLabelIds = Seq(e.getLabelId())
+    if (e.getDir() == GraphUtil.directions("in")) {
       val srcColumn = getServiceColumn(e.srcVertex, e.innerLabel.srcColumn)
       e.innerGraph.newVertex(VertexId(srcColumn, e.srcVertex.innerId), e.srcVertex.ts, e.srcVertex.props, belongLabelIds = belongLabelIds)
     } else {
@@ -835,28 +835,6 @@ object S2Edge {
     }
   }
 
-  def updatePropsWithTs(e: S2EdgeLike, others: Props = S2Edge.EmptyProps): Props = {
-    val emptyProp = S2Edge.EmptyProps
-
-    e.getPropsWithTs().forEach(new BiConsumer[String, S2Property[_]] {
-      override def accept(key: String, value: S2Property[_]): Unit = emptyProp.put(key, value)
-    })
-
-    others.forEach(new BiConsumer[String, S2Property[_]] {
-      override def accept(key: String, value: S2Property[_]): Unit = emptyProp.put(key, value)
-    })
-
-    emptyProp
-  }
-
-  def propertyValue(e: S2EdgeLike, key: String): Option[InnerValLikeWithTs] = {
-    key match {
-      case "from" | "_from" => Option(InnerValLikeWithTs(e.srcVertex.innerId, e.ts))
-      case "to" | "_to" => Option(InnerValLikeWithTs(e.tgtVertex.innerId, e.ts))
-      case "label" => Option(InnerValLikeWithTs(InnerVal.withStr(e.innerLabel.label, e.innerLabel.schemaVersion), e.ts))
-      case "direction" => Option(InnerValLikeWithTs(InnerVal.withStr(e.direction, e.innerLabel.schemaVersion), e.ts))
-      case _ =>
-        e.innerLabel.metaPropsInvMap.get(key).map(labelMeta => e.propertyValueInner(labelMeta))
-    }
-  }
+  def serializePropsWithTs(edge: S2EdgeLike): Array[Byte] =
+    HBaseSerializable.propsToKeyValuesWithTs(edge.getPropsWithTs().asScala.map(kv => kv._2.labelMeta.seq -> kv._2.innerValWithTs).toSeq)
 }

@@ -1,0 +1,70 @@
+package org.apache.s2graph.core
+
+import java.util.function.BiConsumer
+
+import org.apache.s2graph.core.S2Edge.Props
+import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
+import org.apache.tinkerpop.gremlin.structure.Property
+
+object S2EdgePropertyHelper {
+  def propertyInner[V](edge: S2EdgeLike, key: String, value: V, ts: Long): Property[V] = {
+    val labelMeta = edge.innerLabel.metaPropsInvMap.getOrElse(key, throw new RuntimeException(s"$key is not configured on Edge."))
+    val newProp = new S2Property[V](edge, labelMeta, key, value, ts)
+    edge.getPropsWithTs().put(key, newProp)
+    newProp
+  }
+  def updatePropsWithTs(edge: S2EdgeLike, others: Props = S2Edge.EmptyProps): Props = {
+    val emptyProp = S2Edge.EmptyProps
+
+    edge.getPropsWithTs().forEach(new BiConsumer[String, S2Property[_]] {
+      override def accept(key: String, value: S2Property[_]): Unit = emptyProp.put(key, value)
+    })
+
+    others.forEach(new BiConsumer[String, S2Property[_]] {
+      override def accept(key: String, value: S2Property[_]): Unit = emptyProp.put(key, value)
+    })
+
+    emptyProp
+  }
+
+  def propertyValue(e: S2EdgeLike, key: String): Option[InnerValLikeWithTs] = {
+    key match {
+      case "from" | "_from" => Option(InnerValLikeWithTs(e.srcVertex.innerId, e.ts))
+      case "to" | "_to" => Option(InnerValLikeWithTs(e.tgtVertex.innerId, e.ts))
+      case "label" => Option(InnerValLikeWithTs(InnerVal.withStr(e.innerLabel.label, e.innerLabel.schemaVersion), e.ts))
+      case "direction" => Option(InnerValLikeWithTs(InnerVal.withStr(e.getDirection(), e.innerLabel.schemaVersion), e.ts))
+      case _ =>
+        e.innerLabel.metaPropsInvMap.get(key).map(labelMeta => e.propertyValueInner(labelMeta))
+    }
+  }
+
+  def propertyValuesInner(edge: S2EdgeLike, labelMetas: Seq[LabelMeta] = Nil): Map[LabelMeta, InnerValLikeWithTs] = {
+    if (labelMetas.isEmpty) {
+      edge.innerLabel.metaPropsDefaultMapInner.map { case (labelMeta, defaultVal) =>
+        labelMeta -> edge.propertyValueInner(labelMeta)
+      }
+    } else {
+      // This is important since timestamp is required for all edges.
+      (LabelMeta.timestamp +: labelMetas).map { labelMeta =>
+        labelMeta -> propertyValueInner(edge, labelMeta)
+      }.toMap
+    }
+  }
+
+  def propertyValueInner(edge: S2EdgeLike, labelMeta: LabelMeta): InnerValLikeWithTs = {
+    //    propsWithTs.get(labelMeta.name).map(_.innerValWithTs).getOrElse()
+    if (edge.getPropsWithTs().containsKey(labelMeta.name)) {
+      edge.getPropsWithTs().get(labelMeta.name).innerValWithTs
+    } else {
+      edge.innerLabel.metaPropsDefaultMapInner(labelMeta)
+    }
+  }
+
+  def toLabelMetas(edge: S2EdgeLike, keys: Seq[String]): Seq[LabelMeta] = {
+    for {
+      key <- keys
+      labelMeta <- edge.innerLabel.metaPropsInvMap.get(key)
+    } yield labelMeta
+  }
+}

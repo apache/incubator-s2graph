@@ -73,7 +73,7 @@ trait S2VertexLike extends Vertex with GraphElement {
       override def accept(edge: Edge): Unit = {
         val s2Edge = edge.asInstanceOf[S2EdgeLike]
 
-        s2Edge.direction match {
+        s2Edge.getDirection() match {
           case "out" => arr.add(edge.inVertex())
           case "in" => arr.add(edge.outVertex())
           case _ => throw new IllegalStateException("only out/in direction can be found in S2Edge")

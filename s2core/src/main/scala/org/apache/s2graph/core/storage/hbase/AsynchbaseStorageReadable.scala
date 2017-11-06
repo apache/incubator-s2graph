@@ -237,7 +237,7 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
 
               serDe.indexEdgeDeserializer(schemaVer = HBaseType.DEFAULT_VERSION)
                 .fromKeyValues(Seq(kv), None)
-                .filter(e => distinctLabels(e.innerLabel) && e.direction == "out" && !e.isDegree)
+                .filter(e => distinctLabels(e.innerLabel) && e.getDirection() == "out" && !e.isDegree)
             }
           }
       }

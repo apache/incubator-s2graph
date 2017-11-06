@@ -84,17 +84,17 @@ object PostProcess {
     val score = edgeWithScore.score
     val label = edgeWithScore.label
     if (isDegree) {
-      builder += ("from" -> anyValToJsValue(s2Edge.srcId).get)
+      builder += ("from" -> anyValToJsValue(s2Edge.srcVertex.innerIdVal).get)
       builder += ("label" -> anyValToJsValue(label.label).get)
-      builder += ("direction" -> anyValToJsValue(s2Edge.direction).get)
+      builder += ("direction" -> anyValToJsValue(s2Edge.getDirection()).get)
       builder += (LabelMeta.degree.name -> anyValToJsValue(s2Edge.propertyValueInner(LabelMeta.degree).innerVal.value).get)
       JsObject(builder)
     } else {
       if (queryOption.withScore) builder += ("score" -> anyValToJsValue(score).get)
 
       if (queryOption.selectColumns.isEmpty) {
-        builder += ("from" -> anyValToJsValue(s2Edge.srcId).get)
-        builder += ("to" -> anyValToJsValue(s2Edge.tgtId).get)
+        builder += ("from" -> anyValToJsValue(s2Edge.srcVertex.innerIdVal).get)
+        builder += ("to" -> anyValToJsValue(s2Edge.tgtVertex.innerIdVal).get)
         builder += ("label" -> anyValToJsValue(label.label).get)
 
         val innerProps = ArrayBuffer.empty[(String, JsValue)]
@@ -107,23 +107,23 @@ object PostProcess {
 
 
         builder += ("props" -> JsObject(innerProps))
-        builder += ("direction" -> anyValToJsValue(s2Edge.direction).get)
-        builder += ("timestamp" -> anyValToJsValue(s2Edge.tsInnerVal).get)
-        builder += ("_timestamp" -> anyValToJsValue(s2Edge.tsInnerVal).get) // backward compatibility
+        builder += ("direction" -> anyValToJsValue(s2Edge.getDirection()).get)
+        builder += ("timestamp" -> anyValToJsValue(s2Edge.getTsInnerValValue()).get)
+        builder += ("_timestamp" -> anyValToJsValue(s2Edge.getTsInnerValValue()).get) // backward compatibility
         if (parents != JsNull) builder += ("parents" -> parents)
         //          Json.toJson(builder.result())
         JsObject(builder)
       } else {
         queryOption.selectColumnsMap.foreach { case (columnName, _) =>
           columnName match {
-            case "from" => builder += ("from" -> anyValToJsValue(s2Edge.srcId).get)
-            case "_from" => builder += ("_from" -> anyValToJsValue(s2Edge.srcId).get)
-            case "to" => builder += ("to" -> anyValToJsValue(s2Edge.tgtId).get)
-            case "_to" => builder += ("_to" -> anyValToJsValue(s2Edge.tgtId).get)
+            case "from" => builder += ("from" -> anyValToJsValue(s2Edge.srcVertex.innerIdVal).get)
+            case "_from" => builder += ("_from" -> anyValToJsValue(s2Edge.srcVertex.innerIdVal).get)
+            case "to" => builder += ("to" -> anyValToJsValue(s2Edge.tgtVertex.innerIdVal).get)
+            case "_to" => builder += ("_to" -> anyValToJsValue(s2Edge.tgtVertex.innerIdVal).get)
             case "label" => builder += ("label" -> anyValToJsValue(label.label).get)
-            case "direction" => builder += ("direction" -> anyValToJsValue(s2Edge.direction).get)
-            case "timestamp" => builder += ("timestamp" -> anyValToJsValue(s2Edge.tsInnerVal).get)
-            case "_timestamp" => builder += ("_timestamp" -> anyValToJsValue(s2Edge.tsInnerVal).get)
+            case "direction" => builder += ("direction" -> anyValToJsValue(s2Edge.getDirection()).get)
+            case "timestamp" => builder += ("timestamp" -> anyValToJsValue(s2Edge.getTsInnerValValue()).get)
+            case "_timestamp" => builder += ("_timestamp" -> anyValToJsValue(s2Edge.getTsInnerValValue()).get)
             case _ => // should not happen
 
           }

@@ -50,7 +50,7 @@ trait StorageReadable {
 
   def fetchSnapshotEdgeInner(edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[(Option[S2EdgeLike], Option[SKeyValue])] = {
     val queryParam = QueryParam(labelName = edge.innerLabel.label,
-      direction = GraphUtil.fromDirection(edge.labelWithDir.dir),
+      direction = GraphUtil.fromDirection(edge.getDir()),
       tgtVertexIdOpt = Option(edge.tgtVertex.innerIdVal),
       cacheTTLInMillis = -1)
     val q = Query.toQuery(Seq(edge.srcVertex), Seq(queryParam))
