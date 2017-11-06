@@ -121,7 +121,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
           if where == WhereParser.success || where.filter(edge)
           convertedEdge <- if (isDefaultTransformer) Seq(edge) else convertEdges(queryParam, edge, nextStepOpt)
         } yield {
-          val score = edge.rank(queryParam.rank)
+          val score = queryParam.rank.score(edge)
           EdgeWithScore(convertedEdge, score, label)
         }
         StepResult(edgeWithScores = edgeWithScores, grouped = Nil, degreeEdges = degreeEdges, cursors = lastCursor)
@@ -134,7 +134,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
           if where == WhereParser.success || where.filter(edge)
           convertedEdge <- if (isDefaultTransformer) Seq(edge) else convertEdges(queryParam, edge, nextStepOpt)
         } yield {
-          val edgeScore = edge.rank(queryParam.rank)
+          val edgeScore = queryParam.rank.score(edge)
           val score = queryParam.scorePropagateOp match {
             case "plus" => edgeScore + prevScore
             case "divide" =>

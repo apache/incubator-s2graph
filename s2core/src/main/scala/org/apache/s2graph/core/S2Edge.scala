@@ -40,6 +40,17 @@ import scala.concurrent.Await
 import scala.util.hashing.MurmurHash3
 
 object SnapshotEdge {
+  def apply(e: S2EdgeLike): SnapshotEdge = {
+    val (smaller, larger) = (e.srcForVertex, e.tgtForVertex)
+
+    val snapshotEdge = SnapshotEdge(e.innerGraph, smaller, larger, e.innerLabel,
+      GraphUtil.directions("out"), e.getOp(), e.getVersion(), e.getPropsWithTs(),
+      pendingEdgeOpt = e.getPendingEdgeOpt(), statusCode = e.getStatusCode(), lockTs = e.getLockTs(), tsInnerValOpt = e.getTsInnerValOpt())
+
+    snapshotEdge.property(LabelMeta.timestamp.name, e.ts, e.ts)
+
+    snapshotEdge
+  }
 
   def copyFrom(e: SnapshotEdge): SnapshotEdge = {
     val copy =
@@ -418,8 +429,8 @@ object EdgeMutate {
   }
 }
 
-case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
-                      edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],
+case class EdgeMutate(edgesToDelete: Seq[IndexEdge] = Nil,
+                      edgesToInsert: Seq[IndexEdge] = Nil,
                       newSnapshotEdge: Option[SnapshotEdge] = None) {
 
   def deepCopy: EdgeMutate = copy(
@@ -799,5 +810,53 @@ object S2Edge {
 
 //  def fromString(s: String): Option[Edge] = Graph.toEdge(s)
 
+  def getServiceColumn(vertex: S2VertexLike, defaultServiceColumn: ServiceColumn) =
+    if (vertex.id.column == ServiceColumn.Default) defaultServiceColumn else vertex.id.column
 
+  def srcForVertex(e: S2EdgeLike): S2VertexLike = {
+    val belongLabelIds = Seq(e.labelWithDir.labelId)
+    if (e.labelWithDir.dir == GraphUtil.directions("in")) {
+      val tgtColumn = getServiceColumn(e.tgtVertex, e.innerLabel.tgtColumn)
+      e.innerGraph.newVertex(VertexId(tgtColumn, e.tgtVertex.innerId), e.tgtVertex.ts, e.tgtVertex.props, belongLabelIds = belongLabelIds)
+    } else {
+      val srcColumn = getServiceColumn(e.srcVertex, e.innerLabel.srcColumn)
+      e.innerGraph.newVertex(VertexId(srcColumn, e.srcVertex.innerId), e.srcVertex.ts, e.srcVertex.props, belongLabelIds = belongLabelIds)
+    }
+  }
+
+  def tgtForVertex(e: S2EdgeLike): S2VertexLike = {
+    val belongLabelIds = Seq(e.labelWithDir.labelId)
+    if (e.labelWithDir.dir == GraphUtil.directions("in")) {
+      val srcColumn = getServiceColumn(e.srcVertex, e.innerLabel.srcColumn)
+      e.innerGraph.newVertex(VertexId(srcColumn, e.srcVertex.innerId), e.srcVertex.ts, e.srcVertex.props, belongLabelIds = belongLabelIds)
+    } else {
+      val tgtColumn = getServiceColumn(e.tgtVertex, e.innerLabel.tgtColumn)
+      e.innerGraph.newVertex(VertexId(tgtColumn, e.tgtVertex.innerId), e.tgtVertex.ts, e.tgtVertex.props, belongLabelIds = belongLabelIds)
+    }
+  }
+
+  def updatePropsWithTs(e: S2EdgeLike, others: Props = S2Edge.EmptyProps): Props = {
+    val emptyProp = S2Edge.EmptyProps
+
+    e.getPropsWithTs().forEach(new BiConsumer[String, S2Property[_]] {
+      override def accept(key: String, value: S2Property[_]): Unit = emptyProp.put(key, value)
+    })
+
+    others.forEach(new BiConsumer[String, S2Property[_]] {
+      override def accept(key: String, value: S2Property[_]): Unit = emptyProp.put(key, value)
+    })
+
+    emptyProp
+  }
+
+  def propertyValue(e: S2EdgeLike, key: String): Option[InnerValLikeWithTs] = {
+    key match {
+      case "from" | "_from" => Option(InnerValLikeWithTs(e.srcVertex.innerId, e.ts))
+      case "to" | "_to" => Option(InnerValLikeWithTs(e.tgtVertex.innerId, e.ts))
+      case "label" => Option(InnerValLikeWithTs(InnerVal.withStr(e.innerLabel.label, e.innerLabel.schemaVersion), e.ts))
+      case "direction" => Option(InnerValLikeWithTs(InnerVal.withStr(e.direction, e.innerLabel.schemaVersion), e.ts))
+      case _ =>
+        e.innerLabel.metaPropsInvMap.get(key).map(labelMeta => e.propertyValueInner(labelMeta))
+    }
+  }
 }

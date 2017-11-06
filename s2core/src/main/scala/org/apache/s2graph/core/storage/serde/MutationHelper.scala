@@ -30,17 +30,17 @@ class MutationHelper(storage: Storage) {
         val edge = edgeWithScore.edge
         val score = edgeWithScore.score
 
-        val edgeSnapshot = edge.copyEdge(propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()))
+        val edgeSnapshot = edge.builder.copyEdge(propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()))
         val reversedSnapshotEdgeMutations = serDe.snapshotEdgeSerializer(edgeSnapshot.toSnapshotEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put))
 
-        val edgeForward = edge.copyEdge(propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()))
+        val edgeForward = edge.builder.copyEdge(propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()))
         val forwardIndexedEdgeMutations = edgeForward.edgesWithIndex.flatMap { indexEdge =>
           serDe.indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
             io.buildIncrementsAsync(indexEdge, -1L)
         }
 
         /* reverted direction */
-        val edgeRevert = edge.copyEdge(propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()))
+        val edgeRevert = edge.builder.copyEdge(propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()))
         val reversedIndexedEdgesMutations = edgeRevert.duplicateEdge.edgesWithIndex.flatMap { indexEdge =>
           serDe.indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
             io.buildIncrementsAsync(indexEdge, -1L)

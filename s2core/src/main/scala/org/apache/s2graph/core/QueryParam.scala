@@ -185,7 +185,7 @@ case class EdgeTransformer(jsValue: JsValue) {
             replace(queryParam, fmt, fieldNames.flatMap(fieldName => toInnerValOpt(queryParam, edge, fieldName)), nextStepOpt)
           }
         }
-      } yield edge.updateTgtVertex(innerVal).copy(originalEdgeOpt = Option(edge))
+      } yield edge.builder.updateTgtVertex(innerVal).copyOriginalEdgeOpt(Option(edge))
 
 
       edges
@@ -251,7 +251,26 @@ case class RankParam(keySeqAndWeights: Seq[(LabelMeta, Double)] = Seq((LabelMeta
     }
     bytes
   }
+
+  def score(edge: S2EdgeLike): Double = {
+    if (keySeqAndWeights.size <= 0) 1.0f
+    else {
+      var sum: Double = 0
+
+      for ((labelMeta, w) <- keySeqAndWeights) {
+        if (edge.getPropsWithTs().containsKey(labelMeta.name)) {
+          val innerValWithTs = edge.getPropsWithTs().get(labelMeta.name)
+          val cost = try innerValWithTs.innerVal.toString.toDouble catch {
+            case e: Exception => 1.0
+          }
+          sum += w * cost
+        }
+      }
+      sum
+    }
+  }
 }
+
 object QueryParam {
   lazy val Empty = QueryParam(labelName = "")
   lazy val DefaultThreshold = Double.MinValue

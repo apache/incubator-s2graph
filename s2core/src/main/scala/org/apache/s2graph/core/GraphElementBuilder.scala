@@ -279,10 +279,10 @@ class GraphElementBuilder(graph: S2Graph) {
         val edge = edgeWithScore.edge
         val copiedEdge = label.consistencyLevel match {
           case "strong" =>
-            edge.copyEdge(op = GraphUtil.operations("delete"),
+            edge.builder.copyEdge(op = GraphUtil.operations("delete"),
               version = requestTs, propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()), ts = requestTs)
           case _ =>
-            edge.copyEdge(propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()), ts = requestTs)
+            edge.builder.copyEdge(propsWithTs = S2Edge.propsToState(edge.updatePropsWithTs()), ts = requestTs)
         }
 
         val edgeToDelete = edgeWithScore.copy(edge = copiedEdge)
