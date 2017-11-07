@@ -147,9 +147,9 @@ object PostProcess {
 
   def s2VertexToJson(s2Vertex: S2VertexLike): Option[JsValue] = {
     val props = for {
-      (k, v) <- s2Vertex.properties
-      jsVal <- anyValToJsValue(v)
-    } yield k -> jsVal
+      (_, property) <- s2Vertex.props
+      jsVal <- anyValToJsValue(property.value)
+    } yield property.columnMeta.name -> jsVal
 
     for {
       id <- anyValToJsValue(s2Vertex.innerIdVal)

@@ -9,12 +9,10 @@ import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, T, Vertex, VertexProperty}
 import play.api.libs.json.Json
 
-import scala.concurrent.{Await, Future}
 import scala.collection.JavaConverters._
+import scala.concurrent.Await
 
 trait S2VertexLike extends Vertex with GraphElement {
-  this: S2Vertex =>
-
   val graph: S2Graph
   val id: VertexId
   val ts: Long
@@ -23,12 +21,12 @@ trait S2VertexLike extends Vertex with GraphElement {
   val belongLabelIds: Seq[Int]
 
   val innerId = id.innerId
+  
   val innerIdVal = innerId.value
 
+  val builder = new S2VertexBuilder(this)
 
-  lazy val properties = for {
-    (k, v) <- props.asScala
-  } yield v.columnMeta.name -> v.value
+  def label(): String = serviceColumn.columnName
 
   def schemaVer = serviceColumn.schemaVersion
 
@@ -37,20 +35,16 @@ trait S2VertexLike extends Vertex with GraphElement {
   def columnName = serviceColumn.columnName
 
   lazy val service = Service.findById(serviceColumn.serviceId)
+
   lazy val (hbaseZkAddr, hbaseTableName) = (service.cluster, service.hTableName)
 
-  def defaultProps = {
-    val default = S2Vertex.EmptyProps
-    val newProps = new S2VertexProperty(this, ColumnMeta.lastModifiedAtColumn, ColumnMeta.lastModifiedAtColumn.name, ts)
-    default.put(ColumnMeta.lastModifiedAtColumn.name, newProps)
-    default
-  }
-
-  def propsWithName = for {
-    (k, v) <- props.asScala
-  } yield (v.columnMeta.name -> v.value.toString)
+  def defaultProps: util.HashMap[String, S2VertexProperty[_]] = builder.defaultProps
 
   def toLogString(): String = {
+    val propsWithName = for {
+      (k, v) <- props.asScala
+    } yield (v.columnMeta.name -> v.value.toString)
+
     val (serviceName, columnName) =
       if (!id.storeColId) ("", "")
       else (serviceColumn.service.serviceName, serviceColumn.columnName)
@@ -59,12 +53,6 @@ trait S2VertexLike extends Vertex with GraphElement {
       Seq(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName, Json.toJson(propsWithName)).mkString("\t")
     else
       Seq(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName).mkString("\t")
-  }
-
-  def copyVertexWithState(props: Props): S2VertexLike = {
-    val newVertex = copy(props = S2Vertex.EmptyProps)
-    S2Vertex.fillPropsWithTs(newVertex, props)
-    newVertex
   }
 
   def vertices(direction: Direction, edgeLabels: String*): util.Iterator[Vertex] = {
@@ -166,23 +154,19 @@ trait S2VertexLike extends Vertex with GraphElement {
     ls.iterator
   }
 
-  def label(): String = {
-    serviceColumn.columnName
-  }
-
   def remove(): Unit = {
     if (graph.features().vertex().supportsRemoveVertices()) {
       // remove edge
       // TODO: remove related edges also.
       implicit val ec = graph.ec
 
-      val verticesToDelete = Seq(this.copy(op = GraphUtil.operations("delete")))
+      val verticesToDelete = Seq(builder.copyVertex(op = GraphUtil.operations("delete")))
 
       val vertexFuture = graph.mutateVertices(verticesToDelete, withWait = true)
 
       val future = for {
         vertexSuccess <- vertexFuture
-        edges <- edgesAsync(Direction.BOTH)
+        edges <- graph.edgesAsync(this, Direction.BOTH)
       } yield {
         edges.asScala.toSeq.foreach { edge => edge.remove() }
         if (!vertexSuccess.forall(_.isSuccess)) throw new RuntimeException("Vertex.remove vertex delete failed.")
@@ -194,28 +178,5 @@ trait S2VertexLike extends Vertex with GraphElement {
     } else {
       throw Vertex.Exceptions.vertexRemovalNotSupported()
     }
-  }
-
-  private def edgesAsync(direction: Direction, labelNames: String*): Future[util.Iterator[Edge]] = {
-    val labelNameWithDirs =
-      if (labelNames.isEmpty) {
-        // TODO: Let's clarify direction
-        if (direction == Direction.BOTH) {
-          Label.findBySrcColumnId(id.colId).map(l => l.label -> Direction.OUT.name) ++
-            Label.findByTgtColumnId(id.colId).map(l => l.label -> Direction.IN.name)
-        } else if (direction == Direction.IN) {
-          Label.findByTgtColumnId(id.colId).map(l => l.label -> direction.name)
-        } else {
-          Label.findBySrcColumnId(id.colId).map(l => l.label -> direction.name)
-        }
-      } else {
-        direction match {
-          case Direction.BOTH =>
-            Seq(Direction.OUT, Direction.IN).flatMap { dir => labelNames.map(_ -> dir.name()) }
-          case _ => labelNames.map(_ -> direction.name())
-        }
-      }
-
-    graph.fetchEdgesAsync(this, labelNameWithDirs.distinct)
   }
 }

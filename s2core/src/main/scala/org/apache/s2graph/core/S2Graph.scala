@@ -33,7 +33,7 @@ import org.apache.s2graph.core.storage.{MutateResponse, Storage}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
-import org.apache.tinkerpop.gremlin.structure.{Edge, Graph}
+import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -731,6 +731,29 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     Future.sequence(futures).map { ls =>
       ls.flatten.toSeq.sortBy(_._2).map(_._1)
     }
+  }
+
+  def edgesAsync(vertex: S2VertexLike, direction: Direction, labelNames: String*): Future[util.Iterator[Edge]] = {
+    val labelNameWithDirs =
+      if (labelNames.isEmpty) {
+        // TODO: Let's clarify direction
+        if (direction == Direction.BOTH) {
+          Label.findBySrcColumnId(vertex.id.colId).map(l => l.label -> Direction.OUT.name) ++
+            Label.findByTgtColumnId(vertex.id.colId).map(l => l.label -> Direction.IN.name)
+        } else if (direction == Direction.IN) {
+          Label.findByTgtColumnId(vertex.id.colId).map(l => l.label -> direction.name)
+        } else {
+          Label.findBySrcColumnId(vertex.id.colId).map(l => l.label -> direction.name)
+        }
+      } else {
+        direction match {
+          case Direction.BOTH =>
+            Seq(Direction.OUT, Direction.IN).flatMap { dir => labelNames.map(_ -> dir.name()) }
+          case _ => labelNames.map(_ -> direction.name())
+        }
+      }
+
+    fetchEdgesAsync(vertex, labelNameWithDirs.distinct)
   }
 
   /** mutate */
