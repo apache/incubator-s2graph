@@ -26,7 +26,7 @@ class S2VertexBuilder(vertex: S2VertexLike) {
 
     props.forEach(new BiConsumer[String, S2VertexProperty[_]] {
       override def accept(t: String, u: S2VertexProperty[_]) = {
-        v.property(t, u)
+        v.property(t, u.value)
       }
     })
 
