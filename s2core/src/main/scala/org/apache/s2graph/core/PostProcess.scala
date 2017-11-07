@@ -64,9 +64,9 @@ object PostProcess {
     else {
       val ancestors = for {
         current <- parentEdges
-        parents = s2EdgeParent(graph, queryOption, current.edge.parentEdges) if parents != JsNull
+        parents = s2EdgeParent(graph, queryOption, current.edge.getParentEdges()) if parents != JsNull
       } yield {
-          val s2Edge = current.edge.originalEdgeOpt.getOrElse(current.edge)
+          val s2Edge = current.edge.getOriginalEdgeOpt().getOrElse(current.edge)
           s2EdgeToJsValue(queryOption, current.copy(edge = s2Edge), false, parents = parents, checkSelectColumns = true)
         }
       Json.toJson(ancestors)
@@ -240,7 +240,7 @@ object PostProcess {
       // no group by specified on query.
       val results = if (limitOpt.isDefined) stepResult.edgeWithScores.take(limitOpt.get) else stepResult.edgeWithScores
       val ls = results.map { t =>
-        val parents = if (queryOption.returnTree) s2EdgeParent(graph, queryOption, t.edge.parentEdges) else JsNull
+        val parents = if (queryOption.returnTree) s2EdgeParent(graph, queryOption, t.edge.getParentEdges()) else JsNull
 
         s2EdgeToJsValue(queryOption, t, false, parents)
       }
@@ -266,7 +266,7 @@ object PostProcess {
             )
           } else {
             val agg = edges.map { t =>
-              val parents = if (queryOption.returnTree) s2EdgeParent(graph, queryOption, t.edge.parentEdges) else JsNull
+              val parents = if (queryOption.returnTree) s2EdgeParent(graph, queryOption, t.edge.getParentEdges()) else JsNull
               s2EdgeToJsValue(queryOption, t, false, parents)
             }
             val aggJson = Json.toJson(agg)

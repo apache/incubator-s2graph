@@ -66,7 +66,7 @@ trait ExtractValue {
 
   @tailrec
   private def findParent(edge: S2EdgeLike, depth: Int): S2EdgeLike =
-    if (depth > 0) findParent(edge.parentEdges.head.edge, depth - 1)
+    if (depth > 0) findParent(edge.getParentEdges().head.edge, depth - 1)
     else edge
 
   private def findParentEdge(edge: S2EdgeLike, key: String): (String, S2EdgeLike) = {
@@ -145,7 +145,7 @@ case class InWithoutParent(label: Label, propKey: String, values: Set[String]) e
   }
 
   override def filter(edge: S2EdgeLike): Boolean = {
-    if (edge.dir == GraphUtil.directions("in")) {
+    if (edge.getDir() == GraphUtil.directions("in")) {
       val propVal = propToInnerVal(edge, propKey)
       innerValLikeLsIn.contains(propVal)
     } else {

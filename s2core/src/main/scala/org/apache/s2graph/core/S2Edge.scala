@@ -515,7 +515,7 @@ object S2Edge {
     state.foreach { case (k, v) =>
       edge.propertyInner(k.name, v.innerVal.value, v.ts)
     }
-    edge.propsWithTs
+    edge.getPropsWithTs()
   }
 
   def allPropsDeleted(props: Map[LabelMeta, InnerValLikeWithTs]): Boolean =
@@ -559,7 +559,7 @@ object S2Edge {
     //            logger.debug(s"requestEdge: ${requestEdge.toStringRaw}")
     val oldPropsWithTs =
       if (invertedEdge.isEmpty) Map.empty[LabelMeta, InnerValLikeWithTs]
-      else propsToState(invertedEdge.get.propsWithTs)
+      else propsToState(invertedEdge.get.getPropsWithTs())
 
     val funcs = requestEdges.map { edge =>
       if (edge.getOp() == GraphUtil.operations("insert")) {
@@ -592,7 +592,7 @@ object S2Edge {
       for {
         (requestEdge, func) <- requestWithFuncs
       } {
-        val (_newPropsWithTs, _) = func((prevPropsWithTs, propsToState(requestEdge.propsWithTs), requestEdge.ts, requestEdge.innerLabel.schemaVersion))
+        val (_newPropsWithTs, _) = func((prevPropsWithTs, propsToState(requestEdge.getPropsWithTs()), requestEdge.ts, requestEdge.innerLabel.schemaVersion))
         prevPropsWithTs = _newPropsWithTs
         //        logger.debug(s"${requestEdge.toLogString}\n$oldPropsWithTs\n$prevPropsWithTs\n")
       }
@@ -628,7 +628,7 @@ object S2Edge {
       val newOp = snapshotEdgeOpt match {
         case None => requestEdge.getOp()
         case Some(old) =>
-          val oldMaxTs = old.propsWithTs.asScala.map(_._2.ts).max
+          val oldMaxTs = old.getPropsWithTs().asScala.map(_._2.ts).max
           if (oldMaxTs > requestEdge.ts) old.getOp()
           else requestEdge.getOp()
       }

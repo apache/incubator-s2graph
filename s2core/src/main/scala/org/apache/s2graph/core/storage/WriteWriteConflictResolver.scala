@@ -143,7 +143,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
             commitProcess(statusCode, squashedEdge, fetchedSnapshotEdgeOpt, lockSnapshotEdge, releaseLockSnapshotEdge, edgeMutate)
 
           case Some(snapshotEdge) =>
-            snapshotEdge.pendingEdgeOpt match {
+            snapshotEdge.getPendingEdgeOpt() match {
               case None =>
                 /*
                  * others finished commit on this SN. but there is no contention.
@@ -165,7 +165,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
                   commitProcess(statusCode, squashedEdge, fetchedSnapshotEdgeOpt, lockSnapshotEdge, releaseLockSnapshotEdge, edgeMutate)
                 }
               case Some(pendingEdge) =>
-                val isLockExpired = pendingEdge.lockTs.get + LockExpireDuration < System.currentTimeMillis()
+                val isLockExpired = pendingEdge.getLockTs().get + LockExpireDuration < System.currentTimeMillis()
                 if (isLockExpired) {
                   /*
                    * if pendingEdge.ts == snapshotEdge.ts =>
@@ -219,7 +219,7 @@ class WriteWriteConflictResolver(graph: S2Graph,
          * releaseLock = (edgeMutate.newSnapshotEdge, None)
          */
         val _edges =
-          if (fetchedSnapshotEdgeOpt.isDefined && fetchedSnapshotEdgeOpt.get.pendingEdgeOpt.isDefined) fetchedSnapshotEdgeOpt.get.pendingEdgeOpt.get +: edges
+          if (fetchedSnapshotEdgeOpt.isDefined && fetchedSnapshotEdgeOpt.get.getPendingEdgeOpt().isDefined) fetchedSnapshotEdgeOpt.get.pendingEdgeOpt.get +: edges
           else edges
         val (squashedEdge, edgeMutate) = S2Edge.buildOperation(fetchedSnapshotEdgeOpt, _edges)
         val newVersion = fetchedSnapshotEdgeOpt.map(_.getVersion()).getOrElse(squashedEdge.ts) + 2

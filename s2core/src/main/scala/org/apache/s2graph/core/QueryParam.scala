@@ -185,7 +185,7 @@ case class EdgeTransformer(jsValue: JsValue) {
             replace(queryParam, fmt, fieldNames.flatMap(fieldName => toInnerValOpt(queryParam, edge, fieldName)), nextStepOpt)
           }
         }
-      } yield edge.builder.updateTgtVertex(innerVal).copyOriginalEdgeOpt(Option(edge))
+      } yield edge.updateTgtVertex(innerVal).copyOriginalEdgeOpt(Option(edge))
 
 
       edges
@@ -383,7 +383,7 @@ case class QueryParam(labelName: String,
       propValJs match {
         case JsString(in) if edgeOpt.isDefined && in.contains("_parent.") =>
           val parentLen = in.split("_parent.").length - 1
-          val edge = (0 until parentLen).foldLeft(edgeOpt.get) { case (acc, _) => acc.parentEdges.head.edge }
+          val edge = (0 until parentLen).foldLeft(edgeOpt.get) { case (acc, _) => acc.getParentEdges().head.edge }
 
           val timePivot = edge.ts
           val replaced = TemplateHelper.replaceVariable(timePivot, in).trim

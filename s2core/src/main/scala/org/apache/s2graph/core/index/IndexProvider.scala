@@ -180,7 +180,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
   }
 
   private def toDocument(globalIndex: GlobalIndex, edge: S2EdgeLike): Option[Document] = {
-    val props = edge.propsWithTs.asScala
+    val props = edge.getPropsWithTs().asScala
     val exist = props.exists(t => globalIndex.propNamesSet(t._1))
     if (!exist) None
     else {

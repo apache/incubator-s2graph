@@ -15,26 +15,25 @@ import scala.concurrent.Await
 import scala.collection.JavaConverters._
 
 trait S2EdgeLike extends Edge with GraphElement {
-  this: S2Edge =>
-
-  val builder: S2EdgeBuilder = new S2EdgeBuilder(this)
-
-
   val innerGraph: S2Graph
   val srcVertex: S2VertexLike
   var tgtVertex: S2VertexLike
   val innerLabel: Label
   val dir: Int
 
-//  var op: Byte = GraphUtil.defaultOpByte
-//  var version: Long = System.currentTimeMillis()
+  val builder: S2EdgeBuilder = new S2EdgeBuilder(this)
+
+  var op: Byte
+  var version: Long
+  var tsInnerValOpt: Option[InnerValLike]
+
   val propsWithTs: Props = S2Edge.EmptyProps
+
   val parentEdges: Seq[EdgeWithScore] = Nil
   val originalEdgeOpt: Option[S2EdgeLike] = None
   val pendingEdgeOpt: Option[S2EdgeLike] = None
   val statusCode: Byte = 0
   val lockTs: Option[Long] = None
-//  var tsInnerValOpt: Option[InnerValLike] = None
 
   lazy val ts = propsWithTs.get(LabelMeta.timestamp.name).innerVal.value match {
     case b: BigDecimal => b.longValue()
@@ -148,6 +147,12 @@ trait S2EdgeLike extends Edge with GraphElement {
   def copyLockTs(newLockTs: Option[Long]): S2EdgeLike = {
     builder.copyEdge(lockTs = newLockTs)
   }
+
+  def copyTs(newTs: Long): S2EdgeLike =
+    builder.copyEdge(ts = newTs)
+
+  def updateTgtVertex(id: InnerValLike): S2EdgeLike =
+    builder.updateTgtVertex(id)
 
   def vertices(direction: Direction): util.Iterator[structure.Vertex] = {
     val arr = new util.ArrayList[Vertex]()
