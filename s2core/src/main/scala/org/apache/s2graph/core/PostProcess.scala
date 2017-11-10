@@ -57,7 +57,7 @@ object PostProcess {
     case _ => Json.obj("message" -> ex.getMessage)
   }
 
-  def s2EdgeParent(graph: S2Graph,
+  def s2EdgeParent(graph: S2GraphLike,
                    queryOption: QueryOption,
                    parentEdges: Seq[EdgeWithScore]): JsValue = {
     if (parentEdges.isEmpty) JsNull
@@ -193,7 +193,7 @@ object PostProcess {
     case _ => js
   }
 
-  def toJson(orgQuery: Option[JsValue])(graph: S2Graph,
+  def toJson(orgQuery: Option[JsValue])(graph: S2GraphLike,
                                         queryOption: QueryOption,
                                         stepResult: StepResult): JsValue = {
 

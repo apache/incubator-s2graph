@@ -24,11 +24,11 @@ import org.apache.s2graph.core.storage.CanSKeyValue
 import org.apache.s2graph.core.storage.serde.Deserializable
 import org.apache.s2graph.core.storage.serde.StorageDeserializable._
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, VertexId}
-import org.apache.s2graph.core.{S2Graph, S2Vertex, S2VertexLike}
+import org.apache.s2graph.core.{S2Graph, S2GraphLike, S2Vertex, S2VertexLike}
 
 import scala.collection.mutable.ListBuffer
 
-class VertexDeserializable(graph: S2Graph,
+class VertexDeserializable(graph: S2GraphLike,
                            bytesToInt: (Array[Byte], Int) => Int = bytesToInt) extends Deserializable[S2VertexLike] {
   def fromKeyValues[T: CanSKeyValue](_kvs: Seq[T],
                                           cacheElementOpt: Option[S2VertexLike]): Option[S2VertexLike] = {

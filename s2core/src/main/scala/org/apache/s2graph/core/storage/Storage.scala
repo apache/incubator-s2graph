@@ -28,7 +28,7 @@ import org.apache.s2graph.core.types._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-abstract class Storage(val graph: S2Graph,
+abstract class Storage(val graph: S2GraphLike,
                           val config: Config) {
   /* Storage backend specific resource management */
   val management: StorageManagement

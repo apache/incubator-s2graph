@@ -9,7 +9,7 @@ import play.api.libs.json.{JsObject, Json}
 
 import scala.util.Try
 
-class GraphElementBuilder(graph: S2Graph) {
+class GraphElementBuilder(graph: S2GraphLike) {
 
   def toGraphElement(s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] = Try {
     val parts = GraphUtil.split(s)

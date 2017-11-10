@@ -86,7 +86,7 @@ class S2GraphProvider extends AbstractGraphProvider {
 
   override def loadGraphData(graph: Graph, loadGraphWith: LoadGraphWith, testClass: Class[_], testName: String): Unit = {
     val s2Graph = graph.asInstanceOf[S2Graph]
-    val mnt = s2Graph.getManagement()
+    val mnt = s2Graph.management
 
     S2GraphFactory.cleanupDefaultSchema
     initTestSchema(testClass, testName)

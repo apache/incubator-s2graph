@@ -293,7 +293,7 @@ object Management {
   }
 }
 
-class Management(graph: S2Graph) {
+class Management(graph: S2GraphLike) {
   import Management._
   import scala.collection.JavaConversions._
 

@@ -23,7 +23,7 @@ import org.apache.s2graph.core.storage.serde.Deserializable
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage.{StorageIO, StorageSerDe, serde}
 
-class AsynchbaseStorageSerDe(val graph: S2Graph) extends StorageSerDe {
+class AsynchbaseStorageSerDe(val graph: S2GraphLike) extends StorageSerDe {
   import org.apache.s2graph.core.types.HBaseType._
 
   /**

@@ -28,9 +28,9 @@ import org.apache.s2graph.core.storage.serde.StorageDeserializable._
 import org.apache.s2graph.core.types._
 
 object IndexEdgeDeserializable{
-  def getNewInstance(graph: S2Graph) = new IndexEdgeDeserializable(graph)
+  def getNewInstance(graph: S2GraphLike) = new IndexEdgeDeserializable(graph)
 }
-class IndexEdgeDeserializable(graph: S2Graph,
+class IndexEdgeDeserializable(graph: S2GraphLike,
                               bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong,
                               tallSchemaVersions: Set[String] = Set(HBaseType.VERSION4)) extends Deserializable[S2EdgeLike] {
 

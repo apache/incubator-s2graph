@@ -26,7 +26,7 @@ import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.parsers.WhereParser
 import org.apache.s2graph.core.utils.logger
 
-class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
+class StorageIO(val graph: S2GraphLike, val serDe: StorageSerDe) {
   val dummyCursor: Array[Byte] = Array.empty
 
   /** Parsing Logic: parse from kv from Storage into Edge */

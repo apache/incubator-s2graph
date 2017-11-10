@@ -74,7 +74,7 @@ object SnapshotEdge {
   }
 }
 
-case class SnapshotEdge(graph: S2Graph,
+case class SnapshotEdge(graph: S2GraphLike,
                         srcVertex: S2VertexLike,
                         tgtVertex: S2VertexLike,
                         label: Label,
@@ -178,7 +178,7 @@ object IndexEdge {
   }
 }
 
-case class IndexEdge(graph: S2Graph,
+case class IndexEdge(graph: S2GraphLike,
                      srcVertex: S2VertexLike,
                      tgtVertex: S2VertexLike,
                      label: Label,
@@ -312,7 +312,7 @@ case class IndexEdge(graph: S2Graph,
   }
 }
 
-case class S2Edge(override val innerGraph: S2Graph,
+case class S2Edge(override val innerGraph: S2GraphLike,
                   override val srcVertex: S2VertexLike,
                   override var tgtVertex: S2VertexLike,
                   override val innerLabel: Label,

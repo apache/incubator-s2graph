@@ -121,11 +121,11 @@ object S2Graph {
     configuration
   }
 
-  def open(configuration: Configuration): S2Graph = {
+  def open(configuration: Configuration): S2GraphLike = {
     new S2Graph(configuration)(ec)
   }
 
-  def initStorage(graph: S2Graph, config: Config)(ec: ExecutionContext): Storage = {
+  def initStorage(graph: S2GraphLike, config: Config)(ec: ExecutionContext): Storage = {
     val storageBackend = config.getString("s2graph.storage.backend")
     logger.info(s"[InitStorage]: $storageBackend")
 
@@ -158,130 +158,13 @@ object S2Graph {
 @Graph.OptOuts(value = Array(
   /* Process */
   /* branch: passed all. */
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.BranchTest$Traversals", method = "*", reason = "no"),
-// passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.ChooseTest$Traversals", method = "*", reason = "no"),
-// passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.OptionalTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.LocalTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.RepeatTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.branch.UnionTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-
   /* filter */
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.AndTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.CoinTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.CyclicPathTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.DedupTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.DropTest$Traversals", method = "g_V_properties_drop", reason = "please find bug on this case."),
-//  passed: all, failed: g_V_properties_drop
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.FilterTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.HasTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.IsTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.OrTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.RangeTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.SampleTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.SimplePathTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.TailTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.filter.WhereTest$Traversals", method = "*", reason = "no"),
-//  passed: all,
 
   /* map */
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.AddEdgeTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.AddVertexTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.CoalesceTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.ConstantTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.CountTest$Traversals", method = "g_V_both_both_count", reason = "count differ very little. fix this."),
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.CountTest$Traversals", method = "g_V_repeatXoutX_timesX3X_count", reason = "count differ very little. fix this."),
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.CountTest$Traversals", method = "g_V_repeatXoutX_timesX8X_count", reason = "count differ very litter. fix this."),
-//  passed: all, failed: g_V_both_both_count, g_V_repeatXoutX_timesX3X_count, g_V_repeatXoutX_timesX8X_count
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.FlatMapTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.FoldTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.GraphTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.LoopsTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MapTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MapKeysTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MapValuesTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MatchTest$CountMatchTraversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MatchTest$GreedyMatchTraversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MaxTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MeanTest$Traversals", method = "*", reason = "no"),
-//  failed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.MinTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.SumTest$Traversals", method = "*", reason = "no"),
-//  failed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.OrderTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.PathTest$Traversals", method = "*", reason = "no"),
-//  passed: all
 
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.ProfileTest$Traversals", method = "testProfileStrategyCallback", reason = "NullPointerException. fix this."),
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.ProfileTest$Traversals", method = "g_V_whereXinXcreatedX_count_isX1XX_name_profile", reason = "java.lang.AssertionError: There should be 3 top-level metrics. fix this."),
@@ -291,71 +174,15 @@ object S2Graph {
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.ProfileTest$Traversals", method = "modern_V_out_out_profileXmetricsX", reason = "expected 2, actual 6. fix this."),
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.ProfileTest$Traversals", method = "modern_V_out_out_profile", reason = "expected 2, actual 6. fix this."),
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.ProfileTest$Traversals", method = "testProfileStrategyCallbackSideEffect", reason = "NullPointerException. fix this."),
-//  failed: grateful_V_out_out_profileXmetricsX, g_V_repeat_both_profileXmetricsX, grateful_V_out_out_profile, g_V_repeat_both_profile
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.ProjectTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.PropertiesTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.SelectTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.VertexTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.UnfoldTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.ValueMapTest$Traversals", method = "*", reason = "no"),
-//  passed: all
 
   /* sideEffect */
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.AggregateTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.GroupTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.GroupTestV3d0$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.GroupCountTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.InjectTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-  //  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.SackTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.SideEffectCapTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.SideEffectTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.StoreTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.SubgraphTest$Traversals", method = "g_V_withSideEffectXsgX_repeatXbothEXcreatedX_subgraphXsgX_outVX_timesX5X_name_dedup", reason = "Expected 5, Actual 6."),
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.SubgraphTest$Traversals", method = "g_V_withSideEffectXsgX_outEXknowsX_subgraphXsgX_name_capXsgX", reason = "Expected 3, Actual 6"),
-//  passed: all, failed: g_V_withSideEffectXsgX_repeatXbothEXcreatedX_subgraphXsgX_outVX_timesX5X_name_dedup, g_V_withSideEffectXsgX_outEXknowsX_subgraphXsgX_name_capXsgX
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.TreeTest$Traversals", method = "*", reason = "no"),
-//  passed: all
-
 
   /* compliance */
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.CoreTraversalTest", method = "shouldThrowExceptionWhenIdsMixed", reason = "VertexId is not Element."),
-//  passed: all
 
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.TraversalInterruptionTest", method = "*", reason = "not supported yet."),
-//  failed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.TranslationStrategyProcessTest", method = "*", reason = "no"),
-//  passed: all
 
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.ElementIdStrategyProcessTest", method = "shouldGenerateDefaultIdOnAddVWithSpecifiedId", reason = "GraphStep.processNextStart throw FastNoSuchElementException when GraphStep.start = true and GraphStep.end = true."),
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.ElementIdStrategyProcessTest", method = "shouldGenerateDefaultIdOnAddVWithGeneratedCustomId", reason = "GraphStep.processNextStart throw FastNoSuchElementException when GraphStep.start = true and GraphStep.end = true."),
@@ -363,119 +190,55 @@ object S2Graph {
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.ElementIdStrategyProcessTest", method = "shouldGenerateDefaultIdOnAddVWithGeneratedDefaultId", reason = "GraphStep.processNextStart throw FastNoSuchElementException when GraphStep.start = true and GraphStep.end = true."),
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.ElementIdStrategyProcessTest", method = "shouldGenerateDefaultIdOnGraphAddVWithGeneratedCustomId", reason = "GraphStep.processNextStart throw FastNoSuchElementException when GraphStep.start = true and GraphStep.end = true."),
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.ElementIdStrategyProcessTest", method = "shouldGenerateDefaultIdOnGraphAddVWithSpecifiedId", reason = "GraphStep.processNextStart throw FastNoSuchElementException when GraphStep.start = true and GraphStep.end = true."),
-//  failed: shouldGenerateDefaultIdOnAddVWithSpecifiedId, shouldGenerateDefaultIdOnAddVWithGeneratedCustomId, shouldGenerateDefaultIdOnGraphAddVWithGeneratedDefaultId,
-//  shouldGenerateDefaultIdOnAddVWithGeneratedDefaultId, shouldGenerateDefaultIdOnGraphAddVWithGeneratedCustomId, shouldGenerateDefaultIdOnGraphAddVWithSpecifiedId
 
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.EventStrategyProcessTest", method = "*", reason = "not supported yet."),
-//  failed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.verification.ReadOnlyStrategyProcessTest", method = "*", reason = "no"),
-//  passed: all
 
   new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.PartitionStrategyProcessTest", method = "*", reason = "not supported yet."),
-//  failed: all
-
-//  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.SubgraphStrategyProcessTest", method = "*", reason = "no"),
-//  passed: all
 
   /* Structure */
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest$BasicEdgeTest", method="shouldValidateIdEquality", reason="reference equals on EdgeId is not supported."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.EdgeTest$BasicEdgeTest", method="shouldValidateEquality", reason="reference equals on EdgeId is not supported."),
-  // passed: all, failed: none
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.EdgeTest$BasicEdgeTest", method = "shouldValidateIdEquality", reason = "reference equals on EdgeId is not supported."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.EdgeTest$BasicEdgeTest", method = "shouldValidateEquality", reason = "reference equals on EdgeId is not supported."),
 
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphConstructionTest", method="*", reason="no"),
-  // passed: all, failed: none
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.VertexTest$BasicVertexTest", method = "shouldHaveExceptionConsistencyWhenAssigningSameIdOnEdge", reason = "S2Vertex.addEdge behave as upsert."),
 
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.PropertyTest", method="*", reason="no"),
-  // passed: all, failed: none
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.util.detached.DetachedEdgeTest", method = "shouldNotEvaluateToEqualDifferentId", reason = "reference equals is not supported."),
 
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VertexPropertyTest", method="*", reason="no"),
-  // passed: all, failed: none
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.util.detached.DetachedPropertyTest", method = "shouldNotBeEqualPropertiesAsThereIsDifferentKey", reason = "reference equals is not supported."),
 
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.FeatureSupportTest", method="*", reason="no"),
-  // passed: all, failed: none
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.GraphTest", method = "shouldRemoveVertices", reason = "random label creation is not supported. all label need to be pre-configured."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.GraphTest", method = "shouldHaveExceptionConsistencyWhenAssigningSameIdOnVertex", reason = "Assigning the same ID to an Element update instead of throwing exception."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.GraphTest", method = "shouldRemoveEdges", reason = "random label creation is not supported. all label need to be pre-configured."),
 
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.VertexTest$BasicVertexTest", method="shouldHaveExceptionConsistencyWhenAssigningSameIdOnEdge", reason="S2Vertex.addEdge behave as upsert."),
-  // passed: , failed: shouldHaveExceptionConsistencyWhenAssigningSameIdOnEdge
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceEdgeTest", method = "shouldNotEvaluateToEqualDifferentId", reason = "Assigning the same ID to an Element update instead of throwing exception."),
 
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedEdgeTest", method="shouldNotEvaluateToEqualDifferentId", reason="reference equals is not supported."),
-  // passed: all, failed: shouldNotEvaluateToEqualDifferentId
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.algorithm.generator.CommunityGeneratorTest$DifferentDistributionsTest", method = "shouldGenerateDifferentGraph", specific = "test(NormalDistribution{stdDeviation=2.0, mean=0.0},PowerLawDistribution{gamma=2.4, multiplier=0.0},0.1)", reason = "graphson-v2-embedded is not supported."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.algorithm.generator.CommunityGeneratorTest$DifferentDistributionsTest", method = "shouldGenerateDifferentGraph", specific = "test(NormalDistribution{stdDeviation=2.0, mean=0.0},PowerLawDistribution{gamma=2.4, multiplier=0.0},0.5)", reason = "graphson-v2-embedded is not supported."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.algorithm.generator.CommunityGeneratorTest$DifferentDistributionsTest", method = "shouldGenerateDifferentGraph", specific = "test(NormalDistribution{stdDeviation=2.0, mean=0.0},NormalDistribution{stdDeviation=4.0, mean=0.0},0.5)", reason = "graphson-v2-embedded is not supported."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.algorithm.generator.CommunityGeneratorTest$DifferentDistributionsTest", method = "shouldGenerateDifferentGraph", specific = "test(NormalDistribution{stdDeviation=2.0, mean=0.0},NormalDistribution{stdDeviation=4.0, mean=0.0},0.1)", reason = "graphson-v2-embedded is not supported."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.algorithm.generator.CommunityGeneratorTest$DifferentDistributionsTest", method = "shouldGenerateDifferentGraph", specific = "test(PowerLawDistribution{gamma=2.3, multiplier=0.0},PowerLawDistribution{gamma=2.4, multiplier=0.0},0.25)", reason = "graphson-v2-embedded is not supported."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.algorithm.generator.CommunityGeneratorTest$DifferentDistributionsTest", method = "shouldGenerateDifferentGraph", specific = "test(PowerLawDistribution{gamma=2.3, multiplier=0.0},NormalDistribution{stdDeviation=4.0, mean=0.0},0.25)", reason = "graphson-v2-embedded is not supported."),
 
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedVertexTest", method="*", reason="no"),
-  // passed: all, failed: none
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.algorithm.generator.DistributionGeneratorTest", method = "*", reason = "non-deterministic test."),
 
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedGraphTest", method="*", reason="no"),
-  // passed: all, failed: none,  all ignored
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.SerializationTest$GryoTest", method = "shouldSerializeTree", reason = "order of children is reversed. not sure why."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.SerializationTest$GraphSONTest", method = "shouldSerializeTraversalMetrics", reason = "expected 2, actual 3."),
 
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedPropertyTest", method="shouldNotBeEqualPropertiesAsThereIsDifferentKey", reason="reference equals is not supported."),
-//  // passed: , failed: shouldNotBeEqualPropertiesAsThereIsDifferentKey
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoVertexTest", method = "shouldReadWriteVertexWithBOTHEdges", specific = "graphson-v2-embedded", reason = "Vertex.id() is deserialized as string, not class in graphson-v2-embedded."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoVertexTest", method = "shouldReadWriteVertexWithINEdges", specific = "graphson-v2-embedded", reason = "Vertex.id() is deserialized as string, not class in graphson-v2-embedded."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoVertexTest", method = "shouldReadWriteDetachedVertexAsReferenceNoEdges", specific = "graphson-v2-embedded", reason = "Vertex.id() is deserialized as string, not class in graphson-v2-embedded."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoVertexTest", method = "shouldReadWriteVertexNoEdges", specific = "graphson-v2-embedded", reason = "Vertex.id() is deserialized as string, not class in graphson-v2-embedded."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoVertexTest", method = "shouldReadWriteVertexWithOUTEdges", specific = "graphson-v2-embedded", reason = "Vertex.id() is deserialized as string, not class in graphson-v2-embedded."),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoVertexTest", method = "shouldReadWriteDetachedVertexNoEdges", specific = "graphson-v2-embedded", reason = "Vertex.id() is deserialized as string, not class in graphson-v2-embedded."),
 
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.detached.DetachedVertexPropertyTest", method="*", reason="no"),
-  // passed: all, failed: none
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoEdgeTest", method = "shouldReadWriteDetachedEdgeAsReference", specific = "graphson-v2-embedded", reason = "no"),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoEdgeTest", method = "shouldReadWriteEdge", specific = "graphson-v2-embedded", reason = "no"),
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoEdgeTest", method = "shouldReadWriteDetachedEdge", specific = "graphson-v2-embedded", reason = "no"),
 
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphTest", method="shouldRemoveVertices", reason="random label creation is not supported. all label need to be pre-configured."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphTest", method="shouldHaveExceptionConsistencyWhenAssigningSameIdOnVertex", reason="Assigning the same ID to an Element update instead of throwing exception."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.GraphTest", method="shouldRemoveEdges", reason="random label creation is not supported. all label need to be pre-configured."),
-  // passed: , failed:
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoGraphTest", method = "*", reason = "no"), // all failed.
 
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceEdgeTest", method="shouldNotEvaluateToEqualDifferentId", reason="Assigning the same ID to an Element update instead of throwing exception."),
-  // passed: all, skip: shouldNotEvaluateToEqualDifferentId
-
-
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceVertexPropertyTest", method="*", reason="no"),
-  // passed: all, failed: none
-
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceGraphTest", method="*", reason="no"),
-  // passed: all, failed: none, all ignored
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceVertexTest", method="*", reason="no"),
-  // passed: all, failed: none, all ignored
-
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.util.star.StarGraphTest", method="*", reason="no"),
-  // passed: all,
-
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.algorithm.generator.CommunityGeneratorTest$DifferentDistributionsTest", method="shouldGenerateDifferentGraph", specific="test(NormalDistribution{stdDeviation=2.0, mean=0.0},PowerLawDistribution{gamma=2.4, multiplier=0.0},0.1)", reason="graphson-v2-embedded is not supported."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.algorithm.generator.CommunityGeneratorTest$DifferentDistributionsTest", method="shouldGenerateDifferentGraph", specific="test(NormalDistribution{stdDeviation=2.0, mean=0.0},PowerLawDistribution{gamma=2.4, multiplier=0.0},0.5)", reason="graphson-v2-embedded is not supported."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.algorithm.generator.CommunityGeneratorTest$DifferentDistributionsTest", method="shouldGenerateDifferentGraph", specific="test(NormalDistribution{stdDeviation=2.0, mean=0.0},NormalDistribution{stdDeviation=4.0, mean=0.0},0.5)", reason="graphson-v2-embedded is not supported."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.algorithm.generator.CommunityGeneratorTest$DifferentDistributionsTest", method="shouldGenerateDifferentGraph", specific="test(NormalDistribution{stdDeviation=2.0, mean=0.0},NormalDistribution{stdDeviation=4.0, mean=0.0},0.1)", reason="graphson-v2-embedded is not supported."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.algorithm.generator.CommunityGeneratorTest$DifferentDistributionsTest", method="shouldGenerateDifferentGraph", specific="test(PowerLawDistribution{gamma=2.3, multiplier=0.0},PowerLawDistribution{gamma=2.4, multiplier=0.0},0.25)", reason="graphson-v2-embedded is not supported."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.algorithm.generator.CommunityGeneratorTest$DifferentDistributionsTest", method="shouldGenerateDifferentGraph", specific="test(PowerLawDistribution{gamma=2.3, multiplier=0.0},NormalDistribution{stdDeviation=4.0, mean=0.0},0.25)", reason="graphson-v2-embedded is not supported."),
-  // passed: all, except shouldGenerateDifferentGraph method.
-
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.algorithm.generator.DistributionGeneratorTest", method="*", reason="non-deterministic test."),
-  // all failed.
-
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.SerializationTest$GryoTest", method="shouldSerializeTree", reason="order of children is reversed. not sure why."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.SerializationTest$GraphSONTest", method="shouldSerializeTraversalMetrics", reason="expected 2, actual 3."),
-  // passed: all, failed: $GryoTest.shouldSerializeTree
-
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoCustomTest", method="*", reason="no"),
-  // all ignored.
-
-//  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoPropertyTest", method="*", reason="no"),
-  // all passed.
-
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoVertexTest", method="shouldReadWriteVertexWithBOTHEdges", specific="graphson-v2-embedded", reason="Vertex.id() is deserialized as string, not class in graphson-v2-embedded."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoVertexTest", method="shouldReadWriteVertexWithINEdges", specific="graphson-v2-embedded", reason="Vertex.id() is deserialized as string, not class in graphson-v2-embedded."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoVertexTest", method="shouldReadWriteDetachedVertexAsReferenceNoEdges", specific="graphson-v2-embedded", reason="Vertex.id() is deserialized as string, not class in graphson-v2-embedded."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoVertexTest", method="shouldReadWriteVertexNoEdges", specific="graphson-v2-embedded", reason="Vertex.id() is deserialized as string, not class in graphson-v2-embedded."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoVertexTest", method="shouldReadWriteVertexWithOUTEdges", specific="graphson-v2-embedded", reason="Vertex.id() is deserialized as string, not class in graphson-v2-embedded."),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoVertexTest", method="shouldReadWriteDetachedVertexNoEdges", specific="graphson-v2-embedded", reason="Vertex.id() is deserialized as string, not class in graphson-v2-embedded."),
-  // passed: all, except graphson-v2-embedded.
-
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoEdgeTest", method="shouldReadWriteDetachedEdgeAsReference", specific="graphson-v2-embedded", reason="no"),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoEdgeTest", method="shouldReadWriteEdge", specific="graphson-v2-embedded", reason="no"),
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoEdgeTest", method="shouldReadWriteDetachedEdge", specific="graphson-v2-embedded", reason="no"),
-  // passed: all, except graphson-v2-embedded.
-
-  // TODO:
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoGraphTest", method="*", reason="no"), // all failed.
-
-  new Graph.OptOut(test="org.apache.tinkerpop.gremlin.structure.io.IoTest", method="*", reason="no")
-  // all failed.
+  new Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.io.IoTest", method = "*", reason = "no")
 ))
 class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2GraphLike {
-
-  import S2Graph._
 
   var apacheConfiguration: Configuration = _
 
@@ -488,34 +251,29 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
 
   private val running = new AtomicBoolean(true)
 
-  val config = _config.withFallback(S2Graph.DefaultConfig)
+  override val config = _config.withFallback(S2Graph.DefaultConfig)
 
   Model.apply(config)
   Model.loadCache()
 
-  val MaxRetryNum = config.getInt("max.retry.number")
-  val MaxBackOff = config.getInt("max.back.off")
-  val BackoffTimeout = config.getInt("back.off.timeout")
-  val DeleteAllFetchCount = config.getInt("delete.all.fetch.count")
-  val DeleteAllFetchSize = config.getInt("delete.all.fetch.size")
-  val FailProb = config.getDouble("hbase.fail.prob")
-  val LockExpireDuration = config.getInt("lock.expire.time")
-  val MaxSize = config.getInt("future.cache.max.size")
-  val ExpireAfterWrite = config.getInt("future.cache.expire.after.write")
-  val ExpireAfterAccess = config.getInt("future.cache.expire.after.access")
-  val WaitTimeout = Duration(600, TimeUnit.SECONDS)
+  override val management = new Management(this)
 
-  val management = new Management(this)
+  override val indexProvider = IndexProvider.apply(config)
 
-  def getManagement() = management
+  override val elementBuilder = new GraphElementBuilder(this)
 
-  private val localLongId = new AtomicLong()
-
-  def nextLocalLongId = localLongId.getAndIncrement()
+  override val traversalHelper = new TraversalHelper(this)
 
   private def confWithFallback(conf: Config): Config = {
     conf.withFallback(config)
   }
+
+  val defaultStorage: Storage = S2Graph.initStorage(this, config)(ec)
+
+  for {
+    entry <- config.entrySet() if S2Graph.DefaultConfigs.contains(entry.getKey)
+    (k, v) = (entry.getKey, entry.getValue)
+  } logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
 
   /**
     * TODO: we need to some way to handle malformed configuration for storage.
@@ -553,31 +311,15 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     m
   }
 
-  val defaultStorage: Storage = S2Graph.initStorage(this, config)(ec)
-
-  /** QueryLevel FutureCache */
-  val queryFutureCache = new DeferCache[StepResult, Promise, Future](parseCacheConfig(config, "query."), empty = StepResult.Empty)
-
-  for {
-    entry <- config.entrySet() if S2Graph.DefaultConfigs.contains(entry.getKey)
-    (k, v) = (entry.getKey, entry.getValue)
-  } logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
-
-  val indexProvider = IndexProvider.apply(config)
-
-  val elementBuilder = new GraphElementBuilder(this)
-
-  val traversalHelper = new TraversalHelper(this)
-
-  def getStorage(service: Service): Storage = {
+  override def getStorage(service: Service): Storage = {
     storagePool.getOrElse(s"service:${service.serviceName}", defaultStorage)
   }
 
-  def getStorage(label: Label): Storage = {
+  override def getStorage(label: Label): Storage = {
     storagePool.getOrElse(s"label:${label.label}", defaultStorage)
   }
 
-  def flushStorage(): Unit = {
+  override def flushStorage(): Unit = {
     storagePool.foreach { case (_, storage) =>
 
       /* flush is blocking */
@@ -585,9 +327,26 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     }
   }
 
-  def fallback = Future.successful(StepResult.Empty)
+  override def shutdown(modelDataDelete: Boolean = false): Unit =
+    if (running.compareAndSet(true, false)) {
+      flushStorage()
+      Model.shutdown(modelDataDelete)
+      defaultStorage.shutdown()
+      localLongId.set(0l)
+    }
 
-  def checkEdges(edges: Seq[S2EdgeLike]): Future[StepResult] = {
+  override def getVertices(vertices: Seq[S2VertexLike]): Future[Seq[S2VertexLike]] = {
+    val verticesWithIdx = vertices.zipWithIndex
+    val futures = verticesWithIdx.groupBy { case (v, idx) => v.service }.map { case (service, vertexGroup) =>
+      getStorage(service).fetchVertices(vertices).map(_.zip(vertexGroup.map(_._2)))
+    }
+
+    Future.sequence(futures).map { ls =>
+      ls.flatten.toSeq.sortBy(_._2).map(_._1)
+    }
+  }
+
+  override def checkEdges(edges: Seq[S2EdgeLike]): Future[StepResult] = {
     val futures = for {
       edge <- edges
     } yield {
@@ -602,288 +361,21 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     }
   }
 
-  //  def checkEdges(edges: Seq[Edge]): Future[StepResult] = storage.checkEdges(edges)
-
-  def getEdges(q: Query): Future[StepResult] = {
-    Try {
-      if (q.steps.isEmpty) {
-        // TODO: this should be get vertex query.
-        fallback
-      } else {
-        val filterOutFuture = q.queryOption.filterOutQuery match {
-          case None => fallback
-          case Some(filterOutQuery) => getEdgesStepInner(filterOutQuery)
-        }
-        for {
-          stepResult <- getEdgesStepInner(q)
-          filterOutInnerResult <- filterOutFuture
-        } yield {
-          if (filterOutInnerResult.isEmpty) stepResult
-          else StepResult.filterOut(this, q.queryOption, stepResult, filterOutInnerResult)
-        }
-      }
-    } recover {
-      case e: Exception =>
-        logger.error(s"getEdgesAsync: $e", e)
-        fallback
-    } get
-  }
-
-  def getEdgesStepInner(q: Query, buildLastStepInnerResult: Boolean = false): Future[StepResult] = {
-    Try {
-      if (q.steps.isEmpty) fallback
-      else {
-        def fetch: Future[StepResult] = {
-          val startStepInnerResult = QueryResult.fromVertices(this, q)
-          q.steps.zipWithIndex.foldLeft(Future.successful(startStepInnerResult)) { case (prevStepInnerResultFuture, (step, stepIdx)) =>
-            for {
-              prevStepInnerResult <- prevStepInnerResultFuture
-              currentStepInnerResult <- fetchStep(q, stepIdx, prevStepInnerResult, buildLastStepInnerResult)
-            } yield {
-              currentStepInnerResult.copy(
-                accumulatedCursors = prevStepInnerResult.accumulatedCursors :+ currentStepInnerResult.cursors,
-                failCount = currentStepInnerResult.failCount + prevStepInnerResult.failCount
-              )
-            }
-          }
-        }
-
-        fetch
-      }
-    } recover {
-      case e: Exception =>
-        logger.error(s"getEdgesAsync: $e", e)
-        fallback
-    } get
-  }
-
-  def fetchStep(orgQuery: Query,
-                stepIdx: Int,
-                stepInnerResult: StepResult,
-                buildLastStepInnerResult: Boolean = false): Future[StepResult] = {
-    if (stepInnerResult.isEmpty) Future.successful(StepResult.Empty)
-    else {
-      val (_, prevStepTgtVertexIdEdges: Map[VertexId, ArrayBuffer[EdgeWithScore]], queryRequests: Seq[QueryRequest]) =
-        traversalHelper.buildNextStepQueryRequests(orgQuery, stepIdx, stepInnerResult)
-
-      val fetchedLs = fetches(queryRequests, prevStepTgtVertexIdEdges)
-
-      traversalHelper.filterEdges(orgQuery, stepIdx, queryRequests,
-        fetchedLs, orgQuery.steps(stepIdx).queryParams, buildLastStepInnerResult, prevStepTgtVertexIdEdges)(ec)
+  override def mutateVertices(vertices: Seq[S2VertexLike], withWait: Boolean = false): Future[Seq[MutateResponse]] = {
+    def mutateVertices(storage: Storage)(zkQuorum: String, vertices: Seq[S2VertexLike],
+                                         withWait: Boolean = false): Future[Seq[MutateResponse]] = {
+      val futures = vertices.map { vertex => storage.mutateVertex(zkQuorum, vertex, withWait) }
+      Future.sequence(futures)
     }
-  }
 
-
-  /**
-    * responsible to fire parallel fetch call into storage and create future that will return merged result.
-    *
-    * @param queryRequests
-    * @param prevStepEdges
-    * @return
-    */
-  def fetches(queryRequests: Seq[QueryRequest],
-              prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[StepResult]] = {
-
-    val reqWithIdxs = queryRequests.zipWithIndex
-    val requestsPerLabel = reqWithIdxs.groupBy(t => t._1.queryParam.label)
-    val aggFuture = requestsPerLabel.foldLeft(Future.successful(Map.empty[Int, StepResult])) { case (prevFuture, (label, reqWithIdxs)) =>
-      for {
-        prev <- prevFuture
-        cur <- getStorage(label).fetches(reqWithIdxs.map(_._1), prevStepEdges)
-      } yield {
-        prev ++ reqWithIdxs.map(_._2).zip(cur).toMap
-      }
-    }
-    aggFuture.map { agg => agg.toSeq.sortBy(_._1).map(_._2) }
-  }
-
-
-  def getEdgesMultiQuery(mq: MultiQuery): Future[StepResult] = {
-    Try {
-      if (mq.queries.isEmpty) fallback
-      else {
-        val filterOutFuture = mq.queryOption.filterOutQuery match {
-          case None => fallback
-          case Some(filterOutQuery) => getEdgesStepInner(filterOutQuery)
-        }
-
-        val multiQueryFutures = Future.sequence(mq.queries.map { query => getEdges(query) })
-        for {
-          multiQueryResults <- multiQueryFutures
-          filterOutInnerResult <- filterOutFuture
-        } yield {
-          StepResult.merges(mq.queryOption, multiQueryResults, mq.weights, filterOutInnerResult)
-        }
-      }
-    } recover {
-      case e: Exception =>
-        logger.error(s"getEdgesAsync: $e", e)
-        fallback
-    } get
-  }
-
-  def getVertices(vertices: Seq[S2VertexLike]): Future[Seq[S2VertexLike]] = {
     val verticesWithIdx = vertices.zipWithIndex
     val futures = verticesWithIdx.groupBy { case (v, idx) => v.service }.map { case (service, vertexGroup) =>
-      getStorage(service).fetchVertices(vertices).map(_.zip(vertexGroup.map(_._2)))
+      mutateVertices(getStorage(service))(service.cluster, vertexGroup.map(_._1), withWait).map(_.zip(vertexGroup.map(_._2)))
     }
-
-    Future.sequence(futures).map { ls =>
-      ls.flatten.toSeq.sortBy(_._2).map(_._1)
-    }
+    Future.sequence(futures).map { ls => ls.flatten.toSeq.sortBy(_._2).map(_._1) }
   }
 
-  def edgesAsync(vertex: S2VertexLike, direction: Direction, labelNames: String*): Future[util.Iterator[Edge]] = {
-    val labelNameWithDirs =
-      if (labelNames.isEmpty) {
-        // TODO: Let's clarify direction
-        if (direction == Direction.BOTH) {
-          Label.findBySrcColumnId(vertex.id.colId).map(l => l.label -> Direction.OUT.name) ++
-            Label.findByTgtColumnId(vertex.id.colId).map(l => l.label -> Direction.IN.name)
-        } else if (direction == Direction.IN) {
-          Label.findByTgtColumnId(vertex.id.colId).map(l => l.label -> direction.name)
-        } else {
-          Label.findBySrcColumnId(vertex.id.colId).map(l => l.label -> direction.name)
-        }
-      } else {
-        direction match {
-          case Direction.BOTH =>
-            Seq(Direction.OUT, Direction.IN).flatMap { dir => labelNames.map(_ -> dir.name()) }
-          case _ => labelNames.map(_ -> direction.name())
-        }
-      }
-
-    fetchEdgesAsync(vertex, labelNameWithDirs.distinct)
-  }
-
-  /** mutate */
-  def deleteAllAdjacentEdges(srcVertices: Seq[S2VertexLike],
-                             labels: Seq[Label],
-                             dir: Int,
-                             ts: Long): Future[Boolean] = {
-
-    val requestTs = ts
-    val vertices = srcVertices
-    /* create query per label */
-    val queries = for {
-      label <- labels
-    } yield {
-      val queryParam = QueryParam(labelName = label.label, direction = GraphUtil.fromDirection(dir),
-        offset = 0, limit = DeleteAllFetchSize, duplicatePolicy = DuplicatePolicy.Raw)
-      val step = Step(List(queryParam))
-      Query(vertices, Vector(step))
-    }
-
-    val retryFuture = Extensions.retryOnSuccess(DeleteAllFetchCount) {
-      fetchAndDeleteAll(queries, requestTs)
-    } { case (allDeleted, deleteSuccess) =>
-      allDeleted && deleteSuccess
-    }.map { case (allDeleted, deleteSuccess) => allDeleted && deleteSuccess }
-
-    retryFuture onFailure {
-      case ex =>
-        logger.error(s"[Error]: deleteAllAdjacentEdges failed.")
-    }
-
-    retryFuture
-  }
-
-  def fetchAndDeleteAll(queries: Seq[Query], requestTs: Long): Future[(Boolean, Boolean)] = {
-    val futures = queries.map(getEdgesStepInner(_, true))
-    val future = for {
-      stepInnerResultLs <- Future.sequence(futures)
-      (allDeleted, ret) <- deleteAllFetchedEdgesLs(stepInnerResultLs, requestTs)
-    } yield {
-      //        logger.debug(s"fetchAndDeleteAll: ${allDeleted}, ${ret}")
-      (allDeleted, ret)
-    }
-
-    Extensions.retryOnFailure(MaxRetryNum) {
-      future
-    } {
-      logger.error(s"fetch and deleteAll failed.")
-      (true, false)
-    }
-
-  }
-
-  def deleteAllFetchedEdgesLs(stepInnerResultLs: Seq[StepResult],
-                              requestTs: Long): Future[(Boolean, Boolean)] = {
-    stepInnerResultLs.foreach { stepInnerResult =>
-      if (stepInnerResult.isFailure) throw new RuntimeException("fetched result is fallback.")
-    }
-    val futures = for {
-      stepInnerResult <- stepInnerResultLs
-      filtered = stepInnerResult.edgeWithScores.filter { edgeWithScore =>
-        (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.isDegree
-      }
-      edgesToDelete = elementBuilder.buildEdgesToDelete(filtered, requestTs)
-      if edgesToDelete.nonEmpty
-    } yield {
-      val head = edgesToDelete.head
-      val label = head.edge.innerLabel
-      val stepResult = StepResult(edgesToDelete, Nil, Nil, false)
-      val ret = label.schemaVersion match {
-        case HBaseType.VERSION3 | HBaseType.VERSION4 =>
-          if (label.consistencyLevel == "strong") {
-            /*
-              * read: snapshotEdge on queryResult = O(N)
-              * write: N x (relatedEdges x indices(indexedEdge) + 1(snapshotEdge))
-              */
-            mutateEdges(edgesToDelete.map(_.edge), withWait = true).map(_.forall(_.isSuccess))
-          } else {
-            getStorage(label).deleteAllFetchedEdgesAsyncOld(stepResult, requestTs, MaxRetryNum)
-          }
-        case _ =>
-
-          /*
-            * read: x
-            * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
-            */
-          getStorage(label).deleteAllFetchedEdgesAsyncOld(stepResult, requestTs, MaxRetryNum)
-      }
-      ret
-    }
-
-    if (futures.isEmpty) {
-      // all deleted.
-      Future.successful(true -> true)
-    } else {
-      Future.sequence(futures).map { rets => false -> rets.forall(identity) }
-    }
-  }
-
-
-  def mutateElements(elements: Seq[GraphElement],
-                     withWait: Boolean = false): Future[Seq[MutateResponse]] = {
-
-    val edgeBuffer = ArrayBuffer[(S2EdgeLike, Int)]()
-    val vertexBuffer = ArrayBuffer[(S2VertexLike, Int)]()
-
-    elements.zipWithIndex.foreach {
-      case (e: S2EdgeLike, idx: Int) => edgeBuffer.append((e, idx))
-      case (v: S2VertexLike, idx: Int) => vertexBuffer.append((v, idx))
-      case any@_ => logger.error(s"Unknown type: ${any}")
-    }
-
-    val edgeFutureWithIdx = mutateEdges(edgeBuffer.map(_._1), withWait).map { result =>
-      edgeBuffer.map(_._2).zip(result)
-    }
-
-    val vertexFutureWithIdx = mutateVertices(vertexBuffer.map(_._1), withWait).map { result =>
-      vertexBuffer.map(_._2).zip(result)
-    }
-
-    val graphFuture = for {
-      edgesMutated <- edgeFutureWithIdx
-      verticesMutated <- vertexFutureWithIdx
-    } yield (edgesMutated ++ verticesMutated).sortBy(_._1).map(_._2)
-
-    graphFuture
-
-  }
-
-  def mutateEdges(edges: Seq[S2EdgeLike], withWait: Boolean = false): Future[Seq[MutateResponse]] = {
+  override def mutateEdges(edges: Seq[S2EdgeLike], withWait: Boolean = false): Future[Seq[MutateResponse]] = {
     val edgeWithIdxs = edges.zipWithIndex
 
     val (strongEdges, weakEdges) =
@@ -928,21 +420,115 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     }
   }
 
-  def mutateVertices(vertices: Seq[S2VertexLike], withWait: Boolean = false): Future[Seq[MutateResponse]] = {
-    def mutateVertices(storage: Storage)(zkQuorum: String, vertices: Seq[S2VertexLike],
-                                         withWait: Boolean = false): Future[Seq[MutateResponse]] = {
-      val futures = vertices.map { vertex => storage.mutateVertex(zkQuorum, vertex, withWait) }
-      Future.sequence(futures)
+  override def mutateElements(elements: Seq[GraphElement],
+                              withWait: Boolean = false): Future[Seq[MutateResponse]] = {
+
+    val edgeBuffer = ArrayBuffer[(S2EdgeLike, Int)]()
+    val vertexBuffer = ArrayBuffer[(S2VertexLike, Int)]()
+
+    elements.zipWithIndex.foreach {
+      case (e: S2EdgeLike, idx: Int) => edgeBuffer.append((e, idx))
+      case (v: S2VertexLike, idx: Int) => vertexBuffer.append((v, idx))
+      case any@_ => logger.error(s"Unknown type: ${any}")
     }
 
-    val verticesWithIdx = vertices.zipWithIndex
-    val futures = verticesWithIdx.groupBy { case (v, idx) => v.service }.map { case (service, vertexGroup) =>
-      mutateVertices(getStorage(service))(service.cluster, vertexGroup.map(_._1), withWait).map(_.zip(vertexGroup.map(_._2)))
+    val edgeFutureWithIdx = mutateEdges(edgeBuffer.map(_._1), withWait).map { result =>
+      edgeBuffer.map(_._2).zip(result)
     }
-    Future.sequence(futures).map { ls => ls.flatten.toSeq.sortBy(_._2).map(_._1) }
+
+    val vertexFutureWithIdx = mutateVertices(vertexBuffer.map(_._1), withWait).map { result =>
+      vertexBuffer.map(_._2).zip(result)
+    }
+
+    val graphFuture = for {
+      edgesMutated <- edgeFutureWithIdx
+      verticesMutated <- vertexFutureWithIdx
+    } yield (edgesMutated ++ verticesMutated).sortBy(_._1).map(_._2)
+
+    graphFuture
+
   }
 
-  def incrementCounts(edges: Seq[S2EdgeLike], withWait: Boolean): Future[Seq[MutateResponse]] = {
+  override def getEdges(q: Query): Future[StepResult] = {
+    Try {
+      if (q.steps.isEmpty) {
+        // TODO: this should be get vertex query.
+        fallback
+      } else {
+        val filterOutFuture = q.queryOption.filterOutQuery match {
+          case None => fallback
+          case Some(filterOutQuery) => getEdgesStepInner(filterOutQuery)
+        }
+        for {
+          stepResult <- getEdgesStepInner(q)
+          filterOutInnerResult <- filterOutFuture
+        } yield {
+          if (filterOutInnerResult.isEmpty) stepResult
+          else StepResult.filterOut(this, q.queryOption, stepResult, filterOutInnerResult)
+        }
+      }
+    } recover {
+      case e: Exception =>
+        logger.error(s"getEdgesAsync: $e", e)
+        fallback
+    } get
+  }
+
+  override def getEdgesMultiQuery(mq: MultiQuery): Future[StepResult] = {
+    Try {
+      if (mq.queries.isEmpty) fallback
+      else {
+        val filterOutFuture = mq.queryOption.filterOutQuery match {
+          case None => fallback
+          case Some(filterOutQuery) => getEdgesStepInner(filterOutQuery)
+        }
+
+        val multiQueryFutures = Future.sequence(mq.queries.map { query => getEdges(query) })
+        for {
+          multiQueryResults <- multiQueryFutures
+          filterOutInnerResult <- filterOutFuture
+        } yield {
+          StepResult.merges(mq.queryOption, multiQueryResults, mq.weights, filterOutInnerResult)
+        }
+      }
+    } recover {
+      case e: Exception =>
+        logger.error(s"getEdgesAsync: $e", e)
+        fallback
+    } get
+  }
+
+  override def deleteAllAdjacentEdges(srcVertices: Seq[S2VertexLike],
+                                      labels: Seq[Label],
+                                      dir: Int,
+                                      ts: Long): Future[Boolean] = {
+    val requestTs = ts
+    val vertices = srcVertices
+    /* create query per label */
+    val queries = for {
+      label <- labels
+    } yield {
+      val queryParam = QueryParam(labelName = label.label, direction = GraphUtil.fromDirection(dir),
+        offset = 0, limit = DeleteAllFetchSize, duplicatePolicy = DuplicatePolicy.Raw)
+      val step = Step(List(queryParam))
+      Query(vertices, Vector(step))
+    }
+
+    val retryFuture = Extensions.retryOnSuccess(DeleteAllFetchCount) {
+      fetchAndDeleteAll(queries, requestTs)
+    } { case (allDeleted, deleteSuccess) =>
+      allDeleted && deleteSuccess
+    }.map { case (allDeleted, deleteSuccess) => allDeleted && deleteSuccess }
+
+    retryFuture onFailure {
+      case ex =>
+        logger.error(s"[Error]: deleteAllAdjacentEdges failed.")
+    }
+
+    retryFuture
+  }
+
+  override def incrementCounts(edges: Seq[S2EdgeLike], withWait: Boolean): Future[Seq[MutateResponse]] = {
     val edgesWithIdx = edges.zipWithIndex
     val futures = edgesWithIdx.groupBy { case (e, idx) => e.innerLabel }.map { case (label, edgeGroup) =>
       getStorage(label).incrementCounts(label.hbaseZkAddr, edgeGroup.map(_._1), withWait).map(_.zip(edgeGroup.map(_._2)))
@@ -952,63 +538,175 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     }
   }
 
-  def updateDegree(edge: S2EdgeLike, degreeVal: Long = 0): Future[MutateResponse] = {
+  override def updateDegree(edge: S2EdgeLike, degreeVal: Long = 0): Future[MutateResponse] = {
     val label = edge.innerLabel
     val storage = getStorage(label)
 
     storage.updateDegree(label.hbaseZkAddr, edge, degreeVal)
   }
 
-  def isRunning(): Boolean = running.get()
-
-  def shutdown(modelDataDelete: Boolean = false): Unit =
-    if (running.compareAndSet(true, false)) {
-      flushStorage()
-      Model.shutdown(modelDataDelete)
-      defaultStorage.shutdown()
-      localLongId.set(0l)
-    }
-
-
-  def newEdge(srcVertex: S2VertexLike,
-              tgtVertex: S2VertexLike,
-              innerLabel: Label,
-              dir: Int,
-              op: Byte = GraphUtil.defaultOpByte,
-              version: Long = System.currentTimeMillis(),
-              propsWithTs: S2Edge.State,
-              parentEdges: Seq[EdgeWithScore] = Nil,
-              originalEdgeOpt: Option[S2EdgeLike] = None,
-              pendingEdgeOpt: Option[S2EdgeLike] = None,
-              statusCode: Byte = 0,
-              lockTs: Option[Long] = None,
-              tsInnerValOpt: Option[InnerValLike] = None): S2EdgeLike =
-    elementBuilder.newEdge(srcVertex, tgtVertex, innerLabel, dir, op, version, propsWithTs,
-      parentEdges, originalEdgeOpt, pendingEdgeOpt, statusCode, lockTs, tsInnerValOpt)
-
-  def newVertexId(service: Service,
-                  column: ServiceColumn,
-                  id: Any): VertexId =
-    elementBuilder.newVertexId(service, column, id)
-
-  def newVertex(id: VertexId,
-                ts: Long = System.currentTimeMillis(),
-                props: S2Vertex.Props = S2Vertex.EmptyProps,
-                op: Byte = 0,
-                belongLabelIds: Seq[Int] = Seq.empty): S2VertexLike =
-    elementBuilder.newVertex(id, ts, props, op, belongLabelIds)
-
-
-  def getVertex(vertexId: VertexId): Option[S2VertexLike] = {
+  override def getVertex(vertexId: VertexId): Option[S2VertexLike] = {
     val v = newVertex(vertexId)
     Await.result(getVertices(Seq(v)).map { vertices => vertices.headOption }, WaitTimeout)
   }
 
-  def fetchEdges(vertex: S2VertexLike, labelNameWithDirs: Seq[(String, String)]): util.Iterator[Edge] = {
+  override def fetchEdges(vertex: S2VertexLike, labelNameWithDirs: Seq[(String, String)]): util.Iterator[Edge] = {
     Await.result(fetchEdgesAsync(vertex, labelNameWithDirs), WaitTimeout)
   }
 
-  def fetchEdgesAsync(vertex: S2VertexLike, labelNameWithDirs: Seq[(String, String)]): Future[util.Iterator[Edge]] = {
+  override def edgesAsync(vertex: S2VertexLike, direction: Direction, labelNames: String*): Future[util.Iterator[Edge]] = {
+    val labelNameWithDirs =
+      if (labelNames.isEmpty) {
+        // TODO: Let's clarify direction
+        if (direction == Direction.BOTH) {
+          Label.findBySrcColumnId(vertex.id.colId).map(l => l.label -> Direction.OUT.name) ++
+            Label.findByTgtColumnId(vertex.id.colId).map(l => l.label -> Direction.IN.name)
+        } else if (direction == Direction.IN) {
+          Label.findByTgtColumnId(vertex.id.colId).map(l => l.label -> direction.name)
+        } else {
+          Label.findBySrcColumnId(vertex.id.colId).map(l => l.label -> direction.name)
+        }
+      } else {
+        direction match {
+          case Direction.BOTH =>
+            Seq(Direction.OUT, Direction.IN).flatMap { dir => labelNames.map(_ -> dir.name()) }
+          case _ => labelNames.map(_ -> direction.name())
+        }
+      }
+
+    fetchEdgesAsync(vertex, labelNameWithDirs.distinct)
+  }
+
+  def isRunning(): Boolean = running.get()
+
+  /** Private **/
+
+  private def getEdgesStepInner(q: Query, buildLastStepInnerResult: Boolean = false): Future[StepResult] = {
+    Try {
+      if (q.steps.isEmpty) fallback
+      else {
+        def fetch: Future[StepResult] = {
+          val startStepInnerResult = QueryResult.fromVertices(this, q)
+          q.steps.zipWithIndex.foldLeft(Future.successful(startStepInnerResult)) { case (prevStepInnerResultFuture, (step, stepIdx)) =>
+            for {
+              prevStepInnerResult <- prevStepInnerResultFuture
+              currentStepInnerResult <- fetchStep(q, stepIdx, prevStepInnerResult, buildLastStepInnerResult)
+            } yield {
+              currentStepInnerResult.copy(
+                accumulatedCursors = prevStepInnerResult.accumulatedCursors :+ currentStepInnerResult.cursors,
+                failCount = currentStepInnerResult.failCount + prevStepInnerResult.failCount
+              )
+            }
+          }
+        }
+
+        fetch
+      }
+    } recover {
+      case e: Exception =>
+        logger.error(s"getEdgesAsync: $e", e)
+        fallback
+    } get
+  }
+
+  private def fetchStep(orgQuery: Query,
+                        stepIdx: Int,
+                        stepInnerResult: StepResult,
+                        buildLastStepInnerResult: Boolean = false): Future[StepResult] = {
+    if (stepInnerResult.isEmpty) Future.successful(StepResult.Empty)
+    else {
+      val (_, prevStepTgtVertexIdEdges: Map[VertexId, ArrayBuffer[EdgeWithScore]], queryRequests: Seq[QueryRequest]) =
+        traversalHelper.buildNextStepQueryRequests(orgQuery, stepIdx, stepInnerResult)
+
+      val fetchedLs = fetches(queryRequests, prevStepTgtVertexIdEdges)
+
+      traversalHelper.filterEdges(orgQuery, stepIdx, queryRequests,
+        fetchedLs, orgQuery.steps(stepIdx).queryParams, buildLastStepInnerResult, prevStepTgtVertexIdEdges)(ec)
+    }
+  }
+
+  private def fetches(queryRequests: Seq[QueryRequest],
+                      prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[StepResult]] = {
+
+    val reqWithIdxs = queryRequests.zipWithIndex
+    val requestsPerLabel = reqWithIdxs.groupBy(t => t._1.queryParam.label)
+    val aggFuture = requestsPerLabel.foldLeft(Future.successful(Map.empty[Int, StepResult])) { case (prevFuture, (label, reqWithIdxs)) =>
+      for {
+        prev <- prevFuture
+        cur <- getStorage(label).fetches(reqWithIdxs.map(_._1), prevStepEdges)
+      } yield {
+        prev ++ reqWithIdxs.map(_._2).zip(cur).toMap
+      }
+    }
+    aggFuture.map { agg => agg.toSeq.sortBy(_._1).map(_._2) }
+  }
+
+  private def fetchAndDeleteAll(queries: Seq[Query], requestTs: Long): Future[(Boolean, Boolean)] = {
+    val futures = queries.map(getEdgesStepInner(_, true))
+    val future = for {
+      stepInnerResultLs <- Future.sequence(futures)
+      (allDeleted, ret) <- deleteAllFetchedEdgesLs(stepInnerResultLs, requestTs)
+    } yield {
+      //        logger.debug(s"fetchAndDeleteAll: ${allDeleted}, ${ret}")
+      (allDeleted, ret)
+    }
+
+    Extensions.retryOnFailure(MaxRetryNum) {
+      future
+    } {
+      logger.error(s"fetch and deleteAll failed.")
+      (true, false)
+    }
+
+  }
+
+  private def deleteAllFetchedEdgesLs(stepInnerResultLs: Seq[StepResult],
+                                      requestTs: Long): Future[(Boolean, Boolean)] = {
+    stepInnerResultLs.foreach { stepInnerResult =>
+      if (stepInnerResult.isFailure) throw new RuntimeException("fetched result is fallback.")
+    }
+    val futures = for {
+      stepInnerResult <- stepInnerResultLs
+      filtered = stepInnerResult.edgeWithScores.filter { edgeWithScore =>
+        (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.isDegree
+      }
+      edgesToDelete = elementBuilder.buildEdgesToDelete(filtered, requestTs)
+      if edgesToDelete.nonEmpty
+    } yield {
+      val head = edgesToDelete.head
+      val label = head.edge.innerLabel
+      val stepResult = StepResult(edgesToDelete, Nil, Nil, false)
+      val ret = label.schemaVersion match {
+        case HBaseType.VERSION3 | HBaseType.VERSION4 =>
+          if (label.consistencyLevel == "strong") {
+            /*
+              * read: snapshotEdge on queryResult = O(N)
+              * write: N x (relatedEdges x indices(indexedEdge) + 1(snapshotEdge))
+              */
+            mutateEdges(edgesToDelete.map(_.edge), withWait = true).map(_.forall(_.isSuccess))
+          } else {
+            getStorage(label).deleteAllFetchedEdgesAsyncOld(stepResult, requestTs, MaxRetryNum)
+          }
+        case _ =>
+
+          /*
+            * read: x
+            * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
+            */
+          getStorage(label).deleteAllFetchedEdgesAsyncOld(stepResult, requestTs, MaxRetryNum)
+      }
+      ret
+    }
+
+    if (futures.isEmpty) {
+      // all deleted.
+      Future.successful(true -> true)
+    } else {
+      Future.sequence(futures).map { rets => false -> rets.forall(identity) }
+    }
+  }
+
+  private def fetchEdgesAsync(vertex: S2VertexLike, labelNameWithDirs: Seq[(String, String)]): Future[util.Iterator[Edge]] = {
     val queryParams = labelNameWithDirs.map { case (l, direction) =>
       QueryParam(labelName = l, direction = direction.toLowerCase)
     }
@@ -1021,25 +719,4 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
       ls.iterator()
     }
   }
-
-  def toVertex(serviceName: String,
-               columnName: String,
-               id: Any,
-               props: Map[String, Any] = Map.empty,
-               ts: Long = System.currentTimeMillis(),
-               operation: String = "insert"): S2VertexLike =
-    elementBuilder.toVertex(serviceName, columnName, id, props, ts, operation)
-
-  def toEdge(srcId: Any,
-             tgtId: Any,
-             labelName: String,
-             direction: String,
-             props: Map[String, Any] = Map.empty,
-             ts: Long = System.currentTimeMillis(),
-             operation: String = "insert"): S2EdgeLike =
-    elementBuilder.toEdge(srcId, tgtId, labelName, direction, props, ts, operation)
-
-  def toGraphElement(s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] =
-    elementBuilder.toGraphElement(s, labelMapping)
-
 }

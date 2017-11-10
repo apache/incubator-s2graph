@@ -1,31 +1,157 @@
 package org.apache.s2graph.core
-import java.util
 
+import java.util
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
+
+import com.typesafe.config.Config
 import org.apache.commons.configuration.Configuration
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.S2Graph.{DefaultColumnName, DefaultServiceName}
 import org.apache.s2graph.core.features.{S2Features, S2GraphVariables}
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
-import org.apache.s2graph.core.types.VertexId
+import org.apache.s2graph.core.index.IndexProvider
+import org.apache.s2graph.core.mysqls.{Label, LabelMeta, Service, ServiceColumn}
+import org.apache.s2graph.core.storage.{MutateResponse, Storage}
+import org.apache.s2graph.core.types.{InnerValLike, VertexId}
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
 import org.apache.tinkerpop.gremlin.structure
 import org.apache.tinkerpop.gremlin.structure.Edge.Exceptions
-import org.apache.tinkerpop.gremlin.structure.Graph.{Features, Variables}
+import org.apache.tinkerpop.gremlin.structure.Graph.Variables
 import org.apache.tinkerpop.gremlin.structure.io.{GraphReader, GraphWriter, Io, Mapper}
-import org.apache.tinkerpop.gremlin.structure.{Edge, Element, Graph, T, Transaction, Vertex}
+import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Element, Graph, T, Transaction, Vertex}
 
-import scala.concurrent.{Await, Future}
 import scala.collection.JavaConversions._
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
+
 
 trait S2GraphLike extends Graph {
-  this: S2Graph =>
+  implicit val ec: ExecutionContext
 
   var apacheConfiguration: Configuration
 
-  private val s2Features = new S2Features
+  protected val localLongId = new AtomicLong()
+
+  protected val s2Features = new S2Features
+
+  val config: Config
+
+  val management: Management
+
+  val indexProvider: IndexProvider
+
+  val elementBuilder: GraphElementBuilder
+
+  val traversalHelper: TraversalHelper
+
+  lazy val MaxRetryNum: Int = config.getInt("max.retry.number")
+  lazy val MaxBackOff: Int = config.getInt("max.back.off")
+  lazy val BackoffTimeout: Int = config.getInt("back.off.timeout")
+  lazy val DeleteAllFetchCount: Int = config.getInt("delete.all.fetch.count")
+  lazy val DeleteAllFetchSize: Int = config.getInt("delete.all.fetch.size")
+  lazy val FailProb: Double = config.getDouble("hbase.fail.prob")
+  lazy val LockExpireDuration: Int = config.getInt("lock.expire.time")
+  lazy val MaxSize: Int = config.getInt("future.cache.max.size")
+  lazy val ExpireAfterWrite: Int = config.getInt("future.cache.expire.after.write")
+  lazy val ExpireAfterAccess: Int = config.getInt("future.cache.expire.after.access")
+  lazy val WaitTimeout: Duration = Duration(600, TimeUnit.SECONDS)
 
   override def features() = s2Features
 
+  def nextLocalLongId = localLongId.getAndIncrement()
+
+  def fallback = Future.successful(StepResult.Empty)
+
+  def defaultStorage: Storage
+
+  def getStorage(service: Service): Storage
+
+  def getStorage(label: Label): Storage
+
+  def flushStorage(): Unit
+
+  def shutdown(modelDataDelete: Boolean = false): Unit
+
+  def getVertices(vertices: Seq[S2VertexLike]): Future[Seq[S2VertexLike]]
+
+  def checkEdges(edges: Seq[S2EdgeLike]): Future[StepResult]
+
+  def mutateVertices(vertices: Seq[S2VertexLike], withWait: Boolean = false): Future[Seq[MutateResponse]]
+
+  def mutateEdges(edges: Seq[S2EdgeLike], withWait: Boolean = false): Future[Seq[MutateResponse]]
+
+  def mutateElements(elements: Seq[GraphElement],
+                     withWait: Boolean = false): Future[Seq[MutateResponse]]
+
+  def getEdges(q: Query): Future[StepResult]
+
+  def getEdgesMultiQuery(mq: MultiQuery): Future[StepResult]
+
+  def deleteAllAdjacentEdges(srcVertices: Seq[S2VertexLike],
+                             labels: Seq[Label],
+                             dir: Int,
+                             ts: Long): Future[Boolean]
+
+  def incrementCounts(edges: Seq[S2EdgeLike], withWait: Boolean): Future[Seq[MutateResponse]]
+
+  def updateDegree(edge: S2EdgeLike, degreeVal: Long = 0): Future[MutateResponse]
+
+  def getVertex(vertexId: VertexId): Option[S2VertexLike]
+
+  def fetchEdges(vertex: S2VertexLike, labelNameWithDirs: Seq[(String, String)]): util.Iterator[Edge]
+
+  def edgesAsync(vertex: S2VertexLike, direction: Direction, labelNames: String*): Future[util.Iterator[Edge]]
+
+  /** Convert to Graph Element **/
+  def newEdge(srcVertex: S2VertexLike,
+              tgtVertex: S2VertexLike,
+              innerLabel: Label,
+              dir: Int,
+              op: Byte = GraphUtil.defaultOpByte,
+              version: Long = System.currentTimeMillis(),
+              propsWithTs: S2Edge.State,
+              parentEdges: Seq[EdgeWithScore] = Nil,
+              originalEdgeOpt: Option[S2EdgeLike] = None,
+              pendingEdgeOpt: Option[S2EdgeLike] = None,
+              statusCode: Byte = 0,
+              lockTs: Option[Long] = None,
+              tsInnerValOpt: Option[InnerValLike] = None): S2EdgeLike =
+    elementBuilder.newEdge(srcVertex, tgtVertex, innerLabel, dir, op, version, propsWithTs,
+      parentEdges, originalEdgeOpt, pendingEdgeOpt, statusCode, lockTs, tsInnerValOpt)
+
+  def newVertexId(service: Service,
+                  column: ServiceColumn,
+                  id: Any): VertexId =
+    elementBuilder.newVertexId(service, column, id)
+
+  def newVertex(id: VertexId,
+                ts: Long = System.currentTimeMillis(),
+                props: S2Vertex.Props = S2Vertex.EmptyProps,
+                op: Byte = 0,
+                belongLabelIds: Seq[Int] = Seq.empty): S2VertexLike =
+    elementBuilder.newVertex(id, ts, props, op, belongLabelIds)
+
+  def toVertex(serviceName: String,
+               columnName: String,
+               id: Any,
+               props: Map[String, Any] = Map.empty,
+               ts: Long = System.currentTimeMillis(),
+               operation: String = "insert"): S2VertexLike =
+    elementBuilder.toVertex(serviceName, columnName, id, props, ts, operation)
+
+  def toEdge(srcId: Any,
+             tgtId: Any,
+             labelName: String,
+             direction: String,
+             props: Map[String, Any] = Map.empty,
+             ts: Long = System.currentTimeMillis(),
+             operation: String = "insert"): S2EdgeLike =
+    elementBuilder.toEdge(srcId, tgtId, labelName, direction, props, ts, operation)
+
+  def toGraphElement(s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] =
+    elementBuilder.toGraphElement(s, labelMapping)
+
+  /** TinkerPop Interfaces **/
   def vertices(ids: AnyRef*): util.Iterator[structure.Vertex] = {
     val fetchVertices = ids.lastOption.map { lastParam =>
       if (lastParam.isInstanceOf[Boolean]) lastParam.asInstanceOf[Boolean]
@@ -38,9 +164,9 @@ trait S2GraphLike extends Graph {
     } else {
       val vertices = ids.collect {
         case s2Vertex: S2VertexLike => s2Vertex
-        case vId: VertexId => newVertex(vId)
-        case vertex: Vertex => newVertex(vertex.id().asInstanceOf[VertexId])
-        case other@_ => newVertex(VertexId.fromString(other.toString))
+        case vId: VertexId => elementBuilder.newVertex(vId)
+        case vertex: Vertex => elementBuilder.newVertex(vertex.id().asInstanceOf[VertexId])
+        case other@_ => elementBuilder.newVertex(VertexId.fromString(other.toString))
       }
 
       if (fetchVertices) {
@@ -153,7 +279,7 @@ trait S2GraphLike extends Graph {
                 props: S2Vertex.Props = S2Vertex.EmptyProps,
                 op: Byte = 0,
                 belongLabelIds: Seq[Int] = Seq.empty): S2VertexLike = {
-    val vertex = newVertex(id, ts, props, op, belongLabelIds)
+    val vertex = elementBuilder.newVertex(id, ts, props, op, belongLabelIds)
 
     val future = mutateVertices(Seq(vertex), withWait = true).map { rets =>
       if (rets.forall(_.isSuccess)) vertex
@@ -201,7 +327,7 @@ trait S2GraphLike extends Graph {
           val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
           val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
 
-          val edge = newEdge(srcVertex, otherV, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
+          val edge = elementBuilder.newEdge(srcVertex, otherV, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
 
           val future = mutateEdges(Seq(edge), withWait = true).flatMap { rets =>
             indexProvider.mutateEdgesAsync(Seq(edge))
@@ -220,6 +346,7 @@ trait S2GraphLike extends Graph {
   def close(): Unit = {
     shutdown()
   }
+
 
   def compute[C <: GraphComputer](aClass: Class[C]): C = ???
 

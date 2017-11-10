@@ -27,7 +27,7 @@ import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.storage.serde.Deserializable
 import org.apache.s2graph.core.types._
 
-class IndexEdgeDeserializable(graph: S2Graph,
+class IndexEdgeDeserializable(graph: S2GraphLike,
                               bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong) extends Deserializable[S2EdgeLike] {
 
    type QualifierRaw = (Array[(LabelMeta, InnerValLike)], VertexId, Byte, Boolean, Int)

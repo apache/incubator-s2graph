@@ -15,7 +15,7 @@ class S2VertexBuilder(vertex: S2VertexLike) {
     default
   }
 
-  def copyVertex(graph: S2Graph = vertex.graph,
+  def copyVertex(graph: S2GraphLike = vertex.graph,
                  id: VertexId = vertex.id,
                  ts: Long = vertex.ts,
                  props: Props = vertex.props,

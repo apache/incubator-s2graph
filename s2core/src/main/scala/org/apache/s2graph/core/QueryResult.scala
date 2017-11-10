@@ -27,7 +27,7 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.collection.{Seq, mutable}
 
 object QueryResult {
-  def fromVertices(graph: S2Graph, vertices: Seq[S2VertexLike], queryParams: Seq[QueryParam]): StepResult = {
+  def fromVertices(graph: S2GraphLike, vertices: Seq[S2VertexLike], queryParams: Seq[QueryParam]): StepResult = {
     val edgeWithScores = vertices.flatMap { vertex =>
       queryParams.map { queryParam =>
         val label = queryParam.label
@@ -44,7 +44,7 @@ object QueryResult {
     StepResult(edgeWithScores = edgeWithScores, grouped = Nil, degreeEdges = Nil, false)
   }
 
-  def fromVertices(graph: S2Graph,
+  def fromVertices(graph: S2GraphLike,
                    query: Query): StepResult = {
     if (query.steps.isEmpty || query.steps.head.queryParams.isEmpty) {
       StepResult.Empty
@@ -301,7 +301,7 @@ object StepResult {
   }
 
   //TODO: Optimize this.
-  def filterOut(graph: S2Graph,
+  def filterOut(graph: S2GraphLike,
                 queryOption: QueryOption,
                 baseStepResult: StepResult,
                 filterOutStepResult: StepResult): StepResult = {

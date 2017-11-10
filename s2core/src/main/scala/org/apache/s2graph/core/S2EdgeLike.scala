@@ -15,7 +15,7 @@ import scala.concurrent.Await
 import scala.collection.JavaConverters._
 
 trait S2EdgeLike extends Edge with GraphElement {
-  val innerGraph: S2Graph
+  val innerGraph: S2GraphLike
   val srcVertex: S2VertexLike
   var tgtVertex: S2VertexLike
   val innerLabel: Label

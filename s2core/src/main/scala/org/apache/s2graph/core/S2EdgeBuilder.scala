@@ -46,7 +46,7 @@ class S2EdgeBuilder(edge: S2EdgeLike) {
     }
   }
 
-  def copyEdge(innerGraph: S2Graph = edge.innerGraph,
+  def copyEdge(innerGraph: S2GraphLike = edge.innerGraph,
                srcVertex: S2VertexLike = edge.srcVertex,
                tgtVertex: S2VertexLike = edge.tgtVertex,
                innerLabel: Label = edge.innerLabel,

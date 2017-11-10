@@ -29,7 +29,7 @@ import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 
 import scala.collection.JavaConverters._
 
-case class S2Vertex(graph: S2Graph,
+case class S2Vertex(graph: S2GraphLike,
                     id: VertexId,
                     ts: Long = System.currentTimeMillis(),
                     props: Props = S2Vertex.EmptyProps,

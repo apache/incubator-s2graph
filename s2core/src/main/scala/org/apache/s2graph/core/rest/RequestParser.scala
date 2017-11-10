@@ -118,7 +118,7 @@ object RequestParser {
 
 }
 
-class RequestParser(graph: S2Graph) {
+class RequestParser(graph: S2GraphLike) {
 
   import Management.JsonModel._
   import RequestParser._

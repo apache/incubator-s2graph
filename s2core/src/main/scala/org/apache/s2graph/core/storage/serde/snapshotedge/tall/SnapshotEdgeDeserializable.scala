@@ -27,7 +27,7 @@ import org.apache.s2graph.core.types._
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage.serde.Deserializable
 
-class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[SnapshotEdge] {
+class SnapshotEdgeDeserializable(graph: S2GraphLike) extends Deserializable[SnapshotEdge] {
 
   def statusCodeWithOp(byte: Byte): (Byte, Byte) = {
     val statusCode = byte >> 4

@@ -38,7 +38,7 @@ import org.hbase.async._
 import scala.collection.JavaConversions._
 import scala.concurrent.{ExecutionContext, Future}
 
-class AsynchbaseStorageReadable(val graph: S2Graph,
+class AsynchbaseStorageReadable(val graph: S2GraphLike,
                                 val config: Config,
                                 val client: HBaseClient,
                                 val serDe: StorageSerDe,

@@ -13,7 +13,7 @@ import scala.collection.JavaConverters._
 import scala.concurrent.Await
 
 trait S2VertexLike extends Vertex with GraphElement {
-  val graph: S2Graph
+  val graph: S2GraphLike
   val id: VertexId
   val ts: Long
   val props: Props

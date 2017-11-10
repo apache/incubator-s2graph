@@ -28,12 +28,11 @@ import org.apache.s2graph.core.utils.logger
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Random
 
-class WriteWriteConflictResolver(graph: S2Graph,
+class WriteWriteConflictResolver(graph: S2GraphLike,
                                  serDe: StorageSerDe,
                                  io: StorageIO,
                                  mutator: StorageWritable,
                                  fetcher: StorageReadable) {
-
   val BackoffTimeout = graph.BackoffTimeout
   val MaxRetryNum = graph.MaxRetryNum
   val MaxBackOff = graph.MaxBackOff
