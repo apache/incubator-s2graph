@@ -58,8 +58,6 @@ trait S2GraphLike extends Graph {
 
   override def features() = s2Features
 
-  def nextLocalLongId = localLongId.getAndIncrement()
-
   def fallback = Future.successful(StepResult.Empty)
 
   def defaultStorage: Storage
@@ -103,34 +101,6 @@ trait S2GraphLike extends Graph {
   def edgesAsync(vertex: S2VertexLike, direction: Direction, labelNames: String*): Future[util.Iterator[Edge]]
 
   /** Convert to Graph Element **/
-  def newEdge(srcVertex: S2VertexLike,
-              tgtVertex: S2VertexLike,
-              innerLabel: Label,
-              dir: Int,
-              op: Byte = GraphUtil.defaultOpByte,
-              version: Long = System.currentTimeMillis(),
-              propsWithTs: S2Edge.State,
-              parentEdges: Seq[EdgeWithScore] = Nil,
-              originalEdgeOpt: Option[S2EdgeLike] = None,
-              pendingEdgeOpt: Option[S2EdgeLike] = None,
-              statusCode: Byte = 0,
-              lockTs: Option[Long] = None,
-              tsInnerValOpt: Option[InnerValLike] = None): S2EdgeLike =
-    elementBuilder.newEdge(srcVertex, tgtVertex, innerLabel, dir, op, version, propsWithTs,
-      parentEdges, originalEdgeOpt, pendingEdgeOpt, statusCode, lockTs, tsInnerValOpt)
-
-  def newVertexId(service: Service,
-                  column: ServiceColumn,
-                  id: Any): VertexId =
-    elementBuilder.newVertexId(service, column, id)
-
-  def newVertex(id: VertexId,
-                ts: Long = System.currentTimeMillis(),
-                props: S2Vertex.Props = S2Vertex.EmptyProps,
-                op: Byte = 0,
-                belongLabelIds: Seq[Int] = Seq.empty): S2VertexLike =
-    elementBuilder.newVertex(id, ts, props, op, belongLabelIds)
-
   def toVertex(serviceName: String,
                columnName: String,
                id: Any,
@@ -261,7 +231,7 @@ trait S2GraphLike extends Graph {
 
     val vertex = kvsMap.get(T.id.name()) match {
       case None => // do nothing
-        val id = nextLocalLongId
+        val id = localLongId.getAndIncrement()
         makeVertex(Long.box(id), kvsMap)
       case Some(idValue) if S2Property.validType(idValue) =>
         makeVertex(idValue, kvsMap)
@@ -269,7 +239,7 @@ trait S2GraphLike extends Graph {
         throw Vertex.Exceptions.userSuppliedIdsOfThisTypeNotSupported
     }
 
-    addVertexInner(vertex)
+    addVertex(vertex.id, vertex.ts, vertex.props, vertex.op, vertex.belongLabelIds)
 
     vertex
   }
@@ -284,17 +254,6 @@ trait S2GraphLike extends Graph {
     val future = mutateVertices(Seq(vertex), withWait = true).map { rets =>
       if (rets.forall(_.isSuccess)) vertex
       else throw new RuntimeException("addVertex failed.")
-    }
-    Await.ready(future, WaitTimeout)
-
-    vertex
-  }
-
-  def addVertexInner(vertex: S2VertexLike): S2VertexLike = {
-    val future = mutateVertices(Seq(vertex), withWait = true).flatMap { rets =>
-      if (rets.forall(_.isSuccess)) {
-        indexProvider.mutateVerticesAsync(Seq(vertex))
-      } else throw new RuntimeException("addVertex failed.")
     }
     Await.ready(future, WaitTimeout)
 

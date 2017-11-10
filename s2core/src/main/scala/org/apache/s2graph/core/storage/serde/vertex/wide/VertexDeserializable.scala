@@ -30,6 +30,7 @@ import scala.collection.mutable.ListBuffer
 
 class VertexDeserializable(graph: S2GraphLike,
                            bytesToInt: (Array[Byte], Int) => Int = bytesToInt) extends Deserializable[S2VertexLike] {
+  val builder = graph.elementBuilder
   def fromKeyValues[T: CanSKeyValue](_kvs: Seq[T],
                                           cacheElementOpt: Option[S2VertexLike]): Option[S2VertexLike] = {
     try {
@@ -62,7 +63,7 @@ class VertexDeserializable(graph: S2GraphLike,
         }
       }
       assert(maxTs != Long.MinValue)
-      val vertex = graph.newVertex(vertexId, maxTs, S2Vertex.EmptyProps, belongLabelIds = belongLabelIds)
+      val vertex = builder.newVertex(vertexId, maxTs, S2Vertex.EmptyProps, belongLabelIds = belongLabelIds)
       S2Vertex.fillPropsWithTs(vertex, propsMap.toMap)
 
       Option(vertex)

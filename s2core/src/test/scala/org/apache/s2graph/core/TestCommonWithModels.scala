@@ -35,12 +35,13 @@ trait TestCommonWithModels {
   var graph: S2Graph = _
   var config: Config = _
   var management: Management = _
+  var builder: GraphElementBuilder = _
 
   def initTests() = {
     config = ConfigFactory.load()
     graph = new S2Graph(config)(ExecutionContext.Implicits.global)
     management = new Management(graph)
-
+    builder = graph.elementBuilder
     implicit val session = AutoSession
 
     deleteTestLabel()

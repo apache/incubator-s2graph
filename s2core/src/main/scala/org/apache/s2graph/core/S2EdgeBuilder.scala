@@ -80,7 +80,7 @@ class S2EdgeBuilder(edge: S2EdgeLike) {
 
   def updateTgtVertex(id: InnerValLike): S2EdgeLike = {
     val newId = TargetVertexId(edge.tgtVertex.id.column, id)
-    val newTgtVertex = edge.innerGraph.newVertex(newId, edge.tgtVertex.ts, edge.tgtVertex.props)
+    val newTgtVertex = edge.innerGraph.elementBuilder.newVertex(newId, edge.tgtVertex.ts, edge.tgtVertex.props)
     copyEdge(tgtVertex = newTgtVertex)
   }
 

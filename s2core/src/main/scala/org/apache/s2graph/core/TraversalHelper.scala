@@ -1,14 +1,17 @@
 package org.apache.s2graph.core
 
+import java.util
+
 import org.apache.s2graph.core.S2Graph.{FilterHashKey, HashKey}
 import org.apache.s2graph.core.mysqls.LabelMeta
-import org.apache.s2graph.core.types.{InnerVal, LabelWithDirection, VertexId}
-import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.types.{HBaseType, InnerVal, LabelWithDirection, VertexId}
+import org.apache.s2graph.core.utils.{Extensions, logger}
+import org.apache.tinkerpop.gremlin.structure.Edge
 
 import scala.annotation.tailrec
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.concurrent.Future
-import scala.util.Random
+import scala.util.{Random, Try}
 
 object TraversalHelper {
   @tailrec
@@ -124,6 +127,150 @@ object TraversalHelper {
 
 class TraversalHelper(graph: S2GraphLike) {
   import TraversalHelper._
+
+  implicit val ec = graph.ec
+  val MaxRetryNum = graph.config.getInt("max.retry.number")
+
+  def fallback = Future.successful(StepResult.Empty)
+
+  def getEdgesStepInner(q: Query, buildLastStepInnerResult: Boolean = false): Future[StepResult] = {
+    Try {
+      if (q.steps.isEmpty) fallback
+      else {
+        def fetch: Future[StepResult] = {
+          val startStepInnerResult = QueryResult.fromVertices(graph, q)
+          q.steps.zipWithIndex.foldLeft(Future.successful(startStepInnerResult)) { case (prevStepInnerResultFuture, (step, stepIdx)) =>
+            for {
+              prevStepInnerResult <- prevStepInnerResultFuture
+              currentStepInnerResult <- fetchStep(q, stepIdx, prevStepInnerResult, buildLastStepInnerResult)
+            } yield {
+              currentStepInnerResult.copy(
+                accumulatedCursors = prevStepInnerResult.accumulatedCursors :+ currentStepInnerResult.cursors,
+                failCount = currentStepInnerResult.failCount + prevStepInnerResult.failCount
+              )
+            }
+          }
+        }
+
+        fetch
+      }
+    } recover {
+      case e: Exception =>
+        logger.error(s"getEdgesAsync: $e", e)
+        fallback
+    } get
+  }
+
+  def fetchStep(orgQuery: Query,
+                stepIdx: Int,
+                stepInnerResult: StepResult,
+                buildLastStepInnerResult: Boolean = false): Future[StepResult] = {
+    if (stepInnerResult.isEmpty) Future.successful(StepResult.Empty)
+    else {
+      val (_, prevStepTgtVertexIdEdges: Map[VertexId, ArrayBuffer[EdgeWithScore]], queryRequests: Seq[QueryRequest]) =
+        graph.traversalHelper.buildNextStepQueryRequests(orgQuery, stepIdx, stepInnerResult)
+
+      val fetchedLs = fetches(queryRequests, prevStepTgtVertexIdEdges)
+
+      graph.traversalHelper.filterEdges(orgQuery, stepIdx, queryRequests,
+        fetchedLs, orgQuery.steps(stepIdx).queryParams, buildLastStepInnerResult, prevStepTgtVertexIdEdges)(graph.ec)
+    }
+  }
+
+  def fetches(queryRequests: Seq[QueryRequest],
+              prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[StepResult]] = {
+
+    val reqWithIdxs = queryRequests.zipWithIndex
+    val requestsPerLabel = reqWithIdxs.groupBy(t => t._1.queryParam.label)
+    val aggFuture = requestsPerLabel.foldLeft(Future.successful(Map.empty[Int, StepResult])) { case (prevFuture, (label, reqWithIdxs)) =>
+      for {
+        prev <- prevFuture
+        cur <- graph.getStorage(label).fetches(reqWithIdxs.map(_._1), prevStepEdges)
+      } yield {
+        prev ++ reqWithIdxs.map(_._2).zip(cur).toMap
+      }
+    }
+    aggFuture.map { agg => agg.toSeq.sortBy(_._1).map(_._2) }
+  }
+
+  def fetchAndDeleteAll(queries: Seq[Query], requestTs: Long): Future[(Boolean, Boolean)] = {
+    val futures = queries.map(getEdgesStepInner(_, true))
+    val future = for {
+      stepInnerResultLs <- Future.sequence(futures)
+      (allDeleted, ret) <- deleteAllFetchedEdgesLs(stepInnerResultLs, requestTs)
+    } yield {
+      //        logger.debug(s"fetchAndDeleteAll: ${allDeleted}, ${ret}")
+      (allDeleted, ret)
+    }
+
+    Extensions.retryOnFailure(MaxRetryNum) {
+      future
+    } {
+      logger.error(s"fetch and deleteAll failed.")
+      (true, false)
+    }
+
+  }
+
+  def deleteAllFetchedEdgesLs(stepInnerResultLs: Seq[StepResult],
+                              requestTs: Long): Future[(Boolean, Boolean)] = {
+    stepInnerResultLs.foreach { stepInnerResult =>
+      if (stepInnerResult.isFailure) throw new RuntimeException("fetched result is fallback.")
+    }
+    val futures = for {
+      stepInnerResult <- stepInnerResultLs
+      filtered = stepInnerResult.edgeWithScores.filter { edgeWithScore =>
+        (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.isDegree
+      }
+      edgesToDelete = graph.elementBuilder.buildEdgesToDelete(filtered, requestTs)
+      if edgesToDelete.nonEmpty
+    } yield {
+      val head = edgesToDelete.head
+      val label = head.edge.innerLabel
+      val stepResult = StepResult(edgesToDelete, Nil, Nil, false)
+      val ret = label.schemaVersion match {
+        case HBaseType.VERSION3 | HBaseType.VERSION4 =>
+          if (label.consistencyLevel == "strong") {
+            /*
+              * read: snapshotEdge on queryResult = O(N)
+              * write: N x (relatedEdges x indices(indexedEdge) + 1(snapshotEdge))
+              */
+            graph.mutateEdges(edgesToDelete.map(_.edge), withWait = true).map(_.forall(_.isSuccess))
+          } else {
+            graph.getStorage(label).deleteAllFetchedEdgesAsyncOld(stepResult, requestTs, MaxRetryNum)
+          }
+        case _ =>
+
+          /*
+            * read: x
+            * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
+            */
+          graph.getStorage(label).deleteAllFetchedEdgesAsyncOld(stepResult, requestTs, MaxRetryNum)
+      }
+      ret
+    }
+
+    if (futures.isEmpty) {
+      // all deleted.
+      Future.successful(true -> true)
+    } else {
+      Future.sequence(futures).map { rets => false -> rets.forall(identity) }
+    }
+  }
+
+  def fetchEdgesAsync(vertex: S2VertexLike, labelNameWithDirs: Seq[(String, String)]): Future[util.Iterator[Edge]] = {
+    val queryParams = labelNameWithDirs.map { case (l, direction) =>
+      QueryParam(labelName = l, direction = direction.toLowerCase)
+    }
+
+    val query = Query.toQuery(Seq(vertex), queryParams)
+    val queryRequests = queryParams.map { param => QueryRequest(query, 0, vertex, param) }
+    val ls = new util.ArrayList[Edge]()
+    fetches(queryRequests, Map.empty).map { stepResultLs =>
+      stepResultLs.foreach(_.edgeWithScores.foreach(es => ls.add(es.edge)))
+      ls.iterator()
+    }
+  }
 
   def buildNextStepQueryRequests(orgQuery: Query, stepIdx: Int, stepInnerResult: StepResult) = {
     val edgeWithScoreLs = stepInnerResult.edgeWithScores

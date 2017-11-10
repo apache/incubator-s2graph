@@ -32,6 +32,7 @@ class IndexEdgeDeserializable(graph: S2GraphLike,
 
    type QualifierRaw = (Array[(LabelMeta, InnerValLike)], VertexId, Byte, Boolean, Int)
    type ValueRaw = (Array[(LabelMeta, InnerValLike)], Int)
+   val builder = graph.elementBuilder
 
    override def fromKeyValues[T: CanSKeyValue](_kvs: Seq[T],
                                                cacheElementOpt: Option[S2EdgeLike]): Option[S2EdgeLike] = {
@@ -55,20 +56,20 @@ class IndexEdgeDeserializable(graph: S2GraphLike,
        else {
          val label = Label.findById(labelWithDir.labelId)
          val schemaVer = label.schemaVersion
-         val srcVertex = graph.newVertex(srcVertexId, version)
+         val srcVertex = builder.newVertex(srcVertexId, version)
          //TODO:
          var tsVal = version
 
          if (kv.qualifier.isEmpty) {
            val degreeVal = bytesToLongFunc(kv.value, 0)
            val tgtVertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("0", schemaVer))
-           val tgtVertex = graph.newVertex(tgtVertexId, version)
-           val edge = graph.newEdge(srcVertex, tgtVertex,
+           val tgtVertex = builder.newVertex(tgtVertexId, version)
+           val edge = builder.newEdge(srcVertex, tgtVertex,
              label, labelWithDir.dir, GraphUtil.defaultOpByte, version, S2Edge.EmptyState)
 
            edge.propertyInner(LabelMeta.timestamp.name, version, version)
            edge.propertyInner(LabelMeta.degree.name, degreeVal, version)
-           edge.tgtVertex = graph.newVertex(tgtVertexId, version)
+           edge.tgtVertex = builder.newVertex(tgtVertexId, version)
            edge.setOp(GraphUtil.defaultOpByte)
            edge.setTsInnerValOpt(Option(InnerVal.withLong(tsVal, schemaVer)))
 
@@ -88,8 +89,8 @@ class IndexEdgeDeserializable(graph: S2GraphLike,
              if (kv.qualifier.length == pos) GraphUtil.defaultOpByte
              else kv.qualifier(kv.qualifier.length-1)
 
-           val tgtVertex = graph.newVertex(tgtVertexIdRaw, version)
-           val edge = graph.newEdge(srcVertex, tgtVertex,
+           val tgtVertex = builder.newVertex(tgtVertexIdRaw, version)
+           val edge = builder.newEdge(srcVertex, tgtVertex,
              label, labelWithDir.dir, GraphUtil.defaultOpByte, version, S2Edge.EmptyState)
 
            val index = label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${label.id.get}, ${labelIdxSeq}"))
@@ -124,7 +125,7 @@ class IndexEdgeDeserializable(graph: S2GraphLike,
            /* process tgtVertexId */
            if (edge.checkProperty(LabelMeta.to.name)) {
              val vId = edge.property(LabelMeta.to.name).asInstanceOf[S2Property[_]].innerValWithTs
-             val tgtVertex = graph.newVertex(TargetVertexId(ServiceColumn.Default, vId.innerVal), version)
+             val tgtVertex = builder.newVertex(TargetVertexId(ServiceColumn.Default, vId.innerVal), version)
              edge.setTgtVertex(tgtVertex)
            }
 

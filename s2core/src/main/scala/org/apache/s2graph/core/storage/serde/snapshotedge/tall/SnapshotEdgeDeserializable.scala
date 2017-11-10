@@ -28,7 +28,7 @@ import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage.serde.Deserializable
 
 class SnapshotEdgeDeserializable(graph: S2GraphLike) extends Deserializable[SnapshotEdge] {
-
+  val builder = graph.elementBuilder
   def statusCodeWithOp(byte: Byte): (Byte, Byte) = {
     val statusCode = byte >> 4
     val op = byte & ((1 << 4) - 1)
@@ -89,15 +89,19 @@ class SnapshotEdgeDeserializable(graph: S2GraphLike) extends Deserializable[Snap
             val lockTs = Option(Bytes.toLong(kv.value, pos, 8))
 
             val pendingEdge =
-              graph.newEdge(graph.newVertex(srcVertexId, version),
-                graph.newVertex(tgtVertexId, version),
+              builder.newEdge(
+                builder.newVertex(srcVertexId, version),
+                builder.newVertex(tgtVertexId, version),
                 label, labelWithDir.dir, pendingEdgeOp,
                 version, pendingEdgeProps.toMap,
                 statusCode = pendingEdgeStatusCode, lockTs = lockTs, tsInnerValOpt = Option(tsInnerVal))
+
             Option(pendingEdge)
           }
 
-        val snapshotEdge = graph.elementBuilder.newSnapshotEdge(graph.newVertex(srcVertexId, ts), graph.newVertex(tgtVertexId, ts),
+        val snapshotEdge = builder.newSnapshotEdge(
+          builder.newVertex(srcVertexId, ts),
+          builder.newVertex(tgtVertexId, ts),
           label, labelWithDir.dir, op, version, props.toMap, statusCode = statusCode,
           pendingEdgeOpt = _pendingEdgeOpt, lockTs = None, tsInnerValOpt = Option(tsInnerVal))
 

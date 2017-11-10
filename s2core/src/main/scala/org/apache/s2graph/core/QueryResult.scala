@@ -35,7 +35,7 @@ object QueryResult {
         val propsWithTs = Map(LabelMeta.timestamp ->
           InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs))
 
-        val edge = graph.newEdge(vertex, vertex, label, queryParam.labelWithDir.dir, propsWithTs = propsWithTs)
+        val edge = graph.elementBuilder.newEdge(vertex, vertex, label, queryParam.labelWithDir.dir, propsWithTs = propsWithTs)
         val edgeWithScore = EdgeWithScore(edge, S2Graph.DefaultScore, queryParam.label)
         edgeWithScore
 

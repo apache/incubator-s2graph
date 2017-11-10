@@ -269,7 +269,7 @@ class RequestParser(graph: S2GraphLike) {
       id <- ids
       innerId <- jsValueToInnerVal(id, serviceColumn.columnType, label.schemaVersion)
     } yield {
-      graph.newVertex(SourceVertexId(serviceColumn, innerId), System.currentTimeMillis())
+      graph.elementBuilder.newVertex(SourceVertexId(serviceColumn, innerId), System.currentTimeMillis())
     }
 
     vertices

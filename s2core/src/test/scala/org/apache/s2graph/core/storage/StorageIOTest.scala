@@ -46,8 +46,8 @@ class StorageIOTest extends FunSuite with Matchers with TestCommonWithModels {
       throw new IllegalStateException("column not found.")
     }
 
-    val vertexId = graph.newVertexId(service, column, 1L)
-    val vertex = graph.newVertex(vertexId)
+    val vertexId = builder.newVertexId(service, column, 1L)
+    val vertex = builder.newVertex(vertexId)
 
     check(vertex, serDe.vertexSerializer, serDe.vertexDeserializer(vertex.serviceColumn.schemaVersion))
   }

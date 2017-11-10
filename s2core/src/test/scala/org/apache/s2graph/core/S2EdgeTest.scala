@@ -66,14 +66,14 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
   test("buildOperation") {
     val schemaVersion = "v2"
     val vertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("dummy", schemaVersion))
-    val srcVertex = graph.newVertex(vertexId)
+    val srcVertex = builder.newVertex(vertexId)
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
 
     val snapshotEdge = None
     val propsWithTs = Map(timestampProp)
-    val requestEdge = graph.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
+    val requestEdge = builder.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
 
     val newVersion = 0L
 
@@ -93,14 +93,14 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
   test("buildMutation: snapshotEdge: None with newProps") {
     val schemaVersion = "v2"
     val vertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("dummy", schemaVersion))
-    val srcVertex = graph.newVertex(vertexId)
+    val srcVertex = builder.newVertex(vertexId)
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
 
     val snapshotEdge = None
     val propsWithTs = Map(timestampProp)
-    val requestEdge = graph.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
+    val requestEdge = builder.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
 
     val newVersion = 0L
 
@@ -120,14 +120,14 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
   test("buildMutation: oldPropsWithTs == newPropsWithTs, Drop all requests") {
     val schemaVersion = "v2"
     val vertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("dummy", schemaVersion))
-    val srcVertex = graph.newVertex(vertexId)
+    val srcVertex = builder.newVertex(vertexId)
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
 
     val snapshotEdge = None
     val propsWithTs = Map(timestampProp)
-    val requestEdge = graph.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
+    val requestEdge = builder.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
 
     val newVersion = 0L
 
@@ -144,7 +144,7 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
   test("buildMutation: All props older than snapshotEdge's LastDeletedAt") {
     val schemaVersion = "v2"
     val vertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("dummy", schemaVersion))
-    val srcVertex = graph.newVertex(vertexId)
+    val srcVertex = builder.newVertex(vertexId)
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
@@ -159,12 +159,12 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
       LabelMeta.lastDeletedAt -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 3)
     )
 
-    val _snapshotEdge = graph.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, op = GraphUtil.operations("delete"), propsWithTs = propsWithTs)
+    val _snapshotEdge = builder.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, op = GraphUtil.operations("delete"), propsWithTs = propsWithTs)
 
     val snapshotEdge = Option(_snapshotEdge)
 
 
-    val requestEdge = graph.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
+    val requestEdge = builder.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
 
     val newVersion = 0L
     val edgeMutate = S2Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)
@@ -178,7 +178,7 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
   test("buildMutation: All props newer than snapshotEdge's LastDeletedAt") {
     val schemaVersion = "v2"
     val vertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("dummy", schemaVersion))
-    val srcVertex = graph.newVertex(vertexId)
+    val srcVertex = builder.newVertex(vertexId)
     val tgtVertex = srcVertex
 
     val timestampProp = LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 1)
@@ -193,11 +193,11 @@ class S2EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
       LabelMeta.lastDeletedAt -> InnerValLikeWithTs(InnerVal.withLong(0, schemaVersion), 3)
     )
 
-    val _snapshotEdge = graph.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, op = GraphUtil.operations("delete"), propsWithTs = propsWithTs)
+    val _snapshotEdge = builder.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, op = GraphUtil.operations("delete"), propsWithTs = propsWithTs)
 
     val snapshotEdge = Option(_snapshotEdge)
 
-    val requestEdge = graph.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
+    val requestEdge = builder.newEdge(srcVertex, tgtVertex, labelV2, labelWithDirV2.dir, propsWithTs = propsWithTs)
 
     val newVersion = 0L
     val edgeMutate = S2Edge.buildMutation(snapshotEdge, requestEdge, newVersion, oldPropsWithTs, propsWithTs)

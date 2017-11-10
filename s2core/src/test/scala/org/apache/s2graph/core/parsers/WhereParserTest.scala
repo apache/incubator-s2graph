@@ -67,8 +67,8 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       if (version == VERSION2) TargetVertexId(ServiceColumn.Default, InnerVal.withStr("2", version))
       else TargetVertexId(ServiceColumn.Default, InnerVal.withLong(2, version))
 
-    val srcVertex = graph.newVertex(srcId, ts)
-    val tgtVertex = graph.newVertex(tgtId, ts)
+    val srcVertex = builder.newVertex(srcId, ts)
+    val tgtVertex = builder.newVertex(tgtId, ts)
     val (_label, dir) = if (version == VERSION2) (labelV2, labelWithDirV2.dir) else (label, labelWithDir.dir)
 
     (srcVertex, tgtVertex, _label, dir)
@@ -81,7 +81,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "phone_number" -> "1234")
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      val edge = graph.newEdge(srcVertex, tgtVertex, label, dir, 0.toByte, ts, propsInner)
+      val edge = builder.newEdge(srcVertex, tgtVertex, label, dir, 0.toByte, ts, propsInner)
 
       val f = validate(label)(edge) _
 
@@ -101,21 +101,21 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       /** test for each version */
       var js = Json.obj("phone_number" -> "")
       var propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      var edge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+      var edge = builder.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
 
       var f = validate(label)(edge) _
       f(s"phone_number = '' ")(true)
 
       js = Json.obj("phone_number" -> "010 3167 1897")
       propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      edge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+      edge = builder.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
 
       f = validate(label)(edge) _
       f(s"phone_number = '010 3167 1897' ")(true)
 
       js = Json.obj("phone_number" -> "010' 3167 1897")
       propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      edge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+      edge = builder.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
 
       f = validate(label)(edge) _
       f(s"phone_number = '010\\' 3167 1897' ")(true)
@@ -129,7 +129,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      val edge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
+      val edge = builder.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner)
 
       val f = validate(label)(edge) _
 
@@ -159,7 +159,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       /** test for each version */
       val js = Json.obj("is_hidden" -> true, "is_blocked" -> false, "weight" -> 10, "time" -> 3, "name" -> "abc")
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
-      val edge = graph.newEdge(srcVertex, tgtVertex, label, dir, 0.toByte, ts, propsInner)
+      val edge = builder.newEdge(srcVertex, tgtVertex, label, dir, 0.toByte, ts, propsInner)
 
       val f = validate(label)(edge) _
 
@@ -183,12 +183,12 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       val propsInner = Management.toProps(label, js.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
       val parentPropsInner = Management.toProps(label, parentJs.fields).map { case (k, v) => k -> InnerValLikeWithTs(v, ts) }.toMap + dummyTs
 
-      val grandParentEdge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, parentPropsInner)
+      val grandParentEdge = builder.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, parentPropsInner)
 
-      val parentEdge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, parentPropsInner,
+      val parentEdge = builder.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, parentPropsInner,
         parentEdges = Seq(EdgeWithScore(grandParentEdge, 1.0, grandParentEdge.innerLabel)))
 
-      val edge = graph.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner,
+      val edge = builder.newEdge(srcVertex, tgtVertex, label, labelWithDir.dir, 0.toByte, ts, propsInner,
         parentEdges = Seq(EdgeWithScore(parentEdge, 1.0, grandParentEdge.innerLabel)))
       
       println(edge.toString)

@@ -817,10 +817,10 @@ object S2Edge {
     val belongLabelIds = Seq(e.getLabelId())
     if (e.getDir() == GraphUtil.directions("in")) {
       val tgtColumn = getServiceColumn(e.tgtVertex, e.innerLabel.tgtColumn)
-      e.innerGraph.newVertex(VertexId(tgtColumn, e.tgtVertex.innerId), e.tgtVertex.ts, e.tgtVertex.props, belongLabelIds = belongLabelIds)
+      e.innerGraph.elementBuilder.newVertex(VertexId(tgtColumn, e.tgtVertex.innerId), e.tgtVertex.ts, e.tgtVertex.props, belongLabelIds = belongLabelIds)
     } else {
       val srcColumn = getServiceColumn(e.srcVertex, e.innerLabel.srcColumn)
-      e.innerGraph.newVertex(VertexId(srcColumn, e.srcVertex.innerId), e.srcVertex.ts, e.srcVertex.props, belongLabelIds = belongLabelIds)
+      e.innerGraph.elementBuilder.newVertex(VertexId(srcColumn, e.srcVertex.innerId), e.srcVertex.ts, e.srcVertex.props, belongLabelIds = belongLabelIds)
     }
   }
 
@@ -828,10 +828,10 @@ object S2Edge {
     val belongLabelIds = Seq(e.getLabelId())
     if (e.getDir() == GraphUtil.directions("in")) {
       val srcColumn = getServiceColumn(e.srcVertex, e.innerLabel.srcColumn)
-      e.innerGraph.newVertex(VertexId(srcColumn, e.srcVertex.innerId), e.srcVertex.ts, e.srcVertex.props, belongLabelIds = belongLabelIds)
+      e.innerGraph.elementBuilder.newVertex(VertexId(srcColumn, e.srcVertex.innerId), e.srcVertex.ts, e.srcVertex.props, belongLabelIds = belongLabelIds)
     } else {
       val tgtColumn = getServiceColumn(e.tgtVertex, e.innerLabel.tgtColumn)
-      e.innerGraph.newVertex(VertexId(tgtColumn, e.tgtVertex.innerId), e.tgtVertex.ts, e.tgtVertex.props, belongLabelIds = belongLabelIds)
+      e.innerGraph.elementBuilder.newVertex(VertexId(tgtColumn, e.tgtVertex.innerId), e.tgtVertex.ts, e.tgtVertex.props, belongLabelIds = belongLabelIds)
     }
   }
 

@@ -118,7 +118,8 @@ trait S2VertexLike extends Vertex with GraphElement {
         props.put(key, newProps)
 
         // FIXME: save to persistent for tp test
-        graph.addVertexInner(this)
+//        graph.addVertexInner(this)
+        graph.addVertex(id, ts, props, op, belongLabelIds)
         newProps
       case _ => throw new RuntimeException("only single cardinality is supported.")
     }
