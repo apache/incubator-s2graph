@@ -317,7 +317,7 @@ object AdminController extends Controller {
       serviceColumn <- ServiceColumn.find(service.id.get, columnName)
       prop <- requestParser.toPropElements(js).toOption
     } yield {
-      ColumnMeta.findOrInsert(serviceColumn.id.get, prop.name, prop.defaultValue)
+      ColumnMeta.findOrInsert(serviceColumn.id.get, prop.name, prop.datatType)
     }
   }
 
