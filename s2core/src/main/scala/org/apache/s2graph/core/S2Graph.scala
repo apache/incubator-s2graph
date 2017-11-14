@@ -1484,7 +1484,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     val (ts, operation, logType, srcId, tgtId, label) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
     val props = if (parts.length >= 7) fromJsonToProperties(Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj())) else Map.empty[String, Any]
     val tempDirection = if (parts.length >= 8) parts(7) else "out"
-    val direction = if (tempDirection != "out" && tempDirection != "in") "out" else tempDirection
+    val direction = if (tempDirection != "out" && tempDirection != "in" && tempDirection != "undirected") "out" else tempDirection
     val edge = toEdge(srcId, tgtId, label, direction, props, ts.toLong, operation)
     Option(edge)
   } recover {
