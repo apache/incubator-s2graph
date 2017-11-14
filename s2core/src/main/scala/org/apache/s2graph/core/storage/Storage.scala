@@ -64,52 +64,7 @@ abstract class Storage(val graph: S2GraphLike,
 
   lazy val mutationHelper: MutationHelper = new MutationHelper(this)
 
-//  /** IO **/
-//  def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge): serde.Serializable[SnapshotEdge] =
-//    serDe.snapshotEdgeSerializer(snapshotEdge)
-//
-//  def indexEdgeSerializer(indexEdge: IndexEdge): serde.Serializable[IndexEdge] =
-//    serDe.indexEdgeSerializer(indexEdge)
-//
-//  def vertexSerializer(vertex: S2Vertex): serde.Serializable[S2Vertex] =
-//    serDe.vertexSerializer(vertex)
-//
-//  def snapshotEdgeDeserializer(schemaVer: String): Deserializable[SnapshotEdge] =
-//    serDe.snapshotEdgeDeserializer(schemaVer)
-//
-//  def indexEdgeDeserializer(schemaVer: String): IndexEdgeDeserializable =
-//    serDe.indexEdgeDeserializer(schemaVer)
-//
-//  def vertexDeserializer(schemaVer: String): Deserializable[S2Vertex] =
-//    serDe.vertexDeserializer(schemaVer)
-
-  /** Mutation Builder */
-//  def increments(edgeMutate: EdgeMutate): (Seq[SKeyValue], Seq[SKeyValue]) =
-//    io.increments(edgeMutate)
-//
-//  def indexedEdgeMutations(edgeMutate: EdgeMutate): Seq[SKeyValue] =
-//    io.indexedEdgeMutations(edgeMutate)
-//
-//  def buildIncrementsAsync(indexedEdge: IndexEdge, amount: Long = 1L): Seq[SKeyValue] =
-//    io.buildIncrementsAsync(indexedEdge, amount)
-//
-//  def buildIncrementsCountAsync(indexedEdge: IndexEdge, amount: Long = 1L): Seq[SKeyValue] =
-//    io.buildIncrementsCountAsync(indexedEdge, amount)
-//
-//  def buildVertexPutsAsync(edge: S2Edge): Seq[SKeyValue] =
-//    io.buildVertexPutsAsync(edge)
-//
-//  def snapshotEdgeMutations(edgeMutate: EdgeMutate): Seq[SKeyValue] =
-//    io.snapshotEdgeMutations(edgeMutate)
-//
-//  def buildDegreePuts(edge: S2Edge, degreeVal: Long): Seq[SKeyValue] =
-//    io.buildDegreePuts(edge, degreeVal)
-//
-//  def buildPutsAll(vertex: S2Vertex): Seq[SKeyValue] =
-//    io.buildPutsAll(vertex)
-
   /** Mutation **/
-
   def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] =
     mutator.writeToStorage(cluster, kvs, withWait)
 
@@ -131,12 +86,7 @@ abstract class Storage(val graph: S2GraphLike,
   def fetchSnapshotEdgeInner(edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[(Option[S2EdgeLike], Option[SKeyValue])] =
     fetcher.fetchSnapshotEdgeInner(edge)
 
-  /** Conflict Resolver **/
-//  def retry(tryNum: Int)(edges: Seq[S2Edge], statusCode: Byte, fetchedSnapshotEdgeOpt: Option[S2Edge])(implicit ec: ExecutionContext): Future[Boolean] =
-//    conflictResolver.retry(tryNum)(edges, statusCode, fetchedSnapshotEdgeOpt)
-
   /** Management **/
-
   def flush(): Unit = management.flush()
 
   def createTable(config: Config, tableNameStr: String): Unit = management.createTable(config, tableNameStr)
