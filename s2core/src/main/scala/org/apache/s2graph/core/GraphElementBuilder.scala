@@ -2,9 +2,11 @@ package org.apache.s2graph.core
 
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.JSONParser.{fromJsonToProperties, toInnerVal}
+import org.apache.s2graph.core.S2Graph.{DefaultColumnName, DefaultServiceName}
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
+import org.apache.tinkerpop.gremlin.structure.T
 import play.api.libs.json.{JsObject, Json}
 
 import scala.util.Try
@@ -239,6 +241,22 @@ class GraphElementBuilder(graph: S2GraphLike) {
     val vertex = new S2Vertex(graph, id, ts, S2Vertex.EmptyProps, op, belongLabelIds)
     S2Vertex.fillPropsWithTs(vertex, props)
     vertex
+  }
+
+  def makeVertex(idValue: AnyRef, kvsMap: Map[String, AnyRef]): S2VertexLike = {
+    idValue match {
+      case vId: VertexId =>
+        toVertex(vId.column.service.serviceName, vId.column.columnName, vId, kvsMap)
+      case _ =>
+        val serviceColumnNames = kvsMap.getOrElse(T.label.toString, DefaultColumnName).toString
+
+        val names = serviceColumnNames.split(S2Vertex.VertexLabelDelimiter)
+        val (serviceName, columnName) =
+          if (names.length == 1) (DefaultServiceName, names(0))
+          else throw new RuntimeException("malformed data on vertex label.")
+
+        toVertex(serviceName, columnName, idValue, kvsMap)
+    }
   }
 
   def toRequestEdge(queryRequest: QueryRequest, parentEdges: Seq[EdgeWithScore]): S2EdgeLike = {

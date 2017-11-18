@@ -1,8 +1,10 @@
 package org.apache.s2graph.core
 
 import java.util
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{CompletableFuture, TimeUnit}
 import java.util.concurrent.atomic.AtomicLong
+import java.lang.{Boolean => JBoolean, Long => JLong}
+import java.util.Optional
 
 import com.typesafe.config.Config
 import org.apache.commons.configuration.Configuration
@@ -21,8 +23,11 @@ import org.apache.tinkerpop.gremlin.structure.io.{GraphReader, GraphWriter, Io, 
 import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Element, Graph, T, Transaction, Vertex}
 
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.compat.java8.FutureConverters._
+import scala.compat.java8.OptionConverters._
 
 
 trait S2GraphLike extends Graph {
@@ -72,33 +77,72 @@ trait S2GraphLike extends Graph {
 
   def getVertices(vertices: Seq[S2VertexLike]): Future[Seq[S2VertexLike]]
 
+  def getVerticesJava(vertices: util.List[S2VertexLike]): CompletableFuture[util.List[S2VertexLike]] =
+    getVertices(vertices.toSeq).map(_.asJava).toJava.toCompletableFuture
+
   def checkEdges(edges: Seq[S2EdgeLike]): Future[StepResult]
+
+  def checkEdgesJava(edges: util.List[S2EdgeLike]): CompletableFuture[StepResult] =
+    checkEdges(edges.asScala).toJava.toCompletableFuture
 
   def mutateVertices(vertices: Seq[S2VertexLike], withWait: Boolean = false): Future[Seq[MutateResponse]]
 
+  def mutateVerticesJava(vertices: util.List[S2VertexLike], withWait: JBoolean): CompletableFuture[util.List[MutateResponse]] =
+    mutateVertices(vertices.asScala, withWait.booleanValue()).map(_.asJava).toJava.toCompletableFuture
+
   def mutateEdges(edges: Seq[S2EdgeLike], withWait: Boolean = false): Future[Seq[MutateResponse]]
+
+  def mutateEdgesJava(edges: util.List[S2EdgeLike], withWait: JBoolean): CompletableFuture[util.List[MutateResponse]] =
+    mutateEdges(edges.asScala, withWait.booleanValue()).map(_.asJava).toJava.toCompletableFuture
 
   def mutateElements(elements: Seq[GraphElement],
                      withWait: Boolean = false): Future[Seq[MutateResponse]]
 
+  def mutateElementsJava(elements: util.List[GraphElement], withWait: JBoolean): CompletableFuture[util.List[MutateResponse]] =
+    mutateElements(elements.asScala, withWait.booleanValue()).map(_.asJava).toJava.toCompletableFuture
+
   def getEdges(q: Query): Future[StepResult]
 
+  def getEdgesJava(q: Query): CompletableFuture[StepResult] =
+    getEdges(q).toJava.toCompletableFuture
+
   def getEdgesMultiQuery(mq: MultiQuery): Future[StepResult]
+
+  def getEdgesMultiQueryJava(mq: MultiQuery): CompletableFuture[StepResult] =
+    getEdgesMultiQuery(mq).toJava.toCompletableFuture
 
   def deleteAllAdjacentEdges(srcVertices: Seq[S2VertexLike],
                              labels: Seq[Label],
                              dir: Int,
                              ts: Long): Future[Boolean]
 
+  def deleteAllAdjacentEdgesJava(srcVertices: util.List[S2VertexLike], labels: util.List[Label], direction: Direction): CompletableFuture[JBoolean] =
+    deleteAllAdjacentEdges(srcVertices.asScala, labels.asScala, GraphUtil.toDirection(direction), System.currentTimeMillis()).map(JBoolean.valueOf(_)).toJava.toCompletableFuture
+
   def incrementCounts(edges: Seq[S2EdgeLike], withWait: Boolean): Future[Seq[MutateResponse]]
+
+  def incrementCountsJava(edges: util.List[S2EdgeLike], withWait: JBoolean): CompletableFuture[util.List[MutateResponse]] =
+    incrementCounts(edges.asScala, withWait.booleanValue()).map(_.asJava).toJava.toCompletableFuture
 
   def updateDegree(edge: S2EdgeLike, degreeVal: Long = 0): Future[MutateResponse]
 
+  def updateDegreeJava(edge: S2EdgeLike, degreeVal: JLong): CompletableFuture[MutateResponse] =
+    updateDegree(edge, degreeVal.longValue()).toJava.toCompletableFuture
+
   def getVertex(vertexId: VertexId): Option[S2VertexLike]
+
+  def getVertexJava(vertexId: VertexId): Optional[S2VertexLike] =
+    getVertex(vertexId).asJava
 
   def fetchEdges(vertex: S2VertexLike, labelNameWithDirs: Seq[(String, String)]): util.Iterator[Edge]
 
+  def fetchEdgesJava(vertex: S2VertexLike, labelNameWithDirs: util.List[(String, String)]): util.Iterator[Edge] =
+    fetchEdges(vertex, labelNameWithDirs.asScala)
+
   def edgesAsync(vertex: S2VertexLike, direction: Direction, labelNames: String*): Future[util.Iterator[Edge]]
+
+  def edgesAsyncJava(vertex: S2VertexLike, direction: Direction, labelNames: String*): CompletableFuture[util.Iterator[Edge]] =
+    edgesAsync(vertex, direction, labelNames: _*).toJava.toCompletableFuture
 
   /** Convert to Graph Element **/
   def toVertex(serviceName: String,
@@ -196,22 +240,6 @@ trait S2GraphLike extends Graph {
     addVertex(Seq(T.label, label): _*)
   }
 
-  def makeVertex(idValue: AnyRef, kvsMap: Map[String, AnyRef]): S2VertexLike = {
-    idValue match {
-      case vId: VertexId =>
-        elementBuilder.toVertex(vId.column.service.serviceName, vId.column.columnName, vId, kvsMap)
-      case _ =>
-        val serviceColumnNames = kvsMap.getOrElse(T.label.toString, DefaultColumnName).toString
-
-        val names = serviceColumnNames.split(S2Vertex.VertexLabelDelimiter)
-        val (serviceName, columnName) =
-          if (names.length == 1) (DefaultServiceName, names(0))
-          else throw new RuntimeException("malformed data on vertex label.")
-
-        elementBuilder.toVertex(serviceName, columnName, idValue, kvsMap)
-    }
-  }
-
   def addVertex(kvs: AnyRef*): structure.Vertex = {
     if (!features().vertex().supportsUserSuppliedIds() && kvs.contains(T.id)) {
       throw Vertex.Exceptions.userSuppliedIdsNotSupported
@@ -232,9 +260,9 @@ trait S2GraphLike extends Graph {
     val vertex = kvsMap.get(T.id.name()) match {
       case None => // do nothing
         val id = localLongId.getAndIncrement()
-        makeVertex(Long.box(id), kvsMap)
+        elementBuilder.makeVertex(Long.box(id), kvsMap)
       case Some(idValue) if S2Property.validType(idValue) =>
-        makeVertex(idValue, kvsMap)
+        elementBuilder.makeVertex(idValue, kvsMap)
       case _ =>
         throw Vertex.Exceptions.userSuppliedIdsOfThisTypeNotSupported
     }
