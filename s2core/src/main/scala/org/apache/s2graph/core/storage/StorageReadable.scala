@@ -27,8 +27,8 @@ import org.apache.s2graph.core.utils.logger
 import scala.concurrent.{ExecutionContext, Future}
 
 trait StorageReadable {
-  val serDe: StorageSerDe
   val io: StorageIO
+  val serDe: StorageSerDe
  /**
     * responsible to fire parallel fetch call into storage and create future that will return merged result.
     *

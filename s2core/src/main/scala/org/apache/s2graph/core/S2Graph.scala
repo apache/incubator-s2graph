@@ -29,6 +29,7 @@ import org.apache.s2graph.core.index.IndexProvider
 import org.apache.s2graph.core.io.tinkerpop.optimize.S2GraphStepStrategy
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
+import org.apache.s2graph.core.storage.rocks.RocksStorage
 import org.apache.s2graph.core.storage.{MutateResponse, Storage}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
@@ -37,10 +38,10 @@ import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.concurrent._
 import scala.concurrent.duration.Duration
-import scala.util.Try
+import scala.util.{Random, Try}
 
 
 object S2Graph {
@@ -81,7 +82,9 @@ object S2Graph {
     "query.future.cache.expire.after.write" -> java.lang.Integer.valueOf(10000),
     "query.future.cache.expire.after.access" -> java.lang.Integer.valueOf(5000),
     "query.future.cache.metric.interval" -> java.lang.Integer.valueOf(60000),
-    "s2graph.storage.backend" -> "hbase",
+//    "s2graph.storage.backend" -> "hbase",
+    "s2graph.storage.backend" -> "rocks",
+    RocksStorage.FilePathKey -> "rocks_db",
     "query.hardlimit" -> java.lang.Integer.valueOf(100000),
     "hbase.zookeeper.znode.parent" -> "/hbase",
     "query.log.sample.rate" -> Double.box(0.05)
@@ -140,6 +143,7 @@ object S2Graph {
             null
 
         new AsynchbaseStorage(graph, config)
+      case "rocks" => new RocksStorage(graph, config)
       case _ => throw new RuntimeException("not supported storage.")
     }
   }

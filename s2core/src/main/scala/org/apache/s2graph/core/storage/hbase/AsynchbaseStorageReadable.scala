@@ -41,7 +41,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class AsynchbaseStorageReadable(val graph: S2GraphLike,
                                 val config: Config,
                                 val client: HBaseClient,
-                                val serDe: StorageSerDe,
+                                override val serDe: StorageSerDe,
                                 override val io: StorageIO) extends StorageReadable {
   import Extensions.DeferOps
   import CanDefer._
