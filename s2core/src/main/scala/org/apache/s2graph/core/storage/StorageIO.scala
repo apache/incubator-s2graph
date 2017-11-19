@@ -20,20 +20,20 @@
 package org.apache.s2graph.core.storage
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.S2Graph.{convertEdges, normalize, processTimeDecay, sample}
+import org.apache.s2graph.core.TraversalHelper._
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.parsers.WhereParser
 import org.apache.s2graph.core.utils.logger
 
-class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
+class StorageIO(val graph: S2GraphLike, val serDe: StorageSerDe) {
   val dummyCursor: Array[Byte] = Array.empty
 
   /** Parsing Logic: parse from kv from Storage into Edge */
   def toEdge[K: CanSKeyValue](kv: K,
                               queryRequest: QueryRequest,
-                              cacheElementOpt: Option[S2Edge],
-                              parentEdges: Seq[EdgeWithScore]): Option[S2Edge] = {
+                              cacheElementOpt: Option[S2EdgeLike],
+                              parentEdges: Seq[EdgeWithScore]): Option[S2EdgeLike] = {
     logger.debug(s"toEdge: $kv")
 
     try {
@@ -41,7 +41,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
       val queryParam = queryRequest.queryParam
       val schemaVer = queryParam.label.schemaVersion
       val indexEdgeOpt = serDe.indexEdgeDeserializer(schemaVer).fromKeyValues(Seq(kv), cacheElementOpt)
-      if (!queryOption.returnTree) indexEdgeOpt.map(indexEdge => indexEdge.copy(parentEdges = parentEdges))
+      if (!queryOption.returnTree) indexEdgeOpt.map(indexEdge => indexEdge.copyParentEdges(parentEdges))
       else indexEdgeOpt
     } catch {
       case ex: Exception =>
@@ -54,7 +54,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
                                       queryRequest: QueryRequest,
                                       cacheElementOpt: Option[SnapshotEdge] = None,
                                       isInnerCall: Boolean,
-                                      parentEdges: Seq[EdgeWithScore]): Option[S2Edge] = {
+                                      parentEdges: Seq[EdgeWithScore]): Option[S2EdgeLike] = {
     //        logger.debug(s"SnapshottoEdge: $kv")
     val queryParam = queryRequest.queryParam
     val schemaVer = queryParam.label.schemaVersion
@@ -62,7 +62,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
 
     if (isInnerCall) {
       snapshotEdgeOpt.flatMap { snapshotEdge =>
-        val edge = snapshotEdge.toEdge.copy(parentEdges = parentEdges)
+        val edge = snapshotEdge.toEdge.copyParentEdges(parentEdges)
         if (queryParam.where.map(_.filter(edge)).getOrElse(true)) Option(edge)
         else None
       }
@@ -70,7 +70,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
       snapshotEdgeOpt.flatMap { snapshotEdge =>
         if (snapshotEdge.allPropsDeleted) None
         else {
-          val edge = snapshotEdge.toEdge.copy(parentEdges = parentEdges)
+          val edge = snapshotEdge.toEdge.copyParentEdges(parentEdges)
           if (queryParam.where.map(_.filter(edge)).getOrElse(true)) Option(edge)
           else None
         }
@@ -121,7 +121,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
           if where == WhereParser.success || where.filter(edge)
           convertedEdge <- if (isDefaultTransformer) Seq(edge) else convertEdges(queryParam, edge, nextStepOpt)
         } yield {
-          val score = edge.rank(queryParam.rank)
+          val score = queryParam.rank.score(edge)
           EdgeWithScore(convertedEdge, score, label)
         }
         StepResult(edgeWithScores = edgeWithScores, grouped = Nil, degreeEdges = degreeEdges, cursors = lastCursor)
@@ -134,7 +134,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
           if where == WhereParser.success || where.filter(edge)
           convertedEdge <- if (isDefaultTransformer) Seq(edge) else convertEdges(queryParam, edge, nextStepOpt)
         } yield {
-          val edgeScore = edge.rank(queryParam.rank)
+          val edgeScore = queryParam.rank.score(edge)
           val score = queryParam.scorePropagateOp match {
             case "plus" => edgeScore + prevScore
             case "divide" =>
@@ -144,7 +144,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
           }
           val tsVal = processTimeDecay(queryParam, edge)
           val newScore = degreeScore + score
-          EdgeWithScore(convertedEdge.copy(parentEdges = parentEdges), score = newScore * labelWeight * tsVal, label = label)
+          EdgeWithScore(convertedEdge.copyParentEdges(parentEdges), score = newScore * labelWeight * tsVal, label = label)
         }
 
         val sampled =
@@ -221,7 +221,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
   }
 
   //TODO: ServiceColumn do not have durability property yet.
-  def buildDeleteBelongsToId(vertex: S2Vertex): Seq[SKeyValue] = {
+  def buildDeleteBelongsToId(vertex: S2VertexLike): Seq[SKeyValue] = {
     val kvs = serDe.vertexSerializer(vertex).toKeyValues
     val kv = kvs.head
     vertex.belongLabelIds.map { id =>
@@ -229,11 +229,11 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
     }
   }
 
-  def buildVertexPutsAsync(edge: S2Edge): Seq[SKeyValue] = {
+  def buildVertexPutsAsync(edge: S2EdgeLike): Seq[SKeyValue] = {
     val storeVertex = edge.innerLabel.extraOptions.get("storeVertex").map(_.as[Boolean]).getOrElse(false)
 
     if (storeVertex) {
-      if (edge.op == GraphUtil.operations("delete"))
+      if (edge.getOp() == GraphUtil.operations("delete"))
         buildDeleteBelongsToId(edge.srcForVertex) ++ buildDeleteBelongsToId(edge.tgtForVertex)
       else
         serDe.vertexSerializer(edge.srcForVertex).toKeyValues ++ serDe.vertexSerializer(edge.tgtForVertex).toKeyValues
@@ -242,7 +242,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
     }
   }
 
-  def buildDegreePuts(edge: S2Edge, degreeVal: Long): Seq[SKeyValue] = {
+  def buildDegreePuts(edge: S2EdgeLike, degreeVal: Long): Seq[SKeyValue] = {
     edge.propertyInner(LabelMeta.degree.name, degreeVal, edge.ts)
     val kvs = edge.edgesWithIndexValid.flatMap { indexEdge =>
       serDe.indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put, durability = indexEdge.label.durability))
@@ -251,7 +251,7 @@ class StorageIO(val graph: S2Graph, val serDe: StorageSerDe) {
     kvs
   }
 
-  def buildPutsAll(vertex: S2Vertex): Seq[SKeyValue] = {
+  def buildPutsAll(vertex: S2VertexLike): Seq[SKeyValue] = {
     vertex.op match {
       case d: Byte if d == GraphUtil.operations("delete") => serDe.vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Delete))
       case _ => serDe.vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Put))

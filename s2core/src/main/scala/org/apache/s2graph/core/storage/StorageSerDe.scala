@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core.storage
 
-import org.apache.s2graph.core.{IndexEdge, S2Graph, S2Vertex, SnapshotEdge}
+import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage.serde.Deserializable
 import org.apache.s2graph.core.storage.serde.indexedge.tall.IndexEdgeDeserializable
 
@@ -57,7 +57,7 @@ trait StorageSerDe {
     * @param vertex : vertex to serialize
     * @return serializer implementation
     */
-  def vertexSerializer(vertex: S2Vertex): serde.Serializable[S2Vertex]
+  def vertexSerializer(vertex: S2VertexLike): serde.Serializable[S2VertexLike]
 
   /**
     * create deserializer that can parse stored CanSKeyValue into snapshotEdge.
@@ -72,7 +72,7 @@ trait StorageSerDe {
 
   def indexEdgeDeserializer(schemaVer: String): IndexEdgeDeserializable
 
-  def vertexDeserializer(schemaVer: String): Deserializable[S2Vertex]
+  def vertexDeserializer(schemaVer: String): Deserializable[S2VertexLike]
 
 
 }

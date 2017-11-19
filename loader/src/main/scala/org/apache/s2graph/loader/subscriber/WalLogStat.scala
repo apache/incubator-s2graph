@@ -21,7 +21,6 @@ package org.apache.s2graph.loader.subscriber
 
 import kafka.producer.KeyedMessage
 import kafka.serializer.StringDecoder
-import org.apache.s2graph.core.S2Graph$
 import org.apache.s2graph.spark.spark.{WithKafka, SparkApp}
 import org.apache.spark.streaming.Durations._
 import org.apache.spark.streaming.kafka.HasOffsetRanges
@@ -69,7 +68,7 @@ object WalLogStat extends SparkApp with WithKafka {
         val phase = System.getProperty("phase")
         GraphSubscriberHelper.apply(phase, dbUrl, "none", brokerList)
         partition.map { case (key, msg) =>
-          GraphSubscriberHelper.g.toGraphElement(msg) match {
+          GraphSubscriberHelper.g.elementBuilder.toGraphElement(msg) match {
             case Some(elem) =>
               val serviceName = elem.serviceName
               msg.split("\t", 7) match {

@@ -22,24 +22,24 @@ package org.apache.s2graph.core.storage.serde.indexedge.tall
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
-import org.apache.s2graph.core.storage.serde._
-import org.apache.s2graph.core.storage.serde.StorageDeserializable._
-import org.apache.s2graph.core.storage.serde.Deserializable
 import org.apache.s2graph.core.storage.CanSKeyValue
+import org.apache.s2graph.core.storage.serde.Deserializable
+import org.apache.s2graph.core.storage.serde.StorageDeserializable._
 import org.apache.s2graph.core.types._
 
 object IndexEdgeDeserializable{
-  def getNewInstance(graph: S2Graph) = new IndexEdgeDeserializable(graph)
+  def getNewInstance(graph: S2GraphLike) = new IndexEdgeDeserializable(graph)
 }
-class IndexEdgeDeserializable(graph: S2Graph,
+class IndexEdgeDeserializable(graph: S2GraphLike,
                               bytesToLongFunc: (Array[Byte], Int) => Long = bytesToLong,
-                              tallSchemaVersions: Set[String] = Set(HBaseType.VERSION4)) extends Deserializable[S2Edge] {
+                              tallSchemaVersions: Set[String] = Set(HBaseType.VERSION4)) extends Deserializable[S2EdgeLike] {
 
    type QualifierRaw = (Array[(LabelMeta, InnerValLike)], VertexId, Byte, Boolean, Int)
    type ValueRaw = (Array[(LabelMeta, InnerValLike)], Int)
+   val builder = graph.elementBuilder
 
    override def fromKeyValues[T: CanSKeyValue](_kvs: Seq[T],
-                                               cacheElementOpt: Option[S2Edge]): Option[S2Edge] = {
+                                               cacheElementOpt: Option[S2EdgeLike]): Option[S2EdgeLike] = {
 
      try {
        assert(_kvs.size == 1)
@@ -62,10 +62,7 @@ class IndexEdgeDeserializable(graph: S2Graph,
        else {
          val label = Label.findById(labelWithDir.labelId)
          val schemaVer = label.schemaVersion
-         val srcVertex = graph.newVertex(srcVertexId, version)
-         //TODO:
-         val edge = graph.newEdge(srcVertex, null,
-           label, labelWithDir.dir, GraphUtil.defaultOpByte, version, S2Edge.EmptyState)
+         val srcVertex = builder.newVertex(srcVertexId, version)
          var tsVal = version
          val isTallSchema = tallSchemaVersions(label.schemaVersion)
          val isDegree = if (isTallSchema) pos == kv.row.length else kv.qualifier.isEmpty
@@ -75,12 +72,17 @@ class IndexEdgeDeserializable(graph: S2Graph,
            //      val degreeVal = Bytes.toLong(kv.value)
            val degreeVal = bytesToLongFunc(kv.value, 0)
            val tgtVertexId = VertexId(ServiceColumn.Default, InnerVal.withStr("0", schemaVer))
+           val tgtVertex = builder.newVertex(tgtVertexId, version)
+           val edge = graph.elementBuilder.newEdge(srcVertex, tgtVertex,
+             label, labelWithDir.dir, GraphUtil.defaultOpByte, version, S2Edge.EmptyState)
 
            edge.propertyInner(LabelMeta.timestamp.name, version, version)
            edge.propertyInner(LabelMeta.degree.name, degreeVal, version)
-           edge.tgtVertex = graph.newVertex(tgtVertexId, version)
-           edge.op = GraphUtil.defaultOpByte
-           edge.tsInnerValOpt = Option(InnerVal.withLong(tsVal, schemaVer))
+           edge.tgtVertex = builder.newVertex(tgtVertexId, version)
+           edge.setOp(GraphUtil.defaultOpByte)
+           edge.setTsInnerValOpt(Option(InnerVal.withLong(tsVal, schemaVer)))
+
+           Option(edge)
          } else {
            // not degree edge
            val (idxPropsRaw, endAt) =
@@ -112,6 +114,10 @@ class IndexEdgeDeserializable(graph: S2Graph,
                else kv.qualifier(kv.qualifier.length - 1)
              }
 
+           val tgtVertex = builder.newVertex(tgtVertexIdRaw, version)
+           val edge = graph.elementBuilder.newEdge(srcVertex, tgtVertex,
+             label, labelWithDir.dir, GraphUtil.defaultOpByte, version, S2Edge.EmptyState)
+
            val index = label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${label.id.get}, ${labelIdxSeq}"))
            /* process indexProps */
            val size = idxPropsRaw.length
@@ -142,18 +148,19 @@ class IndexEdgeDeserializable(graph: S2Graph,
            }
 
            /* process tgtVertexId */
-           val tgtVertexId =
-             if (edge.checkProperty(LabelMeta.to.name)) {
-               val vId = edge.property(LabelMeta.to.name).asInstanceOf[S2Property[_]].innerValWithTs
-               TargetVertexId(ServiceColumn.Default, vId.innerVal)
-             } else tgtVertexIdRaw
+
+           if (edge.checkProperty(LabelMeta.to.name)) {
+             val vId = edge.property(LabelMeta.to.name).asInstanceOf[S2Property[_]].innerValWithTs
+             val tgtVertex = builder.newVertex(TargetVertexId(ServiceColumn.Default, vId.innerVal), version)
+             edge.setTgtVertex(tgtVertex)
+           }
 
            edge.propertyInner(LabelMeta.timestamp.name, tsVal, version)
-           edge.tgtVertex = graph.newVertex(tgtVertexId, version)
-           edge.op = op
-           edge.tsInnerValOpt = Option(InnerVal.withLong(tsVal, schemaVer))
+           edge.setOp(op)
+           edge.setTsInnerValOpt(Option(InnerVal.withLong(tsVal, schemaVer)))
+
+           Option(edge)
          }
-         Option(edge)
        }
      } catch {
        case e: Exception =>

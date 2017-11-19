@@ -27,7 +27,7 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.collection.{Seq, mutable}
 
 object QueryResult {
-  def fromVertices(graph: S2Graph, vertices: Seq[S2Vertex], queryParams: Seq[QueryParam]): StepResult = {
+  def fromVertices(graph: S2GraphLike, vertices: Seq[S2VertexLike], queryParams: Seq[QueryParam]): StepResult = {
     val edgeWithScores = vertices.flatMap { vertex =>
       queryParams.map { queryParam =>
         val label = queryParam.label
@@ -35,7 +35,7 @@ object QueryResult {
         val propsWithTs = Map(LabelMeta.timestamp ->
           InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs))
 
-        val edge = graph.newEdge(vertex, vertex, label, queryParam.labelWithDir.dir, propsWithTs = propsWithTs)
+        val edge = graph.elementBuilder.newEdge(vertex, vertex, label, queryParam.labelWithDir.dir, propsWithTs = propsWithTs)
         val edgeWithScore = EdgeWithScore(edge, S2Graph.DefaultScore, queryParam.label)
         edgeWithScore
 
@@ -44,7 +44,7 @@ object QueryResult {
     StepResult(edgeWithScores = edgeWithScores, grouped = Nil, degreeEdges = Nil, false)
   }
 
-  def fromVertices(graph: S2Graph,
+  def fromVertices(graph: S2GraphLike,
                    query: Query): StepResult = {
     if (query.steps.isEmpty || query.steps.head.queryParams.isEmpty) {
       StepResult.Empty
@@ -69,7 +69,7 @@ object QueryResult {
 
 case class QueryRequest(query: Query,
                         stepIdx: Int,
-                        vertex: S2Vertex,
+                        vertex: S2VertexLike,
                         queryParam: QueryParam,
                         prevStepScore: Double = 1.0,
                         labelWeight: Double = 1.0) {
@@ -91,7 +91,7 @@ object WithScore {
   }
 }
 
-case class EdgeWithScore(edge: S2Edge,
+case class EdgeWithScore(edge: S2EdgeLike,
                          score: Double,
                          label: Label,
                          orderByValues: (Any, Any, Any, Any) = StepResult.EmptyOrderByValues,
@@ -237,7 +237,7 @@ object StepResult {
 
           //          val newOrderByValues = updateScoreOnOrderByValues(globalQueryOption.scoreFieldIdx, t.orderByValues, newScore)
           val newOrderByValues =
-            if (globalQueryOption.orderByKeys.isEmpty) (newScore, t.edge.tsInnerVal, None, None)
+            if (globalQueryOption.orderByKeys.isEmpty) (newScore, t.edge.getTsInnerValValue(), None, None)
             else toTuple4(newT.toValues(globalQueryOption.orderByKeys))
 
           val newGroupByValues = newT.toValues(globalQueryOption.groupBy.keys)
@@ -262,7 +262,7 @@ object StepResult {
 //            val newOrderByValues = updateScoreOnOrderByValues(globalQueryOption.scoreFieldIdx, t.orderByValues, newScore)
 
             val newOrderByValues =
-              if (globalQueryOption.orderByKeys.isEmpty) (newScore, t.edge.tsInnerVal, None, None)
+              if (globalQueryOption.orderByKeys.isEmpty) (newScore, t.edge.getTsInnerValValue(), None, None)
               else toTuple4(newT.toValues(globalQueryOption.orderByKeys))
 
             val newGroupByValues = newT.toValues(globalQueryOption.groupBy.keys)
@@ -301,7 +301,7 @@ object StepResult {
   }
 
   //TODO: Optimize this.
-  def filterOut(graph: S2Graph,
+  def filterOut(graph: S2GraphLike,
                 queryOption: QueryOption,
                 baseStepResult: StepResult,
                 filterOutStepResult: StepResult): StepResult = {

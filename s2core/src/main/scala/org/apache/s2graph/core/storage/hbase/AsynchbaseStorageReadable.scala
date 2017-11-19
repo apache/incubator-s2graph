@@ -38,7 +38,7 @@ import org.hbase.async._
 import scala.collection.JavaConversions._
 import scala.concurrent.{ExecutionContext, Future}
 
-class AsynchbaseStorageReadable(val graph: S2Graph,
+class AsynchbaseStorageReadable(val graph: S2GraphLike,
                                 val config: Config,
                                 val client: HBaseClient,
                                 val serDe: StorageSerDe,
@@ -67,7 +67,7 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
     * @param queryRequest
     * @return
     */
-  private def buildRequest(queryRequest: QueryRequest, edge: S2Edge) = {
+  private def buildRequest(queryRequest: QueryRequest, edge: S2EdgeLike) = {
     import Serializable._
     val queryParam = queryRequest.queryParam
     val label = queryParam.label
@@ -168,7 +168,7 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
     * @param vertex
     * @return
     */
-  private def buildRequest(queryRequest: QueryRequest, vertex: S2Vertex) = {
+  private def buildRequest(queryRequest: QueryRequest, vertex: S2VertexLike) = {
     val kvs = serDe.vertexSerializer(vertex).toKeyValues
     val get = new GetRequest(vertex.hbaseTableName.getBytes, kvs.head.row, Serializable.vertexCf)
     //      get.setTimeout(this.singleGetTimeout.toShort)
@@ -178,12 +178,12 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
     Left(get)
   }
 
-  override def fetchKeyValues(queryRequest: QueryRequest, edge: S2Edge)(implicit ec: ExecutionContext) = {
+  override def fetchKeyValues(queryRequest: QueryRequest, edge: S2EdgeLike)(implicit ec: ExecutionContext) = {
     val rpc = buildRequest(queryRequest, edge)
     fetchKeyValues(rpc)
   }
 
-  override def fetchKeyValues(queryRequest: QueryRequest, vertex: S2Vertex)(implicit ec: ExecutionContext) = {
+  override def fetchKeyValues(queryRequest: QueryRequest, vertex: S2VertexLike)(implicit ec: ExecutionContext) = {
     val rpc = buildRequest(queryRequest, vertex)
     fetchKeyValues(rpc)
   }
@@ -221,7 +221,7 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
     }
   }
 
-  override def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2Edge]] = {
+  override def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]] = {
     val futures = Label.findAll().groupBy(_.hbaseTableName).toSeq.map { case (hTableName, labels) =>
       val distinctLabels = labels.toSet
       val scan = AsynchbasePatcher.newScanner(client, hTableName)
@@ -237,7 +237,7 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
 
               serDe.indexEdgeDeserializer(schemaVer = HBaseType.DEFAULT_VERSION)
                 .fromKeyValues(Seq(kv), None)
-                .filter(e => distinctLabels(e.innerLabel) && e.direction == "out" && !e.isDegree)
+                .filter(e => distinctLabels(e.innerLabel) && e.getDirection() == "out" && !e.isDegree)
             }
           }
       }
@@ -303,7 +303,7 @@ class AsynchbaseStorageReadable(val graph: S2Graph,
     val cacheTTL = queryParam.cacheTTLInMillis
     /* with version 4, request's type is (Scanner, (Int, Int)). otherwise GetRequest. */
 
-    val edge = graph.toRequestEdge(queryRequest, parentEdges)
+    val edge = graph.elementBuilder.toRequestEdge(queryRequest, parentEdges)
     val request = buildRequest(queryRequest, edge)
 
     val (intervalMaxBytes, intervalMinBytes) = queryParam.buildInterval(Option(edge))

@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.storage.serde.snapshotedge.tall
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.SnapshotEdge
+import org.apache.s2graph.core.{S2Edge, SnapshotEdge}
 import org.apache.s2graph.core.mysqls.LabelIndex
 import org.apache.s2graph.core.storage.serde._
 import org.apache.s2graph.core.storage.serde.StorageSerializable._
@@ -52,10 +52,10 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[
     snapshotEdge.pendingEdgeOpt match {
       case None => valueBytes()
       case Some(pendingEdge) =>
-        val opBytes = statusCodeWithOp(pendingEdge.statusCode, pendingEdge.op)
+        val opBytes = statusCodeWithOp(pendingEdge.getStatusCode(), pendingEdge.getOp())
         val versionBytes = Array.empty[Byte]
-        val propsBytes = pendingEdge.serializePropsWithTs()
-        val lockBytes = Bytes.toBytes(pendingEdge.lockTs.get)
+        val propsBytes = S2Edge.serializePropsWithTs(pendingEdge)
+        val lockBytes = Bytes.toBytes(pendingEdge.getLockTs().get)
 
         Bytes.add(Bytes.add(valueBytes(), opBytes, versionBytes), Bytes.add(propsBytes, lockBytes))
     }

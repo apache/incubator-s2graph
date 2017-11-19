@@ -37,7 +37,7 @@ case class S2VertexPropertyId(columnMeta: ColumnMeta, value: InnerValLike) {
   }
 }
 
-case class S2VertexProperty[V](element: S2Vertex,
+case class S2VertexProperty[V](element: S2VertexLike,
                                columnMeta: ColumnMeta,
                                key: String,
                                v: V) extends VertexProperty[V] {

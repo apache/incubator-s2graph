@@ -39,18 +39,18 @@ trait StorageReadable {
   def fetches(queryRequests: Seq[QueryRequest],
               prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]]
 
-  def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2Edge]]
+  def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]]
 
-  def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2Vertex]]
+  def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]]
 
-  protected def fetchKeyValues(queryRequest: QueryRequest, edge: S2Edge)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
+  protected def fetchKeyValues(queryRequest: QueryRequest, edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
 
-  protected def fetchKeyValues(queryRequest: QueryRequest, vertex: S2Vertex)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
+  protected def fetchKeyValues(queryRequest: QueryRequest, vertex: S2VertexLike)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
 
 
-  def fetchSnapshotEdgeInner(edge: S2Edge)(implicit ec: ExecutionContext): Future[(Option[S2Edge], Option[SKeyValue])] = {
+  def fetchSnapshotEdgeInner(edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[(Option[S2EdgeLike], Option[SKeyValue])] = {
     val queryParam = QueryParam(labelName = edge.innerLabel.label,
-      direction = GraphUtil.fromDirection(edge.labelWithDir.dir),
+      direction = GraphUtil.fromDirection(edge.getDir()),
       tgtVertexIdOpt = Option(edge.tgtVertex.innerIdVal),
       cacheTTLInMillis = -1)
     val q = Query.toQuery(Seq(edge.srcVertex), Seq(queryParam))
@@ -72,8 +72,8 @@ trait StorageReadable {
     }
   }
 
-  def fetchVertices(vertices: Seq[S2Vertex])(implicit ec: ExecutionContext): Future[Seq[S2Vertex]] = {
-    def fromResult(kvs: Seq[SKeyValue], version: String): Seq[S2Vertex] = {
+  def fetchVertices(vertices: Seq[S2VertexLike])(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] = {
+    def fromResult(kvs: Seq[SKeyValue], version: String): Seq[S2VertexLike] = {
       if (kvs.isEmpty) Nil
       else serDe.vertexDeserializer(version).fromKeyValues(kvs, None).toSeq
     }

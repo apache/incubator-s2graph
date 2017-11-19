@@ -67,6 +67,7 @@ object GraphSubscriberHelper extends WithKafka {
   var g: S2Graph = null
   var management: Management = null
   val conns = new scala.collection.mutable.HashMap[String, Connection]()
+  var builder: GraphElementBuilder = null
 
   def toOption(s: String) = {
     s match {
@@ -82,6 +83,7 @@ object GraphSubscriberHelper extends WithKafka {
       val ec = ExecutionContext.Implicits.global
       g = new S2Graph(config)(ec)
       management = new Management(g)
+      builder = g.elementBuilder
     }
   }
 
@@ -106,7 +108,7 @@ object GraphSubscriberHelper extends WithKafka {
                      (statFunc: (String, Int) => Unit): Iterable[GraphElement] = {
     (for (msg <- msgs) yield {
       statFunc("total", 1)
-      g.toGraphElement(msg, labelMapping) match {
+      builder.toGraphElement(msg, labelMapping) match {
         case Some(e) if e.isInstanceOf[S2Edge] =>
           statFunc("EdgeParseOk", 1)
           e.asInstanceOf[S2Edge]
@@ -121,69 +123,6 @@ object GraphSubscriberHelper extends WithKafka {
 
     }).toList
   }
-
-//  private def storeRec(zkQuorum: String, tableName: String, puts: List[Put], elementsSize: Int, tryNum: Int)
-//                      (statFunc: (String, Int) => Unit, statPrefix: String = "edge"): Unit = {
-//    if (tryNum <= 0) {
-//      statFunc("errorStore", elementsSize)
-//      throw new RuntimeException(s"retry failed after $maxTryNum")
-//    }
-//    val conn = getConn(zkQuorum)
-//    val mutator = conn.getBufferedMutator(TableName.valueOf(tableName))
-//    //      val table = conn.getTable(TableName.valueOf(tableName))
-//    //      table.setAutoFlush(false, false)
-//
-//    try {
-//      puts.foreach { put => put.setDurability(Durability.ASYNC_WAL) }
-//      mutator.mutate(puts)
-//      //        table.put(puts)
-//      statFunc(s"$statPrefix:storeOk", elementsSize)
-//    } catch {
-//      case e: Throwable =>
-//        e.printStackTrace()
-//        Thread.sleep(sleepPeriod)
-//        storeRec(zkQuorum, tableName, puts, elementsSize, tryNum - 1)(statFunc)
-//    } finally {
-//      mutator.close()
-//      //        table.close()
-//    }
-//  }
-//
-//  def storeDegreeBulk(zkQuorum: String, tableName: String)
-//                     (degrees: Iterable[(String, String, String, Int)], labelMapping: Map[String, String] = Map.empty)
-//                     (mapAccOpt: Option[HashMapAccumulable]): Iterable[(String, Long)] = {
-//    val counts = HashMap[String, Long]()
-//    val statFunc = storeStat(counts)(mapAccOpt) _
-//
-//    for {
-//      (vertexId, labelName, direction, degreeVal) <- degrees
-//      incrementRequests <- TransferToHFile.buildDegreePutRequests(vertexId, labelName, direction, degreeVal)
-//    } {
-//      storeRec(zkQuorum, tableName, incrementRequests, degrees.size, maxTryNum)(statFunc, "degree")
-//    }
-//    counts
-//  }
-//  def storeBulk(zkQuorum: String, tableName: String)
-//               (msgs: Seq[String], labelMapping: Map[String, String] = Map.empty, autoCreateEdge: Boolean = false)
-//               (mapAccOpt: Option[HashMapAccumulable]): Iterable[(String, Long)] = {
-//
-//    val counts = HashMap[String, Long]()
-//    val statFunc = storeStat(counts)(mapAccOpt) _
-//    val elements = toGraphElements(msgs, labelMapping)(statFunc)
-//
-//    val puts = elements.flatMap { element =>
-//      element match {
-//        case v: Vertex if v.op == GraphUtil.operations("insert") || v.op == GraphUtil.operations("insertBulk") =>
-//          v.buildPuts()
-//        case e: Edge if e.op == GraphUtil.operations("insert") || e.op == GraphUtil.operations("insertBulk") =>
-//          EdgeWriter(e).insertBulkForLoader(autoCreateEdge)
-//        case _ => Nil
-//      }
-//    } toList
-//
-//    storeRec(zkQuorum, tableName, puts, msgs.size, maxTryNum)(statFunc)
-//    counts
-//  }
 
   def storeStat(counts: HashMap[String, Long])(mapAccOpt: Option[HashMapAccumulable])(key: String, value: Int) = {
     counts.put(key, counts.getOrElse(key, 0L) + value)

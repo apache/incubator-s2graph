@@ -138,7 +138,7 @@ object AsynchbaseStorage {
 }
 
 
-class AsynchbaseStorage(override val graph: S2Graph,
+class AsynchbaseStorage(override val graph: S2GraphLike,
                         override val config: Config) extends Storage(graph, config) {
 
   /**

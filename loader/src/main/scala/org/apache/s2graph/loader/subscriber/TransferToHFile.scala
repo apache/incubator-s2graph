@@ -84,11 +84,11 @@ object TransferToHFile extends SparkApp {
     } yield output
   }
   def buildPutRequests(snapshotEdge: SnapshotEdge): List[PutRequest] = {
-    val kvs = GraphSubscriberHelper.g.getStorage(snapshotEdge.label).snapshotEdgeSerializer(snapshotEdge).toKeyValues.toList
+    val kvs = GraphSubscriberHelper.g.getStorage(snapshotEdge.label).serDe.snapshotEdgeSerializer(snapshotEdge).toKeyValues.toList
     kvs.map { kv => new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp) }
   }
   def buildPutRequests(indexEdge: IndexEdge): List[PutRequest] = {
-    val kvs = GraphSubscriberHelper.g.getStorage(indexEdge.label).indexEdgeSerializer(indexEdge).toKeyValues.toList
+    val kvs = GraphSubscriberHelper.g.getStorage(indexEdge.label).serDe.indexEdgeSerializer(indexEdge).toKeyValues.toList
     kvs.map { kv => new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp) }
   }
   def buildDegreePutRequests(vertexId: String, labelName: String, direction: String, degreeVal: Long): List[PutRequest] = {
@@ -97,14 +97,14 @@ object TransferToHFile extends SparkApp {
     val innerVal = JSONParser.jsValueToInnerVal(Json.toJson(vertexId), label.srcColumnWithDir(dir).columnType, label.schemaVersion).getOrElse {
       throw new RuntimeException(s"$vertexId can not be converted into innerval")
     }
-    val vertex = GraphSubscriberHelper.g.newVertex(SourceVertexId(label.srcColumn, innerVal))
+    val vertex = GraphSubscriberHelper.builder.newVertex(SourceVertexId(label.srcColumn, innerVal))
 
     val ts = System.currentTimeMillis()
     val propsWithTs = Map(LabelMeta.timestamp -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion))
-    val edge = GraphSubscriberHelper.g.newEdge(vertex, vertex, label, dir, propsWithTs=propsWithTs)
+    val edge = GraphSubscriberHelper.builder.newEdge(vertex, vertex, label, dir, propsWithTs=propsWithTs)
 
     edge.edgesWithIndex.flatMap { indexEdge =>
-      GraphSubscriberHelper.g.getStorage(indexEdge.label).indexEdgeSerializer(indexEdge).toKeyValues.map { kv =>
+      GraphSubscriberHelper.g.getStorage(indexEdge.label).serDe.indexEdgeSerializer(indexEdge).toKeyValues.map { kv =>
         new PutRequest(kv.table, kv.row, kv.cf, Array.empty[Byte], Bytes.toBytes(degreeVal), kv.timestamp)
       }
     }
@@ -125,7 +125,7 @@ object TransferToHFile extends SparkApp {
   def toKeyValues(strs: Seq[String], labelMapping: Map[String, String], autoEdgeCreate: Boolean): Iterator[KeyValue] = {
     val kvList = new java.util.ArrayList[KeyValue]
     for (s <- strs) {
-      val elementList = GraphSubscriberHelper.g.toGraphElement(s, labelMapping).toSeq
+      val elementList = GraphSubscriberHelper.g.elementBuilder.toGraphElement(s, labelMapping).toSeq
       for (element <- elementList) {
         if (element.isInstanceOf[S2Edge]) {
           val edge = element.asInstanceOf[S2Edge]
@@ -136,7 +136,7 @@ object TransferToHFile extends SparkApp {
           }
         } else if (element.isInstanceOf[S2Vertex]) {
           val vertex = element.asInstanceOf[S2Vertex]
-          val putRequestList = GraphSubscriberHelper.g.getStorage(vertex.service).vertexSerializer(vertex).toKeyValues.map { kv =>
+          val putRequestList = GraphSubscriberHelper.g.getStorage(vertex.service).serDe.vertexSerializer(vertex).toKeyValues.map { kv =>
             new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp)
           }
           for (p <- putRequestList) {

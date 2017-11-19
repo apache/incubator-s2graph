@@ -20,10 +20,10 @@
 package org.apache.s2graph.core.storage.hbase
 
 import org.apache.s2graph.core.storage.serde.Deserializable
-import org.apache.s2graph.core.{IndexEdge, S2Graph, S2Vertex, SnapshotEdge}
+import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage.{StorageIO, StorageSerDe, serde}
 
-class AsynchbaseStorageSerDe(val graph: S2Graph) extends StorageSerDe {
+class AsynchbaseStorageSerDe(val graph: S2GraphLike) extends StorageSerDe {
   import org.apache.s2graph.core.types.HBaseType._
 
   /**
@@ -63,7 +63,7 @@ class AsynchbaseStorageSerDe(val graph: S2Graph) extends StorageSerDe {
     * @param vertex : vertex to serialize
     * @return serializer implementation
     */
-  override def vertexSerializer(vertex: S2Vertex) = new serde.vertex.wide.VertexSerializable(vertex)
+  override def vertexSerializer(vertex: S2VertexLike) = new serde.vertex.wide.VertexSerializable(vertex)
 
   /**
     * create deserializer that can parse stored CanSKeyValue into snapshotEdge.
@@ -83,5 +83,5 @@ class AsynchbaseStorageSerDe(val graph: S2Graph) extends StorageSerDe {
 
   /** create deserializer that can parser stored CanSKeyValue into vertex. */
   private val vertexDeserializer = new serde.vertex.wide.VertexDeserializable(graph)
-  override def vertexDeserializer(schemaVer: String): Deserializable[S2Vertex] = vertexDeserializer
+  override def vertexDeserializer(schemaVer: String): Deserializable[S2VertexLike] = vertexDeserializer
 }
