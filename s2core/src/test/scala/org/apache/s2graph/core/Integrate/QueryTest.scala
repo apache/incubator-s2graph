@@ -156,7 +156,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     (edges \ "degrees").as[Seq[JsValue]].nonEmpty should be(true)
   }
 
-  test("interval parent") {
+  ignore("interval parent") {
     val baseId = 1024
 
     insertEdgesSync(
@@ -174,7 +174,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     to should be (baseId + 20)
   }
 
-  test("interval parent with range") {
+  ignore("interval parent with range") {
     val baseId = 9876
 
     val minute: Long = 60 * 1000L
