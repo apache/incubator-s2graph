@@ -82,9 +82,7 @@ object S2Graph {
     "query.future.cache.expire.after.write" -> java.lang.Integer.valueOf(10000),
     "query.future.cache.expire.after.access" -> java.lang.Integer.valueOf(5000),
     "query.future.cache.metric.interval" -> java.lang.Integer.valueOf(60000),
-//    "s2graph.storage.backend" -> "hbase",
-    "s2graph.storage.backend" -> "rocks",
-    RocksStorage.FilePathKey -> "rocks_db",
+    "s2graph.storage.backend" -> "hbase",
     "query.hardlimit" -> java.lang.Integer.valueOf(100000),
     "hbase.zookeeper.znode.parent" -> "/hbase",
     "query.log.sample.rate" -> Double.box(0.05)
