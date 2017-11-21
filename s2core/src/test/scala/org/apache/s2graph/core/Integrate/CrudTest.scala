@@ -270,12 +270,12 @@ class CrudTest extends IntegrateCommon {
 
           val queryJson = querySnapshotEdgeJson(serviceName, columnName, labelName, id)
 
-          if (!rets.forall(identity)) {
+          if (!rets.forall(_.isSuccess)) {
             Thread.sleep(graph.LockExpireDuration + 100)
             /** expect current request would be ignored */
             val bulkEdges = Seq(TestUtil.toEdge(i-1, "u", "e", 0, 0, testLabelName, Json.obj("time" -> 20).toString()))
             val rets = TestUtil.insertEdgesSync(bulkEdges: _*)
-            if (rets.forall(identity)) {
+            if (rets.forall(_.isSuccess)) {
               // check
               val jsResult = TestUtil.getEdgesSync(queryJson)
               (jsResult \\ "time").head.as[Int] should be(10)
@@ -295,12 +295,12 @@ class CrudTest extends IntegrateCommon {
 
           val queryJson = querySnapshotEdgeJson(serviceName, columnName, labelName, id)
 
-          if (!rets.forall(identity)) {
+          if (!rets.forall(_.isSuccess)) {
             Thread.sleep(graph.LockExpireDuration + 100)
             /** expect current request would be applied */
             val bulkEdges = Seq(TestUtil.toEdge(i+1, "u", "e", 0, 0, testLabelName, Json.obj("time" -> 20).toString()))
             val rets = TestUtil.insertEdgesSync(bulkEdges: _*)
-            if (rets.forall(identity)) {
+            if (rets.forall(_.isSuccess)) {
               // check
               val jsResult = TestUtil.getEdgesSync(queryJson)
               (jsResult \\ "time").head.as[Int] should be(20)

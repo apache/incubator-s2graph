@@ -21,6 +21,7 @@ package org.apache.s2graph.core
 
 import java.util
 
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNameTooLongException, LabelNotExistException}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls._
@@ -36,8 +37,21 @@ import scala.util.Try
  * s2core never use this for finding models.
  */
 object Management {
-
+  import HBaseType._
   import scala.collection.JavaConversions._
+
+  val ZookeeperQuorum = "hbase.zookeeper.quorum"
+  val ColumnFamilies = "hbase.table.column.family"
+  val RegionMultiplier = "hbase.table.region.multiplier"
+  val Ttl = "hbase.table.ttl"
+  val CompressionAlgorithm = "hbase.table.compression.algorithm"
+  val ReplicationScope = "hbase.table.replication.scope"
+  val TotalRegionCount = "hbase.table.total.region.count"
+
+  val DefaultColumnFamilies = Seq("e", "v")
+  val DefaultCompressionAlgorithm = "gz"
+  val LABEL_NAME_MAX_LENGTH = 100
+
 
   def newProp(name: String, defaultValue: String, datatType: String): Prop = {
     new Prop(name, defaultValue, datatType)
@@ -56,10 +70,6 @@ object Management {
     case class Index(name: String, propNames: Seq[String], direction: Option[Int] = None, options: Option[String] = None)
   }
 
-  import HBaseType._
-
-  val LABEL_NAME_MAX_LENGTH = 100
-  val DefaultCompressionAlgorithm = "gz"
 
   def findService(serviceName: String) = {
     Service.findByName(serviceName, useCache = false)
@@ -263,9 +273,27 @@ object Management {
       Label.updateName(tempLabel, rightLabel)
     }
   }
+  def toConfig(params: Map[String, Any]): Config = {
+    import scala.collection.JavaConversions._
+
+    val filtered = params.filter { case (k, v) =>
+        v match {
+          case None => false
+          case _ => true
+        }
+    }.map { case (k, v) =>
+        val newV = v match {
+          case Some(value) => value
+          case _ => v
+        }
+        k -> newV
+    }
+
+    ConfigFactory.parseMap(filtered)
+  }
 }
 
-class Management(graph: S2Graph) {
+class Management(graph: S2GraphLike) {
   import Management._
   import scala.collection.JavaConversions._
 
@@ -277,7 +305,15 @@ class Management(graph: S2Graph) {
                   compressionAlgorithm: String = DefaultCompressionAlgorithm,
                   replicationScopeOpt: Option[Int] = None,
                   totalRegionCount: Option[Int] = None): Unit = {
-    graph.defaultStorage.createTable(zkAddr, tableName, cfs, regionMultiplier, ttl, compressionAlgorithm, replicationScopeOpt, totalRegionCount)
+    val config = toConfig(Map(
+      ZookeeperQuorum -> zkAddr,
+//      ColumnFamilies -> cfs,
+      RegionMultiplier -> regionMultiplier,
+      Ttl -> ttl,
+      CompressionAlgorithm -> compressionAlgorithm,
+      TotalRegionCount -> totalRegionCount
+    ))
+    graph.defaultStorage.createTable(config, tableName)
   }
 
 
@@ -299,8 +335,15 @@ class Management(graph: S2Graph) {
 
     Model withTx { implicit session =>
       val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL.orElse(Some(Integer.MAX_VALUE)), compressionAlgorithm, useCache = false)
+      val config = toConfig(Map(
+        ZookeeperQuorum -> service.cluster,
+//        ColumnFamilies -> List("e", "v"),
+        RegionMultiplier -> service.preSplitSize,
+        Ttl -> service.hTableTTL,
+        CompressionAlgorithm -> compressionAlgorithm
+      ))
       /* create hbase table for service */
-      graph.getStorage(service).createTable(service.cluster, service.hTableName, List("e", "v"), service.preSplitSize, service.hTableTTL, compressionAlgorithm)
+      graph.getStorage(service).createTable(config, service.hTableName)
       service
     }
   }
@@ -390,7 +433,14 @@ class Management(graph: S2Graph) {
       /* create hbase table */
       val storage = graph.getStorage(newLabel)
       val service = newLabel.service
-      storage.createTable(service.cluster, newLabel.hbaseTableName, List("e", "v"), service.preSplitSize, newLabel.hTableTTL, newLabel.compressionAlgorithm)
+      val config = toConfig(Map(
+        ZookeeperQuorum -> service.cluster,
+//        ColumnFamilies -> List("e", "v"),
+        RegionMultiplier -> service.preSplitSize,
+        Ttl -> newLabel.hTableTTL,
+        CompressionAlgorithm -> newLabel.compressionAlgorithm
+      ))
+      storage.createTable(config, newLabel.hbaseTableName)
 
       newLabel
     }
@@ -449,7 +499,9 @@ class Management(graph: S2Graph) {
       labelOpt.map { label =>
         val storage = graph.getStorage(label)
         val zkAddr = label.service.cluster
-        storage.truncateTable(zkAddr, label.hbaseTableName)
+
+        val config = toConfig(Map(ZookeeperQuorum -> zkAddr))
+        storage.truncateTable(config, label.hbaseTableName)
       }
     }
   }
@@ -459,7 +511,9 @@ class Management(graph: S2Graph) {
       labelOpt.map { label =>
         val storage = graph.getStorage(label)
         val zkAddr = label.service.cluster
-        storage.deleteTable(zkAddr, label.hbaseTableName)
+
+        val config = toConfig(Map(ZookeeperQuorum -> zkAddr))
+        storage.deleteTable(config, label.hbaseTableName)
       }
     }
   }

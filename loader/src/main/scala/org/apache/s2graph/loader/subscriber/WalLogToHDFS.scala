@@ -22,7 +22,6 @@ package org.apache.s2graph.loader.subscriber
 import java.text.SimpleDateFormat
 import java.util.Date
 import kafka.serializer.StringDecoder
-import org.apache.s2graph.core.S2Graph$
 import org.apache.s2graph.spark.spark.{WithKafka, SparkApp, HashMapParam}
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.streaming.Durations._
@@ -92,7 +91,7 @@ object WalLogToHDFS extends SparkApp with WithKafka {
         GraphSubscriberHelper.apply(phase, dbUrl, "none", brokerList)
 
         partition.flatMap { case (key, msg) =>
-          val optMsg = GraphSubscriberHelper.g.toGraphElement(msg).flatMap { element =>
+          val optMsg = GraphSubscriberHelper.g.elementBuilder.toGraphElement(msg).flatMap { element =>
             val arr = msg.split("\t", 7)
             val service = element.serviceName
             val label = arr(5)

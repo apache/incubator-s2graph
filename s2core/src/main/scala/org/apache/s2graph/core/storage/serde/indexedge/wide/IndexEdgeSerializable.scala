@@ -21,13 +21,12 @@ package org.apache.s2graph.core.storage.serde.indexedge.wide
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.mysqls.LabelMeta
-import org.apache.s2graph.core.storage.{SKeyValue, Serializable, StorageSerializable}
 import org.apache.s2graph.core.types.VertexId
 import org.apache.s2graph.core.{GraphUtil, IndexEdge}
-import org.apache.s2graph.core.storage.StorageSerializable._
+import org.apache.s2graph.core.storage.serde.StorageSerializable._
+import org.apache.s2graph.core.storage.serde.Serializable
 
 class IndexEdgeSerializable(indexEdge: IndexEdge, longToBytes: Long => Array[Byte] = longToBytes) extends Serializable[IndexEdge] {
-   import StorageSerializable._
 
    override def ts = indexEdge.version
    override def table = indexEdge.label.hbaseTableName.getBytes("UTF-8")

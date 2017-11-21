@@ -21,6 +21,7 @@ package org.apache.s2graph.core
 
 import java.util.regex.Pattern
 
+import org.apache.tinkerpop.gremlin.structure.Direction
 import play.api.libs.json.Json
 
 import scala.util.hashing.MurmurHash3
@@ -67,7 +68,15 @@ object GraphUtil {
     }
   }
 
-  def fromDirection(direction: Int) = {
+  def toDirection(direction: Direction): Int = {
+    direction.name() match {
+      case "out" => 0
+      case "in" => 1
+      case "both" => throw new IllegalArgumentException("only in/out direction is supported.")
+    }
+  }
+
+  def fromDirection(direction: Int): String = {
     direction match {
       case 0 => "out"
       case 1 => "in"

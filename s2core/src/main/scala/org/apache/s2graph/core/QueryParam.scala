@@ -26,7 +26,7 @@ import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.rest.TemplateHelper
-import org.apache.s2graph.core.storage.StorageSerializable._
+import org.apache.s2graph.core.storage.serde.StorageSerializable._
 import org.apache.s2graph.core.types._
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
 import org.hbase.async.ColumnRangeFilter
@@ -40,7 +40,7 @@ object Query {
   def apply(query: Query): Query = {
     Query(query.vertices, query.steps, query.queryOption, query.jsonQuery)
   }
-  def toQuery(srcVertices: Seq[S2Vertex], queryParams: Seq[QueryParam]) = Query(srcVertices, Vector(Step(queryParams)))
+  def toQuery(srcVertices: Seq[S2VertexLike], queryParams: Seq[QueryParam]) = Query(srcVertices, Vector(Step(queryParams)))
 
 }
 
@@ -97,7 +97,7 @@ case class QueryOption(removeCycle: Boolean = false,
 
 }
 
-case class Query(vertices: Seq[S2Vertex] = Seq.empty[S2Vertex],
+case class Query(vertices: Seq[S2VertexLike] = Nil,
                  steps: IndexedSeq[Step] = Vector.empty[Step],
                  queryOption: QueryOption = QueryOption(),
                  jsonQuery: JsValue = JsNull) {
@@ -163,7 +163,7 @@ case class EdgeTransformer(jsValue: JsValue) {
     }
   }
 
-  def toInnerValOpt(queryParam: QueryParam, edge: S2Edge, fieldName: String): Option[InnerValLike] = {
+  def toInnerValOpt(queryParam: QueryParam, edge: S2EdgeLike, fieldName: String): Option[InnerValLike] = {
     fieldName match {
       case LabelMeta.to.name => Option(edge.tgtVertex.innerId)
       case LabelMeta.from.name => Option(edge.srcVertex.innerId)
@@ -171,7 +171,7 @@ case class EdgeTransformer(jsValue: JsValue) {
     }
   }
 
-  def transform(queryParam: QueryParam, edge: S2Edge, nextStepOpt: Option[Step]): Seq[S2Edge] = {
+  def transform(queryParam: QueryParam, edge: S2EdgeLike, nextStepOpt: Option[Step]): Seq[S2EdgeLike] = {
     if (isDefault) Seq(edge)
     else {
       val edges = for {
@@ -185,7 +185,7 @@ case class EdgeTransformer(jsValue: JsValue) {
             replace(queryParam, fmt, fieldNames.flatMap(fieldName => toInnerValOpt(queryParam, edge, fieldName)), nextStepOpt)
           }
         }
-      } yield edge.updateTgtVertex(innerVal).copy(originalEdgeOpt = Option(edge))
+      } yield edge.updateTgtVertex(innerVal).copyOriginalEdgeOpt(Option(edge))
 
 
       edges
@@ -219,7 +219,7 @@ case class Step(queryParams: Seq[QueryParam],
   }
 }
 
-case class VertexParam(vertices: Seq[S2Vertex]) {
+case class VertexParam(vertices: Seq[S2VertexLike]) {
   var filters: Option[Map[Byte, InnerValLike]] = None
 
   def has(what: Option[Map[Byte, InnerValLike]]): VertexParam = {
@@ -251,7 +251,26 @@ case class RankParam(keySeqAndWeights: Seq[(LabelMeta, Double)] = Seq((LabelMeta
     }
     bytes
   }
+
+  def score(edge: S2EdgeLike): Double = {
+    if (keySeqAndWeights.size <= 0) 1.0f
+    else {
+      var sum: Double = 0
+
+      for ((labelMeta, w) <- keySeqAndWeights) {
+        if (edge.getPropsWithTs().containsKey(labelMeta.name)) {
+          val innerValWithTs = edge.getPropsWithTs().get(labelMeta.name)
+          val cost = try innerValWithTs.innerVal.toString.toDouble catch {
+            case e: Exception => 1.0
+          }
+          sum += w * cost
+        }
+      }
+      sum
+    }
+  }
 }
+
 object QueryParam {
   lazy val Empty = QueryParam(labelName = "")
   lazy val DefaultThreshold = Double.MinValue
@@ -311,7 +330,7 @@ case class QueryParam(labelName: String,
     CanInnerValLike.anyToInnerValLike.toInnerVal(id)(label.tgtColumnWithDir(dir).schemaVersion)
   }
 
-  def buildInterval(edgeOpt: Option[S2Edge]) = intervalOpt match {
+  def buildInterval(edgeOpt: Option[S2EdgeLike]) = intervalOpt match {
     case None => Array.empty[Byte] -> Array.empty[Byte]
     case Some(interval) =>
       val (froms, tos) = interval
@@ -359,12 +378,12 @@ case class QueryParam(labelName: String,
     Bytes.add(bytes, optionalCacheKey)
   }
 
-  private def convertToInner(kvs: Seq[(String, JsValue)], edgeOpt: Option[S2Edge]): Seq[(LabelMeta, InnerValLike)] = {
+  private def convertToInner(kvs: Seq[(String, JsValue)], edgeOpt: Option[S2EdgeLike]): Seq[(LabelMeta, InnerValLike)] = {
     kvs.map { case (propKey, propValJs) =>
       propValJs match {
         case JsString(in) if edgeOpt.isDefined && in.contains("_parent.") =>
           val parentLen = in.split("_parent.").length - 1
-          val edge = (0 until parentLen).foldLeft(edgeOpt.get) { case (acc, _) => acc.parentEdges.head.edge }
+          val edge = (0 until parentLen).foldLeft(edgeOpt.get) { case (acc, _) => acc.getParentEdges().head.edge }
 
           val timePivot = edge.ts
           val replaced = TemplateHelper.replaceVariable(timePivot, in).trim
@@ -392,7 +411,7 @@ case class QueryParam(labelName: String,
     }
   }
 
-  def paddingInterval(len: Byte, froms: Seq[(String, JsValue)], tos: Seq[(String, JsValue)], edgeOpt: Option[S2Edge] = None) = {
+  def paddingInterval(len: Byte, froms: Seq[(String, JsValue)], tos: Seq[(String, JsValue)], edgeOpt: Option[S2EdgeLike] = None) = {
     val fromInnerVal = convertToInner(froms, edgeOpt)
     val toInnerVal = convertToInner(tos, edgeOpt)
 

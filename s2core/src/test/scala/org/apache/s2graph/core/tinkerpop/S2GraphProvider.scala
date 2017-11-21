@@ -37,8 +37,10 @@ import scala.collection.JavaConverters._
 object S2GraphProvider {
 
   val Implementation: Set[Class[_]] = Set(
+    classOf[S2EdgeLike],
     classOf[S2Edge],
     classOf[S2Vertex],
+    classOf[S2VertexLike],
     classOf[S2Property[_]],
     classOf[S2VertexProperty[_]],
     classOf[S2Graph]
@@ -84,7 +86,7 @@ class S2GraphProvider extends AbstractGraphProvider {
 
   override def loadGraphData(graph: Graph, loadGraphWith: LoadGraphWith, testClass: Class[_], testName: String): Unit = {
     val s2Graph = graph.asInstanceOf[S2Graph]
-    val mnt = s2Graph.getManagement()
+    val mnt = s2Graph.management
 
     S2GraphFactory.cleanupDefaultSchema
     initTestSchema(testClass, testName)

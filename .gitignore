@@ -107,4 +107,4 @@ server.pid
 .cache
 
 ### Local Embedded HBase Data ###
-storage/
+#storage/

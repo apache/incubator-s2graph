@@ -29,7 +29,7 @@ import org.apache.lucene.queryparser.classic.{ParseException, QueryParser}
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.store.{BaseDirectory, RAMDirectory}
 import org.apache.s2graph.core.io.Conversions
-import org.apache.s2graph.core.{EdgeId, S2Edge, S2Vertex}
+import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.{InnerValLike, VertexId}
 import org.apache.s2graph.core.utils.logger
@@ -127,11 +127,11 @@ trait IndexProvider {
   def fetchVertexIds(hasContainers: java.util.List[HasContainer]): java.util.List[VertexId]
   def fetchVertexIdsAsync(hasContainers: java.util.List[HasContainer]): Future[java.util.List[VertexId]]
 
-  def mutateVertices(vertices: Seq[S2Vertex]): Seq[Boolean]
-  def mutateVerticesAsync(vertices: Seq[S2Vertex]): Future[Seq[Boolean]]
+  def mutateVertices(vertices: Seq[S2VertexLike]): Seq[Boolean]
+  def mutateVerticesAsync(vertices: Seq[S2VertexLike]): Future[Seq[Boolean]]
 
-  def mutateEdges(edges: Seq[S2Edge]): Seq[Boolean]
-  def mutateEdgesAsync(edges: Seq[S2Edge]): Future[Seq[Boolean]]
+  def mutateEdges(edges: Seq[S2EdgeLike]): Seq[Boolean]
+  def mutateEdgesAsync(edges: Seq[S2EdgeLike]): Future[Seq[Boolean]]
 
   def shutdown(): Unit
 }
@@ -154,7 +154,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     })
   }
 
-  private def toDocument(globalIndex: GlobalIndex, vertex: S2Vertex): Option[Document] = {
+  private def toDocument(globalIndex: GlobalIndex, vertex: S2VertexLike): Option[Document] = {
     val props = vertex.props.asScala
     val exist = props.exists(t => globalIndex.propNamesSet(t._1))
     if (!exist) None
@@ -179,8 +179,8 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     }
   }
 
-  private def toDocument(globalIndex: GlobalIndex, edge: S2Edge): Option[Document] = {
-    val props = edge.propsWithTs.asScala
+  private def toDocument(globalIndex: GlobalIndex, edge: S2EdgeLike): Option[Document] = {
+    val props = edge.getPropsWithTs().asScala
     val exist = props.exists(t => globalIndex.propNamesSet(t._1))
     if (!exist) None
     else {
@@ -204,7 +204,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     }
   }
 
-  override def mutateVertices(vertices: Seq[S2Vertex]): Seq[Boolean] = {
+  override def mutateVertices(vertices: Seq[S2VertexLike]): Seq[Boolean] = {
     val globalIndexOptions = GlobalIndex.findAll(GlobalIndex.VertexType)
 
     globalIndexOptions.map { globalIndex =>
@@ -222,7 +222,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     vertices.map(_ => true)
   }
 
-  override def mutateEdges(edges: Seq[S2Edge]): Seq[Boolean] = {
+  override def mutateEdges(edges: Seq[S2EdgeLike]): Seq[Boolean] = {
     val globalIndexOptions = GlobalIndex.findAll(GlobalIndex.EdgeType)
 
     globalIndexOptions.map { globalIndex =>
@@ -314,7 +314,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
 
   override def fetchVertexIdsAsync(hasContainers: java.util.List[HasContainer]): Future[util.List[VertexId]] = Future.successful(fetchVertexIds(hasContainers))
 
-  override def mutateVerticesAsync(vertices: Seq[S2Vertex]): Future[Seq[Boolean]] = Future.successful(mutateVertices(vertices))
+  override def mutateVerticesAsync(vertices: Seq[S2VertexLike]): Future[Seq[Boolean]] = Future.successful(mutateVertices(vertices))
 
-  override def mutateEdgesAsync(edges: Seq[S2Edge]): Future[Seq[Boolean]] = Future.successful(mutateEdges(edges))
+  override def mutateEdgesAsync(edges: Seq[S2EdgeLike]): Future[Seq[Boolean]] = Future.successful(mutateEdges(edges))
 }

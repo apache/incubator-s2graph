@@ -36,6 +36,7 @@ Release Notes - S2Graph - Version 0.2.0
 
 ** Bug
     * [S2GRAPH-159] - Wrong syntax at a bash script under Linux
+    * [S2GRAPH-168] - Fix args order mismatch when use addServiceColumnProp
 
 ** Improvement
     * [S2GRAPH-72] - Support Apache TinkerPop and Gremlin
@@ -45,7 +46,10 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-133] - Deprecating Vagrant environment.
     * [S2GRAPH-135] - Change the way LabelIndexOption is implemented and improve it
     * [S2GRAPH-165] - Add TinkerPop support documentation on README
-    
+    * [S2GRAPH-167] - Provide Vertex CSV File BulkLoad
+    * [S2GRAPH-169] - Separate multiple functionalities on Storage class into multiple Interface.
+    * [S2GRAPH-170] - Create Interface for S2Edge/S2Vertex/S2Graph.
+
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.
     * [S2GRAPH-125] - Add options field on Label model for controlling advanced options.

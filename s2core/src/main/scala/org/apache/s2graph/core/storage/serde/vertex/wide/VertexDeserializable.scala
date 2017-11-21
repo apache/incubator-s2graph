@@ -17,21 +17,22 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.storage.serde.vertex
+package org.apache.s2graph.core.storage.serde.vertex.wide
 
-import org.apache.s2graph.core.mysqls.{ColumnMeta, Label}
-import org.apache.s2graph.core.storage.StorageDeserializable._
-import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable}
+import org.apache.s2graph.core.mysqls.ColumnMeta
+import org.apache.s2graph.core.storage.CanSKeyValue
+import org.apache.s2graph.core.storage.serde.Deserializable
+import org.apache.s2graph.core.storage.serde.StorageDeserializable._
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, VertexId}
-import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{QueryParam, S2Graph, S2Vertex}
+import org.apache.s2graph.core.{S2Graph, S2GraphLike, S2Vertex, S2VertexLike}
 
 import scala.collection.mutable.ListBuffer
 
-class VertexDeserializable(graph: S2Graph,
-                           bytesToInt: (Array[Byte], Int) => Int = bytesToInt) extends Deserializable[S2Vertex] {
+class VertexDeserializable(graph: S2GraphLike,
+                           bytesToInt: (Array[Byte], Int) => Int = bytesToInt) extends Deserializable[S2VertexLike] {
+  val builder = graph.elementBuilder
   def fromKeyValues[T: CanSKeyValue](_kvs: Seq[T],
-                                          cacheElementOpt: Option[S2Vertex]): Option[S2Vertex] = {
+                                          cacheElementOpt: Option[S2VertexLike]): Option[S2VertexLike] = {
     try {
       val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
       val kv = kvs.head
@@ -62,7 +63,7 @@ class VertexDeserializable(graph: S2Graph,
         }
       }
       assert(maxTs != Long.MinValue)
-      val vertex = graph.newVertex(vertexId, maxTs, S2Vertex.EmptyProps, belongLabelIds = belongLabelIds)
+      val vertex = builder.newVertex(vertexId, maxTs, S2Vertex.EmptyProps, belongLabelIds = belongLabelIds)
       S2Vertex.fillPropsWithTs(vertex, propsMap.toMap)
 
       Option(vertex)

@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.storage.serde.vertex
+package org.apache.s2graph.core.storage.serde.vertex.tall
 
-import org.apache.s2graph.core.S2Vertex
-import org.apache.s2graph.core.storage.StorageSerializable._
-import org.apache.s2graph.core.storage.{SKeyValue, Serializable}
-import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.{S2Vertex, S2VertexLike}
+import org.apache.s2graph.core.storage.SKeyValue
+import org.apache.s2graph.core.storage.serde.Serializable
+import org.apache.s2graph.core.storage.serde.StorageSerializable._
 
 import scala.collection.JavaConverters._
 
-case class VertexSerializable(vertex: S2Vertex, intToBytes: Int => Array[Byte] = intToBytes) extends Serializable[S2Vertex] {
+case class VertexSerializable(vertex: S2VertexLike, intToBytes: Int => Array[Byte] = intToBytes) extends Serializable[S2VertexLike] {
 
   override val table = vertex.hbaseTableName.getBytes
   override val ts = vertex.ts
@@ -35,18 +35,20 @@ case class VertexSerializable(vertex: S2Vertex, intToBytes: Int => Array[Byte] =
   override def toRowKey: Array[Byte] = vertex.id.bytes
 
   override def toQualifier: Array[Byte] = Array.empty[Byte]
-  override def toValue: Array[Byte] = Array.empty[Byte]
+  override def toValue: Array[Byte] = {
+    val props = (vertex.props.asScala ++ vertex.defaultProps.asScala).toSeq.map { case (_, v) =>
+      v.columnMeta -> v.innerVal.bytes
+    }
+    vertexPropsToBytes(props)
+  }
 
   /** vertex override toKeyValues since vertex expect to produce multiple sKeyValues */
   override def toKeyValues: Seq[SKeyValue] = {
     val row = toRowKey
-    val base = for ((k, v) <- vertex.props.asScala ++ vertex.defaultProps.asScala) yield {
-      val columnMeta = v.columnMeta
-      intToBytes(columnMeta.seq) -> v.innerVal.bytes
-    }
-    val belongsTo = vertex.belongLabelIds.map { labelId => intToBytes(S2Vertex.toPropKey(labelId)) -> Array.empty[Byte] }
-    (base ++ belongsTo).map { case (qualifier, value) =>
+    val qualifier = toQualifier
+    val value = toValue
+    Seq(
       SKeyValue(vertex.hbaseTableName.getBytes, row, cf, qualifier, value, vertex.ts)
-    }.toSeq
+    )
   }
 }

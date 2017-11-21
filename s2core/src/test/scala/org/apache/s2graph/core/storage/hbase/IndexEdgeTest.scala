@@ -40,13 +40,14 @@ class IndexEdgeTest extends FunSuite with Matchers with TestCommonWithModels {
     val from = InnerVal.withLong(1, l.schemaVersion)
     val vertexId = SourceVertexId(ServiceColumn.Default, from)
     val tgtVertexId = TargetVertexId(ServiceColumn.Default, to)
-    val vertex = graph.newVertex(vertexId, ts)
-    val tgtVertex = graph.newVertex(tgtVertexId, ts)
+    val vertex = builder.newVertex(vertexId, ts)
+    val tgtVertex = builder.newVertex(tgtVertexId, ts)
     val labelWithDir = LabelWithDirection(l.id.get, 0)
     val labelOpt = Option(l)
-    val edge = graph.newEdge(vertex, tgtVertex, l, labelWithDir.dir, 0, ts, props, tsInnerValOpt = Option(InnerVal.withLong(ts, l.schemaVersion)))
+    val edge = builder.newEdge(vertex, tgtVertex, l, labelWithDir.dir, 0, ts, props, tsInnerValOpt = Option(InnerVal.withLong(ts, l.schemaVersion)))
     val indexEdge = edge.edgesWithIndex.find(_.labelIndexSeq == LabelIndex.DefaultSeq).head
-    val _indexEdgeOpt = graph.getStorage(l).indexEdgeDeserializer(l.schemaVersion).fromKeyValues(graph.getStorage(l).indexEdgeSerializer(indexEdge).toKeyValues, None)
+    val kvs = graph.getStorage(l).serDe.indexEdgeSerializer(indexEdge).toKeyValues
+    val _indexEdgeOpt = graph.getStorage(l).serDe.indexEdgeDeserializer(l.schemaVersion).fromKeyValues(kvs, None)
 
     _indexEdgeOpt should not be empty
     edge == _indexEdgeOpt.get should be(true)
