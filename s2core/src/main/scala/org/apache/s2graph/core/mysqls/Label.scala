@@ -204,8 +204,8 @@ object Label extends Model[Label] {
             hTableName.getOrElse(service.hTableName), hTableTTL.orElse(service.hTableTTL), schemaVersion, isAsync,
             compressionAlgorithm, options).toInt
 
-          val labelMetaMap = metaProps.map { case Prop(propName, defaultValue, dataType) =>
-            val labelMeta = LabelMeta.findOrInsert(createdId, propName, defaultValue, dataType)
+          val labelMetaMap = metaProps.map { case Prop(propName, defaultValue, dataType, storeInGlobalIndex) =>
+            val labelMeta = LabelMeta.findOrInsert(createdId, propName, defaultValue, dataType, storeInGlobalIndex)
             (propName -> labelMeta.seq)
           }.toMap ++ LabelMeta.reservedMetas.map (labelMeta => labelMeta.name -> labelMeta.seq).toMap
 
@@ -231,14 +231,17 @@ object Label extends Model[Label] {
 
   def findAll()(implicit session: DBSession = AutoSession) = {
     val ls = sql"""select * from labels where deleted_at is null""".map { rs => Label(rs) }.list().apply()
+
     putsToCache(ls.map { x =>
       val cacheKey = s"id=${x.id.get}"
       (cacheKey -> x)
     })
+
     putsToCache(ls.map { x =>
       val cacheKey = s"label=${x.label}"
       (cacheKey -> x)
     })
+
     ls
   }
 

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
+ * 
  *   http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,23 +17,20 @@
  * under the License.
  */
 
-// use the Play sbt plugin for Play projects
+package org.apache.s2graph
 
-addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.5.9")
+/**
+  * S2Graph GraphQL schema.
+  *
+  * When a Label or Service is created, the GraphQL schema is created dynamically.
+  */
+class SchemaDef(s2Type: S2Type) {
 
-// http://www.scalastyle.org/sbt.html
-addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "0.7.0")
+  import sangria.schema._
 
-// sbt revolver
-addSbtPlugin("io.spray" % "sbt-revolver" % "0.9.1")
+  val S2QueryType = ObjectType[GraphRepository, Any]("Query", fields(s2Type.queryFields: _*))
 
-addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.0.3")
+  val S2MutationType = ObjectType[GraphRepository, Any]("Mutation", fields(s2Type.mutationFields: _*))
 
-addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.8.0")
-
-addSbtPlugin("com.jsuereth" % "sbt-pgp" % "1.0.0")
-
-addSbtPlugin("com.github.gseitz" % "sbt-release" % "1.0.3")
-
-resolvers += Resolver.typesafeRepo("releases")
-
+  val S2GraphSchema = Schema(S2QueryType, Option(S2MutationType))
+}

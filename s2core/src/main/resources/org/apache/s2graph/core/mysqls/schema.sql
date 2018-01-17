@@ -65,6 +65,7 @@ CREATE TABLE `column_metas` (
   `name` varchar(64) NOT NULL,
   `seq` tinyint	NOT NULL,
   `data_type` varchar(8) NOT NULL DEFAULT 'string',
+  `store_in_global_index` tinyint NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_column_id_name` (`column_id`, `name`),
   INDEX `idx_column_id_seq` (`column_id`, `seq`)
@@ -136,6 +137,7 @@ CREATE TABLE `label_metas` (
   `default_value` varchar(64) NOT NULL,
   `data_type` varchar(8) NOT NULL DEFAULT 'long',
   `used_in_index` tinyint	NOT NULL DEFAULT 0,
+  `store_in_global_index` tinyint NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_label_metas_label_id_name` (`label_id`, `name`),
   INDEX `idx_label_metas_label_id_seq` (`label_id`, `seq`)

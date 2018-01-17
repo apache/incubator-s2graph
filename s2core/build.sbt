@@ -50,7 +50,10 @@ libraryDependencies ++= Seq(
   "org.apache.lucene" % "lucene-core" % "6.6.0",
   "org.apache.lucene" % "lucene-queryparser" % "6.6.0",
   "org.rocksdb" % "rocksdbjni" % "5.8.0",
-  "org.scala-lang.modules" %% "scala-java8-compat" % "0.8.0"
+  "org.scala-lang.modules" %% "scala-java8-compat" % "0.8.0",
+  "com.sksamuel.elastic4s" %% "elastic4s-core" % elastic4sVersion excludeLogging(),
+  "com.sksamuel.elastic4s" %% "elastic4s-http" % elastic4sVersion excludeLogging(),
+  "com.sksamuel.elastic4s" %% "elastic4s-embedded" % elastic4sVersion excludeLogging()
 )
 
 libraryDependencies := {

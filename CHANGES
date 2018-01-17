@@ -54,6 +54,8 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-123] - Support different index on out/in direction.
     * [S2GRAPH-125] - Add options field on Label model for controlling advanced options.
     * [S2GRAPH-166] - Provide embeddable storage backend using RocksDB.
+    * [S2GRAPH-175] - Provide Elastic Search Index Provider.
+    * [S2GRAPH-172] - Suggest to implement GraphQL as standard web interface for S2Graph. 
 
 ** Task
     * [S2GRAPH-162] - Update year in the NOTICE file.

@@ -63,9 +63,9 @@ object Management {
 
   object JsonModel {
 
-    case class Prop(name: String, defaultValue: String, datatType: String)
+    case class Prop(name: String, defaultValue: String, dataType: String, storeInGlobalIndex: Boolean = false)
 
-    object Prop extends ((String, String, String) => Prop)
+    object Prop extends ((String, String, String, Boolean) => Prop)
 
     case class Index(name: String, propNames: Seq[String], direction: Option[Int] = None, options: Option[String] = None)
   }
@@ -102,9 +102,10 @@ object Management {
         case Some(service) =>
           val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion, useCache = false)
           for {
-            Prop(propName, defaultValue, dataType) <- props
+            Prop(propName, defaultValue, dataType, storeInGlobalIndex) <- props
           } yield {
-            ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType, useCache = false)
+            ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType,
+              storeInGlobalIndex = storeInGlobalIndex, useCache = false)
           }
       }
     }
@@ -165,7 +166,7 @@ object Management {
       val labelOpt = Label.findByName(labelStr)
       val label = labelOpt.getOrElse(throw LabelNotExistException(s"$labelStr not found"))
 
-      LabelMeta.findOrInsert(label.id.get, prop.name, prop.defaultValue, prop.datatType)
+      LabelMeta.findOrInsert(label.id.get, prop.name, prop.defaultValue, prop.dataType, prop.storeInGlobalIndex)
     }
   }
 
@@ -175,8 +176,8 @@ object Management {
       val label = labelOpt.getOrElse(throw LabelNotExistException(s"$labelStr not found"))
 
       props.map {
-        case Prop(propName, defaultValue, dataType) =>
-          LabelMeta.findOrInsert(label.id.get, propName, defaultValue, dataType)
+        case Prop(propName, defaultValue, dataType, storeInGlobalIndex) =>
+          LabelMeta.findOrInsert(label.id.get, propName, defaultValue, dataType, storeInGlobalIndex)
       }
     }
   }
@@ -185,12 +186,13 @@ object Management {
                     columnName: String,
                     propsName: String,
                     propsType: String,
+                    storeInGlobalIndex: Boolean = false,
                     schemaVersion: String = DEFAULT_VERSION): ColumnMeta = {
     val result = for {
       service <- Service.findByName(serviceName, useCache = false)
       serviceColumn <- ServiceColumn.find(service.id.get, columnName)
     } yield {
-        ColumnMeta.findOrInsert(serviceColumn.id.get, propsName, propsType)
+        ColumnMeta.findOrInsert(serviceColumn.id.get, propsName, propsType, storeInGlobalIndex)
       }
     result.getOrElse({
       throw new RuntimeException(s"add property on vertex failed")
@@ -361,9 +363,10 @@ class Management(graph: S2GraphLike) {
         case Some(service) =>
           val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion, useCache = false)
           for {
-            Prop(propName, defaultValue, dataType) <- props
+            Prop(propName, defaultValue, dataType, storeInGlobalIndex) <- props
           } yield {
-            ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType, useCache = false)
+            ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType,
+              storeInGlobalIndex = storeInGlobalIndex, useCache = false)
           }
           serviceColumn
       }
@@ -466,26 +469,42 @@ class Management(graph: S2GraphLike) {
       old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync, old.compressionAlgorithm, old.options)
   }
 
-  def buildGlobalVertexIndex(name: String, propNames: java.util.List[String]): GlobalIndex =
-    buildGlobalIndex(GlobalIndex.VertexType, name, propNames)
+  def enableVertexGlobalIndex(columnMeats: Seq[ColumnMeta]): Boolean = {
+    val successes = columnMeats.map { cm =>
+      ColumnMeta.updateStoreInGlobalIndex(cm.id.get, cm.storeInGlobalIndex)
+    }.map(_.isSuccess)
 
-  def buildGlobalVertexIndex(name: String, propNames: Seq[String]): GlobalIndex =
-    buildGlobalIndex(GlobalIndex.VertexType, name, propNames)
-
-  def buildGlobalEdgeIndex(name: String, propNames: java.util.List[String]): GlobalIndex =
-    buildGlobalIndex(GlobalIndex.EdgeType, name, propNames)
-
-  def buildGlobalEdgeIndex(name: String, propNames: Seq[String]): GlobalIndex =
-    buildGlobalIndex(GlobalIndex.EdgeType, name, propNames)
-
-  def buildGlobalIndex(elementType: String, name: String, propNames: Seq[String]): GlobalIndex = {
-    GlobalIndex.findBy(elementType, name, false) match {
-      case None =>
-        GlobalIndex.insert(elementType, name, propNames)
-        GlobalIndex.findBy(elementType, name, false).get
-      case Some(oldIndex) => oldIndex
-    }
+    successes.forall(identity)
   }
+
+  def enableEdgeGlobalIndex(labelMetas: Seq[LabelMeta]): Boolean = {
+    val successes = labelMetas.map { lm =>
+      LabelMeta.updateStoreInGlobalIndex(lm.id.get, lm.storeInGlobalIndex)
+    }.map(_.isSuccess)
+
+    successes.forall(identity)
+  }
+
+//  def buildGlobalVertexIndex(name: String, propNames: java.util.List[String]): GlobalIndex =
+//    buildGlobalIndex(GlobalIndex.VertexType, name, propNames)
+//
+//  def buildGlobalVertexIndex(name: String, propNames: Seq[String]): GlobalIndex =
+//    buildGlobalIndex(GlobalIndex.VertexType, name, propNames)
+//
+//  def buildGlobalEdgeIndex(name: String, propNames: java.util.List[String]): GlobalIndex =
+//    buildGlobalIndex(GlobalIndex.EdgeType, name, propNames)
+//
+//  def buildGlobalEdgeIndex(name: String, propNames: Seq[String]): GlobalIndex =
+//    buildGlobalIndex(GlobalIndex.EdgeType, name, propNames)
+//
+//  def buildGlobalIndex(elementType: String, name: String, propNames: Seq[String]): GlobalIndex = {
+//    GlobalIndex.findBy(elementType, name, false) match {
+//      case None =>
+//        GlobalIndex.insert(elementType, name, propNames)
+//        GlobalIndex.findBy(elementType, name, false).get
+//      case Some(oldIndex) => oldIndex
+//    }
+//  }
 
   def getCurrentStorageInfo(labelName: String): Try[Map[String, String]] = for {
     label <- Try(Label.findByName(labelName, useCache = false).get)

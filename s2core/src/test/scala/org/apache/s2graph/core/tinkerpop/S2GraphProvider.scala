@@ -96,6 +96,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val defaultServiceColumn = ServiceColumn.find(defaultService.id.get, S2Graph.DefaultColumnName).getOrElse(throw new IllegalStateException("default column is not initialized."))
 
     val allProps = scala.collection.mutable.Set.empty[Prop]
+
     var knowsProp = Vector(
       Prop("weight", "0.0", "double"),
       Prop("data", "-", "string"),
@@ -142,7 +143,7 @@ class S2GraphProvider extends AbstractGraphProvider {
       }
 
       ColumnMeta.findByName(defaultServiceColumn.id.get, "aKey", useCache = false).foreach(cm => ColumnMeta.delete(cm.id.get))
-      ColumnMeta.findOrInsert(defaultServiceColumn.id.get, "aKey", dataType, useCache = false)
+      ColumnMeta.findOrInsert(defaultServiceColumn.id.get, "aKey", dataType, storeInGlobalIndex = true, useCache = false)
     }
     if (loadGraphWith != null && loadGraphWith.value() == GraphData.MODERN) {
       mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
@@ -453,9 +454,6 @@ class S2GraphProvider extends AbstractGraphProvider {
       options = Option("""{"skipReverse": false}""")
     )
 
-    Seq(GlobalIndex.VertexType, GlobalIndex.EdgeType).foreach { elementType =>
-      mnt.buildGlobalIndex(elementType, "global", allProps.map(_.name).toSeq)
-    }
     super.loadGraphData(graph, loadGraphWith, testClass, testName)
   }
 

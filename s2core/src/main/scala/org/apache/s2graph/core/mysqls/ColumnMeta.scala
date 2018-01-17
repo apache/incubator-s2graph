@@ -22,6 +22,8 @@ package org.apache.s2graph.core.mysqls
 import play.api.libs.json.Json
 import scalikejdbc._
 
+import scala.util.Try
+
 object ColumnMeta extends Model[ColumnMeta] {
 
   val timeStampSeq = -1.toByte
@@ -34,7 +36,8 @@ object ColumnMeta extends Model[ColumnMeta] {
   val reservedMetaNamesSet = reservedMetas.map(_.name).toSet
 
   def valueOf(rs: WrappedResultSet): ColumnMeta = {
-    ColumnMeta(Some(rs.int("id")), rs.int("column_id"), rs.string("name"), rs.byte("seq"), rs.string("data_type").toLowerCase())
+    ColumnMeta(Some(rs.int("id")), rs.int("column_id"), rs.string("name"),
+      rs.byte("seq"), rs.string("data_type").toLowerCase(), rs.boolean("store_in_global_index"))
   }
 
   def findById(id: Int)(implicit session: DBSession = AutoSession) = {
@@ -69,21 +72,25 @@ object ColumnMeta extends Model[ColumnMeta] {
     }
   }
 
-  def insert(columnId: Int, name: String, dataType: String)(implicit session: DBSession = AutoSession) = {
+  def insert(columnId: Int, name: String, dataType: String, storeInGlobalIndex: Boolean = false)(implicit session: DBSession = AutoSession) = {
     val ls = findAllByColumn(columnId, false)
     val seq = ls.size + 1
     if (seq <= maxValue) {
-      sql"""insert into column_metas(column_id, name, seq, data_type)
-    select ${columnId}, ${name}, ${seq}, ${dataType}"""
+      sql"""insert into column_metas(column_id, name, seq, data_type, store_in_global_index)
+    select ${columnId}, ${name}, ${seq}, ${dataType}, ${storeInGlobalIndex}"""
         .updateAndReturnGeneratedKey.apply()
     }
   }
 
-  def findOrInsert(columnId: Int, name: String, dataType: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): ColumnMeta = {
+  def findOrInsert(columnId: Int,
+                   name: String,
+                   dataType: String,
+                   storeInGlobalIndex: Boolean = false,
+                   useCache: Boolean = true)(implicit session: DBSession = AutoSession): ColumnMeta = {
     findByName(columnId, name, useCache) match {
       case Some(c) => c
       case None =>
-        insert(columnId, name, dataType)
+        insert(columnId, name, dataType, storeInGlobalIndex)
         expireCache(s"columnId=$columnId:name=$name")
         findByName(columnId, name).get
     }
@@ -130,9 +137,20 @@ object ColumnMeta extends Model[ColumnMeta] {
       (cacheKey -> ls)
     }.toList)
   }
+
+  def updateStoreInGlobalIndex(id: Int, storeInGlobalIndex: Boolean)(implicit session: DBSession = AutoSession): Try[Long] = Try {
+    sql"""
+          update column_metas set store_in_global_index = ${storeInGlobalIndex} where id = ${id}
+       """.updateAndReturnGeneratedKey.apply()
+  }
 }
 
-case class ColumnMeta(id: Option[Int], columnId: Int, name: String, seq: Byte, dataType: String) {
+case class ColumnMeta(id: Option[Int],
+                      columnId: Int,
+                      name: String,
+                      seq: Byte,
+                      dataType: String,
+                      storeInGlobalIndex: Boolean = false) {
   lazy val toJson = Json.obj("name" -> name, "dataType" -> dataType)
   override def equals(other: Any): Boolean = {
     if (!other.isInstanceOf[ColumnMeta]) false

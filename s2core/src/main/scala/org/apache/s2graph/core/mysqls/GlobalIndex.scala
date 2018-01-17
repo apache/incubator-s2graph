@@ -33,7 +33,10 @@ object GlobalIndex extends Model[GlobalIndex] {
   val VertexType = "vertex"
   val hiddenIndexFields = Set(vidField, eidField, labelField, serviceField, serviceColumnField)
 
-  val TableName = "global_indices"
+//  val IndexName = "global_indices"
+  val VertexIndexName = "global_vertex_index"
+  val EdgeIndexName = "global_edge_index"
+  val TypeName = "test"
 
   def apply(rs: WrappedResultSet): GlobalIndex = {
     GlobalIndex(rs.intOpt("id"),
@@ -91,5 +94,7 @@ case class GlobalIndex(id: Option[Int],
                        elementType: String,
                        propNames: Seq[String],
                        indexName: String)  {
+  val backendIndexName = indexName + "_" + elementType
+  val backendIndexNameWithType = backendIndexName + "/test1"
   lazy val propNamesSet = propNames.toSet
 }

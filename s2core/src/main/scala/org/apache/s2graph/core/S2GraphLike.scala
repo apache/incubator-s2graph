@@ -298,8 +298,15 @@ trait S2GraphLike extends Graph {
                 belongLabelIds: Seq[Int] = Seq.empty): S2VertexLike = {
     val vertex = elementBuilder.newVertex(id, ts, props, op, belongLabelIds)
 
-    val future = mutateVertices(Seq(vertex), withWait = true).map { rets =>
-      if (rets.forall(_.isSuccess)) vertex
+    val future = mutateVertices(Seq(vertex), withWait = true).flatMap { rets =>
+      if (rets.forall(_.isSuccess)) {
+        indexProvider.mutateVerticesAsync(Seq(vertex)).map { ls =>
+          if (ls.forall(identity)) vertex
+          else {
+            throw new RuntimeException("indexVertex failed.")
+          }
+        }
+      }
       else throw new RuntimeException("addVertex failed.")
     }
     Await.ready(future, WaitTimeout)

@@ -28,6 +28,8 @@ import org.apache.s2graph.core.{GraphExceptions, JSONParser}
 import play.api.libs.json.Json
 import scalikejdbc._
 
+import scala.util.Try
+
 object LabelMeta extends Model[LabelMeta] {
 
   /** dummy sequences */
@@ -78,7 +80,8 @@ object LabelMeta extends Model[LabelMeta] {
   val defaultRequiredMetaNames = Set("from", "_from", "to", "_to", "_from_hash", "label", "direction", "timestamp", "_timestamp")
 
   def apply(rs: WrappedResultSet): LabelMeta = {
-    LabelMeta(Some(rs.int("id")), rs.int("label_id"), rs.string("name"), rs.byte("seq"), rs.string("default_value"), rs.string("data_type").toLowerCase)
+    LabelMeta(Some(rs.int("id")), rs.int("label_id"), rs.string("name"), rs.byte("seq"),
+      rs.string("default_value"), rs.string("data_type").toLowerCase, rs.boolean("store_in_global_index"))
   }
 
   /** Note: DegreeSeq should not be included in serializer/deserializer.
@@ -124,13 +127,13 @@ object LabelMeta extends Model[LabelMeta] {
     }
   }
 
-  def insert(labelId: Int, name: String, defaultValue: String, dataType: String)(implicit session: DBSession = AutoSession) = {
+  def insert(labelId: Int, name: String, defaultValue: String, dataType: String, storeInGlobalIndex: Boolean = false)(implicit session: DBSession = AutoSession) = {
     val ls = findAllByLabelId(labelId, useCache = false)
     val seq = ls.size + 1
 
     if (seq < maxValue) {
-      sql"""insert into label_metas(label_id, name, seq, default_value, data_type)
-    select ${labelId}, ${name}, ${seq}, ${defaultValue}, ${dataType}""".updateAndReturnGeneratedKey.apply()
+      sql"""insert into label_metas(label_id, name, seq, default_value, data_type, store_in_global_index)
+    select ${labelId}, ${name}, ${seq}, ${defaultValue}, ${dataType}, ${storeInGlobalIndex}""".updateAndReturnGeneratedKey.apply()
     } else {
       throw MaxPropSizeReachedException("max property size reached")
     }
@@ -139,12 +142,13 @@ object LabelMeta extends Model[LabelMeta] {
   def findOrInsert(labelId: Int,
                    name: String,
                    defaultValue: String,
-                   dataType: String)(implicit session: DBSession = AutoSession): LabelMeta = {
+                   dataType: String,
+                   storeInGlobalIndex: Boolean = false)(implicit session: DBSession = AutoSession): LabelMeta = {
 
     findByName(labelId, name) match {
       case Some(c) => c
       case None =>
-        insert(labelId, name, defaultValue, dataType)
+        insert(labelId, name, defaultValue, dataType, storeInGlobalIndex)
         val cacheKey = "labelId=" + labelId + ":name=" + name
         val cacheKeys = "labelId=" + labelId
         expireCache(cacheKey)
@@ -183,6 +187,14 @@ object LabelMeta extends Model[LabelMeta] {
       val cacheKey = s"labelId=${labelId}"
       cacheKey -> ls
     }.toList)
+
+    ls
+  }
+
+  def updateStoreInGlobalIndex(id: Int, storeInGlobalIndex: Boolean)(implicit session: DBSession = AutoSession): Try[Long] = Try {
+    sql"""
+          update label_metas set store_in_global_index = ${storeInGlobalIndex} where id = ${id}
+       """.updateAndReturnGeneratedKey.apply()
   }
 }
 
@@ -191,7 +203,8 @@ case class LabelMeta(id: Option[Int],
                      name: String,
                      seq: Byte,
                      defaultValue: String,
-                     dataType: String) {
+                     dataType: String,
+                     storeInGlobalIndex: Boolean = false) {
   lazy val toJson = Json.obj("name" -> name, "defaultValue" -> defaultValue, "dataType" -> dataType)
   override def equals(other: Any): Boolean = {
     if (!other.isInstanceOf[LabelMeta]) false

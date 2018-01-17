@@ -95,6 +95,7 @@ object Service extends Model[Service] {
       val cacheKey = s"serviceName=${x.serviceName}"
       (cacheKey -> x)
     })
+
     ls
   }
 
@@ -123,4 +124,6 @@ case class Service(id: Option[Int],
   lazy val extraOptions = Model.extraOptions(options)
   lazy val storageConfigOpt: Option[Config] = toStorageConfig
   def toStorageConfig: Option[Config] = Model.toStorageConfig(extraOptions)
+
+
 }
