@@ -98,6 +98,12 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       Management.addVertexProp(testServiceName, testColumnName, key, keyType)
     }
 
+    // vertex type global index.
+    val globalVertexIndex = management.buildGlobalIndex(GlobalIndex.VertexType, "test_age_index", Seq("age"))
+
+    // edge type global index.
+    val globalEdgeIndex = management.buildGlobalIndex(GlobalIndex.EdgeType, "test_weight_time_edge", Seq("weight", "time"))
+
     logger.info("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
   }
 
