@@ -91,5 +91,7 @@ case class GlobalIndex(id: Option[Int],
                        elementType: String,
                        propNames: Seq[String],
                        indexName: String)  {
+  val backendIndexName = indexName + "_" + elementType
+  val backendIndexNameWithType = backendIndexName + "/test1"
   lazy val propNamesSet = propNames.toSet
 }

@@ -28,6 +28,8 @@ object Common {
   val hadoopVersion = "2.7.3"
   val tinkerpopVersion = "3.2.5"
 
+  val elastic4sVersion = "6.1.0"
+
   /** use Log4j 1.2.17 as the SLF4j backend in runtime, with bridging libraries to forward JCL and JUL logs to SLF4j */
   val loggingRuntime = Seq(
     "log4j" % "log4j" % "1.2.17",

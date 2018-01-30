@@ -96,6 +96,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val defaultServiceColumn = ServiceColumn.find(defaultService.id.get, S2Graph.DefaultColumnName).getOrElse(throw new IllegalStateException("default column is not initialized."))
 
     val allProps = scala.collection.mutable.Set.empty[Prop]
+
     var knowsProp = Vector(
       Prop("weight", "0.0", "double"),
       Prop("data", "-", "string"),

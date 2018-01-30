@@ -59,13 +59,13 @@ object VertexId extends HBaseDeserializable {
   }
 
   def fromString(s: String): VertexId = {
-
-//    val Array(serviceId, columnName, innerValStr) = s.split(S2Vertex.VertexLabelDelimiter)
-//    val service = Service.findById(serviceId.toInt)
-//    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new LabelNotExistException(columnName))
-//    val innerId = JSONParser.toInnerVal(innerValStr, column.columnType, column.schemaVersion)
-//    VertexId(column, innerId)
     s2VertexIdReads.reads(Json.parse(s)).get
+  }
+
+  def isValid(vertexId: VertexId): Option[VertexId] = {
+    ServiceColumn.find(vertexId.column.serviceId, vertexId.column.columnName).map { column =>
+      vertexId
+    }
   }
 }
 

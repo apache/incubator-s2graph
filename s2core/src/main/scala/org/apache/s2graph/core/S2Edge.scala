@@ -377,19 +377,18 @@ case class S2Edge(override val innerGraph: S2GraphLike,
 object EdgeId {
   val EdgeIdDelimiter = ","
   def fromString(s: String): EdgeId = {
-//    val Array(src, tgt, labelName, dir, ts) = s.split(EdgeIdDelimiter)
-//    val label = Label.findByName(labelName).getOrElse(throw LabelNotExistException(labelName))
-//    val srcColumn = label.srcColumnWithDir(GraphUtil.toDirection(dir))
-//    val tgtColumn = label.tgtColumnWithDir(GraphUtil.toDirection(dir))
-//    EdgeId(
-//      JSONParser.toInnerVal(src, srcColumn.columnType, label.schemaVersion),
-//      JSONParser.toInnerVal(tgt, tgtColumn.columnType, label.schemaVersion),
-//      labelName,
-//      dir,
-//      ts.toLong
-//    )
     val js = Json.parse(s)
     s2EdgeIdReads.reads(Json.parse(s)).get
+  }
+
+  def isValid(edgeId: EdgeId): Option[EdgeId] = {
+    VertexId.isValid(edgeId.srcVertexId).flatMap { _ =>
+      VertexId.isValid(edgeId.tgtVertexId).flatMap { _ =>
+        Label.findByName(edgeId.labelName).map { _ =>
+          edgeId
+        }
+      }
+    }
   }
 }
 

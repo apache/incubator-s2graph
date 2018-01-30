@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.Integrate
 
 import com.typesafe.config._
-import org.apache.s2graph.core.mysqls.{Label, Model}
+import org.apache.s2graph.core.mysqls.{GlobalIndex, Label, Model}
 import org.apache.s2graph.core.rest.{RequestParser, RestHandler}
 import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.core._
@@ -97,6 +97,12 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     vertexPropsKeys.map { case (key, keyType) =>
       Management.addVertexProp(testServiceName, testColumnName, key, keyType)
     }
+
+    // vertex type global index.
+    val globalVertexIndex = management.buildGlobalIndex(GlobalIndex.VertexType, "test_age_index", Seq("age"))
+
+    // edge type global index.
+    val globalEdgeIndex = management.buildGlobalIndex(GlobalIndex.EdgeType, "test_weight_time_edge", Seq("weight", "time"))
 
     logger.info("[init end]: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
   }
