@@ -35,47 +35,47 @@ class GlobalIndexTest extends FunSuite with Matchers with TestCommonWithModels w
     graph.shutdown()
   }
 
-//  test("test buildGlobalIndex.") {
-//    Seq(GlobalIndex.EdgeType, GlobalIndex.VertexType).foreach { elementType =>
-//      management.buildGlobalIndex(elementType, "test_global", Seq("weight", "date", "name"))
-//    }
-//  }
-//
-//  test("findGlobalIndex.") {
-//    // (weight: 34) AND (weight: [1 TO 100])
-//    Seq(GlobalIndex.EdgeType, GlobalIndex.VertexType).foreach { elementType =>
-//      val idx1 = management.buildGlobalIndex(elementType, "test-1", Seq("weight", "age", "name"))
-//      val idx2 = management.buildGlobalIndex(elementType, "test-2", Seq("gender", "age"))
-//      val idx3 = management.buildGlobalIndex(elementType, "test-3", Seq("class"))
-//
-//      var hasContainers = Seq(
-//        new HasContainer("weight", P.eq(Int.box(34))),
-//        new HasContainer("age", P.between(Int.box(1), Int.box(100)))
-//      )
-//
-//      GlobalIndex.findGlobalIndex(elementType, hasContainers) shouldBe(Option(idx1))
-//
-//      hasContainers = Seq(
-//        new HasContainer("gender", P.eq(Int.box(34))),
-//        new HasContainer("age", P.eq(Int.box(34))),
-//        new HasContainer("class", P.eq(Int.box(34)))
-//      )
-//
-//      GlobalIndex.findGlobalIndex(elementType, hasContainers) shouldBe(Option(idx2))
-//
-//      hasContainers = Seq(
-//        new HasContainer("class", P.eq(Int.box(34))),
-//        new HasContainer("_", P.eq(Int.box(34)))
-//      )
-//
-//      GlobalIndex.findGlobalIndex(elementType, hasContainers) shouldBe(Option(idx3))
-//
-//      hasContainers = Seq(
-//        new HasContainer("key", P.eq(Int.box(34))),
-//        new HasContainer("value", P.eq(Int.box(34)))
-//      )
-//
-//      GlobalIndex.findGlobalIndex(elementType, hasContainers) shouldBe(None)
-//    }
-//  }
+  test("test buildGlobalIndex.") {
+    Seq(GlobalIndex.EdgeType, GlobalIndex.VertexType).foreach { elementType =>
+      management.buildGlobalIndex(elementType, "test_global", Seq("weight", "date", "name"))
+    }
+  }
+
+  test("findGlobalIndex.") {
+    // (weight: 34) AND (weight: [1 TO 100])
+    Seq(GlobalIndex.EdgeType, GlobalIndex.VertexType).foreach { elementType =>
+      val idx1 = management.buildGlobalIndex(elementType, "test-1", Seq("weight", "age", "name"))
+      val idx2 = management.buildGlobalIndex(elementType, "test-2", Seq("gender", "age"))
+      val idx3 = management.buildGlobalIndex(elementType, "test-3", Seq("class"))
+
+      var hasContainers = Seq(
+        new HasContainer("weight", P.eq(Int.box(34))),
+        new HasContainer("age", P.between(Int.box(1), Int.box(100)))
+      )
+
+      GlobalIndex.findGlobalIndex(elementType, hasContainers) shouldBe(Option(idx1))
+
+      hasContainers = Seq(
+        new HasContainer("gender", P.eq(Int.box(34))),
+        new HasContainer("age", P.eq(Int.box(34))),
+        new HasContainer("class", P.eq(Int.box(34)))
+      )
+
+      GlobalIndex.findGlobalIndex(elementType, hasContainers) shouldBe(Option(idx2))
+
+      hasContainers = Seq(
+        new HasContainer("class", P.eq(Int.box(34))),
+        new HasContainer("_", P.eq(Int.box(34)))
+      )
+
+      GlobalIndex.findGlobalIndex(elementType, hasContainers) shouldBe(Option(idx3))
+
+      hasContainers = Seq(
+        new HasContainer("key", P.eq(Int.box(34))),
+        new HasContainer("value", P.eq(Int.box(34)))
+      )
+
+      GlobalIndex.findGlobalIndex(elementType, hasContainers) shouldBe(None)
+    }
+  }
 }
