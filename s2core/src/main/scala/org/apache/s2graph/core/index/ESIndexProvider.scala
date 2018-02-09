@@ -33,11 +33,11 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
 
   val WaitTime = Duration("60 seconds")
 
-  private def toFields(globalIndex: GlobalIndex, vertex: S2VertexLike): Option[Map[String, Any]] = {
+  private def toFields(vertex: S2VertexLike, forceToIndex: Boolean): Option[Map[String, Any]] = {
     val props = vertex.props.asScala
-    val filtered = props.filterKeys(globalIndex.propNamesSet)
+    val storeInGlobalIndex = if (forceToIndex) true else props.exists(_._2.columnMeta.storeInGlobalIndex)
 
-    if (filtered.isEmpty) None
+    if (!storeInGlobalIndex) None
     else {
       val fields = mutable.Map.empty[String, Any]
 
@@ -45,10 +45,13 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
       fields += (serviceField -> vertex.serviceName)
       fields += (serviceColumnField -> vertex.columnName)
 
-      filtered.foreach { case (dim, s2VertexProperty) =>
-        s2VertexProperty.columnMeta.dataType match {
-          case "string" => fields += (dim -> s2VertexProperty.innerVal.value.toString)
-          case _ => fields += (dim -> s2VertexProperty.innerVal.value)
+      props.foreach { case (dim, s2VertexProperty) =>
+        // skip reserved fields.
+        if (s2VertexProperty.columnMeta.seq > 0) {
+          s2VertexProperty.columnMeta.dataType match {
+            case "string" => fields += (dim -> s2VertexProperty.innerVal.value.toString)
+            case _ => fields += (dim -> s2VertexProperty.innerVal.value)
+          }
         }
       }
 
@@ -56,11 +59,11 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     }
   }
 
-  private def toFields(globalIndex: GlobalIndex, edge: S2EdgeLike): Option[Map[String, Any]] = {
+  private def toFields(edge: S2EdgeLike, forceToIndex: Boolean): Option[Map[String, Any]] = {
     val props = edge.getPropsWithTs().asScala
-    val filtered = props.filterKeys(globalIndex.propNamesSet)
+    val store = if (forceToIndex) true else props.exists(_._2.labelMeta.storeInGlobalIndex)
 
-    if (filtered.isEmpty) None
+    if (!store) None
     else {
       val fields = mutable.Map.empty[String, Any]
 
@@ -68,10 +71,12 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
       fields += (serviceField -> edge.serviceName)
       fields += (labelField -> edge.label())
 
-      filtered.foreach { case (dim, s2Property) =>
-        s2Property.labelMeta.dataType match {
-          case "string" => fields += (dim -> s2Property.innerVal.value.toString)
-          case _ => fields += (dim -> s2Property.innerVal.value)
+      props.foreach { case (dim, s2Property) =>
+        if (s2Property.labelMeta.seq > 0) {
+          s2Property.labelMeta.dataType match {
+            case "string" => fields += (dim -> s2Property.innerVal.value.toString)
+            case _ => fields += (dim -> s2Property.innerVal.value)
+          }
         }
       }
 
@@ -79,16 +84,13 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     }
   }
 
-  override def mutateVerticesAsync(vertices: Seq[S2VertexLike]): Future[Seq[Boolean]] = {
-    val globalIndexOptions = GlobalIndex.findAll(GlobalIndex.VertexType)
-
-    val bulkRequests = globalIndexOptions.flatMap { globalIndex =>
-      vertices.flatMap { vertex =>
-        toFields(globalIndex, vertex).toSeq.map { fields =>
-          indexInto(globalIndex.backendIndexNameWithType).fields(fields)
+  override def mutateVerticesAsync(vertices: Seq[S2VertexLike], forceToIndex: Boolean = false): Future[Seq[Boolean]] = {
+    val bulkRequests = vertices.flatMap { vertex =>
+        toFields(vertex, forceToIndex).toSeq.map { fields =>
+          indexInto(GlobalIndex.TableName).fields(fields)
         }
       }
-    }
+
     if (bulkRequests.isEmpty) Future.successful(vertices.map(_ => true))
     else {
       client.execute {
@@ -104,20 +106,16 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     }
   }
 
-  override def mutateVertices(vertices: Seq[S2VertexLike]): Seq[Boolean] =
-    Await.result(mutateVerticesAsync(vertices), WaitTime)
+  override def mutateVertices(vertices: Seq[S2VertexLike], forceToIndex: Boolean = false): Seq[Boolean] =
+    Await.result(mutateVerticesAsync(vertices, forceToIndex), WaitTime)
 
-  override def mutateEdges(edges: Seq[S2EdgeLike]): Seq[Boolean] =
-    Await.result(mutateEdgesAsync(edges), WaitTime)
+  override def mutateEdges(edges: Seq[S2EdgeLike], forceToIndex: Boolean = false): Seq[Boolean] =
+    Await.result(mutateEdgesAsync(edges, forceToIndex), WaitTime)
 
-  override def mutateEdgesAsync(edges: Seq[S2EdgeLike]): Future[Seq[Boolean]] = {
-    val globalIndexOptions = GlobalIndex.findAll(GlobalIndex.EdgeType)
-
-    val bulkRequests = globalIndexOptions.flatMap { globalIndex =>
-      edges.flatMap { edge =>
-        toFields(globalIndex, edge).toSeq.map { fields =>
-          indexInto(globalIndex.backendIndexNameWithType).fields(fields)
-        }
+  override def mutateEdgesAsync(edges: Seq[S2EdgeLike], forceToIndex: Boolean = false): Future[Seq[Boolean]] = {
+    val bulkRequests = edges.flatMap { edge =>
+      toFields(edge, forceToIndex).toSeq.map { fields =>
+        indexInto(GlobalIndex.TableName).fields(fields)
       }
     }
 
@@ -141,29 +139,25 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     val field = eidField
     val ids = new java.util.HashSet[EdgeId]
 
-    GlobalIndex.findGlobalIndex(GlobalIndex.EdgeType, hasContainers) match {
-      case None => Future.successful(new util.ArrayList[EdgeId](ids))
-      case Some(globalIndex) =>
-        val queryString = buildQueryString(hasContainers)
+    val queryString = buildQueryString(hasContainers)
 
-        client.execute {
-          search(globalIndex.backendIndexName).query(queryString)
-        }.map { ret =>
-          ret match {
-            case Left(failure) =>
-            case Right(results) =>
-              results.result.hits.hits.foreach { searchHit =>
-                searchHit.sourceAsMap.get(field).foreach { idValue =>
-                  val id = Conversions.s2EdgeIdReads.reads(Json.parse(idValue.toString)).get
+    client.execute {
+      search(GlobalIndex.TableName).query(queryString)
+    }.map { ret =>
+      ret match {
+        case Left(failure) =>
+        case Right(results) =>
+          results.result.hits.hits.foreach { searchHit =>
+            searchHit.sourceAsMap.get(field).foreach { idValue =>
+              val id = Conversions.s2EdgeIdReads.reads(Json.parse(idValue.toString)).get
 
-                  //TODO: Come up with better way to filter out hits with invalid meta.
-                  EdgeId.isValid(id).foreach(ids.add)
-                }
-              }
+              //TODO: Come up with better way to filter out hits with invalid meta.
+              EdgeId.isValid(id).foreach(ids.add)
+            }
           }
+      }
 
-          new util.ArrayList[EdgeId](ids)
-        }
+      new util.ArrayList[EdgeId](ids)
     }
   }
 
@@ -175,28 +169,24 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     val field = vidField
     val ids = new java.util.HashSet[VertexId]
 
-    GlobalIndex.findGlobalIndex(GlobalIndex.VertexType, hasContainers) match {
-      case None => Future.successful(new util.ArrayList[VertexId](ids))
-      case Some(globalIndex) =>
-        val queryString = buildQueryString(hasContainers)
+    val queryString = buildQueryString(hasContainers)
 
-        client.execute {
-          search(globalIndex.backendIndexName).query(queryString)
-        }.map { ret =>
-          ret match {
-            case Left(failure) =>
-            case Right(results) =>
-              results.result.hits.hits.foreach { searchHit =>
-                searchHit.sourceAsMap.get(field).foreach { idValue =>
-                  val id = Conversions.s2VertexIdReads.reads(Json.parse(idValue.toString)).get
-                  //TODO: Come up with better way to filter out hits with invalid meta.
-                  VertexId.isValid(id).foreach(ids.add)
-                }
-              }
+    client.execute {
+      search(GlobalIndex.TableName).query(queryString)
+    }.map { ret =>
+      ret match {
+        case Left(failure) =>
+        case Right(results) =>
+          results.result.hits.hits.foreach { searchHit =>
+            searchHit.sourceAsMap.get(field).foreach { idValue =>
+              val id = Conversions.s2VertexIdReads.reads(Json.parse(idValue.toString)).get
+              //TODO: Come up with better way to filter out hits with invalid meta.
+              VertexId.isValid(id).foreach(ids.add)
+            }
           }
+      }
 
-          new util.ArrayList[VertexId](ids)
-        }
+      new util.ArrayList[VertexId](ids)
     }
   }
 

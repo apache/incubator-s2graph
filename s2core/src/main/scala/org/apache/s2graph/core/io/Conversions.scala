@@ -91,7 +91,8 @@ object Conversions {
       (JsPath \ "columnId").read[Int] and
       (JsPath \ "name").read[String] and
       (JsPath \ "seq").read[Byte] and
-      (JsPath \ "dataType").read[String]
+      (JsPath \ "dataType").read[String] and
+      (JsPath \ "storeGlobalIndex").read[Boolean]
     )(ColumnMeta.apply _)
 
   implicit val columnMetaWrites: Writes[ColumnMeta] = (
@@ -99,7 +100,8 @@ object Conversions {
       (JsPath \ "columnId").write[Int] and
       (JsPath \ "name").write[String] and
       (JsPath \ "seq").write[Byte] and
-      (JsPath \ "dataType").write[String]
+      (JsPath \ "dataType").write[String] and
+      (JsPath \ "storeGlobalIndex").write[Boolean]
     )(unlift(ColumnMeta.unapply))
 
   /* Graph Class */

@@ -43,7 +43,7 @@ class IndexProviderTest extends IntegrateCommon {
     val testColumn = ServiceColumn.find(testService.id.get, TestUtil.testColumnName).get
     val vertexId = graph.elementBuilder.newVertexId(testServiceName)(testColumnName)(1L)
     val indexPropsColumnMeta = testColumn.metasInvMap("age")
-
+    ColumnMeta.updateStoreInGlobalIndex(indexPropsColumnMeta.id.get, storeInGlobalIndex = true)
 
     val propsWithTs = Map(
       indexPropsColumnMeta -> InnerVal.withInt(1, "v4")
@@ -85,8 +85,11 @@ class IndexProviderTest extends IntegrateCommon {
     val otherVertexId = graph.elementBuilder.newVertexId(testServiceName)(testColumnName)(2L)
     val vertex = graph.elementBuilder.newVertex(vertexId)
     val otherVertex = graph.elementBuilder.newVertex(otherVertexId)
-    val weightMeta = testLabel.metaPropsInvMap("weight")
-    val timeMeta = testLabel.metaPropsInvMap("time")
+    val weightMeta = testLabel.metaPropsInvMap("weight").copy(storeInGlobalIndex = true)
+    val timeMeta = testLabel.metaPropsInvMap("time").copy(storeInGlobalIndex = true)
+
+    LabelMeta.updateStoreInGlobalIndex(weightMeta.id.get, storeInGlobalIndex = true)
+    LabelMeta.updateStoreInGlobalIndex(timeMeta.id.get, storeInGlobalIndex = true)
 
     val propsWithTs = Map(
       weightMeta -> InnerValLikeWithTs.withLong(1L, 1L, "v4"),
@@ -104,7 +107,7 @@ class IndexProviderTest extends IntegrateCommon {
 
     println(s"[# of edges]: ${edges.size}")
     edges.foreach(e => println(s"[Edge]: $e"))
-    indexProvider.mutateEdges(edges)
+    indexProvider.mutateEdges(edges, forceToIndex = true)
 
     // match
     (0 until numOfTry).foreach { _ =>

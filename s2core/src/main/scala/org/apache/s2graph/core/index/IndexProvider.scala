@@ -120,11 +120,11 @@ trait IndexProvider {
   def fetchVertexIds(hasContainers: java.util.List[HasContainer]): java.util.List[VertexId]
   def fetchVertexIdsAsync(hasContainers: java.util.List[HasContainer]): Future[java.util.List[VertexId]]
 
-  def mutateVertices(vertices: Seq[S2VertexLike]): Seq[Boolean]
-  def mutateVerticesAsync(vertices: Seq[S2VertexLike]): Future[Seq[Boolean]]
+  def mutateVertices(vertices: Seq[S2VertexLike], forceToIndex: Boolean = false): Seq[Boolean]
+  def mutateVerticesAsync(vertices: Seq[S2VertexLike], forceToIndex: Boolean = false): Future[Seq[Boolean]]
 
-  def mutateEdges(edges: Seq[S2EdgeLike]): Seq[Boolean]
-  def mutateEdgesAsync(edges: Seq[S2EdgeLike]): Future[Seq[Boolean]]
+  def mutateEdges(edges: Seq[S2EdgeLike], forceToIndex: Boolean = false): Seq[Boolean]
+  def mutateEdgesAsync(edges: Seq[S2EdgeLike], forceToIndex: Boolean = false): Future[Seq[Boolean]]
 
   def shutdown(): Unit
 }

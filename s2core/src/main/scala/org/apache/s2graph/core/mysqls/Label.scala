@@ -204,8 +204,8 @@ object Label extends Model[Label] {
             hTableName.getOrElse(service.hTableName), hTableTTL.orElse(service.hTableTTL), schemaVersion, isAsync,
             compressionAlgorithm, options).toInt
 
-          val labelMetaMap = metaProps.map { case Prop(propName, defaultValue, dataType) =>
-            val labelMeta = LabelMeta.findOrInsert(createdId, propName, defaultValue, dataType)
+          val labelMetaMap = metaProps.map { case Prop(propName, defaultValue, dataType, storeInGlobalIndex) =>
+            val labelMeta = LabelMeta.findOrInsert(createdId, propName, defaultValue, dataType, storeInGlobalIndex)
             (propName -> labelMeta.seq)
           }.toMap ++ LabelMeta.reservedMetas.map (labelMeta => labelMeta.name -> labelMeta.seq).toMap
 
