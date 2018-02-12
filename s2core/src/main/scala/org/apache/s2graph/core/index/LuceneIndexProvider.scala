@@ -5,7 +5,7 @@ import java.util
 import com.typesafe.config.Config
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document.{Document, Field, StringField}
-import org.apache.lucene.index.{DirectoryReader, IndexWriter, IndexWriterConfig}
+import org.apache.lucene.index.{DirectoryReader, IndexWriter, IndexWriterConfig, Term}
 import org.apache.lucene.queryparser.classic.{ParseException, QueryParser}
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.store.{BaseDirectory, RAMDirectory}
@@ -100,11 +100,13 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     Future.successful(mutateEdges(edges, forceToIndex))
 
   override def mutateVertices(vertices: Seq[S2VertexLike], forceToIndex: Boolean = false): Seq[Boolean] = {
-    val writer = getOrElseCreateIndexWriter(GlobalIndex.TableName)
+    val writer = getOrElseCreateIndexWriter(GlobalIndex.VertexIndexName)
 
     vertices.foreach { vertex =>
       toDocument(vertex, forceToIndex).foreach { doc =>
-        writer.addDocument(doc)
+        val vId = vertex.id.toString()
+
+        writer.updateDocument(new Term(IdField, vId), doc)
       }
     }
 
@@ -117,11 +119,13 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     Future.successful(mutateVertices(vertices, forceToIndex))
 
   override def mutateEdges(edges: Seq[S2EdgeLike], forceToIndex: Boolean = false): Seq[Boolean] = {
-    val writer = getOrElseCreateIndexWriter(GlobalIndex.TableName)
+    val writer = getOrElseCreateIndexWriter(GlobalIndex.EdgeIndexName)
 
     edges.foreach { edge =>
       toDocument(edge, forceToIndex).foreach { doc =>
-        writer.addDocument(doc)
+        val eId = edge.edgeId.toString
+
+        writer.updateDocument(new Term(IdField, eId), doc)
       }
     }
 
@@ -139,7 +143,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     try {
       val q = new QueryParser(field, analyzer).parse(queryString)
 
-      val reader = DirectoryReader.open(directories(GlobalIndex.TableName))
+      val reader = DirectoryReader.open(directories(GlobalIndex.EdgeIndexName))
       val searcher = new IndexSearcher(reader)
 
       val docs = searcher.search(q, hitsPerPage)
@@ -169,7 +173,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     try {
       val q = new QueryParser(field, analyzer).parse(queryString)
 
-      val reader = DirectoryReader.open(directories(GlobalIndex.TableName))
+      val reader = DirectoryReader.open(directories(GlobalIndex.VertexIndexName))
       val searcher = new IndexSearcher(reader)
 
       val docs = searcher.search(q, hitsPerPage)

@@ -43,7 +43,6 @@ class IndexProviderTest extends IntegrateCommon {
     val testColumn = ServiceColumn.find(testService.id.get, TestUtil.testColumnName).get
     val vertexId = graph.elementBuilder.newVertexId(testServiceName)(testColumnName)(1L)
     val indexPropsColumnMeta = testColumn.metasInvMap("age")
-    ColumnMeta.updateStoreInGlobalIndex(indexPropsColumnMeta.id.get, storeInGlobalIndex = true)
 
     val propsWithTs = Map(
       indexPropsColumnMeta -> InnerVal.withInt(1, "v4")
@@ -57,12 +56,22 @@ class IndexProviderTest extends IntegrateCommon {
     val otherVertex = graph.elementBuilder.newVertex(vertexId)
     S2Vertex.fillPropsWithTs(otherVertex, otherPropsWithTs)
 
-    val numOfOthers = 10
-    val vertices = Seq(vertex) ++ (0 until numOfOthers).map(_ => otherVertex)
+    val numOfOthers = 20
+    val vertices = Seq(vertex) ++ (10 until numOfOthers).map { ith =>
+      val vertexId = graph.elementBuilder.newVertexId(testServiceName)(testColumnName)(ith)
+
+      val v = graph.elementBuilder.newVertex(vertexId)
+      S2Vertex.fillPropsWithTs(v, otherPropsWithTs)
+
+      v
+    }
 
     println(s"[# of vertices]: ${vertices.size}")
     vertices.foreach(v => println(s"[Vertex]: $v, ${v.props}"))
-    indexProvider.mutateVertices(vertices)
+    indexProvider.mutateVertices(vertices, forceToIndex = true)
+
+    // enough time for elastic search to persist docs.
+    Thread.sleep(1000)
 
     (0 until numOfTry).foreach { ith =>
       val hasContainer = new HasContainer(indexPropsColumnMeta.name, P.eq(Long.box(1)))
@@ -85,11 +94,8 @@ class IndexProviderTest extends IntegrateCommon {
     val otherVertexId = graph.elementBuilder.newVertexId(testServiceName)(testColumnName)(2L)
     val vertex = graph.elementBuilder.newVertex(vertexId)
     val otherVertex = graph.elementBuilder.newVertex(otherVertexId)
-    val weightMeta = testLabel.metaPropsInvMap("weight").copy(storeInGlobalIndex = true)
-    val timeMeta = testLabel.metaPropsInvMap("time").copy(storeInGlobalIndex = true)
-
-    LabelMeta.updateStoreInGlobalIndex(weightMeta.id.get, storeInGlobalIndex = true)
-    LabelMeta.updateStoreInGlobalIndex(timeMeta.id.get, storeInGlobalIndex = true)
+    val weightMeta = testLabel.metaPropsInvMap("weight")
+    val timeMeta = testLabel.metaPropsInvMap("time")
 
     val propsWithTs = Map(
       weightMeta -> InnerValLikeWithTs.withLong(1L, 1L, "v4"),
@@ -108,6 +114,9 @@ class IndexProviderTest extends IntegrateCommon {
     println(s"[# of edges]: ${edges.size}")
     edges.foreach(e => println(s"[Edge]: $e"))
     indexProvider.mutateEdges(edges, forceToIndex = true)
+
+    // enough time for elastic search to persist docs.
+    Thread.sleep(1000)
 
     // match
     (0 until numOfTry).foreach { _ =>
