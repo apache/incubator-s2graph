@@ -196,12 +196,6 @@ object LabelMeta extends Model[LabelMeta] {
           update label_metas set store_in_global_index = ${storeInGlobalIndex} where id = ${id}
        """.updateAndReturnGeneratedKey.apply()
   }
-
-  def updateStoreInGlobalIndex(id: Int, storeInGlobalIndex: Boolean)(implicit session: DBSession = AutoSession): Try[Long] = Try {
-    sql"""
-          update label_metas set store_in_global_index = ${storeInGlobalIndex} where id = ${id}
-       """.updateAndReturnGeneratedKey.apply()
-  }
 }
 
 case class LabelMeta(id: Option[Int],
