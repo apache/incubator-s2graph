@@ -304,20 +304,20 @@ object AdminController extends Controller {
    * @param columnName
    * @return
    */
-  def addServiceColumnProp(serviceName: String, columnName: String) = Action(parse.json) { request =>
-    addServiceColumnPropInner(serviceName, columnName)(request.body) match {
+  def addServiceColumnProp(serviceName: String, columnName: String, storeInGlobalIndex: Boolean = false) = Action(parse.json) { request =>
+    addServiceColumnPropInner(serviceName, columnName, storeInGlobalIndex)(request.body) match {
       case None => bad(s"can`t find service with $serviceName or can`t find serviceColumn with $columnName")
       case Some(m) => Ok(m.toJson).as(applicationJsonHeader)
     }
   }
 
-  def addServiceColumnPropInner(serviceName: String, columnName: String)(js: JsValue) = {
+  def addServiceColumnPropInner(serviceName: String, columnName: String, storeInGlobalIndex: Boolean = false)(js: JsValue) = {
     for {
       service <- Service.findByName(serviceName)
       serviceColumn <- ServiceColumn.find(service.id.get, columnName)
       prop <- requestParser.toPropElements(js).toOption
     } yield {
-      ColumnMeta.findOrInsert(serviceColumn.id.get, prop.name, prop.datatType)
+      ColumnMeta.findOrInsert(serviceColumn.id.get, prop.name, prop.dataType, storeInGlobalIndex)
     }
   }
 

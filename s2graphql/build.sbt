@@ -17,23 +17,24 @@
  * under the License.
  */
 
-// use the Play sbt plugin for Play projects
+name := "s2graphql"
 
-addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.5.9")
+version := "0.1"
 
-// http://www.scalastyle.org/sbt.html
-addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "0.7.0")
+description := "GraphQL server with akka-http and sangria and s2graph"
 
-// sbt revolver
-addSbtPlugin("io.spray" % "sbt-revolver" % "0.9.1")
+scalacOptions ++= Seq("-deprecation", "-feature")
 
-addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.0.3")
+libraryDependencies ++= Seq(
+  "org.sangria-graphql" %% "sangria" % "1.3.3",
+  "org.sangria-graphql" %% "sangria-spray-json" % "1.0.0",
 
-addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.8.0")
+  "com.typesafe.akka" %% "akka-http" % "10.0.10",
+  "com.typesafe.akka" %% "akka-http-spray-json" % "10.0.10",
 
-addSbtPlugin("com.jsuereth" % "sbt-pgp" % "1.0.0")
+  "com.typesafe.akka" %% "akka-slf4j" % "2.4.6",
 
-addSbtPlugin("com.github.gseitz" % "sbt-release" % "1.0.3")
+  "org.scalatest" %% "scalatest" % "3.0.4" % Test
+)
 
-resolvers += Resolver.typesafeRepo("releases")
-
+Revolver.settings
