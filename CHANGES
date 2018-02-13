@@ -37,6 +37,7 @@ Release Notes - S2Graph - Version 0.2.0
 ** Bug
     * [S2GRAPH-159] - Wrong syntax at a bash script under Linux
     * [S2GRAPH-168] - Fix args order mismatch when use addServiceColumnProp
+    * [S2GRAPH-176] - Fix compile error on LabelMeta
 
 ** Improvement
     * [S2GRAPH-72] - Support Apache TinkerPop and Gremlin
