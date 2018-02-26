@@ -168,6 +168,8 @@ object TransferToHFile extends SparkApp {
 
     val sc = new SparkContext(conf)
 
+    val phase = System.getProperty("phase")
+    GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
     GraphSubscriberHelper.management.createStorageTable(zkQuorum, tableName, List("e", "v"), maxHFilePerResionServer, None, compressionAlgorithm)
 
     /* set up hbase init */
