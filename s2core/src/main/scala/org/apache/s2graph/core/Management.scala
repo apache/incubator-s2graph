@@ -105,6 +105,7 @@ object Management {
             Prop(propName, defaultValue, dataType, storeInGlobalIndex) <- props
           } yield {
             ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType,
+              defaultValue,
               storeInGlobalIndex = storeInGlobalIndex, useCache = false)
           }
       }
@@ -186,13 +187,14 @@ object Management {
                     columnName: String,
                     propsName: String,
                     propsType: String,
+                    defaultValue: String,
                     storeInGlobalIndex: Boolean = false,
                     schemaVersion: String = DEFAULT_VERSION): ColumnMeta = {
     val result = for {
       service <- Service.findByName(serviceName, useCache = false)
       serviceColumn <- ServiceColumn.find(service.id.get, columnName)
     } yield {
-        ColumnMeta.findOrInsert(serviceColumn.id.get, propsName, propsType, storeInGlobalIndex)
+        ColumnMeta.findOrInsert(serviceColumn.id.get, propsName, propsType, defaultValue, storeInGlobalIndex)
       }
     result.getOrElse({
       throw new RuntimeException(s"add property on vertex failed")
@@ -350,10 +352,17 @@ class Management(graph: S2GraphLike) {
     }
   }
 
+//  def createServiceColumn(serviceName: String,
+//                          columnName: String,
+//                          columnType: String,
+//                          props: java.util.List[Prop],
+//                          schemaVersion: String = DEFAULT_VERSION): ServiceColumn =
+//    createServiceColumn(serviceName, columnName, columnType, props.toSeq, schemaVersion)
+
   def createServiceColumn(serviceName: String,
                           columnName: String,
                           columnType: String,
-                          props: java.util.List[Prop],
+                          props: Seq[Prop],
                           schemaVersion: String = DEFAULT_VERSION): ServiceColumn = {
 
     val serviceColumnTry = Model withTx { implicit session =>
@@ -365,7 +374,7 @@ class Management(graph: S2GraphLike) {
           for {
             Prop(propName, defaultValue, dataType, storeInGlobalIndex) <- props
           } yield {
-            ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType,
+            ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType, defaultValue,
               storeInGlobalIndex = storeInGlobalIndex, useCache = false)
           }
           serviceColumn
@@ -374,7 +383,6 @@ class Management(graph: S2GraphLike) {
 
     serviceColumnTry.get
   }
-
   def createLabel(labelName: String,
                   srcColumn: ServiceColumn,
                   tgtColumn: ServiceColumn,

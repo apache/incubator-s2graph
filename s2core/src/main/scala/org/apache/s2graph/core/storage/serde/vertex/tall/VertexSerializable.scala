@@ -19,6 +19,7 @@
 
 package org.apache.s2graph.core.storage.serde.vertex.tall
 
+import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.{S2Vertex, S2VertexLike}
 import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.s2graph.core.storage.serde.Serializable
@@ -44,11 +45,18 @@ case class VertexSerializable(vertex: S2VertexLike, intToBytes: Int => Array[Byt
 
   /** vertex override toKeyValues since vertex expect to produce multiple sKeyValues */
   override def toKeyValues: Seq[SKeyValue] = {
-    val row = toRowKey
-    val qualifier = toQualifier
-    val value = toValue
-    Seq(
-      SKeyValue(vertex.hbaseTableName.getBytes, row, cf, qualifier, value, vertex.ts)
-    )
+//    val row = toRowKey
+//    val qualifier = toQualifier
+//    val value = toValue
+//    Seq(
+//      SKeyValue(vertex.hbaseTableName.getBytes, row, cf, qualifier, value, vertex.ts)
+//    )
+    (vertex.props.asScala ++ vertex.defaultProps.asScala).toSeq.map { case (_, v) =>
+        val row = Bytes.add(vertex.id.bytes, Array.fill(1)(v.columnMeta.seq))
+        val qualifier = Array.empty[Byte]
+        val value = v.innerVal.bytes
+
+        SKeyValue(vertex.hbaseTableName.getBytes, row, cf, qualifier, value, vertex.ts)
+    }
   }
 }

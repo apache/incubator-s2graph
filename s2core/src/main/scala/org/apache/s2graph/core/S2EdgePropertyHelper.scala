@@ -22,7 +22,7 @@ package org.apache.s2graph.core
 import java.util.function.BiConsumer
 
 import org.apache.s2graph.core.S2Edge.Props
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
 import org.apache.tinkerpop.gremlin.structure.Property
 
@@ -33,6 +33,7 @@ object S2EdgePropertyHelper {
     edge.getPropsWithTs().put(key, newProp)
     newProp
   }
+
   def updatePropsWithTs(edge: S2EdgeLike, others: Props = S2Edge.EmptyProps): Props = {
     val emptyProp = S2Edge.EmptyProps
 
@@ -80,10 +81,12 @@ object S2EdgePropertyHelper {
     }
   }
 
+
   def toLabelMetas(edge: S2EdgeLike, keys: Seq[String]): Seq[LabelMeta] = {
     for {
       key <- keys
       labelMeta <- edge.innerLabel.metaPropsInvMap.get(key)
     } yield labelMeta
   }
+
 }
