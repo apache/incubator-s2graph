@@ -28,16 +28,16 @@ object ColumnMeta extends Model[ColumnMeta] {
 
   val timeStampSeq = -1.toByte
   val lastModifiedAtColumnSeq = 0.toByte
-  val lastModifiedAtColumn = ColumnMeta(Some(0), 0, "lastModifiedAt", lastModifiedAtColumnSeq, "long")
+  val lastModifiedAtColumn = ColumnMeta(Some(0), 0, "lastModifiedAt", lastModifiedAtColumnSeq, "long", "-1")
   val maxValue = Byte.MaxValue
 
-  val timestamp = ColumnMeta(None, -1, "_timestamp", timeStampSeq.toByte, "long")
+  val timestamp = ColumnMeta(None, -1, "_timestamp", timeStampSeq.toByte, "long", "-1")
   val reservedMetas = Seq(timestamp, lastModifiedAtColumn)
   val reservedMetaNamesSet = reservedMetas.map(_.name).toSet
 
   def valueOf(rs: WrappedResultSet): ColumnMeta = {
     ColumnMeta(Some(rs.int("id")), rs.int("column_id"), rs.string("name"),
-      rs.byte("seq"), rs.string("data_type").toLowerCase(), rs.boolean("store_in_global_index"))
+      rs.byte("seq"), rs.string("data_type").toLowerCase(), rs.string("default_value"), rs.boolean("store_in_global_index"))
   }
 
   def findById(id: Int)(implicit session: DBSession = AutoSession) = {
@@ -72,12 +72,12 @@ object ColumnMeta extends Model[ColumnMeta] {
     }
   }
 
-  def insert(columnId: Int, name: String, dataType: String, storeInGlobalIndex: Boolean = false)(implicit session: DBSession = AutoSession) = {
+  def insert(columnId: Int, name: String, dataType: String, defaultValue: String, storeInGlobalIndex: Boolean = false)(implicit session: DBSession = AutoSession) = {
     val ls = findAllByColumn(columnId, false)
     val seq = ls.size + 1
     if (seq <= maxValue) {
-      sql"""insert into column_metas(column_id, name, seq, data_type, store_in_global_index)
-    select ${columnId}, ${name}, ${seq}, ${dataType}, ${storeInGlobalIndex}"""
+      sql"""insert into column_metas(column_id, name, seq, data_type, default_value, store_in_global_index)
+    select ${columnId}, ${name}, ${seq}, ${dataType}, ${defaultValue}, ${storeInGlobalIndex}"""
         .updateAndReturnGeneratedKey.apply()
     }
   }
@@ -85,12 +85,13 @@ object ColumnMeta extends Model[ColumnMeta] {
   def findOrInsert(columnId: Int,
                    name: String,
                    dataType: String,
+                   defaultValue: String,
                    storeInGlobalIndex: Boolean = false,
                    useCache: Boolean = true)(implicit session: DBSession = AutoSession): ColumnMeta = {
     findByName(columnId, name, useCache) match {
       case Some(c) => c
       case None =>
-        insert(columnId, name, dataType, storeInGlobalIndex)
+        insert(columnId, name, dataType, defaultValue, storeInGlobalIndex)
         expireCache(s"columnId=$columnId:name=$name")
         findByName(columnId, name).get
     }
@@ -150,6 +151,7 @@ case class ColumnMeta(id: Option[Int],
                       name: String,
                       seq: Byte,
                       dataType: String,
+                      defaultValue: String,
                       storeInGlobalIndex: Boolean = false) {
   lazy val toJson = Json.obj("name" -> name, "dataType" -> dataType)
   override def equals(other: Any): Boolean = {

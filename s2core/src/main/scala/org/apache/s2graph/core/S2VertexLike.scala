@@ -23,7 +23,7 @@ import java.util.function.{BiConsumer, Consumer}
 
 import org.apache.s2graph.core.S2Vertex.Props
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Label, Service, ServiceColumn}
-import org.apache.s2graph.core.types.VertexId
+import org.apache.s2graph.core.types.{InnerValLike, VertexId}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, T, Vertex, VertexProperty}
 import play.api.libs.json.Json
@@ -199,4 +199,19 @@ trait S2VertexLike extends Vertex with GraphElement {
       throw Vertex.Exceptions.vertexRemovalNotSupported()
     }
   }
+
+  def propertyValue(key: String): Option[InnerValLike] =
+    S2VertexPropertyHelper.propertyValue(this, key)
+
+  def propertyValueInner(columnMeta: ColumnMeta): InnerValLike =
+    S2VertexPropertyHelper.propertyValueInner(this, columnMeta)
+
+  def propertyValues(keys: Seq[String] = Nil): Map[ColumnMeta, InnerValLike] = {
+    S2VertexPropertyHelper.propertyValuesInner(this, S2VertexPropertyHelper.toColumnMetas(this, keys))
+  }
+
+  def propertyValuesInner(columnMetas: Seq[ColumnMeta] = Nil): Map[ColumnMeta, InnerValLike] = {
+    S2VertexPropertyHelper.propertyValuesInner(this, columnMetas)
+  }
+
 }
