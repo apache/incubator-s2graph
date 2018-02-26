@@ -44,9 +44,18 @@ class GraphRepository(graph: S2GraphLike) {
 
   implicit val ec = graph.ec
 
-  def partialVertexParamToVertex(column: ServiceColumn, param: PartialVertexParam): S2VertexLike = {
+  def partialServiceParamToVertex(column: ServiceColumn, param: PartialServiceParam): S2VertexLike = {
     val vid = JSONParser.jsValueToInnerVal(param.vid, column.columnType, column.schemaVersion).get
     graph.toVertex(param.service.serviceName, column.columnName, vid)
+  }
+
+  def partialVertexParamToS2Vertex(serviceName: String, columnName: String, param: PartialVertexParam): S2VertexLike = {
+    graph.toVertex(
+      serviceName = serviceName,
+      columnName = columnName,
+      id = param.id,
+      props = param.props,
+      ts = param.ts)
   }
 
   def partialEdgeParamToS2Edge(labelName: String, param: PartialEdgeParam): S2EdgeLike = {
@@ -59,13 +68,39 @@ class GraphRepository(graph: S2GraphLike) {
     )
   }
 
+  def addVertex(args: Args): Future[Option[MutateResponse]] = {
+    val vertices: Seq[S2VertexLike] = args.raw.keys.toList.flatMap { serviceName =>
+      val innerMap = args.arg[Vector[PartialServiceVertexParam]](serviceName)
+      val ret = innerMap.map { param =>
+        partialVertexParamToS2Vertex(serviceName, param.columnName, param.vertexParam)
+      }
+
+      ret
+    }
+
+    graph.mutateVertices(vertices, withWait = true).map(_.headOption)
+  }
+
+  def addVertices(args: Args): Future[Seq[MutateResponse]] = {
+    val vertices: Seq[S2VertexLike] = args.raw.keys.toList.flatMap { serviceName =>
+      val innerMap = args.arg[Map[String, Vector[PartialVertexParam]]](serviceName)
+
+      innerMap.flatMap { case (columnName, params) =>
+          params.map { param =>
+            partialVertexParamToS2Vertex(serviceName, columnName, param)
+          }
+      }
+    }
+    graph.mutateVertices(vertices, withWait = true)
+  }
+
   def addEdges(args: Args): Future[Seq[MutateResponse]] = {
     val edges: Seq[S2EdgeLike] = args.raw.keys.toList.flatMap { labelName =>
       val params = args.arg[Vector[PartialEdgeParam]](labelName)
       params.map(param => partialEdgeParamToS2Edge(labelName, param))
     }
 
-    graph.mutateEdges(edges)
+    graph.mutateEdges(edges, withWait = true)
   }
 
   def addEdge(args: Args): Future[Option[MutateResponse]] = {
@@ -74,8 +109,9 @@ class GraphRepository(graph: S2GraphLike) {
       partialEdgeParamToS2Edge(labelName, param)
     }
 
-    graph.mutateEdges(edges).map(_.headOption)
+    graph.mutateEdges(edges, withWait = true).map(_.headOption)
   }
+
 
   def getEdges(vertex: S2VertexLike, label: Label, _dir: String): Future[Seq[S2EdgeLike]] = {
     val dir = GraphUtil.directions(_dir)
@@ -108,6 +144,15 @@ class GraphRepository(graph: S2GraphLike) {
 
         serviceTry
     }
+  }
+
+  def createServiceColumn(args: Args): Try[ServiceColumn] = {
+    val serviceName = args.arg[String]("serviceName")
+    val columnName = args.arg[String]("columnName")
+    val columnType = args.arg[String]("columnType")
+    val props = args.argOpt[Vector[Prop]]("props").getOrElse(Vector.empty)
+
+    Try { management.createServiceColumn(serviceName, columnName, columnType, props) }
   }
 
   def createLabel(args: Args): Try[Label] = {
@@ -154,6 +199,8 @@ class GraphRepository(graph: S2GraphLike) {
   }
 
   def allServices: List[Service] = Service.findAll()
+
+  def allServiceColumns: List[ServiceColumn] = ServiceColumn.findAll()
 
   def findServiceByName(name: String): Option[Service] = Service.findByName(name)
 

@@ -85,7 +85,7 @@ object GraphQLServer {
     val s2Type = new S2Type(s2Repository)
     val newSchema = new SchemaDef(s2Type).S2GraphSchema
 
-    println(SchemaRenderer.renderSchema(newSchema))
+//    println(SchemaRenderer.renderSchema(newSchema))
     println("-" * 80)
 
     newSchema

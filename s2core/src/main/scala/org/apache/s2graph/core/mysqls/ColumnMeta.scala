@@ -35,6 +35,9 @@ object ColumnMeta extends Model[ColumnMeta] {
   val reservedMetas = Seq(timestamp, lastModifiedAtColumn)
   val reservedMetaNamesSet = reservedMetas.map(_.name).toSet
 
+  def isValid(columnMeta: ColumnMeta): Boolean =
+    columnMeta.id.isDefined && columnMeta.id.get > 0 && columnMeta.seq >= 0
+
   def valueOf(rs: WrappedResultSet): ColumnMeta = {
     ColumnMeta(Some(rs.int("id")), rs.int("column_id"), rs.string("name"),
       rs.byte("seq"), rs.string("data_type").toLowerCase(), rs.boolean("store_in_global_index"))

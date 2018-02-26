@@ -123,7 +123,6 @@ case class Service(id: Option[Int],
 
   lazy val extraOptions = Model.extraOptions(options)
   lazy val storageConfigOpt: Option[Config] = toStorageConfig
+  lazy val serviceColumns: Seq[ServiceColumn] = ServiceColumn.findByServiceId(id.get, useCache = true)
   def toStorageConfig: Option[Config] = Model.toStorageConfig(extraOptions)
-
-
 }

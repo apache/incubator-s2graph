@@ -350,10 +350,17 @@ class Management(graph: S2GraphLike) {
     }
   }
 
+//  def createServiceColumn(serviceName: String,
+//                          columnName: String,
+//                          columnType: String,
+//                          props: java.util.List[Prop],
+//                          schemaVersion: String = DEFAULT_VERSION): ServiceColumn =
+//    createServiceColumn(serviceName, columnName, columnType, props.toSeq, schemaVersion)
+
   def createServiceColumn(serviceName: String,
                           columnName: String,
                           columnType: String,
-                          props: java.util.List[Prop],
+                          props: Seq[Prop],
                           schemaVersion: String = DEFAULT_VERSION): ServiceColumn = {
 
     val serviceColumnTry = Model withTx { implicit session =>
@@ -374,7 +381,6 @@ class Management(graph: S2GraphLike) {
 
     serviceColumnTry.get
   }
-
   def createLabel(labelName: String,
                   srcColumn: ServiceColumn,
                   tgtColumn: ServiceColumn,

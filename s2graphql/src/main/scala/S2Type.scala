@@ -23,6 +23,7 @@ import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.storage.MutateResponse
+import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.JsValue
 import sangria.marshalling.{CoercedScalaResultMarshaller, FromInput}
 import sangria.schema._
@@ -38,13 +39,54 @@ object S2Type {
 
   case class MutationResponse[T](result: Try[T])
 
-  case class PartialVertexParam(service: Service, vid: JsValue)
+  case class PartialServiceParam(service: Service, vid: JsValue)
+
+  case class PartialVertexParam(ts: Long,
+                                id: Any,
+                                props: Map[String, Any])
+
+  case class PartialServiceVertexParam(columnName: String, vertexParam: PartialVertexParam)
 
   case class PartialEdgeParam(ts: Long,
                               from: Any,
                               to: Any,
                               direction: String,
                               props: Map[String, Any])
+
+  implicit object PartialServiceVertexParamFromInput extends FromInput[Vector[PartialServiceVertexParam]] {
+    val marshaller = CoercedScalaResultMarshaller.default
+
+    def fromResult(node: marshaller.Node) = {
+      val inputMap = node.asInstanceOf[Map[String, marshaller.Node]]
+
+      val ret = inputMap.toVector.map { case (columnName, node) =>
+        val param = PartialVertexFromInput.fromResult(node)
+        PartialServiceVertexParam(columnName, param)
+      }
+
+      ret
+    }
+  }
+
+  implicit object PartialVertexFromInput extends FromInput[PartialVertexParam] {
+    val marshaller = CoercedScalaResultMarshaller.default
+
+    def fromResult(node: marshaller.Node) = {
+
+      val inputMap = node.asInstanceOf[Map[String, Any]]
+      val id = inputMap("id")
+      val ts = inputMap.get("timestamp") match {
+        case Some(Some(v)) => v.asInstanceOf[Long]
+        case _ => System.currentTimeMillis()
+      }
+      val props = inputMap.get("props") match {
+        case Some(Some(v)) => v.asInstanceOf[Map[String, Option[Any]]].filter(_._2.isDefined).mapValues(_.get)
+        case _ => Map.empty[String, Any]
+      }
+
+      PartialVertexParam(ts, id, props)
+    }
+  }
 
   implicit object PartialEdgeFromInput extends FromInput[PartialEdgeParam] {
     val marshaller = CoercedScalaResultMarshaller.default
@@ -124,6 +166,12 @@ class S2Type(repo: GraphRepository) {
 
   lazy val ServiceNameArg = Argument("name", OptionInputType(ServiceListType), description = "desc here")
 
+  lazy val ServiceNameRawArg = Argument("serviceName", ServiceListType, description = "desc here")
+
+  lazy val ColumnNameArg = Argument("columnName", OptionInputType(ServiceColumnListType), description = "desc here")
+
+  lazy val ColumnTypeArg = Argument("columnType", DataTypeType, description = "desc here")
+
   lazy val LabelNameArg = Argument("name", OptionInputType(LabelListType), description = "desc here")
 
   lazy val PropArg = Argument("props", OptionInputType(ListInputType(InputPropType)), description = "desc here")
@@ -133,12 +181,30 @@ class S2Type(repo: GraphRepository) {
   lazy val ServiceType = deriveObjectType[GraphRepository, Service](
     ObjectTypeName("Service"),
     ObjectTypeDescription("desc here"),
-    RenameField("serviceName", "name")
+    RenameField("serviceName", "name"),
+    AddFields(
+      Field("serviceColumns", ListType(ServiceColumnType), resolve = c => c.value.serviceColumns.toList)
+    )
+  )
+
+  lazy val ServiceColumnType = deriveObjectType[GraphRepository, ServiceColumn](
+    ObjectTypeName("ServiceColumn"),
+    ObjectTypeDescription("desc here"),
+    RenameField("columnName", "name"),
+    AddFields(
+      Field("props", ListType(ColumnMetaType),
+        resolve = c => c.value.metas.filter(ColumnMeta.isValid))
+    )
   )
 
   lazy val LabelMetaType = deriveObjectType[GraphRepository, LabelMeta](
     ObjectTypeName("LabelMeta"),
     ExcludeFields("seq", "labelId")
+  )
+
+  lazy val ColumnMetaType = deriveObjectType[GraphRepository, ColumnMeta](
+    ObjectTypeName("ColumnMeta"),
+    ExcludeFields("seq", "columnId")
   )
 
   lazy val DataTypeType = EnumType(
@@ -189,6 +255,15 @@ class S2Type(repo: GraphRepository) {
     values =
       dummyEnum +: repo.allServices.map { service =>
         EnumValue(service.serviceName, value = service.serviceName)
+      }
+  )
+
+  lazy val ServiceColumnListType = EnumType(
+    s"ServiceColumnList",
+    description = Option("desc here"),
+    values =
+      dummyEnum +: repo.allServiceColumns.map { serviceColumn =>
+        EnumValue(serviceColumn.columnName, value = serviceColumn.columnName)
       }
   )
 
@@ -245,6 +320,29 @@ class S2Type(repo: GraphRepository) {
     RenameField("label", "name")
   )
 
+  def makeInputPartialVertexParamType(service: Service,
+                                      serviceColumn: ServiceColumn): InputObjectType[PartialVertexParam] = {
+    lazy val InputPropsType = InputObjectType[Map[String, ScalarType[_]]](
+      s"${service.serviceName}_${serviceColumn.columnName}_props",
+      description = "desc here",
+      () => serviceColumn.metas.filter(ColumnMeta.isValid).map { lm =>
+        InputField(lm.name, OptionInputType(s2TypeToScalarType(lm.dataType)))
+      }
+    )
+
+    lazy val fields = List(
+      InputField("_", OptionInputType(LongType))
+    )
+
+    InputObjectType[PartialVertexParam](
+      s"${service.serviceName}_${serviceColumn.columnName}_mutate",
+      description = "desc here",
+      () =>
+        if (serviceColumn.metas.filter(ColumnMeta.isValid).isEmpty) fields
+        else List(InputField("props", OptionInputType(InputPropsType)))
+    )
+  }
+
   def makeInputPartialEdgeParamType(label: Label): InputObjectType[PartialEdgeParam] = {
     lazy val InputPropsType = InputObjectType[Map[String, ScalarType[_]]](
       s"${label.label}_props",
@@ -270,6 +368,37 @@ class S2Type(repo: GraphRepository) {
     )
   }
 
+  lazy val VertexArg = repo.allServices.map { service =>
+    val columnArgs = service.serviceColumns.map { serviceColumn =>
+      val inputParialVertexParamType = makeInputPartialVertexParamType(service, serviceColumn)
+      val tpe = InputObjectType[PartialServiceVertexParam](
+        serviceColumn.columnName,
+        fields = List(
+          InputField("id", s2TypeToScalarType(serviceColumn.columnType)),
+          InputField("timestamp", OptionInputType(LongType)),
+          InputField("props", OptionInputType(inputParialVertexParamType))
+        )
+      )
+
+      InputField(serviceColumn.columnName, tpe)
+    }
+
+    val vertexParamType = InputObjectType[Vector[PartialServiceVertexParam]](
+      s"${service.serviceName}_column",
+      description = "desc here",
+      fields = columnArgs.toList
+    )
+
+    Argument(service.serviceName, vertexParamType)
+  }
+
+  lazy val verticesArg = repo.allServices.flatMap { service =>
+    service.serviceColumns.map { serviceColumn =>
+      val inputParialVertexParamType = makeInputPartialVertexParamType(service, serviceColumn)
+      Argument(serviceColumn.columnName, OptionInputType(ListInputType(inputParialVertexParamType)))
+    }
+  }
+
   lazy val EdgeArg = repo.allLabels.map { label =>
     val inputPartialEdgeParamType = makeInputPartialEdgeParamType(label)
     Argument(label.label, OptionInputType(inputPartialEdgeParamType))
@@ -287,6 +416,7 @@ class S2Type(repo: GraphRepository) {
     "preSplitSize" -> IntType,
     "hTableTTL" -> IntType
   ).map { case (name, _type) => Argument(name, OptionInputType(_type)) }
+
 
   lazy val labelRequiredArg = List(
     "sourceService" -> InputLabelServiceType,
@@ -307,14 +437,20 @@ class S2Type(repo: GraphRepository) {
     ServiceType
   )
 
+  lazy val ServiceColumnMutationResponseType = makeMutationResponseType[ServiceColumn](
+    "CreateServiceColumn",
+    "desc here",
+    ServiceColumnType
+  )
+
   lazy val LabelMutationResponseType = makeMutationResponseType[Label](
     "CreateLabel",
     "desc here",
     LabelType
   )
 
-  lazy val EdgeMutateResponseType = deriveObjectType[GraphRepository, MutateResponse](
-    ObjectTypeName("EdgeMutateResponse"),
+  lazy val MutateResponseType = deriveObjectType[GraphRepository, MutateResponse](
+    ObjectTypeName("MutateResponse"),
     ObjectTypeDescription("desc here"),
     AddFields(
       Field("isSuccess", BooleanType, resolve = c => c.value.isSuccess)
@@ -350,7 +486,7 @@ class S2Type(repo: GraphRepository) {
     PlayJsonPolyType.PolyType,
     description = Some("desc here"),
     resolve = _.value match {
-      case v: PartialVertexParam => v.vid
+      case v: PartialServiceParam => v.vid
       case _ => throw new RuntimeException("dead code")
     }
   )
@@ -416,9 +552,9 @@ class S2Type(repo: GraphRepository) {
           val vertex: S2VertexLike = c.value match {
             case v: S2VertexLike => v
             case e: S2Edge => if (dir == "out") e.tgtVertex else e.srcVertex
-            case vp: PartialVertexParam =>
-              if (dir == "out") c.ctx.partialVertexParamToVertex(label.tgtColumn, vp)
-              else c.ctx.partialVertexParamToVertex(label.srcColumn, vp)
+            case vp: PartialServiceParam =>
+              if (dir == "out") c.ctx.partialServiceParamToVertex(label.tgtColumn, vp)
+              else c.ctx.partialServiceParamToVertex(label.srcColumn, vp)
           }
 
           c.ctx.getEdges(vertex, label, dir)
@@ -446,7 +582,7 @@ class S2Type(repo: GraphRepository) {
         val ids = c.argOpt[List[JsValue]]("ids").toList.flatten
         val svc = c.ctx.findServiceByName(service.serviceName).get
 
-        (id ++ ids).map { vid => PartialVertexParam(svc, vid) }
+        (id ++ ids).map { vid => PartialServiceParam(svc, vid) }
       }
     ): Field[GraphRepository, Any]
   }
@@ -460,6 +596,19 @@ class S2Type(repo: GraphRepository) {
       c.argOpt[String]("name") match {
         case Some(name) => c.ctx.allServices.filter(_.serviceName == name)
         case None => c.ctx.allServices
+      }
+    }
+  )
+
+  lazy val serviceColumnField: Field[GraphRepository, Any] = Field(
+    "ServiceColumn",
+    ListType(ServiceColumnType),
+    description = Option("desc here"),
+    arguments = List(ServiceNameRawArg, ColumnNameArg, PropArg),
+    resolve = { c =>
+      c.argOpt[String]("name") match {
+        case Some(name) => c.ctx.allServiceColumns.filter(_.columnName == name)
+        case None => c.ctx.allServiceColumns
       }
     }
   )
@@ -500,18 +649,33 @@ class S2Type(repo: GraphRepository) {
       arguments = NameArg :: serviceOptArgs,
       resolve = c => MutationResponse(c.ctx.createService(c.args))
     ),
+    Field("createServiceColumn",
+      ServiceColumnMutationResponseType,
+      arguments = List(ServiceNameRawArg, Argument("columnName", StringType), ColumnTypeArg, PropArg),
+      resolve = c => MutationResponse(c.ctx.createServiceColumn(c.args))
+    ),
     Field("createLabel",
       LabelMutationResponseType,
       arguments = NameArg :: PropArg :: IndicesArg :: labelRequiredArg ::: labelOptsArgs,
       resolve = c => MutationResponse(c.ctx.createLabel(c.args))
     ),
+    Field("addVertex",
+      OptionType(MutateResponseType),
+      arguments = VertexArg,
+      resolve = c => c.ctx.addVertex(c.args)
+    ),
+    Field("addVertices",
+      ListType(MutateResponseType),
+      arguments = verticesArg,
+      resolve = c => c.ctx.addVertices(c.args)
+    ),
     Field("addEdge",
-      OptionType(EdgeMutateResponseType),
+      OptionType(MutateResponseType),
       arguments = EdgeArg,
       resolve = c => c.ctx.addEdge(c.args)
     ),
     Field("addEdges",
-      ListType(EdgeMutateResponseType),
+      ListType(MutateResponseType),
       arguments = EdgesArg,
       resolve = c => c.ctx.addEdges(c.args)
     )

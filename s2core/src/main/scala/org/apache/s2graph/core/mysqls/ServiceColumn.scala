@@ -31,6 +31,14 @@ object ServiceColumn extends Model[ServiceColumn] {
     ServiceColumn(rs.intOpt("id"), rs.int("service_id"), rs.string("column_name"), rs.string("column_type").toLowerCase(), rs.string("schema_version"))
   }
 
+  def findByServiceId(serviceId: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Seq[ServiceColumn] = {
+    val cacheKey = "serviceId=" + serviceId
+
+    lazy val sql = sql"""select * from service_columns where service_id = ${serviceId}""".map { x => ServiceColumn.valueOf(x) }.list().apply()
+
+    if (useCache) withCaches(cacheKey)(sql)
+    else sql
+  }
 
   def findById(id: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession): ServiceColumn = {
     val cacheKey = "id=" + id
