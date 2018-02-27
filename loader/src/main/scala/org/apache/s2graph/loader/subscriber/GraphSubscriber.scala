@@ -76,6 +76,16 @@ object GraphSubscriberHelper extends WithKafka {
     }
   }
 
+  def apply(_config: Config): Unit = {
+    config = _config
+    if (g == null) {
+      val ec = ExecutionContext.Implicits.global
+      g = new S2Graph(config)(ec)
+      management = new Management(g)
+      builder = g.elementBuilder
+    }
+  }
+
   def apply(phase: String, dbUrl: String, zkQuorum: String, kafkaBrokerList: String): Unit = {
     config = GraphConfig(phase, toOption(dbUrl), toOption(zkQuorum), toOption(kafkaBrokerList))
 

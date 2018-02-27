@@ -19,43 +19,102 @@
 
 package org.apache.s2graph.loader.subscriber
 
-import org.apache.hadoop.hbase.client.Put
+import com.typesafe.config.Config
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.hbase._
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
-import org.apache.hadoop.hbase.mapreduce.{TableOutputFormat}
-import org.apache.hadoop.hbase._
+import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
-import org.apache.s2graph.core.types.{InnerValLikeWithTs, SourceVertexId, LabelWithDirection}
-import org.apache.s2graph.loader.spark.{KeyFamilyQualifier, HBaseContext, FamilyHFileWriteOptions}
+import org.apache.s2graph.core.types.{InnerValLikeWithTs, SourceVertexId}
+import org.apache.s2graph.loader.spark.{FamilyHFileWriteOptions, HBaseContext, KeyFamilyQualifier}
 import org.apache.s2graph.spark.spark.SparkApp
-import org.apache.spark.{SparkContext}
+import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.hbase.async.{PutRequest}
+import org.hbase.async.PutRequest
 import play.api.libs.json.Json
+
 import scala.collection.JavaConversions._
 
 
 object TransferToHFile extends SparkApp {
 
-  val usages =
-    s"""
-       |create HFiles for hbase table on zkQuorum specified.
-       |note that hbase table is created already and pre-splitted properly.
-       |
-       |params:
-       |0. input: hdfs path for tsv file(bulk format).
-       |1. output: hdfs path for storing HFiles.
-       |2. zkQuorum: running hbase cluster zkQuorum.
-       |3. tableName: table name for this bulk upload.
-       |4. dbUrl: db url for parsing to graph element.
-     """.stripMargin
+  var options:GraphFileOptions = _
+
+  case class GraphFileOptions(input: String = "",
+                              tmpPath: String = "",
+                              zkQuorum: String = "",
+                              tableName: String = "",
+                              dbUrl: String = "",
+                              dbUser: String = "",
+                              dbPassword: String = "",
+                              maxHFilePerRegionServer: Int = 1,
+                              labelMapping: Map[String, String] = Map.empty[String, String],
+                              autoEdgeCreate: Boolean = false,
+                              buildDegree: Boolean = false,
+                              compressionAlgorithm: String = "") {
+    def toConfigParams = {
+      Map(
+        "hbase.zookeeper.quorum" -> zkQuorum,
+        "db.default.url" -> dbUrl,
+        "db.default.user" -> dbUser,
+        "db.default.password" -> dbPassword
+      )
+    }
+  }
+
+  val parser = new scopt.OptionParser[GraphFileOptions]("run") {
+
+    opt[String]('i', "input").required().action( (x, c) =>
+      c.copy(input = x) ).text("hdfs path for tsv file(bulk format)")
+
+    opt[String]('m', "tmpPath").required().action( (x, c) =>
+      c.copy(tmpPath = x) ).text("temp hdfs path for storing HFiles")
+
+    opt[String]('z', "zkQuorum").required().action( (x, c) =>
+      c.copy(zkQuorum = x) ).text("zookeeper config for hbase")
+
+    opt[String]('t', "table").required().action( (x, c) =>
+      c.copy(tableName = x) ).text("table name for this bulk upload.")
+
+    opt[String]('c', "dbUrl").required().action( (x, c) =>
+      c.copy(dbUrl = x)).text("jdbc connection url.")
+
+    opt[String]('u', "dbUser").required().action( (x, c) =>
+      c.copy(dbUser = x)).text("database user name.")
+
+    opt[String]('p', "dbPassword").required().action( (x, c) =>
+      c.copy(dbPassword = x)).text("database password.")
+
+    opt[Int]('h', "maxHFilePerRegionServer").action ( (x, c) =>
+      c.copy(maxHFilePerRegionServer = x)).text("maximum number of HFile per RegionServer."
+    )
+
+    opt[String]('l', "labelMapping").action( (x, c) =>
+      c.copy(labelMapping = toLabelMapping(x)) ).text("mapping info to change the label from source (originalLabel:newLabel)")
+
+    opt[Boolean]('d', "buildDegree").action( (x, c) =>
+      c.copy(buildDegree = x)).text("generate degree values")
+
+    opt[Boolean]('a', "autoEdgeCreate").action( (x, c) =>
+      c.copy(autoEdgeCreate = x)).text("generate reverse edge automatically")
+  }
 
   //TODO: Process AtomicIncrementRequest too.
   /** build key values */
   case class DegreeKey(vertexIdStr: String, labelName: String, direction: String)
+
+  private def toLabelMapping(lableMapping: String): Map[String, String] = {
+    (for {
+      token <- lableMapping.split(",")
+      inner = token.split(":") if inner.length == 2
+    } yield {
+      (inner.head, inner.last)
+    }).toMap
+  }
 
   private def insertBulkForLoaderAsync(edge: S2Edge, createRelEdges: Boolean = true): List[PutRequest] = {
     val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
@@ -83,14 +142,17 @@ object TransferToHFile extends SparkApp {
       output <- List(degreeKey -> 1L) ++ extra
     } yield output
   }
+
   def buildPutRequests(snapshotEdge: SnapshotEdge): List[PutRequest] = {
     val kvs = GraphSubscriberHelper.g.getStorage(snapshotEdge.label).serDe.snapshotEdgeSerializer(snapshotEdge).toKeyValues.toList
     kvs.map { kv => new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp) }
   }
+
   def buildPutRequests(indexEdge: IndexEdge): List[PutRequest] = {
     val kvs = GraphSubscriberHelper.g.getStorage(indexEdge.label).serDe.indexEdgeSerializer(indexEdge).toKeyValues.toList
     kvs.map { kv => new PutRequest(kv.table, kv.row, kv.cf, kv.qualifier, kv.value, kv.timestamp) }
   }
+
   def buildDegreePutRequests(vertexId: String, labelName: String, direction: String, degreeVal: Long): List[PutRequest] = {
     val label = Label.findByName(labelName).getOrElse(throw new RuntimeException(s"$labelName is not found in DB."))
     val dir = GraphUtil.directions(direction)
@@ -101,7 +163,7 @@ object TransferToHFile extends SparkApp {
 
     val ts = System.currentTimeMillis()
     val propsWithTs = Map(LabelMeta.timestamp -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion))
-    val edge = GraphSubscriberHelper.builder.newEdge(vertex, vertex, label, dir, propsWithTs=propsWithTs)
+    val edge = GraphSubscriberHelper.builder.newEdge(vertex, vertex, label, dir, propsWithTs = propsWithTs)
 
     edge.edgesWithIndex.flatMap { indexEdge =>
       GraphSubscriberHelper.g.getStorage(indexEdge.label).serDe.indexEdgeSerializer(indexEdge).toKeyValues.map { kv =>
@@ -115,13 +177,13 @@ object TransferToHFile extends SparkApp {
       (key, value) <- degreeKeyVals
       putRequest <- buildDegreePutRequests(key.vertexIdStr, key.labelName, key.direction, value)
     } yield {
-        val p = putRequest
-        val kv = new KeyValue(p.key(), p.family(), p.qualifier, p.timestamp, p.value)
-        kv
-      }
+      val p = putRequest
+      val kv = new KeyValue(p.key(), p.family(), p.qualifier, p.timestamp, p.value)
+      kv
+    }
     kvs.toIterator
   }
-  
+
   def toKeyValues(strs: Seq[String], labelMapping: Map[String, String], autoEdgeCreate: Boolean): Iterator[KeyValue] = {
     val kvList = new java.util.ArrayList[KeyValue]
     for (s <- strs) {
@@ -143,73 +205,81 @@ object TransferToHFile extends SparkApp {
             val kv = new KeyValue(p.key(), p.family(), p.qualifier, p.timestamp, p.value)
             kvList.add(kv)
           }
-        } 
+        }
       }
     }
     kvList.iterator()
   }
-  
 
+  def generateKeyValues(sc: SparkContext,
+                        s2Config: Config,
+                        input: RDD[String],
+                        graphFileOptions: GraphFileOptions): RDD[KeyValue] = {
+    val kvs = input.mapPartitions { iter =>
+      GraphSubscriberHelper.apply(s2Config)
+
+      toKeyValues(iter.toSeq, graphFileOptions.labelMapping, graphFileOptions.autoEdgeCreate)
+    }
+
+    if (!graphFileOptions.buildDegree) kvs
+    else {
+      kvs ++ buildDegrees(input, graphFileOptions.labelMapping, graphFileOptions.autoEdgeCreate).reduceByKey { (agg, current) =>
+        agg + current
+      }.mapPartitions { iter =>
+        GraphSubscriberHelper.apply(s2Config)
+
+        toKeyValues(iter.toSeq)
+      }
+    }
+  }
+
+  def toHBaseConfig(graphFileOptions: GraphFileOptions): Configuration = {
+    val hbaseConf = HBaseConfiguration.create()
+
+    hbaseConf.set("hbase.zookeeper.quorum", graphFileOptions.zkQuorum)
+    hbaseConf.set(TableOutputFormat.OUTPUT_TABLE, graphFileOptions.tableName)
+    hbaseConf.set("hadoop.tmp.dir", s"/tmp/${graphFileOptions.tableName}")
+
+    hbaseConf
+  }
 
   override def run() = {
-    val input = args(0)
-    val tmpPath = args(1)
-    val zkQuorum = args(2)
-    val tableName = args(3)
-    val dbUrl = args(4)
-    val maxHFilePerResionServer = args(5).toInt
-    val labelMapping = if (args.length >= 7) GraphSubscriberHelper.toLabelMapping(args(6)) else Map.empty[String, String]
-    val autoEdgeCreate = if (args.length >= 8) args(7).toBoolean else false
-    val buildDegree = if (args.length >= 9) args(8).toBoolean else true
-    val compressionAlgorithm = if (args.length >= 10) args(9) else "lz4"
-    val conf = sparkConf(s"$input: TransferToHFile")
+    parser.parse(args, GraphFileOptions()) match {
+      case Some(o) => options = o
+      case None =>
+        parser.showUsage()
+        throw new IllegalArgumentException("failed to parse options...")
+    }
+
+    println(s">>> Options: ${options}")
+    val s2Config = Management.toConfig(options.toConfigParams)
+
+    val conf = sparkConf(s"TransferToHFile")
+
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     conf.set("spark.kryoserializer.buffer.mb", "24")
 
     val sc = new SparkContext(conf)
+    val rdd = sc.textFile(options.input)
 
-    val phase = System.getProperty("phase")
-    GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
-    GraphSubscriberHelper.management.createStorageTable(zkQuorum, tableName, List("e", "v"), maxHFilePerResionServer, None, compressionAlgorithm)
+    GraphSubscriberHelper.apply(s2Config)
+
+    val merged = TransferToHFile.generateKeyValues(sc, s2Config, rdd, options)
 
     /* set up hbase init */
-    val hbaseConf = HBaseConfiguration.create()
-    hbaseConf.set("hbase.zookeeper.quorum", zkQuorum)
-    hbaseConf.set(TableOutputFormat.OUTPUT_TABLE, tableName)
-    hbaseConf.set("hadoop.tmp.dir", s"/tmp/$tableName")
+    val hbaseSc = new HBaseContext(sc, toHBaseConfig(options))
 
-
-    val rdd = sc.textFile(input)
-
-
-    val kvs = rdd.mapPartitions { iter =>
-      val phase = System.getProperty("phase")
-      GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
-      toKeyValues(iter.toSeq, labelMapping, autoEdgeCreate)
-    }
-
-    val merged = if (!buildDegree) kvs
-    else {
-      kvs ++ buildDegrees(rdd, labelMapping, autoEdgeCreate).reduceByKey { (agg, current) =>
-        agg + current
-      }.mapPartitions { iter =>
-        val phase = System.getProperty("phase")
-        GraphSubscriberHelper.apply(phase, dbUrl, "none", "none")
-        toKeyValues(iter.toSeq)
-      }
-    }
-
-    val hbaseSc = new HBaseContext(sc, hbaseConf)
     def flatMap(kv: KeyValue): Iterator[(KeyFamilyQualifier, Array[Byte])] = {
       val k = new KeyFamilyQualifier(CellUtil.cloneRow(kv), CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv))
       val v = CellUtil.cloneValue(kv)
       Seq((k -> v)).toIterator
     }
+
     val familyOptions = new FamilyHFileWriteOptions(Algorithm.LZ4.getName.toUpperCase,
       BloomType.ROW.name().toUpperCase, 32768, DataBlockEncoding.FAST_DIFF.name().toUpperCase)
     val familyOptionsMap = Map("e".getBytes("UTF-8") -> familyOptions, "v".getBytes("UTF-8") -> familyOptions)
 
-    hbaseSc.bulkLoad(merged, TableName.valueOf(tableName), flatMap, tmpPath, familyOptionsMap)
+    hbaseSc.bulkLoad(merged, TableName.valueOf(options.tableName), flatMap, options.tmpPath, familyOptionsMap)
   }
 
 }
