@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,19 +17,18 @@
  * under the License.
  */
 
-package org.apache.s2graph
+package org.apache.s2graph.graphql.types
 
 import sangria.ast._
-import sangria.schema._
 import sangria.validation.ValueCoercionViolation
 
 // https://gist.github.com/OlegIlyenko/5b96f4b54f656aac226d3c4bc33fd2a6
 
 object PlayJsonPolyType {
 
+  import play.api.libs.json._
   import sangria.ast
   import sangria.schema._
-  import play.api.libs.json._
 
   case object JsonCoercionViolation extends ValueCoercionViolation("Not valid JSON")
 
@@ -44,6 +43,7 @@ object PlayJsonPolyType {
     case v: VariableValue => JsNull
     case v: NullValue => JsNull
     case v: ObjectValue => JsNull
+    case _ => throw new RuntimeException("Error!")
   }
 
   implicit val PolyType = ScalarType[JsValue]("Poly",

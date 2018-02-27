@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,20 +17,35 @@
  * under the License.
  */
 
-package org.apache.s2graph
+package org.apache.s2graph.graphql
+
+import org.apache.s2graph.graphql.repository.GraphRepository
+import org.apache.s2graph.graphql.types._
+
 
 /**
   * S2Graph GraphQL schema.
   *
   * When a Label or Service is created, the GraphQL schema is created dynamically.
   */
-class SchemaDef(s2Type: S2Type) {
+class SchemaDef(g: GraphRepository) {
 
   import sangria.schema._
 
-  val S2QueryType = ObjectType[GraphRepository, Any]("Query", fields(s2Type.queryFields: _*))
+  val s2Type = new S2Type(g)
+  val s2ManagementType = new S2ManagementType(g)
 
-  val S2MutationType = ObjectType[GraphRepository, Any]("Mutation", fields(s2Type.mutationFields: _*))
+  val queryManagementFields = List(wrapField("QueryManagement", "Management", s2ManagementType.queryFields))
+  val S2QueryType = ObjectType[GraphRepository, Any](
+    "Query",
+    fields(s2Type.queryFields ++ queryManagementFields: _*)
+  )
+
+  val mutateManagementFields = List(wrapField("MutationManagement", "Management", s2ManagementType.mutationFields))
+  val S2MutationType = ObjectType[GraphRepository, Any](
+    "Mutation",
+    fields(s2Type.mutationFields ++ mutateManagementFields: _*)
+  )
 
   val S2GraphSchema = Schema(S2QueryType, Option(S2MutationType))
 }

@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.apache.s2graph
+package org.apache.s2graph.graphql
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.stream.ActorMaterializer
-import akka.http.scaladsl.server._
-import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server._
+import akka.stream.ActorMaterializer
 
-import Console._
+import scala.Console._
 import scala.concurrent.Await
 import scala.language.postfixOps
 
@@ -36,6 +36,7 @@ object Server extends App {
   implicit val materializer = ActorMaterializer()
 
   import actorSystem.dispatcher
+
   import scala.concurrent.duration._
 
   println("Starting GRAPHQL server...")

@@ -118,7 +118,7 @@ object Management {
       val serviceColumns = ServiceColumn.find(service.id.get, columnName, useCache = false)
       val columnNames = serviceColumns.map { serviceColumn =>
         ServiceColumn.delete(serviceColumn.id.get)
-        serviceColumn.columnName
+        serviceColumn
       }
 
       columnNames.getOrElse(throw new RuntimeException("column not found"))
@@ -129,12 +129,11 @@ object Management {
     Label.findByName(labelName, useCache = useCache)
   }
 
-  def deleteLabel(labelName: String) = {
+  def deleteLabel(labelName: String): Try[Label] = {
     Model withTx { implicit session =>
-      Label.findByName(labelName, useCache = false).foreach { label =>
-        Label.deleteAll(label)
-      }
-      labelName
+      val label = Label.findByName(labelName, useCache = false).getOrElse(throw GraphExceptions.LabelNotExistException(labelName))
+      Label.deleteAll(label)
+      label
     }
   }
 
@@ -298,6 +297,8 @@ object Management {
 }
 
 class Management(graph: S2GraphLike) {
+
+
   import Management._
   import scala.collection.JavaConversions._
 

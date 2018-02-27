@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,35 +17,34 @@
  * under the License.
  */
 
-package org.apache.s2graph
+package org.apache.s2graph.graphql.repository
 
-import org.apache.s2graph.S2Type._
-import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
+import org.apache.s2graph.core.Management.JsonModel._
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{Label, LabelIndex, Service, ServiceColumn}
+import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.storage.MutateResponse
-import org.apache.s2graph.core.types.{HBaseType, LabelWithDirection}
-import play.api.libs.json._
+import org.apache.s2graph.core.types._
+import org.apache.s2graph.graphql.types.S2ManagementType._
+import org.apache.s2graph.graphql.types.S2Type._
 import sangria.schema.{Action, Args}
 
 import scala.concurrent._
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Try}
 
 
 /**
   *
   * @param graph
   */
-class GraphRepository(graph: S2GraphLike) {
-
+class GraphRepository(val graph: S2GraphLike) {
   val management = graph.management
   val parser = new RequestParser(graph)
 
   implicit val ec = graph.ec
 
   def partialServiceParamToVertex(column: ServiceColumn, param: PartialServiceParam): S2VertexLike = {
-    val vid = JSONParser.jsValueToInnerVal(param.vid, column.columnType, column.schemaVersion).get
+    val vid = JSONParser.toInnerVal(param.vid, column.columnType, column.schemaVersion)
     graph.toVertex(param.service.serviceName, column.columnName, vid)
   }
 
@@ -112,6 +111,13 @@ class GraphRepository(graph: S2GraphLike) {
     graph.mutateEdges(edges, withWait = true).map(_.headOption)
   }
 
+  def getVertex(vertex: S2VertexLike): Future[Seq[S2VertexLike]] = {
+    val f = graph.getVertices(Seq(vertex))
+    f.foreach{ a =>
+      println(a)
+    }
+    f
+  }
 
   def getEdges(vertex: S2VertexLike, label: Label, _dir: String): Future[Seq[S2EdgeLike]] = {
     val dir = GraphUtil.directions(_dir)
@@ -155,6 +161,13 @@ class GraphRepository(graph: S2GraphLike) {
     Try { management.createServiceColumn(serviceName, columnName, columnType, props) }
   }
 
+  def deleteServiceColumn(args: Args): Try[ServiceColumn] = {
+    val serviceName = args.arg[String]("serviceName")
+    val columnName = args.arg[String]("columnName")
+
+    Management.deleteColumn(serviceName, columnName)
+  }
+
   def createLabel(args: Args): Try[Label] = {
     val labelName = args.arg[String]("name")
 
@@ -196,6 +209,12 @@ class GraphRepository(graph: S2GraphLike) {
     )
 
     labelTry
+  }
+
+  def deleteLabel(args: Args): Try[Label] = {
+    val labelName = args.arg[String]("name")
+
+    Management.deleteLabel(labelName)
   }
 
   def allServices: List[Service] = Service.findAll()
