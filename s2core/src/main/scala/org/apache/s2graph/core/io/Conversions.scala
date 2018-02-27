@@ -92,6 +92,7 @@ object Conversions {
       (JsPath \ "name").read[String] and
       (JsPath \ "seq").read[Byte] and
       (JsPath \ "dataType").read[String] and
+      (JsPath \ "defaultValue").read[String] and
       (JsPath \ "storeGlobalIndex").read[Boolean]
     )(ColumnMeta.apply _)
 
@@ -101,6 +102,7 @@ object Conversions {
       (JsPath \ "name").write[String] and
       (JsPath \ "seq").write[Byte] and
       (JsPath \ "dataType").write[String] and
+      (JsPath \ "defaultValue").write[String] and
       (JsPath \ "storeGlobalIndex").write[Boolean]
     )(unlift(ColumnMeta.unapply))
 

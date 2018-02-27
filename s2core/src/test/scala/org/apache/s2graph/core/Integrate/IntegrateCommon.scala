@@ -92,10 +92,13 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
       }
     }
 
-    val vertexPropsKeys = List("age" -> "integer", "im" -> "string")
+    val vertexPropsKeys = List(
+      ("age", "integer", "0"),
+      ("im", "string", "-")
+    )
 
-    vertexPropsKeys.map { case (key, keyType) =>
-      Management.addVertexProp(testServiceName, testColumnName, key, keyType, storeInGlobalIndex = true)
+    vertexPropsKeys.map { case (key, keyType, defaultValue) =>
+      Management.addVertexProp(testServiceName, testColumnName, key, keyType, defaultValue, storeInGlobalIndex = true)
     }
 
     // vertex type global index.

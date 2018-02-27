@@ -19,6 +19,7 @@
 
 package org.apache.s2graph.core.mysqls
 
+import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.types.{HBaseType, InnerValLike, InnerValLikeWithTs}
 import play.api.libs.json.Json
@@ -114,6 +115,9 @@ case class ServiceColumn(id: Option[Int],
   lazy val metasMap = metas.map { meta => meta.seq.toInt -> meta } toMap
   lazy val metasInvMap = metas.map { meta => meta.name -> meta} toMap
   lazy val metaNamesMap = (ColumnMeta.lastModifiedAtColumn :: metas).map(x => (x.seq.toInt, x.name)) toMap
+  lazy val metaPropsDefaultMap = metas.map { meta =>
+    meta -> JSONParser.toInnerVal(meta.defaultValue, meta.dataType, schemaVersion)
+  }.toMap
   lazy val toJson = Json.obj("serviceName" -> service.serviceName, "columnName" -> columnName, "columnType" -> columnType)
 
   def propsToInnerVals(props: Map[String, Any]): Map[ColumnMeta, InnerValLike] = {

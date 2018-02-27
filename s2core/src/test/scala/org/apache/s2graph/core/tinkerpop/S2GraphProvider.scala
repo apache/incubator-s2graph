@@ -120,30 +120,30 @@ class S2GraphProvider extends AbstractGraphProvider {
     if (testClass.getSimpleName == "PropertyFeatureSupportTest") {
       knowsProp = knowsProp.filterNot(_.name == "aKey")
 
-      val dataType = if (testName.toLowerCase.contains("boolean")) {
+      val (dataType, defaultValue) = if (testName.toLowerCase.contains("boolean")) {
         knowsProp = knowsProp.filterNot(_.name == "aKey") :+ Prop("aKey", "false", "boolean")
-        "boolean"
+        ("boolean", "false")
       } else if (testName.toLowerCase.contains("integer")) {
         knowsProp = knowsProp.filterNot(_.name == "aKey") :+ Prop("aKey", "0", "integer")
-        "integer"
+        ("integer", "0")
       } else if (testName.toLowerCase.contains("long")) {
         knowsProp = knowsProp.filterNot(_.name == "aKey") :+ Prop("aKey", "0", "long")
-        "long"
+        ("long", "0")
       } else if (testName.toLowerCase.contains("double")) {
         knowsProp = knowsProp.filterNot(_.name == "aKey") :+ Prop("aKey", "0.0", "double")
-        "double"
+        ("double", "0.0")
       } else if (testName.toLowerCase.contains("float")) {
         knowsProp = knowsProp.filterNot(_.name == "aKey") :+ Prop("aKey", "0.0", "float")
-        "float"
+        ("float", "0.0")
       } else if (testName.toLowerCase.contains("string")) {
         knowsProp = knowsProp.filterNot(_.name == "aKey") :+ Prop("aKey", "-", "string")
-        "string"
+        ("string", "-")
       } else {
-        "string"
+        ("string", "-")
       }
 
       ColumnMeta.findByName(defaultServiceColumn.id.get, "aKey", useCache = false).foreach(cm => ColumnMeta.delete(cm.id.get))
-      ColumnMeta.findOrInsert(defaultServiceColumn.id.get, "aKey", dataType, storeInGlobalIndex = true, useCache = false)
+      ColumnMeta.findOrInsert(defaultServiceColumn.id.get, "aKey", dataType, defaultValue, storeInGlobalIndex = true, useCache = false)
     }
     if (loadGraphWith != null && loadGraphWith.value() == GraphData.MODERN) {
       mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",

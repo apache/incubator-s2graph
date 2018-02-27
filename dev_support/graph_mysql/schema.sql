@@ -76,6 +76,7 @@ CREATE TABLE `column_metas` (
 	`name` varchar(64) NOT NULL,
 	`seq` tinyint	NOT NULL,
 	`data_type` varchar(8) NOT NULL DEFAULT 'string',
+	`default_value` varchar(64) NOT NULL DEFAULT '',
 	`store_in_global_index` tinyint NOT NULL DEFAULT 0,
 	PRIMARY KEY (`id`),
 	UNIQUE KEY `ux_column_id_name` (`column_id`, `name`),
