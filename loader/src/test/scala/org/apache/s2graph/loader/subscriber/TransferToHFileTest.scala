@@ -20,13 +20,14 @@ package org.apache.s2graph.loader.subscriber
 
 import java.util
 
-import org.apache.s2graph.core.Management
+import org.apache.s2graph.core.{Management, PostProcess}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.storage.CanSKeyValue
 import org.apache.s2graph.core.types.HBaseType
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+import play.api.libs.json.Json
 
 import scala.util.Try
 
@@ -76,7 +77,7 @@ class TransferToHFileTest extends FunSuite with Matchers with BeforeAndAfterAll 
   }
 
 
-  test("test TransferToHFile Local.") {
+  test("test edge only.") {
     import scala.collection.JavaConverters._
     import org.apache.s2graph.core.storage.CanSKeyValue._
 
@@ -119,5 +120,51 @@ class TransferToHFileTest extends FunSuite with Matchers with BeforeAndAfterAll 
     val indexEdge = indexEdges.head
 
     bulkEdge shouldBe(indexEdge)
+  }
+
+  test("test vertex only.") {
+    import scala.collection.JavaConverters._
+    /* initialize model for test */
+    val management = GraphSubscriberHelper.management
+
+    val service = management.createService(serviceName = "s2graph", cluster = "localhost",
+      hTableName = "s2graph", preSplitSize = -1, hTableTTL = -1, compressionAlgorithm = "gz")
+
+    val serviceColumn = management.createServiceColumn(service.serviceName, "imei", "string",
+      Seq(
+        Prop(name = "first_time", defaultValue = "''", dataType = "string"),
+        Prop(name = "last_time", defaultValue = "''", dataType = "string"),
+        Prop(name = "total_active_days", defaultValue = "-1", dataType = "integer"),
+        Prop(name = "query_amount", defaultValue = "-1", dataType = "integer"),
+        Prop(name = "active_months", defaultValue = "-1", dataType = "integer"),
+        Prop(name = "fua", defaultValue = "''", dataType = "string"),
+        Prop(name = "location_often_province", defaultValue = "''", dataType = "string"),
+        Prop(name = "location_often_city", defaultValue = "''", dataType = "string"),
+        Prop(name = "location_often_days", defaultValue = "-1", dataType = "integer"),
+        Prop(name = "location_last_province", defaultValue = "''", dataType = "string"),
+        Prop(name = "location_last_city", defaultValue = "''", dataType = "string"),
+        Prop(name = "fimei_legality", defaultValue = "-1", dataType = "integer")
+      ).asJava)
+
+    val bulkVertexString = "20171201\tinsert\tvertex\t800188448586078\ts2graph\timei\t{\"first_time\":\"20171025\",\"last_time\":\"20171112\",\"total_active_days\":14,\"query_amount\":1526.0,\"active_months\":2,\"fua\":\"M5+Note\",\"location_often_province\":\"广东省\",\"location_often_city\":\"深圳市\",\"location_often_days\":6,\"location_last_province\":\"广东省\",\"location_last_city\":\"深圳市\",\"fimei_legality\":3}"
+    val bulkVertex = GraphSubscriberHelper.g.elementBuilder.toGraphElement(bulkVertexString, options.labelMapping).get
+
+    val input = sc.parallelize(Seq(bulkVertexString))
+
+    val kvs = TransferToHFile.generateKeyValues(sc, s2Config, input, options)
+
+    val ls = kvs.map(kv => CanSKeyValue.hbaseKeyValue.toSKeyValue(kv)).collect().toList
+
+    val serDe = GraphSubscriberHelper.g.defaultStorage.serDe
+
+
+
+    val vertex = serDe.vertexDeserializer(serviceColumn.schemaVersion).fromKeyValues(ls, None).get
+
+    PostProcess.s2VertexToJson(vertex).foreach { jsValue =>
+      println(Json.prettyPrint(jsValue))
+    }
+
+    bulkVertex shouldBe(vertex)
   }
 }

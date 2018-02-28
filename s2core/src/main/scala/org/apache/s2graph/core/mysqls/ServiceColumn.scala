@@ -109,11 +109,13 @@ case class ServiceColumn(id: Option[Int],
   lazy val toJson = Json.obj("serviceName" -> service.serviceName, "columnName" -> columnName, "columnType" -> columnType)
 
   def propsToInnerVals(props: Map[String, Any]): Map[ColumnMeta, InnerValLike] = {
-    for {
+    val ret = for {
       (k, v) <- props
       labelMeta <- metasInvMap.get(k)
       innerVal = toInnerVal(v, labelMeta.dataType, schemaVersion)
     } yield labelMeta -> innerVal
+
+    ret
   }
 
   def innerValsToProps(props: Map[Int, InnerValLike]): Map[String, Any] = {
