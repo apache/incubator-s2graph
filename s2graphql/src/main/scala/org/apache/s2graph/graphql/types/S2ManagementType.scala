@@ -91,6 +91,27 @@ class S2ManagementType(repo: GraphRepository) {
 
   lazy val IndicesArg = Argument("indices", OptionInputType(ListInputType(InputIndexType)), description = "desc here")
 
+  lazy val ServiceColumnOnServiceArgs = repo.allServices.map { service =>
+    lazy val ServiceColumnOnServiceType = InputObjectType(
+      "columnName",
+      description = "desc here",
+      fields = List(InputField("columnName", makeServiceColumnEnumTypeOnService(service)))
+    )
+
+    Argument(service.serviceName, OptionInputType(ServiceColumnOnServiceType))
+  }
+
+  def makeServiceColumnEnumTypeOnService(service: Service): EnumType[String] = {
+    val columns = service.serviceColumns(false).toList
+    EnumType(
+      s"${service.serviceName}_columns",
+      description = Option("desc here"),
+      values = dummyEnum +: columns.map { column =>
+        EnumValue(column.columnName, value = column.columnName)
+      }
+    )
+  }
+
   lazy val ServiceType = deriveObjectType[GraphRepository, Service](
     ObjectTypeName("Service"),
     ObjectTypeDescription("desc here"),
@@ -151,19 +172,19 @@ class S2ManagementType(repo: GraphRepository) {
 
 
   lazy val ServiceMutationResponseType = makeMutationResponseType[Service](
-    "CreateService",
+    "MutateService",
     "desc here",
     ServiceType
   )
 
   lazy val ServiceColumnMutationResponseType = makeMutationResponseType[ServiceColumn](
-    "CreateServiceColumn",
+    "MutateServiceColumn",
     "desc here",
     ServiceColumnType
   )
 
   lazy val LabelMutationResponseType = makeMutationResponseType[Label](
-    "CreateLabel",
+    "MutateLabelLabel",
     "desc here",
     LabelType
   )
@@ -244,6 +265,8 @@ class S2ManagementType(repo: GraphRepository) {
     * - createLabel
     * - ...
     */
+
+
   lazy val mutationFields: List[Field[GraphRepository, Any]] = List(
     Field("createService",
       ServiceMutationResponseType,
@@ -256,9 +279,9 @@ class S2ManagementType(repo: GraphRepository) {
       resolve = c => MutationResponse(c.ctx.createServiceColumn(c.args))
     ),
     Field("deleteServiceColumn",
-      ServiceColumnMutationResponseType,
-      arguments = List(ServiceNameRawArg, Argument("columnName", ServiceColumnListType)),
-      resolve = c => MutationResponse(c.ctx.deleteServiceColumn(c.args))
+      ListType(ServiceColumnMutationResponseType),
+      arguments = ServiceColumnOnServiceArgs,
+      resolve = c => c.ctx.deleteServiceColumn(c.args).map(MutationResponse(_))
     ),
     Field("createLabel",
       LabelMutationResponseType,

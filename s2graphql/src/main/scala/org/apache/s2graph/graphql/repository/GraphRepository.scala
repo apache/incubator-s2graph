@@ -161,11 +161,15 @@ class GraphRepository(val graph: S2GraphLike) {
     Try { management.createServiceColumn(serviceName, columnName, columnType, props) }
   }
 
-  def deleteServiceColumn(args: Args): Try[ServiceColumn] = {
-    val serviceName = args.arg[String]("serviceName")
-    val columnName = args.arg[String]("columnName")
+  def deleteServiceColumn(args: Args): List[Try[ServiceColumn]] = {
+    println(args)
+    //Args(Map(s2graph -> Some(Map(columnName -> _))),Set(),Set(s2graph),Set(),TrieMap())
+    val serviceColumns = args.raw.collect { case (serviceName, Some(map: Map[String, String])) =>
+      val columnName = map("columnName")
+      Management.deleteColumn(serviceName, columnName)
+    }
 
-    Management.deleteColumn(serviceName, columnName)
+    serviceColumns.toList
   }
 
   def createLabel(args: Args): Try[Label] = {
