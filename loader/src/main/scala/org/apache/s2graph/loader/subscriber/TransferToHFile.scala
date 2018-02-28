@@ -22,6 +22,7 @@ package org.apache.s2graph.loader.subscriber
 import com.typesafe.config.Config
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase._
+import org.apache.hadoop.hbase.client.ConnectionFactory
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
@@ -29,6 +30,7 @@ import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageManagement
 import org.apache.s2graph.core.types.{InnerValLikeWithTs, SourceVertexId}
 import org.apache.s2graph.loader.spark.{FamilyHFileWriteOptions, HBaseContext, KeyFamilyQualifier}
 import org.apache.s2graph.spark.spark.SparkApp
@@ -45,17 +47,19 @@ object TransferToHFile extends SparkApp {
   var options:GraphFileOptions = _
 
   case class GraphFileOptions(input: String = "",
-                              tmpPath: String = "",
+                              tmpPath: String = s"/tmp/bulkload",
                               zkQuorum: String = "",
                               tableName: String = "",
                               dbUrl: String = "",
                               dbUser: String = "",
                               dbPassword: String = "",
                               maxHFilePerRegionServer: Int = 1,
+                              numRegions: Int = 3,
                               labelMapping: Map[String, String] = Map.empty[String, String],
                               autoEdgeCreate: Boolean = false,
                               buildDegree: Boolean = false,
-                              compressionAlgorithm: String = "") {
+                              incrementalLoad: Boolean = false,
+                              compressionAlgorithm: String = "NONE") {
     def toConfigParams = {
       Map(
         "hbase.zookeeper.quorum" -> zkQuorum,
@@ -93,6 +97,10 @@ object TransferToHFile extends SparkApp {
       c.copy(maxHFilePerRegionServer = x)).text("maximum number of HFile per RegionServer."
     )
 
+    opt[Int]('n', "numRegions").action ( (x, c) =>
+      c.copy(numRegions = x)).text("total numRegions(pre-split size) on table."
+    )
+
     opt[String]('l', "labelMapping").action( (x, c) =>
       c.copy(labelMapping = toLabelMapping(x)) ).text("mapping info to change the label from source (originalLabel:newLabel)")
 
@@ -101,6 +109,10 @@ object TransferToHFile extends SparkApp {
 
     opt[Boolean]('a', "autoEdgeCreate").action( (x, c) =>
       c.copy(autoEdgeCreate = x)).text("generate reverse edge automatically")
+
+    opt[Boolean]('c', "incrementalLoad").action( (x, c) =>
+      c.copy(incrementalLoad = x)).text("whether incremental bulkload which append data on existing table or not."
+    )
   }
 
   //TODO: Process AtomicIncrementRequest too.
@@ -233,6 +245,44 @@ object TransferToHFile extends SparkApp {
     }
   }
 
+  def generateHFile(sc: SparkContext,
+                    s2Config: Config,
+                    kvs: RDD[KeyValue],
+                    options: GraphFileOptions): Unit = {
+    val hbaseConfig = toHBaseConfig(options)
+    val startKeys =
+      if (options.incrementalLoad) {
+        // need hbase connection to existing table to figure out the ranges of regions.
+        getTableStartKeys(hbaseConfig, TableName.valueOf(options.tableName))
+      } else {
+        // otherwise we do not need to initialize Connection to hbase cluster.
+        // only numRegions determine region's pre-split.
+        getStartKeys(numRegions = options.numRegions)
+      }
+
+    val hbaseSc = new HBaseContext(sc, hbaseConfig)
+
+    def flatMap(kv: KeyValue): Iterator[(KeyFamilyQualifier, Array[Byte])] = {
+      val k = new KeyFamilyQualifier(CellUtil.cloneRow(kv), CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv))
+      val v = CellUtil.cloneValue(kv)
+      Seq((k -> v)).toIterator
+    }
+
+    val compressionAlgorithmClass = Algorithm.valueOf(options.compressionAlgorithm).getName.toUpperCase
+    val familyOptions = new FamilyHFileWriteOptions(compressionAlgorithmClass,
+      BloomType.ROW.name().toUpperCase, 32768, DataBlockEncoding.FAST_DIFF.name().toUpperCase)
+    val familyOptionsMap = Map("e".getBytes("UTF-8") -> familyOptions, "v".getBytes("UTF-8") -> familyOptions)
+
+
+    hbaseSc.bulkLoad(kvs, TableName.valueOf(options.tableName), startKeys, flatMap, options.tmpPath, familyOptionsMap)
+  }
+
+  def getTableStartKeys(hbaseConfig: Configuration, tableName: TableName): Array[Array[Byte]] = {
+    val conn = ConnectionFactory.createConnection(hbaseConfig)
+    val regionLocator = conn.getRegionLocator(tableName)
+    regionLocator.getStartKeys
+  }
+
   def toHBaseConfig(graphFileOptions: GraphFileOptions): Configuration = {
     val hbaseConf = HBaseConfiguration.create()
 
@@ -241,6 +291,27 @@ object TransferToHFile extends SparkApp {
     hbaseConf.set("hadoop.tmp.dir", s"/tmp/${graphFileOptions.tableName}")
 
     hbaseConf
+  }
+
+  def getStartKeys(numRegions: Int): Array[Array[Byte]] = {
+    val startKey = AsynchbaseStorageManagement.getStartKey(numRegions)
+    val endKey = AsynchbaseStorageManagement.getEndKey(numRegions)
+    if (numRegions < 3) {
+      throw new IllegalArgumentException("Must create at least three regions")
+    } else if (Bytes.compareTo(startKey, endKey) >= 0) {
+      throw new IllegalArgumentException("Start key must be smaller than end key")
+    }
+    val empty = new Array[Byte](0)
+
+    if (numRegions == 3) {
+      Array(empty, startKey, endKey)
+    } else {
+      val splitKeys: Array[Array[Byte]] = Bytes.split(startKey, endKey, numRegions - 3)
+      if (splitKeys == null || splitKeys.length != numRegions - 1) {
+        throw new IllegalArgumentException("Unable to split key range into enough regions")
+      }
+      Array(empty) ++ splitKeys.toSeq
+    }
   }
 
   override def run() = {
@@ -265,21 +336,22 @@ object TransferToHFile extends SparkApp {
     GraphSubscriberHelper.apply(s2Config)
 
     val merged = TransferToHFile.generateKeyValues(sc, s2Config, rdd, options)
-
-    /* set up hbase init */
-    val hbaseSc = new HBaseContext(sc, toHBaseConfig(options))
-
-    def flatMap(kv: KeyValue): Iterator[(KeyFamilyQualifier, Array[Byte])] = {
-      val k = new KeyFamilyQualifier(CellUtil.cloneRow(kv), CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv))
-      val v = CellUtil.cloneValue(kv)
-      Seq((k -> v)).toIterator
-    }
-
-    val familyOptions = new FamilyHFileWriteOptions(Algorithm.LZ4.getName.toUpperCase,
-      BloomType.ROW.name().toUpperCase, 32768, DataBlockEncoding.FAST_DIFF.name().toUpperCase)
-    val familyOptionsMap = Map("e".getBytes("UTF-8") -> familyOptions, "v".getBytes("UTF-8") -> familyOptions)
-
-    hbaseSc.bulkLoad(merged, TableName.valueOf(options.tableName), flatMap, options.tmpPath, familyOptionsMap)
+    generateHFile(sc, s2Config, merged, options)
+//    /* set up hbase init */
+//    val hbaseSc = new HBaseContext(sc, toHBaseConfig(options))
+//
+//    def flatMap(kv: KeyValue): Iterator[(KeyFamilyQualifier, Array[Byte])] = {
+//      val k = new KeyFamilyQualifier(CellUtil.cloneRow(kv), CellUtil.cloneFamily(kv), CellUtil.cloneQualifier(kv))
+//      val v = CellUtil.cloneValue(kv)
+//      Seq((k -> v)).toIterator
+//    }
+//
+//    val familyOptions = new FamilyHFileWriteOptions(Algorithm.LZ4.getName.toUpperCase,
+//      BloomType.ROW.name().toUpperCase, 32768, DataBlockEncoding.FAST_DIFF.name().toUpperCase)
+//    val familyOptionsMap = Map("e".getBytes("UTF-8") -> familyOptions, "v".getBytes("UTF-8") -> familyOptions)
+//
+//    val startKeys = getStartKeys(numRegions = options.numRegions)
+//    hbaseSc.bulkLoad(merged, TableName.valueOf(options.tableName), startKeys, flatMap, options.tmpPath, familyOptionsMap)
   }
 
 }

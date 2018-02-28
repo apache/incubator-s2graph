@@ -22,7 +22,7 @@ import java.util
 
 import org.apache.s2graph.core.{Management, PostProcess}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
-import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.mysqls.{Label, ServiceColumn}
 import org.apache.s2graph.core.storage.CanSKeyValue
 import org.apache.s2graph.core.types.HBaseType
 import org.apache.spark.{SparkConf, SparkContext}
@@ -43,12 +43,14 @@ class TransferToHFileTest extends FunSuite with Matchers with BeforeAndAfterAll 
   /* TransferHFile parameters */
   val options = GraphFileOptions(
     zkQuorum = "localhost",
+    tmpPath = "/tmp/s2graph",
     dbUrl = "jdbc:h2:file:./var/metastore;MODE=MYSQL",
     dbUser = "sa",
     dbPassword = "sa",
     tableName = "s2graph",
     maxHFilePerRegionServer = 1,
-    compressionAlgorithm = "gz",
+    numRegions = 3,
+    compressionAlgorithm = "NONE",
     buildDegree = false,
     autoEdgeCreate = false)
 
@@ -76,11 +78,8 @@ class TransferToHFileTest extends FunSuite with Matchers with BeforeAndAfterAll 
     }
   }
 
-
-  test("test edge only.") {
+  private def initTestEdgeSchema(): Label = {
     import scala.collection.JavaConverters._
-    import org.apache.s2graph.core.storage.CanSKeyValue._
-
     /* initialize model for test */
     val management = GraphSubscriberHelper.management
 
@@ -96,7 +95,39 @@ class TransferToHFileTest extends FunSuite with Matchers with BeforeAndAfterAll 
         hTableTTL = -1, schemaVersion = schemaVersion, compressionAlgorithm = compressionAlgorithm, options = "")
     }
 
-    val label = Label.findByName("friends").getOrElse(throw new IllegalArgumentException("friends label is not initialized."))
+    Label.findByName("friends").getOrElse(throw new IllegalArgumentException("friends label is not initialized."))
+  }
+
+  private def initTestVertexSchema(): ServiceColumn = {
+    import scala.collection.JavaConverters._
+    /* initialize model for test */
+    val management = GraphSubscriberHelper.management
+
+    val service = management.createService(serviceName = "s2graph", cluster = "localhost",
+      hTableName = "s2graph", preSplitSize = -1, hTableTTL = -1, compressionAlgorithm = "gz")
+
+    management.createServiceColumn(service.serviceName, "imei", "string",
+      Seq(
+        Prop(name = "first_time", defaultValue = "''", dataType = "string"),
+        Prop(name = "last_time", defaultValue = "''", dataType = "string"),
+        Prop(name = "total_active_days", defaultValue = "-1", dataType = "integer"),
+        Prop(name = "query_amount", defaultValue = "-1", dataType = "integer"),
+        Prop(name = "active_months", defaultValue = "-1", dataType = "integer"),
+        Prop(name = "fua", defaultValue = "''", dataType = "string"),
+        Prop(name = "location_often_province", defaultValue = "''", dataType = "string"),
+        Prop(name = "location_often_city", defaultValue = "''", dataType = "string"),
+        Prop(name = "location_often_days", defaultValue = "-1", dataType = "integer"),
+        Prop(name = "location_last_province", defaultValue = "''", dataType = "string"),
+        Prop(name = "location_last_city", defaultValue = "''", dataType = "string"),
+        Prop(name = "fimei_legality", defaultValue = "-1", dataType = "integer")
+      ).asJava)
+  }
+
+  test("test generateKeyValues edge only.") {
+    import scala.collection.JavaConverters._
+    import org.apache.s2graph.core.storage.CanSKeyValue._
+
+    val label = initTestEdgeSchema()
     /* end of initialize model */
 
     val bulkEdgeString = "1416236400000\tinsert\tedge\ta\tb\tfriends\t{\"since\":1316236400000,\"score\":10}"
@@ -122,30 +153,9 @@ class TransferToHFileTest extends FunSuite with Matchers with BeforeAndAfterAll 
     bulkEdge shouldBe(indexEdge)
   }
 
-  test("test vertex only.") {
-    import scala.collection.JavaConverters._
-    /* initialize model for test */
-    val management = GraphSubscriberHelper.management
 
-    val service = management.createService(serviceName = "s2graph", cluster = "localhost",
-      hTableName = "s2graph", preSplitSize = -1, hTableTTL = -1, compressionAlgorithm = "gz")
-
-    val serviceColumn = management.createServiceColumn(service.serviceName, "imei", "string",
-      Seq(
-        Prop(name = "first_time", defaultValue = "''", dataType = "string"),
-        Prop(name = "last_time", defaultValue = "''", dataType = "string"),
-        Prop(name = "total_active_days", defaultValue = "-1", dataType = "integer"),
-        Prop(name = "query_amount", defaultValue = "-1", dataType = "integer"),
-        Prop(name = "active_months", defaultValue = "-1", dataType = "integer"),
-        Prop(name = "fua", defaultValue = "''", dataType = "string"),
-        Prop(name = "location_often_province", defaultValue = "''", dataType = "string"),
-        Prop(name = "location_often_city", defaultValue = "''", dataType = "string"),
-        Prop(name = "location_often_days", defaultValue = "-1", dataType = "integer"),
-        Prop(name = "location_last_province", defaultValue = "''", dataType = "string"),
-        Prop(name = "location_last_city", defaultValue = "''", dataType = "string"),
-        Prop(name = "fimei_legality", defaultValue = "-1", dataType = "integer")
-      ).asJava)
-
+  test("test generateKeyValues vertex only.") {
+    val serviceColumn = initTestVertexSchema()
     val bulkVertexString = "20171201\tinsert\tvertex\t800188448586078\ts2graph\timei\t{\"first_time\":\"20171025\",\"last_time\":\"20171112\",\"total_active_days\":14,\"query_amount\":1526.0,\"active_months\":2,\"fua\":\"M5+Note\",\"location_often_province\":\"广东省\",\"location_often_city\":\"深圳市\",\"location_often_days\":6,\"location_last_province\":\"广东省\",\"location_last_city\":\"深圳市\",\"fimei_legality\":3}"
     val bulkVertex = GraphSubscriberHelper.g.elementBuilder.toGraphElement(bulkVertexString, options.labelMapping).get
 
@@ -166,5 +176,15 @@ class TransferToHFileTest extends FunSuite with Matchers with BeforeAndAfterAll 
     }
 
     bulkVertex shouldBe(vertex)
+  }
+
+  test("test generateHFile vertex only.") {
+    val serviceColumn = initTestVertexSchema()
+
+    val bulkVertexString = "20171201\tinsert\tvertex\t800188448586078\ts2graph\timei\t{\"first_time\":\"20171025\",\"last_time\":\"20171112\",\"total_active_days\":14,\"query_amount\":1526.0,\"active_months\":2,\"fua\":\"M5+Note\",\"location_often_province\":\"广东省\",\"location_often_city\":\"深圳市\",\"location_often_days\":6,\"location_last_province\":\"广东省\",\"location_last_city\":\"深圳市\",\"fimei_legality\":3}"
+    val input = sc.parallelize(Seq(bulkVertexString))
+
+    val kvs = TransferToHFile.generateKeyValues(sc, s2Config, input, options)
+    TransferToHFile.generateHFile(sc, s2Config, kvs, options)
   }
 }
