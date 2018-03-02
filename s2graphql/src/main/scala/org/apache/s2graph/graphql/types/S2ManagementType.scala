@@ -31,16 +31,12 @@ import sangria.schema._
 
 import scala.language.existentials
 import scala.util.{Failure, Success, Try}
-
 import org.apache.s2graph.graphql.marshaller._
+import org.apache.s2graph.graphql.types.S2Type.PartialServiceColumn
 
 object S2ManagementType {
 
   import sangria.schema._
-
-  case class LabelServiceProp(name: String,
-                              columnName: String,
-                              dataType: String)
 
   case class MutationResponse[T](result: Try[T])
 
@@ -99,6 +95,14 @@ class S2ManagementType(repo: GraphRepository) {
     )
 
     Argument(service.serviceName, OptionInputType(ServiceColumnOnServiceType))
+  }
+
+  lazy val ServiceColumnOnServiceInputObjectType = repo.allServices.map { service =>
+    InputField(service.serviceName, OptionInputType(InputObjectType(
+      "columnName",
+      description = "desc here",
+      fields = List(InputField("columnName", makeServiceColumnEnumTypeOnService(service)))
+    )))
   }
 
   def makeServiceColumnEnumTypeOnService(service: Service): EnumType[String] = {
@@ -160,17 +164,6 @@ class S2ManagementType(repo: GraphRepository) {
       }
   )
 
-  lazy val InputLabelServiceType = InputObjectType[LabelServiceProp](
-    "LabelServiceProp",
-    description = "desc here",
-    fields = List(
-      InputField("name", ServiceListType),
-      InputField("columnName", StringType),
-      InputField("dataType", DataTypeType)
-    )
-  )
-
-
   lazy val ServiceMutationResponseType = makeMutationResponseType[Service](
     "MutateService",
     "desc here",
@@ -223,10 +216,21 @@ class S2ManagementType(repo: GraphRepository) {
     "hTableTTL" -> IntType
   ).map { case (name, _type) => Argument(name, OptionInputType(_type)) }
 
+  val SourceServiceType = InputObjectType[PartialServiceColumn](
+    "sourceService",
+    description = "desc",
+    fields = ServiceColumnOnServiceInputObjectType
+  )
+
+  val TargetServiceType = InputObjectType[PartialServiceColumn](
+    "sourceService",
+    description = "desc",
+    fields = ServiceColumnOnServiceInputObjectType
+  )
 
   lazy val labelRequiredArg = List(
-    "sourceService" -> InputLabelServiceType,
-    "targetService" -> InputLabelServiceType
+    "sourceService" -> SourceServiceType,
+    "targetService" -> TargetServiceType
   ).map { case (name, _type) => Argument(name, _type) }
 
   val labelOptsArgs = List(

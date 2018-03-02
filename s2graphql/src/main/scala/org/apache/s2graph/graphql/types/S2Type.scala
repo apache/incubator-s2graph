@@ -36,6 +36,9 @@ import org.apache.s2graph.graphql.marshaller._
 
 object S2Type {
 
+  case class PartialServiceColumn(serviceName: String,
+                                  columnName: String)
+
   case class PartialServiceParam(service: Service,
                                  vid: Any)
 

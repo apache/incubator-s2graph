@@ -164,8 +164,8 @@ class GraphRepository(val graph: S2GraphLike) {
   def deleteServiceColumn(args: Args): List[Try[ServiceColumn]] = {
     println(args)
     //Args(Map(s2graph -> Some(Map(columnName -> _))),Set(),Set(s2graph),Set(),TrieMap())
-    val serviceColumns = args.raw.collect { case (serviceName, Some(map: Map[String, String])) =>
-      val columnName = map("columnName")
+    val serviceColumns = args.raw.collect { case (serviceName, Some(map: Map[String, Any])) =>
+      val columnName = map("columnName").asInstanceOf[String]
       Management.deleteColumn(serviceName, columnName)
     }
 
@@ -175,13 +175,15 @@ class GraphRepository(val graph: S2GraphLike) {
   def createLabel(args: Args): Try[Label] = {
     val labelName = args.arg[String]("name")
 
-    val srcServiceProp = args.arg[LabelServiceProp]("sourceService")
-    val tgtServiceProp = args.arg[LabelServiceProp]("targetService")
+    val srcServiceProp = args.arg[PartialServiceColumn]("sourceService")
+    val srcServiceColumn = ServiceColumn.find(Service.findByName(srcServiceProp.serviceName).get.id.get, srcServiceProp.columnName).get
+    val tgtServiceProp = args.arg[PartialServiceColumn]("targetService")
+    val tgtServiceColumn = ServiceColumn.find(Service.findByName(tgtServiceProp.serviceName).get.id.get, tgtServiceProp.columnName).get
 
     val allProps = args.argOpt[Vector[Prop]]("props").getOrElse(Vector.empty)
     val indices = args.argOpt[Vector[Index]]("indices").getOrElse(Vector.empty)
 
-    val serviceName = args.argOpt[String]("serviceName").getOrElse(tgtServiceProp.name)
+    val serviceName = args.argOpt[String]("serviceName").getOrElse(tgtServiceColumn.service.serviceName)
     val consistencyLevel = args.argOpt[String]("consistencyLevel").getOrElse("weak")
     val hTableName = args.argOpt[String]("hTableName")
     val hTableTTL = args.argOpt[Int]("hTableTTL")
@@ -193,12 +195,12 @@ class GraphRepository(val graph: S2GraphLike) {
 
     val labelTry: scala.util.Try[Label] = management.createLabel(
       labelName,
-      srcServiceProp.name,
-      srcServiceProp.columnName,
-      srcServiceProp.dataType,
-      tgtServiceProp.name,
-      tgtServiceProp.columnName,
-      tgtServiceProp.dataType,
+      srcServiceProp.serviceName,
+      srcServiceColumn.columnName,
+      srcServiceColumn.columnType,
+      tgtServiceProp.serviceName,
+      tgtServiceColumn.columnName,
+      tgtServiceColumn.columnType,
       isDirected,
       serviceName,
       indices,

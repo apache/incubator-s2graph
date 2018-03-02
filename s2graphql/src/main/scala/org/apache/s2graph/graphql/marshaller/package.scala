@@ -25,12 +25,17 @@ package object marshaller {
     }
   }
 
-  implicit object LabelServiceFromInput extends FromInput[LabelServiceProp] {
+  implicit object PartialServiceColumnFromInput extends FromInput[PartialServiceColumn] {
     val marshaller = CoercedScalaResultMarshaller.default
 
     def fromResult(node: marshaller.Node) = {
-      val input = node.asInstanceOf[Map[String, String]]
-      LabelServiceProp(input("name"), input("columnName"), input("dataType"))
+      val input = node.asInstanceOf[Map[String, Any]]
+      val serviceColumns = input.collect { case (serviceName, Some(map: Map[String, Any])) =>
+        val columnName = map("columnName").asInstanceOf[String]
+        PartialServiceColumn(serviceName = serviceName, columnName = columnName)
+      }
+
+      serviceColumns.head
     }
   }
 
