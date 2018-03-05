@@ -35,9 +35,9 @@ import scala.util.{Failure, Success, Try}
 import org.apache.s2graph.graphql.marshaller._
 
 object S2Type {
-
   case class PartialServiceColumn(serviceName: String,
-                                  columnName: String)
+                                  columnName: String,
+                                  props: Seq[Prop] = Nil)
 
   case class PartialServiceParam(service: Service,
                                  vid: Any)

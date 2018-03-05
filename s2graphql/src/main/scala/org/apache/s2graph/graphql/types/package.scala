@@ -103,7 +103,8 @@ package object types {
     fields = List(
       InputField("name", StringType),
       InputField("dataType", DataTypeType),
-      InputField("defaultValue", StringType)
+      InputField("defaultValue", StringType),
+      InputField("storeInGlobalIndex", BooleanType)
     )
   )
 

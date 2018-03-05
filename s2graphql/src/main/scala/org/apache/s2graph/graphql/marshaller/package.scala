@@ -7,6 +7,8 @@ import sangria.marshalling._
 
 package object marshaller {
 
+  def unwrap(map: Map[String, Any]): Map[String, Any] = map.map { case (k, v: Some[_]) => k -> v.get }
+
   implicit object IndexFromInput extends FromInput[Index] {
     val marshaller = CoercedScalaResultMarshaller.default
 
@@ -20,22 +22,40 @@ package object marshaller {
     val marshaller = CoercedScalaResultMarshaller.default
 
     def fromResult(node: marshaller.Node) = {
-      val input = node.asInstanceOf[Map[String, String]]
-      Prop(input("name"), input("defaultValue"), input("dataType"))
+      val input = node.asInstanceOf[Map[String, Any]]
+
+      val name = input("name").asInstanceOf[String]
+      val defaultValue = input("defaultValue").asInstanceOf[String]
+      val dataType = input("dataType").asInstanceOf[String]
+      val storeInGlobalIndex = input("storeInGlobalIndex").asInstanceOf[Boolean]
+
+      Prop(name, defaultValue, dataType, storeInGlobalIndex)
     }
   }
 
   implicit object PartialServiceColumnFromInput extends FromInput[PartialServiceColumn] {
     val marshaller = CoercedScalaResultMarshaller.default
 
+    def fromResult(node: marshaller.Node) = PartialServiceColumnsFromInput.fromResult(node).head
+  }
+
+  implicit object PartialServiceColumnsFromInput extends FromInput[Vector[PartialServiceColumn]] {
+    val marshaller = CoercedScalaResultMarshaller.default
+
     def fromResult(node: marshaller.Node) = {
-      val input = node.asInstanceOf[Map[String, Any]]
-      val serviceColumns = input.collect { case (serviceName, Some(map: Map[String, Any])) =>
-        val columnName = map("columnName").asInstanceOf[String]
-        PartialServiceColumn(serviceName = serviceName, columnName = columnName)
+      val input = unwrap(node.asInstanceOf[Map[String, Any]])
+
+      val partialServiceColumns = input.map { case (serviceName, serviceColumnMap) =>
+        val innerMap = serviceColumnMap.asInstanceOf[Map[String, Any]]
+        val columnName = innerMap("columnName").asInstanceOf[String]
+        val props = innerMap.get("props").toSeq.flatMap { case v: Vector[_] =>
+          v.map(PropFromInput.fromResult)
+        }
+
+        PartialServiceColumn(serviceName, columnName, props)
       }
 
-      serviceColumns.head
+      partialServiceColumns.toVector
     }
   }
 

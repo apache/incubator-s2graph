@@ -25,19 +25,22 @@ import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.storage.MutateResponse
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.graphql.types.S2ManagementType._
+import org.apache.s2graph.graphql.types.S2ManagementType.PropWithColumn
 import org.apache.s2graph.graphql.types.S2Type._
-import sangria.schema.{Action, Args}
+import sangria.schema._
 
 import scala.concurrent._
 import scala.util.{Failure, Try}
 
+object GraphRepository {
+}
 
 /**
   *
   * @param graph
   */
 class GraphRepository(val graph: S2GraphLike) {
+
   val management = graph.management
   val parser = new RequestParser(graph)
 
@@ -85,9 +88,9 @@ class GraphRepository(val graph: S2GraphLike) {
       val innerMap = args.arg[Map[String, Vector[PartialVertexParam]]](serviceName)
 
       innerMap.flatMap { case (columnName, params) =>
-          params.map { param =>
-            partialVertexParamToS2Vertex(serviceName, columnName, param)
-          }
+        params.map { param =>
+          partialVertexParamToS2Vertex(serviceName, columnName, param)
+        }
       }
     }
     graph.mutateVertices(vertices, withWait = true)
@@ -113,7 +116,7 @@ class GraphRepository(val graph: S2GraphLike) {
 
   def getVertex(vertex: S2VertexLike): Future[Seq[S2VertexLike]] = {
     val f = graph.getVertices(Seq(vertex))
-    f.foreach{ a =>
+    f.foreach { a =>
       println(a)
     }
     f
@@ -158,18 +161,38 @@ class GraphRepository(val graph: S2GraphLike) {
     val columnType = args.arg[String]("columnType")
     val props = args.argOpt[Vector[Prop]]("props").getOrElse(Vector.empty)
 
-    Try { management.createServiceColumn(serviceName, columnName, columnType, props) }
+    Try {
+      management.createServiceColumn(serviceName, columnName, columnType, props)
+    }
   }
 
   def deleteServiceColumn(args: Args): List[Try[ServiceColumn]] = {
-    println(args)
-    //Args(Map(s2graph -> Some(Map(columnName -> _))),Set(),Set(s2graph),Set(),TrieMap())
-    val serviceColumns = args.raw.collect { case (serviceName, Some(map: Map[String, Any])) =>
+    // Args(Map(s2graph -> Some(Map(columnName -> _))),Set(),Set(s2graph),Set(),TrieMap())
+    val serviceColumns = args.raw.collect { case (serviceName, Some(map: Map[String, _])) =>
       val columnName = map("columnName").asInstanceOf[String]
       Management.deleteColumn(serviceName, columnName)
     }
 
     serviceColumns.toList
+  }
+
+  def addPropsOnServiceColumn(args: Args): List[Try[ServiceColumn]] = {
+    val partialColumns = args.arg[Vector[PartialServiceColumn]]("serviceName")
+
+    val ret = partialColumns.map { pc =>
+      val serviceName = pc.serviceName
+      val columnName = pc.columnName
+      Try {
+        pc.props.foreach { prop =>
+          Management.addVertexProp(serviceName, columnName, prop.name, prop.dataType, prop.defaultValue, prop.storeInGlobalIndex)
+        }
+
+        val src = Service.findByName(serviceName)
+        ServiceColumn.find(src.get.id.get, columnName, false).get
+      }
+    }
+
+    ret.toList
   }
 
   def createLabel(args: Args): Try[Label] = {
