@@ -56,6 +56,14 @@ object AsynchbaseStorageManagement {
   val DefaultCreateTableOptions = Map(
     "hbase.zookeeper.quorum" -> "localhost"
   )
+
+  def getStartKey(regionCount: Int): Array[Byte] = {
+    Bytes.toBytes((Int.MaxValue / regionCount))
+  }
+
+  def getEndKey(regionCount: Int): Array[Byte] = {
+    Bytes.toBytes((Int.MaxValue / regionCount * (regionCount - 1)))
+  }
 }
 
 class AsynchbaseStorageManagement(val config: Config, val clients: Seq[HBaseClient]) extends StorageManagement {
@@ -270,13 +278,5 @@ class AsynchbaseStorageManagement(val config: Config, val clients: Seq[HBaseClie
       val conn = ConnectionFactory.createConnection(conf)
       conn.getAdmin
     }
-  }
-
-  private def getStartKey(regionCount: Int): Array[Byte] = {
-    Bytes.toBytes((Int.MaxValue / regionCount))
-  }
-
-  private def getEndKey(regionCount: Int): Array[Byte] = {
-    Bytes.toBytes((Int.MaxValue / regionCount * (regionCount - 1)))
   }
 }

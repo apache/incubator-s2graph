@@ -30,8 +30,32 @@ def hfile(args):
 --name "TransferToHFile@shon" \
 --conf "spark.task.maxFailures=20" \
 --master yarn-cluster \
---num-executors %s --driver-memory 1g --executor-memory 2g --executor-cores 1 %s \
-%s /tmp/%s %s %s %s %s %s %s""" % (args["num_executors"], JAR, args["input"], args["htable_name"], args["hbase_zk"], args["htable_name"], args["db_url"], args["max_file_per_region"], args["label_mapping"], args["auto_create_edge"])
+--num-executors %s \
+--driver-memory 1g \
+--executor-memory 2g \
+--executor-cores 1 \
+%s \
+--input %s \
+--tmpPath /tmp/%s \
+--zkQuorum %s \
+--table %s \
+--dbUrl %s \
+--dbUser %s \
+--dbPassword %s \
+--maxHFilePerRegionServer %s \
+--labelMapping %s \
+--autoEdgeCreate %s""" % (args["num_executors"],
+						   JAR,
+						   args["input"],
+						   args["htable_name"],
+						   args["hbase_zk"],
+						   args["htable_name"],
+						   args["db_url"],
+						   args["db_user"],
+						   args["db_password"],
+						   args["max_file_per_region"],
+						   args["label_mapping"],
+						   args["auto_create_edge"])
 	print cmd
 	ret = os.system(cmd)
 	print cmd, "return", ret
@@ -96,6 +120,8 @@ args = {
 "hbase_namenode": "hdfs://nameservice:8020",
 "hbase_zk": "localhost",
 "db_url": "jdbc:mysql://localhost:3306/graph_dev",
+"db_user": "graph",
+"db_password": "graph",
 "max_file_per_region": 1,
 "label_mapping": "none",
 "auto_create_edge": "false",

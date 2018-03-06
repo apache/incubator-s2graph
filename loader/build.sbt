@@ -29,14 +29,15 @@ projectDependencies := Seq(
 
 libraryDependencies ++= Seq(
   "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
-  "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
+  "org.apache.spark" %% "spark-core" % sparkVersion % "provided" exclude("javax.servlet", "*"),
   "org.apache.spark" %% "spark-streaming" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-hive" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-streaming-kafka" % sparkVersion,
   "org.apache.httpcomponents" % "fluent-hc" % "4.2.5",
   "org.specs2" %% "specs2-core" % specs2Version % "test",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test",
-  "org.apache.hadoop" % "hadoop-distcp" % hadoopVersion
+  "org.apache.hadoop" % "hadoop-distcp" % hadoopVersion,
+  "com.github.scopt" %% "scopt" % "3.7.0"
 )
 
 crossScalaVersions := Seq("2.10.6")
