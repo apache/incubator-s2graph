@@ -208,25 +208,25 @@ class S2ManagementType(repo: GraphRepository) {
   val AddPropServiceType = InputObjectType[Vector[PartialServiceColumn]](
     "Input_Service_ServiceColumn_Props",
     description = "desc",
-    fields = serviceColumnOnServiceWithPropInputObjectFields
+    fields = DummyInputField +: serviceColumnOnServiceWithPropInputObjectFields
   )
 
   val ServiceColumnSelectType = InputObjectType[Vector[PartialServiceColumn]](
     "Input_Service_ServiceColumn",
     description = "desc",
-    fields = serviceColumnOnServiceInputObjectFields
+    fields = DummyInputField +: serviceColumnOnServiceInputObjectFields
   )
 
   val LabelPropType = InputObjectType[Vector[PartialLabelMeta]](
     "Input_Label_Props",
     description = "desc",
-    fields = labelPropsInputFields
+    fields = DummyInputField +: labelPropsInputFields
   )
 
   val InputServiceType = InputObjectType[PartialServiceColumn](
     "Input_Service",
     description = "desc",
-    fields = serviceColumnOnServiceInputObjectFields
+    fields = DummyInputField +: serviceColumnOnServiceInputObjectFields
   )
 
   lazy val serviceField: Field[GraphRepository, Any] = Field(
