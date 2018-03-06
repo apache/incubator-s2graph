@@ -42,8 +42,8 @@ object S2ManagementType {
 
   case class MutationResponse[T](result: Try[T])
 
-  def makeMutationResponseType[T](name: String, desc: String, tpe: ObjectType[_, T]) = {
-    ObjectType(
+  def makeMutationResponseType[T](name: String, desc: String, tpe: ObjectType[_, T]): ObjectType[Unit, MutationResponse[T]] = {
+    val retType = ObjectType(
       name,
       desc,
       () => fields[Unit, MutationResponse[T]](
@@ -64,6 +64,8 @@ object S2ManagementType {
         )
       )
     )
+
+    retType
   }
 }
 
@@ -75,7 +77,7 @@ class S2ManagementType(repo: GraphRepository) {
 
   lazy val serviceColumnOnServiceWithPropInputObjectFields = repo.allServices.map { service =>
     InputField(service.serviceName, OptionInputType(InputObjectType(
-      s"columnWithProp",
+      s"Input_Column_Props",
       description = "desc here",
       fields = List(
         InputField("columnName", makeServiceColumnEnumTypeOnService(service)),
@@ -87,7 +89,7 @@ class S2ManagementType(repo: GraphRepository) {
 
   lazy val serviceColumnOnServiceInputObjectFields = repo.allServices.map { service =>
     InputField(service.serviceName, OptionInputType(InputObjectType(
-      s"column",
+      s"Input_Column",
       description = "desc here",
       fields = List(
         InputField("columnName", makeServiceColumnEnumTypeOnService(service))
@@ -98,7 +100,7 @@ class S2ManagementType(repo: GraphRepository) {
   def makeServiceColumnEnumTypeOnService(service: Service): EnumType[String] = {
     val columns = service.serviceColumns(false).toList
     EnumType(
-      s"${service.serviceName}_columns",
+      s"Enum_${service.serviceName}_ServiceColumn",
       description = Option("desc here"),
       values = dummyEnum +: columns.map { column =>
         EnumValue(column.columnName, value = column.columnName)
@@ -106,9 +108,9 @@ class S2ManagementType(repo: GraphRepository) {
     )
   }
 
-  lazy val labelMetaInputObjectFields = repo.allLabels.map { label =>
+  lazy val labelPropsInputFields = repo.allLabels.map { label =>
     InputField(label.label, OptionInputType(InputObjectType(
-      s"labelMetaOnLabel",
+      s"Input_${label.label}_props",
       description = "desc here",
       fields = List(
         InputField("props", ListInputType(InputPropType))
@@ -138,7 +140,7 @@ class S2ManagementType(repo: GraphRepository) {
   val dummyEnum = EnumValue("_", value = "_")
 
   lazy val ServiceListType = EnumType(
-    s"ServiceList",
+    s"Enum_Service",
     description = Option("desc here"),
     values =
       dummyEnum +: repo.allServices.map { service =>
@@ -147,7 +149,7 @@ class S2ManagementType(repo: GraphRepository) {
   )
 
   lazy val ServiceColumnListType = EnumType(
-    s"ServiceColumnList",
+    s"Enum_ServiceColumn",
     description = Option("desc here"),
     values =
       dummyEnum +: repo.allServiceColumns.map { serviceColumn =>
@@ -155,8 +157,8 @@ class S2ManagementType(repo: GraphRepository) {
       }
   )
 
-  lazy val LabelListType = EnumType(
-    s"LabelList",
+  lazy val EnumLabelsType = EnumType(
+    s"Enum_Label",
     description = Option("desc here"),
     values =
       dummyEnum +: repo.allLabels.map { label =>
@@ -177,22 +179,9 @@ class S2ManagementType(repo: GraphRepository) {
   )
 
   lazy val LabelMutationResponseType = makeMutationResponseType[Label](
-    "MutateLabelLabel",
+    "MutateLabel",
     "desc here",
     LabelType
-  )
-
-  lazy val serviceColumnField: Field[GraphRepository, Any] = Field(
-    "ServiceColumn",
-    ListType(ServiceColumnType),
-    description = Option("desc here"),
-    arguments = List(ServiceNameRawArg, ColumnNameArg, PropArg),
-    resolve = { c =>
-      c.argOpt[String]("name") match {
-        case Some(name) => c.ctx.allServiceColumns.filter(_.columnName == name)
-        case None => c.ctx.allServiceColumns
-      }
-    }
   )
 
   lazy val labelField: Field[GraphRepository, Any] = Field(
@@ -217,52 +206,28 @@ class S2ManagementType(repo: GraphRepository) {
   ).map { case (name, _type) => Argument(name, OptionInputType(_type)) }
 
   val AddPropServiceType = InputObjectType[Vector[PartialServiceColumn]](
-    "serviceName",
+    "Input_Service_ServiceColumn_Props",
     description = "desc",
     fields = serviceColumnOnServiceWithPropInputObjectFields
   )
 
   val ServiceColumnSelectType = InputObjectType[Vector[PartialServiceColumn]](
-    "serviceColumnSelect",
+    "Input_Service_ServiceColumn",
     description = "desc",
     fields = serviceColumnOnServiceInputObjectFields
   )
 
   val LabelPropType = InputObjectType[Vector[PartialLabelMeta]](
-    "labelMetaProp",
+    "Input_Label_Props",
     description = "desc",
-    fields = labelMetaInputObjectFields
+    fields = labelPropsInputFields
   )
 
-  val SourceServiceType = InputObjectType[PartialServiceColumn](
-    "sourceService",
-    description = "desc",
-    fields = serviceColumnOnServiceInputObjectFields
-  )
-
-  val TargetServiceType = InputObjectType[PartialServiceColumn](
-    "sourceService",
+  val InputServiceType = InputObjectType[PartialServiceColumn](
+    "Input_Service",
     description = "desc",
     fields = serviceColumnOnServiceInputObjectFields
   )
-
-  lazy val labelRequiredArg = List(
-    "sourceService" -> SourceServiceType,
-    "targetService" -> TargetServiceType
-  ).map { case (name, _type) => Argument(name, _type) }
-
-  val labelOptsArgs = List(
-    "serviceName" -> ServiceListType,
-    "consistencyLevel" -> ConsistencyLevelType,
-    "isDirected" -> BooleanType,
-    "isAsync" -> BooleanType,
-    "schemaVersion" -> StringType
-  ).map { case (name, _type) => Argument(name, OptionInputType(_type)) }
-
-
-  /**
-    * Management query
-    */
 
   lazy val serviceField: Field[GraphRepository, Any] = Field(
     "Services",
@@ -277,16 +242,33 @@ class S2ManagementType(repo: GraphRepository) {
     }
   )
 
+  /**
+    * Query Fields
+    * Provide s2graph management query API
+    */
   lazy val queryFields: List[Field[GraphRepository, Any]] = List(serviceField, labelField)
 
   /**
     * Mutation fields
-    * Provide s2graph management API
+    * Provide s2graph management mutate API
     *
     * - createService
     * - createLabel
     * - ...
     */
+
+  lazy val labelRequiredArg = List(
+    Argument("sourceService", InputServiceType),
+    Argument("targetService", InputServiceType)
+  )
+
+  val labelOptsArgs = List(
+    Argument("serviceName", OptionInputType(ServiceListType)),
+    Argument("consistencyLevel", OptionInputType(ConsistencyLevelType)),
+    Argument("isDirected", OptionInputType(BooleanType)),
+    Argument("isAsync", OptionInputType(BooleanType)),
+    Argument("schemaVersion", OptionInputType(StringType))
+  )
 
   val NameArg = Argument("name", StringType, description = "desc here")
 
@@ -298,7 +280,7 @@ class S2ManagementType(repo: GraphRepository) {
 
   lazy val ColumnTypeArg = Argument("columnType", DataTypeType, description = "desc here")
 
-  lazy val LabelNameArg = Argument("name", OptionInputType(LabelListType), description = "desc here")
+  lazy val LabelNameArg = Argument("name", OptionInputType(EnumLabelsType), description = "desc here")
 
   lazy val PropArg = Argument("props", OptionInputType(ListInputType(InputPropType)), description = "desc here")
 
@@ -310,26 +292,7 @@ class S2ManagementType(repo: GraphRepository) {
       arguments = NameArg :: serviceOptArgs,
       resolve = c => MutationResponse(c.ctx.createService(c.args))
     ),
-    Field("createServiceColumn",
-      ServiceColumnMutationResponseType,
-      arguments = List(ServiceNameRawArg, Argument("columnName", StringType), ColumnTypeArg, PropArg),
-      resolve = c => MutationResponse(c.ctx.createServiceColumn(c.args))
-    ),
-    Field("addPropsToServiceColumn",
-      ListType(ServiceColumnMutationResponseType),
-      arguments = Argument("serviceName", AddPropServiceType) :: Nil,
-      resolve = c => c.ctx.addPropsToServiceColumn(c.args) map (MutationResponse(_))
-    ),
-    Field("addPropsToLabel",
-      ListType(LabelMutationResponseType),
-      arguments = Argument("labelName", LabelPropType) :: Nil,
-      resolve = c => c.ctx.addPropsToLabel(c.args) map (MutationResponse(_))
-    ),
-    Field("deleteServiceColumn",
-      ListType(ServiceColumnMutationResponseType),
-      arguments = Argument("serviceName", ServiceColumnSelectType) :: Nil,
-      resolve = c => c.ctx.deleteServiceColumn(c.args).map(MutationResponse(_))
-    ),
+
     Field("createLabel",
       LabelMutationResponseType,
       arguments = NameArg :: PropArg :: IndicesArg :: labelRequiredArg ::: labelOptsArgs,
@@ -339,6 +302,28 @@ class S2ManagementType(repo: GraphRepository) {
       LabelMutationResponseType,
       arguments = LabelNameArg :: Nil,
       resolve = c => MutationResponse(c.ctx.deleteLabel(c.args))
+    ),
+
+    Field("createServiceColumn",
+      ServiceColumnMutationResponseType,
+      arguments = List(ServiceNameRawArg, Argument("columnName", StringType), ColumnTypeArg, PropArg),
+      resolve = c => MutationResponse(c.ctx.createServiceColumn(c.args))
+    ),
+    Field("deleteServiceColumn",
+      ListType(ServiceColumnMutationResponseType),
+      arguments = Argument("serviceName", ServiceColumnSelectType) :: Nil,
+      resolve = c => c.ctx.deleteServiceColumn(c.args).map(MutationResponse(_))
+    ),
+
+    Field("addPropsToServiceColumn",
+      ListType(ServiceColumnMutationResponseType),
+      arguments = Argument("serviceName", AddPropServiceType) :: Nil,
+      resolve = c => c.ctx.addPropsToServiceColumn(c.args) map (MutationResponse(_))
+    ),
+    Field("addPropsToLabel",
+      ListType(LabelMutationResponseType),
+      arguments = Argument("labelName", LabelPropType) :: Nil,
+      resolve = c => c.ctx.addPropsToLabel(c.args) map (MutationResponse(_))
     )
   )
 }

@@ -50,7 +50,7 @@ package object types {
   }
 
   val MutateResponseType = deriveObjectType[GraphRepository, MutateResponse](
-    ObjectTypeName("MutateResponse"),
+    ObjectTypeName("MutateGraphElement"),
     ObjectTypeDescription("desc here"),
     AddFields(
       Field("isSuccess", BooleanType, resolve = c => c.value.isSuccess)
@@ -58,7 +58,7 @@ package object types {
   )
 
   val DataTypeType = EnumType(
-    "DataType",
+    "Enum_DataType",
     description = Option("desc here"),
     values = List(
       EnumValue("string", value = "string"),
@@ -70,7 +70,7 @@ package object types {
   )
 
   val DirectionType = EnumType(
-    "Direction",
+    "Enum_Direction",
     description = Option("desc here"),
     values = List(
       EnumValue("out", value = "out"),
@@ -89,7 +89,7 @@ package object types {
   )
 
   val InputIndexType = InputObjectType[Index](
-    "Index",
+    "Input_Index",
     description = "desc here",
     fields = List(
       InputField("name", StringType),
@@ -98,7 +98,7 @@ package object types {
   )
 
   val InputPropType = InputObjectType[Prop](
-    "Prop",
+    "Input_Prop",
     description = "desc here",
     fields = List(
       InputField("name", StringType),
@@ -109,7 +109,7 @@ package object types {
   )
 
   val CompressionAlgorithmType = EnumType(
-    "CompressionAlgorithm",
+    "Enum_CompressionAlgorithm",
     description = Option("desc here"),
     values = List(
       EnumValue("gz", description = Option("desc here"), value = "gz"),
@@ -118,7 +118,7 @@ package object types {
   )
 
   val ConsistencyLevelType = EnumType(
-    "ConsistencyList",
+    "Enum_Consistency",
     description = Option("desc here"),
     values = List(
       EnumValue("weak", description = Option("desc here"), value = "weak"),

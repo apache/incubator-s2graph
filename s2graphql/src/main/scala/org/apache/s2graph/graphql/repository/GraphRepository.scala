@@ -194,6 +194,7 @@ class GraphRepository(val graph: S2GraphLike) {
     val ret = partialColumns.map { pc =>
       val serviceName = pc.serviceName
       val columnName = pc.columnName
+
       Try {
         pc.props.foreach { prop =>
           Management.addVertexProp(serviceName, columnName, prop.name, prop.dataType, prop.defaultValue, prop.storeInGlobalIndex)

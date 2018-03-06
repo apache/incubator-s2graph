@@ -35,6 +35,7 @@ import scala.util.{Failure, Success, Try}
 import org.apache.s2graph.graphql.marshaller._
 
 object S2Type {
+
   case class PartialLabelMeta(labelName: String,
                               props: Seq[Prop] = Nil)
 
@@ -100,7 +101,7 @@ object S2Type {
   def makeInputPartialVertexParamType(service: Service,
                                       serviceColumn: ServiceColumn): InputObjectType[PartialVertexParam] = {
     lazy val InputPropsType = InputObjectType[Map[String, ScalarType[_]]](
-      s"${service.serviceName}_${serviceColumn.columnName}_props",
+      s"Input_${service.serviceName}_${serviceColumn.columnName}_vertex_props",
       description = "desc here",
       () => serviceColumn.metas.filter(ColumnMeta.isValid).map { lm =>
         InputField(lm.name, OptionInputType(s2TypeToScalarType(lm.dataType)))
@@ -112,7 +113,7 @@ object S2Type {
     )
 
     InputObjectType[PartialVertexParam](
-      s"${service.serviceName}_on_${serviceColumn.columnName}_mutate",
+      s"Input_${service.serviceName}_${serviceColumn.columnName}_vertex_mutate",
       description = "desc here",
       () =>
         if (!serviceColumn.metas.exists(ColumnMeta.isValid)) fields
@@ -122,7 +123,7 @@ object S2Type {
 
   def makeInputPartialEdgeParamType(label: Label): InputObjectType[PartialEdgeParam] = {
     lazy val InputPropsType = InputObjectType[Map[String, ScalarType[_]]](
-      s"${label.label}_props",
+      s"Input_${label.label}_edge_props",
       description = "desc here",
       () => label.labelMetaSet.toList.map { lm =>
         InputField(lm.name, OptionInputType(s2TypeToScalarType(lm.dataType)))
@@ -137,7 +138,7 @@ object S2Type {
     )
 
     InputObjectType[PartialEdgeParam](
-      s"${label.label}_mutate",
+      s"Input_${label.label}_edge_mutate",
       description = "desc here",
       () =>
         if (label.labelMetaSet.isEmpty) labelFields
@@ -156,13 +157,14 @@ object S2Type {
       val reservedFields = List("id" -> column.columnType, "timestamp" -> "long")
 
       val vertexPropFields = makePropFields(reservedFields ++ columnMetasKv)
-      lazy val LabelType = ObjectType(
-        s"${service.serviceName}_${column.columnName}",
+
+      lazy val ConnectedLabelType = ObjectType(
+        s"Input_${service.serviceName}_${column.columnName}",
         () => fields[GraphRepository, Any](vertexPropFields ++ connectedLabelFields: _*)
       )
 
       Field(column.columnName,
-        ListType(LabelType),
+        ListType(ConnectedLabelType),
         arguments = List(
           Argument("id", OptionInputType(s2TypeToScalarType(column.columnType))),
           Argument("ids", OptionInputType(ListInputType(s2TypeToScalarType(column.columnType)))),
@@ -197,10 +199,14 @@ object S2Type {
     val labelColumns = List("from" -> label.srcColumnType, "to" -> label.tgtColumnType, "timestamp" -> "long")
     val labelProps = label.labelMetas.map { lm => lm.name -> lm.dataType }
 
-    lazy val EdgeType = ObjectType(label.label, () => fields[GraphRepository, Any](edgeFields ++ connectedLabelFields: _*))
+    lazy val EdgeType = ObjectType(
+      s"Label_${label.label}",
+      () => fields[GraphRepository, Any](edgeFields ++ connectedLabelFields: _*)
+    )
+
     lazy val edgeFields: List[Field[GraphRepository, Any]] = makePropFields(labelColumns ++ labelProps)
     lazy val edgeTypeField: Field[GraphRepository, Any] = Field(
-      label.label,
+      s"${label.label}",
       ListType(EdgeType),
       arguments = DirArg :: Nil,
       description = Some("edges"),
@@ -236,7 +242,7 @@ class S2Type(repo: GraphRepository) {
   lazy val serviceFields: List[Field[GraphRepository, Any]] = repo.allServices.map { service =>
     lazy val serviceFields = paddingDummyField(makeServiceField(service, repo.allLabels))
     lazy val ServiceType = ObjectType(
-      service.serviceName,
+      s"Service_${service.serviceName}",
       fields[GraphRepository, Any](serviceFields: _*)
     )
 
@@ -251,38 +257,11 @@ class S2Type(repo: GraphRepository) {
   /**
     * arguments
     */
-  lazy val addVertexArg = repo.allServices.map { service =>
-    val columnFields = service.serviceColumns(false).map { serviceColumn =>
-
-      val columnMetas = serviceColumn.metas.filter(ColumnMeta.isValid).map { lm =>
-        InputField(lm.name, OptionInputType(s2TypeToScalarType(lm.dataType)))
-      }
-
-      lazy val InputPropsType = InputObjectType[Map[String, ScalarType[_]]](
-        s"${service.serviceName}_${serviceColumn.columnName}_props",
-        description = "desc here",
-        () => if (columnMetas.isEmpty) List(DummyInputField) else columnMetas.toList
-      )
-
-      val tpe = InputObjectType[PartialServiceVertexParam](
-        serviceColumn.columnName,
-        fields = List(
-          InputField("id", s2TypeToScalarType(serviceColumn.columnType)),
-          InputField("timestamp", OptionInputType(LongType)),
-          InputField("props", OptionInputType(InputPropsType))
-        )
-      )
-
-      InputField(serviceColumn.columnName, OptionInputType(tpe))
+  lazy val addVertexArg = repo.allServices.flatMap { service =>
+    service.serviceColumns(false).map { serviceColumn =>
+      val inputPartialVertexParamType = makeInputPartialVertexParamType(service, serviceColumn)
+      Argument(serviceColumn.columnName, OptionInputType(inputPartialVertexParamType))
     }
-
-    val vertexParamType = InputObjectType[Vector[PartialServiceVertexParam]](
-      s"${service.serviceName}_column",
-      description = "desc here",
-      fields = if (columnFields.isEmpty) List(DummyInputField) else columnFields.toList
-    )
-
-    Argument(service.serviceName, OptionInputType(vertexParamType))
   }
 
   lazy val addVerticesArg = repo.allServices.flatMap { service =>
