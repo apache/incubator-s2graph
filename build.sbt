@@ -56,8 +56,8 @@ lazy val s2core = project.settings(commonSettings: _*)
 
 lazy val spark = project.settings(commonSettings: _*)
 
-lazy val loader = project.dependsOn(s2core, spark)
-  .settings(commonSettings: _*)
+//lazy val loader = project.dependsOn(s2core, spark)
+//  .settings(commonSettings: _*)
 
 lazy val s2counter_core = project.dependsOn(s2core)
   .settings(commonSettings: _*)
@@ -65,12 +65,15 @@ lazy val s2counter_core = project.dependsOn(s2core)
 lazy val s2counter_loader = project.dependsOn(s2counter_core, spark)
   .settings(commonSettings: _*)
 
+lazy val s2jobs = project.dependsOn(s2core)
+  .settings(commonSettings: _*)
+
 lazy val s2graph_gremlin = project.dependsOn(s2core)
   .settings(commonSettings: _*)
 
 lazy val root = (project in file("."))
   .aggregate(s2core, s2rest_play)
-  .dependsOn(s2rest_play, s2rest_netty, loader, s2counter_loader, s2graphql) // this enables packaging on the root project
+  .dependsOn(s2rest_play, s2rest_netty, s2jobs, s2counter_loader, s2graphql) // this enables packaging on the root project
   .settings(commonSettings: _*)
 
 lazy val runRatTask = inputKey[Unit]("Runs Apache rat on S2Graph")
@@ -88,7 +91,7 @@ publishSigned := {
   (publishSigned in s2rest_netty).value
   (publishSigned in s2core).value
   (publishSigned in spark).value
-  (publishSigned in loader).value
+  (publishSigned in s2jobs).value
   (publishSigned in s2counter_core).value
   (publishSigned in s2counter_loader).value
 }

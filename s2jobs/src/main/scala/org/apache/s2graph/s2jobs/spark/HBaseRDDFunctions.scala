@@ -15,17 +15,15 @@
  * limitations under the License.
  */
 
-package org.apache.s2graph.loader.spark
+package org.apache.s2graph.s2jobs.spark
 
 import java.util
 
-import org.apache.hadoop.fs.Path
-import org.apache.hadoop.hbase.{HConstants, TableName}
 import org.apache.hadoop.hbase.client._
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
+import org.apache.hadoop.hbase.{HConstants, TableName}
 import org.apache.spark.rdd.RDD
 
-import scala.collection.immutable.HashMap
 import scala.reflect.ClassTag
 
 /**

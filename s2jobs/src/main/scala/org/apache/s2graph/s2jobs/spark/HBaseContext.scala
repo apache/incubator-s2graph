@@ -15,37 +15,37 @@
  * limitations under the License.
  */
 
-package org.apache.s2graph.loader.spark
+package org.apache.s2graph.s2jobs.spark
 
+import java.io._
 import java.net.InetSocketAddress
 import java.util
 
-import org.apache.hadoop.hbase.fs.HFileSystem
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.hbase._
+import org.apache.hadoop.hbase.client._
+import org.apache.hadoop.hbase.fs.HFileSystem
+import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.io.compress.Compression
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.io.hfile.{CacheConfig, HFileContextBuilder}
-import org.apache.hadoop.hbase.regionserver.{HStore, StoreFile, BloomType}
+import org.apache.hadoop.hbase.mapreduce.{IdentityTableMapper, TableInputFormat, TableMapReduceUtil}
+import org.apache.hadoop.hbase.regionserver.{BloomType, HStore, StoreFile}
 import org.apache.hadoop.hbase.util.Bytes
+import org.apache.hadoop.mapreduce.Job
+import org.apache.hadoop.security.UserGroupInformation
+import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod
+import org.apache.s2graph.s2jobs.spark.HBaseRDDFunctions._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.rdd.RDD
-import org.apache.hadoop.conf.Configuration
-import HBaseRDDFunctions._
-import org.apache.hadoop.hbase.client._
-import scala.reflect.ClassTag
-import org.apache.spark.{Logging, SerializableWritable, SparkContext}
-import org.apache.hadoop.hbase.mapreduce.{TableMapReduceUtil,
-TableInputFormat, IdentityTableMapper}
-import org.apache.hadoop.hbase.io.ImmutableBytesWritable
-import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.streaming.dstream.DStream
-import java.io._
-import org.apache.hadoop.security.UserGroupInformation
-import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod
-import org.apache.hadoop.fs.{Path, FileSystem}
+import org.apache.spark.{SerializableWritable, SparkContext}
+
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 /**
   * HBaseContext is a façade for HBase operations
@@ -58,9 +58,9 @@ import scala.collection.mutable
 class HBaseContext(@transient private val sc: SparkContext,
                    @transient private val config: Configuration,
                    val tmpHdfsConfgFile: String = null)
-  extends Serializable with Logging {
+  extends Serializable {
 
-  @transient var credentials = SparkHadoopUtil.get.getCurrentUserCredentials()
+  @transient var credentials = UserGroupInformation.getCurrentUser().getCredentials
   @transient var tmpHdfsConfiguration:Configuration = config
   @transient var appliedCredentials = false
   @transient val job = Job.getInstance(config)
@@ -78,7 +78,7 @@ class HBaseContext(@transient private val sc: SparkContext,
       config.write(outputStream)
       outputStream.close()
     } else {
-      logWarning("tmpHdfsConfigDir " + tmpHdfsConfgFile + " exist!!")
+//      logWarning("tmpHdfsConfigDir " + tmpHdfsConfgFile + " exist!!")
     }
   }
 
@@ -228,9 +228,9 @@ class HBaseContext(@transient private val sc: SparkContext,
   }
 
   def applyCreds[T] (configBroadcast: Broadcast[SerializableWritable[Configuration]]){
-    credentials = SparkHadoopUtil.get.getCurrentUserCredentials()
+    credentials = UserGroupInformation.getCurrentUser().getCredentials
 
-    logDebug("appliedCredentials:" + appliedCredentials + ",credentials:" + credentials)
+//    logDebug("appliedCredentials:" + appliedCredentials + ",credentials:" + credentials)
 
     if (!appliedCredentials && credentials != null) {
       appliedCredentials = true
@@ -495,7 +495,8 @@ class HBaseContext(@transient private val sc: SparkContext,
       try {
         tmpHdfsConfiguration = configBroadcast.value.value
       } catch {
-        case ex: Exception => logError("Unable to getConfig from broadcast", ex)
+        case ex: Exception =>
+//          logError("Unable to getConfig from broadcast", ex)
       }
     }
     tmpHdfsConfiguration
@@ -705,8 +706,8 @@ class HBaseContext(@transient private val sc: SparkContext,
       def rollWriters(): Unit = {
         writerMap.values.foreach( wl => {
           if (wl.writer != null) {
-            logDebug("Writer=" + wl.writer.getPath +
-              (if (wl.written == 0) "" else ", wrote=" + wl.written))
+//            logDebug("Writer=" + wl.writer.getPath +
+//              (if (wl.written == 0) "" else ", wrote=" + wl.written))
             close(wl.writer)
           }
         })
@@ -753,34 +754,34 @@ class HBaseContext(@transient private val sc: SparkContext,
               locator.getRegionLocation(keyFamilyQualifier.rowKey)
             } catch {
               case e: Throwable =>
-              logWarning("there's something wrong when locating rowkey: " +
-                Bytes.toString(keyFamilyQualifier.rowKey))
+//              logWarning("there's something wrong when locating rowkey: " +
+//                Bytes.toString(keyFamilyQualifier.rowKey))
                 null
             }
           }
           if (null == loc) {
-            if (log.isTraceEnabled) {
-              logTrace("failed to get region location, so use default writer: " +
-                Bytes.toString(keyFamilyQualifier.rowKey))
-            }
+//            if (log.isTraceEnabled) {
+//              logTrace("failed to get region location, so use default writer: " +
+//                Bytes.toString(keyFamilyQualifier.rowKey))
+//            }
             getNewWriter(family = keyFamilyQualifier.family, conf = conf, favoredNodes = null,
               fs = fs, familydir = familyDir)
           } else {
-            if (log.isDebugEnabled) {
-              logDebug("first rowkey: [" + Bytes.toString(keyFamilyQualifier.rowKey) + "]")
-            }
+//            if (log.isDebugEnabled) {
+//              logDebug("first rowkey: [" + Bytes.toString(keyFamilyQualifier.rowKey) + "]")
+//            }
             val initialIsa =
               new InetSocketAddress(loc.getHostname, loc.getPort)
             if (initialIsa.isUnresolved) {
-              if (log.isTraceEnabled) {
-                logTrace("failed to resolve bind address: " + loc.getHostname + ":"
-                  + loc.getPort + ", so use default writer")
-              }
+//              if (log.isTraceEnabled) {
+//                logTrace("failed to resolve bind address: " + loc.getHostname + ":"
+//                  + loc.getPort + ", so use default writer")
+//              }
               getNewWriter(keyFamilyQualifier.family, conf, null, fs, familyDir)
             } else {
-              if(log.isDebugEnabled) {
-                logDebug("use favored nodes writer: " + initialIsa.getHostString)
-              }
+//              if(log.isDebugEnabled) {
+//                logDebug("use favored nodes writer: " + initialIsa.getHostString)
+//              }
               getNewWriter(keyFamilyQualifier.family, conf,
                 Array[InetSocketAddress](initialIsa), fs, familyDir)
             }

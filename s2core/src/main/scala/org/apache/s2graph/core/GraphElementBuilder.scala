@@ -52,7 +52,7 @@ class GraphElementBuilder(graph: S2GraphLike) {
     element
   } recover {
     case e: Exception =>
-      logger.error(s"[toElement]: $e", e)
+      logger.error(s"[toElement]: $s", e)
       None
   } get
 

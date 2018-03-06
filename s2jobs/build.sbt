@@ -19,7 +19,7 @@
 
 import Common._
 
-name := "s2loader"
+name := "s2jobs"
 
 scalacOptions ++= Seq("-deprecation")
 
@@ -29,11 +29,9 @@ projectDependencies := Seq(
 
 libraryDependencies ++= Seq(
   "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
-  "org.apache.spark" %% "spark-core" % sparkVersion % "provided" exclude("javax.servlet", "*"),
-  "org.apache.spark" %% "spark-streaming" % sparkVersion % "provided",
-  "org.apache.spark" %% "spark-hive" % sparkVersion % "provided",
-  "org.apache.spark" %% "spark-streaming-kafka" % sparkVersion,
-  "org.apache.httpcomponents" % "fluent-hc" % "4.2.5",
+  "org.apache.spark" %% "spark-core" % spark2Version,
+  "org.apache.spark" %% "spark-streaming" % spark2Version % "provided",
+  "org.apache.spark" %% "spark-hive" % spark2Version % "provided",
   "org.specs2" %% "specs2-core" % specs2Version % "test",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test",
   "org.apache.hadoop" % "hadoop-distcp" % hadoopVersion,

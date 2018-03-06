@@ -39,6 +39,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-168] - Fix args order mismatch when use addServiceColumnProp
     * [S2GRAPH-176] - Fix compile error on LabelMeta
     * [S2GRAPH-179] - Add defaultValue on ColumnMeta
+    * [S2GRAPH-178] - Fix null pointer error on BulkLoader
 
 ** Improvement
     * [S2GRAPH-72] - Support Apache TinkerPop and Gremlin
