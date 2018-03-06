@@ -32,7 +32,7 @@ import sangria.schema._
 import scala.language.existentials
 import scala.util.{Failure, Success, Try}
 import org.apache.s2graph.graphql.marshaller._
-import org.apache.s2graph.graphql.types.S2Type.PartialServiceColumn
+import org.apache.s2graph.graphql.types.S2Type.{PartialLabelMeta, PartialServiceColumn}
 
 object S2ManagementType {
 
@@ -84,6 +84,7 @@ class S2ManagementType(repo: GraphRepository) {
     )))
   }
 
+
   lazy val serviceColumnOnServiceInputObjectFields = repo.allServices.map { service =>
     InputField(service.serviceName, OptionInputType(InputObjectType(
       s"column",
@@ -103,6 +104,16 @@ class S2ManagementType(repo: GraphRepository) {
         EnumValue(column.columnName, value = column.columnName)
       }
     )
+  }
+
+  lazy val labelMetaInputObjectFields = repo.allLabels.map { label =>
+    InputField(label.label, OptionInputType(InputObjectType(
+      s"labelMetaOnLabel",
+      description = "desc here",
+      fields = List(
+        InputField("props", ListInputType(InputPropType))
+      )
+    )))
   }
 
   lazy val ServiceType = deriveObjectType[GraphRepository, Service](
@@ -211,10 +222,16 @@ class S2ManagementType(repo: GraphRepository) {
     fields = serviceColumnOnServiceWithPropInputObjectFields
   )
 
-  val ServiceColumnSelectType = InputObjectType[PartialServiceColumn](
+  val ServiceColumnSelectType = InputObjectType[Vector[PartialServiceColumn]](
     "serviceColumnSelect",
     description = "desc",
     fields = serviceColumnOnServiceInputObjectFields
+  )
+
+  val LabelPropType = InputObjectType[Vector[PartialLabelMeta]](
+    "labelMetaProp",
+    description = "desc",
+    fields = labelMetaInputObjectFields
   )
 
   val SourceServiceType = InputObjectType[PartialServiceColumn](
@@ -301,7 +318,12 @@ class S2ManagementType(repo: GraphRepository) {
     Field("addPropsToServiceColumn",
       ListType(ServiceColumnMutationResponseType),
       arguments = Argument("serviceName", AddPropServiceType) :: Nil,
-      resolve = c => c.ctx.addPropsOnServiceColumn(c.args) map (MutationResponse(_))
+      resolve = c => c.ctx.addPropsToServiceColumn(c.args) map (MutationResponse(_))
+    ),
+    Field("addPropsToLabel",
+      ListType(LabelMutationResponseType),
+      arguments = Argument("labelName", LabelPropType) :: Nil,
+      resolve = c => c.ctx.addPropsToLabel(c.args) map (MutationResponse(_))
     ),
     Field("deleteServiceColumn",
       ListType(ServiceColumnMutationResponseType),

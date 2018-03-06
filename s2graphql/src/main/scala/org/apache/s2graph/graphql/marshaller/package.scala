@@ -7,7 +7,13 @@ import sangria.marshalling._
 
 package object marshaller {
 
-  def unwrap(map: Map[String, Any]): Map[String, Any] = map.map { case (k, v: Some[_]) => k -> v.get }
+  def unwrap(map: Map[String, Any]): Map[String, Any] = map.map {
+    case (k, v: Some[_]) => v.get match {
+      case m: Map[_, _] => k -> unwrap(m.asInstanceOf[Map[String, Any]])
+      case _ => k -> v.get
+    }
+    case org@_ => org
+  }
 
   implicit object IndexFromInput extends FromInput[Index] {
     val marshaller = CoercedScalaResultMarshaller.default
@@ -33,6 +39,24 @@ package object marshaller {
     }
   }
 
+  implicit object PartialLabelMetaFromInput extends FromInput[Vector[PartialLabelMeta]] {
+    val marshaller = CoercedScalaResultMarshaller.default
+
+    def fromResult(node: marshaller.Node) = {
+      val input = unwrap(node.asInstanceOf[Map[String, Any]])
+      val partialLabelMetas = input.map { case (labelName, labelPropMap) =>
+        val innerMap = labelPropMap.asInstanceOf[Map[String, Any]]
+        val props = innerMap.get("props").toSeq.flatMap { case vs: Vector[_] =>
+          vs.map(PropFromInput.fromResult)
+        }
+
+        PartialLabelMeta(labelName, props)
+      }
+
+      partialLabelMetas.toVector
+    }
+  }
+
   implicit object PartialServiceColumnFromInput extends FromInput[PartialServiceColumn] {
     val marshaller = CoercedScalaResultMarshaller.default
 
@@ -48,8 +72,8 @@ package object marshaller {
       val partialServiceColumns = input.map { case (serviceName, serviceColumnMap) =>
         val innerMap = serviceColumnMap.asInstanceOf[Map[String, Any]]
         val columnName = innerMap("columnName").asInstanceOf[String]
-        val props = innerMap.get("props").toSeq.flatMap { case v: Vector[_] =>
-          v.map(PropFromInput.fromResult)
+        val props = innerMap.get("props").toSeq.flatMap { case vs: Vector[_] =>
+          vs.map(PropFromInput.fromResult)
         }
 
         PartialServiceColumn(serviceName, columnName, props)

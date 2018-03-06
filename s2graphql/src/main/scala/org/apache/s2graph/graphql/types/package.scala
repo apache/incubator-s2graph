@@ -137,7 +137,7 @@ package object types {
     ObjectTypeDescription("desc here"),
     AddFields(
       Field("indexes", ListType(LabelIndexType), resolve = c => Nil),
-      Field("props", ListType(LabelMetaType), resolve = c => Nil)
+      Field("props", ListType(LabelMetaType), resolve = c => c.value.labelMetas)
     ),
     RenameField("label", "name")
   )

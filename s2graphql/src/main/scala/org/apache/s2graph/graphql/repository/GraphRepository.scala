@@ -40,7 +40,6 @@ object GraphRepository {
   * @param graph
   */
 class GraphRepository(val graph: S2GraphLike) {
-
   val management = graph.management
   val parser = new RequestParser(graph)
 
@@ -167,16 +166,29 @@ class GraphRepository(val graph: S2GraphLike) {
   }
 
   def deleteServiceColumn(args: Args): List[Try[ServiceColumn]] = {
-    // Args(Map(s2graph -> Some(Map(columnName -> _))),Set(),Set(s2graph),Set(),TrieMap())
-    val serviceColumns = args.raw.collect { case (serviceName, Some(map: Map[String, _])) =>
-      val columnName = map("columnName").asInstanceOf[String]
+    val partialColumns = args.arg[Vector[PartialServiceColumn]]("serviceName")
+
+    val serviceColumns = partialColumns.map { pc =>
+      val serviceName = pc.serviceName
+      val columnName = pc.columnName
+
       Management.deleteColumn(serviceName, columnName)
     }
 
     serviceColumns.toList
   }
 
-  def addPropsOnServiceColumn(args: Args): List[Try[ServiceColumn]] = {
+  def addPropsToLabel(args: Args): List[Try[Label]] = {
+    val partialLabelMetas = args.arg[Vector[PartialLabelMeta]]("labelName")
+    partialLabelMetas.flatMap { pm =>
+      pm.props.map { prop =>
+        val labelMetaTry = Management.addProp(pm.labelName, prop)
+        labelMetaTry.map(lm => Label.findByName(pm.labelName, false).get)
+      }
+    }.toList
+  }
+
+  def addPropsToServiceColumn(args: Args): List[Try[ServiceColumn]] = {
     val partialColumns = args.arg[Vector[PartialServiceColumn]]("serviceName")
 
     val ret = partialColumns.map { pc =>
