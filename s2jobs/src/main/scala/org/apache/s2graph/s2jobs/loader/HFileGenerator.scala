@@ -32,6 +32,7 @@ import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageManagement
 import org.apache.s2graph.core.types.{InnerValLikeWithTs, SourceVertexId}
+import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.s2jobs.S2GraphHelper
 import org.apache.s2graph.s2jobs.spark._
 import org.apache.spark.SparkContext
@@ -131,7 +132,7 @@ object HFileGenerator extends RawFileGenerator {
 
     hbaseConf.set("hbase.zookeeper.quorum", graphFileOptions.zkQuorum)
     hbaseConf.set(TableOutputFormat.OUTPUT_TABLE, graphFileOptions.tableName)
-    hbaseConf.set("hadoop.tmp.dir", s"/tmp/${graphFileOptions.tableName}")
+//    hbaseConf.set("hadoop.tmp.dir", s"/tmp/${graphFileOptions.tableName}")
 
     hbaseConf
   }

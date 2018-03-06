@@ -35,6 +35,7 @@ def hfile(args):
 --conf "spark.driver.extraClassPath=%s" \
 --jars %s \
 --master local[2] \
+--deploy-mode client \
 --num-executors %s \
 --driver-memory 1g \
 --executor-memory 2g \
@@ -42,13 +43,14 @@ def hfile(args):
 %s \
 --input %s \
 --tempDir %s \
---output /tmp/%s \
+--output %s \
 --zkQuorum %s \
 --table %s \
 --dbUrl '%s' \
 --dbUser %s \
 --dbPassword %s \
 --dbDriver %s \
+--method SPARK \
 --maxHFilePerRegionServer %s \
 --labelMapping %s \
 --autoEdgeCreate %s""" % (args["HADOOP_CONF_DIR"],
@@ -59,7 +61,7 @@ def hfile(args):
 						  JAR,
 						  args["input"],
 						  args["tempDir"],
-						  args["htable_name"],
+                          args["output"],
 						  args["hbase_zk"],
 						  args["htable_name"],
 						  args["db_url"],
@@ -89,8 +91,8 @@ def chmod(args):
 	return ret
 
 def load(args):
-	cmd = "export HADOOP_CONF_DIR=%s; export HBASE_CONF_DIR=%s; hbase %s /tmp/%s %s" % \
-		  (args["HADOOP_CONF_DIR"], args["HBASE_CONF_DIR"], LOADER_CLASS, args["htable_name"], args["htable_name"])
+	cmd = "export HADOOP_CONF_DIR=%s; export HBASE_CONF_DIR=%s; hbase %s %s %s" % \
+		  (args["HADOOP_CONF_DIR"], args["HBASE_CONF_DIR"], LOADER_CLASS, args["output"], args["htable_name"])
 	print(cmd)
 	ret = os.system(cmd)
 	print(cmd, "return", ret)
@@ -104,8 +106,8 @@ def run(args):
 	send("[Start]: bulk loader")
 	ret = hfile(args)
 
-	if ret != 0: return send("[Failed]: loader build hfile failed %s" % ret)
-	else: send("[Success]: loader build hfile")
+	# if ret != 0: return send("[Failed]: loader build hfile failed %s" % ret)
+	# else: send("[Success]: loader build hfile")
 
 	# ret = distcp(args)
 	#
@@ -119,8 +121,8 @@ def run(args):
 
 	ret = load(args)
 
-	if ret != 0: return send("[Failed]: loader complete bulkload failed %s" % ret)
-	else: send("[Success]: loader complete bulkload")
+	# if ret != 0: return send("[Failed]: loader complete bulkload failed %s" % ret)
+	# else: send("[Success]: loader complete bulkload")
 
 
 LOADER_CLASS = "org.apache.hadoop.hbase.mapreduce.LoadIncrementalHFiles"
@@ -132,8 +134,8 @@ DB_URL="jdbc:mysql://localhost:3306/graph_dev"
 # DB_URL="jdbc:h2:file:./var/metastore;MODE=MYSQL"
 args = {
 	"HADOOP_CONF_DIR": "/usr/local/Cellar/hadoop/2.7.3/libexec/etc/hadoop",
-	"HBASE_CONF_DIR": "/usr/local/opt/hbase/libexec/conf",
-	"htable_name": "test",
+	"HBASE_CONF_DIR": "/usr/local/Cellar/hbase/1.2.6/libexec/conf",
+	"htable_name": "s2graph",
 	"hbase_namenode": "hdfs://localhost:8020",
 	"hbase_zk": "localhost",
 	"db_driver": DB_DRIVER,
@@ -147,7 +149,8 @@ args = {
 	"-bandwidth": 10,
 	"num_executors": 2,
 	"input": "/tmp/imei-20.txt",
-	"tempDir": "/tmp/bulkload_tmp"
+	"tempDir": "/tmp/bulkload_tmp",
+    "output": "/tmp/bulkload_output"
 }
 
 run(args)
