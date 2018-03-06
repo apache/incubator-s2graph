@@ -1,10 +1,13 @@
 package org.apache.s2graph.graphql
 
+import java.io
+
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.Management.JsonModel.Prop
 import org.apache.s2graph.core.mysqls.{Label, Service}
 import org.apache.s2graph.core.{Management, S2Graph}
 import org.apache.s2graph.core.rest.RequestParser
+import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.graphql.repository.GraphRepository
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 import play.api.libs.json.{JsObject, JsString, Json}
@@ -18,6 +21,7 @@ import sangria.execution.Executor
 import sangria.execution.deferred.DeferredResolver
 import sangria.parser.QueryParser
 import sangria.renderer.SchemaRenderer
+import sangria.schema.Schema
 
 import scala.util._
 
@@ -27,6 +31,7 @@ class SchemaTest extends FunSuite with Matchers with BeforeAndAfterAll {
   var management: Management = _
   var config: Config = _
   var s2Repository: GraphRepository = _
+  var s2Schema: Schema[GraphRepository, Any] = _
 
   override def beforeAll = {
     config = ConfigFactory.load()
@@ -76,18 +81,18 @@ class SchemaTest extends FunSuite with Matchers with BeforeAndAfterAll {
 
     val isPrepared = List(serviceTry, serviceColumnTry, labelTry).forall(_.isSuccess)
 
+    s2Schema = new SchemaDef(s2Repository).S2GraphSchema
+
+    println("-" * 80)
+    println(SchemaRenderer.renderSchema(s2Schema))
+    println("-" * 80)
+
+
     require(isPrepared, "should created metadata")
   }
 
   override def afterAll(): Unit = {
     graph.shutdown(true)
-  }
-
-  test("s2 schema") {
-    val s2Schema = new SchemaDef(s2Repository).S2GraphSchema
-    println(SchemaRenderer.renderSchema(s2Schema))
-
-    true
   }
 
   test("s2 schema should has types") {
@@ -176,16 +181,84 @@ class SchemaTest extends FunSuite with Matchers with BeforeAndAfterAll {
         )
       )
 
+    val actual = Await.result(Executor.execute(s2Schema, query, s2Repository), Duration("10 sec"))
+    val maps = actual.asInstanceOf[Map[String, Map[String, Map[String, Vector[Map[String, String]]]]]]("data")("__schema")("types")
 
-    val ret = Await.result(Executor.execute(s2Schema, query, s2Repository), Duration("10 sec"))
-    val maps = ret.asInstanceOf[Map[String, Map[String, Map[String, Vector[Map[String, String]]]]]]("data")("__schema")("types")
+    val expectedSet = expected("data")("__schema")("types").flatMap(_.values.headOption).toSet
+    val actualSet = maps.flatMap(_.values.headOption).toSet
 
-    val expectedSet = (expected("data")("__schema")("types").flatMap(_.values.headOption).toSet)
-    val retSet = (maps.flatMap(_.values.headOption).toSet)
+    logger.info(s"expected only has: ${expectedSet -- actualSet}")
+    logger.info(s"actual only has: ${actualSet -- expectedSet}")
 
-    println(expectedSet -- retSet)
-    println(retSet -- expectedSet)
-
-    retSet should be(expectedSet)
+    actualSet should be(expectedSet)
   }
+
+  test("Management query should have service: 'kakao'") {
+    val Success(query) = QueryParser.parse(
+      """
+        query GetServiceAndLabel {
+          Management {
+            Services(name: kakao) {
+              serviceColumns {
+                name
+                props {
+                  name
+                  defaultValue
+                  dataType
+                }
+              }
+            }
+          }
+        }
+        """)
+
+    val actual = Await.result(Executor.execute(s2Schema, query, s2Repository), Duration("10 sec"))
+    val actualMap = actual.asInstanceOf[Map[String, Map[String, Map[String, Vector[Map[String, Vector[Map[String, Any]]]]]]]]
+
+    val expected: Map[String, Map[String, Map[String, Vector[Map[String, Vector[Map[String, Any]]]]]]] =
+      Map("data" ->
+        Map("Management" ->
+          Map("Services" ->
+            Vector(
+              Map("serviceColumns" ->
+                Vector(
+                  Map(
+                    "name" -> "user",
+                    "props" ->
+                      Vector(
+                        Map("name" -> "age", "defaultValue" -> "0", "dataType" -> "int"),
+                        Map("name" -> "gender", "defaultValue" -> "", "dataType" -> "string")
+                      )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+
+    true
+  }
+
+  test("Management query should have label: 'friends'") {
+    val Success(query) = QueryParser.parse(
+      """
+        query Management {
+          Management {
+           Labels(name: friends) {
+              name
+              props {
+                name
+                defaultValue
+                dataType
+              }
+            }
+          }
+        }
+        """)
+
+    val actual = Await.result(Executor.execute(s2Schema, query, s2Repository), Duration("10 sec"))
+    true
+  }
+
 }
