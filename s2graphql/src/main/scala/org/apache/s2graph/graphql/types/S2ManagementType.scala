@@ -32,7 +32,7 @@ import sangria.schema._
 import scala.language.existentials
 import scala.util.{Failure, Success, Try}
 import org.apache.s2graph.graphql.marshaller._
-import org.apache.s2graph.graphql.types.S2Type.{PartialLabelMeta, PartialServiceColumn}
+import org.apache.s2graph.graphql.types.S2Type.{PartialServiceColumn}
 
 object S2ManagementType {
 
@@ -86,7 +86,6 @@ class S2ManagementType(repo: GraphRepository) {
     )))
   }
 
-
   lazy val serviceColumnOnServiceInputObjectFields = repo.allServices.map { service =>
     InputField(service.serviceName, OptionInputType(InputObjectType(
       s"Input_Column",
@@ -108,7 +107,7 @@ class S2ManagementType(repo: GraphRepository) {
     )
   }
 
-  lazy val labelPropsInputFields = repo.allLabels.map { label =>
+  lazy val labelPropsInputFields = repo.allLabels(false).map { label =>
     InputField(label.label, OptionInputType(InputObjectType(
       s"Input_${label.label}_props",
       description = "desc here",
@@ -133,7 +132,8 @@ class S2ManagementType(repo: GraphRepository) {
     RenameField("columnName", "name"),
     AddFields(
       Field("props", ListType(ColumnMetaType),
-        resolve = c => c.value.metas.filter(ColumnMeta.isValid))
+        resolve = c => c.value.metasWithoutCache.filter(ColumnMeta.isValid)
+      )
     )
   )
 
@@ -161,7 +161,7 @@ class S2ManagementType(repo: GraphRepository) {
     s"Enum_Label",
     description = Option("desc here"),
     values =
-      dummyEnum +: repo.allLabels.map { label =>
+      dummyEnum +: repo.allLabels(false).map { label =>
         EnumValue(label.label, value = label.label)
       }
   )
@@ -185,14 +185,25 @@ class S2ManagementType(repo: GraphRepository) {
   )
 
   lazy val labelField: Field[GraphRepository, Any] = Field(
+    "Label",
+    OptionType(LabelType),
+    description = Option("desc here"),
+    arguments = Argument("name", EnumLabelsType, description = "desc here") :: Nil,
+    resolve = { c =>
+      val labelName = c.arg[String]("name")
+      c.ctx.allLabels().find(_.label == labelName)
+    }
+  )
+
+  lazy val labelsField: Field[GraphRepository, Any] = Field(
     "Labels",
     ListType(LabelType),
     description = Option("desc here"),
     arguments = List(LabelNameArg),
     resolve = { c =>
       c.argOpt[String]("name") match {
-        case Some(name) => c.ctx.allLabels.filter(_.label == name)
-        case None => c.ctx.allLabels
+        case Some(name) => c.ctx.allLabels().filter(_.label == name)
+        case None => c.ctx.allLabels()
       }
     }
   )
@@ -217,12 +228,6 @@ class S2ManagementType(repo: GraphRepository) {
     fields = DummyInputField +: serviceColumnOnServiceInputObjectFields
   )
 
-  val LabelPropType = InputObjectType[Vector[PartialLabelMeta]](
-    "Input_Label_Props",
-    description = "desc",
-    fields = DummyInputField +: labelPropsInputFields
-  )
-
   val InputServiceType = InputObjectType[PartialServiceColumn](
     "Input_Service",
     description = "desc",
@@ -230,6 +235,17 @@ class S2ManagementType(repo: GraphRepository) {
   )
 
   lazy val serviceField: Field[GraphRepository, Any] = Field(
+    "Service",
+    OptionType(ServiceType),
+    description = Option("desc here"),
+    arguments = Argument("name", ServiceListType, description = "desc here") :: Nil,
+    resolve = { c =>
+      val serviceName = c.arg[String]("name")
+      c.ctx.allServices.find(_.serviceName == serviceName)
+    }
+  )
+
+  lazy val servicesField: Field[GraphRepository, Any] = Field(
     "Services",
     ListType(ServiceType),
     description = Option("desc here"),
@@ -241,12 +257,11 @@ class S2ManagementType(repo: GraphRepository) {
       }
     }
   )
-
   /**
     * Query Fields
     * Provide s2graph management query API
     */
-  lazy val queryFields: List[Field[GraphRepository, Any]] = List(serviceField, labelField)
+  lazy val queryFields: List[Field[GraphRepository, Any]] = List(serviceField, servicesField, labelField, labelsField)
 
   /**
     * Mutation fields
@@ -316,14 +331,14 @@ class S2ManagementType(repo: GraphRepository) {
     ),
 
     Field("addPropsToServiceColumn",
-      ListType(ServiceColumnMutationResponseType),
-      arguments = Argument("serviceName", AddPropServiceType) :: Nil,
-      resolve = c => c.ctx.addPropsToServiceColumn(c.args) map (MutationResponse(_))
+      ServiceColumnMutationResponseType,
+      arguments = Argument("service", AddPropServiceType) :: Nil,
+      resolve = c => MutationResponse(c.ctx.addPropsToServiceColumn(c.args))
     ),
     Field("addPropsToLabel",
-      ListType(LabelMutationResponseType),
-      arguments = Argument("labelName", LabelPropType) :: Nil,
-      resolve = c => c.ctx.addPropsToLabel(c.args) map (MutationResponse(_))
+      LabelMutationResponseType,
+      arguments = Argument("labelName", EnumLabelsType) :: PropArg :: Nil,
+      resolve = c => MutationResponse(c.ctx.addPropsToLabel(c.args))
     )
   )
 }

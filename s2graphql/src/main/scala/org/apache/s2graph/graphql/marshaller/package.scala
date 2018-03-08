@@ -39,24 +39,6 @@ package object marshaller {
     }
   }
 
-  implicit object PartialLabelMetaFromInput extends FromInput[Vector[PartialLabelMeta]] {
-    val marshaller = CoercedScalaResultMarshaller.default
-
-    def fromResult(node: marshaller.Node) = {
-      val input = unwrap(node.asInstanceOf[Map[String, Any]])
-      val partialLabelMetas = input.map { case (labelName, labelPropMap) =>
-        val innerMap = labelPropMap.asInstanceOf[Map[String, Any]]
-        val props = innerMap.get("props").toSeq.flatMap { case vs: Vector[_] =>
-          vs.map(PropFromInput.fromResult)
-        }
-
-        PartialLabelMeta(labelName, props)
-      }
-
-      partialLabelMetas.toVector
-    }
-  }
-
   implicit object PartialServiceColumnFromInput extends FromInput[PartialServiceColumn] {
     val marshaller = CoercedScalaResultMarshaller.default
 

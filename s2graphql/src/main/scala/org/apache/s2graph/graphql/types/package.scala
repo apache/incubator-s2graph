@@ -28,7 +28,7 @@ import org.apache.s2graph.graphql.types.S2Type.PartialServiceParam
 import sangria.macros.derive._
 import sangria.schema._
 
-import scala.util.Random
+import scala.util.{Failure, Random, Success, Try}
 
 package object types {
 
@@ -153,5 +153,14 @@ package object types {
 
   def paddingDummyField(fields: List[Field[GraphRepository, Any]]): List[Field[GraphRepository, Any]] = {
     if (fields.nonEmpty) fields else List(DummyObjectTypeField)
+  }
+
+  def trySequence[A >: Throwable](tries: Seq[Try[A]]): Try[Seq[A]] = {
+    Try {
+      tries.collect {
+        case Success(v) => v
+        case Failure(e) => e
+      }
+    }
   }
 }

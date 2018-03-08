@@ -36,9 +36,6 @@ import org.apache.s2graph.graphql.marshaller._
 
 object S2Type {
 
-  case class PartialLabelMeta(labelName: String,
-                              props: Seq[Prop] = Nil)
-
   case class PartialServiceColumn(serviceName: String,
                                   columnName: String,
                                   props: Seq[Prop] = Nil)
@@ -240,7 +237,7 @@ class S2Type(repo: GraphRepository) {
     * fields
     */
   lazy val serviceFields: List[Field[GraphRepository, Any]] = repo.allServices.map { service =>
-    lazy val serviceFields = paddingDummyField(makeServiceField(service, repo.allLabels))
+    lazy val serviceFields = paddingDummyField(makeServiceField(service, repo.allLabels()))
     lazy val ServiceType = ObjectType(
       s"Service_${service.serviceName}",
       fields[GraphRepository, Any](serviceFields: _*)
@@ -271,12 +268,12 @@ class S2Type(repo: GraphRepository) {
     }
   }
 
-  lazy val addEdgeArg = repo.allLabels.map { label =>
+  lazy val addEdgeArg = repo.allLabels().map { label =>
     val inputPartialEdgeParamType = makeInputPartialEdgeParamType(label)
     Argument(label.label, OptionInputType(inputPartialEdgeParamType))
   }
 
-  lazy val addEdgesArg = repo.allLabels.map { label =>
+  lazy val addEdgesArg = repo.allLabels().map { label =>
     val inputPartialEdgeParamType = makeInputPartialEdgeParamType(label)
     Argument(label.label, OptionInputType(ListInputType(inputPartialEdgeParamType)))
   }

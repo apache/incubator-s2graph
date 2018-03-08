@@ -178,34 +178,33 @@ class GraphRepository(val graph: S2GraphLike) {
     serviceColumns.toList
   }
 
-  def addPropsToLabel(args: Args): List[Try[Label]] = {
-    val partialLabelMetas = args.arg[Vector[PartialLabelMeta]]("labelName")
-    partialLabelMetas.flatMap { pm =>
-      pm.props.map { prop =>
-        val labelMetaTry = Management.addProp(pm.labelName, prop)
-        labelMetaTry.map(lm => Label.findByName(pm.labelName, false).get)
+  def addPropsToLabel(args: Args): Try[Label] = {
+    Try {
+      val labelName = args.arg[String]("labelName")
+      val props = args.arg[Vector[Prop]]("props").toList
+
+      props.foreach { prop =>
+        Management.addProp(labelName, prop).get
       }
-    }.toList
+
+      Label.findByName(labelName, false).get
+    }
   }
 
-  def addPropsToServiceColumn(args: Args): List[Try[ServiceColumn]] = {
-    val partialColumns = args.arg[Vector[PartialServiceColumn]]("serviceName")
+  def addPropsToServiceColumn(args: Args): Try[ServiceColumn] = {
+    Try {
+      val pc = args.arg[Vector[PartialServiceColumn]]("service").head
 
-    val ret = partialColumns.map { pc =>
       val serviceName = pc.serviceName
       val columnName = pc.columnName
 
-      Try {
-        pc.props.foreach { prop =>
-          Management.addVertexProp(serviceName, columnName, prop.name, prop.dataType, prop.defaultValue, prop.storeInGlobalIndex)
-        }
-
-        val src = Service.findByName(serviceName)
-        ServiceColumn.find(src.get.id.get, columnName, false).get
+      pc.props.foreach { prop =>
+        Management.addVertexProp(serviceName, columnName, prop.name, prop.dataType, prop.defaultValue, prop.storeInGlobalIndex)
       }
-    }
 
-    ret.toList
+      val src = Service.findByName(serviceName)
+      ServiceColumn.find(src.get.id.get, columnName, false).get
+    }
   }
 
   def createLabel(args: Args): Try[Label] = {
@@ -265,7 +264,8 @@ class GraphRepository(val graph: S2GraphLike) {
 
   def findServiceByName(name: String): Option[Service] = Service.findByName(name)
 
-  def allLabels: List[Label] = Label.findAll()
+  def allLabels(useCache: Boolean = false): List[Label] =
+    if (useCache) Label.findAll() else Label.findAllWithoutCache()
 
   def findLabelByName(name: String): Option[Label] = Label.findByName(name)
 
