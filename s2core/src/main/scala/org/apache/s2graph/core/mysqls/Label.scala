@@ -229,11 +229,6 @@ object Label extends Model[Label] {
     newLabel.getOrElse(throw new RuntimeException("failed to create label"))
   }
 
-  def findAllWithoutCache()(implicit session: DBSession = AutoSession) = {
-    val ls = sql"""select * from labels where deleted_at is null""".map { rs => Label(rs) }.list().apply()
-    ls
-  }
-
   def findAll()(implicit session: DBSession = AutoSession) = {
     val ls = sql"""select * from labels where deleted_at is null""".map { rs => Label(rs) }.list().apply()
 

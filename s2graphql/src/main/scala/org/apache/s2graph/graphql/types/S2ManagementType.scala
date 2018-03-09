@@ -107,7 +107,7 @@ class S2ManagementType(repo: GraphRepository) {
     )
   }
 
-  lazy val labelPropsInputFields = repo.allLabels(false).map { label =>
+  lazy val labelPropsInputFields = repo.allLabels().map { label =>
     InputField(label.label, OptionInputType(InputObjectType(
       s"Input_${label.label}_props",
       description = "desc here",
@@ -161,7 +161,7 @@ class S2ManagementType(repo: GraphRepository) {
     s"Enum_Label",
     description = Option("desc here"),
     values =
-      dummyEnum +: repo.allLabels(false).map { label =>
+      dummyEnum +: repo.allLabels().map { label =>
         EnumValue(label.label, value = label.label)
       }
   )

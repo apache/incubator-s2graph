@@ -258,14 +258,13 @@ class GraphRepository(val graph: S2GraphLike) {
     Management.deleteLabel(labelName)
   }
 
-  def allServices: List[Service] = Service.findAll()
+  def allServices(): List[Service] = Service.findAll()
 
-  def allServiceColumns: List[ServiceColumn] = ServiceColumn.findAll()
+  def allServiceColumns(): List[ServiceColumn] = ServiceColumn.findAll()
 
   def findServiceByName(name: String): Option[Service] = Service.findByName(name)
 
-  def allLabels(useCache: Boolean = false): List[Label] =
-    if (useCache) Label.findAll() else Label.findAllWithoutCache()
+  def allLabels() = Label.findAll()
 
   def findLabelByName(name: String): Option[Label] = Label.findByName(name)
 

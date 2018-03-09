@@ -300,7 +300,6 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         """
 
         val actual = testGraph.queryAsJs(query)
-        println(actual)
         val expected = Json.parse(
           """
          {
@@ -321,5 +320,30 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         actual shouldBe expected
       }
     }
+
+    describe("Add vertex to kakao.user'") {
+      val query =
+        graphql"""
+          mutation {
+           addVertex(
+             labelName: friends
+             props: {
+               name: "score"
+               dataType: float
+               defaultValue: "0"
+               storeInGlobalIndex: true
+            })
+            {
+             isSuccess
+           }
+          }
+        """
+
+    }
+
+    describe("Add edge to label 'friends'") {
+
+    }
+
   }
 }
