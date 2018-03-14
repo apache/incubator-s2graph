@@ -21,6 +21,7 @@ import sbt._
 
 object Common {
   val sparkVersion = "1.4.1"
+  val spark2Version = "2.3.0"
   val playVersion = "2.5.9"
   val specs2Version = "3.8.5"
 
