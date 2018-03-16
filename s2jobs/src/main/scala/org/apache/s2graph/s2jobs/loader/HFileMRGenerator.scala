@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -34,13 +34,10 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, SequenceFileInputFormat}
 import org.apache.hadoop.mapreduce.lib.output.{FileOutputFormat, SequenceFileOutputFormat}
 import org.apache.hadoop.mapreduce.{Job, Mapper}
-import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
-import org.apache.s2graph.core.mysqls.Label
-import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageManagement
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
-object HFileMRGenerator extends RawFileGenerator {
+object HFileMRGenerator extends RawFileGenerator[String, KeyValue] {
   val DefaultBlockSize = 32768
   val DefaultConfig = Map(
     "yarn.app.mapreduce.am.resource.mb" -> 4096,
@@ -69,25 +66,7 @@ object HFileMRGenerator extends RawFileGenerator {
   }
 
   def getStartKeys(numRegions: Int): Seq[ImmutableBytesWritable] = {
-    val startKey = AsynchbaseStorageManagement.getStartKey(numRegions)
-    val endKey = AsynchbaseStorageManagement.getEndKey(numRegions)
-    if (numRegions < 3) {
-      throw new IllegalArgumentException("Must create at least three regions")
-    }
-    else if (Bytes.compareTo(startKey, endKey) >= 0) {
-      throw new IllegalArgumentException("Start key must be smaller than end key")
-    }
-    val empty = new Array[Byte](0)
-    val results = if (numRegions == 3) {
-      Seq(empty, startKey, endKey)
-    } else {
-      val splitKeys: Array[Array[Byte]] = Bytes.split(startKey, endKey, numRegions - 3)
-      if (splitKeys == null || splitKeys.length != numRegions - 1) {
-        throw new IllegalArgumentException("Unable to split key range into enough regions")
-      }
-      Seq(empty) ++ splitKeys.toSeq
-    }
-    results.map(new ImmutableBytesWritable(_))
+    HFileGenerator.getStartKeys(numRegions).map(new ImmutableBytesWritable(_))
   }
 
   def sortKeyValues(hbaseConf: Configuration,
@@ -124,8 +103,9 @@ object HFileMRGenerator extends RawFileGenerator {
   def transfer(sc: SparkContext,
                s2Config: Config,
                input: RDD[String],
-               graphFileOptions: GraphFileOptions): RDD[KeyValue] = {
-    HFileGenerator.transfer(sc, s2Config, input, graphFileOptions)
+               options: GraphFileOptions): RDD[KeyValue] = {
+    val transformer = new SparkBulkLoaderTransformer(s2Config, options)
+    transformer.transform(input).flatMap(kvs => kvs)
   }
 
   override def generate(sc: SparkContext,
