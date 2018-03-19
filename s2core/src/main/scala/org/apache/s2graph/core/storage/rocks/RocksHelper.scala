@@ -57,7 +57,7 @@ object RocksHelper {
     } else 0L
   }
 
-  case class ScanWithRange(queryParam: QueryParam, startKey: Array[Byte], stopKey: Array[Byte], offset: Int, limit: Int)
+  case class ScanWithRange(cf: Array[Byte], startKey: Array[Byte], stopKey: Array[Byte], offset: Int, limit: Int)
   case class GetRequest(cf: Array[Byte], key: Array[Byte])
 
   type RocksRPC = Either[GetRequest, ScanWithRange]

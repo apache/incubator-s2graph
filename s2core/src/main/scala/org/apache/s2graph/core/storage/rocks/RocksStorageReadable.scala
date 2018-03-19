@@ -72,7 +72,7 @@ class RocksStorageReadable(val graph: S2GraphLike,
             (_startKey, Bytes.add(baseKey, Array.fill(1)(-1)))
           }
 
-        Right(ScanWithRange(queryParam, startKey, stopKey, queryParam.offset, queryParam.limit))
+        Right(ScanWithRange(SKeyValue.EdgeCf, startKey, stopKey, queryParam.innerOffset, queryParam.innerLimit))
 
       case Some(tgtId) => // snapshotEdge
         val kv = serDe.snapshotEdgeSerializer(graph.elementBuilder.toRequestEdge(queryRequest, Nil).toSnapshotEdge).toKeyValues.head
@@ -81,8 +81,12 @@ class RocksStorageReadable(val graph: S2GraphLike,
   }
 
   private def buildRequest(queryRequest: QueryRequest, vertex: S2VertexLike): RocksRPC = {
-    val kv = serDe.vertexSerializer(vertex).toKeyValues.head
-    Left(GetRequest(SKeyValue.VertexCf, kv.row))
+    val startKey = vertex.id.bytes
+    val stopKey = Bytes.add(startKey, Array.fill(1)(Byte.MaxValue))
+
+    Right(ScanWithRange(SKeyValue.VertexCf, startKey, stopKey, 0, Byte.MaxValue))
+//    val kv = serDe.vertexSerializer(vertex).toKeyValues.head
+//    Left(GetRequest(SKeyValue.VertexCf, kv.row))
   }
 
   override def fetches(queryRequests: Seq[QueryRequest], prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]] = {
@@ -119,16 +123,18 @@ class RocksStorageReadable(val graph: S2GraphLike,
           else Seq(SKeyValue(table, key, cf, qualifier, v, System.currentTimeMillis()))
 
         Future.successful(kvs)
-      case Right(ScanWithRange(queryParam, startKey, stopKey, offset, limit)) =>
+      case Right(ScanWithRange(cf, startKey, stopKey, offset, limit)) =>
+        val _db = if (Bytes.equals(cf, SKeyValue.VertexCf)) vdb else db
         val kvs = new ArrayBuffer[SKeyValue]()
-        val iter = db.newIterator()
+        val iter = _db.newIterator()
+
         try {
           var idx = 0
           iter.seek(startKey)
-          val (startOffset, len) = (queryParam.innerOffset, queryParam.innerLimit)
+          val (startOffset, len) = (offset, limit)
           while (iter.isValid && Bytes.compareTo(iter.key, stopKey) <= 0 && idx < startOffset + len) {
             if (idx >= startOffset) {
-              kvs += SKeyValue(table, iter.key, SKeyValue.EdgeCf, qualifier, iter.value, System.currentTimeMillis())
+              kvs += SKeyValue(table, iter.key, cf, qualifier, iter.value, System.currentTimeMillis())
             }
 
             iter.next()
@@ -137,7 +143,6 @@ class RocksStorageReadable(val graph: S2GraphLike,
         } finally {
           iter.close()
         }
-
         Future.successful(kvs)
     }
   }
@@ -172,24 +177,45 @@ class RocksStorageReadable(val graph: S2GraphLike,
   }
 
   override def fetchVerticesAll()(implicit ec: ExecutionContext) = {
+    import scala.collection.mutable
+
     val vertices = new ArrayBuffer[S2VertexLike]()
     ServiceColumn.findAll().groupBy(_.service.hTableName).toSeq.foreach { case (hTableName, columns) =>
       val distinctColumns = columns.toSet
 
       val iter = vdb.newIterator()
+      val buffer = mutable.ListBuffer.empty[SKeyValue]
+      var oldVertexIdBytes = Array.empty[Byte]
+      var minusPos = 0
+
       try {
         iter.seekToFirst()
         while (iter.isValid) {
-          val kv = SKeyValue(table, iter.key(), SKeyValue.VertexCf, qualifier, iter.value(), System.currentTimeMillis())
+          val row = iter.key()
+          if (!Bytes.equals(oldVertexIdBytes, 0, oldVertexIdBytes.length - minusPos, row, 0, row.length - 1)) {
+            if (buffer.nonEmpty)
+              serDe.vertexDeserializer(schemaVer = HBaseType.DEFAULT_VERSION).fromKeyValues(buffer, None)
+              .filter(v => distinctColumns(v.serviceColumn))
+              .foreach { vertex =>
+                vertices += vertex
+              }
 
-          serDe.vertexDeserializer(schemaVer = HBaseType.DEFAULT_VERSION).fromKeyValues(Seq(kv), None)
-            .filter(v => distinctColumns(v.serviceColumn))
-            .foreach { vertex =>
-              vertices += vertex
-            }
+            oldVertexIdBytes = row
+            minusPos = 1
+            buffer.clear()
+          }
+          val kv = SKeyValue(table, iter.key(), SKeyValue.VertexCf, qualifier, iter.value(), System.currentTimeMillis())
+          buffer += kv
 
           iter.next()
         }
+        if (buffer.nonEmpty)
+          serDe.vertexDeserializer(schemaVer = HBaseType.DEFAULT_VERSION).fromKeyValues(buffer, None)
+          .filter(v => distinctColumns(v.serviceColumn))
+          .foreach { vertex =>
+            vertices += vertex
+          }
+
       } finally {
         iter.close()
       }

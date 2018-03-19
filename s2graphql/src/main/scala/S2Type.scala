@@ -23,7 +23,6 @@ import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.storage.MutateResponse
-import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.JsValue
 import sangria.marshalling.{CoercedScalaResultMarshaller, FromInput}
 import sangria.schema._
