@@ -37,7 +37,7 @@ import scala.util.{Failure, Success, Try}
   *
   * @param graph
   */
-class GraphRepository(val graph: S2GraphLike) {
+class GraphRepository(graph: S2GraphLike) {
 
   val management = graph.management
   val parser = new RequestParser(graph)
@@ -112,13 +112,6 @@ class GraphRepository(val graph: S2GraphLike) {
     graph.mutateEdges(edges, withWait = true).map(_.headOption)
   }
 
-  def getVertex(vertex: S2VertexLike): Future[Seq[S2VertexLike]] = {
-    val f = graph.getVertices(Seq(vertex))
-    f.foreach{ a =>
-      println(a)
-    }
-    f
-  }
 
   def getEdges(vertex: S2VertexLike, label: Label, _dir: String): Future[Seq[S2EdgeLike]] = {
     val dir = GraphUtil.directions(_dir)

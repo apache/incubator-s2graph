@@ -48,9 +48,6 @@ case class S2VertexProperty[V](element: S2VertexLike,
     innerVal.bytes
   }
 
-
-  val valueAny = castValue(v, columnMeta.dataType)
-
   val value = castValue(v, columnMeta.dataType).asInstanceOf[V]
 
   override def properties[U](strings: String*): util.Iterator[Property[U]] = ???
