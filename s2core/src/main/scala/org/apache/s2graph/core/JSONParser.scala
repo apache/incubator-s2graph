@@ -344,8 +344,9 @@ object JSONParser {
   def fromJsonToProperties(jsObject: JsObject): Map[String, Any] = {
     val kvs = for {
       (k, v) <- jsObject.fieldSet
+      anyVal <- jsValueToAny(v)
     } yield {
-        k -> jsValueToString(v)
+        k -> anyVal
       }
     kvs.toMap
   }

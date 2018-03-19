@@ -28,10 +28,10 @@ object ColumnMeta extends Model[ColumnMeta] {
 
   val timeStampSeq = -1.toByte
   val lastModifiedAtColumnSeq = 0.toByte
-  val lastModifiedAtColumn = ColumnMeta(Some(0), 0, "lastModifiedAt", lastModifiedAtColumnSeq, "long", "-1L")
+  val lastModifiedAtColumn = ColumnMeta(Some(0), 0, "lastModifiedAt", lastModifiedAtColumnSeq, "long", "-1")
   val maxValue = Byte.MaxValue
 
-  val timestamp = ColumnMeta(None, -1, "_timestamp", timeStampSeq.toByte, "long", "-1L")
+  val timestamp = ColumnMeta(None, -1, "_timestamp", timeStampSeq.toByte, "long", "-1")
   val reservedMetas = Seq(timestamp, lastModifiedAtColumn)
   val reservedMetaNamesSet = reservedMetas.map(_.name).toSet
 

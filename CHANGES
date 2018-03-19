@@ -38,6 +38,9 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-159] - Wrong syntax at a bash script under Linux
     * [S2GRAPH-168] - Fix args order mismatch when use addServiceColumnProp
     * [S2GRAPH-176] - Fix compile error on LabelMeta
+    * [S2GRAPH-179] - Add defaultValue on ColumnMeta
+    * [S2GRAPH-178] - Fix null pointer error on BulkLoader
+    * [S2GRAPH-181] - MutateVertices yield different state with different storage type
 
 ** Improvement
     * [S2GRAPH-72] - Support Apache TinkerPop and Gremlin
@@ -50,6 +53,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-167] - Provide Vertex CSV File BulkLoad
     * [S2GRAPH-169] - Separate multiple functionalities on Storage class into multiple Interface.
     * [S2GRAPH-170] - Create Interface for S2Edge/S2Vertex/S2Graph.
+    * [S2GRAPH-182] - Version up spark dependencies.
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.
@@ -57,6 +61,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-166] - Provide embeddable storage backend using RocksDB.
     * [S2GRAPH-175] - Provide Elastic Search Index Provider.
     * [S2GRAPH-172] - Suggest to implement GraphQL as standard web interface for S2Graph.
+    * [S2GRAPH-177] - Add support for createServiceColumn/addVertex APIs on GraphQL.
 
 ** Task
     * [S2GRAPH-162] - Update year in the NOTICE file.
