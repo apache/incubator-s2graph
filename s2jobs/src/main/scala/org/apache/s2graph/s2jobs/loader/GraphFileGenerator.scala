@@ -38,6 +38,6 @@ object GraphFileGenerator {
       case "SPARK" => HFileGenerator.generate(sc, s2Config, input, options)
       case _ => throw new IllegalArgumentException("only supported type is MR/SPARK.")
     }
-    System.exit(0)
+    sc.stop()
   }
 }
