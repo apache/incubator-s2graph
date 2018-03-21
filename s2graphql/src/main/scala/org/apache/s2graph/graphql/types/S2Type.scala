@@ -125,7 +125,7 @@ object S2Type {
       }.distinct
 
       lazy val connectedLabelFields: List[Field[GraphRepository, Any]] = connectedLabels.map(makeLabelField(_, connectedLabelFields))
-      val columnMetasKv = column.metas.filter(ColumnMeta.isValid).map { columnMeta => columnMeta.name -> columnMeta.dataType }
+      val columnMetasKv = column.metasWithoutCache.filter(ColumnMeta.isValid).map { columnMeta => columnMeta.name -> columnMeta.dataType }
       val reservedFields = List("id" -> column.columnType, "timestamp" -> "long")
 
       val vertexPropFields = makePropFields(reservedFields ++ columnMetasKv)
@@ -144,13 +144,10 @@ object S2Type {
         ),
         description = Option("desc here"),
         resolve = c => {
-         val id = c.argOpt[Any]("id").toSeq
-          val ids = c.argOpt[List[Any]]("ids").toList.flatten
-          val svc = c.ctx.findServiceByName(service.serviceName).get
+          val ids = c.argOpt[Any]("id").toSeq ++ c.argOpt[List[Any]]("ids").toList.flatten
+          val vertices = ids.map(vid => c.ctx.toVertex(vid, column))
 
-          val vertices = (id ++ ids).map(vid => c.ctx.toVertex(vid, column))
-
-          val selectedFields = c.astFields.flatMap{ f =>
+          val selectedFields = c.astFields.flatMap { f =>
             f.selections.map(s => s.asInstanceOf[sangria.ast.Field].name)
           }
 
@@ -183,9 +180,9 @@ object S2Type {
         val vertex: S2VertexLike = c.value match {
           case v: S2VertexLike => v
           case e: S2Edge => if (dir == "out") e.tgtVertex else e.srcVertex
-//          case vp: ServiceParam =>
-//            if (dir == "out") c.ctx.toVertex(label.tgtColumn, vp)
-//            else c.ctx.toVertex(label.srcColumn, vp)
+          //          case vp: ServiceParam =>
+          //            if (dir == "out") c.ctx.toVertex(label.tgtColumn, vp)
+          //            else c.ctx.toVertex(label.srcColumn, vp)
         }
 
         c.ctx.getEdges(vertex, label, dir)
@@ -228,7 +225,7 @@ class S2Type(repo: GraphRepository) {
     val fields = repo.allServices.map { service =>
       val inputFields = service.serviceColumns(false).map { serviceColumn =>
         val idField = InputField("id", s2TypeToScalarType(serviceColumn.columnType))
-        val propFields = serviceColumn.metas.filter(ColumnMeta.isValid).map { lm =>
+        val propFields = serviceColumn.metasWithoutCache.filter(ColumnMeta.isValid).map { lm =>
           InputField(lm.name, OptionInputType(s2TypeToScalarType(lm.dataType)))
         }
 

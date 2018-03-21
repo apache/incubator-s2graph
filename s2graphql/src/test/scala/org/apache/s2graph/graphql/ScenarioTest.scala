@@ -110,7 +110,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         actual shouldBe expected
       }
 
-      it("should add props to serviceColumn 'user'") {
+      it("should add props(gender) to serviceColumn 'user'") {
         val query =
           graphql"""
 
@@ -322,7 +322,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
     }
 
     describe("Add vertex to kakao.user' and fetch ") {
-      it("add vertices daewon(age: 20), shon(age: 19) to kakao#user") {
+      it("should add vertices: daewon(age: 20, gender: M), shon(age: 19), gender: F) to kakao.user") {
         val query =
           graphql"""
 
@@ -333,6 +333,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
                   user: {
                     id: "daewon"
                     age: 20
+                    gender: "M"
                   }
                 }
               },
@@ -341,6 +342,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
                   user: {
                     id: "shon"
                     age: 19
+                    gender: "F"
                   }
                 }
               }]
@@ -367,7 +369,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         actual shouldBe expected
       }
 
-      it("fetch vertex daewon(age: 20), shon(age: 19)") {
+      it("should fetch vertices: daewon(age: 20, gender: M), shon(age: 19), gender: F) from kakao.user") {
         val query =
           graphql"""
 
@@ -376,6 +378,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
               user(ids: ["daewon", "shon"]) {
                 id
                 age
+                gender
               }
             }
           }
@@ -389,16 +392,17 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         		"kakao": {
         			"user": [{
         				"id": "daewon",
-        				"age": 20
+        				"age": 20,
+                "gender": "M"
         			}, {
         				"id": "shon",
-        				"age": 19
+        				"age": 19,
+                "gender": "F"
         			}]
         		}
         	}
         }
-        """
-        )
+        """)
 
         actual shouldBe expected
       }
