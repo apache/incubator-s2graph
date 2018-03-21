@@ -2,17 +2,37 @@ package org.apache.s2graph.graphql
 
 import org.apache.s2graph.core.Management.JsonModel._
 import org.apache.s2graph.graphql.types.S2Type._
-import org.apache.s2graph.graphql.types.S2ManagementType._
 import sangria.marshalling._
 
 package object marshaller {
-
-  def unwrap(map: Map[String, Any]): Map[String, Any] = map.map {
+  def unwrapOption(map: Map[String, Any]): Map[String, Any] = map.map {
     case (k, v: Some[_]) => v.get match {
-      case m: Map[_, _] => k -> unwrap(m.asInstanceOf[Map[String, Any]])
+      case m: Map[_, _] => k -> unwrapOption(m.asInstanceOf[Map[String, Any]])
       case _ => k -> v.get
     }
+    case (k, v: Map[_, _]) => k -> unwrapOption(v.asInstanceOf[Map[String, Any]])
     case org@_ => org
+  }
+
+  implicit object AddVertexParamFromInput extends FromInput[Vector[AddVertexParam]] {
+    val marshaller = CoercedScalaResultMarshaller.default
+
+    def fromResult(node: marshaller.Node) = {
+      val currentTime = System.currentTimeMillis()
+      val inenrMap = unwrapOption(node.asInstanceOf[Map[String, Any]])
+
+      val params = inenrMap.flatMap { case (serviceName, serviceColumnMap) =>
+        serviceColumnMap.asInstanceOf[Map[String, Any]].map  { case (columnName, vertexParamMap) =>
+          val propMap = vertexParamMap.asInstanceOf[Map[String, Any]]
+          val id = propMap("id")
+          val ts = propMap.getOrElse("timestamp", currentTime).asInstanceOf[Long]
+
+          AddVertexParam(ts, id, serviceName, columnName, propMap.filterKeys(k => k != "timestamp" || k != "id"))
+        }
+      }
+
+      params.toVector
+    }
   }
 
   implicit object IndexFromInput extends FromInput[Index] {
@@ -39,17 +59,17 @@ package object marshaller {
     }
   }
 
-  implicit object PartialServiceColumnFromInput extends FromInput[PartialServiceColumn] {
+  implicit object ServiceColumnParamFromInput extends FromInput[ServiceColumnParam] {
     val marshaller = CoercedScalaResultMarshaller.default
 
-    def fromResult(node: marshaller.Node) = PartialServiceColumnsFromInput.fromResult(node).head
+    def fromResult(node: marshaller.Node) = ServiceColumnParamsFromInput.fromResult(node).head
   }
 
-  implicit object PartialServiceColumnsFromInput extends FromInput[Vector[PartialServiceColumn]] {
+  implicit object ServiceColumnParamsFromInput extends FromInput[Vector[ServiceColumnParam]] {
     val marshaller = CoercedScalaResultMarshaller.default
 
     def fromResult(node: marshaller.Node) = {
-      val input = unwrap(node.asInstanceOf[Map[String, Any]])
+      val input = unwrapOption(node.asInstanceOf[Map[String, Any]])
 
       val partialServiceColumns = input.map { case (serviceName, serviceColumnMap) =>
         val innerMap = serviceColumnMap.asInstanceOf[Map[String, Any]]
@@ -58,51 +78,14 @@ package object marshaller {
           vs.map(PropFromInput.fromResult)
         }
 
-        PartialServiceColumn(serviceName, columnName, props)
+        ServiceColumnParam(serviceName, columnName, props)
       }
 
       partialServiceColumns.toVector
     }
   }
 
-  implicit object PartialServiceVertexParamFromInput extends FromInput[Vector[PartialServiceVertexParam]] {
-    val marshaller = CoercedScalaResultMarshaller.default
-
-    def fromResult(node: marshaller.Node) = {
-      val inputMap = node.asInstanceOf[Map[String, marshaller.Node]]
-
-      val ret = inputMap.toVector.map { case (columnName, node) =>
-        val param = PartialVertexFromInput.fromResult(node)
-        PartialServiceVertexParam(columnName, param)
-      }
-
-      ret
-    }
-  }
-
-  implicit object PartialVertexFromInput extends FromInput[PartialVertexParam] {
-    val marshaller = CoercedScalaResultMarshaller.default
-
-    def fromResult(node: marshaller.Node) = {
-
-      val _inputMap = node.asInstanceOf[Option[Map[String, Any]]]
-      val inputMap = _inputMap.get
-
-      val id = inputMap("id")
-      val ts = inputMap.get("timestamp") match {
-        case Some(Some(v)) => v.asInstanceOf[Long]
-        case _ => System.currentTimeMillis()
-      }
-      val props = inputMap.get("props") match {
-        case Some(Some(v)) => v.asInstanceOf[Map[String, Option[Any]]].filter(_._2.isDefined).mapValues(_.get)
-        case _ => Map.empty[String, Any]
-      }
-
-      PartialVertexParam(ts, id, props)
-    }
-  }
-
-  implicit object PartialEdgeFromInput extends FromInput[PartialEdgeParam] {
+  implicit object AddEdgeParamFromInput extends FromInput[AddEdgeParam] {
     val marshaller = CoercedScalaResultMarshaller.default
 
     def fromResult(node: marshaller.Node) = {
@@ -126,7 +109,7 @@ package object marshaller {
         case _ => Map.empty[String, Any]
       }
 
-      PartialEdgeParam(ts, from, to, dir, props)
+      AddEdgeParam(ts, from, to, dir, props)
     }
   }
 

@@ -321,29 +321,87 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
       }
     }
 
-    describe("Add vertex to kakao.user'") {
-      val query =
-        graphql"""
+    describe("Add vertex to kakao.user' and fetch ") {
+      it("add vertices daewon(age: 20), shon(age: 19) to kakao#user") {
+        val query =
+          graphql"""
+
           mutation {
-           addVertex(
-             labelName: friends
-             props: {
-               name: "score"
-               dataType: float
-               defaultValue: "0"
-               storeInGlobalIndex: true
-            })
-            {
+            addVertex(
+              vertex: [{
+                kakao: {
+                  user: {
+                    id: "daewon"
+                    age: 20
+                  }
+                }
+              },
+              {
+                kakao: {
+                  user: {
+                    id: "shon"
+                    age: 19
+                  }
+                }
+              }]
+            ) {
              isSuccess
            }
           }
         """
 
+        val actual = testGraph.queryAsJs(query)
+        val expected = Json.parse(
+          """
+          {
+            "data": {
+          	"addVertex": [{
+          	  "isSuccess": true
+          	}, {
+          	  "isSuccess": true
+          	}]
+            }
+          }
+        """)
+
+        actual shouldBe expected
+      }
+
+      it("fetch vertex daewon(age: 20), shon(age: 19)") {
+        val query =
+          graphql"""
+
+          query FetchVertices {
+            kakao {
+              user(ids: ["daewon", "shon"]) {
+                id
+                age
+              }
+            }
+          }
+        """
+
+        val actual = testGraph.queryAsJs(query)
+        val expected = Json.parse(
+          """
+        {
+        	"data": {
+        		"kakao": {
+        			"user": [{
+        				"id": "daewon",
+        				"age": 20
+        			}, {
+        				"id": "shon",
+        				"age": 19
+        			}]
+        		}
+        	}
+        }
+        """
+        )
+
+        actual shouldBe expected
+      }
     }
-
-    describe("Add edge to label 'friends'") {
-
-    }
-
   }
 }

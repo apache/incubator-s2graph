@@ -36,25 +36,23 @@ import org.apache.s2graph.graphql.marshaller._
 
 object S2Type {
 
-  case class PartialServiceColumn(serviceName: String,
-                                  columnName: String,
-                                  props: Seq[Prop] = Nil)
+  case class AddVertexParam(timestamp: Long,
+                            id: Any,
+                            serviceName: String,
+                            columnName: String,
+                            props: Map[String, Any])
 
-  case class PartialServiceParam(service: Service,
-                                 vid: Any)
+  case class AddEdgeParam(ts: Long,
+                          from: Any,
+                          to: Any,
+                          direction: String,
+                          props: Map[String, Any])
 
-  case class PartialVertexParam(ts: Long,
-                                id: Any,
-                                props: Map[String, Any])
+  // management params
+  case class ServiceColumnParam(serviceName: String,
+                                columnName: String,
+                                props: Seq[Prop] = Nil)
 
-  case class PartialServiceVertexParam(columnName: String,
-                                       vertexParam: PartialVertexParam)
-
-  case class PartialEdgeParam(ts: Long,
-                              from: Any,
-                              to: Any,
-                              direction: String,
-                              props: Map[String, Any])
 
   val DirArg = Argument("direction", OptionInputType(DirectionType), "desc here", defaultValue = "out")
 
@@ -95,30 +93,7 @@ object S2Type {
     }
   }
 
-  def makeInputPartialVertexParamType(service: Service,
-                                      serviceColumn: ServiceColumn): InputObjectType[PartialVertexParam] = {
-    lazy val InputPropsType = InputObjectType[Map[String, ScalarType[_]]](
-      s"Input_${service.serviceName}_${serviceColumn.columnName}_vertex_props",
-      description = "desc here",
-      () => serviceColumn.metas.filter(ColumnMeta.isValid).map { lm =>
-        InputField(lm.name, OptionInputType(s2TypeToScalarType(lm.dataType)))
-      }
-    )
-
-    lazy val fields = List(
-      InputField("_", OptionInputType(LongType))
-    )
-
-    InputObjectType[PartialVertexParam](
-      s"Input_${service.serviceName}_${serviceColumn.columnName}_vertex_mutate",
-      description = "desc here",
-      () =>
-        if (!serviceColumn.metas.exists(ColumnMeta.isValid)) fields
-        else List(InputField("props", OptionInputType(InputPropsType)))
-    )
-  }
-
-  def makeInputPartialEdgeParamType(label: Label): InputObjectType[PartialEdgeParam] = {
+  def makeInputPartialEdgeParamType(label: Label): InputObjectType[AddEdgeParam] = {
     lazy val InputPropsType = InputObjectType[Map[String, ScalarType[_]]](
       s"Input_${label.label}_edge_props",
       description = "desc here",
@@ -134,7 +109,7 @@ object S2Type {
       InputField("direction", OptionInputType(DirectionType))
     )
 
-    InputObjectType[PartialEdgeParam](
+    InputObjectType[AddEdgeParam](
       s"Input_${label.label}_edge_mutate",
       description = "desc here",
       () =>
@@ -169,22 +144,17 @@ object S2Type {
         ),
         description = Option("desc here"),
         resolve = c => {
-          println(c.parentType.name)
-          c.astFields.foreach { f =>
-            f.selections.foreach(s => {
-              println(s)
-            })
-          }
-          val id = c.argOpt[Any]("id").toSeq
+         val id = c.argOpt[Any]("id").toSeq
           val ids = c.argOpt[List[Any]]("ids").toList.flatten
           val svc = c.ctx.findServiceByName(service.serviceName).get
 
-          val vids = (id ++ ids).map { vid =>
-            val vp = PartialServiceParam(svc, vid)
-            c.ctx.partialServiceParamToVertex(column, vp)
+          val vertices = (id ++ ids).map(vid => c.ctx.toVertex(vid, column))
+
+          val selectedFields = c.astFields.flatMap{ f =>
+            f.selections.map(s => s.asInstanceOf[sangria.ast.Field].name)
           }
 
-          repo.getVertex(vids.head)
+          if (selectedFields.forall(_ == "id")) vertices else repo.getVertices(vertices) // fill props
         }
       ): Field[GraphRepository, Any]
     }
@@ -213,9 +183,9 @@ object S2Type {
         val vertex: S2VertexLike = c.value match {
           case v: S2VertexLike => v
           case e: S2Edge => if (dir == "out") e.tgtVertex else e.srcVertex
-          case vp: PartialServiceParam =>
-            if (dir == "out") c.ctx.partialServiceParamToVertex(label.tgtColumn, vp)
-            else c.ctx.partialServiceParamToVertex(label.srcColumn, vp)
+//          case vp: ServiceParam =>
+//            if (dir == "out") c.ctx.toVertex(label.tgtColumn, vp)
+//            else c.ctx.toVertex(label.srcColumn, vp)
         }
 
         c.ctx.getEdges(vertex, label, dir)
@@ -254,18 +224,31 @@ class S2Type(repo: GraphRepository) {
   /**
     * arguments
     */
-  lazy val addVertexArg = repo.allServices.flatMap { service =>
-    service.serviceColumns(false).map { serviceColumn =>
-      val inputPartialVertexParamType = makeInputPartialVertexParamType(service, serviceColumn)
-      Argument(serviceColumn.columnName, OptionInputType(inputPartialVertexParamType))
-    }
-  }
+  lazy val addVertexArg = {
+    val fields = repo.allServices.map { service =>
+      val inputFields = service.serviceColumns(false).map { serviceColumn =>
+        val idField = InputField("id", s2TypeToScalarType(serviceColumn.columnType))
+        val propFields = serviceColumn.metas.filter(ColumnMeta.isValid).map { lm =>
+          InputField(lm.name, OptionInputType(s2TypeToScalarType(lm.dataType)))
+        }
 
-  lazy val addVerticesArg = repo.allServices.flatMap { service =>
-    service.serviceColumns(false).map { serviceColumn =>
-      val inputPartialVertexParamType = makeInputPartialVertexParamType(service, serviceColumn)
-      Argument(serviceColumn.columnName, OptionInputType(ListInputType(inputPartialVertexParamType)))
+        val vertexMutateType = InputObjectType[Map[String, Any]](
+          s"Input_${service.serviceName}_${serviceColumn.columnName}_vertex_mutate",
+          description = "desc here",
+          () => idField :: propFields
+        )
+
+        InputField[Any](serviceColumn.columnName, vertexMutateType)
+      }
+
+      val tpe = InputObjectType[Any](
+        s"${service.serviceName}_param", fields = DummyInputField :: inputFields.toList
+      )
+
+      InputField(service.serviceName, OptionInputType(tpe))
     }
+
+    InputObjectType[Vector[AddVertexParam]]("vertex_input", fields = DummyInputField :: fields)
   }
 
   lazy val addEdgeArg = repo.allLabels().map { label =>
@@ -287,24 +270,17 @@ class S2Type(repo: GraphRepository) {
 
   lazy val mutationFields: List[Field[GraphRepository, Any]] = List(
     Field("addVertex",
-      OptionType(MutateResponseType),
-      arguments = addVertexArg,
-      resolve = c => c.ctx.addVertex(c.args)
-    ),
-    Field("addVertices",
       ListType(MutateResponseType),
-      arguments = addVerticesArg,
-      resolve = c => c.ctx.addVertices(c.args)
+      arguments = Argument("vertex", ListInputType(addVertexArg)) :: Nil,
+      resolve = c => {
+        val vertices = repo.parseAddVertexParam(c.args)
+        c.ctx.addVertex(vertices)
+      }
     ),
     Field("addEdge",
       OptionType(MutateResponseType),
       arguments = addEdgeArg,
       resolve = c => c.ctx.addEdge(c.args)
-    ),
-    Field("addEdges",
-      ListType(MutateResponseType),
-      arguments = addEdgesArg,
-      resolve = c => c.ctx.addEdges(c.args)
     )
   )
 }

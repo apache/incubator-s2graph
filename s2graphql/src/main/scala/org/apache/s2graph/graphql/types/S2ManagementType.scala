@@ -32,7 +32,7 @@ import sangria.schema._
 import scala.language.existentials
 import scala.util.{Failure, Success, Try}
 import org.apache.s2graph.graphql.marshaller._
-import org.apache.s2graph.graphql.types.S2Type.{PartialServiceColumn}
+import org.apache.s2graph.graphql.types.S2Type.{ServiceColumnParam}
 
 object S2ManagementType {
 
@@ -216,19 +216,19 @@ class S2ManagementType(repo: GraphRepository) {
     "hTableTTL" -> IntType
   ).map { case (name, _type) => Argument(name, OptionInputType(_type)) }
 
-  val AddPropServiceType = InputObjectType[Vector[PartialServiceColumn]](
+  val AddPropServiceType = InputObjectType[Vector[ServiceColumnParam]](
     "Input_Service_ServiceColumn_Props",
     description = "desc",
     fields = DummyInputField +: serviceColumnOnServiceWithPropInputObjectFields
   )
 
-  val ServiceColumnSelectType = InputObjectType[Vector[PartialServiceColumn]](
+  val ServiceColumnSelectType = InputObjectType[Vector[ServiceColumnParam]](
     "Input_Service_ServiceColumn",
     description = "desc",
     fields = DummyInputField +: serviceColumnOnServiceInputObjectFields
   )
 
-  val InputServiceType = InputObjectType[PartialServiceColumn](
+  val InputServiceType = InputObjectType[ServiceColumnParam](
     "Input_Service",
     description = "desc",
     fields = DummyInputField +: serviceColumnOnServiceInputObjectFields

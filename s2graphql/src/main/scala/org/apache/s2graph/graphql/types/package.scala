@@ -24,7 +24,6 @@ import org.apache.s2graph.core.{JSONParser, S2EdgeLike, S2VertexLike}
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.storage.MutateResponse
 import org.apache.s2graph.graphql.repository.GraphRepository
-import org.apache.s2graph.graphql.types.S2Type.PartialServiceParam
 import sangria.macros.derive._
 import sangria.schema._
 
