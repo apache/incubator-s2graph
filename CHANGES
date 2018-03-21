@@ -41,6 +41,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-179] - Add defaultValue on ColumnMeta
     * [S2GRAPH-178] - Fix null pointer error on BulkLoader
     * [S2GRAPH-181] - MutateVertices yield different state with different storage type
+    * [S2GRAPH-184] - spark driver exit abnormally in the loader of s2jobs
 
 ** Improvement
     * [S2GRAPH-72] - Support Apache TinkerPop and Gremlin
