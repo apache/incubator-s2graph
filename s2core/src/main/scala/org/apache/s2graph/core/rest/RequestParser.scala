@@ -582,12 +582,12 @@ class RequestParser(graph: S2GraphLike) {
   }
 
   def toVertex(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None): S2VertexLike = {
-    val id = parse[JsValue](jsValue, "id")
+    val id = parse[String](jsValue, "id")
     val ts = parseOption[Long](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
     val sName = if (serviceName.isEmpty) parse[String](jsValue, "serviceName") else serviceName.get
     val cName = if (columnName.isEmpty) parse[String](jsValue, "columnName") else columnName.get
     val props = fromJsonToProperties((jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj()))
-    graph.toVertex(sName, cName, id.toString, props, ts, operation)
+    graph.toVertex(sName, cName, id, props, ts, operation)
   }
 
   def toPropElements(jsObj: JsValue) = Try {
