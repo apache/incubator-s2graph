@@ -582,7 +582,13 @@ class RequestParser(graph: S2GraphLike) {
   }
 
   def toVertex(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None): S2VertexLike = {
-    val id = parse[String](jsValue, "id")
+    var id:String = ""
+    try {
+        id = parse[String](jsValue, "id")
+    } catch {
+        case e:Exception=>
+        id = parse[JsValue](jsValue, "id").toString
+    }
     val ts = parseOption[Long](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
     val sName = if (serviceName.isEmpty) parse[String](jsValue, "serviceName") else serviceName.get
     val cName = if (columnName.isEmpty) parse[String](jsValue, "columnName") else columnName.get
