@@ -163,3 +163,16 @@ class ESSink(queryName:String, conf:TaskConf) extends Sink(queryName, conf) {
   }
 }
 
+/**
+  * S2graphSink
+  * @param queryName
+  * @param conf
+  */
+class S2graphSink(queryName:String, conf:TaskConf) extends Sink(queryName, conf) {
+  override def mandatoryOptions: Set[String] = Set()
+  override val FORMAT: String = "org.apache.s2graph.spark.sql.streaming.S2SinkProvider"
+
+  override protected def writeBatch(writer: DataFrameWriter[Row]): Unit =
+    throw new RuntimeException(s"unsupported source type for ${this.getClass.getSimpleName} : ${conf.name}")
+}
+
