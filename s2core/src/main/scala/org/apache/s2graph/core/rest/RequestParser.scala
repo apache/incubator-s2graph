@@ -354,12 +354,8 @@ class RequestParser(graph: S2GraphLike) {
     try {
       val vertices = for {
         value <- (jsValue \ "srcVertices").asOpt[Seq[JsValue]].getOrElse(Nil)
-        serviceName <- (value \ "serviceName").asOpt[String].toSeq
-        columnName <- (value \ "columnName").asOpt[String].toSeq
-        idJson = (value \ "id").asOpt[JsValue].map(Seq(_)).getOrElse(Nil)
-        idsJson = (value \ "ids").asOpt[Seq[JsValue]].getOrElse(Nil)
-        id <- (idJson ++ idsJson).flatMap(jsValueToAny(_).toSeq).distinct
-      } yield graph.toVertex(serviceName, columnName, id)
+        vertex <- toVertex(value)
+      } yield vertex
 
       if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
       val steps = parse[Vector[JsValue]](jsValue, "steps")
@@ -578,22 +574,17 @@ class RequestParser(graph: S2GraphLike) {
   }
 
   def toVertices(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None) = {
-    toJsValues(jsValue).map(toVertex(_, operation, serviceName, columnName))
+    toJsValues(jsValue).flatMap(toVertex(_, operation, serviceName, columnName))
   }
 
-  def toVertex(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None): S2VertexLike = {
-    var id:String = ""
-    try {
-        id = parse[String](jsValue, "id")
-    } catch {
-        case e:Exception=>
-        id = parse[JsValue](jsValue, "id").toString
+  def toVertex(jsValue: JsValue, operation: String = "insert", serviceName: Option[String] = None, columnName: Option[String] = None): Seq[S2VertexLike] = {
+    ((jsValue \ "id").asOpt[JsValue].map(Seq(_)).getOrElse(Nil) ++ (jsValue \ "ids").asOpt[Seq[JsValue]].getOrElse(Nil)).flatMap(JSONParser.jsValueToAny).map { id =>
+      val ts = parseOption[Long](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
+      val sName = if (serviceName.isEmpty) parse[String](jsValue, "serviceName") else serviceName.get
+      val cName = if (columnName.isEmpty) parse[String](jsValue, "columnName") else columnName.get
+      val props = fromJsonToProperties((jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj()))
+      graph.toVertex(sName, cName, id, props, ts, operation)
     }
-    val ts = parseOption[Long](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
-    val sName = if (serviceName.isEmpty) parse[String](jsValue, "serviceName") else serviceName.get
-    val cName = if (columnName.isEmpty) parse[String](jsValue, "columnName") else columnName.get
-    val props = fromJsonToProperties((jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj()))
-    graph.toVertex(sName, cName, id, props, ts, operation)
   }
 
   def toPropElements(jsObj: JsValue) = Try {
