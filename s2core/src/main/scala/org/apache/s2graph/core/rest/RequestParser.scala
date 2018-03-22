@@ -31,8 +31,7 @@ import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.types._
 import play.api.libs.json._
 
-
-import scala.util.{Random, Failure, Success, Try}
+import scala.util.{Failure, Random, Success, Try}
 
 object TemplateHelper {
   val findVar = """\"?\$\{(.*?)\}\"?""".r
@@ -350,16 +349,23 @@ class RequestParser(graph: S2GraphLike) {
     )
   }
 
+  def extractVertexIds(jsValue: JsValue,
+                       serviceNameOpt: Option[String] = None,
+                       columnNameOpt: Option[String] = None): Seq[VertexId] = {
+    for {
+      value <- (jsValue \ "srcVertices").asOpt[Seq[JsValue]].getOrElse(Nil)
+      serviceName <- serviceNameOpt.orElse((value \ "serviceName").asOpt[String]).toSeq
+      columnName <- columnNameOpt.orElse((value \ "columnName").asOpt[String]).toSeq
+      idJson = (value \ "id").asOpt[JsValue].map(Seq(_)).getOrElse(Nil)
+      idsJson = (value \ "ids").asOpt[Seq[JsValue]].getOrElse(Nil)
+      id <- (idJson ++ idsJson).flatMap(jsValueToAny(_).toSeq).distinct
+    } yield graph.elementBuilder.newVertexId(serviceName)(columnName)(id)
+  }
+
   def toQuery(jsValue: JsValue, impIdOpt: Option[String]): Query = {
     try {
-      val vertices = for {
-        value <- (jsValue \ "srcVertices").asOpt[Seq[JsValue]].getOrElse(Nil)
-        serviceName <- (value \ "serviceName").asOpt[String].toSeq
-        columnName <- (value \ "columnName").asOpt[String].toSeq
-        idJson = (value \ "id").asOpt[JsValue].map(Seq(_)).getOrElse(Nil)
-        idsJson = (value \ "ids").asOpt[Seq[JsValue]].getOrElse(Nil)
-        id <- (idJson ++ idsJson).flatMap(jsValueToAny(_).toSeq).distinct
-      } yield graph.toVertex(serviceName, columnName, id)
+      val vertexIds = extractVertexIds(jsValue)
+      val vertices = vertexIds.map(vid => graph.elementBuilder.newVertex(vid))
 
       if (vertices.isEmpty) throw BadQueryException("srcVertices`s id is empty")
       val steps = parse[Vector[JsValue]](jsValue, "steps")
@@ -578,16 +584,18 @@ class RequestParser(graph: S2GraphLike) {
   }
 
   def toVertices(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None) = {
-    toJsValues(jsValue).map(toVertex(_, operation, serviceName, columnName))
+    toJsValues(jsValue).flatMap(toVertex(_, operation, serviceName, columnName))
   }
 
-  def toVertex(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None): S2VertexLike = {
-    val id = parse[JsValue](jsValue, "id")
-    val ts = parseOption[Long](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
-    val sName = if (serviceName.isEmpty) parse[String](jsValue, "serviceName") else serviceName.get
-    val cName = if (columnName.isEmpty) parse[String](jsValue, "columnName") else columnName.get
-    val props = fromJsonToProperties((jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj()))
-    graph.toVertex(sName, cName, id.toString, props, ts, operation)
+  def toVertex(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None): Seq[S2VertexLike] = {
+    extractVertexIds(jsValue,
+      serviceNameOpt = serviceName,
+      columnNameOpt = columnName).map { vertexId =>
+      val ts = parseOption[Long](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
+      val props = fromJsonToProperties((jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj()))
+
+      graph.elementBuilder.toVertexInner(vertexId, props, ts, operation)
+    }
   }
 
   def toPropElements(jsObj: JsValue) = Try {
