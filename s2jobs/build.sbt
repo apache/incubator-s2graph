@@ -35,7 +35,9 @@ libraryDependencies ++= Seq(
   "org.specs2" %% "specs2-core" % specs2Version % "test",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test",
   "org.apache.hadoop" % "hadoop-distcp" % hadoopVersion,
-  "com.github.scopt" %% "scopt" % "3.7.0"
+  "org.elasticsearch" % "elasticsearch-spark-20_2.11" % elastic4sVersion,
+  "com.github.scopt" %% "scopt" % "3.7.0",
+  "com.holdenkarau" %% "spark-testing-base" % "2.3.0_0.9.0" % Test
 )
 
 crossScalaVersions := Seq("2.10.6")
