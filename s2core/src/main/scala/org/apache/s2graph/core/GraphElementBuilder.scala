@@ -115,28 +115,32 @@ class GraphElementBuilder(graph: S2GraphLike) {
     new S2Edge(graph, srcVertex, tgtVertex, label, dir, op = op, version = ts).copyEdgeWithState(propsWithTs)
   }
 
+  def toVertexInner(vertexId: VertexId,
+               props: Map[String, Any] = Map.empty,
+               ts: Long = System.currentTimeMillis(),
+               operation: String = "insert"): S2VertexLike = {
+    val op = GraphUtil.toOp(operation).getOrElse(throw new IllegalArgumentException(s"$operation is not supported."))
+    val propsInner = vertexId.column.propsToInnerVals(props) ++
+      Map(ColumnMeta.timestamp -> InnerVal.withLong(ts, vertexId.column.schemaVersion))
+
+    val vertex = new S2Vertex(graph, vertexId, ts, S2Vertex.EmptyProps, op)
+    S2Vertex.fillPropsWithTs(vertex, propsInner)
+    vertex
+  }
+
   def toVertex(serviceName: String,
                columnName: String,
                id: Any,
                props: Map[String, Any] = Map.empty,
                ts: Long = System.currentTimeMillis(),
                operation: String = "insert"): S2VertexLike = {
-
     val service = Service.findByName(serviceName).getOrElse(throw new java.lang.IllegalArgumentException(s"$serviceName is not found."))
     val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new java.lang.IllegalArgumentException(s"$columnName is not found."))
-    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
-
-    val srcVertexId = id match {
-      case vid: VertexId => id.asInstanceOf[VertexId]
+    val vertexId = id match {
+      case vid: VertexId => vid
       case _ => new VertexId(column, toInnerVal(id, column.columnType, column.schemaVersion))
     }
-
-    val propsInner = column.propsToInnerVals(props) ++
-      Map(ColumnMeta.timestamp -> InnerVal.withLong(ts, column.schemaVersion))
-
-    val vertex = new S2Vertex(graph, srcVertexId, ts, S2Vertex.EmptyProps, op)
-    S2Vertex.fillPropsWithTs(vertex, propsInner)
-    vertex
+    toVertexInner(vertexId, props, ts, operation)
   }
 
 
