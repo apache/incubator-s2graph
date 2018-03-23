@@ -149,6 +149,8 @@ object S2Type {
         ),
         description = Option("desc here"),
         resolve = c => {
+          implicit val ec = c.ctx.ec
+
           val ids = c.argOpt[Any]("id").toSeq ++ c.argOpt[List[Any]]("ids").toList.flatten
           val vertices = ids.map(vid => c.ctx.toS2VertexLike(vid, column))
 
@@ -156,8 +158,12 @@ object S2Type {
             f.selections.map(s => s.asInstanceOf[sangria.ast.Field].name)
           }
 
-          if (selectedFields.forall(_ == "id")) scala.concurrent.Future.successful(vertices)
+          val a = if (selectedFields.forall(_ == "id")) scala.concurrent.Future.successful(vertices)
           else repo.getVertices(vertices) // fill props
+
+          println(a)
+          a.foreach(println)
+          a
         }
       ): Field[GraphRepository, Any]
     }
@@ -242,6 +248,7 @@ class S2Type(repo: GraphRepository) {
     */
   lazy val serviceFields: List[Field[GraphRepository, Any]] = repo.allServices.map { service =>
     lazy val serviceFields = DummyObjectTypeField :: makeServiceField(service, repo.allLabels())
+
     lazy val ServiceType = ObjectType(
       s"Service_${service.serviceName}",
       fields[GraphRepository, Any](serviceFields: _*)
@@ -261,11 +268,12 @@ class S2Type(repo: GraphRepository) {
   lazy val addVertexArg = {
     val serviceArguments = repo.allServices().map { service =>
       val serviceFields = DummyInputField +: makeInputFieldsOnService(service)
-      val serviceInputType = InputObjectType[List[AddVertexParam]](
+
+      val ServiceInputType = InputObjectType[List[AddVertexParam]](
         s"Input_vertex_${service.serviceName}_param",
         () => serviceFields.toList
       )
-      Argument(service.serviceName, OptionInputType(serviceInputType))
+      Argument(service.serviceName, OptionInputType(ServiceInputType))
     }
 
     serviceArguments
@@ -317,6 +325,13 @@ class S2Type(repo: GraphRepository) {
             repo.toS2EdgeLike(labelName, param)
           }
         }
+
+        c.ctx.addVertices(edges.toSeq.flatMap { e =>
+          Seq(
+            c.ctx.toS2VertexLike(e.srcVertex.innerId, e.srcVertex.serviceColumn),
+            c.ctx.toS2VertexLike(e.tgtVertex.innerId, e.tgtVertex.serviceColumn)
+          )
+        })
 
         c.ctx.addEdges(edges.toSeq)
       }
