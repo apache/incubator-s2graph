@@ -63,7 +63,7 @@ package object types {
       EnumValue("string", value = "string"),
       EnumValue("int", value = "int"),
       EnumValue("long", value = "long"),
-      EnumValue("float", value = "float"),
+      EnumValue("double", value = "double"),
       EnumValue("boolean", value = "boolean")
     )
   )
@@ -149,17 +149,4 @@ package object types {
     description = Some("dummy field"),
     resolve = _ => None
   )
-
-  def paddingDummyField(fields: List[Field[GraphRepository, Any]]): List[Field[GraphRepository, Any]] = {
-    if (fields.nonEmpty) fields else List(DummyObjectTypeField)
-  }
-
-  def trySequence[A >: Throwable](tries: Seq[Try[A]]): Try[Seq[A]] = {
-    Try {
-      tries.collect {
-        case Success(v) => v
-        case Failure(e) => e
-      }
-    }
-  }
 }

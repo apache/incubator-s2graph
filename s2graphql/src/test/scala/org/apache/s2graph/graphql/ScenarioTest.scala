@@ -26,16 +26,16 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         val query =
           graphql"""
 
-        mutation {
-          Management {
-            createService(
-              name: "kakao"
-              compressionAlgorithm: gz
-            ) {
-              isSuccess
+          mutation {
+            Management {
+              createService(
+                name: "kakao"
+                compressionAlgorithm: gz
+              ) {
+                isSuccess
+              }
             }
           }
-        }
 
         """
 
@@ -51,7 +51,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
           		}
           	}
           }
-          """.stripMargin
+          """
         )
 
         actual shouldBe expected
@@ -61,31 +61,31 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         val query =
           graphql"""
 
-        mutation {
-          Management {
-            createServiceColumn (
-              serviceName: kakao
-              columnName: "user"
-              columnType: string
-              props: {
-                name: "age"
-                dataType: int
-                defaultValue: "0"
-                storeInGlobalIndex: true
-              }
-            ) {
-              isSuccess
-              object {
-                name
-                props {
+          mutation {
+            Management {
+              createServiceColumn (
+                serviceName: kakao
+                columnName: "user"
+                columnType: string
+                props: {
+                  name: "age"
+                  dataType: int
+                  defaultValue: "0"
+                  storeInGlobalIndex: true
+                }
+              ) {
+                isSuccess
+                object {
                   name
+                  props {
+                    name
+                  }
                 }
               }
             }
           }
-        }
 
-        """
+          """
 
         val actual = testGraph.queryAsJs(query)
         val expected = Json.parse(
@@ -114,26 +114,26 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         val query =
           graphql"""
 
-        mutation {
-          Management {
-            addPropsToServiceColumn(
-              service: {
-                kakao: {
-                  columnName: user
-                  props: {
-                    name: "gender"
-                    dataType: string
-                    defaultValue: ""
-                    storeInGlobalIndex: true
+          mutation {
+            Management {
+              addPropsToServiceColumn(
+                service: {
+                  kakao: {
+                    columnName: user
+                    props: {
+                      name: "gender"
+                      dataType: string
+                      defaultValue: ""
+                      storeInGlobalIndex: true
+                    }
                   }
                 }
+              ) {
+                isSuccess
               }
-            ) {
-              isSuccess
             }
           }
-        }
-        """
+          """
 
         val actual = testGraph.queryAsJs(query)
         val expected = Json.parse(
@@ -157,22 +157,22 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         val query =
           graphql"""
 
-        query {
-          Management {
-            Service(name: kakao) {
-              name
-              serviceColumns {
+          query {
+            Management {
+              Service(name: kakao) {
                 name
-                props {
+                serviceColumns {
                   name
-                  dataType
+                  props {
+                    name
+                    dataType
+                  }
                 }
               }
             }
           }
-        }
 
-        """
+          """
 
         val actual = testGraph.queryAsJs(query)
         val expected = Json.parse(
@@ -204,25 +204,25 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         val query =
           graphql"""
 
-        mutation {
-          Management {
-            createLabel(
-              name: "friends"
-              sourceService: {
-                kakao: {
-                  columnName: user
+          mutation {
+            Management {
+              createLabel(
+                name: "friends"
+                sourceService: {
+                  kakao: {
+                    columnName: user
+                  }
                 }
-              }
-              targetService: {
-                kakao: {
-                  columnName: user
+                targetService: {
+                  kakao: {
+                    columnName: user
+                  }
                 }
+              ) {
+                isSuccess
               }
-            ) {
-              isSuccess
             }
           }
-        }
 
         """
 
@@ -253,7 +253,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
                 labelName: friends
                 props: {
                   name: "score"
-                  dataType: float
+                  dataType: double
                   defaultValue: "0"
                   storeInGlobalIndex: true
                }
@@ -285,37 +285,37 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         val query =
           graphql"""
 
-        query {
-          Management {
-            Label(name: friends) {
-              name
-              props {
+          query {
+            Management {
+              Label(name: friends) {
                 name
-                dataType
+                props {
+                  name
+                  dataType
+                }
               }
             }
           }
-        }
 
-        """
+          """
 
         val actual = testGraph.queryAsJs(query)
         val expected = Json.parse(
           """
-         {
-         	"data": {
-         		"Management": {
-         			"Label": {
-         				"name": "friends",
-         				"props": [{
-         					"name": "score",
-         					"dataType": "float"
-         				}]
-         			}
-         		}
-         	}
-         }
-         """)
+          {
+          	"data": {
+          		"Management": {
+          			"Label": {
+          				"name": "friends",
+          				"props": [{
+          					"name": "score",
+          					"dataType": "double"
+          				}]
+          			}
+          		}
+          	}
+          }
+          """)
 
         actual shouldBe expected
       }
@@ -328,25 +328,18 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
 
           mutation {
             addVertex(
-              vertex: [{
-                kakao: {
-                  user: {
-                    id: "daewon"
-                    age: 20
-                    gender: "M"
-                  }
-                }
-              },
-              {
-                kakao: {
-                  user: {
-                    id: "shon"
-                    age: 19
-                    gender: "F"
-                  }
-                }
-              }]
-            ) {
+              kakao: {
+                user: [{
+                  id: "daewon"
+                  age: 20
+                  gender: "M"
+                },
+                {
+                  id: "shon"
+                  age: 19
+                  gender: "F"
+                }]
+              }) {
              isSuccess
            }
           }
@@ -387,25 +380,118 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         val actual = testGraph.queryAsJs(query)
         val expected = Json.parse(
           """
+          {
+          	"data": {
+          		"kakao": {
+          			"user": [{
+          				"id": "daewon",
+          				"age": 20,
+                  "gender": "M"
+          			}, {
+          				"id": "shon",
+          				"age": 19,
+                  "gender": "F"
+          			}]
+          		}
+          	}
+          }
+          """)
+
+        actual shouldBe expected
+      }
+    }
+  }
+
+  describe("Add edge to label 'friends' and fetch ") {
+    it("should add edges: daewon -> shon(score: 2) to friends") {
+      val query =
+        graphql"""
+
+        mutation {
+          addEdge(
+            friends: {
+              from: "daewon"
+              to: "shon"
+              score: 0.9
+            }
+          ) {
+           isSuccess
+         }
+        }
+        """
+
+      val actual = testGraph.queryAsJs(query)
+
+      val expected = Json.parse(
+        """
         {
         	"data": {
-        		"kakao": {
-        			"user": [{
-        				"id": "daewon",
-        				"age": 20,
-                "gender": "M"
-        			}, {
-        				"id": "shon",
-        				"age": 19,
-                "gender": "F"
-        			}]
-        		}
+        		"addEdge": [{
+        			"isSuccess": true
+        		}]
         	}
         }
         """)
 
-        actual shouldBe expected
-      }
+      actual shouldBe expected
+    }
+
+    it("should fetch edges: friends of kakao.user(daewon) ") {
+      val query =
+        graphql"""
+
+        query {
+          kakao {
+            user(id: "daewon") {
+              id
+              friends {
+                score
+                to {
+                  id
+                  age
+                  friends(direction: in) {
+                    to {
+                      id
+                      age
+                    }
+                    direction
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+
+      val actual = testGraph.queryAsJs(query)
+      val expected = Json.parse(
+        """
+        {
+          "data" : {
+            "kakao" : {
+              "user" : [ {
+                "id" : "daewon",
+                "friends" : [ {
+                  "score" : 0.9,
+                  "to" : {
+                    "id" : "shon",
+                    "age" : 19,
+                    "friends" : [ {
+                      "to" : {
+                        "id" : "daewon",
+                        "age" : 20
+                      },
+                      "direction" : "in"
+                    } ]
+                  }
+                } ]
+              } ]
+            }
+          }
+        }
+        """)
+
+      actual shouldBe expected
     }
   }
 }

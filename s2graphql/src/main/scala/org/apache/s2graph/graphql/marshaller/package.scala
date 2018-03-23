@@ -3,35 +3,53 @@ package org.apache.s2graph.graphql
 import org.apache.s2graph.core.Management.JsonModel._
 import org.apache.s2graph.graphql.types.S2Type._
 import sangria.marshalling._
+import sangria.schema.Args
 
 package object marshaller {
-  def unwrapOption(map: Map[String, Any]): Map[String, Any] = map.map {
-    case (k, v: Some[_]) => v.get match {
-      case m: Map[_, _] => k -> unwrapOption(m.asInstanceOf[Map[String, Any]])
-      case _ => k -> v.get
-    }
-    case (k, v: Map[_, _]) => k -> unwrapOption(v.asInstanceOf[Map[String, Any]])
-    case org@_ => org
+  type RawNode = Map[String, Any]
+
+  def unwrap(any: Any): Any = any match {
+    case s: Some[_] => unwrap(s.get)
+    case v: Seq[_] => v.map(unwrap)
+    case m: Map[_, _] => m.mapValues(unwrap)
+    case _ => any
   }
 
-  implicit object AddVertexParamFromInput extends FromInput[Vector[AddVertexParam]] {
+  implicit object AddVertexParamFromInput extends FromInput[List[AddVertexParam]] {
     val marshaller = CoercedScalaResultMarshaller.default
 
     def fromResult(node: marshaller.Node) = {
-      val currentTime = System.currentTimeMillis()
-      val inenrMap = unwrapOption(node.asInstanceOf[Map[String, Any]])
+      val now = System.currentTimeMillis()
+      val map = unwrap(node).asInstanceOf[RawNode]
 
-      val params = inenrMap.flatMap { case (serviceName, serviceColumnMap) =>
-        serviceColumnMap.asInstanceOf[Map[String, Any]].map  { case (columnName, vertexParamMap) =>
-          val propMap = vertexParamMap.asInstanceOf[Map[String, Any]]
-          val id = propMap("id")
-          val ts = propMap.getOrElse("timestamp", currentTime).asInstanceOf[Long]
+      val params = map.flatMap { case (columnName, vls: Vector[_]) =>
+        vls.map { _m =>
+          val m = _m.asInstanceOf[RawNode]
+          val id = m("id")
+          val ts = m.getOrElse("timestamp", now).asInstanceOf[Long]
 
-          AddVertexParam(ts, id, serviceName, columnName, propMap.filterKeys(k => k != "timestamp" || k != "id"))
+          AddVertexParam(ts, id, columnName, props = m)
         }
       }
 
-      params.toVector
+      params.toList
+    }
+  }
+
+  implicit object AddEdgeParamFromInput extends FromInput[AddEdgeParam] {
+    val marshaller = CoercedScalaResultMarshaller.default
+
+    def fromResult(node: marshaller.Node) = {
+      val inputMap = unwrap(node).asInstanceOf[RawNode]
+      val now = System.currentTimeMillis()
+
+      val from = inputMap("from")
+      val to = inputMap("to")
+      val ts = inputMap.get("timestamp").map(_.asInstanceOf[Long]).getOrElse(now)
+      val dir = inputMap.get("direction").map(_.asInstanceOf[String]).getOrElse("out")
+      val props = inputMap
+
+      AddEdgeParam(ts, from, to, dir, props)
     }
   }
 
@@ -69,7 +87,7 @@ package object marshaller {
     val marshaller = CoercedScalaResultMarshaller.default
 
     def fromResult(node: marshaller.Node) = {
-      val input = unwrapOption(node.asInstanceOf[Map[String, Any]])
+      val input = unwrap(node.asInstanceOf[Map[String, Any]]).asInstanceOf[Map[String, Any]]
 
       val partialServiceColumns = input.map { case (serviceName, serviceColumnMap) =>
         val innerMap = serviceColumnMap.asInstanceOf[Map[String, Any]]
@@ -82,34 +100,6 @@ package object marshaller {
       }
 
       partialServiceColumns.toVector
-    }
-  }
-
-  implicit object AddEdgeParamFromInput extends FromInput[AddEdgeParam] {
-    val marshaller = CoercedScalaResultMarshaller.default
-
-    def fromResult(node: marshaller.Node) = {
-      val inputMap = node.asInstanceOf[Map[String, Any]]
-
-      val from = inputMap("from")
-      val to = inputMap("to")
-
-      val ts = inputMap.get("timestamp") match {
-        case Some(Some(v)) => v.asInstanceOf[Long]
-        case _ => System.currentTimeMillis()
-      }
-
-      val dir = inputMap.get("direction") match {
-        case Some(Some(v)) => v.asInstanceOf[String]
-        case _ => "out"
-      }
-
-      val props = inputMap.get("props") match {
-        case Some(Some(v)) => v.asInstanceOf[Map[String, Option[Any]]].filter(_._2.isDefined).mapValues(_.get)
-        case _ => Map.empty[String, Any]
-      }
-
-      AddEdgeParam(ts, from, to, dir, props)
     }
   }
 

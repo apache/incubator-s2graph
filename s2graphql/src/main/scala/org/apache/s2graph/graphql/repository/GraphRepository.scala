@@ -25,7 +25,6 @@ import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.storage.MutateResponse
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.graphql.types.S2ManagementType.PropWithColumn
 import org.apache.s2graph.graphql.types.S2Type._
 import sangria.schema._
 
@@ -46,7 +45,7 @@ class GraphRepository(val graph: S2GraphLike) {
 
   implicit val ec = graph.ec
 
-  def AddEdgeParamToS2Edge(labelName: String, param: AddEdgeParam): S2EdgeLike = {
+  def toS2EdgeLike(labelName: String, param: AddEdgeParam): S2EdgeLike = {
     graph.toEdge(
       srcId = param.from,
       tgtId = param.to,
@@ -56,45 +55,25 @@ class GraphRepository(val graph: S2GraphLike) {
     )
   }
 
-  def toVertex(vid: Any, column: ServiceColumn): S2VertexLike = {
+  def toS2VertexLike(vid: Any, column: ServiceColumn): S2VertexLike = {
     graph.toVertex(column.service.serviceName, column.columnName, vid)
   }
 
-  def parseAddVertexParam(args: Args): Seq[S2VertexLike] = {
-    val vertexParams = args.arg[Vector[Vector[AddVertexParam]]]("vertex")
-
-    vertexParams.flatMap { params =>
-      params.map { param =>
-        graph.toVertex(
-          serviceName = param.serviceName,
-          columnName = param.columnName,
-          id = param.id,
-          props = param.props,
-          ts = param.timestamp)
-      }
-    }
+  def toS2VertexLike(serviceName: String, param: AddVertexParam): S2VertexLike = {
+    graph.toVertex(
+      serviceName = serviceName,
+      columnName = param.columnName,
+      id = param.id,
+      props = param.props,
+      ts = param.timestamp)
   }
 
-  def addVertex(vertices: Seq[S2VertexLike]): Future[Seq[MutateResponse]] = {
+  def addVertices(vertices: Seq[S2VertexLike]): Future[Seq[MutateResponse]] = {
     graph.mutateVertices(vertices, withWait = true)
   }
 
-  def addEdges(args: Args): Future[Seq[MutateResponse]] = {
-    val edges: Seq[S2EdgeLike] = args.raw.keys.toList.flatMap { labelName =>
-      val params = args.arg[Vector[AddEdgeParam]](labelName)
-      params.map(param => AddEdgeParamToS2Edge(labelName, param))
-    }
-
+  def addEdges(edges: Seq[S2EdgeLike]): Future[Seq[MutateResponse]] = {
     graph.mutateEdges(edges, withWait = true)
-  }
-
-  def addEdge(args: Args): Future[Option[MutateResponse]] = {
-    val edges: Seq[S2EdgeLike] = args.raw.keys.toList.map { labelName =>
-      val param = args.arg[AddEdgeParam](labelName)
-      AddEdgeParamToS2Edge(labelName, param)
-    }
-
-    graph.mutateEdges(edges, withWait = true).map(_.headOption)
   }
 
   def getVertices(vertex: Seq[S2VertexLike]): Future[Seq[S2VertexLike]] = {
