@@ -372,9 +372,13 @@ Request
 
 ```graphql
 query {
-  KakaoFavorites(id: "Elmo") {    
-    friends {
-      to
+  KakaoFavorites {    
+    user(id: "Elmo") {
+      friends {
+        to {
+          id
+        }
+      }
     }
   }
 }
@@ -410,10 +414,9 @@ Request
 
 ```graphql
 query {
-  KakaoFavorites {
-    user(id: "Elmo") {
-      id
-			friends {
+  KakaoFavorites {    
+    user(id: "Elmo") {      
+      friends {        
         to {
           id
         }
@@ -431,7 +434,6 @@ Response
     "KakaoFavorites": {
       "user": [
         {
-          "id": "Elmo",
           "friends": [
             {
               "to": {
@@ -440,12 +442,12 @@ Response
             },
             {
               "to": {
-                "id": "Bert"
+                "id": "Big Bird"
               }
             },
             {
               "to": {
-                "id": "Big Bird"
+                "id": "Bert"
               }
             }
           ]
@@ -480,8 +482,7 @@ mutation {
     ) {
       isSuccess
       message
-      object {
-        id
+      object {        
         name      
       }
     }
@@ -499,7 +500,6 @@ Response
         "isSuccess": true,
         "message": "Mutation successful",
         "object": {
-          "id": 247,
           "name": "post"
         }
       }

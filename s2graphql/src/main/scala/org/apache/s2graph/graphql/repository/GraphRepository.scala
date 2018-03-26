@@ -185,7 +185,8 @@ class GraphRepository(val graph: S2GraphLike) {
     val isAsync = args.argOpt("isAsync").getOrElse(false)
     val compressionAlgorithm = args.argOpt[String]("compressionAlgorithm").getOrElse(parser.DefaultCompressionAlgorithm)
     val isDirected = args.argOpt[Boolean]("isDirected").getOrElse(true)
-    val options = args.argOpt[String]("options") // TODO: support option type
+    //    val options = args.argOpt[String]("options") // TODO: support option type
+    val options = Option("""{"storeVertex": true}""")
 
     val labelTry: scala.util.Try[Label] = management.createLabel(
       labelName,
@@ -226,5 +227,4 @@ class GraphRepository(val graph: S2GraphLike) {
   def allLabels() = Label.findAll()
 
   def findLabelByName(name: String): Option[Label] = Label.findByName(name)
-
 }

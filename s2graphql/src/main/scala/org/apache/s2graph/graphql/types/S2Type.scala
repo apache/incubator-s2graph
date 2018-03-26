@@ -154,16 +154,15 @@ object S2Type {
           val ids = c.argOpt[Any]("id").toSeq ++ c.argOpt[List[Any]]("ids").toList.flatten
           val vertices = ids.map(vid => c.ctx.toS2VertexLike(vid, column))
 
+          val columnFields = column.metasInvMap.keySet
           val selectedFields = c.astFields.flatMap { f =>
             f.selections.map(s => s.asInstanceOf[sangria.ast.Field].name)
           }
 
-          val a = if (selectedFields.forall(_ == "id")) scala.concurrent.Future.successful(vertices)
-          else repo.getVertices(vertices) // fill props
+          val passFetchVertex = selectedFields.forall(f => f == "id" || !columnFields(f))
 
-          println(a)
-          a.foreach(println)
-          a
+          if (passFetchVertex) scala.concurrent.Future.successful(vertices)
+          else repo.getVertices(vertices) // fill props
         }
       ): Field[GraphRepository, Any]
     }
@@ -176,13 +175,17 @@ object S2Type {
                         c: Context[GraphRepository, Any]): scala.concurrent.Future[S2VertexLike] = {
     implicit val ec = c.ctx.ec
 
+    val columnFields = column.metasInvMap.keySet
     val selectedFields = c.astFields.flatMap { f =>
       f.selections.map(s => s.asInstanceOf[sangria.ast.Field].name)
     }
 
+    // Vertex on edge has invalid `serviceColumn` info
     lazy val newVertex = c.ctx.toS2VertexLike(vertex.innerId, column)
 
-    if (selectedFields.forall(_ == "id")) scala.concurrent.Future.successful(vertex)
+    val passFetchVertex = selectedFields.forall(f => f == "id" || !columnFields(f))
+
+    if (passFetchVertex) scala.concurrent.Future.successful(vertex)
     else c.ctx.getVertices(Seq(newVertex)).map(_.head) // fill props
   }
 
@@ -325,13 +328,6 @@ class S2Type(repo: GraphRepository) {
             repo.toS2EdgeLike(labelName, param)
           }
         }
-
-        c.ctx.addVertices(edges.toSeq.flatMap { e =>
-          Seq(
-            c.ctx.toS2VertexLike(e.srcVertex.innerId, e.srcVertex.serviceColumn),
-            c.ctx.toS2VertexLike(e.tgtVertex.innerId, e.tgtVertex.serviceColumn)
-          )
-        })
 
         c.ctx.addEdges(edges.toSeq)
       }
