@@ -42,15 +42,19 @@ libraryDependencies ++= Seq(
 
 crossScalaVersions := Seq("2.10.6")
 
-mergeStrategy in assembly := {
+assemblyMergeStrategy in assembly := {
   case PathList("META-INF", ps @ _*) => MergeStrategy.discard
   case _ => MergeStrategy.first
 }
 
-excludedJars in assembly := {
+assemblyExcludedJars in assembly := {
   val cp = (fullClasspath in assembly).value
   cp filter {_.data.getName == "guava-16.0.1.jar"}
 }
+
+assemblyShadeRules in assembly := Seq(
+  ShadeRule.rename("com.google.protobuf.**" -> "org.apache.s2graph.shade.google.protobuf.@1").inAll
+)
 
 test in assembly := {}
 
