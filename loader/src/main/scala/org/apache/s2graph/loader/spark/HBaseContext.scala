@@ -591,6 +591,7 @@ class HBaseContext(@transient private val sc: SparkContext,
    *
    * @param rdd                            The RDD we are bulk loading from
    * @param tableName                      The HBase table we are loading into
+   * @param startKeys
    * @param flatMap                        A flapMap function that will make every
    *                                       row in the RDD
    *                                       into N cells for the bulk load
@@ -603,17 +604,16 @@ class HBaseContext(@transient private val sc: SparkContext,
    */
   def bulkLoad[T](rdd:RDD[T],
                   tableName: TableName,
+                  startKeys: Array[Array[Byte]],
                   flatMap: (T) => Iterator[(KeyFamilyQualifier, Array[Byte])],
                   stagingDir:String,
-                  familyHFileWriteOptionsMap:
-                  util.Map[Array[Byte], FamilyHFileWriteOptions] =
-                  new util.HashMap[Array[Byte], FamilyHFileWriteOptions],
+                  familyHFileWriteOptionsMap: util.Map[Array[Byte], FamilyHFileWriteOptions] = new util.HashMap[Array[Byte], FamilyHFileWriteOptions],
                   compactionExclude: Boolean = false,
                   maxSize:Long = HConstants.DEFAULT_MAX_FILE_SIZE):
   Unit = {
-    val conn = ConnectionFactory.createConnection(config)
-    val regionLocator = conn.getRegionLocator(tableName)
-    val startKeys = regionLocator.getStartKeys
+//    val conn = ConnectionFactory.createConnection(config)
+//    val regionLocator = conn.getRegionLocator(tableName)
+//    val startKeys = regionLocator.getStartKeys
     val defaultCompressionStr = config.get("hfile.compression",
       Compression.Algorithm.NONE.getName)
     val defaultCompression = Compression.getCompressionAlgorithmByName(defaultCompressionStr)

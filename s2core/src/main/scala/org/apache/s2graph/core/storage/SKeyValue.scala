@@ -65,6 +65,10 @@ object CanSKeyValue {
     SKeyValue(Array.empty[Byte], kv.key(), kv.family(), kv.qualifier(), kv.value(), kv.timestamp())
   }
 
+  implicit val hbaseKeyValue = instance[org.apache.hadoop.hbase.KeyValue] { kv =>
+    SKeyValue(Array.empty[Byte], kv.getRow, kv.getFamily, kv.getQualifier, kv.getValue, kv.getTimestamp)
+  }
+
   // For asyncbase KeyValues
   implicit val sKeyValue = instance[SKeyValue](identity)
 

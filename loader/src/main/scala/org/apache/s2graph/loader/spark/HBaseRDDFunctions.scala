@@ -192,6 +192,7 @@ object HBaseRDDFunctions
      */
     def hbaseBulkLoad(hc: HBaseContext,
                          tableName: TableName,
+                         startKeys: Array[Array[Byte]],
                          flatMap: (T) => Iterator[(KeyFamilyQualifier, Array[Byte])],
                          stagingDir:String,
                          familyHFileWriteOptionsMap:
@@ -199,7 +200,7 @@ object HBaseRDDFunctions
                          new util.HashMap[Array[Byte], FamilyHFileWriteOptions](),
                          compactionExclude: Boolean = false,
                          maxSize:Long = HConstants.DEFAULT_MAX_FILE_SIZE):Unit = {
-      hc.bulkLoad(rdd, tableName,
+      hc.bulkLoad(rdd, tableName, startKeys,
         flatMap, stagingDir, familyHFileWriteOptionsMap,
         compactionExclude, maxSize)
     }

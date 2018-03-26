@@ -70,7 +70,7 @@ trait StorageSerDe {
     **/
   def snapshotEdgeDeserializer(schemaVer: String): Deserializable[SnapshotEdge]
 
-  def indexEdgeDeserializer(schemaVer: String): IndexEdgeDeserializable
+  def indexEdgeDeserializer(schemaVer: String): Deserializable[S2EdgeLike]
 
   def vertexDeserializer(schemaVer: String): Deserializable[S2VertexLike]
 

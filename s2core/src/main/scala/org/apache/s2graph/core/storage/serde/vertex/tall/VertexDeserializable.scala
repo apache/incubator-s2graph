@@ -23,7 +23,7 @@ import org.apache.s2graph.core.mysqls.ColumnMeta
 import org.apache.s2graph.core.storage.CanSKeyValue
 import org.apache.s2graph.core.storage.serde.Deserializable
 import org.apache.s2graph.core.storage.serde.StorageDeserializable._
-import org.apache.s2graph.core.types.{HBaseType, InnerValLike, VertexId}
+import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, VertexId}
 import org.apache.s2graph.core.{S2Graph, S2GraphLike, S2Vertex, S2VertexLike}
 
 class VertexDeserializable(graph: S2GraphLike,
@@ -32,19 +32,19 @@ class VertexDeserializable(graph: S2GraphLike,
   def fromKeyValues[T: CanSKeyValue](_kvs: Seq[T],
                                           cacheElementOpt: Option[S2VertexLike]): Option[S2VertexLike] = {
     try {
-      assert(_kvs.size == 1)
-
       val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
       val kv = kvs.head
       val version = HBaseType.DEFAULT_VERSION
-      val (vertexId, _) = VertexId.fromBytes(kv.row, 0, kv.row.length, version)
+      val (vertexId, _) = VertexId.fromBytes(kv.row, 0, kv.row.length - 1, version)
       val serviceColumn = vertexId.column
       val schemaVer = serviceColumn.schemaVersion
 
-      val (props, _) = bytesToKeyValues(kv.value, 0, kv.value.length, schemaVer, serviceColumn)
-
       val propsMap = new collection.mutable.HashMap[ColumnMeta, InnerValLike]
-      props.foreach { case (columnMeta, innerVal) =>
+      kvs.foreach { kv =>
+        val columnMetaSeq = kv.row.last
+        val columnMeta = serviceColumn.metasMap(columnMetaSeq)
+        val (innerVal, _) = InnerVal.fromBytes(kv.value, 0, kv.value.length, schemaVer)
+
         propsMap += (columnMeta -> innerVal)
       }
 
