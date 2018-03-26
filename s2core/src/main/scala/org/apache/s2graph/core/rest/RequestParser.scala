@@ -578,7 +578,8 @@ class RequestParser(graph: S2GraphLike) {
   }
 
   def toVertex(jsValue: JsValue, operation: String = "insert", serviceName: Option[String] = None, columnName: Option[String] = None): Seq[S2VertexLike] = {
-    ((jsValue \ "id").asOpt[JsValue].map(Seq(_)).getOrElse(Nil) ++ (jsValue \ "ids").asOpt[Seq[JsValue]].getOrElse(Nil)).flatMap(JSONParser.jsValueToAny).map { id =>
+    ((jsValue \ "id").asOpt[JsValue].map(Seq(_)).getOrElse(Nil) ++
+      (jsValue \ "ids").asOpt[Seq[JsValue]].getOrElse(Nil)).flatMap(JSONParser.jsValueToAny).map { id =>
       val ts = parseOption[Long](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
       val sName = if (serviceName.isEmpty) parse[String](jsValue, "serviceName") else serviceName.get
       val cName = if (columnName.isEmpty) parse[String](jsValue, "columnName") else columnName.get
