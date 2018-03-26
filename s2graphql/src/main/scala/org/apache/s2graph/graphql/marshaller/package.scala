@@ -57,7 +57,7 @@ package object marshaller {
     val marshaller = CoercedScalaResultMarshaller.default
 
     def fromResult(node: marshaller.Node) = {
-      val input = node.asInstanceOf[Map[String, Any]]
+      val input = node.asInstanceOf[RawNode]
       Index(input("name").asInstanceOf[String], input("propNames").asInstanceOf[Seq[String]])
     }
   }
@@ -66,7 +66,7 @@ package object marshaller {
     val marshaller = CoercedScalaResultMarshaller.default
 
     def fromResult(node: marshaller.Node) = {
-      val input = node.asInstanceOf[Map[String, Any]]
+      val input = node.asInstanceOf[RawNode]
 
       val name = input("name").asInstanceOf[String]
       val defaultValue = input("defaultValue").asInstanceOf[String]
@@ -102,5 +102,4 @@ package object marshaller {
       partialServiceColumns.toVector
     }
   }
-
 }

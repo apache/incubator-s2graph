@@ -124,17 +124,13 @@ class GraphRepository(val graph: S2GraphLike) {
     }
   }
 
-  def deleteServiceColumn(args: Args): List[Try[ServiceColumn]] = {
-    val partialColumns = args.arg[Vector[ServiceColumnParam]]("serviceName")
+  def deleteServiceColumn(args: Args): Try[ServiceColumn] = {
+    val serviceColumnParam = args.arg[ServiceColumnParam]("service")
 
-    val serviceColumns = partialColumns.map { pc =>
-      val serviceName = pc.serviceName
-      val columnName = pc.columnName
+    val serviceName = serviceColumnParam.serviceName
+    val columnName = serviceColumnParam.columnName
 
-      Management.deleteColumn(serviceName, columnName)
-    }
-
-    serviceColumns.toList
+    Management.deleteColumn(serviceName, columnName)
   }
 
   def addPropsToLabel(args: Args): Try[Label] = {
@@ -152,12 +148,12 @@ class GraphRepository(val graph: S2GraphLike) {
 
   def addPropsToServiceColumn(args: Args): Try[ServiceColumn] = {
     Try {
-      val pc = args.arg[Vector[ServiceColumnParam]]("service").head
+      val serviceColumnParam = args.arg[ServiceColumnParam]("service")
 
-      val serviceName = pc.serviceName
-      val columnName = pc.columnName
+      val serviceName = serviceColumnParam.serviceName
+      val columnName = serviceColumnParam.columnName
 
-      pc.props.foreach { prop =>
+      serviceColumnParam.props.foreach { prop =>
         Management.addVertexProp(serviceName, columnName, prop.name, prop.dataType, prop.defaultValue, prop.storeInGlobalIndex)
       }
 

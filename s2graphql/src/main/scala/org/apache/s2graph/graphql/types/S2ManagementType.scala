@@ -216,13 +216,13 @@ class S2ManagementType(repo: GraphRepository) {
     "hTableTTL" -> IntType
   ).map { case (name, _type) => Argument(name, OptionInputType(_type)) }
 
-  val AddPropServiceType = InputObjectType[Vector[ServiceColumnParam]](
+  val AddPropServiceType = InputObjectType[ServiceColumnParam](
     "Input_Service_ServiceColumn_Props",
     description = "desc",
     fields = DummyInputField +: serviceColumnOnServiceWithPropInputObjectFields
   )
 
-  val ServiceColumnSelectType = InputObjectType[Vector[ServiceColumnParam]](
+  val ServiceColumnSelectType = InputObjectType[ServiceColumnParam](
     "Input_Service_ServiceColumn",
     description = "desc",
     fields = DummyInputField +: serviceColumnOnServiceInputObjectFields
@@ -307,7 +307,6 @@ class S2ManagementType(repo: GraphRepository) {
       arguments = NameArg :: serviceOptArgs,
       resolve = c => MutationResponse(c.ctx.createService(c.args))
     ),
-
     Field("createLabel",
       LabelMutationResponseType,
       arguments = NameArg :: PropArg :: IndicesArg :: labelRequiredArg ::: labelOptsArgs,
@@ -318,18 +317,16 @@ class S2ManagementType(repo: GraphRepository) {
       arguments = LabelNameArg :: Nil,
       resolve = c => MutationResponse(c.ctx.deleteLabel(c.args))
     ),
-
     Field("createServiceColumn",
       ServiceColumnMutationResponseType,
       arguments = List(ServiceNameRawArg, Argument("columnName", StringType), ColumnTypeArg, PropArg),
       resolve = c => MutationResponse(c.ctx.createServiceColumn(c.args))
     ),
     Field("deleteServiceColumn",
-      ListType(ServiceColumnMutationResponseType),
-      arguments = Argument("serviceName", ServiceColumnSelectType) :: Nil,
-      resolve = c => c.ctx.deleteServiceColumn(c.args).map(MutationResponse(_))
+      ServiceColumnMutationResponseType,
+      arguments = Argument("service", ServiceColumnSelectType) :: Nil,
+      resolve = c => MutationResponse(c.ctx.deleteServiceColumn(c.args))
     ),
-
     Field("addPropsToServiceColumn",
       ServiceColumnMutationResponseType,
       arguments = Argument("service", AddPropServiceType) :: Nil,

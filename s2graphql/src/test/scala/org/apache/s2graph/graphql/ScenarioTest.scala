@@ -3,6 +3,7 @@ package org.apache.s2graph.graphql
 import com.typesafe.config.ConfigFactory
 import org.scalatest._
 import play.api.libs.json._
+import sangria.execution.ValidationError
 import sangria.macros._
 
 class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
@@ -488,6 +489,105 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
               } ]
             }
           }
+        }
+        """)
+
+      actual shouldBe expected
+    }
+  }
+
+  describe("Management: Delete label, service column") {
+
+    it("should delete label: 'friends' and serviceColumn: 'user' on kakao") {
+      val query =
+        graphql"""
+
+        mutation {
+          Management {
+            deleteLabel(name: friends) {
+              isSuccess
+            }
+
+            deleteServiceColumn(service: {
+              kakao: {
+                columnName: user
+              }
+            }) {
+              isSuccess
+            }
+          }
+        }
+        """
+
+      val actual = testGraph.queryAsJs(query)
+      val expected = Json.parse(
+        """
+        {
+          "data": {
+          	"Management": {
+          	  "deleteLabel": {
+                "isSuccess": true
+          	  },
+              "deleteServiceColumn": {
+                "isSuccess": true
+          	  }
+          	}
+          }
+        }
+      """)
+
+      actual shouldBe expected
+    }
+
+    it("should fetch failed label: 'friends' and serviceColumn: 'user'") {
+      val query =
+        graphql"""
+
+          query {
+            Management {
+              Label(name: friends) {
+                name
+                props {
+                  name
+                  dataType
+                }
+              }
+
+            }
+          }
+          """
+
+      // label 'friends' was deleted
+      assertThrows[ValidationError] {
+        testGraph.queryAsJs(query)
+      }
+
+      val queryServiceColumn =
+        graphql"""
+
+          query {
+            Management {
+             Service(name: kakao) {
+                serviceColumns {
+                  name
+                }
+              }
+            }
+          }
+          """
+
+      // serviceColumn 'user' was deleted
+      val actual = testGraph.queryAsJs(queryServiceColumn)
+      val expected = Json.parse(
+        """
+        {
+        	"data": {
+        		"Management": {
+        			"Service": {
+        				"serviceColumns": []
+        			}
+        		}
+        	}
         }
         """)
 
