@@ -196,11 +196,11 @@ object S2Type {
     lazy val edgeFields: List[Field[GraphRepository, Any]] =
       (labelColumns ++ labelProps).map { case (k, v) => makePropField(k, v) }
 
-    lazy val fromType = ObjectType(s"${label.label}_from", () =>
+    lazy val fromType = ObjectType(s"Label_${label.label}_from", () =>
       makeServiceColumnFields(label.srcColumn) ++ connectedLabelFields
     )
 
-    lazy val toType = ObjectType(s"${label.label}_to", () =>
+    lazy val toType = ObjectType(s"Label_${label.label}_to", () =>
       makeServiceColumnFields(label.tgtColumn) ++ connectedLabelFields
     )
     lazy val fromField: Field[GraphRepository, Any] = Field("from", fromType, resolve = c => {

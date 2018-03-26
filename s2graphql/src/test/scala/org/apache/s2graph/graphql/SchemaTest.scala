@@ -58,7 +58,6 @@ class SchemaTest extends FunSuite with Matchers with BeforeAndAfterAll {
             Map("name" -> "Input_Service"),
             Map("name" -> "Input_Index"),
             Map("name" -> "Input_Prop"),
-            Map("name" -> "Input_Label_Props"),
             Map("name" -> "Input_Column"),
             Map("name" -> "Input_Column_Props"),
 
@@ -71,24 +70,23 @@ class SchemaTest extends FunSuite with Matchers with BeforeAndAfterAll {
             Map("name" -> "Service"),
             Map("name" -> "ServiceColumn"),
 
-            Map("name" -> "Input_friends_edge_mutate"),
-            Map("name" -> "Input_friends_edge_props"),
-
-            Map("name" -> "Input_friends_props"),
-
             Map("name" -> "Input_Service_ServiceColumn"),
             Map("name" -> "Input_Service_ServiceColumn_Props"),
+            Map("name" -> "Input_label_friends_param"),
+            Map("name" -> "Input_vertex_kakao_param"),
 
             Map("name" -> "Input_kakao_user"),
             Map("name" -> "Input_kakao_user_vertex_mutate"),
-            Map("name" -> "Input_kakao_user_vertex_props"),
 
             Map("name" -> "Enum_Service"),
             Map("name" -> "Enum_Label"),
             Map("name" -> "Enum_kakao_ServiceColumn"),
 
             Map("name" -> "Service_kakao"),
+
             Map("name" -> "Label_friends"),
+            Map("name" -> "Label_friends_from"),
+            Map("name" -> "Label_friends_to"),
 
             // root object type
             Map("name" -> "Query"),
@@ -122,6 +120,6 @@ class SchemaTest extends FunSuite with Matchers with BeforeAndAfterAll {
     logger.info(s"expected only has: ${expectedSet -- actualSet}")
     logger.info(s"actual only has: ${actualSet -- expectedSet}")
 
-    actualSet shouldBe expectedSet
+    actualSet.toList.sorted shouldBe expectedSet.toList.sorted
   }
 }
