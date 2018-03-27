@@ -25,15 +25,14 @@ class S2SparkSqlStreamingSink(
   }
 
   override def addBatch(batchId: Long, data: DataFrame): Unit = {
-    val dataCnt = data.count()
-    logger.debug(s"addBatch : $batchId, getLatest : ${writeLog.getLatest()}, data cnt : ${dataCnt}")
+    logger.debug(s"addBatch : $batchId, getLatest : ${writeLog.getLatest()}")
 
     if (batchId <= writeLog.getLatest().map(_._1).getOrElse(-1L)) {
       logger.info(s"Skipping already committed batch [$batchId]")
     } else {
       val queryName = getConfigStringOpt(config, "queryname").getOrElse(UUID.randomUUID().toString)
       val commitProtocol = new S2CommitProtocol(writeLog)
-      val jobState = JobState(queryName, batchId, dataCnt)
+      val jobState = JobState(queryName, batchId)
       val serializedConfig = config.root().render(ConfigRenderOptions.concise())
       val queryExecution = data.queryExecution
       val schema = data.schema
