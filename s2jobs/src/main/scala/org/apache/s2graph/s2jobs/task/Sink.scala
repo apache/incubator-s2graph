@@ -10,7 +10,7 @@ import org.elasticsearch.spark.sql.EsSparkSQL
   * @param conf
   */
 abstract class Sink(queryName:String, override val conf:TaskConf) extends Task {
-  val DEFAULT_CHECKPOINT_LOCATION = s"/tmp/streamingjob/${queryName}"
+  val DEFAULT_CHECKPOINT_LOCATION = s"/tmp/streamingjob/${queryName}/${conf.name}"
   val DEFAULT_TRIGGER_INTERVAL = "10 seconds"
 
   val FORMAT:String
@@ -38,17 +38,15 @@ abstract class Sink(queryName:String, override val conf:TaskConf) extends Task {
 
     val cfg = conf.options ++ Map("checkpointLocation" -> checkpointLocation)
 
-    val partitionedWriter = if (partitionsOpt.isDefined) writer.partitionBy(partitionsOpt.get) else writer
+    val partitionedWriter = if (partitionsOpt.isDefined) writer.partitionBy(partitionsOpt.get.split(","): _*) else writer
 
-    val query = partitionedWriter
-      .queryName(queryName)
+    partitionedWriter
+      .queryName(s"${queryName}_${conf.name}")
       .format(FORMAT)
       .options(cfg)
       .trigger(Trigger.ProcessingTime(interval))
       .outputMode(mode)
       .start()
-
-    query.awaitTermination()
   }
 
   protected def writeBatch(writer: DataFrameWriter[Row]): Unit = {

@@ -22,6 +22,7 @@ class Job(ss:SparkSession, jobDesc:JobDescription) extends Serializable with Log
     } while(processRst.nonEmpty)
 
     logger.debug(s"valid named DF set : ${dfMap.keySet}")
+
     // sinks
     jobDesc.sinks.foreach { s =>
       val inputDFs = s.conf.inputs.flatMap{ input => dfMap.get(input)}
@@ -30,7 +31,8 @@ class Job(ss:SparkSession, jobDesc:JobDescription) extends Serializable with Log
       // use only first input
       s.write(inputDFs.head)
     }
-
+    // if stream query exist
+    if (ss.streams.active.length > 0) ss.streams.awaitAnyTermination()
   }
 
   private def getValidProcess(processes:Seq[Process]):Seq[(String, DataFrame)] = {
