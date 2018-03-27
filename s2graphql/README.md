@@ -89,7 +89,7 @@ I have ported the contents of `Your first graph` provided by S2Graph based on Gr
 The environment for this example is Mac OS and Chrome.
 You can get help with schema-based `Autocompletion` using the `ctrl + space` key.
 
-If you add a `label` or `service`, you will need to `refresh` (`cmd + r`) your browser because the schema will change dynamically.
+If you add a `label` or `service`, etc. you will need to `refresh` (`cmd + r`) your browser because the schema will change dynamically.
 
 1. First, we need a name for the new service.
 
@@ -98,16 +98,16 @@ If you add a `label` or `service`, you will need to `refresh` (`cmd + r`) your b
 Request 
 ```graphql
 mutation {
-  createService(
-    name: "KakaoFavorites",
-    compressionAlgorithm: gz
-  ) {
-    isSuccess
-    message
-    created {
-      id
+  Management {
+    createService(
+      name: "KakaoFavorites"
+      compressionAlgorithm: gz      
+    ) {
+      object {
+        name
+      }
     }
-  } 
+  }
 }
 ```
 
@@ -115,27 +115,92 @@ Response
 ```json
 {
   "data": {
-    "createService": {
-      "isSuccess": true,
-      "message": "Created successful",
-      "created": {
-        "id": 1
+    "Management": {
+      "createService": {
+        "object": {
+          "name": "KakaoFavorites"
+        }
       }
     }
   }
 }
 ```
 
-To make sure the service is created correctly, check out the following.
 
-  > Since the schema has changed, GraphiQL must recognize the changed schema. To do this, refresh the browser several times.
+1.1 And create a `service column`` which is meta information for storing vertex.
+
+    The following POST query will create a service column with the age attribute named "user"
+
+Request
+```graphql
+mutation {
+  Management {
+    createServiceColumn(
+      serviceName: KakaoFavorites
+      columnName: "user"
+      columnType: string
+      props: {
+        name: "age"
+        dataType: int
+        defaultValue: "0"
+        storeInGlobalIndex: true
+      }
+    ) {
+      isSuccess
+      object {
+        name
+        props {
+          name
+          dataType          
+        }
+      }
+    }
+  }
+}
+```
+
+Response
+```json
+{
+  "data": {
+    "Management": {
+      "createServiceColumn": {
+        "isSuccess": true,
+        "object": {
+          "name": "user",
+          "props": [
+            {
+              "name": "age",
+              "dataType": "int"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+
+To make sure the service and service column is created correctly, check out the following.
+
+> Since the schema has changed, GraphiQL must recognize the changed schema. To do this, refresh the browser several times.
 
 Request
 ```graphql
 query {
-  Services(name: KakaoFavorites) {
-    id
-    name     
+  Management {
+    Service(name:KakaoFavorites) {    
+      name
+      serviceColumns {
+        name
+        columnType
+        props {
+          name
+          dataType
+        }
+      }
+    }
   }
 }
 ```
@@ -144,12 +209,23 @@ Response
 ```json
 {
   "data": {
-    "Services": [
-      {
-        "id": 1,
-        "name": "KakaoFavorites"
+    "Management": {
+      "Service": {
+        "name": "KakaoFavorites",
+        "serviceColumns": [
+          {
+            "name": "user",
+            "columnType": "string",
+            "props": [
+              {
+                "name": "age",
+                "dataType": "int"
+              }
+            ]
+          }
+        ]
       }
-    ]
+    }
   }
 }
 ```
@@ -162,40 +238,46 @@ Request
 
 ```graphql
 mutation {
-  createLabel(
-    name: "friends",
-    sourceService: {
-      name: KakaoFavorites,
-      columnName: "userName",
-      dataType: string
-    },
-    targetService: {
-      name: KakaoFavorites,
-      columnName: "userName",
-      dataType: string
-    }
-    consistencyLevel: strong
-  ){
-    isSuccess
-    message
-    created {
-      id
-      name      
+  Management {
+    createLabel(
+      name: "friends"
+      sourceService: {
+        KakaoFavorites: {
+          columnName: user
+        }
+      }
+      targetService: {
+        KakaoFavorites: {
+          columnName: user
+        }
+      }
+      consistencyLevel: strong
+    ) {
+      isSuccess
+      message
+      object {
+        name
+        serviceName
+        tgtColumnName        
+      }
     }
   }
-}
+} 
 ```
 
 Response 
 ```json
 {
   "data": {
-    "createLabel": {
-      "isSuccess": true,
-      "message": "Created successful",
-      "created": {
-        "id": 1,
-        "name": "friends"
+    "Management": {
+      "createLabel": {
+        "isSuccess": true,
+        "message": "Mutation successful",
+        "object": {
+          "name": "friends",
+          "serviceName": "KakaoFavorites",
+          "tgtColumnName": "user"
+        }
       }
     }
   }
@@ -207,12 +289,13 @@ Check if the label has been created correctly
 
 Request
 ```graphql
-query { 
-  Labels(name: friends) {
-    id
-    name
-    srcColumnName
-    tgtColumnName    
+query {
+  Management {
+    Label(name: friends) {
+      name
+      srcColumnName
+      tgtColumnName
+    }
   }
 }
 ```
@@ -221,14 +304,13 @@ Response
 ```json
 {
   "data": {
-    "Labels": [
-      {
-        "id": 1,
+    "Management": {
+      "Label": {
         "name": "friends",
-        "srcColumnName": "userName",
-        "tgtColumnName": "userName"
+        "srcColumnName": "user",
+        "tgtColumnName": "user"
       }
-    ]
+    }
   }
 }
 ```
@@ -241,7 +323,7 @@ Entries of a label are called edges, and you can add edges with edges/insert API
 Request
 ```graphql
 mutation {
-  addEdges(
+  addEdge(
     friends: [
       {from: "Elmo", to: "Big Bird"},
       {from: "Elmo", to: "Ernie"},    
@@ -260,7 +342,7 @@ Response
 ```json
 {
   "data": {
-    "addEdges": [
+    "addEdge": [
       {
         "isSuccess": true
       },
@@ -290,9 +372,13 @@ Request
 
 ```graphql
 query {
-  KakaoFavorites(id: "Elmo") {    
-    friends {
-      to
+  KakaoFavorites {    
+    user(id: "Elmo") {
+      friends {
+        to {
+          id
+        }
+      }
     }
   }
 }
@@ -324,41 +410,17 @@ Response
 
 Now query friends of Cookie Monster:
 
+Request 
+
 ```graphql
 query {
-  KakaoFavorites(id: "Cookie Monster") {
-    friends {
-      to
-    }
-  }
-}
-```
-
-3. Users of Kakao Favorites will be able to post URLs of their favorite websites.
-
-Request
-
-```graphql
-mutation {
-  createLabel(
-    name: "post",
-    sourceService: {
-      name: KakaoFavorites,
-      columnName: "userName",
-      dataType: string
-    },
-    targetService: {
-      name: KakaoFavorites,
-      columnName: "url",
-      dataType: string,      
-    }
-    consistencyLevel: strong
-  ) {
-    isSuccess
-    message
-    created {
-      id
-      name      
+  KakaoFavorites {    
+    user(id: "Elmo") {      
+      friends {        
+        to {
+          id
+        }
+      }
     }
   }
 }
@@ -369,12 +431,77 @@ Response
 ```json
 {
   "data": {
-    "createLabel": {
-      "isSuccess": true,
-      "message": "Created successful",
-      "created": {
-        "id": 2,
-        "name": "post"
+    "KakaoFavorites": {
+      "user": [
+        {
+          "friends": [
+            {
+              "to": {
+                "id": "Ernie"
+              }
+            },
+            {
+              "to": {
+                "id": "Big Bird"
+              }
+            },
+            {
+              "to": {
+                "id": "Bert"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+
+3. Users of Kakao Favorites will be able to post URLs of their favorite websites.
+
+Request
+
+```graphql
+mutation {
+  Management {
+    createLabel(
+      name: "post"
+      sourceService: {
+        KakaoFavorites: {
+          columnName: user
+        }
+      }
+			targetService: {
+        KakaoFavorites: {
+          columnName: user
+        }
+      }
+      consistencyLevel: strong
+    ) {
+      isSuccess
+      message
+      object {        
+        name      
+      }
+    }
+  }
+}
+```
+
+Response
+
+```json
+{
+  "data": {
+    "Management": {
+      "createLabel": {
+        "isSuccess": true,
+        "message": "Mutation successful",
+        "object": {
+          "name": "post"
+        }
       }
     }
   }
@@ -390,7 +517,7 @@ Request
 
 ```graphql
 mutation {
-  addEdges(
+  addEdge(
     post: [
       { from: "Big Bird", to: "www.kakaocorp.com/en/main" },
       { from: "Big Bird", to: "github.com/kakao/s2graph" },
@@ -409,7 +536,7 @@ Response
 ```json
 {
   "data": {
-    "addEdges": [
+    "addEdge": [
       {
         "isSuccess": true
       },
@@ -441,11 +568,18 @@ Request
 
 ```graphql
 query {
-  KakaoFavorites(id: "Elmo") {
-    friends {
-      post {
-        from
-        to
+  KakaoFavorites {
+    user(id: "Elmo") {
+      id
+      friends {
+        to {
+          id
+          post {
+            to {
+              id
+            }
+          }
+        }
       }
     }
   }
@@ -456,35 +590,50 @@ Response
 ```json
 {
   "data": {
-    "KakaoFavorites": [
-      {
-        "friends": [
-          {
-            "post": []
-          },
-          {
-            "post": [
-              {
-                "from": "Ernie",
-                "to": "groups.google.com/forum/#!forum/s2graph"
+    "KakaoFavorites": {
+      "user": [
+        {
+          "id": "Elmo",
+          "friends": [
+            {
+              "to": {
+                "id": "Ernie",
+                "post": [
+                  {
+                    "to": {
+                      "id": "groups.google.com/forum/#!forum/s2graph"
+                    }
+                  }
+                ]
               }
-            ]
-          },
-          {
-            "post": [
-              {
-                "from": "Big Bird",
-                "to": "www.kakaocorp.com/en/main"
-              },
-              {
-                "from": "Big Bird",
-                "to": "github.com/kakao/s2graph"
+            },
+            {
+              "to": {
+                "id": "Bert",
+                "post": []
               }
-            ]
-          }
-        ]
-      }
-    ]
+            },
+            {
+              "to": {
+                "id": "Big Bird",
+                "post": [
+                  {
+                    "to": {
+                      "id": "www.kakaocorp.com/en/main"
+                    }
+                  },
+                  {
+                    "to": {
+                      "id": "github.com/kakao/s2graph"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
   }
 }
 ```
@@ -494,11 +643,17 @@ Also try Cookie Monster's timeline:
 Request
 ```graphql
 query {
-  KakaoFavorites(id: "Cookie Monster") {
-    friends {
-      post {
-        from
-        to
+  KakaoFavorites {
+    user(id: "Cookie Monster") {
+      friends {      
+        to {
+          id
+          post {
+            to {
+              id
+            }
+          }
+        }
       }
     }
   }
@@ -509,36 +664,50 @@ Response
 ```json
 {
   "data": {
-    "KakaoFavorites": [
-      {
-        "friends": [
-          {
-            "post": [
-              {
-                "from": "Oscar",
-                "to": "www.scala-lang.org"
+    "KakaoFavorites": {
+      "user": [
+        {
+          "friends": [
+            {
+              "to": {
+                "id": "Oscar",
+                "post": [
+                  {
+                    "to": {
+                      "id": "www.scala-lang.org"
+                    }
+                  }
+                ]
               }
-            ]
-          },
-          {
-            "post": [
-              {
-                "from": "Kermit",
-                "to": "www.playframework.com"
+            },
+            {
+              "to": {
+                "id": "Kermit",
+                "post": [
+                  {
+                    "to": {
+                      "id": "www.playframework.com"
+                    }
+                  }
+                ]
               }
-            ]
-          },
-          {
-            "post": [
-              {
-                "from": "Grover",
-                "to": "hbase.apache.org/forum/#!forum/s2graph"
+            },
+            {
+              "to": {
+                "id": "Grover",
+                "post": [
+                  {
+                    "to": {
+                      "id": "hbase.apache.org/forum/#!forum/s2graph"
+                    }
+                  }
+                ]
               }
-            ]
-          }
-        ]
-      }
-    ]
+            }
+          ]
+        }
+      ]
+    }
   }
 }
 ```

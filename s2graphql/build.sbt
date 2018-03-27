@@ -26,8 +26,9 @@ description := "GraphQL server with akka-http and sangria and s2graph"
 scalacOptions ++= Seq("-deprecation", "-feature")
 
 libraryDependencies ++= Seq(
-  "org.sangria-graphql" %% "sangria" % "1.3.3",
+  "org.sangria-graphql" %% "sangria" % "1.4.0",
   "org.sangria-graphql" %% "sangria-spray-json" % "1.0.0",
+  "org.sangria-graphql" %% "sangria-play-json" % "1.0.1" % Test,
 
   "com.typesafe.akka" %% "akka-http" % "10.0.10",
   "com.typesafe.akka" %% "akka-http-spray-json" % "10.0.10",

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph
+package org.apache.s2graph.graphql
 
 import java.util.concurrent.Executors
 
@@ -28,13 +28,14 @@ import akka.http.scaladsl.server._
 import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.S2Graph
 import org.apache.s2graph.core.utils.SafeUpdateCache
+import org.apache.s2graph.graphql.repository.GraphRepository
+import org.apache.s2graph.graphql.types._
 import sangria.ast.Document
 import sangria.execution._
 import sangria.marshalling.sprayJson._
 import sangria.parser.QueryParser
-import sangria.renderer.SchemaRenderer
 import sangria.schema.Schema
-import spray.json.{JsObject, JsString, JsValue}
+import spray.json.{JsObject, JsString}
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
@@ -81,13 +82,9 @@ object GraphQLServer {
 
   private def createNewSchema(): Schema[GraphRepository, Any] = {
     println(s"Schema updated: ${System.currentTimeMillis()}")
-
-    val s2Type = new S2Type(s2Repository)
-    val newSchema = new SchemaDef(s2Type).S2GraphSchema
-
-//    println(SchemaRenderer.renderSchema(newSchema))
+    val newSchema = new SchemaDef(s2Repository).S2GraphSchema
+    //    println(SchemaRenderer.renderSchema(newSchema))
     println("-" * 80)
-
     newSchema
   }
 
