@@ -45,7 +45,7 @@ object Server extends App {
     (post & path("graphql")) {
       entity(as[spray.json.JsValue])(GraphQLServer.endpoint)
     } ~ {
-      getFromResource("graphiql.html")
+      getFromResource("assets/graphiql.html")
     }
 
   val port = sys.props.get("http.port").fold(8000)(_.toInt)

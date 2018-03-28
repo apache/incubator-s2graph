@@ -51,15 +51,16 @@ If hbase is running well, run the following command after cloning the project lo
 Because of the license problem, you should download the file through the following command.
 
 ```bash
-cd s2graphql/src/main/resources
-wget https://raw.githubusercontent.com/sangria-graphql/sangria-akka-http-example/master/src/main/resources/graphiql.html
+cd s2graphql/src/main/resources/assets
+wget https://raw.githubusercontent.com/daewon/sangria-akka-http-example/master/src/main/resources/assets/graphiql.html
+
 ```
 
-You can see that the `graphiql.html` file is added to the `s2graphql/src/main/resources` folder as shown below.
+You can see that the `graphiql.html` file is added to the `s2graphql/src/main/resources/assets` folder as shown below.
 
 ```
 $ls
-application.conf  graphiql.html log4j.properties
+graphiql.html
 ```
 
 And let's run http server.
