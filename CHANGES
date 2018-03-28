@@ -45,6 +45,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-184] - spark driver exit abnormally in the loader of s2jobs
     * [S2GRAPH-186] - fix wrong escaping of double quotation marks
     * [S2GRAPH-188] - migrate log4j.properties to log4j2.xml
+    * [S2GRAPH-189] - graphiql.html file not found
 
 ** Improvement
     * [S2GRAPH-72] - Support Apache TinkerPop and Gremlin
