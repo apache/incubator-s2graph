@@ -26,12 +26,23 @@ import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.storage.MutateResponse
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.graphql.types.S2Type._
+import org.slf4j.{Logger, LoggerFactory}
 import sangria.schema._
 
 import scala.concurrent._
-import scala.util.{Failure, Try}
+import scala.util.{Failure, Success, Try}
 
 object GraphRepository {
+
+  def withLogTryResponse[A](opName: String, tryObj: Try[A])(implicit logger: Logger): Try[A] = {
+    tryObj match {
+      case Success(v) => logger.info(s"${opName} Success:", v)
+      case Failure(e) => logger.warn(s"${opName} Failed:", e)
+    }
+
+    tryObj
+  }
+
 }
 
 /**
@@ -39,6 +50,9 @@ object GraphRepository {
   * @param graph
   */
 class GraphRepository(val graph: S2GraphLike) {
+  implicit val logger = LoggerFactory.getLogger(this.getClass)
+
+  import GraphRepository._
 
   val management = graph.management
   val parser = new RequestParser(graph)
@@ -92,7 +106,7 @@ class GraphRepository(val graph: S2GraphLike) {
   def createService(args: Args): Try[Service] = {
     val serviceName = args.arg[String]("name")
 
-    Service.findByName(serviceName) match {
+    val serviceTry = Service.findByName(serviceName) match {
       case Some(_) => Failure(new RuntimeException(s"Service (${serviceName}) already exists"))
       case None =>
         val cluster = args.argOpt[String]("cluster").getOrElse(parser.DefaultCluster)
@@ -111,6 +125,8 @@ class GraphRepository(val graph: S2GraphLike) {
 
         serviceTry
     }
+
+    withLogTryResponse("createService", serviceTry)
   }
 
   def createServiceColumn(args: Args): Try[ServiceColumn] = {
@@ -119,9 +135,11 @@ class GraphRepository(val graph: S2GraphLike) {
     val columnType = args.arg[String]("columnType")
     val props = args.argOpt[Vector[Prop]]("props").getOrElse(Vector.empty)
 
-    Try {
+    val tryColumn = Try {
       management.createServiceColumn(serviceName, columnName, columnType, props)
     }
+
+    withLogTryResponse("createServiceColumn", tryColumn)
   }
 
   def deleteServiceColumn(args: Args): Try[ServiceColumn] = {
@@ -130,11 +148,13 @@ class GraphRepository(val graph: S2GraphLike) {
     val serviceName = serviceColumnParam.serviceName
     val columnName = serviceColumnParam.columnName
 
-    Management.deleteColumn(serviceName, columnName)
+    val deleteTry = Management.deleteColumn(serviceName, columnName)
+
+    withLogTryResponse("deleteServiceColumn", deleteTry)
   }
 
   def addPropsToLabel(args: Args): Try[Label] = {
-    Try {
+    val addPropToLabelTry = Try {
       val labelName = args.arg[String]("labelName")
       val props = args.arg[Vector[Prop]]("props").toList
 
@@ -144,10 +164,12 @@ class GraphRepository(val graph: S2GraphLike) {
 
       Label.findByName(labelName, false).get
     }
+
+    withLogTryResponse("addPropToLabel", addPropToLabelTry)
   }
 
   def addPropsToServiceColumn(args: Args): Try[ServiceColumn] = {
-    Try {
+    val addPropsToServiceColumnTry = Try {
       val serviceColumnParam = args.arg[ServiceColumnParam]("service")
 
       val serviceName = serviceColumnParam.serviceName
@@ -160,6 +182,8 @@ class GraphRepository(val graph: S2GraphLike) {
       val src = Service.findByName(serviceName)
       ServiceColumn.find(src.get.id.get, columnName, false).get
     }
+
+    withLogTryResponse("addPropsToServiceColumn", addPropsToServiceColumnTry)
   }
 
   def createLabel(args: Args): Try[Label] = {
@@ -205,13 +229,14 @@ class GraphRepository(val graph: S2GraphLike) {
       options
     )
 
-    labelTry
+    withLogTryResponse("createLabel", labelTry)
   }
 
   def deleteLabel(args: Args): Try[Label] = {
     val labelName = args.arg[String]("name")
 
-    Management.deleteLabel(labelName)
+    val deleteLabelTry = Management.deleteLabel(labelName)
+    withLogTryResponse("deleteLabel", deleteLabelTry)
   }
 
   def allServices(): List[Service] = Service.findAll()

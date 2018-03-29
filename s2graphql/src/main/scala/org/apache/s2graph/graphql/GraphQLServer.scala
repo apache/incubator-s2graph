@@ -29,7 +29,7 @@ import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.S2Graph
 import org.apache.s2graph.core.utils.SafeUpdateCache
 import org.apache.s2graph.graphql.repository.GraphRepository
-import org.apache.s2graph.graphql.types._
+import org.slf4j.LoggerFactory
 import sangria.ast.Document
 import sangria.execution._
 import sangria.marshalling.sprayJson._
@@ -41,6 +41,8 @@ import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 
 object GraphQLServer {
+
+  val logger = LoggerFactory.getLogger(this.getClass)
 
   // Init s2graph
   val numOfThread = Runtime.getRuntime.availableProcessors()
@@ -69,8 +71,12 @@ object GraphQLServer {
     }
 
     QueryParser.parse(query) match {
-      case Success(queryAst) => complete(executeGraphQLQuery(queryAst, operation, vars))
-      case Failure(error) => complete(BadRequest -> spray.json.JsObject("error" -> JsString(error.getMessage)))
+      case Success(queryAst) =>
+        logger.info(queryAst.renderCompact)
+        complete(executeGraphQLQuery(queryAst, operation, vars))
+      case Failure(error) =>
+        logger.warn(error.getMessage, error)
+        complete(BadRequest -> spray.json.JsObject("error" -> JsString(error.getMessage)))
     }
   }
 
@@ -78,13 +84,13 @@ object GraphQLServer {
     * In development mode(schemaCacheTTL = -1),
     * a new schema is created for each request.
     */
-  println(s"schemaCacheTTL: ${schemaCacheTTL}")
+  logger.info(s"schemaCacheTTL: ${schemaCacheTTL}")
 
   private def createNewSchema(): Schema[GraphRepository, Any] = {
-    println(s"Schema updated: ${System.currentTimeMillis()}")
+    logger.info(s"Schema updated: ${System.currentTimeMillis()}")
     val newSchema = new SchemaDef(s2Repository).S2GraphSchema
-    //    println(SchemaRenderer.renderSchema(newSchema))
-    println("-" * 80)
+    logger.info("-" * 80)
+
     newSchema
   }
 
@@ -100,8 +106,12 @@ object GraphQLServer {
     )
       .map((res: spray.json.JsValue) => OK -> res)
       .recover {
-        case error: QueryAnalysisError => BadRequest -> error.resolveError
-        case error: ErrorWithResolver => InternalServerError -> error.resolveError
+        case error: QueryAnalysisError =>
+          logger.warn(error.getMessage, error)
+          BadRequest -> error.resolveError
+        case error: ErrorWithResolver =>
+          logger.error(error.getMessage, error)
+          InternalServerError -> error.resolveError
       }
   }
 }
