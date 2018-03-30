@@ -46,6 +46,8 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-186] - fix wrong escaping of double quotation marks
     * [S2GRAPH-188] - migrate log4j.properties to log4j2.xml
     * [S2GRAPH-189] - graphiql.html file not found
+    * [S2GRAPH-190] - Remove unnecessary TC JsonBenchmarkSpec
+    * [S2GRAPH-192] - could not find service column when creating the label
 
 ** Improvement
     * [S2GRAPH-72] - Support Apache TinkerPop and Gremlin
@@ -67,6 +69,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-175] - Provide Elastic Search Index Provider.
     * [S2GRAPH-172] - Suggest to implement GraphQL as standard web interface for S2Graph.
     * [S2GRAPH-177] - Add support for createServiceColumn/addVertex APIs on GraphQL.
+    * [S2GRAPH-185] - Support Spark Structured Streaming to work with data in streaming and batch.
 
 ** Task
     * [S2GRAPH-162] - Update year in the NOTICE file.

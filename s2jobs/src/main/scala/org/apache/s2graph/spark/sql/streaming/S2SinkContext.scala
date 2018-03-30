@@ -17,31 +17,28 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.benchmark
+package org.apache.s2graph.spark.sql.streaming
 
-import com.typesafe.config.{ConfigFactory, Config}
-import org.specs2.mutable.Specification
-import scalikejdbc.AutoSession
+import com.typesafe.config.Config
+import org.apache.s2graph.core.S2Graph
 
 import scala.concurrent.ExecutionContext
 
-trait BenchmarkCommon extends Specification {
-  val wrapStr = s"\n=================================================="
-
-  def duration[T](prefix: String = "")(block: => T) = {
-    val startTs = System.currentTimeMillis()
-    val ret = block
-    val endTs = System.currentTimeMillis()
-    println(s"$wrapStr\n$prefix: took ${endTs - startTs} ms$wrapStr")
-    ret
+class S2SinkContext(config: Config)(implicit ec: ExecutionContext = ExecutionContext.Implicits.global){
+  println(s">>>> S2SinkContext Created...")
+  private lazy val s2Graph = new S2Graph(config)
+  def getGraph: S2Graph = {
+    s2Graph
   }
+}
 
-  def durationWithReturn[T](prefix: String = "")(block: => T): (T, Long) = {
-    val startTs = System.currentTimeMillis()
-    val ret = block
-    val endTs = System.currentTimeMillis()
-    val duration = endTs - startTs
-//    println(s"$wrapStr\n$prefix: took $duration ms$wrapStr")
-    (ret, duration)
+object S2SinkContext {
+  private var s2SinkContext:S2SinkContext = null
+
+  def apply(config:Config):S2SinkContext = {
+    if (s2SinkContext == null) {
+      s2SinkContext = new S2SinkContext(config)
+    }
+    s2SinkContext
   }
 }
