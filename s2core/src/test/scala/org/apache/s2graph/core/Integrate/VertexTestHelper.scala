@@ -59,6 +59,33 @@ class VertexTestHelper extends IntegrateCommon {
     }
   }
 
+  test("[S2GRAPH-186]: escaping of double quotation marks") {
+    val ids = Seq("a", "\"a\"")
+    val (serviceName, stringColumnName) = (testServiceName, testTgtColumnName)
+
+    val data = vertexInsertsPayloadString(serviceName, stringColumnName, ids)
+    val payload = Json.parse(Json.toJson(data).toString)
+    println(payload)
+
+    val vertices = parser.toVertices(payload, "insert", Option(serviceName),
+      Option(stringColumnName))
+    val srcVertices = vertices
+    Await.result(graph.mutateVertices(srcVertices, withWait = true), HttpRequestWaitingTime)
+
+    val res = graph.getVertices(srcVertices).map { vertices =>
+      PostProcess.verticesToJson(vertices)
+    }
+
+    val ret = Await.result(res, HttpRequestWaitingTime)
+    val fetched = ret.as[Seq[JsValue]]
+    for {
+      (d, f) <- data.zip(fetched)
+    } yield {
+      (d \ "id") should be(f \ "id")
+      ((d \ "props") \ "age") should be((f \ "props") \ "age")
+    }
+  }
+
   object VertexTestHelper {
     def vertexQueryJson(serviceName: String, columnName: String, ids: Seq[Int]) = {
       Json.parse(
@@ -69,8 +96,23 @@ class VertexTestHelper extends IntegrateCommon {
            |]
        """.stripMargin)
     }
+    def vertexQueryJsonString(serviceName: String, columnName: String, ids: Seq[String]) = {
+      Json.parse(
+        s"""
+           |[
+           |{"serviceName": "$serviceName", "columnName": "$columnName", "ids": [${ids.mkString(",")}
+         ]}
+           |]
+       """.stripMargin)
+    }
 
     def vertexInsertsPayload(serviceName: String, columnName: String, ids: Seq[Int]): Seq[JsValue] = {
+      ids.map { id =>
+        Json.obj("id" -> id, "props" -> randomProps, "timestamp" -> System.currentTimeMillis())
+      }
+    }
+
+    def vertexInsertsPayloadString(serviceName: String, columnName: String, ids: Seq[String]): Seq[JsValue] = {
       ids.map { id =>
         Json.obj("id" -> id, "props" -> randomProps, "timestamp" -> System.currentTimeMillis())
       }
