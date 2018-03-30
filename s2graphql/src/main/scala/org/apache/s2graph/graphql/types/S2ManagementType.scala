@@ -38,8 +38,6 @@ object S2ManagementType {
 
   import sangria.schema._
 
-  case class PropWithColumn(name: String, Props: Vector[Prop])
-
   case class MutationResponse[T](result: Try[T])
 
   def makeMutationResponseType[T](name: String, desc: String, tpe: ObjectType[_, T]): ObjectType[Unit, MutationResponse[T]] = {

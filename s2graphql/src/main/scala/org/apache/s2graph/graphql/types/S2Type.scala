@@ -39,16 +39,12 @@ object S2Type {
                           from: Any,
                           to: Any,
                           direction: String,
-                          props: Map[String, Any]) {
-  }
+                          props: Map[String, Any])
 
   // Management params
   case class ServiceColumnParam(serviceName: String,
                                 columnName: String,
                                 props: Seq[Prop] = Nil)
-
-
-  val DirArg = Argument("direction", OptionInputType(DirectionType), "desc here", defaultValue = "out")
 
   def makeField[A](name: String, cType: String, tpe: ScalarType[A]): Field[GraphRepository, Any] =
     Field(name,
@@ -221,7 +217,7 @@ object S2Type {
     lazy val edgeTypeField: Field[GraphRepository, Any] = Field(
       s"${label.label}",
       ListType(EdgeType),
-      arguments = DirArg :: Nil,
+      arguments = Argument("direction", OptionInputType(DirectionType), "desc here", defaultValue = "out") :: Nil,
       description = Some("fetch edges"),
       resolve = { c =>
         val dir = c.argOpt("direction").getOrElse("out")
