@@ -77,7 +77,7 @@ class S2ManagementType(repo: GraphRepository) {
 
   lazy val serviceColumnOnServiceWithPropInputObjectFields = repo.allServices.map { service =>
     InputField(service.serviceName, OptionInputType(InputObjectType(
-      s"Input_Column_Props",
+      s"Input_${service.serviceName}_ServiceColumn_Props",
       description = "desc here",
       fields = List(
         InputField("columnName", makeServiceColumnEnumTypeOnService(service)),
@@ -88,7 +88,7 @@ class S2ManagementType(repo: GraphRepository) {
 
   lazy val serviceColumnOnServiceInputObjectFields = repo.allServices.map { service =>
     InputField(service.serviceName, OptionInputType(InputObjectType(
-      s"Input_Column",
+      s"Input_${service.serviceName}_ServiceColumn",
       description = "desc here",
       fields = List(
         InputField("columnName", makeServiceColumnEnumTypeOnService(service))
