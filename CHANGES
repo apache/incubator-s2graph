@@ -50,6 +50,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-190] - Remove unnecessary TC JsonBenchmarkSpec
     * [S2GRAPH-191] - Providing request / response logging to GraphQL server and removing println
     * [S2GRAPH-192] - could not find service column when creating the label
+    * [S2GRAPH-195] - could not create indices using S2GraphQL
 
 ** Improvement
     * [S2GRAPH-72] - Support Apache TinkerPop and Gremlin
