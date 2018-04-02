@@ -20,7 +20,11 @@
 package org.apache.s2graph.s2jobs.serde
 
 import org.apache.s2graph.core.{GraphElement, S2Graph}
+import org.apache.s2graph.s2jobs.DegreeKey
 
 trait GraphElementWritable[T] extends Serializable {
+
   def write(s2: S2Graph)(element: GraphElement): T
+
+  def writeDegree(s2: S2Graph)(degreeKey: DegreeKey, count: Long): T
 }

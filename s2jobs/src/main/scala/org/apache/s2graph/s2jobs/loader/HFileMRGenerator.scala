@@ -34,6 +34,8 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, SequenceFileInputFormat}
 import org.apache.hadoop.mapreduce.lib.output.{FileOutputFormat, SequenceFileOutputFormat}
 import org.apache.hadoop.mapreduce.{Job, Mapper}
+import org.apache.s2graph.s2jobs.serde.reader.TsvBulkFormatReader
+import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
@@ -105,6 +107,10 @@ object HFileMRGenerator extends RawFileGenerator[String, KeyValue] {
                input: RDD[String],
                options: GraphFileOptions): RDD[KeyValue] = {
     val transformer = new SparkBulkLoaderTransformer(s2Config, options)
+
+    implicit val reader = new TsvBulkFormatReader
+    implicit val writer = new KeyValueWriter
+
     transformer.transform(input).flatMap(kvs => kvs)
   }
 

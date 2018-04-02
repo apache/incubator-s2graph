@@ -21,7 +21,7 @@ package org.apache.s2graph.s2jobs.serde.writer
 
 import org.apache.hadoop.hbase.KeyValue
 import org.apache.s2graph.core.{GraphElement, S2Graph}
-import org.apache.s2graph.s2jobs.S2GraphHelper
+import org.apache.s2graph.s2jobs.{DegreeKey, S2GraphHelper}
 import org.apache.s2graph.s2jobs.serde.GraphElementWritable
 
 class KeyValueWriter(autoEdgeCreate: Boolean = false) extends GraphElementWritable[Seq[KeyValue]] {
@@ -29,5 +29,9 @@ class KeyValueWriter(autoEdgeCreate: Boolean = false) extends GraphElementWritab
     S2GraphHelper.toSKeyValues(s2, element, autoEdgeCreate).map { skv =>
       new KeyValue(skv.row, skv.cf, skv.qualifier, skv.timestamp, skv.value)
     }
+  }
+
+  override def writeDegree(s2: S2Graph)(degreeKey: DegreeKey, count: Long): Seq[KeyValue] = {
+    DegreeKey.toKeyValue(s2, degreeKey, count)
   }
 }

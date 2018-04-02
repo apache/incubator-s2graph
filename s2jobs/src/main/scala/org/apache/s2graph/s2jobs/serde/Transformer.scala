@@ -23,28 +23,21 @@ import com.typesafe.config.Config
 import org.apache.s2graph.core.GraphElement
 import org.apache.s2graph.s2jobs.loader.GraphFileOptions
 
+import scala.reflect.ClassTag
+
 /**
   * Define serialize/deserialize.
   * Source -> GraphElement
   * GraphElement -> Target
   *
-  * @tparam S : Source class. ex) String, RDF.Statement, ...
-  * @tparam T : Target class. ex) KeyValue, Array[Byte], String, ...
   * @tparam M : Container type. ex) RDD, Seq, List, ...
   */
-trait Transformer[S, T, M[_]] extends Serializable {
+trait Transformer[M[_]] extends Serializable {
   val config: Config
   val options: GraphFileOptions
 
-  val reader: GraphElementReadable[S]
+  def buildDegrees[T: ClassTag](elements: M[GraphElement])(implicit writer: GraphElementWritable[T]): M[T]
 
-  val writer: GraphElementWritable[T]
-
-  def read(input: M[S]): M[GraphElement]
-
-  def write(elements: M[GraphElement]): M[T]
-
-  def buildDegrees(elements: M[GraphElement]): M[T]
-
-  def transform(input: M[S]): M[T]
+  def transform[S: ClassTag, T: ClassTag](input: M[S])
+                           (implicit reader: GraphElementReadable[S], writer: GraphElementWritable[T]): M[T]
 }

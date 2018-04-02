@@ -29,6 +29,8 @@ import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{CellUtil, HBaseConfiguration, KeyValue, TableName}
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageManagement
+import org.apache.s2graph.s2jobs.serde.reader.TsvBulkFormatReader
+import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
 import org.apache.s2graph.s2jobs.spark.{FamilyHFileWriteOptions, HBaseContext, KeyFamilyQualifier}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -113,6 +115,10 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
                         rdd: RDD[String],
                         _options: GraphFileOptions): Unit = {
     val transformer = new SparkBulkLoaderTransformer(config, _options)
+
+    implicit val reader = new TsvBulkFormatReader
+    implicit val writer = new KeyValueWriter
+
     val kvs = transformer.transform(rdd).flatMap(kvs => kvs)
 
     HFileGenerator.generateHFile(sc, config, kvs, _options)

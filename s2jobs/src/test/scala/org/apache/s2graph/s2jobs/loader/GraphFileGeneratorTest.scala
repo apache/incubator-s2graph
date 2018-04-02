@@ -22,6 +22,8 @@ package org.apache.s2graph.s2jobs.loader
 import org.apache.s2graph.core.PostProcess
 import org.apache.s2graph.core.storage.{CanSKeyValue, SKeyValue}
 import org.apache.s2graph.s2jobs.BaseSparkTest
+import org.apache.s2graph.s2jobs.serde.reader.{RowBulkFormatReader, TsvBulkFormatReader}
+import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
 import org.apache.spark.rdd.RDD
 import play.api.libs.json.Json
 
@@ -36,6 +38,10 @@ class GraphFileGeneratorTest extends BaseSparkTest {
       case "spark" =>
         val input: RDD[String] = sc.parallelize(edges)
         val transformer = new SparkBulkLoaderTransformer(s2Config, options)
+
+        implicit val reader = new TsvBulkFormatReader
+        implicit val writer = new KeyValueWriter
+
         val kvs = transformer.transform(input)
         kvs.flatMap { kvs =>
           kvs.map { kv =>
@@ -46,6 +52,10 @@ class GraphFileGeneratorTest extends BaseSparkTest {
       case "local" =>
         val input = edges
         val transformer = new LocalBulkLoaderTransformer(s2Config, options)
+
+        implicit val reader = new TsvBulkFormatReader
+        implicit val writer = new KeyValueWriter
+
         val kvs = transformer.transform(input)
         kvs.flatMap { kvs =>
           kvs.map { kv =>
@@ -68,7 +78,11 @@ class GraphFileGeneratorTest extends BaseSparkTest {
             e.getDirection())
         }.toDF("timestamp", "operation", "element", "from", "to", "label", "props", "direction").rdd
 
-        val transformer = new SparkGraphElementLoaderTransformer(s2Config, options)
+        val transformer = new SparkBulkLoaderTransformer(s2Config, options)
+
+        implicit val reader = new RowBulkFormatReader
+        implicit val writer = new KeyValueWriter
+
         val kvs = transformer.transform(rows)
         kvs.flatMap { kvs =>
           kvs.map { kv =>
