@@ -176,6 +176,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
 
   override val config = _config.withFallback(S2Graph.DefaultConfig)
 
+  val storageBackend = Try { config.getString("s2graph.storage.backend") }.getOrElse("hbase")
+
   Model.apply(config)
   Model.loadCache()
 

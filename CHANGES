@@ -73,6 +73,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-172] - Suggest to implement GraphQL as standard web interface for S2Graph.
     * [S2GRAPH-177] - Add support for createServiceColumn/addVertex APIs on GraphQL.
     * [S2GRAPH-185] - Support Spark Structured Streaming to work with data in streaming and batch.
+    * [S2GRAPH-183] - Provide batch job to dump data stored in HBase into file.
 
 ** Task
     * [S2GRAPH-162] - Update year in the NOTICE file.

@@ -17,15 +17,34 @@
  * under the License.
  */
 
-package org.apache.s2graph.s2jobs.loader
+package org.apache.s2graph.s2jobs.serde
 
 import com.typesafe.config.Config
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
+import org.apache.s2graph.core.GraphElement
+import org.apache.s2graph.s2jobs.loader.GraphFileOptions
 
-trait RawFileGenerator[S, T] {
-  def generate(sc: SparkContext,
-               config: Config,
-               rdd: RDD[S],
-               _options: GraphFileOptions): Unit
+/**
+  * Define serialize/deserialize.
+  * Source -> GraphElement
+  * GraphElement -> Target
+  *
+  * @tparam S : Source class. ex) String, RDF.Statement, ...
+  * @tparam T : Target class. ex) KeyValue, Array[Byte], String, ...
+  * @tparam M : Container type. ex) RDD, Seq, List, ...
+  */
+trait Transformer[S, T, M[_]] extends Serializable {
+  val config: Config
+  val options: GraphFileOptions
+
+  val reader: GraphElementReadable[S]
+
+  val writer: GraphElementWritable[T]
+
+  def read(input: M[S]): M[GraphElement]
+
+  def write(elements: M[GraphElement]): M[T]
+
+  def buildDegrees(elements: M[GraphElement]): M[T]
+
+  def transform(input: M[S]): M[T]
 }
