@@ -21,6 +21,7 @@ package org.apache.s2graph.s2jobs
 
 import java.io.{File, PrintWriter}
 
+import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls.{Label, ServiceColumn}
 import org.apache.s2graph.core.{Management, S2Graph}
@@ -31,11 +32,10 @@ import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 import scala.util.Try
 
-class BaseSparkTest extends FunSuite with Matchers with BeforeAndAfterAll {
+class BaseSparkTest extends FunSuite with Matchers with BeforeAndAfterAll with DataFrameSuiteBase {
   private val master = "local[2]"
   private val appName = "example-spark"
 
-  protected var sc: SparkContext = _
   protected val options = GraphFileOptions(
     input = "/tmp/test.txt",
     tempDir = "/tmp/bulkload_tmp",
@@ -65,18 +65,15 @@ class BaseSparkTest extends FunSuite with Matchers with BeforeAndAfterAll {
 
   override def beforeAll(): Unit = {
     // initialize spark context.
-    val conf = new SparkConf()
-      .setMaster(master)
-      .setAppName(appName)
-
-    sc = new SparkContext(conf)
+    super.beforeAll()
 
     s2 = S2GraphHelper.initS2Graph(s2Config)
     initTestDataFile
   }
 
   override def afterAll(): Unit = {
-    if (sc != null) sc.stop()
+    super.afterAll()
+
     if (s2 != null) s2.shutdown()
   }
 

@@ -24,9 +24,15 @@ import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.s2graph.core.types.{InnerValLikeWithTs, SourceVertexId}
-import play.api.libs.json.Json
+import org.apache.s2graph.s2jobs.loader.GraphFileOptions
+import org.apache.s2graph.s2jobs.task.TaskConf
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
+import org.apache.spark.sql.types.StructType
+import play.api.libs.json.{JsObject, Json}
 
 import scala.concurrent.ExecutionContext
+import scala.util.Try
 
 object S2GraphHelper {
   def initS2Graph(config: Config)(implicit ec: ExecutionContext = ExecutionContext.Implicits.global): S2Graph = {
@@ -77,5 +83,54 @@ object S2GraphHelper {
     } else {
       Nil
     }
+  }
+
+  //TODO:
+  def toGraphFileOptions(taskConf: TaskConf): GraphFileOptions = {
+    GraphFileOptions()
+  }
+
+  def sparkSqlRowToGraphElement(s2: S2Graph, row: Row, schema: StructType, reservedColumn: Set[String]): Option[GraphElement] = {
+    val timestamp = row.getAs[Long]("timestamp")
+    val operation = Try(row.getAs[String]("operation")).getOrElse("insert")
+    val elem = Try(row.getAs[String]("elem")).getOrElse("e")
+
+    val props: Map[String, Any] = Option(row.getAs[String]("props")) match {
+      case Some(propsStr:String) =>
+        JSONParser.fromJsonToProperties(Json.parse(propsStr).as[JsObject])
+      case None =>
+        schema.fieldNames.flatMap { field =>
+          if (!reservedColumn.contains(field)) {
+            Seq(
+              field -> getRowValAny(row, field)
+            )
+          } else Nil
+        }.toMap
+    }
+
+    elem match {
+      case "e" | "edge" =>
+        val from = getRowValAny(row, "from")
+        val to = getRowValAny(row, "to")
+        val label = row.getAs[String]("label")
+        val direction = Try(row.getAs[String]("direction")).getOrElse("out")
+        Some(
+          s2.elementBuilder.toEdge(from, to, label, direction, props, timestamp, operation)
+        )
+      case "v" | "vertex" =>
+        val id = getRowValAny(row, "id")
+        val serviceName = row.getAs[String]("service")
+        val columnName = row.getAs[String]("column")
+        Some(
+          s2.elementBuilder.toVertex(serviceName, columnName, id, props, timestamp, operation)
+        )
+      case _ =>
+        None
+    }
+  }
+
+  private def getRowValAny(row:Row, fieldName:String):Any = {
+    val idx = row.fieldIndex(fieldName)
+    row.get(idx)
   }
 }

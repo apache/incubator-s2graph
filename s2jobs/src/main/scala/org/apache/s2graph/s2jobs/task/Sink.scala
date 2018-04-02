@@ -19,6 +19,12 @@
 
 package org.apache.s2graph.s2jobs.task
 
+import com.typesafe.config.Config
+import org.apache.s2graph.core.{GraphElement, Management}
+import org.apache.s2graph.s2jobs.S2GraphHelper
+import org.apache.s2graph.s2jobs.loader.{GraphFileOptions, HFileGenerator, SparkBulkLoaderTransformer, SparkGraphElementLoaderTransformer}
+import org.apache.s2graph.s2jobs.serde.GraphElementReadable
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, Trigger}
 import org.elasticsearch.spark.sql.EsSparkSQL
@@ -189,7 +195,22 @@ class S2graphSink(queryName:String, conf:TaskConf) extends Sink(queryName, conf)
   override def mandatoryOptions: Set[String] = Set()
   override val FORMAT: String = "org.apache.s2graph.spark.sql.streaming.S2SinkProvider"
 
-  override protected def writeBatch(writer: DataFrameWriter[Row]): Unit =
-    throw new RuntimeException(s"unsupported source type for ${this.getClass.getSimpleName} : ${conf.name}")
+  private val RESERVED_COLUMN = Set("timestamp", "from", "to", "label", "operation", "elem", "direction")
+
+  override def write(inputDF: DataFrame):Unit = {
+    val df = repartition(preprocess(inputDF), inputDF.sparkSession.sparkContext.defaultParallelism)
+
+    if (inputDF.isStreaming) writeStream(df.writeStream)
+    else {
+      val config: Config = Management.toConfig(conf.options)
+      val bulkLoadOptions: GraphFileOptions = S2GraphHelper.toGraphFileOptions(conf)
+      val input = df.rdd
+
+      val transformer = new SparkGraphElementLoaderTransformer(config, bulkLoadOptions)
+      val kvs = transformer.transform(input)
+
+      HFileGenerator.generateHFile(df.sparkSession.sparkContext, config, kvs.flatMap(ls => ls), bulkLoadOptions)
+    }
+  }
 }
 
