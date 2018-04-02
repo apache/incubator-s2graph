@@ -91,6 +91,10 @@ object GraphFileOptions {
       (inner.head, inner.last)
     }).toMap
   }
+
+  def toLabelMappingString(labelMapping: Map[String, String]): String =
+    labelMapping.map { case (k, v) => Seq(k, v).mkString(":") }.mkString(",")
+
 }
 /**
   * Option case class for TransferToHFile.
@@ -135,4 +139,24 @@ case class GraphFileOptions(input: String = "",
       "db.default.driver" -> dbDriver
     )
   }
+
+  def toCommand: Array[String] =
+    Array(
+      "--input", input,
+      "--tempDir", tempDir,
+      "--output", output,
+      "--zkQuorum", zkQuorum,
+      "--table", tableName,
+      "--dbUrl", dbUrl,
+      "--dbUser", dbUser,
+      "--dbPassword", dbPassword,
+      "--dbDriver", dbDriver,
+      "--maxHFilePerRegionServer", maxHFilePerRegionServer.toString,
+      "--numRegions", numRegions.toString,
+      "--labelMapping", GraphFileOptions.toLabelMappingString(labelMapping),
+      "--autoEdgeCreate", autoEdgeCreate.toString,
+      "--buildDegree", buildDegree.toString,
+      "--incrementalLoad", incrementalLoad.toString,
+      "--method", method
+    )
 }

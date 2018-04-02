@@ -24,10 +24,11 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase.client.ConnectionFactory
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
-import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
+import org.apache.hadoop.hbase.mapreduce.{LoadIncrementalHFiles, TableOutputFormat}
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{CellUtil, HBaseConfiguration, KeyValue, TableName}
+import org.apache.hadoop.util.ToolRunner
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageManagement
 import org.apache.s2graph.s2jobs.serde.reader.TsvBulkFormatReader
 import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
@@ -122,6 +123,13 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
     val kvs = transformer.transform(rdd).flatMap(kvs => kvs)
 
     HFileGenerator.generateHFile(sc, config, kvs, _options)
+  }
+
+  def loadIncrementHFile(options: GraphFileOptions): Int = {
+    /* LoadIncrementHFiles */
+    val hfileArgs = Array(options.output, options.tableName)
+    val hbaseConfig = HBaseConfiguration.create()
+    ToolRunner.run(hbaseConfig, new LoadIncrementalHFiles(hbaseConfig), hfileArgs)
   }
 }
 

@@ -85,9 +85,10 @@ object S2GraphHelper {
     }
   }
 
-  //TODO:
   def toGraphFileOptions(taskConf: TaskConf): GraphFileOptions = {
-    GraphFileOptions()
+    val args = taskConf.options.flatMap(kv => Seq(kv._1, kv._2)).toSeq.toArray
+
+    GraphFileOptions.toOption(args)
   }
 
   def sparkSqlRowToGraphElement(s2: S2Graph, row: Row, schema: StructType, reservedColumn: Set[String]): Option[GraphElement] = {
