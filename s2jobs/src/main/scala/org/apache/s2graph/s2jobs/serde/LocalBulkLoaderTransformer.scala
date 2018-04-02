@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.apache.s2graph.s2jobs.loader
+package org.apache.s2graph.s2jobs.serde
 
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.KeyValue
 import org.apache.s2graph.core.{GraphElement, S2Graph}
-import org.apache.s2graph.s2jobs.serde.Transformer
+import org.apache.s2graph.s2jobs.loader.GraphFileOptions
 import org.apache.s2graph.s2jobs.serde.reader.TsvBulkFormatReader
 import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
 import org.apache.s2graph.s2jobs.{DegreeKey, S2GraphHelper}
@@ -34,7 +34,7 @@ class LocalBulkLoaderTransformer(val config: Config,
   val s2: S2Graph = S2GraphHelper.initS2Graph(config)
 
   override val reader = new TsvBulkFormatReader
-  override val writer = new KeyValueWriter
+  override val writer = new KeyValueWriter(options)
 
   override def read(input: Seq[String]): Seq[GraphElement] = input.flatMap(reader.read(s2)(_))
 

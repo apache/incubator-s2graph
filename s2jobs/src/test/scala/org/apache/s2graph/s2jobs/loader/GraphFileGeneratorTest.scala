@@ -19,19 +19,17 @@
 
 package org.apache.s2graph.s2jobs.loader
 
-import org.apache.hadoop.hbase.HBaseConfiguration
-import org.apache.hadoop.hbase.mapreduce.LoadIncrementalHFiles
-import org.apache.hadoop.util.ToolRunner
-import org.apache.s2graph.core.{PostProcess, S2VertexLike}
+import org.apache.s2graph.core.PostProcess
 import org.apache.s2graph.core.storage.{CanSKeyValue, SKeyValue}
 import org.apache.s2graph.s2jobs.BaseSparkTest
+import org.apache.s2graph.s2jobs.serde.{LocalBulkLoaderTransformer, SparkBulkLoaderTransformer}
 import play.api.libs.json.Json
 
-import scala.io.Source
-
 class GraphFileGeneratorTest extends BaseSparkTest {
-  import scala.concurrent.ExecutionContext.Implicits.global
+
   import org.apache.hadoop.hbase.{KeyValue => HKeyValue}
+
+  import scala.concurrent.ExecutionContext.Implicits.global
 
   def transformToSKeyValues(transformerMode: String, edges: Seq[String]): List[SKeyValue] = {
     transformerMode match {
@@ -56,6 +54,7 @@ class GraphFileGeneratorTest extends BaseSparkTest {
         }.toList
     }
   }
+
   test("test generateKeyValues edge only. SparkBulkLoaderTransformer") {
     val label = initTestEdgeSchema(s2, tableName, schemaVersion, compressionAlgorithm)
     /* end of initialize model */
@@ -121,7 +120,7 @@ class GraphFileGeneratorTest extends BaseSparkTest {
       println(Json.prettyPrint(jsValue))
     }
 
-    bulkVertex shouldBe(vertex)
+    bulkVertex shouldBe (vertex)
   }
 
   test("test generateKeyValues vertex only. LocalBulkLoaderTransformer") {
@@ -140,46 +139,46 @@ class GraphFileGeneratorTest extends BaseSparkTest {
       println(Json.prettyPrint(jsValue))
     }
 
-    bulkVertex shouldBe(vertex)
+    bulkVertex shouldBe (vertex)
   }
 
-//   this test case expect options.input already exist with valid bulk load format.
-//  test("bulk load and fetch vertex: spark mode") {
-//    import scala.collection.JavaConverters._
-//    val serviceColumn = initTestVertexSchema(s2)
-//
-//    val bulkVertexLs = Source.fromFile(options.input).getLines().toSeq
-//    val input = sc.parallelize(bulkVertexLs)
-//
-//    HFileGenerator.generate(sc, s2Config, input, options)
-//
-//    val hfileArgs = Array(options.output, options.tableName)
-//    val hbaseConfig = HBaseConfiguration.create()
-//
-//    val ret = ToolRunner.run(hbaseConfig, new LoadIncrementalHFiles(hbaseConfig), hfileArgs)
-//
-//    val s2Vertices = s2.vertices().asScala.toSeq.map(_.asInstanceOf[S2VertexLike])
-//    val json = PostProcess.verticesToJson(s2Vertices)
-//
-//    println(Json.prettyPrint(json))
-//  }
+  //   this test case expect options.input already exist with valid bulk load format.
+  //  test("bulk load and fetch vertex: spark mode") {
+  //    import scala.collection.JavaConverters._
+  //    val serviceColumn = initTestVertexSchema(s2)
+  //
+  //    val bulkVertexLs = Source.fromFile(options.input).getLines().toSeq
+  //    val input = sc.parallelize(bulkVertexLs)
+  //
+  //    HFileGenerator.generate(sc, s2Config, input, options)
+  //
+  //    val hfileArgs = Array(options.output, options.tableName)
+  //    val hbaseConfig = HBaseConfiguration.create()
+  //
+  //    val ret = ToolRunner.run(hbaseConfig, new LoadIncrementalHFiles(hbaseConfig), hfileArgs)
+  //
+  //    val s2Vertices = s2.vertices().asScala.toSeq.map(_.asInstanceOf[S2VertexLike])
+  //    val json = PostProcess.verticesToJson(s2Vertices)
+  //
+  //    println(Json.prettyPrint(json))
+  //  }
 
-//   this test case expect options.input already exist with valid bulk load format.
-//  test("bulk load and fetch vertex: mr mode") {
-//    val serviceColumn = initTestVertexSchema(s2)
-//
-//    val bulkVertexLs = Source.fromFile(options.input).getLines().toSeq
-//    val input = sc.parallelize(bulkVertexLs)
-//
-//    HFileMRGenerator.generate(sc, s2Config, input, options)
-//
-//    val hfileArgs = Array(options.output, options.tableName)
-//    val hbaseConfig = HBaseConfiguration.create()
-//
-//    val ret = ToolRunner.run(hbaseConfig, new LoadIncrementalHFiles(hbaseConfig), hfileArgs)
-//    val s2Vertices = s2.vertices().asScala.toSeq.map(_.asInstanceOf[S2VertexLike])
-//    val json = PostProcess.verticesToJson(s2Vertices)
-//
-//    println(Json.prettyPrint(json))
-//  }
+  //   this test case expect options.input already exist with valid bulk load format.
+  //  test("bulk load and fetch vertex: mr mode") {
+  //    val serviceColumn = initTestVertexSchema(s2)
+  //
+  //    val bulkVertexLs = Source.fromFile(options.input).getLines().toSeq
+  //    val input = sc.parallelize(bulkVertexLs)
+  //
+  //    HFileMRGenerator.generate(sc, s2Config, input, options)
+  //
+  //    val hfileArgs = Array(options.output, options.tableName)
+  //    val hbaseConfig = HBaseConfiguration.create()
+  //
+  //    val ret = ToolRunner.run(hbaseConfig, new LoadIncrementalHFiles(hbaseConfig), hfileArgs)
+  //    val s2Vertices = s2.vertices().asScala.toSeq.map(_.asInstanceOf[S2VertexLike])
+  //    val json = PostProcess.verticesToJson(s2Vertices)
+  //
+  //    println(Json.prettyPrint(json))
+  //  }
 }

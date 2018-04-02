@@ -24,6 +24,7 @@ import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.s2graph.core.types.{InnerValLikeWithTs, SourceVertexId}
+import org.apache.s2graph.s2jobs.loader.GraphFileOptions
 import play.api.libs.json.Json
 
 import scala.concurrent.ExecutionContext
@@ -54,8 +55,8 @@ object S2GraphHelper {
     }
   }
 
-  private def insertBulkForLoaderAsync(s2: S2Graph, edge: S2Edge, createRelEdges: Boolean = true): Seq[SKeyValue] = {
-    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
+  private def insertBulkForLoaderAsync(s2: S2Graph, edge: S2Edge, option: GraphFileOptions): Seq[SKeyValue] = {
+    val relEdges = if (option.autoEdgeCreate) edge.relatedEdges else List(edge)
 
     val snapshotEdgeKeyValues = s2.getStorage(edge.toSnapshotEdge.label).serDe.snapshotEdgeSerializer(edge.toSnapshotEdge).toKeyValues
     val indexEdgeKeyValues = relEdges.flatMap { edge =>
@@ -67,15 +68,20 @@ object S2GraphHelper {
     snapshotEdgeKeyValues ++ indexEdgeKeyValues
   }
 
-  def toSKeyValues(s2: S2Graph, element: GraphElement, autoEdgeCreate: Boolean = false): Seq[SKeyValue] = {
-    if (element.isInstanceOf[S2Edge]) {
-      val edge = element.asInstanceOf[S2Edge]
-      insertBulkForLoaderAsync(s2, edge, autoEdgeCreate)
-    } else if (element.isInstanceOf[S2Vertex]) {
-      val vertex = element.asInstanceOf[S2Vertex]
-      s2.getStorage(vertex.service).serDe.vertexSerializer(vertex).toKeyValues
-    } else {
-      Nil
+  def toSKeyValues(s2: S2Graph, element: GraphElement, option: GraphFileOptions): Seq[SKeyValue] = {
+    try {
+      if (element.isInstanceOf[S2Edge]) {
+        val edge = element.asInstanceOf[S2Edge]
+        insertBulkForLoaderAsync(s2, edge, option)
+      } else if (element.isInstanceOf[S2Vertex]) {
+        val vertex = element.asInstanceOf[S2Vertex]
+        s2.getStorage(vertex.service).serDe.vertexSerializer(vertex).toKeyValues
+      } else {
+        Nil
+      }
+    } catch {
+      case e: Exception =>
+        if (option.skipError) Nil else throw e
     }
   }
 }

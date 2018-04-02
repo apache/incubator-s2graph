@@ -22,11 +22,12 @@ package org.apache.s2graph.s2jobs.serde.writer
 import org.apache.hadoop.hbase.KeyValue
 import org.apache.s2graph.core.{GraphElement, S2Graph}
 import org.apache.s2graph.s2jobs.S2GraphHelper
+import org.apache.s2graph.s2jobs.loader.GraphFileOptions
 import org.apache.s2graph.s2jobs.serde.GraphElementWritable
 
-class KeyValueWriter(autoEdgeCreate: Boolean = false) extends GraphElementWritable[Seq[KeyValue]] {
+class KeyValueWriter(option: GraphFileOptions) extends GraphElementWritable[Seq[KeyValue]] {
   override def write(s2: S2Graph)(element: GraphElement): Seq[KeyValue] = {
-    S2GraphHelper.toSKeyValues(s2, element, autoEdgeCreate).map { skv =>
+    S2GraphHelper.toSKeyValues(s2, element, option).map { skv =>
       new KeyValue(skv.row, skv.cf, skv.qualifier, skv.timestamp, skv.value)
     }
   }
