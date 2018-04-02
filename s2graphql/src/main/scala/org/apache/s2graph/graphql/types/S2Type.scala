@@ -122,21 +122,24 @@ object S2Type {
 
   def makeServiceField(service: Service, allLabels: List[Label])(implicit repo: GraphRepository): List[Field[GraphRepository, Any]] = {
     lazy val columnsOnService = service.serviceColumns(false).toList.map { column =>
-      val connectedLabels = allLabels.filter { lb =>
-        column.id.get == lb.srcColumn.id.get || column.id.get == lb.tgtColumn.id.get
-      }.distinct
+
+      val outLabels = allLabels.filter { lb => column.id.get == lb.srcColumn.id.get }.distinct
+      val inLabels = allLabels.filter { lb => column.id.get == lb.tgtColumn.id.get }.distinct
 
       lazy val vertexPropFields = makeServiceColumnFields(column)
 
-      lazy val connectedLabelFields: List[Field[GraphRepository, Any]] =
-        connectedLabels.map(makeLabelField(_, connectedLabelFields))
+      lazy val outLabelFields: List[Field[GraphRepository, Any]] =
+        outLabels.map(l => makeLabelField("out", l, allLabels))
+
+      lazy val inLabelFields: List[Field[GraphRepository, Any]] =
+        inLabels.map(l => makeLabelField("in", l, allLabels))
 
       lazy val connectedLabelType = ObjectType(
         s"Input_${service.serviceName}_${column.columnName}",
-        () => fields[GraphRepository, Any](vertexPropFields ++ connectedLabelFields: _*)
+        () => fields[GraphRepository, Any](vertexPropFields ++ (inLabelFields ++ outLabelFields): _*)
       )
 
-      Field(column.columnName,
+      val v = Field(column.columnName,
         ListType(connectedLabelType),
         arguments = List(
           Argument("id", OptionInputType(s2TypeToScalarType(column.columnType))),
@@ -161,6 +164,8 @@ object S2Type {
           else repo.getVertices(vertices) // fill props
         }
       ): Field[GraphRepository, Any]
+
+      v
     }
 
     columnsOnService
@@ -185,33 +190,40 @@ object S2Type {
     else c.ctx.getVertices(Seq(newVertex)).map(_.head) // fill props
   }
 
-  def makeLabelField(label: Label, connectedLabelFields: => List[Field[GraphRepository, Any]]): Field[GraphRepository, Any] = {
-    val labelColumns = List("direction" -> "string", "timestamp" -> "long")
+  def makeLabelField(dir: String, label: Label, allLabels: List[Label]): Field[GraphRepository, Any] = {
+    val labelReserved = List("direction" -> "string", "timestamp" -> "long")
     val labelProps = label.labelMetas.map { lm => lm.name -> lm.dataType }
 
     lazy val edgeFields: List[Field[GraphRepository, Any]] =
-      (labelColumns ++ labelProps).map { case (k, v) => makePropField(k, v) }
+      (labelReserved ++ labelProps).map { case (k, v) => makePropField(k, v) }
 
-    lazy val fromType = ObjectType(s"Label_${label.label}_from", () =>
-      makeServiceColumnFields(label.srcColumn) ++ connectedLabelFields
-    )
+    val column = if (dir == "out") label.tgtColumn else label.srcColumn
 
-    lazy val toType = ObjectType(s"Label_${label.label}_to", () =>
-      makeServiceColumnFields(label.tgtColumn) ++ connectedLabelFields
-    )
-    lazy val fromField: Field[GraphRepository, Any] = Field("from", fromType, resolve = c => {
-      val vertex = c.value.asInstanceOf[S2EdgeLike].srcVertex
-      fillPartialVertex(vertex, label.srcColumn, c)
+    lazy val toType = ObjectType(s"Label_${label.label}_${column.columnName}", () => {
+      lazy val linked = if (dir == "out") {
+        val inLabels = allLabels.filter { lb => column.id.get == lb.tgtColumn.id.get }.distinct
+        inLabels.map(l => makeLabelField("in", l, allLabels))
+      } else {
+        val outLabels = allLabels.filter { lb => column.id.get == lb.srcColumn.id.get }.distinct
+        outLabels.map(l => makeLabelField("out", l, allLabels))
+      }
+
+      makeServiceColumnFields(column) ++ linked
     })
 
-    lazy val toField: Field[GraphRepository, Any] = Field("to", toType, resolve = c => {
-      val vertex = c.value.asInstanceOf[S2EdgeLike].tgtVertex
-      fillPartialVertex(vertex, label.tgtColumn, c)
+    lazy val toField: Field[GraphRepository, Any] = Field(column.columnName, toType, resolve = c => {
+      val vertex = if (dir == "out") {
+        c.value.asInstanceOf[S2EdgeLike].tgtVertex
+      } else {
+        c.value.asInstanceOf[S2EdgeLike].srcVertex
+      }
+
+      fillPartialVertex(vertex, column, c)
     })
 
     lazy val EdgeType = ObjectType(
-      s"Label_${label.label}",
-      () => fields[GraphRepository, Any](List(fromField, toField) ++ edgeFields: _*)
+      s"Label_${label.label}_${column.columnName}_${dir}",
+      () => fields[GraphRepository, Any](List(toField) ++ edgeFields: _*)
     )
 
     lazy val edgeTypeField: Field[GraphRepository, Any] = Field(
@@ -220,8 +232,6 @@ object S2Type {
       arguments = Argument("direction", OptionInputType(DirectionType), "desc here", defaultValue = "out") :: Nil,
       description = Some("fetch edges"),
       resolve = { c =>
-        val dir = c.argOpt("direction").getOrElse("out")
-
         val vertex: S2VertexLike = c.value match {
           case v: S2VertexLike => v
           case _ => throw new IllegalArgumentException(s"ERROR: ${c.value.getClass}")
