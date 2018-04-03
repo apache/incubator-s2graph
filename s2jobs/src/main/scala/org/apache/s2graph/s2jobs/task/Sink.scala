@@ -214,21 +214,8 @@ class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
 
   override val FORMAT: String = "org.apache.s2graph.spark.sql.streaming.S2SinkProvider"
 
-  override def write(inputDF: DataFrame): Unit = {
-    val df = repartition(preprocess(inputDF), inputDF.sparkSession.sparkContext.defaultParallelism)
-
-    if (inputDF.isStreaming) writeStream(df.writeStream)
-    else {
-      conf.options.getOrElse("writeMethod", "mutate") match {
-        case "bulk" => writeBatchWithBulkload(df)
-        case "mutate" => writeBatchWithMutate(df)
-      }
-
-    }
-  }
-
-  private def writeBatchWithBulkload(df:DataFrame):Unit = {
-    val options = S2GraphHelper.toGraphFileOptions(conf)
+  private def writeBatchBulkload(df: DataFrame): Unit = {
+    val options = TaskConf.toGraphFileOptions(conf)
     val config = Management.toConfig(options.toConfigParams)
     val input = df.rdd
 
@@ -249,7 +236,7 @@ class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
     import scala.collection.JavaConversions._
     import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs._
 
-    val graphConfig:Config = ConfigFactory.parseMap(conf.options).withFallback(ConfigFactory.load())
+    val graphConfig: Config = ConfigFactory.parseMap(conf.options).withFallback(ConfigFactory.load())
     val serializedConfig = graphConfig.root().render(ConfigRenderOptions.concise())
 
     val reader = new RowBulkFormatReader
@@ -257,7 +244,7 @@ class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
     val groupedSize = getConfigString(graphConfig, S2_SINK_GROUPED_SIZE, DEFAULT_GROUPED_SIZE).toInt
     val waitTime = getConfigString(graphConfig, S2_SINK_WAIT_TIME, DEFAULT_WAIT_TIME_SECONDS).toInt
 
-    df.foreachPartition{ iters =>
+    df.foreachPartition { iters =>
       val config = ConfigFactory.parseString(serializedConfig)
       val s2Graph = S2GraphHelper.initS2Graph(config)
 
@@ -270,6 +257,20 @@ class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
 
       val (success, fail) = responses.toSeq.partition(r => r.isSuccess)
       logger.info(s"success : ${success.size}, fail : ${fail.size}")
+    }
+  }
+
+  override def write(inputDF: DataFrame): Unit = {
+    val df = repartition(preprocess(inputDF), inputDF.sparkSession.sparkContext.defaultParallelism)
+
+    if (inputDF.isStreaming) writeStream(df.writeStream)
+    else {
+      conf.options.getOrElse("writeMethod", "mutate") match {
+        case "mutate" => writeBatchWithMutate(df)
+        case "bulk" => writeBatchBulkload(df)
+        case writeMethod:String => throw new IllegalArgumentException(s"unsupported write method '$writeMethod' (valid method: mutate, bulk)")
+
+      }
     }
   }
 }
