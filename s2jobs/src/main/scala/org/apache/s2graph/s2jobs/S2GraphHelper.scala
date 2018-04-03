@@ -24,10 +24,7 @@ import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.s2graph.core.types.{InnerValLikeWithTs, SourceVertexId}
-import org.apache.s2graph.s2jobs.loader.GraphFileOptions
-import org.apache.s2graph.s2jobs.task.TaskConf
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types.StructType
 import play.api.libs.json.{JsObject, Json}
 
@@ -83,12 +80,6 @@ object S2GraphHelper {
     } else {
       Nil
     }
-  }
-
-  def toGraphFileOptions(taskConf: TaskConf): GraphFileOptions = {
-    val args = taskConf.options.flatMap(kv => Seq(kv._1, kv._2)).toSeq.toArray
-
-    GraphFileOptions.toOption(args)
   }
 
   def sparkSqlRowToGraphElement(s2: S2Graph, row: Row, schema: StructType, reservedColumn: Set[String]): Option[GraphElement] = {

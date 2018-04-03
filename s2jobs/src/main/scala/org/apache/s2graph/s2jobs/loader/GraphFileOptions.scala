@@ -20,6 +20,12 @@
 package org.apache.s2graph.s2jobs.loader
 
 object GraphFileOptions {
+  val OptionKeys = Set(
+    "--input", "--tempDir", "--output", "--zkQuorum", "--table", "--dbUrl", "--dbUser", "--dbPassword", "--dbDriver",
+    "--maxHFilePerRegionServer", "--numRegions", "--labelMapping", "--autoEdgeCreate", "--buildDegree", "--incrementalLoad",
+    "--method"
+  )
+
   val parser = new scopt.OptionParser[GraphFileOptions]("run") {
 
     opt[String]('i', "input").required().action( (x, c) =>

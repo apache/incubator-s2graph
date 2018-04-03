@@ -210,7 +210,7 @@ class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
   override val FORMAT: String = "org.apache.s2graph.spark.sql.streaming.S2SinkProvider"
 
   private def bulkload(df: DataFrame): Unit = {
-    val options = S2GraphHelper.toGraphFileOptions(conf)
+    val options = TaskConf.toGraphFileOptions(conf)
     val config = Management.toConfig(options.toConfigParams)
     val input = df.rdd
 
