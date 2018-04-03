@@ -34,7 +34,7 @@ import scala.reflect.ClassTag
   */
 trait Transformer[M[_]] extends Serializable {
   val config: Config
-  val options: GraphFileOptions
+//  val options: GraphFileOptions
 
   def buildDegrees[T: ClassTag](elements: M[GraphElement])(implicit writer: GraphElementWritable[T]): M[T]
 

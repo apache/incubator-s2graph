@@ -209,26 +209,30 @@ class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
 
   override val FORMAT: String = "org.apache.s2graph.spark.sql.streaming.S2SinkProvider"
 
+  private def bulkload(df: DataFrame): Unit = {
+    val options = S2GraphHelper.toGraphFileOptions(conf)
+    val config = Management.toConfig(options.toConfigParams)
+    val input = df.rdd
+
+    val transformer = new SparkBulkLoaderTransformer(config, options)
+
+    implicit val reader = new RowBulkFormatReader
+    implicit val writer = new KeyValueWriter
+
+    val kvs = transformer.transform(input)
+
+    HFileGenerator.generateHFile(df.sparkSession.sparkContext, config, kvs.flatMap(ls => ls), options)
+
+    // finish bulk load by execute LoadIncrementHFile.
+    HFileGenerator.loadIncrementHFile(options)
+  }
+
   override def write(inputDF: DataFrame): Unit = {
     val df = repartition(preprocess(inputDF), inputDF.sparkSession.sparkContext.defaultParallelism)
 
     if (inputDF.isStreaming) writeStream(df.writeStream)
     else {
-      val options = S2GraphHelper.toGraphFileOptions(conf)
-      val config = Management.toConfig(options.toConfigParams)
-      val input = df.rdd
-
-      val transformer = new SparkBulkLoaderTransformer(config, options)
-
-      implicit val reader = new RowBulkFormatReader
-      implicit val writer = new KeyValueWriter
-
-      val kvs = transformer.transform(input)
-
-      HFileGenerator.generateHFile(df.sparkSession.sparkContext, config, kvs.flatMap(ls => ls), options)
-
-      // finish bulk load by execute LoadIncrementHFile.
-      HFileGenerator.loadIncrementHFile(options)
+      bulkload(df)
     }
   }
 }
