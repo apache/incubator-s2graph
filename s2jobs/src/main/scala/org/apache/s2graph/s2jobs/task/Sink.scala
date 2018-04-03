@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.s2jobs.task
 
-import com.typesafe.config.Config
+import com.typesafe.config.{Config, ConfigFactory, ConfigRenderOptions}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.mapreduce.LoadIncrementalHFiles
 import org.apache.hadoop.util.ToolRunner
@@ -28,9 +28,14 @@ import org.apache.s2graph.s2jobs.S2GraphHelper
 import org.apache.s2graph.s2jobs.loader.{GraphFileOptions, HFileGenerator, SparkBulkLoaderTransformer}
 import org.apache.s2graph.s2jobs.serde.reader.RowBulkFormatReader
 import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
+import org.apache.s2graph.spark.sql.streaming.S2SinkContext
 import org.apache.spark.sql._
 import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, Trigger}
 import org.elasticsearch.spark.sql.EsSparkSQL
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 
 /**
   * Sink
@@ -214,21 +219,57 @@ class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
 
     if (inputDF.isStreaming) writeStream(df.writeStream)
     else {
-      val options = S2GraphHelper.toGraphFileOptions(conf)
-      val config = Management.toConfig(options.toConfigParams)
-      val input = df.rdd
+      conf.options.getOrElse("writeMethod", "mutate") match {
+        case "bulk" => writeBatchWithBulkload(df)
+        case "mutate" => writeBatchWithMutate(df)
+      }
 
-      val transformer = new SparkBulkLoaderTransformer(config, options)
+    }
+  }
 
-      implicit val reader = new RowBulkFormatReader
-      implicit val writer = new KeyValueWriter
+  private def writeBatchWithBulkload(df:DataFrame):Unit = {
+    val options = S2GraphHelper.toGraphFileOptions(conf)
+    val config = Management.toConfig(options.toConfigParams)
+    val input = df.rdd
 
-      val kvs = transformer.transform(input)
+    val transformer = new SparkBulkLoaderTransformer(config, options)
 
-      HFileGenerator.generateHFile(df.sparkSession.sparkContext, config, kvs.flatMap(ls => ls), options)
+    implicit val reader = new RowBulkFormatReader
+    implicit val writer = new KeyValueWriter
 
-      // finish bulk load by execute LoadIncrementHFile.
-      HFileGenerator.loadIncrementHFile(options)
+    val kvs = transformer.transform(input)
+
+    HFileGenerator.generateHFile(df.sparkSession.sparkContext, config, kvs.flatMap(ls => ls), options)
+
+    // finish bulk load by execute LoadIncrementHFile.
+    HFileGenerator.loadIncrementHFile(options)
+  }
+
+  private def writeBatchWithMutate(df:DataFrame):Unit = {
+    import scala.collection.JavaConversions._
+    import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs._
+
+    val graphConfig:Config = ConfigFactory.parseMap(conf.options).withFallback(ConfigFactory.load())
+    val serializedConfig = graphConfig.root().render(ConfigRenderOptions.concise())
+
+    val reader = new RowBulkFormatReader
+
+    val groupedSize = getConfigString(graphConfig, S2_SINK_GROUPED_SIZE, DEFAULT_GROUPED_SIZE).toInt
+    val waitTime = getConfigString(graphConfig, S2_SINK_WAIT_TIME, DEFAULT_WAIT_TIME_SECONDS).toInt
+
+    df.foreachPartition{ iters =>
+      val config = ConfigFactory.parseString(serializedConfig)
+      val s2Graph = S2GraphHelper.initS2Graph(config)
+
+      val responses = iters.grouped(groupedSize).flatMap { rows =>
+        val elements = rows.flatMap(row => reader.read(s2Graph)(row))
+
+        val mutateF = s2Graph.mutateElements(elements, true)
+        Await.result(mutateF, Duration(waitTime, "seconds"))
+      }
+
+      val (success, fail) = responses.toSeq.partition(r => r.isSuccess)
+      logger.info(s"success : ${success.size}, fail : ${fail.size}")
     }
   }
 }
