@@ -26,6 +26,10 @@ import org.apache.spark.sql.DataFrame
 import scala.collection.JavaConverters._
 
 class SinkTest extends BaseSparkTest {
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    initTestEdgeSchema(s2, tableName, schemaVersion, compressionAlgorithm)
+  }
   def toDataFrame(edges: Seq[String]): DataFrame = {
     import spark.sqlContext.implicits._
     val elements = edges.flatMap(s2.elementBuilder.toEdge(_))
@@ -42,12 +46,11 @@ class SinkTest extends BaseSparkTest {
     }.toDF("timestamp", "operation", "element", "from", "to", "label", "props", "direction")
   }
 
-  test("S2graphSink writeBatch.") {
-    val label = initTestEdgeSchema(s2, tableName, schemaVersion, compressionAlgorithm)
-
+  test("S2graphSink writeBatchWithBulkload") {
     val bulkEdgeString = "1416236400000\tinsert\tedge\ta\tb\tfriends\t{\"since\":1316236400000,\"score\":10}"
     val df = toDataFrame(Seq(bulkEdgeString))
-    val args = options.toCommand.grouped(2).map { kv =>
+    val args = Map("writeMethod" -> "bulk") ++
+      options.toCommand.grouped(2).map { kv =>
       kv.head -> kv.last
     }.toMap
 
@@ -58,5 +61,38 @@ class SinkTest extends BaseSparkTest {
 
     val s2Edges = s2.edges().asScala.toSeq.map(_.asInstanceOf[S2EdgeLike])
     s2Edges.foreach { edge => println(edge) }
+
+    val filteredEdges = s2Edges.filter{ edge =>
+      edge.srcVertex.innerIdVal.toString == "a" &&
+        edge.tgtVertex.innerIdVal.toString == "b" &&
+        edge.label() == "friends"
+    }
+
+    assert(filteredEdges.size == 1)
   }
+
+  test("S2graphSink writeBatchWithMutate") {
+    val bulkEdgeString = "1416236400000\tinsert\tedge\tb\tc\tfriends\t{\"since\":1316236400000,\"score\":20}"
+    val df = toDataFrame(Seq(bulkEdgeString))
+    val args = Map("writeMethod" -> "mutate") ++
+      options.toCommand.grouped(2).map { kv => kv.head -> kv.last }.toMap
+
+    val conf = TaskConf("test", "sql", Seq("input"), args)
+
+    val sink = new S2graphSink("testQuery", conf)
+    sink.write(df)
+
+    val s2Edges = s2.edges().asScala.toSeq.map(_.asInstanceOf[S2EdgeLike])
+    s2Edges.foreach { edge => println(edge) }
+
+    val filteredEdges = s2Edges.filter{ edge =>
+      edge.srcVertex.innerIdVal.toString == "b" &&
+      edge.tgtVertex.innerIdVal.toString == "c" &&
+      edge.getTs() == 1416236400000L &&
+      edge.label() == "friends"
+    }
+
+    assert(filteredEdges.size == 1)
+  }
+
 }

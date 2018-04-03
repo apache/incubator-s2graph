@@ -33,8 +33,6 @@ import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 import scala.util.Try
 
 class BaseSparkTest extends FunSuite with Matchers with BeforeAndAfterAll with DataFrameSuiteBase {
-  private val master = "local[2]"
-  private val appName = "example-spark"
 
   protected val options = GraphFileOptions(
     input = "/tmp/test.txt",

@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.s2jobs.task
 
-import com.typesafe.config.Config
+import com.typesafe.config.{Config, ConfigFactory, ConfigRenderOptions}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.mapreduce.LoadIncrementalHFiles
 import org.apache.hadoop.util.ToolRunner
@@ -28,9 +28,14 @@ import org.apache.s2graph.s2jobs.S2GraphHelper
 import org.apache.s2graph.s2jobs.loader.{GraphFileOptions, HFileGenerator, SparkBulkLoaderTransformer}
 import org.apache.s2graph.s2jobs.serde.reader.RowBulkFormatReader
 import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
+import org.apache.s2graph.spark.sql.streaming.S2SinkContext
 import org.apache.spark.sql._
 import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, Trigger}
 import org.elasticsearch.spark.sql.EsSparkSQL
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 
 /**
   * Sink
@@ -209,7 +214,7 @@ class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
 
   override val FORMAT: String = "org.apache.s2graph.spark.sql.streaming.S2SinkProvider"
 
-  private def bulkload(df: DataFrame): Unit = {
+  private def writeBatchBulkload(df: DataFrame): Unit = {
     val options = TaskConf.toGraphFileOptions(conf)
     val config = Management.toConfig(options.toConfigParams)
     val input = df.rdd
@@ -227,12 +232,45 @@ class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
     HFileGenerator.loadIncrementHFile(options)
   }
 
+  private def writeBatchWithMutate(df:DataFrame):Unit = {
+    import scala.collection.JavaConversions._
+    import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs._
+
+    val graphConfig: Config = ConfigFactory.parseMap(conf.options).withFallback(ConfigFactory.load())
+    val serializedConfig = graphConfig.root().render(ConfigRenderOptions.concise())
+
+    val reader = new RowBulkFormatReader
+
+    val groupedSize = getConfigString(graphConfig, S2_SINK_GROUPED_SIZE, DEFAULT_GROUPED_SIZE).toInt
+    val waitTime = getConfigString(graphConfig, S2_SINK_WAIT_TIME, DEFAULT_WAIT_TIME_SECONDS).toInt
+
+    df.foreachPartition { iters =>
+      val config = ConfigFactory.parseString(serializedConfig)
+      val s2Graph = S2GraphHelper.initS2Graph(config)
+
+      val responses = iters.grouped(groupedSize).flatMap { rows =>
+        val elements = rows.flatMap(row => reader.read(s2Graph)(row))
+
+        val mutateF = s2Graph.mutateElements(elements, true)
+        Await.result(mutateF, Duration(waitTime, "seconds"))
+      }
+
+      val (success, fail) = responses.toSeq.partition(r => r.isSuccess)
+      logger.info(s"success : ${success.size}, fail : ${fail.size}")
+    }
+  }
+
   override def write(inputDF: DataFrame): Unit = {
     val df = repartition(preprocess(inputDF), inputDF.sparkSession.sparkContext.defaultParallelism)
 
     if (inputDF.isStreaming) writeStream(df.writeStream)
     else {
-      bulkload(df)
+      conf.options.getOrElse("writeMethod", "mutate") match {
+        case "mutate" => writeBatchWithMutate(df)
+        case "bulk" => writeBatchBulkload(df)
+        case writeMethod:String => throw new IllegalArgumentException(s"unsupported write method '$writeMethod' (valid method: mutate, bulk)")
+
+      }
     }
   }
 }
