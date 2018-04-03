@@ -42,13 +42,8 @@ object GraphRepository {
 
     tryObj
   }
-
 }
 
-/**
-  *
-  * @param graph
-  */
 class GraphRepository(val graph: S2GraphLike) {
   implicit val logger = LoggerFactory.getLogger(this.getClass)
 

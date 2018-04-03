@@ -29,6 +29,7 @@ import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.S2Graph
 import org.apache.s2graph.core.utils.SafeUpdateCache
 import org.apache.s2graph.graphql.repository.GraphRepository
+import org.apache.s2graph.graphql.types.SchemaDef
 import org.slf4j.LoggerFactory
 import sangria.ast.Document
 import sangria.execution._
