@@ -42,12 +42,13 @@ class SinkTest extends BaseSparkTest {
     }.toDF("timestamp", "operation", "element", "from", "to", "label", "props", "direction")
   }
 
-  test("S2graphSink writeBatch.") {
-    val label = initTestEdgeSchema(s2, tableName, schemaVersion, compressionAlgorithm)
+  test("S2graphSink writeBatchWithBulkload") {
+    initTestEdgeSchema(s2, tableName, schemaVersion, compressionAlgorithm)
 
     val bulkEdgeString = "1416236400000\tinsert\tedge\ta\tb\tfriends\t{\"since\":1316236400000,\"score\":10}"
     val df = toDataFrame(Seq(bulkEdgeString))
-    val args = options.toCommand.grouped(2).map { kv =>
+    val args = Map("writeMethod" -> "bulk") ++
+      options.toCommand.grouped(2).map { kv =>
       kv.head -> kv.last
     }.toMap
 
@@ -59,4 +60,24 @@ class SinkTest extends BaseSparkTest {
     val s2Edges = s2.edges().asScala.toSeq.map(_.asInstanceOf[S2EdgeLike])
     s2Edges.foreach { edge => println(edge) }
   }
+
+  test("S2graphSink writeBatchWithMutate") {
+    initTestEdgeSchema(s2, tableName, schemaVersion, compressionAlgorithm)
+
+    val bulkEdgeString = "1416236400000\tinsert\tedge\ta\tb\tfriends\t{\"since\":1316236400000,\"score\":20}"
+    val df = toDataFrame(Seq(bulkEdgeString))
+    val args = Map("writeMethod" -> "mutate") ++
+      options.toCommand.grouped(2).map { kv =>
+        kv.head -> kv.last
+      }.toMap
+
+    val conf = TaskConf("test", "sql", Seq("input"), args)
+
+    val sink = new S2graphSink("testQuery", conf)
+    sink.write(df)
+
+    val s2Edges = s2.edges().asScala.toSeq.map(_.asInstanceOf[S2EdgeLike])
+    s2Edges.foreach { edge => println(edge) }
+  }
+
 }
