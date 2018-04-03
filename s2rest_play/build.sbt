@@ -29,5 +29,3 @@ libraryDependencies ++= Seq(ws, filters, specs2 % Test).map(_.excludeLogging()) 
 )
 
 routesGenerator := StaticRoutesGenerator
-
-enablePlugins(JavaServerAppPackaging)
