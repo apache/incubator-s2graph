@@ -214,7 +214,7 @@ class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
 
   override val FORMAT: String = "org.apache.s2graph.spark.sql.streaming.S2SinkProvider"
 
-  private def writeBatchBulkload(df: DataFrame): Unit = {
+  private def writeBatchBulkload(df: DataFrame, runLoadIncrementalHFiles: Boolean = true): Unit = {
     val options = TaskConf.toGraphFileOptions(conf)
     val config = Management.toConfig(options.toConfigParams)
     val input = df.rdd
@@ -229,7 +229,7 @@ class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
     HFileGenerator.generateHFile(df.sparkSession.sparkContext, config, kvs.flatMap(ls => ls), options)
 
     // finish bulk load by execute LoadIncrementHFile.
-    HFileGenerator.loadIncrementHFile(options)
+    if (runLoadIncrementalHFiles) HFileGenerator.loadIncrementalHFiles(options)
   }
 
   private def writeBatchWithMutate(df:DataFrame):Unit = {
@@ -267,9 +267,10 @@ class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
     else {
       conf.options.getOrElse("writeMethod", "mutate") match {
         case "mutate" => writeBatchWithMutate(df)
-        case "bulk" => writeBatchBulkload(df)
+        case "bulk" =>
+          val runLoadIncrementalHFiles = conf.options.getOrElse("runLoadIncrementalHFiles", "true").toBoolean
+          writeBatchBulkload(df, runLoadIncrementalHFiles)
         case writeMethod:String => throw new IllegalArgumentException(s"unsupported write method '$writeMethod' (valid method: mutate, bulk)")
-
       }
     }
   }

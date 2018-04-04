@@ -125,7 +125,7 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
     HFileGenerator.generateHFile(sc, config, kvs, _options)
   }
 
-  def loadIncrementHFile(options: GraphFileOptions): Int = {
+  def loadIncrementalHFiles(options: GraphFileOptions): Int = {
     /* LoadIncrementHFiles */
     val hfileArgs = Array(options.output, options.tableName)
     val hbaseConfig = HBaseConfiguration.create()
