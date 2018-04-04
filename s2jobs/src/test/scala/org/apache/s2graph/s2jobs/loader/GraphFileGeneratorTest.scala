@@ -190,7 +190,7 @@ class GraphFileGeneratorTest extends BaseSparkTest {
       val input = sc.parallelize(bulkVertexLs)
 
       HFileGenerator.generate(sc, s2Config, input, options)
-      HFileGenerator.loadIncrementHFile(options)
+      HFileGenerator.loadIncrementalHFiles(options)
 
       val s2Vertices = s2.vertices().asScala.toSeq.map(_.asInstanceOf[S2VertexLike])
       val json = PostProcess.verticesToJson(s2Vertices)

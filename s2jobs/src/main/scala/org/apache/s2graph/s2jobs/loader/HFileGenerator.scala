@@ -33,11 +33,11 @@ import org.apache.hadoop.hbase._
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.util.ToolRunner
-import org.apache.s2graph.core.Management
+import org.apache.s2graph.core.GraphElement
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageManagement
 import org.apache.s2graph.s2jobs.S2GraphHelper
 import org.apache.s2graph.s2jobs.serde.reader.{S2GraphCellReader, TsvBulkFormatReader}
-import org.apache.s2graph.s2jobs.serde.writer.{DataFrameWriter, KeyValueWriter}
+import org.apache.s2graph.s2jobs.serde.writer.{GraphElementDataFrameWriter, IdentityWriter, KeyValueWriter}
 import org.apache.s2graph.s2jobs.spark.{FamilyHFileWriteOptions, HBaseContext, KeyFamilyQualifier}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -141,24 +141,25 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
 
   def tableSnapshotDump(ss: SparkSession,
            config: Config,
-           options: GraphFileOptions,
            snapshotPath: String,
            restorePath: String,
            tableNames: Seq[String],
            columnFamily: String = "e",
-           batchSize: Int = 1000): DataFrame = {
-    import ss.sqlContext.implicits._
-
+           elementType: String = "IndexEdge",
+           batchSize: Int = 1000,
+           labelMapping: Map[String, String] = Map.empty,
+           buildDegree: Boolean = false): RDD[Seq[Cell]] = {
     val cf = Bytes.toBytes(columnFamily)
 
     val hbaseConfig = HBaseConfiguration.create(ss.sparkContext.hadoopConfiguration)
     hbaseConfig.set("hbase.rootdir", snapshotPath)
 
     val initial = ss.sparkContext.parallelize(Seq.empty[Seq[Cell]])
-    val input = tableNames.foldLeft(initial) { case (prev, tableName) =>
+    tableNames.foldLeft(initial) { case (prev, tableName) =>
       val scan = new Scan
       scan.addFamily(cf)
       scan.setBatch(batchSize)
+      scan.setMaxVersions(1)
       TableSnapshotInputFormatImpl.setInput(hbaseConfig, tableName, new Path(restorePath))
       hbaseConfig.set(TableInputFormat.SCAN, Base64.encodeBytes(ProtobufUtil.toScan(scan).toByteArray()))
 
@@ -170,14 +171,6 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
 
       prev ++ current
     }
-
-    implicit val reader = new S2GraphCellReader
-    implicit val writer = new DataFrameWriter
-
-    val transformer = new SparkBulkLoaderTransformer(config, options)
-    val kvs = transformer.transform(input)
-
-    kvs.toDF(DataFrameWriter.Fields: _*)
   }
 }
 

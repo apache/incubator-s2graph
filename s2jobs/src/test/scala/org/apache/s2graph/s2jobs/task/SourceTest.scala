@@ -19,8 +19,11 @@
 
 package org.apache.s2graph.s2jobs.task
 
+import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
 import org.apache.s2graph.core.S2EdgeLike
-import org.apache.s2graph.s2jobs.BaseSparkTest
+import org.apache.s2graph.core.storage.hbase.{AsynchbaseStorage, AsynchbaseStorageManagement}
+import org.apache.s2graph.s2jobs.serde.reader.RowBulkFormatReader
+import org.apache.s2graph.s2jobs.{BaseSparkTest, S2GraphHelper}
 import org.apache.spark.sql.DataFrame
 
 import scala.collection.JavaConverters._
@@ -42,28 +45,57 @@ class SourceTest extends BaseSparkTest {
     }.toDF("timestamp", "operation", "element", "from", "to", "label", "props", "direction")
   }
 
-  test("S2graphSink writeBatch.") {
-    val label = initTestEdgeSchema(s2, tableName, schemaVersion, compressionAlgorithm)
 
+  test("S2GraphSource toDF") {
+    val label = initTestEdgeSchema(s2, tableName, schemaVersion, compressionAlgorithm)
+    val snapshotTableName = options.tableName + "-snapshot"
+
+    // 1. run S2GraphSink to build(not actually load by using LoadIncrementalLoad) bulk load file.
     val bulkEdgeString = "1416236400000\tinsert\tedge\ta\tb\tfriends\t{\"since\":1316236400000,\"score\":10}"
     val df = toDataFrame(Seq(bulkEdgeString))
+
+    val reader = new RowBulkFormatReader
+
+    val inputEdges = df.collect().flatMap(reader.read(s2)(_))
+
     val args = options.toCommand.grouped(2).map { kv =>
       kv.head -> kv.last
-    }.toMap
+    }.toMap ++ Map("writeMethod" -> "bulk", "runLoadIncrementalHFiles" -> "true")
 
     val conf = TaskConf("test", "sql", Seq("input"), args)
 
     val sink = new S2GraphSink("testQuery", conf)
     sink.write(df)
 
+    // 2. create snapshot if snapshot is not exist to test TableSnapshotInputFormat.
+    s2.defaultStorage.management.asInstanceOf[AsynchbaseStorageManagement].withAdmin(s2.config) { admin =>
+      import scala.collection.JavaConverters._
+      if (admin.listSnapshots(snapshotTableName).asScala.toSet(snapshotTableName))
+        admin.deleteSnapshot(snapshotTableName)
+
+      admin.snapshot(snapshotTableName, TableName.valueOf(options.tableName))
+    }
+
+    // 3. Decode S2GraphSource to parse HFile
+    val metaAndHBaseArgs = options.toConfigParams
+    val hbaseConfig = HBaseConfiguration.create(spark.sparkContext.hadoopConfiguration)
+
     val dumpArgs = Map(
-      "hbase.rootdir" -> "",
-      "restore.path" -> "",
-      "hbase.table.names" -> Seq(options.tableName).mkString(","),
-      "hbase.table.cf" -> "e"
-    )
+      "hbase.rootdir" -> hbaseConfig.get("hbase.rootdir"),
+      "restore.path" -> "/tmp/hbase_restore",
+      "hbase.table.names" -> s"${snapshotTableName}",
+      "hbase.table.cf" -> "e",
+      "element.type" -> "IndexEdge"
+    ) ++ metaAndHBaseArgs
+
     val dumpConf = TaskConf("dump", "sql", Seq("input"), dumpArgs)
-    val s2Edges = s2.edges().asScala.toSeq.map(_.asInstanceOf[S2EdgeLike])
-    s2Edges.foreach { edge => println(edge) }
+    val source = new S2GraphSource(dumpConf)
+    val realDF = source.toDF(spark)
+    val outputEdges = realDF.collect().flatMap(reader.read(s2)(_))
+
+    inputEdges.foreach { e => println(s"[Input]: $e")}
+    outputEdges.foreach { e => println(s"[Output]: $e")}
+
+    inputEdges shouldBe outputEdges
   }
 }

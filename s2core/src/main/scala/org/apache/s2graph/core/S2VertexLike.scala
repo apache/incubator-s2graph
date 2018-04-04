@@ -61,8 +61,9 @@ trait S2VertexLike extends Vertex with GraphElement {
 
   def toLogString(): String = {
     val propsWithName = for {
-      (k, v) <- props.asScala
-    } yield (v.columnMeta.name -> v.value.toString)
+      (k, v) <- props.asScala.toMap
+      jsValue <- JSONParser.anyValToJsValue(v.innerVal.value)
+    } yield (v.columnMeta.name -> jsValue)
 
     val (serviceName, columnName) =
       if (!id.storeColId) ("", "")

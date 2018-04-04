@@ -250,6 +250,11 @@ trait S2EdgeLike extends Edge with GraphElement {
 
   def toLogString: String = {
     //    val allPropsWithName = defaultPropsWithName ++ Json.toJson(propsWithName).asOpt[JsObject].getOrElse(Json.obj())
-    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, innerLabel.label, propsWithTs).mkString("\t")
+    val propsWithName = for {
+      (k, v) <- propsWithTs.asScala.toMap
+      jsValue <- JSONParser.anyValToJsValue(v.innerVal.value)
+    } yield (v.labelMeta.name -> jsValue)
+
+    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, innerLabel.label, Json.toJson(propsWithName)).mkString("\t")
   }
 }
