@@ -106,7 +106,7 @@ class HiveSource(conf:TaskConf) extends Source(conf) {
   }
 }
 
-class HBaseTableSnapshotSource(conf: TaskConf) extends Source(conf) {
+class S2GraphSource(conf: TaskConf) extends Source(conf) {
 
   override def mandatoryOptions: Set[String] = Set("hbase.rootdir", "restore.path", "hbase.table.names")
 

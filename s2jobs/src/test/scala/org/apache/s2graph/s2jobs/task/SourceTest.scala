@@ -53,7 +53,7 @@ class SourceTest extends BaseSparkTest {
 
     val conf = TaskConf("test", "sql", Seq("input"), args)
 
-    val sink = new S2graphSink("testQuery", conf)
+    val sink = new S2GraphSink("testQuery", conf)
     sink.write(df)
 
     val dumpArgs = Map(

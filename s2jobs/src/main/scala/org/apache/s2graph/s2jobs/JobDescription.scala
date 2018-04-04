@@ -80,7 +80,7 @@ object JobDescription extends Logger {
       case "kafka" => new KafkaSink(jobName, conf)
       case "file" => new FileSink(jobName, conf)
       case "es" => new ESSink(jobName, conf)
-      case "s2graph" => new S2graphSink(jobName, conf)
+      case "s2graph" => new S2GraphSink(jobName, conf)
       case _ => throw new IllegalArgumentException(s"unsupported sink type : ${conf.`type`}")
     }
 

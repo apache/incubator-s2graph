@@ -209,7 +209,7 @@ class ESSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
   * @param queryName
   * @param conf
   */
-class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
+class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
   override def mandatoryOptions: Set[String] = Set()
 
   override val FORMAT: String = "org.apache.s2graph.spark.sql.streaming.S2SinkProvider"
