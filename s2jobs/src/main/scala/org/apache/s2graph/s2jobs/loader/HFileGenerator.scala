@@ -21,20 +21,27 @@ package org.apache.s2graph.s2jobs.loader
 
 import com.typesafe.config.Config
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.hbase.client.ConnectionFactory
+import org.apache.hadoop.fs.Path
+import org.apache.hadoop.hbase.client.{ConnectionFactory, Result, Scan}
+import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
-import org.apache.hadoop.hbase.mapreduce.{LoadIncrementalHFiles, TableOutputFormat}
+import org.apache.hadoop.hbase.mapreduce._
 import org.apache.hadoop.hbase.regionserver.BloomType
-import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.{CellUtil, HBaseConfiguration, KeyValue, TableName}
+import org.apache.hadoop.hbase.util.{Base64, Bytes}
+import org.apache.hadoop.hbase._
+import org.apache.hadoop.hbase.protobuf.ProtobufUtil
+import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.util.ToolRunner
+import org.apache.s2graph.core.Management
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageManagement
-import org.apache.s2graph.s2jobs.serde.reader.TsvBulkFormatReader
-import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
+import org.apache.s2graph.s2jobs.S2GraphHelper
+import org.apache.s2graph.s2jobs.serde.reader.{S2GraphCellReader, TsvBulkFormatReader}
+import org.apache.s2graph.s2jobs.serde.writer.{DataFrameWriter, KeyValueWriter}
 import org.apache.s2graph.s2jobs.spark.{FamilyHFileWriteOptions, HBaseContext, KeyFamilyQualifier}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.{DataFrame, SparkSession}
 
 object HFileGenerator extends RawFileGenerator[String, KeyValue] {
 
@@ -130,6 +137,47 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
     val hfileArgs = Array(options.output, options.tableName)
     val hbaseConfig = HBaseConfiguration.create()
     ToolRunner.run(hbaseConfig, new LoadIncrementalHFiles(hbaseConfig), hfileArgs)
+  }
+
+  def tableSnapshotDump(ss: SparkSession,
+           config: Config,
+           options: GraphFileOptions,
+           snapshotPath: String,
+           restorePath: String,
+           tableNames: Seq[String],
+           columnFamily: String = "e",
+           batchSize: Int = 1000): DataFrame = {
+    import ss.sqlContext.implicits._
+
+    val cf = Bytes.toBytes(columnFamily)
+
+    val hbaseConfig = HBaseConfiguration.create(ss.sparkContext.hadoopConfiguration)
+    hbaseConfig.set("hbase.rootdir", snapshotPath)
+
+    val initial = ss.sparkContext.parallelize(Seq.empty[Seq[Cell]])
+    val input = tableNames.foldLeft(initial) { case (prev, tableName) =>
+      val scan = new Scan
+      scan.addFamily(cf)
+      scan.setBatch(batchSize)
+      TableSnapshotInputFormatImpl.setInput(hbaseConfig, tableName, new Path(restorePath))
+      hbaseConfig.set(TableInputFormat.SCAN, Base64.encodeBytes(ProtobufUtil.toScan(scan).toByteArray()))
+
+      val job = Job.getInstance(hbaseConfig, "Decode index edge from " + tableName)
+      val current = ss.sparkContext.newAPIHadoopRDD(job.getConfiguration,
+        classOf[TableSnapshotInputFormat],
+        classOf[ImmutableBytesWritable],
+        classOf[Result]).map(_._2.listCells().asScala.toSeq)
+
+      prev ++ current
+    }
+
+    implicit val reader = new S2GraphCellReader
+    implicit val writer = new DataFrameWriter
+
+    val transformer = new SparkBulkLoaderTransformer(config, options)
+    val kvs = transformer.transform(input)
+
+    kvs.toDF(DataFrameWriter.Fields: _*)
   }
 }
 

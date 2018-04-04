@@ -21,9 +21,7 @@ package org.apache.s2graph.s2jobs
 
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.storage.SKeyValue
-import org.apache.s2graph.core.types.{InnerValLikeWithTs, SourceVertexId}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
 import play.api.libs.json.{JsObject, Json}
@@ -34,27 +32,6 @@ import scala.util.Try
 object S2GraphHelper {
   def initS2Graph(config: Config)(implicit ec: ExecutionContext = ExecutionContext.Implicits.global): S2Graph = {
     new S2Graph(config)
-  }
-
-  def buildDegreePutRequests(s2: S2Graph,
-                             vertexId: String,
-                             labelName: String,
-                             direction: String,
-                             degreeVal: Long): Seq[SKeyValue] = {
-    val label = Label.findByName(labelName).getOrElse(throw new RuntimeException(s"$labelName is not found in DB."))
-    val dir = GraphUtil.directions(direction)
-    val innerVal = JSONParser.jsValueToInnerVal(Json.toJson(vertexId), label.srcColumnWithDir(dir).columnType, label.schemaVersion).getOrElse {
-      throw new RuntimeException(s"$vertexId can not be converted into innerval")
-    }
-    val vertex = s2.elementBuilder.newVertex(SourceVertexId(label.srcColumn, innerVal))
-
-    val ts = System.currentTimeMillis()
-    val propsWithTs = Map(LabelMeta.timestamp -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion))
-    val edge = s2.elementBuilder.newEdge(vertex, vertex, label, dir, propsWithTs = propsWithTs)
-
-    edge.edgesWithIndex.flatMap { indexEdge =>
-      s2.getStorage(indexEdge.label).serDe.indexEdgeSerializer(indexEdge).toKeyValues
-    }
   }
 
   private def insertBulkForLoaderAsync(s2: S2Graph, edge: S2Edge, createRelEdges: Boolean = true): Seq[SKeyValue] = {

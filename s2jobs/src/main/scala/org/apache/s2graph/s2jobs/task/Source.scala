@@ -19,6 +19,9 @@
 
 package org.apache.s2graph.s2jobs.task
 
+import org.apache.s2graph.core.Management
+import org.apache.s2graph.s2jobs.S2GraphHelper
+import org.apache.s2graph.s2jobs.loader.HFileGenerator
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 
@@ -100,5 +103,23 @@ class HiveSource(conf:TaskConf) extends Source(conf) {
 
     val sql = conf.options.getOrElse("sql", s"SELECT * FROM ${database}.${table}")
     ss.sql(sql)
+  }
+}
+
+class HBaseTableSnapshotSource(conf: TaskConf) extends Source(conf) {
+
+  override def mandatoryOptions: Set[String] = Set("hbase.rootdir", "restore.path", "hbase.table.names")
+
+  override def toDF(ss: SparkSession): DataFrame = {
+    val options = TaskConf.toGraphFileOptions(conf)
+    val config = Management.toConfig(options.toConfigParams)
+
+    val snapshotPath = conf.options("hbase.rootdir")
+    val restorePath = conf.options("restore.path")
+    val tableNames = conf.options("hbase.table.names").split(",")
+    val columnFamily = conf.options.getOrElse("hbase.table.cf", "e")
+    val batchSize = conf.options.getOrElse("scan.batch.size", "1000").toInt
+
+    HFileGenerator.tableSnapshotDump(ss, config, options, snapshotPath, restorePath, tableNames, columnFamily, batchSize)
   }
 }

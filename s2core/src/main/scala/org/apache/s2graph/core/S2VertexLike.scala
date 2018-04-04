@@ -68,10 +68,8 @@ trait S2VertexLike extends Vertex with GraphElement {
       if (!id.storeColId) ("", "")
       else (serviceColumn.service.serviceName, serviceColumn.columnName)
 
-    if (propsWithName.nonEmpty)
-      Seq(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName, Json.toJson(propsWithName)).mkString("\t")
-    else
-      Seq(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName).mkString("\t")
+
+    Seq(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName, Json.toJson(propsWithName)).mkString("\t")
   }
 
   def vertices(direction: Direction, edgeLabels: String*): util.Iterator[Vertex] = {
