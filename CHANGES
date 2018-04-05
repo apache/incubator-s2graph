@@ -34,6 +34,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-161] - Update CHANGES file with correct release version
     * [S2GRAPH-163] - Update version.sbt after release
     * [S2GRAPH-180] - Implement missing Management API
+    * [S2GRAPH-197] - Provide S2graphSink for non-streaming dataset
 
 ** Bug
     * [S2GRAPH-159] - Wrong syntax at a bash script under Linux

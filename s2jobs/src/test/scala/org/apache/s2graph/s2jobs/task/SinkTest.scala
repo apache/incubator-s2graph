@@ -51,8 +51,8 @@ class SinkTest extends BaseSparkTest {
     val df = toDataFrame(Seq(bulkEdgeString))
     val args = Map("writeMethod" -> "bulk") ++
       options.toCommand.grouped(2).map { kv =>
-        kv.head -> kv.last
-      }.toMap
+      kv.head -> kv.last
+    }.toMap
 
     val conf = TaskConf("test", "sql", Seq("input"), args)
 
@@ -87,9 +87,9 @@ class SinkTest extends BaseSparkTest {
 
     val filteredEdges = s2Edges.filter{ edge =>
       edge.srcVertex.innerIdVal.toString == "b" &&
-        edge.tgtVertex.innerIdVal.toString == "c" &&
-        edge.getTs() == 1416236400000L &&
-        edge.label() == "friends"
+      edge.tgtVertex.innerIdVal.toString == "c" &&
+      edge.getTs() == 1416236400000L &&
+      edge.label() == "friends"
     }
 
     assert(filteredEdges.size == 1)
