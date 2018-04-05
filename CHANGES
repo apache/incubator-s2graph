@@ -65,6 +65,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-169] - Separate multiple functionalities on Storage class into multiple Interface.
     * [S2GRAPH-170] - Create Interface for S2Edge/S2Vertex/S2Graph.
     * [S2GRAPH-182] - Version up spark dependencies.
+    * [S2GRAPH-198] - Skip json Decode error and continue.
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.
