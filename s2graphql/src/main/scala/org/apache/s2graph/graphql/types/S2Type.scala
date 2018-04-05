@@ -184,7 +184,7 @@ object S2Type {
 
     lazy val serviceColumnField: Field[GraphRepository, Any] = Field(column.columnName, labelColumnType, resolve = c => {
       implicit val ec = c.ctx.ec
-      val (vertex, canSkipFetchVertex) = Unmarshaller.serviceColumnFieldOnLabel(column, c)
+      val (vertex, canSkipFetchVertex) = Unmarshaller.serviceColumnFieldOnLabel(c)
 
       if (canSkipFetchVertex) Future.successful(vertex)
       else c.ctx.getVertices(Seq(vertex)).map(_.head) // fill props

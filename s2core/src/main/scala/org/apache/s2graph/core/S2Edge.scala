@@ -41,7 +41,7 @@ import scala.util.hashing.MurmurHash3
 
 object SnapshotEdge {
   def apply(e: S2EdgeLike): SnapshotEdge = {
-    val (smaller, larger) = (e.srcForVertex, e.tgtForVertex)
+    val (smaller, larger) = (e.srcForVertexInner, e.tgtForVertexInner)
 
     val snapshotEdge = SnapshotEdge(e.innerGraph, smaller, larger, e.innerLabel,
       GraphUtil.directions("out"), e.getOp(), e.getVersion(), e.getPropsWithTs(),
@@ -814,6 +814,30 @@ object S2Edge {
 
   def srcForVertex(e: S2EdgeLike): S2VertexLike = {
     val belongLabelIds = Seq(e.getLabelId())
+
+    val column = if (e.getDir() == GraphUtil.directions("in")) {
+      getServiceColumn(e.tgtVertex, e.innerLabel.tgtColumn)
+    } else {
+      getServiceColumn(e.srcVertex, e.innerLabel.srcColumn)
+    }
+
+    e.innerGraph.elementBuilder.newVertex(VertexId(column, e.srcVertex.innerId), e.srcVertex.ts, e.srcVertex.props, belongLabelIds = belongLabelIds)
+  }
+
+  def tgtForVertex(e: S2EdgeLike): S2VertexLike = {
+    val belongLabelIds = Seq(e.getLabelId())
+
+    val column = if (e.getDir() == GraphUtil.directions("in")) {
+      getServiceColumn(e.srcVertex, e.innerLabel.srcColumn)
+    } else {
+      getServiceColumn(e.tgtVertex, e.innerLabel.tgtColumn)
+    }
+
+    e.innerGraph.elementBuilder.newVertex(VertexId(column, e.tgtVertex.innerId), e.tgtVertex.ts, e.tgtVertex.props, belongLabelIds = belongLabelIds)
+  }
+
+  def srcForVertexInner(e: S2EdgeLike): S2VertexLike = {
+    val belongLabelIds = Seq(e.getLabelId())
     if (e.getDir() == GraphUtil.directions("in")) {
       val tgtColumn = getServiceColumn(e.tgtVertex, e.innerLabel.tgtColumn)
       e.innerGraph.elementBuilder.newVertex(VertexId(tgtColumn, e.tgtVertex.innerId), e.tgtVertex.ts, e.tgtVertex.props, belongLabelIds = belongLabelIds)
@@ -823,7 +847,7 @@ object S2Edge {
     }
   }
 
-  def tgtForVertex(e: S2EdgeLike): S2VertexLike = {
+  def tgtForVertexInner(e: S2EdgeLike): S2VertexLike = {
     val belongLabelIds = Seq(e.getLabelId())
     if (e.getDir() == GraphUtil.directions("in")) {
       val srcColumn = getServiceColumn(e.srcVertex, e.innerLabel.srcColumn)

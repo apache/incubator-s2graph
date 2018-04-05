@@ -144,9 +144,11 @@ object Unmarshaller {
     (vertices, canSkipFetch)
   }
 
-  def serviceColumnFieldOnLabel(column: ServiceColumn, c: Context[GraphRepository, Any]): (S2VertexLike, Boolean) = {
+  def serviceColumnFieldOnLabel(c: Context[GraphRepository, Any]): (S2VertexLike, Boolean) = {
     val edge = c.value.asInstanceOf[S2EdgeLike]
-    val vertex = if (edge.getDirection() == "in") edge.srcForVertex else edge.tgtForVertex
+
+    val vertex = edge.tgtForVertex
+    val column = vertex.serviceColumn
 
     val selectedFields = AstHelper.selectedFields(c.astFields)
     val columnFields = column.metasInvMap.keySet
