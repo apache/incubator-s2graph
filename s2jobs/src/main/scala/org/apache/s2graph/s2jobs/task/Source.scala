@@ -19,11 +19,12 @@
 
 package org.apache.s2graph.s2jobs.task
 
-import org.apache.s2graph.core.{GraphElement, Management}
-import org.apache.s2graph.s2jobs.loader.{GraphFileOptions, HFileGenerator, SparkBulkLoaderTransformer}
+import org.apache.s2graph.core.Management
+import org.apache.s2graph.s2jobs.Schema
+import org.apache.s2graph.s2jobs.loader.{HFileGenerator, SparkBulkLoaderTransformer}
 import org.apache.s2graph.s2jobs.serde.reader.S2GraphCellReader
-import org.apache.s2graph.s2jobs.serde.writer.{S2EdgeDataFrameWriter, S2VertexDataFrameWriter}
-import org.apache.spark.sql.{DataFrame, DataFrameWriter, SparkSession}
+import org.apache.s2graph.s2jobs.serde.writer.RowDataFrameWriter
+import org.apache.spark.sql.{DataFrame, SparkSession}
 
 
 /**
@@ -112,7 +113,6 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
   override def mandatoryOptions: Set[String] = Set("hbase.rootdir", "restore.path", "hbase.table.names")
 
   override def toDF(ss: SparkSession): DataFrame = {
-    import ss.sqlContext.implicits._
     val mergedConf = TaskConf.parseHBaseConfigs(conf) ++ TaskConf.parseMetaStoreConfigs(conf)
     val config = Management.toConfig(mergedConf)
 
@@ -132,21 +132,11 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
 
 
     implicit val reader = new S2GraphCellReader(elementType)
+    implicit val writer = new RowDataFrameWriter
+    val transformer = new SparkBulkLoaderTransformer(config, labelMapping, buildDegree)
+    val kvs = transformer.transform(cells)
 
-    columnFamily match {
-      case "v" =>
-        implicit val writer = new S2VertexDataFrameWriter
-        val transformer = new SparkBulkLoaderTransformer(config, labelMapping, buildDegree)
-        val kvs = transformer.transform(cells)
-
-        kvs.toDF(S2VertexDataFrameWriter.Fields: _*)
-      case "e" =>
-        implicit val writer = new S2EdgeDataFrameWriter
-        val transformer = new SparkBulkLoaderTransformer(config, labelMapping, buildDegree)
-        val kvs = transformer.transform(cells)
-
-        kvs.toDF(S2EdgeDataFrameWriter.Fields: _*)
-      case _ => throw new IllegalArgumentException(s"$columnFamily is not supported.")
-    }
+    val schema = if (columnFamily == "v") Schema.VertexSchema else Schema.EdgeSchema
+    ss.sqlContext.createDataFrame(kvs, schema)
   }
 }

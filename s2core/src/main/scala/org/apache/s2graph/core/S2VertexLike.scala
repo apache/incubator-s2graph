@@ -60,10 +60,7 @@ trait S2VertexLike extends Vertex with GraphElement {
   def defaultProps: util.HashMap[String, S2VertexProperty[_]] = builder.defaultProps
 
   def toLogString(): String = {
-    val propsWithName = for {
-      (k, v) <- props.asScala.toMap
-      jsValue <- JSONParser.anyValToJsValue(v.innerVal.value)
-    } yield (v.columnMeta.name -> jsValue)
+    val propsWithName = PostProcess.s2VertexPropsJsonString(this)
 
     val (serviceName, columnName) =
       if (!id.storeColId) ("", "")

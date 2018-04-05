@@ -22,26 +22,24 @@ package org.apache.s2graph.s2jobs.loader
 import com.typesafe.config.Config
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
+import org.apache.hadoop.hbase._
 import org.apache.hadoop.hbase.client.{ConnectionFactory, Result, Scan}
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.mapreduce._
+import org.apache.hadoop.hbase.protobuf.ProtobufUtil
 import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.{Base64, Bytes}
-import org.apache.hadoop.hbase._
-import org.apache.hadoop.hbase.protobuf.ProtobufUtil
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.util.ToolRunner
-import org.apache.s2graph.core.GraphElement
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageManagement
-import org.apache.s2graph.s2jobs.S2GraphHelper
-import org.apache.s2graph.s2jobs.serde.reader.{S2GraphCellReader, TsvBulkFormatReader}
-import org.apache.s2graph.s2jobs.serde.writer.{S2EdgeDataFrameWriter, IdentityWriter, KeyValueWriter}
+import org.apache.s2graph.s2jobs.serde.reader.TsvBulkFormatReader
+import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
 import org.apache.s2graph.s2jobs.spark.{FamilyHFileWriteOptions, HBaseContext, KeyFamilyQualifier}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.SparkSession
 
 object HFileGenerator extends RawFileGenerator[String, KeyValue] {
 

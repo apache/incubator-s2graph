@@ -59,6 +59,24 @@ object S2GraphHelper {
     }
   }
 
+  def graphElementToSparkSqlRow(s2: S2Graph, element: GraphElement): Row = {
+    element match {
+      case e: S2EdgeLike =>
+        Row(
+          e.getTs(), e.getOperation(), "edge",
+          e.srcVertex.innerId.toIdString(), e.tgtVertex.innerId.toIdString(), e.label(),
+          PostProcess.s2EdgePropsJsonString(e),
+          e.getDirection()
+        )
+      case v: S2VertexLike =>
+        Row(
+          v.ts, GraphUtil.fromOp(v.op), "vertex",
+          v.innerId.toIdString(), v.serviceName, v.columnName,
+          PostProcess.s2VertexPropsJsonString(v)
+        )
+      case _ => throw new IllegalArgumentException(s"$element is not supported.")
+    }
+  }
   def sparkSqlRowToGraphElement(s2: S2Graph, row: Row, schema: StructType, reservedColumn: Set[String]): Option[GraphElement] = {
     val timestamp = row.getAs[Long]("timestamp")
     val operation = Try(row.getAs[String]("operation")).getOrElse("insert")
