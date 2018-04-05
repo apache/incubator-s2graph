@@ -35,5 +35,7 @@ addSbtPlugin("com.jsuereth" % "sbt-pgp" % "1.0.0")
 
 addSbtPlugin("com.github.gseitz" % "sbt-release" % "1.0.3")
 
+addSbtPlugin("se.marcuslonnberg" % "sbt-docker" % "1.4.1")
+
 resolvers += Resolver.typesafeRepo("releases")
 

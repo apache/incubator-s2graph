@@ -43,14 +43,20 @@ lazy val s2rest_play = project.enablePlugins(PlayScala).disablePlugins(PlayLogba
   .dependsOn(s2core, s2counter_core)
   .settings(commonSettings: _*)
   .settings(testOptions in Test += Tests.Argument("sequential"))
+  .settings(dockerSettings: _*)
+  .enablePlugins(sbtdocker.DockerPlugin, JavaAppPackaging)
 
 lazy val s2rest_netty = project
   .dependsOn(s2core)
   .settings(commonSettings: _*)
+  .settings(dockerSettings: _*)
+  .enablePlugins(sbtdocker.DockerPlugin, JavaAppPackaging)
 
 lazy val s2graphql = project
   .dependsOn(s2core)
   .settings(commonSettings: _*)
+  .settings(dockerSettings: _*)
+  .enablePlugins(sbtdocker.DockerPlugin, JavaAppPackaging)
 
 lazy val s2core = project.settings(commonSettings: _*)
 
@@ -75,6 +81,36 @@ lazy val root = (project in file("."))
   .aggregate(s2core, s2rest_play)
   .dependsOn(s2rest_play, s2rest_netty, s2jobs, s2counter_loader, s2graphql) // this enables packaging on the root project
   .settings(commonSettings: _*)
+
+lazy val dockerSettings = Seq(
+  dockerfile in docker := {
+    val appDir: File = stage.value
+    val targetDir = s"/u/apps/${name.value}"
+
+    new Dockerfile {
+      from("java:8")
+      entryPoint(s"$targetDir/bin/${executableScriptName.value}")
+      env("EXTRA_JARS", "")
+      env("ZONEINFO", "Asia/Seoul")
+      copy(appDir, targetDir)
+      workDir(targetDir)
+      expose(9000)
+    }
+  },
+  bashScriptExtraDefines ++= Seq(
+    s"""cp $$EXTRA_JARS/* /u/apps/${name.value}/lib""",
+    "ln -sf /usr/share/zoneinfo/$ZONEINFO /etc/localtime; date"
+  ),
+  scriptClasspath += "*",
+  imageNames in docker := Seq(
+    ImageName(s"s2graph/${name.value}:${version.value}")
+  ),
+  buildOptions in docker := BuildOptions(
+    cache = false,
+    removeIntermediateContainers = BuildOptions.Remove.Always,
+    pullBaseImage = BuildOptions.Pull.Always
+  )
+)
 
 lazy val runRatTask = inputKey[Unit]("Runs Apache rat on S2Graph")
 
