@@ -25,6 +25,7 @@ import org.apache.s2graph.core.mysqls.{Label, Model, Service}
 import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.{Management, S2Graph}
 import org.apache.s2graph.graphql.repository.GraphRepository
+import org.apache.s2graph.graphql.types.SchemaDef
 import play.api.libs.json._
 import sangria.ast.Document
 import sangria.execution.Executor

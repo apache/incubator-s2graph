@@ -67,6 +67,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-182] - Version up spark dependencies.
     * [S2GRAPH-198] - Skip json Decode error and continue.
     * [S2GRAPH-200] - docker image could not include extra jars.
+    * [S2GRAPH-199] - Changing query more intuitively by using `columnName` instead of `from/to` in label field name.
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.

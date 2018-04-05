@@ -179,7 +179,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
 
           query {
             Management {
-              Service(name: kakao) {
+              Services(name: kakao) {
                 name
                 serviceColumns {
                   name
@@ -200,7 +200,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
           {
             "data": {
               "Management": {
-                "Service": {
+                "Services": [{
                   "name": "kakao",
                   "serviceColumns": [{
                     "name": "user",
@@ -209,7 +209,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
                       { "name": "gender", "dataType": "string" }
                     ]
                   }]
-                }
+                }]
               }
             }
           }
@@ -307,7 +307,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
 
           query {
             Management {
-              Label(name: friends) {
+              Labels(name: friends) {
                 name
                 props {
                   name
@@ -325,13 +325,13 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
           {
           	"data": {
           		"Management": {
-          			"Label": {
+          			"Labels": [{
           				"name": "friends",
           				"props": [{
           					"name": "score",
           					"dataType": "double"
           				}]
-          			}
+          			}]
           		}
           	}
           }
@@ -392,6 +392,9 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
                 id
                 age
                 gender
+                props {
+                  age
+                }
               }
             }
           }
@@ -406,11 +409,17 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
           			"user": [{
           				"id": "daewon",
           				"age": 20,
-                  "gender": "M"
+                  "gender": "M",
+                  "props": {
+                    "age": 20
+                  }
           			}, {
           				"id": "shon",
           				"age": 19,
-                  "gender": "F"
+                  "gender": "F",
+                  "props": {
+                    "age": 19
+                  }
           			}]
           		}
           	}
@@ -464,13 +473,16 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
           kakao {
             user(id: "daewon") {
               id
-              friends {
-                score
-                to {
+              friends(direction: out) {
+                props {
+                  score
+                }
+                score # shorcut score props
+                user {
                   id
                   age
                   friends(direction: in) {
-                    to {
+                    user {
                       id
                       age
                     }
@@ -492,12 +504,15 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
               "user" : [ {
                 "id" : "daewon",
                 "friends" : [ {
+                  "props" : {
+                    "score" : 0.9
+                  },
                   "score" : 0.9,
-                  "to" : {
+                  "user" : {
                     "id" : "shon",
                     "age" : 19,
                     "friends" : [ {
-                      "to" : {
+                      "user" : {
                         "id" : "daewon",
                         "age" : 20
                       },
@@ -564,14 +579,13 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
 
           query {
             Management {
-              Label(name: friends) {
+              Labels(name: friends) {
                 name
                 props {
                   name
                   dataType
                 }
               }
-
             }
           }
           """
@@ -586,7 +600,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
 
           query {
             Management {
-             Service(name: kakao) {
+             Services(name: kakao) {
                 serviceColumns {
                   name
                 }
@@ -602,9 +616,9 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         {
         	"data": {
         		"Management": {
-        			"Service": {
+        			"Services": [{
         				"serviceColumns": []
-        			}
+        			}]
         		}
         	}
         }

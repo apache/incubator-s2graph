@@ -42,13 +42,8 @@ object GraphRepository {
 
     tryObj
   }
-
 }
 
-/**
-  *
-  * @param graph
-  */
 class GraphRepository(val graph: S2GraphLike) {
   implicit val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -97,7 +92,7 @@ class GraphRepository(val graph: S2GraphLike) {
   def getEdges(vertex: S2VertexLike, label: Label, _dir: String): Future[Seq[S2EdgeLike]] = {
     val dir = GraphUtil.directions(_dir)
     val labelWithDir = LabelWithDirection(label.id.get, dir)
-    val step = Step(Seq(QueryParam(labelWithDir)))
+    val step = Step(Seq(QueryParam(labelWithDir).copy(limit = 100, includeDegree = false)))
     val q = Query(Seq(vertex), steps = Vector(step))
 
     graph.getEdges(q).map(_.edgeWithScores.map(_.edge))

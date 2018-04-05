@@ -17,14 +17,17 @@
  * under the License.
  */
 
-package org.apache.s2graph.graphql
+package org.apache.s2graph.graphql.bind
 
 import org.apache.s2graph.core.Management.JsonModel._
+import org.apache.s2graph.core.mysqls.ServiceColumn
+import org.apache.s2graph.core.{S2EdgeLike, S2VertexLike}
+import org.apache.s2graph.graphql.repository.GraphRepository
 import org.apache.s2graph.graphql.types.S2Type._
 import sangria.marshalling._
-import sangria.schema.Args
+import sangria.schema.Context
 
-package object marshaller {
+object Unmarshaller {
   type RawNode = Map[String, Any]
 
   def unwrap(any: Any): Any = any match {
@@ -121,4 +124,38 @@ package object marshaller {
       partialServiceColumns.toVector
     }
   }
+
+  def labelField(c: Context[GraphRepository, Any]): (S2VertexLike, String) = {
+    val vertex = c.value.asInstanceOf[S2VertexLike]
+    val dir = c.arg[String]("direction")
+
+    (vertex, dir)
+  }
+
+  def serviceColumnFieldOnService(column: ServiceColumn, c: Context[GraphRepository, Any]): (Seq[S2VertexLike], Boolean) = {
+    val ids = c.argOpt[Any]("id").toSeq ++ c.argOpt[List[Any]]("ids").toList.flatten
+    val vertices = ids.map(vid => c.ctx.toS2VertexLike(vid, column))
+
+    val columnFields = column.metasInvMap.keySet
+    val selectedFields = AstHelper.selectedFields(c.astFields)
+
+    val canSkipFetch = selectedFields.forall(f => f == "id" || !columnFields(f))
+
+    (vertices, canSkipFetch)
+  }
+
+  def serviceColumnFieldOnLabel(c: Context[GraphRepository, Any]): (S2VertexLike, Boolean) = {
+    val edge = c.value.asInstanceOf[S2EdgeLike]
+
+    val vertex = edge.tgtForVertex
+    val column = vertex.serviceColumn
+
+    val selectedFields = AstHelper.selectedFields(c.astFields)
+    val columnFields = column.metasInvMap.keySet
+
+    val canSkipFetch = selectedFields.forall(f => f == "id" || !columnFields(f))
+
+    (vertex, canSkipFetch)
+  }
+
 }

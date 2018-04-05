@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.graphql
+package org.apache.s2graph.graphql.types
 
 import org.apache.s2graph.graphql.repository.GraphRepository
 import org.apache.s2graph.graphql.types._
@@ -33,7 +33,7 @@ class SchemaDef(g: GraphRepository) {
   import sangria.schema._
 
   val s2Type = new S2Type(g)
-  val s2ManagementType = new S2ManagementType(g)
+  val s2ManagementType = new ManagementType(g)
 
   val queryManagementFields = List(wrapField("QueryManagement", "Management", s2ManagementType.queryFields))
   val S2QueryType = ObjectType[GraphRepository, Any](
