@@ -37,7 +37,7 @@ import org.apache.s2graph.core.GraphElement
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageManagement
 import org.apache.s2graph.s2jobs.S2GraphHelper
 import org.apache.s2graph.s2jobs.serde.reader.{S2GraphCellReader, TsvBulkFormatReader}
-import org.apache.s2graph.s2jobs.serde.writer.{GraphElementDataFrameWriter, IdentityWriter, KeyValueWriter}
+import org.apache.s2graph.s2jobs.serde.writer.{S2EdgeDataFrameWriter, IdentityWriter, KeyValueWriter}
 import org.apache.s2graph.s2jobs.spark.{FamilyHFileWriteOptions, HBaseContext, KeyFamilyQualifier}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD

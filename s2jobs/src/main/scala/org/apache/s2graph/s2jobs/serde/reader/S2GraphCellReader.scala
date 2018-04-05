@@ -27,54 +27,28 @@ import org.apache.s2graph.core.{GraphElement, S2Graph}
 import org.apache.s2graph.s2jobs.serde.GraphElementReadable
 
 class S2GraphCellReader(elementType: String) extends GraphElementReadable[Seq[Cell]]{
-  override def read(s2: S2Graph)(cells: Seq[Cell]): Option[GraphElement] = {
-    if (cells.isEmpty) None
-    else {
-      //TODO:
-      val cell = cells.head
-      val schemaVer = HBaseType.DEFAULT_VERSION
-      val cf = cell.getFamily
+  override def read(s2: S2Graph)(cells: Seq[Cell]): Seq[GraphElement] = {
+    val schemaVer = HBaseType.DEFAULT_VERSION
+    val kvs = cells.map { cell =>
+      new SKeyValue(Array.empty[Byte], cell.getRow, cell.getFamily, cell.getQualifier,
+        cell.getValue, cell.getTimestamp, SKeyValue.Default)
+    }
 
-      val kvs = cells.map { cell =>
-        new SKeyValue(Array.empty[Byte], cell.getRow, cell.getFamily, cell.getQualifier,
-          cell.getValue, cell.getTimestamp, SKeyValue.Default)
-      }
-      elementType match {
-        case "IndexEdge" =>
-          if (!Bytes.equals(cf, SKeyValue.EdgeCf))
-            throw new IllegalArgumentException(s"$elementType is provided by user, but actual column family differ as e")
-
+    elementType.toLowerCase match {
+      case "vertex" | "v" =>
+        s2.defaultStorage.serDe.vertexDeserializer(schemaVer)
+          .fromKeyValues(kvs, None).map(_.asInstanceOf[GraphElement]).toSeq
+      case "indexedge" | "ie" =>
+        kvs.flatMap { kv =>
           s2.defaultStorage.serDe.indexEdgeDeserializer(schemaVer)
-            .fromKeyValues(kvs, None).map(_.asInstanceOf[GraphElement])
-        case "SnapshotEdge" =>
-          //TODO: replace this to use separate column family: SKeyValue.SnapshotEdgeCF
-          if (!Bytes.equals(cf, SKeyValue.EdgeCf))
-            throw new IllegalArgumentException(s"$elementType is provided by user, but actual column family differ as e")
-
+            .fromKeyValues(Seq(kv), None).map(_.asInstanceOf[GraphElement])
+        }
+      case "snapshotedge" | "se" =>
+        kvs.flatMap { kv =>
           s2.defaultStorage.serDe.snapshotEdgeDeserializer(schemaVer)
-            .fromKeyValues(kvs, None).map(_.toEdge.asInstanceOf[GraphElement])
-        case "Vertex" =>
-          if (!Bytes.equals(cf, SKeyValue.VertexCf))
-            throw new IllegalArgumentException(s"$elementType is provided by user, but actual column family differ as v")
-
-          s2.defaultStorage.serDe.vertexDeserializer(schemaVer)
-            .fromKeyValues(kvs, None).map(_.asInstanceOf[GraphElement])
-        case _ => throw new IllegalArgumentException(s"$elementType is not supported column family.")
-      }
-//      if (Bytes.equals(cf, SKeyValue.VertexCf)) {
-//        s2.defaultStorage.serDe.vertexDeserializer(schemaVer).fromKeyValues(kvs, None).map(_.asInstanceOf[GraphElement])
-//      } else if (Bytes.equals(cf, SKeyValue.EdgeCf)) {
-//        val indexEdgeOpt = s2.defaultStorage.serDe.indexEdgeDeserializer(schemaVer).fromKeyValues(kvs, None)
-//        if (indexEdgeOpt.isDefined) indexEdgeOpt.map(_.asInstanceOf[GraphElement])
-//        else {
-//          //TODO: Current version use same column family for snapshotEdge and indexEdge.
-//
-//          val snapshotEdgeOpt = s2.defaultStorage.serDe.snapshotEdgeDeserializer(schemaVer).fromKeyValues(kvs, None)
-////          if (snapshotEdgeOpt.isDefined) snapshotEdgeOpt.map(_.toEdge.asInstanceOf[GraphElement])
-////          else throw new IllegalStateException(s"column family indicate this is edge, but neither snapshot/index edge.")
-//          None
-//        }
-//      } else throw new IllegalStateException(s"wrong column family. ${Bytes.toString(cf)}")
+            .fromKeyValues(Seq(kv), None).map(_.asInstanceOf[GraphElement])
+        }
+      case _ => throw new IllegalArgumentException(s"$elementType is not supported.")
     }
   }
 }

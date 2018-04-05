@@ -22,7 +22,7 @@ package org.apache.s2graph.s2jobs.task
 import org.apache.s2graph.core.{GraphElement, Management}
 import org.apache.s2graph.s2jobs.loader.{GraphFileOptions, HFileGenerator, SparkBulkLoaderTransformer}
 import org.apache.s2graph.s2jobs.serde.reader.S2GraphCellReader
-import org.apache.s2graph.s2jobs.serde.writer.GraphElementDataFrameWriter
+import org.apache.s2graph.s2jobs.serde.writer.{S2EdgeDataFrameWriter, S2VertexDataFrameWriter}
 import org.apache.spark.sql.{DataFrame, DataFrameWriter, SparkSession}
 
 
@@ -122,7 +122,9 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
     val columnFamily = conf.options.getOrElse("hbase.table.cf", "e")
     val batchSize = conf.options.getOrElse("scan.batch.size", "1000").toInt
     val labelMapping = Map.empty[String, String]
-    val buildDegree = conf.options.getOrElse("build.degree", "false").toBoolean
+    val buildDegree =
+      if (columnFamily == "v") false
+      else conf.options.getOrElse("build.degree", "false").toBoolean
     val elementType = conf.options.getOrElse("element.type", "IndexEdge")
 
     val cells = HFileGenerator.tableSnapshotDump(ss, config, snapshotPath,
@@ -130,11 +132,21 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
 
 
     implicit val reader = new S2GraphCellReader(elementType)
-    implicit val writer = new GraphElementDataFrameWriter
 
-    val transformer = new SparkBulkLoaderTransformer(config, labelMapping, buildDegree)
-    val kvs = transformer.transform(cells)
+    columnFamily match {
+      case "v" =>
+        implicit val writer = new S2VertexDataFrameWriter
+        val transformer = new SparkBulkLoaderTransformer(config, labelMapping, buildDegree)
+        val kvs = transformer.transform(cells)
 
-    kvs.toDF(GraphElementDataFrameWriter.Fields: _*)
+        kvs.toDF(S2VertexDataFrameWriter.Fields: _*)
+      case "e" =>
+        implicit val writer = new S2EdgeDataFrameWriter
+        val transformer = new SparkBulkLoaderTransformer(config, labelMapping, buildDegree)
+        val kvs = transformer.transform(cells)
+
+        kvs.toDF(S2EdgeDataFrameWriter.Fields: _*)
+      case _ => throw new IllegalArgumentException(s"$columnFamily is not supported.")
+    }
   }
 }

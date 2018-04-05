@@ -22,26 +22,27 @@ package org.apache.s2graph.s2jobs.serde.writer
 import org.apache.s2graph.core.{GraphElement, S2Graph}
 import org.apache.s2graph.s2jobs.DegreeKey
 import org.apache.s2graph.s2jobs.serde.GraphElementWritable
+import org.apache.s2graph.s2jobs.serde.writer.S2EdgeDataFrameWriter.S2EdgeTuple
 
-object GraphElementDataFrameWriter {
-  type GraphElementTuple = (Long, String, String, String, String, String, String, String)
-  val Fields = Seq("timestamp", "operation", "element", "from", "to", "label", "props", "direction")
+object S2EdgeDataFrameWriter {
+  type S2EdgeTuple = (Long, String, String, String, String, String, String, String)
+  val Fields = Seq("timestamp", "operation", "elem", "from", "to", "label", "props", "direction")
 }
 
-class GraphElementDataFrameWriter extends GraphElementWritable[GraphElementDataFrameWriter.GraphElementTuple] {
-  import GraphElementDataFrameWriter._
-  private def toGraphElementTuple(tokens: Array[String]): GraphElementTuple = {
+class S2EdgeDataFrameWriter extends GraphElementWritable[S2EdgeTuple] {
+  import S2EdgeDataFrameWriter._
+  private def toGraphElementTuple(tokens: Array[String]): S2EdgeTuple = {
     tokens match {
       case Array(ts, op, elem, from, to, label, props, dir) => (ts.toLong, op, elem, from, to, label, props, dir)
       case Array(ts, op, elem, from, to, label, props) => (ts.toLong, op, elem, from, to, label, props, "out")
       case _ => throw new IllegalStateException(s"${tokens.toList} is malformed.")
     }
   }
-  override def write(s2: S2Graph)(element: GraphElement): GraphElementTuple = {
+  override def write(s2: S2Graph)(element: GraphElement): S2EdgeTuple = {
     toGraphElementTuple(element.toLogString().split("\t"))
   }
 
-  override def writeDegree(s2: S2Graph)(degreeKey: DegreeKey, count: Long): GraphElementTuple = {
+  override def writeDegree(s2: S2Graph)(degreeKey: DegreeKey, count: Long): S2EdgeTuple = {
     val element = DegreeKey.toEdge(s2, degreeKey, count)
 
     toGraphElementTuple(element.toLogString().split("\t"))

@@ -23,7 +23,7 @@ import org.apache.s2graph.core.{GraphElement, S2Graph}
 import org.apache.s2graph.s2jobs.serde.GraphElementReadable
 
 class TsvBulkFormatReader extends GraphElementReadable[String] {
-  override def read(graph: S2Graph)(data: String): Option[GraphElement] = {
-    graph.elementBuilder.toGraphElement(data)
+  override def read(graph: S2Graph)(data: String): Seq[GraphElement] = {
+    graph.elementBuilder.toGraphElement(data).toSeq
   }
 }

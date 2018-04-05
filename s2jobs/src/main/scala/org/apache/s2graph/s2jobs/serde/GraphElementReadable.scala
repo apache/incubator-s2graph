@@ -22,5 +22,5 @@ package org.apache.s2graph.s2jobs.serde
 import org.apache.s2graph.core.{GraphElement, S2Graph}
 
 trait GraphElementReadable[S] extends Serializable {
-  def read(graph: S2Graph)(data: S): Option[GraphElement]
+  def read(graph: S2Graph)(data: S): Seq[GraphElement]
 }
