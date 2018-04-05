@@ -20,6 +20,12 @@
 package org.apache.s2graph.s2jobs.loader
 
 object GraphFileOptions {
+  val OptionKeys = Set(
+    "--input", "--tempDir", "--output", "--zkQuorum", "--table", "--dbUrl", "--dbUser", "--dbPassword", "--dbDriver",
+    "--maxHFilePerRegionServer", "--numRegions", "--labelMapping", "--autoEdgeCreate", "--buildDegree",
+    "--skipError", "--incrementalLoad", "--method"
+  )
+
   val parser = new scopt.OptionParser[GraphFileOptions]("run") {
 
     opt[String]('i', "input").required().action( (x, c) =>
@@ -92,6 +98,10 @@ object GraphFileOptions {
       (inner.head, inner.last)
     }).toMap
   }
+
+  def toLabelMappingString(labelMapping: Map[String, String]): String =
+    labelMapping.map { case (k, v) => Seq(k, v).mkString(":") }.mkString(",")
+
 }
 /**
   * Option case class for TransferToHFile.
@@ -137,4 +147,25 @@ case class GraphFileOptions(input: String = "",
       "db.default.driver" -> dbDriver
     )
   }
+
+  def toCommand: Array[String] =
+    Array(
+      "--input", input,
+      "--tempDir", tempDir,
+      "--output", output,
+      "--zkQuorum", zkQuorum,
+      "--table", tableName,
+      "--dbUrl", dbUrl,
+      "--dbUser", dbUser,
+      "--dbPassword", dbPassword,
+      "--dbDriver", dbDriver,
+      "--maxHFilePerRegionServer", maxHFilePerRegionServer.toString,
+      "--numRegions", numRegions.toString,
+      "--labelMapping", GraphFileOptions.toLabelMappingString(labelMapping),
+      "--autoEdgeCreate", autoEdgeCreate.toString,
+      "--buildDegree", buildDegree.toString,
+      "--skipError", skipError.toString,
+      "--incrementalLoad", incrementalLoad.toString,
+      "--method", method
+    )
 }

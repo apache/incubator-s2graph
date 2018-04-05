@@ -17,44 +17,34 @@
  * under the License.
  */
 
-package org.apache.s2graph.s2jobs.serde
+package org.apache.s2graph.s2jobs.loader
 
 import com.typesafe.config.Config
-import org.apache.hadoop.hbase.KeyValue
 import org.apache.s2graph.core.{GraphElement, S2Graph}
-import org.apache.s2graph.s2jobs.loader.GraphFileOptions
-import org.apache.s2graph.s2jobs.serde.reader.TsvBulkFormatReader
-import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
+import org.apache.s2graph.s2jobs.serde.{GraphElementReadable, GraphElementWritable, Transformer}
 import org.apache.s2graph.s2jobs.{DegreeKey, S2GraphHelper}
 
 import scala.concurrent.ExecutionContext
+import scala.reflect.ClassTag
 
 class LocalBulkLoaderTransformer(val config: Config,
-                                 val options: GraphFileOptions)(implicit ec: ExecutionContext) extends Transformer[String, Seq[KeyValue], Seq] {
+                                 val options: GraphFileOptions)(implicit ec: ExecutionContext) extends Transformer[Seq] {
   val s2: S2Graph = S2GraphHelper.initS2Graph(config)
 
-  override val reader = new TsvBulkFormatReader
-  override val writer = new KeyValueWriter(options)
-
-  override def read(input: Seq[String]): Seq[GraphElement] = input.flatMap(reader.read(s2)(_))
-
-  override def write(elements: Seq[GraphElement]): Seq[Seq[KeyValue]] = elements.map(writer.write(s2)(_))
-
-  override def buildDegrees(elements: Seq[GraphElement]): Seq[Seq[KeyValue]] = {
+  override def buildDegrees[T: ClassTag](elements: Seq[GraphElement])(implicit writer: GraphElementWritable[T]): Seq[T] = {
     val degrees = elements.flatMap { element =>
       DegreeKey.fromGraphElement(s2, element, options.labelMapping).map(_ -> 1L)
     }.groupBy(_._1).mapValues(_.map(_._2).sum)
 
     degrees.toSeq.map { case (degreeKey, count) =>
-      DegreeKey.toKeyValue(s2, degreeKey, count)
+      writer.writeDegree(s2)(degreeKey, count)
     }
   }
 
-  override def transform(input: Seq[String]): Seq[Seq[KeyValue]] = {
-    val elements = read(input)
-    val kvs = write(elements)
-
-    val degrees = if (options.buildDegree) buildDegrees(elements) else Nil
+  override def transform[S: ClassTag, T: ClassTag](input: Seq[S])(implicit reader: GraphElementReadable[S], writer: GraphElementWritable[T]): Seq[T] = {
+    val elements = input.flatMap(reader.read(s2)(_))
+    val kvs = elements.map(writer.write(s2)(_))
+    val degrees = if (options.buildDegree) buildDegrees[T](elements) else Nil
 
     kvs ++ degrees
   }

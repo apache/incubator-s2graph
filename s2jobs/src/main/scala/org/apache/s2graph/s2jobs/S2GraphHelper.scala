@@ -24,10 +24,12 @@ import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.s2graph.core.types.{InnerValLikeWithTs, SourceVertexId}
-import org.apache.s2graph.s2jobs.loader.GraphFileOptions
-import play.api.libs.json.Json
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.StructType
+import play.api.libs.json.{JsObject, Json}
 
 import scala.concurrent.ExecutionContext
+import scala.util.Try
 
 object S2GraphHelper {
   def initS2Graph(config: Config)(implicit ec: ExecutionContext = ExecutionContext.Implicits.global): S2Graph = {
@@ -55,8 +57,8 @@ object S2GraphHelper {
     }
   }
 
-  private def insertBulkForLoaderAsync(s2: S2Graph, edge: S2Edge, option: GraphFileOptions): Seq[SKeyValue] = {
-    val relEdges = if (option.autoEdgeCreate) edge.relatedEdges else List(edge)
+  private def insertBulkForLoaderAsync(s2: S2Graph, edge: S2Edge, createRelEdges: Boolean = true): Seq[SKeyValue] = {
+    val relEdges = if (createRelEdges) edge.relatedEdges else List(edge)
 
     val snapshotEdgeKeyValues = s2.getStorage(edge.toSnapshotEdge.label).serDe.snapshotEdgeSerializer(edge.toSnapshotEdge).toKeyValues
     val indexEdgeKeyValues = relEdges.flatMap { edge =>
@@ -68,20 +70,59 @@ object S2GraphHelper {
     snapshotEdgeKeyValues ++ indexEdgeKeyValues
   }
 
-  def toSKeyValues(s2: S2Graph, element: GraphElement, option: GraphFileOptions): Seq[SKeyValue] = {
-    try {
-      if (element.isInstanceOf[S2Edge]) {
-        val edge = element.asInstanceOf[S2Edge]
-        insertBulkForLoaderAsync(s2, edge, option)
-      } else if (element.isInstanceOf[S2Vertex]) {
-        val vertex = element.asInstanceOf[S2Vertex]
-        s2.getStorage(vertex.service).serDe.vertexSerializer(vertex).toKeyValues
-      } else {
-        Nil
-      }
-    } catch {
-      case e: Exception =>
-        if (option.skipError) Nil else throw e
+  def toSKeyValues(s2: S2Graph, element: GraphElement, autoEdgeCreate: Boolean = false): Seq[SKeyValue] = {
+    if (element.isInstanceOf[S2Edge]) {
+      val edge = element.asInstanceOf[S2Edge]
+      insertBulkForLoaderAsync(s2, edge, autoEdgeCreate)
+    } else if (element.isInstanceOf[S2Vertex]) {
+      val vertex = element.asInstanceOf[S2Vertex]
+      s2.getStorage(vertex.service).serDe.vertexSerializer(vertex).toKeyValues
+    } else {
+      Nil
     }
+  }
+
+  def sparkSqlRowToGraphElement(s2: S2Graph, row: Row, schema: StructType, reservedColumn: Set[String]): Option[GraphElement] = {
+    val timestamp = row.getAs[Long]("timestamp")
+    val operation = Try(row.getAs[String]("operation")).getOrElse("insert")
+    val elem = Try(row.getAs[String]("elem")).getOrElse("e")
+
+    val props: Map[String, Any] = Option(row.getAs[String]("props")) match {
+      case Some(propsStr:String) =>
+        JSONParser.fromJsonToProperties(Json.parse(propsStr).as[JsObject])
+      case None =>
+        schema.fieldNames.flatMap { field =>
+          if (!reservedColumn.contains(field)) {
+            Seq(
+              field -> getRowValAny(row, field)
+            )
+          } else Nil
+        }.toMap
+    }
+
+    elem match {
+      case "e" | "edge" =>
+        val from = getRowValAny(row, "from")
+        val to = getRowValAny(row, "to")
+        val label = row.getAs[String]("label")
+        val direction = Try(row.getAs[String]("direction")).getOrElse("out")
+        Some(
+          s2.elementBuilder.toEdge(from, to, label, direction, props, timestamp, operation)
+        )
+      case "v" | "vertex" =>
+        val id = getRowValAny(row, "id")
+        val serviceName = row.getAs[String]("service")
+        val columnName = row.getAs[String]("column")
+        Some(
+          s2.elementBuilder.toVertex(serviceName, columnName, id, props, timestamp, operation)
+        )
+      case _ =>
+        None
+    }
+  }
+
+  private def getRowValAny(row:Row, fieldName:String):Any = {
+    val idx = row.fieldIndex(fieldName)
+    row.get(idx)
   }
 }

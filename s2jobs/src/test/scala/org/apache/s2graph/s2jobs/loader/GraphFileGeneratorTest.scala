@@ -19,11 +19,15 @@
 
 package org.apache.s2graph.s2jobs.loader
 
-import org.apache.s2graph.core.PostProcess
+import org.apache.s2graph.core.{PostProcess, S2VertexLike}
 import org.apache.s2graph.core.storage.{CanSKeyValue, SKeyValue}
 import org.apache.s2graph.s2jobs.BaseSparkTest
-import org.apache.s2graph.s2jobs.serde.{LocalBulkLoaderTransformer, SparkBulkLoaderTransformer}
+import org.apache.s2graph.s2jobs.serde.reader.{RowBulkFormatReader, TsvBulkFormatReader}
+import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
+import org.apache.spark.rdd.RDD
 import play.api.libs.json.Json
+
+import scala.io.Source
 
 class GraphFileGeneratorTest extends BaseSparkTest {
 
@@ -34,8 +38,12 @@ class GraphFileGeneratorTest extends BaseSparkTest {
   def transformToSKeyValues(transformerMode: String, edges: Seq[String]): List[SKeyValue] = {
     transformerMode match {
       case "spark" =>
-        val input = sc.parallelize(edges)
+        val input: RDD[String] = sc.parallelize(edges)
         val transformer = new SparkBulkLoaderTransformer(s2Config, options)
+
+        implicit val reader = new TsvBulkFormatReader
+        implicit val writer = new KeyValueWriter
+
         val kvs = transformer.transform(input)
         kvs.flatMap { kvs =>
           kvs.map { kv =>
@@ -46,12 +54,43 @@ class GraphFileGeneratorTest extends BaseSparkTest {
       case "local" =>
         val input = edges
         val transformer = new LocalBulkLoaderTransformer(s2Config, options)
+
+        implicit val reader = new TsvBulkFormatReader
+        implicit val writer = new KeyValueWriter
+
         val kvs = transformer.transform(input)
         kvs.flatMap { kvs =>
           kvs.map { kv =>
             CanSKeyValue.hbaseKeyValue.toSKeyValue(kv)
           }
         }.toList
+
+      case "dataset" =>
+        import spark.sqlContext.implicits._
+        val elements = edges.flatMap(s2.elementBuilder.toEdge(_))
+
+        val rows = elements.map { e =>
+          (e.getTs(),
+            e.getOperation(),
+            "e",
+            e.srcVertex.innerIdVal.toString,
+            e.tgtVertex.innerIdVal.toString,
+            e.label(),
+            "{}",
+            e.getDirection())
+        }.toDF("timestamp", "operation", "element", "from", "to", "label", "props", "direction").rdd
+
+        val transformer = new SparkBulkLoaderTransformer(s2Config, options)
+
+        implicit val reader = new RowBulkFormatReader
+        implicit val writer = new KeyValueWriter
+
+        val kvs = transformer.transform(rows)
+        kvs.flatMap { kvs =>
+          kvs.map { kv =>
+            CanSKeyValue.hbaseKeyValue.toSKeyValue(kv)
+          }
+        }.collect().toList
     }
   }
 
@@ -61,7 +100,7 @@ class GraphFileGeneratorTest extends BaseSparkTest {
 
     val bulkEdgeString = "1416236400000\tinsert\tedge\ta\tb\tfriends\t{\"since\":1316236400000,\"score\":10}"
 
-    val transformerMode = "spark"
+    val transformerMode = "dataset"
     val ls = transformToSKeyValues(transformerMode, Seq(bulkEdgeString))
 
     val serDe = s2.defaultStorage.serDe
@@ -143,42 +182,36 @@ class GraphFileGeneratorTest extends BaseSparkTest {
   }
 
   //   this test case expect options.input already exist with valid bulk load format.
-  //  test("bulk load and fetch vertex: spark mode") {
-  //    import scala.collection.JavaConverters._
-  //    val serviceColumn = initTestVertexSchema(s2)
-  //
-  //    val bulkVertexLs = Source.fromFile(options.input).getLines().toSeq
-  //    val input = sc.parallelize(bulkVertexLs)
-  //
-  //    HFileGenerator.generate(sc, s2Config, input, options)
-  //
-  //    val hfileArgs = Array(options.output, options.tableName)
-  //    val hbaseConfig = HBaseConfiguration.create()
-  //
-  //    val ret = ToolRunner.run(hbaseConfig, new LoadIncrementalHFiles(hbaseConfig), hfileArgs)
-  //
-  //    val s2Vertices = s2.vertices().asScala.toSeq.map(_.asInstanceOf[S2VertexLike])
-  //    val json = PostProcess.verticesToJson(s2Vertices)
-  //
-  //    println(Json.prettyPrint(json))
-  //  }
+    test("bulk load and fetch vertex: spark mode") {
+      import scala.collection.JavaConverters._
+      val serviceColumn = initTestVertexSchema(s2)
+
+      val bulkVertexLs = Source.fromFile(options.input).getLines().toSeq
+      val input = sc.parallelize(bulkVertexLs)
+
+      HFileGenerator.generate(sc, s2Config, input, options)
+      HFileGenerator.loadIncrementHFile(options)
+
+      val s2Vertices = s2.vertices().asScala.toSeq.map(_.asInstanceOf[S2VertexLike])
+      val json = PostProcess.verticesToJson(s2Vertices)
+
+      println(Json.prettyPrint(json))
+    }
 
   //   this test case expect options.input already exist with valid bulk load format.
-  //  test("bulk load and fetch vertex: mr mode") {
-  //    val serviceColumn = initTestVertexSchema(s2)
-  //
-  //    val bulkVertexLs = Source.fromFile(options.input).getLines().toSeq
-  //    val input = sc.parallelize(bulkVertexLs)
-  //
-  //    HFileMRGenerator.generate(sc, s2Config, input, options)
-  //
-  //    val hfileArgs = Array(options.output, options.tableName)
-  //    val hbaseConfig = HBaseConfiguration.create()
-  //
-  //    val ret = ToolRunner.run(hbaseConfig, new LoadIncrementalHFiles(hbaseConfig), hfileArgs)
-  //    val s2Vertices = s2.vertices().asScala.toSeq.map(_.asInstanceOf[S2VertexLike])
-  //    val json = PostProcess.verticesToJson(s2Vertices)
-  //
-  //    println(Json.prettyPrint(json))
-  //  }
+//    test("bulk load and fetch vertex: mr mode") {
+//      import scala.collection.JavaConverters._
+//      val serviceColumn = initTestVertexSchema(s2)
+//
+//      val bulkVertexLs = Source.fromFile(options.input).getLines().toSeq
+//      val input = sc.parallelize(bulkVertexLs)
+//
+//      HFileMRGenerator.generate(sc, s2Config, input, options)
+//      HFileGenerator.loadIncrementHFile(options)
+//
+//      val s2Vertices = s2.vertices().asScala.toSeq.map(_.asInstanceOf[S2VertexLike])
+//      val json = PostProcess.verticesToJson(s2Vertices)
+//
+//      println(Json.prettyPrint(json))
+//    }
 }

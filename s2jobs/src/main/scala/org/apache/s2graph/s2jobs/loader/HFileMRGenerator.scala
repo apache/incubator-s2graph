@@ -19,8 +19,6 @@
 
 package org.apache.s2graph.s2jobs.loader
 
-import java.util.UUID
-
 import com.typesafe.config.Config
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
@@ -30,11 +28,11 @@ import org.apache.hadoop.hbase.io.compress.Compression
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.mapreduce.{GraphHFileOutputFormat, HFileOutputFormat2}
 import org.apache.hadoop.hbase.regionserver.BloomType
-import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, SequenceFileInputFormat}
 import org.apache.hadoop.mapreduce.lib.output.{FileOutputFormat, SequenceFileOutputFormat}
 import org.apache.hadoop.mapreduce.{Job, Mapper}
-import org.apache.s2graph.s2jobs.serde.SparkBulkLoaderTransformer
+import org.apache.s2graph.s2jobs.serde.reader.TsvBulkFormatReader
+import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
@@ -106,6 +104,10 @@ object HFileMRGenerator extends RawFileGenerator[String, KeyValue] {
                input: RDD[String],
                options: GraphFileOptions): RDD[KeyValue] = {
     val transformer = new SparkBulkLoaderTransformer(s2Config, options)
+
+    implicit val reader = new TsvBulkFormatReader
+    implicit val writer = new KeyValueWriter(options.autoEdgeCreate, options.skipError)
+
     transformer.transform(input).flatMap(kvs => kvs)
   }
 

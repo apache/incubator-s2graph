@@ -17,38 +17,20 @@
  * under the License.
  */
 
-package org.apache.s2graph.s2jobs.serde
+package org.apache.s2graph.s2jobs.loader
 
 import com.typesafe.config.Config
-import org.apache.hadoop.hbase.{KeyValue => HKeyValue}
 import org.apache.s2graph.core.GraphElement
-import org.apache.s2graph.s2jobs.loader.GraphFileOptions
-import org.apache.s2graph.s2jobs.serde.reader.TsvBulkFormatReader
-import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
+import org.apache.s2graph.s2jobs.serde.{GraphElementReadable, GraphElementWritable, Transformer}
 import org.apache.s2graph.s2jobs.{DegreeKey, S2GraphHelper}
 import org.apache.spark.rdd.RDD
 
+import scala.reflect.ClassTag
+
 class SparkBulkLoaderTransformer(val config: Config,
-                                 val options: GraphFileOptions) extends Transformer[String, Seq[HKeyValue], org.apache.spark.rdd.RDD] {
-  val reader = new TsvBulkFormatReader
+                                 val options: GraphFileOptions) extends Transformer[RDD] {
 
-  val writer = new KeyValueWriter(options)
-
-  override def read(input: RDD[String]): RDD[GraphElement] = input.mapPartitions { iter =>
-    val s2 = S2GraphHelper.initS2Graph(config)
-
-    iter.flatMap { line =>
-      reader.read(s2)(line)
-    }
-  }
-
-  override def write(elements: RDD[GraphElement]): RDD[Seq[HKeyValue]] = elements.mapPartitions { iter =>
-    val s2 = S2GraphHelper.initS2Graph(config)
-
-    iter.map(writer.write(s2)(_))
-  }
-
-  override def buildDegrees(elements: RDD[GraphElement]): RDD[Seq[HKeyValue]] = {
+  override def buildDegrees[T: ClassTag](elements: RDD[GraphElement])(implicit writer: GraphElementWritable[T]): RDD[T] = {
     val degrees = elements.mapPartitions { iter =>
       val s2 = S2GraphHelper.initS2Graph(config)
 
@@ -61,16 +43,27 @@ class SparkBulkLoaderTransformer(val config: Config,
       val s2 = S2GraphHelper.initS2Graph(config)
 
       iter.map { case (degreeKey, count) =>
-        DegreeKey.toKeyValue(s2, degreeKey, count)
+        writer.writeDegree(s2)(degreeKey, count)
       }
     }
   }
 
-  override def transform(input: RDD[String]): RDD[Seq[HKeyValue]] = {
-    val elements = read(input)
-    val kvs = write(elements)
+  override def transform[S: ClassTag, T: ClassTag](input: RDD[S])(implicit reader: GraphElementReadable[S], writer: GraphElementWritable[T]): RDD[T] = {
+    val elements = input.mapPartitions { iter =>
+      val s2 = S2GraphHelper.initS2Graph(config)
+
+      iter.flatMap { line =>
+        reader.read(s2)(line)
+      }
+    }
+
+    val kvs = elements.mapPartitions { iter =>
+      val s2 = S2GraphHelper.initS2Graph(config)
+
+      iter.map(writer.write(s2)(_))
+    }
 
     if (options.buildDegree) kvs ++ buildDegrees(elements)
-    kvs
+    else kvs
   }
 }

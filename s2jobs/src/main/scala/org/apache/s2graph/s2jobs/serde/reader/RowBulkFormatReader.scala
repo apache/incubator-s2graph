@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,25 +17,17 @@
  * under the License.
  */
 
-package org.apache.s2graph.s2jobs.serde
+package org.apache.s2graph.s2jobs.serde.reader
 
-import com.typesafe.config.Config
-import org.apache.s2graph.core.GraphElement
+import org.apache.s2graph.core.{GraphElement, S2Graph}
+import org.apache.s2graph.s2jobs.S2GraphHelper
+import org.apache.s2graph.s2jobs.serde.GraphElementReadable
+import org.apache.spark.sql.Row
 
-import scala.reflect.ClassTag
+class RowBulkFormatReader extends GraphElementReadable[Row] {
+  private val RESERVED_COLUMN = Set("timestamp", "from", "to", "label", "operation", "elem", "direction")
 
-/**
-  * Define serialize/deserialize.
-  * Source -> GraphElement
-  * GraphElement -> Target
-  *
-  * @tparam M : Container type. ex) RDD, Seq, List, ...
-  */
-trait Transformer[M[_]] extends Serializable {
-  val config: Config
+  override def read(s2: S2Graph)(row: Row): Option[GraphElement] =
+    S2GraphHelper.sparkSqlRowToGraphElement(s2, row, row.schema, RESERVED_COLUMN)
 
-  def buildDegrees[T: ClassTag](elements: M[GraphElement])(implicit writer: GraphElementWritable[T]): M[T]
-
-  def transform[S: ClassTag, T: ClassTag](input: M[S])
-                           (implicit reader: GraphElementReadable[S], writer: GraphElementWritable[T]): M[T]
 }
