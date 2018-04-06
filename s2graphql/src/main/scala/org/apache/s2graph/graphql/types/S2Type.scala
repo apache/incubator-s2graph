@@ -23,9 +23,11 @@ import scala.concurrent._
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.graphql
 import org.apache.s2graph.graphql.repository.GraphRepository
 import sangria.schema._
-import org.apache.s2graph.graphql.bind.{AstHelper, Unmarshaller}
+import org.apache.s2graph.graphql.bind.AstHelper
+import org.apache.s2graph.graphql.repository
 import org.apache.s2graph.graphql.types.StaticTypes._
 
 import scala.language.existentials
@@ -48,37 +50,23 @@ object S2Type {
                                 columnName: String,
                                 props: Seq[Prop] = Nil)
 
-  def makeField[A](name: String, cType: String, tpe: ScalarType[A]): Field[GraphRepository, Any] =
-    Field(name,
-      OptionType(tpe),
-      description = Option("desc here"),
-      resolve = c => c.value match {
-        case v: S2VertexLike => name match {
-          case "timestamp" => v.ts.asInstanceOf[A]
-          case _ =>
-            val innerVal = v.propertyValue(name).get
-            JSONParser.innerValToAny(innerVal, cType).asInstanceOf[A]
-        }
-        case e: S2EdgeLike => name match {
-          case "timestamp" => e.ts.asInstanceOf[A]
-          case "direction" => e.getDirection().asInstanceOf[A]
-          case _ =>
-            val innerVal = e.propertyValue(name).get.innerVal
-            JSONParser.innerValToAny(innerVal, cType).asInstanceOf[A]
-        }
-        case _ =>
-          throw new RuntimeException(s"Error on resolving field: ${name}, ${cType}, ${c.value.getClass}")
-      }
-    )
+  def makeGraphElementField(cName: String, cType: String): Field[GraphRepository, Any] = {
+    def makeField[A](name: String, cType: String, tpe: ScalarType[A]): Field[GraphRepository, Any] =
+      Field(name,
+        OptionType(tpe),
+        description = Option("desc here"),
+        resolve = c => FieldResolver.graphElement[A](name, cType, c)
+      )
 
-  def makePropField(cName: String, cType: String): Field[GraphRepository, Any] = cType match {
-    case "boolean" | "bool" => makeField[Boolean](cName, cType, BooleanType)
-    case "string" | "str" | "s" => makeField[String](cName, cType, StringType)
-    case "int" | "integer" | "i" | "int32" | "integer32" => makeField[Int](cName, cType, IntType)
-    case "long" | "l" | "int64" | "integer64" => makeField[Long](cName, cType, LongType)
-    case "double" | "d" => makeField[Double](cName, cType, FloatType)
-    case "float64" | "float" | "f" | "float32" => makeField[Double](cName, "double", FloatType)
-    case _ => throw new RuntimeException(s"Cannot support data type: ${cType}")
+    cType match {
+      case "boolean" | "bool" => makeField[Boolean](cName, cType, BooleanType)
+      case "string" | "str" | "s" => makeField[String](cName, cType, StringType)
+      case "int" | "integer" | "i" | "int32" | "integer32" => makeField[Int](cName, cType, IntType)
+      case "long" | "l" | "int64" | "integer64" => makeField[Long](cName, cType, LongType)
+      case "double" | "d" => makeField[Double](cName, cType, FloatType)
+      case "float64" | "float" | "f" | "float32" => makeField[Double](cName, "double", FloatType)
+      case _ => throw new RuntimeException(s"Cannot support data type: ${cType}")
+    }
   }
 
   def makeInputFieldsOnService(service: Service): Seq[InputField[Any]] = {
@@ -125,7 +113,7 @@ object S2Type {
     val inLabels = diffLabel.filter(l => column == l.tgtColumn).distinct.toList
     val inOutLabels = sameLabel.filter(l => l.srcColumn == column && l.tgtColumn == column)
 
-    lazy val columnFields = (reservedFields ++ columnMetasKv).map { case (k, v) => makePropField(k, v) }
+    lazy val columnFields = (reservedFields ++ columnMetasKv).map { case (k, v) => makeGraphElementField(k, v) }
 
     lazy val outLabelFields: List[Field[GraphRepository, Any]] = outLabels.map(l => makeLabelField("out", l, allLabels))
     lazy val inLabelFields: List[Field[GraphRepository, Any]] = inLabels.map(l => makeLabelField("in", l, allLabels))
@@ -138,14 +126,14 @@ object S2Type {
   }
 
   def makeServiceField(service: Service, allLabels: List[Label])(implicit repo: GraphRepository): List[Field[GraphRepository, Any]] = {
-    lazy val columnsOnService = service.serviceColumns(false).toList.map { column =>
+    val columnsOnService = service.serviceColumns(false).toList.map { column =>
       lazy val serviceColumnFields = makeServiceColumnFields(column, allLabels)
       lazy val ColumnType = ObjectType(
         s"ServiceColumn_${service.serviceName}_${column.columnName}",
         () => fields[GraphRepository, Any](serviceColumnFields: _*)
       )
 
-      val v = Field(column.columnName,
+      Field(column.columnName,
         ListType(ColumnType),
         arguments = List(
           Argument("id", OptionInputType(toScalarType(column.columnType))),
@@ -154,14 +142,12 @@ object S2Type {
         description = Option("desc here"),
         resolve = c => {
           implicit val ec = c.ctx.ec
-          val (vertices, canSkipFetchVertex) = Unmarshaller.serviceColumnFieldOnService(column, c)
+          val (vertices, canSkipFetchVertex) = graphql.types.FieldResolver.serviceColumnOnService(column, c)
 
           if (canSkipFetchVertex) Future.successful(vertices)
           else c.ctx.getVertices(vertices)
         }
       ): Field[GraphRepository, Any]
-
-      v
     }
 
     columnsOnService
@@ -174,7 +160,7 @@ object S2Type {
     val column = if (dir == "out") label.tgtColumn else label.srcColumn
 
     lazy val labelFields: List[Field[GraphRepository, Any]] =
-      (labelReserved ++ labelProps).map { case (k, v) => makePropField(k, v) }
+      (labelReserved ++ labelProps).map { case (k, v) => makeGraphElementField(k, v) }
 
     lazy val labelPropField = wrapField(s"Label_${label.label}_props", "props", labelFields)
 
@@ -184,7 +170,7 @@ object S2Type {
 
     lazy val serviceColumnField: Field[GraphRepository, Any] = Field(column.columnName, labelColumnType, resolve = c => {
       implicit val ec = c.ctx.ec
-      val (vertex, canSkipFetchVertex) = Unmarshaller.serviceColumnFieldOnLabel(c)
+      val (vertex, canSkipFetchVertex) = graphql.types.FieldResolver.serviceColumnOnLabel(c)
 
       if (canSkipFetchVertex) Future.successful(vertex)
       else c.ctx.getVertices(Seq(vertex)).map(_.head) // fill props
@@ -225,7 +211,7 @@ object S2Type {
       arguments = dirArgs ++ paramArgs,
       description = Some("fetch edges"),
       resolve = { c =>
-        val (vertex, queryParam) = Unmarshaller.labelField(label, c)
+        val (vertex, queryParam) = graphql.types.FieldResolver.label(label, c)
         c.ctx.getEdges(vertex, queryParam)
       }
     )
