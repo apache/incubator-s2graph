@@ -207,7 +207,7 @@ object S2Type {
     }
 
     val indexEnumType = EnumType(
-      s"Label_index_${label.label}",
+      s"Label_Index_${label.label}",
       description = Option("desc here"),
       values = idxNames
     )

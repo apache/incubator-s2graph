@@ -40,7 +40,7 @@ object Server extends App {
 
   import scala.concurrent.duration._
 
-  val route: Route = (post & path("graphql")) {
+  val route = (post & path("graphql")) {
     entity(as[spray.json.JsValue])(GraphQLServer.endpoint)
   } ~ {
     getFromResource("assets/graphiql.html")

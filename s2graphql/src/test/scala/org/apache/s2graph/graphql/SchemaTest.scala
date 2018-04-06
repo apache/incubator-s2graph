@@ -106,6 +106,7 @@ class SchemaTest extends FunSuite with Matchers with BeforeAndAfterAll {
 
             Map("name" -> "Service_kakao"),
 
+            Map("name" -> "Label_Index_friends"),
             Map("name" -> "Label_friends_user"),
             Map("name" -> "Label_friends_user_both"),
 
