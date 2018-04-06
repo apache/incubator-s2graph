@@ -20,8 +20,8 @@
 package org.apache.s2graph.graphql.bind
 
 import org.apache.s2graph.core.Management.JsonModel._
-import org.apache.s2graph.core.mysqls.ServiceColumn
-import org.apache.s2graph.core.{S2EdgeLike, S2VertexLike}
+import org.apache.s2graph.core.mysqls.{Label, ServiceColumn}
+import org.apache.s2graph.core.{QueryParam, S2EdgeLike, S2VertexLike}
 import org.apache.s2graph.graphql.repository.GraphRepository
 import org.apache.s2graph.graphql.types.S2Type._
 import sangria.marshalling._
@@ -125,11 +125,25 @@ object Unmarshaller {
     }
   }
 
-  def labelField(c: Context[GraphRepository, Any]): (S2VertexLike, String) = {
+  def labelField(label: Label, c: Context[GraphRepository, Any]): (S2VertexLike, QueryParam) = {
     val vertex = c.value.asInstanceOf[S2VertexLike]
-    val dir = c.arg[String]("direction")
 
-    (vertex, dir)
+    val dir = c.arg[String]("direction")
+    val offset = c.arg[Int]("offset") + 1 // +1 for skip degree edge: currently not support
+    val limit = c.arg[Int]("limit")
+    val whereClauseOpt = c.argOpt[String]("filter")
+    val where = c.ctx.parser.extractWhere(label, whereClauseOpt)
+
+    val qp = QueryParam(
+      labelName = label.label,
+      direction = dir,
+      offset = offset,
+      limit = limit,
+      whereRawOpt = whereClauseOpt,
+      where = where
+    )
+
+    (vertex, qp)
   }
 
   def serviceColumnFieldOnService(column: ServiceColumn, c: Context[GraphRepository, Any]): (Seq[S2VertexLike], Boolean) = {

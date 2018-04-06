@@ -123,10 +123,6 @@ trait S2EdgeLike extends Edge with GraphElement {
 
   def tgtForVertex = builder.tgtForVertex
 
-  def srcForVertexInner = builder.srcForVertexInner
-
-  def tgtForVertexInner = builder.tgtForVertexInner
-
   def duplicateEdge = builder.duplicateEdge
 
   def reverseDirEdge = builder.reverseDirEdge

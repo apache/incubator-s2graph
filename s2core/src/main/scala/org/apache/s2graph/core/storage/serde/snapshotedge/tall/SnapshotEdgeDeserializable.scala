@@ -26,6 +26,7 @@ import org.apache.s2graph.core.storage.CanSKeyValue
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage.serde.Deserializable
+import org.apache.s2graph.core.utils.logger
 
 class SnapshotEdgeDeserializable(graph: S2GraphLike) extends Deserializable[SnapshotEdge] {
   val builder = graph.elementBuilder
@@ -108,7 +109,9 @@ class SnapshotEdgeDeserializable(graph: S2GraphLike) extends Deserializable[Snap
         Option(snapshotEdge)
       }
     } catch {
-      case e: Exception => None
+      case e: Exception =>
+        logger.error("#" * 100, e)
+        None
     }
   }
 }

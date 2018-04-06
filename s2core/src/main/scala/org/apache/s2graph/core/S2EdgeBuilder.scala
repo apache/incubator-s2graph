@@ -31,10 +31,6 @@ class S2EdgeBuilder(edge: S2EdgeLike) {
 
   def tgtForVertex = S2Edge.tgtForVertex(edge)
 
-  def srcForVertexInner = S2Edge.srcForVertexInner(edge)
-
-  def tgtForVertexInner = S2Edge.tgtForVertexInner(edge)
-
   def duplicateEdge = reverseSrcTgtEdge.reverseDirEdge
 
   def reverseDirEdge = copyEdge(dir = GraphUtil.toggleDir(edge.getDir))

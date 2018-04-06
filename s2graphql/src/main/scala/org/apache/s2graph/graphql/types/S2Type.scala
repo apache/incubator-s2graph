@@ -202,14 +202,31 @@ object S2Type {
       case "both" => Argument("direction", OptionInputType(BothDirectionType), "desc here", defaultValue = "out") :: Nil
     }
 
+    val idxNames = label.indices.map { idx =>
+      EnumValue(idx.name, value = idx.name)
+    }
+
+    val indexEnumType = EnumType(
+      s"Label_index_${label.label}",
+      description = Option("desc here"),
+      values = idxNames
+    )
+
+    val paramArgs = List(
+      Argument("offset", OptionInputType(IntType), "desc here", defaultValue = 0),
+      Argument("limit", OptionInputType(IntType), "desc here", defaultValue = 100),
+      Argument("index", OptionInputType(indexEnumType), "desc here"),
+      Argument("filter", OptionInputType(StringType), "desc here")
+    )
+
     lazy val edgeTypeField: Field[GraphRepository, Any] = Field(
       s"${label.label}",
       ListType(EdgeType),
-      arguments = dirArgs,
+      arguments = dirArgs ++ paramArgs,
       description = Some("fetch edges"),
       resolve = { c =>
-        val (vertex, dir) = Unmarshaller.labelField(c)
-        c.ctx.getEdges(vertex, label, dir)
+        val (vertex, queryParam) = Unmarshaller.labelField(label, c)
+        c.ctx.getEdges(vertex, queryParam)
       }
     )
 
