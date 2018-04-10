@@ -67,7 +67,7 @@ class ManagementType(repo: GraphRepository) {
   import org.apache.s2graph.graphql.bind.Unmarshaller._
   import org.apache.s2graph.graphql.types.StaticTypes._
 
-  lazy val serviceColumnOnServiceWithPropInputObjectFields = repo.allServices.map { service =>
+  lazy val serviceColumnOnServiceWithPropInputObjectFields = repo.services().map { service =>
     InputField(service.serviceName, OptionInputType(InputObjectType(
       s"Input_${service.serviceName}_ServiceColumn_Props",
       description = "desc here",
@@ -78,7 +78,7 @@ class ManagementType(repo: GraphRepository) {
     )))
   }
 
-  lazy val serviceColumnOnServiceInputObjectFields = repo.allServices.map { service =>
+  lazy val serviceColumnOnServiceInputObjectFields = repo.services().map { service =>
     InputField(service.serviceName, OptionInputType(InputObjectType(
       s"Input_${service.serviceName}_ServiceColumn",
       description = "desc here",
@@ -99,7 +99,7 @@ class ManagementType(repo: GraphRepository) {
     )
   }
 
-  lazy val labelPropsInputFields = repo.allLabels().map { label =>
+  lazy val labelPropsInputFields = repo.labels().map { label =>
     InputField(label.label, OptionInputType(InputObjectType(
       s"Input_${label.label}_props",
       description = "desc here",
@@ -135,7 +135,7 @@ class ManagementType(repo: GraphRepository) {
     s"Enum_Service",
     description = Option("desc here"),
     values =
-      dummyEnum +: repo.allServices.map { service =>
+      dummyEnum +: repo.services().map { service =>
         EnumValue(service.serviceName, value = service.serviceName)
       }
   )
@@ -144,7 +144,7 @@ class ManagementType(repo: GraphRepository) {
     s"Enum_ServiceColumn",
     description = Option("desc here"),
     values =
-      dummyEnum +: repo.allServiceColumns.map { serviceColumn =>
+      dummyEnum +: repo.serviceColumns().map { serviceColumn =>
         EnumValue(serviceColumn.columnName, value = serviceColumn.columnName)
       }
   )
@@ -153,7 +153,7 @@ class ManagementType(repo: GraphRepository) {
     s"Enum_Label",
     description = Option("desc here"),
     values =
-      dummyEnum +: repo.allLabels().map { label =>
+      dummyEnum +: repo.labels().map { label =>
         EnumValue(label.label, value = label.label)
       }
   )
@@ -183,8 +183,8 @@ class ManagementType(repo: GraphRepository) {
     arguments = List(LabelNameArg),
     resolve = { c =>
       c.argOpt[String]("name") match {
-        case Some(name) => c.ctx.allLabels().filter(_.label == name)
-        case None => c.ctx.allLabels()
+        case Some(name) => c.ctx.labels().filter(_.label == name)
+        case None => c.ctx.labels()
       }
     }
   )
@@ -222,8 +222,8 @@ class ManagementType(repo: GraphRepository) {
     arguments = List(ServiceNameArg),
     resolve = { c =>
       c.argOpt[String]("name") match {
-        case Some(name) => c.ctx.allServices.filter(_.serviceName == name)
-        case None => c.ctx.allServices
+        case Some(name) => c.ctx.services().filter(_.serviceName == name)
+        case None => c.ctx.services()
       }
     }
   )

@@ -28,6 +28,7 @@ import org.apache.s2graph.graphql.repository.GraphRepository
 import sangria.schema._
 import org.apache.s2graph.graphql.bind.AstHelper
 import org.apache.s2graph.graphql.repository
+import org.apache.s2graph.graphql.repository.GraphRepository.DeferFetchEdges
 import org.apache.s2graph.graphql.types.StaticTypes._
 
 import scala.language.existentials
@@ -142,10 +143,10 @@ object S2Type {
         description = Option("desc here"),
         resolve = c => {
           implicit val ec = c.ctx.ec
-          val (vertices, canSkipFetchVertex) = graphql.types.FieldResolver.serviceColumnOnService(column, c)
+          val (vertices, canSkipFetchVertex) = FieldResolver.serviceColumnOnService(column, c)
 
           if (canSkipFetchVertex) Future.successful(vertices)
-          else c.ctx.getVertices(vertices)
+          else GraphRepository.vertexFetcher.deferSeq(vertices)
         }
       ): Field[GraphRepository, Any]
     }
@@ -170,10 +171,10 @@ object S2Type {
 
     lazy val serviceColumnField: Field[GraphRepository, Any] = Field(column.columnName, labelColumnType, resolve = c => {
       implicit val ec = c.ctx.ec
-      val (vertex, canSkipFetchVertex) = graphql.types.FieldResolver.serviceColumnOnLabel(c)
+      val (vertex, canSkipFetchVertex) = FieldResolver.serviceColumnOnLabel(c)
 
       if (canSkipFetchVertex) Future.successful(vertex)
-      else c.ctx.getVertices(Seq(vertex)).map(_.head) // fill props
+      else GraphRepository.vertexFetcher.defer(vertex)
     })
 
     lazy val EdgeType = ObjectType(
@@ -211,14 +212,18 @@ object S2Type {
       arguments = dirArgs ++ paramArgs,
       description = Some("fetch edges"),
       resolve = { c =>
+        implicit val ec = c.ctx.ec
+
         val (vertex, queryParam) = graphql.types.FieldResolver.label(label, c)
-        c.ctx.getEdges(vertex, queryParam)
+        val de = DeferFetchEdges(vertex, queryParam)
+        val empty = Seq.empty[S2EdgeLike]
+
+        DeferredValue(GraphRepository.edgeFetcher.deferOpt(de)).map(m => m.fold(empty)(_._3))
       }
     )
 
     edgeTypeField
   }
-
 }
 
 class S2Type(repo: GraphRepository) {
@@ -231,8 +236,8 @@ class S2Type(repo: GraphRepository) {
   /**
     * fields
     */
-  lazy val serviceFields: List[Field[GraphRepository, Any]] = repo.allServices.map { service =>
-    lazy val serviceFields = DummyObjectTypeField :: makeServiceField(service, repo.allLabels())
+  lazy val serviceFields: List[Field[GraphRepository, Any]] = repo.services().map { service =>
+    lazy val serviceFields = DummyObjectTypeField :: makeServiceField(service, repo.labels())
 
     lazy val ServiceType = ObjectType(
       s"Service_${service.serviceName}",
@@ -251,7 +256,7 @@ class S2Type(repo: GraphRepository) {
     * arguments
     */
   lazy val addVertexArg = {
-    val serviceArguments = repo.allServices().map { service =>
+    val serviceArguments = repo.services().map { service =>
       val serviceFields = DummyInputField +: makeInputFieldsOnService(service)
 
       val ServiceInputType = InputObjectType[List[AddVertexParam]](
@@ -265,7 +270,7 @@ class S2Type(repo: GraphRepository) {
   }
 
   lazy val addEdgeArg = {
-    val labelArguments = repo.allLabels().map { label =>
+    val labelArguments = repo.labels().map { label =>
       val labelFields = DummyInputField +: makeInputFieldsOnLabel(label)
       val labelInputType = InputObjectType[AddEdgeParam](
         s"Input_label_${label.label}_param",

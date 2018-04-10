@@ -20,15 +20,18 @@
 package org.apache.s2graph.graphql
 
 import com.typesafe.config.Config
+import org.apache.s2graph
 import org.apache.s2graph.core.Management.JsonModel.Prop
 import org.apache.s2graph.core.mysqls.{Label, Model, Service}
 import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.{Management, S2Graph}
+import org.apache.s2graph.graphql
 import org.apache.s2graph.graphql.repository.GraphRepository
 import org.apache.s2graph.graphql.types.SchemaDef
 import play.api.libs.json._
 import sangria.ast.Document
 import sangria.execution.Executor
+import sangria.execution.deferred.DeferredResolver
 import sangria.renderer.SchemaRenderer
 import sangria.schema.Schema
 
@@ -53,14 +56,23 @@ trait TestGraph {
 
   def showSchema: String
 
+  import GraphRepository._
+
+  val resolver: DeferredResolver[GraphRepository] = DeferredResolver.fetchers(vertexFetcher, edgeFetcher)
+
   def queryAsJs(query: Document): JsValue = {
     implicit val playJsonMarshaller = sangria.marshalling.playJson.PlayJsonResultMarshaller
-    val js = Await.result(Executor.execute(schema, query, repository), Duration("10 sec"))
-    js
+    Await.result(
+      Executor.execute(schema, query, repository, deferredResolver = resolver),
+      Duration("10 sec")
+    )
   }
 
   def queryAsRaw(query: Document, graph: TestGraph): Any = {
-    Await.result(Executor.execute(schema, query, repository), Duration("10 sec"))
+    Await.result(
+      Executor.execute(schema, query, repository, deferredResolver = resolver),
+      Duration("10 sec")
+    )
   }
 }
 
