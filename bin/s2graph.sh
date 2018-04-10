@@ -17,6 +17,7 @@
 # starts/stops/restarts an S2Graph server
 
 usage="Usage: s2graph.sh (start|stop|restart|run|status)"
+usage="$usage (s2rest_play|s2rest_netty|s2graphql|...)"
 
 bin=$(cd "$(dirname "${BASH_SOURCE-$0}")">/dev/null; pwd)
 
@@ -25,8 +26,8 @@ bin=$(cd "$(dirname "${BASH_SOURCE-$0}")">/dev/null; pwd)
 . $bin/s2graph-common.sh
 
 # show usage when executed without enough arguments
-if [ $# -lt 1 ]; then
+if [ $# -lt 2 ]; then
   panic $usage
 fi
 
-$bin/s2graph-daemon.sh $1 s2rest_play
+$bin/s2graph-daemon.sh $1 $2
