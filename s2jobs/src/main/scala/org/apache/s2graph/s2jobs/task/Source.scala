@@ -81,12 +81,15 @@ class FileSource(conf:TaskConf) extends Source(conf) {
     import org.apache.s2graph.s2jobs.Schema._
     val paths = conf.options("paths").split(",")
     val format = conf.options.getOrElse("format", DEFAULT_FORMAT)
+    val columnsOpt = conf.options.get("columns")
 
     format match {
       case "edgeLog" =>
         ss.read.format("com.databricks.spark.csv").option("delimiter", "\t")
           .schema(BulkLoadSchema).load(paths: _*)
       case _ => ss.read.format(format).load(paths: _*)
+        val df = ss.read.format(format).load(paths: _*)
+        if (columnsOpt.isDefined) df.toDF(columnsOpt.get.split(",").map(_.trim): _*) else df
     }
   }
 }
