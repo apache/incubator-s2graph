@@ -1,0 +1,14 @@
+mutation{
+  Management{
+    createService(
+      name:"movielens"
+    ){
+      isSuccess
+      message
+      object{
+        id
+        name
+      }
+    }
+  }
+}

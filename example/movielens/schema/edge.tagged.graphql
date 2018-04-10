@@ -1,0 +1,37 @@
+mutation{
+  Management{
+    createLabel(
+      name:"tagged"
+      sourceService: {
+        movielens: {
+          columnName: User
+        }
+      }
+      targetService: {
+        movielens: {
+          columnName: Movie
+        }
+      }
+      serviceName: movielens
+      consistencyLevel: weak
+      props:[
+        {
+          name: "tag"
+          dataType: string
+          defaultValue: ""
+          storeInGlobalIndex: true
+        }
+      ]
+    ) {
+      isSuccess
+      message
+      object{
+        id
+        name
+        props{
+          name
+        }
+      }
+    }
+  }
+}

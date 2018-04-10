@@ -1,0 +1,16 @@
+mutation{
+  Management{
+    createServiceColumn(
+      serviceName:movielens
+      columnName:"Tag"
+      columnType: string
+    ){
+      isSuccess
+      message
+      object{
+        id
+        name
+      }
+    }
+  }
+}
