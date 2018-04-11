@@ -335,6 +335,21 @@ The very basic pipeline can be illustrated in the following figure.
 
 ```
 
+## 3. movielens (File to S2Graph)
+
+You can also run an example job that parses movielens data and writes to S2graph.
+The dataset includes user rating and tagging activity from MovieLens(https://movielens.org/), a movie recommendation service. 
+
+```
+// move to example folder
+$ cd ../example
+
+// run example job 
+$ ./run.sh movielens
+```
+
+It demonstrate how to build a graph-based data using the publicly available MovieLens dataset on graph database S2Graph,
+and provides an environment that makes it easy to use various queries using GraphQL.
 
 ----------
 
@@ -347,13 +362,20 @@ When submitting spark job with assembly jar, use these parameters with the job d
 ```
 // main class : org.apache.s2graph.s2jobs.JobLauncher
 Usage: run [file|db] [options]
-  -n, --name <value>      job display name
-Command: file [options]
-get config from file
-  -f, --confFile <file>   configuration file
-Command: db [options]
-get config from db
-  -i, --jobId <jobId>     configuration file
+         -n, --name <value>      job display name
+Command: file [options]          get config from file
+         -f, --confFile <file>   configuration file
+Command: db [options]            get config from db
+         -i, --jobId <jobId>     configuration file
+```
+
+For example, you can run your application using spark-submit as shown below.
+```
+$ sbt 'project s2jobs' assembly
+$ ${SPARK_HOME}/bin/spark-submit \
+    --class org.apache.s2graph.s2jobs.JobLauncher \
+    --master local[2] \
+    s2jobs/target/scala-2.11/s2jobs-assembly-0.2.1-SNAPSHOT.jar file -f JOB_DESC.json -n JOB_NAME
 ```
 
 
