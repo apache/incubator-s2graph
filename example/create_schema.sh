@@ -23,6 +23,7 @@ for file in `ls ${SCHEMA_HOME}/vertex.*`; do
     info "file:  $file"
     graphql_rest $file
 done
+get_services
 
 q "create edges >>> "
 for file in `ls ${SCHEMA_HOME}/edge.*`; do
