@@ -1,0 +1,40 @@
+mutation{
+  Management{
+    createLabel(
+      name:"related"
+      sourceService: {
+        movielens: {
+          columnName: Movie
+        }
+      }
+      targetService: {
+        movielens: {
+          columnName: Tag
+        }
+      }
+      serviceName: movielens
+      consistencyLevel: weak
+      props:{
+        name: "relevance"
+        dataType: double
+        defaultValue: "0.0"
+        storeInGlobalIndex: true
+      }
+      indices:{
+        name:"_PK"
+        propNames:["relevance"]
+      }
+
+    ) {
+      isSuccess
+      message
+      object{
+        id
+        name
+        props{
+          name
+        }
+      }
+    }
+  }
+}

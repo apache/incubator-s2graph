@@ -1,0 +1,42 @@
+mutation{
+  Management{
+    createLabel(
+      name:"rated"
+      sourceService: {
+        movielens: {
+          columnName: User
+        }
+      }
+      targetService: {
+        movielens: {
+          columnName: Movie
+        }
+      }
+      serviceName: movielens
+      consistencyLevel: strong
+      props:[
+        {
+          name: "score"
+          dataType: double
+          defaultValue: "0.0"
+          storeInGlobalIndex: true
+        }
+      ]
+      indices:{
+        name:"_PK"
+        propNames:["score"]
+      }
+    ) {
+      isSuccess
+      message
+      object{
+        id
+        name
+        props{
+          name
+        }
+      }
+    }
+  }
+}
+

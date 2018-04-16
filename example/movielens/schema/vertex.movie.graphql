@@ -1,0 +1,30 @@
+mutation{
+  Management{
+    createServiceColumn(
+      serviceName:movielens
+      columnName:"Movie"
+      columnType: long
+      props: [
+      	{
+          name: "title"
+          dataType: string
+          defaultValue: ""
+          storeInGlobalIndex: true
+        },
+        {
+          name: "genres"
+          dataType: string
+          defaultValue: ""
+          storeInGlobalIndex: true
+        }
+    	]
+    ){
+      isSuccess
+      message
+      object{
+        id
+        name
+      }
+    }
+  }
+}
