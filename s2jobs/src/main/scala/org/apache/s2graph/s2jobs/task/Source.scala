@@ -113,7 +113,8 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
   override def mandatoryOptions: Set[String] = Set("hbase.rootdir", "restore.path", "hbase.table.names")
 
   override def toDF(ss: SparkSession): DataFrame = {
-    val mergedConf = TaskConf.parseHBaseConfigs(conf) ++ TaskConf.parseMetaStoreConfigs(conf)
+    val mergedConf = TaskConf.parseHBaseConfigs(conf) ++ TaskConf.parseMetaStoreConfigs(conf) ++
+      TaskConf.parseLocalCacheConfigs(conf)
     val config = Management.toConfig(mergedConf)
 
     val snapshotPath = conf.options("hbase.rootdir")
@@ -126,17 +127,17 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
       if (columnFamily == "v") false
       else conf.options.getOrElse("build.degree", "false").toBoolean
     val elementType = conf.options.getOrElse("element.type", "IndexEdge")
+    val schema = if (columnFamily == "v") Schema.VertexSchema else Schema.EdgeSchema
 
     val cells = HFileGenerator.tableSnapshotDump(ss, config, snapshotPath,
       restorePath, tableNames, columnFamily, elementType, batchSize, labelMapping, buildDegree)
 
-
     implicit val reader = new S2GraphCellReader(elementType)
     implicit val writer = new RowDataFrameWriter
+
     val transformer = new SparkBulkLoaderTransformer(config, labelMapping, buildDegree)
     val kvs = transformer.transform(cells)
 
-    val schema = if (columnFamily == "v") Schema.VertexSchema else Schema.EdgeSchema
     ss.sqlContext.createDataFrame(kvs, schema)
   }
 }

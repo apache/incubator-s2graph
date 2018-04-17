@@ -216,7 +216,9 @@ class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
 
   private def writeBatchBulkload(df: DataFrame, runLoadIncrementalHFiles: Boolean = true): Unit = {
     val options = TaskConf.toGraphFileOptions(conf)
-    val config = Management.toConfig(options.toConfigParams)
+    val config = Management.toConfig(TaskConf.parseLocalCacheConfigs(conf) ++
+      TaskConf.parseHBaseConfigs(conf) ++ TaskConf.parseMetaStoreConfigs(conf) ++ options.toConfigParams)
+
     val input = df.rdd
 
     val transformer = new SparkBulkLoaderTransformer(config, options)
@@ -236,7 +238,9 @@ class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
     import scala.collection.JavaConversions._
     import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs._
 
-    val graphConfig: Config = ConfigFactory.parseMap(conf.options).withFallback(ConfigFactory.load())
+    // TODO: FIX THIS. overwrite local cache config.
+    val mergedOptions = conf.options ++ TaskConf.parseLocalCacheConfigs(conf)
+    val graphConfig: Config = ConfigFactory.parseMap(mergedOptions).withFallback(ConfigFactory.load())
     val serializedConfig = graphConfig.root().render(ConfigRenderOptions.concise())
 
     val reader = new RowBulkFormatReader
@@ -246,7 +250,7 @@ class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
 
     df.foreachPartition { iters =>
       val config = ConfigFactory.parseString(serializedConfig)
-      val s2Graph = S2GraphHelper.initS2Graph(config)
+      val s2Graph = S2SinkContext(config).getGraph
 
       val responses = iters.grouped(groupedSize).flatMap { rows =>
         val elements = rows.flatMap(row => reader.read(s2Graph)(row))

@@ -23,13 +23,14 @@ import com.typesafe.config.Config
 import org.apache.s2graph.core.{GraphElement, S2Graph}
 import org.apache.s2graph.s2jobs.serde.{GraphElementReadable, GraphElementWritable, Transformer}
 import org.apache.s2graph.s2jobs.{DegreeKey, S2GraphHelper}
+import org.apache.s2graph.spark.sql.streaming.S2SinkContext
 
 import scala.concurrent.ExecutionContext
 import scala.reflect.ClassTag
 
 class LocalBulkLoaderTransformer(val config: Config,
                                  val options: GraphFileOptions)(implicit ec: ExecutionContext) extends Transformer[Seq] {
-  val s2: S2Graph = S2GraphHelper.initS2Graph(config)
+  val s2: S2Graph = S2SinkContext(config).getGraph
 
   override def buildDegrees[T: ClassTag](elements: Seq[GraphElement])(implicit writer: GraphElementWritable[T]): Seq[T] = {
     val degrees = elements.flatMap { element =>
