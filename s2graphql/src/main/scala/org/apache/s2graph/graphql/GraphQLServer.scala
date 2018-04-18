@@ -33,6 +33,7 @@ import org.apache.s2graph.graphql.types.SchemaDef
 import org.slf4j.LoggerFactory
 import sangria.ast.Document
 import sangria.execution._
+import sangria.execution.deferred.DeferredResolver
 import sangria.marshalling.sprayJson._
 import sangria.parser.QueryParser
 import sangria.schema.Schema
@@ -97,13 +98,16 @@ object GraphQLServer {
 
   private def executeGraphQLQuery(query: Document, op: Option[String], vars: JsObject)(implicit e: ExecutionContext) = {
     val s2schema = schemaCache.withCache("s2Schema")(createNewSchema())
+    import GraphRepository._
+    val resolver: DeferredResolver[GraphRepository] = DeferredResolver.fetchers(vertexFetcher, edgeFetcher)
 
     Executor.execute(
       s2schema,
       query,
       s2Repository,
       variables = vars,
-      operationName = op
+      operationName = op,
+      deferredResolver = resolver
     )
       .map((res: spray.json.JsValue) => OK -> res)
       .recover {
