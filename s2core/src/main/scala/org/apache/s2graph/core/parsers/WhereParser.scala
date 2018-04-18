@@ -22,9 +22,8 @@ package org.apache.s2graph.core.parsers
 import org.apache.s2graph.core.GraphExceptions.{LabelNotExistException, WhereParserException}
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.types.InnerValLike
-import org.apache.s2graph.core.{GraphUtil, S2Edge, S2EdgeLike}
+import org.apache.s2graph.core.{S2EdgeLike}
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.utils.logger
 
 import scala.annotation.tailrec
 import scala.util.Try
@@ -97,13 +96,15 @@ trait Clause extends ExtractValue {
     binOp(propValue, compValue)
   }
 }
+
 object Where {
-  def apply(labelName: String, sql: String): Try[Where] = {
-    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
-    val parser = new WhereParser(label)
+  def apply(sql: String): Try[Where] = {
+    val parser = new WhereParser()
+
     parser.parse(sql)
   }
 }
+
 case class Where(clauses: Seq[Clause] = Seq.empty[Clause]) {
   def filter(edge: S2EdgeLike) =
     if (clauses.isEmpty) true else clauses.map(_.filter(edge)).forall(identity)
@@ -121,37 +122,23 @@ case class Eq(propKey: String, value: String) extends Clause {
   override def filter(edge: S2EdgeLike): Boolean = binaryOp(_ == _)(propKey, value)(edge)
 }
 
-case class InWithoutParent(label: Label, propKey: String, values: Set[String]) extends Clause {
-  lazy val innerValLikeLsOut = values.map { value =>
-    val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
-    val dataType = propKey match {
-      case "_to" | "to" => label.tgtColumn.columnType
-      case "_from" | "from" => label.srcColumn.columnType
-      case _ => labelMeta.dataType
-    }
-
-    toInnerVal(value, dataType, label.schemaVersion)
-  }
-
-  lazy val innerValLikeLsIn = values.map { value =>
-    val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
-    val dataType = propKey match {
-      case "_to" | "to" => label.srcColumn.columnType
-      case "_from" | "from" => label.tgtColumn.columnType
-      case _ => labelMeta.dataType
-    }
-
-    toInnerVal(value, dataType, label.schemaVersion)
-  }
-
+case class InWithoutParent(propKey: String, values: Set[String]) extends Clause {
   override def filter(edge: S2EdgeLike): Boolean = {
-    if (edge.getDir() == GraphUtil.directions("in")) {
-      val propVal = propToInnerVal(edge, propKey)
-      innerValLikeLsIn.contains(propVal)
-    } else {
-      val propVal = propToInnerVal(edge, propKey)
-      innerValLikeLsOut.contains(propVal)
+    val label = edge.innerLabel
+
+    val propVal = propToInnerVal(edge, propKey)
+    val innerVaLs = values.map { value =>
+      toInnerVal(value, label.metaPropsInvMap(propKey).dataType, label.schemaVersion)
     }
+
+    innerVaLs(propVal)
+  }
+}
+
+case class Contains(propKey: String, value: String) extends Clause {
+  override def filter(edge: S2EdgeLike): Boolean = {
+    val propVal = propToInnerVal(edge, propKey)
+    propVal.value.toString.contains(value)
   }
 }
 
@@ -188,13 +175,10 @@ case class Or(left: Clause, right: Clause) extends Clause {
 
 object WhereParser {
   val success = Where()
-
 }
 
-case class WhereParser(label: Label) extends JavaTokenParsers {
-
-
-  override val stringLiteral = (("'" ~> "(\\\\'|[^'])*".r <~ "'" ) ^^ (_.replace("\\'", "'"))) | anyStr
+case class WhereParser() extends JavaTokenParsers {
+  override val stringLiteral = (("'" ~> "(\\\\'|[^'])*".r <~ "'") ^^ (_.replace("\\'", "'"))) | anyStr
 
   val anyStr = "[^\\s(),']+".r
 
@@ -205,6 +189,8 @@ case class WhereParser(label: Label) extends JavaTokenParsers {
   val between = "between|BETWEEN".r
 
   val in = "in|IN".r
+
+  val contains = "contains|CONTAINS".r
 
   val notIn = "not in|NOT IN".r
 
@@ -237,13 +223,17 @@ case class WhereParser(label: Label) extends JavaTokenParsers {
     case f ~ op ~ values =>
       val inClause =
         if (f.startsWith("_parent")) IN(f, values.toSet)
-        else InWithoutParent(label, f, values.toSet)
+        else InWithoutParent(f, values.toSet)
 
       if (op.toLowerCase == "in") inClause
       else Not(inClause)
   }
 
-  def predicate =  _eq | _ltGt | _between | _in
+  val _contains = identWithDot ~ contains ~ stringLiteral ^^ {
+    case f ~ op ~ value => Contains(f, value)
+  }
+
+  def predicate = _eq | _ltGt | _between | _in | _contains
 
   def parse(sql: String): Try[Where] = Try {
     parseAll(where, sql) match {

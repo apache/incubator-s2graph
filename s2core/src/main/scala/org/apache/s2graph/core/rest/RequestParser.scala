@@ -229,7 +229,7 @@ class RequestParser(graph: S2GraphLike) {
           override def call(): Try[Where] = {
             val _where = TemplateHelper.replaceVariable(System.currentTimeMillis(), where)
 
-            WhereParser(label).parse(_where) match {
+            WhereParser().parse(_where) match {
               case s@Success(_) => s
               case Failure(ex) => throw BadQueryException(ex.getMessage, ex)
             }
