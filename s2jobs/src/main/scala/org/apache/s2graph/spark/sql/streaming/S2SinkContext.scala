@@ -24,6 +24,7 @@ import org.apache.s2graph.core.S2Graph
 
 import scala.concurrent.ExecutionContext
 
+@deprecated
 class S2SinkContext(config: Config)(implicit ec: ExecutionContext = ExecutionContext.Implicits.global){
   println(s">>>> S2SinkContext Created...")
   private lazy val s2Graph = new S2Graph(config)
@@ -32,6 +33,7 @@ class S2SinkContext(config: Config)(implicit ec: ExecutionContext = ExecutionCon
   }
 }
 
+@deprecated
 object S2SinkContext {
   private var s2SinkContext:S2SinkContext = null
 

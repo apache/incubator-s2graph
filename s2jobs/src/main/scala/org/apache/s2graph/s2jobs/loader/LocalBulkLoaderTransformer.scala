@@ -29,7 +29,7 @@ import scala.reflect.ClassTag
 
 class LocalBulkLoaderTransformer(val config: Config,
                                  val options: GraphFileOptions)(implicit ec: ExecutionContext) extends Transformer[Seq] {
-  val s2: S2Graph = S2GraphHelper.initS2Graph(config)
+  val s2: S2Graph = S2GraphHelper.getS2Graph(config)
 
   override def buildDegrees[T: ClassTag](elements: Seq[GraphElement])(implicit writer: GraphElementWritable[T]): Seq[T] = {
     val degrees = elements.flatMap { element =>
