@@ -126,7 +126,10 @@ class GraphRepository(val graph: S2GraphLike) {
   }
 
   def getVertices(queryParam: VertexQueryParam): Future[Seq[S2VertexLike]] = {
-    graph.asInstanceOf[S2Graph].searchVertices(queryParam)
+    graph.asInstanceOf[S2Graph].searchVertices(queryParam).map { a =>
+      println(a)
+      a
+    }
   }
 
   def getEdges(vertices: Seq[S2VertexLike], queryParam: QueryParam): Future[Seq[S2EdgeLike]] = {

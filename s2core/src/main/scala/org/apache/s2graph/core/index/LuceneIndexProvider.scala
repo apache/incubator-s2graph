@@ -23,6 +23,7 @@ import java.io.File
 import java.util
 
 import com.typesafe.config.Config
+import org.apache.lucene.analysis.core.KeywordAnalyzer
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document.{Document, Field, StringField}
 import org.apache.lucene.index.{DirectoryReader, IndexWriter, IndexWriterConfig, Term}
@@ -48,7 +49,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
   import scala.collection.JavaConverters._
   import scala.collection.mutable
 
-  val analyzer = new StandardAnalyzer()
+  val analyzer = new KeywordAnalyzer()
   val writers = mutable.Map.empty[String, IndexWriter]
   val directories = mutable.Map.empty[String, BaseDirectory]
   val baseDirectory = scala.util.Try(config.getString("index.provider.base.dir")).getOrElse(".")
@@ -174,11 +175,11 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
       val searcher = new IndexSearcher(reader)
 
       val docs = searcher.search(q, hitsPerPage)
-      logger.error(s"total hit: ${docs.scoreDocs.length}")
+//      logger.error(s"total hit: ${docs.scoreDocs.length}")
 
       docs.scoreDocs.foreach { scoreDoc =>
         val document = searcher.doc(scoreDoc.doc)
-        logger.error(s"DOC_IN_L: ${document.toString}")
+//        logger.error(s"DOC_IN_L: ${document.toString}")
 
         val id = reads.reads(Json.parse(document.get(field))).get
         ids.add(id)

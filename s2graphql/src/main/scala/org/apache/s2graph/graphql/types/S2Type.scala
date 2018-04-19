@@ -146,23 +146,14 @@ object S2Type {
           implicit val ec = c.ctx.ec
           val (vertices, canSkipFetchVertex) = FieldResolver.serviceColumnOnService(column, c)
           val searchOpt = c.argOpt[String]("search").map { qs =>
-            val prefix = s"${GlobalIndex.serviceField}:${service.serviceName} AND ${GlobalIndex.serviceColumnField}:${column.columnName}"
+            val prefix = s"(${GlobalIndex.serviceField}:${service.serviceName} AND ${GlobalIndex.serviceColumnField}:${column.columnName})"
+
             if (qs.trim.nonEmpty) Seq(prefix, qs).mkString(" AND ")
             else prefix
-            qs
           }
 
-          println(searchOpt)
-
-          val vertexQueryParam = VertexQueryParam(0, 100, searchOpt, vertices.map(_.id))
-
-//          if (canSkipFetchVertex) Future.successful(vertices)
-//          else GraphRepository.vertexFetcher.deferSeq(deferVertices)
-
-//          val empty = Seq.empty[S2VertexLike]
-//          DeferredValue(GraphRepository.vertexFetcher.defer(vertexQueryParam)).map(m => m._2)
-
-            c.ctx.getVertices(vertexQueryParam)
+          val vertexQueryParam = VertexQueryParam(0, 100, searchOpt, vertices.map(_.id), !canSkipFetchVertex)
+          DeferredValue(GraphRepository.vertexFetcher.defer(vertexQueryParam)).map(m => m._2)
         }
       ): Field[GraphRepository, Any]
     }
@@ -189,9 +180,8 @@ object S2Type {
       implicit val ec = c.ctx.ec
       val (vertex, canSkipFetchVertex) = FieldResolver.serviceColumnOnLabel(c)
 
-      //      if (canSkipFetchVertex) Future.successful(vertex)
-      //      else GraphRepository.vertexFetcher.defer(vertex)
-      Future.successful(vertex)
+      val vertexQueryParam = VertexQueryParam(0, 100, None, Seq(vertex.id), !canSkipFetchVertex)
+      DeferredValue(GraphRepository.vertexFetcher.defer(vertexQueryParam)).map(m => m._2.head)
     })
 
     lazy val EdgeType = ObjectType(

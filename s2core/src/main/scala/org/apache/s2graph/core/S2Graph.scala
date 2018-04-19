@@ -268,7 +268,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
       (queryParam.vertexIds ++ vids).distinct.map(vid => elementBuilder.newVertex(vid))
     }
 
-    if (queryParam.fetchProp) matchedVertices.flatMap(getVertices)
+    if (true) matchedVertices.flatMap(vs => getVertices(vs))
     else matchedVertices
   }
 
@@ -312,10 +312,9 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
       mutateVertices(getStorage(service))(service.cluster, vertexGroup.map(_._1), withWait).map(_.zip(vertexGroup.map(_._2)))
     }
 
-    Future.sequence(futures).flatMap { ls =>
-      indexProvider.mutateVerticesAsync(vertices).map { _ =>
-        ls.flatten.toSeq.sortBy(_._2).map(_._1)
-      }
+    indexProvider.mutateVerticesAsync(vertices)
+    Future.sequence(futures).map{ ls =>
+      ls.flatten.toSeq.sortBy(_._2).map(_._1)
     }
   }
 
