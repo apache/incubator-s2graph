@@ -53,6 +53,8 @@ object FieldResolver {
     val ids = c.argOpt[Any]("id").toSeq ++ c.argOpt[List[Any]]("ids").toList.flatten
     val vertices = ids.map(vid => c.ctx.toS2VertexLike(vid, column))
 
+    val search = c.argOpt[String]("search")
+
     val columnFields = column.metasInvMap.keySet
     val selectedFields = AstHelper.selectedFields(c.astFields)
 

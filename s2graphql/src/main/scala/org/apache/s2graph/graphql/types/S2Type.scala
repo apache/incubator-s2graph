@@ -138,15 +138,31 @@ object S2Type {
         ListType(ColumnType),
         arguments = List(
           Argument("id", OptionInputType(toScalarType(column.columnType))),
-          Argument("ids", OptionInputType(ListInputType(toScalarType(column.columnType))))
+          Argument("ids", OptionInputType(ListInputType(toScalarType(column.columnType)))),
+          Argument("search", OptionInputType(StringType))
         ),
         description = Option("desc here"),
         resolve = c => {
           implicit val ec = c.ctx.ec
           val (vertices, canSkipFetchVertex) = FieldResolver.serviceColumnOnService(column, c)
+          val searchOpt = c.argOpt[String]("search").map { qs =>
+            val prefix = s"${GlobalIndex.serviceField}:${service.serviceName} AND ${GlobalIndex.serviceColumnField}:${column.columnName}"
+            if (qs.trim.nonEmpty) Seq(prefix, qs).mkString(" AND ")
+            else prefix
+            qs
+          }
 
-          if (canSkipFetchVertex) Future.successful(vertices)
-          else GraphRepository.vertexFetcher.deferSeq(vertices)
+          println(searchOpt)
+
+          val vertexQueryParam = VertexQueryParam(0, 100, searchOpt, vertices.map(_.id))
+
+//          if (canSkipFetchVertex) Future.successful(vertices)
+//          else GraphRepository.vertexFetcher.deferSeq(deferVertices)
+
+//          val empty = Seq.empty[S2VertexLike]
+//          DeferredValue(GraphRepository.vertexFetcher.defer(vertexQueryParam)).map(m => m._2)
+
+            c.ctx.getVertices(vertexQueryParam)
         }
       ): Field[GraphRepository, Any]
     }
@@ -173,8 +189,9 @@ object S2Type {
       implicit val ec = c.ctx.ec
       val (vertex, canSkipFetchVertex) = FieldResolver.serviceColumnOnLabel(c)
 
-      if (canSkipFetchVertex) Future.successful(vertex)
-      else GraphRepository.vertexFetcher.defer(vertex)
+      //      if (canSkipFetchVertex) Future.successful(vertex)
+      //      else GraphRepository.vertexFetcher.defer(vertex)
+      Future.successful(vertex)
     })
 
     lazy val EdgeType = ObjectType(

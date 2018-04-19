@@ -30,13 +30,14 @@ import org.slf4j.{Logger, LoggerFactory}
 import sangria.execution.deferred._
 import sangria.schema._
 
+import scala.collection.immutable
 import scala.concurrent._
 import scala.util.{Failure, Success, Try}
 
 object GraphRepository {
 
-  implicit val vertexHasId = new HasId[S2VertexLike, S2VertexLike] {
-    override def id(value: S2VertexLike): S2VertexLike = value
+  implicit val vertexHasId = new HasId[(VertexQueryParam, Seq[S2VertexLike]), VertexQueryParam] {
+    override def id(value: (VertexQueryParam, Seq[S2VertexLike])): VertexQueryParam = value._1
   }
 
   implicit val edgeHasId = new HasId[(S2VertexLike, QueryParam, Seq[S2EdgeLike]), DeferFetchEdges] {
@@ -44,9 +45,12 @@ object GraphRepository {
       DeferFetchEdges(value._1, value._2)
   }
 
-  val vertexFetcher = Fetcher((ctx: GraphRepository, ids: Seq[S2VertexLike]) => {
-    ctx.getVertices(ids)
-  })
+  val vertexFetcher =
+    Fetcher((ctx: GraphRepository, ids: Seq[VertexQueryParam]) => {
+      implicit val ec = ctx.ec
+
+      Future.traverse(ids)(ctx.getVertices).map(vs => ids.zip(vs))
+    })
 
   val edgeFetcher = Fetcher((ctx: GraphRepository, ids: Seq[DeferFetchEdges]) => {
     implicit val ec = ctx.ec
@@ -58,7 +62,7 @@ object GraphRepository {
     }
 
     val f: Future[Iterable[(QueryParam, Seq[S2EdgeLike])]] = Future.sequence(edgesByParam)
-    val grouped = f.map { tpLs =>
+    val grouped: Future[Seq[(S2VertexLike, QueryParam, Seq[S2EdgeLike])]] = f.map { tpLs =>
       tpLs.toSeq.flatMap { case (qp, edges) =>
         edges.groupBy(_.srcForVertex).map { case (v, edges) => (v, qp, edges) }
       }
@@ -121,8 +125,8 @@ class GraphRepository(val graph: S2GraphLike) {
     graph.mutateEdges(edges, withWait = true)
   }
 
-  def getVertices(vertex: Seq[S2VertexLike]): Future[Seq[S2VertexLike]] = {
-    graph.getVertices(vertex)
+  def getVertices(queryParam: VertexQueryParam): Future[Seq[S2VertexLike]] = {
+    graph.asInstanceOf[S2Graph].searchVertices(queryParam)
   }
 
   def getEdges(vertices: Seq[S2VertexLike], queryParam: QueryParam): Future[Seq[S2EdgeLike]] = {
