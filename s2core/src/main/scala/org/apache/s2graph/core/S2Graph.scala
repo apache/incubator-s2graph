@@ -268,7 +268,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
       (queryParam.vertexIds ++ vids).distinct.map(vid => elementBuilder.newVertex(vid))
     }
 
-    if (true) matchedVertices.flatMap(vs => getVertices(vs))
+    if (queryParam.fetchProp) matchedVertices.flatMap(vs => getVertices(vs))
     else matchedVertices
   }
 
