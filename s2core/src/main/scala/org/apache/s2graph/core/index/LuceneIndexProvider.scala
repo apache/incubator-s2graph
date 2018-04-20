@@ -24,12 +24,12 @@ import java.util
 
 import com.typesafe.config.Config
 import org.apache.lucene.analysis.core.KeywordAnalyzer
-import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document.{Document, Field, StringField}
 import org.apache.lucene.index.{DirectoryReader, IndexWriter, IndexWriterConfig, Term}
 import org.apache.lucene.queryparser.classic.{ParseException, QueryParser}
 import org.apache.lucene.search.{IndexSearcher, Query}
 import org.apache.lucene.store.{BaseDirectory, RAMDirectory, SimpleFSDirectory}
+import org.apache.lucene.search.TopScoreDocCollector
 import org.apache.s2graph.core.io.Conversions
 import org.apache.s2graph.core.mysqls.GlobalIndex
 import org.apache.s2graph.core.types.VertexId
@@ -53,6 +53,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
   val writers = mutable.Map.empty[String, IndexWriter]
   val directories = mutable.Map.empty[String, BaseDirectory]
   val baseDirectory = scala.util.Try(config.getString("index.provider.base.dir")).getOrElse(".")
+  val MAX_RESULTS = 100000
 
   private def getOrElseDirectory(indexName: String): BaseDirectory = {
     val pathname = s"${baseDirectory}/${indexName}"
@@ -136,7 +137,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     vertices.foreach { vertex =>
       toDocument(vertex, forceToIndex).foreach { doc =>
         val vId = vertex.id.toString()
-//        logger.error(s"DOC: ${doc}")
+        //        logger.error(s"DOC: ${doc}")
 
         writer.updateDocument(new Term(vidField, vId), doc)
       }
@@ -166,21 +167,21 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     edges.map(_ => true)
   }
 
-  private def fetchInner[T](q: Query, indexKey: String, field: String, reads: Reads[T]): util.List[T] = {
+  private def fetchInner[T](q: Query, offset: Int, limit: Int, indexKey: String, field: String, reads: Reads[T]): util.List[T] = {
     val ids = new java.util.HashSet[T]
-    var reader: DirectoryReader = null
 
+    var reader: DirectoryReader = null
     try {
       val reader = DirectoryReader.open(getOrElseDirectory(indexKey))
       val searcher = new IndexSearcher(reader)
+      val collector = TopScoreDocCollector.create(MAX_RESULTS)
+      val startIndex = offset * limit
 
-      val docs = searcher.search(q, hitsPerPage)
-//      logger.error(s"total hit: ${docs.scoreDocs.length}")
+      searcher.search(q, collector)
 
-      docs.scoreDocs.foreach { scoreDoc =>
+      val hits = collector.topDocs(startIndex, limit)
+      hits.scoreDocs.foreach { scoreDoc =>
         val document = searcher.doc(scoreDoc.doc)
-//        logger.error(s"DOC_IN_L: ${document.toString}")
-
         val id = reads.reads(Json.parse(document.get(field))).get
         ids.add(id)
       }
@@ -199,7 +200,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
 
     try {
       val q = new QueryParser(field, analyzer).parse(queryString)
-      fetchInner[VertexId](q, GlobalIndex.VertexIndexName, vidField, Conversions.s2VertexIdReads)
+      fetchInner[VertexId](q, 0, 100, GlobalIndex.VertexIndexName, vidField, Conversions.s2VertexIdReads)
     } catch {
       case ex: ParseException =>
         logger.error(s"[IndexProvider]: ${queryString} parse failed.", ex)
@@ -213,7 +214,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
 
     try {
       val q = new QueryParser(field, analyzer).parse(queryString)
-      fetchInner[EdgeId](q, GlobalIndex.EdgeIndexName, field, Conversions.s2EdgeIdReads)
+      fetchInner[EdgeId](q, 0, 100, GlobalIndex.EdgeIndexName, field, Conversions.s2EdgeIdReads)
     } catch {
       case ex: ParseException =>
         logger.error(s"[IndexProvider]: ${queryString} parse failed.", ex)
@@ -230,7 +231,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
       val field = vidField
       try {
         val q = new QueryParser(field, analyzer).parse(queryString)
-        fetchInner[VertexId](q, GlobalIndex.VertexIndexName, vidField, Conversions.s2VertexIdReads)
+        fetchInner[VertexId](q, vertexQueryParam.offset, vertexQueryParam.limit, GlobalIndex.VertexIndexName, vidField, Conversions.s2VertexIdReads)
       } catch {
         case ex: ParseException =>
           logger.error(s"[IndexProvider]: ${queryString} parse failed.", ex)

@@ -35,8 +35,6 @@ import scala.util.Try
 
 object IndexProvider {
   import GlobalIndex._
-  //TODO: Fix Me
-  val hitsPerPage = 100000
   val IdField = "id"
 
   def apply(config: Config)(implicit ec: ExecutionContext): IndexProvider = {

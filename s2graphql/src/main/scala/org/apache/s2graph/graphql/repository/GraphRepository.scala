@@ -41,15 +41,14 @@ object GraphRepository {
   }
 
   implicit val edgeHasId = new HasId[(S2VertexLike, QueryParam, Seq[S2EdgeLike]), DeferFetchEdges] {
-    override def id(value: (S2VertexLike, QueryParam, Seq[S2EdgeLike])): DeferFetchEdges =
-      DeferFetchEdges(value._1, value._2)
+    override def id(value: (S2VertexLike, QueryParam, Seq[S2EdgeLike])): DeferFetchEdges = DeferFetchEdges(value._1, value._2)
   }
 
   val vertexFetcher =
-    Fetcher((ctx: GraphRepository, ids: Seq[VertexQueryParam]) => {
+    Fetcher((ctx: GraphRepository, queryParams: Seq[VertexQueryParam]) => {
       implicit val ec = ctx.ec
 
-      Future.traverse(ids)(ctx.getVertices).map(vs => ids.zip(vs))
+      Future.traverse(queryParams)(ctx.getVertices).map(vs => queryParams.zip(vs))
     })
 
   val edgeFetcher = Fetcher((ctx: GraphRepository, ids: Seq[DeferFetchEdges]) => {

@@ -476,6 +476,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     val futures = edgesWithIdx.groupBy { case (e, idx) => e.innerLabel }.map { case (label, edgeGroup) =>
       getStorage(label).incrementCounts(label.hbaseZkAddr, edgeGroup.map(_._1), withWait).map(_.zip(edgeGroup.map(_._2)))
     }
+
     Future.sequence(futures).map { ls =>
       ls.flatten.toSeq.sortBy(_._2).map(_._1)
     }

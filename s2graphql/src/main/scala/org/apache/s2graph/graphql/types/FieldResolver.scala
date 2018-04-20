@@ -49,19 +49,29 @@ object FieldResolver {
     (vertex, qp)
   }
 
-  def serviceColumnOnService(column: ServiceColumn, c: Context[GraphRepository, Any]): (Seq[S2VertexLike], Boolean) = {
+  def serviceColumnOnService(column: ServiceColumn, c: Context[GraphRepository, Any]): VertexQueryParam = {
+    val prefix = s"${GlobalIndex.serviceField}:${column.service.serviceName} AND ${GlobalIndex.serviceColumnField}:${column.columnName}"
+
     val ids = c.argOpt[Any]("id").toSeq ++ c.argOpt[List[Any]]("ids").toList.flatten
+    val offset = c.arg[Int]("offset")
+    val limit = c.arg[Int]("limit")
+
     val vertices = ids.map(vid => c.ctx.toS2VertexLike(vid, column))
+    val searchOpt = c.argOpt[String]("search").map { qs =>
+      if (qs.trim.nonEmpty) s"(${prefix}) AND (${qs})"
+      else prefix
+    }
 
     val columnFields = column.metasInvMap.keySet
     val selectedFields = AstHelper.selectedFields(c.astFields)
-
     val canSkipFetch = selectedFields.forall(f => f == "id" || !columnFields(f))
 
-    (vertices, canSkipFetch)
+    val vertexQueryParam = VertexQueryParam(offset, limit, searchOpt, vertices.map(_.id), !canSkipFetch)
+
+    vertexQueryParam
   }
 
-  def serviceColumnOnLabel(c: Context[GraphRepository, Any]): (S2VertexLike, Boolean) = {
+  def serviceColumnOnLabel(c: Context[GraphRepository, Any]): VertexQueryParam = {
     val edge = c.value.asInstanceOf[S2EdgeLike]
 
     val vertex = edge.tgtForVertex
@@ -69,9 +79,10 @@ object FieldResolver {
 
     val selectedFields = AstHelper.selectedFields(c.astFields)
     val columnFields = column.metasInvMap.keySet
-
     val canSkipFetch = selectedFields.forall(f => f == "id" || !columnFields(f))
 
-    (vertex, canSkipFetch)
+    val vertexQueryParam = VertexQueryParam(0, 1, None, Seq(vertex.id), !canSkipFetch)
+
+    vertexQueryParam
   }
 }
