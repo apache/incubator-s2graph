@@ -4,6 +4,7 @@ import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.graphql.bind.AstHelper
 import org.apache.s2graph.graphql.repository.GraphRepository
+import org.apache.s2graph.graphql.types.S2Type.EdgeQueryParam
 import sangria.schema._
 
 object FieldResolver {
@@ -28,7 +29,7 @@ object FieldResolver {
     }
   }
 
-  def label(label: Label, c: Context[GraphRepository, Any]): (S2VertexLike, QueryParam) = {
+  def label(label: Label, c: Context[GraphRepository, Any]): EdgeQueryParam = {
     val vertex = c.value.asInstanceOf[S2VertexLike]
 
     val dir = c.arg[String]("direction")
@@ -46,7 +47,7 @@ object FieldResolver {
       where = where
     )
 
-    (vertex, qp)
+    EdgeQueryParam(vertex, qp)
   }
 
   def serviceColumnOnService(column: ServiceColumn, c: Context[GraphRepository, Any]): VertexQueryParam = {

@@ -19,21 +19,19 @@
 
 package org.apache.s2graph.graphql.types
 
-import scala.concurrent._
-import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
+import org.apache.s2graph.core.Management.JsonModel._
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.graphql
 import org.apache.s2graph.graphql.repository.GraphRepository
 import sangria.schema._
-import org.apache.s2graph.graphql.bind.AstHelper
-import org.apache.s2graph.graphql.repository
-import org.apache.s2graph.graphql.repository.GraphRepository.DeferFetchEdges
 import org.apache.s2graph.graphql.types.StaticTypes._
 
 import scala.language.existentials
 
 object S2Type {
+
+  case class EdgeQueryParam(v: S2VertexLike, qp: QueryParam)
 
   case class AddVertexParam(timestamp: Long,
                             id: Any,
@@ -215,11 +213,10 @@ object S2Type {
       resolve = { c =>
         implicit val ec = c.ctx.ec
 
-        val (vertex, queryParam) = graphql.types.FieldResolver.label(label, c)
-        val de = DeferFetchEdges(vertex, queryParam)
+        val edgeQueryParam = graphql.types.FieldResolver.label(label, c)
         val empty = Seq.empty[S2EdgeLike]
 
-        DeferredValue(GraphRepository.edgeFetcher.deferOpt(de)).map(m => m.fold(empty)(_._3))
+        DeferredValue(GraphRepository.edgeFetcher.deferOpt(edgeQueryParam)).map(m => m.fold(empty)(_._2))
       }
     )
 

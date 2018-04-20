@@ -40,8 +40,8 @@ object GraphRepository {
     override def id(value: (VertexQueryParam, Seq[S2VertexLike])): VertexQueryParam = value._1
   }
 
-  implicit val edgeHasId = new HasId[(S2VertexLike, QueryParam, Seq[S2EdgeLike]), DeferFetchEdges] {
-    override def id(value: (S2VertexLike, QueryParam, Seq[S2EdgeLike])): DeferFetchEdges = DeferFetchEdges(value._1, value._2)
+  implicit val edgeHasId = new HasId[(EdgeQueryParam, Seq[S2EdgeLike]), EdgeQueryParam] {
+    override def id(value: (EdgeQueryParam, Seq[S2EdgeLike])): EdgeQueryParam = value._1
   }
 
   val vertexFetcher =
@@ -51,19 +51,20 @@ object GraphRepository {
       Future.traverse(queryParams)(ctx.getVertices).map(vs => queryParams.zip(vs))
     })
 
-  val edgeFetcher = Fetcher((ctx: GraphRepository, ids: Seq[DeferFetchEdges]) => {
+  val edgeFetcher = Fetcher((ctx: GraphRepository, edgeQueryParams: Seq[EdgeQueryParam]) => {
     implicit val ec = ctx.ec
 
-    val edgesByParam = ids.groupBy(_.qp).map { case (qp, deLs) =>
-      val vertices = deLs.map(de => de.v)
-
-      ctx.getEdges(vertices, qp).map(qp -> _)
+    val edgesByParam = edgeQueryParams.groupBy(_.qp).toSeq.map { case (qp, edgeQueryParams) =>
+      val vertices = edgeQueryParams.map(_.v)
+      ctx.getEdges(vertices, qp).map(edges => qp -> edges)
     }
 
-    val f: Future[Iterable[(QueryParam, Seq[S2EdgeLike])]] = Future.sequence(edgesByParam)
-    val grouped: Future[Seq[(S2VertexLike, QueryParam, Seq[S2EdgeLike])]] = f.map { tpLs =>
-      tpLs.toSeq.flatMap { case (qp, edges) =>
-        edges.groupBy(_.srcForVertex).map { case (v, edges) => (v, qp, edges) }
+    val f: Future[Seq[(QueryParam, Seq[S2EdgeLike])]] = Future.sequence(edgesByParam)
+    val grouped: Future[Seq[(EdgeQueryParam, Seq[S2EdgeLike])]] = f.map { tpLs =>
+      tpLs.flatMap { case (qp, edges) =>
+        edges.groupBy(_.srcForVertex).map {
+          case (v, edges) => EdgeQueryParam(v, qp) -> edges
+        }
       }
     }
 
@@ -78,9 +79,6 @@ object GraphRepository {
 
     tryObj
   }
-
-  case class DeferFetchEdges(v: S2VertexLike, qp: QueryParam)
-
 }
 
 class GraphRepository(val graph: S2GraphLike) {
