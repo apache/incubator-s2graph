@@ -29,7 +29,7 @@ class S2GraphHelperTest extends BaseSparkTest {
 
     println(args)
     val taskConf = TaskConf("dummy", "sink", Nil, args)
-    val graphFileOptions = S2GraphHelper.toGraphFileOptions(taskConf)
+    val graphFileOptions = TaskConf.toGraphFileOptions(taskConf)
     println(graphFileOptions)
   }
 }

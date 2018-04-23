@@ -32,7 +32,7 @@ class SparkBulkLoaderTransformer(val config: Config,
 
   override def buildDegrees[T: ClassTag](elements: RDD[GraphElement])(implicit writer: GraphElementWritable[T]): RDD[T] = {
     val degrees = elements.mapPartitions { iter =>
-      val s2 = S2GraphHelper.initS2Graph(config)
+      val s2 = S2GraphHelper.getS2Graph(config)
 
       iter.flatMap { element =>
         DegreeKey.fromGraphElement(s2, element, options.labelMapping).map(_ -> 1L)
@@ -40,7 +40,7 @@ class SparkBulkLoaderTransformer(val config: Config,
     }.reduceByKey(_ + _)
 
     degrees.mapPartitions { iter =>
-      val s2 = S2GraphHelper.initS2Graph(config)
+      val s2 = S2GraphHelper.getS2Graph(config)
 
       iter.map { case (degreeKey, count) =>
         writer.writeDegree(s2)(degreeKey, count)
@@ -50,7 +50,7 @@ class SparkBulkLoaderTransformer(val config: Config,
 
   override def transform[S: ClassTag, T: ClassTag](input: RDD[S])(implicit reader: GraphElementReadable[S], writer: GraphElementWritable[T]): RDD[T] = {
     val elements = input.mapPartitions { iter =>
-      val s2 = S2GraphHelper.initS2Graph(config)
+      val s2 = S2GraphHelper.getS2Graph(config)
 
       iter.flatMap { line =>
         reader.read(s2)(line)
@@ -58,7 +58,7 @@ class SparkBulkLoaderTransformer(val config: Config,
     }
 
     val kvs = elements.mapPartitions { iter =>
-      val s2 = S2GraphHelper.initS2Graph(config)
+      val s2 = S2GraphHelper.getS2Graph(config)
 
       iter.map(writer.write(s2)(_))
     }

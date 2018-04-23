@@ -41,7 +41,7 @@ private [sql] class S2StreamQueryWriter(
                                          commitProtocol: S2CommitProtocol
                                        ) extends Serializable with Logger {
   private val config = ConfigFactory.parseString(serializedConf)
-  private val s2SinkContext = S2SinkContext(config)
+  private val s2Graph = S2GraphHelper.getS2Graph(config)
   private val encoder: ExpressionEncoder[Row] = RowEncoder(schema).resolveAndBind()
   private val RESERVED_COLUMN = Set("timestamp", "from", "to", "label", "operation", "elem", "direction")
 
@@ -50,7 +50,6 @@ private [sql] class S2StreamQueryWriter(
     val taskId = s"stage-${taskContext.stageId()}, partition-${taskContext.partitionId()}, attempt-${taskContext.taskAttemptId()}"
     val partitionId= taskContext.partitionId()
 
-    val s2Graph = s2SinkContext.getGraph
     val groupedSize = getConfigString(config, S2_SINK_GROUPED_SIZE, DEFAULT_GROUPED_SIZE).toInt
     val waitTime = getConfigString(config, S2_SINK_WAIT_TIME, DEFAULT_WAIT_TIME_SECONDS).toInt
 
@@ -85,5 +84,5 @@ private [sql] class S2StreamQueryWriter(
   }
 
   private def rowToEdge(internalRow:InternalRow): Option[GraphElement] =
-    S2GraphHelper.sparkSqlRowToGraphElement(s2SinkContext.getGraph, encoder.fromRow(internalRow), schema, RESERVED_COLUMN)
+    S2GraphHelper.sparkSqlRowToGraphElement(s2Graph, encoder.fromRow(internalRow), schema, RESERVED_COLUMN)
 }
