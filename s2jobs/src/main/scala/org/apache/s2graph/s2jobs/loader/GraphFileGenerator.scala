@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -32,9 +32,11 @@ object GraphFileGenerator {
     conf.setAppName(this.getClass.getSimpleName)
     val sc = new SparkContext(conf)
 
+
     val input = sc.textFile(options.input)
+
     options.method match {
-      case "MR" => HFileMRGenerator.generate(sc, s2Config, input, options)
+      //      case "MR" => HFileMRGenerator.generate(sc, s2Config, input, options)
       case "SPARK" => HFileGenerator.generate(sc, s2Config, input, options)
       case _ => throw new IllegalArgumentException("only supported type is MR/SPARK.")
     }

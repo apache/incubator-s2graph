@@ -22,7 +22,7 @@ package org.apache.s2graph.counter.loader.core
 import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.mysqls.{Label, Service}
 import org.apache.s2graph.core.types.HBaseType
-import org.apache.s2graph.core.{S2Graph$, Management}
+import org.apache.s2graph.core.{S2Graph, Management}
 import org.apache.s2graph.counter.models.DBModel
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 

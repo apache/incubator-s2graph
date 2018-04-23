@@ -21,6 +21,7 @@ package org.apache.s2graph.spark.sql.streaming
 
 import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.{GraphElement, JSONParser}
+import org.apache.s2graph.s2jobs.S2GraphHelper
 import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
@@ -40,7 +41,7 @@ private [sql] class S2StreamQueryWriter(
                                          commitProtocol: S2CommitProtocol
                                        ) extends Serializable with Logger {
   private val config = ConfigFactory.parseString(serializedConf)
-  private val s2SinkContext = S2SinkContext(config)
+  private val s2Graph = S2GraphHelper.getS2Graph(config)
   private val encoder: ExpressionEncoder[Row] = RowEncoder(schema).resolveAndBind()
   private val RESERVED_COLUMN = Set("timestamp", "from", "to", "label", "operation", "elem", "direction")
 
@@ -49,7 +50,6 @@ private [sql] class S2StreamQueryWriter(
     val taskId = s"stage-${taskContext.stageId()}, partition-${taskContext.partitionId()}, attempt-${taskContext.taskAttemptId()}"
     val partitionId= taskContext.partitionId()
 
-    val s2Graph = s2SinkContext.getGraph
     val groupedSize = getConfigString(config, S2_SINK_GROUPED_SIZE, DEFAULT_GROUPED_SIZE).toInt
     val waitTime = getConfigString(config, S2_SINK_WAIT_TIME, DEFAULT_WAIT_TIME_SECONDS).toInt
 
@@ -83,51 +83,6 @@ private [sql] class S2StreamQueryWriter(
     }
   }
 
-  private def rowToEdge(internalRow:InternalRow): Option[GraphElement] = {
-    val s2Graph = s2SinkContext.getGraph
-    val row = encoder.fromRow(internalRow)
-
-    val timestamp = row.getAs[Long]("timestamp")
-    val operation = Try(row.getAs[String]("operation")).getOrElse("insert")
-    val elem = Try(row.getAs[String]("elem")).getOrElse("e")
-
-    val props: Map[String, Any] = Option(row.getAs[String]("props")) match {
-      case Some(propsStr:String) =>
-        JSONParser.fromJsonToProperties(Json.parse(propsStr).as[JsObject])
-      case None =>
-        schema.fieldNames.flatMap { field =>
-          if (!RESERVED_COLUMN.contains(field)) {
-            Seq(
-              field -> getRowValAny(row, field)
-            )
-          } else Nil
-        }.toMap
-    }
-
-    elem match {
-      case "e" | "edge" =>
-        val from = getRowValAny(row, "from")
-        val to = getRowValAny(row, "to")
-        val label = row.getAs[String]("label")
-        val direction = Try(row.getAs[String]("direction")).getOrElse("out")
-        Some(
-          s2Graph.elementBuilder.toEdge(from, to, label, direction, props, timestamp, operation)
-        )
-      case "v" | "vertex" =>
-        val id = getRowValAny(row, "id")
-        val serviceName = row.getAs[String]("service")
-        val columnName = row.getAs[String]("column")
-        Some(
-          s2Graph.elementBuilder.toVertex(serviceName, columnName, id, props, timestamp, operation)
-        )
-      case _ =>
-        logger.warn(s"'$elem' is not GraphElement. skipped!! (${row.toString()})")
-        None
-    }
-  }
-
-  private def getRowValAny(row:Row, fieldName:String):Any = {
-    val idx = row.fieldIndex(fieldName)
-    row.get(idx)
-  }
+  private def rowToEdge(internalRow:InternalRow): Option[GraphElement] =
+    S2GraphHelper.sparkSqlRowToGraphElement(s2Graph, encoder.fromRow(internalRow), schema, RESERVED_COLUMN)
 }

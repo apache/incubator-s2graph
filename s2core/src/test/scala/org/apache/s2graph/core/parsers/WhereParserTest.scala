@@ -45,7 +45,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       println("==================")
     }
 
-    val whereOpt = WhereParser(label).parse(sql)
+    val whereOpt = WhereParser().parse(sql)
     if (whereOpt.isFailure) {
       debug(whereOpt)
       whereOpt.get // touch exception
@@ -285,4 +285,13 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       r >= 10 && r < 30
     }
   }
+
+  test("check parse contains") {
+    val dummyLabel = ids.head._3
+
+    val sql = "name = 'daewon'"
+    val whereOpt = WhereParser().parse(sql)
+    println(whereOpt)
+  }
+
 }

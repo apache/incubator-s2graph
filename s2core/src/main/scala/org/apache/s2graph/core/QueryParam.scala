@@ -37,9 +37,11 @@ import scala.util.{Success, Try}
 object Query {
   val initialScore = 1.0
   lazy val empty = Query()
+
   def apply(query: Query): Query = {
     Query(query.vertices, query.steps, query.queryOption, query.jsonQuery)
   }
+
   def toQuery(srcVertices: Seq[S2VertexLike], queryParams: Seq[QueryParam]) = Query(srcVertices, Vector(Step(queryParams)))
 
 }
@@ -49,9 +51,10 @@ case class MinShouldMatchParam(prop: String, count: Int, terms: Set[Any])
 object GroupBy {
   val Empty = GroupBy()
 }
+
 case class GroupBy(keys: Seq[String] = Nil,
                    limit: Int = Int.MaxValue,
-                   minShouldMatch: Option[MinShouldMatchParam]= None)
+                   minShouldMatch: Option[MinShouldMatchParam] = None)
 
 case class MultiQuery(queries: Seq[Query],
                       weights: Seq[Double],
@@ -79,12 +82,12 @@ case class QueryOption(removeCycle: Boolean = false,
                        ignorePrevStepCache: Boolean = false) {
   val orderByKeys = orderByColumns.map(_._1)
   val ascendingVals = orderByColumns.map(_._2)
-  val selectColumnsMap = selectColumns.map { c => c -> true } .toMap
+  val selectColumnsMap = selectColumns.map { c => c -> true }.toMap
   val scoreFieldIdx = orderByKeys.zipWithIndex.find(t => t._1 == "score").map(_._2).getOrElse(-1)
   val (edgeSelectColumns, propsSelectColumns) = selectColumns.partition(c => LabelMeta.defaultRequiredMetaNames.contains(c))
   /** */
   val edgeSelectColumnsFiltered = edgeSelectColumns
-//  val edgeSelectColumnsFiltered = edgeSelectColumns.filterNot(c => groupBy.keys.contains(c))
+  //  val edgeSelectColumnsFiltered = edgeSelectColumns.filterNot(c => groupBy.keys.contains(c))
   lazy val cacheKeyBytes: Array[Byte] = {
     val selectBytes = Bytes.toBytes(selectColumns.toString)
     val groupBytes = Bytes.toBytes(groupBy.keys.toString)
@@ -118,9 +121,10 @@ object EdgeTransformer {
 }
 
 /**
- * TODO: step wise outputFields should be used with nextStepLimit, nextStepThreshold.
- * @param jsValue
- */
+  * TODO: step wise outputFields should be used with nextStepLimit, nextStepThreshold.
+  *
+  * @param jsValue
+  */
 case class EdgeTransformer(jsValue: JsValue) {
   val Delimiter = "\\$"
   val targets = jsValue.asOpt[List[Vector[String]]].toList
@@ -204,13 +208,15 @@ case class Step(queryParams: Seq[QueryParam],
                 cacheTTL: Long = -1,
                 groupBy: GroupBy = GroupBy.Empty) {
 
-//  lazy val excludes = queryParams.filter(_.exclude)
-//  lazy val includes = queryParams.filterNot(_.exclude)
-//  lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
+  //  lazy val excludes = queryParams.filter(_.exclude)
+  //  lazy val includes = queryParams.filterNot(_.exclude)
+  //  lazy val excludeIds = excludes.map(x => x.labelWithDir.labelId -> true).toMap
 
   lazy val cacheKeyBytes = queryParams.map(_.toCacheKeyRaw(Array.empty[Byte])).foldLeft(Array.empty[Byte])(Bytes.add)
+
   def toCacheKey(lss: Seq[Long]): Long = Hashing.murmur3_128().hashBytes(toCacheKeyRaw(lss)).asLong()
-//    MurmurHash3.bytesHash(toCacheKeyRaw(lss))
+
+  //    MurmurHash3.bytesHash(toCacheKeyRaw(lss))
 
   def toCacheKeyRaw(lss: Seq[Long]): Array[Byte] = {
     var bytes = Array.empty[Byte]
@@ -277,6 +283,7 @@ object QueryParam {
   val Delimiter = ","
   val maxMetaByte = (-1).toByte
   val fillArray = Array.fill(100)(maxMetaByte)
+
   import scala.collection.JavaConverters._
 
   def apply(labelWithDirection: LabelWithDirection): QueryParam = {
@@ -285,34 +292,43 @@ object QueryParam {
     QueryParam(labelName = label.label, direction = direction)
   }
 }
+
+case class VertexQueryParam(offset: Int,
+                            limit: Int,
+                            searchString: Option[String],
+                            vertexIds: Seq[VertexId] = Nil,
+                            fetchProp: Boolean = true) {
+}
+
 case class QueryParam(labelName: String,
-                        direction: String = "out",
-                        offset: Int = 0,
-                        limit: Int = S2Graph.DefaultFetchLimit,
-                        sample: Int = -1,
-                        maxAttempt: Int = 20,
-                        rpcTimeout: Int = 600000,
-                        cacheTTLInMillis: Long = -1L,
-                        indexName: String = LabelIndex.DefaultName,
-                        where: Try[Where] = Success(WhereParser.success),
-                        timestamp: Long = System.currentTimeMillis(),
-                        threshold: Double = Double.MinValue,
-                        rank: RankParam = RankParam.Default,
-                        intervalOpt: Option[((Seq[(String, JsValue)]), Seq[(String, JsValue)])] = None,
-                        durationOpt: Option[(Long, Long)] = None,
-                        exclude: Boolean = false,
-                        include: Boolean = false,
-                        has: Map[String, Any] = Map.empty,
-                        duplicatePolicy: DuplicatePolicy = DuplicatePolicy.First,
-                        includeDegree: Boolean = false,
-                        scorePropagateShrinkage: Long = 500L,
-                        scorePropagateOp: String = "multiply",
-                        shouldNormalize: Boolean = false,
-                        whereRawOpt: Option[String] = None,
-                        cursorOpt: Option[String] = None,
-                        tgtVertexIdOpt: Option[Any] = None,
-                        edgeTransformer: EdgeTransformer = EdgeTransformer(EdgeTransformer.DefaultJson),
-                        timeDecay: Option[TimeDecay] = None) {
+                      direction: String = "out",
+                      offset: Int = 0,
+                      limit: Int = S2Graph.DefaultFetchLimit,
+                      sample: Int = -1,
+                      maxAttempt: Int = 20,
+                      rpcTimeout: Int = 600000,
+                      cacheTTLInMillis: Long = -1L,
+                      indexName: String = LabelIndex.DefaultName,
+                      where: Try[Where] = Success(WhereParser.success),
+                      timestamp: Long = System.currentTimeMillis(),
+                      threshold: Double = Double.MinValue,
+                      rank: RankParam = RankParam.Default,
+                      intervalOpt: Option[((Seq[(String, JsValue)]), Seq[(String, JsValue)])] = None,
+                      durationOpt: Option[(Long, Long)] = None,
+                      exclude: Boolean = false,
+                      include: Boolean = false,
+                      has: Map[String, Any] = Map.empty,
+                      duplicatePolicy: DuplicatePolicy = DuplicatePolicy.First,
+                      includeDegree: Boolean = false,
+                      scorePropagateShrinkage: Long = 500L,
+                      scorePropagateOp: String = "multiply",
+                      shouldNormalize: Boolean = false,
+                      whereRawOpt: Option[String] = None,
+                      cursorOpt: Option[String] = None,
+                      tgtVertexIdOpt: Option[Any] = None,
+                      edgeTransformer: EdgeTransformer = EdgeTransformer(EdgeTransformer.DefaultJson),
+                      timeDecay: Option[TimeDecay] = None) {
+
   import JSONParser._
 
   //TODO: implement this.
@@ -447,6 +463,7 @@ object DuplicatePolicy extends Enumeration {
     }
   }
 }
+
 case class TimeDecay(initial: Double = 1.0,
                      lambda: Double = 0.1,
                      timeUnit: Double = 60 * 60 * 24,

@@ -20,7 +20,28 @@
 package org.apache.s2graph.s2jobs.task
 
 import org.apache.s2graph.s2jobs.Logger
+import org.apache.s2graph.s2jobs.loader.GraphFileOptions
 
+object TaskConf {
+  def toGraphFileOptions(taskConf: TaskConf): GraphFileOptions = {
+    val args = taskConf.options.filterKeys(GraphFileOptions.OptionKeys)
+      .flatMap(kv => Seq(kv._1, kv._2)).toSeq.toArray
+
+    GraphFileOptions.toOption(args)
+  }
+
+  def parseHBaseConfigs(taskConf: TaskConf): Map[String, Any] = {
+    taskConf.options.filterKeys(_.startsWith("hbase."))
+  }
+
+  def parseMetaStoreConfigs(taskConf: TaskConf): Map[String, Any] = {
+    taskConf.options.filterKeys(_.startsWith("db."))
+  }
+
+  def parseLocalCacheConfigs(taskConf: TaskConf): Map[String, Any] = {
+    taskConf.options.filterKeys(_.startsWith("cache.")).mapValues(_.toInt)
+  }
+}
 case class TaskConf(name:String, `type`:String, inputs:Seq[String] = Nil, options:Map[String, String] = Map.empty)
 
 trait Task extends Serializable with Logger {

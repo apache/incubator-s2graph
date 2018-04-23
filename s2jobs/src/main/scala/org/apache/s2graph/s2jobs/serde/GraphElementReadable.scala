@@ -17,12 +17,10 @@
  * under the License.
  */
 
-package org.apache.s2graph.graphql.resolver
+package org.apache.s2graph.s2jobs.serde
 
-import org.apache.s2graph.core.S2VertexLike
-import org.apache.s2graph.graphql.repository.GraphRepository
+import org.apache.s2graph.core.{GraphElement, S2Graph}
 
-object Resolver {
-  def vertexResolver(v: S2VertexLike)(implicit repo: GraphRepository) {
-  }
+trait GraphElementReadable[S] extends Serializable {
+  def read(graph: S2Graph)(data: S): Seq[GraphElement]
 }

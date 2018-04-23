@@ -250,7 +250,7 @@ class AsynchbaseStorageManagement(val config: Config, val clients: Seq[HBaseClie
     conn.getAdmin
   }
 
-  private def withAdmin(config: Config)(op: Admin => Unit): Unit = {
+  def withAdmin(config: Config)(op: Admin => Unit): Unit = {
     val admin = getAdmin(config)
     try {
       op(admin)

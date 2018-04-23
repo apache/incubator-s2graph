@@ -32,4 +32,25 @@ object Schema {
     StructField("props", StringType, false),
     StructField("direction", StringType, true)
   ))
+
+  val VertexSchema = StructType(Seq(
+    StructField("timestamp", LongType, false),
+    StructField("operation", StringType, false),
+    StructField("elem", StringType, false),
+    StructField("id", StringType, false),
+    StructField("service", StringType, false),
+    StructField("column", StringType, false),
+    StructField("props", StringType, false)
+  ))
+
+  val EdgeSchema = StructType(Seq(
+    StructField("timestamp", LongType, false),
+    StructField("operation", StringType, false),
+    StructField("elem", StringType, false),
+    StructField("from", StringType, false),
+    StructField("to", StringType, false),
+    StructField("label", StringType, false),
+    StructField("props", StringType, false),
+    StructField("direction", StringType, true)
+  ))
 }

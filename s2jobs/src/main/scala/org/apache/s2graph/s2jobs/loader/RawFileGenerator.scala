@@ -20,32 +20,12 @@
 package org.apache.s2graph.s2jobs.loader
 
 import com.typesafe.config.Config
-import org.apache.s2graph.core.GraphUtil
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
-case class DegreeKey(vertexIdStr: String, labelName: String, direction: String)
-
-trait RawFileGenerator {
+trait RawFileGenerator[S, T] {
   def generate(sc: SparkContext,
-               config:Config,
-               rdd: RDD[String],
-               _options:GraphFileOptions)
-
-  def buildDegrees(msgs: RDD[String], labelMapping: Map[String, String], edgeAutoCreate: Boolean) = {
-    for {
-      msg <- msgs
-      tokens = GraphUtil.split(msg)
-      if tokens(2) == "e" || tokens(2) == "edge"
-      tempDirection = if (tokens.length == 7) "out" else tokens(7)
-      direction = if (tempDirection != "out" && tempDirection != "in") "out" else tempDirection
-      reverseDirection = if (direction == "out") "in" else "out"
-      convertedLabelName = labelMapping.get(tokens(5)).getOrElse(tokens(5))
-      (vertexIdStr, vertexIdStrReversed) = (tokens(3), tokens(4))
-      degreeKey = DegreeKey(vertexIdStr, convertedLabelName, direction)
-      degreeKeyReversed = DegreeKey(vertexIdStrReversed, convertedLabelName, reverseDirection)
-      extra = if (edgeAutoCreate) List(degreeKeyReversed -> 1L) else Nil
-      output <- List(degreeKey -> 1L) ++ extra
-    } yield output
-  }
+               config: Config,
+               rdd: RDD[S],
+               _options: GraphFileOptions): Unit
 }

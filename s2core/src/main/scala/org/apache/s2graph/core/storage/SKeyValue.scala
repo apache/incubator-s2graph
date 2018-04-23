@@ -25,8 +25,9 @@ import org.hbase.async.KeyValue
 
 
 object SKeyValue {
-  val EdgeCf = "e".getBytes("UTF-8")
-  val VertexCf = "v".getBytes("UTF-8")
+//  val SnapshotEdgeCf = "s".getBytes(StandardCharsets.UTF_8)
+  val EdgeCf = "e".getBytes(StandardCharsets.UTF_8)
+  val VertexCf = "v".getBytes(StandardCharsets.UTF_8)
   val Put = 1
   val Delete = 2
   val Increment = 3

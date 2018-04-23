@@ -19,24 +19,39 @@
 
 package org.apache.s2graph.s2jobs.task
 
+import com.typesafe.config.{Config, ConfigFactory, ConfigRenderOptions}
+import org.apache.hadoop.hbase.HBaseConfiguration
+import org.apache.hadoop.hbase.mapreduce.LoadIncrementalHFiles
+import org.apache.hadoop.util.ToolRunner
+import org.apache.s2graph.core.Management
+import org.apache.s2graph.s2jobs.S2GraphHelper
+import org.apache.s2graph.s2jobs.loader.{GraphFileOptions, HFileGenerator, SparkBulkLoaderTransformer}
+import org.apache.s2graph.s2jobs.serde.reader.RowBulkFormatReader
+import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
+import org.apache.s2graph.spark.sql.streaming.S2SinkContext
 import org.apache.spark.sql._
 import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, Trigger}
 import org.elasticsearch.spark.sql.EsSparkSQL
 
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
+
 /**
   * Sink
+  *
   * @param queryName
   * @param conf
   */
-abstract class Sink(queryName:String, override val conf:TaskConf) extends Task {
+abstract class Sink(queryName: String, override val conf: TaskConf) extends Task {
   val DEFAULT_CHECKPOINT_LOCATION = s"/tmp/streamingjob/${queryName}/${conf.name}"
   val DEFAULT_TRIGGER_INTERVAL = "10 seconds"
 
-  val FORMAT:String
+  val FORMAT: String
 
-  def preprocess(df:DataFrame):DataFrame = df
+  def preprocess(df: DataFrame): DataFrame = df
 
-  def write(inputDF: DataFrame):Unit = {
+  def write(inputDF: DataFrame): Unit = {
     val df = repartition(preprocess(inputDF), inputDF.sparkSession.sparkContext.defaultParallelism)
 
     if (inputDF.isStreaming) writeStream(df.writeStream)
@@ -50,7 +65,7 @@ abstract class Sink(queryName:String, override val conf:TaskConf) extends Task {
       case "update" => OutputMode.Update()
       case "complete" => OutputMode.Complete()
       case _ => logger.warn(s"${LOG_PREFIX} unsupported output mode. use default output mode 'append'")
-                OutputMode.Append()
+        OutputMode.Append()
     }
     val interval = conf.options.getOrElse("interval", DEFAULT_TRIGGER_INTERVAL)
     val checkpointLocation = conf.options.getOrElse("checkpointLocation", DEFAULT_CHECKPOINT_LOCATION)
@@ -88,9 +103,9 @@ abstract class Sink(queryName:String, override val conf:TaskConf) extends Task {
     writer.save(outputPath)
   }
 
-  protected def repartition(df:DataFrame, defaultParallelism:Int) = {
+  protected def repartition(df: DataFrame, defaultParallelism: Int) = {
     conf.options.get("numPartitions").map(n => Integer.parseInt(n)) match {
-      case Some(numOfPartitions:Int) =>
+      case Some(numOfPartitions: Int) =>
         if (numOfPartitions > defaultParallelism) df.repartition(numOfPartitions)
         else df.coalesce(numOfPartitions)
       case None => df
@@ -100,14 +115,16 @@ abstract class Sink(queryName:String, override val conf:TaskConf) extends Task {
 
 /**
   * KafkaSink
+  *
   * @param queryName
   * @param conf
   */
-class KafkaSink(queryName:String, conf:TaskConf) extends Sink(queryName, conf) {
+class KafkaSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
   override def mandatoryOptions: Set[String] = Set("kafka.bootstrap.servers", "topic")
+
   override val FORMAT: String = "kafka"
 
-  override def preprocess(df:DataFrame):DataFrame = {
+  override def preprocess(df: DataFrame): DataFrame = {
     import org.apache.spark.sql.functions._
 
     logger.debug(s"${LOG_PREFIX} schema: ${df.schema}")
@@ -118,7 +135,7 @@ class KafkaSink(queryName:String, conf:TaskConf) extends Sink(queryName, conf) {
 
         val columns = df.columns
         df.select(concat_ws(delimiter, columns.map(c => col(c)): _*).alias("value"))
-      case format:String =>
+      case format: String =>
         if (format != "json") logger.warn(s"${LOG_PREFIX} unsupported format '$format'. use default json format")
         df.selectExpr("to_json(struct(*)) AS value")
     }
@@ -130,21 +147,25 @@ class KafkaSink(queryName:String, conf:TaskConf) extends Sink(queryName, conf) {
 
 /**
   * FileSink
+  *
   * @param queryName
   * @param conf
   */
-class FileSink(queryName:String, conf:TaskConf) extends Sink(queryName, conf) {
+class FileSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
   override def mandatoryOptions: Set[String] = Set("path", "format")
+
   override val FORMAT: String = conf.options.getOrElse("format", "parquet")
 }
 
 /**
   * HiveSink
+  *
   * @param queryName
   * @param conf
   */
-class HiveSink(queryName:String, conf:TaskConf) extends Sink(queryName, conf) {
+class HiveSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
   override def mandatoryOptions: Set[String] = Set("database", "table")
+
   override val FORMAT: String = "hive"
 
   override protected def writeBatchInner(writer: DataFrameWriter[Row]): Unit = {
@@ -161,11 +182,13 @@ class HiveSink(queryName:String, conf:TaskConf) extends Sink(queryName, conf) {
 
 /**
   * ESSink
+  *
   * @param queryName
   * @param conf
   */
-class ESSink(queryName:String, conf:TaskConf) extends Sink(queryName, conf) {
+class ESSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
   override def mandatoryOptions: Set[String] = Set("es.nodes", "path", "es.port")
+
   override val FORMAT: String = "es"
 
   override def write(inputDF: DataFrame): Unit = {
@@ -182,14 +205,78 @@ class ESSink(queryName:String, conf:TaskConf) extends Sink(queryName, conf) {
 
 /**
   * S2graphSink
+  *
   * @param queryName
   * @param conf
   */
-class S2graphSink(queryName:String, conf:TaskConf) extends Sink(queryName, conf) {
+class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
   override def mandatoryOptions: Set[String] = Set()
+
   override val FORMAT: String = "org.apache.s2graph.spark.sql.streaming.S2SinkProvider"
 
-  override protected def writeBatch(writer: DataFrameWriter[Row]): Unit =
-    throw new RuntimeException(s"unsupported source type for ${this.getClass.getSimpleName} : ${conf.name}")
+  private def writeBatchBulkload(df: DataFrame, runLoadIncrementalHFiles: Boolean = true): Unit = {
+    val options = TaskConf.toGraphFileOptions(conf)
+    val config = Management.toConfig(TaskConf.parseLocalCacheConfigs(conf) ++
+      TaskConf.parseHBaseConfigs(conf) ++ TaskConf.parseMetaStoreConfigs(conf) ++ options.toConfigParams)
+
+    val input = df.rdd
+
+    val transformer = new SparkBulkLoaderTransformer(config, options)
+
+    implicit val reader = new RowBulkFormatReader
+    implicit val writer = new KeyValueWriter(options.autoEdgeCreate, options.skipError)
+
+    val kvs = transformer.transform(input)
+
+    HFileGenerator.generateHFile(df.sparkSession.sparkContext, config, kvs.flatMap(ls => ls), options)
+
+    // finish bulk load by execute LoadIncrementHFile.
+    if (runLoadIncrementalHFiles) HFileGenerator.loadIncrementalHFiles(options)
+  }
+
+  private def writeBatchWithMutate(df:DataFrame):Unit = {
+    import scala.collection.JavaConversions._
+    import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs._
+
+    // TODO: FIX THIS. overwrite local cache config.
+    val mergedOptions = conf.options ++ TaskConf.parseLocalCacheConfigs(conf)
+    val graphConfig: Config = ConfigFactory.parseMap(mergedOptions).withFallback(ConfigFactory.load())
+    val serializedConfig = graphConfig.root().render(ConfigRenderOptions.concise())
+
+    val reader = new RowBulkFormatReader
+
+    val groupedSize = getConfigString(graphConfig, S2_SINK_GROUPED_SIZE, DEFAULT_GROUPED_SIZE).toInt
+    val waitTime = getConfigString(graphConfig, S2_SINK_WAIT_TIME, DEFAULT_WAIT_TIME_SECONDS).toInt
+
+    df.foreachPartition { iters =>
+      val config = ConfigFactory.parseString(serializedConfig)
+      val s2Graph = S2GraphHelper.getS2Graph(config)
+
+      val responses = iters.grouped(groupedSize).flatMap { rows =>
+        val elements = rows.flatMap(row => reader.read(s2Graph)(row))
+
+        val mutateF = s2Graph.mutateElements(elements, true)
+        Await.result(mutateF, Duration(waitTime, "seconds"))
+      }
+
+      val (success, fail) = responses.toSeq.partition(r => r.isSuccess)
+      logger.info(s"success : ${success.size}, fail : ${fail.size}")
+    }
+  }
+
+  override def write(inputDF: DataFrame): Unit = {
+    val df = repartition(preprocess(inputDF), inputDF.sparkSession.sparkContext.defaultParallelism)
+
+    if (inputDF.isStreaming) writeStream(df.writeStream)
+    else {
+      conf.options.getOrElse("writeMethod", "mutate") match {
+        case "mutate" => writeBatchWithMutate(df)
+        case "bulk" =>
+          val runLoadIncrementalHFiles = conf.options.getOrElse("runLoadIncrementalHFiles", "true").toBoolean
+          writeBatchBulkload(df, runLoadIncrementalHFiles)
+        case writeMethod:String => throw new IllegalArgumentException(s"unsupported write method '$writeMethod' (valid method: mutate, bulk)")
+      }
+    }
+  }
 }
 

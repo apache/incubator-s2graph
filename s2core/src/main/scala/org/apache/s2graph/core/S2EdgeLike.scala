@@ -21,17 +21,14 @@ package org.apache.s2graph.core
 import java.util
 import java.util.function.BiConsumer
 
-import org.apache.s2graph.core.JSONParser.innerValToJsValue
 import org.apache.s2graph.core.S2Edge.{Props, State}
-import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta, ServiceColumn}
+import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.structure
 import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph, Property, T, Vertex}
 import play.api.libs.json.Json
 
 import scala.concurrent.Await
-import scala.collection.JavaConverters._
 
 trait S2EdgeLike extends Edge with GraphElement {
   val innerGraph: S2GraphLike
@@ -250,6 +247,8 @@ trait S2EdgeLike extends Edge with GraphElement {
 
   def toLogString: String = {
     //    val allPropsWithName = defaultPropsWithName ++ Json.toJson(propsWithName).asOpt[JsObject].getOrElse(Json.obj())
-    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, innerLabel.label, propsWithTs).mkString("\t")
+    val propsWithName = PostProcess.s2EdgePropsJsonString(this)
+
+    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, innerLabel.label, Json.toJson(propsWithName)).mkString("\t")
   }
 }

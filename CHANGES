@@ -34,6 +34,9 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-161] - Update CHANGES file with correct release version
     * [S2GRAPH-163] - Update version.sbt after release
     * [S2GRAPH-180] - Implement missing Management API
+    * [S2GRAPH-197] - Provide S2graphSink for non-streaming dataset
+    * [S2GRAPH-205] - too many initialize S2Graph when writeBatchMutate on S2GraphSink
+    * [S2GRAPH-201] - Provide S2GraphSource
 
 ** Bug
     * [S2GRAPH-159] - Wrong syntax at a bash script under Linux
@@ -44,8 +47,14 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-181] - MutateVertices yield different state with different storage type
     * [S2GRAPH-184] - spark driver exit abnormally in the loader of s2jobs
     * [S2GRAPH-186] - fix wrong escaping of double quotation marks
+    * [S2GRAPH-187] - Make toQuery use toVertex to parse vertex from query JSON on RequestParser
     * [S2GRAPH-188] - migrate log4j.properties to log4j2.xml
     * [S2GRAPH-189] - graphiql.html file not found
+    * [S2GRAPH-190] - Remove unnecessary TC JsonBenchmarkSpec
+    * [S2GRAPH-191] - Providing request / response logging to GraphQL server and removing println
+    * [S2GRAPH-192] - could not find service column when creating the label
+    * [S2GRAPH-195] - could not create indices using S2GraphQL
+    * [S2GRAPH-196] - Apply Query Parameter to Label Fetch in S2GraphQL
 
 ** Improvement
     * [S2GRAPH-72] - Support Apache TinkerPop and Gremlin
@@ -59,6 +68,11 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-169] - Separate multiple functionalities on Storage class into multiple Interface.
     * [S2GRAPH-170] - Create Interface for S2Edge/S2Vertex/S2Graph.
     * [S2GRAPH-182] - Version up spark dependencies.
+    * [S2GRAPH-198] - Skip json Decode error and continue.
+    * [S2GRAPH-199] - Changing query more intuitively by using `columnName` instead of `from/to` in label field name.
+    * [S2GRAPH-200] - docker image could not include extra jars.
+    * [S2GRAPH-204] - Avoid N + 1 queries in GraphQL
+    * [S2GRAPH-207] - Provides a way to query data with the value of the Vertex property in a GraphQL query
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.
@@ -68,6 +82,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-172] - Suggest to implement GraphQL as standard web interface for S2Graph.
     * [S2GRAPH-177] - Add support for createServiceColumn/addVertex APIs on GraphQL.
     * [S2GRAPH-185] - Support Spark Structured Streaming to work with data in streaming and batch.
+    * [S2GRAPH-183] - Provide batch job to dump data stored in HBase into file.
 
 ** Task
     * [S2GRAPH-162] - Update year in the NOTICE file.

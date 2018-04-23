@@ -22,41 +22,43 @@ package org.apache.s2graph.graphql
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.Flow
+import org.slf4j.LoggerFactory
 
-import scala.Console._
 import scala.concurrent.Await
 import scala.language.postfixOps
 
 object Server extends App {
+  val logger = LoggerFactory.getLogger(this.getClass)
 
-  implicit val actorSystem = ActorSystem("s2graphql-server")
+  implicit val system = ActorSystem("s2graphql-server")
   implicit val materializer = ActorMaterializer()
 
-  import actorSystem.dispatcher
+  import system.dispatcher
 
   import scala.concurrent.duration._
 
-  println("Starting GRAPHQL server...")
-
-  val route: Route =
-    (post & path("graphql")) {
-      entity(as[spray.json.JsValue])(GraphQLServer.endpoint)
-    } ~ {
-      getFromResource("assets/graphiql.html")
-    }
+  val route: Flow[HttpRequest, HttpResponse, Any] = (post & path("graphql")) {
+    entity(as[spray.json.JsValue])(GraphQLServer.endpoint)
+  } ~ {
+    getFromResource("assets/graphiql.html")
+  }
 
   val port = sys.props.get("http.port").fold(8000)(_.toInt)
+
+  logger.info(s"Starting GraphQL server... ${port}")
   Http().bindAndHandle(route, "0.0.0.0", port)
 
-
   def shutdown(): Unit = {
-    println("Terminating...")
-    actorSystem.terminate()
-    Await.result(actorSystem.whenTerminated, 10 seconds)
+    logger.info("Terminating...")
 
-    println("Terminated.")
+    system.terminate()
+    Await.result(system.whenTerminated, 30 seconds)
+
+    logger.info("Terminated.")
   }
 }

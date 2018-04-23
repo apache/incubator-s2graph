@@ -48,7 +48,8 @@ object Common {
     ExclusionRule("org.slf4j", "jcl-over-slf4j"),
     ExclusionRule("org.slf4j", "log4j-over-slf4j"),
     ExclusionRule("org.slf4j", "slf4j-log4j12"),
-    ExclusionRule("org.slf4j", "jul-to-slf4j")
+    ExclusionRule("org.slf4j", "jul-to-slf4j"),
+    ExclusionRule("org.apache.logging.log4j", "log4j-slf4j-impl")
   )
 
   implicit class LoggingExcluder(moduleId: ModuleID) {

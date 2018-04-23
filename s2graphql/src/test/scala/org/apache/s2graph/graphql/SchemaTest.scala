@@ -19,9 +19,9 @@
 
 package org.apache.s2graph.graphql
 
-import com.typesafe.config.{ConfigFactory}
-import org.apache.s2graph.core.utils.logger
+import com.typesafe.config.ConfigFactory
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -29,11 +29,11 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import sangria.execution.Executor
 import sangria.parser.QueryParser
 
-
 import scala.util._
 
 class SchemaTest extends FunSuite with Matchers with BeforeAndAfterAll {
   var testGraph: TestGraph = _
+  val logger = LoggerFactory.getLogger(this.getClass)
 
   override def beforeAll = {
     val config = ConfigFactory.load()
@@ -64,10 +64,15 @@ class SchemaTest extends FunSuite with Matchers with BeforeAndAfterAll {
       Map("data" ->
         Map("__schema" ->
           Map("types" -> Vector(
+
+            // static s2graph constant types
             Map("name" -> "Enum_CompressionAlgorithm"),
             Map("name" -> "Enum_Consistency"),
             Map("name" -> "Enum_DataType"),
-            Map("name" -> "Enum_Direction"),
+            Map("name" -> "Enum_Direction_Both"),
+            Map("name" -> "Enum_Service"),
+            Map("name" -> "Enum_Label"),
+            Map("name" -> "Enum_kakao_ServiceColumn"),
 
             Map("name" -> "MutateLabel"),
             Map("name" -> "MutateGraphElement"),
@@ -77,8 +82,6 @@ class SchemaTest extends FunSuite with Matchers with BeforeAndAfterAll {
             Map("name" -> "Input_Service"),
             Map("name" -> "Input_Index"),
             Map("name" -> "Input_Prop"),
-            Map("name" -> "Input_Column"),
-            Map("name" -> "Input_Column_Props"),
 
             Map("name" -> "ColumnMeta"),
             Map("name" -> "LabelMeta"),
@@ -91,21 +94,25 @@ class SchemaTest extends FunSuite with Matchers with BeforeAndAfterAll {
 
             Map("name" -> "Input_Service_ServiceColumn"),
             Map("name" -> "Input_Service_ServiceColumn_Props"),
+
+            // dynamic created types
             Map("name" -> "Input_label_friends_param"),
             Map("name" -> "Input_vertex_kakao_param"),
 
-            Map("name" -> "Input_kakao_user"),
-            Map("name" -> "Input_kakao_user_vertex_mutate"),
+            Map("name" -> "Input_kakao_ServiceColumn_Props"),
+            Map("name" -> "Input_kakao_ServiceColumn"),
 
-            Map("name" -> "Enum_Service"),
-            Map("name" -> "Enum_Label"),
-            Map("name" -> "Enum_kakao_ServiceColumn"),
+            Map("name" -> "Input_kakao_user_vertex_mutate"),
 
             Map("name" -> "Service_kakao"),
 
-            Map("name" -> "Label_friends"),
-            Map("name" -> "Label_friends_from"),
-            Map("name" -> "Label_friends_to"),
+            Map("name" -> "Label_Index_friends"),
+            Map("name" -> "Label_friends_user"),
+            Map("name" -> "Label_friends_user_both"),
+
+            Map("name" -> "ServiceColumn_kakao_user_props"),
+            Map("name" -> "ServiceColumn_kakao_user"),
+            Map("name" -> "Label_friends_props"),
 
             // root object type
             Map("name" -> "Query"),

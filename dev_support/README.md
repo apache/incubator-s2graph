@@ -22,8 +22,25 @@
 # Run S2Graph using Docker
 
 1. Build a docker image of the s2graph in the project's root directory
-	- `sbt "project s2rest_play" 'set version := "latest"' docker:publishLocal`
+	- you can build images for each type of API Server
+	    ```
+	    // s2graphql
+	    sbt "project s2graphql" 'set version := "latest"' docker
+	    
+	    // s2rest_play
+	    sbt "project s2rest_play" 'set version := "latest"' docker
+	    
+	    // s2rest_netty
+	    sbt "project s2rest_netty" 'set version := "latest"' docker
+	    ```
+	    
 	- find local image is created correctly by using `docker images`
+	
+	- (optional) If you need to add extra jars in classpath, use environment variable 'EXTRA_JARS'
+	    ```
+        docker run --name s2graph -v /LocalJarsDir:/extraJars -e EXTRA_JARS=/extraJars -dit s2graph/s2graphql:latest ...
+        ```
+	
 2. Run MySQL and HBase container first.
 	- change directory to dev-support. `cd dev_support`
 	- `docker-compose build` 

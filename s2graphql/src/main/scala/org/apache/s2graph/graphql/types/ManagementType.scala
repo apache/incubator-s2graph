@@ -19,26 +19,17 @@
 
 package org.apache.s2graph.graphql.types
 
-import org.apache.s2graph.core.Management.JsonModel._
-import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls._
-import org.apache.s2graph.core.storage.MutateResponse
-import org.apache.s2graph.graphql._
 import org.apache.s2graph.graphql.repository.GraphRepository
-import play.api.libs.json.JsValue
-import sangria.marshalling._
 import sangria.schema._
 
 import scala.language.existentials
 import scala.util.{Failure, Success, Try}
-import org.apache.s2graph.graphql.marshaller._
 import org.apache.s2graph.graphql.types.S2Type.{ServiceColumnParam}
 
-object S2ManagementType {
+object ManagementType {
 
   import sangria.schema._
-
-  case class PropWithColumn(name: String, Props: Vector[Prop])
 
   case class MutationResponse[T](result: Try[T])
 
@@ -69,15 +60,16 @@ object S2ManagementType {
   }
 }
 
-class S2ManagementType(repo: GraphRepository) {
+class ManagementType(repo: GraphRepository) {
 
-  import S2ManagementType._
-
+  import ManagementType._
   import sangria.macros.derive._
+  import org.apache.s2graph.graphql.bind.Unmarshaller._
+  import org.apache.s2graph.graphql.types.StaticTypes._
 
-  lazy val serviceColumnOnServiceWithPropInputObjectFields = repo.allServices.map { service =>
+  lazy val serviceColumnOnServiceWithPropInputObjectFields = repo.services().map { service =>
     InputField(service.serviceName, OptionInputType(InputObjectType(
-      s"Input_Column_Props",
+      s"Input_${service.serviceName}_ServiceColumn_Props",
       description = "desc here",
       fields = List(
         InputField("columnName", makeServiceColumnEnumTypeOnService(service)),
@@ -86,9 +78,9 @@ class S2ManagementType(repo: GraphRepository) {
     )))
   }
 
-  lazy val serviceColumnOnServiceInputObjectFields = repo.allServices.map { service =>
+  lazy val serviceColumnOnServiceInputObjectFields = repo.services().map { service =>
     InputField(service.serviceName, OptionInputType(InputObjectType(
-      s"Input_Column",
+      s"Input_${service.serviceName}_ServiceColumn",
       description = "desc here",
       fields = List(
         InputField("columnName", makeServiceColumnEnumTypeOnService(service))
@@ -107,7 +99,7 @@ class S2ManagementType(repo: GraphRepository) {
     )
   }
 
-  lazy val labelPropsInputFields = repo.allLabels().map { label =>
+  lazy val labelPropsInputFields = repo.labels().map { label =>
     InputField(label.label, OptionInputType(InputObjectType(
       s"Input_${label.label}_props",
       description = "desc here",
@@ -143,7 +135,7 @@ class S2ManagementType(repo: GraphRepository) {
     s"Enum_Service",
     description = Option("desc here"),
     values =
-      dummyEnum +: repo.allServices.map { service =>
+      dummyEnum +: repo.services().map { service =>
         EnumValue(service.serviceName, value = service.serviceName)
       }
   )
@@ -152,7 +144,7 @@ class S2ManagementType(repo: GraphRepository) {
     s"Enum_ServiceColumn",
     description = Option("desc here"),
     values =
-      dummyEnum +: repo.allServiceColumns.map { serviceColumn =>
+      dummyEnum +: repo.serviceColumns().map { serviceColumn =>
         EnumValue(serviceColumn.columnName, value = serviceColumn.columnName)
       }
   )
@@ -161,7 +153,7 @@ class S2ManagementType(repo: GraphRepository) {
     s"Enum_Label",
     description = Option("desc here"),
     values =
-      dummyEnum +: repo.allLabels().map { label =>
+      dummyEnum +: repo.labels().map { label =>
         EnumValue(label.label, value = label.label)
       }
   )
@@ -184,17 +176,6 @@ class S2ManagementType(repo: GraphRepository) {
     LabelType
   )
 
-  lazy val labelField: Field[GraphRepository, Any] = Field(
-    "Label",
-    OptionType(LabelType),
-    description = Option("desc here"),
-    arguments = Argument("name", EnumLabelsType, description = "desc here") :: Nil,
-    resolve = { c =>
-      val labelName = c.arg[String]("name")
-      c.ctx.allLabels().find(_.label == labelName)
-    }
-  )
-
   lazy val labelsField: Field[GraphRepository, Any] = Field(
     "Labels",
     ListType(LabelType),
@@ -202,8 +183,8 @@ class S2ManagementType(repo: GraphRepository) {
     arguments = List(LabelNameArg),
     resolve = { c =>
       c.argOpt[String]("name") match {
-        case Some(name) => c.ctx.allLabels().filter(_.label == name)
-        case None => c.ctx.allLabels()
+        case Some(name) => c.ctx.labels().filter(_.label == name)
+        case None => c.ctx.labels()
       }
     }
   )
@@ -234,17 +215,6 @@ class S2ManagementType(repo: GraphRepository) {
     fields = DummyInputField +: serviceColumnOnServiceInputObjectFields
   )
 
-  lazy val serviceField: Field[GraphRepository, Any] = Field(
-    "Service",
-    OptionType(ServiceType),
-    description = Option("desc here"),
-    arguments = Argument("name", ServiceListType, description = "desc here") :: Nil,
-    resolve = { c =>
-      val serviceName = c.arg[String]("name")
-      c.ctx.allServices.find(_.serviceName == serviceName)
-    }
-  )
-
   lazy val servicesField: Field[GraphRepository, Any] = Field(
     "Services",
     ListType(ServiceType),
@@ -252,16 +222,17 @@ class S2ManagementType(repo: GraphRepository) {
     arguments = List(ServiceNameArg),
     resolve = { c =>
       c.argOpt[String]("name") match {
-        case Some(name) => c.ctx.allServices.filter(_.serviceName == name)
-        case None => c.ctx.allServices
+        case Some(name) => c.ctx.services().filter(_.serviceName == name)
+        case None => c.ctx.services()
       }
     }
   )
+
   /**
     * Query Fields
     * Provide s2graph management query API
     */
-  lazy val queryFields: List[Field[GraphRepository, Any]] = List(serviceField, servicesField, labelField, labelsField)
+  lazy val queryFields: List[Field[GraphRepository, Any]] = List(servicesField, labelsField)
 
   /**
     * Mutation fields

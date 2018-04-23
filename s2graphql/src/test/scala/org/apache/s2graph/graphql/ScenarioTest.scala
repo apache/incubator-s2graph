@@ -24,6 +24,7 @@ import org.scalatest._
 import play.api.libs.json._
 import sangria.execution.ValidationError
 import sangria.macros._
+import sangria.parser.QueryParser
 
 class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
   var testGraph: TestGraph = _
@@ -179,7 +180,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
 
           query {
             Management {
-              Service(name: kakao) {
+              Services(name: kakao) {
                 name
                 serviceColumns {
                   name
@@ -200,7 +201,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
           {
             "data": {
               "Management": {
-                "Service": {
+                "Services": [{
                   "name": "kakao",
                   "serviceColumns": [{
                     "name": "user",
@@ -209,7 +210,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
                       { "name": "gender", "dataType": "string" }
                     ]
                   }]
-                }
+                }]
               }
             }
           }
@@ -307,7 +308,7 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
 
           query {
             Management {
-              Label(name: friends) {
+              Labels(name: friends) {
                 name
                 props {
                   name
@@ -325,13 +326,13 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
           {
           	"data": {
           		"Management": {
-          			"Label": {
+          			"Labels": [{
           				"name": "friends",
           				"props": [{
           					"name": "score",
           					"dataType": "double"
           				}]
-          			}
+          			}]
           		}
           	}
           }
@@ -358,6 +359,11 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
                   id: "shon"
                   age: 19
                   gender: "F"
+                },
+                {
+                  id: "rain"
+                  age: 21
+                  gender: "T"
                 }]
               }) {
              isSuccess
@@ -374,8 +380,10 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
           	  "isSuccess": true
           	}, {
           	  "isSuccess": true
-          	}]
-            }
+          	}, {
+          	  "isSuccess": true
+          	}
+          	]}
           }
         """)
 
@@ -392,6 +400,9 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
                 id
                 age
                 gender
+                props {
+                  age
+                }
               }
             }
           }
@@ -406,11 +417,17 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
           			"user": [{
           				"id": "daewon",
           				"age": 20,
-                  "gender": "M"
+                  "gender": "M",
+                  "props": {
+                    "age": 20
+                  }
           			}, {
           				"id": "shon",
           				"age": 19,
-                  "gender": "F"
+                  "gender": "F",
+                  "props": {
+                    "age": 19
+                  }
           			}]
           		}
           	}
@@ -419,13 +436,52 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
 
         actual shouldBe expected
       }
-    }
-  }
 
-  describe("Add edge to label 'friends' and fetch ") {
-    it("should add edges: daewon -> shon(score: 2) to friends") {
-      val query =
-        graphql"""
+      it("should fetch vertices using VertexIndex: 'gender in (F, M)') from kakao.user") {
+        def query(search: String) = {
+          QueryParser.parse(
+            s"""
+            query FetchVertices {
+              kakao {
+                user(search: "${search}", ids: ["rain"]) {
+                  id
+                  age
+                  gender
+                }
+              }
+            }""").get
+        }
+
+        val actualGender = testGraph.queryAsJs(query("gender: M OR gender: F"))
+        val expected = Json.parse(
+          """
+          {
+          	"data": {
+          		"kakao": {
+          			"user": [
+          			  {"id": "rain", "age": 21, "gender": "T"},
+          			  {"id": "daewon", "age": 20, "gender": "M"},
+                  {"id": "shon", "age": 19, "gender": "F"}
+                ]
+          		}
+          	}
+          }
+          """)
+
+        actualGender shouldBe expected
+
+        val actualAge = testGraph.queryAsJs(query("age: 19 OR age: 20"))
+        actualAge shouldBe expected
+
+        val actualAgeBetween = testGraph.queryAsJs(query("age: [10 TO 20]"))
+        actualAgeBetween shouldBe expected
+      }
+    }
+
+    describe("Add edge to label 'friends' and fetch ") {
+      it("should add edges: daewon -> shon(score: 2) to friends") {
+        val query =
+          graphql"""
 
         mutation {
           addEdge(
@@ -440,10 +496,10 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         }
         """
 
-      val actual = testGraph.queryAsJs(query)
+        val actual = testGraph.queryAsJs(query)
 
-      val expected = Json.parse(
-        """
+        val expected = Json.parse(
+          """
         {
         	"data": {
         		"addEdge": [{
@@ -453,24 +509,27 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         }
         """)
 
-      actual shouldBe expected
-    }
+        actual shouldBe expected
+      }
 
-    it("should fetch edges: friends of kakao.user(daewon) ") {
-      val query =
-        graphql"""
+      it("should fetch edges: friends of kakao.user(daewon) ") {
+        val query =
+          graphql"""
 
         query {
           kakao {
             user(id: "daewon") {
               id
-              friends {
-                score
-                to {
+              friends(direction: out) {
+                props {
+                  score
+                }
+                score # shorcut score props
+                user {
                   id
                   age
                   friends(direction: in) {
-                    to {
+                    user {
                       id
                       age
                     }
@@ -483,21 +542,24 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         }
         """
 
-      val actual = testGraph.queryAsJs(query)
-      val expected = Json.parse(
-        """
+        val actual = testGraph.queryAsJs(query)
+        val expected = Json.parse(
+          """
         {
           "data" : {
             "kakao" : {
               "user" : [ {
                 "id" : "daewon",
                 "friends" : [ {
+                  "props" : {
+                    "score" : 0.9
+                  },
                   "score" : 0.9,
-                  "to" : {
+                  "user" : {
                     "id" : "shon",
                     "age" : 19,
                     "friends" : [ {
-                      "to" : {
+                      "user" : {
                         "id" : "daewon",
                         "age" : 20
                       },
@@ -511,15 +573,15 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         }
         """)
 
-      actual shouldBe expected
+        actual shouldBe expected
+      }
     }
-  }
 
-  describe("Management: Delete label, service column") {
+    describe("Management: Delete label, service column") {
 
-    it("should delete label: 'friends' and serviceColumn: 'user' on kakao") {
-      val query =
-        graphql"""
+      it("should delete label: 'friends' and serviceColumn: 'user' on kakao") {
+        val query =
+          graphql"""
 
         mutation {
           Management {
@@ -538,9 +600,9 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         }
         """
 
-      val actual = testGraph.queryAsJs(query)
-      val expected = Json.parse(
-        """
+        val actual = testGraph.queryAsJs(query)
+        val expected = Json.parse(
+          """
         {
           "data": {
           	"Management": {
@@ -555,38 +617,37 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         }
       """)
 
-      actual shouldBe expected
-    }
+        actual shouldBe expected
+      }
 
-    it("should fetch failed label: 'friends' and serviceColumn: 'user'") {
-      val query =
-        graphql"""
+      it("should fetch failed label: 'friends' and serviceColumn: 'user'") {
+        val query =
+          graphql"""
 
           query {
             Management {
-              Label(name: friends) {
+              Labels(name: friends) {
                 name
                 props {
                   name
                   dataType
                 }
               }
-
             }
           }
           """
 
-      // label 'friends' was deleted
-      assertThrows[ValidationError] {
-        testGraph.queryAsJs(query)
-      }
+        // label 'friends' was deleted
+        assertThrows[ValidationError] {
+          testGraph.queryAsJs(query)
+        }
 
-      val queryServiceColumn =
-        graphql"""
+        val queryServiceColumn =
+          graphql"""
 
           query {
             Management {
-             Service(name: kakao) {
+             Services(name: kakao) {
                 serviceColumns {
                   name
                 }
@@ -595,22 +656,23 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
           }
           """
 
-      // serviceColumn 'user' was deleted
-      val actual = testGraph.queryAsJs(queryServiceColumn)
-      val expected = Json.parse(
-        """
+        // serviceColumn 'user' was deleted
+        val actual = testGraph.queryAsJs(queryServiceColumn)
+        val expected = Json.parse(
+          """
         {
         	"data": {
         		"Management": {
-        			"Service": {
+        			"Services": [{
         				"serviceColumns": []
-        			}
+        			}]
         		}
         	}
         }
         """)
 
-      actual shouldBe expected
+        actual shouldBe expected
+      }
     }
   }
 }
