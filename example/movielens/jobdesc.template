@@ -1,0 +1,122 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+{
+  "name": "import_movielens",
+  "source": [
+    {
+      "name": "movies",
+      "inputs": [],
+      "type": "file",
+      "options": {
+        "paths": "file://[=WORKING_DIR]/movielens/input/movies.csv",
+        "format": "csv",
+        "columns": "movieId,title,genres"
+      }
+    },
+    {
+      "name": "ratings",
+      "inputs": [],
+      "type": "file",
+      "options": {
+        "paths": "file://[=WORKING_DIR]/movielens/input/ratings.csv",
+        "format": "csv",
+        "columns": "userId,movieId,rating,timestamp"
+      }
+    },
+    {
+      "name": "tags",
+      "inputs": [],
+      "type": "file",
+      "options": {
+        "paths": "file://[=WORKING_DIR]/movielens/input/tags.csv",
+        "format": "csv",
+        "columns": "userId,movieId,tag,timestamp"
+      }
+    }
+  ],
+  "process": [
+    {
+      "name": "vertex_movie",
+      "inputs": [
+        "movies"
+      ],
+      "type": "sql",
+      "options": {
+        "sql": "SELECT \n(unix_timestamp() * 1000) as timestamp, \n'v' as elem, \nCAST(movieId AS LONG) AS id, \n'movielens' as service, \n'Movie' as column, \nto_json(\nnamed_struct(\n 'title', title, \n 'genres', genres\n)\n) as props \nFROM movies \nWHERE movieId != 'movieId'"
+      }
+    },
+    {
+      "name": "edge_rated",
+      "inputs": [
+        "ratings"
+      ],
+      "type": "sql",
+      "options": {
+        "sql": "SELECT \nCAST(timestamp AS LONG) * 1000 AS timestamp, \n'e' as elem, \nCAST(userId AS LONG) as `from`, \nCAST(movieId AS LONG) as to, \n'rated' as label, \nto_json(\nnamed_struct(\n 'score', CAST(rating as float)\n)\n) as props \nFROM ratings \nWHERE userId != 'userId'"
+      }
+    },
+    {
+      "name": "edge_tagged",
+      "inputs": [
+        "tags"
+      ],
+      "type": "sql",
+      "options": {
+        "sql": "SELECT \nCAST(timestamp AS LONG) * 1000 AS timestamp, \n'e' as elem, \nCAST(userId AS LONG) as `from`, \nCAST(movieId AS LONG) as to, \n'tagged' as label, \nto_json(\nnamed_struct('tag', tag)\n) as props \nFROM tags \nWHERE userId != 'userId'"
+      }
+    },
+    {
+      "name": "edges",
+      "inputs": [
+        "edge_rated",
+        "edge_tagged"
+      ],
+      "type": "sql",
+      "options": {
+        "sql": "SELECT * FROM edge_rated UNION SELECT * FROM edge_tagged"
+      }
+    }
+  ],
+  "sink": [
+    {
+      "name": "vertex_sink",
+      "inputs": [
+        "vertex_movie"
+      ],
+      "type": "s2graph",
+      "options": {
+        "db.default.driver":"org.h2.Driver",
+        "db.default.url": "jdbc:h2:tcp://localhost/./var/metastore;MODE=MYSQL",
+        "s2.spark.sql.streaming.sink.grouped.size": "10",
+        "s2.spark.sql.streaming.sink.wait.time": "10"
+      }
+    },
+    {
+      "name": "edge_sink",
+      "inputs": [
+        "edges"
+      ],
+      "type": "s2graph",
+      "options": {
+        "db.default.driver":"org.h2.Driver",
+        "db.default.url": "jdbc:h2:tcp://localhost/./var/metastore;MODE=MYSQL",
+        "s2.spark.sql.streaming.sink.grouped.size": "10",
+        "s2.spark.sql.streaming.sink.wait.time": "10"
+      }
+    }
+  ]
+}

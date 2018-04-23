@@ -23,5 +23,8 @@ bin=$(cd "$(dirname "${BASH_SOURCE-$0}")">/dev/null; pwd)
 . $bin/s2graph-env.sh
 . $bin/s2graph-common.sh
 
-$bin/s2graph.sh stop
+service="s2rest_play"
+[ $# -gt 0 ] && { service=$1; }
+$bin/s2graph.sh stop ${service}
+$bin/s2graph-daemon.sh stop h2
 $bin/hbase-standalone.sh stop
