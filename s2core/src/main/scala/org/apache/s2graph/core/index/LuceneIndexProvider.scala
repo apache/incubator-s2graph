@@ -56,8 +56,16 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
   val MAX_RESULTS = 100000
 
   private def getOrElseDirectory(indexName: String): BaseDirectory = {
-    val pathname = s"${baseDirectory}/${indexName}"
-    val dir = directories.getOrElseUpdate(indexName, new SimpleFSDirectory(new File(pathname).toPath))
+    val fsType = scala.util.Try(config.getString("index.provider.lucene.fsType")).getOrElse("memory")
+
+    val fsDir = if (fsType == "memory") {
+      new RAMDirectory()
+    } else {
+      val pathname = s"${baseDirectory}/${indexName}"
+      new SimpleFSDirectory(new File(pathname).toPath)
+    }
+
+    val dir = directories.getOrElseUpdate(indexName, fsDir)
 
     dir
   }
