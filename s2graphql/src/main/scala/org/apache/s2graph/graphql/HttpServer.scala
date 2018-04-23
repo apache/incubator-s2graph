@@ -22,9 +22,11 @@ package org.apache.s2graph.graphql
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.Flow
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.Await
@@ -40,7 +42,7 @@ object Server extends App {
 
   import scala.concurrent.duration._
 
-  val route: Route = (post & path("graphql")) {
+  val route: Flow[HttpRequest, HttpResponse, Any] = (post & path("graphql")) {
     entity(as[spray.json.JsValue])(GraphQLServer.endpoint)
   } ~ {
     getFromResource("assets/graphiql.html")

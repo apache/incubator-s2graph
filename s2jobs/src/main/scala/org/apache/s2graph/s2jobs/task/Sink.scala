@@ -224,7 +224,7 @@ class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
     val transformer = new SparkBulkLoaderTransformer(config, options)
 
     implicit val reader = new RowBulkFormatReader
-    implicit val writer = new KeyValueWriter
+    implicit val writer = new KeyValueWriter(options.autoEdgeCreate, options.skipError)
 
     val kvs = transformer.transform(input)
 
@@ -250,7 +250,7 @@ class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
 
     df.foreachPartition { iters =>
       val config = ConfigFactory.parseString(serializedConfig)
-      val s2Graph = S2SinkContext(config).getGraph
+      val s2Graph = S2GraphHelper.getS2Graph(config)
 
       val responses = iters.grouped(groupedSize).flatMap { rows =>
         val elements = rows.flatMap(row => reader.read(s2Graph)(row))

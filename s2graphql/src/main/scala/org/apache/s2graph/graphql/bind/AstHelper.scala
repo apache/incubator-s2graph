@@ -17,12 +17,12 @@
  * under the License.
  */
 
-package org.apache.s2graph.graphql.resolver
+package org.apache.s2graph.graphql.bind
 
-import org.apache.s2graph.core.S2VertexLike
-import org.apache.s2graph.graphql.repository.GraphRepository
-
-object Resolver {
-  def vertexResolver(v: S2VertexLike)(implicit repo: GraphRepository) {
+object AstHelper {
+  def selectedFields(astFields: Seq[sangria.ast.Field]): Vector[String] = {
+    astFields.flatMap { f =>
+      f.selections.map(s => s.asInstanceOf[sangria.ast.Field].name)
+    }.toVector
   }
 }

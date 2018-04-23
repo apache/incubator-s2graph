@@ -29,9 +29,15 @@ import play.api.libs.json.{JsObject, Json}
 import scala.concurrent.ExecutionContext
 import scala.util.Try
 
-object S2GraphHelper {
-  def initS2Graph(config: Config)(implicit ec: ExecutionContext = ExecutionContext.Implicits.global): S2Graph = {
-    new S2Graph(config)
+object S2GraphHelper extends Logger {
+  private var s2Graph:S2Graph = null
+
+  def getS2Graph(config: Config, init:Boolean = false)(implicit ec: ExecutionContext = ExecutionContext.Implicits.global): S2Graph = {
+    if (s2Graph == null || init) {
+      logger.info(s"S2Graph initialized..")
+      s2Graph = new S2Graph(config)
+    }
+    s2Graph
   }
 
   private def insertBulkForLoaderAsync(s2: S2Graph, edge: S2Edge, createRelEdges: Boolean = true): Seq[SKeyValue] = {

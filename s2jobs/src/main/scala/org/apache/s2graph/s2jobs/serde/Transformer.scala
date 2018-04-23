@@ -21,7 +21,6 @@ package org.apache.s2graph.s2jobs.serde
 
 import com.typesafe.config.Config
 import org.apache.s2graph.core.GraphElement
-import org.apache.s2graph.s2jobs.loader.GraphFileOptions
 
 import scala.reflect.ClassTag
 

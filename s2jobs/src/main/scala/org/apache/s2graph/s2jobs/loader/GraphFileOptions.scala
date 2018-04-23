@@ -22,8 +22,8 @@ package org.apache.s2graph.s2jobs.loader
 object GraphFileOptions {
   val OptionKeys = Set(
     "--input", "--tempDir", "--output", "--zkQuorum", "--table", "--dbUrl", "--dbUser", "--dbPassword", "--dbDriver",
-    "--maxHFilePerRegionServer", "--numRegions", "--labelMapping", "--autoEdgeCreate", "--buildDegree", "--incrementalLoad",
-    "--method"
+    "--maxHFilePerRegionServer", "--numRegions", "--labelMapping", "--autoEdgeCreate", "--buildDegree",
+    "--skipError", "--incrementalLoad", "--method"
   )
 
   val parser = new scopt.OptionParser[GraphFileOptions]("run") {
@@ -56,12 +56,10 @@ object GraphFileOptions {
       c.copy(dbDriver = x)).text("jdbc driver class.")
 
     opt[Int]('h', "maxHFilePerRegionServer").action ( (x, c) =>
-      c.copy(maxHFilePerRegionServer = x)).text("maximum number of HFile per RegionServer."
-    )
+      c.copy(maxHFilePerRegionServer = x)).text("maximum number of HFile per RegionServer.")
 
     opt[Int]('n', "numRegions").action ( (x, c) =>
-      c.copy(numRegions = x)).text("total numRegions(pre-split size) on table."
-    )
+      c.copy(numRegions = x)).text("total numRegions(pre-split size) on table.")
 
     opt[String]('l', "labelMapping").action( (x, c) =>
       c.copy(labelMapping = toLabelMapping(x)) ).text("mapping info to change the label from source (originalLabel:newLabel)")
@@ -73,8 +71,11 @@ object GraphFileOptions {
       c.copy(autoEdgeCreate = x)).text("generate reverse edge automatically")
 
     opt[Boolean]('c', "incrementalLoad").action( (x, c) =>
-      c.copy(incrementalLoad = x)).text("whether incremental bulkload which append data on existing table or not."
-    )
+      c.copy(incrementalLoad = x)).text("whether incremental bulkload which append data on existing table or not.")
+
+    opt[Boolean]('s', "skipError").action ((x, c) =>
+      c.copy(skipError = x)).text("whether skip error row.")
+
     opt[String]('m', "method").action( (x, c) =>
       c.copy(method = x)).text("run method. currently MR(default)/SPARK supported."
     )
@@ -134,6 +135,7 @@ case class GraphFileOptions(input: String = "",
                             autoEdgeCreate: Boolean = false,
                             buildDegree: Boolean = false,
                             incrementalLoad: Boolean = false,
+                            skipError: Boolean = false,
                             compressionAlgorithm: String = "NONE",
                             method: String = "SPARK") {
   def toConfigParams = {
@@ -162,6 +164,7 @@ case class GraphFileOptions(input: String = "",
       "--labelMapping", GraphFileOptions.toLabelMappingString(labelMapping),
       "--autoEdgeCreate", autoEdgeCreate.toString,
       "--buildDegree", buildDegree.toString,
+      "--skipError", skipError.toString,
       "--incrementalLoad", incrementalLoad.toString,
       "--method", method
     )

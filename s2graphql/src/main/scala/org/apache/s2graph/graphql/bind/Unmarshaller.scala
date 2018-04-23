@@ -17,14 +17,17 @@
  * under the License.
  */
 
-package org.apache.s2graph.graphql
+package org.apache.s2graph.graphql.bind
 
 import org.apache.s2graph.core.Management.JsonModel._
+import org.apache.s2graph.core.mysqls.{Label, ServiceColumn}
+import org.apache.s2graph.core.{QueryParam, S2EdgeLike, S2VertexLike}
+import org.apache.s2graph.graphql.repository.GraphRepository
 import org.apache.s2graph.graphql.types.S2Type._
 import sangria.marshalling._
-import sangria.schema.Args
+import sangria.schema.Context
 
-package object marshaller {
+object Unmarshaller {
   type RawNode = Map[String, Any]
 
   def unwrap(any: Any): Any = any match {

@@ -119,15 +119,15 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
   override def generate(sc: SparkContext,
                         config: Config,
                         rdd: RDD[String],
-                        _options: GraphFileOptions): Unit = {
-    val transformer = new SparkBulkLoaderTransformer(config, _options)
+                        options: GraphFileOptions): Unit = {
+    val transformer = new SparkBulkLoaderTransformer(config, options)
 
     implicit val reader = new TsvBulkFormatReader
-    implicit val writer = new KeyValueWriter
+    implicit val writer = new KeyValueWriter(options.autoEdgeCreate, options.skipError)
 
     val kvs = transformer.transform(rdd).flatMap(kvs => kvs)
 
-    HFileGenerator.generateHFile(sc, config, kvs, _options)
+    HFileGenerator.generateHFile(sc, config, kvs, options)
   }
 
   def loadIncrementalHFiles(options: GraphFileOptions): Int = {

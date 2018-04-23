@@ -69,7 +69,7 @@ class SchemaTest extends FunSuite with Matchers with BeforeAndAfterAll {
             Map("name" -> "Enum_CompressionAlgorithm"),
             Map("name" -> "Enum_Consistency"),
             Map("name" -> "Enum_DataType"),
-            Map("name" -> "Enum_Direction"),
+            Map("name" -> "Enum_Direction_Both"),
             Map("name" -> "Enum_Service"),
             Map("name" -> "Enum_Label"),
             Map("name" -> "Enum_kakao_ServiceColumn"),
@@ -102,14 +102,17 @@ class SchemaTest extends FunSuite with Matchers with BeforeAndAfterAll {
             Map("name" -> "Input_kakao_ServiceColumn_Props"),
             Map("name" -> "Input_kakao_ServiceColumn"),
 
-            Map("name" -> "Input_kakao_user"),
             Map("name" -> "Input_kakao_user_vertex_mutate"),
 
             Map("name" -> "Service_kakao"),
 
-            Map("name" -> "Label_friends"),
-            Map("name" -> "Label_friends_from"),
-            Map("name" -> "Label_friends_to"),
+            Map("name" -> "Label_Index_friends"),
+            Map("name" -> "Label_friends_user"),
+            Map("name" -> "Label_friends_user_both"),
+
+            Map("name" -> "ServiceColumn_kakao_user_props"),
+            Map("name" -> "ServiceColumn_kakao_user"),
+            Map("name" -> "Label_friends_props"),
 
             // root object type
             Map("name" -> "Query"),
