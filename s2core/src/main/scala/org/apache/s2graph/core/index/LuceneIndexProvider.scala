@@ -183,7 +183,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
       val reader = DirectoryReader.open(getOrElseDirectory(indexKey))
       val searcher = new IndexSearcher(reader)
       val collector = TopScoreDocCollector.create(MAX_RESULTS)
-      val startIndex = offset * limit
+      val startIndex = offset
 
       searcher.search(q, collector)
 

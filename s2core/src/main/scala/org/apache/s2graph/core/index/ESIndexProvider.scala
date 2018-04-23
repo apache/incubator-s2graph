@@ -152,11 +152,11 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     }
   }
 
-  private def fetchInner[T](queryString: String, indexKey: String, field: String, reads: Reads[T])(validate: (T => Boolean)): Future[util.List[T]] = {
+  private def fetchInner[T](queryString: String, offset: Int, limit: Int, indexKey: String, field: String, reads: Reads[T])(validate: (T => Boolean)): Future[util.List[T]] = {
     val ids = new java.util.HashSet[T]
 
     client.execute {
-      search(indexKey).query(queryString)
+      search(indexKey).query(queryString).from(offset).limit(limit)
     }.map { ret =>
       ret match {
         case Left(failure) =>
@@ -181,7 +181,13 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     val field = eidField
 
     val queryString = buildQueryString(hasContainers)
-    fetchInner[EdgeId](queryString, GlobalIndex.EdgeIndexName, field, Conversions.s2EdgeIdReads)(e => EdgeId.isValid(e).isDefined)
+    fetchInner[EdgeId](
+      queryString,
+      0,
+      1000,
+      GlobalIndex.EdgeIndexName,
+      field,
+      Conversions.s2EdgeIdReads)(e => EdgeId.isValid(e).isDefined)
   }
 
   override def fetchVertexIds(hasContainers: util.List[HasContainer]): util.List[VertexId] =
@@ -191,7 +197,12 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     val field = vidField
     val queryString = buildQueryString(hasContainers)
 
-    fetchInner[VertexId](queryString, GlobalIndex.VertexIndexName, field, Conversions.s2VertexIdReads)(v => VertexId.isValid(v).isDefined)
+    fetchInner[VertexId](queryString,
+      0,
+      1000,
+      GlobalIndex.VertexIndexName,
+      field,
+      Conversions.s2VertexIdReads)(v => VertexId.isValid(v).isDefined)
   }
 
   override def fetchVertexIdsAsyncRaw(vertexQueryParam: VertexQueryParam): Future[util.List[VertexId]] = {
@@ -200,7 +211,13 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
 
     vertexQueryParam.searchString match {
       case Some(queryString) =>
-        fetchInner[VertexId](queryString, GlobalIndex.VertexIndexName, field, Conversions.s2VertexIdReads)(v => VertexId.isValid(v).isDefined)
+        fetchInner[VertexId](
+          queryString,
+          vertexQueryParam.offset,
+          vertexQueryParam.limit,
+          GlobalIndex.VertexIndexName,
+          field,
+          Conversions.s2VertexIdReads)(v => VertexId.isValid(v).isDefined)
       case None => Future.successful(empty)
     }
   }
