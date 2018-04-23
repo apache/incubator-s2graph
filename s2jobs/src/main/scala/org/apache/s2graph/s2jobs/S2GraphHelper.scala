@@ -21,9 +21,7 @@ package org.apache.s2graph.s2jobs
 
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.storage.SKeyValue
-import org.apache.s2graph.core.types.{InnerValLikeWithTs, SourceVertexId}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
 import play.api.libs.json.{JsObject, Json}
@@ -40,27 +38,6 @@ object S2GraphHelper extends Logger {
       s2Graph = new S2Graph(config)
     }
     s2Graph
-  }
-
-  def buildDegreePutRequests(s2: S2Graph,
-                             vertexId: String,
-                             labelName: String,
-                             direction: String,
-                             degreeVal: Long): Seq[SKeyValue] = {
-    val label = Label.findByName(labelName).getOrElse(throw new RuntimeException(s"$labelName is not found in DB."))
-    val dir = GraphUtil.directions(direction)
-    val innerVal = JSONParser.jsValueToInnerVal(Json.toJson(vertexId), label.srcColumnWithDir(dir).columnType, label.schemaVersion).getOrElse {
-      throw new RuntimeException(s"$vertexId can not be converted into innerval")
-    }
-    val vertex = s2.elementBuilder.newVertex(SourceVertexId(label.srcColumn, innerVal))
-
-    val ts = System.currentTimeMillis()
-    val propsWithTs = Map(LabelMeta.timestamp -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion))
-    val edge = s2.elementBuilder.newEdge(vertex, vertex, label, dir, propsWithTs = propsWithTs)
-
-    edge.edgesWithIndex.flatMap { indexEdge =>
-      s2.getStorage(indexEdge.label).serDe.indexEdgeSerializer(indexEdge).toKeyValues
-    }
   }
 
   private def insertBulkForLoaderAsync(s2: S2Graph, edge: S2Edge, createRelEdges: Boolean = true): Seq[SKeyValue] = {
@@ -88,6 +65,24 @@ object S2GraphHelper extends Logger {
     }
   }
 
+  def graphElementToSparkSqlRow(s2: S2Graph, element: GraphElement): Row = {
+    element match {
+      case e: S2EdgeLike =>
+        Row(
+          e.getTs(), e.getOperation(), "edge",
+          e.srcVertex.innerId.toIdString(), e.tgtVertex.innerId.toIdString(), e.label(),
+          PostProcess.s2EdgePropsJsonString(e),
+          e.getDirection()
+        )
+      case v: S2VertexLike =>
+        Row(
+          v.ts, GraphUtil.fromOp(v.op), "vertex",
+          v.innerId.toIdString(), v.serviceName, v.columnName,
+          PostProcess.s2VertexPropsJsonString(v)
+        )
+      case _ => throw new IllegalArgumentException(s"$element is not supported.")
+    }
+  }
   def sparkSqlRowToGraphElement(s2: S2Graph, row: Row, schema: StructType, reservedColumn: Set[String]): Option[GraphElement] = {
     val timestamp = row.getAs[Long]("timestamp")
     val operation = Try(row.getAs[String]("operation")).getOrElse("insert")

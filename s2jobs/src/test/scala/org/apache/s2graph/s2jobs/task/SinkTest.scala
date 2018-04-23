@@ -56,7 +56,7 @@ class SinkTest extends BaseSparkTest {
 
     val conf = TaskConf("test", "sql", Seq("input"), args)
 
-    val sink = new S2graphSink("testQuery", conf)
+    val sink = new S2GraphSink("testQuery", conf)
     sink.write(df)
 
     val s2Edges = s2.edges().asScala.toSeq.map(_.asInstanceOf[S2EdgeLike])
@@ -79,7 +79,7 @@ class SinkTest extends BaseSparkTest {
 
     val conf = TaskConf("test", "sql", Seq("input"), args)
 
-    val sink = new S2graphSink("testQuery", conf)
+    val sink = new S2GraphSink("testQuery", conf)
     sink.write(df)
 
     val s2Edges = s2.edges().asScala.toSeq.map(_.asInstanceOf[S2EdgeLike])

@@ -27,7 +27,7 @@ import org.apache.spark.sql.Row
 class RowBulkFormatReader extends GraphElementReadable[Row] {
   private val RESERVED_COLUMN = Set("timestamp", "from", "to", "label", "operation", "elem", "direction")
 
-  override def read(s2: S2Graph)(row: Row): Option[GraphElement] =
-    S2GraphHelper.sparkSqlRowToGraphElement(s2, row, row.schema, RESERVED_COLUMN)
+  override def read(s2: S2Graph)(row: Row): Seq[GraphElement] =
+    S2GraphHelper.sparkSqlRowToGraphElement(s2, row, row.schema, RESERVED_COLUMN).toSeq
 
 }

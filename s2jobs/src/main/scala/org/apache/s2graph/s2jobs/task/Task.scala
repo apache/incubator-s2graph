@@ -29,6 +29,18 @@ object TaskConf {
 
     GraphFileOptions.toOption(args)
   }
+
+  def parseHBaseConfigs(taskConf: TaskConf): Map[String, Any] = {
+    taskConf.options.filterKeys(_.startsWith("hbase."))
+  }
+
+  def parseMetaStoreConfigs(taskConf: TaskConf): Map[String, Any] = {
+    taskConf.options.filterKeys(_.startsWith("db."))
+  }
+
+  def parseLocalCacheConfigs(taskConf: TaskConf): Map[String, Any] = {
+    taskConf.options.filterKeys(_.startsWith("cache.")).mapValues(_.toInt)
+  }
 }
 case class TaskConf(name:String, `type`:String, inputs:Seq[String] = Nil, options:Map[String, String] = Map.empty)
 

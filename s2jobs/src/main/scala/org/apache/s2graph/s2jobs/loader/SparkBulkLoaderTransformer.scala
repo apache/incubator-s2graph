@@ -28,14 +28,18 @@ import org.apache.spark.rdd.RDD
 import scala.reflect.ClassTag
 
 class SparkBulkLoaderTransformer(val config: Config,
-                                 val options: GraphFileOptions) extends Transformer[RDD] {
+                                 val labelMapping: Map[String, String] = Map.empty,
+                                 val buildDegree: Boolean = false) extends Transformer[RDD] {
+
+  def this(config: Config, options: GraphFileOptions) =
+    this(config, options.labelMapping, options.buildDegree)
 
   override def buildDegrees[T: ClassTag](elements: RDD[GraphElement])(implicit writer: GraphElementWritable[T]): RDD[T] = {
     val degrees = elements.mapPartitions { iter =>
       val s2 = S2GraphHelper.getS2Graph(config)
 
       iter.flatMap { element =>
-        DegreeKey.fromGraphElement(s2, element, options.labelMapping).map(_ -> 1L)
+        DegreeKey.fromGraphElement(s2, element, labelMapping).map(_ -> 1L)
       }
     }.reduceByKey(_ + _)
 
@@ -63,7 +67,7 @@ class SparkBulkLoaderTransformer(val config: Config,
       iter.map(writer.write(s2)(_))
     }
 
-    if (options.buildDegree) kvs ++ buildDegrees(elements)
+    if (buildDegree) kvs ++ buildDegrees(elements)
     else kvs
   }
 }

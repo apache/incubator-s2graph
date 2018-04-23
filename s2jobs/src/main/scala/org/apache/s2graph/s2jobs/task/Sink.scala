@@ -20,15 +20,20 @@
 package org.apache.s2graph.s2jobs.task
 
 import com.typesafe.config.{Config, ConfigFactory, ConfigRenderOptions}
+import org.apache.hadoop.hbase.HBaseConfiguration
+import org.apache.hadoop.hbase.mapreduce.LoadIncrementalHFiles
+import org.apache.hadoop.util.ToolRunner
 import org.apache.s2graph.core.Management
 import org.apache.s2graph.s2jobs.S2GraphHelper
-import org.apache.s2graph.s2jobs.loader.{HFileGenerator, SparkBulkLoaderTransformer}
+import org.apache.s2graph.s2jobs.loader.{GraphFileOptions, HFileGenerator, SparkBulkLoaderTransformer}
 import org.apache.s2graph.s2jobs.serde.reader.RowBulkFormatReader
 import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
+import org.apache.s2graph.spark.sql.streaming.S2SinkContext
 import org.apache.spark.sql._
 import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, Trigger}
 import org.elasticsearch.spark.sql.EsSparkSQL
 
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
@@ -204,14 +209,16 @@ class ESSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
   * @param queryName
   * @param conf
   */
-class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
+class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
   override def mandatoryOptions: Set[String] = Set()
 
   override val FORMAT: String = "org.apache.s2graph.spark.sql.streaming.S2SinkProvider"
 
   private def writeBatchBulkload(df: DataFrame, runLoadIncrementalHFiles: Boolean = true): Unit = {
     val options = TaskConf.toGraphFileOptions(conf)
-    val config = Management.toConfig(options.toConfigParams)
+    val config = Management.toConfig(TaskConf.parseLocalCacheConfigs(conf) ++
+      TaskConf.parseHBaseConfigs(conf) ++ TaskConf.parseMetaStoreConfigs(conf) ++ options.toConfigParams)
+
     val input = df.rdd
 
     val transformer = new SparkBulkLoaderTransformer(config, options)
@@ -228,11 +235,12 @@ class S2graphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
   }
 
   private def writeBatchWithMutate(df:DataFrame):Unit = {
+    import scala.collection.JavaConversions._
     import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs._
 
-    import scala.collection.JavaConversions._
-
-    val graphConfig: Config = ConfigFactory.parseMap(conf.options).withFallback(ConfigFactory.load())
+    // TODO: FIX THIS. overwrite local cache config.
+    val mergedOptions = conf.options ++ TaskConf.parseLocalCacheConfigs(conf)
+    val graphConfig: Config = ConfigFactory.parseMap(mergedOptions).withFallback(ConfigFactory.load())
     val serializedConfig = graphConfig.root().render(ConfigRenderOptions.concise())
 
     val reader = new RowBulkFormatReader

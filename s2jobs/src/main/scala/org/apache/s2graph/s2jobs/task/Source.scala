@@ -19,6 +19,11 @@
 
 package org.apache.s2graph.s2jobs.task
 
+import org.apache.s2graph.core.Management
+import org.apache.s2graph.s2jobs.Schema
+import org.apache.s2graph.s2jobs.loader.{HFileGenerator, SparkBulkLoaderTransformer}
+import org.apache.s2graph.s2jobs.serde.reader.S2GraphCellReader
+import org.apache.s2graph.s2jobs.serde.writer.RowDataFrameWriter
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 
@@ -100,5 +105,39 @@ class HiveSource(conf:TaskConf) extends Source(conf) {
 
     val sql = conf.options.getOrElse("sql", s"SELECT * FROM ${database}.${table}")
     ss.sql(sql)
+  }
+}
+
+class S2GraphSource(conf: TaskConf) extends Source(conf) {
+
+  override def mandatoryOptions: Set[String] = Set("hbase.rootdir", "restore.path", "hbase.table.names")
+
+  override def toDF(ss: SparkSession): DataFrame = {
+    val mergedConf = TaskConf.parseHBaseConfigs(conf) ++ TaskConf.parseMetaStoreConfigs(conf) ++
+      TaskConf.parseLocalCacheConfigs(conf)
+    val config = Management.toConfig(mergedConf)
+
+    val snapshotPath = conf.options("hbase.rootdir")
+    val restorePath = conf.options("restore.path")
+    val tableNames = conf.options("hbase.table.names").split(",")
+    val columnFamily = conf.options.getOrElse("hbase.table.cf", "e")
+    val batchSize = conf.options.getOrElse("scan.batch.size", "1000").toInt
+    val labelMapping = Map.empty[String, String]
+    val buildDegree =
+      if (columnFamily == "v") false
+      else conf.options.getOrElse("build.degree", "false").toBoolean
+    val elementType = conf.options.getOrElse("element.type", "IndexEdge")
+    val schema = if (columnFamily == "v") Schema.VertexSchema else Schema.EdgeSchema
+
+    val cells = HFileGenerator.tableSnapshotDump(ss, config, snapshotPath,
+      restorePath, tableNames, columnFamily, elementType, batchSize, labelMapping, buildDegree)
+
+    implicit val reader = new S2GraphCellReader(elementType)
+    implicit val writer = new RowDataFrameWriter
+
+    val transformer = new SparkBulkLoaderTransformer(config, labelMapping, buildDegree)
+    val kvs = transformer.transform(cells)
+
+    ss.sqlContext.createDataFrame(kvs, schema)
   }
 }

@@ -17,10 +17,12 @@
  * under the License.
  */
 
-package org.apache.s2graph.s2jobs.serde
+package org.apache.s2graph.s2jobs.serde.reader
 
 import org.apache.s2graph.core.{GraphElement, S2Graph}
+import org.apache.s2graph.s2jobs.serde.GraphElementReadable
 
-trait GraphElementReadable[S] extends Serializable {
-  def read(graph: S2Graph)(data: S): Seq[GraphElement]
+class IdentityReader extends GraphElementReadable[GraphElement] {
+  override def read(graph: S2Graph)(data: GraphElement): Seq[GraphElement] =
+    Seq(data)
 }

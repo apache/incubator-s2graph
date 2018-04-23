@@ -281,4 +281,26 @@ object PostProcess {
       withOptionalFields(queryOption, results.size, degrees, results, stepResult.failCount, cursorJson, nextQuery)
     }
   }
+
+  def s2EdgePropsJsonString(edge: S2EdgeLike): String =
+    Json.toJson(s2EdgePropsJson(edge)).toString()
+
+  def s2VertexPropsJsonString(vertex: S2VertexLike): String =
+    Json.toJson(s2VertexPropsJson(vertex)).toString()
+
+  def s2EdgePropsJson(edge: S2EdgeLike): Map[String, JsValue] = {
+    import scala.collection.JavaConverters._
+    for {
+      (k, v) <- edge.getPropsWithTs().asScala.toMap
+      jsValue <- JSONParser.anyValToJsValue(v.innerVal.value)
+    } yield (v.labelMeta.name -> jsValue)
+  }
+
+  def s2VertexPropsJson(vertex: S2VertexLike): Map[String, JsValue] = {
+    import scala.collection.JavaConverters._
+    for {
+      (k, v) <- vertex.props.asScala.toMap
+      jsValue <- JSONParser.anyValToJsValue(v.innerVal.value)
+    } yield (v.columnMeta.name -> jsValue)
+  }
 }
