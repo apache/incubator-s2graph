@@ -72,7 +72,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
     Query(
       vertices = Seq(graph.toVertex(testServiceName, testColumnName, id)),
       steps = Vector(
-        Step(Seq(QueryParam(testLabelName, where = Where(testLabelName, where))))
+        Step(Seq(QueryParam(testLabelName, where = Where(where))))
       )
     )
 

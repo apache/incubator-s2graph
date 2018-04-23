@@ -33,7 +33,8 @@ import org.apache.s2graph.core.storage.rocks.RocksStorage
 import org.apache.s2graph.core.storage.{MutateResponse, Storage}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
-import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
+import org.apache.tinkerpop.gremlin.process.traversal.{P, TraversalStrategies}
+import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
 import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph}
 
 import scala.collection.JavaConversions._
@@ -58,7 +59,7 @@ object S2Graph {
     "hbase.table.name" -> "s2graph",
     "hbase.table.compression.algorithm" -> "gz",
     "phase" -> "dev",
-    "db.default.driver" ->  "org.h2.Driver",
+    "db.default.driver" -> "org.h2.Driver",
     "db.default.url" -> "jdbc:h2:file:./var/metastore;MODE=MYSQL",
     "db.default.password" -> "graph",
     "db.default.user" -> "graph",
@@ -110,7 +111,7 @@ object S2Graph {
     } {
       m.put(key, value)
     }
-    val config  = ConfigFactory.parseMap(m).withFallback(DefaultConfig)
+    val config = ConfigFactory.parseMap(m).withFallback(DefaultConfig)
     config
   }
 
@@ -134,7 +135,7 @@ object S2Graph {
 
     storageBackend match {
       case "hbase" =>
-        hbaseExecutor  =
+        hbaseExecutor =
           if (config.getString("hbase.zookeeper.quorum") == "localhost")
             AsynchbaseStorage.initLocalHBase(config)
           else
@@ -176,7 +177,9 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
 
   override val config = _config.withFallback(S2Graph.DefaultConfig)
 
-  val storageBackend = Try { config.getString("s2graph.storage.backend") }.getOrElse("hbase")
+  val storageBackend = Try {
+    config.getString("s2graph.storage.backend")
+  }.getOrElse("hbase")
 
   Model.apply(config)
   Model.loadCache()
@@ -260,6 +263,15 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
       localLongId.set(0l)
     }
 
+  def searchVertices(queryParam: VertexQueryParam): Future[Seq[S2VertexLike]] = {
+    val matchedVertices = indexProvider.fetchVertexIdsAsyncRaw(queryParam).map { vids =>
+      (queryParam.vertexIds ++ vids).distinct.map(vid => elementBuilder.newVertex(vid))
+    }
+
+    if (queryParam.fetchProp) matchedVertices.flatMap(vs => getVertices(vs))
+    else matchedVertices
+  }
+
   override def getVertices(vertices: Seq[S2VertexLike]): Future[Seq[S2VertexLike]] = {
     val verticesWithIdx = vertices.zipWithIndex
     val futures = verticesWithIdx.groupBy { case (v, idx) => v.service }.map { case (service, vertexGroup) =>
@@ -289,7 +301,9 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
   override def mutateVertices(vertices: Seq[S2VertexLike], withWait: Boolean = false): Future[Seq[MutateResponse]] = {
     def mutateVertices(storage: Storage)(zkQuorum: String, vertices: Seq[S2VertexLike],
                                          withWait: Boolean = false): Future[Seq[MutateResponse]] = {
-      val futures = vertices.map { vertex => storage.mutateVertex(zkQuorum, vertex, withWait) }
+      val futures = vertices.map { vertex =>
+        storage.mutateVertex(zkQuorum, vertex, withWait)
+      }
       Future.sequence(futures)
     }
 
@@ -297,7 +311,11 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     val futures = verticesWithIdx.groupBy { case (v, idx) => v.service }.map { case (service, vertexGroup) =>
       mutateVertices(getStorage(service))(service.cluster, vertexGroup.map(_._1), withWait).map(_.zip(vertexGroup.map(_._2)))
     }
-    Future.sequence(futures).map { ls => ls.flatten.toSeq.sortBy(_._2).map(_._1) }
+
+    indexProvider.mutateVerticesAsync(vertices)
+    Future.sequence(futures).map{ ls =>
+      ls.flatten.toSeq.sortBy(_._2).map(_._1)
+    }
   }
 
   override def mutateEdges(edges: Seq[S2EdgeLike], withWait: Boolean = false): Future[Seq[MutateResponse]] = {
@@ -458,6 +476,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     val futures = edgesWithIdx.groupBy { case (e, idx) => e.innerLabel }.map { case (label, edgeGroup) =>
       getStorage(label).incrementCounts(label.hbaseZkAddr, edgeGroup.map(_._1), withWait).map(_.zip(edgeGroup.map(_._2)))
     }
+
     Future.sequence(futures).map { ls =>
       ls.flatten.toSeq.sortBy(_._2).map(_._1)
     }

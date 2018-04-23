@@ -30,37 +30,41 @@ import org.slf4j.{Logger, LoggerFactory}
 import sangria.execution.deferred._
 import sangria.schema._
 
+import scala.collection.immutable
 import scala.concurrent._
 import scala.util.{Failure, Success, Try}
 
 object GraphRepository {
 
-  implicit val vertexHasId = new HasId[S2VertexLike, S2VertexLike] {
-    override def id(value: S2VertexLike): S2VertexLike = value
+  implicit val vertexHasId = new HasId[(VertexQueryParam, Seq[S2VertexLike]), VertexQueryParam] {
+    override def id(value: (VertexQueryParam, Seq[S2VertexLike])): VertexQueryParam = value._1
   }
 
-  implicit val edgeHasId = new HasId[(S2VertexLike, QueryParam, Seq[S2EdgeLike]), DeferFetchEdges] {
-    override def id(value: (S2VertexLike, QueryParam, Seq[S2EdgeLike])): DeferFetchEdges =
-      DeferFetchEdges(value._1, value._2)
+  implicit val edgeHasId = new HasId[(EdgeQueryParam, Seq[S2EdgeLike]), EdgeQueryParam] {
+    override def id(value: (EdgeQueryParam, Seq[S2EdgeLike])): EdgeQueryParam = value._1
   }
 
-  val vertexFetcher = Fetcher((ctx: GraphRepository, ids: Seq[S2VertexLike]) => {
-    ctx.getVertices(ids)
-  })
+  val vertexFetcher =
+    Fetcher((ctx: GraphRepository, queryParams: Seq[VertexQueryParam]) => {
+      implicit val ec = ctx.ec
 
-  val edgeFetcher = Fetcher((ctx: GraphRepository, ids: Seq[DeferFetchEdges]) => {
+      Future.traverse(queryParams)(ctx.getVertices).map(vs => queryParams.zip(vs))
+    })
+
+  val edgeFetcher = Fetcher((ctx: GraphRepository, edgeQueryParams: Seq[EdgeQueryParam]) => {
     implicit val ec = ctx.ec
 
-    val edgesByParam = ids.groupBy(_.qp).map { case (qp, deLs) =>
-      val vertices = deLs.map(de => de.v)
-
-      ctx.getEdges(vertices, qp).map(qp -> _)
+    val edgesByParam = edgeQueryParams.groupBy(_.qp).toSeq.map { case (qp, edgeQueryParams) =>
+      val vertices = edgeQueryParams.map(_.v)
+      ctx.getEdges(vertices, qp).map(edges => qp -> edges)
     }
 
-    val f: Future[Iterable[(QueryParam, Seq[S2EdgeLike])]] = Future.sequence(edgesByParam)
-    val grouped = f.map { tpLs =>
-      tpLs.toSeq.flatMap { case (qp, edges) =>
-        edges.groupBy(_.srcForVertex).map { case (v, edges) => (v, qp, edges) }
+    val f: Future[Seq[(QueryParam, Seq[S2EdgeLike])]] = Future.sequence(edgesByParam)
+    val grouped: Future[Seq[(EdgeQueryParam, Seq[S2EdgeLike])]] = f.map { tpLs =>
+      tpLs.flatMap { case (qp, edges) =>
+        edges.groupBy(_.srcForVertex).map {
+          case (v, edges) => EdgeQueryParam(v, qp) -> edges
+        }
       }
     }
 
@@ -75,9 +79,6 @@ object GraphRepository {
 
     tryObj
   }
-
-  case class DeferFetchEdges(v: S2VertexLike, qp: QueryParam)
-
 }
 
 class GraphRepository(val graph: S2GraphLike) {
@@ -121,8 +122,11 @@ class GraphRepository(val graph: S2GraphLike) {
     graph.mutateEdges(edges, withWait = true)
   }
 
-  def getVertices(vertex: Seq[S2VertexLike]): Future[Seq[S2VertexLike]] = {
-    graph.getVertices(vertex)
+  def getVertices(queryParam: VertexQueryParam): Future[Seq[S2VertexLike]] = {
+    graph.asInstanceOf[S2Graph].searchVertices(queryParam).map { a =>
+      println(a)
+      a
+    }
   }
 
   def getEdges(vertices: Seq[S2VertexLike], queryParam: QueryParam): Future[Seq[S2EdgeLike]] = {

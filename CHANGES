@@ -71,6 +71,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-199] - Changing query more intuitively by using `columnName` instead of `from/to` in label field name.
     * [S2GRAPH-200] - docker image could not include extra jars.
     * [S2GRAPH-204] - Avoid N + 1 queries in GraphQL
+    * [S2GRAPH-207] - Provides a way to query data with the value of the Vertex property in a GraphQL query
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.

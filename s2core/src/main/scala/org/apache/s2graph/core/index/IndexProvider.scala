@@ -35,8 +35,6 @@ import scala.util.Try
 
 object IndexProvider {
   import GlobalIndex._
-  //TODO: Fix Me
-  val hitsPerPage = 100000
   val IdField = "id"
 
   def apply(config: Config)(implicit ec: ExecutionContext): IndexProvider = {
@@ -121,6 +119,7 @@ trait IndexProvider {
 
   def fetchVertexIds(hasContainers: java.util.List[HasContainer]): java.util.List[VertexId]
   def fetchVertexIdsAsync(hasContainers: java.util.List[HasContainer]): Future[java.util.List[VertexId]]
+  def fetchVertexIdsAsyncRaw(vertexQueryParam: VertexQueryParam): Future[java.util.List[VertexId]] = Future.successful(util.Arrays.asList())
 
   def mutateVertices(vertices: Seq[S2VertexLike], forceToIndex: Boolean = false): Seq[Boolean]
   def mutateVerticesAsync(vertices: Seq[S2VertexLike], forceToIndex: Boolean = false): Future[Seq[Boolean]]
