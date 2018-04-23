@@ -22,9 +22,6 @@ status=`curl -s -o /dev/null -w "%{http_code}" "$REST"`
 if [ $status != '200' ]; then
     warn "s2graphql not running.. "
 
-    wget https://raw.githubusercontent.com/daewon/sangria-akka-http-example/master/src/main/resources/assets/graphiql.html
-    mv graphiql.html $ROOTDIR/s2graphql/src/main/resources/assets
-
     cd $ROOTDIR
     output="$(ls target/apache-s2graph-*-incubating-bin)"   
     if [ -z "$output" ]; then
@@ -34,6 +31,9 @@ if [ $status != '200' ]; then
 
     info "now we will launch s2graphql using build scripts"
     cd target/apache-s2graph-*-incubating-bin
+    wget https://raw.githubusercontent.com/daewon/sangria-akka-http-example/master/src/main/resources/assets/graphiql.html
+    mkdir -p conf/assets
+    mv graphiql.html conf/assets
     sh ./bin/start-s2graph.sh s2graphql
 else
     info "s2graphql is running!!"
