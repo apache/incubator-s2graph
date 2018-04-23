@@ -1,8 +1,0 @@
-MovieLens
-GroupLens Research has collected and made available rating data sets from the MovieLens web site (http://movielens.org). 
-The data sets were collected over various periods of time, depending on the size of the set.
-
-This dataset (ml-latest-small) describes 5-star rating and free-text tagging activity from MovieLens, a movie recommendation service. 
-It contains 100004 ratings and 1296 tag applications across 9125 movies. 
-These data were created by 671 users between January 09, 1995 and October 16, 2016. 
-This dataset was generated on October 17, 2016.
