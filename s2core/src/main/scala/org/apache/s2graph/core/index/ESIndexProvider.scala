@@ -29,8 +29,9 @@ import org.apache.hadoop.hbase.master.procedure.ProcedureSyncWait.Predicate
 import org.apache.s2graph.core.io.Conversions
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.VertexId
-import org.apache.s2graph.core.{EdgeId, S2EdgeLike, S2VertexLike, VertexQueryParam}
+import org.apache.s2graph.core._
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
+import org.apache.tinkerpop.gremlin.structure.Property
 import play.api.libs.json.{Json, Reads}
 
 import scala.collection.JavaConverters._
@@ -67,10 +68,10 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
       props.foreach { case (dim, s2VertexProperty) =>
         // skip reserved fields.
         if (s2VertexProperty.columnMeta.seq > 0) {
-          s2VertexProperty.columnMeta.dataType match {
-            case "string" => fields += (dim -> s2VertexProperty.innerVal.value.toString)
-            case _ => fields += (dim -> s2VertexProperty.innerVal.value)
-          }
+          val innerVal = vertex.propertyValue(dim).get
+          val cType = s2VertexProperty.columnMeta.dataType
+
+          fields += (dim -> JSONParser.innerValToAny(innerVal, cType))
         }
       }
 
@@ -92,10 +93,10 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
 
       props.foreach { case (dim, s2Property) =>
         if (s2Property.labelMeta.seq > 0) {
-          s2Property.labelMeta.dataType match {
-            case "string" => fields += (dim -> s2Property.innerVal.value.toString)
-            case _ => fields += (dim -> s2Property.innerVal.value)
-          }
+          val innerVal = edge.propertyValue(dim).get.innerVal
+          val cType = s2Property.labelMeta.dataType
+
+          fields += (dim -> JSONParser.innerValToAny(innerVal, cType))
         }
       }
 
@@ -151,11 +152,11 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     }
   }
 
-  private def fetchInner[T](queryString: String, indexKey: String, field: String, reads: Reads[T])(validate: (T => Boolean)): Future[util.List[T]] = {
+  private def fetchInner[T](queryString: String, offset: Int, limit: Int, indexKey: String, field: String, reads: Reads[T])(validate: (T => Boolean)): Future[util.List[T]] = {
     val ids = new java.util.HashSet[T]
 
     client.execute {
-      search(indexKey).query(queryString)
+      search(indexKey).query(queryString).from(offset).limit(limit)
     }.map { ret =>
       ret match {
         case Left(failure) =>
@@ -180,7 +181,13 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     val field = eidField
 
     val queryString = buildQueryString(hasContainers)
-    fetchInner[EdgeId](queryString, GlobalIndex.EdgeIndexName, field, Conversions.s2EdgeIdReads)(e => EdgeId.isValid(e).isDefined)
+    fetchInner[EdgeId](
+      queryString,
+      0,
+      1000,
+      GlobalIndex.EdgeIndexName,
+      field,
+      Conversions.s2EdgeIdReads)(e => EdgeId.isValid(e).isDefined)
   }
 
   override def fetchVertexIds(hasContainers: util.List[HasContainer]): util.List[VertexId] =
@@ -190,16 +197,27 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     val field = vidField
     val queryString = buildQueryString(hasContainers)
 
-    fetchInner[VertexId](queryString, GlobalIndex.VertexIndexName, field, Conversions.s2VertexIdReads)(v => VertexId.isValid(v).isDefined)
+    fetchInner[VertexId](queryString,
+      0,
+      1000,
+      GlobalIndex.VertexIndexName,
+      field,
+      Conversions.s2VertexIdReads)(v => VertexId.isValid(v).isDefined)
   }
 
   override def fetchVertexIdsAsyncRaw(vertexQueryParam: VertexQueryParam): Future[util.List[VertexId]] = {
     val field = vidField
     val empty = new util.ArrayList[VertexId]()
 
-    vertexQueryParam.searchString match  {
+    vertexQueryParam.searchString match {
       case Some(queryString) =>
-        fetchInner[VertexId](queryString, GlobalIndex.VertexIndexName, field, Conversions.s2VertexIdReads)(v => VertexId.isValid(v).isDefined)
+        fetchInner[VertexId](
+          queryString,
+          vertexQueryParam.offset,
+          vertexQueryParam.limit,
+          GlobalIndex.VertexIndexName,
+          field,
+          Conversions.s2VertexIdReads)(v => VertexId.isValid(v).isDefined)
       case None => Future.successful(empty)
     }
   }

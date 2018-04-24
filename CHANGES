@@ -74,6 +74,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-204] - Avoid N + 1 queries in GraphQL
     * [S2GRAPH-207] - Provides a way to query data with the value of the Vertex property in a GraphQL query
     * [S2GRAPH-193] - Add README for S2Jobs sub-project
+    * [S2GRAPH-209] - GlobalIndex supports field data types such as Numeric to enable Range Query
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.

@@ -293,6 +293,10 @@ object QueryParam {
   }
 }
 
+object VertexQueryParam {
+  def Empty: VertexQueryParam = VertexQueryParam(0, 1, None)
+}
+
 case class VertexQueryParam(offset: Int,
                             limit: Int,
                             searchString: Option[String],

@@ -437,6 +437,31 @@ class ScenarioTest extends FunSpec with Matchers with BeforeAndAfterAll {
         actual shouldBe expected
       }
 
+      it("should fetch vertices: offset, limit") {
+        val query =
+          graphql"""
+
+          query FetchVertices {
+            kakao {
+              user(search: "gender: M OR gender: F or gender: T", offset: 1, limit: 2) {
+                id
+                age
+                gender
+                props {
+                  age
+                }
+              }
+            }
+          }
+        """
+
+        val actual = testGraph.queryAsJs(query)
+        val expected = 2
+
+        // The user order may vary depending on the indexProvider(es, lucene).
+        (actual \\ "gender").size shouldBe expected
+      }
+
       it("should fetch vertices using VertexIndex: 'gender in (F, M)') from kakao.user") {
         def query(search: String) = {
           QueryParser.parse(
