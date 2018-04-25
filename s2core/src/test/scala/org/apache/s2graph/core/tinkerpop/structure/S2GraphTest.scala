@@ -24,7 +24,7 @@ import java.util.function.Predicate
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.Management.JsonModel.Prop
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.schema.{GlobalIndex, Service, ServiceColumn}
+import org.apache.s2graph.core.schema.{Service, ServiceColumn}
 import org.apache.s2graph.core.tinkerpop.S2GraphProvider
 import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.process.traversal.{Compare, P, Scope}

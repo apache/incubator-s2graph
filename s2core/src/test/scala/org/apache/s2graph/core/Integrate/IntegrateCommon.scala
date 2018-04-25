@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.Integrate
 
 import com.typesafe.config._
-import org.apache.s2graph.core.schema.{GlobalIndex, Label, Schema}
+import org.apache.s2graph.core.schema.{Label, Schema}
 import org.apache.s2graph.core.rest.{RequestParser, RestHandler}
 import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.core._
