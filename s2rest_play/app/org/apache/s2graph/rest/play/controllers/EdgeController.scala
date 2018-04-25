@@ -22,7 +22,7 @@ package org.apache.s2graph.rest.play.controllers
 import com.fasterxml.jackson.databind.JsonMappingException
 import org.apache.s2graph.core.ExceptionHandler.KafkaMessage
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.schema.Label
 import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.core.storage.{IncrementResponse, MutateResponse}

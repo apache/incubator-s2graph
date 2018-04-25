@@ -34,7 +34,7 @@ import io.netty.handler.codec.http._
 import io.netty.handler.logging.{LogLevel, LoggingHandler}
 import io.netty.util.CharsetUtil
 import org.apache.s2graph.core.GraphExceptions.{BadQueryException}
-import org.apache.s2graph.core.mysqls.Experiment
+import org.apache.s2graph.core.schema.Experiment
 import org.apache.s2graph.core.rest.RestHandler
 import org.apache.s2graph.core.rest.RestHandler.{CanLookup, HandlerResult}
 import org.apache.s2graph.core.utils.Extensions._

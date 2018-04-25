@@ -21,7 +21,7 @@ package org.apache.s2graph.core.storage.serde.indexedge.tall
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
+import org.apache.s2graph.core.schema.{Label, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.storage.CanSKeyValue
 import org.apache.s2graph.core.storage.serde.Deserializable
 import org.apache.s2graph.core.storage.serde.StorageDeserializable._

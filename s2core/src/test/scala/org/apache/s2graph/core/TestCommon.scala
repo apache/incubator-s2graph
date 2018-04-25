@@ -20,7 +20,7 @@
 package org.apache.s2graph.core
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.mysqls.{LabelIndex, LabelMeta}
+import org.apache.s2graph.core.schema.{LabelIndex, LabelMeta}
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLikeWithTs, LabelWithDirection}
 
 

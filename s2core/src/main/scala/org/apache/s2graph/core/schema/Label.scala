@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import java.util.Calendar
 
@@ -31,7 +31,9 @@ import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.{JsArray, JsObject, JsValue, Json}
 import scalikejdbc._
 
-object Label extends Model[Label] {
+object Label extends SQLSyntaxSupport[Label] {
+  import Schema._
+  val className = Label.getClass.getSimpleName
 
   val maxHBaseTableNames = 2
 
@@ -51,9 +53,8 @@ object Label extends Model[Label] {
     Label.delete(id.get)
   }
 
-
   def findByName(labelName: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[Label] = {
-    val cacheKey = "label=" + labelName
+    val cacheKey = className + "label=" + labelName
     lazy val labelOpt =
       sql"""
         select *
@@ -98,7 +99,7 @@ object Label extends Model[Label] {
   }
 
   def findByIdOpt(id: Int)(implicit session: DBSession = AutoSession): Option[Label] = {
-    val cacheKey = "id=" + id
+    val cacheKey = className + "id=" + id
     withCache(cacheKey)(
       sql"""
         select 	*
@@ -109,7 +110,7 @@ object Label extends Model[Label] {
   }
 
   def findById(id: Int)(implicit session: DBSession = AutoSession): Label = {
-    val cacheKey = "id=" + id
+    val cacheKey = className + "id=" + id
     withCache(cacheKey)(
       sql"""
         select 	*
@@ -120,7 +121,7 @@ object Label extends Model[Label] {
   }
 
   def findByTgtColumnId(columnId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
-    val cacheKey = "tgtColumnId=" + columnId
+    val cacheKey = className + "tgtColumnId=" + columnId
     val col = ServiceColumn.findById(columnId)
     withCaches(cacheKey)(
       sql"""
@@ -133,7 +134,7 @@ object Label extends Model[Label] {
   }
 
   def findBySrcColumnId(columnId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
-    val cacheKey = "srcColumnId=" + columnId
+    val cacheKey = className + "srcColumnId=" + columnId
     val col = ServiceColumn.findById(columnId)
     withCaches(cacheKey)(
       sql"""
@@ -146,14 +147,14 @@ object Label extends Model[Label] {
   }
 
   def findBySrcServiceId(serviceId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
-    val cacheKey = "srcServiceId=" + serviceId
+    val cacheKey = className + "srcServiceId=" + serviceId
     withCaches(cacheKey)(
       sql"""select * from labels where src_service_id = ${serviceId} and deleted_at is null""".map { rs => Label(rs) }.list().apply
     )
   }
 
   def findByTgtServiceId(serviceId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
-    val cacheKey = "tgtServiceId=" + serviceId
+    val cacheKey = className + "tgtServiceId=" + serviceId
     withCaches(cacheKey)(
       sql"""select * from labels where tgt_service_id = ${serviceId} and deleted_at is null""".map { rs => Label(rs) }.list().apply
     )
@@ -189,9 +190,9 @@ object Label extends Model[Label] {
         val tgtServiceId = tgtService.id.get
         val serviceId = service.id.get
 
-        /* insert serviceColumn */
-        val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType))
-        val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType))
+        /** insert serviceColumn */
+        val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType), schemaVersion)
+        val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType), schemaVersion)
 
         if (srcCol.columnType != srcColumnType) throw new RuntimeException(s"source service column type not matched ${srcCol.columnType} != ${srcColumnType}")
         if (tgtCol.columnType != tgtColumnType) throw new RuntimeException(s"target service column type not matched ${tgtCol.columnType} != ${tgtColumnType}")
@@ -221,7 +222,7 @@ object Label extends Model[Label] {
 
           val cacheKeys = List(s"id=$createdId", s"label=$labelName")
           val ret = findByName(labelName, useCache = false).get
-          putsToCache(cacheKeys.map(k => k -> ret))
+          putsToCacheOption(cacheKeys.map(k => className + k -> ret))
           ret
         }
       }
@@ -231,17 +232,12 @@ object Label extends Model[Label] {
 
   def findAll()(implicit session: DBSession = AutoSession) = {
     val ls = sql"""select * from labels where deleted_at is null""".map { rs => Label(rs) }.list().apply()
-
-    putsToCache(ls.map { x =>
-      val cacheKey = s"id=${x.id.get}"
-      (cacheKey -> x)
+    putsToCacheOption(ls.flatMap { x =>
+      Seq(
+        s"id=${x.id.get}",
+        s"label=${x.label}"
+      ).map(cacheKey => (className + cacheKey, x))
     })
-
-    putsToCache(ls.map { x =>
-      val cacheKey = s"label=${x.label}"
-      (cacheKey -> x)
-    })
-
     ls
   }
 
@@ -255,10 +251,10 @@ object Label extends Model[Label] {
     val cnt = sql"""update labels set hbase_table_name = $newHTableName where label = $labelName""".update().apply()
     val label = Label.findByName(labelName, useCache = false).get
 
-    val cacheKeys = List(s"id=${label.id}", s"label=${label.label}")
+    val cacheKeys = List(s"id=${label.id.get}", s"label=${label.label}")
     cacheKeys.foreach { key =>
-      expireCache(key)
-      expireCaches(key)
+      expireCache(className + key)
+      expireCaches(className + key)
     }
     cnt
   }
@@ -269,8 +265,8 @@ object Label extends Model[Label] {
     val cnt = sql"""delete from labels where id = ${label.id.get}""".update().apply()
     val cacheKeys = List(s"id=$id", s"label=${label.label}")
     cacheKeys.foreach { key =>
-      expireCache(key)
-      expireCaches(key)
+      expireCache(className + key)
+      expireCaches(className + key)
     }
     cnt
   }
@@ -282,10 +278,10 @@ object Label extends Model[Label] {
     val now = Calendar.getInstance().getTime
     val newName = s"deleted_${now.getTime}_"+ label.label
     val cnt = sql"""update labels set label = ${newName}, deleted_at = ${now} where id = ${label.id.get}""".update.apply()
-    val cacheKeys = List(s"id=${label.id}", s"label=${oldName}")
+    val cacheKeys = List(s"id=${label.id.get}", s"label=${oldName}")
     cacheKeys.foreach { key =>
-      expireCache(key)
-      expireCaches(key)
+      expireCache(className + key)
+      expireCaches(className + key)
     }
     cnt
   }
@@ -387,16 +383,15 @@ case class Label(id: Option[Int], label: String,
       Set.empty[String]
   }
 
-  lazy val extraOptions = Model.extraOptions(options)
+  lazy val extraOptions = Schema.extraOptions(options)
 
   lazy val durability = extraOptions.get("durability").map(_.as[Boolean]).getOrElse(true)
 
   lazy val storageConfigOpt: Option[Config] = toStorageConfig
 
   def toStorageConfig: Option[Config] = {
-    Model.toStorageConfig(extraOptions)
+    Schema.toStorageConfig(extraOptions)
   }
-
 
   def srcColumnWithDir(dir: Int) = {
     // GraphUtil.directions("out"

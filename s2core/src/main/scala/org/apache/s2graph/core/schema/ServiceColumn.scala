@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.core.JSONParser._
@@ -25,7 +25,10 @@ import org.apache.s2graph.core.types.{HBaseType, InnerValLike, InnerValLikeWithT
 import play.api.libs.json.Json
 import scalikejdbc._
 
-object ServiceColumn extends Model[ServiceColumn] {
+object ServiceColumn extends SQLSyntaxSupport[ServiceColumn] {
+  import Schema._
+  val className = ServiceColumn.getClass.getSimpleName
+
   val Default = ServiceColumn(Option(0), -1, "default", "string", "v4")
 
   def valueOf(rs: WrappedResultSet): ServiceColumn = {
@@ -42,18 +45,14 @@ object ServiceColumn extends Model[ServiceColumn] {
   }
 
   def findById(id: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession): ServiceColumn = {
-    val cacheKey = "id=" + id
-
-    if (useCache) {
-      withCache(cacheKey)(sql"""select * from service_columns where id = ${id}""".map { x => ServiceColumn.valueOf(x) }.single.apply).get
-    } else {
-      sql"""select * from service_columns where id = ${id}""".map { x => ServiceColumn.valueOf(x) }.single.apply.get
-    }
+    val cacheKey = className + "id=" + id
+    lazy val sql = sql"""select * from service_columns where id = ${id}""".map { x => ServiceColumn.valueOf(x) }.single.apply
+    if (useCache) withCache(cacheKey)(sql).get
+    else sql.get
   }
 
   def find(serviceId: Int, columnName: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[ServiceColumn] = {
-//    val cacheKey = s"serviceId=$serviceId:columnName=$columnName"
-    val cacheKey = "serviceId=" + serviceId + ":columnName=" + columnName
+    val cacheKey = className + "serviceId=" + serviceId + ":columnName=" + columnName
     if (useCache) {
       withCache(cacheKey) {
         sql"""
@@ -76,8 +75,8 @@ object ServiceColumn extends Model[ServiceColumn] {
     sql"""delete from service_columns where id = ${id}""".execute.apply()
     val cacheKeys = List(s"id=$id", s"serviceId=$serviceId:columnName=$columnName")
     cacheKeys.foreach { key =>
-      expireCache(key)
-      expireCaches(key)
+      expireCache(className + key)
+      expireCaches(className + key)
     }
   }
   def findOrInsert(serviceId: Int, columnName: String, columnType: Option[String], schemaVersion: String = HBaseType.DEFAULT_VERSION, useCache: Boolean = true)(implicit session: DBSession = AutoSession): ServiceColumn = {
@@ -87,20 +86,19 @@ object ServiceColumn extends Model[ServiceColumn] {
         insert(serviceId, columnName, columnType, schemaVersion)
 //        val cacheKey = s"serviceId=$serviceId:columnName=$columnName"
         val cacheKey = "serviceId=" + serviceId + ":columnName=" + columnName
-        expireCache(cacheKey)
+        expireCache(className + cacheKey)
         find(serviceId, columnName).get
     }
   }
   def findAll()(implicit session: DBSession = AutoSession) = {
     val ls = sql"""select * from service_columns""".map { rs => ServiceColumn.valueOf(rs) }.list.apply
-    putsToCache(ls.map { x =>
-      var cacheKey = s"id=${x.id.get}"
-      (cacheKey -> x)
+    putsToCacheOption(ls.flatMap { x =>
+      Seq(
+        s"id=${x.id.get}",
+        s"serviceId=${x.serviceId}:columnName=${x.columnName}"
+      ).map(cacheKey => (className + cacheKey, x))
     })
-    putsToCache(ls.map { x =>
-      var cacheKey = s"serviceId=${x.serviceId}:columnName=${x.columnName}"
-      (cacheKey -> x)
-    })
+
     ls
   }
 }

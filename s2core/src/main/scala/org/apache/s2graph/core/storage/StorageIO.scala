@@ -22,7 +22,7 @@ package org.apache.s2graph.core.storage
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.TraversalHelper._
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.schema.LabelMeta
 import org.apache.s2graph.core.parsers.WhereParser
 import org.apache.s2graph.core.utils.logger
 

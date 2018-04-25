@@ -23,9 +23,9 @@ import java.io.{File, PrintWriter}
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
-import org.apache.s2graph.core.mysqls.{Label, ServiceColumn}
-import org.apache.s2graph.core.types.HBaseType
+import org.apache.s2graph.core.schema.{Label, ServiceColumn}
 import org.apache.s2graph.core.{Management, S2Graph}
+import org.apache.s2graph.core.types.HBaseType
 import org.apache.s2graph.s2jobs.loader.GraphFileOptions
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 

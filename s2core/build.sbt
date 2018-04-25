@@ -34,7 +34,8 @@ libraryDependencies ++= Seq(
   "org.apache.hbase" % "hbase-server" % hbaseVersion excludeLogging() exclude("com.google.protobuf", "protobuf*"),
   "org.apache.hbase" % "hbase-hadoop-compat" % hbaseVersion excludeLogging(),
   "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion excludeLogging(),
-  "org.apache.kafka" % "kafka-clients" % "0.8.2.0" excludeLogging() exclude("com.sun.jdmk", "j*") exclude("com.sun.jmx", "j*") exclude("javax.jms", "j*"),
+  "org.apache.kafka" % "kafka-clients" % Common.KafkaVersion excludeLogging() exclude("com.sun.jdmk", "j*") exclude("com.sun.jmx", "j*") exclude("javax.jms", "j*"),
+  "org.apache.kafka" %% "kafka" % Common.KafkaVersion excludeLogging() exclude("com.sun.jdmk", "j*") exclude("com.sun.jmx", "j*") exclude("javax.jms", "j*"),
   "commons-pool" % "commons-pool" % "1.6",
   "org.scalikejdbc" %% "scalikejdbc" % "2.1.4",
   "com.h2database" % "h2" % "1.4.192",
@@ -53,7 +54,8 @@ libraryDependencies ++= Seq(
   "org.scala-lang.modules" %% "scala-java8-compat" % "0.8.0",
   "com.sksamuel.elastic4s" %% "elastic4s-core" % elastic4sVersion excludeLogging(),
   "com.sksamuel.elastic4s" %% "elastic4s-http" % elastic4sVersion excludeLogging(),
-  "com.sksamuel.elastic4s" %% "elastic4s-embedded" % elastic4sVersion excludeLogging()
+  "com.sksamuel.elastic4s" %% "elastic4s-embedded" % elastic4sVersion excludeLogging(),
+  "org.scala-lang.modules" %% "scala-pickling" % "0.10.1"
 )
 
 libraryDependencies := {

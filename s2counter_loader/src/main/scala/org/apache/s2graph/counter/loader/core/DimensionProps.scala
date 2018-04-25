@@ -22,7 +22,7 @@ package org.apache.s2graph.counter.loader.core
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import org.apache.commons.httpclient.HttpStatus
-import org.apache.s2graph.core.mysqls.{Bucket, Experiment, Service}
+import org.apache.s2graph.core.schema.{Bucket, Experiment, Service}
 import org.apache.s2graph.counter.loader.config.StreamingConfig
 import org.apache.s2graph.counter.models.Counter
 import org.apache.s2graph.counter.util.{RetryAsync, CollectionCache, CollectionCacheConfig}

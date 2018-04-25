@@ -21,7 +21,7 @@ package org.apache.s2graph.core
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
-import org.apache.s2graph.core.mysqls.{Label, LabelIndex, Service, ServiceColumn}
+import org.apache.s2graph.core.schema.{Label, LabelIndex, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerVal, LabelWithDirection}
 import scalikejdbc.AutoSession
 

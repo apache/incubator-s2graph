@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.parsers
 
 import org.apache.s2graph.core.GraphExceptions.{LabelNotExistException, WhereParserException}
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.schema.{Label, LabelMeta}
 import org.apache.s2graph.core.types.InnerValLike
 import org.apache.s2graph.core.{S2EdgeLike}
 import org.apache.s2graph.core.JSONParser._

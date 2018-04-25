@@ -20,7 +20,7 @@
 package org.apache.s2graph.rest.play.controllers
 
 import org.apache.s2graph.core.Management
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.functional.syntax._

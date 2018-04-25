@@ -20,7 +20,7 @@
 package org.apache.s2graph.core
 
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.mysqls.{ServiceColumn, LabelMeta}
+import org.apache.s2graph.core.schema.{ServiceColumn, LabelMeta}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs, VertexId}
 import org.apache.s2graph.core.utils.logger
 import org.scalatest.FunSuite

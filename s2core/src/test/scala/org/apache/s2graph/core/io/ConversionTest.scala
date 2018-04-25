@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.io
 
 //import org.apache.s2graph.core.{EdgeId, S2VertexPropertyId}
-import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
+import org.apache.s2graph.core.schema.{ColumnMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerVal, VertexId}
 import org.apache.s2graph.core.utils.logger
 import org.scalatest.{FunSuite, Matchers}

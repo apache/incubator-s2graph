@@ -22,7 +22,7 @@ package org.apache.s2graph.core
 import org.apache.commons.configuration.BaseConfiguration
 import org.apache.s2graph.core.Management.JsonModel.Prop
 import org.apache.s2graph.core.S2Graph.{DefaultColumnName, DefaultServiceName}
-import org.apache.s2graph.core.mysqls.{ColumnMeta, ServiceColumn}
+import org.apache.s2graph.core.schema.{ColumnMeta, ServiceColumn}
 import org.apache.s2graph.core.types.HBaseType
 import org.apache.tinkerpop.gremlin.structure.T
 

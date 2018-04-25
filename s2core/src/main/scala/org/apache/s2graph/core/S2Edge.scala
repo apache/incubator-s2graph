@@ -22,7 +22,7 @@ package org.apache.s2graph.core
 
 import org.apache.s2graph.core.S2Edge.{Props, State}
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta, ServiceColumn}
+import org.apache.s2graph.core.schema.{Label, LabelIndex, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.io.Conversions._
 import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph, Property, T, Vertex}

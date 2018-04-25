@@ -31,7 +31,7 @@ import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.S2Graph.{DefaultColumnName, DefaultServiceName}
 import org.apache.s2graph.core.features.{S2Features, S2GraphVariables}
 import org.apache.s2graph.core.index.IndexProvider
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta, Service, ServiceColumn}
+import org.apache.s2graph.core.schema.{Label, LabelMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.storage.{MutateResponse, Storage}
 import org.apache.s2graph.core.types.{InnerValLike, VertexId}
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer

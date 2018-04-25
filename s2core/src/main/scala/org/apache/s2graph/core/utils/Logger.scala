@@ -19,12 +19,15 @@
 
 package org.apache.s2graph.core.utils
 
+import com.typesafe.config.ConfigFactory
 import org.slf4j.LoggerFactory
 import play.api.libs.json.JsValue
 
 import scala.language.{higherKinds, implicitConversions}
+import scala.util.{Random, Try}
 
 object logger {
+  val conf = ConfigFactory.load()
 
   trait Loggable[T] {
     def toLogMessage(msg: T): String
@@ -53,12 +56,17 @@ object logger {
   private val metricLogger = LoggerFactory.getLogger("metrics")
   private val queryLogger = LoggerFactory.getLogger("query")
   private val malformedLogger = LoggerFactory.getLogger("malformed")
+  private val syncLogger = LoggerFactory.getLogger("meta_sync")
 
   def metric[T: Loggable](msg: => T) = metricLogger.info(implicitly[Loggable[T]].toLogMessage(msg))
 
+  def syncInfo[T: Loggable](msg: => T) = syncLogger.info(implicitly[Loggable[T]].toLogMessage(msg))
+
   def info[T: Loggable](msg: => T) = logger.info(implicitly[Loggable[T]].toLogMessage(msg))
 
-  def debug[T: Loggable](msg: => T) = logger.debug(implicitly[Loggable[T]].toLogMessage(msg))
+  def warn[T: Loggable](msg: => T) = logger.warn(implicitly[Loggable[T]].toLogMessage(msg))
+
+  def debug[T: Loggable](msg: => T) = if (logger.isDebugEnabled) logger.debug(implicitly[Loggable[T]].toLogMessage(msg))
 
   def error[T: Loggable](msg: => T, exception: => Throwable) = errorLogger.error(implicitly[Loggable[T]].toLogMessage(msg), exception)
 

@@ -26,7 +26,7 @@ import com.google.common.cache.CacheBuilder
 import org.apache.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.types._
 import play.api.libs.json._

@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.parsers
 
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{ServiceColumn, Label, LabelMeta}
+import org.apache.s2graph.core.schema.{ServiceColumn, Label, LabelMeta}
 import org.apache.s2graph.core.rest.TemplateHelper
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger

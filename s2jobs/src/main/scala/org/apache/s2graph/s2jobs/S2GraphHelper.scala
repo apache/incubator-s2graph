@@ -21,6 +21,7 @@ package org.apache.s2graph.s2jobs
 
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
+import org.apache.s2graph.core.schema.{Label, LabelMeta}
 import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType

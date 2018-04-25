@@ -21,7 +21,7 @@ package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.{GraphUtil, S2Vertex}
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.io.Conversions._
 import play.api.libs.json.Json

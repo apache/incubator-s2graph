@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.storage.serde.indexedge.tall
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.schema.LabelMeta
 import org.apache.s2graph.core.types.VertexId
 import org.apache.s2graph.core.{GraphUtil, IndexEdge}
 import org.apache.s2graph.core.storage.serde.StorageSerializable._

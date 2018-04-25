@@ -23,7 +23,7 @@ import java.util
 import java.util.function.BiConsumer
 
 import org.apache.s2graph.core.S2Vertex.Props
-import org.apache.s2graph.core.mysqls.ColumnMeta
+import org.apache.s2graph.core.schema.ColumnMeta
 import org.apache.s2graph.core.types.VertexId
 
 class S2VertexBuilder(vertex: S2VertexLike) {

@@ -23,7 +23,7 @@ import org.apache.s2graph.core.Integrate.IntegrateCommon
 import org.apache.s2graph.core._
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
 import org.apache.tinkerpop.gremlin.process.traversal.{Order, P}
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
 import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalHelper
 import org.apache.tinkerpop.gremlin.structure.T

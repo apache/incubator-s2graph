@@ -17,14 +17,17 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import org.apache.s2graph.core.GraphUtil
 import scalikejdbc._
 
 import scala.util.{Try, Random}
 
-object Experiment extends Model[Experiment] {
+object Experiment extends SQLSyntaxSupport[Experiment] {
+  import Schema._
+  val className = Experiment.getClass.getSimpleName
+
   val ImpressionKey = "S2-Impression-Id"
   val ImpressionId = "Impression-Id"
 
@@ -38,24 +41,24 @@ object Experiment extends Model[Experiment] {
   }
 
   def finds(serviceId: Int)(implicit session: DBSession = AutoSession): List[Experiment] = {
-    val cacheKey = "serviceId=" + serviceId
-    withCaches(cacheKey) {
+    val cacheKey = className + "serviceId=" + serviceId
+    withCaches(cacheKey, false) {
       sql"""select * from experiments where service_id = ${serviceId}"""
         .map { rs => Experiment(rs) }.list().apply()
     }
   }
 
   def findBy(serviceId: Int, name: String)(implicit session: DBSession = AutoSession): Option[Experiment] = {
-    val cacheKey = "serviceId=" + serviceId + ":name=" + name
-    withCache(cacheKey) {
+    val cacheKey = className + "serviceId=" + serviceId + ":name=" + name
+    withCache(cacheKey, false) {
       sql"""select * from experiments where service_id = ${serviceId} and name = ${name}"""
         .map { rs => Experiment(rs) }.single.apply
     }
   }
 
   def findById(id: Int)(implicit session: DBSession = AutoSession): Option[Experiment] = {
-    val cacheKey = "id=" + id
-    withCache(cacheKey)(
+    val cacheKey = className + "id=" + id
+    withCache(cacheKey, false)(
       sql"""select * from experiments where id = ${id}"""
         .map { rs => Experiment(rs) }.single.apply
     )

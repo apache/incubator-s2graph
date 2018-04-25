@@ -20,7 +20,7 @@
 package org.apache.s2graph.core
 
 import org.apache.s2graph.core.Integrate.IntegrateCommon
-import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.schema.Label
 import play.api.libs.json.Json
 
 class ManagementTest extends IntegrateCommon {

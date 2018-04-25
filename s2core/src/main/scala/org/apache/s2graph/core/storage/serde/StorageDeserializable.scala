@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.storage.serde
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.mysqls.{ColumnMeta, Label, LabelMeta, ServiceColumn}
+import org.apache.s2graph.core.schema.{ColumnMeta, Label, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.storage.CanSKeyValue
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs}
 

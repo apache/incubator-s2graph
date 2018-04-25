@@ -20,7 +20,7 @@
 package org.apache.s2graph.core
 
 import org.apache.s2graph.core.S2Edge.State
-import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
+import org.apache.s2graph.core.schema.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.types.{InnerValLike, TargetVertexId, VertexId}
 import org.apache.tinkerpop.gremlin.structure.Property
 

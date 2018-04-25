@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 /**
  * Created by shon on 6/3/15.
@@ -30,8 +30,9 @@ import scalikejdbc._
 
 import scala.util.Try
 
-object LabelMeta extends Model[LabelMeta] {
-
+object LabelMeta extends SQLSyntaxSupport[LabelMeta] {
+  import Schema._
+  val className = LabelMeta.getClass.getSimpleName
   /** dummy sequences */
 
   val fromSeq = (-4).toByte
@@ -93,7 +94,7 @@ object LabelMeta extends Model[LabelMeta] {
   def isValidSeqForAdmin(seq: Byte): Boolean = seq > 0 && seq < countSeq // || seq == fromHashSeq
 
   def findById(id: Int)(implicit session: DBSession = AutoSession): LabelMeta = {
-    val cacheKey = "id=" + id
+    val cacheKey = className + "id=" + id
 
     withCache(cacheKey) {
       sql"""select * from label_metas where id = ${id}""".map { rs => LabelMeta(rs) }.single.apply
@@ -101,7 +102,7 @@ object LabelMeta extends Model[LabelMeta] {
   }
 
   def findAllByLabelId(labelId: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession): List[LabelMeta] = {
-    val cacheKey = "labelId=" + labelId
+    val cacheKey = className + "labelId=" + labelId
     lazy val labelMetas = sql"""select *
     		  						from label_metas
     		  						where label_id = ${labelId} order by seq ASC""".map(LabelMeta(_)).list.apply()
@@ -116,7 +117,7 @@ object LabelMeta extends Model[LabelMeta] {
       case from.name => Some(from)
       case to.name => Some(to)
       case _ =>
-        val cacheKey = "labelId=" + labelId + ":name=" + name
+        val cacheKey = className + "labelId=" + labelId + ":name=" + name
         lazy val labelMeta = sql"""
             select *
             from label_metas where label_id = ${labelId} and name = ${name}"""
@@ -132,8 +133,8 @@ object LabelMeta extends Model[LabelMeta] {
     val seq = ls.size + 1
 
     if (seq < maxValue) {
-      sql"""insert into label_metas(label_id, name, seq, default_value, data_type, store_in_global_index)
-    select ${labelId}, ${name}, ${seq}, ${defaultValue}, ${dataType}, ${storeInGlobalIndex}""".updateAndReturnGeneratedKey.apply()
+      sql"""insert into label_metas(label_id, name, seq, default_value, data_type)
+    select ${labelId}, ${name}, ${seq}, ${defaultValue}, ${dataType}""".updateAndReturnGeneratedKey.apply()
     } else {
       throw MaxPropSizeReachedException("max property size reached")
     }
@@ -151,8 +152,8 @@ object LabelMeta extends Model[LabelMeta] {
         insert(labelId, name, defaultValue, dataType, storeInGlobalIndex)
         val cacheKey = "labelId=" + labelId + ":name=" + name
         val cacheKeys = "labelId=" + labelId
-        expireCache(cacheKey)
-        expireCaches(cacheKeys)
+        expireCache(className + cacheKey)
+        expireCaches(className + cacheKeys)
         findByName(labelId, name, useCache = false).get
     }
   }
@@ -163,24 +164,19 @@ object LabelMeta extends Model[LabelMeta] {
     sql"""delete from label_metas where id = ${id}""".execute.apply()
     val cacheKeys = List(s"id=$id", s"labelId=$labelId", s"labelId=$labelId:name=$name")
     cacheKeys.foreach { key =>
-      expireCache(key)
-      expireCaches(key)
+      expireCache(className + key)
+      expireCaches(className + key)
     }
   }
 
   def findAll()(implicit session: DBSession = AutoSession) = {
     val ls = sql"""select * from label_metas""".map { rs => LabelMeta(rs) }.list.apply
-    putsToCache(ls.map { x =>
-      val cacheKey = s"id=${x.id.get}"
-      cacheKey -> x
-    })
-    putsToCache(ls.map { x =>
-      val cacheKey = s"labelId=${x.labelId}:name=${x.name}"
-      cacheKey -> x
-    })
-    putsToCache(ls.map { x =>
-      val cacheKey = s"labelId=${x.labelId}:seq=${x.seq}"
-      cacheKey -> x
+    putsToCacheOption(ls.flatMap { x =>
+      Seq(
+        s"id=${x.id.get}",
+        s"labelId=${x.labelId}:name=${x.name}",
+        s"labelId=${x.labelId}:seq=${x.seq}"
+      ).map(cacheKey => (className + cacheKey, x))
     })
 
     putsToCaches(ls.groupBy(x => x.labelId).map { case (labelId, ls) =>

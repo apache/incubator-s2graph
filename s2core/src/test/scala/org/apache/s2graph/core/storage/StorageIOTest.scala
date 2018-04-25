@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core.storage
 
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageSerDe
 import org.apache.s2graph.core.storage.serde.{StorageDeserializable, StorageSerializable}
 import org.apache.s2graph.core.{S2Vertex, S2VertexLike, TestCommonWithModels}

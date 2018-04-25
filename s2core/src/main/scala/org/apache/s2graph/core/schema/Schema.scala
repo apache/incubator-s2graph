@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
@@ -33,19 +33,21 @@ import scala.io.Source
 import scala.language.{higherKinds, implicitConversions}
 import scala.util.{Failure, Success, Try}
 
-object Model {
+object Schema {
   var maxSize = 10000
   var ttl = 60
+  var safeUpdateCache: SafeUpdateCache = _
+
   val numOfThread = Runtime.getRuntime.availableProcessors()
   val threadPool = Executors.newFixedThreadPool(numOfThread)
   val ec = ExecutionContext.fromExecutor(threadPool)
-  val useUTF8Encoding = "?useUnicode=true&characterEncoding=utf8"
 
   private val ModelReferenceCount = new AtomicLong(0L)
 
   def apply(config: Config) = {
     maxSize = config.getInt("cache.max.size")
     ttl = config.getInt("cache.ttl.seconds")
+
     Class.forName(config.getString("db.default.driver"))
 
     val settings = ConnectionPoolSettings(
@@ -61,7 +63,7 @@ object Model {
       settings)
 
     checkSchema()
-
+    safeUpdateCache = new SafeUpdateCache(maxSize, ttl)(ec)
     ModelReferenceCount.incrementAndGet()
   }
 
@@ -140,7 +142,8 @@ object Model {
             throw new IllegalStateException(s"Failed to list models", e)
         }
       }
-      clearCache()
+//      clearCache()
+      safeUpdateCache.shutdown()
       ConnectionPool.closeAll()
     }
 
@@ -153,14 +156,14 @@ object Model {
     ColumnMeta.findAll()
   }
 
-  def clearCache() = {
-    Service.expireAll()
-    ServiceColumn.expireAll()
-    Label.expireAll()
-    LabelMeta.expireAll()
-    LabelIndex.expireAll()
-    ColumnMeta.expireAll()
-  }
+//  def clearCache() = {
+//    Service.expireAll()
+//    ServiceColumn.expireAll()
+//    Label.expireAll()
+//    LabelMeta.expireAll()
+//    LabelIndex.expireAll()
+//    ColumnMeta.expireAll()
+//  }
 
   def extraOptions(options: Option[String]): Map[String, JsValue] = options match {
     case None => Map.empty
@@ -181,6 +184,7 @@ object Model {
         val configMap = jsValue.as[JsObject].fieldSet.toMap.map { case (key, value) =>
           key -> JSONParser.jsValueToAny(value).getOrElse(throw new RuntimeException("!!"))
         }
+
         ConfigFactory.parseMap(configMap.asJava)
       }
     } catch {
@@ -189,43 +193,33 @@ object Model {
         None
     }
   }
-}
 
-trait Model[V] extends SQLSyntaxSupport[V] {
+  private def toMultiKey(key: String): String = key + ".__m__"
 
-  import Model._
+  def withCache[T <: AnyRef](key: String, broadcast: Boolean = true)(op: => T) = safeUpdateCache.withCache(key, broadcast)(op)
 
-  implicit val ec: ExecutionContext = Model.ec
+  def withCaches[T <: AnyRef](key: String, broadcast: Boolean = true)(op: => T) = safeUpdateCache.withCache(toMultiKey(key), broadcast)(op)
 
-  val cName = this.getClass.getSimpleName()
-  logger.info(s"LocalCache[$cName]: TTL[$ttl], MaxSize[$maxSize]")
+  def expireCache(key: String) = safeUpdateCache.invalidate(key)
 
-  val optionCache = new SafeUpdateCache[Option[V]](cName, maxSize, ttl)
-  val listCache = new SafeUpdateCache[List[V]](cName, maxSize, ttl)
+  def expireCaches(key: String) = safeUpdateCache.invalidate(toMultiKey(key))
 
-  val withCache = optionCache.withCache _
-
-  val withCaches = listCache.withCache _
-
-  val expireCache = optionCache.invalidate _
-
-  val expireCaches = listCache.invalidate _
-
-  def expireAll() = {
-    listCache.invalidateAll()
-    optionCache.invalidateAll()
+  def putsToCacheOption[T <: AnyRef](kvs: List[(String, T)]) = kvs.foreach {
+    case (key, value) => safeUpdateCache.put(key, Option(value))
   }
 
-  def putsToCache(kvs: List[(String, V)]) = kvs.foreach {
-    case (key, value) => optionCache.put(key, Option(value))
+  def putsToCaches[T <: AnyRef](kvs: List[(String, T)]) = kvs.foreach {
+    case (key, values) => safeUpdateCache.put(toMultiKey(key), values)
   }
 
-  def putsToCaches(kvs: List[(String, List[V])]) = kvs.foreach {
-    case (key, values) => listCache.put(key, values)
+  def getCacheSize(): Int = safeUpdateCache.asMap().size()
+
+  def getAllCacheData[T <: AnyRef](): (List[(String, T)], List[(String, List[T])]) = {
+    (Nil, Nil)
   }
 
-  def getAllCacheData() : (List[(String, Option[_])], List[(String, List[_])]) = {
-    (optionCache.getAllData(), listCache.getAllData())
-  }
+  def toBytes(): Array[Byte] = safeUpdateCache.toBytes()
+
+  def fromBytes(safeUpdateCache: SafeUpdateCache, bytes: Array[Byte]): Unit = SafeUpdateCache.fromBytes(safeUpdateCache, bytes)
 }
 

@@ -20,7 +20,8 @@
 package org.apache.s2graph.graphql.types
 
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.index.IndexProvider
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.graphql.bind.AstHelper
 import org.apache.s2graph.graphql.repository.GraphRepository
 import org.apache.s2graph.graphql.types.S2Type.EdgeQueryParam
@@ -70,7 +71,7 @@ object FieldResolver {
   }
 
   def serviceColumnOnService(column: ServiceColumn, c: Context[GraphRepository, Any]): VertexQueryParam = {
-    val prefix = s"${GlobalIndex.serviceField}:${column.service.serviceName} AND ${GlobalIndex.serviceColumnField}:${column.columnName}"
+    val prefix = s"${IndexProvider.serviceField}:${column.service.serviceName} AND ${IndexProvider.serviceColumnField}:${column.columnName}"
 
     val ids = c.argOpt[Any]("id").toSeq ++ c.argOpt[List[Any]]("ids").toList.flatten
     val offset = c.arg[Int]("offset")

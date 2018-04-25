@@ -22,7 +22,7 @@ import java.util
 import java.util.function.BiConsumer
 
 import org.apache.s2graph.core.S2Edge.{Props, State}
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.schema.{Label, LabelIndex, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.types._
 import org.apache.tinkerpop.gremlin.structure
 import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph, Property, T, Vertex}

@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.graphql.types
 
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.graphql.repository.GraphRepository
 import sangria.schema._
 

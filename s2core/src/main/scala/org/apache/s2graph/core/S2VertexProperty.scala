@@ -21,7 +21,7 @@ package org.apache.s2graph.core
 
 import java.util
 
-import org.apache.s2graph.core.mysqls.ColumnMeta
+import org.apache.s2graph.core.schema.ColumnMeta
 import org.apache.s2graph.core.types.{CanInnerValLike, InnerValLike}
 import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty}
 import play.api.libs.json.Json

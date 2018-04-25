@@ -21,7 +21,7 @@ package org.apache.s2graph.core.benchmark
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.GraphUtil
-import org.apache.s2graph.core.mysqls.ServiceColumn
+import org.apache.s2graph.core.schema.ServiceColumn
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, SourceVertexId}
 
 import scala.collection.mutable

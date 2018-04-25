@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import java.util.UUID
 
@@ -26,24 +26,32 @@ import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.Json
 import scalikejdbc._
 
-object Service extends Model[Service] {
+object Service extends SQLSyntaxSupport[Service] {
+  import Schema._
+  val className = Service.getClass.getSimpleName
+
   def valueOf(rs: WrappedResultSet): Service = {
-    Service(rs.intOpt("id"), rs.string("service_name"), rs.string("access_token"),
-      rs.string("cluster"), rs.string("hbase_table_name"), rs.int("pre_split_size"), rs.intOpt("hbase_table_ttl"))
+    Service(rs.intOpt("id"),
+      rs.string("service_name"),
+      rs.string("access_token"),
+      rs.string("cluster"),
+      rs.string("hbase_table_name"),
+      rs.int("pre_split_size"),
+      rs.intOpt("hbase_table_ttl"))
   }
 
   def findByAccessToken(accessToken: String)(implicit session: DBSession = AutoSession): Option[Service] = {
-    val cacheKey = s"accessToken=$accessToken"
+    val cacheKey = className + s"accessToken=$accessToken"
     withCache(cacheKey)( sql"""select * from services where access_token = ${accessToken}""".map { rs => Service.valueOf(rs) }.single.apply)
   }
 
   def findById(id: Int)(implicit session: DBSession = AutoSession): Service = {
-    val cacheKey = "id=" + id
+    val cacheKey = className + "id=" + id
     withCache(cacheKey)( sql"""select * from services where id = ${id}""".map { rs => Service.valueOf(rs) }.single.apply).get
   }
 
   def findByName(serviceName: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[Service] = {
-    val cacheKey = "serviceName=" + serviceName
+    val cacheKey = className + "serviceName=" + serviceName
     lazy val serviceOpt = sql"""
         select * from services where service_name = ${serviceName}
       """.map { rs => Service.valueOf(rs) }.single.apply()
@@ -67,8 +75,8 @@ object Service extends Model[Service] {
     sql"""delete from service_columns where id = ${id}""".execute.apply()
     val cacheKeys = List(s"id=$id", s"serviceName=$serviceName")
     cacheKeys.foreach { key =>
-      expireCache(key)
-      expireCaches(key)
+      expireCache(className + key)
+      expireCaches(className + key)
     }
   }
 
@@ -79,21 +87,18 @@ object Service extends Model[Service] {
       case None =>
         insert(serviceName, cluster, hTableName, preSplitSize, hTableTTL, compressionAlgorithm)
         val cacheKey = "serviceName=" + serviceName
-        expireCache(cacheKey)
+        expireCache(className + cacheKey)
         findByName(serviceName).get
     }
   }
 
   def findAll()(implicit session: DBSession = AutoSession) = {
     val ls = sql"""select * from services""".map { rs => Service.valueOf(rs) }.list.apply
-    putsToCache(ls.map { x =>
-      val cacheKey = s"id=${x.id.get}"
-      (cacheKey -> x)
-    })
-
-    putsToCache(ls.map { x =>
-      val cacheKey = s"serviceName=${x.serviceName}"
-      (cacheKey -> x)
+    putsToCacheOption(ls.flatMap { x =>
+      Seq(
+        s"id=${x.id.get}",
+        s"serviceName=${x.serviceName}"
+      ).map(cacheKey => (className + cacheKey, x))
     })
 
     ls
@@ -121,8 +126,8 @@ case class Service(id: Option[Int],
         Json.parse("{}")
     }
 
-  lazy val extraOptions = Model.extraOptions(options)
+  lazy val extraOptions = Schema.extraOptions(options)
   lazy val storageConfigOpt: Option[Config] = toStorageConfig
   def serviceColumns(useCache: Boolean): Seq[ServiceColumn] = ServiceColumn.findByServiceId(id.get, useCache = useCache)
-  def toStorageConfig: Option[Config] = Model.toStorageConfig(extraOptions)
+  def toStorageConfig: Option[Config] = Schema.toStorageConfig(extraOptions)
 }

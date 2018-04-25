@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.io
 
 import org.apache.s2graph.core.{EdgeId, JSONParser, S2VertexPropertyId}
-import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
+import org.apache.s2graph.core.schema.{ColumnMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{HBaseType, InnerValLike, VertexId}
 import play.api.libs.json._
 import play.api.libs.json.Reads._

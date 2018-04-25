@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core.storage.serde
 
-import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.schema.LabelMeta
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.utils.logger

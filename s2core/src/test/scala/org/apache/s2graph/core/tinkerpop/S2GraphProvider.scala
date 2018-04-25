@@ -24,7 +24,7 @@ import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.Management.JsonModel.Prop
 import org.apache.s2graph.core.S2Graph.{DefaultColumnName, DefaultServiceName}
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, VertexId}
 import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.LoadGraphWith.GraphData
