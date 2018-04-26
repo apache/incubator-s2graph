@@ -1,6 +1,9 @@
 package org.apache.s2graph.core.model
 
+import java.io.File
+
 import com.typesafe.config.ConfigFactory
+import org.apache.commons.io.FileUtils
 import org.apache.s2graph.core.Integrate.IntegrateCommon
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.{Query, QueryParam}
@@ -15,12 +18,16 @@ class HDFSImporterTest extends IntegrateCommon {
   test("hdfs test.") {
 
     val labelName = "hdfs_importer_test"
-    val hdfsConfDir = "/usr/local/Cellar/hadoop/2.7.3/libexec/etc/hadoop/"
+    val HDFS_CONF_DIR = "./"
 
-    val REMOTE_INDEX_FILE = "/Users/shon/Downloads/test-index.tree"
-    val LOCAL_INDEX_FILE = "./test-index.tree"
-    val REMOTE_DICT_FILE = "/Users/shon/Downloads/test-index.dict"
-    val LOCAL_DICT_FILE = "./test-index.dict"
+    val remoteIndexFilePath = getClass.getResource(s"/test-index.tree").toURI.getPath
+    val remoteDictFilePath = getClass.getResource(s"/test-index.dict").toURI.getPath
+
+    val localIndexFilePath = ".test-index.tree"
+    val localDictFilePath = ".test-index.dict"
+
+    FileUtils.deleteQuietly(new File(localIndexFilePath))
+    FileUtils.deleteQuietly(new File(localDictFilePath))
 
     val service = management.createService("s2graph", "localhost", "s2graph_htable", -1, None).get
     val serviceColumn =
@@ -29,13 +36,13 @@ class HDFSImporterTest extends IntegrateCommon {
     val options = s"""{
                      | "importer": {
                      |   "${ModelManager.ImporterClassNameKey}": "org.apache.s2graph.core.model.HDFSImporter",
-                     |   "${HDFSImporter.HDFSConfDirKey}": "$hdfsConfDir",
+                     |   "${HDFSImporter.HDFSConfDirKey}": "$HDFS_CONF_DIR",
                      |   "${HDFSImporter.PathsKey}": [{
-                     |       "src":  "${REMOTE_INDEX_FILE}",
-                     |       "tgt": "${LOCAL_INDEX_FILE}"
+                     |       "src":  "${remoteIndexFilePath}",
+                     |       "tgt": "${localIndexFilePath}"
                      |     }, {
-                     |       "src": "${REMOTE_DICT_FILE}",
-                     |       "tgt": "${LOCAL_DICT_FILE}"
+                     |       "src": "${remoteDictFilePath}",
+                     |       "tgt": "${localDictFilePath}"
                      |     }
                      |   ]
                      | },
@@ -76,5 +83,8 @@ class HDFSImporterTest extends IntegrateCommon {
     stepResult.edgeWithScores.foreach { es =>
       println(es.edge)
     }
+
+    FileUtils.deleteQuietly(new File(localIndexFilePath))
+    FileUtils.deleteQuietly(new File(localDictFilePath))
   }
 }
