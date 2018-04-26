@@ -20,8 +20,9 @@
 package org.apache.s2graph.core.schema
 
 import org.apache.s2graph.core.TestCommonWithModels
-import org.apache.s2graph.core.utils.SafeUpdateCache
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+
+import scala.concurrent.ExecutionContext
 
 class SchemaTest extends FunSuite with Matchers with TestCommonWithModels with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
@@ -60,8 +61,7 @@ class SchemaTest extends FunSuite with Matchers with TestCommonWithModels with B
   test("serialize/deserialize Schema.") {
     import scala.collection.JavaConverters._
     val originalMap = Schema.safeUpdateCache.asMap().asScala
-    val newCache = new SafeUpdateCache(Schema.maxSize, Schema.ttl)(scala.concurrent.ExecutionContext.Implicits.global)
-    Schema.fromBytes(newCache, Schema.toBytes())
+    val newCache = Schema.fromBytes(config, Schema.toBytes())(ExecutionContext.Implicits.global)
     val newMap = newCache.asMap().asScala
 
     originalMap.size shouldBe newMap.size

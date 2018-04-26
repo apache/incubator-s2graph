@@ -24,6 +24,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import com.google.common.cache.CacheBuilder
 import com.google.common.hash.Hashing
+import com.typesafe.config.Config
+
 import scala.collection.JavaConversions._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
@@ -31,6 +33,8 @@ import scala.util.{Failure, Success, Try}
 object SafeUpdateCache {
 
   case class CacheKey(key: String)
+  val MaxSizeKey = "cache.max.size"
+  val TtlKey = "cache.ttl.seconds"
 
   def serialise(value: AnyRef): Try[Array[Byte]] = {
     import scala.pickling.Defaults._
@@ -51,8 +55,9 @@ object SafeUpdateCache {
     Try(BinaryPickle(bytes).unpickle[AnyRef])
   }
 
-  def fromBytes(cache: SafeUpdateCache, bytes: Array[Byte]): Unit = {
+  def fromBytes(config: Config, bytes: Array[Byte])(implicit ec: ExecutionContext): SafeUpdateCache = {
     import org.apache.hadoop.io.WritableUtils
+    val cache: SafeUpdateCache = new SafeUpdateCache(config)
 
     val bais = new ByteArrayInputStream(bytes)
     val input = new DataInputStream(bais)
@@ -70,16 +75,18 @@ object SafeUpdateCache {
       bais.close()
       input.close()
     }
+
+    cache
   }
 }
 
-class SafeUpdateCache(maxSize: Int,
-                      ttl: Int)
+class SafeUpdateCache(val config: Config)
                      (implicit executionContext: ExecutionContext) {
 
   import java.lang.{Long => JLong}
   import SafeUpdateCache._
-
+  val maxSize = config.getInt(SafeUpdateCache.MaxSizeKey)
+  val ttl = config.getInt(SafeUpdateCache.TtlKey)
   private val cache = CacheBuilder.newBuilder().maximumSize(maxSize)
     .build[JLong, (AnyRef, Int, AtomicBoolean)]()
 

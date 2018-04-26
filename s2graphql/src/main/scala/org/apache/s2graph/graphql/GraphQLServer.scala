@@ -39,11 +39,11 @@ import sangria.parser.QueryParser
 import sangria.schema.Schema
 import spray.json.{JsObject, JsString}
 
+import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 
 object GraphQLServer {
-
   val className = Schema.getClass.getName
   val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -57,7 +57,11 @@ object GraphQLServer {
   val s2graph = new S2Graph(config)
   val schemaCacheTTL = Try(config.getInt("schemaCacheTTL")).getOrElse(-1)
   val s2Repository = new GraphRepository(s2graph)
-  val schemaCache = new SafeUpdateCache(1, ttl = schemaCacheTTL)
+  val schemaConfig = ConfigFactory.parseMap(Map(
+    SafeUpdateCache.MaxSizeKey -> 1, SafeUpdateCache.TtlKey -> schemaCacheTTL
+  ).asJava)
+
+  val schemaCache = new SafeUpdateCache(schemaConfig)
 
   def endpoint(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Route = {
 
