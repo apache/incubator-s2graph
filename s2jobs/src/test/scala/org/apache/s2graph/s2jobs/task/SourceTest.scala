@@ -61,7 +61,9 @@ class SourceTest extends BaseSparkTest {
     // 2. create snapshot if snapshot is not exist to test TableSnapshotInputFormat.
     s2.defaultStorage.management.asInstanceOf[AsynchbaseStorageManagement].withAdmin(s2.config) { admin =>
       import scala.collection.JavaConverters._
-      if (admin.listSnapshots(snapshotTableName).asScala.toSet(snapshotTableName))
+
+      val set = admin.listSnapshots(snapshotTableName).asScala.toList.map(_.getName).toSet
+      if (set(snapshotTableName))
         admin.deleteSnapshot(snapshotTableName)
 
       admin.snapshot(snapshotTableName, TableName.valueOf(options.tableName))
@@ -99,6 +101,8 @@ class SourceTest extends BaseSparkTest {
       s"1416236400000\tinsert\tedge\ta\tc\t${label.label}\t{}"
     )
 
+    s2.defaultStorage.truncateTable(s2Config, label.hTableName)
+
     val (_inputEdges, _outputEdges) = runCheck(bulkEdges, Schema.EdgeSchema, "e", "IndexEdge")
     val inputEdges = _inputEdges.sortBy(_.asInstanceOf[S2EdgeLike].tgtVertex.innerId.toIdString())
     val outputEdges = _outputEdges.sortBy(_.asInstanceOf[S2EdgeLike].tgtVertex.innerId.toIdString())
@@ -111,6 +115,7 @@ class SourceTest extends BaseSparkTest {
 
   ignore("S2GraphSource vertex toDF") {
     val column = initTestVertexSchema(s2)
+
     val label = initTestEdgeSchema(s2, tableName, schemaVersion, compressionAlgorithm)
 
     val bulkVertices = Seq(

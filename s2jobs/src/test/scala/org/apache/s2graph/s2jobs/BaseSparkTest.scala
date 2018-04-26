@@ -20,10 +20,12 @@
 package org.apache.s2graph.s2jobs
 
 import java.io.{File, PrintWriter}
+import java.nio.file.Path
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
+import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
-import org.apache.s2graph.core.mysqls.{Label, ServiceColumn}
+import org.apache.s2graph.core.mysqls.{Label, Service, ServiceColumn}
 import org.apache.s2graph.core.types.HBaseType
 import org.apache.s2graph.core.{Management, S2Graph}
 import org.apache.s2graph.s2jobs.loader.GraphFileOptions
@@ -38,7 +40,7 @@ class BaseSparkTest extends FunSuite with Matchers with BeforeAndAfterAll with D
     tempDir = "/tmp/bulkload_tmp",
     output = "/tmp/s2graph_bulkload",
     zkQuorum = "localhost",
-    dbUrl = "jdbc:h2:file:./var/metastore;MODE=MYSQL",
+    dbUrl = "jdbc:h2:file:./var/metastore_jobs;MODE=MYSQL",
     dbUser = "sa",
     dbPassword = "sa",
     dbDriver = "org.h2.Driver",
@@ -61,17 +63,46 @@ class BaseSparkTest extends FunSuite with Matchers with BeforeAndAfterAll with D
   )
 
   override def beforeAll(): Unit = {
+
     // initialize spark context.
     super.beforeAll()
+    s2 = S2GraphHelper.getS2Graph(s2Config, true)
 
-    s2 = S2GraphHelper.getS2Graph(s2Config)
+    deleteRecursively(new File(options.output))
+    deleteRecursively(new File(options.tempDir))
+
+    def createDummyHbaseTable(hTableName: String): Unit = {
+      Try {
+        val hTables = Service.findAll().map(_.hTableName).toSet
+        if (!hTables(hTableName)) {
+          s2.management.createService(serviceName = s"_dummy_${hTableName}", cluster = "localhost",
+            hTableName = hTableName, preSplitSize = -1, hTableTTL = -1, compressionAlgorithm = "gz")
+        }
+      }
+    }
+
+    Seq(
+      "s2graph",
+      "_test_cases",
+      "test-htable",
+      "label_with_ttl",
+      "label_without_ttl",
+      "label_with_ttl_copied",
+      "label_without_ttl_copied",
+      "s2graph_with_ttl-dev",
+      "s2graph_without_ttl-dev",
+      "s2graph_label_test_copied"
+    ).foreach(createDummyHbaseTable)
+
     initTestDataFile
   }
 
   override def afterAll(): Unit = {
     super.afterAll()
 
-    if (s2 != null) s2.shutdown()
+    if (s2 != null) {
+      s2.shutdown()
+    }
   }
 
   def initTestDataFile: Unit = {

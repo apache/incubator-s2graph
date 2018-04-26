@@ -78,7 +78,7 @@ lazy val s2graph_gremlin = project.dependsOn(s2core)
   .settings(commonSettings: _*)
 
 lazy val root = (project in file("."))
-  .aggregate(s2core, s2rest_play)
+  .aggregate(s2core, s2rest_play, s2jobs)
   .dependsOn(s2rest_play, s2rest_netty, s2jobs, s2counter_loader, s2graphql) // this enables packaging on the root project
   .settings(commonSettings: _*)
 

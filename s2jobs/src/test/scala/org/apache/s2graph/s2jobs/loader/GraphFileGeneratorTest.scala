@@ -19,6 +19,8 @@
 
 package org.apache.s2graph.s2jobs.loader
 
+import java.io.File
+
 import org.apache.s2graph.core.{PostProcess, S2VertexLike}
 import org.apache.s2graph.core.storage.{CanSKeyValue, SKeyValue}
 import org.apache.s2graph.s2jobs.BaseSparkTest
@@ -184,6 +186,11 @@ class GraphFileGeneratorTest extends BaseSparkTest {
   //   this test case expect options.input already exist with valid bulk load format.
     test("bulk load and fetch vertex: spark mode") {
       import scala.collection.JavaConverters._
+
+
+      deleteRecursively(new File(options.output))
+      deleteRecursively(new File(options.tempDir))
+
       val serviceColumn = initTestVertexSchema(s2)
 
       val bulkVertexLs = Source.fromFile(options.input).getLines().toSeq

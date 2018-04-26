@@ -164,12 +164,13 @@ object Model {
 
   def extraOptions(options: Option[String]): Map[String, JsValue] = options match {
     case None => Map.empty
+    case Some(v) if v.trim == "" => Map.empty
     case Some(v) =>
       try {
         Json.parse(v).asOpt[JsObject].map { obj => obj.fields.toMap }.getOrElse(Map.empty)
       } catch {
         case e: Exception =>
-          logger.error(s"An error occurs while parsing the extra label option", e)
+          logger.error(s"An error occurs while parsing the extra label option: ${v}", e)
           Map.empty
       }
   }
