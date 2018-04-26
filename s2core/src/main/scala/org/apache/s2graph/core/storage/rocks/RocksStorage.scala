@@ -156,5 +156,5 @@ class RocksStorage(override val graph: S2GraphLike,
 
   override val serDe = new RocksStorageSerDe(graph)
 
-  override val fetcher = new RocksStorageReadable(graph, config, db, vdb, serDe, io)
+  override val reader = new RocksStorageReadable(graph, config, db, vdb, serDe, io)
 }

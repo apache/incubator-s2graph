@@ -31,6 +31,7 @@ import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.S2Graph.{DefaultColumnName, DefaultServiceName}
 import org.apache.s2graph.core.features.{S2Features, S2GraphVariables}
 import org.apache.s2graph.core.index.IndexProvider
+import org.apache.s2graph.core.model.ModelManager
 import org.apache.s2graph.core.schema.{Label, LabelMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.storage.{MutateResponse, Storage}
 import org.apache.s2graph.core.types.{InnerValLike, VertexId}
@@ -68,6 +69,8 @@ trait S2GraphLike extends Graph {
 
   val traversalHelper: TraversalHelper
 
+  val modelManager: ModelManager
+
   lazy val MaxRetryNum: Int = config.getInt("max.retry.number")
   lazy val MaxBackOff: Int = config.getInt("max.back.off")
   lazy val BackoffTimeout: Int = config.getInt("back.off.timeout")
@@ -89,6 +92,10 @@ trait S2GraphLike extends Graph {
   def getStorage(service: Service): Storage
 
   def getStorage(label: Label): Storage
+
+  def getFetcher(column: ServiceColumn): Fetcher
+
+  def getFetcher(label: Label): Fetcher
 
   def flushStorage(): Unit
 

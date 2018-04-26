@@ -237,7 +237,7 @@ object StepResult {
 
           //          val newOrderByValues = updateScoreOnOrderByValues(globalQueryOption.scoreFieldIdx, t.orderByValues, newScore)
           val newOrderByValues =
-            if (globalQueryOption.orderByKeys.isEmpty) (newScore, t.edge.getTsInnerValValue(), None, None)
+            if (globalQueryOption.orderByKeys.isEmpty) (newScore, t.edge.getTs(), None, None)
             else toTuple4(newT.toValues(globalQueryOption.orderByKeys))
 
           val newGroupByValues = newT.toValues(globalQueryOption.groupBy.keys)
@@ -262,7 +262,7 @@ object StepResult {
 //            val newOrderByValues = updateScoreOnOrderByValues(globalQueryOption.scoreFieldIdx, t.orderByValues, newScore)
 
             val newOrderByValues =
-              if (globalQueryOption.orderByKeys.isEmpty) (newScore, t.edge.getTsInnerValValue(), None, None)
+              if (globalQueryOption.orderByKeys.isEmpty) (newScore, t.edge.getTs(), None, None)
               else toTuple4(newT.toValues(globalQueryOption.orderByKeys))
 
             val newGroupByValues = newT.toValues(globalQueryOption.groupBy.keys)

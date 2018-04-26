@@ -369,19 +369,6 @@ case class Label(id: Option[Int], label: String,
     prop <- metaProps if LabelMeta.isValidSeq(prop.seq)
     jsValue <- innerValToJsValue(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), prop.dataType)
   } yield prop -> jsValue).toMap
-//  lazy val extraOptions = Model.extraOptions(Option("""{
-//    "storage": {
-//      "s2graph.storage.backend": "rocks",
-//      "rocks.db.path": "/tmp/db"
-//    }
-//  }"""))
-
-  lazy val tokens: Set[String] = extraOptions.get("tokens").fold(Set.empty[String]) {
-    case JsArray(tokens) => tokens.map(_.as[String]).toSet
-    case _ =>
-      logger.error("Invalid token JSON")
-      Set.empty[String]
-  }
 
   lazy val extraOptions = Schema.extraOptions(options)
 
@@ -389,8 +376,13 @@ case class Label(id: Option[Int], label: String,
 
   lazy val storageConfigOpt: Option[Config] = toStorageConfig
 
+  lazy val fetchConfigExist: Boolean = toFetcherConfig.isDefined
+
+  def toFetcherConfig: Option[Config] = {
+    Schema.toConfig(extraOptions, "fetcher")
+  }
   def toStorageConfig: Option[Config] = {
-    Schema.toStorageConfig(extraOptions)
+    Schema.toConfig(extraOptions, "storage")
   }
 
   def srcColumnWithDir(dir: Int) = {

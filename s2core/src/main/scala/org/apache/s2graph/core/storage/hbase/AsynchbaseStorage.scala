@@ -155,13 +155,6 @@ class AsynchbaseStorage(override val graph: S2GraphLike,
 
   override val serDe: StorageSerDe = new AsynchbaseStorageSerDe(graph)
 
-  override val fetcher: StorageReadable = new AsynchbaseStorageReadable(graph, config, client, serDe, io)
-
-  //  val hbaseExecutor: ExecutorService  =
-  //    if (config.getString("hbase.zookeeper.quorum") == "localhost")
-  //      AsynchbaseStorage.initLocalHBase(config)
-  //    else
-  //      null
-
+  override val reader: StorageReadable = new AsynchbaseStorageReadable(graph, config, client, serDe, io)
 
 }

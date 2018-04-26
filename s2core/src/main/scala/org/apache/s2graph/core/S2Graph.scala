@@ -27,6 +27,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.{BaseConfiguration, Configuration}
 import org.apache.s2graph.core.index.IndexProvider
 import org.apache.s2graph.core.io.tinkerpop.optimize.S2GraphStepStrategy
+import org.apache.s2graph.core.model.ModelManager
 import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.storage.rocks.RocksStorage
@@ -186,6 +187,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
 
   override val management = new Management(this)
 
+  override val modelManager = new ModelManager(this)
+
   override val indexProvider = IndexProvider.apply(config)
 
   override val elementBuilder = new GraphElementBuilder(this)
@@ -245,6 +248,16 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
 
   override def getStorage(label: Label): Storage = {
     storagePool.getOrElse(s"label:${label.label}", defaultStorage)
+  }
+
+  //TODO:
+  override def getFetcher(column: ServiceColumn): Fetcher = {
+    getStorage(column.service).reader
+  }
+
+  override def getFetcher(label: Label): Fetcher = {
+    if (label.fetchConfigExist) modelManager.getFetcher(label)
+    else getStorage(label).reader
   }
 
   override def flushStorage(): Unit = {

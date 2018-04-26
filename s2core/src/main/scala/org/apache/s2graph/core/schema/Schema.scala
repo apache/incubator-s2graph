@@ -174,9 +174,9 @@ object Schema {
       }
   }
 
-  def toStorageConfig(options: Map[String, JsValue]): Option[Config] = {
+  def toConfig(options: Map[String, JsValue], key: String): Option[Config] = {
     try {
-      options.get("storage").map { jsValue =>
+      options.get(key).map { jsValue =>
         import scala.collection.JavaConverters._
         val configMap = jsValue.as[JsObject].fieldSet.toMap.map { case (key, value) =>
           key -> JSONParser.jsValueToAny(value).getOrElse(throw new RuntimeException("!!"))

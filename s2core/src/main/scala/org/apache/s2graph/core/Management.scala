@@ -20,6 +20,7 @@
 package org.apache.s2graph.core
 
 import java.util
+import java.util.concurrent.Executors
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNameTooLongException, LabelNotExistException}
@@ -28,8 +29,10 @@ import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.model.Importer
 import play.api.libs.json._
 
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 /**
@@ -69,7 +72,6 @@ object Management {
 
     case class Index(name: String, propNames: Seq[String], direction: Option[Int] = None, options: Option[String] = None)
   }
-
 
   def findService(serviceName: String) = {
     Service.findByName(serviceName, useCache = false)
@@ -298,9 +300,18 @@ object Management {
 
 class Management(graph: S2GraphLike) {
 
+  val importEx = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
   import Management._
-  import scala.collection.JavaConversions._
+
+  def importModel(labelName: String): Future[Importer] = {
+    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+    val config = label.toFetcherConfig.getOrElse {
+      throw new IllegalArgumentException(s"${label.label} is not importable since there is no configuration on label.")
+    }
+
+    graph.modelManager.importModel(label, config)(importEx)
+  }
 
   def createStorageTable(zkAddr: String,
                   tableName: String,

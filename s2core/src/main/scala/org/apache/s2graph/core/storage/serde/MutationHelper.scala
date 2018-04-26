@@ -29,7 +29,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class MutationHelper(storage: Storage) {
   val serDe = storage.serDe
   val io = storage.io
-  val fetcher = storage.fetcher
+  val fetcher = storage.reader
   val mutator = storage.mutator
   val conflictResolver = storage.conflictResolver
 

@@ -40,7 +40,7 @@ abstract class Storage(val graph: S2GraphLike,
    * Given QueryRequest/Vertex/Edge, fetch KeyValue from storage
    * then convert them into Edge/Vertex
    */
-  val fetcher: StorageReadable
+  val reader: StorageReadable
 
   /*
    * Serialize Edge/Vertex, to common KeyValue, SKeyValue that
@@ -60,7 +60,7 @@ abstract class Storage(val graph: S2GraphLike,
    * Note that it require storage backend specific implementations for
    * all of StorageWritable, StorageReadable, StorageSerDe, StorageIO
    */
-  lazy val conflictResolver: WriteWriteConflictResolver = new WriteWriteConflictResolver(graph, serDe, io, mutator, fetcher)
+  lazy val conflictResolver: WriteWriteConflictResolver = new WriteWriteConflictResolver(graph, serDe, io, mutator, reader)
 
   lazy val mutationHelper: MutationHelper = new MutationHelper(this)
 
@@ -74,17 +74,17 @@ abstract class Storage(val graph: S2GraphLike,
   /** Fetch **/
   def fetches(queryRequests: Seq[QueryRequest],
               prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]] =
-    fetcher.fetches(queryRequests, prevStepEdges)
+    reader.fetches(queryRequests, prevStepEdges)
 
   def fetchVertices(vertices: Seq[S2VertexLike])(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] =
-    fetcher.fetchVertices(vertices)
+    reader.fetchVertices(vertices)
 
-  def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]] = fetcher.fetchEdgesAll()
+  def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]] = reader.fetchEdgesAll()
 
-  def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] = fetcher.fetchVerticesAll()
+  def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] = reader.fetchVerticesAll()
 
   def fetchSnapshotEdgeInner(edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[(Option[S2EdgeLike], Option[SKeyValue])] =
-    fetcher.fetchSnapshotEdgeInner(edge)
+    reader.fetchSnapshotEdgeInner(edge)
 
   /** Management **/
   def flush(): Unit = management.flush()
