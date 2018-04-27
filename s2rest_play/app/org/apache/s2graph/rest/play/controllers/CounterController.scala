@@ -22,7 +22,7 @@ package org.apache.s2graph.rest.play.controllers
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.s2graph.core.ExceptionHandler
 import org.apache.s2graph.core.ExceptionHandler.KafkaMessage
-import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.schema.Label
 import org.apache.s2graph.counter
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit

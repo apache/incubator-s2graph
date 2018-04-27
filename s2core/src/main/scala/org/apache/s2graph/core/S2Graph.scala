@@ -27,7 +27,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.{BaseConfiguration, Configuration}
 import org.apache.s2graph.core.index.IndexProvider
 import org.apache.s2graph.core.io.tinkerpop.optimize.S2GraphStepStrategy
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.storage.rocks.RocksStorage
 import org.apache.s2graph.core.storage.{MutateResponse, Storage}
@@ -181,8 +181,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     config.getString("s2graph.storage.backend")
   }.getOrElse("hbase")
 
-  Model.apply(config)
-  Model.loadCache()
+  Schema.apply(config)
+  Schema.loadCache()
 
   override val management = new Management(this)
 
@@ -258,7 +258,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
   override def shutdown(modelDataDelete: Boolean = false): Unit =
     if (running.compareAndSet(true, false)) {
       flushStorage()
-      Model.shutdown(modelDataDelete)
+      Schema.shutdown(modelDataDelete)
       defaultStorage.shutdown()
       localLongId.set(0l)
     }

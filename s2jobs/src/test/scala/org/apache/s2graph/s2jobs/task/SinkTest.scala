@@ -20,7 +20,6 @@
 package org.apache.s2graph.s2jobs.task
 
 import org.apache.s2graph.core.S2EdgeLike
-import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.s2jobs.BaseSparkTest
 import org.apache.spark.sql.DataFrame
 

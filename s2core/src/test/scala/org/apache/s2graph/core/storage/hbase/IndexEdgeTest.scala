@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core.storage.hbase
 
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.TestCommonWithModels
 import org.scalatest.{FunSuite, Matchers}

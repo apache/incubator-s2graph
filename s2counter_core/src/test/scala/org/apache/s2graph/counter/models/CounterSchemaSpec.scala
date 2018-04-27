@@ -22,7 +22,7 @@ package org.apache.s2graph.counter.models
 import com.typesafe.config.ConfigFactory
 import org.specs2.mutable.Specification
 
-class CounterModelSpec extends Specification {
+class CounterSchemaSpec extends Specification {
   val config = ConfigFactory.load()
 
   DBModel.initialize(config)

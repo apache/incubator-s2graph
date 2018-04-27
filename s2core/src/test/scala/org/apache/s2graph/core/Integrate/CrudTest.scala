@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core.Integrate
 
-import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.schema.{Label, LabelMeta}
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.{JsObject, Json}
 

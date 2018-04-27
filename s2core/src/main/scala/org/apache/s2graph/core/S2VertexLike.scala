@@ -22,7 +22,7 @@ import java.util
 import java.util.function.{BiConsumer, Consumer}
 
 import org.apache.s2graph.core.S2Vertex.Props
-import org.apache.s2graph.core.mysqls.{ColumnMeta, Label, Service, ServiceColumn}
+import org.apache.s2graph.core.schema.{ColumnMeta, Label, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerValLike, VertexId}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, T, Vertex, VertexProperty}

@@ -21,7 +21,7 @@ package org.apache.s2graph.core.storage.serde.snapshotedge.wide
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.{S2Edge, SnapshotEdge}
-import org.apache.s2graph.core.mysqls.LabelIndex
+import org.apache.s2graph.core.schema.LabelIndex
 import org.apache.s2graph.core.storage.serde.Serializable
 import org.apache.s2graph.core.storage.serde.StorageSerializable._
 import org.apache.s2graph.core.types.VertexId

@@ -67,6 +67,9 @@ class ExceptionHandler(config: Config) {
 }
 
 object ExceptionHandler {
+  val mainBrokerKey = "kafka.metadata.broker.list"
+  val subBrokerKey = "kafka_sub.metadata.broker.list"
+
   type Key = String
   type Val = String
 
@@ -93,13 +96,31 @@ object ExceptionHandler {
 
   case class KafkaMessage(msg: ProducerRecord[Key, Val])
 
-  private def toKafkaProp(config: Config) = {
-    val props = new Properties()
+  def toKafkaProducer(config: Config): Option[KafkaProducer[String, String]] = {
+    val brokerKey = "kafka.producer.brokers"
+    if (config.hasPath(brokerKey)) {
+      val brokers = config.getString("kafka.producer.brokers")
+      Option(new KafkaProducer[String, String](toKafkaProp(brokers)))
+    } else {
+      None
+    }
+  }
 
+  def toKafkaProp(config: Config): Properties = {
     /* all default configuration for new producer */
     val brokers =
       if (config.hasPath("kafka.metadata.broker.list")) config.getString("kafka.metadata.broker.list")
       else "localhost"
+
+    toKafkaProp(brokers)
+  }
+
+  /*
+   * http://kafka.apache.org/082/documentation.html#producerconfigs
+   * if we change our kafka version, make sure right configuration is set.
+   */
+  def toKafkaProp(brokers: String): Properties = {
+    val props = new Properties()
 
     props.put("bootstrap.servers", brokers)
     props.put("acks", "1")
@@ -107,7 +128,7 @@ object ExceptionHandler {
     props.put("compression.type", "snappy")
     props.put("retries", "0")
     props.put("batch.size", "16384")
-    props.put("linger.ms", "0")
+    props.put("linger.ms", "100")
     props.put("max.request.size", "1048576")
     props.put("receive.buffer.bytes", "32768")
     props.put("send.buffer.bytes", "131072")

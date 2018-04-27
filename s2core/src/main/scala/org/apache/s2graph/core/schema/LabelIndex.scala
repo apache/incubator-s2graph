@@ -17,15 +17,18 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import org.apache.s2graph.core.GraphUtil
-import org.apache.s2graph.core.mysqls.LabelIndex.LabelIndexMutateOption
+import org.apache.s2graph.core.schema.LabelIndex.LabelIndexMutateOption
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.{JsObject, JsString, Json}
 import scalikejdbc._
 
-object LabelIndex extends Model[LabelIndex] {
+object LabelIndex extends SQLSyntaxSupport[LabelIndex] {
+  import Schema._
+  val className = LabelIndex.getClass.getSimpleName
+
   val DefaultName = "_PK"
   val DefaultMetaSeqs = Seq(LabelMeta.timestampSeq)
   val DefaultSeq = 1.toByte
@@ -64,14 +67,14 @@ object LabelIndex extends Model[LabelIndex] {
   }
 
   def findById(id: Int)(implicit session: DBSession = AutoSession) = {
-    val cacheKey = "id=" + id
+    val cacheKey = className + "id=" + id
     withCache(cacheKey) {
       sql"""select * from label_indices where id = ${id}""".map { rs => LabelIndex(rs) }.single.apply
     }.get
   }
 
   def findByLabelIdAll(labelId: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession) = {
-    val cacheKey = "labelId=" + labelId
+    val cacheKey = className + "labelId=" + labelId
     if (useCache) {
       withCaches(cacheKey)( sql"""
         select * from label_indices where label_id = ${labelId} and seq > 0 order by seq ASC
@@ -105,8 +108,8 @@ object LabelIndex extends Model[LabelIndex] {
           s"labelId=$labelId:seqs=$metaSeqs:dir=$direction", s"labelId=$labelId:seq=$seq", s"id=$createdId")
 
         cacheKeys.foreach { key =>
-          expireCache(key)
-          expireCaches(key)
+          expireCache(className + key)
+          expireCaches(className + key)
         }
 
         findByLabelIdAndSeq(labelId, seq).get
@@ -114,7 +117,7 @@ object LabelIndex extends Model[LabelIndex] {
   }
 
   def findByLabelIdAndSeqs(labelId: Int, seqs: List[Byte], direction: Option[Int])(implicit session: DBSession = AutoSession): Option[LabelIndex] = {
-    val cacheKey = "labelId=" + labelId + ":seqs=" + seqs.mkString(",") + ":dir=" + direction
+    val cacheKey = className + "labelId=" + labelId + ":seqs=" + seqs.mkString(",") + ":dir=" + direction
     withCache(cacheKey) {
       sql"""
       select * from label_indices where label_id = ${labelId} and meta_seqs = ${seqs.mkString(",")} and dir = ${direction}
@@ -124,7 +127,7 @@ object LabelIndex extends Model[LabelIndex] {
 
   def findByLabelIdAndSeq(labelId: Int, seq: Byte, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[LabelIndex] = {
     //    val cacheKey = s"labelId=$labelId:seq=$seq"
-    val cacheKey = "labelId=" + labelId + ":seq=" + seq
+    val cacheKey = className + "labelId=" + labelId + ":seq=" + seq
     if (useCache) {
       withCache(cacheKey)( sql"""
       select * from label_indices where label_id = ${labelId} and seq = ${seq}
@@ -144,69 +147,29 @@ object LabelIndex extends Model[LabelIndex] {
 
     val cacheKeys = List(s"id=$id", s"labelId=$labelId", s"labelId=$labelId:seq=$seq", s"labelId=$labelId:seqs=$seqs:dir=${labelIndex.dir}")
     cacheKeys.foreach { key =>
-      expireCache(key)
-      expireCaches(key)
+      expireCache(className + key)
+      expireCaches(className + key)
     }
   }
 
   def findAll()(implicit session: DBSession = AutoSession) = {
     val ls = sql"""select * from label_indices""".map { rs => LabelIndex(rs) }.list.apply
-    putsToCache(ls.map { x =>
-      var cacheKey = s"id=${x.id.get}"
-      (cacheKey -> x)
+    putsToCacheOption(ls.flatMap { x =>
+      Seq(
+        s"id=${x.id.get}",
+        s"labelId=${x.labelId}:seq=${x.seq}",
+        s"labelId=${x.labelId}:seqs=${x.metaSeqs.mkString(",")}:dir=${x.dir}"
+      ).map(cacheKey => (className + cacheKey, x))
     })
-    putsToCache(ls.map { x =>
-      var cacheKey = s"labelId=${x.labelId}:seq=${x.seq}}"
-      (cacheKey -> x)
-    })
-    putsToCache(ls.map { x =>
-      var cacheKey = s"labelId=${x.labelId}:seqs=${x.metaSeqs.mkString(",")}:dir=${x.dir}"
-      (cacheKey -> x)
-    })
+
     putsToCaches(ls.groupBy(x => x.labelId).map { case (labelId, ls) =>
       val cacheKey = s"labelId=${labelId}"
-      (cacheKey -> ls)
+      (className + cacheKey -> ls)
     }.toList)
   }
 }
-/**
-mgmt.buildIndex('nameAndAge',Vertex.class)
-.addKey(name,Mapping.TEXT.getParameter())
-.addKey(age,Mapping.TEXT.getParameter())
-.buildMixedIndex("search")
 
-v: {name: abc} - E1: {age: 20}, E2, E3....
 
-Management.createServiceColumn(
-		serviceName = serviceName, columnName = "person", columnType = "integer",
-    props = Seq(
-    	Prop("name", "-", "string"),
-    	Prop("age", "0", "integer"),
-    	Prop("location", "-", "string")
-    )
-)
-
-management.createLabel(
-		label = "bought",
-    srcServiceName = serviceName, srcColumnName = "person", srcColumnType = "integer",
-    tgtServiceName = serviceName, tgtColumnName = "product", tgtColumnType = "integer", idDirected = true,
-    serviceName = serviceName,
-    indices = Seq(
-    	Index("PK", Seq("amount", "created_at"), IndexType("mixed", propsMapping: Map[String, String]),
-{"in": {}, "out": {}})
-    ),
-    props = Seq(
-    	Prop("amount", "0.0", "double"),
-    	Prop("created_at", "2000-01-01", "string")
-    ),
-    consistencyLevel = "strong"
-)
-
-mgmt.buildIndex('PK', Edge.class)
-  .addKey(amount, Double)
-  .buildCompositeIndex
-
-*/
 case class LabelIndex(id: Option[Int], labelId: Int, name: String, seq: Byte, metaSeqs: Seq[Byte], formulars: String,
                       dir: Option[Int], options: Option[String]) {
   // both

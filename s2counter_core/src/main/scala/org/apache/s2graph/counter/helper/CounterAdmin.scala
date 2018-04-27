@@ -22,7 +22,7 @@ package org.apache.s2graph.counter.helper
 import com.typesafe.config.Config
 import org.apache
 import org.apache.s2graph.core.S2Graph
-import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.schema.Label
 import org.apache.s2graph.counter
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.core.{RankingCounter, ExactCounter}

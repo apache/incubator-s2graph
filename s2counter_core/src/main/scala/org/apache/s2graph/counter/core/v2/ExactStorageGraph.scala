@@ -23,7 +23,7 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.typesafe.config.Config
 import org.apache.http.HttpStatus
-import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.schema.Label
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.core
 import org.apache.s2graph.counter.core.ExactCounter.ExactValueMap

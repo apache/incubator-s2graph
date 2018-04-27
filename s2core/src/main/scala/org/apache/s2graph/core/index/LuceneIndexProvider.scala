@@ -31,7 +31,6 @@ import org.apache.lucene.search.{IndexSearcher, Query}
 import org.apache.lucene.store.{BaseDirectory, RAMDirectory, SimpleFSDirectory}
 import org.apache.lucene.search.TopScoreDocCollector
 import org.apache.s2graph.core.io.Conversions
-import org.apache.s2graph.core.mysqls.GlobalIndex
 import org.apache.s2graph.core.types.VertexId
 import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.core.{EdgeId, S2EdgeLike, S2VertexLike, VertexQueryParam}
@@ -42,8 +41,6 @@ import scala.concurrent.Future
 
 
 class LuceneIndexProvider(config: Config) extends IndexProvider {
-
-  import GlobalIndex._
   import IndexProvider._
 
   import scala.collection.JavaConverters._
@@ -140,7 +137,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     Future.successful(mutateEdges(edges, forceToIndex))
 
   override def mutateVertices(vertices: Seq[S2VertexLike], forceToIndex: Boolean = false): Seq[Boolean] = {
-    val writer = getOrElseCreateIndexWriter(GlobalIndex.VertexIndexName)
+    val writer = getOrElseCreateIndexWriter(VertexIndexName)
 
     vertices.foreach { vertex =>
       toDocument(vertex, forceToIndex).foreach { doc =>
@@ -160,7 +157,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     Future.successful(mutateVertices(vertices, forceToIndex))
 
   override def mutateEdges(edges: Seq[S2EdgeLike], forceToIndex: Boolean = false): Seq[Boolean] = {
-    val writer = getOrElseCreateIndexWriter(GlobalIndex.EdgeIndexName)
+    val writer = getOrElseCreateIndexWriter(EdgeIndexName)
 
     edges.foreach { edge =>
       toDocument(edge, forceToIndex).foreach { doc =>
@@ -208,7 +205,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
 
     try {
       val q = new QueryParser(field, analyzer).parse(queryString)
-      fetchInner[VertexId](q, 0, 100, GlobalIndex.VertexIndexName, vidField, Conversions.s2VertexIdReads)
+      fetchInner[VertexId](q, 0, 100, VertexIndexName, vidField, Conversions.s2VertexIdReads)
     } catch {
       case ex: ParseException =>
         logger.error(s"[IndexProvider]: ${queryString} parse failed.", ex)
@@ -222,7 +219,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
 
     try {
       val q = new QueryParser(field, analyzer).parse(queryString)
-      fetchInner[EdgeId](q, 0, 100, GlobalIndex.EdgeIndexName, field, Conversions.s2EdgeIdReads)
+      fetchInner[EdgeId](q, 0, 100, EdgeIndexName, field, Conversions.s2EdgeIdReads)
     } catch {
       case ex: ParseException =>
         logger.error(s"[IndexProvider]: ${queryString} parse failed.", ex)
@@ -239,7 +236,7 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
       val field = vidField
       try {
         val q = new QueryParser(field, analyzer).parse(queryString)
-        fetchInner[VertexId](q, vertexQueryParam.offset, vertexQueryParam.limit, GlobalIndex.VertexIndexName, vidField, Conversions.s2VertexIdReads)
+        fetchInner[VertexId](q, vertexQueryParam.offset, vertexQueryParam.limit, VertexIndexName, vidField, Conversions.s2VertexIdReads)
       } catch {
         case ex: ParseException =>
           logger.error(s"[IndexProvider]: ${queryString} parse failed.", ex)

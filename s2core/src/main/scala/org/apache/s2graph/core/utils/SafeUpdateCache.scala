@@ -19,60 +19,130 @@
 
 package org.apache.s2graph.core.utils
 
+import java.io._
 import java.util.concurrent.atomic.AtomicBoolean
 
 import com.google.common.cache.CacheBuilder
+import com.google.common.hash.Hashing
+import com.typesafe.config.Config
 
 import scala.collection.JavaConversions._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 object SafeUpdateCache {
 
   case class CacheKey(key: String)
+  val MaxSizeKey = "cache.max.size"
+  val TtlKey = "cache.ttl.seconds"
 
-}
+  def serialise(value: AnyRef): Try[Array[Byte]] = {
+    import scala.pickling.Defaults._
+    import scala.pickling.binary._
 
-class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(implicit executionContext: ExecutionContext) {
+    val result = Try(value.pickle.value)
+    result.failed.foreach { e =>
+      logger.syncInfo(s"[Serialise failed]: ${value}, ${e}")
+    }
 
-  import SafeUpdateCache._
-
-  implicit class StringOps(key: String) {
-    def toCacheKey = new CacheKey(prefix + ":" + key)
+    result
   }
 
-  def toTs() = (System.currentTimeMillis() / 1000).toInt
+  def deserialise(bytes: Array[Byte]): Try[AnyRef] = {
+    import scala.pickling.Defaults._
+    import scala.pickling.binary._
 
-  private val cache = CacheBuilder.newBuilder().maximumSize(maxSize).build[CacheKey, (T, Int, AtomicBoolean)]()
+    Try(BinaryPickle(bytes).unpickle[AnyRef])
+  }
 
-  def put(key: String, value: T) = cache.put(key.toCacheKey, (value, toTs, new AtomicBoolean(false)))
+  def fromBytes(config: Config, bytes: Array[Byte])(implicit ec: ExecutionContext): SafeUpdateCache = {
+    import org.apache.hadoop.io.WritableUtils
+    val cache: SafeUpdateCache = new SafeUpdateCache(config)
 
-  def invalidate(key: String) = cache.invalidate(key.toCacheKey)
+    val bais = new ByteArrayInputStream(bytes)
+    val input = new DataInputStream(bais)
 
-  def withCache(key: String)(op: => T): T = {
-    val cacheKey = key.toCacheKey
+    try {
+      val size = WritableUtils.readVInt(input)
+      (1 to size).foreach { ith =>
+        val cacheKey = WritableUtils.readVLong(input)
+        val value = deserialise(WritableUtils.readCompressedByteArray(input))
+        value.foreach { dsv =>
+          cache.putInner(cacheKey, dsv)
+        }
+      }
+    } finally {
+      bais.close()
+      input.close()
+    }
+
+    cache
+  }
+}
+
+class SafeUpdateCache(val config: Config)
+                     (implicit executionContext: ExecutionContext) {
+
+  import java.lang.{Long => JLong}
+  import SafeUpdateCache._
+  val maxSize = config.getInt(SafeUpdateCache.MaxSizeKey)
+  val ttl = config.getInt(SafeUpdateCache.TtlKey)
+  private val cache = CacheBuilder.newBuilder().maximumSize(maxSize)
+    .build[JLong, (AnyRef, Int, AtomicBoolean)]()
+
+  private def toCacheKey(key: String): Long = {
+    Hashing.murmur3_128().hashBytes(key.getBytes("UTF-8")).asLong()
+  }
+
+  private def toTs() = (System.currentTimeMillis() / 1000).toInt
+
+  def put(key: String, value: AnyRef, broadcast: Boolean = false): Unit = {
+    val cacheKey = toCacheKey(key)
+    cache.put(cacheKey, (value, toTs, new AtomicBoolean(false)))
+  }
+
+  def putInner(cacheKey: Long, value: AnyRef): Unit = {
+    cache.put(cacheKey, (value, toTs, new AtomicBoolean(false)))
+  }
+
+  def invalidate(key: String, broadcast: Boolean = true) = {
+    val cacheKey = toCacheKey(key)
+    cache.invalidate(cacheKey)
+  }
+
+  def invalidateInner(cacheKey: Long): Unit = {
+    cache.invalidate(cacheKey)
+  }
+
+  def withCache[T <: AnyRef](key: String, broadcast: Boolean)(op: => T): T = {
+    val cacheKey = toCacheKey(key)
     val cachedValWithTs = cache.getIfPresent(cacheKey)
 
     if (cachedValWithTs == null) {
+      val value = op
       // fetch and update cache.
-      val newValue = op
-      cache.put(cacheKey, (newValue, toTs(), new AtomicBoolean(false)))
-      newValue
+      put(key, value, broadcast)
+      value
     } else {
-      val (cachedVal, updatedAt, isUpdating) = cachedValWithTs
+      val (_cachedVal, updatedAt, isUpdating) = cachedValWithTs
+      val cachedVal = _cachedVal.asInstanceOf[T]
+
       if (toTs() < updatedAt + ttl) cachedVal // in cache TTL
       else {
         val running = isUpdating.getAndSet(true)
+
         if (running) cachedVal
         else {
-          Future(op)(executionContext) onComplete {
+          val value = op
+          Future(value)(executionContext) onComplete {
             case Failure(ex) =>
-              cache.put(cacheKey, (cachedVal, toTs(), new AtomicBoolean(false))) // keep old value
-              logger.error(s"withCache update failed: $cacheKey")
+              put(key, cachedVal, false)
+              logger.error(s"withCache update failed: $cacheKey", ex)
             case Success(newValue) =>
-              cache.put(cacheKey, (newValue, toTs(), new AtomicBoolean(false))) // update new value
+              put(key, newValue, broadcast = (broadcast && newValue != cachedVal))
               logger.info(s"withCache update success: $cacheKey")
           }
+
           cachedVal
         }
       }
@@ -81,10 +151,35 @@ class SafeUpdateCache[T](prefix: String, maxSize: Int, ttl: Int)(implicit execut
 
   def invalidateAll() = cache.invalidateAll()
 
-  def getAllData() : List[(String, T)] = {
-    cache.asMap().map { case (key, value) =>
-      (key.key.substring(prefix.size + 1), value._1)
-    }.toList
+  def asMap() = cache.asMap()
+
+  def get(key: String) = cache.asMap().get(toCacheKey(key))
+
+  def toBytes(): Array[Byte] = {
+    import org.apache.hadoop.io.WritableUtils
+    val baos = new ByteArrayOutputStream()
+    val output = new DataOutputStream(baos)
+
+    try {
+      val m = cache.asMap()
+      val size = m.size()
+
+      WritableUtils.writeVInt(output, size)
+      for (key <- m.keys) {
+        val (value, _, _) = m.get(key)
+        WritableUtils.writeVLong(output, key)
+        serialise(value).foreach { sv =>
+          WritableUtils.writeCompressedByteArray(output, sv)
+        }
+      }
+      output.flush()
+      baos.toByteArray
+    } finally {
+      baos.close()
+      output.close()
+    }
   }
+
+  def shutdown() = {}
 }
 

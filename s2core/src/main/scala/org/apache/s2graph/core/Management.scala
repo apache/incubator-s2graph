@@ -24,7 +24,7 @@ import java.util
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNameTooLongException, LabelNotExistException}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.JSONParser._
@@ -95,7 +95,7 @@ object Management {
                           props: Seq[Prop],
                           schemaVersion: String = DEFAULT_VERSION) = {
 
-    Model withTx { implicit session =>
+    Schema withTx { implicit session =>
       val serviceOpt = Service.findByName(serviceName, useCache = false)
       serviceOpt match {
         case None => throw new RuntimeException(s"create service $serviceName has not been created.")
@@ -113,7 +113,7 @@ object Management {
   }
 
   def deleteColumn(serviceName: String, columnName: String, schemaVersion: String = DEFAULT_VERSION) = {
-    Model withTx { implicit session =>
+    Schema withTx { implicit session =>
       val service = Service.findByName(serviceName, useCache = false).getOrElse(throw new RuntimeException("Service not Found"))
       val serviceColumns = ServiceColumn.find(service.id.get, columnName, useCache = false)
       val columnNames = serviceColumns.map { serviceColumn =>
@@ -130,7 +130,7 @@ object Management {
   }
 
   def deleteLabel(labelName: String): Try[Label] = {
-    Model withTx { implicit session =>
+    Schema withTx { implicit session =>
       val label = Label.findByName(labelName, useCache = false).getOrElse(throw GraphExceptions.LabelNotExistException(labelName))
       Label.deleteAll(label)
       label
@@ -138,7 +138,7 @@ object Management {
   }
 
   def markDeletedLabel(labelName: String) = {
-    Model withTx { implicit session =>
+    Schema withTx { implicit session =>
       Label.findByName(labelName, useCache = false).foreach { label =>
         // rename & delete_at column filled with current time
         Label.markDeleted(label)
@@ -148,7 +148,7 @@ object Management {
   }
 
   def addIndex(labelStr: String, indices: Seq[Index]): Try[Label] = {
-    Model withTx { implicit session =>
+    Schema withTx { implicit session =>
       val label = Label.findByName(labelStr).getOrElse(throw LabelNotExistException(s"$labelStr not found"))
       val labelMetaMap = label.metaPropsInvMap
 
@@ -162,7 +162,7 @@ object Management {
   }
 
   def addProp(labelStr: String, prop: Prop) = {
-    Model withTx { implicit session =>
+    Schema withTx { implicit session =>
       val labelOpt = Label.findByName(labelStr)
       val label = labelOpt.getOrElse(throw LabelNotExistException(s"$labelStr not found"))
 
@@ -171,7 +171,7 @@ object Management {
   }
 
   def addProps(labelStr: String, props: Seq[Prop]) = {
-    Model withTx { implicit session =>
+    Schema withTx { implicit session =>
       val labelOpt = Label.findByName(labelStr)
       val label = labelOpt.getOrElse(throw LabelNotExistException(s"$labelStr not found"))
 
@@ -251,7 +251,7 @@ object Management {
    * update label name.
    */
   def updateLabelName(oldLabelName: String, newLabelName: String) = {
-    Model withTx { implicit session =>
+    Schema withTx { implicit session =>
       for {
         old <- Label.findByName(oldLabelName, useCache = false)
       } {
@@ -269,7 +269,7 @@ object Management {
    * swap label names.
    */
   def swapLabelNames(leftLabel: String, rightLabel: String) = {
-    Model withTx { implicit session =>
+    Schema withTx { implicit session =>
       val tempLabel = "_" + leftLabel + "_"
       Label.updateName(leftLabel, tempLabel)
       Label.updateName(rightLabel, leftLabel)
@@ -338,7 +338,7 @@ class Management(graph: S2GraphLike) {
                     preSplitSize: Int, hTableTTL: Option[Int],
                     compressionAlgorithm: String = DefaultCompressionAlgorithm): Try[Service] = {
 
-    Model withTx { implicit session =>
+    Schema withTx { implicit session =>
       val service = Service.findOrInsert(serviceName, cluster, hTableName, preSplitSize, hTableTTL.orElse(Some(Integer.MAX_VALUE)), compressionAlgorithm, useCache = false)
       val config = toConfig(Map(
         ZookeeperQuorum -> service.cluster,
@@ -366,7 +366,7 @@ class Management(graph: S2GraphLike) {
                           props: Seq[Prop],
                           schemaVersion: String = DEFAULT_VERSION): ServiceColumn = {
 
-    val serviceColumnTry = Model withTx { implicit session =>
+    val serviceColumnTry = Schema withTx { implicit session =>
       val serviceOpt = Service.findByName(serviceName, useCache = false)
       serviceOpt match {
         case None => throw new RuntimeException(s"create service $serviceName has not been created.")
@@ -432,7 +432,7 @@ class Management(graph: S2GraphLike) {
     if (hTableName.isEmpty && hTableTTL.isDefined) throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
 
     val labelOpt = Label.findByName(label, useCache = false)
-    Model withTx { implicit session =>
+    Schema withTx { implicit session =>
       if (labelOpt.isDefined) throw new LabelAlreadyExistException(s"Label name ${label} already exist.")
 
       /* create all models */

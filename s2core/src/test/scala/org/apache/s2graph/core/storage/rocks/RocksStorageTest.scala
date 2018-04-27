@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.storage.rocks
 
 import org.apache.s2graph.core.TestCommonWithModels
-import org.apache.s2graph.core.mysqls.{Service, ServiceColumn}
+import org.apache.s2graph.core.schema.{Service, ServiceColumn}
 import org.apache.tinkerpop.gremlin.structure.T
 import org.scalatest.{FunSuite, Matchers}
 

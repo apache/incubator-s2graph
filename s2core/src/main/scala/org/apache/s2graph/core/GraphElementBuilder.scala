@@ -22,7 +22,7 @@ package org.apache.s2graph.core
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.JSONParser.{fromJsonToProperties, toInnerVal}
 import org.apache.s2graph.core.S2Graph.{DefaultColumnName, DefaultServiceName}
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.structure.T

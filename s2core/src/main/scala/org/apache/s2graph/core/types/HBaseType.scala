@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.types
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.schema.LabelMeta
 
 object HBaseType {
   val VERSION4 = "v4"

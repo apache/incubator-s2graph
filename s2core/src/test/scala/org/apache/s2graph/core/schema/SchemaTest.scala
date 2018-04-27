@@ -17,13 +17,14 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.models
+package org.apache.s2graph.core.schema
 
 import org.apache.s2graph.core.TestCommonWithModels
-import org.apache.s2graph.core.mysqls.Label
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
-class ModelTest extends FunSuite with Matchers with TestCommonWithModels with BeforeAndAfterAll {
+import scala.concurrent.ExecutionContext
+
+class SchemaTest extends FunSuite with Matchers with TestCommonWithModels with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
     initTests()
   }
@@ -55,5 +56,22 @@ class ModelTest extends FunSuite with Matchers with TestCommonWithModels with Be
     println(srcColumn)
     val tgtColumn = labelOpt.get.tgtService
     println(tgtColumn)
+  }
+
+  test("serialize/deserialize Schema.") {
+    import scala.collection.JavaConverters._
+    val originalMap = Schema.safeUpdateCache.asMap().asScala
+    val newCache = Schema.fromBytes(config, Schema.toBytes())(ExecutionContext.Implicits.global)
+    val newMap = newCache.asMap().asScala
+
+    originalMap.size shouldBe newMap.size
+    originalMap.keySet shouldBe newMap.keySet
+
+    originalMap.keySet.foreach { key =>
+      val (originalVal, _, _) = originalMap(key)
+      val (newVal, _, _) = newMap(key)
+
+      originalVal shouldBe newVal
+    }
   }
 }

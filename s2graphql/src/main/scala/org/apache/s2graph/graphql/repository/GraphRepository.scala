@@ -21,7 +21,7 @@ package org.apache.s2graph.graphql.repository
 
 import org.apache.s2graph.core.Management.JsonModel._
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.storage.MutateResponse
 import org.apache.s2graph.core.types._

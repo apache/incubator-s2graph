@@ -21,7 +21,7 @@ package org.apache.s2graph.graphql.types
 
 import org.apache.s2graph.core.Management.JsonModel._
 import org.apache.s2graph.core.{JSONParser, S2EdgeLike, S2VertexLike}
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.storage.MutateResponse
 import org.apache.s2graph.graphql.repository.GraphRepository
 import sangria.macros.derive._

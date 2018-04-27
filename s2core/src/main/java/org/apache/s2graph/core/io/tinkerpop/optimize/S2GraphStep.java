@@ -21,24 +21,15 @@ package org.apache.s2graph.core.io.tinkerpop.optimize;
 
 
 import org.apache.s2graph.core.EdgeId;
-import org.apache.s2graph.core.QueryParam;
 import org.apache.s2graph.core.S2Graph;
-import org.apache.s2graph.core.index.IndexProvider;
-import org.apache.s2graph.core.index.IndexProvider$;
-import org.apache.s2graph.core.mysqls.Label;
 import org.apache.s2graph.core.types.VertexId;
-import org.apache.s2graph.core.utils.logger;
-import org.apache.tinkerpop.gremlin.process.traversal.Order;
 import org.apache.tinkerpop.gremlin.process.traversal.Step;
-import org.apache.tinkerpop.gremlin.process.traversal.step.HasContainerHolder;
-import org.apache.tinkerpop.gremlin.process.traversal.step.Profiling;
 import org.apache.tinkerpop.gremlin.process.traversal.step.filter.HasStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GraphStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.NoOpBarrierStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.IdentityStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer;
 import org.apache.tinkerpop.gremlin.structure.Element;
-import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;

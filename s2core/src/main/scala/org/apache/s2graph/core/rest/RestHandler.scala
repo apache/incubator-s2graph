@@ -24,7 +24,7 @@ import java.net.URL
 import org.apache.s2graph.core.GraphExceptions.{BadQueryException, LabelNotExistException}
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{Bucket, Experiment, Service}
+import org.apache.s2graph.core.schema.{Bucket, Experiment, Service}
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json._
 

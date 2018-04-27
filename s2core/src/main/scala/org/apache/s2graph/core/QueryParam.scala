@@ -23,7 +23,7 @@ import com.google.common.hash.Hashing
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.DuplicatePolicy.DuplicatePolicy
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
-import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
+import org.apache.s2graph.core.schema.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.rest.TemplateHelper
 import org.apache.s2graph.core.storage.serde.StorageSerializable._

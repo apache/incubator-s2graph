@@ -20,7 +20,7 @@
 package org.apache.s2graph.core
 
 
-import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.schema.LabelMeta
 import org.apache.s2graph.core.types.{CanInnerValLike, InnerValLikeWithTs, VertexId}
 import org.apache.tinkerpop.gremlin.structure.Graph.Features
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper

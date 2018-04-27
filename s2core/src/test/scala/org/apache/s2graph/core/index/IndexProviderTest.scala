@@ -23,7 +23,7 @@ import org.apache.s2graph.core.Integrate.IntegrateCommon
 import org.apache.s2graph.core._
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
 import org.apache.tinkerpop.gremlin.process.traversal.{Order, P}
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
 import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalHelper
 import org.apache.tinkerpop.gremlin.structure.T
@@ -34,6 +34,7 @@ import scala.concurrent.duration._
 
 class IndexProviderTest extends IntegrateCommon {
   import scala.concurrent.ExecutionContext.Implicits.global
+  import IndexProvider._
   val indexProvider = IndexProvider(config)
   val numOfTry = 1
 
@@ -77,9 +78,9 @@ class IndexProviderTest extends IntegrateCommon {
 
     (0 until numOfTry).foreach { ith =>
 //      val hasContainer = new HasContainer(indexPropsColumnMeta.name, P.eq(Long.box(1)))
-      val hasContainer = new HasContainer(GlobalIndex.serviceColumnField, P.eq(testColumn.columnName))
+      val hasContainer = new HasContainer(serviceColumnField, P.eq(testColumn.columnName))
 
-      val f = graph.searchVertices(VertexQueryParam(0, 100, Option(s"${GlobalIndex.serviceColumnField}:${testColumn.columnName}")))
+      val f = graph.searchVertices(VertexQueryParam(0, 100, Option(s"${serviceColumnField}:${testColumn.columnName}")))
       val a = Await.result(f, Duration("60 sec"))
       println(a)
 

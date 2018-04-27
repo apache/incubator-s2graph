@@ -22,7 +22,7 @@ package org.apache.s2graph.core
 import java.util.function.BiConsumer
 
 import org.apache.s2graph.core.S2Edge.Props
-import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.schema.LabelMeta
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
 import org.apache.tinkerpop.gremlin.structure.Property
 

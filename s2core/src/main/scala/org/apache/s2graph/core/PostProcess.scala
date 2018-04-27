@@ -23,7 +23,7 @@ import java.util.Base64
 
 import com.google.protobuf.ByteString
 import org.apache.s2graph.core.GraphExceptions.{BadQueryException, LabelNotExistException}
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.S2Graph.{FilterHashKey, HashKey}

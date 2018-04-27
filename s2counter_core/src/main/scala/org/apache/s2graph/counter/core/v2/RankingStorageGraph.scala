@@ -24,7 +24,7 @@ import akka.stream.ActorMaterializer
 import com.typesafe.config.Config
 import org.apache.commons.httpclient.HttpStatus
 import org.apache.s2graph.core.GraphUtil
-import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.schema.Label
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.core.RankingCounter.RankingValueMap
 import org.apache.s2graph.counter.core.v2.ExactStorageGraph._

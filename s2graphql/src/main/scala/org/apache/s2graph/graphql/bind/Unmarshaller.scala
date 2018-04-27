@@ -20,8 +20,8 @@
 package org.apache.s2graph.graphql.bind
 
 import org.apache.s2graph.core.Management.JsonModel._
-import org.apache.s2graph.core.mysqls.{Label, ServiceColumn}
-import org.apache.s2graph.core.{QueryParam, S2EdgeLike, S2VertexLike}
+import org.apache.s2graph.core.schema.ServiceColumn
+import org.apache.s2graph.core.{S2EdgeLike, S2VertexLike}
 import org.apache.s2graph.graphql.repository.GraphRepository
 import org.apache.s2graph.graphql.types.S2Type._
 import sangria.marshalling._

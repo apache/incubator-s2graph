@@ -22,7 +22,7 @@ package org.apache.s2graph.core
 import java.util
 
 import org.apache.s2graph.core.S2Graph.{FilterHashKey, HashKey}
-import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.schema.LabelMeta
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, LabelWithDirection, VertexId}
 import org.apache.s2graph.core.utils.{Extensions, logger}
 import org.apache.tinkerpop.gremlin.structure.Edge

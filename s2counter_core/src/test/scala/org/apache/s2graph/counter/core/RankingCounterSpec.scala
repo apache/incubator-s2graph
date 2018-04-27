@@ -20,7 +20,7 @@
 package org.apache.s2graph.counter.core
 
 import com.typesafe.config.ConfigFactory
-import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.schema.Label
 import org.apache.s2graph.core.{Management, S2Graph, S2Graph$}
 import org.apache.s2graph.counter.config.S2CounterConfig
 import org.apache.s2graph.counter.core.TimedQualifier.IntervalUnit
