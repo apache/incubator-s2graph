@@ -17,10 +17,15 @@ object AnnoyModelFetcher {
   val DimensionKey = "annoyIndexDimension"
   val IndexTypeKey = "annoyIndexType"
 
-  def loadDictFromLocal(file: File): Array[String] = {
-    Source.fromFile(file).getLines().map { line =>
-      line.stripMargin
-    }.toArray
+  def loadDictFromLocal(file: File): Map[Int, String] = {
+    Source.fromFile(file).getLines().zipWithIndex.map { case (line, _idx) =>
+      val tokens = line.stripMargin.split("\t")
+      if (tokens.length < 2) {
+        (_idx + 1, tokens.head)
+      } else {
+        (tokens.head.toInt, tokens.tail.head)
+      }
+    }.toMap
   }
 
   def buildIndex(config: Config): ANNIndexWithDict = {
@@ -36,8 +41,8 @@ object AnnoyModelFetcher {
   }
 }
 
-case class ANNIndexWithDict(index: ANNIndex, dict: Array[String]) {
-  val dictRev = dict.zipWithIndex.toMap
+case class ANNIndexWithDict(index: ANNIndex, dict: Map[Int, String]) {
+  val dictRev = dict.map(kv => kv._2 -> kv._1)
 }
 
 class AnnoyModelFetcher(val graph: S2GraphLike) extends Fetcher {

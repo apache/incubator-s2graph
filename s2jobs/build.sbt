@@ -32,12 +32,15 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % spark2Version,
   "org.apache.spark" %% "spark-streaming" % spark2Version % "provided",
   "org.apache.spark" %% "spark-hive" % spark2Version % "provided",
+  "org.apache.spark" %% "spark-mllib" % spark2Version,
   "org.specs2" %% "specs2-core" % specs2Version % "test",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test",
   "org.apache.hadoop" % "hadoop-distcp" % hadoopVersion,
   "org.elasticsearch" % "elasticsearch-spark-20_2.11" % elastic4sVersion,
   "com.github.scopt" %% "scopt" % "3.7.0",
-  "com.holdenkarau" %% "spark-testing-base" % "2.3.0_0.9.0" % Test
+  "com.holdenkarau" %% "spark-testing-base" % "2.3.0_0.9.0" % Test,
+  "net.pishen" %% "annoy4s" % annoy4sVersion,
+  "org.tensorflow" % "tensorflow" % tensorflowVersion
 )
 
 crossScalaVersions := Seq("2.10.6")

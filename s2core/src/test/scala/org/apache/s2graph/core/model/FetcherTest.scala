@@ -135,7 +135,7 @@ class FetcherTest extends IntegrateCommon{
     val stepResult = Await.result(graph.getEdges(query), Duration("60 seconds"))
 
     stepResult.edgeWithScores.foreach { es =>
-      println(es.edge)
+      println(es.edge.tgtVertex.innerIdVal)
     }
 
     FileUtils.deleteQuietly(new File(localIndexFilePath))
