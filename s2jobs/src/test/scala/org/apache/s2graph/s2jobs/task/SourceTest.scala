@@ -113,7 +113,7 @@ class SourceTest extends BaseSparkTest {
     inputEdges shouldBe outputEdges
   }
 
-  ignore("S2GraphSource vertex toDF") {
+  test("S2GraphSource vertex toDF") {
     val column = initTestVertexSchema(s2)
 
     val label = initTestEdgeSchema(s2, tableName, schemaVersion, compressionAlgorithm)
