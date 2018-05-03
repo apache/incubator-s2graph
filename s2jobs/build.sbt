@@ -59,6 +59,10 @@ assemblyShadeRules in assembly := Seq(
   ShadeRule.rename("com.google.protobuf.**" -> "org.apache.s2graph.shade.google.protobuf.@1").inAll
 )
 
+projectDependencies := Seq(
+  (projectID in "s2core").value exclude("org.mortbay.jetty", "j*") exclude("javax.xml.stream", "s*") exclude("javax.servlet", "s*") exclude("net.jpountz.lz4", "lz4")
+)
+
 test in assembly := {}
 
 parallelExecution in Test := false
