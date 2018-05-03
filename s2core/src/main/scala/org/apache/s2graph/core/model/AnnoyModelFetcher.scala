@@ -18,12 +18,25 @@ object AnnoyModelFetcher {
   val IndexTypeKey = "annoyIndexType"
 
   def loadDictFromLocal(file: File): Map[Int, String] = {
-    Source.fromFile(file).getLines().zipWithIndex.map { case (line, _idx) =>
-      val tokens = line.stripMargin.split("\t")
-      if (tokens.length < 2) {
-        (_idx + 1, tokens.head)
-      } else {
-        (tokens.head.toInt, tokens.tail.head)
+    val files = if (file.isDirectory) {
+      file.listFiles()
+    } else {
+      Array(file)
+    }
+
+    files.flatMap { file =>
+      Source.fromFile(file).getLines().zipWithIndex.flatMap { case (line, _idx) =>
+        val tokens = line.stripMargin.split(",")
+        try {
+          val tpl = if (tokens.length < 2) {
+            (_idx + 1, tokens.head)
+          } else {
+            (tokens.head.toInt, tokens.tail.head)
+          }
+          Seq(tpl)
+        } catch {
+          case e: Exception => Nil
+        }
       }
     }.toMap
   }

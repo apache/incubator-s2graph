@@ -304,11 +304,11 @@ class Management(graph: S2GraphLike) {
 
   import Management._
 
-  def importModel(labelName: String): Future[Importer] = {
-    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
-    val config = label.toFetcherConfig.getOrElse {
-      throw new IllegalArgumentException(s"${label.label} is not importable since there is no configuration on label.")
-    }
+  def importModel(labelName: String, options: String): Future[Importer] = {
+    Label.updateOption(labelName, options)
+
+    val label = Label.findByName(labelName, false).getOrElse(throw new LabelNotExistException(labelName))
+    val config = ConfigFactory.parseString(options)
 
     graph.modelManager.importModel(label, config)(importEx)
   }

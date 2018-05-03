@@ -48,6 +48,8 @@ object ALSModelProcess {
     val annoyResultPath = conf.options("path")
     val numDimensions = conf.options.getOrElse("dimensions", "10").toInt
 
+    FileUtil.fullyDelete(new File(tempInputPath))
+
     saveFeatures(dataFrame, itemFactorsPath)
     copyToLocal(dataFrame.sparkSession.sparkContext.hadoopConfiguration, itemFactorsPath, tempInputPath)
 

@@ -115,6 +115,16 @@
         "itemCol": "movieId",
         "ratingCol": "rating"
       }
+    },
+    {
+      "name": "build_movie_dict",
+      "inputs": [
+        "movies"
+      ],
+      "type": "sql",
+      "options": {
+        "sql": "SELECT CAST(movieId as INT) as idx, CAST(movieId as INT) as movieId FROM movies"
+      }
     }
   ],
   "sink": [
@@ -153,6 +163,17 @@
       "options": {
         "itemFactors": "/tmp/itemFactors",
         "path": "/tmp/annoy_result"
+      }
+    },
+    {
+      "name": "dict_sink",
+      "inputs": [
+        "build_movie_dict"
+      ],
+      "type": "file",
+      "options": {
+        "format": "csv",
+        "path": "/tmp/annoy_dict"
       }
     }
   ]

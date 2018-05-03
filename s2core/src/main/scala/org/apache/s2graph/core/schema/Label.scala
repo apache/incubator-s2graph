@@ -259,6 +259,20 @@ object Label extends SQLSyntaxSupport[Label] {
     cnt
   }
 
+  def updateOption(labelName: String, options: String)(implicit session: DBSession = AutoSession) = {
+    scala.util.Try(Json.parse(options)).getOrElse(throw new RuntimeException("invalid Json option"))
+    logger.info(s"update options of label $labelName, ${options}")
+    val cnt = sql"""update labels set options = $options where label = $labelName""".update().apply()
+    val label = Label.findByName(labelName, useCache = false).get
+
+    val cacheKeys = List(s"id=${label.id.get}", s"label=${label.label}")
+    cacheKeys.foreach { key =>
+      expireCache(className + key)
+      expireCaches(className + key)
+    }
+    cnt
+  }
+
   def delete(id: Int)(implicit session: DBSession = AutoSession) = {
     val label = findById(id)
     logger.info(s"delete label: $label")
@@ -381,6 +395,7 @@ case class Label(id: Option[Int], label: String,
   def toFetcherConfig: Option[Config] = {
     Schema.toConfig(extraOptions, "fetcher")
   }
+
   def toStorageConfig: Option[Config] = {
     Schema.toConfig(extraOptions, "storage")
   }

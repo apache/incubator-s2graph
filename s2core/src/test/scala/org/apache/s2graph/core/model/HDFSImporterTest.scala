@@ -66,13 +66,19 @@ class HDFSImporterTest extends IntegrateCommon {
       -1,
       "v3",
       "gz",
-      options
+      ""
     )
+
+    Label.updateOption(label.label, options)
+
+    println("*" * 80)
+    println(Label.findByName(label.label, false).get.toFetcherConfig)
+
     val config = ConfigFactory.parseString(options)
     val importerFuture = graph.modelManager.importModel(label, config)(ExecutionContext.Implicits.global)
     Await.result(importerFuture, Duration("3 minutes"))
 
-    Thread.sleep(10000)
+    Thread.sleep(5000)
 
     val vertex = graph.elementBuilder.toVertex(service.serviceName, serviceColumn.columnName, "0")
     val queryParam = QueryParam(labelName = labelName, limit = 5)

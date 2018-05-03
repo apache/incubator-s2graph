@@ -63,8 +63,17 @@ object GraphQLServer {
 
   val schemaCache = new SafeUpdateCache(schemaConfig)
 
-  def endpoint(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Route = {
+  def importModel(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Route = {
+    val spray.json.JsObject(fields) = requestJSON
+    val spray.json.JsString(labelName) = fields("label")
+    val jsOptions = fields("options")
 
+    complete {
+      s2graph.management.importModel(labelName, jsOptions.compactPrint).map(a => OK -> JsString(""))
+    }
+  }
+
+  def endpoint(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Route = {
     val spray.json.JsObject(fields) = requestJSON
     val spray.json.JsString(query) = fields("query")
 

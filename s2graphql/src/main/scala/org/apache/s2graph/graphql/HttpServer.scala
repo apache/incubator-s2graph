@@ -44,6 +44,8 @@ object Server extends App {
 
   val route: Flow[HttpRequest, HttpResponse, Any] = (post & path("graphql")) {
     entity(as[spray.json.JsValue])(GraphQLServer.endpoint)
+  } ~ (post & path("importModel")) {
+    entity(as[spray.json.JsValue])(GraphQLServer.importModel)
   } ~ {
     getFromResource("assets/graphiql.html")
   }
