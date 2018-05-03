@@ -97,6 +97,10 @@ trait S2GraphLike extends Graph {
 
   def getFetcher(label: Label): Fetcher
 
+  def getMutator(label: Label): Mutator
+
+  def getMutator(column: ServiceColumn): Mutator
+
   def flushStorage(): Unit
 
   def shutdown(modelDataDelete: Boolean = false): Unit

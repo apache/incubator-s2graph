@@ -56,7 +56,8 @@ libraryDependencies ++= Seq(
   "com.sksamuel.elastic4s" %% "elastic4s-http" % elastic4sVersion excludeLogging(),
   "com.sksamuel.elastic4s" %% "elastic4s-embedded" % elastic4sVersion excludeLogging(),
   "org.scala-lang.modules" %% "scala-pickling" % "0.10.1",
-  "com.spotify" % "annoy" % "0.2.5"
+  "com.spotify" % "annoy" % "0.2.5",
+  "org.tensorflow" % "tensorflow" % tensorflowVersion
 )
 
 libraryDependencies := {

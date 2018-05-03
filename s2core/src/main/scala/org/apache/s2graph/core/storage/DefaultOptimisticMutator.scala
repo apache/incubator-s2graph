@@ -1,40 +1,21 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+package org.apache.s2graph.core.storage
 
-package org.apache.s2graph.core.storage.serde
-
-import org.apache.s2graph.core.schema.LabelMeta
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.storage._
+import org.apache.s2graph.core.schema.LabelMeta
 import org.apache.s2graph.core.utils.logger
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class MutationHelper(storage: Storage) {
-  val serDe = storage.serDe
-  val io = storage.io
-  val fetcher = storage.reader
-  val mutator = storage.mutator
-  val conflictResolver = storage.conflictResolver
+abstract class DefaultOptimisticMutator(graph: S2GraphLike,
+                                        serDe: StorageSerDe,
+                                        reader: StorageReadable) extends OptimisticMutator {
+  val fetcher = reader
 
-  private def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] =
-    mutator.writeToStorage(cluster, kvs, withWait)
+  lazy val io: StorageIO = new StorageIO(graph, serDe)
+  lazy val conflictResolver: WriteWriteConflictResolver = new WriteWriteConflictResolver(graph, serDe, io, this, reader)
+
+//  private def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] =
+//    mutator.writeToStorage(cluster, kvs, withWait)
 
   def deleteAllFetchedEdgesAsyncOld(stepInnerResult: StepResult,
                                     requestTs: Long,
@@ -93,7 +74,7 @@ class MutationHelper(storage: Storage) {
 
       val (bufferIncr, nonBufferIncr) = io.increments(edgeUpdate.deepCopy)
 
-      if (bufferIncr.nonEmpty) storage.writeToStorage(zkQuorum, bufferIncr, withWait = false)
+      if (bufferIncr.nonEmpty) writeToStorage(zkQuorum, bufferIncr, withWait = false)
       io.buildVertexPutsAsync(edge) ++ io.indexedEdgeMutations(edgeUpdate.deepCopy) ++ io.snapshotEdgeMutations(edgeUpdate.deepCopy) ++ nonBufferIncr
     }
 
@@ -152,7 +133,7 @@ class MutationHelper(storage: Storage) {
       }
 
       val composed = for {
-      //        deleteRet <- Future.sequence(deleteAllFutures)
+        //        deleteRet <- Future.sequence(deleteAllFutures)
         mutateRet <- Future.sequence(mutateEdgeFutures)
       } yield mutateRet
 
@@ -185,6 +166,6 @@ class MutationHelper(storage: Storage) {
   def updateDegree(zkQuorum: String, edge: S2EdgeLike, degreeVal: Long = 0)(implicit ec: ExecutionContext): Future[MutateResponse] = {
     val kvs = io.buildDegreePuts(edge, degreeVal)
 
-    mutator.writeToStorage(zkQuorum, kvs, withWait = true)
+    writeToStorage(zkQuorum, kvs, withWait = true)
   }
 }

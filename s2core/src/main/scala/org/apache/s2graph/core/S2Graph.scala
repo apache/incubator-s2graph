@@ -260,6 +260,15 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     else getStorage(label).reader
   }
 
+  override def getMutator(column: ServiceColumn): Mutator = {
+    getStorage(column.service).mutator
+  }
+
+  override def getMutator(label: Label): Mutator = {
+    getStorage(label).mutator
+  }
+
+  //TODO:
   override def flushStorage(): Unit = {
     storagePool.foreach { case (_, storage) =>
 
@@ -315,7 +324,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     def mutateVertices(storage: Storage)(zkQuorum: String, vertices: Seq[S2VertexLike],
                                          withWait: Boolean = false): Future[Seq[MutateResponse]] = {
       val futures = vertices.map { vertex =>
-        storage.mutateVertex(zkQuorum, vertex, withWait)
+        getMutator(vertex.serviceColumn).mutateVertex(zkQuorum, vertex, withWait)
       }
       Future.sequence(futures)
     }
@@ -342,12 +351,12 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
 
     val weakEdgesFutures = weakEdges.groupBy { case (edge, idx) => edge.innerLabel.hbaseZkAddr }.map { case (zkQuorum, edgeWithIdxs) =>
       val futures = edgeWithIdxs.groupBy(_._1.innerLabel).map { case (label, edgeGroup) =>
-        val storage = getStorage(label)
+        val mutator = getMutator(label)
         val edges = edgeGroup.map(_._1)
         val idxs = edgeGroup.map(_._2)
 
         /* multiple edges with weak consistency level will be processed as batch */
-        storage.mutateWeakEdges(zkQuorum, edges, withWait)
+        mutator.mutateWeakEdges(zkQuorum, edges, withWait)
       }
       Future.sequence(futures)
     }
@@ -360,9 +369,10 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     val strongEdgesFutures = strongEdgesAll.groupBy { case (edge, idx) => edge.innerLabel }.map { case (label, edgeGroup) =>
       val edges = edgeGroup.map(_._1)
       val idxs = edgeGroup.map(_._2)
-      val storage = getStorage(label)
+      val mutator = getMutator(label)
       val zkQuorum = label.hbaseZkAddr
-      storage.mutateStrongEdges(zkQuorum, edges, withWait = true).map { rets =>
+
+      mutator.mutateStrongEdges(zkQuorum, edges, withWait = true).map { rets =>
         idxs.zip(rets)
       }
     }
@@ -487,7 +497,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
   override def incrementCounts(edges: Seq[S2EdgeLike], withWait: Boolean): Future[Seq[MutateResponse]] = {
     val edgesWithIdx = edges.zipWithIndex
     val futures = edgesWithIdx.groupBy { case (e, idx) => e.innerLabel }.map { case (label, edgeGroup) =>
-      getStorage(label).incrementCounts(label.hbaseZkAddr, edgeGroup.map(_._1), withWait).map(_.zip(edgeGroup.map(_._2)))
+      getMutator(label).incrementCounts(label.hbaseZkAddr, edgeGroup.map(_._1), withWait).map(_.zip(edgeGroup.map(_._2)))
     }
 
     Future.sequence(futures).map { ls =>
@@ -497,9 +507,9 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
 
   override def updateDegree(edge: S2EdgeLike, degreeVal: Long = 0): Future[MutateResponse] = {
     val label = edge.innerLabel
-    val storage = getStorage(label)
+    val mutator = getMutator(label)
 
-    storage.updateDegree(label.hbaseZkAddr, edge, degreeVal)
+    mutator.updateDegree(label.hbaseZkAddr, edge, degreeVal)
   }
 
   override def getVertex(vertexId: VertexId): Option[S2VertexLike] = {

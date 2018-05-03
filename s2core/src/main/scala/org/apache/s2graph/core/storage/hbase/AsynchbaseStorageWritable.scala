@@ -20,14 +20,19 @@
 package org.apache.s2graph.core.storage.hbase
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.storage.{IncrementResponse, MutateResponse, SKeyValue, StorageWritable}
+import org.apache.s2graph.core.S2GraphLike
+import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.utils.{Extensions, logger}
 import org.hbase.async.{AtomicIncrementRequest, DeleteRequest, HBaseClient, PutRequest}
+
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{ExecutionContext, Future}
 
-class AsynchbaseStorageWritable(val client: HBaseClient,
-                                val clientWithFlush: HBaseClient) extends StorageWritable {
+class AsynchbaseStorageWritable(val graph: S2GraphLike,
+                                val serDe: StorageSerDe,
+                                val reader: StorageReadable,
+                                val client: HBaseClient,
+                                val clientWithFlush: HBaseClient) extends DefaultOptimisticMutator(graph, serDe, reader) {
   import Extensions.DeferOps
 
   private def client(withWait: Boolean): HBaseClient = if (withWait) clientWithFlush else client
