@@ -56,7 +56,7 @@
       ],
       "type": "sql",
       "options": {
-        "sql": "SELECT \n(unix_timestamp() * 1000) as timestamp, \n'v' as elem, \nCAST(movieId AS LONG) AS id, \n'movielens' as service, \n'Movie' as column, \nto_json(\nnamed_struct(\n 'title', title, \n 'genres', genres\n)\n) as props \nFROM movies \nWHERE movieId != 'movieId'"
+        "sql": "SELECT \n(unix_timestamp() * 1000) as timestamp, \n'v' as elem, \nCAST(movieId AS INT) AS id, \n'movielens' as service, \n'Movie' as column, \nto_json(\nnamed_struct(\n 'title', title, \n 'genres', genres\n)\n) as props \nFROM movies \nWHERE movieId != 'movieId'"
       }
     },
     {
@@ -66,7 +66,7 @@
       ],
       "type": "sql",
       "options": {
-        "sql": "SELECT \nCAST(timestamp AS LONG) * 1000 AS timestamp, \n'e' as elem, \nCAST(userId AS LONG) as `from`, \nCAST(movieId AS LONG) as to, \n'rated' as label, \nto_json(\nnamed_struct(\n 'score', CAST(rating as float)\n)\n) as props \nFROM ratings \nWHERE userId != 'userId'"
+        "sql": "SELECT \nCAST(timestamp AS LONG) * 1000 AS timestamp, \n'e' as elem, \nCAST(userId AS INT) as `from`, \nCAST(movieId AS INT) as to, \n'rated' as label, \nto_json(\nnamed_struct(\n 'score', CAST(rating as float)\n)\n) as props \nFROM ratings \nWHERE userId != 'userId'"
       }
     },
     {
@@ -76,7 +76,7 @@
       ],
       "type": "sql",
       "options": {
-        "sql": "SELECT \nCAST(timestamp AS LONG) * 1000 AS timestamp, \n'e' as elem, \nCAST(userId AS LONG) as `from`, \nCAST(movieId AS LONG) as to, \n'tagged' as label, \nto_json(\nnamed_struct('tag', tag)\n) as props \nFROM tags \nWHERE userId != 'userId'"
+        "sql": "SELECT \nCAST(timestamp AS LONG) * 1000 AS timestamp, \n'e' as elem, \nCAST(userId AS INT) as `from`, \nCAST(movieId AS INT) as to, \n'tagged' as label, \nto_json(\nnamed_struct('tag', tag)\n) as props \nFROM tags \nWHERE userId != 'userId'"
       }
     },
     {
@@ -88,6 +88,32 @@
       "type": "sql",
       "options": {
         "sql": "SELECT * FROM edge_rated UNION SELECT * FROM edge_tagged"
+      }
+    },
+    {
+      "name": "build_als_input",
+      "inputs": [
+        "edge_rated"
+      ],
+      "type": "sql",
+      "options": {
+        "sql": "SELECT \n`from` as userId, `to` as movieId, 1.0 as rating FROM edge_rated"
+      }
+    },
+    {
+      "name": "factorize_rating",
+      "inputs": [
+        "build_als_input"
+      ],
+      "type": "custom",
+      "options": {
+        "class": "org.apache.s2graph.s2jobs.task.custom.process.ALSModelProcess",
+        "rank": "10",
+        "maxIter": "5",
+        "regParam": "0.01",
+        "userCol": "userId",
+        "itemCol": "movieId",
+        "ratingCol": "rating"
       }
     }
   ],
@@ -116,6 +142,17 @@
         "db.default.url": "jdbc:h2:tcp://localhost/./var/metastore;MODE=MYSQL",
         "s2.spark.sql.streaming.sink.grouped.size": "10",
         "s2.spark.sql.streaming.sink.wait.time": "10"
+      }
+    },
+    {
+      "name": "annoy_index_build",
+      "inputs": [
+        "factorize_rating"
+      ],
+      "type": "annoy",
+      "options": {
+        "itemFactors": "/tmp/itemFactors",
+        "path": "/tmp/annoy_result"
       }
     }
   ]

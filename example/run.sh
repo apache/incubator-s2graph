@@ -41,3 +41,6 @@ q "Finally, we import example data to service"
 sh ./import_data.sh $SERVICE
 [ $? -ne 0 ] && { exit -1; }
 
+#q "Run ML Model into S2Graph by importing Model."
+#sh ./import_model.sh $SERVICE
+#[ $? -ne 0 ] && { exit -1; }

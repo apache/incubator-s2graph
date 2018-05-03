@@ -21,6 +21,7 @@ package org.apache.s2graph.s2jobs
 
 import play.api.libs.json.{JsValue, Json}
 import org.apache.s2graph.s2jobs.task._
+import org.apache.s2graph.s2jobs.task.custom.process.AnnoyIndexBuildSink
 
 case class JobDescription(
                            name:String,
@@ -65,7 +66,7 @@ object JobDescription extends Logger {
             logger.debug(s"custom class init.. $customClass")
 
             Class.forName(customClass)
-              .getConstructor(TaskConf.getClass)
+              .getConstructor(classOf[TaskConf])
               .newInstance(conf)
               .asInstanceOf[task.Process]
 
@@ -82,6 +83,7 @@ object JobDescription extends Logger {
       case "file" => new FileSink(jobName, conf)
       case "es" => new ESSink(jobName, conf)
       case "s2graph" => new S2GraphSink(jobName, conf)
+      case "annoy" => new AnnoyIndexBuildSink(jobName, conf)
       case _ => throw new IllegalArgumentException(s"unsupported sink type : ${conf.`type`}")
     }
 
