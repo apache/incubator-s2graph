@@ -59,7 +59,6 @@ class ModelManager(s2GraphLike: S2GraphLike) {
 
             initFetcher(config.getConfig("fetcher")).map { fetcher =>
               importer.setStatus(true)
-              Label.updateOption(label.label, "")
 
               fetcherPool
                 .remove(k)
