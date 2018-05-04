@@ -33,6 +33,8 @@ object Common {
 
   val KafkaVersion = "0.10.2.1"
 
+  val rocksVersion = "5.11.3"
+
   val annoy4sVersion = "0.6.0"
 
   val tensorflowVersion = "1.7.0"

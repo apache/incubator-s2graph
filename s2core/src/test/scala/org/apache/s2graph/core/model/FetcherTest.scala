@@ -6,6 +6,7 @@ import com.typesafe.config.ConfigFactory
 import org.apache.commons.io.FileUtils
 import org.apache.s2graph.core.Integrate.IntegrateCommon
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
+import org.apache.s2graph.core.model.annoy.AnnoyModelFetcher
 import org.apache.s2graph.core.schema.Label
 import org.apache.s2graph.core.{Query, QueryParam}
 
@@ -98,7 +99,7 @@ class FetcherTest extends IntegrateCommon{
                      |   }]
                      | },
                      | "fetcher": {
-                     |   "${ModelManager.FetcherClassNameKey}": "org.apache.s2graph.core.model.AnnoyModelFetcher",
+                     |   "${ModelManager.FetcherClassNameKey}": "org.apache.s2graph.core.model.annoy.AnnoyModelFetcher",
                      |   "${AnnoyModelFetcher.IndexFilePathKey}": "${localIndexFilePath}",
                      |   "${AnnoyModelFetcher.DictFilePathKey}": "${localDictFilePath}",
                      |   "${AnnoyModelFetcher.DimensionKey}": 10

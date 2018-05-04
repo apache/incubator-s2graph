@@ -8,7 +8,7 @@ import org.apache.commons.io.FileUtils
 import org.apache.s2graph.core.Integrate.IntegrateCommon
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.{Query, QueryParam}
-import org.apache.s2graph.core.model.{ANNIndexWithDict, AnnoyModelFetcher, HDFSImporter, ModelManager}
+import org.apache.s2graph.core.model.{ANNIndexWithDict, HDFSImporter, ModelManager}
 import org.apache.s2graph.core.schema.Label
 import org.apache.s2graph.s2jobs.task.TaskConf
 
@@ -57,7 +57,7 @@ class ALSModelProcessTest extends IntegrateCommon with DataFrameSuiteBase {
 //                     |   "${ModelManager.ImporterClassNameKey}": "org.apache.s2graph.core.model.IdentityImporter"
 //                     | },
 //                     | "fetcher": {
-//                     |   "${ModelManager.FetcherClassNameKey}": "org.apache.s2graph.core.model.AnnoyModelFetcher",
+//                     |   "${ModelManager.FetcherClassNameKey}": "org.apache.s2graph.core.model.annoy.AnnoyModelFetcher",
 //                     |   "${AnnoyModelFetcher.IndexFilePathKey}": "${remoteIndexFilePath}",
 //                     |   "${AnnoyModelFetcher.DictFilePathKey}": "${remoteDictFilePath}",
 //                     |   "${AnnoyModelFetcher.DimensionKey}": 10
@@ -107,7 +107,7 @@ class ALSModelProcessTest extends IntegrateCommon with DataFrameSuiteBase {
                      |   "${ModelManager.ImporterClassNameKey}": "org.apache.s2graph.core.model.IdentityImporter"
                      | },
                      | "fetcher": {
-                     |   "${ModelManager.FetcherClassNameKey}": "org.apache.s2graph.core.model.AnnoyModelFetcher",
+                     |   "${ModelManager.FetcherClassNameKey}": "org.apache.s2graph.core.model.annoy.AnnoyModelFetcher",
                      |   "${AnnoyModelFetcher.IndexFilePathKey}": "${indexPath}",
                      |   "${AnnoyModelFetcher.DictFilePathKey}": "${dictPath}",
                      |   "${AnnoyModelFetcher.DimensionKey}": 10

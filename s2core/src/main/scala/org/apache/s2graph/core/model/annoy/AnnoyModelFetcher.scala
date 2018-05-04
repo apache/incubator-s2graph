@@ -1,10 +1,9 @@
-package org.apache.s2graph.core.model
+package org.apache.s2graph.core.model.annoy
 
 import annoy4s.Converters.KeyConverter
 import annoy4s._
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.model.AnnoyModelFetcher.IndexFilePathKey
 import org.apache.s2graph.core.types.VertexId
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -70,6 +69,8 @@ object AnnoyModelFetcher {
 //}
 
 class AnnoyModelFetcher(val graph: S2GraphLike) extends Fetcher {
+  import AnnoyModelFetcher._
+
   val builder = graph.elementBuilder
 
   //  var model: ANNIndexWithDict = _
@@ -95,28 +96,13 @@ class AnnoyModelFetcher(val graph: S2GraphLike) extends Fetcher {
         val tgtVertexId = builder.newVertexId(queryParam.label.service,
           queryParam.label.tgtColumnWithDir(queryParam.labelWithDir.dir), tgtId)
 
-        val edge = graph.toEdge(vertex.innerId.value, tgtVertexId.innerId.value, queryParam.labelName, queryParam.direction)
+        val props: Map[String, Any] = if (queryParam.label.metaPropsInvMap.contains("score")) Map("score" -> score) else Map.empty
+        val edge = graph.toEdge(vertex.innerId.value, tgtVertexId.innerId.value, queryParam.labelName, queryParam.direction, props = props)
 
         EdgeWithScore(edge, score, queryParam.label)
       }
 
       StepResult(edgeWithScores, Nil, Nil)
-      //
-      //      val srcIndexOpt = model.dictRev.get(vertex.innerId.toIdString())
-      //
-      //      srcIndexOpt.map { srcIdx =>
-      //        val srcVector = model.index.getItemVector(srcIdx)
-      //        val nns = model.index.getNearest(srcVector, queryParam.limit).asScala
-      //
-      //        val edges = nns.map { tgtIdx =>
-      //          val tgtVertexId = builder.newVertexId(queryParam.label.service,
-      //            queryParam.label.tgtColumnWithDir(queryParam.labelWithDir.dir), model.dict(tgtIdx))
-      //
-      //          graph.toEdge(vertex.innerId.value, tgtVertexId.innerId.value, queryParam.labelName, queryParam.direction)
-      //        }
-      //        val edgeWithScores = edges.map(e => EdgeWithScore(e, 1.0, queryParam.label))
-      //        StepResult(edgeWithScores, Nil, Nil)
-      //      }.getOrElse(StepResult.Empty)
     }
 
     Future.successful(stepResultLs)
@@ -124,5 +110,6 @@ class AnnoyModelFetcher(val graph: S2GraphLike) extends Fetcher {
 
   override def close(): Unit = {
     // do clean up
+    model.close
   }
 }
