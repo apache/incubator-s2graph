@@ -32,6 +32,7 @@ object Importer {
 
 trait Importer {
   @volatile var isFinished: Boolean = false
+
   def run(config: Config)(implicit ec: ExecutionContext): Future[Importer]
 
   def status: Boolean = isFinished
@@ -40,11 +41,10 @@ trait Importer {
     this.isFinished = otherStatus
     this.isFinished
   }
-//  def status: ImportStatus
 
-//  def getImportedStorage(graphExecutionContext: ExecutionContext): Storage[_, _]
   def close(): Unit
 }
+
 case class IdentityImporter(graph: S2GraphLike) extends Importer {
   override def run(config: Config)(implicit ec: ExecutionContext): Future[Importer] = {
     Future.successful(this)
@@ -52,8 +52,11 @@ case class IdentityImporter(graph: S2GraphLike) extends Importer {
 
   override def close(): Unit = {}
 }
+
 object HDFSImporter {
+
   import scala.collection.JavaConverters._
+
   val PathsKey = "paths"
   val HDFSConfDirKey = "hdfsConfDir"
 
@@ -66,6 +69,7 @@ object HDFSImporter {
     }.toMap
   }
 }
+
 case class HDFSImporter(graph: S2GraphLike) extends Importer {
 
   import HDFSImporter._
@@ -93,7 +97,7 @@ case class HDFSImporter(graph: S2GraphLike) extends Importer {
     }
   }
 
-//  override def status: ImportStatus = ???
+  //  override def status: ImportStatus = ???
 
   override def close(): Unit = {}
 }

@@ -14,23 +14,26 @@ class FastTextFetcherTest extends IntegrateCommon {
   import TestUtil._
 
   test("FastTextFetcher init test.") {
-    val modelPath = "/Users/shon/Downloads/emoji-context-by-story-comments-20170901-20180410"
+    val modelPath = "./emoji"
     val config = ConfigFactory.parseMap(Map(FastText.DBPathKey -> modelPath).asJava)
     val fetcher = new FastTextFetcher(graph)
     Await.ready(fetcher.init(config)(ExecutionContext.Implicits.global), Duration("3 minutes"))
 
     val service = management.createService("s2graph", "localhost", "s2graph_htable", -1, None).get
-    val serviceColumn =
-      management.createServiceColumn("s2graph", "keyword", "string", Seq(Prop("age", "0", "int", true)))
+    val emojiColumn =
+      management.createServiceColumn("s2graph", "emoji", "string", Seq(Prop("url", "", "string", false)))
 
-    val labelName = "fasttext_test_label"
+    val sentenceColumn =
+      management.createServiceColumn("s2graph", "sentence", "string", Nil)
+
+    val labelName = "sentence_emoji"
 
     Label.findByName(labelName, useCache = false).foreach { label => Label.delete(label.id.get) }
 
     val label = management.createLabel(
       labelName,
-      serviceColumn,
-      serviceColumn,
+      sentenceColumn ,
+      emojiColumn,
       true,
       service.serviceName,
       Seq.empty[Index].asJava,
@@ -42,18 +45,22 @@ class FastTextFetcherTest extends IntegrateCommon {
       "gz",
       ""
     )
-    val vertex = graph.elementBuilder.toVertex(service.serviceName, serviceColumn.columnName, "안녕하세요")
+    val vertex = graph.elementBuilder.toVertex(service.serviceName, sentenceColumn.columnName, "화났어")
     val queryParam = QueryParam(labelName = labelName, limit = 5)
 
     val query = Query.toQuery(srcVertices = Seq(vertex), queryParams = Seq(queryParam))
     val queryRequests = Seq(
       QueryRequest(query, 0, vertex, queryParam)
     )
+
     val future = fetcher.fetches(queryRequests, Map.empty)
     val results = Await.result(future, Duration("10 seconds"))
     results.foreach { stepResult =>
       stepResult.edgeWithScores.foreach { es =>
-        println(es.edge.tgtVertex.innerIdVal)
+        val Array(itemId, resourceId) = es.edge.tgtVertex.innerIdVal.toString.replace("__label__", "").split("_")
+        val text = String.format("http://item.kakaocdn.net/dw/%s.thum_%03d.png", itemId, Int.box(resourceId.toInt))
+
+        println(text)
       }
     }
   }

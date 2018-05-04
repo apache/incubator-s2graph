@@ -13,6 +13,7 @@ object ModelManager {
 }
 
 class ModelManager(s2GraphLike: S2GraphLike) {
+
   import ModelManager._
 
   private val fetcherPool = scala.collection.mutable.Map.empty[String, Fetcher]
@@ -37,7 +38,7 @@ class ModelManager(s2GraphLike: S2GraphLike) {
     val className = config.getString(FetcherClassNameKey)
 
     val fetcher = Class.forName(className)
-        .getConstructor(classOf[S2GraphLike])
+      .getConstructor(classOf[S2GraphLike])
       .newInstance(s2GraphLike)
       .asInstanceOf[Fetcher]
 
@@ -58,7 +59,7 @@ class ModelManager(s2GraphLike: S2GraphLike) {
 
             initFetcher(config.getConfig("fetcher")).map { fetcher =>
               importer.setStatus(true)
-
+              Label.updateOption(label.label, "")
 
               fetcherPool
                 .remove(k)
@@ -68,15 +69,13 @@ class ModelManager(s2GraphLike: S2GraphLike) {
                 }
 
               fetcherPool += (k -> fetcher)
-              true
             }
-
-            true
           }
           .onComplete { _ =>
             logger.info(s"ImportLock release: $k")
             ImportLock.remove(k)
           }
+
         importer
       }
     })
