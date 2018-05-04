@@ -188,6 +188,7 @@ class FastText(name: String) extends AutoCloseable {
 
   def close(): Unit = {
     handles.asScala.foreach(_.close())
+    dbOptions.close()
     db.close()
   }
 
