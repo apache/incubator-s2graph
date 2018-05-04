@@ -29,13 +29,13 @@ while IFS='' read -r line || [[ -n "$line" ]]; do
     info "$line"
 done < "$SERVICE/desc.md"
 
-q "First of all, we will check prerequisites"
-sh ./prepare.sh $SERVICE
-[ $? -ne 0 ] && { exit -1; }
-
-q "And now, we create vertex and edge schema using graphql"
-sh ./create_schema.sh $SERVICE
-[ $? -ne 0 ] && { exit -1; }
+#q "First of all, we will check prerequisites"
+#sh ./prepare.sh $SERVICE
+#[ $? -ne 0 ] && { exit -1; }
+#
+#q "And now, we create vertex and edge schema using graphql"
+#sh ./create_schema.sh $SERVICE
+#[ $? -ne 0 ] && { exit -1; }
 
 q "Finally, we import example data to service"
 sh ./import_data.sh $SERVICE

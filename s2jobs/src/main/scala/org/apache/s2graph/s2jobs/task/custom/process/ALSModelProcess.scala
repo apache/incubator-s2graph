@@ -2,18 +2,21 @@ package org.apache.s2graph.s2jobs.task.custom.process
 
 import java.io.File
 
-import annoy4s.{Angular, Annoy}
+import annoy4s._
+//import org.apache.spark.ml.nn.Annoy
+
+//import annoy4s.{Angular, Annoy}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, FileUtil, Path}
 import org.apache.s2graph.s2jobs.task.{Sink, TaskConf}
-import org.apache.spark.ml.recommendation.{ALS, ALSModel}
+import org.apache.spark.ml.recommendation.ALS
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 object ALSModelProcess {
 
   def runALS(ss: SparkSession,
-                      conf: TaskConf,
-                      dataFrame: DataFrame): DataFrame = {
+             conf: TaskConf,
+             dataFrame: DataFrame): DataFrame = {
     // als model params.
     val rank = conf.options.getOrElse("rank", "10").toInt
     val maxIter = conf.options.getOrElse("maxIter", "5").toInt
@@ -37,6 +40,17 @@ object ALSModelProcess {
     model.itemFactors
   }
 
+//  def buildAnnoyIndex(conf: TaskConf,
+//                      dataFrame: DataFrame): Unit = {
+//    val ann = new Annoy()
+//      .setNumTrees(2)
+//      .setFraction(0.1)
+//      .setIdCol("id")
+//      .setFeaturesCol("features")
+//
+//    val itemAnnModel = ann.fit(dataFrame)
+//    itemAnnModel.saveAsAnnoyBinary(conf.options("itemFactors"))
+//  }
   def buildAnnoyIndex(conf: TaskConf,
                       dataFrame: DataFrame): Unit = {
     // annoy tree params.
