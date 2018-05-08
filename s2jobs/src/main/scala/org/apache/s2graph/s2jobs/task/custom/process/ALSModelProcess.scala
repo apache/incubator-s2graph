@@ -3,6 +3,7 @@ package org.apache.s2graph.s2jobs.task.custom.process
 import java.io.File
 
 import annoy4s._
+import org.apache.spark.ml.evaluation.RegressionEvaluator
 //import org.apache.spark.ml.nn.Annoy
 
 //import annoy4s.{Angular, Annoy}
@@ -17,6 +18,9 @@ object ALSModelProcess {
   def runALS(ss: SparkSession,
              conf: TaskConf,
              dataFrame: DataFrame): DataFrame = {
+    // split
+    val Array(training, test) = dataFrame.randomSplit(Array(0.8, 0.2))
+
     // als model params.
     val rank = conf.options.getOrElse("rank", "10").toInt
     val maxIter = conf.options.getOrElse("maxIter", "5").toInt
@@ -35,7 +39,16 @@ object ALSModelProcess {
       .setItemCol(itemCol)
       .setRatingCol(ratingCol)
 
-    val model = als.fit(dataFrame)
+    val model = als.fit(training)
+
+    val predictions = model.transform(test)
+    val evaluator = new RegressionEvaluator()
+      .setMetricName("rmse")
+      .setLabelCol(ratingCol)
+      .setPredictionCol("prediction")
+
+    val rmse = evaluator.evaluate(predictions)
+    println(s"RMSE: ${rmse}")
 
     model.itemFactors
   }
