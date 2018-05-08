@@ -37,7 +37,7 @@ import sangria.execution.deferred.DeferredResolver
 import sangria.marshalling.sprayJson._
 import sangria.parser.QueryParser
 import sangria.schema.Schema
-import spray.json.{JsObject, JsString}
+import spray.json.{JsBoolean, JsObject, JsString}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
@@ -63,8 +63,22 @@ object GraphQLServer {
 
   val schemaCache = new SafeUpdateCache(schemaConfig)
 
-  def endpoint(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Route = {
+  def importModel(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Route = {
+    val ret = Try {
+      val spray.json.JsObject(fields) = requestJSON
+      val spray.json.JsString(labelName) = fields("label")
+      val jsOptions = fields("options")
 
+      s2graph.management.importModel(labelName, jsOptions.compactPrint)
+    }
+
+    ret match {
+      case Success(f) => complete(f.map(i => OK -> JsString("start")))
+      case Failure(e) => complete(InternalServerError -> spray.json.JsObject("message" -> JsString(e.toString)))
+    }
+  }
+
+  def endpoint(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Route = {
     val spray.json.JsObject(fields) = requestJSON
     val spray.json.JsString(query) = fields("query")
 

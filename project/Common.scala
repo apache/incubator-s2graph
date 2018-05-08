@@ -33,6 +33,8 @@ object Common {
 
   val KafkaVersion = "0.10.2.1"
 
+  val rocksVersion = "5.11.3"
+
   /** use Log4j 1.2.17 as the SLF4j backend in runtime, with bridging libraries to forward JCL and JUL logs to SLF4j */
   val loggingRuntime = Seq(
     "log4j" % "log4j" % "1.2.17",

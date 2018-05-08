@@ -23,15 +23,19 @@ import java.util.concurrent.locks.ReentrantLock
 
 import com.google.common.cache.{Cache, LoadingCache}
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.storage.{MutateResponse, SKeyValue, StorageWritable}
+import org.apache.s2graph.core.S2GraphLike
+import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.utils.logger
 import org.rocksdb.{RocksDB, RocksDBException, WriteBatch, WriteOptions}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class RocksStorageWritable(val db: RocksDB,
+class RocksStorageWritable(val graph: S2GraphLike,
+                           val serDe: StorageSerDe,
+                           val reader: StorageReadable,
+                           val db: RocksDB,
                            val vdb: RocksDB,
-                           val lockMap: LoadingCache[String, ReentrantLock]) extends StorageWritable {
+                           val lockMap: LoadingCache[String, ReentrantLock]) extends DefaultOptimisticMutator(graph, serDe, reader) {
 
   override def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean)(implicit ec: ExecutionContext) = {
     if (kvs.isEmpty) {

@@ -31,7 +31,7 @@ import scala.util.Random
 class WriteWriteConflictResolver(graph: S2GraphLike,
                                  serDe: StorageSerDe,
                                  io: StorageIO,
-                                 mutator: StorageWritable,
+                                 mutator: OptimisticMutator,
                                  fetcher: StorageReadable) {
   val BackoffTimeout = graph.BackoffTimeout
   val MaxRetryNum = graph.MaxRetryNum

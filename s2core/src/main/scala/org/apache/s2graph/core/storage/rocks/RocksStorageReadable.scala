@@ -27,7 +27,7 @@ import org.apache.s2graph.core._
 import org.apache.s2graph.core.schema.{Label, ServiceColumn}
 import org.apache.s2graph.core.storage.rocks.RocksHelper.{GetRequest, RocksRPC, ScanWithRange}
 import org.apache.s2graph.core.storage.serde.StorageSerializable
-import org.apache.s2graph.core.storage.{SKeyValue, StorageIO, StorageReadable, StorageSerDe}
+import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.types.{HBaseType, VertexId}
 import org.rocksdb.RocksDB
 

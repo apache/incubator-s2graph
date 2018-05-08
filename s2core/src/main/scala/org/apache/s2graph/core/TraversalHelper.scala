@@ -204,7 +204,7 @@ class TraversalHelper(graph: S2GraphLike) {
     val aggFuture = requestsPerLabel.foldLeft(Future.successful(Map.empty[Int, StepResult])) { case (prevFuture, (label, reqWithIdxs)) =>
       for {
         prev <- prevFuture
-        cur <- graph.getStorage(label).fetches(reqWithIdxs.map(_._1), prevStepEdges)
+        cur <- graph.getFetcher(label).fetches(reqWithIdxs.map(_._1), prevStepEdges)
       } yield {
         prev ++ reqWithIdxs.map(_._2).zip(cur).toMap
       }
@@ -256,7 +256,7 @@ class TraversalHelper(graph: S2GraphLike) {
               */
             graph.mutateEdges(edgesToDelete.map(_.edge), withWait = true).map(_.forall(_.isSuccess))
           } else {
-            graph.getStorage(label).deleteAllFetchedEdgesAsyncOld(stepResult, requestTs, MaxRetryNum)
+            graph.getMutator(label).deleteAllFetchedEdgesAsyncOld(stepResult, requestTs, MaxRetryNum)
           }
         case _ =>
 
@@ -264,7 +264,7 @@ class TraversalHelper(graph: S2GraphLike) {
             * read: x
             * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
             */
-          graph.getStorage(label).deleteAllFetchedEdgesAsyncOld(stepResult, requestTs, MaxRetryNum)
+          graph.getMutator(label).deleteAllFetchedEdgesAsyncOld(stepResult, requestTs, MaxRetryNum)
       }
       ret
     }
@@ -389,7 +389,7 @@ class TraversalHelper(graph: S2GraphLike) {
             val newEdgeWithScore = edgeWithScore.copy(edge = newEdge)
             /* OrderBy */
             val orderByValues =
-              if (queryOption.orderByKeys.isEmpty) (score, edge.getTsInnerValValue(), None, None)
+              if (queryOption.orderByKeys.isEmpty) (score, edge.getTs(), None, None)
               else StepResult.toTuple4(newEdgeWithScore.toValues(queryOption.orderByKeys))
 
             /* StepGroupBy */

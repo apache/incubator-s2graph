@@ -259,6 +259,20 @@ object Label extends SQLSyntaxSupport[Label] {
     cnt
   }
 
+  def updateOption(labelName: String, options: String)(implicit session: DBSession = AutoSession) = {
+    scala.util.Try(Json.parse(options)).getOrElse(throw new RuntimeException("invalid Json option"))
+    logger.info(s"update options of label $labelName, ${options}")
+    val cnt = sql"""update labels set options = $options where label = $labelName""".update().apply()
+    val label = Label.findByName(labelName, useCache = false).get
+
+    val cacheKeys = List(s"id=${label.id.get}", s"label=${label.label}")
+    cacheKeys.foreach { key =>
+      expireCache(className + key)
+      expireCaches(className + key)
+    }
+    cnt
+  }
+
   def delete(id: Int)(implicit session: DBSession = AutoSession) = {
     val label = findById(id)
     logger.info(s"delete label: $label")
@@ -369,19 +383,6 @@ case class Label(id: Option[Int], label: String,
     prop <- metaProps if LabelMeta.isValidSeq(prop.seq)
     jsValue <- innerValToJsValue(toInnerVal(prop.defaultValue, prop.dataType, schemaVersion), prop.dataType)
   } yield prop -> jsValue).toMap
-//  lazy val extraOptions = Model.extraOptions(Option("""{
-//    "storage": {
-//      "s2graph.storage.backend": "rocks",
-//      "rocks.db.path": "/tmp/db"
-//    }
-//  }"""))
-
-  lazy val tokens: Set[String] = extraOptions.get("tokens").fold(Set.empty[String]) {
-    case JsArray(tokens) => tokens.map(_.as[String]).toSet
-    case _ =>
-      logger.error("Invalid token JSON")
-      Set.empty[String]
-  }
 
   lazy val extraOptions = Schema.extraOptions(options)
 
@@ -389,8 +390,14 @@ case class Label(id: Option[Int], label: String,
 
   lazy val storageConfigOpt: Option[Config] = toStorageConfig
 
+  lazy val fetchConfigExist: Boolean = toFetcherConfig.isDefined
+
+  def toFetcherConfig: Option[Config] = {
+    Schema.toConfig(extraOptions, "fetcher")
+  }
+
   def toStorageConfig: Option[Config] = {
-    Schema.toStorageConfig(extraOptions)
+    Schema.toConfig(extraOptions, "storage")
   }
 
   def srcColumnWithDir(dir: Int) = {

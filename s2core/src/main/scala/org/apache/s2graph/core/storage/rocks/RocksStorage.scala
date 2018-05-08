@@ -26,7 +26,7 @@ import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import com.google.common.hash.Hashing
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.storage.Storage
+import org.apache.s2graph.core.storage.{Storage, StorageManagement, StorageReadable, StorageSerDe}
 import org.apache.s2graph.core.storage.rocks.RocksHelper.RocksRPC
 import org.apache.s2graph.core.utils.logger
 import org.rocksdb._
@@ -150,11 +150,12 @@ class RocksStorage(override val graph: S2GraphLike,
     .maximumSize(1000 * 10 * 10 * 10 * 10)
     .build[String, ReentrantLock](cacheLoader)
 
-  override val management = new RocksStorageManagement(config, vdb, db)
+  override val management: StorageManagement = new RocksStorageManagement(config, vdb, db)
 
-  override val mutator = new RocksStorageWritable(db, vdb, lockMap)
+  override val serDe: StorageSerDe = new RocksStorageSerDe(graph)
 
-  override val serDe = new RocksStorageSerDe(graph)
+  override val reader: StorageReadable = new RocksStorageReadable(graph, config, db, vdb, serDe, io)
 
-  override val fetcher = new RocksStorageReadable(graph, config, db, vdb, serDe, io)
+  override val mutator: Mutator = new RocksStorageWritable(graph, serDe, reader, db, vdb, lockMap)
+
 }

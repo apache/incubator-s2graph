@@ -22,7 +22,7 @@ package org.apache.s2graph.core.storage
 
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.storage.serde.{Deserializable, MutationHelper}
+import org.apache.s2graph.core.storage.serde.Deserializable
 import org.apache.s2graph.core.storage.serde.indexedge.tall.IndexEdgeDeserializable
 import org.apache.s2graph.core.types._
 
@@ -33,14 +33,11 @@ abstract class Storage(val graph: S2GraphLike,
   /* Storage backend specific resource management */
   val management: StorageManagement
 
-  /* Physically store given KeyValue into backend storage. */
-  val mutator: StorageWritable
-
   /*
    * Given QueryRequest/Vertex/Edge, fetch KeyValue from storage
    * then convert them into Edge/Vertex
    */
-  val fetcher: StorageReadable
+  val reader: StorageReadable
 
   /*
    * Serialize Edge/Vertex, to common KeyValue, SKeyValue that
@@ -48,6 +45,11 @@ abstract class Storage(val graph: S2GraphLike,
    * Also Deserialize storage backend's KeyValue to SKeyValue.
    */
   val serDe: StorageSerDe
+
+  /*
+   * Responsible to connect physical storage backend to store GraphElement(Edge/Vertex).
+   */
+  val mutator: Mutator
 
   /*
    * Common helper to translate SKeyValue to Edge/Vertex and vice versa.
@@ -60,31 +62,24 @@ abstract class Storage(val graph: S2GraphLike,
    * Note that it require storage backend specific implementations for
    * all of StorageWritable, StorageReadable, StorageSerDe, StorageIO
    */
-  lazy val conflictResolver: WriteWriteConflictResolver = new WriteWriteConflictResolver(graph, serDe, io, mutator, fetcher)
+//  lazy val conflictResolver: WriteWriteConflictResolver = new WriteWriteConflictResolver(graph, serDe, io, mutator, reader)
+//  lazy val mutationHelper: MutationHelper = new MutationHelper(this)
 
-  lazy val mutationHelper: MutationHelper = new MutationHelper(this)
-
-  /** Mutation **/
-  def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] =
-    mutator.writeToStorage(cluster, kvs, withWait)
-
-  def writeLock(requestKeyValue: SKeyValue, expectedOpt: Option[SKeyValue])(implicit ec: ExecutionContext): Future[MutateResponse] =
-    mutator.writeLock(requestKeyValue, expectedOpt)
 
   /** Fetch **/
   def fetches(queryRequests: Seq[QueryRequest],
               prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]] =
-    fetcher.fetches(queryRequests, prevStepEdges)
+    reader.fetches(queryRequests, prevStepEdges)
 
   def fetchVertices(vertices: Seq[S2VertexLike])(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] =
-    fetcher.fetchVertices(vertices)
+    reader.fetchVertices(vertices)
 
-  def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]] = fetcher.fetchEdgesAll()
+  def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]] = reader.fetchEdgesAll()
 
-  def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] = fetcher.fetchVerticesAll()
+  def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] = reader.fetchVerticesAll()
 
   def fetchSnapshotEdgeInner(edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[(Option[S2EdgeLike], Option[SKeyValue])] =
-    fetcher.fetchSnapshotEdgeInner(edge)
+    reader.fetchSnapshotEdgeInner(edge)
 
   /** Management **/
   def flush(): Unit = management.flush()
@@ -102,21 +97,21 @@ abstract class Storage(val graph: S2GraphLike,
   def deleteAllFetchedEdgesAsyncOld(stepInnerResult: StepResult,
                                     requestTs: Long,
                                     retryNum: Int)(implicit ec: ExecutionContext): Future[Boolean] =
-    mutationHelper.deleteAllFetchedEdgesAsyncOld(stepInnerResult, requestTs, retryNum)
+    mutator.deleteAllFetchedEdgesAsyncOld(stepInnerResult, requestTs, retryNum)
 
   def mutateVertex(zkQuorum: String, vertex: S2VertexLike, withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] =
-    mutationHelper.mutateVertex(zkQuorum: String, vertex, withWait)
+    mutator.mutateVertex(zkQuorum: String, vertex, withWait)
 
   def mutateStrongEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] =
-    mutationHelper.mutateStrongEdges(zkQuorum, _edges, withWait)
+    mutator.mutateStrongEdges(zkQuorum, _edges, withWait)
 
 
   def mutateWeakEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[(Int, Boolean)]] =
-    mutationHelper.mutateWeakEdges(zkQuorum, _edges, withWait)
+    mutator.mutateWeakEdges(zkQuorum, _edges, withWait)
 
   def incrementCounts(zkQuorum: String, edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[MutateResponse]] =
-    mutationHelper.incrementCounts(zkQuorum, edges, withWait)
+    mutator.incrementCounts(zkQuorum, edges, withWait)
 
   def updateDegree(zkQuorum: String, edge: S2EdgeLike, degreeVal: Long = 0)(implicit ec: ExecutionContext): Future[MutateResponse] =
-    mutationHelper.updateDegree(zkQuorum, edge, degreeVal)
+    mutator.updateDegree(zkQuorum, edge, degreeVal)
 }
