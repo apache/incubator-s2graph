@@ -209,7 +209,7 @@ trait S2GraphLike extends Graph {
 
     if (ids.isEmpty) {
       //TODO: default storage need to be fixed.
-      val futures = getAllVertexFetchers.map { vertexFetcher =>
+      val futures = (defaultStorage.vertexFetcher +: getAllVertexFetchers).map { vertexFetcher =>
         vertexFetcher.fetchVerticesAll()
       }
 
@@ -240,7 +240,7 @@ trait S2GraphLike extends Graph {
   def edges(edgeIds: AnyRef*): util.Iterator[structure.Edge] = {
     if (edgeIds.isEmpty) {
       // FIXME
-      val futures = getAllEdgeFetchers().map { edgeFetcher =>
+      val futures = (defaultStorage.edgeFetcher +: getAllEdgeFetchers()).map { edgeFetcher =>
         edgeFetcher.fetchEdgesAll()
       }
 
