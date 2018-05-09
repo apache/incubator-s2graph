@@ -17,29 +17,30 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.model
+package org.apache.s2graph.core.fetcher
 
 import com.typesafe.config.Config
 import org.apache.s2graph.core.schema.Label
-import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{Fetcher, S2GraphLike}
+import org.apache.s2graph.core.utils.{Importer, logger}
+import org.apache.s2graph.core.{EdgeFetcher, S2GraphLike}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-object ModelManager {
+object FetcherManager {
   val ClassNameKey = "className"
 }
 
-class ModelManager(s2GraphLike: S2GraphLike) {
+class FetcherManager(s2GraphLike: S2GraphLike) {
 
-  import ModelManager._
+  import FetcherManager._
 
-  private val fetcherPool = scala.collection.mutable.Map.empty[String, Fetcher]
+  private val fetcherPool = scala.collection.mutable.Map.empty[String, EdgeFetcher]
+
   private val ImportLock = new java.util.concurrent.ConcurrentHashMap[String, Importer]
 
   def toImportLockKey(label: Label): String = label.label
 
-  def getFetcher(label: Label): Fetcher = {
+  def getFetcher(label: Label): EdgeFetcher = {
     fetcherPool.getOrElse(toImportLockKey(label), throw new IllegalStateException(s"$label is not imported."))
   }
 
@@ -52,15 +53,17 @@ class ModelManager(s2GraphLike: S2GraphLike) {
       .asInstanceOf[Importer]
   }
 
-  def initFetcher(config: Config)(implicit ec: ExecutionContext): Future[Fetcher] = {
+  def initFetcher(config: Config)(implicit ec: ExecutionContext): Future[EdgeFetcher] = {
     val className = config.getString(ClassNameKey)
 
     val fetcher = Class.forName(className)
       .getConstructor(classOf[S2GraphLike])
       .newInstance(s2GraphLike)
-      .asInstanceOf[Fetcher]
+      .asInstanceOf[EdgeFetcher]
 
     fetcher.init(config)
+
+    Future.successful(fetcher)
   }
 
   def importModel(label: Label, config: Config)(implicit ec: ExecutionContext): Future[Importer] = {

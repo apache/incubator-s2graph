@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.model
+package org.apache.s2graph.core.fetcher
 
 import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.Integrate.IntegrateCommon
@@ -28,7 +28,7 @@ import org.apache.s2graph.core.{Query, QueryParam}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext}
 
-class FetcherTest extends IntegrateCommon {
+class EdgeFetcherTest extends IntegrateCommon {
 
   import scala.collection.JavaConverters._
 
@@ -44,10 +44,10 @@ class FetcherTest extends IntegrateCommon {
       s"""{
          |
                      | "importer": {
-         |   "${ModelManager.ClassNameKey}": "org.apache.s2graph.core.model.IdentityImporter"
+         |   "${FetcherManager.ClassNameKey}": "org.apache.s2graph.core.utils.IdentityImporter"
          | },
          | "fetcher": {
-         |   "${ModelManager.ClassNameKey}": "org.apache.s2graph.core.model.MemoryModelFetcher"
+         |   "${FetcherManager.ClassNameKey}": "org.apache.s2graph.core.fetcher.MemoryModelFetcher"
          | }
          |}""".stripMargin
 

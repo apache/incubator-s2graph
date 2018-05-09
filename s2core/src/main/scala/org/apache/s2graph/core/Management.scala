@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core
 
-import java.util
+
 import java.util.concurrent.Executors
 
 import com.typesafe.config.{Config, ConfigFactory}
@@ -29,7 +29,7 @@ import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.model.Importer
+import org.apache.s2graph.core.utils.Importer
 import play.api.libs.json._
 
 import scala.concurrent.{ExecutionContext, Future}

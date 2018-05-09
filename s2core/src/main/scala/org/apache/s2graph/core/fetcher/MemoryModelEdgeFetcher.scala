@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.model
+package org.apache.s2graph.core.fetcher
 
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
@@ -29,13 +29,10 @@ import scala.concurrent.{ExecutionContext, Future}
   * Reference implementation for Fetcher interface.
   * it only produce constant edges.
   */
-class MemoryModelFetcher(val graph: S2GraphLike) extends Fetcher {
+class MemoryModelEdgeFetcher(val graph: S2GraphLike) extends EdgeFetcher {
   val builder = graph.elementBuilder
   val ranges = (0 until 10)
 
-  override def init(config: Config)(implicit ec: ExecutionContext): Future[Fetcher] = {
-    Future.successful(this)
-  }
 
   override def fetches(queryRequests: Seq[QueryRequest],
                        prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]] = {
@@ -54,6 +51,4 @@ class MemoryModelFetcher(val graph: S2GraphLike) extends Fetcher {
 
     Future.successful(stepResultLs)
   }
-
-  override def close(): Unit = {}
 }

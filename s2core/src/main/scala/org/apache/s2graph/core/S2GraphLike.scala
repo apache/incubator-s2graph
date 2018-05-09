@@ -31,9 +31,9 @@ import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.S2Graph.{DefaultColumnName, DefaultServiceName}
 import org.apache.s2graph.core.features.{S2Features, S2GraphVariables}
 import org.apache.s2graph.core.index.IndexProvider
-import org.apache.s2graph.core.model.ModelManager
+import org.apache.s2graph.core.fetcher.FetcherManager
 import org.apache.s2graph.core.schema.{Label, LabelMeta, Service, ServiceColumn}
-import org.apache.s2graph.core.storage.{MutateResponse, Storage}
+import org.apache.s2graph.core.storage.{MutateResponse, OptimisticEdgeFetcher, Storage}
 import org.apache.s2graph.core.types.{InnerValLike, VertexId}
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
 import org.apache.tinkerpop.gremlin.structure
@@ -69,7 +69,7 @@ trait S2GraphLike extends Graph {
 
   val traversalHelper: TraversalHelper
 
-  val modelManager: ModelManager
+  val modelManager: FetcherManager
 
   lazy val MaxRetryNum: Int = config.getInt("max.retry.number")
   lazy val MaxBackOff: Int = config.getInt("max.back.off")
@@ -93,13 +93,20 @@ trait S2GraphLike extends Graph {
 
   def getStorage(label: Label): Storage
 
-  def getFetcher(column: ServiceColumn): Fetcher
+  def getVertexFetcher(column: ServiceColumn): VertexFetcher
 
-  def getFetcher(label: Label): Fetcher
+  def getVertexBulkFetcher(): VertexBulkFetcher
 
-  def getMutator(label: Label): Mutator
+  def getEdgeFetcher(label: Label): EdgeFetcher
 
-  def getMutator(column: ServiceColumn): Mutator
+  def getEdgeBulkFetcher(): EdgeBulkFetcher
+
+  /** optional */
+  def getOptimisticEdgeFetcher(label: Label): OptimisticEdgeFetcher
+
+  def getEdgeMutator(label: Label): EdgeMutator
+
+  def getVertexMutator(column: ServiceColumn): VertexMutator
 
   def flushStorage(): Unit
 
@@ -204,7 +211,7 @@ trait S2GraphLike extends Graph {
 
     if (ids.isEmpty) {
       //TODO: default storage need to be fixed.
-      Await.result(defaultStorage.fetchVerticesAll(), WaitTimeout).iterator
+      Await.result(getVertexBulkFetcher().fetchVerticesAll(), WaitTimeout).iterator
     } else {
       val vertices = ids.collect {
         case s2Vertex: S2VertexLike => s2Vertex
@@ -229,7 +236,7 @@ trait S2GraphLike extends Graph {
   def edges(edgeIds: AnyRef*): util.Iterator[structure.Edge] = {
     if (edgeIds.isEmpty) {
       // FIXME
-      Await.result(defaultStorage.fetchEdgesAll(), WaitTimeout).iterator
+      Await.result(getEdgeBulkFetcher().fetchEdgesAll(), WaitTimeout).iterator
     } else {
       Await.result(edgesAsync(edgeIds: _*), WaitTimeout)
     }

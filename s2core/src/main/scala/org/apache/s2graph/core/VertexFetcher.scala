@@ -24,13 +24,8 @@ import org.apache.s2graph.core.types.VertexId
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait Fetcher {
-
-  def init(config: Config)(implicit ec: ExecutionContext): Future[Fetcher] =
-    Future.successful(this)
-
-  def fetches(queryRequests: Seq[QueryRequest],
-              prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]]
-
+trait VertexFetcher {
+  def init(config: Config)(implicit ec: ExecutionContext): Unit = {}
+  def fetchVertices(vertices: Seq[S2VertexLike])(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]]
   def close(): Unit = {}
 }

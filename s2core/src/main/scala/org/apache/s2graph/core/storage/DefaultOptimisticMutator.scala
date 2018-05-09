@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,22 +17,24 @@
  * under the License.
  */
 package org.apache.s2graph.core.storage
+
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.schema.LabelMeta
 import org.apache.s2graph.core.utils.logger
 
 import scala.concurrent.{ExecutionContext, Future}
 
-abstract class DefaultOptimisticMutator(graph: S2GraphLike,
-                                        serDe: StorageSerDe,
-                                        reader: StorageReadable) extends OptimisticMutator {
-  val fetcher = reader
+class DefaultOptimisticMutator(graph: S2GraphLike,
+                               serDe: StorageSerDe,
+                               optimisticEdgeFetcher: OptimisticEdgeFetcher,
+                               optimisticMutator: OptimisticMutator) extends VertexMutator with EdgeMutator {
 
   lazy val io: StorageIO = new StorageIO(graph, serDe)
-  lazy val conflictResolver: WriteWriteConflictResolver = new WriteWriteConflictResolver(graph, serDe, io, this, reader)
 
-//  private def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] =
-//    mutator.writeToStorage(cluster, kvs, withWait)
+  lazy val conflictResolver: WriteWriteConflictResolver = new WriteWriteConflictResolver(graph, serDe, io, optimisticMutator, optimisticEdgeFetcher)
+
+  private def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] =
+    optimisticMutator.writeToStorage(cluster, kvs, withWait)
 
   def deleteAllFetchedEdgesAsyncOld(stepInnerResult: StepResult,
                                     requestTs: Long,
@@ -123,7 +125,7 @@ abstract class DefaultOptimisticMutator(graph: S2GraphLike,
         }
         Future.sequence(futures).map { rets => new MutateResponse(rets.forall(_.isSuccess)) }
       } else {
-        fetcher.fetchSnapshotEdgeInner(edges.head).flatMap { case (snapshotEdgeOpt, kvOpt) =>
+        optimisticEdgeFetcher.fetchSnapshotEdgeInner(edges.head).flatMap { case (snapshotEdgeOpt, kvOpt) =>
           conflictResolver.retry(1)(edges, 0, snapshotEdgeOpt).map(new MutateResponse(_))
         }
       }

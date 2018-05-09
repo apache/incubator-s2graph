@@ -30,12 +30,12 @@ import org.rocksdb.{RocksDB, RocksDBException, WriteBatch, WriteOptions}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class RocksStorageWritable(val graph: S2GraphLike,
-                           val serDe: StorageSerDe,
-                           val reader: StorageReadable,
-                           val db: RocksDB,
-                           val vdb: RocksDB,
-                           val lockMap: LoadingCache[String, ReentrantLock]) extends DefaultOptimisticMutator(graph, serDe, reader) {
+class RocksOptimisticMutator(val graph: S2GraphLike,
+                             val serDe: StorageSerDe,
+                             val optimisticEdgeFetcher: OptimisticEdgeFetcher,
+                             val db: RocksDB,
+                             val vdb: RocksDB,
+                             val lockMap: LoadingCache[String, ReentrantLock]) extends OptimisticMutator {
 
   override def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean)(implicit ec: ExecutionContext) = {
     if (kvs.isEmpty) {

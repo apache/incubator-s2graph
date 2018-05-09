@@ -19,11 +19,9 @@
 
 package org.apache.s2graph.core.storage
 
-import org.apache.s2graph.core.Mutator
-
 import scala.concurrent.{ExecutionContext, Future}
 
-trait OptimisticMutator extends Mutator {
+trait OptimisticMutator {
   /**
     * decide how to store given key values Seq[SKeyValue] into storage using storage's client.
     * note that this should be return true on all success.

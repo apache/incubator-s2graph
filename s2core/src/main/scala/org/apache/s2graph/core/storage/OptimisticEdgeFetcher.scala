@@ -19,40 +19,16 @@
 
 package org.apache.s2graph.core.storage
 
-import com.typesafe.config.Config
 import org.apache.s2graph.core.GraphExceptions.FetchTimeoutException
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.types.VertexId
 import org.apache.s2graph.core.utils.logger
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait StorageReadable extends EdgeFetcher {
+trait OptimisticEdgeFetcher {
   val io: StorageIO
-  val serDe: StorageSerDe
-// /**
-//    * responsible to fire parallel fetch call into storage and create future that will return merged result.
-//    *
-//    * @param queryRequests
-//    * @param prevStepEdges
-//    * @return
-//    */
-//  def fetches(queryRequests: Seq[QueryRequest],
-//              prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]]
-
-  def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]]
-
-  def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]]
-
-
-
-
-
-
-  protected def fetchKeyValues(queryRequest: QueryRequest, edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
-
-//  protected def fetchKeyValues(queryRequest: QueryRequest, vertex: S2VertexLike)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
-
+  protected def fetchKeyValues(queryRequest: QueryRequest,
+                               edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
 
   def fetchSnapshotEdgeInner(edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[(Option[S2EdgeLike], Option[SKeyValue])] = {
     val queryParam = QueryParam(labelName = edge.innerLabel.label,
@@ -77,26 +53,4 @@ trait StorageReadable extends EdgeFetcher {
       throw new FetchTimeoutException(s"${edge.toLogString}")
     }
   }
-
-//  def fetchVertices(vertices: Seq[S2VertexLike])(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] = {
-//    def fromResult(kvs: Seq[SKeyValue], version: String): Seq[S2VertexLike] = {
-//      if (kvs.isEmpty) Nil
-//      else serDe.vertexDeserializer(version).fromKeyValues(kvs, None).toSeq
-//    }
-//
-//    val futures = vertices.map { vertex =>
-//      val queryParam = QueryParam.Empty
-//      val q = Query.toQuery(Seq(vertex), Seq(queryParam))
-//      val queryRequest = QueryRequest(q, stepIdx = -1, vertex, queryParam)
-//
-//      fetchKeyValues(queryRequest, vertex).map { kvs =>
-//        fromResult(kvs, vertex.serviceColumn.schemaVersion)
-//      } recoverWith {
-//        case ex: Throwable => Future.successful(Nil)
-//      }
-//    }
-//
-//    Future.sequence(futures).map(_.flatten)
-//  }
-
 }
