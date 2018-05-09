@@ -21,7 +21,11 @@ package org.apache.s2graph.core.storage.hbase
 
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
+import org.apache.s2graph.core.schema.ServiceColumn
+import org.apache.s2graph.core.storage.serde.Serializable
 import org.apache.s2graph.core.storage.{SKeyValue, StorageIO, StorageSerDe}
+import org.apache.s2graph.core.types.HBaseType
+import org.apache.s2graph.core.utils.Extensions
 import org.hbase.async.HBaseClient
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -32,6 +36,9 @@ class AsynchbaseVertexFetcher(val graph: S2GraphLike,
                               val serDe: StorageSerDe,
                               val io: StorageIO) extends VertexFetcher  {
   import AsynchbaseStorage._
+  import Extensions.DeferOps
+  import scala.collection.JavaConverters._
+
 
   private def fetchKeyValues(queryRequest: QueryRequest, vertex: S2VertexLike)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]] = {
     val rpc = buildRequest(serDe, queryRequest, vertex)
@@ -56,6 +63,25 @@ class AsynchbaseVertexFetcher(val graph: S2GraphLike,
       }
     }
 
+    Future.sequence(futures).map(_.flatten)
+  }
+
+  override def fetchVerticesAll()(implicit ec: ExecutionContext) = {
+    val futures = ServiceColumn.findAll().groupBy(_.service.hTableName).toSeq.map { case (hTableName, columns) =>
+      val distinctColumns = columns.toSet
+      val scan = AsynchbasePatcher.newScanner(client, hTableName)
+      scan.setFamily(Serializable.vertexCf)
+      scan.setMaxVersions(1)
+
+      scan.nextRows(S2Graph.FetchAllLimit).toFuture(emptyKeyValuesLs).map {
+        case null => Seq.empty
+        case kvsLs =>
+          kvsLs.asScala.flatMap { kvs =>
+            serDe.vertexDeserializer(schemaVer = HBaseType.DEFAULT_VERSION).fromKeyValues(kvs.asScala, None)
+              .filter(v => distinctColumns(v.serviceColumn))
+          }
+      }
+    }
     Future.sequence(futures).map(_.flatten)
   }
 }

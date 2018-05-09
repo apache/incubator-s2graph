@@ -23,7 +23,7 @@ import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.Integrate.IntegrateCommon
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.schema.Label
-import org.apache.s2graph.core.{Query, QueryParam}
+import org.apache.s2graph.core.{Query, QueryParam, ResourceManager}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext}
@@ -44,10 +44,10 @@ class EdgeFetcherTest extends IntegrateCommon {
       s"""{
          |
                      | "importer": {
-         |   "${FetcherManager.ClassNameKey}": "org.apache.s2graph.core.utils.IdentityImporter"
+         |   "${ResourceManager.ClassNameKey}": "org.apache.s2graph.core.utils.IdentityImporter"
          | },
          | "fetcher": {
-         |   "${FetcherManager.ClassNameKey}": "org.apache.s2graph.core.fetcher.MemoryModelFetcher"
+         |   "${ResourceManager.ClassNameKey}": "org.apache.s2graph.core.fetcher.MemoryModelEdgeFetcher"
          | }
          |}""".stripMargin
 
@@ -68,11 +68,9 @@ class EdgeFetcherTest extends IntegrateCommon {
       "gz",
       options
     )
-    val config = ConfigFactory.parseString(options)
-    val importerFuture = graph.modelManager.importModel(label, config)(ExecutionContext.Implicits.global)
-    Await.ready(importerFuture, Duration("60 seconds"))
 
-    Thread.sleep(1000)
+    graph.management.updateEdgeFetcher(label, options)
+
 
     val vertex = graph.elementBuilder.toVertex(service.serviceName, serviceColumn.columnName, "daewon")
     val queryParam = QueryParam(labelName = labelName)

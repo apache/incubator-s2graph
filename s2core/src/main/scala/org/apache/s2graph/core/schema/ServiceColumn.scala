@@ -19,9 +19,11 @@
 
 package org.apache.s2graph.core.schema
 
+import com.typesafe.config.Config
 import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.types.{HBaseType, InnerValLike, InnerValLikeWithTs}
+import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.Json
 import scalikejdbc._
 
@@ -29,10 +31,11 @@ object ServiceColumn extends SQLSyntaxSupport[ServiceColumn] {
   import Schema._
   val className = ServiceColumn.getClass.getSimpleName
 
-  val Default = ServiceColumn(Option(0), -1, "default", "string", "v4")
+  val Default = ServiceColumn(Option(0), -1, "default", "string", "v4", None)
 
   def valueOf(rs: WrappedResultSet): ServiceColumn = {
-    ServiceColumn(rs.intOpt("id"), rs.int("service_id"), rs.string("column_name"), rs.string("column_type").toLowerCase(), rs.string("schema_version"))
+    ServiceColumn(rs.intOpt("id"), rs.int("service_id"), rs.string("column_name"),
+      rs.string("column_type").toLowerCase(), rs.string("schema_version"), rs.stringOpt("options"))
   }
 
   def findByServiceId(serviceId: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Seq[ServiceColumn] = {
@@ -65,9 +68,9 @@ object ServiceColumn extends SQLSyntaxSupport[ServiceColumn] {
       """.map { rs => ServiceColumn.valueOf(rs) }.single.apply()
     }
   }
-  def insert(serviceId: Int, columnName: String, columnType: Option[String], schemaVersion: String)(implicit session: DBSession = AutoSession) = {
-    sql"""insert into service_columns(service_id, column_name, column_type, schema_version)
-         values(${serviceId}, ${columnName}, ${columnType}, ${schemaVersion})""".execute.apply()
+  def insert(serviceId: Int, columnName: String, columnType: Option[String], schemaVersion: String, options: Option[String])(implicit session: DBSession = AutoSession) = {
+    sql"""insert into service_columns(service_id, column_name, column_type, schema_version, options)
+         values(${serviceId}, ${columnName}, ${columnType}, ${schemaVersion}, ${options})""".execute.apply()
   }
   def delete(id: Int)(implicit session: DBSession = AutoSession) = {
     val serviceColumn = findById(id, useCache = false)
@@ -79,11 +82,14 @@ object ServiceColumn extends SQLSyntaxSupport[ServiceColumn] {
       expireCaches(className + key)
     }
   }
-  def findOrInsert(serviceId: Int, columnName: String, columnType: Option[String], schemaVersion: String = HBaseType.DEFAULT_VERSION, useCache: Boolean = true)(implicit session: DBSession = AutoSession): ServiceColumn = {
+  def findOrInsert(serviceId: Int, columnName: String, columnType: Option[String],
+                   schemaVersion: String = HBaseType.DEFAULT_VERSION,
+                   options: Option[String],
+                   useCache: Boolean = true)(implicit session: DBSession = AutoSession): ServiceColumn = {
     find(serviceId, columnName, useCache) match {
       case Some(sc) => sc
       case None =>
-        insert(serviceId, columnName, columnType, schemaVersion)
+        insert(serviceId, columnName, columnType, schemaVersion, options)
 //        val cacheKey = s"serviceId=$serviceId:columnName=$columnName"
         val cacheKey = "serviceId=" + serviceId + ":columnName=" + columnName
         expireCache(className + cacheKey)
@@ -101,12 +107,29 @@ object ServiceColumn extends SQLSyntaxSupport[ServiceColumn] {
 
     ls
   }
+  def updateOption(serviceColumn: ServiceColumn, options: String)(implicit session: DBSession = AutoSession) = {
+    scala.util.Try(Json.parse(options)).getOrElse(throw new RuntimeException("invalid Json option"))
+    logger.info(s"update options of service column ${serviceColumn.service.serviceName} ${serviceColumn.columnName}, ${options}")
+    val cnt = sql"""update service_columns set options = $options where id = ${serviceColumn.id.get}""".update().apply()
+    val column = findById(serviceColumn.id.get, useCache = false)
+
+    val cacheKeys = List(s"id=${column.id.get}",
+      s"serviceId=${serviceColumn.serviceId}:columnName=${serviceColumn.columnName}")
+
+    cacheKeys.foreach { key =>
+      expireCache(className + key)
+      expireCaches(className + key)
+    }
+
+    column
+  }
 }
 case class ServiceColumn(id: Option[Int],
                          serviceId: Int,
                          columnName: String,
                          columnType: String,
-                         schemaVersion: String)  {
+                         schemaVersion: String,
+                         options: Option[String])  {
 
   lazy val service = Service.findById(serviceId)
   lazy val metasWithoutCache = ColumnMeta.timestamp +: ColumnMeta.findAllByColumn(id.get, false) :+ ColumnMeta.lastModifiedAtColumn
@@ -147,5 +170,13 @@ case class ServiceColumn(id: Option[Int],
     }
   }
 
+  lazy val extraOptions = Schema.extraOptions(options)
 
+  def toFetcherConfig: Option[Config] = {
+    Schema.toConfig(extraOptions, "fetcher")
+  }
+
+  def toMutatorConfig: Option[Config] = {
+    Schema.toConfig(extraOptions, "mutator")
+  }
 }

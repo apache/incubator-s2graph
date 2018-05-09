@@ -37,18 +37,26 @@ class MemoryModelEdgeFetcher(val graph: S2GraphLike) extends EdgeFetcher {
   override def fetches(queryRequests: Seq[QueryRequest],
                        prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]] = {
     val stepResultLs = queryRequests.map { queryRequest =>
-      val queryParam = queryRequest.queryParam
-      val edges = ranges.map { ith =>
-        val tgtVertexId = builder.newVertexId(queryParam.label.service, queryParam.label.tgtColumnWithDir(queryParam.labelWithDir.dir), ith.toString)
-
-        graph.toEdge(queryRequest.vertex.innerIdVal,
-          tgtVertexId.innerId.value, queryParam.label.label, queryParam.direction)
-      }
-
-      val edgeWithScores = edges.map(e => EdgeWithScore(e, 1.0, queryParam.label))
-      StepResult(edgeWithScores, Nil, Nil)
+      toEdges(queryRequest)
     }
 
     Future.successful(stepResultLs)
+  }
+
+  override def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]] = {
+    Future.successful(Nil)
+  }
+
+  private def toEdges(queryRequest: QueryRequest) = {
+    val queryParam = queryRequest.queryParam
+    val edges = ranges.map { ith =>
+      val tgtVertexId = builder.newVertexId(queryParam.label.service, queryParam.label.tgtColumnWithDir(queryParam.labelWithDir.dir), ith.toString)
+
+      graph.toEdge(queryRequest.vertex.innerIdVal,
+        tgtVertexId.innerId.value, queryParam.label.label, queryParam.direction)
+    }
+
+    val edgeWithScores = edges.map(e => EdgeWithScore(e, 1.0, queryParam.label))
+    StepResult(edgeWithScores, Nil, Nil)
   }
 }

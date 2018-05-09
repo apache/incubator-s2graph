@@ -95,14 +95,15 @@ object Management {
                           columnName: String,
                           columnType: String,
                           props: Seq[Prop],
-                          schemaVersion: String = DEFAULT_VERSION) = {
+                          schemaVersion: String = DEFAULT_VERSION,
+                          options: Option[String] = None) = {
 
     Schema withTx { implicit session =>
       val serviceOpt = Service.findByName(serviceName, useCache = false)
       serviceOpt match {
         case None => throw new RuntimeException(s"create service $serviceName has not been created.")
         case Some(service) =>
-          val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion, useCache = false)
+          val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion, options, useCache = false)
           for {
             Prop(propName, defaultValue, dataType, storeInGlobalIndex) <- props
           } yield {
@@ -304,13 +305,50 @@ class Management(graph: S2GraphLike) {
 
   import Management._
 
-  def importModel(labelName: String, options: String): Future[Importer] = {
-    Label.updateOption(labelName, options)
+  def updateEdgeFetcher(labelName: String, options: String): Unit = {
+    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
 
-    val label = Label.findByName(labelName, false).getOrElse(throw new LabelNotExistException(labelName))
-    val config = ConfigFactory.parseString(options)
+    updateEdgeFetcher(label, options)
+  }
 
-    graph.modelManager.importModel(label, config)(importEx)
+  def updateEdgeFetcher(label: Label, options: String): Unit = {
+    val newLabel = Label.updateOption(label, options)
+    graph.resourceManager.getOrElseUpdateEdgeFetcher(newLabel, forceUpdate = true)
+  }
+
+  def updateVertexFetcher(serviceName: String, columnName: String, options: String): Unit = {
+    val service = Service.findByName(serviceName).getOrElse(throw new IllegalArgumentException(s"$serviceName is not exist."))
+    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new IllegalArgumentException(s"$columnName is not exist."))
+
+    updateVertexFetcher(column, options)
+  }
+
+  def updateVertexFetcher(column: ServiceColumn, options: String): Unit = {
+    val newColumn = ServiceColumn.updateOption(column, options)
+    graph.resourceManager.getOrElseUpdateVertexFetcher(newColumn, forceUpdate = true)
+  }
+
+  def updateEdgeMutator(labelName: String, options: String): Unit = {
+    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+
+    updateEdgeMutator(label, options)
+  }
+
+  def updateEdgeMutator(label: Label, options: String): Unit = {
+    val newLabel = Label.updateOption(label, options)
+    graph.resourceManager.getOrElseUpdateEdgeMutator(newLabel, forceUpdate = true)
+  }
+
+  def updateVertexMutator(serviceName: String, columnName: String, options: String): Unit = {
+    val service = Service.findByName(serviceName).getOrElse(throw new IllegalArgumentException(s"$serviceName is not exist."))
+    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new IllegalArgumentException(s"$columnName is not exist."))
+
+    updateVertexMutator(column, options)
+  }
+
+  def updateVertexMutator(column: ServiceColumn, options: String): Unit = {
+    val newColumn = ServiceColumn.updateOption(column, options)
+    graph.resourceManager.getOrElseUpdateVertexMutator(newColumn, forceUpdate = true)
   }
 
   def createStorageTable(zkAddr: String,
@@ -375,14 +413,15 @@ class Management(graph: S2GraphLike) {
                           columnName: String,
                           columnType: String,
                           props: Seq[Prop],
-                          schemaVersion: String = DEFAULT_VERSION): ServiceColumn = {
+                          schemaVersion: String = DEFAULT_VERSION,
+                          options: Option[String] = None): ServiceColumn = {
 
     val serviceColumnTry = Schema withTx { implicit session =>
       val serviceOpt = Service.findByName(serviceName, useCache = false)
       serviceOpt match {
         case None => throw new RuntimeException(s"create service $serviceName has not been created.")
         case Some(service) =>
-          val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion, useCache = false)
+          val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion, options, useCache = false)
           for {
             Prop(propName, defaultValue, dataType, storeInGlobalIndex) <- props
           } yield {

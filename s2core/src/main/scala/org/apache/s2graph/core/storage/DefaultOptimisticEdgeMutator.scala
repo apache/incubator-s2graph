@@ -24,19 +24,17 @@ import org.apache.s2graph.core.utils.logger
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class DefaultOptimisticMutator(graph: S2GraphLike,
-                               serDe: StorageSerDe,
-                               optimisticEdgeFetcher: OptimisticEdgeFetcher,
-                               optimisticMutator: OptimisticMutator) extends VertexMutator with EdgeMutator {
-
-  lazy val io: StorageIO = new StorageIO(graph, serDe)
-
+class DefaultOptimisticEdgeMutator(graph: S2GraphLike,
+                                   serDe: StorageSerDe,
+                                   optimisticEdgeFetcher: OptimisticEdgeFetcher,
+                                   optimisticMutator: OptimisticMutator,
+                                   io: StorageIO) extends EdgeMutator {
   lazy val conflictResolver: WriteWriteConflictResolver = new WriteWriteConflictResolver(graph, serDe, io, optimisticMutator, optimisticEdgeFetcher)
 
   private def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] =
     optimisticMutator.writeToStorage(cluster, kvs, withWait)
 
-  def deleteAllFetchedEdgesAsyncOld(stepInnerResult: StepResult,
+  override def deleteAllFetchedEdgesAsyncOld(stepInnerResult: StepResult,
                                     requestTs: Long,
                                     retryNum: Int)(implicit ec: ExecutionContext): Future[Boolean] = {
     if (stepInnerResult.isEmpty) Future.successful(true)
@@ -73,19 +71,7 @@ class DefaultOptimisticMutator(graph: S2GraphLike,
     }
   }
 
-  def mutateVertex(zkQuorum: String, vertex: S2VertexLike, withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] = {
-    if (vertex.op == GraphUtil.operations("delete")) {
-      writeToStorage(zkQuorum,
-        serDe.vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Delete)), withWait)
-    } else if (vertex.op == GraphUtil.operations("deleteAll")) {
-      logger.info(s"deleteAll for vertex is truncated. $vertex")
-      Future.successful(MutateResponse.Success) // Ignore withWait parameter, because deleteAll operation may takes long time
-    } else {
-      writeToStorage(zkQuorum, io.buildPutsAll(vertex), withWait)
-    }
-  }
-
-  def mutateWeakEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[(Int, Boolean)]] = {
+  override def mutateWeakEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[(Int, Boolean)]] = {
     val mutations = _edges.flatMap { edge =>
       val (_, edgeUpdate) =
         if (edge.getOp() == GraphUtil.operations("delete")) S2Edge.buildDeleteBulk(None, edge)
@@ -104,7 +90,7 @@ class DefaultOptimisticMutator(graph: S2GraphLike,
     }
   }
 
-  def mutateStrongEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
+  override def mutateStrongEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
     def mutateEdgesInner(edges: Seq[S2EdgeLike],
                          checkConsistency: Boolean,
                          withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] = {
@@ -164,7 +150,7 @@ class DefaultOptimisticMutator(graph: S2GraphLike,
     }
   }
 
-  def incrementCounts(zkQuorum: String, edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[MutateResponse]] = {
+  override def incrementCounts(zkQuorum: String, edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[MutateResponse]] = {
     val futures = for {
       edge <- edges
     } yield {
@@ -182,7 +168,7 @@ class DefaultOptimisticMutator(graph: S2GraphLike,
     Future.sequence(futures)
   }
 
-  def updateDegree(zkQuorum: String, edge: S2EdgeLike, degreeVal: Long = 0)(implicit ec: ExecutionContext): Future[MutateResponse] = {
+  override def updateDegree(zkQuorum: String, edge: S2EdgeLike, degreeVal: Long = 0)(implicit ec: ExecutionContext): Future[MutateResponse] = {
     val kvs = io.buildDegreePuts(edge, degreeVal)
 
     writeToStorage(zkQuorum, kvs, withWait = true)

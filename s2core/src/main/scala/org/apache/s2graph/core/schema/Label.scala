@@ -60,7 +60,9 @@ object Label extends SQLSyntaxSupport[Label] {
         select *
         from labels
         where label = ${labelName}
-        and deleted_at is null """.map { rs => Label(rs) }.single.apply()
+        and deleted_at is null """.map { rs =>
+          Label(rs)
+      }.single.apply()
 
     if (useCache) withCache(cacheKey)(labelOpt)
     else labelOpt
@@ -109,15 +111,17 @@ object Label extends SQLSyntaxSupport[Label] {
         .map { rs => Label(rs) }.single.apply())
   }
 
-  def findById(id: Int)(implicit session: DBSession = AutoSession): Label = {
+  def findById(id: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Label = {
     val cacheKey = className + "id=" + id
-    withCache(cacheKey)(
-      sql"""
+    lazy val sql = sql"""
         select 	*
         from 	labels
         where 	id = ${id}
         and deleted_at is null"""
-        .map { rs => Label(rs) }.single.apply()).get
+      .map { rs => Label(rs) }.single.apply()
+
+    if (useCache) withCache(cacheKey)(sql).get
+    else sql.get
   }
 
   def findByTgtColumnId(columnId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
@@ -191,8 +195,8 @@ object Label extends SQLSyntaxSupport[Label] {
         val serviceId = service.id.get
 
         /** insert serviceColumn */
-        val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType), schemaVersion)
-        val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType), schemaVersion)
+        val srcCol = ServiceColumn.findOrInsert(srcServiceId, srcColumnName, Some(srcColumnType), schemaVersion, None)
+        val tgtCol = ServiceColumn.findOrInsert(tgtServiceId, tgtColumnName, Some(tgtColumnType), schemaVersion, None)
 
         if (srcCol.columnType != srcColumnType) throw new RuntimeException(s"source service column type not matched ${srcCol.columnType} != ${srcColumnType}")
         if (tgtCol.columnType != tgtColumnType) throw new RuntimeException(s"target service column type not matched ${tgtCol.columnType} != ${tgtColumnType}")
@@ -259,18 +263,18 @@ object Label extends SQLSyntaxSupport[Label] {
     cnt
   }
 
-  def updateOption(labelName: String, options: String)(implicit session: DBSession = AutoSession) = {
+  def updateOption(label: Label, options: String)(implicit session: DBSession = AutoSession) = {
     scala.util.Try(Json.parse(options)).getOrElse(throw new RuntimeException("invalid Json option"))
-    logger.info(s"update options of label $labelName, ${options}")
-    val cnt = sql"""update labels set options = $options where label = $labelName""".update().apply()
-    val label = Label.findByName(labelName, useCache = false).get
+    logger.info(s"update options of label ${label.label}, ${options}")
+    val cnt = sql"""update labels set options = $options where id = ${label.id.get}""".update().apply()
+    val updatedLabel = findById(label.id.get, useCache = false)
 
     val cacheKeys = List(s"id=${label.id.get}", s"label=${label.label}")
     cacheKeys.foreach { key =>
       expireCache(className + key)
       expireCaches(className + key)
     }
-    cnt
+    updatedLabel
   }
 
   def delete(id: Int)(implicit session: DBSession = AutoSession) = {
@@ -390,10 +394,12 @@ case class Label(id: Option[Int], label: String,
 
   lazy val storageConfigOpt: Option[Config] = toStorageConfig
 
-  lazy val fetchConfigExist: Boolean = toFetcherConfig.isDefined
-
   def toFetcherConfig: Option[Config] = {
     Schema.toConfig(extraOptions, "fetcher")
+  }
+
+  def toMutatorConfig: Option[Config] = {
+    Schema.toConfig(extraOptions, "mutator")
   }
 
   def toStorageConfig: Option[Config] = {

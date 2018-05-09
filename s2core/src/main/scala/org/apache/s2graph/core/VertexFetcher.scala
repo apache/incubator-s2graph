@@ -26,6 +26,10 @@ import scala.concurrent.{ExecutionContext, Future}
 
 trait VertexFetcher {
   def init(config: Config)(implicit ec: ExecutionContext): Unit = {}
+
   def fetchVertices(vertices: Seq[S2VertexLike])(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]]
+
+  def fetchVerticesAll()(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]]
+
   def close(): Unit = {}
 }

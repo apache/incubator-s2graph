@@ -66,7 +66,7 @@ object S2GraphFactory {
     val DefaultService = management.createService(DefaultServiceName, "localhost", "s2graph", 0, None).get
 
     //    Management.deleteColumn(DefaultServiceName, DefaultColumnName)
-    val DefaultColumn = ServiceColumn.findOrInsert(DefaultService.id.get, DefaultColumnName, Some("integer"), HBaseType.DEFAULT_VERSION, useCache = false)
+    val DefaultColumn = ServiceColumn.findOrInsert(DefaultService.id.get, DefaultColumnName, Some("integer"), HBaseType.DEFAULT_VERSION, options = None, useCache = false)
 
     val DefaultColumnMetas = {
       ColumnMeta.findOrInsert(DefaultColumn.id.get, "test", "string", "-", storeInGlobalIndex = true, useCache = false)

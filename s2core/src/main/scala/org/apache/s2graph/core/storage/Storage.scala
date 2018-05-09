@@ -42,11 +42,7 @@ abstract class Storage(val graph: S2GraphLike,
 
   val edgeFetcher: EdgeFetcher
 
-  val edgeBulkFetcher: EdgeBulkFetcher
-
   val vertexFetcher: VertexFetcher
-
-  val vertexBulkFetcher: VertexBulkFetcher
 
   val edgeMutator: EdgeMutator
 

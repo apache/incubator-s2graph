@@ -19,11 +19,13 @@
 
 package org.apache.s2graph.core
 
+import com.typesafe.config.Config
 import org.apache.s2graph.core.storage.MutateResponse
 
 import scala.concurrent.{ExecutionContext, Future}
 
 trait EdgeMutator {
+
   def mutateStrongEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]]
 
   def mutateWeakEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[(Int, Boolean)]]
@@ -35,4 +37,9 @@ trait EdgeMutator {
   def deleteAllFetchedEdgesAsyncOld(stepInnerResult: StepResult,
                                     requestTs: Long,
                                     retryNum: Int)(implicit ec: ExecutionContext): Future[Boolean]
+
+  def close(): Unit = {}
+
+  def init(config: Config)(implicit ec: ExecutionContext): Unit = {}
+
 }

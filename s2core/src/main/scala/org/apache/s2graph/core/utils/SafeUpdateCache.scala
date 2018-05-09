@@ -114,7 +114,9 @@ class SafeUpdateCache(val config: Config)
     cache.invalidate(cacheKey)
   }
 
-  def withCache[T <: AnyRef](key: String, broadcast: Boolean)(op: => T): T = {
+  def withCache[T <: AnyRef](key: String,
+                             broadcast: Boolean,
+                             forceUpdate: Boolean = false)(op: => T): T = {
     val cacheKey = toCacheKey(key)
     val cachedValWithTs = cache.getIfPresent(cacheKey)
 
@@ -127,7 +129,7 @@ class SafeUpdateCache(val config: Config)
       val (_cachedVal, updatedAt, isUpdating) = cachedValWithTs
       val cachedVal = _cachedVal.asInstanceOf[T]
 
-      if (toTs() < updatedAt + ttl) cachedVal // in cache TTL
+      if (!forceUpdate && toTs() < updatedAt + ttl) cachedVal // in cache TTL
       else {
         val running = isUpdating.getAndSet(true)
 

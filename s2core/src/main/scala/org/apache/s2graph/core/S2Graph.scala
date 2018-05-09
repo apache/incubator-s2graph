@@ -20,30 +20,27 @@
 package org.apache.s2graph.core
 
 import java.util
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
-import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.{ExecutorService, Executors}
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.{BaseConfiguration, Configuration}
 import org.apache.s2graph.core.index.IndexProvider
 import org.apache.s2graph.core.io.tinkerpop.optimize.S2GraphStepStrategy
-import org.apache.s2graph.core.fetcher.FetcherManager
 import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.storage.rocks.RocksStorage
 import org.apache.s2graph.core.storage.{MutateResponse, OptimisticEdgeFetcher, Storage}
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
-import org.apache.tinkerpop.gremlin.process.traversal.{P, TraversalStrategies}
-import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
+import org.apache.s2graph.core.utils.{Extensions, Importer, logger}
+import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
 import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent._
-import scala.concurrent.duration.Duration
-import scala.util.{Random, Try}
+import scala.util.Try
 
 
 object S2Graph {
@@ -94,6 +91,7 @@ object S2Graph {
   val numOfThread = Runtime.getRuntime.availableProcessors()
   val threadPool = Executors.newFixedThreadPool(numOfThread)
   val ec = ExecutionContext.fromExecutor(threadPool)
+  val resourceManagerEc = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(numOfThread))
 
   val DefaultServiceName = ""
   val DefaultColumnName = "vertex"
@@ -187,7 +185,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
 
   override val management = new Management(this)
 
-  override val modelManager = new FetcherManager(this)
+  override val resourceManager: ResourceManager = new ResourceManager(this, config)(S2Graph.resourceManagerEc)
 
   override val indexProvider = IndexProvider.apply(config)
 
@@ -250,32 +248,39 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     storagePool.getOrElse(s"label:${label.label}", defaultStorage)
   }
 
-  //TODO:
+  /* Currently, each getter on Fetcher and Mutator missing proper implementation
+  *  Please discuss what is proper way to maintain resources here and provide
+  *  right implementation(S2GRAPH-213).
+  * */
   override def getVertexFetcher(column: ServiceColumn): VertexFetcher = {
-    getStorage(column.service).vertexFetcher
-  }
-  override def getVertexBulkFetcher: VertexBulkFetcher = {
-    defaultStorage.vertexBulkFetcher
+    resourceManager.getOrElseUpdateVertexFetcher(column)
+      .getOrElse(defaultStorage.vertexFetcher)
   }
 
   override def getEdgeFetcher(label: Label): EdgeFetcher = {
-    if (label.fetchConfigExist) modelManager.getFetcher(label)
-    else getStorage(label).edgeFetcher
+    resourceManager.getOrElseUpdateEdgeFetcher(label)
+      .getOrElse(defaultStorage.edgeFetcher)
   }
 
-  override def getEdgeBulkFetcher: EdgeBulkFetcher = {
-    defaultStorage.edgeBulkFetcher
+  override def getAllVertexFetchers(): Seq[VertexFetcher] = {
+    resourceManager.getAllVertexFetchers()
+  }
+
+  override def getAllEdgeFetchers(): Seq[EdgeFetcher] = {
+    resourceManager.getAllEdgeFetchers()
   }
 
   override def getVertexMutator(column: ServiceColumn): VertexMutator = {
-    getStorage(column.service).vertexMutator
+    resourceManager.getOrElseUpdateVertexMutator(column)
+      .getOrElse(defaultStorage.vertexMutator)
   }
 
   override def getEdgeMutator(label: Label): EdgeMutator = {
-    getStorage(label).edgeMutator
+    resourceManager.getOrElseUpdateEdgeMutator(label)
+      .getOrElse(defaultStorage.edgeMutator)
   }
 
-  /** optional */
+  //TODO:
   override def getOptimisticEdgeFetcher(label: Label): OptimisticEdgeFetcher = {
 //    getStorage(label).optimisticEdgeFetcher
     null

@@ -238,16 +238,13 @@ class RocksStorage(override val graph: S2GraphLike,
 
   private lazy val optimisticEdgeFetcher = new RocksOptimisticEdgeFetcher(graph, config, db, vdb, serDe, io)
   private lazy val optimisticMutator = new RocksOptimisticMutator(graph, serDe, optimisticEdgeFetcher, db, vdb, lockMap)
-  private lazy val _mutator = new DefaultOptimisticMutator(graph, serDe, optimisticEdgeFetcher, optimisticMutator)
 
   override val management: StorageManagement = new RocksStorageManagement(config, vdb, db)
   override val serDe: StorageSerDe = new RocksStorageSerDe(graph)
 
   override val edgeFetcher: EdgeFetcher = new RocksEdgeFetcher(graph, config, db, vdb, serDe, io)
-  override val edgeBulkFetcher: EdgeBulkFetcher = new RocksEdgeBulkFetcher(graph, config, db, vdb, serDe, io)
   override val vertexFetcher: VertexFetcher = new RocksVertexFetcher(graph, config, db, vdb, serDe, io)
-  override val vertexBulkFetcher: VertexBulkFetcher = new RocksVertexBulkFetcher(graph, config, db, vdb, serDe, io)
 
-  override val edgeMutator: EdgeMutator = _mutator
-  override val vertexMutator: VertexMutator = _mutator
+  override val edgeMutator: EdgeMutator = new DefaultOptimisticEdgeMutator(graph, serDe, optimisticEdgeFetcher, optimisticMutator, io)
+  override val vertexMutator: VertexMutator = new DefaultOptimisticVertexMutator(graph, serDe, optimisticEdgeFetcher, optimisticMutator, io)
 }

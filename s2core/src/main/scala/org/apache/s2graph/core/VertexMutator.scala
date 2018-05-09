@@ -19,10 +19,15 @@
 
 package org.apache.s2graph.core
 
+import com.typesafe.config.Config
 import org.apache.s2graph.core.storage.MutateResponse
 
 import scala.concurrent.{ExecutionContext, Future}
 
 trait VertexMutator {
+  def close(): Unit = {}
+
+  def init(config: Config)(implicit ec: ExecutionContext): Unit = {}
+
   def mutateVertex(zkQuorum: String, vertex: S2VertexLike, withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse]
 }

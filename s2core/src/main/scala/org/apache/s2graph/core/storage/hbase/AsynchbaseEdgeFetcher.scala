@@ -25,12 +25,14 @@ import com.stumbleupon.async.Deferred
 import com.typesafe.config.Config
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.storage.{StorageIO, StorageSerDe}
+import org.apache.s2graph.core.schema.Label
+import org.apache.s2graph.core.storage.serde.Serializable
+import org.apache.s2graph.core.storage.{CanSKeyValue, StorageIO, StorageSerDe}
 import org.apache.s2graph.core.types.{HBaseType, VertexId}
 import org.apache.s2graph.core.utils.{CanDefer, DeferCache, Extensions, logger}
 import org.hbase.async._
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 class AsynchbaseEdgeFetcher(val graph: S2GraphLike,
                             val config: Config,
@@ -62,6 +64,31 @@ class AsynchbaseEdgeFetcher(val graph: S2GraphLike,
     grouped.map(emptyStepResult) { queryResults: util.ArrayList[StepResult] =>
       queryResults
     }.toFuture(emptyStepResult).map(_.asScala)
+  }
+
+  override def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]] = {
+    val futures = Label.findAll().groupBy(_.hbaseTableName).toSeq.map { case (hTableName, labels) =>
+      val distinctLabels = labels.toSet
+      val scan = AsynchbasePatcher.newScanner(client, hTableName)
+      scan.setFamily(Serializable.edgeCf)
+      scan.setMaxVersions(1)
+
+      scan.nextRows(S2Graph.FetchAllLimit).toFuture(emptyKeyValuesLs).map {
+        case null => Seq.empty
+        case kvsLs =>
+          kvsLs.asScala.flatMap { kvs =>
+            kvs.asScala.flatMap { kv =>
+              val sKV = implicitly[CanSKeyValue[KeyValue]].toSKeyValue(kv)
+
+              serDe.indexEdgeDeserializer(schemaVer = HBaseType.DEFAULT_VERSION)
+                .fromKeyValues(Seq(kv), None)
+                .filter(e => distinctLabels(e.innerLabel) && e.getDirection() == "out" && !e.isDegree)
+            }
+          }
+      }
+    }
+
+    Future.sequence(futures).map(_.flatten)
   }
 
   /**

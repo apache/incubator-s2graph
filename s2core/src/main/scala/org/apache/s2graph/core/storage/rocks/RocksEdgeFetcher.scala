@@ -21,10 +21,12 @@ package org.apache.s2graph.core.storage.rocks
 
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.storage.{StorageIO, StorageSerDe}
-import org.apache.s2graph.core.types.VertexId
+import org.apache.s2graph.core.schema.Label
+import org.apache.s2graph.core.storage.{SKeyValue, StorageIO, StorageSerDe}
+import org.apache.s2graph.core.types.{HBaseType, VertexId}
 import org.rocksdb.RocksDB
 
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{ExecutionContext, Future}
 
 class RocksEdgeFetcher(val graph: S2GraphLike,
@@ -56,5 +58,34 @@ class RocksEdgeFetcher(val graph: S2GraphLike,
     }
 
     Future.sequence(futures)
+  }
+
+  override def fetchEdgesAll()(implicit ec: ExecutionContext) = {
+    val edges = new ArrayBuffer[S2EdgeLike]()
+    Label.findAll().groupBy(_.hbaseTableName).toSeq.foreach { case (hTableName, labels) =>
+      val distinctLabels = labels.toSet
+
+      val iter = db.newIterator()
+      try {
+        iter.seekToFirst()
+        while (iter.isValid) {
+          val kv = SKeyValue(table, iter.key(), SKeyValue.EdgeCf, qualifier, iter.value, System.currentTimeMillis())
+
+          serDe.indexEdgeDeserializer(schemaVer = HBaseType.DEFAULT_VERSION).fromKeyValues(Seq(kv), None)
+            .filter(e => distinctLabels(e.innerLabel) && e.getDirection() == "out" && !e.isDegree)
+            .foreach { edge =>
+              edges += edge
+            }
+
+
+          iter.next()
+        }
+
+      } finally {
+        iter.close()
+      }
+    }
+
+    Future.successful(edges)
   }
 }

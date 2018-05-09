@@ -75,7 +75,8 @@ object Conversions {
       (JsPath \ "serviceId").read[Int] and
       (JsPath \ "columnName").read[String] and
       (JsPath \ "columnType").read[String] and
-      (JsPath \ "schemaVersion").read[String]
+      (JsPath \ "schemaVersion").read[String] and
+      (JsPath \ "options").readNullable[String]
     )(ServiceColumn.apply _)
 
   implicit val serviceColumnWrites: Writes[ServiceColumn] = (
@@ -83,7 +84,8 @@ object Conversions {
       (JsPath \ "serviceId").write[Int] and
       (JsPath \ "columnName").write[String] and
       (JsPath \ "columnType").write[String] and
-      (JsPath \ "schemaVersion").write[String]
+      (JsPath \ "schemaVersion").write[String] and
+      (JsPath \ "options").writeNullable[String]
     )(unlift(ServiceColumn.unapply))
 
   implicit val columnMetaReads: Reads[ColumnMeta] = (
