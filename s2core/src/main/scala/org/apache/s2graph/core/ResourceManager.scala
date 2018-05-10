@@ -59,9 +59,10 @@ class ResourceManager(graph: S2GraphLike,
     cache.asMap().asScala.toSeq.collect { case (_, (obj: EdgeFetcher, _, _)) => obj }
   }
 
-  def getOrElseUpdateVertexFetcher(column: ServiceColumn, forceUpdate: Boolean = false): Option[VertexFetcher] = {
+  def getOrElseUpdateVertexFetcher(column: ServiceColumn,
+                                   cacheTTLInSecs: Option[Int] = None): Option[VertexFetcher] = {
     val cacheKey = VertexFetcherKey + "_" + column.service.serviceName + "_" + column.columnName
-    cache.withCache(cacheKey, false, forceUpdate) {
+    cache.withCache(cacheKey, false, cacheTTLInSecs) {
       column.toFetcherConfig.map { fetcherConfig =>
         val className = fetcherConfig.getString(ClassNameKey)
         val fetcher = Class.forName(className)
@@ -76,10 +77,11 @@ class ResourceManager(graph: S2GraphLike,
     }
   }
 
-  def getOrElseUpdateEdgeFetcher(label: Label, forceUpdate: Boolean = false): Option[EdgeFetcher] = {
+  def getOrElseUpdateEdgeFetcher(label: Label,
+                                 cacheTTLInSecs: Option[Int] = None): Option[EdgeFetcher] = {
     val cacheKey = EdgeFetcherKey + "_" + label.label
 
-    cache.withCache(cacheKey, false, forceUpdate) {
+    cache.withCache(cacheKey, false, cacheTTLInSecs) {
       label.toFetcherConfig.map { fetcherConfig =>
         val className = fetcherConfig.getString(ClassNameKey)
         val fetcher = Class.forName(className)
@@ -94,9 +96,10 @@ class ResourceManager(graph: S2GraphLike,
     }
   }
 
-  def getOrElseUpdateVertexMutator(column: ServiceColumn, forceUpdate: Boolean = false): Option[VertexMutator] = {
+  def getOrElseUpdateVertexMutator(column: ServiceColumn,
+                                   cacheTTLInSecs: Option[Int] = None): Option[VertexMutator] = {
     val cacheKey = VertexMutatorKey + "_" + column.service.serviceName + "_" + column.columnName
-    cache.withCache(cacheKey, false, forceUpdate) {
+    cache.withCache(cacheKey, false, cacheTTLInSecs) {
       column.toMutatorConfig.map { mutatorConfig =>
         val className = mutatorConfig.getString(ClassNameKey)
         val fetcher = Class.forName(className)
@@ -111,9 +114,10 @@ class ResourceManager(graph: S2GraphLike,
     }
   }
 
-  def getOrElseUpdateEdgeMutator(label: Label, forceUpdate: Boolean = false): Option[EdgeMutator] = {
+  def getOrElseUpdateEdgeMutator(label: Label,
+                                 cacheTTLInSecs: Option[Int] = None): Option[EdgeMutator] = {
     val cacheKey = EdgeMutatorKey + "_" + label.label
-    cache.withCache(cacheKey, false, forceUpdate) {
+    cache.withCache(cacheKey, false, cacheTTLInSecs) {
       label.toMutatorConfig.map { mutatorConfig =>
         val className = mutatorConfig.getString(ClassNameKey)
         val fetcher = Class.forName(className)

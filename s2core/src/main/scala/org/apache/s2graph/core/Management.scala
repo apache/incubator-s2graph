@@ -313,7 +313,7 @@ class Management(graph: S2GraphLike) {
 
   def updateEdgeFetcher(label: Label, options: String): Unit = {
     val newLabel = Label.updateOption(label, options)
-    graph.resourceManager.getOrElseUpdateEdgeFetcher(newLabel, forceUpdate = true)
+    graph.resourceManager.getOrElseUpdateEdgeFetcher(newLabel, cacheTTLInSecs = Option(-1))
   }
 
   def updateVertexFetcher(serviceName: String, columnName: String, options: String): Unit = {
@@ -325,7 +325,7 @@ class Management(graph: S2GraphLike) {
 
   def updateVertexFetcher(column: ServiceColumn, options: String): Unit = {
     val newColumn = ServiceColumn.updateOption(column, options)
-    graph.resourceManager.getOrElseUpdateVertexFetcher(newColumn, forceUpdate = true)
+    graph.resourceManager.getOrElseUpdateVertexFetcher(newColumn, cacheTTLInSecs = Option(-1))
   }
 
   def updateEdgeMutator(labelName: String, options: String): Unit = {
@@ -336,7 +336,7 @@ class Management(graph: S2GraphLike) {
 
   def updateEdgeMutator(label: Label, options: String): Unit = {
     val newLabel = Label.updateOption(label, options)
-    graph.resourceManager.getOrElseUpdateEdgeMutator(newLabel, forceUpdate = true)
+    graph.resourceManager.getOrElseUpdateEdgeMutator(newLabel, cacheTTLInSecs = Option(-1))
   }
 
   def updateVertexMutator(serviceName: String, columnName: String, options: String): Unit = {
@@ -348,7 +348,7 @@ class Management(graph: S2GraphLike) {
 
   def updateVertexMutator(column: ServiceColumn, options: String): Unit = {
     val newColumn = ServiceColumn.updateOption(column, options)
-    graph.resourceManager.getOrElseUpdateVertexMutator(newColumn, forceUpdate = true)
+    graph.resourceManager.getOrElseUpdateVertexMutator(newColumn, cacheTTLInSecs = Option(-1))
   }
 
   def createStorageTable(zkAddr: String,
