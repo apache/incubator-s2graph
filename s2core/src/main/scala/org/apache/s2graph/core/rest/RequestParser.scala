@@ -652,9 +652,11 @@ class RequestParser(graph: S2GraphLike) {
     val compressionAlgorithm = (jsValue \ "compressionAlgorithm").asOpt[String].getOrElse(DefaultCompressionAlgorithm)
     val options = (jsValue \ "options").asOpt[JsValue].map(_.toString())
 
-    graph.management.createLabel(labelName, srcServiceName, srcColumnName, srcColumnType,
-        tgtServiceName, tgtColumnName, tgtColumnType, isDirected, serviceName,
-        indices, allProps, consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm, options)
+    graph.management.createLabel(labelName,
+      srcServiceName, srcColumnName, srcColumnType,
+      tgtServiceName, tgtColumnName, tgtColumnType, serviceName,
+      indices, allProps, isDirected,
+      consistencyLevel, hTableName, hTableTTL, schemaVersion, isAsync, compressionAlgorithm, options)
   }
 
   def toIndexElements(jsValue: JsValue) = Try {

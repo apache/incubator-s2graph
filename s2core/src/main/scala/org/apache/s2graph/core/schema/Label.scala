@@ -33,6 +33,8 @@ import scalikejdbc._
 
 object Label extends SQLSyntaxSupport[Label] {
   import Schema._
+  import GraphUtil._
+
   val className = Label.getClass.getSimpleName
 
   val maxHBaseTableNames = 2
@@ -43,7 +45,7 @@ object Label extends SQLSyntaxSupport[Label] {
       rs.int("tgt_service_id"), rs.string("tgt_column_name"), rs.string("tgt_column_type"),
       rs.boolean("is_directed"), rs.string("service_name"), rs.int("service_id"), rs.string("consistency_level"),
       rs.string("hbase_table_name"), rs.intOpt("hbase_table_ttl"), rs.string("schema_version"), rs.boolean("is_async"),
-      rs.string("compressionAlgorithm"), rs.stringOpt("options"))
+      rs.string("compressionAlgorithm"), stringToOption(rs.stringOpt("options")))
   }
 
   def deleteAll(label: Label)(implicit session: DBSession) = {
@@ -264,7 +266,7 @@ object Label extends SQLSyntaxSupport[Label] {
   }
 
   def updateOption(label: Label, options: String)(implicit session: DBSession = AutoSession) = {
-    scala.util.Try(Json.parse(options)).getOrElse(throw new RuntimeException("invalid Json option"))
+    scala.util.Try(Json.parse(options)).getOrElse(throw new RuntimeException(s"invalid Json option: $options"))
     logger.info(s"update options of label ${label.label}, ${options}")
     val cnt = sql"""update labels set options = $options where id = ${label.id.get}""".update().apply()
     val updatedLabel = findById(label.id.get, useCache = false)

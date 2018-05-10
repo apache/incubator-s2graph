@@ -164,4 +164,11 @@ object GraphUtil {
     }
   }
 
+  def stringToOption(s: Option[String]): Option[String] = {
+    s.filter(_.trim.nonEmpty)
+  }
+
+  def stringToOption(s: String): Option[String] = {
+    Option(s).filter(_.trim.nonEmpty)
+  }
 }

@@ -304,15 +304,16 @@ class Management(graph: S2GraphLike) {
   val importEx = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
   import Management._
+  import GraphUtil._
 
   def updateEdgeFetcher(labelName: String, options: String): Unit = {
     val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
 
-    updateEdgeFetcher(label, options)
+    updateEdgeFetcher(label, stringToOption(options))
   }
 
-  def updateEdgeFetcher(label: Label, options: String): Unit = {
-    val newLabel = Label.updateOption(label, options)
+  def updateEdgeFetcher(label: Label, options: Option[String]): Unit = {
+    val newLabel = options.map(Label.updateOption(label, _)).getOrElse(label)
     graph.resourceManager.getOrElseUpdateEdgeFetcher(newLabel, cacheTTLInSecs = Option(-1))
   }
 
@@ -320,22 +321,22 @@ class Management(graph: S2GraphLike) {
     val service = Service.findByName(serviceName).getOrElse(throw new IllegalArgumentException(s"$serviceName is not exist."))
     val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new IllegalArgumentException(s"$columnName is not exist."))
 
-    updateVertexFetcher(column, options)
+    updateVertexFetcher(column, stringToOption(options))
   }
 
-  def updateVertexFetcher(column: ServiceColumn, options: String): Unit = {
-    val newColumn = ServiceColumn.updateOption(column, options)
+  def updateVertexFetcher(column: ServiceColumn, options: Option[String]): Unit = {
+    val newColumn = options.map(ServiceColumn.updateOption(column, _)).getOrElse(column)
     graph.resourceManager.getOrElseUpdateVertexFetcher(newColumn, cacheTTLInSecs = Option(-1))
   }
 
   def updateEdgeMutator(labelName: String, options: String): Unit = {
     val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
 
-    updateEdgeMutator(label, options)
+    updateEdgeMutator(label, stringToOption(options))
   }
 
-  def updateEdgeMutator(label: Label, options: String): Unit = {
-    val newLabel = Label.updateOption(label, options)
+  def updateEdgeMutator(label: Label, options: Option[String]): Unit = {
+    val newLabel = options.map(Label.updateOption(label, _)).getOrElse(label)
     graph.resourceManager.getOrElseUpdateEdgeMutator(newLabel, cacheTTLInSecs = Option(-1))
   }
 
@@ -343,11 +344,11 @@ class Management(graph: S2GraphLike) {
     val service = Service.findByName(serviceName).getOrElse(throw new IllegalArgumentException(s"$serviceName is not exist."))
     val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new IllegalArgumentException(s"$columnName is not exist."))
 
-    updateVertexMutator(column, options)
+    updateVertexMutator(column, stringToOption(options))
   }
 
-  def updateVertexMutator(column: ServiceColumn, options: String): Unit = {
-    val newColumn = ServiceColumn.updateOption(column, options)
+  def updateVertexMutator(column: ServiceColumn, options: Option[String]): Unit = {
+    val newColumn = options.map(ServiceColumn.updateOption(column, _)).getOrElse(column)
     graph.resourceManager.getOrElseUpdateVertexMutator(newColumn, cacheTTLInSecs = Option(-1))
   }
 
@@ -452,9 +453,9 @@ class Management(graph: S2GraphLike) {
     createLabel(labelName,
       srcColumn.service.serviceName, srcColumn.columnName, srcColumn.columnType,
       tgtColumn.service.serviceName, tgtColumn.columnName, tgtColumn.columnType,
-      isDirected, serviceName, indices, props, consistencyLevel,
+      serviceName, indices, props, isDirected, consistencyLevel,
       Option(hTableName), Option(hTableTTL).filter(_ > -1),
-      schemaVersion, false, compressionAlgorithm, Option(options)
+      schemaVersion, false, compressionAlgorithm, stringToOption(options)
     ).get
   }
 
@@ -466,10 +467,10 @@ class Management(graph: S2GraphLike) {
                   tgtServiceName: String,
                   tgtColumnName: String,
                   tgtColumnType: String,
-                  isDirected: Boolean = true,
                   serviceName: String,
                   indices: Seq[Index],
                   props: Seq[Prop],
+                  isDirected: Boolean = true,
                   consistencyLevel: String = "weak",
                   hTableName: Option[String] = None,
                   hTableTTL: Option[Int] = None,
@@ -523,8 +524,9 @@ class Management(graph: S2GraphLike) {
 
     createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
       old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
-      old.isDirected, old.serviceName,
+      old.serviceName,
       allIndices, allProps,
+      old.isDirected,
       old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync, old.compressionAlgorithm, old.options)
   }
 

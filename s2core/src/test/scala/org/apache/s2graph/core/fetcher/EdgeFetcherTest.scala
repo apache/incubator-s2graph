@@ -55,21 +55,25 @@ class EdgeFetcherTest extends IntegrateCommon {
 
     val label = management.createLabel(
       labelName,
-      serviceColumn,
-      serviceColumn,
-      true,
       service.serviceName,
-      Seq.empty[Index].asJava,
-      Seq.empty[Prop].asJava,
-      "strong",
-      null,
-      -1,
-      "v3",
-      "gz",
-      options
-    )
+      serviceColumn.columnName,
+      serviceColumn.columnType,
+      service.serviceName,
+      serviceColumn.columnName,
+      serviceColumn.columnType,
+      service.serviceName,
+      Seq.empty[Index],
+      Seq.empty[Prop],
+      isDirected = true,
+      consistencyLevel =  "strong",
+      hTableName = None,
+      hTableTTL = None,
+      schemaVersion = "v3",
+      compressionAlgorithm =  "gz",
+      options = Option(options)
+    ).get
 
-    graph.management.updateEdgeFetcher(label, options)
+    graph.management.updateEdgeFetcher(label, Option(options))
 
 
     val vertex = graph.elementBuilder.toVertex(service.serviceName, serviceColumn.columnName, "daewon")
