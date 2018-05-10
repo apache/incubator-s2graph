@@ -19,22 +19,20 @@
 
 package org.apache.s2graph.core
 
-import java.util
-import java.util.concurrent.{CompletableFuture, TimeUnit}
-import java.util.concurrent.atomic.AtomicLong
 import java.lang.{Boolean => JBoolean, Long => JLong}
+import java.util
 import java.util.Optional
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.{CompletableFuture, TimeUnit}
 
 import com.typesafe.config.Config
 import org.apache.commons.configuration.Configuration
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
-import org.apache.s2graph.core.S2Graph.{DefaultColumnName, DefaultServiceName}
 import org.apache.s2graph.core.features.{S2Features, S2GraphVariables}
 import org.apache.s2graph.core.index.IndexProvider
-import org.apache.s2graph.core.model.ModelManager
 import org.apache.s2graph.core.schema.{Label, LabelMeta, Service, ServiceColumn}
-import org.apache.s2graph.core.storage.{MutateResponse, Storage}
-import org.apache.s2graph.core.types.{InnerValLike, VertexId}
+import org.apache.s2graph.core.storage.{MutateResponse, OptimisticEdgeFetcher, Storage}
+import org.apache.s2graph.core.types.VertexId
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
 import org.apache.tinkerpop.gremlin.structure
 import org.apache.tinkerpop.gremlin.structure.Edge.Exceptions
@@ -44,10 +42,10 @@ import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Element, Graph, 
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.compat.java8.FutureConverters._
 import scala.compat.java8.OptionConverters._
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 
 trait S2GraphLike extends Graph {
@@ -69,7 +67,7 @@ trait S2GraphLike extends Graph {
 
   val traversalHelper: TraversalHelper
 
-  val modelManager: ModelManager
+  val resourceManager: ResourceManager
 
   lazy val MaxRetryNum: Int = config.getInt("max.retry.number")
   lazy val MaxBackOff: Int = config.getInt("max.back.off")
@@ -93,13 +91,20 @@ trait S2GraphLike extends Graph {
 
   def getStorage(label: Label): Storage
 
-  def getFetcher(column: ServiceColumn): Fetcher
+  def getVertexFetcher(column: ServiceColumn): VertexFetcher
 
-  def getFetcher(label: Label): Fetcher
+  def getEdgeFetcher(label: Label): EdgeFetcher
 
-  def getMutator(label: Label): Mutator
+  def getAllVertexFetchers(): Seq[VertexFetcher]
 
-  def getMutator(column: ServiceColumn): Mutator
+  def getAllEdgeFetchers(): Seq[EdgeFetcher]
+
+  /** optional */
+  def getOptimisticEdgeFetcher(label: Label): OptimisticEdgeFetcher
+
+  def getEdgeMutator(label: Label): EdgeMutator
+
+  def getVertexMutator(column: ServiceColumn): VertexMutator
 
   def flushStorage(): Unit
 
@@ -204,7 +209,13 @@ trait S2GraphLike extends Graph {
 
     if (ids.isEmpty) {
       //TODO: default storage need to be fixed.
-      Await.result(defaultStorage.fetchVerticesAll(), WaitTimeout).iterator
+      val futures = (defaultStorage.vertexFetcher +: getAllVertexFetchers).map { vertexFetcher =>
+        vertexFetcher.fetchVerticesAll()
+      }
+
+      val future = Future.sequence(futures)
+
+      Await.result(future, WaitTimeout).flatten.iterator
     } else {
       val vertices = ids.collect {
         case s2Vertex: S2VertexLike => s2Vertex
@@ -229,7 +240,13 @@ trait S2GraphLike extends Graph {
   def edges(edgeIds: AnyRef*): util.Iterator[structure.Edge] = {
     if (edgeIds.isEmpty) {
       // FIXME
-      Await.result(defaultStorage.fetchEdgesAll(), WaitTimeout).iterator
+      val futures = (defaultStorage.edgeFetcher +: getAllEdgeFetchers()).map { edgeFetcher =>
+        edgeFetcher.fetchEdgesAll()
+      }
+
+      val future = Future.sequence(futures)
+
+      Await.result(future, WaitTimeout).flatten.iterator
     } else {
       Await.result(edgesAsync(edgeIds: _*), WaitTimeout)
     }

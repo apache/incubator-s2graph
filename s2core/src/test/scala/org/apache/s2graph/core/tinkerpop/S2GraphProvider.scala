@@ -147,10 +147,10 @@ class S2GraphProvider extends AbstractGraphProvider {
     }
     if (loadGraphWith != null && loadGraphWith.value() == GraphData.MODERN) {
       mnt.createLabel("knows", defaultService.serviceName, "person", "integer", defaultService.serviceName, "person", "integer",
-        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+        defaultService.serviceName, Nil, knowsProp, true, "strong", None, None, options = Option("""{"skipReverse": false}"""))
     } else {
       mnt.createLabel("knows", defaultService.serviceName, "vertex", "integer", defaultService.serviceName, "vertex", "integer",
-        true, defaultService.serviceName, Nil, knowsProp, "strong", None, None, options = Option("""{"skipReverse": false}"""))
+        defaultService.serviceName, Nil, knowsProp, true, "strong", None, None, options = Option("""{"skipReverse": false}"""))
     }
 
     // columns
@@ -193,24 +193,24 @@ class S2GraphProvider extends AbstractGraphProvider {
         mnt.createLabel("created",
           defaultService.serviceName, "person", "integer",
           defaultService.serviceName, "software", "integer",
-          true, defaultService.serviceName, Nil, createdProps, "strong", None, None)
+          defaultService.serviceName, Nil, createdProps, true, "strong", None, None)
       } else {
         mnt.createLabel("created",
           defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
           defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-          true, defaultService.serviceName, Nil, createdProps, "strong", None, None)
+          defaultService.serviceName, Nil, createdProps, true, "strong", None, None)
       }
 
     val boughtProps = Seq(Prop("x", "-", "string"), Prop("y", "-", "string"))
     allProps ++= boughtProps
     val bought = mnt.createLabel("bought", defaultService.serviceName, "person", "integer", defaultService.serviceName, "product", "integer",
-      true, defaultService.serviceName, Nil, boughtProps, "strong", None, None,
+      defaultService.serviceName, Nil, boughtProps, true, "strong", None, None,
       options = Option("""{"skipReverse": true}"""))
 
     val testProps = Seq(Prop("xxx", "-", "string"))
     allProps ++= testProps
     val test = mnt.createLabel("test", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, testProps, "weak", None, None,
+      defaultService.serviceName, Nil, testProps, true, "weak", None, None,
       options = Option("""{"skipReverse": true}"""))
 
     val selfProps = Seq(Prop("__id", "-", "string"),  Prop("acl", "-", "string"),
@@ -222,12 +222,12 @@ class S2GraphProvider extends AbstractGraphProvider {
         mnt.createLabel("self",
           defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
           defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-          true, defaultService.serviceName, Nil, selfProps, "strong", None, None,
+          defaultService.serviceName, Nil, selfProps, true, "strong", None, None,
           options = Option("""{"skipReverse": true}"""))
       } else {
         mnt.createLabel("self", defaultService.serviceName, "person", "integer",
           defaultService.serviceName, "person", "integer",
-          true, defaultService.serviceName, Nil, selfProps, "strong", None, None,
+          defaultService.serviceName, Nil, selfProps, true, "strong", None, None,
           options = Option("""{"skipReverse": false}"""))
       }
 
@@ -239,13 +239,13 @@ class S2GraphProvider extends AbstractGraphProvider {
         mnt.createLabel("friends",
           defaultService.serviceName, "person", "integer",
           defaultService.serviceName, "person", "integer",
-          true, defaultService.serviceName, Nil, friendsProps,
+          defaultService.serviceName, Nil, friendsProps, true,
           "strong", None, None,
           options = Option("""{"skipReverse": false}"""))
       } else {
         mnt.createLabel("friends", defaultService.serviceName, defaultServiceColumn.columnName,
           defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-          true, defaultService.serviceName, Nil, Nil,
+          defaultService.serviceName, Nil, Nil, true,
           "strong", None, None,
           options = Option("""{"skipReverse": false}"""))
       }
@@ -264,15 +264,13 @@ class S2GraphProvider extends AbstractGraphProvider {
         mnt.createLabel("friend",
           defaultService.serviceName, "person", "integer",
           defaultService.serviceName, "person", "integer",
-          true, defaultService.serviceName, Nil,
-          friendProps, "strong", None, None,
+          defaultService.serviceName, Nil, friendProps, true, "strong", None, None,
           options = Option("""{"skipReverse": false}"""))
       } else {
         mnt.createLabel("friend",
           defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
           defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-          true, defaultService.serviceName, Nil,
-          friendProps, "strong", None, None,
+          defaultService.serviceName, Nil, friendProps, true, "strong", None, None,
           options = Option("""{"skipReverse": false}""")
         )
       }
@@ -280,7 +278,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val hateProps = Nil
     val hate = mnt.createLabel("hate", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
       defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, hateProps, "strong", None, None,
+      defaultService.serviceName, Nil, hateProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
@@ -288,36 +286,35 @@ class S2GraphProvider extends AbstractGraphProvider {
     allProps ++= collaboratorProps
 
     val collaborator = mnt.createLabel("collaborator", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil,
-      collaboratorProps, "strong", None, None,
+      defaultService.serviceName, Nil, collaboratorProps, true, "strong", None, None,
        options = Option("""{"skipReverse": true}""")
     )
 
     val test1Props = Nil
     val test1 = mnt.createLabel("test1", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
       defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, test1Props, "weak", None, None,
+      defaultService.serviceName, Nil, test1Props, true, "weak", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
     val test2Props = Nil
     val test2 = mnt.createLabel("test2", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
       defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, test2Props, "weak", None, None,
+      defaultService.serviceName, Nil, test2Props, true, "weak", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
     val test3Props = Nil
     val test3 = mnt.createLabel("test3", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
       defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, test3Props, "weak", None, None,
+      defaultService.serviceName, Nil, test3Props, true, "weak", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
     val petsProps = Nil
     val pets = mnt.createLabel("pets", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
       defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, petsProps, "strong", None, None,
+      defaultService.serviceName, Nil, petsProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
@@ -326,26 +323,25 @@ class S2GraphProvider extends AbstractGraphProvider {
 
     val walks = mnt.createLabel("walks", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
       defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil,
-      walksProps, "strong", None, None,
+      defaultService.serviceName, Nil, walksProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
     val livesWithProps = Nil
     val livesWith = mnt.createLabel("livesWith", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, livesWithProps, "strong", None, None,
+      defaultService.serviceName, Nil, livesWithProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
     val hatesProps = Nil
     val hates = mnt.createLabel("hates", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, hatesProps, "weak", None, None,
+      defaultService.serviceName, Nil, hatesProps, true, "weak", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
     val linkProps = Nil
     val link = mnt.createLabel("link", defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType, defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, linkProps, "strong", None, None,
+      defaultService.serviceName, Nil, linkProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
@@ -355,8 +351,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val codeveloper = mnt.createLabel("codeveloper",
       defaultService.serviceName, "person", "integer",
       defaultService.serviceName, "person", "integer",
-      true, defaultService.serviceName, Nil,
-      codeveloperProps, "strong", None, None,
+      defaultService.serviceName, Nil, codeveloperProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
@@ -370,8 +365,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val createdBy = mnt.createLabel("createdBy",
       defaultService.serviceName, "software", "integer",
       defaultService.serviceName, "person", "integer",
-      true, defaultService.serviceName, Nil,
-      createdByProps, "strong", None, None)
+      defaultService.serviceName, Nil, createdByProps, true, "strong", None, None)
 
     val existsWithProps = Seq(Prop("time", "-", "string"))
     allProps ++= existsWithProps
@@ -379,7 +373,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val existsWith = mnt.createLabel("existsWith",
       defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
       defaultService.serviceName, defaultServiceColumn.columnName, defaultServiceColumn.columnType,
-      true, defaultService.serviceName, Nil, existsWithProps, "strong", None, None,
+      defaultService.serviceName, Nil, existsWithProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
@@ -389,7 +383,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val followedBy = mnt.createLabel("followedBy",
       defaultService.serviceName, "song", "integer",
       defaultService.serviceName, "song", "integer",
-      true, defaultService.serviceName, Nil, followedByProps, "strong", None, None,
+      defaultService.serviceName, Nil, followedByProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
@@ -399,7 +393,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val writtenBy = mnt.createLabel("writtenBy",
       defaultService.serviceName, "song", "integer",
       defaultService.serviceName, "artist", "integer",
-      true, defaultService.serviceName, Nil, writtenByProps, "strong", None, None,
+      defaultService.serviceName, Nil, writtenByProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
@@ -409,7 +403,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val sungBy = mnt.createLabel("sungBy",
       defaultService.serviceName, "song", "integer",
       defaultService.serviceName, "artist", "integer",
-      true, defaultService.serviceName, Nil, sungByProps, "strong", None, None,
+      defaultService.serviceName, Nil, sungByProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
@@ -417,7 +411,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val uses = mnt.createLabel("uses",
       defaultService.serviceName, "person", "integer",
       defaultService.serviceName, "software", "integer",
-      true, defaultService.serviceName, Nil, usesProps, "strong", None, None,
+      defaultService.serviceName, Nil, usesProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
@@ -427,8 +421,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val likes = mnt.createLabel("likes",
       defaultService.serviceName, "person", "integer",
       defaultService.serviceName, "person", "integer",
-      true, defaultService.serviceName, Nil,
-      likesProps, "strong", None, None,
+      defaultService.serviceName, Nil, likesProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
@@ -438,8 +431,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val foo = mnt.createLabel("foo",
       defaultService.serviceName, "person", "integer",
       defaultService.serviceName, "person", "integer",
-      true, defaultService.serviceName, Nil,
-      fooProps, "strong", None, None,
+      defaultService.serviceName, Nil, fooProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 
@@ -449,8 +441,7 @@ class S2GraphProvider extends AbstractGraphProvider {
     val bar = mnt.createLabel("bar",
       defaultService.serviceName, "person", "integer",
       defaultService.serviceName, "person", "integer",
-      true, defaultService.serviceName, Nil,
-      barProps, "strong", None, None,
+      defaultService.serviceName, Nil, barProps, true, "strong", None, None,
       options = Option("""{"skipReverse": false}""")
     )
 

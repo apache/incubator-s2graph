@@ -1,11 +1,10 @@
-package org.apache.s2graph.core.model.fasttext
-
+package org.apache.s2graph.core.fetcher.fasttext
 
 import java.io.{BufferedInputStream, FileInputStream, InputStream}
 import java.nio.{ByteBuffer, ByteOrder}
 import java.util
 
-import org.apache.s2graph.core.model.fasttext.fasttext.FastTextArgs
+import org.apache.s2graph.core.fetcher.fasttext
 import org.rocksdb._
 
 import scala.collection.JavaConverters._
@@ -13,7 +12,7 @@ import scala.collection.mutable.ArrayBuffer
 
 object CopyModel {
 
-  def writeArgs(db: RocksDB, handle: ColumnFamilyHandle, args: FastTextArgs): Unit = {
+  def writeArgs(db: RocksDB, handle: ColumnFamilyHandle, args: fasttext.FastTextArgs): Unit = {
     val wo = new WriteOptions().setDisableWAL(true).setSync(false)
     db.put(handle, wo, "args".getBytes("UTF-8"), args.serialize)
     wo.close()
@@ -21,7 +20,7 @@ object CopyModel {
   }
 
   def writeVocab(is: InputStream, db: RocksDB,
-                 vocabHandle: ColumnFamilyHandle, labelHandle: ColumnFamilyHandle, args: FastTextArgs): Unit = {
+                 vocabHandle: ColumnFamilyHandle, labelHandle: ColumnFamilyHandle, args: fasttext.FastTextArgs): Unit = {
     val wo = new WriteOptions().setDisableWAL(true).setSync(false)
     val bb = ByteBuffer.allocate(13).order(ByteOrder.LITTLE_ENDIAN)
     val wb = new ArrayBuffer[Byte]
@@ -49,7 +48,7 @@ object CopyModel {
     wo.close()
   }
 
-  def writeVectors(is: InputStream, db: RocksDB, handle: ColumnFamilyHandle, args: FastTextArgs): Unit = {
+  def writeVectors(is: InputStream, db: RocksDB, handle: ColumnFamilyHandle, args: fasttext.FastTextArgs): Unit = {
     require(is.read() == 0, "not implemented")
     val wo = new WriteOptions().setDisableWAL(true).setSync(false)
     val bb = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)

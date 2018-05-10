@@ -1,3 +1,21 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.apache.s2graph.core.storage
 
 import org.apache.s2graph.core._
@@ -6,18 +24,17 @@ import org.apache.s2graph.core.utils.logger
 
 import scala.concurrent.{ExecutionContext, Future}
 
-abstract class DefaultOptimisticMutator(graph: S2GraphLike,
-                                        serDe: StorageSerDe,
-                                        reader: StorageReadable) extends OptimisticMutator {
-  val fetcher = reader
+class DefaultOptimisticEdgeMutator(graph: S2GraphLike,
+                                   serDe: StorageSerDe,
+                                   optimisticEdgeFetcher: OptimisticEdgeFetcher,
+                                   optimisticMutator: OptimisticMutator,
+                                   io: StorageIO) extends EdgeMutator {
+  lazy val conflictResolver: WriteWriteConflictResolver = new WriteWriteConflictResolver(graph, serDe, io, optimisticMutator, optimisticEdgeFetcher)
 
-  lazy val io: StorageIO = new StorageIO(graph, serDe)
-  lazy val conflictResolver: WriteWriteConflictResolver = new WriteWriteConflictResolver(graph, serDe, io, this, reader)
+  private def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] =
+    optimisticMutator.writeToStorage(cluster, kvs, withWait)
 
-//  private def writeToStorage(cluster: String, kvs: Seq[SKeyValue], withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] =
-//    mutator.writeToStorage(cluster, kvs, withWait)
-
-  def deleteAllFetchedEdgesAsyncOld(stepInnerResult: StepResult,
+  override def deleteAllFetchedEdgesAsyncOld(stepInnerResult: StepResult,
                                     requestTs: Long,
                                     retryNum: Int)(implicit ec: ExecutionContext): Future[Boolean] = {
     if (stepInnerResult.isEmpty) Future.successful(true)
@@ -54,19 +71,7 @@ abstract class DefaultOptimisticMutator(graph: S2GraphLike,
     }
   }
 
-  def mutateVertex(zkQuorum: String, vertex: S2VertexLike, withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] = {
-    if (vertex.op == GraphUtil.operations("delete")) {
-      writeToStorage(zkQuorum,
-        serDe.vertexSerializer(vertex).toKeyValues.map(_.copy(operation = SKeyValue.Delete)), withWait)
-    } else if (vertex.op == GraphUtil.operations("deleteAll")) {
-      logger.info(s"deleteAll for vertex is truncated. $vertex")
-      Future.successful(MutateResponse.Success) // Ignore withWait parameter, because deleteAll operation may takes long time
-    } else {
-      writeToStorage(zkQuorum, io.buildPutsAll(vertex), withWait)
-    }
-  }
-
-  def mutateWeakEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[(Int, Boolean)]] = {
+  override def mutateWeakEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[(Int, Boolean)]] = {
     val mutations = _edges.flatMap { edge =>
       val (_, edgeUpdate) =
         if (edge.getOp() == GraphUtil.operations("delete")) S2Edge.buildDeleteBulk(None, edge)
@@ -85,7 +90,7 @@ abstract class DefaultOptimisticMutator(graph: S2GraphLike,
     }
   }
 
-  def mutateStrongEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
+  override def mutateStrongEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
     def mutateEdgesInner(edges: Seq[S2EdgeLike],
                          checkConsistency: Boolean,
                          withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] = {
@@ -106,7 +111,7 @@ abstract class DefaultOptimisticMutator(graph: S2GraphLike,
         }
         Future.sequence(futures).map { rets => new MutateResponse(rets.forall(_.isSuccess)) }
       } else {
-        fetcher.fetchSnapshotEdgeInner(edges.head).flatMap { case (snapshotEdgeOpt, kvOpt) =>
+        optimisticEdgeFetcher.fetchSnapshotEdgeInner(edges.head).flatMap { case (snapshotEdgeOpt, kvOpt) =>
           conflictResolver.retry(1)(edges, 0, snapshotEdgeOpt).map(new MutateResponse(_))
         }
       }
@@ -145,7 +150,7 @@ abstract class DefaultOptimisticMutator(graph: S2GraphLike,
     }
   }
 
-  def incrementCounts(zkQuorum: String, edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[MutateResponse]] = {
+  override def incrementCounts(zkQuorum: String, edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[MutateResponse]] = {
     val futures = for {
       edge <- edges
     } yield {
@@ -163,7 +168,7 @@ abstract class DefaultOptimisticMutator(graph: S2GraphLike,
     Future.sequence(futures)
   }
 
-  def updateDegree(zkQuorum: String, edge: S2EdgeLike, degreeVal: Long = 0)(implicit ec: ExecutionContext): Future[MutateResponse] = {
+  override def updateDegree(zkQuorum: String, edge: S2EdgeLike, degreeVal: Long = 0)(implicit ec: ExecutionContext): Future[MutateResponse] = {
     val kvs = io.buildDegreePuts(edge, degreeVal)
 
     writeToStorage(zkQuorum, kvs, withWait = true)

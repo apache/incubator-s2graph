@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core
 
-import java.util
+
 import java.util.concurrent.Executors
 
 import com.typesafe.config.{Config, ConfigFactory}
@@ -29,7 +29,7 @@ import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.model.Importer
+import org.apache.s2graph.core.utils.Importer
 import play.api.libs.json._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -95,14 +95,15 @@ object Management {
                           columnName: String,
                           columnType: String,
                           props: Seq[Prop],
-                          schemaVersion: String = DEFAULT_VERSION) = {
+                          schemaVersion: String = DEFAULT_VERSION,
+                          options: Option[String] = None) = {
 
     Schema withTx { implicit session =>
       val serviceOpt = Service.findByName(serviceName, useCache = false)
       serviceOpt match {
         case None => throw new RuntimeException(s"create service $serviceName has not been created.")
         case Some(service) =>
-          val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion, useCache = false)
+          val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion, options, useCache = false)
           for {
             Prop(propName, defaultValue, dataType, storeInGlobalIndex) <- props
           } yield {
@@ -303,14 +304,52 @@ class Management(graph: S2GraphLike) {
   val importEx = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
   import Management._
+  import GraphUtil._
 
-  def importModel(labelName: String, options: String): Future[Importer] = {
-    Label.updateOption(labelName, options)
+  def updateEdgeFetcher(labelName: String, options: String): Unit = {
+    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
 
-    val label = Label.findByName(labelName, false).getOrElse(throw new LabelNotExistException(labelName))
-    val config = ConfigFactory.parseString(options)
+    updateEdgeFetcher(label, stringToOption(options))
+  }
 
-    graph.modelManager.importModel(label, config)(importEx)
+  def updateEdgeFetcher(label: Label, options: Option[String]): Unit = {
+    val newLabel = options.map(Label.updateOption(label, _)).getOrElse(label)
+    graph.resourceManager.getOrElseUpdateEdgeFetcher(newLabel, cacheTTLInSecs = Option(-1))
+  }
+
+  def updateVertexFetcher(serviceName: String, columnName: String, options: String): Unit = {
+    val service = Service.findByName(serviceName).getOrElse(throw new IllegalArgumentException(s"$serviceName is not exist."))
+    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new IllegalArgumentException(s"$columnName is not exist."))
+
+    updateVertexFetcher(column, stringToOption(options))
+  }
+
+  def updateVertexFetcher(column: ServiceColumn, options: Option[String]): Unit = {
+    val newColumn = options.map(ServiceColumn.updateOption(column, _)).getOrElse(column)
+    graph.resourceManager.getOrElseUpdateVertexFetcher(newColumn, cacheTTLInSecs = Option(-1))
+  }
+
+  def updateEdgeMutator(labelName: String, options: String): Unit = {
+    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+
+    updateEdgeMutator(label, stringToOption(options))
+  }
+
+  def updateEdgeMutator(label: Label, options: Option[String]): Unit = {
+    val newLabel = options.map(Label.updateOption(label, _)).getOrElse(label)
+    graph.resourceManager.getOrElseUpdateEdgeMutator(newLabel, cacheTTLInSecs = Option(-1))
+  }
+
+  def updateVertexMutator(serviceName: String, columnName: String, options: String): Unit = {
+    val service = Service.findByName(serviceName).getOrElse(throw new IllegalArgumentException(s"$serviceName is not exist."))
+    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new IllegalArgumentException(s"$columnName is not exist."))
+
+    updateVertexMutator(column, stringToOption(options))
+  }
+
+  def updateVertexMutator(column: ServiceColumn, options: Option[String]): Unit = {
+    val newColumn = options.map(ServiceColumn.updateOption(column, _)).getOrElse(column)
+    graph.resourceManager.getOrElseUpdateVertexMutator(newColumn, cacheTTLInSecs = Option(-1))
   }
 
   def createStorageTable(zkAddr: String,
@@ -375,14 +414,15 @@ class Management(graph: S2GraphLike) {
                           columnName: String,
                           columnType: String,
                           props: Seq[Prop],
-                          schemaVersion: String = DEFAULT_VERSION): ServiceColumn = {
+                          schemaVersion: String = DEFAULT_VERSION,
+                          options: Option[String] = None): ServiceColumn = {
 
     val serviceColumnTry = Schema withTx { implicit session =>
       val serviceOpt = Service.findByName(serviceName, useCache = false)
       serviceOpt match {
         case None => throw new RuntimeException(s"create service $serviceName has not been created.")
         case Some(service) =>
-          val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion, useCache = false)
+          val serviceColumn = ServiceColumn.findOrInsert(service.id.get, columnName, Some(columnType), schemaVersion, options, useCache = false)
           for {
             Prop(propName, defaultValue, dataType, storeInGlobalIndex) <- props
           } yield {
@@ -413,9 +453,9 @@ class Management(graph: S2GraphLike) {
     createLabel(labelName,
       srcColumn.service.serviceName, srcColumn.columnName, srcColumn.columnType,
       tgtColumn.service.serviceName, tgtColumn.columnName, tgtColumn.columnType,
-      isDirected, serviceName, indices, props, consistencyLevel,
+      serviceName, indices, props, isDirected, consistencyLevel,
       Option(hTableName), Option(hTableTTL).filter(_ > -1),
-      schemaVersion, false, compressionAlgorithm, Option(options)
+      schemaVersion, false, compressionAlgorithm, stringToOption(options)
     ).get
   }
 
@@ -427,10 +467,10 @@ class Management(graph: S2GraphLike) {
                   tgtServiceName: String,
                   tgtColumnName: String,
                   tgtColumnType: String,
-                  isDirected: Boolean = true,
                   serviceName: String,
                   indices: Seq[Index],
                   props: Seq[Prop],
+                  isDirected: Boolean = true,
                   consistencyLevel: String = "weak",
                   hTableName: Option[String] = None,
                   hTableTTL: Option[Int] = None,
@@ -484,8 +524,9 @@ class Management(graph: S2GraphLike) {
 
     createLabel(newLabelName, old.srcService.serviceName, old.srcColumnName, old.srcColumnType,
       old.tgtService.serviceName, old.tgtColumnName, old.tgtColumnType,
-      old.isDirected, old.serviceName,
+      old.serviceName,
       allIndices, allProps,
+      old.isDirected,
       old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync, old.compressionAlgorithm, old.options)
   }
 

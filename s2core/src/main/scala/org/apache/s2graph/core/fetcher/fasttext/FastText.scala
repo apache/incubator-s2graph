@@ -1,9 +1,8 @@
-package org.apache.s2graph.core.model.fasttext
+package org.apache.s2graph.core.fetcher.fasttext
 
 import java.nio.{ByteBuffer, ByteOrder}
 import java.util
 
-import org.apache.s2graph.core.model.fasttext.fasttext.FastTextArgs
 import org.rocksdb.{ColumnFamilyDescriptor, ColumnFamilyHandle, DBOptions, RocksDB}
 
 import scala.collection.JavaConverters._

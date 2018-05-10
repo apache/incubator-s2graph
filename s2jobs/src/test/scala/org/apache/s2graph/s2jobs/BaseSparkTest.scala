@@ -66,6 +66,8 @@ class BaseSparkTest extends FunSuite with Matchers with BeforeAndAfterAll with D
     super.beforeAll()
     s2 = S2GraphHelper.getS2Graph(s2Config, true)
 
+    S2Graph.loadFetchersAndMutators(s2)
+    
     deleteRecursively(new File(options.output))
     deleteRecursively(new File(options.tempDir))
 
@@ -121,10 +123,13 @@ class BaseSparkTest extends FunSuite with Matchers with BeforeAndAfterAll with D
     val serviceColumn = management.createServiceColumn(service.serviceName, "user", "string", Nil)
 
     Try {
-      management.createLabel("friends", serviceColumn, serviceColumn, isDirected = true,
-        serviceName = service.serviceName, indices = new java.util.ArrayList[Index],
-        props = Seq(Prop("since", "0", "long"), Prop("score", "0", "integer")).asJava, consistencyLevel = "strong", hTableName = tableName,
-        hTableTTL = -1, schemaVersion = schemaVersion, compressionAlgorithm = compressionAlgorithm, options = "")
+      management.createLabel("friends",
+        serviceColumn.service.serviceName, serviceColumn.columnName, serviceColumn.columnType,
+        serviceColumn.service.serviceName, serviceColumn.columnName, serviceColumn.columnType,
+        serviceName = service.serviceName, indices = Nil,
+        props = Seq(Prop("since", "0", "long"), Prop("score", "0", "integer")),
+        isDirected = true, consistencyLevel = "strong", hTableName = Option(tableName),
+        hTableTTL = None, schemaVersion = schemaVersion, compressionAlgorithm = compressionAlgorithm, options = None)
     }
 
     Label.findByName("friends").getOrElse(throw new IllegalArgumentException("friends label is not initialized."))

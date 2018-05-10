@@ -40,7 +40,7 @@ import sangria.schema.Schema
 import spray.json.{JsBoolean, JsObject, JsString}
 
 import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
 object GraphQLServer {
@@ -63,17 +63,17 @@ object GraphQLServer {
 
   val schemaCache = new SafeUpdateCache(schemaConfig)
 
-  def importModel(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Route = {
+  def updateEdgeFetcher(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Route = {
     val ret = Try {
       val spray.json.JsObject(fields) = requestJSON
       val spray.json.JsString(labelName) = fields("label")
       val jsOptions = fields("options")
 
-      s2graph.management.importModel(labelName, jsOptions.compactPrint)
+      s2graph.management.updateEdgeFetcher(labelName, jsOptions.compactPrint)
     }
 
     ret match {
-      case Success(f) => complete(f.map(i => OK -> JsString("start")))
+      case Success(f) => complete(OK -> JsString("start"))
       case Failure(e) => complete(InternalServerError -> spray.json.JsObject("message" -> JsString(e.toString)))
     }
   }

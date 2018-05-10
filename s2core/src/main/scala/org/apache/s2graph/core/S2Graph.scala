@@ -20,30 +20,27 @@
 package org.apache.s2graph.core
 
 import java.util
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
-import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.{ExecutorService, Executors}
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.{BaseConfiguration, Configuration}
 import org.apache.s2graph.core.index.IndexProvider
 import org.apache.s2graph.core.io.tinkerpop.optimize.S2GraphStepStrategy
-import org.apache.s2graph.core.model.ModelManager
 import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.storage.rocks.RocksStorage
-import org.apache.s2graph.core.storage.{MutateResponse, Storage}
+import org.apache.s2graph.core.storage.{MutateResponse, OptimisticEdgeFetcher, Storage}
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
-import org.apache.tinkerpop.gremlin.process.traversal.{P, TraversalStrategies}
-import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
+import org.apache.s2graph.core.utils.{Extensions, Importer, logger}
+import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
 import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent._
-import scala.concurrent.duration.Duration
-import scala.util.{Random, Try}
+import scala.util.Try
 
 
 object S2Graph {
@@ -94,6 +91,7 @@ object S2Graph {
   val numOfThread = Runtime.getRuntime.availableProcessors()
   val threadPool = Executors.newFixedThreadPool(numOfThread)
   val ec = ExecutionContext.fromExecutor(threadPool)
+  val resourceManagerEc = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(numOfThread))
 
   val DefaultServiceName = ""
   val DefaultColumnName = "vertex"
@@ -161,6 +159,35 @@ object S2Graph {
     }
     ConfigFactory.parseMap(kvs)
   }
+
+  def initMutators(graph: S2GraphLike): Unit = {
+    val management = graph.management
+
+    ServiceColumn.findAll().foreach { column =>
+      management.updateVertexMutator(column, column.options)
+    }
+
+    Label.findAll().foreach { label =>
+      management.updateEdgeMutator(label, label.options)
+    }
+  }
+
+  def initFetchers(graph: S2GraphLike): Unit = {
+    val management = graph.management
+
+    ServiceColumn.findAll().foreach { column =>
+      management.updateVertexFetcher(column, column.options)
+    }
+
+    Label.findAll().foreach { label =>
+      management.updateEdgeFetcher(label, label.options)
+    }
+  }
+
+  def loadFetchersAndMutators(graph: S2GraphLike): Unit = {
+    initFetchers(graph)
+    initMutators(graph)
+  }
 }
 
 class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2GraphLike {
@@ -187,7 +214,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
 
   override val management = new Management(this)
 
-  override val modelManager = new ModelManager(this)
+  override val resourceManager: ResourceManager = new ResourceManager(this, config)(S2Graph.resourceManagerEc)
 
   override val indexProvider = IndexProvider.apply(config)
 
@@ -250,22 +277,42 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     storagePool.getOrElse(s"label:${label.label}", defaultStorage)
   }
 
+  /* Currently, each getter on Fetcher and Mutator missing proper implementation
+  *  Please discuss what is proper way to maintain resources here and provide
+  *  right implementation(S2GRAPH-213).
+  * */
+  override def getVertexFetcher(column: ServiceColumn): VertexFetcher = {
+    resourceManager.getOrElseUpdateVertexFetcher(column)
+      .getOrElse(defaultStorage.vertexFetcher)
+  }
+
+  override def getEdgeFetcher(label: Label): EdgeFetcher = {
+    resourceManager.getOrElseUpdateEdgeFetcher(label)
+      .getOrElse(defaultStorage.edgeFetcher)
+  }
+
+  override def getAllVertexFetchers(): Seq[VertexFetcher] = {
+    resourceManager.getAllVertexFetchers()
+  }
+
+  override def getAllEdgeFetchers(): Seq[EdgeFetcher] = {
+    resourceManager.getAllEdgeFetchers()
+  }
+
+  override def getVertexMutator(column: ServiceColumn): VertexMutator = {
+    resourceManager.getOrElseUpdateVertexMutator(column)
+      .getOrElse(defaultStorage.vertexMutator)
+  }
+
+  override def getEdgeMutator(label: Label): EdgeMutator = {
+    resourceManager.getOrElseUpdateEdgeMutator(label)
+      .getOrElse(defaultStorage.edgeMutator)
+  }
+
   //TODO:
-  override def getFetcher(column: ServiceColumn): Fetcher = {
-    getStorage(column.service).reader
-  }
-
-  override def getFetcher(label: Label): Fetcher = {
-    if (label.fetchConfigExist) modelManager.getFetcher(label)
-    else getStorage(label).reader
-  }
-
-  override def getMutator(column: ServiceColumn): Mutator = {
-    getStorage(column.service).mutator
-  }
-
-  override def getMutator(label: Label): Mutator = {
-    getStorage(label).mutator
+  override def getOptimisticEdgeFetcher(label: Label): OptimisticEdgeFetcher = {
+//    getStorage(label).optimisticEdgeFetcher
+    null
   }
 
   //TODO:
@@ -296,8 +343,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
 
   override def getVertices(vertices: Seq[S2VertexLike]): Future[Seq[S2VertexLike]] = {
     val verticesWithIdx = vertices.zipWithIndex
-    val futures = verticesWithIdx.groupBy { case (v, idx) => v.service }.map { case (service, vertexGroup) =>
-      getStorage(service).fetchVertices(vertices).map(_.zip(vertexGroup.map(_._2)))
+    val futures = verticesWithIdx.groupBy { case (v, idx) => v.serviceColumn }.map { case (serviceColumn, vertexGroup) =>
+      getVertexFetcher(serviceColumn).fetchVertices(vertices).map(_.zip(vertexGroup.map(_._2)))
     }
 
     Future.sequence(futures).map { ls =>
@@ -309,7 +356,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     val futures = for {
       edge <- edges
     } yield {
-      getStorage(edge.innerLabel).fetchSnapshotEdgeInner(edge).map { case (edgeOpt, _) =>
+      getOptimisticEdgeFetcher(edge.innerLabel).fetchSnapshotEdgeInner(edge).map { case (edgeOpt, _) =>
         edgeOpt.toSeq.map(e => EdgeWithScore(e, 1.0, edge.innerLabel))
       }
     }
@@ -324,7 +371,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     def mutateVertices(storage: Storage)(zkQuorum: String, vertices: Seq[S2VertexLike],
                                          withWait: Boolean = false): Future[Seq[MutateResponse]] = {
       val futures = vertices.map { vertex =>
-        getMutator(vertex.serviceColumn).mutateVertex(zkQuorum, vertex, withWait)
+        getVertexMutator(vertex.serviceColumn).mutateVertex(zkQuorum, vertex, withWait)
       }
       Future.sequence(futures)
     }
@@ -351,7 +398,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
 
     val weakEdgesFutures = weakEdges.groupBy { case (edge, idx) => edge.innerLabel.hbaseZkAddr }.map { case (zkQuorum, edgeWithIdxs) =>
       val futures = edgeWithIdxs.groupBy(_._1.innerLabel).map { case (label, edgeGroup) =>
-        val mutator = getMutator(label)
+        val mutator = getEdgeMutator(label)
         val edges = edgeGroup.map(_._1)
         val idxs = edgeGroup.map(_._2)
 
@@ -369,7 +416,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     val strongEdgesFutures = strongEdgesAll.groupBy { case (edge, idx) => edge.innerLabel }.map { case (label, edgeGroup) =>
       val edges = edgeGroup.map(_._1)
       val idxs = edgeGroup.map(_._2)
-      val mutator = getMutator(label)
+      val mutator = getEdgeMutator(label)
       val zkQuorum = label.hbaseZkAddr
 
       mutator.mutateStrongEdges(zkQuorum, edges, withWait = true).map { rets =>
@@ -497,7 +544,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
   override def incrementCounts(edges: Seq[S2EdgeLike], withWait: Boolean): Future[Seq[MutateResponse]] = {
     val edgesWithIdx = edges.zipWithIndex
     val futures = edgesWithIdx.groupBy { case (e, idx) => e.innerLabel }.map { case (label, edgeGroup) =>
-      getMutator(label).incrementCounts(label.hbaseZkAddr, edgeGroup.map(_._1), withWait).map(_.zip(edgeGroup.map(_._2)))
+      getEdgeMutator(label).incrementCounts(label.hbaseZkAddr, edgeGroup.map(_._1), withWait).map(_.zip(edgeGroup.map(_._2)))
     }
 
     Future.sequence(futures).map { ls =>
@@ -507,7 +554,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
 
   override def updateDegree(edge: S2EdgeLike, degreeVal: Long = 0): Future[MutateResponse] = {
     val label = edge.innerLabel
-    val mutator = getMutator(label)
+    val mutator = getEdgeMutator(label)
 
     mutator.updateDegree(label.hbaseZkAddr, edge, degreeVal)
   }

@@ -28,11 +28,11 @@ import org.hbase.async.{AtomicIncrementRequest, DeleteRequest, HBaseClient, PutR
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{ExecutionContext, Future}
 
-class AsynchbaseStorageWritable(val graph: S2GraphLike,
-                                val serDe: StorageSerDe,
-                                val reader: StorageReadable,
-                                val client: HBaseClient,
-                                val clientWithFlush: HBaseClient) extends DefaultOptimisticMutator(graph, serDe, reader) {
+class AsynchbaseOptimisticMutator(val graph: S2GraphLike,
+                                  val serDe: StorageSerDe,
+                                  val optimisticEdgeFetcher: OptimisticEdgeFetcher,
+                                  val client: HBaseClient,
+                                  val clientWithFlush: HBaseClient) extends OptimisticMutator {
   import Extensions.DeferOps
 
   private def client(withWait: Boolean): HBaseClient = if (withWait) clientWithFlush else client

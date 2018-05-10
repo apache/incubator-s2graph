@@ -86,7 +86,7 @@ class SafeUpdateCache(val config: Config)
   import java.lang.{Long => JLong}
   import SafeUpdateCache._
   val maxSize = config.getInt(SafeUpdateCache.MaxSizeKey)
-  val ttl = config.getInt(SafeUpdateCache.TtlKey)
+  val systemTtl = config.getInt(SafeUpdateCache.TtlKey)
   private val cache = CacheBuilder.newBuilder().maximumSize(maxSize)
     .build[JLong, (AnyRef, Int, AtomicBoolean)]()
 
@@ -114,7 +114,9 @@ class SafeUpdateCache(val config: Config)
     cache.invalidate(cacheKey)
   }
 
-  def withCache[T <: AnyRef](key: String, broadcast: Boolean)(op: => T): T = {
+  def withCache[T <: AnyRef](key: String,
+                             broadcast: Boolean,
+                             cacheTTLInSecs: Option[Int] = None)(op: => T): T = {
     val cacheKey = toCacheKey(key)
     val cachedValWithTs = cache.getIfPresent(cacheKey)
 
@@ -127,7 +129,10 @@ class SafeUpdateCache(val config: Config)
       val (_cachedVal, updatedAt, isUpdating) = cachedValWithTs
       val cachedVal = _cachedVal.asInstanceOf[T]
 
-      if (toTs() < updatedAt + ttl) cachedVal // in cache TTL
+      val ttl = cacheTTLInSecs.getOrElse(systemTtl)
+      val isValidCacheVal = toTs() < updatedAt + ttl
+
+      if (isValidCacheVal) cachedVal // in cache TTL
       else {
         val running = isUpdating.getAndSet(true)
 

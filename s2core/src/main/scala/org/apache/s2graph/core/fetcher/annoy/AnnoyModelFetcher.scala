@@ -1,4 +1,4 @@
-package org.apache.s2graph.core.model.annoy
+package org.apache.s2graph.core.fetcher.annoy
 
 import annoy4s.Converters.KeyConverter
 import annoy4s._
@@ -10,7 +10,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object AnnoyModelFetcher {
   val IndexFilePathKey = "annoyIndexFilePath"
-  val DictFilePathKey = "annoyDictFilePath"
+//  val DictFilePathKey = "annoyDictFilePath"
   val DimensionKey = "annoyIndexDimension"
   val IndexTypeKey = "annoyIndexType"
 
@@ -68,7 +68,7 @@ object AnnoyModelFetcher {
 //  val dictRev = dict.map(kv => kv._2 -> kv._1)
 //}
 
-class AnnoyModelFetcher(val graph: S2GraphLike) extends Fetcher {
+class AnnoyModelFetcher(val graph: S2GraphLike) extends EdgeFetcher {
   import AnnoyModelFetcher._
 
   val builder = graph.elementBuilder
@@ -76,13 +76,9 @@ class AnnoyModelFetcher(val graph: S2GraphLike) extends Fetcher {
   //  var model: ANNIndexWithDict = _
   var model: Annoy[String] = _
 
-  override def init(config: Config)(implicit ec: ExecutionContext): Future[Fetcher] = {
-    Future {
-      model = AnnoyModelFetcher.buildAnnoy4s(config.getString(IndexFilePathKey))
-      //        AnnoyModelFetcher.buildIndex(config)
+  override def init(config: Config)(implicit ec: ExecutionContext): Unit = {
 
-      this
-    }
+    model = AnnoyModelFetcher.buildAnnoy4s(config.getString(IndexFilePathKey))
   }
 
   /** Fetch **/
@@ -112,4 +108,8 @@ class AnnoyModelFetcher(val graph: S2GraphLike) extends Fetcher {
     // do clean up
     model.close
   }
+
+  // not supported yet.
+  override def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]] =
+    Future.successful(Nil)
 }

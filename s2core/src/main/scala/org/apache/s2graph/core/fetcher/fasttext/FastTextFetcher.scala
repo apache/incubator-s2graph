@@ -1,4 +1,4 @@
-package org.apache.s2graph.core.model.fasttext
+package org.apache.s2graph.core.fetcher.fasttext
 
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
@@ -8,33 +8,21 @@ import org.apache.s2graph.core.utils.logger
 import scala.concurrent.{ExecutionContext, Future}
 
 
-class FastTextFetcher(val graph: S2GraphLike) extends Fetcher {
+class FastTextFetcher(val graph: S2GraphLike) extends EdgeFetcher {
   val builder = graph.elementBuilder
   var fastText: FastText = _
 
-  override def init(config: Config)(implicit ec: ExecutionContext): Future[Fetcher] = {
-    val future = Future {
-      val dbPath = config.getString(FastText.DBPathKey)
+  override def init(config: Config)(implicit ec: ExecutionContext): Unit = {
+    val dbPath = config.getString(FastText.DBPathKey)
 
-      try {
-        fastText = new FastText(dbPath)
-      } catch {
-        case e: Throwable =>
-          logger.error(s"[Init]: Failed.", e)
-          println(e)
-          throw e
-      }
-      this
-    }
-
-    future.onFailure {
-      case e: Exception =>
+    try {
+      fastText = new FastText(dbPath)
+    } catch {
+      case e: Throwable =>
         logger.error(s"[Init]: Failed.", e)
         println(e)
         throw e
     }
-
-    future
   }
 
   override def fetches(queryRequests: Seq[QueryRequest],
@@ -61,4 +49,8 @@ class FastTextFetcher(val graph: S2GraphLike) extends Fetcher {
   }
 
   override def close(): Unit = if (fastText != null) fastText.close()
+
+  // not supported yet.
+  override def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]] =
+    Future.successful(Nil)
 }

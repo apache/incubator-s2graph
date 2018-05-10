@@ -19,22 +19,30 @@
 
 package org.apache.s2graph.core.storage.rocks
 
+import java.util.Base64
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import com.google.common.hash.Hashing
 import com.typesafe.config.Config
+import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.storage.{Storage, StorageManagement, StorageReadable, StorageSerDe}
-import org.apache.s2graph.core.storage.rocks.RocksHelper.RocksRPC
+import org.apache.s2graph.core.storage.rocks.RocksHelper.{GetRequest, RocksRPC, ScanWithRange}
+import org.apache.s2graph.core.storage.serde.StorageSerializable
+import org.apache.s2graph.core.storage._
+import org.apache.s2graph.core.types.VertexId
 import org.apache.s2graph.core.utils.logger
 import org.rocksdb._
 import org.rocksdb.util.SizeUnit
 
+import scala.collection.mutable.ArrayBuffer
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Random, Try}
 
 object RocksStorage {
+  val table = Array.emptyByteArray
+  val qualifier = Array.emptyByteArray
 
   RocksDB.loadLibrary()
 
@@ -129,6 +137,84 @@ object RocksStorage {
         throw e
     }
   }
+
+  def buildRequest(graph: S2GraphLike, serDe: StorageSerDe, queryRequest: QueryRequest, edge: S2EdgeLike): RocksRPC = {
+    queryRequest.queryParam.tgtVertexInnerIdOpt match {
+      case None => // indexEdges
+        val queryParam = queryRequest.queryParam
+        val indexEdgeOpt = edge.edgesWithIndex.filter(edgeWithIndex => edgeWithIndex.labelIndex.seq == queryParam.labelOrderSeq).headOption
+        val indexEdge = indexEdgeOpt.getOrElse(throw new RuntimeException(s"Can`t find index for query $queryParam"))
+        val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes
+        val labelWithDirBytes = indexEdge.labelWithDir.bytes
+        val labelIndexSeqWithIsInvertedBytes = StorageSerializable.labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = false)
+
+        val baseKey = Bytes.add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
+
+        val (intervalMaxBytes, intervalMinBytes) = queryParam.buildInterval(Option(edge))
+        val (startKey, stopKey) =
+          if (queryParam.intervalOpt.isDefined) {
+            val _startKey = queryParam.cursorOpt match {
+              case Some(cursor) => Base64.getDecoder.decode(cursor)
+              case None => Bytes.add(baseKey, intervalMaxBytes)
+            }
+            (_startKey, Bytes.add(baseKey, intervalMinBytes))
+          } else {
+            val _startKey = queryParam.cursorOpt match {
+              case Some(cursor) => Base64.getDecoder.decode(cursor)
+              case None => baseKey
+            }
+            (_startKey, Bytes.add(baseKey, Array.fill(1)(-1)))
+          }
+
+        Right(ScanWithRange(SKeyValue.EdgeCf, startKey, stopKey, queryParam.innerOffset, queryParam.innerLimit))
+
+      case Some(tgtId) => // snapshotEdge
+        val kv = serDe.snapshotEdgeSerializer(graph.elementBuilder.toRequestEdge(queryRequest, Nil).toSnapshotEdge).toKeyValues.head
+        Left(GetRequest(SKeyValue.EdgeCf, kv.row))
+    }
+  }
+
+  def buildRequest(queryRequest: QueryRequest, vertex: S2VertexLike): RocksRPC = {
+    val startKey = vertex.id.bytes
+    val stopKey = Bytes.add(startKey, Array.fill(1)(Byte.MaxValue))
+
+    Right(ScanWithRange(SKeyValue.VertexCf, startKey, stopKey, 0, Byte.MaxValue))
+  }
+
+  def fetchKeyValues(vdb: RocksDB, db: RocksDB, rpc: RocksRPC)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]] = {
+    rpc match {
+      case Left(GetRequest(cf, key)) =>
+        val _db = if (Bytes.equals(cf, SKeyValue.VertexCf)) vdb else db
+        val v = _db.get(key)
+
+        val kvs =
+          if (v == null) Seq.empty
+          else Seq(SKeyValue(table, key, cf, qualifier, v, System.currentTimeMillis()))
+
+        Future.successful(kvs)
+      case Right(ScanWithRange(cf, startKey, stopKey, offset, limit)) =>
+        val _db = if (Bytes.equals(cf, SKeyValue.VertexCf)) vdb else db
+        val kvs = new ArrayBuffer[SKeyValue]()
+        val iter = _db.newIterator()
+
+        try {
+          var idx = 0
+          iter.seek(startKey)
+          val (startOffset, len) = (offset, limit)
+          while (iter.isValid && Bytes.compareTo(iter.key, stopKey) <= 0 && idx < startOffset + len) {
+            if (idx >= startOffset) {
+              kvs += SKeyValue(table, iter.key, cf, qualifier, iter.value, System.currentTimeMillis())
+            }
+
+            iter.next()
+            idx += 1
+          }
+        } finally {
+          iter.close()
+        }
+        Future.successful(kvs)
+    }
+  }
 }
 
 class RocksStorage(override val graph: S2GraphLike,
@@ -150,12 +236,15 @@ class RocksStorage(override val graph: S2GraphLike,
     .maximumSize(1000 * 10 * 10 * 10 * 10)
     .build[String, ReentrantLock](cacheLoader)
 
-  override val management: StorageManagement = new RocksStorageManagement(config, vdb, db)
+  private lazy val optimisticEdgeFetcher = new RocksOptimisticEdgeFetcher(graph, config, db, vdb, serDe, io)
+  private lazy val optimisticMutator = new RocksOptimisticMutator(graph, serDe, optimisticEdgeFetcher, db, vdb, lockMap)
 
+  override val management: StorageManagement = new RocksStorageManagement(config, vdb, db)
   override val serDe: StorageSerDe = new RocksStorageSerDe(graph)
 
-  override val reader: StorageReadable = new RocksStorageReadable(graph, config, db, vdb, serDe, io)
+  override val edgeFetcher: EdgeFetcher = new RocksEdgeFetcher(graph, config, db, vdb, serDe, io)
+  override val vertexFetcher: VertexFetcher = new RocksVertexFetcher(graph, config, db, vdb, serDe, io)
 
-  override val mutator: Mutator = new RocksStorageWritable(graph, serDe, reader, db, vdb, lockMap)
-
+  override val edgeMutator: EdgeMutator = new DefaultOptimisticEdgeMutator(graph, serDe, optimisticEdgeFetcher, optimisticMutator, io)
+  override val vertexMutator: VertexMutator = new DefaultOptimisticVertexMutator(graph, serDe, optimisticEdgeFetcher, optimisticMutator, io)
 }

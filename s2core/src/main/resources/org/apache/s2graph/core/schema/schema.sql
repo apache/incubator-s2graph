@@ -48,6 +48,7 @@ CREATE TABLE `service_columns` (
   `column_name` varchar(64) NOT NULL,
   `column_type` varchar(8) NOT NULL,
   `schema_version` varchar(8) NOT NULL default 'v2',
+  `options` text,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_service_id_column_name` (`service_id`, `column_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

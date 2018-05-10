@@ -66,7 +66,7 @@ object S2GraphFactory {
     val DefaultService = management.createService(DefaultServiceName, "localhost", "s2graph", 0, None).get
 
     //    Management.deleteColumn(DefaultServiceName, DefaultColumnName)
-    val DefaultColumn = ServiceColumn.findOrInsert(DefaultService.id.get, DefaultColumnName, Some("integer"), HBaseType.DEFAULT_VERSION, useCache = false)
+    val DefaultColumn = ServiceColumn.findOrInsert(DefaultService.id.get, DefaultColumnName, Some("integer"), HBaseType.DEFAULT_VERSION, options = None, useCache = false)
 
     val DefaultColumnMetas = {
       ColumnMeta.findOrInsert(DefaultColumn.id.get, "test", "string", "-", storeInGlobalIndex = true, useCache = false)
@@ -97,7 +97,8 @@ object S2GraphFactory {
 
     //    Management.deleteLabel("_s2graph")
     val DefaultLabel = management.createLabel("_s2graph", DefaultService.serviceName, DefaultColumn.columnName, DefaultColumn.columnType,
-      DefaultService.serviceName, DefaultColumn.columnName, DefaultColumn.columnType, true, DefaultService.serviceName, Nil, Nil, "weak", None, None,
+      DefaultService.serviceName, DefaultColumn.columnName, DefaultColumn.columnType, DefaultService.serviceName, Nil, Nil,
+      isDirected = true, consistencyLevel = "weak", hTableName = None, hTableTTL = None,
       options = Option("""{"skipReverse": false}""")
     )
   }
@@ -111,12 +112,14 @@ object S2GraphFactory {
     val knows = mnt.createLabel("knows",
       S2Graph.DefaultServiceName, "person", "integer",
       S2Graph.DefaultServiceName, "person", "integer",
-      true, S2Graph.DefaultServiceName, Nil, Seq(Prop("weight", "0.0", "double"), Prop("year", "0", "integer")), consistencyLevel = "strong", None, None)
+      S2Graph.DefaultServiceName, Nil, Seq(Prop("weight", "0.0", "double"), Prop("year", "0", "integer")),
+      isDirected = true, consistencyLevel = "strong", hTableName = None, hTableTTL = None)
 
     val created = mnt.createLabel("created",
       S2Graph.DefaultServiceName, "person", "integer",
       S2Graph.DefaultServiceName, "software", "integer",
-      true, S2Graph.DefaultServiceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
+      S2Graph.DefaultServiceName, Nil, Seq(Prop("weight", "0.0", "double")),
+      isDirected = true, consistencyLevel = "strong", hTableName = None, hTableTTL = None)
   }
 
   def cleanupDefaultSchema(): Unit = {

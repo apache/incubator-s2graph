@@ -1,7 +1,4 @@
-package org.apache.s2graph.core.model.fasttext
-
-
-package fasttext
+package org.apache.s2graph.core.fetcher.fasttext
 
 import java.io.{ByteArrayInputStream, FileInputStream, InputStream}
 import java.nio.{ByteBuffer, ByteOrder}

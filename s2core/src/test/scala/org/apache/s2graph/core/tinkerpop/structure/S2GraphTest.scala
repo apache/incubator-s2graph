@@ -428,12 +428,14 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     val knows = mnt.createLabel("knows",
       S2Graph.DefaultServiceName, "person", "integer",
       S2Graph.DefaultServiceName, "person", "integer",
-      true, S2Graph.DefaultServiceName, Nil, Seq(Prop("weight", "0.0", "double"), Prop("year", "0", "integer")), consistencyLevel = "strong", None, None)
+      S2Graph.DefaultServiceName, Nil, Seq(Prop("weight", "0.0", "double"), Prop("year", "0", "integer")),
+      true, consistencyLevel = "strong", None, None)
 
     val created = mnt.createLabel("created",
       S2Graph.DefaultServiceName, "person", "integer",
       S2Graph.DefaultServiceName, "person", "integer",
-      true, S2Graph.DefaultServiceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
+      S2Graph.DefaultServiceName, Nil, Seq(Prop("weight", "0.0", "double")),
+      true, "strong", None, None)
 
     val g = graph.traversal()
     val v1 = graph.addVertex(T.label, "person", T.id, Int.box(1), "name", "marko", "age", Int.box(29))
