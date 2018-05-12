@@ -429,6 +429,10 @@ class Management(graph: S2GraphLike) {
             ColumnMeta.findOrInsert(serviceColumn.id.get, propName, dataType, defaultValue,
               storeInGlobalIndex = storeInGlobalIndex, useCache = false)
           }
+
+          updateVertexMutator(serviceColumn, None)
+          updateVertexFetcher(serviceColumn, None)
+
           serviceColumn
       }
     }
@@ -504,6 +508,9 @@ class Management(graph: S2GraphLike) {
         CompressionAlgorithm -> newLabel.compressionAlgorithm
       ))
       storage.createTable(config, newLabel.hbaseTableName)
+
+      updateEdgeFetcher(newLabel, None)
+      updateEdgeFetcher(newLabel, None)
 
       newLabel
     }

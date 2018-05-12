@@ -45,6 +45,7 @@ mutation{
         name:"_PK"
         propNames:["score"]
       }
+      options: "{\n    \"fetcher\": {\n        \"class\": \"org.apache.s2graph.core.fetcher.annoy.AnnoyModelFetcher\",\n        \"annoyIndexFilePath\": \"/tmp/annoy_result\"\n    }\n}"
     ) {
       isSuccess
       message

@@ -2,7 +2,6 @@ package org.apache.s2graph.s2jobs.task.custom.process
 
 import java.io.File
 
-import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.commons.io.FileUtils
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.fetcher.annoy.AnnoyModelFetcher
@@ -10,6 +9,7 @@ import org.apache.s2graph.core.{Query, QueryParam, ResourceManager}
 import org.apache.s2graph.core.schema.Label
 import org.apache.s2graph.s2jobs.BaseSparkTest
 import org.apache.s2graph.s2jobs.task.TaskConf
+import org.apache.s2graph.s2jobs.task.custom.sink.AnnoyIndexBuildSink
 
 import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration.Duration
