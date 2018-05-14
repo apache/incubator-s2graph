@@ -115,16 +115,6 @@
         "itemCol": "movieId",
         "ratingCol": "rating"
       }
-    },
-    {
-      "name": "build_movie_dict",
-      "inputs": [
-        "movies"
-      ],
-      "type": "sql",
-      "options": {
-        "sql": "SELECT CAST(movieId as INT) as idx FROM movies where movieId != null"
-      }
     }
   ],
   "sink": [
@@ -170,21 +160,11 @@
       "inputs": [
         "factorize_rating"
       ],
-      "type": "annoy",
+      "type": "custom",
       "options": {
+        "class": "org.apache.s2graph.s2jobs.task.custom.sink.AnnoyIndexBuildSink",
         "itemFactors": "/tmp/itemFactors",
         "path": "/tmp/annoy_result"
-      }
-    },
-    {
-      "name": "dict_sink",
-      "inputs": [
-        "build_movie_dict"
-      ],
-      "type": "file",
-      "options": {
-        "format": "csv",
-        "path": "/tmp/annoy_dict"
       }
     }
   ]

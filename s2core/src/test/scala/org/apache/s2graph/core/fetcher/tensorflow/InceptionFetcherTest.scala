@@ -42,7 +42,7 @@ class InceptionFetcherTest extends BaseFetcherTest {
         s"""
            |{
            |  "fetcher": {
-           |    "className": "org.apache.s2graph.core.fetcher.tensorflow.InceptionV3Fetcher",
+           |    "className": "org.apache.s2graph.core.fetcher.tensorflow.InceptionFetcher",
            |    "modelPath": "$modelPath"
            |  }
            |}
@@ -50,9 +50,11 @@ class InceptionFetcherTest extends BaseFetcherTest {
       val (service, column, label) = initEdgeFetcher(serviceName, columnName, labelName, Option(options))
 
       val srcVertices = Seq(
-        "http://www.gstatic.com/webp/gallery/1.jpg",
-        "http://www.gstatic.com/webp/gallery/2.jpg",
-        "http://www.gstatic.com/webp/gallery/3.jpg"
+//        "http://www.gstatic.com/webp/gallery/1.jpg",
+//        "http://www.gstatic.com/webp/gallery/2.jpg",
+//        "http://www.gstatic.com/webp/gallery/3.jpg"
+//        "https://di2ponv0v5otw.cloudfront.net/posts/2018/04/16/5ad59a6a61ca107f50032b40/m_5ad59a7750687c9f91641d8b.jpg"
+        "https://t1.daumcdn.net/news/201805/14/autonnews/20180514082041618njfp.jpg"
       )
       val stepResult = queryEdgeFetcher(service, column, label, srcVertices)
 

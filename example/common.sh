@@ -68,3 +68,16 @@ get_labels() {
         "query": "query{Management{Labels {id name}}}"
     }'
 }
+
+update_edge_fetcher() {
+    curl -i -XPOST $REST/updateEdgeFetcher -H 'content-type: application/json' -d '
+    {
+        "label": "similar_movie",
+        "options": {
+            "fetcher": {
+                "className": "org.apache.s2graph.core.fetcher.annoy.AnnoyModelFetcher",
+                "annoyIndexFilePath": "/tmp/annoy_result"
+            }
+        }
+    }'
+}

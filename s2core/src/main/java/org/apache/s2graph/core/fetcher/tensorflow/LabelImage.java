@@ -12,6 +12,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 
+// copied from https://github.com/tensorflow/tensorflow/blob/r1.7/tensorflow/java/src/main/java/org/tensorflow/examples/LabelImage.java
 /** Sample use of the TensorFlow Java API to label images using a pre-trained model. */
 public class LabelImage {
     private static void printUsage(PrintStream s) {
