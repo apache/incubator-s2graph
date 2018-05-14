@@ -39,7 +39,7 @@ sh ./create_schema.sh $SERVICE
 
 q "And, we import example data to service"
 sh ./import_data.sh $SERVICE
-[ $? -ne 0 ] && { exit -1; }
+#[ $? -ne 0 ] && { exit -1; }
 
 q "Finally, we import similar_model data"
 sh ./$SERVICE/postprocess.sh

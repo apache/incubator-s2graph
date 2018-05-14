@@ -71,7 +71,7 @@ Here is what you can find in each subproject.
 1. `s2core`: The core library, containing the data abstractions for graph entities, storage adapters and utilities.  
 2. `s2rest_play`: The REST server built with [Play framework](https://www.playframework.com/), providing the write and query API.  
 3. `s2rest_netty`: The REST server built directly using Netty, implementing only the query API.  
-4. [`s2graphql`](s2graphhql/README.md): The GraphQL server, providing standard web interface for S2Graph.  
+4. [`s2graphql`](s2graphql/README.md): The GraphQL server, providing standard web interface for S2Graph.  
 ~~4. `loader`: A collection of Spark jobs for bulk loading streaming data into S2Graph.~~  
 ~~5. `spark`: Spark utilities for `loader` and `s2counter_loader`.~~  
 5. [`s2jobs`](s2jobs/README.md): A collection of Spark jobs to support OLAP on S2Graph.  

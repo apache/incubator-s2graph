@@ -40,7 +40,8 @@ object ALSModelProcess {
       .setRatingCol(ratingCol)
 
     val model = als.fit(training)
-
+    model.setColdStartStrategy("drop")
+    
     val predictions = model.transform(test)
     val evaluator = new RegressionEvaluator()
       .setMetricName("rmse")
