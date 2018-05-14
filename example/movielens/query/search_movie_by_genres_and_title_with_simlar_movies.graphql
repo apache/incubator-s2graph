@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,8 +15,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-source common.sh
+#
 
-q "update edge fetcher."
-update_edge_fetcher
-info "postprocess finished.."
+query {
+  movielens {
+    Movie(search: "genres: *Comedy* AND title: *1995*", limit: 5) {
+      title
+      genres
+      similar_movie(limit: 5) {
+        Movie {
+          title
+          genres
+        }
+      }
+    }
+  }
+}

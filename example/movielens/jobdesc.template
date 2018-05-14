@@ -125,6 +125,8 @@
       ],
       "type": "s2graph",
       "options": {
+        "index.provider.lucene.fsType": "file",
+        "index.provider.base.dir": "/tmp/lucene",
         "db.default.driver":"org.h2.Driver",
         "db.default.url": "jdbc:h2:tcp://localhost/./var/metastore;MODE=MYSQL",
         "s2.spark.sql.streaming.sink.grouped.size": "10",

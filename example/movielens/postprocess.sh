@@ -6,9 +6,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,31 +17,21 @@
 # under the License.
 source common.sh
 
-SERVICE="movielens"
-[ $# -gt 0 ] && { SERVICE=$1; }
-DESC=`cat $SERVICE/desc.md`
+update_edge_fetcher() {
+    curl -i -XPOST $REST/updateEdgeFetcher -H 'content-type: application/json' -d '
+    {
+        "label": "similar_movie",
+        "options": {
+            "fetcher": {
+                "className": "org.apache.s2graph.core.fetcher.annoy.AnnoyModelFetcher",
+                "annoyIndexFilePath": "/tmp/annoy_result"
+            }
+        }
+    }'
+}
 
-info ""
-info ""
-info "Let's try to create the toy project '$SERVICE' using s2graphql and s2jobs."
-info ""
-while IFS='' read -r line || [[ -n "$line" ]]; do
-    info "$line"
-done < "$SERVICE/desc.md"
+q "update edge fetcher."
 
-q "First of all, we will check prerequisites"
-sh ./prepare.sh $SERVICE
-[ $? -ne 0 ] && { exit -1; }
+update_edge_fetcher
 
-q "And now, we create vertex and edge schema using graphql"
-sh ./create_schema.sh $SERVICE
-[ $? -ne 0 ] && { exit -1; }
-
-q "And, we import example data to service"
-sh ./import_data.sh $SERVICE
-[ $? -ne 0 ] && { exit -1; }
-
-q "Finally, we import similar_model data"
-sh ./$SERVICE/postprocess.sh
-[ $? -ne 0 ] && { exit -1; }
-
+info "postprocess finished.."

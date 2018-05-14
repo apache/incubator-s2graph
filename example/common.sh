@@ -56,28 +56,17 @@ graphql_rest() {
     }"
     sleep 5
 }
+
 get_services() {
     curl -i -XPOST $REST/graphql -H 'content-type: application/json' -d '
     {
         "query": "query{Management{Services{id name }}}"
     }'
 }
+
 get_labels() {
     curl -i -XPOST $REST/graphql -H 'content-type: application/json' -d '
     {
         "query": "query{Management{Labels {id name}}}"
-    }'
-}
-
-update_edge_fetcher() {
-    curl -i -XPOST $REST/updateEdgeFetcher -H 'content-type: application/json' -d '
-    {
-        "label": "similar_movie",
-        "options": {
-            "fetcher": {
-                "className": "org.apache.s2graph.core.fetcher.annoy.AnnoyModelFetcher",
-                "annoyIndexFilePath": "/tmp/annoy_result"
-            }
-        }
     }'
 }
