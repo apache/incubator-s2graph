@@ -183,6 +183,11 @@ object S2Graph {
       management.updateEdgeFetcher(label, label.options)
     }
   }
+
+  def loadFetchersAndMutators(graph: S2GraphLike): Unit = {
+    initFetchers(graph)
+    initMutators(graph)
+  }
 }
 
 class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2GraphLike {
@@ -220,9 +225,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
   private def confWithFallback(conf: Config): Config = {
     conf.withFallback(config)
   }
-
-  S2Graph.initMutators(this)
-  S2Graph.initFetchers(this)
 
   val defaultStorage: Storage = S2Graph.initStorage(this, config)(ec)
 
@@ -274,7 +276,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
   override def getStorage(label: Label): Storage = {
     storagePool.getOrElse(s"label:${label.label}", defaultStorage)
   }
-
 
   /* Currently, each getter on Fetcher and Mutator missing proper implementation
   *  Please discuss what is proper way to maintain resources here and provide

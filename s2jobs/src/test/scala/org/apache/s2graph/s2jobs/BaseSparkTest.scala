@@ -66,6 +66,8 @@ class BaseSparkTest extends FunSuite with Matchers with BeforeAndAfterAll with D
     super.beforeAll()
     s2 = S2GraphHelper.getS2Graph(s2Config, true)
 
+    S2Graph.loadFetchersAndMutators(s2)
+    
     deleteRecursively(new File(options.output))
     deleteRecursively(new File(options.tempDir))
 

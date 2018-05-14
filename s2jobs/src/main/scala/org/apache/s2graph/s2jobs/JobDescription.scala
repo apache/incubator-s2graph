@@ -65,7 +65,7 @@ object JobDescription extends Logger {
             logger.debug(s"custom class init.. $customClass")
 
             Class.forName(customClass)
-              .getConstructor(TaskConf.getClass)
+              .getConstructor(classOf[TaskConf])
               .newInstance(conf)
               .asInstanceOf[task.Process]
 
@@ -82,6 +82,19 @@ object JobDescription extends Logger {
       case "file" => new FileSink(jobName, conf)
       case "es" => new ESSink(jobName, conf)
       case "s2graph" => new S2GraphSink(jobName, conf)
+      case "custom" =>
+        val customClassOpt = conf.options.get("class")
+        customClassOpt match {
+          case Some(customClass:String) =>
+            logger.debug(s"custom class for sink init.. $customClass")
+
+            Class.forName(customClass)
+              .getConstructor(classOf[String], classOf[TaskConf])
+              .newInstance(jobName, conf)
+              .asInstanceOf[task.Sink]
+
+          case None => throw new IllegalArgumentException(s"sink custom class name is not exist.. ${conf}")
+        }
       case _ => throw new IllegalArgumentException(s"unsupported sink type : ${conf.`type`}")
     }
 

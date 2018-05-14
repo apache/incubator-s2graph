@@ -1,4 +1,3 @@
-<!---
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -7,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
+ * 
  *   http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,18 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
---->
 
-# MovieLens
+package org.apache.s2graph.s2jobs.task.custom.sink
 
-GroupLens Research has collected and made available rating data sets from the MovieLens web site (http://movielens.org).
-The data sets were collected over various periods of time, depending on the size of the set.
+import org.apache.s2graph.s2jobs.task.{Sink, TaskConf}
+import org.apache.s2graph.s2jobs.task.custom.process.ALSModelProcess
+import org.apache.spark.sql.DataFrame
 
-This dataset (ml-latest-small) describes 5-star rating and free-text tagging activity from MovieLens, a movie recommendation service. 
-It contains 100004 ratings and 1296 tag applications across 9125 movies. 
-These data were created by 671 users between January 09, 1995 and October 16, 2016. 
-This dataset was generated on October 17, 2016.
 
-# Description
+class AnnoyIndexBuildSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
+  override val FORMAT: String = "parquet"
 
-This example will upload 
+  override def mandatoryOptions: Set[String] = Set("path", "itemFactors")
+
+  override def write(inputDF: DataFrame): Unit = {
+    val df = repartition(preprocess(inputDF), inputDF.sparkSession.sparkContext.defaultParallelism)
+
+    if (inputDF.isStreaming) throw new IllegalStateException("AnnoyIndexBuildSink can not be run as streaming.")
+    else {
+      ALSModelProcess.buildAnnoyIndex(conf, inputDF)
+    }
+  }
+}

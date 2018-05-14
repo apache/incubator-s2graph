@@ -56,12 +56,14 @@ graphql_rest() {
     }"
     sleep 5
 }
+
 get_services() {
     curl -i -XPOST $REST/graphql -H 'content-type: application/json' -d '
     {
         "query": "query{Management{Services{id name }}}"
     }'
 }
+
 get_labels() {
     curl -i -XPOST $REST/graphql -H 'content-type: application/json' -d '
     {

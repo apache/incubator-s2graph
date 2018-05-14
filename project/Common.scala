@@ -35,6 +35,10 @@ object Common {
 
   val rocksVersion = "5.11.3"
 
+  val annoy4sVersion = "0.6.0"
+
+  val tensorflowVersion = "1.7.0"
+
   /** use Log4j 1.2.17 as the SLF4j backend in runtime, with bridging libraries to forward JCL and JUL logs to SLF4j */
   val loggingRuntime = Seq(
     "log4j" % "log4j" % "1.2.17",

@@ -32,6 +32,7 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % spark2Version,
   "org.apache.spark" %% "spark-streaming" % spark2Version % "provided",
   "org.apache.spark" %% "spark-hive" % spark2Version % "provided",
+  "org.apache.spark" %% "spark-mllib" % spark2Version,
   "org.specs2" %% "specs2-core" % specs2Version % "test",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test",
   "org.apache.hadoop" % "hadoop-distcp" % hadoopVersion,

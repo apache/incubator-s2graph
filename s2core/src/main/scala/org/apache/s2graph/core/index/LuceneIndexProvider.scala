@@ -23,6 +23,7 @@ import java.io.File
 import java.util
 
 import com.typesafe.config.Config
+import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.core.KeywordAnalyzer
 import org.apache.lucene.document.{Document, Field, StringField}
 import org.apache.lucene.index.{DirectoryReader, IndexWriter, IndexWriterConfig, Term}
@@ -41,6 +42,7 @@ import scala.concurrent.Future
 
 
 class LuceneIndexProvider(config: Config) extends IndexProvider {
+
   import IndexProvider._
 
   import scala.collection.JavaConverters._
@@ -133,6 +135,12 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     }
   }
 
+  private def createQueryParser(field: String, analyzer: Analyzer): QueryParser = {
+    val qp = new QueryParser(field, analyzer)
+    qp.setAllowLeadingWildcard(true)
+    qp
+  }
+
   override def mutateEdgesAsync(edges: Seq[S2EdgeLike], forceToIndex: Boolean = false): Future[Seq[Boolean]] =
     Future.successful(mutateEdges(edges, forceToIndex))
 
@@ -204,7 +212,8 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     val queryString = buildQueryString(hasContainers)
 
     try {
-      val q = new QueryParser(field, analyzer).parse(queryString)
+      val qp = createQueryParser(field, analyzer)
+      val q = qp.parse(queryString)
       fetchInner[VertexId](q, 0, 100, VertexIndexName, vidField, Conversions.s2VertexIdReads)
     } catch {
       case ex: ParseException =>
@@ -218,7 +227,8 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     val queryString = buildQueryString(hasContainers)
 
     try {
-      val q = new QueryParser(field, analyzer).parse(queryString)
+      val qp = createQueryParser(field, analyzer)
+      val q = qp.parse(queryString)
       fetchInner[EdgeId](q, 0, 100, EdgeIndexName, field, Conversions.s2EdgeIdReads)
     } catch {
       case ex: ParseException =>
@@ -235,7 +245,9 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
     val ret = vertexQueryParam.searchString.fold(util.Arrays.asList[VertexId]()) { queryString =>
       val field = vidField
       try {
-        val q = new QueryParser(field, analyzer).parse(queryString)
+        val qp = createQueryParser(field, analyzer)
+        val q = qp.parse(queryString)
+
         fetchInner[VertexId](q, vertexQueryParam.offset, vertexQueryParam.limit, VertexIndexName, vidField, Conversions.s2VertexIdReads)
       } catch {
         case ex: ParseException =>
