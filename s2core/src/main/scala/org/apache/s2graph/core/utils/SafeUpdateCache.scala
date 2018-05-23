@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import com.google.common.cache.CacheBuilder
 import com.google.common.hash.Hashing
-import com.typesafe.config.Config
+import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.collection.JavaConversions._
 import scala.concurrent.{ExecutionContext, Future}
@@ -85,8 +85,17 @@ class SafeUpdateCache(val config: Config)
 
   import java.lang.{Long => JLong}
   import SafeUpdateCache._
+
+
   val maxSize = config.getInt(SafeUpdateCache.MaxSizeKey)
   val systemTtl = config.getInt(SafeUpdateCache.TtlKey)
+
+  def this(maxSize: Int, systemTtl: Int)(implicit ec: ExecutionContext) {
+    this(ConfigFactory.parseMap(
+      Map(SafeUpdateCache.MaxSizeKey -> maxSize, SafeUpdateCache.TtlKey -> systemTtl))
+    )
+  }
+
   private val cache = CacheBuilder.newBuilder().maximumSize(maxSize)
     .build[JLong, (AnyRef, Int, AtomicBoolean)]()
 
@@ -114,9 +123,14 @@ class SafeUpdateCache(val config: Config)
     cache.invalidate(cacheKey)
   }
 
+  def defaultOnEvict(oldValue: AnyRef): Unit = {
+    logger.info(s"[SafeUpdateCache]: ${oldValue.getClass.getName} $oldValue is evicted.")
+  }
+
   def withCache[T <: AnyRef](key: String,
                              broadcast: Boolean,
-                             cacheTTLInSecs: Option[Int] = None)(op: => T): T = {
+                             cacheTTLInSecs: Option[Int] = None,
+                             onEvict: AnyRef => Unit = defaultOnEvict)(op: => T): T = {
     val cacheKey = toCacheKey(key)
     val cachedValWithTs = cache.getIfPresent(cacheKey)
 
@@ -145,6 +159,9 @@ class SafeUpdateCache(val config: Config)
               logger.error(s"withCache update failed: $cacheKey", ex)
             case Success(newValue) =>
               put(key, newValue, broadcast = (broadcast && newValue != cachedVal))
+
+              onEvict(cachedVal)
+
               logger.info(s"withCache update success: $cacheKey")
           }
 

@@ -24,7 +24,7 @@ import org.apache.s2graph.core.storage.MutateResponse
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait VertexMutator {
+trait VertexMutator extends AutoCloseable {
   def close(): Unit = {}
 
   def init(config: Config)(implicit ec: ExecutionContext): Unit = {}

@@ -36,10 +36,11 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 /**
- * This is designed to be bridge between rest to s2core.
- * s2core never use this for finding models.
- */
+  * This is designed to be bridge between rest to s2core.
+  * s2core never use this for finding models.
+  */
 object Management {
+
   import HBaseType._
   import scala.collection.JavaConversions._
 
@@ -196,8 +197,8 @@ object Management {
       service <- Service.findByName(serviceName, useCache = false)
       serviceColumn <- ServiceColumn.find(service.id.get, columnName)
     } yield {
-        ColumnMeta.findOrInsert(serviceColumn.id.get, propsName, propsType, defaultValue, storeInGlobalIndex)
-      }
+      ColumnMeta.findOrInsert(serviceColumn.id.get, propsName, propsType, defaultValue, storeInGlobalIndex)
+    }
     result.getOrElse({
       throw new RuntimeException(s"add property on vertex failed")
     })
@@ -231,11 +232,11 @@ object Management {
       (k, v) <- js.fields
       meta <- column.metasInvMap.get(k)
     } yield {
-        val innerVal = jsValueToInnerVal(v, meta.dataType, column.schemaVersion).getOrElse(
-          throw new RuntimeException(s"$k is not defined. create schema for vertex."))
+      val innerVal = jsValueToInnerVal(v, meta.dataType, column.schemaVersion).getOrElse(
+        throw new RuntimeException(s"$k is not defined. create schema for vertex."))
 
-        (meta.seq.toInt, innerVal)
-      }
+      (meta.seq.toInt, innerVal)
+    }
     props
 
   }
@@ -279,20 +280,21 @@ object Management {
       Label.updateName(tempLabel, rightLabel)
     }
   }
+
   def toConfig(params: Map[String, Any]): Config = {
     import scala.collection.JavaConversions._
 
     val filtered = params.filter { case (k, v) =>
-        v match {
-          case None => false
-          case _ => true
-        }
+      v match {
+        case None => false
+        case _ => true
+      }
     }.map { case (k, v) =>
-        val newV = v match {
-          case Some(value) => value
-          case _ => v
-        }
-        k -> newV
+      val newV = v match {
+        case Some(value) => value
+        case _ => v
+      }
+      k -> newV
     }
 
     ConfigFactory.parseMap(filtered)
@@ -353,13 +355,13 @@ class Management(graph: S2GraphLike) {
   }
 
   def createStorageTable(zkAddr: String,
-                  tableName: String,
-                  cfs: List[String],
-                  regionMultiplier: Int,
-                  ttl: Option[Int],
-                  compressionAlgorithm: String = DefaultCompressionAlgorithm,
-                  replicationScopeOpt: Option[Int] = None,
-                  totalRegionCount: Option[Int] = None): Unit = {
+                         tableName: String,
+                         cfs: List[String],
+                         regionMultiplier: Int,
+                         ttl: Option[Int],
+                         compressionAlgorithm: String = DefaultCompressionAlgorithm,
+                         replicationScopeOpt: Option[Int] = None,
+                         totalRegionCount: Option[Int] = None): Unit = {
     val config = toConfig(Map(
       ZookeeperQuorum -> zkAddr,
 //      ColumnFamilies -> cfs,
@@ -374,11 +376,11 @@ class Management(graph: S2GraphLike) {
 
   /** HBase specific code */
   def createService(serviceName: String,
-                   cluster: String,
-                   hTableName: String,
-                   preSplitSize: Int,
-                   hTableTTL: Int,
-                   compressionAlgorithm: String): Service = {
+                    cluster: String,
+                    hTableName: String,
+                    preSplitSize: Int,
+                    hTableTTL: Int,
+                    compressionAlgorithm: String): Service = {
     createService(serviceName, cluster, hTableName, preSplitSize,
       Option(hTableTTL).filter(_ > -1), compressionAlgorithm).get
   }
@@ -439,6 +441,7 @@ class Management(graph: S2GraphLike) {
 
     serviceColumnTry.get
   }
+
   def createLabel(labelName: String,
                   srcColumn: ServiceColumn,
                   tgtColumn: ServiceColumn,
@@ -451,7 +454,8 @@ class Management(graph: S2GraphLike) {
                   hTableTTL: Int,
                   schemaVersion: String,
                   compressionAlgorithm: String,
-                  options: String): Label = {
+                  options: String
+                 ): Label = {
     import scala.collection.JavaConversions._
 
     createLabel(labelName,
@@ -481,13 +485,15 @@ class Management(graph: S2GraphLike) {
                   schemaVersion: String = DEFAULT_VERSION,
                   isAsync: Boolean = false,
                   compressionAlgorithm: String = "gz",
-                  options: Option[String] = None): Try[Label] = {
+                  options: Option[String] = None,
+                  initFetcherWithOptions: Boolean = false
+                 ): Try[Label] = {
 
-    if (label.length > LABEL_NAME_MAX_LENGTH ) throw new LabelNameTooLongException(s"Label name ${label} too long.( max length : ${LABEL_NAME_MAX_LENGTH}} )")
+    if (label.length > LABEL_NAME_MAX_LENGTH) throw new LabelNameTooLongException(s"Label name ${label} too long.( max length : ${LABEL_NAME_MAX_LENGTH}} )")
     if (hTableName.isEmpty && hTableTTL.isDefined) throw new RuntimeException("if want to specify ttl, give hbaseTableName also")
 
     val labelOpt = Label.findByName(label, useCache = false)
-    Schema withTx { implicit session =>
+    val newLabelTry = Schema withTx { implicit session =>
       if (labelOpt.isDefined) throw new LabelAlreadyExistException(s"Label name ${label} already exist.")
 
       /* create all models */
@@ -509,20 +515,27 @@ class Management(graph: S2GraphLike) {
       ))
       storage.createTable(config, newLabel.hbaseTableName)
 
-      updateEdgeFetcher(newLabel, None)
-      updateEdgeFetcher(newLabel, None)
-
       newLabel
     }
+
+    newLabelTry.foreach { newLabel =>
+      if (initFetcherWithOptions) {
+        updateEdgeFetcher(newLabel, options)
+      } else {
+        updateEdgeFetcher(newLabel, None)
+      }
+    }
+
+    newLabelTry
   }
 
   /**
    * label
    */
   /**
-   * copy label when if oldLabel exist and newLabel do not exist.
-   * copy label: only used by bulk load job. not sure if we need to parameterize hbase cluster.
-   */
+    * copy label when if oldLabel exist and newLabel do not exist.
+    * copy label: only used by bulk load job. not sure if we need to parameterize hbase cluster.
+    */
   def copyLabel(oldLabelName: String, newLabelName: String, hTableName: Option[String]): Try[Label] = {
     val old = Label.findByName(oldLabelName, useCache = false).getOrElse(throw new LabelNotExistException(s"Old label $oldLabelName not exists."))
 
