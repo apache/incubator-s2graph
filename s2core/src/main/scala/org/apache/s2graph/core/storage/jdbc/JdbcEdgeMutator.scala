@@ -23,6 +23,7 @@ import com.typesafe.config.Config
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.schema.Label
 import org.apache.s2graph.core.storage.MutateResponse
+import org.apache.s2graph.core.utils.logger
 import org.joda.time.DateTime
 import scalikejdbc._
 
@@ -40,44 +41,79 @@ class JdbcEdgeMutator(graph: S2GraphLike) extends EdgeMutator {
     createTable(label)
   }
 
-  override def mutateStrongEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
-    _edges.groupBy(_.innerLabel).flatMap { case (label, edges) =>
-      val affectedColumns = JdbcStorage.affectedColumns(label)
-
-      val insertValues = edges.map { edge =>
-        val values = affectedColumns.collect {
-          case "_timestamp" => new DateTime(edge.ts)
-          case "_from" => edge.srcForVertex.innerId.value
-          case "_to" => edge.tgtForVertex.innerId.value
-          case k: String => edge.propertyValue(k).map(iv => iv.innerVal.value).orNull
-        }
-
-        values
-      }
-
-      val columns = affectedColumns.mkString(", ")
-      val table = JdbcStorage.labelTableName(label)
-      val prepared = affectedColumns.map(_ => "?").mkString(", ")
-
-      val conflictCheckKeys =
-        if (label.consistencyLevel == "strong") "(_from, _to)"
-        else "(_from, _to, _timestamp)"
-
-      val sqlRaw =
-        s"""MERGE INTO ${table} (${columns}) KEY ${conflictCheckKeys} VALUES (${prepared})""".stripMargin
-
-      val sql = SQLSyntax.createUnsafely(sqlRaw)
-      withTxSession { session =>
-        sql"""${sql}""".batch(insertValues: _*).apply()(session)
-      }
-
-      insertValues
+  def extractValues(affectedColumns: Seq[String], edge: S2EdgeLike): Seq[Any] = {
+    val values = affectedColumns.collect {
+      case "_timestamp" => new DateTime(edge.ts)
+      case "_from" => edge.srcForVertex.innerId.value
+      case "_to" => edge.tgtForVertex.innerId.value
+      case k: String => edge.propertyValue(k).map(iv => iv.innerVal.value).orNull
     }
 
-    Future.successful(_edges.map(_ => true))
+    values
   }
 
-  override def mutateWeakEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[(Int, Boolean)]] = ???
+  def keyColumns(label: Label): Seq[String] =
+    if (label.consistencyLevel == "strong") Seq("_from", "_to")
+    else Seq("_from", "_to", "_timestamp")
+
+  def insertOp(label: Label, edges: Seq[S2EdgeLike]): Seq[Boolean] = {
+    val table = JdbcStorage.labelTableName(label)
+    val affectedColumns = JdbcStorage.affectedColumns(label)
+    val insertValues = edges.map { edge => extractValues(affectedColumns, edge) }
+
+    val columns = affectedColumns.mkString(", ")
+    val prepared = affectedColumns.map(_ => "?").mkString(", ")
+
+    val conflictCheckKeys = keyColumns(label).mkString("(", ",", ")")
+
+    val sqlRaw = s"""MERGE INTO ${table} (${columns}) KEY ${conflictCheckKeys} VALUES (${prepared});"""
+    logger.debug(sqlRaw)
+
+    val sql = SQLSyntax.createUnsafely(sqlRaw)
+    val ret = withTxSession { session =>
+      sql"""${sql}""".batch(insertValues: _*).apply()(session)
+    }
+
+    ret.map(_ => true)
+  }
+
+  def deleteOp(label: Label, edges: Seq[S2EdgeLike]): Seq[Boolean] = {
+    val table = JdbcStorage.labelTableName(label)
+
+    val keyColumnLs = keyColumns(label)
+    val deleteValues = edges.map { edge => extractValues(keyColumnLs, edge) }
+    val prepared = keyColumnLs.map(k => s"${k} = ?").mkString(" AND ")
+
+    val sqlRaw = s"""DELETE FROM ${table} WHERE ($prepared);"""
+    logger.debug(sqlRaw)
+
+    val ret = withTxSession { session =>
+      val sql = SQLSyntax.createUnsafely(sqlRaw)
+      deleteValues.map { deleteValue =>
+        sql"""${sql}""".batch(Seq(deleteValue): _*).apply()(session)
+      }
+    }
+
+    ret.map(_ => true)
+  }
+
+  override def mutateStrongEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
+    val ret = _edges.groupBy(_.innerLabel).flatMap { case (label, edges) =>
+      val (edgesToDelete, edgesToInsert) = edges.partition(_.getOperation() == "delete")
+
+      insertOp(label, edgesToInsert) ++ deleteOp(label, edgesToDelete)
+    }
+
+    Future.successful(ret.toSeq)
+  }
+
+  override def mutateWeakEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[(Int, Boolean)]] = {
+    val ret = mutateStrongEdges(zkQuorum, _edges, withWait).map { ret =>
+      ret.zipWithIndex.map { case (r, i) => i -> r }
+    }
+
+    ret
+  }
 
   override def incrementCounts(zkQuorum: String, edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[MutateResponse]] = ???
 

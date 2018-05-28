@@ -74,14 +74,17 @@ class ResourceManager(graph: S2GraphLike,
 
   def onEvict(oldValue: AnyRef): Unit = {
     oldValue match {
-      case o: Option[_] => o.foreach {
-        case v: AutoCloseable => v.close()
+      case o: Option[_] => o.foreach { case v: AutoCloseable =>
+        v.close()
+        logger.info(s"[${oldValue.getClass.getName}]: $oldValue evicted.")
       }
-      case v: AutoCloseable => v.close()
+
+      case v: AutoCloseable =>
+        v.close()
+        logger.info(s"[${oldValue.getClass.getName}]: $oldValue evicted.")
+
       case _ => logger.info(s"Class does't have close() method ${oldValue.getClass.getName}")
     }
-
-    logger.info(s"[${oldValue.getClass.getName}]: $oldValue evicted.")
   }
 
   def getOrElseUpdateVertexFetcher(column: ServiceColumn,

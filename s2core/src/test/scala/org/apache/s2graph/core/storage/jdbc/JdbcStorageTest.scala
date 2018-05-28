@@ -245,9 +245,19 @@ class JdbcStorageTest extends BaseFetcherTest {
     )
 
     fetchedEdges shouldBe Seq(edgeElricUpdated, edgeShon, edgeRain) // order by timestamp desc
+
+    // delete
+    val deleteEdge = Seq(edgeElric.copyOp(GraphUtil.operations("delete")))
+    Await.ready(mutator.mutateStrongEdges("", deleteEdge, true), Duration("10 sec"))
+
+    val fetchedEdgesAfterDeleted = Await.result(
+      fetcher.fetches(Seq(qr), Map.empty), Duration("10 sec")).flatMap(_.edgeWithScores.map(_.edge)
+    )
+
+    fetchedEdgesAfterDeleted shouldBe Seq(edgeShon, edgeRain) // elric was deleted
   }
 
-  test("Mutate and fetch edges - label C") {
+  test("Mutate and fetch edges - label C(weak)") {
     val label = Label.findByName("C", useCache = false).get
 
     JdbcStorage.dropTable(label)
@@ -277,5 +287,15 @@ class JdbcStorageTest extends BaseFetcherTest {
     )
 
     fetchedEdges shouldBe Seq(edgeShon, edgeShon2)
+
+    // delete
+    val deleteEdge = Seq(edgeShon.copyOp(GraphUtil.operations("delete")))
+    Await.ready(mutator.mutateStrongEdges("", deleteEdge, true), Duration("10 sec"))
+
+    val fetchedEdgesAfterDeleted = Await.result(
+      fetcher.fetches(Seq(qr), Map.empty), Duration("10 sec")).flatMap(_.edgeWithScores.map(_.edge)
+    )
+
+    fetchedEdgesAfterDeleted shouldBe Seq(edgeShon2) // ts is diff
   }
 }

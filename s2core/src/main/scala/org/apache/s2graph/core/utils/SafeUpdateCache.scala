@@ -124,7 +124,10 @@ class SafeUpdateCache(val config: Config)
   }
 
   def defaultOnEvict(oldValue: AnyRef): Unit = {
-    logger.info(s"[SafeUpdateCache]: ${oldValue.getClass.getName} $oldValue is evicted.")
+    oldValue match {
+      case None =>
+      case _ => logger.info(s"[SafeUpdateCache]: ${oldValue.getClass.getName} $oldValue is evicted.")
+    }
   }
 
   def withCache[T <: AnyRef](key: String,
@@ -162,7 +165,10 @@ class SafeUpdateCache(val config: Config)
 
               onEvict(cachedVal)
 
-              logger.info(s"withCache update success: $cacheKey")
+              cachedVal match {
+                case None =>
+                case _ => logger.info(s"withCache update success: $cacheKey")
+              }
           }
 
           cachedVal
