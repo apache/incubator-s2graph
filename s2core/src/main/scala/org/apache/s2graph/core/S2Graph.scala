@@ -284,12 +284,12 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
   *  right implementation(S2GRAPH-213).
   * */
   override def getVertexFetcher(column: ServiceColumn): VertexFetcher = {
-    resourceManager.getOrElseUpdateVertexFetcher(column, Option(60 * 60 * 24))
+    resourceManager.getOrElseUpdateVertexFetcher(column)
       .getOrElse(defaultStorage.vertexFetcher)
   }
 
   override def getEdgeFetcher(label: Label): EdgeFetcher = {
-    resourceManager.getOrElseUpdateEdgeFetcher(label, Option(60 * 60 * 24))
+    resourceManager.getOrElseUpdateEdgeFetcher(label)
       .getOrElse(defaultStorage.edgeFetcher)
   }
 
