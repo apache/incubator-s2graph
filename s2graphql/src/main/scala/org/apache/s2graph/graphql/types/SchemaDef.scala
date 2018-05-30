@@ -20,8 +20,6 @@
 package org.apache.s2graph.graphql.types
 
 import org.apache.s2graph.graphql.repository.GraphRepository
-import org.apache.s2graph.graphql.types._
-
 
 /**
   * S2Graph GraphQL schema.
@@ -47,5 +45,13 @@ class SchemaDef(g: GraphRepository) {
     fields(s2Type.mutationFields ++ mutateManagementFields: _*)
   )
 
-  val S2GraphSchema = Schema(S2QueryType, Option(S2MutationType))
+  val directives = S2Directive.Transform :: BuiltinDirectives
+
+  private val s2Schema = Schema(
+    S2QueryType,
+    Option(S2MutationType),
+    directives = directives
+  )
+
+  val S2GraphSchema = s2Schema
 }

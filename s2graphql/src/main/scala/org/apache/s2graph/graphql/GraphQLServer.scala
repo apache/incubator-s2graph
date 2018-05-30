@@ -115,6 +115,8 @@ object GraphQLServer {
     newSchema
   }
 
+  val transformMiddleWare = new org.apache.s2graph.graphql.middleware.Transform()
+
   private def executeGraphQLQuery(query: Document, op: Option[String], vars: JsObject)(implicit e: ExecutionContext) = {
     val cacheKey = className + "s2Schema"
     val s2schema = schemaCache.withCache(cacheKey, broadcast = false)(createNewSchema())
@@ -127,7 +129,8 @@ object GraphQLServer {
       s2Repository,
       variables = vars,
       operationName = op,
-      deferredResolver = resolver
+      deferredResolver = resolver,
+      middleware = List(transformMiddleWare)
     )
       .map((res: spray.json.JsValue) => OK -> res)
       .recover {
