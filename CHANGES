@@ -77,6 +77,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-209] - GlobalIndex supports field data types such as Numeric to enable Range Query
     * [S2GRAPH-210] - Rename package `mysqls` to `schema`
     * [S2GRAPH-213] - Abstract Query/Mutation from Storage.
+    * [S2GRAPH-214] - Add REAME for movielens examples
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.
