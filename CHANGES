@@ -77,6 +77,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-209] - GlobalIndex supports field data types such as Numeric to enable Range Query
     * [S2GRAPH-210] - Rename package `mysqls` to `schema`
     * [S2GRAPH-213] - Abstract Query/Mutation from Storage.
+    * [S2GRAPH-214] - Add REAME for movielens examples
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.
@@ -88,6 +89,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-185] - Support Spark Structured Streaming to work with data in streaming and batch.
     * [S2GRAPH-183] - Provide batch job to dump data stored in HBase into file.
     * [S2GRAPH-206] - Generalize machine learning model serving.
+    * [S2GRAPH-215] - Implement a Storage Backend for JDBC driver, such as H2, MySql using the Mutator and Fetcher interfaces
 
 ** Task
     * [S2GRAPH-162] - Update year in the NOTICE file.

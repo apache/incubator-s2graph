@@ -24,7 +24,7 @@ import org.apache.s2graph.core.types.VertexId
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait EdgeFetcher {
+trait EdgeFetcher extends AutoCloseable {
 
   def init(config: Config)(implicit ec: ExecutionContext): Unit = {}
 

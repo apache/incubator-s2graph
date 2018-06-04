@@ -19,10 +19,15 @@
 
 package org.apache.s2graph.core
 
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.impl.ConfigImpl
+import com.typesafe.config._
 import org.apache.s2graph.core.schema.{Label, ServiceColumn}
-import org.apache.s2graph.core.utils.SafeUpdateCache
+import org.apache.s2graph.core.utils.{SafeUpdateCache, logger}
+
 import scala.concurrent.ExecutionContext
+import scala.reflect.ClassTag
+import scala.tools.nsc.typechecker.StructuredTypeStrings
+import scala.util.Try
 
 
 object ResourceManager {
@@ -32,14 +37,19 @@ object ResourceManager {
   import scala.collection.JavaConverters._
 
   val ClassNameKey = "className"
-  val EdgeFetcherKey = classOf[EdgeFetcher].getClass().getName
+  val MaxSizeKey = "resource.cache.max.size"
+  val CacheTTL = "resource.cache.ttl.seconds"
 
-  val VertexFetcherKey = classOf[VertexFetcher].getClass().getName
+  val EdgeFetcherKey = classOf[EdgeFetcher].getName
 
-  val EdgeMutatorKey = classOf[EdgeMutator].getClass.getName
-  val VertexMutatorKey = classOf[VertexMutator].getClass.getName
+  val VertexFetcherKey = classOf[VertexFetcher].getName
 
-  val DefaultConfig = ConfigFactory.parseMap(Map(MaxSizeKey -> 1000, TtlKey -> -1).asJava)
+  val EdgeMutatorKey = classOf[EdgeMutator].getName
+  val VertexMutatorKey = classOf[VertexMutator].getName
+
+  val DefaultMaxSize = 1000
+  val DefaultCacheTTL = -1
+  val DefaultConfig = ConfigFactory.parseMap(Map(MaxSizeKey -> DefaultMaxSize, TtlKey -> DefaultCacheTTL).asJava)
 }
 
 class ResourceManager(graph: S2GraphLike,
@@ -49,7 +59,10 @@ class ResourceManager(graph: S2GraphLike,
 
   import scala.collection.JavaConverters._
 
-  val cache = new SafeUpdateCache(_config)
+  val maxSize = Try(_config.getInt(ResourceManager.MaxSizeKey)).getOrElse(DefaultMaxSize)
+  val cacheTTL = Try(_config.getInt(ResourceManager.CacheTTL)).getOrElse(DefaultCacheTTL)
+
+  val cache = new SafeUpdateCache(maxSize, cacheTTL)
 
   def getAllVertexFetchers(): Seq[VertexFetcher] = {
     cache.asMap().asScala.toSeq.collect { case (_, (obj: VertexFetcher, _, _)) => obj }
@@ -59,10 +72,25 @@ class ResourceManager(graph: S2GraphLike,
     cache.asMap().asScala.toSeq.collect { case (_, (obj: EdgeFetcher, _, _)) => obj }
   }
 
+  def onEvict(oldValue: AnyRef): Unit = {
+    oldValue match {
+      case o: Option[_] => o.foreach { case v: AutoCloseable =>
+        v.close()
+        logger.info(s"[${oldValue.getClass.getName}]: $oldValue evicted.")
+      }
+
+      case v: AutoCloseable =>
+        v.close()
+        logger.info(s"[${oldValue.getClass.getName}]: $oldValue evicted.")
+
+      case _ => logger.info(s"Class does't have close() method ${oldValue.getClass.getName}")
+    }
+  }
+
   def getOrElseUpdateVertexFetcher(column: ServiceColumn,
                                    cacheTTLInSecs: Option[Int] = None): Option[VertexFetcher] = {
     val cacheKey = VertexFetcherKey + "_" + column.service.serviceName + "_" + column.columnName
-    cache.withCache(cacheKey, false, cacheTTLInSecs) {
+    cache.withCache(cacheKey, false, cacheTTLInSecs, onEvict) {
       column.toFetcherConfig.map { fetcherConfig =>
         val className = fetcherConfig.getString(ClassNameKey)
         val fetcher = Class.forName(className)
@@ -81,7 +109,7 @@ class ResourceManager(graph: S2GraphLike,
                                  cacheTTLInSecs: Option[Int] = None): Option[EdgeFetcher] = {
     val cacheKey = EdgeFetcherKey + "_" + label.label
 
-    cache.withCache(cacheKey, false, cacheTTLInSecs) {
+    cache.withCache(cacheKey, false, cacheTTLInSecs, onEvict) {
       label.toFetcherConfig.map { fetcherConfig =>
         val className = fetcherConfig.getString(ClassNameKey)
         val fetcher = Class.forName(className)
@@ -89,7 +117,10 @@ class ResourceManager(graph: S2GraphLike,
           .newInstance(graph)
           .asInstanceOf[EdgeFetcher]
 
-        fetcher.init(fetcherConfig)
+        fetcher.init(
+          fetcherConfig
+            .withValue("labelName", ConfigValueFactory.fromAnyRef(label.label))
+        )
 
         fetcher
       }
@@ -99,7 +130,7 @@ class ResourceManager(graph: S2GraphLike,
   def getOrElseUpdateVertexMutator(column: ServiceColumn,
                                    cacheTTLInSecs: Option[Int] = None): Option[VertexMutator] = {
     val cacheKey = VertexMutatorKey + "_" + column.service.serviceName + "_" + column.columnName
-    cache.withCache(cacheKey, false, cacheTTLInSecs) {
+    cache.withCache(cacheKey, false, cacheTTLInSecs, onEvict) {
       column.toMutatorConfig.map { mutatorConfig =>
         val className = mutatorConfig.getString(ClassNameKey)
         val fetcher = Class.forName(className)
@@ -117,7 +148,7 @@ class ResourceManager(graph: S2GraphLike,
   def getOrElseUpdateEdgeMutator(label: Label,
                                  cacheTTLInSecs: Option[Int] = None): Option[EdgeMutator] = {
     val cacheKey = EdgeMutatorKey + "_" + label.label
-    cache.withCache(cacheKey, false, cacheTTLInSecs) {
+    cache.withCache(cacheKey, false, cacheTTLInSecs, onEvict) {
       label.toMutatorConfig.map { mutatorConfig =>
         val className = mutatorConfig.getString(ClassNameKey)
         val fetcher = Class.forName(className)
@@ -125,7 +156,10 @@ class ResourceManager(graph: S2GraphLike,
           .newInstance(graph)
           .asInstanceOf[EdgeMutator]
 
-        fetcher.init(mutatorConfig)
+        fetcher.init(
+          mutatorConfig
+            .withValue("labelName", ConfigValueFactory.fromAnyRef(label.label))
+        )
 
         fetcher
       }

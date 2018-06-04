@@ -23,7 +23,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.schema.{Label, Service, ServiceColumn}
+import org.apache.s2graph.core.schema.{Label, LabelMeta, Service, ServiceColumn}
 import org.scalatest._
 
 import scala.concurrent.{Await, ExecutionContext}
@@ -67,7 +67,13 @@ trait BaseFetcherTest extends FunSuite with Matchers with BeforeAndAfterAll {
     val serviceColumn =
       management.createServiceColumn(serviceName, columnName, "string", Nil)
 
-    Label.findByName(labelName, useCache = false).foreach { label => Label.delete(label.id.get) }
+    Label.findByName(labelName, useCache = false).foreach { label =>
+      label.labelMetaSet.foreach { lm =>
+        LabelMeta.delete(lm.id.get)
+      }
+
+      Label.delete(label.id.get)
+    }
 
     val label = management.createLabel(
       labelName,
@@ -81,12 +87,13 @@ trait BaseFetcherTest extends FunSuite with Matchers with BeforeAndAfterAll {
       Seq.empty[Index],
       Seq(Prop(name = "score", defaultValue = "0.0", dataType = "double")),
       isDirected = true,
-      consistencyLevel =  "strong",
+      consistencyLevel = "strong",
       hTableName = None,
       hTableTTL = None,
       schemaVersion = "v3",
-      compressionAlgorithm =  "gz",
-      options = options
+      compressionAlgorithm = "gz",
+      options = options,
+      initFetcherWithOptions = true
     ).get
 
     management.updateEdgeFetcher(label, options)
