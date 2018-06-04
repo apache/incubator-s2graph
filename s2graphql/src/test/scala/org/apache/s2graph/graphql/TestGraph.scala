@@ -77,7 +77,7 @@ trait TestGraph {
 }
 
 class EmptyGraph(config: Config) extends TestGraph {
-  Schema.apply(config)
+  org.apache.s2graph.core.schema.Schema.apply(config)
 
   lazy val graph = new S2Graph(config)(scala.concurrent.ExecutionContext.Implicits.global)
   lazy val management = new Management(graph)
@@ -92,7 +92,7 @@ class EmptyGraph(config: Config) extends TestGraph {
   override def repository: GraphRepository = s2Repository
 
   override def open(): Unit = {
-    Schema.shutdown(true)
+    org.apache.s2graph.core.schema.Schema.shutdown(true)
   }
 
 }
@@ -131,9 +131,10 @@ class BasicGraph(config: Config) extends EmptyGraph(config) {
       labelName,
       serviceName, columnName, "string",
       serviceName, columnName, "string",
-      true, serviceName,
+      serviceName,
       Nil,
       Seq(Prop("score", "0", "int")),
+      true,
       "strong"
     )
 }

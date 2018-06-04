@@ -63,6 +63,8 @@ object S2Graph {
     "db.default.user" -> "graph",
     "cache.max.size" -> java.lang.Integer.valueOf(0),
     "cache.ttl.seconds" -> java.lang.Integer.valueOf(-1),
+    "resource.cache.max.size" -> java.lang.Integer.valueOf(1000),
+    "resource.cache.ttl.seconds" -> java.lang.Integer.valueOf(-1),
     "hbase.client.retries.number" -> java.lang.Integer.valueOf(20),
     "hbase.rpcs.buffered_flush_interval" -> java.lang.Short.valueOf(100.toShort),
     "hbase.rpc.timeout" -> java.lang.Integer.valueOf(600000),

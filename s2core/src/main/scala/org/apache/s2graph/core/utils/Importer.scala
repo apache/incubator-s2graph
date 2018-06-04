@@ -24,8 +24,7 @@ import java.io.File
 import com.typesafe.config.Config
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.s2graph.core.{EdgeFetcher, S2GraphLike}
-import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.core.{S2GraphLike}
 
 import scala.concurrent.{ExecutionContext, Future}
 

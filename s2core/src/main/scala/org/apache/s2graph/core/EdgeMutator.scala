@@ -24,7 +24,7 @@ import org.apache.s2graph.core.storage.MutateResponse
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait EdgeMutator {
+trait EdgeMutator extends AutoCloseable {
 
   def mutateStrongEdges(zkQuorum: String, _edges: Seq[S2EdgeLike], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]]
 
