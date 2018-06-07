@@ -93,7 +93,7 @@ abstract class Sink(queryName: String, override val conf: TaskConf) extends Task
       case _ => SaveMode.Overwrite
     }
 
-    val partitionedWriter = if (partitionsOpt.isDefined) writer.partitionBy(partitionsOpt.get) else writer
+    val partitionedWriter = if (partitionsOpt.isDefined) writer.partitionBy(partitionsOpt.get.split(","): _*) else writer
 
     writeBatchInner(partitionedWriter.format(FORMAT).mode(mode))
   }
