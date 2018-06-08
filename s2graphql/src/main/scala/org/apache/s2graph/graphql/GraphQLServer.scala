@@ -28,6 +28,7 @@ import akka.http.scaladsl.server._
 import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.S2Graph
 import org.apache.s2graph.core.utils.SafeUpdateCache
+import org.apache.s2graph.graphql.middleware.{SigmaJSFormatted}
 import org.apache.s2graph.graphql.repository.GraphRepository
 import org.apache.s2graph.graphql.types.SchemaDef
 import org.slf4j.LoggerFactory
@@ -118,6 +119,7 @@ object GraphQLServer {
   private def executeGraphQLQuery(query: Document, op: Option[String], vars: JsObject)(implicit e: ExecutionContext) = {
     val cacheKey = className + "s2Schema"
     val s2schema = schemaCache.withCache(cacheKey, broadcast = false)(createNewSchema())
+
     import GraphRepository._
     val resolver: DeferredResolver[GraphRepository] = DeferredResolver.fetchers(vertexFetcher, edgeFetcher)
 
@@ -127,7 +129,8 @@ object GraphQLServer {
       s2Repository,
       variables = vars,
       operationName = op,
-      deferredResolver = resolver
+      deferredResolver = resolver,
+      middleware = SigmaJSFormatted :: Nil
     )
       .map((res: spray.json.JsValue) => OK -> res)
       .recover {
