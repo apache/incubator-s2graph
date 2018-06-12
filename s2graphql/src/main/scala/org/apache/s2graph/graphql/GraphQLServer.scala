@@ -28,7 +28,7 @@ import akka.http.scaladsl.server._
 import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.S2Graph
 import org.apache.s2graph.core.utils.SafeUpdateCache
-import org.apache.s2graph.graphql.middleware.{SigmaJSFormatted}
+import org.apache.s2graph.graphql.middleware.{GraphFormatted}
 import org.apache.s2graph.graphql.repository.GraphRepository
 import org.apache.s2graph.graphql.types.SchemaDef
 import org.slf4j.LoggerFactory
@@ -123,6 +123,13 @@ object GraphQLServer {
     import GraphRepository._
     val resolver: DeferredResolver[GraphRepository] = DeferredResolver.fetchers(vertexFetcher, edgeFetcher)
 
+    val includeGrpaph = vars.fields.get("includeGraph").contains(spray.json.JsBoolean(true))
+    val middleWares = if (includeGrpaph) {
+      GraphFormatted :: Nil
+    } else {
+      Nil
+    }
+
     Executor.execute(
       s2schema,
       query,
@@ -130,7 +137,7 @@ object GraphQLServer {
       variables = vars,
       operationName = op,
       deferredResolver = resolver,
-      middleware = SigmaJSFormatted :: Nil
+      middleware = middleWares
     )
       .map((res: spray.json.JsValue) => OK -> res)
       .recover {

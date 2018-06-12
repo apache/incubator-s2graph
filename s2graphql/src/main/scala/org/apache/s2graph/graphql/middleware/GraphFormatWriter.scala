@@ -9,7 +9,7 @@ import sangria.execution._
 import sangria.schema.Context
 
 
-object SigmaJSFormatted extends Middleware[Any] with MiddlewareAfterField[Any] with MiddlewareExtension[Any] {
+object GraphFormatted extends Middleware[Any] with MiddlewareAfterField[Any] with MiddlewareExtension[Any] {
   implicit val logger = LoggerFactory.getLogger(this.getClass)
 
   type QueryVal = java.util.concurrent.ConcurrentHashMap[GraphElement, Unit]
@@ -59,8 +59,8 @@ object SigmaJSFormatted extends Middleware[Any] with MiddlewareAfterField[Any] w
       Vector((e.srcVertex, label.srcColumn), (e.tgtVertex, label.srcColumn))
     }
 
-    val verticesJson = (vertices ++ verticesFromEdges).distinct.map { case (v, c) => toVertexJson(v, c) }
-    val edgeJson = edges.distinct.map(toEdgeJson)
+    val verticesJson = (vertices ++ verticesFromEdges).map { case (v, c) => toVertexJson(v, c) }.distinct
+    val edgeJson = edges.map(toEdgeJson).distinct
 
     val jsElements = Json.obj(
       "nodes" -> verticesJson,
