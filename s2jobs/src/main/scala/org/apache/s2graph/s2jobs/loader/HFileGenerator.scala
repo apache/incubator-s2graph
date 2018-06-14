@@ -33,6 +33,7 @@ import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.{Base64, Bytes}
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.util.ToolRunner
+import org.apache.s2graph.core.S2GraphConfigs
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageManagement
 import org.apache.s2graph.s2jobs.serde.reader.TsvBulkFormatReader
 import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
@@ -55,7 +56,7 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
   def toHBaseConfig(zkQuorum: String, tableName: String): Configuration = {
     val hbaseConf = HBaseConfiguration.create()
 
-    hbaseConf.set("hbase.zookeeper.quorum", zkQuorum)
+    hbaseConf.set(S2GraphConfigs.HBaseConfigs.HBASE_ZOOKEEPER_QUORUM, zkQuorum)
     hbaseConf.set(TableOutputFormat.OUTPUT_TABLE, tableName)
 
     hbaseConf
@@ -164,7 +165,6 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
            restorePath: String,
            tableNames: Seq[String],
            columnFamily: String = "e",
-           elementType: String = "IndexEdge",
            batchSize: Int = 1000,
            labelMapping: Map[String, String] = Map.empty,
            buildDegree: Boolean = false): RDD[Seq[Cell]] = {

@@ -112,28 +112,33 @@ class HiveSource(conf:TaskConf) extends Source(conf) {
 }
 
 class S2GraphSource(conf: TaskConf) extends Source(conf) {
-
-  override def mandatoryOptions: Set[String] = Set("hbase.rootdir", "restore.path", "hbase.table.names")
+  import org.apache.s2graph.spark.sql.streaming.S2SourceConfigs._
+  override def mandatoryOptions: Set[String] = Set(
+    S2_SOURCE_BULKLOAD_HBASE_ROOT_DIR,
+    S2_SOURCE_BULKLOAD_RESTORE_PATH,
+    S2_SOURCE_BULKLOAD_HBASE_TABLE_NAMES
+  )
 
   override def toDF(ss: SparkSession): DataFrame = {
     val mergedConf = TaskConf.parseHBaseConfigs(conf) ++ TaskConf.parseMetaStoreConfigs(conf) ++
       TaskConf.parseLocalCacheConfigs(conf)
     val config = Management.toConfig(mergedConf)
 
-    val snapshotPath = conf.options("hbase.rootdir")
-    val restorePath = conf.options("restore.path")
-    val tableNames = conf.options("hbase.table.names").split(",")
-    val columnFamily = conf.options.getOrElse("hbase.table.cf", "e")
-    val batchSize = conf.options.getOrElse("scan.batch.size", "1000").toInt
+    val snapshotPath = conf.options(S2_SOURCE_BULKLOAD_HBASE_ROOT_DIR)
+    val restorePath = conf.options(S2_SOURCE_BULKLOAD_RESTORE_PATH)
+    val tableNames = conf.options(S2_SOURCE_BULKLOAD_HBASE_TABLE_NAMES).split(",")
+    val columnFamily = conf.options.getOrElse(S2_SOURCE_BULKLOAD_HBASE_TABLE_CF, "e")
+    val batchSize = conf.options.getOrElse(S2_SOURCE_BULKLOAD_SCAN_BATCH_SIZE, "1000").toInt
+
     val labelMapping = Map.empty[String, String]
     val buildDegree =
       if (columnFamily == "v") false
-      else conf.options.getOrElse("build.degree", "false").toBoolean
-    val elementType = conf.options.getOrElse("element.type", "IndexEdge")
+      else conf.options.getOrElse(S2_SOURCE_BULKLOAD_BUILD_DEGREE, "false").toBoolean
+    val elementType = conf.options.getOrElse(S2_SOURCE_ELEMENT_TYPE, "IndexEdge")
     val schema = if (columnFamily == "v") Schema.VertexSchema else Schema.EdgeSchema
 
     val cells = HFileGenerator.tableSnapshotDump(ss, config, snapshotPath,
-      restorePath, tableNames, columnFamily, elementType, batchSize, labelMapping, buildDegree)
+      restorePath, tableNames, columnFamily, batchSize, labelMapping, buildDegree)
 
     implicit val reader = new S2GraphCellReader(elementType)
     implicit val writer = new RowDataFrameWriter

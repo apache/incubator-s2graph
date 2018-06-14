@@ -24,22 +24,13 @@ import com.typesafe.config.Config
 import scala.util.Try
 
 object S2SinkConfigs {
-  // Common
-
-  // meta storage Configurations.
-//  val DB_DEFAULT_DRIVER = "db.default.driver"
-//  val DB_DEFAULT_URL = "db.default.url"
-//  val DB_DEFAULT_PASSWORD = "db.default.password"
-//  val DB_DEFAULT_USER = "db.default.user"
-//
-//  val HBASE_ZOOKEEPER_QUORUM = "hbase.zookeeper.quorum"
-
-
   val DEFAULT_GROUPED_SIZE = "100"
   val DEFAULT_WAIT_TIME_SECONDS = "5"
 
   val S2_SINK_PREFIX = "s2.spark.sql.streaming.sink"
   val S2_SINK_BULKLOAD_PREFIX = "s2.spark.sql.bulkload.sink"
+
+  val S2_SINK_WRITE_METHOD = s"$S2_SINK_PREFIX.writeMethod"
 
   val S2_SINK_QUERY_NAME = s"$S2_SINK_PREFIX.queryname"
   val S2_SINK_LOG_PATH = s"$S2_SINK_PREFIX.logpath"
@@ -58,6 +49,7 @@ object S2SinkConfigs {
   val S2_SINK_BULKLOAD_HBASE_INCREMENTAL_LOAD = s"$S2_SINK_BULKLOAD_PREFIX.hbase.incrementalLoad"
   val S2_SINK_BULKLOAD_HBASE_COMPRESSION = s"$S2_SINK_BULKLOAD_PREFIX.hbase.compression"
 
+  //
   val S2_SINK_BULKLOAD_AUTO_EDGE_CREATE= s"$S2_SINK_BULKLOAD_PREFIX.auto.edge.create"
   val S2_SINK_BULKLOAD_BUILD_DEGREE = s"$S2_SINK_BULKLOAD_PREFIX.build.degree"
   val S2_SINK_BULKLOAD_LABEL_MAPPING = s"$S2_SINK_BULKLOAD_PREFIX.label.mapping"

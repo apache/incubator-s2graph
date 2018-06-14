@@ -299,7 +299,7 @@ class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
 
     if (inputDF.isStreaming) writeStream(df.writeStream)
     else {
-      conf.options.getOrElse("writeMethod", "mutate") match {
+      conf.options.getOrElse(S2_SINK_WRITE_METHOD, "mutate") match {
         case "mutate" => writeBatchWithMutate(df)
         case "bulk" =>
           val runLoadIncrementalHFiles = conf.options.getOrElse("runLoadIncrementalHFiles", "true").toBoolean
