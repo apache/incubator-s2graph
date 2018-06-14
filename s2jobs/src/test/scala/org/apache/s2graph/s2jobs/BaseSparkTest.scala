@@ -27,12 +27,18 @@ import org.apache.s2graph.core.schema.{Label, Service, ServiceColumn}
 import org.apache.s2graph.core.{Management, S2Graph}
 import org.apache.s2graph.core.types.HBaseType
 import org.apache.s2graph.s2jobs.loader.GraphFileOptions
+import org.apache.s2graph.s2jobs.task.TaskConf
+import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 import scala.util.Try
 
 class BaseSparkTest extends FunSuite with Matchers with BeforeAndAfterAll with DataFrameSuiteBase {
-
+  import org.apache.s2graph.core.S2GraphConfigs._
+  import S2SinkConfigs._
+  protected val bulkloadOptions = new TaskConf("bulkloadOptions", "test", options = Map(
+    DBConfigs.DEFAULT_DB_DEFAULT_URL -> "jdbc:h2:file:./var/metastore_jobs;MODE=MYSQL"
+  ))
   protected val options = GraphFileOptions(
     input = "/tmp/test.txt",
     tempDir = "/tmp/bulkload_tmp",

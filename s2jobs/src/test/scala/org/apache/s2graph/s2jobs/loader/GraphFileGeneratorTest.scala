@@ -41,7 +41,7 @@ class GraphFileGeneratorTest extends BaseSparkTest {
     transformerMode match {
       case "spark" =>
         val input: RDD[String] = sc.parallelize(edges)
-        val transformer = new SparkBulkLoaderTransformer(s2Config, options)
+        val transformer = new SparkBulkLoaderTransformer(s2Config, options.labelMapping, options.buildDegree)
 
         implicit val reader = new TsvBulkFormatReader
         implicit val writer = new KeyValueWriter
@@ -55,7 +55,7 @@ class GraphFileGeneratorTest extends BaseSparkTest {
 
       case "local" =>
         val input = edges
-        val transformer = new LocalBulkLoaderTransformer(s2Config, options)
+        val transformer = new LocalBulkLoaderTransformer(s2Config, options.labelMapping, options.buildDegree)
 
         implicit val reader = new TsvBulkFormatReader
         implicit val writer = new KeyValueWriter
@@ -82,7 +82,7 @@ class GraphFileGeneratorTest extends BaseSparkTest {
             e.getDirection())
         }.toDF("timestamp", "operation", "element", "from", "to", "label", "props", "direction").rdd
 
-        val transformer = new SparkBulkLoaderTransformer(s2Config, options)
+        val transformer = new SparkBulkLoaderTransformer(s2Config, options.labelMapping, options.buildDegree)
 
         implicit val reader = new RowBulkFormatReader
         implicit val writer = new KeyValueWriter

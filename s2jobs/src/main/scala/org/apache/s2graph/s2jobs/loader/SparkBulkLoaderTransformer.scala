@@ -31,8 +31,8 @@ class SparkBulkLoaderTransformer(val config: Config,
                                  val labelMapping: Map[String, String] = Map.empty,
                                  val buildDegree: Boolean = false) extends Transformer[RDD] {
 
-  def this(config: Config, options: GraphFileOptions) =
-    this(config, options.labelMapping, options.buildDegree)
+//  def this(config: Config, options: GraphFileOptions) =
+//    this(config, options.labelMapping, options.buildDegree)
 
   override def buildDegrees[T: ClassTag](elements: RDD[GraphElement])(implicit writer: GraphElementWritable[T]): RDD[T] = {
     val degrees = elements.mapPartitions { iter =>

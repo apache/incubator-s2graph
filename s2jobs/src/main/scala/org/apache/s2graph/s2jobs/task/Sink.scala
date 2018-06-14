@@ -23,7 +23,7 @@ import com.typesafe.config.{Config, ConfigFactory, ConfigRenderOptions}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.mapreduce.LoadIncrementalHFiles
 import org.apache.hadoop.util.ToolRunner
-import org.apache.s2graph.core.Management
+import org.apache.s2graph.core.{GraphUtil, Management}
 import org.apache.s2graph.s2jobs.S2GraphHelper
 import org.apache.s2graph.s2jobs.loader.{GraphFileOptions, HFileGenerator, SparkBulkLoaderTransformer}
 import org.apache.s2graph.s2jobs.serde.reader.RowBulkFormatReader
@@ -34,7 +34,7 @@ import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, Trigger}
 import org.elasticsearch.spark.sql.EsSparkSQL
 
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.Await
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
 
 /**
@@ -210,34 +210,55 @@ class ESSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
   * @param conf
   */
 class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
+  import scala.collection.JavaConversions._
+  import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs._
+  import org.apache.s2graph.core.S2GraphConfigs._
+
   override def mandatoryOptions: Set[String] = Set()
 
   override val FORMAT: String = "org.apache.s2graph.spark.sql.streaming.S2SinkProvider"
 
   private def writeBatchBulkload(df: DataFrame, runLoadIncrementalHFiles: Boolean = true): Unit = {
-    val options = TaskConf.toGraphFileOptions(conf)
-    val config = Management.toConfig(TaskConf.parseLocalCacheConfigs(conf) ++
-      TaskConf.parseHBaseConfigs(conf) ++ TaskConf.parseMetaStoreConfigs(conf) ++ options.toConfigParams)
+    val mergedOptions = conf.options ++ TaskConf.parseLocalCacheConfigs(conf)
+    val graphConfig: Config = ConfigFactory.parseMap(mergedOptions).withFallback(ConfigFactory.load())
+
+    // required for bulkload
+    val labelMapping = getConfigStringOpt(graphConfig, S2_SINK_BULKLOAD_LABEL_MAPPING).map(GraphUtil.toLabelMapping).getOrElse(Map.empty)
+    val buildDegree = getConfigStringOpt(graphConfig, S2_SINK_BULKLOAD_BUILD_DEGREE).map(_.toBoolean).getOrElse(false)
+    val autoEdgeCreate = getConfigStringOpt(graphConfig, S2_SINK_BULKLOAD_AUTO_EDGE_CREATE).map(_.toBoolean).getOrElse(false)
+    val skipError = getConfigStringOpt(graphConfig, S2_SINK_SKIP_ERROR).map(_.toBoolean).getOrElse(false)
+
+    val zkQuorum = graphConfig.getString(HBaseConfigs.HBASE_ZOOKEEPER_QUORUM)
+    val tableName = graphConfig.getString(S2_SINK_BULKLOAD_HBASE_TABLE_NAME)
+
+    val numRegions = graphConfig.getString(S2_SINK_BULKLOAD_HBASE_NUM_REGIONS).toInt
+    val outputPath = graphConfig.getString(S2_SINK_BULKLOAD_HBASE_TEMP_DIR)
+
+    // optional.
+    val incrementalLoad = getConfigStringOpt(graphConfig, S2_SINK_BULKLOAD_HBASE_INCREMENTAL_LOAD).map(_.toBoolean).getOrElse(false)
+    val compressionAlgorithm = getConfigStringOpt(graphConfig, S2_SINK_BULKLOAD_HBASE_COMPRESSION).getOrElse("lz4")
+
+    val hbaseConfig = HFileGenerator.toHBaseConfig(zkQuorum, tableName)
 
     val input = df.rdd
 
-    val transformer = new SparkBulkLoaderTransformer(config, options)
+    val transformer = new SparkBulkLoaderTransformer(graphConfig, labelMapping, buildDegree)
 
     implicit val reader = new RowBulkFormatReader
-    implicit val writer = new KeyValueWriter(options.autoEdgeCreate, options.skipError)
+    implicit val writer = new KeyValueWriter(autoEdgeCreate, skipError)
 
     val kvs = transformer.transform(input)
 
-    HFileGenerator.generateHFile(df.sparkSession.sparkContext, config, kvs.flatMap(ls => ls), options)
+    HFileGenerator.generateHFile(df.sparkSession.sparkContext, graphConfig,
+      kvs.flatMap(ls => ls), hbaseConfig, tableName,
+      numRegions, outputPath, incrementalLoad, compressionAlgorithm
+    )
 
     // finish bulk load by execute LoadIncrementHFile.
-    if (runLoadIncrementalHFiles) HFileGenerator.loadIncrementalHFiles(options)
+    if (runLoadIncrementalHFiles) HFileGenerator.loadIncrementalHFiles(outputPath, tableName)
   }
 
   private def writeBatchWithMutate(df:DataFrame):Unit = {
-    import scala.collection.JavaConversions._
-    import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs._
-
     // TODO: FIX THIS. overwrite local cache config.
     val mergedOptions = conf.options ++ TaskConf.parseLocalCacheConfigs(conf)
     val graphConfig: Config = ConfigFactory.parseMap(mergedOptions).withFallback(ConfigFactory.load())
@@ -247,6 +268,7 @@ class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
 
     val groupedSize = getConfigString(graphConfig, S2_SINK_GROUPED_SIZE, DEFAULT_GROUPED_SIZE).toInt
     val waitTime = getConfigString(graphConfig, S2_SINK_WAIT_TIME, DEFAULT_WAIT_TIME_SECONDS).toInt
+    val skipError = getConfigStringOpt(graphConfig, S2_SINK_SKIP_ERROR).map(_.toBoolean).getOrElse(false)
 
     df.foreachPartition { iters =>
       val config = ConfigFactory.parseString(serializedConfig)
@@ -255,7 +277,15 @@ class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
       val responses = iters.grouped(groupedSize).flatMap { rows =>
         val elements = rows.flatMap(row => reader.read(s2Graph)(row))
 
-        val mutateF = s2Graph.mutateElements(elements, true)
+        val mutateF = if (skipError) {
+          try {
+            s2Graph.mutateElements(elements, true)
+          } catch {
+            case e: Throwable => Future.successful(Nil)
+          }
+        } else {
+          s2Graph.mutateElements(elements, true)
+        }
         Await.result(mutateF, Duration(waitTime, "seconds"))
       }
 

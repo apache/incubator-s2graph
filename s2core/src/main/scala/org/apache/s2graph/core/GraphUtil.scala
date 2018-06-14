@@ -171,4 +171,13 @@ object GraphUtil {
   def stringToOption(s: String): Option[String] = {
     Option(s).filter(_.trim.nonEmpty)
   }
+
+  def toLabelMapping(lableMapping: String): Map[String, String] = {
+    (for {
+      token <- lableMapping.split(",")
+      inner = token.split(":") if inner.length == 2
+    } yield {
+      (inner.head, inner.last)
+    }).toMap
+  }
 }

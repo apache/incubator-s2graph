@@ -103,7 +103,7 @@ object HFileMRGenerator extends RawFileGenerator[String, KeyValue] {
                s2Config: Config,
                input: RDD[String],
                options: GraphFileOptions): RDD[KeyValue] = {
-    val transformer = new SparkBulkLoaderTransformer(s2Config, options)
+    val transformer = new SparkBulkLoaderTransformer(s2Config, options.labelMapping, options.buildDegree)
 
     implicit val reader = new TsvBulkFormatReader
     implicit val writer = new KeyValueWriter(options.autoEdgeCreate, options.skipError)
