@@ -28,6 +28,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 
 class FastTextFetcher(val graph: S2GraphLike) extends EdgeFetcher {
+  import org.apache.s2graph.core.TraversalHelper._
   val builder = graph.elementBuilder
   var fastText: FastText = _
 
@@ -49,16 +50,19 @@ class FastTextFetcher(val graph: S2GraphLike) extends EdgeFetcher {
     val stepResultLs = queryRequests.map { queryRequest =>
       val vertex = queryRequest.vertex
       val queryParam = queryRequest.queryParam
+      val shouldBuildParents = queryRequest.query.queryOption.returnTree || queryParam.whereHasParent
+      val parentEdges = if (shouldBuildParents) prevStepEdges.getOrElse(queryRequest.vertex.id, Nil) else Nil
+
       val line = fastText.getLine(vertex.innerId.toIdString())
 
-      val edgeWithScores = fastText.predict(line, queryParam.limit).map { case (_label, score) =>
+      val edgeWithScores = fastText.predict(line, queryParam.limit).flatMap { case (_label, score) =>
         val tgtVertexId = builder.newVertexId(queryParam.label.service,
           queryParam.label.tgtColumnWithDir(queryParam.labelWithDir.dir), _label)
 
         val props: Map[String, Any] = if (queryParam.label.metaPropsInvMap.contains("score")) Map("score" -> score) else Map.empty
         val edge = graph.toEdge(vertex.innerId.value, tgtVertexId.innerId.value, queryParam.labelName, queryParam.direction, props = props)
 
-        EdgeWithScore(edge, score, queryParam.label)
+        edgeToEdgeWithScore(queryRequest, edge, parentEdges)
       }
 
       StepResult(edgeWithScores, Nil, Nil)

@@ -22,6 +22,7 @@ package org.apache.s2graph.core
 import java.util
 
 import org.apache.s2graph.core.S2Graph.{FilterHashKey, HashKey}
+import org.apache.s2graph.core.parsers.WhereParser
 import org.apache.s2graph.core.schema.LabelMeta
 import org.apache.s2graph.core.types.{HBaseType, InnerVal, LabelWithDirection, VertexId}
 import org.apache.s2graph.core.utils.{Extensions, logger}
@@ -39,11 +40,11 @@ object TraversalHelper {
     else randomInt(sampleNumber, range, set + Random.nextInt(range))
   }
 
-  def sample(queryRequest: QueryRequest, edges: Seq[EdgeWithScore], n: Int): Seq[EdgeWithScore] = {
+  def sample(edges: Seq[EdgeWithScore], offset: Int, n: Int): Seq[EdgeWithScore] = {
     if (edges.size <= n) {
       edges
     } else {
-      val plainEdges = if (queryRequest.queryParam.offset == 0) {
+      val plainEdges = if (offset == 0) {
         edges.tail
       } else edges
 
@@ -141,6 +142,41 @@ object TraversalHelper {
 
     (hashKey, filterHashKey)
   }
+
+  def edgeToEdgeWithScore(queryRequest: QueryRequest,
+                          edge: S2EdgeLike,
+                          parentEdges: Seq[EdgeWithScore]): Seq[EdgeWithScore] = {
+    val prevScore = queryRequest.prevStepScore
+    val queryParam = queryRequest.queryParam
+    val queryOption = queryRequest.query.queryOption
+    val nextStepOpt = queryRequest.nextStepOpt
+    val labelWeight = queryRequest.labelWeight
+    val where = queryParam.where.get
+    val isDefaultTransformer = queryParam.edgeTransformer.isDefault
+
+    if (where != WhereParser.success && !where.filter(edge)) Nil
+    else {
+      val edges = if (isDefaultTransformer) Seq(edge) else convertEdges(queryParam, edge, nextStepOpt)
+      edges.map { e =>
+        if (!queryOption.ignorePrevStepCache) {
+          EdgeWithScore(e, queryParam.rank.score(edge), queryParam.label)
+        } else {
+          val edgeScore = queryParam.rank.score(edge)
+          val score = queryParam.scorePropagateOp match {
+            case "plus" => edgeScore + prevScore
+            case "divide" =>
+              if ((prevScore + queryParam.scorePropagateShrinkage) == 0) 0
+              else edgeScore / (prevScore + queryParam.scorePropagateShrinkage)
+            case _ => edgeScore * prevScore
+          }
+          val tsVal = processTimeDecay(queryParam, edge)
+
+          EdgeWithScore(e.copyParentEdges(parentEdges), score = score * labelWeight * tsVal, label = queryParam.label)
+        }
+      }
+    }
+  }
+
 }
 
 
@@ -481,7 +517,7 @@ class TraversalHelper(graph: S2GraphLike) {
       val degreeScore = 0.0
 
       val sampled =
-        if (queryRequest.queryParam.sample >= 0) sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
+        if (queryRequest.queryParam.sample >= 0) sample(edgeWithScores, queryParam.offset, queryParam.sample)
         else edgeWithScores
 
       val withScores = for {
