@@ -35,12 +35,13 @@ import sangria.ast.Document
 import sangria.execution._
 import sangria.execution.deferred.DeferredResolver
 import sangria.marshalling.sprayJson._
-import sangria.parser.QueryParser
+import sangria.parser.{QueryParser, SyntaxError}
 import sangria.schema.Schema
-import spray.json.{JsBoolean, JsObject, JsString}
+import spray.json._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 
 object GraphQLServer {
@@ -63,7 +64,7 @@ object GraphQLServer {
 
   val schemaCache = new SafeUpdateCache(schemaConfig)
 
-  def updateEdgeFetcher(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Route = {
+  def updateEdgeFetcher(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Try[Unit] = {
     val ret = Try {
       val spray.json.JsObject(fields) = requestJSON
       val spray.json.JsString(labelName) = fields("label")
@@ -72,33 +73,7 @@ object GraphQLServer {
       s2graph.management.updateEdgeFetcher(labelName, jsOptions.compactPrint)
     }
 
-    ret match {
-      case Success(f) => complete(OK -> JsString("start"))
-      case Failure(e) => complete(InternalServerError -> spray.json.JsObject("message" -> JsString(e.toString)))
-    }
-  }
-
-  def endpoint(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Route = {
-    val spray.json.JsObject(fields) = requestJSON
-    val spray.json.JsString(query) = fields("query")
-
-    val operation = fields.get("operationName") collect {
-      case spray.json.JsString(op) => op
-    }
-
-    val vars = fields.get("variables") match {
-      case Some(obj: spray.json.JsObject) => obj
-      case _ => spray.json.JsObject.empty
-    }
-
-    QueryParser.parse(query) match {
-      case Success(queryAst) =>
-        logger.info(queryAst.renderCompact)
-        complete(executeGraphQLQuery(queryAst, operation, vars))
-      case Failure(error) =>
-        logger.warn(error.getMessage, error)
-        complete(BadRequest -> spray.json.JsObject("error" -> JsString(error.getMessage)))
-    }
+    ret
   }
 
   /**
@@ -108,17 +83,37 @@ object GraphQLServer {
   logger.info(s"schemaCacheTTL: ${schemaCacheTTL}")
 
   private def createNewSchema(): Schema[GraphRepository, Any] = {
-    logger.info(s"Schema updated: ${System.currentTimeMillis()}")
     val newSchema = new SchemaDef(s2Repository).S2GraphSchema
-    logger.info("-" * 80)
+    logger.info(s"Schema updated: ${System.currentTimeMillis()}")
 
     newSchema
   }
 
-  private def executeGraphQLQuery(query: Document, op: Option[String], vars: JsObject)(implicit e: ExecutionContext) = {
-    val cacheKey = className + "s2Schema"
-    val s2schema = schemaCache.withCache(cacheKey, broadcast = false)(createNewSchema())
+  def formatError(error: Throwable): JsValue = error match {
+    case syntaxError: SyntaxError ⇒
+      JsObject("errors" → JsArray(
+        JsObject(
+          "message" → JsString(syntaxError.getMessage),
+          "locations" → JsArray(JsObject(
+            "line" → JsNumber(syntaxError.originalError.position.line),
+            "column" → JsNumber(syntaxError.originalError.position.column))))))
+
+    case NonFatal(e) ⇒ formatError(e.toString)
+    case e ⇒ throw e
+  }
+
+  def formatError(message: String): JsObject =
+    JsObject("errors" → JsArray(JsObject("message" → JsString(message))))
+
+  def onEvictSchema(o: AnyRef): Unit = {
+    logger.info("Schema Evicted")
+  }
+
+  def executeGraphQLQuery(query: Document, op: Option[String], vars: JsObject)(implicit e: ExecutionContext) = {
     import GraphRepository._
+
+    val cacheKey = className + "s2Schema"
+    val s2schema = schemaCache.withCache(cacheKey, broadcast = false, onEvict = onEvictSchema)(createNewSchema())
     val resolver: DeferredResolver[GraphRepository] = DeferredResolver.fetchers(vertexFetcher, edgeFetcher)
 
     Executor.execute(
@@ -128,15 +123,15 @@ object GraphQLServer {
       variables = vars,
       operationName = op,
       deferredResolver = resolver
-    )
-      .map((res: spray.json.JsValue) => OK -> res)
+    ).map((res: spray.json.JsValue) => OK -> res)
       .recover {
         case error: QueryAnalysisError =>
-          logger.warn(error.getMessage, error)
+          logger.error("Error on execute", error)
           BadRequest -> error.resolveError
         case error: ErrorWithResolver =>
-          logger.error(error.getMessage, error)
+          logger.error("Error on execute", error)
           InternalServerError -> error.resolveError
       }
   }
 }
+
