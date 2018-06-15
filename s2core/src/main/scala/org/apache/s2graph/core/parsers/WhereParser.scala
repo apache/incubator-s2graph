@@ -198,9 +198,13 @@ case class WhereParser() extends JavaTokenParsers {
 
   def paren: Parser[Clause] = "(" ~> clause <~ ")"
 
-  def clause: Parser[Clause] = (predicate | paren) * (and ^^^ { (a: Clause, b: Clause) => And(a, b) } | or ^^^ { (a: Clause, b: Clause) => Or(a, b) })
+  def clause: Parser[Clause] = (_not | predicate | paren) * (and ^^^ { (a: Clause, b: Clause) => And(a, b) } | or ^^^ { (a: Clause, b: Clause) => Or(a, b) })
 
   def identWithDot: Parser[String] = repsep(ident, ".") ^^ { case values => values.mkString(".") }
+
+  val _not = "not|NOT".r ~ (predicate | paren) ^^ {
+    case op ~ p => Not(p)
+  }
 
   val _eq = identWithDot ~ ("!=" | "=") ~ stringLiteral ^^ {
     case f ~ op ~ s => if (op == "=") Eq(f, s) else Not(Eq(f, s))
@@ -219,14 +223,10 @@ case class WhereParser() extends JavaTokenParsers {
     case f ~ minV ~ maxV => Between(f, minV, maxV)
   }
 
-  val _in = identWithDot ~ (notIn | in) ~ ("(" ~> repsep(stringLiteral, ",") <~ ")") ^^ {
+  val _in = identWithDot ~ (in) ~ ("(" ~> repsep(stringLiteral, ",") <~ ")") ^^ {
     case f ~ op ~ values =>
-      val inClause =
-        if (f.startsWith("_parent")) IN(f, values.toSet)
-        else InWithoutParent(f, values.toSet)
-
-      if (op.toLowerCase == "in") inClause
-      else Not(inClause)
+      if (f.startsWith("_parent")) IN(f, values.toSet)
+      else InWithoutParent(f, values.toSet)
   }
 
   val _contains = identWithDot ~ contains ~ stringLiteral ^^ {
