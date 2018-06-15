@@ -19,11 +19,10 @@
 
 package org.apache.s2graph.core.parsers
 
-import org.apache.s2graph.core.GraphExceptions.{LabelNotExistException, WhereParserException}
-import org.apache.s2graph.core.schema.{Label, LabelMeta}
-import org.apache.s2graph.core.types.InnerValLike
-import org.apache.s2graph.core.{S2EdgeLike}
+import org.apache.s2graph.core.GraphExceptions.WhereParserException
 import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core._
+import org.apache.s2graph.core.types.InnerValLike
 
 import scala.annotation.tailrec
 import scala.util.Try
@@ -32,21 +31,40 @@ import scala.util.parsing.combinator.JavaTokenParsers
 trait ExtractValue {
   val parent = "_parent."
 
-  def propToInnerVal(edge: S2EdgeLike, key: String) = {
-    val (propKey, parentEdge) = findParentEdge(edge, key)
+  private def throwEx(key: String) = {
+    throw WhereParserException(s"Where clause contains not existing property name: $key")
+  }
 
-    val label = parentEdge.innerLabel
-    val metaPropInvMap = label.metaPropsInvMap
-    val labelMeta = metaPropInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
-
-    labelMeta match {
-      case LabelMeta.from => parentEdge.srcVertex.innerId
-      case LabelMeta.to => parentEdge.tgtVertex.innerId
-      case _ => parentEdge.propertyValueInner(labelMeta).innerVal
+  def propToInnerVal(element: GraphElement, key: String): InnerValLike = {
+    element match {
+      case e: S2EdgeLike => edgePropToInnerVal(e, key)
+      case v: S2VertexLike => vertexPropToInnerVal(v, key)
+      case _ => throw new IllegalArgumentException("only S2EdgeLike/S2VertexLike supported.")
     }
   }
 
-  def valueToCompare(edge: S2EdgeLike, key: String, value: String) = {
+  def valueToCompare(element: GraphElement, key: String, value: String): InnerValLike = {
+    element match {
+      case e: S2EdgeLike => edgeValueToCompare(e, key, value)
+      case v: S2VertexLike => vertexValueToCompare(v, key, value)
+      case _ => throw new IllegalArgumentException("only S2EdgeLike/S2VertexLike supported.")
+    }
+  }
+
+  private def edgePropToInnerVal(edge: S2EdgeLike, key: String): InnerValLike = {
+    val (propKey, parentEdge) = findParentEdge(edge, key)
+
+    val innerValLikeWithTs =
+      S2EdgePropertyHelper.propertyValue(parentEdge, propKey).getOrElse(throwEx(propKey))
+
+    innerValLikeWithTs.innerVal
+  }
+
+  private def vertexPropToInnerVal(vertex: S2VertexLike, key: String): InnerValLike = {
+    S2VertexPropertyHelper.propertyValue(vertex, key).getOrElse(throwEx(key))
+  }
+
+  private def edgeValueToCompare(edge: S2EdgeLike, key: String, value: String): InnerValLike = {
     val label = edge.innerLabel
     if (value.startsWith(parent) || label.metaPropsInvMap.contains(value)) propToInnerVal(edge, value)
     else {
@@ -61,6 +79,12 @@ trait ExtractValue {
       }
       toInnerVal(value, dataType, label.schemaVersion)
     }
+  }
+
+  private def vertexValueToCompare(vertex: S2VertexLike, key: String, value: String): InnerValLike = {
+    val columnMeta = vertex.serviceColumn.metasInvMap.getOrElse(key, throw WhereParserException(s"Where clause contains not existing property name: $key"))
+
+    toInnerVal(value, columnMeta.dataType, vertex.serviceColumn.schemaVersion)
   }
 
   @tailrec
@@ -87,11 +111,11 @@ trait Clause extends ExtractValue {
 
   def or(otherField: Clause): Clause = Or(this, otherField)
 
-  def filter(edge: S2EdgeLike): Boolean
+  def filter(element: GraphElement): Boolean
 
-  def binaryOp(binOp: (InnerValLike, InnerValLike) => Boolean)(propKey: String, value: String)(edge: S2EdgeLike): Boolean = {
-    val propValue = propToInnerVal(edge, propKey)
-    val compValue = valueToCompare(edge, propKey, value)
+  def binaryOp(binOp: (InnerValLike, InnerValLike) => Boolean)(propKey: String, value: String)(element: GraphElement): Boolean = {
+    val propValue = propToInnerVal(element, propKey)
+    val compValue = valueToCompare(element, propKey, value)
 
     binOp(propValue, compValue)
   }
@@ -106,29 +130,27 @@ object Where {
 }
 
 case class Where(clauses: Seq[Clause] = Seq.empty[Clause]) {
-  def filter(edge: S2EdgeLike) =
-    if (clauses.isEmpty) true else clauses.map(_.filter(edge)).forall(identity)
+  def filter(element: GraphElement) =
+    if (clauses.isEmpty) true else clauses.map(_.filter(element)).forall(identity)
 }
 
 case class Gt(propKey: String, value: String) extends Clause {
-  override def filter(edge: S2EdgeLike): Boolean = binaryOp(_ > _)(propKey, value)(edge)
+  override def filter(element: GraphElement): Boolean = binaryOp(_ > _)(propKey, value)(element)
 }
 
 case class Lt(propKey: String, value: String) extends Clause {
-  override def filter(edge: S2EdgeLike): Boolean = binaryOp(_ < _)(propKey, value)(edge)
+  override def filter(element: GraphElement): Boolean = binaryOp(_ < _)(propKey, value)(element)
 }
 
 case class Eq(propKey: String, value: String) extends Clause {
-  override def filter(edge: S2EdgeLike): Boolean = binaryOp(_ == _)(propKey, value)(edge)
+  override def filter(element: GraphElement): Boolean = binaryOp(_ == _)(propKey, value)(element)
 }
 
 case class InWithoutParent(propKey: String, values: Set[String]) extends Clause {
-  override def filter(edge: S2EdgeLike): Boolean = {
-    val label = edge.innerLabel
-
-    val propVal = propToInnerVal(edge, propKey)
+  override def filter(element: GraphElement): Boolean = {
+    val propVal = propToInnerVal(element, propKey)
     val innerVaLs = values.map { value =>
-      toInnerVal(value, label.metaPropsInvMap(propKey).dataType, label.schemaVersion)
+      valueToCompare(element, propKey, value)
     }
 
     innerVaLs(propVal)
@@ -136,41 +158,41 @@ case class InWithoutParent(propKey: String, values: Set[String]) extends Clause 
 }
 
 case class Contains(propKey: String, value: String) extends Clause {
-  override def filter(edge: S2EdgeLike): Boolean = {
-    val propVal = propToInnerVal(edge, propKey)
+  override def filter(element: GraphElement): Boolean = {
+    val propVal = propToInnerVal(element, propKey)
     propVal.value.toString.contains(value)
   }
 }
 
 case class IN(propKey: String, values: Set[String]) extends Clause {
-  override def filter(edge: S2EdgeLike): Boolean = {
-    val propVal = propToInnerVal(edge, propKey)
+  override def filter(element: GraphElement): Boolean = {
+    val propVal = propToInnerVal(element, propKey)
     values.exists { value =>
-      valueToCompare(edge, propKey, value) == propVal
+      valueToCompare(element, propKey, value) == propVal
     }
   }
 }
 
 case class Between(propKey: String, minValue: String, maxValue: String) extends Clause {
-  override def filter(edge: S2EdgeLike): Boolean = {
-    val propVal = propToInnerVal(edge, propKey)
-    val minVal = valueToCompare(edge, propKey, minValue)
-    val maxVal = valueToCompare(edge, propKey, maxValue)
+  override def filter(element: GraphElement): Boolean = {
+    val propVal = propToInnerVal(element, propKey)
+    val minVal = valueToCompare(element, propKey, minValue)
+    val maxVal = valueToCompare(element, propKey, maxValue)
 
     minVal <= propVal && propVal <= maxVal
   }
 }
 
 case class Not(self: Clause) extends Clause {
-  override def filter(edge: S2EdgeLike) = !self.filter(edge)
+  override def filter(element: GraphElement) = !self.filter(element)
 }
 
 case class And(left: Clause, right: Clause) extends Clause {
-  override def filter(edge: S2EdgeLike) = left.filter(edge) && right.filter(edge)
+  override def filter(element: GraphElement) = left.filter(element) && right.filter(element)
 }
 
 case class Or(left: Clause, right: Clause) extends Clause {
-  override def filter(edge: S2EdgeLike) = left.filter(edge) || right.filter(edge)
+  override def filter(element: GraphElement) = left.filter(element) || right.filter(element)
 }
 
 object WhereParser {
