@@ -87,7 +87,7 @@ object FieldResolver {
     val selectedFields = AstHelper.selectedFields(c.astFields)
     val canSkipFetch = selectedFields.forall(f => f == "id" || !columnFields(f))
 
-    val vertexQueryParam = VertexQueryParam(offset, limit, searchOpt, vertices.map(_.id), !canSkipFetch)
+    val vertexQueryParam = VertexQueryParam(vertices.map(_.id), offset, limit, searchOpt, !canSkipFetch)
 
     vertexQueryParam
   }
@@ -102,7 +102,7 @@ object FieldResolver {
     val columnFields = column.metasInvMap.keySet
     val canSkipFetch = selectedFields.forall(f => f == "id" || !columnFields(f))
 
-    val vertexQueryParam = VertexQueryParam(0, 1, None, Seq(vertex.id), !canSkipFetch)
+    val vertexQueryParam = VertexQueryParam(Seq(vertex.id), 0, 1, None, !canSkipFetch)
 
     vertexQueryParam
   }

@@ -335,18 +335,19 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     }
 
   def searchVertices(queryParam: VertexQueryParam): Future[Seq[S2VertexLike]] = {
-    val matchedVertices = indexProvider.fetchVertexIdsAsyncRaw(queryParam).map { vids =>
+    val matchedVerticesFuture = indexProvider.fetchVertexIdsAsyncRaw(queryParam).map { vids =>
       (queryParam.vertexIds ++ vids).distinct.map(vid => elementBuilder.newVertex(vid))
     }
 
-    if (queryParam.fetchProp) matchedVertices.flatMap(vs => getVertices(vs))
-    else matchedVertices
+    if (queryParam.fetchProp) matchedVerticesFuture.flatMap(vs => getVertices(queryParam.copy(vertexIds = vs.map(_.id))))
+    else matchedVerticesFuture
   }
 
-  override def getVertices(vertices: Seq[S2VertexLike]): Future[Seq[S2VertexLike]] = {
-    val verticesWithIdx = vertices.zipWithIndex
-    val futures = verticesWithIdx.groupBy { case (v, idx) => v.serviceColumn }.map { case (serviceColumn, vertexGroup) =>
-      getVertexFetcher(serviceColumn).fetchVertices(vertices).map(_.zip(vertexGroup.map(_._2)))
+  override def getVertices(queryParam: VertexQueryParam): Future[Seq[S2VertexLike]] = {
+    val vertexIdsWithIdx = queryParam.vertexIds.zipWithIndex
+    val futures = vertexIdsWithIdx.groupBy { case (vId, idx) => vId.column }.map { case (serviceColumn, vertexGroup) =>
+      val (vertexIds, indices) = vertexGroup.unzip
+      getVertexFetcher(serviceColumn).fetchVertices(queryParam.copy(vertexIds = vertexIds)).map(_.zip(indices))
     }
 
     Future.sequence(futures).map { ls =>
@@ -562,8 +563,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
   }
 
   override def getVertex(vertexId: VertexId): Option[S2VertexLike] = {
-    val v = elementBuilder.newVertex(vertexId)
-    Await.result(getVertices(Seq(v)).map { vertices => vertices.headOption }, WaitTimeout)
+    val queryParam = VertexQueryParam(vertexIds = Seq(vertexId))
+    Await.result(getVertices(queryParam).map { vertices => vertices.headOption }, WaitTimeout)
   }
 
   override def fetchEdges(vertex: S2VertexLike, labelNameWithDirs: Seq[(String, String)]): util.Iterator[Edge] = {
