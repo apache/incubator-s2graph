@@ -192,8 +192,6 @@ case class WhereParser() extends JavaTokenParsers {
 
   val contains = "contains|CONTAINS".r
 
-  val notIn = "not in|NOT IN".r
-
   def where: Parser[Where] = rep(clause) ^^ (Where(_))
 
   def paren: Parser[Clause] = "(" ~> clause <~ ")"
@@ -223,7 +221,7 @@ case class WhereParser() extends JavaTokenParsers {
     case f ~ minV ~ maxV => Between(f, minV, maxV)
   }
 
-  val _in = identWithDot ~ (in) ~ ("(" ~> repsep(stringLiteral, ",") <~ ")") ^^ {
+  val _in = identWithDot ~ in ~ ("(" ~> repsep(stringLiteral, ",") <~ ")") ^^ {
     case f ~ op ~ values =>
       if (f.startsWith("_parent")) IN(f, values.toSet)
       else InWithoutParent(f, values.toSet)
