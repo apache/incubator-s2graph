@@ -20,6 +20,7 @@
 package org.apache.s2graph.s2jobs.task
 
 import org.apache.spark.sql.{DataFrame, SparkSession}
+import play.api.libs.json.Json
 
 /**
   * Process
@@ -47,7 +48,68 @@ class SqlProcess(conf:TaskConf) extends Process(conf) {
     val sql = conf.options("sql")
     logger.debug(s"${LOG_PREFIX} sql : $sql")
 
-    ss.sql(sql)
+    postProcess(ss.sql(sql))
   }
+
+  /**
+    * extraOperations
+    * @param df
+    * @return
+    */
+  private def postProcess(df: DataFrame): DataFrame = {
+    import org.apache.spark.sql.functions._
+
+    var resultDF = df
+
+    // watermark
+    val timeColumn = conf.options.get(s"time.column")
+    logger.debug(s">> timeColumn:  ${timeColumn}")
+
+    val waterMarkDelayTime = conf.options.get(s"watermark.delay.time")
+    if (waterMarkDelayTime.isDefined){
+      logger.debug(s">> waterMarkDelayTime : ${waterMarkDelayTime}")
+      if (timeColumn.isDefined) {
+        resultDF = resultDF.withWatermark(timeColumn.get, waterMarkDelayTime.get)
+      } else logger.warn("time.column does not exists.. cannot apply watermark")
+    }
+
+    // drop duplication
+    val dropDuplicateColumns = conf.options.get("drop.duplicate.columns")
+    if (dropDuplicateColumns.isDefined) {
+      logger.debug(s">> dropDuplicates : ${dropDuplicateColumns}")
+      resultDF = resultDF.dropDuplicates(dropDuplicateColumns.get.split(","))
+    }
+
+    // groupBy
+    val groupedKeysOpt = conf.options.get(s"grouped.keys")
+    if (groupedKeysOpt.isDefined) {
+      var groupedKeys = groupedKeysOpt.get.split(",").map{ key =>
+        col(key.trim)
+      }.toSeq
+
+      val windowDurationOpt = conf.options.get(s"grouped.window.duration")
+      val slideDurationOpt = conf.options.get(s"grouped.slide.duration")
+      if (windowDurationOpt.isDefined && slideDurationOpt.isDefined){
+        logger.debug(s">> using window operation : Duration ${windowDurationOpt}, slideDuration : ${slideDurationOpt}")
+        groupedKeys = groupedKeys ++ Seq(window(col(timeColumn.get), windowDurationOpt.get, slideDurationOpt.get))
+      }
+      logger.debug(s">> groupedKeys: ${groupedKeys}")
+
+      // aggregate options
+      val aggExprs = Json.parse(conf.options.getOrElse(s"grouped.dataset.agg", "[\"count(1)\"]")).as[Seq[String]].map(expr(_))
+      logger.debug(s">> aggr : ${aggExprs}")
+
+      val groupedDF = resultDF.groupBy(groupedKeys: _*)
+
+      resultDF = if (aggExprs.size > 1) {
+        groupedDF.agg(aggExprs.head, aggExprs.tail: _*)
+      } else {
+        groupedDF.agg(aggExprs.head)
+      }
+    }
+
+    resultDF
+  }
+
 }
 
