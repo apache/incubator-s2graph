@@ -28,7 +28,6 @@ import org.apache.s2graph.graphql.types.S2Type.EdgeQueryParam
 import sangria.schema._
 
 object FieldResolver {
-
   def graphElement[A](name: String, cType: String, c: Context[GraphRepository, Any]): A = {
     c.value match {
       case v: S2VertexLike => name match {
@@ -36,6 +35,7 @@ object FieldResolver {
         case _ =>
           val innerVal = v.propertyValue(name).get
           JSONParser.innerValToAny(innerVal, cType).asInstanceOf[A]
+
       }
       case e: S2EdgeLike => name match {
         case "timestamp" => e.ts.asInstanceOf[A]

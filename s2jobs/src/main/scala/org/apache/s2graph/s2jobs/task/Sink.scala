@@ -69,6 +69,8 @@ abstract class Sink(queryName: String, override val conf: TaskConf) extends Task
     }
     val interval = conf.options.getOrElse("interval", DEFAULT_TRIGGER_INTERVAL)
     val checkpointLocation = conf.options.getOrElse("checkpointLocation", DEFAULT_CHECKPOINT_LOCATION)
+    val isContinuous = conf.options.getOrElse("isContinuous", "false").toBoolean
+    val trigger = if (isContinuous) Trigger.Continuous(interval) else Trigger.ProcessingTime(interval)
 
     val cfg = conf.options ++ Map("checkpointLocation" -> checkpointLocation)
 
@@ -78,7 +80,7 @@ abstract class Sink(queryName: String, override val conf: TaskConf) extends Task
       .queryName(s"${queryName}_${conf.name}")
       .format(FORMAT)
       .options(cfg)
-      .trigger(Trigger.ProcessingTime(interval))
+      .trigger(trigger)
       .outputMode(mode)
       .start()
   }
@@ -93,7 +95,7 @@ abstract class Sink(queryName: String, override val conf: TaskConf) extends Task
       case _ => SaveMode.Overwrite
     }
 
-    val partitionedWriter = if (partitionsOpt.isDefined) writer.partitionBy(partitionsOpt.get) else writer
+    val partitionedWriter = if (partitionsOpt.isDefined) writer.partitionBy(partitionsOpt.get.split(","): _*) else writer
 
     writeBatchInner(partitionedWriter.format(FORMAT).mode(mode))
   }

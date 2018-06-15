@@ -42,8 +42,7 @@ object TaskConf {
     taskConf.options.filterKeys(_.startsWith("cache.")).mapValues(_.toInt)
   }
 }
-
-case class TaskConf(name: String, `type`: String, inputs: Seq[String] = Nil, options: Map[String, String] = Map.empty)
+case class TaskConf(name:String, `type`:String, inputs:Seq[String] = Nil, options:Map[String, String] = Map.empty, cache:Option[Boolean]=None)
 
 trait Task extends Serializable with Logger {
   val conf: TaskConf

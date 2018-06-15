@@ -37,6 +37,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-197] - Provide S2graphSink for non-streaming dataset
     * [S2GRAPH-205] - too many initialize S2Graph when writeBatchMutate on S2GraphSink
     * [S2GRAPH-201] - Provide S2GraphSource
+    * [S2GRAPH-218] - add operations not supported on sql
 
 ** Bug
     * [S2GRAPH-159] - Wrong syntax at a bash script under Linux
@@ -78,6 +79,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-210] - Rename package `mysqls` to `schema`
     * [S2GRAPH-213] - Abstract Query/Mutation from Storage.
     * [S2GRAPH-214] - Add REAME for movielens examples
+    * [S2GRAPH-216] - Provide a transform directive in the GraphQL query result.
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.

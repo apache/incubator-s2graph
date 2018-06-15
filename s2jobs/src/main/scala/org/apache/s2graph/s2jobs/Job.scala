@@ -29,7 +29,12 @@ class Job(ss:SparkSession, jobDesc:JobDescription) extends Serializable with Log
 
   def run() = {
     // source
-    jobDesc.sources.foreach{ source => dfMap.put(source.conf.name, source.toDF(ss))}
+    jobDesc.sources.foreach{ source =>
+      val df = source.toDF(ss)
+      if (source.conf.cache.getOrElse(false) && !df.isStreaming) df.cache()
+
+      dfMap.put(source.conf.name, df)
+    }
     logger.debug(s"valid source DF set : ${dfMap.keySet}")
 
     // process
@@ -64,7 +69,9 @@ class Job(ss:SparkSession, jobDesc:JobDescription) extends Serializable with Log
     }
     .map { p =>
       val inputMap = p.conf.inputs.map{ input => (input,  dfMap(input)) }.toMap
-      p.conf.name -> p.execute(ss, inputMap)
+      val df = p.execute(ss, inputMap)
+      if (p.conf.cache.getOrElse(false) && !df.isStreaming) df.cache()
+      p.conf.name -> df
     }
   }
 }

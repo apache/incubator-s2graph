@@ -40,19 +40,30 @@ class KafkaSource(conf:TaskConf) extends Source(conf) {
   val DEFAULT_FORMAT = "raw"
   override def mandatoryOptions: Set[String] = Set("kafka.bootstrap.servers", "subscribe")
 
+  def repartition(df: DataFrame, defaultParallelism: Int) = {
+    conf.options.get("numPartitions").map(n => Integer.parseInt(n)) match {
+      case Some(numOfPartitions: Int) =>
+        logger.info(s"[repartitition] $numOfPartitions ($defaultParallelism)")
+        if (numOfPartitions >= defaultParallelism) df.repartition(numOfPartitions)
+        else df.coalesce(numOfPartitions)
+      case None => df
+    }
+  }
+
   override def toDF(ss:SparkSession):DataFrame = {
     logger.info(s"${LOG_PREFIX} options: ${conf.options}")
 
     val format = conf.options.getOrElse("format", "raw")
     val df = ss.readStream.format("kafka").options(conf.options).load()
 
+    val partitionedDF = repartition(df, df.sparkSession.sparkContext.defaultParallelism)
     format match {
-      case "raw" => df
-      case "json" => parseJsonSchema(ss, df)
+      case "raw" => partitionedDF
+      case "json" => parseJsonSchema(ss, partitionedDF)
 //      case "custom" => parseCustomSchema(df)
       case _ =>
         logger.warn(s"${LOG_PREFIX} unsupported format '$format'.. use default schema ")
-        df
+        partitionedDF
     }
   }
 

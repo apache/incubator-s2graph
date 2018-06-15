@@ -116,6 +116,8 @@ object GraphQLServer {
     newSchema
   }
 
+  val TransformMiddleWare = List(org.apache.s2graph.graphql.middleware.Transform())
+
   private def executeGraphQLQuery(query: Document, op: Option[String], vars: JsObject)(implicit e: ExecutionContext) = {
     val cacheKey = className + "s2Schema"
     val s2schema = schemaCache.withCache(cacheKey, broadcast = false)(createNewSchema())
@@ -125,9 +127,9 @@ object GraphQLServer {
 
     val includeGrpaph = vars.fields.get("includeGraph").contains(spray.json.JsBoolean(true))
     val middleWares = if (includeGrpaph) {
-      GraphFormatted :: Nil
+      GraphFormatted :: TransformMiddleWare
     } else {
-      Nil
+      TransformMiddleWare
     }
 
     Executor.execute(
