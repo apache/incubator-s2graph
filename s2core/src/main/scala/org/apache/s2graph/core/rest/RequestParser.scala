@@ -219,12 +219,16 @@ class RequestParser(graph: S2GraphLike) {
     ret.map(_.toMap).getOrElse(Map.empty[String, InnerValLike])
   }
 
-  def extractWhere(label: Label, whereClauseOpt: Option[String]): Try[Where] = {
+  private def toWhereParserKey(column: ServiceColumn, whereString: String): String =
+    s"${column.service.serviceName}_${column.columnName}_${whereString}"
+
+  private def toWhereParserKey(label: Label, whereString: String): String =
+    s"${label.label}_${whereString}"
+
+  private def extractWhereInner(whereParserKey: String, whereClauseOpt: Option[String]): Try[Where] = {
     whereClauseOpt match {
       case None => Success(WhereParser.success)
       case Some(where) =>
-        val whereParserKey = s"${label.label}_${where}"
-
         parserCache.get(whereParserKey, new Callable[Try[Where]] {
           override def call(): Try[Where] = {
             val _where = TemplateHelper.replaceVariable(System.currentTimeMillis(), where)
@@ -237,6 +241,14 @@ class RequestParser(graph: S2GraphLike) {
         })
 
     }
+  }
+
+  def extractWhere(column: ServiceColumn, whereClauseOpt: Option[String]): Try[Where] = {
+    extractWhereInner(toWhereParserKey(column, whereClauseOpt.getOrElse("")), whereClauseOpt)
+  }
+
+  def extractWhere(label: Label, whereClauseOpt: Option[String]): Try[Where] = {
+    extractWhereInner(toWhereParserKey(label, whereClauseOpt.getOrElse("")), whereClauseOpt)
   }
 
   def extractGroupBy(value: Option[JsValue]): GroupBy = value.map {

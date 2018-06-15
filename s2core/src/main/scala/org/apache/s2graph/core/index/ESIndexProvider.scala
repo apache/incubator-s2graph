@@ -202,12 +202,12 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     val field = vidField
     val empty = new util.ArrayList[VertexId]()
 
-    vertexQueryParam.searchString match {
-      case Some(queryString) =>
+    vertexQueryParam.searchParamOpt match {
+      case Some(searchParam) =>
         fetchInner[VertexId](
-          queryString,
-          vertexQueryParam.offset,
-          vertexQueryParam.limit,
+          searchParam.searchString,
+          searchParam.offset,
+          searchParam.limit,
           VertexIndexName,
           field,
           Conversions.s2VertexIdReads)(v => VertexId.isValid(v).isDefined)

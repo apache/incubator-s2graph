@@ -76,6 +76,8 @@ object FieldResolver {
     val ids = c.argOpt[Any]("id").toSeq ++ c.argOpt[List[Any]]("ids").toList.flatten
     val offset = c.arg[Int]("offset")
     val limit = c.arg[Int]("limit")
+    val whereClauseOpt = c.argOpt[String]("filter")
+    val where = c.ctx.parser.extractWhere(column, whereClauseOpt)
 
     val vertices = ids.map(vid => c.ctx.toS2VertexLike(vid, column))
     val searchOpt = c.argOpt[String]("search").map { qs =>
@@ -87,7 +89,9 @@ object FieldResolver {
     val selectedFields = AstHelper.selectedFields(c.astFields)
     val canSkipFetch = selectedFields.forall(f => f == "id" || !columnFields(f))
 
-    val vertexQueryParam = VertexQueryParam(vertices.map(_.id), offset, limit, searchOpt, !canSkipFetch)
+    val searchParamOpt = searchOpt.map(search => SearchParam(search, offset, limit))
+    val vertexQueryParam = VertexQueryParam(vertices.map(_.id),
+      searchParamOpt, fetchProp = !canSkipFetch, where = where)
 
     vertexQueryParam
   }
@@ -102,7 +106,10 @@ object FieldResolver {
     val columnFields = column.metasInvMap.keySet
     val canSkipFetch = selectedFields.forall(f => f == "id" || !columnFields(f))
 
-    val vertexQueryParam = VertexQueryParam(Seq(vertex.id), 0, 1, None, !canSkipFetch)
+    val whereClauseOpt = c.argOpt[String]("filter")
+    val where = c.ctx.parser.extractWhere(column, whereClauseOpt)
+
+    val vertexQueryParam = VertexQueryParam(Seq(vertex.id), None, fetchProp = !canSkipFetch, where = where)
 
     vertexQueryParam
   }

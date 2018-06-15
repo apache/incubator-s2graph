@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core.Integrate
 
-import org.apache.s2graph.core.PostProcess
+import org.apache.s2graph.core.{PostProcess, VertexQueryParam}
 import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.Await
@@ -43,9 +43,11 @@ class VertexTestHelper extends IntegrateCommon {
 
     val vertices = parser.toVertices(payload, "insert", Option(serviceName), Option(columnName))
     val srcVertices = vertices
+    val srcVertexIds = srcVertices.map(_.id)
+    val queryParam = VertexQueryParam(vertexIds = srcVertexIds)
     Await.result(graph.mutateVertices(srcVertices, withWait = true), HttpRequestWaitingTime)
 
-    val res = graph.getVertices(srcVertices).map { vertices =>
+    val res = graph.getVertices(queryParam).map { vertices =>
       PostProcess.verticesToJson(vertices)
     }
 
@@ -70,9 +72,11 @@ class VertexTestHelper extends IntegrateCommon {
     val vertices = parser.toVertices(payload, "insert", Option(serviceName),
       Option(stringColumnName))
     val srcVertices = vertices
+    val srcVertexIds = srcVertices.map(_.id)
+    val queryParam = VertexQueryParam(vertexIds = srcVertexIds)
     Await.result(graph.mutateVertices(srcVertices, withWait = true), HttpRequestWaitingTime)
 
-    val res = graph.getVertices(srcVertices).map { vertices =>
+    val res = graph.getVertices(queryParam).map { vertices =>
       PostProcess.verticesToJson(vertices)
     }
 

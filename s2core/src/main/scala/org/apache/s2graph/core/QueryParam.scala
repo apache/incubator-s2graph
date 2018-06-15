@@ -294,17 +294,20 @@ object QueryParam {
 }
 
 object VertexQueryParam {
-  def Empty: VertexQueryParam = VertexQueryParam(Nil, 0, 1, None)
+  def Empty: VertexQueryParam = VertexQueryParam(Nil)
 
   def apply(vertexIds: Seq[VertexId]): VertexQueryParam = {
     VertexQueryParam(vertexIds)
   }
 }
 
+object SearchParam {
+  def Empty: SearchParam = SearchParam("", 0, 1)
+}
+case class SearchParam(searchString: String, offset: Int, limit: Int)
+
 case class VertexQueryParam(vertexIds: Seq[VertexId],
-                            offset: Int = 0,
-                            limit: Int = 1,
-                            searchString: Option[String] = None,
+                            searchParamOpt: Option[SearchParam] = None,
                             fetchProp: Boolean = true,
                             where: Try[Where] = Success(WhereParser.success)) {
 }

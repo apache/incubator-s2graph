@@ -242,16 +242,16 @@ class LuceneIndexProvider(config: Config) extends IndexProvider {
   override def fetchVertexIdsAsync(hasContainers: java.util.List[HasContainer]): Future[util.List[VertexId]] = Future.successful(fetchVertexIds(hasContainers))
 
   override def fetchVertexIdsAsyncRaw(vertexQueryParam: VertexQueryParam): Future[util.List[VertexId]] = {
-    val ret = vertexQueryParam.searchString.fold(util.Arrays.asList[VertexId]()) { queryString =>
+    val ret = vertexQueryParam.searchParamOpt.fold(util.Arrays.asList[VertexId]()) { searchParam =>
       val field = vidField
       try {
         val qp = createQueryParser(field, analyzer)
-        val q = qp.parse(queryString)
+        val q = qp.parse(searchParam.searchString)
 
-        fetchInner[VertexId](q, vertexQueryParam.offset, vertexQueryParam.limit, VertexIndexName, vidField, Conversions.s2VertexIdReads)
+        fetchInner[VertexId](q, searchParam.offset, searchParam.limit, VertexIndexName, vidField, Conversions.s2VertexIdReads)
       } catch {
         case ex: ParseException =>
-          logger.error(s"[IndexProvider]: ${queryString} parse failed.", ex)
+          logger.error(s"[IndexProvider]: ${searchParam.searchString} parse failed.", ex)
           util.Arrays.asList[VertexId]()
       }
     }
