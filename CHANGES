@@ -37,6 +37,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-197] - Provide S2graphSink for non-streaming dataset
     * [S2GRAPH-205] - too many initialize S2Graph when writeBatchMutate on S2GraphSink
     * [S2GRAPH-201] - Provide S2GraphSource
+    * [S2GRAPH-218] - add operations not supported on sql
 
 ** Bug
     * [S2GRAPH-159] - Wrong syntax at a bash script under Linux
