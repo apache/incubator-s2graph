@@ -139,7 +139,8 @@ object S2Type {
           Argument("ids", OptionInputType(ListInputType(toScalarType(column.columnType)))),
           Argument("search", OptionInputType(StringType)),
           Argument("offset", OptionInputType(IntType), defaultValue = 0),
-          Argument("limit", OptionInputType(IntType), defaultValue = 100)
+          Argument("limit", OptionInputType(IntType), defaultValue = 100),
+          Argument("filter", OptionInputType(StringType), "desc here")
         ),
         description = Option("desc here"),
         resolve = c => {
