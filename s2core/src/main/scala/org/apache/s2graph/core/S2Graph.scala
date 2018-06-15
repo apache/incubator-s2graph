@@ -51,40 +51,8 @@ object S2Graph {
   val DefaultScore = 1.0
   val FetchAllLimit = 10000000
   val DefaultFetchLimit = 1000
-  import S2GraphConfigs._
 
-  private val DefaultConfigs: Map[String, AnyRef] = Map(
-    S2GRAPH_STORE_BACKEND -> DEFAULT_S2GRAPH_STORE_BACKEND,
-    PHASE -> DEFAULT_PHASE,
-    HBaseConfigs.HBASE_ZOOKEEPER_QUORUM -> HBaseConfigs.DEFAULT_HBASE_ZOOKEEPER_QUORUM,
-    HBaseConfigs.HBASE_ZOOKEEPER_ZNODE_PARENT -> HBaseConfigs.DEFAULT_HBASE_ZOOKEEPER_ZNODE_PARENT,
-    HBaseConfigs.HBASE_TABLE_NAME -> HBaseConfigs.DEFAULT_HBASE_TABLE_NAME,
-    HBaseConfigs.HBASE_TABLE_COMPRESSION_ALGORITHM -> HBaseConfigs.DEFAULT_HBASE_TABLE_COMPRESSION_ALGORITHM,
-    HBaseConfigs.HBASE_CLIENT_RETRIES_NUMBER -> HBaseConfigs.DEFAULT_HBASE_CLIENT_RETRIES_NUMBER,
-    HBaseConfigs.HBASE_RPCS_BUFFERED_FLUSH_INTERVAL -> HBaseConfigs.DEFAULT_HBASE_RPCS_BUFFERED_FLUSH_INTERVAL,
-    HBaseConfigs.HBASE_RPC_TIMEOUT -> HBaseConfigs.DEFAULT_HBASE_RPC_TIMEOUT,
-    DBConfigs.DB_DEFAULT_DRIVER -> DBConfigs.DEFAULT_DB_DEFAULT_DRIVER,
-    DBConfigs.DB_DEFAULT_URL -> DBConfigs.DEFAULT_DB_DEFAULT_URL,
-    DBConfigs.DB_DEFAULT_PASSWORD -> DBConfigs.DEFAULT_DB_DEFAULT_PASSWORD,
-    DBConfigs.DB_DEFAULT_USER -> DBConfigs.DEFAULT_DB_DEFAULT_USER,
-    CacheConfigs.CACHE_MAX_SIZE -> CacheConfigs.DEFAULT_CACHE_MAX_SIZE,
-    CacheConfigs.CACHE_TTL_SECONDS -> CacheConfigs.DEFAULT_CACHE_TTL_SECONDS,
-    ResourceCacheConfigs.RESOURCE_CACHE_MAX_SIZE -> ResourceCacheConfigs.DEFAULT_RESOURCE_CACHE_MAX_SIZE,
-    ResourceCacheConfigs.RESOURCE_CACHE_TTL_SECONDS -> ResourceCacheConfigs.DEFAULT_RESOURCE_CACHE_TTL_SECONDS,
-    MutatorConfigs.MAX_RETRY_NUMBER -> MutatorConfigs.DEFAULT_MAX_RETRY_NUMBER,
-    MutatorConfigs.LOCK_EXPIRE_TIME -> MutatorConfigs.DEFAULT_LOCK_EXPIRE_TIME,
-    MutatorConfigs.MAX_BACK_OFF -> MutatorConfigs.DEFAULT_MAX_BACK_OFF,
-    MutatorConfigs.BACK_OFF_TIMEOUT -> MutatorConfigs.DEFAULT_BACK_OFF_TIMEOUT,
-    MutatorConfigs.HBASE_FAIL_PROB -> MutatorConfigs.DEFAULT_HBASE_FAIL_PROB,
-    MutatorConfigs.DELETE_ALL_FETCH_SIZE -> MutatorConfigs.DEFAULT_DELETE_ALL_FETCH_SIZE,
-    MutatorConfigs.DELETE_ALL_FETCH_COUNT -> MutatorConfigs.DEFAULT_DELETE_ALL_FETCH_COUNT,
-    FutureCacheConfigs.FUTURE_CACHE_MAX_SIZE -> FutureCacheConfigs.DEFAULT_FUTURE_CACHE_MAX_SIZE,
-    FutureCacheConfigs.FUTURE_CACHE_EXPIRE_AFTER_WRITE -> FutureCacheConfigs.DEFAULT_FUTURE_CACHE_EXPIRE_AFTER_WRITE,
-    FutureCacheConfigs.FUTURE_CACHE_EXPIRE_AFTER_ACCESS -> FutureCacheConfigs.DEFAULT_FUTURE_CACHE_EXPIRE_AFTER_ACCESS,
-    FutureCacheConfigs.FUTURE_CACHE_METRIC_INTERVAL -> FutureCacheConfigs.DEFAULT_FUTURE_CACHE_METRIC_INTERVAL,
-    QueryConfigs.QUERY_HARDLIMIT -> QueryConfigs.DEFAULT_QUERY_HARDLIMIT,
-    LogConfigs.QUERY_LOG_SAMPLE_RATE -> LogConfigs.DEFAULT_QUERY_LOG_SAMPLE_RATE
-  )
+  private val DefaultConfigs = S2GraphConfigs.DEFAULT_CONFIGS
 
   var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)
   val numOfThread = Runtime.getRuntime.availableProcessors()
@@ -128,13 +96,13 @@ object S2Graph {
   }
 
   def initStorage(graph: S2GraphLike, config: Config)(ec: ExecutionContext): Storage = {
-    val storageBackend = config.getString("s2graph.storage.backend")
+    val storageBackend = config.getString(S2GraphConfigs.S2GRAPH_STORE_BACKEND)
     logger.info(s"[InitStorage]: $storageBackend")
 
     storageBackend match {
       case "hbase" =>
         hbaseExecutor =
-          if (config.getString("hbase.zookeeper.quorum") == "localhost")
+          if (config.getString(S2GraphConfigs.HBaseConfigs.HBASE_ZOOKEEPER_QUORUM) == "localhost")
             AsynchbaseStorage.initLocalHBase(config)
           else
             null
@@ -205,8 +173,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
   override val config = _config.withFallback(S2Graph.DefaultConfig)
 
   val storageBackend = Try {
-    config.getString("s2graph.storage.backend")
-  }.getOrElse("hbase")
+    config.getString(S2GraphConfigs.S2GRAPH_STORE_BACKEND)
+  }.getOrElse(S2GraphConfigs.DEFAULT_S2GRAPH_STORE_BACKEND)
 
   Schema.apply(config)
   Schema.loadCache()
