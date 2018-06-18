@@ -91,9 +91,10 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-177] - Add support for createServiceColumn/addVertex APIs on GraphQL.
     * [S2GRAPH-185] - Support Spark Structured Streaming to work with data in streaming and batch.
     * [S2GRAPH-183] - Provide batch job to dump data stored in HBase into file.
+    * [S2GRAPH-203] - Support "application/graphql" Content-Type header.
     * [S2GRAPH-206] - Generalize machine learning model serving.
-    * [S2GRAPH-215] - Implement a Storage Backend for JDBC driver, such as H2, MySql using the Mutator and Fetcher interfaces
-    * [S2GRAPH-219] - Added query that includes all vertices and associated edges for GraphVisualize. 
+    * [S2GRAPH-215] - Implement a Storage Backend for JDBC driver, such as H2, MySql using the Mutator and Fetcher interfaces.
+    * [S2GRAPH-219] - Added query that includes all vertices and associated edges for GraphVisualize.
 
 ** Task
     * [S2GRAPH-162] - Update year in the NOTICE file.
