@@ -28,6 +28,7 @@ import akka.http.scaladsl.server._
 import com.typesafe.config.ConfigFactory
 import org.apache.s2graph.core.S2Graph
 import org.apache.s2graph.core.utils.SafeUpdateCache
+import org.apache.s2graph.graphql.middleware.{GraphFormatted}
 import org.apache.s2graph.graphql.repository.GraphRepository
 import org.apache.s2graph.graphql.types.SchemaDef
 import org.slf4j.LoggerFactory
@@ -115,13 +116,21 @@ object GraphQLServer {
     newSchema
   }
 
-  val transformMiddleWare = new org.apache.s2graph.graphql.middleware.Transform()
+  val TransformMiddleWare = List(org.apache.s2graph.graphql.middleware.Transform())
 
   private def executeGraphQLQuery(query: Document, op: Option[String], vars: JsObject)(implicit e: ExecutionContext) = {
     val cacheKey = className + "s2Schema"
     val s2schema = schemaCache.withCache(cacheKey, broadcast = false)(createNewSchema())
+
     import GraphRepository._
     val resolver: DeferredResolver[GraphRepository] = DeferredResolver.fetchers(vertexFetcher, edgeFetcher)
+
+    val includeGrpaph = vars.fields.get("includeGraph").contains(spray.json.JsBoolean(true))
+    val middleWares = if (includeGrpaph) {
+      GraphFormatted :: TransformMiddleWare
+    } else {
+      TransformMiddleWare
+    }
 
     Executor.execute(
       s2schema,
@@ -130,7 +139,7 @@ object GraphQLServer {
       variables = vars,
       operationName = op,
       deferredResolver = resolver,
-      middleware = List(transformMiddleWare)
+      middleware = middleWares
     )
       .map((res: spray.json.JsValue) => OK -> res)
       .recover {
