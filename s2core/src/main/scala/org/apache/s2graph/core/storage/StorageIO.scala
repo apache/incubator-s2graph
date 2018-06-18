@@ -27,6 +27,8 @@ import org.apache.s2graph.core.parsers.WhereParser
 import org.apache.s2graph.core.utils.logger
 
 class StorageIO(val graph: S2GraphLike, val serDe: StorageSerDe) {
+  import TraversalHelper._
+
   val dummyCursor: Array[Byte] = Array.empty
 
   /** Parsing Logic: parse from kv from Storage into Edge */
@@ -86,17 +88,15 @@ class StorageIO(val graph: S2GraphLike, val serDe: StorageSerDe) {
                                startOffset: Int = 0,
                                len: Int = Int.MaxValue): StepResult = {
 
+
     val toSKeyValue = implicitly[CanSKeyValue[K]].toSKeyValue _
 
     if (kvs.isEmpty) StepResult.Empty.copy(cursors = Seq(dummyCursor))
     else {
       val queryOption = queryRequest.query.queryOption
       val queryParam = queryRequest.queryParam
-      val labelWeight = queryRequest.labelWeight
-      val nextStepOpt = queryRequest.nextStepOpt
-      val where = queryParam.where.get
       val label = queryParam.label
-      val isDefaultTransformer = queryParam.edgeTransformer.isDefault
+
       val first = kvs.head
       val kv = first
       val schemaVer = queryParam.label.schemaVersion
@@ -114,41 +114,19 @@ class StorageIO(val graph: S2GraphLike, val serDe: StorageSerDe) {
 
       val lastCursor: Seq[Array[Byte]] = Seq(if (keyValues.nonEmpty) toSKeyValue(keyValues(keyValues.length - 1)).row else dummyCursor)
 
+      val edgeWithScores = for {
+        (kv, idx) <- keyValues.zipWithIndex if idx >= startOffset && idx < startOffset + len
+        edge <- (if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryRequest, None, isInnerCall, parentEdges) else toEdge(kv, queryRequest, cacheElementOpt, parentEdges)).toSeq
+        edgeWithScore <- edgeToEdgeWithScore(queryRequest, edge, parentEdges)
+      } yield {
+        edgeWithScore
+      }
+
       if (!queryOption.ignorePrevStepCache) {
-        val edgeWithScores = for {
-          (kv, idx) <- keyValues.zipWithIndex if idx >= startOffset && idx < startOffset + len
-          edge <- (if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryRequest, None, isInnerCall, parentEdges) else toEdge(kv, queryRequest, cacheElementOpt, parentEdges)).toSeq
-          if where == WhereParser.success || where.filter(edge)
-          convertedEdge <- if (isDefaultTransformer) Seq(edge) else convertEdges(queryParam, edge, nextStepOpt)
-        } yield {
-          val score = queryParam.rank.score(edge)
-          EdgeWithScore(convertedEdge, score, label)
-        }
         StepResult(edgeWithScores = edgeWithScores, grouped = Nil, degreeEdges = degreeEdges, cursors = lastCursor)
       } else {
-        val degreeScore = 0.0
-
-        val edgeWithScores = for {
-          (kv, idx) <- keyValues.zipWithIndex if idx >= startOffset && idx < startOffset + len
-          edge <- (if (queryParam.isSnapshotEdge) toSnapshotEdge(kv, queryRequest, None, isInnerCall, parentEdges) else toEdge(kv, queryRequest, cacheElementOpt, parentEdges)).toSeq
-          if where == WhereParser.success || where.filter(edge)
-          convertedEdge <- if (isDefaultTransformer) Seq(edge) else convertEdges(queryParam, edge, nextStepOpt)
-        } yield {
-          val edgeScore = queryParam.rank.score(edge)
-          val score = queryParam.scorePropagateOp match {
-            case "plus" => edgeScore + prevScore
-            case "divide" =>
-              if ((prevScore + queryParam.scorePropagateShrinkage) == 0) 0
-              else edgeScore / (prevScore + queryParam.scorePropagateShrinkage)
-            case _ => edgeScore * prevScore
-          }
-          val tsVal = processTimeDecay(queryParam, edge)
-          val newScore = degreeScore + score
-          EdgeWithScore(convertedEdge.copyParentEdges(parentEdges), score = newScore * labelWeight * tsVal, label = label)
-        }
-
         val sampled =
-          if (queryRequest.queryParam.sample >= 0) sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
+          if (queryRequest.queryParam.sample >= 0) sample(edgeWithScores, queryParam.offset, queryParam.sample)
           else edgeWithScores
 
         val normalized = if (queryParam.shouldNormalize) normalize(sampled) else sampled

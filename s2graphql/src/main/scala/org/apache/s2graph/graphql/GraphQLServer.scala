@@ -26,6 +26,7 @@ import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import com.typesafe.config.ConfigFactory
+import org.apache.s2graph.graphql.middleware.{GraphFormatted, Transform}
 import org.apache.s2graph.core.S2Graph
 import org.apache.s2graph.core.utils.SafeUpdateCache
 import org.apache.s2graph.graphql.repository.GraphRepository
@@ -109,6 +110,8 @@ object GraphQLServer {
     logger.info("Schema Evicted")
   }
 
+  val TransformMiddleWare = List(org.apache.s2graph.graphql.middleware.Transform())
+
   def executeGraphQLQuery(query: Document, op: Option[String], vars: JsObject)(implicit e: ExecutionContext) = {
     import GraphRepository._
 
@@ -116,13 +119,17 @@ object GraphQLServer {
     val s2schema = schemaCache.withCache(cacheKey, broadcast = false, onEvict = onEvictSchema)(createNewSchema())
     val resolver: DeferredResolver[GraphRepository] = DeferredResolver.fetchers(vertexFetcher, edgeFetcher)
 
+    val includeGrpaph = vars.fields.get("includeGraph").contains(spray.json.JsBoolean(true))
+    val middleWares = if (includeGrpaph) GraphFormatted :: TransformMiddleWare else TransformMiddleWare
+
     Executor.execute(
       s2schema,
       query,
       s2Repository,
       variables = vars,
       operationName = op,
-      deferredResolver = resolver
+      deferredResolver = resolver,
+      middleware = middleWares
     ).map((res: spray.json.JsValue) => OK -> res)
       .recover {
         case error: QueryAnalysisError =>

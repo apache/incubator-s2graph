@@ -37,6 +37,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-197] - Provide S2graphSink for non-streaming dataset
     * [S2GRAPH-205] - too many initialize S2Graph when writeBatchMutate on S2GraphSink
     * [S2GRAPH-201] - Provide S2GraphSource
+    * [S2GRAPH-218] - add operations not supported on sql
 
 ** Bug
     * [S2GRAPH-159] - Wrong syntax at a bash script under Linux
@@ -55,6 +56,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-192] - could not find service column when creating the label
     * [S2GRAPH-195] - could not create indices using S2GraphQL
     * [S2GRAPH-196] - Apply Query Parameter to Label Fetch in S2GraphQL
+    * [S2GRAPH-220] - Filter clause is not working on AnnoyModelFetcher
 
 ** Improvement
     * [S2GRAPH-72] - Support Apache TinkerPop and Gremlin
@@ -78,6 +80,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-210] - Rename package `mysqls` to `schema`
     * [S2GRAPH-213] - Abstract Query/Mutation from Storage.
     * [S2GRAPH-214] - Add REAME for movielens examples
+    * [S2GRAPH-216] - Provide a transform directive in the GraphQL query result.
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.
@@ -90,6 +93,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-183] - Provide batch job to dump data stored in HBase into file.
     * [S2GRAPH-206] - Generalize machine learning model serving.
     * [S2GRAPH-215] - Implement a Storage Backend for JDBC driver, such as H2, MySql using the Mutator and Fetcher interfaces
+    * [S2GRAPH-219] - Added query that includes all vertices and associated edges for GraphVisualize. 
 
 ** Task
     * [S2GRAPH-162] - Update year in the NOTICE file.

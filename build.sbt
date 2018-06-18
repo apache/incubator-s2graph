@@ -25,9 +25,9 @@ name := "s2graph"
 
 lazy val commonSettings = Seq(
   organization := "org.apache.s2graph",
-  scalaVersion := "2.11.7",
+  scalaVersion := "2.11.8",
   isSnapshot := version.value.endsWith("-SNAPSHOT"),
-  scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xlint", "-Xlint:-missing-interpolator"),
+  scalacOptions := Seq("-language:postfixOps", "-unchecked", "-deprecation", "-feature", "-Xlint", "-Xlint:-missing-interpolator", "-target:jvm-1.8"),
   javaOptions ++= collection.JavaConversions.propertiesAsScalaMap(System.getProperties).map { case (key, value) => "-D" + key + "=" + value }.toSeq,
   testOptions in Test += Tests.Argument("-oDF"),
   concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
