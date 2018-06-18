@@ -190,17 +190,21 @@ case class WhereParser() extends JavaTokenParsers {
 
   val in = "in|IN".r
 
-  val contains = "contains|CONTAINS".r
-
   val notIn = "not in|NOT IN".r
 
+  val contains = "contains|CONTAINS".r
+  
   def where: Parser[Where] = rep(clause) ^^ (Where(_))
 
   def paren: Parser[Clause] = "(" ~> clause <~ ")"
 
-  def clause: Parser[Clause] = (predicate | paren) * (and ^^^ { (a: Clause, b: Clause) => And(a, b) } | or ^^^ { (a: Clause, b: Clause) => Or(a, b) })
+  def clause: Parser[Clause] = (_not | predicate | paren) * (and ^^^ { (a: Clause, b: Clause) => And(a, b) } | or ^^^ { (a: Clause, b: Clause) => Or(a, b) })
 
   def identWithDot: Parser[String] = repsep(ident, ".") ^^ { case values => values.mkString(".") }
+
+  val _not = "not|NOT".r ~ (predicate | paren) ^^ {
+    case op ~ p => Not(p)
+  }
 
   val _eq = identWithDot ~ ("!=" | "=") ~ stringLiteral ^^ {
     case f ~ op ~ s => if (op == "=") Eq(f, s) else Not(Eq(f, s))

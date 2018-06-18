@@ -46,6 +46,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     }
 
     val whereOpt = WhereParser().parse(sql)
+
     if (whereOpt.isFailure) {
       debug(whereOpt)
       whereOpt.get // touch exception
@@ -138,6 +139,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       f("time > 2")(true)
       f("time <= 3")(true)
       f("time < 2")(false)
+      f("NOT time >= 3")(false)
 
       f("(time in (1, 2, 3) and is_blocked = true) or is_hidden = false")(false)
       f("(time in (1, 2, 3) or is_blocked = true) or is_hidden = false")(true)
@@ -169,6 +171,8 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       f(s"_from = ${tgtVertex.innerId.value} and _to = 102934")(false)
       f(s"_from = -1")(false)
       f(s"_from in (-1, -0.1)")(false)
+      f(s"NOT (_from = -1)")(true)
+      f(s"NOT _from contains 'a'")(true)
     }
   }
 
