@@ -296,8 +296,12 @@ object QueryParam {
 object VertexQueryParam {
   def Empty: VertexQueryParam = VertexQueryParam(Nil)
 
+  def fromVertices(vertices: Seq[S2VertexLike]): VertexQueryParam = {
+    apply(vertices.map(_.id))
+  }
+
   def apply(vertexIds: Seq[VertexId]): VertexQueryParam = {
-    VertexQueryParam(vertexIds)
+    new VertexQueryParam(vertexIds)
   }
 }
 

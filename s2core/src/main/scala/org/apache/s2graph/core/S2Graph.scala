@@ -343,6 +343,10 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     else matchedVerticesFuture
   }
 
+  override def getVertices(vertices: Seq[S2VertexLike]): Future[Seq[S2VertexLike]] =
+    getVertices(VertexQueryParam.fromVertices(vertices))
+
+
   override def getVertices(queryParam: VertexQueryParam): Future[Seq[S2VertexLike]] = {
     val vertexIdsWithIdx = queryParam.vertexIds.zipWithIndex
     val futures = vertexIdsWithIdx.groupBy { case (vId, idx) => vId.column }.map { case (serviceColumn, vertexGroup) =>

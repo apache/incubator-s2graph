@@ -110,6 +110,8 @@ trait S2GraphLike extends Graph {
 
   def shutdown(modelDataDelete: Boolean = false): Unit
 
+  def getVertices(vertices: Seq[S2VertexLike]): Future[Seq[S2VertexLike]]
+
   def getVertices(queryParam: VertexQueryParam): Future[Seq[S2VertexLike]]
 
   def checkEdges(edges: Seq[S2EdgeLike]): Future[StepResult]
