@@ -80,8 +80,8 @@ object Server extends App {
           val fields = body.asJsObject.fields
 
           val query = fields.get("query").map(js => js.convertTo[String])
-          val operationName = fields.get("operationName").filterNot(_ == null).map(_.convertTo[String])
-          val variables = fields.get("variables").filterNot(_ == null)
+          val operationName = fields.get("operationName").filterNot(_ == JsNull).map(_.convertTo[String])
+          val variables = fields.get("variables").filterNot(_ == JsNull)
 
           query.map(QueryParser.parse(_)) match {
             case None ⇒ complete(StatusCodes.BadRequest -> GraphQLServer.formatError("No query to execute"))
