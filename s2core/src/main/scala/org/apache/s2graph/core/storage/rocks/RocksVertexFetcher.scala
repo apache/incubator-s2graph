@@ -43,11 +43,12 @@ class RocksVertexFetcher(val graph: S2GraphLike,
     RocksStorage.fetchKeyValues(vdb, db, rpc)
   }
 
-  override def fetchVertices(vertices: Seq[S2VertexLike])(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] = {
+  override def fetchVertices(vertexQueryParam: VertexQueryParam)(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] = {
     def fromResult(kvs: Seq[SKeyValue], version: String): Seq[S2VertexLike] = {
       if (kvs.isEmpty) Nil
-      else serDe.vertexDeserializer(version).fromKeyValues(kvs, None).toSeq
+      else serDe.vertexDeserializer(version).fromKeyValues(kvs, None).toSeq.filter(vertexQueryParam.where.get.filter)
     }
+    val vertices = vertexQueryParam.vertexIds.map(vId => graph.elementBuilder.newVertex(vId))
 
     val futures = vertices.map { vertex =>
       val queryParam = QueryParam.Empty

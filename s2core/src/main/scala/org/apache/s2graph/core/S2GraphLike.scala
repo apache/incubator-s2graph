@@ -112,8 +112,7 @@ trait S2GraphLike extends Graph {
 
   def getVertices(vertices: Seq[S2VertexLike]): Future[Seq[S2VertexLike]]
 
-  def getVerticesJava(vertices: util.List[S2VertexLike]): CompletableFuture[util.List[S2VertexLike]] =
-    getVertices(vertices.toSeq).map(_.asJava).toJava.toCompletableFuture
+  def getVertices(queryParam: VertexQueryParam): Future[Seq[S2VertexLike]]
 
   def checkEdges(edges: Seq[S2EdgeLike]): Future[StepResult]
 
@@ -217,22 +216,23 @@ trait S2GraphLike extends Graph {
 
       Await.result(future, WaitTimeout).flatten.iterator
     } else {
-      val vertices = ids.collect {
-        case s2Vertex: S2VertexLike => s2Vertex
-        case vId: VertexId => elementBuilder.newVertex(vId)
-        case vertex: Vertex => elementBuilder.newVertex(vertex.id().asInstanceOf[VertexId])
-        case other@_ => elementBuilder.newVertex(VertexId.fromString(other.toString))
+      val vertexIds = ids.collect {
+        case s2Vertex: S2VertexLike => s2Vertex.id
+        case vId: VertexId => vId
+        case vertex: Vertex => vertex.id().asInstanceOf[VertexId]
+        case other@_ => VertexId.fromString(other.toString)
       }
 
       if (fetchVertices) {
-        val future = getVertices(vertices).map { vs =>
+        val queryParam = VertexQueryParam(vertexIds = vertexIds)
+        val future = getVertices(queryParam).map { vs =>
           val ls = new util.ArrayList[structure.Vertex]()
           ls.addAll(vs)
           ls.iterator()
         }
         Await.result(future, WaitTimeout)
       } else {
-        vertices.iterator
+        vertexIds.map(vId => elementBuilder.newVertex(vId)).iterator
       }
     }
   }

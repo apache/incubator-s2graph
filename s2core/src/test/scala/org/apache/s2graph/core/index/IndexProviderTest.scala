@@ -80,7 +80,7 @@ class IndexProviderTest extends IntegrateCommon {
 //      val hasContainer = new HasContainer(indexPropsColumnMeta.name, P.eq(Long.box(1)))
       val hasContainer = new HasContainer(serviceColumnField, P.eq(testColumn.columnName))
 
-      val f = graph.searchVertices(VertexQueryParam(0, 100, Option(s"${serviceColumnField}:${testColumn.columnName}")))
+      val f = graph.searchVertices(VertexQueryParam(Nil, Option(SearchParam(s"${serviceColumnField}:${testColumn.columnName}", 0, 100))))
       val a = Await.result(f, Duration("60 sec"))
       println(a)
 

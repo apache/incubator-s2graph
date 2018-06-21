@@ -55,7 +55,7 @@ object S2EdgePropertyHelper {
       case "label" => Option(InnerValLikeWithTs(InnerVal.withStr(e.innerLabel.label, e.innerLabel.schemaVersion), e.ts))
       case "direction" => Option(InnerValLikeWithTs(InnerVal.withStr(e.getDirection(), e.innerLabel.schemaVersion), e.ts))
       case _ =>
-        e.innerLabel.metaPropsInvMap.get(key).map(labelMeta => e.propertyValueInner(labelMeta))
+        e.innerLabel.metaPropsInvMap.get(key).map(labelMeta => propertyValueInner(e, labelMeta))
     }
   }
 

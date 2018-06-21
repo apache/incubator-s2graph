@@ -212,18 +212,19 @@ class RestHandler(graph: S2GraphLike)(implicit ec: ExecutionContext) {
   private def getVertices(jsValue: JsValue) = {
     val jsonQuery = jsValue
 
-    val vertices = jsonQuery.as[List[JsValue]].flatMap { js =>
+    val vertexIds = jsonQuery.as[List[JsValue]].flatMap { js =>
       val serviceName = (js \ "serviceName").as[String]
       val columnName = (js \ "columnName").as[String]
       for {
         idJson <- (js \ "ids").asOpt[List[JsValue]].getOrElse(List.empty[JsValue])
         id <- jsValueToAny(idJson)
       } yield {
-        graph.toVertex(serviceName, columnName, id)
+        graph.elementBuilder.newVertexId(serviceName)(columnName)(id)
       }
     }
+    val queryParam = VertexQueryParam(vertexIds = vertexIds)
 
-    graph.getVertices(vertices) map { vertices => PostProcess.verticesToJson(vertices) }
+    graph.getVertices(queryParam) map { vertices => PostProcess.verticesToJson(vertices) }
   }
 
   private def buildRequestBody(requestKeyJsonOpt: Option[JsValue], bucket: Bucket, uuid: String): String = {

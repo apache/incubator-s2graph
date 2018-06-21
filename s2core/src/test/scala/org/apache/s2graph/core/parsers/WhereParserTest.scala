@@ -20,7 +20,7 @@
 package org.apache.s2graph.core.parsers
 
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.schema.{ServiceColumn, Label, LabelMeta}
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.rest.TemplateHelper
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
@@ -37,11 +37,11 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
   val ts = System.currentTimeMillis()
   val dummyTs = LabelMeta.timestamp -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion)
 
-  def validate(label: Label)(edge: S2EdgeLike)(sql: String)(expected: Boolean) = {
+  def validate(label: Label)(element: GraphElement)(sql: String)(expected: Boolean) = {
     def debug(whereOpt: Try[Where]) = {
       println("==================")
       println(s"$whereOpt")
-      println(s"$edge")
+      println(s"$element")
       println("==================")
     }
 
@@ -51,7 +51,7 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
       debug(whereOpt)
       whereOpt.get // touch exception
     } else {
-      val ret = whereOpt.get.filter(edge)
+      val ret = whereOpt.get.filter(element)
       if (ret != expected) {
         debug(whereOpt)
       }
@@ -298,4 +298,18 @@ class WhereParserTest extends FunSuite with Matchers with TestCommonWithModels {
     println(whereOpt)
   }
 
+  test("test vertex with WhereParser.") {
+    val service = Service.findByName(serviceName).getOrElse(throw new IllegalStateException(s"$serviceName is not found."))
+    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new IllegalStateException(s"$columnName is not found."))
+
+    val vertexId = builder.newVertexId(service, column, 1)
+    val states = Map(ColumnMeta.lastModifiedAtColumn -> InnerVal.withLong(10, column.schemaVersion))
+    val vertex = builder.newVertex(vertexId)
+    S2Vertex.fillPropsWithTs(vertex, states)
+
+    val f = validate(label)(vertex) _
+    f(s"lastModifiedAt < 1")(false)
+    f(s"lastModifiedAt > 1")(true)
+    f(s"lastModifiedAt = 10")(true)
+  }
 }

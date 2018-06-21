@@ -21,6 +21,7 @@ package org.apache.s2graph.core.storage.hbase
 
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
+import org.apache.s2graph.core.parsers.Where
 import org.apache.s2graph.core.schema.ServiceColumn
 import org.apache.s2graph.core.storage.serde.Serializable
 import org.apache.s2graph.core.storage.{SKeyValue, StorageIO, StorageSerDe}
@@ -40,23 +41,23 @@ class AsynchbaseVertexFetcher(val graph: S2GraphLike,
   import scala.collection.JavaConverters._
 
 
-  private def fetchKeyValues(queryRequest: QueryRequest, vertex: S2VertexLike)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]] = {
-    val rpc = buildRequest(serDe, queryRequest, vertex)
+  private def fetchKeyValues(vertex: S2VertexLike)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]] = {
+    val rpc = buildRequest(serDe, vertex)
     AsynchbaseStorage.fetchKeyValues(client, rpc)
   }
 
-  override def fetchVertices(vertices: Seq[S2VertexLike])(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] = {
-    def fromResult(kvs: Seq[SKeyValue], version: String): Seq[S2VertexLike] = {
+  override def fetchVertices(vertexQueryParam: VertexQueryParam)(implicit ec: ExecutionContext): Future[Seq[S2VertexLike]] = {
+    def fromResult(kvs: Seq[SKeyValue],
+                   version: String): Seq[S2VertexLike] = {
       if (kvs.isEmpty) Nil
-      else serDe.vertexDeserializer(version).fromKeyValues(kvs, None).toSeq
+      else {
+        serDe.vertexDeserializer(version).fromKeyValues(kvs, None).toSeq.filter(vertexQueryParam.where.get.filter)
+      }
     }
+    val vertices = vertexQueryParam.vertexIds.map(vId => graph.elementBuilder.newVertex(vId))
 
     val futures = vertices.map { vertex =>
-      val queryParam = QueryParam.Empty
-      val q = Query.toQuery(Seq(vertex), Seq(queryParam))
-      val queryRequest = QueryRequest(q, stepIdx = -1, vertex, queryParam)
-
-      fetchKeyValues(queryRequest, vertex).map { kvs =>
+      fetchKeyValues(vertex).map { kvs =>
         fromResult(kvs, vertex.serviceColumn.schemaVersion)
       } recoverWith {
         case ex: Throwable => Future.successful(Nil)

@@ -202,7 +202,7 @@ object AsynchbaseStorage {
     }
   }
 
-  def buildRequest(serDe: StorageSerDe, queryRequest: QueryRequest, vertex: S2VertexLike) = {
+  def buildRequest(serDe: StorageSerDe, vertex: S2VertexLike) = {
     val kvs = serDe.vertexSerializer(vertex).toKeyValues
     val get = new GetRequest(vertex.hbaseTableName.getBytes, kvs.head.row, Serializable.vertexCf)
     //      get.setTimeout(this.singleGetTimeout.toShort)
