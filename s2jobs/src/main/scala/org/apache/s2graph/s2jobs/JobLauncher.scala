@@ -19,6 +19,7 @@
 
 package org.apache.s2graph.s2jobs
 
+import org.apache.s2graph.s2jobs.udfs.Udf
 import org.apache.spark.sql.SparkSession
 import play.api.libs.json.{JsValue, Json}
 
@@ -81,6 +82,13 @@ object JobLauncher extends Logger {
       .config("spark.driver.maxResultSize", "20g")
       .enableHiveSupport()
       .getOrCreate()
+
+    // register udfs
+    jobDescription.udfs.foreach{ udfOption =>
+      val udf = Class.forName(udfOption.`class`).newInstance().asInstanceOf[Udf]
+      logger.info((s"[udf register] ${udfOption}"))
+      udf.register(ss, udfOption.name, udfOption.params.getOrElse(Map.empty))
+    }
 
     val job = new Job(ss, jobDescription)
     job.run()
