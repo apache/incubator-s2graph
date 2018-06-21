@@ -81,6 +81,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-213] - Abstract Query/Mutation from Storage.
     * [S2GRAPH-214] - Add REAME for movielens examples
     * [S2GRAPH-216] - Provide a transform directive in the GraphQL query result.
+    * [S2GRAPH-221] - Unify configurations for bulk and mutate in S2GraphSink.
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.
@@ -96,6 +97,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-215] - Implement a Storage Backend for JDBC driver, such as H2, MySql using the Mutator and Fetcher interfaces.
     * [S2GRAPH-219] - Added query that includes all vertices and associated edges for GraphVisualize.
     * [S2GRAPH-222] - Support Not logical operator in WhereParser.
+    * [S2GRAPH-223] - Support WhereParser on Vertex.
 
 ** Task
     * [S2GRAPH-162] - Update year in the NOTICE file.

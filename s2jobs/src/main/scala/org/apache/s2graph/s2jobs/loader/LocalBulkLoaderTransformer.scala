@@ -28,12 +28,13 @@ import scala.concurrent.ExecutionContext
 import scala.reflect.ClassTag
 
 class LocalBulkLoaderTransformer(val config: Config,
-                                 val options: GraphFileOptions)(implicit ec: ExecutionContext) extends Transformer[Seq] {
+                                 val labelMapping: Map[String, String] = Map.empty,
+                                 val buildDegree: Boolean = false)(implicit ec: ExecutionContext) extends Transformer[Seq] {
   val s2: S2Graph = S2GraphHelper.getS2Graph(config)
 
   override def buildDegrees[T: ClassTag](elements: Seq[GraphElement])(implicit writer: GraphElementWritable[T]): Seq[T] = {
     val degrees = elements.flatMap { element =>
-      DegreeKey.fromGraphElement(s2, element, options.labelMapping).map(_ -> 1L)
+      DegreeKey.fromGraphElement(s2, element, labelMapping).map(_ -> 1L)
     }.groupBy(_._1).mapValues(_.map(_._2).sum)
 
     degrees.toSeq.map { case (degreeKey, count) =>
@@ -44,7 +45,7 @@ class LocalBulkLoaderTransformer(val config: Config,
   override def transform[S: ClassTag, T: ClassTag](input: Seq[S])(implicit reader: GraphElementReadable[S], writer: GraphElementWritable[T]): Seq[T] = {
     val elements = input.flatMap(reader.read(s2)(_))
     val kvs = elements.map(writer.write(s2)(_))
-    val degrees = if (options.buildDegree) buildDegrees[T](elements) else Nil
+    val degrees = if (buildDegree) buildDegrees[T](elements) else Nil
 
     kvs ++ degrees
   }

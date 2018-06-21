@@ -22,14 +22,14 @@ package org.apache.s2graph.s2jobs
 import org.apache.s2graph.s2jobs.task.TaskConf
 
 class S2GraphHelperTest extends BaseSparkTest {
-  test("toGraphFileOptions") {
-    val args = options.toCommand.grouped(2).map { kv =>
-          kv.head -> kv.last
-      }.toMap ++ Map("db.default.url" -> "jdbc://localhost:3306/mysql")
-
-    println(args)
-    val taskConf = TaskConf("dummy", "sink", Nil, args)
-    val graphFileOptions = TaskConf.toGraphFileOptions(taskConf)
-    println(graphFileOptions)
-  }
+//  test("toGraphFileOptions") {
+//    val args = options.toCommand.grouped(2).map { kv =>
+//          kv.head -> kv.last
+//      }.toMap ++ Map("db.default.url" -> "jdbc://localhost:3306/mysql")
+//
+//    println(args)
+//    val taskConf = TaskConf("dummy", "sink", Nil, args)
+//    val graphFileOptions = TaskConf.toGraphFileOptions(taskConf)
+//    println(graphFileOptions)
+//  }
 }

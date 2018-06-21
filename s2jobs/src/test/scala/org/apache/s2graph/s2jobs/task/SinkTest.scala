@@ -50,12 +50,7 @@ class SinkTest extends BaseSparkTest {
   test("S2graphSink writeBatchWithBulkload") {
     val bulkEdgeString = "1416236400000\tinsert\tedge\ta\tb\tfriends\t{\"since\":1316236400000,\"score\":10}"
     val df = toDataFrame(Seq(bulkEdgeString))
-    val args = Map("writeMethod" -> "bulk") ++
-      options.toCommand.grouped(2).map { kv =>
-        kv.head -> kv.last
-      }.toMap
-
-    val conf = TaskConf("test", "sql", Seq("input"), args)
+    val conf = bulkloadOptions
 
     val sink = new S2GraphSink("testQuery", conf)
     sink.write(df)

@@ -52,42 +52,7 @@ object S2Graph {
   val FetchAllLimit = 10000000
   val DefaultFetchLimit = 1000
 
-  private val DefaultConfigs: Map[String, AnyRef] = Map(
-    "hbase.zookeeper.quorum" -> "localhost",
-    "hbase.table.name" -> "s2graph",
-    "hbase.table.compression.algorithm" -> "gz",
-    "phase" -> "dev",
-    "db.default.driver" -> "org.h2.Driver",
-    "db.default.url" -> "jdbc:h2:file:./var/metastore;MODE=MYSQL",
-    "db.default.password" -> "graph",
-    "db.default.user" -> "graph",
-    "cache.max.size" -> java.lang.Integer.valueOf(0),
-    "cache.ttl.seconds" -> java.lang.Integer.valueOf(-1),
-    "resource.cache.max.size" -> java.lang.Integer.valueOf(1000),
-    "resource.cache.ttl.seconds" -> java.lang.Integer.valueOf(-1),
-    "hbase.client.retries.number" -> java.lang.Integer.valueOf(20),
-    "hbase.rpcs.buffered_flush_interval" -> java.lang.Short.valueOf(100.toShort),
-    "hbase.rpc.timeout" -> java.lang.Integer.valueOf(600000),
-    "max.retry.number" -> java.lang.Integer.valueOf(100),
-    "lock.expire.time" -> java.lang.Integer.valueOf(1000 * 60 * 10),
-    "max.back.off" -> java.lang.Integer.valueOf(100),
-    "back.off.timeout" -> java.lang.Integer.valueOf(1000),
-    "hbase.fail.prob" -> java.lang.Double.valueOf(-0.1),
-    "delete.all.fetch.size" -> java.lang.Integer.valueOf(1000),
-    "delete.all.fetch.count" -> java.lang.Integer.valueOf(200),
-    "future.cache.max.size" -> java.lang.Integer.valueOf(100000),
-    "future.cache.expire.after.write" -> java.lang.Integer.valueOf(10000),
-    "future.cache.expire.after.access" -> java.lang.Integer.valueOf(5000),
-    "future.cache.metric.interval" -> java.lang.Integer.valueOf(60000),
-    "query.future.cache.max.size" -> java.lang.Integer.valueOf(1000),
-    "query.future.cache.expire.after.write" -> java.lang.Integer.valueOf(10000),
-    "query.future.cache.expire.after.access" -> java.lang.Integer.valueOf(5000),
-    "query.future.cache.metric.interval" -> java.lang.Integer.valueOf(60000),
-    "s2graph.storage.backend" -> "hbase",
-    "query.hardlimit" -> java.lang.Integer.valueOf(100000),
-    "hbase.zookeeper.znode.parent" -> "/hbase",
-    "query.log.sample.rate" -> Double.box(0.05)
-  )
+  private val DefaultConfigs = S2GraphConfigs.DEFAULT_CONFIGS
 
   var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)
   val numOfThread = Runtime.getRuntime.availableProcessors()
@@ -131,13 +96,13 @@ object S2Graph {
   }
 
   def initStorage(graph: S2GraphLike, config: Config)(ec: ExecutionContext): Storage = {
-    val storageBackend = config.getString("s2graph.storage.backend")
+    val storageBackend = config.getString(S2GraphConfigs.S2GRAPH_STORE_BACKEND)
     logger.info(s"[InitStorage]: $storageBackend")
 
     storageBackend match {
       case "hbase" =>
         hbaseExecutor =
-          if (config.getString("hbase.zookeeper.quorum") == "localhost")
+          if (config.getString(S2GraphConfigs.HBaseConfigs.HBASE_ZOOKEEPER_QUORUM) == "localhost")
             AsynchbaseStorage.initLocalHBase(config)
           else
             null
@@ -208,8 +173,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
   override val config = _config.withFallback(S2Graph.DefaultConfig)
 
   val storageBackend = Try {
-    config.getString("s2graph.storage.backend")
-  }.getOrElse("hbase")
+    config.getString(S2GraphConfigs.S2GRAPH_STORE_BACKEND)
+  }.getOrElse(S2GraphConfigs.DEFAULT_S2GRAPH_STORE_BACKEND)
 
   Schema.apply(config)
   Schema.loadCache()

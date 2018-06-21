@@ -49,13 +49,7 @@ class SourceTest extends BaseSparkTest {
 
     val input = df.collect().flatMap(reader.read(s2)(_))
 
-    val args = options.toCommand.grouped(2).map { kv =>
-      kv.head -> kv.last
-    }.toMap ++ Map("writeMethod" -> "bulk", "runLoadIncrementalHFiles" -> "true")
-
-    val conf = TaskConf("test", "sql", Seq("input"), args)
-
-    val sink = new S2GraphSink("testQuery", conf)
+    val sink = new S2GraphSink("testQuery", bulkloadOptions)
     sink.write(df)
 
     // 2. create snapshot if snapshot is not exist to test TableSnapshotInputFormat.
@@ -70,15 +64,20 @@ class SourceTest extends BaseSparkTest {
     }
 
     // 3. Decode S2GraphSource to parse HFile
-    val metaAndHBaseArgs = options.toConfigParams
+    val metaAndHBaseArgs = {
+      TaskConf.parseHBaseConfigs(bulkloadOptions) ++
+        TaskConf.parseMetaStoreConfigs(bulkloadOptions)
+    }.mapValues(_.toString)
+
     val hbaseConfig = HBaseConfiguration.create(spark.sparkContext.hadoopConfiguration)
+    import org.apache.s2graph.spark.sql.streaming.S2SourceConfigs._
 
     val dumpArgs = Map(
-      "hbase.rootdir" -> hbaseConfig.get("hbase.rootdir"),
-      "restore.path" -> "/tmp/hbase_restore",
-      "hbase.table.names" -> s"${snapshotTableName}",
-      "hbase.table.cf" -> columnFamily,
-      "element.type" -> elementType
+      S2_SOURCE_BULKLOAD_HBASE_ROOT_DIR -> hbaseConfig.get("hbase.rootdir"),
+      S2_SOURCE_BULKLOAD_RESTORE_PATH -> "/tmp/hbase_restore",
+      S2_SOURCE_BULKLOAD_HBASE_TABLE_NAMES -> s"${snapshotTableName}",
+      S2_SOURCE_BULKLOAD_HBASE_TABLE_CF -> columnFamily,
+      S2_SOURCE_ELEMENT_TYPE -> elementType
     ) ++ metaAndHBaseArgs
 
     val dumpConf = TaskConf("dump", "sql", Seq("input"), dumpArgs)

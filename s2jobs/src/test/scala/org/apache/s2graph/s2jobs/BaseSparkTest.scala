@@ -27,13 +27,35 @@ import org.apache.s2graph.core.schema.{Label, Service, ServiceColumn}
 import org.apache.s2graph.core.{Management, S2Graph}
 import org.apache.s2graph.core.types.HBaseType
 import org.apache.s2graph.s2jobs.loader.GraphFileOptions
+import org.apache.s2graph.s2jobs.task.TaskConf
+import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 import scala.util.Try
 
 class BaseSparkTest extends FunSuite with Matchers with BeforeAndAfterAll with DataFrameSuiteBase {
+  import org.apache.s2graph.core.S2GraphConfigs._
 
-  protected val options = GraphFileOptions(
+  protected val bulkloadOptions = new TaskConf("bulkloadOptions", "test", options = Map(
+    DBConfigs.DB_DEFAULT_DRIVER -> "org.h2.Driver",
+    DBConfigs.DB_DEFAULT_URL -> "jdbc:h2:file:./var/metastore_jobs;MODE=MYSQL",
+    DBConfigs.DB_DEFAULT_USER -> "sa",
+    DBConfigs.DB_DEFAULT_PASSWORD -> "sa",
+    HBaseConfigs.HBASE_ZOOKEEPER_QUORUM -> "localhost",
+
+    S2SinkConfigs.S2_SINK_WRITE_METHOD -> "bulk",
+
+    S2SinkConfigs.S2_SINK_BULKLOAD_HBASE_TABLE_NAME -> "s2graph",
+    S2SinkConfigs.S2_SINK_BULKLOAD_HBASE_NUM_REGIONS -> "3",
+    S2SinkConfigs.S2_SINK_BULKLOAD_HBASE_TEMP_DIR -> "/tmp/bulkload_tmp",
+    S2SinkConfigs.S2_SINK_BULKLOAD_HBASE_INCREMENTAL_LOAD -> "true",
+    S2SinkConfigs.S2_SINK_BULKLOAD_HBASE_COMPRESSION -> "NONE",
+
+    S2SinkConfigs.S2_SINK_BULKLOAD_AUTO_EDGE_CREATE -> "false",
+    S2SinkConfigs.S2_SINK_BULKLOAD_BUILD_DEGREE -> "false",
+    S2SinkConfigs.S2_SINK_BULKLOAD_LABEL_MAPPING -> ""
+  ))
+  protected val options: GraphFileOptions = GraphFileOptions(
     input = "/tmp/test.txt",
     tempDir = "/tmp/bulkload_tmp",
     output = "/tmp/s2graph_bulkload",

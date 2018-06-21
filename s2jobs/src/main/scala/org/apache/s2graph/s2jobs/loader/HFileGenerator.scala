@@ -33,6 +33,7 @@ import org.apache.hadoop.hbase.regionserver.BloomType
 import org.apache.hadoop.hbase.util.{Base64, Bytes}
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.util.ToolRunner
+import org.apache.s2graph.core.S2GraphConfigs
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageManagement
 import org.apache.s2graph.s2jobs.serde.reader.TsvBulkFormatReader
 import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
@@ -52,13 +53,17 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
     regionLocator.getStartKeys
   }
 
-  def toHBaseConfig(graphFileOptions: GraphFileOptions): Configuration = {
+  def toHBaseConfig(zkQuorum: String, tableName: String): Configuration = {
     val hbaseConf = HBaseConfiguration.create()
 
-    hbaseConf.set("hbase.zookeeper.quorum", graphFileOptions.zkQuorum)
-    hbaseConf.set(TableOutputFormat.OUTPUT_TABLE, graphFileOptions.tableName)
+    hbaseConf.set(S2GraphConfigs.HBaseConfigs.HBASE_ZOOKEEPER_QUORUM, zkQuorum)
+    hbaseConf.set(TableOutputFormat.OUTPUT_TABLE, tableName)
 
     hbaseConf
+  }
+
+  def toHBaseConfig(options: GraphFileOptions): Configuration = {
+    toHBaseConfig(options.zkQuorum, options.tableName)
   }
 
   def getStartKeys(numRegions: Int): Array[Array[Byte]] = {
@@ -88,14 +93,28 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
                     options: GraphFileOptions): Unit = {
     val hbaseConfig = toHBaseConfig(options)
 
+    generateHFile(sc, s2Config, kvs, hbaseConfig, options.tableName,
+      options.numRegions, options.output, options.incrementalLoad, options.compressionAlgorithm)
+  }
+
+  def generateHFile(sc: SparkContext,
+                    s2Config: Config,
+                    kvs: RDD[KeyValue],
+                    hbaseConfig: Configuration,
+                    tableName: String,
+                    numRegions: Int,
+                    outputPath: String,
+                    incrementalLoad: Boolean = false,
+                    compressionAlgorithm: String = "lz4"): Unit = {
+    val table = TableName.valueOf(tableName)
     val startKeys =
-      if (options.incrementalLoad) {
+      if (incrementalLoad) {
         // need hbase connection to existing table to figure out the ranges of regions.
-        getTableStartKeys(hbaseConfig, TableName.valueOf(options.tableName))
+        getTableStartKeys(hbaseConfig, table)
       } else {
         // otherwise we do not need to initialize Connection to hbase cluster.
         // only numRegions determine region's pre-split.
-        getStartKeys(numRegions = options.numRegions)
+        getStartKeys(numRegions = numRegions)
       }
 
     val hbaseSc = new HBaseContext(sc, hbaseConfig)
@@ -106,21 +125,21 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
       Seq((k -> v)).toIterator
     }
 
-    val compressionAlgorithmClass = Algorithm.valueOf(options.compressionAlgorithm).getName.toUpperCase
+    val compressionAlgorithmClass = Algorithm.valueOf(compressionAlgorithm).getName.toUpperCase
     val familyOptions = new FamilyHFileWriteOptions(compressionAlgorithmClass,
       BloomType.ROW.name().toUpperCase, 32768, DataBlockEncoding.FAST_DIFF.name().toUpperCase)
 
     val familyOptionsMap = Map("e".getBytes("UTF-8") -> familyOptions, "v".getBytes("UTF-8") -> familyOptions)
 
 
-    hbaseSc.bulkLoad(kvs, TableName.valueOf(options.tableName), startKeys, flatMap, options.output, familyOptionsMap.asJava)
+    hbaseSc.bulkLoad(kvs, table, startKeys, flatMap, outputPath, familyOptionsMap.asJava)
   }
 
   override def generate(sc: SparkContext,
                         config: Config,
                         rdd: RDD[String],
                         options: GraphFileOptions): Unit = {
-    val transformer = new SparkBulkLoaderTransformer(config, options)
+    val transformer = new SparkBulkLoaderTransformer(config, options.labelMapping, options.buildDegree)
 
     implicit val reader = new TsvBulkFormatReader
     implicit val writer = new KeyValueWriter(options.autoEdgeCreate, options.skipError)
@@ -130,11 +149,14 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
     HFileGenerator.generateHFile(sc, config, kvs, options)
   }
 
-  def loadIncrementalHFiles(options: GraphFileOptions): Int = {
+  def loadIncrementalHFiles(inputPath: String, tableName: String): Int = {
     /* LoadIncrementHFiles */
-    val hfileArgs = Array(options.output, options.tableName)
     val hbaseConfig = HBaseConfiguration.create()
-    ToolRunner.run(hbaseConfig, new LoadIncrementalHFiles(hbaseConfig), hfileArgs)
+    ToolRunner.run(hbaseConfig, new LoadIncrementalHFiles(hbaseConfig), Array(inputPath, tableName))
+  }
+
+  def loadIncrementalHFiles(options: GraphFileOptions): Int = {
+    loadIncrementalHFiles(options.output, options.tableName)
   }
 
   def tableSnapshotDump(ss: SparkSession,
@@ -143,7 +165,6 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
            restorePath: String,
            tableNames: Seq[String],
            columnFamily: String = "e",
-           elementType: String = "IndexEdge",
            batchSize: Int = 1000,
            labelMapping: Map[String, String] = Map.empty,
            buildDegree: Boolean = false): RDD[Seq[Cell]] = {
