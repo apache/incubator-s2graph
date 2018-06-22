@@ -25,7 +25,7 @@ object Common {
   val playVersion = "2.5.9"
   val specs2Version = "3.8.5"
 
-  val hbaseVersion = "1.2.2"
+  val hbaseVersion = "1.2.6.1"
   val hadoopVersion = "2.7.3"
   val tinkerpopVersion = "3.2.5"
 

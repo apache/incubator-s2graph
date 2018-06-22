@@ -147,3 +147,5 @@ releaseProcess := Seq[ReleaseStep](
 releasePublishArtifactsAction := publishSigned.value
 
 mainClass in Compile := None
+
+parallelExecution in ThisBuild := false
