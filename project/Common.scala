@@ -39,12 +39,16 @@ object Common {
 
   val tensorflowVersion = "1.7.0"
 
+  val log4jVersion = "1.2.17"
+
+  val slf4jBindingVersion = "1.8.0-beta2"
+
   /** use Log4j 1.2.17 as the SLF4j backend in runtime, with bridging libraries to forward JCL and JUL logs to SLF4j */
   val loggingRuntime = Seq(
-    "log4j" % "log4j" % "1.2.17",
-    "org.slf4j" % "slf4j-log4j12" % "1.7.21",
-    "org.slf4j" % "jcl-over-slf4j" % "1.7.21",
-    "org.slf4j" % "jul-to-slf4j" % "1.7.21"
+    "log4j" % "log4j" % log4jVersion,
+    "org.slf4j" % "slf4j-log4j12" % slf4jBindingVersion,
+    "org.slf4j" % "jcl-over-slf4j" % slf4jBindingVersion,
+    "org.slf4j" % "jul-to-slf4j" % slf4jBindingVersion
   ).flatMap(dep => Seq(dep % "test", dep % "runtime"))
 
   /** rules to exclude logging backends and bridging libraries from dependency */
@@ -56,8 +60,7 @@ object Common {
     ExclusionRule("org.slf4j", "jcl-over-slf4j"),
     ExclusionRule("org.slf4j", "log4j-over-slf4j"),
     ExclusionRule("org.slf4j", "slf4j-log4j12"),
-    ExclusionRule("org.slf4j", "jul-to-slf4j"),
-    ExclusionRule("org.apache.logging.log4j", "log4j-slf4j-impl")
+    ExclusionRule("org.slf4j", "jul-to-slf4j")
   )
 
   implicit class LoggingExcluder(moduleId: ModuleID) {
