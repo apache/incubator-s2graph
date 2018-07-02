@@ -9,6 +9,7 @@
 .cache
 .history
 .lib/
+*/lib/
 var/*
 dist/*
 target/

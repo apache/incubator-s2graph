@@ -57,7 +57,8 @@ libraryDependencies ++= Seq(
   "com.sksamuel.elastic4s" %% "elastic4s-embedded" % elastic4sVersion excludeLogging(),
   "org.scala-lang.modules" %% "scala-pickling" % "0.10.1",
   "net.pishen" %% "annoy4s" % annoy4sVersion,
-  "org.tensorflow" % "tensorflow" % tensorflowVersion
+  "org.tensorflow" % "tensorflow" % tensorflowVersion,
+  "io.reactivex" %% "rxscala" % "0.26.5"
 )
 
 libraryDependencies := {
