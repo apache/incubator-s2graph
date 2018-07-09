@@ -295,6 +295,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     if (running.compareAndSet(true, false)) {
       flushStorage()
       Schema.shutdown(modelDataDelete)
+      resourceManager.shutdown()
       defaultStorage.shutdown()
       localLongId.set(0l)
     }
@@ -353,9 +354,10 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
       mutateVertices(getStorage(service))(service.cluster, vertexGroup.map(_._1), withWait).map(_.zip(vertexGroup.map(_._2)))
     }
 
-    indexProvider.mutateVerticesAsync(vertices)
-    Future.sequence(futures).map{ ls =>
-      ls.flatten.toSeq.sortBy(_._2).map(_._1)
+    Future.sequence(futures).flatMap { ls =>
+      indexProvider.mutateVerticesAsync(vertices).map { _ =>
+        ls.flatten.toSeq.sortBy(_._2).map(_._1)
+      }
     }
   }
 

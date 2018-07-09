@@ -161,8 +161,8 @@ class SafeUpdateCache(val config: Config)
               put(key, cachedVal, false)
               logger.error(s"withCache update failed: $cacheKey", ex)
             case Success(newValue) =>
-              put(key, newValue, broadcast = (broadcast && newValue != cachedVal))
 
+              put(key, newValue, broadcast = (broadcast && newValue != cachedVal))
               onEvict(cachedVal)
 
               cachedVal match {
