@@ -104,6 +104,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-162] - Update year in the NOTICE file.
     * [S2GRAPH-211] - Include 's2jobs' test in CI
     * [S2GRAPH-212] - Fix broken markdown on README.md.
+    * [S2GRAPH-229] - 'Step' abstraction for combinable queries
 
 Release 0.1.0 - Released
 
