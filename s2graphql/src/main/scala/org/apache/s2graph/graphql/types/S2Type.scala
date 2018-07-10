@@ -72,24 +72,24 @@ object S2Type {
     val inputFields = service.serviceColumns(false).map { serviceColumn =>
       val idField = InputField("id", toScalarType(serviceColumn.columnType))
       val propFields = serviceColumn.metasWithoutCache.filter(ColumnMeta.isValid).map { lm =>
-        InputField(lm.name, OptionInputType(toScalarType(lm.dataType)))
+        InputField(lm.name.toValidName, OptionInputType(toScalarType(lm.dataType)))
       }
 
       val vertexMutateType = InputObjectType[Map[String, Any]](
-        s"Input_${service.serviceName}_${serviceColumn.columnName}_vertex_mutate",
+        s"Input_${service.serviceName.toValidName}_${serviceColumn.columnName.toValidName}_vertex_mutate",
         description = "desc here",
         () => idField :: propFields
       )
 
-      InputField[Any](serviceColumn.columnName, OptionInputType(ListInputType(vertexMutateType)))
+      InputField[Any](serviceColumn.columnName.toValidName, OptionInputType(ListInputType(vertexMutateType)))
     }
 
     inputFields
   }
 
   def makeInputFieldsOnLabel(label: Label): Seq[InputField[Any]] = {
-    val propFields = label.labelMetaSet.toList.map { lm =>
-      InputField(lm.name, OptionInputType(toScalarType(lm.dataType)))
+    val propFields = label.labelMetaSet.toList.filterNot(_.name == "timestamp").map { lm =>
+      InputField(lm.name.toValidName, OptionInputType(toScalarType(lm.dataType)))
     }
 
     val labelFields = List(
@@ -112,7 +112,7 @@ object S2Type {
     val inLabels = diffLabel.filter(l => column == l.tgtColumn).distinct.toList
     val inOutLabels = sameLabel.filter(l => l.srcColumn == column && l.tgtColumn == column)
 
-    lazy val columnFields = (reservedFields ++ columnMetasKv).map { case (k, v) => makeGraphElementField(k, v) }
+    lazy val columnFields = (reservedFields ++ columnMetasKv).map { case (k, v) => makeGraphElementField(k.toValidName, v) }
 
     lazy val outLabelFields: List[Field[GraphRepository, Any]] = outLabels.map(l => makeLabelField("out", l, allLabels))
     lazy val inLabelFields: List[Field[GraphRepository, Any]] = inLabels.map(l => makeLabelField("in", l, allLabels))
@@ -132,7 +132,7 @@ object S2Type {
         () => fields[GraphRepository, Any](serviceColumnFields: _*)
       )
 
-      Field(column.columnName,
+      Field(column.columnName.toValidName,
         ListType(ColumnType),
         arguments = List(
           Argument("id", OptionInputType(toScalarType(column.columnType))),
@@ -162,11 +162,11 @@ object S2Type {
     val column = if (dir == "out") label.tgtColumn else label.srcColumn
 
     lazy val labelFields: List[Field[GraphRepository, Any]] =
-      (labelReserved ++ labelProps).map { case (k, v) => makeGraphElementField(k, v) }
+      (labelReserved ++ labelProps).map { case (k, v) => makeGraphElementField(k.toValidName, v) }
 
-    lazy val labelPropField = wrapField(s"Label_${label.label}_props", "props", labelFields)
+    lazy val labelPropField = wrapField(s"Label_${label.label.toValidName}_props", "props", labelFields)
 
-    lazy val labelColumnType = ObjectType(s"Label_${label.label}_${column.columnName}",
+    lazy val labelColumnType = ObjectType(s"Label_${label.label.toValidName}_${column.columnName.toValidName}",
       () => makeServiceColumnFields(column, allLabels)
     )
 
@@ -178,7 +178,7 @@ object S2Type {
     })
 
     lazy val EdgeType = ObjectType(
-      s"Label_${label.label}_${column.columnName}_${dir}",
+      s"Label_${label.label.toValidName}_${column.columnName.toValidName}_${dir}",
       () => fields[GraphRepository, Any](
         List(serviceColumnField, labelPropField) ++ labelFields.filterNot(_.name == column.columnName): _*)
     )
@@ -190,11 +190,11 @@ object S2Type {
     }
 
     val idxNames = label.indices.map { idx =>
-      EnumValue(idx.name, value = idx.name)
+      EnumValue(idx.name.toValidName, value = idx.name.toValidName)
     }
 
     val indexEnumType = EnumType(
-      s"Label_Index_${label.label}",
+      s"Label_Index_${label.label.toValidName}",
       description = Option("desc here"),
       values = idxNames
     )
@@ -207,7 +207,7 @@ object S2Type {
     )
 
     lazy val edgeTypeField: Field[GraphRepository, Any] = Field(
-      s"${label.label}",
+      s"${label.label.toValidName}",
       ListType(EdgeType),
       arguments = dirArgs ++ paramArgs,
       description = Some("fetch edges"),
@@ -239,12 +239,12 @@ class S2Type(repo: GraphRepository) {
     lazy val serviceFields = DummyObjectTypeField :: makeServiceField(service, repo.labels())
 
     lazy val ServiceType = ObjectType(
-      s"Service_${service.serviceName}",
+      s"Service_${service.serviceName.toValidName}",
       fields[GraphRepository, Any](serviceFields: _*)
     )
 
     Field(
-      service.serviceName,
+      service.serviceName.toValidName,
       ServiceType,
       description = Some(s"serviceName: ${service.serviceName}"),
       resolve = _ => service
@@ -259,10 +259,10 @@ class S2Type(repo: GraphRepository) {
       val serviceFields = DummyInputField +: makeInputFieldsOnService(service)
 
       val ServiceInputType = InputObjectType[List[AddVertexParam]](
-        s"Input_vertex_${service.serviceName}_param",
+        s"Input_vertex_${service.serviceName.toValidName}_param",
         () => serviceFields.toList
       )
-      Argument(service.serviceName, OptionInputType(ServiceInputType))
+      Argument(service.serviceName.toValidName, OptionInputType(ServiceInputType))
     }
 
     serviceArguments
@@ -272,11 +272,11 @@ class S2Type(repo: GraphRepository) {
     val labelArguments = repo.labels().map { label =>
       val labelFields = DummyInputField +: makeInputFieldsOnLabel(label)
       val labelInputType = InputObjectType[AddEdgeParam](
-        s"Input_label_${label.label}_param",
+        s"Input_label_${label.label.toValidName}_param",
         () => labelFields.toList
       )
 
-      Argument(label.label, OptionInputType(ListInputType(labelInputType)))
+      Argument(label.label.toValidName, OptionInputType(ListInputType(labelInputType)))
     }
 
     labelArguments

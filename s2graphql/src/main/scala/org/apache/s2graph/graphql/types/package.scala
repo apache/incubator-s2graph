@@ -31,12 +31,28 @@ package object types {
 
   def toScalarType(from: String): ScalarType[_] = from match {
     case "string" => StringType
-    case "int" => IntType
-    case "integer" => IntType
+    case "int" | "integer" => IntType
     case "long" => LongType
-    case "float" => FloatType
-    case "double" => FloatType
-    case "boolean" => BooleanType
-    case "bool" => BooleanType
+    case "float" | "double" => FloatType
+    case "bool" | "boolean" => BooleanType
   }
+
+  val validateRegEx = "/^[_a-zA-Z][_a-zA-Z0-9]*$/.".r
+
+  val ints = (0 to 9).map(_.toString).toSet
+
+  implicit class StringOps(val s: String) extends AnyVal {
+    def toValidName: String = {
+      val newS = s
+        .replaceAll("-", "_HYPHEN_")
+        .replaceAll("-", "_DASH_")
+        .replaceAll(":", "_COLON_")
+        .replaceAll(" ", "_SPACE_")
+        .trim
+
+      if (ints.contains(newS.head.toString)) s"NUMBER_${newS}"
+      else newS
+    }
+  }
+
 }
