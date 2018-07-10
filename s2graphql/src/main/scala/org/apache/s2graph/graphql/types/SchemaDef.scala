@@ -26,7 +26,7 @@ import org.apache.s2graph.graphql.repository.GraphRepository
   *
   * When a Label or Service is created, the GraphQL schema is created dynamically.
   */
-class SchemaDef(g: GraphRepository) {
+class SchemaDef(g: GraphRepository, withAdmin: Boolean = false) {
 
   import sangria.schema._
 
@@ -39,17 +39,24 @@ class SchemaDef(g: GraphRepository) {
     fields(s2Type.queryFields ++ queryManagementFields: _*)
   )
 
-  val mutateManagementFields = List(wrapField("MutationManagement", "Management", s2ManagementType.mutationFields))
-  val S2MutationType = ObjectType[GraphRepository, Any](
-    "Mutation",
-    fields(s2Type.mutationFields ++ mutateManagementFields: _*)
-  )
+  lazy val mutateManagementFields = List(wrapField("MutationManagement", "Management", s2ManagementType.mutationFields))
+
+  val S2MutationType =
+    if (!withAdmin) None
+    else {
+      val mutationTpe = ObjectType[GraphRepository, Any](
+        "Mutation",
+        fields(s2Type.mutationFields ++ mutateManagementFields: _*)
+      )
+
+      Option(mutationTpe)
+    }
 
   val directives = S2Directive.Transform :: BuiltinDirectives
 
   private val s2Schema = Schema(
     S2QueryType,
-    Option(S2MutationType),
+    S2MutationType,
     directives = directives
   )
 

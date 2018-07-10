@@ -273,14 +273,29 @@ class GraphRepository(val graph: S2GraphLike) {
 
   def deleteLabel(args: Args): Try[Label] = {
     val labelName = args.arg[String]("name")
-
     val deleteLabelTry = Management.deleteLabel(labelName)
+
     withLogTryResponse("deleteLabel", deleteLabelTry)
   }
 
-  def services(): List[Service] = Service.findAll()
+  def services(): List[Service] = {
+    Service.findAll()
+  }
 
-  def serviceColumns(): List[ServiceColumn] = ServiceColumn.findAll()
+  def serviceColumns(): List[ServiceColumn] = {
+    val allServices = services().toSet
 
-  def labels() = Label.findAll()
+    ServiceColumn
+      .findAll()
+      .filter(sc => allServices(sc.service))
+  }
+
+  def labels() = {
+    val allServiceColumns = serviceColumns().toSet
+
+    Label
+      .findAll()
+      .filter(l => allServiceColumns(l.srcColumn) || allServiceColumns(l.tgtColumn))
+  }
+
 }

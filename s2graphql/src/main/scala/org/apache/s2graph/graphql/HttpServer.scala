@@ -54,12 +54,14 @@ object Server extends App {
 
   import spray.json.DefaultJsonProtocol._
 
+  val graphQLServer = new GraphQLServer()
+
   val route: Route =
     get {
       getFromResource("assets/graphiql.html")
     } ~ (post & path("updateEdgeFetcher")) {
       entity(as[JsValue]) { body =>
-        GraphQLServer.updateEdgeFetcher(body) match {
+        graphQLServer.updateEdgeFetcher(body) match {
           case Success(_) => complete(StatusCodes.OK -> JsString("Update fetcher finished"))
           case Failure(e) =>
             logger.error("Error on execute", e)
@@ -70,11 +72,11 @@ object Server extends App {
       parameters('operationName.?, 'variables.?) { (operationNameParam, variablesParam) =>
         entity(as[Document]) { document ⇒
           variablesParam.map(parseJson) match {
-            case None ⇒ complete(GraphQLServer.executeGraphQLQuery(document, operationNameParam, JsObject()))
-            case Some(Right(js)) ⇒ complete(GraphQLServer.executeGraphQLQuery(document, operationNameParam, js.asJsObject))
+            case None ⇒ complete(graphQLServer.executeGraphQLQuery(document, operationNameParam, JsObject()))
+            case Some(Right(js)) ⇒ complete(graphQLServer.executeGraphQLQuery(document, operationNameParam, js.asJsObject))
             case Some(Left(e)) ⇒
               logger.error("Error on execute", e)
-              complete(StatusCodes.BadRequest -> GraphQLServer.formatError(e))
+              complete(StatusCodes.BadRequest -> graphQLServer.formatError(e))
           }
         } ~ entity(as[JsValue]) { body ⇒
           val fields = body.asJsObject.fields
@@ -84,13 +86,13 @@ object Server extends App {
           val variables = fields.get("variables").filterNot(_ == JsNull)
 
           query.map(QueryParser.parse(_)) match {
-            case None ⇒ complete(StatusCodes.BadRequest -> GraphQLServer.formatError("No query to execute"))
+            case None ⇒ complete(StatusCodes.BadRequest -> graphQLServer.formatError("No query to execute"))
             case Some(Failure(error)) ⇒
               logger.error("Error on execute", error)
-              complete(StatusCodes.BadRequest -> GraphQLServer.formatError(error))
+              complete(StatusCodes.BadRequest -> graphQLServer.formatError(error))
             case Some(Success(document)) => variables match {
-              case Some(js) ⇒ complete(GraphQLServer.executeGraphQLQuery(document, operationName, js.asJsObject))
-              case None ⇒ complete(GraphQLServer.executeGraphQLQuery(document, operationName, JsObject()))
+              case Some(js) ⇒ complete(graphQLServer.executeGraphQLQuery(document, operationName, js.asJsObject))
+              case None ⇒ complete(graphQLServer.executeGraphQLQuery(document, operationName, JsObject()))
             }
           }
         }
@@ -101,7 +103,9 @@ object Server extends App {
 
   logger.info(s"Starting GraphQL server... $port")
 
-  Http().bindAndHandle(route, "0.0.0.0", port)
+  Http().bindAndHandle(route, "0.0.0.0", port).foreach { binding =>
+    logger.info(s"GraphQL server ready for connect")
+  }
 
   def shutdown(): Unit = {
     logger.info("Terminating...")

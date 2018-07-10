@@ -45,7 +45,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 
-object GraphQLServer {
+class GraphQLServer() {
   val className = Schema.getClass.getName
   val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -58,6 +58,7 @@ object GraphQLServer {
   val config = ConfigFactory.load()
   val s2graph = new S2Graph(config)
   val schemaCacheTTL = Try(config.getInt("schemaCacheTTL")).getOrElse(-1)
+  val withAdmin = Try(config.getBoolean("schemaCacheTTL")).getOrElse(false)
   val s2Repository = new GraphRepository(s2graph)
   val schemaConfig = ConfigFactory.parseMap(Map(
     SafeUpdateCache.MaxSizeKey -> 1, SafeUpdateCache.TtlKey -> schemaCacheTTL
@@ -77,15 +78,24 @@ object GraphQLServer {
     ret
   }
 
+  logger.info(s"schemaCacheTTL: ${schemaCacheTTL}")
+
+  val schemaCacheKey = className + "s2Schema"
+
+  schemaCache.put(schemaCacheKey, createNewSchema(withAdmin))
+
   /**
     * In development mode(schemaCacheTTL = -1),
     * a new schema is created for each request.
     */
-  logger.info(s"schemaCacheTTL: ${schemaCacheTTL}")
 
-  private def createNewSchema(): Schema[GraphRepository, Any] = {
-    val newSchema = new SchemaDef(s2Repository).S2GraphSchema
-    logger.info(s"Schema updated: ${System.currentTimeMillis()}")
+  private def createNewSchema(withAdmin: Boolean): Schema[GraphRepository, Any] = {
+    logger.info(s"Schema update start")
+
+    val ts = System.currentTimeMillis()
+    val newSchema = new SchemaDef(s2Repository, withAdmin).S2GraphSchema
+
+    logger.info(s"Schema updated: ${(System.currentTimeMillis() - ts) / 1000} sec")
 
     newSchema
   }
@@ -115,8 +125,7 @@ object GraphQLServer {
   def executeGraphQLQuery(query: Document, op: Option[String], vars: JsObject)(implicit e: ExecutionContext) = {
     import GraphRepository._
 
-    val cacheKey = className + "s2Schema"
-    val s2schema = schemaCache.withCache(cacheKey, broadcast = false, onEvict = onEvictSchema)(createNewSchema())
+    val s2schema = schemaCache.withCache(schemaCacheKey, broadcast = false, onEvict = onEvictSchema)(createNewSchema(withAdmin))
     val resolver: DeferredResolver[GraphRepository] = DeferredResolver.fetchers(vertexFetcher, edgeFetcher)
 
     val includeGrpaph = vars.fields.get("includeGraph").contains(spray.json.JsBoolean(true))

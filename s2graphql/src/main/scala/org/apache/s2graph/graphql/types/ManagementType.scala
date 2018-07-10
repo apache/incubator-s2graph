@@ -67,7 +67,11 @@ class ManagementType(repo: GraphRepository) {
   import org.apache.s2graph.graphql.bind.Unmarshaller._
   import org.apache.s2graph.graphql.types.StaticTypes._
 
-  lazy val serviceColumnOnServiceWithPropInputObjectFields = repo.services().map { service =>
+  val services = repo.services()
+  val serviceColumns = repo.serviceColumns()
+  val labels = repo.labels()
+
+  lazy val serviceColumnOnServiceWithPropInputObjectFields = services.map { service =>
     InputField(service.serviceName.toValidName, OptionInputType(InputObjectType(
       s"Input_${service.serviceName.toValidName}_ServiceColumn_Props",
       description = "desc here",
@@ -78,7 +82,7 @@ class ManagementType(repo: GraphRepository) {
     )))
   }
 
-  lazy val serviceColumnOnServiceInputObjectFields = repo.services().map { service =>
+  lazy val serviceColumnOnServiceInputObjectFields = services.map { service =>
     InputField(service.serviceName.toValidName, OptionInputType(InputObjectType(
       s"Input_${service.serviceName.toValidName}_ServiceColumn",
       description = "desc here",
@@ -91,15 +95,17 @@ class ManagementType(repo: GraphRepository) {
   def makeServiceColumnEnumTypeOnService(service: Service): EnumType[String] = {
     val columns = service.serviceColumns(false).toList
     EnumType(
-      s"Enum_${service.serviceName}_ServiceColumn",
+      s"Enum_${service.serviceName.toValidName}_ServiceColumn",
       description = Option("desc here"),
-      values = dummyEnum +: columns.map { column =>
-        EnumValue(column.columnName.toValidName, value = column.columnName.toValidName)
-      }
+      values =
+        if (columns.isEmpty) dummyEnum :: Nil
+        else columns.map { column =>
+          EnumValue(column.columnName.toValidName, value = column.columnName)
+        }
     )
   }
 
-  lazy val labelPropsInputFields = repo.labels().map { label =>
+  lazy val labelPropsInputFields = labels.map { label =>
     InputField(label.label.toValidName, OptionInputType(InputObjectType(
       s"Input_${label.label.toValidName}_props",
       description = "desc here",
@@ -134,28 +140,34 @@ class ManagementType(repo: GraphRepository) {
   lazy val ServiceListType = EnumType(
     s"Enum_Service",
     description = Option("desc here"),
-    values =
-      dummyEnum +: repo.services().map { service =>
+    values = {
+      if (services.isEmpty) dummyEnum :: Nil
+      else services.map { service =>
         EnumValue(service.serviceName.toValidName, value = service.serviceName)
       }
+    }
   )
 
   lazy val ServiceColumnListType = EnumType(
     s"Enum_ServiceColumn",
     description = Option("desc here"),
-    values =
-      dummyEnum +: repo.serviceColumns().map { serviceColumn =>
+    values = {
+      if (serviceColumns.isEmpty) dummyEnum :: Nil
+      else serviceColumns.map { serviceColumn =>
         EnumValue(serviceColumn.columnName.toValidName, value = serviceColumn.columnName)
       }
+    }
   )
 
   lazy val EnumLabelsType = EnumType(
     s"Enum_Label",
     description = Option("desc here"),
-    values =
-      dummyEnum +: repo.labels().map { label =>
+    values = {
+      if (labels.isEmpty) dummyEnum :: Nil
+      else labels.map { label =>
         EnumValue(label.label.toValidName, value = label.label)
       }
+    }
   )
 
   lazy val ServiceMutationResponseType = makeMutationResponseType[Service](
@@ -200,19 +212,25 @@ class ManagementType(repo: GraphRepository) {
   val AddPropServiceType = InputObjectType[ServiceColumnParam](
     "Input_Service_ServiceColumn_Props",
     description = "desc",
-    fields = DummyInputField +: serviceColumnOnServiceWithPropInputObjectFields
+    fields =
+      if (serviceColumnOnServiceWithPropInputObjectFields.isEmpty) DummyInputField :: Nil
+      else serviceColumnOnServiceWithPropInputObjectFields
   )
 
   val ServiceColumnSelectType = InputObjectType[ServiceColumnParam](
     "Input_Service_ServiceColumn",
     description = "desc",
-    fields = DummyInputField +: serviceColumnOnServiceInputObjectFields
+    fields =
+      if (serviceColumnOnServiceInputObjectFields.isEmpty) DummyInputField :: Nil
+      else serviceColumnOnServiceInputObjectFields
   )
 
   val InputServiceType = InputObjectType[ServiceColumnParam](
     "Input_Service",
     description = "desc",
-    fields = DummyInputField +: serviceColumnOnServiceInputObjectFields
+    fields =
+      if (serviceColumnOnServiceInputObjectFields.isEmpty) DummyInputField :: Nil
+      else serviceColumnOnServiceInputObjectFields
   )
 
   lazy val servicesField: Field[GraphRepository, Any] = Field(
