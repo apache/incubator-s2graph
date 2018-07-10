@@ -279,7 +279,7 @@ class GraphRepository(val graph: S2GraphLike) {
   }
 
   def services(): List[Service] = {
-    Service.findAll()
+    Service.findAll().distinct
   }
 
   def serviceColumns(): List[ServiceColumn] = {
@@ -288,6 +288,7 @@ class GraphRepository(val graph: S2GraphLike) {
     ServiceColumn
       .findAll()
       .filter(sc => allServices(sc.service))
+      .distinct
   }
 
   def labels() = {
@@ -296,6 +297,6 @@ class GraphRepository(val graph: S2GraphLike) {
     Label
       .findAll()
       .filter(l => allServiceColumns(l.srcColumn) || allServiceColumns(l.tgtColumn))
+      .distinct
   }
-
 }
