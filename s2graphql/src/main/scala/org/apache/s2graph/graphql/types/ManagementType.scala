@@ -67,11 +67,7 @@ class ManagementType(repo: GraphRepository) {
   import org.apache.s2graph.graphql.bind.Unmarshaller._
   import org.apache.s2graph.graphql.types.StaticTypes._
 
-  val services = repo.services()
-  val serviceColumns = repo.serviceColumns()
-  val labels = repo.labels()
-
-  lazy val serviceColumnOnServiceWithPropInputObjectFields = services.map { service =>
+  lazy val serviceColumnOnServiceWithPropInputObjectFields = repo.services.map { service =>
     InputField(service.serviceName.toValidName, OptionInputType(InputObjectType(
       s"Input_${service.serviceName.toValidName}_ServiceColumn_Props",
       description = "desc here",
@@ -82,7 +78,7 @@ class ManagementType(repo: GraphRepository) {
     )))
   }
 
-  lazy val serviceColumnOnServiceInputObjectFields = services.map { service =>
+  lazy val serviceColumnOnServiceInputObjectFields = repo.services.map { service =>
     InputField(service.serviceName.toValidName, OptionInputType(InputObjectType(
       s"Input_${service.serviceName.toValidName}_ServiceColumn",
       description = "desc here",
@@ -93,7 +89,8 @@ class ManagementType(repo: GraphRepository) {
   }
 
   def makeServiceColumnEnumTypeOnService(service: Service): EnumType[String] = {
-    val columns = service.serviceColumns(false).toList
+    val columns = repo.serviceColumnMap(service)
+
     EnumType(
       s"Enum_${service.serviceName.toValidName}_ServiceColumn",
       description = Option("desc here"),
@@ -105,7 +102,7 @@ class ManagementType(repo: GraphRepository) {
     )
   }
 
-  lazy val labelPropsInputFields = labels.map { label =>
+  lazy val labelPropsInputFields = repo.labels.map { label =>
     InputField(label.label.toValidName, OptionInputType(InputObjectType(
       s"Input_${label.label.toValidName}_props",
       description = "desc here",
@@ -120,7 +117,7 @@ class ManagementType(repo: GraphRepository) {
     ObjectTypeDescription("desc here"),
     RenameField("serviceName", "name"),
     AddFields(
-      Field("serviceColumns", ListType(ServiceColumnType), resolve = c => c.value.serviceColumns(false).toList)
+      Field("serviceColumns", ListType(ServiceColumnType), resolve = c => c.value.serviceColumns(true).toList)
     )
   )
 
@@ -141,8 +138,8 @@ class ManagementType(repo: GraphRepository) {
     s"Enum_Service",
     description = Option("desc here"),
     values = {
-      if (services.isEmpty) dummyEnum :: Nil
-      else services.map { service =>
+      if (repo.services.isEmpty) dummyEnum :: Nil
+      else repo.services.map { service =>
         EnumValue(service.serviceName.toValidName, value = service.serviceName)
       }
     }
@@ -152,8 +149,8 @@ class ManagementType(repo: GraphRepository) {
     s"Enum_ServiceColumn",
     description = Option("desc here"),
     values = {
-      if (serviceColumns.isEmpty) dummyEnum :: Nil
-      else serviceColumns.map { serviceColumn =>
+      if (repo.serviceColumns.isEmpty) dummyEnum :: Nil
+      else repo.serviceColumns.map { serviceColumn =>
         EnumValue(serviceColumn.columnName.toValidName, value = serviceColumn.columnName)
       }
     }
@@ -163,8 +160,8 @@ class ManagementType(repo: GraphRepository) {
     s"Enum_Label",
     description = Option("desc here"),
     values = {
-      if (labels.isEmpty) dummyEnum :: Nil
-      else labels.map { label =>
+      if (repo.labels.isEmpty) dummyEnum :: Nil
+      else repo.labels.map { label =>
         EnumValue(label.label.toValidName, value = label.label)
       }
     }
@@ -195,8 +192,8 @@ class ManagementType(repo: GraphRepository) {
     arguments = List(LabelNameArg),
     resolve = { c =>
       c.argOpt[String]("name") match {
-        case Some(name) => c.ctx.labels().filter(_.label == name)
-        case None => c.ctx.labels()
+        case Some(name) => repo.labels.filter(_.label == name)
+        case None => repo.labels
       }
     }
   )
@@ -240,8 +237,8 @@ class ManagementType(repo: GraphRepository) {
     arguments = List(ServiceNameArg),
     resolve = { c =>
       c.argOpt[String]("name") match {
-        case Some(name) => c.ctx.services().filter(_.serviceName.toValidName == name)
-        case None => c.ctx.services()
+        case Some(name) => repo.services.filter(_.serviceName.toValidName == name)
+        case None => repo.services
       }
     }
   )

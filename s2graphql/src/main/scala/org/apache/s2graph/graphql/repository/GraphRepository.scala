@@ -79,17 +79,80 @@ object GraphRepository {
 
     tryObj
   }
+
+  def services(): List[Service] = {
+    Service.findAll().distinct
+  }
+
+  def serviceColumns(): List[ServiceColumn] = {
+    val allServices = services().toSet
+
+    ServiceColumn
+      .findAll()
+      .filter(sc => allServices(sc.service))
+      .distinct
+  }
+
+  def labels() = {
+    val allServiceColumns = serviceColumns().toSet
+
+    Label
+      .findAll()
+      .filter(l => allServiceColumns(l.srcColumn) || allServiceColumns(l.tgtColumn))
+      .distinct
+  }
+
+  def labelIndices() = {
+    LabelIndex.findAll()
+  }
+
+  def labelMetas() = {
+    LabelMeta.findAll()
+  }
+
+  def columnMetas() = {
+    ColumnMeta.findAll()
+  }
 }
 
 class GraphRepository(val graph: S2GraphLike) {
+
   implicit val logger = LoggerFactory.getLogger(this.getClass)
 
   import GraphRepository._
 
+  implicit val ec = graph.ec
+
   val management = graph.management
   val parser = new RequestParser(graph)
 
-  implicit val ec = graph.ec
+  val services = GraphRepository.services()
+  val serviceColumns = GraphRepository.serviceColumns()
+  val columnMetas = GraphRepository.columnMetas()
+
+  val labels = GraphRepository.labels
+  val labelMetas = GraphRepository.labelMetas()
+  val labelIndices = GraphRepository.labelIndices()
+
+  val serviceColumnMap = services.map { s =>
+    s -> serviceColumns.filter(s.id.get == _.serviceId)
+  }.toMap
+
+  val labelMetaMap = labels.map { l =>
+    l -> labelMetas.filter(l.id.get == _.labelId)
+  }.toMap
+
+  val labelIndiceMap = labels.map { l =>
+    l -> labelIndices.filter(l.id.get == _.labelId)
+  }.toMap
+
+  val columnMetaMap = serviceColumns.map { sc =>
+    sc -> columnMetas.filter(sc.id.get == _.columnId)
+  }.toMap
+
+  val columnLabelMap = serviceColumns.map { sc =>
+    sc -> labels.filter(l => l.srcColumn == sc || l.tgtColumn == sc)
+  }.toMap
 
   def toS2EdgeLike(labelName: String, param: AddEdgeParam): S2EdgeLike = {
     graph.toEdge(
@@ -276,27 +339,5 @@ class GraphRepository(val graph: S2GraphLike) {
     val deleteLabelTry = Management.deleteLabel(labelName)
 
     withLogTryResponse("deleteLabel", deleteLabelTry)
-  }
-
-  def services(): List[Service] = {
-    Service.findAll().distinct
-  }
-
-  def serviceColumns(): List[ServiceColumn] = {
-    val allServices = services().toSet
-
-    ServiceColumn
-      .findAll()
-      .filter(sc => allServices(sc.service))
-      .distinct
-  }
-
-  def labels() = {
-    val allServiceColumns = serviceColumns().toSet
-
-    Label
-      .findAll()
-      .filter(l => allServiceColumns(l.srcColumn) || allServiceColumns(l.tgtColumn))
-      .distinct
   }
 }

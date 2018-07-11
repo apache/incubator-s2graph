@@ -166,6 +166,8 @@ object LabelIndex extends SQLSyntaxSupport[LabelIndex] {
       val cacheKey = s"labelId=${labelId}"
       (className + cacheKey -> ls)
     }.toList)
+
+    ls
   }
 }
 

@@ -20,6 +20,9 @@
 package org.apache.s2graph.graphql.types
 
 import org.apache.s2graph.graphql.repository.GraphRepository
+import sangria.schema.ObjectType
+
+import scala.collection.mutable
 
 /**
   * S2Graph GraphQL schema.
@@ -60,5 +63,5 @@ class SchemaDef(g: GraphRepository, withAdmin: Boolean = false) {
     directives = directives
   )
 
-  val S2GraphSchema = s2Schema
+  val schema = s2Schema
 }
