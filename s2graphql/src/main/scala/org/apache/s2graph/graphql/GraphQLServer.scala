@@ -58,7 +58,7 @@ class GraphQLServer() {
   val config = ConfigFactory.load()
   val s2graph = new S2Graph(config)
   val schemaCacheTTL = Try(config.getInt("schemaCacheTTL")).getOrElse(3000)
-  val withAdmin = Try(config.getBoolean("schemaCacheTTL")).getOrElse(false)
+  val enableMutation = Try(config.getBoolean("enableMutation")).getOrElse(false)
 
   val schemaConfig = ConfigFactory.parseMap(Map(
     SafeUpdateCache.MaxSizeKey -> 1, SafeUpdateCache.TtlKey -> schemaCacheTTL
@@ -81,7 +81,7 @@ class GraphQLServer() {
 
   val schemaCacheKey = className + "s2Schema"
 
-  schemaCache.put(schemaCacheKey, createNewSchema(withAdmin))
+  schemaCache.put(schemaCacheKey, createNewSchema(enableMutation))
 
   /**
     * In development mode(schemaCacheTTL = 1),
@@ -127,7 +127,7 @@ class GraphQLServer() {
     import GraphRepository._
 
     val (schemaDef, s2Repository) =
-      schemaCache.withCache(schemaCacheKey, broadcast = false, onEvict = onEvictSchema)(createNewSchema(withAdmin))
+      schemaCache.withCache(schemaCacheKey, broadcast = false, onEvict = onEvictSchema)(createNewSchema(enableMutation))
 
     val resolver: DeferredResolver[GraphRepository] = DeferredResolver.fetchers(vertexFetcher, edgeFetcher)
 
