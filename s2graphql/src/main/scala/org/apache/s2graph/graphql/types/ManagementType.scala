@@ -17,6 +17,7 @@
  * under the License.
  */
 
+
 package org.apache.s2graph.graphql.types
 
 import org.apache.s2graph.core.schema._

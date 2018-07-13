@@ -19,6 +19,8 @@
 
 package org.apache.s2graph.core
 
+import java.util.concurrent.{Executors, TimeUnit}
+
 import com.typesafe.config.impl.ConfigImpl
 import com.typesafe.config._
 import org.apache.s2graph.core.schema.{Label, ServiceColumn}
@@ -47,7 +49,7 @@ object ResourceManager {
   val EdgeMutatorKey = classOf[EdgeMutator].getName
   val VertexMutatorKey = classOf[VertexMutator].getName
 
-  val DefaultMaxSize = 1000
+  val DefaultMaxSize = 10
   val DefaultCacheTTL = -1
   val DefaultConfig = ConfigFactory.parseMap(Map(MaxSizeKey -> DefaultMaxSize, TtlKey -> DefaultCacheTTL).asJava)
 }
@@ -59,6 +61,13 @@ class ResourceManager(graph: S2GraphLike,
 
   import scala.collection.JavaConverters._
 
+  def shutdown(): Unit = {
+    cache.asMap().asScala.foreach { case (_, (obj, _, _)) =>
+      onEvict(obj)
+    }
+  }
+  val scheduler = Executors.newScheduledThreadPool(1)
+  val waitForEvictionInSeconds = 10
   val maxSize = Try(_config.getInt(ResourceManager.MaxSizeKey)).getOrElse(DefaultMaxSize)
   val cacheTTL = Try(_config.getInt(ResourceManager.CacheTTL)).getOrElse(DefaultCacheTTL)
 
@@ -72,18 +81,25 @@ class ResourceManager(graph: S2GraphLike,
     cache.asMap().asScala.toSeq.collect { case (_, (obj: EdgeFetcher, _, _)) => obj }
   }
 
+
   def onEvict(oldValue: AnyRef): Unit = {
     oldValue match {
       case o: Option[_] => o.foreach { case v: AutoCloseable =>
-        v.close()
-        logger.info(s"[${oldValue.getClass.getName}]: $oldValue evicted.")
+        scheduler.schedule(newCloseTask(v), waitForEvictionInSeconds, TimeUnit.SECONDS)
       }
 
       case v: AutoCloseable =>
-        v.close()
-        logger.info(s"[${oldValue.getClass.getName}]: $oldValue evicted.")
-
+        scheduler.schedule(newCloseTask(v), waitForEvictionInSeconds, TimeUnit.SECONDS)
       case _ => logger.info(s"Class does't have close() method ${oldValue.getClass.getName}")
+    }
+  }
+
+  private def newCloseTask(v: AutoCloseable) = {
+    new Runnable {
+      override def run(): Unit = {
+        v.close()
+        logger.info(s"[${v.getClass.getName}]: $v evicted.")
+      }
     }
   }
 
