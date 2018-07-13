@@ -83,6 +83,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-214] - Add REAME for movielens examples
     * [S2GRAPH-216] - Provide a transform directive in the GraphQL query result.
     * [S2GRAPH-221] - Unify configurations for bulk and mutate in S2GraphSink.
+    * [S2GRAPH-230] - ResourceManager onEvict cause segmentation fault with AnnoyModelFetcher 
     * [S2GRAPH-231] - Change the GraphQL type name to a valid string.
 
 ** New Feature
