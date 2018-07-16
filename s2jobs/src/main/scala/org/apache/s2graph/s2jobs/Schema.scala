@@ -22,10 +22,19 @@ package org.apache.s2graph.s2jobs
 import org.apache.spark.sql.types.{LongType, StringType, StructField, StructType}
 
 object Schema {
-  val BulkLoadSchema = StructType(Seq(
-    StructField("timestamp", LongType, false),
-    StructField("operation", StringType, false),
-    StructField("elem", StringType, false),
+  /**
+    * root
+    * |-- timestamp: long (nullable = false)
+    * |-- operation: string (nullable = false)
+    * |-- elem: string (nullable = false)
+    */
+  val CommonFields = Seq(
+    StructField("timestamp", LongType, nullable = false),
+    StructField("operation", StringType, nullable = false),
+    StructField("elem", StringType, nullable = false)
+  )
+
+  val BulkLoadSchema = StructType(CommonFields ++ Seq(
     StructField("from", StringType, false),
     StructField("to", StringType, false),
     StructField("label", StringType, false),
@@ -33,24 +42,63 @@ object Schema {
     StructField("direction", StringType, true)
   ))
 
-  val VertexSchema = StructType(Seq(
-    StructField("timestamp", LongType, false),
-    StructField("operation", StringType, false),
-    StructField("elem", StringType, false),
+  /**
+    * root
+    * |-- timestamp: long (nullable = true)
+    * |-- operation: string (nullable = true)
+    * |-- elem: string (nullable = true)
+    * |-- id: string (nullable = true)
+    * |-- service: string (nullable = true)
+    * |-- column: string (nullable = true)
+    * |-- props: string (nullable = true)
+    */
+  val VertexSchema = StructType(CommonFields ++ Seq(
     StructField("id", StringType, false),
     StructField("service", StringType, false),
     StructField("column", StringType, false),
     StructField("props", StringType, false)
   ))
 
-  val EdgeSchema = StructType(Seq(
-    StructField("timestamp", LongType, false),
-    StructField("operation", StringType, false),
-    StructField("elem", StringType, false),
+
+  /**
+    * root
+    * |-- timestamp: long (nullable = true)
+    * |-- operation: string (nullable = true)
+    * |-- elem: string (nullable = true)
+    * |-- from: string (nullable = true)
+    * |-- to: string (nullable = true)
+    * |-- label: string (nullable = true)
+    * |-- props: string (nullable = true)
+    * |-- direction: string (nullable = true)
+    */
+  val EdgeSchema = StructType(CommonFields ++ Seq(
     StructField("from", StringType, false),
     StructField("to", StringType, false),
     StructField("label", StringType, false),
     StructField("props", StringType, false),
     StructField("direction", StringType, true)
+  ))
+
+  /**
+    * root
+    * |-- timestamp: long (nullable = false)
+    * |-- operation: string (nullable = false)
+    * |-- elem: string (nullable = false)
+    * |-- id: string (nullable = true)
+    * |-- service: string (nullable = true)
+    * |-- column: string (nullable = true)
+    * |-- from: string (nullable = true)
+    * |-- to: string (nullable = true)
+    * |-- label: string (nullable = true)
+    * |-- props: string (nullable = true)
+    */
+  val GraphElementSchema = StructType(CommonFields ++ Seq(
+    StructField("id", StringType, nullable = true),
+    StructField("service", StringType, nullable = true),
+    StructField("column", StringType, nullable = true),
+    StructField("from", StringType, nullable = true),
+    StructField("to", StringType, nullable = true),
+    StructField("label", StringType, nullable = true),
+    StructField("props", StringType, nullable = true)
   ))
 }

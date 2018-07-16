@@ -19,12 +19,13 @@
 
 package org.apache.s2graph.s2jobs.task
 
-import org.apache.s2graph.core.Management
+import org.apache.s2graph.core.{JSONParser, Management}
 import org.apache.s2graph.s2jobs.Schema
 import org.apache.s2graph.s2jobs.loader.{HFileGenerator, SparkBulkLoaderTransformer}
 import org.apache.s2graph.s2jobs.serde.reader.S2GraphCellReader
 import org.apache.s2graph.s2jobs.serde.writer.RowDataFrameWriter
 import org.apache.spark.sql.{DataFrame, SparkSession}
+import play.api.libs.json.{JsObject, Json}
 
 
 /**
@@ -103,8 +104,9 @@ class FileSource(conf:TaskConf) extends Source(conf) {
       case "edgeLog" =>
         ss.read.format("com.databricks.spark.csv").option("delimiter", "\t")
           .schema(BulkLoadSchema).load(paths: _*)
-      case _ => ss.read.format(format).load(paths: _*)
+      case _ =>
         val df = ss.read.format(format).load(paths: _*)
+
         if (columnsOpt.isDefined) df.toDF(columnsOpt.get.split(",").map(_.trim): _*) else df
     }
   }
