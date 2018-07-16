@@ -16,7 +16,7 @@ class S2EdgeDataAggregateProcess(taskConf: TaskConf) extends org.apache.s2graph.
     val aggregateColumns = taskConf.options.get("aggregateColumns").getOrElse("timestamp,to,label,props").split(",").map(col(_))
     taskConf.options.get("parallelism").map(ss.sqlContext.setConf("spark.sql.shuffle.partitions", _))
 
-    val aggregator = new GroupByAgg(maxNumOfEdges)
+    val aggregator = S2EdgeDataAggregate(maxNumOfEdges)
 
     val edges = inputMap(taskConf.inputs.head)
 

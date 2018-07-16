@@ -2,9 +2,12 @@ package org.apache.s2graph.s2jobs.wal.process
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.s2graph.s2jobs.task.TaskConf
-import org.apache.s2graph.s2jobs.wal.WalLog
+import org.apache.s2graph.s2jobs.wal.{BoundedPriorityQueue, WalLog}
 import org.apache.s2graph.s2jobs.wal.udafs._
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+
+import scala.collection.mutable
+import scala.util.Random
 
 class S2EdgeDataAggregateProcessTest extends FunSuite with Matchers with BeforeAndAfterAll with DataFrameSuiteBase {
   val walLogsLs = Seq(
@@ -24,11 +27,12 @@ class S2EdgeDataAggregateProcessTest extends FunSuite with Matchers with BeforeA
   test("test S2EdgeDataAggregateProcess") {
     import spark.sqlContext.implicits._
 
-    val edges = spark.createDataset((0 until 10).flatMap(ith => walLogsLs)).toDF()
+    val edges = spark.createDataset(walLogsLs).toDF()
     val inputMap = Map("edges" -> edges)
     val taskConf = new TaskConf(name = "test", `type` = "agg", inputs = Seq("edges"),
       options = Map("maxNumOfEdges" -> "10",
-        "groupByAggClassName" -> "GroupByAgg"))
+        "runOrderBy" -> "false",
+        "groupByAggClassName" -> "GroupByAggOptimized"))
 
     val job = new S2EdgeDataAggregateProcess(taskConf = taskConf)
     val processed = job.execute(spark, inputMap)
@@ -83,5 +87,37 @@ class S2EdgeDataAggregateProcessTest extends FunSuite with Matchers with BeforeA
     ls.foreach { x =>
       println(x)
     }
+  }
+
+  test("addToTopK test.") {
+    import S2EdgeDataAggregate._
+    val numOfTest = 100
+    val numOfNums = 100
+    val maxNum = 10
+
+    (0 until numOfTest).foreach { testNum =>
+      val maxSize = 1 + Random.nextInt(numOfNums)
+      val pq = new BoundedPriorityQueue[Int](maxSize)
+      val arr = (0 until numOfNums).map(x => Random.nextInt(maxNum))
+      var result: mutable.Seq[Int] = mutable.ArrayBuffer.empty[Int]
+
+      arr.foreach { i =>
+        pq += i
+        result = addToTopK(result, maxSize, i)
+      }
+      result.toSeq.sorted shouldBe pq.toSeq.sorted
+    }
+
+//    val maxSize = 1 + Random.nextInt(numOfNums)
+//    val pq = new BoundedPriorityQueue[Int](maxSize)
+//    val arr = (0 until numOfNums).map(x => Random.nextInt(maxNum))
+//    val result = mutable.ArrayBuffer.empty[Int]
+//    var lastPos = 0
+//    arr.foreach { i =>
+//      pq += i
+//      addToTopK(result, lastPos, maxSize, i)
+//      lastPos = lastPos + 1
+//    }
+//    result.toSeq.sorted shouldBe pq.toSeq.sorted
   }
 }
