@@ -3,6 +3,7 @@ package org.apache.s2graph.s2jobs.utils
 import io.thekraken.grok.api.Grok
 import org.apache.s2graph.s2jobs.Logger
 import org.apache.spark.SparkFiles
+import org.apache.spark.sql.Row
 
 import scala.collection.mutable
 
@@ -40,5 +41,19 @@ object GrokHelper extends Logger {
       .filter(_._2 != null)
       .map{ case (k, v) =>  k -> v.toString}
     if (rstMap.isEmpty) None else Some(rstMap)
+  }
+
+  def grokMatchWithSchema(text:String)(implicit grok:Grok, keys:Array[String]):Option[Row] = {
+    import scala.collection.JavaConverters._
+
+    val m = grok.`match`(text)
+    m.captures()
+
+    val rstMap = m.toMap.asScala.toMap
+    if (rstMap.isEmpty) None
+    else {
+      val l = keys.map { key => rstMap.getOrElse(key, null)}
+      Some(Row.fromSeq(l))
+    }
   }
 }
