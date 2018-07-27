@@ -35,7 +35,7 @@ class Job(ss:SparkSession, jobDesc:JobDescription) extends Serializable with Log
 
       dfMap.put(source.conf.name, df)
     }
-    logger.debug(s"valid source DF set : ${dfMap.keySet}")
+    logger.info(s"valid source DF set : ${dfMap.keySet}")
 
     // process
     var processRst:Seq[(String, DataFrame)] = Nil
@@ -45,7 +45,7 @@ class Job(ss:SparkSession, jobDesc:JobDescription) extends Serializable with Log
 
     } while(processRst.nonEmpty)
 
-    logger.debug(s"valid named DF set : ${dfMap.keySet}")
+    logger.info(s"valid named DF set : ${dfMap.keySet}")
 
     // sinks
     jobDesc.sinks.foreach { s =>
@@ -63,8 +63,7 @@ class Job(ss:SparkSession, jobDesc:JobDescription) extends Serializable with Log
     val dfKeys = dfMap.keySet
 
     processes.filter{ p =>
-        var existAllInput = true
-        p.conf.inputs.foreach { input => existAllInput = dfKeys(input) }
+        val existAllInput = p.conf.inputs.forall{ input => dfKeys(input) }
         !dfKeys(p.conf.name) && existAllInput
     }
     .map { p =>
