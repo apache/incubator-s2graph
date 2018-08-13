@@ -1,28 +1,9 @@
 package org.apache.s2graph.s2jobs.wal.process
 
 import org.apache.s2graph.s2jobs.task.TaskConf
+import org.apache.s2graph.s2jobs.wal.process.params.AggregateParam
 import org.apache.s2graph.s2jobs.wal.{WalLog, WalLogAgg}
 import org.apache.spark.sql._
-
-object AggregateParam {
-  val defaultGroupByKeys = Seq("from")
-  val defaultTopK = 1000
-  val defaultIsArrayType = false
-  val defaultShouldSortTopItems = true
-}
-
-case class AggregateParam(groupByKeys: Option[Seq[String]],
-                          topK: Option[Int],
-                          isArrayType: Option[Boolean],
-                          shouldSortTopItems: Option[Boolean]) {
-
-  import AggregateParam._
-
-  val groupByColumns = groupByKeys.getOrElse(defaultGroupByKeys)
-  val heapSize = topK.getOrElse(defaultTopK)
-  val arrayType = isArrayType.getOrElse(defaultIsArrayType)
-  val sortTopItems = shouldSortTopItems.getOrElse(defaultShouldSortTopItems)
-}
 
 object WalLogAggregateProcess {
   def aggregate(ss: SparkSession,
@@ -64,8 +45,8 @@ class WalLogAggregateProcess(taskConf: TaskConf) extends org.apache.s2graph.s2jo
     val maxNumOfEdges = taskConf.options.get("maxNumOfEdges").map(_.toInt).getOrElse(1000)
     val arrayType = taskConf.options.get("arrayType").map(_.toBoolean).getOrElse(false)
     val sortTopItems = taskConf.options.get("sortTopItems").map(_.toBoolean).getOrElse(false)
-
-    taskConf.options.get("parallelism").foreach(d => ss.sqlContext.setConf("spark.sql.shuffle.partitions", d))
+    val numOfPartitions = taskConf.options.get("numOfPartitions")
+    numOfPartitions.foreach(d => ss.sqlContext.setConf("spark.sql.shuffle.partitions", d))
 
     implicit val ord = WalLog.orderByTsAsc
     val walLogs = taskConf.inputs.tail.foldLeft(inputMap(taskConf.inputs.head)) { case (prev, cur) =>

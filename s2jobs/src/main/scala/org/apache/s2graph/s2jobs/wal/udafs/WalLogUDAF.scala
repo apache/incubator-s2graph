@@ -8,7 +8,7 @@ import org.apache.spark.sql.types._
 import scala.annotation.tailrec
 import scala.collection.mutable
 
-object S2EdgeDataAggregate {
+object WalLogUDAF {
   type Element = (Long, String, String, String)
 
   val emptyRow = new GenericRow(Array(-1L, "empty", "empty", "empty"))
@@ -142,7 +142,7 @@ object S2EdgeDataAggregate {
 
 class GroupByAggOptimized(maxNumOfEdges: Int = 1000) extends UserDefinedAggregateFunction {
 
-  import S2EdgeDataAggregate._
+  import WalLogUDAF._
 
   implicit val ord = rowOrdering
 
@@ -195,7 +195,7 @@ class GroupByAggOptimized(maxNumOfEdges: Int = 1000) extends UserDefinedAggregat
 }
 
 class GroupByAgg(maxNumOfEdges: Int = 1000) extends UserDefinedAggregateFunction {
-  import S2EdgeDataAggregate._
+  import WalLogUDAF._
 
   implicit val ord = rowOrderingDesc
 
@@ -249,7 +249,7 @@ class GroupByAgg(maxNumOfEdges: Int = 1000) extends UserDefinedAggregateFunction
 }
 
 class GroupByArrayAgg(maxNumOfEdges: Int = 1000) extends UserDefinedAggregateFunction {
-  import S2EdgeDataAggregate._
+  import WalLogUDAF._
 
   implicit val ord = rowOrdering
 

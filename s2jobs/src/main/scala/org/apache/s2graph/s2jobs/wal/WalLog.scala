@@ -1,7 +1,7 @@
 package org.apache.s2graph.s2jobs.wal
 
 import org.apache.s2graph.core.JSONParser
-import org.apache.s2graph.s2jobs.wal.process.AggregateParam
+import org.apache.s2graph.s2jobs.wal.process.params.AggregateParam
 import org.apache.s2graph.s2jobs.wal.utils.BoundedPriorityQueue
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{LongType, StringType, StructField, StructType}
@@ -35,6 +35,8 @@ object WalLogAgg {
     WalLogAgg(topItems.head.from, topItems, maxTs, minTs)
   }
 }
+
+case class DimVal(dim: String, value: String)
 
 case class WalLogAgg(from: String,
                      logs: Seq[WalLog],

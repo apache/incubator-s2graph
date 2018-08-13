@@ -31,9 +31,8 @@ class WalLogAggregateProcessTest extends FunSuite with Matchers with BeforeAndAf
     val edges = spark.createDataset(walLogsLs).toDF()
     val inputMap = Map("edges" -> edges)
     val taskConf = new TaskConf(name = "test", `type` = "agg", inputs = Seq("edges"),
-      options = Map("maxNumOfEdges" -> "10",
-        "runOrderBy" -> "false",
-        "groupByAggClassName" -> "GroupByAggOptimized"))
+      options = Map("maxNumOfEdges" -> "10")
+    )
 
     val job = new WalLogAggregateProcess(taskConf = taskConf)
     val processed = job.execute(spark, inputMap)
@@ -48,7 +47,7 @@ class WalLogAggregateProcessTest extends FunSuite with Matchers with BeforeAndAf
     val prev: Array[Int] = Array(3, 2, 1)
     val cur: Array[Int] = Array(4, 2, 2)
 
-    val ls = S2EdgeDataAggregate.mergeTwoSeq(prev, cur, 10)
+    val ls = WalLogUDAF.mergeTwoSeq(prev, cur, 10)
     println(ls.size)
 
     ls.foreach { x =>
@@ -57,7 +56,7 @@ class WalLogAggregateProcessTest extends FunSuite with Matchers with BeforeAndAf
   }
 
   test("addToTopK test.") {
-    import S2EdgeDataAggregate._
+    import WalLogUDAF._
     val numOfTest = 100
     val numOfNums = 100
     val maxNum = 10
