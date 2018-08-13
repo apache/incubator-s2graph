@@ -1,10 +1,16 @@
-package org.apache.s2graph.s2jobs.wal
+package org.apache.s2graph.s2jobs.wal.utils
 
-import scala.collection.generic.Growable
-import scala.collection.JavaConverters._
 import java.util.{PriorityQueue => JPriorityQueue}
 
+import scala.collection.JavaConverters._
+import scala.collection.generic.Growable
 
+/**
+  * copied from org.apache.spark.util.BoundedPriorityQueue since it is package private.
+  * @param maxSize
+  * @param ord
+  * @tparam A
+  */
 class BoundedPriorityQueue[A](maxSize: Int)(implicit ord: Ordering[A])
   extends Iterable[A] with Growable[A] with Serializable {
 

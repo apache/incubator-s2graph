@@ -99,13 +99,20 @@ class FileSource(conf:TaskConf) extends Source(conf) {
     val paths = conf.options("paths").split(",")
     val format = conf.options.getOrElse("format", DEFAULT_FORMAT)
     val columnsOpt = conf.options.get("columns")
+    val readOptions = conf.options.get("read").map { s =>
+      Json.parse(s).as[JsObject].fields.map { case (k, jsValue) =>
+        k -> JSONParser.jsValueToString(jsValue)
+      }.toMap
+    }.getOrElse(Map.empty)
 
     format match {
       case "edgeLog" =>
         ss.read.format("com.databricks.spark.csv").option("delimiter", "\t")
           .schema(BulkLoadSchema).load(paths: _*)
       case _ =>
-        val df = ss.read.format(format).load(paths: _*)
+        val df =
+          if (readOptions.isEmpty) ss.read.format(format).load(paths: _*)
+          else ss.read.options(readOptions).format(format).load(paths: _*)
 
         if (columnsOpt.isDefined) df.toDF(columnsOpt.get.split(",").map(_.trim): _*) else df
     }
