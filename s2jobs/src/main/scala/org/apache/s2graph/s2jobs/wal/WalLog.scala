@@ -1,5 +1,6 @@
 package org.apache.s2graph.s2jobs.wal
 
+import com.google.common.hash.Hashing
 import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.s2jobs.wal.process.params.AggregateParam
 import org.apache.s2graph.s2jobs.wal.utils.BoundedPriorityQueue
@@ -14,6 +15,22 @@ object WalLogAgg {
 
   def apply(walLog: WalLog): WalLogAgg = {
     new WalLogAgg(walLog.from, Seq(walLog), walLog.timestamp, walLog.timestamp)
+  }
+
+  def toFeatureHash(dim: String, value: String): Long = {
+    Hashing.murmur3_128().hashBytes(s"$dim:$value".getBytes("UTF-8")).asLong()
+  }
+
+  def filter(walLogAgg: WalLogAgg, validFeatureHashKeys: Set[Long]) = {
+    val filtered = walLogAgg.logs.map { walLog =>
+      val fields = Json.parse(walLog.props).as[JsObject].fields.filter { case (dim, jsValue) =>
+        validFeatureHashKeys(toFeatureHash(dim, JSONParser.jsValueToString(jsValue)))
+      }
+
+      walLog.copy(props = Json.toJson(fields).as[JsObject].toString)
+    }
+
+    walLogAgg.copy(logs = filtered)
   }
 
   def merge(iter: Iterator[WalLogAgg],

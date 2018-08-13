@@ -1,16 +1,13 @@
 package org.apache.s2graph.s2jobs.wal.process
 
-import com.google.common.hash.Hashing
 import org.apache.s2graph.s2jobs.task.TaskConf
 import org.apache.s2graph.s2jobs.wal.process.params.FeatureIndexParam
 import org.apache.s2graph.s2jobs.wal.transformer._
 import org.apache.s2graph.s2jobs.wal.udfs.WalLogUDF
 import org.apache.s2graph.s2jobs.wal.{DimVal, WalLog}
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-import play.api.libs.json.{JsObject, Json}
 
 import scala.collection.mutable
 
@@ -62,31 +59,6 @@ object FeatureIndexProcess {
       .withColumn("count", col("dim_count._2"))
       .select("dim", "value", "count", "rank")
   }
-
-  def toFeatureHash(dim: String, value: String): Long = {
-    Hashing.murmur3_128().hashBytes(s"$dim:$value".getBytes("UTF-8")).asLong()
-  }
-
-  def collectDistinctFeatureHashes(ss: SparkSession,
-                                   filteredDict: DataFrame): Array[Long] = {
-    import ss.implicits._
-
-    val featureHashUDF = udf((dim: String, value: String) => toFeatureHash(dim, value))
-
-    filteredDict.withColumn("featureHash", featureHashUDF(col("dim"), col("value")))
-      .select("featureHash")
-      .distinct().as[Long].collect()
-  }
-
-  def filterTopKsPerDim(dict: DataFrame,
-                        maxRankPerDim: Broadcast[Map[String, Int]],
-                        defaultMaxRank: Int): DataFrame = {
-    val filterUDF = udf((dim: String, rank: Long) => {
-      rank < maxRankPerDim.value.getOrElse(dim, defaultMaxRank)
-    })
-
-    dict.filter(filterUDF(col("dim"), col("rank")))
-  }
 }
 
 case class FeatureIndexProcess(taskConf: TaskConf) extends org.apache.s2graph.s2jobs.task.Process(taskConf) {
@@ -98,20 +70,11 @@ case class FeatureIndexProcess(taskConf: TaskConf) extends org.apache.s2graph.s2
     val numOfPartitions = taskConf.options.get("numOfPartitions").map(_.toInt)
     val samplePointsPerPartitionHint = taskConf.options.get("samplePointsPerPartitionHint").map(_.toInt)
     val minUserCount = taskConf.options.get("minUserCount").map(_.toLong)
-    val maxRankPerDim = taskConf.options.get("maxRankPerDim").map { s =>
-      val json = Json.parse(s).as[JsObject]
-      json.fieldSet.map { case (key, jsValue) => key -> jsValue.as[Int] }.toMap
-    }
-    val defaultMaxRank = taskConf.options.get("defaultMaxRank").map(_.toInt)
-    val dictPath = taskConf.options.get("dictPath")
 
     numOfPartitions.map { d => ss.sqlContext.setConf("spark.sql.shuffle.partitions", d.toString) }
 
-    //    val maxRankPerDimBCast = ss.sparkContext.broadcast(maxRankPerDim.getOrElse(Map.empty))
-
     val param = FeatureIndexParam(minUserCount = minUserCount, countColumnName = Option(countColumnName),
-      numOfPartitions = numOfPartitions, samplePointsPerPartitionHint = samplePointsPerPartitionHint,
-      maxRankPerDim = maxRankPerDim, defaultMaxRank = defaultMaxRank, dictPath = dictPath
+      numOfPartitions = numOfPartitions, samplePointsPerPartitionHint = samplePointsPerPartitionHint
     )
 
     val edges = taskConf.inputs.tail.foldLeft(inputMap(taskConf.inputs.head)) { case (prev, cur) =>
@@ -129,16 +92,6 @@ case class FeatureIndexProcess(taskConf: TaskConf) extends org.apache.s2graph.s2
     val dict = buildDictionary(ss, rawFeatures, param, dimValColumnName)
 
     dict
-    //TODO: filter topKs per dim, then build valid dimValLs.
-    // then broadcast valid dimValLs to original dataframe, and filter out not valid dimVal.
-
-    //    dictPath.foreach { path => dict.write.mode(SaveMode.Overwrite).parquet(path) }
-    //
-    //    val filteredDict = filterTopKsPerDim(dict, maxRankPerDimBCast, defaultMaxRank.getOrElse(Int.MaxValue))
-    //    val distinctFeatureHashes = collectDistinctFeatureHashes(ss, filteredDict)
-    //    val distinctFeatureHashesBCast = ss.sparkContext.broadcast(distinctFeatureHashes)
-
-    //    filteredDict
   }
 
 
