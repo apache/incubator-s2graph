@@ -1,3 +1,5 @@
 package org.apache.s2graph.s2jobs.wal.transformer
 
-case class DefaultTransformer() extends Transformer
+import org.apache.s2graph.s2jobs.task.TaskConf
+
+case class DefaultTransformer(taskConf: TaskConf) extends Transformer(taskConf)

@@ -3,6 +3,7 @@ package org.apache.s2graph.s2jobs.wal
 import com.google.common.hash.Hashing
 import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.s2jobs.wal.process.params.AggregateParam
+import org.apache.s2graph.s2jobs.wal.transformer.Transformer
 import org.apache.s2graph.s2jobs.wal.utils.BoundedPriorityQueue
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{LongType, StringType, StructField, StructType}
@@ -17,20 +18,10 @@ object WalLogAgg {
     new WalLogAgg(walLog.from, Seq(walLog), walLog.timestamp, walLog.timestamp)
   }
 
+  def toFeatureHash(dimVal: DimVal): Long = toFeatureHash(dimVal.dim, dimVal.value)
+
   def toFeatureHash(dim: String, value: String): Long = {
     Hashing.murmur3_128().hashBytes(s"$dim:$value".getBytes("UTF-8")).asLong()
-  }
-
-  def filter(walLogAgg: WalLogAgg, validFeatureHashKeys: Set[Long]) = {
-    val filtered = walLogAgg.logs.map { walLog =>
-      val fields = Json.parse(walLog.props).as[JsObject].fields.filter { case (dim, jsValue) =>
-        validFeatureHashKeys(toFeatureHash(dim, JSONParser.jsValueToString(jsValue)))
-      }
-
-      walLog.copy(props = Json.toJson(fields).as[JsObject].toString)
-    }
-
-    walLogAgg.copy(logs = filtered)
   }
 
   def merge(iter: Iterator[WalLogAgg],
@@ -50,6 +41,47 @@ object WalLogAgg {
     val topItems = if (param.sortTopItems) heap.toArray.sortBy(-_.timestamp) else heap.toArray
 
     WalLogAgg(topItems.head.from, topItems, maxTs, minTs)
+  }
+
+  def filterProps(walLogAgg: WalLogAgg,
+                  transformers: Seq[Transformer],
+                  validFeatureHashKeys: Set[Long]) = {
+    val filtered = walLogAgg.logs.map { walLog =>
+      val fields = walLog.propsJson.fields.filter { case (propKey, propValue) =>
+        val filtered = transformers.flatMap { transformer =>
+          transformer.toDimValLs(walLog, propKey, JSONParser.jsValueToString(propValue)).filter(dimVal => validFeatureHashKeys(toFeatureHash(dimVal)))
+        }
+        filtered.nonEmpty
+      }
+
+      walLog.copy(props = Json.toJson(fields.toMap).as[JsObject].toString)
+    }
+
+    walLogAgg.copy(logs = filtered)
+  }
+}
+
+object DimValCountRank {
+  def fromRow(row: Row): DimValCountRank = {
+    val dim = row.getAs[String]("dim")
+    val value = row.getAs[String]("value")
+    val count = row.getAs[Long]("count")
+    val rank = row.getAs[Long]("rank")
+
+    new DimValCountRank(DimVal(dim, value), count, rank)
+  }
+}
+
+case class DimValCountRank(dimVal: DimVal, count: Long, rank: Long)
+
+case class DimValCount(dimVal: DimVal, count: Long)
+
+object DimVal {
+  def fromRow(row: Row): DimVal = {
+    val dim = row.getAs[String]("dim")
+    val value = row.getAs[String]("value")
+
+    new DimVal(dim, value)
   }
 }
 
@@ -71,8 +103,8 @@ case class WalLog(timestamp: Long,
   val id = from
   val columnName = label
   val serviceName = to
-
-  lazy val propsKeyValues = Json.parse(props).as[JsObject].fields.map { case (key, jsValue) =>
+  lazy val propsJson = Json.parse(props).as[JsObject]
+  lazy val propsKeyValues = propsJson.fields.map { case (key, jsValue) =>
     key -> JSONParser.jsValueToString(jsValue)
   }
 }

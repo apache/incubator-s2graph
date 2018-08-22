@@ -137,22 +137,16 @@ object WalLogUDF {
     val sorted = rdd.repartitionAndSortWithinPartitions(partitioner)
 
     def rank(idx: Int, iter: Iterator[((K1, K2), V)]) = {
-      val initialK1: K1 = null.asInstanceOf[K1]
-      val initialK2: K2 = null.asInstanceOf[K2]
-      val initialV: V = null.asInstanceOf[V]
-      val zero = List((1L, initialK1, initialK2, initialV))
+      var curOffset = 1L
+      var curK1 = null.asInstanceOf[K1]
 
-      def merge(acc: List[(Long, K1, K2, V)], x: ((K1, K2), V)) =
-        (acc.head, x) match {
-          case ((offset, prevKey1, _, _), ((curKey1: K1, curKey2: K2), curVal: V)) => {
-            val newOffset = if (prevKey1 == curKey1) offset + 1L else 1L
-            (newOffset, curKey1, curKey2, curVal) :: acc
-          }
-        }
-
-      iter.foldLeft(zero)(merge).reverse.drop(1).map { case (offset, key1, key2, value) =>
-        (idx, offset, key1, key2, value)
-      }.toIterator
+      iter.map{ case ((key1, key2), value) =>
+        //        println(s">>>[$idx] curK1: $curK1, curOffset: $curOffset")
+        val newOffset = if (curK1 == key1) curOffset + 1L  else 1L
+        curOffset = newOffset
+        curK1 = key1
+        (idx, newOffset, key1, key2, value)
+      }
     }
 
     def getOffset(idx: Int, iter: Iterator[((K1, K2), V)]) = {

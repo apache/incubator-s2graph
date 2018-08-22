@@ -41,26 +41,18 @@ class WalLogAggregateProcess(taskConf: TaskConf) extends org.apache.s2graph.s2jo
   override def execute(ss: SparkSession, inputMap: Map[String, DataFrame]): DataFrame = {
     import ss.implicits._
 
-    val groupByKeys = taskConf.options.get("groupByKeys").map(_.split(",").filter(_.nonEmpty).toSeq)
-    val maxNumOfEdges = taskConf.options.get("maxNumOfEdges").map(_.toInt).getOrElse(1000)
-    val arrayType = taskConf.options.get("arrayType").map(_.toBoolean).getOrElse(false)
-    val sortTopItems = taskConf.options.get("sortTopItems").map(_.toBoolean).getOrElse(false)
-    val numOfPartitions = taskConf.options.get("numOfPartitions")
-    numOfPartitions.foreach(d => ss.sqlContext.setConf("spark.sql.shuffle.partitions", d))
+    //TODO: Current implementation only expect taskConf.options as Map[String, String].
+    //Once we change taskConf.options as JsObject, then we can simply parse input paramter as following.
+    //implicit val paramReads = Json.reads[AggregateParam]
+    val param = AggregateParam.fromTaskConf(taskConf)
+    param.numOfPartitions.foreach(d => ss.sqlContext.setConf("spark.sql.shuffle.partitions", d.toString))
 
     implicit val ord = WalLog.orderByTsAsc
     val walLogs = taskConf.inputs.tail.foldLeft(inputMap(taskConf.inputs.head)) { case (prev, cur) =>
       prev.union(inputMap(cur))
     }
 
-    //TODO: Current implementation only expect taskConf.options as Map[String, String].
-    //Once we change taskConf.options as JsObject, then we can simply parse input paramter as following.
-    //implicit val paramReads = Json.reads[AggregateParam]
-
-    val param = AggregateParam(groupByKeys, topK = Option(maxNumOfEdges),
-      isArrayType = Option(arrayType), shouldSortTopItems = Option(sortTopItems))
-
-    if (arrayType) aggregate(ss, walLogs.as[WalLogAgg], param)
+    if (param.arrayType) aggregate(ss, walLogs.as[WalLogAgg], param)
     else aggregateRaw(ss, walLogs.as[WalLog], param)
   }
 

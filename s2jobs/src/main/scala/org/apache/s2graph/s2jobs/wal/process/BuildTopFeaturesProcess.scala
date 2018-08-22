@@ -1,17 +1,42 @@
 package org.apache.s2graph.s2jobs.wal.process
 
 import org.apache.s2graph.s2jobs.task.TaskConf
-import org.apache.s2graph.s2jobs.wal.process.params.FeatureIndexParam
+import org.apache.s2graph.s2jobs.wal.WalLogAgg.toFeatureHash
+import org.apache.s2graph.s2jobs.wal.process.params.BuildTopFeaturesParam
 import org.apache.s2graph.s2jobs.wal.transformer._
 import org.apache.s2graph.s2jobs.wal.udfs.WalLogUDF
-import org.apache.s2graph.s2jobs.wal.{DimVal, WalLog}
+import org.apache.s2graph.s2jobs.wal.{DimVal, DimValCount, WalLog, WalLogAgg}
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
+import play.api.libs.json.{JsObject, Json}
 
 import scala.collection.mutable
 
-object FeatureIndexProcess {
+object BuildTopFeaturesProcess {
+  def extractDimValuesWithCount(transformers: Seq[Transformer]) = {
+    udf((rows: Seq[Row]) => {
+      val logs = rows.map(WalLog.fromRow)
+      val dimValCounts = mutable.Map.empty[DimVal, Int]
+
+      logs.foreach { walLog =>
+        walLog.propsKeyValues.foreach { case (propsKey, propsValue) =>
+          transformers.foreach { transformer =>
+            transformer.toDimValLs(walLog, propsKey, propsValue).foreach { dimVal =>
+              val newCount = dimValCounts.getOrElse(dimVal, 0) + 1
+              dimValCounts += (dimVal -> newCount)
+            }
+          }
+        }
+      }
+
+      dimValCounts.toSeq.sortBy(-_._2)map { case (dimVal, count) =>
+        DimValCount(dimVal, count)
+      }
+    })
+  }
+
   def extractDimValues(transformers: Seq[Transformer]) = {
     udf((rows: Seq[Row]) => {
       val logs = rows.map(WalLog.fromRow)
@@ -22,7 +47,9 @@ object FeatureIndexProcess {
       logs.foreach { walLog =>
         walLog.propsKeyValues.foreach { case (propsKey, propsValue) =>
           transformers.foreach { transformer =>
-            transformer.toDimValLs(walLog, propsKey, propsValue).foreach(distinctDimValues += _)
+            transformer.toDimValLs(walLog, propsKey, propsValue).foreach { dimVal =>
+              distinctDimValues += dimVal
+            }
           }
         }
       }
@@ -33,7 +60,7 @@ object FeatureIndexProcess {
 
   def buildDictionary(ss: SparkSession,
                       allDimVals: DataFrame,
-                      param: FeatureIndexParam,
+                      param: BuildTopFeaturesParam,
                       dimValColumnName: String = "dimVal"): DataFrame = {
     import ss.implicits._
 
@@ -61,9 +88,9 @@ object FeatureIndexProcess {
   }
 }
 
-case class FeatureIndexProcess(taskConf: TaskConf) extends org.apache.s2graph.s2jobs.task.Process(taskConf) {
+case class BuildTopFeaturesProcess(taskConf: TaskConf) extends org.apache.s2graph.s2jobs.task.Process(taskConf) {
 
-  import FeatureIndexProcess._
+  import BuildTopFeaturesProcess._
 
   override def execute(ss: SparkSession, inputMap: Map[String, DataFrame]): DataFrame = {
     val countColumnName = taskConf.options.getOrElse("countColumnName", "from")
@@ -73,7 +100,7 @@ case class FeatureIndexProcess(taskConf: TaskConf) extends org.apache.s2graph.s2
 
     numOfPartitions.map { d => ss.sqlContext.setConf("spark.sql.shuffle.partitions", d.toString) }
 
-    val param = FeatureIndexParam(minUserCount = minUserCount, countColumnName = Option(countColumnName),
+    val param = BuildTopFeaturesParam(minUserCount = minUserCount, countColumnName = Option(countColumnName),
       numOfPartitions = numOfPartitions, samplePointsPerPartitionHint = samplePointsPerPartitionHint
     )
 
@@ -82,7 +109,7 @@ case class FeatureIndexProcess(taskConf: TaskConf) extends org.apache.s2graph.s2
     }
 
     //TODO: user expect to inject transformers that transform (WalLog, propertyKey, propertyValue) to Seq[DimVal].
-    val transformers = Seq(DefaultTransformer())
+    val transformers = TaskConf.parseTransformers(taskConf)
     val dimValExtractUDF = extractDimValues(transformers)
     val dimValColumnName = "dimVal"
 
