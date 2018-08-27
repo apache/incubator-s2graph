@@ -85,6 +85,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-221] - Unify configurations for bulk and mutate in S2GraphSink.
     * [S2GRAPH-230] - ResourceManager onEvict cause segmentation fault with AnnoyModelFetcher 
     * [S2GRAPH-231] - Change the GraphQL type name to a valid string.
+    * [S2GRAPH-232] - Elimination of inefficiency due to duplication in GraphQL schema generation.
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.
