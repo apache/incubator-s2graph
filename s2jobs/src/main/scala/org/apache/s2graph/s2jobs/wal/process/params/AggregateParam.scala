@@ -14,12 +14,14 @@ object AggregateParam {
     val arrayType = taskConf.options.get("arrayType").map(_.toBoolean).getOrElse(defaultIsArrayType)
     val sortTopItems = taskConf.options.get("sortTopItems").map(_.toBoolean).getOrElse(defaultShouldSortTopItems)
     val numOfPartitions = taskConf.options.get("numOfPartitions").map(_.toInt)
+    val validTimestampDuration = taskConf.options.get("validTimestampDuration").map(_.toLong).getOrElse(Long.MaxValue)
 
     new AggregateParam(groupByKeys = groupByKeys,
       topK = Option(maxNumOfEdges),
       isArrayType = Option(arrayType),
       shouldSortTopItems = Option(sortTopItems),
-      numOfPartitions = numOfPartitions
+      numOfPartitions = numOfPartitions,
+      validTimestampDuration = Option(validTimestampDuration)
     )
   }
 }
@@ -28,7 +30,8 @@ case class AggregateParam(groupByKeys: Option[Seq[String]],
                           topK: Option[Int],
                           isArrayType: Option[Boolean],
                           shouldSortTopItems: Option[Boolean],
-                          numOfPartitions: Option[Int]) {
+                          numOfPartitions: Option[Int],
+                          validTimestampDuration: Option[Long]) {
 
   import AggregateParam._
 

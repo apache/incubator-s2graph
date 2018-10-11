@@ -63,8 +63,7 @@ class Job(ss:SparkSession, jobDesc:JobDescription) extends Serializable with Log
     val dfKeys = dfMap.keySet
 
     processes.filter{ p =>
-        var existAllInput = true
-        p.conf.inputs.foreach { input => existAllInput = dfKeys(input) }
+        val existAllInput = p.conf.inputs.forall { input => dfKeys(input) }
         !dfKeys(p.conf.name) && existAllInput
     }
     .map { p =>

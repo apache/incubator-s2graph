@@ -1,7 +1,7 @@
 package org.apache.s2graph.s2jobs.wal
 
 import com.google.common.hash.Hashing
-import org.apache.s2graph.core.JSONParser
+import org.apache.s2graph.core.{GraphUtil, JSONParser}
 import org.apache.s2graph.s2jobs.wal.process.params.AggregateParam
 import org.apache.s2graph.s2jobs.wal.transformer.Transformer
 import org.apache.s2graph.s2jobs.wal.utils.BoundedPriorityQueue
@@ -12,10 +12,18 @@ import play.api.libs.json.{JsObject, Json}
 import scala.util.Try
 
 object WalLogAgg {
-  val outputColumns = Seq("from", "logs", "maxTs", "minTs")
+  val outputColumns = Seq("from", "vertices", "edges")
+
+  def isEdge(walLog: WalLog): Boolean = {
+    walLog.elem == "edge" || walLog.elem == "e"
+  }
 
   def apply(walLog: WalLog): WalLogAgg = {
-    new WalLogAgg(walLog.from, Seq(walLog), walLog.timestamp, walLog.timestamp)
+    val (vertices, edges) =
+      if (isEdge(walLog)) (Nil, Seq(walLog))
+      else (Seq(walLog), Nil)
+
+    new WalLogAgg(walLog.from, vertices, edges)
   }
 
   def toFeatureHash(dimVal: DimVal): Long = toFeatureHash(dimVal.dim, dimVal.value)
@@ -24,29 +32,43 @@ object WalLogAgg {
     Hashing.murmur3_128().hashBytes(s"$dim:$value".getBytes("UTF-8")).asLong()
   }
 
-  def merge(iter: Iterator[WalLogAgg],
-            param: AggregateParam)(implicit ord: Ordering[WalLog]) = {
-    val heap = new BoundedPriorityQueue[WalLog](param.heapSize)
-    var minTs = Long.MaxValue
-    var maxTs = Long.MinValue
+  private def addToHeap(iter: Seq[WalLog],
+                        heap: BoundedPriorityQueue[WalLog],
+                        validTimestampDuration: Option[Long]): Unit = {
+    val now = System.currentTimeMillis()
 
-    iter.foreach { walLogAgg =>
-      minTs = Math.min(walLogAgg.minTs, minTs)
-      maxTs = Math.max(walLogAgg.maxTs, maxTs)
+    iter.foreach { walLog =>
+      val ts = walLog.timestamp
+      val isValid = validTimestampDuration.map(d => now - ts < d).getOrElse(true)
 
-      walLogAgg.logs.foreach { walLog =>
+      if (isValid) {
         heap += walLog
       }
     }
-    val topItems = if (param.sortTopItems) heap.toArray.sortBy(-_.timestamp) else heap.toArray
-
-    WalLogAgg(topItems.head.from, topItems, maxTs, minTs)
   }
 
-  def filterProps(walLogAgg: WalLogAgg,
-                  transformers: Seq[Transformer],
-                  validFeatureHashKeys: Set[Long]) = {
-    val filtered = walLogAgg.logs.map { walLog =>
+  def merge(iter: Iterator[WalLogAgg],
+            param: AggregateParam)(implicit ord: Ordering[WalLog]): Option[WalLogAgg] = {
+    val edgeHeap = new BoundedPriorityQueue[WalLog](param.heapSize)
+    val vertexHeap = new BoundedPriorityQueue[WalLog](param.heapSize)
+
+    val validTimestampDuration = param.validTimestampDuration
+
+    iter.foreach { walLogAgg =>
+      addToHeap(walLogAgg.vertices, vertexHeap, validTimestampDuration)
+      addToHeap(walLogAgg.edges, edgeHeap, validTimestampDuration)
+    }
+
+    val topVertices = if (param.sortTopItems) vertexHeap.toArray.sortBy(-_.timestamp) else vertexHeap.toArray
+    val topEdges = if (param.sortTopItems) edgeHeap.toArray.sortBy(-_.timestamp) else edgeHeap.toArray
+
+    topEdges.headOption.map(head => WalLogAgg(head.from, topVertices, topEdges))
+  }
+
+  private def filterPropsInner(walLogs: Seq[WalLog],
+                          transformers: Seq[Transformer],
+                          validFeatureHashKeys: Set[Long]): Seq[WalLog] = {
+    walLogs.map { walLog =>
       val fields = walLog.propsJson.fields.filter { case (propKey, propValue) =>
         val filtered = transformers.flatMap { transformer =>
           transformer.toDimValLs(walLog, propKey, JSONParser.jsValueToString(propValue)).filter(dimVal => validFeatureHashKeys(toFeatureHash(dimVal)))
@@ -56,8 +78,15 @@ object WalLogAgg {
 
       walLog.copy(props = Json.toJson(fields.toMap).as[JsObject].toString)
     }
+  }
 
-    walLogAgg.copy(logs = filtered)
+  def filterProps(walLogAgg: WalLogAgg,
+                        transformers: Seq[Transformer],
+                        validFeatureHashKeys: Set[Long]) = {
+    val filteredVertices = filterPropsInner(walLogAgg.vertices, transformers, validFeatureHashKeys)
+    val filteredEdges = filterPropsInner(walLogAgg.edges, transformers, validFeatureHashKeys)
+
+    walLogAgg.copy(vertices = filteredVertices, edges = filteredEdges)
   }
 }
 
@@ -88,9 +117,8 @@ object DimVal {
 case class DimVal(dim: String, value: String)
 
 case class WalLogAgg(from: String,
-                     logs: Seq[WalLog],
-                     maxTs: Long,
-                     minTs: Long)
+                     vertices: Seq[WalLog],
+                     edges: Seq[WalLog])
 
 case class WalLog(timestamp: Long,
                   operation: String,

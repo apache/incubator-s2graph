@@ -10,7 +10,7 @@ object WalLogAggregateProcess {
                 dataset: Dataset[WalLogAgg],
                 aggregateParam: AggregateParam)(implicit ord: Ordering[WalLog]) = {
     import ss.implicits._
-    dataset.groupByKey(_.from).mapGroups { case (_, iter) =>
+    dataset.groupByKey(_.from).flatMapGroups { case (_, iter) =>
       WalLogAgg.merge(iter, aggregateParam)
     }.toDF(WalLogAgg.outputColumns: _*)
   }
@@ -20,7 +20,7 @@ object WalLogAggregateProcess {
                    aggregateParam: AggregateParam)(implicit ord: Ordering[WalLog]): DataFrame = {
     import ss.implicits._
 
-    dataset.groupByKey(walLog => walLog.from).mapGroups { case (key, iter) =>
+    dataset.groupByKey(walLog => walLog.from).flatMapGroups { case (key, iter) =>
       WalLogAgg.merge(iter.map(WalLogAgg(_)), aggregateParam)
     }.toDF(WalLogAgg.outputColumns: _*)
   }
