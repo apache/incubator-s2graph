@@ -26,7 +26,7 @@ class ProcessTest extends FunSuite with DataFrameSuiteBase {
 
   test("SqlProcess execute sql") {
     import spark.implicits._
-
+    
     val inputDF = Seq(
       ("a", "b", "friend"),
       ("a", "c", "friend"),

@@ -48,21 +48,26 @@ object WalLogAgg {
   }
 
   def merge(iter: Iterator[WalLogAgg],
-            param: AggregateParam)(implicit ord: Ordering[WalLog]): Option[WalLogAgg] = {
-    val edgeHeap = new BoundedPriorityQueue[WalLog](param.heapSize)
-    val vertexHeap = new BoundedPriorityQueue[WalLog](param.heapSize)
-
-    val validTimestampDuration = param.validTimestampDuration
+            heapSize: Int,
+            validTimestampDuration: Option[Long],
+            sortTopItems: Boolean)(implicit ord: Ordering[WalLog]): Option[WalLogAgg] = {
+    val edgeHeap = new BoundedPriorityQueue[WalLog](heapSize)
+    val vertexHeap = new BoundedPriorityQueue[WalLog](heapSize)
 
     iter.foreach { walLogAgg =>
       addToHeap(walLogAgg.vertices, vertexHeap, validTimestampDuration)
       addToHeap(walLogAgg.edges, edgeHeap, validTimestampDuration)
     }
 
-    val topVertices = if (param.sortTopItems) vertexHeap.toArray.sortBy(-_.timestamp) else vertexHeap.toArray
-    val topEdges = if (param.sortTopItems) edgeHeap.toArray.sortBy(-_.timestamp) else edgeHeap.toArray
+    val topVertices = if (sortTopItems) vertexHeap.toArray.sortBy(-_.timestamp) else vertexHeap.toArray
+    val topEdges = if (sortTopItems) edgeHeap.toArray.sortBy(-_.timestamp) else edgeHeap.toArray
 
     topEdges.headOption.map(head => WalLogAgg(head.from, topVertices, topEdges))
+  }
+
+  def merge(iter: Iterator[WalLogAgg],
+            param: AggregateParam)(implicit ord: Ordering[WalLog]): Option[WalLogAgg] = {
+    merge(iter, param.heapSize, param.validTimestampDuration, param.sortTopItems)
   }
 
   private def filterPropsInner(walLogs: Seq[WalLog],
