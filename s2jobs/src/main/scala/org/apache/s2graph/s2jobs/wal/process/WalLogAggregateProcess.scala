@@ -21,7 +21,7 @@ object WalLogAggregateProcess {
     import ss.implicits._
 
     dataset.groupByKey(walLog => walLog.from).flatMapGroups { case (key, iter) =>
-      WalLogAgg.merge(iter.map(WalLogAgg(_)), aggregateParam)
+      WalLogAgg.mergeWalLogs(iter, aggregateParam)
     }.toDF(WalLogAgg.outputColumns: _*)
   }
 }

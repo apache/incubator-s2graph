@@ -32,43 +32,76 @@ object WalLogAgg {
     Hashing.murmur3_128().hashBytes(s"$dim:$value".getBytes("UTF-8")).asLong()
   }
 
-  private def addToHeap(iter: Seq[WalLog],
+  private def addToHeap(walLog: WalLog,
                         heap: BoundedPriorityQueue[WalLog],
+                        now: Long,
                         validTimestampDuration: Option[Long]): Unit = {
-    val now = System.currentTimeMillis()
+    val ts = walLog.timestamp
+    val isValid = validTimestampDuration.map(d => now - ts < d).getOrElse(true)
 
-    iter.foreach { walLog =>
-      val ts = walLog.timestamp
-      val isValid = validTimestampDuration.map(d => now - ts < d).getOrElse(true)
-
-      if (isValid) {
-        heap += walLog
-      }
+    if (isValid) {
+      heap += walLog
     }
   }
 
-  def merge(iter: Iterator[WalLogAgg],
-            heapSize: Int,
-            validTimestampDuration: Option[Long],
-            sortTopItems: Boolean)(implicit ord: Ordering[WalLog]): Option[WalLogAgg] = {
-    val edgeHeap = new BoundedPriorityQueue[WalLog](heapSize)
-    val vertexHeap = new BoundedPriorityQueue[WalLog](heapSize)
+  private def addToHeap(iter: Seq[WalLog],
+                        heap: BoundedPriorityQueue[WalLog],
+                        now: Long,
+                        validTimestampDuration: Option[Long]): Unit = {
+    iter.foreach(walLog => addToHeap(walLog, heap, now, validTimestampDuration))
+  }
 
-    iter.foreach { walLogAgg =>
-      addToHeap(walLogAgg.vertices, vertexHeap, validTimestampDuration)
-      addToHeap(walLogAgg.edges, edgeHeap, validTimestampDuration)
-    }
-
+  private def toWalLogAgg(edgeHeap: BoundedPriorityQueue[WalLog],
+                          vertexHeap: BoundedPriorityQueue[WalLog],
+                          sortTopItems: Boolean): Option[WalLogAgg] = {
     val topVertices = if (sortTopItems) vertexHeap.toArray.sortBy(-_.timestamp) else vertexHeap.toArray
     val topEdges = if (sortTopItems) edgeHeap.toArray.sortBy(-_.timestamp) else edgeHeap.toArray
 
     topEdges.headOption.map(head => WalLogAgg(head.from, topVertices, topEdges))
   }
 
+  def mergeWalLogs(iter: Iterator[WalLog],
+                   heapSize: Int,
+                   now: Long,
+                   validTimestampDuration: Option[Long],
+                   sortTopItems: Boolean)(implicit ord: Ordering[WalLog]): Option[WalLogAgg] = {
+    val edgeHeap = new BoundedPriorityQueue[WalLog](heapSize)
+    val vertexHeap = new BoundedPriorityQueue[WalLog](heapSize)
+
+    iter.foreach { walLog =>
+      if (walLog.isVertex) addToHeap(walLog, vertexHeap, now, validTimestampDuration)
+      else addToHeap(walLog, edgeHeap, now, validTimestampDuration)
+    }
+
+    toWalLogAgg(edgeHeap, vertexHeap, sortTopItems)
+  }
+
+  def merge(iter: Iterator[WalLogAgg],
+            heapSize: Int,
+            now: Long,
+            validTimestampDuration: Option[Long],
+            sortTopItems: Boolean)(implicit ord: Ordering[WalLog]): Option[WalLogAgg] = {
+    val edgeHeap = new BoundedPriorityQueue[WalLog](heapSize)
+    val vertexHeap = new BoundedPriorityQueue[WalLog](heapSize)
+
+    iter.foreach { walLogAgg =>
+      addToHeap(walLogAgg.vertices, vertexHeap, now, validTimestampDuration)
+      addToHeap(walLogAgg.edges, edgeHeap, now, validTimestampDuration)
+    }
+
+    toWalLogAgg(edgeHeap, vertexHeap, sortTopItems)
+  }
+
+  def mergeWalLogs(iter: Iterator[WalLog],
+                   param: AggregateParam)(implicit ord: Ordering[WalLog]): Option[WalLogAgg] = {
+    mergeWalLogs(iter, param.heapSize, param.now, param.validTimestampDuration, param.sortTopItems)
+  }
+
   def merge(iter: Iterator[WalLogAgg],
             param: AggregateParam)(implicit ord: Ordering[WalLog]): Option[WalLogAgg] = {
-    merge(iter, param.heapSize, param.validTimestampDuration, param.sortTopItems)
+    merge(iter, param.heapSize, param.now, param.validTimestampDuration, param.sortTopItems)
   }
+
 
   private def filterPropsInner(walLogs: Seq[WalLog],
                           transformers: Seq[Transformer],
@@ -133,6 +166,7 @@ case class WalLog(timestamp: Long,
                   service: String,
                   label: String,
                   props: String) {
+  val isVertex = elem == "v" || elem == "vertex"
   val id = from
   val columnName = label
   val serviceName = to
@@ -169,4 +203,6 @@ object WalLog {
 
     WalLog(timestamp, operation, elem, from, to, service, label, props)
   }
+
+
 }

@@ -15,13 +15,15 @@ object AggregateParam {
     val sortTopItems = taskConf.options.get("sortTopItems").map(_.toBoolean).getOrElse(defaultShouldSortTopItems)
     val numOfPartitions = taskConf.options.get("numOfPartitions").map(_.toInt)
     val validTimestampDuration = taskConf.options.get("validTimestampDuration").map(_.toLong).getOrElse(Long.MaxValue)
+    val nowOpt = taskConf.options.get("now").map(_.toLong)
 
     new AggregateParam(groupByKeys = groupByKeys,
       topK = Option(maxNumOfEdges),
       isArrayType = Option(arrayType),
       shouldSortTopItems = Option(sortTopItems),
       numOfPartitions = numOfPartitions,
-      validTimestampDuration = Option(validTimestampDuration)
+      validTimestampDuration = Option(validTimestampDuration),
+      nowOpt = nowOpt
     )
   }
 }
@@ -31,7 +33,8 @@ case class AggregateParam(groupByKeys: Option[Seq[String]],
                           isArrayType: Option[Boolean],
                           shouldSortTopItems: Option[Boolean],
                           numOfPartitions: Option[Int],
-                          validTimestampDuration: Option[Long]) {
+                          validTimestampDuration: Option[Long],
+                          nowOpt: Option[Long]) {
 
   import AggregateParam._
 
@@ -39,4 +42,5 @@ case class AggregateParam(groupByKeys: Option[Seq[String]],
   val heapSize = topK.getOrElse(defaultTopK)
   val arrayType = isArrayType.getOrElse(defaultIsArrayType)
   val sortTopItems = shouldSortTopItems.getOrElse(defaultShouldSortTopItems)
+  val now = nowOpt.getOrElse(System.currentTimeMillis())
 }
