@@ -1,3 +1,4 @@
+#!/usr/bin/env sh
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -13,22 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-language: scala
-
-env:
-  - HBASE_VERSION=1.4.8
-
-cache:
-  directories:
-  - $HOME/hbase-$HBASE_VERSION
-  - $HOME/.sbt
-  - $HOME/.m2/repository
-  - $HOME/.ivy2
-
-scala:
-  - 2.11.8
-
-jdk:
-  - oraclejdk8
-
-sbt_args: -J-Xmx4G -J-Xms1G -J-Xss1M
+#set -xe
+#
+#if [ ! -d "$HOME/hbase-$HBASE_VERSION/bin" ]; then
+#  cd $HOME && wget -q -O - http://mirror.apache-kr.org/hbase/$HBASE_VERSION/hbase-$HBASE_VERSION-bin.tar.gz | tar xz
+#fi

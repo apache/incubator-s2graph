@@ -53,7 +53,7 @@ object FieldResolver {
     val vertex = c.value.asInstanceOf[S2VertexLike]
 
     val dir = c.arg[String]("direction")
-    val offset = c.arg[Int]("offset") + 1 // +1 for skip degree edge: currently not support
+    val offset = c.arg[Int]("offset") // +1 for skip degree edge: currently not support
     val limit = c.arg[Int]("limit")
     val whereClauseOpt = c.argOpt[String]("filter")
     val where = c.ctx.parser.extractWhere(label, whereClauseOpt)

@@ -297,7 +297,7 @@ object AsynchbaseStorage {
         get.setMaxTimestamp(maxTs)
         get.setTimeout(queryParam.rpcTimeout)
 
-        val pagination = new ColumnPaginationFilter(queryParam.limit, queryParam.offset)
+        val pagination = new ColumnPaginationFilter(queryParam.innerLimit, queryParam.innerOffset)
         val columnRangeFilterOpt = queryParam.intervalOpt.map { interval =>
           new ColumnRangeFilter(intervalMaxBytes, true, intervalMinBytes, true)
         }

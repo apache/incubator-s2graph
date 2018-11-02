@@ -193,14 +193,14 @@ class GraphRepository(val graph: S2GraphLike) {
 
   def getEdges(vertices: Seq[S2VertexLike], queryParam: QueryParam): Future[Seq[S2EdgeLike]] = {
     val step = Step(Seq(queryParam))
-    val q = Query(vertices, steps = Vector(step))
+    val q = Query(vertices, steps = Vector(step), QueryOption(returnDegree = false))
 
     graph.getEdges(q).map(_.edgeWithScores.map(_.edge))
   }
 
   def getEdges(vertex: S2VertexLike, queryParam: QueryParam): Future[Seq[S2EdgeLike]] = {
     val step = Step(Seq(queryParam))
-    val q = Query(Seq(vertex), steps = Vector(step))
+    val q = Query(Seq(vertex), steps = Vector(step), QueryOption(returnDegree = false))
 
     graph.getEdges(q).map(_.edgeWithScores.map(_.edge))
   }
