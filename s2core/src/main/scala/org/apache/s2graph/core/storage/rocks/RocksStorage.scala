@@ -53,6 +53,7 @@ object RocksStorage {
   val ReadOnlyKey = "rocks.storage.read.only"
   val VertexPostfix = "vertex"
   val EdgePostfix = "edge"
+  val DefaultFilePath = "./rocks"
 
   val dbPool = CacheBuilder.newBuilder()
     .concurrencyLevel(8)
@@ -82,10 +83,10 @@ object RocksStorage {
   def configKey(config: Config): Long =
     Hashing.murmur3_128().hashBytes(config.toString.getBytes("UTF-8")).asLong()
 
-  def getFilePath(config: Config): String = config.getString(FilePathKey)
+  def getFilePath(config: Config): String = Try { config.getString(FilePathKey) }.getOrElse(DefaultFilePath)
 
   def getOrElseUpdate(config: Config): (RocksDB, RocksDB) = {
-    val path = config.getString(FilePathKey)
+    val path = Try { config.getString(FilePathKey) }.getOrElse(DefaultFilePath)
     val storageMode = Try { config.getString(StorageModeKey) }.getOrElse("test")
     val ttl = Try { config.getInt(TtlKey) }.getOrElse(-1)
     val readOnly = Try { config.getBoolean(ReadOnlyKey) } getOrElse(false)

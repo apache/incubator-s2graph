@@ -65,7 +65,7 @@ trait BaseFetcherTest extends FunSuite with Matchers with BeforeAndAfterAll {
                       options: Option[String]): (Service, ServiceColumn, Label) = {
     val service = management.createService(serviceName, "localhost", "s2graph_htable", -1, None).get
     val serviceColumn =
-      management.createServiceColumn(serviceName, columnName, "string", Nil)
+      management.createServiceColumn(serviceName, columnName, "string", Seq(Prop("name", "-", "string")))
 
     Label.findByName(labelName, useCache = false).foreach { label =>
       label.labelMetaSet.foreach { lm =>

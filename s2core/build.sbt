@@ -58,7 +58,12 @@ libraryDependencies ++= Seq(
   "org.scala-lang.modules" %% "scala-pickling" % "0.10.1",
   "net.pishen" %% "annoy4s" % annoy4sVersion,
   "org.tensorflow" % "tensorflow" % tensorflowVersion,
-  "io.reactivex" %% "rxscala" % "0.26.5"
+  "io.reactivex" %% "rxscala" % "0.26.5",
+  "com.google.appengine" % "appengine-api-1.0-sdk" % "1.9.67" excludeLogging(),
+  "com.google.appengine" % "appengine-api-stubs" % "1.9.67" % Test,
+  "com.google.appengine" % "appengine-api-labs" % "1.9.67" % Test,
+  "com.google.appengine" % "appengine-tools-sdk" % "1.9.67" % Test,
+  "com.google.appengine" % "appengine-testing" % "1.9.67" % Test
 )
 
 libraryDependencies := {
