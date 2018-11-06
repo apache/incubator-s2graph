@@ -28,7 +28,8 @@ libraryDependencies ++= Seq(
   "com.typesafe" % "config" % "1.2.1",
   "com.typesafe.play" %% "play-json" % playVersion,
   "com.typesafe.akka" %% "akka-actor" % "2.3.4",
-  "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
+//  "com.google.guava" % "guava" % "12.0.1" force(), // use this old version of guava to avoid incompatibility
+  "com.google.guava" % "guava" % "19.0" force(),
   "org.apache.hbase" % "hbase-client" % hbaseVersion excludeLogging(),
   "org.apache.hbase" % "hbase-common" % hbaseVersion excludeLogging(),
   "org.apache.hbase" % "hbase-server" % hbaseVersion excludeLogging() exclude("com.google.protobuf", "protobuf*"),
@@ -59,11 +60,7 @@ libraryDependencies ++= Seq(
   "net.pishen" %% "annoy4s" % annoy4sVersion,
   "org.tensorflow" % "tensorflow" % tensorflowVersion,
   "io.reactivex" %% "rxscala" % "0.26.5",
-  "com.google.appengine" % "appengine-api-1.0-sdk" % "1.9.67" excludeLogging(),
-  "com.google.appengine" % "appengine-api-stubs" % "1.9.67" % Test,
-  "com.google.appengine" % "appengine-api-labs" % "1.9.67" % Test,
-  "com.google.appengine" % "appengine-tools-sdk" % "1.9.67" % Test,
-  "com.google.appengine" % "appengine-testing" % "1.9.67" % Test
+  "com.spotify" % "async-datastore-client" % "3.0.2" excludeLogging() exclude("com.google.guava", "guava*")
 )
 
 libraryDependencies := {

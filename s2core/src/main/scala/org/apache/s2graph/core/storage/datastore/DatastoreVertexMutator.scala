@@ -3,39 +3,16 @@ package org.apache.s2graph.core.storage.datastore
 
 import java.util.function.{BiConsumer, Consumer}
 
-import com.google.appengine.api.datastore._
+import com.spotify.asyncdatastoreclient._
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage.MutateResponse
-import org.apache.s2graph.core.types.{InnerVal, VertexId}
+import org.apache.s2graph.core.types.VertexId
 import org.apache.tinkerpop.gremlin.structure.VertexProperty
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.{ExecutionContext, Future}
 
 object DatastoreVertexMutator {
-  val kind = "vertex"
-
-  def toKeys(vertexIds: Seq[VertexId]): Seq[Key] = {
-    vertexIds.map(toKey)
-  }
-
-  def toKey(vertexId: VertexId): Key = {
-    KeyFactory.createKey(kind, vertexId.toString())
-  }
-
-  def toEntity(vertex: S2VertexLike, key: Key): Entity = {
-    val entity = new Entity(key)
-
-    vertex.properties().forEachRemaining(new Consumer[VertexProperty[_]] {
-      override def accept(vp: VertexProperty[_]): Unit = {
-        val s2vp = vp.asInstanceOf[S2VertexProperty[_]]
-        entity.setProperty(s2vp.key, s2vp.value)
-      }
-    })
-
-    entity
-  }
-
   def fromEntity(graph: S2GraphLike,
                  entity: Entity): S2VertexLike = {
     val vertexId = VertexId.fromString(entity.getKey.getName)
@@ -51,50 +28,57 @@ object DatastoreVertexMutator {
     v
   }
 
-  def mergeEntity(cur: Entity, prev: Entity): Unit = {
-    prev.getProperties.forEach(new BiConsumer[String, AnyRef] {
-      override def accept(name: String, v: AnyRef): Unit = {
-        if (!cur.hasProperty(name)) {
-          cur.setProperty(name, v)
-        }
-      }
-    })
-  }
 }
-class DatastoreVertexMutator(dsService: DatastoreService) extends VertexMutator {
+
+class DatastoreVertexMutator(graph: S2GraphLike,
+                             dsService: Datastore) extends VertexMutator {
+
+  import DatastoreVertexFetcher._
   import DatastoreVertexMutator._
+  // pool of datastores and lookup by zkQuorum?
 
   override def mutateVertex(zkQuorum: String,
                             vertex: S2VertexLike,
                             withWait: Boolean)(implicit ec: ExecutionContext): Future[MutateResponse] = {
-
-    val key = toKey(vertex.id)
-    val entity = toEntity(vertex, key)
-
-    vertex.op match {
+    val hTableName = vertex.hbaseTableName
+    val mutationStatement = vertex.op match {
       case 0 => // insert
-        dsService.put(entity)
+        val insert = QueryBuilder.insert(hTableName, vertex.id.toString)
+        vertex.properties().forEachRemaining(new Consumer[VertexProperty[_]] {
+          override def accept(vp: VertexProperty[_]): Unit = {
+            insert.value(vp.key(), vp.value())
+          }
+        })
+        insert
       case 1 => // update
-        val tx = dsService.beginTransaction()
-        Option(dsService.get(key)).foreach { prevEntity =>
-          mergeEntity(entity, prevEntity)
-        }
-        dsService.put(entity)
-        tx.commit()
+        val update = QueryBuilder.update(hTableName, vertex.id.toString())
+        vertex.properties().forEachRemaining(new Consumer[VertexProperty[_]] {
+          override def accept(vp: VertexProperty[_]): Unit = {
+            update.value(vp.key(), vp.value())
+          }
+        })
+        update
       case 2 => // increment
+        throw new IllegalArgumentException("increment is not supported on vertex.")
       case 3 => // delete
-        dsService.delete(key)
+        QueryBuilder.delete(hTableName, vertex.id.toString())
       case 4 => // deleteAll
-        dsService.delete(key)
+        QueryBuilder.delete(hTableName, vertex.id.toString())
       case 5 => // insertBulk
-//        val batch = datastore.newBatch()
-//        batch.add(entity)
-//        batch.submit()
-        dsService.put(entity)
+        val insert = QueryBuilder.insert(hTableName, vertex.id.toString)
+        vertex.properties().forEachRemaining(new Consumer[VertexProperty[_]] {
+          override def accept(vp: VertexProperty[_]): Unit = {
+            insert.value(vp.key(), vp.value())
+          }
+        })
+        insert
       case 6 => // incrementCount
+        throw new IllegalArgumentException("incrementCount not supported on vertex.")
       case _ => throw new IllegalArgumentException(s"$vertex operation ${vertex.op} is not supported.")
     }
 
-    Future.successful(MutateResponse.Success)
+    asScala(dsService.executeAsync(mutationStatement)).map { _ =>
+      MutateResponse.Success
+    }
   }
 }
