@@ -28,7 +28,7 @@ class DatastoreEdgeFetcher(graph: S2GraphLike,
         val edgeWithScores = queryResult.getAll.asScala.flatMap { entity =>
           val edge = toS2Edge(graph, entity)
 
-          if (where.filter(edge)) None
+          if (!where.filter(edge)) None
           else Some(EdgeWithScore(edge.copyParentEdges(parentEdges), 1.0, queryParam.label))
         }.take(queryParam.limit)
 

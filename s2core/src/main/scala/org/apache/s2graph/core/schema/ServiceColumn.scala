@@ -141,6 +141,7 @@ case class ServiceColumn(id: Option[Int],
     meta -> JSONParser.toInnerVal(meta.defaultValue, meta.dataType, schemaVersion)
   }.toMap
   lazy val toJson = Json.obj("serviceName" -> service.serviceName, "columnName" -> columnName, "columnType" -> columnType)
+  lazy val validColumnMetasInvMap = ColumnMeta.findAllByColumn(id.get, useCache = true).map(meta => meta.name -> meta).toMap
 
   def propsToInnerVals(props: Map[String, Any]): Map[ColumnMeta, InnerValLike] = {
     val ret = for {

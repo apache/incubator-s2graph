@@ -4,13 +4,13 @@ import java.util.function.BiConsumer
 
 import com.spotify.asyncdatastoreclient._
 import org.apache.s2graph.core.fetcher.BaseFetcherTest
-import org.apache.s2graph.core.{QueryParam, QueryRequest, S2VertexProperty, VertexQueryParam, Query => S2Query}
+import org.apache.s2graph.core.{QueryParam, QueryRequest, S2Vertex, S2VertexProperty, VertexQueryParam, Query => S2Query}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext}
 
-class DatastoreVertexTest extends BaseFetcherTest {
+class DatastoreStorageTest extends BaseFetcherTest {
   implicit val ec = ExecutionContext.global
   val DATASTORE_HOST: String = System.getProperty("host", "http://localhost:8080")
   val PROJECT: String = System.getProperty("dataset", "async-test")
@@ -67,11 +67,11 @@ class DatastoreVertexTest extends BaseFetcherTest {
     val fetcher = new DatastoreVertexFetcher(graph, datastore)
 
     val mutateFuture = mutator.mutateVertex("zk", vertex, true)
-    Await.result(mutateFuture, Duration("10 seconds"))
+    Await.result(mutateFuture, Duration("60 seconds"))
 
     val vqp = VertexQueryParam(Seq(vertexId))
     val fetchFuture = fetcher.fetchVertices(vqp)
-    val fetchedVertices = Await.result(fetchFuture, Duration("10 seconds"))
+    val fetchedVertices = Await.result(fetchFuture, Duration("60 seconds"))
     fetchedVertices.foreach { v =>
       println(v)
       v.props.forEach(new BiConsumer[String, S2VertexProperty[_]] {
@@ -79,6 +79,8 @@ class DatastoreVertexTest extends BaseFetcherTest {
           println(s"key = ${t}, value = ${u.value}")
         }
       })
+
+      vertex.id == v.id && vertex.props == v.props shouldBe true
     }
   }
 
@@ -87,23 +89,27 @@ class DatastoreVertexTest extends BaseFetcherTest {
     val vertexId = builder.newVertexId(serviceName)(columnName)("user_1")
     val vertex = builder.newVertex(vertexId)
 
-    val edge1 = builder.toEdge("user_1", "user_z", labelName, "out", Map("score" -> 0.1), operation = "insert")
-    val edge2 = builder.toEdge("user_1", "user_x", labelName, "out", Map("score" -> 0.8), operation = "insert")
+    val edge1 = builder.toEdge("user_1", "user_z", labelName, "out", Map("score" -> 0.1), ts = 10L, operation = "insert")
+    val edge2 = builder.toEdge("user_1", "user_x", labelName, "out", Map("score" -> 0.8), ts = 9L, operation = "insert")
 
     val mutator = new DatastoreEdgeMutator(graph, datastore)
     val fetcher = new DatastoreEdgeFetcher(graph, datastore)
 
     val mutateFuture = mutator.mutateWeakEdges("zk", Seq(edge1, edge2), true)
-    Await.result(mutateFuture, Duration("10 seconds"))
+    Await.result(mutateFuture, Duration("60 seconds"))
 
     val queryParam = QueryParam(labelName = labelName)
 
     val queryRequest = QueryRequest(S2Query.empty, 0, vertex, queryParam)
     val fetchFuture = fetcher.fetches(Seq(queryRequest), Map.empty)
-    Await.result(fetchFuture, Duration("10 seconds")).foreach { stepResult =>
-      stepResult.edgeWithScores.foreach { es =>
-        println(s"${es.edge}")
-      }
+    Await.result(fetchFuture, Duration("60 seconds")).foreach { stepResult =>
+      val edges = stepResult.edgeWithScores.map(_.edge)
+      edges.foreach(println)
+
+      edges.size shouldBe 2
+
+      edge1.edgeId == edges(0).edgeId && edge1.propsWithTs == edges(0).propsWithTs shouldBe true
+      edge2.edgeId == edges(1).edgeId && edge2.propsWithTs == edges(1).propsWithTs shouldBe true
     }
   }
 }

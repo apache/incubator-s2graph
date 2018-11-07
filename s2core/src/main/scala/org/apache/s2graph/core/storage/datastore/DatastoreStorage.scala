@@ -7,7 +7,7 @@ import com.spotify.asyncdatastoreclient._
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.parsers._
-import org.apache.s2graph.core.schema.{Label, LabelMeta}
+import org.apache.s2graph.core.schema.{ColumnMeta, Label, LabelMeta}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs, VertexId}
 import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
@@ -205,24 +205,23 @@ object DatastoreStorage {
 
   /**
     * translate storage specific data(in datastore, it is encapsulated in Value class) into S2Graph's InnerVal class.
-    * note that LabelMeta, schemaVersion are required to decide dataType for specific data.
     *
-    * @param labelMeta
+    * @param dataType
     * @param schemaVer
     * @param value
     * @return
     */
-  def toInnerVal(labelMeta: LabelMeta,
+  def toInnerVal(dataType: String,
                  schemaVer: String,
                  value: Value): InnerValLike = {
-    labelMeta.dataType match {
+    dataType match {
       case "string" => InnerVal.withStr(value.getString, schemaVer)
       case "boolean" => InnerVal.withBoolean(value.getBoolean, schemaVer)
       case "integer" => InnerVal.withInt(value.getInteger.toInt, schemaVer)
       case "long" => InnerVal.withLong(value.getInteger, schemaVer)
       case "double" => InnerVal.withDouble(value.getDouble, schemaVer)
       case "float" => InnerVal.withFloat(value.getDouble.toFloat, schemaVer)
-      case _ => throw new IllegalStateException(s"$labelMeta data type is illegal.")
+      case _ => throw new IllegalStateException(s"$dataType data type is illegal.")
     }
   }
 
@@ -241,20 +240,18 @@ object DatastoreStorage {
     val props = mutable.Map.empty[LabelMeta, InnerValLikeWithTs]
     val schemaVer = label.schemaVersion
 
-    entity.getProperties.asScala.foreach { case (key, value) =>
-      key match {
-        case "label" =>
-        case LabelMeta.from.name =>
-        case LabelMeta.to.name =>
-        case LabelMeta.timestamp.name =>
-        case _ =>
-          label.metaPropsInvMap.get(key).foreach { labelMeta =>
-            val innerVal = toInnerVal(labelMeta, schemaVer, value)
+    // S2Edge expect _timestamp must exist in props as assert.
+    props += (LabelMeta.timestamp -> InnerValLikeWithTs(InnerVal.withLong(ts, schemaVer), ts))
 
-            props += (labelMeta -> InnerValLikeWithTs(innerVal, ts))
-          }
+    entity.getProperties.forEach(new BiConsumer[String, Value] {
+      override def accept(key: String, value: Value): Unit = {
+        label.validLabelMetasInvMap.get(key).foreach { labelMeta =>
+          val innerVal = toInnerVal(labelMeta.dataType, schemaVer, value)
+
+          props += (labelMeta -> InnerValLikeWithTs(innerVal, ts))
+        }
       }
-    }
+    })
 
     props.toMap
   }
@@ -297,12 +294,18 @@ object DatastoreStorage {
   def toS2Vertex(graph: S2GraphLike,
                  entity: Entity): S2VertexLike = {
     val vertexId = VertexId.fromString(entity.getKey.getName)
+    val schemaVer = vertexId.column.schemaVersion
+
     val builder = graph.elementBuilder
     val v = builder.newVertex(vertexId)
 
-    entity.getProperties.forEach(new BiConsumer[String, AnyRef] {
-      override def accept(key: String, value: AnyRef): Unit = {
-        v.propertyInner(Cardinality.single, key, value)
+    entity.getProperties.forEach(new BiConsumer[String, Value] {
+      override def accept(key: String, value: Value): Unit = {
+        vertexId.column.validColumnMetasInvMap.get(key).foreach { columnMeta =>
+          val innerVal = toInnerVal(columnMeta.dataType, schemaVer, value)
+
+          v.propertyInner(Cardinality.single, key, innerVal.value)
+        }
       }
     })
 

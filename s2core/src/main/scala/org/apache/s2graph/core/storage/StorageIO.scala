@@ -80,6 +80,7 @@ class StorageIO(val graph: S2GraphLike, val serDe: StorageSerDe) {
     }
   }
 
+  //TODO: extract a method that accept Seq[S2Edge](not kvs) then build StepResult
   def toEdges[K: CanSKeyValue](kvs: Seq[K],
                                queryRequest: QueryRequest,
                                prevScore: Double = 1.0,
