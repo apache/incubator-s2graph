@@ -1,18 +1,35 @@
 package org.apache.s2graph.core.storage.datastore
 
-import org.apache.s2graph.core.{EdgeMutator, S2EdgeLike, StepResult}
+import com.spotify.asyncdatastoreclient.{Query => _, _}
+import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage.MutateResponse
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class DatastoreEdgeMutator extends EdgeMutator {
+class DatastoreEdgeMutator(graph: S2GraphLike,
+                           datastore: Datastore) extends EdgeMutator {
+
+  import DatastoreStorage._
+
+  //TODO: pool of datastore?(lookup by zkQuorum)
   override def mutateStrongEdges(zkQuorum: String,
                                  _edges: Seq[S2EdgeLike],
                                  withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] = ???
 
   override def mutateWeakEdges(zkQuorum: String,
                                _edges: Seq[S2EdgeLike],
-                               withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[(Int, Boolean)]] = ???
+                               withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[(Int, Boolean)]] = {
+    val batch = QueryBuilder.batch()
+
+    _edges.foreach { edge =>
+      batch.add(toMutationStatement(edge))
+    }
+
+    //TODO: need to ensure the index of parameter sequence with correct return type
+    asScala(datastore.executeAsync(batch)).map { _ =>
+      (0 until _edges.size).map(_ -> true)
+    }
+  }
 
   override def incrementCounts(zkQuorum: String,
                                edges: Seq[S2EdgeLike],
