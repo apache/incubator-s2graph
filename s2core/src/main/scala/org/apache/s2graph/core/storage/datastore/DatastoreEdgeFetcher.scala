@@ -4,6 +4,7 @@ import com.spotify.asyncdatastoreclient.{Datastore, QueryBuilder}
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.parsers.WhereParser
 import org.apache.s2graph.core.schema.Label
+import org.apache.s2graph.core.storage.StorageIO
 import org.apache.s2graph.core.types.VertexId
 import org.apache.s2graph.core.utils.DeferCache
 
@@ -25,14 +26,15 @@ class DatastoreEdgeFetcher(graph: S2GraphLike,
 
     def fetchInner(query: com.spotify.asyncdatastoreclient.Query): Future[StepResult] = {
       asScala(datastore.executeAsync(query)).map { queryResult =>
-        val edgeWithScores = queryResult.getAll.asScala.flatMap { entity =>
-          val edge = toS2Edge(graph, entity)
+        val edges = queryResult.getAll.asScala.map(toS2Edge(graph, _))
 
-          if (!where.filter(edge)) None
-          else Some(EdgeWithScore(edge.copyParentEdges(parentEdges), 1.0, queryParam.label))
-        }.take(queryParam.limit)
+        // not support degree edges.
+        val degreeEdges = Nil
 
-        StepResult(edgeWithScores = edgeWithScores, Nil, Nil)
+        // not support cursor yet.
+        val lastCursor = Nil
+
+        StorageIO.toEdges(edges, queryRequest, parentEdges, degreeEdges, lastCursor, queryParam.offset, queryParam.limit)
       }
     }
 

@@ -26,10 +26,49 @@ import org.apache.s2graph.core.schema.LabelMeta
 import org.apache.s2graph.core.parsers.WhereParser
 import org.apache.s2graph.core.utils.logger
 
-class StorageIO(val graph: S2GraphLike, val serDe: StorageSerDe) {
-  import TraversalHelper._
+object StorageIO {
 
   val dummyCursor: Array[Byte] = Array.empty
+
+  def toEdges(edges: Seq[S2EdgeLike],
+              queryRequest: QueryRequest,
+              parentEdges: Seq[EdgeWithScore],
+              degreeEdges: Seq[EdgeWithScore],
+              lastCursor: Seq[Array[Byte]],
+              startOffset: Int = 0,
+              len: Int = Int.MaxValue): StepResult = {
+    if (edges.isEmpty) StepResult.Empty.copy(cursors = Seq(dummyCursor))
+    else {
+      val queryOption = queryRequest.query.queryOption
+      val queryParam = queryRequest.queryParam
+      val where = queryParam.where.getOrElse(WhereParser.success)
+      val (minTs, maxTs) = queryParam.durationOpt.getOrElse((Long.MinValue, Long.MaxValue))
+
+      val edgeWithScores = for {
+        (edge, idx) <- edges.zipWithIndex if idx >= startOffset && idx < startOffset + len
+        edgeWithScore <- edgeToEdgeWithScore(queryRequest, edge, parentEdges) if where.filter(edge) && edge.ts >= minTs && edge.ts < maxTs
+      } yield {
+        edgeWithScore
+      }
+
+      if (!queryOption.ignorePrevStepCache) {
+        StepResult(edgeWithScores = edgeWithScores, grouped = Nil, degreeEdges = degreeEdges, cursors = lastCursor)
+      } else {
+        val sampled =
+          if (queryRequest.queryParam.sample >= 0) sample(edgeWithScores, queryParam.offset, queryParam.sample)
+          else edgeWithScores
+
+        val normalized = if (queryParam.shouldNormalize) normalize(sampled) else sampled
+
+        StepResult(edgeWithScores = normalized, grouped = Nil, degreeEdges = degreeEdges, cursors = lastCursor)
+      }
+    }
+  }
+}
+class StorageIO(val graph: S2GraphLike, val serDe: StorageSerDe) {
+  import TraversalHelper._
+  import StorageIO._
+
 
   /** Parsing Logic: parse from kv from Storage into Edge */
   def toEdge[K: CanSKeyValue](kv: K,
@@ -88,8 +127,6 @@ class StorageIO(val graph: S2GraphLike, val serDe: StorageSerDe) {
                                parentEdges: Seq[EdgeWithScore],
                                startOffset: Int = 0,
                                len: Int = Int.MaxValue): StepResult = {
-
-
     val toSKeyValue = implicitly[CanSKeyValue[K]].toSKeyValue _
 
     if (kvs.isEmpty) StepResult.Empty.copy(cursors = Seq(dummyCursor))
