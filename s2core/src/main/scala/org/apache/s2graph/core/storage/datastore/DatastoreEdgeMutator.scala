@@ -1,6 +1,6 @@
 package org.apache.s2graph.core.storage.datastore
 
-import com.spotify.asyncdatastoreclient.{Query => _, _}
+import com.spotify.asyncdatastoreclient.{Datastore, QueryBuilder}
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage.MutateResponse
 

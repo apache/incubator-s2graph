@@ -3,9 +3,10 @@ package org.apache.s2graph.core.storage.datastore
 import java.util.function.{BiConsumer, Consumer}
 
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
-import com.spotify.asyncdatastoreclient.{Query, Query => _, _}
+import com.spotify.asyncdatastoreclient._
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
+import org.apache.s2graph.core.parsers._
 import org.apache.s2graph.core.schema.{Label, LabelMeta}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs, VertexId}
 import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty}
@@ -132,14 +133,74 @@ object DatastoreStorage {
     * @return
     */
   def toQuery(queryRequest: QueryRequest): com.spotify.asyncdatastoreclient.Query = {
+    val queryOption = queryRequest.query.queryOption
     val qp = queryRequest.queryParam
     val label = qp.label
-    val srcVertexId = queryRequest.vertex.id
 
-    QueryBuilder.query().kindOf(label.hbaseTableName)
-      .filterBy(QueryBuilder.eq(LabelMeta.from.name, srcVertexId.toString()))
-      .filterBy(QueryBuilder.eq("direction", qp.direction))
-      .orderBy(QueryBuilder.desc(LabelMeta.timestamp.name))
+    val queryBuilder = QueryBuilder.query().kindOf(label.hbaseTableName).limit(qp.limit)
+
+    toFilterBys(queryRequest).foreach(queryBuilder.filterBy)
+    toOrderBys(queryOption).foreach(queryBuilder.orderBy)
+    //TODO: currently group by is not supported.
+//    toGroupBys(queryOption).foreach(queryBuilder.groupBy)
+
+    //TODO: not sure how to implement offset, cursor, limit yet.
+    queryBuilder.limit(qp.limit)
+  }
+
+  def toFilterBys(queryRequest: QueryRequest): Seq[com.spotify.asyncdatastoreclient.Filter] = {
+    val qp = queryRequest.queryParam
+    val label = qp.label
+    val dir = qp.dir.toInt
+    // base filter
+    val baseFilters = Seq(
+      QueryBuilder.eq(LabelMeta.from.name, queryRequest.vertex.id.toString()),
+      QueryBuilder.eq("direction", qp.direction)
+    )
+    // duration
+    val durationFilters = qp.durationOpt.map { case (minTs, maxTs) =>
+      Seq(
+        QueryBuilder.gt(LabelMeta.timestamp.name, minTs),
+        QueryBuilder.lt(LabelMeta.timestamp.name, maxTs)
+      )
+    }.getOrElse(Nil)
+
+    // followings are filter operators supported by datastore.
+//    LESS_THAN,
+//    LESS_THAN_OR_EQUAL,
+//    GREATER_THAN,
+//    GREATER_THAN_OR_EQUAL,
+//    EQUAL,
+//    HAS_ANCESTOR
+    // TODO: change value type on Clause class to be AnyRef instead of String.
+    // TODO: parent property filter need to be considered too.
+    val optionalFilters = qp.where.get.clauses.map { clause =>
+      clause match {
+        case lt: Lt => QueryBuilder.lt(lt.propKey, lt.anyValueToCompare(label, dir, lt.propKey, lt.value))
+        case gt: Gt => QueryBuilder.gt(gt.propKey, gt.anyValueToCompare(label, dir, gt.propKey, gt.value))
+        case eq: Eq => QueryBuilder.eq(eq.propKey, eq.anyValueToCompare(label, dir, eq.propKey, eq.value))
+        case _ => throw new IllegalArgumentException(s"lt, gt, eq are only supported currently.")
+      }
+    }
+
+    baseFilters ++ durationFilters ++ optionalFilters
+  }
+
+  def toOrderBys(queryOption: QueryOption): Seq[com.spotify.asyncdatastoreclient.Order] = {
+    if (queryOption.orderByKeys.isEmpty) {
+      // default timestamp.
+      Seq(QueryBuilder.desc(LabelMeta.timestamp.name))
+    } else {
+      queryOption.orderByKeys.map { key =>
+        QueryBuilder.desc(key)
+      }
+    }
+  }
+
+  def toGroupBys(queryOption: QueryOption): Seq[com.spotify.asyncdatastoreclient.Group] = {
+    queryOption.groupBy.keys.map { key =>
+      QueryBuilder.group(key)
+    }
   }
 
   /**
