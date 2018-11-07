@@ -12,10 +12,10 @@ import org.apache.s2graph.core.schema.{ColumnMeta, Label, LabelMeta}
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageSerDe
 import org.apache.s2graph.core.storage.{Storage, StorageManagement, StorageSerDe}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs, VertexId}
+import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
@@ -26,22 +26,22 @@ object DatastoreStorage {
   val MaxConnectionsKey = "maxConnections"
   val RequestRetryKey = "requestRetry"
 
-  val HostKey = "host"
-  val ProjectKey = "dataset"
-  val NamespaceKey = "namespace"
-  val KeyPathKey = "keypath"
-  val VersionKey = "version"
+  val HostKey = "datastore.host"
+  val ProjectKey = "datastore.dataset"
+  val NamespaceKey = "datastore.namespace"
+  val KeyPathKey = "datastore.keypath"
+  val VersionKey = "datastore.version"
 
   def initDatastore(config: Config): Datastore = {
     val connectionTimeout = Try { config.getInt(ConnectionTimeoutKey) }.getOrElse(5000)
     val requestTimeout = Try { config.getInt(RequestTimeoutKey) }.getOrElse(1000)
-    val maxConnections = Try { config.getInt(MaxConnectionsKey) }.getOrElse(5)
+    val maxConnections = Try { config.getInt(MaxConnectionsKey) }.getOrElse(100)
     val requestRetry = Try { config.getInt(RequestRetryKey) }.getOrElse(3)
 
     val host = Try { config.getString(HostKey) }.getOrElse("http://localhost:8080")
     val project = Try { config.getString(ProjectKey) }.getOrElse("async-test")
-    val version = Try { config.getString(VersionKey) }.getOrElse("tmp")
-    val namespaceOpt = Try { config.getString(NamespaceKey) }.toOption
+    val version = Try { config.getString(VersionKey) }.getOrElse("v1beta3")
+    val namespace = Try { config.getString(NamespaceKey) }.getOrElse("test")
     val keyPathOpt = Try { config.getString(KeyPathKey) }.toOption
 
     val builder = DatastoreConfig.builder()
@@ -52,8 +52,8 @@ object DatastoreStorage {
       .version(version)
       .host(host)
       .project(project)
+      .namespace(namespace)
 
-    namespaceOpt.foreach(builder.namespace)
     keyPathOpt.foreach { keyPath =>
       import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
       import com.spotify.asyncdatastoreclient.DatastoreConfig
@@ -85,6 +85,7 @@ object DatastoreStorage {
     val edgeKey = Key.builder(label.hbaseTableName, edge.edgeId.toString).build()
 
     val builder = Entity.builder(edgeKey)
+      .property("version", edge.version)
       .property(LabelMeta.from.name, edge.srcVertex.id.toString())
       .property(LabelMeta.to.name, edge.tgtVertex.id.toString())
       .property("label", edge.label())
@@ -376,6 +377,7 @@ object DatastoreStorage {
     val builder = graph.elementBuilder
     val label = Label.findByName(entity.getString("label")).getOrElse(throw new IllegalStateException(s"$entity has invalid label"))
 
+    val version = entity.getInteger("version")
     val srcVertexId = VertexId.fromString(entity.getString(LabelMeta.from.name))
     val tgtVertexId = VertexId.fromString(entity.getString(LabelMeta.to.name))
     val ts = entity.getInteger(LabelMeta.timestamp.name)
@@ -387,7 +389,7 @@ object DatastoreStorage {
       builder.newVertex(tgtVertexId),
       label,
       dir = GraphUtil.toDirection("out"),
-      version = ts,
+      version = version,
       propsWithTs = props
     )
   }

@@ -6,7 +6,7 @@ import com.spotify.asyncdatastoreclient._
 import com.typesafe.config.{Config, ConfigFactory, ConfigValue, ConfigValueFactory}
 import org.apache.s2graph.core.fetcher.BaseFetcherTest
 import org.apache.s2graph.core.rest.RequestParser
-import org.apache.s2graph.core.{Management, QueryParam, QueryRequest, S2Graph, S2GraphConfigs, S2Vertex, S2VertexProperty, VertexQueryParam, Query => S2Query}
+import org.apache.s2graph.core.{Management, QueryParam, QueryRequest, S2Graph, S2GraphConfigs, S2Vertex, S2VertexProperty, Step, VertexQueryParam, Query => S2Query}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
@@ -22,15 +22,24 @@ class DatastoreStorageTest extends FunSuite with Matchers with BeforeAndAfterAll
   var management: Management = _
   var config: Config = _
 
-  val DATASTORE_HOST: String = System.getProperty("host", "http://localhost:8080")
-  val PROJECT: String = System.getProperty("dataset", "async-test")
-  val NAMESPACE: String = System.getProperty("namespace", "test")
-  val KEY_PATH: String = System.getProperty("keypath")
-  val VERSION: String = System.getProperty("version", "v1beta3")
+  val DATASTORE_HOST: String = System.getProperty(HostKey, "http://localhost:8080")
+  val PROJECT: String = System.getProperty(ProjectKey, "async-test")
+  val NAMESPACE: String = System.getProperty(NamespaceKey, "test")
+  val KEY_PATH: String = System.getProperty(KeyPathKey)
+  val VERSION: String = System.getProperty(VersionKey, "v1beta3")
 
   val serviceName = "test"
   val columnName = "user"
   val labelName = "test_label"
+  val storageConfig = ConfigFactory.parseMap(
+    Map(
+      HostKey -> DATASTORE_HOST,
+      ProjectKey -> PROJECT,
+      NamespaceKey -> NAMESPACE,
+      KeyPathKey -> KEY_PATH,
+      VersionKey -> VERSION
+    ).asJava
+  )
 
   var datastore: Datastore = _
 
@@ -49,19 +58,8 @@ class DatastoreStorageTest extends FunSuite with Matchers with BeforeAndAfterAll
   }
 
   override def afterAll(): Unit = {
-    removeAll()
     graph.shutdown()
   }
-
-  val storageConfig = ConfigFactory.parseMap(
-    Map(
-      HostKey -> DATASTORE_HOST,
-      ProjectKey -> PROJECT,
-      NamespaceKey -> NAMESPACE,
-      KeyPathKey -> KEY_PATH,
-      VersionKey -> VERSION
-    ).asJava
-  )
 
   private def removeAll(): Unit = {
     val queryAll = QueryBuilder.query.keysOnly
@@ -126,5 +124,33 @@ class DatastoreStorageTest extends FunSuite with Matchers with BeforeAndAfterAll
       edge1.edgeId == edges(0).edgeId && edge1.propsWithTs == edges(0).propsWithTs shouldBe true
       edge2.edgeId == edges(1).edgeId && edge2.propsWithTs == edges(1).propsWithTs shouldBe true
     }
+  }
+
+  test("test multiple edges insert.") {
+    val b = graph.elementBuilder
+    val edges = Seq(
+      b.toEdge("Elmo", "Big Bird", labelName, "out", Map("score" -> 0.9)),
+      b.toEdge("Elmo", "Ernie", labelName, "out", Map("score" -> 0.8)),
+      b.toEdge("Elmo", "Bert", labelName, "out", Map("score" -> 0.7))
+    )
+
+    val future = graph.mutateEdges(edges, true)
+    Await.result(future, Duration("60 seconds"))
+    val vertexId = b.newVertexId(serviceName)(columnName)("Elmo")
+    val vertex = b.newVertex(vertexId)
+
+    val query = S2Query(
+      vertices = Seq(vertex),
+      steps = Vector(
+        Step(
+          queryParams = Seq(
+            QueryParam(labelName = labelName)
+          )
+        )
+      )
+    )
+
+    val stepResult = Await.result(graph.getEdges(query), Duration("60 seconds"))
+    stepResult.edgeWithScores.foreach { es => println(es) }
   }
 }

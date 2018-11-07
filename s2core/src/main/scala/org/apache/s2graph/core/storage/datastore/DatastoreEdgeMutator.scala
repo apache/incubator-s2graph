@@ -42,53 +42,24 @@ class DatastoreEdgeMutator(graph: S2GraphLike,
   override def mutateStrongEdges(zkQuorum: String,
                                  _edges: Seq[S2EdgeLike],
                                  withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
-    //TODO: make sure uniqueness of edges by each edge.snapshotEdge.edgeId
     val grouped = _edges.groupBy { edge =>
       edge.toSnapshotEdge.edge.edgeId
     }
 
-    val futures = grouped.toSeq.map { case (snapshotEdgeId, edges) =>
-      //TODO: combine all process using transaction.
-      val (squashedEdge, edgeMutate) = S2Edge.buildOperation(None, edges)
+    val futures = grouped.map { case (_, edges) =>
+      val (squashedEdge, _) = S2Edge.buildOperation(None, edges)
       // first delete all indexed edges.
       val (outEdges, inEdges) = edges.partition(_.getDirection() == "out")
-
+      
       fetchAndDeletes(outEdges).flatMap { _ =>
-        fetchAndDeletes(inEdges)
+        fetchAndDeletes(inEdges).flatMap { _ =>
+          asScala(datastore.executeAsync(toMutationStatement(squashedEdge)))
+        }
       }
-
-      asScala(datastore.executeAsync(toMutationStatement(squashedEdge))).map(_ => true)
-
-//      fetchSnapshotEdge(edges.head.toSnapshotEdge).flatMap { snapshotEdgeOpt =>
-//        val (squashedEdge, edgeMutate) = S2Edge.buildOperation(snapshotEdgeOpt, edges)
-//
-//        if (snapshotEdgeOpt.isEmpty) {
-//          //TODO: combine two process using transaction.
-//          asScala(datastore.executeAsync(toMutationStatement(squashedEdge))).flatMap { _ =>
-//            mutateSnapshotEdge(squashedEdge.toSnapshotEdge)
-//          }
-//        } else {
-//          if (edgeMutate.newSnapshotEdge.isEmpty) {
-//            // drop
-//            Future.successful(MutateResponse.Success)
-//          } else {
-//            //TODO: combine all process using transaction.
-//            // first delete all indexed edges.
-//            val (outEdges, inEdges) = edges.partition(_.getDirection() == "out")
-//
-//            fetchAndDeletes(outEdges).flatMap { _ =>
-//              fetchAndDeletes(inEdges)
-//            }
-//
-//            asScala(datastore.executeAsync(toMutationStatement(squashedEdge))).flatMap { _ =>
-//              mutateSnapshotEdge(squashedEdge.toSnapshotEdge)
-//            }
-//          }
-//        }
-//      }.map(_.isSuccess)
     }
 
-    Future.sequence(futures)
+    //TODO: need to ensure the index of parameter sequence with correct return type
+    Future.sequence(futures).map(_.map(_ => true).toSeq)
   }
 
   override def mutateWeakEdges(zkQuorum: String,

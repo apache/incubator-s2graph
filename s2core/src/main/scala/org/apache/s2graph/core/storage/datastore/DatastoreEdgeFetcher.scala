@@ -6,7 +6,7 @@ import org.apache.s2graph.core.parsers.WhereParser
 import org.apache.s2graph.core.schema.Label
 import org.apache.s2graph.core.storage.StorageIO
 import org.apache.s2graph.core.types.VertexId
-import org.apache.s2graph.core.utils.DeferCache
+import org.apache.s2graph.core.utils.{DeferCache, logger}
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.collection.JavaConverters._
@@ -22,7 +22,6 @@ class DatastoreEdgeFetcher(graph: S2GraphLike,
   private def fetch(queryRequest: QueryRequest,
                     parentEdges: Seq[EdgeWithScore])(implicit ec: ExecutionContext): Future[StepResult] = {
     val queryParam = queryRequest.queryParam
-    val where = queryParam.where.getOrElse(WhereParser.success)
 
     def fetchInner(query: com.spotify.asyncdatastoreclient.Query): Future[StepResult] = {
       asScala(datastore.executeAsync(query)).map { queryResult =>
