@@ -1,5 +1,6 @@
 package org.apache.s2graph.core.storage.datastore
 
+import java.io.File
 import java.util.function.{BiConsumer, Consumer}
 
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
@@ -8,6 +9,8 @@ import com.typesafe.config.Config
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.parsers._
 import org.apache.s2graph.core.schema.{ColumnMeta, Label, LabelMeta}
+import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageSerDe
+import org.apache.s2graph.core.storage.{Storage, StorageManagement, StorageSerDe}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs, VertexId}
 import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
@@ -15,8 +18,60 @@ import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.Try
 
 object DatastoreStorage {
+  val ConnectionTimeoutKey = "connectionTimeout"
+  val RequestTimeoutKey = "requestTimeout"
+  val MaxConnectionsKey = "maxConnections"
+  val RequestRetryKey = "requestRetry"
+
+  val HostKey = "host"
+  val ProjectKey = "dataset"
+  val NamespaceKey = "namespace"
+  val KeyPathKey = "keypath"
+  val VersionKey = "version"
+
+  def initDatastore(config: Config): Datastore = {
+    val connectionTimeout = Try { config.getInt(ConnectionTimeoutKey) }.getOrElse(5000)
+    val requestTimeout = Try { config.getInt(RequestTimeoutKey) }.getOrElse(1000)
+    val maxConnections = Try { config.getInt(MaxConnectionsKey) }.getOrElse(5)
+    val requestRetry = Try { config.getInt(RequestRetryKey) }.getOrElse(3)
+
+    val host = Try { config.getString(HostKey) }.getOrElse("http://localhost:8080")
+    val project = Try { config.getString(ProjectKey) }.getOrElse("async-test")
+    val version = Try { config.getString(VersionKey) }.getOrElse("tmp")
+    val namespaceOpt = Try { config.getString(NamespaceKey) }.toOption
+    val keyPathOpt = Try { config.getString(KeyPathKey) }.toOption
+
+    val builder = DatastoreConfig.builder()
+      .connectTimeout(connectionTimeout)
+      .requestTimeout(requestTimeout)
+      .maxConnections(maxConnections)
+      .requestRetry(requestRetry)
+      .version(version)
+      .host(host)
+      .project(project)
+
+    namespaceOpt.foreach(builder.namespace)
+    keyPathOpt.foreach { keyPath =>
+      import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
+      import com.spotify.asyncdatastoreclient.DatastoreConfig
+      import java.io.FileInputStream
+      import java.io.IOException
+      try {
+        val creds = new FileInputStream(new File(keyPath))
+        builder.credential(GoogleCredential.fromStream(creds).createScoped(DatastoreConfig.SCOPES))
+      } catch {
+        case e: IOException =>
+          System.err.println("Failed to load credentials " + e.getMessage)
+          System.exit(1)
+      }
+    }
+
+    Datastore.create(builder.build())
+  }
+
   /**
     * translate s2graph's S2EdgeLike class to storage specific class that will be used for mutation request
     * in datastore, every mutation is involved with (Key, Entity) class,
@@ -45,6 +100,23 @@ object DatastoreStorage {
     builder.build()
   }
 
+  def toEntity(snapshotEdge: SnapshotEdge): Entity = {
+    val label = snapshotEdge.label
+    val edgeKey = Key.builder(label.hbaseTableName, snapshotEdge.edge.edgeId.toString).build()
+
+    val builder = Entity.builder(edgeKey)
+        .property("version", snapshotEdge.version)
+        .property("dir", snapshotEdge.dir)
+        .property("op", snapshotEdge.op.toInt)
+
+    snapshotEdge.propsWithTs.forEach(new BiConsumer[String, Property[_]] {
+      override def accept(key: String, t: Property[_]): Unit = {
+        builder.property(t.key(), t.value())
+      }
+    })
+
+    builder.build()
+  }
   /**
     * translate s2graph's S2VertexLike class to storage specific class that will be used for mutation request
     * in datastore, every mutation is involved with (Key, Entity) class,
@@ -126,6 +198,23 @@ object DatastoreStorage {
     }
   }
 
+  def toMutationStatement(snapshotEdge: SnapshotEdge): MutationStatement = {
+    val edgeEntity = toEntity(snapshotEdge)
+    QueryBuilder.insert(edgeEntity)
+  }
+
+  def toQuery(snapshotEdge: SnapshotEdge): com.spotify.asyncdatastoreclient.KeyQuery = {
+    val label = snapshotEdge.label
+
+    QueryBuilder.query(label.hbaseTableName, snapshotEdge.edge.edgeId.toString)
+  }
+
+  def toQuery(edge: S2EdgeLike): com.spotify.asyncdatastoreclient.Query = {
+    QueryBuilder.query().kindOf(edge.innerLabel.hbaseTableName)
+      .filterBy(QueryBuilder.eq(LabelMeta.from.name, edge.srcVertex.id.toString))
+      .filterBy(QueryBuilder.eq(LabelMeta.to.name, edge.tgtVertex.id.toString))
+      .filterBy(QueryBuilder.eq("direction", edge.getDirection()))
+  }
   /**
     * build storage implementation specific query request from S2Graph's QueryRequest.
     *
@@ -256,6 +345,25 @@ object DatastoreStorage {
     props.toMap
   }
 
+  def toSnapshotEdge(graph: S2GraphLike,
+                     entity: Entity): SnapshotEdge = {
+    val builder = graph.elementBuilder
+    val edgeId = EdgeId.fromString(entity.getKey.getName)
+    val label = Label.findByName(edgeId.labelName).getOrElse(throw new IllegalStateException(s"$entity has invalid label"))
+
+    val srcVertex = builder.newVertex(edgeId.srcVertexId)
+    val tgtVertex = builder.newVertex(edgeId.tgtVertexId)
+    val dir = entity.getInteger("dir").toInt
+    val op = entity.getInteger("op").toByte
+    val version = entity.getInteger("version")
+    val ts = entity.getInteger(LabelMeta.timestamp.name)
+
+    val props = parseProps(label, ts, entity)
+
+    val snapshotEdge = SnapshotEdge(graph, srcVertex, tgtVertex, label, dir, op, version, S2Edge.EmptyProps, None, 0, None, None)
+    S2Edge.fillPropsWithTs(snapshotEdge, props)
+    snapshotEdge
+  }
   /**
     * translate storage specific class that hold data into S2EdgeLike.
     *
@@ -331,7 +439,20 @@ object DatastoreStorage {
 
     p.future
   }
+
 }
-class DatastoreStorage(graph: S2GraphLike, config: Config) {
+
+class DatastoreStorage(graph: S2GraphLike, config: Config) extends Storage(graph, config) {
   import DatastoreStorage._
+  val datastore: Datastore = initDatastore(config)
+
+  override val management: StorageManagement = new DatastoreStorageManagement(datastore)
+
+  //TODO: this store does not use serDe variable, but interface force us to initialize serDe.
+  override val serDe: StorageSerDe = new AsynchbaseStorageSerDe(graph)
+
+  override val edgeFetcher: EdgeFetcher = new DatastoreEdgeFetcher(graph, datastore)
+  override val vertexFetcher: VertexFetcher = new DatastoreVertexFetcher(graph, datastore)
+  override val edgeMutator: EdgeMutator = new DatastoreEdgeMutator(graph, datastore)
+  override val vertexMutator: VertexMutator = new DatastoreVertexMutator(graph, datastore)
 }

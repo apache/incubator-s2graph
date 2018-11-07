@@ -3,15 +3,25 @@ package org.apache.s2graph.core.storage.datastore
 import java.util.function.BiConsumer
 
 import com.spotify.asyncdatastoreclient._
+import com.typesafe.config.{Config, ConfigFactory, ConfigValue, ConfigValueFactory}
 import org.apache.s2graph.core.fetcher.BaseFetcherTest
-import org.apache.s2graph.core.{QueryParam, QueryRequest, S2Vertex, S2VertexProperty, VertexQueryParam, Query => S2Query}
+import org.apache.s2graph.core.rest.RequestParser
+import org.apache.s2graph.core.{Management, QueryParam, QueryRequest, S2Graph, S2GraphConfigs, S2Vertex, S2VertexProperty, VertexQueryParam, Query => S2Query}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
+import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext}
+import scala.collection.JavaConverters._
 
-class DatastoreStorageTest extends BaseFetcherTest {
+class DatastoreStorageTest extends FunSuite with Matchers with BeforeAndAfterAll {
+  import DatastoreStorage._
   implicit val ec = ExecutionContext.global
+  var graph: S2Graph = _
+  var parser: RequestParser = _
+  var management: Management = _
+  var config: Config = _
+
   val DATASTORE_HOST: String = System.getProperty("host", "http://localhost:8080")
   val PROJECT: String = System.getProperty("dataset", "async-test")
   val NAMESPACE: String = System.getProperty("namespace", "test")
@@ -24,30 +34,34 @@ class DatastoreStorageTest extends BaseFetcherTest {
 
   var datastore: Datastore = _
 
-  val datastoreConfig = DatastoreConfig.builder()
-    .connectTimeout(5000)
-    .requestTimeout(1000)
-    .maxConnections(5)
-    .requestRetry(3)
-    .version(VERSION)
-    .host(DATASTORE_HOST)
-    .project(PROJECT)
-    .namespace(NAMESPACE)
-    .build()
+  override def beforeAll = {
 
-  override def beforeAll: Unit = {
-    super.beforeAll
+    config = ConfigFactory.load()
+      .withValue(S2GraphConfigs.S2GRAPH_STORE_BACKEND, ConfigValueFactory.fromAnyRef("datastore"))
 
-    datastore = Datastore.create(datastoreConfig)
-    initEdgeFetcher(serviceName, columnName, labelName, None)
+    graph = new S2Graph(config)(ExecutionContext.Implicits.global)
+    management = new Management(graph)
+    parser = new RequestParser(graph)
+
+    datastore = DatastoreStorage.initDatastore(storageConfig)
+    BaseFetcherTest.initEdgeFetcher(management, serviceName, columnName, labelName, None)
+    removeAll()
   }
 
   override def afterAll(): Unit = {
-    super.afterAll()
-
     removeAll()
-    datastore.close()
+    graph.shutdown()
   }
+
+  val storageConfig = ConfigFactory.parseMap(
+    Map(
+      HostKey -> DATASTORE_HOST,
+      ProjectKey -> PROJECT,
+      NamespaceKey -> NAMESPACE,
+      KeyPathKey -> KEY_PATH,
+      VersionKey -> VERSION
+    ).asJava
+  )
 
   private def removeAll(): Unit = {
     val queryAll = QueryBuilder.query.keysOnly
@@ -95,7 +109,8 @@ class DatastoreStorageTest extends BaseFetcherTest {
     val mutator = new DatastoreEdgeMutator(graph, datastore)
     val fetcher = new DatastoreEdgeFetcher(graph, datastore)
 
-    val mutateFuture = mutator.mutateWeakEdges("zk", Seq(edge1, edge2), true)
+//    val mutateFuture = mutator.mutateWeakEdges("zk", Seq(edge1, edge2), true)
+    val mutateFuture = mutator.mutateStrongEdges("zk", Seq(edge1, edge2), true)
     Await.result(mutateFuture, Duration("60 seconds"))
 
     val queryParam = QueryParam(labelName = labelName)

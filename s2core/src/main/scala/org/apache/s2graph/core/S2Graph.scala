@@ -28,6 +28,7 @@ import org.apache.commons.configuration.{BaseConfiguration, Configuration}
 import org.apache.s2graph.core.index.IndexProvider
 import org.apache.s2graph.core.io.tinkerpop.optimize.S2GraphStepStrategy
 import org.apache.s2graph.core.schema._
+import org.apache.s2graph.core.storage.datastore.DatastoreStorage
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.storage.rocks.RocksStorage
 import org.apache.s2graph.core.storage.{MutateResponse, OptimisticEdgeFetcher, Storage}
@@ -109,6 +110,7 @@ object S2Graph {
 
         new AsynchbaseStorage(graph, config)
       case "rocks" => new RocksStorage(graph, config)
+      case "datastore" => new DatastoreStorage(graph, config)
       case _ => throw new RuntimeException("not supported storage.")
     }
   }
