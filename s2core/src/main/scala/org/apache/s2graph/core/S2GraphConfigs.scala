@@ -35,7 +35,8 @@ object S2GraphConfigs {
     S2GraphConfigs.LogConfigs.DEFAULTS
 
   val S2GRAPH_STORE_BACKEND = "s2graph.storage.backend"
-  val DEFAULT_S2GRAPH_STORE_BACKEND = "rocks"
+  val DEFAULT_S2GRAPH_STORE_BACKEND = "datastore"
+//    "rocks"
 //    "hbase"
 
   val PHASE = "phase"

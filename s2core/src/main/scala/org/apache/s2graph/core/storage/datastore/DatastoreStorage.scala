@@ -151,9 +151,9 @@ object DatastoreStorage {
     //TODO: add implementation for all operations.
     vertex.op match {
       case 0 => // insert
-        QueryBuilder.insert(vertexEntity)
+        QueryBuilder.update(vertexEntity).upsert()
       case 1 => // update
-        QueryBuilder.update(vertexEntity)
+        QueryBuilder.update(vertexEntity).upsert()
       case 2 => // increment
         throw new IllegalArgumentException("increment is not supported on vertex.")
       case 3 => // delete
@@ -161,7 +161,7 @@ object DatastoreStorage {
       case 4 => // deleteAll
         QueryBuilder.delete(vertexEntity.getKey)
       case 5 => // insertBulk
-        QueryBuilder.insert(vertexEntity)
+        QueryBuilder.update(vertexEntity).upsert()
       case 6 => // incrementCount
         throw new IllegalArgumentException("incrementCount not supported on vertex.")
       case _ => throw new IllegalArgumentException(s"$vertex operation ${vertex.op} is not supported.")
@@ -180,10 +180,9 @@ object DatastoreStorage {
     //TODO: add implementation for all operations.
     edge.getOp() match {
       case 0 => // insert
-        QueryBuilder.insert(edgeEntity)
-
+        QueryBuilder.update(edgeEntity).upsert()
       case 1 => // update
-        QueryBuilder.update(edgeEntity)
+        QueryBuilder.update(edgeEntity).upsert()
       case 2 => // increment
         throw new IllegalArgumentException(s"increment on edge is not yet supported.")
       case 3 => // delete
@@ -192,7 +191,7 @@ object DatastoreStorage {
         throw new IllegalArgumentException(s"deleteAll on edge is not yet supported.")
       //        QueryBuilder.delete(parentEntity.getKey())
       case 5 => // insertBulk
-        QueryBuilder.insert(edgeEntity)
+        QueryBuilder.update(edgeEntity).upsert()
       case 6 => //incrementCount
         throw new IllegalArgumentException(s"incrementCount on edge is not yet supported.")
       case _ => throw new IllegalArgumentException(s"$edge operation ${edge.op} is not supported.")
@@ -264,14 +263,15 @@ object DatastoreStorage {
 //    HAS_ANCESTOR
     // TODO: change value type on Clause class to be AnyRef instead of String.
     // TODO: parent property filter need to be considered too.
-    val optionalFilters = qp.where.get.clauses.map { clause =>
-      clause match {
-        case lt: Lt => QueryBuilder.lt(lt.propKey, lt.anyValueToCompare(label, dir, lt.propKey, lt.value))
-        case gt: Gt => QueryBuilder.gt(gt.propKey, gt.anyValueToCompare(label, dir, gt.propKey, gt.value))
-        case eq: Eq => QueryBuilder.eq(eq.propKey, eq.anyValueToCompare(label, dir, eq.propKey, eq.value))
-        case _ => throw new IllegalArgumentException(s"lt, gt, eq are only supported currently.")
-      }
-    }
+    val optionalFilters = Nil
+//    qp.where.get.clauses.map { clause =>
+//      clause match {
+//        case lt: Lt => QueryBuilder.lt(lt.propKey, lt.anyValueToCompare(label, dir, lt.propKey, lt.value))
+//        case gt: Gt => QueryBuilder.gt(gt.propKey, gt.anyValueToCompare(label, dir, gt.propKey, gt.value))
+//        case eq: Eq => QueryBuilder.eq(eq.propKey, eq.anyValueToCompare(label, dir, eq.propKey, eq.value))
+//        case _ => throw new IllegalArgumentException(s"lt, gt, eq are only supported currently.")
+//      }
+//    }
 
     baseFilters ++ durationFilters ++ optionalFilters
   }
