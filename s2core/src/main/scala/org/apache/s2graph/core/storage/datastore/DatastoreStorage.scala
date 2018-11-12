@@ -20,6 +20,20 @@ import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 
+object EdgeKey {
+  val delimiter = "\u2980"
+
+  def encode(edge: S2EdgeLike): String = {
+    Seq(edge.edgeId.toString, edge.getDir()).mkString(delimiter)
+  }
+
+  def decode(s: String): (EdgeId, Int) = {
+    val Array(edgeIdStr, dirStr) = s.split(delimiter)
+    val edgeId = EdgeId.fromString(edgeIdStr)
+    (edgeId, dirStr.toInt)
+  }
+}
+
 object DatastoreStorage {
   val ConnectionTimeoutKey = "connectionTimeout"
   val RequestTimeoutKey = "requestTimeout"
@@ -82,7 +96,8 @@ object DatastoreStorage {
     */
   def toEntity(edge: S2EdgeLike): Entity = {
     val label = edge.innerLabel
-    val edgeKey = Key.builder(label.hbaseTableName, edge.edgeId.toString).build()
+    //TODO: only index property that is used in any LabelIndex.
+    val edgeKey = Key.builder(label.hbaseTableName, EdgeKey.encode(edge)).build()
 
     val builder = Entity.builder(edgeKey)
       .property("version", edge.version)
@@ -103,6 +118,7 @@ object DatastoreStorage {
 
   def toEntity(snapshotEdge: SnapshotEdge): Entity = {
     val label = snapshotEdge.label
+
     val edgeKey = Key.builder(label.hbaseTableName, snapshotEdge.edge.edgeId.toString).build()
 
     val builder = Entity.builder(edgeKey)
@@ -203,17 +219,30 @@ object DatastoreStorage {
     QueryBuilder.insert(edgeEntity)
   }
 
+  def toBatch(edge: S2EdgeLike, batch: Batch): Unit = {
+    edge.relatedEdges.map { edge =>
+      val mutation = toMutationStatement(edge)
+
+      batch.add(mutation)
+    }
+  }
+
+  def toBatch(edge: S2EdgeLike): Batch = {
+    val batch = QueryBuilder.batch()
+
+    toBatch(edge, batch)
+
+    batch
+  }
+
   def toQuery(snapshotEdge: SnapshotEdge): com.spotify.asyncdatastoreclient.KeyQuery = {
     val label = snapshotEdge.label
 
     QueryBuilder.query(label.hbaseTableName, snapshotEdge.edge.edgeId.toString)
   }
 
-  def toQuery(edge: S2EdgeLike): com.spotify.asyncdatastoreclient.Query = {
-    QueryBuilder.query().kindOf(edge.innerLabel.hbaseTableName)
-      .filterBy(QueryBuilder.eq(LabelMeta.from.name, edge.srcVertex.id.toString))
-      .filterBy(QueryBuilder.eq(LabelMeta.to.name, edge.tgtVertex.id.toString))
-      .filterBy(QueryBuilder.eq("direction", edge.getDirection()))
+  def toQuery(edge: S2EdgeLike): com.spotify.asyncdatastoreclient.KeyQuery = {
+    QueryBuilder.query(edge.innerLabel.hbaseTableName, EdgeKey.encode(edge))
   }
   /**
     * build storage implementation specific query request from S2Graph's QueryRequest.
@@ -390,7 +419,13 @@ object DatastoreStorage {
       label,
       dir = GraphUtil.toDirection("out"),
       version = version,
-      propsWithTs = props
+      propsWithTs = props,
+      parentEdges = Nil,
+      originalEdgeOpt = None,
+      pendingEdgeOpt = None,
+      statusCode = 0,
+      lockTs = None,
+      tsInnerValOpt = Option(InnerVal.withLong(ts, label.schemaVersion))
     )
   }
 

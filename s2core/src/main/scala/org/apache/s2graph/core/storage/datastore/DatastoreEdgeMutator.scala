@@ -53,7 +53,9 @@ class DatastoreEdgeMutator(graph: S2GraphLike,
       
       fetchAndDeletes(outEdges).flatMap { _ =>
         fetchAndDeletes(inEdges).flatMap { _ =>
-          asScala(datastore.executeAsync(toMutationStatement(squashedEdge)))
+//          val mutations = toMutationStatement(squashedEdge)
+          val mutations = toBatch(squashedEdge)
+          asScala(datastore.executeAsync(mutations))
         }
       }
     }
@@ -68,7 +70,7 @@ class DatastoreEdgeMutator(graph: S2GraphLike,
     val batch = QueryBuilder.batch()
 
     _edges.foreach { edge =>
-      batch.add(toMutationStatement(edge))
+      toBatch(edge, batch)
     }
 
     //TODO: need to ensure the index of parameter sequence with correct return type
