@@ -1,7 +1,7 @@
 package org.apache.s2graph.core.storage.datastore
 
 import com.google.common.util.concurrent.ListenableFuture
-import com.spotify.asyncdatastoreclient.{Datastore, QueryBuilder, TransactionResult}
+import com.spotify.asyncdatastoreclient.{Datastore, Key, QueryBuilder, TransactionResult}
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage.MutateResponse
 
@@ -12,18 +12,6 @@ class DatastoreEdgeMutator(graph: S2GraphLike,
                            datastore: Datastore) extends EdgeMutator {
 
   import DatastoreStorage._
-
-  def mutateSnapshotEdge(snapshotEdge: SnapshotEdge)(implicit ec: ExecutionContext): Future[MutateResponse] = {
-    asScala(datastore.executeAsync(toMutationStatement(snapshotEdge))).map { _ =>
-      MutateResponse.Success
-    }
-  }
-
-  def fetchSnapshotEdge(snapshotEdge: SnapshotEdge)(implicit ec: ExecutionContext): Future[Option[S2EdgeLike]] = {
-    asScala(datastore.executeAsync(toQuery(snapshotEdge))).map { queryResult =>
-      queryResult.getAll.asScala.headOption.map(toSnapshotEdge(graph, _).edge)
-    }
-  }
 
   def fetchAndDeletes(edges: Seq[S2EdgeLike])(implicit ec: ExecutionContext) = {
     if (edges.isEmpty) Future.successful(MutateResponse.Success)
@@ -43,7 +31,7 @@ class DatastoreEdgeMutator(graph: S2GraphLike,
                                  _edges: Seq[S2EdgeLike],
                                  withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
     val grouped = _edges.groupBy { edge =>
-      edge.toSnapshotEdge.edge.edgeId
+      (edge.innerLabel, edge.srcVertex.innerId, edge.tgtVertex.innerId)
     }
 
     val futures = grouped.map { case (_, edges) =>
@@ -74,8 +62,9 @@ class DatastoreEdgeMutator(graph: S2GraphLike,
       toBatch(edge, batch)
     }
 
+    val mutations = batch
     //TODO: need to ensure the index of parameter sequence with correct return type
-    asScala(datastore.executeAsync(batch)).map { _ =>
+    asScala(datastore.executeAsync(mutations)).map { _ =>
       (0 until _edges.size).map(_ -> true)
     }
   }
@@ -91,16 +80,15 @@ class DatastoreEdgeMutator(graph: S2GraphLike,
   override def deleteAllFetchedEdgesAsyncOld(stepInnerResult: StepResult,
                                              requestTs: Long,
                                              retryNum: Int)(implicit ec: ExecutionContext): Future[Boolean] = {
-    val batch = QueryBuilder.batch()
-    val distinct = stepInnerResult.edgeWithScores.map(_.edge).groupBy(encodeEdgeKey).values.flatten.toSet
+    if (stepInnerResult.isEmpty) Future.successful(true)
+    else {
+      val edges = stepInnerResult.edgeWithScores.map(_.edge)
+      val head = edges.head
+      val zkQuorum = head.innerLabel.hbaseZkAddr
 
-    distinct.foreach { edge =>
-      val mutation = toMutationStatement(edge)
-
-      batch.add(mutation)
+      mutateWeakEdges(zkQuorum, edges, true).map { mutateResult =>
+        mutateResult.forall(_._2)
+      }
     }
-
-    val mutation = batch
-    asScala(datastore.executeAsync(mutation)).map(_ => true)
   }
 }

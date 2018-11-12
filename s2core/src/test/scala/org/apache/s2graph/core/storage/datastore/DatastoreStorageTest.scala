@@ -6,7 +6,7 @@ import com.spotify.asyncdatastoreclient._
 import com.typesafe.config.{Config, ConfigFactory, ConfigValue, ConfigValueFactory}
 import org.apache.s2graph.core.fetcher.BaseFetcherTest
 import org.apache.s2graph.core.rest.RequestParser
-import org.apache.s2graph.core.{Management, QueryParam, QueryRequest, S2Graph, S2GraphConfigs, S2Vertex, S2VertexProperty, Step, VertexQueryParam, Query => S2Query}
+import org.apache.s2graph.core.{Management, QueryParam, QueryRequest, S2Graph, S2GraphConfigs, S2Vertex, S2VertexProperty, Step, StepResult, VertexQueryParam, Query => S2Query}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
@@ -98,24 +98,27 @@ class DatastoreStorageTest extends FunSuite with Matchers with BeforeAndAfterAll
 
   test("test edge.") {
     val builder = graph.elementBuilder
-    val vertexId = builder.newVertexId(serviceName)(columnName)("user_1")
-    val vertex = builder.newVertex(vertexId)
-
     val edge1 = builder.toEdge("user_1", "user_z", labelName, "out", Map("score" -> 0.1), ts = 10L, operation = "insert")
     val edge2 = builder.toEdge("user_1", "user_x", labelName, "out", Map("score" -> 0.8), ts = 9L, operation = "insert")
 
     val mutator = new DatastoreEdgeMutator(graph, datastore)
-    val fetcher = new DatastoreEdgeFetcher(graph, datastore)
 
-//    val mutateFuture = mutator.mutateWeakEdges("zk", Seq(edge1, edge2), true)
     val mutateFuture = mutator.mutateStrongEdges("zk", Seq(edge1, edge2), true)
     Await.result(mutateFuture, Duration("60 seconds"))
 
-    val queryParam = QueryParam(labelName = labelName)
+    val fetcher = new DatastoreEdgeFetcher(graph, datastore)
 
-    val queryRequest = QueryRequest(S2Query.empty, 0, vertex, queryParam)
-    val fetchFuture = fetcher.fetches(Seq(queryRequest), Map.empty)
-    Await.result(fetchFuture, Duration("60 seconds")).foreach { stepResult =>
+    def fetch(vid: String, dir: String): Seq[StepResult] = {
+      val vertexId = builder.newVertexId(serviceName)(columnName)(vid)
+      val vertex = builder.newVertex(vertexId)
+
+      val queryParam = QueryParam(labelName = labelName, direction = dir)
+      val queryRequest = QueryRequest(S2Query.empty, 0, vertex, queryParam)
+      val fetchFuture = fetcher.fetches(Seq(queryRequest), Map.empty)
+
+      Await.result(fetchFuture, Duration("60 seconds"))
+    }
+    fetch("user_1", "out").foreach { stepResult =>
       val edges = stepResult.edgeWithScores.map(_.edge)
       edges.foreach(println)
 
@@ -123,6 +126,14 @@ class DatastoreStorageTest extends FunSuite with Matchers with BeforeAndAfterAll
 
       edge1.edgeId == edges(0).edgeId && edge1.propsWithTs == edges(0).propsWithTs shouldBe true
       edge2.edgeId == edges(1).edgeId && edge2.propsWithTs == edges(1).propsWithTs shouldBe true
+    }
+    fetch("user_z", "in").foreach { stepResult =>
+      val edges = stepResult.edgeWithScores.map(_.edge)
+      edges.foreach(println)
+
+      val head = edges.head
+      head.srcVertex == edge1.duplicateEdge.srcVertex &&
+      head.tgtVertex == edge1.duplicateEdge.tgtVertex shouldBe true
     }
   }
 

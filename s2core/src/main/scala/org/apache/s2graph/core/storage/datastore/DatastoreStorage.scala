@@ -77,26 +77,24 @@ object DatastoreStorage {
     Datastore.create(builder.build())
   }
 
+//  def toEdgeId(edge: S2EdgeLike): EdgeId = {
+//    val timestamp = if (edge.innerLabel.consistencyLevel == "strong") 0l else edge.ts
+//    //    EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), "out", timestamp)
+//    val (srcColumn, tgtColumn) = edge.innerLabel.srcTgtColumn(edge.getDir())
+//    if (edge.getDir() == GraphUtil.directions("out"))
+//      EdgeId(VertexId(srcColumn, edge.srcVertex.id.innerId), VertexId(tgtColumn, edge.tgtVertex.id.innerId), edge.label(), "out", timestamp)
+//    else
+//      EdgeId(VertexId(tgtColumn, edge.tgtVertex.id.innerId), VertexId(srcColumn, edge.srcVertex.id.innerId), edge.label(), "in", timestamp)
+//  }
+
   def toEdgeId(edge: S2EdgeLike): EdgeId = {
     val timestamp = if (edge.innerLabel.consistencyLevel == "strong") 0l else edge.ts
-    //    EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), "out", timestamp)
-    val (srcColumn, tgtColumn) = edge.innerLabel.srcTgtColumn(edge.getDir())
-    if (edge.getDir() == GraphUtil.directions("out"))
-      EdgeId(VertexId(srcColumn, edge.srcVertex.id.innerId), VertexId(tgtColumn, edge.tgtVertex.id.innerId), edge.label(), "out", timestamp)
-    else
-      EdgeId(VertexId(tgtColumn, edge.tgtVertex.id.innerId), VertexId(srcColumn, edge.srcVertex.id.innerId), edge.label(), "in", timestamp)
+    EdgeId(edge.srcVertex.id, edge.tgtVertex.id, edge.label(), edge.getDirection(), timestamp)
   }
 
   def encodeEdgeKey(edge: S2EdgeLike): String = {
-    Seq(edge.edgeId.toString, edge.getDirection()).mkString(delimiter)
-//    Seq(edge.srcVertex.id.toString(), edge.label(), edge.getDirection(), edge.tgtVertex.id.toString()).mkString(delimiter)
+    toEdgeId(edge).toString
   }
-
-//  def decodeEdgeKey(s: String): (EdgeId, String) = {
-//    val Array(edgeIdStr, dirStr) = s.split(delimiter)
-//    val edgeId = EdgeId.fromString(edgeIdStr)
-//    (edgeId, dirStr)
-//  }
 
   def toKind(tableName: String, element: String): String = {
     Seq(tableName, element).mkString(delimiter)
@@ -104,10 +102,6 @@ object DatastoreStorage {
 
   def toKind(edge: S2EdgeLike): String = {
     toKind(edge.innerLabel.hbaseTableName, EdgePostfix)
-  }
-
-  def toKind(snapshotEdge: SnapshotEdge): String = {
-    toKind(snapshotEdge.label.hbaseTableName, SnapshotEdgePostfix)
   }
 
   def toKind(vertex: S2VertexLike): String = {
@@ -143,22 +137,6 @@ object DatastoreStorage {
     builder.build()
   }
 
-  def toEntity(snapshotEdge: SnapshotEdge): Entity = {
-    val edgeKey = Key.builder(toKind(snapshotEdge), snapshotEdge.edge.edgeId.toString).build()
-
-    val builder = Entity.builder(edgeKey)
-        .property("version", snapshotEdge.version)
-        .property("dir", snapshotEdge.dir)
-        .property("op", snapshotEdge.op.toInt)
-
-    snapshotEdge.propsWithTs.forEach(new BiConsumer[String, Property[_]] {
-      override def accept(key: String, t: Property[_]): Unit = {
-        builder.property(t.key(), t.value())
-      }
-    })
-
-    builder.build()
-  }
   /**
     * translate s2graph's S2VertexLike class to storage specific class that will be used for mutation request
     * in datastore, every mutation is involved with (Key, Entity) class,
@@ -239,11 +217,6 @@ object DatastoreStorage {
     }
   }
 
-  def toMutationStatement(snapshotEdge: SnapshotEdge): MutationStatement = {
-    val edgeEntity = toEntity(snapshotEdge)
-    QueryBuilder.insert(edgeEntity)
-  }
-
   def toBatch(edge: S2EdgeLike, batch: Batch): Unit = {
     edge.relatedEdges.map { edge =>
       val mutation = toMutationStatement(edge)
@@ -260,10 +233,6 @@ object DatastoreStorage {
     batch
   }
 
-  def toQuery(snapshotEdge: SnapshotEdge): com.spotify.asyncdatastoreclient.KeyQuery = {
-    QueryBuilder.query(toKind(snapshotEdge), snapshotEdge.edge.edgeId.toString)
-  }
-
   def toQuery(edge: S2EdgeLike): com.spotify.asyncdatastoreclient.KeyQuery = {
     QueryBuilder.query(toKind(edge), encodeEdgeKey(edge))
   }
@@ -278,7 +247,7 @@ object DatastoreStorage {
     val qp = queryRequest.queryParam
     val label = qp.label
 
-    val queryBuilder = QueryBuilder.query().kindOf(toKind(label.hbaseTableName, EdgePostfix)).limit(qp.limit)
+    val queryBuilder = QueryBuilder.query().kindOf(toKind(label.hbaseTableName, EdgePostfix))
 
     toFilterBys(queryRequest).foreach(queryBuilder.filterBy)
     toOrderBys(queryOption).foreach(queryBuilder.orderBy)
@@ -402,25 +371,6 @@ object DatastoreStorage {
     props.toMap
   }
 
-  def toSnapshotEdge(graph: S2GraphLike,
-                     entity: Entity): SnapshotEdge = {
-    val builder = graph.elementBuilder
-    val edgeId = EdgeId.fromString(entity.getKey.getName)
-    val label = Label.findByName(edgeId.labelName).getOrElse(throw new IllegalStateException(s"$entity has invalid label"))
-
-    val srcVertex = builder.newVertex(edgeId.srcVertexId)
-    val tgtVertex = builder.newVertex(edgeId.tgtVertexId)
-    val dir = entity.getInteger("dir").toInt
-    val op = entity.getInteger("op").toByte
-    val version = entity.getInteger("version")
-    val ts = entity.getInteger(LabelMeta.timestamp.name)
-
-    val props = parseProps(label, ts, entity)
-
-    val snapshotEdge = SnapshotEdge(graph, srcVertex, tgtVertex, label, dir, op, version, S2Edge.EmptyProps, None, 0, None, None)
-    S2Edge.fillPropsWithTs(snapshotEdge, props)
-    snapshotEdge
-  }
   /**
     * translate storage specific class that hold data into S2EdgeLike.
     *

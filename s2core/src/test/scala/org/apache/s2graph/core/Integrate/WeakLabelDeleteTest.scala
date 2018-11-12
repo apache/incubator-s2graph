@@ -20,10 +20,8 @@
 package org.apache.s2graph.core.Integrate
 
 import java.util.concurrent.TimeUnit
-import java.util.function.Consumer
 
 import org.apache.s2graph.core.{GraphUtil, S2Edge}
-import org.apache.tinkerpop.gremlin.structure.Edge
 import org.scalatest.BeforeAndAfterEach
 import play.api.libs.json._
 
@@ -90,6 +88,8 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
       "direction" -> "in", "ids" -> Json.arr("20"), "timestamp" -> deletedAt))
 
     deleteAllSync(json)
+    result = getEdgesSync(query(20, "in", testTgtColumnName))
+    (result \ "results").as[List[JsValue]].size should be(0)
 
     result = getEdgesSync(query(11, "out"))
     (result \ "results").as[List[JsValue]].size should be(0)
