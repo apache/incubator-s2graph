@@ -20,7 +20,10 @@
 package org.apache.s2graph.core.Integrate
 
 import java.util.concurrent.TimeUnit
+import java.util.function.Consumer
 
+import org.apache.s2graph.core.{GraphUtil, S2Edge}
+import org.apache.tinkerpop.gremlin.structure.Edge
 import org.scalatest.BeforeAndAfterEach
 import play.api.libs.json._
 
@@ -33,7 +36,9 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
   import WeakLabelDeleteHelper._
 
   test("test weak consistency select") {
-    insertEdgesSync(bulkEdges(): _*)
+    val edges = bulkEdges()
+
+    insertEdgesSync(edges: _*)
     var result = getEdgesSync(query(0))
 
     (result \ "results").as[List[JsValue]].size should be(4)
@@ -112,7 +117,10 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
 
 
   // called by each test, each
-  override def beforeEach = initTestData()
+  override def beforeEach = {
+    cleanUp()
+    initTestData()
+  }
 
   // called by start test, once
 
@@ -122,6 +130,15 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
   }
 
   object WeakLabelDeleteHelper {
+    import scala.collection.JavaConverters._
+
+    def cleanUp() = {
+      val edgesToDelete = graph.edges().asScala.toSeq.map { edge =>
+        edge.asInstanceOf[S2Edge].copyOp(GraphUtil.operations("delete"))
+      }
+      val ls = edgesToDelete.toList
+      Await.result(graph.mutateEdges(edgesToDelete, withWait = true), Duration("60 seconds"))
+    }
 
     def bulkEdges(startTs: Int = 0) = Seq(
       toEdge(startTs + 1, "insert", "e", "0", "1", testLabelNameWeak, s"""{"time": 10}"""),

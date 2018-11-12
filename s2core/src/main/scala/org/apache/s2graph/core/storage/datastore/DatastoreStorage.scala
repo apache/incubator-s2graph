@@ -20,21 +20,12 @@ import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 
-object EdgeKey {
-  val delimiter = "\u2980"
-
-  def encode(edge: S2EdgeLike): String = {
-    Seq(edge.edgeId.toString, edge.getDir()).mkString(delimiter)
-  }
-
-  def decode(s: String): (EdgeId, Int) = {
-    val Array(edgeIdStr, dirStr) = s.split(delimiter)
-    val edgeId = EdgeId.fromString(edgeIdStr)
-    (edgeId, dirStr.toInt)
-  }
-}
-
 object DatastoreStorage {
+  val delimiter = "\u2980"
+  val EdgePostfix = "e"
+  val SnapshotEdgePostfix = "s"
+  val VertexPostfix = "v"
+
   val ConnectionTimeoutKey = "connectionTimeout"
   val RequestTimeoutKey = "requestTimeout"
   val MaxConnectionsKey = "maxConnections"
@@ -86,6 +77,43 @@ object DatastoreStorage {
     Datastore.create(builder.build())
   }
 
+  def toEdgeId(edge: S2EdgeLike): EdgeId = {
+    val timestamp = if (edge.innerLabel.consistencyLevel == "strong") 0l else edge.ts
+    //    EdgeId(srcVertex.innerId, tgtVertex.innerId, label(), "out", timestamp)
+    val (srcColumn, tgtColumn) = edge.innerLabel.srcTgtColumn(edge.getDir())
+    if (edge.getDir() == GraphUtil.directions("out"))
+      EdgeId(VertexId(srcColumn, edge.srcVertex.id.innerId), VertexId(tgtColumn, edge.tgtVertex.id.innerId), edge.label(), "out", timestamp)
+    else
+      EdgeId(VertexId(tgtColumn, edge.tgtVertex.id.innerId), VertexId(srcColumn, edge.srcVertex.id.innerId), edge.label(), "in", timestamp)
+  }
+
+  def encodeEdgeKey(edge: S2EdgeLike): String = {
+    Seq(edge.edgeId.toString, edge.getDirection()).mkString(delimiter)
+//    Seq(edge.srcVertex.id.toString(), edge.label(), edge.getDirection(), edge.tgtVertex.id.toString()).mkString(delimiter)
+  }
+
+//  def decodeEdgeKey(s: String): (EdgeId, String) = {
+//    val Array(edgeIdStr, dirStr) = s.split(delimiter)
+//    val edgeId = EdgeId.fromString(edgeIdStr)
+//    (edgeId, dirStr)
+//  }
+
+  def toKind(tableName: String, element: String): String = {
+    Seq(tableName, element).mkString(delimiter)
+  }
+
+  def toKind(edge: S2EdgeLike): String = {
+    toKind(edge.innerLabel.hbaseTableName, EdgePostfix)
+  }
+
+  def toKind(snapshotEdge: SnapshotEdge): String = {
+    toKind(snapshotEdge.label.hbaseTableName, SnapshotEdgePostfix)
+  }
+
+  def toKind(vertex: S2VertexLike): String = {
+    toKind(vertex.service.hTableName, VertexPostfix)
+  }
+
   /**
     * translate s2graph's S2EdgeLike class to storage specific class that will be used for mutation request
     * in datastore, every mutation is involved with (Key, Entity) class,
@@ -95,9 +123,8 @@ object DatastoreStorage {
     * @return
     */
   def toEntity(edge: S2EdgeLike): Entity = {
-    val label = edge.innerLabel
     //TODO: only index property that is used in any LabelIndex.
-    val edgeKey = Key.builder(label.hbaseTableName, EdgeKey.encode(edge)).build()
+    val edgeKey = Key.builder(toKind(edge), encodeEdgeKey(edge)).build()
 
     val builder = Entity.builder(edgeKey)
       .property("version", edge.version)
@@ -117,9 +144,7 @@ object DatastoreStorage {
   }
 
   def toEntity(snapshotEdge: SnapshotEdge): Entity = {
-    val label = snapshotEdge.label
-
-    val edgeKey = Key.builder(label.hbaseTableName, snapshotEdge.edge.edgeId.toString).build()
+    val edgeKey = Key.builder(toKind(snapshotEdge), snapshotEdge.edge.edgeId.toString).build()
 
     val builder = Entity.builder(edgeKey)
         .property("version", snapshotEdge.version)
@@ -143,7 +168,7 @@ object DatastoreStorage {
     * @return
     */
   def toEntity(vertex: S2VertexLike): Entity = {
-    val vertexKey = Key.builder(vertex.hbaseTableName, vertex.id.toString()).build()
+    val vertexKey = Key.builder(toKind(vertex), vertex.id.toString()).build()
     val builder = Entity.builder(vertexKey)
 
     vertex.properties().forEachRemaining(new Consumer[VertexProperty[_]]{
@@ -236,13 +261,11 @@ object DatastoreStorage {
   }
 
   def toQuery(snapshotEdge: SnapshotEdge): com.spotify.asyncdatastoreclient.KeyQuery = {
-    val label = snapshotEdge.label
-
-    QueryBuilder.query(label.hbaseTableName, snapshotEdge.edge.edgeId.toString)
+    QueryBuilder.query(toKind(snapshotEdge), snapshotEdge.edge.edgeId.toString)
   }
 
   def toQuery(edge: S2EdgeLike): com.spotify.asyncdatastoreclient.KeyQuery = {
-    QueryBuilder.query(edge.innerLabel.hbaseTableName, EdgeKey.encode(edge))
+    QueryBuilder.query(toKind(edge), encodeEdgeKey(edge))
   }
   /**
     * build storage implementation specific query request from S2Graph's QueryRequest.
@@ -255,7 +278,7 @@ object DatastoreStorage {
     val qp = queryRequest.queryParam
     val label = qp.label
 
-    val queryBuilder = QueryBuilder.query().kindOf(label.hbaseTableName).limit(qp.limit)
+    val queryBuilder = QueryBuilder.query().kindOf(toKind(label.hbaseTableName, EdgePostfix)).limit(qp.limit)
 
     toFilterBys(queryRequest).foreach(queryBuilder.filterBy)
     toOrderBys(queryOption).foreach(queryBuilder.orderBy)
@@ -264,6 +287,10 @@ object DatastoreStorage {
 
     //TODO: not sure how to implement offset, cursor, limit yet.
     queryBuilder.limit(qp.limit)
+  }
+
+  def toQuery(kind: String): com.spotify.asyncdatastoreclient.Query = {
+    QueryBuilder.query().kindOf(kind)
   }
 
   def toFilterBys(queryRequest: QueryRequest): Seq[com.spotify.asyncdatastoreclient.Filter] = {
@@ -410,6 +437,7 @@ object DatastoreStorage {
     val srcVertexId = VertexId.fromString(entity.getString(LabelMeta.from.name))
     val tgtVertexId = VertexId.fromString(entity.getString(LabelMeta.to.name))
     val ts = entity.getInteger(LabelMeta.timestamp.name)
+    val direction = entity.getString("direction")
 
     val props = parseProps(label, ts, entity)
 
@@ -417,7 +445,7 @@ object DatastoreStorage {
       builder.newVertex(srcVertexId),
       builder.newVertex(tgtVertexId),
       label,
-      dir = GraphUtil.toDirection("out"),
+      dir = GraphUtil.toDirection(direction),
       version = version,
       propsWithTs = props,
       parentEdges = Nil,

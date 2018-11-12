@@ -65,7 +65,9 @@ class DatastoreEdgeFetcher(graph: S2GraphLike,
   override def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]] = {
     val futures = Label.findAll().groupBy(_.hbaseTableName).toSeq.map { case (hTableName, labels) =>
       val distinctLabels = labels.toSet
-      asScala(datastore.executeAsync(QueryBuilder.query().kindOf(hTableName))).map { queryResult =>
+      val kind = toKind(hTableName, EdgePostfix)
+
+      asScala(datastore.executeAsync(toQuery(kind))).map { queryResult =>
         queryResult.getAll().asScala.map { entity =>
           toS2Edge(graph, entity)
         }.filter(e => distinctLabels(e.innerLabel))
