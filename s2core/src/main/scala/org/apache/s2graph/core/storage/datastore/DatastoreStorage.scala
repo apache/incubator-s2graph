@@ -8,7 +8,7 @@ import com.spotify.asyncdatastoreclient._
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.parsers._
-import org.apache.s2graph.core.schema.{ColumnMeta, Label, LabelMeta}
+import org.apache.s2graph.core.schema.{ColumnMeta, Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorageSerDe
 import org.apache.s2graph.core.storage.{Storage, StorageManagement, StorageSerDe}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, InnerValLikeWithTs, VertexId}
@@ -242,35 +242,42 @@ object DatastoreStorage {
     * @param queryRequest
     * @return
     */
-  def toQuery(queryRequest: QueryRequest): com.spotify.asyncdatastoreclient.Query = {
+  def toQuery(graph: S2GraphLike,
+              queryRequest: QueryRequest,
+              parentEdges: Seq[EdgeWithScore]): com.spotify.asyncdatastoreclient.Query = {
     val queryOption = queryRequest.query.queryOption
     val qp = queryRequest.queryParam
     val label = qp.label
 
     val queryBuilder = QueryBuilder.query().kindOf(toKind(label.hbaseTableName, EdgePostfix))
 
-    toFilterBys(queryRequest).foreach(queryBuilder.filterBy)
-    toOrderBys(queryOption).foreach(queryBuilder.orderBy)
+    toFilterBys(graph, queryRequest, parentEdges).foreach(queryBuilder.filterBy)
+    toOrderBys(queryRequest).foreach(queryBuilder.orderBy)
     //TODO: currently group by is not supported.
 //    toGroupBys(queryOption).foreach(queryBuilder.groupBy)
 
     //TODO: not sure how to implement offset, cursor, limit yet.
-    queryBuilder.limit(qp.limit)
+    queryBuilder.limit(qp.offset + qp.limit)
   }
 
   def toQuery(kind: String): com.spotify.asyncdatastoreclient.Query = {
     QueryBuilder.query().kindOf(kind)
   }
 
-  def toFilterBys(queryRequest: QueryRequest): Seq[com.spotify.asyncdatastoreclient.Filter] = {
+  def toFilterBys(graph: S2GraphLike,
+                  queryRequest: QueryRequest,
+                  parentEdges: Seq[EdgeWithScore]): Seq[com.spotify.asyncdatastoreclient.Filter] = {
     val qp = queryRequest.queryParam
     val label = qp.label
     val dir = qp.dir.toInt
+
+
     // base filter
     val baseFilters = Seq(
       QueryBuilder.eq(LabelMeta.from.name, queryRequest.vertex.id.toString()),
       QueryBuilder.eq("direction", qp.direction)
     )
+
     // duration
     val durationFilters = qp.durationOpt.map { case (minTs, maxTs) =>
       Seq(
@@ -301,7 +308,9 @@ object DatastoreStorage {
     baseFilters ++ durationFilters ++ optionalFilters
   }
 
-  def toOrderBys(queryOption: QueryOption): Seq[com.spotify.asyncdatastoreclient.Order] = {
+  def toOrderBys(queryRequest: QueryRequest): Seq[com.spotify.asyncdatastoreclient.Order] = {
+    val queryOption = queryRequest.query.queryOption
+
     if (queryOption.orderByKeys.isEmpty) {
       // default timestamp.
       Seq(QueryBuilder.desc(LabelMeta.timestamp.name))

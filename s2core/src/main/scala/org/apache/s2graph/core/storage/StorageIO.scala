@@ -41,12 +41,9 @@ object StorageIO {
     else {
       val queryOption = queryRequest.query.queryOption
       val queryParam = queryRequest.queryParam
-      val where = queryParam.where.getOrElse(WhereParser.success)
-      val (minTs, maxTs) = queryParam.durationOpt.getOrElse((Long.MinValue, Long.MaxValue))
-
       val edgeWithScores = for {
         (edge, idx) <- edges.zipWithIndex if idx >= startOffset && idx < startOffset + len
-        edgeWithScore <- edgeToEdgeWithScore(queryRequest, edge, parentEdges) if where.filter(edge) && edge.ts >= minTs && edge.ts < maxTs
+        edgeWithScore <- edgeToEdgeWithScore(queryRequest, edge, parentEdges)
       } yield {
         edgeWithScore
       }

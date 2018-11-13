@@ -38,7 +38,7 @@ class DatastoreEdgeFetcher(graph: S2GraphLike,
     }
 
     //TODO: toQuery should set up all query options property to datastore Query class.
-    val query = toQuery(queryRequest)
+    val query = toQuery(graph, queryRequest, parentEdges)
 
     if (queryParam.cacheTTLInMillis < 0) fetchInner(query)
     else {

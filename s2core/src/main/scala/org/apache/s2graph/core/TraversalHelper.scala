@@ -153,8 +153,13 @@ object TraversalHelper {
     val labelWeight = queryRequest.labelWeight
     val where = queryParam.where.get
     val isDefaultTransformer = queryParam.edgeTransformer.isDefault
+    val (minTs, maxTs) = queryParam.durationOpt.getOrElse((Long.MinValue, Long.MaxValue))
+
+    def validTgtVertexId(edge: S2EdgeLike): Boolean = queryParam.tgtVertexInnerIdOpt.map(edge.tgtForVertex.innerId == _).getOrElse(true)
 
     if (where != WhereParser.success && !where.filter(edge)) Nil
+    else if (edge.ts < minTs || edge.ts >= maxTs) Nil
+    else if (!validTgtVertexId(edge)) Nil
     else {
       val edges = if (isDefaultTransformer) Seq(edge) else convertEdges(queryParam, edge, nextStepOpt)
       edges.map { e =>
