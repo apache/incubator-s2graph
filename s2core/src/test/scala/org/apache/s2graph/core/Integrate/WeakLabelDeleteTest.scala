@@ -34,9 +34,6 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
   import WeakLabelDeleteHelper._
 
   test("test weak consistency select") {
-    val edges = bulkEdges()
-
-    insertEdgesSync(edges: _*)
     var result = getEdgesSync(query(0))
 
     (result \ "results").as[List[JsValue]].size should be(4)
