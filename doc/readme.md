@@ -21,6 +21,9 @@ cd doc
 ```
 
 ### Creating a virtualenv environment for documnet build
+
+If `pip` is not installed, you need to install it first by referring to the link: https://pip.pypa.io/en/stable/installing/
+
 ```
 pip install virtualenv
 
