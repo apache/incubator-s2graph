@@ -44,7 +44,11 @@ make html
 
 ### Viewing
 ```
-pushd build/html && python -m SimpleHTTPServer 3000  
+# python 2
+pushd build/html && python -m SimpleHTTPServer 3000 
+
+# python 3
+pushd build/html && python -m http.server 3000 
 ```
 
 ### Screenshot
