@@ -274,7 +274,7 @@ object DatastoreStorage {
     // duration
     val durationFilters = qp.durationOpt.map { case (minTs, maxTs) =>
       Seq(
-        QueryBuilder.gt(LabelMeta.timestamp.name, minTs),
+        QueryBuilder.gte(LabelMeta.timestamp.name, minTs),
         QueryBuilder.lt(LabelMeta.timestamp.name, maxTs)
       )
     }.getOrElse(Nil)
