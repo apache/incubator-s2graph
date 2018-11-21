@@ -110,6 +110,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-212] - Fix broken markdown on README.md.
     * [S2GRAPH-229] - 'Step' abstraction for combinable queries
     * [S2GRAPH-245] - Remove install hbase step on travis CI.
+    * [S2GRAPH-246] - Integration of documents into the S2Graph project.
 
 Release 0.1.0 - Released
 
