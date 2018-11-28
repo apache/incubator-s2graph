@@ -6,10 +6,10 @@ import org.slf4j.LoggerFactory
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.model.headers.RawHeader
-import akka.http.scaladsl.model.{HttpHeader, StatusCodes}
+import akka.http.scaladsl.model._
 import org.apache.s2graph.core.GraphExceptions.{BadQueryException, JsonParseException}
 import org.apache.s2graph.core.rest.RestHandler
-
+import play.api.libs.json._
 
 object S2GraphTraversalRoute {
 
@@ -20,7 +20,7 @@ object S2GraphTraversalRoute {
   }
 }
 
-trait S2GraphTraversalRoute {
+trait S2GraphTraversalRoute extends PlayJsonSupport {
 
   import S2GraphTraversalRoute._
 
@@ -40,15 +40,13 @@ trait S2GraphTraversalRoute {
         val result = restHandler.doPost(request.uri.toRelative.toString(), body, request.headers)
         val responseHeaders = result.headers.toList.map { case (k, v) => RawHeader(k, v) }
 
-        val f = result.body.map(StatusCodes.OK -> _.toString).recover {
-          case BadQueryException(msg, _) => StatusCodes.BadRequest -> msg
-          case JsonParseException(msg) => StatusCodes.BadRequest -> msg
-          case e: Exception => StatusCodes.InternalServerError -> e.toString
+        val f = result.body.map(StatusCodes.OK -> _).recover {
+          case BadQueryException(msg, _) => StatusCodes.BadRequest -> Json.obj("error" -> msg)
+          case JsonParseException(msg) => StatusCodes.BadRequest -> Json.obj("error" -> msg)
+          case e: Exception => StatusCodes.InternalServerError -> Json.obj("error" -> e.toString)
         }
 
-        respondWithHeaders(responseHeaders) {
-          complete(f)
-        }
+        respondWithHeaders(responseHeaders)(complete(f))
       }
     }
   }
@@ -60,6 +58,5 @@ trait S2GraphTraversalRoute {
         delegated // getEdges, experiments, etc.
       )
     }
-
 }
 

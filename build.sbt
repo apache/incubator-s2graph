@@ -47,7 +47,7 @@ lazy val s2rest_play = project.enablePlugins(PlayScala).disablePlugins(PlayLogba
   .enablePlugins(sbtdocker.DockerPlugin, JavaAppPackaging)
 
 lazy val s2http = project
-  .dependsOn(s2core)
+  .dependsOn(s2core, s2graphql)
   .settings(commonSettings: _*)
   .settings(dockerSettings: _*)
   .enablePlugins(sbtdocker.DockerPlugin, JavaAppPackaging)

@@ -10,11 +10,9 @@ import akka.http.scaladsl.server.Directives._
 import org.slf4j.LoggerFactory
 import play.api.libs.json._
 
-import scala.util.Try
+import scala.util._
 
 object S2GraphAdminRoute {
-
-  import scala.util._
 
   trait AdminMessageFormatter[T] {
     def toJson(msg: T): JsValue
@@ -22,9 +20,10 @@ object S2GraphAdminRoute {
 
   import scala.language.reflectiveCalls
 
-  type ToPlayJson = {def toJson: JsValue}
-
   object AdminMessageFormatter {
+    type ToPlayJson = {
+      def toJson: JsValue
+    }
 
     implicit def toPlayJson[A <: ToPlayJson] = new AdminMessageFormatter[A] {
       def toJson(js: A) = js.toJson
@@ -56,7 +55,7 @@ object S2GraphAdminRoute {
   }
 }
 
-trait S2GraphAdminRoute {
+trait S2GraphAdminRoute extends PlayJsonSupport {
 
   import S2GraphAdminRoute._
 
@@ -80,8 +79,7 @@ trait S2GraphAdminRoute {
   }
 
   lazy val createService = path("createService") {
-    entity(as[String]) { body =>
-      val params = Json.parse(body)
+    entity(as[JsValue]) { params =>
 
       val parseTry = Try(requestParser.toServiceElements(params))
       val serviceTry = for {
@@ -94,8 +92,7 @@ trait S2GraphAdminRoute {
   }
 
   lazy val createLabel = path("createLabel") {
-    entity(as[String]) { body =>
-      val params = Json.parse(body)
+    entity(as[JsValue]) { params =>
 
       val labelTry = for {
         label <- requestParser.toLabelElements(params)

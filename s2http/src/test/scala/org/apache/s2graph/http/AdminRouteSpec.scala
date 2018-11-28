@@ -8,18 +8,18 @@ import org.apache.s2graph.core.S2Graph
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 import org.slf4j.LoggerFactory
-import play.api.libs.json.{JsString, Json}
+import play.api.libs.json.{JsString, JsValue, Json}
 
-class AdminRoutesSpec extends WordSpec with Matchers with ScalaFutures with ScalatestRouteTest with S2GraphAdminRoute with BeforeAndAfterAll {
+class AdminRoutesSpec extends WordSpec with Matchers with ScalaFutures with ScalatestRouteTest with S2GraphAdminRoute with BeforeAndAfterAll with PlayJsonSupport {
+
   val config = ConfigFactory.load()
   val s2graph = new S2Graph(config)
+
   override val logger = LoggerFactory.getLogger(this.getClass)
 
   override def afterAll(): Unit = {
     s2graph.shutdown()
   }
-
-  import akka.http.scaladsl.server.Directives._
 
   lazy val routes = adminRoute
 
@@ -30,14 +30,14 @@ class AdminRoutesSpec extends WordSpec with Matchers with ScalaFutures with Scal
         "compressionAlgorithm" -> "gz"
       )
 
-      val serviceEntity = Marshal(serviceParam.toString).to[MessageEntity].futureValue
+      val serviceEntity = Marshal(serviceParam).to[MessageEntity].futureValue
       val request = Post("/createService").withEntity(serviceEntity)
 
       request ~> routes ~> check {
         status should ===(StatusCodes.Created)
         contentType should ===(ContentTypes.`application/json`)
 
-        val response = Json.parse(entityAs[String])
+        val response = entityAs[JsValue]
 
         (response \\ "name").head should ===(JsString("kakaoFavorites"))
         (response \\ "status").head should ===(JsString("ok"))
@@ -51,7 +51,7 @@ class AdminRoutesSpec extends WordSpec with Matchers with ScalaFutures with Scal
         status should ===(StatusCodes.OK)
         contentType should ===(ContentTypes.`application/json`)
 
-        val response = Json.parse(entityAs[String])
+        val response = entityAs[JsValue]
 
         (response \\ "name").head should ===(JsString("kakaoFavorites"))
       }
