@@ -35,7 +35,8 @@ import org.slf4j.LoggerFactory
 
 object Server extends App
   with S2GraphTraversalRoute
-  with S2GraphAdminRoute {
+  with S2GraphAdminRoute
+  with S2GraphMutateRoute {
 
   implicit val system: ActorSystem = ActorSystem("S2GraphHttpServer")
   implicit val materializer: ActorMaterializer = ActorMaterializer()
@@ -54,6 +55,7 @@ object Server extends App
   // Allows you to determine routes to expose according to external settings.
   lazy val routes: Route = concat(
     pathPrefix("graphs")(traversalRoute),
+    pathPrefix("mutate")(mutateRoute),
     pathPrefix("admin")(adminRoute),
     get(complete(health))
   )

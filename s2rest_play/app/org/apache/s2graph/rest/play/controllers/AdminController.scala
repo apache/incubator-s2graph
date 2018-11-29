@@ -20,6 +20,7 @@
 package org.apache.s2graph.rest.play.controllers
 
 import org.apache.s2graph.core.Management
+import org.apache.s2graph.core.Management.JsonModel.HTableParams
 import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.utils.logger
@@ -390,37 +391,6 @@ object AdminController extends Controller {
         ok(s"Labels were swapped.")
       case _ => notFound(s"Labels ${leftLabelName} or ${rightLabelName} not found.")
     }
-  }
-
-  case class HTableParams(cluster: String, hTableName: String,
-    preSplitSize: Int, hTableTTL: Option[Int], compressionAlgorithm: Option[String]) {
-
-    override def toString(): String = {
-      s"""HtableParams
-         |-- cluster : $cluster
-         |-- hTableName : $hTableName
-         |-- preSplitSize : $preSplitSize
-         |-- hTableTTL : $hTableTTL
-         |-- compressionAlgorithm : $compressionAlgorithm
-         |""".stripMargin
-    }
-  }
-
-  implicit object HTableParamsJsonConverter extends Format[HTableParams] {
-    def reads(json: JsValue): JsResult[HTableParams] = (
-    (__ \ "cluster").read[String] and
-    (__ \ "hTableName").read[String] and
-    (__ \ "preSplitSize").read[Int] and
-    (__ \ "hTableTTL").readNullable[Int] and
-      (__ \ "compressionAlgorithm").readNullable[String])(HTableParams.apply _).reads(json)
-
-    def writes(o: HTableParams): JsValue = Json.obj(
-      "cluster" -> o.cluster,
-      "hTableName" -> o.hTableName,
-      "preSplitSize" -> o.preSplitSize,
-      "hTableTTL" -> o.hTableTTL,
-      "compressionAlgorithm" -> o.compressionAlgorithm
-    )
   }
 
   implicit object JsErrorJsonWriter extends Writes[JsError] {
