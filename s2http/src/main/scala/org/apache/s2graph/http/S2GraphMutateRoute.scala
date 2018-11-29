@@ -12,56 +12,40 @@ import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait S2GraphMutateRoute {
+trait S2GraphMutateRoute extends PlayJsonSupport {
 
   val s2graph: S2Graph
   val logger = LoggerFactory.getLogger(this.getClass)
+
   lazy val parser = new RequestParser(s2graph)
 
   //  lazy val requestParser = new RequestParser(s2graph)
   lazy val exceptionHandler = ExceptionHandler {
-    case ex: JsonParseException =>
-      complete(StatusCodes.BadRequest -> ex.getMessage)
-    case ex: java.lang.IllegalArgumentException =>
-      complete(StatusCodes.BadRequest -> ex.getMessage)
+    case ex: JsonParseException => complete(StatusCodes.BadRequest -> ex.getMessage)
+    case ex: java.lang.IllegalArgumentException => complete(StatusCodes.BadRequest -> ex.getMessage)
   }
 
   lazy val mutateVertex = path("vertex" / Segments) { params =>
+    implicit val ec = s2graph.ec
+
     val (operation, serviceNameOpt, columnNameOpt) = params match {
-      case operation :: serviceName :: columnName :: Nil =>
-        (operation, Option(serviceName), Option(columnName))
-      case operation :: Nil =>
-        (operation, None, None)
+      case operation :: serviceName :: columnName :: Nil => (operation, Option(serviceName), Option(columnName))
+      case operation :: Nil => (operation, None, None)
+      case _ => throw new RuntimeException("invalid params")
     }
 
-    entity(as[String]) { body =>
-      val payload = Json.parse(body)
-
-      implicit val ec = s2graph.ec
-
-      val future = vertexMutate(payload, operation, serviceNameOpt, columnNameOpt).map { mutateResponses =>
-        HttpResponse(
-          status = StatusCodes.OK,
-          entity = HttpEntity(ContentTypes.`application/json`, Json.toJson(mutateResponses).toString)
-        )
-      }
+    entity(as[JsValue]) { payload =>
+      val future = vertexMutate(payload, operation, serviceNameOpt, columnNameOpt).map(Json.toJson(_))
 
       complete(future)
     }
   }
 
   lazy val mutateEdge = path("edge" / Segment) { operation =>
-    entity(as[String]) { body =>
-      val payload = Json.parse(body)
+    implicit val ec = s2graph.ec
 
-      implicit val ec = s2graph.ec
-
-      val future = edgeMutate(payload, operation, withWait = true).map { mutateResponses =>
-        HttpResponse(
-          status = StatusCodes.OK,
-          entity = HttpEntity(ContentTypes.`application/json`, Json.toJson(mutateResponses).toString)
-        )
-      }
+    entity(as[JsValue]) { payload =>
+      val future = edgeMutate(payload, operation, withWait = true).map(Json.toJson(_))
 
       complete(future)
     }
@@ -79,13 +63,10 @@ trait S2GraphMutateRoute {
     s2graph.mutateVertices(verticesToStore, withWait).map(_.map(_.isSuccess))
   }
 
-  def edgeMutate(elementsWithTsv: Seq[(GraphElement, String)],
-                 withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
+  def edgeMutate(elementsWithTsv: Seq[(GraphElement, String)], withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
     val elementWithIdxs = elementsWithTsv.zipWithIndex
+    val (elementSync, elementAsync) = elementWithIdxs.partition { case ((element, tsv), idx) => !element.isAsync }
 
-    val (elementSync, elementAsync) = elementWithIdxs.partition { case ((element, tsv), idx) =>
-      !element.isAsync
-    }
     val retToSkip = elementAsync.map(_._2 -> MutateResponse.Success)
     val (elementsToStore, _) = elementSync.map(_._1).unzip
     val elementsIdxToStore = elementSync.map(_._2)
@@ -95,9 +76,7 @@ trait S2GraphMutateRoute {
     }.map(_.sortBy(_._1).map(_._2.isSuccess))
   }
 
-  def edgeMutate(jsValue: JsValue,
-                 operation: String,
-                 withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
+  def edgeMutate(jsValue: JsValue, operation: String, withWait: Boolean)(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
     val edgesWithTsv = parser.parseJsonFormat(jsValue, operation)
     edgeMutate(edgesWithTsv, withWait)
   }

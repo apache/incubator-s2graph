@@ -12,30 +12,9 @@ import play.api.libs.json._
 
 import scala.util._
 
-object S2GraphAdminRoute {
-
-  trait AdminMessageFormatter[T] {
-    def toJson(msg: T): JsValue
-  }
-
-  import scala.language.reflectiveCalls
-
-  object AdminMessageFormatter {
-    type ToPlayJson = {
-      def toJson: JsValue
-    }
-
-    implicit def toPlayJson[A <: ToPlayJson] = new AdminMessageFormatter[A] {
-      def toJson(js: A) = js.toJson
-    }
-
-    implicit def fromPlayJson[T <: JsValue] = new AdminMessageFormatter[T] {
-      def toJson(js: T) = js
-    }
-  }
-
-  def toHttpEntity[A: AdminMessageFormatter](opt: Option[A], status: StatusCode = StatusCodes.OK, message: String = ""): HttpResponse = {
-    val ev = implicitly[AdminMessageFormatter[A]]
+object S2GraphAdminRoute extends PlayJsonSupport {
+  def toHttpEntity[A: ToPlayJson](opt: Option[A], status: StatusCode = StatusCodes.OK, message: String = ""): HttpResponse = {
+    val ev = implicitly[ToPlayJson[A]]
     val res = opt.map(ev.toJson).getOrElse(Json.obj("message" -> message))
 
     HttpResponse(
@@ -44,9 +23,9 @@ object S2GraphAdminRoute {
     )
   }
 
-  def toHttpEntity[A: AdminMessageFormatter](opt: Try[A]): HttpResponse = {
-    val ev = implicitly[AdminMessageFormatter[A]]
-    val (status, res) = opt match {
+  def toHttpEntity[A: ToPlayJson](_try: Try[A]): HttpResponse = {
+    val ev = implicitly[ToPlayJson[A]]
+    val (status, res) = _try match {
       case Success(m) => StatusCodes.Created -> Json.obj("status" -> "ok", "message" -> ev.toJson(m))
       case Failure(e) => StatusCodes.OK -> Json.obj("status" -> "failure", "message" -> e.toString)
     }
@@ -54,9 +33,9 @@ object S2GraphAdminRoute {
     toHttpEntity(Option(res), status = status)
   }
 
-  def toHttpEntity[A: AdminMessageFormatter](ls: Seq[A], status: StatusCode = StatusCodes.OK): HttpResponse = {
-    val ev = implicitly[AdminMessageFormatter[A]]
-    val res = ls.map(ev.toJson)
+  def toHttpEntity[A: ToPlayJson](ls: Seq[A], status: StatusCode): HttpResponse = {
+    val ev = implicitly[ToPlayJson[A]]
+    val res = JsArray(ls.map(ev.toJson))
 
     HttpResponse(
       status = status,
@@ -85,11 +64,7 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
   }
 
   //  GET /graphs/getServiceColumn/:serviceName/:columnName
-  lazy val getServiceColumn = path("getServiceColumn" / Segments) { params =>
-    val (serviceName, columnName) = params match {
-      case s :: c :: Nil => (s, c)
-    }
-
+  lazy val getServiceColumn = path("getServiceColumn" / Segment / Segment) { (serviceName, columnName) =>
     val ret = Management.findServiceColumn(serviceName, columnName)
     complete(toHttpEntity(ret, message = s"ServiceColumn not found: ${serviceName}, ${columnName}"))
   }
@@ -105,7 +80,7 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
   lazy val getLabels = path("getLabels" / Segment) { serviceName =>
     val ret = Management.findLabels(serviceName)
 
-    complete(toHttpEntity(ret))
+    complete(toHttpEntity(ret, StatusCodes.OK))
   }
 
   /* POST */
@@ -175,6 +150,7 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
     val (serviceName, columnName, storeInGlobalIndex) = params match {
       case s :: c :: Nil => (s, c, false)
       case s :: c :: i :: Nil => (s, c, i.toBoolean)
+      case _ => throw new RuntimeException("Invalid Params")
     }
 
     entity(as[JsValue]) { params =>
@@ -199,45 +175,33 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
             hTableParams.preSplitSize, hTableParams.hTableTTL,
             hTableParams.compressionAlgorithm.getOrElse(Management.DefaultCompressionAlgorithm))
 
-          complete(toHttpEntity(None, status = StatusCodes.OK, message = "created"))
+          complete(toHttpEntity(None: Option[JsValue], status = StatusCodes.OK, message = "created"))
         }
-        case err@JsError(_) => complete(toHttpEntity(None, status = StatusCodes.BadRequest, message = Json.toJson(err).toString))
+        case err@JsError(_) => complete(toHttpEntity(None: Option[JsValue], status = StatusCodes.BadRequest, message = Json.toJson(err).toString))
       }
     }
   }
 
   //  POST /graphs/copyLabel/:oldLabelName/:newLabelName
-  lazy val copyLabel = path("copyLabel" / Segments) { params =>
-    val (oldLabelName, newLabelName) = params match {
-      case oldLabel :: newLabel :: Nil => (oldLabel, newLabel)
-    }
-
+  lazy val copyLabel = path("copyLabel" / Segment / Segment) { (oldLabelName, newLabelName) =>
     val copyTry = management.copyLabel(oldLabelName, newLabelName, Some(newLabelName))
 
     complete(toHttpEntity(copyTry))
   }
 
   //  POST /graphs/renameLabel/:oldLabelName/:newLabelName
-  lazy val renameLabel = path("renameLabel" / Segments) { params =>
-    val (oldLabelName, newLabelName) = params match {
-      case oldLabel :: newLabel :: Nil => (oldLabel, newLabel)
-    }
-
+  lazy val renameLabel = path("renameLabel" / Segment / Segment) { (oldLabelName, newLabelName) =>
     Label.findByName(oldLabelName) match {
-      case None => complete(toHttpEntity(None, status = StatusCodes.NotFound, message = s"Label $oldLabelName not found."))
+      case None => complete(toHttpEntity(None: Option[JsValue], status = StatusCodes.NotFound, message = s"Label $oldLabelName not found."))
       case Some(label) =>
         Management.updateLabelName(oldLabelName, newLabelName)
 
-        complete(toHttpEntity(None, message = s"${label} was updated."))
+        complete(toHttpEntity(None: Option[JsValue], message = s"${label} was updated."))
     }
   }
 
   //  POST /graphs/swapLabels/:leftLabelName/:rightLabelName
-  lazy val swapLabel = path("swapLabel" / Segments) { params =>
-    val (leftLabelName, rightLabelName) = params match {
-      case left :: right :: Nil => (left, right)
-    }
-
+  lazy val swapLabel = path("swapLabel" / Segment / Segment) { (leftLabelName, rightLabelName) =>
     val left = Label.findByName(leftLabelName, useCache = false)
     val right = Label.findByName(rightLabelName, useCache = false)
     // verify same schema
@@ -245,20 +209,15 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
     (left, right) match {
       case (Some(l), Some(r)) =>
         Management.swapLabelNames(leftLabelName, rightLabelName)
-
-        complete(toHttpEntity(None, message = s"Labels were swapped."))
+        complete(toHttpEntity(None: Option[JsValue], message = s"Labels were swapped."))
       case _ =>
-        complete(toHttpEntity(None, status = StatusCodes.NotFound, message = s"Label ${leftLabelName} or ${rightLabelName} not found."))
+        complete(toHttpEntity(None: Option[JsValue], status = StatusCodes.NotFound, message = s"Label ${leftLabelName} or ${rightLabelName} not found."))
     }
   }
 
   //  POST /graphs/updateHTable/:labelName/:newHTableName
-  lazy val updateHTable = path("updateHTable" / Segments) { params =>
-    val (labelName, newHTableName) = params match {
-      case l :: h :: Nil => (l, h)
-    }
-
-    val updateTry = Management.updateHTable(labelName, newHTableName)
+  lazy val updateHTable = path("updateHTable" / Segment / Segment) { (labelName, newHTableName) =>
+    val updateTry = Management.updateHTable(labelName, newHTableName).map(Json.toJson(_))
 
     complete(toHttpEntity(updateTry))
   }
@@ -273,17 +232,13 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
 
   //  PUT /graphs/markDeletedLabel/:labelName
   lazy val markDeletedLabel = path("markDeletedLabel" / Segment) { labelName =>
-    val ret = Management.markDeletedLabel(labelName).toOption
+    val ret = Management.markDeletedLabel(labelName).toOption.map(Json.toJson(_))
 
     complete(toHttpEntity(ret, message = s"Label not found: ${labelName}"))
   }
 
   //  PUT /graphs/deleteServiceColumn/:serviceName/:columnName
-  lazy val deleteServiceColumn = path("deleteServiceColumn" / Segments) { params =>
-    val (serviceName, columnName) = params match {
-      case s :: c :: Nil => (s, c)
-    }
-
+  lazy val deleteServiceColumn = path("deleteServiceColumn" / Segment / Segment) { (serviceName, columnName) =>
     val ret = Management.deleteColumn(serviceName, columnName).toOption
 
     complete(toHttpEntity(ret, message = s"ServiceColumn not found: ${serviceName}, ${columnName}"))

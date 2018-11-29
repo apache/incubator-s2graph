@@ -25,8 +25,11 @@ class MutateRouteSpec extends WordSpec with Matchers with PlayJsonSupport with S
   val columnName = "userName"
 
   "MutateRoute" should {
+
     "be able to insert vertex (POST /mutate/vertex/insert)" in {
-      //      {"timestamp": 10, "serviceName": "s2graph", "columnName": "user", "id": 1, "props": {}}
+      s2graph.management.createService(serviceName, "localhost", s"${serviceName}-dev", 1, None)
+
+      // {"timestamp": 10, "serviceName": "s2graph", "columnName": "user", "id": 1, "props": {}}
       val param = Json.obj(
         "timestamp" -> 10,
         "serviceName" -> serviceName,
@@ -36,7 +39,8 @@ class MutateRouteSpec extends WordSpec with Matchers with PlayJsonSupport with S
           "age" -> 20
         )
       )
-      val entity = Marshal(param.toString).to[MessageEntity].futureValue
+
+      val entity = Marshal(param).to[MessageEntity].futureValue
       val request = Post("/vertex/insert").withEntity(entity)
 
       request ~> routes ~> check {

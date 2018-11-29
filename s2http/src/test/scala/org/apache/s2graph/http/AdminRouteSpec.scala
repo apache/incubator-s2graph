@@ -32,7 +32,7 @@ class AdminRoutesSpec extends WordSpec with Matchers with ScalaFutures with Scal
         "compressionAlgorithm" -> "gz"
       )
 
-      val serviceEntity = Marshal(serviceParam.toString).to[MessageEntity].futureValue
+      val serviceEntity = Marshal(serviceParam).to[MessageEntity].futureValue
       val request = Post("/createService").withEntity(serviceEntity)
 
       request ~> routes ~> check {
@@ -71,7 +71,7 @@ class AdminRoutesSpec extends WordSpec with Matchers with ScalaFutures with Scal
         )
       )
 
-      val serviceColumnEntity = Marshal(serviceColumnParam.toString).to[MessageEntity].futureValue
+      val serviceColumnEntity = Marshal(serviceColumnParam).to[MessageEntity].futureValue
       val request = Post("/createServiceColumn").withEntity(serviceColumnEntity)
 
       request ~> routes ~> check {
