@@ -36,7 +36,8 @@ import org.slf4j.LoggerFactory
 object Server extends App
   with S2GraphTraversalRoute
   with S2GraphAdminRoute
-  with S2GraphMutateRoute {
+  with S2GraphMutateRoute
+  with S2GraphQLRoute {
 
   implicit val system: ActorSystem = ActorSystem("S2GraphHttpServer")
   implicit val materializer: ActorMaterializer = ActorMaterializer()
@@ -57,15 +58,20 @@ object Server extends App
     pathPrefix("graphs")(traversalRoute),
     pathPrefix("mutate")(mutateRoute),
     pathPrefix("admin")(adminRoute),
+    pathPrefix("graphql")(graphqlRoute),
     get(complete(health))
   )
 
   val binding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, "localhost", port)
   binding.onComplete {
     case Success(bound) => logger.info(s"Server online at http://${bound.localAddress.getHostString}:${bound.localAddress.getPort}/")
-    case Failure(e) =>
-      logger.error(s"Server could not start!", e)
-      system.terminate()
+    case Failure(e) => logger.error(s"Server could not start!", e)
+  }
+
+  scala.sys.addShutdownHook { () =>
+    s2graph.shutdown()
+    system.terminate()
+    logger.info("System terminated")
   }
 
   Await.result(system.whenTerminated, Duration.Inf)

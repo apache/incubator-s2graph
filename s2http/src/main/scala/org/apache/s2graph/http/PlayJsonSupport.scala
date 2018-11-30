@@ -10,10 +10,10 @@ import play.api.libs.json._
 
 trait PlayJsonSupport {
 
-  val mediaTypes: Seq[MediaType.WithFixedCharset] =
+  private val mediaTypes: Seq[MediaType.WithFixedCharset] =
     Seq(MediaType.applicationWithFixedCharset("json", HttpCharsets.`UTF-8`, "js"))
 
-  val unmarshallerContentTypes: Seq[ContentTypeRange] = mediaTypes.map(ContentTypeRange.apply)
+  private val unmarshallerContentTypes: Seq[ContentTypeRange] = mediaTypes.map(ContentTypeRange.apply)
 
   implicit val playJsonMarshaller: ToEntityMarshaller[JsValue] = {
     Marshaller.oneOf(mediaTypes: _*) { mediaType =>

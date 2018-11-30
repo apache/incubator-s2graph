@@ -19,7 +19,6 @@ trait S2GraphMutateRoute extends PlayJsonSupport {
 
   lazy val parser = new RequestParser(s2graph)
 
-  //  lazy val requestParser = new RequestParser(s2graph)
   lazy val exceptionHandler = ExceptionHandler {
     case ex: JsonParseException => complete(StatusCodes.BadRequest -> ex.getMessage)
     case ex: java.lang.IllegalArgumentException => complete(StatusCodes.BadRequest -> ex.getMessage)

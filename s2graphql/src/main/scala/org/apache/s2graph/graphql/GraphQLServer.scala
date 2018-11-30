@@ -19,15 +19,9 @@
 
 package org.apache.s2graph.graphql
 
-import java.util.concurrent.Executors
-
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server._
 import com.typesafe.config.ConfigFactory
-import org.apache.s2graph.graphql.middleware.{GraphFormatted, Transform}
-import org.apache.s2graph.core.S2Graph
+import org.apache.s2graph.graphql.middleware.{GraphFormatted}
+import org.apache.s2graph.core.{S2GraphLike}
 import org.apache.s2graph.core.utils.SafeUpdateCache
 import org.apache.s2graph.graphql.repository.GraphRepository
 import org.apache.s2graph.graphql.types.SchemaDef
@@ -36,36 +30,42 @@ import sangria.ast.Document
 import sangria.execution._
 import sangria.execution.deferred.DeferredResolver
 import sangria.marshalling.sprayJson._
-import sangria.parser.{QueryParser, SyntaxError}
+import sangria.parser.{SyntaxError}
 import sangria.schema.Schema
 import spray.json._
 
 import scala.collection.JavaConverters._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext}
 import scala.util.control.NonFatal
-import scala.util.{Failure, Success, Try}
+import scala.util._
 
-class GraphQLServer() {
-  val className = Schema.getClass.getName
+object GraphQLServer {
+  def formatError(error: Throwable): JsValue = error match {
+    case syntaxError: SyntaxError ⇒
+      JsObject("errors" → JsArray(
+        JsObject(
+          "message" → JsString(syntaxError.getMessage),
+          "locations" → JsArray(JsObject(
+            "line" → JsNumber(syntaxError.originalError.position.line),
+            "column" → JsNumber(syntaxError.originalError.position.column))))))
+
+    case NonFatal(e) ⇒ formatError(e.toString)
+    case e ⇒ throw e
+  }
+
+  def formatError(message: String): JsObject =
+    JsObject("errors" → JsArray(JsObject("message" → JsString(message))))
+}
+
+class GraphQLServer(s2graph: S2GraphLike, schemaCacheTTL: Int = 60) {
   val logger = LoggerFactory.getLogger(this.getClass)
-
-  // Init s2graph
-  val numOfThread = Runtime.getRuntime.availableProcessors()
-  val threadPool = Executors.newFixedThreadPool(numOfThread * 2)
-
-  implicit val ec = ExecutionContext.fromExecutor(threadPool)
-
-  val config = ConfigFactory.load()
-  val s2graph = new S2Graph(config)
-  val schemaCacheTTL = Try(config.getInt("schemaCacheTTL")).getOrElse(3000)
-  val enableMutation = Try(config.getBoolean("enableMutation")).getOrElse(false)
 
   val schemaConfig = ConfigFactory.parseMap(Map(
     SafeUpdateCache.MaxSizeKey -> 1, SafeUpdateCache.TtlKey -> schemaCacheTTL
   ).asJava)
 
   // Manage schema instance lifecycle
-  val schemaCache = new SafeUpdateCache(schemaConfig)
+  val schemaCache = new SafeUpdateCache(schemaConfig)(s2graph.ec)
 
   def updateEdgeFetcher(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Try[Unit] = {
     val ret = Try {
@@ -79,9 +79,9 @@ class GraphQLServer() {
     ret
   }
 
-  val schemaCacheKey = className + "s2Schema"
+  val schemaCacheKey = Schema.getClass.getName + "s2Schema"
 
-  schemaCache.put(schemaCacheKey, createNewSchema(enableMutation))
+  schemaCache.put(schemaCacheKey, createNewSchema(true))
 
   /**
     * In development mode(schemaCacheTTL = 1),
@@ -101,33 +101,17 @@ class GraphQLServer() {
     newSchema -> s2Repository
   }
 
-  def formatError(error: Throwable): JsValue = error match {
-    case syntaxError: SyntaxError ⇒
-      JsObject("errors" → JsArray(
-        JsObject(
-          "message" → JsString(syntaxError.getMessage),
-          "locations" → JsArray(JsObject(
-            "line" → JsNumber(syntaxError.originalError.position.line),
-            "column" → JsNumber(syntaxError.originalError.position.column))))))
-
-    case NonFatal(e) ⇒ formatError(e.toString)
-    case e ⇒ throw e
-  }
-
-  def formatError(message: String): JsObject =
-    JsObject("errors" → JsArray(JsObject("message" → JsString(message))))
-
   def onEvictSchema(o: AnyRef): Unit = {
     logger.info("Schema Evicted")
   }
 
   val TransformMiddleWare = List(org.apache.s2graph.graphql.middleware.Transform())
 
-  def executeGraphQLQuery(query: Document, op: Option[String], vars: JsObject)(implicit e: ExecutionContext) = {
+  def executeQuery(query: Document, op: Option[String], vars: JsObject)(implicit e: ExecutionContext) = {
     import GraphRepository._
 
     val (schemaDef, s2Repository) =
-      schemaCache.withCache(schemaCacheKey, broadcast = false, onEvict = onEvictSchema)(createNewSchema(enableMutation))
+      schemaCache.withCache(schemaCacheKey, broadcast = false, onEvict = onEvictSchema)(createNewSchema(true))
 
     val resolver: DeferredResolver[GraphRepository] = DeferredResolver.fetchers(vertexFetcher, edgeFetcher)
 
@@ -142,15 +126,8 @@ class GraphQLServer() {
       operationName = op,
       deferredResolver = resolver,
       middleware = middleWares
-    ).map((res: spray.json.JsValue) => OK -> res)
-      .recover {
-        case error: QueryAnalysisError =>
-          logger.error("Error on execute", error)
-          BadRequest -> error.resolveError
-        case error: ErrorWithResolver =>
-          logger.error("Error on execute", error)
-          InternalServerError -> error.resolveError
-      }
+    )
   }
+
 }
 

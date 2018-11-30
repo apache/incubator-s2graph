@@ -29,15 +29,11 @@ libraryDependencies ++= Seq(
   "org.scala-lang" % "scala-compiler" % scalaVersion.value,
   "org.scala-lang" % "scala-reflect" % scalaVersion.value,
 
-  "org.sangria-graphql" %% "sangria" % "1.4.0",
-  "org.sangria-graphql" %% "sangria-spray-json" % "1.0.0",
-  "org.sangria-graphql" %% "sangria-play-json" % "1.0.1" % Test,
+  "org.sangria-graphql" %% "sangria" % "1.4.2",
+  "org.sangria-graphql" %% "sangria-spray-json" % "1.0.1",
+  "org.sangria-graphql" %% "sangria-play-json" % "1.0.5" % Test,
 
-  "com.typesafe.akka" %% "akka-http" % "10.0.10",
-  "com.typesafe.akka" %% "akka-http-spray-json" % "10.0.10",
-  "com.typesafe.akka" %% "akka-slf4j" % "2.4.6",
-
-  "org.scalatest" %% "scalatest" % "3.0.4" % Test
+  "org.scalatest" %% "scalatest" % "3.0.5" % Test
 )
 
 Revolver.settings
