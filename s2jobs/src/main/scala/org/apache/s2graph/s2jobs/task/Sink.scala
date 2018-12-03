@@ -127,6 +127,8 @@ class KafkaSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf)
     logger.debug(s"${LOG_PREFIX} schema: ${df.schema}")
 
     conf.options.getOrElse("format", "json") match {
+      case "raw" =>
+        df
       case "tsv" =>
         val delimiter = conf.options.getOrElse("delimiter", "\t")
 
