@@ -133,6 +133,17 @@ object PostProcess {
         } {
           innerProps += (labelMeta.name -> jsValue)
         }
+        
+        if(queryOption.selectColumnsMap.contains("props") && innerProps.isEmpty) {
+          for {
+            (selectColumnName, _) <- queryOption.selectColumnsMap
+            labelMeta <- label.metaPropsInvMap.values
+            innerValWithTs = edgeWithScore.edge.propertyValueInner(labelMeta)
+            jsValue <- anyValToJsValue(innerValWithTs.innerVal.value)
+          } {
+            innerProps += (labelMeta.name -> jsValue)
+          }
+        }
 
         builder += ("props" -> JsObject(innerProps))
         if (parents != JsNull) builder += ("parents" -> parents)
