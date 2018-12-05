@@ -38,6 +38,7 @@ libraryDependencies ++= Seq(
   "org.apache.hadoop" % "hadoop-distcp" % hadoopVersion,
   "org.elasticsearch" % "elasticsearch-spark-20_2.11" % elastic4sVersion,
   "com.github.scopt" %% "scopt" % "3.7.0",
+  "io.thekraken" % "grok" % "0.1.5",
   "com.holdenkarau" %% "spark-testing-base" % "2.3.0_0.9.0" % Test
 )
 

@@ -38,6 +38,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-205] - too many initialize S2Graph when writeBatchMutate on S2GraphSink
     * [S2GRAPH-201] - Provide S2GraphSource
     * [S2GRAPH-218] - add operations not supported on sql
+    * [S2GRAPH-225] - support custom udf class
 
 ** Bug
     * [S2GRAPH-159] - Wrong syntax at a bash script under Linux
