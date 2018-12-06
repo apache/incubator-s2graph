@@ -114,7 +114,7 @@ case class BuildTopFeaturesProcess(taskConf: TaskConf) extends org.apache.s2grap
     val dimValColumnName = "dimVal"
 
     val rawFeatures = edges
-      .withColumn(dimValColumnName, explode(dimValExtractUDF(col("logs"))))
+      .withColumn(dimValColumnName, explode(dimValExtractUDF(col("edges"))))
 
     val dict = buildDictionary(ss, rawFeatures, param, dimValColumnName)
 
