@@ -105,6 +105,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-219] - Added query that includes all vertices and associated edges for GraphVisualize.
     * [S2GRAPH-222] - Support Not logical operator in WhereParser.
     * [S2GRAPH-223] - Support WhereParser on Vertex.
+    * [S2GRAPH-226] - Provide example spark jobs to explain how to utilize WAL log.
 
 ** Task
     * [S2GRAPH-162] - Update year in the NOTICE file.
