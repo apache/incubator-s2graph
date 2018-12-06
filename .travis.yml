@@ -32,9 +32,3 @@ jdk:
   - oraclejdk8
 
 sbt_args: -J-Xmx4G -J-Xms1G -J-Xss1M
-
-before_install:
-  - .travis/install-hbase.sh
-
-before_script:
-  - $HOME/hbase-$HBASE_VERSION/bin/start-hbase.sh

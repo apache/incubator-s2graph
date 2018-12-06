@@ -38,6 +38,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-205] - too many initialize S2Graph when writeBatchMutate on S2GraphSink
     * [S2GRAPH-201] - Provide S2GraphSource
     * [S2GRAPH-218] - add operations not supported on sql
+    * [S2GRAPH-225] - support custom udf class
 
 ** Bug
     * [S2GRAPH-159] - Wrong syntax at a bash script under Linux
@@ -58,6 +59,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-196] - Apply Query Parameter to Label Fetch in S2GraphQL
     * [S2GRAPH-220] - Filter clause is not working on AnnoyModelFetcher
     * [S2GRAPH-228] - GraphQL empty variable fields on post request cause spray.json.DeserializationException
+    * [S2GRAPH-243] - Limit bug on 'graph/getEdges' 
 
 ** Improvement
     * [S2GRAPH-72] - Support Apache TinkerPop and Gremlin
@@ -85,6 +87,8 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-221] - Unify configurations for bulk and mutate in S2GraphSink.
     * [S2GRAPH-230] - ResourceManager onEvict cause segmentation fault with AnnoyModelFetcher 
     * [S2GRAPH-231] - Change the GraphQL type name to a valid string.
+    * [S2GRAPH-232] - Elimination of inefficiency due to duplication in GraphQL schema generation.
+    * [S2GRAPH-235] - Fix typo errors in S2GraphQL MD.
 
 ** New Feature
     * [S2GRAPH-123] - Support different index on out/in direction.
@@ -107,6 +111,8 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-211] - Include 's2jobs' test in CI
     * [S2GRAPH-212] - Fix broken markdown on README.md.
     * [S2GRAPH-229] - 'Step' abstraction for combinable queries
+    * [S2GRAPH-245] - Remove install hbase step on travis CI.
+    * [S2GRAPH-246] - Integration of documents into the S2Graph project.
 
 Release 0.1.0 - Released
 

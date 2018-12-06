@@ -136,6 +136,8 @@ object ColumnMeta extends SQLSyntaxSupport[ColumnMeta] {
       val cacheKey = className + s"columnId=${columnId}"
       (cacheKey -> ls)
     }.toList)
+
+    ls
   }
 
   def updateStoreInGlobalIndex(id: Int, storeInGlobalIndex: Boolean)(implicit session: DBSession = AutoSession): Try[Long] = Try {

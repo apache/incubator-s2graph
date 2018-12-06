@@ -41,7 +41,7 @@ libraryDependencies ++= Seq(
   "com.h2database" % "h2" % "1.4.192",
   "com.stumbleupon" % "async" % "1.4.1",
   "io.netty" % "netty" % "3.9.4.Final" force(),
-  "org.hbase" % "asynchbase" % "1.7.2" excludeLogging(),
+  "org.hbase" % "asynchbase" % asynchbaseVersion excludeLogging(),
   "net.bytebuddy" % "byte-buddy" % "1.4.26",
   "org.apache.tinkerpop" % "gremlin-core" % tinkerpopVersion excludeLogging(),
   "org.apache.tinkerpop" % "gremlin-test" % tinkerpopVersion % "test",

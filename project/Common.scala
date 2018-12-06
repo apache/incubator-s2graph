@@ -26,10 +26,11 @@ object Common {
   val specs2Version = "3.8.5"
 
   val hbaseVersion = "1.2.6.1"
+  val asynchbaseVersion = "1.7.2"
   val hadoopVersion = "2.7.3"
   val tinkerpopVersion = "3.2.5"
 
-  val elastic4sVersion = "6.1.1"
+  val elastic4sVersion = "6.2.4"
 
   val KafkaVersion = "0.10.2.1"
 

@@ -20,22 +20,17 @@
 package org.apache.s2graph.s2jobs.task
 
 import com.typesafe.config.{Config, ConfigFactory, ConfigRenderOptions}
-import org.apache.hadoop.hbase.HBaseConfiguration
-import org.apache.hadoop.hbase.mapreduce.LoadIncrementalHFiles
-import org.apache.hadoop.util.ToolRunner
-import org.apache.s2graph.core.{GraphUtil, Management}
+import org.apache.s2graph.core.GraphUtil
 import org.apache.s2graph.s2jobs.S2GraphHelper
-import org.apache.s2graph.s2jobs.loader.{GraphFileOptions, HFileGenerator, SparkBulkLoaderTransformer}
+import org.apache.s2graph.s2jobs.loader.{HFileGenerator, SparkBulkLoaderTransformer}
 import org.apache.s2graph.s2jobs.serde.reader.RowBulkFormatReader
 import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
-import org.apache.s2graph.spark.sql.streaming.S2SinkContext
 import org.apache.spark.sql._
 import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, Trigger}
 import org.elasticsearch.spark.sql.EsSparkSQL
 
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 
 /**
   * Sink
@@ -132,6 +127,8 @@ class KafkaSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf)
     logger.debug(s"${LOG_PREFIX} schema: ${df.schema}")
 
     conf.options.getOrElse("format", "json") match {
+      case "raw" =>
+        df
       case "tsv" =>
         val delimiter = conf.options.getOrElse("delimiter", "\t")
 
@@ -212,9 +209,10 @@ class ESSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
   * @param conf
   */
 class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
-  import scala.collection.JavaConversions._
-  import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs._
   import org.apache.s2graph.core.S2GraphConfigs._
+  import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs._
+
+  import scala.collection.JavaConversions._
 
   override def mandatoryOptions: Set[String] = Set()
 
@@ -261,6 +259,10 @@ class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
   }
 
   private def writeBatchWithMutate(df:DataFrame):Unit = {
+    import org.apache.s2graph.spark.sql.streaming.S2SinkConfigs._
+
+    import scala.collection.JavaConversions._
+
     // TODO: FIX THIS. overwrite local cache config.
     val mergedOptions = conf.options ++ TaskConf.parseLocalCacheConfigs(conf)
     val graphConfig: Config = ConfigFactory.parseMap(mergedOptions).withFallback(ConfigFactory.load())

@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -xe
-
-if [ ! -d "$HOME/hbase-$HBASE_VERSION/bin" ]; then
-  cd $HOME && wget -q -O - http://mirror.navercorp.com/apache/hbase/stable/hbase-$HBASE_VERSION-bin.tar.gz | tar xz
-fi
+#set -xe
+#
+#if [ ! -d "$HOME/hbase-$HBASE_VERSION/bin" ]; then
+#  cd $HOME && wget -q -O - http://mirror.apache-kr.org/hbase/$HBASE_VERSION/hbase-$HBASE_VERSION-bin.tar.gz | tar xz
+#fi

@@ -20,10 +20,10 @@
 --->
 # Suggest to implement GraphQL as standard web interface for S2Graph.
 
-  - To support GraphQL i used [Akka HTTP](https://github.com/akka/akka-http) and [Sangria](https://github.com/sangria-graphql). each is an HTTP Server and GraphQL Scala implementation.
-  - I also used [GraphiQL](https://github.com/graphql/graphiql) as a tool for GraphQL queries.
+  - To support GraphQL through [Akka HTTP](https://github.com/akka/akka-http) and [Sangria](https://github.com/sangria-graphql). Akka HTTP and Sangria each are an HTTP Server and GraphQL Scala implementation.
+  - It is also used [GraphiQL](https://github.com/graphql/graphiql) as a tool for GraphQL queries.
 
-## Wroking example
+## Working example
 
 ![mutation](https://user-images.githubusercontent.com/1182522/35611013-f551f2b6-06a6-11e8-8f48-e39e667a8849.gif)
 
@@ -32,13 +32,13 @@
 
 ## Overview
   
-  The reason I started this work is because the `Label` used by S2Graph has a strong type system, so I think it will work well with the `schema` provided by GraphQL.
+  The reason why started supporting GraphQL is the `Label` used by S2Graph has a strong type system, so it will work well with the `schema` provided by GraphQL.
   
-  To do this, we converted S2Graph Model (Label, Service ...) into GraphLQL schema whenever added (changed).
+  So far, whenever GraphQL schema has been changed, it has been reflected in S2Graph Model (Service, Label... ).
 
 ## Setup
   Assume that hbase is running on localhost.  
-  If the hbase environment is not set up, you can run it with the following command
+  If the hbase environment is not set up, you should type the following commands.
 
 ```bash
 sbt package
@@ -63,7 +63,7 @@ $ls
 graphiql.html
 ```
 
-And let's run http server.
+Then let's run http server.
 
 ```bash
 sbt -DschemaCacheTTL=-1 -Dhttp.port=8000 'project s2graphql' '~re-start'
@@ -83,16 +83,16 @@ When the server is running, connect to `http://localhost:8000`. If it works norm
 ## Your First Grpah (GraphQL version)
 
 [S2Graph tutorial](https://github.com/apache/incubator-s2graph#your-first-graph)
-I have ported the contents of `Your first graph` provided by S2Graph based on GraphQL.
+The following content rewrote `Your first graph` to the GraphQL version.
 
 ### Start by connecting to `http://localhost:8000`.
 
-The environment for this example is Mac OS and Chrome.
+The environment for this examples is Mac OS and Chrome.
 You can get help with schema-based `Autocompletion` using the `ctrl + space` key.
 
 If you add a `label` or `service`, etc. you will need to `refresh` (`cmd + r`) your browser because the schema will change dynamically.
 
-1. First, we need a name for the new service.
+#### 1. First, we need a name for the new service.
 
     The following POST query will create a service named "KakaoFavorites".
 
@@ -128,7 +128,7 @@ Response
 ```
 
 
-1.1 And create a `service column`` which is meta information for storing vertex.
+#### 1.1 And create a `service column`` which is meta information for storing vertex.
 
     The following POST query will create a service column with the age attribute named "user"
 
@@ -191,7 +191,7 @@ Request
 ```graphql
 query {
   Management {
-    Service(name:KakaoFavorites) {    
+    Services(name:KakaoFavorites) {    
       name
       serviceColumns {
         name
@@ -231,7 +231,7 @@ Response
 }
 ```
 
-2. Next, we will need some friends.
+#### 2. Next, we will need some friends.
 
     In S2Graph, relationships are organized as labels. Create a label called friends using the following createLabel API call:
 
@@ -292,7 +292,7 @@ Request
 ```graphql
 query {
   Management {
-    Label(name: friends) {
+    Labels(name: friends) {
       name
       srcColumnName
       tgtColumnName
@@ -376,7 +376,7 @@ query {
   KakaoFavorites {    
     user(id: "Elmo") {
       friends {
-        to {
+        user {
           id
         }
       }
@@ -418,7 +418,7 @@ query {
   KakaoFavorites {    
     user(id: "Elmo") {      
       friends {        
-        to {
+        user {
           id
         }
       }
@@ -459,8 +459,46 @@ Response
 }
 ```
 
+Before next examples, you should add url to serviceColumn.
 
-3. Users of Kakao Favorites will be able to post URLs of their favorite websites.
+Request
+
+```graphql
+mutation {
+  Management {
+    createServiceColumn(
+      serviceName: KakaoFavorites
+      columnName: "url"
+      columnType: string
+    ) {
+      isSuccess
+      object {
+        name
+      }
+    }
+  }
+}
+```
+
+Response
+
+```json
+{
+  "data": {
+    "Management": {
+      "createServiceColumn": {
+        "isSuccess": true,
+        "object": {
+          "name": "url"
+        }
+      }
+    }
+  }
+}
+```
+
+
+#### 3. Users of Kakao Favorites will be able to post URLs of their favorite websites.
 
 Request
 
@@ -474,9 +512,9 @@ mutation {
           columnName: user
         }
       }
-			targetService: {
+      targetService: {
         KakaoFavorites: {
-          columnName: user
+          columnName: url
         }
       }
       consistencyLevel: strong
@@ -561,7 +599,7 @@ Response
 }
 ```
 
-4. So far, we have designed a label schema for the labels friends and post, and stored some edges to them.+
+#### 4. So far, we have designed a label schema for the labels friends and post, and stored some edges to them.+
 
     This should be enough for creating the timeline feature! The following two-step query will return the URLs for Elmo's timeline, which are the posts of Elmo's friends:
 
@@ -573,10 +611,10 @@ query {
     user(id: "Elmo") {
       id
       friends {
-        to {
+        user {
           id
           post {
-            to {
+            url {
               id
             }
           }
@@ -597,11 +635,11 @@ Response
           "id": "Elmo",
           "friends": [
             {
-              "to": {
+              "user": {
                 "id": "Ernie",
                 "post": [
                   {
-                    "to": {
+                    "url": {
                       "id": "groups.google.com/forum/#!forum/s2graph"
                     }
                   }
@@ -609,23 +647,23 @@ Response
               }
             },
             {
-              "to": {
+              "user": {
                 "id": "Bert",
                 "post": []
               }
             },
             {
-              "to": {
+              "user": {
                 "id": "Big Bird",
                 "post": [
                   {
-                    "to": {
-                      "id": "www.kakaocorp.com/en/main"
+                    "url": {
+                      "id": "github.com/kakao/s2graph"
                     }
                   },
                   {
-                    "to": {
-                      "id": "github.com/kakao/s2graph"
+                    "url": {
+                      "id": "www.kakaocorp.com/en/main"
                     }
                   }
                 ]
@@ -647,10 +685,10 @@ query {
   KakaoFavorites {
     user(id: "Cookie Monster") {
       friends {      
-        to {
+        user {
           id
           post {
-            to {
+            url {
               id
             }
           }
@@ -670,11 +708,11 @@ Response
         {
           "friends": [
             {
-              "to": {
+              "user": {
                 "id": "Oscar",
                 "post": [
                   {
-                    "to": {
+                    "url": {
                       "id": "www.scala-lang.org"
                     }
                   }
@@ -682,11 +720,11 @@ Response
               }
             },
             {
-              "to": {
+              "user": {
                 "id": "Kermit",
                 "post": [
                   {
-                    "to": {
+                    "url": {
                       "id": "www.playframework.com"
                     }
                   }
@@ -694,11 +732,11 @@ Response
               }
             },
             {
-              "to": {
+              "user": {
                 "id": "Grover",
                 "post": [
                   {
-                    "to": {
+                    "url": {
                       "id": "hbase.apache.org/forum/#!forum/s2graph"
                     }
                   }

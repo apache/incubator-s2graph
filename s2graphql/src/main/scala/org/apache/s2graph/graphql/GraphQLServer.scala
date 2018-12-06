@@ -45,7 +45,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 
-object GraphQLServer {
+class GraphQLServer() {
   val className = Schema.getClass.getName
   val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -57,12 +57,14 @@ object GraphQLServer {
 
   val config = ConfigFactory.load()
   val s2graph = new S2Graph(config)
-  val schemaCacheTTL = Try(config.getInt("schemaCacheTTL")).getOrElse(-1)
-  val s2Repository = new GraphRepository(s2graph)
+  val schemaCacheTTL = Try(config.getInt("schemaCacheTTL")).getOrElse(3000)
+  val enableMutation = Try(config.getBoolean("enableMutation")).getOrElse(false)
+
   val schemaConfig = ConfigFactory.parseMap(Map(
     SafeUpdateCache.MaxSizeKey -> 1, SafeUpdateCache.TtlKey -> schemaCacheTTL
   ).asJava)
 
+  // Manage schema instance lifecycle
   val schemaCache = new SafeUpdateCache(schemaConfig)
 
   def updateEdgeFetcher(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Try[Unit] = {
@@ -77,17 +79,26 @@ object GraphQLServer {
     ret
   }
 
+  val schemaCacheKey = className + "s2Schema"
+
+  schemaCache.put(schemaCacheKey, createNewSchema(enableMutation))
+
   /**
-    * In development mode(schemaCacheTTL = -1),
+    * In development mode(schemaCacheTTL = 1),
     * a new schema is created for each request.
     */
-  logger.info(s"schemaCacheTTL: ${schemaCacheTTL}")
 
-  private def createNewSchema(): Schema[GraphRepository, Any] = {
-    val newSchema = new SchemaDef(s2Repository).S2GraphSchema
-    logger.info(s"Schema updated: ${System.currentTimeMillis()}")
+  private def createNewSchema(withAdmin: Boolean): (SchemaDef, GraphRepository) = {
+    logger.info(s"Schema update start")
 
-    newSchema
+    val ts = System.currentTimeMillis()
+
+    val s2Repository = new GraphRepository(s2graph)
+    val newSchema = new SchemaDef(s2Repository, withAdmin)
+
+    logger.info(s"Schema updated: ${(System.currentTimeMillis() - ts) / 1000} sec")
+
+    newSchema -> s2Repository
   }
 
   def formatError(error: Throwable): JsValue = error match {
@@ -115,15 +126,16 @@ object GraphQLServer {
   def executeGraphQLQuery(query: Document, op: Option[String], vars: JsObject)(implicit e: ExecutionContext) = {
     import GraphRepository._
 
-    val cacheKey = className + "s2Schema"
-    val s2schema = schemaCache.withCache(cacheKey, broadcast = false, onEvict = onEvictSchema)(createNewSchema())
+    val (schemaDef, s2Repository) =
+      schemaCache.withCache(schemaCacheKey, broadcast = false, onEvict = onEvictSchema)(createNewSchema(enableMutation))
+
     val resolver: DeferredResolver[GraphRepository] = DeferredResolver.fetchers(vertexFetcher, edgeFetcher)
 
     val includeGrpaph = vars.fields.get("includeGraph").contains(spray.json.JsBoolean(true))
     val middleWares = if (includeGrpaph) GraphFormatted :: TransformMiddleWare else TransformMiddleWare
 
     Executor.execute(
-      s2schema,
+      schemaDef.schema,
       query,
       s2Repository,
       variables = vars,
