@@ -14,21 +14,33 @@ object TestData {
 
   // order by from
   val aggExpected = Array(
-    WalLogAgg("u1", Seq(
-      WalLog(3L, "insert", "edge", "u1", "q1", s"$testServiceName", "search", """{"referrer":"www.google.com"}"""),
-      WalLog(2L, "insert", "edge", "u1", "i1", s"$testServiceName", "purchase", """{"price":2}"""),
-      WalLog(1L, "insert", "edge", "u1", "i1", s"$testServiceName", "click", """{"item_name":"awesome item"}""")
-    ), 3L, 1L),
-    WalLogAgg("u2", Seq(
-      WalLog(5L, "insert", "edge", "u2", "q2", s"$testServiceName", "search", """{"referrer":"www.bing.com"}"""),
-      WalLog(4L, "insert", "edge", "u2", "i1", s"$testServiceName", "click", """{"item_name":"awesome item"}""")
-    ), 5L, 4L),
-    WalLogAgg("u3", Seq(
-      WalLog(6L, "insert", "edge", "u3", "i2", s"$testServiceName", "click", """{"item_name":"bad item"}""")
-    ), 6L, 6L),
-    WalLogAgg("u4", Seq(
-      WalLog(7L, "insert", "edge", "u4", "q1", s"$testServiceName", "search", """{"referrer":"www.google.com"}""")
-    ), 7L, 7L)
+    WalLogAgg("u1",
+      vertices = Nil,
+      edges = Seq(
+        WalLog(3L, "insert", "edge", "u1", "q1", s"$testServiceName", "search", """{"referrer":"www.google.com"}"""),
+        WalLog(2L, "insert", "edge", "u1", "i1", s"$testServiceName", "purchase", """{"price":2}"""),
+        WalLog(1L, "insert", "edge", "u1", "i1", s"$testServiceName", "click", """{"item_name":"awesome item"}""")
+      )
+    ),
+    WalLogAgg("u2",
+      vertices = Nil,
+      edges = Seq(
+        WalLog(5L, "insert", "edge", "u2", "q2", s"$testServiceName", "search", """{"referrer":"www.bing.com"}"""),
+        WalLog(4L, "insert", "edge", "u2", "i1", s"$testServiceName", "click", """{"item_name":"awesome item"}""")
+      )
+    ),
+    WalLogAgg("u3",
+      vertices = Nil,
+      edges = Seq(
+        WalLog(6L, "insert", "edge", "u3", "i2", s"$testServiceName", "click", """{"item_name":"bad item"}""")
+      )
+    ),
+    WalLogAgg("u4",
+      vertices = Nil,
+      edges = Seq(
+        WalLog(7L, "insert", "edge", "u4", "q1", s"$testServiceName", "search", """{"referrer":"www.google.com"}""")
+      )
+    )
   )
 
   // order by dim, rank
