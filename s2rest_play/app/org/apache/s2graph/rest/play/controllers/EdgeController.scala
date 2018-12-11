@@ -129,7 +129,7 @@ object EdgeController extends Controller {
           }.map(jsonResponse(_))
         } else {
           val rets = elementWithIdxs.map { case ((element, tsv), idx) =>
-            if (!skipElement(element.isAsync)) QueueActor.router ! element
+            if (!skipElement(element.isAsync)) QueueActor.router ! ((element, tsv))
             true
           }
           Future.successful(jsonResponse(Json.toJson(rets)))
