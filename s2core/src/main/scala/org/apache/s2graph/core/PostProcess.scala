@@ -458,8 +458,12 @@ object PostProcess extends JSONParser {
     } yield {
       val targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else (reservedColumns & q.selectColumnsSet) + "props"
       val _propsMap = queryParam.label.metaPropsDefaultMapInner ++ propsToJson(edge, q, queryParam)
-      val propsMap = if (q.selectColumnsSet.nonEmpty) _propsMap.filterKeys(q.selectColumnsSet) else _propsMap
+      var propsMap = if (q.selectColumnsSet.nonEmpty) _propsMap.filterKeys(q.selectColumnsSet) else _propsMap
 
+      if (propsMap.isEmpty && q.selectColumnsSet.contains("props")) {
+        propsMap = _propsMap
+      }
+      
       val kvMap = targetColumns.foldLeft(Map.empty[String, JsValue]) { (map, column) =>
         val jsValue = column match {
           case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (System.currentTimeMillis() - queryParam.timestamp))
