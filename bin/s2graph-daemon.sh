@@ -20,7 +20,7 @@
 usage="This script is intended to be used by other scripts in this directory."
 usage=$"$usage\n Please refer to start-s2graph.sh and stop-s2graph.sh"
 usage=$"$usage\n Usage: s2graph-daemon.sh (start|stop|restart|run|status)"
-usage="$usage (s2rest_play|s2rest_netty|s2graphql|...) <args...>"
+usage="$usage s2http <args...>"
 
 bin=$(cd "$(dirname "${BASH_SOURCE-$0}")">/dev/null; pwd)
 
@@ -62,11 +62,8 @@ classpath="$S2GRAPH_CONF_DIR:$S2GRAPH_LIB_DIR/*"
 
 # determine the main class
 case $service in
-s2rest_play)
-  main="play.core.server.NettyServer"
-  ;;
-s2graphql)
-  main="org.apache.s2graph.graphql.Server"
+s2http)
+  main="org.apache.s2graph.http.Server"
   ;;
 hbase)
   main="org.apache.hadoop.hbase.master.HMaster"

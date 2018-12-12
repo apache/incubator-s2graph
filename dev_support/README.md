@@ -7,9 +7,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,30 +22,24 @@
 # Run S2Graph using Docker
 
 1. Build a docker image of the s2graph in the project's root directory
-	- you can build images for each type of API Server
-	    ```
-	    // s2graphql
-	    sbt "project s2graphql" 'set version := "latest"' docker
-	    
-	    // s2rest_play
-	    sbt "project s2rest_play" 'set version := "latest"' docker
-	    
-	    // s2rest_netty
-	    sbt "project s2rest_netty" 'set version := "latest"' docker
-	    ```
-	    
-	- find local image is created correctly by using `docker images`
-	
-	- (optional) If you need to add extra jars in classpath, use environment variable 'EXTRA_JARS'
-	    ```
+    - you can build images for each type of API Server
+        ```
+        // s2http
+        sbt "project s2http" 'set version := "latest"' docker
+        ```
+
+    - find local image is created correctly by using `docker images`
+
+    - (optional) If you need to add extra jars in classpath, use environment variable 'EXTRA_JARS'
+        ```
         docker run --name s2graph -v /LocalJarsDir:/extraJars -e EXTRA_JARS=/extraJars -dit s2graph/s2graphql:latest ...
         ```
-	
+
 2. Run MySQL and HBase container first.
-	- change directory to dev-support. `cd dev_support`
-	- `docker-compose build` 
+    - change directory to dev-support. `cd dev_support`
+    - `docker-compose build`
 3. Run graph container
-	- `docker-compose up -d`
+    - `docker-compose up -d`
 
 > S2Graph should be connected with MySQL at initial state. Therefore you have to run MySQL and HBase before running it.
 
@@ -73,7 +67,7 @@ In order to develop and test S2Graph. You might be want to run S2Graph as `dev` 
 - Run s2graph as 'dev' mode
 
 ```
-# sbt "project s2rest_play" run -Dhost=default
+# sbt "project s2http" run -Dhost=default
 ```
 
 - or run test cases
