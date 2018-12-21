@@ -180,6 +180,20 @@ class HiveSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) 
 }
 
 /**
+  * JdbcSink
+  * @param queryName
+  * @param conf
+  */
+class JdbcSink(queryName: String, conf: TaskConf) extends Sink(queryName, conf) {
+  override def mandatoryOptions: Set[String] = Set("url", "dbtable")
+  override val FORMAT: String = "jdbc"
+
+  override protected def writeBatchInner(writer: DataFrameWriter[Row]): Unit = {
+    writer.format("jdbc").options(conf.options).save()
+  }
+}
+
+/**
   * ESSink
   *
   * @param queryName

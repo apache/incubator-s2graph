@@ -54,6 +54,7 @@ object JobDescription extends Logger {
       case "kafka" => new KafkaSource(conf)
       case "file"  => new FileSource(conf)
       case "hive" => new HiveSource(conf)
+      case "jdbc" => new JdbcSource(conf)
       case "s2graph" => new S2GraphSource(conf)
       case _ => throw new IllegalArgumentException(s"unsupported source type : ${conf.`type`}")
     }
@@ -86,6 +87,7 @@ object JobDescription extends Logger {
       case "file" => new FileSink(jobName, conf)
       case "es" => new ESSink(jobName, conf)
       case "s2graph" => new S2GraphSink(jobName, conf)
+      case "jdbc" => new JdbcSink(jobName, conf)
       case "custom" =>
         val customClassOpt = conf.options.get("class")
         customClassOpt match {

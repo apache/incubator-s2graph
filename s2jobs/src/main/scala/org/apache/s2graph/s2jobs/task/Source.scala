@@ -131,6 +131,14 @@ class HiveSource(conf:TaskConf) extends Source(conf) {
   }
 }
 
+class JdbcSource(conf:TaskConf) extends Source(conf) {
+  override def mandatoryOptions: Set[String] = Set("url", "dbtable")
+  override def toDF(ss: SparkSession): DataFrame = {
+    ss.read.format("jdbc").options(conf.options).load()
+  }
+
+}
+
 class S2GraphSource(conf: TaskConf) extends Source(conf) {
   import org.apache.s2graph.spark.sql.streaming.S2SourceConfigs._
   override def mandatoryOptions: Set[String] = Set(
