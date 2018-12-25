@@ -167,13 +167,13 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
            columnFamily: String = "e",
            batchSize: Int = 1000,
            labelMapping: Map[String, String] = Map.empty,
-           buildDegree: Boolean = false): RDD[Seq[Cell]] = {
+           buildDegree: Boolean = false): RDD[(ImmutableBytesWritable, Result)] = {
     val cf = Bytes.toBytes(columnFamily)
 
     val hbaseConfig = HBaseConfiguration.create(ss.sparkContext.hadoopConfiguration)
     hbaseConfig.set("hbase.rootdir", snapshotPath)
 
-    val initial = ss.sparkContext.parallelize(Seq.empty[Seq[Cell]])
+    val initial = ss.sparkContext.parallelize(Seq.empty[(ImmutableBytesWritable, Result)])
     tableNames.foldLeft(initial) { case (prev, tableName) =>
       val scan = new Scan
       scan.addFamily(cf)
@@ -186,7 +186,8 @@ object HFileGenerator extends RawFileGenerator[String, KeyValue] {
       val current = ss.sparkContext.newAPIHadoopRDD(job.getConfiguration,
         classOf[TableSnapshotInputFormat],
         classOf[ImmutableBytesWritable],
-        classOf[Result]).map(_._2.listCells().asScala.toSeq)
+        classOf[Result])
+//        .map(_._2.listCells().asScala.toSeq)
 
       prev ++ current
     }

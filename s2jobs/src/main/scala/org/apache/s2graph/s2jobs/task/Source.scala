@@ -24,6 +24,7 @@ import org.apache.s2graph.s2jobs.Schema
 import org.apache.s2graph.s2jobs.loader.{HFileGenerator, SparkBulkLoaderTransformer}
 import org.apache.s2graph.s2jobs.serde.reader.S2GraphCellReader
 import org.apache.s2graph.s2jobs.serde.writer.RowDataFrameWriter
+import org.apache.s2graph.s2jobs.wal.utils.DeserializeUtil
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import play.api.libs.json.{JsObject, Json}
 
@@ -133,6 +134,8 @@ class HiveSource(conf:TaskConf) extends Source(conf) {
 
 class S2GraphSource(conf: TaskConf) extends Source(conf) {
   import org.apache.s2graph.spark.sql.streaming.S2SourceConfigs._
+  import scala.collection.JavaConverters._
+
   override def mandatoryOptions: Set[String] = Set(
     S2_SOURCE_BULKLOAD_HBASE_ROOT_DIR,
     S2_SOURCE_BULKLOAD_RESTORE_PATH,
@@ -154,18 +157,16 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
     val buildDegree =
       if (columnFamily == "v") false
       else conf.options.getOrElse(S2_SOURCE_BULKLOAD_BUILD_DEGREE, "false").toBoolean
-    val elementType = conf.options.getOrElse(S2_SOURCE_ELEMENT_TYPE, "IndexEdge")
-    val schema = if (columnFamily == "v") Schema.VertexSchema else Schema.EdgeSchema
+//    val elementType = conf.options.getOrElse(S2_SOURCE_ELEMENT_TYPE, "IndexEdge")
+//    val schema = if (columnFamily == "v") Schema.VertexSchema else Schema.EdgeSchema
 
     val cells = HFileGenerator.tableSnapshotDump(ss, config, snapshotPath,
       restorePath, tableNames, columnFamily, batchSize, labelMapping, buildDegree)
 
-    implicit val reader = new S2GraphCellReader(elementType)
-    implicit val writer = new RowDataFrameWriter
+    val skvs = cells.flatMap { case (_, result) =>
+      result.listCells().asScala.map(DeserializeUtil.cellToSKeyValue)
+    }
 
-    val transformer = new SparkBulkLoaderTransformer(config, labelMapping, buildDegree)
-    val kvs = transformer.transform(cells)
-
-    ss.sqlContext.createDataFrame(kvs, schema)
+    ss.createDataFrame(skvs)
   }
 }
