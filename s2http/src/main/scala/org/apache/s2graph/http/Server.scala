@@ -49,7 +49,9 @@ object Server extends App
   override val logger = LoggerFactory.getLogger(this.getClass)
 
   val port = sys.props.get("http.port").fold(8000)(_.toInt)
-  val serverStatus = s""" { "port": ${port}, "started_at": ${System.currentTimeMillis()} }"""
+  val interface = sys.props.get("http.interface").fold("0.0.0.0")(identity)
+
+  val serverStatus = s""" { "port": ${port}, "interface": ${interface}, "started_at": ${System.currentTimeMillis()} }"""
 
   val health = HttpResponse(status = StatusCodes.OK, entity = HttpEntity(ContentTypes.`application/json`, serverStatus))
 
@@ -62,7 +64,7 @@ object Server extends App
     get(complete(health))
   )
 
-  val binding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, "localhost", port)
+  val binding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, interface, port)
   binding.onComplete {
     case Success(bound) => logger.info(s"Server online at http://${bound.localAddress.getHostString}:${bound.localAddress.getPort}/")
     case Failure(e) => logger.error(s"Server could not start!", e)

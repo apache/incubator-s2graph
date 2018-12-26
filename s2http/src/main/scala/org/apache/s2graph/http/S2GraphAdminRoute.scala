@@ -56,27 +56,27 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
 
   // routes impl
   /* GET */
-  //  GET /graphs/getService/:serviceName
+  //  GET /admin/getService/:serviceName
   lazy val getService = path("getService" / Segment) { serviceName =>
     val serviceOpt = Management.findService(serviceName)
 
     complete(toHttpEntity(serviceOpt, message = s"Service not found: ${serviceName}"))
   }
 
-  //  GET /graphs/getServiceColumn/:serviceName/:columnName
+  //  GET /admin/getServiceColumn/:serviceName/:columnName
   lazy val getServiceColumn = path("getServiceColumn" / Segment / Segment) { (serviceName, columnName) =>
     val ret = Management.findServiceColumn(serviceName, columnName)
     complete(toHttpEntity(ret, message = s"ServiceColumn not found: ${serviceName}, ${columnName}"))
   }
 
-  //  GET /graphs/getLabel/:labelName
+  //  GET /admin/getLabel/:labelName
   lazy val getLabel = path("getLabel" / Segment) { labelName =>
     val labelOpt = Management.findLabel(labelName)
 
     complete(toHttpEntity(labelOpt, message = s"Label not found: ${labelName}"))
   }
 
-  //  GET /graphs/getLabels/:serviceName
+  //  GET /admin/getLabels/:serviceName
   lazy val getLabels = path("getLabels" / Segment) { serviceName =>
     val ret = Management.findLabels(serviceName)
 
@@ -84,7 +84,7 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
   }
 
   /* POST */
-  //  POST /graphs/createService
+  //  POST /admin/createService
   lazy val createService = path("createService") {
     entity(as[JsValue]) { params =>
 
@@ -98,7 +98,7 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
     }
   }
 
-  //  POST /graphs/createServiceColumn
+  //  POST /admin/createServiceColumn
   lazy val createServiceColumn = path("createServiceColumn") {
     entity(as[JsValue]) { params =>
 
@@ -112,7 +112,7 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
     }
   }
 
-  //  POST /graphs/createLabel
+  //  POST /admin/createLabel
   lazy val createLabel = path("createLabel") {
     entity(as[JsValue]) { params =>
       val labelTry = requestParser.toLabelElements(params)
@@ -133,7 +133,7 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
     }
   }
 
-  //  POST /graphs/addProp/:labelName
+  //  POST /admin/addProp/:labelName
   lazy val addProp = path("addProp" / Segment) { labelName =>
     entity(as[JsValue]) { params =>
       val labelMetaTry = for {
@@ -145,7 +145,7 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
     }
   }
 
-  //  POST /graphs/addServiceColumnProp/:serviceName/:columnName
+  //  POST /admin/addServiceColumnProp/:serviceName/:columnName
   lazy val addServiceColumnProp = path("addServiceColumnProp" / Segments) { params =>
     val (serviceName, columnName, storeInGlobalIndex) = params match {
       case s :: c :: Nil => (s, c, false)
@@ -166,7 +166,7 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
     }
   }
 
-  //  POST /graphs/createHTable
+  //  POST /admin/createHTable
   lazy val createHTable = path("createHTable") {
     entity(as[JsValue]) { params =>
       params.validate[HTableParams] match {
@@ -182,14 +182,14 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
     }
   }
 
-  //  POST /graphs/copyLabel/:oldLabelName/:newLabelName
+  //  POST /admin/copyLabel/:oldLabelName/:newLabelName
   lazy val copyLabel = path("copyLabel" / Segment / Segment) { (oldLabelName, newLabelName) =>
     val copyTry = management.copyLabel(oldLabelName, newLabelName, Some(newLabelName))
 
     complete(toHttpEntity(copyTry))
   }
 
-  //  POST /graphs/renameLabel/:oldLabelName/:newLabelName
+  //  POST /admin/renameLabel/:oldLabelName/:newLabelName
   lazy val renameLabel = path("renameLabel" / Segment / Segment) { (oldLabelName, newLabelName) =>
     Label.findByName(oldLabelName) match {
       case None => complete(toHttpEntity(None: Option[JsValue], status = StatusCodes.NotFound, message = s"Label $oldLabelName not found."))
@@ -200,7 +200,7 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
     }
   }
 
-  //  POST /graphs/swapLabels/:leftLabelName/:rightLabelName
+  //  POST /admin/swapLabels/:leftLabelName/:rightLabelName
   lazy val swapLabel = path("swapLabel" / Segment / Segment) { (leftLabelName, rightLabelName) =>
     val left = Label.findByName(leftLabelName, useCache = false)
     val right = Label.findByName(rightLabelName, useCache = false)
@@ -215,7 +215,7 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
     }
   }
 
-  //  POST /graphs/updateHTable/:labelName/:newHTableName
+  //  POST /admin/updateHTable/:labelName/:newHTableName
   lazy val updateHTable = path("updateHTable" / Segment / Segment) { (labelName, newHTableName) =>
     val updateTry = Management.updateHTable(labelName, newHTableName).map(Json.toJson(_))
 
@@ -223,21 +223,21 @@ trait S2GraphAdminRoute extends PlayJsonSupport {
   }
 
   /* PUT */
-  //  PUT /graphs/deleteLabelReally/:labelName
+  //  PUT /admin/deleteLabelReally/:labelName
   lazy val deleteLabelReally = path("deleteLabelReally" / Segment) { labelName =>
     val ret = Management.deleteLabel(labelName).toOption
 
     complete(toHttpEntity(ret, message = s"Label not found: ${labelName}"))
   }
 
-  //  PUT /graphs/markDeletedLabel/:labelName
+  //  PUT /admin/markDeletedLabel/:labelName
   lazy val markDeletedLabel = path("markDeletedLabel" / Segment) { labelName =>
     val ret = Management.markDeletedLabel(labelName).toOption.map(Json.toJson(_))
 
     complete(toHttpEntity(ret, message = s"Label not found: ${labelName}"))
   }
 
-  //  PUT /graphs/deleteServiceColumn/:serviceName/:columnName
+  //  PUT /admin/deleteServiceColumn/:serviceName/:columnName
   lazy val deleteServiceColumn = path("deleteServiceColumn" / Segment / Segment) { (serviceName, columnName) =>
     val ret = Management.deleteColumn(serviceName, columnName).toOption
 

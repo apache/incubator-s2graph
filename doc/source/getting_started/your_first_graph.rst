@@ -11,7 +11,7 @@ The following POST query will create a service named ``KakaoFavorites``
 
 .. code:: bash
 
-  curl -XPOST localhost:9000/graphs/createService -H 'Content-Type: Application/json' -d '
+  curl -XPOST localhost:9000/admin/createService -H 'Content-Type: Application/json' -d '
   {
     "serviceName": "KakaoFavorites",
     "compressionAlgorithm" : "gz"
@@ -21,7 +21,7 @@ To make sure the service is created correctly, check out the following
 
 .. code:: bash
 
-  curl -XGET localhost:9000/graphs/getService/KakaoFavorites
+  curl -XGET localhost:9000/admin/getService/KakaoFavorites
 
 Next, we will need some friends.
 ---------------------------------------------
@@ -29,7 +29,7 @@ In S2Graph, relationships are organized as labels. Create a ``friends`` label wi
 
 .. code:: bash
 
-  curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json' -d '
+  curl -XPOST localhost:9000/admin/createLabel -H 'Content-Type: Application/json' -d '
   {
     "label": "friends",
     "srcServiceName": "KakaoFavorites",
@@ -48,13 +48,13 @@ Check if the label has been created correctly:
 
 .. code:: bash
 
-   curl -XGET localhost:9000/graphs/getLabel/friends
+   curl -XGET localhost:9000/admin/getLabel/friends
 
 Now that the label ``friends`` is ready, we can store the friendship data. Entries of a label are called edges, and you can add edges with ``edges/insert`` API:
 
 .. code:: bash
 
-   curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/json' -d '
+   curl -XPOST localhost:9000/mutate/edge/insert -H 'Content-Type: Application/json' -d '
    [
       {"from":"Elmo","to":"Big Bird","label":"friends","props":{},"timestamp":1444360152477},
       {"from":"Elmo","to":"Ernie","label":"friends","props":{},"timestamp":1444360152478},
@@ -95,7 +95,7 @@ We will need a new label ``post`` for this data:
 
 .. code:: bash
 
-  curl -XPOST localhost:9000/graphs/createLabel -H 'Content-Type: Application/json' -d '
+  curl -XPOST localhost:9000/admin/createLabel -H 'Content-Type: Application/json' -d '
   {
     "label": "post",
     "srcServiceName": "KakaoFavorites",
@@ -114,7 +114,7 @@ Now, insert some posts of the users:
 
 .. code:: bash
 
-  curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/json' -d '
+  curl -XPOST localhost:9000/mutate/edge/insert -H 'Content-Type: Application/json' -d '
   [
     {"from":"Big Bird","to":"www.kakaocorp.com/en/main","label":"post","props":{},"timestamp":1444360152477},
     {"from":"Big Bird","to":"github.com/kakao/s2graph","label":"post","props":{},"timestamp":1444360152478},
