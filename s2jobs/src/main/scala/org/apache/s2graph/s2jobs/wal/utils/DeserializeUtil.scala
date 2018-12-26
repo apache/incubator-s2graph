@@ -1,6 +1,7 @@
 package org.apache.s2graph.s2jobs.wal.utils
 
-import org.apache.hadoop.hbase.Cell
+import org.apache.hadoop.hbase.KeyValue.Type
+import org.apache.hadoop.hbase.{Cell, CellUtil}
 import org.apache.hadoop.hbase.client.Result
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.{GraphUtil, JSONParser, SnapshotEdge}
@@ -12,6 +13,8 @@ import org.apache.s2graph.s2jobs.S2GraphHelper.logger
 import org.apache.s2graph.s2jobs.wal.{LabelSchema, WalLog}
 import org.apache.spark.sql.Row
 import play.api.libs.json.Json
+
+import scala.util.Try
 
 
 object DeserializeUtil {
@@ -92,6 +95,10 @@ object DeserializeUtil {
       cell.getValue, cell.getTimestamp, SKeyValue.Default)
   }
 
+  def sKeyValueToCell(skv: SKeyValue): Cell = {
+    CellUtil.createCell(skv.row, skv.cf, skv.qualifier, skv.timestamp, 4.toByte, skv.value)
+  }
+
   case class RowV3Parsed(srcVertexId: VertexId,
                          labelWithDir: LabelWithDirection,
                          labelIdxSeq: Byte,
@@ -116,14 +123,11 @@ object DeserializeUtil {
     RowV3Parsed(srcVertexId, labelWithDir, labelIdxSeq, isInverted, pos)
   }
 
-  def toQualifierV3Parsed(cell: Cell,
+  def toQualifierV3Parsed(qualifier: Array[Byte],
                           schemaVer: String,
                           labelId: Int,
                           labelIdxSeq: Byte,
-                          labelIndexLabelMetas: Map[Int, Map[Byte, Array[LabelMeta]]]): QualifierV3Parsed = {
-    //TODO:
-    val qualifier = cell.getQualifier
-
+                          labelIndexLabelMetas: Map[Int, Map[Byte, Array[LabelMeta]]]): Try[QualifierV3Parsed] = Try {
     val (idxPropsRaw, endAt) =
       StorageDeserializable.bytesToProps(qualifier, 0, schemaVer)
 
@@ -179,7 +183,7 @@ object DeserializeUtil {
 
   def indexEdgeResultToWalsV3(result: Result,
                               labelSchema: LabelSchema,
-                              tallSchemaVersions: Set[String],
+                              tallSchemaVersions: Set[String] = Set(HBaseType.VERSION4),
                               tgtDirection: Int = 0): Iterable[WalLog] = {
     import scala.collection.mutable
     val buffer = mutable.ArrayBuffer.empty[WalLog]
@@ -205,39 +209,45 @@ object DeserializeUtil {
       breakOut = rowV3Parsed.isInverted || !labels.contains(labelId) || labelWithDir.dir != tgtDirection
 
       if (!breakOut) {
-        val label = labels.getOrElse(labelWithDir.labelId, throw new IllegalArgumentException(s"$labelWithDir labelId is not found."))
-        val schemaVer = label.schemaVersion
+        val qualifier = cell.getQualifier
+        val validV3Qualifier = !qualifier.isEmpty
 
-        val qualifierV3Parsed = toQualifierV3Parsed(cell, schemaVer, labelId, labelIdxSeq, labelIndexLabelMetas)
-        val tgtVertexId = qualifierV3Parsed.tgtVertexId
-        val idxPropsArray = qualifierV3Parsed.idxPropsArray
-        val op = qualifierV3Parsed.op
+        if (validV3Qualifier) {
+          val label = labels(labelId)
+          val schemaVer = label.schemaVersion
 
-        val metaPropsArray = toMetaProps(cell, labelMetas, labelId, op, schemaVer)
+          toQualifierV3Parsed(qualifier, schemaVer, labelId, labelIdxSeq, labelIndexLabelMetas).foreach { qualifierV3Parsed =>
+            val tgtVertexId = qualifierV3Parsed.tgtVertexId
+            val idxPropsArray = qualifierV3Parsed.idxPropsArray
+            val op = qualifierV3Parsed.op
 
-        val mergedProps = (idxPropsArray ++ metaPropsArray).toMap
-        val tsInnerVal = mergedProps(LabelMeta.timestamp)
-        val propsJson = for {
-          (labelMeta, innerValLike) <- mergedProps
-          jsValue <- JSONParser.innerValToJsValue(innerValLike, labelMeta.dataType)
-        } yield {
-          labelMeta.name -> jsValue
+            val metaPropsArray = toMetaProps(cell, labelMetas, labelId, op, schemaVer)
+
+            val mergedProps = (idxPropsArray ++ metaPropsArray).toMap
+            val tsInnerVal = mergedProps(LabelMeta.timestamp)
+            val propsJson = for {
+              (labelMeta, innerValLike) <- mergedProps
+              jsValue <- JSONParser.innerValToJsValue(innerValLike, labelMeta.dataType)
+            } yield {
+              labelMeta.name -> jsValue
+            }
+
+            val tgtVertexIdInnerId = mergedProps.getOrElse(LabelMeta.to, tgtVertexId.innerId)
+
+            val walLog = WalLog(
+              tsInnerVal.toIdString().toLong,
+              GraphUtil.fromOp(op),
+              "edge",
+              srcVertexId.innerId.toIdString(),
+              tgtVertexIdInnerId.toIdString(),
+              labelService(labelWithDir.labelId),
+              label.label,
+              Json.toJson(propsJson).toString()
+            )
+
+            buffer += walLog
+          }
         }
-
-        val tgtVertexIdInnerId = mergedProps.getOrElse(LabelMeta.to, tgtVertexId.innerId)
-
-        val walLog = WalLog(
-          tsInnerVal.toIdString().toLong,
-          GraphUtil.fromOp(op),
-          "edge",
-          srcVertexId.innerId.toIdString(),
-          tgtVertexIdInnerId.toIdString(),
-          labelService(labelWithDir.labelId),
-          label.label,
-          Json.toJson(propsJson).toString()
-        )
-
-        buffer += walLog
       }
     }
 

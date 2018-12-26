@@ -176,10 +176,10 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
 
     val skvs = cells.mapPartitions { iter =>
       val labelSchema = labelSchemaBCast.value
+
       iter.flatMap { case (_, result) =>
           DeserializeUtil.indexEdgeResultToWalsV3(result, labelSchema, tallSchemaVersions)
       }
-//      result.listCells().asScala.map(DeserializeUtil.cellToSKeyValue)
     }
 
     ss.createDataFrame(skvs)
