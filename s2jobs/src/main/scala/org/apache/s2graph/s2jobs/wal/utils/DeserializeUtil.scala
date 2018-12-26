@@ -1,6 +1,7 @@
 package org.apache.s2graph.s2jobs.wal.utils
 
 import org.apache.hadoop.hbase.Cell
+import org.apache.hadoop.hbase.client.Result
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.{GraphUtil, JSONParser, SnapshotEdge}
 import org.apache.s2graph.core.schema.{Label, LabelIndex, LabelMeta, ServiceColumn}
@@ -89,6 +90,158 @@ object DeserializeUtil {
   def cellToSKeyValue(cell: Cell): SKeyValue = {
     new SKeyValue(Array.empty[Byte], cell.getRow, cell.getFamily, cell.getQualifier,
       cell.getValue, cell.getTimestamp, SKeyValue.Default)
+  }
+
+  case class RowV3Parsed(srcVertexId: VertexId,
+                         labelWithDir: LabelWithDirection,
+                         labelIdxSeq: Byte,
+                         isInverted: Boolean,
+                         pos: Int)
+
+  case class QualifierV3Parsed(idxPropsArray: IndexedSeq[(LabelMeta, InnerValLike)],
+                               tgtVertexId: VertexId,
+                               op: Byte)
+
+  def toRowV3Parsed(cell: Cell): RowV3Parsed = {
+    //TODO:
+    val row = cell.getRow
+    var pos = 0
+    val (srcVertexId, srcIdLen) = SourceVertexId.fromBytes(row, pos, row.length, HBaseType.DEFAULT_VERSION)
+    pos += srcIdLen
+    val labelWithDir = LabelWithDirection(Bytes.toInt(row, pos, 4))
+    pos += 4
+    val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsInverted(row, pos)
+    pos += 1
+
+    RowV3Parsed(srcVertexId, labelWithDir, labelIdxSeq, isInverted, pos)
+  }
+
+  def toQualifierV3Parsed(cell: Cell,
+                          schemaVer: String,
+                          labelId: Int,
+                          labelIdxSeq: Byte,
+                          labelIndexLabelMetas: Map[Int, Map[Byte, Array[LabelMeta]]]): QualifierV3Parsed = {
+    //TODO:
+    val qualifier = cell.getQualifier
+
+    val (idxPropsRaw, endAt) =
+      StorageDeserializable.bytesToProps(qualifier, 0, schemaVer)
+
+    var pos = endAt
+
+    val (tgtVertexIdRaw, tgtVertexIdLen) =
+      if (endAt == qualifier.length) (HBaseType.defaultTgtVertexId, 0)
+      else TargetVertexId.fromBytes(qualifier, endAt, qualifier.length, schemaVer)
+
+    pos += tgtVertexIdLen
+
+    val op =
+      if (qualifier.length == pos) GraphUtil.defaultOpByte
+      else qualifier.last
+
+    val idxPropsArray = toIndexProps(idxPropsRaw, labelId, labelIdxSeq, labelIndexLabelMetas)
+
+    QualifierV3Parsed(idxPropsArray, tgtVertexIdRaw, op)
+  }
+
+  def toIndexProps(idxPropsRaw: Array[(LabelMeta, InnerValLike)],
+                   labelId: Int,
+                   labelIdxSeq: Byte,
+                   labelIndexLabelMetas: Map[Int, Map[Byte, Array[LabelMeta]]]): IndexedSeq[(LabelMeta, InnerValLike)] = {
+    val indexLabelMetas = labelIndexLabelMetas.getOrElse(labelId, throw new IllegalArgumentException(s"${labelId} not found in labelIndexLabelMetas"))
+    val sortKeyTypesArray = indexLabelMetas.getOrElse(labelIdxSeq, throw new IllegalArgumentException(s"invalid index seq for meta array: ${labelId}, ${labelIdxSeq}"))
+
+    val size = idxPropsRaw.length
+    (0 until size).map { ith =>
+      val meta = sortKeyTypesArray(ith)
+      val (k, v) = idxPropsRaw(ith)
+      meta -> v
+    }
+  }
+
+  def toMetaProps(cell: Cell,
+                  labelMetas: Map[Int, Map[Byte, LabelMeta]],
+                  labelId: Int,
+                  op: Byte,
+                  schemaVer: String) = {
+    val value = cell.getValue
+    /* process props */
+
+    if (op == GraphUtil.operations("incrementCount")) {
+      //        val countVal = Bytes.toLong(kv.value)
+      val countVal = StorageDeserializable.bytesToLong(value, 0)
+      Array(LabelMeta.count -> InnerVal.withLong(countVal, schemaVer))
+    } else {
+      val (props, endAt) = bytesToKeyValues(value, 0, value.length, schemaVer, labelMetas(labelId))
+      props
+    }
+  }
+
+  def indexEdgeResultToWalsV3(result: Result,
+                              labelSchema: LabelSchema,
+                              tallSchemaVersions: Set[String],
+                              tgtDirection: Int = 0): Iterable[WalLog] = {
+    import scala.collection.mutable
+    val buffer = mutable.ArrayBuffer.empty[WalLog]
+    val LabelSchema(labelService, labels, _, labelIndexLabelMetas, labelMetas) = labelSchema
+
+    val scanner = result.cellScanner()
+
+    var rowV3Parsed: RowV3Parsed = null
+    var breakOut = false
+
+    while (scanner.advance() && !breakOut) {
+      val cell = scanner.current()
+
+      if (rowV3Parsed == null) {
+        rowV3Parsed = toRowV3Parsed(cell)
+      }
+
+      val labelWithDir = rowV3Parsed.labelWithDir
+      val labelId = labelWithDir.labelId
+      val labelIdxSeq = rowV3Parsed.labelIdxSeq
+      val srcVertexId = rowV3Parsed.srcVertexId
+
+      breakOut = rowV3Parsed.isInverted || !labels.contains(labelId) || labelWithDir.dir != tgtDirection
+
+      if (!breakOut) {
+        val label = labels.getOrElse(labelWithDir.labelId, throw new IllegalArgumentException(s"$labelWithDir labelId is not found."))
+        val schemaVer = label.schemaVersion
+
+        val qualifierV3Parsed = toQualifierV3Parsed(cell, schemaVer, labelId, labelIdxSeq, labelIndexLabelMetas)
+        val tgtVertexId = qualifierV3Parsed.tgtVertexId
+        val idxPropsArray = qualifierV3Parsed.idxPropsArray
+        val op = qualifierV3Parsed.op
+
+        val metaPropsArray = toMetaProps(cell, labelMetas, labelId, op, schemaVer)
+
+        val mergedProps = (idxPropsArray ++ metaPropsArray).toMap
+        val tsInnerVal = mergedProps(LabelMeta.timestamp)
+        val propsJson = for {
+          (labelMeta, innerValLike) <- mergedProps
+          jsValue <- JSONParser.innerValToJsValue(innerValLike, labelMeta.dataType)
+        } yield {
+          labelMeta.name -> jsValue
+        }
+
+        val tgtVertexIdInnerId = mergedProps.getOrElse(LabelMeta.to, tgtVertexId.innerId)
+
+        val walLog = WalLog(
+          tsInnerVal.toIdString().toLong,
+          GraphUtil.fromOp(op),
+          "edge",
+          srcVertexId.innerId.toIdString(),
+          tgtVertexIdInnerId.toIdString(),
+          labelService(labelWithDir.labelId),
+          label.label,
+          Json.toJson(propsJson).toString()
+        )
+
+        buffer += walLog
+      }
+    }
+
+    buffer
   }
 
   def indexEdgeKeyValueToRow(kv: SKeyValue,

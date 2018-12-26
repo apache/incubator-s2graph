@@ -19,12 +19,13 @@
 
 package org.apache.s2graph.s2jobs.task
 
+import org.apache.s2graph.core.types.HBaseType
 import org.apache.s2graph.core.{JSONParser, Management}
 import org.apache.s2graph.s2jobs.Schema
 import org.apache.s2graph.s2jobs.loader.{HFileGenerator, SparkBulkLoaderTransformer}
 import org.apache.s2graph.s2jobs.serde.reader.S2GraphCellReader
 import org.apache.s2graph.s2jobs.serde.writer.RowDataFrameWriter
-import org.apache.s2graph.s2jobs.wal.utils.DeserializeUtil
+import org.apache.s2graph.s2jobs.wal.utils.{DeserializeUtil, SchemaUtil}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import play.api.libs.json.{JsObject, Json}
 
@@ -139,19 +140,24 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
   override def mandatoryOptions: Set[String] = Set(
     S2_SOURCE_BULKLOAD_HBASE_ROOT_DIR,
     S2_SOURCE_BULKLOAD_RESTORE_PATH,
-    S2_SOURCE_BULKLOAD_HBASE_TABLE_NAMES
+    S2_SOURCE_BULKLOAD_HBASE_TABLE_NAMES,
+    "labelNames"
   )
 
   override def toDF(ss: SparkSession): DataFrame = {
     val mergedConf = TaskConf.parseHBaseConfigs(conf) ++ TaskConf.parseMetaStoreConfigs(conf) ++
       TaskConf.parseLocalCacheConfigs(conf)
     val config = Management.toConfig(mergedConf)
+    SchemaUtil.init(config)
+
+    val sc = ss.sparkContext
 
     val snapshotPath = conf.options(S2_SOURCE_BULKLOAD_HBASE_ROOT_DIR)
     val restorePath = conf.options(S2_SOURCE_BULKLOAD_RESTORE_PATH)
     val tableNames = conf.options(S2_SOURCE_BULKLOAD_HBASE_TABLE_NAMES).split(",")
     val columnFamily = conf.options.getOrElse(S2_SOURCE_BULKLOAD_HBASE_TABLE_CF, "e")
     val batchSize = conf.options.getOrElse(S2_SOURCE_BULKLOAD_SCAN_BATCH_SIZE, "1000").toInt
+    val labelNames = conf.options("labelNames").split(",").toSeq
 
     val labelMapping = Map.empty[String, String]
     val buildDegree =
@@ -163,8 +169,17 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
     val cells = HFileGenerator.tableSnapshotDump(ss, config, snapshotPath,
       restorePath, tableNames, columnFamily, batchSize, labelMapping, buildDegree)
 
-    val skvs = cells.flatMap { case (_, result) =>
-      result.listCells().asScala.map(DeserializeUtil.cellToSKeyValue)
+
+    val labelSchema = SchemaUtil.buildLabelSchema(labelNames)
+    val labelSchemaBCast = sc.broadcast(labelSchema)
+    val tallSchemaVersions = Set(HBaseType.VERSION4)
+
+    val skvs = cells.mapPartitions { iter =>
+      val labelSchema = labelSchemaBCast.value
+      iter.flatMap { case (_, result) =>
+          DeserializeUtil.indexEdgeResultToWalsV3(result, labelSchema, tallSchemaVersions)
+      }
+//      result.listCells().asScala.map(DeserializeUtil.cellToSKeyValue)
     }
 
     ss.createDataFrame(skvs)
