@@ -3,6 +3,7 @@ package org.apache.s2graph.s2jobs.wal.utils
 import com.typesafe.config.Config
 import org.apache.s2graph.core.schema.{Label, LabelMeta, Schema}
 import org.apache.s2graph.core.utils.logger
+import org.apache.s2graph.s2jobs.wal.LabelSchema
 
 
 object SchemaUtil {
@@ -63,7 +64,7 @@ object SchemaUtil {
     }
   }
 
-  def buildSchemaForLabels(labelNames: Seq[String]) = {
+  def buildLabelSchema(labelNames: Seq[String]): LabelSchema = {
     val labels = labelNames.map { labelName =>
       val label = Label.findByName(labelName).getOrElse(throw new IllegalArgumentException(s"$labelName not exist."))
       label.id.get -> label
@@ -90,6 +91,6 @@ object SchemaUtil {
       id -> m
     }
 
-    (labelServices, labels, labelIndices, labelMetas, labelIndexLabelMetas)
+    LabelSchema(labelServices, labels, labelIndices, labelIndexLabelMetas, labelMetas)
   }
 }

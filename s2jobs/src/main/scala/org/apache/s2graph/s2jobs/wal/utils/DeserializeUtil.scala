@@ -8,7 +8,7 @@ import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.s2graph.core.storage.serde.StorageDeserializable
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.s2jobs.S2GraphHelper.logger
-import org.apache.s2graph.s2jobs.wal.WalLog
+import org.apache.s2graph.s2jobs.wal.{LabelSchema, WalLog}
 import org.apache.spark.sql.Row
 import play.api.libs.json.Json
 
@@ -93,13 +93,11 @@ object DeserializeUtil {
 
   def indexEdgeKeyValueToRow(kv: SKeyValue,
                              cacheElementOpt: Option[SnapshotEdge],
-                             labelServices: Map[Int, String],
-                             labels: Map[Int, Label],
-                             labelIndices: Map[Int, Map[Byte, LabelIndex]],
-                             labelMetas: Map[Int, Map[Byte, LabelMeta]],
-                             labelIndexLabelMetas: Map[Int, Map[Byte, Array[LabelMeta]]],
+                             labelSchema: LabelSchema,
                              tallSchemaVersions: Set[String]): Option[WalLog] = {
     try {
+      val LabelSchema(labelService, labels, labelIndices, labelIndexLabelMetas, labelMetas) = labelSchema
+
       var pos = 0
       val (srcVertexId, srcIdLen) = SourceVertexId.fromBytes(kv.row, pos, kv.row.length, HBaseType.DEFAULT_VERSION)
       pos += srcIdLen
@@ -150,8 +148,6 @@ object DeserializeUtil {
               else kv.qualifier(kv.qualifier.length - 1)
             }
 
-          val indices = labelIndices.getOrElse(labelWithDir.labelId, throw new IllegalArgumentException(s"labelIndices not found. ${labelWithDir}"))
-          val index = indices.getOrElse(labelIdxSeq, throw new IllegalArgumentException(s"invalid index seq: ${label.id.get}, ${labelIdxSeq}"))
           val indexLabelMetas = labelIndexLabelMetas.getOrElse(labelWithDir.labelId, throw new IllegalArgumentException(s"${labelWithDir.labelId} not found in labelIndexLabelMetas"))
           val sortKeyTypesArray = indexLabelMetas.getOrElse(labelIdxSeq, throw new IllegalArgumentException(s"invalid index seq for meta array: ${label.id.get}, ${labelIdxSeq}"))
 
@@ -192,7 +188,7 @@ object DeserializeUtil {
             "edge",
             srcVertexId.innerId.toIdString(),
             tgtVertexIdInnerId.toIdString(),
-            labelServices(labelWithDir.labelId),
+            labelService(labelWithDir.labelId),
             label.label,
             Json.toJson(propsJson).toString()
           )
@@ -210,10 +206,10 @@ object DeserializeUtil {
 
   def snapshotEdgeKeyValueToRow(kv: SKeyValue,
                                 cacheElementOpt: Option[SnapshotEdge],
-                                labelServices: Map[Int, String],
-                                labelsMap: Map[Int, Label],
-                                labelMetasMap: Map[Int, Map[Byte, LabelMeta]]): Option[WalLog] = {
+                                labelSchema: LabelSchema): Option[WalLog] = {
     try {
+      val LabelSchema(labelService, labels, _, _, labelMetas) = labelSchema
+
       var pos = 0
       val (srcVertexId, srcIdLen) = SourceVertexId.fromBytes(kv.row, pos, kv.row.length, HBaseType.DEFAULT_VERSION)
       pos += srcIdLen
@@ -234,13 +230,13 @@ object DeserializeUtil {
 
       if (!isInverted) None
       else {
-        val label = labelsMap(labelWithDir.labelId)
+        val label = labels(labelWithDir.labelId)
         val schemaVer = label.schemaVersion
 
         var pos = 0
         val (statusCode, op) = statusCodeWithOp(kv.value(pos))
         pos += 1
-        val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer, labelMetasMap(labelWithDir.labelId))
+        val (props, endAt) = bytesToKeyValuesWithTs(kv.value, pos, schemaVer, labelMetas(labelWithDir.labelId))
         val kvsMap = props.toMap
         val tsInnerVal = kvsMap(LabelMeta.timestamp).innerVal
 
@@ -259,7 +255,7 @@ object DeserializeUtil {
           "edge",
           srcVertexId.innerId.toIdString(),
           tgtVertexId.innerId.toIdString(),
-          labelServices(labelWithDir.labelId),
+          labelService(labelWithDir.labelId),
           label.label,
           Json.toJson(propsJson.toMap).toString()
         )
