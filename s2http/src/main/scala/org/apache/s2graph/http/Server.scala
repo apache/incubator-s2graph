@@ -19,6 +19,8 @@
 
 package org.apache.s2graph.http
 
+import java.time.Instant
+
 import scala.language.postfixOps
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.Duration
@@ -51,9 +53,13 @@ object Server extends App
   val port = sys.props.get("http.port").fold(8000)(_.toInt)
   val interface = sys.props.get("http.interface").fold("0.0.0.0")(identity)
 
-  val serverStatus = s""" { "port": ${port}, "interface": ${interface}, "started_at": ${System.currentTimeMillis()} }"""
+  val startAt = System.currentTimeMillis()
 
-  val health = HttpResponse(status = StatusCodes.OK, entity = HttpEntity(ContentTypes.`application/json`, serverStatus))
+  def uptime = System.currentTimeMillis() - startAt
+
+  def serverHealth = s"""{ "port": ${port}, "interface": "${interface}", "started_at": ${Instant.ofEpochMilli(startAt)}, "uptime": "${uptime} millis" """
+
+  def health = HttpResponse(status = StatusCodes.OK, entity = HttpEntity(ContentTypes.`application/json`, serverHealth))
 
   // Allows you to determine routes to expose according to external settings.
   lazy val routes: Route = concat(
