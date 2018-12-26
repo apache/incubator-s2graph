@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-lazy val akkaHttpVersion = "10.1.5"
-lazy val akkaVersion = "2.5.18"
+lazy val akkaHttpVersion = "10.1.6"
+lazy val akkaVersion = "2.5.19"
 
 name := "s2http"
 
