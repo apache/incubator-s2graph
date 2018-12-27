@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-API Glossary
+HTTP API Glossary
 ==============================================
 
 The following is a non-exhaustive list of commonly used S2Graph APIs and their examples
