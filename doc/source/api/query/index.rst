@@ -12,6 +12,4 @@ Contents:
 
    query_options
    query_edge
-
-   ..
-      query_vertex
+   query_vertex

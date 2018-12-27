@@ -15,12 +15,8 @@ Another tip is to not be shy to ask! Ask any questions on our `mailing list`_. l
 .. _github: https://github.com/apache/incubator-s2graph
 
 
-APIs
--------------------------------------
-
-
 checkEdges - ``POST /graphs/checkEdges``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+------------------------------------------
 
 return edge for given vertex pair only if edge exist.
 This is more ``general`` way to check edge existence between any given vertex pairs comparing using ``_to`` on query parameter
@@ -36,7 +32,7 @@ This is more ``general`` way to check edge existence between any given vertex pa
 
 
 getEdges - ``POST /graphs/getEdges``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-----------------------------------------
 
 Select edges with query.
 
