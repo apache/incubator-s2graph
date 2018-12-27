@@ -19,6 +19,9 @@
 
 package org.apache.s2graph.s2jobs.task
 
+import org.apache.hadoop.hbase.Cell
+import org.apache.hadoop.hbase.client.Result
+import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.s2graph.core.types.HBaseType
 import org.apache.s2graph.core.{JSONParser, Management}
 import org.apache.s2graph.s2jobs.Schema
@@ -26,9 +29,10 @@ import org.apache.s2graph.s2jobs.loader.{HFileGenerator, SparkBulkLoaderTransfor
 import org.apache.s2graph.s2jobs.serde.reader.S2GraphCellReader
 import org.apache.s2graph.s2jobs.serde.writer.RowDataFrameWriter
 import org.apache.s2graph.s2jobs.wal.utils.{DeserializeUtil, SchemaUtil}
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, Encoders, SparkSession}
 import play.api.libs.json.{JsObject, Json}
 
+import scala.reflect.runtime.universe._
 
 /**
   * Source
@@ -121,6 +125,7 @@ class FileSource(conf:TaskConf) extends Source(conf) {
   }
 }
 
+
 class HiveSource(conf:TaskConf) extends Source(conf) {
   override def mandatoryOptions: Set[String] = Set("database", "table")
 
@@ -133,8 +138,24 @@ class HiveSource(conf:TaskConf) extends Source(conf) {
   }
 }
 
+case class HResult(table: Array[Byte],
+                   row: Array[Byte],
+                   cf: Array[Byte],
+                   kvs: Seq[PartialKeyValue])
+
+object PartialKeyValue {
+  def apply(cell: Cell): PartialKeyValue = {
+    PartialKeyValue(cell.getQualifier, cell.getValue, cell.getTimestamp)
+  }
+}
+case class PartialKeyValue(qualifier: Array[Byte],
+                           value: Array[Byte],
+                           timestamp: Long)
+
+
 class S2GraphSource(conf: TaskConf) extends Source(conf) {
   import org.apache.s2graph.spark.sql.streaming.S2SourceConfigs._
+  import scala.collection.mutable
   import scala.collection.JavaConverters._
 
   override def mandatoryOptions: Set[String] = Set(
@@ -169,19 +190,20 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
     val cells = HFileGenerator.tableSnapshotDump(ss, config, snapshotPath,
       restorePath, tableNames, columnFamily, batchSize, labelMapping, buildDegree)
 
-
     val labelSchema = SchemaUtil.buildLabelSchema(labelNames)
     val labelSchemaBCast = sc.broadcast(labelSchema)
     val tallSchemaVersions = Set(HBaseType.VERSION4)
+    val tgtDirection = 0
 
-    val skvs = cells.mapPartitions { iter =>
+    val results = cells.mapPartitions { iter =>
       val labelSchema = labelSchemaBCast.value
 
       iter.flatMap { case (_, result) =>
-          DeserializeUtil.indexEdgeResultToWalsV3(result, labelSchema, tallSchemaVersions)
+        DeserializeUtil.resultToWals(result, labelSchema, tallSchemaVersions, tgtDirection)
       }
+
     }
 
-    ss.createDataFrame(skvs)
+    ss.createDataFrame(results)
   }
 }
