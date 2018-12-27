@@ -13,6 +13,5 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-   management
-   write
-   read
+   management/index
+   mutate/index
