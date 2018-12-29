@@ -345,11 +345,11 @@ The following is an example of adding index ``play_count`` to a label ``graph_te
 
 .. code:: bash
 
-   // add prop first
+   # add prop first
    curl -XPOST localhost:9000/admin/addProp/graph_test -H 'Content-Type: Application/json' -d '
    { "name": "play_count", "defaultValue": 0, "dataType": "integer" }'
 
-   // then add index
+   # then add index
    curl -XPOST localhost:9000/admin/addIndex -H 'Content-Type: Application/json' -d '
    {
      "label": "graph_test",
