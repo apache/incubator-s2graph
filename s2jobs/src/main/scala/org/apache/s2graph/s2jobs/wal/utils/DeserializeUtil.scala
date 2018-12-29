@@ -9,7 +9,7 @@ import org.apache.s2graph.core.storage.serde.StorageDeserializable
 import org.apache.s2graph.core.storage.serde.StorageDeserializable.bytesToInt
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.{GraphUtil, JSONParser, S2Vertex}
-import org.apache.s2graph.s2jobs.wal.{ColumnSchema, LabelSchema, WalLog, WalVertex}
+import org.apache.s2graph.s2jobs.wal._
 import org.apache.spark.sql.Row
 import play.api.libs.json.Json
 
@@ -131,7 +131,7 @@ object DeserializeUtil {
                           schemaVer: String,
                           labelId: Int,
                           labelIdxSeq: Byte,
-                          labelIndexLabelMetas: Map[Int, Map[Byte, Array[LabelMeta]]]): Try[QualifierV3Parsed] = Try {
+                          schema: DeserializeSchema): Try[QualifierV3Parsed] = Try {
     val (idxPropsRaw, endAt) = StorageDeserializable.bytesToProps(row, offset, schemaVer)
     val pos = endAt
 
@@ -141,7 +141,7 @@ object DeserializeUtil {
 
     val op = row.last
 
-    val idxPropsArray = toIndexProps(idxPropsRaw, labelId, labelIdxSeq, labelIndexLabelMetas)
+    val idxPropsArray = toIndexProps(idxPropsRaw, labelId, labelIdxSeq, schema)
 
     QualifierV3Parsed(idxPropsArray, tgtVertexIdRaw, op)
   }
@@ -150,7 +150,7 @@ object DeserializeUtil {
                           schemaVer: String,
                           labelId: Int,
                           labelIdxSeq: Byte,
-                          labelIndexLabelMetas: Map[Int, Map[Byte, Array[LabelMeta]]]): Try[QualifierV3Parsed] = Try {
+                          schema: DeserializeSchema): Try[QualifierV3Parsed] = Try {
     val (idxPropsRaw, endAt) =
       StorageDeserializable.bytesToProps(qualifier, 0, schemaVer)
 
@@ -166,7 +166,7 @@ object DeserializeUtil {
       if (qualifier.length == pos) GraphUtil.defaultOpByte
       else qualifier.last
 
-    val idxPropsArray = toIndexProps(idxPropsRaw, labelId, labelIdxSeq, labelIndexLabelMetas)
+    val idxPropsArray = toIndexProps(idxPropsRaw, labelId, labelIdxSeq, schema)
 
     QualifierV3Parsed(idxPropsArray, tgtVertexIdRaw, op)
   }
@@ -174,9 +174,8 @@ object DeserializeUtil {
   def toIndexProps(idxPropsRaw: Array[(LabelMeta, InnerValLike)],
                    labelId: Int,
                    labelIdxSeq: Byte,
-                   labelIndexLabelMetas: Map[Int, Map[Byte, Array[LabelMeta]]]): IndexedSeq[(LabelMeta, InnerValLike)] = {
-    val indexLabelMetas = labelIndexLabelMetas.getOrElse(labelId, throw new IllegalArgumentException(s"${labelId} not found in labelIndexLabelMetas"))
-    val sortKeyTypesArray = indexLabelMetas.getOrElse(labelIdxSeq, throw new IllegalArgumentException(s"invalid index seq for meta array: ${labelId}, ${labelIdxSeq}"))
+                   schema: DeserializeSchema): IndexedSeq[(LabelMeta, InnerValLike)] = {
+    val sortKeyTypesArray = schema.findLabelIndexLabelMetas(labelId, labelIdxSeq)
 
     val size = idxPropsRaw.length
     (0 until size).map { ith =>
@@ -187,10 +186,10 @@ object DeserializeUtil {
   }
 
   def toMetaProps(value: Array[Byte],
-                  labelMetas: Map[Int, Map[Byte, LabelMeta]],
                   labelId: Int,
                   op: Byte,
-                  schemaVer: String) = {
+                  schemaVer: String,
+                  schema: DeserializeSchema) = {
     /* process props */
 
     if (op == GraphUtil.operations("incrementCount")) {
@@ -198,7 +197,7 @@ object DeserializeUtil {
       val countVal = StorageDeserializable.bytesToLong(value, 0)
       Array(LabelMeta.count -> InnerVal.withLong(countVal, schemaVer))
     } else {
-      val (props, endAt) = bytesToKeyValues(value, 0, value.length, schemaVer, labelMetas(labelId))
+      val (props, endAt) = bytesToKeyValues(value, 0, value.length, schemaVer, schema.findLabelMetas(labelId))
       props
     }
   }
@@ -231,16 +230,14 @@ object DeserializeUtil {
   def deserializeIndexEdgeCell(cell: Cell,
                                row: Array[Byte],
                                rowV3Parsed: RowV3Parsed,
-                               labelSchema: LabelSchema,
-                               tallSchemaVersions: Set[String]): Option[WalLog] = {
-    val LabelSchema(labelService, labels, _, labelIndexLabelMetas, labelMetas) = labelSchema
-
+                               tallSchemaVersions: Set[String],
+                               schema: DeserializeSchema): Option[WalLog] = {
     val labelWithDir = rowV3Parsed.labelWithDir
     val labelId = labelWithDir.labelId
     val labelIdxSeq = rowV3Parsed.labelIdxSeq
     val srcVertexId = rowV3Parsed.srcVertexId
 
-    val label = labels(labelId)
+    val label = schema.findLabel(labelId)
     val schemaVer = label.schemaVersion
     val isTallSchema = tallSchemaVersions(label.schemaVersion)
 
@@ -253,8 +250,8 @@ object DeserializeUtil {
     else if (!isTallSchema && !validV3Qualifier) None
     else {
       val qualifierParsedTry =
-        if (isTallSchema) toQualifierV4Parsed(row, rowV3Parsed.pos, schemaVer, labelId, labelIdxSeq, labelIndexLabelMetas)
-        else toQualifierV3Parsed(qualifier, schemaVer, labelId, labelIdxSeq, labelIndexLabelMetas)
+        if (isTallSchema) toQualifierV4Parsed(row, rowV3Parsed.pos, schemaVer, labelId, labelIdxSeq, schema)
+        else toQualifierV3Parsed(qualifier, schemaVer, labelId, labelIdxSeq, schema)
 
       qualifierParsedTry.toOption.map { qualifierParsed =>
         val tgtVertexId = qualifierParsed.tgtVertexId
@@ -263,7 +260,7 @@ object DeserializeUtil {
 
         val value = cell.getValue
 
-        val metaPropsArray = toMetaProps(value, labelMetas, labelId, op, schemaVer)
+        val metaPropsArray = toMetaProps(value, labelId, op, schemaVer, schema)
 
         val mergedProps = (idxPropsArray ++ metaPropsArray).toMap
         val tsInnerVal = mergedProps(LabelMeta.timestamp)
@@ -282,7 +279,7 @@ object DeserializeUtil {
           "edge",
           srcVertexId.innerId.toIdString(),
           tgtVertexIdInnerId.toIdString(),
-          labelService(labelWithDir.labelId),
+          schema.findLabelService(labelWithDir.labelId).serviceName,
           label.label,
           Json.toJson(propsJson).toString()
         )
@@ -291,15 +288,12 @@ object DeserializeUtil {
   }
 
   def indexEdgeResultToWals(result: Result,
-                            labelSchema: LabelSchema,
                             tallSchemaVersions: Set[String],
-                            tgtDirection: Int = 0): Seq[WalLog] = {
+                            tgtDirection: Int = 0)(implicit schema: DeserializeSchema): Seq[WalLog] = {
     val rawCells = result.rawCells()
 
     if (rawCells.isEmpty) Nil
     else {
-      val LabelSchema(_, labels, _, _, _) = labelSchema
-
       val head = rawCells.head
       val row = head.getRow
       val rowV3Parsed = toRowV3Parsed(row)
@@ -307,12 +301,12 @@ object DeserializeUtil {
       val labelWithDir = rowV3Parsed.labelWithDir
       val labelId = labelWithDir.labelId
 
-      val inValidRow = rowV3Parsed.isInverted || !labels.contains(labelId) || labelWithDir.dir != tgtDirection
+      val inValidRow = rowV3Parsed.isInverted || !schema.checkLabelExist(labelId) || labelWithDir.dir != tgtDirection
 
       if (inValidRow) Nil
       else {
         rawCells.flatMap { cell =>
-          deserializeIndexEdgeCell(cell, row, rowV3Parsed, labelSchema, tallSchemaVersions)
+          deserializeIndexEdgeCell(cell, row, rowV3Parsed, tallSchemaVersions, schema)
         }
       }
     }
@@ -320,13 +314,11 @@ object DeserializeUtil {
 
 
   def snapshotEdgeResultToWals(result: Result,
-                               labelSchema: LabelSchema,
-                               tallSchemaVersions: Set[String]): Seq[WalLog] = {
+                               tallSchemaVersions: Set[String])(implicit schema: DeserializeSchema): Seq[WalLog] = {
     val rawCells = result.rawCells()
 
     if (rawCells.isEmpty) Nil
     else {
-      val LabelSchema(labelService, labels, _, _, labelMetas) = labelSchema
       val head = rawCells.head
       val row = head.getRow
 
@@ -336,14 +328,14 @@ object DeserializeUtil {
 
           if (!isInverted) Nil
           else {
-            val label = labels(labelWithDir.labelId)
+            val label = schema.findLabel(labelWithDir.labelId)
             val schemaVer = label.schemaVersion
 
             rawCells.map { cell =>
               val value = cell.getValue
               val (_, op) = statusCodeWithOp(value.head)
 
-              val (props, _) = bytesToKeyValuesWithTs(value, 1, schemaVer, labelMetas(labelWithDir.labelId))
+              val (props, _) = bytesToKeyValuesWithTs(value, 1, schemaVer, schema.findLabelMetas(labelWithDir.labelId))
               val kvsMap = props.toMap
               val tsInnerVal = kvsMap(LabelMeta.timestamp).innerVal
 
@@ -360,7 +352,7 @@ object DeserializeUtil {
                 "edge",
                 srcVertexId.innerId.toIdString(),
                 tgtVertexId.innerId.toIdString(),
-                labelService(labelWithDir.labelId),
+                schema.findLabelService(labelWithDir.labelId).serviceName,
                 label.label,
                 Json.toJson(propsJson.toMap).toString()
               )
@@ -373,11 +365,8 @@ object DeserializeUtil {
   }
 
   def vertexResultToWals(result: Result,
-                         columnSchema: ColumnSchema,
-                         bytesToInt: (Array[Byte], Int) => Int = bytesToInt): Seq[WalVertex] = {
+                         bytesToInt: (Array[Byte], Int) => Int = bytesToInt)(implicit schema: DeserializeSchema): Seq[WalVertex] = {
     import scala.collection.mutable
-
-    val ColumnSchema(columnService, columns, columnMetas) = columnSchema
 
     val rawCells = result.rawCells()
 
@@ -388,6 +377,8 @@ object DeserializeUtil {
 
       val version = HBaseType.DEFAULT_VERSION
       val (vertexInnerId, colId, _) = VertexId.fromBytesRaw(row, 0, row.length, version)
+
+      val column = schema.findServiceColumn(colId)
 
       var maxTs = Long.MinValue
       val propsMap = mutable.Map.empty[ColumnMeta, InnerValLike]
@@ -410,7 +401,7 @@ object DeserializeUtil {
           val v = cell.getValue
 
           val (value, _) = InnerVal.fromBytes(v, 0, v.length, version)
-          val columnMeta = columnMetas(colId)(propKey)
+          val columnMeta = schema.findServiceColumnMeta(colId, propKey.toByte)
           propsMap += (columnMeta -> value)
         }
       }
@@ -432,8 +423,8 @@ object DeserializeUtil {
         "insert",
         "vertex",
         vertexInnerId.toIdString(),
-        columnService(colId).serviceName,
-        columns(colId).columnName,
+        schema.findColumnService(colId).serviceName,
+        column.columnName,
         Json.toJson(propsJson.toMap).toString()
       )
 

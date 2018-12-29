@@ -1,9 +1,9 @@
 package org.apache.s2graph.s2jobs.wal.utils
 
 import com.typesafe.config.Config
-import org.apache.s2graph.core.schema.{Label, LabelMeta, Schema}
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.s2jobs.wal.LabelSchema
+import org.apache.s2graph.s2jobs.wal.DeserializeSchema
 
 
 object SchemaUtil {
@@ -64,14 +64,52 @@ object SchemaUtil {
     }
   }
 
-  def buildLabelSchema(labelNames: Seq[String]): LabelSchema = {
+  def buildVertexDeserializeSchema(serviceNameColumnNames: Map[String, Seq[String]]): DeserializeSchema = {
+    val tree = serviceNameColumnNames.flatMap { case (serviceName, columnNames) =>
+      val service = Service.findByName(serviceName).getOrElse(throw new IllegalArgumentException(s"$serviceName not eixst."))
+
+      columnNames.map { columnName =>
+        val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new IllegalArgumentException(s"$columnName not exist."))
+        column -> service
+      }
+    }
+
+    val columnService = tree.map { case (column, service) =>
+      column.id.get -> service
+    }
+
+    val columns = tree.map { case (column, _) =>
+      column.id.get -> column
+    }
+
+    val columnMetas = columns.map { case (colId, column) =>
+      val innerMap = ColumnMeta.findAllByColumn(colId).map { columnMeta =>
+        columnMeta.seq -> columnMeta
+      }
+
+      colId -> innerMap.toMap
+    }
+
+    new DeserializeSchema(
+      columnService = columnService,
+      columns = columns,
+      columnMetas = columnMetas,
+      labelService = Map.empty,
+      labels = Map.empty,
+      labelIndices = Map.empty,
+      labelIndexLabelMetas = Map.empty,
+      labelMetas = Map.empty
+    )
+  }
+
+  def buildEdgeDeserializeSchema(labelNames: Seq[String]): DeserializeSchema = {
     val labels = labelNames.map { labelName =>
       val label = Label.findByName(labelName).getOrElse(throw new IllegalArgumentException(s"$labelName not exist."))
       label.id.get -> label
     }.toMap
 
-    val labelServices = labels.map { case (id, label) =>
-      id -> label.serviceName
+    val labelService = labels.map { case (id, label) =>
+      id -> label.service
     }
 
     val labelIndices = labels.map { case (id, label) =>
@@ -91,6 +129,14 @@ object SchemaUtil {
       id -> m
     }
 
-    LabelSchema(labelServices, labels, labelIndices, labelIndexLabelMetas, labelMetas)
+    new DeserializeSchema(
+      columnService = Map.empty,
+      columns = Map.empty,
+      columnMetas = Map.empty,
+      labelService = labelService,
+      labels = labels,
+      labelIndices = labelIndices,
+      labelIndexLabelMetas = labelIndexLabelMetas,
+      labelMetas = labelMetas)
   }
 }

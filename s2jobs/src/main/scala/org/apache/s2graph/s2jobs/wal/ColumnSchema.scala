@@ -6,8 +6,15 @@ case class ColumnSchema(columnService: Map[Int, Service],
                         columns: Map[Int, ServiceColumn],
                         columnMetas: Map[Int, Map[Int, ColumnMeta]]) {
 
-  val services: Set[Service] = columnService.map(_._2).toSet
-  val serviceColumns: Map[String, Set[ServiceColumn]] = columnService.groupBy(_._2).map { case (service, ls) =>
+  val serviceMap: Map[String, Service] = columnService.map(t => t._2.serviceName -> t._2)
+  val serviceColumnMap: Map[(String, String), ServiceColumn] = {
+    columns.map { case (colId, column) =>
+      val key = columnService(colId).serviceName -> column.columnName
+
+      key -> column
+    }
+  }
+  val serviceColumnList: Map[String, Set[ServiceColumn]] = columnService.groupBy(_._2).map { case (service, ls) =>
     val columnIds = ls.map(_._1)
 
     service.serviceName -> columnIds.map(columns).toSet
@@ -23,4 +30,19 @@ case class ColumnSchema(columnService: Map[Int, Service],
     (service.serviceName, columnName) -> rev
   }
 
+  def findService(serviceName: String): Service = {
+    serviceMap(serviceName)
+  }
+
+  def findServiceColumns(serviceName: String): Set[ServiceColumn] = {
+    serviceColumnList(serviceName)
+  }
+
+  def findServiceColumn(serviceName: String, columnName: String): ServiceColumn = {
+    serviceColumnMap(serviceName -> columnName)
+  }
+
+  def findServiceColumnMeta(serviceName: String, columnName: String, name: String): ColumnMeta = {
+    serviceColumnMetas(serviceName -> columnName)(name)
+  }
 }
