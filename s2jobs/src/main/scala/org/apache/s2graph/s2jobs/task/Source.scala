@@ -199,7 +199,7 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
       val labelSchema = labelSchemaBCast.value
 
       iter.flatMap { case (_, result) =>
-        DeserializeUtil.resultToWals(result, labelSchema, tallSchemaVersions, tgtDirection)
+        DeserializeUtil.indexEdgeResultToWals(result, labelSchema, tallSchemaVersions, tgtDirection)
       }
 
     }

@@ -176,6 +176,14 @@ case class WalLog(timestamp: Long,
   }
 }
 
+case class WalVertex(timestamp: Long,
+                     operation: String,
+                     elem: String,
+                     id: String,
+                     service: String,
+                     column: String,
+                     props: String)
+
 object WalLog {
   val orderByTsAsc = Ordering.by[WalLog, Long](walLog => walLog.timestamp)
 
@@ -203,6 +211,4 @@ object WalLog {
 
     WalLog(timestamp, operation, elem, from, to, service, label, props)
   }
-
-
 }

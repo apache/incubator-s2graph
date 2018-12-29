@@ -1,3 +1,4 @@
+/*
 package org.apache.s2graph.s2jobs.wal.udfs
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
@@ -74,3 +75,4 @@ class HFileParserUDFTest extends FunSuite with Matchers with BeforeAndAfterAll w
     result.write.mode(SaveMode.Overwrite).json("./parsed.json")
   }
 }
+*/
