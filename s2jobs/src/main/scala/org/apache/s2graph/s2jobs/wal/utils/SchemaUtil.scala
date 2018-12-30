@@ -3,7 +3,7 @@ package org.apache.s2graph.s2jobs.wal.utils
 import com.typesafe.config.Config
 import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.s2jobs.wal.DeserializeSchema
+import org.apache.s2graph.s2jobs.wal.SchemaManager
 
 
 object SchemaUtil {
@@ -64,79 +64,46 @@ object SchemaUtil {
     }
   }
 
-  def buildVertexDeserializeSchema(serviceNameColumnNames: Map[String, Seq[String]]): DeserializeSchema = {
-    val tree = serviceNameColumnNames.flatMap { case (serviceName, columnNames) =>
-      val service = Service.findByName(serviceName).getOrElse(throw new IllegalArgumentException(s"$serviceName not eixst."))
-
-      columnNames.map { columnName =>
-        val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new IllegalArgumentException(s"$columnName not exist."))
-        column -> service
-      }
+  def buildVertexDeserializeSchema(serviceNameColumnNames: Map[String, Seq[String]]): SchemaManager = {
+    val serviceLs = serviceNameColumnNames.keys.toSeq.map { serviceName =>
+      Service.findByName(serviceName).getOrElse(throw new IllegalArgumentException(s"$serviceName not found."))
     }
 
-    val columnService = tree.map { case (column, service) =>
-      column.id.get -> service
+    val serviceColumnLs = serviceLs.flatMap { service =>
+      ServiceColumn.findByServiceId(service.id.get)
     }
 
-    val columns = tree.map { case (column, _) =>
-      column.id.get -> column
+    val columnMetaLs = serviceColumnLs.flatMap { column =>
+      column.metas
     }
 
-    val columnMetas = columns.map { case (colId, column) =>
-      val innerMap = ColumnMeta.findAllByColumn(colId).map { columnMeta =>
-        columnMeta.seq -> columnMeta
-      }
-
-      colId -> innerMap.toMap
-    }
-
-    new DeserializeSchema(
-      columnService = columnService,
-      columns = columns,
-      columnMetas = columnMetas,
-      labelService = Map.empty,
-      labels = Map.empty,
-      labelIndices = Map.empty,
-      labelIndexLabelMetas = Map.empty,
-      labelMetas = Map.empty
-    )
+    SchemaManager(serviceLs, serviceColumnLs, columnMetaLs, Nil, Nil, Nil)
   }
 
-  def buildEdgeDeserializeSchema(labelNames: Seq[String]): DeserializeSchema = {
-    val labels = labelNames.map { labelName =>
-      val label = Label.findByName(labelName).getOrElse(throw new IllegalArgumentException(s"$labelName not exist."))
-      label.id.get -> label
-    }.toMap
-
-    val labelService = labels.map { case (id, label) =>
-      id -> label.service
+  def buildEdgeDeserializeSchema(labelNames: Seq[String]): SchemaManager = {
+    val labelLs = labelNames.map { labelName =>
+      Label.findByName(labelName).getOrElse(throw new IllegalArgumentException(s"$labelName not exist."))
     }
 
-    val labelIndices = labels.map { case (id, label) =>
-      id -> label.indicesMap
+    val serviceLs = labelLs.flatMap { label =>
+      Seq(label.srcService, label.tgtService)
+    }.distinct
+
+    val serviceColumnLs = serviceLs.flatMap { service =>
+      ServiceColumn.findByServiceId(service.id.get)
     }
 
-    val labelMetas = labels.map { case (id, label) =>
-      id -> labelMetaMap(labels(id))
+    val columnMetaLs = serviceColumnLs.flatMap { column =>
+      column.metas
     }
 
-    val labelIndexLabelMetas = labelIndices.map { case (id, indicesMap) =>
-      val metaPropsMap = labelMetas(id)
-      val m = indicesMap.map  { case (idxSeq, labelIndex) =>
-        idxSeq -> labelIndex.metaSeqs.flatMap(seq => metaPropsMap.get(seq)).toArray
-      }
-
-      id -> m
+    val labelIndexLs = labelLs.flatMap { label =>
+      label.indices
+    }
+    val labelMetaLs = labelLs.flatMap { label  =>
+      label.metaProps
     }
 
-    new DeserializeSchema(
-      columnService = Map.empty,
-      columns = Map.empty,
-      columnMetas = Map.empty,
-      labelService = labelService,
-      labels = labels,
-      labelIndices = labelIndices,
-      labelIndexLabelMetas = labelIndexLabelMetas,
-      labelMetas = labelMetas)
+    SchemaManager(serviceLs, serviceColumnLs, columnMetaLs, labelLs, labelIndexLs, labelMetaLs)
   }
 }

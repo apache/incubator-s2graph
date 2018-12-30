@@ -190,16 +190,16 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
     val cells = HFileGenerator.tableSnapshotDump(ss, config, snapshotPath,
       restorePath, tableNames, columnFamily, batchSize, labelMapping, buildDegree)
 
-    val edgeDeserializeSchema = SchemaUtil.buildEdgeDeserializeSchema(labelNames)
-    val edgeDeserializeSchemaBCast = sc.broadcast(edgeDeserializeSchema)
+    val schema = SchemaUtil.buildEdgeDeserializeSchema(labelNames)
+    val schemaBCast = sc.broadcast(schema)
     val tallSchemaVersions = Set(HBaseType.VERSION4)
     val tgtDirection = 0
 
     val results = cells.mapPartitions { iter =>
-      implicit val edgeDeserializeSchema = edgeDeserializeSchemaBCast.value
+      val schema = schemaBCast.value
 
       iter.flatMap { case (_, result) =>
-        DeserializeUtil.indexEdgeResultToWals(result, tallSchemaVersions, tgtDirection)
+        DeserializeUtil.indexEdgeResultToWals(result, schema, tallSchemaVersions, tgtDirection)
       }
 
     }

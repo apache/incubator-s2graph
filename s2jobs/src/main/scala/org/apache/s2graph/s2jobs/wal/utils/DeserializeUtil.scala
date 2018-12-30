@@ -4,7 +4,7 @@ import org.apache.hadoop.hbase.client.Result
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{Cell, CellUtil}
 import org.apache.s2graph.core.schema.{ColumnMeta, LabelMeta, ServiceColumn}
-import org.apache.s2graph.core.storage.{CanSKeyValue, SKeyValue}
+import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.s2graph.core.storage.serde.StorageDeserializable
 import org.apache.s2graph.core.storage.serde.StorageDeserializable.bytesToInt
 import org.apache.s2graph.core.types._
@@ -13,7 +13,6 @@ import org.apache.s2graph.s2jobs.wal._
 import org.apache.spark.sql.Row
 import play.api.libs.json.Json
 
-import scala.collection.mutable.ListBuffer
 import scala.util.{Failure, Success, Try}
 
 object DeserializeUtil {
@@ -131,7 +130,7 @@ object DeserializeUtil {
                           schemaVer: String,
                           labelId: Int,
                           labelIdxSeq: Byte,
-                          schema: DeserializeSchema): Try[QualifierV3Parsed] = Try {
+                          schema: SchemaManager): Try[QualifierV3Parsed] = Try {
     val (idxPropsRaw, endAt) = StorageDeserializable.bytesToProps(row, offset, schemaVer)
     val pos = endAt
 
@@ -150,7 +149,7 @@ object DeserializeUtil {
                           schemaVer: String,
                           labelId: Int,
                           labelIdxSeq: Byte,
-                          schema: DeserializeSchema): Try[QualifierV3Parsed] = Try {
+                          schema: SchemaManager): Try[QualifierV3Parsed] = Try {
     val (idxPropsRaw, endAt) =
       StorageDeserializable.bytesToProps(qualifier, 0, schemaVer)
 
@@ -174,7 +173,7 @@ object DeserializeUtil {
   def toIndexProps(idxPropsRaw: Array[(LabelMeta, InnerValLike)],
                    labelId: Int,
                    labelIdxSeq: Byte,
-                   schema: DeserializeSchema): IndexedSeq[(LabelMeta, InnerValLike)] = {
+                   schema: SchemaManager): IndexedSeq[(LabelMeta, InnerValLike)] = {
     val sortKeyTypesArray = schema.findLabelIndexLabelMetas(labelId, labelIdxSeq)
 
     val size = idxPropsRaw.length
@@ -189,7 +188,7 @@ object DeserializeUtil {
                   labelId: Int,
                   op: Byte,
                   schemaVer: String,
-                  schema: DeserializeSchema) = {
+                  schema: SchemaManager) = {
     /* process props */
 
     if (op == GraphUtil.operations("incrementCount")) {
@@ -231,7 +230,7 @@ object DeserializeUtil {
                                row: Array[Byte],
                                rowV3Parsed: RowV3Parsed,
                                tallSchemaVersions: Set[String],
-                               schema: DeserializeSchema): Option[WalLog] = {
+                               schema: SchemaManager): Option[WalLog] = {
     val labelWithDir = rowV3Parsed.labelWithDir
     val labelId = labelWithDir.labelId
     val labelIdxSeq = rowV3Parsed.labelIdxSeq
@@ -288,8 +287,9 @@ object DeserializeUtil {
   }
 
   def indexEdgeResultToWals(result: Result,
+                            schema: SchemaManager,
                             tallSchemaVersions: Set[String],
-                            tgtDirection: Int = 0)(implicit schema: DeserializeSchema): Seq[WalLog] = {
+                            tgtDirection: Int = 0): Seq[WalLog] = {
     val rawCells = result.rawCells()
 
     if (rawCells.isEmpty) Nil
@@ -314,7 +314,8 @@ object DeserializeUtil {
 
 
   def snapshotEdgeResultToWals(result: Result,
-                               tallSchemaVersions: Set[String])(implicit schema: DeserializeSchema): Seq[WalLog] = {
+                               schema: SchemaManager,
+                               tallSchemaVersions: Set[String]): Seq[WalLog] = {
     val rawCells = result.rawCells()
 
     if (rawCells.isEmpty) Nil
@@ -365,7 +366,8 @@ object DeserializeUtil {
   }
 
   def vertexResultToWals(result: Result,
-                         bytesToInt: (Array[Byte], Int) => Int = bytesToInt)(implicit schema: DeserializeSchema): Seq[WalVertex] = {
+                         schema: SchemaManager,
+                         bytesToInt: (Array[Byte], Int) => Int = bytesToInt): Seq[WalVertex] = {
     import scala.collection.mutable
 
     val rawCells = result.rawCells()
