@@ -8,7 +8,7 @@ import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.s2graph.core.storage.serde.Serializable
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.s2jobs.wal.{SchemaManager, WalLog, WalVertex}
+import org.apache.s2graph.s2jobs.wal.{MemorySchemaManager, WalLog, WalVertex}
 import play.api.libs.json.{JsObject, Json}
 
 object SerializeUtil {

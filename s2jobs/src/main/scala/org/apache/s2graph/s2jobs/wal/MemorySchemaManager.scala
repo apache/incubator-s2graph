@@ -2,12 +2,12 @@ package org.apache.s2graph.s2jobs.wal
 
 import org.apache.s2graph.core.schema._
 
-class SchemaManager(serviceLs: Seq[Service],
-                    serviceColumnLs: Seq[ServiceColumn],
-                    columnMetaLs: Seq[ColumnMeta],
-                    labelLs: Seq[Label],
-                    labelIndexLs: Seq[LabelIndex],
-                    labelMetaLs: Seq[LabelMeta]) {
+class MemorySchemaManager(serviceLs: Seq[Service],
+                          serviceColumnLs: Seq[ServiceColumn],
+                          columnMetaLs: Seq[ColumnMeta],
+                          labelLs: Seq[Label],
+                          labelIndexLs: Seq[LabelIndex],
+                          labelMetaLs: Seq[LabelMeta]) extends SchemaManager {
   private val services = serviceLs.map { service => service.serviceName -> service }.toMap
   private val servicesInverted = serviceLs.map { service => service.id.get -> service }.toMap
 
@@ -244,13 +244,13 @@ class SchemaManager(serviceLs: Seq[Service],
   }
 }
 
-object SchemaManager {
+object MemorySchemaManager {
   def apply(serviceLs: Seq[Service],
             serviceColumnLs: Seq[ServiceColumn],
             columnMetaLs: Seq[ColumnMeta],
             labelLs: Seq[Label],
             labelIndexLs: Seq[LabelIndex],
             labelMetaLs: Seq[LabelMeta]): SchemaManager = {
-    new SchemaManager(serviceLs, serviceColumnLs, columnMetaLs, labelLs, labelIndexLs, labelMetaLs)
+    new MemorySchemaManager(serviceLs, serviceColumnLs, columnMetaLs, labelLs, labelIndexLs, labelMetaLs)
   }
 }

@@ -3,7 +3,7 @@ package org.apache.s2graph.s2jobs.wal.utils
 import org.apache.hadoop.hbase.client.Result
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{Cell, CellUtil}
-import org.apache.s2graph.core.schema.{ColumnMeta, LabelMeta, ServiceColumn}
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.s2graph.core.storage.serde.StorageDeserializable
 import org.apache.s2graph.core.storage.serde.StorageDeserializable.bytesToInt

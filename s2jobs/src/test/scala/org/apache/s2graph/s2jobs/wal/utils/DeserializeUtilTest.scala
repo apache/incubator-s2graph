@@ -5,7 +5,7 @@ import org.apache.hadoop.hbase.KeyValue.Type
 import org.apache.hadoop.hbase.client.Result
 import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.storage.SKeyValue
-import org.apache.s2graph.s2jobs.wal.{SchemaManager, WalLog, WalVertex}
+import org.apache.s2graph.s2jobs.wal.{MemorySchemaManager, WalLog, WalVertex}
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 import play.api.libs.json.{JsObject, JsValue, Json}
 
@@ -32,7 +32,7 @@ class DeserializeUtilTest extends FunSuite with Matchers with BeforeAndAfterAll 
     val labelIndex = LabelIndex(Option(1), label.id.get, "pk", 1, Seq(labelMeta.seq), "", None, None)
     val labelIndexLs = Seq(labelIndex)
 
-    SchemaManager(serviceLs,
+    MemorySchemaManager(serviceLs,
       serviceColumnLs,
       columnMetaLs,
       labelLs,

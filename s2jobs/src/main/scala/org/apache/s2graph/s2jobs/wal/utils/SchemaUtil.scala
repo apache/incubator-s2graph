@@ -3,7 +3,7 @@ package org.apache.s2graph.s2jobs.wal.utils
 import com.typesafe.config.Config
 import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.s2jobs.wal.SchemaManager
+import org.apache.s2graph.s2jobs.wal.MemorySchemaManager
 
 
 object SchemaUtil {
@@ -102,7 +102,7 @@ object SchemaUtil {
       label.metaProps
     }
 
-    SchemaManager(serviceLs, serviceColumnLs, columnMetaLs, labelLs, labelIndexLs, labelMetaLs)
+    MemorySchemaManager(serviceLs, serviceColumnLs, columnMetaLs, labelLs, labelIndexLs, labelMetaLs)
   }
 
   def buildVertexDeserializeSchema(serviceNameColumnNames: Map[String, Seq[String]]): SchemaManager = {
