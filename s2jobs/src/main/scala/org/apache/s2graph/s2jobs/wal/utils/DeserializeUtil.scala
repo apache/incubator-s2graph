@@ -369,6 +369,18 @@ object DeserializeUtil {
     }
   }
 
+  def walLogToRow(walLog: WalLog): Row = {
+    Row.fromSeq(
+      Seq(walLog.timestamp, walLog.operation, walLog.elem, walLog.from, walLog.to, walLog.service, walLog.label, walLog.props)
+    )
+  }
+
+  def walVertexToRow(walVertex: WalVertex): Row = {
+    Row.fromSeq(
+      Seq(walVertex.timestamp, walVertex.operation, walVertex.elem, walVertex.id, walVertex.service, walVertex.column, walVertex.props)
+    )
+  }
+
   def vertexResultToWals(result: Result,
                          schema: SchemaManager,
                          bytesToInt: (Array[Byte], Int) => Int = bytesToInt): Seq[WalVertex] = {

@@ -21,6 +21,7 @@ package org.apache.s2graph.s2jobs.task
 
 import org.apache.s2graph.core.types.HBaseType
 import org.apache.s2graph.core.{JSONParser, Management}
+import org.apache.s2graph.s2jobs.Schema
 import org.apache.s2graph.s2jobs.loader.HFileGenerator
 import org.apache.s2graph.s2jobs.wal.utils.{DeserializeUtil, SchemaUtil}
 import org.apache.spark.sql.{DataFrame, SparkSession}
@@ -174,8 +175,9 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
     val buildDegree =
       if (columnFamily == "v") false
       else conf.options.getOrElse(S2_SOURCE_BULKLOAD_BUILD_DEGREE, "false").toBoolean
-    val elementType = conf.options.getOrElse(S2_SOURCE_ELEMENT_TYPE, "IndexEdge")
-    //    val schema = if (columnFamily == "v") Schema.VertexSchema else Schema.EdgeSchema
+    val elementType = conf.options.getOrElse(S2_SOURCE_ELEMENT_TYPE, "IndexEdge").toLowerCase
+
+    val resultSchema = if (columnFamily == "v") Schema.VertexSchema else Schema.EdgeSchema
 
     val cells = HFileGenerator.tableSnapshotDump(ss, config, snapshotPath,
       restorePath, tableNames, columnFamily, batchSize, labelMapping, buildDegree)
@@ -190,14 +192,14 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
 
       iter.flatMap { case (_, result) =>
         elementType.toLowerCase match {
-          case "indexedge" => DeserializeUtil.indexEdgeResultToWals(result, schema, tallSchemaVersions, tgtDirection)
-          case "snapshotedge" => DeserializeUtil.snapshotEdgeResultToWals(result, schema, tallSchemaVersions)
-//          case "vertex" => DeserializeUtil.vertexResultToWals(result, schema)
+          case "indexedge" => DeserializeUtil.indexEdgeResultToWals(result, schema, tallSchemaVersions, tgtDirection).map(DeserializeUtil.walLogToRow)
+          case "snapshotedge" => DeserializeUtil.snapshotEdgeResultToWals(result, schema, tallSchemaVersions).map(DeserializeUtil.walLogToRow)
+          case "vertex" => DeserializeUtil.vertexResultToWals(result, schema).map(DeserializeUtil.walVertexToRow)
           case _ => throw new IllegalArgumentException(s"$elementType is not supported.")
         }
       }
     }
 
-    ss.createDataFrame(results)
+    ss.createDataFrame(results, resultSchema)
   }
 }
