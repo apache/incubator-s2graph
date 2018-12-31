@@ -4,15 +4,19 @@ import org.apache.hadoop.hbase.CellUtil
 import org.apache.hadoop.hbase.KeyValue.Type
 import org.apache.hadoop.hbase.client.Result
 import org.apache.s2graph.core.schema._
-import org.apache.s2graph.s2jobs.wal.{SchemaManager, WalLog}
+import org.apache.s2graph.core.storage.SKeyValue
+import org.apache.s2graph.s2jobs.wal.{SchemaManager, WalLog, WalVertex}
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+import play.api.libs.json.{JsObject, JsValue, Json}
 
-class DeserializeUtilTest extends FunSuite with Matchers with BeforeAndAfterAll  {
+class DeserializeUtilTest extends FunSuite with Matchers with BeforeAndAfterAll {
+
   def initTestSchemaManager(serviceName: String,
-                     labelName: String) = {
+                            columnName: String,
+                            labelName: String) = {
     val service = Service(Option(1), serviceName, "token", "cluster", "test", 0, None)
     val serviceLs = Seq(service)
-    val serviceColumn = ServiceColumn(Option(1), service.id.get, "user", "string", "v3", None)
+    val serviceColumn = ServiceColumn(Option(1), service.id.get, columnName, "string", "v3", None)
     val serviceColumnLs = Seq(serviceColumn)
     val columnMeta = ColumnMeta(Option(1), serviceColumn.id.get, "age", 1, "integer", "-1")
     val columnMetaLs = Seq(columnMeta)
@@ -37,20 +41,77 @@ class DeserializeUtilTest extends FunSuite with Matchers with BeforeAndAfterAll 
     )
   }
 
-  test("test serialize deserialize") {
-    val tallSchemaVersions = Set("v4")
-    val schema = initTestSchemaManager("s1", "l1")
-    val walLog =
-      WalLog(10L,"insert","e","a","x","s1","l1","""{"age": 20, "gender": "M"}""")
+  def checkEqual(walVertex: WalVertex, deserializedWalVertex: WalVertex): Boolean = {
+    val msg = Seq("=" * 100, walVertex, deserializedWalVertex, "=" * 100).mkString("\n")
+    println(msg)
 
-    val kvs = SerializeUtil.walToIndexEdgeKeyValue(walLog, schema, tallSchemaVersions)
+    val expectedProps = Json.parse(walVertex.props).as[JsObject]
+    val realProps = Json.parse(deserializedWalVertex.props).as[JsObject]
+    val isPropsSame = expectedProps.fieldSet.forall { case (k, expectedVal) =>
+      (realProps \ k).asOpt[JsValue].map { realVal => expectedVal == realVal }.getOrElse(false)
+    }
 
+    val isWalLogSame = walVertex.copy(props = "{}") == deserializedWalVertex.copy(props = "{}")
+
+    isWalLogSame && isPropsSame
+  }
+
+  def checkEqual(walLog: WalLog, deserializedWalLog: WalLog): Boolean = {
+    val msg = Seq("=" * 100, walLog, deserializedWalLog, "=" * 100).mkString("\n")
+    println(msg)
+
+    val expectedProps = Json.parse(walLog.props).as[JsObject]
+    val realProps = Json.parse(deserializedWalLog.props).as[JsObject]
+    val isPropsSame = expectedProps.fieldSet.forall { case (k, expectedVal) =>
+      (realProps \ k).asOpt[JsValue].map { realVal => expectedVal == realVal }.getOrElse(false)
+    }
+
+    val isWalLogSame = walLog.copy(props = "{}") == deserializedWalLog.copy(props = "{}")
+
+    isWalLogSame && isPropsSame
+  }
+
+  def createResult(kvs: Iterable[SKeyValue]): Result = {
     val cells = kvs.map { kv =>
       CellUtil.createCell(kv.row, kv.cf, kv.qualifier, kv.timestamp, Type.Put.getCode, kv.value)
     }
 
-    val result = Result.create(cells.toArray)
+    Result.create(cells.toArray)
+  }
+
+  val schema = initTestSchemaManager("s1", "user", "l1")
+  val tallSchemaVersions = Set("v4")
+  val walLog =
+    WalLog(10L, "insert", "edge", "a", "x", "s1", "l1","""{"score": 20}""")
+
+  val walVertex =
+    WalVertex(10L, "insert", "vertex", "v1", "s1", "user", """{"age": 20}""")
+
+  test("test index edge serialize/deserialize") {
+    val kvs = SerializeUtil.walToIndexEdgeKeyValue(walLog, schema, tallSchemaVersions)
+    val result = createResult(kvs)
     val wals = DeserializeUtil.indexEdgeResultToWals(result, schema, tallSchemaVersions)
-    wals.foreach(println)
+
+    wals.size shouldBe 1
+    checkEqual(walLog, wals.head) shouldBe true
+  }
+
+  test("test snapshot edge serialize/deserialize") {
+    val kvs = SerializeUtil.walToSnapshotEdgeKeyValue(walLog, schema, tallSchemaVersions)
+    val result = createResult(kvs)
+    val wals = DeserializeUtil.snapshotEdgeResultToWals(result, schema, tallSchemaVersions)
+
+    wals.size shouldBe 1
+    checkEqual(walLog, wals.head) shouldBe true
+  }
+
+  test("test vertex serialize/deserialize") {
+    val kvs = SerializeUtil.walVertexToSKeyValue(walVertex, schema, tallSchemaVersions)
+    val result = createResult(kvs)
+    val wals = DeserializeUtil.vertexResultToWals(result, schema)
+
+    wals.size shouldBe 1
+    checkEqual(walVertex, wals.head) shouldBe true
+
   }
 }

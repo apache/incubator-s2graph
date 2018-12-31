@@ -28,13 +28,13 @@ class SchemaManager(serviceLs: Seq[Service],
         columnsInverted.get(columnId).map(_  -> (metas ++ ColumnMeta.reservedMetas))
       }
 
-//  private val columnMetas = columnMetasMap.map { case (column, metas) =>
-//    val innerMap = metas.map { meta =>
-//      meta.name -> meta
-//    }.toMap
-//
-//    column.columnName -> innerMap
-//  }
+  private val columnMetas = columnMetasMap.map { case (column, metas) =>
+    val innerMap = metas.map { meta =>
+      meta.name -> meta
+    }.toMap
+
+    column -> innerMap
+  }
 
   private val columnMetasInverted = columnMetasMap.map { case (column, metas) =>
     val innerMap = metas.map { meta =>
@@ -178,6 +178,15 @@ class SchemaManager(serviceLs: Seq[Service],
 
   def findServiceColumn(serviceName: String, columnName: String): ServiceColumn = {
     serviceNameColumnNameColumn(serviceName -> columnName)
+  }
+
+  def findColumnMetas(serviceName: String, columnName: String): Map[String, ColumnMeta] = {
+    val column = findServiceColumn(serviceName, columnName)
+    findColumnMetas(column)
+  }
+
+  def findColumnMetas(column: ServiceColumn): Map[String, ColumnMeta] = {
+    columnMetas(column)
   }
 
   def findLabel(labelName: String): Label = {

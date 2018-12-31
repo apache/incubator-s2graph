@@ -196,12 +196,13 @@ object DeserializeUtil {
       val countVal = StorageDeserializable.bytesToLong(value, 0)
       Array(LabelMeta.count -> InnerVal.withLong(countVal, schemaVer))
     } else {
-      val (props, endAt) = bytesToKeyValues(value, 0, value.length, schemaVer, schema.findLabelMetas(labelId))
+      val (props, _) = bytesToKeyValues(value, 0, value.length, schemaVer, schema.findLabelMetas(labelId))
       props
     }
   }
 
-  def toSnapshotRowV3Parsed(row: Array[Byte]): Try[SnapshotRowV3Parsed] = Try {
+  def toSnapshotRowV3Parsed(row: Array[Byte],
+                            qualifier: Array[Byte]): Try[SnapshotRowV3Parsed] = Try {
     val labelWithDirByteLen = 4
     val labelIndexSeqWithIsInvertedByteLen = 1
 
@@ -209,7 +210,7 @@ object DeserializeUtil {
       SourceVertexId.fromBytes(row, 0, row.length, HBaseType.DEFAULT_VERSION)
 
     val isTallSchema =
-      srcIdLen + labelWithDirByteLen + labelIndexSeqWithIsInvertedByteLen != row.length
+      (srcIdLen + labelWithDirByteLen + labelIndexSeqWithIsInvertedByteLen) != row.length
 
     val (tgtVertexId, pos) =
       if (isTallSchema) {
@@ -217,7 +218,9 @@ object DeserializeUtil {
 
         (TargetVertexId(ServiceColumn.Default, tgtId), srcIdLen + tgtBytesLen)
       } else {
-        (TargetVertexId(ServiceColumn.Default, srcVertexId.innerId), srcIdLen)
+        val (tgtVertexId, _) = TargetVertexId.fromBytes(qualifier, 0, qualifier.length, HBaseType.DEFAULT_VERSION)
+
+        (tgtVertexId, srcIdLen)
       }
 
     val labelWithDir = LabelWithDirection(Bytes.toInt(row, pos, labelWithDirByteLen))
@@ -229,8 +232,8 @@ object DeserializeUtil {
   def deserializeIndexEdgeCell(cell: Cell,
                                row: Array[Byte],
                                rowV3Parsed: RowV3Parsed,
-                               tallSchemaVersions: Set[String],
-                               schema: SchemaManager): Option[WalLog] = {
+                               schema: SchemaManager,
+                               tallSchemaVersions: Set[String]): Option[WalLog] = {
     val labelWithDir = rowV3Parsed.labelWithDir
     val labelId = labelWithDir.labelId
     val labelIdxSeq = rowV3Parsed.labelIdxSeq
@@ -306,7 +309,7 @@ object DeserializeUtil {
       if (inValidRow) Nil
       else {
         rawCells.flatMap { cell =>
-          deserializeIndexEdgeCell(cell, row, rowV3Parsed, tallSchemaVersions, schema)
+          deserializeIndexEdgeCell(cell, row, rowV3Parsed, schema, tallSchemaVersions)
         }
       }
     }
@@ -322,8 +325,9 @@ object DeserializeUtil {
     else {
       val head = rawCells.head
       val row = head.getRow
+      val qualifier = head.getQualifier
 
-      toSnapshotRowV3Parsed(row) match {
+      toSnapshotRowV3Parsed(row, qualifier) match {
         case Success(v) =>
           val SnapshotRowV3Parsed(srcVertexId, tgtVertexId, labelWithDir, _, isInverted) = v
 
@@ -378,9 +382,10 @@ object DeserializeUtil {
       val row = head.getRow
 
       val version = HBaseType.DEFAULT_VERSION
-      val (vertexInnerId, colId, _) = VertexId.fromBytesRaw(row, 0, row.length, version)
+      val (vertexInnerId, colId, len) = VertexId.fromBytesRaw(row, 0, row.length, version)
 
       val column = schema.findServiceColumn(colId)
+      val columnMetaSeqExistInRow = len + 1 == row.length
 
       var maxTs = Long.MinValue
       val propsMap = mutable.Map.empty[ColumnMeta, InnerValLike]
@@ -390,8 +395,11 @@ object DeserializeUtil {
         val qualifier = cell.getQualifier
 
         val propKey =
-          if (qualifier.length == 1) qualifier.head.toInt
-          else bytesToInt(qualifier, 0)
+          if (columnMetaSeqExistInRow) row.last
+          else {
+            if (qualifier.length == 1) qualifier.head.toInt
+            else bytesToInt(qualifier, 0)
+          }
 
         val ts = cell.getTimestamp
 

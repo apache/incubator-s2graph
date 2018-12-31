@@ -2,11 +2,12 @@ package org.apache.s2graph.s2jobs.wal.utils
 
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.schema.{Label, LabelIndex, LabelMeta, ServiceColumn}
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.storage.SKeyValue
 import org.apache.s2graph.core.storage.serde.Serializable
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.s2jobs.wal.{SchemaManager, WalLog}
+import org.apache.s2graph.s2jobs.wal.{SchemaManager, WalLog, WalVertex}
+import play.api.libs.json.{JsObject, Json}
 
 object SerializeUtil {
 
@@ -25,11 +26,11 @@ object SerializeUtil {
     snapshotEdgeKeyValues ++ indexEdgeKeyValues
   }
 
-  def buildIndexInnerProps(walLog: WalLog,
-                           innerProps: Map[LabelMeta, InnerValLike],
-                           defaultProps: Map[LabelMeta, InnerValLike],
-                           label: Label,
-                           labelMetasInOrder: Array[LabelMeta]): Array[(LabelMeta, InnerValLike)] = {
+  def buildEdgeIndexInnerProps(walLog: WalLog,
+                               innerProps: Map[LabelMeta, InnerValLike],
+                               defaultProps: Map[LabelMeta, InnerValLike],
+                               label: Label,
+                               labelMetasInOrder: Array[LabelMeta]): Array[(LabelMeta, InnerValLike)] = {
     labelMetasInOrder.map { labelMeta =>
       innerProps.get(labelMeta) match {
         case None =>
@@ -42,10 +43,10 @@ object SerializeUtil {
     }
   }
 
-  def buildInnerDefaultProps(walLog: WalLog,
-                             label: Label,
-                             srcColumn: ServiceColumn,
-                             tgtColumn: ServiceColumn): Map[LabelMeta, InnerValLike] = {
+  def buildEdgeInnerDefaultProps(walLog: WalLog,
+                                 label: Label,
+                                 srcColumn: ServiceColumn,
+                                 tgtColumn: ServiceColumn): Map[LabelMeta, InnerValLike] = {
     Map(
       LabelMeta.timestamp -> InnerVal.withLong(walLog.timestamp, label.schemaVersion),
       LabelMeta.from -> JSONParser.toInnerVal(walLog.from, srcColumn.columnType, srcColumn.schemaVersion),
@@ -53,19 +54,42 @@ object SerializeUtil {
     )
   }
 
-  def buildInnerProps(walLog: WalLog,
-                      label: Label,
-                      schema: SchemaManager): Map[LabelMeta, InnerValLike] = {
+  def buildEdgeInnerProps(walLog: WalLog,
+                          label: Label,
+                          schema: SchemaManager): Map[LabelMeta, InnerValLike] = {
+    val ts = walLog.timestamp
+    val schemaVer = label.schemaVersion
+    val tsInnerVal = InnerVal.withLong(ts, schemaVer)
+
     val labelMetas = schema.findLabelMetas(walLog.label)
     val props = walLog.propsJson.fields.flatMap { case (key, jsValue) =>
       labelMetas.get(key).flatMap { labelMeta =>
-        JSONParser.jsValueToInnerVal(jsValue, labelMeta.dataType, label.schemaVersion).map { innerVal =>
+        JSONParser.jsValueToInnerVal(jsValue, labelMeta.dataType, schemaVer).map { innerVal =>
           labelMeta -> innerVal
         }
       }
     }.toMap
 
-    props ++ Map(LabelMeta.timestamp -> InnerVal.withLong(walLog.timestamp, label.schemaVersion))
+    props ++ Map(LabelMeta.timestamp -> tsInnerVal)
+  }
+
+  def buildVertexInnerProps(walVertex: WalVertex,
+                            column: ServiceColumn,
+                            schema: SchemaManager): Map[ColumnMeta, InnerValLike] = {
+    val ts = walVertex.timestamp
+    val schemaVer = column.schemaVersion
+    val tsInnerVal = InnerVal.withLong(ts, schemaVer)
+
+    val columnMetas = schema.findColumnMetas(column)
+    val props = Json.parse(walVertex.props).as[JsObject].fields.flatMap { case (key, jsValue) =>
+        columnMetas.get(key).flatMap { columnMeta =>
+          JSONParser.jsValueToInnerVal(jsValue, columnMeta.dataType, schemaVer).map { innerVal =>
+            columnMeta -> innerVal
+          }
+        }
+    }.toMap
+
+    props ++ Map(ColumnMeta.timestamp -> tsInnerVal, ColumnMeta.lastModifiedAtColumn -> tsInnerVal)
   }
 
   case class PartialResult(label: Label,
@@ -101,8 +125,8 @@ object SerializeUtil {
     val tgtInnerVal = JSONParser.toInnerVal(walLog.to, tgtColumn.columnType, tgtColumn.schemaVersion)
     val tgtVertexId = VertexId(tgtColumn, tgtInnerVal)
 
-    val allProps = buildInnerProps(walLog, label, schema)
-    val defaultProps = buildInnerDefaultProps(walLog, label, srcColumn, tgtColumn)
+    val allProps = buildEdgeInnerProps(walLog, label, schema)
+    val defaultProps = buildEdgeInnerDefaultProps(walLog, label, srcColumn, tgtColumn)
 
     val op = GraphUtil.toOp(walLog.operation).getOrElse(throw new IllegalArgumentException(s"${walLog.operation} operation is not supported."))
 
@@ -128,7 +152,7 @@ object SerializeUtil {
     schema.findLabelIndices(label).map { case (indexName, index) =>
       val labelMetasInOrder = schema.findLabelIndexLabelMetas(label.label, indexName)
 
-      val orderedProps = buildIndexInnerProps(walLog, allProps, defaultProps, label, labelMetasInOrder)
+      val orderedProps = buildEdgeIndexInnerProps(walLog, allProps, defaultProps, label, labelMetasInOrder)
       val idxPropsMap = orderedProps.toMap
       val idxPropsBytes = propsToBytes(orderedProps)
       val metaProps = allProps.filterKeys(m => !idxPropsMap.contains(m))
@@ -228,6 +252,50 @@ object SerializeUtil {
                       tallSchemaVersions: Set[String]): Iterable[SKeyValue] = {
     walToIndexEdgeKeyValue(walLog, schema, tallSchemaVersions) ++
       walToSnapshotEdgeKeyValue(walLog, schema, tallSchemaVersions)
+  }
+
+  def walVertexToSKeyValue(v: WalVertex,
+                           schema: SchemaManager,
+                           tallSchemaVersions: Set[String]): Iterable[SKeyValue] = {
+    val column = schema.findServiceColumn(v.service, v.column)
+    val service = schema.findColumnService(column.id.get)
+    val schemaVer = column.schemaVersion
+
+    val innerVal = JSONParser.toInnerVal(v.id, column.columnType, column.schemaVersion)
+    val vertexId = VertexId(column, innerVal)
+    val row = vertexId.bytes
+
+    val props = buildVertexInnerProps(v, column, schema)
+    //TODO: skip belongLabelIds
+
+    val table = service.hTableName.getBytes("UTF-8")
+    val cf = Serializable.vertexCf
+    val isTallSchema = tallSchemaVersions(schemaVer)
+
+    props.map { case (columnMeta, innerVal) =>
+      val rowBytes =
+        if (isTallSchema) Bytes.add(row, Array.fill(1)(columnMeta.seq))
+        else row
+
+      val qualifier =
+        if (isTallSchema) Array.empty[Byte]
+        else intToBytes(columnMeta.seq)
+
+      val value = innerVal.bytes
+
+      SKeyValue(table, rowBytes, cf, qualifier, value, v.timestamp)
+    }
+  }
+
+  // main public interface. 
+  def toSKeyValues(walLog: WalLog,
+                   schema: SchemaManager,
+                   tallSchemaVersions: Set[String]): Iterable[SKeyValue] = {
+    walLog.elem match {
+      case "vertex" | "v" => walVertexToSKeyValue(WalVertex.fromWalLog(walLog), schema, tallSchemaVersions)
+      case "edge" | "e" => walToSKeyValues(walLog, schema, tallSchemaVersions)
+      case _ =>  throw new IllegalArgumentException(s"$walLog ${walLog.elem} is not supported.")
+    }
   }
 
   def toSKeyValues(s2: S2Graph, element: GraphElement, autoEdgeCreate: Boolean = false): Seq[SKeyValue] = {
