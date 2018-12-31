@@ -174,7 +174,7 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
     val buildDegree =
       if (columnFamily == "v") false
       else conf.options.getOrElse(S2_SOURCE_BULKLOAD_BUILD_DEGREE, "false").toBoolean
-    //    val elementType = conf.options.getOrElse(S2_SOURCE_ELEMENT_TYPE, "IndexEdge")
+    val elementType = conf.options.getOrElse(S2_SOURCE_ELEMENT_TYPE, "IndexEdge")
     //    val schema = if (columnFamily == "v") Schema.VertexSchema else Schema.EdgeSchema
 
     val cells = HFileGenerator.tableSnapshotDump(ss, config, snapshotPath,
@@ -189,9 +189,13 @@ class S2GraphSource(conf: TaskConf) extends Source(conf) {
       val schema = schemaBCast.value
 
       iter.flatMap { case (_, result) =>
-        DeserializeUtil.indexEdgeResultToWals(result, schema, tallSchemaVersions, tgtDirection)
+        elementType.toLowerCase match {
+          case "indexedge" => DeserializeUtil.indexEdgeResultToWals(result, schema, tallSchemaVersions, tgtDirection)
+          case "snapshotedge" => DeserializeUtil.snapshotEdgeResultToWals(result, schema, tallSchemaVersions)
+//          case "vertex" => DeserializeUtil.vertexResultToWals(result, schema)
+          case _ => throw new IllegalArgumentException(s"$elementType is not supported.")
+        }
       }
-
     }
 
     ss.createDataFrame(results)

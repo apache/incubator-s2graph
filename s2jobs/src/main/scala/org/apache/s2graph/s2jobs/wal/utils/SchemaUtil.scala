@@ -64,28 +64,16 @@ object SchemaUtil {
     }
   }
 
-  def buildVertexDeserializeSchema(serviceNameColumnNames: Map[String, Seq[String]]): SchemaManager = {
-    val serviceLs = serviceNameColumnNames.keys.toSeq.map { serviceName =>
+  def buildSchemaManager(serviceNameColumnNames: Map[String, Seq[String]],
+                         labelNames: Seq[String]): SchemaManager = {
+    val _serviceLs = serviceNameColumnNames.keys.toSeq.map { serviceName =>
       Service.findByName(serviceName).getOrElse(throw new IllegalArgumentException(s"$serviceName not found."))
     }
-
-    val serviceColumnLs = serviceLs.flatMap { service =>
-      ServiceColumn.findByServiceId(service.id.get)
-    }
-
-    val columnMetaLs = serviceColumnLs.flatMap { column =>
-      column.metas
-    }
-
-    SchemaManager(serviceLs, serviceColumnLs, columnMetaLs, Nil, Nil, Nil)
-  }
-
-  def buildEdgeDeserializeSchema(labelNames: Seq[String]): SchemaManager = {
     val labelLs = labelNames.map { labelName =>
       Label.findByName(labelName).getOrElse(throw new IllegalArgumentException(s"$labelName not exist."))
     }
 
-    val serviceLs = labelLs.flatMap { label =>
+    val serviceLs = _serviceLs ++ labelLs.flatMap { label =>
       Seq(label.srcService, label.tgtService)
     }.distinct
 
@@ -105,5 +93,13 @@ object SchemaUtil {
     }
 
     SchemaManager(serviceLs, serviceColumnLs, columnMetaLs, labelLs, labelIndexLs, labelMetaLs)
+  }
+
+  def buildVertexDeserializeSchema(serviceNameColumnNames: Map[String, Seq[String]]): SchemaManager = {
+    buildSchemaManager(serviceNameColumnNames, Nil)
+  }
+
+  def buildEdgeDeserializeSchema(labelNames: Seq[String]): SchemaManager = {
+    buildSchemaManager(Map.empty, labelNames)
   }
 }

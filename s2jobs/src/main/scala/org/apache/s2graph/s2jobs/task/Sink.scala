@@ -25,6 +25,7 @@ import org.apache.s2graph.s2jobs.S2GraphHelper
 import org.apache.s2graph.s2jobs.loader.{HFileGenerator, SparkBulkLoaderTransformer}
 import org.apache.s2graph.s2jobs.serde.reader.RowBulkFormatReader
 import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
+import org.apache.s2graph.s2jobs.wal.utils.SchemaUtil
 import org.apache.spark.sql._
 import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, Trigger}
 import org.elasticsearch.spark.sql.EsSparkSQL
@@ -247,10 +248,10 @@ class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
     implicit val reader = new RowBulkFormatReader
     implicit val writer = new KeyValueWriter(autoEdgeCreate, skipError)
 
-    val kvs = transformer.transform(input)
+    val kvs = transformer.transform(input).flatMap(ls => ls)
 
     HFileGenerator.generateHFile(df.sparkSession.sparkContext, graphConfig,
-      kvs.flatMap(ls => ls), hbaseConfig, tableName,
+      kvs, hbaseConfig, tableName,
       numRegions, outputPath, incrementalLoad, compressionAlgorithm
     )
 
