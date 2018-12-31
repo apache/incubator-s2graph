@@ -1,5 +1,7 @@
 package org.apache.s2graph.s2jobs.wal.utils
 
+import org.apache.hadoop.hbase.KeyValue
+import org.apache.hadoop.hbase.KeyValue.Type
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.schema._
@@ -308,5 +310,9 @@ object SerializeUtil {
     } else {
       Nil
     }
+  }
+
+  def sKeyValueToKeyValue(skv: SKeyValue): KeyValue = {
+    new KeyValue(skv.row, skv.cf, skv.qualifier, skv.timestamp, Type.Put, skv.value)
   }
 }

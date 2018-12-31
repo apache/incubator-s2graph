@@ -66,12 +66,22 @@ object SchemaUtil {
 
   def buildSchemaManager(serviceNameColumnNames: Map[String, Seq[String]],
                          labelNames: Seq[String]): SchemaManager = {
-    val _serviceLs = serviceNameColumnNames.keys.toSeq.map { serviceName =>
-      Service.findByName(serviceName).getOrElse(throw new IllegalArgumentException(s"$serviceName not found."))
-    }
-    val labelLs = labelNames.map { labelName =>
-      Label.findByName(labelName).getOrElse(throw new IllegalArgumentException(s"$labelName not exist."))
-    }
+
+    val _serviceLs =
+      if (serviceNameColumnNames.isEmpty) Service.findAll()
+      else {
+        serviceNameColumnNames.keys.toSeq.map { serviceName =>
+          Service.findByName(serviceName).getOrElse(throw new IllegalArgumentException(s"$serviceName not found."))
+        }
+      }
+
+    val labelLs =
+      if (labelNames.isEmpty) Label.findAll()
+      else {
+        labelNames.map { labelName =>
+          Label.findByName(labelName).getOrElse(throw new IllegalArgumentException(s"$labelName not exist."))
+        }
+      }
 
     val serviceLs = _serviceLs ++ labelLs.flatMap { label =>
       Seq(label.srcService, label.tgtService)
