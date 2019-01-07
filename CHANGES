@@ -39,6 +39,7 @@ Release Notes - S2Graph - Version 0.2.0
     * [S2GRAPH-201] - Provide S2GraphSource
     * [S2GRAPH-218] - add operations not supported on sql
     * [S2GRAPH-225] - support custom udf class
+    * [S2GRAPH-251] - Provide JdbcSource/Sink
 
 ** Bug
     * [S2GRAPH-159] - Wrong syntax at a bash script under Linux
