@@ -26,7 +26,7 @@ bin=$(cd "$(dirname "${BASH_SOURCE-$0}")">/dev/null; pwd)
 $bin/hbase-standalone.sh start
 $bin/s2graph-daemon.sh start h2
 
-service="s2rest_play"
+service="s2http"
 [ $# -gt 0 ] && { service=$1; }
 
 $bin/s2graph.sh start ${service}

@@ -39,15 +39,8 @@ lazy val commonSettings = Seq(
 
 Revolver.settings
 
-lazy val s2rest_play = project.enablePlugins(PlayScala).disablePlugins(PlayLogback)
-  .dependsOn(s2core, s2counter_core)
-  .settings(commonSettings: _*)
-  .settings(testOptions in Test += Tests.Argument("sequential"))
-  .settings(dockerSettings: _*)
-  .enablePlugins(sbtdocker.DockerPlugin, JavaAppPackaging)
-
-lazy val s2rest_netty = project
-  .dependsOn(s2core)
+lazy val s2http = project
+  .dependsOn(s2core, s2graphql)
   .settings(commonSettings: _*)
   .settings(dockerSettings: _*)
   .enablePlugins(sbtdocker.DockerPlugin, JavaAppPackaging)
@@ -78,8 +71,8 @@ lazy val s2graph_gremlin = project.dependsOn(s2core)
   .settings(commonSettings: _*)
 
 lazy val root = (project in file("."))
-  .aggregate(s2core, s2rest_play, s2jobs)
-  .dependsOn(s2rest_play, s2rest_netty, s2jobs, s2counter_loader, s2graphql) // this enables packaging on the root project
+  .aggregate(s2core, s2jobs, s2http)
+  .dependsOn(s2http, s2jobs, s2counter_loader, s2graphql) // this enables packaging on the root project
   .settings(commonSettings: _*)
 
 lazy val dockerSettings = Seq(
@@ -123,8 +116,7 @@ runRatTask := {
 Packager.defaultSettings
 
 publishSigned := {
-  (publishSigned in s2rest_play).value
-  (publishSigned in s2rest_netty).value
+  (publishSigned in s2http).value
   (publishSigned in s2core).value
   (publishSigned in spark).value
   (publishSigned in s2jobs).value

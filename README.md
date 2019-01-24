@@ -1,90 +1,87 @@
+<!---
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+--->
 
-<!---  
-/*  
- * Licensed to the Apache Software Foundation (ASF) under one  
- * or more contributor license agreements.  See the NOTICE file  
- * distributed with this work for additional information  
- * regarding copyright ownership.  The ASF licenses this file  
- * to you under the Apache License, Version 2.0 (the  
- * "License"); you may not use this file except in compliance  
- * with the License.  You may obtain a copy of the License at  
- *  
- *   http://www.apache.org/licenses/LICENSE-2.0  
- *  
- * Unless required by applicable law or agreed to in writing,  
- * software distributed under the License is distributed on an  
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY  
- * KIND, either express or implied.  See the License for the  
- * specific language governing permissions and limitations  
- * under the License.  
- */  
---->  
-  
-S2Graph [![Build Status](https://travis-ci.org/apache/incubator-s2graph.svg?branch=master)](https://travis-ci.org/apache/incubator-s2graph)  
-=======  
-  
-[**S2Graph**](http://s2graph.apache.org/) is a **graph database** designed to handle transactional graph processing at scale. Its REST API allows you to store, manage and query relational information using **edge** and **vertex** representations in a **fully asynchronous** and **non-blocking** manner.   
-  
-S2Graph is a implementation of [**Apache TinkerPop**](https://tinkerpop.apache.org/) on [**Apache HBASE**](https://hbase.apache.org/).   
-  
-This document covers some basic concepts and terms of S2Graph as well as help you get a feel for the S2Graph API.  
-  
-Building from the source  
-========================  
-  
-To build S2Graph from the source, install the JDK 8 and [SBT](http://www.scala-sbt.org/), and run the following command in the project root:  
-  
- sbt package  
-This will create a distribution of S2Graph that is ready to be deployed.  
-  
-One can find distribution on `target/apache-s2graph-$version-incubating-bin`.  
-  
-Quick Start  
-===========  
-  
-Once extracted the downloaded binary release of S2Graph or built from the source as described above, the following files and directories should be found in the directory.  
-  
-```  
-DISCLAIMER  
-LICENCE               # the Apache License 2.0  
-NOTICE  
-bin                   # scripts to manage the lifecycle of S2Graph  
-conf                  # configuration files  
-lib                   # contains the binary  
-logs                  # application logs  
-var                   # application data  
-```  
-  
-This directory layout contains all binary and scripts required to launch S2Graph. The directories `logs` and `var` may not be present initially, and are created once S2Graph is launched.  
-  
-The following will launch S2Graph, using [HBase](https://hbase.apache.org/) in the standalone mode for data storage and [H2](http://www.h2database.com/html/main.html) as the metadata storage.  
-  
- sh bin/start-s2graph.sh  
-To connect to a remote HBase cluster or use MySQL as the metastore, refer to the instructions in [`conf/application.conf`](conf/application.conf).  
-S2Graph is tested on HBase versions 0.98, 1.0, 1.1, and 1.2 (https://hub.docker.com/r/harisekhon/hbase/tags/).  
-  
-Project Layout  
-==============  
-  
-Here is what you can find in each subproject.  
-  
-1. `s2core`: The core library, containing the data abstractions for graph entities, storage adapters and utilities.  
-2. `s2rest_play`: The REST server built with [Play framework](https://www.playframework.com/), providing the write and query API.  
-3. `s2rest_netty`: The REST server built directly using Netty, implementing only the query API.  
-4. [`s2graphql`](s2graphql/README.md): The GraphQL server, providing standard web interface for S2Graph.  
-~~4. `loader`: A collection of Spark jobs for bulk loading streaming data into S2Graph.~~  
-~~5. `spark`: Spark utilities for `loader` and `s2counter_loader`.~~  
-5. [`s2jobs`](s2jobs/README.md): A collection of Spark jobs to support OLAP on S2Graph.  
-6. `s2counter_core`: The core library providing data structures and logics for `s2counter_loader`.  
-7. `s2counter_loader`: Spark streaming jobs that consume Kafka WAL logs and calculate various top-*K* results on-the-fly.  
-8. `s2graph_gremlin`: Gremlin plugin for tinkerpop users.    
-  
-The first four projects are for OLTP-style workloads, currently the main target of S2Graph.   
-The remaining projects are for OLAP-style workloads, especially for integrating S2Graph with other projects, such as [Apache Spark](https://spark.apache.org/) and [Kafka](https://kafka.apache.org/).   
+S2Graph [![Build Status](https://travis-ci.org/apache/incubator-s2graph.svg?branch=master)](https://travis-ci.org/apache/incubator-s2graph)
+=======
+
+[**S2Graph**](http://s2graph.apache.org/) is a **graph database** designed to handle transactional graph processing at scale. Its REST API allows you to store, manage and query relational information using **edge** and **vertex** representations in a **fully asynchronous** and **non-blocking** manner.
+
+S2Graph is a implementation of [**Apache TinkerPop**](https://tinkerpop.apache.org/) on [**Apache HBASE**](https://hbase.apache.org/).
+
+This document covers some basic concepts and terms of S2Graph as well as help you get a feel for the S2Graph API.
+
+Building from the source
+========================
+
+To build S2Graph from the source, install the JDK 8 and [SBT](http://www.scala-sbt.org/), and run the following command in the project root:
+
+ sbt package
+This will create a distribution of S2Graph that is ready to be deployed.
+
+One can find distribution on `target/apache-s2graph-$version-incubating-bin`.
+
+Quick Start
+===========
+
+Once extracted the downloaded binary release of S2Graph or built from the source as described above, the following files and directories should be found in the directory.
+
+```
+DISCLAIMER
+LICENCE               # the Apache License 2.0
+NOTICE
+bin                   # scripts to manage the lifecycle of S2Graph
+conf                  # configuration files
+lib                   # contains the binary
+logs                  # application logs
+var                   # application data
+```
+
+This directory layout contains all binary and scripts required to launch S2Graph. The directories `logs` and `var` may not be present initially, and are created once S2Graph is launched.
+
+The following will launch S2Graph, using [HBase](https://hbase.apache.org/) in the standalone mode for data storage and [H2](http://www.h2database.com/html/main.html) as the metadata storage.
+
+ sh bin/start-s2graph.sh
+To connect to a remote HBase cluster or use MySQL as the metastore, refer to the instructions in [`conf/application.conf`](conf/application.conf).
+S2Graph is tested on HBase versions 0.98, 1.0, 1.1, and 1.2 (https://hub.docker.com/r/harisekhon/hbase/tags/).
+
+Project Layout
+==============
+
+Here is what you can find in each subproject.
+
+1. `s2core`: The core library, containing the data abstractions for graph entities, storage adapters and utilities.
+2. `s2http`: The REST server built with [akka-http] the write and query API.
+~~4. `loader`: A collection of Spark jobs for bulk loading streaming data into S2Graph.~~
+~~5. `spark`: Spark utilities for `loader` and `s2counter_loader`.~~
+5. [`s2jobs`](s2jobs/README.md): A collection of Spark jobs to support OLAP on S2Graph.
+6. `s2counter_core`: The core library providing data structures and logics for `s2counter_loader`.
+7. `s2counter_loader`: Spark streaming jobs that consume Kafka WAL logs and calculate various top-*K* results on-the-fly.
+8. `s2graph_gremlin`: Gremlin plugin for tinkerpop users.
+
+The first four projects are for OLTP-style workloads, currently the main target of S2Graph.
+The remaining projects are for OLAP-style workloads, especially for integrating S2Graph with other projects, such as [Apache Spark](https://spark.apache.org/) and [Kafka](https://kafka.apache.org/).
 The ~~`loader` and `spark`~~ projects are deprecated by [`s2jobs`](s2jobs/README.md) since version 0.2.0.
 
-Note that, the OLAP-style workloads are under development and we are planning to provide documentations in the upcoming releases.  
-  
+Note that, the OLAP-style workloads are under development and we are planning to provide documentations in the upcoming releases.
+
 Your First Graph
 ================
 
@@ -273,19 +270,19 @@ S2Graph passes `Apache TinkerPop`'s `StructureStandardSuite` and `ProcessStandar
 - MultiProperties
 - MetaProperties
 - UuidIds
-- AnyIds 
+- AnyIds
 - NumericIds
 - StringIds
 
 ### Edge Features **not** implemented.
 - UuidIds
-- AnyIds 
+- AnyIds
 - NumericIds
 - StringIds
 
 ### Vertex property features **not** implemented.
 - UuidIds
-- AnyIds 
+- AnyIds
 - NumericIds
 - StringIds
 - MapValues
@@ -294,7 +291,7 @@ S2Graph passes `Apache TinkerPop`'s `StructureStandardSuite` and `ProcessStandar
 - ByteArrayValues
 - DoubleArrayValues
 - FloatArrayValues
-- IntegerArrayValues  
+- IntegerArrayValues
 - StringArrayValues
 - LongArrayValues
 - SerializableValues
@@ -307,7 +304,7 @@ S2Graph passes `Apache TinkerPop`'s `StructureStandardSuite` and `ProcessStandar
 - ByteArrayValues
 - DoubleArrayValues
 - FloatArrayValues
-- IntegerArrayValues  
+- IntegerArrayValues
 - StringArrayValues
 - LongArrayValues
 - SerializableValues
@@ -335,7 +332,7 @@ S2Graph is a singleton that can be shared among multiple threads. You instantiat
 
 Some important properties for configuration.
 
-#### HBase for data storage. 
+#### HBase for data storage.
 ```
 hbase.zookeeper.quorum=localhost:2181
 ```
@@ -437,26 +434,26 @@ Please checkout advanced example below to understand what data model is availabl
 It is possible to separate multiple namespaces into logical spaces.
 S2Graph achieve this by following data model. details can be found on https://steamshon.gitbooks.io/s2graph-book/content/the_data_model.html.
 
-1. Service: the top level abstraction 
+1. Service: the top level abstraction
 
 A convenient logical grouping of related entities
-Similar to the database abstraction that most relational databases support.       
+Similar to the database abstraction that most relational databases support.
 
 2. Column: belongs to a service.
 
-A set of homogeneous vertices such as users, news articles or tags. 
-Every vertex has a user-provided unique ID that allows the efficient lookup. 
+A set of homogeneous vertices such as users, news articles or tags.
+Every vertex has a user-provided unique ID that allows the efficient lookup.
 A service typically contains multiple columns.
 
 3. Label: schema for edge
 
-A set of homogeneous edges such as friendships, views, or clicks. 
-Relation between two columns as well as a recursive association within one column. 
+A set of homogeneous edges such as friendships, views, or clicks.
+Relation between two columns as well as a recursive association within one column.
 The two columns connected with a label may not necessarily be in the same service, allowing us to store and query data that spans over multiple services.
 
 Instead of convert user provided Id into internal unique numeric Id, S2Graph simply composite service and column metadata with user provided Id to guarantee global unique Id.
 
-Following is simple example to exploit these data model in s2graph.            
+Following is simple example to exploit these data model in s2graph.
 ```
 // init graph
 graph = S2Graph.open(new BaseConfiguration())
@@ -552,7 +549,7 @@ will be updated.
 ## Cache
 will be updated.
 
-## Gremlin 
+## Gremlin
 S2Graph has full support for gremlin. However gremlin’s fine grained graphy nature results in very high latency
 
 Provider suppose to provide `ProviderOptimization` to improve latency of traversal, and followings are currently available optimizations.

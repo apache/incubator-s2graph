@@ -126,44 +126,50 @@ object Label extends SQLSyntaxSupport[Label] {
     else sql.get
   }
 
-  def findByTgtColumnId(columnId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
+  def findByTgtColumnId(columnId: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession): List[Label] = {
     val cacheKey = className + "tgtColumnId=" + columnId
     val col = ServiceColumn.findById(columnId)
-    withCaches(cacheKey)(
-      sql"""
+    lazy val sql = sql"""
           select	*
           from	labels
           where	tgt_column_name = ${col.columnName}
           and service_id = ${col.serviceId}
           and deleted_at is null
-        """.map { rs => Label(rs) }.list().apply())
+        """.map { rs => Label(rs) }.list().apply()
+
+    if (useCache) withCaches(cacheKey)(sql)
+    else sql
   }
 
-  def findBySrcColumnId(columnId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
+  def findBySrcColumnId(columnId: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession): List[Label] = {
     val cacheKey = className + "srcColumnId=" + columnId
     val col = ServiceColumn.findById(columnId)
-    withCaches(cacheKey)(
-      sql"""
+    lazy val sql = sql"""
           select 	*
           from	labels
           where	src_column_name = ${col.columnName}
           and service_id = ${col.serviceId}
           and deleted_at is null
-        """.map { rs => Label(rs) }.list().apply())
+        """.map { rs => Label(rs) }.list().apply()
+
+    if (useCache) withCaches(cacheKey)(sql)
+    else sql
   }
 
-  def findBySrcServiceId(serviceId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
+  def findBySrcServiceId(serviceId: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession): List[Label] = {
     val cacheKey = className + "srcServiceId=" + serviceId
-    withCaches(cacheKey)(
-      sql"""select * from labels where src_service_id = ${serviceId} and deleted_at is null""".map { rs => Label(rs) }.list().apply
-    )
+    lazy val sql = sql"""select * from labels where src_service_id = ${serviceId} and deleted_at is null""".map { rs => Label(rs) }.list().apply
+
+    if (useCache) withCaches(cacheKey)(sql)
+    else sql
   }
 
-  def findByTgtServiceId(serviceId: Int)(implicit session: DBSession = AutoSession): List[Label] = {
+  def findByTgtServiceId(serviceId: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession): List[Label] = {
     val cacheKey = className + "tgtServiceId=" + serviceId
-    withCaches(cacheKey)(
-      sql"""select * from labels where tgt_service_id = ${serviceId} and deleted_at is null""".map { rs => Label(rs) }.list().apply
-    )
+    lazy val sql = sql"""select * from labels where tgt_service_id = ${serviceId} and deleted_at is null""".map { rs => Label(rs) }.list().apply
+
+    if (useCache) withCaches(cacheKey)(sql)
+    else sql
   }
 
   def insertAll(labelName: String, srcServiceName: String, srcColumnName: String, srcColumnType: String,

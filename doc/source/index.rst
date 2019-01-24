@@ -1,8 +1,3 @@
-.. S2Graph documentation master file, created by
-   sphinx-quickstart on Mon Nov 12 15:53:14 2018.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 Introduction
 ===================================
 
@@ -20,6 +15,8 @@ dev@s2graph.incubator.apache.org is for people who want to contribute to S2Graph
 
    getting_started/index
    getting_started/your_first_graph
+   design/data_model
+   api/index
 
 ..
    Indices and tables

@@ -1,3 +1,4 @@
+<!---
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -16,24 +17,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+--->
+# S2Graph HTTP Layer
 
-name := "s2graphql"
+## Development Setup
 
-version := "0.1"
+### Run Server 
+Let's run http server.
 
-description := "GraphQL server with akka-http and sangria and s2graph"
+```bash
+sbt 'project s2http' '~reStart'
+```
 
-scalacOptions ++= Seq("-deprecation", "-feature")
+When the server is running, connect to `http://localhost:8000`. If it works normally, you can see the following screen.
 
-libraryDependencies ++= Seq(
-  "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-  "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+```json
+{
+  "port": 8000,
+  "started_at": 1543218853354
+}
+```
 
-  "org.sangria-graphql" %% "sangria" % "1.4.2",
-  "org.sangria-graphql" %% "sangria-spray-json" % "1.0.1",
-  "org.sangria-graphql" %% "sangria-play-json" % "1.0.5" % Test,
+### API testing
+```test
+sbt 'project s2http' "test-only *s2graph.http*"
+```
 
-  "org.scalatest" %% "scalatest" % "3.0.5" % Test
-)
-
-Revolver.settings
+### API List
+  - link to S2GraphDocument

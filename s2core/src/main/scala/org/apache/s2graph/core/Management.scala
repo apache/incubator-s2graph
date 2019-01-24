@@ -66,16 +66,54 @@ object Management {
   }
 
   object JsonModel {
+    import play.api.libs.functional.syntax._
 
     case class Prop(name: String, defaultValue: String, dataType: String, storeInGlobalIndex: Boolean = false)
 
     object Prop extends ((String, String, String, Boolean) => Prop)
 
     case class Index(name: String, propNames: Seq[String], direction: Option[Int] = None, options: Option[String] = None)
+
+    case class HTableParams(cluster: String, hTableName: String,
+                            preSplitSize: Int, hTableTTL: Option[Int], compressionAlgorithm: Option[String]) {
+
+      override def toString(): String = {
+        s"""HtableParams
+           |-- cluster : $cluster
+           |-- hTableName : $hTableName
+           |-- preSplitSize : $preSplitSize
+           |-- hTableTTL : $hTableTTL
+           |-- compressionAlgorithm : $compressionAlgorithm
+           |""".stripMargin
+      }
+    }
+
+    implicit object HTableParamsJsonConverter extends Format[HTableParams] {
+      def reads(json: JsValue): JsResult[HTableParams] = (
+        (__ \ "cluster").read[String] and
+          (__ \ "hTableName").read[String] and
+          (__ \ "preSplitSize").read[Int] and
+          (__ \ "hTableTTL").readNullable[Int] and
+          (__ \ "compressionAlgorithm").readNullable[String])(HTableParams.apply _).reads(json)
+
+      def writes(o: HTableParams): JsValue = Json.obj(
+        "cluster" -> o.cluster,
+        "hTableName" -> o.hTableName,
+        "preSplitSize" -> o.preSplitSize,
+        "hTableTTL" -> o.hTableTTL,
+        "compressionAlgorithm" -> o.compressionAlgorithm
+      )
+    }
   }
 
   def findService(serviceName: String) = {
     Service.findByName(serviceName, useCache = false)
+  }
+
+  def findServiceColumn(serviceName: String, columnName: String): Option[ServiceColumn] = {
+    Service.findByName(serviceName, useCache = false).flatMap { service =>
+      ServiceColumn.find(service.id.get, columnName, useCache = false)
+    }
   }
 
   def deleteService(serviceName: String) = {
@@ -131,6 +169,12 @@ object Management {
 
   def findLabel(labelName: String, useCache: Boolean = false): Option[Label] = {
     Label.findByName(labelName, useCache = useCache)
+  }
+
+  def findLabels(serviceName: String, useCache: Boolean = false): Seq[Label] = {
+    Service.findByName(serviceName, useCache = useCache).map { service =>
+      Label.findBySrcServiceId(service.id.get, useCache = useCache)
+    }.getOrElse(Nil)
   }
 
   def deleteLabel(labelName: String): Try[Label] = {

@@ -16,22 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+lazy val akkaHttpVersion = "10.1.6"
+lazy val akkaVersion = "2.5.19"
 
-name := "s2graphql"
+name := "s2http"
 
 version := "0.1"
 
-description := "GraphQL server with akka-http and sangria and s2graph"
+description := "s2graph http server"
 
 scalacOptions ++= Seq("-deprecation", "-feature")
 
 libraryDependencies ++= Seq(
-  "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-  "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+  "com.typesafe.akka" %% "akka-http" % akkaHttpVersion,
+  "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion,
+  "com.typesafe.akka" %% "akka-stream" % akkaVersion,
 
-  "org.sangria-graphql" %% "sangria" % "1.4.2",
-  "org.sangria-graphql" %% "sangria-spray-json" % "1.0.1",
-  "org.sangria-graphql" %% "sangria-play-json" % "1.0.5" % Test,
+  "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpVersion % Test,
+  "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % Test,
 
   "org.scalatest" %% "scalatest" % "3.0.5" % Test
 )

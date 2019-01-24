@@ -17,7 +17,7 @@
 # starts/stops/restarts an S2Graph server
 
 usage="Usage: s2graph.sh (start|stop|restart|run|status)"
-usage="$usage (s2rest_play|s2rest_netty|s2graphql|...)"
+usage="$usage (s2http)"
 
 bin=$(cd "$(dirname "${BASH_SOURCE-$0}")">/dev/null; pwd)
 

@@ -46,6 +46,8 @@ extensions = [
     'sphinx.ext.githubpages',
 ]
 
+html_style = 'css/s2graph_style.css'
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
