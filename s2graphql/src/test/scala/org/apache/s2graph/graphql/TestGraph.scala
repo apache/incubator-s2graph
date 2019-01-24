@@ -85,7 +85,7 @@ class EmptyGraph(config: Config) extends TestGraph {
 
   override def cleanup(): Unit = graph.shutdown(true)
 
-  override def schema: Schema[GraphRepository, Any] = new SchemaDef(s2Repository).S2GraphSchema
+  override def schema: Schema[GraphRepository, Any] = new SchemaDef(s2Repository).schema
 
   override def showSchema: String = SchemaRenderer.renderSchema(schema)
 

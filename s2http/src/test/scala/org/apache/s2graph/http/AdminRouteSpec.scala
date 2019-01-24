@@ -12,12 +12,16 @@ import org.slf4j.LoggerFactory
 import play.api.libs.json.{JsString, JsValue, Json}
 
 class AdminRoutesSpec extends WordSpec with Matchers with ScalaFutures with ScalatestRouteTest with S2GraphAdminRoute with BeforeAndAfterAll {
-  val config = ConfigFactory.load()
-  val s2graph = new S2Graph(config)
+  import scala.collection.JavaConverters._
+
+  val dbUrl = "jdbc:h2:file:./var/metastore_admin_route;MODE=MYSQL;AUTO_SERVER=true"
+  val config =
+    ConfigFactory.parseMap(Map("db.default.url" -> dbUrl).asJava)
+  lazy val s2graph = new S2Graph(config.withFallback(ConfigFactory.load()))
   override val logger = LoggerFactory.getLogger(this.getClass)
 
   override def afterAll(): Unit = {
-    s2graph.shutdown()
+    s2graph.shutdown(true)
   }
 
   lazy val routes = adminRoute
