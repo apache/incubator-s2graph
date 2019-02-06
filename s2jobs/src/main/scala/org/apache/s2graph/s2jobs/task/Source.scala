@@ -19,26 +19,26 @@
 
 package org.apache.s2graph.s2jobs.task
 
+import org.apache.s2graph.core.types.HBaseType
 import org.apache.s2graph.core.{JSONParser, Management}
 import org.apache.s2graph.s2jobs.Schema
-import org.apache.s2graph.s2jobs.loader.{HFileGenerator, SparkBulkLoaderTransformer}
-import org.apache.s2graph.s2jobs.serde.reader.S2GraphCellReader
-import org.apache.s2graph.s2jobs.serde.writer.RowDataFrameWriter
+import org.apache.s2graph.s2jobs.loader.HFileGenerator
+import org.apache.s2graph.s2jobs.wal.utils.{DeserializeUtil, SchemaUtil}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import play.api.libs.json.{JsObject, Json}
-
 
 /**
   * Source
   *
   * @param conf
   */
-abstract class Source(override val conf:TaskConf) extends Task {
-  def toDF(ss:SparkSession):DataFrame
+abstract class Source(override val conf: TaskConf) extends Task {
+  def toDF(ss: SparkSession): DataFrame
 }
 
-class KafkaSource(conf:TaskConf) extends Source(conf) {
+class KafkaSource(conf: TaskConf) extends Source(conf) {
   val DEFAULT_FORMAT = "raw"
+
   override def mandatoryOptions: Set[String] = Set("kafka.bootstrap.servers", "subscribe")
 
   def repartition(df: DataFrame, defaultParallelism: Int) = {
@@ -51,7 +51,7 @@ class KafkaSource(conf:TaskConf) extends Source(conf) {
     }
   }
 
-  override def toDF(ss:SparkSession):DataFrame = {
+  override def toDF(ss: SparkSession): DataFrame = {
     logger.info(s"${LOG_PREFIX} options: ${conf.options}")
 
     val format = conf.options.getOrElse("format", "raw")
@@ -61,22 +61,22 @@ class KafkaSource(conf:TaskConf) extends Source(conf) {
     format match {
       case "raw" => partitionedDF
       case "json" => parseJsonSchema(ss, partitionedDF)
-//      case "custom" => parseCustomSchema(df)
+      //      case "custom" => parseCustomSchema(df)
       case _ =>
         logger.warn(s"${LOG_PREFIX} unsupported format '$format'.. use default schema ")
         partitionedDF
     }
   }
 
-  def parseJsonSchema(ss:SparkSession, df:DataFrame):DataFrame = {
+  def parseJsonSchema(ss: SparkSession, df: DataFrame): DataFrame = {
     import org.apache.spark.sql.functions.from_json
     import org.apache.spark.sql.types.DataType
     import ss.implicits._
 
     val schemaOpt = conf.options.get("schema")
     schemaOpt match {
-      case Some(schemaAsJson:String) =>
-        val dataType:DataType = DataType.fromJson(schemaAsJson)
+      case Some(schemaAsJson: String) =>
+        val dataType: DataType = DataType.fromJson(schemaAsJson)
         logger.debug(s"${LOG_PREFIX} schema : ${dataType.sql}")
 
         df.selectExpr("CAST(value AS STRING)")
@@ -90,8 +90,9 @@ class KafkaSource(conf:TaskConf) extends Source(conf) {
   }
 }
 
-class FileSource(conf:TaskConf) extends Source(conf) {
+class FileSource(conf: TaskConf) extends Source(conf) {
   val DEFAULT_FORMAT = "parquet"
+
   override def mandatoryOptions: Set[String] = Set("paths")
 
   override def toDF(ss: SparkSession): DataFrame = {
@@ -119,7 +120,8 @@ class FileSource(conf:TaskConf) extends Source(conf) {
   }
 }
 
-class HiveSource(conf:TaskConf) extends Source(conf) {
+
+class HiveSource(conf: TaskConf) extends Source(conf) {
   override def mandatoryOptions: Set[String] = Set("database", "table")
 
   override def toDF(ss: SparkSession): DataFrame = {
@@ -140,40 +142,72 @@ class JdbcSource(conf:TaskConf) extends Source(conf) {
 }
 
 class S2GraphSource(conf: TaskConf) extends Source(conf) {
+
   import org.apache.s2graph.spark.sql.streaming.S2SourceConfigs._
+
   override def mandatoryOptions: Set[String] = Set(
     S2_SOURCE_BULKLOAD_HBASE_ROOT_DIR,
     S2_SOURCE_BULKLOAD_RESTORE_PATH,
-    S2_SOURCE_BULKLOAD_HBASE_TABLE_NAMES
+    S2_SOURCE_BULKLOAD_HBASE_TABLE_NAMES,
+    S2_SOURCE_BULKLOAD_LABEL_NAMES
   )
 
   override def toDF(ss: SparkSession): DataFrame = {
+    /*
+     * overwrite HBASE + MetaStorage + LocalCache configuration from given option.
+     */
     val mergedConf = TaskConf.parseHBaseConfigs(conf) ++ TaskConf.parseMetaStoreConfigs(conf) ++
       TaskConf.parseLocalCacheConfigs(conf)
     val config = Management.toConfig(mergedConf)
+
+    /*
+      * initialize meta storage connection.
+      * note that we only connect meta storage once at spark driver,
+      * then build schema manager which is serializable and broadcast it to executors.
+      *
+      * schema manager responsible for translation between logical logical representation and physical representation.
+      *
+      */
+    SchemaUtil.init(config)
+
+    val sc = ss.sparkContext
 
     val snapshotPath = conf.options(S2_SOURCE_BULKLOAD_HBASE_ROOT_DIR)
     val restorePath = conf.options(S2_SOURCE_BULKLOAD_RESTORE_PATH)
     val tableNames = conf.options(S2_SOURCE_BULKLOAD_HBASE_TABLE_NAMES).split(",")
     val columnFamily = conf.options.getOrElse(S2_SOURCE_BULKLOAD_HBASE_TABLE_CF, "e")
     val batchSize = conf.options.getOrElse(S2_SOURCE_BULKLOAD_SCAN_BATCH_SIZE, "1000").toInt
+    val labelNames = conf.options(S2_SOURCE_BULKLOAD_LABEL_NAMES).split(",").toSeq
 
     val labelMapping = Map.empty[String, String]
     val buildDegree =
       if (columnFamily == "v") false
       else conf.options.getOrElse(S2_SOURCE_BULKLOAD_BUILD_DEGREE, "false").toBoolean
-    val elementType = conf.options.getOrElse(S2_SOURCE_ELEMENT_TYPE, "IndexEdge")
-    val schema = if (columnFamily == "v") Schema.VertexSchema else Schema.EdgeSchema
+    val elementType = conf.options.getOrElse(S2_SOURCE_ELEMENT_TYPE, "IndexEdge").toLowerCase
+
+    val resultSchema = if (columnFamily == "v") Schema.VertexSchema else Schema.EdgeSchema
 
     val cells = HFileGenerator.tableSnapshotDump(ss, config, snapshotPath,
       restorePath, tableNames, columnFamily, batchSize, labelMapping, buildDegree)
 
-    implicit val reader = new S2GraphCellReader(elementType)
-    implicit val writer = new RowDataFrameWriter
+    val schema = SchemaUtil.buildEdgeDeserializeSchema(labelNames)
+    val schemaBCast = sc.broadcast(schema)
+    val tallSchemaVersions = Set(HBaseType.VERSION4)
+    val tgtDirection = 0
 
-    val transformer = new SparkBulkLoaderTransformer(config, labelMapping, buildDegree)
-    val kvs = transformer.transform(cells)
+    val results = cells.mapPartitions { iter =>
+      val schema = schemaBCast.value
 
-    ss.sqlContext.createDataFrame(kvs, schema)
+      iter.flatMap { case (_, result) =>
+        elementType.toLowerCase match {
+          case "indexedge" => DeserializeUtil.indexEdgeResultToWals(result, schema, tallSchemaVersions, tgtDirection).map(DeserializeUtil.walLogToRow)
+          case "snapshotedge" => DeserializeUtil.snapshotEdgeResultToWals(result, schema, tallSchemaVersions).map(DeserializeUtil.walLogToRow)
+          case "vertex" => DeserializeUtil.vertexResultToWals(result, schema).map(DeserializeUtil.walVertexToRow)
+          case _ => throw new IllegalArgumentException(s"$elementType is not supported.")
+        }
+      }
+    }
+
+    ss.createDataFrame(results, resultSchema)
   }
 }

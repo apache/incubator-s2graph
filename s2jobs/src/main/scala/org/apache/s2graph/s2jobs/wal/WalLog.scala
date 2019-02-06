@@ -1,7 +1,7 @@
 package org.apache.s2graph.s2jobs.wal
 
 import com.google.common.hash.Hashing
-import org.apache.s2graph.core.{GraphUtil, JSONParser}
+import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.s2jobs.wal.process.params.AggregateParam
 import org.apache.s2graph.s2jobs.wal.transformer.Transformer
 import org.apache.s2graph.s2jobs.wal.utils.BoundedPriorityQueue
@@ -104,8 +104,8 @@ object WalLogAgg {
 
 
   private def filterPropsInner(walLogs: Seq[WalLog],
-                          transformers: Seq[Transformer],
-                          validFeatureHashKeys: Set[Long]): Seq[WalLog] = {
+                               transformers: Seq[Transformer],
+                               validFeatureHashKeys: Set[Long]): Seq[WalLog] = {
     walLogs.map { walLog =>
       val fields = walLog.propsJson.fields.filter { case (propKey, propValue) =>
         val filtered = transformers.flatMap { transformer =>
@@ -119,8 +119,8 @@ object WalLogAgg {
   }
 
   def filterProps(walLogAgg: WalLogAgg,
-                        transformers: Seq[Transformer],
-                        validFeatureHashKeys: Set[Long]) = {
+                  transformers: Seq[Transformer],
+                  validFeatureHashKeys: Set[Long]) = {
     val filteredVertices = filterPropsInner(walLogAgg.vertices, transformers, validFeatureHashKeys)
     val filteredEdges = filterPropsInner(walLogAgg.edges, transformers, validFeatureHashKeys)
 
@@ -176,6 +176,28 @@ case class WalLog(timestamp: Long,
   }
 }
 
+object WalVertex {
+  def fromWalLog(walLog: WalLog): WalVertex = {
+    WalVertex(
+      walLog.timestamp,
+      walLog.operation,
+      walLog.elem,
+      walLog.from,
+      walLog.service,
+      walLog.label,
+      walLog.props
+    )
+  }
+}
+
+case class WalVertex(timestamp: Long,
+                     operation: String,
+                     elem: String,
+                     id: String,
+                     service: String,
+                     column: String,
+                     props: String)
+
 object WalLog {
   val orderByTsAsc = Ordering.by[WalLog, Long](walLog => walLog.timestamp)
 
@@ -203,6 +225,4 @@ object WalLog {
 
     WalLog(timestamp, operation, elem, from, to, service, label, props)
   }
-
-
 }

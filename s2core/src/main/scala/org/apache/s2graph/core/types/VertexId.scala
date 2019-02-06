@@ -29,6 +29,18 @@ import play.api.libs.json.Json
 object VertexId extends HBaseDeserializable {
   import HBaseType._
 
+  def fromBytesRaw(bytes: Array[Byte],
+                   offset: Int,
+                   len: Int,
+                   version: String = DEFAULT_VERSION): (InnerValLike, Int, Int) = {
+    var pos = offset + GraphUtil.bytesForMurMurHash
+
+    val (innerId, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, len, version, isVertexId = true)
+    pos += numOfBytesUsed
+    val colId = Bytes.toInt(bytes, pos, 4)
+
+    (innerId, colId, GraphUtil.bytesForMurMurHash + numOfBytesUsed + 4)
+  }
 
   def fromBytes(bytes: Array[Byte],
                 offset: Int,

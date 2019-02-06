@@ -20,11 +20,15 @@
 package org.apache.s2graph.s2jobs.task
 
 import com.typesafe.config.{Config, ConfigFactory, ConfigRenderOptions}
-import org.apache.s2graph.core.GraphUtil
+import org.apache.hadoop.hbase.KeyValue
+import org.apache.s2graph.core.types.HBaseType
+import org.apache.s2graph.core.{GraphUtil, Management}
 import org.apache.s2graph.s2jobs.S2GraphHelper
 import org.apache.s2graph.s2jobs.loader.{HFileGenerator, SparkBulkLoaderTransformer}
 import org.apache.s2graph.s2jobs.serde.reader.RowBulkFormatReader
 import org.apache.s2graph.s2jobs.serde.writer.KeyValueWriter
+import org.apache.s2graph.s2jobs.wal.WalLog
+import org.apache.s2graph.s2jobs.wal.utils.{SchemaUtil, SerializeUtil}
 import org.apache.spark.sql._
 import org.apache.spark.sql.streaming.{DataStreamWriter, OutputMode, Trigger}
 import org.elasticsearch.spark.sql.EsSparkSQL
@@ -233,38 +237,70 @@ class S2GraphSink(queryName: String, conf: TaskConf) extends Sink(queryName, con
   override val FORMAT: String = "org.apache.s2graph.spark.sql.streaming.S2SinkProvider"
 
   private def writeBatchBulkload(df: DataFrame, runLoadIncrementalHFiles: Boolean = true): Unit = {
-    val mergedOptions = conf.options ++ TaskConf.parseLocalCacheConfigs(conf)
-    val graphConfig: Config = ConfigFactory.parseMap(mergedOptions).withFallback(ConfigFactory.load())
+    /*
+    * overwrite HBASE + MetaStorage + LocalCache configuration from given option.
+    */
+    val mergedConf = TaskConf.parseHBaseConfigs(conf) ++ TaskConf.parseMetaStoreConfigs(conf) ++
+      TaskConf.parseLocalCacheConfigs(conf)
+    val config = Management.toConfig(mergedConf)
+
+    /*
+      * initialize meta storage connection.
+      * note that we only connect meta storage once at spark driver,
+      * then build schema manager which is serializable and broadcast it to executors.
+      *
+      * schema manager responsible for translation between logical logical representation and physical representation.
+      *
+      */
+    SchemaUtil.init(config)
+    val ss = df.sparkSession
+    val sc = ss.sparkContext
 
     // required for bulkload
-    val labelMapping = getConfigStringOpt(graphConfig, S2_SINK_BULKLOAD_LABEL_MAPPING).map(GraphUtil.toLabelMapping).getOrElse(Map.empty)
-    val buildDegree = getConfigStringOpt(graphConfig, S2_SINK_BULKLOAD_BUILD_DEGREE).map(_.toBoolean).getOrElse(false)
-    val autoEdgeCreate = getConfigStringOpt(graphConfig, S2_SINK_BULKLOAD_AUTO_EDGE_CREATE).map(_.toBoolean).getOrElse(false)
-    val skipError = getConfigStringOpt(graphConfig, S2_SINK_SKIP_ERROR).map(_.toBoolean).getOrElse(false)
+    val labelMapping = getConfigStringOpt(config, S2_SINK_BULKLOAD_LABEL_MAPPING).map(GraphUtil.toLabelMapping).getOrElse(Map.empty)
+    val buildDegree = getConfigStringOpt(config, S2_SINK_BULKLOAD_BUILD_DEGREE).map(_.toBoolean).getOrElse(false)
+    val autoEdgeCreate = getConfigStringOpt(config, S2_SINK_BULKLOAD_AUTO_EDGE_CREATE).map(_.toBoolean).getOrElse(false)
+    val skipError = getConfigStringOpt(config, S2_SINK_SKIP_ERROR).map(_.toBoolean).getOrElse(false)
 
-    val zkQuorum = graphConfig.getString(HBaseConfigs.HBASE_ZOOKEEPER_QUORUM)
-    val tableName = graphConfig.getString(S2_SINK_BULKLOAD_HBASE_TABLE_NAME)
+    val zkQuorum = config.getString(HBaseConfigs.HBASE_ZOOKEEPER_QUORUM)
+    val tableName = config.getString(S2_SINK_BULKLOAD_HBASE_TABLE_NAME)
 
-    val numRegions = graphConfig.getString(S2_SINK_BULKLOAD_HBASE_NUM_REGIONS).toInt
-    val outputPath = graphConfig.getString(S2_SINK_BULKLOAD_HBASE_TEMP_DIR)
+    val numRegions = config.getString(S2_SINK_BULKLOAD_HBASE_NUM_REGIONS).toInt
+    val outputPath = config.getString(S2_SINK_BULKLOAD_HBASE_TEMP_DIR)
 
     // optional.
-    val incrementalLoad = getConfigStringOpt(graphConfig, S2_SINK_BULKLOAD_HBASE_INCREMENTAL_LOAD).map(_.toBoolean).getOrElse(false)
-    val compressionAlgorithm = getConfigStringOpt(graphConfig, S2_SINK_BULKLOAD_HBASE_COMPRESSION).getOrElse("lz4")
+    val incrementalLoad = getConfigStringOpt(config, S2_SINK_BULKLOAD_HBASE_INCREMENTAL_LOAD).map(_.toBoolean).getOrElse(false)
+    val compressionAlgorithm = getConfigStringOpt(config, S2_SINK_BULKLOAD_HBASE_COMPRESSION).getOrElse("lz4")
 
     val hbaseConfig = HFileGenerator.toHBaseConfig(zkQuorum, tableName)
 
-    val input = df.rdd
+    val schema = SchemaUtil.buildSchemaManager(Map.empty, Nil)
+    val schemaBCast = sc.broadcast(schema)
+    val tallSchemaVersions = Set(HBaseType.VERSION4)
 
-    val transformer = new SparkBulkLoaderTransformer(graphConfig, labelMapping, buildDegree)
+    implicit val enc = Encoders.kryo[KeyValue]
 
-    implicit val reader = new RowBulkFormatReader
-    implicit val writer = new KeyValueWriter(autoEdgeCreate, skipError)
+    val kvs = df.mapPartitions { iter =>
+      val schema = schemaBCast.value
 
-    val kvs = transformer.transform(input)
+      iter.flatMap { row =>
+        val walLog = WalLog.fromRow(row)
 
-    HFileGenerator.generateHFile(df.sparkSession.sparkContext, graphConfig,
-      kvs.flatMap(ls => ls), hbaseConfig, tableName,
+        SerializeUtil.walToSKeyValues(walLog, schema, tallSchemaVersions)
+          .map(SerializeUtil.sKeyValueToKeyValue)
+      }
+    }
+
+//    val input = df
+//    val transformer = new SparkBulkLoaderTransformer(graphConfig, labelMapping, buildDegree)
+//
+//    implicit val reader = new RowBulkFormatReader
+//    implicit val writer = new KeyValueWriter(autoEdgeCreate, skipError)
+//
+//    val kvs = transformer.transform(input).flatMap(ls => ls)
+
+    HFileGenerator.generateHFile(df.sparkSession.sparkContext, config,
+      kvs.rdd, hbaseConfig, tableName,
       numRegions, outputPath, incrementalLoad, compressionAlgorithm
     )
 
