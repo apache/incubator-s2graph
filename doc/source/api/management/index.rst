@@ -36,9 +36,9 @@ Basic Service Operations
 
 You can create a service using the following API:
 
-.. code:: bash
+.. parsed-literal::
 
-  curl -XPOST localhost:9000/admin/createService -H 'Content-Type: Application/json' -d '
+  curl -XPOST |example_base_url|/admin/createService -H 'Content-Type: Application/json' -d '
   {
      "serviceName": "s2graph",
      "cluster": "address for zookeeper",
@@ -133,9 +133,9 @@ Basic Label Operations
 Here is an sample request that creates a label ``user_article_liked`` between column ``user_id`` of service ``s2graph`` and column ``article_id`` of service ``s2graph_news``.
 Note that the default indexed property ``_timestamp`` will be created since the ``indexedProps`` field is empty.
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/admin/createLabel -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/admin/createLabel -H 'Content-Type: Application/json' -d '
    {
      "label": "user_article_liked",
      "srcServiceName": "s2graph",
@@ -156,9 +156,9 @@ This time, edges are managed by both affinity_score and ``_timestamp``.
 
 Friends with higher affinity_scores come first and if affinity_score is a tie, recently added friends comes first.
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/admin/createLabel -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/admin/createLabel -H 'Content-Type: Application/json' -d '
    {
      "label": "friends",
      "srcServiceName": "s2graph",
@@ -184,9 +184,9 @@ Friends with higher affinity_scores come first and if affinity_score is a tie, r
 S2Graph supports **multiple indices** on a label which means you can add separate ordering options for edges.
 
 
-.. code:: bash
+.. parsed-literal::
 
-    curl -XPOST localhost:9000/admin/addIndex -H 'Content-Type: Application/json' -d '
+    curl -XPOST |example_base_url|/admin/addIndex -H 'Content-Type: Application/json' -d '
     {
       "label": "friends",
       "indices": [
@@ -196,16 +196,16 @@ S2Graph supports **multiple indices** on a label which means you can add separat
 
 In order to get general information on a label, make a GET request to ``/admin/getLabel/{label name}``
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XGET localhost:9000/admin/getLabel/friends
+   curl -XGET |example_base_url|/admin/getLabel/friends
 
 
 Delete a label with a PUT request to ``/admin/deleteLabel/{label name}``
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPUT localhost:9000/admin/deleteLabel/friends
+   curl -XPUT |example_base_url|/admin/deleteLabel/friends
 
 
 Label updates are not supported (except when you are adding an index). Instead, you can delete the label and re-create it.
@@ -215,9 +215,9 @@ Adding Extra Properties to Labels
 
 To add a new property, use ``/admin/addProp/{label name}``
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/admin/addProp/friend -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/admin/addProp/friend -H 'Content-Type: Application/json' -d '
    {
      "name": "is_blocked",
      "defaultValue": false,
@@ -343,14 +343,14 @@ Using a vertex-centric index, having millions of edges is fine as long as size K
 New indexes can be dynamically added, but will not be applied to pre-existing data (support for this is planned for future versions). Currently, a label can have up to eight indices.
 The following is an example of adding index ``play_count`` to a label ``graph_test``.
 
-.. code:: bash
+.. parsed-literal::
 
    # add prop first
-   curl -XPOST localhost:9000/admin/addProp/graph_test -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/admin/addProp/graph_test -H 'Content-Type: Application/json' -d '
    { "name": "play_count", "defaultValue": 0, "dataType": "integer" }'
 
    # then add index
-   curl -XPOST localhost:9000/admin/addIndex -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/admin/addIndex -H 'Content-Type: Application/json' -d '
    {
      "label": "graph_test",
       "indices": [
@@ -392,9 +392,9 @@ Basic Service Column Operations
 Here are some sample requests for Service Column creation as well as vertex insertion and selection.
 
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/admin/createServiceColumn -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/admin/createServiceColumn -H 'Content-Type: Application/json' -d '
    {
      "serviceName": "s2graph",
      "columnName": "user_id",
@@ -410,25 +410,25 @@ Here are some sample requests for Service Column creation as well as vertex inse
 
 General information on a vertex schema can be retrieved with ``/admin/getServiceColumn/{service name}/{column name}``
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XGET localhost:9000/admin/getServiceColumn/s2graph/user_id
+   curl -XGET |example_base_url|/admin/getServiceColumn/s2graph/user_id
 
 This will give all properties on serviceName ``s2graph`` and columnName ``user_id`` serviceColumn.
 Properties can be added to a Service Column with ``/admin/addServiceColumnProps/{service name}/{column name}``
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/admin/addServiceColumnProps/s2graph/user_id -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/admin/addServiceColumnProps/s2graph/user_id -H 'Content-Type: Application/json' -d '
    [
      {"name": "home_address", "defaultValue": "korea", "dataType": "string"}
    ]'
 
 Vertices can be inserted to a Service Column using ``/admin/vertices/insert/{service name}/{column name}``
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/mutate/vertex/insert/s2graph/user_id -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/mutate/vertex/insert/s2graph/user_id -H 'Content-Type: Application/json' -d '
    [
      {"id":1,"props":{"is_active":true}, "timestamp":1417616431},
      {"id":2,"props":{},"timestamp":1417616431}
@@ -436,9 +436,9 @@ Vertices can be inserted to a Service Column using ``/admin/vertices/insert/{ser
 
 Finally, query your vertex via ``/graphs/getVertices``
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/graphs/getVertices -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/graphs/getVertices -H 'Content-Type: Application/json' -d '
    [
      {"serviceName": "s2graph", "columnName": "user_id", "ids": [1, 2, 3]}
    ]'

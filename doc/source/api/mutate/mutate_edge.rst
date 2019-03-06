@@ -46,9 +46,9 @@ Then insert a same set of edges to each labels and query them as follows.
 
 **strong consistency**
 
-.. code:: bash
+.. parsed-literal::
 
-  curl -XPOST localhosnt:9000/graphs/edges/insert -H 'Content-Type: Application/json' -d '
+  curl -XPOST |example_base_url|/graphs/edges/insert -H 'Content-Type: Application/json' -d '
   [
     {"timestamp": 1, "from": 101, "to": 10, "label": "s2graph_label_test", "props": {"time": 0}},
     {"timestamp": 2, "from": 101, "to": 10, "label": "s2graph_label_test", "props": {"time": -10}},
@@ -94,9 +94,9 @@ Note that only one edge exist between (101, 10, s2graph_label_test, out).
 
 **weak consistency**
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/graphs/edges/insert -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/graphs/edges/insert -H 'Content-Type: Application/json' -d '
    [
      {"timestamp": 1, "from": 101, "to": 10, "label": "s2graph_label_test_weak", "props": {"time": 0}},
      {"timestamp": 2, "from": 101, "to": 10, "label": "s2graph_label_test_weak", "props": {"time": -10}},
@@ -188,9 +188,9 @@ Delete - ``POST /mutate/edge/delete``
 
 For edge deletion, again, S2Graph looks for a unique edge with (from, to, label, direction). However, this time it checks the timestamp of the delete request and the existing edge. The timestamp on the delete request ``must be larger than that on the existing edge`` or else the request will be ignored. If everything is well, the edge will be deleted. Also note that no props information is necessary for a delete request on a strongly consistent label since there will be only one edge with edge`s unique id(from, to, label, direction).
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/mutate/edge/delete -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/mutate/edge/delete -H 'Content-Type: Application/json' -d '
    [
      {"timestamp": 10, "from": 101, "to": 10, "label": "s2graph_label_test"}
    ]'
@@ -201,9 +201,9 @@ Update - ``POST /mutate/edge/update``
 What an update operation does to a strongly consistent label is identical to an insert.
 
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/mutate/edge/update -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/mutate/edge/update -H 'Content-Type: Application/json' -d '
    [
      {"timestamp": 10, "from": 101, "to": 10, "label": "s2graph_label_test", "props": {"time": 100, "weight": -10}}
    ]'
@@ -214,9 +214,9 @@ Increment - ``POST /mutate/edge/increment``
 
 Works like update, other than it returns the incremented value and not the old value.
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/mutate/edge/increment -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/mutate/edge/increment -H 'Content-Type: Application/json' -d '
    [
      {"timestamp": 10, "from": 101, "to": 10, "label": "s2graph_label_test", "props": {"time": 100, "weight": -10}}
    ]'
@@ -226,9 +226,9 @@ Delete All - ``POST /mutate/edge/deleteAll``
 
 Delete all adjacent edges to the source vertex. ``Please note that edges with both in and out directions will be deleted``
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/mutate/edge/deleteAll -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/mutate/edge/deleteAll -H 'Content-Type: Application/json' -d '
    [
      {"ids" : [101], "label":"s2graph_label_test", "direction": "out", "timestamp":1417616441000}
    ]'
@@ -248,9 +248,9 @@ Delete - ``POST /graphs/edges/delete``
 
 For deletion on weakly consistent edges, first, S2Graph fetches existing edges from storage. Then, on each resulting edges, fires the actual delete operations.
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/graphs/edges/delete -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/graphs/edges/delete -H 'Content-Type: Application/json' -d '
    [
      {
        "cacheRemain": -148,
@@ -320,9 +320,9 @@ Delete All - ``POST /mutate/edge/deleteAll``
 
 Identical to strong consistency.
 
-.. code:: bash
+.. parsed-literal::
 
-   curl -XPOST localhost:9000/mutate/edge/deleteAll -H 'Content-Type: Application/json' -d '
+   curl -XPOST |example_base_url|/mutate/edge/deleteAll -H 'Content-Type: Application/json' -d '
    [
      {"ids" : [101], "label":"s2graph_label_test", "direction": "out", "timestamp":1417616441}
    ]'
